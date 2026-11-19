@@ -33,7 +33,7 @@ export class CodexReplayTranscriptDecodeError extends Schema.TaggedError<CodexRe
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Failed to decode Codex app-server replay transcript for scenario ${this.scenario ?? "<unknown>"}.`;
   }
 }
@@ -48,12 +48,20 @@ export type CodexOrchestratorReplayHarnessError = typeof CodexOrchestratorReplay
 export function withCodexReplayChildMetadata(
   client: CodexClient.CodexAppServerClient["Service"],
   transcript: CodexReplay.CodexAppServerReplayTranscript,
+  readMetadata?: (
+    threadId: string,
+    method: "thread/read" | "thread/resume",
+  ) => Effect.Effect<unknown, CodexError.CodexAppServerError>,
+): CodexClient.CodexAppServerClient["Service"];
+export function withCodexReplayChildMetadata(
+  client: CodexClient.CodexAppServerClient["Service"],
+  transcript: CodexReplay.CodexAppServerReplayTranscript,
   readMetadata: (
     threadId: string,
     method: "thread/read" | "thread/resume",
   ) => Effect.Effect<unknown, CodexError.CodexAppServerError> = (threadId) =>
     Effect.succeed({ thread: { id: threadId }, model: null }),
-): CodexClient.CodexAppServerClient["Service"] {
+) {
   const childThreadIds = new Set(
     transcript.entries.flatMap((entry) => {
       if (entry.type !== "emit_inbound" || !Predicate.isObject(entry.frame)) return [];
@@ -81,14 +89,10 @@ export function withCodexReplayChildMetadata(
           ? readMetadata(params.threadId, method)
           : client.raw.request(method, params),
     },
-  };
+  } satisfies CodexClient.CodexAppServerClient["Service"];
 }
 
-function metadataFromTranscript(transcript: ProviderReplayTranscript): {
-  readonly provider?: string;
-  readonly protocol?: string;
-  readonly scenario?: string;
-} {
+function metadataFromTranscript(transcript: ProviderReplayTranscript) {
   return {
     provider: transcript.provider,
     protocol: transcript.protocol,

@@ -18,7 +18,7 @@ export function resolveUserMessageFileCards(message: {
   readonly text: string;
   readonly attachments: ReadonlyArray<ChatAttachment>;
   readonly context?: OrchestrationMessageContext | undefined;
-}): ReadonlyArray<ChatFileAttachment> | null {
+}) {
   const files = message.attachments.filter(
     (attachment): attachment is ChatFileAttachment =>
       attachment.type === "file" &&
@@ -51,15 +51,30 @@ export function resolveUserMessagePresentation(message: {
   readonly text: string;
   readonly attribution: "automation" | "agent" | "supaterm" | null;
   readonly scheduledTaskId: ScheduledTaskId | undefined;
-} {
+};
+export function resolveUserMessagePresentation(message: {
+  readonly role: string;
+  readonly text: string;
+  readonly createdBy?: OrchestrationV2Actor;
+  readonly creationSource?: OrchestrationV2CreationSource;
+  readonly scheduledTaskId?: ScheduledTaskId | undefined;
+}) {
   if (message.role !== "user") {
-    return { text: message.text, attribution: null, scheduledTaskId: undefined };
+    return { text: message.text, attribution: null, scheduledTaskId: undefined } satisfies {
+      readonly text: string;
+      readonly attribution: "automation" | "agent" | "supaterm" | null;
+      readonly scheduledTaskId: ScheduledTaskId | undefined;
+    };
   }
   if (message.scheduledTaskId !== undefined) {
     return {
       text: message.text,
       attribution: "automation",
       scheduledTaskId: message.scheduledTaskId,
+    } satisfies {
+      readonly text: string;
+      readonly attribution: "automation" | "agent" | "supaterm" | null;
+      readonly scheduledTaskId: ScheduledTaskId | undefined;
     };
   }
   return {
@@ -71,6 +86,10 @@ export function resolveUserMessagePresentation(message: {
           ? "supaterm"
           : "agent",
     scheduledTaskId: undefined,
+  } satisfies {
+    readonly text: string;
+    readonly attribution: "automation" | "agent" | "supaterm" | null;
+    readonly scheduledTaskId: ScheduledTaskId | undefined;
   };
 }
 

@@ -20,21 +20,25 @@ export type MarkdownImageSource =
   | { readonly _tag: "WorkspaceFile"; readonly path: string; readonly relative?: true }
   | { readonly _tag: "Blocked" };
 
-export function markdownImageSourceFragment(source: string): string {
-  return splitMarkdownLinkSearchAndHash(normalizeMarkdownLinkDestination(source)).hash;
+export function markdownImageSourceFragment(source: string): string;
+export function markdownImageSourceFragment(source: string) {
+  return splitMarkdownLinkSearchAndHash(normalizeMarkdownLinkDestination(source))
+    .hash satisfies string;
 }
 
-function joinWorkspacePath(workspaceRoot: string, relativePath: string): string {
+function joinWorkspacePath(workspaceRoot: string, relativePath: string) {
   const separator = isWindowsAbsolutePath(workspaceRoot) ? "\\" : "/";
   const root = workspaceRoot.replace(/[\\/]+$/, "");
   const path = relativePath.replace(/[\\/]/g, separator).replace(/^[\\/]+/, "");
   return `${root}${separator}${path}`;
 }
 
-function hostFileSource(path: string, projectRoot: string | null | undefined): MarkdownImageSource {
-  return isNetworkPath(path) && workspaceRelativeFilePath(path, projectRoot) === null
-    ? { _tag: "Blocked" }
-    : { _tag: "WorkspaceFile", path };
+function hostFileSource(path: string, projectRoot: string | null | undefined) {
+  return (
+    isNetworkPath(path) && workspaceRelativeFilePath(path, projectRoot) === null
+      ? { _tag: "Blocked" }
+      : { _tag: "WorkspaceFile", path }
+  ) satisfies MarkdownImageSource;
 }
 
 /**
@@ -44,39 +48,51 @@ function hostFileSource(path: string, projectRoot: string | null | undefined): M
 export function classifyMarkdownImageSource(
   value: string | null | undefined,
   workspaceRoot?: string | null,
+  projectRoot?: string | null | undefined,
+): MarkdownImageSource;
+export function classifyMarkdownImageSource(
+  value: string | null | undefined,
+  workspaceRoot?: string | null,
   projectRoot: string | null | undefined = workspaceRoot,
-): MarkdownImageSource {
-  if (value === null || value === undefined) return { _tag: "Blocked" };
+) {
+  if (value === null || value === undefined)
+    return { _tag: "Blocked" } satisfies MarkdownImageSource;
 
   const source = normalizeMarkdownLinkDestination(value);
   if (source.length === 0 || source.startsWith("#") || source.startsWith("?")) {
-    return { _tag: "Blocked" };
+    return { _tag: "Blocked" } satisfies MarkdownImageSource;
   }
   if (DIRECT_IMAGE_SOURCE_PATTERN.test(source)) {
-    return { _tag: "Direct", uri: source };
+    return { _tag: "Direct", uri: source } satisfies MarkdownImageSource;
   }
 
   if (/^file:/i.test(source)) {
     const target = parseFileUrlHref(source);
-    return target === null
-      ? { _tag: "Blocked" }
-      : hostFileSource(
-          stripSlashPrefixedWindowsDrive(safeDecodeURIComponent(target.path)),
-          projectRoot,
-        );
+    return (
+      target === null
+        ? { _tag: "Blocked" }
+        : hostFileSource(
+            stripSlashPrefixedWindowsDrive(safeDecodeURIComponent(target.path)),
+            projectRoot,
+          )
+    ) satisfies MarkdownImageSource;
   }
 
   const path = stripSlashPrefixedWindowsDrive(
     safeDecodeURIComponent(splitMarkdownLinkSearchAndHash(source).path),
   );
-  if (path.length === 0) return { _tag: "Blocked" };
+  if (path.length === 0) return { _tag: "Blocked" } satisfies MarkdownImageSource;
   if (path.startsWith("/") || isWindowsAbsolutePath(path)) {
-    return hostFileSource(path, projectRoot);
+    return hostFileSource(path, projectRoot) satisfies MarkdownImageSource;
   }
   if (URI_SCHEME_PATTERN.test(path) || path.startsWith("~/") || path.startsWith("~\\")) {
-    return { _tag: "Blocked" };
+    return { _tag: "Blocked" } satisfies MarkdownImageSource;
   }
-  if (!workspaceRoot) return { _tag: "Blocked" };
+  if (!workspaceRoot) return { _tag: "Blocked" } satisfies MarkdownImageSource;
 
-  return { _tag: "WorkspaceFile", path: joinWorkspacePath(workspaceRoot, path), relative: true };
+  return {
+    _tag: "WorkspaceFile",
+    path: joinWorkspacePath(workspaceRoot, path),
+    relative: true,
+  } satisfies MarkdownImageSource;
 }

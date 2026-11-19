@@ -21,7 +21,7 @@ import {
   swapPanes,
 } from "./layout";
 
-const thread = (id: string): ThreadRouteTarget => ({
+const thread: (id: string) => ThreadRouteTarget = (id: string) => ({
   kind: "server",
   threadRef: { environmentId: "env" as EnvironmentId, threadId: id as ThreadId },
 });
@@ -48,7 +48,8 @@ function place(layout: PaneLayout, paneId: string) {
   return { x: columnOffsets[cell.column], y: rowOffsets[cell.row], width, height };
 }
 
-function reachableLayouts(): PaneLayout[] {
+function reachableLayouts(): PaneLayout[];
+function reachableLayouts() {
   const createId = ids();
   const start = createPaneLayout(thread("t0"), createId);
   const layouts: PaneLayout[] = [start];
@@ -66,7 +67,7 @@ function reachableLayouts(): PaneLayout[] {
     layouts.push(...next);
     frontier = next;
   }
-  return layouts;
+  return layouts satisfies PaneLayout[];
 }
 
 describe("splitPane", () => {

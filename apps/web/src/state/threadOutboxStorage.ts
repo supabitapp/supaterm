@@ -33,7 +33,7 @@ async function transaction<A>(
   storeName: string,
   mode: IDBTransactionMode,
   operation: (store: IDBObjectStore, complete: (result: A) => void) => void,
-): Promise<A> {
+) {
   const tx = await beginTransaction(storeName, mode);
   return new Promise<A>((resolve, reject) => {
     let result: A;

@@ -18,7 +18,6 @@ import {
   createStaticNavigation,
   getActionFromState,
   getStateFromPath,
-  type NavigationAction,
   type NavigationState,
 } from "@react-navigation/native";
 import { pipe } from "effect/Function";
@@ -133,7 +132,7 @@ const appLinking = {
   getActionFromState: (
     state: Parameters<typeof getActionFromState>[0],
     options: Parameters<typeof getActionFromState>[1],
-  ): ReturnType<typeof getActionFromState> => {
+  ) => {
     const current = rootNavigationRef.isReady() ? rootNavigationRef.getRootState() : undefined;
     return (
       (workspaceDetailLinkAction(state) as ReturnType<typeof getActionFromState>) ??
@@ -145,19 +144,19 @@ const appLinking = {
   getStateFromPath: getAppStateFromPath,
 };
 
-function appLinkAction(href: string): NavigationAction {
+function appLinkAction(href: string) {
   const state = getAppStateFromPath(href, linkingConfig);
   if (!state) throw new Error(`Failed to parse the href to a navigation state (${href}).`);
   return appLinking.getActionFromState(state, linkingConfig) ?? CommonActions.reset(state);
 }
 
-function linkToAppPath(href: string): void {
+function linkToAppPath(href: string) {
   linkToRootPath(href, appLinkAction);
 }
 
 const Navigation = createStaticNavigation(RootStack);
 
-function handleNavigationStateChange(state: NavigationState | undefined): void {
+function handleNavigationStateChange(state: NavigationState | undefined) {
   recordWorkspaceSelections(state);
   presentPendingIncomingShare();
   resolvePendingNewTaskPromptLink(state);
@@ -170,7 +169,7 @@ function handleNavigationStateChange(state: NavigationState | undefined): void {
   pruneIncomingShareImports(state);
 }
 
-function handleNavigationReady(): void {
+function handleNavigationReady() {
   handleNavigationStateChange(rootNavigationRef.getRootState());
   flushRootNavigationQueue();
 }

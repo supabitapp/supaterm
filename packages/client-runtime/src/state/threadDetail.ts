@@ -30,8 +30,6 @@ import {
 import type {
   EnvironmentThread,
   EnvironmentThreadStructure,
-  ThreadStructure,
-  ThreadStructureThread,
   ThreadStructureTurnItem,
   ThreadStructureVisibleTurnItem,
 } from "./models.ts";
@@ -90,10 +88,7 @@ type AppThread = OrchestrationV2ThreadProjection["thread"];
 const structureTurnItems = new WeakMap<TurnItem, ThreadStructureTurnItem>();
 const structureVisibleTurnItems = new WeakMap<VisibleTurnItem, ThreadStructureVisibleTurnItem>();
 
-function queueWorkflowStatesEqual(
-  left: ThreadQueueWorkflowState,
-  right: ThreadQueueWorkflowState,
-): boolean {
+function queueWorkflowStatesEqual(left: ThreadQueueWorkflowState, right: ThreadQueueWorkflowState) {
   return (
     left.activeRun === right.activeRun &&
     left.isHeld === right.isHeld &&
@@ -109,7 +104,7 @@ function queueWorkflowStatesEqual(
   );
 }
 
-function toThreadStructureTurnItem(item: TurnItem): ThreadStructureTurnItem {
+function toThreadStructureTurnItem(item: TurnItem) {
   if (item.type !== "assistant_message" && item.type !== "reasoning") return item;
   let structure = structureTurnItems.get(item);
   if (structure === undefined) {
@@ -120,9 +115,7 @@ function toThreadStructureTurnItem(item: TurnItem): ThreadStructureTurnItem {
   return structure;
 }
 
-function toThreadStructureVisibleTurnItem(
-  visibleItem: VisibleTurnItem,
-): ThreadStructureVisibleTurnItem {
+function toThreadStructureVisibleTurnItem(visibleItem: VisibleTurnItem) {
   const item = toThreadStructureTurnItem(visibleItem.item);
   if (item === visibleItem.item) return visibleItem;
   let structure = structureVisibleTurnItems.get(visibleItem);
@@ -138,12 +131,12 @@ export function isCompleteTurnItemRow(row: ThreadStructureVisibleTurnItem): row 
   return row.item.type !== "assistant_message" && row.item.type !== "reasoning";
 }
 
-function toThreadStructureThread(thread: AppThread): ThreadStructureThread {
+function toThreadStructureThread(thread: AppThread) {
   const { updatedAt: _updatedAt, lastVisitedAt: _lastVisitedAt, ...structure } = thread;
   return structure;
 }
 
-function toThreadStructure(projection: OrchestrationV2ThreadProjection): ThreadStructure {
+function toThreadStructure(projection: OrchestrationV2ThreadProjection) {
   const { updatedAt: _updatedAt, ...structure } = projection;
   return {
     ...structure,
@@ -162,14 +155,14 @@ function sameApartFromStripped<T extends object>(
   previous: T,
   previousStructure: object,
   next: T,
-): boolean {
+) {
   return (
     Object.keys(previous).length === Object.keys(next).length &&
     same(Object.assign({}, next, previousStructure), next)
   );
 }
 
-function sameTurnItemStructure(previous: TurnItem, next: TurnItem): boolean {
+function sameTurnItemStructure(previous: TurnItem, next: TurnItem) {
   if (previous === next) return true;
   const structure = toThreadStructureTurnItem(previous);
   if (previous.id !== next.id || previous.type !== next.type || structure === previous) {
@@ -181,7 +174,7 @@ function sameTurnItemStructure(previous: TurnItem, next: TurnItem): boolean {
 function sameMessageStructure(
   previous: OrchestrationV2ConversationMessage,
   next: OrchestrationV2ConversationMessage,
-): boolean {
+) {
   if (previous === next) return true;
   if (!previous.streaming || !next.streaming || previous.id !== next.id) return false;
   const { text: _text, updatedAt: _updatedAt, ...structure } = previous;
@@ -192,7 +185,7 @@ function sameProjectionArray<T>(
   previous: ReadonlyArray<T>,
   next: ReadonlyArray<T>,
   same: (previous: T, next: T) => boolean,
-): boolean {
+) {
   if (previous === next) return true;
   if (previous.length !== next.length) return false;
   const replacedIndex = getProjectionArrayReplacementIndex(previous, next);
@@ -200,7 +193,7 @@ function sameProjectionArray<T>(
   return previous.every((item, index) => same(item, next[index]!));
 }
 
-function sameVisibleTurnItemStructure(before: VisibleTurnItem, after: VisibleTurnItem): boolean {
+function sameVisibleTurnItemStructure(before: VisibleTurnItem, after: VisibleTurnItem) {
   return (
     before === after ||
     (before.position === after.position &&
@@ -211,14 +204,14 @@ function sameVisibleTurnItemStructure(before: VisibleTurnItem, after: VisibleTur
   );
 }
 
-function isStreamingAssistantMessage(visibleItem: VisibleTurnItem): boolean {
+function isStreamingAssistantMessage(visibleItem: VisibleTurnItem) {
   return visibleItem.item.type === "assistant_message" && visibleItem.item.streaming;
 }
 
 function sameApartFromStreamedAssistantText(
   previous: OrchestrationV2ThreadProjection["visibleTurnItems"],
   next: OrchestrationV2ThreadProjection["visibleTurnItems"],
-): boolean {
+) {
   return sameProjectionArray(
     previous,
     next,
@@ -239,7 +232,7 @@ function sameApartFromStreamedAssistantText(
 export function sameThreadStructure(
   previous: OrchestrationV2ThreadProjection,
   next: OrchestrationV2ThreadProjection,
-): boolean {
+) {
   if (previous === next) return true;
   for (const key of Object.keys(next) as Array<keyof OrchestrationV2ThreadProjection>) {
     if (
@@ -344,7 +337,7 @@ export function createEnvironmentThreadDetailAtoms<E>(
     let previousRows: OrchestrationV2ThreadProjection["visibleTurnItems"] | null = null;
     let previousNotice: UsageLimitNoticeRows | null = null;
     let previous = EMPTY_VISIBLE_TURN_ITEMS;
-    return Atom.make((get): OrchestrationV2ThreadProjection["visibleTurnItems"] => {
+    return Atom.make((get) => {
       const projection = Option.getOrNull(get(threadStateValueAtomFamily(key)).data);
       if (projection === null) return EMPTY_VISIBLE_TURN_ITEMS;
       const rows = projectQuestionHistory(projection);

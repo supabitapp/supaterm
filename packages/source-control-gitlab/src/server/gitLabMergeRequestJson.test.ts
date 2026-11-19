@@ -22,7 +22,7 @@ import {
   decodePipelineStageChecksJson,
 } from "./gitLabMergeRequestJson.ts";
 
-function listJson(entries: ReadonlyArray<Record<string, unknown>>): string {
+function listJson(entries: ReadonlyArray<Record<string, unknown>>) {
   return JSON.stringify(
     entries.map((entry) => ({
       iid: 1,
@@ -37,7 +37,7 @@ function listJson(entries: ReadonlyArray<Record<string, unknown>>): string {
   );
 }
 
-function detailJson(entry: Record<string, unknown>): string {
+function detailJson(entry: Record<string, unknown>) {
   return JSON.stringify({
     iid: 1,
     title: "Add the merge requests page",
@@ -50,10 +50,11 @@ function detailJson(entry: Record<string, unknown>): string {
   });
 }
 
-function expectSuccess<A>(result: Result.Result<A, unknown>): A {
+function expectSuccess<A>(result: Result.Result<A, unknown>): A;
+function expectSuccess<A>(result: Result.Result<A, unknown>) {
   expect(Result.isSuccess(result)).toBe(true);
   if (!Result.isSuccess(result)) throw new Error("expected a successful decode");
-  return result.success;
+  return result.success satisfies A;
 }
 
 describe("decodeMergeRequestListJson", () => {
@@ -293,7 +294,7 @@ describe("decodePipelineStageChecksJson", () => {
   function stagesJson(
     stages: ReadonlyArray<Record<string, unknown> | null> | null,
     hasNextPage = false,
-  ): string {
+  ) {
     return JSON.stringify({
       data: {
         project: {

@@ -8,7 +8,7 @@ export class PtySpawnError extends Schema.TaggedError<PtySpawnError>()("PtySpawn
   attemptedShells: Schema.optional(Schema.Array(Schema.String)),
   cause: Schema.optional(Schema.Defect()),
 }) {
-  override get message(): string {
+  override get message() {
     const shell = this.shell === undefined ? "" : ` '${this.shell}'`;
     const attemptedShells =
       this.attemptedShells === undefined || this.attemptedShells.length === 0
@@ -24,7 +24,7 @@ export interface PtyExitEvent {
 }
 
 /** What a PTY receives for client terminal input, whose `binary` data is one byte per code unit. */
-export function ptyInput(data: string, binary: boolean | undefined): string | Buffer {
+export function ptyInput(data: string, binary: boolean | undefined) {
   return binary ? Buffer.from(data, "latin1") : data;
 }
 

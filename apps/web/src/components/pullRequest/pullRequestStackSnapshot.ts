@@ -4,7 +4,7 @@ import type { PullRequestRef, PullRequestStack, ThreadPullRequestLink } from "@s
 export function savedPullRequestStack(
   links: ReadonlyArray<ThreadPullRequestLink>,
   reference: PullRequestRef,
-): PullRequestStack | null {
+) {
   const host = reference.host?.toLowerCase();
   if (!host) return null;
   const matching = links.filter(

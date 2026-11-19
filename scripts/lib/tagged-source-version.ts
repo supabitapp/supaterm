@@ -13,7 +13,7 @@ export const releasePackageFiles = [
  * afterwards, so source at `vX.Y.Z` still carries the previous version. Server, web and desktop
  * builds must all resolve through here, or the client reports a different version than its server.
  */
-export function resolveTaggedSourceVersion(repoRoot: string, manifestVersion: string): string {
+export function resolveTaggedSourceVersion(repoRoot: string, manifestVersion: string) {
   const git = (...args: ReadonlyArray<string>) =>
     NodeChildProcess.execFileSync("git", args, { cwd: repoRoot, encoding: "utf8", stdio: "pipe" });
 

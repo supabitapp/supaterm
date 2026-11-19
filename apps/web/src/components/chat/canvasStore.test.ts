@@ -1,10 +1,6 @@
 import { EnvironmentId, ThreadId } from "@supaterm/contracts";
 import { describe, expect, it } from "vite-plus/test";
-import {
-  createChatCanvasStore,
-  resolveChatCanvasModel,
-  type ChatCanvasMeasurements,
-} from "./canvasStore";
+import { createChatCanvasStore, resolveChatCanvasModel } from "./canvasStore";
 import type { ChatCanvasPreview } from "./chatCanvasLayout";
 
 const threadRef = {
@@ -12,7 +8,7 @@ const threadRef = {
   threadId: ThreadId.make("thread-1"),
 };
 const otherThreadRef = { ...threadRef, threadId: ThreadId.make("thread-2") };
-const measurements = (width: number, height = 900): ChatCanvasMeasurements => ({
+const measurements = (width: number, height = 900) => ({
   width,
   height,
   padding: 48,

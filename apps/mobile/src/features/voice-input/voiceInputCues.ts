@@ -20,7 +20,7 @@ const CUE_LIMIT_MS = 1_000;
 
 let recordingCue: AudioPlayer | null = null;
 
-function untilFinished(player: AudioPlayer): Promise<void> {
+function untilFinished(player: AudioPlayer) {
   return new Promise((resolve) => {
     const finish = () => {
       clearTimeout(limit);
@@ -31,7 +31,7 @@ function untilFinished(player: AudioPlayer): Promise<void> {
     const subscription = player.addListener("playbackStatusUpdate", (status) => {
       if (status.didJustFinish || status.error) finish();
     });
-  });
+  }) satisfies Promise<void>;
 }
 
 /**
@@ -39,10 +39,7 @@ function untilFinished(player: AudioPlayer): Promise<void> {
  * interrupt other audio. Silences the recording's earlier cue first; a null cue only does
  * that. Never rejects, so a cue cannot hold up releasing the recording.
  */
-export async function playVoiceInputCue(
-  cue: VoiceInputCue | null,
-  recording: AudioSessionToken,
-): Promise<void> {
+export async function playVoiceInputCue(cue: VoiceInputCue | null, recording: AudioSessionToken) {
   let player: AudioPlayer | null = null;
   try {
     if (recordingCue) pauseAudioPlayer(recordingCue);

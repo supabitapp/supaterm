@@ -22,7 +22,7 @@ export function deriveTimelineMinimapItems(
   rows: ReadonlyArray<MessagesTimelineRow>,
   entries: ReadonlyArray<TimelineEntry>,
   pinnedMessages: ReadonlyArray<ThreadPinnedMessage>,
-): TimelineMinimapItem[] {
+) {
   const turnPins = resolveTurnPins(entries, pinnedMessages);
   const items: TimelineMinimapItem[] = [];
   for (let index = 0; index < rows.length; index += 1) {
@@ -98,7 +98,8 @@ const INLINE_PARENT_TYPES = new Set<Nodes["type"]>([
   "linkReference",
 ]);
 
-function markdownNodeText(node: Nodes): string {
+function markdownNodeText(node: Nodes): string;
+function markdownNodeText(node: Nodes) {
   if (node.type === "html") {
     return node.value
       .replace(/<!--[\s\S]*?(?:-->|$)/g, "")
@@ -108,20 +109,26 @@ function markdownNodeText(node: Nodes): string {
         )
           ? " "
           : "",
-      );
+      ) satisfies string;
   }
-  if (node.type === "break") return " ";
-  if ("value" in node) return node.value;
-  if (node.type === "image" || node.type === "imageReference") return node.alt ?? "";
-  if (!("children" in node)) return "";
+  if (node.type === "break") return " " satisfies string;
+  if ("value" in node) return node.value satisfies string;
+  if (node.type === "image" || node.type === "imageReference")
+    return (node.alt ?? "") satisfies string;
+  if (!("children" in node)) return "" satisfies string;
   const separator = INLINE_PARENT_TYPES.has(node.type) ? "" : " ";
   const text = node.children.map(markdownNodeText).join(separator);
-  return node.type === "link" && parseThreadLinkHref(text) !== null ? "a thread" : text;
+  return (
+    node.type === "link" && parseThreadLinkHref(text) !== null ? "a thread" : text
+  ) satisfies string;
 }
 
 /** Markdown as one line of the text it renders, without markup or link targets. */
-export function markdownPlainText(markdown: string): string {
-  return markdownNodeText(markdownPreviewParser.parse(markdown)).replace(/\s+/g, " ").trim();
+export function markdownPlainText(markdown: string): string;
+export function markdownPlainText(markdown: string) {
+  return markdownNodeText(markdownPreviewParser.parse(markdown))
+    .replace(/\s+/g, " ")
+    .trim() satisfies string;
 }
 
 function compactMinimapPreview(text: string | null | undefined) {
@@ -129,9 +136,7 @@ function compactMinimapPreview(text: string | null | undefined) {
   return compact.length > 0 ? compact : null;
 }
 
-export function resolveTimelineMinimapPreview(
-  item: TimelineMinimapItem | null,
-): TimelineMinimapItem | null {
+export function resolveTimelineMinimapPreview(item: TimelineMinimapItem | null) {
   return item === null
     ? null
     : {

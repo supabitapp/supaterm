@@ -16,7 +16,7 @@ const redactingCredentials = <Output>(logger: Logger.Logger<unknown, Output>) =>
     logger.log({ ...options, cause: SharedObservability.redactCauseCredentials(options.cause) }),
   );
 
-const consolePretty = (): Logger.Logger<unknown, void> => {
+const consolePretty = () => {
   const pretty = redactingCredentials(Logger.consolePretty());
   return Logger.make((options) =>
     pretty.log({
@@ -28,12 +28,13 @@ const consolePretty = (): Logger.Logger<unknown, void> => {
   );
 };
 
-function prettyCauseFields(value: unknown): unknown {
-  if (typeof value !== "object" || value === null) return value;
+function prettyCauseFields(value: unknown): unknown;
+function prettyCauseFields(value: unknown) {
+  if (typeof value !== "object" || value === null) return value satisfies unknown;
   const prototype: unknown = Object.getPrototypeOf(value);
-  if (prototype !== Object.prototype && prototype !== null) return value;
+  if (prototype !== Object.prototype && prototype !== null) return value satisfies unknown;
 
-  if (Redactable.isRedactable(value)) return value;
+  if (Redactable.isRedactable(value)) return value satisfies unknown;
 
   const descriptors = Object.getOwnPropertyDescriptors(value);
   let changed = false;
@@ -43,7 +44,7 @@ function prettyCauseFields(value: unknown): unknown {
       changed = true;
     }
   }
-  return changed ? Object.create(prototype, descriptors) : value;
+  return (changed ? Object.create(prototype, descriptors) : value) satisfies unknown;
 }
 
 export const layer = Effect.gen(function* () {

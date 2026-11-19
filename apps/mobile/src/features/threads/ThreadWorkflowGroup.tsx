@@ -284,7 +284,7 @@ function WorkflowElapsed(props: { readonly timing: ElapsedTiming }) {
 
 type ElapsedTiming = Parameters<typeof deriveSubagentElapsedMs>[0];
 
-function useElapsedLabel(timing: ElapsedTiming): string | null {
+function useElapsedLabel(timing: ElapsedTiming) {
   const nowMs = useVisibleSecondClock(isActiveSubagentStatus(timing.status));
   const elapsedMs = deriveSubagentElapsedMs(timing, nowMs);
   return elapsedMs === null || elapsedMs === 0 ? null : formatDuration(elapsedMs);

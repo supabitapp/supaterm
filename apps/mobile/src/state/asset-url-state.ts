@@ -11,28 +11,32 @@ export type AssetUrlState =
 export function deriveAssetUrlState(input: {
   readonly connectionPhase: EnvironmentConnectionPhase;
   readonly shared: SharedAssetUrlState;
-}): AssetUrlState {
+}) {
   if (
     input.connectionPhase === "offline" ||
     input.connectionPhase === "reconnecting" ||
     input.connectionPhase === "error" ||
     input.connectionPhase === "unsupported"
   ) {
-    return { _tag: "Failure", reason: "disconnected" };
+    return { _tag: "Failure", reason: "disconnected" } satisfies AssetUrlState;
   }
   if (input.shared._tag === "Success") {
-    return input.shared;
+    return input.shared satisfies AssetUrlState;
   }
   switch (input.connectionPhase) {
     case "available":
-      return input.shared._tag === "Failure"
-        ? { _tag: "Failure", reason: "disconnected" }
-        : { _tag: "Loading" };
+      return (
+        input.shared._tag === "Failure"
+          ? { _tag: "Failure", reason: "disconnected" }
+          : { _tag: "Loading" }
+      ) satisfies AssetUrlState;
     case "connecting":
-      return { _tag: "Loading" };
+      return { _tag: "Loading" } satisfies AssetUrlState;
     case "connected":
-      return input.shared._tag === "Failure"
-        ? { _tag: "Failure", reason: input.shared.reason ?? "failed" }
-        : { _tag: "Loading" };
+      return (
+        input.shared._tag === "Failure"
+          ? { _tag: "Failure", reason: input.shared.reason ?? "failed" }
+          : { _tag: "Loading" }
+      ) satisfies AssetUrlState;
   }
 }

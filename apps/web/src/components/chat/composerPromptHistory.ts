@@ -45,19 +45,13 @@ export interface ComposerPromptHistoryPosition {
 function findActive(
   entries: ReadonlyArray<ComposerPromptHistoryEntry>,
   position: ComposerPromptHistoryPosition,
-): number {
+) {
   const byId = entries.findIndex((entry) => entry.id === position.entryId);
   if (byId >= 0) return byId;
   return entries.findLastIndex((entry) => entry.prompt === position.recalled);
 }
 
-interface ComposerPromptHistoryStep {
-  readonly position: ComposerPromptHistoryPosition | null;
-  readonly prompt: string;
-  readonly mentions: ComposerPromptHistoryMentions;
-}
-
-function stripTrailingReviewComments(prompt: string): string {
+function stripTrailingReviewComments(prompt: string) {
   let cut = prompt.length;
   for (const match of [...prompt.matchAll(REVIEW_COMMENT_BLOCK_PATTERN)].toReversed()) {
     const blockEnd = match.index + match[0].length;
@@ -67,11 +61,11 @@ function stripTrailingReviewComments(prompt: string): string {
   return cut === prompt.length ? prompt : prompt.slice(0, cut).trimEnd();
 }
 
-function escapeRegExp(value: string): string {
+function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-function stripInlineTerminalLabels(prompt: string, headers: ReadonlyArray<string>): string {
+function stripInlineTerminalLabels(prompt: string, headers: ReadonlyArray<string>) {
   let result = prompt;
   for (const header of headers) {
     const match = /^(.+?) lines? (\d+(?:-\d+)?)$/.exec(header);
@@ -92,7 +86,7 @@ function stripInlineTerminalLabels(prompt: string, headers: ReadonlyArray<string
 export function recallableComposerPrompt(
   messageText: string,
   keptContextIds: ReadonlySet<string> = new Set(),
-): string {
+) {
   let prompt = messageText.trim();
   if (prompt.startsWith(CLAUDE_ULTRATHINK_PREFIX)) {
     prompt = prompt.slice(CLAUDE_ULTRATHINK_PREFIX.length);
@@ -142,7 +136,7 @@ export function recallableComposerPrompt(
 /** A sent message's text as the composer can hold it, with the mention records its chips need. */
 export function recallComposerMessage(
   message: Pick<ComposerPromptHistoryMessage, "text" | "context">,
-): Pick<ComposerPromptHistoryEntry, "prompt" | "mentions"> {
+) {
   const referenceRecords = (message.context?.records ?? []).filter(isReferenceContextRecord);
   const prompt = recallableComposerPrompt(
     message.text,
@@ -161,7 +155,7 @@ export function recallComposerMessage(
 
 export function buildComposerPromptHistoryEntries(
   messages: ReadonlyArray<ComposerPromptHistoryMessage>,
-): ComposerPromptHistoryEntry[] {
+) {
   const entries: ComposerPromptHistoryEntry[] = [];
   for (const message of messages) {
     if (message.role !== "user") continue;
@@ -180,7 +174,7 @@ export function buildComposerPromptHistoryEntries(
   return entries;
 }
 
-function recall(entry: ComposerPromptHistoryEntry): ComposerPromptHistoryStep {
+function recall(entry: ComposerPromptHistoryEntry) {
   return {
     position: { entryId: entry.id, recalled: entry.prompt },
     prompt: entry.prompt,
@@ -193,7 +187,7 @@ export function stepComposerPromptHistory(input: {
   readonly entries: ReadonlyArray<ComposerPromptHistoryEntry>;
   readonly position: ComposerPromptHistoryPosition | null;
   readonly currentPrompt: string;
-}): ComposerPromptHistoryStep | null {
+}) {
   const { entries, position, currentPrompt } = input;
   const activeIndex =
     position && position.recalled === currentPrompt ? findActive(entries, position) : -1;

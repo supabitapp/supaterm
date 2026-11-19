@@ -45,10 +45,7 @@ import {
 
 const localEnvironmentId = EnvironmentId.make("environment-local");
 
-function makeLatestRun(overrides?: {
-  completedAt?: string | null;
-  startedAt?: string | null;
-}): NonNullable<Thread["latestRun"]> {
+function makeLatestRun(overrides?: { completedAt?: string | null; startedAt?: string | null }) {
   return {
     runId: "turn-1" as never,
     status: "completed",
@@ -58,7 +55,7 @@ function makeLatestRun(overrides?: {
       overrides?.startedAt !== undefined ? overrides.startedAt : "2026-03-09T10:00:00.000Z",
     completedAt:
       overrides?.completedAt !== undefined ? overrides.completedAt : "2026-03-09T10:05:00.000Z",
-  };
+  } satisfies NonNullable<Thread["latestRun"]>;
 }
 
 describe("sidebar row status presentation", () => {
@@ -448,7 +445,7 @@ describe("resolveThreadStatusPill", () => {
   });
 });
 
-function makeProject(overrides: Partial<Project> = {}): Project {
+function makeProject(overrides: Partial<Project> = {}) {
   const { defaultModelSelection, ...rest } = overrides;
   return {
     id: ProjectId.make("project-1"),
@@ -468,7 +465,7 @@ function makeProject(overrides: Partial<Project> = {}): Project {
   };
 }
 
-function makeThread(overrides: ThreadFixtureOverrides = {}): Thread {
+function makeThread(overrides: ThreadFixtureOverrides = {}) {
   return makeThreadFixture({
     id: ThreadId.make("thread-1"),
     environmentId: localEnvironmentId,
@@ -982,12 +979,14 @@ describe("Working shelf", () => {
   });
 
   describe("dragging", () => {
-    const marker = (name: SidebarListMarker): SidebarListItem => ({ kind: "marker", marker: name });
-    const row = (key: string, section: SidebarSection): SidebarListItem => ({
-      kind: "thread",
-      key,
-      section,
-    });
+    const marker = (name: SidebarListMarker) =>
+      ({ kind: "marker", marker: name }) satisfies SidebarListItem;
+    const row = (key: string, section: SidebarSection) =>
+      ({
+        kind: "thread",
+        key,
+        section,
+      }) satisfies SidebarListItem;
     const items: readonly SidebarListItem[] = [
       marker("pinned-header"),
       row("p1", "pinned"),

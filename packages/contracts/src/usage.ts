@@ -190,7 +190,7 @@ export class UsageReadError extends Schema.TaggedError<UsageReadError>()("UsageR
   detail: TrimmedNonEmptyString,
   cause: Schema.optional(Schema.Defect()),
 }) {
-  override get message(): string {
+  override get message() {
     return `Usage read failed (${this.reason}): ${this.detail}`;
   }
 }

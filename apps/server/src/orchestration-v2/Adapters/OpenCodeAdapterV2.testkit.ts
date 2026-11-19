@@ -12,7 +12,7 @@ export class OpenCodeReplayTranscriptDecodeError extends Schema.TaggedError<Open
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Failed to decode OpenCode replay transcript for scenario ${this.scenario ?? "<unknown>"}.`;
   }
 }
@@ -26,7 +26,7 @@ export class OpenCodeReplayMismatchError extends Schema.TaggedError<OpenCodeRepl
     actual: Schema.Unknown,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `OpenCode replay frame mismatch at cursor ${this.cursor} in scenario ${this.scenario}.`;
   }
 }
@@ -39,38 +39,40 @@ export class OpenCodeReplayIncompleteError extends Schema.TaggedError<OpenCodeRe
     remaining: Schema.Number,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `OpenCode replay ended with ${this.remaining} unconsumed entries in scenario ${this.scenario}.`;
   }
 }
 
-function replayValueMatches(expected: unknown, actual: unknown): boolean {
-  if (expected === "<any>" || expected === "<workspace>") return true;
-  if (expected === "<string>") return typeof actual === "string" && actual.length > 0;
+function replayValueMatches(expected: unknown, actual: unknown): boolean;
+function replayValueMatches(expected: unknown, actual: unknown) {
+  if (expected === "<any>" || expected === "<workspace>") return true satisfies boolean;
+  if (expected === "<string>")
+    return (typeof actual === "string" && actual.length > 0) satisfies boolean;
   if (Array.isArray(expected)) {
-    return (
-      Array.isArray(actual) &&
+    return (Array.isArray(actual) &&
       expected.length === actual.length &&
-      expected.every((entry, index) => replayValueMatches(entry, actual[index]))
-    );
+      expected.every((entry, index) => replayValueMatches(entry, actual[index]))) satisfies boolean;
   }
   if (typeof expected === "object" && expected !== null) {
-    if (typeof actual !== "object" || actual === null) return false;
+    if (typeof actual !== "object" || actual === null) return false satisfies boolean;
     return Object.entries(expected).every(([key, value]) =>
       replayValueMatches(value, (actual as Record<string, unknown>)[key]),
-    );
+    ) satisfies boolean;
   }
-  return Object.is(expected, actual);
+  return Object.is(expected, actual) satisfies boolean;
 }
 
-function frameRecord(frame: unknown): Record<string, unknown> | null {
+function frameRecord(frame: unknown) {
   return typeof frame === "object" && frame !== null ? (frame as Record<string, unknown>) : null;
 }
 
-function materializeMessageIds(value: unknown, messageIds: ReadonlyMap<string, string>): unknown {
-  if (Array.isArray(value)) return value.map((entry) => materializeMessageIds(entry, messageIds));
+function materializeMessageIds(value: unknown, messageIds: ReadonlyMap<string, string>): unknown;
+function materializeMessageIds(value: unknown, messageIds: ReadonlyMap<string, string>) {
+  if (Array.isArray(value))
+    return value.map((entry) => materializeMessageIds(entry, messageIds)) satisfies unknown;
   const record = frameRecord(value);
-  if (record === null) return value;
+  if (record === null) return value satisfies unknown;
   return Object.fromEntries(
     Object.entries(record).map(([key, entry]) => [
       key,
@@ -83,14 +85,14 @@ function materializeMessageIds(value: unknown, messageIds: ReadonlyMap<string, s
         ? (messageIds.get(entry) ?? entry)
         : materializeMessageIds(entry, messageIds),
     ]),
-  );
+  ) satisfies unknown;
 }
 
 export class OpenCodeReplayController {
   private cursor = 0;
   exited = false;
 
-  get finished(): boolean {
+  get finished() {
     return this.cursor >= this.transcript.entries.length;
   }
   private readonly waiters = new Set<() => void>();
@@ -102,7 +104,7 @@ export class OpenCodeReplayController {
     this.transcript = transcript;
   }
 
-  async expectOutbound(actual: unknown): Promise<void> {
+  async expectOutbound(actual: unknown) {
     try {
       const entry = this.transcript.entries[this.cursor];
       const expectedFrame = entry?.type === "expect_outbound" ? frameRecord(entry.frame) : null;
@@ -147,7 +149,8 @@ export class OpenCodeReplayController {
     }
   }
 
-  async response(operation: string): Promise<unknown> {
+  response(operation: string): Promise<unknown>;
+  async response(operation: string) {
     while (true) {
       this.throwFailure();
       const entry = this.transcript.entries[this.cursor];
@@ -159,7 +162,7 @@ export class OpenCodeReplayController {
           }
           const data = materializeMessageIds(frame.data, this.messageIds);
           this.advance();
-          return data;
+          return data satisfies unknown;
         }
       }
       if (entry?.type === "runtime_exit") {
@@ -177,7 +180,7 @@ export class OpenCodeReplayController {
   }
 
   /** Waits for events and responses to be consumed so concurrent HTTP requests cannot match earlier answers. */
-  async untilInboundDelivered(): Promise<void> {
+  async untilInboundDelivered() {
     while (true) {
       this.throwFailure();
       if (this.transcript.entries[this.cursor]?.type !== "emit_inbound") return;
@@ -185,10 +188,7 @@ export class OpenCodeReplayController {
     }
   }
 
-  async *events(
-    signal?: AbortSignal,
-    beforeEmit?: (label: string | undefined) => Promise<void>,
-  ): AsyncIterable<unknown> {
+  async *events(signal?: AbortSignal, beforeEmit?: (label: string | undefined) => Promise<void>) {
     while (true) {
       if (signal?.aborted === true) return;
       this.throwFailure();
@@ -225,7 +225,7 @@ export class OpenCodeReplayController {
     }
   }
 
-  assertComplete(): void {
+  assertComplete() {
     while (this.transcript.entries[this.cursor]?.type === "runtime_exit") {
       const exit = this.transcript.entries[this.cursor];
       if (exit?.type !== "runtime_exit" || exit.status !== "success") break;
@@ -241,23 +241,23 @@ export class OpenCodeReplayController {
     }
   }
 
-  private advance(): void {
+  private advance() {
     this.cursor += 1;
     for (const waiter of this.waiters) waiter();
     this.waiters.clear();
   }
 
-  private fail(cause: unknown): void {
+  private fail(cause: unknown) {
     this.failure = cause;
     for (const waiter of this.waiters) waiter();
     this.waiters.clear();
   }
 
-  private throwFailure(): void {
+  private throwFailure() {
     if (this.failure !== null) throw this.failure;
   }
 
-  private changed(signal?: AbortSignal): Promise<void> {
+  private changed(signal?: AbortSignal) {
     return new Promise((resolve) => {
       let settled = false;
       const done = () => {
@@ -270,6 +270,6 @@ export class OpenCodeReplayController {
       this.waiters.add(done);
       signal?.addEventListener("abort", done, { once: true });
       if (signal?.aborted === true) done();
-    });
+    }) satisfies Promise<void>;
   }
 }

@@ -45,7 +45,7 @@ function resolvedContextRecord(
   records: ComposerDraftContextRecords,
   kind: string,
   contextId: string,
-): ComposerDraftContextRecord | null {
+) {
   const entry = records.get(contextId);
   if (entry === undefined || entry.kind !== kind) return null;
   if (entry.kind === "file" && composerFileNeedsReattach(entry.record)) return null;

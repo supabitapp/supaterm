@@ -83,12 +83,12 @@ export function composerAttachmentUploadRequests(input: {
     EnvironmentId,
     Parameters<typeof canUploadComposerAttachment>[1]
   >;
-}): ReadonlyArray<ComposerAttachmentUploadRequest> {
+}) {
   const queued = flattenQueuedThreadMessages(input.queuedMessagesByThreadKey);
   const uploadable = (
     environmentId: EnvironmentId | null,
     attachments: ReadonlyArray<DraftComposerAttachment>,
-  ): ReadonlyArray<ComposerAttachmentUploadRequest> =>
+  ) =>
     environmentId === null ||
     !input.connectedEnvironmentIds.has(environmentId) ||
     !input.operableEnvironmentIds.has(environmentId)
@@ -276,6 +276,6 @@ export function createComposerAttachmentUploadWorker(
   };
 }
 
-export function installComposerAttachmentUploads(): () => void {
+export function installComposerAttachmentUploads() {
   return createComposerAttachmentUploadWorker().dispose;
 }

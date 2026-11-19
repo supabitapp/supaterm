@@ -102,11 +102,7 @@ interface StoredPanelState {
 export type ThreadRightPanelState = StoredPanelState &
   ({ isOpen: false; maximized?: never } | { isOpen: true; maximized?: true });
 
-const resolvePanelState = ({
-  isOpen,
-  maximized,
-  ...rest
-}: StoredPanelState): ThreadRightPanelState =>
+const resolvePanelState = ({ isOpen, maximized, ...rest }: StoredPanelState) =>
   isOpen && maximized ? { ...rest, isOpen, maximized } : { ...rest, isOpen };
 
 export interface ThreadPanelVisibility {
@@ -236,52 +232,51 @@ const DEFAULT_THREAD_PANEL_VISIBILITY: ThreadPanelVisibility = {
 
 const singletonSurface = (
   kind: Exclude<RightPanelKind, "file" | "preview" | "terminal" | "pull-request">,
-): RightPanelSurface => {
+) => {
   switch (kind) {
     case "diff":
-      return { id: "diff", kind };
+      return { id: "diff", kind } satisfies RightPanelSurface;
     case "files":
-      return { id: "files", kind };
+      return { id: "files", kind } satisfies RightPanelSurface;
     case "pull-requests":
-      return { id: "pull-requests", kind };
+      return { id: "pull-requests", kind } satisfies RightPanelSurface;
     case "device":
-      return { id: "device", kind };
+      return { id: "device", kind } satisfies RightPanelSurface;
   }
 };
 
-const browserSurface = (tabId: string | null): RightPanelSurface =>
-  tabId
+const browserSurface = (tabId: string | null) =>
+  (tabId
     ? { id: `browser:${tabId}`, kind: "preview", resourceId: tabId }
-    : { id: "browser:new", kind: "preview", resourceId: null };
+    : { id: "browser:new", kind: "preview", resourceId: null }) satisfies RightPanelSurface;
 
-const fileSurface = (
-  relativePath: string,
-  revealLine: number | null,
-  revealRequestId: number,
-): RightPanelSurface => ({
-  id: `file:${relativePath}`,
-  kind: "file",
-  relativePath,
-  revealLine,
-  revealRequestId,
-});
+const fileSurface = (relativePath: string, revealLine: number | null, revealRequestId: number) =>
+  ({
+    id: `file:${relativePath}`,
+    kind: "file",
+    relativePath,
+    revealLine,
+    revealRequestId,
+  }) satisfies RightPanelSurface;
 
-const attachmentSurface = (attachment: ChatFileAttachment): RightPanelSurface => ({
-  id: `attachment:${attachment.id}`,
-  kind: "file",
-  relativePath: attachment.name,
-  revealLine: null,
-  revealRequestId: 0,
-  attachment,
-});
+const attachmentSurface = (attachment: ChatFileAttachment) =>
+  ({
+    id: `attachment:${attachment.id}`,
+    kind: "file",
+    relativePath: attachment.name,
+    revealLine: null,
+    revealRequestId: 0,
+    attachment,
+  }) satisfies RightPanelSurface;
 
-const terminalSurface = (terminalId: string): RightPanelSurface => ({
-  id: `terminal:${terminalId}`,
-  kind: "terminal",
-  resourceId: terminalId,
-  terminalIds: [terminalId],
-  activeTerminalId: terminalId,
-});
+const terminalSurface = (terminalId: string) =>
+  ({
+    id: `terminal:${terminalId}`,
+    kind: "terminal",
+    resourceId: terminalId,
+    terminalIds: [terminalId],
+    activeTerminalId: terminalId,
+  }) satisfies RightPanelSurface;
 
 export type PullRequestSurface = Extract<RightPanelSurface, { kind: "pull-request" }>;
 
@@ -291,11 +286,11 @@ export function pullRequestSurfaceId(target: {
   host?: string;
   repository: string;
   number: number;
-}): PullRequestSurface["id"] {
+}) {
   const scope =
     target.environmentId === undefined ? "" : `${encodeURIComponent(target.environmentId)}:`;
   const host = target.host === undefined ? "" : `${encodeURIComponent(target.host.toLowerCase())}:`;
-  return `pull-request:${scope}${encodeURIComponent(target.projectId)}:${host}${encodeURIComponent(target.repository)}:${target.number}`;
+  return `pull-request:${scope}${encodeURIComponent(target.projectId)}:${host}${encodeURIComponent(target.repository)}:${target.number}` satisfies PullRequestSurface["id"];
 }
 
 export function pullRequestSurface(target: {
@@ -306,7 +301,7 @@ export function pullRequestSurface(target: {
   number: number;
   url?: string;
   detailTab?: PullRequestDetailTab;
-}): PullRequestSurface {
+}) {
   return {
     id: pullRequestSurfaceId(target),
     kind: "pull-request",
@@ -317,10 +312,10 @@ export function pullRequestSurface(target: {
     number: target.number,
     ...(typeof target.url === "string" ? { url: target.url } : {}),
     ...(target.detailTab === undefined ? {} : { detailTab: target.detailTab }),
-  };
+  } satisfies PullRequestSurface;
 }
 
-const withoutReveal = (surface: RightPanelSurface): RightPanelSurface => {
+const withoutReveal = (surface: RightPanelSurface) => {
   if (surface.kind !== "pull-request" || surface.revealUrl === undefined) return surface;
   const { revealUrl: _pending, ...rest } = surface;
   return rest;
@@ -330,20 +325,21 @@ const upsertSurface = (
   current: ThreadRightPanelState,
   surface: RightPanelSurface,
   activate = true,
-): ThreadRightPanelState => ({
-  ...current,
-  isOpen: true,
-  surfaces: current.surfaces.some((entry) => entry.id === surface.id)
-    ? current.surfaces
-    : [...current.surfaces, surface],
-  activeSurfaceId: activate ? surface.id : current.activeSurfaceId,
-});
+) =>
+  ({
+    ...current,
+    isOpen: true,
+    surfaces: current.surfaces.some((entry) => entry.id === surface.id)
+      ? current.surfaces
+      : [...current.surfaces, surface],
+    activeSurfaceId: activate ? surface.id : current.activeSurfaceId,
+  }) satisfies ThreadRightPanelState;
 
 const updateThreadStateMap = (
   byThreadKey: Record<string, ThreadRightPanelState>,
   threadKey: string,
   updater: (current: ThreadRightPanelState) => ThreadRightPanelState,
-): Record<string, ThreadRightPanelState> => {
+) => {
   const current = byThreadKey[threadKey] ?? EMPTY_THREAD_STATE;
   const next = updater(current);
   if (
@@ -365,7 +361,7 @@ const updateThreadPanelVisibilityMap = (
   byThreadKey: Record<string, ThreadPanelVisibility>,
   threadKey: string,
   updater: (current: ThreadPanelVisibility) => ThreadPanelVisibility,
-): Record<string, ThreadPanelVisibility> => {
+) => {
   const current = byThreadKey[threadKey] ?? DEFAULT_THREAD_PANEL_VISIBILITY;
   const next = updater(current);
   if (next.inlineOpen && !next.popoverOpen) {
@@ -391,7 +387,7 @@ const updateThread = (
   state: RightPanelStoreData,
   threadKey: string,
   updater: (current: ThreadRightPanelState) => ThreadRightPanelState,
-): RightPanelStoreData => {
+) => {
   const current = state.byThreadKey[threadKey] ?? EMPTY_THREAD_STATE;
   const byThreadKey = updateThreadStateMap(state.byThreadKey, threadKey, updater);
   const next = byThreadKey[threadKey] ?? EMPTY_THREAD_STATE;
@@ -423,7 +419,7 @@ const automaticUpdate = (
   state: RightPanelStoreState,
   threadKey: string,
   updater: (current: ThreadRightPanelState) => ThreadRightPanelState,
-): Partial<RightPanelStoreState> => ({
+) => ({
   ...updateThread(state, threadKey, updater),
 });
 
@@ -432,7 +428,7 @@ const userAction = (
   threadKey: string,
   updater: (current: ThreadRightPanelState) => ThreadRightPanelState,
   closesView = false,
-): Partial<RightPanelStoreState> => ({
+) => ({
   ...updateThread(state, threadKey, (current) => {
     const next = updater(current);
     if (next === current) return current;
@@ -469,9 +465,9 @@ const closeAction = (
   state: RightPanelStoreState,
   threadKey: string,
   updater: (current: ThreadRightPanelState) => ThreadRightPanelState,
-): Partial<RightPanelStoreState> => userAction(state, threadKey, updater, true);
+) => userAction(state, threadKey, updater, true);
 
-function normalizeRevealLine(line: number | undefined): number | null {
+function normalizeRevealLine(line: number | undefined) {
   if (line === undefined || !Number.isFinite(line)) return null;
   return Math.max(1, Math.trunc(line));
 }
@@ -1053,7 +1049,7 @@ export const useRightPanelStore = create<RightPanelStoreState>()(
       storage: createJSONStorage(() =>
         resolveStorage(typeof window !== "undefined" ? window.localStorage : undefined),
       ),
-      partialize: (state): PersistedRightPanelData => ({
+      partialize: (state) => ({
         byThreadKey: Object.fromEntries(
           Object.entries(state.byThreadKey).flatMap(([threadKey, threadState]) =>
             isPullRequestsPanelKey(threadKey)
@@ -1124,7 +1120,7 @@ export function selectDeviceDismissed(
   byThreadKey: Record<string, ThreadRightPanelState>,
   ref: ScopedThreadRef,
   target: Pick<DeviceTabTarget, "hostId" | "deviceId">,
-): boolean {
+) {
   return (
     byThreadKey[scopedThreadKey(ref)]?.dismissedDeviceSurfaceIds?.includes(
       deviceSurfaceId(target),
@@ -1135,7 +1131,7 @@ export function selectDeviceDismissed(
 export function selectThreadRightPanelState(
   byThreadKey: Record<string, ThreadRightPanelState>,
   ref: ScopedThreadRef | null | undefined,
-): ThreadRightPanelState {
+) {
   if (!ref) return EMPTY_THREAD_STATE;
   return byThreadKey[scopedThreadKey(ref)] ?? EMPTY_THREAD_STATE;
 }
@@ -1143,7 +1139,7 @@ export function selectThreadRightPanelState(
 export function selectThreadPanelVisibility(
   byThreadKey: Record<string, ThreadPanelVisibility>,
   ref: ScopedThreadRef | null | undefined,
-): ThreadPanelVisibility {
+) {
   if (!ref) return DEFAULT_THREAD_PANEL_VISIBILITY;
   return byThreadKey[scopedThreadKey(ref)] ?? DEFAULT_THREAD_PANEL_VISIBILITY;
 }
@@ -1152,7 +1148,7 @@ export function selectThreadPanelOpen(
   byThreadKey: Record<string, ThreadPanelVisibility>,
   ref: ScopedThreadRef | null | undefined,
   presentation: ThreadPanelPresentation,
-): boolean {
+) {
   const visibility = selectThreadPanelVisibility(byThreadKey, ref);
   return presentation === "inline" ? visibility.inlineOpen : visibility.popoverOpen;
 }
@@ -1160,7 +1156,7 @@ export function selectThreadPanelOpen(
 export function selectActiveRightPanel(
   byThreadKey: Record<string, ThreadRightPanelState>,
   ref: ScopedThreadRef | null | undefined,
-): RightPanelKind | null {
+) {
   const state = selectThreadRightPanelState(byThreadKey, ref);
   if (!state.isOpen) return null;
   return state.surfaces.find((surface) => surface.id === state.activeSurfaceId)?.kind ?? null;
@@ -1169,7 +1165,7 @@ export function selectActiveRightPanel(
 export function selectActiveRightPanelSurface(
   byThreadKey: Record<string, ThreadRightPanelState>,
   ref: ScopedThreadRef | null | undefined,
-): RightPanelSurface | null {
+) {
   const state = selectThreadRightPanelState(byThreadKey, ref);
   if (!state.isOpen) return null;
   return selectSelectedRightPanelSurface(byThreadKey, ref);
@@ -1178,7 +1174,12 @@ export function selectActiveRightPanelSurface(
 export function selectSelectedRightPanelSurface(
   byThreadKey: Record<string, ThreadRightPanelState>,
   ref: ScopedThreadRef | null | undefined,
-): RightPanelSurface | null {
+): RightPanelSurface | null;
+export function selectSelectedRightPanelSurface(
+  byThreadKey: Record<string, ThreadRightPanelState>,
+  ref: ScopedThreadRef | null | undefined,
+) {
   const state = selectThreadRightPanelState(byThreadKey, ref);
-  return state.surfaces.find((surface) => surface.id === state.activeSurfaceId) ?? null;
+  return (state.surfaces.find((surface) => surface.id === state.activeSurfaceId) ??
+    null) satisfies RightPanelSurface | null;
 }

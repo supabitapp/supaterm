@@ -27,7 +27,7 @@ import {
   releaseAudioSession,
 } from "../../lib/audioSession";
 
-function keepScreenAwake(tag: string): () => void {
+function keepScreenAwake(tag: string) {
   const activation = activateKeepAwakeAsync(tag);
   void activation.catch(() => {});
   return () => void activation.then(() => deactivateKeepAwake(tag)).catch(() => {});

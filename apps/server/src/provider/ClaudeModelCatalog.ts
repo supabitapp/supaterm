@@ -4,7 +4,6 @@ import {
   type ModelSelection,
   ProviderDriverKind,
   type ServerProviderModel,
-  type ServerProviderUpdateRequiredModel,
 } from "@supaterm/contracts";
 import type { ModelInfo as ClaudeModelInfo } from "@anthropic-ai/claude-agent-sdk";
 import * as Option from "effect/Option";
@@ -41,9 +40,7 @@ export interface ClaudeModelCatalog {
   readonly models: ReadonlyArray<ClaudeCatalogModel>;
 }
 
-function tryResolveClaudeModelCatalog(
-  resolved: ModelCatalog.ProviderCatalog | undefined,
-): ClaudeModelCatalog | null {
+function tryResolveClaudeModelCatalog(resolved: ModelCatalog.ProviderCatalog | undefined) {
   if (!resolved) return null;
 
   const models: Array<ClaudeCatalogModel> = [];
@@ -64,9 +61,7 @@ function tryResolveClaudeModelCatalog(
   };
 }
 
-export function withUltracodeToggle(
-  capabilities: ModelCapabilities | null,
-): ModelCapabilities | null {
+export function withUltracodeToggle(capabilities: ModelCapabilities | null) {
   const descriptors = capabilities?.optionDescriptors ?? [];
   const effortIndex = descriptors.findIndex(
     (descriptor) =>
@@ -110,15 +105,14 @@ export function withUltracodeToggle(
 /** Resolve the fallback on each read so its new-model badges can expire. */
 export function resolveClaudeModelCatalog(
   catalog: ModelCatalog.ProviderCatalog | undefined,
-): ClaudeModelCatalog {
-  return (
-    tryResolveClaudeModelCatalog(catalog) ??
+): ClaudeModelCatalog;
+export function resolveClaudeModelCatalog(catalog: ModelCatalog.ProviderCatalog | undefined) {
+  return (tryResolveClaudeModelCatalog(catalog) ??
     tryResolveClaudeModelCatalog(
       resolveProviderCatalog(BUNDLED_MODEL_MANIFEST, CLAUDE) ?? undefined,
     ) ?? {
       models: [],
-    }
-  );
+    }) satisfies ClaudeModelCatalog;
 }
 
 export const BUNDLED_CLAUDE_MODEL_CATALOG = resolveClaudeModelCatalog(undefined);
@@ -126,7 +120,7 @@ export const BUNDLED_CLAUDE_MODEL_CATALOG = resolveClaudeModelCatalog(undefined)
 export function scopeClaudeModelCatalog(
   catalog: ClaudeModelCatalog,
   customModels: ReadonlyArray<CustomModelSetting>,
-): ClaudeModelCatalog {
+) {
   const customEntries = readCustomModelEntries(customModels);
   if (customEntries.length === 0) return catalog;
   const customAliases = new Set(customEntries.map((entry) => entry.slug.toLowerCase()));
@@ -172,7 +166,7 @@ const CLAUDE_EFFORT_LABELS: Readonly<Record<string, string>> = {
   max: "Max",
 };
 
-function stripClaudeContextWindowSuffix(value: string): string {
+function stripClaudeContextWindowSuffix(value: string) {
   return value.replace(/\[[^\]]*\]$/, "").trim();
 }
 
@@ -180,7 +174,7 @@ export function claudeReportedModels(
   catalog: ClaudeModelCatalog,
   customModels: ReadonlyArray<CustomModelSetting>,
   reported: ReadonlyArray<ClaudeModelInfo> | undefined,
-): ReadonlyArray<ServerProviderModel> {
+) {
   if (!reported?.length) return [];
   const known = new Set(
     [
@@ -226,7 +220,7 @@ export function claudeReportedModels(
 export function resolveClaudeCatalogModel(
   catalog: ClaudeModelCatalog,
   slugOrAlias: string | null | undefined,
-): ClaudeCatalogModel | undefined {
+) {
   const value = slugOrAlias?.trim();
   if (!value) return undefined;
   return (
@@ -237,7 +231,7 @@ export function resolveClaudeCatalogModel(
   );
 }
 
-function stripClaudeBackendDecoration(wireModel: string): string {
+function stripClaudeBackendDecoration(wireModel: string) {
   return wireModel
     .replace(/^(?:[a-z-]+\.)?anthropic\./, "")
     .replace(/-v\d+(?::\d+)?$/, "")
@@ -253,7 +247,11 @@ function stripClaudeBackendDecoration(wireModel: string): string {
 export function withClaudeCodeModelRoutes(
   catalog: ClaudeModelCatalog,
   reportedModels: ReadonlyArray<Pick<ClaudeModelInfo, "value" | "resolvedModel">>,
-): ClaudeModelCatalog {
+): ClaudeModelCatalog;
+export function withClaudeCodeModelRoutes(
+  catalog: ClaudeModelCatalog,
+  reportedModels: ReadonlyArray<Pick<ClaudeModelInfo, "value" | "resolvedModel">>,
+) {
   const apiModels = new Map<string, string>();
   for (const reported of reportedModels) {
     if (reported.value === "default") continue;
@@ -264,24 +262,21 @@ export function withClaudeCodeModelRoutes(
     if (!entry || apiModels.has(entry.model.slug)) continue;
     apiModels.set(entry.model.slug, stripClaudeContextWindowSuffix(reported.value));
   }
-  if (apiModels.size === 0) return catalog;
+  if (apiModels.size === 0) return catalog satisfies ClaudeModelCatalog;
   return {
     models: catalog.models.map((entry) => {
       const apiModel = apiModels.get(entry.model.slug);
       return apiModel ? { ...entry, apiModel } : entry;
     }),
-  };
+  } satisfies ClaudeModelCatalog;
 }
 
-export function resolveClaudeModelSlug(catalog: ClaudeModelCatalog, slugOrAlias: string): string {
+export function resolveClaudeModelSlug(catalog: ClaudeModelCatalog, slugOrAlias: string) {
   return resolveClaudeCatalogModel(catalog, slugOrAlias)?.model.slug ?? slugOrAlias;
 }
 
 /** Claude reports dated IDs, such as `claude-opus-4-5-20251101`, that the catalog may not list. */
-export function resolveClaudeReportedModelSlug(
-  catalog: ClaudeModelCatalog,
-  reported: string,
-): string {
+export function resolveClaudeReportedModelSlug(catalog: ClaudeModelCatalog, reported: string) {
   return (
     (
       resolveClaudeCatalogModel(catalog, reported) ??
@@ -293,14 +288,14 @@ export function resolveClaudeReportedModelSlug(
 export function getClaudeCatalogModelCapabilities(
   catalog: ClaudeModelCatalog,
   slugOrAlias: string | null | undefined,
-): ModelCapabilities {
+) {
   return resolveClaudeCatalogModel(catalog, slugOrAlias)?.model.capabilities ?? EMPTY_CAPABILITIES;
 }
 
 function isVersionSupported(
   compatibility: ClaudeCodeCompatibility,
   version: string | null | undefined,
-): boolean {
+) {
   if (!compatibility.minVersion && !compatibility.maxVersionExclusive) return true;
   if (!version) return false;
   if (compatibility.minVersion && compareSemverVersions(version, compatibility.minVersion) < 0) {
@@ -315,7 +310,7 @@ function isVersionSupported(
 export function resolveClaudeModelsForVersion(
   catalog: ClaudeModelCatalog,
   version: string | null | undefined,
-): ReadonlyArray<ClaudeCatalogModel["model"]> {
+) {
   return catalog.models
     .filter((entry) => isVersionSupported(entry.compatibility, version))
     .map((entry) => entry.model);
@@ -324,7 +319,7 @@ export function resolveClaudeModelsForVersion(
 export function resolveClaudeUpdateRequiredModels(
   catalog: ClaudeModelCatalog,
   version: string | null | undefined,
-): ReadonlyArray<ServerProviderUpdateRequiredModel> {
+) {
   if (!version) return [];
   return catalog.models.flatMap(({ model, compatibility }) => {
     const minVersion = compatibility.minVersion;
@@ -345,7 +340,7 @@ export function resolveClaudeUpdateRequiredModels(
 export function formatClaudeVersionUpgradeMessage(
   catalog: ClaudeModelCatalog,
   version: string | null,
-): string | undefined {
+) {
   const unavailable = catalog.models
     .filter(
       (entry) =>
@@ -364,7 +359,7 @@ export function formatClaudeVersionUpgradeMessage(
 export const CLAUDE_EFFORT_LEVELS = ["low", "medium", "high", "xhigh", "max"] as const;
 export type ClaudeEffortLevel = (typeof CLAUDE_EFFORT_LEVELS)[number];
 
-function claudeEffortRank(level: string | undefined): number {
+function claudeEffortRank(level: string | undefined) {
   return CLAUDE_EFFORT_LEVELS.indexOf(level as ClaudeEffortLevel);
 }
 
@@ -382,10 +377,7 @@ const CLAUDE_CODE_FAMILY_ALIASES: ReadonlySet<string> = new Set([
   "fable",
 ]);
 
-function resolveClaudeModelSettingsKey(
-  catalog: ClaudeModelCatalog,
-  key: string,
-): string | undefined {
+function resolveClaudeModelSettingsKey(catalog: ClaudeModelCatalog, key: string) {
   const lowered = key.trim().toLowerCase();
   const unsuffixed = lowered.endsWith(CLAUDE_1M_SUFFIX)
     ? lowered.slice(0, -CLAUDE_1M_SUFFIX.length)
@@ -406,7 +398,7 @@ function resolveClaudeModelSettingsKey(
 function resolveClaudeModelMaxEffortLevels(
   catalog: ClaudeModelCatalog,
   levels: ReadonlyMap<string, ClaudeEffortLevel> | undefined,
-): ReadonlyMap<string, ClaudeEffortLevel> {
+) {
   const resolved = new Map<string, ClaudeEffortLevel>();
   for (const [key, level] of levels ?? []) {
     const slug = resolveClaudeModelSettingsKey(catalog, key);
@@ -426,7 +418,7 @@ export function capClaudeCatalogEffort(
   catalog: ClaudeModelCatalog,
   models: ReadonlyArray<ServerProviderModel>,
   sources: ReadonlyArray<ClaudeEffortCapSource>,
-): ReadonlyArray<ServerProviderModel> {
+) {
   if (sources.length === 0) return models;
   const resolvedSources = sources.map((source) => ({
     maxEffortLevel: source.maxEffortLevel,
@@ -487,7 +479,7 @@ export function resolveClaudeCatalogEffort(
   catalog: ClaudeModelCatalog,
   model: string | null | undefined,
   raw: string | null | undefined,
-): string | undefined {
+) {
   if (!resolveClaudeCatalogModel(catalog, model)) {
     const effort = raw?.trim();
     return effort && (CLAUDE_EFFORT_LEVELS as ReadonlyArray<string>).includes(effort)
@@ -509,7 +501,7 @@ export function normalizeClaudeCatalogEffort(
   catalog: ClaudeModelCatalog,
   effort: string | null | undefined,
   model: string | null | undefined,
-): string | undefined {
+) {
   if (!effort) return undefined;
   const effortMap = resolveClaudeCatalogModel(catalog, model)?.runtime.effortMap;
   if (!effortMap || !Object.prototype.hasOwnProperty.call(effortMap, effort)) return effort;
@@ -519,7 +511,7 @@ export function normalizeClaudeCatalogEffort(
 function resolveClaudeCatalogContextWindow(
   catalog: ClaudeModelCatalog,
   modelSelection: ModelSelection | undefined,
-): string | undefined {
+) {
   const caps = getClaudeCatalogModelCapabilities(catalog, modelSelection?.model);
   const raw = getModelSelectionStringOptionValue(modelSelection, "contextWindow");
   const descriptors = getProviderOptionDescriptors({
@@ -534,7 +526,7 @@ function resolveClaudeCatalogContextWindow(
 export function resolveClaudeCatalogApiModelId(
   catalog: ClaudeModelCatalog,
   modelSelection: ModelSelection,
-): string {
+) {
   const entry = resolveClaudeCatalogModel(catalog, modelSelection.model);
   const slug = entry?.apiModel ?? entry?.model.slug ?? modelSelection.model;
   const descriptors = getProviderOptionDescriptors({
@@ -553,7 +545,7 @@ export function resolveClaudeCatalogApiModelId(
 export function resolveClaudeCatalogContextWindowTokens(
   catalog: ClaudeModelCatalog,
   modelSelection: ModelSelection | undefined,
-): number | undefined {
+) {
   const entry = resolveClaudeCatalogModel(catalog, modelSelection?.model);
   if (!entry) return undefined;
   if (entry.runtime.fixedContextWindowTokens) return entry.runtime.fixedContextWindowTokens;

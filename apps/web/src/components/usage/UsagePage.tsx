@@ -174,7 +174,7 @@ const selectedUsageModelKeyAtom = Atom.make<string | null>(null).pipe(
   Atom.withLabel("usage:selected-model-key"),
 );
 
-function selectUsageModel(key: string | null): void {
+function selectUsageModel(key: string | null) {
   appAtomRegistry.set(selectedUsageModelKeyAtom, key);
 }
 

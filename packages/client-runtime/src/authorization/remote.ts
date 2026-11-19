@@ -126,7 +126,7 @@ export const issueRemoteWebSocketTicket = Effect.fn(
   );
 });
 
-function rpcSocketUrl(wsBaseUrl: string): URL {
+function rpcSocketUrl(wsBaseUrl: string) {
   const url = new URL(wsBaseUrl);
   if (url.pathname === "" || url.pathname === "/") {
     url.pathname = "/ws";

@@ -424,7 +424,7 @@ function createThreadCommand(input: {
   readonly modelSelection: ModelSelection;
   readonly interactionMode?: ProviderInteractionMode;
   readonly runtimeMode?: RuntimeMode;
-}): OrchestrationV2Command {
+}) {
   return {
     type: "thread.create",
     createdBy: "user",
@@ -438,7 +438,7 @@ function createThreadCommand(input: {
     interactionMode: input.interactionMode ?? "default",
     branch: null,
     worktreePath: null,
-  };
+  } satisfies OrchestrationV2Command;
 }
 
 function dispatchMessageCommand(input: {
@@ -460,7 +460,7 @@ function dispatchMessageCommand(input: {
     OrchestrationV2Command,
     { readonly type: "message.dispatch" }
   >["dispatchMode"];
-}): OrchestrationV2Command {
+}) {
   return {
     type: "message.dispatch",
     createdBy: input.createdBy ?? "user",
@@ -472,7 +472,7 @@ function dispatchMessageCommand(input: {
     attachments: [...(input.attachments ?? [])],
     modelSelection: input.modelSelection,
     dispatchMode: input.dispatchMode ?? { type: "start_immediately" },
-  };
+  } satisfies OrchestrationV2Command;
 }
 
 export function materializeFixtureInput(input: {
@@ -484,7 +484,13 @@ export function materializeFixtureInput(input: {
   MaterializedOrchestratorFixtureInput,
   IdAllocator.IdAllocatorV2Error,
   IdAllocator.IdAllocatorV2
-> {
+>;
+export function materializeFixtureInput(input: {
+  readonly scenario: string;
+  readonly fixtureInput: OrchestratorFixtureInput;
+  readonly driver: ProviderDriverKind;
+  readonly modelSelection: ModelSelection;
+}) {
   return Effect.gen(function* () {
     const idAllocator = yield* IdAllocator.IdAllocatorV2;
     const projectId = yield* idAllocator.allocate.project({ fixtureName: input.scenario });
@@ -967,18 +973,23 @@ export function materializeFixtureInput(input: {
       projectionThreadIds:
         forkThreadId === undefined ? [ids.threadId] : [ids.threadId, forkThreadId],
     };
-  });
+  }) satisfies Effect.Effect<
+    MaterializedOrchestratorFixtureInput,
+    IdAllocator.IdAllocatorV2Error,
+    IdAllocator.IdAllocatorV2
+  >;
 }
 
 /** Reads `key` from a recorded frame or payload of unknown shape. */
-export function field(value: unknown, key: string): unknown {
+export function field(value: unknown, key: string) {
   return Predicate.hasProperty(value, key) ? value[key] : undefined;
 }
 
 export function projectionFor(
   result: OrchestratorV2ScenarioResult,
   scenario: string,
-): OrchestrationV2ThreadProjection {
+): OrchestrationV2ThreadProjection;
+export function projectionFor(result: OrchestratorV2ScenarioResult, scenario: string) {
   const projections = [...result.projections.values()].filter(
     (projection) => projection.thread.lineage.parentThreadId === null,
   );
@@ -986,7 +997,7 @@ export function projectionFor(
   assert.equal(projections.length, 1, `expected one root projection for ${scenario}`);
   const projection = projections[0];
   assert.isDefined(projection, `missing projection for ${scenario}`);
-  return projection;
+  return projection satisfies OrchestrationV2ThreadProjection;
 }
 
 export function assertBaseProjection(input: {
@@ -1370,7 +1381,7 @@ export function assertRuntimeRequestCounts(
   }
 }
 
-function countReplayLabelsWithPrefix(transcript: ProviderReplayTranscript, prefix: string): number {
+function countReplayLabelsWithPrefix(transcript: ProviderReplayTranscript, prefix: string) {
   return transcript.entries.filter(
     (entry) => entry.type !== "runtime_exit" && (entry.label?.startsWith(prefix) ?? false),
   ).length;

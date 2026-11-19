@@ -1,4 +1,4 @@
-import type { ServerSettings, ServerSettingsError } from "@supaterm/contracts";
+import type { ServerSettings } from "@supaterm/contracts";
 import * as Effect from "effect/Effect";
 import * as Equal from "effect/Equal";
 import * as Stream from "effect/Stream";
@@ -13,30 +13,28 @@ export interface ProviderSnapshotSettings<Settings> {
 function makeProviderSnapshotSettings<Settings>(
   provider: Settings,
   settings: ServerSettings,
-): ProviderSnapshotSettings<Settings> {
+): ProviderSnapshotSettings<Settings>;
+function makeProviderSnapshotSettings<Settings>(provider: Settings, settings: ServerSettings) {
   return {
     provider,
     enableProviderUpdateChecks: settings.enableProviderUpdateChecks,
-  };
+  } satisfies ProviderSnapshotSettings<Settings>;
 }
 
 export function haveProviderSnapshotSettingsChanged<Settings>(
   previous: ProviderSnapshotSettings<Settings>,
   next: ProviderSnapshotSettings<Settings>,
-): boolean {
-  return !Equal.equals(previous, next);
+): boolean;
+export function haveProviderSnapshotSettingsChanged<Settings>(
+  previous: ProviderSnapshotSettings<Settings>,
+  next: ProviderSnapshotSettings<Settings>,
+) {
+  return !Equal.equals(previous, next) satisfies boolean;
 }
 
 export const makeProviderSnapshotSettingsSource = Effect.fn(
   "snapshotSettings.makeProviderSnapshotSettingsSource",
-)(function* <Settings>(provider: Settings): Effect.fn.Return<
-  {
-    readonly getSettings: Effect.Effect<ProviderSnapshotSettings<Settings>, ServerSettingsError>;
-    readonly streamSettings: Stream.Stream<ProviderSnapshotSettings<Settings>>;
-  },
-  never,
-  ProviderHost.ProviderHost
-> {
+)(function* <Settings>(provider: Settings) {
   const { settings } = yield* ProviderHost.ProviderHost;
   const mapSettings = (current: ServerSettings) => makeProviderSnapshotSettings(provider, current);
   return {

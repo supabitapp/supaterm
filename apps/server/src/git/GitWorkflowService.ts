@@ -151,7 +151,7 @@ export class GitWorkflowService extends Context.Service<
   }
 >()("supaterm/git/GitWorkflowService") {}
 
-function nonRepositoryLocalStatus(): VcsStatusLocalResult {
+function nonRepositoryLocalStatus() {
   return {
     isRepo: false,
     hasPrimaryRemote: false,
@@ -166,7 +166,7 @@ function nonRepositoryLocalStatus(): VcsStatusLocalResult {
   };
 }
 
-function nonRepositoryStatus(): VcsStatusResult {
+function nonRepositoryStatus() {
   return {
     ...nonRepositoryLocalStatus(),
     hasUpstream: false,
@@ -177,7 +177,7 @@ function nonRepositoryStatus(): VcsStatusResult {
   };
 }
 
-function nonRepositoryListRefs(): VcsListRefsResult {
+function nonRepositoryListRefs() {
   return {
     refs: [],
     isRepo: false,

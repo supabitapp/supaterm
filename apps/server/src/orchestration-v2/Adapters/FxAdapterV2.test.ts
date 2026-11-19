@@ -55,12 +55,12 @@ const FX_0_0_13_MODES = ["code", "ask"];
 const FX_MAIN_MODES = ["auto", "ask", "full-access"];
 
 type Frame = Record<string, unknown>;
-const outbound = (method: string, params: unknown = "<any>"): Frame => ({
+const outbound = (method: string, params: unknown = "<any>") => ({
   type: "expect_outbound",
   label: method,
   frame: { kind: "request", method, params },
 });
-const answer = (method: string, result: unknown): Frame => ({
+const answer = (method: string, result: unknown) => ({
   type: "emit_inbound",
   label: `${method}.result`,
   frame: { kind: "response", method, result },
@@ -120,11 +120,7 @@ const initialize: ReadonlyArray<Frame> = [
   }),
 ];
 
-const setConfig = (
-  configId: string,
-  value: string,
-  configAfter: ReadonlyArray<unknown>,
-): ReadonlyArray<Frame> => [
+const setConfig = (configId: string, value: string, configAfter: ReadonlyArray<unknown>) => [
   outbound("session/set_config_option", { sessionId: SESSION_ID, configId, value }),
   answer("session/set_config_option", { configOptions: configAfter }),
 ];

@@ -21,7 +21,7 @@ export class AndroidFoldError extends Error {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
-const parseFold = (payload: unknown): AndroidFoldState => {
+const parseFold = (payload: unknown) => {
   if (!isRecord(payload) || payload.ok !== true || !isRecord(payload.fold)) {
     throw new Error("Unexpected Android fold response.");
   }
@@ -38,7 +38,7 @@ const parseFold = (payload: unknown): AndroidFoldState => {
   ) {
     throw new Error("Unexpected Android fold response.");
   }
-  return { supported, posture, hingeAngle };
+  return { supported, posture, hingeAngle } satisfies AndroidFoldState;
 };
 
 const foldRequest = async (
@@ -46,7 +46,7 @@ const foldRequest = async (
   deviceId: string,
   posture?: AndroidFoldPosture,
   signal?: AbortSignal,
-): Promise<AndroidFoldState> => {
+) => {
   const url = withDeviceHubQuery(
     `${access.httpBase}/vendor/serve-emu/api/fold?${new URLSearchParams({ device: deviceId })}`,
     access,
@@ -68,7 +68,7 @@ const foldRequest = async (
       response.status,
     );
   }
-  return parseFold(await response.json());
+  return parseFold(await response.json()) satisfies AndroidFoldState;
 };
 
 export const readAndroidFold = (access: DeviceHubAccess, deviceId: string, signal?: AbortSignal) =>

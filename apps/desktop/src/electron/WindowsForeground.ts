@@ -25,16 +25,13 @@ export interface WindowsForegroundApi {
 
 const WINDOWS_SHELL_HOSTED_WINDOW_CLASSES = new Set(["ApplicationFrameWindow"]);
 
-function nativeWindowHandle(buffer: Buffer): bigint {
+function nativeWindowHandle(buffer: Buffer) {
   if (buffer.length === 8) return buffer.readBigUInt64LE();
   if (buffer.length === 4) return BigInt(buffer.readUInt32LE());
   throw new Error(`Unsupported Windows window handle size: ${String(buffer.length)} bytes.`);
 }
 
-export function activateWindowsForegroundWithApi(
-  handleBuffer: Buffer,
-  api: WindowsForegroundApi,
-): boolean {
+export function activateWindowsForegroundWithApi(handleBuffer: Buffer, api: WindowsForegroundApi) {
   const targetWindow = nativeWindowHandle(handleBuffer);
   const foregroundWindow = api.getForegroundWindow();
   if (targetWindow === foregroundWindow) return true;
@@ -54,7 +51,7 @@ export function activateWindowsForegroundWithApi(
   }
 }
 
-function isWindowsShellHostedForegroundWithApi(api: WindowsForegroundApi): boolean {
+function isWindowsShellHostedForegroundWithApi(api: WindowsForegroundApi) {
   const foregroundWindow = api.getForegroundWindow();
   return (
     foregroundWindow !== 0n &&
@@ -66,7 +63,7 @@ let windowsForegroundApiPromise: Promise<WindowsForegroundApi> | undefined;
 
 const PROCESS_QUERY_LIMITED_INFORMATION = 0x1000;
 
-export function loadWindowsForegroundApi(): Promise<WindowsForegroundApi> {
+export function loadWindowsForegroundApi() {
   windowsForegroundApiPromise ??= import("ffi-rs").then(({ DataType, load, open }) => {
     const kernel32 = "supaterm-kernel32";
     const user32 = "supaterm-user32";
@@ -212,12 +209,12 @@ export function loadWindowsForegroundApi(): Promise<WindowsForegroundApi> {
   return windowsForegroundApiPromise;
 }
 
-export async function activateWindowsForeground(handleBuffer: Buffer): Promise<void> {
+export async function activateWindowsForeground(handleBuffer: Buffer) {
   const api = await loadWindowsForegroundApi();
   if (activateWindowsForegroundWithApi(handleBuffer, api)) return;
   throw new Error("Windows refused to activate the Supaterm window.");
 }
 
-export async function isWindowsShellHostedForeground(): Promise<boolean> {
+export async function isWindowsShellHostedForeground() {
   return isWindowsShellHostedForegroundWithApi(await loadWindowsForegroundApi());
 }

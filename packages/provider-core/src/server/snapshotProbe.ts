@@ -46,11 +46,15 @@ export const isWindowsCommandNotFound = Effect.fn("isWindowsCommandNotFound")(fu
 export const DEFAULT_TIMEOUT_MS = 4_000;
 export const AUTH_PROBE_TIMEOUT_MS = 10_000;
 
-export const resolveProviderProbeTimeoutMs = (
+export const resolveProviderProbeTimeoutMs: (
+  provider: string,
+  defaultTimeoutMs: number,
+  environment?: NodeJS.ProcessEnv,
+) => number = (
   provider: string,
   defaultTimeoutMs: number,
   environment: NodeJS.ProcessEnv = process.env,
-): number => {
+) => {
   const timeoutMs = Number(environment[`SUPATERM_${provider.toUpperCase()}_PROBE_TIMEOUT_MS`]);
   return Number.isInteger(timeoutMs) && timeoutMs > defaultTimeoutMs && timeoutMs <= 2_147_483_647
     ? timeoutMs
@@ -77,7 +81,7 @@ export class ProviderCommandNotFoundError extends Schema.TaggedError<ProviderCom
     stderrLength: Schema.Number,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Provider command ${this.binaryPath} was not found (exit code ${this.exitCode}).`;
   }
 }
@@ -105,13 +109,13 @@ export interface ServerProviderPresentation {
 
 export type ServerProviderDraft = Omit<ServerProvider, "instanceId" | "driver">;
 
-export function nonEmptyTrimmed(value: string | undefined): string | undefined {
+export function nonEmptyTrimmed(value: string | undefined) {
   if (!value) return undefined;
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : undefined;
 }
 
-export function isCommandMissingCause(error: unknown): boolean {
+export function isCommandMissingCause(error: unknown) {
   if (isProviderCommandNotFoundError(error)) return true;
   return error instanceof PlatformError.PlatformError && error.reason._tag === "NotFound";
 }
@@ -121,13 +125,14 @@ export function isCommandMissingCause(error: unknown): boolean {
  * download it on every refresh and leave a partial download behind when the probe times out.
  * Sessions and user-started commands keep the plain environment, so mise still installs there.
  */
-export function providerProbeEnvironment(environment: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
-  return { ...environment, MISE_OFFLINE: "1" };
+export function providerProbeEnvironment(environment: NodeJS.ProcessEnv): NodeJS.ProcessEnv;
+export function providerProbeEnvironment(environment: NodeJS.ProcessEnv) {
+  return { ...environment, MISE_OFFLINE: "1" } satisfies NodeJS.ProcessEnv;
 }
 
 const PROBE_FORCE_KILL_AFTER = "1 second";
 
-function withProbeForceKill(command: ChildProcess.Command): ChildProcess.Command {
+function withProbeForceKill(command: ChildProcess.Command) {
   if (!ChildProcess.isStandardCommand(command) || command.options.forceKillAfter !== undefined) {
     return command;
   }
@@ -164,7 +169,7 @@ export const spawnAndCollect = Effect.fn("snapshotProbe.spawnAndCollect")(functi
   return result;
 }, Effect.scoped);
 
-export function parseGenericCliVersion(output: string): string | null {
+export function parseGenericCliVersion(output: string) {
   const match = output.match(/\bv?(\d+\.\d+\.\d+)\b/);
   return match?.[1] ?? null;
 }
@@ -173,7 +178,7 @@ export function parseGenericCliVersion(output: string): string | null {
 export function parseCliVersionResult(
   result: CommandResult,
   parse: (output: string) => string | null = parseGenericCliVersion,
-): string | null {
+) {
   return result.code === 0 ? parse(`${result.stdout}\n${result.stderr}`) : null;
 }
 
@@ -181,7 +186,7 @@ export function providerModelsFromSettings(
   builtInModels: ReadonlyArray<ServerProviderModel>,
   customModels: ReadonlyArray<CustomModelSetting>,
   customModelCapabilities: ModelCapabilities | null,
-): ReadonlyArray<ServerProviderModel> {
+) {
   const entries = readCustomModelEntries(customModels);
   if (entries.length === 0) return builtInModels;
 
@@ -272,7 +277,18 @@ export function buildServerProvider(input: {
   slashCommands?: ReadonlyArray<ServerProviderSlashCommand>;
   skills?: ReadonlyArray<ServerProviderSkill>;
   probe: ProviderProbeResult;
-}): ServerProviderDraft {
+}): ServerProviderDraft;
+export function buildServerProvider(input: {
+  driver?: ProviderDriverKind;
+  presentation: ServerProviderPresentation;
+  enabled: boolean;
+  checkedAt: string;
+  models: ReadonlyArray<ServerProviderModel>;
+  updateRequiredModels?: ReadonlyArray<ServerProviderUpdateRequiredModel>;
+  slashCommands?: ReadonlyArray<ServerProviderSlashCommand>;
+  skills?: ReadonlyArray<ServerProviderSkill>;
+  probe: ProviderProbeResult;
+}) {
   const versionAdvisory = input.driver
     ? createProviderVersionAdvisory({
         driver: input.driver,
@@ -312,11 +328,10 @@ export function buildServerProvider(input: {
     ...(input.probe.usageLimits ? { usageLimits: input.probe.usageLimits } : {}),
     ...(input.probe.transcription ? { transcription: input.probe.transcription } : {}),
     ...(versionAdvisory ? { versionAdvisory } : {}),
-  };
+  } satisfies ServerProviderDraft;
 }
 
 export const collectStreamAsString = <E>(
   stream: Stream.Stream<Uint8Array, E>,
   options?: { readonly maxBytes?: number | undefined },
-): Effect.Effect<string, E> =>
-  collectUint8StreamText({ stream, ...options }).pipe(Effect.map((collected) => collected.text));
+) => collectUint8StreamText({ stream, ...options }).pipe(Effect.map((collected) => collected.text));

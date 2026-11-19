@@ -24,7 +24,7 @@ import { defaultProjectFallbackReadyAtom } from "./projects";
 const LOCAL = EnvironmentId.make("local");
 const REMOTE = EnvironmentId.make("remote");
 
-function shellState(status: EnvironmentShellState["status"]): EnvironmentShellState {
+function shellState(status: EnvironmentShellState["status"]) {
   return {
     ...EMPTY_SHELL_STATE,
     status,
@@ -42,7 +42,7 @@ function shellState(status: EnvironmentShellState["status"]): EnvironmentShellSt
   };
 }
 
-function catalogState(environmentIds: readonly EnvironmentId[]): EnvironmentCatalogState {
+function catalogState(environmentIds: readonly EnvironmentId[]) {
   return {
     isReady: true,
     entries: new Map(

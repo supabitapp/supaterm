@@ -8,7 +8,7 @@ import { primaryServerKeybindingsAtom } from "../state/server";
 export function useShortcutLabel(
   command: KeybindingCommand | null,
   options?: ResolvedShortcutLabelOptions,
-): string | null {
+) {
   const keybindings = useAtomValue(primaryServerKeybindingsAtom);
   return shortcutLabelForCommand(keybindings, command, options);
 }

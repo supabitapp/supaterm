@@ -10,14 +10,15 @@ import {
   orchestrationProtocolCompatibilityError,
 } from "./compatibility.ts";
 
-const descriptor = (orchestrationProtocolVersion: number): ExecutionEnvironmentDescriptor => ({
-  environmentId: EnvironmentId.make("environment-remote"),
-  label: "Build Mac",
-  platform: { os: "darwin", arch: "arm64" },
-  serverVersion: "9.0.0",
-  orchestrationProtocolVersion,
-  capabilities: {},
-});
+const descriptor = (orchestrationProtocolVersion: number) =>
+  ({
+    environmentId: EnvironmentId.make("environment-remote"),
+    label: "Build Mac",
+    platform: { os: "darwin", arch: "arm64" },
+    serverVersion: "9.0.0",
+    orchestrationProtocolVersion,
+    capabilities: {},
+  }) satisfies ExecutionEnvironmentDescriptor;
 
 describe("orchestration protocol compatibility", () => {
   it("accepts the current protocol and announces it without disturbing socket credentials", () => {

@@ -1,5 +1,5 @@
 const PRERELEASE_VERSION_PATTERN = /^[^-+]+-(?:nightly|preview)\.\d{8}\.\d+$/;
 
-export function isNightlyDesktopVersion(version: string): boolean {
+export function isNightlyDesktopVersion(version: string) {
   return PRERELEASE_VERSION_PATTERN.test(version);
 }

@@ -1,8 +1,4 @@
-import {
-  SUPATERM_PROJECT_FILE_NAME,
-  type EnvironmentId,
-  type SupatermProjectFile,
-} from "@supaterm/contracts";
+import { SUPATERM_PROJECT_FILE_NAME, type EnvironmentId } from "@supaterm/contracts";
 import { parseSupatermProjectFile } from "@supaterm/shared/supatermProjectFile";
 import { executeAtomQuery } from "@supaterm/client-runtime/state/runtime";
 import { AsyncResult } from "effect/reactivity";
@@ -19,10 +15,7 @@ import { environmentPresentations } from "~/state/presentation";
  * defaults at call time. Optimistic in-app writes overlay the cached query result, matching what
  * `useProjectFileQuery` renders. Missing, truncated, or invalid files resolve to null.
  */
-export async function readSupatermProjectFile(
-  environmentId: EnvironmentId,
-  workspaceRoot: string,
-): Promise<SupatermProjectFile | null> {
+export async function readSupatermProjectFile(environmentId: EnvironmentId, workspaceRoot: string) {
   const query = getProjectFileQueryAtom(environmentId, workspaceRoot, SUPATERM_PROJECT_FILE_NAME);
   const connected =
     appAtomRegistry.get(environmentPresentations.presentationAtom(environmentId))?.connection

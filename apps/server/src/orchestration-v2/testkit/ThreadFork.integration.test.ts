@@ -12,7 +12,6 @@ import {
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
-import * as PlatformError from "effect/PlatformError";
 import * as Schema from "effect/Schema";
 import { ChildProcess, ChildProcessSpawner } from "effect/process";
 
@@ -61,19 +60,12 @@ class ThreadForkGitCommandError extends Schema.TaggedError<ThreadForkGitCommandE
     exitCode: Schema.Number,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `${this.command} failed with exit ${this.exitCode}.`;
   }
 }
 
-function runGit(
-  cwd: string,
-  args: ReadonlyArray<string>,
-): Effect.Effect<
-  void,
-  ThreadForkGitCommandError | PlatformError.PlatformError,
-  ChildProcessSpawner.ChildProcessSpawner
-> {
+function runGit(cwd: string, args: ReadonlyArray<string>) {
   return Effect.gen(function* () {
     const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
     const exitCode = yield* spawner.exitCode(ChildProcess.make("git", args, { cwd }));
@@ -107,7 +99,7 @@ function readTranscript(transcriptPath: string) {
   });
 }
 
-function metadataString(transcript: ProviderReplayTranscript, key: string): string {
+function metadataString(transcript: ProviderReplayTranscript, key: string) {
   const value = transcript.metadata?.[key];
   if (typeof value !== "string") {
     throw new Error(`Transcript ${transcript.scenario} is missing metadata string ${key}.`);
@@ -115,10 +107,7 @@ function metadataString(transcript: ProviderReplayTranscript, key: string): stri
   return value;
 }
 
-function metadataStringArray(
-  transcript: ProviderReplayTranscript,
-  key: string,
-): ReadonlyArray<string> {
+function metadataStringArray(transcript: ProviderReplayTranscript, key: string) {
   const value = transcript.metadata?.[key];
   if (!Array.isArray(value) || !value.every((entry) => typeof entry === "string")) {
     throw new Error(`Transcript ${transcript.scenario} is missing metadata string array ${key}.`);
@@ -128,7 +117,7 @@ function metadataStringArray(
 
 function userAndAssistantText(
   projection: Pick<OrchestrationV2ThreadProjection, "visibleTurnItems">,
-): string {
+) {
   return projection.visibleTurnItems
     .flatMap((row) => {
       const item = row.item;

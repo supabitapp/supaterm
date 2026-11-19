@@ -122,7 +122,6 @@ import {
   ServerUpdateAction,
   ServerUpdateProgress,
   ServerUpdatesAction,
-  type ServerUpdateTarget,
 } from "../ServerUpdateAction";
 import {
   AdvertisedEndpointListRow,
@@ -273,7 +272,7 @@ function ConnectionsSettingsContent({
     updateStatus: savedUpdateStates[index]!.status,
   }));
   const savedServerUpdateTargets = savedServerUpdateStates.flatMap(
-    ({ environment, updateStatus }): ServerUpdateTarget[] => {
+    ({ environment, updateStatus }) => {
       const mismatch = resolveServerConfigVersionMismatch(environment.serverConfig);
       const selfUpdate = resolveServerSelfUpdateCapability(environment.serverConfig);
       const desktopAppUpdate = supportsDesktopAppUpdate(environment.serverConfig);

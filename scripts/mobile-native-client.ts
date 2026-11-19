@@ -46,7 +46,7 @@ export function clientStatus(
   fingerprint: string,
   binary: string | null,
   record: NativeClientRecord | null,
-): NativeClientStatus {
+) {
   if (binary === null) return "missing";
   if (!record || record.binary !== binary) return "unknown";
   return record.fingerprint === fingerprint ? "compatible" : "stale";
@@ -95,9 +95,11 @@ export const hashBundle = Effect.fn("hashBundle")(function* (root: string) {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const entries: string[] = [];
-  const visit = Effect.fn("mobile-native-client.visit")(function* (
+  const visit: (
     relative: string,
-  ): Effect.fn.Return<void, FileSystemError, FileSystem.FileSystem | Digest.Digest> {
+  ) => Effect.Effect<void, FileSystemError, FileSystem.FileSystem | Digest.Digest> = Effect.fn(
+    "mobile-native-client.visit",
+  )(function* (relative: string) {
     const names = (yield* fs.readDirectory(path.join(root, relative))).sort((a, b) =>
       a.localeCompare(b, "en"),
     );

@@ -51,7 +51,7 @@ const statFile = NodeUtil.promisify(NodeFS.stat);
 const CARRIAGE_RETURN = 0x0d;
 
 function selectUsageFields(fields: SelectedFields) {
-  return (path: ReadonlyArray<string | number | null>): boolean => {
+  return (path: ReadonlyArray<string | number | null>) => {
     let selected: true | SelectedFields = fields;
     for (const key of path) {
       if (selected === true) return true;
@@ -62,7 +62,7 @@ function selectUsageFields(fields: SelectedFields) {
   };
 }
 
-function fnv1a(buffer: Buffer): number {
+function fnv1a(buffer: Buffer) {
   let hash = 0x811c9dc5;
   for (let index = 0; index < buffer.length; index += 1) {
     hash ^= buffer[index]!;
@@ -72,7 +72,7 @@ function fnv1a(buffer: Buffer): number {
 }
 
 /** Skips Grok logs without usage; preserves readdir order for first-seen deduplication. */
-export async function listTranscriptFiles(
+export function listTranscriptFiles(
   root: string,
   sinceMs: number,
   options?: { readonly fileName?: string },
@@ -80,12 +80,17 @@ export async function listTranscriptFiles(
   readonly files: readonly TranscriptFile[];
   readonly walked: readonly string[];
   readonly failedPaths: number;
-}> {
+}>;
+export async function listTranscriptFiles(
+  root: string,
+  sinceMs: number,
+  options?: { readonly fileName?: string },
+) {
   const fileName = options?.fileName;
   let failedPaths = 0;
   let reading = 0;
   const waiting: Array<() => void> = [];
-  const walk = async (dir: string): Promise<readonly string[]> => {
+  const walk: (dir: string) => Promise<readonly string[]> = async (dir: string) => {
     if (reading < WALK_CONCURRENCY) reading += 1;
     else await new Promise<void>((resume) => waiting.push(resume));
     let entries;
@@ -118,7 +123,7 @@ export async function listTranscriptFiles(
 
   const found: Array<TranscriptFile | undefined> = Array.from({ length: candidates.length });
   const queue = candidates.entries();
-  const statQueued = async (): Promise<void> => {
+  const statQueued = async () => {
     for (const [index, path] of queue) {
       try {
         const stats = await statFile(path);
@@ -135,10 +140,18 @@ export async function listTranscriptFiles(
   await Promise.all(
     Array.from({ length: Math.min(STAT_CONCURRENCY, candidates.length) }, statQueued),
   );
-  return { files: found.filter((file) => file !== undefined), walked: candidates, failedPaths };
+  return {
+    files: found.filter((file) => file !== undefined),
+    walked: candidates,
+    failedPaths,
+  } satisfies {
+    readonly files: readonly TranscriptFile[];
+    readonly walked: readonly string[];
+    readonly failedPaths: number;
+  };
 }
 
-export async function readDirectoryVolumeId(path: string): Promise<string> {
+export async function readDirectoryVolumeId(path: string) {
   try {
     const stats = await NodeFSP.stat(path);
     return `${stats.dev}:${stats.ino}`;
@@ -165,10 +178,7 @@ const unescapeMountField = (field: string) =>
 const normalizeWindowsPath = (path: string) =>
   (/^[a-z]:/.test(path) ? path[0]!.toUpperCase() + path.slice(1) : path).replace(/\\$/, "");
 
-function windowsMountFor(
-  mountInfo: string,
-  dir: string,
-): { readonly mountPoint: string; readonly windowsRoot: string } | undefined {
+function windowsMountFor(mountInfo: string, dir: string) {
   let deepest: { mountPoint: string; windowsRoot: string | undefined } | undefined;
   for (const line of mountInfo.split("\n")) {
     const fields = line.split(" ");
@@ -204,10 +214,7 @@ function windowsMountFor(
     : { mountPoint: deepest.mountPoint, windowsRoot: deepest.windowsRoot };
 }
 
-async function onDiskNames(
-  mountPoint: string,
-  parts: readonly string[],
-): Promise<string[] | undefined> {
+async function onDiskNames(mountPoint: string, parts: readonly string[]) {
   const names: string[] = [];
   let current = mountPoint;
   for (const part of parts) {
@@ -228,7 +235,7 @@ async function onDiskNames(
   return names;
 }
 
-export function physicalSourceIdOf(scope: string, windowsPath: string): string {
+export function physicalSourceIdOf(scope: string, windowsPath: string) {
   return NodeCrypto.createHash("sha256")
     .update(`${scope}\0${windowsPath}`)
     .digest("hex")
@@ -245,7 +252,7 @@ export async function readPhysicalSourceId(
   scope: string | undefined,
   platform: NodeJS.Platform,
   mountInfoPath = "/proc/self/mountinfo",
-): Promise<string | undefined> {
+) {
   if (scope === undefined || scope.length === 0) return undefined;
   try {
     if (platform === "win32") {
@@ -266,10 +273,7 @@ export async function readPhysicalSourceId(
   }
 }
 
-async function guardMatches(
-  handle: NodeFSP.FileHandle,
-  position: TranscriptParsePosition,
-): Promise<boolean> {
+async function guardMatches(handle: NodeFSP.FileHandle, position: TranscriptParsePosition) {
   if (position.guardLength <= 0 || position.guardLength > GUARD_LENGTH) return false;
   try {
     const window = Buffer.alloc(position.guardLength);
@@ -285,11 +289,7 @@ async function guardMatches(
   }
 }
 
-async function* readChunks(
-  handle: NodeFSP.FileHandle,
-  start: number,
-  compressed: boolean,
-): AsyncGenerator<Buffer> {
+async function* readChunks(handle: NodeFSP.FileHandle, start: number, compressed: boolean) {
   if (compressed) {
     yield* handle
       .createReadStream({ start, autoClose: true, highWaterMark: READ_CHUNK_BYTES })
@@ -322,7 +322,7 @@ export async function readTranscriptRecords<State>(
   format: TranscriptUsageFormat<State>,
   resumeFrom?: TranscriptParsePosition,
   options?: { readonly streamingThresholdBytes?: number },
-): Promise<TranscriptParseResult | null> {
+) {
   const streamingThresholdBytes = options?.streamingThresholdBytes ?? STREAMING_THRESHOLD_BYTES;
   const compressed = filePath.endsWith(".jsonl.zst");
   let handle: NodeFSP.FileHandle;
@@ -355,7 +355,7 @@ export async function readTranscriptRecords<State>(
       resumed = true;
     }
 
-    const toLineString = (lineBuffer: Buffer): string => {
+    const toLineString = (lineBuffer: Buffer) => {
       const content =
         lineBuffer.length > 0 && lineBuffer[lineBuffer.length - 1] === CARRIAGE_RETURN
           ? lineBuffer.subarray(0, -1)
@@ -364,7 +364,7 @@ export async function readTranscriptRecords<State>(
     };
 
     const mightCarryUsage = transcriptLineGate(format.usageMarkers);
-    const parseLine = (lineBuffer: Buffer, lineState: State, out: UsageRecord[]): void => {
+    const parseLine = (lineBuffer: Buffer, lineState: State, out: UsageRecord[]) => {
       if (!mightCarryUsage(lineBuffer)) return;
       for (const record of format.parseLine(toLineString(lineBuffer), lineState)) out.push(record);
     };

@@ -29,7 +29,7 @@ vi.mock("~/state/review", () => ({
 
 import { useReviewFilePatches } from "./useReviewFilePatches";
 
-function source(paths: string[], hash: string): ReviewDiffPreviewSource {
+function source(paths: string[], hash: string) {
   return {
     id: "working-tree",
     kind: "working-tree",
@@ -41,7 +41,7 @@ function source(paths: string[], hash: string): ReviewDiffPreviewSource {
     truncated: false,
     patchesDeferred: true,
     files: paths.map((path) => ({ path, previousPath: null, additions: 1, deletions: 1 })),
-  };
+  } satisfies ReviewDiffPreviewSource;
 }
 
 function Probe({ source }: { source: ReviewDiffPreviewSource }) {

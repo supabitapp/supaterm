@@ -55,7 +55,7 @@ const VCS_REFS_RETRY_SCHEDULE = Schedule.exponential("1 second").pipe(
   ),
 );
 
-function canUseVcsRefsCache(input: VcsListRefsInput): boolean {
+function canUseVcsRefsCache(input: VcsListRefsInput) {
   return (
     input.query === undefined &&
     input.cursor === undefined &&

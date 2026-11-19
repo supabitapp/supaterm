@@ -7,7 +7,7 @@ import {
   type ReviewSectionItem,
 } from "./reviewModel";
 
-function makeSection(id: string): ReviewSectionItem {
+function makeSection(id: string) {
   return {
     id,
     kind: id.startsWith("turn:") ? "turn" : "branch-range",
@@ -15,7 +15,7 @@ function makeSection(id: string): ReviewSectionItem {
     subtitle: null,
     diff: null,
     isLoading: false,
-  };
+  } satisfies ReviewSectionItem;
 }
 
 describe("resolveReviewSelectedSectionId", () => {

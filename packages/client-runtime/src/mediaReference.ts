@@ -33,7 +33,8 @@ function absolutePathParts(path: string) {
 export function mediaFileReference(
   path: string,
   workspaceRoot?: string | null,
-): Extract<MediaReference, { kind: "file" }> {
+): Extract<MediaReference, { kind: "file" }>;
+export function mediaFileReference(path: string, workspaceRoot?: string | null) {
   const target = absolutePathParts(path);
   const workspace = workspaceRoot ? absolutePathParts(workspaceRoot) : undefined;
   if (
@@ -48,32 +49,31 @@ export function mediaFileReference(
         : segment === target.segments[index],
     )
   ) {
-    return { kind: "file", path };
+    return { kind: "file", path } satisfies Extract<MediaReference, { kind: "file" }>;
   }
   return {
     kind: "file",
     path,
     relativePath: target.segments.slice(workspace.segments.length).join("/"),
-  };
+  } satisfies Extract<MediaReference, { kind: "file" }>;
 }
 
 /** Pass the authored source, not a generated URL used by the media player. */
-export function mediaUrlReference(
-  url: string,
-): Extract<MediaReference, { kind: "url" }> | undefined {
-  if (!/^(?:https?:\/\/|\/\/)/i.test(url)) return undefined;
+export function mediaUrlReference(url: string) {
+  if (!/^(?:https?:\/\/|\/\/)/i.test(url))
+    return undefined satisfies Extract<MediaReference, { kind: "url" }> | undefined;
   try {
     const parsed = new URL(url.startsWith("//") ? `https:${url}` : url);
-    return parsed.protocol === "http:" || parsed.protocol === "https:"
-      ? { kind: "url", url }
-      : undefined;
+    return (
+      parsed.protocol === "http:" || parsed.protocol === "https:" ? { kind: "url", url } : undefined
+    ) satisfies Extract<MediaReference, { kind: "url" }> | undefined;
   } catch {
-    return undefined;
+    return undefined satisfies Extract<MediaReference, { kind: "url" }> | undefined;
   }
 }
 
 /** Local paths are already decoded; URL filename escapes are decoded exactly once. */
-export function mediaReferenceFileName(reference: MediaReference): string | undefined {
+export function mediaReferenceFileName(reference: MediaReference) {
   if (reference.kind === "file") {
     const windows = isWindowsAbsolutePath(reference.path) || reference.path.startsWith("//");
     return reference.path.split(windows ? /[\\/]/ : "/").at(-1) || undefined;

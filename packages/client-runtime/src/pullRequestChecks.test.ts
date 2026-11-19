@@ -3,17 +3,18 @@ import { describe, expect, it } from "vite-plus/test";
 
 import { resolvePullRequestDetailChecks } from "./pullRequestChecks.ts";
 
-const detail = (overrides: Partial<PullRequestDetail> = {}): PullRequestDetail =>
+const detail = (overrides: Partial<PullRequestDetail> = {}) =>
   ({ title: "Cache the title", state: "open", checks: [], ...overrides }) as PullRequestDetail;
 
 describe("resolvePullRequestDetailChecks", () => {
   it("uses fresh checks for detail counts without replacing other PR fields", () => {
-    const pending = (name: string): PullRequestCheck => ({
-      name,
-      status: "pending",
-      url: null,
-      description: null,
-    });
+    const pending = (name: string) =>
+      ({
+        name,
+        status: "pending",
+        url: null,
+        description: null,
+      }) satisfies PullRequestCheck;
     const original = detail({ checks: [pending("build"), pending("test")] });
     const checks = [pending("build"), { ...pending("test"), status: "success" as const }];
     expect(resolvePullRequestDetailChecks(original, { state: "closed", checks }, true)).toEqual({

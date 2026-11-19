@@ -21,7 +21,7 @@ export class EventStoreAppendEventsError extends Schema.TaggedError<EventStoreAp
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Failed to append ${this.eventCount} agent orchestration event(s).`;
   }
 }
@@ -34,7 +34,7 @@ export class EventStoreReadEventsError extends Schema.TaggedError<EventStoreRead
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return this.threadId === undefined
       ? "Failed to read agent orchestration events."
       : `Failed to read agent orchestration events for thread ${this.threadId}.`;

@@ -9,7 +9,7 @@ import { expect, it, vi } from "vite-plus/test";
 const mocks = vi.hoisted(() => ({
   sessionAtom: {},
   searchEntriesAtom: {},
-  searchEntries: vi.fn((): unknown => mocks.searchEntriesAtom),
+  searchEntries: vi.fn(() => mocks.searchEntriesAtom),
   listRefs: vi.fn(),
   refresh: vi.fn(),
 }));

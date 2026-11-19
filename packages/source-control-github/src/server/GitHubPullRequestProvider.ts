@@ -11,7 +11,6 @@ import type {
   PullRequestCapabilities,
   PullRequestCheck,
   PullRequestReaction,
-  PullRequestViewerPermissions,
 } from "@supaterm/contracts";
 
 import * as SourceControlRateLimit from "@supaterm/source-control-core/server/SourceControlRateLimit";
@@ -19,7 +18,6 @@ import * as GitHubPullRequestApi from "./GitHubPullRequestApi.ts";
 import {
   PullRequestProviderError,
   type PullRequestProviderFailure,
-  type ProviderChangeRequestActivity,
   type ProviderChangeRequestDetail,
   type PullRequestProviderApi,
   type ProviderRepositoryRef,
@@ -74,7 +72,7 @@ const UNAVAILABLE_REQUIREMENT = {
  */
 export function gitHubViewerPermissions(
   access: GitHubViewerAccess & Pick<GitHubRepositoryAccess, "autoMergeAllowed">,
-): PullRequestViewerPermissions {
+) {
   return {
     ...(access.canWrite ? { stackRebase: true } : {}),
     ...(access.canDeleteBranch === true ? { deleteBranch: true } : {}),
@@ -102,23 +100,24 @@ export function gitHubViewerPermissions(
   };
 }
 
-function gitHubProviderFailure(
-  error: GitHubPullRequestApi.GitHubPullRequestApiError,
-): PullRequestProviderFailure {
+function gitHubProviderFailure(error: GitHubPullRequestApi.GitHubPullRequestApiError) {
   switch (error._tag) {
     case "GitHubCliMissingError":
-      return { reason: "missing-tool" };
+      return { reason: "missing-tool" } satisfies PullRequestProviderFailure;
     case "GitHubNotSignedInError":
     case "GitHubHostDisabledError":
     case "GitHubApiAuthenticationError":
-      return { reason: "unauthenticated" };
+      return { reason: "unauthenticated" } satisfies PullRequestProviderFailure;
     case "GitHubApiRateLimitError":
       return {
         reason: "rate-limited",
         ...(error.retryAt === undefined ? {} : { retryAt: error.retryAt }),
-      };
+      } satisfies PullRequestProviderFailure;
     case "SourceControlRateLimitPausedError":
-      return { reason: "rate-limited", retryAt: error.retryAt };
+      return {
+        reason: "rate-limited",
+        retryAt: error.retryAt,
+      } satisfies PullRequestProviderFailure;
     case "GitHubApiResponseError":
       return {
         reason:
@@ -127,13 +126,15 @@ function gitHubProviderFailure(
             error.githubErrorTypes.every((type) => type === "FORBIDDEN" || type === "NOT_FOUND"))
             ? "forbidden"
             : "failed",
-      };
+      } satisfies PullRequestProviderFailure;
     case "GitHubApiNotFoundError":
-      return error.credential === undefined
-        ? { reason: "not-found" }
-        : { reason: "not-found", accessHint: REPOSITORY_ACCESS_HINTS[error.credential] };
+      return (
+        error.credential === undefined
+          ? { reason: "not-found" }
+          : { reason: "not-found", accessHint: REPOSITORY_ACCESS_HINTS[error.credential] }
+      ) satisfies PullRequestProviderFailure;
     default:
-      return { reason: "failed" };
+      return { reason: "failed" } satisfies PullRequestProviderFailure;
   }
 }
 
@@ -149,7 +150,7 @@ function withAvatar(
   avatarsByLogin: ReadonlyMap<string, string>,
   host: string,
   botLogins?: ReadonlySet<string>,
-): PullRequestActor | null {
+) {
   if (actor === null) return actor;
   if (botLogins?.has(actor.login)) actor = { ...actor, isBot: true };
   if (actor.avatarUrl !== null) return actor;
@@ -164,24 +165,25 @@ function withWorkflowApprovals(
   checks: ReadonlyArray<PullRequestCheck>,
   runs: ReadonlyArray<GitHubWorkflowRunApproval>,
   unavailable: boolean,
-): ReadonlyArray<PullRequestCheck> {
+) {
   const representedRunIds = new Set<number>();
   for (const check of checks) {
     if (check.status !== "action-required" || check.url === null) continue;
     const id = workflowRunIdOf(check.url);
     if (id !== null) representedRunIds.add(Number(id));
   }
-  const approvalChecks = runs.flatMap((run): ReadonlyArray<PullRequestCheck> =>
-    representedRunIds.has(run.id)
-      ? []
-      : [
-          {
-            name: run.name,
-            status: "action-required",
-            description: "A maintainer must approve this workflow before it can run.",
-            url: run.url,
-          },
-        ],
+  const approvalChecks = runs.flatMap(
+    (run) =>
+      (representedRunIds.has(run.id)
+        ? []
+        : [
+            {
+              name: run.name,
+              status: "action-required",
+              description: "A maintainer must approve this workflow before it can run.",
+              url: run.url,
+            },
+          ]) satisfies ReadonlyArray<PullRequestCheck>,
   );
   return [
     ...checks,
@@ -197,13 +199,13 @@ function withWorkflowApprovals(
           },
         ]
       : []),
-  ];
+  ] satisfies ReadonlyArray<PullRequestCheck>;
 }
 
 function withUnfinishedWorkflowRuns(
   checks: ReadonlyArray<PullRequestCheck>,
   runs: ReadonlyArray<GitHubWorkflowRunApproval>,
-): ReadonlyArray<PullRequestCheck> {
+) {
   const runningRunIds = new Set<number>();
   for (const check of checks) {
     if (check.status !== "pending" && check.status !== "action-required") continue;
@@ -212,23 +214,24 @@ function withUnfinishedWorkflowRuns(
   }
   return [
     ...checks,
-    ...runs.flatMap((run): ReadonlyArray<PullRequestCheck> =>
-      runningRunIds.has(run.id)
-        ? []
-        : [
-            {
-              name: run.name,
-              status: "pending",
-              description: "This workflow run has not finished.",
-              url: run.url,
-            },
-          ],
+    ...runs.flatMap(
+      (run) =>
+        (runningRunIds.has(run.id)
+          ? []
+          : [
+              {
+                name: run.name,
+                status: "pending",
+                description: "This workflow run has not finished.",
+                url: run.url,
+              },
+            ]) satisfies ReadonlyArray<PullRequestCheck>,
     ),
-  ];
+  ] satisfies ReadonlyArray<PullRequestCheck>;
 }
 
 /** App logins have no profile page; guessed avatar URLs 404. */
-export function loginAvatarUrl(login: string, host: string): string | null {
+export function loginAvatarUrl(login: string, host: string) {
   return /^[a-z0-9][a-z0-9-]{0,38}$/iu.test(login) ? `https://${host}/${login}.png?size=80` : null;
 }
 
@@ -249,10 +252,10 @@ class RepositoryLookup {
     this.lookup = lookup;
   }
 
-  [Equal.symbol](that: unknown): boolean {
+  [Equal.symbol](that: unknown) {
     return that instanceof RepositoryLookup && that.key === this.key;
   }
-  [Hash.symbol](): number {
+  [Hash.symbol]() {
     return Hash.string(this.key);
   }
 }
@@ -266,7 +269,7 @@ const READ_ONLY_SEARCHES = ["involved", "reviewing"] as const;
 function mergeSearches(
   batches: ReadonlyArray<GitHubPullRequestApi.GitHubPullRequestSearchBatch>,
   limit: number,
-): GitHubPullRequestApi.GitHubPullRequestSearchBatch {
+) {
   let stop: string | undefined;
   for (const batch of batches) {
     if (!batch.truncated) continue;
@@ -289,8 +292,7 @@ function mergeSearches(
   };
 }
 
-const rendersEmpty = (body: string): boolean =>
-  body.replace(/<!--[\s\S]*?-->/g, "").trim().length === 0;
+const rendersEmpty = (body: string) => body.replace(/<!--[\s\S]*?-->/g, "").trim().length === 0;
 
 export const make = Effect.gen(function* () {
   const cli = yield* GitHubPullRequestApi.GitHubPullRequestApi;
@@ -349,7 +351,7 @@ export const make = Effect.gen(function* () {
       "cwd" | "host" | "viewer" | "involvement" | "involvedWhereReadOnly"
     >,
     repository: string,
-  ): Effect.Effect<boolean> =>
+  ) =>
     input.involvement !== "all" || input.involvedWhereReadOnly !== true
       ? Effect.succeed(false)
       : Cache.get(
@@ -585,35 +587,38 @@ export const make = Effect.gen(function* () {
 
     getChangeRequest: (input) =>
       readChecks(input).pipe(
-        Effect.map((pullRequest): ProviderChangeRequestDetail => ({
-          ...pullRequest,
-          author: withAvatar(pullRequest.author, new Map<string, string>(), input.host),
-          reviewers: [
-            ...pullRequest.reviewRequestLogins.map((login) => ({
-              login,
-              name: null,
-              avatarUrl: null,
-            })),
-            ...pullRequest.reviewRequestTeams,
-          ],
-          mergeCapabilities: pullRequest.viewerAccess.mergeCapabilities,
-          viewerPermissions: {
-            ...gitHubViewerPermissions({
-              ...pullRequest.viewerAccess,
-              canUpdateBranch: pullRequest.comparison?.viewerCanUpdate === true,
-            }),
-            maintainerEdits: pullRequest.canEditMaintainerEdits,
-          },
-          baseComparison:
-            pullRequest.comparison === null || pullRequest.comparison.behindBy === null
-              ? "unknown"
-              : pullRequest.comparison.behindBy > 0
-                ? "behind"
-                : "up-to-date",
-          ...(pullRequest.comparison?.behindBy == null
-            ? {}
-            : { behindBy: pullRequest.comparison.behindBy }),
-        })),
+        Effect.map(
+          (pullRequest) =>
+            ({
+              ...pullRequest,
+              author: withAvatar(pullRequest.author, new Map<string, string>(), input.host),
+              reviewers: [
+                ...pullRequest.reviewRequestLogins.map((login) => ({
+                  login,
+                  name: null,
+                  avatarUrl: null,
+                })),
+                ...pullRequest.reviewRequestTeams,
+              ],
+              mergeCapabilities: pullRequest.viewerAccess.mergeCapabilities,
+              viewerPermissions: {
+                ...gitHubViewerPermissions({
+                  ...pullRequest.viewerAccess,
+                  canUpdateBranch: pullRequest.comparison?.viewerCanUpdate === true,
+                }),
+                maintainerEdits: pullRequest.canEditMaintainerEdits,
+              },
+              baseComparison:
+                pullRequest.comparison === null || pullRequest.comparison.behindBy === null
+                  ? "unknown"
+                  : pullRequest.comparison.behindBy > 0
+                    ? "behind"
+                    : "up-to-date",
+              ...(pullRequest.comparison?.behindBy == null
+                ? {}
+                : { behindBy: pullRequest.comparison.behindBy }),
+            }) satisfies ProviderChangeRequestDetail,
+        ),
         Effect.mapError(fail("getChangeRequest")),
       ),
 
@@ -646,7 +651,7 @@ export const make = Effect.gen(function* () {
         concurrency: 2,
       }).pipe(
         Effect.mapError(fail("getChangeRequestActivity")),
-        Effect.map(([pullRequest, reviewThreads]): ProviderChangeRequestActivity => {
+        Effect.map(([pullRequest, reviewThreads]) => {
           const commitStats = new Map(
             pullRequest.commits.map(({ oid, additions, deletions }) => [
               oid,

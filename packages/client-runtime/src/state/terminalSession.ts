@@ -66,9 +66,7 @@ export interface KnownTerminalSession {
   readonly state: TerminalSessionState;
 }
 
-export function selectRunningSubprocessTerminalIds(
-  sessions: ReadonlyArray<KnownTerminalSession>,
-): ReadonlyArray<string> {
+export function selectRunningSubprocessTerminalIds(sessions: ReadonlyArray<KnownTerminalSession>) {
   return sessions.flatMap((session) =>
     session.state.hasRunningSubprocess ? [session.target.terminalId] : [],
   );
@@ -99,7 +97,7 @@ export const EMPTY_TERMINAL_SESSION_STATE = Object.freeze<TerminalSessionState>(
 let terminalAttachGeneration = 0;
 
 /** A reinstalled attach stream must not reuse an old renderer's output cursor. */
-export function nextTerminalAttachSeedState(): TerminalBufferState {
+export function nextTerminalAttachSeedState() {
   return {
     ...EMPTY_TERMINAL_BUFFER_STATE,
     output: {
@@ -113,7 +111,7 @@ function terminalBufferStateFromSnapshot(
   snapshot: TerminalSessionSnapshot,
   maxBufferBytes: number,
   current: TerminalBufferState = EMPTY_TERMINAL_BUFFER_STATE,
-): TerminalBufferState {
+) {
   return {
     output: resetOutput(current.output, snapshot.history, maxBufferBytes),
     grid: nextGrid(current.grid, snapshot),
@@ -128,14 +126,14 @@ function terminalBufferStateFromSnapshot(
 function nextGrid(
   current: TerminalGrid | null,
   source: { readonly cols?: number | undefined; readonly rows?: number | undefined },
-): TerminalGrid | null {
+) {
   if (source.cols === undefined || source.rows === undefined) return current;
   return current?.cols === source.cols && current.rows === source.rows
     ? current
     : { cols: source.cols, rows: source.rows };
 }
 
-function latestTimestamp(left: string | null, right: string | null): string | null {
+function latestTimestamp(left: string | null, right: string | null) {
   if (left === null) return right;
   if (right === null) return left;
   return Date.parse(left) >= Date.parse(right) ? left : right;
@@ -144,7 +142,7 @@ function latestTimestamp(left: string | null, right: string | null): string | nu
 export function combineTerminalSessionState(
   summary: TerminalSummary | null,
   buffer: TerminalBufferState,
-): TerminalSessionState {
+) {
   return {
     summary,
     output: buffer.output,
@@ -162,11 +160,15 @@ export function applyTerminalAttachStreamEvent(
   current: TerminalBufferState,
   event: TerminalAttachStreamEvent,
   maxBufferBytes = DEFAULT_MAX_TERMINAL_BUFFER_BYTES,
-): TerminalBufferState {
+) {
   switch (event.type) {
     case "snapshot": {
       if (current.version === 0) {
-        return terminalBufferStateFromSnapshot(event.snapshot, maxBufferBytes, current);
+        return terminalBufferStateFromSnapshot(
+          event.snapshot,
+          maxBufferBytes,
+          current,
+        ) satisfies TerminalBufferState;
       }
       const reattached = {
         ...current,
@@ -175,13 +177,13 @@ export function applyTerminalAttachStreamEvent(
       return {
         ...terminalBufferStateFromSnapshot(event.snapshot, maxBufferBytes, reattached),
         lifecycleVersion: current.lifecycleVersion + 1,
-      };
+      } satisfies TerminalBufferState;
     }
     case "restarted":
       return {
         ...terminalBufferStateFromSnapshot(event.snapshot, maxBufferBytes, current),
         lifecycleVersion: current.lifecycleVersion + 1,
-      };
+      } satisfies TerminalBufferState;
     case "output":
       return {
         ...current,
@@ -189,38 +191,38 @@ export function applyTerminalAttachStreamEvent(
         status: current.status === "closed" ? "running" : current.status,
         error: null,
         version: current.version + 1,
-      };
+      } satisfies TerminalBufferState;
     case "cleared":
       return {
         ...current,
         output: clearOutput(current.output, maxBufferBytes),
         error: null,
         version: current.version + 1,
-      };
+      } satisfies TerminalBufferState;
     case "exited":
       return {
         ...current,
         status: "exited",
         error: null,
         version: current.version + 1,
-      };
+      } satisfies TerminalBufferState;
     case "closed":
       return {
         ...current,
         status: "closed",
         error: null,
         version: current.version + 1,
-      };
+      } satisfies TerminalBufferState;
     case "error":
       return {
         ...current,
         status: "error",
         error: event.message,
         version: current.version + 1,
-      };
+      } satisfies TerminalBufferState;
     case "activity": {
       const grid = nextGrid(current.grid, event);
-      return grid === current.grid ? current : { ...current, grid };
+      return (grid === current.grid ? current : { ...current, grid }) satisfies TerminalBufferState;
     }
   }
 }
@@ -228,7 +230,7 @@ export function applyTerminalAttachStreamEvent(
 export function applyTerminalMetadataStreamEvent(
   current: ReadonlyArray<TerminalSummary>,
   event: TerminalMetadataStreamEvent,
-): ReadonlyArray<TerminalSummary> {
+) {
   if (event.type === "snapshot") {
     return event.terminals;
   }

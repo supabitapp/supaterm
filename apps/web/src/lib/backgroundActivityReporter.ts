@@ -37,7 +37,7 @@ interface RetainedScope {
 const retainedScopes = new Map<string, RetainedScope>();
 const retainedScopeListeners = new Set<() => void>();
 
-function notifyRetainedScopesChanged(): void {
+function notifyRetainedScopesChanged() {
   for (const listener of retainedScopeListeners) {
     try {
       listener();
@@ -45,7 +45,7 @@ function notifyRetainedScopesChanged(): void {
   }
 }
 
-function stableScopeKey(environmentId: EnvironmentId, scope: BackgroundScope): string {
+function stableScopeKey(environmentId: EnvironmentId, scope: BackgroundScope) {
   switch (scope.type) {
     case "server-config":
     case "diagnostics":
@@ -60,7 +60,7 @@ function stableScopeKey(environmentId: EnvironmentId, scope: BackgroundScope): s
   }
 }
 
-function getClientId(): string {
+function getClientId() {
   try {
     const existing = window.localStorage.getItem(CLIENT_ID_STORAGE_KEY);
     if (existing) return existing;
@@ -72,11 +72,11 @@ function getClientId(): string {
   }
 }
 
-function resolveClientKind(): ClientActivityReportInput["clientKind"] {
+function resolveClientKind() {
   return window.desktopBridge ? "desktop-renderer" : "web";
 }
 
-function wasRecentlyInteracted(lastInteractionAtMs: number, observedAtMs: number): boolean {
+function wasRecentlyInteracted(lastInteractionAtMs: number, observedAtMs: number) {
   return (
     lastInteractionAtMs <= observedAtMs &&
     observedAtMs - lastInteractionAtMs <= RECENT_INTERACTION_WINDOW_MS
@@ -87,7 +87,7 @@ function createActivityReport(
   environmentId: EnvironmentId,
   lastInteractionAtMs: number,
   observedAtMs: number,
-): ClientActivityReportInput {
+) {
   const scopes = [...BASELINE_SCOPES];
   for (const entry of retainedScopes.values()) {
     if (entry.environmentId === environmentId) {
@@ -105,24 +105,24 @@ function createActivityReport(
     scopes,
     ttlMs: LEASE_TTL_MS,
     observedAt: DateTime.makeUnsafe(observedAtMs),
-  };
+  } satisfies ClientActivityReportInput;
 }
 
-function scopeForSubscription(
-  observation: EnvironmentRpcSubscriptionObservation,
-): BackgroundScope | null {
+function scopeForSubscription(observation: EnvironmentRpcSubscriptionObservation) {
   if (observation.method === WS_METHODS.subscribeResourceTelemetry) {
-    return { type: "diagnostics" };
+    return { type: "diagnostics" } satisfies BackgroundScope | null;
   }
   if (observation.method !== WS_METHODS.subscribeVcsStatus) {
-    return null;
+    return null satisfies BackgroundScope | null;
   }
   const input = observation.input as { readonly cwd?: unknown; readonly includeRemote?: unknown };
-  if (input.includeRemote === false) return null;
-  return typeof input.cwd === "string" ? { type: "vcs-status", cwd: input.cwd } : null;
+  if (input.includeRemote === false) return null satisfies BackgroundScope | null;
+  return (
+    typeof input.cwd === "string" ? { type: "vcs-status", cwd: input.cwd } : null
+  ) satisfies BackgroundScope | null;
 }
 
-function retainBackgroundScope(environmentId: EnvironmentId, scope: BackgroundScope): () => void {
+function retainBackgroundScope(environmentId: EnvironmentId, scope: BackgroundScope) {
   const key = stableScopeKey(environmentId, scope);
   const existing = retainedScopes.get(key);
   if (existing) {
@@ -145,7 +145,7 @@ function retainBackgroundScope(environmentId: EnvironmentId, scope: BackgroundSc
 
 export function observeBackgroundActivitySubscription(
   observation: EnvironmentRpcSubscriptionObservation,
-): Effect.Effect<Effect.Effect<void>> {
+) {
   const scope = scopeForSubscription(observation);
   if (scope === null) {
     return Effect.succeed(Effect.void);
@@ -156,9 +156,7 @@ export function observeBackgroundActivitySubscription(
   });
 }
 
-export function retainedBackgroundScopes(
-  environmentId: EnvironmentId,
-): ReadonlyArray<BackgroundScope> {
+export function retainedBackgroundScopes(environmentId: EnvironmentId) {
   return Array.from(retainedScopes.values(), (entry) =>
     entry.environmentId === environmentId ? entry.scope : null,
   ).filter((scope): scope is BackgroundScope => scope !== null);

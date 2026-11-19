@@ -41,15 +41,19 @@ export type PendingBackgroundWorkTask = OrchestrationV2PendingBackgroundTask;
 
 export function turnItemUpdateCanEndBackgroundWork(
   item: Pick<OrchestrationV2TurnItem, "type" | "status">,
-): boolean {
+) {
   return BACKGROUND_TURN_ITEM_TYPES.has(item.type) && !isOrchestrationV2WorkActive(item.status);
 }
 
 export function deriveBlockedOnThreadWait(input: {
   readonly activeRun: Pick<OrchestrationV2Run, "id" | "status"> | null;
   readonly turnItems: ReadonlyArray<OrchestrationV2TurnItem>;
-}): boolean {
-  if (input.activeRun?.status !== "running") return false;
+}): boolean;
+export function deriveBlockedOnThreadWait(input: {
+  readonly activeRun: Pick<OrchestrationV2Run, "id" | "status"> | null;
+  readonly turnItems: ReadonlyArray<OrchestrationV2TurnItem>;
+}) {
+  if (input.activeRun?.status !== "running") return false satisfies boolean;
   let hasWait = false;
   for (const item of input.turnItems) {
     if (
@@ -60,7 +64,7 @@ export function deriveBlockedOnThreadWait(input: {
     ) {
       continue;
     }
-    if (item.type !== "dynamic_tool") return false;
+    if (item.type !== "dynamic_tool") return false satisfies boolean;
     const tool = resolveSupatermMcpToolId(item.toolName);
     if (
       tool !== "supaterm_thread_wait" &&
@@ -70,22 +74,22 @@ export function deriveBlockedOnThreadWait(input: {
         Reflect.get(item.input, "mode") === "wait"
       )
     ) {
-      return false;
+      return false satisfies boolean;
     }
     hasWait = true;
   }
-  return hasWait;
+  return hasWait satisfies boolean;
 }
 
 export function backgroundWorkHoldsCompletion(
   tasks: ReadonlyArray<Pick<PendingBackgroundWorkTask, "kind" | "awaited">>,
-): boolean {
+) {
   return tasks.some(
     (task) => task.awaited === true || backgroundWorkKindHoldsCompletion(task.kind),
   );
 }
 
-function backgroundWorkKindHoldsCompletion(kind: PendingBackgroundWorkTask["kind"]): boolean {
+function backgroundWorkKindHoldsCompletion(kind: PendingBackgroundWorkTask["kind"]) {
   switch (kind) {
     case "command":
     case "monitor":
@@ -102,13 +106,14 @@ function backgroundWorkKindHoldsCompletion(kind: PendingBackgroundWorkTask["kind
  */
 export function monitorHoldsWakeCompletion(
   thread: Pick<OrchestrationV2ThreadShell, "latestRunBackgroundWake" | "pendingBackgroundTasks">,
-): boolean {
-  return (
-    thread.latestRunBackgroundWake === true &&
+): boolean;
+export function monitorHoldsWakeCompletion(
+  thread: Pick<OrchestrationV2ThreadShell, "latestRunBackgroundWake" | "pendingBackgroundTasks">,
+) {
+  return (thread.latestRunBackgroundWake === true &&
     (thread.pendingBackgroundTasks ?? []).some(
       (task) => task.kind === "monitor" && !isWatchTaskId(task.taskId),
-    )
-  );
+    )) satisfies boolean;
 }
 
 type PendingBackgroundWorkRun = Pick<OrchestrationV2Run, "id" | "ordinal" | "status">;
@@ -144,21 +149,21 @@ type PendingBackgroundWorkTurnItem = {
 
 function isLatestRunSettledForBackgroundWait(
   latestRun: PendingBackgroundWorkRun | null | undefined,
-): boolean {
+) {
   if (latestRun === undefined || latestRun === null) {
     return false;
   }
   return SETTLED_FOR_BACKGROUND_WAIT_RUN_STATUSES.has(latestRun.status);
 }
 
-function isPersistentDynamicToolInput(input: unknown): boolean {
+function isPersistentDynamicToolInput(input: unknown) {
   if (input === null || typeof input !== "object" || Array.isArray(input)) {
     return false;
   }
   return Reflect.get(input, "persistent") === true;
 }
 
-function descriptionFromTurnItem(item: PendingBackgroundWorkTurnItem): string | undefined {
+function descriptionFromTurnItem(item: PendingBackgroundWorkTurnItem) {
   if (typeof item.title === "string" && item.title.trim().length > 0) {
     return item.title.trim();
   }
@@ -179,10 +184,7 @@ function descriptionFromTurnItem(item: PendingBackgroundWorkTurnItem): string | 
   return undefined;
 }
 
-function pendingTaskFromTurnItem(
-  taskId: string,
-  item: PendingBackgroundWorkTurnItem,
-): PendingBackgroundWorkTask {
+function pendingTaskFromTurnItem(taskId: string, item: PendingBackgroundWorkTurnItem) {
   const description = descriptionFromTurnItem(item);
   const named = { taskId, ...(description === undefined ? {} : { description }) };
   switch (item.type) {
@@ -194,18 +196,21 @@ function pendingTaskFromTurnItem(
           ? {}
           : { providerInstanceId: item.owningProviderInstanceId }),
         ...(item.childThreadId == null ? {} : { childThreadId: item.childThreadId }),
-      };
+      } satisfies PendingBackgroundWorkTask;
     case "command_execution":
-      return { ...named, kind: item.monitor === true ? "monitor" : "command" };
+      return {
+        ...named,
+        kind: item.monitor === true ? "monitor" : "command",
+      } satisfies PendingBackgroundWorkTask;
     default:
-      return { ...named, kind: "background_task" };
+      return { ...named, kind: "background_task" } satisfies PendingBackgroundWorkTask;
   }
 }
 
 /** The task id a pending turn item is listed under. */
 export function nativeTaskIdFromTurnItem(
   item: Pick<PendingBackgroundWorkTurnItem, "id" | "nativeItemRef">,
-): string {
+) {
   const nativeId = item.nativeItemRef?.nativeId;
   if (typeof nativeId === "string" && nativeId.length > 0) {
     return nativeId;
@@ -217,7 +222,7 @@ export function nativeTaskIdFromTurnItem(
 export function pendingBackgroundTurnItems<Item extends PendingBackgroundWorkTurnItem>(input: {
   readonly turnItems: ReadonlyArray<Item>;
   readonly runs?: ReadonlyArray<PendingBackgroundWorkRun>;
-}): ReadonlyArray<Item> {
+}) {
   const rolledBackRunIds = new Set(
     (input.runs ?? []).filter((run) => run.status === "rolled_back").map((run) => String(run.id)),
   );
@@ -239,12 +244,12 @@ export function pullRequestWatchTaskId(link: {
   readonly host: string;
   readonly repository: string;
   readonly number: number;
-}): string {
+}) {
   return `${PULL_REQUEST_WATCH_TASK_PREFIX}${link.host.toLowerCase()}/${link.repository.toLowerCase()}#${link.number}`;
 }
 
 /** Supaterm's own watches, which print no output. */
-export function isWatchTaskId(taskId: string): boolean {
+export function isWatchTaskId(taskId: string) {
   return (
     taskId.startsWith(PULL_REQUEST_WATCH_TASK_PREFIX) ||
     taskId.startsWith(RETIRED_WORKFLOW_RUN_WATCH_TASK_PREFIX)
@@ -266,7 +271,7 @@ export function derivePendingBackgroundWork(input: {
   /** Excludes rolled-back runs; optional only when the caller already filtered them, as SQL shell reads do. */
   readonly runs?: ReadonlyArray<PendingBackgroundWorkRun>;
   readonly pullRequests?: ReadonlyArray<PendingBackgroundWorkPullRequest> | undefined;
-}): ReadonlyArray<PendingBackgroundWorkTask> {
+}) {
   const hasActiveRun =
     input.hasActiveRun ??
     input.runs?.some((run) => isOrchestrationV2RunInterruptible(run.status)) ??
@@ -321,7 +326,7 @@ export function derivePendingBackgroundWork(input: {
 
 function pullRequestWatchTasks(
   pullRequests: ReadonlyArray<PendingBackgroundWorkPullRequest> | undefined,
-): Array<PendingBackgroundWorkTask> {
+) {
   return (pullRequests ?? []).flatMap((link) =>
     link.watch === undefined ||
     link.source === "stack-dismissed" ||

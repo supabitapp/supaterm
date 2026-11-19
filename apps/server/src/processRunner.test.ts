@@ -22,7 +22,7 @@ type ChildProcessCommand = {
   };
 };
 
-function asChildProcessCommand(command: unknown): ChildProcessCommand {
+function asChildProcessCommand(command: unknown) {
   return command as ChildProcessCommand;
 }
 

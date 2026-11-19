@@ -32,7 +32,8 @@ interface Rect {
 const edgeDepth = (extent: number) => Math.min(160, Math.max(56, extent * 0.22));
 
 /** Edge bands scale with the pane; at a corner the edge the pointer is relatively closest to wins. */
-export function resolvePaneDropZone(rect: Rect, point: { x: number; y: number }): PaneDropZone {
+export function resolvePaneDropZone(rect: Rect, point: { x: number; y: number }): PaneDropZone;
+export function resolvePaneDropZone(rect: Rect, point: { x: number; y: number }) {
   const horizontal = edgeDepth(rect.width);
   const vertical = edgeDepth(rect.height);
   const distances: ReadonlyArray<readonly [PaneEdge, number]> = [
@@ -43,18 +44,19 @@ export function resolvePaneDropZone(rect: Rect, point: { x: number; y: number })
   ];
   let nearest = distances[0]!;
   for (const candidate of distances) if (candidate[1] < nearest[1]) nearest = candidate;
-  return nearest[1] < 1 ? nearest[0] : "center";
+  return (nearest[1] < 1 ? nearest[0] : "center") satisfies PaneDropZone;
 }
 
 /** A thread already on screen moves its pane rather than opening a second one. */
-export function paneDropVerb(zone: PaneDropZone, payload: PaneDragPayload): string {
+export function paneDropVerb(zone: PaneDropZone, payload: PaneDragPayload): string;
+export function paneDropVerb(zone: PaneDropZone, payload: PaneDragPayload) {
   const moving = payload.kind === "pane" || sourcePaneId(payload) !== null;
-  if (zone === "center") return moving ? "Swap panes" : "Open here";
+  if (zone === "center") return (moving ? "Swap panes" : "Open here") satisfies string;
   const direction = { left: "left", right: "right", top: "up", bottom: "down" }[zone];
-  return `${moving ? "Move" : "Split"} ${direction}`;
+  return `${moving ? "Move" : "Split"} ${direction}` satisfies string;
 }
 
-function sourcePaneId(payload: PaneDragPayload): string | null {
+function sourcePaneId(payload: PaneDragPayload) {
   const layout = useChatPaneStore.getState().layout;
   if (!layout) return null;
   if (payload.kind === "pane") return findPane(layout, payload.paneId)?.id ?? null;
@@ -68,24 +70,30 @@ function isPaneDropAllowed(
   payload: PaneDragPayload,
   target: PaneDropTarget,
   workspace: { width: number; height: number } | null,
-): boolean {
+): boolean;
+function isPaneDropAllowed(
+  payload: PaneDragPayload,
+  target: PaneDropTarget,
+  workspace: { width: number; height: number } | null,
+) {
   const layout = useChatPaneStore.getState().layout;
-  if (!layout || !findPane(layout, target.paneId)) return false;
-  if (payload.kind === "threads" && payload.threads.length !== 1) return false;
+  if (!layout || !findPane(layout, target.paneId)) return false satisfies boolean;
+  if (payload.kind === "threads" && payload.threads.length !== 1) return false satisfies boolean;
   const source = sourcePaneId(payload);
-  if (source === target.paneId) return false;
-  if (target.zone === "center") return true;
-  if (workspace === null) return false;
-  if (source === null) return canSplitPane(layout, target.paneId, target.zone, workspace);
+  if (source === target.paneId) return false satisfies boolean;
+  if (target.zone === "center") return true satisfies boolean;
+  if (workspace === null) return false satisfies boolean;
+  if (source === null)
+    return canSplitPane(layout, target.paneId, target.zone, workspace) satisfies boolean;
   let probeId = 0;
   const moved = movePane(layout, source, target.paneId, target.zone, () => `probe-${probeId++}`);
-  return moved !== null && paneLayoutFits(moved, workspace);
+  return (moved !== null && paneLayoutFits(moved, workspace)) satisfies boolean;
 }
 
-function findPaneElement(point: { x: number; y: number }): HTMLElement | null {
-  return (
-    document.elementFromPoint(point.x, point.y)?.closest<HTMLElement>("[data-chat-pane]") ?? null
-  );
+function findPaneElement(point: { x: number; y: number }): HTMLElement | null;
+function findPaneElement(point: { x: number; y: number }) {
+  return (document.elementFromPoint(point.x, point.y)?.closest<HTMLElement>("[data-chat-pane]") ??
+    null) satisfies HTMLElement | null;
 }
 
 /** The chat workspace's size, which bounds how many panes fit. */
@@ -99,12 +107,15 @@ export function workspaceSize() {
 export function findPaneDropTarget(
   point: { x: number; y: number },
   payload: PaneDragPayload,
-): PaneDropTarget | null {
+): PaneDropTarget | null;
+export function findPaneDropTarget(point: { x: number; y: number }, payload: PaneDragPayload) {
   const element = findPaneElement(point);
   const paneId = element?.dataset.chatPane;
-  if (!element || !paneId) return null;
+  if (!element || !paneId) return null satisfies PaneDropTarget | null;
   const target = { paneId, zone: resolvePaneDropZone(element.getBoundingClientRect(), point) };
-  return isPaneDropAllowed(payload, target, workspaceSize()) ? target : null;
+  return (
+    isPaneDropAllowed(payload, target, workspaceSize()) ? target : null
+  ) satisfies PaneDropTarget | null;
 }
 
 let hover: PaneDropTarget | null = null;
@@ -116,7 +127,7 @@ export function setPaneDropHover(next: PaneDropTarget | null) {
   for (const listener of listeners) listener();
 }
 
-export function usePaneDropHover(paneId: string): PaneDropZone | null {
+export function usePaneDropHover(paneId: string) {
   return useSyncExternalStore(
     (listener) => {
       listeners.add(listener);
@@ -128,21 +139,23 @@ export function usePaneDropHover(paneId: string): PaneDropZone | null {
 }
 
 /** Applies a drop: an edge splits or moves, the center opens the thread there or swaps panes. */
-export function commitPaneDrop(target: PaneDropTarget, payload: PaneDragPayload): boolean {
+export function commitPaneDrop(target: PaneDropTarget, payload: PaneDragPayload): boolean;
+export function commitPaneDrop(target: PaneDropTarget, payload: PaneDragPayload) {
   const store = useChatPaneStore.getState();
   const source = sourcePaneId(payload);
   if (source !== null) {
     if (target.zone === "center") store.swap(source, target.paneId);
     else store.move(source, target.paneId, target.zone);
     store.focus(source);
-    return true;
+    return true satisfies boolean;
   }
-  if (payload.kind !== "threads" || payload.threads.length !== 1) return false;
+  if (payload.kind !== "threads" || payload.threads.length !== 1) return false satisfies boolean;
   const { environmentId, threadId } = payload.threads[0]!;
   const thread = { kind: "server" as const, threadRef: { environmentId, threadId } };
   if (target.zone === "center") {
     store.replace(target.paneId, thread, workspaceSize());
-    return true;
+    return true satisfies boolean;
   }
-  return store.split(target.paneId, target.zone, thread, workspaceSize()) !== null;
+  return (store.split(target.paneId, target.zone, thread, workspaceSize()) !==
+    null) satisfies boolean;
 }

@@ -8,7 +8,7 @@ export interface CheckpointDiffTarget {
   readonly ignoreWhitespace: boolean;
 }
 
-export function normalizeComposerPathSearchQuery(query: string | null): string | null {
+export function normalizeComposerPathSearchQuery(query: string | null) {
   return query?.trim() ?? null;
 }
 

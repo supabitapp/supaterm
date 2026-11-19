@@ -9,7 +9,6 @@ import type {
   PullRequestCapabilities,
   PullRequestReaction,
   PullRequestThreadComment,
-  PullRequestViewerPermissions,
 } from "@supaterm/contracts";
 
 import * as GitLabPullRequestCli from "./GitLabPullRequestCli.ts";
@@ -17,8 +16,6 @@ import type { GitLabDiffRefs, GitLabMergeRequestListState } from "./gitLabMergeR
 import {
   PullRequestProviderError,
   type PullRequestProviderFailure,
-  type ProviderChangeRequestActivity,
-  type ProviderChangeRequestDetail,
   type PullRequestProviderApi,
 } from "@supaterm/source-control-core/server/PullRequestProvider";
 import { definition } from "../shared/definition.ts";
@@ -68,7 +65,7 @@ export function gitLabViewerPermissions(input: {
   readonly viewerCanEditMaintainerEdits?: boolean | undefined;
   readonly viewerCanDeleteBranch?: boolean;
   readonly viewerCanEditLabels?: boolean | undefined;
-}): PullRequestViewerPermissions {
+}) {
   return {
     ...(input.viewerCanDeleteBranch === true ? { deleteBranch: true } : {}),
     actions: CAPABILITIES.actions.filter(
@@ -89,20 +86,19 @@ const PROJECT_MERGE_CAPABILITIES_TTL = Duration.minutes(15);
 const READ_CACHE_CAPACITY = 256;
 const GRAPHQL_LIST_SUPPORT_TTL = Duration.hours(1);
 
-function gitLabProviderFailure(
-  error: GitLabPullRequestCli.GitLabPullRequestCliError,
-): PullRequestProviderFailure {
-  if (error._tag === "GitLabCliUnavailableError") return { reason: "missing-tool" };
-  if (error._tag === "GitLabCliAuthenticationError") return { reason: "unauthenticated" };
-  if (error._tag === "GitLabCliRateLimitError") return { reason: "rate-limited" };
-  if (error._tag === "GitLabMergeRequestNotFoundError") return { reason: "not-found" };
-  return { reason: "failed" };
+function gitLabProviderFailure(error: GitLabPullRequestCli.GitLabPullRequestCliError) {
+  if (error._tag === "GitLabCliUnavailableError")
+    return { reason: "missing-tool" } satisfies PullRequestProviderFailure;
+  if (error._tag === "GitLabCliAuthenticationError")
+    return { reason: "unauthenticated" } satisfies PullRequestProviderFailure;
+  if (error._tag === "GitLabCliRateLimitError")
+    return { reason: "rate-limited" } satisfies PullRequestProviderFailure;
+  if (error._tag === "GitLabMergeRequestNotFoundError")
+    return { reason: "not-found" } satisfies PullRequestProviderFailure;
+  return { reason: "failed" } satisfies PullRequestProviderFailure;
 }
 
-const isOutdated = (
-  thread: GitLabDiffRefs | undefined,
-  current: GitLabDiffRefs | undefined,
-): boolean =>
+const isOutdated = (thread: GitLabDiffRefs | undefined, current: GitLabDiffRefs | undefined) =>
   thread !== undefined &&
   current !== undefined &&
   (thread.baseSha !== current.baseSha ||
@@ -177,7 +173,7 @@ export const make = Effect.gen(function* () {
     >(
       write: (input: I) => Effect.Effect<A, E>,
     ) =>
-    (input: I): Effect.Effect<A, E> => {
+    (input: I) => {
       const invalidate = Cache.invalidate(mergeRequestDetails, detailKey(input));
       return invalidate.pipe(Effect.andThen(write(input)), Effect.ensuring(invalidate));
     };
@@ -336,7 +332,7 @@ export const make = Effect.gen(function* () {
         { concurrency: 2 },
       ).pipe(
         Effect.mapError(fail("getChangeRequest")),
-        Effect.map(([mergeRequest, mergeCapabilities]): ProviderChangeRequestDetail => ({
+        Effect.map(([mergeRequest, mergeCapabilities]) => ({
           ...mergeRequest,
           mergeCapabilities,
           viewerPermissions: gitLabViewerPermissions(mergeRequest),
@@ -387,61 +383,59 @@ export const make = Effect.gen(function* () {
         { concurrency: 5 },
       ).pipe(
         Effect.mapError(fail("getChangeRequestActivity")),
-        Effect.map(
-          ([notes, commits, discussions, awards, detail]): ProviderChangeRequestActivity => {
-            const noteUrl = (id: string) => (detail === null ? null : `${detail.url}#note_${id}`);
-            const findingIds = new Set(discussions.overviewFindingIds);
-            const edited = (id: string) => {
-              const editedAt = awards.editedAtByNoteId.get(id);
-              return editedAt === undefined ? {} : { editedAt };
-            };
-            const botLogins = new Set([...awards.botLogins].map((login) => login.toLowerCase()));
-            const withBotFlag = (author: PullRequestActor | null) =>
-              author !== null && botLogins.has(author.login.toLowerCase())
-                ? { ...author, isBot: true }
-                : author;
-            const withNoteDetails = (comment: PullRequestThreadComment) => ({
+        Effect.map(([notes, commits, discussions, awards, detail]) => {
+          const noteUrl = (id: string) => (detail === null ? null : `${detail.url}#note_${id}`);
+          const findingIds = new Set(discussions.overviewFindingIds);
+          const edited = (id: string) => {
+            const editedAt = awards.editedAtByNoteId.get(id);
+            return editedAt === undefined ? {} : { editedAt };
+          };
+          const botLogins = new Set([...awards.botLogins].map((login) => login.toLowerCase()));
+          const withBotFlag = (author: PullRequestActor | null) =>
+            author !== null && botLogins.has(author.login.toLowerCase())
+              ? { ...author, isBot: true }
+              : author;
+          const withNoteDetails = (comment: PullRequestThreadComment) => ({
+            ...comment,
+            ...edited(comment.id),
+            author: withBotFlag(comment.author),
+            url: noteUrl(comment.id),
+            reactions: awards.reactionsByNoteId.get(comment.id) ?? [],
+          });
+          return {
+            reactions: awards.reactions,
+            comments: notes.comments.map((comment) => ({
               ...comment,
+              ...(findingIds.has(comment.id) ? { kind: "review-comment" as const } : {}),
               ...edited(comment.id),
               author: withBotFlag(comment.author),
               url: noteUrl(comment.id),
               reactions: awards.reactionsByNoteId.get(comment.id) ?? [],
-            });
-            return {
-              reactions: awards.reactions,
-              comments: notes.comments.map((comment) => ({
-                ...comment,
-                ...(findingIds.has(comment.id) ? { kind: "review-comment" as const } : {}),
-                ...edited(comment.id),
-                author: withBotFlag(comment.author),
-                url: noteUrl(comment.id),
-                reactions: awards.reactionsByNoteId.get(comment.id) ?? [],
-              })),
-              commentCount: notes.comments.length,
-              commentsTruncated: notes.truncated || discussions.truncated,
-              reviewThreads: discussions.threads.flatMap((thread) =>
-                thread.path === null
-                  ? []
-                  : [
-                      {
-                        ...thread,
-                        isOutdated: isOutdated(
-                          discussions.diffRefsByThreadId.get(thread.id),
-                          detail?.diffRefs,
-                        ),
-                        comments: thread.comments.map(withNoteDetails),
-                      },
-                    ],
-              ),
-              overviewThreads: discussions.threads.flatMap((thread) =>
-                thread.path === null
-                  ? [{ ...thread, comments: thread.comments.map(withNoteDetails) }]
-                  : [],
-              ),
-              commits,
-            };
-          },
-        ),
+            })),
+            commentCount: notes.comments.length,
+            commentsTruncated: notes.truncated || discussions.truncated,
+            reviewThreads: discussions.threads.flatMap((thread) =>
+              thread.path === null
+                ? []
+                : [
+                    {
+                      ...thread,
+                      isOutdated: isOutdated(
+                        discussions.diffRefsByThreadId.get(thread.id),
+                        detail?.diffRefs,
+                      ),
+                      comments: thread.comments.map(withNoteDetails),
+                    },
+                  ],
+            ),
+            overviewThreads: discussions.threads.flatMap((thread) =>
+              thread.path === null
+                ? [{ ...thread, comments: thread.comments.map(withNoteDetails) }]
+                : [],
+            ),
+            commits,
+          };
+        }),
       ),
 
     getViewerPermissions: (input) =>
@@ -654,7 +648,7 @@ export const make = Effect.gen(function* () {
 function withListState<Item extends { readonly number: number }>(
   item: Item,
   states: ReadonlyMap<number, GitLabMergeRequestListState>,
-): Item & Partial<GitLabMergeRequestListState> {
+) {
   const state = states.get(item.number);
   return state === undefined ? item : { ...item, ...state };
 }

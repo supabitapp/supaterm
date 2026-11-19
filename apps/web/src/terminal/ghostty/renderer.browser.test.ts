@@ -19,7 +19,7 @@ const blank: GhosttyCell = {
   selected: false,
 };
 
-function pixelsOffBackground(context: CanvasRenderingContext2D): number {
+function pixelsOffBackground(context: CanvasRenderingContext2D) {
   const { data } = context.getImageData(0, 0, context.canvas.width, context.canvas.height);
   let count = 0;
   for (let index = 0; index < data.length; index += 4) {
@@ -28,13 +28,13 @@ function pixelsOffBackground(context: CanvasRenderingContext2D): number {
   return count;
 }
 
-function isDarkAt(context: CanvasRenderingContext2D, x: number, y: number): boolean {
+function isDarkAt(context: CanvasRenderingContext2D, x: number, y: number) {
   const { a, d } = context.getTransform();
   const { data } = context.getImageData(Math.floor(x * a), Math.floor(y * d), 1, 1);
   return data[0]! < 128 && data[1]! < 128 && data[2]! < 128;
 }
 
-function scaledContext(scale: number): CanvasRenderingContext2D {
+function scaledContext(scale: number) {
   const canvas = document.createElement("canvas");
   canvas.width = Math.round(40 * scale);
   canvas.height = Math.round(60 * scale);
@@ -90,7 +90,7 @@ describe.each([1.25, 2.2])("renderGhosttySnapshot at a %sx device pixel ratio", 
 
   it("erases a Powerline separator completely when only its row repaints", () => {
     const context = scaledContext(scale);
-    const firstRow = (cell: GhosttyCell): GhosttySnapshot => ({
+    const firstRow = (cell: GhosttyCell) => ({
       cols: 3,
       rows: 3,
       foreground: { r: 0, g: 0, b: 0 },
@@ -122,7 +122,7 @@ describe.each([1.25, 2.2])("renderGhosttySnapshot at a %sx device pixel ratio", 
   it("keeps concealed text and its decorations hidden, under a block cursor too", () => {
     const context = scaledContext(scale);
     const concealed = { ...blank, text: "█", invisible: true, underline: true };
-    const snapshot = (cursorVisible: boolean): GhosttySnapshot => ({
+    const snapshot = (cursorVisible: boolean) => ({
       cols: 3,
       rows: 1,
       foreground: { r: 0, g: 0, b: 0 },
@@ -160,7 +160,7 @@ describe.each([1.25, 2.2])("renderGhosttySnapshot at a %sx device pixel ratio", 
     const segment = { ...blank, background: { r: 0, g: 0, b: 0 } };
     const cells = [blank, { ...blank, text }, blank];
     cells[x.neighbour] = segment;
-    const snapshot = (cursorVisible: boolean): GhosttySnapshot => ({
+    const snapshot = (cursorVisible: boolean) => ({
       cols: 3,
       rows: 1,
       foreground: { r: 0, g: 0, b: 0 },

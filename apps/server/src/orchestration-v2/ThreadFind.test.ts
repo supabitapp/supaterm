@@ -73,36 +73,37 @@ const thread = (
   threadId: ThreadId,
   projectId: ProjectId,
   overrides: { readonly archivedAt?: DateTime.Utc; readonly deletedAt?: DateTime.Utc } = {},
-): OrchestrationV2DomainEvent => ({
-  id: EventId.make(`created:${threadId}`),
-  type: "thread.created",
-  threadId,
-  providerInstanceId,
-  occurredAt: at(0),
-  payload: {
-    createdBy: "user",
-    creationSource: "web",
-    id: threadId,
-    projectId,
-    title: threadId,
+) =>
+  ({
+    id: EventId.make(`created:${threadId}`),
+    type: "thread.created",
+    threadId,
     providerInstanceId,
-    modelSelection: { instanceId: providerInstanceId, model: "gpt-5" },
-    runtimeMode: "full-access",
-    interactionMode: "default",
-    branch: null,
-    worktreePath: null,
-    activeProviderThreadId: null,
-    lineage: { parentThreadId: null, relationshipToParent: null, rootThreadId: threadId },
-    forkedFrom: null,
-    createdAt: at(0),
-    updatedAt: at(0),
-    archivedAt: overrides.archivedAt ?? null,
-    doneOverride: null,
-    doneAt: null,
-    lastVisitedAt: null,
-    deletedAt: overrides.deletedAt ?? null,
-  },
-});
+    occurredAt: at(0),
+    payload: {
+      createdBy: "user",
+      creationSource: "web",
+      id: threadId,
+      projectId,
+      title: threadId,
+      providerInstanceId,
+      modelSelection: { instanceId: providerInstanceId, model: "gpt-5" },
+      runtimeMode: "full-access",
+      interactionMode: "default",
+      branch: null,
+      worktreePath: null,
+      activeProviderThreadId: null,
+      lineage: { parentThreadId: null, relationshipToParent: null, rootThreadId: threadId },
+      forkedFrom: null,
+      createdAt: at(0),
+      updatedAt: at(0),
+      archivedAt: overrides.archivedAt ?? null,
+      doneOverride: null,
+      doneAt: null,
+      lastVisitedAt: null,
+      deletedAt: overrides.deletedAt ?? null,
+    },
+  }) satisfies OrchestrationV2DomainEvent;
 
 const threadId = ThreadId.make("thread:find");
 const projectId = ProjectId.make("project:find");
@@ -114,10 +115,7 @@ function item(
   text: string,
   kind: "user_message" | "assistant_message" | "proposed_plan" = "assistant_message",
   owner = threadId,
-): Extract<
-  OrchestrationV2TurnItem,
-  { type: "user_message" | "assistant_message" | "proposed_plan" }
-> {
+) {
   const base = {
     id: TurnItemId.make(id),
     threadId: owner,
@@ -136,7 +134,16 @@ function item(
     updatedAt: at(1),
   };
   if (kind === "proposed_plan")
-    return { ...base, type: kind, planId: PlanId.make(id), markdown: text, streaming: false };
+    return {
+      ...base,
+      type: kind,
+      planId: PlanId.make(id),
+      markdown: text,
+      streaming: false,
+    } satisfies Extract<
+      OrchestrationV2TurnItem,
+      { type: "user_message" | "assistant_message" | "proposed_plan" }
+    >;
   if (kind === "user_message")
     return {
       ...base,
@@ -147,8 +154,20 @@ function item(
       attachments: [],
       createdBy: "user",
       creationSource: "web",
-    };
-  return { ...base, type: kind, messageId: MessageId.make(id), text, streaming: false };
+    } satisfies Extract<
+      OrchestrationV2TurnItem,
+      { type: "user_message" | "assistant_message" | "proposed_plan" }
+    >;
+  return {
+    ...base,
+    type: kind,
+    messageId: MessageId.make(id),
+    text,
+    streaming: false,
+  } satisfies Extract<
+    OrchestrationV2TurnItem,
+    { type: "user_message" | "assistant_message" | "proposed_plan" }
+  >;
 }
 
 function run(
@@ -156,7 +175,7 @@ function run(
   id = runId,
   ordinal = 1,
   status: OrchestrationV2Run["status"] = "completed",
-): Extract<OrchestrationV2DomainEvent, { type: "run.created" }> {
+) {
   return {
     id: EventId.make(`run:${owner}:${id}:${status}`),
     threadId: owner,
@@ -179,7 +198,7 @@ function run(
       checkpointId: null,
       contextHandoffId: null,
     },
-  };
+  } satisfies Extract<OrchestrationV2DomainEvent, { type: "run.created" }>;
 }
 
 const commit = Effect.fn("ThreadFindTest.commit")(function* (

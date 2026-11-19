@@ -24,11 +24,11 @@ const encodeThreadStreamItem = Schema.encodeSync(
   Schema.toCodecJson(OrchestrationV2ThreadStreamItem),
 );
 
-function encodedBytes(value: unknown): number {
+function encodedBytes(value: unknown) {
   return Buffer.byteLength(JSON.stringify(value), "utf8");
 }
 
-function encodedThreadStreamChunkBytes(value: OrchestrationV2ThreadStreamItem): number {
+function encodedThreadStreamChunkBytes(value: OrchestrationV2ThreadStreamItem) {
   const response = {
     _tag: "Chunk",
     requestId: 0,
@@ -37,7 +37,7 @@ function encodedThreadStreamChunkBytes(value: OrchestrationV2ThreadStreamItem): 
   return encodedBytes(response);
 }
 
-function makeCommandItem(index: number): OrchestrationV2TurnItem {
+function makeCommandItem(index: number) {
   return {
     id: TurnItemId.make(`item-${index}`),
     type: "command_execution",
@@ -57,17 +57,17 @@ function makeCommandItem(index: number): OrchestrationV2TurnItem {
     startedAt: NOW,
     completedAt: NOW,
     updatedAt: NOW,
-  };
+  } satisfies OrchestrationV2TurnItem;
 }
 
-function makeTurnItemEvent(item: OrchestrationV2TurnItem): OrchestrationV2DomainEvent {
+function makeTurnItemEvent(item: OrchestrationV2TurnItem) {
   return {
     id: EventId.make(`event-${item.id}`),
     type: "turn-item.updated",
     threadId: THREAD_ID,
     occurredAt: NOW,
     payload: item,
-  };
+  } satisfies OrchestrationV2DomainEvent;
 }
 
 describe("thread transport payload budget", () => {

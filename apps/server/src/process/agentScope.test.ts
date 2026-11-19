@@ -74,7 +74,7 @@ const withFakeSystemd = <A, E>(
     const units = new Map<string, { activeState: string; result: string }>();
     const calls: Array<ReadonlyArray<string>> = [];
     const failingVerbs = new Set<string>();
-    const output = (stdout: string, code = 0): ProcessRunner.ProcessRunOutput => ({
+    const output = (stdout: string, code = 0) => ({
       stdout,
       stderr: "",
       code: ChildProcessSpawner.ExitCode(code),

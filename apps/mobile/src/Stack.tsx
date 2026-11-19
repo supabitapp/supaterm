@@ -335,7 +335,7 @@ function workspaceLocationFromState(state: NavigationState) {
   };
 }
 
-export function rootPathnameFromState(state: NavigationState): string {
+export function rootPathnameFromState(state: NavigationState) {
   const path = getPathFromState(state, navigationPathConfig);
   return path.startsWith("/") ? path : `/${path}`;
 }

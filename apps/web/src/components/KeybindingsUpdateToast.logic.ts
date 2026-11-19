@@ -12,7 +12,8 @@ export interface KeybindingsUpdateToastController {
 
 export function createKeybindingsUpdateToastController(input: {
   readonly now?: () => number;
-}): KeybindingsUpdateToastController {
+}): KeybindingsUpdateToastController;
+export function createKeybindingsUpdateToastController(input: { readonly now?: () => number }) {
   const now = input.now ?? Date.now;
   let lastToast: { readonly key: string; readonly at: number } | null = null;
 
@@ -40,5 +41,5 @@ export function createKeybindingsUpdateToastController(input: {
       lastToast = { key, at: currentTime };
       return decision;
     },
-  };
+  } satisfies KeybindingsUpdateToastController;
 }

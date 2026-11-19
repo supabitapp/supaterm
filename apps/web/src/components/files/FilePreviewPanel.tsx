@@ -461,7 +461,7 @@ function WorkspaceBinaryFilePreview(props: {
   );
 }
 
-function clampFileLine(contents: string, requestedLine: number): number {
+function clampFileLine(contents: string, requestedLine: number) {
   let lineCount = 1;
   for (let index = 0; index < contents.length; index += 1) {
     const character = contents.charCodeAt(index);
@@ -475,7 +475,7 @@ function clampFileLine(contents: string, requestedLine: number): number {
   return Math.min(Math.max(1, requestedLine), lineCount);
 }
 
-function updateFileLinkReveal(fileContainer: HTMLElement, line: number | null): void {
+function updateFileLinkReveal(fileContainer: HTMLElement, line: number | null) {
   const root = fileContainer.shadowRoot ?? fileContainer;
   for (const element of root.querySelectorAll<HTMLElement>(`[${FILE_LINK_REVEAL_ATTRIBUTE}]`)) {
     element.removeAttribute(FILE_LINK_REVEAL_ATTRIBUTE);
@@ -508,10 +508,15 @@ function useFileLineReveal(
   relativePath: string | null,
   revealLine: number | null,
   revealRequestId: number,
-): FilePostRender {
+): FilePostRender;
+function useFileLineReveal(
+  relativePath: string | null,
+  revealLine: number | null,
+  revealRequestId: number,
+) {
   const [revealStatesByPath] = useState(() => new Map<string, FileRevealState>());
 
-  return (fileContainer, instance, phase) => {
+  return ((fileContainer, instance, phase) => {
     if (relativePath === null) return;
 
     const existingState = revealStatesByPath.get(relativePath);
@@ -599,7 +604,7 @@ function useFileLineReveal(
       return;
     }
 
-    const resolveScrollTarget = (line: number): number | null => {
+    const resolveScrollTarget: (line: number) => number | null = (line: number) => {
       const linePosition = instance.getLinePosition(line);
       if (!linePosition) return null;
 
@@ -695,7 +700,7 @@ function useFileLineReveal(
     };
 
     scheduleReveal(0);
-  };
+  }) satisfies FilePostRender;
 }
 
 const EMPTY_REVIEW_COMMENTS: ReadonlyArray<ReviewCommentContext> = [];
@@ -712,7 +717,7 @@ function editableFileContents(
   cwd: string,
   relativePath: string,
   contents: string,
-): FileContents {
+) {
   return {
     name: relativePath,
     contents,
@@ -1105,17 +1110,14 @@ function RenderedMarkdownSurface({
   );
 }
 
-function renderedToggleLabel(
-  mode: "markdown" | "mermaid" | "html" | "table",
-  rendered: boolean,
-): string {
+function renderedToggleLabel(mode: "markdown" | "mermaid" | "html" | "table", rendered: boolean) {
   if (mode === "mermaid") return rendered ? "Show Mermaid source" : "Show rendered diagram";
   if (mode === "markdown") return rendered ? "Show markdown source" : "Show rendered markdown";
   if (mode === "table") return rendered ? "Show source" : "Show table";
   return rendered ? "Show HTML source" : "Show rendered page";
 }
 
-function initialExplorerOpen(): boolean {
+function initialExplorerOpen() {
   try {
     return getLocalStorageItem(FILE_EXPLORER_STORAGE_KEY, Schema.Boolean) ?? true;
   } catch (error) {

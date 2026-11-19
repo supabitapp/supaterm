@@ -32,27 +32,21 @@ const AcpSchemaIssueKind = Schema.Literals([
 ]);
 type AcpSchemaIssueKind = typeof AcpSchemaIssueKind.Type;
 
-interface AcpSchemaIssueDiagnostics {
-  readonly issueCount: number;
-  readonly issueKinds: ReadonlyArray<AcpSchemaIssueKind>;
-  readonly maximumPathDepth: number;
-}
-
 const MAX_SUMMARY_ISSUES = 3;
 const MAX_SUMMARY_PATH_SEGMENTS = 8;
 
-const summaryPathSegment = (segment: PropertyKey): string =>
+const summaryPathSegment = (segment: PropertyKey) =>
   typeof segment === "number" || /^[A-Za-z_][A-Za-z0-9_]{0,63}$/.test(String(segment))
     ? String(segment)
     : "*";
 
-const summaryPath = (path: ReadonlyArray<PropertyKey>): string => {
+const summaryPath = (path: ReadonlyArray<PropertyKey>) => {
   if (path.length === 0) return "payload";
   const shown = path.slice(0, MAX_SUMMARY_PATH_SEGMENTS).map(summaryPathSegment).join(".");
   return path.length > MAX_SUMMARY_PATH_SEGMENTS ? `${shown}…` : shown;
 };
 
-const summaryReason = (issue: SchemaIssue.Issue): string => {
+const summaryReason = (issue: SchemaIssue.Issue) => {
   switch (issue._tag) {
     case "MissingKey":
       return "missing";
@@ -68,9 +62,9 @@ const summaryReason = (issue: SchemaIssue.Issue): string => {
 const isCatchAllMember = (issue: SchemaIssue.Issue) =>
   "ast" in issue && SchemaAST.resolveTitle(issue.ast) === "other";
 
-const schemaIssueSummary = (root: SchemaIssue.Issue): string => {
+const schemaIssueSummary = (root: SchemaIssue.Issue) => {
   const entries = new Set<string>();
-  const visit = (issue: SchemaIssue.Issue, path: ReadonlyArray<PropertyKey>): void => {
+  const visit = (issue: SchemaIssue.Issue, path: ReadonlyArray<PropertyKey>) => {
     switch (issue._tag) {
       case "Filter":
       case "Encoding":
@@ -97,12 +91,12 @@ const schemaIssueSummary = (root: SchemaIssue.Issue): string => {
   return hidden > 0 ? `${shown.join(", ")} (+${hidden} more)` : shown.join(", ");
 };
 
-const schemaIssueDiagnostics = (root: SchemaIssue.Issue): AcpSchemaIssueDiagnostics => {
+const schemaIssueDiagnostics = (root: SchemaIssue.Issue) => {
   let issueCount = 0;
   let maximumPathDepth = 0;
   const issueKinds = new Set<AcpSchemaIssueKind>();
 
-  const visit = (issue: SchemaIssue.Issue, pathDepth: number): void => {
+  const visit = (issue: SchemaIssue.Issue, pathDepth: number) => {
     issueCount += 1;
     issueKinds.add(issue._tag);
     maximumPathDepth = Math.max(maximumPathDepth, pathDepth);

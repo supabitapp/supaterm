@@ -17,13 +17,10 @@ import {
   MAX_DIFF_SLICE_FILES,
   byteLength,
   MAX_FILE_DIFF_EDITS,
-  type AzureDevOpsFileTexts,
 } from "./azureDevOpsDiff.ts";
 import {
   PullRequestProviderError,
   type PullRequestProviderFailure,
-  type ProviderChangeRequest,
-  type ProviderChangeRequestActivity,
   type ProviderChangeRequestDetail,
   type ProviderChangeRequestSummary,
   type ProviderDiffSlice,
@@ -53,7 +50,7 @@ const CHANGES_CACHE_CAPACITY = 32;
  */
 export const BLOB_BATCH_FILES = 100;
 
-function remember<V>(cache: Map<string, V>, capacity: number, key: string, value: V): V {
+function remember<V>(cache: Map<string, V>, capacity: number, key: string, value: V) {
   cache.delete(key);
   if (cache.size >= capacity) {
     const oldest = cache.keys().next().value;
@@ -63,13 +60,13 @@ function remember<V>(cache: Map<string, V>, capacity: number, key: string, value
   return value;
 }
 
-function recall<V>(cache: Map<string, V>, key: string): V | undefined {
+function recall<V>(cache: Map<string, V>, key: string) {
   const held = cache.get(key);
   if (held !== undefined) remember(cache, Number.POSITIVE_INFINITY, key, held);
   return held;
 }
 
-function blobIdsOf(change: AzureDevOpsChangeEntry): ReadonlyArray<string> {
+function blobIdsOf(change: AzureDevOpsChangeEntry) {
   const ids: string[] = [];
   if (change.changeKind !== "new" && change.originalObjectId !== null) {
     ids.push(change.originalObjectId);
@@ -109,15 +106,19 @@ const AZURE_DEVOPS_VIEWER_PERMISSIONS: PullRequestViewerPermissions = {
 
 function azureDevOpsProviderFailure(
   error: AzureDevOpsPullRequestCli.AzureDevOpsPullRequestCliError,
-): PullRequestProviderFailure {
-  if (error._tag === "AzureDevOpsCliUnavailableError") return { reason: "missing-tool" };
-  if (error._tag === "AzureDevOpsCliAuthenticationError") return { reason: "unauthenticated" };
-  if (error._tag === "AzureDevOpsCliRateLimitError") return { reason: "rate-limited" };
-  if (error._tag === "AzureDevOpsPullRequestNotFoundError") return { reason: "not-found" };
-  return { reason: "failed" };
+) {
+  if (error._tag === "AzureDevOpsCliUnavailableError")
+    return { reason: "missing-tool" } satisfies PullRequestProviderFailure;
+  if (error._tag === "AzureDevOpsCliAuthenticationError")
+    return { reason: "unauthenticated" } satisfies PullRequestProviderFailure;
+  if (error._tag === "AzureDevOpsCliRateLimitError")
+    return { reason: "rate-limited" } satisfies PullRequestProviderFailure;
+  if (error._tag === "AzureDevOpsPullRequestNotFoundError")
+    return { reason: "not-found" } satisfies PullRequestProviderFailure;
+  return { reason: "failed" } satisfies PullRequestProviderFailure;
 }
 
-function toChangeRequest(pullRequest: AzureDevOpsPullRequest): ProviderChangeRequest {
+function toChangeRequest(pullRequest: AzureDevOpsPullRequest) {
   return {
     number: pullRequest.number,
     title: pullRequest.title,
@@ -139,7 +140,8 @@ function toChangeRequest(pullRequest: AzureDevOpsPullRequest): ProviderChangeReq
   };
 }
 
-function toSummary(pullRequest: AzureDevOpsPullRequest): ProviderChangeRequestSummary {
+function toSummary(pullRequest: AzureDevOpsPullRequest): ProviderChangeRequestSummary;
+function toSummary(pullRequest: AzureDevOpsPullRequest) {
   return {
     number: pullRequest.number,
     title: pullRequest.title,
@@ -153,7 +155,7 @@ function toSummary(pullRequest: AzureDevOpsPullRequest): ProviderChangeRequestSu
     closedAt: pullRequest.state === "closed" ? pullRequest.closedAt : null,
     mergedAt: pullRequest.state === "merged" ? pullRequest.closedAt : null,
     updatedAt: pullRequest.updatedAt,
-  };
+  } satisfies ProviderChangeRequestSummary;
 }
 
 export const make = Effect.gen(function* () {
@@ -316,7 +318,7 @@ export const make = Effect.gen(function* () {
       ],
       { concurrency: 2 },
     ).pipe(
-      Effect.map(([oldItem, newItem]): AzureDevOpsFileTexts => ({
+      Effect.map(([oldItem, newItem]) => ({
         oldContents: oldItem.contents,
         newContents: newItem.contents,
         binary: oldItem.isBinary || newItem.isBinary,
@@ -478,7 +480,7 @@ export const make = Effect.gen(function* () {
                   Effect.orElseSucceed(() => ({ comments: [], truncated: true })),
                 )
           ).pipe(
-            Effect.map((conversation): ProviderChangeRequestActivity => ({
+            Effect.map((conversation) => ({
               comments: conversation.comments,
               commentCount: conversation.comments.length,
               commentsTruncated: conversation.truncated,
@@ -535,7 +537,7 @@ export const make = Effect.gen(function* () {
         };
         let blobs: ReadonlyMap<string, AzureDevOpsItemContent> = new Map();
         let blobsUntil = index;
-        const fromBlobs = (change: AzureDevOpsChangeEntry): AzureDevOpsFileTexts | null => {
+        const fromBlobs = (change: AzureDevOpsChangeEntry) => {
           const side = (id: string | null) =>
             id === null ? undefined : blobs.get(id.toLowerCase());
           const oldItem = change.changeKind === "new" ? EMPTY_ITEM : side(change.originalObjectId);

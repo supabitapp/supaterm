@@ -5,7 +5,6 @@ import type {
   ResourceTelemetryHistory,
   ResourceTelemetryHistoryBucket,
   ResourceTelemetryProcess,
-  ResourceTelemetryProcessSummary,
 } from "@supaterm/contracts";
 import * as DateTime from "effect/DateTime";
 import * as Option from "effect/Option";
@@ -22,7 +21,7 @@ const MAX_HISTORY_WINDOW_MS = 60 * 60_000;
 export function normalizeResourceTelemetryHistoryInput(input: {
   readonly windowMs: number;
   readonly bucketMs: number;
-}): { readonly windowMs: number; readonly bucketMs: number } {
+}) {
   const windowMs = Math.max(1_000, Math.min(MAX_HISTORY_WINDOW_MS, input.windowMs));
   return {
     windowMs,
@@ -63,9 +62,7 @@ export type ResourceTelemetryHistoryWithLegacyBuckets = ResourceTelemetryHistory
   readonly legacyBackendBuckets?: ReadonlyArray<ResourceTelemetryHistoryBucket>;
 };
 
-function summarizeProcesses(
-  samples: ReadonlyArray<ProcessSample>,
-): ReadonlyArray<ResourceTelemetryProcessSummary> {
+function summarizeProcesses(samples: ReadonlyArray<ProcessSample>) {
   const groups = new Map<string, ProcessSample[]>();
   for (const sample of samples) {
     const identityKey = processIdentityKey(
@@ -78,7 +75,7 @@ function summarizeProcesses(
   }
 
   return [...groups.values()]
-    .map((processSamples): ResourceTelemetryProcessSummary => {
+    .map((processSamples) => {
       const sorted = processSamples.toSorted((left, right) => left.sampledAtMs - right.sampledAtMs);
       const first = sorted[0]!;
       const latest = sorted[sorted.length - 1]!;
@@ -114,7 +111,7 @@ function buildBuckets(input: {
   readonly nowMs: number;
   readonly windowMs: number;
   readonly bucketMs: number;
-}): ReadonlyArray<ResourceTelemetryHistoryBucket> {
+}) {
   const windowStartMs = input.nowMs - input.windowMs;
   const buckets: ResourceTelemetryHistoryBucket[] = [];
   for (let startedAtMs = windowStartMs; startedAtMs < input.nowMs; startedAtMs += input.bucketMs) {
@@ -143,11 +140,7 @@ function buildBuckets(input: {
   return buckets;
 }
 
-export function buildResourceTelemetryHistory(
-  input: BuildResourceTelemetryHistoryInput,
-): ResourceTelemetryHistoryWithLegacyBuckets & {
-  readonly legacyBackendBuckets: ReadonlyArray<ResourceTelemetryHistoryBucket>;
-} {
+export function buildResourceTelemetryHistory(input: BuildResourceTelemetryHistoryInput) {
   const readAtMs = DateTime.toEpochMillis(input.readAt);
   const { windowMs, bucketMs } = normalizeResourceTelemetryHistoryInput(input);
   const windowStartMs = readAtMs - windowMs;

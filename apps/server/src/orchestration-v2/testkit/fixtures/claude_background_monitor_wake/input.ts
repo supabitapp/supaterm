@@ -10,7 +10,7 @@ export const CLAUDE_BACKGROUND_MONITOR_WAKE_PROMPT = [
   "3) When its completion is reported later, reply with exactly WAKE_DONE and stop.",
 ].join("\n");
 
-export function claudeBackgroundMonitorWakeInput(): OrchestratorFixtureInput {
+export function claudeBackgroundMonitorWakeInput() {
   return {
     steps: [
       { type: "message", text: CLAUDE_BACKGROUND_MONITOR_WAKE_PROMPT },
@@ -23,5 +23,5 @@ export function claudeBackgroundMonitorWakeInput(): OrchestratorFixtureInput {
       { type: "release_replay_gate", label: claudeBackgroundWakeResultLabel(1) },
       { type: "await_run_status", targetRunIndex: 2, status: "completed" },
     ],
-  };
+  } satisfies OrchestratorFixtureInput;
 }

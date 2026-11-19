@@ -32,7 +32,7 @@ export class GitHubApiRequestError extends Schema.TaggedError<GitHubApiRequestEr
   "GitHubApiRequestError",
   { host: Schema.String, operation: Schema.String, cause: Schema.Defect() },
 ) {
-  override get message(): string {
+  override get message() {
     return `Could not reach GitHub at ${this.host}.`;
   }
 }
@@ -41,7 +41,7 @@ export class GitHubApiAuthenticationError extends Schema.TaggedError<GitHubApiAu
   "GitHubApiAuthenticationError",
   { host: Schema.String, operation: Schema.String },
 ) {
-  override get message(): string {
+  override get message() {
     return `GitHub refused the credential for ${this.host}. Run \`gh auth login --hostname ${this.host}\` and retry.`;
   }
 }
@@ -54,7 +54,7 @@ export class GitHubApiRateLimitError extends Schema.TaggedError<GitHubApiRateLim
     retryAt: Schema.optionalKey(Schema.Finite),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return "GitHub API rate limit exceeded.";
   }
 }
@@ -69,7 +69,7 @@ export class GitHubApiNotFoundError extends Schema.TaggedError<GitHubApiNotFound
     credential: Schema.optionalKey(GitHubCredentials.GitHubCredentialSource),
   },
 ) {
-  override get message(): string {
+  override get message() {
     const missing =
       "GitHub could not find the requested resource, or the credential cannot see it.";
     return this.githubErrors !== undefined && this.githubErrors.length > 0
@@ -88,7 +88,7 @@ export class GitHubApiResponseError extends Schema.TaggedError<GitHubApiResponse
     githubErrorTypes: Schema.optionalKey(Schema.Array(Schema.NullOr(Schema.String))),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return this.githubErrors !== undefined && this.githubErrors.length > 0
       ? `GitHub returned an error: ${this.githubErrors.join("; ")}`
       : `GitHub returned HTTP ${this.status}.`;
@@ -104,23 +104,28 @@ export type GitHubApiError =
   | GitHubApiResponseError
   | SourceControlRateLimit.SourceControlRateLimitPausedError;
 
-export function gitHubApiUrls(host: string): { readonly rest: string; readonly graphql: string } {
+export function gitHubApiUrls(host: string): { readonly rest: string; readonly graphql: string };
+export function gitHubApiUrls(host: string) {
   const normalized = normalizeHost(host);
   if (normalized === "github.com") {
-    return { rest: "https://api.github.com", graphql: "https://api.github.com/graphql" };
+    return { rest: "https://api.github.com", graphql: "https://api.github.com/graphql" } satisfies {
+      readonly rest: string;
+      readonly graphql: string;
+    };
   }
   if (normalized.endsWith(".ghe.com")) {
     return {
       rest: `https://api.${normalized}`,
       graphql: `https://api.${normalized}/graphql`,
-    };
+    } satisfies { readonly rest: string; readonly graphql: string };
   }
-  return { rest: `https://${normalized}/api/v3`, graphql: `https://${normalized}/api/graphql` };
+  return {
+    rest: `https://${normalized}/api/v3`,
+    graphql: `https://${normalized}/api/graphql`,
+  } satisfies { readonly rest: string; readonly graphql: string };
 }
 
-function rateLimitAttributes(
-  headers: Readonly<Record<string, string | undefined>>,
-): Record<string, number | string> {
+function rateLimitAttributes(headers: Readonly<Record<string, string | undefined>>) {
   const attributes: Record<string, number | string> = {};
   for (const [header, name] of [
     ["x-ratelimit-limit", "github.ratelimit.limit"],
@@ -136,10 +141,7 @@ function rateLimitAttributes(
   return attributes;
 }
 
-function retryAtFrom(
-  headers: Readonly<Record<string, string | undefined>>,
-  now: number,
-): number | undefined {
+function retryAtFrom(headers: Readonly<Record<string, string | undefined>>, now: number) {
   const fromRetryAfter = SourceControlRateLimit.retryAtFromHeader(headers["retry-after"], now);
   if (fromRetryAfter !== undefined) return fromRetryAfter;
   const reset = Number(headers["x-ratelimit-reset"]) * 1_000;
@@ -156,7 +158,7 @@ export function isRateLimited(input: {
   readonly headers: Readonly<Record<string, string | undefined>>;
   readonly graphqlErrors?: ReadonlyArray<{ readonly type?: unknown; readonly message?: unknown }>;
   readonly body?: string;
-}): boolean {
+}) {
   const { status, headers, graphqlErrors: errors } = input;
   return (
     status === 429 ||
@@ -175,7 +177,7 @@ export function isRateLimited(input: {
   );
 }
 
-function namesLimit(text: unknown): boolean {
+function namesLimit(text: unknown) {
   return typeof text === "string" && /rate limit|abuse detection mechanism/i.test(text);
 }
 

@@ -33,7 +33,7 @@ const PACE_LABEL = { ahead: "ahead of pace", on: "on pace", under: "under pace" 
 
 type Driver = ServerProvider["driver"];
 
-function useBarColor(driver: Driver): string | null {
+function useBarColor(driver: Driver) {
   const colors = useProviderColors();
   const kind = usageProviderKind(driver);
   return kind ? colors[kind] : null;

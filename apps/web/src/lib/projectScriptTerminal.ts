@@ -5,7 +5,7 @@ export function findReusableProjectScriptTerminal(input: {
   readonly runningTerminalIds: ReadonlyArray<string>;
   /** A pending close would end the script's shell once the reopen runs. */
   readonly closingTerminalIds: ReadonlyArray<string>;
-}): string | null {
+}) {
   const idleDrawerTerminalIds = input.drawerTerminalIds.filter(
     (terminalId) =>
       !input.panelTerminalIds.has(terminalId) &&

@@ -26,7 +26,7 @@ export class DesktopWslServerTreeExtractError extends Schema.TaggedError<Desktop
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Failed to extract the WSL server tree to ${this.targetDir}.`;
   }
 }
@@ -43,10 +43,7 @@ export const forEachBoundedTree = Effect.fn("DesktopWslServerTree.forEachBounded
   Node,
   E,
   R,
->(
-  roots: ReadonlyArray<Node>,
-  visit: (node: Node) => Effect.Effect<ReadonlyArray<Node>, E, R>,
-): Effect.fn.Return<void, E, R> {
+>(roots: ReadonlyArray<Node>, visit: (node: Node) => Effect.Effect<ReadonlyArray<Node>, E, R>) {
   const pending = [...roots];
   while (pending.length > 0) {
     const batch = pending.splice(-COPY_CONCURRENCY);
@@ -64,12 +61,17 @@ interface CopyTreeEntry {
   readonly targetPath: string;
 }
 
-const copyTree = (
+const copyTree: (
   fs: FileSystem.FileSystem,
   join: (first: string, ...rest: string[]) => string,
   from: string,
   to: string,
-): Effect.Effect<void, PlatformError.PlatformError> =>
+) => Effect.Effect<void, PlatformError.PlatformError> = (
+  fs: FileSystem.FileSystem,
+  join: (first: string, ...rest: string[]) => string,
+  from: string,
+  to: string,
+) =>
   forEachBoundedTree<CopyTreeEntry, PlatformError.PlatformError, never>(
     [{ sourcePath: from, targetPath: to }],
     ({ sourcePath, targetPath }) =>

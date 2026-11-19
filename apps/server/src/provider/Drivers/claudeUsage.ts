@@ -19,7 +19,7 @@ export const CLAUDE_SYNTHETIC_MODEL = "<synthetic>";
  * Subagent blocks can progress from stream-start to final usage, so callers
  * must count each key once using the maximum of each token channel.
  */
-export function parseClaudeLine(line: string): readonly UsageRecord[] {
+export function parseClaudeLine(line: string) {
   let parsed: unknown;
   try {
     parsed = JSON.parse(line);
@@ -29,14 +29,14 @@ export function parseClaudeLine(line: string): readonly UsageRecord[] {
   return parseClaudeRecord(parsed);
 }
 
-function cacheCreation1h(usage: Record<string, unknown>): { cacheCreation1hTokens?: number } {
+function cacheCreation1h(usage: Record<string, unknown>) {
   const split = usage["cache_creation"];
   if (typeof split !== "object" || split === null) return {};
   const tokens = tokenCount((split as Record<string, unknown>)["ephemeral_1h_input_tokens"]);
   return tokens > 0 ? { cacheCreation1hTokens: tokens } : {};
 }
 
-function parseClaudeRecord(parsed: unknown): readonly UsageRecord[] {
+function parseClaudeRecord(parsed: unknown) {
   if (typeof parsed !== "object" || parsed === null) return [];
 
   const record = parsed as Record<string, unknown>;

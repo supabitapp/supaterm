@@ -6,12 +6,6 @@ type Token =
   | { readonly type: "any" }
   | { readonly type: "folders" };
 
-interface Pattern {
-  readonly tokens: ReadonlyArray<Token>;
-  readonly negated: boolean;
-  readonly folderOnly: boolean;
-}
-
 export type IgnoreDecision = "ignored" | "included";
 
 const utf8 = new TextEncoder();
@@ -42,7 +36,7 @@ function parseClass(chars: ReadonlyArray<string>, start: number) {
   return undefined;
 }
 
-function parseLine(rawLine: string): Pattern | undefined {
+function parseLine(rawLine: string) {
   let line = rawLine.endsWith("\r") ? rawLine.slice(0, -1) : rawLine;
   while (line.endsWith(" ") && !line.endsWith("\\ ")) line = line.slice(0, -1);
   if (line === "" || line.startsWith("#")) return undefined;
@@ -90,7 +84,8 @@ function parseLine(rawLine: string): Pattern | undefined {
   return { tokens, negated, folderOnly };
 }
 
-function matches(tokens: ReadonlyArray<Token>, path: ReadonlyArray<string>): boolean {
+function matches(tokens: ReadonlyArray<Token>, path: ReadonlyArray<string>): boolean;
+function matches(tokens: ReadonlyArray<Token>, path: ReadonlyArray<string>) {
   let states = new Set<number>();
   const add = (set: Set<number>, position: number) => {
     for (; position <= tokens.length && !set.has(position); position += 1) {
@@ -133,10 +128,10 @@ function matches(tokens: ReadonlyArray<Token>, path: ReadonlyArray<string>): boo
           break;
       }
     }
-    if (next.size === 0) return false;
+    if (next.size === 0) return false satisfies boolean;
     states = next;
   }
-  return states.has(tokens.length);
+  return states.has(tokens.length) satisfies boolean;
 }
 
 export interface IgnoreFile {
@@ -144,7 +139,8 @@ export interface IgnoreFile {
   readonly decide: (relativePath: string, isFolder: boolean) => IgnoreDecision | undefined;
 }
 
-export function parseIgnoreFile(contents: string): IgnoreFile {
+export function parseIgnoreFile(contents: string): IgnoreFile;
+export function parseIgnoreFile(contents: string) {
   const patterns = contents.split("\n").flatMap((line) => parseLine(line) ?? []);
   return {
     decide: (relativePath, isFolder) => {
@@ -156,5 +152,5 @@ export function parseIgnoreFile(contents: string): IgnoreFile {
       }
       return undefined;
     },
-  };
+  } satisfies IgnoreFile;
 }

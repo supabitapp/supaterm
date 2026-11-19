@@ -108,7 +108,7 @@ const auth = Layer.succeed(EnvironmentAuthenticatedAuth, (effect) =>
   ),
 );
 
-function threadCreated(id: ThreadId, at: DateTime.Utc, forkOf?: RunId): OrchestrationV2DomainEvent {
+function threadCreated(id: ThreadId, at: DateTime.Utc, forkOf?: RunId) {
   return {
     id: EventId.make(`event:${id}:created`),
     type: "thread.created",
@@ -150,14 +150,10 @@ function threadCreated(id: ThreadId, at: DateTime.Utc, forkOf?: RunId): Orchestr
         },
       ],
     },
-  };
+  } satisfies OrchestrationV2DomainEvent;
 }
 
-function runCreated(
-  threadId: ThreadId,
-  runId: RunId,
-  at: DateTime.Utc,
-): OrchestrationV2DomainEvent {
+function runCreated(threadId: ThreadId, runId: RunId, at: DateTime.Utc) {
   const rootNodeId = NodeId.make(`node:${runId}`);
   return {
     id: EventId.make(`event:${runId}:created`),
@@ -184,7 +180,7 @@ function runCreated(
       checkpointId: null,
       contextHandoffId: null,
     },
-  };
+  } satisfies OrchestrationV2DomainEvent;
 }
 
 function itemUpdated(
@@ -197,7 +193,7 @@ function itemUpdated(
     | "command_execution"
     | "run_interrupt_request"
     | "run_interrupt_result" = "command_execution",
-): OrchestrationV2DomainEvent {
+) {
   const base = {
     id: TurnItemId.make(`turn-item:${threadId}:${key}`),
     threadId,
@@ -225,10 +221,10 @@ function itemUpdated(
     ...(runId === null ? {} : { runId }),
     occurredAt: at,
     payload,
-  };
+  } satisfies OrchestrationV2DomainEvent;
 }
 
-function bodiesEvents(at: DateTime.Utc): OrchestrationV2DomainEvent[] {
+function bodiesEvents(at: DateTime.Utc) {
   const event = (key: string, rest: Pick<OrchestrationV2DomainEvent, "type" | "payload">) =>
     ({
       id: EventId.make(`event:${BODIES}:${key}`),
@@ -331,10 +327,10 @@ function bodiesEvents(at: DateTime.Utc): OrchestrationV2DomainEvent[] {
       scopeId: CheckpointScopeId.make(`scope:${BODIES}`),
       files,
     }),
-  ];
+  ] satisfies OrchestrationV2DomainEvent[];
 }
 
-function bodiesSubagent(at: DateTime.Utc): OrchestrationV2Subagent {
+function bodiesSubagent(at: DateTime.Utc) {
   return {
     id: NodeId.make(`node:${BODIES}:task`),
     threadId: BODIES,
@@ -355,10 +351,10 @@ function bodiesSubagent(at: DateTime.Utc): OrchestrationV2Subagent {
     startedAt: at,
     completedAt: at,
     updatedAt: at,
-  };
+  } satisfies OrchestrationV2Subagent;
 }
 
-function bodiesLiveTail(): OrchestrationV2StoredEvent[] {
+function bodiesLiveTail() {
   const at = DateTime.makeUnsafe("2026-10-01T00:00:00.000Z");
   const [reply, replyItem] = bodiesEvents(at).filter((event) =>
     String(event.id).includes(":reply-"),
@@ -374,7 +370,11 @@ function bodiesLiveTail(): OrchestrationV2StoredEvent[] {
       occurredAt: at,
       payload: { ...bodiesSubagent(at), progress: "Checked the build." },
     } as OrchestrationV2DomainEvent,
-  ].map((event, index) => ({ sequence: 1_000 + index, commandId: null, event }));
+  ].map((event, index) => ({
+    sequence: 1_000 + index,
+    commandId: null,
+    event,
+  })) satisfies OrchestrationV2StoredEvent[];
 }
 
 const seed = Effect.gen(function* () {
@@ -451,7 +451,7 @@ const firstSnapshot = (input: Parameters<typeof subscribeOrchestrationV2Thread>[
     }),
   );
 
-function itemIds(projection: OrchestrationV2ThreadProjection): string[] {
+function itemIds(projection: OrchestrationV2ThreadProjection) {
   return projection.turnItems.map((item) => String(item.id));
 }
 

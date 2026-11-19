@@ -12,7 +12,7 @@ interface LineRecordHighlighter {
 export function createWasmHighlightsModule() {
   const highlighter = createHighlighter() as unknown as LineRecordHighlighter;
   return {
-    tokenize(source: string, language: number): ArrayBuffer {
+    tokenize(source: string, language: number) {
       const records = highlighter.tokenizeLineRecords(language, highlighter.writeInput(source));
       return records.slice().buffer;
     },

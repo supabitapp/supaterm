@@ -2,10 +2,7 @@ const COMPOSER_FOOTER_COMPACT_BREAKPOINT_PX = 620;
 const COMPOSER_FOOTER_WIDE_ACTIONS_COMPACT_BREAKPOINT_PX = 780;
 const RESTING_COMPOSER_IMAGE_THUMBNAIL_LIMIT = 3;
 
-export function getRestingComposerImagePreviewCounts(imageCount: number): {
-  visibleCount: number;
-  overflowCount: number;
-} {
+export function getRestingComposerImagePreviewCounts(imageCount: number) {
   const visibleCount = Math.min(imageCount, RESTING_COMPOSER_IMAGE_THUMBNAIL_LIMIT);
   return {
     visibleCount,
@@ -16,7 +13,7 @@ export function getRestingComposerImagePreviewCounts(imageCount: number): {
 export function shouldUseCompactComposerFooter(
   width: number | null,
   options?: { hasWideActions?: boolean },
-): boolean {
+) {
   const breakpoint = options?.hasWideActions
     ? COMPOSER_FOOTER_WIDE_ACTIONS_COMPACT_BREAKPOINT_PX
     : COMPOSER_FOOTER_COMPACT_BREAKPOINT_PX;
@@ -30,7 +27,7 @@ export function shouldUseRestingComposerLayout(input: {
   hasExpandedChrome: boolean;
   hasMultilinePrompt: boolean;
   timelineOverflows: boolean;
-}): boolean {
+}) {
   return (
     input.isExistingThread &&
     !input.isMobileViewport &&
@@ -50,7 +47,7 @@ export function resolveComposerTimelineInset(input: {
   isResting: boolean;
   restingOnlyHeight?: number;
   expandedNoticesHeight?: number;
-}): number {
+}) {
   const overlayHeight = Math.ceil(input.overlayHeight - (input.expandedNoticesHeight ?? 0));
   return input.isResting
     ? Math.max(
@@ -59,8 +56,6 @@ export function resolveComposerTimelineInset(input: {
       )
     : overlayHeight;
 }
-
-type ComposerUsageMeterSlot = "row" | "context-strip";
 
 /**
  * Where the usage meter goes. A new thread shows it in a row under the composer; a started
@@ -71,7 +66,7 @@ export function resolveComposerUsageMeterSlot(input: {
   isMobileViewport: boolean;
   isDraftHero: boolean;
   contextStripMounted: boolean;
-}): ComposerUsageMeterSlot | null {
+}) {
   if (!input.hasUsageWindows || input.isMobileViewport || !input.contextStripMounted) return null;
   if (input.isDraftHero) return "row";
   return "context-strip";
@@ -80,7 +75,7 @@ export function resolveComposerUsageMeterSlot(input: {
 export function overlayComposerIsResting(input: {
   composerMounted: boolean;
   composerReportedResting: boolean;
-}): boolean {
+}) {
   return input.composerMounted && input.composerReportedResting;
 }
 
@@ -88,14 +83,14 @@ export function shouldAnimateComposerRestingTransition(input: {
   hasCompletedInitialLayout: boolean;
   stateChanged: boolean;
   hasInterruptedAnimation: boolean;
-}): boolean {
+}) {
   return input.hasCompletedInitialLayout && (input.stateChanged || input.hasInterruptedAnimation);
 }
 
 export function shouldUseCompactComposerPrimaryActions(
   width: number | null,
   options?: { hasWideActions?: boolean },
-): boolean {
+) {
   if (!options?.hasWideActions) {
     return false;
   }
@@ -116,7 +111,7 @@ function restingComposerControlsWidth(
   hiddenCount: number,
   fixedWidth = input.naturalFixedWidth,
   iconOnlyCount = 0,
-): number {
+) {
   const { blockWidths, gap } = input;
   const visibleCount = blockWidths.length - hiddenCount;
   return (
@@ -140,7 +135,7 @@ function restingComposerControlsWidth(
  * hidden controls. */
 export function resolveRestingComposerControlsNaturalWidth(
   input: RestingComposerControlsMeasurement,
-): number {
+) {
   return restingComposerControlsWidth(input, 0);
 }
 
@@ -151,7 +146,7 @@ export function resolveRestingComposerControlsLayout(
     hostWidth: number;
     previous?: { hiddenCount: number; iconOnlyCount?: number; visible: boolean };
   },
-): { hiddenCount: number; iconOnlyCount?: number; visible: boolean } {
+) {
   const { blockWidths, hostWidth, previous } = input;
   const iconSteps = input.iconOnlyBlockWidths ? blockWidths.length : 0;
   const previousStep = previous
@@ -188,7 +183,7 @@ export function resolveScrollToEndClearance(input: {
   mainSurfaceTop: number;
   button: { left: number; right: number };
   attachments: ReadonlyArray<{ top: number; left: number; right: number }>;
-}): number {
+}) {
   let contentTop = input.mainSurfaceTop;
   let top = contentTop;
   for (const attachment of input.attachments) {

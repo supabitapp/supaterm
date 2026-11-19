@@ -1,7 +1,7 @@
 // @effect-diagnostics nodeBuiltinImport:off
 import * as NodePath from "node:path";
 
-export function normalizeAttachmentRelativePath(rawRelativePath: string): string | null {
+export function normalizeAttachmentRelativePath(rawRelativePath: string) {
   const normalized = NodePath.normalize(rawRelativePath).replace(/^[/\\]+/, "");
   if (normalized.length === 0 || normalized.startsWith("..") || normalized.includes("\0")) {
     return null;
@@ -12,7 +12,7 @@ export function normalizeAttachmentRelativePath(rawRelativePath: string): string
 export function resolveAttachmentRelativePath(input: {
   readonly attachmentsDir: string;
   readonly relativePath: string;
-}): string | null {
+}) {
   const normalizedRelativePath = normalizeAttachmentRelativePath(input.relativePath);
   if (!normalizedRelativePath) {
     return null;

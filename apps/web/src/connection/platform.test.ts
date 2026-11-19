@@ -69,7 +69,7 @@ function makeBridge(
     readonly savedTokenScopes?: ReadonlyArray<string>;
     readonly launchGate?: Promise<void>;
   },
-): DesktopBridge {
+) {
   return {
     getClientPlatform: () => "linux",
     getLocalEnvironmentEnabled: () => true,

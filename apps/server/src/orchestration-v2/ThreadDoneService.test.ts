@@ -10,7 +10,6 @@ import {
   MessageId,
   RuntimeRequestId,
   RunId,
-  type OrchestrationV2Run,
   ThreadId,
   TurnItemId,
   type OrchestrationProjectShell,
@@ -19,7 +18,6 @@ import {
   type OrchestrationV2DomainEvent,
   type OrchestrationV2ShellSnapshot,
   type OrchestrationV2ThreadShell,
-  type PullRequestSummary,
   type ServerSettings as ContractServerSettings,
   type ServerSettingsPatch,
   type ThreadPullRequestLink,
@@ -54,14 +52,14 @@ import * as ThreadDoneService from "./ThreadDoneService.ts";
 const NOW_MS = Date.parse("2026-06-10T12:00:00.000Z");
 const DAY_MS = 24 * 60 * 60 * 1_000;
 
-function at(offsetMs: number): DateTime.Utc {
+function at(offsetMs: number) {
   return DateTime.makeUnsafe(NOW_MS + offsetMs);
 }
 
 type SettlementShell = OrchestrationV2ThreadShell &
   Pick<ProjectionStore.ProjectionDoneCandidate, "latestUserAuthoredMessageAt">;
 
-function shell(overrides: Partial<SettlementShell> = {}): SettlementShell {
+function shell(overrides: Partial<SettlementShell> = {}) {
   return {
     id: ThreadId.make("thread-1"),
     projectId: ProjectId.make("project-1"),
@@ -108,13 +106,10 @@ function shell(overrides: Partial<SettlementShell> = {}): SettlementShell {
     snoozedAt: null,
     pinnedAt: null,
     ...overrides,
-  };
+  } satisfies SettlementShell;
 }
 
-function persistedLink(
-  state: "open" | null,
-  linkedAt: DateTime.Utc,
-): NonNullable<SettlementShell["pullRequests"]>[number] {
+function persistedLink(state: "open" | null, linkedAt: DateTime.Utc) {
   return {
     host: "example.test",
     repository: "owner/repository",
@@ -135,7 +130,7 @@ function persistedLink(
             syncedAt: DateTime.formatIso(linkedAt),
           },
     stack: null,
-  };
+  } satisfies NonNullable<SettlementShell["pullRequests"]>[number];
 }
 
 describe("isAutoMarkDoneCandidate", () => {
@@ -564,10 +559,7 @@ type AutoMarkDoneCommand = Extract<
 
 const testCrypto = SecureRandom.make((size) => new Uint8Array(size).fill(1));
 
-function makeProject(
-  id: ProjectId = PROJECT_ID,
-  workspaceRoot = "/workspace/project",
-): OrchestrationProjectShell {
+function makeProject(id: ProjectId = PROJECT_ID, workspaceRoot = "/workspace/project") {
   return {
     id,
     title: `Project ${id}`,
@@ -579,7 +571,7 @@ function makeProject(
   };
 }
 
-function makeThread(id: string, overrides: Partial<SettlementShell> = {}): SettlementShell {
+function makeThread(id: string, overrides: Partial<SettlementShell> = {}) {
   return shell({
     id: ThreadId.make(id),
     projectId: PROJECT_ID,
@@ -588,7 +580,7 @@ function makeThread(id: string, overrides: Partial<SettlementShell> = {}): Settl
     updatedAt: DateTime.makeUnsafe("2026-08-20T00:00:00.000Z"),
     latestUserMessageAt: DateTime.makeUnsafe("2026-08-20T00:00:00.000Z"),
     ...overrides,
-  });
+  }) satisfies SettlementShell;
 }
 
 type SettlementSnapshot = Omit<OrchestrationV2ShellSnapshot, "threads"> & {
@@ -597,15 +589,19 @@ type SettlementSnapshot = Omit<OrchestrationV2ShellSnapshot, "threads"> & {
 
 function makeSnapshot(
   threads: ReadonlyArray<SettlementShell>,
+  projects?: ReadonlyArray<OrchestrationProjectShell>,
+): SettlementSnapshot;
+function makeSnapshot(
+  threads: ReadonlyArray<SettlementShell>,
   projects: ReadonlyArray<OrchestrationProjectShell> = [makeProject()],
-): SettlementSnapshot {
+) {
   return {
     schemaVersion: 1,
     snapshotSequence: 1,
     projects,
     threads,
     archivedThreads: [],
-  };
+  } satisfies SettlementSnapshot;
 }
 
 function makePullRequestSummary(input: {
@@ -614,7 +610,7 @@ function makePullRequestSummary(input: {
   readonly number: number;
   readonly state: "open" | "closed" | "merged";
   readonly updatedAt?: string;
-}): PullRequestSummary {
+}) {
   return {
     provider: SourceControlProviderKind.make("github"),
     projectId: input.projectId,
@@ -644,7 +640,7 @@ function makeBranchPullRequest(state: "open" | "closed" | "merged") {
   } satisfies GitManager.GitBranchPullRequest;
 }
 
-function makeMergedPullRequestLink(): ThreadPullRequestLink {
+function makeMergedPullRequestLink() {
   return {
     host: "example.test",
     repository: "owner/repository",
@@ -663,12 +659,12 @@ function makeMergedPullRequestLink(): ThreadPullRequestLink {
       mergedAt: NOW,
     },
     stack: null,
-  };
+  } satisfies ThreadPullRequestLink;
 }
 
 function readsFreshGitState(
   options: Parameters<GitManager.GitManager["Service"]["branchPullRequest"]>[1],
-): boolean {
+) {
   return (
     options?.refresh === true ||
     options?.freshGitState === true ||
@@ -930,11 +926,15 @@ const projectionStoreSql = ProjectionStore.layer.pipe(
   Layer.provideMerge(SqlitePersistence.layerMemory),
 );
 
-const appThread = (
+const appThread: (
+  id: string,
+  doneOverride: OrchestrationV2AppThread["doneOverride"],
+  worktreePath?: string | null,
+) => OrchestrationV2AppThread = (
   id: string,
   doneOverride: OrchestrationV2AppThread["doneOverride"],
   worktreePath: string | null = null,
-): OrchestrationV2AppThread => {
+) => {
   const threadId = ThreadId.make(id);
   return {
     createdBy: "user",
@@ -960,7 +960,9 @@ const appThread = (
     deletedAt: null,
   };
 };
-const doneEvent = (thread: OrchestrationV2AppThread): OrchestrationV2DomainEvent => ({
+const doneEvent: (thread: OrchestrationV2AppThread) => OrchestrationV2DomainEvent = (
+  thread: OrchestrationV2AppThread,
+) => ({
   type: "thread.marked-done",
   id: EventId.make(`event:done:${thread.id}`),
   threadId: thread.id,
@@ -1205,7 +1207,7 @@ describe("ThreadDoneServiceV2 worker", () => {
             payload: thread,
           });
         }
-        const run = (threadId: ThreadId, status: "running" | "completed"): OrchestrationV2Run => ({
+        const run = (threadId: ThreadId, status: "running" | "completed") => ({
           id: RunId.make(`run:${threadId}`),
           threadId,
           ordinal: 1,
@@ -1415,7 +1417,7 @@ describe("ThreadDoneServiceV2 worker", () => {
                 return candidates;
               }),
           },
-          onDispatch: (command): Effect.Effect<void> =>
+          onDispatch: (command) =>
             Effect.gen(function* () {
               const thread = yield* store.getThread(command.threadId);
               const event = doneEvent({
@@ -1426,7 +1428,7 @@ describe("ThreadDoneServiceV2 worker", () => {
               yield* store.apply(event);
               yield* fixture.publishEvent(event);
               yield* Deferred.succeed(childMarkedDone, undefined);
-            }).pipe(Effect.orDie),
+            }).pipe(Effect.orDie) satisfies Effect.Effect<void> as Effect.Effect<void>,
         });
         yield* Effect.gen(function* () {
           const service = yield* ThreadDoneService.ThreadDoneServiceV2;
@@ -1770,13 +1772,14 @@ describe("ThreadDoneServiceV2 worker", () => {
           ),
         onDispatch: () => Deferred.succeed(settled, undefined),
       });
-      const backgroundEnded = (threadId: ThreadId): OrchestrationV2DomainEvent => ({
-        type: "run.background-work-cancelled",
-        id: EventId.make(`event:background-ended:${threadId}`),
-        threadId,
-        occurredAt: DateTime.makeUnsafe(NOW),
-        payload: { runId: RunId.make(`run:${threadId}`), restartCancelledBackgroundWork: [] },
-      });
+      const backgroundEnded = (threadId: ThreadId) =>
+        ({
+          type: "run.background-work-cancelled",
+          id: EventId.make(`event:background-ended:${threadId}`),
+          threadId,
+          occurredAt: DateTime.makeUnsafe(NOW),
+          payload: { runId: RunId.make(`run:${threadId}`), restartCancelledBackgroundWork: [] },
+        }) satisfies OrchestrationV2DomainEvent;
 
       yield* Effect.gen(function* () {
         const reactor = yield* ThreadDoneService.ThreadDoneServiceV2;

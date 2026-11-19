@@ -41,12 +41,12 @@ const writeScopedSettings = createScopedSettingsWriter(readSettings);
 
 export function useScopedSettings<T = UnifiedSettings>(
   selector?: (settings: UnifiedSettings) => T,
-): T {
+) {
   const { target } = useSettingsScope();
   return useMergedSettings(target?.settings ?? DEFAULT_SERVER_SETTINGS, selector);
 }
 
-export function useScopedSettingsMixed(keys: readonly (keyof ServerSettings)[]): boolean {
+export function useScopedSettingsMixed(keys: readonly (keyof ServerSettings)[]) {
   const { targets } = useSettingsScope();
   return scopedSettingsAreMixed(targets, keys);
 }

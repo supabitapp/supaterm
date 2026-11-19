@@ -83,7 +83,7 @@ export function makeThreadSearchKey(
   environmentIds: ReadonlyArray<EnvironmentId>,
   query: string,
   scope: ThreadSearchScope = {},
-): string {
+) {
   const sorted = [...environmentIds].sort((left, right) => left.localeCompare(right));
   return JSON.stringify(Object.keys(scope).length === 0 ? [sorted, query] : [sorted, query, scope]);
 }
@@ -94,7 +94,7 @@ function parseThreadSearchKey(key: string) {
 
 export function threadSearchMatchKey(
   match: Pick<EnvironmentThreadSearchMatch, "environmentId" | "threadId">,
-): string {
+) {
   return JSON.stringify([match.environmentId, match.threadId]);
 }
 
@@ -112,7 +112,7 @@ export function createThreadSearchResultsAtomFamily<E>(options: {
   readonly labelPrefix: string;
 }) {
   const results = Atom.family((key: string) =>
-    Atom.make((get): ThreadSearchResultsState => {
+    Atom.make((get) => {
       const parsedKey = parseThreadSearchKey(key);
       if (Option.isNone(parsedKey)) {
         return { matches: [], isLoading: false, rows: EMPTY_SEARCH_ROWS };
@@ -200,7 +200,12 @@ export function threadSearchSubject(
   thread: ThreadSearchShell,
   projectTitle: string | null | undefined,
   environmentLabel?: string | null,
-): ThreadSearchSubject {
+): ThreadSearchSubject;
+export function threadSearchSubject(
+  thread: ThreadSearchShell,
+  projectTitle: string | null | undefined,
+  environmentLabel?: string | null,
+) {
   const cached = subjectCache.get(thread);
   if (
     cached !== undefined &&
@@ -208,7 +213,7 @@ export function threadSearchSubject(
     cached.environmentLabel === environmentLabel &&
     cached.opensVersion === localThreadOpensVersion
   ) {
-    return cached.subject;
+    return cached.subject satisfies ThreadSearchSubject;
   }
   const subject = buildThreadSearchSubject(thread, projectTitle, environmentLabel);
   subjectCache.set(thread, {
@@ -217,7 +222,7 @@ export function threadSearchSubject(
     opensVersion: localThreadOpensVersion,
     subject,
   });
-  return subject;
+  return subject satisfies ThreadSearchSubject;
 }
 
 const subjectCache = new WeakMap<
@@ -234,7 +239,7 @@ function buildThreadSearchSubject(
   thread: ThreadSearchShell,
   projectTitle: string | null | undefined,
   environmentLabel: string | null | undefined,
-): ThreadSearchSubject {
+) {
   const activityAt = getThreadSortTimestamp(thread, "updated_at");
   const localOpenedAt = localThreadOpens.get(`${thread.environmentId}:${thread.id}`) ?? 0;
   return {
@@ -272,7 +277,7 @@ export function nextShownOrder(
   query: string,
   ranked: ReadonlyArray<string>,
   limit: number,
-): ShownOrder {
+) {
   if (previous?.query !== query) {
     return { query, keys: ranked, shown: Math.min(limit, ranked.length) };
   }
@@ -310,7 +315,7 @@ export function visibleThreadSearch(
   query: string,
   ready: SettledThreadSearch | null,
   previous: SettledThreadSearch | null,
-): SettledThreadSearch {
+) {
   if (ready !== null) return ready;
   const current = foldSearchQuery(query);
   const before = foldSearchQuery(previous?.query ?? "");

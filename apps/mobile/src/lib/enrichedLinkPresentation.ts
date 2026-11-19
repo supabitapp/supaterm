@@ -18,9 +18,12 @@ import { EXTENSIONLESS_FILE_NAMES } from "@supaterm/shared/markdownLinks";
 export function enrichedContextLinkPresentation(
   href: string,
   records?: ReadonlyArray<ComposerContextRecord>,
-): { accent?: string; icon: ContextChipIconRef; label?: string } | undefined {
+) {
   const reference = parseComposerContextHref(href);
-  if (!reference) return undefined;
+  if (!reference)
+    return undefined satisfies
+      | { accent?: string; icon: ContextChipIconRef; label?: string }
+      | undefined;
   const record = records?.find((candidate) => candidate.contextId === reference.contextId);
   const presentation =
     records && !record
@@ -31,18 +34,17 @@ export function enrichedContextLinkPresentation(
     ...(presentation.accent ? { accent: presentation.accent } : {}),
     icon: contextChipIcon(presentation, contextRecordFileName(record)),
     ...(record && size ? { label: `${record.label} · ${size}` } : {}),
-  };
+  } satisfies { accent?: string; icon: ContextChipIconRef; label?: string } | undefined;
 }
 
-export function enrichedThreadLinkPresentation(
-  href: string,
-): { accent?: string; icon: ContextChipIconRef } | undefined {
-  if (!parseThreadLinkHref(href)) return undefined;
+export function enrichedThreadLinkPresentation(href: string) {
+  if (!parseThreadLinkHref(href))
+    return undefined satisfies { accent?: string; icon: ContextChipIconRef } | undefined;
   const presentation = contextChipPresentation("thread");
   return {
     ...(presentation.accent ? { accent: presentation.accent } : {}),
     icon: contextChipIcon(presentation, ""),
-  };
+  } satisfies { accent?: string; icon: ContextChipIconRef } | undefined;
 }
 
 export interface ThreadChipTarget {
@@ -56,7 +58,7 @@ export function threadChipTargets(
   environmentId: EnvironmentId,
   markdown: string,
   records?: ReadonlyArray<ComposerContextRecord>,
-): ReadonlyArray<ThreadChipTarget> {
+) {
   const targets = new Map<string, ThreadChipTarget>();
   if (hasThreadLinks(markdown)) {
     for (const [, href = ""] of markdown.matchAll(

@@ -6,7 +6,7 @@ import { WorktreeSetupCard } from "./WorktreeSetupCard";
 
 const NOW = new Date("2026-10-26T12:00:10.000Z");
 
-function snapshot(overrides: Partial<WorktreeSetupSnapshot>): WorktreeSetupSnapshot {
+function snapshot(overrides: Partial<WorktreeSetupSnapshot>) {
   return {
     threadId: ThreadId.make("thread-1"),
     phase: "running",
@@ -39,7 +39,7 @@ function snapshot(overrides: Partial<WorktreeSetupSnapshot>): WorktreeSetupSnaps
     error: null,
     sequence: 1,
     ...overrides,
-  };
+  } satisfies WorktreeSetupSnapshot;
 }
 
 const card = (value: WorktreeSetupSnapshot) => (

@@ -20,17 +20,23 @@ export interface ThreadRowProviderInstance {
 export function resolveThreadProviderInstance(
   providers: ReadonlyArray<ThreadListProvider> | undefined,
   thread: EnvironmentThreadShell,
-): ThreadRowProviderInstance | null {
-  if (providers === undefined) return null;
+): ThreadRowProviderInstance | null;
+export function resolveThreadProviderInstance(
+  providers: ReadonlyArray<ThreadListProvider> | undefined,
+  thread: EnvironmentThreadShell,
+) {
+  if (providers === undefined) return null satisfies ThreadRowProviderInstance | null;
   const instanceId = thread.runtime?.providerInstanceId ?? thread.modelSelection.instanceId;
   const snapshot = providers.find((provider) => provider.instanceId === instanceId);
-  return snapshot ? describeProviderInstance(snapshot, providers) : null;
+  return (
+    snapshot ? describeProviderInstance(snapshot, providers) : null
+  ) satisfies ThreadRowProviderInstance | null;
 }
 
 export function describeProviderInstance(
   snapshot: ThreadListProvider,
   providers: ReadonlyArray<ThreadListProvider>,
-): ThreadRowProviderInstance {
+) {
   const entry = {
     driverKind: snapshot.driver,
     displayName: resolveProviderInstanceDisplayName(snapshot),
@@ -48,9 +54,12 @@ export function describeProviderInstance(
 /** Cache per provider-list generation so fresh resolver objects cannot invalidate every memoized row. */
 export function createThreadRowProviderInstanceResolver(
   providersByEnvironmentId: ReadonlyMap<EnvironmentId, ReadonlyArray<ThreadListProvider>>,
-): (thread: EnvironmentThreadShell) => ThreadRowProviderInstance | null {
+): (thread: EnvironmentThreadShell) => ThreadRowProviderInstance | null;
+export function createThreadRowProviderInstanceResolver(
+  providersByEnvironmentId: ReadonlyMap<EnvironmentId, ReadonlyArray<ThreadListProvider>>,
+) {
   const cache = new Map<string, ThreadRowProviderInstance | null>();
-  return (thread) => {
+  return ((thread) => {
     const instanceId = thread.runtime?.providerInstanceId ?? thread.modelSelection.instanceId;
     const cacheKey = `${thread.environmentId}|${instanceId ?? ""}`;
     const cached = cache.get(cacheKey);
@@ -61,12 +70,12 @@ export function createThreadRowProviderInstanceResolver(
     );
     cache.set(cacheKey, resolved);
     return resolved;
-  };
+  }) satisfies (thread: EnvironmentThreadShell) => ThreadRowProviderInstance | null;
 }
 
 export function useThreadRowProviderInstanceResolver(
   providersByEnvironmentId: ReadonlyMap<EnvironmentId, ReadonlyArray<ThreadListProvider>>,
-): (thread: EnvironmentThreadShell) => ThreadRowProviderInstance | null {
+) {
   return useMemo(
     () => createThreadRowProviderInstanceResolver(providersByEnvironmentId),
     [providersByEnvironmentId],

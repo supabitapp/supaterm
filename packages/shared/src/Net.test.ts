@@ -13,12 +13,12 @@ const closeServer = (server: NodeNet.Server) =>
     } catch {}
   });
 
-const getPort = (server: NodeNet.Server): number => {
+const getPort = (server: NodeNet.Server) => {
   const address = server.address();
   return typeof address === "object" && address !== null ? address.port : 0;
 };
 
-const openServer = (host?: string): Effect.Effect<NodeNet.Server, NetService.NetError> =>
+const openServer = (host?: string) =>
   Effect.callback<NodeNet.Server, NetService.NetError>((resume) => {
     const server = NodeNet.createServer();
     let settled = false;

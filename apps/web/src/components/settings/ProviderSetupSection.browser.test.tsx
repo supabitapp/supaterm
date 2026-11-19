@@ -98,7 +98,7 @@ const provider: ServerProvider = {
   setup: { canAuthenticate: true, canInstall: true },
 };
 
-function authState(patch: Partial<ProviderAuthState> = {}): ProviderAuthState {
+function authState(patch: Partial<ProviderAuthState> = {}) {
   return {
     instanceId,
     phase: "waiting",
@@ -107,7 +107,7 @@ function authState(patch: Partial<ProviderAuthState> = {}): ProviderAuthState {
     expiresAt: "2026-09-02T00:05:00.000Z",
     message: null,
     ...patch,
-  };
+  } satisfies ProviderAuthState;
 }
 
 interface SectionOptions {

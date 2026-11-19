@@ -1,6 +1,6 @@
 import { resolveProviderProbeTimeoutMs } from "@supaterm/provider-core/server/snapshotProbe";
 import type { SendUserTurnOptions } from "@muse-code/sdk";
-import { ModelCapabilities, ServerProviderModel } from "@supaterm/contracts";
+import { ModelCapabilities } from "@supaterm/contracts";
 import { MuseSettings } from "../settings.ts";
 import { createModelCapabilities, getProviderOptionDescriptors } from "@supaterm/shared/model";
 import * as Effect from "effect/Effect";
@@ -52,7 +52,7 @@ export function museModelCapabilities(
     typeof ModelCatalogEntry.Type,
     "variants" | "defaultReasoningEffort" | "reasoningEffortVariants"
   >,
-): ModelCapabilities {
+) {
   const reported = model?.variants !== undefined && model.variants !== "unknown";
   const efforts = (reported ? model.variants : FALLBACK_EFFORTS).filter(isMuseReasoningEffort);
   const preferredDefault = reported ? model?.defaultReasoningEffort : FALLBACK_DEFAULT_EFFORT;
@@ -84,14 +84,20 @@ export function museModelCapabilities(
 export function resolveMuseReasoningEffort(
   capabilities: ModelCapabilities | null | undefined,
   effort: string | undefined,
-): string | undefined {
-  if (!capabilities) return effort;
+): string | undefined;
+export function resolveMuseReasoningEffort(
+  capabilities: ModelCapabilities | null | undefined,
+  effort: string | undefined,
+) {
+  if (!capabilities) return effort satisfies string | undefined;
   const descriptor = getProviderOptionDescriptors({
     caps: capabilities,
     selections: effort ? [{ id: "reasoningEffort", value: effort }] : undefined,
   }).find((descriptor) => descriptor.id === "reasoningEffort");
-  if (descriptor?.type !== "select") return undefined;
-  return descriptor.options.find((option) => option.id === descriptor.currentValue)?.id;
+  if (descriptor?.type !== "select") return undefined satisfies string | undefined;
+  return descriptor.options.find((option) => option.id === descriptor.currentValue)?.id satisfies
+    | string
+    | undefined;
 }
 
 class MuseCatalogError extends Schema.TaggedError<MuseCatalogError>()("MuseCatalogError", {
@@ -124,7 +130,7 @@ export const discoverMuseModels = Effect.fn("discoverMuseModels")(function* (
     return yield* new MuseCatalogError({ detail: "Muse returned a catalog for another provider." });
   }
   const seen = new Set<string>();
-  return catalog.models.flatMap((model): ServerProviderModel[] => {
+  return catalog.models.flatMap((model) => {
     if (model.providerId !== "meta" || seen.has(model.modelId)) return [];
     seen.add(model.modelId);
     const label = model.displayLabel.trim() || model.modelId;

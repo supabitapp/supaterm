@@ -12,7 +12,7 @@ export interface WorkflowFileIdentity {
   readonly ino: number;
 }
 
-function workflowFilesRoot(home: string, configDir?: string): string {
+function workflowFilesRoot(home: string, configDir?: string) {
   return NodePath.join(configDir?.trim() || NodePath.join(home, ".claude"), "projects");
 }
 

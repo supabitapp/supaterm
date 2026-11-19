@@ -10,7 +10,7 @@ import {
 } from "../shared.ts";
 import { KIRO_COMPACTION_MARKER } from "./input.ts";
 
-function promptText(frame: unknown): string {
+function promptText(frame: unknown) {
   const prompt = field(field(frame, "params"), "prompt");
   return Array.isArray(prompt) ? prompt.map((block) => String(field(block, "text"))).join("") : "";
 }

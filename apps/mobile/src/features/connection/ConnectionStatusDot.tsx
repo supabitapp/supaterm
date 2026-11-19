@@ -10,10 +10,7 @@ function statusDotTone(
   state: ConnectionStatusDotState,
   theme: MobileThemeVariables,
   dark: boolean,
-): {
-  readonly dotColor: string;
-  readonly haloColor: string;
-} {
+) {
   switch (state) {
     case "available":
     case "unsupported":

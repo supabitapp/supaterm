@@ -108,7 +108,7 @@ export function composerContextRecordsFromDraft(input: {
   images?: ReadonlyArray<ComposerImageAttachment>;
   files?: ReadonlyArray<ComposerFileAttachment>;
   uploadsByImageId?: Readonly<Record<string, AttachmentUploadState>>;
-}): ComposerDraftContextRecords {
+}) {
   const records = new Map<string, ComposerDraftContextRecord>();
   for (const record of input.images ?? []) {
     records.set(imageContextReference(record).contextId, {
@@ -180,10 +180,7 @@ function ContextChip(props: {
   );
 }
 
-function useUploadStatusSuffix(
-  key: string,
-  upload: AttachmentUploadState | undefined,
-): string | null {
+function useUploadStatusSuffix(key: string, upload: AttachmentUploadState | undefined) {
   const progress = useAttachmentUploadProgress(key, upload);
   if (upload?.status === "failed") return "upload failed";
   return progress;
@@ -192,7 +189,7 @@ function useUploadStatusSuffix(
 function attachmentTooltip(
   attachment: ComposerImageAttachment | ComposerFileAttachment,
   upload: AttachmentUploadState | undefined,
-): string {
+) {
   const lines = [attachment.name, formatAttachmentSize(attachment.sizeBytes)];
   if (upload?.status === "failed") lines.push("", upload.reason);
   return lines.join("\n");
@@ -285,7 +282,7 @@ function PullRequestContextChip(props: { record: ReviewCommentContext; kind: Con
   );
 }
 
-function previewAnnotationTooltip(annotation: PreviewAnnotationPayload): string {
+function previewAnnotationTooltip(annotation: PreviewAnnotationPayload) {
   const lines = [annotation.pageTitle?.trim() || annotation.pageUrl];
   if (annotation.comment.trim()) lines.push("", annotation.comment.trim());
   const targets: string[] = [];
@@ -501,7 +498,7 @@ export function ComposerContextReferenceChip(props: {
   kind: string;
   contextId: string;
   label: string;
-}): ReactElement {
+}) {
   const records = use(ComposerContextRecordsContext);
   return composerContextPresentationRegistry.render(props.kind, records.get(props.contextId), {
     label: props.label,

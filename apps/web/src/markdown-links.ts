@@ -27,17 +27,17 @@ export interface MarkdownFileLinkMeta {
 export function shouldOpenMarkdownFileLinkInEditor(
   event: Pick<MouseEvent, "metaKey" | "ctrlKey">,
   platform?: string,
-): boolean {
+) {
   return isTerminalLinkActivation(event, platform);
 }
 
-export function rewriteMarkdownFileUriHref(href: string | undefined): string | null {
+export function rewriteMarkdownFileUriHref(href: string | undefined) {
   if (!href) return null;
   const target = parseFileUrlHref(normalizeMarkdownLinkDestination(href));
   return target ? `${target.path}${target.hash}` : null;
 }
 
-export function isLocalEditorFileHref(href: string): boolean {
+export function isLocalEditorFileHref(href: string) {
   try {
     return isLocalEditorFileUrl(new URL(href));
   } catch {
@@ -49,7 +49,7 @@ export function resolveInlineCodeFileLinkMeta(
   codeText: string,
   cwd?: string,
   baseDir: string | undefined = cwd,
-): MarkdownFileLinkMeta | null {
+) {
   const candidate = inlineCodeFilePathCandidate(codeText);
   if (candidate === null) return null;
 
@@ -64,7 +64,7 @@ function inlineCodePathNamesFromWorkspaceRoot(
   candidate: string,
   cwd: string | undefined,
   baseDir: string | undefined,
-): boolean {
+) {
   if (!cwd || !baseDir || !isRelativeFilePath(candidate)) return false;
   if (/^(?:~|\.{1,2})\//.test(candidate)) return false;
   if (!splitFilePathPosition(candidate).path.includes("/")) return false;
@@ -75,7 +75,7 @@ export function resolveMarkdownFileLinkMeta(
   href: string | undefined,
   cwd?: string,
   baseDir: string | undefined = cwd,
-): MarkdownFileLinkMeta | null {
+) {
   const targetPath = resolveMarkdownFileLinkTarget(href, cwd, baseDir);
   if (!targetPath) return null;
   const source = href ? parseMarkdownFileLink(href) : null;

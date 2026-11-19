@@ -44,7 +44,7 @@ const ref: ScopedThreadRef = {
 function threadState(
   partial: Pick<EnvironmentThreadState, "data" | "status" | "error"> &
     Partial<Pick<EnvironmentThreadState, "history">>,
-): EnvironmentThreadState {
+) {
   return { ...partial, history: partial.history ?? EMPTY_THREAD_HISTORY_META, sequence: 0 };
 }
 
@@ -631,7 +631,7 @@ describe("timelineVisibleTurnItemsAtom", () => {
 it("only compares replaced entries in a streamed reducer delta", () => {
   const size = 100;
   let slotReads = 0;
-  const countReads = <T>(items: ReadonlyArray<T>): ReadonlyArray<T> =>
+  const countReads = <T>(items: ReadonlyArray<T>) =>
     new Proxy(items, {
       get(target, key, receiver) {
         if (typeof key === "string" && /^\d+$/.test(key)) slotReads++;
@@ -713,20 +713,21 @@ describe("derived thread state through a streamed message", () => {
     checkpointId: null,
     contextHandoffId: null,
   };
-  const checkpoint = (ordinal: number): OrchestrationV2Checkpoint => ({
-    id: CheckpointId.make(`checkpoint-${ordinal}`),
-    threadId: v2ThreadId,
-    scopeId: CheckpointScopeId.make("scope"),
-    runId,
-    nodeId: NodeId.make("node"),
-    parentCheckpointId: null,
-    ordinalWithinScope: ordinal,
-    appRunOrdinal: ordinal,
-    ref: CheckpointRef.make(`refs/supaterm/checkpoint-${ordinal}`),
-    status: "ready",
-    files: [],
-    capturedAt: v2Now,
-  });
+  const checkpoint = (ordinal: number) =>
+    ({
+      id: CheckpointId.make(`checkpoint-${ordinal}`),
+      threadId: v2ThreadId,
+      scopeId: CheckpointScopeId.make("scope"),
+      runId,
+      nodeId: NodeId.make("node"),
+      parentCheckpointId: null,
+      ordinalWithinScope: ordinal,
+      appRunOrdinal: ordinal,
+      ref: CheckpointRef.make(`refs/supaterm/checkpoint-${ordinal}`),
+      status: "ready",
+      files: [],
+      capturedAt: v2Now,
+    }) satisfies OrchestrationV2Checkpoint;
   const initial: OrchestrationV2ThreadProjection = {
     ...v2Projection,
     runs: [queuedRun],

@@ -4,7 +4,7 @@ export type HsvColor = {
   v: number;
 };
 
-export function hexToHsv(hex: string): HsvColor {
+export function hexToHsv(hex: string) {
   const numeric = Number.parseInt(hex.slice(1), 16);
   const red = ((numeric >> 16) & 255) / 255;
   const green = ((numeric >> 8) & 255) / 255;

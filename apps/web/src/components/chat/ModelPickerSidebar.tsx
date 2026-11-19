@@ -11,7 +11,7 @@ import {
   type ProviderInstanceEntry,
 } from "../../providerInstances";
 
-function describeUnavailableInstance(entry: ProviderInstanceEntry): string {
+function describeUnavailableInstance(entry: ProviderInstanceEntry) {
   const label = entry.displayName;
   if (!entry.enabled || entry.status === "disabled") {
     return `${label}: Disabled in settings.`;

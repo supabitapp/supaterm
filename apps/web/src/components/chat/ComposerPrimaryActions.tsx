@@ -119,7 +119,7 @@ const SUBMIT_ACTIONS: Record<
   send: { label: "Submit message", icon: <ComposerSendArrowIcon /> },
 };
 
-function blockedStatusLabel(blocked: ComposerPrimaryActionBlock | null): string | null {
+function blockedStatusLabel(blocked: ComposerPrimaryActionBlock | null) {
   if (blocked === null) return null;
   switch (blocked.reason) {
     case "environment-disconnected":

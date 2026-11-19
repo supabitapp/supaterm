@@ -11,13 +11,11 @@ type NativeMailSearchToolbarInput = Omit<
   "type" | "useFallbackSearchField"
 >;
 
-export function createNativeMailSearchToolbarItem(
-  input: NativeMailSearchToolbarInput,
-): HeaderBarButtonMailSearchToolbarItem {
+export function createNativeMailSearchToolbarItem(input: NativeMailSearchToolbarInput) {
   return {
     placeholder: "Search",
     ...input,
     type: "mailSearchToolbar",
     useFallbackSearchField: true,
-  };
+  } satisfies HeaderBarButtonMailSearchToolbarItem;
 }

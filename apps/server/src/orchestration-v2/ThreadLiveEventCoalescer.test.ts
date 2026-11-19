@@ -38,7 +38,7 @@ function makeToolActivity(
     readonly turnId?: RunId;
     readonly output?: string;
   } = {},
-): ThreadEvent {
+) {
   const itemRunId = options.turnId ?? runId;
   const status = options.kind === "tool.completed" ? "completed" : "running";
   return {
@@ -70,10 +70,10 @@ function makeToolActivity(
         output: options.output ?? `output-${sequence}`,
       },
     },
-  };
+  } satisfies ThreadEvent;
 }
 
-function makeMessage(sequence: number, text = "Still working"): ThreadEvent {
+function makeMessage(sequence: number, text = "Still working") {
   return {
     kind: "event",
     sequence,
@@ -98,7 +98,7 @@ function makeMessage(sequence: number, text = "Still working"): ThreadEvent {
         updatedAt: now,
       },
     },
-  };
+  } satisfies ThreadEvent;
 }
 
 function makeStreamingMessage(
@@ -108,7 +108,7 @@ function makeStreamingMessage(
     readonly text?: string;
     readonly streaming?: boolean;
   } = {},
-): ThreadEvent {
+) {
   const message = makeMessage(sequence, options.text ?? `text-${sequence}`);
   if (message.event.type !== "message.updated") throw new Error("Expected message");
   return {
@@ -121,7 +121,7 @@ function makeStreamingMessage(
         streaming: options.streaming ?? true,
       },
     },
-  };
+  } satisfies ThreadEvent;
 }
 
 function makeTextItem(
@@ -133,7 +133,7 @@ function makeTextItem(
     readonly status?: OrchestrationV2TurnItem["status"];
     readonly streaming?: boolean;
   } = {},
-): ThreadEvent {
+) {
   const tool = makeToolActivity(sequence);
   if (tool.event.type !== "turn-item.updated" || tool.event.payload.type !== "command_execution")
     throw new Error("Expected command item");
@@ -152,7 +152,7 @@ function makeTextItem(
         streaming: options.streaming ?? true,
       },
     },
-  };
+  } satisfies ThreadEvent;
 }
 
 describe("ThreadLiveEventCoalescer", () => {
@@ -284,12 +284,7 @@ describe("ThreadLiveEventCoalescer", () => {
     "preserves turn-item insertion and partial timeline state after every survivor cursor",
     () =>
       Effect.gen(function* () {
-        const item = (
-          sequence: number,
-          id: string,
-          text: string,
-          completed = false,
-        ): ThreadEvent => {
+        const item = (sequence: number, id: string, text: string, completed = false) => {
           const input = makeTextItem(sequence, {
             id,
             text,
@@ -310,7 +305,7 @@ describe("ThreadLiveEventCoalescer", () => {
                 completedAt: completed ? now : null,
               },
             },
-          };
+          } satisfies ThreadEvent;
         };
         const events = [
           item(1, "a", "A"),

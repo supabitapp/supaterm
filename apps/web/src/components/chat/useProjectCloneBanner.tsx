@@ -35,7 +35,7 @@ export function useProjectCloneBanner(activeProjectRef: ScopedProjectRef | null)
   const runProjectCloneAction = async (
     title: string,
     action: () => Promise<AtomCommandResult<unknown, unknown>>,
-  ): Promise<void> => {
+  ) => {
     const result = await action();
     if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
       const error = squashAtomCommandFailure(result);
@@ -58,7 +58,7 @@ export function useProjectCloneBanner(activeProjectRef: ScopedProjectRef | null)
         : activeProjectFileCopy?.phase === "copying"
           ? "Copying files"
           : null;
-  const projectCloneBannerItem = ((): ComposerBannerStackItem | null => {
+  const projectCloneBannerItem = (() => {
     if (activeProjectFileCopy?.phase === "failed" && activeProjectRef) {
       return {
         id: `project-file-copy:${activeProjectRef.projectId}`,
@@ -67,10 +67,10 @@ export function useProjectCloneBanner(activeProjectRef: ScopedProjectRef | null)
         title: activeProjectFileCopy.title,
         description: activeProjectFileCopy.failures.join("\n"),
         onDismiss: () => dismissProjectFileCopy(activeProjectRef),
-      };
+      } satisfies ComposerBannerStackItem | null;
     }
     if (!activeProjectClone || !activeProjectRef || activeProjectClone.phase === "done") {
-      return null;
+      return null satisfies ComposerBannerStackItem | null;
     }
     const name = projectCloneDisplayName(activeProjectClone);
     const { environmentId, projectId } = activeProjectRef;
@@ -95,7 +95,7 @@ export function useProjectCloneBanner(activeProjectRef: ScopedProjectRef | null)
             Cancel
           </Button>
         ),
-      };
+      } satisfies ComposerBannerStackItem | null;
     }
     const cancelled = activeProjectClone.phase === "cancelled";
     return {
@@ -126,7 +126,7 @@ export function useProjectCloneBanner(activeProjectRef: ScopedProjectRef | null)
           </Button>
         </>
       ),
-    };
+    } satisfies ComposerBannerStackItem | null;
   })();
   return {
     projectCloneBannerItem,

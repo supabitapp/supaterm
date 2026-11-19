@@ -41,7 +41,7 @@ const emptyTabsAtom = Atom.make(EMPTY_TABS).pipe(Atom.withLabel("mobile-preview-
 
 const MAX_REPLAY_EVENTS = 200;
 
-function applyEvent(current: ThreadPreviewTabs, event: PreviewEvent): ThreadPreviewTabs {
+function applyEvent(current: ThreadPreviewTabs, event: PreviewEvent) {
   if (event.revision <= current.revision) return current;
   const index = current.sessions.findIndex((session) => session.tabId === event.tabId);
   const sessions = [...current.sessions];
@@ -163,11 +163,12 @@ export function usePreviewStreamAccess(environmentId: EnvironmentId) {
 /** Resolves fresh access without refreshing the ticket held by an active viewer. */
 export function readFreshPreviewStreamAccess(
   environmentId: EnvironmentId,
-): Promise<DeviceHubAccess | null> {
+): Promise<DeviceHubAccess | null>;
+export function readFreshPreviewStreamAccess(environmentId: EnvironmentId) {
   const prepared = Option.getOrNull(
     appAtomRegistry.get(environmentSession.preparedConnectionValueAtom(environmentId)),
   );
-  if (prepared === null) return Promise.resolve(null);
+  if (prepared === null) return Promise.resolve(null) satisfies Promise<DeviceHubAccess | null>;
   const freshAccessAtom = connectionAtomRuntime
     .atom(resolveDeviceHubAccess({ prepared, hubBasePath: PREVIEW_STREAM_BASE_PATH }))
     .pipe(Atom.withLabel(`mobile-preview-transfer-access:${environmentId}`));
@@ -176,5 +177,5 @@ export function readFreshPreviewStreamAccess(
       Effect.timeout("10 seconds"),
       Effect.orElseSucceed(() => null),
     ),
-  );
+  ) satisfies Promise<DeviceHubAccess | null>;
 }

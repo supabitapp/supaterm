@@ -244,32 +244,29 @@ const THEME_EDITOR_COLOR_FAMILY_BY_ROLE = new Map(
   ),
 );
 
-function getThemeEditorColorFamily(role: ThemeColorRole): ThemeEditorColorFamily | null {
+function getThemeEditorColorFamily(role: ThemeColorRole) {
   return THEME_EDITOR_COLOR_FAMILY_BY_ROLE.get(role) ?? null;
 }
 
 type ThemeEditorColors = ThemeColors;
 type ThemeEditorColorsByAppearance = Record<ThemeAppearance, ThemeEditorColors>;
 
-function getThemeEditorDefaults(appearance: ThemeAppearance): ThemeEditorColors {
+function getThemeEditorDefaults(appearance: ThemeAppearance) {
   return { ...getStandardThemeColors(appearance) };
 }
 
-function getThemeEditorColorsByAppearance(): ThemeEditorColorsByAppearance {
+function getThemeEditorColorsByAppearance() {
   return {
     light: getThemeEditorDefaults("light"),
     dark: getThemeEditorDefaults("dark"),
   };
 }
 
-function isThemeEditorColor(value: string): boolean {
+function isThemeEditorColor(value: string) {
   return isThemeColor(value.trim());
 }
 
-function getManagedEditorColors(
-  appearance: ThemeAppearance,
-  colors: ThemeEditorColors,
-): ThemeEditorColors {
+function getManagedEditorColors(appearance: ThemeAppearance, colors: ThemeEditorColors) {
   const defaults = getStandardThemeColors(appearance);
   return createVividThemeColors(
     appearance,
@@ -413,7 +410,7 @@ export function ThemeEditorPanel({
   const takenAppearances = mergeTarget ? getThemeModes(mergeTarget) : [];
   const editableAppearances = editingTheme ? getThemeModes(editingTheme) : null;
 
-  const appearanceLockReason = (appearance: ThemeAppearance): string | null => {
+  const appearanceLockReason = (appearance: ThemeAppearance) => {
     if (editableAppearances && !editableAppearances.includes(appearance)) {
       return `“${editingTheme?.label}” has no ${appearance} palette. Create a theme with the same name to add one.`;
     }

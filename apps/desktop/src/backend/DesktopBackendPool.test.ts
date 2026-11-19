@@ -122,7 +122,7 @@ function layerPool(
     readonly onReady?: Effect.Effect<void>;
     readonly backend?: Effect.Success<ReturnType<typeof makeFakeBackendProcess>>;
   } = {},
-): Layer.Layer<DesktopBackendPool.DesktopBackendPool> {
+) {
   return DesktopBackendPool.layer.pipe(
     Layer.provideMerge(
       Layer.mergeAll(

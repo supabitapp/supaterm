@@ -13,8 +13,8 @@ vi.mock("./attachmentDownload", () => ({ shareLocalAttachment: mocks.share }));
 vi.mock("expo-file-system", () => ({
   File: class {
     constructor(readonly uri: string) {}
-    get exists(): boolean {
-      return mocks.exists(this.uri);
+    get exists() {
+      return mocks.exists(this.uri) satisfies boolean as boolean;
     }
   },
   Paths: {
@@ -103,10 +103,13 @@ describe("loadLocalAttachmentPreview", () => {
 });
 
 describe("localAttachmentPreviewAtom", () => {
-  const settled = (
+  const settled: (
     registry: AtomRegistry.AtomRegistry,
     target: typeof attachment,
-  ): { state: Promise<LocalAttachmentPreviewState>; unsubscribe: () => void } => {
+  ) => { state: Promise<LocalAttachmentPreviewState>; unsubscribe: () => void } = (
+    registry: AtomRegistry.AtomRegistry,
+    target: typeof attachment,
+  ) => {
     const atom = localAttachmentPreviewAtom(target);
     const { promise, resolve } = Promise.withResolvers<LocalAttachmentPreviewState>();
     const onChange = (result: AsyncResult.AsyncResult<unknown, unknown>) => {

@@ -19,7 +19,7 @@ import type { HeaderBarButtonSearchBarPlacementItem } from "react-native-screens
 import { NativeWorkspaceTabActivityContext } from "./v5-workspace-context";
 import { NativeStackScreenOptions, useScreenOptionsWriter } from "./StackHeader";
 
-function labelFromChildren(children: ReactNode): string {
+function labelFromChildren(children: ReactNode) {
   const parts: string[] = [];
   Children.forEach(children, (child) => {
     if (typeof child === "string" || typeof child === "number") {
@@ -47,8 +47,9 @@ type NativeStackOptionsWithToolbar = NativeStackNavigationOptions & {
   unstable_headerToolbarItems?: () => NativeToolbarItem[];
 };
 
-function iconFromProp(icon: unknown): NativeStackHeaderIcon | undefined {
-  if (typeof icon === "string") return { type: "sfSymbol", name: icon as never };
+function iconFromProp(icon: unknown) {
+  if (typeof icon === "string")
+    return { type: "sfSymbol", name: icon as never } satisfies NativeStackHeaderIcon | undefined;
   if (
     typeof icon === "object" &&
     icon !== null &&
@@ -56,16 +57,16 @@ function iconFromProp(icon: unknown): NativeStackHeaderIcon | undefined {
     icon.type === "image" &&
     "source" in icon
   ) {
-    return icon as NativeStackHeaderIcon;
+    return icon as NativeStackHeaderIcon satisfies NativeStackHeaderIcon | undefined;
   }
-  return undefined;
+  return undefined satisfies NativeStackHeaderIcon | undefined;
 }
 
 type RegisterHandler = (handler: unknown) => () => void;
 
 type ToolbarElementProps = Record<string, unknown> & { readonly children?: ReactNode };
 
-function elementTypeName(element: ReactElement): string | undefined {
+function elementTypeName(element: ReactElement) {
   const type = element.type;
   if (typeof type === "function") {
     return (type as { displayName?: string; name?: string }).displayName ?? type.name;
@@ -73,10 +74,7 @@ function elementTypeName(element: ReactElement): string | undefined {
   return undefined;
 }
 
-function convertMenuAction(
-  element: ReactElement<ToolbarElementProps>,
-  register: RegisterHandler,
-): NativeStackHeaderItemMenu["menu"]["items"][number] | null {
+function convertMenuAction(element: ReactElement<ToolbarElementProps>, register: RegisterHandler) {
   const typeName = elementTypeName(element);
   if (typeName === "NativeHeaderToolbarMenuAction") {
     const label = labelFromChildren(element.props.children);
@@ -93,7 +91,7 @@ function convertMenuAction(
         typeof element.props.discoverabilityLabel === "string"
           ? element.props.discoverabilityLabel
           : undefined,
-    };
+    } satisfies NativeStackHeaderItemMenu["menu"]["items"][number] | null;
   }
 
   if (typeName === "NativeHeaderToolbarMenu") {
@@ -106,16 +104,13 @@ function convertMenuAction(
       icon: iconFromProp(element.props.icon),
       inline: Boolean(element.props.inline),
       items: collectMenuItems(element.props.children, register),
-    };
+    } satisfies NativeStackHeaderItemMenu["menu"]["items"][number] | null;
   }
 
-  return null;
+  return null satisfies NativeStackHeaderItemMenu["menu"]["items"][number] | null;
 }
 
-function collectMenuItems(
-  children: ReactNode,
-  register: RegisterHandler,
-): NativeStackHeaderItemMenu["menu"]["items"] {
+function collectMenuItems(children: ReactNode, register: RegisterHandler) {
   const items: NativeStackHeaderItemMenu["menu"]["items"] = [];
   Children.forEach(children, (child) => {
     if (!isValidElement<ToolbarElementProps>(child)) {
@@ -131,20 +126,17 @@ function collectMenuItems(
   return items;
 }
 
-function convertToolbarChild(
-  child: ReactNode,
-  register: RegisterHandler,
-): NativeToolbarItem | null {
+function convertToolbarChild(child: ReactNode, register: RegisterHandler) {
   if (!isValidElement<ToolbarElementProps>(child)) {
-    return null;
+    return null satisfies NativeToolbarItem | null;
   }
 
   const typeName = elementTypeName(child);
   if (typeName === "NativeHeaderToolbarCustom" && isValidElement(child.props.children)) {
-    return { type: "custom", element: child.props.children };
+    return { type: "custom", element: child.props.children } satisfies NativeToolbarItem | null;
   }
   if (typeName === "NativeHeaderToolbarSearchBarSlot") {
-    return { type: "searchBarPlacement" };
+    return { type: "searchBarPlacement" } satisfies NativeToolbarItem | null;
   }
 
   if (typeName === "NativeHeaderToolbarButton") {
@@ -170,7 +162,7 @@ function convertToolbarChild(
           : "plain",
       identifier: typeof child.props.identifier === "string" ? child.props.identifier : undefined,
       visibilityPriority: child.props.visibilityPriority as NativeStackHeaderVisibilityPriority,
-    };
+    } satisfies NativeToolbarItem | null;
   }
 
   if (typeName === "NativeHeaderToolbarMenu") {
@@ -195,7 +187,7 @@ function convertToolbarChild(
           ? child.props.variant
           : "plain",
       identifier: typeof child.props.identifier === "string" ? child.props.identifier : undefined,
-    };
+    } satisfies NativeToolbarItem | null;
   }
 
   if (typeName === "NativeHeaderToolbarSpacer") {
@@ -203,13 +195,13 @@ function convertToolbarChild(
       type: "spacing",
       spacing: typeof child.props.width === "number" ? child.props.width : 8,
       flexible: Boolean(child.props.flexible),
-    } as NativeStackHeaderItem;
+    } as NativeStackHeaderItem satisfies NativeToolbarItem | null;
   }
 
-  return null;
+  return null satisfies NativeToolbarItem | null;
 }
 
-function collectToolbarItems(children: ReactNode, register: RegisterHandler): NativeToolbarItem[] {
+function collectToolbarItems(children: ReactNode, register: RegisterHandler) {
   const items: NativeToolbarItem[] = [];
   Children.forEach(children, (child) => {
     const item = convertToolbarChild(child, register);

@@ -4,7 +4,6 @@ import { PullRequestSavedViewIdentity } from "@supaterm/client-runtime/pull-requ
 import {
   pullRequestListPreferences,
   PullRequestListPreferencesSchema,
-  type PullRequestListPreferencePatch,
   type PullRequestListPreferences,
 } from "./pullRequestListPreferences";
 
@@ -22,7 +21,7 @@ export const EMPTY_PULL_REQUEST_SAVED_VIEWS: typeof PullRequestSavedViews.Type =
 export function pullRequestViewMatches(
   view: PullRequestSavedView,
   preferences: PullRequestListPreferences,
-): boolean {
+) {
   const key = (value: PullRequestListPreferences) => {
     const normalized = pullRequestListPreferences(value);
     return JSON.stringify({
@@ -34,9 +33,7 @@ export function pullRequestViewMatches(
 }
 
 /** Explicit clears replace the old list scope without touching the independently selected PR. */
-export function pullRequestSavedViewPatch(
-  preferences: PullRequestListPreferences,
-): PullRequestListPreferencePatch & Pick<PullRequestListPreferences, "involvement" | "state"> {
+export function pullRequestSavedViewPatch(preferences: PullRequestListPreferences) {
   return {
     involvement: preferences.involvement,
     state: preferences.state,

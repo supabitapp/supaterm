@@ -1,7 +1,6 @@
 import {
   embeddedScripts,
   withEmbeddedScripts,
-  type SyntaxToken,
 } from "@supaterm/client-runtime/work-log/embedded-scripts";
 import type { SupatermHighlights } from "@supaterm/mobile-highlights-native";
 import { NitroModules } from "react-native-nitro-modules";
@@ -37,7 +36,8 @@ export interface TokenizedCode {
 }
 
 /** Keep native records compact; expand only lines a client will display. */
-export function tokenizeCode(code: string, language: string): TokenizedCode {
+export function tokenizeCode(code: string, language: string): TokenizedCode;
+export function tokenizeCode(code: string, language: string) {
   const id = highlightLanguageId(language);
   const buffer = id === 0 ? null : (nativeHighlights?.tokenize(code, id) ?? null);
   const records = buffer ? new Uint32Array(buffer) : null;
@@ -80,7 +80,7 @@ export function tokenizeCode(code: string, language: string): TokenizedCode {
       }
       return line;
     },
-  };
+  } satisfies TokenizedCode;
 }
 
 /** Shell commands also color the scripts they embed, such as heredocs and `python -c`. */
@@ -88,7 +88,7 @@ export function highlightCommand(
   code: string,
   language: "shellscript" | "powershell",
   scheme: HighlightScheme,
-): HighlightedLines {
+) {
   const tokenize = (text: string, lang: string) => {
     if (highlightLanguageId(lang) === 0) throw new Error(`No grammar for ${lang}`);
     return withOffsets(text, highlightCode(text, lang, scheme));
@@ -103,7 +103,7 @@ export function highlightCommand(
   );
 }
 
-function withOffsets(code: string, lines: HighlightedLines): SyntaxToken[][] {
+function withOffsets(code: string, lines: HighlightedLines) {
   const endings = code.match(/\r?\n/gu) ?? [];
   let offset = 0;
   return lines.map((line, index) => {
@@ -123,11 +123,7 @@ function withOffsets(code: string, lines: HighlightedLines): SyntaxToken[][] {
 }
 
 /** LF and CRLF split lines; a trailing line break yields a final empty line. */
-export function highlightCode(
-  code: string,
-  language: string,
-  scheme: HighlightScheme,
-): HighlightedLines {
+export function highlightCode(code: string, language: string, scheme: HighlightScheme) {
   const source = tokenizeCode(code, language);
   return Array.from({ length: source.lineCount }, (_, index) =>
     source.highlightLine(index, scheme)!,

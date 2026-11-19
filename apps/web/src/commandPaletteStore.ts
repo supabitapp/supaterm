@@ -19,7 +19,7 @@ export const useCommandPaletteStore = create<CommandPaletteUiState>(() => INITIA
 
 let returnFocus: { element: HTMLElement | null; href: string; focusRequest: number } | null = null;
 
-export function dispatchCommandPalette(action: CommandPaletteUiAction): void {
+export function dispatchCommandPalette(action: CommandPaletteUiAction) {
   const state = useCommandPaletteStore.getState();
   const next = reduceCommandPaletteUiState(state, action);
   if (!state.open && next.open) {
@@ -36,7 +36,7 @@ export function dispatchCommandPalette(action: CommandPaletteUiAction): void {
  * Where the closing palette should return focus: `false` when a command navigated or asked
  * for workspace focus (the destination owns it), else the opener, or `true` for the default.
  */
-export function getCommandPaletteReturnFocus(): HTMLElement | boolean {
+export function getCommandPaletteReturnFocus() {
   if (
     !returnFocus ||
     window.location.href !== returnFocus.href ||
@@ -49,7 +49,7 @@ export function getCommandPaletteReturnFocus(): HTMLElement | boolean {
 
 let mountedPalettes = 0;
 
-export function isCommandPaletteMounted(): boolean {
+export function isCommandPaletteMounted() {
   return mountedPalettes > 0;
 }
 
@@ -57,7 +57,7 @@ export function isCommandPaletteMounted(): boolean {
  * Marks the palette as mounted while the calling component is. An unmounted
  * palette cannot stay open, so the last unmount resets the store.
  */
-export function useCommandPaletteMount(): void {
+export function useCommandPaletteMount() {
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- The palette's mount gates its global shortcuts, and leaving the route while it is open calls no close handler, so only unmount can reset the store.
   useEffect(() => {
     mountedPalettes += 1;

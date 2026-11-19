@@ -15,11 +15,11 @@ import { useIsPaneInputOwner } from "../../chatPanes/paneScope";
 
 const SNIPPET_MAX_CHARS = 90;
 
-function missingImageCount(entry: PromptStashEntry): number {
+function missingImageCount(entry: PromptStashEntry) {
   return entry.droppedImageNames.length + (entry.unreadableImageNames?.length ?? 0);
 }
 
-export function stashEntrySnippet(entry: PromptStashEntry): string {
+export function stashEntrySnippet(entry: PromptStashEntry) {
   const trimmed = assistantCitationsToPlainText(
     replaceComposerContextReferences(entry.prompt, (reference) => reference.label),
   )

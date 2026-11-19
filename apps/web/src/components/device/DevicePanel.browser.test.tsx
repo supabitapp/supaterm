@@ -215,10 +215,11 @@ describe("DevicePanel host probe", () => {
 describe("DevicePanel discovery warning", () => {
   it("a dismissal hides only the cause it was made for", async () => {
     setup();
-    const withCause = (detail: string): DeviceServiceState => ({
-      ...deviceState,
-      hostStatuses: { local: { status: "ready", detail, incompletePlatforms: ["ios"] } },
-    });
+    const withCause = (detail: string) =>
+      ({
+        ...deviceState,
+        hostStatuses: { local: { status: "ready", detail, incompletePlatforms: ["ios"] } },
+      }) satisfies DeviceServiceState;
     const warning = "iOS list on This Mac may be incomplete.";
     currentState = withCause("first cause");
     await using screen = await render(devicePanel(threadA), { container });

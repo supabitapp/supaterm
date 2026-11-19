@@ -14,7 +14,7 @@ import {
   traceDiffHighlight,
 } from "../diffs/nativeReviewDiffTrace";
 import type { NativeReviewDiffFile, NativeReviewDiffSource } from "../diffs/nativeReviewDiffTypes";
-import type { ReviewParsedDiff, ReviewRenderableFile } from "../review/reviewModel";
+import type { ReviewParsedDiff } from "../review/reviewModel";
 import type { pullRequestTarget } from "./usePullRequestDiff";
 
 type FetchContents<E> = (request: {
@@ -24,17 +24,7 @@ type FetchContents<E> = (request: {
 
 type SourceRequest = () => Promise<NativeReviewDiffSource>;
 
-interface SourceSnapshot {
-  readonly firstFile: ReviewRenderableFile;
-  readonly scope: string;
-  readonly load: ReturnType<typeof createNativeReviewDiffSourceLoader<SourceRequest>>;
-  readonly requests: WeakMap<
-    ReviewRenderableFile,
-    { readonly completePatch: boolean; readonly request: SourceRequest }
-  >;
-}
-
-export function createPullRequestDiffHighlightCache(): { snapshot?: SourceSnapshot } {
+export function createPullRequestDiffHighlightCache() {
   return {};
 }
 
@@ -46,9 +36,20 @@ export function createPullRequestDiffHighlightFiles<E>(
   parsed: ReviewParsedDiff,
   files: ReadonlyArray<NativeReviewDiffFile>,
   fetchContents: FetchContents<E>,
+  cache?: ReturnType<typeof createPullRequestDiffHighlightCache>,
+): ReadonlyArray<NativeReviewDiffFile>;
+export function createPullRequestDiffHighlightFiles<E>(
+  source: {
+    readonly target: ReturnType<typeof pullRequestTarget>;
+    readonly commit?: string;
+  },
+  parsed: ReviewParsedDiff,
+  files: ReadonlyArray<NativeReviewDiffFile>,
+  fetchContents: FetchContents<E>,
   cache = createPullRequestDiffHighlightCache(),
-): ReadonlyArray<NativeReviewDiffFile> {
-  if (parsed.kind !== "files" || !parsed.files[0]) return files;
+) {
+  if (parsed.kind !== "files" || !parsed.files[0])
+    return files satisfies ReadonlyArray<NativeReviewDiffFile>;
   const byId = new Map(parsed.files.map((file) => [file.id, file]));
   const { target, commit } = source;
   traceDiffHighlight("source-target", {
@@ -108,5 +109,5 @@ export function createPullRequestDiffHighlightFiles<E>(
     };
     requests.set(file, { completePatch, request });
     return { ...nativeFile, loadContents: (signal) => load(request, signal) };
-  });
+  }) satisfies ReadonlyArray<NativeReviewDiffFile>;
 }

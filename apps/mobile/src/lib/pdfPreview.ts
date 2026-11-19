@@ -1,6 +1,6 @@
 import { downloadAttachmentForPreview } from "./attachmentDownload";
 
-export function isPdfPreviewUri(uri: string): boolean {
+export function isPdfPreviewUri(uri: string) {
   try {
     return /\.pdf$/i.test(new URL(uri).pathname);
   } catch {
@@ -8,12 +8,12 @@ export function isPdfPreviewUri(uri: string): boolean {
   }
 }
 
-export function pdfInitialPage(uri: string): number {
+export function pdfInitialPage(uri: string) {
   const page = Number(new URLSearchParams(uri.split("#", 2)[1]).get("page"));
   return Number.isSafeInteger(page) && page > 0 ? page : 1;
 }
 
-export function pdfLinkUrl(href: string, sourceUri: string): string | null {
+export function pdfLinkUrl(href: string, sourceUri: string) {
   if (href.trim().length === 0) return null;
   try {
     const url = new URL(href, sourceUri);

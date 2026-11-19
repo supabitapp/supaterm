@@ -104,11 +104,12 @@ describe("olderDoneCountKey", () => {
 });
 
 describe("Done shelf listing", () => {
-  const pages = (frontier: OlderDonePages["frontier"]): OlderDonePages => ({
-    reads: [],
-    frontier,
-    status: "ready",
-  });
+  const pages = (frontier: OlderDonePages["frontier"]) =>
+    ({
+      reads: [],
+      frontier,
+      status: "ready",
+    }) satisfies OlderDonePages;
   const at = (day: number) => DateTime.formatIso(DateTime.makeUnsafe(day * DAY));
 
   it("lists rows at or above the highest frontier still loading", () => {
@@ -177,7 +178,7 @@ it("counts older threads the client does not hold, once", () => {
     }),
   ).toBe(0);
   const other = ProjectId.make("project-b");
-  const twoProjects = (): OlderDone => ({
+  const twoProjects = () => ({
     ...older,
     counts: new Map([
       [project, 10],
@@ -198,11 +199,12 @@ it("counts older threads the client does not hold, once", () => {
 
 describe("wantedOlderDonePages", () => {
   const otherEnvironment = EnvironmentId.make("env-b");
-  const full = (doneAt: string): OlderDonePages => ({
-    reads: [],
-    frontier: { doneAt, threadId: ThreadId.make("t") },
-    status: "ready",
-  });
+  const full = (doneAt: string) =>
+    ({
+      reads: [],
+      frontier: { doneAt, threadId: ThreadId.make("t") },
+      status: "ready",
+    }) satisfies OlderDonePages;
   const wanted = (input: {
     readonly requested?: ReadonlyMap<EnvironmentId, number>;
     readonly environments: ReadonlyMap<EnvironmentId, { readonly pages: OlderDonePages }>;

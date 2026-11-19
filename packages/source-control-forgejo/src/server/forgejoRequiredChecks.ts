@@ -35,9 +35,13 @@ const matchesContext = (glob: string, name: string) => {
 export function markRequiredForgejoChecks(
   checks: ReadonlyArray<PullRequestCheck>,
   branch: typeof ForgejoBranchStatusChecks.Type,
-): ReadonlyArray<PullRequestCheck> {
+): ReadonlyArray<PullRequestCheck>;
+export function markRequiredForgejoChecks(
+  checks: ReadonlyArray<PullRequestCheck>,
+  branch: typeof ForgejoBranchStatusChecks.Type,
+) {
   const contexts = branch.enable_status_check ? (branch.status_check_contexts ?? []) : [];
-  if (contexts.length === 0) return checks;
+  if (contexts.length === 0) return checks satisfies ReadonlyArray<PullRequestCheck>;
   const unsupported = [...new Set(contexts.filter((context) => UNSUPPORTED_GLOB.test(context)))];
   if (unsupported.length > 0) {
     return [
@@ -48,7 +52,7 @@ export function markRequiredForgejoChecks(
         description: "Required check pattern cannot be evaluated.",
         url: null,
       })),
-    ];
+    ] satisfies ReadonlyArray<PullRequestCheck>;
   }
   const patterns = [...new Set(contexts)];
   const marked = checks.map((check) =>
@@ -61,5 +65,5 @@ export function markRequiredForgejoChecks(
       ? []
       : [{ name, status: "pending", description: null, url: null, required: true } as const],
   );
-  return [...marked, ...missing];
+  return [...marked, ...missing] satisfies ReadonlyArray<PullRequestCheck>;
 }

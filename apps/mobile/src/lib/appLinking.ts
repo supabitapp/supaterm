@@ -6,7 +6,7 @@ import type { NavigationState, PartialState } from "@react-navigation/native";
  * the launcher, not app navigation. Without this filter it falls through
  * to the NotFound wildcard route on every dev launch.
  */
-export function shouldHandleAppLink(url: string): boolean {
+export function shouldHandleAppLink(url: string) {
   return (
     !url.includes("expo-development-client") &&
     !url.includes("://expo-sharing") &&
@@ -41,13 +41,14 @@ function isLinkState(value: unknown): value is LinkState {
 export function findLinkedRoute(
   state: LinkState | undefined,
   names: ReadonlyArray<string>,
-): LinkRoute | undefined {
+): LinkRoute | undefined;
+export function findLinkedRoute(state: LinkState | undefined, names: ReadonlyArray<string>) {
   for (const route of state?.routes ?? []) {
-    if (names.includes(route.name)) return route;
+    if (names.includes(route.name)) return route satisfies LinkRoute | undefined;
     const nested = isLinkState(route.state) ? findLinkedRoute(route.state, names) : undefined;
-    if (nested) return nested;
+    if (nested) return nested satisfies LinkRoute | undefined;
   }
-  return undefined;
+  return undefined satisfies LinkRoute | undefined;
 }
 
 /**
@@ -61,8 +62,16 @@ export function findStackRoute(
   accept?: (params: Readonly<Record<string, unknown>> | undefined) => boolean,
 ):
   | { readonly navigatorKey: string; readonly routeKey: string; readonly focused: boolean }
-  | undefined {
-  if (!state) return undefined;
+  | undefined;
+export function findStackRoute(
+  state: NavigationState | undefined,
+  name: string,
+  accept?: (params: Readonly<Record<string, unknown>> | undefined) => boolean,
+) {
+  if (!state)
+    return undefined satisfies
+      | { readonly navigatorKey: string; readonly routeKey: string; readonly focused: boolean }
+      | undefined;
   for (let index = state.routes.length - 1; index >= 0; index -= 1) {
     const route = state.routes[index]!;
     if (
@@ -70,15 +79,26 @@ export function findStackRoute(
       (accept === undefined ||
         accept(route.params as Readonly<Record<string, unknown>> | undefined))
     ) {
-      return { navigatorKey: state.key, routeKey: route.key, focused: index === state.index };
+      return {
+        navigatorKey: state.key,
+        routeKey: route.key,
+        focused: index === state.index,
+      } satisfies
+        | { readonly navigatorKey: string; readonly routeKey: string; readonly focused: boolean }
+        | undefined;
     }
     const nested = route.state;
     if (typeof nested?.key === "string") {
       const found = findStackRoute(nested as NavigationState, name, accept);
-      if (found) return found;
+      if (found)
+        return found satisfies
+          | { readonly navigatorKey: string; readonly routeKey: string; readonly focused: boolean }
+          | undefined;
     }
   }
-  return undefined;
+  return undefined satisfies
+    | { readonly navigatorKey: string; readonly routeKey: string; readonly focused: boolean }
+    | undefined;
 }
 
 /** Rewrites the first route named one of `names`, keeping every untouched branch of the state. */
@@ -86,7 +106,7 @@ export function updateLinkedRoute(
   state: LinkState | undefined,
   names: ReadonlyArray<string>,
   update: (route: LinkRoute) => LinkRoute,
-): LinkState | undefined {
+) {
   if (!state) return state;
   for (const [index, route] of state.routes.entries()) {
     let next: LinkRoute | undefined;

@@ -33,7 +33,7 @@ export interface OtelEnvironment {
   readonly logs: OtelSignal;
 }
 
-const blankAsUnset = (value: string | undefined): string | undefined => {
+const blankAsUnset = (value: string | undefined) => {
   const trimmed = value?.trim();
   return trimmed === undefined || trimmed === "" ? undefined : trimmed;
 };
@@ -62,10 +62,10 @@ const flag = (
     TrimmedLowercase.pipe(Schema.decodeTo(Schema.Literals([...truthy, ...falsy]))),
     name,
   ).pipe(
-    Config.map((value): Flag => ({ value: truthy.includes(value) })),
+    Config.map((value) => ({ value: truthy.includes(value) })),
     Config.orElse(() =>
       Config.String(name).pipe(
-        Config.map((raw): Flag => {
+        Config.map((raw) => {
           const value = raw.trim();
           return value === ""
             ? { value: undefined }
@@ -91,10 +91,10 @@ const resourceAttributes = Config.Record(
   Schema.StringFromUriComponent,
   RESOURCE_ATTRIBUTES,
 ).pipe(
-  Config.map((value): ResourceAttributes => ({ value })),
+  Config.map((value) => ({ value })),
   Config.orElse(() =>
     Config.String(RESOURCE_ATTRIBUTES).pipe(
-      Config.map((): ResourceAttributes => ({
+      Config.map(() => ({
         value: {},
         warning: `${RESOURCE_ATTRIBUTES} is not a list of percent-encoded key=value pairs and was ignored`,
       })),
@@ -108,14 +108,10 @@ interface Setting<A> {
   readonly warning?: string;
 }
 
-const readOrWarn = <A>(
-  name: string,
-  parse: (raw: string) => Option.Option<A>,
-  warning: string,
-): Config.Config<Setting<A>> =>
+const readOrWarn = <A>(name: string, parse: (raw: string) => Option.Option<A>, warning: string) =>
   Config.String(name).pipe(
     Config.option,
-    Config.map((option): Setting<A> => {
+    Config.map((option) => {
       const raw = blankAsUnset(Option.getOrUndefined(option));
       if (raw === undefined) {
         return { value: undefined };
@@ -159,10 +155,10 @@ const EXPORTERS: ReadonlySet<string> = new Set<Exporter>(["otlp", "none"]);
 
 const isExporter = (entry: string): entry is Exporter => EXPORTERS.has(entry);
 
-const exporter = (name: string): Config.Config<Setting<Exporter>> =>
+const exporter: (name: string) => Config.Config<Setting<Exporter>> = (name: string) =>
   Config.String(name).pipe(
     Config.option,
-    Config.map((option): Setting<Exporter> => {
+    Config.map((option) => {
       const entries = (Option.getOrUndefined(option) ?? "")
         .split(",")
         .map((entry) => entry.trim().toLowerCase())
@@ -170,12 +166,14 @@ const exporter = (name: string): Config.Config<Setting<Exporter>> =>
       const ignored = [...new Set(entries.filter((entry) => !isExporter(entry)))];
       const known = new Set(entries.filter(isExporter));
       const value = known.has("otlp") ? "otlp" : known.has("none") ? "none" : undefined;
-      return ignored.length === 0
-        ? { value }
-        : {
-            value,
-            warning: `${name} names ${ignored.join(", ")}, which Supaterm does not export to, so ${ignored.length === 1 ? "it was" : "they were"} ignored`,
-          };
+      return (
+        ignored.length === 0
+          ? { value }
+          : {
+              value,
+              warning: `${name} names ${ignored.join(", ")}, which Supaterm does not export to, so ${ignored.length === 1 ? "it was" : "they were"} ignored`,
+            }
+      ) satisfies Setting<Exporter>;
     }),
   );
 
@@ -185,7 +183,7 @@ interface Settings {
   readonly headers: Setting<Readonly<Record<string, string>>>;
 }
 
-const settings = (prefix: string): Config.Config<Settings> =>
+const settings: (prefix: string) => Config.Config<Settings> = (prefix: string) =>
   Config.all({
     endpoint: endpoint(`${prefix}ENDPOINT`),
     protocol: protocol(`${prefix}PROTOCOL`),
@@ -209,12 +207,17 @@ interface ResolvedSignal {
   readonly used: ReadonlyArray<Setting<unknown>>;
 }
 
-const signal = (
+const signal: (
   name: OtlpSignalName,
   exporter: Setting<Exporter>,
   own: Settings,
   generic: Settings,
-): ResolvedSignal => {
+) => ResolvedSignal = (
+  name: OtlpSignalName,
+  exporter: Setting<Exporter>,
+  own: Settings,
+  generic: Settings,
+) => {
   if (exporter.value === "none") {
     return { signal: OtelSignal.Off(), used: [exporter] };
   }
@@ -222,7 +225,7 @@ const signal = (
   return { signal: resolved.signal, used: [exporter, ...resolved.used] };
 };
 
-const endpointSignal = (name: OtlpSignalName, own: Settings, generic: Settings): ResolvedSignal => {
+const endpointSignal = (name: OtlpSignalName, own: Settings, generic: Settings) => {
   const ownEndpoint = isClaimed(own.endpoint);
   const endpoint = ownEndpoint ? own.endpoint : generic.endpoint;
   if (endpoint.value === undefined) {
@@ -319,12 +322,17 @@ export interface SignalEndpoint {
   readonly variable?: string;
 }
 
-export const resolveSignalEndpoint = (
+export const resolveSignalEndpoint: (
   otel: OtelEnvironment,
   signal: SignalName,
   supaterm: { readonly url: string | undefined; readonly export: SignalExport },
   fallback: { readonly bootstrapUrl: string | undefined; readonly settingsUrl: string | undefined },
-): SignalEndpoint | undefined => {
+) => SignalEndpoint | undefined = (
+  otel: OtelEnvironment,
+  signal: SignalName,
+  supaterm: { readonly url: string | undefined; readonly export: SignalExport },
+  fallback: { readonly bootstrapUrl: string | undefined; readonly settingsUrl: string | undefined },
+) => {
   if (otel.disabled) {
     return undefined;
   }
@@ -338,22 +346,23 @@ export const resolveSignalEndpoint = (
     };
   }
   return OtelSignal.$match(otel[signal], {
-    Export: ({ url, variable, protocol, headers }): SignalEndpoint => ({
-      url,
-      export: { protocol, headers, exportIntervalMs: supaterm.export.exportIntervalMs },
-      source: "environment",
-      variable,
-    }),
+    Export: ({ url, variable, protocol, headers }) =>
+      ({
+        url,
+        export: { protocol, headers, exportIntervalMs: supaterm.export.exportIntervalMs },
+        source: "environment",
+        variable,
+      }) satisfies SignalEndpoint,
     Off: () => undefined,
-    Unset: (): SignalEndpoint | undefined => {
+    Unset: () => {
       const settingsUrl = blankAsUnset(fallback.settingsUrl);
       const url = blankAsUnset(fallback.bootstrapUrl) ?? settingsUrl;
-      if (url === undefined) return undefined;
+      if (url === undefined) return undefined satisfies SignalEndpoint | undefined;
       return {
         url,
         export: supaterm.export,
         source: url === settingsUrl ? "settings" : "bootstrap",
-      };
+      } satisfies SignalEndpoint | undefined;
     },
   });
 };

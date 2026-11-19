@@ -3,16 +3,12 @@ import { deviceToolInstallMessage } from "@supaterm/contracts";
 import {
   type DeviceHostSummary,
   type DevicePlatform,
-  type DevicePlatformAvailability,
   LOCAL_DEVICE_HOST_ID,
   LOCAL_DEVICE_HOST_LABEL,
 } from "@supaterm/contracts";
 import { waitForHttpReady } from "@supaterm/shared/httpReadiness";
 import * as HostProcess from "@supaterm/shared/HostProcess";
-import {
-  resolveNodeExecutable,
-  type NodeRuntimeUnavailableError,
-} from "@supaterm/shared/nodeRuntime";
+import { resolveNodeExecutable } from "@supaterm/shared/nodeRuntime";
 import * as NetService from "@supaterm/shared/Net";
 import { isCommandAvailable } from "@supaterm/shared/shell";
 import * as Clock from "effect/Clock";
@@ -102,7 +98,7 @@ interface RunningHost {
 
 const platformReason = Effect.fn("LocalDeviceHost.platformReason")(function* (
   platform: DevicePlatform,
-): Effect.fn.Return<string | null, never, FileSystem.FileSystem | Path.Path> {
+) {
   const hostPlatform = yield* HostProcess.Platform;
   if (platform === "ios") {
     if (hostPlatform !== "darwin") return "iOS Simulators need macOS with Xcode.";
@@ -182,7 +178,7 @@ const deviceHostEnvironment = (
   sdkRoot: string | null,
   hostPlatform: NodeJS.Platform,
   path: Path.Path,
-): NodeJS.ProcessEnv => {
+) => {
   return sdkRoot
     ? {
         ...environment,
@@ -280,7 +276,7 @@ export const make = Effect.fn("LocalDeviceHost.make")(function* () {
 
   const platformAvailability = Effect.fn("LocalDeviceHost.platformAvailability")(function* (
     platform: DevicePlatform,
-  ): Effect.fn.Return<DevicePlatformAvailability> {
+  ) {
     const reason = yield* platformReason(platform).pipe(
       Effect.provideService(FileSystem.FileSystem, fs),
       Effect.provideService(Path.Path, path),
@@ -398,7 +394,7 @@ export const make = Effect.fn("LocalDeviceHost.make")(function* () {
   const spawnHub = Effect.fn("LocalDeviceHost.spawnHub")(function* (
     hubTool: DeviceToolPaths,
     nodePath: string,
-  ): Effect.fn.Return<HubProcess, DeviceHost.DeviceHostError> {
+  ) {
     yield* reapStaleHub;
     yield* fs
       .makeDirectory(agentDeviceStateDir(path, config.stateDir), { recursive: true })
@@ -528,12 +524,7 @@ export const make = Effect.fn("LocalDeviceHost.make")(function* () {
   const startAgentDeviceDaemon = Effect.fn("LocalDeviceHost.startAgentDeviceDaemon")(function* (
     agentTool: Pick<DeviceToolPaths, "entryPath">,
     nodePath: string,
-  ): Effect.fn.Return<
-    DeviceHost.AgentDeviceEndpoint,
-    | DeviceHost.DeviceHostError
-    | DeviceHost.DeviceHostTimeoutError
-    | DeviceHost.AgentDeviceStartError
-  > {
+  ) {
     const stateDir = agentDeviceStateDir(path, config.stateDir);
     yield* fs.makeDirectory(stateDir, { recursive: true }).pipe(Effect.ignore);
     const existing = yield* readDaemonFile().pipe(Effect.option);
@@ -546,9 +537,7 @@ export const make = Effect.fn("LocalDeviceHost.make")(function* () {
       FORCE_COLOR: "0",
       NO_COLOR: "1",
     };
-    const toEndpoint = (
-      file: typeof AgentDeviceDaemonFile.Type,
-    ): DeviceHost.AgentDeviceEndpoint => ({
+    const toEndpoint = (file: typeof AgentDeviceDaemonFile.Type) => ({
       baseUrl: `http://127.0.0.1:${file.httpPort}`,
       token: file.token,
       entryPath: agentTool.entryPath,
@@ -665,7 +654,7 @@ export const make = Effect.fn("LocalDeviceHost.make")(function* () {
 
   const ensureHubReady = Effect.fn("LocalDeviceHost.ensureHubReady")(function* (
     onPhase: (phase: "installing" | "starting", detail?: string) => Effect.Effect<void>,
-  ): Effect.fn.Return<RunningHost, DeviceHost.DeviceHostError | NodeRuntimeUnavailableError> {
+  ) {
     const running = yield* Ref.get(runningRef);
     if (running) {
       const alive = yield* running.hub.child.isRunning.pipe(Effect.orElseSucceed(() => false));
@@ -734,16 +723,7 @@ export const make = Effect.fn("LocalDeviceHost.make")(function* () {
 
   const ensureAgentReady: DeviceHost.DeviceHost["Service"]["ensureAgentReady"] = (onPhase) =>
     startLock.withPermits(1)(
-      Effect.gen(function* (): Generator<
-        Effect.Effect<
-          unknown,
-          | DeviceHost.DeviceHostError
-          | DeviceHost.DeviceHostTimeoutError
-          | DeviceHost.AgentDeviceStartError
-          | NodeRuntimeUnavailableError
-        >,
-        DeviceHost.DeviceHostAgentReady
-      > {
+      Effect.gen(function* () {
         const running = yield* ensureHubReady(onPhase);
         if (running.agentDevice) {
           const agentDevice = yield* startAgentDeviceDaemon(
@@ -836,7 +816,7 @@ export const make = Effect.fn("LocalDeviceHost.make")(function* () {
       Effect.catch((cause) => Effect.succeed({ stdout: "", stderr: String(cause), code: 127 })),
     );
 
-  const toReady = (running: RunningHost): DeviceHost.DeviceHostReady => ({
+  const toReady = (running: RunningHost) => ({
     hub: { origin: running.hub.origin } satisfies DeviceHost.DeviceHubEndpoint,
     devices: makeDeviceHubOperations({
       hostId,

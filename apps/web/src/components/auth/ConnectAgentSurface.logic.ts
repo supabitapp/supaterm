@@ -13,17 +13,19 @@ export function resolveApprovalDecision(input: {
   readonly code: string;
   readonly access: AuthMcpClientAccess;
   readonly details: AuthMcpApprovalDetails;
-}): Exclude<AuthMcpApprovalDecision, { readonly _tag: "deny" }> | null {
+}) {
   const code = input.code.trim();
   if (code.length > 0) {
     return {
       _tag: "pairing-code",
       access: parseMcpApprovalCode(code)?.access ?? input.access,
       code,
-    };
+    } satisfies Exclude<AuthMcpApprovalDecision, { readonly _tag: "deny" }> | null;
   }
   const { csrfToken, oneClickAccess } = input.details;
-  return csrfToken !== undefined && (oneClickAccess ?? []).includes(input.access)
-    ? { _tag: "browser-session", access: input.access, csrfToken }
-    : null;
+  return (
+    csrfToken !== undefined && (oneClickAccess ?? []).includes(input.access)
+      ? { _tag: "browser-session", access: input.access, csrfToken }
+      : null
+  ) satisfies Exclude<AuthMcpApprovalDecision, { readonly _tag: "deny" }> | null;
 }

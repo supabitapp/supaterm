@@ -1,7 +1,4 @@
-export function withOccurrenceKeys<T>(
-  items: ReadonlyArray<T>,
-  identity: (item: T) => string,
-): Array<{ readonly item: T; readonly key: string }> {
+export function withOccurrenceKeys<T>(items: ReadonlyArray<T>, identity: (item: T) => string) {
   const occurrences = new Map<string, number>();
   return items.map((item) => {
     const id = identity(item);

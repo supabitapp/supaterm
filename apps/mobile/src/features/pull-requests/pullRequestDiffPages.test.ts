@@ -13,7 +13,7 @@ import {
 
 const GITHUB = sourceControlClients.get("github").changeRequest;
 
-function diff(path: string): PullRequestDiffResult {
+function diff(path: string) {
   return {
     patch: `diff --git a/${path} b/${path}\n--- a/${path}\n+++ b/${path}\n@@ -1 +1 @@\n-old\n+new\n`,
     truncated: false,
@@ -21,7 +21,7 @@ function diff(path: string): PullRequestDiffResult {
   };
 }
 
-function withheldDiff(): PullRequestDiffResult {
+function withheldDiff() {
   return {
     patch: "diff --git a/large.ts b/large.ts\n--- a/large.ts\n+++ b/large.ts\n",
     truncated: true,

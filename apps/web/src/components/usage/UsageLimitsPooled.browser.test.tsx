@@ -12,7 +12,7 @@ import { UsageLimitsPooled } from "./UsageLimitsPooled";
 
 const checkedAt = "2026-10-25T16:00:00.000Z";
 
-function managedChatGpt(instanceId: string, displayName: string): ServerProvider {
+function managedChatGpt(instanceId: string, displayName: string) {
   return {
     instanceId: ProviderInstanceId.make(instanceId),
     driver: ProviderDriverKind.make("codex"),
@@ -32,7 +32,7 @@ function managedChatGpt(instanceId: string, displayName: string): ServerProvider
       unavailable: { reason: "unsupported", message: "Track usage in ChatGPT." },
       externalUsage: { label: "ChatGPT usage", url: CHATGPT_USAGE_URL },
     },
-  };
+  } satisfies ServerProvider;
 }
 
 describe("UsageLimitsPooled ChatGPT usage card", () => {

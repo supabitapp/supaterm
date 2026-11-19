@@ -19,9 +19,11 @@ export interface UnavailableProviderSnapshotInput {
 
 const nowIso = Effect.map(DateTime.now, DateTime.formatIso);
 
-export const buildUnavailableProviderSnapshot = Effect.fn(
+export const buildUnavailableProviderSnapshot: (
+  input: UnavailableProviderSnapshotInput,
+) => Effect.Effect<ServerProvider> = Effect.fn(
   "unavailableProviderSnapshot.buildUnavailableProviderSnapshot",
-)(function* (input: UnavailableProviderSnapshotInput): Effect.fn.Return<ServerProvider> {
+)(function* (input: UnavailableProviderSnapshotInput) {
   const checkedAt = input.checkedAt ?? (yield* nowIso);
   const displayName = input.displayName?.trim() || (input.driverKind as string);
 

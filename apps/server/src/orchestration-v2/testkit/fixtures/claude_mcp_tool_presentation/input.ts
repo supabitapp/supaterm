@@ -7,8 +7,8 @@ export const CLAUDE_MCP_TOOL_PRESENTATION_PROMPT = [
   "3) Reply with exactly: mcp presentation fixture complete",
 ].join("\n");
 
-export function claudeMcpToolPresentationInput(): OrchestratorFixtureInput {
+export function claudeMcpToolPresentationInput() {
   return {
     steps: [{ type: "message", text: CLAUDE_MCP_TOOL_PRESENTATION_PROMPT }],
-  };
+  } satisfies OrchestratorFixtureInput;
 }

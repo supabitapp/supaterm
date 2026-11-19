@@ -141,7 +141,7 @@ export class DesktopSnapShotError extends Schema.TaggedError<DesktopSnapShotErro
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message(): string {
+  override get message() {
     switch (this.operation) {
       case "list-pending":
         return "Could not list pending snapshots.";
@@ -167,7 +167,7 @@ export class DesktopSnapShotError extends Schema.TaggedError<DesktopSnapShotErro
 
 const isDesktopSnapShotError = Schema.is(DesktopSnapShotError);
 
-function captureFailure(cause: unknown, captureId?: string): DesktopSnapShotError {
+function captureFailure(cause: unknown, captureId?: string) {
   if (isDesktopSnapShotError(cause)) return cause;
   const operation = cause instanceof CaptureSetupRequiredError ? "setup-required" : "capture";
   return new DesktopSnapShotError({ operation, captureId, cause });
@@ -224,7 +224,7 @@ export class DesktopSnapShotSetupError extends Schema.TaggedError<DesktopSnapSho
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message(): string {
+  override get message() {
     if (this.action === "test-mac-capture") {
       if (this.reason === "unsupported-session") return "Test capture requires macOS.";
       const summary = "Could not capture a test snapshot.";
@@ -283,27 +283,32 @@ type SnapShotSystemAnimationSettings = Pick<
   "prefersReducedMotion" | "shouldRenderRichAnimation"
 >;
 
-function captureMode(platform: NodeJS.Platform): DesktopSnapShotState["mode"] {
+function captureMode(platform: NodeJS.Platform): DesktopSnapShotState["mode"];
+function captureMode(platform: NodeJS.Platform) {
   if (platform === "linux")
-    return isWaylandSession(platform, process.env) ? "portal" : "unavailable";
-  return platform === "darwin" || platform === "win32" ? "direct" : "unavailable";
+    return (
+      isWaylandSession(platform, process.env) ? "portal" : "unavailable"
+    ) satisfies DesktopSnapShotState["mode"];
+  return (
+    platform === "darwin" || platform === "win32" ? "direct" : "unavailable"
+  ) satisfies DesktopSnapShotState["mode"];
 }
 
-function shouldAnimateSnapShot(settings: SnapShotSystemAnimationSettings): boolean {
-  return settings.shouldRenderRichAnimation && !settings.prefersReducedMotion;
+function shouldAnimateSnapShot(settings: SnapShotSystemAnimationSettings): boolean;
+function shouldAnimateSnapShot(settings: SnapShotSystemAnimationSettings) {
+  return (settings.shouldRenderRichAnimation && !settings.prefersReducedMotion) satisfies boolean;
 }
 
-function snapShotThumbnailSize(active: ActiveWindow | undefined): Electron.Size {
-  if (!active) return { width: 2_560, height: 1_600 };
+function snapShotThumbnailSize(active: ActiveWindow | undefined): Electron.Size;
+function snapShotThumbnailSize(active: ActiveWindow | undefined) {
+  if (!active) return { width: 2_560, height: 1_600 } satisfies Electron.Size;
   return {
     width: Math.min(Math.max(active.bounds.width, 1), MAX_CAPTURE_WIDTH),
     height: Math.min(Math.max(active.bounds.height, 1), MAX_CAPTURE_HEIGHT),
-  };
+  } satisfies Electron.Size;
 }
 
-function snapShotIconDataUrl(
-  ...icons: ReadonlyArray<Electron.NativeImage | null | undefined>
-): string | undefined {
+function snapShotIconDataUrl(...icons: ReadonlyArray<Electron.NativeImage | null | undefined>) {
   const icon = icons.find((candidate): candidate is Electron.NativeImage =>
     Boolean(candidate && !candidate.isEmpty()),
   );
@@ -311,10 +316,7 @@ function snapShotIconDataUrl(
   return icon.resize({ width: 64, height: 64, quality: "best" }).toDataURL({ scaleFactor: 2 });
 }
 
-async function appFileIcon(
-  path: string,
-  platform: NodeJS.Platform,
-): Promise<Electron.NativeImage | undefined> {
+async function appFileIcon(path: string, platform: NodeJS.Platform) {
   if (platform === "darwin") {
     const thumbnail = await Electron.nativeImage
       .createThumbnailFromPath(path, { width: 64, height: 64 })
@@ -328,7 +330,7 @@ async function iconDataUrl(
   source: { readonly appIcon?: Electron.NativeImage | null },
   active: ActiveWindow | undefined,
   platform: NodeJS.Platform,
-): Promise<string | undefined> {
+) {
   try {
     const fileIcon = active?.owner.path
       ? await appFileIcon(active.owner.path, platform)
@@ -343,14 +345,14 @@ function snapShotAppName(
   active: ActiveWindow | undefined,
   linuxWindow: LinuxWindowMetadata | undefined,
   sourceName: string,
-): string {
+) {
   const appName =
     active?.owner.name.trim() || linuxWindow?.appName.trim() || sourceName.trim() || "Window";
   if (active?.platform !== "windows") return appName;
   return appName.replace(/\.exe$/i, "").trim() || appName;
 }
 
-async function requestMacScreenCapturePermission(): Promise<string | null> {
+async function requestMacScreenCapturePermission() {
   let status: ReturnType<typeof Electron.systemPreferences.getMediaAccessStatus>;
   try {
     status = Electron.systemPreferences.getMediaAccessStatus("screen");
@@ -370,28 +372,35 @@ async function requestMacScreenCapturePermission(): Promise<string | null> {
   return MAC_SCREEN_CAPTURE_PERMISSION_MESSAGE;
 }
 
-function currentMacPermissions(): NonNullable<DesktopSnapShotState["macPermissions"]> {
+function currentMacPermissions(): NonNullable<DesktopSnapShotState["macPermissions"]>;
+function currentMacPermissions() {
   return {
     screenRecording: Electron.systemPreferences.getMediaAccessStatus("screen") === "granted",
     accessibility: Electron.systemPreferences.isTrustedAccessibilityClient(false),
-  };
+  } satisfies NonNullable<DesktopSnapShotState["macPermissions"]>;
 }
 
 function macPermissionMessage(
   permissions: NonNullable<DesktopSnapShotState["macPermissions"]>,
   includeAccessibility: boolean,
-): string | null {
+): string | null;
+function macPermissionMessage(
+  permissions: NonNullable<DesktopSnapShotState["macPermissions"]>,
+  includeAccessibility: boolean,
+) {
   const accessibilityGranted = !includeAccessibility || permissions.accessibility;
   if (!accessibilityGranted && !permissions.screenRecording) {
-    return MAC_BOTH_PERMISSIONS_MESSAGE;
+    return MAC_BOTH_PERMISSIONS_MESSAGE satisfies string | null;
   }
   if (!accessibilityGranted) {
-    return MAC_ACCESSIBILITY_PERMISSION_MESSAGE;
+    return MAC_ACCESSIBILITY_PERMISSION_MESSAGE satisfies string | null;
   }
-  return permissions.screenRecording ? null : MAC_SCREEN_CAPTURE_PERMISSION_MESSAGE;
+  return (permissions.screenRecording ? null : MAC_SCREEN_CAPTURE_PERMISSION_MESSAGE) satisfies
+    | string
+    | null;
 }
 
-function currentMacSnapShotPermissionMessage(includeAccessibility: boolean): string | null {
+function currentMacSnapShotPermissionMessage(includeAccessibility: boolean) {
   return macPermissionMessage(
     {
       screenRecording: Electron.systemPreferences.getMediaAccessStatus("screen") === "granted",
@@ -402,9 +411,7 @@ function currentMacSnapShotPermissionMessage(includeAccessibility: boolean): str
   );
 }
 
-async function requestMacSnapShotPermissions(
-  includeAccessibility: boolean,
-): Promise<string | null> {
+async function requestMacSnapShotPermissions(includeAccessibility: boolean) {
   const accessibilityGranted =
     !includeAccessibility || Electron.systemPreferences.isTrustedAccessibilityClient(true);
   const screenMessage = await requestMacScreenCapturePermission();
@@ -417,7 +424,7 @@ async function requestMacSnapShotPermissions(
   return screenMessage;
 }
 
-function snapShotImageSize(png: Buffer, fallback: Electron.Rectangle): Electron.Size {
+function snapShotImageSize(png: Buffer, fallback: Electron.Rectangle) {
   const size = readImageDimensions(png);
   if (size) return size;
   return {
@@ -588,7 +595,7 @@ async function captureSource({
   }
 }
 
-function createSnapShotFlashWindow(bounds: Electron.Rectangle): Electron.BaseWindow {
+function createSnapShotFlashWindow(bounds: Electron.Rectangle) {
   const window = new Electron.BaseWindow({
     ...bounds,
     alwaysOnTop: true,
@@ -618,15 +625,15 @@ class SnapShotFlash {
     this.showWindow = showWindow;
   }
 
-  showAnimated(bounds: Electron.Rectangle): Promise<void> {
+  showAnimated(bounds: Electron.Rectangle) {
     return this.show(bounds, true, FLASH_ANIMATION_DURATION_MS);
   }
 
-  showStatic(bounds: Electron.Rectangle): Promise<void> {
+  showStatic(bounds: Electron.Rectangle) {
     return this.show(bounds, false, FLASH_STATIC_DURATION_MS);
   }
 
-  dispose(): void {
+  dispose() {
     if (this.animationTimer) clearInterval(this.animationTimer);
     if (this.closeTimer) clearTimeout(this.closeTimer);
     this.animationTimer = undefined;
@@ -635,11 +642,7 @@ class SnapShotFlash {
     this.flashWindow = undefined;
   }
 
-  private async show(
-    bounds: Electron.Rectangle,
-    animated: boolean,
-    durationMs: number,
-  ): Promise<void> {
+  private async show(bounds: Electron.Rectangle, animated: boolean, durationMs: number) {
     this.dispose();
     const window = createSnapShotFlashWindow(bounds);
     this.flashWindow = window;
@@ -662,10 +665,7 @@ class SnapShotFlash {
   }
 }
 
-function snapShotFlashBounds(
-  active: ActiveWindow | undefined,
-  platform: NodeJS.Platform,
-): Electron.Rectangle {
+function snapShotFlashBounds(active: ActiveWindow | undefined, platform: NodeJS.Platform) {
   if (!active) return Electron.screen.getPrimaryDisplay().bounds;
   return platform === "win32"
     ? Electron.screen.screenToDipRect(null, active.bounds)
@@ -681,7 +681,7 @@ async function showCaptureFeedback(
   active: ActiveWindow | undefined,
   platform: NodeJS.Platform,
   destinationWindowBounds?: Electron.Rectangle,
-): Promise<boolean> {
+) {
   if (platform === "linux") return false;
   const bounds = snapShotFlashBounds(active, platform);
   const animationsEnabled =
@@ -707,10 +707,7 @@ async function showCaptureFeedback(
   return false;
 }
 
-function observedPairMessage(
-  shortcut: SnapShotModifierPairShortcut,
-  platform: NodeJS.Platform,
-): string {
+function observedPairMessage(shortcut: SnapShotModifierPairShortcut, platform: NodeJS.Platform) {
   const modifier = snapShotShortcutModifierPair(shortcut);
   const label = snapShotModifierPairLabel(modifier, platform === "darwin");
   const base = `${label} is observed and cannot be reserved exclusively.`;
@@ -723,7 +720,7 @@ function observedPairMessage(
   return base;
 }
 
-function probeGlobalShortcut(accelerator: string): DesktopSnapShotShortcutAvailability {
+function probeGlobalShortcut(accelerator: string) {
   try {
     if (!Electron.globalShortcut.register(accelerator, () => undefined)) {
       return {

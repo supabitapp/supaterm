@@ -118,7 +118,6 @@ import {
   type GitHubPullRequestActivity,
   type GitHubPullRequestActivityPage,
   type GitHubWorkflowRunPage,
-  type GitHubPullRequestHead,
   type GitHubPullRequestListItem,
   type GitHubPullRequestSearchItem,
   type GitHubPullRequestStack,
@@ -144,7 +143,7 @@ export class GitHubPullRequestReadError extends Schema.TaggedError<GitHubPullReq
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `GitHub returned an unreadable ${this.operation} response.`;
   }
 }
@@ -155,7 +154,7 @@ export class GitHubViewerLoginUnavailableError extends Schema.TaggedError<GitHub
     cwd: Schema.String,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return "GitHub returned no login for the authenticated account.";
   }
 }
@@ -166,7 +165,7 @@ export class GitHubDiffCursorError extends Schema.TaggedError<GitHubDiffCursorEr
     cwd: Schema.String,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return "The diff cursor was not one this pull request handed out.";
   }
 }
@@ -177,7 +176,7 @@ export class GitHubDiffCommitError extends Schema.TaggedError<GitHubDiffCommitEr
     cwd: Schema.String,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return "The named commit was not a commit sha.";
   }
 }
@@ -190,7 +189,7 @@ export class GitHubDiffRevisionsUnavailableError extends Schema.TaggedError<GitH
     commit: Schema.optional(Schema.String),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return this.commit === undefined
       ? `Pull request #${this.number} reported no usable base and head revisions.`
       : `Commit ${this.commit} reported no usable revisions for this file.`;
@@ -205,7 +204,7 @@ export class GitHubDiffFileContentsUnavailableError extends Schema.TaggedError<G
     reason: Schema.Literals(["oversized", "binary"]),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return this.reason === "oversized"
       ? `The diff file '${this.path}' exceeds the 1 MB expansion limit.`
       : `The diff file '${this.path}' is binary.`;
@@ -219,7 +218,7 @@ export class GitHubRepositorySelectorError extends Schema.TaggedError<GitHubRepo
     operation: Schema.String,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return "A repository was named that GitHub cannot address.";
   }
 }
@@ -231,7 +230,7 @@ export class GitHubSubjectScopeError extends Schema.TaggedError<GitHubSubjectSco
     operation: Schema.String,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return "The named subject did not belong to the named pull request.";
   }
 }
@@ -246,7 +245,7 @@ export class GitHubWorkflowApprovalRefusedError extends Schema.TaggedError<GitHu
     limit: Schema.Int,
   },
 ) {
-  override get message(): string {
+  override get message() {
     if (this.reason === "head-list-truncated") {
       return `GitHub returned more than ${this.limit} pull requests for this head branch.`;
     }
@@ -264,7 +263,7 @@ export class GitHubWorkflowApprovalHeadUnavailableError extends Schema.TaggedErr
     number: Schema.Int,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `GitHub did not report a complete head revision for #${this.number}.`;
   }
 }
@@ -276,7 +275,7 @@ export class GitHubWorkflowApprovalHeadChangedError extends Schema.TaggedError<G
     number: Schema.Int,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `The head revision of #${this.number} changed before its workflows could be approved.`;
   }
 }
@@ -294,7 +293,7 @@ export class GitHubBranchDeletionRefusedError extends Schema.TaggedError<GitHubB
     ]),
   },
 ) {
-  override get message(): string {
+  override get message() {
     switch (this.reason) {
       case "open-pr":
         return `Close or merge pull request #${this.number} before deleting its source branch.`;
@@ -334,13 +333,16 @@ const { isNotFoundOnly } = GitHubGraphQlClient;
 
 const isGitHubApiResponseError = Schema.is(GitHubRequestPolicy.GitHubApiResponseError);
 
-const isGitHubServerError = (error: unknown): boolean =>
+const isGitHubServerError: (error: unknown) => boolean = (error: unknown) =>
   isGitHubApiResponseError(error) && error.status >= 500;
 
-const isMissingPullRef = ({ path, type }: GraphQLClientError.GraphQLError): boolean =>
+const isMissingPullRef: (arg0: GraphQLClientError.GraphQLError) => boolean = ({
+  path,
+  type,
+}: GraphQLClientError.GraphQLError) =>
   type === "NOT_FOUND" && path?.join(".") === "repository.pullRequest.baseRef.compare";
 
-const isRefusedRequestedReviewersOnly = (error: unknown): boolean =>
+const isRefusedRequestedReviewersOnly: (error: unknown) => boolean = (error: unknown) =>
   isGraphQlClientError(error) &&
   error.reason._tag === "ResponseError" &&
   error.reason.status === 200 &&
@@ -845,13 +847,18 @@ export class GitHubPullRequestApi extends Context.Service<
 function parseRepositorySelector(value: string): {
   readonly owner: string;
   readonly name: string;
-} {
+};
+function parseRepositorySelector(value: string) {
   const parts = value.trim().split("/").filter(Boolean);
-  return { name: parts.at(-1) ?? "", owner: parts.at(-2) ?? "" };
+  return { name: parts.at(-1) ?? "", owner: parts.at(-2) ?? "" } satisfies {
+    readonly owner: string;
+    readonly name: string;
+  };
 }
 
-function diffCursorPage(cursor: string): number | null {
-  return /^[1-9][0-9]{0,6}$/.test(cursor) ? Number(cursor) : null;
+function diffCursorPage(cursor: string): number | null;
+function diffCursorPage(cursor: string) {
+  return (/^[1-9][0-9]{0,6}$/.test(cursor) ? Number(cursor) : null) satisfies number | null;
 }
 
 const REVIEW_QUALIFIERS = {
@@ -861,14 +868,11 @@ const REVIEW_QUALIFIERS = {
   none: "none",
 } as const;
 
-function qualifierValue(value: string): string {
+function qualifierValue(value: string) {
   return `"${value.replaceAll('"', "").trim()}"`;
 }
 
-function filterQualifiers(
-  filters: PullRequestListFilters | undefined,
-  viewer: string,
-): ReadonlyArray<string> {
+function filterQualifiers(filters: PullRequestListFilters | undefined, viewer: string) {
   if (filters === undefined) return [];
   return [
     ...(filters.labels ?? []).flatMap((group) =>
@@ -890,7 +894,7 @@ function matchesFilters(
   item: GitHubPullRequestListItem,
   filters: PullRequestListFilters | undefined,
   viewer: string,
-): boolean {
+) {
   if (filters === undefined) return true;
   const labels = new Set(item.labels.map((label) => label.name.trim().toLowerCase()));
   const holds = (label: string) => labels.has(label.trim().toLowerCase());
@@ -917,7 +921,16 @@ function matchesUnsortedListing(
     readonly viewer: string;
     readonly filters?: PullRequestListFilters | undefined;
   },
-): boolean {
+): boolean;
+function matchesUnsortedListing(
+  item: GitHubPullRequestListItem,
+  input: {
+    readonly state: PullRequestListState;
+    readonly involvement: GitHubListInvolvement;
+    readonly viewer: string;
+    readonly filters?: PullRequestListFilters | undefined;
+  },
+) {
   const matchesState = input.state === "all" || item.state === input.state;
   const viewer = input.viewer.toLowerCase();
   const authored = item.author?.login.toLowerCase() === viewer;
@@ -929,11 +942,9 @@ function matchesUnsortedListing(
       item.hasTeamReviewRequest ||
       item.reviewRequestLogins.some((login) => login.toLowerCase() === viewer),
   };
-  return (
-    matchesState &&
+  return (matchesState &&
     matchesInvolvement[input.involvement] &&
-    matchesFilters(item, input.filters, input.viewer)
-  );
+    matchesFilters(item, input.filters, input.viewer)) satisfies boolean;
 }
 
 const SEARCH_REPOSITORY = /^[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+$/;
@@ -946,10 +957,20 @@ function searchQuery(input: {
   readonly query?: string | undefined;
   readonly cursor?: Pick<ProviderListCursor, "updatedBefore"> | undefined;
   readonly filters?: PullRequestListFilters | undefined;
-}): string | null {
-  if (input.repositories.length === 0) return null;
+}): string | null;
+function searchQuery(input: {
+  readonly repositories: ReadonlyArray<string>;
+  readonly state: PullRequestListState;
+  readonly involvement: GitHubListInvolvement;
+  readonly viewer: string;
+  readonly query?: string | undefined;
+  readonly cursor?: Pick<ProviderListCursor, "updatedBefore"> | undefined;
+  readonly filters?: PullRequestListFilters | undefined;
+}) {
+  if (input.repositories.length === 0) return null satisfies string | null;
   const repositories = input.repositories.map((repository) => repository.trim());
-  if (!repositories.every((repository) => SEARCH_REPOSITORY.test(repository))) return null;
+  if (!repositories.every((repository) => SEARCH_REPOSITORY.test(repository)))
+    return null satisfies string | null;
   const query = input.query?.trim() ?? "";
   return [
     "is:pr",
@@ -964,7 +985,7 @@ function searchQuery(input: {
     ...filterQualifiers(input.filters, input.viewer),
     "sort:updated-desc",
     ...repositories.map((repository) => `repo:${repository}`),
-  ].join(" ");
+  ].join(" ") satisfies string | null;
 }
 
 const decodeRevisionRefs = Schema.decodeUnknownOption(
@@ -1123,16 +1144,7 @@ export const make = Effect.gen(function* () {
       readonly operation: string;
       readonly allowReserve?: boolean | undefined;
     }) =>
-    <A, E, R>(
-      effect: Effect.Effect<A, E, R>,
-    ): Effect.Effect<
-      A,
-      | Exclude<E, GraphQLClientError.GraphQLClientError>
-      | GitHubRequestPolicy.GitHubApiNotFoundError
-      | GitHubRequestPolicy.GitHubApiResponseError
-      | GitHubPullRequestReadError,
-      Exclude<R, GitHubGraphQlClient.GitHubGraphQlTarget>
-    > =>
+    <A, E, R>(effect: Effect.Effect<A, E, R>) =>
       effect.pipe(
         GitHubGraphQlClient.call({
           host: input.host,
@@ -1144,19 +1156,36 @@ export const make = Effect.gen(function* () {
             ? readError(input.cwd, input.operation, error)
             : (error as Exclude<typeof error, GraphQLClientError.GraphQLClientError>),
         ),
-      );
+      ) satisfies Effect.Effect<
+        A,
+        | Exclude<E, GraphQLClientError.GraphQLClientError>
+        | GitHubRequestPolicy.GitHubApiNotFoundError
+        | GitHubRequestPolicy.GitHubApiResponseError
+        | GitHubPullRequestReadError,
+        Exclude<R, GitHubGraphQlClient.GitHubGraphQlTarget>
+      > as Effect.Effect<
+        A,
+        | Exclude<E, GraphQLClientError.GraphQLClientError>
+        | GitHubRequestPolicy.GitHubApiNotFoundError
+        | GitHubRequestPolicy.GitHubApiResponseError
+        | GitHubPullRequestReadError,
+        Exclude<R, GitHubGraphQlClient.GitHubGraphQlTarget>
+      >;
 
   const found =
     (input: { readonly host: string; readonly operation: string }) =>
-    <A>(value: A | null): Effect.Effect<A, GitHubRequestPolicy.GitHubApiNotFoundError> =>
-      value === null
+    <A>(value: A | null) =>
+      (value === null
         ? Effect.fail(
             new GitHubRequestPolicy.GitHubApiNotFoundError({
               host: normalizeHost(input.host),
               operation: input.operation,
             }),
           )
-        : Effect.succeed(value);
+        : Effect.succeed(value)) satisfies Effect.Effect<
+        A,
+        GitHubRequestPolicy.GitHubApiNotFoundError
+      > as Effect.Effect<A, GitHubRequestPolicy.GitHubApiNotFoundError>;
 
   const readPages = Effect.fn("GitHubPullRequestApi.readPages")(function* <Page, E, R>(
     stream: Stream.Stream<Page, E | GraphQLClientError.GraphQLClientError, R>,
@@ -1201,7 +1230,7 @@ export const make = Effect.gen(function* () {
     readonly host: string;
     readonly number: number;
     readonly operation: string;
-  }): Effect.Effect<string, GitHubPullRequestApiError> => {
+  }) => {
     const { owner, name } = parseRepositorySelector(input.repository);
     const key = `${input.host} ${owner}/${name} ${input.number}`;
     const held = nodeIds.get(key);
@@ -1240,19 +1269,26 @@ export const make = Effect.gen(function* () {
       .pipe(graphql({ ...input, allowReserve: true }), Effect.map(isSubjectOfPullRequest));
   };
 
-  const decodeWith = <A>(
+  const decodeWith: <A>(
     cwd: string,
     operation: string,
     decode: (raw: string) => Result.Result<A, unknown>,
     raw: string,
-  ): Effect.Effect<A, GitHubPullRequestReadError> => {
+  ) => Effect.Effect<A, GitHubPullRequestReadError> = <A>(
+    cwd: string,
+    operation: string,
+    decode: (raw: string) => Result.Result<A, unknown>,
+    raw: string,
+  ) => {
     const decoded = decode(raw.trim());
     return Result.isSuccess(decoded)
       ? Effect.succeed(decoded.success)
       : Effect.fail(readError(cwd, operation, decoded.failure));
   };
 
-  const restRead = <A>(input: RestReadInput<A>): Effect.Effect<A, GitHubPullRequestApiError> =>
+  const restRead: <A>(input: RestReadInput<A>) => Effect.Effect<A, GitHubPullRequestApiError> = <A>(
+    input: RestReadInput<A>,
+  ) =>
     api
       .rest({ host: input.host, operation: input.operation, path: input.path })
       .pipe(
@@ -1300,14 +1336,21 @@ export const make = Effect.gen(function* () {
     return decoded;
   });
 
-  const diffFilesPage = (input: {
+  const diffFilesPage: (input: {
     readonly cwd: string;
     readonly repository: string;
     readonly host: string;
     readonly number: number;
     readonly page: number;
     readonly commit?: string | undefined;
-  }): Effect.Effect<GitHubPullRequestDiffSlice, GitHubPullRequestApiError> => {
+  }) => Effect.Effect<GitHubPullRequestDiffSlice, GitHubPullRequestApiError> = (input: {
+    readonly cwd: string;
+    readonly repository: string;
+    readonly host: string;
+    readonly number: number;
+    readonly page: number;
+    readonly commit?: string | undefined;
+  }) => {
     const { owner, name } = parseRepositorySelector(input.repository);
     const paging = `per_page=${DIFF_FILES_PAGE_SIZE}&page=${input.page}`;
     return api
@@ -1635,46 +1678,38 @@ export const make = Effect.gen(function* () {
       Effect.all(
         [
           listHeadsByBranch(input).pipe(
-            Effect.flatMap(
-              ({
-                heads,
-                truncated,
-              }): Effect.Effect<
-                GitHubPullRequestHead,
-                GitHubPullRequestReadError | GitHubWorkflowApprovalRefusedError
-              > => {
-                const exactHeads = heads.filter(
-                  (pullRequest) =>
-                    pullRequest.headSha === input.headSha &&
-                    pullRequest.isCrossRepository === true &&
-                    pullRequest.headRepositoryOwner?.toLowerCase() ===
-                      input.headRepositoryOwner.toLowerCase(),
+            Effect.flatMap(({ heads, truncated }) => {
+              const exactHeads = heads.filter(
+                (pullRequest) =>
+                  pullRequest.headSha === input.headSha &&
+                  pullRequest.isCrossRepository === true &&
+                  pullRequest.headRepositoryOwner?.toLowerCase() ===
+                    input.headRepositoryOwner.toLowerCase(),
+              );
+              if (truncated || heads.length > workflowApprovalLimit) {
+                return Effect.fail(
+                  new GitHubWorkflowApprovalRefusedError({
+                    cwd: input.cwd,
+                    number: input.number,
+                    reason: "head-list-truncated",
+                    observedCount: heads.length,
+                    limit: workflowApprovalLimit,
+                  }),
                 );
-                if (truncated || heads.length > workflowApprovalLimit) {
-                  return Effect.fail(
-                    new GitHubWorkflowApprovalRefusedError({
-                      cwd: input.cwd,
-                      number: input.number,
-                      reason: "head-list-truncated",
-                      observedCount: heads.length,
-                      limit: workflowApprovalLimit,
-                    }),
-                  );
-                }
-                if (exactHeads.length !== 1 || exactHeads[0]?.number !== input.number) {
-                  return Effect.fail(
-                    new GitHubWorkflowApprovalRefusedError({
-                      cwd: input.cwd,
-                      number: input.number,
-                      reason: "head-not-unique",
-                      observedCount: exactHeads.length,
-                      limit: workflowApprovalLimit,
-                    }),
-                  );
-                }
-                return Effect.succeed(exactHeads[0]);
-              },
-            ),
+              }
+              if (exactHeads.length !== 1 || exactHeads[0]?.number !== input.number) {
+                return Effect.fail(
+                  new GitHubWorkflowApprovalRefusedError({
+                    cwd: input.cwd,
+                    number: input.number,
+                    reason: "head-not-unique",
+                    observedCount: exactHeads.length,
+                    limit: workflowApprovalLimit,
+                  }),
+                );
+              }
+              return Effect.succeed(exactHeads[0]);
+            }),
           ),
           listActionRequiredRuns(input).pipe(
             Effect.filterOrFail(
@@ -1730,13 +1765,7 @@ export const make = Effect.gen(function* () {
   const batchedRead = <A, E, R>(
     input: { readonly cwd: string; readonly host: string; readonly operation: string },
     effect: Effect.Effect<A, E, R>,
-  ): Effect.Effect<
-    A,
-    | Exclude<E, GraphQLClientError.GraphQLClientError>
-    | GitHubPullRequestReadError
-    | GitHubRequestPolicy.GitHubApiNotFoundError,
-    Exclude<R, GitHubGraphQlClient.GitHubGraphQlTarget>
-  > =>
+  ) =>
     effect.pipe(
       Effect.provideService(GitHubGraphQlClient.GitHubGraphQlTarget, {
         host: input.host,
@@ -1851,9 +1880,11 @@ export const make = Effect.gen(function* () {
         );
       }
       const target = { cwd: input.cwd, host: input.host, operation: "listPullRequests" };
-      const toPage = (
+      const toPage: (
         page: ReturnType<typeof toPullRequestRows>,
-      ): GitHubPullRequestListPage & { readonly pageInfo: GraphQLClient.PageInfo } => ({
+      ) => GitHubPullRequestListPage & { readonly pageInfo: GraphQLClient.PageInfo } = (
+        page: ReturnType<typeof toPullRequestRows>,
+      ) => ({
         items: page.rows.map((row) => row.item),
         rawCount: page.rawCount,
         endCursor: page.endCursor,
@@ -1866,7 +1897,7 @@ export const make = Effect.gen(function* () {
       const read = (
         continues: boolean,
         requestedRows = input.limit + 1 + (continues ? seenAt.size : 0),
-      ): Effect.Effect<GitHubPullRequestListBatch, GitHubPullRequestApiError> =>
+      ) =>
         collect(requestedRows, (after, rows) =>
           (continues
             ? client
@@ -1918,7 +1949,10 @@ export const make = Effect.gen(function* () {
               continues,
             });
           }),
-        );
+        ) satisfies Effect.Effect<
+          GitHubPullRequestListBatch,
+          GitHubPullRequestApiError
+        > as Effect.Effect<GitHubPullRequestListBatch, GitHubPullRequestApiError>;
       const listingServes = input.cursor === undefined && (input.query?.trim().length ?? 0) === 0;
       const listed = read(true).pipe(
         Effect.matchEffect({
@@ -2278,7 +2312,7 @@ export const make = Effect.gen(function* () {
       }
       const readableFirstPage = () =>
         filesPage(1).pipe(
-          Effect.map((slice): GitHubPullRequestDiffSlice => ({
+          Effect.map((slice) => ({
             ...slice,
             withheldFilesReadable: true,
           })),

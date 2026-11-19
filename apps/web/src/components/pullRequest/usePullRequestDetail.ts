@@ -30,7 +30,7 @@ export function pullRequestPanelReference(target: {
   readonly repository: string;
   readonly number: number;
   readonly host?: string | undefined;
-}): PullRequestRef {
+}) {
   return {
     projectId: target.projectId,
     repository: target.repository,

@@ -88,7 +88,7 @@ function setSession(session: SessionResult) {
   appAtomRegistry.set(sessionAtom, session);
 }
 
-function setup(): Disposable {
+function setup() {
   testState.updateServer.mockReset();
   testState.toast.mockReset();
   testState.clipboard.mockReset();

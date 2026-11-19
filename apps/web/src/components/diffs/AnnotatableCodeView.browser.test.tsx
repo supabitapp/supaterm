@@ -121,7 +121,7 @@ function typeComment(text: string) {
   });
 }
 
-function setup(): Disposable {
+function setup() {
   const reset = () => useComposerDraftStore.setState(useComposerDraftStore.getInitialState(), true);
   reset();
   container = document.createElement("div");

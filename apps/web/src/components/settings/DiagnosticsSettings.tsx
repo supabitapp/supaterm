@@ -50,7 +50,7 @@ import { TelemetryExportSettings } from "./TelemetryExportSettings";
 
 const NUMBER_FORMAT = new Intl.NumberFormat();
 
-function formatCount(value: number): string {
+function formatCount(value: number) {
   return NUMBER_FORMAT.format(value);
 }
 
@@ -60,12 +60,12 @@ function RelativeTimeNoWrap(props: { value: DateTime.Utc }) {
   return relative.suffix ? `${relative.value}\u00a0${relative.suffix}` : relative.value;
 }
 
-function shortenTraceId(traceId: string): string {
+function shortenTraceId(traceId: string) {
   if (traceId.length <= 32) return traceId;
   return `${traceId.slice(0, 18)}...${traceId.slice(-10)}`;
 }
 
-function isStaleProcessSignalMessage(message: string | undefined): boolean {
+function isStaleProcessSignalMessage(message: string | undefined) {
   return message?.includes("not a live descendant") ?? false;
 }
 
@@ -231,7 +231,7 @@ function TraceIdCell({ traceId }: { traceId: string }) {
   );
 }
 
-function formatProcessName(command: string): string {
+function formatProcessName(command: string) {
   const firstToken = command.trim().split(/\s+/)[0];
   if (!firstToken) return command;
   const normalized = firstToken.replace(/^['"]|['"]$/g, "");
@@ -239,7 +239,7 @@ function formatProcessName(command: string): string {
   return segments.at(-1) ?? normalized;
 }
 
-function formatProcessType(process: ServerProcessDiagnosticsEntry): string {
+function formatProcessType(process: ServerProcessDiagnosticsEntry) {
   if (process.depth > 0) return "Subprocess";
   if (/\b(codex|claude|opencode|cursor)\b/i.test(process.command)) return "Agent";
   return "Process";
@@ -430,7 +430,7 @@ const RESOURCE_HISTORY_WINDOWS = [
   { label: "1h", windowMs: 60 * 60_000, bucketMs: 5 * 60_000 },
 ] as const;
 
-function formatShortProcessName(command: string): string {
+function formatShortProcessName(command: string) {
   const name = formatProcessName(command);
   return name.length > 42 ? `${name.slice(0, 39)}...` : name;
 }

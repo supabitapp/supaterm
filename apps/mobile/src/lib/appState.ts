@@ -3,28 +3,28 @@ import { AppState } from "react-native";
 
 type Listener = () => void;
 
-export function subscribeAppState(onChange: Listener): () => void {
+export function subscribeAppState(onChange: Listener) {
   const subscription = AppState.addEventListener("change", () => onChange());
   return () => subscription.remove();
 }
 
-export function isAppActive(): boolean {
+export function isAppActive() {
   return AppState.currentState === "active";
 }
 
 /** Runs `onActive` each time the app returns to the foreground. */
-export function subscribeAppActive(onActive: Listener): () => void {
+export function subscribeAppActive(onActive: Listener) {
   const subscription = AppState.addEventListener("change", (state) => {
     if (state === "active") onActive();
   });
   return () => subscription.remove();
 }
 
-export function useAppActive(): boolean {
+export function useAppActive() {
   return useSyncExternalStore(subscribeAppState, isAppActive);
 }
 
-function isAppForeground(): boolean {
+function isAppForeground() {
   return AppState.currentState !== "background";
 }
 
@@ -33,6 +33,6 @@ function isAppForeground(): boolean {
  * "inactive" state (Control Center, the app switcher, a system prompt) still
  * counts as foreground, so live streams do not reconnect around it.
  */
-export function useAppForeground(): boolean {
+export function useAppForeground() {
   return useSyncExternalStore(subscribeAppState, isAppForeground);
 }

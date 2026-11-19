@@ -20,7 +20,7 @@ const NotificationBadge = Schema.Struct({
 function applyNotificationBadge(
   platform: NodeJS.Platform,
   { count, image }: typeof NotificationBadge.Type,
-): void {
+) {
   try {
     if (Electron.BrowserWindow.getFocusedWindow()) count = 0;
     if (platform === "win32") {

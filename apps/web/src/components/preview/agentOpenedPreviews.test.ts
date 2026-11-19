@@ -233,17 +233,18 @@ describe("floatDeviceSurface", () => {
 });
 
 describe("revealServerTabs", () => {
-  const tab = (tabId: string, force?: boolean): PreviewSessionSnapshot => ({
-    threadId: "thread-1",
-    tabId,
-    navStatus: { _tag: "Loading", url: "http://localhost:5173/", title: "" },
-    canGoBack: false,
-    canGoForward: false,
-    updatedAt: "2026-01-01T00:00:00.000Z",
-    runtime: "server",
-    reveal: true,
-    ...(force === undefined ? {} : { revealRequest: { id: "r1", force } }),
-  });
+  const tab = (tabId: string, force?: boolean) =>
+    ({
+      threadId: "thread-1",
+      tabId,
+      navStatus: { _tag: "Loading", url: "http://localhost:5173/", title: "" },
+      canGoBack: false,
+      canGoForward: false,
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      runtime: "server",
+      reveal: true,
+      ...(force === undefined ? {} : { revealRequest: { id: "r1", force } }),
+    }) satisfies PreviewSessionSnapshot;
 
   it("opens the panel only on forced reveals when agent opens stay in the background", () => {
     setup();
@@ -295,16 +296,17 @@ describe("revealServerTabs", () => {
 });
 
 describe("followPreviewSessions", () => {
-  const snapshot = (tabId: string, reveal = true): PreviewSessionSnapshot => ({
-    threadId: "thread-1",
-    tabId,
-    navStatus: { _tag: "Loading", url: "http://localhost:5173/", title: "" },
-    canGoBack: false,
-    canGoForward: false,
-    updatedAt: "2026-01-01T00:00:00.000Z",
-    runtime: "server",
-    reveal,
-  });
+  const snapshot = (tabId: string, reveal = true) =>
+    ({
+      threadId: "thread-1",
+      tabId,
+      navStatus: { _tag: "Loading", url: "http://localhost:5173/", title: "" },
+      canGoBack: false,
+      canGoForward: false,
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      runtime: "server",
+      reveal,
+    }) satisfies PreviewSessionSnapshot;
   const previewState = (sessions: ReadonlyArray<PreviewSessionSnapshot>, listLoaded = true) => ({
     ...previewStateTesting.EMPTY_THREAD_PREVIEW_STATE,
     listLoaded,
@@ -339,17 +341,18 @@ describe("followPreviewSessions", () => {
 
 describe("startAgentOpenedPreviews", () => {
   const serverEpoch = "server-a";
-  const serverTab = (overrides: Partial<PreviewSessionSnapshot> = {}): PreviewSessionSnapshot => ({
-    threadId: "thread-1",
-    tabId: "tab_a",
-    navStatus: { _tag: "Loading", url: "http://localhost:5173/", title: "" },
-    canGoBack: false,
-    canGoForward: false,
-    updatedAt: "2026-01-01T00:00:00.000Z",
-    runtime: "server",
-    reveal: true,
-    ...overrides,
-  });
+  const serverTab = (overrides: Partial<PreviewSessionSnapshot> = {}) =>
+    ({
+      threadId: "thread-1",
+      tabId: "tab_a",
+      navStatus: { _tag: "Loading", url: "http://localhost:5173/", title: "" },
+      canGoBack: false,
+      canGoForward: false,
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      runtime: "server",
+      reveal: true,
+      ...overrides,
+    }) satisfies PreviewSessionSnapshot;
   const following = () => {
     setup();
     vi.stubGlobal("window", { matchMedia: () => ({ matches: false }) });

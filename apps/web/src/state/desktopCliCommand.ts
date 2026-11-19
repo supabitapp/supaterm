@@ -1,17 +1,14 @@
-import type { DesktopBridge, DesktopCliCommandState } from "@supaterm/contracts";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import { Atom } from "effect/reactivity";
 
 import { appAtomRegistry } from "~/rpc/atomRegistry";
 
-type DesktopCliCommandBridge = DesktopBridge["cliCommand"];
-
 class DesktopCliCommandUnavailableError extends Schema.TaggedError<DesktopCliCommandUnavailableError>()(
   "DesktopCliCommandUnavailableError",
   {},
 ) {
-  override get message(): string {
+  override get message() {
     return "The supaterm command is unavailable.";
   }
 }
@@ -20,12 +17,12 @@ class DesktopCliCommandLoadError extends Schema.TaggedError<DesktopCliCommandLoa
   "DesktopCliCommandLoadError",
   { cause: Schema.Defect() },
 ) {
-  override get message(): string {
+  override get message() {
     return "Failed to load the supaterm command state.";
   }
 }
 
-export function getDesktopCliCommandBridge(): DesktopCliCommandBridge | undefined {
+export function getDesktopCliCommandBridge() {
   return typeof window === "undefined" ? undefined : window.desktopBridge?.cliCommand;
 }
 
@@ -35,7 +32,7 @@ const loadDesktopCliCommandState = Effect.fn("loadDesktopCliCommandState")(funct
     return yield* new DesktopCliCommandUnavailableError();
   }
   return yield* Effect.tryPromise({
-    try: (): Promise<DesktopCliCommandState> => bridge.getState(),
+    try: () => bridge.getState(),
     catch: (cause) => new DesktopCliCommandLoadError({ cause }),
   });
 });
@@ -46,6 +43,6 @@ export const desktopCliCommandStateAtom = Atom.make(loadDesktopCliCommandState()
   Atom.withLabel("desktop:cli-command:load"),
 );
 
-export function refreshDesktopCliCommandState(): void {
+export function refreshDesktopCliCommandState() {
   appAtomRegistry.refresh(desktopCliCommandStateAtom);
 }

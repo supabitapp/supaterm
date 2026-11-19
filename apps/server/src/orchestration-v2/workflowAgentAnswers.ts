@@ -9,7 +9,7 @@ export type WorkflowAgentMetadata = Pick<OrchestrationV2WorkflowAgent, "effort" 
 export function mergeWorkflowAgentMetadata(
   lines: ReadonlyArray<unknown>,
   previous: WorkflowAgentMetadata = {},
-): WorkflowAgentMetadata {
+) {
   let metadata = previous;
   for (const entry of lines) {
     if (

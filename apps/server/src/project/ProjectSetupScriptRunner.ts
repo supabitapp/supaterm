@@ -85,7 +85,7 @@ export class ProjectSetupScriptOperationError extends Schema.TaggedError<Project
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Project setup script operation '${this.operation}' failed for thread '${this.threadId}' in '${this.worktreePath}'.`;
   }
 }
@@ -99,7 +99,7 @@ export class ProjectSetupScriptProjectNotFoundError extends Schema.TaggedError<P
     worktreePath: Schema.String,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Project was not found for setup script execution for thread '${this.threadId}' in '${this.worktreePath}'.`;
   }
 }
@@ -108,7 +108,7 @@ export class ProjectSetupScriptUnsupportedShellError extends Schema.TaggedError<
   "ProjectSetupScriptUnsupportedShellError",
   { shell: Schema.String },
 ) {
-  override get message(): string {
+  override get message() {
     return "Project script completion is not supported in cmd.exe. Install PowerShell and retry.";
   }
 }
@@ -134,15 +134,15 @@ const COMPLETION_SENTINEL_PREFIX = "__SUPATERM_SETUP_DONE__";
 const OUTPUT_LINE_MAX_LENGTH = 400;
 const PARTIAL_LINE_MAX_LENGTH = 4_096;
 
-function completionSentinel(token: string): string {
+function completionSentinel(token: string) {
   return `${COMPLETION_SENTINEL_PREFIX}_${token}:`;
 }
 
-function completionSentinelPattern(token: string): RegExp {
+function completionSentinelPattern(token: string) {
   return new RegExp(`${COMPLETION_SENTINEL_PREFIX}_${token}:(-?\\d+)`);
 }
 
-function stripTerminalControl(text: string): string {
+function stripTerminalControl(text: string) {
   return text
     .replace(/\x1b\[[0-?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b[ -/]*[0-~]/g, "")
     .replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, "");
@@ -152,7 +152,7 @@ const BRACKETED_PASTE_ON = "\x1b[?2004h";
 const BRACKETED_PASTE_OFF = "\x1b[?2004l";
 const SHELL_QUIET_FALLBACK = "3 seconds";
 
-function lineEditorReading(text: string, previous: boolean): boolean {
+function lineEditorReading(text: string, previous: boolean) {
   const on = text.lastIndexOf(BRACKETED_PASTE_ON);
   const off = text.lastIndexOf(BRACKETED_PASTE_OFF);
   return on === off ? previous : on > off;
@@ -160,7 +160,7 @@ function lineEditorReading(text: string, previous: boolean): boolean {
 
 type CompletionShell = "posix" | "fish" | "nushell" | "powershell";
 
-function resolveCompletionShell(shell: string): CompletionShell | null {
+function resolveCompletionShell(shell: string) {
   const name = (shell.split(/[/\\]/).at(-1) ?? shell).toLowerCase().replace(/\.exe$/, "");
   if (name === "cmd") return null;
   if (name === "fish") return "fish";
@@ -173,7 +173,7 @@ const utf8 = new TextEncoder();
 const POSIX_MAX_LINE_BYTES = 1_023;
 const POSIX_APPEND = '__supaterm_command="$__supaterm_command"';
 
-function encodePosixScript(text: string): string {
+function encodePosixScript(text: string) {
   let encoded = "";
   for (const character of text) {
     const code = character.charCodeAt(0);
@@ -188,7 +188,7 @@ function encodePosixScript(text: string): string {
   return encoded;
 }
 
-function wrapPosixCommand(command: string, sentinel: string): string {
+function wrapPosixCommand(command: string, sentinel: string) {
   const normalized = command.replace(/\r\n/g, "\n");
   const evaluate = (payload: string) =>
     `( __supaterm_command=$(printf '%b_' ${payload}); eval "\${__supaterm_command%_}" ); printf '\\n${sentinel}%s\\n' "$?"`;
@@ -219,11 +219,7 @@ function wrapPosixCommand(command: string, sentinel: string): string {
   return lines.join("\r ");
 }
 
-function wrapCommandForCompletion(
-  command: string,
-  shell: CompletionShell,
-  sentinel: string,
-): string {
+function wrapCommandForCompletion(command: string, shell: CompletionShell, sentinel: string) {
   const body = command.replace(/\r?\n/g, "\r");
   switch (shell) {
     case "powershell":

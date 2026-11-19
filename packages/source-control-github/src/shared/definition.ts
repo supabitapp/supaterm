@@ -28,12 +28,12 @@ const REPOSITORY_PAGE_PATH = /^\/([^/]+\/[^/]+)\/(?:tree|blob)\/[^/]/u;
 
 const KIND = SourceControlProviderKind.make("github");
 
-function isGitHubHost(hostname: string): boolean {
+function isGitHubHost(hostname: string) {
   const host = hostname.toLowerCase();
   return host === "github.com" || host.endsWith(".ghe.com") || host.split(".").includes("github");
 }
 
-function isRepositoryPath(repository: string): boolean {
+function isRepositoryPath(repository: string) {
   const segments = repository.split("/");
   return (
     segments.length === 2 &&

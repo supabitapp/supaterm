@@ -9,7 +9,7 @@ export interface TerminalCloseTarget {
 }
 
 /** Whether a terminal-close action is waiting on settings or user confirmation. */
-export function isTerminalCloseConfirmPending(): boolean {
+export function isTerminalCloseConfirmPending() {
   return pendingConfirmations > 0;
 }
 
@@ -26,7 +26,7 @@ export async function confirmClose(message: string) {
   }
 }
 
-async function terminalCloseConfirmationEnabled(): Promise<boolean> {
+async function terminalCloseConfirmationEnabled() {
   pendingConfirmations += 1;
   try {
     await ensureClientSettingsHydrated();
@@ -44,9 +44,7 @@ async function terminalCloseConfirmationEnabled(): Promise<boolean> {
  * one at a time or in bulk. Auto-exit cleanup skips this path and closes
  * directly.
  */
-export async function confirmTerminalClose(
-  targets: readonly TerminalCloseTarget[],
-): Promise<boolean> {
+export async function confirmTerminalClose(targets: readonly TerminalCloseTarget[]) {
   const runningTargets = targets.filter((target) => target.hasRunningSubprocess);
   if (runningTargets.length === 0) return true;
   if (!(await terminalCloseConfirmationEnabled())) return true;

@@ -4,7 +4,7 @@ import * as NodeFS from "node:fs";
 const TERMINATE_GRACE_MS = 5_000;
 const KILL_WAIT_MS = 1_000;
 
-const readProc = (path: string): string | undefined => {
+const readProc = (path: string) => {
   try {
     return NodeFS.readFileSync(path, "utf8");
   } catch {
@@ -12,7 +12,7 @@ const readProc = (path: string): string | undefined => {
   }
 };
 
-const childPids = (pid: number): ReadonlyArray<number> => {
+const childPids = (pid: number) => {
   let tasks: ReadonlyArray<string>;
   try {
     tasks = NodeFS.readdirSync(`/proc/${pid}/task`);
@@ -27,13 +27,13 @@ const childPids = (pid: number): ReadonlyArray<number> => {
   );
 };
 
-const isZygote = (pid: number): boolean =>
+const isZygote = (pid: number) =>
   (readProc(`/proc/${pid}/cmdline`) ?? "")
     .replaceAll("\0", " ")
     .split(" ")
     .includes("--type=zygote");
 
-const isRunning = (pid: number): boolean => {
+const isRunning = (pid: number) => {
   const stat = readProc(`/proc/${pid}/stat`);
   if (stat === undefined) return false;
   const state = stat.charAt(stat.lastIndexOf(")") + 2);
@@ -48,7 +48,7 @@ const signal = (pids: ReadonlyArray<number>, name: NodeJS.Signals) => {
   }
 };
 
-const waitUntilStopped = (pids: ReadonlyArray<number>, maxMs: number): ReadonlyArray<number> => {
+const waitUntilStopped = (pids: ReadonlyArray<number>, maxMs: number) => {
   const tick = new Int32Array(new SharedArrayBuffer(4));
   let running = pids.filter(isRunning);
   for (let waited = 0; waited < maxMs && running.length > 0; waited += 10) {
@@ -63,7 +63,7 @@ const waitUntilStopped = (pids: ReadonlyArray<number>, maxMs: number): ReadonlyA
  * as soon as main exits, so children left running then die with SIGBUS. Linux only (/proc).
  * Returns the pids that needed SIGKILL.
  */
-export const stopChildProcessesBeforeExit = (pid: number): ReadonlyArray<number> => {
+export const stopChildProcessesBeforeExit = (pid: number) => {
   const children = childPids(pid);
   signal(children, "SIGTERM");
   const survivors = waitUntilStopped(children, TERMINATE_GRACE_MS);
@@ -76,7 +76,7 @@ export const stopChildProcessesBeforeExit = (pid: number): ReadonlyArray<number>
  * Chromium's zygotes exit only after main does, so on an AppImage they outlive the mount even on
  * an orderly quit. Kills them while main still holds the image mounted. Linux only (/proc).
  */
-export const stopZygotesBeforeExit = (pid: number): void => {
+export const stopZygotesBeforeExit = (pid: number) => {
   const zygotes = childPids(pid).filter(isZygote);
   signal(zygotes, "SIGKILL");
   waitUntilStopped(zygotes, KILL_WAIT_MS);

@@ -22,14 +22,16 @@ const SAFE_INTEGER_BOUNDS: Record<string, number> = {
 const isNonStringEnum = (key: string, value: unknown) =>
   key === "enum" && Array.isArray(value) && value.some((item) => typeof item !== "string");
 
-const tagOf = (branch: JsonObject, key: string): unknown => {
+const tagOf: (branch: JsonObject, key: string) => unknown = (branch: JsonObject, key: string) => {
   const property = Predicate.isObject(branch.properties) ? branch.properties[key] : undefined;
   return Predicate.isObject(property) && Array.isArray(property.enum) && property.enum.length === 1
     ? property.enum[0]
     : undefined;
 };
 
-const mergeTaggedObjects = (branches: ReadonlyArray<unknown>): JsonObject | undefined => {
+const mergeTaggedObjects: (branches: ReadonlyArray<unknown>) => JsonObject | undefined = (
+  branches: ReadonlyArray<unknown>,
+) => {
   if (branches.length < 2) return undefined;
   const objects = branches.filter(
     (branch): branch is JsonObject & { properties: JsonObject } =>
@@ -67,7 +69,10 @@ const mergeTaggedObjects = (branches: ReadonlyArray<unknown>): JsonObject | unde
   return { type: "object", properties, required: [tag, ...requiredByAll] };
 };
 
-const compact = (schema: unknown, optional: boolean): unknown => {
+const compact: (schema: unknown, optional: boolean) => unknown = (
+  schema: unknown,
+  optional: boolean,
+) => {
   if (Array.isArray(schema)) return schema.map((item) => compact(item, false));
   if (!Predicate.isObject(schema)) return schema;
   const required = new Set(Array.isArray(schema.required) ? schema.required : []);

@@ -60,24 +60,18 @@ const PRESET_SETTINGS: Record<BackgroundActivityProfile, ResolvedBackgroundActiv
   },
 };
 
-export function getBackgroundActivityPresetSettings(
-  profile: BackgroundActivityProfile,
-): ResolvedBackgroundActivitySettings {
+export function getBackgroundActivityPresetSettings(profile: BackgroundActivityProfile) {
   return PRESET_SETTINGS[profile];
 }
 
-export function getBackgroundActivityBaseProfile(
-  backgroundActivity: BackgroundActivitySettings,
-): BackgroundActivityProfile {
+export function getBackgroundActivityBaseProfile(backgroundActivity: BackgroundActivitySettings) {
   if (backgroundActivity.profile === "custom") {
     return backgroundActivity.baseProfile ?? DEFAULT_BACKGROUND_ACTIVITY_PROFILE;
   }
   return backgroundActivity.profile;
 }
 
-function resolveBackgroundActivitySettings(
-  backgroundActivity: BackgroundActivitySettings,
-): ResolvedBackgroundActivitySettings {
+function resolveBackgroundActivitySettings(backgroundActivity: BackgroundActivitySettings) {
   const baseProfile = getBackgroundActivityBaseProfile(backgroundActivity);
   const preset = PRESET_SETTINGS[baseProfile];
   const overrides = backgroundActivity.profile === "custom" ? backgroundActivity.overrides : {};
@@ -99,14 +93,14 @@ function resolveBackgroundActivitySettings(
   };
 }
 
-function durationsEqual(a: Duration.Duration, b: Duration.Duration): boolean {
+function durationsEqual(a: Duration.Duration, b: Duration.Duration) {
   return Duration.toMillis(a) === Duration.toMillis(b);
 }
 
 function resolvedSettingsEqual(
   a: ResolvedBackgroundActivitySettings,
   b: ResolvedBackgroundActivitySettings,
-): boolean {
+) {
   return (
     durationsEqual(a.automaticGitFetchInterval, b.automaticGitFetchInterval) &&
     durationsEqual(a.providerHealthRefreshInterval, b.providerHealthRefreshInterval) &&
@@ -122,13 +116,13 @@ function resolvedSettingsEqual(
 
 export function normalizeBackgroundActivitySettings(
   backgroundActivity: BackgroundActivitySettings,
-): BackgroundActivitySettings {
+) {
   if (backgroundActivity.profile !== "custom") {
     return {
       schemaVersion: 1,
       profile: backgroundActivity.profile,
       overrides: {},
-    };
+    } satisfies BackgroundActivitySettings;
   }
 
   const resolved = resolveBackgroundActivitySettings(backgroundActivity);
@@ -144,7 +138,7 @@ export function normalizeBackgroundActivitySettings(
         schemaVersion: 1,
         profile,
         overrides: {},
-      };
+      } satisfies BackgroundActivitySettings;
     }
   }
 
@@ -191,18 +185,21 @@ export function normalizeBackgroundActivitySettings(
     profile: "custom",
     baseProfile,
     overrides,
-  };
+  } satisfies BackgroundActivitySettings;
 }
 
 export function resolveServerBackgroundActivitySettings(
   settings: Pick<ServerSettings, "backgroundActivity">,
-): ResolvedBackgroundActivitySettings {
+) {
   return resolveBackgroundActivitySettings(settings.backgroundActivity);
 }
 
 export function normalizeServerBackgroundActivitySettings(
   settings: Pick<ServerSettings, "backgroundActivity">,
-): BackgroundActivitySettings {
+): BackgroundActivitySettings;
+export function normalizeServerBackgroundActivitySettings(
+  settings: Pick<ServerSettings, "backgroundActivity">,
+) {
   const resolved = resolveServerBackgroundActivitySettings(settings);
   return normalizeBackgroundActivitySettings({
     schemaVersion: 1,
@@ -219,5 +216,5 @@ export function normalizeServerBackgroundActivitySettings(
       pauseWhenClientLowPower: resolved.pauseWhenClientLowPower,
       pauseWhenOnBattery: resolved.pauseWhenOnBattery,
     },
-  });
+  }) satisfies BackgroundActivitySettings;
 }

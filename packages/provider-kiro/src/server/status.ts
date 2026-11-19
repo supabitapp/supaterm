@@ -89,9 +89,11 @@ const snapshot = (
     probe,
   });
 
-export const buildInitialKiroProviderSnapshot = Effect.fn(
+export const buildInitialKiroProviderSnapshot: (
+  settings: KiroSettings,
+) => Effect.Effect<ServerProviderDraft> = Effect.fn(
   "KiroProvider.buildInitialKiroProviderSnapshot",
-)(function* (settings: KiroSettings): Effect.fn.Return<ServerProviderDraft> {
+)(function* (settings: KiroSettings) {
   const now = yield* DateTime.now;
   return snapshot(settings, DateTime.formatIso(now), {
     installed: settings.enabled,
@@ -136,23 +138,29 @@ const decodeKiroWhoami = Schema.decodeUnknownOption(KiroWhoami);
 export function kiroAuthFromWhoami(
   output: { readonly code: number; readonly stdout: string } | undefined,
   environment: NodeJS.ProcessEnv,
-): ServerProviderAuth {
-  if (output === undefined) return { status: "unknown" };
+) {
+  if (output === undefined) return { status: "unknown" } satisfies ServerProviderAuth;
   if (output.code !== 0) {
-    return output.stdout.includes('"account":null')
-      ? { status: "unauthenticated" }
-      : { status: "unknown" };
+    return (
+      output.stdout.includes('"account":null')
+        ? { status: "unauthenticated" }
+        : { status: "unknown" }
+    ) satisfies ServerProviderAuth;
   }
   const firstLine = output.stdout.trimStart().split("\n", 1)[0] ?? "";
   const account = Option.getOrUndefined(decodeKiroWhoami(firstLine.trim()));
   if (account?.accountType === "ApiKey" || environment[KIRO_API_KEY_ENV]?.trim()) {
-    return { status: "authenticated", type: "api_key", label: "Kiro API key" };
+    return {
+      status: "authenticated",
+      type: "api_key",
+      label: "Kiro API key",
+    } satisfies ServerProviderAuth;
   }
   return {
     status: "authenticated",
     label: "Kiro account",
     ...(account?.email ? { email: account.email } : {}),
-  };
+  } satisfies ServerProviderAuth;
 }
 
 const CLAUDE_EFFORT_LEVELS = ["low", "medium", "high", "xhigh", "max"];
@@ -186,7 +194,7 @@ const KIRO_EFFORT_LABELS: Readonly<Record<string, string>> = {
   max: "Max",
 };
 
-function kiroModelCapabilities(modelId: string): ModelCapabilities {
+function kiroModelCapabilities(modelId: string) {
   const effort = KIRO_MODEL_EFFORT[modelId];
   if (effort === undefined) return EMPTY_CAPABILITIES;
   return createModelCapabilities({
@@ -219,7 +227,7 @@ const decodeKiroModelList = Schema.decodeUnknownOption(KiroModelList);
 
 function kiroModelsFromList(
   output: { readonly code: number; readonly stdout: string } | undefined,
-): ReadonlyArray<ServerProviderModel> | undefined {
+) {
   if (output === undefined || output.code !== 0) return undefined;
   const list = Option.getOrUndefined(decodeKiroModelList(output.stdout.trim()));
   if (list === undefined || list.models.length === 0) return undefined;
@@ -250,7 +258,7 @@ function kiroModelsFromList(
  * Kiro's own id for "Kiro default": the alias the model list gave it, else
  * `auto`, Kiro's documented default.
  */
-export function kiroDefaultModelId(models: ReadonlyArray<ServerProviderModel>): string {
+export function kiroDefaultModelId(models: ReadonlyArray<ServerProviderModel>) {
   return (
     models.find((model) => model.slug === KIRO_DEFAULT_MODEL_SLUG)?.aliases?.[0] ??
     KIRO_FALLBACK_DEFAULT_MODEL
@@ -282,7 +290,7 @@ const decodeKiroConfigTemplate = Schema.decodeUnknownOption(KiroConfigTemplate);
  * opening a session. The template reads no workspace, so a project's
  * `.kiro/agents` are not offered.
  */
-export function kiroAgentDescriptor(template: unknown): ProviderOptionDescriptor | undefined {
+export function kiroAgentDescriptor(template: unknown) {
   const decoded = Option.getOrUndefined(decodeKiroConfigTemplate(template));
   const mode = decoded?.configOptions.find(
     (option) => option.id === KIRO_AGENT_CONFIG_ID && option.type === "select",
@@ -303,7 +311,7 @@ export function kiroAgentDescriptor(template: unknown): ProviderOptionDescriptor
           },
         ];
   });
-  if (choices.length < 2) return undefined;
+  if (choices.length < 2) return undefined satisfies ProviderOptionDescriptor | undefined;
   return {
     id: KIRO_AGENT_CONFIG_ID,
     label: "Agent",
@@ -312,7 +320,7 @@ export function kiroAgentDescriptor(template: unknown): ProviderOptionDescriptor
     ...(defaultAgent !== undefined && choices.some((choice) => choice.isDefault)
       ? { currentValue: defaultAgent }
       : {}),
-  };
+  } satisfies ProviderOptionDescriptor | undefined;
 }
 
 const probeKiroAgents = Effect.fn("KiroProvider.probeKiroAgents")(function* (
@@ -329,14 +337,17 @@ const probeKiroAgents = Effect.fn("KiroProvider.probeKiroAgents")(function* (
   return kiroAgentDescriptor(yield* runtime.request("_kiro/config/template", {}));
 }, Effect.scoped);
 
-export const checkKiroProviderStatus = Effect.fn("checkKiroProviderStatus")(function* (
+export const checkKiroProviderStatus: (
   settings: KiroSettings,
   environment: NodeJS.ProcessEnv,
-): Effect.fn.Return<
+) => Effect.Effect<
   ServerProviderDraft,
   never,
   ChildProcessSpawner.ChildProcessSpawner | SecureRandom.SecureRandom
-> {
+> = Effect.fn("checkKiroProviderStatus")(function* (
+  settings: KiroSettings,
+  environment: NodeJS.ProcessEnv,
+) {
   const checkedAt = DateTime.formatIso(yield* DateTime.now);
   if (!settings.enabled) {
     return snapshot(settings, checkedAt, {

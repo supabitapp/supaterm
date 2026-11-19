@@ -8,7 +8,7 @@ const PanelAnimationSuppressionContext = createContext(false);
 
 export const PanelAnimationSuppressionProvider = PanelAnimationSuppressionContext.Provider;
 
-export function usePanelNavigationSuppression(navigationKey: string): boolean {
+export function usePanelNavigationSuppression(navigationKey: string) {
   const [paintedNavigationKey, setPaintedNavigationKey] = useState<string | null>(null);
   const suppressed = paintedNavigationKey !== navigationKey;
 
@@ -28,10 +28,7 @@ export function usePanelNavigationSuppression(navigationKey: string): boolean {
   return suppressed;
 }
 
-export function usePanelAnimationSettings(): {
-  active: boolean;
-  durationMs: number;
-} {
+export function usePanelAnimationSettings() {
   const prefersReducedMotion = useMediaQuery("(prefers-reduced-motion: reduce)");
   const suppressed = useContext(PanelAnimationSuppressionContext);
   const active = !prefersReducedMotion && !suppressed;
@@ -45,7 +42,7 @@ export function usePanelPresence<T>(
   animated: boolean,
   scopeKey: string | null,
   durationMs: number,
-): { present: boolean; value: T | null } {
+) {
   const [present, setPresent] = useState(open);
   const [retained, setRetained] = useState<{ scopeKey: string | null; value: T | null } | null>(
     open ? { scopeKey, value } : null,

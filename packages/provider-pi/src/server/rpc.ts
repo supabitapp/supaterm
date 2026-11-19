@@ -24,7 +24,7 @@ export class PiRpcError extends Schema.TaggedError<PiRpcError>()("PiRpcError", {
   detail: Schema.optional(Schema.String),
   cause: Schema.optional(Schema.Defect()),
 }) {
-  override get message(): string {
+  override get message() {
     return `Pi RPC ${this.operation} failed${this.detail === undefined ? "" : `: ${this.detail}`}.`;
   }
 }
@@ -36,31 +36,28 @@ export class PiRpcTimeoutError extends Schema.TaggedError<PiRpcTimeoutError>()(
     timeoutMs: Schema.Int.check(Schema.isBetween({ minimum: 0, maximum: Number.MAX_SAFE_INTEGER })),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Pi RPC ${this.operation} failed: timed out after ${this.timeoutMs}ms.`;
   }
 }
 
 export type PiRpcRecord = Record<string, unknown>;
 
-export function piRecordField(input: unknown, key: string): unknown {
+export function piRecordField(input: unknown, key: string) {
   return Predicate.isObject(input) ? input[key] : undefined;
 }
 
-export function piRecordString(input: unknown, key: string): string | undefined {
+export function piRecordString(input: unknown, key: string) {
   const value = piRecordField(input, key);
   return Predicate.isString(value) ? value : undefined;
 }
 
-export function piRecordNumber(input: unknown, key: string): number | undefined {
+export function piRecordNumber(input: unknown, key: string) {
   const value = piRecordField(input, key);
   return Predicate.isNumber(value) && Number.isFinite(value) ? value : undefined;
 }
 
-export function findReportedPiModel(
-  slug: string,
-  reportedModels: unknown,
-): { provider: string; modelId: string } | undefined {
+export function findReportedPiModel(slug: string, reportedModels: unknown) {
   if (!Array.isArray(reportedModels)) return undefined;
   for (const model of reportedModels) {
     const provider = piRecordString(model, "provider");
@@ -71,10 +68,7 @@ export function findReportedPiModel(
   return undefined;
 }
 
-export function resolvePiModelSlug(
-  slug: string,
-  reportedModels: unknown,
-): { provider: string; modelId: string } | null {
+export function resolvePiModelSlug(slug: string, reportedModels: unknown) {
   const reported = findReportedPiModel(slug, reportedModels);
   if (reported !== undefined) return reported;
   const separator = slug.indexOf("/");
@@ -158,7 +152,7 @@ const encodeJsonLine = Schema.encodeSync(UnknownFromJsonString);
 
 const PI_ERROR_DETAIL_MAX_CHARS = 200;
 
-function summarizePiError(error: unknown): string {
+function summarizePiError(error: unknown) {
   const text = typeof error === "string" ? error : JSON.stringify(error);
   if (text === undefined) return "unknown error";
   return text.length > PI_ERROR_DETAIL_MAX_CHARS
@@ -166,14 +160,14 @@ function summarizePiError(error: unknown): string {
     : text;
 }
 
-function describePiStdoutClosure(exitCode: number | undefined): string {
+function describePiStdoutClosure(exitCode: number | undefined) {
   if (exitCode === undefined || !Number.isFinite(exitCode)) {
     return "pi process closed stdout";
   }
   return `pi process exited with code ${exitCode}`;
 }
 
-function parsePiRecord(line: string): PiRpcRecord | undefined {
+function parsePiRecord(line: string) {
   try {
     const parsed: unknown = decodeJsonLine(line);
     return Predicate.isObject(parsed) ? parsed : undefined;
@@ -217,7 +211,7 @@ export const makePiRpcConnection = Effect.fnUntraced(function* (options: PiRpcSp
   let childExited = false;
   let diagnosingStdoutClose = false;
 
-  const killProcessGroup = (signal: NodeJS.Signals): boolean => {
+  const killProcessGroup = (signal: NodeJS.Signals) => {
     try {
       if (platform === "win32") {
         process.kill(Number(child.pid), signal);
@@ -230,7 +224,7 @@ export const makePiRpcConnection = Effect.fnUntraced(function* (options: PiRpcSp
     }
   };
 
-  const hasExited = (): boolean => {
+  const hasExited = () => {
     if (childExited) return true;
     try {
       if (platform === "win32") process.kill(Number(child.pid), 0);
@@ -385,9 +379,7 @@ export const makePiRpcConnection = Effect.fnUntraced(function* (options: PiRpcSp
     Effect.forkIn(scope),
   );
 
-  const send = Effect.fnUntraced(function* (
-    record: PiRpcRecord,
-  ): Effect.fn.Return<void, PiRpcError> {
+  const send = Effect.fnUntraced(function* (record: PiRpcRecord) {
     const accepted = yield* Queue.offer(
       outgoing,
       new TextEncoder().encode(`${encodeJsonLine(record)}\n`),
@@ -400,7 +392,7 @@ export const makePiRpcConnection = Effect.fnUntraced(function* (options: PiRpcSp
   const request = Effect.fn("PiRpc.request")(function* (
     record: PiRpcRecord,
     timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS,
-  ): Effect.fn.Return<unknown, PiRpcError | PiRpcTimeoutError> {
+  ) {
     const id = `supaterm-${nextRequestId++}`;
     const deferred = yield* Deferred.make<unknown, PiRpcError>();
     pendingRequests.set(id, { deferred });

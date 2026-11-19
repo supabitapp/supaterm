@@ -14,12 +14,10 @@ export interface SupatermToolAvailability {
   readonly device: boolean;
 }
 
-const normalizeAvailability = (
-  availability: boolean | SupatermToolAvailability,
-): SupatermToolAvailability =>
+const normalizeAvailability = (availability: boolean | SupatermToolAvailability) =>
   typeof availability === "boolean" ? { browser: availability, device: false } : availability;
 
-const toolInstructions = (availability: boolean | SupatermToolAvailability): string => {
+const toolInstructions = (availability: boolean | SupatermToolAvailability) => {
   const tools = normalizeAvailability(availability);
   return [
     tools.browser ? SUPATERM_BROWSER_TOOL_INSTRUCTIONS : "",
@@ -43,7 +41,7 @@ export interface CodexRuntimeInfo {
 export function buildCodexAdditionalContext(
   runtime: CodexRuntimeInfo,
   toolsAvailable: boolean | SupatermToolAvailability = true,
-): Record<string, V2TurnStartParams__AdditionalContextEntry> {
+) {
   const tools = toolInstructions(toolsAvailable);
 
   return {
@@ -58,5 +56,5 @@ export function buildCodexAdditionalContext(
       value: buildRuntimeInstructions({ harness: "Codex", ...runtime }),
     },
     ...(tools ? { supaterm_tools: { kind: "application", value: tools } } : {}),
-  };
+  } satisfies Record<string, V2TurnStartParams__AdditionalContextEntry>;
 }

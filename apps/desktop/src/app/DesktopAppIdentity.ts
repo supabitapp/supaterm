@@ -24,7 +24,7 @@ export class DesktopAppIdentity extends Context.Service<
   }
 >()("@supaterm/desktop/app/DesktopAppIdentity") {}
 
-const normalizeCommitHash = (value: string): Option.Option<string> => {
+const normalizeCommitHash = (value: string) => {
   const trimmed = value.trim();
   return COMMIT_HASH_PATTERN.test(trimmed)
     ? Option.some(trimmed.slice(0, COMMIT_HASH_DISPLAY_LENGTH).toLowerCase())

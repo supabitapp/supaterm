@@ -18,9 +18,10 @@ export const PREFERRED_HIGHLIGHTER: HighlighterTypes = canUseWASM() ? "highlight
 
 const highlighterPromiseCache = new Map<string, Promise<DiffsHighlighter>>();
 
-export function getSyntaxHighlighterPromise(language: string): Promise<DiffsHighlighter> {
+export function getSyntaxHighlighterPromise(language: string): Promise<DiffsHighlighter>;
+export function getSyntaxHighlighterPromise(language: string) {
   const cached = highlighterPromiseCache.get(language);
-  if (cached) return cached;
+  if (cached) return cached satisfies Promise<DiffsHighlighter>;
 
   const promise = getSharedHighlighter({
     themes: [resolveDiffThemeName("dark"), resolveDiffThemeName("light")],
@@ -34,5 +35,5 @@ export function getSyntaxHighlighterPromise(language: string): Promise<DiffsHigh
     return getSyntaxHighlighterPromise("text");
   });
   highlighterPromiseCache.set(language, promise);
-  return promise;
+  return promise satisfies Promise<DiffsHighlighter>;
 }

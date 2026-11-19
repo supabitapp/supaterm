@@ -42,7 +42,7 @@ export function nativeDiagramStyles(root: XmlAST, palette: Readonly<Record<strin
     for (const [key, value] of Object.entries(props)) {
       if (key.startsWith("--") && typeof value === "string") variables[key] = value;
     }
-    function resolve(value: string): string {
+    function resolve(value: string) {
       let result = value;
       for (let depth = 0; depth < 16 && result.includes("var("); depth++) {
         const next = result.replace(

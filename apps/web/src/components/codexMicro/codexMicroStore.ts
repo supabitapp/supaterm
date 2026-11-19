@@ -1,7 +1,6 @@
 import type {
   CodexMicroAction,
   CodexMicroAgentKey,
-  CodexMicroDeviceState,
   CodexMicroInputEvent,
   CodexMicroSlotStatus,
   CodexMicroThreadRef,
@@ -41,26 +40,26 @@ function subscribe(listener: () => void) {
   };
 }
 
-export function publishCodexMicroSlots(next: ReadonlyArray<CodexMicroSlotView>): void {
+export function publishCodexMicroSlots(next: ReadonlyArray<CodexMicroSlotView>) {
   slotViews = next;
   emit();
 }
 
-export function publishCodexMicroInput(event: CodexMicroInputEvent): void {
+export function publishCodexMicroInput(event: CodexMicroInputEvent) {
   pressedInput = { event, at: Date.now() };
   emit();
 }
 
 /** The six agent-key bindings the coordinator last sent to the keyboard; empty while it is off. */
-export function useCodexMicroSlots(): ReadonlyArray<CodexMicroSlotView> {
+export function useCodexMicroSlots() {
   return useSyncExternalStore(subscribe, () => slotViews);
 }
 
 /** The latest keyboard input, for momentary press feedback. */
-export function useCodexMicroPressedInput(): CodexMicroPressedInput | null {
+export function useCodexMicroPressedInput() {
   return useSyncExternalStore(subscribe, () => pressedInput);
 }
 
-export function useCodexMicroDeviceState(): CodexMicroDeviceState | null {
+export function useCodexMicroDeviceState() {
   return useDesktopDeviceState(getCodexMicroBridge());
 }

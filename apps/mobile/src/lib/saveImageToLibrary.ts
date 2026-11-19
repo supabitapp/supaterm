@@ -3,11 +3,11 @@ import { Platform } from "react-native";
 
 const SAVABLE_IMAGE_MIME_TYPE = /^image\/(png|jpe?g|gif|webp|heic|heif)$/i;
 
-function baseMimeType(mimeType: string): string {
+function baseMimeType(mimeType: string) {
   return mimeType.split(";", 1)[0]?.trim() ?? "";
 }
 
-export function canSaveImageToLibrary(mimeType: string): boolean {
+export function canSaveImageToLibrary(mimeType: string) {
   return (
     SAVABLE_IMAGE_MIME_TYPE.test(baseMimeType(mimeType)) &&
     (Platform.OS === "ios" || (Platform.OS === "android" && Platform.Version >= 29))
@@ -15,7 +15,7 @@ export function canSaveImageToLibrary(mimeType: string): boolean {
 }
 
 /** Adds a local image file to Photos on iOS or Pictures/Supaterm on Android. */
-export function saveImageToLibrary(uri: string, mimeType: string, name: string): Promise<void> {
+export function saveImageToLibrary(uri: string, mimeType: string, name: string) {
   return requireNativeModule<{
     saveImageToLibrary(uri: string, mimeType: string, name: string): Promise<void>;
   }>("SupatermNativeControls").saveImageToLibrary(uri, baseMimeType(mimeType), name);

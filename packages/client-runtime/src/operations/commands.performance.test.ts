@@ -57,15 +57,16 @@ const encodeDispatchCommandOutput = Schema.encodeSync(
   Schema.toCodecJson(OrchestrationV2DispatchCommandResult),
 );
 
-function encodedBytes(value: unknown): number {
-  return new TextEncoder().encode(JSON.stringify(value)).byteLength;
+function encodedBytes(value: unknown): number;
+function encodedBytes(value: unknown) {
+  return new TextEncoder().encode(JSON.stringify(value)).byteLength satisfies number;
 }
 
 function encodedRpcRequestBytes(input: {
   readonly requestId: number;
   readonly tag: string;
   readonly payload: unknown;
-}): number {
+}) {
   const request = {
     _tag: "Request",
     id: input.requestId,
@@ -77,10 +78,7 @@ function encodedRpcRequestBytes(input: {
   return encodedBytes(request);
 }
 
-function encodedRpcSuccessBytes(input: {
-  readonly requestId: number;
-  readonly value: unknown;
-}): number {
+function encodedRpcSuccessBytes(input: { readonly requestId: number; readonly value: unknown }) {
   const response = {
     _tag: "Exit",
     requestId: input.requestId,
@@ -89,7 +87,7 @@ function encodedRpcSuccessBytes(input: {
   return encodedBytes(response);
 }
 
-function makeLargeProjection(): OrchestrationV2ThreadProjection {
+function makeLargeProjection() {
   const visibleTurnItems: OrchestrationV2ProjectedTurnItem[] = Array.from(
     { length: ROW_COUNT },
     (_, index) => {

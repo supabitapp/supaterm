@@ -11,12 +11,12 @@ export type PreviewAction =
 
 const EVENT_NAME = "supaterm:preview-action";
 
-export function dispatchPreviewAction(action: PreviewAction): void {
+export function dispatchPreviewAction(action: PreviewAction) {
   if (typeof window === "undefined") return;
   window.dispatchEvent(new CustomEvent<PreviewAction>(EVENT_NAME, { detail: action }));
 }
 
-export function subscribePreviewAction(listener: (action: PreviewAction) => void): () => void {
+export function subscribePreviewAction(listener: (action: PreviewAction) => void) {
   if (typeof window === "undefined") return () => {};
   const handler = (event: Event) => {
     const detail = (event as CustomEvent<PreviewAction>).detail;

@@ -7,7 +7,7 @@ export const isEntrypoint = (input: {
   readonly moduleUrl: string;
   readonly entryPath: string | undefined;
   readonly runtimeMain: boolean | undefined;
-}): boolean => {
+}) => {
   if (input.runtimeMain !== undefined) {
     return input.runtimeMain;
   }

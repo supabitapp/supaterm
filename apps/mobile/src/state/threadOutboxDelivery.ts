@@ -89,7 +89,6 @@ import {
   type QueuedThreadCreation,
   type QueuedThreadMessage,
   type ThreadOutboxCommandStage,
-  type ThreadOutboxFailureAction,
 } from "./thread-outbox-model";
 import { environmentThreadShells, threadEnvironment, threadFamilies } from "./threads";
 import {
@@ -117,7 +116,7 @@ import { workspaceConnections } from "./workspace";
 
 const threadOutboxDebug = createDebugLogger("thread-outbox");
 
-function isRpcClientDecodeDefect(error: unknown): boolean {
+function isRpcClientDecodeDefect(error: unknown) {
   if (
     typeof error !== "object" ||
     error === null ||
@@ -135,8 +134,10 @@ function isRpcClientDecodeDefect(error: unknown): boolean {
   );
 }
 
-function isOrdinaryThreadOutboxTransportFailure(error: unknown): boolean {
-  return shouldRetryThreadOutboxDelivery(error) && !isRpcClientDecodeDefect(error);
+function isOrdinaryThreadOutboxTransportFailure(error: unknown): boolean;
+function isOrdinaryThreadOutboxTransportFailure(error: unknown) {
+  return (shouldRetryThreadOutboxDelivery(error) &&
+    !isRpcClientDecodeDefect(error)) satisfies boolean;
 }
 
 function logThreadOutboxDeliveryFailure(input: {
@@ -144,7 +145,7 @@ function logThreadOutboxDeliveryFailure(input: {
   readonly error: unknown;
   readonly interrupted: boolean;
   readonly context: Record<string, unknown>;
-}): ThreadOutboxFailureAction {
+}) {
   const action = resolveThreadOutboxFailureAction({
     stage: input.stage,
     error: input.error,
@@ -165,7 +166,7 @@ function logThreadOutboxDeliveryFailure(input: {
   return action;
 }
 
-function logThreadOutboxUploadFailure(queuedMessage: QueuedThreadMessage, error: unknown): void {
+function logThreadOutboxUploadFailure(queuedMessage: QueuedThreadMessage, error: unknown) {
   const context = {
     environmentId: queuedMessage.environmentId,
     threadId: queuedMessage.threadId,
@@ -178,7 +179,7 @@ function logThreadOutboxUploadFailure(queuedMessage: QueuedThreadMessage, error:
   }
 }
 
-function setQueuedMessageRetrying(queuedMessageId: MessageId, retrying: boolean): void {
+function setQueuedMessageRetrying(queuedMessageId: MessageId, retrying: boolean) {
   const { [queuedMessageId]: current, ...others } = appAtomRegistry.get(
     retryingQueuedMessageIdsAtom,
   );
@@ -189,7 +190,7 @@ function setQueuedMessageRetrying(queuedMessageId: MessageId, retrying: boolean)
   );
 }
 
-function beginDispatchingQueuedMessage(queuedMessageId: MessageId): void {
+function beginDispatchingQueuedMessage(queuedMessageId: MessageId) {
   setQueuedMessageRetrying(queuedMessageId, false);
   appAtomRegistry.set(dispatchingQueuedMessageIdsAtom, {
     ...appAtomRegistry.get(dispatchingQueuedMessageIdsAtom),
@@ -197,17 +198,14 @@ function beginDispatchingQueuedMessage(queuedMessageId: MessageId): void {
   });
 }
 
-function finishDispatchingQueuedMessage(queuedMessageId: MessageId): void {
+function finishDispatchingQueuedMessage(queuedMessageId: MessageId) {
   const { [queuedMessageId]: _finished, ...others } = appAtomRegistry.get(
     dispatchingQueuedMessageIdsAtom,
   );
   appAtomRegistry.set(dispatchingQueuedMessageIdsAtom, others);
 }
 
-function findThread(
-  threads: ReadonlyArray<EnvironmentThreadShell>,
-  message: QueuedThreadMessage,
-): EnvironmentThreadShell | undefined {
+function findThread(threads: ReadonlyArray<EnvironmentThreadShell>, message: QueuedThreadMessage) {
   return threads.find(
     (candidate) =>
       candidate.environmentId === message.environmentId && candidate.id === message.threadId,
@@ -217,7 +215,7 @@ function findThread(
 function findCreationProject(
   projects: ReadonlyArray<EnvironmentProject>,
   message: QueuedThreadMessage,
-): EnvironmentProject | undefined {
+) {
   return projects.find(
     (candidate) =>
       candidate.environmentId === message.environmentId &&
@@ -225,7 +223,7 @@ function findCreationProject(
   );
 }
 
-function settingsCommandId(message: QueuedThreadMessage, setting: string): CommandId {
+function settingsCommandId(message: QueuedThreadMessage, setting: string) {
   return CommandId.make(`${message.commandId}:${setting}`);
 }
 
@@ -249,7 +247,7 @@ class ThreadOutboxStorageError extends Schema.TaggedError<ThreadOutboxStorageErr
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Queued message ${this.messageId} could not ${this.operation.replaceAll("-", " ")}.`;
   }
 }
@@ -269,7 +267,7 @@ export class DeliveryRetry extends Schema.TaggedError<DeliveryRetry>()("Delivery
 
 const retryDelivery = Effect.fail(new DeliveryRetry());
 
-const isEditingQueuedMessage = (messageId: MessageId): boolean =>
+const isEditingQueuedMessage = (messageId: MessageId) =>
   appAtomRegistry.get(editingQueuedMessageIdsAtom)[messageId] !== undefined;
 
 const confirmQueued = (message: QueuedThreadMessage) =>
@@ -320,10 +318,7 @@ export const prepareQueuedMessageAttachments = Effect.fn("ThreadOutbox.prepareAt
   },
 );
 
-function isQueuedMessagePayloadCurrent(
-  message: QueuedThreadMessage,
-  expectedRevision: number,
-): boolean {
+function isQueuedMessagePayloadCurrent(message: QueuedThreadMessage, expectedRevision: number) {
   return (
     threadOutboxRevision(message.messageId) === expectedRevision &&
     Object.values(appAtomRegistry.get(threadOutboxManager.queuedMessagesByThreadKeyAtom))
@@ -594,13 +589,13 @@ export const restoreRejectedQueuedMessage = Effect.fn("ThreadOutbox.restoreRejec
   },
 );
 
-function queuedFollowUps(threadKey: string): ReadonlyArray<QueuedThreadMessage> {
+function queuedFollowUps(threadKey: string) {
   return (
     appAtomRegistry.get(threadOutboxManager.queuedMessagesByThreadKeyAtom)[threadKey] ?? []
   ).filter((message) => !message.creation);
 }
 
-function foldFollowUpIntoDraft(draftKey: string, followUp: QueuedThreadMessage): void {
+function foldFollowUpIntoDraft(draftKey: string, followUp: QueuedThreadMessage) {
   applyComposerDraftContent(draftKey, {
     text: followUp.text,
     context: followUp.context,
@@ -609,13 +604,13 @@ function foldFollowUpIntoDraft(draftKey: string, followUp: QueuedThreadMessage):
   appendComposerDraftAttachments(draftKey, followUp.attachments, { restore: true });
 }
 
-function recoveryDraftKey(queuedMessage: QueuedThreadMessage): string {
+function recoveryDraftKey(queuedMessage: QueuedThreadMessage) {
   return queuedMessage.creation
     ? restoredNewTaskDraftKey(queuedMessage.messageId)
     : scopedThreadKey(queuedMessage.environmentId, queuedMessage.threadId);
 }
 
-function stampRecoveryDraftProject(queuedMessage: QueuedThreadMessage, draftKey: string): void {
+function stampRecoveryDraftProject(queuedMessage: QueuedThreadMessage, draftKey: string) {
   if (!queuedMessage.creation) {
     return;
   }
@@ -660,7 +655,7 @@ const preserveUploadedAttachmentsForEditor = Effect.fn(
   yield* Effect.promise(() => flushComposerDrafts());
 });
 
-function releaseVoiceRecordingsQuietly(): void {
+function releaseVoiceRecordingsQuietly() {
   void releaseUnusedQueuedVoiceRecordings().catch((error: unknown) => {
     console.warn("[thread-outbox] failed to delete unused voice recordings", error);
   });
@@ -697,10 +692,13 @@ type VoiceDelivery =
  * the same command id joins the server's work, so a retry after a dropped connection never
  * sends twice. A delivered message comes back with its transcript for the caller to retire.
  */
-export const deliverQueuedVoiceMessage = Effect.fn("ThreadOutbox.deliverVoiceMessage")(function* (
+export const deliverQueuedVoiceMessage: (
   queuedMessage: QueuedThreadMessage,
   modelSelection: ModelSelection,
-): Effect.fn.Return<VoiceDelivery> {
+) => Effect.Effect<VoiceDelivery> = Effect.fn("ThreadOutbox.deliverVoiceMessage")(function* (
+  queuedMessage: QueuedThreadMessage,
+  modelSelection: ModelSelection,
+) {
   const voice = queuedMessage.voice;
   if (!voice || !(yield* confirmQueued(queuedMessage))) {
     return { status: "abandoned" };
@@ -797,7 +795,7 @@ const deliveryInputsAtom = Atom.make((get) => {
   };
 }).pipe(Atom.withLabel("mobile:thread-outbox:delivery-inputs"));
 
-const settledCreationOutcomeKeysAtom = Atom.make((get): ReadonlyArray<string> => {
+const settledCreationOutcomeKeysAtom = Atom.make((get) => {
   const outcomes = get(pendingThreadCreationOutcomesAtom);
   const threads = get(environmentThreadShells.threadShellsAtom);
   return Object.entries(outcomes).flatMap(([threadKey, outcome]) =>
@@ -815,25 +813,22 @@ const settledCreationOutcomeKeysAtom = Atom.make((get): ReadonlyArray<string> =>
   );
 }).pipe(Atom.withLabel("mobile:thread-outbox:settled-creation-outcomes"));
 
-function deliveredSequence(
-  result: AtomCommandResult<{ readonly sequence?: number }, unknown>,
-): number | undefined {
+function deliveredSequence(result: AtomCommandResult<{ readonly sequence?: number }, unknown>) {
   return AsyncResult.isSuccess(result) ? result.value.sequence : undefined;
 }
 
-const deliveryCommand = <W, A, E>(
-  command: AtomCommand<W, A, E>,
-  input: W,
-): Effect.Effect<AtomCommandResult<A, E>> =>
-  Effect.promise(() => runAtomCommand(appAtomRegistry, command, input, { reportFailure: false }));
+const deliveryCommand = <W, A, E>(command: AtomCommand<W, A, E>, input: W) =>
+  Effect.promise(() =>
+    runAtomCommand(appAtomRegistry, command, input, { reportFailure: false }),
+  ) satisfies Effect.Effect<AtomCommandResult<A, E>>;
 
 function reportCommandFailure(
   queuedMessage: QueuedThreadMessage,
   commandResult: AtomCommandResult<unknown, unknown>,
   stage: ThreadOutboxCommandStage,
-): { readonly action: "retry" | "restore"; readonly message: string } | null {
+) {
   if (!AsyncResult.isFailure(commandResult)) {
-    return null;
+    return null satisfies { readonly action: "retry" | "restore"; readonly message: string } | null;
   }
   const error = Cause.squash(commandResult.cause);
   const action = logThreadOutboxDeliveryFailure({
@@ -850,7 +845,7 @@ function reportCommandFailure(
   return {
     action,
     message: error instanceof Error ? error.message : "The message could not be sent.",
-  };
+  } satisfies { readonly action: "retry" | "restore"; readonly message: string } | null;
 }
 
 interface ThreadOutboxRetry {
@@ -882,7 +877,8 @@ type ThreadDeliveryStep =
 export function createThreadOutboxDelivery(): {
   readonly drain: () => void;
   readonly dispose: () => void;
-} {
+};
+export function createThreadOutboxDelivery() {
   let disposed = false;
   const retries = new Map<MessageId, ThreadOutboxRetry>();
   let readyEnvironmentIds = new Set<EnvironmentId>();
@@ -897,9 +893,9 @@ export function createThreadOutboxDelivery(): {
     { readonly message: QueuedThreadMessage; readonly unsubscribe: () => void }
   >();
 
-  const retryNotBefore = (messageId: MessageId): number => retries.get(messageId)?.notBefore ?? 0;
+  const retryNotBefore = (messageId: MessageId) => retries.get(messageId)?.notBefore ?? 0;
 
-  const scheduleRetry = (messageId: MessageId): void => {
+  const scheduleRetry = (messageId: MessageId) => {
     if (disposed) return;
     const attempt = (retries.get(messageId)?.attempt ?? 0) + 1;
     retries.set(messageId, {
@@ -909,7 +905,7 @@ export function createThreadOutboxDelivery(): {
     setQueuedMessageRetrying(messageId, true);
   };
 
-  const clearRetry = (messageId: MessageId): void => {
+  const clearRetry = (messageId: MessageId) => {
     if (!retries.delete(messageId)) return;
     setQueuedMessageRetrying(messageId, false);
   };
@@ -1310,7 +1306,7 @@ export function createThreadOutboxDelivery(): {
     threadKey: string,
     queuedMessages: ReadonlyArray<QueuedThreadMessage>,
     inputs: Atom.Type<typeof deliveryInputsAtom>,
-  ): ThreadDeliveryStep {
+  ) {
     const {
       editingQueuedMessageIds,
       shellStatuses,
@@ -1323,7 +1319,7 @@ export function createThreadOutboxDelivery(): {
     } = inputs;
     const nextQueuedMessage = queuedMessages[0];
     if (!nextQueuedMessage) {
-      return { _tag: "Wait" };
+      return { _tag: "Wait" } satisfies ThreadDeliveryStep;
     }
     const messageId = nextQueuedMessage.messageId;
     if (
@@ -1331,7 +1327,7 @@ export function createThreadOutboxDelivery(): {
       acknowledgedExistingThreadMessageIds.has(messageId)
     ) {
       if (retryNotBefore(messageId) > Date.now()) {
-        return { _tag: "Wait", until: retryNotBefore(messageId) };
+        return { _tag: "Wait", until: retryNotBefore(messageId) } satisfies ThreadDeliveryStep;
       }
       return {
         _tag: "Dispatch",
@@ -1340,25 +1336,25 @@ export function createThreadOutboxDelivery(): {
           nextQueuedMessage,
           acknowledgedExistingThreadMessageIds,
         ),
-      };
+      } satisfies ThreadDeliveryStep;
     }
     if (nextQueuedMessage.failure !== undefined || editingQueuedMessageIds[messageId]) {
-      return { _tag: "Wait" };
+      return { _tag: "Wait" } satisfies ThreadDeliveryStep;
     }
     const blockedRecovery = blockedRecoveries.get(messageId);
     if (blockedRecovery) {
       if (blockedRecovery.message === nextQueuedMessage) {
-        return { _tag: "Wait" };
+        return { _tag: "Wait" } satisfies ThreadDeliveryStep;
       }
       blockedRecoveries.delete(messageId);
       blockedRecovery.unsubscribe();
     }
     if (retryNotBefore(messageId) > Date.now()) {
-      return { _tag: "Wait", until: retryNotBefore(messageId) };
+      return { _tag: "Wait", until: retryNotBefore(messageId) } satisfies ThreadDeliveryStep;
     }
     let thread = findThread(threads, nextQueuedMessage);
     if (thread && scopedThreadKey(thread.environmentId, thread.id) !== threadKey) {
-      return { _tag: "Wait" };
+      return { _tag: "Wait" } satisfies ThreadDeliveryStep;
     }
 
     const creation = nextQueuedMessage.creation;
@@ -1419,10 +1415,10 @@ export function createThreadOutboxDelivery(): {
       familyRead !== undefined &&
       familyRead !== "settled"
     ) {
-      return { _tag: "Backoff", messageId };
+      return { _tag: "Backoff", messageId } satisfies ThreadDeliveryStep;
     }
     if (deliveryAction === "send" && !operableEnvironments.has(nextQueuedMessage.environmentId)) {
-      return { _tag: "Wait" };
+      return { _tag: "Wait" } satisfies ThreadDeliveryStep;
     }
     const dispatchStep = resolveThreadOutboxDispatchStep({
       deliveryAction,
@@ -1437,10 +1433,10 @@ export function createThreadOutboxDelivery(): {
         : null,
     });
     if (dispatchStep.step === "wait") {
-      return { _tag: "Wait" };
+      return { _tag: "Wait" } satisfies ThreadDeliveryStep;
     }
     if (dispatchStep.step === "retry") {
-      return { _tag: "Backoff", messageId };
+      return { _tag: "Backoff", messageId } satisfies ThreadDeliveryStep;
     }
     if (dispatchStep.step === "restore") {
       const attachmentError = dispatchStep.reason;
@@ -1453,7 +1449,7 @@ export function createThreadOutboxDelivery(): {
           }
           yield* restoreQueuedMessage(nextQueuedMessage, attachmentError);
         }),
-      };
+      } satisfies ThreadDeliveryStep;
     }
     const creationProjectCwd =
       creation !== undefined
@@ -1463,10 +1459,10 @@ export function createThreadOutboxDelivery(): {
         : null;
     if (deliveryAction === "send" && creation !== undefined) {
       if (!isQueuedThreadCreationSendable(nextQueuedMessage)) {
-        return { _tag: "Wait" };
+        return { _tag: "Wait" } satisfies ThreadDeliveryStep;
       }
       if (creationProjectCwd === null && shellStatus !== "live") {
-        return { _tag: "Wait" };
+        return { _tag: "Wait" } satisfies ThreadDeliveryStep;
       }
     }
 
@@ -1515,7 +1511,7 @@ export function createThreadOutboxDelivery(): {
         ? sendQueuedMessage(nextQueuedMessage, thread)
         : retryDelivery;
     });
-    return { _tag: "Dispatch", messageId, run };
+    return { _tag: "Dispatch", messageId, run } satisfies ThreadDeliveryStep;
   }
 
   const threadFibers = new Map<string, ThreadFiber>();
@@ -1562,11 +1558,11 @@ export function createThreadOutboxDelivery(): {
       }),
     );
 
-  function wakeThreads(): void {
+  function wakeThreads() {
     for (const { wake } of threadFibers.values()) wake.openUnsafe();
   }
 
-  function onInputs(): void {
+  function onInputs() {
     if (disposed) return;
     const { queuedMessagesByThreadKey, serverConfigs, connectedEnvironments } =
       appAtomRegistry.get(deliveryInputsAtom);
@@ -1654,10 +1650,13 @@ export function createThreadOutboxDelivery(): {
       for (const release of familyMounts.values()) release();
       familyMounts.clear();
     },
+  } satisfies {
+    readonly drain: () => void;
+    readonly dispose: () => void;
   };
 }
 
-function loadThreadOutbox(isActive: () => boolean): void {
+function loadThreadOutbox(isActive: () => boolean) {
   void threadOutboxManager.load().then((loaded) => {
     if (loaded) {
       releaseVoiceRecordingsQuietly();
@@ -1676,7 +1675,7 @@ function loadThreadOutbox(isActive: () => boolean): void {
 }
 
 /** App-lifetime: loads the persisted outbox and delivers queued messages. */
-export function installThreadOutboxDelivery(): () => void {
+export function installThreadOutboxDelivery() {
   let active = true;
   loadThreadOutbox(() => active);
   const delivery = createThreadOutboxDelivery();

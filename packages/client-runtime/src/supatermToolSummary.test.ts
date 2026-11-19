@@ -2,8 +2,8 @@ import { describe, expect, it } from "vite-plus/test";
 
 import { summarizeSupatermToolCalls, type SupatermToolSummaryCall } from "./supatermToolSummary.ts";
 
-function completed(input: unknown, output?: unknown): SupatermToolSummaryCall {
-  return { input, output, outcome: "completed" };
+function completed(input: unknown, output?: unknown) {
+  return { input, output, outcome: "completed" } satisfies SupatermToolSummaryCall;
 }
 
 describe("summarizeSupatermToolCalls", () => {

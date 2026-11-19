@@ -22,7 +22,7 @@ export function PreviewLocalServerCard({ threadRef, server, onOpen }: Props) {
   );
 }
 
-function describeServer(server: PreviewableServer): string {
+function describeServer(server: PreviewableServer) {
   if (server.processName) return server.processName;
   return "Listening";
 }

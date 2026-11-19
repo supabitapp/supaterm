@@ -83,7 +83,7 @@ function clockLabel(at: number, from: number) {
   );
 }
 
-function widgetAccounts(window: LimitPoolWindow): WidgetLimitAccount[] {
+function widgetAccounts(window: LimitPoolWindow) {
   const seen = new Map<string, number>();
   return window.columns.map((column) => {
     const base = accountName(column.account);
@@ -118,7 +118,7 @@ function subscriptionUsageProps(
   now: number,
   configuredDrivers: ReadonlySet<string>,
   maxWindowsPerProvider: number,
-): SubscriptionUsageSnapshot {
+) {
   const pools = collectLimitPools(accounts, now);
   const checked = accounts.flatMap((account) =>
     account.driver === "codex" || account.driver === "claudeAgent"
@@ -209,7 +209,7 @@ export function buildSubscriptionUsageSnapshot(
   presentations: LimitPresentations,
   url: string,
   maxWindowsPerProvider = 6,
-): SubscriptionUsageSnapshot {
+) {
   const configuredDrivers = new Set(
     [...presentations.values()].flatMap((presentation) =>
       (presentation.serverConfig?.providers ?? [])

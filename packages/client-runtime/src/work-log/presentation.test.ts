@@ -13,7 +13,7 @@ import {
 
 function commandItem(
   fields: Partial<Extract<OrchestrationV2TurnItem, { type: "command_execution" }>> = {},
-): OrchestrationV2TurnItem {
+) {
   return {
     id: TurnItemId.make("command"),
     threadId: ThreadId.make("thread"),
@@ -32,7 +32,7 @@ function commandItem(
     type: "command_execution",
     input: 'rg "command not found"',
     ...fields,
-  };
+  } satisfies OrchestrationV2TurnItem;
 }
 
 describe("workEntryIndicatesToolFailure", () => {

@@ -39,7 +39,8 @@ const tempDir = Effect.gen(function* () {
   return yield* fileSystem.makeTempDirectoryScoped({ prefix: "usage-reader-test-" });
 });
 
-function protoNumber(field: number, value: number): number[] {
+function protoNumber(field: number, value: number): number[];
+function protoNumber(field: number, value: number) {
   const varint = (number: number) => {
     const bytes: number[] = [];
     do {
@@ -49,17 +50,19 @@ function protoNumber(field: number, value: number): number[] {
     } while (number > 0);
     return bytes;
   };
-  return [...varint(field * 8), ...varint(value)];
+  return [...varint(field * 8), ...varint(value)] satisfies number[];
 }
 
-function protoBytes(field: number, bytes: readonly number[]): number[] {
+function protoBytes(field: number, bytes: readonly number[]): number[];
+function protoBytes(field: number, bytes: readonly number[]) {
   const encoded = protoNumber(field, bytes.length);
   encoded[0] = encoded[0]! + 2;
-  return [...encoded, ...bytes];
+  return [...encoded, ...bytes] satisfies number[];
 }
 
-function protoText(field: number, value: string): number[] {
-  return protoBytes(field, [...Buffer.from(value)]);
+function protoText(field: number, value: string): number[];
+function protoText(field: number, value: string) {
+  return protoBytes(field, [...Buffer.from(value)]) satisfies number[];
 }
 
 const TABLES =

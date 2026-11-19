@@ -6,7 +6,7 @@ import { isLocalLoopbackHost } from "./hostClassification.ts";
 const TAB_ID_PREFIX = "tab_";
 let nextPreviewTabSequence = 0;
 
-export function previewPdfAssetUrl(rawUrl: string, httpBaseUrl: string | null): string | null {
+export function previewPdfAssetUrl(rawUrl: string, httpBaseUrl: string | null) {
   if (httpBaseUrl === null) return null;
   try {
     const url = new URL(rawUrl);
@@ -32,7 +32,7 @@ export function previewPdfAssetUrl(rawUrl: string, httpBaseUrl: string | null): 
   }
 }
 
-export function newPreviewTabId(): string {
+export function newPreviewTabId() {
   nextPreviewTabSequence += 1;
   return `${TAB_ID_PREFIX}${nextPreviewTabSequence.toString(36)}`;
 }
@@ -48,7 +48,7 @@ export const LSOF_LOCAL_HOST_TOKENS: ReadonlySet<string> = new Set([
 
 const LOOPBACK_PREFIX_PATTERN = /^(?:localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1?\])(?::|\/|$)/i;
 
-export function isLoopbackHost(host: string): boolean {
+export function isLoopbackHost(host: string) {
   if (LOOPBACK_HOSTS.has(host)) return true;
   if (host === "[::1]") return true;
   return false;
@@ -63,7 +63,7 @@ export class PreviewUrlNormalizationError extends Schema.TaggedError<PreviewUrlN
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message(): string {
+  override get message() {
     const protocol = this.protocol === undefined ? "" : `: ${this.protocol}`;
     return `Invalid preview URL (${this.reason}${protocol}; input length ${this.inputLength}). Use an http(s) URL or a schemeless host such as localhost:5173. With preview_open, omit url when creating a new tab to open a blank tab.`;
   }
@@ -71,7 +71,7 @@ export class PreviewUrlNormalizationError extends Schema.TaggedError<PreviewUrlN
 
 export const isPreviewUrlNormalizationError = Schema.is(PreviewUrlNormalizationError);
 
-function previewUrlProtocol(rawUrl: string): string | undefined {
+function previewUrlProtocol(rawUrl: string) {
   return /^([A-Za-z][A-Za-z\d+.-]*):/.exec(rawUrl)?.[1]?.toLowerCase().concat(":");
 }
 
@@ -104,11 +104,11 @@ const BROWSER_SEARCH_URL_TEMPLATES = {
   ecosia: "https://www.ecosia.org/search?q=%s",
 } satisfies Record<Exclude<BrowserSearchEngine, "custom">, string>;
 
-function fillSearchUrlTemplate(template: string, query: string): string {
+function fillSearchUrlTemplate(template: string, query: string) {
   return template.replaceAll("%s", encodeURIComponent(query));
 }
 
-export function isValidSearchUrlTemplate(template: string): boolean {
+export function isValidSearchUrlTemplate(template: string) {
   if (!template.includes("%s")) return false;
   try {
     const authority = (url: URL) => `${url.username}:${url.password}@${url.host}`;
@@ -125,7 +125,7 @@ export function isValidSearchUrlTemplate(template: string): boolean {
 export function resolveSearchUrlTemplate(settings: {
   readonly browserSearchEngine: BrowserSearchEngine;
   readonly browserCustomSearchUrl: string;
-}): string {
+}) {
   if (settings.browserSearchEngine !== "custom") {
     return BROWSER_SEARCH_URL_TEMPLATES[settings.browserSearchEngine];
   }
@@ -136,7 +136,7 @@ export function resolveSearchUrlTemplate(settings: {
 export function resolveAddressBarInput(
   rawInput: string,
   searchUrlTemplate: string = BROWSER_SEARCH_URL_TEMPLATES.duckduckgo,
-): string {
+) {
   const trimmed = rawInput.trim();
   if (URL_SCHEME_WITH_AUTHORITY_PATTERN.test(trimmed) || trimmed.length === 0)
     return normalizePreviewUrl(trimmed);
@@ -167,7 +167,7 @@ export function resolveAddressBarInput(
   return fillSearchUrlTemplate(searchUrlTemplate, trimmed);
 }
 
-export function normalizePreviewUrl(rawUrl: string): string {
+export function normalizePreviewUrl(rawUrl: string) {
   const trimmed = rawUrl.trim();
   if (trimmed.length === 0) {
     throw new PreviewUrlNormalizationError({ inputLength: rawUrl.length, reason: "empty" });

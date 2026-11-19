@@ -95,8 +95,8 @@ function resolveSecondaryAction(input: {
   readonly onDelete: () => void;
   readonly secondaryAction: ThreadSwipeAction | null | undefined;
   readonly threadTitle: string;
-}): ThreadSwipeSecondaryAction | null {
-  if (input.secondaryAction === null) return null;
+}) {
+  if (input.secondaryAction === null) return null satisfies ThreadSwipeSecondaryAction | null;
   if (input.secondaryAction === undefined) {
     return {
       accessibilityLabel: `Delete ${input.threadTitle}`,
@@ -107,7 +107,7 @@ function resolveSecondaryAction(input: {
         input.close();
         input.onDelete();
       },
-    };
+    } satisfies ThreadSwipeSecondaryAction | null;
   }
   const action = input.secondaryAction;
   return {
@@ -127,7 +127,7 @@ function resolveSecondaryAction(input: {
       input.close();
       action.onPress();
     },
-  };
+  } satisfies ThreadSwipeSecondaryAction | null;
 }
 
 const SwipeableScrollGateContext = createContext(true);

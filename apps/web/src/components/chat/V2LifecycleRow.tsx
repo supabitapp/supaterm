@@ -192,7 +192,7 @@ const SETTLED_SUBAGENT_STATUSES = new Set<OrchestrationV2TurnItem["status"]>([
   "interrupted",
 ]);
 
-function isoOrNull(value: DateTime.Utc | null | undefined): string | null {
+function isoOrNull(value: DateTime.Utc | null | undefined) {
   return value ? DateTime.formatIso(value) : null;
 }
 

@@ -7,7 +7,7 @@ import {
   ConnectionTransientError,
 } from "./model.ts";
 
-export function profileMissingError(connectionId: string): ConnectionBlockedError {
+export function profileMissingError(connectionId: string) {
   return new ConnectionBlockedError({
     reason: "configuration",
     detail: `Connection profile ${connectionId} is unavailable.`,
@@ -15,7 +15,7 @@ export function profileMissingError(connectionId: string): ConnectionBlockedErro
   });
 }
 
-export function credentialMissingError(connectionId: string): ConnectionBlockedError {
+export function credentialMissingError(connectionId: string) {
   return new ConnectionBlockedError({
     reason: "authentication",
     detail: `Connection credential ${connectionId} is unavailable.`,
@@ -24,7 +24,7 @@ export function credentialMissingError(connectionId: string): ConnectionBlockedE
 }
 
 /** The host itself answered and refused this device's credential, which pairing again fixes. */
-export function isHostCredentialRefusal(error: ConnectionAttemptError): boolean {
+export function isHostCredentialRefusal(error: ConnectionAttemptError) {
   return (
     error._tag === "ConnectionBlockedError" &&
     error.hop === "server" &&
@@ -35,17 +35,25 @@ export function isHostCredentialRefusal(error: ConnectionAttemptError): boolean 
 export function environmentMismatchError(input: {
   readonly expected: EnvironmentId;
   readonly actual: EnvironmentId;
-}): ConnectionBlockedError {
+}): ConnectionBlockedError;
+export function environmentMismatchError(input: {
+  readonly expected: EnvironmentId;
+  readonly actual: EnvironmentId;
+}) {
   return new ConnectionBlockedError({
     reason: "configuration",
     detail: `Connected environment ${input.actual} does not match ${input.expected}.`,
-  });
+  }) satisfies ConnectionBlockedError;
 }
 
 export function mapRemoteEnvironmentError(
   error: RemoteEnvironmentAuthError,
   connectionMethod?: ClientConnectionMethod,
-): ConnectionAttemptError {
+): ConnectionAttemptError;
+export function mapRemoteEnvironmentError(
+  error: RemoteEnvironmentAuthError,
+  connectionMethod?: ClientConnectionMethod,
+) {
   const unreachableHop = connectionMethod === "relay" ? "tunnel" : "server";
   const via = connectionMethod === "relay" ? "relay" : "direct";
   switch (error._tag) {
@@ -56,7 +64,7 @@ export function mapRemoteEnvironmentError(
         traceId: error.traceId,
         hop: "server",
         via,
-      });
+      }) satisfies ConnectionAttemptError;
     case "EnvironmentScopeRequiredError":
     case "EnvironmentOperationForbiddenError":
       return new ConnectionBlockedError({
@@ -65,7 +73,7 @@ export function mapRemoteEnvironmentError(
         traceId: error.traceId,
         hop: "server",
         via,
-      });
+      }) satisfies ConnectionAttemptError;
     case "EnvironmentRequestInvalidError":
       return new ConnectionBlockedError({
         reason: "configuration",
@@ -73,7 +81,7 @@ export function mapRemoteEnvironmentError(
         traceId: error.traceId,
         hop: "server",
         via,
-      });
+      }) satisfies ConnectionAttemptError;
     case "EnvironmentResourceNotFoundError":
       return new ConnectionBlockedError({
         reason: "configuration",
@@ -81,21 +89,21 @@ export function mapRemoteEnvironmentError(
         traceId: error.traceId,
         hop: "server",
         via,
-      });
+      }) satisfies ConnectionAttemptError;
     case "RemoteEnvironmentAuthTimeoutError":
       return new ConnectionTransientError({
         reason: "timeout",
         detail: error.message,
         hop: unreachableHop,
         via,
-      });
+      }) satisfies ConnectionAttemptError;
     case "RemoteEnvironmentAuthFetchError":
       return new ConnectionTransientError({
         reason: "network",
         detail: error.message,
         hop: unreachableHop,
         via,
-      });
+      }) satisfies ConnectionAttemptError;
     case "EnvironmentInternalError":
       return new ConnectionTransientError({
         reason: "remote-unavailable",
@@ -103,22 +111,23 @@ export function mapRemoteEnvironmentError(
         traceId: error.traceId,
         hop: "server",
         via,
-      });
+      }) satisfies ConnectionAttemptError;
     case "RemoteEnvironmentAuthUndeclaredStatusError":
-      if (error.relayFailure !== undefined) return relayTunnelError(error.relayFailure);
+      if (error.relayFailure !== undefined)
+        return relayTunnelError(error.relayFailure) satisfies ConnectionAttemptError;
       return new ConnectionTransientError({
         reason: "remote-unavailable",
         detail: error.message,
         hop: "server",
         via,
-      });
+      }) satisfies ConnectionAttemptError;
     case "RemoteEnvironmentAuthInvalidJsonError":
       return new ConnectionTransientError({
         reason: "remote-unavailable",
         detail: error.message,
         hop: "server",
         via,
-      });
+      }) satisfies ConnectionAttemptError;
   }
 }
 
@@ -145,7 +154,7 @@ const relayTunnelFailures = {
   },
 } satisfies Record<RelayTunnelFailure, Pick<ConnectionTransientError, "reason" | "detail" | "hop">>;
 
-function relayTunnelError(failure: RelayTunnelFailure): ConnectionTransientError {
+function relayTunnelError(failure: RelayTunnelFailure) {
   return new ConnectionTransientError({
     ...relayTunnelFailures[failure],
     via: "relay",

@@ -5,7 +5,7 @@ import { useStableCallback } from "../hooks/useStableCallback";
 import { isMacPlatform } from "../lib/utils";
 import type { KeyHold, KeyHoldHandlers } from "./keyHold";
 
-export function holdToTalkKeyLabel(key: VoiceHoldToTalkKey): string | null {
+export function holdToTalkKeyLabel(key: VoiceHoldToTalkKey) {
   if (key === "off") return null;
   if (key === "space") return "Space";
   return isMacPlatform(navigator.platform) ? "⌥" : "Alt";
@@ -29,7 +29,7 @@ export interface HoldToTalk {
   readonly followPress: (code: string, handlers: KeyHoldHandlers) => KeyHold;
 }
 
-function withSpaceTyped({ text, selection }: ComposerDraft): string {
+function withSpaceTyped({ text, selection }: ComposerDraft) {
   return `${text.slice(0, selection.start)} ${text.slice(selection.start)}`;
 }
 

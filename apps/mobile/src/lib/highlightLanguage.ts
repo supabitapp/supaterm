@@ -11,7 +11,7 @@ setCustomExtension("xsl", "xml");
 setCustomExtension("xslt", "xml");
 
 /** The native lexer ID for a @pierre/highlights language name, or 0 (plain text). */
-export function highlightLanguageId(language: string): number {
+export function highlightLanguageId(language: string) {
   return Object.hasOwn(HIGHLIGHTS_LANGUAGE_IDS, language) ? HIGHLIGHTS_LANGUAGE_IDS[language]! : 0;
 }
 
@@ -19,7 +19,7 @@ export function highlightLanguageId(language: string): number {
 export function resolveHighlightLanguage(input: {
   readonly language?: string | null;
   readonly path?: string;
-}): string {
+}) {
   const hinted = input.language?.trim().toLowerCase();
   if (hinted && highlightLanguageId(hinted) !== 0) return hinted;
   const detected = input.path ? getFiletypeFromFileName(input.path)?.toLowerCase() : undefined;

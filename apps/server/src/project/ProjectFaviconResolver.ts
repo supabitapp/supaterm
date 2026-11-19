@@ -22,14 +22,11 @@ const FAVICON_CACHE_CAPACITY = 512;
 const FAVICON_POSITIVE_CACHE_TTL = Duration.minutes(10);
 const FAVICON_NEGATIVE_CACHE_TTL = Duration.minutes(1);
 
-function faviconCacheKey(cwd: string, faviconPath?: string): string {
+function faviconCacheKey(cwd: string, faviconPath?: string) {
   return `${faviconPath ?? ""}\0${cwd}`;
 }
 
-function parseFaviconCacheKey(key: string): {
-  readonly cwd: string;
-  readonly faviconPath?: string;
-} {
+function parseFaviconCacheKey(key: string) {
   const separatorIndex = key.indexOf("\0");
   if (separatorIndex === -1) {
     return { cwd: key };
@@ -99,14 +96,14 @@ export class ProjectFaviconResolutionError extends Schema.TaggedError<ProjectFav
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Failed to resolve project favicon during ${this.operation} for workspace ${this.workspaceRoot}.`;
   }
 }
 
 const isWorkspaceRootNotExistsError = Schema.is(WorkspacePaths.WorkspaceRootNotExistsError);
 
-export const isMissingWorkspaceRoot = (error: ProjectFaviconResolutionError): boolean =>
+export const isMissingWorkspaceRoot = (error: ProjectFaviconResolutionError) =>
   error.operation === "normalize-workspace" && isWorkspaceRootNotExistsError(error.cause);
 
 export class ProjectFaviconResolver extends Context.Service<
@@ -121,7 +118,7 @@ export class ProjectFaviconResolver extends Context.Service<
   }
 >()("supaterm/project/ProjectFaviconResolver") {}
 
-function extractIconHref(source: string): string | null {
+function extractIconHref(source: string) {
   const htmlMatch = source.match(LINK_ICON_HTML_RE);
   if (htmlMatch?.[1]) return htmlMatch[1];
   for (const run of source.split("}")) {
@@ -132,9 +129,7 @@ function extractIconHref(source: string): string | null {
   return null;
 }
 
-const optionWhenMissing = <A, R>(
-  effect: Effect.Effect<A, PlatformError.PlatformError, R>,
-): Effect.Effect<Option.Option<A>, PlatformError.PlatformError, R> =>
+const optionWhenMissing = <A, R>(effect: Effect.Effect<A, PlatformError.PlatformError, R>) =>
   effect.pipe(
     Effect.asSome,
     Effect.catchTags({
@@ -151,7 +146,7 @@ export const make = Effect.gen(function* () {
   const workspacePaths = yield* WorkspacePaths.WorkspacePaths;
   const projectFileLoader = yield* SupatermProjectFileLoader.SupatermProjectFileLoader;
 
-  const resolveIconHref = (baseDir: string, href: string): ReadonlyArray<string> => {
+  const resolveIconHref = (baseDir: string, href: string) => {
     const clean = href.trim().replace(/^\//, "");
     return [path.join(baseDir, "public", clean), path.join(baseDir, clean)];
   };
@@ -160,7 +155,7 @@ export const make = Effect.gen(function* () {
     projectCwd: string,
     relativeCandidates: ReadonlyArray<string>,
     candidateScope: "workspace" | "filesystem",
-  ): Effect.fn.Return<string | null, ProjectFaviconResolutionError> {
+  ) {
     for (const candidatePath of relativeCandidates) {
       const isNetwork = isNetworkPath(candidatePath);
       const relativePath = isNetwork ? path.resolve(candidatePath) : candidatePath;
@@ -209,7 +204,7 @@ export const make = Effect.gen(function* () {
     projectCwd: string,
     baseDir: string,
     relativeSourceFile: string,
-  ): Effect.fn.Return<string | null, ProjectFaviconResolutionError> {
+  ) {
     const sourceFile = path.join(baseDir, relativeSourceFile);
     const sourcePath = yield* workspacePaths
       .resolveRelativePathWithinRoot({
@@ -287,10 +282,7 @@ export const make = Effect.gen(function* () {
   });
 
   const listPackageDirectories = Effect.fn("ProjectFaviconResolver.listPackageDirectories")(
-    function* (
-      projectCwd: string,
-      parent: string,
-    ): Effect.fn.Return<ReadonlyArray<string>, ProjectFaviconResolutionError> {
+    function* (projectCwd: string, parent: string) {
       const parentPath = path.join(projectCwd, parent);
       const names = yield* optionWhenMissing(fileSystem.readDirectory(parentPath)).pipe(
         Effect.mapError(
@@ -315,7 +307,7 @@ export const make = Effect.gen(function* () {
   const resolvePathUncached = Effect.fn("ProjectFaviconResolver.resolvePathUncached")(function* (
     cwd: string,
     faviconPath?: string,
-  ): Effect.fn.Return<string | null, ProjectFaviconResolutionError> {
+  ) {
     const projectCwd = yield* workspacePaths.normalizeWorkspaceRoot(cwd).pipe(
       Effect.mapError(
         (cause) =>

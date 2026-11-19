@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 import type { NavigationState } from "@react-navigation/native";
 
-import type { RecentThreadShortcut } from "../../persistence/imperative";
 import {
   activeThreadRef,
   buildShortcutActions,
@@ -9,11 +8,11 @@ import {
   withRecentThreadShortcut,
 } from "./appShortcuts";
 
-function navState(route: { name: string; params?: unknown }): NavigationState {
+function navState(route: { name: string; params?: unknown }) {
   return { index: 0, routes: [route] } as unknown as NavigationState;
 }
 
-function thread(suffix: string, title = `Thread ${suffix}`): RecentThreadShortcut {
+function thread(suffix: string, title = `Thread ${suffix}`) {
   return { environmentId: `env-${suffix}`, threadId: `thread-${suffix}`, title };
 }
 

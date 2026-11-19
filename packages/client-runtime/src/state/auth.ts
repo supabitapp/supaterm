@@ -24,11 +24,7 @@ export const EMPTY_AUTH_ACCESS_SNAPSHOT: AuthAccessSnapshot = {
   clientSessions: [],
 };
 
-function upsertByKey<A>(
-  values: ReadonlyArray<A>,
-  next: A,
-  key: (value: A) => string,
-): ReadonlyArray<A> {
+function upsertByKey<A>(values: ReadonlyArray<A>, next: A, key: (value: A) => string) {
   const nextKey = key(next);
   return [...values.filter((value) => key(value) !== nextKey), next];
 }
@@ -36,7 +32,7 @@ function upsertByKey<A>(
 export function applyAuthAccessStreamEvent(
   current: AuthAccessSnapshot,
   event: AuthAccessStreamEvent,
-): AuthAccessSnapshot {
+) {
   switch (event.type) {
     case "snapshot":
       return event.payload;
@@ -69,10 +65,7 @@ export function applyAuthAccessStreamEvent(
   }
 }
 
-function projectAuthAccessSnapshot(
-  current: AuthAccessSnapshot,
-  event: AuthAccessStreamEvent,
-): readonly [AuthAccessSnapshot, ReadonlyArray<AuthAccessStreamEvent>] {
+function projectAuthAccessSnapshot(current: AuthAccessSnapshot, event: AuthAccessStreamEvent) {
   const snapshot = applyAuthAccessStreamEvent(current, event);
   const projected: AuthAccessStreamSnapshotEvent = {
     version: 1,
@@ -80,7 +73,10 @@ function projectAuthAccessSnapshot(
     type: "snapshot",
     payload: snapshot,
   };
-  return [snapshot, [projected]];
+  return [snapshot, [projected]] satisfies readonly [
+    AuthAccessSnapshot,
+    ReadonlyArray<AuthAccessStreamEvent>,
+  ];
 }
 
 /** Access management runs on the chosen environment with this client's own session there. */

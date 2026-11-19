@@ -12,7 +12,8 @@ import type {
 import { EMPTY_TOTALS, type UsageRecord } from "@supaterm/provider-core/server/usage";
 import { cacheSavingsUsd, lookupRate, priceUsage, type RateTable } from "./usagePricing.ts";
 
-function makeDayFormatter(timeZone: string): (timestampMs: number) => string {
+function makeDayFormatter(timeZone: string): (timestampMs: number) => string;
+function makeDayFormatter(timeZone: string) {
   let format: Intl.DateTimeFormat;
   try {
     format = new Intl.DateTimeFormat("en-CA", {
@@ -30,7 +31,7 @@ function makeDayFormatter(timeZone: string): (timestampMs: number) => string {
     });
   }
   const days = new Map<number, string | null>();
-  return (timestampMs) => {
+  return ((timestampMs) => {
     const slot = Math.floor(timestampMs / QUARTER_HOUR_MS);
     let day = days.get(slot);
     if (day === undefined) {
@@ -40,7 +41,7 @@ function makeDayFormatter(timeZone: string): (timestampMs: number) => string {
       days.set(slot, day);
     }
     return day ?? format.format(new Date(timestampMs));
-  };
+  }) satisfies (timestampMs: number) => string;
 }
 
 const QUARTER_HOUR_MS = 15 * 60 * 1000;
@@ -75,9 +76,7 @@ export interface AggregateOptions {
   readonly untilTimeMs?: number;
 }
 
-export function resolveModelAliases(
-  aliases: Readonly<Record<string, string>>,
-): ReadonlyMap<string, string> {
+export function resolveModelAliases(aliases: Readonly<Record<string, string>>) {
   const models = Object.keys(aliases);
   const memo = new Map<string, string | null>();
   for (const model of models) {
@@ -101,7 +100,7 @@ export function resolveModelAliases(
   return resolved;
 }
 
-function keepsUsageRecord(filter: UsageModelFilter | undefined, record: UsageRecord): boolean {
+function keepsUsageRecord(filter: UsageModelFilter | undefined, record: UsageRecord) {
   if (filter === undefined) return true;
   const model = record.model.trim();
   const matches = (selector: UsageModelSelector) =>
@@ -119,9 +118,7 @@ const canonicalSelectors = (selectors: readonly UsageModelSelector[]) =>
     .map(([, selector]) => selector);
 
 /** Equal filters get one form, so they share scans and clients can compare echoed filters. */
-export function canonicalModelFilter(
-  filter: UsageModelFilter | undefined,
-): UsageModelFilter | undefined {
+export function canonicalModelFilter(filter: UsageModelFilter | undefined) {
   if (filter === undefined) return undefined;
   const exclude = filter.exclude?.length ? canonicalSelectors(filter.exclude) : undefined;
   if (filter.include === undefined && exclude === undefined) return undefined;
@@ -141,7 +138,7 @@ export interface AggregateResult {
  * Partial copies share a billed message's key: keep each token channel's maximum and the larger
  * reported cost, and the first copy's time, model, session and speed so it stays in its bucket.
  */
-export function mergeUsageCopies(held: UsageRecord, copy: UsageRecord): UsageRecord {
+export function mergeUsageCopies(held: UsageRecord, copy: UsageRecord) {
   const a = held.totals;
   const b = copy.totals;
   const reportedCostUsd =
@@ -177,7 +174,7 @@ export function mergeUsageCopies(held: UsageRecord, copy: UsageRecord): UsageRec
   };
 }
 
-function smallestGrokCopy(held: UsageRecord, copy: UsageRecord): UsageRecord {
+function smallestGrokCopy(held: UsageRecord, copy: UsageRecord) {
   const a = held.totals;
   const b = copy.totals;
   const reportedCostUsd =
@@ -236,7 +233,7 @@ export class UsageAggregator {
     }
   }
 
-  add(input: UsageRecord, sourcePath?: string): boolean {
+  add(input: UsageRecord, sourcePath?: string) {
     if (!keepsUsageRecord(this.#options.modelFilter, input)) return false;
     const record = this.#mapModel(input);
     if (record.dedupeKey !== null) {
@@ -264,7 +261,7 @@ export class UsageAggregator {
     return true;
   }
 
-  #placeInWindow(record: UsageRecord, source: string): MutableBucket | null {
+  #placeInWindow(record: UsageRecord, source: string) {
     if (
       this.#hourlyWindow !== null &&
       (record.timestampMs < this.#hourlyWindow.sinceTimeMs ||
@@ -288,7 +285,7 @@ export class UsageAggregator {
     return this.#bucketFor(day, hourIndex, record.provider, record.model, source);
   }
 
-  #accumulate(bucket: MutableBucket, record: UsageRecord): void {
+  #accumulate(bucket: MutableBucket, record: UsageRecord) {
     const priced = priceUsage(this.#options.rates, record, this.#options.priceOverrides);
 
     const totals = bucket.totals;
@@ -331,7 +328,7 @@ export class UsageAggregator {
     if (priced.costSource === "providerReported") bucket.providerReportedRecords += 1;
   }
 
-  #mapModel(record: UsageRecord): UsageRecord {
+  #mapModel(record: UsageRecord) {
     const model = this.#options.modelAliases?.get(record.model);
     if (model === undefined) return record;
     const { rateModel: _rateModel, ...rest } = record;
@@ -342,13 +339,7 @@ export class UsageAggregator {
     return rateModel === undefined ? { ...rest, model } : { ...rest, model, rateModel };
   }
 
-  #bucketFor(
-    day: string,
-    hourIndex: number,
-    provider: string,
-    model: string,
-    source: string,
-  ): MutableBucket {
+  #bucketFor(day: string, hourIndex: number, provider: string, model: string, source: string) {
     const last = this.#lastBucket;
     if (
       last !== null &&
@@ -386,7 +377,7 @@ export class UsageAggregator {
     return bucket;
   }
 
-  finish(): AggregateResult {
+  finish() {
     for (const { record, bucket } of this.#seen.values()) {
       if (bucket !== null) this.#accumulate(bucket, record);
     }
@@ -444,11 +435,11 @@ export class UsageAggregator {
   }
 }
 
-function roundUsd(value: number): number {
+function roundUsd(value: number) {
   return Math.round(value * 1e6) / 1e6;
 }
 
-function resolveCostSource(bucket: MutableBucket): UsageBucket["costSource"] {
+function resolveCostSource(bucket: MutableBucket) {
   if (bucket.unpricedRecords === bucket.records) return "unpriced";
   if (bucket.providerReportedRecords === bucket.records) return "providerReported";
   return "modelPriced";

@@ -21,7 +21,7 @@ function response(body: string) {
   return { body, truncated: false };
 }
 
-function page(count: number, firstNumber: number, next?: string): string {
+function page(count: number, firstNumber: number, next?: string) {
   return JSON.stringify({
     pagelen: 50,
     size: count,
@@ -39,7 +39,7 @@ function page(count: number, firstNumber: number, next?: string): string {
   });
 }
 
-function valuePage(values: ReadonlyArray<unknown>, next?: string): string {
+function valuePage(values: ReadonlyArray<unknown>, next?: string) {
   return JSON.stringify({ values, ...(next === undefined ? {} : { next }) });
 }
 
@@ -47,7 +47,7 @@ const bilal = { uuid: "{bilal}", nickname: "bilal" };
 const octocat = { uuid: "{octocat}", nickname: "octocat" };
 const hubot = { uuid: "{hubot}", nickname: "hubot" };
 
-function pullRequestJson(overrides: Record<string, unknown>): string {
+function pullRequestJson(overrides: Record<string, unknown>) {
   return JSON.stringify({
     id: 7,
     title: "Pull request 7",
@@ -68,7 +68,7 @@ function callAt(index: number) {
   return call[0];
 }
 
-function filterOfCall(index: number): string | null {
+function filterOfCall(index: number) {
   const url = callAt(index).url;
   return new URLSearchParams(url.slice(url.indexOf("?") + 1)).get("q");
 }

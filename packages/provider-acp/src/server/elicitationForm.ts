@@ -32,20 +32,17 @@ export interface ElicitationForm {
   ) => Record<string, EffectAcpSchema.ElicitationContentValue> | undefined;
 }
 
-function text(value: unknown): string | undefined {
+function text(value: unknown) {
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
 }
 
-function choiceOptions(
-  entries: unknown,
-  toOption: (entry: unknown) => Option | undefined,
-): Option[] | undefined {
+function choiceOptions(entries: unknown, toOption: (entry: unknown) => Option | undefined) {
   if (!Array.isArray(entries) || entries.length === 0) return undefined;
   const options = entries.map(toOption);
   return options.every((option) => option !== undefined) ? options : undefined;
 }
 
-function enumOptions(entries: unknown): Option[] | undefined {
+function enumOptions(entries: unknown) {
   if (
     !Array.isArray(entries) ||
     entries.length === 0 ||
@@ -67,7 +64,7 @@ function enumOptions(entries: unknown): Option[] | undefined {
       });
 }
 
-function titledOption(entry: unknown): Option | undefined {
+function titledOption(entry: unknown) {
   const option = unknownRecord(entry);
   const label = text(option?.title) ?? text(option?.const);
   return typeof option?.const === "string" && label !== undefined
@@ -75,23 +72,25 @@ function titledOption(entry: unknown): Option | undefined {
     : undefined;
 }
 
-function parseField(
-  property: Readonly<Record<string, unknown>>,
-): { readonly field: Field; readonly options: Option[] } | undefined {
+function parseField(property: Readonly<Record<string, unknown>>) {
   switch (property.type) {
     case "string": {
       if ((property.enum ?? property.oneOf ?? undefined) === undefined) {
-        return { field: { kind: "text" }, options: [] };
+        return { field: { kind: "text" }, options: [] } satisfies
+          | { readonly field: Field; readonly options: Option[] }
+          | undefined;
       }
       const options = Array.isArray(property.oneOf)
         ? choiceOptions(property.oneOf, titledOption)
         : enumOptions(property.enum);
-      return options === undefined
-        ? undefined
-        : {
-            field: { kind: "choice", values: new Set(options.map(optionValue)) },
-            options,
-          };
+      return (
+        options === undefined
+          ? undefined
+          : {
+              field: { kind: "choice", values: new Set(options.map(optionValue)) },
+              options,
+            }
+      ) satisfies { readonly field: Field; readonly options: Option[] } | undefined;
     }
     case "array": {
       const items = unknownRecord(property.items);
@@ -101,12 +100,20 @@ function parseField(
           : items !== undefined && items.type === undefined
             ? choiceOptions(items.anyOf, titledOption)
             : undefined;
-      if (options === undefined) return undefined;
+      if (options === undefined)
+        return undefined satisfies
+          | { readonly field: Field; readonly options: Option[] }
+          | undefined;
       const values = new Set(options.map(optionValue));
       const minItems = typeof property.minItems === "number" ? property.minItems : 0;
       const maxItems = typeof property.maxItems === "number" ? property.maxItems : Infinity;
-      if (maxItems === 0 || minItems > maxItems || minItems > values.size) return undefined;
-      return { field: { kind: "multiChoice", values, minItems, maxItems }, options };
+      if (maxItems === 0 || minItems > maxItems || minItems > values.size)
+        return undefined satisfies
+          | { readonly field: Field; readonly options: Option[] }
+          | undefined;
+      return { field: { kind: "multiChoice", values, minItems, maxItems }, options } satisfies
+        | { readonly field: Field; readonly options: Option[] }
+        | undefined;
     }
     case "boolean":
       return {
@@ -115,29 +122,38 @@ function parseField(
           { label: "true", description: "Yes", value: "true" },
           { label: "false", description: "No", value: "false" },
         ],
-      };
+      } satisfies { readonly field: Field; readonly options: Option[] } | undefined;
     case "number":
     case "integer":
-      return { field: { kind: "number", integer: property.type === "integer" }, options: [] };
+      return {
+        field: { kind: "number", integer: property.type === "integer" },
+        options: [],
+      } satisfies { readonly field: Field; readonly options: Option[] } | undefined;
     default:
-      return undefined;
+      return undefined satisfies { readonly field: Field; readonly options: Option[] } | undefined;
   }
 }
 
-function optionValue(option: Option): string {
+function optionValue(option: Option) {
   return option.value ?? option.label;
 }
 
 function typedAnswer(
   field: Field,
   answer: unknown,
-): EffectAcpSchema.ElicitationContentValue | undefined {
+): EffectAcpSchema.ElicitationContentValue | undefined;
+function typedAnswer(field: Field, answer: unknown) {
   switch (field.kind) {
     case "text":
-      return typeof answer === "string" ? answer : undefined;
+      return (typeof answer === "string" ? answer : undefined) satisfies
+        | EffectAcpSchema.ElicitationContentValue
+        | undefined;
     case "boolean":
-      if (typeof answer === "boolean") return answer;
-      return answer === "true" ? true : answer === "false" ? false : undefined;
+      if (typeof answer === "boolean")
+        return answer satisfies EffectAcpSchema.ElicitationContentValue | undefined;
+      return (answer === "true" ? true : answer === "false" ? false : undefined) satisfies
+        | EffectAcpSchema.ElicitationContentValue
+        | undefined;
     case "number": {
       const parsed =
         typeof answer === "number"
@@ -145,13 +161,19 @@ function typedAnswer(
           : typeof answer === "string" && answer.trim().length > 0
             ? Number(answer.trim())
             : Number.NaN;
-      if (!Number.isFinite(parsed)) return undefined;
-      return field.integer && !Number.isInteger(parsed) ? undefined : parsed;
+      if (!Number.isFinite(parsed))
+        return undefined satisfies EffectAcpSchema.ElicitationContentValue | undefined;
+      return (field.integer && !Number.isInteger(parsed) ? undefined : parsed) satisfies
+        | EffectAcpSchema.ElicitationContentValue
+        | undefined;
     }
     case "choice":
-      return typeof answer === "string" && field.values.has(answer) ? answer : undefined;
+      return (
+        typeof answer === "string" && field.values.has(answer) ? answer : undefined
+      ) satisfies EffectAcpSchema.ElicitationContentValue | undefined;
     case "multiChoice": {
-      if (!Array.isArray(answer)) return undefined;
+      if (!Array.isArray(answer))
+        return undefined satisfies EffectAcpSchema.ElicitationContentValue | undefined;
       const selected = [
         ...new Set(
           answer.filter(
@@ -159,10 +181,13 @@ function typedAnswer(
           ),
         ),
       ];
-      if (selected.length === 0 && answer.length > 0) return undefined;
-      return selected.length >= field.minItems && selected.length <= field.maxItems
-        ? selected
-        : undefined;
+      if (selected.length === 0 && answer.length > 0)
+        return undefined satisfies EffectAcpSchema.ElicitationContentValue | undefined;
+      return (
+        selected.length >= field.minItems && selected.length <= field.maxItems
+          ? selected
+          : undefined
+      ) satisfies EffectAcpSchema.ElicitationContentValue | undefined;
     }
   }
 }
@@ -170,7 +195,8 @@ function typedAnswer(
 export function parseElicitationForm(
   requestedSchema: unknown,
   message: string,
-): ElicitationForm | undefined {
+): ElicitationForm | undefined;
+export function parseElicitationForm(requestedSchema: unknown, message: string) {
   const schema = unknownRecord(requestedSchema);
   const required = new Set(
     Array.isArray(schema?.required)
@@ -186,7 +212,8 @@ export function parseElicitationForm(
   for (const [id, value] of Object.entries(unknownRecord(schema?.properties) ?? {})) {
     const property = unknownRecord(value);
     const parsed = property === undefined ? undefined : parseField(property);
-    if (property === undefined || parsed === undefined || text(id) !== id) return undefined;
+    if (property === undefined || parsed === undefined || text(id) !== id)
+      return undefined satisfies ElicitationForm | undefined;
     fields.set(id, parsed.field);
     parsedFields.push({ id, property, options: parsed.options });
   }
@@ -235,5 +262,5 @@ export function parseElicitationForm(
       }
       return Object.fromEntries(entries);
     },
-  };
+  } satisfies ElicitationForm | undefined;
 }

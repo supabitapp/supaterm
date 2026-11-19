@@ -66,7 +66,7 @@ const DIFF_PREVIEW_PATCH = [
   "",
 ].join("\n");
 
-function loadDiffPreviewHtml(theme: DiffThemeName): Promise<readonly string[]> {
+function loadDiffPreviewHtml(theme: DiffThemeName) {
   return preloadPatchFile({
     patch: DIFF_PREVIEW_PATCH,
     options: { diffStyle: "unified", theme, preferredHighlighter: PREFERRED_HIGHLIGHTER },
@@ -142,7 +142,7 @@ const TERMINAL_PREVIEW_TRANSCRIPT =
   TERMINAL_PROMPT;
 const TERMINAL_PREVIEW_ROWS = TERMINAL_PREVIEW_TRANSCRIPT.split("\r\n").length;
 
-function previewTerminalFont(family: string, size: number): { family?: string; size: number } {
+function previewTerminalFont(family: string, size: number) {
   const trimmed = family.trim();
   return trimmed.length > 0 ? { family: trimmed, size } : { size };
 }

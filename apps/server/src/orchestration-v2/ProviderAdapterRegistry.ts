@@ -21,7 +21,7 @@ export class ProviderAdapterRegistryLookupError extends Schema.TaggedError<Provi
     instanceId: ProviderInstanceId,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `No orchestration provider adapter is registered for ${this.instanceId}.`;
   }
 }
@@ -153,9 +153,7 @@ export const layerFromProviderInstanceRegistry: Layer.Layer<
   }),
 );
 
-function makeRegistry(
-  adapters: ReadonlyArray<ProviderAdapter.ProviderAdapterV2["Service"]>,
-): ProviderAdapterRegistryV2Shape {
+function makeRegistry(adapters: ReadonlyArray<ProviderAdapter.ProviderAdapterV2["Service"]>) {
   return {
     get: Effect.fn("ProviderAdapterRegistry.get")(function* (instanceId) {
       const adapter = adapters.find((candidate) => candidate.instanceId === instanceId);
@@ -170,16 +168,19 @@ function makeRegistry(
 
 export function layerFromAdapters(
   adapters: ReadonlyArray<ProviderAdapter.ProviderAdapterV2["Service"]>,
-): Layer.Layer<ProviderAdapterRegistryV2> {
+): Layer.Layer<ProviderAdapterRegistryV2>;
+export function layerFromAdapters(
+  adapters: ReadonlyArray<ProviderAdapter.ProviderAdapterV2["Service"]>,
+) {
   return Layer.succeed(
     ProviderAdapterRegistryV2,
     ProviderAdapterRegistryV2.of(makeRegistry(adapters)),
-  );
+  ) satisfies Layer.Layer<ProviderAdapterRegistryV2>;
 }
 
 export function layerFromAdaptersEffect<R, E>(
   adapters: Effect.Effect<ReadonlyArray<ProviderAdapter.ProviderAdapterV2["Service"]>, E, R>,
-): Layer.Layer<ProviderAdapterRegistryV2, E, Exclude<R, Scope.Scope>> {
+) {
   return Layer.effect(
     ProviderAdapterRegistryV2,
     adapters.pipe(Effect.map((entries) => ProviderAdapterRegistryV2.of(makeRegistry(entries)))),
@@ -188,6 +189,7 @@ export function layerFromAdaptersEffect<R, E>(
 
 export function layerSingle(
   adapter: ProviderAdapter.ProviderAdapterV2["Service"],
-): Layer.Layer<ProviderAdapterRegistryV2> {
-  return layerFromAdapters([adapter]);
+): Layer.Layer<ProviderAdapterRegistryV2>;
+export function layerSingle(adapter: ProviderAdapter.ProviderAdapterV2["Service"]) {
+  return layerFromAdapters([adapter]) satisfies Layer.Layer<ProviderAdapterRegistryV2>;
 }

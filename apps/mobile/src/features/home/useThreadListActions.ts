@@ -61,7 +61,7 @@ const ACTION_VERBS: Record<ThreadListAction, string> = {
   reopen: "reopened",
 };
 
-function actionFailureMessage(action: ThreadListAction, cause: Cause.Cause<unknown>): string {
+function actionFailureMessage(action: ThreadListAction, cause: Cause.Cause<unknown>) {
   const error = Cause.squash(cause);
   if (error instanceof Error && error.message.trim().length > 0) {
     return error.message;
@@ -69,11 +69,11 @@ function actionFailureMessage(action: ThreadListAction, cause: Cause.Cause<unkno
   return `The thread could not be ${ACTION_VERBS[action]}.`;
 }
 
-function selectionHaptic(): void {
+function selectionHaptic() {
   void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 }
 
-function actionFailureTitle(action: ThreadListAction): string {
+function actionFailureTitle(action: ThreadListAction) {
   if (action === "archive") return "Could not archive thread";
   if (action === "unarchive") return "Could not unarchive thread";
   if (action === "mark-done") return "Could not mark thread as Done";
@@ -81,18 +81,18 @@ function actionFailureTitle(action: ThreadListAction): string {
   return "Could not delete thread";
 }
 
-function checkThreadOperationPermission(thread: EnvironmentThreadShell, title: string): boolean {
+function checkThreadOperationPermission(thread: EnvironmentThreadShell, title: string) {
   if (readEnvironmentScope(thread.environmentId, AuthOrchestrationOperateScope)) return true;
   Dialog.alert(title, "This connection cannot change threads.");
   return false;
 }
 
-function liveThread(thread: EnvironmentThreadShell): EnvironmentThreadShell {
-  return (
-    appAtomRegistry
-      .get(environmentThreadShells.threadShellsAtom)
-      .find((row) => row.id === thread.id && row.environmentId === thread.environmentId) ?? thread
-  );
+function liveThread(thread: EnvironmentThreadShell): EnvironmentThreadShell;
+function liveThread(thread: EnvironmentThreadShell) {
+  return (appAtomRegistry
+    .get(environmentThreadShells.threadShellsAtom)
+    .find((row) => row.id === thread.id && row.environmentId === thread.environmentId) ??
+    thread) satisfies EnvironmentThreadShell;
 }
 
 function useThreadActionExecutor(
@@ -233,7 +233,8 @@ export function useThreadListActions(): {
   ) => Promise<boolean>;
   readonly renameThread: (thread: EnvironmentThreadShell) => void;
   readonly regenerateThreadTitle: (thread: EnvironmentThreadShell) => Promise<boolean>;
-} {
+};
+export function useThreadListActions() {
   const executeAction = useThreadActionExecutor();
   const snoozeMutation = useAtomCommand(threadEnvironment.snooze, { reportFailure: false });
   const unsnoozeMutation = useAtomCommand(threadEnvironment.unsnooze, { reportFailure: false });
@@ -772,15 +773,35 @@ export function useThreadListActions(): {
     moveThread,
     renameThread: (thread) => renameThread(liveThread(thread)),
     regenerateThreadTitle: (thread) => regenerateThreadTitle(liveThread(thread)),
+  } satisfies {
+    readonly archiveThread: (thread: EnvironmentThreadShell) => Promise<boolean>;
+    readonly confirmDeleteThread: (thread: EnvironmentThreadShell) => void;
+    readonly markThreadDone: (thread: EnvironmentThreadShell) => Promise<boolean>;
+    readonly snoozeThread: (
+      thread: EnvironmentThreadShell,
+      snoozedUntil: string,
+    ) => Promise<boolean>;
+    readonly unsnoozeThread: (thread: EnvironmentThreadShell) => Promise<boolean>;
+    readonly reopenThread: (thread: EnvironmentThreadShell) => Promise<boolean>;
+    readonly pinThread: (thread: EnvironmentThreadShell) => Promise<boolean>;
+    readonly unpinThread: (thread: EnvironmentThreadShell) => Promise<boolean>;
+    /** Sets per-thread automatic completion on or off. */
+    readonly setThreadAutoMarkDone: (
+      thread: EnvironmentThreadShell,
+      enabled: boolean,
+    ) => Promise<boolean>;
+    readonly moveThread: (
+      thread: EnvironmentThreadShell,
+      direction: ThreadMoveDestination,
+    ) => Promise<boolean>;
+    readonly renameThread: (thread: EnvironmentThreadShell) => void;
+    readonly regenerateThreadTitle: (thread: EnvironmentThreadShell) => Promise<boolean>;
   };
 }
 
 export function useArchivedThreadListActions(
   onCompleted: (thread: EnvironmentThreadShell) => void,
-): {
-  readonly unarchiveThread: (thread: EnvironmentThreadShell) => void;
-  readonly confirmDeleteThread: (thread: EnvironmentThreadShell) => void;
-} {
+) {
   const handleCompleted = (_action: ThreadListAction, thread: EnvironmentThreadShell) => {
     onCompleted(thread);
   };

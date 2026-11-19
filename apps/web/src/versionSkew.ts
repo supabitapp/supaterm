@@ -22,11 +22,11 @@ const VERSION_MISMATCH_DISMISSALS_STORAGE_KEY = "supaterm:version-mismatch-dismi
 
 const dismissedServerUpdateFailures = new WeakSet<ServerUpdateState>();
 
-export function isServerUpdateFailureDismissed(state: ServerUpdateState): boolean {
+export function isServerUpdateFailureDismissed(state: ServerUpdateState) {
   return state.status === "failed" && dismissedServerUpdateFailures.has(state);
 }
 
-export function dismissServerUpdateFailure(state: ServerUpdateState): void {
+export function dismissServerUpdateFailure(state: ServerUpdateState) {
   if (state.status === "failed") dismissedServerUpdateFailures.add(state);
 }
 
@@ -36,19 +36,19 @@ const VersionMismatchDismissalsSchema = Schema.Struct({
 
 type VersionMismatchDismissals = typeof VersionMismatchDismissalsSchema.Type;
 
-function normalizeVersion(version: string | null | undefined): string | null {
+function normalizeVersion(version: string | null | undefined) {
   const trimmed = version?.trim();
   return trimmed && trimmed.length > 0 ? trimmed : null;
 }
 
-function versionCore(version: string): string {
+function versionCore(version: string) {
   return version.replace(/[-+].*$/, "");
 }
 
 export function resolveVersionMismatch(
   serverVersion: string | null | undefined,
   clientVersion: string = APP_VERSION,
-): VersionMismatch | null {
+) {
   const normalizedClientVersion = normalizeVersion(clientVersion);
   const normalizedServerVersion = normalizeVersion(serverVersion);
   if (!normalizedClientVersion || !normalizedServerVersion) {
@@ -80,7 +80,7 @@ export function resolveVersionMismatch(
 
 export function resolveServerConfigVersionMismatch(
   serverConfig: Pick<ServerConfig, "environment"> | null | undefined,
-): VersionMismatch | null {
+) {
   const mismatch = resolveVersionMismatch(serverConfig?.environment.serverVersion);
   if (
     mismatch === null ||
@@ -99,7 +99,7 @@ export function isServerUpdateChannelCompatible(
   serverVersion: string,
   targetVersion: string,
   selfUpdate: ServerSelfUpdateCapability | null,
-): boolean {
+) {
   const serverChannel = cliReleaseChannelOf(serverVersion);
   return (
     serverChannel === cliReleaseChannelOf(targetVersion) ||
@@ -109,20 +109,20 @@ export function isServerUpdateChannelCompatible(
 
 export function resolveServerSelfUpdateCapability(
   serverConfig: Pick<ServerConfig, "environment"> | null | undefined,
-): ServerSelfUpdateCapability | null {
+) {
   return serverConfig?.environment.capabilities.serverSelfUpdate ?? null;
 }
 
 export function supportsDesktopAppUpdate(
   serverConfig: Pick<ServerConfig, "environment"> | null | undefined,
-): boolean {
+) {
   return serverConfig?.environment.capabilities.desktopAppUpdate === true;
 }
 
 export function manualServerUpdateCommand(
   targetVersion: string,
   installation?: ServerInstallation,
-): string {
+) {
   const quote = (value: string) => `'${value.replaceAll("'", "'\\''")}'`;
   if (installation?.kind === "npm-global") {
     return `npm install --global --prefix ${quote(installation.prefix)} supaterm@${targetVersion}`;
@@ -135,18 +135,18 @@ export function manualServerUpdateCommand(
   return `${runner} supaterm@${targetVersion}`;
 }
 
-export function serverUpdateGuidance(capability: ServerSelfUpdateCapability): string {
+export function serverUpdateGuidance(capability: ServerSelfUpdateCapability) {
   return capability === "desktop-managed" ? "Update the desktop app" : "Update to stay in sync";
 }
 
 export function buildVersionMismatchDismissalKey(
   environmentId: EnvironmentId,
   mismatch: Pick<VersionMismatch, "clientVersion" | "serverVersion">,
-): string {
+) {
   return `${environmentId}:${mismatch.clientVersion}:${mismatch.serverVersion}`;
 }
 
-function readVersionMismatchDismissals(): VersionMismatchDismissals {
+function readVersionMismatchDismissals() {
   try {
     return (
       getLocalStorageItem(
@@ -160,7 +160,7 @@ function readVersionMismatchDismissals(): VersionMismatchDismissals {
   }
 }
 
-function writeVersionMismatchDismissals(document: VersionMismatchDismissals): void {
+function writeVersionMismatchDismissals(document: VersionMismatchDismissals) {
   try {
     setLocalStorageItem(
       VERSION_MISMATCH_DISMISSALS_STORAGE_KEY,
@@ -172,14 +172,14 @@ function writeVersionMismatchDismissals(document: VersionMismatchDismissals): vo
   }
 }
 
-export function isVersionMismatchDismissed(dismissalKey: string | null | undefined): boolean {
+export function isVersionMismatchDismissed(dismissalKey: string | null | undefined) {
   if (!dismissalKey) {
     return false;
   }
   return readVersionMismatchDismissals().keys.includes(dismissalKey);
 }
 
-export function dismissVersionMismatch(dismissalKey: string | null | undefined): void {
+export function dismissVersionMismatch(dismissalKey: string | null | undefined) {
   if (!dismissalKey) {
     return;
   }

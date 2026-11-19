@@ -5,6 +5,6 @@ export function previewRuntimeTabId(
   threadRef: ScopedThreadRef,
   serverEpoch: string | null,
   tabId: string,
-): string {
+) {
   return JSON.stringify([threadRef.environmentId, threadRef.threadId, serverEpoch, tabId]);
 }

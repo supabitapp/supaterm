@@ -16,7 +16,7 @@ export const usePreviewMiniPlayerStreams = create<PreviewMiniPlayerStreams>(() =
 export const selectPreviewMiniPlayerStream = (
   streams: PreviewMiniPlayerStreams,
   key: string | null,
-): PreviewMiniPlayerStream | null => (key === null ? null : (streams[key] ?? null));
+) => (key === null ? null : (streams[key] ?? null));
 
 export const recordStreamViewport = (key: string, viewport: PreviewStreamViewport) =>
   usePreviewMiniPlayerStreams.setState((streams) => {

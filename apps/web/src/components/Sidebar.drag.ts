@@ -41,9 +41,7 @@ export interface SidebarGroupBlock {
   readonly end: number;
 }
 
-export function sidebarProjectGroupBlocks(
-  items: readonly SidebarListItem[],
-): readonly SidebarGroupBlock[] {
+export function sidebarProjectGroupBlocks(items: readonly SidebarListItem[]) {
   const blocks: { item: GroupItem; start: number; end: number }[] = [];
   for (const [index, item] of items.entries()) {
     const last = blocks.at(-1);
@@ -77,9 +75,10 @@ function groupBlockSpans(
  * against the collapsed layout the sorting strategy shows. */
 export function createSidebarGroupCollisionDetection(
   items: readonly SidebarListItem[],
-): CollisionDetection {
+): CollisionDetection;
+export function createSidebarGroupCollisionDetection(items: readonly SidebarListItem[]) {
   const blocks = sidebarProjectGroupBlocks(items);
-  return ({ active, collisionRect, droppableRects }) => {
+  return (({ active, collisionRect, droppableRects }) => {
     const from = blocks.findIndex((block) => sidebarListItemId(block.item) === active.id);
     const rectAt = (index: number) => {
       const item = items[index];
@@ -104,21 +103,28 @@ export function createSidebarGroupCollisionDetection(
       if (passed !== undefined) slotTop += spans[passed]!;
     }
     return [{ id: sidebarListItemId(blocks[target]!.item) }];
-  };
+  }) satisfies CollisionDetection;
 }
 
+export function createSidebarCollisionDetection(
+  isValidTarget: (id: string) => boolean,
+  options?: {
+    items?: readonly SidebarListItem[];
+    activationY?: number | null;
+  },
+): CollisionDetection;
 export function createSidebarCollisionDetection(
   isValidTarget: (id: string) => boolean,
   options: {
     items?: readonly SidebarListItem[];
     activationY?: number | null;
   } = {},
-): CollisionDetection {
+) {
   const validity = new Map<string, boolean>();
   const sections = new Map<string, SidebarSection | null>();
   let previousPointerY = options.activationY;
   let boundarySection: "pinned" | "active" | undefined;
-  return (args) => {
+  return ((args) => {
     let collisions = closestCenter(args);
     const pointer = args.pointerCoordinates;
     const items = options.items;
@@ -164,7 +170,7 @@ export function createSidebarCollisionDetection(
     const valid = validity.get(id) ?? isValidTarget(id);
     validity.set(id, valid);
     return valid ? collisions : collisions.filter((collision) => collision.id === args.active.id);
-  };
+  }) satisfies CollisionDetection;
 }
 
 export function createSidebarSortingStrategy(input: {
@@ -186,8 +192,28 @@ export function createSidebarSortingStrategy(input: {
   /** Minimum space for a pinned boundary label while dragging, including
    * the otherwise hidden target for an empty section. */
   boundaryLabelHeight?: number;
-}): SortingStrategy {
-  if (input.enabled === false) return () => stationary;
+}): SortingStrategy;
+export function createSidebarSortingStrategy(input: {
+  items: readonly SidebarListItem[];
+  enabled?: boolean;
+  doneOrder: readonly string[];
+  inbox:
+    | {
+        readonly active: readonly SidebarListItem[];
+        readonly other: readonly SidebarListItem[];
+      }
+    | undefined;
+  doneExpanded: boolean;
+  doneVisibleCount?: number;
+  routeThreadKey?: string | null;
+  snoozedThreadCount?: number;
+  cardHeight?: number;
+  slimHeight?: number;
+  /** Minimum space for a pinned boundary label while dragging, including
+   * the otherwise hidden target for an empty section. */
+  boundaryLabelHeight?: number;
+}) {
+  if (input.enabled === false) return (() => stationary) satisfies SortingStrategy;
   const { items } = input;
   const indices = new Map(items.map((item, index) => [sidebarListItemId(item), index]));
   let previous: Pick<Layout, "rects" | "activeIndex" | "overIndex"> | undefined;
@@ -359,7 +385,7 @@ export function createSidebarSortingStrategy(input: {
     return result;
   }
 
-  return (args) => {
+  return ((args) => {
     if (
       previous?.rects !== args.rects ||
       previous.activeIndex !== args.activeIndex ||
@@ -371,5 +397,5 @@ export function createSidebarSortingStrategy(input: {
     return transforms === null
       ? verticalListSortingStrategy(args)
       : (transforms[args.index] ?? stationary);
-  };
+  }) satisfies SortingStrategy;
 }

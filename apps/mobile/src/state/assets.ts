@@ -44,7 +44,7 @@ export function useAssetUrlState(
   environmentId: EnvironmentId | null,
   resource: AssetResource | null,
   revision?: string | null,
-): AssetUrlState {
+) {
   const fileAccessSession = useEnvironmentQuery(
     environmentId === null ? null : environmentSession.sessionStateAtom(environmentId),
   );
@@ -74,49 +74,59 @@ export function useAssetUrlState(
   return deriveAssetUrlState({
     connectionPhase,
     shared: shared._tag === "Failure" && result.waiting ? { _tag: "Loading" } : shared,
-  });
+  }) satisfies AssetUrlState;
 }
 
 export function useAssetUrl(
   environmentId: EnvironmentId | null,
   resource: AssetResource | null,
-): string | null {
+): string | null;
+export function useAssetUrl(environmentId: EnvironmentId | null, resource: AssetResource | null) {
   const state = useAssetUrlState(environmentId, resource);
-  return state._tag === "Success" ? state.url : null;
+  return (state._tag === "Success" ? state.url : null) satisfies string | null;
 }
 
 /** Explicit playback and sharing must reauthorize files that may have been replaced on disk. */
 export function useRefreshAssetUrl(
   environmentId: EnvironmentId | null,
   resource: AssetResource | null,
-): () => Promise<string | null> {
+): () => Promise<string | null>;
+export function useRefreshAssetUrl(
+  environmentId: EnvironmentId | null,
+  resource: AssetResource | null,
+) {
   const connection = usePreparedConnection(environmentId);
   const httpBaseUrl = connection._tag === "Some" ? connection.value.httpBaseUrl : null;
   const createUrl = useAtomQueryRunner(assetEnvironment.createUrl, {
     refresh: true,
     reportFailure: false,
   });
-  return async () => {
+  return (async () => {
     if (environmentId === null || resource === null || httpBaseUrl === null) return null;
     const state = assetUrlStateFromResult(
       await createUrl({ environmentId, input: { resource } }),
       httpBaseUrl,
     );
     return state._tag === "Success" ? state.url : null;
-  };
+  }) satisfies () => Promise<string | null>;
 }
 
 /**
  * {@link useRefreshAssetUrl} for async tasks that resolve several resources at once. Resolves
  * null without a connection and rejects with the server's error when it refuses the URL.
  */
+export function refreshAssetUrl(
+  environmentId: EnvironmentId,
+  resource: AssetResource,
+  signal?: AbortSignal,
+): Promise<string | null>;
 export async function refreshAssetUrl(
   environmentId: EnvironmentId,
   resource: AssetResource,
   signal?: AbortSignal,
-): Promise<string | null> {
+) {
   const connectionAtom = environmentSession.preparedConnectionValueAtom(environmentId);
-  if (appAtomRegistry.get(connectionAtom)._tag === "None") return null;
+  if (appAtomRegistry.get(connectionAtom)._tag === "None") return null satisfies string | null;
   const atom = assetEnvironment.createUrl({ environmentId, input: { resource } });
   const result = await executeAtomQuery(appAtomRegistry, atom, {
     label: atom.label?.[0] ?? "asset url",
@@ -126,9 +136,9 @@ export async function refreshAssetUrl(
   });
   if (result._tag === "Failure") throw squashAtomCommandFailure(result);
   const connection = appAtomRegistry.get(connectionAtom);
-  if (connection._tag === "None") return null;
+  if (connection._tag === "None") return null satisfies string | null;
   const state = assetUrlStateFromResult(result, connection.value.httpBaseUrl);
-  return state._tag === "Success" ? state.url : null;
+  return (state._tag === "Success" ? state.url : null) satisfies string | null;
 }
 
 export interface AuthorizedAssetUrl {
@@ -146,13 +156,13 @@ interface FreshAssetUrlKey {
 const freshAssetUrlFamily = Atom.family((key: FreshAssetUrlKey) =>
   Atom.make(
     Effect.tryPromise({
-      try: async (signal): Promise<AuthorizedAssetUrl> => {
+      try: async (signal) => {
         const url =
           key.environmentId === null
             ? null
             : await refreshAssetUrl(key.environmentId, key.resource, signal).catch(() => null);
         if (!url) throw new Error("Reconnect to this environment and try again.");
-        return { url, authorizedAt: Date.now() };
+        return { url, authorizedAt: Date.now() } satisfies AuthorizedAssetUrl as AuthorizedAssetUrl;
       },
       catch: (cause) =>
         cause instanceof Error ? cause : new Error("The attachment is unavailable."),
@@ -172,12 +182,17 @@ export function useFreshAssetUrl(
   environmentId: EnvironmentId | null,
   resource: AssetResource | null,
   revision: number,
-): AsyncResult.AsyncResult<AuthorizedAssetUrl, Error> {
+): AsyncResult.AsyncResult<AuthorizedAssetUrl, Error>;
+export function useFreshAssetUrl(
+  environmentId: EnvironmentId | null,
+  resource: AssetResource | null,
+  revision: number,
+) {
   const connection = usePreparedConnection(environmentId);
   const httpBaseUrl = connection._tag === "Some" ? connection.value.httpBaseUrl : null;
   return useAtomValue(
     resource === null
       ? noFreshAssetUrl
       : freshAssetUrlFamily({ environmentId, resource, httpBaseUrl, revision }),
-  );
+  ) satisfies AsyncResult.AsyncResult<AuthorizedAssetUrl, Error>;
 }

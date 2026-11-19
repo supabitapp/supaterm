@@ -13,7 +13,7 @@ const MAX_MESSAGE = 2_000;
 const OMITTED = "[Earlier content truncated]\n\n";
 const TRUNCATED = "\n[Content truncated]\n";
 
-export function limitTitleMessage(text: string, budget: number): string {
+export function limitTitleMessage(text: string, budget: number) {
   if (text.length <= budget) return text;
   if (budget <= TRUNCATED.length) return "";
   const available = budget - TRUNCATED.length;

@@ -8,7 +8,7 @@ import type { ThreadStructureTurnItem } from "./models.ts";
 
 const WORKSPACE_PREPARATION_INPUT = "Preparing workspace";
 
-export function turnItemIsWorkspacePreparation(item: OrchestrationV2TurnItem): boolean {
+export function turnItemIsWorkspacePreparation(item: OrchestrationV2TurnItem) {
   return (
     (item.type === "command_execution" && item.input === WORKSPACE_PREPARATION_INPUT) ||
     (item.type === "error" &&
@@ -20,7 +20,7 @@ export function turnItemIsWorkspacePreparation(item: OrchestrationV2TurnItem): b
 export function workspacePreparationRetryRunIds(
   runs: ReadonlyArray<Pick<OrchestrationV2Run, "id" | "status" | "workspacePreparation">>,
   items: ReadonlyArray<ThreadStructureTurnItem>,
-): ReadonlySet<OrchestrationV2Run["id"]> {
+) {
   const failedRuns = new Set(
     runs.flatMap((run) =>
       run.status === "failed" && run.workspacePreparation !== undefined ? [run.id] : [],

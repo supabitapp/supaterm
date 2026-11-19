@@ -1,4 +1,4 @@
-import { PROJECT_ICONS, type ProjectIcon } from "@supaterm/icons/project";
+import { PROJECT_ICONS } from "@supaterm/icons/project";
 export { PROJECT_ICON_COLORS, projectIconColorClassName } from "./projectIconColors";
 
 export const PROJECT_EMOJIS: ReadonlyArray<{ readonly emoji: string; readonly label: string }> = [
@@ -34,7 +34,7 @@ export const PROJECT_EMOJIS: ReadonlyArray<{ readonly emoji: string; readonly la
   { emoji: "🌱", label: "Seedling" },
 ];
 
-export function filterProjectIcons(query: string): ReadonlyArray<ProjectIcon> {
+export function filterProjectIcons(query: string) {
   const terms = query
     .trim()
     .toLowerCase()
@@ -46,7 +46,7 @@ export function filterProjectIcons(query: string): ReadonlyArray<ProjectIcon> {
   );
 }
 
-export function firstEmoji(value: string): string | null {
+export function firstEmoji(value: string) {
   const trimmed = value.trim();
   if (!trimmed) return null;
   const segments = new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(trimmed);

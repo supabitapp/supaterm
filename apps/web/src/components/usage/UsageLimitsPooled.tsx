@@ -43,12 +43,12 @@ import { Alert, AlertTitle } from "../ui/alert";
 import { Popover, PopoverCreateHandle, PopoverPopup, PopoverTrigger } from "../ui/popover";
 import { PaceIcon, ResetCreditButton, barColor, usePaceMark, useResetCredit } from "./UsageLimits";
 
-function accountInitials(email: string): string {
+function accountInitials(email: string) {
   const [local = "", domain = ""] = email.split("@");
   return `${local[0] ?? ""}${domain[0] ?? ""}`.toUpperCase() || "?";
 }
 
-function accountHue(email: string): number {
+function accountHue(email: string) {
   let hash = 0;
   for (let index = 0; index < email.length; index += 1) {
     hash = (hash * 31 + email.charCodeAt(index)) | 0;

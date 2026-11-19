@@ -17,9 +17,7 @@ interface QuotaSnapshot {
   readonly resetAtMs: number;
 }
 
-function quotaFromHeaders(
-  headers: Readonly<Record<string, string | undefined>>,
-): (QuotaSnapshot & { readonly resource: GitHubQuotaResource }) | null {
+function quotaFromHeaders(headers: Readonly<Record<string, string | undefined>>) {
   const resource = headers["x-ratelimit-resource"]?.trim();
   const limit = Number(headers["x-ratelimit-limit"]);
   const remaining = Number(headers["x-ratelimit-remaining"]);

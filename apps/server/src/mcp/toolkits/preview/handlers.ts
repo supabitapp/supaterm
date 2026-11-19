@@ -10,7 +10,6 @@ import {
   PreviewAutomationRecordingArtifact,
   PreviewAutomationActInputs,
   OrchestratorMcpFailure,
-  type ToolActivityIcon,
   type ThreadId,
   type PreviewAutomationOperation,
   type PreviewAutomationOpenInput,
@@ -36,7 +35,7 @@ import * as McpToolAccess from "../../McpToolAccess.ts";
 import * as PreviewAutomationBroker from "../../PreviewAutomationBroker.ts";
 import { PreviewSnapshotToolkit, PreviewStandardToolkit, PreviewToolkit } from "./tools.ts";
 
-function normalizePreviewOpenInput(input: PreviewAutomationOpenInput): PreviewAutomationOpenInput {
+function normalizePreviewOpenInput(input: PreviewAutomationOpenInput) {
   return {
     ...input,
     reuseExistingTab: input.reuseExistingTab ?? true,
@@ -48,11 +47,7 @@ const invoke = Effect.fn("PreviewToolkit.invoke")(function* <A>(
   input: unknown,
   timeoutMs?: number,
   tabId?: PreviewTabId,
-): Effect.fn.Return<
-  { result: A; toolIcon?: ToolActivityIcon },
-  import("@supaterm/contracts").PreviewAutomationError,
-  McpInvocationContext.McpInvocationContext | PreviewAutomationBroker.PreviewAutomationBroker
-> {
+) {
   const scope = yield* McpInvocationContext.requireThreadMcpCapability("preview");
   const broker = yield* PreviewAutomationBroker.PreviewAutomationBroker;
   let targetTabId = tabId;

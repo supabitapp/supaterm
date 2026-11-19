@@ -43,23 +43,34 @@ const instanceId = ProviderInstanceId.make("opencode");
 const bigPickle: ModelSelection = { instanceId, model: "opencode/big-pickle" };
 const mimo: ModelSelection = { instanceId, model: "opencode/mimo-v2.6-flash-free" };
 
-const out = (type: string, input?: unknown): ProviderReplayEntry => ({
+const out: (type: string, input?: unknown) => ProviderReplayEntry = (
+  type: string,
+  input?: unknown,
+) => ({
   type: "expect_outbound",
   frame: input === undefined ? { type } : { type, input },
 });
-const reply = (operation: string, data: unknown): ProviderReplayEntry => ({
+const reply: (operation: string, data: unknown) => ProviderReplayEntry = (
+  operation: string,
+  data: unknown,
+) => ({
   type: "emit_inbound",
   frame: { type: "sdk.response", operation, data },
 });
-const event = (type: string, data: Record<string, unknown>): ProviderReplayEntry => ({
+const event: (type: string, data: Record<string, unknown>) => ProviderReplayEntry = (
+  type: string,
+  data: Record<string, unknown>,
+) => ({
   type: "emit_inbound",
   frame: {
     type: "sdk.event",
     event: { id: `evt_${type.replaceAll(".", "")}`, created: 1, type, data },
   },
 });
-const labelled = (entry: ProviderReplayEntry, label: string): ProviderReplayEntry =>
-  entry.type === "runtime_exit" ? entry : { ...entry, label };
+const labelled: (entry: ProviderReplayEntry, label: string) => ProviderReplayEntry = (
+  entry: ProviderReplayEntry,
+  label: string,
+) => (entry.type === "runtime_exit" ? entry : { ...entry, label });
 const mcpRules = (name: string) => [
   { action: "supaterm-*", resource: "*", effect: "deny" },
   { action: `supaterm-thread_${name}_*`, resource: "*", effect: "allow" },
@@ -140,7 +151,7 @@ const instructionsWritten: ReadonlyArray<ProviderReplayEntry> = [
   reply("session.instructions.entry.put", null),
 ];
 
-const answeredPrompt = (text: string): ReadonlyArray<ProviderReplayEntry> => [
+const answeredPrompt: (text: string) => ReadonlyArray<ProviderReplayEntry> = (text: string) => [
   out("session.prompt", { sessionID: SESSION, text: "<any>" }),
   reply("session.prompt", {
     data: {
@@ -178,12 +189,17 @@ const catalogModel = (id: string, name: string) => ({
   enabled: true,
   limit: { context: 200000, input: 160000, output: 32000 },
 });
-const createdSession = (
+const createdSession: (
+  directory: string,
+  name: string,
+  permissions?: ReadonlyArray<unknown>,
+  narrows?: boolean,
+) => ReadonlyArray<ProviderReplayEntry> = (
   directory: string,
   name: string,
   permissions: ReadonlyArray<unknown> = supatermRules(name),
   narrows = false,
-): ReadonlyArray<ProviderReplayEntry> => [
+) => [
   out("event.subscribe"),
   out("model.list", "<any>"),
   reply("model.list", {
@@ -199,8 +215,8 @@ const createdSession = (
   reply("session.create", sessionInfo(directory, permissions, name)),
 ];
 
-const withDirectory = <T>(value: T, directory: string): T => {
-  const replace = (entry: unknown): unknown =>
+const withDirectory: <T>(value: T, directory: string) => T = <T>(value: T, directory: string) => {
+  const replace: (entry: unknown) => unknown = (entry: unknown) =>
     entry === "<work>"
       ? directory
       : Array.isArray(entry)
@@ -273,13 +289,16 @@ const runScenario = (input: {
       scenario: input.name,
       entries: input.entries,
     });
-    const steps = input.commands.flatMap((command): Array<OrchestratorV2ScenarioStep> => [
-      { type: "dispatch", command },
-      { type: "advance_clock", duration: "1 millis" },
-      ...(command.type === "message.dispatch"
-        ? [{ type: "await_thread_idle" as const, threadId: input.threadId }]
-        : []),
-    ]);
+    const steps = input.commands.flatMap(
+      (command) =>
+        [
+          { type: "dispatch", command },
+          { type: "advance_clock", duration: "1 millis" },
+          ...(command.type === "message.dispatch"
+            ? [{ type: "await_thread_idle" as const, threadId: input.threadId }]
+            : []),
+        ] satisfies Array<OrchestratorV2ScenarioStep>,
+    );
     const result = yield* runOrchestratorV2ProviderReplayScenario(
       { name: input.name, transcript, commands: input.commands, steps },
       OpenCode2OrchestratorReplayHarness,
@@ -511,7 +530,7 @@ describe("OpenCode 2 through the orchestrator", () => {
       const name = "opencode2-queued-cancel";
       const cwd = yield* checkpointWorkspace(name);
       const thread = threadCommands({ name, worktreePath: cwd });
-      const queued = (key: string): OrchestrationV2Command => ({
+      const queued: (key: string) => OrchestrationV2Command = (key: string) => ({
         ...thread.message(key),
         dispatchMode: { type: "queue_after_active" },
       });

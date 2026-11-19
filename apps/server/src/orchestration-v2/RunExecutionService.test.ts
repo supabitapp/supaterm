@@ -206,10 +206,7 @@ it("routes only enrolled workflow members after the root turn ends", () => {
     attemptId: RunAttemptId.make("attempt:late-child"),
     providerThreadId: ProviderThreadId.make("provider-thread:late-child"),
   };
-  const childCreated = (
-    childThreadId: ThreadId,
-    parentThreadId = threadId,
-  ): ProviderAdapter.ProviderAdapterV2Event =>
+  const childCreated = (childThreadId: ThreadId, parentThreadId = threadId) =>
     ({
       type: "app_thread.created",
       driver,
@@ -366,27 +363,28 @@ it("moves a child thread to the run that shows its subagent now", () => {
   const siblingChild = ThreadId.make("thread:handoff:sibling");
   const providerThreadOf = (childThreadId: ThreadId) =>
     ProviderThreadId.make(`provider-thread:${childThreadId}`);
-  const subagent = (childThreadId: ThreadId, runId: RunId): OrchestrationV2Subagent => ({
-    id: NodeId.make(`node:${childThreadId}`),
-    threadId,
-    runId,
-    parentNodeId: NodeId.make("node:handoff"),
-    origin: "provider_native",
-    createdBy: "agent",
-    driver,
-    providerInstanceId: ProviderInstanceId.make("codex"),
-    providerThreadId: providerThreadOf(childThreadId),
-    childThreadId,
-    nativeTaskRef: null,
-    prompt: "Work",
-    title: "Work",
-    model: null,
-    status: "running",
-    result: null,
-    startedAt: null,
-    completedAt: null,
-    updatedAt: DateTime.makeUnsafe(0),
-  });
+  const subagent = (childThreadId: ThreadId, runId: RunId) =>
+    ({
+      id: NodeId.make(`node:${childThreadId}`),
+      threadId,
+      runId,
+      parentNodeId: NodeId.make("node:handoff"),
+      origin: "provider_native",
+      createdBy: "agent",
+      driver,
+      providerInstanceId: ProviderInstanceId.make("codex"),
+      providerThreadId: providerThreadOf(childThreadId),
+      childThreadId,
+      nativeTaskRef: null,
+      prompt: "Work",
+      title: "Work",
+      model: null,
+      status: "running",
+      result: null,
+      startedAt: null,
+      completedAt: null,
+      updatedAt: DateTime.makeUnsafe(0),
+    }) satisfies OrchestrationV2Subagent;
   const childMessage = (childThreadId: ThreadId) =>
     ({
       type: "message.updated",
@@ -4144,7 +4142,7 @@ it.effect.each(["completed", "failed"] as const)(
             taskId: "running-build",
             kind: "command",
           };
-          const roster = (hasTask: boolean): ProviderAdapter.ProviderAdapterV2Event => {
+          const roster = (hasTask: boolean) => {
             const pendingBackgroundTasks: ReadonlyArray<OrchestrationV2PendingBackgroundTask> =
               hasTask ? [runningBuild] : [];
             return {
@@ -4156,7 +4154,7 @@ it.effect.each(["completed", "failed"] as const)(
                 appThreadId: ids.threadId,
                 pendingBackgroundTasks,
               } as OrchestrationV2ProviderThread,
-            };
+            } satisfies ProviderAdapter.ProviderAdapterV2Event;
           };
           return Stream.fromIterable([roster(true), rootTerminalEvent(ids, status), roster(false)]);
         },
@@ -4481,7 +4479,7 @@ interface BackgroundScenarioIds {
   readonly subagentNodeId: NodeId;
 }
 
-function backgroundScenarioIds(key: string): BackgroundScenarioIds {
+function backgroundScenarioIds(key: string) {
   return {
     threadId: ThreadId.make(`thread:${key}`),
     childThreadId: ThreadId.make(`thread:${key}:child`),
@@ -4496,9 +4494,7 @@ function backgroundScenarioIds(key: string): BackgroundScenarioIds {
   };
 }
 
-function childThreadCreatedEvent(
-  ids: BackgroundScenarioIds,
-): ProviderAdapter.ProviderAdapterV2Event {
+function childThreadCreatedEvent(ids: BackgroundScenarioIds) {
   return {
     type: "app_thread.created",
     driver,
@@ -4517,7 +4513,7 @@ function childBackgroundTurnItemEvent(
   ids: BackgroundScenarioIds,
   status: "running" | "completed" | "idle",
   ordinal: number,
-): ProviderAdapter.ProviderAdapterV2Event {
+) {
   return {
     type: "turn_item.updated",
     driver,
@@ -4539,7 +4535,7 @@ function backgroundTurnItemEvent(
   status: "running" | "completed" | "idle",
   ordinal: number,
   itemId?: TurnItemId,
-): ProviderAdapter.ProviderAdapterV2Event {
+) {
   return {
     type: "turn_item.updated",
     driver,
@@ -4561,7 +4557,7 @@ function backgroundTurnItemEventForRun(
   type: "command_execution" | "dynamic_tool" | "subagent",
   status: "running" | "completed" | "idle",
   ordinal: number,
-): ProviderAdapter.ProviderAdapterV2Event {
+) {
   const event = backgroundTurnItemEvent(ids, type, status, ordinal);
   if (event.type !== "turn_item.updated") {
     return event;
@@ -4569,10 +4565,7 @@ function backgroundTurnItemEventForRun(
   return { ...event, turnItem: { ...event.turnItem, runId } };
 }
 
-function subagentEvent(
-  ids: BackgroundScenarioIds,
-  status: "running" | "completed" | "idle",
-): ProviderAdapter.ProviderAdapterV2Event {
+function subagentEvent(ids: BackgroundScenarioIds, status: "running" | "completed" | "idle") {
   return {
     type: "subagent.updated",
     driver,
@@ -4591,7 +4584,7 @@ function makeRunOwnedSubagentFixture(input: {
   readonly childThreadId: ThreadId;
   readonly driver: typeof driver;
   readonly status: "running" | "interrupted";
-}): OrchestrationV2Subagent {
+}) {
   const now = DateTime.makeUnsafe("2026-07-21T12:00:00.000Z");
   return {
     id: input.ids.subagentNodeId,
@@ -4617,7 +4610,7 @@ function makeRunOwnedSubagentFixture(input: {
     startedAt: now,
     completedAt: null,
     updatedAt: now,
-  };
+  } satisfies OrchestrationV2Subagent;
 }
 
 function makeRunOwnedSubagentTurnItemFixture(input: {
@@ -4626,7 +4619,7 @@ function makeRunOwnedSubagentTurnItemFixture(input: {
   readonly childThreadId: ThreadId;
   readonly driver: typeof driver;
   readonly status: "running" | "interrupted";
-}): Extract<OrchestrationV2TurnItem, { type: "subagent" }> {
+}) {
   const now = DateTime.makeUnsafe("2026-07-21T12:00:00.000Z");
   return {
     id: input.ids.itemId,
@@ -4655,14 +4648,14 @@ function makeRunOwnedSubagentTurnItemFixture(input: {
     childThreadId: input.childThreadId,
     prompt: "hold",
     result: null,
-  };
+  } satisfies Extract<OrchestrationV2TurnItem, { type: "subagent" }>;
 }
 
 function makeLinkedChildTurnItemFixture(input: {
   readonly ids: BackgroundScenarioIds;
   readonly driver: typeof driver;
   readonly type: "assistant_message" | "command_execution" | "reasoning";
-}): OrchestrationV2TurnItem {
+}) {
   const now = DateTime.makeUnsafe("2026-07-21T12:00:00.000Z");
   const base = {
     id: input.ids.childItemId,
@@ -4687,7 +4680,7 @@ function makeLinkedChildTurnItemFixture(input: {
       messageId: MessageId.make(`${input.ids.childItemId}:message`),
       text: "partial response",
       streaming: true,
-    };
+    } satisfies OrchestrationV2TurnItem;
   }
   if (input.type === "reasoning") {
     return {
@@ -4695,19 +4688,19 @@ function makeLinkedChildTurnItemFixture(input: {
       type: "reasoning",
       text: "partial progress",
       streaming: true,
-    };
+    } satisfies OrchestrationV2TurnItem;
   }
   return {
     ...base,
     type: "command_execution",
     input: "sleep 300",
-  };
+  } satisfies OrchestrationV2TurnItem;
 }
 
 function makeRunOwnedSubagentNodeFixture(input: {
   readonly ids: BackgroundScenarioIds;
   readonly status: "running" | "interrupted";
-}): OrchestrationV2ExecutionNode {
+}) {
   const now = DateTime.makeUnsafe("2026-07-21T12:00:00.000Z");
   return {
     id: input.ids.subagentNodeId,
@@ -4729,13 +4722,13 @@ function makeRunOwnedSubagentNodeFixture(input: {
     checkpointScopeId: null,
     startedAt: now,
     completedAt: null,
-  };
+  } satisfies OrchestrationV2ExecutionNode;
 }
 
 function makeRunOwnedSubagentChildNodeFixture(input: {
   readonly ids: BackgroundScenarioIds;
   readonly status: "running" | "interrupted";
-}): OrchestrationV2ExecutionNode {
+}) {
   const now = DateTime.makeUnsafe("2026-07-21T12:00:00.000Z");
   return {
     id: NodeId.make(`${input.ids.subagentNodeId}:child-root`),
@@ -4753,13 +4746,13 @@ function makeRunOwnedSubagentChildNodeFixture(input: {
     checkpointScopeId: null,
     startedAt: now,
     completedAt: null,
-  };
+  } satisfies OrchestrationV2ExecutionNode;
 }
 
 function rootTerminalEvent(
   ids: BackgroundScenarioIds,
   status: "completed" | "interrupted" | "cancelled" | "failed",
-): ProviderAdapter.ProviderAdapterV2Event {
+) {
   const common = {
     type: "turn.terminal" as const,
     driver,
@@ -4768,19 +4761,21 @@ function rootTerminalEvent(
     runOrdinal: 1,
     threadDisposition: "reusable" as const,
   };
-  return status === "failed"
-    ? {
-        ...common,
-        status,
-        failureItemOrdinal: 101,
-        failure: {
-          class: "provider_error",
-          message: "Provider failed",
-          code: null,
-          retryable: null,
-        },
-      }
-    : { ...common, status, failure: null };
+  return (
+    status === "failed"
+      ? {
+          ...common,
+          status,
+          failureItemOrdinal: 101,
+          failure: {
+            class: "provider_error",
+            message: "Provider failed",
+            code: null,
+            retryable: null,
+          },
+        }
+      : { ...common, status, failure: null }
+  ) satisfies ProviderAdapter.ProviderAdapterV2Event;
 }
 
 function runBackgroundItemScenario(
@@ -4991,10 +4986,7 @@ function runBackgroundItemScenario(
 it.effect("keeps a failed root's still-running native children live while the run settles", () =>
   Effect.gen(function* () {
     const finalized = yield* Ref.make<ReadonlyArray<OrchestrationV2DomainEvent>>([]);
-    const childTurn = (
-      ids: BackgroundScenarioIds,
-      status: "running" | "completed",
-    ): ProviderAdapter.ProviderAdapterV2Event =>
+    const childTurn = (ids: BackgroundScenarioIds, status: "running" | "completed") =>
       ({
         type: "provider_turn.updated",
         driver,
@@ -5175,9 +5167,7 @@ it.effect.each([
 
 const heldChildText = "partial response";
 
-function childAssistantSnapshot(
-  ids: BackgroundScenarioIds,
-): ProviderAdapter.ProviderAdapterV2Event {
+function childAssistantSnapshot(ids: BackgroundScenarioIds) {
   return {
     type: "turn_item.updated",
     driver,
@@ -5188,10 +5178,7 @@ function childAssistantSnapshot(
   } as ProviderAdapter.ProviderAdapterV2Event;
 }
 
-function linkedSubagentEvent(
-  ids: BackgroundScenarioIds,
-  status: "running" | "completed",
-): ProviderAdapter.ProviderAdapterV2Event {
+function linkedSubagentEvent(ids: BackgroundScenarioIds, status: "running" | "completed") {
   return {
     type: "subagent.updated",
     driver,
@@ -5205,7 +5192,7 @@ function linkedSubagentEvent(
       }),
       status,
     },
-  };
+  } satisfies ProviderAdapter.ProviderAdapterV2Event;
 }
 
 const isHeldChildSnapshot = (event: ProviderAdapter.ProviderAdapterV2Event) =>
@@ -5330,7 +5317,7 @@ function streamedMessageEvent(input: {
   readonly role: "assistant" | "user";
   readonly text: string;
   readonly streaming: boolean;
-}): ProviderAdapter.ProviderAdapterV2Event {
+}) {
   const now = DateTime.makeUnsafe("2026-07-21T12:00:00.000Z");
   return {
     type: "message.updated",

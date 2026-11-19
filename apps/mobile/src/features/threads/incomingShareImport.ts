@@ -42,14 +42,11 @@ const TRANSITIONS: Readonly<
 };
 
 /** Events that do not apply to the current phase leave it unchanged. */
-export function transitionShareImport(
-  phase: ShareImportPhase,
-  event: ShareImportEvent,
-): ShareImportPhase {
+export function transitionShareImport(phase: ShareImportPhase, event: ShareImportEvent) {
   return TRANSITIONS[phase][event] ?? phase;
 }
 
-function isShareImportInFlight(phase: ShareImportPhase): boolean {
+function isShareImportInFlight(phase: ShareImportPhase) {
   return phase === "reserving" || phase === "attaching" || phase === "consuming";
 }
 
@@ -120,7 +117,7 @@ interface Entry {
   readonly listeners: Set<() => void>;
 }
 
-function keyOf(target: ShareImportTarget): string {
+function keyOf(target: ShareImportTarget) {
   return JSON.stringify([
     target.flowKey,
     target.routeKey,
@@ -165,22 +162,22 @@ export function makeIncomingShareImports(deps: ShareImportDeps) {
     ),
   );
 
-  function notify(entry: Entry): void {
+  function notify(entry: Entry) {
     for (const listener of Array.from(entry.listeners)) listener();
   }
 
-  function advance(entry: Entry, event: ShareImportEvent): void {
+  function advance(entry: Entry, event: ShareImportEvent) {
     const next = transitionShareImport(entry.phase, event);
     if (next === entry.phase) return;
     entry.phase = next;
     notify(entry);
   }
 
-  function settle(key: string, entry: Entry): void {
+  function settle(key: string, entry: Entry) {
     if (entry.detached && entries.get(key) === entry) entries.delete(key);
   }
 
-  async function runImport(key: string, entry: Entry): Promise<void> {
+  async function runImport(key: string, entry: Entry) {
     const { signal } = entry.controller;
     const { shareId, destination, draftKey } = entry.target;
     const stopped = () => {
@@ -242,7 +239,7 @@ export function makeIncomingShareImports(deps: ShareImportDeps) {
     }
   }
 
-  function begin(key: string, entry: Entry): void {
+  function begin(key: string, entry: Entry) {
     entry.backup ??= deps.readDraft(entry.target.draftKey);
     advance(entry, "start");
     const { flowKey } = entry.target;
@@ -254,12 +251,12 @@ export function makeIncomingShareImports(deps: ShareImportDeps) {
     });
   }
 
-  function abandon(key: string, entry: Entry): void {
+  function abandon(key: string, entry: Entry) {
     entry.controller.abort();
     entries.delete(key);
   }
 
-  function start(target: ShareImportTarget): Entry {
+  function start(target: ShareImportTarget) {
     const key = keyOf(target);
     const existing = entries.get(key);
     if (existing) return existing;
@@ -288,7 +285,7 @@ export function makeIncomingShareImports(deps: ShareImportDeps) {
     return entry;
   }
 
-  async function cancel(target: ShareImportTarget): Promise<void> {
+  async function cancel(target: ShareImportTarget) {
     const key = keyOf(target);
     const entry = entries.get(key);
     if (!entry || entry.phase !== "failed") return;
@@ -316,7 +313,7 @@ export function makeIncomingShareImports(deps: ShareImportDeps) {
 
   return {
     phaseAtom: Atom.family((target: ShareImportTarget) =>
-      Atom.make((get): ShareImportPhase => {
+      Atom.make((get) => {
         const entry = start(target);
         const rebuild = () => get.refreshSelf();
         entry.listeners.add(rebuild);
@@ -325,20 +322,20 @@ export function makeIncomingShareImports(deps: ShareImportDeps) {
       }).pipe(Atom.withLabel("mobile:incoming-share-import")),
     ),
     inFlightAtom: isRunningAtom,
-    settled(target: ShareImportTarget): Promise<void> {
+    settled(target: ShareImportTarget) {
       return entries.get(keyOf(target))?.run ?? Promise.resolve();
     },
     importedAtom(flowKey: string, shareId: string) {
       return isImportedAtom(JSON.stringify([flowKey, shareId]));
     },
-    retry(target: ShareImportTarget): void {
+    retry(target: ShareImportTarget) {
       const key = keyOf(target);
       const entry = entries.get(key);
       if (!entry || entry.phase !== "failed") return;
       begin(key, entry);
     },
     cancel,
-    prune(liveFlowKeys: ReadonlySet<string>): Promise<void> {
+    prune(liveFlowKeys: ReadonlySet<string>) {
       const stopping: Array<Promise<void>> = [];
       for (const [key, entry] of entries) {
         if (liveFlowKeys.has(entry.target.flowKey)) continue;

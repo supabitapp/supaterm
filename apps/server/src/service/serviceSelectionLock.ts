@@ -9,7 +9,7 @@ import * as NodePath from "node:path";
 const bootEpochSeconds = () => Math.round(Date.now() / 1000 - NodeOS.uptime());
 
 /** Serialize durable selection and unit writes, never manager stop/start commands. */
-export async function acquireServiceSelectionLock(selectionPath: string): Promise<() => void> {
+export async function acquireServiceSelectionLock(selectionPath: string) {
   const directory = NodePath.dirname(selectionPath);
   NodeFS.mkdirSync(directory, { recursive: true, mode: 0o700 });
   const lock = selectionPath + ".selection-lock";

@@ -21,7 +21,7 @@ const CARD_TEXT_ROLES = [
   "--color-primary-text",
 ] as const;
 
-function withVisibleSelection(variables: MobileThemeVariables): MobileThemeVariables {
+function withVisibleSelection(variables: MobileThemeVariables) {
   const selected = themeColorWithContrast(
     flattenThemeColor(variables["--color-thread-selected"], variables["--color-drawer"]),
     flattenThemeColor(variables["--color-drawer"], variables["--color-screen"]),
@@ -45,7 +45,7 @@ export function getMobileThemeRuntimeVariables(
   themeId: MobileThemeId,
   appearance: MobileThemeAppearance,
   platform: string,
-): MobileThemeVariables {
+) {
   return withVisibleSelection(platformThemeVariables(themeId, appearance, platform));
 }
 
@@ -53,7 +53,7 @@ function platformThemeVariables(
   themeId: MobileThemeId,
   appearance: MobileThemeAppearance,
   platform: string,
-): MobileThemeVariables {
+) {
   const usesDefaultPalette = themeId === DEFAULT_MOBILE_THEME_ID || themeId === "material-you";
   const variables = usesDefaultPalette
     ? defaults[appearance]

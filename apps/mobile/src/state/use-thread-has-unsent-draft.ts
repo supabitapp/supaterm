@@ -16,6 +16,6 @@ const threadHasUnsentDraftAtom = Atom.family((threadKey: string) =>
  * A boolean per thread, so typing in one composer only re-renders a list row
  * when its draft crosses between empty and non-empty.
  */
-export function useThreadHasUnsentDraft(threadKey: string): boolean {
+export function useThreadHasUnsentDraft(threadKey: string) {
   return useAtomValue(threadHasUnsentDraftAtom(threadKey));
 }

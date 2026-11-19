@@ -170,10 +170,13 @@ export type ForwardCompatibleUnion<
   Members[number]["EncodingServices"]
 >;
 
-export const hasUnknownUnionTag = (
+export const hasUnknownUnionTag: (
   members: ReadonlyArray<Schema.Top & { readonly fields: object }>,
   tag: string,
-): ((value: unknown) => boolean) => {
+) => (value: unknown) => boolean = (
+  members: ReadonlyArray<Schema.Top & { readonly fields: object }>,
+  tag: string,
+) => {
   const known = knownTags(members, tag);
   return (value) =>
     typeof value === "object" &&
@@ -209,10 +212,13 @@ export const ForwardCompatibleUnionArray = <
     ),
   );
 
-const knownTags = (
+const knownTags: (
   members: ReadonlyArray<Schema.Top & { readonly fields: object }>,
   tag: string,
-): ReadonlySet<string> => {
+) => ReadonlySet<string> = (
+  members: ReadonlyArray<Schema.Top & { readonly fields: object }>,
+  tag: string,
+) => {
   const tags = new Set<string>();
   for (const member of members) {
     const field = (member.fields as Record<string, unknown>)[tag] as

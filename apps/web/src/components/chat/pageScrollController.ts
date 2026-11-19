@@ -17,7 +17,7 @@ type PageScrollMetrics = {
 function canScrollInDirection(
   { clientHeight, scrollHeight, scrollTop }: PageScrollMetrics,
   key: PageScrollKey,
-): boolean {
+) {
   const maxScrollTop = Math.max(0, scrollHeight - clientHeight);
   const clampedScrollTop = Math.min(maxScrollTop, Math.max(0, scrollTop));
   return key === "PageUp"
@@ -49,7 +49,7 @@ export function getTimelinePageScrollKey({
   scrollHeight: number;
   scrollTop: number;
   shiftKey: boolean;
-}): PageScrollKey | null {
+}) {
   if (key !== "PageUp" && key !== "PageDown") {
     return null;
   }
@@ -84,7 +84,8 @@ type PageScrollEnv = {
   prefersReducedMotion: () => boolean;
 };
 
-function getDefaultEnv(): PageScrollEnv {
+function getDefaultEnv(): PageScrollEnv;
+function getDefaultEnv() {
   return {
     now: () => performance.now(),
     requestAnimationFrame: (callback) => window.requestAnimationFrame(callback),
@@ -92,10 +93,10 @@ function getDefaultEnv(): PageScrollEnv {
     setTimeout: (callback, delay) => window.setTimeout(callback, delay),
     clearTimeout: (handle) => window.clearTimeout(handle),
     prefersReducedMotion: () => window.matchMedia("(prefers-reduced-motion: reduce)").matches,
-  };
+  } satisfies PageScrollEnv;
 }
 
-function getPageScrollMultiplier(holdElapsedMs: number): number {
+function getPageScrollMultiplier(holdElapsedMs: number) {
   const progress = Math.max(0, holdElapsedMs) / PAGE_SCROLL_ACCELERATION_MS;
   return 1 + Math.min(progress, 1) * (PAGE_SCROLL_MAX_MULTIPLIER - 1);
 }
@@ -106,7 +107,7 @@ function getPageScrollVelocityPxPerMs({
 }: {
   holdElapsedMs: number;
   pageScrollDistancePx: number;
-}): number {
+}) {
   return (pageScrollDistancePx * getPageScrollMultiplier(holdElapsedMs)) / PAGE_SCROLL_ANIMATION_MS;
 }
 
@@ -116,15 +117,15 @@ function getPageScrollDistancePx({
 }: {
   containerHeightPx: number;
   scrollPaddingBottomPx: number;
-}): number {
+}) {
   return Math.max(0, containerHeightPx - PAGE_SCROLL_ALIGNMENT_OFFSET_PX - scrollPaddingBottomPx);
 }
 
-function getDirection(key: PageScrollKey): -1 | 1 {
+function getDirection(key: PageScrollKey) {
   return key === "PageUp" ? -1 : 1;
 }
 
-function easeInOut(progress: number): number {
+function easeInOut(progress: number) {
   const ax = 3 * 0.42 - 3 * 0.58 + 1;
   const bx = 3 * (0.58 - 2 * 0.42);
   const cx = 3 * 0.42;

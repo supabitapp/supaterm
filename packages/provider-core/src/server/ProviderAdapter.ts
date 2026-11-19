@@ -205,7 +205,7 @@ export class ProviderAdapterOpenSessionError extends Schema.TaggedError<Provider
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Failed to open ${this.driver} provider session ${this.providerSessionId}.`;
   }
 }
@@ -219,7 +219,7 @@ export class ProviderAdapterResumeThreadError extends Schema.TaggedError<Provide
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Failed to resume ${this.driver} provider thread ${this.providerThreadId}.`;
   }
 }
@@ -237,7 +237,7 @@ export class ProviderAdapterThreadInUseError extends Schema.TaggedError<Provider
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return this.detail;
   }
 }
@@ -249,7 +249,7 @@ export class ProviderResumeUnsupportedError extends Schema.TaggedError<ProviderR
   "ProviderResumeUnsupportedError",
   { driver: ProviderDriverKind, providerThreadId: ProviderThreadId },
 ) {
-  override get message(): string {
+  override get message() {
     return "This provider cannot resume without a new message. Send a message to continue.";
   }
 }
@@ -261,7 +261,7 @@ export class ProviderCompactionUnsupportedError extends Schema.TaggedError<Provi
     providerThreadId: ProviderThreadId,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return "This provider does not support /compact. Start a new thread to continue with a fresh context.";
   }
 }
@@ -274,7 +274,7 @@ export class ProviderAdapterEnsureThreadError extends Schema.TaggedError<Provide
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Failed to ensure ${this.driver} provider thread for app thread ${this.threadId}.`;
   }
 }
@@ -287,7 +287,7 @@ export class ProviderAdapterReadThreadSnapshotError extends Schema.TaggedError<P
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Failed to read ${this.driver} provider thread snapshot ${this.providerThreadId}.`;
   }
 }
@@ -301,7 +301,7 @@ export class ProviderAdapterRollbackThreadError extends Schema.TaggedError<Provi
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Failed to roll back ${this.driver} provider thread ${this.providerThreadId}.`;
   }
 }
@@ -314,7 +314,7 @@ export class ProviderAdapterForkThreadError extends Schema.TaggedError<ProviderA
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Failed to fork ${this.driver} provider thread ${this.providerThreadId}.`;
   }
 }
@@ -329,7 +329,7 @@ export class ProviderAdapterTurnStartError extends Schema.TaggedError<ProviderAd
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Failed to start run ${this.runId} on ${this.driver} provider thread ${this.providerThreadId}.`;
   }
 }
@@ -341,7 +341,7 @@ export class ProviderAdapterSteerRunUnsupportedError extends Schema.TaggedError<
     providerThreadId: ProviderThreadId,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `${this.driver} provider thread ${this.providerThreadId} does not support active-run steering.`;
   }
 }
@@ -364,7 +364,7 @@ export class ProviderAdapterSteerRunError extends Schema.TaggedError<ProviderAda
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Failed to steer active run ${this.providerTurnId} on ${this.driver} provider thread ${this.providerThreadId}.`;
   }
 }
@@ -378,7 +378,7 @@ export class ProviderAdapterInterruptError extends Schema.TaggedError<ProviderAd
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Failed to interrupt ${this.driver} provider turn ${this.providerTurnId}.`;
   }
 }
@@ -393,7 +393,7 @@ export class ProviderAdapterInterruptTimeoutError extends Schema.TaggedError<Pro
     timeoutMs: Schema.Number,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `The ${this.driver} provider did not confirm stopping turn ${this.providerTurnId} within ${this.timeoutMs} ms.`;
   }
 }
@@ -406,7 +406,7 @@ export class ProviderAdapterRuntimeRequestResponseError extends Schema.TaggedErr
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Failed to respond to ${this.driver} runtime request ${this.requestId}.`;
   }
 }
@@ -423,7 +423,7 @@ export class ProviderAdapterEventStreamError extends Schema.TaggedError<Provider
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Failed while streaming ${this.driver} provider session ${this.providerSessionId} events.`;
   }
 }
@@ -444,7 +444,7 @@ export class ProviderAdapterProtocolError extends Schema.TaggedError<ProviderAda
     payload: Schema.optional(Schema.Unknown),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `${this.driver} provider protocol error: ${this.detail}.`;
   }
 }
@@ -453,7 +453,7 @@ export class ProviderAdapterSessionStoppedError extends Schema.TaggedError<Provi
   "ProviderAdapterSessionStoppedError",
   { driver: ProviderDriverKind },
 ) {
-  override get message(): string {
+  override get message() {
     return `No running ${this.driver} session owns this thread.`;
   }
 }
@@ -530,13 +530,14 @@ export type ProviderAdapterV2ResumeTurnInput = Omit<
 
 export function resumeTurnInput(
   input: ProviderAdapterV2ResumeTurnInput,
-): ProviderAdapterV2TurnInput {
+): ProviderAdapterV2TurnInput;
+export function resumeTurnInput(input: ProviderAdapterV2ResumeTurnInput) {
   const { messageId, ...turn } = input;
   return {
     ...turn,
     resume: true,
     message: { messageId, text: "", attachments: [], createdBy: "user", creationSource: "server" },
-  };
+  } satisfies ProviderAdapterV2TurnInput;
 }
 
 export interface ProviderAdapterV2SteerInput {

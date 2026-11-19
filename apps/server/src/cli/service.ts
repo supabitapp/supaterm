@@ -67,9 +67,7 @@ const reconcileService = Effect.fn("cli.service.reconcile")(function* (options?:
   } satisfies ServiceReconcileResult;
 });
 
-function formatServiceChange(
-  result: Extract<ServiceReconcileResult, { readonly changed: true }>,
-): string {
+function formatServiceChange(result: Extract<ServiceReconcileResult, { readonly changed: true }>) {
   if (result.plan.handedOff === true) {
     return `Handed the Supaterm service switch to supaterm@${packageJson.version} to a separate systemd unit, since this session runs inside the service and disconnects when it restarts.\nResult: ${result.plan.logPath}`;
   }
@@ -79,9 +77,7 @@ function formatServiceChange(
 const MEMORY_CONTROLLER_DISABLED =
   "the kernel's memory cgroup controller is disabled. Add `cgroup_enable=memory` to the kernel command line and reboot.";
 
-function formatProtection(
-  protection: ServiceProtection.ServiceProtectionState | undefined,
-): ReadonlyArray<string> {
+function formatProtection(protection: ServiceProtection.ServiceProtectionState | undefined) {
   if (protection === undefined) return [];
   return [
     !protection.memoryControllerAvailable
@@ -98,7 +94,7 @@ function formatServiceStatus(
   cliVersion: string,
   commands: { readonly install: string; readonly restart: string; readonly update: string },
   protection?: ServiceProtection.ServiceProtectionState,
-): string {
+) {
   if (!status.supported) {
     return "Supaterm service\n  Status: unavailable on this machine\n  Supported on: Linux with systemd, macOS with launchd";
   }

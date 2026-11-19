@@ -33,7 +33,7 @@ export class GitCafeApiError extends Schema.TaggedError<GitCafeApiError>()("GitC
   detail: Schema.String,
   cause: Schema.optional(Schema.Defect()),
 }) {
-  override get message(): string {
+  override get message() {
     return `GitCafe ${this.operation} failed on ${this.host}: ${this.detail}`;
   }
 }
@@ -62,7 +62,7 @@ const decodeProblem = Schema.decodeUnknownOption(
   ),
 );
 
-const reasonForStatus = (status: number): typeof GitCafeApiFailure.Type =>
+const reasonForStatus = (status: number) =>
   status === 401
     ? "unauthenticated"
     : status === 403
@@ -80,9 +80,7 @@ const boundedProblemText = (text: string | undefined) => {
   return line.length > MAX_PROBLEM_TEXT ? `${line.slice(0, MAX_PROBLEM_TEXT)}…` : line;
 };
 
-const credentialFailure = (
-  error: GitCafeCredentials.GitCafeCredentialUnavailableError,
-): typeof GitCafeApiFailure.Type =>
+const credentialFailure = (error: GitCafeCredentials.GitCafeCredentialUnavailableError) =>
   error._tag === "GitCafeCliMissingError"
     ? "missing-tool"
     : error._tag === "GitCafeNotSignedInError"
@@ -97,7 +95,7 @@ const redirectTarget = (
   origin: string,
   from: string,
   response: { readonly status: number; readonly location: string | undefined },
-): string | null => {
+) => {
   if (!REDIRECTS.has(response.status) || response.location === undefined) return null;
   if (method !== "GET" && !METHOD_PRESERVING.has(response.status)) return null;
   const target = URL.parse(response.location, from);

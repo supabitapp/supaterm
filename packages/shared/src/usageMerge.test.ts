@@ -10,11 +10,11 @@ import {
 import { describe, expect, it } from "vite-plus/test";
 import * as Schema from "effect/Schema";
 
-import { isModelCostUnknown, mergeUsage, type EnvironmentUsage } from "./usageMerge.ts";
+import { isModelCostUnknown, mergeUsage } from "./usageMerge.ts";
 
 const decodeSummary = Schema.decodeUnknownSync(UsageSummary);
 
-function bucket(overrides: Partial<UsageBucket> = {}): UsageBucket {
+function bucket(overrides: Partial<UsageBucket> = {}) {
   return {
     day: "2026-08-07" as UsageDay,
     provider: "claude",
@@ -33,7 +33,7 @@ function bucket(overrides: Partial<UsageBucket> = {}): UsageBucket {
     unpricedRecords: 0,
     sessions: 1,
     ...overrides,
-  };
+  } satisfies UsageBucket;
 }
 
 function summary(
@@ -47,7 +47,7 @@ function summary(
     distinctSessions?: number;
   }[],
   contractVersion: number = USAGE_CONTRACT_VERSION,
-): UsageSummary {
+) {
   return {
     contractVersion,
     readAt: "2026-08-07T00:00:00.000Z",
@@ -74,10 +74,10 @@ function summary(
     })),
     pricing: { status: "fresh", source: "litellm", fetchedAt: null, knownModels: 10 },
     scanDurationMs: 1,
-  };
+  } satisfies UsageSummary;
 }
 
-function environment(id: string, usageSummary: UsageSummary): EnvironmentUsage {
+function environment(id: string, usageSummary: UsageSummary) {
   return { environmentId: id as EnvironmentId, label: id, summary: usageSummary };
 }
 

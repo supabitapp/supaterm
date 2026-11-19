@@ -12,7 +12,7 @@ type DesktopUpdateShell = Pick<DesktopBridge, "openExternal">;
 export async function openDesktopUpdateReleaseNotes(
   shell: DesktopUpdateShell | undefined,
   releaseUrl: string,
-): Promise<void> {
+) {
   try {
     if (shell && (await shell.openExternal(releaseUrl))) return;
   } catch {}
@@ -47,7 +47,7 @@ function ReleaseNotesLink({
 export function showDesktopUpdateDownloadedToast(
   shell: DesktopUpdateShell,
   state: DesktopUpdateState,
-): void {
+) {
   const releaseUrl = getDesktopUpdateReleaseUrl(getDesktopUpdateDownloadedVersion(state));
   toastManager.add({
     type: "success",

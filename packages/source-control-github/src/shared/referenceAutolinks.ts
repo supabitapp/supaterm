@@ -5,10 +5,7 @@ const REFERENCE =
 const CANDIDATE = /[#@]|\b[a-f\d]{7,40}\b/iu;
 const SHORT_SHA_LENGTH = 7;
 
-export function gitHubReferenceAutolinks(
-  text: string,
-  repositoryUrl: string,
-): ReadonlyArray<ReferenceAutolink> {
+export function gitHubReferenceAutolinks(text: string, repositoryUrl: string) {
   if (!CANDIDATE.test(text)) return [];
   let url: URL;
   try {

@@ -8,10 +8,7 @@ export function createDesktopUpdateRestartController() {
   const store = createStore(() => ({ isRestarting: false }));
   let pendingInstall: Promise<void> | null = null;
 
-  function install(
-    bridge: Pick<DesktopBridge, "installUpdate">,
-    expectedVersion?: string,
-  ): Promise<void> {
+  function install(bridge: Pick<DesktopBridge, "installUpdate">, expectedVersion?: string) {
     if (pendingInstall) return pendingInstall;
 
     flushSync(() => store.setState({ isRestarting: true }));

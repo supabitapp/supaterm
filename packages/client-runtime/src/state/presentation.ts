@@ -21,7 +21,7 @@ import {
 import { scopeThreadRef, scopedThreadKey } from "../environment/scoped.ts";
 import { type EnvironmentCatalogState, enabledEnvironmentIds } from "./connections.ts";
 
-function mapsEqual<K, V>(left: ReadonlyMap<K, V>, right: ReadonlyMap<K, V>): boolean {
+function mapsEqual<K, V>(left: ReadonlyMap<K, V>, right: ReadonlyMap<K, V>) {
   if (left.size !== right.size) {
     return false;
   }
@@ -36,18 +36,15 @@ function mapsEqual<K, V>(left: ReadonlyMap<K, V>, right: ReadonlyMap<K, V>): boo
 function sameConnection(
   left: EnvironmentConnectionPresentation,
   right: EnvironmentConnectionPresentation,
-): boolean {
+) {
   return left.phase === right.phase && left.error === right.error && left.traceId === right.traceId;
 }
 
-function sameRouteIds(left: ReadonlyArray<string>, right: ReadonlyArray<string>): boolean {
+function sameRouteIds(left: ReadonlyArray<string>, right: ReadonlyArray<string>) {
   return left.length === right.length && left.every((routeId, index) => right[index] === routeId);
 }
 
-function withoutProviders(
-  config: ServerConfig | null,
-  previous: EnvironmentServerConfig | null,
-): EnvironmentServerConfig | null {
+function withoutProviders(config: ServerConfig | null, previous: EnvironmentServerConfig | null) {
   if (config === null) {
     return null;
   }
@@ -208,7 +205,7 @@ export interface EnvironmentConnectionSummary {
 export function projectEnvironmentConnectionSummary(
   environmentId: EnvironmentId,
   environment: EnvironmentPresentation,
-): EnvironmentConnectionSummary {
+) {
   return {
     environmentId,
     environmentLabel: environment.entry.target.label,
@@ -237,7 +234,7 @@ export function withoutOfflineEnvironmentThreads<
   threads: ReadonlyArray<T>,
   offlineEnvironmentIds: ReadonlySet<EnvironmentId>,
   openThreadKey: string | null,
-): ReadonlyArray<T> {
+) {
   if (offlineEnvironmentIds.size === 0) return threads;
   return threads.filter(
     (thread) =>
@@ -324,7 +321,7 @@ export function createEnvironmentSummaryAtoms(input: {
       : next;
   });
   const offlineEnvironmentAtom = Atom.family((environmentId: EnvironmentId) =>
-    Atom.make((get): OfflineEnvironmentTracking | null => {
+    Atom.make((get) => {
       const connectionState = get(environmentAtom(environmentId))?.connectionState;
       if (connectionState === undefined || connectionState === "connected") return null;
       // @effect-diagnostics-next-line globalDate:off - Atoms run outside an Effect runtime.
@@ -343,7 +340,7 @@ export function createEnvironmentSummaryAtoms(input: {
       return { disconnectedSince, offline: remainingMs <= 0 };
     }),
   );
-  const offlineEnvironmentIdsAtom = Atom.make((get): ReadonlySet<EnvironmentId> => {
+  const offlineEnvironmentIdsAtom = Atom.make((get) => {
     const next = get(environmentIdsAtom).filter((id) => get(offlineEnvironmentAtom(id))?.offline);
     const previous = Option.getOrNull(get.self<ReadonlySet<EnvironmentId>>());
     if (next.length === 0) return NO_ENVIRONMENT_IDS;

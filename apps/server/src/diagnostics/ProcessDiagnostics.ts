@@ -1,6 +1,5 @@
 import type {
   ResourceTelemetryProcessCategory,
-  ServerProcessDiagnosticsEntry,
   ServerProcessDiagnosticsResult,
   ServerProcessSignal,
   ServerSignalProcessResult,
@@ -21,7 +20,7 @@ export class ProcessSignalFailed extends Schema.TaggedError<ProcessSignalFailed>
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Failed to signal process ${this.pid} with ${this.signal}.`;
   }
 }
@@ -38,7 +37,7 @@ export class ProcessDiagnostics extends Context.Service<
   }
 >()("supaterm/diagnostics/ProcessDiagnostics") {}
 
-function formatElapsed(runTimeMs: number): string {
+function formatElapsed(runTimeMs: number) {
   const totalSeconds = Math.max(0, Math.floor(runTimeMs / 1_000));
   const hours = Math.floor(totalSeconds / 3_600);
   const minutes = Math.floor((totalSeconds % 3_600) / 60);
@@ -48,7 +47,7 @@ function formatElapsed(runTimeMs: number): string {
     : `${minutes}:${String(seconds).padStart(2, "0")}`;
 }
 
-function canSignalCategory(category: ResourceTelemetryProcessCategory): boolean {
+function canSignalCategory(category: ResourceTelemetryProcessCategory) {
   return (
     category === "server-child" || category === "provider-root" || category === "terminal-root"
   );
@@ -62,7 +61,7 @@ export const make = Effect.fn("makeProcessDiagnostics")(function* () {
     Effect.map((snapshot) => {
       const processes = snapshot.processes
         .filter((entry) => canSignalCategory(entry.category))
-        .map((entry): ServerProcessDiagnosticsEntry => ({
+        .map((entry) => ({
           pid: entry.identity.pid,
           startTimeMs: entry.identity.startTimeMs,
           ppid: entry.ppid,

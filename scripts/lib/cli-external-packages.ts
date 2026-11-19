@@ -29,7 +29,7 @@ const CURSOR_RUNTIME_DEPENDENCIES = [
   "@fastify/busboy",
 ] as const;
 
-export function isRuntimeExternalCliDependency(id: string): boolean {
+export function isRuntimeExternalCliDependency(id: string) {
   return (
     CLI_RUNTIME_EXTERNAL_PREFIXES.some((prefix) => id.startsWith(prefix)) ||
     CURSOR_RUNTIME_DEPENDENCIES.some((name) => id === name || id.startsWith(`${name}/`))
@@ -42,18 +42,18 @@ export function isRuntimeExternalCliDependency(id: string): boolean {
  * it means "no opinion", and the default then applies: a declared dependency
  * stays external, but a transitive one gets bundled.
  */
-export function isExternalCliDependency(id: string): boolean {
+export function isExternalCliDependency(id: string) {
   return isRuntimeExternalCliDependency(id);
 }
 
-export function shouldBundleCliDependency(id: string): boolean {
+export function shouldBundleCliDependency(id: string) {
   if (id.startsWith("node:")) return false;
   return !isExternalCliDependency(id);
 }
 
 export function selectCliRuntimeExternalDependencies(
   dependencies: Readonly<Record<string, string>>,
-): Record<string, string> {
+) {
   return Object.fromEntries(
     Object.entries(dependencies).filter(([name]) => isRuntimeExternalCliDependency(name)),
   );
@@ -63,11 +63,7 @@ export function selectCliRuntimeExternalDependencies(
  * `regionCount` is reported so the caller can tell "nothing was inlined" apart
  * from "the marker format changed and this scan no longer sees anything".
  */
-export function findInlinedExternalPackages(source: string): {
-  readonly regionCount: number;
-  readonly inlined: ReadonlyArray<string>;
-  readonly inlinedPackages: ReadonlyArray<string>;
-} {
+export function findInlinedExternalPackages(source: string) {
   const regionPattern = /^\/\/(?:#region)?[ \t]+(\S+)[ \t]*$/gm;
   const packagePattern = /node_modules\/((?:@[^/\s]+\/)?[^/\s]+)\//g;
 

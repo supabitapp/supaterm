@@ -37,7 +37,7 @@ function getCachedReviewFile(
   stat: ReviewDiffFileStat,
   diffHash: string,
   patch: ParsedFilePatch | null | undefined,
-): ReviewRenderableFile {
+) {
   const cached = patch && normalizedFiles.get(patch);
   if (cached && cached.stat === stat && cached.diffHash === diffHash) return cached.file;
   const parsed = patch?._tag === "Success" ? patch.value.parsed : null;
@@ -84,11 +84,11 @@ function getCachedReviewFile(
   return file;
 }
 
-function isReviewDiffDebugLoggingEnabled(): boolean {
+function isReviewDiffDebugLoggingEnabled() {
   return typeof __DEV__ !== "undefined" ? __DEV__ : false;
 }
 
-function logReviewDiffDiagnostic(message: string, details?: Record<string, unknown>): void {
+function logReviewDiffDiagnostic(message: string, details?: Record<string, unknown>) {
   if (!isReviewDiffDebugLoggingEnabled()) {
     return;
   }
@@ -101,13 +101,7 @@ function logReviewDiffDiagnostic(message: string, details?: Record<string, unkno
   console.log(`[review-sheet] ${message}`);
 }
 
-function formatHeaderDiffSummary(
-  parsedDiff: ReviewParsedDiff,
-  files?: ReviewSectionItem["files"],
-): {
-  readonly additions: string | null;
-  readonly deletions: string | null;
-} {
+function formatHeaderDiffSummary(parsedDiff: ReviewParsedDiff, files?: ReviewSectionItem["files"]) {
   if (files) {
     return {
       additions: `+${formatDiffCount(files.reduce((total, file) => total + file.additions, 0))}`,

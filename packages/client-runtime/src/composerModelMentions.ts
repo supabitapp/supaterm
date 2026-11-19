@@ -33,7 +33,7 @@ export interface ComposerModelItem {
 export function isMentionableProvider(
   provider: Pick<ServerProvider, "installed" | "status" | "auth" | "availability">,
   enabled: boolean,
-): boolean {
+) {
   return (
     enabled &&
     provider.installed &&
@@ -44,7 +44,7 @@ export function isMentionableProvider(
   );
 }
 
-function mentionSearchQueries(query: string): ReadonlyArray<string> {
+function mentionSearchQueries(query: string) {
   const spaced = normalizeSearchQuery(query.replace(/[:/]+/gu, " "));
   const unhyphenated = normalizeSearchQuery(spaced.replace(/-+/gu, " "));
   if (unhyphenated.length === 0) return [];
@@ -65,7 +65,7 @@ function searchable(candidate: ComposerModelCandidate) {
 export function matchComposerModelItems(
   candidates: ReadonlyArray<ComposerModelCandidate>,
   query: string,
-): ComposerModelItem[] {
+) {
   for (const words of mentionSearchQueries(query)) {
     const tokens = words.split(/\s+/u);
     const literal = candidates.filter((candidate) => {
@@ -82,8 +82,8 @@ export function matchComposerModelItems(
         description: candidate.subProvider
           ? `${candidate.providerName} · ${candidate.subProvider}`
           : candidate.providerName,
-      }));
+      })) satisfies ComposerModelItem[];
     }
   }
-  return [];
+  return [] satisfies ComposerModelItem[];
 }

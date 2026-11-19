@@ -257,45 +257,55 @@ export const layer = Layer.effect(
 
     const register: DesktopBackendPool["Service"]["register"] = (spec) =>
       Effect.suspend(() =>
-        SynchronizedRef.modifyEffect(
-          instancesRef,
-          (
-            current,
-          ): Effect.Effect<
+        SynchronizedRef.modifyEffect(instancesRef, (current) => {
+          const existing = current.get(spec.id);
+          if (existing?._tag === "Active") {
+            return Effect.fail(
+              new DesktopBackendPoolInstanceAlreadyRegisteredError({ id: spec.id }),
+            ) satisfies Effect.Effect<
+              readonly [RegisterAction, ReadonlyMap<BackendInstanceId, RegisteredInstance>],
+              DesktopBackendPoolInstanceAlreadyRegisteredError
+            > as Effect.Effect<
+              readonly [RegisterAction, ReadonlyMap<BackendInstanceId, RegisteredInstance>],
+              DesktopBackendPoolInstanceAlreadyRegisteredError
+            >;
+          }
+          if (existing?._tag === "Closing") {
+            return Effect.succeed([
+              { _tag: "Wait", done: existing.done } as const,
+              current,
+            ] as const) satisfies Effect.Effect<
+              readonly [RegisterAction, ReadonlyMap<BackendInstanceId, RegisteredInstance>],
+              DesktopBackendPoolInstanceAlreadyRegisteredError
+            > as Effect.Effect<
+              readonly [RegisterAction, ReadonlyMap<BackendInstanceId, RegisteredInstance>],
+              DesktopBackendPoolInstanceAlreadyRegisteredError
+            >;
+          }
+          return Effect.gen(function* () {
+            const instanceScope = yield* Scope.fork(layerScope, "sequential");
+            const instance = yield* DesktopBackendManager.makeBackendInstance(spec).pipe(
+              Scope.provide(instanceScope),
+              Effect.provide(factoryContext),
+            );
+            const next = new Map(current);
+            next.set(spec.id, {
+              _tag: "Active",
+              instance,
+              scope: Option.some(instanceScope),
+            });
+            return [
+              { _tag: "Registered", instance } as const,
+              next as ReadonlyMap<BackendInstanceId, RegisteredInstance>,
+            ] as const;
+          }) satisfies Effect.Effect<
             readonly [RegisterAction, ReadonlyMap<BackendInstanceId, RegisteredInstance>],
             DesktopBackendPoolInstanceAlreadyRegisteredError
-          > => {
-            const existing = current.get(spec.id);
-            if (existing?._tag === "Active") {
-              return Effect.fail(
-                new DesktopBackendPoolInstanceAlreadyRegisteredError({ id: spec.id }),
-              );
-            }
-            if (existing?._tag === "Closing") {
-              return Effect.succeed([
-                { _tag: "Wait", done: existing.done } as const,
-                current,
-              ] as const);
-            }
-            return Effect.gen(function* () {
-              const instanceScope = yield* Scope.fork(layerScope, "sequential");
-              const instance = yield* DesktopBackendManager.makeBackendInstance(spec).pipe(
-                Scope.provide(instanceScope),
-                Effect.provide(factoryContext),
-              );
-              const next = new Map(current);
-              next.set(spec.id, {
-                _tag: "Active",
-                instance,
-                scope: Option.some(instanceScope),
-              });
-              return [
-                { _tag: "Registered", instance } as const,
-                next as ReadonlyMap<BackendInstanceId, RegisteredInstance>,
-              ] as const;
-            });
-          },
-        ).pipe(
+          > as Effect.Effect<
+            readonly [RegisterAction, ReadonlyMap<BackendInstanceId, RegisteredInstance>],
+            DesktopBackendPoolInstanceAlreadyRegisteredError
+          >;
+        }).pipe(
           Effect.flatMap((result) =>
             result._tag === "Registered"
               ? Effect.succeed(result.instance)
@@ -311,28 +321,39 @@ export const layer = Layer.effect(
         return yield* new DesktopBackendPoolCannotUnregisterPrimaryError();
       }
       const done = yield* Deferred.make<void>();
-      const action = yield* SynchronizedRef.modifyEffect(
-        instancesRef,
-        (
-          current,
-        ): Effect.Effect<
-          readonly [UnregisterAction, ReadonlyMap<BackendInstanceId, RegisteredInstance>]
-        > => {
-          const entry = current.get(id);
-          if (entry === undefined) {
-            return Effect.succeed([{ _tag: "Absent" } as const, current] as const);
-          }
-          if (entry._tag === "Closing") {
-            return Effect.succeed([{ _tag: "Wait", done: entry.done } as const, current] as const);
-          }
-          const next = new Map(current);
-          next.set(id, { _tag: "Closing", done });
+      const action = yield* SynchronizedRef.modifyEffect(instancesRef, (current) => {
+        const entry = current.get(id);
+        if (entry === undefined) {
           return Effect.succeed([
-            { _tag: "Close", entry } as const,
-            next as ReadonlyMap<BackendInstanceId, RegisteredInstance>,
-          ] as const);
-        },
-      );
+            { _tag: "Absent" } as const,
+            current,
+          ] as const) satisfies Effect.Effect<
+            readonly [UnregisterAction, ReadonlyMap<BackendInstanceId, RegisteredInstance>]
+          > as Effect.Effect<
+            readonly [UnregisterAction, ReadonlyMap<BackendInstanceId, RegisteredInstance>]
+          >;
+        }
+        if (entry._tag === "Closing") {
+          return Effect.succeed([
+            { _tag: "Wait", done: entry.done } as const,
+            current,
+          ] as const) satisfies Effect.Effect<
+            readonly [UnregisterAction, ReadonlyMap<BackendInstanceId, RegisteredInstance>]
+          > as Effect.Effect<
+            readonly [UnregisterAction, ReadonlyMap<BackendInstanceId, RegisteredInstance>]
+          >;
+        }
+        const next = new Map(current);
+        next.set(id, { _tag: "Closing", done });
+        return Effect.succeed([
+          { _tag: "Close", entry } as const,
+          next as ReadonlyMap<BackendInstanceId, RegisteredInstance>,
+        ] as const) satisfies Effect.Effect<
+          readonly [UnregisterAction, ReadonlyMap<BackendInstanceId, RegisteredInstance>]
+        > as Effect.Effect<
+          readonly [UnregisterAction, ReadonlyMap<BackendInstanceId, RegisteredInstance>]
+        >;
+      });
 
       if (action._tag === "Absent") return;
       if (action._tag === "Wait") {
@@ -381,9 +402,7 @@ export const layer = Layer.effect(
   }),
 );
 
-export const layerTest = (
-  instances: readonly DesktopBackendInstance[],
-): Layer.Layer<DesktopBackendPool> =>
+export const layerTest = (instances: readonly DesktopBackendInstance[]) =>
   Layer.effect(
     DesktopBackendPool,
     Effect.gen(function* () {

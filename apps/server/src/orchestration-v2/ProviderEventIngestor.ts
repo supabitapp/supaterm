@@ -47,7 +47,7 @@ export class ProviderEventNormalizeError extends Schema.TaggedError<ProviderEven
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Failed to normalize provider event ${this.eventType} for thread ${this.threadId}.`;
   }
 }
@@ -60,7 +60,7 @@ export class ProviderEventPublishError extends Schema.TaggedError<ProviderEventP
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Failed to publish ${this.eventCount} normalized provider event(s).`;
   }
 }
@@ -82,7 +82,7 @@ function withPlanStepDurations(
   plan: TodoListPlan,
   previous: TodoListPlan | undefined,
   occurredAt: DateTime.Utc,
-): TodoListPlan {
+) {
   const occurredAtIso = DateTime.formatIso(occurredAt);
   const occurredAtMs = DateTime.toEpochMillis(occurredAt);
   const previousById = new Map(previous?.steps.map((step) => [step.id, step]));
@@ -150,7 +150,7 @@ function runsOffNativeBranch(input: {
   readonly providerThreadId: ProviderThreadId;
   readonly retainedNativeTurnIds: ReadonlySet<string>;
   readonly reportingRunId: RunId | undefined;
-}): ReadonlyArray<OrchestrationV2Run> {
+}) {
   const { attempts, providerTurns, runs } = input.projection;
   const nativeTurnId = (run: OrchestrationV2Run) => {
     const attempt = attempts.find((candidate) => candidate.id === run.activeAttemptId);
@@ -220,7 +220,7 @@ export class ProviderEventIngestorV2 extends Context.Service<
   ProviderEventIngestorV2Shape
 >()("supaterm/orchestration-v2/ProviderEventIngestor/ProviderEventIngestorV2") {}
 
-function compactUndefined<T extends Record<string, unknown>>(record: T): T {
+function compactUndefined<T extends Record<string, unknown>>(record: T) {
   return Object.fromEntries(Object.entries(record).filter(([, value]) => value !== undefined)) as T;
 }
 

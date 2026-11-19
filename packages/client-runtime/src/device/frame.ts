@@ -6,7 +6,11 @@ export interface DeviceFrameSink {
 export function createCanvasFrameSink(
   canvas: HTMLCanvasElement,
   onFrame?: (width: number, height: number) => void,
-): DeviceFrameSink {
+): DeviceFrameSink;
+export function createCanvasFrameSink(
+  canvas: HTMLCanvasElement,
+  onFrame?: (width: number, height: number) => void,
+) {
   return {
     present(source, width, height) {
       const context = canvas.getContext("2d");
@@ -19,5 +23,5 @@ export function createCanvasFrameSink(
       onFrame?.(width, height);
       return true;
     },
-  };
+  } satisfies DeviceFrameSink;
 }

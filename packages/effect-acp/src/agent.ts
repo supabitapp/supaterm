@@ -3,7 +3,6 @@ import * as Effect from "effect/Effect";
 import * as ErrorReporter from "effect/ErrorReporter";
 import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
-import * as Scope from "effect/Scope";
 import * as Stream from "effect/Stream";
 import * as Stdio from "effect/Stdio";
 import * as RpcClient from "effect/rpc/RpcClient";
@@ -199,7 +198,7 @@ const decodeCancelNotification = Schema.decodeUnknownEffect(AcpSchema.CancelNoti
 export const make = Effect.fn("effect-acp/AcpAgent.make")(function* (
   stdio: Stdio.Stdio,
   options: AcpAgentOptions = {},
-): Effect.fn.Return<AcpAgent["Service"], never, Scope.Scope> {
+) {
   const coreHandlers: AcpCoreAgentRequestHandlers = {};
   const cancelHandlers: Array<
     (notification: AcpSchema.CancelNotification) => Effect.Effect<void, AcpError.AcpError>
@@ -272,10 +271,7 @@ export const make = Effect.fn("effect-acp/AcpAgent.make")(function* (
     },
   });
 
-  const requestContext = (
-    requestId: RpcMessage.RequestId,
-    method: string,
-  ): AcpProtocol.AcpRequestContext => ({
+  const requestContext = (requestId: RpcMessage.RequestId, method: string) => ({
     requestId: AcpProtocol.acpRequestIdentity(requestId),
     method,
   });
@@ -556,12 +552,10 @@ export const make = Effect.fn("effect-acp/AcpAgent.make")(function* (
   });
 });
 
-export const layer = (stdio: Stdio.Stdio, options: AcpAgentOptions = {}): Layer.Layer<AcpAgent> =>
+export const layer = (stdio: Stdio.Stdio, options: AcpAgentOptions = {}) =>
   Layer.effect(AcpAgent, make(stdio, options));
 
-export const layerStdio = (
-  options: AcpAgentOptions = {},
-): Layer.Layer<AcpAgent, never, Stdio.Stdio> =>
+export const layerStdio = (options: AcpAgentOptions = {}) =>
   Layer.effect(
     AcpAgent,
     Effect.flatMap(Effect.service(Stdio.Stdio), (stdio) => make(stdio, options)),

@@ -44,11 +44,11 @@ function setSlowRpcAckRequests(requests: ReadonlyArray<SlowRpcAckRequest>) {
   appAtomRegistry.set(slowRpcAckRequestsAtom, [...requests]);
 }
 
-function getSlowRpcAckRequestsValue(): ReadonlyArray<SlowRpcAckRequest> {
+function getSlowRpcAckRequestsValue() {
   return appAtomRegistry.get(slowRpcAckRequestsAtom);
 }
 
-function shouldTrackRpcAck(method: string): boolean {
+function shouldTrackRpcAck(method: string) {
   return (
     !method.includes("subscribe") &&
     !method.startsWith("pullRequests.") &&
@@ -56,13 +56,13 @@ function shouldTrackRpcAck(method: string): boolean {
   );
 }
 
-function rpcAckThresholdMs(method: string): number {
+function rpcAckThresholdMs(method: string) {
   return longRunningRpcAckMethods.has(method)
     ? Math.max(slowRpcAckThresholdMs, LONG_RUNNING_RPC_ACK_THRESHOLD_MS)
     : slowRpcAckThresholdMs;
 }
 
-export function trackRpcRequestSent(requestId: string, method: string, tag = method): void {
+export function trackRpcRequestSent(requestId: string, method: string, tag = method) {
   if (!shouldTrackRpcAck(method)) {
     return;
   }
@@ -90,7 +90,7 @@ export function trackRpcRequestSent(requestId: string, method: string, tag = met
   });
 }
 
-export function acknowledgeRpcRequest(requestId: string): void {
+export function acknowledgeRpcRequest(requestId: string) {
   clearTrackedRpcRequest(requestId);
   const slowRequests = getSlowRpcAckRequestsValue();
   if (!slowRequests.some((request) => request.requestId === requestId)) {
@@ -100,7 +100,7 @@ export function acknowledgeRpcRequest(requestId: string): void {
   setSlowRpcAckRequests(slowRequests.filter((request) => request.requestId !== requestId));
 }
 
-function clearTrackedRpcRequest(requestId: string): void {
+function clearTrackedRpcRequest(requestId: string) {
   const pending = pendingRpcAckRequests.get(requestId);
   if (!pending) {
     return;
@@ -110,7 +110,7 @@ function clearTrackedRpcRequest(requestId: string): void {
   pendingRpcAckRequests.delete(requestId);
 }
 
-function appendSlowRpcAckRequest(request: SlowRpcAckRequest): void {
+function appendSlowRpcAckRequest(request: SlowRpcAckRequest) {
   const requests = [...getSlowRpcAckRequestsValue(), request];
   if (requests.length <= MAX_TRACKED_RPC_ACK_REQUESTS) {
     setSlowRpcAckRequests(requests);
@@ -120,7 +120,7 @@ function appendSlowRpcAckRequest(request: SlowRpcAckRequest): void {
   setSlowRpcAckRequests(requests.slice(-MAX_TRACKED_RPC_ACK_REQUESTS));
 }
 
-function evictOldestPendingRpcRequestIfNeeded(): void {
+function evictOldestPendingRpcRequestIfNeeded() {
   while (pendingRpcAckRequests.size >= MAX_TRACKED_RPC_ACK_REQUESTS) {
     const oldestRequestId = pendingRpcAckRequests.keys().next().value;
     if (oldestRequestId === undefined) {
@@ -133,6 +133,6 @@ function evictOldestPendingRpcRequestIfNeeded(): void {
 
 export function subscribeSlowRpcAckRequests(
   listener: (requests: ReadonlyArray<SlowRpcAckRequest>) => void,
-): () => void {
+) {
   return appAtomRegistry.subscribe(slowRpcAckRequestsAtom, listener);
 }

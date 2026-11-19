@@ -65,7 +65,7 @@ function instanceModels(
   driverKind: string,
   providerDisplayName: string,
   names: ReadonlyArray<string>,
-): CatalogModel[] {
+) {
   return names.map((name) => ({ driverKind, providerDisplayName, name }));
 }
 
@@ -129,7 +129,7 @@ const catalog: CatalogModel[] = [
   },
 ];
 
-function search(query: string, models: ReadonlyArray<CatalogModel> = catalog): string[] {
+function search(query: string, models: ReadonlyArray<CatalogModel> = catalog) {
   return rankModelPickerSearch(models, query, (model) => model).map((model) => model.name);
 }
 

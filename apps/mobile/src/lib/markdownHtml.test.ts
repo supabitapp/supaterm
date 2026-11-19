@@ -118,7 +118,10 @@ describe("HTML in native Markdown", () => {
         ENRICHED_INLINE_FILE_LINK_REGEX,
       ),
     );
-    const text = (node: { content?: string; children?: unknown[] }): string =>
+    const text: (node: { content?: string; children?: unknown[] }) => string = (node: {
+      content?: string;
+      children?: unknown[];
+    }) =>
       (node.content ?? "") +
       (node.children ?? []).map((child) => text(child as typeof node)).join("");
     expect(native.children).toHaveLength(1);

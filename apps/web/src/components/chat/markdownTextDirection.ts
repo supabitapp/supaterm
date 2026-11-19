@@ -31,14 +31,15 @@ const BLOCK_TAGS = new Set([
   "ul",
 ]);
 
-function proseText(node: HastNode): string {
-  if (node.type === "text") return node.value ?? "";
-  if (node.tagName === "code") return " ";
+function proseText(node: HastNode): string;
+function proseText(node: HastNode) {
+  if (node.type === "text") return (node.value ?? "") satisfies string;
+  if (node.tagName === "code") return " " satisfies string;
   const text = (node.children ?? []).map(proseText).join("");
-  return node.tagName && BLOCK_TAGS.has(node.tagName) ? ` ${text} ` : text;
+  return (node.tagName && BLOCK_TAGS.has(node.tagName) ? ` ${text} ` : text) satisfies string;
 }
 
-function isolateInlineCode(node: HastNode): void {
+function isolateInlineCode(node: HastNode) {
   if (node.tagName === "pre") return;
   if (node.tagName === "code") {
     node.properties = { ...node.properties, dir: "ltr" };

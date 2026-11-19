@@ -11,13 +11,11 @@ import {
   replaceComposerContextReferences,
 } from "@supaterm/shared/composerContextReferences";
 
-export function readPastedPlainText(clipboardData: Pick<DataTransfer, "getData">): string {
+export function readPastedPlainText(clipboardData: Pick<DataTransfer, "getData">) {
   return clipboardData.getData("text/plain").replace(/\r\n?/g, "\n");
 }
 
-export function readPastedComposerContext(
-  clipboardData: Pick<DataTransfer, "getData">,
-): ComposerContextClipboardFragment | null {
+export function readPastedComposerContext(clipboardData: Pick<DataTransfer, "getData">) {
   const pastedText = clipboardData.getData("text/plain");
   const decodedFragment =
     decodeComposerContextFragment(clipboardData.getData(COMPOSER_CONTEXT_CLIPBOARD_MIME)) ??
@@ -47,7 +45,7 @@ export function importPastedComposerText(
   importContextFragment?: (
     fragment: ComposerContextClipboardFragment,
   ) => ReadonlyMap<string, string>,
-): string {
+) {
   const pastedText = readPastedPlainText(clipboardData);
   const fragment = importContextFragment ? readPastedComposerContext(clipboardData) : null;
   const rewrittenIds =

@@ -32,17 +32,17 @@ const itemBase = {
   updatedAt: now,
 } as const;
 
-function toolItem(output: unknown, toolName = "Read"): OrchestrationV2TurnItem {
+function toolItem(output: unknown, toolName = "Read") {
   return {
     ...itemBase,
     type: "dynamic_tool",
     toolName,
     input: { file_path: "/tmp/shot.png" },
     output,
-  };
+  } satisfies OrchestrationV2TurnItem;
 }
 
-function outputOf(item: OrchestrationV2TurnItem): unknown {
+function outputOf(item: OrchestrationV2TurnItem) {
   return item.type === "dynamic_tool" ? item.output : undefined;
 }
 

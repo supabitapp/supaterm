@@ -57,21 +57,22 @@ const CONFIG = {
 
 const PRICING = { status: "unavailable" as const, source: "test", fetchedAt: null, knownModels: 0 };
 
-const cursorSource = (refreshing: boolean): UsageSource => ({
-  fingerprint: {
-    hostId: "cursor.com",
-    provider: "cursor",
-    resolvedHomePath: "cursor-account:abc",
-    volumeId: "abc",
-  },
-  status: "ok",
-  scannedFiles: 1,
-  skippedFiles: 0,
-  malformedRecords: 0,
-  distinctSessions: 1,
-  message: null,
-  ...(refreshing ? { refreshing: true as const } : {}),
-});
+const cursorSource = (refreshing: boolean) =>
+  ({
+    fingerprint: {
+      hostId: "cursor.com",
+      provider: "cursor",
+      resolvedHomePath: "cursor-account:abc",
+      volumeId: "abc",
+    },
+    status: "ok",
+    scannedFiles: 1,
+    skippedFiles: 0,
+    malformedRecords: 0,
+    distinctSessions: 1,
+    message: null,
+    ...(refreshing ? { refreshing: true as const } : {}),
+  }) satisfies UsageSource;
 
 const sameServerSettings = Schema.toEquivalence(ServerSettings);
 

@@ -39,26 +39,31 @@ const decodeStored = Schema.decodeUnknownOption(StoredSecret);
 
 type SecretRequestItem = Extract<OrchestrationV2TurnItem, { readonly type: "secret_request" }>;
 type FieldName = string | undefined;
-const fieldNames = (item: SecretRequestItem): ReadonlyArray<FieldName> =>
+const fieldNames = (item: SecretRequestItem) =>
   item.fields?.map((field) => field.name) ?? [undefined];
 
 function answerValues(
   item: SecretRequestItem,
   answer: Extract<SecretRequestAnswerInput["answer"], { readonly type: "save" }>,
-): ReadonlyArray<readonly [FieldName, string]> | undefined {
+) {
   if (item.fields === undefined) {
-    return "secret" in answer ? [[undefined, answer.secret]] : undefined;
+    return ("secret" in answer ? [[undefined, answer.secret]] : undefined) satisfies
+      | ReadonlyArray<readonly [FieldName, string]>
+      | undefined;
   }
-  if (!("values" in answer)) return undefined;
+  if (!("values" in answer))
+    return undefined satisfies ReadonlyArray<readonly [FieldName, string]> | undefined;
   const { values } = answer;
-  if (Object.keys(values).length !== item.fields.length) return undefined;
+  if (Object.keys(values).length !== item.fields.length)
+    return undefined satisfies ReadonlyArray<readonly [FieldName, string]> | undefined;
   const entries: Array<readonly [string, string]> = [];
   for (const field of item.fields) {
     const value = Object.hasOwn(values, field.name) ? values[field.name] : undefined;
-    if (value === undefined) return undefined;
+    if (value === undefined)
+      return undefined satisfies ReadonlyArray<readonly [FieldName, string]> | undefined;
     entries.push([field.name, value]);
   }
-  return entries;
+  return entries satisfies ReadonlyArray<readonly [FieldName, string]> | undefined;
 }
 
 export class SecretRequests extends Context.Service<

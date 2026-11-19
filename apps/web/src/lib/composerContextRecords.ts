@@ -9,7 +9,6 @@ import {
   COMPOSER_CONTEXT_TERMINAL_TEXT_MAX_CHARS,
 } from "@supaterm/contracts";
 import type {
-  ComposerContextId,
   ComposerContextRecord,
   EnvironmentId,
   FileContextRecord,
@@ -51,7 +50,7 @@ const PREVIEW_LABEL_MAX_CHARS = 48;
 
 const TRUNCATION_MARKER = "\n… truncated …";
 
-function clampContextText(value: string, max: number): string {
+function clampContextText(value: string, max: number) {
   if (value.length <= max) return value;
   let end = Math.max(0, max - TRUNCATION_MARKER.length);
   const last = value.charCodeAt(end - 1);
@@ -61,11 +60,11 @@ function clampContextText(value: string, max: number): string {
 
 type ReviewCommentPresentation = ReviewCommentContext | ReviewCommentContextRecord;
 
-function basename(filePath: string): string {
+function basename(filePath: string) {
   return filePath.split(/[\\/]/).at(-1) ?? filePath;
 }
 
-export function reviewCommentContextLabel(comment: ReviewCommentPresentation): string {
+export function reviewCommentContextLabel(comment: ReviewCommentPresentation) {
   const pullRequestNumber = pullRequestContextNumber(comment);
   if (isPullRequestSummaryContext(comment) && pullRequestNumber !== null) {
     return `#${pullRequestNumber}`;
@@ -79,7 +78,7 @@ export function reviewCommentContextLabel(comment: ReviewCommentPresentation): s
   return `${prefix}${basename(comment.filePath)} ${rangeLabel}`;
 }
 
-export function isPullRequestSummaryContext(comment: ReviewCommentPresentation): boolean {
+export function isPullRequestSummaryContext(comment: ReviewCommentPresentation) {
   if (comment.pullRequest !== undefined) return true;
   return (
     comment.sectionId.startsWith("pull-request:") &&
@@ -88,7 +87,7 @@ export function isPullRequestSummaryContext(comment: ReviewCommentPresentation):
   );
 }
 
-function pullRequestContextNumber(comment: ReviewCommentPresentation): number | null {
+function pullRequestContextNumber(comment: ReviewCommentPresentation) {
   if (comment.pullRequest !== undefined) return comment.pullRequest.number;
   const legacyNumber = /^PR #(\d+)$/u.exec(comment.filePath)?.[1];
   return legacyNumber === undefined ? null : Number(legacyNumber);
@@ -96,15 +95,13 @@ function pullRequestContextNumber(comment: ReviewCommentPresentation): number | 
 
 export type PullRequestContextDisplayState = "open" | "draft" | "merged" | "closed";
 
-export function pullRequestContextDisplayState(
-  comment: ReviewCommentPresentation,
-): PullRequestContextDisplayState | null {
+export function pullRequestContextDisplayState(comment: ReviewCommentPresentation) {
   const pullRequest = comment.pullRequest;
   if (pullRequest === undefined) return null;
   return pullRequest.state === "open" && pullRequest.isDraft ? "draft" : pullRequest.state;
 }
 
-export function pullRequestContextKindLabel(comment: ReviewCommentPresentation): string {
+export function pullRequestContextKindLabel(comment: ReviewCommentPresentation) {
   const url = comment.pullRequest?.url;
   const host = url === undefined ? null : sourceControlClients.findByChangeRequestUrl(url);
   const term = (host ?? sourceControlClients.get(undefined)).changeRequest.singular;
@@ -113,7 +110,7 @@ export function pullRequestContextKindLabel(comment: ReviewCommentPresentation):
   return `${capitalizeTerm(state)} ${term}`;
 }
 
-export function previewAnnotationContextLabel(annotation: PreviewAnnotationPayload): string {
+export function previewAnnotationContextLabel(annotation: PreviewAnnotationPayload) {
   const comment = annotation.comment.trim().replace(/\s+/g, " ");
   if (comment) {
     if (comment.length <= PREVIEW_LABEL_MAX_CHARS) return comment;
@@ -126,7 +123,7 @@ export function previewAnnotationContextLabel(annotation: PreviewAnnotationPaylo
   return annotation.pageTitle?.trim() || "Preview annotation";
 }
 
-export function terminalContextReference(context: TerminalContextDraft): ComposerContextReference {
+export function terminalContextReference(context: TerminalContextDraft) {
   return {
     kind: "terminal",
     contextId: toKindScopedComposerContextId("terminal", context.id),
@@ -134,17 +131,15 @@ export function terminalContextReference(context: TerminalContextDraft): Compose
   };
 }
 
-export function reviewCommentContextId(commentId: string): ComposerContextId {
+export function reviewCommentContextId(commentId: string) {
   return toKindScopedComposerContextId("review-comment", commentId);
 }
 
-export function previewAnnotationContextId(annotationId: string): ComposerContextId {
+export function previewAnnotationContextId(annotationId: string) {
   return toKindScopedComposerContextId("preview-annotation", annotationId);
 }
 
-export function reviewCommentContextReference(
-  comment: ReviewCommentContext,
-): ComposerContextReference {
+export function reviewCommentContextReference(comment: ReviewCommentContext) {
   return {
     kind: "review-comment",
     contextId: reviewCommentContextId(comment.id),
@@ -154,24 +149,23 @@ export function reviewCommentContextReference(
 
 export function previewAnnotationContextReference(
   annotation: PreviewAnnotationPayload,
-): ComposerContextReference {
+): ComposerContextReference;
+export function previewAnnotationContextReference(annotation: PreviewAnnotationPayload) {
   return {
     kind: "preview-annotation",
     contextId: previewAnnotationContextId(annotation.id),
     label: previewAnnotationContextLabel(annotation),
-  };
+  } satisfies ComposerContextReference;
 }
 
 /** Records a draft keeps as sent, because they only point at something the agent can look up. */
 export type ReferenceContextRecord = ThreadContextRecord | ModelContextRecord;
 
-export function referenceContextReference(
-  record: ReferenceContextRecord,
-): ComposerContextReference {
+export function referenceContextReference(record: ReferenceContextRecord) {
   return { kind: record.kind, contextId: record.contextId, label: record.label };
 }
 
-export function terminalContextRecord(context: TerminalContextDraft): TerminalContextRecord {
+export function terminalContextRecord(context: TerminalContextDraft) {
   return {
     version: 1,
     contextId: toKindScopedComposerContextId("terminal", context.id),
@@ -185,12 +179,13 @@ export function terminalContextRecord(context: TerminalContextDraft): TerminalCo
       normalizeTerminalContextText(context.text),
       COMPOSER_CONTEXT_TERMINAL_TEXT_MAX_CHARS,
     ),
-  };
+  } satisfies TerminalContextRecord;
 }
 
 export function reviewCommentContextRecord(
   comment: ReviewCommentContext,
-): ReviewCommentContextRecord {
+): ReviewCommentContextRecord;
+export function reviewCommentContextRecord(comment: ReviewCommentContext) {
   return {
     version: 1,
     contextId: reviewCommentContextId(comment.id),
@@ -206,10 +201,10 @@ export function reviewCommentContextRecord(
     diff: clampContextText(comment.diff, COMPOSER_CONTEXT_REVIEW_DIFF_MAX_CHARS),
     ...(comment.fenceLanguage !== undefined ? { fenceLanguage: comment.fenceLanguage } : {}),
     ...(comment.pullRequest !== undefined ? { pullRequest: comment.pullRequest } : {}),
-  };
+  } satisfies ReviewCommentContextRecord;
 }
 
-function previewAnnotationTargetSummary(annotation: PreviewAnnotationPayload): string {
+function previewAnnotationTargetSummary(annotation: PreviewAnnotationPayload) {
   const parts: string[] = [];
   const plural = (count: number, noun: string) => `${count} ${noun}${count === 1 ? "" : "s"}`;
   if (annotation.elements.length > 0)
@@ -222,7 +217,7 @@ function previewAnnotationTargetSummary(annotation: PreviewAnnotationPayload): s
 export function previewAnnotationContextRecord(
   annotation: PreviewAnnotationPayload,
   options?: { screenshotContextId?: string | undefined },
-): PreviewAnnotationContextRecord {
+) {
   const targets = annotation.elements.flatMap((target) => {
     const element = normalizeElementContextSelection(target.element);
     return element ? [{ id: target.id, element }] : [];
@@ -258,18 +253,19 @@ export function previewAnnotationContextRecord(
     ...(options?.screenshotContextId !== undefined
       ? { screenshotContextId: toKindScopedComposerContextId("image", options.screenshotContextId) }
       : {}),
-  };
+  } satisfies PreviewAnnotationContextRecord;
 }
 
-export function imageContextReference(image: ComposerImageAttachment): ComposerContextReference {
+export function imageContextReference(image: ComposerImageAttachment): ComposerContextReference;
+export function imageContextReference(image: ComposerImageAttachment) {
   return {
     kind: "image",
     contextId: toKindScopedComposerContextId("image", image.id),
     label: image.name,
-  };
+  } satisfies ComposerContextReference;
 }
 
-export function fileContextReference(file: ComposerFileAttachment): ComposerContextReference {
+export function fileContextReference(file: ComposerFileAttachment) {
   return {
     kind: "file",
     contextId: toKindScopedComposerContextId("file", file.id),
@@ -285,19 +281,19 @@ export interface BoundComposerAttachment {
 export function uploadedAttachmentContextRecord(
   attachment: ComposerImageAttachment | ComposerFileAttachment,
   upload: AttachmentUploadState | undefined,
-): ImageContextRecord | FileContextRecord | null {
+) {
   const attachmentId =
     attachment.type === "file" && attachment.uploadedAttachmentId !== undefined
       ? attachment.uploadedAttachmentId
       : upload?.status === "ready"
         ? upload.attachmentId
         : undefined;
-  return attachmentId === undefined ? null : attachmentContextRecord({ attachment, attachmentId });
+  return (
+    attachmentId === undefined ? null : attachmentContextRecord({ attachment, attachmentId })
+  ) satisfies ImageContextRecord | FileContextRecord | null;
 }
 
-export function attachmentContextRecord(
-  bound: BoundComposerAttachment,
-): ImageContextRecord | FileContextRecord {
+export function attachmentContextRecord(bound: BoundComposerAttachment) {
   const { attachment, attachmentId } = bound;
   const base = {
     version: 1 as const,
@@ -308,7 +304,9 @@ export function attachmentContextRecord(
     mimeType: attachment.mimeType,
     sizeBytes: attachment.sizeBytes,
   };
-  return attachment.type === "image" ? { ...base, kind: "image" } : { ...base, kind: "file" };
+  return (
+    attachment.type === "image" ? { ...base, kind: "image" } : { ...base, kind: "file" }
+  ) satisfies ImageContextRecord | FileContextRecord;
 }
 
 export function buildMessageContext(input: {
@@ -317,7 +315,14 @@ export function buildMessageContext(input: {
   previewAnnotations: ReadonlyArray<PreviewAnnotationPayload>;
   referenceContexts?: ReadonlyArray<ReferenceContextRecord>;
   attachments?: ReadonlyArray<BoundComposerAttachment>;
-}): OrchestrationMessageContext | undefined {
+}): OrchestrationMessageContext | undefined;
+export function buildMessageContext(input: {
+  terminalContexts: ReadonlyArray<TerminalContextDraft>;
+  reviewComments: ReadonlyArray<ReviewCommentContext>;
+  previewAnnotations: ReadonlyArray<PreviewAnnotationPayload>;
+  referenceContexts?: ReadonlyArray<ReferenceContextRecord>;
+  attachments?: ReadonlyArray<BoundComposerAttachment>;
+}) {
   const screenshotAttachmentIds = new Set(
     (input.attachments ?? []).flatMap(({ attachment }) =>
       attachment.type === "image" ? [attachment.id] : [],
@@ -334,19 +339,21 @@ export function buildMessageContext(input: {
     ),
     ...(input.attachments ?? []).map(attachmentContextRecord),
   ];
-  return records.length === 0 ? undefined : { version: 1, records };
+  return (records.length === 0 ? undefined : { version: 1, records }) satisfies
+    | OrchestrationMessageContext
+    | undefined;
 }
 
 export function asKnownContextRecord(
   record: ComposerContextRecord | undefined,
-): KnownComposerContextRecord | undefined {
-  if (!record || "payload" in record) return undefined;
-  return record;
+): KnownComposerContextRecord | undefined;
+export function asKnownContextRecord(record: ComposerContextRecord | undefined) {
+  if (!record || "payload" in record)
+    return undefined satisfies KnownComposerContextRecord | undefined;
+  return record satisfies KnownComposerContextRecord | undefined;
 }
 
-export function composerContextImportLookupIds(
-  record: KnownComposerContextRecord,
-): ReadonlyArray<ComposerContextId> {
+export function composerContextImportLookupIds(record: KnownComposerContextRecord) {
   const destinationId = toKindScopedComposerContextId(
     record.kind,
     producerIdFromComposerContextId(record.kind, record.contextId),
@@ -368,7 +375,7 @@ export function selectedMessageContextFragment(input: {
   readonly environmentId: EnvironmentId;
   readonly threadId?: ThreadId;
   readonly messageId: MessageId;
-}): string | null {
+}) {
   const selectedIds = new Set(
     collectComposerContextReferences(input.markdown).map((occurrence) => occurrence.contextId),
   );
@@ -388,7 +395,11 @@ export function selectedMessageContextFragment(input: {
 export function resolveUserMessageContext(message: {
   text: string;
   context?: OrchestrationMessageContext | undefined;
-}): ResolvedUserMessageContext {
+}): ResolvedUserMessageContext;
+export function resolveUserMessageContext(message: {
+  text: string;
+  context?: OrchestrationMessageContext | undefined;
+}) {
   const resolved = message.context
     ? { text: message.text, records: message.context.records }
     : upgradeLegacyContextMessage(message.text);
@@ -396,13 +407,10 @@ export function resolveUserMessageContext(message: {
     text: resolved.text,
     records: resolved.records,
     recordsById: new Map(resolved.records.map((record) => [record.contextId, record])),
-  };
+  } satisfies ResolvedUserMessageContext;
 }
 
-export function terminalContextDraftFromRecord(
-  record: TerminalContextRecord,
-  threadId: ThreadId,
-): TerminalContextDraft {
+export function terminalContextDraftFromRecord(record: TerminalContextRecord, threadId: ThreadId) {
   return {
     id: producerIdFromComposerContextId("terminal", record.contextId),
     threadId,
@@ -415,7 +423,7 @@ export function terminalContextDraftFromRecord(
   };
 }
 
-export function reviewCommentFromRecord(record: ReviewCommentContextRecord): ReviewCommentContext {
+export function reviewCommentFromRecord(record: ReviewCommentContextRecord) {
   return {
     id: producerIdFromComposerContextId("review-comment", record.contextId),
     sectionId: record.sectionId,
@@ -431,9 +439,7 @@ export function reviewCommentFromRecord(record: ReviewCommentContextRecord): Rev
   };
 }
 
-export function previewAnnotationFromRecord(
-  record: PreviewAnnotationContextRecord,
-): PreviewAnnotationPayload {
+export function previewAnnotationFromRecord(record: PreviewAnnotationContextRecord) {
   return {
     id:
       record.annotationId ||
@@ -481,11 +487,11 @@ export function previewAnnotationFromRecord(
 export function isSameComposerContextPayload(
   left: ComposerContextRecord,
   right: ComposerContextRecord,
-): boolean {
+) {
   if (left.kind !== right.kind) return false;
   const stableKey = (record: ComposerContextRecord) => {
     const { label: _label, contextId: _contextId, ...rest } = record;
-    const sortDeep = (value: unknown): unknown => {
+    const sortDeep: (value: unknown) => unknown = (value: unknown) => {
       if (Array.isArray(value)) return value.map(sortDeep);
       if (value === null || typeof value !== "object") return value;
       return Object.fromEntries(

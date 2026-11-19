@@ -16,9 +16,7 @@ import type { HandoffTimelineRun } from "./V2LifecycleRow";
 
 const EMPTY_TIMELINE_RUNS: ReadonlyArray<HandoffTimelineRun> = [];
 
-export function useStableHandoffRuns(
-  runs: ReadonlyArray<HandoffTimelineRun>,
-): ReadonlyArray<HandoffTimelineRun> {
+export function useStableHandoffRuns(runs: ReadonlyArray<HandoffTimelineRun>) {
   const [state, setState] = useState<{
     readonly source: ReadonlyArray<HandoffTimelineRun> | null;
     readonly signature: string;
@@ -43,10 +41,7 @@ export function useStableHandoffRuns(
  * Rows derived from the previous projection of the same list, so a streamed
  * text update patches its message rows instead of deriving every row again.
  */
-export function useIncrementalTimelineRows(
-  identity: string,
-  input: MessagesTimelineRowsInput,
-): MessagesTimelineRow[] {
+export function useIncrementalTimelineRows(identity: string, input: MessagesTimelineRowsInput) {
   const [state, setState] = useState(() => ({
     identity,
     input,
@@ -63,10 +58,7 @@ export function useIncrementalTimelineRows(
   return projection.rows;
 }
 
-export function useStableRows(
-  rows: MessagesTimelineRow[],
-  identity: string,
-): MessagesTimelineRow[] {
+export function useStableRows(rows: MessagesTimelineRow[], identity: string) {
   const [state, setState] = useState<{
     readonly identity: string;
     readonly source: MessagesTimelineRow[] | null;
@@ -85,10 +77,7 @@ export function useStableRows(
  * Keeps a worktree setup row that left the list where it was, marked exiting,
  * for its exit transition. Switching lists drops it at once.
  */
-export function useExitingWorktreeSetupRow(
-  rows: MessagesTimelineRow[],
-  identity: string,
-): MessagesTimelineRow[] {
+export function useExitingWorktreeSetupRow(rows: MessagesTimelineRow[], identity: string) {
   const [state, setState] = useState<{
     readonly identity: string;
     readonly source: MessagesTimelineRow[] | null;

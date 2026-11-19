@@ -29,9 +29,7 @@ export interface IncomingShareInboxDependencies {
   readonly onCleanupError?: (error: unknown) => void;
 }
 
-function sortAndDedupeIncomingShares(
-  drafts: ReadonlyArray<IncomingShareDraft>,
-): ReadonlyArray<IncomingShareDraft> {
+function sortAndDedupeIncomingShares(drafts: ReadonlyArray<IncomingShareDraft>) {
   const ids = new Set<string>();
   return [...drafts]
     .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
@@ -50,11 +48,11 @@ export class IncomingShareInbox {
 
   constructor(private readonly dependencies: IncomingShareInboxDependencies) {}
 
-  private runExclusive<T>(operation: () => Promise<T>): Promise<T> {
+  private runExclusive<T>(operation: () => Promise<T>) {
     return this.operations.run(operation);
   }
 
-  private clearNativePayloads(): void {
+  private clearNativePayloads() {
     try {
       this.dependencies.clearPayloads();
     } catch (error) {
@@ -62,7 +60,7 @@ export class IncomingShareInbox {
     }
   }
 
-  private async cleanup(operation: () => Promise<void>): Promise<void> {
+  private async cleanup(operation: () => Promise<void>) {
     try {
       await operation();
     } catch (error) {
@@ -70,7 +68,7 @@ export class IncomingShareInbox {
     }
   }
 
-  refresh(options: { readonly ingestNative: boolean }): Promise<ReadonlyArray<IncomingShareDraft>> {
+  refresh(options: { readonly ingestNative: boolean }) {
     return this.runExclusive(async () => {
       const loaded = await this.dependencies.loadDrafts();
       const persisted = sortAndDedupeIncomingShares(loaded);
@@ -120,17 +118,14 @@ export class IncomingShareInbox {
     });
   }
 
-  consume(shareId: string): Promise<ReadonlyArray<IncomingShareDraft>> {
+  consume(shareId: string) {
     return this.runExclusive(async () => {
       await this.dependencies.removeDraft(shareId);
       return sortAndDedupeIncomingShares(await this.dependencies.loadDrafts());
     });
   }
 
-  reserve(
-    shareId: string,
-    destination: IncomingShareDestination,
-  ): Promise<ReadonlyArray<IncomingShareDraft>> {
+  reserve(shareId: string, destination: IncomingShareDestination) {
     return this.runExclusive(async () => {
       const persisted = await this.dependencies.loadDrafts();
       const target = persisted.find((draft) => draft.id === shareId);
@@ -155,10 +150,7 @@ export class IncomingShareInbox {
     });
   }
 
-  releaseReservation(
-    shareId: string,
-    expectedDestination: IncomingShareDestination,
-  ): Promise<ReadonlyArray<IncomingShareDraft>> {
+  releaseReservation(shareId: string, expectedDestination: IncomingShareDestination) {
     return this.runExclusive(async () => {
       const persisted = await this.dependencies.loadDrafts();
       const target = persisted.find((draft) => draft.id === shareId);

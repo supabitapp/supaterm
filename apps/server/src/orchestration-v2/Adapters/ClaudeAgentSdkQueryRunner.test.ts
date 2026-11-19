@@ -622,7 +622,7 @@ it.effect.each([
   }).pipe(Effect.provide(realQueryRunner)),
 );
 
-function fakeClaudeCli(script: string): string {
+function fakeClaudeCli(script: string) {
   const dir = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "supaterm-claude-cli-"));
   const cli = NodePath.join(dir, "claude");
   NodeFS.writeFileSync(cli, `#!/bin/sh\n${script}\n`, { mode: 0o755 });

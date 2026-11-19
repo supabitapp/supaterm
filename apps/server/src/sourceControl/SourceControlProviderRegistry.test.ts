@@ -55,7 +55,7 @@ const PROVIDERS = [
   fakeSourceControlProvider("azure-devops"),
 ];
 
-const claimingCli = (claims: string): SourceControlCliDiscoverySpec => ({
+const claimingCli: (claims: string) => SourceControlCliDiscoverySpec = (claims: string) => ({
   type: "cli",
   kind: kind(claims),
   label: claims,
@@ -79,14 +79,15 @@ const claimingCli = (claims: string): SourceControlCliDiscoverySpec => ({
 const managedCli = (
   claims: string,
   refine: SourceControlManagedCliDiscoverySpec["refineUnknownRemote"],
-): SourceControlManagedCliDiscoverySpec => ({
-  type: "managed-cli",
-  kind: kind(claims),
-  label: claims,
-  installHint: `Install ${claims}.`,
-  probe: () => Effect.die("unused"),
-  refineUnknownRemote: refine,
-});
+) =>
+  ({
+    type: "managed-cli",
+    kind: kind(claims),
+    label: claims,
+    installHint: `Install ${claims}.`,
+    probe: () => Effect.die("unused"),
+    refineUnknownRemote: refine,
+  }) satisfies SourceControlManagedCliDiscoverySpec;
 
 function makeRegistry(input: {
   readonly remotes: ReadonlyArray<{

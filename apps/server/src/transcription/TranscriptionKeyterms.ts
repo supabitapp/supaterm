@@ -42,7 +42,7 @@ export function keytermCandidates(input: {
   readonly projectFolder: string | undefined;
   readonly branch: string | undefined;
   readonly skills: ReadonlyArray<ServerProviderSkill>;
-}): ReadonlyArray<string> {
+}) {
   const projectNames = [input.projectTitle?.trim(), input.projectFolder?.trim()].filter(
     isProjectName,
   );

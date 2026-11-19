@@ -133,7 +133,7 @@ type ServerOwner = Pick<DiscoveredLocalServer, "terminal" | "agent">;
 
 const UNOWNED: ServerOwner = { terminal: null, agent: null };
 
-const isOwned = (server: DiscoveredLocalServer): boolean =>
+const isOwned = (server: DiscoveredLocalServer) =>
   server.terminal !== null || (server.agent ?? null) !== null;
 
 interface ProcessTableRow {
@@ -159,12 +159,10 @@ interface WebProbeSnapshot {
   readonly configured: ReadonlyMap<string, DiscoveredLocalServer>;
 }
 
-const terminalOwnerKey = (owner: {
-  readonly threadId: string;
-  readonly terminalId: string;
-}): string => `${owner.threadId}\u0000${owner.terminalId}`;
+const terminalOwnerKey = (owner: { readonly threadId: string; readonly terminalId: string }) =>
+  `${owner.threadId}\u0000${owner.terminalId}`;
 
-const parseConfiguredUrl = (raw: string): URL | null => {
+const parseConfiguredUrl = (raw: string) => {
   try {
     const url = new URL(raw);
     if (url.protocol !== "http:" && url.protocol !== "https:") return null;
@@ -175,19 +173,19 @@ const parseConfiguredUrl = (raw: string): URL | null => {
   }
 };
 
-const localServerKey = (host: string, port: number): string =>
+const localServerKey = (host: string, port: number) =>
   `${isLoopbackHost(host) ? "loopback" : host.toLowerCase()}:${port}`;
 
-const urlPort = (url: URL): number =>
+const urlPort = (url: URL) =>
   url.port.length > 0 ? Number.parseInt(url.port, 10) : url.protocol === "http:" ? 80 : 443;
 
-const webProbeCacheKey = (raw: string): string => {
+const webProbeCacheKey = (raw: string) => {
   const url = new URL(raw);
   url.hash = "";
   return url.href;
 };
 
-const normalizeConfiguredUrls = (urls: ReadonlyArray<string>): ReadonlyArray<string> => [
+const normalizeConfiguredUrls = (urls: ReadonlyArray<string>) => [
   ...new Set(
     urls.slice(0, CONFIGURED_LOCAL_SERVER_URLS_MAX_ITEMS).flatMap((raw) => {
       if (raw.length > PREVIEW_URL_MAX_LENGTH) return [];
@@ -202,7 +200,7 @@ const normalizeConfiguredUrls = (urls: ReadonlyArray<string>): ReadonlyArray<str
 const projectWebProbeSnapshot = (
   snapshot: WebProbeSnapshot,
   configuredUrls: ReadonlyArray<string>,
-): ReadonlyArray<DiscoveredLocalServer> => {
+) => {
   const visibleByServer = new Map<string, DiscoveredLocalServer>();
   const firstConfiguredByServer = new Map<string, string>();
   for (const raw of normalizeConfiguredUrls(configuredUrls)) {
@@ -223,10 +221,7 @@ const projectWebProbeSnapshot = (
   return [...visibleByServer.values()].toSorted((left, right) => left.port - right.port);
 };
 
-const parseLsofOutput = (
-  raw: string,
-  owners: ReadonlyMap<number, ServerOwner> = new Map(),
-): ReadonlyArray<DiscoveredLocalServer> => {
+const parseLsofOutput = (raw: string, owners: ReadonlyMap<number, ServerOwner> = new Map()) => {
   const seen = new Map<string, DiscoveredLocalServer>();
   let pid: number | null = null;
   let processName: string | null = null;
@@ -270,7 +265,7 @@ const parseLsofOutput = (
   return Array.from(seen.values()).toSorted((a, b) => a.port - b.port);
 };
 
-const parsePortFromLsofName = (name: string): number | null => {
+const parsePortFromLsofName = (name: string) => {
   const trimmed = name.split(" ", 1)[0]?.trim() ?? "";
   if (trimmed.length === 0) return null;
   const lastColon = trimmed.lastIndexOf(":");
@@ -283,10 +278,10 @@ const parsePortFromLsofName = (name: string): number | null => {
   return port;
 };
 
-const exitedWithError = (result: ProcessRunner.ProcessRunOutput): boolean =>
+const exitedWithError = (result: ProcessRunner.ProcessRunOutput) =>
   result.code !== null && result.code !== 0;
 
-const parseTasklistProcessName = (raw: string, pid: number): string | null => {
+const parseTasklistProcessName = (raw: string, pid: number) => {
   for (const line of raw.split(/\r?\n/g)) {
     const match = /^"([^"]*)","(\d+)"/.exec(line.trim());
     if (match && Number(match[2]) === pid) return match[1]!.replace(/\.exe$/i, "") || null;
@@ -297,7 +292,7 @@ const parseTasklistProcessName = (raw: string, pid: number): string | null => {
 const discoveredWindowsListeners = (
   listeners: ReadonlyArray<WindowsTcpListeners.WindowsTcpListener>,
   owners: ReadonlyMap<number, ServerOwner>,
-): ReadonlyArray<DiscoveredLocalServer> => {
+) => {
   const seen = new Map<number, DiscoveredLocalServer>();
   for (const { port, pid } of listeners) {
     const owner = pid === null ? undefined : owners.get(pid);
@@ -320,7 +315,7 @@ const discoveredWindowsListeners = (
 
 const PROC_TCP_LISTEN = "0A";
 
-const procLocalAddress = (hex: string): boolean => {
+const procLocalAddress: (hex: string) => boolean = (hex: string) => {
   if (hex.length === 8) {
     return hex === "00000000" || hex === "0100007F";
   }
@@ -330,9 +325,7 @@ const procLocalAddress = (hex: string): boolean => {
   return hex.startsWith(`${"0".repeat(16)}FFFF0000`) && procLocalAddress(hex.slice(24));
 };
 
-const parseProcNetTcp = (
-  raw: string,
-): ReadonlyArray<{ readonly port: number; readonly inode: string }> => {
+const parseProcNetTcp = (raw: string) => {
   const listeners: Array<{ port: number; inode: string }> = [];
   for (const line of raw.split("\n").slice(1)) {
     const fields = line.trim().split(/\s+/);
@@ -347,7 +340,7 @@ const parseProcNetTcp = (
   return listeners;
 };
 
-const lsofProcessIds = (raw: string): ReadonlyArray<number> => {
+const lsofProcessIds = (raw: string) => {
   const pids = new Set<number>();
   let pid: number | null = null;
   for (const line of raw.split("\n")) {
@@ -367,7 +360,7 @@ const lsofProcessIds = (raw: string): ReadonlyArray<number> => {
 
 const AGENT_THREAD_ASSIGNMENT = new RegExp(`(?:^|\\s)${AGENT_THREAD_ENV}=(\\S+)`);
 
-const parseProcEnvironThread = (raw: string): ThreadId | null => {
+const parseProcEnvironThread = (raw: string) => {
   const prefix = `${AGENT_THREAD_ENV}=`;
   const value = raw
     .split("\0")
@@ -377,7 +370,7 @@ const parseProcEnvironThread = (raw: string): ThreadId | null => {
   return value ? ThreadId.make(value) : null;
 };
 
-const parsePsEnvironmentThreads = (raw: string): ReadonlyMap<number, ThreadId | null> => {
+const parsePsEnvironmentThreads = (raw: string) => {
   const threads = new Map<number, ThreadId | null>();
   for (const line of raw.split("\n")) {
     const match = /^\s*(\d+)\s(.*)$/.exec(line);
@@ -392,7 +385,7 @@ const parseEnvironmentVariables = (
   raw: string,
   separator: "\0" | RegExp,
   names: ReadonlyArray<string>,
-): ReadonlyMap<string, string> => {
+) => {
   const variables = new Map<string, string>();
   for (const entry of raw.split(separator)) {
     const name = names.find((candidate) => entry.startsWith(`${candidate}=`));
@@ -412,7 +405,7 @@ const parseEnvironmentVariables = (
 export const agentCommandsInGroup = (
   variables: ReadonlyMap<number, ReadonlyMap<string, string>>,
   leader: ProcessTableRow,
-): ReadonlyMap<string, string> => {
+) => {
   const commands = new Map<string, string>();
   const parent = variables.get(leader.ppid);
   if (parent === undefined) return commands;
@@ -422,7 +415,7 @@ export const agentCommandsInGroup = (
   return commands;
 };
 
-const parseProcessTable = (raw: string): ReadonlyMap<number, ProcessTableRow> => {
+const parseProcessTable = (raw: string) => {
   const rows = new Map<number, ProcessTableRow>();
   for (const line of raw.split("\n")) {
     const [pid, ppid, pgid] = line.trim().split(/\s+/).map(Number);
@@ -442,7 +435,7 @@ export const stoppableProcessGroup = (
   table: ReadonlyMap<number, ProcessTableRow>,
   pid: number,
   serverPid: number,
-): number | null => {
+) => {
   const group = table.get(pid)?.pgid;
   if (group === undefined || group <= 1) return null;
   const guarded = new Set([serverPid]);
@@ -462,7 +455,7 @@ export const stoppableProcessGroup = (
 const serversEqual = (
   left: ReadonlyArray<DiscoveredLocalServer>,
   right: ReadonlyArray<DiscoveredLocalServer>,
-): boolean => {
+) => {
   if (left.length !== right.length) return false;
   for (let i = 0; i < left.length; i += 1) {
     const a = left[i];
@@ -484,10 +477,10 @@ const serversEqual = (
   return true;
 };
 
-const isNoSuchProcess = (cause: unknown): boolean =>
+const isNoSuchProcess = (cause: unknown) =>
   typeof cause === "object" && cause !== null && "code" in cause && cause.code === "ESRCH";
 
-const isCommandNotFound = (error: ProcessRunner.ProcessSpawnError): boolean =>
+const isCommandNotFound = (error: ProcessRunner.ProcessSpawnError) =>
   PlatformError.isPlatformError(error.cause) && error.cause.reason._tag === "NotFound";
 
 /** @public */
@@ -590,7 +583,7 @@ export const make = Effect.gen(function* PortDiscoveryMake() {
 
       const fds = yield* fileSystem
         .readDirectory(`/proc/${pidText}/fd`)
-        .pipe(Effect.orElseSucceed((): ReadonlyArray<string> => []));
+        .pipe(Effect.orElseSucceed(() => []));
       const walked = fds.slice(0, budget);
       budget -= walked.length;
       const links = yield* Effect.forEach(
@@ -703,7 +696,7 @@ export const make = Effect.gen(function* PortDiscoveryMake() {
   const makeWebProbeGroups = (
     servers: ReadonlyArray<DiscoveredLocalServer>,
     configuredUrls: ReadonlyArray<string>,
-  ): ReadonlyArray<WebProbeGroup> => {
+  ) => {
     const serversByKey = new Map(
       servers.map((server) => [localServerKey(server.host, server.port), server] as const),
     );
@@ -812,7 +805,7 @@ export const make = Effect.gen(function* PortDiscoveryMake() {
     );
     const names = new Map([...cached, ...fetched.flat()]);
     yield* Ref.set(windowsProcessNamesRef, names);
-    const withName = (server: DiscoveredLocalServer): DiscoveredLocalServer =>
+    const withName = (server: DiscoveredLocalServer) =>
       server.pid === null || server.processName !== null
         ? server
         : { ...server, processName: names.get(server.pid)?.name ?? null };

@@ -4,7 +4,7 @@ import { prepareVideoFirstFrame } from "./videoFirstFrame";
 
 type PreviewVideo = Parameters<typeof prepareVideoFirstFrame>[0];
 
-function previewVideo(overrides: Partial<PreviewVideo> = {}): PreviewVideo {
+function previewVideo(overrides: Partial<PreviewVideo> = {}) {
   return {
     autoplay: false,
     paused: true,

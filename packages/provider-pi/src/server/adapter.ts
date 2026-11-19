@@ -24,7 +24,6 @@ import {
   type ProviderApprovalDecision,
   type ProviderInstanceId,
   type MessageId,
-  type OrchestrationV2ProviderTurnTokenUsage,
 } from "@supaterm/contracts";
 import { PiSettings } from "../settings.ts";
 import * as Cause from "effect/Cause";
@@ -206,7 +205,7 @@ export interface PiAdapterV2Options {
   };
 }
 
-function contentText(content: unknown): string {
+function contentText(content: unknown) {
   if (!Array.isArray(content)) {
     return typeof content === "string" ? content : "";
   }
@@ -220,10 +219,11 @@ function contentText(content: unknown): string {
 
 const MAX_STRUCTURED_TOOL_OUTPUT_BYTES = 64 * 1024;
 
-function isBoundedStructuredToolValue(value: unknown): boolean {
+function isBoundedStructuredToolValue(value: unknown): boolean;
+function isBoundedStructuredToolValue(value: unknown) {
   let bytes = MAX_STRUCTURED_TOOL_OUTPUT_BYTES;
   let nodes = 4_096;
-  const visit = (entry: unknown, depth: number): boolean => {
+  const visit: (entry: unknown, depth: number) => boolean = (entry: unknown, depth: number) => {
     if (depth > 32 || --nodes < 0 || bytes < 0) return false;
     if (Array.isArray(entry)) {
       bytes -= 2 + entry.length;
@@ -243,10 +243,11 @@ function isBoundedStructuredToolValue(value: unknown): boolean {
     bytes -= Buffer.byteLength(JSON.stringify(entry) ?? "null", "utf8");
     return bytes >= 0;
   };
-  return visit(value, 0);
+  return visit(value, 0) satisfies boolean;
 }
 
-function piToolOutput(result: unknown, toolName: string): unknown {
+function piToolOutput(result: unknown, toolName: string): unknown;
+function piToolOutput(result: unknown, toolName: string) {
   const rawContent = recordField(result, "content");
   const content = Array.isArray(rawContent)
     ? rawContent
@@ -294,7 +295,7 @@ function piToolOutput(result: unknown, toolName: string): unknown {
           text: "Structured output omitted because it exceeds the stored result limit.",
         },
       ],
-    };
+    } satisfies unknown;
   }
   if (
     !isMcpResult &&
@@ -302,18 +303,15 @@ function piToolOutput(result: unknown, toolName: string): unknown {
     content.every((block) => recordField(block, "type") === "text")
   ) {
     const text = contentText(content);
-    return text.length > 0 ? text : undefined;
+    return (text.length > 0 ? text : undefined) satisfies unknown;
   }
   return {
     content,
     ...(structured === undefined ? {} : { structuredContent: structured }),
-  };
+  } satisfies unknown;
 }
 
-function providerRef(
-  nativeId: string,
-  strength: "strong" | "weak" = "strong",
-): OrchestrationV2ProviderRef {
+function providerRef(nativeId: string, strength: "strong" | "weak" = "strong") {
   return { driver: PI_PROVIDER, nativeId, strength };
 }
 
@@ -342,7 +340,7 @@ interface PiProviderRetryState {
   readonly itemOrdinal: number;
 }
 
-function compactionTitle(status: PiCompactionStatus): string {
+function compactionTitle(status: PiCompactionStatus) {
   switch (status) {
     case "running":
       return "Compacting context...";
@@ -414,7 +412,7 @@ interface PiCustomAnswerRoute {
   readonly followUpTitlePrefix: string;
 }
 
-function piApprovalRequestKind(title: string): "command" | "file-change" {
+function piApprovalRequestKind(title: string) {
   const toolName = /^Allow (\S+)\?$/.exec(title)?.[1];
   return toolName !== undefined &&
     (PI_FILE_CHANGE_TOOLS as ReadonlyArray<string>).includes(toolName)
@@ -678,7 +676,7 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
       });
       let releasedPromptTurnId: OrchestrationV2ProviderTurn["id"] | null = null;
 
-      const compactRpcRecord = (command: PiCompactCommand): PiRpcRecord =>
+      const compactRpcRecord = (command: PiCompactCommand) =>
         command.customInstructions === undefined
           ? { type: "compact" }
           : { type: "compact", customInstructions: command.customInstructions };
@@ -793,7 +791,7 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
         });
       });
 
-      const itemOrdinal = (turn: ActivePiTurn, nativeItemId: string): number => {
+      const itemOrdinal = (turn: ActivePiTurn, nativeItemId: string) => {
         const existing = turn.itemOrdinals.get(nativeItemId);
         if (existing !== undefined) return existing;
         const ordinal = turn.nextItemOrdinal++;
@@ -841,12 +839,12 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
         );
       });
 
-      const nonNegativeInteger = (input: unknown, key: string): number | undefined => {
+      const nonNegativeInteger = (input: unknown, key: string) => {
         const value = recordNumber(input, key);
         return value === undefined ? undefined : Math.max(0, Math.trunc(value));
       };
 
-      const rememberModelContextWindow = (model: unknown): number | null => {
+      const rememberModelContextWindow = (model: unknown) => {
         const provider = recordString(model, "provider");
         const id = recordString(model, "id");
         const capacity = nonNegativeInteger(model, "contextWindow");
@@ -937,7 +935,7 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
         stats: unknown,
         fallbackUsedTokens: number | null,
         updatedAt: DateTime.Utc,
-      ): OrchestrationV2ProviderTurnTokenUsage | undefined => {
+      ) => {
         const contextUsage = recordField(stats, "contextUsage");
         const maxTokens = nonNegativeInteger(contextUsage, "contextWindow");
         const usedTokens =
@@ -1097,7 +1095,7 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
         });
       });
 
-      const compactionNativeItemId = (turn: ActivePiTurn): string =>
+      const compactionNativeItemId = (turn: ActivePiTurn) =>
         `compaction:${turn.providerTurn.id}:${turn.nextItemOrdinal}`;
 
       const emitCompaction = Effect.fnUntraced(function* (
@@ -1666,7 +1664,7 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
                 : [];
             }),
           ),
-          Effect.orElseSucceed((): ReadonlyArray<string> => []),
+          Effect.orElseSucceed(() => []),
         );
         if (cleared.length === 0) return;
         yield* sessionEventPermit.withPermits(1)(
@@ -1909,9 +1907,7 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
           Effect.orElseSucceed(() => null),
         );
 
-      const captureTurnTreeRefs = Effect.fnUntraced(function* (
-        timeoutMs = PI_REQUEST_TIMEOUT_MS,
-      ): Effect.fn.Return<PiTurnTreeRefs | null> {
+      const captureTurnTreeRefs = Effect.fnUntraced(function* (timeoutMs = PI_REQUEST_TIMEOUT_MS) {
         const cursorWasStale = leafCursorStale;
         const previousLeaf = lastKnownLeaf;
         const fullListing = cursorWasStale || previousLeaf === null;
@@ -3873,7 +3869,7 @@ interface PiSessionListing {
   readonly leafId: string | null;
 }
 
-function piSessionListing(data: unknown): PiSessionListing | null {
+function piSessionListing(data: unknown) {
   const leafId = recordField(data, "leafId");
   const entries = piSessionEntries(recordField(data, "entries"));
   return entries !== null && (typeof leafId === "string" || leafId === null)
@@ -3881,7 +3877,7 @@ function piSessionListing(data: unknown): PiSessionListing | null {
     : null;
 }
 
-function piSessionEntries(entries: unknown): ReadonlyMap<string, PiSessionEntry> | null {
+function piSessionEntries(entries: unknown) {
   const byId = new Map<string, PiSessionEntry>();
   if (!Array.isArray(entries)) return null;
   for (const entry of entries) {
@@ -3908,11 +3904,7 @@ function walkPiBranch(
   entries: ReadonlyMap<string, PiSessionEntry>,
   leafId: string | null,
   stopAt: string | null,
-): {
-  readonly entryCount: number;
-  readonly userEntryIds: ReadonlyArray<string>;
-  readonly reachedStop: boolean;
-} | null {
+) {
   const visited = new Set<string>();
   const userEntryIds: Array<string> = [];
   let current = leafId;
@@ -3941,23 +3933,25 @@ function piForkBoundary(input: {
     | { readonly type: "thread_start" }
     | { readonly type: "provider_turn"; readonly providerTurn: OrchestrationV2ProviderTurn };
   readonly providerThreadTurns: ReadonlyArray<OrchestrationV2ProviderTurn>;
-}): PiForkBoundary {
+}) {
   const target = input.target.type === "thread_start" ? null : input.target.providerTurn;
   const boundary = input.providerThreadTurns
     .filter((turn) => turn.ordinal > (target?.ordinal ?? 0) && turn.nativeTurnRef !== null)
     .sort((a, b) => a.ordinal - b.ordinal)[0];
   const ref = boundary?.nativeTurnRef;
-  if (boundary === undefined || ref == null) return { type: "nothing" };
-  return ref.strength === "strong" && ref.nativeId !== null
-    ? { type: "entry", entryId: ref.nativeId }
-    : { type: "uncaptured", turn: boundary, target };
+  if (boundary === undefined || ref == null) return { type: "nothing" } satisfies PiForkBoundary;
+  return (
+    ref.strength === "strong" && ref.nativeId !== null
+      ? { type: "entry", entryId: ref.nativeId }
+      : { type: "uncaptured", turn: boundary, target }
+  ) satisfies PiForkBoundary;
 }
 
 function piForkEntry<E>(
   boundary: Exclude<PiForkBoundary, { type: "nothing" }>,
   providerThreadCreatedAt: DateTime.Utc,
   readEntries: Effect.Effect<unknown, E>,
-): Effect.Effect<string, E | ProviderAdapter.ProviderAdapterProtocolError> {
+) {
   if (boundary.type === "entry") return Effect.succeed(boundary.entryId);
   return readEntries.pipe(
     Effect.flatMap((data) => {
@@ -3982,7 +3976,7 @@ function piUncapturedForkEntry(
   listing: PiSessionListing,
   boundary: Extract<PiForkBoundary, { type: "uncaptured" }>,
   providerThreadCreatedAt: DateTime.Utc,
-): string | undefined {
+) {
   const { startedAt, completedAt } = boundary.turn;
   if (startedAt === null) return undefined;
   const from =
@@ -4004,9 +3998,7 @@ function piUncapturedForkEntry(
   return earliest;
 }
 
-function piAsyncSubagentStatus(
-  state: string | undefined,
-): OrchestrationV2Subagent["status"] | undefined {
+function piAsyncSubagentStatus(state: string | undefined) {
   switch (state) {
     case "queued":
       return "pending";
@@ -4027,7 +4019,7 @@ function piAsyncSubagentStatus(
   }
 }
 
-function piSubagentOutput(result: unknown): string {
+function piSubagentOutput(result: unknown) {
   const stopReason = recordString(result, "stopReason");
   const failed =
     (recordNumber(result, "exitCode") ?? 0) !== 0 ||
@@ -4048,7 +4040,7 @@ function piSubagentOutput(result: unknown): string {
   return "";
 }
 
-function piExtensionDisplayName(extensionPath: string | undefined): string {
+function piExtensionDisplayName(extensionPath: string | undefined) {
   if (extensionPath === undefined) return "Pi extension";
   const segments = extensionPath.replace(/\\/g, "/").split("/").filter(Boolean);
   const fileName = segments.at(-1)?.replace(/\.[^.]+$/, "") ?? "";
@@ -4056,9 +4048,7 @@ function piExtensionDisplayName(extensionPath: string | undefined): string {
   return name.length === 0 ? "Pi extension" : name;
 }
 
-function piThreadSnapshot(
-  providerThread: OrchestrationV2ProviderThread,
-): ProviderAdapter.ProviderAdapterV2ThreadSnapshot {
+function piThreadSnapshot(providerThread: OrchestrationV2ProviderThread) {
   return { providerThread, providerTurns: [], messages: [], runtimeRequests: [] };
 }
 
@@ -4067,7 +4057,7 @@ function piQuestion(
   method: "select" | "input" | "editor",
   title: string,
   event: PiRpcRecord,
-): OrchestrationV2UserInputQuestion {
+) {
   const options =
     method === "select" && Array.isArray(event["options"])
       ? event["options"]
@@ -4133,11 +4123,23 @@ function piAskUserSingleSelectQuestion(
   toolArgs: ReadonlyMap<string, unknown>,
 ):
   | { question: OrchestrationV2UserInputQuestion; customAnswerRoute: PiCustomAnswerRoute }
-  | undefined {
+  | undefined;
+function piAskUserSingleSelectQuestion(
+  questionId: string,
+  title: string,
+  event: PiRpcRecord,
+  toolArgs: ReadonlyMap<string, unknown>,
+) {
   const lines = event["options"];
-  if (!Array.isArray(lines) || lines.length < 2) return undefined;
+  if (!Array.isArray(lines) || lines.length < 2)
+    return undefined satisfies
+      | { question: OrchestrationV2UserInputQuestion; customAnswerRoute: PiCustomAnswerRoute }
+      | undefined;
   const sentinel = lines.at(-1);
-  if (typeof sentinel !== "string") return undefined;
+  if (typeof sentinel !== "string")
+    return undefined satisfies
+      | { question: OrchestrationV2UserInputQuestion; customAnswerRoute: PiCustomAnswerRoute }
+      | undefined;
   for (const args of toolArgs.values()) {
     const questions = rpivDecoded(recordField(args, "questions"), Array.isArray);
     if (!Array.isArray(questions)) continue;
@@ -4175,17 +4177,21 @@ function piAskUserSingleSelectQuestion(
           sentinel,
           followUpTitlePrefix: `${prefix}${text}\n\n${lines.slice(0, -1).join("\n")}\n\n`,
         },
-      };
+      } satisfies
+        | { question: OrchestrationV2UserInputQuestion; customAnswerRoute: PiCustomAnswerRoute }
+        | undefined;
     }
   }
-  return undefined;
+  return undefined satisfies
+    | { question: OrchestrationV2UserInputQuestion; customAnswerRoute: PiCustomAnswerRoute }
+    | undefined;
 }
 
 function piUiResponse(
   pending: PendingPiPrompt,
   decision: ProviderApprovalDecision | undefined,
   answers: Record<string, unknown> | undefined,
-): PiRpcRecord {
+) {
   if (pending.method === "confirm") {
     if (decision === "accept" || decision === "acceptForSession") return { confirmed: true };
     if (decision === "decline") return { confirmed: false };
@@ -4207,7 +4213,7 @@ export type PiAdapterV2DriverEnv =
 export const PiAdapterV2Driver: ProviderAdapterDriver<PiSettings, PiAdapterV2DriverEnv> = {
   driverKind: PI_DRIVER_KIND,
   configSchema: PiSettings,
-  defaultConfig: (): PiSettings => DEFAULT_PI_SETTINGS,
+  defaultConfig: () => DEFAULT_PI_SETTINGS,
   create: Effect.fn("PiAdapterV2Driver.create")(
     function* (input: ProviderAdapterDriverCreateInput<PiSettings>) {
       const hostEnvironment = yield* HostProcess.Environment;

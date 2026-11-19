@@ -18,7 +18,6 @@ import {
   filePreviewSourceIdentifier,
 } from "../../lib/filePreviewGallery";
 import { FilePreviewGallery } from "./FilePreviewGallery";
-import type { MediaActionsSource } from "../../lib/mediaActionsSource";
 import type {
   FilePreviewItem,
   FilePreviewModalProps,
@@ -43,7 +42,7 @@ class PreviewResolutionError extends Error {
 
 const isAssetNotFoundError = Schema.is(AssetWorkspaceAssetNotFoundError);
 
-function remotePreviewFailureMessage(error: unknown): string {
+function remotePreviewFailureMessage(error: unknown) {
   if (!isAssetNotFoundError(error)) {
     return "Reconnect to this environment and try again. The file may have been moved or deleted.";
   }
@@ -56,15 +55,16 @@ interface ResolvedPreviewUri {
   readonly dispose?: () => void;
 }
 
-async function resolvePreviewUri(
+function resolvePreviewUri(
   item: FilePreviewItem,
   signal: AbortSignal,
-): Promise<ResolvedPreviewUri | null> {
-  if ("uri" in item) return { uri: item.uri };
+): Promise<ResolvedPreviewUri | null>;
+async function resolvePreviewUri(item: FilePreviewItem, signal: AbortSignal) {
+  if ("uri" in item) return { uri: item.uri } satisfies ResolvedPreviewUri | null;
   if ("attachment" in item) {
     return loadLocalAttachmentPreview(item.attachment, signal).catch((error: unknown) => {
       throw new PreviewResolutionError(error, "Attach the file again and retry.");
-    });
+    }) satisfies ResolvedPreviewUri | null;
   }
   const url = await refreshAssetUrl(item.environmentId, item.resource, signal)
     .then((value) => {
@@ -74,10 +74,10 @@ async function resolvePreviewUri(
     .catch((error: unknown) => {
       throw new PreviewResolutionError(error, remotePreviewFailureMessage(error));
     });
-  return { uri: url + (item.srcFragment ?? "") };
+  return { uri: url + (item.srcFragment ?? "") } satisfies ResolvedPreviewUri | null;
 }
 
-function pdfActionsSource(item: FilePreviewItem): MediaActionsSource {
+function pdfActionsSource(item: FilePreviewItem) {
   const metadata = {
     name: filePreviewName(item),
     mimeType: item.mimeType ?? "application/pdf",

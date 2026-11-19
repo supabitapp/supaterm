@@ -12,13 +12,11 @@ export type ProviderSelectionTransitionPlan =
   | { readonly type: "create_with_handoff" }
   | { readonly type: "reject"; readonly reason: string };
 
-export function turnScopedSelectionTransition(): ProviderSelectionTransitionPlan {
-  return { type: "apply_on_next_turn" };
+export function turnScopedSelectionTransition() {
+  return { type: "apply_on_next_turn" } satisfies ProviderSelectionTransitionPlan;
 }
 
-export function acpSelectionTransition(
-  input: ProviderSelectionTransitionInput,
-): ProviderSelectionTransitionPlan {
+export function acpSelectionTransition(input: ProviderSelectionTransitionInput) {
   if (
     input.current.model !== input.target.model &&
     !input.sessionCapabilities.sessions.supportsModelSwitchInSession
@@ -26,7 +24,7 @@ export function acpSelectionTransition(
     return {
       type: "reject",
       reason: "The active ACP session does not expose a model-switch capability.",
-    };
+    } satisfies ProviderSelectionTransitionPlan;
   }
-  return { type: "apply_on_next_turn" };
+  return { type: "apply_on_next_turn" } satisfies ProviderSelectionTransitionPlan;
 }

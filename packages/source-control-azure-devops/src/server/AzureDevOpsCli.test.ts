@@ -15,7 +15,7 @@ import { AzureCliInstallLocation, type AzureCliInstall } from "./azureCliLaunche
 import * as AzureDevOpsCli from "./AzureDevOpsCli.ts";
 import { primaryRemoteUrl, scopeAzureCliArgs } from "./AzureDevOpsCli.ts";
 
-const processOutput = (stdout: string): SourceControlHost.SourceControlProcessOutput => ({
+const processOutput = (stdout: string) => ({
   exitCode: ChildProcessSpawner.ExitCode(0),
   stdout,
   stderr: "",

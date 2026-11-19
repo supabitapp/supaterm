@@ -42,18 +42,21 @@ class CursorSkillsProbeError extends Schema.TaggedError<CursorSkillsProbeError>(
     cwd: Schema.optional(Schema.String),
   },
 ) {
-  override get message(): string {
+  override get message() {
     const location = this.cwd === undefined ? "" : ` for '${this.cwd}'`;
     return `Cursor skill discovery${location} was incomplete (${this.reason}).`;
   }
 }
 
-const orUndefined = <A, R>(
+const orUndefined: <A, R>(
   effect: Effect.Effect<A, PlatformError.PlatformError, R>,
   budget?: CursorSkillScanBudget,
-): Effect.Effect<A | undefined, never, R> =>
+) => Effect.Effect<A | undefined, never, R> = <A, R>(
+  effect: Effect.Effect<A, PlatformError.PlatformError, R>,
+  budget?: CursorSkillScanBudget,
+) =>
   effect.pipe(
-    Effect.map((value): A | undefined => value),
+    Effect.map((value) => value),
     Effect.catchTags({
       PlatformError: (error) => {
         if (error.reason._tag !== "NotFound" && budget) budget.incomplete = true;
@@ -62,7 +65,7 @@ const orUndefined = <A, R>(
     }),
   );
 
-function parseFrontmatterBoolean(value: unknown): boolean | undefined {
+function parseFrontmatterBoolean(value: unknown) {
   if (typeof value === "boolean") return value;
   if (typeof value === "number") return value === 1 ? true : value === 0 ? false : undefined;
   if (typeof value !== "string") return undefined;
@@ -80,17 +83,19 @@ function parseFrontmatterBoolean(value: unknown): boolean | undefined {
   }
 }
 
-function parseSkillFrontmatter(contents: string): CursorSkillFrontmatter | undefined {
+function parseSkillFrontmatter(contents: string): CursorSkillFrontmatter | undefined;
+function parseSkillFrontmatter(contents: string) {
   const match = FRONTMATTER_PATTERN.exec(contents);
-  if (!match) return { cliVisible: true };
+  if (!match) return { cliVisible: true } satisfies CursorSkillFrontmatter | undefined;
 
   let parsed: unknown;
   try {
     parsed = parseYamlDocument(match[1] ?? "");
   } catch {
-    return undefined;
+    return undefined satisfies CursorSkillFrontmatter | undefined;
   }
-  if (typeof parsed !== "object" || parsed === null) return undefined;
+  if (typeof parsed !== "object" || parsed === null)
+    return undefined satisfies CursorSkillFrontmatter | undefined;
 
   const record = parsed as Record<string, unknown>;
   const metadata =
@@ -116,106 +121,111 @@ function parseSkillFrontmatter(contents: string): CursorSkillFrontmatter | undef
     ...(parseFrontmatterBoolean(record["user-invocable"]) === false
       ? { userInvocable: false }
       : {}),
-  };
+  } satisfies CursorSkillFrontmatter | undefined;
 }
 
-const discoverSkillsInRoot = Effect.fn("discoverCursorSkillsInRoot")(function* (input: {
+const discoverSkillsInRoot: (input: {
   readonly directory: string;
   readonly scope: "user" | "project" | "system";
   readonly budget: CursorSkillScanBudget;
   readonly scannedRoots: Set<string>;
-}): Effect.fn.Return<ReadonlyArray<ServerProviderSkill>, never, FileSystem.FileSystem | Path.Path> {
-  const fileSystem = yield* FileSystem.FileSystem;
-  const path = yield* Path.Path;
-  const skills: ServerProviderSkill[] = [];
-  if (input.budget.exhausted) return skills;
-  const rootDirectory = yield* orUndefined(fileSystem.realPath(input.directory), input.budget);
-  if (!rootDirectory) return skills;
+}) => Effect.Effect<ReadonlyArray<ServerProviderSkill>, never, FileSystem.FileSystem | Path.Path> =
+  Effect.fn("discoverCursorSkillsInRoot")(function* (input: {
+    readonly directory: string;
+    readonly scope: "user" | "project" | "system";
+    readonly budget: CursorSkillScanBudget;
+    readonly scannedRoots: Set<string>;
+  }) {
+    const fileSystem = yield* FileSystem.FileSystem;
+    const path = yield* Path.Path;
+    const skills: ServerProviderSkill[] = [];
+    if (input.budget.exhausted) return skills;
+    const rootDirectory = yield* orUndefined(fileSystem.realPath(input.directory), input.budget);
+    if (!rootDirectory) return skills;
 
-  if (input.scannedRoots.has(rootDirectory)) return skills;
-  input.scannedRoots.add(rootDirectory);
-  const visitedDirectories = new Set<string>();
+    if (input.scannedRoots.has(rootDirectory)) return skills;
+    input.scannedRoots.add(rootDirectory);
+    const visitedDirectories = new Set<string>();
 
-  const visit = Effect.fn("visitCursorSkillDirectory")(function* (
-    directory: string,
-    depth: number,
-  ): Effect.fn.Return<void, never> {
-    if (input.budget.exhausted) return;
-    const resolvedDirectory = yield* orUndefined(fileSystem.realPath(directory), input.budget);
-    if (!resolvedDirectory) {
-      return;
-    }
-    if (visitedDirectories.has(resolvedDirectory)) {
-      return;
-    }
-    visitedDirectories.add(resolvedDirectory);
-    const insideRoot =
-      resolvedDirectory === rootDirectory ||
-      resolvedDirectory.startsWith(`${rootDirectory}${path.sep}`);
-
-    if (input.budget.remainingStats === 0) {
-      input.budget.exhausted = true;
-      return;
-    }
-    input.budget.remainingStats -= 1;
-    const skillPath = path.join(directory, "SKILL.md");
-    const skillInfo = yield* orUndefined(fileSystem.stat(skillPath), input.budget);
-    if (skillInfo?.type === "File") {
-      let frontmatter: CursorSkillFrontmatter | undefined = { cliVisible: true };
-      if (skillInfo.size <= MAX_SKILL_BYTES && skillInfo.size <= input.budget.remainingBytes) {
-        const contents = yield* orUndefined(fileSystem.readFileString(skillPath));
-        if (contents !== undefined) {
-          input.budget.remainingBytes -= skillInfo.size;
-          frontmatter = parseSkillFrontmatter(contents);
-        }
+    const visit: (directory: string, depth: number) => Effect.Effect<void, never> = Effect.fn(
+      "visitCursorSkillDirectory",
+    )(function* (directory: string, depth: number) {
+      if (input.budget.exhausted) return;
+      const resolvedDirectory = yield* orUndefined(fileSystem.realPath(directory), input.budget);
+      if (!resolvedDirectory) {
+        return;
       }
-      const name = path.basename(directory).trim();
-      if (frontmatter?.cliVisible && name) {
-        skills.push({
-          name,
-          path: skillPath,
-          scope: input.scope,
-          enabled: true,
-          ...(frontmatter.displayName && frontmatter.displayName !== name
-            ? { displayName: frontmatter.displayName }
-            : {}),
-          ...(frontmatter.description ? { description: frontmatter.description } : {}),
-          ...(frontmatter.userInvocationOnly ? { userInvocationOnly: true } : {}),
-          ...(frontmatter.userInvocable === false ? { userInvocable: false } : {}),
-        });
+      if (visitedDirectories.has(resolvedDirectory)) {
+        return;
       }
-    }
+      visitedDirectories.add(resolvedDirectory);
+      const insideRoot =
+        resolvedDirectory === rootDirectory ||
+        resolvedDirectory.startsWith(`${rootDirectory}${path.sep}`);
 
-    if (!insideRoot) {
-      return;
-    }
-    const entries = yield* orUndefined(fileSystem.readDirectory(directory), input.budget);
-    if (!entries) {
-      return;
-    }
-    for (const entry of [...entries].sort()) {
-      if (entry === "node_modules") continue;
       if (input.budget.remainingStats === 0) {
         input.budget.exhausted = true;
         return;
       }
       input.budget.remainingStats -= 1;
-      const child = path.join(directory, entry);
-      const info = yield* orUndefined(fileSystem.stat(child), input.budget);
-      if (info?.type !== "Directory") continue;
-      if (depth >= MAX_SKILL_DEPTH) continue;
-      if (input.budget.remainingEntries === 0) {
-        input.budget.exhausted = true;
+      const skillPath = path.join(directory, "SKILL.md");
+      const skillInfo = yield* orUndefined(fileSystem.stat(skillPath), input.budget);
+      if (skillInfo?.type === "File") {
+        let frontmatter: CursorSkillFrontmatter | undefined = { cliVisible: true };
+        if (skillInfo.size <= MAX_SKILL_BYTES && skillInfo.size <= input.budget.remainingBytes) {
+          const contents = yield* orUndefined(fileSystem.readFileString(skillPath));
+          if (contents !== undefined) {
+            input.budget.remainingBytes -= skillInfo.size;
+            frontmatter = parseSkillFrontmatter(contents);
+          }
+        }
+        const name = path.basename(directory).trim();
+        if (frontmatter?.cliVisible && name) {
+          skills.push({
+            name,
+            path: skillPath,
+            scope: input.scope,
+            enabled: true,
+            ...(frontmatter.displayName && frontmatter.displayName !== name
+              ? { displayName: frontmatter.displayName }
+              : {}),
+            ...(frontmatter.description ? { description: frontmatter.description } : {}),
+            ...(frontmatter.userInvocationOnly ? { userInvocationOnly: true } : {}),
+            ...(frontmatter.userInvocable === false ? { userInvocable: false } : {}),
+          });
+        }
+      }
+
+      if (!insideRoot) {
         return;
       }
-      input.budget.remainingEntries -= 1;
-      yield* visit(child, depth + 1);
-    }
-  });
+      const entries = yield* orUndefined(fileSystem.readDirectory(directory), input.budget);
+      if (!entries) {
+        return;
+      }
+      for (const entry of [...entries].sort()) {
+        if (entry === "node_modules") continue;
+        if (input.budget.remainingStats === 0) {
+          input.budget.exhausted = true;
+          return;
+        }
+        input.budget.remainingStats -= 1;
+        const child = path.join(directory, entry);
+        const info = yield* orUndefined(fileSystem.stat(child), input.budget);
+        if (info?.type !== "Directory") continue;
+        if (depth >= MAX_SKILL_DEPTH) continue;
+        if (input.budget.remainingEntries === 0) {
+          input.budget.exhausted = true;
+          return;
+        }
+        input.budget.remainingEntries -= 1;
+        yield* visit(child, depth + 1);
+      }
+    });
 
-  yield* visit(rootDirectory, 0);
-  return skills;
-});
+    yield* visit(rootDirectory, 0);
+    return skills;
+  });
 
 const inspectCursorSkills = Effect.fn("inspectCursorSkills")(function* (
   cwd?: string,
@@ -286,21 +296,18 @@ export const probeCursorSkills = Effect.fn("probeCursorSkills")(function* (
 });
 
 /** Cursor invokes Agent Skills with `/name`; Supaterm composers insert `$name`. */
-export function hasCursorSkillMention(prompt: string): boolean {
+export function hasCursorSkillMention(prompt: string) {
   return HAS_SKILL_MENTION_PATTERN.test(prompt);
 }
 
-export function rewriteCursorSkillMentions(
-  prompt: string,
-  skillNames: ReadonlySet<string>,
-): string {
+export function rewriteCursorSkillMentions(prompt: string, skillNames: ReadonlySet<string>) {
   return prompt.replace(SKILL_MENTION_PATTERN, (match, prefix: string, name: string) =>
     skillNames.has(name) ? `${prefix}/${name}` : match,
   );
 }
 
 /** Names invoked as `/name`, the form Cursor uses and `rewriteCursorSkillMentions` produces. */
-export function cursorSlashSkillNames(prompt: string): ReadonlySet<string> {
+export function cursorSlashSkillNames(prompt: string) {
   return new Set(Array.from(prompt.matchAll(SLASH_SKILL_PATTERN), (match) => match[1] ?? ""));
 }
 
@@ -308,7 +315,7 @@ export function cursorSlashSkillNames(prompt: string): ReadonlySet<string> {
 export function appendCursorInvokedSkills(
   prompt: string,
   skills: ReadonlyArray<{ readonly name: string; readonly contents: string }>,
-): string {
+) {
   if (skills.length === 0) return prompt;
   const blocks = skills.map(
     (skill) =>

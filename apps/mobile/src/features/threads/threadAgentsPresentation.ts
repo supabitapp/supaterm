@@ -26,7 +26,7 @@ export interface SubagentRowPresentation {
   readonly canOpenThread: boolean;
 }
 
-function rowTitle(subagent: Pick<OrchestrationV2Subagent, "title" | "prompt">): string {
+function rowTitle(subagent: Pick<OrchestrationV2Subagent, "title" | "prompt">) {
   const title = subagent.title?.trim();
   if (title) return formatSubagentDisplayTitle(title);
   const prompt = subagent.prompt.trim();
@@ -36,14 +36,14 @@ function rowTitle(subagent: Pick<OrchestrationV2Subagent, "title" | "prompt">): 
     : prompt;
 }
 
-function rowTone(status: OrchestrationV2Subagent["status"]): SubagentRowTone {
+function rowTone(status: OrchestrationV2Subagent["status"]) {
   if (isActiveSubagentStatus(status)) return "working";
   if (status === "completed") return "completed";
   if (status === "failed") return "failed";
   return "stopped";
 }
 
-function rowStatusLabel(status: OrchestrationV2Subagent["status"]): string {
+function rowStatusLabel(status: OrchestrationV2Subagent["status"]) {
   switch (status) {
     case "pending":
     case "running":
@@ -68,7 +68,7 @@ export function resolveSubagentRowPresentation(
     OrchestrationV2Subagent,
     "title" | "prompt" | "status" | "progress" | "result" | "childThreadId"
   >,
-): SubagentRowPresentation {
+) {
   const live = isActiveSubagentStatus(subagent.status);
   return {
     title: rowTitle(subagent),
@@ -77,7 +77,7 @@ export function resolveSubagentRowPresentation(
     tone: rowTone(subagent.status),
     live,
     canOpenThread: subagent.childThreadId !== null,
-  };
+  } satisfies SubagentRowPresentation;
 }
 
 export type WorkflowRailTone = SubagentRowTone | "queued";
@@ -90,7 +90,7 @@ export interface WorkflowRailItem {
   readonly tone: WorkflowRailTone;
 }
 
-function railTone(members: ReadonlyArray<RuntimeSubagent>): WorkflowRailTone {
+function railTone(members: ReadonlyArray<RuntimeSubagent>) {
   if (members.every((member) => member.status === "pending")) return "queued";
   if (members.some((member) => isActiveSubagentStatus(member.status) || member.status === "idle")) {
     return "working";
@@ -99,7 +99,7 @@ function railTone(members: ReadonlyArray<RuntimeSubagent>): WorkflowRailTone {
   return members.every((member) => member.status === "completed") ? "completed" : "stopped";
 }
 
-export function workflowRail(group: SubagentWorkflowGroup): ReadonlyArray<WorkflowRailItem> {
+export function workflowRail(group: SubagentWorkflowGroup) {
   const items = group.phases.map((phase) => ({
     key: String(phase.index),
     title: phase.title,
@@ -116,14 +116,14 @@ export function workflowRail(group: SubagentWorkflowGroup): ReadonlyArray<Workfl
     ...item,
     completedCount: item.members.filter((member) => member.status === "completed").length,
     tone: railTone(item.members),
-  }));
+  })) satisfies ReadonlyArray<WorkflowRailItem>;
 }
 
 export function nextWorkflowSelection(
   rail: ReadonlyArray<WorkflowRailItem>,
   selected: string | null,
   tapped?: string,
-): string | null {
+) {
   const open = rail.some((item) => item.key === selected) ? selected : null;
   if (tapped !== undefined) return tapped === open ? null : tapped;
   if (open !== null) return null;
@@ -137,7 +137,7 @@ export function nextWorkflowSelection(
   );
 }
 
-function capitalize(value: string): string {
+function capitalize(value: string) {
   return value.charAt(0).toUpperCase() + value.slice(1);
 }
 

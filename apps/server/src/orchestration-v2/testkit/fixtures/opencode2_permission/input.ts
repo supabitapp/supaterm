@@ -1,6 +1,6 @@
 import { OPENCODE2_PERMISSION_PROMPT, type OrchestratorFixtureInput } from "../shared.ts";
 
-export function openCode2PermissionInput(): OrchestratorFixtureInput {
+export function openCode2PermissionInput() {
   return {
     runtimeMode: "approval-required",
     steps: [
@@ -10,5 +10,5 @@ export function openCode2PermissionInput(): OrchestratorFixtureInput {
       { type: "approve_next_runtime_request", decision: "decline" },
       { type: "approve_next_runtime_request", decision: "decline" },
     ],
-  };
+  } satisfies OrchestratorFixtureInput;
 }

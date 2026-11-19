@@ -33,11 +33,11 @@ export class NativeAppIconResolver extends Context.Service<
   }
 >()("supaterm/assets/NativeAppIconResolver") {}
 
-function appCacheKey(app: NativeAppIconReference): string {
+function appCacheKey(app: NativeAppIconReference) {
   return JSON.stringify(app);
 }
 
-function appFromCacheKey(key: string): NativeAppIconReference {
+function appFromCacheKey(key: string) {
   return JSON.parse(key) as NativeAppIconReference;
 }
 
@@ -80,11 +80,11 @@ const plistValue = Effect.fn("NativeAppIconResolver.plistValue")(function* (
   );
 });
 
-function escapeSpotlightString(value: string): string {
+function escapeSpotlightString(value: string) {
   return value.replace(/([\\'*?])/gu, "\\$1");
 }
 
-function containsControlCharacter(value: string): boolean {
+function containsControlCharacter(value: string) {
   return [...value].some((character) => {
     const codePoint = character.codePointAt(0) ?? 0;
     return codePoint <= 31 || codePoint === 127;

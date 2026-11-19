@@ -18,10 +18,7 @@ export function animationsSettled(element: Element, options?: GetAnimationsOptio
   return Promise.allSettled(finite.map((animation) => animation.finished)).then(() => undefined);
 }
 
-export function runningSizeAnimation(
-  element: Element,
-  options?: GetAnimationsOptions,
-): Animation | undefined {
+export function runningSizeAnimation(element: Element, options?: GetAnimationsOptions) {
   return element
     .getAnimations(options)
     .find(

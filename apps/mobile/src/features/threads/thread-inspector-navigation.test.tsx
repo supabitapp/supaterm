@@ -7,8 +7,8 @@ import { expect, it, vi } from "vite-plus/test";
 
 const harness = vi.hoisted(() => ({
   dispatch: (_action: unknown) => {},
-  getState: (): unknown => undefined,
-  getRoute: (): unknown => undefined,
+  getState: () => undefined satisfies unknown as unknown,
+  getRoute: () => undefined satisfies unknown as unknown,
 }));
 
 vi.mock("react-native", () => ({ Platform: { OS: "ios" } }));

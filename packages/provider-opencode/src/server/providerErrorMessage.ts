@@ -1,9 +1,5 @@
 /** OpenCode stores `<none>` when it cannot read the provider body. */
-export function readableProviderErrorMessage(
-  message?: string,
-  status?: number,
-  body?: string,
-): string | undefined {
+export function readableProviderErrorMessage(message?: string, status?: number, body?: string) {
   const text = message?.trim() ?? "";
   if (text && text.toLowerCase() !== "<none>") return text;
   const title = body

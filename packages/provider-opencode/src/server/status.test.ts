@@ -383,7 +383,7 @@ beforeEach(() => {
   runtimeMock.reset();
 });
 
-const makeOpenCodeSettings = (overrides?: Partial<OpenCodeSettings>): OpenCodeSettings =>
+const makeOpenCodeSettings = (overrides?: Partial<OpenCodeSettings>) =>
   decodeOpenCodeSettings({
     enabled: true,
     binaryPath: "opencode",

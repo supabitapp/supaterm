@@ -6,11 +6,7 @@ import * as NodeCrypto from "node:crypto";
 import * as NodeChildProcess from "node:child_process";
 import * as NodeUtil from "node:util";
 import * as Schema from "effect/Schema";
-import type {
-  DesktopCaptureConfigApplied,
-  DesktopCaptureConfigPreview,
-  DesktopCaptureConfigRequest,
-} from "@supaterm/contracts";
+import type { DesktopCaptureConfigPreview, DesktopCaptureConfigRequest } from "@supaterm/contracts";
 import {
   captureConfigKeys,
   editCaptureConfig,
@@ -129,10 +125,7 @@ export class CaptureShortcutConfig {
       throw new Error(`${keys.label} is already used by Hyprland. Choose another shortcut.`);
   }
 
-  async preview(
-    target: Target,
-    request: DesktopCaptureConfigRequest,
-  ): Promise<DesktopCaptureConfigPreview> {
+  async preview(target: Target, request: DesktopCaptureConfigRequest) {
     if (this.applying) throw new Error("Wait for the current config change to finish.");
     this.pending = undefined;
     const root = await readSnapshot(target.path).catch(() => {
@@ -221,7 +214,7 @@ export class CaptureShortcutConfig {
     return preview;
   }
 
-  async apply(id: string, desktop: Target["desktop"]): Promise<DesktopCaptureConfigApplied> {
+  async apply(id: string, desktop: Target["desktop"]) {
     const pending = this.pending;
     if (
       this.applying ||

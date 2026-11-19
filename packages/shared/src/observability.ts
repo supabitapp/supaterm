@@ -33,7 +33,7 @@ export interface SignalExport {
  * OpenTelemetry Node process detector. Electron embeds Node, so an Electron
  * process reports Node and names Electron in the description.
  */
-export const nodeProcessRuntimeAttributes = (): Record<string, string> => ({
+export const nodeProcessRuntimeAttributes = () => ({
   "process.runtime.name": "nodejs",
   "process.runtime.version": process.versions.node,
   "process.runtime.description": process.versions.electron
@@ -48,7 +48,7 @@ let generatedServiceInstanceId: string | undefined;
  */
 export const processServiceInstanceId = (
   operatorAttributes: Readonly<Record<string, string>> = {},
-): string => {
+) => {
   if (operatorAttributes["service.instance.id"]) return operatorAttributes["service.instance.id"];
   // @effect-diagnostics-next-line cryptoRandomUUID:off -- Resources are built synchronously, outside any Effect.
   generatedServiceInstanceId ??= crypto.randomUUID();
@@ -135,26 +135,28 @@ function isStructuralTag(value: unknown): value is string {
   );
 }
 
-export function errorTag(error: unknown): string {
+export function errorTag(error: unknown): string;
+export function errorTag(error: unknown) {
   try {
     if (typeof error === "object" && error !== null && "_tag" in error) {
-      return isStructuralTag(error._tag) ? error._tag : "TaggedError";
+      return (isStructuralTag(error._tag) ? error._tag : "TaggedError") satisfies string;
     }
     if (error instanceof Error) {
-      return isStructuralTag(error.name) ? error.name : "Error";
+      return (isStructuralTag(error.name) ? error.name : "Error") satisfies string;
     }
   } catch {
-    return "UnknownError";
+    return "UnknownError" satisfies string;
   }
-  return typeof error;
+  return typeof error satisfies string;
 }
 
-export function causeErrorTag(cause: Cause.Cause<unknown>): string {
+export function causeErrorTag(cause: Cause.Cause<unknown>): string;
+export function causeErrorTag(cause: Cause.Cause<unknown>) {
   const failure = Cause.findErrorOption(cause);
   if (Option.isSome(failure)) {
-    return errorTag(failure.value);
+    return errorTag(failure.value) satisfies string;
   }
-  return cause.reasons[0]?._tag ?? "Empty";
+  return (cause.reasons[0]?._tag ?? "Empty") satisfies string;
 }
 
 export interface TraceSinkOptions {
@@ -217,7 +219,7 @@ interface NormalizeState {
   remainingNodes: number;
 }
 
-function enterNode(value: object, state: NormalizeState): string | undefined {
+function enterNode(value: object, state: NormalizeState) {
   if (state.seen.has(value)) {
     return "[Circular]";
   }
@@ -229,7 +231,8 @@ function enterNode(value: object, state: NormalizeState): string | undefined {
   return undefined;
 }
 
-function normalizeJsonValue(value: unknown, state: NormalizeState): unknown {
+function normalizeJsonValue(value: unknown, state: NormalizeState): unknown;
+function normalizeJsonValue(value: unknown, state: NormalizeState) {
   if (
     value === null ||
     value === undefined ||
@@ -237,34 +240,34 @@ function normalizeJsonValue(value: unknown, state: NormalizeState): unknown {
     typeof value === "number" ||
     typeof value === "boolean"
   ) {
-    return value ?? null;
+    return (value ?? null) satisfies unknown;
   }
   if (typeof value === "bigint") {
-    return value.toString();
+    return value.toString() satisfies unknown;
   }
   if (value instanceof Date) {
-    return Number.isNaN(value.getTime()) ? "Invalid Date" : value.toISOString();
+    return (Number.isNaN(value.getTime()) ? "Invalid Date" : value.toISOString()) satisfies unknown;
   }
   if (value instanceof Error) {
     return {
       name: value.name,
       message: value.message,
       ...(value.stack ? { stack: value.stack } : {}),
-    };
+    } satisfies unknown;
   }
   if (Array.isArray(value)) {
     const marker = enterNode(value, state);
     if (marker) {
-      return marker;
+      return marker satisfies unknown;
     }
     const normalized = value.map((entry) => normalizeJsonValue(entry, state));
     state.seen.delete(value);
-    return normalized;
+    return normalized satisfies unknown;
   }
   if (value instanceof Map) {
     const marker = enterNode(value, state);
     if (marker) {
-      return marker;
+      return marker satisfies unknown;
     }
     const normalized = Object.fromEntries(
       Array.from(value.entries(), ([key, entryValue]) => [
@@ -273,34 +276,32 @@ function normalizeJsonValue(value: unknown, state: NormalizeState): unknown {
       ]),
     );
     state.seen.delete(value);
-    return normalized;
+    return normalized satisfies unknown;
   }
   if (value instanceof Set) {
     const marker = enterNode(value, state);
     if (marker) {
-      return marker;
+      return marker satisfies unknown;
     }
     const normalized = Array.from(value.values(), (entry) => normalizeJsonValue(entry, state));
     state.seen.delete(value);
-    return normalized;
+    return normalized satisfies unknown;
   }
   if (!isPlainObject(value)) {
-    return String(value);
+    return String(value) satisfies unknown;
   }
   const marker = enterNode(value, state);
   if (marker) {
-    return marker;
+    return marker satisfies unknown;
   }
   const normalized = Object.fromEntries(
     Object.entries(value).map(([key, entryValue]) => [key, normalizeJsonValue(entryValue, state)]),
   );
   state.seen.delete(value);
-  return normalized;
+  return normalized satisfies unknown;
 }
 
-export function compactTraceAttributes(
-  attributes: Readonly<Record<string, unknown>>,
-): TraceAttributes {
+export function compactTraceAttributes(attributes: Readonly<Record<string, unknown>>) {
   const state: NormalizeState = { seen: new WeakSet(), remainingNodes: TRACE_ATTRIBUTE_MAX_NODES };
   const entries: Array<[string, unknown]> = [];
   for (const [key, value] of Object.entries(attributes)) {
@@ -311,20 +312,20 @@ export function compactTraceAttributes(
   return Object.fromEntries(entries);
 }
 
-function formatTraceExit(exit: Exit.Exit<unknown, unknown>): EffectTraceRecord["exit"] {
+function formatTraceExit(exit: Exit.Exit<unknown, unknown>) {
   if (ExitRuntime.isSuccess(exit)) {
-    return { _tag: "Success" };
+    return { _tag: "Success" } satisfies EffectTraceRecord["exit"];
   }
   if (Cause.hasInterruptsOnly(exit.cause)) {
     return {
       _tag: "Interrupted",
       cause: Cause.pretty(exit.cause),
-    };
+    } satisfies EffectTraceRecord["exit"];
   }
   return {
     _tag: "Failure",
     cause: Cause.pretty(exit.cause),
-  };
+  } satisfies EffectTraceRecord["exit"];
 }
 
 const TRACE_ATTRIBUTE_MAX_LENGTH = 500;
@@ -332,15 +333,20 @@ const TRACE_ATTRIBUTE_TRUNCATED_LENGTH = 200;
 const TRACE_ATTRIBUTE_TRUNCATION_SUFFIX = "…[truncated]";
 const ALWAYS_TRUNCATED_TRACE_ATTRIBUTES: ReadonlySet<string> = new Set(["db.query.text"]);
 
-function truncateNestedValue(value: unknown): unknown {
+function truncateNestedValue(value: unknown): unknown;
+function truncateNestedValue(value: unknown) {
   if (typeof value === "string") {
-    return value.length <= TRACE_ATTRIBUTE_MAX_LENGTH
-      ? value
-      : `${value.slice(0, TRACE_ATTRIBUTE_MAX_LENGTH)}${TRACE_ATTRIBUTE_TRUNCATION_SUFFIX}`;
+    return (
+      value.length <= TRACE_ATTRIBUTE_MAX_LENGTH
+        ? value
+        : `${value.slice(0, TRACE_ATTRIBUTE_MAX_LENGTH)}${TRACE_ATTRIBUTE_TRUNCATION_SUFFIX}`
+    ) satisfies unknown;
   }
   if (Array.isArray(value)) {
     const truncated = value.map(truncateNestedValue);
-    return truncated.some((entry, index) => entry !== value[index]) ? truncated : value;
+    return (
+      truncated.some((entry, index) => entry !== value[index]) ? truncated : value
+    ) satisfies unknown;
   }
   if (isPlainObject(value)) {
     let truncated: Record<string, unknown> | undefined;
@@ -350,13 +356,13 @@ function truncateNestedValue(value: unknown): unknown {
       truncated ??= { ...value };
       truncated[key] = next;
     }
-    return truncated ?? value;
+    return (truncated ?? value) satisfies unknown;
   }
-  return value;
+  return value satisfies unknown;
 }
 
 /** Clones only when clamping; never mutates attributes shared with other tracers. */
-export function truncateTraceAttributes(attributes: TraceAttributes): TraceAttributes {
+export function truncateTraceAttributes(attributes: TraceAttributes) {
   let truncated: Record<string, unknown> | undefined;
   for (const [key, value] of Object.entries(attributes)) {
     if (typeof value === "string" && ALWAYS_TRUNCATED_TRACE_ATTRIBUTES.has(key)) {
@@ -374,7 +380,7 @@ export function truncateTraceAttributes(attributes: TraceAttributes): TraceAttri
   return truncated ?? attributes;
 }
 
-function spanToTraceRecord(span: SerializableSpan): EffectTraceRecord {
+function spanToTraceRecord(span: SerializableSpan) {
   const status = span.status as Extract<Tracer.SpanStatus, { _tag: "Ended" }>;
   const parentSpanId = Option.getOrUndefined(span.parent)?.spanId;
 
@@ -403,7 +409,7 @@ function spanToTraceRecord(span: SerializableSpan): EffectTraceRecord {
       attributes: truncateTraceAttributes(compactTraceAttributes(link.attributes)),
     })),
     exit: formatTraceExit(status.exit),
-  };
+  } satisfies EffectTraceRecord;
 }
 
 const URL_CREDENTIAL_PARAMS = /(^|[?&"\s])(wsTicket|dpop)=[^&#"\\\s]*/g;
@@ -557,7 +563,7 @@ export const makeTraceSink = Effect.fn("makeTraceSink")(function* (options: Trac
   } satisfies TraceSink;
 });
 
-export function redactCauseCredentials(cause: Cause.Cause<unknown>): Cause.Cause<unknown> {
+export function redactCauseCredentials(cause: Cause.Cause<unknown>) {
   if (cause.reasons.length === 0 || Cause.hasInterruptsOnly(cause)) {
     return cause;
   }
@@ -566,7 +572,7 @@ export function redactCauseCredentials(cause: Cause.Cause<unknown>): Cause.Cause
   return redacted === pretty ? cause : Cause.die(new Error(redacted));
 }
 
-function redactExitCredentials(exit: Exit.Exit<unknown, unknown>): Exit.Exit<unknown, unknown> {
+function redactExitCredentials(exit: Exit.Exit<unknown, unknown>) {
   if (ExitRuntime.isSuccess(exit)) {
     return exit;
   }
@@ -614,7 +620,7 @@ class LocalFileSpan implements Tracer.Span {
     this.events = [];
   }
 
-  end(endTime: bigint, exit: Exit.Exit<unknown, unknown>): void {
+  end(endTime: bigint, exit: Exit.Exit<unknown, unknown>) {
     const traceExit = ExitRuntime.isSuccess(exit) ? ExitRuntime.void : exit;
     this.status = {
       _tag: "Ended",
@@ -629,7 +635,7 @@ class LocalFileSpan implements Tracer.Span {
     }
   }
 
-  attribute(key: string, value: unknown): void {
+  attribute(key: string, value: unknown) {
     const recorded =
       (key === "url.full" || key === "url.query") && typeof value === "string"
         ? redactUrlCredentials(value)
@@ -638,7 +644,7 @@ class LocalFileSpan implements Tracer.Span {
     this.delegate.attribute(key, recorded);
   }
 
-  event(name: string, startTime: bigint, attributes?: Record<string, unknown>): void {
+  event(name: string, startTime: bigint, attributes?: Record<string, unknown>) {
     const cause = attributes?.["effect.cause"];
     const nextAttributes =
       typeof cause === "string"
@@ -648,7 +654,7 @@ class LocalFileSpan implements Tracer.Span {
     this.delegate.event(name, startTime, nextAttributes);
   }
 
-  addLinks(links: ReadonlyArray<Tracer.SpanLink>): void {
+  addLinks(links: ReadonlyArray<Tracer.SpanLink>) {
     this.links.push(...links);
     this.delegate.addLinks(links);
   }
@@ -689,9 +695,7 @@ const SPAN_KIND_MAP: Record<number, OtlpTraceRecord["kind"]> = {
   5: "consumer",
 };
 
-export function decodeOtlpTraceRecords(
-  payload: OtlpTracer.TraceData,
-): ReadonlyArray<OtlpTraceRecord> {
+export function decodeOtlpTraceRecords(payload: OtlpTracer.TraceData) {
   const records: Array<OtlpTraceRecord> = [];
 
   for (const resourceSpan of payload.resourceSpans ?? []) {
@@ -724,7 +728,7 @@ function otlpSpanToTraceRecord(input: {
   readonly scopeName: string | undefined;
   readonly scopeVersion: string | undefined;
   readonly span: OtlpSpan;
-}): OtlpTraceRecord {
+}) {
   return {
     type: "otlp-span",
     name: input.span.name,
@@ -748,10 +752,10 @@ function otlpSpanToTraceRecord(input: {
     events: decodeEvents(input.span.events),
     links: decodeLinks(input.span.links),
     status: decodeStatus(input.span.status),
-  };
+  } satisfies OtlpTraceRecord;
 }
 
-function decodeStatus(input: OtlpSpanStatus | undefined): OtlpTraceRecord["status"] {
+function decodeStatus(input: OtlpSpanStatus | undefined) {
   const code = String(input?.code ?? 0);
   const message = input?.message;
 
@@ -761,9 +765,7 @@ function decodeStatus(input: OtlpSpanStatus | undefined): OtlpTraceRecord["statu
   };
 }
 
-function decodeEvents(
-  input: ReadonlyArray<OtlpSpanEvent> | undefined,
-): ReadonlyArray<TraceRecordEvent> {
+function decodeEvents(input: ReadonlyArray<OtlpSpanEvent> | undefined) {
   return (input ?? []).map((current) => ({
     name: current.name,
     timeUnixNano: current.timeUnixNano,
@@ -771,9 +773,7 @@ function decodeEvents(
   }));
 }
 
-function decodeLinks(
-  input: ReadonlyArray<OtlpSpanLink> | undefined,
-): ReadonlyArray<TraceRecordLink> {
+function decodeLinks(input: ReadonlyArray<OtlpSpanLink> | undefined) {
   return (input ?? []).flatMap((current) => {
     const traceId = current.traceId;
     const spanId = current.spanId;
@@ -785,9 +785,7 @@ function decodeLinks(
   });
 }
 
-function decodeAttributes(
-  input: ReadonlyArray<OtlpResource.KeyValue> | undefined,
-): Readonly<Record<string, unknown>> {
+function decodeAttributes(input: ReadonlyArray<OtlpResource.KeyValue> | undefined) {
   const entries: Record<string, unknown> = {};
 
   for (const attribute of input ?? []) {
@@ -797,39 +795,40 @@ function decodeAttributes(
   return truncateTraceAttributes(compactTraceAttributes(entries));
 }
 
-function decodeValue(input: OtlpResource.AnyValue | null | undefined): unknown {
+function decodeValue(input: OtlpResource.AnyValue | null | undefined): unknown;
+function decodeValue(input: OtlpResource.AnyValue | null | undefined) {
   if (input == null) {
-    return null;
+    return null satisfies unknown;
   }
   if ("stringValue" in input) {
-    return input.stringValue;
+    return input.stringValue satisfies unknown;
   }
   if ("boolValue" in input) {
-    return input.boolValue;
+    return input.boolValue satisfies unknown;
   }
   if ("intValue" in input) {
-    return input.intValue;
+    return input.intValue satisfies unknown;
   }
   if ("doubleValue" in input) {
-    return input.doubleValue;
+    return input.doubleValue satisfies unknown;
   }
   if ("bytesValue" in input) {
-    return input.bytesValue;
+    return input.bytesValue satisfies unknown;
   }
   if (input.arrayValue) {
-    return (input.arrayValue.values ?? []).map((entry) => decodeValue(entry));
+    return (input.arrayValue.values ?? []).map((entry) => decodeValue(entry)) satisfies unknown;
   }
   if (input.kvlistValue) {
-    return decodeAttributes(input.kvlistValue.values);
+    return decodeAttributes(input.kvlistValue.values) satisfies unknown;
   }
-  return null;
+  return null satisfies unknown;
 }
 
-function normalizeSpanKind(input: number): OtlpTraceRecord["kind"] {
+function normalizeSpanKind(input: number) {
   return SPAN_KIND_MAP[input] || "internal";
 }
 
-function parseBigInt(input: string): bigint {
+function parseBigInt(input: string) {
   try {
     return BigInt(input);
   } catch {

@@ -78,51 +78,52 @@ const thread = (
     readonly linkedPullRequest?: ThreadLinkedPullRequest;
     readonly branchPullRequest?: ThreadLinkedPullRequest;
   } = {},
-): OrchestrationV2DomainEvent => ({
-  id: EventId.make(`created:${threadId}`),
-  type: "thread.created",
-  threadId,
-  providerInstanceId,
-  occurredAt: at(0),
-  payload: {
-    createdBy: "user",
-    creationSource: "web",
-    id: threadId,
-    projectId,
-    title: overrides.title ?? threadId,
+) =>
+  ({
+    id: EventId.make(`created:${threadId}`),
+    type: "thread.created",
+    threadId,
     providerInstanceId,
-    modelSelection: { instanceId: providerInstanceId, model: "gpt-5" },
-    runtimeMode: "full-access",
-    interactionMode: "default",
-    branch: null,
-    worktreePath: null,
-    linkedPullRequest: overrides.linkedPullRequest ?? null,
-    branchPullRequest: overrides.branchPullRequest ?? null,
-    activeProviderThreadId: null,
-    lineage: overrides.subagentOf
-      ? {
-          parentThreadId: overrides.subagentOf,
-          relationshipToParent: "subagent",
-          rootThreadId: overrides.subagentOf,
-        }
-      : overrides.sideChatOf
+    occurredAt: at(0),
+    payload: {
+      createdBy: "user",
+      creationSource: "web",
+      id: threadId,
+      projectId,
+      title: overrides.title ?? threadId,
+      providerInstanceId,
+      modelSelection: { instanceId: providerInstanceId, model: "gpt-5" },
+      runtimeMode: "full-access",
+      interactionMode: "default",
+      branch: null,
+      worktreePath: null,
+      linkedPullRequest: overrides.linkedPullRequest ?? null,
+      branchPullRequest: overrides.branchPullRequest ?? null,
+      activeProviderThreadId: null,
+      lineage: overrides.subagentOf
         ? {
-            parentThreadId: overrides.sideChatOf,
-            relationshipToParent: "fork",
-            rootThreadId: overrides.sideChatOf,
-            sideChat: true,
+            parentThreadId: overrides.subagentOf,
+            relationshipToParent: "subagent",
+            rootThreadId: overrides.subagentOf,
           }
-        : { parentThreadId: null, relationshipToParent: null, rootThreadId: threadId },
-    forkedFrom: null,
-    createdAt: at(0),
-    updatedAt: at(0),
-    archivedAt: overrides.archivedAt ?? null,
-    doneOverride: overrides.doneAt === undefined ? null : "done",
-    doneAt: overrides.doneAt ?? null,
-    lastVisitedAt: null,
-    deletedAt: overrides.deletedAt ?? null,
-  },
-});
+        : overrides.sideChatOf
+          ? {
+              parentThreadId: overrides.sideChatOf,
+              relationshipToParent: "fork",
+              rootThreadId: overrides.sideChatOf,
+              sideChat: true,
+            }
+          : { parentThreadId: null, relationshipToParent: null, rootThreadId: threadId },
+      forkedFrom: null,
+      createdAt: at(0),
+      updatedAt: at(0),
+      archivedAt: overrides.archivedAt ?? null,
+      doneOverride: overrides.doneAt === undefined ? null : "done",
+      doneAt: overrides.doneAt ?? null,
+      lastVisitedAt: null,
+      deletedAt: overrides.deletedAt ?? null,
+    },
+  }) satisfies OrchestrationV2DomainEvent;
 
 const message = (
   threadId: ThreadId,
@@ -135,27 +136,28 @@ const message = (
     readonly createdBy?: "user" | "agent";
     readonly runId?: RunId;
   } = {},
-): OrchestrationV2DomainEvent => ({
-  id: EventId.make(`message:${id}`),
-  type: "message.updated",
-  threadId,
-  providerInstanceId,
-  occurredAt: at(options.minute ?? 1),
-  payload: {
-    createdBy: options.createdBy ?? (role === "user" ? "user" : "agent"),
-    creationSource: role === "user" ? "web" : "provider",
-    id: MessageId.make(id),
+) =>
+  ({
+    id: EventId.make(`message:${id}`),
+    type: "message.updated",
     threadId,
-    runId: options.runId ?? null,
-    nodeId: null,
-    role,
-    text,
-    attachments: [],
-    streaming: options.streaming ?? false,
-    createdAt: at(options.minute ?? 1),
-    updatedAt: at(options.minute ?? 1),
-  },
-});
+    providerInstanceId,
+    occurredAt: at(options.minute ?? 1),
+    payload: {
+      createdBy: options.createdBy ?? (role === "user" ? "user" : "agent"),
+      creationSource: role === "user" ? "web" : "provider",
+      id: MessageId.make(id),
+      threadId,
+      runId: options.runId ?? null,
+      nodeId: null,
+      role,
+      text,
+      attachments: [],
+      streaming: options.streaming ?? false,
+      createdAt: at(options.minute ?? 1),
+      updatedAt: at(options.minute ?? 1),
+    },
+  }) satisfies OrchestrationV2DomainEvent;
 
 const quote = serializeAssistantCitation({
   version: 1,
@@ -1178,7 +1180,7 @@ it.layer(layerTest)("ThreadSearch.searchOlderDone", (it) => {
       const search = yield* ThreadSearch.ThreadSearch;
       const project = ProjectId.make("project:heron");
       yield* createProject(project);
-      const pullRequest = (number: number): ThreadLinkedPullRequest => ({
+      const pullRequest = (number: number) => ({
         projectId: project,
         repository: "acme/heron",
         number,

@@ -23,7 +23,7 @@ export class HtmlRenderBrowserError extends Schema.TaggedError<HtmlRenderBrowser
     signal: Schema.optional(Schema.String),
   },
 ) {
-  override get message(): string {
+  override get message() {
     const exit =
       this.exitCode !== undefined
         ? ` (exit code ${this.exitCode})`
@@ -128,25 +128,29 @@ const CONSOLE_LEVELS: Readonly<Record<string, ConsoleMessage["level"]>> = {
   assert: "error",
 };
 
-const consoleMessageFromEvent = (method: string, params: unknown): ConsoleMessage | undefined => {
+const consoleMessageFromEvent = (method: string, params: unknown) => {
   if (method === "Runtime.consoleAPICalled") {
     const event = Option.getOrUndefined(decodeConsoleApiCalled(params));
     const level = event === undefined ? undefined : CONSOLE_LEVELS[event.type];
-    return event && level ? { level, text: event.args.map(remoteObjectText).join(" ") } : undefined;
+    return (
+      event && level ? { level, text: event.args.map(remoteObjectText).join(" ") } : undefined
+    ) satisfies ConsoleMessage | undefined;
   }
   if (method === "Runtime.exceptionThrown") {
     const details = Option.getOrUndefined(decodeExceptionThrown(params))?.exceptionDetails;
-    return details
-      ? { level: "error", text: details.exception?.description ?? details.text }
-      : undefined;
+    return (
+      details ? { level: "error", text: details.exception?.description ?? details.text } : undefined
+    ) satisfies ConsoleMessage | undefined;
   }
   if (method === "Log.entryAdded") {
     const entry = Option.getOrUndefined(decodeLogEntryAdded(params))?.entry;
-    return entry && (entry.level === "error" || entry.level === "warning")
-      ? { level: entry.level, text: entry.url ? `${entry.text} ${entry.url}` : entry.text }
-      : undefined;
+    return (
+      entry && (entry.level === "error" || entry.level === "warning")
+        ? { level: entry.level, text: entry.url ? `${entry.text} ${entry.url}` : entry.text }
+        : undefined
+    ) satisfies ConsoleMessage | undefined;
   }
-  return undefined;
+  return undefined satisfies ConsoleMessage | undefined;
 };
 
 const SETTLE_EXPRESSION =
@@ -319,7 +323,7 @@ const launchBrowser = Effect.fnUntraced(function* (input: {
   const disconnect = Effect.gen(function* () {
     yield* Fiber.await(stderrReader).pipe(Effect.timeout("1 second"), Effect.ignore);
     const exit = yield* child.exitCode.pipe(
-      Effect.map((code): { exitCode?: number; signal?: string; cause?: unknown } => ({
+      Effect.map((code) => ({
         exitCode: code,
       })),
       Effect.catch((error) => {
@@ -501,8 +505,8 @@ const launchBrowser = Effect.fnUntraced(function* (input: {
         sessionId,
       ).pipe(Effect.map(({ data }) => data));
 
-    const consoleMessages = (): ReadonlyArray<ConsoleMessage> =>
-      events.omittedConsoleMessages === 0
+    const consoleMessages = () =>
+      (events.omittedConsoleMessages === 0
         ? [...events.consoleMessages]
         : [
             ...events.consoleMessages,
@@ -510,7 +514,7 @@ const launchBrowser = Effect.fnUntraced(function* (input: {
               level: "warning",
               text: `${events.omittedConsoleMessages} more console messages were omitted.`,
             },
-          ];
+          ]) satisfies ReadonlyArray<ConsoleMessage>;
 
     const close = send("Target.closeTarget", { targetId }, Ignored).pipe(
       Effect.ensuring(Effect.sync(() => pages.delete(sessionId))),
@@ -520,13 +524,13 @@ const launchBrowser = Effect.fnUntraced(function* (input: {
     return { load, screenshot, consoleMessages, close };
   });
 
-  const fakeIpNote = (): ReadonlyArray<ConsoleMessage> =>
+  const fakeIpNote = () =>
     [...proxy.fakeIpHosts].map(([host, address]) => ({
       level: "warning",
       text: clipConsoleText(
         `DNS returned blocked 198.18.0.0/15 addresses, which may come from Clash or Mihomo fake-IP DNS. Inline the resource, add its host to fake-ip-filter, or switch DNS to redir-host. Affected host: ${host} (${address})`,
       ),
-    }));
+    })) satisfies ReadonlyArray<ConsoleMessage>;
 
   return { openPage, fakeIpNote };
 });

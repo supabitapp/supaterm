@@ -6,7 +6,6 @@ import { AsyncResult, Atom } from "effect/reactivity";
 
 import {
   appendDeviceEventLog,
-  type DeviceAxElement,
   type DeviceEventLogEntry,
   type DeviceForegroundInfo,
   type DeviceHubTarget,
@@ -44,7 +43,7 @@ export const deviceAxElementsAtom = Atom.family((target: DeviceHubTarget) =>
   Atom.make(
     Stream.fromEffectSchedule(
       Effect.tryPromise((signal) => fetchDeviceAxTree(target, signal)).pipe(
-        Effect.map((tree): ReadonlyArray<DeviceAxElement> | null => tree.elements),
+        Effect.map((tree) => tree.elements),
         Effect.orElseSucceed(() => null),
       ),
       Schedule.spaced(AX_POLL_INTERVAL_MS),

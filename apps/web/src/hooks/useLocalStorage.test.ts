@@ -1,7 +1,8 @@
 import * as Schema from "effect/Schema";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
-function createStorage(overrides: Partial<Storage> = {}): Storage {
+function createStorage(overrides?: Partial<Storage>): Storage;
+function createStorage(overrides: Partial<Storage> = {}) {
   const store = new Map<string, string>();
   return {
     clear: () => store.clear(),
@@ -17,7 +18,7 @@ function createStorage(overrides: Partial<Storage> = {}): Storage {
       store.set(key, value);
     },
     ...overrides,
-  };
+  } satisfies Storage;
 }
 
 afterEach(() => {

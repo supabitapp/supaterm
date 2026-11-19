@@ -91,11 +91,6 @@ interface ThirdPartyLicensesConfig {
   readonly packageOverrides: ReadonlyArray<PackageNoticeOverrideConfigEntry>;
 }
 
-interface SpdxLicenseDetails {
-  readonly licenseId: string;
-  readonly licenseText: string;
-}
-
 interface CollectedPackage {
   readonly bundles: Set<string>;
   readonly packageJson: PackageJson;
@@ -132,14 +127,14 @@ const NOTICE_TEXT_EXTENSIONS = new Set([
 ]);
 const FIRST_PARTY_PACKAGE_PREFIX = "@supaterm/";
 
-function isNoticeTextFile(fileName: string): boolean {
+function isNoticeTextFile(fileName: string) {
   return (
     NOTICE_FILE_PATTERN.test(fileName) &&
     NOTICE_TEXT_EXTENSIONS.has(NodePath.extname(fileName).toLowerCase())
   );
 }
 
-function asPath(value: string | URL): string {
+function asPath(value: string | URL) {
   return value instanceof URL ? NodeURL.fileURLToPath(value) : NodePath.resolve(value);
 }
 
@@ -147,7 +142,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function readRequiredString(value: Record<string, unknown>, key: string, context: string): string {
+function readRequiredString(value: Record<string, unknown>, key: string, context: string) {
   const field = value[key];
   if (typeof field !== "string" || field.trim().length === 0) {
     throw new Error(`${context} must define a non-empty "${key}" string.`);
@@ -155,11 +150,7 @@ function readRequiredString(value: Record<string, unknown>, key: string, context
   return field.trim();
 }
 
-function readOptionalString(
-  value: Record<string, unknown>,
-  key: string,
-  context: string,
-): string | undefined {
+function readOptionalString(value: Record<string, unknown>, key: string, context: string) {
   const field = value[key];
   if (field === undefined) return undefined;
   if (typeof field !== "string" || field.trim().length === 0) {
@@ -168,11 +159,7 @@ function readOptionalString(
   return field.trim();
 }
 
-function readOptionalStringArray(
-  value: Record<string, unknown>,
-  key: string,
-  context: string,
-): ReadonlyArray<string> | undefined {
+function readOptionalStringArray(value: Record<string, unknown>, key: string, context: string) {
   const field = value[key];
   if (field === undefined) return undefined;
   if (
@@ -185,7 +172,7 @@ function readOptionalStringArray(
   return field.map((entry) => (entry as string).trim());
 }
 
-function decodeGeneratedNotice(value: unknown, context: string): GeneratedNoticeConfigEntry {
+function decodeGeneratedNotice(value: unknown, context: string) {
   if (!isRecord(value)) throw new Error(`${context} must be an object.`);
   const copyrights = readOptionalStringArray(value, "copyrights", context);
   const preamble = readOptionalStringArray(value, "preamble", context);
@@ -196,10 +183,7 @@ function decodeGeneratedNotice(value: unknown, context: string): GeneratedNotice
   };
 }
 
-function decodeGeneratedNotices(
-  value: unknown,
-  context: string,
-): ReadonlyArray<GeneratedNoticeConfigEntry> | undefined {
+function decodeGeneratedNotices(value: unknown, context: string) {
   if (value === undefined) return undefined;
   if (!Array.isArray(value) || value.length === 0) {
     throw new Error(`${context} must define "generatedNotices" as a non-empty array.`);
@@ -209,7 +193,7 @@ function decodeGeneratedNotices(
   );
 }
 
-function decodeCustomNotices(value: unknown): ReadonlyArray<CustomNoticeConfigEntry> {
+function decodeCustomNotices(value: unknown) {
   if (value === undefined) return [];
   if (!Array.isArray(value)) {
     throw new Error('Third-party license config field "customNotices" must be an array.');
@@ -247,7 +231,7 @@ function decodeCustomNotices(value: unknown): ReadonlyArray<CustomNoticeConfigEn
   });
 }
 
-function decodePackageOverrides(value: unknown): ReadonlyArray<PackageNoticeOverrideConfigEntry> {
+function decodePackageOverrides(value: unknown) {
   if (value === undefined) return [];
   if (!Array.isArray(value)) {
     throw new Error('Third-party license config field "packageOverrides" must be an array.');
@@ -292,10 +276,7 @@ function decodePackageOverrides(value: unknown): ReadonlyArray<PackageNoticeOver
   });
 }
 
-async function readConfig(configFile: string | URL | undefined): Promise<{
-  readonly config: ThirdPartyLicensesConfig;
-  readonly directory: string;
-}> {
+async function readConfig(configFile: string | URL | undefined) {
   if (configFile === undefined) {
     return { config: EMPTY_CONFIG, directory: NodePath.resolve(".") };
   }
@@ -312,7 +293,7 @@ async function readConfig(configFile: string | URL | undefined): Promise<{
   };
 }
 
-function spdxTemplatePath(configDirectory: string, licenseId: string): string {
+function spdxTemplatePath(configDirectory: string, licenseId: string) {
   return NodePath.join(
     configDirectory,
     SPDX_TEMPLATE_DIRECTORY,
@@ -321,7 +302,7 @@ function spdxTemplatePath(configDirectory: string, licenseId: string): string {
   );
 }
 
-function decodeSpdxLicenseDetails(value: unknown, expectedLicenseId: string): SpdxLicenseDetails {
+function decodeSpdxLicenseDetails(value: unknown, expectedLicenseId: string) {
   if (
     !isRecord(value) ||
     value.licenseId !== expectedLicenseId ||
@@ -333,10 +314,7 @@ function decodeSpdxLicenseDetails(value: unknown, expectedLicenseId: string): Sp
   return { licenseId: expectedLicenseId, licenseText: value.licenseText.trim() };
 }
 
-async function readSpdxLicense(
-  configDirectory: string,
-  licenseId: string,
-): Promise<SpdxLicenseDetails | null> {
+async function readSpdxLicense(configDirectory: string, licenseId: string) {
   try {
     const source = await NodeFSP.readFile(spdxTemplatePath(configDirectory, licenseId), "utf8");
     return decodeSpdxLicenseDetails(JSON.parse(source) as unknown, licenseId);
@@ -347,7 +325,7 @@ async function readSpdxLicense(
   }
 }
 
-async function downloadSpdxLicense(configDirectory: string, licenseId: string): Promise<void> {
+async function downloadSpdxLicense(configDirectory: string, licenseId: string) {
   const url = `https://raw.githubusercontent.com/spdx/license-list-data/${SPDX_LICENSE_LIST_REVISION}/json/details/${encodeURIComponent(licenseId)}.json`;
   const response = await fetch(url);
   if (!response.ok) {
@@ -361,7 +339,7 @@ async function downloadSpdxLicense(configDirectory: string, licenseId: string): 
   await NodeFSP.writeFile(templatePath, `${JSON.stringify(details, null, 2)}\n`, "utf8");
 }
 
-function renderGeneratedNotice(config: GeneratedNoticeConfigEntry, licenseText: string): string {
+function renderGeneratedNotice(config: GeneratedNoticeConfigEntry, licenseText: string) {
   const copyrights = config.copyrights ?? [];
   let renderedLicense = licenseText;
   if (copyrights.length > 0) {
@@ -383,7 +361,7 @@ function renderGeneratedNotice(config: GeneratedNoticeConfigEntry, licenseText: 
 async function generatedNoticeText(
   configs: ReadonlyArray<GeneratedNoticeConfigEntry>,
   configDirectory: string,
-): Promise<string> {
+) {
   const sections = await Promise.all(
     configs.map(async (config) => {
       const details = await readSpdxLicense(configDirectory, config.licenseId);
@@ -398,19 +376,14 @@ async function generatedNoticeText(
   return sections.join("\n\n---\n\n");
 }
 
-function configuredGeneratedNotices(
-  config: ThirdPartyLicensesConfig,
-): ReadonlyArray<GeneratedNoticeConfigEntry> {
+function configuredGeneratedNotices(config: ThirdPartyLicensesConfig) {
   return [
     ...config.customNotices.flatMap((notice) => notice.generatedNotices ?? []),
     ...config.packageOverrides.flatMap((override) => override.generatedNotices ?? []),
   ];
 }
 
-async function syncConfiguredGeneratedNotices(
-  config: ThirdPartyLicensesConfig,
-  directory: string,
-): Promise<void> {
+async function syncConfiguredGeneratedNotices(config: ThirdPartyLicensesConfig, directory: string) {
   const licenseIds = [
     ...new Set(configuredGeneratedNotices(config).map((notice) => notice.licenseId)),
   ].sort((left, right) => left.localeCompare(right));
@@ -423,29 +396,26 @@ async function syncConfiguredGeneratedNotices(
   );
 }
 
-export async function syncThirdPartyLicenseNotices(configFile: string | URL): Promise<void> {
+export async function syncThirdPartyLicenseNotices(configFile: string | URL) {
   const { config, directory } = await readConfig(configFile);
   await syncConfiguredGeneratedNotices(config, directory);
 }
 
-async function readPackageJson(packageJsonPath: string): Promise<PackageJson> {
+async function readPackageJson(packageJsonPath: string) {
   const source = await NodeFSP.readFile(packageJsonPath, "utf8");
   const value = JSON.parse(source) as unknown;
   if (!isRecord(value)) throw new Error(`Package manifest is not an object: ${packageJsonPath}`);
   return value as PackageJson;
 }
 
-function packageIdentity(packageJson: PackageJson, packageRoot: string): string {
+function packageIdentity(packageJson: PackageJson, packageRoot: string) {
   const name =
     typeof packageJson.name === "string" ? packageJson.name : NodePath.basename(packageRoot);
   const version = typeof packageJson.version === "string" ? packageJson.version : "unknown";
   return `${name}@${version}`;
 }
 
-async function findPackageRoot(
-  resolvedPath: string,
-  expectedName?: string,
-): Promise<{ readonly packageJson: PackageJson; readonly packageRoot: string } | null> {
+async function findPackageRoot(resolvedPath: string, expectedName?: string) {
   let current = NodePath.dirname(resolvedPath);
   const root = NodePath.parse(current).root;
 
@@ -469,10 +439,7 @@ async function findPackageRoot(
   return null;
 }
 
-async function resolveDependencyPackage(
-  dependencyName: string,
-  fromPackageJsonPath: string,
-): Promise<{ readonly packageJson: PackageJson; readonly packageRoot: string } | null> {
+async function resolveDependencyPackage(dependencyName: string, fromPackageJsonPath: string) {
   const requireFromPackage = NodeModule.createRequire(fromPackageJsonPath);
   const candidates = [`${dependencyName}/package.json`, dependencyName];
   for (const candidate of candidates) {
@@ -505,7 +472,7 @@ async function resolveDependencyPackage(
   return null;
 }
 
-function dependencyNames(packageJson: PackageJson): ReadonlyArray<string> {
+function dependencyNames(packageJson: PackageJson) {
   return [
     ...new Set([
       ...Object.keys(packageJson.dependencies ?? {}),
@@ -519,26 +486,30 @@ interface ExportTarget {
   readonly underTypesCondition: boolean;
 }
 
-function exportTargets(value: unknown, underTypesCondition = false): ReadonlyArray<ExportTarget> {
-  if (typeof value === "string") return [{ path: value, underTypesCondition }];
+function exportTargets(value: unknown, underTypesCondition?: boolean): ReadonlyArray<ExportTarget>;
+function exportTargets(value: unknown, underTypesCondition = false) {
+  if (typeof value === "string")
+    return [{ path: value, underTypesCondition }] satisfies ReadonlyArray<ExportTarget>;
   if (Array.isArray(value))
-    return value.flatMap((item) => exportTargets(item, underTypesCondition));
-  if (value === null || typeof value !== "object") return [];
+    return value.flatMap((item) =>
+      exportTargets(item, underTypesCondition),
+    ) satisfies ReadonlyArray<ExportTarget>;
+  if (value === null || typeof value !== "object") return [] satisfies ReadonlyArray<ExportTarget>;
   return Object.entries(value).flatMap(([key, item]) =>
     exportTargets(item, underTypesCondition || key.startsWith("types") || key === "typings"),
-  );
+  ) satisfies ReadonlyArray<ExportTarget>;
 }
 
-function isTypeDeclaration(target: ExportTarget): boolean {
+function isTypeDeclaration(target: ExportTarget) {
   return target.underTypesCondition || /\.d\.[cm]?ts$/u.test(target.path);
 }
 
-function isDeclared(value: unknown): boolean {
+function isDeclared(value: unknown) {
   if (typeof value === "string") return value.trim() !== "";
   return value !== null && typeof value === "object" && Object.keys(value).length > 0;
 }
 
-async function fileExists(path: string): Promise<boolean> {
+async function fileExists(path: string) {
   try {
     await NodeFSP.access(path);
     return true;
@@ -547,7 +518,7 @@ async function fileExists(path: string): Promise<boolean> {
   }
 }
 
-async function isTypeOnlyPackage(packageJson: PackageJson, packageRoot: string): Promise<boolean> {
+async function isTypeOnlyPackage(packageJson: PackageJson, packageRoot: string) {
   const targets = exportTargets(packageJson.exports);
   const declaresTypes =
     isDeclared(packageJson.types) ||
@@ -579,13 +550,13 @@ async function isTypeOnlyPackage(packageJson: PackageJson, packageRoot: string):
 
 async function collectProductionDependencyPackages(
   packageManifests: ReadonlyArray<ThirdPartyLicensePackageManifest>,
-): Promise<PackageCollection> {
+) {
   const collection: PackageCollection = {
     byIdentity: new Map(),
   };
   const visited = new Set<string>();
 
-  const visitManifest = async (packageJsonPath: string, bundle: string): Promise<void> => {
+  const visitManifest = async (packageJsonPath: string, bundle: string) => {
     const packageJson = await readPackageJson(packageJsonPath);
     for (const dependencyName of dependencyNames(packageJson)) {
       const resolved = await resolveDependencyPackage(dependencyName, packageJsonPath);
@@ -625,7 +596,7 @@ async function collectProductionDependencyPackages(
   return collection;
 }
 
-function moduleFilePath(moduleId: string): string | null {
+function moduleFilePath(moduleId: string) {
   if (moduleId.startsWith("\0") || moduleId.includes("\0")) return null;
   const withoutQuery = moduleId.split(/[?#]/, 1)[0] ?? moduleId;
   const viteFilePath = withoutQuery.startsWith("/@fs/")
@@ -644,7 +615,7 @@ async function addBundledModulePackages(
   collection: PackageCollection,
   moduleIds: ReadonlyArray<string>,
   bundle: string,
-): Promise<void> {
+) {
   for (const moduleId of moduleIds) {
     const filePath = moduleFilePath(moduleId);
     if (!filePath) continue;
@@ -672,7 +643,7 @@ async function addBundledModulePackages(
   }
 }
 
-function normalizeLicense(packageJson: PackageJson): string | null {
+function normalizeLicense(packageJson: PackageJson) {
   if (typeof packageJson.license === "string" && packageJson.license.trim().length > 0) {
     return packageJson.license.trim();
   }
@@ -695,7 +666,7 @@ function normalizeLicense(packageJson: PackageJson): string | null {
   return null;
 }
 
-function normalizeRepositoryUrl(value: unknown): string | null {
+function normalizeRepositoryUrl(value: unknown) {
   const raw =
     typeof value === "string"
       ? value
@@ -717,14 +688,14 @@ function normalizeRepositoryUrl(value: unknown): string | null {
   return normalized;
 }
 
-function packageSourceUrl(packageJson: PackageJson): string | null {
+function packageSourceUrl(packageJson: PackageJson) {
   if (typeof packageJson.homepage === "string" && packageJson.homepage.trim().length > 0) {
     return packageJson.homepage.trim();
   }
   return normalizeRepositoryUrl(packageJson.repository);
 }
 
-async function readPackageNoticeText(packageRoot: string): Promise<string | null> {
+async function readPackageNoticeText(packageRoot: string) {
   const noticeFiles: string[] = [];
   const rootEntries = await NodeFSP.readdir(packageRoot, { withFileTypes: true });
   noticeFiles.push(
@@ -733,7 +704,7 @@ async function readPackageNoticeText(packageRoot: string): Promise<string | null
       .map((entry) => entry.name),
   );
 
-  const collectNestedNoticeFiles = async (directory: string, depth: number): Promise<void> => {
+  const collectNestedNoticeFiles = async (directory: string, depth: number) => {
     const directoryEntries = await NodeFSP.readdir(NodePath.join(packageRoot, directory), {
       withFileTypes: true,
     });
@@ -774,7 +745,7 @@ async function readPackageNoticeText(packageRoot: string): Promise<string | null
   return sections.length > 0 ? sections.join("\n\n---\n\n") : null;
 }
 
-function repositoryNoticeKey(packageJson: PackageJson, license: string): string | null {
+function repositoryNoticeKey(packageJson: PackageJson, license: string) {
   const repositoryUrl = normalizeRepositoryUrl(packageJson.repository);
   return repositoryUrl ? `${repositoryUrl.toLowerCase()}\n${license.toLowerCase()}` : null;
 }
@@ -782,7 +753,7 @@ function repositoryNoticeKey(packageJson: PackageJson, license: string): string 
 async function collectRepositoryNotices(
   collection: PackageCollection,
   packageNotices: Map<string, Promise<string | null>>,
-): Promise<ReadonlyMap<string, string>> {
+) {
   const notices = new Map<string, string>();
   const candidates = await Promise.all(
     [...collection.byIdentity.values()].map(async (collected) => {
@@ -800,10 +771,7 @@ async function collectRepositoryNotices(
   return notices;
 }
 
-function packageNoticeText(
-  packageRoot: string,
-  cache: Map<string, Promise<string | null>>,
-): Promise<string | null> {
+function packageNoticeText(packageRoot: string, cache: Map<string, Promise<string | null>>) {
   const existing = cache.get(packageRoot);
   if (existing) return existing;
   const notice = readPackageNoticeText(packageRoot);
@@ -816,7 +784,7 @@ function findPackageOverride(
   name: string,
   version: string,
   packageJson: PackageJson,
-): PackageNoticeOverrideConfigEntry | undefined {
+) {
   const repositoryUrl = normalizeRepositoryUrl(packageJson.repository)?.toLowerCase();
   const matchesRepository = (override: PackageNoticeOverrideConfigEntry) =>
     repositoryUrl !== undefined &&
@@ -836,7 +804,7 @@ async function packageEntry(
   configDirectory: string,
   packageNotices: Map<string, Promise<string | null>>,
   repositoryNotices: ReadonlyMap<string, string>,
-): Promise<ThirdPartyLicenseEntry> {
+) {
   const name =
     typeof collected.packageJson.name === "string"
       ? collected.packageJson.name
@@ -879,14 +847,14 @@ async function packageEntry(
     noticeText,
     sourceUrl: override?.sourceUrl ?? packageSourceUrl(collected.packageJson),
     version,
-  };
+  } satisfies ThirdPartyLicenseEntry;
 }
 
 async function customEntries(
   config: ThirdPartyLicensesConfig,
   configDirectory: string,
   includedBundles: ReadonlySet<string>,
-): Promise<ReadonlyArray<ThirdPartyLicenseEntry>> {
+) {
   const deviceToolVersions: unknown = JSON.parse(
     await NodeFSP.readFile(
       new URL("../../apps/server/src/device/deviceToolVersions.json", import.meta.url),
@@ -941,7 +909,7 @@ async function customEntries(
   return entries;
 }
 
-function entrySort(left: ThirdPartyLicenseEntry, right: ThirdPartyLicenseEntry): number {
+function entrySort(left: ThirdPartyLicenseEntry, right: ThirdPartyLicenseEntry) {
   return (
     left.name.localeCompare(right.name) ||
     (left.version ?? "").localeCompare(right.version ?? "") ||
@@ -949,7 +917,7 @@ function entrySort(left: ThirdPartyLicenseEntry, right: ThirdPartyLicenseEntry):
   );
 }
 
-function assertUniqueEntries(entries: ReadonlyArray<ThirdPartyLicenseEntry>): void {
+function assertUniqueEntries(entries: ReadonlyArray<ThirdPartyLicenseEntry>) {
   const identities = new Set<string>();
   for (const entry of entries) {
     const identity = JSON.stringify([entry.kind, entry.name, entry.version]);
@@ -962,12 +930,18 @@ function assertUniqueEntries(entries: ReadonlyArray<ThirdPartyLicenseEntry>): vo
   }
 }
 
+export function generateThirdPartyLicenseManifest(input: {
+  readonly configFile?: string | URL;
+  readonly packageManifests: ReadonlyArray<ThirdPartyLicensePackageManifest>;
+  readonly bundledModuleIds?: ReadonlyArray<string>;
+  readonly bundleName?: string;
+}): Promise<ThirdPartyLicenseManifest>;
 export async function generateThirdPartyLicenseManifest(input: {
   readonly configFile?: string | URL;
   readonly packageManifests: ReadonlyArray<ThirdPartyLicensePackageManifest>;
   readonly bundledModuleIds?: ReadonlyArray<string>;
   readonly bundleName?: string;
-}): Promise<ThirdPartyLicenseManifest> {
+}) {
   const [{ config, directory }, collection] = await Promise.all([
     readConfig(input.configFile),
     collectProductionDependencyPackages(input.packageManifests),
@@ -1005,24 +979,27 @@ export async function generateThirdPartyLicenseManifest(input: {
   return {
     schemaVersion: 1,
     entries,
-  };
+  } satisfies ThirdPartyLicenseManifest;
 }
 
-function moduleIdsFromBundle(bundle: unknown): ReadonlyArray<string> {
+function moduleIdsFromBundle(bundle: unknown): ReadonlyArray<string>;
+function moduleIdsFromBundle(bundle: unknown) {
   const ids = new Set<string>();
-  if (!isRecord(bundle)) return [];
+  if (!isRecord(bundle)) return [] satisfies ReadonlyArray<string>;
   for (const output of Object.values(bundle)) {
     if (!isRecord(output) || output.type !== "chunk" || !isRecord(output.modules)) continue;
     for (const id of Object.keys(output.modules)) ids.add(id);
   }
-  return [...ids];
+  return [...ids] satisfies ReadonlyArray<string>;
 }
 
-function serializeManifest(manifest: ThirdPartyLicenseManifest): string {
-  return `${JSON.stringify(manifest)}\n`;
+function serializeManifest(manifest: ThirdPartyLicenseManifest): string;
+function serializeManifest(manifest: ThirdPartyLicenseManifest) {
+  return `${JSON.stringify(manifest)}\n` satisfies string;
 }
 
-export function thirdPartyLicensesPlugin(options: ThirdPartyLicensesPluginOptions): Plugin {
+export function thirdPartyLicensesPlugin(options: ThirdPartyLicensesPluginOptions): Plugin;
+export function thirdPartyLicensesPlugin(options: ThirdPartyLicensesPluginOptions) {
   return {
     name: "supaterm:third-party-licenses",
     configureServer(server) {
@@ -1066,5 +1043,5 @@ export function thirdPartyLicensesPlugin(options: ThirdPartyLicensesPluginOption
         source: serializeManifest(manifest),
       });
     },
-  };
+  } satisfies Plugin;
 }

@@ -14,7 +14,7 @@ const environments = [
   { environmentId: serverId, label: "Server" },
 ];
 
-function member(id: string, environmentId: EnvironmentId): SidebarProjectGroupMember {
+function member(id: string, environmentId: EnvironmentId) {
   return {
     id: ProjectId.make(id),
     environmentId,
@@ -36,10 +36,7 @@ const second = member("second", laptopId);
 const third = member("third", serverId);
 const other = member("other", serverId);
 
-function group(
-  projectKey: string,
-  members: readonly SidebarProjectGroupMember[],
-): SidebarProjectSnapshot {
+function group(projectKey: string, members: readonly SidebarProjectGroupMember[]) {
   return {
     ...members[0]!,
     projectKey,
@@ -56,7 +53,7 @@ function group(
     remoteEnvironmentLabels: [],
     pinned: false,
     archived: false,
-  };
+  } satisfies SidebarProjectSnapshot;
 }
 
 const groups = [group("supaterm", [first, second, third]), group("other", [other])];

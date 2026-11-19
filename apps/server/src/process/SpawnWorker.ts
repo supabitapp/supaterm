@@ -195,7 +195,7 @@ class WorkerChild
     });
   }
 
-  #relay(fd: number): NodeStream.Readable | NodeStream.Writable {
+  #relay(fd: number) {
     const read = () => {
       if (this.#paused.delete(fd))
         this.worker.post({ type: "flow", id: this.id, fd, paused: false });
@@ -228,7 +228,7 @@ class WorkerChild
     return new NodeStream.Duplex({ read, write, final, destroy, allowHalfOpen: true });
   }
 
-  onData(fd: number, data: Uint8Array): void {
+  onData(fd: number, data: Uint8Array) {
     const stream = this.stdio[fd];
     if (!stream || !("push" in stream)) return;
     if (!stream.push(toBuffer(data)) && !this.#paused.has(fd)) {
@@ -237,44 +237,44 @@ class WorkerChild
     }
   }
 
-  onEof(fd: number): void {
+  onEof(fd: number) {
     const stream = this.stdio[fd];
     if (stream && "push" in stream) stream.push(null);
   }
 
-  onFinished(fd: number): void {
+  onFinished(fd: number) {
     const callback = this.#finals.get(fd);
     this.#finals.delete(fd);
     callback?.();
   }
 
-  onWritten(fd: number, error: SerializedError | undefined): void {
+  onWritten(fd: number, error: SerializedError | undefined) {
     const callback = this.#writes.get(fd)?.shift();
     callback?.(error === undefined ? null : toError(error));
   }
 
-  onStreamError(fd: number, error: SerializedError): void {
+  onStreamError(fd: number, error: SerializedError) {
     this.stdio[fd]?.destroy(toError(error));
   }
 
-  kill(signal: NodeJS.Signals | number = "SIGTERM"): boolean {
+  kill(signal: NodeJS.Signals | number = "SIGTERM") {
     if (this.exited) return false;
     this.killed = true;
     this.worker.post({ type: "kill", id: this.id, signal });
     return true;
   }
 
-  ref(): void {
+  ref() {
     this.referenced = true;
     this.worker.syncRef();
   }
 
-  unref(): void {
+  unref() {
     this.referenced = false;
     this.worker.syncRef();
   }
 
-  exit(code: number | null, signal: NodeJS.Signals | null): void {
+  exit(code: number | null, signal: NodeJS.Signals | null) {
     if (this.exited) return;
     this.exited = true;
     this.exitCode = code;
@@ -284,7 +284,7 @@ class WorkerChild
     this.emit("exit", code, signal);
   }
 
-  abandon(): void {
+  abandon() {
     for (const stream of this.stdio) {
       if (stream && "push" in stream && !stream.readableEnded) stream.push(null);
       else if (stream && !("push" in stream)) stream.destroy();
@@ -313,7 +313,7 @@ class SpawnWorker {
     this.worker.unref();
   }
 
-  post(message: ToWorker, transfer?: ReadonlyArray<ArrayBuffer>): void {
+  post(message: ToWorker, transfer?: ReadonlyArray<ArrayBuffer>) {
     if (!this.closed) this.worker.postMessage(message, transfer);
   }
 
@@ -322,7 +322,7 @@ class SpawnWorker {
     command: string,
     args: ReadonlyArray<string>,
     options: NodeChildProcess.SpawnOptions,
-  ): WorkerChild {
+  ) {
     const io = options.stdio;
     const stdio =
       typeof io === "string" || io === undefined ? [io ?? "pipe", io ?? "pipe", io ?? "pipe"] : io;
@@ -349,7 +349,7 @@ class SpawnWorker {
     return child;
   }
 
-  syncRef(): void {
+  syncRef() {
     if (this.closed) return;
     const referenced =
       this.launching > 0 || [...this.children.values()].some((child) => child.referenced);
@@ -357,7 +357,7 @@ class SpawnWorker {
     else this.worker.unref();
   }
 
-  onMessage(message: FromWorker): void {
+  onMessage(message: FromWorker) {
     const child = this.children.get(message.id);
     if (child === undefined) return;
     switch (message.type) {
@@ -400,13 +400,13 @@ class SpawnWorker {
     }
   }
 
-  release(child: WorkerChild): void {
+  release(child: WorkerChild) {
     this.children.delete(child.id);
     this.syncRef();
     this.pool.release(this);
   }
 
-  fail(error: Error): void {
+  fail(error: Error) {
     if (this.closed) return;
     this.close();
     for (const child of this.children.values()) {
@@ -429,7 +429,7 @@ class SpawnWorker {
     this.children.clear();
   }
 
-  close(): void {
+  close() {
     if (this.closed) return;
     this.closed = true;
     this.pool.workers.delete(this);
@@ -465,7 +465,7 @@ class SpawnWorkerPool {
     return worker.spawn(++this.#nextId, command, args, options);
   };
 
-  killTree(pid: number, done: () => void): void {
+  killTree(pid: number, done: () => void) {
     const killPid = () => {
       try {
         process.kill(pid, "SIGKILL");
@@ -491,13 +491,13 @@ class SpawnWorkerPool {
       .on("exit", (code) => finish(code === 0));
   }
 
-  #add(): SpawnWorker {
+  #add() {
     const worker = new SpawnWorker(this);
     this.workers.add(worker);
     return worker;
   }
 
-  release(worker: SpawnWorker): void {
+  release(worker: SpawnWorker) {
     if (worker.children.size > 0 || worker.launching > 0) return;
     const idle = [...this.workers].filter(
       (candidate) => candidate.children.size === 0 && candidate.launching === 0,
@@ -505,7 +505,7 @@ class SpawnWorkerPool {
     if (idle.length > MAX_IDLE_WORKERS) worker.close();
   }
 
-  close(): void {
+  close() {
     for (const worker of this.workers) worker.close();
   }
 }

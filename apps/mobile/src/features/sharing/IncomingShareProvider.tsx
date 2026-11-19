@@ -7,7 +7,6 @@ import {
   clearSharedPayloads,
   getResolvedSharedPayloadsAsync,
   getSharedPayloads,
-  type ResolvedSharePayload,
   type SharePayload,
 } from "expo-sharing";
 import { useSyncExternalStore } from "react";
@@ -49,7 +48,7 @@ import {
   writeIncomingShareDraft,
 } from "./incoming-share-storage";
 
-function receiveSharingEnabled(): boolean {
+function receiveSharingEnabled() {
   if (Platform.OS === "android") {
     return true;
   }
@@ -64,7 +63,7 @@ const getIncomingSharePayloads = createIncomingSharePayloadReader({
   readPayloads: getSharedPayloads,
 });
 
-async function resolvedPayloadsForFiles(): Promise<ReadonlyArray<ResolvedSharePayload>> {
+async function resolvedPayloadsForFiles() {
   try {
     return await getResolvedSharedPayloadsAsync();
   } catch (error) {
@@ -73,7 +72,7 @@ async function resolvedPayloadsForFiles(): Promise<ReadonlyArray<ResolvedSharePa
   }
 }
 
-async function incomingShareIdForPayloads(payloads: ReadonlyArray<SharePayload>): Promise<string> {
+async function incomingShareIdForPayloads(payloads: ReadonlyArray<SharePayload>) {
   const fingerprint = JSON.stringify(
     payloads.map((payload) => ({
       shareType: payload.shareType,
@@ -85,17 +84,20 @@ async function incomingShareIdForPayloads(payloads: ReadonlyArray<SharePayload>)
   return `share-${digest}`;
 }
 
-async function readBase64(uri: string): Promise<string> {
+function readBase64(uri: string): Promise<string>;
+async function readBase64(uri: string) {
   const { File } = await loadExpoFileSystem();
-  return new File(uri).base64();
+  return new File(uri).base64() satisfies string;
 }
 
-async function readFileSize(uri: string): Promise<number | null> {
+function readFileSize(uri: string): Promise<number | null>;
+async function readFileSize(uri: string) {
   const { File } = await loadExpoFileSystem();
-  return new File(uri).size ?? null;
+  return (new File(uri).size ?? null) satisfies number | null;
 }
 
-async function removeOwnedFile(uri: string): Promise<void> {
+function removeOwnedFile(uri: string): Promise<void>;
+async function removeOwnedFile(uri: string) {
   if (!uri.startsWith("file:")) {
     return;
   }
@@ -118,7 +120,7 @@ async function removeOwnedFile(uri: string): Promise<void> {
   }
 }
 
-async function removeReplayedPayloadFiles(payloads: ReadonlyArray<SharePayload>): Promise<void> {
+async function removeReplayedPayloadFiles(payloads: ReadonlyArray<SharePayload>) {
   const uris = new Set<string>();
   for (const payload of payloads) {
     if (["image", "file", "audio", "video"].includes(payload.shareType)) {
@@ -254,7 +256,7 @@ const refreshIncomingShares = coalescedRun(async () => {
  * Opens the oldest pending share as a new-task draft unless the user already
  * dismissed it. Runs whenever the inbox or the root navigation state changes.
  */
-export function presentPendingIncomingShare(): void {
+export function presentPendingIncomingShare() {
   if (!rootNavigationRef.isReady()) return;
   const state = rootNavigationRef.getRootState();
   if (!state) return;
@@ -273,7 +275,7 @@ export function presentPendingIncomingShare(): void {
 }
 
 /** App-lifetime: loads the inbox and re-ingests native handoffs on every resume. */
-export function startIncomingShareInbox(): () => void {
+export function startIncomingShareInbox() {
   void refreshIncomingShares();
   return receiveSharingEnabled()
     ? subscribeAppActive(() => void refreshIncomingShares())

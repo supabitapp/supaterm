@@ -13,7 +13,7 @@ export const CLAUDE_BACKGROUND_TASK_AFTER_ROOT_PROMPT = [
   "The point is that your first turn ends while the command is still running.",
 ].join("\n");
 
-export function claudeBackgroundTaskAfterRootInput(): OrchestratorFixtureInput {
+export function claudeBackgroundTaskAfterRootInput() {
   return {
     steps: [
       { type: "message", text: CLAUDE_BACKGROUND_TASK_AFTER_ROOT_PROMPT },
@@ -28,5 +28,5 @@ export function claudeBackgroundTaskAfterRootInput(): OrchestratorFixtureInput {
       { type: "release_replay_gate", label: claudeBackgroundWakeResultLabel(1) },
       { type: "await_run_status", targetRunIndex: 2, status: "completed" },
     ],
-  };
+  } satisfies OrchestratorFixtureInput;
 }

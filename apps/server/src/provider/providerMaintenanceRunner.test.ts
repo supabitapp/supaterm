@@ -37,7 +37,6 @@ import * as ProviderLatestVersions from "@supaterm/provider-core/server/Provider
 import {
   enrichProviderSnapshotWithVersionAdvisory,
   makeProviderMaintenanceCapabilities,
-  type ProviderMaintenanceCapabilities,
 } from "@supaterm/provider-core/server/maintenanceResolver";
 const isServerProviderUpdateError = Schema.is(ServerProviderUpdateError);
 
@@ -51,7 +50,7 @@ const encoder = new TextEncoder();
 
 const layerNonWindowsPlatform = Layer.succeed(HostProcess.Platform, "linux");
 
-function lifecycleFor(provider: ProviderDriverKind): ProviderMaintenanceCapabilities {
+function lifecycleFor(provider: ProviderDriverKind) {
   if (provider === NATIVE_CLI_DRIVER) {
     return makeProviderMaintenanceCapabilities({
       provider,

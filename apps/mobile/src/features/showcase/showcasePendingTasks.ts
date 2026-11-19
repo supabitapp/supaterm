@@ -8,8 +8,6 @@ import {
   ThreadId,
 } from "@supaterm/contracts";
 
-import type { QueuedThreadMessage } from "../../state/thread-outbox-model";
-
 export const SHOWCASE_PENDING_TASK_DEFINITIONS = [
   {
     projectId: "supaterm",
@@ -35,7 +33,7 @@ const FALLBACK_MODEL_SELECTION = {
 export function buildShowcasePendingTasks(
   projects: ReadonlyArray<EnvironmentProject>,
   now: number,
-): ReadonlyArray<QueuedThreadMessage> {
+) {
   return SHOWCASE_PENDING_TASK_DEFINITIONS.flatMap((definition) => {
     const project = projects.find((candidate) => String(candidate.id) === definition.projectId);
     if (!project) return [];

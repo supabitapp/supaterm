@@ -13,14 +13,14 @@ const BASE64_BODY = /^[A-Za-z0-9+/_-]+={0,2}$/;
 
 type UnknownRecord = Record<string, unknown>;
 
-function hasImageMime(record: UnknownRecord): boolean {
+function hasImageMime(record: UnknownRecord) {
   return IMAGE_MIME_KEYS.some((key) => {
     const mime = record[key];
     return typeof mime === "string" && mime.toLowerCase().startsWith("image/");
   });
 }
 
-function isImageBody(record: UnknownRecord, key: string | undefined): boolean {
+function isImageBody(record: UnknownRecord, key: string | undefined) {
   if (record.type === "image" || key === "image") return true;
   if (!hasImageMime(record)) return false;
   return (
@@ -34,7 +34,7 @@ function isBase64Body(value: unknown): value is string {
   return typeof value === "string" && value.length >= MIN_BODY_LENGTH && BASE64_BODY.test(value);
 }
 
-function base64DecodedLength(encoded: string): number {
+function base64DecodedLength(encoded: string) {
   let length = encoded.length;
   while (length > 0 && encoded.charCodeAt(length - 1) === 0x3d) {
     length -= 1;
@@ -47,19 +47,16 @@ interface StripContext {
   served: ReadonlyArray<unknown> | undefined;
 }
 
-function isServed(context: StripContext, record: UnknownRecord): boolean {
+function isServed(context: StripContext, record: UnknownRecord): boolean;
+function isServed(context: StripContext, record: UnknownRecord) {
   context.served ??= toolOutputImageBlocks(context.output);
-  if (!context.served.includes(record)) return false;
+  if (!context.served.includes(record)) return false satisfies boolean;
   const data = readToolOutputImage(record)?.data;
-  return data === undefined || data.length <= MAX_TOOL_OUTPUT_IMAGE_BASE64_LENGTH;
+  return (data === undefined ||
+    data.length <= MAX_TOOL_OUTPUT_IMAGE_BASE64_LENGTH) satisfies boolean;
 }
 
-function strip(
-  value: unknown,
-  key: string | undefined,
-  context: StripContext,
-  depth: number,
-): unknown {
+function strip(value: unknown, key: string | undefined, context: StripContext, depth: number) {
   if (depth > MAX_DEPTH || typeof value !== "object" || value === null) {
     return value;
   }
@@ -103,9 +100,7 @@ function strip(
 
 /** Image bytes are stored twice; retain only size-limited toolOutputImageBlocks that are served.
  * Read-file previews use viewedImagePath, and context handoffs skip tools. */
-export function stripUnservedToolOutputImageBytes(
-  item: OrchestrationV2TurnItem,
-): OrchestrationV2TurnItem {
+export function stripUnservedToolOutputImageBytes(item: OrchestrationV2TurnItem) {
   if (item.type !== "dynamic_tool" || typeof item.output !== "object" || item.output === null) {
     return item;
   }

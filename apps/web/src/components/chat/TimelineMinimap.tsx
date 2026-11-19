@@ -13,7 +13,7 @@ import { Tooltip, TooltipTrigger, TooltipPopup } from "../ui/tooltip";
 import { cn } from "~/lib/utils";
 import { usePresence } from "~/hooks/usePresence";
 
-function onMouseButtonsReleased(onRelease: () => void): () => void {
+function onMouseButtonsReleased(onRelease: () => void) {
   const check = (event: globalThis.MouseEvent) => {
     if (event.buttons !== 0) return;
     stop();

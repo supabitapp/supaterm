@@ -68,19 +68,25 @@ export function toViewerSide(side: PullRequestDiffSide) {
   return side === "left" ? ("deletions" as const) : ("additions" as const);
 }
 
-export function getReviewPositionAnchor(position: PullRequestReviewPosition): {
-  line: number;
-  side: PullRequestDiffSide;
-} {
+export function getReviewPositionAnchor(position: PullRequestReviewPosition) {
   switch (position.kind) {
     case "added":
-      return { line: position.newLine, side: "right" };
+      return { line: position.newLine, side: "right" } satisfies {
+        line: number;
+        side: PullRequestDiffSide;
+      };
     case "deleted":
-      return { line: position.oldLine, side: "left" };
+      return { line: position.oldLine, side: "left" } satisfies {
+        line: number;
+        side: PullRequestDiffSide;
+      };
     case "context":
       return {
         line: position.side === "left" ? position.oldLine : position.newLine,
         side: position.side,
+      } satisfies {
+        line: number;
+        side: PullRequestDiffSide;
       };
   }
 }

@@ -42,7 +42,7 @@ const PACE: Record<LimitPace, { readonly label: string; readonly icon: typeof Ga
   under: { label: "Under pace: headroom left for the rest of the window", icon: TrendingDownIcon },
 };
 
-export function barColor(driver: ServerProvider["driver"]): string {
+export function barColor(driver: ServerProvider["driver"]) {
   const presentation = Object.values(PROVIDER_PRESENTATION).find(
     (entry) => entry.driverKind === driver,
   );

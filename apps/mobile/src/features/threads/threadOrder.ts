@@ -16,7 +16,7 @@ export function threadOrderAfterMove(
   orderedIds: readonly string[],
   movedId: string,
   destination: ThreadMoveDestination,
-): string[] | null {
+) {
   if (typeof destination === "object" && destination.section === "done") return null;
   const from = orderedIds.indexOf(movedId);
   if (from < 0 && (typeof destination === "string" || destination.section === undefined))
@@ -61,7 +61,7 @@ export interface PendingThreadOrder {
   readonly commandsComplete: boolean;
 }
 
-function rowId(row: OrderRow): string {
+function rowId(row: OrderRow) {
   return `${row.environmentId}:${row.id}`;
 }
 
@@ -109,7 +109,7 @@ export function createPendingThreadOrder(input: {
   readonly movedId: string;
   readonly direction: ThreadMoveDestination;
   readonly assignments: readonly { readonly id: string; readonly orderKey: string }[];
-}): PendingThreadOrder {
+}) {
   const orderedIds = threadOrderAfterMove(input.ordered.map(rowId), input.movedId, input.direction);
   if (orderedIds === null) throw new Error("Cannot begin an invalid thread move");
   return {
@@ -119,7 +119,7 @@ export function createPendingThreadOrder(input: {
     assignments: new Map(input.assignments.map(({ id, orderKey }) => [id, orderKey])),
     confirmed: new Set(),
     commandsComplete: false,
-  };
+  } satisfies PendingThreadOrder;
 }
 
 /** Receipts and shell updates arrive independently. Only our own key writes
@@ -127,7 +127,7 @@ export function createPendingThreadOrder(input: {
 export function reconcilePendingThreadOrder(
   pending: PendingThreadOrder,
   ordered: readonly OrderRow[],
-): PendingThreadOrder | null {
+) {
   if (ordered.length !== pending.before.size) return null;
   const confirmed = new Set(pending.confirmed);
   for (const row of ordered) {
@@ -147,7 +147,7 @@ export function applyPendingThreadOrder<T extends OrderRow>(
   rows: readonly T[],
   section: PendingThreadOrder["section"],
   pending: PendingThreadOrder | null | undefined,
-): T[] {
+) {
   if (pending == null || pending.section !== section) return [...rows];
   const rank = new Map(pending.orderedIds.map((id, index) => [id, index]));
   return [...rows].sort(

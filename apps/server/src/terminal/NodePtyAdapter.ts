@@ -19,7 +19,7 @@ export class NodePtyModuleLoadError extends Schema.TaggedError<NodePtyModuleLoad
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Failed to load node-pty for ${this.platform}-${this.architecture}.`;
   }
 }
@@ -170,30 +170,30 @@ class NodePtyProcess implements PtyAdapter.PtyProcess {
     });
   }
 
-  get pid(): number {
+  get pid() {
     return this.process.pid;
   }
 
-  write(data: string | Buffer): void {
+  write(data: string | Buffer) {
     this.process.write(data);
   }
 
-  resize(cols: number, rows: number): void {
+  resize(cols: number, rows: number) {
     this.process.resize(cols, rows);
   }
 
-  kill(signal?: string): void {
+  kill(signal?: string) {
     this.process.kill(this.platform === "win32" ? undefined : signal);
   }
 
-  onData(callback: (data: string) => void): () => void {
+  onData(callback: (data: string) => void) {
     const disposable = this.process.onData(callback);
     return () => {
       disposable.dispose();
     };
   }
 
-  onExit(callback: (event: PtyAdapter.PtyExitEvent) => void): () => void {
+  onExit(callback: (event: PtyAdapter.PtyExitEvent) => void) {
     if (this.exitEvent) {
       callback(this.exitEvent);
       return () => {};
@@ -204,7 +204,7 @@ class NodePtyProcess implements PtyAdapter.PtyProcess {
     };
   }
 
-  disposeExitSubscription(): void {
+  disposeExitSubscription() {
     this.exitSubscription.dispose();
     this.exitListeners.clear();
   }

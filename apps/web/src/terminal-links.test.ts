@@ -6,10 +6,9 @@ import {
   extractTerminalLinks,
   isTerminalUrl,
   resolveTerminalLinkTarget,
-  type TerminalBufferLineLike,
 } from "./terminal-links";
 
-function createBufferLine(text: string, isWrapped = false): TerminalBufferLineLike {
+function createBufferLine(text: string, isWrapped = false) {
   return {
     isWrapped,
     translateToString: (trimRight = false) => (trimRight ? text.replace(/\s+$/u, "") : text),

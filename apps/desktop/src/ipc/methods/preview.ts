@@ -308,14 +308,7 @@ const clearCache = DesktopIpc.makeIpcMethod({
 });
 
 /** Keep the default profile's bare environment id so existing logins retain their partition. */
-export function resolvePartitionScope(
-  environmentId: string,
-  profileId: string | undefined,
-): {
-  readonly scope: string;
-  readonly persistent: boolean;
-  readonly namespace?: "profile";
-} {
+export function resolvePartitionScope(environmentId: string, profileId: string | undefined) {
   if (profileId === undefined || profileId === DEFAULT_BROWSER_PROFILE_ID) {
     return { scope: environmentId, persistent: true };
   }

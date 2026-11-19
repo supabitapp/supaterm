@@ -13,7 +13,8 @@ const requestKey = Schema.fromJsonString(Schema.Tuple([Schema.String, PullReques
 const statKey = (ref: PullRequestRef) =>
   JSON.stringify(["pull-request-stat", ref.projectId, ref.host ?? "", ref.repository, ref.number]);
 
-export function persistPullRequestStats(): QueryPersistence<PullRequestListStatsResult> {
+export function persistPullRequestStats(): QueryPersistence<PullRequestListStatsResult>;
+export function persistPullRequestStats() {
   const row = persistQuery(PullRequestDiffStat);
   return {
     load: Effect.fn("pullRequestStatsPersistence.load")(
@@ -44,5 +45,5 @@ export function persistPullRequestStats(): QueryPersistence<PullRequestListStats
       },
       (effect, _environmentId, _key, _result) => effect.pipe(Effect.ignore),
     ),
-  };
+  } satisfies QueryPersistence<PullRequestListStatsResult>;
 }

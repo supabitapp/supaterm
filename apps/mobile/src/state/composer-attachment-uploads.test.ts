@@ -208,7 +208,6 @@ import {
   flushThreadOutbox,
   threadOutboxManager,
 } from "./thread-outbox";
-import type { QueuedThreadMessage } from "./thread-outbox-model";
 import * as drafts from "./use-composer-drafts";
 import { prepareQueuedMessageAttachments } from "./threadOutboxDelivery";
 import {
@@ -260,7 +259,7 @@ function sendInput() {
   };
 }
 
-function queuedMessage(): QueuedThreadMessage {
+function queuedMessage() {
   return {
     environmentId,
     threadId: ThreadId.make("thread-1"),

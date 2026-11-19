@@ -59,7 +59,7 @@ export class DesktopBackendPortUnavailableError extends Schema.TaggedError<Deskt
     hosts: Schema.Array(Schema.String),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `No desktop backend port is available on hosts ${this.hosts.join(", ")} between ${this.startPort} and ${this.maxPort}.`;
   }
 }
@@ -68,7 +68,7 @@ export class DesktopDevelopmentBackendPortRequiredError extends Schema.TaggedErr
   "DesktopDevelopmentBackendPortRequiredError",
   {},
 ) {
-  override get message(): string {
+  override get message() {
     return "SUPATERM_PORT is required in desktop development.";
   }
 }
@@ -118,14 +118,7 @@ const resolveDesktopBackendPort = Effect.fn("resolveDesktopBackendPort")(functio
 const handleFatalStartupError = Effect.fn("desktop.startup.handleFatalStartupError")(function* (
   stage: string,
   error: unknown,
-): Effect.fn.Return<
-  void,
-  never,
-  | DesktopShutdown.DesktopShutdown
-  | DesktopState.DesktopState
-  | ElectronApp.ElectronApp
-  | ElectronDialog.ElectronDialog
-> {
+) {
   const shutdown = yield* DesktopShutdown.DesktopShutdown;
   const state = yield* DesktopState.DesktopState;
   const electronApp = yield* ElectronApp.ElectronApp;
@@ -152,17 +145,15 @@ const handleFatalStartupError = Effect.fn("desktop.startup.handleFatalStartupErr
 const fatalStartupCause = <E>(stage: string, cause: Cause.Cause<E>) =>
   handleFatalStartupError(stage, Cause.pretty(cause)).pipe(Effect.andThen(Effect.failCause(cause)));
 
-const stopAllPoolInstances = Effect.fn("desktop.app.stopAllPoolInstances")(
-  function* (): Effect.fn.Return<void, never, DesktopBackendPool.DesktopBackendPool> {
-    const pool = yield* DesktopBackendPool.DesktopBackendPool;
-    const instances = yield* pool.list;
-    yield* Effect.forEach(
-      instances,
-      (instance) => instance.stop({ timeout: DesktopBackendManager.BACKEND_QUIT_STOP_TIMEOUT }),
-      { concurrency: "unbounded" },
-    );
-  },
-);
+const stopAllPoolInstances = Effect.fn("desktop.app.stopAllPoolInstances")(function* () {
+  const pool = yield* DesktopBackendPool.DesktopBackendPool;
+  const instances = yield* pool.list;
+  yield* Effect.forEach(
+    instances,
+    (instance) => instance.stop({ timeout: DesktopBackendManager.BACKEND_QUIT_STOP_TIMEOUT }),
+    { concurrency: "unbounded" },
+  );
+});
 
 const startLocalBackend = Effect.gen(function* () {
   const state = yield* DesktopState.DesktopState;

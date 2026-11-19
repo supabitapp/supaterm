@@ -26,18 +26,18 @@ export class CursorSdkCatalogError extends Schema.TaggedError<CursorSdkCatalogEr
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return this.authenticationFailure
       ? "Cursor SDK authentication failed."
       : "Cursor SDK catalog request failed.";
   }
 
-  get planRequired(): boolean {
-    return this.code === "plan_required";
+  get planRequired() {
+    return (this.code === "plan_required") satisfies boolean as boolean;
   }
 
-  get accountBlocked(): boolean {
-    return this.status === 403 && !this.planRequired;
+  get accountBlocked() {
+    return (this.status === 403 && !this.planRequired) satisfies boolean as boolean;
   }
 }
 
@@ -171,7 +171,7 @@ export const makeCursorSdkCatalog = Effect.fn("CursorSdkCatalog.make")(function*
         {
           user: Effect.catchIf(
             probes.readUser(apiKey),
-            (error: CursorSdkCatalogError): boolean => error.accountBlocked,
+            (error: CursorSdkCatalogError) => error.accountBlocked,
             () => Effect.undefined,
             (error: CursorSdkCatalogError) => Effect.fail(error),
           ),
@@ -188,8 +188,6 @@ export const layer = Layer.effect(
   Effect.flatMap(makeLiveProbes, makeCursorSdkCatalog),
 );
 
-export function layerTest(
-  read: CursorSdkCatalog["Service"]["read"],
-): Layer.Layer<CursorSdkCatalog> {
+export function layerTest(read: CursorSdkCatalog["Service"]["read"]) {
   return Layer.succeed(CursorSdkCatalog, CursorSdkCatalog.of({ read }));
 }

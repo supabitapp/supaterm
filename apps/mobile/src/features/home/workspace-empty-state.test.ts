@@ -13,7 +13,7 @@ const RETAINED_FAILURE = "Could not reach Sleeping laptop";
 function environment(
   connectionState: WorkspaceEnvironment["connectionState"],
   connectionError: string | null = null,
-): WorkspaceEnvironment {
+) {
   return {
     environmentId: EnvironmentId.make("environment-1"),
     environmentLabel: "Sleeping laptop",

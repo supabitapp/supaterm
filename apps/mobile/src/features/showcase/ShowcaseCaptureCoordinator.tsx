@@ -65,23 +65,24 @@ type ShowcaseResetRoute = PartialState<NavigationState>["routes"][number];
 const readySceneListeners = new Set<() => void>();
 let readyScene: ShowcaseScene | null = null;
 
-function setReadyScene(scene: ShowcaseScene | null): void {
+function setReadyScene(scene: ShowcaseScene | null) {
   if (readyScene === scene) return;
   readyScene = scene;
   for (const listener of readySceneListeners) listener();
 }
 
-function subscribeToReadyScene(listener: () => void): () => void {
+function subscribeToReadyScene(listener: () => void) {
   readySceneListeners.add(listener);
   return () => readySceneListeners.delete(listener);
 }
 
-function getReadyScene(): ShowcaseScene | null {
+function getReadyScene() {
   return readyScene;
 }
 
-function showcaseNavigationAction(scene: ShowcaseScene, environmentId: string): NavigationAction {
-  if (scene === "threads") return StackActions.popToTop();
+function showcaseNavigationAction(scene: ShowcaseScene, environmentId: string): NavigationAction;
+function showcaseNavigationAction(scene: ShowcaseScene, environmentId: string) {
+  if (scene === "threads") return StackActions.popToTop() satisfies NavigationAction;
   const params = { environmentId, threadId: SHOWCASE_THREAD_ID };
   const routes: ShowcaseResetRoute[] = [{ name: "Home" }];
   if (scene === "environments") {
@@ -94,7 +95,7 @@ function showcaseNavigationAction(scene: ShowcaseScene, environmentId: string): 
       routes.push({ name: "ThreadReview", params });
     }
   }
-  return CommonActions.reset({ index: routes.length - 1, routes });
+  return CommonActions.reset({ index: routes.length - 1, routes }) satisfies NavigationAction;
 }
 
 /**
@@ -104,8 +105,9 @@ function showcaseNavigationAction(scene: ShowcaseScene, environmentId: string): 
  */
 export function installShowcaseCapture(
   pathnameFromState: (state: NavigationState) => string,
-): () => void {
-  if (!SHOWCASE_ENABLED) return () => {};
+): () => void;
+export function installShowcaseCapture(pathnameFromState: (state: NavigationState) => string) {
+  if (!SHOWCASE_ENABLED) return (() => {}) satisfies () => void;
 
   let disposed = false;
   let launchRequestRead = false;
@@ -333,7 +335,7 @@ export function installShowcaseCapture(
   const pollTimer = setInterval(evaluate, NATIVE_POLL_MS);
   evaluate();
 
-  return () => {
+  return (() => {
     disposed = true;
     clearInterval(devMenuTimer);
     clearInterval(pollTimer);
@@ -342,7 +344,7 @@ export function installShowcaseCapture(
     readiness?.cancel();
     readiness = null;
     setReadyScene(null);
-  };
+  }) satisfies () => void;
 }
 
 /** The capture harness waits for this marker before taking a screenshot. */

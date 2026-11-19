@@ -13,7 +13,6 @@ import { resolveSpawnCommand } from "@supaterm/shared/shell";
 import {
   collectUint8StreamText,
   decodeUtf8,
-  type CollectedUint8StreamText,
 } from "@supaterm/provider-core/server/collectStreamText";
 
 export interface ProcessRunInput {
@@ -60,7 +59,7 @@ const formatProcessInvocation = (input: {
   readonly command: string;
   readonly cwd?: string | undefined;
   readonly spawnCwd?: string | undefined;
-}): string => {
+}) => {
   const executionCwd = input.spawnCwd ?? input.cwd;
   return executionCwd === undefined
     ? `'${input.command}'`
@@ -77,7 +76,7 @@ export class ProcessSpawnError extends Schema.TaggedError<ProcessSpawnError>()(
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Failed to spawn process ${formatProcessInvocation(this)}`;
   }
 }
@@ -90,7 +89,7 @@ export class ProcessStdinError extends Schema.TaggedError<ProcessStdinError>()(
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Failed to write stdin for process ${formatProcessInvocation(this)}`;
   }
 }
@@ -104,7 +103,7 @@ export class ProcessOutputLimitError extends Schema.TaggedError<ProcessOutputLim
     observedBytes: Schema.Number,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Process ${formatProcessInvocation(this)} ${this.stream} produced ${this.observedBytes} bytes, exceeding the ${this.maxBytes} byte limit`;
   }
 }
@@ -114,7 +113,7 @@ export class ProcessReadError extends Schema.TaggedError<ProcessReadError>()("Pr
   stream: Schema.Literals(["stdout", "stderr", "exitCode"]),
   cause: Schema.Defect(),
 }) {
-  override get message(): string {
+  override get message() {
     return `Failed to read ${this.stream} for process ${formatProcessInvocation(this)}`;
   }
 }
@@ -126,7 +125,7 @@ export class ProcessTimeoutError extends Schema.TaggedError<ProcessTimeoutError>
     timeoutMs: Schema.Number,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Process ${formatProcessInvocation(this)} timed out after ${this.timeoutMs}ms`;
   }
 }
@@ -218,7 +217,7 @@ const collectText = Effect.fnUntraced(function* (input: {
         });
       },
     ),
-    Effect.map((state): CollectedUint8StreamText => ({
+    Effect.map((state) => ({
       ...decodeUtf8(Buffer.concat(state.chunks, state.bytes)),
       bytes: state.bytes,
       truncated: false,
@@ -229,7 +228,11 @@ const collectText = Effect.fnUntraced(function* (input: {
 function finalizeRunProcess<R>(
   effect: Effect.Effect<ProcessRunOutput, ProcessRunError, R | Scope.Scope>,
   input: ProcessRunInput,
-): Effect.Effect<ProcessRunOutput, ProcessRunError, Exclude<R, Scope.Scope>> {
+): Effect.Effect<ProcessRunOutput, ProcessRunError, Exclude<R, Scope.Scope>>;
+function finalizeRunProcess<R>(
+  effect: Effect.Effect<ProcessRunOutput, ProcessRunError, R | Scope.Scope>,
+  input: ProcessRunInput,
+) {
   const timeout = Duration.fromInputUnsafe(input.timeout ?? DEFAULT_TIMEOUT);
   const timeoutBehavior = input.timeoutBehavior ?? "error";
 
@@ -262,7 +265,7 @@ function finalizeRunProcess<R>(
         }),
       );
     }),
-  );
+  ) satisfies Effect.Effect<ProcessRunOutput, ProcessRunError, Exclude<R, Scope.Scope>>;
 }
 
 const commandName = (command: string) => command.replace(/^.*[\\/]/, "");
@@ -270,7 +273,7 @@ const commandName = (command: string) => command.replace(/^.*[\\/]/, "");
 const runProcessCore = Effect.fn("processRunner.runProcessCore")(function* (
   spawner: ChildProcessSpawner.ChildProcessSpawner["Service"],
   input: ProcessRunInput,
-): Effect.fn.Return<ProcessRunOutput, ProcessRunError, Scope.Scope> {
+) {
   yield* Effect.annotateCurrentSpan("process.command", commandName(input.command));
   const maxOutputBytes = input.maxOutputBytes ?? DEFAULT_MAX_OUTPUT_BYTES;
   const outputMode = input.outputMode ?? "error";

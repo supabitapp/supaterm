@@ -84,7 +84,7 @@ const decodeOpenCodeSettings = Schema.decodeSync(OpenCodeSettings);
 
 const DRIVER_KIND = ProviderDriverKind.make("opencode");
 
-export function isLocalOpenCodeServerUrl(serverUrl: string): boolean {
+export function isLocalOpenCodeServerUrl(serverUrl: string) {
   const url = URL.parse(serverUrl.trim());
   if (url?.protocol !== "http:" && url?.protocol !== "https:") return false;
   return (
@@ -94,7 +94,7 @@ export function isLocalOpenCodeServerUrl(serverUrl: string): boolean {
   );
 }
 
-function isOpenCodeNativeCommandPath(commandPath: string): boolean {
+function isOpenCodeNativeCommandPath(commandPath: string) {
   const normalized = normalizeCommandPath(commandPath);
   return (
     normalized.endsWith("/.opencode/bin/opencode") ||
@@ -102,7 +102,7 @@ function isOpenCodeNativeCommandPath(commandPath: string): boolean {
   );
 }
 
-function openCodeNativeHome(commandPath: string): string | null {
+function openCodeNativeHome(commandPath: string) {
   const slashed = commandPath.replaceAll("\\", "/");
   const match = /\/\.opencode\/bin\/opencode(?:\.exe)?$/i.exec(slashed);
   if (!match) return null;
@@ -160,7 +160,7 @@ export const OpenCodeDriver: ProviderDriver<
     supportsMultipleInstances: true,
   },
   configSchema: OpenCodeSettings,
-  defaultConfig: (): OpenCodeSettings => decodeOpenCodeSettings({}),
+  defaultConfig: () => decodeOpenCodeSettings({}),
   usage: openCodeUsageReader,
   create: Effect.fn("OpencodeDriver.create")(function* ({
     instanceId,

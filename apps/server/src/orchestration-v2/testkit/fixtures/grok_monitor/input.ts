@@ -8,7 +8,7 @@ export const GROK_MONITOR_PROMPT =
 const GROK_MONITOR_WAKE_LABEL =
   "notification:session/update:agent_message_chunk:notifications-01a0d754-c2a6-7e51-b5d9-710c43051847";
 
-export function grokMonitorInput(): OrchestratorFixtureInput {
+export function grokMonitorInput() {
   return {
     steps: [
       { type: "message", text: GROK_MONITOR_PROMPT },
@@ -16,5 +16,5 @@ export function grokMonitorInput(): OrchestratorFixtureInput {
       { type: "release_replay_gate", label: GROK_MONITOR_WAKE_LABEL },
       { type: "finish_held_run", targetRunIndex: 2, status: "completed" },
     ],
-  };
+  } satisfies OrchestratorFixtureInput;
 }

@@ -1,6 +1,6 @@
 import { isLoopbackHost } from "./preview.ts";
 
-export function providerAuthReturnUrl(value: string | undefined): string | undefined {
+export function providerAuthReturnUrl(value: string | undefined) {
   if (!value) return undefined;
   try {
     const url = new URL(value);

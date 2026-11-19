@@ -33,7 +33,7 @@ const AUTOLINK_IGNORED_TYPES = new Set(["link", "linkReference"]);
 export function remarkPullRequestAutolinks(options: {
   readonly autolinks: (text: string) => ReadonlyArray<ReferenceAutolink>;
 }) {
-  const visit = (node: MarkdownNode): void => {
+  const visit = (node: MarkdownNode) => {
     const children = node.children;
     if (children === undefined) return;
     for (let index = 0; index < children.length; index += 1) {
@@ -69,7 +69,7 @@ export function remarkPullRequestAutolinks(options: {
 }
 
 function remarkChangeRequestMediaUrls(options: { readonly changeRequestUrl: string }) {
-  const visit = (node: MarkdownNode): void => {
+  const visit = (node: MarkdownNode) => {
     if ((node.type === "image" || node.type === "definition") && node.url !== undefined) {
       node.url = resolveChangeRequestMediaUrl(node.url, options.changeRequestUrl);
     }
@@ -87,7 +87,7 @@ const markdownPlugins = new Map<string, PluggableList>();
  */
 export function pullRequestMarkdownPlugins(
   changeRequest: { readonly provider: string; readonly url: string } | null,
-): PluggableList {
+) {
   if (changeRequest === null) return NO_PLUGINS;
   const repositoryUrl = sourceControlClients.parseChangeRequestUrl(changeRequest.url)?.link
     .repositoryUrl;
@@ -137,17 +137,21 @@ const PREVIEW_BLOCK_TAGS = new Set([
   "ul",
 ]);
 
-function commentPreviewText(node: Nodes): string {
-  if (node.type === "text") return node.value;
+function commentPreviewText(node: Nodes): string;
+function commentPreviewText(node: Nodes) {
+  if (node.type === "text") return node.value satisfies string;
   if (node.type === "element" && node.tagName === "img") {
-    return typeof node.properties.alt === "string" ? node.properties.alt : "";
+    return (typeof node.properties.alt === "string" ? node.properties.alt : "") satisfies string;
   }
-  if (!("children" in node)) return "";
+  if (!("children" in node)) return "" satisfies string;
   const text = node.children.map(commentPreviewText).join("");
-  return node.type === "element" && PREVIEW_BLOCK_TAGS.has(node.tagName) ? ` ${text} ` : text;
+  return (
+    node.type === "element" && PREVIEW_BLOCK_TAGS.has(node.tagName) ? ` ${text} ` : text
+  ) satisfies string;
 }
 
-export function pullRequestCommentPreview(body: string): string {
+export function pullRequestCommentPreview(body: string): string;
+export function pullRequestCommentPreview(body: string) {
   const tree = commentPreviewProcessor.runSync(commentPreviewProcessor.parse(body), body);
-  return commentPreviewText(tree).replace(/\s+/gu, " ").trim();
+  return commentPreviewText(tree).replace(/\s+/gu, " ").trim() satisfies string;
 }

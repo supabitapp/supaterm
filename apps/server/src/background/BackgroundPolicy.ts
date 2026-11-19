@@ -43,7 +43,7 @@ const DEFAULT_LEASE_TTL_MS = 45_000;
 const MAX_LEASE_TTL_MS = 120_000;
 export const MAX_CLIENT_ACTIVITY_LEASES_PER_RPC_CLIENT = 16;
 
-function scopeKey(scope: BackgroundScope): string {
+function scopeKey(scope: BackgroundScope) {
   switch (scope.type) {
     case "server-config":
     case "diagnostics":
@@ -58,7 +58,7 @@ function scopeKey(scope: BackgroundScope): string {
   }
 }
 
-function isLeaseActive(lease: ClientActivityLease, now: DateTime.Utc): boolean {
+function isLeaseActive(lease: ClientActivityLease, now: DateTime.Utc) {
   return DateTime.isGreaterThan(lease.expiresAt, now);
 }
 
@@ -70,7 +70,7 @@ function upsertClientActivityLease(
   leases: ReadonlyMap<string, ClientActivityLease>,
   lease: ClientActivityLease,
   now: DateTime.Utc,
-): Map<string, ClientActivityLease> {
+) {
   const next = new Map(leases);
   for (const [key, current] of next) {
     if (!isLeaseActive(current, now)) {
@@ -109,23 +109,23 @@ function upsertClientActivityLease(
   return next;
 }
 
-function isForegroundLease(lease: ClientActivityLease, now: DateTime.Utc): boolean {
+function isForegroundLease(lease: ClientActivityLease, now: DateTime.Utc) {
   return isLeaseActive(lease, now) && lease.visible && (lease.focused || lease.recentlyInteracted);
 }
 
-function leaseHasScope(lease: ClientActivityLease, scope: BackgroundScope): boolean {
+function leaseHasScope(lease: ClientActivityLease, scope: BackgroundScope) {
   const key = scopeKey(scope);
   return lease.scopes.some((leaseScope) => scopeKey(leaseScope) === key);
 }
 
-function hasThermalPressure(hostPower: HostPowerSnapshot): boolean {
+function hasThermalPressure(hostPower: HostPowerSnapshot) {
   return hostPower.thermalState === "serious" || hostPower.thermalState === "critical";
 }
 
 function isHostConstrained(
   hostPower: HostPowerSnapshot,
   settings: ResolvedBackgroundActivitySettings,
-): boolean {
+) {
   if (hostPower.stale) return false;
   if (
     hostPower.suspended ||
@@ -141,7 +141,7 @@ function isHostConstrained(
 function isClientConstrained(
   lease: ClientActivityLease,
   settings: ResolvedBackgroundActivitySettings,
-): boolean {
+) {
   return settings.pauseWhenClientLowPower && lease.lowPowerMode === "true";
 }
 
@@ -150,7 +150,7 @@ function leaseMayRunScopedWork(
   scope: BackgroundScope,
   now: DateTime.Utc,
   settings: ResolvedBackgroundActivitySettings,
-): boolean {
+) {
   const activeWithScope = isLeaseActive(lease, now) && leaseHasScope(lease, scope);
   if (!activeWithScope || isClientConstrained(lease, settings)) {
     return false;
@@ -167,7 +167,7 @@ function computeSnapshot(input: {
   readonly now: DateTime.Utc;
   readonly settings: ResolvedBackgroundActivitySettings;
   readonly updatedAt: DateTime.Utc;
-}): BackgroundPolicySnapshot {
+}) {
   const activeLeases = [...input.leases.values()].filter((lease) =>
     isLeaseActive(lease, input.now),
   );

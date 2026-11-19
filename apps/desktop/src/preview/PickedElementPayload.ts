@@ -8,7 +8,7 @@ function isFiniteNumberOrNull(value: unknown): value is number | null {
   return value === null || (typeof value === "number" && Number.isFinite(value));
 }
 
-function isPickedStackFrame(value: unknown): boolean {
+function isPickedStackFrame(value: unknown) {
   if (typeof value !== "object" || value === null) return false;
   const frame = value as Record<string, unknown>;
   return (
@@ -36,7 +36,7 @@ export function isPickedElementPayload(value: unknown): value is PickedElementPa
   return true;
 }
 
-function isRect(value: unknown): boolean {
+function isRect(value: unknown) {
   if (typeof value !== "object" || value === null) return false;
   const rect = value as Record<string, unknown>;
   return ["x", "y", "width", "height"].every(
@@ -44,7 +44,7 @@ function isRect(value: unknown): boolean {
   );
 }
 
-function isPoint(value: unknown): boolean {
+function isPoint(value: unknown) {
   if (typeof value !== "object" || value === null) return false;
   const point = value as Record<string, unknown>;
   return (

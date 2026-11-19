@@ -1172,16 +1172,17 @@ describe("environment shell synchronization", () => {
 
   it.effect("fills deferred cached pull request links without overwriting newer rows", () =>
     Effect.gen(function* () {
-      const link = (number: number): ThreadPullRequestLink => ({
-        host: "github.com",
-        repository: "pingdotgg/supaterm",
-        number,
-        url: `https://github.com/supabitapp/supacode-next/pull/${number}`,
-        source: "agent",
-        linkedAt: "2026-06-20T00:00:00.000Z",
-        snapshot: null,
-        stack: null,
-      });
+      const link = (number: number) =>
+        ({
+          host: "github.com",
+          repository: "pingdotgg/supaterm",
+          number,
+          url: `https://github.com/supabitapp/supacode-next/pull/${number}`,
+          source: "agent",
+          linkedAt: "2026-06-20T00:00:00.000Z",
+          snapshot: null,
+          stack: null,
+        }) satisfies ThreadPullRequestLink;
       const otherThreadId = ThreadId.make("thread-other");
       const cachedSnapshot: OrchestrationV2ShellSnapshot = {
         ...v2ShellSnapshot,
@@ -1268,16 +1269,17 @@ describe("environment shell synchronization", () => {
 
   it.effect("drops an older snapshot's links once a newer snapshot reuses its rows", () =>
     Effect.gen(function* () {
-      const link = (number: number): ThreadPullRequestLink => ({
-        host: "github.com",
-        repository: "pingdotgg/supaterm",
-        number,
-        url: `https://github.com/supabitapp/supacode-next/pull/${number}`,
-        source: "agent",
-        linkedAt: "2026-06-20T00:00:00.000Z",
-        snapshot: null,
-        stack: null,
-      });
+      const link = (number: number) =>
+        ({
+          host: "github.com",
+          repository: "pingdotgg/supaterm",
+          number,
+          url: `https://github.com/supabitapp/supacode-next/pull/${number}`,
+          source: "agent",
+          linkedAt: "2026-06-20T00:00:00.000Z",
+          snapshot: null,
+          stack: null,
+        }) satisfies ThreadPullRequestLink;
       const firstLinks = yield* Deferred.make<void>();
       const secondLinks = yield* Deferred.make<void>();
 

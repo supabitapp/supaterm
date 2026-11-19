@@ -113,7 +113,7 @@ import { selectThreadRightPanelState, useRightPanelStore } from "~/rightPanelSto
 const cwd = "/project-worktree";
 const errorMessage = "Could not find a common commit between 'origin/orphan' and HEAD.";
 
-function preview(): ReviewDiffPreviewResult {
+function preview() {
   return {
     cwd,
     generatedAt: DateTime.makeUnsafe("2026-10-30T00:00:00Z"),
@@ -131,7 +131,7 @@ function preview(): ReviewDiffPreviewResult {
         files: [],
       },
     ],
-  };
+  } satisfies ReviewDiffPreviewResult;
 }
 
 function setup(failedBaseRef: string | null) {
@@ -183,7 +183,7 @@ function setup(failedBaseRef: string | null) {
       pr: null,
     }),
   );
-  const refs = (names: string[], isRemote: boolean): VcsListRefsResult => ({
+  const refs = (names: string[], isRemote: boolean) => ({
     isRepo: true,
     hasPrimaryRemote: true,
     nextCursor: null,

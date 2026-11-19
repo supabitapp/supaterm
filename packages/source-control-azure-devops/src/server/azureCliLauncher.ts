@@ -21,7 +21,7 @@ const INSTALLERS_BY_LAUNCHER_DIRECTORY: Readonly<Record<string, AzureCliInstalle
 export const azureCliInstall = (
   launcherPath: string,
   pathExists: (filePath: string) => boolean = NodeFS.existsSync,
-): AzureCliInstall | undefined => {
+) => {
   const path = NodePath.win32;
   const extension = path.extname(launcherPath).toLowerCase();
   if (extension !== ".cmd" && extension !== ".bat") return undefined;

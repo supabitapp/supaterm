@@ -53,7 +53,7 @@ export class ProviderRuntimeRecoveryError extends Schema.TaggedError<ProviderRun
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Provider runtime recovery failed during ${this.operation}.`;
   }
 }
@@ -93,37 +93,35 @@ function inProgressRuns(projection: ProjectionStore.ProjectionRuntimeRecoverySta
   return projection.runs.filter((run) => isOrchestrationV2RunInProgress(run.status));
 }
 
-function isBackgroundCapableTurnItemType(type: string): boolean {
+function isBackgroundCapableTurnItemType(type: string) {
   return type === "command_execution" || type === "dynamic_tool" || type === "subagent";
 }
 
-function isNonterminalTurnItemStatus(status: string): boolean {
+function isNonterminalTurnItemStatus(status: string) {
   return status === "pending" || status === "running" || status === "waiting";
 }
 
 function isAppOwnedDelegation(task: {
   readonly origin: OrchestrationV2Subagent["origin"];
   readonly childThreadId: ThreadId | null;
-}): boolean {
+}) {
   return task.origin === "app_owned" && task.childThreadId !== null;
 }
 
-function isAppOwnedDelegationItem(
-  item: OrchestrationV2ThreadProjection["turnItems"][number],
-): boolean {
+function isAppOwnedDelegationItem(item: OrchestrationV2ThreadProjection["turnItems"][number]) {
   return item.type === "subagent" && isAppOwnedDelegation(item);
 }
 
 function providerThreadHasPendingBackgroundTasks(
   providerThread: OrchestrationV2ThreadProjection["providerThreads"][number],
-): boolean {
+) {
   return (providerThread.pendingBackgroundTasks?.length ?? 0) > 0;
 }
 
 function resolveStaleBackgroundItemProviderInstanceId(
   item: OrchestrationV2ThreadProjection["turnItems"][number],
   projection: ProjectionStore.ProjectionRuntimeRecoveryState,
-): OrchestrationV2ThreadProjection["thread"]["providerInstanceId"] {
+) {
   if (item.runId !== null) {
     const run = projection.runs.find((candidate) => candidate.id === item.runId);
     if (run !== undefined) {
@@ -147,8 +145,8 @@ function resolveStaleBackgroundItemProviderInstanceId(
 const cancelledItem = (
   item: OrchestrationV2ThreadProjection["turnItems"][number],
   now: DateTime.Utc,
-): OrchestrationV2ThreadProjection["turnItems"][number] =>
-  item.type === "secret_request" && item.secretStatus === "pending"
+) =>
+  (item.type === "secret_request" && item.secretStatus === "pending"
     ? { ...item, status: "cancelled", secretStatus: "cancelled", completedAt: now, updatedAt: now }
     : {
         ...item,
@@ -156,7 +154,7 @@ const cancelledItem = (
         status: "cancelled",
         completedAt: now,
         updatedAt: now,
-      };
+      }) satisfies OrchestrationV2ThreadProjection["turnItems"][number];
 
 function latestStartedRun(
   projection: ProjectionStore.ProjectionRuntimeRecoveryState,

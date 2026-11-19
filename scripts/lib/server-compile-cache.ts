@@ -21,7 +21,7 @@ export const cacheKey = (active: string, filename: string) =>
     .toString(16)
     .padStart(8, "0");
 
-export function seedPreparedCache(prepared: string, active: string, runtime: string): boolean {
+export function seedPreparedCache(prepared: string, active: string, runtime: string) {
   try {
     const manifest: unknown = JSON.parse(
       NodeFS.readFileSync(NodePath.join(prepared, "manifest.json"), "utf8"),
@@ -63,7 +63,7 @@ export function seedPreparedCache(prepared: string, active: string, runtime: str
   }
 }
 
-export function enablePreparedServerCache(entry: string, cacheRoot: string): boolean {
+export function enablePreparedServerCache(entry: string, cacheRoot: string) {
   try {
     const archive = entry.match(/^(.*[\\/](?:app|server)\.asar)[\\/]/)?.[1];
     if (!archive) return false;
@@ -133,7 +133,7 @@ export function enablePreparedServerCache(entry: string, cacheRoot: string): boo
   }
 }
 
-export async function generatePreparedServerCache(resourcesInput: string): Promise<void> {
+export async function generatePreparedServerCache(resourcesInput: string) {
   const resources = NodeFS.realpathSync(resourcesInput);
   const prepared = NodePath.join(resources, "server-compile-cache");
   const archive = NodeFS.existsSync(NodePath.join(resources, "server.asar"))

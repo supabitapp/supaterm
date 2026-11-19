@@ -37,7 +37,7 @@ const SCOPED_PACKAGE_REFERENCE_REGEX =
   /^[a-z0-9][a-z0-9._-]*\/[a-z0-9][a-z0-9._-]*(?:\/[^\s@"]+)*$/;
 const DECORATOR_CALL_REFERENCE_REGEX = /^[\p{ID_Start}_$][\p{ID_Continue}.$\u200c\u200d]*\(/u;
 
-function collectMentionTokens(text: string): ComposerInlineToken[] {
+function collectMentionTokens(text: string) {
   const matches: ComposerInlineToken[] = [];
 
   for (const match of text.matchAll(FILE_LINK_TOKEN_REGEX)) {
@@ -119,7 +119,7 @@ export function composerMathRanges(
 export function collectComposerInlineTokens(
   text: string,
   options: CollectComposerInlineTokensOptions = {},
-): ReadonlyArray<ComposerInlineToken> {
+) {
   const matches = collectMentionTokens(text);
 
   for (const match of text.matchAll(SKILL_TOKEN_REGEX)) {

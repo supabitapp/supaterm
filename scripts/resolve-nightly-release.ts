@@ -35,7 +35,7 @@ export class InvalidDesktopPackageVersionError extends Schema.TaggedError<Invali
     version: Schema.String,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Invalid desktop package version '${this.version}'.`;
   }
 }
@@ -48,7 +48,7 @@ export class NightlyReleaseDesktopPackageError extends Schema.TaggedError<Nightl
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Failed to ${this.operation} desktop package metadata at ${this.packageJsonPath}.`;
   }
 }
@@ -59,7 +59,7 @@ export class NightlyReleaseGitHubOutputConfigError extends Schema.TaggedError<Ni
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return "Failed to resolve the GITHUB_OUTPUT path for nightly release metadata.";
   }
 }
@@ -71,7 +71,7 @@ export class NightlyReleaseGitHubOutputAppendError extends Schema.TaggedError<Ni
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Failed to append nightly release metadata to ${this.outputPath}.`;
   }
 }

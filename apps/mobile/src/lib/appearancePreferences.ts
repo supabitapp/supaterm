@@ -62,7 +62,7 @@ export interface NativeMarkdownTypography {
   readonly headingFontSizes: readonly [number, number, number, number, number, number];
 }
 
-export function normalizeBaseFontSize(value: number | null | undefined): number {
+export function normalizeBaseFontSize(value: number | null | undefined) {
   if (typeof value !== "number" || !Number.isFinite(value)) {
     return DEFAULT_BASE_FONT_SIZE;
   }
@@ -70,7 +70,7 @@ export function normalizeBaseFontSize(value: number | null | undefined): number 
   return Math.min(MAX_BASE_FONT_SIZE, Math.max(MIN_BASE_FONT_SIZE, Math.round(value)));
 }
 
-function normalizeCodeFontSize(value: number | null | undefined): number {
+function normalizeCodeFontSize(value: number | null | undefined) {
   if (typeof value !== "number" || !Number.isFinite(value)) {
     return DEFAULT_CODE_FONT_SIZE;
   }
@@ -78,16 +78,16 @@ function normalizeCodeFontSize(value: number | null | undefined): number {
   return Math.min(MAX_CODE_FONT_SIZE, Math.max(MIN_CODE_FONT_SIZE, Math.round(value)));
 }
 
-function normalizeCodeWordBreak(value: boolean | null | undefined): boolean {
+function normalizeCodeWordBreak(value: boolean | null | undefined) {
   return value === true;
 }
 
-function deriveTerminalFontSize(baseFontSize: number): number {
+function deriveTerminalFontSize(baseFontSize: number) {
   const scale = normalizeBaseFontSize(baseFontSize) / DEFAULT_BASE_FONT_SIZE;
   return normalizeTerminalFontSize(Math.round(DEFAULT_TERMINAL_FONT_SIZE * scale * 2) / 2);
 }
 
-function deriveCodeFontSize(baseFontSize: number): number {
+function deriveCodeFontSize(baseFontSize: number) {
   const scale = normalizeBaseFontSize(baseFontSize) / DEFAULT_BASE_FONT_SIZE;
   return normalizeCodeFontSize(Math.round(DEFAULT_CODE_FONT_SIZE * scale));
 }
@@ -101,7 +101,7 @@ interface StoredAppearancePreferences {
 
 export function resolveAppearancePreferences(
   stored: StoredAppearancePreferences | null | undefined,
-): AppearancePreferences {
+) {
   return {
     baseFontSize: normalizeBaseFontSize(stored?.baseFontSize),
     terminalFontSize:
@@ -116,7 +116,7 @@ export function resolveAppearancePreferences(
   };
 }
 
-export function resolveAppearance(preferences: AppearancePreferences): ResolvedAppearance {
+export function resolveAppearance(preferences: AppearancePreferences) {
   return {
     baseFontSize: preferences.baseFontSize,
     terminalFontSize:
@@ -128,7 +128,7 @@ export function resolveAppearance(preferences: AppearancePreferences): ResolvedA
   };
 }
 
-export function resolveMobileCodeSurface(codeFontSize: number): ResolvedMobileCodeSurface {
+export function resolveMobileCodeSurface(codeFontSize: number) {
   const fontSize = normalizeCodeFontSize(codeFontSize);
   const scale = fontSize / DEFAULT_CODE_FONT_SIZE;
 
@@ -142,7 +142,7 @@ export function resolveMobileCodeSurface(codeFontSize: number): ResolvedMobileCo
   };
 }
 
-export function resolveMarkdownFontSizes(baseFontSize: number): ResolvedMarkdownFontSizes {
+export function resolveMarkdownFontSizes(baseFontSize: number) {
   const m = normalizeBaseFontSize(baseFontSize);
   const scale = m / DEFAULT_BASE_FONT_SIZE;
   const codeBlockFontSize = Math.max(10, Math.round(13 * scale));
@@ -174,7 +174,7 @@ const TEXT_SCALE_VARIABLE_ROLES = {
   "--text-3xl": MOBILE_TYPOGRAPHY.display,
 } as const;
 
-export function resolveTextScaleVariables(baseFontSize: number): Record<string, number> {
+export function resolveTextScaleVariables(baseFontSize: number) {
   const scale = normalizeBaseFontSize(baseFontSize) / DEFAULT_BASE_FONT_SIZE;
   const variables: Record<string, number> = {};
 
@@ -189,7 +189,7 @@ export function resolveTextScaleVariables(baseFontSize: number): Record<string, 
 export function scaledTypographyLineHeight(
   role: { readonly lineHeight: number },
   baseFontSize: number,
-): number {
+) {
   const scale = normalizeBaseFontSize(baseFontSize) / DEFAULT_BASE_FONT_SIZE;
   return Math.max(10, Math.round(role.lineHeight * scale));
 }
@@ -212,7 +212,7 @@ export function resolveComposerTextRole(
   return { fontSize: role.fontSize * fontScale, lineHeight: role.lineHeight * fontScale };
 }
 
-export function resolveNativeMarkdownTypography(baseFontSize: number): NativeMarkdownTypography {
+export function resolveNativeMarkdownTypography(baseFontSize: number) {
   const fontSizes = resolveMarkdownFontSizes(baseFontSize);
   return {
     fontSize: fontSizes.m,
@@ -225,10 +225,10 @@ export function resolveNativeMarkdownTypography(baseFontSize: number): NativeMar
       fontSizes.h5,
       fontSizes.h6,
     ],
-  };
+  } satisfies NativeMarkdownTypography;
 }
 
-export function stepTerminalFontSize(current: number, direction: -1 | 1): number {
+export function stepTerminalFontSize(current: number, direction: -1 | 1) {
   const next =
     direction === -1 ? current - TERMINAL_FONT_SIZE_STEP : current + TERMINAL_FONT_SIZE_STEP;
   return normalizeTerminalFontSize(next);

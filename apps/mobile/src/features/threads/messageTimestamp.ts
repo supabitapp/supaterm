@@ -30,7 +30,7 @@ export function formatMessageTimestamp(
   input: string,
   nowMs: number = Date.now(),
   timeFormatter?: Intl.DateTimeFormat,
-): string {
+) {
   const timestamp = Date.parse(input);
   if (Number.isNaN(timestamp)) return "";
   const f = currentFormatters();
@@ -44,7 +44,7 @@ export function formatMessageTimestamp(
 /** `is24Hour` overrides the locale's hour cycle with the system clock preference when known. */
 export function createMessageTimeFormatter(is24Hour: boolean | undefined, locale?: string) {
   let cached: { timeZone: string; formatter: Intl.DateTimeFormat } | null = null;
-  return (input: string, nowMs?: number): string => {
+  return (input: string, nowMs?: number) => {
     const { timeZone } = currentFormatters();
     if (cached?.timeZone !== timeZone) {
       cached = {

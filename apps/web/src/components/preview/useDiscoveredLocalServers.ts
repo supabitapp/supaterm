@@ -16,9 +16,7 @@ interface UseDiscoveredLocalServersInput {
   configuredUrls?: ReadonlyArray<string> | undefined;
 }
 
-export function useDiscoveredLocalServers(
-  input: UseDiscoveredLocalServersInput,
-): ReadonlyArray<PreviewableServer> {
+export function useDiscoveredLocalServers(input: UseDiscoveredLocalServersInput) {
   const scannerState = useDiscoveredPortsState(input.environmentId, input.configuredUrls);
 
   return mergeServers({
@@ -36,7 +34,7 @@ export function mergeServers(input: {
   scanner: ReadonlyArray<DiscoveredLocalServer & { requestedUrl: string }>;
   configuredUrls: ReadonlyArray<string>;
   configuredUrlProbing?: boolean;
-}): ReadonlyArray<PreviewableServer> {
+}) {
   const configuredByServer = new Map<string, { host: string; port: number; url: string }>();
 
   for (const url of input.configuredUrls) {
@@ -70,12 +68,12 @@ export function mergeServers(input: {
   });
 }
 
-function canonicalKey(host: string, port: number): string {
+function canonicalKey(host: string, port: number) {
   const normalizedHost = host.toLowerCase();
   return `${isLoopbackHost(normalizedHost) ? "loopback" : normalizedHost}:${port}`;
 }
 
-function parseLocalUrl(raw: string): { host: string; port: number; url: string } | null {
+function parseLocalUrl(raw: string) {
   try {
     const parsed = new URL(raw);
     if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return null;

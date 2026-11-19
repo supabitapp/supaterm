@@ -8,7 +8,7 @@ import {
 } from "./usagePriceTargets";
 
 const price = { inputCostPerMillionTokens: 2, outputCostPerMillionTokens: 8 };
-const target = (id: string, overrides: Partial<UsagePriceTarget> = {}): UsagePriceTarget => ({
+const target = (id: string, overrides: Partial<UsagePriceTarget> = {}) => ({
   environmentId: EnvironmentId.make(id),
   label: id,
   prices: { example: price },

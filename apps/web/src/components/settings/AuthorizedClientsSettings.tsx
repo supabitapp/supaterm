@@ -283,8 +283,7 @@ const PairingLinkListRow = memo(function PairingLinkListRow({
     copyToClipboard(value, { value, kind });
   };
 
-  const copyKindForUrl = (url: string): "hosted-link" | "link" =>
-    isHostedAppPairingUrl(url) ? "hosted-link" : "link";
+  const copyKindForUrl = (url: string) => (isHostedAppPairingUrl(url) ? "hosted-link" : "link");
 
   const handleCopyCode = () => {
     if (credential) copyPairingValue(credential, "code");

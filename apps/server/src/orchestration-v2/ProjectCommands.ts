@@ -56,7 +56,7 @@ export class ProjectCommandInvariantError extends Schema.TaggedError<ProjectComm
     detail: Schema.String,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Project command invariant failed (${this.commandType}): ${this.detail}`;
   }
 }
@@ -68,7 +68,7 @@ export class ProjectCommandMissingProjectError extends Schema.TaggedError<Projec
     projectId: ProjectId,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Project '${this.projectId}' does not exist for command '${this.commandType}'.`;
   }
 }
@@ -80,7 +80,7 @@ export class ProjectWorkspaceConflictError extends Schema.TaggedError<ProjectWor
     conflictingProjectId: ProjectId,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Active project '${this.conflictingProjectId}' already exists for workspace root '${this.workspaceRoot}'.`;
   }
 }
@@ -112,7 +112,13 @@ export function planProjectCommand(input: {
   readonly state: ProjectCommandState;
   readonly eventId: EventId;
   readonly now: DateTime.Utc;
-}): Result.Result<UnsequencedProjectEvent, ProjectCommandRejection> {
+}): Result.Result<UnsequencedProjectEvent, ProjectCommandRejection>;
+export function planProjectCommand(input: {
+  readonly command: ProjectCommand;
+  readonly state: ProjectCommandState;
+  readonly eventId: EventId;
+  readonly now: DateTime.Utc;
+}) {
   const { command, state } = input;
   const invariant = (detail: string) =>
     Result.fail(new ProjectCommandInvariantError({ commandType: command.type, detail }));
@@ -148,10 +154,14 @@ export function planProjectCommand(input: {
       if (state.project !== undefined) {
         return invariant(
           `Project '${command.projectId}' already exists and cannot be created twice.`,
-        );
+        ) satisfies Result.Result<UnsequencedProjectEvent, ProjectCommandRejection>;
       }
       const conflict = requireWorkspaceAvailable(command.workspaceRoot);
-      if (conflict !== undefined) return Result.fail(conflict);
+      if (conflict !== undefined)
+        return Result.fail(conflict) satisfies Result.Result<
+          UnsequencedProjectEvent,
+          ProjectCommandRejection
+        >;
       return Result.succeed({
         ...base,
         type: "project.created",
@@ -166,17 +176,23 @@ export function planProjectCommand(input: {
           createdAt: occurredAt,
           updatedAt: occurredAt,
         },
-      });
+      }) satisfies Result.Result<UnsequencedProjectEvent, ProjectCommandRejection>;
     }
 
     case "project.meta.update": {
       const project = activeProject;
-      if (project === undefined) return missingProject();
+      if (project === undefined)
+        return missingProject() satisfies Result.Result<
+          UnsequencedProjectEvent,
+          ProjectCommandRejection
+        >;
       if (
         command.projectIcon?.kind === "monogram" &&
         Array.from(monogramSegmenter.segment(command.projectIcon.text)).length > 2
       ) {
-        return invariant("Project monograms must contain at most two characters.");
+        return invariant(
+          "Project monograms must contain at most two characters.",
+        ) satisfies Result.Result<UnsequencedProjectEvent, ProjectCommandRejection>;
       }
       if (command.scripts !== undefined) {
         const existingIds = new Set(project.scripts.map((script) => script.id));
@@ -184,13 +200,17 @@ export function planProjectCommand(input: {
           if (!existingIds.has(script.id) && !isScriptRunCommand(`script.${script.id}.run`)) {
             return invariant(
               `Script IDs must be 1-${MAX_SCRIPT_ID_LENGTH} lowercase letters, digits or hyphens, starting with a letter or digit (got ${script.id.length} characters).`,
-            );
+            ) satisfies Result.Result<UnsequencedProjectEvent, ProjectCommandRejection>;
           }
         }
       }
       if (command.workspaceRoot !== undefined) {
         const conflict = requireWorkspaceAvailable(command.workspaceRoot);
-        if (conflict !== undefined) return Result.fail(conflict);
+        if (conflict !== undefined)
+          return Result.fail(conflict) satisfies Result.Result<
+            UnsequencedProjectEvent,
+            ProjectCommandRejection
+          >;
       }
       return Result.succeed({
         ...base,
@@ -217,16 +237,20 @@ export function planProjectCommand(input: {
             : { archivedAt: command.archived ? (project.archivedAt ?? occurredAt) : null }),
           updatedAt: occurredAt,
         },
-      });
+      }) satisfies Result.Result<UnsequencedProjectEvent, ProjectCommandRejection>;
     }
 
     case "project.delete": {
-      if (activeProject === undefined) return missingProject();
+      if (activeProject === undefined)
+        return missingProject() satisfies Result.Result<
+          UnsequencedProjectEvent,
+          ProjectCommandRejection
+        >;
       return Result.succeed({
         ...base,
         type: "project.deleted",
         payload: { projectId: command.projectId, deletedAt: occurredAt },
-      });
+      }) satisfies Result.Result<UnsequencedProjectEvent, ProjectCommandRejection>;
     }
   }
 }

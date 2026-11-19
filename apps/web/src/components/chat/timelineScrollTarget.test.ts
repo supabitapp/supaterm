@@ -17,10 +17,10 @@ class ScrollElement extends EventTarget {
     super();
   }
 
-  contains(target: ScrollElement): boolean {
-    return (
-      target === this || (target.parentElement !== null && this.contains(target.parentElement))
-    );
+  contains(target: ScrollElement): boolean;
+  contains(target: ScrollElement) {
+    return (target === this ||
+      (target.parentElement !== null && this.contains(target.parentElement))) satisfies boolean;
   }
 }
 

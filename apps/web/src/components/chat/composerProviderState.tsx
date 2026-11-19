@@ -1,5 +1,4 @@
 import {
-  type ModelCapabilities,
   type ModelSelection,
   type ProviderDriverKind,
   type ProviderInstanceId,
@@ -15,7 +14,6 @@ import {
   normalizeModelSlug,
   withImplicitFastModeDefault,
 } from "@supaterm/shared/model";
-import type { ReactNode } from "react";
 
 import type { DraftId } from "../../composerDraftStore";
 import { getProviderModelCapabilities, keepsUnavailableModelOptions } from "../../providerModels";
@@ -39,15 +37,6 @@ type ComposerProviderStateInput = {
 
 type ComposerPromptInjectionState = "none" | "ultrathink";
 
-type ComposerProviderState = {
-  provider: ProviderDriverKind;
-  promptEffort: string | null;
-  modelOptionsForDispatch: ReadonlyArray<ProviderOptionSelection> | undefined;
-  composerFrameClassName?: string;
-  composerSurfaceClassName?: string;
-  modelPickerIconClassName?: string;
-};
-
 type TraitsRenderInput = {
   provider: ProviderDriverKind;
   instanceId?: ProviderInstanceId;
@@ -67,7 +56,7 @@ type TraitsRenderInput = {
   shortcutLabel?: string | null;
 };
 
-export function getComposerPromptInjectionState(prompt: string): ComposerPromptInjectionState {
+export function getComposerPromptInjectionState(prompt: string) {
   return isClaudeUltrathinkPrompt(prompt) ? "ultrathink" : "none";
 }
 
@@ -76,15 +65,12 @@ function resolveComposerOptionSelections(
   model: string,
   provider: ProviderDriverKind,
   modelOptions: ReadonlyArray<ProviderOptionSelection> | null | undefined,
-): {
-  caps: ModelCapabilities;
-  selections: ReadonlyArray<ProviderOptionSelection> | undefined;
-} {
+) {
   const caps = getProviderModelCapabilities(models, model, provider);
   return { caps, selections: withImplicitFastModeDefault(caps, modelOptions) };
 }
 
-export function getComposerProviderState(input: ComposerProviderStateInput): ComposerProviderState {
+export function getComposerProviderState(input: ComposerProviderStateInput) {
   const { provider, model, models, modelOptions, promptInjectionState = "none" } = input;
   if (keepsUnavailableModelOptions(provider, model)) {
     const normalizedModel = normalizeModelSlug(model, provider);
@@ -165,11 +151,7 @@ export function getComposerReasoningStep(input: {
   prompt: string;
   cursor: number;
   direction: 1 | -1;
-}): {
-  prompt: string;
-  cursor: number;
-  modelOptions: ReadonlyArray<ProviderOptionSelection>;
-} | null {
+}) {
   const { prompt, cursor } = input;
   const { selections } = resolveComposerOptionSelections(
     input.models,
@@ -198,7 +180,7 @@ export function getComposerReasoningStep(input: {
 function renderTraitsControl(
   Component: typeof TraitsMenuContent | typeof TraitsPicker,
   input: TraitsRenderInput,
-): ReactNode {
+) {
   const {
     provider,
     instanceId,
@@ -258,10 +240,10 @@ function renderTraitsControl(
   );
 }
 
-export function renderProviderTraitsMenuContent(input: TraitsRenderInput): ReactNode {
+export function renderProviderTraitsMenuContent(input: TraitsRenderInput) {
   return renderTraitsControl(TraitsMenuContent, input);
 }
 
-export function renderProviderTraitsPicker(input: TraitsRenderInput): ReactNode {
+export function renderProviderTraitsPicker(input: TraitsRenderInput) {
   return renderTraitsControl(TraitsPicker, input);
 }

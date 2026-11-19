@@ -3,30 +3,31 @@ import { describe, expect, it } from "vite-plus/test";
 
 import { deviceHubReadiness, platformSetupStatus } from "./DeviceSetup";
 
-const deviceState = (overrides: Partial<DeviceServiceState> = {}): DeviceServiceState => ({
-  hosts: [
-    {
-      id: "local",
-      kind: "local",
-      label: "This machine",
-      hubInstalled: false,
-      agentDeviceInstalled: false,
-      platforms: [
-        { platform: "ios", available: true },
-        { platform: "android", available: true },
-      ],
-    },
-  ],
-  hostStatus: "ready",
-  hostStatuses: {},
-  devices: [],
-  sessions: [],
-  onboardingCompleted: false,
-  agentAccessEnabled: false,
-  hubBasePath: "/api/device-hub",
-  revision: 0,
-  ...overrides,
-});
+const deviceState = (overrides: Partial<DeviceServiceState> = {}) =>
+  ({
+    hosts: [
+      {
+        id: "local",
+        kind: "local",
+        label: "This machine",
+        hubInstalled: false,
+        agentDeviceInstalled: false,
+        platforms: [
+          { platform: "ios", available: true },
+          { platform: "android", available: true },
+        ],
+      },
+    ],
+    hostStatus: "ready",
+    hostStatuses: {},
+    devices: [],
+    sessions: [],
+    onboardingCompleted: false,
+    agentAccessEnabled: false,
+    hubBasePath: "/api/device-hub",
+    revision: 0,
+    ...overrides,
+  }) satisfies DeviceServiceState;
 
 describe("device setup guidance", () => {
   it("waits for complete discovery before advising device setup", () => {

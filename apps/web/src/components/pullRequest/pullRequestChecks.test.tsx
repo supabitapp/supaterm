@@ -7,10 +7,7 @@ import {
   summarizePullRequestChecks,
 } from "./pullRequestPresentation";
 
-function check(
-  status: PullRequestCheck["status"],
-  overrides: Partial<PullRequestCheck> = {},
-): PullRequestCheck {
+function check(status: PullRequestCheck["status"], overrides: Partial<PullRequestCheck> = {}) {
   return { name: `check-${status}`, status, description: null, url: null, ...overrides };
 }
 

@@ -27,7 +27,7 @@ export class NativeStaticCheckSourceDiscoveryError extends Schema.TaggedError<Na
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Native source discovery operation '${this.operation}' failed.`;
   }
 }
@@ -43,7 +43,7 @@ export class NativeStaticCheckProcessError extends Schema.TaggedError<NativeStat
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Native static check process operation '${this.operation}' failed for command '${this.command}'.`;
   }
 }
@@ -58,7 +58,7 @@ export class NativeStaticCheckCommandError extends Schema.TaggedError<NativeStat
     exitCode: Schema.Int,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Native static check command '${this.command}' exited with code ${this.exitCode}.`;
   }
 }
@@ -71,7 +71,7 @@ export class NativeStaticCheckMissingToolError extends Schema.TaggedError<Native
     commands: Schema.Array(Schema.Literals(kotlinToolCommands)),
   },
 ) {
-  override get message(): string {
+  override get message() {
     const names = this.commands.join(" and ");
     const verb = this.commands.length === 1 ? "is" : "are";
     return `${names} ${verb} not installed; cannot run Kotlin static analysis. Install via \`brew bundle install --file apps/mobile/Brewfile\` or put the JVM tools on PATH.`;
@@ -196,14 +196,17 @@ export const runCommand = Effect.fn("runCommand")(function* (
   }
 });
 
-export const collectSources = Effect.fn("mobile-native-static-check.collectSources")(function* (
+export const collectSources: (
   directory: string,
   root: string,
-): Effect.fn.Return<
+) => Effect.Effect<
   ReadonlyArray<string>,
   NativeStaticCheckSourceDiscoveryError,
   FileSystem.FileSystem | Path.Path
-> {
+> = Effect.fn("mobile-native-static-check.collectSources")(function* (
+  directory: string,
+  root: string,
+) {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const entries = yield* fs.readDirectory(directory).pipe(

@@ -14,7 +14,6 @@ import {
 import { resolveDefaultSupatermHome } from "@supaterm/shared/supatermHome";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
-import * as FileSystem from "effect/FileSystem";
 import * as Option from "effect/Option";
 import * as Path from "effect/Path";
 import * as Stream from "effect/Stream";
@@ -24,7 +23,7 @@ import * as ChildProcessSpawner from "effect/process/ChildProcessSpawner";
 import * as NodeChildProcess from "node:child_process";
 import * as NodeOS from "node:os";
 
-function logPathHydrationWarning(message: string, error?: unknown): void {
+function logPathHydrationWarning(message: string, error?: unknown) {
   process.stderr.write(
     `[server] ${message} ${error instanceof Error ? error.message : (error ?? "")}\n`,
   );
@@ -34,7 +33,7 @@ const LOGIN_SHELL_ENV_NAMES = ["PATH", "__MISE_DIFF", "JAVA_HOME"] as const;
 const LOGIN_SHELL_TIMEOUT = Duration.seconds(5);
 const SLOW_LOGIN_SHELL_TIMEOUT_MS = 20_000;
 
-function readSlowLoginShellEnvironment(shell: string): Partial<Record<string, string>> {
+function readSlowLoginShellEnvironment(shell: string) {
   return readEnvironmentFromLoginShell(shell, LOGIN_SHELL_ENV_NAMES, (file, args, options) =>
     NodeChildProcess.execFileSync(file, args, {
       ...options,
@@ -48,7 +47,7 @@ function applyLoginShellEnvironment(
   platform: NodeJS.Platform,
   shellEnvironment: Partial<Record<string, string>>,
   fallbackPath?: string,
-): void {
+) {
   const shellPath = shellEnvironment.PATH;
   const mergedPath = mergePathEntries(shellPath ?? fallbackPath, env.PATH, platform);
   if (mergedPath) {
@@ -62,7 +61,7 @@ function applyLoginShellEnvironment(
   }
 }
 
-function hydratePosixPath(env: NodeJS.ProcessEnv, platform: NodeJS.Platform): void {
+function hydratePosixPath(env: NodeJS.ProcessEnv, platform: NodeJS.Platform) {
   let shellEnvironment: Partial<Record<string, string>> = {};
   let waitedForSlowShell = false;
   for (const shell of listLoginShellCandidates(platform, env.SHELL)) {
@@ -94,7 +93,7 @@ function hydratePosixPath(env: NodeJS.ProcessEnv, platform: NodeJS.Platform): vo
 export function hydratePosixHome(
   env: NodeJS.ProcessEnv,
   resolveHomeDir = () => NodeOS.userInfo().homedir,
-): void {
+) {
   if ((env.HOME?.trim() ?? "").length > 0) return;
 
   const homeDir = resolveHomeDir();
@@ -105,7 +104,7 @@ export function hydratePosixHome(
 
 export const fixPath = Effect.fn("fixPath")(function* (options?: {
   readonly shellEnvironmentPrepared?: boolean | undefined;
-}): Effect.fn.Return<void, never, FileSystem.FileSystem | Path.Path> {
+}) {
   const platform = yield* HostProcess.Platform;
   const env = yield* HostProcess.Environment;
 

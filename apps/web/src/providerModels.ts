@@ -22,14 +22,14 @@ const RUNTIME_MODEL_CATALOG_DRIVERS: ReadonlySet<string> = new Set([
   "acpRegistry",
 ]);
 
-export function hasRuntimeModelCatalog(provider: ProviderDriverKind): boolean {
+export function hasRuntimeModelCatalog(provider: ProviderDriverKind) {
   return RUNTIME_MODEL_CATALOG_DRIVERS.has(provider);
 }
 
 export function isRuntimeModelDefaultAlias(
   provider: ProviderDriverKind,
   model: string | null | undefined,
-): boolean {
+) {
   return (
     (provider === "antigravity" || provider === "acpRegistry") &&
     model === DEFAULT_MODEL_BY_PROVIDER[provider]
@@ -39,7 +39,7 @@ export function isRuntimeModelDefaultAlias(
 export function keepsUnavailableModelOptions(
   provider: ProviderDriverKind,
   model: string | null | undefined,
-): boolean {
+) {
   return (
     provider !== "antigravity" &&
     !isRuntimeModelDefaultAlias(provider, model) &&
@@ -47,7 +47,7 @@ export function keepsUnavailableModelOptions(
   );
 }
 
-export function formatProviderDriverKindLabel(provider: ProviderDriverKind): string {
+export function formatProviderDriverKindLabel(provider: ProviderDriverKind) {
   return provider
     .replace(/([a-z])([A-Z])/g, "$1 $2")
     .replace(/[_-]+/g, " ")
@@ -58,14 +58,14 @@ export function formatProviderDriverKindLabel(provider: ProviderDriverKind): str
 export function getProviderModels(
   providers: ReadonlyArray<ServerProvider>,
   provider: ProviderDriverKind,
-): ReadonlyArray<ServerProviderModel> {
+) {
   return getProviderSnapshot(providers, provider)?.models ?? [];
 }
 
 function getProviderSnapshot(
   providers: ReadonlyArray<ServerProvider>,
   provider: ProviderDriverKind,
-): ServerProvider | undefined {
+) {
   const defaultInstanceId = defaultInstanceIdForDriver(provider);
   return providers.find((candidate) => candidate.instanceId === defaultInstanceId);
 }
@@ -73,7 +73,7 @@ function getProviderSnapshot(
 export function resolveSelectableProvider(
   providers: ReadonlyArray<ServerProvider>,
   provider: ProviderDriverKind | ProviderInstanceId | null | undefined,
-): ProviderDriverKind {
+) {
   const requestedEntry = providers.find((candidate) => candidate.instanceId === provider);
   if (requestedEntry?.enabled) {
     return requestedEntry.driver;
@@ -85,14 +85,14 @@ export function getProviderModelCapabilities(
   models: ReadonlyArray<ServerProviderModel>,
   model: string | null | undefined,
   provider: ProviderDriverKind,
-): ModelCapabilities {
+) {
   const slug = resolveSelectableModel(provider, model, models);
   const selectedModel = models.find((candidate) => candidate.slug === slug);
   const caps = selectedModel?.capabilities ?? EMPTY_CAPABILITIES;
   return withoutPlanAgentOption(caps);
 }
 
-function withoutPlanAgentOption(caps: ModelCapabilities): ModelCapabilities {
+function withoutPlanAgentOption(caps: ModelCapabilities) {
   return {
     ...caps,
     optionDescriptors: (caps.optionDescriptors ?? []).flatMap((descriptor) => {
@@ -115,7 +115,7 @@ function withoutPlanAgentOption(caps: ModelCapabilities): ModelCapabilities {
 export function getDefaultServerModel(
   providers: ReadonlyArray<ServerProvider>,
   provider: ProviderDriverKind,
-): string {
+) {
   const models = getProviderModels(providers, provider);
   return (
     models.find((model) => model.isDefault && !model.isCustom)?.slug ??

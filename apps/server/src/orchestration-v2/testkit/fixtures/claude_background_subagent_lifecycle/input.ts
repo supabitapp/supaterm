@@ -20,7 +20,7 @@ export const CLAUDE_BACKGROUND_SUBAGENT_LIFECYCLE_RESUME_PROMPT = [
 
 export const CLAUDE_BACKGROUND_SUBAGENT_LIFECYCLE_FINAL_PROMPT = "Reply with exactly: ALL_DONE";
 
-export function claudeBackgroundSubagentLifecycleInput(): OrchestratorFixtureInput {
+export function claudeBackgroundSubagentLifecycleInput() {
   return {
     steps: [
       { type: "message", text: CLAUDE_BACKGROUND_SUBAGENT_LIFECYCLE_LAUNCH_PROMPT },
@@ -31,5 +31,5 @@ export function claudeBackgroundSubagentLifecycleInput(): OrchestratorFixtureInp
       { type: "await_run_status", targetRunIndex: 6, status: "completed" },
       { type: "message", text: CLAUDE_BACKGROUND_SUBAGENT_LIFECYCLE_FINAL_PROMPT },
     ],
-  };
+  } satisfies OrchestratorFixtureInput;
 }

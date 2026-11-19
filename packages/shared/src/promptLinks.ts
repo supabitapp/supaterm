@@ -51,7 +51,7 @@ const isEmojiPart = (codePoint: number | undefined) =>
     (codePoint >= 0x2190 && codePoint <= 0x2bff) ||
     codePoint === 0xfe0f);
 
-export function sanitizeLinkedPrompt(raw: string): LinkedPrompt {
+export function sanitizeLinkedPrompt(raw: string) {
   let hiddenCharacters = 0;
   const visible = Array.from(
     raw.replace(/\r\n?|[\u2028\u2029]/g, "\n").replace(HIDDEN_CHARACTERS, () => {
@@ -75,13 +75,13 @@ export function sanitizeLinkedPrompt(raw: string): LinkedPrompt {
 const OWNER = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/;
 const NAME = /^[A-Za-z0-9._-]{1,100}$/;
 
-function repositoryOf(owner: string, name: string): PromptLinkRepository | null {
+function repositoryOf(owner: string, name: string) {
   const trimmedName = name.replace(/\.git$/i, "");
   if (!OWNER.test(owner) || !NAME.test(trimmedName) || /^\.+$/.test(trimmedName)) return null;
   return { owner, name: trimmedName };
 }
 
-export function parsePromptLinkRepository(value: string): PromptLinkRepository | null {
+export function parsePromptLinkRepository(value: string) {
   const trimmed = value.trim();
   const url = /^https?:\/\/(?:www\.)?github\.com\/([^/?#]+)\/([^/?#]+)\/?$/i.exec(trimmed);
   const short = /^([^/\s]+)\/([^/\s]+)$/.exec(trimmed);
@@ -89,7 +89,7 @@ export function parsePromptLinkRepository(value: string): PromptLinkRepository |
   return match?.[1] && match[2] ? repositoryOf(match[1], match[2]) : null;
 }
 
-function parsePromptLinkPullRequest(value: string): PromptLinkPullRequest | null {
+function parsePromptLinkPullRequest(value: string) {
   const trimmed = value.trim();
   const match =
     /^https?:\/\/(?:www\.)?github\.com\/([^/?#]+)\/([^/?#]+)\/pull\/(\d+)(?:[/?#].*)?$/i.exec(
@@ -103,18 +103,19 @@ function parsePromptLinkPullRequest(value: string): PromptLinkPullRequest | null
     : null;
 }
 
-export function promptLinkPullRequestUrl(pullRequest: PromptLinkPullRequest): string {
+export function promptLinkPullRequestUrl(pullRequest: PromptLinkPullRequest) {
   return `https://github.com/${pullRequest.owner}/${pullRequest.name}/pull/${pullRequest.number}`;
 }
 
-function readPrompt(params: URLSearchParams): PromptLinkResult<LinkedPrompt | null> {
+function readPrompt(params: URLSearchParams) {
   const raw = params.get("prompt");
-  if (raw === null) return { ok: true, value: null };
+  if (raw === null)
+    return { ok: true, value: null } satisfies PromptLinkResult<LinkedPrompt | null>;
   if (raw.length > PROMPT_LINK_MAX_PROMPT_LENGTH) {
     return {
       ok: false,
       error: `This prompt is longer than ${PROMPT_LINK_MAX_PROMPT_LENGTH.toLocaleString("en-US")} characters, so Supaterm did not open it.`,
-    };
+    } satisfies PromptLinkResult<LinkedPrompt | null>;
   }
   const prompt = sanitizeLinkedPrompt(raw);
   if (prompt.text.length === 0 && prompt.hiddenCharacters > 0) {
@@ -122,30 +123,46 @@ function readPrompt(params: URLSearchParams): PromptLinkResult<LinkedPrompt | nu
       ok: false,
       error:
         "This prompt had only hidden characters, so it may be malicious. Supaterm did not open it.",
-    };
+    } satisfies PromptLinkResult<LinkedPrompt | null>;
   }
-  return { ok: true, value: prompt.text.length > 0 ? prompt : null };
+  return {
+    ok: true,
+    value: prompt.text.length > 0 ? prompt : null,
+  } satisfies PromptLinkResult<LinkedPrompt | null>;
 }
 
 const optionalParam = (params: URLSearchParams, key: string) => params.get(key)?.trim() || null;
 
-export function parseNewThreadLink(search: string): PromptLinkResult<NewThreadLink> {
+export function parseNewThreadLink(search: string) {
   const params = new URLSearchParams(search);
   const prompt = readPrompt(params);
-  if (!prompt.ok) return prompt;
+  if (!prompt.ok) return prompt satisfies PromptLinkResult<NewThreadLink>;
   const pr = params.get("pr");
   if (pr !== null) {
     const pullRequest = parsePromptLinkPullRequest(pr);
     if (pullRequest === null) {
-      return { ok: false, error: "This link names a pull request Supaterm cannot read." };
+      return {
+        ok: false,
+        error: "This link names a pull request Supaterm cannot read.",
+      } satisfies PromptLinkResult<NewThreadLink>;
     }
-    return { ok: true, value: { kind: "pull-request", pullRequest, prompt: prompt.value } };
+    return {
+      ok: true,
+      value: { kind: "pull-request", pullRequest, prompt: prompt.value },
+    } satisfies PromptLinkResult<NewThreadLink>;
   }
-  if (prompt.value === null) return { ok: false, error: "This link has no prompt." };
+  if (prompt.value === null)
+    return {
+      ok: false,
+      error: "This link has no prompt.",
+    } satisfies PromptLinkResult<NewThreadLink>;
   const repo = params.get("repo");
   const repository = repo === null ? null : parsePromptLinkRepository(repo);
   if (repo !== null && repository === null) {
-    return { ok: false, error: "This link names a repository Supaterm cannot read." };
+    return {
+      ok: false,
+      error: "This link names a repository Supaterm cannot read.",
+    } satisfies PromptLinkResult<NewThreadLink>;
   }
   return {
     ok: true,
@@ -156,14 +173,14 @@ export function parseNewThreadLink(search: string): PromptLinkResult<NewThreadLi
       provider: optionalParam(params, "provider")?.toLowerCase() ?? null,
       model: optionalParam(params, "model"),
     },
-  };
+  } satisfies PromptLinkResult<NewThreadLink>;
 }
 
-export function parseThreadLinkPrompt(search: string): PromptLinkResult<LinkedPrompt | null> {
-  return readPrompt(new URLSearchParams(search));
+export function parseThreadLinkPrompt(search: string) {
+  return readPrompt(new URLSearchParams(search)) satisfies PromptLinkResult<LinkedPrompt | null>;
 }
 
-export function withoutPromptLinkParams(search: string): string {
+export function withoutPromptLinkParams(search: string) {
   const params = new URLSearchParams(search);
   for (const key of ["prompt", "repo", "pr", "provider", "model"]) params.delete(key);
   const rest = params.toString();
@@ -176,7 +193,7 @@ export function buildNewThreadLink(input: {
   readonly provider?: string | null;
   readonly model?: string | null;
   readonly origin?: string;
-}): string {
+}) {
   const url = new URL("/new", input.origin ?? DEFAULT_HOSTED_APP_URL);
   url.searchParams.set("prompt", input.prompt);
   if (input.repository) {
@@ -190,10 +207,7 @@ export function buildNewThreadLink(input: {
 const APP_SCHEME = /^supaterm(?:-[a-z]+)?:$/;
 const THREAD_PATH = /^\/([^/]+)\/([^/]+)\/?$/;
 
-export function promptLinkAppPath(
-  value: string,
-  hostedAppUrl: string = DEFAULT_HOSTED_APP_URL,
-): string | null {
+export function promptLinkAppPath(value: string, hostedAppUrl: string = DEFAULT_HOSTED_APP_URL) {
   const url = parseUrl(value);
   if (!url) return null;
   if (APP_SCHEME.test(url.protocol)) {
@@ -209,7 +223,7 @@ export function promptLinkAppPath(
   return thread ? `/${thread[1]}/${thread[2]}${url.search}` : null;
 }
 
-export function promptLinkDeepLink(appPath: string, scheme = "supaterm"): string {
+export function promptLinkDeepLink(appPath: string, scheme = "supaterm") {
   const url = new URL(appPath, "https://app.invalid");
   const host = url.pathname === "/new" ? "new" : `threads${url.pathname}`;
   return `${scheme}://${host}${url.search}`;

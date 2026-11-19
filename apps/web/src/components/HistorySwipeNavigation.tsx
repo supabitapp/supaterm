@@ -40,14 +40,14 @@ type SwipeIndicatorState = {
   tracking: boolean;
 };
 
-function readMainContentBounds(): SwipeBounds {
+function readMainContentBounds() {
   const main = document.querySelector('[data-slot="sidebar-inset"]');
   if (!main) return { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight };
   const { left, top, width, height } = main.getBoundingClientRect();
   return { left, top, width, height };
 }
 
-function canScrollHorizontally(path: readonly EventTarget[], deltaX: number): boolean {
+function canScrollHorizontally(path: readonly EventTarget[], deltaX: number) {
   for (const element of path) {
     if (!(element instanceof Element) || element.scrollWidth <= element.clientWidth) continue;
     const { overflowX } = getComputedStyle(element);
@@ -61,25 +61,25 @@ function canScrollHorizontally(path: readonly EventTarget[], deltaX: number): bo
   return false;
 }
 
-function isVerticalScroll(travelX: number, travelY: number): boolean {
+function isVerticalScroll(travelX: number, travelY: number) {
   return (
     travelX + travelY >= SWIPE_DOMINANCE_DISTANCE && travelX <= SWIPE_HORIZONTAL_DOMINANCE * travelY
   );
 }
 
-function lockSwipeAxis(
-  pending: Extract<SwipeGesture, { kind: "pending" }>,
-): Exclude<SwipeGesture, { kind: "pending" }> {
+function lockSwipeAxis(pending: Extract<SwipeGesture, { kind: "pending" }>) {
   const { path, sumX, sumY } = pending;
   if (Math.abs(sumX) <= Math.abs(sumY) || isVerticalScroll(Math.abs(sumX), Math.abs(sumY))) {
-    return { kind: "ignored" };
+    return { kind: "ignored" } satisfies Exclude<SwipeGesture, { kind: "pending" }>;
   }
   if (path.some((node) => node instanceof Element && node.matches(SWIPE_EXCLUDED))) {
-    return { kind: "ignored" };
+    return { kind: "ignored" } satisfies Exclude<SwipeGesture, { kind: "pending" }>;
   }
-  if (canScrollHorizontally(path, sumX)) return { kind: "ignored" };
+  if (canScrollHorizontally(path, sumX))
+    return { kind: "ignored" } satisfies Exclude<SwipeGesture, { kind: "pending" }>;
   const direction = sumX < 0 ? "back" : "forward";
-  if (!canNavigateHistory(direction)) return { kind: "ignored" };
+  if (!canNavigateHistory(direction))
+    return { kind: "ignored" } satisfies Exclude<SwipeGesture, { kind: "pending" }>;
   return {
     kind: "tracking",
     direction,
@@ -89,14 +89,14 @@ function lockSwipeAxis(
     travelY: Math.abs(sumY),
     y: pending.y,
     bounds: readMainContentBounds(),
-  };
+  } satisfies Exclude<SwipeGesture, { kind: "pending" }>;
 }
 
 /**
  * macOS momentum after the fingers lift decays by a near-constant ratio per
  * event; finger movement is noisier. Deltas are signed along the swipe.
  */
-export function isMomentumTail(deltas: readonly number[]): boolean {
+export function isMomentumTail(deltas: readonly number[]) {
   if (deltas.length < MOMENTUM_SAMPLE_SIZE) return false;
   const recent = deltas.slice(-MOMENTUM_SAMPLE_SIZE);
   if (recent.some((delta) => delta <= 0)) return false;

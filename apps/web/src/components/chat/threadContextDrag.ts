@@ -56,7 +56,7 @@ function setGhost(next: ThreadContextDragGhost | null) {
   for (const listener of listeners) listener();
 }
 
-export function useThreadContextDragGhost(): ThreadContextDragGhost | null {
+export function useThreadContextDragGhost() {
   return useSyncExternalStore(
     (listener) => {
       listeners.add(listener);
@@ -69,7 +69,7 @@ export function useThreadContextDragGhost(): ThreadContextDragGhost | null {
 
 let overTarget: HTMLElement | null = null;
 
-function findDropTarget(point: { x: number; y: number }): HTMLElement | null {
+function findDropTarget(point: { x: number; y: number }) {
   return (
     document
       .elementFromPoint(point.x, point.y)
@@ -113,14 +113,15 @@ export function endThreadContextDrag() {
 export function dropThreadContext(
   point: { x: number; y: number },
   payload: PaneDragPayload,
-): boolean {
+): boolean;
+export function dropThreadContext(point: { x: number; y: number }, payload: PaneDragPayload) {
   const target = payload.kind === "threads" ? findDropTarget(point) : null;
   if (target && payload.kind === "threads" && payload.threads.length > 0) {
     target.dispatchEvent(new CustomEvent(THREAD_CONTEXT_DROP_EVENT, { detail: payload.threads }));
-    return true;
+    return true satisfies boolean;
   }
   const paneTarget = findPaneDropTarget(point, payload);
-  return paneTarget !== null && commitPaneDrop(paneTarget, payload);
+  return (paneTarget !== null && commitPaneDrop(paneTarget, payload)) satisfies boolean;
 }
 
 export function threadContextDropTargetProps() {

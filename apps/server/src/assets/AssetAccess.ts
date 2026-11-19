@@ -220,7 +220,7 @@ export type ResolvedAsset =
       readonly expiresAt: number;
     };
 
-function decodeClaims(encodedPayload: string): AssetClaims | null {
+function decodeClaims(encodedPayload: string) {
   try {
     return Option.getOrNull(decodeAssetClaims(base64UrlDecodeUtf8(encodedPayload)));
   } catch {
@@ -228,7 +228,7 @@ function decodeClaims(encodedPayload: string): AssetClaims | null {
   }
 }
 
-function decodeRelativePath(value: string): string | null {
+function decodeRelativePath(value: string) {
   try {
     return decodeURIComponent(value);
   } catch {
@@ -236,9 +236,7 @@ function decodeRelativePath(value: string): string | null {
   }
 }
 
-const optionOnNotFound = <A, R>(
-  effect: Effect.Effect<A, PlatformError.PlatformError, R>,
-): Effect.Effect<Option.Option<A>, PlatformError.PlatformError, R> =>
+const optionOnNotFound = <A, R>(effect: Effect.Effect<A, PlatformError.PlatformError, R>) =>
   effect.pipe(
     Effect.asSome,
     Effect.catchTags({
@@ -364,7 +362,7 @@ const HEADER_IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp
 const readImageDimensionsFromOpenFile = (filePath: string, file: OpenMediaFile) =>
   readMediaFileHeader(filePath, file, IMAGE_DIMENSIONS_HEADER_BYTES).pipe(
     Effect.map(readImageDimensions),
-    Effect.orElseSucceed((): ImageDimensions | null => null),
+    Effect.orElseSucceed(() => null),
   );
 
 const readImageDimensionsFromHeader = (filePath: string) =>
@@ -373,7 +371,7 @@ const readImageDimensionsFromHeader = (filePath: string) =>
       file === null ? Effect.succeed(null) : readImageDimensionsFromOpenFile(filePath, file),
     ),
     Effect.scoped,
-    Effect.orElseSucceed((): ImageDimensions | null => null),
+    Effect.orElseSucceed(() => null),
   );
 
 const finalizeAbsoluteMediaFileAsset = Effect.fn("AssetAccess.finalizeAbsoluteMediaFileAsset")(

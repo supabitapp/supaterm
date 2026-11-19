@@ -11,7 +11,7 @@ export interface PiCompactCommand {
   readonly customInstructions?: string;
 }
 
-export function parsePiCompactCommand(text: string): PiCompactCommand | null {
+export function parsePiCompactCommand(text: string) {
   const trimmed = text.trim();
   if (trimmed === "/compact") return {};
   if (!trimmed.startsWith("/compact")) return null;
@@ -22,9 +22,7 @@ export function parsePiCompactCommand(text: string): PiCompactCommand | null {
   return customInstructions.length === 0 ? {} : { customInstructions };
 }
 
-export function withPiBuiltinSlashCommands(
-  commands: ReadonlyArray<ServerProviderSlashCommand>,
-): ReadonlyArray<ServerProviderSlashCommand> {
+export function withPiBuiltinSlashCommands(commands: ReadonlyArray<ServerProviderSlashCommand>) {
   return [PI_COMPACT_SLASH_COMMAND, ...commands.filter((command) => command.name !== "compact")];
 }
 
@@ -33,7 +31,7 @@ export interface PiDiscoveredCommands {
   readonly skills: ReadonlyArray<ServerProviderSkill>;
 }
 
-function normalizePiSkillScope(scope: string | undefined): string | undefined {
+function normalizePiSkillScope(scope: string | undefined) {
   if (scope === undefined) return undefined;
   const normalized = scope.trim().toLowerCase();
   if (normalized === "global" || normalized === "personal") return "user";
@@ -41,7 +39,7 @@ function normalizePiSkillScope(scope: string | undefined): string | undefined {
   return scope;
 }
 
-export function parsePiDiscoveredCommands(data: unknown): PiDiscoveredCommands {
+export function parsePiDiscoveredCommands(data: unknown) {
   const commands = recordField(data, "commands");
   if (!Array.isArray(commands)) return { slashCommands: [], skills: [] };
   const slashCommands: Array<ServerProviderSlashCommand> = [];
@@ -89,11 +87,11 @@ export function parsePiDiscoveredCommands(data: unknown): PiDiscoveredCommands {
   return { slashCommands, skills };
 }
 
-function recordField(input: unknown, key: string): unknown {
+function recordField(input: unknown, key: string) {
   return Predicate.isObject(input) ? input[key] : undefined;
 }
 
-function recordString(input: unknown, key: string): string | undefined {
+function recordString(input: unknown, key: string) {
   const value = recordField(input, key);
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
 }

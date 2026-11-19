@@ -12,7 +12,7 @@ import * as VcsProcess from "./VcsProcess.ts";
 import * as VcsProjectConfig from "./VcsProjectConfig.ts";
 import * as VcsDriverRegistry from "./VcsDriverRegistry.ts";
 
-const processOutput = (stdout: string): VcsProcess.VcsProcessOutput => ({
+const processOutput = (stdout: string) => ({
   exitCode: ChildProcessSpawner.ExitCode(0),
   stdout,
   stderr: "",
@@ -20,7 +20,7 @@ const processOutput = (stdout: string): VcsProcess.VcsProcessOutput => ({
   stderrTruncated: false,
 });
 
-const normalizeGitArgs = (args: ReadonlyArray<string>): ReadonlyArray<string> =>
+const normalizeGitArgs = (args: ReadonlyArray<string>) =>
   args[0] === "-C" && args.length >= 2 ? args.slice(2) : args;
 
 const DETECT_COMMAND = "rev-parse --is-inside-work-tree --show-toplevel --git-common-dir";

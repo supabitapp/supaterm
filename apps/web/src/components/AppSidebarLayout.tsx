@@ -54,11 +54,11 @@ const MACOS_TRAFFIC_LIGHTS_LEFT_INSET = "var(--desktop-window-controls-inset, 90
 
 let windowFullscreenSnapshot: boolean | null = null;
 
-function isMacosDesktopWindow(): boolean {
+function isMacosDesktopWindow() {
   return isElectron && isMacPlatform(navigator.platform);
 }
 
-function subscribeToWindowFullscreen(onChange: () => void): () => void {
+function subscribeToWindowFullscreen(onChange: () => void) {
   const bridge = window.desktopBridge;
   if (!isMacosDesktopWindow() || !bridge) return () => {};
   const { getWindowFullscreenState, onWindowFullscreenStateChange } = bridge;
@@ -77,7 +77,7 @@ function subscribeToWindowFullscreen(onChange: () => void): () => void {
   return unsubscribe;
 }
 
-function readWindowFullscreen(): boolean {
+function readWindowFullscreen() {
   if (windowFullscreenSnapshot === null) {
     const getWindowFullscreenState = window.desktopBridge?.getWindowFullscreenState;
     windowFullscreenSnapshot =
@@ -106,7 +106,7 @@ function readRoutePanelsOpen(router: AnyRouter) {
   };
 }
 
-export function registerNavigationHistoryCommands(router: AnyRouter): () => void {
+export function registerNavigationHistoryCommands(router: AnyRouter) {
   return registerCommands(
     {
       "navigation.back": () => navigateHistory("back"),
@@ -121,9 +121,9 @@ export function registerNavigationHistoryCommands(router: AnyRouter): () => void
   );
 }
 
-function registerWorkspaceFocusCommands(router: AnyRouter): () => void {
-  const move =
-    (direction: 1 | -1): CommandHandler =>
+function registerWorkspaceFocusCommands(router: AnyRouter) {
+  const move: (direction: 1 | -1) => CommandHandler =
+    (direction: 1 | -1) =>
     ({ source, event }) => {
       if (event?.isComposing) return false;
       moveWorkspaceFocus(direction, source === "menu" ? "panel" : undefined);
@@ -138,10 +138,7 @@ const MODIFIER_KEYS = new Set(["Alt", "Control", "Meta", "Shift"]);
 
 let heldUndoKey: string | null = null;
 
-function registerThreadUndoCommands(
-  router: AnyRouter,
-  readSidebarVisible: () => boolean,
-): () => void {
+function registerThreadUndoCommands(router: AnyRouter, readSidebarVisible: () => boolean) {
   const threadSidebarShown = () => !isAppModalPage(router.state.location.pathname);
   const unregisterRelease = registerCommands(
     {},
@@ -190,7 +187,7 @@ function registerThreadUndoCommands(
   };
 }
 
-function registerSidebarToggleCommand(router: AnyRouter, toggleSidebar: () => void): () => void {
+function registerSidebarToggleCommand(router: AnyRouter, toggleSidebar: () => void) {
   return registerCommands(
     {
       "sidebar.toggle": ({ event }) => {
@@ -212,7 +209,7 @@ function registerSidebarToggleCommand(router: AnyRouter, toggleSidebar: () => vo
   );
 }
 
-function registerAppShellCommands(router: AnyRouter, shellElement: Element): () => void {
+function registerAppShellCommands(router: AnyRouter, shellElement: Element) {
   const readSidebarVisible = () =>
     shellElement.closest('[data-slot="sidebar-wrapper"]')?.getAttribute("data-sidebar-state") ===
     "expanded";

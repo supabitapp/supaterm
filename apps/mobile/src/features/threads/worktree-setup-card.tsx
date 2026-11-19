@@ -160,7 +160,7 @@ function WorktreeSetupHeaderCard(props: WorktreeSetupCardProps & SetupDetailsCon
 }
 
 /** True once the agent has the turn; the turn's fold row then carries the setup instead of the card. */
-export function worktreeSetupHandedOff(props: WorktreeSetupCardProps): boolean {
+export function worktreeSetupHandedOff(props: WorktreeSetupCardProps) {
   return props.turnStarted && worktreeSetupAgentStarted(props.snapshot);
 }
 
@@ -191,7 +191,7 @@ export function WorktreeSetupFoldChip(props: WorktreeSetupCardProps & SetupDetai
   );
 }
 
-function setupWentWrong(snapshot: WorktreeSetupSnapshot): boolean {
+function setupWentWrong(snapshot: WorktreeSetupSnapshot) {
   return (
     snapshot.phase === "failed" ||
     snapshot.phase === "cancelled" ||

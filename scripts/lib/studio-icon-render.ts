@@ -59,7 +59,7 @@ export class StudioIconRenderError extends Schema.TaggedError<StudioIconRenderEr
   "StudioIconRenderError",
   { cause: Schema.Defect() },
 ) {
-  override get message(): string {
+  override get message() {
     return "Failed to render the app icon from the studio's bolt computer.";
   }
 }

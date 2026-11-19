@@ -74,21 +74,21 @@ function setSelection(next: ReviewCommentSelection) {
   listeners.forEach((listener) => listener());
 }
 
-function subscribeReviewCommentSelection(listener: () => void): () => void {
+function subscribeReviewCommentSelection(listener: () => void) {
   listeners.add(listener);
   return () => {
     listeners.delete(listener);
   };
 }
 
-export function getReviewCommentSelection(): ReviewCommentSelection {
+export function getReviewCommentSelection() {
   return selection;
 }
 
 let lastReviewSheetId = 0;
 
 /** A fresh id per mounted review sheet, so reopening the sheet starts without a selection. */
-export function nextReviewSheetId(): number {
+export function nextReviewSheetId() {
   lastReviewSheetId += 1;
   return lastReviewSheetId;
 }
@@ -97,16 +97,13 @@ export function reviewCommentSelectionScope(
   sheetId: number,
   threadKey: string | null,
   section: { readonly id: string; readonly content: string | null } | null,
-): ReviewCommentSelectionScope | null {
+) {
   return threadKey === null || section === null
     ? null
     : { key: JSON.stringify([sheetId, threadKey, section.id]), content: section.content };
 }
 
-function isSameScope(
-  a: ReviewCommentSelectionScope | null,
-  b: ReviewCommentSelectionScope | null,
-): boolean {
+function isSameScope(a: ReviewCommentSelectionScope | null, b: ReviewCommentSelectionScope | null) {
   return a !== null && b !== null && a.key === b.key && a.content === b.content;
 }
 
@@ -147,13 +144,11 @@ export function clearReviewCommentTarget() {
 export function selectReviewCommentSelection(
   current: ReviewCommentSelection,
   scope: ReviewCommentSelectionScope | null,
-): ReviewCommentSelection {
+) {
   return isSameScope(current.scope, scope) ? current : EMPTY_SELECTION;
 }
 
-export function useReviewCommentSelection(
-  scope: ReviewCommentSelectionScope | null,
-): ReviewCommentSelection {
+export function useReviewCommentSelection(scope: ReviewCommentSelectionScope | null) {
   return selectReviewCommentSelection(
     useSyncExternalStore(
       subscribeReviewCommentSelection,
@@ -164,7 +159,7 @@ export function useReviewCommentSelection(
   );
 }
 
-export function useReviewCommentTarget(): ReviewCommentTarget | null {
+export function useReviewCommentTarget() {
   return useSyncExternalStore(
     subscribeReviewCommentSelection,
     getReviewCommentSelection,
@@ -172,17 +167,15 @@ export function useReviewCommentTarget(): ReviewCommentTarget | null {
   ).target;
 }
 
-export function getSelectedReviewCommentLines(
-  target: ReviewCommentTarget,
-): ReadonlyArray<ReviewRenderableLineRow> {
+export function getSelectedReviewCommentLines(target: ReviewCommentTarget) {
   return target.lines.slice(target.startIndex, target.endIndex + 1);
 }
 
-export function getReviewUnifiedLineNumber(line: ReviewRenderableLineRow): number | null {
+export function getReviewUnifiedLineNumber(line: ReviewRenderableLineRow) {
   return line.newLineNumber ?? line.oldLineNumber;
 }
 
-function getReviewChangeMarker(change: ReviewRenderableLineRow["change"]): string {
+function getReviewChangeMarker(change: ReviewRenderableLineRow["change"]) {
   if (change === "add") return "+";
   if (change === "delete") return "-";
   return " ";
@@ -192,7 +185,7 @@ export function buildReviewCommentTarget(
   target: Pick<ReviewCommentTarget, "sectionId" | "sectionTitle" | "filePath" | "lines">,
   anchorIndex: number,
   lineIndex: number,
-): ReviewCommentTarget {
+) {
   return {
     sectionId: target.sectionId,
     sectionTitle: target.sectionTitle,
@@ -203,7 +196,7 @@ export function buildReviewCommentTarget(
   };
 }
 
-export function formatReviewSelectedRangeLabel(target: ReviewCommentTarget): string {
+export function formatReviewSelectedRangeLabel(target: ReviewCommentTarget) {
   const lines = getSelectedReviewCommentLines(target);
   const firstLine = lines[0]!;
   const lastLine = lines[lines.length - 1]!;
@@ -230,10 +223,7 @@ export function formatReviewSelectedRangeLabel(target: ReviewCommentTarget): str
 function getDiffHunkRange(
   selectedLines: ReadonlyArray<ReviewRenderableLineRow>,
   key: "oldLineNumber" | "newLineNumber",
-): {
-  readonly start: number;
-  readonly count: number;
-} {
+) {
   const numberedLines = selectedLines.filter((line) => line[key] !== null);
   if (numberedLines.length === 0) {
     return { start: 0, count: 0 };
@@ -245,7 +235,7 @@ function getDiffHunkRange(
   };
 }
 
-function formatReviewSelectedDiff(target: ReviewCommentTarget): string {
+function formatReviewSelectedDiff(target: ReviewCommentTarget) {
   const selectedLines = getSelectedReviewCommentLines(target);
   const oldRange = getDiffHunkRange(selectedLines, "oldLineNumber");
   const newRange = getDiffHunkRange(selectedLines, "newLineNumber");
@@ -259,7 +249,7 @@ function formatReviewSelectedDiff(target: ReviewCommentTarget): string {
   ].join("\n");
 }
 
-function escapeReviewCommentAttribute(value: string): string {
+function escapeReviewCommentAttribute(value: string) {
   return value
     .replace(/&/g, "&amp;")
     .replace(/"/g, "&quot;")
@@ -267,7 +257,7 @@ function escapeReviewCommentAttribute(value: string): string {
     .replace(/>/g, "&gt;");
 }
 
-function unescapeReviewCommentAttribute(value: string): string {
+function unescapeReviewCommentAttribute(value: string) {
   return value
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
@@ -275,7 +265,7 @@ function unescapeReviewCommentAttribute(value: string): string {
     .replace(/&amp;/g, "&");
 }
 
-function readReviewCommentAttributes(rawAttributes: string): Record<string, string> {
+function readReviewCommentAttributes(rawAttributes: string) {
   const attributes: Record<string, string> = {};
   for (const match of rawAttributes.matchAll(REVIEW_COMMENT_ATTRIBUTE_PATTERN)) {
     attributes[match[1]!] = unescapeReviewCommentAttribute(match[2] ?? "");
@@ -283,18 +273,14 @@ function readReviewCommentAttributes(rawAttributes: string): Record<string, stri
   return attributes;
 }
 
-function readNonNegativeInteger(value: string | undefined): number | null {
+function readNonNegativeInteger(value: string | undefined) {
   if (value === undefined || !/^\d+$/.test(value)) {
     return null;
   }
   return Number(value);
 }
 
-function extractReviewCommentBody(rawBody: string): {
-  text: string;
-  language: string;
-  contents: string;
-} {
+function extractReviewCommentBody(rawBody: string) {
   const matches = Array.from(rawBody.matchAll(REVIEW_COMMENT_FENCE_PATTERN));
   const match = matches.at(-1);
   const fenceIndex = match?.index;
@@ -305,11 +291,7 @@ function extractReviewCommentBody(rawBody: string): {
   };
 }
 
-function parseReviewInlineComment(
-  rawAttributes: string,
-  rawBody: string,
-  index: number,
-): ReviewInlineComment | null {
+function parseReviewInlineComment(rawAttributes: string, rawBody: string, index: number) {
   const attributes = readReviewCommentAttributes(rawAttributes);
   const startIndex = readNonNegativeInteger(attributes.startIndex);
   const endIndex = readNonNegativeInteger(attributes.endIndex);
@@ -334,7 +316,7 @@ function parseReviewInlineComment(
   };
 }
 
-export function formatReviewCommentContext(target: ReviewCommentTarget, comment: string): string {
+export function formatReviewCommentContext(target: ReviewCommentTarget, comment: string) {
   const rangeLabel = formatReviewSelectedRangeLabel(target);
   const diff = formatReviewSelectedDiff(target);
   const longestBacktickRun = Math.max(
@@ -361,10 +343,7 @@ export function formatReviewCommentContext(target: ReviewCommentTarget, comment:
   ].join("\n");
 }
 
-export function parseReviewInlineComments(
-  value: string,
-  context?: OrchestrationMessageContext,
-): ReadonlyArray<ReviewInlineComment> {
+export function parseReviewInlineComments(value: string, context?: OrchestrationMessageContext) {
   const comments: ReviewInlineComment[] = [];
   const masked = replaceComposerContextReferences(value, (reference) =>
     " ".repeat(reference.source.length),
@@ -417,9 +396,7 @@ export function parseReviewInlineComments(
   return comments;
 }
 
-export function parseReviewCommentMessageSegments(
-  value: string,
-): ReadonlyArray<ReviewCommentMessageSegment> {
+export function parseReviewCommentMessageSegments(value: string) {
   const segments: ReviewCommentMessageSegment[] = [];
   let cursor = 0;
   let parsedCommentIndex = 0;

@@ -31,14 +31,18 @@ interface OpenPreviewSessionInput<E> {
   runtime?: PreviewRuntime;
 }
 
-export async function openPreviewSession<E>(
+export function openPreviewSession<E>(
   input: OpenPreviewSessionInput<E>,
-): Promise<AtomCommandResult<PreviewSessionSnapshot, E | BrowserSettingsReadError>> {
+): Promise<AtomCommandResult<PreviewSessionSnapshot, E | BrowserSettingsReadError>>;
+export async function openPreviewSession<E>(input: OpenPreviewSessionInput<E>) {
   const defaults = await resolveBrowserDefaults().catch(
     (cause: unknown) => new BrowserSettingsReadError({ cause }),
   );
   if (defaults instanceof BrowserSettingsReadError) {
-    return AsyncResult.failure(Cause.fail(defaults));
+    return AsyncResult.failure(Cause.fail(defaults)) satisfies AtomCommandResult<
+      PreviewSessionSnapshot,
+      E | BrowserSettingsReadError
+    >;
   }
   const runtime = input.runtime ?? previewRuntimeFor(input.threadRef.environmentId);
   const result = await input.openPreview({
@@ -58,7 +62,7 @@ export async function openPreviewSession<E>(
     },
   });
   if (result._tag === "Failure") {
-    return result;
+    return result satisfies AtomCommandResult<PreviewSessionSnapshot, E | BrowserSettingsReadError>;
   }
   const snapshot = result.value;
   applyPreviewServerSnapshot(input.threadRef, snapshot);
@@ -68,5 +72,5 @@ export async function openPreviewSession<E>(
       snapshot.navStatus._tag === "Idle" ? input.url : snapshot.navStatus.url,
     );
   }
-  return result;
+  return result satisfies AtomCommandResult<PreviewSessionSnapshot, E | BrowserSettingsReadError>;
 }

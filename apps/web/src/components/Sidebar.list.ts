@@ -24,8 +24,12 @@ export function threadShellKey(thread: ThreadIdentity) {
   return scopedThreadKey(scopeThreadRef(thread.environmentId, thread.id));
 }
 
-function rowsOf(threads: readonly ThreadIdentity[], section: SidebarSection): SidebarListItem[] {
-  return threads.map((thread) => ({ kind: "thread", key: threadShellKey(thread), section }));
+function rowsOf(threads: readonly ThreadIdentity[], section: SidebarSection) {
+  return threads.map((thread) => ({
+    kind: "thread",
+    key: threadShellKey(thread),
+    section,
+  })) satisfies SidebarListItem[];
 }
 
 interface SidebarInboxInput {
@@ -38,7 +42,7 @@ interface SidebarInboxInput {
   readonly routeThreadKey: string | null;
 }
 
-export function buildSidebarInboxItems(input: SidebarInboxInput): SidebarListItem[] {
+export function buildSidebarInboxItems(input: SidebarInboxInput) {
   if (input.mode === "status") {
     return [
       ...rowsOf(input.active, "active"),
@@ -48,7 +52,7 @@ export function buildSidebarInboxItems(input: SidebarInboxInput): SidebarListIte
             { kind: "marker", marker: "working-header" } as const,
             ...rowsOf(input.visibleWorking, "working"),
           ]),
-    ];
+    ] satisfies SidebarListItem[];
   }
   const workingKeys = new Set(input.working.map(threadShellKey));
   const groups = groupInboxThreadsByProject({
@@ -59,20 +63,27 @@ export function buildSidebarInboxItems(input: SidebarInboxInput): SidebarListIte
     groups,
     input.collapsedGroups,
     (thread) => threadShellKey(thread) === input.routeThreadKey,
-  ).flatMap((group): SidebarListItem[] => [
-    {
-      kind: "group",
-      key: group.key,
-      label: group.label,
-      projectKey: group.projectKey,
-      count: group.count,
-      collapsed: group.collapsed,
-    },
-    ...group.threads.map((thread): SidebarListItem => {
-      const key = threadShellKey(thread);
-      return { kind: "thread", key, section: workingKeys.has(key) ? "working" : "active" };
-    }),
-  ]);
+  ).flatMap(
+    (group) =>
+      [
+        {
+          kind: "group",
+          key: group.key,
+          label: group.label,
+          projectKey: group.projectKey,
+          count: group.count,
+          collapsed: group.collapsed,
+        },
+        ...group.threads.map((thread) => {
+          const key = threadShellKey(thread);
+          return {
+            kind: "thread",
+            key,
+            section: workingKeys.has(key) ? "working" : "active",
+          } satisfies SidebarListItem;
+        }),
+      ] satisfies SidebarListItem[],
+  ) satisfies SidebarListItem[];
 }
 
 export function buildSidebarListItems(input: {
@@ -82,8 +93,9 @@ export function buildSidebarListItems(input: {
   readonly done: readonly ThreadIdentity[];
   readonly showSnoozed: boolean;
   readonly inboxItems: readonly SidebarListItem[];
-}): readonly SidebarListItem[] {
-  if (!input.hasThreads) return [{ kind: "marker", marker: "drafts-block" }];
+}) {
+  if (!input.hasThreads)
+    return [{ kind: "marker", marker: "drafts-block" }] satisfies readonly SidebarListItem[];
   const items: SidebarListItem[] = [
     { kind: "marker", marker: "pinned-header" },
     ...rowsOf(input.pinned, "pinned"),
@@ -100,10 +112,10 @@ export function buildSidebarListItems(input: {
     { kind: "marker", marker: "done-placeholder" },
     ...rowsOf(input.done, "done"),
   );
-  return items;
+  return items satisfies readonly SidebarListItem[];
 }
 
-export function sidebarListLayoutKey(items: readonly SidebarListItem[]): string {
+export function sidebarListLayoutKey(items: readonly SidebarListItem[]) {
   return JSON.stringify(
     items.map((item) => [
       sidebarListItemId(item),

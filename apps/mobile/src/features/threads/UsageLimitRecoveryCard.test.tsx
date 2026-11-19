@@ -44,7 +44,7 @@ function failedThread(
   resetAt: string | null,
   lastErrorCode?: string,
   lastErrorClass = "usage_limit",
-): EnvironmentThreadShell {
+) {
   return {
     id: "thread-1",
     updatedAt: new Date(0).toISOString(),

@@ -31,7 +31,6 @@ import {
   type ResolvedKeybindingsConfig,
 } from "@supaterm/contracts";
 import type {
-  ConnectionAttemptError,
   ConnectionCatalogEntry,
   EnvironmentConnectionLease,
 } from "@supaterm/client-runtime/connection";
@@ -41,7 +40,6 @@ import { APP_VERSION } from "~/branding";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as Queue from "effect/Queue";
-import type * as Scope from "effect/Scope";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
 import { RpcSchema } from "effect/rpc";
@@ -105,7 +103,7 @@ const baseServerConfig: ServerConfig = {
   }),
   keybindings: DEFAULT_RESOLVED_KEYBINDINGS,
 };
-const serverConfig = (): ServerConfig => ({
+const serverConfig = () => ({
   ...baseServerConfig,
   keybindings,
   ...(threads.some((thread) => thread.olderDone) ? { shellThreadFamilies: true } : {}),
@@ -204,7 +202,7 @@ export interface FakeThread {
 }
 
 /** A thread of `turns` user prompts, each answered in markdown with a list and inline code. */
-export function threadWithHistory(name: string, turns: number): FakeThread {
+export function threadWithHistory(name: string, turns: number) {
   const id = ThreadId.make(name);
   const runs: OrchestrationV2Run[] = [];
   const items: OrchestrationV2TurnItem[] = [];
@@ -226,7 +224,7 @@ export function threadWithHistory(name: string, turns: number): FakeThread {
   return { id, title: `Thread ${name}`, runs, items };
 }
 
-function shellOf(thread: FakeThread): OrchestrationV2ThreadShell {
+function shellOf(thread: FakeThread) {
   const latest = thread.runs.at(-1);
   const modelSelection = thread.modelSelection ?? MODEL;
   return {
@@ -265,10 +263,10 @@ function shellOf(thread: FakeThread): OrchestrationV2ThreadShell {
     doneAt: thread.olderDone ? AT : null,
     lastVisitedAt: AT,
     deletedAt: null,
-  };
+  } satisfies OrchestrationV2ThreadShell;
 }
 
-function projectionOf(thread: FakeThread): OrchestrationV2ThreadProjection {
+function projectionOf(thread: FakeThread) {
   const shell = shellOf(thread);
   const visibleTurnItems: OrchestrationV2ProjectedTurnItem[] = thread.items.map(
     (item, position) => ({
@@ -320,7 +318,7 @@ function projectionOf(thread: FakeThread): OrchestrationV2ThreadProjection {
     contextTransfers: [],
     visibleTurnItems,
     updatedAt: AT,
-  };
+  } satisfies OrchestrationV2ThreadProjection;
 }
 
 const json = (body: unknown, status = 200) =>
@@ -359,7 +357,7 @@ const subscribeServerConfig = () =>
     },
   );
 
-function setKeybindings(next: ResolvedKeybindingsConfig): void {
+function setKeybindings(next: ResolvedKeybindingsConfig) {
   if (next === keybindings) return;
   keybindings = next;
   for (const queue of serverConfigSubscribers) {
@@ -373,13 +371,14 @@ function setKeybindings(next: ResolvedKeybindingsConfig): void {
   }
 }
 
-const shellSnapshot = (): OrchestrationV2ShellSnapshot => ({
-  schemaVersion: 1,
-  snapshotSequence: sequence,
-  projects,
-  threads: threads.filter((thread) => !thread.olderDone).map(shellOf),
-  archivedThreads: [],
-});
+const shellSnapshot = () =>
+  ({
+    schemaVersion: 1,
+    snapshotSequence: sequence,
+    projects,
+    threads: threads.filter((thread) => !thread.olderDone).map(shellOf),
+    archivedThreads: [],
+  }) satisfies OrchestrationV2ShellSnapshot;
 
 const handlers: Record<string, (input: never) => unknown> = {
   [ORCHESTRATION_V2_WS_METHODS.dispatchCommand]: (command: OrchestrationV2Command) =>
@@ -459,9 +458,7 @@ const session: EnvironmentConnectionLease["session"] = {
 
 /** Stands in for client-runtime's ConnectionDriver: every connection opens the session above. */
 export const fakeDriver = {
-  connect: (
-    entry: ConnectionCatalogEntry,
-  ): Effect.Effect<EnvironmentConnectionLease, ConnectionAttemptError, Scope.Scope> =>
+  connect: (entry: ConnectionCatalogEntry) =>
     Effect.succeed({
       prepared: {
         environmentId: ENVIRONMENT_ID,
@@ -496,7 +493,7 @@ export function installFakeEnvironment(
     readonly keybindings?: ResolvedKeybindingsConfig;
     readonly extraProjects?: ReadonlyArray<Pick<OrchestrationProjectShell, "id" | "title">>;
   },
-): Disposable {
+) {
   threads = fixtures;
   setKeybindings(options?.keybindings ?? DEFAULT_RESOLVED_KEYBINDINGS);
   dispatched = [];
@@ -555,19 +552,19 @@ export function installFakeEnvironment(
 }
 
 /** Commands the app dispatched to the environment, oldest first. */
-export function dispatchedCommands(): ReadonlyArray<OrchestrationV2Command> {
+export function dispatchedCommands() {
   return dispatched;
 }
 
 type ThreadEvent = Extract<OrchestrationV2ThreadStreamItem, { readonly kind: "event" }>["event"];
 
-export async function emitTerminalMetadata(event: TerminalMetadataStreamEvent): Promise<void> {
+export async function emitTerminalMetadata(event: TerminalMetadataStreamEvent) {
   if (terminalMetadataSubscriber === null) throw new Error("No terminal metadata subscription");
   await Effect.runPromise(Queue.offer(terminalMetadataSubscriber, event));
 }
 
 /** Whether the app holds a live subscription to the thread, so events reach it. */
-export function isThreadSubscribed(threadId: ThreadId): boolean {
+export function isThreadSubscribed(threadId: ThreadId) {
   return threadSubscribers.has(threadId);
 }
 
@@ -575,7 +572,7 @@ export function isThreadSubscribed(threadId: ThreadId): boolean {
 export async function emitThreadEvent(
   threadId: ThreadId,
   event: Pick<ThreadEvent, "type" | "payload">,
-): Promise<void> {
+) {
   const queue = threadSubscribers.get(threadId);
   if (!queue) throw new Error(`No live subscription for ${threadId}`);
   sequence += 1;
@@ -598,7 +595,7 @@ export function runningRun(threadId: ThreadId, id: string, ordinal: number, user
 
 export { userItem };
 
-export async function emitVcsStatus(event: VcsStatusStreamEvent): Promise<void> {
+export async function emitVcsStatus(event: VcsStatusStreamEvent) {
   if (vcsStatusSubscriber === null) throw new Error("No VCS status subscription");
   await Effect.runPromise(Queue.offer(vcsStatusSubscriber, event));
 }

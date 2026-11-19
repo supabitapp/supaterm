@@ -204,7 +204,7 @@ function output(
   invalidUtf8 = false,
   headers: Readonly<Record<string, string>> = {},
   status = 200,
-): GitHubRest.GitHubRestResponse {
+) {
   return { status, headers, body, truncated, invalidUtf8 };
 }
 
@@ -236,7 +236,7 @@ function rows(
   count: number,
   firstNumber: number,
   overrides: (number: number) => Readonly<Record<string, unknown>> = () => ({}),
-): ReadonlyArray<Record<string, unknown>> {
+) {
   return Array.from({ length: count }, (_, index) => {
     const number = firstNumber + index;
     const { reviewRequests, checks, ...rest } = overrides(number) as {
@@ -277,7 +277,7 @@ function pullRequests(
   count: number,
   firstNumber: number,
   overrides?: (number: number) => Readonly<Record<string, unknown>>,
-): string {
+) {
   return encodeJson({
     data: {
       search: { pageInfo: lastPage, nodes: rows(count, firstNumber, overrides) },
@@ -289,7 +289,7 @@ function listedPullRequests(
   count: number,
   firstNumber: number,
   overrides?: (number: number) => Readonly<Record<string, unknown>>,
-): string {
+) {
   return encodeJson({
     data: {
       repository: {
@@ -305,7 +305,7 @@ function listedPullRequests(
 const emptySearch = () => output(pullRequests(0, 1));
 const emptyList = () => output(listedPullRequests(0, 1));
 
-function pullRequestFiles(count: number, firstIndex: number): string {
+function pullRequestFiles(count: number, firstIndex: number) {
   return encodeJson(
     Array.from({ length: count }, (_, index) => ({
       filename: `src/file${firstIndex + index}.ts`,
@@ -354,7 +354,7 @@ function reviewThreadsPage(
   nodes: ReadonlyArray<Record<string, unknown>>,
   endCursor: string | null,
   requestedReviewers: ReadonlyArray<Record<string, unknown>> = [],
-): string {
+) {
   return encodeJson({
     data: {
       viewer: { login: "viewer" },
@@ -388,7 +388,7 @@ function threadCommentsPage(
   endCursor: string | null,
   totalCount: number,
   pullRequestId = "PR_7",
-): string {
+) {
   return encodeJson({
     data: {
       viewer: { login: "viewer" },
@@ -408,29 +408,29 @@ const diffRefused = new GitHubRequestPolicy.GitHubApiResponseError({
   status: 406,
 });
 
-function callAt(index: number): ApiCall {
+function callAt(index: number) {
   const call = mockedExecute.mock.calls[index];
   assert.isDefined(call);
   return call[0];
 }
 
-function varsAt(index: number): Readonly<Record<string, unknown>> {
+function varsAt(index: number) {
   const call = callAt(index);
   assert.strictEqual(call.kind, "graphql");
   return call.kind === "graphql" ? (call.variables ?? {}) : {};
 }
 
-function queryAt(index: number): string {
+function queryAt(index: number) {
   const call = callAt(index);
   return call.kind === "graphql" ? call.query : "";
 }
 
-function pathAt(index: number): string {
+function pathAt(index: number) {
   const call = callAt(index);
   return call.kind === "rest" ? call.path : "";
 }
 
-function searchOfCall(index: number): string | undefined {
+function searchOfCall(index: number) {
   const q = callAt(index).kind === "graphql" ? varsAt(index)["q"] : undefined;
   return typeof q === "string" ? q : undefined;
 }
@@ -472,13 +472,13 @@ function searchPage(nodes: ReadonlyArray<unknown>, hasNextPage = false) {
 
 const searchQueryOfCall = searchOfCall;
 
-function matches(call: ApiCall, needle: string): boolean {
+function matches(call: ApiCall, needle: string) {
   return call.kind === "graphql"
     ? call.operationName === needle || call.query.includes(needle)
     : call.path.includes(needle);
 }
 
-function route(...routes: ReadonlyArray<readonly [needle: string, body: unknown]>): void {
+function route(...routes: ReadonlyArray<readonly [needle: string, body: unknown]>) {
   mockedExecute.mockImplementation((call) => {
     const match = routes.find(([needle]) => matches(call, needle));
     return Effect.succeed(
@@ -498,13 +498,13 @@ function mutationAnswer(query: string) {
   return { data: root === undefined ? {} : { [root]: null } };
 }
 
-function variablesOf(needle: string): ReadonlyArray<Readonly<Record<string, unknown>>> {
+function variablesOf(needle: string) {
   return mockedExecute.mock.calls.flatMap(([call]) =>
     call.kind === "graphql" && matches(call, needle) ? [call.variables ?? {}] : [],
   );
 }
 
-function restCallsTo(needle: string): ReadonlyArray<GitHubRest.GitHubRestInput> {
+function restCallsTo(needle: string) {
   return mockedExecute.mock.calls.flatMap(([call]) =>
     call.kind === "rest" && call.path.includes(needle) ? [call] : [],
   );
@@ -591,11 +591,7 @@ const workflowRuns = (ids: ReadonlyArray<number>) => ({
   })),
 });
 
-function workflowApprovalRoutes(
-  detail: () => unknown,
-  headsAnswer: unknown,
-  runsAnswer: unknown,
-): void {
+function workflowApprovalRoutes(detail: () => unknown, headsAnswer: unknown, runsAnswer: unknown) {
   mockedExecute.mockImplementation((call) =>
     Effect.sync(() =>
       output(

@@ -51,7 +51,8 @@ const UPDATE_INSTALLING: ServerSelfUpdateProgressEvent = {
 
 const decodeNumber = Schema.decodeUnknownEffect(Schema.Number);
 
-function session(client: WsRpcProtocolClient): RpcSession.RpcSession {
+function session(client: WsRpcProtocolClient): RpcSession.RpcSession;
+function session(client: WsRpcProtocolClient) {
   return {
     client,
     initialConfig: Effect.never,
@@ -62,7 +63,7 @@ function session(client: WsRpcProtocolClient): RpcSession.RpcSession {
     probe: Effect.void,
     inboundFrames: Effect.succeed(0),
     closed: Effect.never,
-  };
+  } satisfies RpcSession.RpcSession;
 }
 
 const makeHarness = Effect.fn("TestEnvironmentRpc.makeHarness")(function* () {

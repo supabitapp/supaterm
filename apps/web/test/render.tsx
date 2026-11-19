@@ -14,7 +14,7 @@ declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
 }
 
-export async function act<T>(callback: () => T | Promise<T>): Promise<T> {
+export async function act<T>(callback: () => T | Promise<T>) {
   const previous = globalThis.IS_REACT_ACT_ENVIRONMENT;
   globalThis.IS_REACT_ACT_ENVIRONMENT = true;
   try {
@@ -50,7 +50,7 @@ function RoutedUiOutlet() {
   return use(RoutedUi);
 }
 
-function createTestRouter(path: string): AnyRouter {
+function createTestRouter(path: string) {
   return createRouter({
     routeTree: createRootRoute({ component: RoutedUiOutlet }),
     history: createMemoryHistory({ initialEntries: [path] }),
@@ -65,7 +65,7 @@ function createTestRouter(path: string): AnyRouter {
 export async function render(
   ui: ReactNode,
   { container = document.createElement("div"), router: path = "/" }: RenderOptions = {},
-): Promise<Screen> {
+) {
   if (!container.isConnected) document.body.append(container);
   const root = createRoot(container);
   const router = path === false ? undefined : createTestRouter(path);
@@ -105,13 +105,13 @@ export async function render(
 }
 
 /** Fake timers for one test: `using _timers = fakeTimers()`. */
-export function fakeTimers(config?: Parameters<typeof vi.useFakeTimers>[0]): Disposable {
+export function fakeTimers(config?: Parameters<typeof vi.useFakeTimers>[0]) {
   vi.useFakeTimers(config);
   return { [Symbol.dispose]: () => void vi.useRealTimers() };
 }
 
 /** Replaces one global for one test and restores exactly that global on dispose. */
-export function stubGlobal(name: string, value: unknown): Disposable {
+export function stubGlobal(name: string, value: unknown) {
   const original = Object.getOwnPropertyDescriptor(globalThis, name);
   Object.defineProperty(globalThis, name, {
     value,

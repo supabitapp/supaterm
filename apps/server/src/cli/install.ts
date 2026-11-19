@@ -25,8 +25,8 @@ export class CliInstallError extends Schema.TaggedError<CliInstallError>()("CliI
   reason: Schema.String,
   cause: Schema.optional(Schema.Defect()),
 }) {
-  override get message(): string {
-    return this.reason;
+  override get message() {
+    return this.reason satisfies string as string;
   }
 }
 

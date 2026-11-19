@@ -85,7 +85,7 @@ export function buildProjectThreadStartTurnInput(spec: ProjectThreadStartTurnSpe
   };
 }
 
-export function deriveThreadTitleFromPrompt(value: string): string {
+export function deriveThreadTitleFromPrompt(value: string) {
   const title = threadTitleTextFromPrompt(value) || "New thread";
   return title.length <= 72 ? title : `${title.slice(0, 69).trimEnd()}...`;
 }

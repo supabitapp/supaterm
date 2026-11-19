@@ -64,7 +64,7 @@ function getPresented() {
   return presented;
 }
 
-export function alert(...[title, message, buttons, options]: Parameters<typeof Alert.alert>): void {
+export function alert(...[title, message, buttons, options]: Parameters<typeof Alert.alert>) {
   const actions = buttons?.length ? buttons.slice(0, 3) : [{ text: "OK" }];
   const normalized = actions.map((action, index) =>
     index === actions.length - 1 ? { ...action, text: action.text || "OK" } : action,
@@ -75,11 +75,11 @@ export function alert(...[title, message, buttons, options]: Parameters<typeof A
   });
 }
 
-export function confirm(request: ConfirmDialogRequest): void {
+export function confirm(request: ConfirmDialogRequest) {
   submitRequest({ kind: "confirm", request });
 }
 
-export function prompt(request: TextInputDialogRequest): void {
+export function prompt(request: TextInputDialogRequest) {
   submitRequest({ kind: "text-input", request });
 }
 

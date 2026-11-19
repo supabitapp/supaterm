@@ -32,7 +32,7 @@ const pullRequestSnapshotsAtom = Atom.make<ReadonlyMap<string, PullRequestSummar
 function snapshotKey(
   environmentId: EnvironmentId,
   reference: { readonly projectId: string; readonly repository: string; readonly number: number },
-): string {
+) {
   return JSON.stringify([
     environmentId,
     reference.projectId,
@@ -74,7 +74,8 @@ export function withKnownPullRequestSummary<
   return initialSummary === undefined ? params : { ...params, initialSummary };
 }
 
-export function useThreadPr(thread: EnvironmentThreadShell): ThreadPrPresentation | null {
+export function useThreadPr(thread: EnvironmentThreadShell): ThreadPrPresentation | null;
+export function useThreadPr(thread: EnvironmentThreadShell) {
   const demand = use(ThreadPrDemandContext);
   const { linkedPresentation, pullRequestRef } = useMemo(
     () =>
@@ -109,5 +110,5 @@ export function useThreadPr(thread: EnvironmentThreadShell): ThreadPrPresentatio
           name: summary.provider,
           baseUrl: "",
         });
-  return linkedPresentation ?? summaryPresentation;
+  return (linkedPresentation ?? summaryPresentation) satisfies ThreadPrPresentation | null;
 }

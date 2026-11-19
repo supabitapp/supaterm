@@ -52,22 +52,26 @@ export interface ResolveMediaSourceInput {
   readonly imageEmbed?: boolean | undefined;
 }
 
-function classify(source: string, input: ResolveMediaSourceInput): MarkdownImageSource {
-  return input.resolvedFilePath === undefined
-    ? classifyMarkdownImageSource(
-        source,
-        input.workspaceRoot,
-        input.projectRoot === undefined ? input.workspaceRoot : input.projectRoot,
-      )
-    : { _tag: "WorkspaceFile", path: input.resolvedFilePath };
+function classify(source: string, input: ResolveMediaSourceInput): MarkdownImageSource;
+function classify(source: string, input: ResolveMediaSourceInput) {
+  return (
+    input.resolvedFilePath === undefined
+      ? classifyMarkdownImageSource(
+          source,
+          input.workspaceRoot,
+          input.projectRoot === undefined ? input.workspaceRoot : input.projectRoot,
+        )
+      : { _tag: "WorkspaceFile", path: input.resolvedFilePath }
+  ) satisfies MarkdownImageSource;
 }
 
 export function resolveMediaSource(
   source: string,
   input: ResolveMediaSourceInput,
-): ResolvedMediaSource | null {
+): ResolvedMediaSource | null;
+export function resolveMediaSource(source: string, input: ResolveMediaSourceInput) {
   const classified = classify(source, input);
-  if (classified._tag === "Blocked") return null;
+  if (classified._tag === "Blocked") return null satisfies ResolvedMediaSource | null;
 
   const path =
     classified._tag === "Direct"
@@ -83,7 +87,8 @@ export function resolveMediaSource(
         : (mediaMimeTypeFromExtension(basename.slice(extensionIndex)) ??
           audioMimeTypeFromExtension(basename.slice(extensionIndex)));
   const mimeType = detectedMimeType ?? (input.imageEmbed ? "image/*" : null);
-  if (mimeType === null || mimeType.startsWith("audio/")) return null;
+  if (mimeType === null || mimeType.startsWith("audio/"))
+    return null satisfies ResolvedMediaSource | null;
   const kind = mimeType.startsWith("video/") ? "video" : "image";
 
   const reference =
@@ -100,9 +105,14 @@ export function resolveMediaSource(
   } as const;
 
   if (classified._tag === "Direct") {
-    return { ...common, access: "direct", uri: classified.uri };
+    return {
+      ...common,
+      access: "direct",
+      uri: classified.uri,
+    } satisfies ResolvedMediaSource | null;
   }
-  if (input.threadId === undefined) return { ...common, access: "unavailable" };
+  if (input.threadId === undefined)
+    return { ...common, access: "unavailable" } satisfies ResolvedMediaSource | null;
   return {
     ...common,
     access: "environment",
@@ -112,5 +122,5 @@ export function resolveMediaSource(
       path,
       ...(classified.relative ? { hostOnly: true as const } : {}),
     },
-  };
+  } satisfies ResolvedMediaSource | null;
 }

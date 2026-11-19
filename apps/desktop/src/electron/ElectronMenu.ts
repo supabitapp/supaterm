@@ -42,7 +42,7 @@ export class ElectronMenuOperationError extends Schema.TaggedError<ElectronMenuO
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     const window = this.windowId === null ? "" : ` for window ${this.windowId}`;
     return `Electron menu operation ${JSON.stringify(this.operation)} failed${window} with ${this.itemCount} items on ${this.platform}.`;
   }
@@ -61,7 +61,7 @@ export class ElectronMenu extends Context.Service<
   }
 >()("@supaterm/desktop/electron/ElectronMenu") {}
 
-function normalizeContextMenuItems(source: readonly ContextMenuItem[]): ContextMenuItem[] {
+function normalizeContextMenuItems(source: readonly ContextMenuItem[]) {
   const normalizedItems: ContextMenuItem[] = [];
 
   for (const sourceItem of source) {
@@ -100,10 +100,7 @@ function normalizeContextMenuItems(source: readonly ContextMenuItem[]): ContextM
   return normalizedItems;
 }
 
-const normalizePosition = (
-  position: Option.Option<ElectronMenuPosition>,
-  zoomFactor: number,
-): Option.Option<ElectronMenuPosition> =>
+const normalizePosition = (position: Option.Option<ElectronMenuPosition>, zoomFactor: number) =>
   Option.filter(
     position,
     ({ x, y }) =>
@@ -123,7 +120,7 @@ export const make = Effect.gen(function* () {
   const platform = yield* HostProcess.Platform;
   const menuIconCache = new Map<string, Option.Option<Electron.NativeImage>>();
 
-  const loadMenuIcon = (symbol: string): Option.Option<Electron.NativeImage> => {
+  const loadMenuIcon = (symbol: string) => {
     try {
       const image = Electron.nativeImage.createFromNamedImage(symbol).resize({ height: 12 });
       image.setTemplateImage(true);
@@ -133,7 +130,7 @@ export const make = Effect.gen(function* () {
     }
   };
 
-  const getMenuIcon = (symbol: string): Option.Option<Electron.NativeImage> => {
+  const getMenuIcon = (symbol: string) => {
     if (platform !== "darwin") {
       return Option.none();
     }
@@ -148,7 +145,7 @@ export const make = Effect.gen(function* () {
   const buildTemplate = (
     entries: readonly ContextMenuItem[],
     complete: (selectedItemId: Option.Option<string>) => void,
-  ): Electron.MenuItemConstructorOptions[] => {
+  ) => {
     const template: Electron.MenuItemConstructorOptions[] = [];
     let hasInsertedDestructiveSeparator = false;
     let sectionStartedByExplicitSeparator = false;
@@ -256,11 +253,11 @@ export const make = Effect.gen(function* () {
             input.window.webContents.getZoomFactor(),
           );
           const popupOptions = Option.match(popupPosition, {
-            onNone: (): Electron.PopupOptions => ({
+            onNone: () => ({
               window: input.window,
               callback: () => complete(Option.none()),
             }),
-            onSome: (position): Electron.PopupOptions => ({
+            onSome: (position) => ({
               window: input.window,
               x: position.x,
               y: position.y,

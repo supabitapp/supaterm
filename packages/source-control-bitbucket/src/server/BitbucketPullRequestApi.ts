@@ -52,11 +52,11 @@ export class BitbucketPullRequestReadError extends Schema.TaggedError<BitbucketP
     cause: Schema.Defect(),
   },
 ) {
-  get detail(): string {
+  get detail() {
     return `Bitbucket returned an unreadable ${this.operation} response.`;
   }
 
-  override get message(): string {
+  override get message() {
     return `Bitbucket failed in ${this.operation}: ${this.detail}`;
   }
 }
@@ -65,11 +65,11 @@ export class BitbucketViewerUnavailableError extends Schema.TaggedError<Bitbucke
   "BitbucketViewerUnavailableError",
   {},
 ) {
-  get detail(): string {
+  get detail() {
     return "Bitbucket returned no account name for the configured credentials.";
   }
 
-  override get message(): string {
+  override get message() {
     return `Bitbucket failed in getViewer: ${this.detail}`;
   }
 }
@@ -80,11 +80,11 @@ export class BitbucketRepositoryUnsupportedError extends Schema.TaggedError<Bitb
     repository: Schema.String,
   },
 ) {
-  get detail(): string {
+  get detail() {
     return "A Bitbucket repository is addressed as workspace/repository.";
   }
 
-  override get message(): string {
+  override get message() {
     return `Bitbucket failed in resolveRepository: ${this.detail}`;
   }
 }
@@ -93,11 +93,11 @@ export class BitbucketDiffCommitError extends Schema.TaggedError<BitbucketDiffCo
   "BitbucketDiffCommitError",
   {},
 ) {
-  get detail(): string {
+  get detail() {
     return "The named commit was not a commit sha.";
   }
 
-  override get message(): string {
+  override get message() {
     return `Bitbucket failed in getPullRequestDiff: ${this.detail}`;
   }
 }
@@ -276,12 +276,7 @@ export class BitbucketPullRequestApi extends Context.Service<
   }
 >()("@supaterm/source-control-bitbucket/server/BitbucketPullRequestApi") {}
 
-function repositorySegments(
-  repository: string,
-): Result.Result<
-  { readonly workspace: string; readonly slug: string },
-  BitbucketRepositoryUnsupportedError
-> {
+function repositorySegments(repository: string) {
   const segments = repository
     .split("/")
     .map((segment) => segment.trim())
@@ -293,13 +288,13 @@ function repositorySegments(
   return Result.succeed({ workspace, slug });
 }
 
-function repositoryPathOf(segments: { readonly workspace: string; readonly slug: string }): string {
+function repositoryPathOf(segments: { readonly workspace: string; readonly slug: string }) {
   return `/repositories/${encodeURIComponent(segments.workspace)}/${encodeURIComponent(
     segments.slug,
   )}`;
 }
 
-function stateParams(state: PullRequestListState): ReadonlyArray<string> {
+function stateParams(state: PullRequestListState) {
   switch (state) {
     case "open":
       return ["OPEN"];
@@ -312,21 +307,21 @@ function stateParams(state: PullRequestListState): ReadonlyArray<string> {
   }
 }
 
-function searchFilter(query: string): string {
+function searchFilter(query: string) {
   const literal = filterLiteral(query);
   return `(title ~ "${literal}" OR description ~ "${literal}")`;
 }
 
-function authorFilter(login: string): string {
+function authorFilter(login: string) {
   const literal = filterLiteral(login);
   return `(author.nickname = "${literal}" OR author.display_name = "${literal}")`;
 }
 
-function filterLiteral(value: string): string {
+function filterLiteral(value: string) {
   return value.replaceAll("\\", "\\\\").replaceAll('"', '\\"');
 }
 
-function updatedBeforeFilter(updatedBefore: string): string {
+function updatedBeforeFilter(updatedBefore: string) {
   return Option.match(DateTime.make(updatedBefore), {
     onNone: () => `updated_on <= ${updatedBefore}`,
     onSome: (instant) =>
@@ -334,7 +329,7 @@ function updatedBeforeFilter(updatedBefore: string): string {
   });
 }
 
-function mergeStrategy(method: PullRequestMergeMethod | undefined): string {
+function mergeStrategy(method: PullRequestMergeMethod | undefined) {
   switch (method) {
     case "squash":
       return "squash";
@@ -345,9 +340,7 @@ function mergeStrategy(method: PullRequestMergeMethod | undefined): string {
   }
 }
 
-function bitbucketReviewPosition(
-  position: PullRequestReviewPosition,
-): { readonly from: number } | { readonly to: number } {
+function bitbucketReviewPosition(position: PullRequestReviewPosition) {
   switch (position.kind) {
     case "added":
       return { to: position.newLine };
@@ -369,19 +362,24 @@ export const make = Effect.gen(function* () {
       workspace: string,
       slug: string,
     ) => Effect.Effect<A, BitbucketPullRequestApiError>,
-  ): Effect.Effect<A, BitbucketPullRequestApiError> => {
+  ) => {
     const segments = repositorySegments(repository);
     return Result.isSuccess(segments)
       ? use(repositoryPathOf(segments.success), segments.success.workspace, segments.success.slug)
       : Effect.fail(segments.failure);
   };
 
-  const listPage = (input: {
+  const listPage: (input: {
     readonly url: string;
     readonly limit: number;
     readonly page: number;
     readonly collected: ReadonlyArray<BitbucketPullRequest>;
-  }): Effect.Effect<BitbucketPullRequestBatch, BitbucketPullRequestApiError> =>
+  }) => Effect.Effect<BitbucketPullRequestBatch, BitbucketPullRequestApiError> = (input: {
+    readonly url: string;
+    readonly limit: number;
+    readonly page: number;
+    readonly collected: ReadonlyArray<BitbucketPullRequest>;
+  }) =>
     bitbucket.request({ method: "GET", url: input.url }).pipe(
       Effect.flatMap((response) => {
         const decoded = decodePullRequestPageJson(response.body);
@@ -409,7 +407,7 @@ export const make = Effect.gen(function* () {
     readonly operation: string;
     readonly url: string;
     readonly decode: (body: string) => Result.Result<A, unknown>;
-  }): Effect.Effect<A, BitbucketPullRequestApiError> =>
+  }) =>
     bitbucket.request({ method: "GET", url: input.url }).pipe(
       Effect.flatMap((response) => {
         const decoded = input.decode(response.body);
@@ -424,19 +422,24 @@ export const make = Effect.gen(function* () {
       }),
     );
 
-  const commentsPage = (input: {
+  const commentsPage: (input: {
     readonly url: string;
     readonly page: number;
     readonly comments: ReadonlyArray<PullRequestComment>;
     readonly entries: ReadonlyArray<BitbucketRawComment>;
-  }): Effect.Effect<
+  }) => Effect.Effect<
     {
       readonly comments: ReadonlyArray<PullRequestComment>;
       readonly threads: ReadonlyArray<PullRequestReviewThread>;
       readonly truncated: boolean;
     },
     BitbucketPullRequestApiError
-  > =>
+  > = (input: {
+    readonly url: string;
+    readonly page: number;
+    readonly comments: ReadonlyArray<PullRequestComment>;
+    readonly entries: ReadonlyArray<BitbucketRawComment>;
+  }) =>
     readPage({ operation: "listComments", url: input.url, decode: decodeCommentsJson }).pipe(
       Effect.flatMap((page) => {
         const comments = [...input.comments, ...page.comments];
@@ -452,7 +455,7 @@ export const make = Effect.gen(function* () {
       }),
     );
 
-  const itemPages = <A>(input: {
+  const itemPages: <A>(input: {
     readonly operation: string;
     readonly url: string;
     readonly decode: (
@@ -460,7 +463,15 @@ export const make = Effect.gen(function* () {
     ) => Result.Result<{ readonly items: ReadonlyArray<A>; readonly next: string | null }, unknown>;
     readonly items: ReadonlyArray<A>;
     readonly prepend: boolean;
-  }): Effect.Effect<ReadonlyArray<A>, BitbucketPullRequestApiError> =>
+  }) => Effect.Effect<ReadonlyArray<A>, BitbucketPullRequestApiError> = <A>(input: {
+    readonly operation: string;
+    readonly url: string;
+    readonly decode: (
+      body: string,
+    ) => Result.Result<{ readonly items: ReadonlyArray<A>; readonly next: string | null }, unknown>;
+    readonly items: ReadonlyArray<A>;
+    readonly prepend: boolean;
+  }) =>
     readPage({ operation: input.operation, url: input.url, decode: input.decode }).pipe(
       Effect.flatMap((page) => {
         const items = input.prepend
@@ -472,10 +483,13 @@ export const make = Effect.gen(function* () {
       }),
     );
 
-  const diffStatPages = (input: {
+  const diffStatPages: (input: {
     readonly url: string;
     readonly totals: BitbucketDiffStat;
-  }): Effect.Effect<BitbucketDiffStat, BitbucketPullRequestApiError> =>
+  }) => Effect.Effect<BitbucketDiffStat, BitbucketPullRequestApiError> = (input: {
+    readonly url: string;
+    readonly totals: BitbucketDiffStat;
+  }) =>
     readPage({ operation: "getDiffStat", url: input.url, decode: decodeDiffstatJson }).pipe(
       Effect.flatMap((page) => {
         const totals = {
@@ -493,10 +507,7 @@ export const make = Effect.gen(function* () {
     readonly repository: string;
     readonly number: number;
     readonly commit?: string | undefined;
-  }): Effect.Effect<
-    { readonly patch: string; readonly truncated: boolean },
-    BitbucketPullRequestApiError
-  > =>
+  }) =>
     input.commit !== undefined && !isCommitSha(input.commit)
       ? Effect.fail(new BitbucketDiffCommitError())
       : withRepository(input.repository, (path) =>
@@ -533,16 +544,22 @@ export const make = Effect.gen(function* () {
   return BitbucketPullRequestApi.of({
     getViewer: Effect.fn("BitbucketPullRequestApi.getViewer")(function () {
       return bitbucket.request({ method: "GET", url: "/user" }).pipe(
-        Effect.flatMap((response): Effect.Effect<string, BitbucketPullRequestApiError> => {
+        Effect.flatMap((response) => {
           const decoded = decodeViewerJson(response.body);
           if (!Result.isSuccess(decoded)) {
             return Effect.fail(
               new BitbucketPullRequestReadError({ operation: "getViewer", cause: decoded.failure }),
-            );
+            ) satisfies Effect.Effect<string, BitbucketPullRequestApiError> as Effect.Effect<
+              string,
+              BitbucketPullRequestApiError
+            >;
           }
-          return decoded.success === null
+          return (decoded.success === null
             ? Effect.fail(new BitbucketViewerUnavailableError())
-            : Effect.succeed(decoded.success);
+            : Effect.succeed(decoded.success)) satisfies Effect.Effect<
+            string,
+            BitbucketPullRequestApiError
+          > as Effect.Effect<string, BitbucketPullRequestApiError>;
         }),
       );
     }),

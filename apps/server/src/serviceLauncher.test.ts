@@ -35,7 +35,7 @@ import {
   SERVICE_RESTART_PENDING_FILE,
 } from "./service/serviceProtocol.ts";
 
-const spawnedChildren = vi.hoisted((): Array<NodeChildProcess.ChildProcess> => []);
+const spawnedChildren = vi.hoisted(() => []);
 const spawnHook = vi.hoisted(() => ({
   current: undefined as ((child: NodeChildProcess.ChildProcess) => void) | undefined,
 }));

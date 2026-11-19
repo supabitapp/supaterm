@@ -8,7 +8,11 @@ type JsonPath = ReadonlyArray<string | number | null>;
 
 export function createTranscriptJsonSelector(schema: { readonly ast: SchemaAST.AST }) {
   const ast = SchemaAST.toEncoded(schema.ast);
-  const includes = (node: SchemaAST.AST, path: JsonPath, index: number): boolean => {
+  const includes: (node: SchemaAST.AST, path: JsonPath, index: number) => boolean = (
+    node: SchemaAST.AST,
+    path: JsonPath,
+    index: number,
+  ) => {
     if (index === path.length) return true;
     switch (node._tag) {
       case "Objects":
@@ -174,7 +178,7 @@ export function createTranscriptJsonReader(
   };
   return {
     write: (chunk: string) => consume(chunk),
-    finish: (): unknown => {
+    finish: () => {
       consume(none);
       if (malformed || !complete) return undefined;
       selectToken(none);

@@ -10,7 +10,7 @@ const isRunning = (status: string) =>
 
 type KeptThreads = ReadonlyMap<EnvironmentId, ReadonlySet<ThreadId>>;
 
-function isDetailDone<E>(result: AsyncResult.AsyncResult<EnvironmentThreadState, E>): boolean {
+function isDetailDone<E>(result: AsyncResult.AsyncResult<EnvironmentThreadState, E>) {
   if (!AsyncResult.isSuccess(result)) return true;
   const { status, data, error } = result.value;
   if (status === "deleted" || Option.isSome(error)) return true;
@@ -47,7 +47,7 @@ export function createRunningThreadKeepAliveAtom<E>(input: {
     }).pipe(Atom.withLabel(`running-thread-ids:${environmentId}`));
   });
 
-  return Atom.make((get): KeptThreads => {
+  return Atom.make((get) => {
     const previous = Option.getOrUndefined(get.self<KeptThreads>());
     const kept = new Map<EnvironmentId, ReadonlySet<ThreadId>>();
     for (const environmentId of get(input.environmentIdsAtom)) {

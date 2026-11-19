@@ -36,7 +36,7 @@ export function sideChatStartBlockedReason(input: {
   readonly canOperate: boolean;
   /** The environment's `sideChats` capability, or null while its server config loads. */
   readonly supported: boolean | null;
-}): string | null {
+}) {
   const { parent } = input;
   if (parent.kind === "draft" ? parent.sideChat : parent.lineage.sideChat === true) {
     return "Side chats cannot start side chats.";
@@ -62,15 +62,14 @@ export type SideChatCommandAction =
  * What sending `text` does: `/side [prompt]` or `/btw [prompt]` starts a side chat, or is refused
  * with `blockedReason` rather than reaching the thread's agent as a message.
  */
-export function resolveSideChatCommand(
-  text: string,
-  blockedReason: string | null,
-): SideChatCommandAction {
+export function resolveSideChatCommand(text: string, blockedReason: string | null) {
   const command = parseSideChatCommand(text);
-  if (command === null) return { kind: "none" };
-  return blockedReason === null
-    ? { kind: "start", prompt: command.prompt }
-    : { kind: "refuse", reason: blockedReason };
+  if (command === null) return { kind: "none" } satisfies SideChatCommandAction;
+  return (
+    blockedReason === null
+      ? { kind: "start", prompt: command.prompt }
+      : { kind: "refuse", reason: blockedReason }
+  ) satisfies SideChatCommandAction;
 }
 
 export type SideChatFirstMessageResult<A> =
@@ -102,10 +101,11 @@ export async function sendSideChatFirstMessage<A>(input: {
   readonly targetThreadId: ThreadId;
   readonly creationSource: OrchestrationV2CreationSource;
   readonly enqueue: () => Promise<A>;
-}): Promise<SideChatFirstMessageResult<A>> {
+}) {
   const targetRef = scopeThreadRef(input.parentRef.environmentId, input.targetThreadId);
   const key = scopedThreadKey(targetRef);
-  if (firstMessagesInFlight.has(key)) return { kind: "busy" };
+  if (firstMessagesInFlight.has(key))
+    return { kind: "busy" } satisfies SideChatFirstMessageResult<A>;
   firstMessagesInFlight.add(key);
   const forked = () =>
     input.readThread(targetRef)?.lineage.parentThreadId === input.parentRef.threadId;
@@ -127,22 +127,25 @@ export async function sendSideChatFirstMessage<A>(input: {
       );
       if (fork._tag === "Failure" && !forked()) {
         if (isAtomCommandInterrupted(fork)) {
-          return { kind: "failed", reason: "Starting the side chat was cancelled." };
+          return {
+            kind: "failed",
+            reason: "Starting the side chat was cancelled.",
+          } satisfies SideChatFirstMessageResult<A>;
         }
         const error = squashAtomCommandFailure(fork);
         return {
           kind: "failed",
           reason: error instanceof Error ? error.message : "Could not start a side chat.",
-        };
+        } satisfies SideChatFirstMessageResult<A>;
       }
       if (!forked()) await input.waitForThread(targetRef);
     }
-    return { kind: "queued", value: await input.enqueue() };
+    return { kind: "queued", value: await input.enqueue() } satisfies SideChatFirstMessageResult<A>;
   } catch (error) {
     return {
       kind: "failed",
       reason: error instanceof Error ? error.message : "Could not send the side chat's message.",
-    };
+    } satisfies SideChatFirstMessageResult<A>;
   } finally {
     firstMessagesInFlight.delete(key);
   }

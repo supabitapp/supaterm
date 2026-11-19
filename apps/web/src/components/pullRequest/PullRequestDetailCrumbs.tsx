@@ -16,7 +16,7 @@ interface CrumbsPullRequest {
   readonly title: string;
 }
 
-const openNumberContextMenu = (event: ReactMouseEvent, detail: CrumbsPullRequest): void => {
+const openNumberContextMenu = (event: ReactMouseEvent, detail: CrumbsPullRequest) => {
   event.preventDefault();
   event.stopPropagation();
   void showPullRequestLinkContextMenu({

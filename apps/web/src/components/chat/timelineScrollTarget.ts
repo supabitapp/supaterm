@@ -3,7 +3,7 @@ export function isTimelineScrollTarget(
   timeline: HTMLElement,
   deltaY: number,
   wheel?: Pick<WheelEvent, "deltaX" | "shiftKey">,
-): boolean {
+) {
   if (!(target instanceof Element) || !timeline.contains(target) || deltaY === 0) return false;
   if (wheel?.shiftKey || Math.abs(wheel?.deltaX ?? 0) > Math.abs(deltaY)) return false;
 

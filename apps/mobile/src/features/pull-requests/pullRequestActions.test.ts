@@ -15,7 +15,7 @@ const GITLAB = sourceControlClients.get("gitlab").changeRequest;
 
 type Detail = Parameters<typeof allowedMergeMethods>[0];
 
-function detail(overrides: Partial<Detail> = {}): Detail {
+function detail(overrides: Partial<Detail> = {}) {
   return {
     state: "open",
     isDraft: false,
@@ -29,7 +29,7 @@ function detail(overrides: Partial<Detail> = {}): Detail {
     viewerPermissions: { actions: LISTED_ACTIONS, updateMethods: ["merge"] },
     mergeCapabilities: { merge: true, squash: true, rebase: false },
     ...overrides,
-  };
+  } satisfies Detail;
 }
 
 describe("mobile pull request actions", () => {

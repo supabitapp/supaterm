@@ -80,12 +80,23 @@ export function AttachmentFileScreen(props: AttachmentFileScreenProps) {
     setNativeViewer("open");
     setNativeOpen(true);
   }
-  const nativeSource = ((): FilePreviewSource | null => {
+  const nativeSource = (() => {
     const kind = nativeKind ?? "document";
     const base = { kind, name: params.name, mimeType: params.mimeType };
-    if (localAttachment) return { ...base, attachment: localAttachment };
-    if (environmentId) return { ...base, environmentId, resource };
-    return uri ? { ...base, uri } : null;
+    if (localAttachment)
+      return {
+        ...base,
+        attachment: localAttachment,
+      } satisfies FilePreviewSource | null as FilePreviewSource | null;
+    if (environmentId)
+      return {
+        ...base,
+        environmentId,
+        resource,
+      } satisfies FilePreviewSource | null as FilePreviewSource | null;
+    return (uri
+      ? { ...base, uri }
+      : null) satisfies FilePreviewSource | null as FilePreviewSource | null;
   })();
   const handleNativeOpenError = (error: unknown) => {
     pendingNativeError.current = nativeViewerErrorMessage(error);

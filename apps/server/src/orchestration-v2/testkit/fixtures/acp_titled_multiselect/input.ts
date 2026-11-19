@@ -7,7 +7,7 @@ export const ACP_TITLED_MULTISELECT_PROMPT =
  * An ACP form elicitation whose multi-select lists titled `anyOf` options.
  * The client submits option values, including one the form never offered.
  */
-export function acpTitledMultiSelectInput(): OrchestratorFixtureInput {
+export function acpTitledMultiSelectInput() {
   return {
     interactionMode: "plan",
     steps: [
@@ -17,5 +17,5 @@ export function acpTitledMultiSelectInput(): OrchestratorFixtureInput {
         answers: { fixture_areas: ["ui", "unknown", "schemas"] },
       },
     ],
-  };
+  } satisfies OrchestratorFixtureInput;
 }

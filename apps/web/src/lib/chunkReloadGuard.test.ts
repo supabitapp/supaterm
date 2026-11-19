@@ -2,7 +2,8 @@ import { describe, expect, it, vi } from "vite-plus/test";
 
 import { isChunkLoadError, reloadOnceForChunkLoadError } from "./chunkReloadGuard";
 
-function createStorageStub(): Storage {
+function createStorageStub(): Storage;
+function createStorageStub() {
   const store = new Map<string, string>();
   return {
     getItem: (key) => store.get(key) ?? null,
@@ -17,7 +18,7 @@ function createStorageStub(): Storage {
     get length() {
       return store.size;
     },
-  };
+  } satisfies Storage;
 }
 
 describe("reloadOnceForChunkLoadError", () => {

@@ -7,7 +7,7 @@ import { escapeLiteralPercents } from "./MathTypeset.logic";
 
 const typesetCache = new LRUCache<string>(1000, 4 * 1024 * 1024);
 
-function typeset(tex: string, display: boolean): string {
+function typeset(tex: string, display: boolean) {
   const key = `${display ? "display" : "inline"}:${tex}`;
   const cached = typesetCache.get(key);
   if (cached !== null) return cached;

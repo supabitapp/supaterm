@@ -2084,10 +2084,13 @@ describe("locating a device id across hosts", () => {
   const threadId = ThreadId.make("thread-locate");
   const thisMachine = { id: LOCAL_DEVICE_HOST_ID, label: "This machine" };
   const macMini = { id: "mac-mini", label: "Mac Mini" };
-  const listingHost = (
+  const listingHost: (
     host: { readonly id: string; readonly label: string },
     ids: ReadonlyArray<string>,
-  ): DeviceHost.DeviceHost["Service"] => {
+  ) => DeviceHost.DeviceHost["Service"] = (
+    host: { readonly id: string; readonly label: string },
+    ids: ReadonlyArray<string>,
+  ) => {
     const devices = ids.map((id) => ({
       id,
       name: id,

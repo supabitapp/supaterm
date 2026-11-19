@@ -25,7 +25,10 @@ export function useDirectoryEntries(environmentId: EnvironmentId, cwd: string) {
   const running = useRef(0);
   const waiting = useRef<Array<() => void>>([]);
 
-  const startRequest = (directoryPath: string, refresh: boolean): Promise<void> => {
+  const startRequest: (directoryPath: string, refresh: boolean) => Promise<void> = (
+    directoryPath: string,
+    refresh: boolean,
+  ) => {
     loaded.current.add(directoryPath);
     requested.current.add(directoryPath);
     const atom = projectEnvironment.listEntries({ environmentId, input: { cwd, directoryPath } });
@@ -114,7 +117,10 @@ export function useDirectoryEntries(environmentId: EnvironmentId, cwd: string) {
     return request;
   };
 
-  const load = function loadDirectory(directoryPath: string, refresh = false): Promise<void> {
+  const load: (directoryPath: string, refresh?: boolean) => Promise<void> = function loadDirectory(
+    directoryPath: string,
+    refresh = false,
+  ) {
     const existing = requests.current.get(directoryPath);
     if (existing) {
       if (!refresh) return existing;

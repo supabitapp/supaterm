@@ -198,11 +198,11 @@ export const RepositoryIdentity = Schema.Struct({
 });
 export type RepositoryIdentity = typeof RepositoryIdentity.Type;
 
-export function repositoryGroupingKeyOf(identity: RepositoryIdentity): string {
+export function repositoryGroupingKeyOf(identity: RepositoryIdentity) {
   return identity.origin?.canonicalKey ?? identity.canonicalKey;
 }
 
-export function repositoryGroupingDisplayNameOf(identity: RepositoryIdentity): string | undefined {
+export function repositoryGroupingDisplayNameOf(identity: RepositoryIdentity) {
   return identity.origin
     ? (identity.origin.displayName ?? identity.origin.canonicalKey)
     : identity.displayName;

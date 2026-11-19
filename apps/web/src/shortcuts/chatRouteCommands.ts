@@ -38,7 +38,7 @@ function leavePullRequestsPage(router: AnyRouter) {
  * without a modal page over it. Everything is read at event time, so the scope
  * registers once; the route and the focused-pane DOM name the split pane to act on.
  */
-export function installChatRouteCommands(router: AnyRouter): () => void {
+export function installChatRouteCommands(router: AnyRouter) {
   const handleNewThread = createNewThreadHandler(router);
   const primaryEnvironmentId = () => appAtomRegistry.get(primaryEnvironmentIdAtom);
   const scratch = createScratchProjectActions({

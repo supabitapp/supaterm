@@ -133,9 +133,11 @@ const root = {
     unresolve: false,
   },
 };
-const stack = (
+const stack: (
   members: ReadonlyArray<{ number: number; headOid: string; state?: string }>,
-): Record<string, unknown> => ({
+) => Record<string, unknown> = (
+  members: ReadonlyArray<{ number: number; headOid: string; state?: string }>,
+) => ({
   "GET /repos/owner/repo/pulls/7/stack": {
     stack: {
       id: "stack-one",

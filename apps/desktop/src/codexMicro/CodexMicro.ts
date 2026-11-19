@@ -84,10 +84,13 @@ const readSettings = (codexMicro: CodexMicroSettings) => ({
   separateMicrophoneKeys: codexMicro.layout.separateMicrophoneKeys,
 });
 
-const deviceState = (
+const deviceState: (
   status: CodexMicroConnectionStatus,
   inputMonitoring: CodexMicroDeviceState["inputMonitoring"],
-): CodexMicroDeviceState => ({
+) => CodexMicroDeviceState = (
+  status: CodexMicroConnectionStatus,
+  inputMonitoring: CodexMicroDeviceState["inputMonitoring"],
+) => ({
   status,
   controlPlane: "unavailable",
   error: null,

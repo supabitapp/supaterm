@@ -35,7 +35,7 @@ export function automaticTranscriptionProvider<
     readonly enabled: boolean;
     readonly transcription?: ServerProviderTranscription | undefined;
   },
->(providers: ReadonlyArray<Provider>): Provider | undefined {
+>(providers: ReadonlyArray<Provider>) {
   const preference = (provider: Provider) => {
     if (provider.instanceId === "claudeAgent") return 0;
     return provider.driver === "claudeAgent" ? 1 : 2;
@@ -198,7 +198,7 @@ export class TranscriptionError extends Schema.TaggedError<TranscriptionError>()
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return this.reason === undefined
       ? TRANSCRIPTION_ERROR_MESSAGES.failed
       : TRANSCRIPTION_ERROR_MESSAGES[this.reason];

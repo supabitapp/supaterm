@@ -49,9 +49,7 @@ type ChildProcessTerminationHandle = Pick<
   "exitCode" | "pid"
 >;
 
-export const makeTerminationError = (
-  handle: ChildProcessTerminationHandle,
-): Effect.Effect<AcpError.AcpError> =>
+export const makeTerminationError = (handle: ChildProcessTerminationHandle) =>
   Effect.match(handle.exitCode, {
     onFailure: (cause) => {
       const signal =

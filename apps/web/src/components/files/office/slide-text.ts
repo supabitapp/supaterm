@@ -65,7 +65,7 @@ const Table = Schema.Struct({
 
 const Drawing: Schema.Codec<Drawing> = Schema.Struct({
   text: Schema.optional(Schema.NullOr(Body)),
-  children: Schema.optional(Schema.Array(Schema.suspend((): Schema.Codec<Drawing> => Drawing))),
+  children: Schema.optional(Schema.Array(Schema.suspend(() => Drawing))),
   data: Schema.optional(Schema.NullOr(Table)),
 });
 
@@ -128,19 +128,21 @@ const scriptRanges: readonly (readonly [FallbackScript, RegExp])[] = [
 
 const hanRange = /[\u3000-\u303F\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF\uFF00-\uFFEF]/u;
 
-function scripts(text: string): FallbackScript[] {
+function scripts(text: string) {
   const found = scriptRanges.flatMap((entry) => (entry[1].test(text) ? [entry[0]] : []));
 
-  return hanRange.test(text) && !found.some((script) => script.startsWith("cjk-"))
-    ? [...found, "cjk-sc"]
-    : found;
+  return (
+    hanRange.test(text) && !found.some((script) => script.startsWith("cjk-"))
+      ? [...found, "cjk-sc"]
+      : found
+  ) satisfies FallbackScript[];
 }
 
 /**
  * Reads the families, styles and scripts a deck's text uses, from its slides, layouts, masters and theme. When the
  * engine's inspection does not decode, the slides' own runs stand in, without theme fonts or hidden flags.
  */
-export function deckText(bytes: Uint8Array, snapshot: DeckSnapshot): DeckText {
+export function deckText(bytes: Uint8Array, snapshot: DeckSnapshot) {
   return pipe(
     withoutMedia(bytes),
     inspectPresentation,
@@ -192,7 +194,7 @@ export function deckText(bytes: Uint8Array, snapshot: DeckSnapshot): DeckText {
         );
       },
     }),
-  );
+  ) satisfies DeckText;
 }
 
 type Entry = {
@@ -202,7 +204,7 @@ type Entry = {
   readonly local: number;
 };
 
-function withoutMedia(bytes: Uint8Array): Uint8Array {
+function withoutMedia(bytes: Uint8Array) {
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   const end = endOfDirectory(view);
 
@@ -304,17 +306,18 @@ function readEntries(view: DataView, directory: number, end: number, count: numb
 
 type Run = { readonly text: string; readonly style: typeof RunStyle.Type | null | undefined };
 
-function drawingRuns(drawing: Drawing): Run[] {
+function drawingRuns(drawing: Drawing): Run[];
+function drawingRuns(drawing: Drawing) {
   return [
     ...bodyRuns(drawing.text),
     ...(drawing.data?.rows ?? []).flatMap((row) =>
       row.cells.flatMap((cell) => bodyRuns(cell.text)),
     ),
     ...(drawing.children ?? []).flatMap(drawingRuns),
-  ];
+  ] satisfies Run[];
 }
 
-function bodyRuns(body: typeof Body.Type | null | undefined): Run[] {
+function bodyRuns(body: typeof Body.Type | null | undefined) {
   return (body?.paragraphs ?? []).flatMap((paragraph) =>
     paragraph.runs.map((run) => ({
       text: run.text,
@@ -327,8 +330,10 @@ function bodyRuns(body: typeof Body.Type | null | undefined): Run[] {
   );
 }
 
-function fromSnapshot(snapshot: DeckSnapshot): DeckText {
-  const runs = (drawings: DeckSnapshot["slides"][number]["shapes"]): Run[] =>
+function fromSnapshot(snapshot: DeckSnapshot) {
+  const runs: (drawings: DeckSnapshot["slides"][number]["shapes"]) => Run[] = (
+    drawings: DeckSnapshot["slides"][number]["shapes"],
+  ) =>
     drawings.flatMap((drawing) => [
       ...drawing.textStories.flatMap((story) =>
         story.paragraphs.flatMap((paragraph) =>
@@ -343,7 +348,7 @@ function fromSnapshot(snapshot: DeckSnapshot): DeckText {
     (family) => family ?? "",
     "",
     snapshot.slides.map(() => false),
-  );
+  ) satisfies DeckText;
 }
 
 function summarize(
@@ -351,7 +356,7 @@ function summarize(
   resolve: (family: string | null | undefined) => string,
   theme: string,
   hidden: readonly boolean[],
-): DeckText {
+) {
   const families = new Map<
     string,
     { name: string; weight: number; styles: Map<string, FontStyle> }
@@ -387,7 +392,7 @@ function summarize(
       })),
     scripts: scripts(text),
     hidden,
-  };
+  } satisfies DeckText;
 }
 
 function rank(entry: readonly [string, { readonly weight: number }], body: string) {

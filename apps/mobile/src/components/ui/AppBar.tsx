@@ -28,7 +28,8 @@ function iosIcon(icon: AppSymbolName) {
 }
 
 type MailMenu = NonNullable<HeaderBarButtonMailSearchToolbarItem["filterMenu"]>;
-function mailMenuItems(items: ReadonlyArray<AppBarMenuItem>): MailMenu["items"] {
+function mailMenuItems(items: ReadonlyArray<AppBarMenuItem>): MailMenu["items"];
+function mailMenuItems(items: ReadonlyArray<AppBarMenuItem>) {
   return items.map((item) =>
     "items" in item
       ? { type: "submenu", title: item.title ?? "", items: mailMenuItems(item.items) }
@@ -39,7 +40,7 @@ function mailMenuItems(items: ReadonlyArray<AppBarMenuItem>): MailMenu["items"] 
           disabled: item.disabled,
           onPress: item.onPress,
         },
-  );
+  ) satisfies MailMenu["items"];
 }
 
 export function AppBar(props: AppBarProps) {

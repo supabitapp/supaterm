@@ -1,4 +1,3 @@
-import type { GitCommandError } from "@supaterm/contracts";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 
@@ -39,7 +38,7 @@ interface TemplateTreeEntry {
   readonly path: string;
 }
 
-function parseTemplateTreeEntries(output: string): ReadonlyArray<TemplateTreeEntry> {
+function parseTemplateTreeEntries(output: string) {
   const entries: TemplateTreeEntry[] = [];
   for (const record of output.split("\0")) {
     if (record.length === 0) {
@@ -70,7 +69,7 @@ function readTemplateBlob(input: {
   readonly cwd: string;
   readonly executeGit: ExecuteGit;
   readonly entry: TemplateTreeEntry;
-}): Effect.Effect<Option.Option<string>, GitCommandError> {
+}) {
   return input
     .executeGit({
       operation: "gitHubChangeRequestTemplate.readTemplateBlob",
@@ -94,18 +93,13 @@ function readTemplateBlob(input: {
     );
 }
 
-type DirectoryTemplateResult =
-  | { readonly _tag: "None" }
-  | { readonly _tag: "Ambiguous" }
-  | { readonly _tag: "Template"; readonly template: string };
-
 const readTemplateDirectory = Effect.fn("gitHubChangeRequestTemplate.readTemplateDirectory")(
   function* (input: {
     readonly cwd: string;
     readonly executeGit: ExecuteGit;
     readonly entries: ReadonlyArray<TemplateTreeEntry>;
     readonly directory: string;
-  }): Effect.fn.Return<DirectoryTemplateResult, GitCommandError> {
+  }) {
     const prefix = `${input.directory}/`;
     const candidates = input.entries.filter((entry) => {
       if (!entry.path.startsWith(prefix)) {

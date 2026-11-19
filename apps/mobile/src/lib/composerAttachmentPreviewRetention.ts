@@ -6,14 +6,15 @@ type UnusedAttachmentHandler = (attachment: FileBackedComposerAttachment) => voi
 
 let onAttachmentUnused: UnusedAttachmentHandler | null = null;
 
-export function registerComposerAttachmentUnusedHandler(handler: UnusedAttachmentHandler): void {
+export function registerComposerAttachmentUnusedHandler(handler: UnusedAttachmentHandler) {
   onAttachmentUnused = handler;
 }
 
 export function retainComposerAttachmentFileForPreview(
   attachment: FileBackedComposerAttachment,
-): () => void {
+): () => void;
+export function retainComposerAttachmentFileForPreview(attachment: FileBackedComposerAttachment) {
   return retainComposerAttachmentFile(attachment.fileUri, () => {
     onAttachmentUnused?.(attachment);
-  });
+  }) satisfies () => void;
 }

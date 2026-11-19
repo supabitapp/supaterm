@@ -13,13 +13,16 @@ export interface AcpRuntimePolicy {
 
 export type AcpPermissionDisposition = "allow" | "ask" | "deny";
 
-export function unknownRecord(value: unknown): Record<string, unknown> | undefined {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : undefined;
+export function unknownRecord(value: unknown): Record<string, unknown> | undefined;
+export function unknownRecord(value: unknown) {
+  return (
+    typeof value === "object" && value !== null && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : undefined
+  ) satisfies Record<string, unknown> | undefined;
 }
 
-function resolveAcpPermissionPath(path: string, cwd: string | null): string | undefined {
+function resolveAcpPermissionPath(path: string, cwd: string | null) {
   const trimmed = path.trim();
   if (trimmed.length === 0) return undefined;
   if (NodePath.isAbsolute(trimmed)) return trimmed;
@@ -27,7 +30,7 @@ function resolveAcpPermissionPath(path: string, cwd: string | null): string | un
   return `${cwd}${cwd.endsWith(NodePath.sep) ? "" : NodePath.sep}${trimmed}`;
 }
 
-function acpPathIsWithinRoot(path: string, root: string): boolean {
+function acpPathIsWithinRoot(path: string, root: string) {
   const relative = NodePath.relative(root, path);
   return (
     relative === "" ||
@@ -37,7 +40,7 @@ function acpPathIsWithinRoot(path: string, root: string): boolean {
   );
 }
 
-function acpCanonicalPathForContainment(path: string): string | undefined {
+function acpCanonicalPathForContainment(path: string) {
   let candidate = path;
   const missingSuffix: Array<string> = [];
 
@@ -71,17 +74,17 @@ interface AcpPolicyOperation {
   readonly locations: ReadonlyArray<{ readonly path: string }> | null | undefined;
 }
 
-function acpPolicyRequiresApproval(runtimePolicy: AcpRuntimePolicy): boolean {
+function acpPolicyRequiresApproval(runtimePolicy: AcpRuntimePolicy) {
   return runtimePolicy.approvalPolicy === undefined
     ? runtimePolicy.runtimeMode === "approval-required"
     : runtimePolicy.approvalPolicy !== "never";
 }
 
-function isAcpReadKind(toolKind: string): boolean {
+function isAcpReadKind(toolKind: string) {
   return toolKind === "read" || toolKind === "search" || toolKind === "think";
 }
 
-function acpReadDisposition(runtimePolicy: AcpRuntimePolicy): "allow" | "deny" {
+function acpReadDisposition(runtimePolicy: AcpRuntimePolicy) {
   switch (unknownRecord(runtimePolicy.sandboxPolicy)?.type) {
     case undefined:
     case "readOnly":
@@ -98,7 +101,7 @@ function acpWorkspaceWriteAllowsMutation(
   runtimePolicy: AcpRuntimePolicy,
   sandboxPolicy: Record<string, unknown>,
   locations: AcpPolicyOperation["locations"],
-): boolean {
+) {
   const cwd =
     typeof runtimePolicy.cwd === "string" && runtimePolicy.cwd.trim().length > 0
       ? (resolveAcpPermissionPath(runtimePolicy.cwd, process.cwd()) ?? null)
@@ -137,10 +140,7 @@ function acpWorkspaceWriteAllowsMutation(
   return true;
 }
 
-function acpOperationDisposition(
-  runtimePolicy: AcpRuntimePolicy,
-  operation: AcpPolicyOperation,
-): AcpPermissionDisposition {
+function acpOperationDisposition(runtimePolicy: AcpRuntimePolicy, operation: AcpPolicyOperation) {
   const toolKind = operation.kind ?? "other";
   if (isAcpReadKind(toolKind)) {
     return acpReadDisposition(runtimePolicy);
@@ -182,14 +182,14 @@ function acpOperationDisposition(
   }
 }
 
-function isAcpMutationKind(toolKind: string): boolean {
+function isAcpMutationKind(toolKind: string) {
   return toolKind === "edit" || toolKind === "delete" || toolKind === "move";
 }
 
 export function acpPermissionDisposition(
   runtimePolicy: AcpRuntimePolicy,
   request: EffectAcpSchema.RequestPermissionRequest,
-): AcpPermissionDisposition {
+) {
   return acpOperationDisposition(runtimePolicy, {
     kind: request.toolCall.kind,
     locations: request.toolCall.locations,
@@ -200,7 +200,7 @@ export function acpMcpToolApprovalElicitationDisposition(
   runtimePolicy: AcpRuntimePolicy,
   request: EffectAcpSchema.CreateElicitationRequest,
   nativeRequestId?: string,
-): "ask" | "allow" | undefined {
+) {
   if (
     request.mode !== "form" ||
     (unknownRecord(request._meta)?.codex_approval_kind !== "mcp_tool_call" &&
@@ -211,9 +211,7 @@ export function acpMcpToolApprovalElicitationDisposition(
   return acpPolicyRequiresApproval(runtimePolicy) ? "ask" : "allow";
 }
 
-export function acpClientExecuteDisposition(
-  runtimePolicy: AcpRuntimePolicy,
-): AcpPermissionDisposition {
+export function acpClientExecuteDisposition(runtimePolicy: AcpRuntimePolicy) {
   return acpOperationDisposition(runtimePolicy, { kind: "execute", locations: undefined });
 }
 
@@ -230,7 +228,8 @@ export interface AcpClientPolicyGrants {
 }
 
 /** ACP cannot link commands to terminals; approved execute requests grant execution for the turn or accepted session. */
-export function makeAcpClientPolicyGrants(): AcpClientPolicyGrants {
+export function makeAcpClientPolicyGrants(): AcpClientPolicyGrants;
+export function makeAcpClientPolicyGrants() {
   let sessionExecute = false;
   let turnExecute: string | null = null;
   return {
@@ -243,5 +242,5 @@ export function makeAcpClientPolicyGrants(): AcpClientPolicyGrants {
       }
     },
     allowsExecute: (turnKey) => sessionExecute || (turnKey !== null && turnExecute === turnKey),
-  };
+  } satisfies AcpClientPolicyGrants;
 }

@@ -6,7 +6,14 @@ export function withMenuActionIconColors(
     readonly icon: MenuAction["imageColor"];
     readonly destructiveIcon: MenuAction["imageColor"];
   },
-): MenuAction[] {
+): MenuAction[];
+export function withMenuActionIconColors(
+  actions: readonly MenuAction[],
+  colors: {
+    readonly icon: MenuAction["imageColor"];
+    readonly destructiveIcon: MenuAction["imageColor"];
+  },
+) {
   return actions.map((action) => ({
     ...action,
     ...(action.image
@@ -19,5 +26,5 @@ export function withMenuActionIconColors(
     ...(action.subactions
       ? { subactions: withMenuActionIconColors(action.subactions, colors) }
       : {}),
-  }));
+  })) satisfies MenuAction[];
 }

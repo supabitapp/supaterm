@@ -13,11 +13,11 @@ export type ModelEsque = {
   isUnavailable?: boolean | undefined;
 };
 
-function escapeRegExp(value: string): string {
+function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-function stripLeadingQualifier(value: string, qualifier: string | null | undefined): string {
+function stripLeadingQualifier(value: string, qualifier: string | null | undefined) {
   const trimmedQualifier = qualifier?.trim();
   if (!trimmedQualifier) {
     return value;
@@ -30,15 +30,13 @@ function stripLeadingQualifier(value: string, qualifier: string | null | undefin
 export function getDisplayModelName(
   model: ModelEsque,
   options?: { preferShortName?: boolean },
-): string {
+): string;
+export function getDisplayModelName(model: ModelEsque, options?: { preferShortName?: boolean }) {
   const name = options?.preferShortName && model.shortName ? model.shortName : model.name;
-  return stripLeadingQualifier(name, model.subProvider);
+  return stripLeadingQualifier(name, model.subProvider) satisfies string;
 }
 
-export function getProviderRowLabel(
-  providerDisplayName: string,
-  subProvider: string | undefined,
-): string {
+export function getProviderRowLabel(providerDisplayName: string, subProvider: string | undefined) {
   const provider = providerDisplayName.trim();
   const sub = subProvider?.trim();
   if (!sub) {
@@ -53,7 +51,11 @@ export function getProviderRowLabel(
 export function getTriggerDisplayModelName(
   model: ModelEsque,
   driverKind: ProviderDriverKind | null | undefined,
-): string {
+): string;
+export function getTriggerDisplayModelName(
+  model: ModelEsque,
+  driverKind: ProviderDriverKind | null | undefined,
+) {
   const shortName = resolveModelShortName(model, driverKind);
-  return getDisplayModelName({ ...model, shortName }, { preferShortName: true });
+  return getDisplayModelName({ ...model, shortName }, { preferShortName: true }) satisfies string;
 }

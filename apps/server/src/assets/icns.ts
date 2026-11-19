@@ -5,7 +5,7 @@ const ICNS_MAGIC = 0x69636e73;
 const PNG_MAGIC = 0x89504e47;
 
 /** Returns a copy to avoid retaining the whole .icns buffer. */
-export function extractIcnsPng(bytes: Uint8Array, minSize: number): Uint8Array | null {
+export function extractIcnsPng(bytes: Uint8Array, minSize: number) {
   const data = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   if (bytes.length < ICNS_HEADER_BYTES || data.getUint32(0) !== ICNS_MAGIC) return null;
   const end = Math.min(data.getUint32(4), bytes.length);

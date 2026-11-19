@@ -24,11 +24,11 @@ const ChannelManifest = Schema.Struct({
   version: Schema.String.check(Schema.isPattern(/^\d+\.\d+\.\d+-R\d+(?:\.\d+)?$/)),
 });
 
-export function parseMuseVersion(output: string): string | null {
+export function parseMuseVersion(output: string) {
   return output.match(/\b\d+\.\d+\.\d+-R\d+(?:\.\d+)?\b/)?.[0] ?? parseGenericCliVersion(output);
 }
 
-function comparableMuseVersion(version: string): string {
+function comparableMuseVersion(version: string) {
   return version.replace(/-R(\d+)(?:\.(\d+))?$/, "-release.$1.$2").replace(/\.$/, ".0");
 }
 

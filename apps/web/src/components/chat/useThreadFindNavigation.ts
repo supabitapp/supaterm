@@ -36,7 +36,7 @@ function revealThreadFindMatch(
     readonly listRef: RefObject<LegendListRef | null>;
     readonly readInputs: () => RevealInputs;
   },
-): void {
+) {
   const { state, listRef, readInputs } = context;
   const {
     matchKey,
@@ -205,7 +205,7 @@ export function useThreadFindNavigation({
     revealedMatch: null,
     positionedEntries: null,
   });
-  const readInputs = useStableCallback((): RevealInputs => ({
+  const readInputs = useStableCallback(() => ({
     matchKey,
     rowIndex,
     entries,

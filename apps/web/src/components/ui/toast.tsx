@@ -77,7 +77,8 @@ type BaseToastManager = ReturnType<typeof Toast.createToastManager<ThreadToastDa
 type ToastManagerListener = Parameters<BaseToastManager[" subscribe"]>[0];
 type ToastManagerEvent = Parameters<ToastManagerListener>[0];
 
-function createBufferedToastManager(): BaseToastManager {
+function createBufferedToastManager(): BaseToastManager;
+function createBufferedToastManager() {
   const manager = Toast.createToastManager<ThreadToastData>();
   const listeners = new Set<ToastManagerListener>();
   const pending: ToastManagerEvent[] = [];
@@ -97,7 +98,7 @@ function createBufferedToastManager(): BaseToastManager {
         listeners.delete(listener);
       };
     },
-  };
+  } satisfies BaseToastManager;
 }
 
 const toastManager = createBufferedToastManager();
@@ -114,7 +115,7 @@ const TOAST_ICONS = {
 } as const;
 
 const ERROR_DESCRIPTION_CLAMP_MIN_CHARS = 180;
-function errorDescriptionClampClass(type: unknown, description: unknown): string | undefined {
+function errorDescriptionClampClass(type: unknown, description: unknown) {
   if (type !== "error" || typeof description !== "string") {
     return undefined;
   }
@@ -299,7 +300,7 @@ function deriveToastBodyDescriptor(toast: {
   readonly description?: unknown;
   readonly actionProps?: unknown;
   readonly data?: ThreadToastData | undefined;
-}): ToastBodyDescriptor {
+}) {
   const Icon = toast.type ? TOAST_ICONS[toast.type as keyof typeof TOAST_ICONS] : null;
   const stackedActionLayout =
     hasVisibleToastAction(toast.actionProps) && toast.data?.actionLayout === "stacked-end";
@@ -445,25 +446,25 @@ interface ToastProviderProps extends Toast.Provider.Props {
   position?: ToastPosition;
 }
 
-function useActiveThreadRefFromRoute(): ScopedThreadRef | null {
+function useActiveThreadRefFromRoute() {
   const routeTarget = useThreadRouteTarget();
   const activeDraftSession = useComposerDraftStore((store) =>
     routeTarget?.kind === "draft" ? store.getDraftSession(routeTarget.draftId) : null,
   );
 
   if (routeTarget?.kind === "server") {
-    return routeTarget.threadRef;
+    return routeTarget.threadRef satisfies ScopedThreadRef | null;
   }
   if (routeTarget?.kind === "draft" && activeDraftSession) {
     return {
       environmentId: activeDraftSession.environmentId,
       threadId: activeDraftSession.threadId,
-    };
+    } satisfies ScopedThreadRef | null;
   }
-  return null;
+  return null satisfies ScopedThreadRef | null;
 }
 
-function useVisibleThreadRefs(): ReadonlyArray<ScopedThreadRef> {
+function useVisibleThreadRefs() {
   const activeThreadRef = useActiveThreadRefFromRoute();
   const paneThreadRefs = useChatPaneStore(
     useShallow((state) =>

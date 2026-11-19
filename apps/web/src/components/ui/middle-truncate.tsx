@@ -116,10 +116,7 @@ const MIN_WORD_TAIL = 4;
 const WORD_BREAK = /[-_./]/;
 const graphemeSegmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
 
-export function splitForMiddleTruncate(
-  value: string,
-  tail?: number,
-): { head: string; tail: string } | null {
+export function splitForMiddleTruncate(value: string, tail?: number) {
   const chars = Array.from(graphemeSegmenter.segment(value), (part) => part.segment);
   let keep = tail ?? DEFAULT_TAIL;
   if (tail === undefined) {

@@ -10,25 +10,26 @@ export interface ProviderModelItem extends ModelSlugItem {
   readonly instanceId: ProviderInstanceId;
 }
 
-export function providerModelKey(instanceId: ProviderInstanceId, slug: string): string {
+export function providerModelKey(instanceId: ProviderInstanceId, slug: string) {
   return `${instanceId}:${slug}`;
 }
 
-function rankByValue(values: ReadonlyArray<string>): ReadonlyMap<string, number> {
+function rankByValue(values: ReadonlyArray<string>) {
   return new Map(Arr.map(values, (value, index) => [value, index] as const));
 }
 
 function toSet(
   values: ReadonlySet<string> | ReadonlyArray<string> | undefined,
-): ReadonlySet<string> {
-  return values instanceof Set ? values : new Set(values ?? []);
+): ReadonlySet<string>;
+function toSet(values: ReadonlySet<string> | ReadonlyArray<string> | undefined) {
+  return (values instanceof Set ? values : new Set(values ?? [])) satisfies ReadonlySet<string>;
 }
 
-function byOptionalRank<T>(rank: (item: T) => number | undefined): Order.Order<T> {
+function byOptionalRank<T>(rank: (item: T) => number | undefined) {
   return Order.mapInput(Order.Number, (item: T) => rank(item) ?? Number.POSITIVE_INFINITY);
 }
 
-function byTrueFirst<T>(predicate: (item: T) => boolean): Order.Order<T> {
+function byTrueFirst<T>(predicate: (item: T) => boolean) {
   return Order.mapInput(Order.flip(Order.Boolean), predicate);
 }
 
@@ -39,7 +40,7 @@ export function sortModelsForProviderInstance<T extends ModelSlugItem>(
     readonly favoriteModels?: ReadonlySet<string> | ReadonlyArray<string>;
     readonly groupFavorites?: boolean;
   },
-): T[] {
+) {
   const modelOrder = options?.modelOrder ?? [];
   const favoriteModels = toSet(options?.favoriteModels);
   const orderBySlug = rankByValue(modelOrder);
@@ -62,7 +63,7 @@ export function sortProviderModelItems<T extends ProviderModelItem>(
     readonly groupFavorites?: boolean;
     readonly instanceOrder?: ReadonlyArray<ProviderInstanceId>;
   },
-): T[] {
+) {
   const favoriteModelKeys = toSet(options?.favoriteModelKeys);
   const instanceOrder = new Map(
     Arr.map(options?.instanceOrder ?? [], (instanceId, index) => [instanceId, index] as const),

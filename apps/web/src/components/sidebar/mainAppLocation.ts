@@ -21,7 +21,7 @@ let appModalReturnThreadTarget: ThreadRouteTarget | null = null;
 let initialHistoryIndex = 0;
 
 /** Remembers where Settings, Usage, and the utility pages lead back to. */
-export function startMainAppLocationTracking(router: AnyRouter): () => void {
+export function startMainAppLocationTracking(router: AnyRouter) {
   initialHistoryIndex = router.state.location.state.__TSR_index;
   const record = () => {
     const { pathname } = router.state.location;

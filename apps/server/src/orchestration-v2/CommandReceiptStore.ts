@@ -14,7 +14,7 @@ export class CommandReceiptStoreWriteError extends Schema.TaggedError<CommandRec
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Failed to write orchestration V2 command receipt ${this.commandId}.`;
   }
 }
@@ -26,7 +26,7 @@ export class CommandReceiptStoreReadError extends Schema.TaggedError<CommandRece
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Failed to read orchestration V2 command receipt ${this.commandId}.`;
   }
 }
@@ -111,9 +111,7 @@ function fromApplicationReceipt(receipt: OrchestrationCommandReceipts.Orchestrat
   });
 }
 
-function toApplicationReceipt(
-  receipt: AnyCommandReceiptV2,
-): OrchestrationCommandReceipts.OrchestrationCommandReceipt {
+function toApplicationReceipt(receipt: AnyCommandReceiptV2) {
   return {
     commandId: receipt.commandId,
     ...("projectId" in receipt

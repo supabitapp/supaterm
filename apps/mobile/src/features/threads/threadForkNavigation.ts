@@ -7,7 +7,7 @@ export async function waitForThreadShellReady(input: {
   readonly pollIntervalMs?: number;
   readonly now?: () => number;
   readonly delay?: (durationMs: number) => Promise<void>;
-}): Promise<boolean> {
+}) {
   const now = input.now ?? Date.now;
   const delay =
     input.delay ??

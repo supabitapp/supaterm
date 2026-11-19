@@ -21,7 +21,6 @@ import {
   queuedEditDraftKey,
   removeQueuedRunEditAttachment,
   resolveQueuedEditPayload,
-  type QueuedRunEdit,
 } from "./queued-run-edit";
 import { threadComposerErrorsAtom } from "./thread-composer-error";
 import {
@@ -44,7 +43,7 @@ vi.mock("expo-file-system", () => ({
   Paths: { document: { uri: "file:///documents" } },
 }));
 
-const image = (id: string): ChatAttachment => ({
+const image = (id: string) => ({
   type: "image",
   id: ChatAttachmentId.make(id),
   name: `${id}.png`,
@@ -52,7 +51,7 @@ const image = (id: string): ChatAttachment => ({
   sizeBytes: 10,
 });
 
-function edit(attachments: ReadonlyArray<ChatAttachment>): QueuedRunEdit {
+function edit(attachments: ReadonlyArray<ChatAttachment>) {
   return {
     runId: RunId.make("run-1"),
     messageId: MessageId.make("message-1"),
@@ -61,7 +60,7 @@ function edit(attachments: ReadonlyArray<ChatAttachment>): QueuedRunEdit {
   };
 }
 
-function context(attachmentIds: ReadonlyArray<string>): OrchestrationMessageContext {
+function context(attachmentIds: ReadonlyArray<string>) {
   return {
     version: 1,
     records: attachmentIds.map((attachmentId, index) => ({
@@ -74,7 +73,7 @@ function context(attachmentIds: ReadonlyArray<string>): OrchestrationMessageCont
       mimeType: "image/png",
       sizeBytes: 10,
     })),
-  };
+  } satisfies OrchestrationMessageContext;
 }
 
 describe("resolveQueuedEditPayload", () => {

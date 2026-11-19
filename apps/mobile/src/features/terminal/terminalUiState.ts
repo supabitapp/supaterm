@@ -13,18 +13,15 @@ export interface TerminalUiStateTarget {
 
 const terminalGridSizeCache = new Map<string, TerminalGridSize>();
 
-function terminalUiStateKey(target: TerminalUiStateTarget): string {
+function terminalUiStateKey(target: TerminalUiStateTarget) {
   return `${target.environmentId}:${target.threadId}:${target.terminalId}`;
 }
 
-export function getCachedTerminalGridSize(target: TerminalUiStateTarget): TerminalGridSize | null {
+export function getCachedTerminalGridSize(target: TerminalUiStateTarget) {
   return terminalGridSizeCache.get(terminalUiStateKey(target)) ?? null;
 }
 
-export function cacheTerminalGridSize(
-  target: TerminalUiStateTarget,
-  size: TerminalGridSize,
-): TerminalGridSize {
+export function cacheTerminalGridSize(target: TerminalUiStateTarget, size: TerminalGridSize) {
   const normalized = {
     cols: Math.max(1, Math.floor(size.cols)),
     rows: Math.max(1, Math.floor(size.rows)),

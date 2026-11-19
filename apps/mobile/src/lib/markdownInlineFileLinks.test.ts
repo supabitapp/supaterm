@@ -133,7 +133,7 @@ const parser = unified().use(remarkParse).use(remarkGfm);
 type MarkdownNode = Root | RootContent;
 const INLINE_CODE_SPAN = /`+([^`\r\n]+)`+/g;
 
-function previousFileLinks(markdown: string, fileLink: RegExp): string {
+function previousFileLinks(markdown: string, fileLink: RegExp) {
   if (![...markdown.matchAll(INLINE_CODE_SPAN)].some(([, code]) => fileLink.test(code!.trim())))
     return markdown;
   const edits: Array<{ start: number; end: number; content: string }> = [];
@@ -162,7 +162,7 @@ function previousFileLinks(markdown: string, fileLink: RegExp): string {
   return markdown;
 }
 
-function isTableDelimiterRow(line: string): boolean {
+function isTableDelimiterRow(line: string) {
   if (!line.includes("-")) return false;
   const row = line.replace(/^[ \t>]+/, "").trim();
   return row
@@ -171,7 +171,7 @@ function isTableDelimiterRow(line: string): boolean {
     .every((cell) => /^:?-+:?$/.test(cell.trim()));
 }
 
-function mayHaveTableUnderText(markdown: string): boolean {
+function mayHaveTableUnderText(markdown: string) {
   if (!markdown.includes("|")) return false;
   const lines = markdown.split(/\r\n|\r|\n/);
   for (let index = 2; index < lines.length; index += 1) {
@@ -180,7 +180,7 @@ function mayHaveTableUnderText(markdown: string): boolean {
   return false;
 }
 
-function previousTableBreaks(markdown: string): string {
+function previousTableBreaks(markdown: string) {
   if (!mayHaveTableUnderText(markdown)) return markdown;
   const lineStarts: number[] = [];
   const visit = (node: MarkdownNode) => {

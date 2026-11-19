@@ -17,7 +17,7 @@ import {
   type NativeReviewVisibleRange,
 } from "./reviewDiffHighlightScheduler";
 
-function createEmptyTokenPatch(resetKey: string): string {
+function createEmptyTokenPatch(resetKey: string) {
   return JSON.stringify({ resetKey, tokensByRowId: {} });
 }
 

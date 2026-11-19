@@ -12,7 +12,7 @@ export class DiffWorkerError extends Schema.TaggedError<DiffWorkerError>()("Diff
   themeName: Schema.Literals(["pierre-dark", "supaterm-light"]),
   cause: Schema.Defect(),
 }) {
-  override get message(): string {
+  override get message() {
     return `Diff worker operation ${this.operation} failed for theme ${this.themeName}.`;
   }
 }

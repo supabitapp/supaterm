@@ -181,7 +181,7 @@ const DELIMITER_LANGUAGES: Record<string, string> = {
 };
 
 /** Returns nothing for commands that do not parse cleanly. */
-export function embeddedScripts(command: string): EmbeddedScript[] {
+export function embeddedScripts(command: string) {
   const identity = Array.from({ length: command.length }, (_, index) => index);
   return scriptsIn(
     { text: command, starts: identity, ends: identity.map((index) => index + 1) },
@@ -189,7 +189,7 @@ export function embeddedScripts(command: string): EmbeddedScript[] {
   );
 }
 
-function scriptsIn(source: MappedText, depth: number): EmbeddedScript[] {
+function scriptsIn(source: MappedText, depth: number) {
   const script = parse(source.text);
   if (script.errors?.length) return [];
   const found: EmbeddedScript[] = [];
@@ -219,7 +219,7 @@ function forEachCommand(
   node: unknown,
   visit: (command: Command) => void,
   seen = new WeakSet<object>(),
-): void {
+) {
   if (Array.isArray(node)) {
     for (const child of node) forEachCommand(child, visit, seen);
     return;
@@ -245,17 +245,17 @@ function forEachCommand(
   }
 }
 
-function programName(word: Word): string {
+function programName(word: Word) {
   const path = /\\/u.test(word.text) ? word.text.replace(/^["']|["']$/gu, "") : word.value;
   return (path.split(/[\\/]/u).at(-1) ?? "").toLowerCase().replace(/\.exe$/u, "");
 }
 
-function interpreterFor(name: string): Interpreter | undefined {
+function interpreterFor(name: string) {
   if (/^python(?:\d+(?:\.\d+)?)?$|^pypy3?$|^py$/u.test(name)) return PYTHON;
   return Object.hasOwn(INTERPRETERS, name) ? INTERPRETERS[name] : undefined;
 }
 
-function programIndex(words: ReadonlyArray<Word>): number {
+function programIndex(words: ReadonlyArray<Word>) {
   let index = 0;
   while (index < words.length) {
     const name = programName(words[index]!);
@@ -277,10 +277,7 @@ function programIndex(words: ReadonlyArray<Word>): number {
   return index;
 }
 
-function commandScripts(
-  command: Command,
-  source: string,
-): Array<{ language: string; mapped: MappedText }> {
+function commandScripts(command: Command, source: string) {
   if (!command.name) return [];
   const words = [command.name, ...command.args.filter((arg): arg is Word => arg.type === "Word")];
   const index = programIndex(words);
@@ -321,7 +318,7 @@ function commandScripts(
   return scripts;
 }
 
-function isDescriptor(descriptor: HereDoc["descriptor"], fd: number): boolean {
+function isDescriptor(descriptor: HereDoc["descriptor"], fd: number) {
   return (
     descriptor === undefined || (descriptor.type === "FileDescriptor" && descriptor.value === fd)
   );
@@ -332,13 +329,10 @@ interface ScriptArgument {
   readonly inValue: boolean;
 }
 
-function interpreterArgs(
-  interpreter: Interpreter,
-  args: ReadonlyArray<Word>,
-): { scripts: ScriptArgument[]; scriptFromFile: boolean } {
+function interpreterArgs(interpreter: Interpreter, args: ReadonlyArray<Word>) {
   const positionals: Word[] = [];
   const scripts: ScriptArgument[] = [];
-  const whole = (word: Word): ScriptArgument => ({ word, inValue: false });
+  const whole = (word: Word) => ({ word, inValue: false });
   let optionsEnded = false;
   let scriptFromFile = false;
   for (let index = 0; index < args.length; index += 1) {
@@ -383,7 +377,7 @@ function interpreterArgs(
   return { scripts, scriptFromFile: first !== undefined && first.value !== "-" };
 }
 
-function sliceMapped(mapped: MappedText, start: number): MappedText {
+function sliceMapped(mapped: MappedText, start: number) {
   if (start === 0) return mapped;
   return {
     text: mapped.text.slice(start),
@@ -392,11 +386,7 @@ function sliceMapped(mapped: MappedText, start: number): MappedText {
   };
 }
 
-function writtenFileLanguage(
-  name: string,
-  command: Command,
-  args: ReadonlyArray<Word>,
-): string | undefined {
+function writtenFileLanguage(name: string, command: Command, args: ReadonlyArray<Word>) {
   let path: string | undefined;
   if (name === "cat") {
     for (const redirect of command.redirects) {
@@ -416,12 +406,12 @@ function writtenFileLanguage(
   return language === "text" ? undefined : language;
 }
 
-function delimiterLanguage(hereDoc: HereDoc): string | undefined {
+function delimiterLanguage(hereDoc: HereDoc) {
   const name = hereDoc.delimiter?.value.toLowerCase();
   return name && Object.hasOwn(DELIMITER_LANGUAGES, name) ? DELIMITER_LANGUAGES[name] : undefined;
 }
 
-function hereDocText(hereDoc: HereDoc, source: string): MappedText {
+function hereDocText(hereDoc: HereDoc, source: string) {
   const { pos, end } = hereDoc.body;
   const starts = Array.from({ length: end - pos }, (_, index) => pos + index);
   return {
@@ -431,7 +421,7 @@ function hereDocText(hereDoc: HereDoc, source: string): MappedText {
   };
 }
 
-function wordText(word: Word, source: string): MappedText | undefined {
+function wordText(word: Word, source: string) {
   const builder = new MappedTextBuilder();
   const parts: ReadonlyArray<WordPart> = word.parts ?? [
     { type: "Literal", pos: word.pos, end: word.end, text: word.text, value: word.value },
@@ -470,7 +460,7 @@ class MappedTextBuilder {
     for (let index = 0; index < text.length; index += 1) this.push(text[index]!, pos + index, 1);
   }
 
-  addDoubleQuotedChild(child: DoubleQuotedChild): boolean {
+  addDoubleQuotedChild(child: DoubleQuotedChild) {
     if (child.type === "Literal") return this.addEscaped(child, true);
     this.addRaw(child.text, child.pos);
     return true;
@@ -495,7 +485,7 @@ class MappedTextBuilder {
     return this.text.slice(before) === literal.value;
   }
 
-  build(): MappedText {
+  build() {
     return { text: this.text, starts: this.starts, ends: this.ends };
   }
 
@@ -511,7 +501,7 @@ export function withEmbeddedScripts(
   lines: TokenLines,
   embedded: ReadonlyArray<EmbeddedScript>,
   tokenize: (text: string, language: string) => TokenLines,
-): TokenLines {
+) {
   if (embedded.length === 0) return lines;
   const styles = Array.from<SyntaxToken | undefined>({ length: code.length });
   for (const token of lines.flat()) {
@@ -533,10 +523,7 @@ export function withEmbeddedScripts(
   return restyledLines(code, styles);
 }
 
-function restyledLines(
-  code: string,
-  styles: ReadonlyArray<SyntaxToken | undefined>,
-): SyntaxToken[][] {
+function restyledLines(code: string, styles: ReadonlyArray<SyntaxToken | undefined>) {
   const lines: SyntaxToken[][] = [];
   let start = 0;
   for (const lineBreak of [...code.matchAll(/\r?\n/gu), undefined]) {

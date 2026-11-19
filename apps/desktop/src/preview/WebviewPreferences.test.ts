@@ -2,7 +2,7 @@ import { describe, expect, it } from "vite-plus/test";
 
 import { PREVIEW_WEBVIEW_PREFERENCES } from "./WebviewPreferences.ts";
 
-function parseWebPreferences(input: string): Record<string, unknown> {
+function parseWebPreferences(input: string) {
   const out: Record<string, unknown> = {};
   for (const pair of input.split(",")) {
     if (pair !== pair.trim()) {

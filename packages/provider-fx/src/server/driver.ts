@@ -73,7 +73,7 @@ export const FxDriver: ProviderDriver<FxSettings, FxDriverEnv> = {
     supportsMultipleInstances: true,
   },
   configSchema: FxSettings,
-  defaultConfig: (): FxSettings => decodeFxSettings({}),
+  defaultConfig: () => decodeFxSettings({}),
   create: Effect.fn("FxDriver.create")(function* ({
     instanceId,
     displayName,

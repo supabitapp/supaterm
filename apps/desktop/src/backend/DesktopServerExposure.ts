@@ -62,12 +62,12 @@ const DESKTOP_MANUAL_ENDPOINT_PROVIDER: AdvertisedEndpointProvider = {
   isAddon: false,
 };
 
-const normalizeOptionalHost = (value: string | undefined): string | undefined => {
+const normalizeOptionalHost = (value: string | undefined) => {
   const normalized = value?.trim();
   return normalized && normalized.length > 0 ? normalized : undefined;
 };
 
-const isUsableLanIpv4Address = (address: string): boolean =>
+const isUsableLanIpv4Address = (address: string) =>
   !address.startsWith("127.") &&
   !address.startsWith("169.254.") &&
   !isTailscaleIpv4Address(address);
@@ -75,7 +75,7 @@ const isUsableLanIpv4Address = (address: string): boolean =>
 const HOST_ONLY_INTERFACE =
   /^(bridge\d|utun|ipsec|ppp|tun|tap|wg|docker|br-|veth|virbr|vmnet|vboxnet|VirtualBox|VMware)/;
 
-const isHttpsEndpointUrl = (value: string): boolean => {
+const isHttpsEndpointUrl = (value: string) => {
   try {
     return new URL(value).protocol === "https:";
   } catch {
@@ -86,7 +86,7 @@ const isHttpsEndpointUrl = (value: string): boolean => {
 const resolveLanAdvertisedHost = (
   networkInterfaces: DesktopNetworkInterfaces.NetworkInterfaces,
   explicitHost: string | undefined,
-): string | null => {
+) => {
   const normalizedExplicitHost = normalizeOptionalHost(explicitHost);
   if (normalizedExplicitHost) {
     return normalizedExplicitHost;
@@ -110,7 +110,7 @@ const resolveDesktopServerExposure = (input: {
   readonly port: number;
   readonly networkInterfaces: DesktopNetworkInterfaces.NetworkInterfaces;
   readonly advertisedHostOverride?: string;
-}): ResolvedDesktopServerExposure => {
+}) => {
   const localHttpUrl = `http://${DESKTOP_LOOPBACK_HOST}:${input.port}`;
   const localWsUrl = `ws://${DESKTOP_LOOPBACK_HOST}:${input.port}`;
 
@@ -140,27 +140,21 @@ const resolveDesktopServerExposure = (input: {
   };
 };
 
-const createDesktopEndpoint = (
-  input: Omit<CreateAdvertisedEndpointInput, "provider" | "source">,
-): AdvertisedEndpoint =>
+const createDesktopEndpoint = (input: Omit<CreateAdvertisedEndpointInput, "provider" | "source">) =>
   createAdvertisedEndpoint({
     ...input,
     provider: DESKTOP_CORE_ENDPOINT_PROVIDER,
     source: "desktop-core",
-  });
+  }) satisfies AdvertisedEndpoint;
 
-const createManualEndpoint = (
-  input: Omit<CreateAdvertisedEndpointInput, "provider" | "source">,
-): AdvertisedEndpoint =>
+const createManualEndpoint = (input: Omit<CreateAdvertisedEndpointInput, "provider" | "source">) =>
   createAdvertisedEndpoint({
     ...input,
     provider: DESKTOP_MANUAL_ENDPOINT_PROVIDER,
     source: "user",
-  });
+  }) satisfies AdvertisedEndpoint;
 
-const resolveDesktopCoreAdvertisedEndpoints = (
-  input: DesktopAdvertisedEndpointInput,
-): readonly AdvertisedEndpoint[] => {
+const resolveDesktopCoreAdvertisedEndpoints = (input: DesktopAdvertisedEndpointInput) => {
   const endpoints: AdvertisedEndpoint[] = [
     createDesktopEndpoint({
       id: `desktop-loopback:${input.port}`,
@@ -214,7 +208,7 @@ export class DesktopServerExposureNoNetworkAddressError extends Schema.TaggedErr
     port: Schema.Number,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `No reachable network address is available for desktop network access on port ${this.port}.`;
   }
 }
@@ -226,7 +220,7 @@ export class DesktopServerExposureModePersistenceError extends Schema.TaggedErro
     cause: Schema.instanceOf(DesktopAppSettings.DesktopSettingsWriteError),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Failed to persist desktop server exposure mode ${this.mode}.`;
   }
 }
@@ -239,7 +233,7 @@ export class DesktopTailscaleServePersistenceError extends Schema.TaggedError<De
     cause: Schema.instanceOf(DesktopAppSettings.DesktopSettingsWriteError),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Failed to persist desktop Tailscale Serve settings (enabled: ${this.enabled}, port: ${this.port ?? "unchanged"}).`;
   }
 }
@@ -303,12 +297,7 @@ interface RuntimeState {
   readonly tailscaleServePort: number;
 }
 
-interface ResolvedRuntimeState {
-  readonly state: RuntimeState;
-  readonly unavailable: boolean;
-}
-
-const initialRuntimeState = (): RuntimeState =>
+const initialRuntimeState = () =>
   runtimeStateFromResolvedExposure({
     requestedMode: DesktopAppSettings.DEFAULT_DESKTOP_SETTINGS.serverExposureMode,
     settings: DesktopAppSettings.DEFAULT_DESKTOP_SETTINGS,
@@ -320,7 +309,7 @@ const initialRuntimeState = (): RuntimeState =>
     port: 0,
   });
 
-const toContractState = (state: RuntimeState): DesktopServerExposureState => ({
+const toContractState = (state: RuntimeState) => ({
   mode: state.mode,
   endpointUrl: Option.getOrNull(state.endpointUrl),
   advertisedHost: Option.getOrNull(state.advertisedHost),
@@ -328,7 +317,7 @@ const toContractState = (state: RuntimeState): DesktopServerExposureState => ({
   tailscaleServePort: state.tailscaleServePort,
 });
 
-const toBackendConfig = (state: RuntimeState): DesktopServerExposureBackendConfig => ({
+const toBackendConfig = (state: RuntimeState) => ({
   port: state.port,
   bindHost: state.bindHost,
   httpBaseUrl: state.httpBaseUrl,
@@ -336,7 +325,7 @@ const toBackendConfig = (state: RuntimeState): DesktopServerExposureBackendConfi
   tailscaleServePort: state.tailscaleServePort,
 });
 
-const toResolvedExposure = (state: RuntimeState): ResolvedDesktopServerExposure => ({
+const toResolvedExposure = (state: RuntimeState) => ({
   mode: state.mode,
   bindHost: state.bindHost,
   localHttpUrl: state.localHttpUrl,
@@ -350,7 +339,7 @@ function runtimeStateFromResolvedExposure(input: {
   readonly settings: DesktopAppSettings.DesktopSettings;
   readonly exposure: ResolvedDesktopServerExposure;
   readonly port: number;
-}): RuntimeState {
+}) {
   return {
     requestedMode: input.requestedMode,
     mode: input.exposure.mode,
@@ -372,7 +361,7 @@ function resolveRuntimeState(input: {
   readonly port: number;
   readonly networkInterfaces: DesktopNetworkInterfaces.NetworkInterfaces;
   readonly advertisedHostOverride: Option.Option<string>;
-}): ResolvedRuntimeState {
+}) {
   const advertisedHostOverride = Option.getOrUndefined(input.advertisedHostOverride);
   const requestedExposure = resolveDesktopServerExposure({
     mode: input.requestedMode,
@@ -413,7 +402,7 @@ const withCurrentAdvertisedHost = (
   state: RuntimeState,
   networkInterfaces: DesktopNetworkInterfaces.NetworkInterfaces,
   advertisedHostOverride: Option.Option<string>,
-): RuntimeState => {
+) => {
   if (state.mode !== "network-accessible") {
     return state;
   }
@@ -431,9 +420,7 @@ const withCurrentAdvertisedHost = (
   };
 };
 
-const tailscaleIpv4AddressKey = (
-  networkInterfaces: DesktopNetworkInterfaces.NetworkInterfaces,
-): string =>
+const tailscaleIpv4AddressKey = (networkInterfaces: DesktopNetworkInterfaces.NetworkInterfaces) =>
   [
     ...new Set(
       Object.values(networkInterfaces)
@@ -450,7 +437,7 @@ const tailscaleIpv4AddressKey = (
     .toSorted()
     .join(",");
 
-const requiresBackendRelaunch = (previous: RuntimeState, next: RuntimeState): boolean =>
+const requiresBackendRelaunch = (previous: RuntimeState, next: RuntimeState) =>
   previous.port !== next.port ||
   previous.bindHost !== next.bindHost ||
   previous.localHttpUrl !== next.localHttpUrl;

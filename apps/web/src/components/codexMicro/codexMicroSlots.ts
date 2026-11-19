@@ -4,7 +4,6 @@ import {
   type CodexMicroAgentSource,
   type CodexMicroCustomAgentKeys,
   type CodexMicroLightingModel,
-  type CodexMicroSlotStatus,
   type CodexMicroThreadRef,
   type EnvironmentId,
 } from "@supaterm/contracts";
@@ -29,15 +28,15 @@ export type CodexMicroSlotBinding =
 
 const EMPTY_BINDING: CodexMicroSlotBinding = { type: "empty" };
 
-function threadRef(thread: EnvironmentThreadShell): CodexMicroThreadRef {
+function threadRef(thread: EnvironmentThreadShell) {
   return { environmentId: thread.environmentId, threadId: thread.id };
 }
 
-function shellBinding(thread: EnvironmentThreadShell): CodexMicroSlotBinding {
-  return { type: "thread", ref: threadRef(thread), thread };
+function shellBinding(thread: EnvironmentThreadShell) {
+  return { type: "thread", ref: threadRef(thread), thread } satisfies CodexMicroSlotBinding;
 }
 
-function isOpenWork(thread: EnvironmentThreadShell, now: string): boolean {
+function isOpenWork(thread: EnvironmentThreadShell, now: string) {
   return (
     thread.archivedAt === null &&
     thread.doneOverride !== "done" &&
@@ -45,7 +44,7 @@ function isOpenWork(thread: EnvironmentThreadShell, now: string): boolean {
   );
 }
 
-function attentionRank(thread: EnvironmentThreadShell): number {
+function attentionRank(thread: EnvironmentThreadShell) {
   const status = resolveSidebarThreadStatus(thread);
   if (status === "approval" || status === "input") return 0;
   if (hasUnseenCompletion(thread)) return 1;
@@ -71,39 +70,48 @@ export function selectCodexMicroSlotBindings(input: {
   readonly jumpTargets: ReadonlyArray<string>;
   readonly customAgentKeys: CodexMicroCustomAgentKeys;
   readonly now: string;
-}): ReadonlyArray<CodexMicroSlotBinding> {
+}) {
   const { threads, now } = input;
   switch (input.source) {
     case "sidebar": {
       const byKey = threadsByKey(threads);
-      return CODEX_MICRO_AGENT_KEYS.map((_, index): CodexMicroSlotBinding => {
+      return CODEX_MICRO_AGENT_KEYS.map((_, index) => {
         const key = input.jumpTargets[index];
         const ref = key === undefined ? null : parseScopedThreadKey(key);
-        if (ref === null) return EMPTY_BINDING;
-        return { type: "thread", ref, thread: byKey.get(scopedThreadKey(ref)) ?? null };
-      });
+        if (ref === null) return EMPTY_BINDING satisfies CodexMicroSlotBinding;
+        return {
+          type: "thread",
+          ref,
+          thread: byKey.get(scopedThreadKey(ref)) ?? null,
+        } satisfies CodexMicroSlotBinding;
+      }) satisfies ReadonlyArray<CodexMicroSlotBinding>;
     }
     case "pinned":
       return bindThreads(
         sortPinnedThreadsByOrderKey(
           threads.filter((thread) => thread.pinnedAt !== null && thread.archivedAt === null),
         ),
-      );
+      ) satisfies ReadonlyArray<CodexMicroSlotBinding>;
     case "attention":
       return bindThreads(
         sortInboxThreadsByReturn(threads.filter((thread) => isOpenWork(thread, now))).toSorted(
           (left, right) => attentionRank(left) - attentionRank(right),
         ),
-      );
+      ) satisfies ReadonlyArray<CodexMicroSlotBinding>;
     case "custom": {
       const byKey = threadsByKey(threads);
-      return CODEX_MICRO_AGENT_KEYS.map((key): CodexMicroSlotBinding => {
+      return CODEX_MICRO_AGENT_KEYS.map((key) => {
         const assignment = input.customAgentKeys[key];
-        if (assignment === null) return EMPTY_BINDING;
-        if (assignment.type === "action") return { type: "action", action: assignment.action };
+        if (assignment === null) return EMPTY_BINDING satisfies CodexMicroSlotBinding;
+        if (assignment.type === "action")
+          return { type: "action", action: assignment.action } satisfies CodexMicroSlotBinding;
         const ref = { environmentId: assignment.environmentId, threadId: assignment.threadId };
-        return { type: "thread", ref, thread: byKey.get(scopedThreadKey(ref)) ?? null };
-      });
+        return {
+          type: "thread",
+          ref,
+          thread: byKey.get(scopedThreadKey(ref)) ?? null,
+        } satisfies CodexMicroSlotBinding;
+      }) satisfies ReadonlyArray<CodexMicroSlotBinding>;
     }
   }
 }
@@ -111,7 +119,7 @@ export function selectCodexMicroSlotBindings(input: {
 function codexMicroSlotStatus(
   thread: EnvironmentThreadShell,
   options: { readonly connected: boolean; readonly viewing: boolean },
-): CodexMicroSlotStatus {
+) {
   if (!options.connected) return "idle";
   switch (resolveSidebarThreadStatus(thread)) {
     case "failed":
@@ -135,8 +143,8 @@ export function buildCodexMicroSlotViews(input: {
   readonly routeThreadKey: string | null;
   readonly windowFocused: boolean;
   readonly connectedEnvironmentIds: ReadonlySet<EnvironmentId>;
-}): ReadonlyArray<CodexMicroSlotView> {
-  return CODEX_MICRO_AGENT_KEYS.map((key, index): CodexMicroSlotView => {
+}) {
+  return CODEX_MICRO_AGENT_KEYS.map((key, index) => {
     const binding = input.bindings[index] ?? EMPTY_BINDING;
     if (binding.type === "action") {
       return {
@@ -146,10 +154,17 @@ export function buildCodexMicroSlotViews(input: {
         status: "idle",
         selected: false,
         action: binding.action,
-      };
+      } satisfies CodexMicroSlotView;
     }
     if (binding.type === "empty") {
-      return { key, thread: null, title: null, status: "off", selected: false, action: null };
+      return {
+        key,
+        thread: null,
+        title: null,
+        status: "off",
+        selected: false,
+        action: null,
+      } satisfies CodexMicroSlotView;
     }
     const selected = scopedThreadKey(binding.ref) === input.routeThreadKey;
     return {
@@ -165,14 +180,14 @@ export function buildCodexMicroSlotViews(input: {
             }),
       selected,
       action: null,
-    };
-  });
+    } satisfies CodexMicroSlotView;
+  }) satisfies ReadonlyArray<CodexMicroSlotView>;
 }
 
 export function buildCodexMicroLightingModel(
   views: ReadonlyArray<CodexMicroSlotView>,
   voiceActivity: CodexMicroLightingModel["voiceActivity"],
-): CodexMicroLightingModel {
+) {
   return {
     voiceActivity,
     slots: CODEX_MICRO_AGENT_KEYS.map((_key, index) => {
@@ -184,5 +199,5 @@ export function buildCodexMicroLightingModel(
         selected: view.selected,
       };
     }),
-  };
+  } satisfies CodexMicroLightingModel;
 }

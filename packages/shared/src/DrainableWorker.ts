@@ -1,5 +1,4 @@
 import * as Cause from "effect/Cause";
-import * as Scope from "effect/Scope";
 import * as Effect from "effect/Effect";
 import * as TxQueue from "effect/TxQueue";
 import * as TxRef from "effect/TxRef";
@@ -19,9 +18,7 @@ export const makeDrainableWorker = Effect.fn("DrainableWorker.makeDrainableWorke
   A,
   E,
   R,
->(
-  process: (item: A) => Effect.Effect<void, E, R>,
-): Effect.fn.Return<DrainableWorker<A>, never, Scope.Scope | R> {
+>(process: (item: A) => Effect.Effect<void, E, R>) {
   const outstanding = yield* TxRef.make(0);
   const queue = yield* Effect.acquireRelease(TxQueue.unbounded<A>(), (queue) =>
     TxQueue.clear(queue).pipe(
@@ -51,7 +48,7 @@ export const makeDrainableWorker = Effect.fn("DrainableWorker.makeDrainableWorke
     Effect.tx,
   );
 
-  const enqueue = (element: A): Effect.Effect<boolean, never, never> =>
+  const enqueue = (element: A) =>
     TxQueue.offer(queue, element).pipe(
       Effect.tap((offered) => (offered ? TxRef.update(outstanding, (n) => n + 1) : Effect.void)),
       Effect.tx,

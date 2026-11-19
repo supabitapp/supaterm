@@ -1,9 +1,5 @@
 import type { SDKControlGetUsageResponse, SDKRateLimitInfo } from "@anthropic-ai/claude-agent-sdk";
-import type {
-  ProviderUsageLimitsUpdate,
-  ServerProviderUsageLimits,
-  ServerProviderUsageWindow,
-} from "@supaterm/contracts";
+import type { ProviderUsageLimitsUpdate, ServerProviderUsageWindow } from "@supaterm/contracts";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
@@ -45,15 +41,11 @@ export const makeClaudeScopedLimitNames = Ref.make<ClaudeScopedLimitNames>({
   overageIncluded: undefined,
 });
 
-function scopedWindowId(displayName: string): string {
+function scopedWindowId(displayName: string) {
   return `seven_day_${displayName.toLowerCase().replace(/[^a-z0-9]+/g, "_")}`;
 }
 
-function scopedWindow(
-  displayName: string,
-  usedPercent: number,
-  resetsAt: string | undefined,
-): ServerProviderUsageWindow {
+function scopedWindow(displayName: string, usedPercent: number, resetsAt: string | undefined) {
   return {
     id: scopedWindowId(displayName),
     kind: "weekly",
@@ -61,7 +53,7 @@ function scopedWindow(
     windowDurationMins: WEEK_MINS,
     usedPercent: clampPercent(usedPercent),
     ...(resetsAt ? { resetsAt } : {}),
-  };
+  } satisfies ServerProviderUsageWindow;
 }
 
 function percentFromAmounts(used: number | null | undefined, limit: number | null | undefined) {
@@ -107,7 +99,7 @@ interface ModelScopedWindow {
   readonly resets_at: string | null;
 }
 
-function readModelScoped(rateLimits: object): ReadonlyArray<ModelScopedWindow> {
+function readModelScoped(rateLimits: object) {
   const raw = (rateLimits as { readonly model_scoped?: unknown }).model_scoped;
   if (!Array.isArray(raw)) return [];
   return raw.filter(
@@ -118,13 +110,13 @@ function readModelScoped(rateLimits: object): ReadonlyArray<ModelScopedWindow> {
   );
 }
 
-function isoFromEpochSeconds(value: number | undefined): string | undefined {
+function isoFromEpochSeconds(value: number | undefined) {
   if (value === undefined || !Number.isFinite(value) || value <= 0) return undefined;
   const dt = DateTime.make(value * 1000);
   return Option.isSome(dt) ? DateTime.formatIso(dt.value) : undefined;
 }
 
-function isoFromString(value: string | null | undefined): string | undefined {
+function isoFromString(value: string | null | undefined) {
   if (!value) return undefined;
   const dt = DateTime.make(value);
   return Option.isSome(dt) ? DateTime.formatIso(dt.value) : undefined;
@@ -134,7 +126,7 @@ function makeWindow(
   id: keyof typeof WINDOWS & string,
   usedPercent: number,
   resetsAt: string | undefined,
-): ServerProviderUsageWindow {
+) {
   const window = WINDOWS[id]!;
   return {
     id,
@@ -148,27 +140,31 @@ function makeWindow(
 export function claudeRateLimitEventToUpdate(
   info: SDKRateLimitInfo,
   names: ClaudeScopedLimitNames,
-): ProviderUsageLimitsUpdate | undefined {
+) {
   const type: string | undefined = info.rateLimitType;
   if (!type || typeof info.utilization !== "number") {
-    return undefined;
+    return undefined satisfies ProviderUsageLimitsUpdate | undefined;
   }
   const usedPercent = info.utilization * 100;
   const resetsAt = isoFromEpochSeconds(info.resetsAt);
   if (type in WINDOWS) {
-    return { windows: [makeWindow(type, usedPercent, resetsAt)] };
+    return { windows: [makeWindow(type, usedPercent, resetsAt)] } satisfies
+      | ProviderUsageLimitsUpdate
+      | undefined;
   }
   if (type === OVERAGE_INCLUDED_EVENT_TYPE && names.overageIncluded) {
-    return { windows: [scopedWindow(names.overageIncluded, usedPercent, resetsAt)] };
+    return { windows: [scopedWindow(names.overageIncluded, usedPercent, resetsAt)] } satisfies
+      | ProviderUsageLimitsUpdate
+      | undefined;
   }
-  return undefined;
+  return undefined satisfies ProviderUsageLimitsUpdate | undefined;
 }
 
 /** get_usage percentages are already 0-100. */
 export function claudeUsageResponseToLimits(input: {
   readonly response: Pick<SDKControlGetUsageResponse, "rate_limits_available" | "rate_limits">;
   readonly checkedAt: string;
-}): { readonly limits: ServerProviderUsageLimits; readonly names: ClaudeScopedLimitNames } {
+}) {
   const { response, checkedAt } = input;
   if (!response.rate_limits_available || !response.rate_limits) {
     return {
@@ -215,7 +211,7 @@ export function claudeUsageResponseToLimits(input: {
 export const recordClaudeUsageResponse = (
   namesRef: Ref.Ref<ClaudeScopedLimitNames>,
   input: Parameters<typeof claudeUsageResponseToLimits>[0],
-): Effect.Effect<ServerProviderUsageLimits> => {
+) => {
   const { limits, names } = claudeUsageResponseToLimits(input);
   return Ref.set(namesRef, names).pipe(Effect.as(limits));
 };

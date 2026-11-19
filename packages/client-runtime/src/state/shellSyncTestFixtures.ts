@@ -28,7 +28,8 @@ export const LIVE_SHELL_SNAPSHOT: OrchestrationV2ShellSnapshot = {
   snapshotSequence: 1,
 };
 
-export function session(client: WsRpcProtocolClient): RpcSession.RpcSession {
+export function session(client: WsRpcProtocolClient): RpcSession.RpcSession;
+export function session(client: WsRpcProtocolClient) {
   return {
     client,
     initialConfig: Effect.succeed({ shellResumeCompletionMarker: true } as never),
@@ -39,5 +40,5 @@ export function session(client: WsRpcProtocolClient): RpcSession.RpcSession {
     probe: Effect.void,
     inboundFrames: Effect.succeed(0),
     closed: Effect.never,
-  };
+  } satisfies RpcSession.RpcSession;
 }

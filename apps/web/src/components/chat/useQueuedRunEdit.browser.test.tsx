@@ -191,7 +191,7 @@ function setup() {
   return { hook: { current: null as HookResult | null } };
 }
 
-function requireHook(hook: { current: HookResult | null }): HookResult {
+function requireHook(hook: { current: HookResult | null }) {
   if (hook.current === null) throw new Error("hook did not render");
   return hook.current;
 }

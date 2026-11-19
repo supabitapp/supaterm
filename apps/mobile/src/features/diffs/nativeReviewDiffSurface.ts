@@ -169,7 +169,7 @@ export interface NativeReviewDiffViewHandle {
   readonly scrollToTop: (animated?: boolean) => Promise<void>;
 }
 
-export function isNativeReviewDiffDrawEvent(payload: Readonly<Record<string, unknown>>): boolean {
+export function isNativeReviewDiffDrawEvent(payload: Readonly<Record<string, unknown>>) {
   return payload.message === "draw-metrics" || payload.message === "visible-range";
 }
 
@@ -194,13 +194,12 @@ let nativeReviewDiffViewResolutionFailed = false;
 
 type NativeReviewDiffPayloadMethod = "setRowsJson" | "setTokensJson" | "setTokensPatchJson";
 
-export function isPendingNativeViewRegistration(error: unknown): boolean {
-  if (!(error instanceof Error)) return false;
-  return (
-    error.message.includes(`Unable to find the '${NATIVE_REVIEW_DIFF_MODULE_NAME}' view`) ||
+export function isPendingNativeViewRegistration(error: unknown): boolean;
+export function isPendingNativeViewRegistration(error: unknown) {
+  if (!(error instanceof Error)) return false satisfies boolean;
+  return (error.message.includes(`Unable to find the '${NATIVE_REVIEW_DIFF_MODULE_NAME}' view`) ||
     (error.message.includes("Unable to find the class") &&
-      error.message.includes("SupatermReviewDiffView view with tag"))
-  );
+      error.message.includes("SupatermReviewDiffView view with tag"))) satisfies boolean;
 }
 
 function useNativeReviewDiffPayload(
@@ -239,11 +238,13 @@ function useNativeReviewDiffPayload(
       }
 
       void Promise.resolve()
-        .then((): Promise<void | boolean> | undefined => {
+        .then(() => {
           if (cancelled) return;
-          return method === "setRowsJson"
+          return (method === "setRowsJson"
             ? view.setRowsJson(payload, resetKey ?? "")
-            : view[method](payload);
+            : view[method](payload)) satisfies Promise<void | boolean> | undefined as
+            | Promise<void | boolean>
+            | undefined;
         })
         .then((accepted) => {
           if (cancelled) return;
@@ -414,7 +415,7 @@ function NativeReviewDiffContent(
   });
 }
 
-export function resolveNativeReviewDiffView(): ComponentType<NativeReviewDiffViewProps> | null {
+export function resolveNativeReviewDiffView() {
   if (cachedNativeReviewDiffRawView) {
     return NativeReviewDiffView;
   }

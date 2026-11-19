@@ -5,6 +5,6 @@ export * from "./generated/nodes.ts";
 
 export const ICON_SVG_ROOT_ATTRIBUTES = 'fill="currentColor" stroke="none"';
 
-export function iconSvgElements(node: IconNode): string {
+export function iconSvgElements(node: IconNode) {
   return `<path d="${node.replaceAll('"', "&quot;")}"/>`;
 }

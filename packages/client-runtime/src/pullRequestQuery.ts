@@ -20,31 +20,28 @@ const MAX_QUALIFIER_VALUES = 10;
 const MAX_QUALIFIER_LENGTH = 200;
 const MAX_TEXT_LENGTH = 200;
 
-function qualifierValue(raw: string): string {
+function qualifierValue(raw: string) {
   return raw.replaceAll('"', "").trim();
 }
 
-function splitQualifierList(raw: string): string[] {
+function splitQualifierList(raw: string) {
   return (raw.match(/(?:[^,"]|"[^"]*")+/g) ?? [])
     .map((part) => qualifierValue(part))
     .filter((part) => part.length > 0);
 }
 
-function authorKey(login: string): string {
+function authorKey(login: string) {
   return login.toLowerCase().replace(/^@me$/, "me");
 }
 
-function boundedNames(names: ReadonlyArray<string>): string[] {
+function boundedNames(names: ReadonlyArray<string>) {
   return names.slice(0, MAX_QUALIFIER_VALUES).flatMap((name) => {
     const trimmed = name.slice(0, MAX_QUALIFIER_LENGTH).trim();
     return trimmed.length > 0 ? [trimmed] : [];
   });
 }
 
-export function parsePullRequestQuery(raw: string): {
-  readonly text: string;
-  readonly filters: PullRequestListFilters;
-} {
+export function parsePullRequestQuery(raw: string) {
   const text: string[] = [];
   const labels: string[][] = [];
   const excludedLabels: string[] = [];

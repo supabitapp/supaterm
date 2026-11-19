@@ -23,7 +23,7 @@ const A = EnvironmentId.make("a");
 const B = EnvironmentId.make("b");
 const WINDOW = 2_000;
 
-const snapshot = (snapshotSequence: number): OrchestrationV2ShellSnapshot => ({
+const snapshot = (snapshotSequence: number) => ({
   ...v2ShellSnapshot,
   snapshotSequence,
 });
@@ -33,15 +33,16 @@ const shell = (
   phase: "connecting" | "disconnected" | "live",
   generation = 0,
   rowActions = 0,
-): SteadyShellInput => ({
-  environmentId,
-  snapshot: value,
-  serverSequence: value?.snapshotSequence ?? null,
-  status: phase === "live" ? "live" : phase === "connecting" ? "synchronizing" : "cached",
-  generation,
-  connecting: phase !== "disconnected",
-  rowActions,
-});
+) =>
+  ({
+    environmentId,
+    snapshot: value,
+    serverSequence: value?.snapshotSequence ?? null,
+    status: phase === "live" ? "live" : phase === "connecting" ? "synchronizing" : "cached",
+    generation,
+    connecting: phase !== "disconnected",
+    rowActions,
+  }) satisfies SteadyShellInput;
 const shown = (state: SteadyShellsState, environmentId: EnvironmentId) =>
   state.shells.get(environmentId)?.shown;
 

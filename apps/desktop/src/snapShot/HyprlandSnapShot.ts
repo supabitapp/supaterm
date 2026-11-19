@@ -18,7 +18,7 @@ export function hyprlandCaptureExecutable(paths: HyprlandCapturePaths) {
   return NodePath.join(paths.dataHome, "supaterm", "hyprland-capture", HYPRLAND_CAPTURE_EXECUTABLE);
 }
 
-function hyprlandCaptureBinding(appId: string, lua: boolean): string {
+function hyprlandCaptureBinding(appId: string, lua: boolean) {
   if (!/^[A-Za-z0-9_.-]+$/.test(appId)) throw new Error("Invalid capture application ID.");
   const action = `${appId}:${HYPRLAND_CAPTURE_ACTION}`;
   return lua
@@ -47,7 +47,8 @@ export async function hyprlandCaptureShortcut(
   };
 }
 
-function run(executable: string, args: string[], signal?: AbortSignal): Promise<string> {
+function run(executable: string, args: string[], signal?: AbortSignal): Promise<string>;
+function run(executable: string, args: string[], signal?: AbortSignal) {
   return new Promise((resolve, reject) => {
     NodeChildProcess.execFile(
       executable,
@@ -64,9 +65,9 @@ function run(executable: string, args: string[], signal?: AbortSignal): Promise<
         else resolve(stdout);
       },
     );
-  });
+  }) satisfies Promise<string>;
 }
-async function regularFile(path: string): Promise<Buffer | undefined> {
+async function regularFile(path: string) {
   const stat = await NodeFSP.lstat(path).catch((error: NodeJS.ErrnoException) => {
     if (error.code !== "ENOENT") throw error;
     return undefined;
@@ -85,14 +86,15 @@ export class HyprlandCaptureSetup {
   constructor(paths: HyprlandCapturePaths) {
     this.paths = paths;
   }
-  async state(): Promise<DesktopCaptureHelperState> {
+  state(): Promise<DesktopCaptureHelperState>;
+  async state() {
     try {
       const installed = await regularFile(hyprlandCaptureExecutable(this.paths));
       if (!installed)
         return {
           status: "not-installed",
           message: "Install the bundled helper to capture the window you're using.",
-        };
+        } satisfies DesktopCaptureHelperState;
       const bundle = await regularFile(this.paths.bundle);
       if (!bundle)
         throw new Error(
@@ -102,18 +104,18 @@ export class HyprlandCaptureSetup {
         return {
           status: "update-required",
           message: "Update the bundled capture helper to continue.",
-        };
+        } satisfies DesktopCaptureHelperState;
       return {
         status: "ready",
         message:
           "Helper ready. Hyprland may ask for screen-sharing permission on your first capture.",
         ...decodeCapabilities(await run(hyprlandCaptureExecutable(this.paths), ["check"])),
-      };
+      } satisfies DesktopCaptureHelperState;
     } catch (error) {
       return {
         status: "error",
         message: error instanceof Error ? error.message : "Couldn't check Hyprland capture access.",
-      };
+      } satisfies DesktopCaptureHelperState;
     }
   }
   async perform(action: "install-hyprland-helper" | "remove-hyprland-helper") {
@@ -163,10 +165,14 @@ const decodeCapture = Schema.decodeUnknownSync(
   ),
 );
 
+export function captureHyprlandWindow(
+  paths: HyprlandCapturePaths,
+  options?: { readonly flash: boolean; readonly animate: boolean },
+): Promise<LinuxWindowSnapshot>;
 export async function captureHyprlandWindow(
   paths: HyprlandCapturePaths,
   options?: { readonly flash: boolean; readonly animate: boolean },
-): Promise<LinuxWindowSnapshot> {
+) {
   const setup = new HyprlandCaptureSetup(paths);
   let state = await setup.state();
   if (state.status === "update-required") {
@@ -223,7 +229,7 @@ export async function captureHyprlandWindow(
           activation.abort();
         },
       },
-    };
+    } satisfies LinuxWindowSnapshot;
   } finally {
     if (!retained) await cleanup();
   }

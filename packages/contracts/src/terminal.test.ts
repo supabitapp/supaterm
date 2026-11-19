@@ -14,7 +14,7 @@ import { ProviderInstanceId } from "./providerInstance.ts";
 const encodeTerminalError = Schema.encodeUnknownSync(TerminalError);
 const decodeTerminalError = Schema.decodeUnknownSync(TerminalError);
 
-function decodeSync<S extends Schema.Top>(schema: S, input: unknown): Schema.Schema.Type<S> {
+function decodeSync<S extends Schema.Top>(schema: S, input: unknown) {
   return Schema.decodeUnknownSync(schema as never)(input) as Schema.Schema.Type<S>;
 }
 

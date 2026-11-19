@@ -158,7 +158,7 @@ const AuthSessionRawDbRow = Schema.Struct({
 
 const decodeAuthSessionDbRow = Schema.decodeUnknownEffect(AuthSessionDbRow);
 
-function toAuthSessionRecord(row: typeof AuthSessionDbRow.Type): AuthSessionRecord {
+function toAuthSessionRecord(row: typeof AuthSessionDbRow.Type) {
   return {
     sessionId: row.sessionId,
     subject: row.subject,
@@ -184,7 +184,7 @@ function toPersistenceSqlOrDecodeError(
   decodeOperation: string,
   correlation?: PersistenceErrorCorrelation,
 ) {
-  return (cause: unknown): AuthSessionRepositoryError =>
+  return (cause: unknown) =>
     Schema.isSchemaError(cause)
       ? PersistenceDecodeError.fromSchemaError(decodeOperation, cause, correlation)
       : new PersistenceSqlError({

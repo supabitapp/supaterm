@@ -19,15 +19,16 @@ import * as DesktopUpdates from "../updates/DesktopUpdates.ts";
 import { createInitialDesktopUpdateState } from "../updates/updateMachine.ts";
 import { listen, resolveStartupRecoveryOffer } from "./DesktopStartupRecovery.ts";
 
-const updateState = (patch: Partial<DesktopUpdateState>): DesktopUpdateState => ({
-  ...createInitialDesktopUpdateState(
-    "0.1.3",
-    { hostArch: "arm64", appArch: "arm64", runningUnderArm64Translation: false },
-    "latest",
-  ),
-  enabled: true,
-  ...patch,
-});
+const updateState = (patch: Partial<DesktopUpdateState>) =>
+  ({
+    ...createInitialDesktopUpdateState(
+      "0.1.3",
+      { hostArch: "arm64", appArch: "arm64", runningUnderArm64Translation: false },
+      "latest",
+    ),
+    enabled: true,
+    ...patch,
+  }) satisfies DesktopUpdateState;
 
 describe("resolveStartupRecoveryOffer", () => {
   it("offers a newer version before going back", () => {

@@ -70,24 +70,24 @@ const HISTORY_WINDOWS = [
   { label: "1h", windowMs: 60 * 60_000, bucketMs: 2 * 60_000 },
 ] as const;
 
-function formatRate(value: number): string {
+function formatRate(value: number) {
   return `${formatBytes(value)}/s`;
 }
 
-function formatDurationMicros(value: number): string {
+function formatDurationMicros(value: number) {
   if (value < 1_000) return `${Math.round(value)} µs`;
   if (value < 1_000_000) return `${(value / 1_000).toFixed(2).replace(/\.0+$/, "")} ms`;
   return `${(value / 1_000_000).toFixed(2).replace(/\.0+$/, "")} s`;
 }
 
-function formatProcessName(process: Pick<ResourceTelemetryProcess, "command" | "name">): string {
+function formatProcessName(process: Pick<ResourceTelemetryProcess, "command" | "name">) {
   if (process.name.trim()) return process.name;
   const firstToken = process.command.trim().split(/\s+/)[0] ?? process.command;
   const normalized = firstToken.replace(/^['"]|['"]$/g, "");
   return normalized.split(/[\\/]/).findLast((segment) => segment.length > 0) ?? normalized;
 }
 
-function categoryLabel(category: ResourceTelemetryProcessCategory): string {
+function categoryLabel(category: ResourceTelemetryProcessCategory) {
   switch (category) {
     case "server":
       return "Server";
@@ -112,14 +112,14 @@ function categoryLabel(category: ResourceTelemetryProcessCategory): string {
   }
 }
 
-function categoryDotClass(category: ResourceTelemetryProcessCategory): string {
+function categoryDotClass(category: ResourceTelemetryProcessCategory) {
   if (category === "resource-monitor") return "bg-warning";
   if (category.startsWith("electron-")) return "bg-info";
   if (category === "server") return "bg-violet-500";
   return "bg-success";
 }
 
-function ioSemanticsLabel(semantics: ResourceTelemetryIoSemantics): string {
+function ioSemanticsLabel(semantics: ResourceTelemetryIoSemantics) {
   switch (semantics) {
     case "storage":
       return "Storage bytes";
@@ -135,13 +135,13 @@ function ioSemanticsLabel(semantics: ResourceTelemetryIoSemantics): string {
 function booleanStateLabel(
   value: BackgroundBooleanState,
   labels: { readonly true: string; readonly false: string },
-): string {
+) {
   if (value === "true") return labels.true;
   if (value === "false") return labels.false;
   return "Unknown";
 }
 
-function sourceStatusTone(status: ResourceTelemetrySourceStatus): "default" | "warning" | "danger" {
+function sourceStatusTone(status: ResourceTelemetrySourceStatus) {
   if (status === "healthy") return "default";
   if (status === "starting" || status === "degraded") return "warning";
   return "danger";
@@ -478,7 +478,7 @@ function ProcessTreeName({
   );
 }
 
-function canSignalProcess(process: ResourceTelemetryProcess): boolean {
+function canSignalProcess(process: ResourceTelemetryProcess) {
   return (
     process.category === "server-child" ||
     process.category === "provider-root" ||

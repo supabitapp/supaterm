@@ -5,7 +5,7 @@ import { describe, expect, it } from "vite-plus/test";
 
 import { remarkGithubAlerts } from "@supaterm/shared/markdownGithubAlerts";
 
-function renderMarkdown(markdown: string): string {
+function renderMarkdown(markdown: string) {
   return renderToStaticMarkup(
     <ReactMarkdown remarkPlugins={[remarkGfm, remarkGithubAlerts]}>{markdown}</ReactMarkdown>,
   );

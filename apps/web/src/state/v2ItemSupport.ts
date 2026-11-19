@@ -3,7 +3,6 @@ import {
   EMPTY_V2_ITEM_SUPPORT,
   resolveV2ItemSupport,
   v2ItemSupportEqual,
-  type V2ItemSupport,
 } from "@supaterm/client-runtime/state/item-support";
 import type { EnvironmentId, ThreadId, TurnItemId } from "@supaterm/contracts";
 import { scopeThreadRef } from "@supaterm/client-runtime/environment";
@@ -15,15 +14,11 @@ function supportKey(input: {
   readonly environmentId: EnvironmentId;
   readonly threadId: ThreadId;
   readonly itemId: TurnItemId;
-}): string {
+}) {
   return JSON.stringify(input);
 }
 
-function parseSupportKey(key: string): {
-  readonly environmentId: EnvironmentId;
-  readonly threadId: ThreadId;
-  readonly itemId: TurnItemId;
-} {
+function parseSupportKey(key: string) {
   return JSON.parse(key) as {
     readonly environmentId: EnvironmentId;
     readonly threadId: ThreadId;
@@ -35,7 +30,7 @@ const itemSupportAtomFamily = Atom.family((key: string) => {
   const target = parseSupportKey(key);
   const ref = scopeThreadRef(target.environmentId, target.threadId);
   let previous = EMPTY_V2_ITEM_SUPPORT;
-  return Atom.make((get): V2ItemSupport => {
+  return Atom.make((get) => {
     const scoped = get(environmentThreadDetails.threadAtom(ref));
     if (scoped === null) return EMPTY_V2_ITEM_SUPPORT;
     const next = resolveV2ItemSupport(scoped.projection, target.itemId);
@@ -49,7 +44,7 @@ export function useV2ItemSupport(input: {
   readonly environmentId: EnvironmentId;
   readonly sourceThreadId: ThreadId;
   readonly sourceItemId: TurnItemId;
-}): V2ItemSupport {
+}) {
   return useAtomValue(
     itemSupportAtomFamily(
       supportKey({

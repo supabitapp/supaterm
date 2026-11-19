@@ -1,12 +1,12 @@
 import type { ToolLifecycleItemType } from "@supaterm/contracts";
 
-function asRecord(value: unknown): Record<string, unknown> | undefined {
+function asRecord(value: unknown) {
   return value !== null && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : undefined;
 }
 
-function asTrimmedString(value: unknown): string | undefined {
+function asTrimmedString(value: unknown) {
   if (typeof value !== "string") {
     return undefined;
   }
@@ -14,17 +14,14 @@ function asTrimmedString(value: unknown): string | undefined {
   return trimmed.length > 0 ? trimmed : undefined;
 }
 
-export function claudeSkillInvocation(
-  toolName: string | null | undefined,
-  input: unknown,
-): { readonly name: string; readonly args: string | undefined } | undefined {
+export function claudeSkillInvocation(toolName: string | null | undefined, input: unknown) {
   if (toolName !== "Skill") return undefined;
   const record = asRecord(input);
   const name = asTrimmedString(record?.skill);
   return name === undefined ? undefined : { name, args: asTrimmedString(record?.args) };
 }
 
-export function isJavaScriptReplTool(toolName: string | null | undefined): boolean {
+export function isJavaScriptReplTool(toolName: string | null | undefined) {
   return toolName === "js" || toolName === "cua_repl.js" || toolName === "node_repl.js";
 }
 
@@ -48,21 +45,26 @@ export function dynamicToolTitle(
   toolName: string | null | undefined,
   input: unknown,
   retainedTitle?: string | null,
-): string | undefined {
+): string | undefined;
+export function dynamicToolTitle(
+  toolName: string | null | undefined,
+  input: unknown,
+  retainedTitle?: string | null,
+) {
   if (isJavaScriptReplTool(toolName)) {
     const title = asTrimmedString(retainedTitle);
     const meaningfulTitle =
       title && title.toLowerCase() !== "js" && title.toLowerCase() !== toolName?.toLowerCase()
         ? title
         : undefined;
-    return (
-      asTrimmedString(asRecord(input)?.title) ??
+    return (asTrimmedString(asRecord(input)?.title) ??
       meaningfulTitle ??
-      (dynamicToolSurface(toolName, input) === "computer" ? "Computer use" : "Run JavaScript")
-    );
+      (dynamicToolSurface(toolName, input) === "computer"
+        ? "Computer use"
+        : "Run JavaScript")) satisfies string | undefined;
   }
   const skill = claudeSkillInvocation(toolName, input);
-  return skill === undefined ? undefined : `Skill: ${skill.name}`;
+  return (skill === undefined ? undefined : `Skill: ${skill.name}`) satisfies string | undefined;
 }
 
 function recordHasKeys(
@@ -71,7 +73,7 @@ function recordHasKeys(
   return value !== undefined && Object.keys(value).length > 0;
 }
 
-function normalizeCommandValue(value: unknown): string | undefined {
+function normalizeCommandValue(value: unknown) {
   const direct = asTrimmedString(value);
   if (direct) {
     return direct;
@@ -89,7 +91,7 @@ function normalizeCommandValue(value: unknown): string | undefined {
   return parts.length > 0 ? parts.join(" ") : undefined;
 }
 
-function stripTrailingExitCode(value: string | undefined): string | undefined {
+function stripTrailingExitCode(value: string | undefined) {
   const trimmed = value?.trim();
   if (!trimmed) {
     return undefined;
@@ -99,7 +101,7 @@ function stripTrailingExitCode(value: string | undefined): string | undefined {
   return output.length > 0 ? output : undefined;
 }
 
-function extractCommandFromTitle(title: string | undefined): string | undefined {
+function extractCommandFromTitle(title: string | undefined) {
   if (!title) {
     return undefined;
   }
@@ -145,7 +147,7 @@ const PATH_KEYS = [
   "oldPath",
 ] as const;
 
-function collectPaths(value: unknown, paths: string[], seen: Set<string>, depth: number): void {
+function collectPaths(value: unknown, paths: string[], seen: Set<string>, depth: number) {
   if (depth > 4 || paths.length >= 8) {
     return;
   }
@@ -184,13 +186,13 @@ function collectPaths(value: unknown, paths: string[], seen: Set<string>, depth:
   }
 }
 
-export function collectToolFilePaths(data: unknown): string[] {
+export function collectToolFilePaths(data: unknown) {
   const paths: string[] = [];
   collectPaths(data, paths, new Set<string>(), 0);
   return paths;
 }
 
-function extractPrimaryPath(data: Record<string, unknown> | undefined): string | undefined {
+function extractPrimaryPath(data: Record<string, unknown> | undefined) {
   return collectToolFilePaths(data)[0];
 }
 
@@ -198,10 +200,7 @@ function extractPrimaryPath(data: Record<string, unknown> | undefined): string |
  * A null field clears it (ACP v2) and a nonempty rawInput replaces the previous one.
  * An empty rawInput keeps the previous one; later ACP updates often resend an empty object.
  */
-export function mergeToolActivityData(
-  previous: unknown,
-  next: unknown,
-): Record<string, unknown> | undefined {
+export function mergeToolActivityData(previous: unknown, next: unknown) {
   const previousRecord = asRecord(previous);
   const nextRecord = asRecord(next);
   if (!nextRecord) {
@@ -227,7 +226,7 @@ export function mergeToolActivityData(
   return merged;
 }
 
-function normalizeEquivalentValue(value: string | undefined): string | undefined {
+function normalizeEquivalentValue(value: string | undefined) {
   const trimmed = asTrimmedString(value);
   if (!trimmed) {
     return undefined;
@@ -238,7 +237,7 @@ function normalizeEquivalentValue(value: string | undefined): string | undefined
     .trim();
 }
 
-function isEquivalent(left: string | undefined, right: string | undefined): boolean {
+function isEquivalent(left: string | undefined, right: string | undefined) {
   const normalizedLeft = normalizeEquivalentValue(left)?.toLowerCase();
   const normalizedRight = normalizeEquivalentValue(right)?.toLowerCase();
   return normalizedLeft !== undefined && normalizedLeft === normalizedRight;
@@ -246,7 +245,7 @@ function isEquivalent(left: string | undefined, right: string | undefined): bool
 
 export type ToolActivityAction = "command" | "read" | "file_change" | "search" | "other";
 
-function toolNameToken(value: string | undefined): string | undefined {
+function toolNameToken(value: string | undefined) {
   const trimmed = asTrimmedString(value);
   if (!trimmed || /__|[./]/u.test(trimmed)) {
     return undefined;
@@ -259,7 +258,7 @@ export function classifyToolActivity(input: {
   readonly requestKind?: string | null | undefined;
   readonly title?: string | undefined;
   readonly data?: Record<string, unknown> | undefined;
-}): ToolActivityAction {
+}) {
   const itemType = input.itemType ?? undefined;
   const requestKind = asTrimmedString(input.requestKind)?.toLowerCase();
   const kind = asTrimmedString(input.data?.kind)?.toLowerCase();
@@ -331,10 +330,7 @@ const SEARCH_TARGET_KEYS = [
   "root",
 ] as const;
 
-function firstInputString(
-  record: Record<string, unknown> | undefined,
-  keys: readonly string[],
-): string | undefined {
+function firstInputString(record: Record<string, unknown> | undefined, keys: readonly string[]) {
   if (!record) {
     return undefined;
   }
@@ -347,9 +343,7 @@ function firstInputString(
   return undefined;
 }
 
-function searchInputRecord(
-  data: Record<string, unknown> | undefined,
-): Record<string, unknown> | undefined {
+function searchInputRecord(data: Record<string, unknown> | undefined) {
   return (
     [data?.rawInput, data?.input, asRecord(data?.item)?.input]
       .map(asRecord)
@@ -357,7 +351,7 @@ function searchInputRecord(
   );
 }
 
-function searchTargetName(value: string | undefined): string | undefined {
+function searchTargetName(value: string | undefined) {
   if (!value) {
     return undefined;
   }
@@ -367,36 +361,38 @@ function searchTargetName(value: string | undefined): string | undefined {
 /** Cursor-style row: "Searched files *.{ts,tsx} in supaterm-chat-new". */
 export function formatSearchToolLabel(
   data: Record<string, unknown> | undefined,
-): string | undefined {
+): string | undefined;
+export function formatSearchToolLabel(data: Record<string, unknown> | undefined) {
   const input = searchInputRecord(data);
   const query = firstInputString(input, SEARCH_QUERY_KEYS);
   const glob = firstInputString(input, SEARCH_GLOB_KEYS);
   const target = searchTargetName(firstInputString(input, SEARCH_TARGET_KEYS));
   if (query && target) {
-    return `Searched ${query} in ${target}`;
+    return `Searched ${query} in ${target}` satisfies string | undefined;
   }
   if (glob && target) {
-    return `Searched files ${glob} in ${target}`;
+    return `Searched files ${glob} in ${target}` satisfies string | undefined;
   }
   if (glob) {
-    return `Searched files ${glob}`;
+    return `Searched files ${glob}` satisfies string | undefined;
   }
   if (query) {
-    return `Searched ${query}`;
+    return `Searched ${query}` satisfies string | undefined;
   }
   if (target) {
-    return `Searched in ${target}`;
+    return `Searched in ${target}` satisfies string | undefined;
   }
-  return undefined;
+  return undefined satisfies string | undefined;
 }
 
-export function formatReadToolLabel(path: string, extraCount = 0): string {
+export function formatReadToolLabel(path: string, extraCount?: number): string;
+export function formatReadToolLabel(path: string, extraCount = 0) {
   const trimmed = path.trim();
   const suffix = extraCount > 0 ? ` +${extraCount} more` : "";
   if (!trimmed) {
-    return `Read file${suffix}`;
+    return `Read file${suffix}` satisfies string;
   }
-  return `Read ${trimmed}${suffix}`;
+  return `Read ${trimmed}${suffix}` satisfies string;
 }
 
 export interface ToolActivityPresentationInput {
@@ -412,9 +408,7 @@ export interface ToolActivityPresentation {
   readonly detail?: string | undefined;
 }
 
-export function deriveToolActivityPresentation(
-  input: ToolActivityPresentationInput,
-): ToolActivityPresentation {
+export function deriveToolActivityPresentation(input: ToolActivityPresentationInput) {
   const title = asTrimmedString(input.title);
   const detail = stripTrailingExitCode(asTrimmedString(input.detail));
   const fallbackSummary = asTrimmedString(input.fallbackSummary) ?? "Tool";

@@ -11,7 +11,7 @@ export function isBufferedProviderNotification(
     OrchestrationV2ConversationMessage,
     "createdBy" | "creationSource" | "notification" | "delegatedCompletion"
   >,
-): boolean {
+) {
   return (
     message.createdBy === "agent" &&
     message.creationSource === "provider" &&
@@ -24,7 +24,7 @@ export function isBufferedProviderNotification(
 export function isUndeliveredMailboxSteer(
   projection: Pick<OrchestrationV2ThreadProjection, "messages" | "runs" | "providerTurns">,
   messageId: MessageId,
-): boolean {
+) {
   const message = projection.messages.find((candidate) => candidate.id === messageId);
   if (message?.delegatedCompletion === undefined) return false;
   const run = projection.runs.find((candidate) => candidate.id === message.runId);

@@ -57,7 +57,7 @@ const CLAUDE_VOICE_LANGUAGES: ReadonlySet<string> = new Set([
 ]);
 
 /** The Claude CLI's rules: commas split terms, so they become spaces; ASCII only. */
-export function claudeKeytermsHeader(terms: ReadonlyArray<string>): string {
+export function claudeKeytermsHeader(terms: ReadonlyArray<string>) {
   const seen = new Set<string>();
   const kept: string[] = [];
   let length = 0;
@@ -111,17 +111,21 @@ const transcriptOf = (state: VoiceStreamState) =>
     .flatMap((segment) => (segment.trim() ? [segment.trim()] : []))
     .join(" ");
 
-const failed = (): VoiceStreamStep => ({
-  _tag: "Failed",
-  error: new TranscriptionError({ reason: "failed" }),
-});
+const failed = () =>
+  ({
+    _tag: "Failed",
+    error: new TranscriptionError({ reason: "failed" }),
+  }) satisfies VoiceStreamStep;
 
-function stepVoiceStream(state: VoiceStreamState, event: VoiceStreamEvent): VoiceStreamStep {
+function stepVoiceStream(state: VoiceStreamState, event: VoiceStreamEvent) {
   switch (event._tag) {
     case "Message": {
       const frame = Option.getOrUndefined(decodeServerFrame(event.data));
       if (frame?.type === "TranscriptText") {
-        return { _tag: "Continue", state: { ...state, pending: frame.data ?? "" } };
+        return {
+          _tag: "Continue",
+          state: { ...state, pending: frame.data ?? "" },
+        } satisfies VoiceStreamStep;
       }
       if (frame?.type === "TranscriptEndpoint") {
         return {
@@ -131,19 +135,25 @@ function stepVoiceStream(state: VoiceStreamState, event: VoiceStreamEvent): Voic
             committed: state.pending ? [...state.committed, state.pending] : state.committed,
             pending: "",
           },
-        };
+        } satisfies VoiceStreamStep;
       }
-      if (frame?.type === "TranscriptError" || frame?.type === "error") return failed();
-      return { _tag: "Continue", state };
+      if (frame?.type === "TranscriptError" || frame?.type === "error")
+        return failed() satisfies VoiceStreamStep;
+      return { _tag: "Continue", state } satisfies VoiceStreamStep;
     }
     case "CloseStreamSent":
-      return { _tag: "Continue", state: { ...state, closeStreamSent: true } };
+      return {
+        _tag: "Continue",
+        state: { ...state, closeStreamSent: true },
+      } satisfies VoiceStreamStep;
     case "Closed":
-      return NORMAL_CLOSE_CODES.has(event.code) && state.closeStreamSent
-        ? { _tag: "Done", text: transcriptOf(state) }
-        : failed();
+      return (
+        NORMAL_CLOSE_CODES.has(event.code) && state.closeStreamSent
+          ? { _tag: "Done", text: transcriptOf(state) }
+          : failed()
+      ) satisfies VoiceStreamStep;
     case "Deadline":
-      return failed();
+      return failed() satisfies VoiceStreamStep;
   }
 }
 
@@ -173,7 +183,7 @@ export const runVoiceStream = Effect.fnUntraced(function* (input: {
 function voiceStreamUpgradeError(
   status: number | undefined,
   headers: NodeHttp.IncomingHttpHeaders,
-): TranscriptionError {
+) {
   if (headers["cf-mitigated"] !== undefined) return new TranscriptionError({ reason: "blocked" });
   if (status === 401) return new TranscriptionError({ reason: "signedOut" });
   if (status === 403) return new TranscriptionError({ reason: "blocked" });

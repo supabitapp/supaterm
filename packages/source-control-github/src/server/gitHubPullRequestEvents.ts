@@ -39,11 +39,11 @@ const decodeStreamEnd = Schema.decodeUnknownOption(
 
 type Ending = "reconnect" | "renew" | "stop";
 
-const endingOf = (data: string): Ending =>
+const endingOf = (data: string) =>
   Option.match(decodeStreamEnd(data), {
     onNone: () => "reconnect",
     onSome: ({ outcome }) => (outcome === "subscription_ended" ? "renew" : "reconnect"),
-  });
+  }) satisfies Ending;
 
 export interface PullRequestEventsInput {
   readonly host: string;
@@ -117,7 +117,7 @@ export const make = Effect.gen(function* () {
       .pipe(Effect.ignore);
   });
 
-  const connection = (host: string, eventsUrl: string): Stream.Stream<"changed" | Ending> =>
+  const connection = (host: string, eventsUrl: string) =>
     Stream.unwrap(
       Effect.gen(function* () {
         const held = yield* rest.credential(host);
@@ -141,8 +141,11 @@ export const make = Effect.gen(function* () {
           Stream.timeoutOrElse({ duration: SILENCE_LIMIT, orElse: () => Stream.fail("silent") }),
           Stream.decodeText,
           Stream.pipeThroughChannel(Sse.decode()),
-          Stream.map((frame): "changed" | Ending =>
-            frame.event === "github.stream.end" ? endingOf(frame.data) : "changed",
+          Stream.map(
+            (frame) =>
+              (frame.event === "github.stream.end" ? endingOf(frame.data) : "changed") satisfies
+                | "changed"
+                | Ending,
           ),
           Stream.prepend(["changed" as const]),
           Stream.concat(Stream.succeed<Ending>("reconnect")),
@@ -157,7 +160,7 @@ export const make = Effect.gen(function* () {
           ),
         ),
       ),
-    );
+    ) satisfies Stream.Stream<"changed" | Ending>;
 
   const backoff = Effect.fn("GitHubPullRequestEvents.backoff")(function* (failures: number) {
     const jitter = yield* Random.next;
@@ -166,15 +169,20 @@ export const make = Effect.gen(function* () {
     );
   });
 
-  return (input: PullRequestEventsInput): Stream.Stream<void> => {
+  return (input: PullRequestEventsInput) => {
     const target = { ...input, host: normalizeHost(input.host) };
-    if (target.host !== "github.com") return Stream.empty;
+    if (target.host !== "github.com")
+      return Stream.empty satisfies Stream.Stream<void> as Stream.Stream<void>;
 
-    const follow = (
+    const follow: (
       session: { renew: boolean },
       eventsUrl: string,
       failuresSoFar: number,
-    ): Stream.Stream<void> =>
+    ) => Stream.Stream<void> = (
+      session: { renew: boolean },
+      eventsUrl: string,
+      failuresSoFar: number,
+    ) =>
       Stream.unwrap(
         Clock.currentTimeMillis.pipe(
           Effect.map((openedAt) => {
@@ -218,7 +226,7 @@ export const make = Effect.gen(function* () {
         ),
       );
 
-    const subscription = (session: { renew: boolean }): Stream.Stream<void> =>
+    const subscription = (session: { renew: boolean }) =>
       Stream.unwrap(
         Effect.acquireRelease(subscribe(target), (held) =>
           Option.isSome(held) ? unsubscribe(target.host, held.value.id) : Effect.void,
@@ -230,9 +238,9 @@ export const make = Effect.gen(function* () {
             }),
           ),
         ),
-      );
+      ) satisfies Stream.Stream<void>;
 
-    const subscribed = (): Stream.Stream<void> =>
+    const subscribed: () => Stream.Stream<void> = () =>
       Stream.suspend(() => {
         const session = { renew: false };
         return subscription(session).pipe(
@@ -246,6 +254,6 @@ export const make = Effect.gen(function* () {
         );
       });
 
-    return subscribed();
+    return subscribed() satisfies Stream.Stream<void> as Stream.Stream<void>;
   };
 });

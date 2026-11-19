@@ -63,16 +63,17 @@ const threadRef = scopeThreadRef(
   ThreadId.make("thread-webview-order"),
 );
 
-const snapshot = (tabId: string, updatedAt: string): PreviewSessionSnapshot => ({
-  threadId: threadRef.threadId,
-  tabId,
-  navStatus: { _tag: "Success", url: `https://example.com/${tabId}`, title: tabId },
-  canGoBack: false,
-  canGoForward: false,
-  updatedAt,
-});
+const snapshot = (tabId: string, updatedAt: string) =>
+  ({
+    threadId: threadRef.threadId,
+    tabId,
+    navStatus: { _tag: "Success", url: `https://example.com/${tabId}`, title: tabId },
+    canGoBack: false,
+    canGoForward: false,
+    updatedAt,
+  }) satisfies PreviewSessionSnapshot;
 
-function setup(): Disposable {
+function setup() {
   __resetClientSettingsPersistenceForTests();
   mocks.getClientSettings.mockReset().mockResolvedValue(DEFAULT_CLIENT_SETTINGS);
   mocks.setClientSettings.mockReset().mockResolvedValue(undefined);

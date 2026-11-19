@@ -13,7 +13,11 @@ const addMessage = (messages: Array<string>, message: string) => {
   }
 };
 
-const collectMessages = (value: unknown, depth: number, messages: Array<string>): boolean => {
+const collectMessages: (value: unknown, depth: number, messages: Array<string>) => boolean = (
+  value: unknown,
+  depth: number,
+  messages: Array<string>,
+) => {
   if (value === undefined || value === null || depth > MAX_CAUSE_DEPTH) return true;
   if (typeof value === "string") {
     addMessage(messages, value);

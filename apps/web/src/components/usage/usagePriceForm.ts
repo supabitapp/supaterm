@@ -12,7 +12,7 @@ export type UsagePriceForm = { model: string } & Record<
   string
 >;
 
-export function usagePriceForm(model = "", price?: UsageModelPriceOverride): UsagePriceForm {
+export function usagePriceForm(model = "", price?: UsageModelPriceOverride) {
   return {
     model,
     inputCostPerMillionTokens: price?.inputCostPerMillionTokens.toString() ?? "",
@@ -22,7 +22,7 @@ export function usagePriceForm(model = "", price?: UsageModelPriceOverride): Usa
   };
 }
 
-export function isUsagePriceEdit(previous: string, next: string): boolean {
+export function isUsagePriceEdit(previous: string, next: string) {
   if (/^\s*(?:\d*[.,]?\d*|(?:\d+[.,]?\d*|[.,]\d+)e[+-]?\d*)\s*$/i.test(next)) return true;
   if (next.length >= previous.length) return false;
   let start = 0;
@@ -31,9 +31,7 @@ export function isUsagePriceEdit(previous: string, next: string): boolean {
 }
 
 /** Blank cache prices use the input rate; explicit zero means free. */
-export function parseUsagePriceForm(
-  form: UsagePriceForm,
-): { model: string; price: UsageModelPriceOverride } | null {
+export function parseUsagePriceForm(form: UsagePriceForm) {
   const model = form.model.trim();
   if (model.length === 0) return null;
   const rates: Partial<Record<(typeof USAGE_PRICE_FIELDS)[number]["key"], number>> = {};

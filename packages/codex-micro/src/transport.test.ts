@@ -25,7 +25,7 @@ interface SentRequest {
 
 const USB_DEVICE = { path: "usb-path" } as const;
 
-function replyReports(text: string): ReadonlyArray<Uint8Array> {
+function replyReports(text: string) {
   const bytes = new TextEncoder().encode(`${text}\n`);
   const reports: Array<Uint8Array> = [];
   for (let offset = 0; offset < bytes.length; offset += 61) {
@@ -231,7 +231,7 @@ describe("makeConnection", () => {
 });
 
 describe("selectCodexMicroDevices", () => {
-  const device = (overrides: Partial<CodexMicroHidDeviceInfo>): CodexMicroHidDeviceInfo => ({
+  const device = (overrides: Partial<CodexMicroHidDeviceInfo>) => ({
     vendorId: 0x303a,
     productId: 0x8360,
     path: "path",

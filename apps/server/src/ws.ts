@@ -92,7 +92,6 @@ import {
   ChatAttachmentId,
   PersistChatAttachmentsError,
   RpcClientId,
-  EnvironmentAuthorizationError,
   ProjectId,
   ThreadId,
   type TerminalMetadataStreamEvent,
@@ -370,8 +369,8 @@ export const withLateConfig = <E, R>(
     ),
   ).pipe(
     Stream.mapAccum(
-      (): ClientServerConfig => config,
-      (current, event): readonly [ClientServerConfig, ReadonlyArray<ServerConfigStreamEvent>] => {
+      () => config,
+      (current, event) => {
         switch (event.type) {
           case "editorsResolved": {
             const {
@@ -381,35 +380,65 @@ export const withLateConfig = <E, R>(
               ...rest
             } = current;
             const next = { ...rest, ...event.editorConfig };
-            return [next, [{ version: 1, type: "snapshot", config: next }]];
+            return [next, [{ version: 1, type: "snapshot", config: next }]] satisfies readonly [
+              ClientServerConfig,
+              ReadonlyArray<ServerConfigStreamEvent>,
+            ] as readonly [ClientServerConfig, ReadonlyArray<ServerConfigStreamEvent>];
           }
           case "tunnelEndpointsResolved": {
             const { tunnelEndpoints: previous, ...rest } = current;
             if (Equal.equals(Option.fromUndefinedOr(previous), event.endpoints))
-              return [current, []];
+              return [current, []] satisfies readonly [
+                ClientServerConfig,
+                ReadonlyArray<ServerConfigStreamEvent>,
+              ] as readonly [ClientServerConfig, ReadonlyArray<ServerConfigStreamEvent>];
             const next = Option.match(event.endpoints, {
               onNone: () => rest,
               onSome: (tunnelEndpoints) => ({ ...rest, tunnelEndpoints }),
             });
-            return [next, [{ version: 1, type: "snapshot", config: next }]];
+            return [next, [{ version: 1, type: "snapshot", config: next }]] satisfies readonly [
+              ClientServerConfig,
+              ReadonlyArray<ServerConfigStreamEvent>,
+            ] as readonly [ClientServerConfig, ReadonlyArray<ServerConfigStreamEvent>];
           }
           case "remoteOpenTargetsResolved": {
             const next = { ...current, remoteOpenTargets: event.targets };
-            return [next, [{ version: 1, type: "snapshot", config: next }]];
+            return [next, [{ version: 1, type: "snapshot", config: next }]] satisfies readonly [
+              ClientServerConfig,
+              ReadonlyArray<ServerConfigStreamEvent>,
+            ] as readonly [ClientServerConfig, ReadonlyArray<ServerConfigStreamEvent>];
           }
           case "directEndpointsResolved": {
             if (JSON.stringify(current.directEndpoints ?? []) === JSON.stringify(event.endpoints)) {
-              return [current, []];
+              return [current, []] satisfies readonly [
+                ClientServerConfig,
+                ReadonlyArray<ServerConfigStreamEvent>,
+              ] as readonly [ClientServerConfig, ReadonlyArray<ServerConfigStreamEvent>];
             }
             const next = { ...current, directEndpoints: event.endpoints };
-            return [next, [{ version: 1, type: "snapshot", config: next }]];
+            return [next, [{ version: 1, type: "snapshot", config: next }]] satisfies readonly [
+              ClientServerConfig,
+              ReadonlyArray<ServerConfigStreamEvent>,
+            ] as readonly [ClientServerConfig, ReadonlyArray<ServerConfigStreamEvent>];
           }
           case "keybindingsUpdated":
-            return [{ ...current, ...event.payload }, [event]];
+            return [{ ...current, ...event.payload }, [event]] satisfies readonly [
+              ClientServerConfig,
+              ReadonlyArray<ServerConfigStreamEvent>,
+            ] as readonly [ClientServerConfig, ReadonlyArray<ServerConfigStreamEvent>];
           case "providerStatuses":
-            return [{ ...current, providers: event.payload.providers }, [event]];
+            return [
+              { ...current, providers: event.payload.providers },
+              [event],
+            ] satisfies readonly [
+              ClientServerConfig,
+              ReadonlyArray<ServerConfigStreamEvent>,
+            ] as readonly [ClientServerConfig, ReadonlyArray<ServerConfigStreamEvent>];
           case "settingsUpdated":
-            return [{ ...current, settings: event.payload.settings }, [event]];
+            return [{ ...current, settings: event.payload.settings }, [event]] satisfies readonly [
+              ClientServerConfig,
+              ReadonlyArray<ServerConfigStreamEvent>,
+            ] as readonly [ClientServerConfig, ReadonlyArray<ServerConfigStreamEvent>];
           case "relayAdvertisementUpdated":
             return [
               {
@@ -417,9 +446,15 @@ export const withLateConfig = <E, R>(
                 environment: withRelayAdvertisement(current.environment, event.payload),
               },
               [event],
-            ];
+            ] satisfies readonly [
+              ClientServerConfig,
+              ReadonlyArray<ServerConfigStreamEvent>,
+            ] as readonly [ClientServerConfig, ReadonlyArray<ServerConfigStreamEvent>];
           default:
-            return [current, [event]];
+            return [current, [event]] satisfies readonly [
+              ClientServerConfig,
+              ReadonlyArray<ServerConfigStreamEvent>,
+            ] as readonly [ClientServerConfig, ReadonlyArray<ServerConfigStreamEvent>];
         }
       },
     ),
@@ -482,7 +517,7 @@ function withoutWorkspaceSnapshots(
   providers: ReadonlyArray<ServerProvider>,
   catalogsPerCwd: ReadonlySet<string> = new Set(),
   catalogDigests = false,
-): ServerProvider[] {
+) {
   return providers.map(({ workspaceSnapshots: _workspaceSnapshots, ...provider }) => {
     if (!catalogsPerCwd.has(provider.instanceId)) return provider;
     return catalogDigests
@@ -499,12 +534,17 @@ function withoutWorkspaceSnapshots(
 const withProviderStatusDeltas = (sent: ReadonlyArray<ServerProvider>) =>
   Stream.mapAccum(
     () => sent,
-    (
-      previous,
-      event: ServerConfigStreamEvent,
-    ): readonly [ReadonlyArray<ServerProvider>, ReadonlyArray<ServerConfigStreamEvent>] => {
-      if (event.type === "snapshot") return [event.config.providers, [event]];
-      if (event.type !== "providerStatuses") return [previous, [event]];
+    (previous, event: ServerConfigStreamEvent) => {
+      if (event.type === "snapshot")
+        return [event.config.providers, [event]] satisfies readonly [
+          ReadonlyArray<ServerProvider>,
+          ReadonlyArray<ServerConfigStreamEvent>,
+        ] as readonly [ReadonlyArray<ServerProvider>, ReadonlyArray<ServerConfigStreamEvent>];
+      if (event.type !== "providerStatuses")
+        return [previous, [event]] satisfies readonly [
+          ReadonlyArray<ServerProvider>,
+          ReadonlyArray<ServerConfigStreamEvent>,
+        ] as readonly [ReadonlyArray<ServerProvider>, ReadonlyArray<ServerConfigStreamEvent>];
       const { providers } = event.payload;
       return [
         providers,
@@ -515,7 +555,10 @@ const withProviderStatusDeltas = (sent: ReadonlyArray<ServerProvider>) =>
             payload: { providers: serverProviderDeltas(previous, providers) },
           },
         ],
-      ];
+      ] satisfies readonly [
+        ReadonlyArray<ServerProvider>,
+        ReadonlyArray<ServerConfigStreamEvent>,
+      ] as readonly [ReadonlyArray<ServerProvider>, ReadonlyArray<ServerConfigStreamEvent>];
     },
   );
 
@@ -593,82 +636,137 @@ const persistChatAttachments = Effect.fn("ws.assets.persistChatAttachments")(fun
   );
 });
 
-function projectEntriesFailureContext(error: WorkspaceEntries.WorkspaceEntriesError): {
-  readonly failure: ProjectEntriesFailure;
-  readonly normalizedCwd?: string;
-  readonly timeout?: string;
-  readonly detail?: string;
-} {
+function projectEntriesFailureContext(error: WorkspaceEntries.WorkspaceEntriesError) {
   switch (error._tag) {
     case "WorkspaceRootNotExistsError":
       return {
         failure: "workspace_root_not_found",
         normalizedCwd: error.normalizedWorkspaceRoot,
+      } satisfies {
+        readonly failure: ProjectEntriesFailure;
+        readonly normalizedCwd?: string;
+        readonly timeout?: string;
+        readonly detail?: string;
       };
     case "WorkspaceRootCreateFailedError":
       return {
         failure: "workspace_root_create_failed",
         normalizedCwd: error.normalizedWorkspaceRoot,
+      } satisfies {
+        readonly failure: ProjectEntriesFailure;
+        readonly normalizedCwd?: string;
+        readonly timeout?: string;
+        readonly detail?: string;
       };
     case "WorkspaceRootStatFailedError":
       return {
         failure: "workspace_root_stat_failed",
         normalizedCwd: error.normalizedWorkspaceRoot,
         detail: error.phase,
+      } satisfies {
+        readonly failure: ProjectEntriesFailure;
+        readonly normalizedCwd?: string;
+        readonly timeout?: string;
+        readonly detail?: string;
       };
     case "WorkspaceRootNotDirectoryError":
       return {
         failure: "workspace_root_not_directory",
         normalizedCwd: error.normalizedWorkspaceRoot,
+      } satisfies {
+        readonly failure: ProjectEntriesFailure;
+        readonly normalizedCwd?: string;
+        readonly timeout?: string;
+        readonly detail?: string;
       };
     case "WorkspaceEntriesReadDirectoryError":
       return {
         failure: "directory_list_failed",
         ...(error.cwd !== undefined ? { normalizedCwd: error.cwd } : {}),
         detail: error.message,
+      } satisfies {
+        readonly failure: ProjectEntriesFailure;
+        readonly normalizedCwd?: string;
+        readonly timeout?: string;
+        readonly detail?: string;
       };
     case "WorkspaceSearchIndexCreateFailed":
       return {
         failure: "search_index_create_failed",
         normalizedCwd: error.cwd,
         detail: error.reason,
+      } satisfies {
+        readonly failure: ProjectEntriesFailure;
+        readonly normalizedCwd?: string;
+        readonly timeout?: string;
+        readonly detail?: string;
       };
     case "WorkspaceSearchIndexScanTimedOut":
       return {
         failure: "search_index_scan_timed_out",
         normalizedCwd: error.cwd,
         timeout: error.timeout,
+      } satisfies {
+        readonly failure: ProjectEntriesFailure;
+        readonly normalizedCwd?: string;
+        readonly timeout?: string;
+        readonly detail?: string;
       };
     case "WorkspaceSearchIndexSearchFailed":
       return {
         failure: "search_index_search_failed",
         normalizedCwd: error.cwd,
         detail: error.reason,
+      } satisfies {
+        readonly failure: ProjectEntriesFailure;
+        readonly normalizedCwd?: string;
+        readonly timeout?: string;
+        readonly detail?: string;
       };
     default:
-      return unexpectedCompatibilityError(error);
+      return unexpectedCompatibilityError(error) satisfies {
+        readonly failure: ProjectEntriesFailure;
+        readonly normalizedCwd?: string;
+        readonly timeout?: string;
+        readonly detail?: string;
+      };
   }
 }
 
-function filesystemBrowseFailureContext(error: WorkspaceEntries.WorkspaceEntriesBrowseError): {
-  readonly failure: FilesystemBrowseFailure;
-  readonly parentPath?: string;
-  readonly platform?: string;
-  readonly pathMissing?: boolean;
-} {
+function filesystemBrowseFailureContext(error: WorkspaceEntries.WorkspaceEntriesBrowseError) {
   switch (error._tag) {
     case "WorkspaceEntriesWindowsPathUnsupportedError":
-      return { failure: "windows_path_unsupported", platform: error.platform };
+      return { failure: "windows_path_unsupported", platform: error.platform } satisfies {
+        readonly failure: FilesystemBrowseFailure;
+        readonly parentPath?: string;
+        readonly platform?: string;
+        readonly pathMissing?: boolean;
+      };
     case "WorkspaceEntriesCurrentProjectRequiredError":
-      return { failure: "current_project_required" };
+      return { failure: "current_project_required" } satisfies {
+        readonly failure: FilesystemBrowseFailure;
+        readonly parentPath?: string;
+        readonly platform?: string;
+        readonly pathMissing?: boolean;
+      };
     case "WorkspaceEntriesReadDirectoryError":
       return {
         failure: "read_directory_failed",
         parentPath: error.parentPath,
         ...(error.pathMissing ? { pathMissing: true } : {}),
+      } satisfies {
+        readonly failure: FilesystemBrowseFailure;
+        readonly parentPath?: string;
+        readonly platform?: string;
+        readonly pathMissing?: boolean;
       };
     default:
-      return unexpectedCompatibilityError(error);
+      return unexpectedCompatibilityError(error) satisfies {
+        readonly failure: FilesystemBrowseFailure;
+        readonly parentPath?: string;
+        readonly platform?: string;
+        readonly pathMissing?: boolean;
+      };
   }
 }
 
@@ -677,36 +775,66 @@ function projectFileFailureContext(
     | WorkspaceFileSystem.WorkspaceFileSystemError
     | WorkspacePaths.WorkspacePathOutsideRootError
     | KnownWorkspaces.UnknownWorkspaceError,
-): {
-  readonly failure: ProjectFileFailure;
-  readonly resolvedPath?: string;
-  readonly resolvedWorkspaceRoot?: string;
-  readonly operation?: ProjectFileOperation;
-  readonly operationPath?: string;
-} {
+) {
   switch (error._tag) {
     case "WorkspacePathOutsideRootError":
     case "UnknownWorkspaceError":
-      return { failure: "workspace_path_outside_root" };
+      return { failure: "workspace_path_outside_root" } satisfies {
+        readonly failure: ProjectFileFailure;
+        readonly resolvedPath?: string;
+        readonly resolvedWorkspaceRoot?: string;
+        readonly operation?: ProjectFileOperation;
+        readonly operationPath?: string;
+      };
     case "WorkspaceFileSystemOperationError":
       return {
         failure: "operation_failed",
         resolvedPath: error.resolvedPath,
         operation: error.operation,
         operationPath: error.operationPath,
+      } satisfies {
+        readonly failure: ProjectFileFailure;
+        readonly resolvedPath?: string;
+        readonly resolvedWorkspaceRoot?: string;
+        readonly operation?: ProjectFileOperation;
+        readonly operationPath?: string;
       };
     case "WorkspaceFilePathEscapeError":
       return {
         failure: "resolved_path_outside_root",
         resolvedPath: error.resolvedPath,
         resolvedWorkspaceRoot: error.resolvedWorkspaceRoot,
+      } satisfies {
+        readonly failure: ProjectFileFailure;
+        readonly resolvedPath?: string;
+        readonly resolvedWorkspaceRoot?: string;
+        readonly operation?: ProjectFileOperation;
+        readonly operationPath?: string;
       };
     case "WorkspacePathNotFileError":
-      return { failure: "path_not_file", resolvedPath: error.resolvedPath };
+      return { failure: "path_not_file", resolvedPath: error.resolvedPath } satisfies {
+        readonly failure: ProjectFileFailure;
+        readonly resolvedPath?: string;
+        readonly resolvedWorkspaceRoot?: string;
+        readonly operation?: ProjectFileOperation;
+        readonly operationPath?: string;
+      };
     case "WorkspaceBinaryFileError":
-      return { failure: "binary_file", resolvedPath: error.resolvedPath };
+      return { failure: "binary_file", resolvedPath: error.resolvedPath } satisfies {
+        readonly failure: ProjectFileFailure;
+        readonly resolvedPath?: string;
+        readonly resolvedWorkspaceRoot?: string;
+        readonly operation?: ProjectFileOperation;
+        readonly operationPath?: string;
+      };
     default:
-      return unexpectedCompatibilityError(error);
+      return unexpectedCompatibilityError(error) satisfies {
+        readonly failure: ProjectFileFailure;
+        readonly resolvedPath?: string;
+        readonly resolvedWorkspaceRoot?: string;
+        readonly operation?: ProjectFileOperation;
+        readonly operationPath?: string;
+      };
   }
 }
 
@@ -732,7 +860,7 @@ function toAuthAccessStreamEvent(
   change: PairingGrantStore.BootstrapCredentialChange | SessionStore.SessionCredentialChange,
   revision: number,
   currentSessionId: AuthSessionId,
-): AuthAccessStreamEvent {
+) {
   switch (change.type) {
     case "pairingLinkUpserted":
       return {
@@ -740,14 +868,14 @@ function toAuthAccessStreamEvent(
         revision,
         type: "pairingLinkUpserted",
         payload: { ...change.pairingLink, ...authScopeResponse(change.pairingLink.scopes) },
-      };
+      } satisfies AuthAccessStreamEvent;
     case "pairingLinkRemoved":
       return {
         version: 1,
         revision,
         type: "pairingLinkRemoved",
         payload: { id: change.id },
-      };
+      } satisfies AuthAccessStreamEvent;
     case "clientUpserted":
       return {
         version: 1,
@@ -758,18 +886,18 @@ function toAuthAccessStreamEvent(
           ...authScopeResponse(change.clientSession.scopes),
           current: change.clientSession.sessionId === currentSessionId,
         },
-      };
+      } satisfies AuthAccessStreamEvent;
     case "clientRemoved":
       return {
         version: 1,
         revision,
         type: "clientRemoved",
         payload: { sessionId: change.sessionId },
-      };
+      } satisfies AuthAccessStreamEvent;
   }
 }
 
-function hasCompatibleOrchestrationProtocol(url: URL): boolean {
+function hasCompatibleOrchestrationProtocol(url: URL) {
   return (
     url.searchParams.get(ORCHESTRATION_PROTOCOL_QUERY_PARAM) ===
     String(ORCHESTRATION_PROTOCOL_VERSION)
@@ -779,7 +907,7 @@ function hasCompatibleOrchestrationProtocol(url: URL): boolean {
 function shouldUseBoundedThreadSnapshot(input: {
   readonly acceptBoundedSnapshot?: boolean;
   readonly acceptDeferredWork?: boolean;
-}): boolean {
+}) {
   return input.acceptBoundedSnapshot === true;
 }
 
@@ -1406,7 +1534,7 @@ export const layerWsRpc = (
       const authorizeEffect = <A, E, R>(
         requiredScope: AuthEnvironmentScope,
         effect: Effect.Effect<A, E, R>,
-      ): Effect.Effect<A, E | EnvironmentAuthorizationError, R> =>
+      ) =>
         currentSession.scopes.includes(requiredScope)
           ? effect
           : Effect.fail(rpcAuthorizationError(requiredScope));

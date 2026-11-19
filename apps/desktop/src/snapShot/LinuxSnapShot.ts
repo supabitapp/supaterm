@@ -88,7 +88,7 @@ export type LinuxCaptureFeedback = {
 };
 type FeedbackOptions = { readonly flash: boolean; readonly animate: boolean };
 
-function unavailable(error: unknown): boolean {
+function unavailable(error: unknown) {
   return (
     error instanceof DBusError &&
     ["ServiceUnknown", "NameHasNoOwner", "UnknownObject", "UnknownInterface", "UnknownMethod"].some(
@@ -124,7 +124,7 @@ class LinuxCaptureConnection {
     this.bus.disconnect();
   }
 
-  private async wait<T>(pending: Promise<T>, timeoutMs = 5_000): Promise<T> {
+  private async wait<T>(pending: Promise<T>, timeoutMs = 5_000) {
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
       return await Promise.race([
@@ -158,7 +158,7 @@ class LinuxCaptureConnection {
     return reply.body[0] as unknown;
   }
 
-  async backend(appId: string): Promise<LinuxCaptureBackend> {
+  async backend(appId: string) {
     if (isKdeCaptureSession()) {
       const kde = await this.properties(
         "org.kde.KWin.ScreenShot2",
@@ -209,7 +209,7 @@ class LinuxCaptureConnection {
     return "picker";
   }
 
-  async capturePortal(): Promise<LinuxWindowSnapshot> {
+  async capturePortal() {
     const owner = await this.call({
       destination: DBUS,
       path: DBUS_PATH,
@@ -296,7 +296,7 @@ class LinuxCaptureConnection {
     }
   }
 
-  async captureExtension(appId: string, options?: FeedbackOptions): Promise<LinuxWindowSnapshot> {
+  async captureExtension(appId: string, options?: FeedbackOptions) {
     const result = await this.wait(
       this.bus.requestName(`${appId}.SnapShot`, NameFlag.DO_NOT_QUEUE),
     );
@@ -345,7 +345,7 @@ class LinuxCaptureConnection {
     return { png, window, feedback };
   }
 
-  private async feedbackCall(member: string, signature: string, body: unknown[]): Promise<void> {
+  private async feedbackCall(member: string, signature: string, body: unknown[]) {
     if (this.closed) return;
     await this.call({
       destination: EXTENSION,
@@ -377,20 +377,26 @@ export async function getLinuxCaptureSupport(appId: string) {
 }
 
 /** Undefined means capability missing, not denied: only that case may open the picker. */
+export function captureLinuxWindow(
+  appId: string,
+  options?: FeedbackOptions,
+  kdePaths?: KdeCapturePaths,
+  hyprlandPaths?: HyprlandCapturePaths,
+): Promise<LinuxWindowSnapshot | undefined>;
 export async function captureLinuxWindow(
   appId: string,
   options?: FeedbackOptions,
   kdePaths?: KdeCapturePaths,
   hyprlandPaths?: HyprlandCapturePaths,
-): Promise<LinuxWindowSnapshot | undefined> {
+) {
   if (isHyprlandCaptureSession()) {
     if (!hyprlandPaths) throw new Error("Hyprland capture setup is unavailable in this build.");
     const { captureHyprlandWindow } = await import("./HyprlandSnapShot.ts");
-    return captureHyprlandWindow(hyprlandPaths, options);
+    return captureHyprlandWindow(hyprlandPaths, options) satisfies LinuxWindowSnapshot | undefined;
   }
   const { niriSocketPath, captureNiriWindow } = await import("./NiriSnapShot.ts");
   const niri = niriSocketPath();
-  if (niri) return captureNiriWindow(niri);
+  if (niri) return captureNiriWindow(niri) satisfies LinuxWindowSnapshot | undefined;
   const connection = new LinuxCaptureConnection();
   let retained = false;
   try {
@@ -398,17 +404,19 @@ export async function captureLinuxWindow(
       case "kde": {
         if (!kdePaths) throw new Error("KDE capture setup is unavailable in this build.");
         const { captureKdeWindow } = await import("./KdeSnapShot.ts");
-        return await captureKdeWindow(kdePaths, options);
+        return (await captureKdeWindow(kdePaths, options)) satisfies
+          | LinuxWindowSnapshot
+          | undefined;
       }
       case "screenshot-portal":
-        return await connection.capturePortal();
+        return (await connection.capturePortal()) satisfies LinuxWindowSnapshot | undefined;
       case "gnome-extension": {
         const snapshot = await connection.captureExtension(appId, options);
         retained = snapshot.feedback !== undefined;
-        return snapshot;
+        return snapshot satisfies LinuxWindowSnapshot | undefined;
       }
       case "picker":
-        return undefined;
+        return undefined satisfies LinuxWindowSnapshot | undefined;
     }
   } finally {
     if (!retained) connection.close();

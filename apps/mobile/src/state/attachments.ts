@@ -13,7 +13,7 @@ import { readEnvironmentScope } from "./session";
 
 function requireAttachmentWriteAccess<W extends { readonly environmentId: EnvironmentId }, A, E>(
   command: AtomCommand<W, A, E>,
-): AtomCommand<W, A, E | EnvironmentAuthorizationError> {
+) {
   return {
     ...command,
     run: async (registry, input) => {
@@ -29,7 +29,7 @@ function requireAttachmentWriteAccess<W extends { readonly environmentId: Enviro
       }
       return command.run(registry, input);
     },
-  };
+  } satisfies AtomCommand<W, A, E | EnvironmentAuthorizationError>;
 }
 
 const commands = createAttachmentEnvironmentAtoms(connectionAtomRuntime);

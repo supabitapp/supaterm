@@ -201,7 +201,7 @@ function useAutomationEnvironmentStates(
 ) {
   return useAtomValue(
     Atom.make((get) =>
-      environments.map((environment): AutomationEnvironmentState => {
+      environments.map((environment) => {
         const connected =
           environment.connection.phase === "connected" && environment.serverConfig !== null;
         const query = connected

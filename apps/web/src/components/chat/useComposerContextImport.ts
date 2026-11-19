@@ -57,7 +57,7 @@ const isUnreachable = Schema.is(
   Schema.Union([ConnectionTransientError, ConnectionBlockedError, EnvironmentRpcUnavailableError]),
 );
 
-async function downloadAttachmentBlob(url: string): Promise<Blob | null> {
+async function downloadAttachmentBlob(url: string) {
   try {
     const response = await fetch(url, { signal: AbortSignal.timeout(60_000) });
     return response.ok ? await response.blob() : null;
@@ -277,7 +277,7 @@ export function useComposerContextImport(input: {
     records: ReadonlyArray<ComposerContextRecord>,
     sourceEnvironmentId: EnvironmentId | null,
     referenceDraftTarget = attachmentDraftTarget,
-  ): ReadonlyMap<string, string> => {
+  ) => {
     const rewritten = new Map<string, string>();
     const dependentAttachmentLocalIds = new Map<string, string>();
     const skippedDependentAttachmentIds = new Set<string>();
@@ -420,9 +420,7 @@ export function useComposerContextImport(input: {
     }
     return rewritten;
   };
-  const importContextFragment = (
-    fragment: ComposerContextClipboardFragment,
-  ): ReadonlyMap<string, string> =>
+  const importContextFragment = (fragment: ComposerContextClipboardFragment) =>
     importContextRecords(fragment.records, fragment.source.environmentId);
   const importContextFragmentStable = useStableCallback(importContextFragment);
 

@@ -17,7 +17,7 @@ export interface AnnotationRejection {
   readonly retryable: boolean;
 }
 
-function draftLengthRejection(length: number): AnnotationRejection | null {
+function draftLengthRejection(length: number) {
   return length <= PROVIDER_SEND_TURN_MAX_INPUT_CHARS
     ? null
     : {
@@ -31,10 +31,7 @@ function draftLengthRejection(length: number): AnnotationRejection | null {
  * Both writes go to the draft the composer is on when they run, since the prompt that leads to
  * them can outlive a queued edit. They return why the quote cannot be kept, or null.
  */
-export function addDraftQuote(
-  draftKey: string,
-  citation: AssistantCitation,
-): AnnotationRejection | null {
+export function addDraftQuote(draftKey: string, citation: AssistantCitation) {
   const key = currentComposerDraftKey(draftKey);
   const text = serializeAssistantCitation(citation);
   const target = captureComposerDraftInsertion(key);
@@ -50,7 +47,7 @@ export function replaceDraftQuote(
   draftKey: string,
   token: { readonly source: string; readonly start: number; readonly end: number },
   citation: AssistantCitation,
-): AnnotationRejection | null {
+) {
   const key = currentComposerDraftKey(draftKey);
   const draft = getComposerDraftSnapshot(key).text;
   const start =

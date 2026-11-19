@@ -16,7 +16,7 @@ export interface KeyHoldHandlers {
  * keyup for a letter let go while Command is down. Any other key, even a repeat, or losing focus
  * makes it a tap; once held, those or a click make a modifier hold a chord (`onHeldChord`).
  */
-export function followKeyHold(code: string, handlers: KeyHoldHandlers): KeyHold {
+export function followKeyHold(code: string, handlers: KeyHoldHandlers) {
   let held = false;
   let done = false;
   const timer = window.setTimeout(() => {

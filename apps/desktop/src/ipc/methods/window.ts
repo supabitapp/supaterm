@@ -67,7 +67,7 @@ const ContextMenuInput = Schema.Struct({
   source: Schema.optionalKey(ContextMenuSource),
 });
 
-function toWebSocketBaseUrl(httpBaseUrl: URL): string {
+function toWebSocketBaseUrl(httpBaseUrl: URL) {
   const url = new URL(httpBaseUrl.href);
   url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
   return url.href;
@@ -165,7 +165,7 @@ export const getLocalEnvironmentBootstraps = DesktopIpc.makeSyncIpcMethod({
   }),
 });
 
-function extractWslDistroFromEnvironmentId(envId: string): string | null {
+function extractWslDistroFromEnvironmentId(envId: string) {
   if (!envId.startsWith(DesktopWslBackend.WSL_INSTANCE_ID_PREFIX)) {
     return null;
   }
@@ -565,7 +565,7 @@ export const pickThemeFiles = DesktopIpc.makeIpcMethod({
         }
         const text = yield* fileSystem.readFileString(filePath);
         return { name, size, text } satisfies PickedThemeFile;
-      }).pipe(Effect.orElseSucceed((): PickedThemeFile => ({ name, size: 0, text: "" })));
+      }).pipe(Effect.orElseSucceed(() => ({ name, size: 0, text: "" })));
     });
   }),
 });

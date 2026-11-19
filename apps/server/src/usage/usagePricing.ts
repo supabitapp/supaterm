@@ -37,7 +37,7 @@ export type RateTable = ReadonlyMap<string, ModelRate>;
 
 export function createOverrideRateTable(
   overrides: Readonly<Record<string, UsageModelPriceOverride>>,
-): RateTable {
+) {
   return new Map(
     Object.entries(overrides).map(([model, prices]) => {
       const cacheCreationCostPerToken =
@@ -62,7 +62,7 @@ export function createOverrideRateTable(
 
 type LiteLlmEntry = Readonly<Record<string, unknown>>;
 
-function finiteNumber(value: unknown): number | null {
+function finiteNumber(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
@@ -71,7 +71,7 @@ function readTokenRates(
   suffix: string,
   standard?: TokenRates,
   outputFallback?: number,
-): TokenRates | null {
+) {
   const input = finiteNumber(entry[`input_cost_per_token${suffix}`]);
   const output = finiteNumber(entry[`output_cost_per_token${suffix}`]) ?? outputFallback ?? null;
   if (input === null || output === null) return null;
@@ -101,7 +101,7 @@ function readTokenRates(
   };
 }
 
-function scaleTokenRates(rates: TokenRates, multiple: number): TokenRates {
+function scaleTokenRates(rates: TokenRates, multiple: number) {
   return {
     inputCostPerToken: rates.inputCostPerToken * multiple,
     outputCostPerToken: rates.outputCostPerToken * multiple,
@@ -111,14 +111,14 @@ function scaleTokenRates(rates: TokenRates, multiple: number): TokenRates {
   };
 }
 
-function fastMultiplier(entry: LiteLlmEntry): number | null {
+function fastMultiplier(entry: LiteLlmEntry) {
   const specific = entry["provider_specific_entry"];
   if (typeof specific !== "object" || specific === null) return null;
   const fast = finiteNumber((specific as Record<string, unknown>)["fast"]);
   return fast !== null && fast > 0 ? fast : null;
 }
 
-function readSpeedRates(entry: LiteLlmEntry, standard: TokenRates, suffix = ""): SpeedRates {
+function readSpeedRates(entry: LiteLlmEntry, standard: TokenRates, suffix = "") {
   const multiple = fastMultiplier(entry);
   return {
     ...standard,
@@ -133,7 +133,7 @@ function readSpeedRates(entry: LiteLlmEntry, standard: TokenRates, suffix = ""):
 const CONTEXT_TIER_INPUT_KEY =
   /^input_cost_per_token_above_(\d{1,7})k_tokens(?:_priority|_ultrafast)?$/;
 
-function readContextTiers(entry: LiteLlmEntry, base: TokenRates): ContextTier[] {
+function readContextTiers(entry: LiteLlmEntry, base: TokenRates) {
   const thresholds = new Set<string>();
   for (const key of Object.keys(entry)) {
     const match = CONTEXT_TIER_INPUT_KEY.exec(key);
@@ -162,9 +162,10 @@ const FIRST_PARTY_PROVIDERS = new Set([
 ]);
 
 /** Drops models missing input or output rates to avoid understating cost. */
-export function parseRateTable(document: unknown): RateTable {
+export function parseRateTable(document: unknown): RateTable;
+export function parseRateTable(document: unknown) {
   const table = new Map<string, ModelRate>();
-  if (typeof document !== "object" || document === null) return table;
+  if (typeof document !== "object" || document === null) return table satisfies RateTable;
 
   for (const [name, raw] of Object.entries(document as Record<string, unknown>)) {
     if (typeof raw !== "object" || raw === null) continue;
@@ -197,10 +198,10 @@ export function parseRateTable(document: unknown): RateTable {
     if (rate !== null) table.set(alias, rate);
   }
 
-  return table;
+  return table satisfies RateTable;
 }
 
-function sameTokenRates(a: TokenRates | null, b: TokenRates | null): boolean {
+function sameTokenRates(a: TokenRates | null, b: TokenRates | null) {
   if (a === null || b === null) return a === b;
   return (
     a.inputCostPerToken === b.inputCostPerToken &&
@@ -211,7 +212,7 @@ function sameTokenRates(a: TokenRates | null, b: TokenRates | null): boolean {
   );
 }
 
-function mergeSpeedRates(a: SpeedRates, b: SpeedRates): SpeedRates | null {
+function mergeSpeedRates(a: SpeedRates, b: SpeedRates) {
   const fast = a.fast ?? b.fast;
   const ultrafast = a.ultrafast ?? b.ultrafast;
   if (
@@ -224,10 +225,7 @@ function mergeSpeedRates(a: SpeedRates, b: SpeedRates): SpeedRates | null {
   return { ...a, fast, ultrafast };
 }
 
-function mergeContextTiers(
-  a: readonly ContextTier[],
-  b: readonly ContextTier[],
-): readonly ContextTier[] | null {
+function mergeContextTiers(a: readonly ContextTier[], b: readonly ContextTier[]) {
   if (a.length === 0) return b;
   if (b.length === 0) return a;
   if (a.length !== b.length) return null;
@@ -241,37 +239,37 @@ function mergeContextTiers(
   return merged;
 }
 
-function mergeAliasRate(a: ModelRate, b: ModelRate): ModelRate | null {
+function mergeAliasRate(a: ModelRate, b: ModelRate) {
   const speeds = mergeSpeedRates(a, b);
   const contextTiers = mergeContextTiers(a.contextTiers, b.contextTiers);
   return speeds === null || contextTiers === null ? null : { ...speeds, contextTiers };
 }
 
-function promptTokens(totals: UsageTokenTotals): number {
+function promptTokens(totals: UsageTokenTotals) {
   return totals.uncachedInputTokens + totals.cachedInputTokens + totals.cacheCreationTokens;
 }
 
-function ratesAt(rate: ModelRate, speed: UsageSpeed, totals: UsageTokenTotals): TokenRates {
+function ratesAt(rate: ModelRate, speed: UsageSpeed, totals: UsageTokenTotals) {
   const prompt = promptTokens(totals);
   const tier = rate.contextTiers.find((tier) => prompt > tier.thresholdTokens)?.rate;
   if (speed === "standard") return tier ?? rate;
   return tier?.[speed] ?? rate[speed] ?? tier ?? rate;
 }
 
-function normalizeRateKey(model: string): string {
+function normalizeRateKey(model: string) {
   return model.trim().toLowerCase();
 }
 
-function bareModelName(key: string): string {
+function bareModelName(key: string) {
   const slash = key.lastIndexOf("/");
   return slash === -1 ? key : key.slice(slash + 1);
 }
 
-function bedrockBaseModelName(key: string): string {
+function bedrockBaseModelName(key: string) {
   return key.startsWith("anthropic.") ? key.slice("anthropic.".length) : key;
 }
 
-function stripVariantSuffix(key: string): string {
+function stripVariantSuffix(key: string) {
   const bracket = key.indexOf("[");
   return bracket === -1 ? key : key.slice(0, bracket);
 }
@@ -287,7 +285,7 @@ const UNPRICEABLE_MODELS = new Set([
 
 const resolvedRates = new WeakMap<RateTable, Map<string, ModelRate | null>>();
 
-export function lookupRate(table: RateTable, model: string): ModelRate | null {
+export function lookupRate(table: RateTable, model: string) {
   let resolved = resolvedRates.get(table);
   if (resolved === undefined) {
     resolved = new Map();
@@ -302,14 +300,14 @@ export function lookupRate(table: RateTable, model: string): ModelRate | null {
 }
 
 /** A priceable model the table has no rate for; a newer table may list it. */
-export function isUnlistedModel(table: RateTable, model: string): boolean {
+export function isUnlistedModel(table: RateTable, model: string) {
   const bareName = bareModelName(stripVariantSuffix(normalizeRateKey(model)));
   return (
     bareName.length > 0 && !UNPRICEABLE_MODELS.has(bareName) && lookupRate(table, model) === null
   );
 }
 
-function resolveRate(table: RateTable, model: string): ModelRate | null {
+function resolveRate(table: RateTable, model: string) {
   const key = stripVariantSuffix(normalizeRateKey(model));
   const bareName = bareModelName(key);
   if (bareName.length === 0 || UNPRICEABLE_MODELS.has(bareName)) return null;
@@ -321,7 +319,7 @@ export type PricedRecord = Pick<
   "model" | "rateModel" | "totals" | "cacheCreation1hTokens" | "speed" | "reportedCostUsd"
 >;
 
-function recordRate(table: RateTable, record: PricedRecord): ModelRate | null {
+function recordRate(table: RateTable, record: PricedRecord) {
   const rate = record.rateModel === undefined ? null : lookupRate(table, record.rateModel);
   return rate ?? lookupRate(table, record.model);
 }
@@ -333,7 +331,7 @@ export interface PricedUsage {
   readonly speedPremiumUsd: number;
 }
 
-function costByCategory(record: PricedRecord, rates: TokenRates): UsageCategoryCost {
+function costByCategory(record: PricedRecord, rates: TokenRates) {
   const { totals } = record;
   const oneHour = Math.min(record.cacheCreation1hTokens ?? 0, totals.cacheCreationTokens);
   return {
@@ -346,7 +344,7 @@ function costByCategory(record: PricedRecord, rates: TokenRates): UsageCategoryC
   };
 }
 
-function sumCategories(cost: UsageCategoryCost): number {
+function sumCategories(cost: UsageCategoryCost) {
   return cost.input + cost.cacheRead + cost.cacheWrite + cost.output;
 }
 
@@ -355,14 +353,15 @@ export function priceUsage(
   table: RateTable,
   record: PricedRecord,
   overrides?: RateTable,
-): PricedUsage {
+): PricedUsage;
+export function priceUsage(table: RateTable, record: PricedRecord, overrides?: RateTable) {
   const { model, totals, reportedCostUsd } = record;
   const override = overrides?.get(model.trim());
   const reported =
     override === undefined && reportedCostUsd !== null && Number.isFinite(reportedCostUsd)
       ? reportedCostUsd
       : null;
-  const unsplit = (costUsd: number, costSource: UsageCostSource): PricedUsage => ({
+  const unsplit = (costUsd: number, costSource: UsageCostSource) => ({
     costUsd,
     costSource,
     categoryCostUsd: null,
@@ -370,12 +369,15 @@ export function priceUsage(
   });
   const rate = override ?? recordRate(table, record);
   if (rate === null) {
-    return reported === null ? unsplit(0, "unpriced") : unsplit(reported, "providerReported");
+    return (
+      reported === null ? unsplit(0, "unpriced") : unsplit(reported, "providerReported")
+    ) satisfies PricedUsage;
   }
 
   const listCost = costByCategory(record, ratesAt(rate, record.speed, totals));
   const listCostUsd = sumCategories(listCost);
-  if (reported !== null && listCostUsd <= 0) return unsplit(reported, "providerReported");
+  if (reported !== null && listCostUsd <= 0)
+    return unsplit(reported, "providerReported") satisfies PricedUsage;
   const premiumUsd =
     record.speed === "standard"
       ? 0
@@ -391,14 +393,10 @@ export function priceUsage(
       output: listCost.output * scale,
     },
     speedPremiumUsd: premiumUsd * scale,
-  };
+  } satisfies PricedUsage;
 }
 
-export function cacheSavingsUsd(
-  table: RateTable,
-  record: PricedRecord,
-  overrides?: RateTable,
-): number {
+export function cacheSavingsUsd(table: RateTable, record: PricedRecord, overrides?: RateTable) {
   const rate = overrides?.get(record.model.trim()) ?? recordRate(table, record);
   if (rate === null) return 0;
   const rates = ratesAt(rate, record.speed, record.totals);

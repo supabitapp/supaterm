@@ -1,5 +1,5 @@
 import { CODE_FONT_FAMILY } from "../../../../lib/fonts";
-import { ScrollView, type StyleProp, type TextStyle, View } from "react-native";
+import { ScrollView, type TextStyle, View } from "react-native";
 
 import { AppText as Text } from "../../../../components/ui/AppText";
 import {
@@ -43,10 +43,7 @@ export function TerminalAppearancePreview(props: { readonly fontSize: number }) 
     fontSize: props.fontSize,
     lineHeight,
   } as const;
-  const span = (color: string, extra?: TextStyle): StyleProp<TextStyle> => [
-    lineStyle,
-    { color, ...extra },
-  ];
+  const span = (color: string, extra?: TextStyle) => [lineStyle, { color, ...extra }];
 
   return (
     <View className="p-4">

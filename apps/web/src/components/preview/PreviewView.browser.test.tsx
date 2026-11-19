@@ -17,14 +17,14 @@ import { act, render } from "../../../test/render";
 import type { PreviewableServer } from "./useDiscoveredLocalServers";
 
 const mocks = vi.hoisted(() => ({
-  navigate: vi.fn(async (_tabId: string, _url: string): Promise<void> => undefined),
+  navigate: vi.fn(async (_tabId: string, _url: string) => undefined),
   rememberPreviewUrl: vi.fn(),
   readPreparedConnection: vi.fn(() => ({ httpBaseUrl: "http://172.25.85.75:3773" })),
   readEnvironmentScope: vi.fn((_environmentId?: unknown, _scope?: unknown) => true),
-  setAnnotationSendEnabled: vi.fn(async (_tabId: string, _enabled: boolean): Promise<void> => {}),
+  setAnnotationSendEnabled: vi.fn(async (_tabId: string, _enabled: boolean) => {}),
   cancelPickElement: vi.fn(async (_tabId: string) => undefined),
-  openPictureInPicture: vi.fn(async (_tabId: string): Promise<void> => undefined),
-  closePictureInPicture: vi.fn(async (_tabId: string): Promise<void> => undefined),
+  openPictureInPicture: vi.fn(async (_tabId: string) => undefined),
+  closePictureInPicture: vi.fn(async (_tabId: string) => undefined),
   pickElement: vi.fn(),
   addPreviewAnnotation: vi.fn(),
   addImage: vi.fn(),

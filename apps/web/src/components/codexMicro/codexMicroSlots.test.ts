@@ -19,7 +19,7 @@ import {
 const NOW = "2026-03-10T12:00:00.000Z";
 const environmentId = EnvironmentId.make("environment-test");
 
-function thread(id: string, overrides: ThreadFixtureOverrides = {}): EnvironmentThreadShell {
+function thread(id: string, overrides: ThreadFixtureOverrides = {}) {
   return makeThreadFixture({ id: ThreadId.make(id), title: id, ...overrides });
 }
 

@@ -38,7 +38,7 @@ export function useSelectedThreadDetailState() {
   );
 }
 
-export function useThreadProjection(target: ThreadDetailTarget): EnvironmentThread | null {
+export function useThreadProjection(target: ThreadDetailTarget) {
   return useAtomValue(
     target.environmentId === null || target.threadId === null
       ? EMPTY_THREAD_PROJECTION_ATOM
@@ -50,15 +50,13 @@ export function useThreadProjection(target: ThreadDetailTarget): EnvironmentThre
 }
 
 /** Keeps its value through streamed text; runs, sessions, and item status still update. */
-export function useQuietThreadStructure(
-  ref: ScopedThreadRef | null,
-): EnvironmentThreadStructure | null {
+export function useQuietThreadStructure(ref: ScopedThreadRef | null) {
   return useAtomValue(
     ref === null ? EMPTY_THREAD_STRUCTURE_ATOM : environmentThreadDetails.quietThreadAtom(ref),
   );
 }
 
-export function useSelectedThreadProjection(): EnvironmentThread | null {
+export function useSelectedThreadProjection() {
   const { selectedThreadRef } = useThreadSelection();
   return useThreadProjection({
     environmentId: selectedThreadRef?.environmentId ?? null,
@@ -94,9 +92,7 @@ export function useSelectedThreadComposerMetadata() {
   return { reportedModelSelection, queuedCount, turnSubagents };
 }
 
-function useThreadVisibleTurnItems(
-  target: ThreadDetailTarget,
-): OrchestrationV2ThreadProjection["visibleTurnItems"] {
+function useThreadVisibleTurnItems(target: ThreadDetailTarget) {
   return useAtomValue(
     target.environmentId === null || target.threadId === null
       ? EMPTY_VISIBLE_TURN_ITEMS_ATOM
@@ -107,7 +103,7 @@ function useThreadVisibleTurnItems(
   );
 }
 
-export function useSelectedThreadVisibleTurnItems(): OrchestrationV2ThreadProjection["visibleTurnItems"] {
+export function useSelectedThreadVisibleTurnItems() {
   const { selectedThreadRef } = useThreadSelection();
   return useThreadVisibleTurnItems({
     environmentId: selectedThreadRef?.environmentId ?? null,

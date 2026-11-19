@@ -49,7 +49,16 @@ function project(input: {
   readonly provider?: string;
   readonly host?: string;
   readonly remoteUrl?: string;
-}): OrchestrationProjectShell {
+}): OrchestrationProjectShell;
+function project(input: {
+  readonly id: string;
+  readonly title: string;
+  readonly workspaceRoot: string;
+  readonly repository?: string;
+  readonly provider?: string;
+  readonly host?: string;
+  readonly remoteUrl?: string;
+}) {
   const host = input.host ?? (input.provider === "gitlab" ? "gitlab.com" : "github.com");
   return {
     id: input.id as ProjectId,
@@ -73,10 +82,11 @@ function project(input: {
     scripts: [],
     createdAt: "2026-07-01T00:00:00Z",
     updatedAt: "2026-07-01T00:00:00Z",
-  };
+  } satisfies OrchestrationProjectShell;
 }
 
-function changeRequest(number: number, updatedAt: string): ProviderChangeRequest {
+function changeRequest(number: number, updatedAt: string): ProviderChangeRequest;
+function changeRequest(number: number, updatedAt: string) {
   return {
     number,
     title: `Change request ${number}`,
@@ -93,7 +103,7 @@ function changeRequest(number: number, updatedAt: string): ProviderChangeRequest
     updatedAt,
     reviewRequestLogins: [],
     labels: [],
-  };
+  } satisfies ProviderChangeRequest;
 }
 
 function hostedChangeRequest(body: string, additions = 1) {

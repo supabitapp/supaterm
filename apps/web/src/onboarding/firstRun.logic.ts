@@ -59,14 +59,11 @@ interface HostedFirstRunDecisionInput {
 export function isFirstRunWorkspaceProvenanceAuthoritative(input: {
   readonly welcomeReceived: boolean;
   readonly bootstrapStatus: "pending" | "complete" | null;
-}): boolean {
+}) {
   return input.welcomeReceived && input.bootstrapStatus !== "pending";
 }
 
-export function transitionFirstRunGateState(
-  state: FirstRunGateState,
-  event: FirstRunGateEvent,
-): FirstRunGateState {
+export function transitionFirstRunGateState(state: FirstRunGateState, event: FirstRunGateEvent) {
   if (event.type === "timeout") {
     return state.decision === "pending" && !state.stalled ? { ...state, stalled: true } : state;
   }
@@ -82,7 +79,7 @@ export function transitionFirstRunGateState(
   return { decision: event.decision, stalled: false };
 }
 
-export function isFreshFirstRunWorkspace(input: FirstRunWorkspaceInput): boolean {
+export function isFreshFirstRunWorkspace(input: FirstRunWorkspaceInput) {
   if (input.projects.length > 1 || input.threads.length > 1) {
     return false;
   }
@@ -118,16 +115,19 @@ export function isFreshFirstRunWorkspace(input: FirstRunWorkspaceInput): boolean
   );
 }
 
-export function resolveFirstRunDecision(input: FirstRunDecisionInput): {
-  readonly decision: FirstRunDecision;
-  readonly persistCompletion: boolean;
-} {
+export function resolveFirstRunDecision(input: FirstRunDecisionInput) {
   if (!input.enabled || (input.hydrated && input.completed)) {
-    return { decision: "app", persistCompletion: false };
+    return { decision: "app", persistCompletion: false } satisfies {
+      readonly decision: FirstRunDecision;
+      readonly persistCompletion: boolean;
+    };
   }
 
   if (!input.hydrated) {
-    return { decision: "pending", persistCompletion: false };
+    return { decision: "pending", persistCompletion: false } satisfies {
+      readonly decision: FirstRunDecision;
+      readonly persistCompletion: boolean;
+    };
   }
 
   if (input.projectCount > 1 || input.threadCount > 1) {
@@ -139,6 +139,9 @@ export function resolveFirstRunDecision(input: FirstRunDecisionInput): {
         input.workspaceAuthoritative &&
         input.catalogReady &&
         input.serverConfigAvailable,
+    } satisfies {
+      readonly decision: FirstRunDecision;
+      readonly persistCompletion: boolean;
     };
   }
 
@@ -149,31 +152,50 @@ export function resolveFirstRunDecision(input: FirstRunDecisionInput): {
     !input.catalogReady ||
     !input.serverConfigAvailable
   ) {
-    return { decision: "pending", persistCompletion: false };
+    return { decision: "pending", persistCompletion: false } satisfies {
+      readonly decision: FirstRunDecision;
+      readonly persistCompletion: boolean;
+    };
   }
 
-  return input.workspaceFresh
-    ? { decision: "wizard", persistCompletion: false }
-    : { decision: "app", persistCompletion: input.workspaceAuthoritative };
+  return (
+    input.workspaceFresh
+      ? { decision: "wizard", persistCompletion: false }
+      : { decision: "app", persistCompletion: input.workspaceAuthoritative }
+  ) satisfies {
+    readonly decision: FirstRunDecision;
+    readonly persistCompletion: boolean;
+  };
 }
 
-export function resolveHostedFirstRunDecision(input: HostedFirstRunDecisionInput): {
-  readonly decision: FirstRunDecision;
-  readonly persistCompletion: boolean;
-} {
+export function resolveHostedFirstRunDecision(input: HostedFirstRunDecisionInput) {
   if (!input.hydrated) {
-    return { decision: "pending", persistCompletion: false };
+    return { decision: "pending", persistCompletion: false } satisfies {
+      readonly decision: FirstRunDecision;
+      readonly persistCompletion: boolean;
+    };
   }
 
   if (input.completed) {
-    return { decision: "app", persistCompletion: false };
+    return { decision: "app", persistCompletion: false } satisfies {
+      readonly decision: FirstRunDecision;
+      readonly persistCompletion: boolean;
+    };
   }
 
   if (!input.catalogReady) {
-    return { decision: "pending", persistCompletion: false };
+    return { decision: "pending", persistCompletion: false } satisfies {
+      readonly decision: FirstRunDecision;
+      readonly persistCompletion: boolean;
+    };
   }
 
-  return input.environmentCount === 0 && !input.localEnvironmentDisabled
-    ? { decision: "wizard", persistCompletion: false }
-    : { decision: "app", persistCompletion: true };
+  return (
+    input.environmentCount === 0 && !input.localEnvironmentDisabled
+      ? { decision: "wizard", persistCompletion: false }
+      : { decision: "app", persistCompletion: true }
+  ) satisfies {
+    readonly decision: FirstRunDecision;
+    readonly persistCompletion: boolean;
+  };
 }

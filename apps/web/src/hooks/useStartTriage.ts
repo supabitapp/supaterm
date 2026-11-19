@@ -32,7 +32,7 @@ const copyTriageCliCommand = () =>
   );
 
 /** The machine Send feedback triages, or null when no machine offers triage to this client. */
-export function useTriageEnvironmentId(): EnvironmentId | null {
+export function useTriageEnvironmentId() {
   const target = resolveThreadRouteTarget(useParams({ strict: false }));
   const draftEnvironmentId = useComposerDraftStore((store) =>
     target?.kind === "draft"

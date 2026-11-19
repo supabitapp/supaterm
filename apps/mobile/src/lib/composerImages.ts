@@ -47,11 +47,16 @@ export interface DraftComposerFileAttachment {
   readonly uploadEnvironmentId?: EnvironmentId;
 }
 
+export function createPastedTextComposerAttachment(input: {
+  readonly text: string;
+  readonly name: string;
+  readonly maxBytes: number;
+}): Promise<DraftComposerFileAttachment>;
 export async function createPastedTextComposerAttachment(input: {
   readonly text: string;
   readonly name: string;
   readonly maxBytes: number;
-}): Promise<DraftComposerFileAttachment> {
+}) {
   const bytes = new TextEncoder().encode(input.text).byteLength;
   if (bytes <= 0) {
     throw new Error("Clipboard is empty.");
@@ -73,15 +78,13 @@ export async function createPastedTextComposerAttachment(input: {
     sizeBytes: bytes,
     fileUri: file.uri,
     source: { _tag: "pasted-text" },
-  };
+  } satisfies DraftComposerFileAttachment;
 }
 
 export type DraftComposerAttachment = DraftComposerImageAttachment | DraftComposerFileAttachment;
 
 /** Non-media attachments require chip references; missing references mean lost draft files. */
-export function composerStripAttachments(
-  attachments: ReadonlyArray<DraftComposerAttachment>,
-): ReadonlyArray<DraftComposerAttachment> {
+export function composerStripAttachments(attachments: ReadonlyArray<DraftComposerAttachment>) {
   return attachments.filter(
     (attachment) =>
       attachment.type === "image" ||
@@ -110,9 +113,7 @@ export function isFileBackedComposerAttachment(
 }
 
 /** Inline library/clipboard images own no file; local ids cannot resolve server assets. */
-export function composerAttachmentInlineUri(
-  attachment: DraftComposerAttachment | undefined,
-): string | undefined {
+export function composerAttachmentInlineUri(attachment: DraftComposerAttachment | undefined) {
   if (attachment === undefined || isFileBackedComposerAttachment(attachment)) return undefined;
   return attachment.type === "image" ? (attachment.dataUrl ?? attachment.previewUri) : undefined;
 }
@@ -120,11 +121,12 @@ export function composerAttachmentInlineUri(
 const OWNED_PASTED_IMAGE_DIRECTORY = "supaterm-composer-paste";
 const ATTACHMENT_COPY_CHUNK_BYTES = 64 * 1024;
 
-export async function persistComposerAttachmentFile(
+export function persistComposerAttachmentFile(
   uri: string,
   name: string,
   maxBytes?: number,
-): Promise<string> {
+): Promise<string>;
+export async function persistComposerAttachmentFile(uri: string, name: string, maxBytes?: number) {
   const { Directory, File, FileMode, Paths } = await loadExpoFileSystem();
   const directory = new Directory(Paths.document, COMPOSER_ATTACHMENT_DIRECTORY);
   directory.create({ idempotent: true, intermediates: true });
@@ -168,7 +170,7 @@ export async function persistComposerAttachmentFile(
       }
       throw error;
     }
-    return destination.uri;
+    return destination.uri satisfies string;
   }
 
   if (maxBytes !== undefined && sourceSize !== null && sourceSize > maxBytes) {
@@ -197,19 +199,19 @@ export async function persistComposerAttachmentFile(
     }
     throw new Error(fileAttachmentTooLargeMessage(name, maxBytes));
   }
-  return destination.uri;
+  return destination.uri satisfies string;
 }
 
 export function skippedDuplicateAttachmentsMessage(
   duplicates: ReadonlyArray<DraftComposerAttachment>,
-): string | null {
+) {
   if (duplicates.length === 0) return null;
   return duplicates.length === 1
     ? `Skipped '${duplicates[0]!.name}': a file with the same name, type, and size is already attached.`
     : `Skipped ${duplicates.length} files: files with the same names, types, and sizes are already attached.`;
 }
 
-export async function removePersistedComposerAttachmentFile(uri: string): Promise<void> {
+export async function removePersistedComposerAttachmentFile(uri: string) {
   try {
     const { File, Paths } = await loadExpoFileSystem();
     const ownedUri = resolveOwnedComposerAttachmentFileUri(uri, Paths.document.uri);
@@ -225,13 +227,20 @@ export async function removePersistedComposerAttachmentFile(uri: string): Promis
   }
 }
 
+export function createComposerFileAttachment(input: {
+  readonly uri: string;
+  readonly name: string;
+  readonly mimeType: string;
+  readonly sizeBytes: number | null;
+  readonly maxBytes: number;
+}): Promise<DraftComposerFileAttachment>;
 export async function createComposerFileAttachment(input: {
   readonly uri: string;
   readonly name: string;
   readonly mimeType: string;
   readonly sizeBytes: number | null;
   readonly maxBytes: number;
-}): Promise<DraftComposerFileAttachment> {
+}) {
   if (input.sizeBytes !== null && input.sizeBytes > input.maxBytes) {
     throw new Error(fileAttachmentTooLargeMessage(input.name, input.maxBytes));
   }
@@ -252,7 +261,7 @@ export async function createComposerFileAttachment(input: {
       mimeType: input.mimeType,
       sizeBytes,
       fileUri,
-    };
+    } satisfies DraftComposerFileAttachment;
   } catch (error) {
     await removePersistedComposerAttachmentFile(fileUri);
     throw error;
@@ -262,10 +271,7 @@ export async function createComposerFileAttachment(input: {
 export async function pickComposerFiles(input: {
   readonly existingCount: number;
   readonly maxBytes?: number;
-}): Promise<{
-  readonly files: ReadonlyArray<DraftComposerAttachment>;
-  readonly error: string | null;
-}> {
+}) {
   const remainingSlots = PROVIDER_SEND_TURN_MAX_ATTACHMENTS - input.existingCount;
   if (remainingSlots <= 0) {
     return {
@@ -366,10 +372,7 @@ async function loadImagePicker() {
   }
 }
 
-export async function pickComposerImages(input: { readonly existingCount: number }): Promise<{
-  readonly images: ReadonlyArray<DraftComposerImageAttachment>;
-  readonly error: string | null;
-}> {
+export async function pickComposerImages(input: { readonly existingCount: number }) {
   const result = await pickComposerMedia(input);
   return {
     images: result.attachments.filter((attachment) => attachment.type === "image"),
@@ -380,10 +383,7 @@ export async function pickComposerImages(input: { readonly existingCount: number
 export async function pickComposerMedia(input: {
   readonly existingCount: number;
   readonly maxVideoBytes?: number;
-}): Promise<{
-  readonly attachments: ReadonlyArray<DraftComposerAttachment>;
-  readonly error: string | null;
-}> {
+}) {
   const remainingSlots = PROVIDER_SEND_TURN_MAX_ATTACHMENTS - input.existingCount;
   if (remainingSlots <= 0) {
     return {
@@ -536,7 +536,7 @@ export async function pickComposerMedia(input: {
   };
 }
 
-function mimeTypeFromUri(uri: string): string {
+function mimeTypeFromUri(uri: string) {
   const ext = uri.split(".").pop()?.toLowerCase();
   switch (ext) {
     case "png":
@@ -555,7 +555,7 @@ function mimeTypeFromUri(uri: string): string {
   }
 }
 
-function isOwnedPastedImageUri(uri: string): boolean {
+function isOwnedPastedImageUri(uri: string) {
   try {
     const url = new URL(uri);
     if (url.protocol !== "file:") {
@@ -572,10 +572,7 @@ function isOwnedPastedImageUri(uri: string): boolean {
 export async function convertPastedImagesToAttachments(input: {
   readonly uris: ReadonlyArray<string>;
   readonly existingCount?: number;
-}): Promise<{
-  readonly attachments: ReadonlyArray<DraftComposerImageAttachment>;
-  readonly error: string | null;
-}> {
+}) {
   const { File } = await loadExpoFileSystem();
   const remainingSlots =
     input.existingCount === undefined

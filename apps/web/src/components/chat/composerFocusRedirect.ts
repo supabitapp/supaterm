@@ -35,7 +35,7 @@ export const TYPE_TO_FOCUS_FLOATING_LAYER_SELECTOR = [
   '[data-slot="autocomplete-popup"]:is([data-open],[data-ending-style])',
 ].join(",");
 
-export function eventPathContainsSelector(event: Event, selector: string): boolean {
+export function eventPathContainsSelector(event: Event, selector: string) {
   const path = event.composedPath();
   if (path.length === 0 && event.target) {
     path.push(event.target);
@@ -46,7 +46,7 @@ export function eventPathContainsSelector(event: Event, selector: string): boole
 const SECRET_REQUEST_SELECTOR = '[data-v2-item-type="secret_request"]';
 const SURFACE_LAUNCHER_KEYS_ATTRIBUTE = "data-surface-launcher-keys";
 
-function isSurfaceLauncherKey(event: KeyboardEvent): boolean {
+function isSurfaceLauncherKey(event: KeyboardEvent) {
   const launcherKeys = document
     .querySelector(`[${SURFACE_LAUNCHER_KEYS_ATTRIBUTE}]`)
     ?.getAttribute(SURFACE_LAUNCHER_KEYS_ATTRIBUTE)
@@ -55,7 +55,7 @@ function isSurfaceLauncherKey(event: KeyboardEvent): boolean {
   return key !== null && (launcherKeys?.includes(key) ?? false);
 }
 
-function isKeyClaimedInPath(event: KeyboardEvent): boolean {
+function isKeyClaimedInPath(event: KeyboardEvent) {
   if (event.shiftKey) return false;
   const key = event.key.toUpperCase();
   return event
@@ -67,7 +67,7 @@ function isKeyClaimedInPath(event: KeyboardEvent): boolean {
     );
 }
 
-export function shouldRedirectInputToComposer(event: Event): boolean {
+export function shouldRedirectInputToComposer(event: Event) {
   if (event.defaultPrevented) return false;
   if (eventPathContainsSelector(event, SECRET_REQUEST_SELECTOR)) return false;
   if (eventPathContainsSelector(event, TYPE_TO_FOCUS_EDITABLE_SELECTOR)) return false;
@@ -77,7 +77,7 @@ export function shouldRedirectInputToComposer(event: Event): boolean {
   return true;
 }
 
-export function shouldTypeToFocusComposer(event: KeyboardEvent): boolean {
+export function shouldTypeToFocusComposer(event: KeyboardEvent) {
   if (event.isComposing) return false;
   if (event.metaKey || event.ctrlKey || event.altKey) return false;
   if (event.key.length !== 1) return false;
@@ -88,7 +88,7 @@ export function shouldTypeToFocusComposer(event: KeyboardEvent): boolean {
   return true;
 }
 
-export function pasteTextToFocusComposer(event: ClipboardEvent): string | null {
+export function pasteTextToFocusComposer(event: ClipboardEvent) {
   if (!event.clipboardData || event.clipboardData.files.length > 0) return null;
   if (!shouldRedirectInputToComposer(event)) return null;
   const text = event.clipboardData.getData("text/plain");

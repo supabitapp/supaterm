@@ -28,7 +28,7 @@ import { selectSelectedRightPanelSurface, useRightPanelStore } from "~/rightPane
 
 import { resolveBrowserDefaults } from "./browserDefaults";
 
-export const isBrowserPreviewFile = (path: string): boolean =>
+export const isBrowserPreviewFile = (path: string) =>
   /\.(?:html?|pdf)$/i.test(path.split(/[?#]/, 1)[0] ?? "");
 
 export class BrowserPreviewUnavailableError extends Data.TaggedError(
@@ -40,7 +40,7 @@ export class BrowserPreviewUnavailableError extends Data.TaggedError(
 export class BrowserSettingsReadError extends Data.TaggedError("BrowserSettingsReadError")<{
   readonly cause: unknown;
 }> {
-  override get message(): string {
+  override get message() {
     return "Saved browser settings could not be loaded.";
   }
 }
@@ -50,6 +50,16 @@ export type OpenPreviewMutation<E = unknown> = (input: {
   readonly input: PreviewOpenInput;
 }) => Promise<AtomCommandResult<PreviewSessionSnapshot, E>>;
 
+export function openUrlInPreview<E>(input: {
+  readonly threadRef: ScopedThreadRef;
+  readonly url: string;
+  readonly assetRelativeUrl?: string;
+  readonly openPreview: OpenPreviewMutation<E>;
+
+  readonly profileId?: PreviewOpenInput["profileId"];
+
+  readonly background?: boolean;
+}): Promise<AtomCommandResult<void, E | BrowserSettingsReadError>>;
 export async function openUrlInPreview<E>(input: {
   readonly threadRef: ScopedThreadRef;
   readonly url: string;
@@ -59,12 +69,15 @@ export async function openUrlInPreview<E>(input: {
   readonly profileId?: PreviewOpenInput["profileId"];
 
   readonly background?: boolean;
-}): Promise<AtomCommandResult<void, E | BrowserSettingsReadError>> {
+}) {
   const defaults = await resolveBrowserDefaults().catch(
     (cause: unknown) => new BrowserSettingsReadError({ cause }),
   );
   if (defaults instanceof BrowserSettingsReadError) {
-    return AsyncResult.failure(Cause.fail(defaults));
+    return AsyncResult.failure(Cause.fail(defaults)) satisfies AtomCommandResult<
+      void,
+      E | BrowserSettingsReadError
+    >;
   }
   const runtime = previewRuntimeFor(input.threadRef.environmentId);
   const previousActiveTabId = readThreadPreviewState(input.threadRef).activeTabId;
@@ -104,10 +117,10 @@ export async function openUrlInPreview<E>(input: {
     }
     applyPreviewServerSnapshot(input.threadRef, snapshot);
     useRightPanelStore.getState().openBrowser(input.threadRef, snapshot.tabId);
-  });
+  }) satisfies AtomCommandResult<void, E | BrowserSettingsReadError>;
 }
 
-export async function openFileInPreview<AssetError, PreviewError>(input: {
+export function openFileInPreview<AssetError, PreviewError>(input: {
   readonly threadRef: ScopedThreadRef;
   readonly filePath: string;
   readonly workspaceRoot: string | undefined;
@@ -122,7 +135,18 @@ export async function openFileInPreview<AssetError, PreviewError>(input: {
     void,
     AssetError | PreviewError | BrowserPreviewUnavailableError | BrowserSettingsReadError
   >
-> {
+>;
+export async function openFileInPreview<AssetError, PreviewError>(input: {
+  readonly threadRef: ScopedThreadRef;
+  readonly filePath: string;
+  readonly workspaceRoot: string | undefined;
+  readonly httpBaseUrl: string;
+  readonly createAssetUrl: (input: {
+    readonly environmentId: EnvironmentId;
+    readonly input: { readonly resource: AssetResource };
+  }) => Promise<AtomCommandResult<AssetCreateUrlResult, AssetError>>;
+  readonly openPreview: OpenPreviewMutation<PreviewError>;
+}) {
   if (!isPreviewAvailableFor(input.threadRef.environmentId)) {
     return AsyncResult.failure(
       Cause.fail(
@@ -130,7 +154,10 @@ export async function openFileInPreview<AssetError, PreviewError>(input: {
           message: "The integrated browser is unavailable in this runtime.",
         }),
       ),
-    );
+    ) satisfies AtomCommandResult<
+      void,
+      AssetError | PreviewError | BrowserPreviewUnavailableError | BrowserSettingsReadError
+    >;
   }
   const insideWorkspace =
     mediaFileReference(input.filePath, input.workspaceRoot).relativePath !== undefined;
@@ -145,18 +172,27 @@ export async function openFileInPreview<AssetError, PreviewError>(input: {
     },
   });
   if (assetResult._tag === "Failure") {
-    return AsyncResult.failure(assetResult.cause);
+    return AsyncResult.failure(assetResult.cause) satisfies AtomCommandResult<
+      void,
+      AssetError | PreviewError | BrowserPreviewUnavailableError | BrowserSettingsReadError
+    >;
   }
   const assetUrl = resolveAssetUrl(input.httpBaseUrl, assetResult.value.relativeUrl);
   if (assetUrl === null) {
     return AsyncResult.failure(
       Cause.die(new Error("The environment returned an invalid asset URL.")),
-    );
+    ) satisfies AtomCommandResult<
+      void,
+      AssetError | PreviewError | BrowserPreviewUnavailableError | BrowserSettingsReadError
+    >;
   }
   return openUrlInPreview({
     threadRef: input.threadRef,
     url: assetUrl,
     assetRelativeUrl: assetResult.value.relativeUrl,
     openPreview: input.openPreview,
-  });
+  }) satisfies AtomCommandResult<
+    void,
+    AssetError | PreviewError | BrowserPreviewUnavailableError | BrowserSettingsReadError
+  >;
 }

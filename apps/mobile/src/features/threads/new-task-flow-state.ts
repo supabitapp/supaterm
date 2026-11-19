@@ -24,7 +24,7 @@ export interface NewTaskFlowRoute {
   readonly pendingTaskId: string | undefined;
 }
 
-export function draftFlowRoute(routeKey: string, draft: NewTaskDraftRouteParams): NewTaskFlowRoute {
+export function draftFlowRoute(routeKey: string, draft: NewTaskDraftRouteParams) {
   const first = (value: string | string[] | undefined) => (Array.isArray(value) ? value[0] : value);
   return {
     flowKey: `${routeKey}:${draftRouteIdentity(draft)}`,
@@ -33,23 +33,17 @@ export function draftFlowRoute(routeKey: string, draft: NewTaskDraftRouteParams)
   };
 }
 
-export function newTaskFlowRoute(route: {
-  readonly key: string;
-  readonly params?: object;
-}): NewTaskFlowRoute | undefined {
+export function newTaskFlowRoute(route: { readonly key: string; readonly params?: object }) {
   const draft = (route.params as { draft?: NewTaskDraftRouteParams } | undefined)?.draft;
   return draft ? draftFlowRoute(route.key, draft) : undefined;
 }
 
-export function newTaskFlowKey(route: {
-  readonly key: string;
-  readonly params?: object;
-}): string | undefined {
+export function newTaskFlowKey(route: { readonly key: string; readonly params?: object }) {
   return newTaskFlowRoute(route)?.flowKey;
 }
 
 /** The thread list row a draft route stands for. */
-export function newTaskPendingKey(route: NewTaskFlowRoute, flow: NewTaskFlowState): string | null {
+export function newTaskPendingKey(route: NewTaskFlowRoute, flow: NewTaskFlowState) {
   if (route.pendingTaskId) return `pending-task:${route.pendingTaskId}`;
   if (route.draftId) return `draft-task:${route.draftId}`;
   return flow.draftKey ? `draft-task:${flow.draftKey}` : null;
@@ -97,11 +91,11 @@ export const newTaskFlowStateAtom = Atom.family((flowKey: string) =>
   ),
 );
 
-export function readNewTaskFlowState(flowKey: string): NewTaskFlowState {
+export function readNewTaskFlowState(flowKey: string) {
   return appAtomRegistry.get(flowStatesAtom)[flowKey] ?? INITIAL_NEW_TASK_FLOW_STATE;
 }
 
-export function updateNewTaskFlowState(flowKey: string, patch: Partial<NewTaskFlowState>): void {
+export function updateNewTaskFlowState(flowKey: string, patch: Partial<NewTaskFlowState>) {
   const flows = appAtomRegistry.get(flowStatesAtom);
   appAtomRegistry.set(flowStatesAtom, {
     ...flows,
@@ -134,16 +128,20 @@ export function resolveRouteDraft(input: {
   }>;
   /** See `stampedEnvironmentProjectsLoading`. */
   readonly stampedEnvironmentLoading: boolean;
-}): RouteDraftResolution {
+}) {
   const { routeDraftId, stamp } = input;
-  if (routeDraftId === undefined || input.flow.draftKey !== null) return { kind: "none" };
-  if (!input.draftsLoaded) return { kind: "pending" };
-  if (!isNewTaskDraftKey(routeDraftId) || stamp === undefined) return { kind: "missing" };
+  if (routeDraftId === undefined || input.flow.draftKey !== null)
+    return { kind: "none" } satisfies RouteDraftResolution;
+  if (!input.draftsLoaded) return { kind: "pending" } satisfies RouteDraftResolution;
+  if (!isNewTaskDraftKey(routeDraftId) || stamp === undefined)
+    return { kind: "missing" } satisfies RouteDraftResolution;
   const loaded = input.projects.some(
     (project) => project.environmentId === stamp.environmentId && project.id === stamp.projectId,
   );
   if (!loaded)
-    return input.stampedEnvironmentLoading ? { kind: "pending" } : { kind: "pickProject" };
+    return (
+      input.stampedEnvironmentLoading ? { kind: "pending" } : { kind: "pickProject" }
+    ) satisfies RouteDraftResolution;
   return {
     kind: "open",
     flow: {
@@ -152,7 +150,7 @@ export function resolveRouteDraft(input: {
       projectKey: scopedProjectKey(stamp.environmentId, stamp.projectId),
       draftKey: routeDraftId,
     },
-  };
+  } satisfies RouteDraftResolution;
 }
 
 /**
@@ -166,7 +164,7 @@ export function stampedEnvironmentProjectsLoading(input: {
   readonly shellCacheRead: boolean;
   readonly shellStatus: EnvironmentShellStatus;
   readonly shellHasError: boolean;
-}): boolean {
+}) {
   if (input.shellHasError) return false;
   if (!input.connectionsReady) return true;
   if (input.connectionState === null) return false;
@@ -185,7 +183,7 @@ interface NavigationRoutes {
 }
 
 /** Flow keys of the draft routes on the stack. */
-export function liveNewTaskFlowKeys(state: NavigationRoutes): ReadonlySet<string> {
+export function liveNewTaskFlowKeys(state: NavigationRoutes) {
   return new Set(
     state.routes.flatMap((route) => {
       const flowKey = isDraftThreadRoute(route) ? newTaskFlowKey(route) : undefined;
@@ -198,7 +196,7 @@ export function liveNewTaskFlowKeys(state: NavigationRoutes): ReadonlySet<string
  * Drops the flow of every draft route that left the stack: popped (discarded)
  * or promoted to a live thread, whose params no longer carry the draft.
  */
-export function pruneNewTaskFlowStates(state: NavigationRoutes): void {
+export function pruneNewTaskFlowStates(state: NavigationRoutes) {
   const flows = appAtomRegistry.get(flowStatesAtom);
   const live = liveNewTaskFlowKeys(state);
   const kept = Object.entries(flows).filter(([flowKey]) => live.has(flowKey));

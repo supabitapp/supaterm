@@ -2,16 +2,17 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-export function stableStringify(value: unknown): string {
+export function stableStringify(value: unknown): string;
+export function stableStringify(value: unknown) {
   if (Array.isArray(value)) {
-    return `[${value.map(stableStringify).join(",")}]`;
+    return `[${value.map(stableStringify).join(",")}]` satisfies string;
   }
   if (isRecord(value)) {
     return `{${Object.entries(value)
       .filter(([, entryValue]) => entryValue !== undefined)
       .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
       .map(([key, entryValue]) => `${JSON.stringify(key)}:${stableStringify(entryValue)}`)
-      .join(",")}}`;
+      .join(",")}}` satisfies string;
   }
-  return JSON.stringify(value) ?? "null";
+  return (JSON.stringify(value) ?? "null") satisfies string;
 }

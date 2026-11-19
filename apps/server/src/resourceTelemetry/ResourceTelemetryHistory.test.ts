@@ -18,7 +18,7 @@ const STARTED_AT_MS = DateTime.toEpochMillis(DateTime.makeUnsafe("2026-06-17T12:
 function processSample(
   input: Partial<ResourceMonitorProcessSample> &
     Pick<ResourceMonitorProcessSample, "pid" | "ppid" | "startTimeMs">,
-): ResourceMonitorProcessSample {
+) {
   return {
     runTimeMs: 1_000,
     name: `process-${input.pid}`,
@@ -32,7 +32,7 @@ function processSample(
     ioWriteBytes: 0,
     ioSemantics: "storage",
     ...input,
-  };
+  } satisfies ResourceMonitorProcessSample;
 }
 
 function snapshot(
@@ -40,7 +40,7 @@ function snapshot(
   sampledAtUnixMs: number,
   childCpuTimeMs: number,
   childWriteBytes: number,
-): ResourceMonitorSnapshotEvent {
+) {
   const processes = [
     processSample({ pid: SERVER_PID, ppid: 1, startTimeMs: 10 }),
     processSample({
@@ -70,7 +70,7 @@ function snapshot(
     retainedProcessCount: processes.length,
     inaccessibleProcessCount: 0,
     processes,
-  };
+  } satisfies ResourceMonitorSnapshotEvent;
 }
 
 const health: ResourceTelemetryHealth = {
@@ -93,7 +93,7 @@ const health: ResourceTelemetryHealth = {
   inaccessibleProcessCount: 0,
 };
 
-function desktopSnapshot(): DesktopHostTelemetrySnapshot {
+function desktopSnapshot() {
   const sampledAt = DateTime.makeUnsafe(STARTED_AT_MS + 1_000);
   return {
     version: 1,
@@ -125,7 +125,7 @@ function desktopSnapshot(): DesktopHostTelemetrySnapshot {
         peakWorkingSetBytes: 999_999,
       },
     ],
-  };
+  } satisfies DesktopHostTelemetrySnapshot;
 }
 
 describe("buildResourceTelemetryHistory", () => {

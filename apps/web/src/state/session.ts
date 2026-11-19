@@ -24,7 +24,7 @@ const EMPTY_SESSION_STATE_ATOM = Atom.make(AsyncResult.initial<AuthSessionState>
 export function useEnvironmentScope(
   environmentId: EnvironmentId | null,
   scope: AuthEnvironmentScope,
-): boolean {
+) {
   return useAtomValue(
     environmentId === null
       ? EMPTY_SESSION_STATE_ATOM
@@ -36,7 +36,7 @@ export function useEnvironmentScope(
 export function sessionHasScope(
   result: AsyncResult.AsyncResult<AuthSessionState, unknown>,
   scope: AuthEnvironmentScope,
-): boolean {
+) {
   const session = AsyncResult.getOrElse(result, () => null);
   return result._tag !== "Failure" && session !== null && sessionGrantsScope(session, scope);
 }
@@ -54,7 +54,7 @@ const environmentsWithScopeAtom = Atom.family((key: string) => {
 export function useEnvironmentsWithScope(
   environments: ReadonlyArray<{ readonly environmentId: EnvironmentId }>,
   scope: AuthEnvironmentScope,
-): ReadonlySet<EnvironmentId> {
+) {
   return useAtomValue(
     environmentsWithScopeAtom(
       `${scope}\n${environmentIdsKey(environments.map(({ environmentId }) => environmentId))}`,
@@ -62,10 +62,7 @@ export function useEnvironmentsWithScope(
   );
 }
 
-export function readEnvironmentScope(
-  environmentId: EnvironmentId,
-  scope: AuthEnvironmentScope,
-): boolean {
+export function readEnvironmentScope(environmentId: EnvironmentId, scope: AuthEnvironmentScope) {
   return sessionHasScope(
     appAtomRegistry.get(environmentSession.sessionStateAtom(environmentId)),
     scope,

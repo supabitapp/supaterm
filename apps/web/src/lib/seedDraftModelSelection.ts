@@ -9,7 +9,7 @@ import { readEnvironment, readEnvironmentProviders } from "../state/environments
 import { hasExplicitComposerModelSelection } from "./chatThreadActions";
 
 /** Gives a draft that moved project or machine the model a new thread there would start with. */
-export function seedDraftModelSelection(draftId: DraftId, projectRef: ScopedProjectRef): void {
+export function seedDraftModelSelection(draftId: DraftId, projectRef: ScopedProjectRef) {
   const store = useComposerDraftStore.getState();
   if (hasExplicitComposerModelSelection(store.getComposerDraft(draftId))) return;
   store.applyStickyState(draftId);

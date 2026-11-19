@@ -15,7 +15,7 @@ import {
 
 type TestThread = { readonly id: string } & ThreadSortInput;
 
-function makeThread(overrides: Partial<TestThread> = {}): TestThread {
+function makeThread(overrides: Partial<TestThread> = {}) {
   return {
     id: "thread-1",
     createdAt: "2026-03-09T10:00:00.000Z",

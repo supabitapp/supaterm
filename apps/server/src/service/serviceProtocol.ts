@@ -35,14 +35,14 @@ const unescapeXmlText = (value: string) =>
 export function serviceUnitEnvironmentValueOf(
   contents: string,
   name: "SUPATERM_HOME" | "SUPATERM_INSTALL_BIN_DIR",
-): string | undefined {
+) {
   const systemd = new RegExp(`^Environment=${name}=(.*)$`, "m").exec(contents)?.[1];
   if (systemd !== undefined) return unquoteSystemdValue(systemd.trim());
   const plist = new RegExp(`<key>${name}</key>\\s*<string>([^<]*)</string>`).exec(contents)?.[1];
   return plist === undefined ? undefined : unescapeXmlText(plist);
 }
 
-export function serviceUnitBaseDirOf(contents: string): string | undefined {
+export function serviceUnitBaseDirOf(contents: string) {
   return serviceUnitEnvironmentValueOf(contents, "SUPATERM_HOME");
 }
 
@@ -50,7 +50,7 @@ export function serviceUnitBaseDirOf(contents: string): string | undefined {
  * The user unit directory a systemd manager reads, from its UnitPath property. The persistent
  * control directory identifies the manager's config root despite UnitPath overrides.
  */
-export function systemdUnitDirectoryOf(unitPath: ReadonlyArray<string>): string | undefined {
+export function systemdUnitDirectoryOf(unitPath: ReadonlyArray<string>) {
   const controlDirectory = unitPath.find(
     (directory) =>
       directory.startsWith("/") &&
@@ -61,7 +61,7 @@ export function systemdUnitDirectoryOf(unitPath: ReadonlyArray<string>): string 
 }
 
 /** The file systemd or launchd appends the service's output to. */
-export function serviceUnitLogPathOf(contents: string): string | undefined {
+export function serviceUnitLogPathOf(contents: string) {
   const systemd = /^StandardOutput=append:(.*)$/m.exec(contents)?.[1];
   if (systemd !== undefined) return unquoteSystemdValue(systemd.trim());
   const plist = /<key>StandardOutPath<\/key>\s*<string>([^<]*)<\/string>/.exec(contents)?.[1];
@@ -69,7 +69,7 @@ export function serviceUnitLogPathOf(contents: string): string | undefined {
 }
 
 /** The executable an installed unit or plist starts: the launcher's runtime. */
-export function serviceUnitProgramOf(contents: string): string | undefined {
+export function serviceUnitProgramOf(contents: string) {
   const systemd = /^ExecStart=("(?:\\.|[^"\\])*"|\S+)/m.exec(contents)?.[1];
   if (systemd !== undefined) return unquoteSystemdValue(systemd);
   const plist = /<key>ProgramArguments<\/key>\s*<array>\s*<string>([^<]*)<\/string>/.exec(
@@ -131,14 +131,14 @@ const EXACT_SERVICE_VERSION = new RegExp(
   `^${SEMVER_NUMBER}\\.${SEMVER_NUMBER}\\.${SEMVER_NUMBER}(?:-${SEMVER_PRERELEASE}(?:\\.${SEMVER_PRERELEASE})*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$`,
 );
 
-export const isExactServiceVersion = (version: string): boolean =>
+export const isExactServiceVersion: (version: string) => boolean = (version: string) =>
   EXACT_SERVICE_VERSION.test(version);
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
-function decodeServiceUpdate(value: unknown): ServiceUpdateRecord | undefined {
-  if (!isRecord(value)) return undefined;
+function decodeServiceUpdate(value: unknown) {
+  if (!isRecord(value)) return undefined satisfies ServiceUpdateRecord | undefined;
   const { id, fromVersion, targetVersion, status } = value;
   if (
     typeof id !== "string" ||
@@ -148,12 +148,14 @@ function decodeServiceUpdate(value: unknown): ServiceUpdateRecord | undefined {
     typeof targetVersion !== "string" ||
     !isExactServiceVersion(targetVersion)
   ) {
-    return undefined;
+    return undefined satisfies ServiceUpdateRecord | undefined;
   }
   if (status === "pending") {
-    return typeof value.dbPath === "string" && value.dbPath.trim() !== ""
-      ? { id, fromVersion, targetVersion, dbPath: value.dbPath, status }
-      : undefined;
+    return (
+      typeof value.dbPath === "string" && value.dbPath.trim() !== ""
+        ? { id, fromVersion, targetVersion, dbPath: value.dbPath, status }
+        : undefined
+    ) satisfies ServiceUpdateRecord | undefined;
   }
   if (
     (status === "committed" || status === "rolled-back" || status === "failed") &&
@@ -165,12 +167,13 @@ function decodeServiceUpdate(value: unknown): ServiceUpdateRecord | undefined {
       targetVersion,
       status,
       ...(typeof value.reason === "string" ? { reason: value.reason } : {}),
-    };
+    } satisfies ServiceUpdateRecord | undefined;
   }
-  return undefined;
+  return undefined satisfies ServiceUpdateRecord | undefined;
 }
 
-export function compareExactServiceVersions(left: string, right: string): number {
+export function compareExactServiceVersions(left: string, right: string): number;
+export function compareExactServiceVersions(left: string, right: string) {
   const parse = (version: string) => {
     const withoutBuild = version.split("+", 1)[0] ?? version;
     const separator = withoutBuild.indexOf("-");
@@ -187,28 +190,30 @@ export function compareExactServiceVersions(left: string, right: string): number
   for (let index = 0; index < 3; index += 1) {
     const x = a.core[index] ?? 0n;
     const y = b.core[index] ?? 0n;
-    if (x !== y) return x < y ? -1 : 1;
+    if (x !== y) return (x < y ? -1 : 1) satisfies number;
   }
   if (a.prerelease.length === 0 || b.prerelease.length === 0) {
-    return a.prerelease.length === b.prerelease.length ? 0 : a.prerelease.length === 0 ? 1 : -1;
+    return (
+      a.prerelease.length === b.prerelease.length ? 0 : a.prerelease.length === 0 ? 1 : -1
+    ) satisfies number;
   }
   const count = Math.max(a.prerelease.length, b.prerelease.length);
   for (let index = 0; index < count; index += 1) {
     const x = a.prerelease[index];
     const y = b.prerelease[index];
-    if (x === undefined || y === undefined) return x === undefined ? -1 : 1;
+    if (x === undefined || y === undefined) return (x === undefined ? -1 : 1) satisfies number;
     if (x === y) continue;
     const xNumeric = /^\d+$/.test(x);
     const yNumeric = /^\d+$/.test(y);
-    if (xNumeric && yNumeric) return BigInt(x) < BigInt(y) ? -1 : 1;
-    if (xNumeric !== yNumeric) return xNumeric ? -1 : 1;
-    return x < y ? -1 : 1;
+    if (xNumeric && yNumeric) return (BigInt(x) < BigInt(y) ? -1 : 1) satisfies number;
+    if (xNumeric !== yNumeric) return (xNumeric ? -1 : 1) satisfies number;
+    return (x < y ? -1 : 1) satisfies number;
   }
-  return 0;
+  return 0 satisfies number;
 }
 
-export function decodeServiceState(value: unknown): ServiceState | undefined {
-  if (!isRecord(value)) return undefined;
+export function decodeServiceState(value: unknown) {
+  if (!isRecord(value)) return undefined satisfies ServiceState | undefined;
   const update = value.update === undefined ? undefined : decodeServiceUpdate(value.update);
   if (
     !isSupportedLauncherProtocol(value.protocol) ||
@@ -222,20 +227,20 @@ export function decodeServiceState(value: unknown): ServiceState | undefined {
     ((update?.status === "rolled-back" || update?.status === "failed") &&
       update.fromVersion !== value.activeVersion)
   ) {
-    return undefined;
+    return undefined satisfies ServiceState | undefined;
   }
   return {
     protocol: SERVICE_LAUNCHER_PROTOCOL,
     activeVersion: value.activeVersion,
     ...(update === undefined ? {} : { update }),
-  };
+  } satisfies ServiceState | undefined;
 }
 
-export function parseServiceState(value: string): ServiceState | undefined {
+export function parseServiceState(value: string) {
   try {
-    return decodeServiceState(JSON.parse(value) as unknown);
+    return decodeServiceState(JSON.parse(value) as unknown) satisfies ServiceState | undefined;
   } catch {
-    return undefined;
+    return undefined satisfies ServiceState | undefined;
   }
 }
 
@@ -257,7 +262,7 @@ export function parseLegacyServiceState(value: string) {
   }
 }
 
-export function serviceStateHasPendingUpdate(value: string): boolean {
+export function serviceStateHasPendingUpdate(value: string) {
   try {
     const parsed: unknown = JSON.parse(value);
     return isRecord(parsed) && isRecord(parsed.update) && parsed.update.status === "pending";
@@ -266,7 +271,7 @@ export function serviceStateHasPendingUpdate(value: string): boolean {
   }
 }
 
-export function serviceStateActiveVersion(value: string): string | undefined {
+export function serviceStateActiveVersion(value: string) {
   try {
     const parsed: unknown = JSON.parse(value);
     return isRecord(parsed) &&
@@ -279,12 +284,12 @@ export function serviceStateActiveVersion(value: string): string | undefined {
   }
 }
 
-export function decodeServiceLauncherContext(value: string): ServiceLauncherContext | undefined {
+export function decodeServiceLauncherContext(value: string) {
   let parsed: unknown;
   try {
     parsed = JSON.parse(value) as unknown;
   } catch {
-    return undefined;
+    return undefined satisfies ServiceLauncherContext | undefined;
   }
   if (
     !isRecord(parsed) ||
@@ -292,10 +297,11 @@ export function decodeServiceLauncherContext(value: string): ServiceLauncherCont
     typeof parsed.childVersion !== "string" ||
     !isExactServiceVersion(parsed.childVersion)
   ) {
-    return undefined;
+    return undefined satisfies ServiceLauncherContext | undefined;
   }
   const update = parsed.update === undefined ? undefined : decodeServiceUpdate(parsed.update);
-  if (parsed.update !== undefined && update === undefined) return undefined;
+  if (parsed.update !== undefined && update === undefined)
+    return undefined satisfies ServiceLauncherContext | undefined;
   const selectedVersion =
     update?.status === "pending" || update?.status === "committed"
       ? update.targetVersion
@@ -303,42 +309,48 @@ export function decodeServiceLauncherContext(value: string): ServiceLauncherCont
         ? parsed.childVersion
         : update.fromVersion;
   if (parsed.childVersion !== selectedVersion) {
-    return undefined;
+    return undefined satisfies ServiceLauncherContext | undefined;
   }
   return {
     protocol: parsed.protocol,
     childVersion: parsed.childVersion,
     ...(update === undefined ? {} : { update }),
-  };
+  } satisfies ServiceLauncherContext | undefined;
 }
 
-export function decodeServiceLauncherChildMessage(
-  value: unknown,
-): ServiceLauncherChildMessage | undefined {
-  if (!isRecord(value)) return undefined;
+export function decodeServiceLauncherChildMessage(value: unknown) {
+  if (!isRecord(value)) return undefined satisfies ServiceLauncherChildMessage | undefined;
   if (
     value.type === "request-update" &&
     typeof value.targetVersion === "string" &&
     typeof value.dbPath === "string"
   ) {
-    return { type: value.type, targetVersion: value.targetVersion, dbPath: value.dbPath };
+    return { type: value.type, targetVersion: value.targetVersion, dbPath: value.dbPath } satisfies
+      | ServiceLauncherChildMessage
+      | undefined;
   }
-  return value.type === "prepared" && typeof value.updateId === "string"
-    ? { type: value.type, updateId: value.updateId }
-    : undefined;
+  return (
+    value.type === "prepared" && typeof value.updateId === "string"
+      ? { type: value.type, updateId: value.updateId }
+      : undefined
+  ) satisfies ServiceLauncherChildMessage | undefined;
 }
 
-export function decodeServiceLauncherParentMessage(
-  value: unknown,
-): ServiceLauncherParentMessage | undefined {
-  if (!isRecord(value)) return undefined;
+export function decodeServiceLauncherParentMessage(value: unknown) {
+  if (!isRecord(value)) return undefined satisfies ServiceLauncherParentMessage | undefined;
   if (value.type === "update-rejected" && typeof value.reason === "string") {
-    return { type: value.type, reason: value.reason };
+    return { type: value.type, reason: value.reason } satisfies
+      | ServiceLauncherParentMessage
+      | undefined;
   }
   if (value.type === "update-accepted" && typeof value.updateId === "string") {
-    return { type: value.type, updateId: value.updateId };
+    return { type: value.type, updateId: value.updateId } satisfies
+      | ServiceLauncherParentMessage
+      | undefined;
   }
-  return value.type === "committed" && typeof value.updateId === "string"
-    ? { type: value.type, updateId: value.updateId }
-    : undefined;
+  return (
+    value.type === "committed" && typeof value.updateId === "string"
+      ? { type: value.type, updateId: value.updateId }
+      : undefined
+  ) satisfies ServiceLauncherParentMessage | undefined;
 }

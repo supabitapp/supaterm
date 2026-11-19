@@ -108,7 +108,7 @@ const EMPTY_THREAD_STATE_ATOM = Atom.make(AsyncResult.success(EMPTY_ENVIRONMENT_
 export function useEnvironmentThread(
   environmentId: EnvironmentId | null,
   threadId: ThreadId | null,
-): EnvironmentThreadState {
+) {
   const result = useAtomValue(
     environmentId !== null && threadId !== null
       ? environmentThreads.stateAtom(environmentId, threadId)

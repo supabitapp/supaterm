@@ -529,7 +529,7 @@ function projected(
   item: OrchestrationV2TurnItem,
   position: number,
   visibility: OrchestrationV2ProjectedTurnItem["visibility"] = "local",
-): OrchestrationV2ProjectedTurnItem {
+) {
   return {
     position,
     visibility,
@@ -602,7 +602,7 @@ describe("buildThreadFeed", () => {
       const requestId = RuntimeRequestId.make("late-question");
       const inRun = (item: OrchestrationV2TurnItem, run: string, position: number) =>
         projected({ ...item, runId: RunId.make(run) }, position);
-      const message = (id: string, role: "user" | "assistant"): OrchestrationV2TurnItem => ({
+      const message = (id: string, role: "user" | "assistant") => ({
         ...(role === "user" ? userMessage() : assistantMessage()),
         id: TurnItemId.make(id),
         messageId: MessageId.make(id),
@@ -1676,20 +1676,21 @@ describe("buildThreadFeed", () => {
       updatedAt: string,
       ordinal: number,
       status: OrchestrationV2TurnItem["status"],
-    ): OrchestrationV2TurnItem => ({
-      ...base(id, updatedAt, ordinal),
-      providerTurnId: ProviderTurnId.make("provider-turn-1"),
-      status,
-      completedAt: status === "running" ? null : DateTime.makeUnsafe(updatedAt),
-      type: "subagent",
-      subagentId: NodeId.make(id),
-      origin: "app_owned",
-      driver: ProviderDriverKind.make("codex"),
-      providerInstanceId: ProviderInstanceId.make("codex"),
-      childThreadId: sourceThreadId,
-      prompt: `Inspect ${id}`,
-      result: null,
-    });
+    ) =>
+      ({
+        ...base(id, updatedAt, ordinal),
+        providerTurnId: ProviderTurnId.make("provider-turn-1"),
+        status,
+        completedAt: status === "running" ? null : DateTime.makeUnsafe(updatedAt),
+        type: "subagent",
+        subagentId: NodeId.make(id),
+        origin: "app_owned",
+        driver: ProviderDriverKind.make("codex"),
+        providerInstanceId: ProviderInstanceId.make("codex"),
+        childThreadId: sourceThreadId,
+        prompt: `Inspect ${id}`,
+        result: null,
+      }) satisfies OrchestrationV2TurnItem;
     const latestRun = {
       runId,
       status: "completed" as const,
@@ -2094,34 +2095,35 @@ describe("buildThreadFeed", () => {
       id: string,
       createdAt: string,
       status: ThreadFeedActivity["status"] = "success",
-    ): ThreadFeedActivity => ({
-      id,
-      createdAt,
-      runId: null,
-      attemptId: null,
-      summary: `Tool ${id}`,
-      detail: null,
-      canExpand: false,
-      fetchesDetail: false,
-      getFullDetail: () => null,
-      getCopyText: () => id,
-      icon: "command",
-      logo: null,
-      toolLike: true,
-      prominent: false,
-      status,
-      lifecycleStatus: status === "neutral" ? "inProgress" : "completed",
-      workEntry: {
+    ) =>
+      ({
         id,
         createdAt,
-        label: `Tool ${id}`,
-        tone: "tool",
-        command: "vp check",
-        itemType: "command_execution",
-        toolLifecycleStatus: status === "neutral" ? "inProgress" : "completed",
-      },
-      projectedItem: projected(command(createdAt), 0),
-    });
+        runId: null,
+        attemptId: null,
+        summary: `Tool ${id}`,
+        detail: null,
+        canExpand: false,
+        fetchesDetail: false,
+        getFullDetail: () => null,
+        getCopyText: () => id,
+        icon: "command",
+        logo: null,
+        toolLike: true,
+        prominent: false,
+        status,
+        lifecycleStatus: status === "neutral" ? "inProgress" : "completed",
+        workEntry: {
+          id,
+          createdAt,
+          label: `Tool ${id}`,
+          tone: "tool",
+          command: "vp check",
+          itemType: "command_execution",
+          toolLifecycleStatus: status === "neutral" ? "inProgress" : "completed",
+        },
+        projectedItem: projected(command(createdAt), 0),
+      }) satisfies ThreadFeedActivity;
     const feed: ThreadFeedEntry[] = [
       {
         type: "activity-group",
@@ -3174,14 +3176,15 @@ it("keeps the latest thought under the live tool status", () => {
 
 it("stops stranded thinking after a steer and follows the next thought or tool", () => {
   const at = "2026-06-20T00:00:02.000Z";
-  const thought = (id: string): OrchestrationV2TurnItem => ({
-    ...base(id, at, 1),
-    type: "reasoning",
-    status: "running",
-    completedAt: null,
-    streaming: true,
-    text: id,
-  });
+  const thought = (id: string) =>
+    ({
+      ...base(id, at, 1),
+      type: "reasoning",
+      status: "running",
+      completedAt: null,
+      streaming: true,
+      text: id,
+    }) satisfies OrchestrationV2TurnItem;
   const first = thought("first-thought");
   const next = thought("next-thought");
   const steer = { ...userMessage(at), inputIntent: "steer" as const };
@@ -3330,14 +3333,15 @@ describe("html renders", () => {
   const page = { attachmentId: "attachment-page", title: "Revenue", height: 320 };
   const renderCall = (
     overrides: Partial<Extract<OrchestrationV2TurnItem, { type: "dynamic_tool" }>> = {},
-  ): OrchestrationV2TurnItem => ({
-    ...base("item-render", "2026-06-20T00:00:02.500Z", 2),
-    type: "dynamic_tool",
-    toolName: "mcp__supaterm__html_render",
-    input: { title: page.title },
-    output: { htmlRender: page },
-    ...overrides,
-  });
+  ) =>
+    ({
+      ...base("item-render", "2026-06-20T00:00:02.500Z", 2),
+      type: "dynamic_tool",
+      toolName: "mcp__supaterm__html_render",
+      input: { title: page.title },
+      output: { htmlRender: page },
+      ...overrides,
+    }) satisfies OrchestrationV2TurnItem;
   const laterCommand = {
     ...command("2026-06-20T00:00:02.800Z"),
     id: TurnItemId.make("item-command-later"),
@@ -3418,20 +3422,17 @@ describe("streamed feed updates", () => {
     ...base(id, at(second), second),
     runId: run,
   });
-  const user = (
-    id: string,
-    second: number,
-    run: RunId,
-  ): Extract<OrchestrationV2TurnItem, { type: "user_message" }> => ({
-    ...item(id, second, run),
-    type: "user_message",
-    messageId: MessageId.make(`message-${id}`),
-    createdBy: "user",
-    creationSource: "mobile",
-    inputIntent: "turn_start",
-    text: `Prompt ${id}`,
-    attachments: [],
-  });
+  const user = (id: string, second: number, run: RunId) =>
+    ({
+      ...item(id, second, run),
+      type: "user_message",
+      messageId: MessageId.make(`message-${id}`),
+      createdBy: "user",
+      creationSource: "mobile",
+      inputIntent: "turn_start",
+      text: `Prompt ${id}`,
+      attachments: [],
+    }) satisfies Extract<OrchestrationV2TurnItem, { type: "user_message" }>;
   const reply = (id: string, second: number, run: RunId, text = "Done", streaming = false) =>
     ({
       ...item(id, second, run),
@@ -3441,23 +3442,25 @@ describe("streamed feed updates", () => {
       text,
       streaming,
     }) satisfies OrchestrationV2TurnItem;
-  const shell = (id: string, second: number, run: RunId): OrchestrationV2TurnItem => ({
-    ...item(id, second, run),
-    type: "command_execution",
-    input: `echo ${id}`,
-    output: id,
-    exitCode: 0,
-  });
+  const shell = (id: string, second: number, run: RunId) =>
+    ({
+      ...item(id, second, run),
+      type: "command_execution",
+      input: `echo ${id}`,
+      output: id,
+      exitCode: 0,
+    }) satisfies OrchestrationV2TurnItem;
   const requestId = RuntimeRequestId.make("request-color");
-  const question = (answered: boolean): OrchestrationV2TurnItem => ({
-    ...item("question", 12, runs[1]),
-    type: "user_input_request",
-    requestId,
-    questions: [],
-    ...(answered
-      ? { questionAnswer: { requestId, answers: { color: "Blue" }, attachmentsByQuestionId: {} } }
-      : {}),
-  });
+  const question = (answered: boolean) =>
+    ({
+      ...item("question", 12, runs[1]),
+      type: "user_input_request",
+      requestId,
+      questions: [],
+      ...(answered
+        ? { questionAnswer: { requestId, answers: { color: "Blue" }, attachmentsByQuestionId: {} } }
+        : {}),
+    }) satisfies OrchestrationV2TurnItem;
   const answer: OrchestrationV2TurnItem = {
     ...user("answer", 40, runs[1]),
     messageId: MessageId.make(`async-answer:${requestId}`),

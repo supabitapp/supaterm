@@ -3,6 +3,6 @@ import {
   type ThreadRuntimeSummary,
 } from "@supaterm/client-runtime/state/models";
 
-export function threadCanArchive(runtime: ThreadRuntimeSummary | null | undefined): boolean {
+export function threadCanArchive(runtime: ThreadRuntimeSummary | null | undefined) {
   return threadRuntimeCanArchive(runtime);
 }

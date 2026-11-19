@@ -20,14 +20,14 @@ import {
 
 const frame = (value: Record<string, unknown>) => JSON.stringify(value);
 
-const run = (frames: ReadonlyArray<Record<string, unknown>>): DictationStep => {
+const run = (frames: ReadonlyArray<Record<string, unknown>>) => {
   let state = initialDictationState;
   for (const data of frames) {
     const step = stepDictation(state, frame(data));
-    if (step._tag !== "Continue") return step;
+    if (step._tag !== "Continue") return step satisfies DictationStep;
     state = step.state;
   }
-  return { _tag: "Continue", state };
+  return { _tag: "Continue", state } satisfies DictationStep;
 };
 
 describe("stepDictation", () => {

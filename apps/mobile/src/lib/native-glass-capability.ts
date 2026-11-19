@@ -1,6 +1,3 @@
-export function supportsNativeLiquidGlass(
-  platform: string,
-  nativeCapabilityAvailable: boolean,
-): boolean {
+export function supportsNativeLiquidGlass(platform: string, nativeCapabilityAvailable: boolean) {
   return platform === "ios" && nativeCapabilityAvailable;
 }

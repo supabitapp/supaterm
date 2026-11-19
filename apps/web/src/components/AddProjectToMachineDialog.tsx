@@ -448,9 +448,7 @@ function projectSubdirectory(repositoryRoot: string | undefined, workspaceRoot: 
     : "";
 }
 
-function defaultSelection(
-  files: readonly ProjectIgnoredFile[],
-): ReadonlyMap<string, ProjectIgnoredFile> {
+function defaultSelection(files: readonly ProjectIgnoredFile[]) {
   return new Map(
     files.flatMap((file) =>
       file.byteLength <= COPYABLE_FILE_MAX_BYTES && isDefaultCopiedFile(file.path)

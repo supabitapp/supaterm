@@ -12,7 +12,7 @@ import { derivePendingThreadRequests } from "./threadRequests.ts";
 
 const NOW = DateTime.makeUnsafe("2026-06-20T00:00:00.000Z");
 
-function row(index: number): OrchestrationV2ProjectedTurnItem {
+function row(index: number) {
   const id = `item-${index}` as never;
   return {
     position: index,
@@ -39,13 +39,10 @@ function row(index: number): OrchestrationV2ProjectedTurnItem {
       completedAt: NOW,
       updatedAt: NOW,
     },
-  };
+  } satisfies OrchestrationV2ProjectedTurnItem;
 }
 
-function hideByRollback(
-  projection: OrchestrationV2ThreadProjection,
-  itemId: string,
-): OrchestrationV2ThreadProjection {
+function hideByRollback(projection: OrchestrationV2ThreadProjection, itemId: string) {
   const runId = "run-rolled-back" as never;
   return {
     ...projection,
@@ -75,7 +72,7 @@ function hideByRollback(
     visibleTurnItems: projection.visibleTurnItems.filter(
       (entry) => String(entry.sourceItemId) !== itemId,
     ),
-  };
+  } satisfies OrchestrationV2ThreadProjection;
 }
 
 describe("threadHistoryMerge", () => {

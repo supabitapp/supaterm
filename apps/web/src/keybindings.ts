@@ -55,11 +55,12 @@ const TERMINAL_WORD_FORWARD = "\u001bf";
 const TERMINAL_LINE_START = "\u0001";
 const TERMINAL_LINE_END = "\u0005";
 const TERMINAL_DELETE_TO_LINE_START = "\u0015";
-function resolvePlatform(options: ShortcutMatchOptions | undefined): string {
+function resolvePlatform(options: ShortcutMatchOptions | undefined) {
   return options?.platform ?? navigator.platform;
 }
 
-function resolveContext(options: ShortcutMatchOptions | undefined): ShortcutMatchContext {
+function resolveContext(options: ShortcutMatchOptions | undefined): ShortcutMatchContext;
+function resolveContext(options: ShortcutMatchOptions | undefined) {
   return {
     terminalFocus: false,
     terminalOpen: false,
@@ -69,30 +70,34 @@ function resolveContext(options: ShortcutMatchOptions | undefined): ShortcutMatc
     isDesktop: isElectron,
     editableFocus: false,
     ...options?.context,
-  };
+  } satisfies ShortcutMatchContext;
 }
 
-function evaluateWhenNode(node: KeybindingWhenNode, context: ShortcutMatchContext): boolean {
+function evaluateWhenNode(node: KeybindingWhenNode, context: ShortcutMatchContext): boolean;
+function evaluateWhenNode(node: KeybindingWhenNode, context: ShortcutMatchContext) {
   switch (node.type) {
     case "identifier":
-      if (node.name === "true") return true;
-      if (node.name === "false") return false;
-      return Boolean(context[node.name]);
+      if (node.name === "true") return true satisfies boolean;
+      if (node.name === "false") return false satisfies boolean;
+      return Boolean(context[node.name]) satisfies boolean;
     case "not":
-      return !evaluateWhenNode(node.node, context);
+      return !evaluateWhenNode(node.node, context) satisfies boolean;
     case "and":
-      return evaluateWhenNode(node.left, context) && evaluateWhenNode(node.right, context);
+      return (evaluateWhenNode(node.left, context) &&
+        evaluateWhenNode(node.right, context)) satisfies boolean;
     case "or":
-      return evaluateWhenNode(node.left, context) || evaluateWhenNode(node.right, context);
+      return (evaluateWhenNode(node.left, context) ||
+        evaluateWhenNode(node.right, context)) satisfies boolean;
   }
 }
 
 function matchesWhenClause(
   whenAst: KeybindingWhenNode | undefined,
   context: ShortcutMatchContext,
-): boolean {
-  if (!whenAst) return true;
-  return evaluateWhenNode(whenAst, context);
+): boolean;
+function matchesWhenClause(whenAst: KeybindingWhenNode | undefined, context: ShortcutMatchContext) {
+  if (!whenAst) return true satisfies boolean;
+  return evaluateWhenNode(whenAst, context) satisfies boolean;
 }
 
 function shortcutForContext(binding: ResolvedKeybindingRule, context: ShortcutMatchContext) {
@@ -118,7 +123,12 @@ export function effectiveShortcutsForCommand(
   keybindings: ResolvedKeybindingsConfig,
   command: KeybindingCommand,
   options?: ShortcutMatchOptions,
-): KeybindingShortcut[] {
+): KeybindingShortcut[];
+export function effectiveShortcutsForCommand(
+  keybindings: ResolvedKeybindingsConfig,
+  command: KeybindingCommand,
+  options?: ShortcutMatchOptions,
+) {
   const platform = resolvePlatform(options);
   const context = resolveContext(options);
   const claimedShortcuts = new Set<string>();
@@ -141,14 +151,14 @@ export function effectiveShortcutsForCommand(
     }
   }
 
-  return effective;
+  return effective satisfies KeybindingShortcut[];
 }
 
 function findEffectiveShortcutForCommand(
   keybindings: ResolvedKeybindingsConfig,
   command: KeybindingCommand,
   options?: ShortcutMatchOptions,
-): KeybindingShortcut | null {
+) {
   return effectiveShortcutsForCommand(keybindings, command, options)[0] ?? null;
 }
 
@@ -157,7 +167,7 @@ function matchesCommandShortcut(
   keybindings: ResolvedKeybindingsConfig,
   command: KeybindingCommand,
   options?: ShortcutMatchOptions,
-): boolean {
+) {
   return resolveShortcutCommand(event, keybindings, options) === command;
 }
 
@@ -165,7 +175,12 @@ export function resolveShortcutCommand(
   event: ShortcutEventLike,
   keybindings: ResolvedKeybindingsConfig,
   options?: ShortcutMatchOptions,
-): KeybindingCommand | null {
+): KeybindingCommand | null;
+export function resolveShortcutCommand(
+  event: ShortcutEventLike,
+  keybindings: ResolvedKeybindingsConfig,
+  options?: ShortcutMatchOptions,
+) {
   const platform = resolvePlatform(options);
   const context = resolveContext(options);
   if (options?.context?.editableFocus === undefined && typeof document !== "undefined") {
@@ -177,9 +192,9 @@ export function resolveShortcutCommand(
     if (!binding) continue;
     if (!matchesWhenClause(binding.whenAst, context)) continue;
     if (!matchesKeybindingShortcut(event, shortcutForContext(binding, context), platform)) continue;
-    return binding.command;
+    return binding.command satisfies KeybindingCommand | null;
   }
-  return null;
+  return null satisfies KeybindingCommand | null;
 }
 
 export function resolveChatShortcutCommand(
@@ -187,7 +202,7 @@ export function resolveChatShortcutCommand(
   primaryKeybindings: ResolvedKeybindingsConfig,
   activeKeybindings: ResolvedKeybindingsConfig,
   options?: ShortcutMatchOptions,
-): KeybindingCommand | null {
+) {
   const primaryCommand = resolveShortcutCommand(event, primaryKeybindings, options);
   if (primaryCommand !== null && projectScriptIdFromCommand(primaryCommand) === null) {
     return primaryCommand;
@@ -199,7 +214,7 @@ export function resolveChatShortcutCommand(
     : null;
 }
 
-export function formatShortcutKeyLabel(key: string): string {
+export function formatShortcutKeyLabel(key: string) {
   if (key === " ") return "Space";
   if (key.length === 1) return key.toUpperCase();
   if (key === "escape") return "Esc";
@@ -212,10 +227,7 @@ export function formatShortcutKeyLabel(key: string): string {
   return key.slice(0, 1).toUpperCase() + key.slice(1);
 }
 
-export function formatShortcutLabel(
-  shortcut: KeybindingShortcut,
-  platform = navigator.platform,
-): string {
+export function formatShortcutLabel(shortcut: KeybindingShortcut, platform = navigator.platform) {
   const keyLabel = formatShortcutKeyLabel(shortcut.key);
   const useMetaForMod = isMacPlatform(platform);
   const showMeta = shortcut.metaKey || (shortcut.modKey && useMetaForMod);
@@ -240,7 +252,7 @@ export function shortcutLabelForCommand(
   keybindings: ResolvedKeybindingsConfig,
   command: KeybindingCommand | null,
   options?: string | ResolvedShortcutLabelOptions,
-): string | null {
+) {
   if (command === null) return null;
   const resolvedOptions =
     typeof options === "string"
@@ -251,18 +263,16 @@ export function shortcutLabelForCommand(
   return shortcut ? formatShortcutLabel(shortcut, platform) : null;
 }
 
-export function threadJumpCommandForIndex(index: number): ThreadJumpKeybindingCommand | null {
+export function threadJumpCommandForIndex(index: number) {
   return THREAD_JUMP_KEYBINDING_COMMANDS[index] ?? null;
 }
 
-export function threadJumpIndexFromCommand(command: string): number | null {
+export function threadJumpIndexFromCommand(command: string) {
   const index = THREAD_JUMP_KEYBINDING_COMMANDS.indexOf(command as ThreadJumpKeybindingCommand);
   return index === -1 ? null : index;
 }
 
-export function threadTraversalDirectionFromCommand(
-  command: string | null,
-): "previous" | "next" | null {
+export function threadTraversalDirectionFromCommand(command: string | null) {
   if (command === "thread.previous") return "previous";
   if (command === "thread.next") return "next";
   return null;
@@ -272,7 +282,7 @@ export function isThreadNavigationShortcut(
   event: ShortcutEventLike,
   keybindings: ResolvedKeybindingsConfig,
   options?: ShortcutMatchOptions,
-): boolean {
+) {
   const command = resolveShortcutCommand(event, keybindings, options);
   return (
     threadTraversalDirectionFromCommand(command) !== null ||
@@ -284,7 +294,7 @@ export function shouldShowThreadJumpHintsForModifiers(
   modifiers: ShortcutModifierStateLike,
   keybindings: ResolvedKeybindingsConfig,
   options?: ShortcutMatchOptions,
-): boolean {
+) {
   if (resolveContext(options).terminalFocus) {
     return false;
   }
@@ -302,13 +312,11 @@ export function shouldShowThreadJumpHintsForModifiers(
   return false;
 }
 
-export function modelPickerJumpCommandForIndex(
-  index: number,
-): ModelPickerJumpKeybindingCommand | null {
+export function modelPickerJumpCommandForIndex(index: number) {
   return MODEL_PICKER_JUMP_KEYBINDING_COMMANDS[index] ?? null;
 }
 
-export function modelPickerJumpIndexFromCommand(command: string): number | null {
+export function modelPickerJumpIndexFromCommand(command: string) {
   const index = MODEL_PICKER_JUMP_KEYBINDING_COMMANDS.indexOf(
     command as ModelPickerJumpKeybindingCommand,
   );
@@ -319,7 +327,7 @@ export function isTerminalToggleShortcut(
   event: ShortcutEventLike,
   keybindings: ResolvedKeybindingsConfig,
   options?: ShortcutMatchOptions,
-): boolean {
+) {
   return matchesCommandShortcut(event, keybindings, "terminal.toggle", options);
 }
 
@@ -327,7 +335,7 @@ export function isTerminalSplitShortcut(
   event: ShortcutEventLike,
   keybindings: ResolvedKeybindingsConfig,
   options?: ShortcutMatchOptions,
-): boolean {
+) {
   return matchesCommandShortcut(event, keybindings, "terminal.split", options);
 }
 
@@ -335,7 +343,7 @@ export function isTerminalSplitVerticalShortcut(
   event: ShortcutEventLike,
   keybindings: ResolvedKeybindingsConfig,
   options?: ShortcutMatchOptions,
-): boolean {
+) {
   return matchesCommandShortcut(event, keybindings, "terminal.splitVertical", options);
 }
 
@@ -343,7 +351,7 @@ export function isTerminalNewShortcut(
   event: ShortcutEventLike,
   keybindings: ResolvedKeybindingsConfig,
   options?: ShortcutMatchOptions,
-): boolean {
+) {
   return matchesCommandShortcut(event, keybindings, "terminal.new", options);
 }
 
@@ -351,7 +359,7 @@ export function isTerminalCloseShortcut(
   event: ShortcutEventLike,
   keybindings: ResolvedKeybindingsConfig,
   options?: ShortcutMatchOptions,
-): boolean {
+) {
   return matchesCommandShortcut(event, keybindings, "terminal.close", options);
 }
 
@@ -359,7 +367,7 @@ export function isDiffToggleShortcut(
   event: ShortcutEventLike,
   keybindings: ResolvedKeybindingsConfig,
   options?: ShortcutMatchOptions,
-): boolean {
+) {
   return matchesCommandShortcut(event, keybindings, "diff.toggle", options);
 }
 
@@ -372,7 +380,7 @@ export function isDiffToggleShortcut(
 export function isRichTextBoldShortcut(
   event: ShortcutEventLike,
   selection: Pick<Selection, "isCollapsed"> | null,
-): boolean {
+) {
   if (event.type !== undefined && event.type !== "keydown") {
     return false;
   }
@@ -387,16 +395,13 @@ export function isRichTextBoldShortcut(
 }
 
 /** Mod+B, Mod+I and Mod+E, the mark chords the rich-text composer binds. */
-export function isRichTextFormattingShortcut(event: ShortcutEventLike): boolean {
+export function isRichTextFormattingShortcut(event: ShortcutEventLike) {
   if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey) return false;
   const keys = resolveEventKeys(event);
   return keys.has("b") || keys.has("i") || keys.has("e");
 }
 
-export function isTerminalClearShortcut(
-  event: ShortcutEventLike,
-  platform = navigator.platform,
-): boolean {
+export function isTerminalClearShortcut(event: ShortcutEventLike, platform = navigator.platform) {
   if (event.type !== undefined && event.type !== "keydown") {
     return false;
   }
@@ -420,7 +425,7 @@ export function isTerminalClearShortcut(
 export function terminalDeleteShortcutData(
   event: ShortcutEventLike,
   platform = navigator.platform,
-): string | null {
+) {
   if (event.type !== undefined && event.type !== "keydown") {
     return null;
   }
@@ -442,7 +447,7 @@ export function terminalDeleteShortcutData(
 export function terminalNavigationShortcutData(
   event: ShortcutEventLike,
   platform = navigator.platform,
-): string | null {
+) {
   if (event.type !== undefined && event.type !== "keydown") {
     return null;
   }

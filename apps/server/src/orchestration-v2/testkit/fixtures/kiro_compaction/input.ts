@@ -2,7 +2,7 @@ import type { OrchestratorFixtureInput } from "../shared.ts";
 
 export const KIRO_COMPACTION_MARKER = "compaction-marker-7K2V";
 
-export function kiroCompactionInput(): OrchestratorFixtureInput {
+export function kiroCompactionInput() {
   return {
     steps: [
       {
@@ -15,5 +15,5 @@ export function kiroCompactionInput(): OrchestratorFixtureInput {
         text: "Return the opaque marker I asked you to remember. Respond with only the marker.",
       },
     ],
-  };
+  } satisfies OrchestratorFixtureInput;
 }

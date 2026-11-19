@@ -45,7 +45,7 @@ function makeProject(
     owner: "SupatermTools",
     name: "Supaterm",
   },
-): OrchestrationProjectShell {
+) {
   return {
     id: PROJECT_ID,
     title: "Project",
@@ -58,7 +58,7 @@ function makeProject(
   };
 }
 
-function makeThread(pullRequests: ReadonlyArray<ThreadPullRequestLink>): PullRequestTestThread {
+function makeThread(pullRequests: ReadonlyArray<ThreadPullRequestLink>) {
   return {
     id: THREAD_ID,
     projectId: PROJECT_ID,
@@ -75,7 +75,7 @@ function makeThread(pullRequests: ReadonlyArray<ThreadPullRequestLink>): PullReq
     doneOverride: null,
     doneAt: null,
     latestUserMessageAt: "2026-08-20T00:00:00.000Z",
-  };
+  } satisfies PullRequestTestThread;
 }
 
 function makeLink(
@@ -84,7 +84,7 @@ function makeLink(
     readonly headBranch?: string;
     readonly baseBranch?: string;
   } = {},
-): ThreadPullRequestLink {
+) {
   const { headBranch, baseBranch, ...rest } = overrides;
   return {
     host: "github.com",
@@ -107,7 +107,7 @@ function makeLink(
           },
     stack: null,
     ...rest,
-  };
+  } satisfies ThreadPullRequestLink;
 }
 
 interface HarnessOptions {

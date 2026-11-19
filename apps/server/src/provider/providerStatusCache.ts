@@ -18,7 +18,7 @@ const decodeProviderStatusCache = Schema.decodeUnknownEffect(
 const mergeProviderModels = (
   fallbackModels: ReadonlyArray<ServerProvider["models"][number]>,
   cachedModels: ReadonlyArray<ServerProvider["models"][number]>,
-): ReadonlyArray<ServerProvider["models"][number]> => {
+) => {
   const fallbackSlugs = new Set(fallbackModels.map((model) => model.slug));
   return [
     ...fallbackModels,
@@ -37,14 +37,12 @@ const BUILT_IN_DRIVER_ORDER: ReadonlyArray<string> = [
   "kiro",
 ];
 
-const driverRank = (driver: string): number => {
+const driverRank = (driver: string) => {
   const index = BUILT_IN_DRIVER_ORDER.indexOf(driver);
   return index === -1 ? BUILT_IN_DRIVER_ORDER.length : index;
 };
 
-export const orderProviderSnapshots = (
-  providers: ReadonlyArray<ServerProvider>,
-): ReadonlyArray<ServerProvider> =>
+export const orderProviderSnapshots = (providers: ReadonlyArray<ServerProvider>) =>
   [...providers].toSorted(
     (left, right) =>
       driverRank(left.driver) - driverRank(right.driver) ||
@@ -56,14 +54,14 @@ export const orderProviderSnapshots = (
 export const isCachedProviderCorrelated = (input: {
   readonly cachedProvider: ServerProvider;
   readonly fallbackProvider: ServerProvider;
-}): boolean =>
+}) =>
   input.cachedProvider.instanceId === input.fallbackProvider.instanceId &&
   input.cachedProvider.driver === input.fallbackProvider.driver;
 
 export const hydrateCachedProvider = (input: {
   readonly cachedProvider: ServerProvider;
   readonly fallbackProvider: ServerProvider;
-}): ServerProvider => {
+}) => {
   if (!isCachedProviderCorrelated(input)) {
     return input.fallbackProvider;
   }
@@ -95,10 +93,7 @@ export const hydrateCachedProvider = (input: {
 
 /** Require matching instanceId and driver before hydration; filenames alone cannot authorize routing. */
 export const resolveProviderStatusCachePath = Effect.fn("resolveProviderStatusCachePath")(
-  function* (input: {
-    readonly cacheDir: string;
-    readonly instanceId: ProviderInstanceId;
-  }): Effect.fn.Return<string, never, Path.Path> {
+  function* (input: { readonly cacheDir: string; readonly instanceId: ProviderInstanceId }) {
     const path = yield* Path.Path;
     return path.join(input.cacheDir, `${input.instanceId}.json`);
   },

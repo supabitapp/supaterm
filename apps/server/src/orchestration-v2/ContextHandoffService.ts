@@ -40,7 +40,7 @@ export class ContextHandoffPrepareError extends Schema.TaggedError<ContextHandof
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Failed to prepare context handoff for run ${this.targetRunId} in thread ${this.threadId}.`;
   }
 }
@@ -109,7 +109,7 @@ export class ContextHandoffServiceV2 extends Context.Service<
   ContextHandoffServiceV2Shape
 >()("supaterm/orchestration-v2/ContextHandoffService/ContextHandoffServiceV2") {}
 
-function compactText(text: string, maxLength = 240): string {
+function compactText(text: string, maxLength = 240) {
   const compacted = text.replace(/\s+/g, " ").trim();
   if (compacted.length <= maxLength) {
     return compacted;
@@ -122,7 +122,7 @@ function compactText(text: string, maxLength = 240): string {
 export function visibleDeltaRunOrdinals(
   projection: { readonly runs: ReadonlyArray<Pick<OrchestrationV2Run, "id" | "ordinal">> },
   items: ReadonlyArray<Pick<OrchestrationV2TurnItem, "runId">>,
-): OrchestrationV2ContextHandoff["coveredRunOrdinals"] {
+) {
   const ordinalByRunId = new Map(projection.runs.map((run) => [run.id, run.ordinal]));
   let from = Infinity;
   let to = -Infinity;
@@ -139,7 +139,7 @@ export function visibleDeltaRunOrdinals(
 export function visibleConversationItems(
   projection: Pick<OrchestrationV2ThreadProjection, "runs" | "attempts">,
   items: ReadonlyArray<OrchestrationV2TurnItem>,
-): ReadonlyArray<OrchestrationV2TurnItem> {
+) {
   const visible = createOrchestrationV2TurnItemVisibility({
     runs: projection.runs,
     attempts: projection.attempts,
@@ -208,7 +208,7 @@ export const readForkHistoryItems = Effect.fn(
   ];
 });
 
-function summarizeDeltaItem(item: OrchestrationV2TurnItem): string | null {
+function summarizeDeltaItem(item: OrchestrationV2TurnItem) {
   switch (item.type) {
     case "user_message":
       return `- User: ${compactText(item.text)}`;
@@ -232,7 +232,7 @@ function makeForkDeltaSummary(input: {
   readonly targetThreadId: ThreadId;
   readonly coveredRunOrdinals: OrchestrationV2ContextHandoff["coveredRunOrdinals"];
   readonly deltaItems: ReadonlyArray<OrchestrationV2TurnItem>;
-}): string {
+}) {
   const itemLines = input.deltaItems.flatMap((item) => {
     const line = summarizeDeltaItem(item);
     return line === null ? [] : [line];
@@ -254,7 +254,7 @@ const SIDE_CHAT_CONTEXT_MAX_CHARS = 8_000;
 export function makeSideChatContext(input: {
   readonly parentThreadId: ThreadId;
   readonly digest: ReadonlyArray<string | OrchestrationV2TurnItem>;
-}): string {
+}) {
   const framing =
     "You are in a side chat beside the main thread. The main thread may still be running in the same worktree. Answer the user's questions; do not continue or redo the main thread's task.";
   const header = "Main thread activity since this side chat's starting point:";
@@ -295,7 +295,7 @@ export function sideChatTurnNote(input: {
   readonly providerTurns: ReadonlyArray<Pick<OrchestrationV2ProviderTurn, "runAttemptId">>;
   /** Compaction and goal turns send no prompt context. */
   readonly promptlessMessageIds: ReadonlySet<MessageId>;
-}): string {
+}) {
   const { thread } = input;
   const { parentThreadId } = thread.lineage;
   if (thread.lineage.sideChat !== true) {
@@ -329,10 +329,10 @@ export function sideChatTurnNote(input: {
 }
 
 /** Side chat context is prepended to the provider prompt, never replayed as budgeted history. */
-export const isSideChatContextHandoff = (handoff: OrchestrationV2ContextHandoff): boolean =>
+export const isSideChatContextHandoff = (handoff: OrchestrationV2ContextHandoff) =>
   handoff.strategy === "manual_context" && handoff.transferId != null;
 
-function makeLegacyImportSummary(items: ReadonlyArray<OrchestrationV2TurnItem>): string {
+function makeLegacyImportSummary(items: ReadonlyArray<OrchestrationV2TurnItem>) {
   const sections = items.flatMap((item) => {
     switch (item.type) {
       case "user_message":

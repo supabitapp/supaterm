@@ -97,7 +97,7 @@ const decodeThreadChipTargets = Schema.decodeUnknownSync(
 
 const threadProjectChipIconAtom = Atom.family((key: string) => {
   const ref = scopeThreadRef(...decodeThreadKey(JSON.parse(key)));
-  return Atom.make((get): string | null => {
+  return Atom.make((get) => {
     const shell = get(environmentThreadShells.threadShellAtom(ref));
     const metadata =
       shell ??
@@ -133,9 +133,12 @@ const threadProjectChipIconAtom = Atom.family((key: string) => {
           : null,
       (title) => get(projectMonogramColorAtom(projectColorKey(title))),
     );
-    if (!icon) return null;
-    if (icon.kind === "favicon") return icon.uri;
-    return AsyncResult.getOrElse(get(projectGlyphImageAtom(projectGlyphKey(icon))), () => null);
+    if (!icon) return null satisfies string | null as string | null;
+    if (icon.kind === "favicon") return icon.uri satisfies string | null as string | null;
+    return AsyncResult.getOrElse(
+      get(projectGlyphImageAtom(projectGlyphKey(icon))),
+      () => null,
+    ) satisfies string | null as string | null;
   }).pipe(Atom.withLabel(`mobile-thread-project-chip-icon:${key}`));
 });
 
@@ -160,13 +163,11 @@ const threadChipIconsAtom = Atom.family((key: string) => {
   }).pipe(Atom.withLabel(`mobile-thread-chip-icons:${key}`));
 });
 
-export function waitForProject(
-  ref: ScopedProjectRef,
-  timeoutMs = 10_000,
-): Promise<EnvironmentProject | null> {
+export function waitForProject(ref: ScopedProjectRef, timeoutMs = 10_000) {
   const atom = environmentProjects.projectAtom(ref);
   const current = appAtomRegistry.get(atom);
-  if (current !== null) return Promise.resolve(current);
+  if (current !== null)
+    return Promise.resolve(current) satisfies Promise<EnvironmentProject | null>;
   return new Promise((resolve) => {
     let unsubscribe: (() => void) | null = null;
     const timeout = setTimeout(() => {
@@ -181,32 +182,33 @@ export function waitForProject(
     };
     unsubscribe = appAtomRegistry.subscribe(atom, finish);
     finish(appAtomRegistry.get(atom));
-  });
+  }) satisfies Promise<EnvironmentProject | null>;
 }
 
-export function useProjects(): ReadonlyArray<EnvironmentProject> {
+export function useProjects() {
   return useAtomValue(environmentProjects.projectsAtom);
 }
 
-export function useThreadShells(): ReadonlyArray<EnvironmentThreadShell> {
+export function useThreadShells() {
   return useAtomValue(environmentThreadShells.threadShellsAtom);
 }
 
-export function useNavigationThreadShells(): ReadonlyArray<EnvironmentThreadShell> {
+export function useNavigationThreadShells() {
   return useAtomValue(environmentThreadShells.navigationThreadShellsAtom);
 }
 
-export function useProject(ref: ScopedProjectRef | null): EnvironmentProject | null {
+export function useProject(ref: ScopedProjectRef | null) {
   return useAtomValue(ref === null ? EMPTY_PROJECT_ATOM : environmentProjects.projectAtom(ref));
 }
 
-export function useThreadShell(ref: ScopedThreadRef | null): EnvironmentThreadShell | null {
+export function useThreadShell(ref: ScopedThreadRef | null): EnvironmentThreadShell | null;
+export function useThreadShell(ref: ScopedThreadRef | null) {
   return useAtomValue(
     ref === null ? EMPTY_THREAD_SHELL_ATOM : environmentThreadShells.threadShellAtom(ref),
-  );
+  ) satisfies EnvironmentThreadShell | null;
 }
 
-export function useQuietThreadShell(ref: ScopedThreadRef | null): EnvironmentThreadShell | null {
+export function useQuietThreadShell(ref: ScopedThreadRef | null) {
   return useAtomValue(
     ref === null ? EMPTY_THREAD_SHELL_ATOM : environmentThreadShells.quietThreadShellAtom(ref),
   );
@@ -220,7 +222,7 @@ export function useSideChats(ref: ScopedThreadRef) {
   return useAtomValue(environmentThreadShells.sideChatsAtom(ref));
 }
 
-export function useLiveThreadLinkLabels(markdown: string, environmentId: EnvironmentId): string {
+export function useLiveThreadLinkLabels(markdown: string, environmentId: EnvironmentId) {
   const titles = useAtomValue(
     hasThreadLinks(markdown)
       ? threadLinkTitlesAtom(JSON.stringify(threadLinkRefs(markdown, environmentId).map(threadKey)))
@@ -234,7 +236,7 @@ export function resolveThreadLink(
   read: <A>(atom: Atom.Atom<A>) => A,
   link: ThreadLink,
   messageEnvironmentId: EnvironmentId,
-): ScopedThreadRef | null {
+) {
   const known = threadLinkCandidates(link, messageEnvironmentId).find((ref) => {
     if (read(environmentThreadShells.threadShellAtom(ref)) !== null) return true;
     const metadata = read(
@@ -255,7 +257,7 @@ export function useThreadChipIcons(
   environmentId: EnvironmentId,
   markdown: string,
   records?: ReadonlyArray<ComposerContextRecord>,
-): ReadonlyMap<string, string> {
+) {
   const targets = threadChipTargets(environmentId, markdown, records);
   return useAtomValue(
     targets.length === 0
@@ -266,14 +268,15 @@ export function useThreadChipIcons(
 
 export function useEnvironmentServerConfig(
   environmentId: EnvironmentId | null,
-): ServerConfig | null {
+): ServerConfig | null;
+export function useEnvironmentServerConfig(environmentId: EnvironmentId | null) {
   return useAtomValue(
     environmentId === null
       ? EMPTY_SERVER_CONFIG_ATOM
       : serverEnvironment.configValueAtom(environmentId),
-  );
+  ) satisfies ServerConfig | null;
 }
 
-export function useServerConfigs(): ReadonlyMap<EnvironmentId, ServerConfig> {
+export function useServerConfigs() {
   return useAtomValue(environmentServerConfigsAtom);
 }

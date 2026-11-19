@@ -9,7 +9,7 @@ import {
   resolveQuickAction,
 } from "./gitActions.ts";
 
-function status(overrides: Partial<VcsStatusResult> = {}): VcsStatusResult {
+function status(overrides: Partial<VcsStatusResult> = {}) {
   return {
     isRepo: true,
     hasPrimaryRemote: true,

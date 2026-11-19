@@ -11,7 +11,6 @@ import {
   type VcsError,
   type VcsProcessErrorContext,
   VcsProcessExitError,
-  type VcsProcessExitFailureKind,
   VcsProcessMissingExitCodeError,
   VcsProcessOutputLimitError,
   VcsProcessOutputReadError,
@@ -103,7 +102,7 @@ export const gitConfigEnv = (
   key: string,
   value: string,
   platform: NodeJS.Platform,
-): NodeJS.ProcessEnv => {
+) => {
   const countKeys = Object.keys(env).filter((name) =>
     platform === "win32" ? name.toUpperCase() === "GIT_CONFIG_COUNT" : name === "GIT_CONFIG_COUNT",
   );
@@ -147,7 +146,7 @@ const REPOSITORY_SELECTORS = new Set([
 export const unsetInheritedRepositoryEnv = (
   inherited: NodeJS.ProcessEnv,
   platform: NodeJS.Platform,
-): NodeJS.ProcessEnv =>
+) =>
   Object.fromEntries(
     Object.keys(inherited)
       .filter((name) => REPOSITORY_SELECTORS.has(platform === "win32" ? name.toUpperCase() : name))
@@ -157,7 +156,7 @@ export const unsetInheritedRepositoryEnv = (
 const classifyNonZeroExit = (
   stderr: string,
   classifyFailure: VcsProcessInput["classifyFailure"],
-): VcsProcessExitFailureKind => {
+) => {
   const normalized = stderr.toLowerCase();
   const commandKind = classifyFailure?.(stderr) ?? null;
 

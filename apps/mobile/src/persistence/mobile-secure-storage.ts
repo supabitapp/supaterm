@@ -14,7 +14,7 @@ export class MobileSecureStorageError extends Schema.TaggedError<MobileSecureSto
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Mobile secure storage operation ${this.operation} failed for key ${this.key}.`;
   }
 }

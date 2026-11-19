@@ -2,7 +2,7 @@ import { SKILL_INVOCATION_PROMPT, type OrchestratorFixtureInput } from "../share
 
 export const SKILL_INVOCATION_FINAL = "review skill fixture complete";
 
-export function skillInvocationInput(): OrchestratorFixtureInput {
+export function skillInvocationInput() {
   return {
     workspaceFiles: {
       ".cursor/skills/review/SKILL.md": [
@@ -15,5 +15,5 @@ export function skillInvocationInput(): OrchestratorFixtureInput {
       ].join("\n"),
     },
     steps: [{ type: "message", text: SKILL_INVOCATION_PROMPT }],
-  };
+  } satisfies OrchestratorFixtureInput;
 }

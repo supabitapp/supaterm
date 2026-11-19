@@ -20,7 +20,7 @@ export interface TitleRegenerationSources {
 function settledOutcome(
   snapshot: OrchestrationV2ShellSnapshot | null,
   request: TitleRegenerationRequest,
-): ThreadTitleRegenerationOutcome | null | undefined {
+) {
   if (snapshot === null) return undefined;
   if (snapshot.snapshotSequence < request.sequence) return undefined;
   const thread =
@@ -40,7 +40,7 @@ export function waitForTitleRegenerationOutcome(
   registry: AtomRegistry.AtomRegistry,
   sources: TitleRegenerationSources,
   request: TitleRegenerationRequest,
-): Promise<ThreadTitleRegenerationOutcome | null> {
+) {
   return new Promise((resolve) => {
     let settled = false;
     let unsubscribes: ReadonlyArray<() => void> = [];
@@ -62,5 +62,5 @@ export function waitForTitleRegenerationOutcome(
     ];
     if (settled) release();
     else check();
-  });
+  }) satisfies Promise<ThreadTitleRegenerationOutcome | null>;
 }

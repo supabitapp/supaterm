@@ -71,7 +71,7 @@ export class MalformedSessionTokenError extends Schema.TaggedError<MalformedSess
   "MalformedSessionTokenError",
   {},
 ) {
-  override get message(): string {
+  override get message() {
     return "Malformed session token.";
   }
 }
@@ -80,7 +80,7 @@ export class InvalidSessionTokenSignatureError extends Schema.TaggedError<Invali
   "InvalidSessionTokenSignatureError",
   {},
 ) {
-  override get message(): string {
+  override get message() {
     return "Invalid session token signature.";
   }
 }
@@ -91,7 +91,7 @@ export class InvalidSessionTokenPayloadError extends Schema.TaggedError<InvalidS
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return "Invalid session token payload.";
   }
 }
@@ -104,7 +104,7 @@ export class SessionTokenExpiredError extends Schema.TaggedError<SessionTokenExp
     observedAt: Schema.DateTimeUtc,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return "Session token expired.";
   }
 }
@@ -115,7 +115,7 @@ export class UnknownSessionTokenError extends Schema.TaggedError<UnknownSessionT
     sessionId: AuthSessionId,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return "Unknown session token.";
   }
 }
@@ -127,7 +127,7 @@ export class SessionTokenRevokedError extends Schema.TaggedError<SessionTokenRev
     revokedAt: Schema.DateTimeUtc,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return "Session token revoked.";
   }
 }
@@ -139,7 +139,7 @@ export class InvalidSessionExpirationClaimError extends Schema.TaggedError<Inval
     expirationClaim: Schema.Number,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return "Invalid `exp` claim";
   }
 }
@@ -148,7 +148,7 @@ export class MalformedWebSocketTokenError extends Schema.TaggedError<MalformedWe
   "MalformedWebSocketTokenError",
   {},
 ) {
-  override get message(): string {
+  override get message() {
     return "Malformed websocket token.";
   }
 }
@@ -157,7 +157,7 @@ export class InvalidWebSocketTokenSignatureError extends Schema.TaggedError<Inva
   "InvalidWebSocketTokenSignatureError",
   {},
 ) {
-  override get message(): string {
+  override get message() {
     return "Invalid websocket token signature.";
   }
 }
@@ -168,7 +168,7 @@ export class InvalidWebSocketTokenPayloadError extends Schema.TaggedError<Invali
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return "Invalid websocket token payload.";
   }
 }
@@ -181,7 +181,7 @@ export class WebSocketTokenExpiredError extends Schema.TaggedError<WebSocketToke
     observedAt: Schema.DateTimeUtc,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return "Websocket token expired.";
   }
 }
@@ -192,7 +192,7 @@ export class UnknownWebSocketSessionError extends Schema.TaggedError<UnknownWebS
     sessionId: AuthSessionId,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return "Unknown websocket session.";
   }
 }
@@ -205,7 +205,7 @@ export class WebSocketSessionExpiredError extends Schema.TaggedError<WebSocketSe
     observedAt: Schema.DateTimeUtc,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return "Websocket session expired.";
   }
 }
@@ -217,7 +217,7 @@ export class WebSocketSessionRevokedError extends Schema.TaggedError<WebSocketSe
     revokedAt: Schema.DateTimeUtc,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return "Websocket session revoked.";
   }
 }
@@ -253,7 +253,7 @@ export class SessionClaimsEncodingError extends Schema.TaggedError<SessionClaims
     ...sessionCredentialInternalErrorContext,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return "Failed to encode claims";
   }
 }
@@ -265,8 +265,8 @@ export class SessionCredentialIssueError extends Schema.TaggedError<SessionCrede
     ...sessionCredentialInternalErrorContext,
   },
 ) {
-  override get message(): string {
-    return "Failed to issue session credential.";
+  override get message() {
+    return "Failed to issue session credential." satisfies string as string;
   }
 }
 
@@ -277,7 +277,7 @@ export class SessionCredentialVerificationError extends Schema.TaggedError<Sessi
     ...sessionCredentialInternalErrorContext,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return "Failed to verify session credential.";
   }
 }
@@ -289,7 +289,7 @@ export class WebSocketTokenIssueError extends Schema.TaggedError<WebSocketTokenI
     ...sessionCredentialInternalErrorContext,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return "Failed to issue websocket token.";
   }
 }
@@ -301,7 +301,7 @@ export class WebSocketTokenVerificationError extends Schema.TaggedError<WebSocke
     ...sessionCredentialInternalErrorContext,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return "Failed to verify websocket token.";
   }
 }
@@ -312,7 +312,7 @@ export class ActiveSessionsListError extends Schema.TaggedError<ActiveSessionsLi
     ...sessionCredentialInternalErrorContext,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return "Failed to list active sessions.";
   }
 }
@@ -324,7 +324,7 @@ export class SessionRevocationError extends Schema.TaggedError<SessionRevocation
     ...sessionCredentialInternalErrorContext,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return "Failed to revoke session.";
   }
 }
@@ -336,7 +336,7 @@ export class OtherSessionsRevocationError extends Schema.TaggedError<OtherSessio
     ...sessionCredentialInternalErrorContext,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return "Failed to revoke other sessions.";
   }
 }
@@ -442,10 +442,11 @@ type WebSocketClaims = typeof WebSocketClaims.Type;
 const decodeSessionClaims = Schema.decodeUnknownEffect(Schema.fromJsonString(SessionClaims));
 const decodeWebSocketClaims = Schema.decodeUnknownEffect(Schema.fromJsonString(WebSocketClaims));
 
-function createDefaultClientMetadata(): AuthClientMetadata {
+function createDefaultClientMetadata(): AuthClientMetadata;
+function createDefaultClientMetadata() {
   return {
     deviceType: "unknown",
-  };
+  } satisfies AuthClientMetadata;
 }
 
 function toClientMetadata(record: {
@@ -455,7 +456,7 @@ function toClientMetadata(record: {
   readonly deviceType: AuthClientMetadata["deviceType"];
   readonly os: string | null;
   readonly browser: string | null;
-}): AuthClientMetadata {
+}) {
   return {
     ...(record.label ? { label: record.label } : {}),
     ...(record.ipAddress ? { ipAddress: record.ipAddress } : {}),
@@ -466,7 +467,7 @@ function toClientMetadata(record: {
   };
 }
 
-function toAuthClientSession(input: Omit<AuthClientSession, "current">): AuthClientSession {
+function toAuthClientSession(input: Omit<AuthClientSession, "current">) {
   return {
     ...input,
     current: false,

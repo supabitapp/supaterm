@@ -13,13 +13,11 @@ const MOBILE_THEME_VARIABLE_NAMES = Object.keys(
   createMobileThemeVariables(SUPATERM_LIGHT_THEME_COLORS, "light"),
 ) as ReadonlyArray<MobileThemeVariable>;
 
-export function readDefaultMobileThemeVariables(
-  appearance: MobileThemeAppearance,
-): MobileThemeVariables {
+export function readDefaultMobileThemeVariables(appearance: MobileThemeAppearance) {
   return readGeneratedMobileThemeVariables(appearance);
 }
 
-export function readGeneratedMobileThemeVariables(themeName: string): MobileThemeVariables {
+export function readGeneratedMobileThemeVariables(themeName: string) {
   const stylesheet = NodeFS.readFileSync(
     new URL("../../generated-uniwind-themes.css", import.meta.url),
     "utf8",

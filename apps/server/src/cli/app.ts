@@ -40,8 +40,8 @@ export class DesktopAppSshUnsupportedError extends Schema.TaggedError<DesktopApp
   "DesktopAppSshUnsupportedError",
   {},
 ) {
-  override get message(): string {
-    return "`supaterm app` only controls a desktop app on the same machine. It cannot run over SSH.";
+  override get message() {
+    return "`supaterm app` only controls a desktop app on the same machine. It cannot run over SSH." satisfies string as string;
   }
 }
 
@@ -49,8 +49,8 @@ export class DesktopAppPlatformUnsupportedError extends Schema.TaggedError<Deskt
   "DesktopAppPlatformUnsupportedError",
   { platform: Schema.String },
 ) {
-  override get message(): string {
-    return `\`supaterm app\` is not supported on ${this.platform}.`;
+  override get message() {
+    return `\`supaterm app\` is not supported on ${this.platform}.` satisfies string as string;
   }
 }
 
@@ -63,8 +63,8 @@ export class DesktopAppUnreachableError extends Schema.TaggedError<DesktopAppUnr
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
-    return "Could not reach the Supaterm desktop app. Start or update the desktop app on this machine, then run `supaterm app` again. A running Supaterm server is not enough.";
+  override get message() {
+    return "Could not reach the Supaterm desktop app. Start or update the desktop app on this machine, then run `supaterm app` again. A running Supaterm server is not enough." satisfies string as string;
   }
 }
 
@@ -77,10 +77,10 @@ export class DesktopAppRequestFailedError extends Schema.TaggedError<DesktopAppR
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     if (this.code === "request-busy")
-      return "The desktop app is handling another command. Try again after it finishes.";
-    return `Supaterm could not open ${this.workspaceRoot} (${this.code}).`;
+      return "The desktop app is handling another command. Try again after it finishes." satisfies string as string;
+    return `Supaterm could not open ${this.workspaceRoot} (${this.code}).` satisfies string as string;
   }
 }
 
@@ -88,8 +88,8 @@ export class DesktopAppConnectionUnavailableError extends Schema.TaggedError<Des
   "DesktopAppConnectionUnavailableError",
   { requestId: Schema.String, cause: Schema.Defect() },
 ) {
-  override get message(): string {
-    return "Could not complete the connection request. Start or update the desktop app on this machine. If pairing already started, it may still finish; check Settings → Environments before retrying.";
+  override get message() {
+    return "Could not complete the connection request. Start or update the desktop app on this machine. If pairing already started, it may still finish; check Settings → Environments before retrying." satisfies string as string;
   }
 }
 
@@ -97,22 +97,22 @@ export class DesktopAppConnectionFailedError extends Schema.TaggedError<DesktopA
   "DesktopAppConnectionFailedError",
   { requestId: Schema.String, code: DesktopAppActivationErrorCode, cause: Schema.Defect() },
 ) {
-  override get message(): string {
+  override get message() {
     switch (this.code) {
       case "invalid-request":
-        return "This Supaterm desktop app cannot add connections from the command line. Update the desktop app.";
+        return "This Supaterm desktop app cannot add connections from the command line. Update the desktop app." satisfies string as string;
       case "request-busy":
-        return "The desktop app is handling another command. Try again after it finishes.";
+        return "The desktop app is handling another command. Try again after it finishes." satisfies string as string;
       case "renderer-unavailable":
-        return "The desktop window is unavailable. Wait for the app to finish starting and try again.";
+        return "The desktop window is unavailable. Wait for the app to finish starting and try again." satisfies string as string;
       case "request-timeout":
-        return "The connection request timed out. It may still finish; check Settings → Environments before retrying.";
+        return "The connection request timed out. It may still finish; check Settings → Environments before retrying." satisfies string as string;
       case "connection-save-failed":
-        return "Supaterm could not save the connection. Check secure storage and try pairing again.";
+        return "Supaterm could not save the connection. Check secure storage and try pairing again." satisfies string as string;
       case "pairing-failed":
-        return "Supaterm could not pair with the environment. Check its address and use a fresh pairing link.";
+        return "Supaterm could not pair with the environment. Check its address and use a fresh pairing link." satisfies string as string;
       default:
-        return "Supaterm could not complete the connection request. Check Settings → Environments before retrying.";
+        return "Supaterm could not complete the connection request. Check Settings → Environments before retrying." satisfies string as string;
     }
   }
 }
@@ -121,8 +121,8 @@ export class DesktopAppPairingLinkInvalidError extends Schema.TaggedError<Deskto
   "DesktopAppPairingLinkInvalidError",
   {},
 ) {
-  override get message(): string {
-    return "The pairing link is invalid. Use the full URL from Settings → Sharing & access or `supaterm pair`.";
+  override get message() {
+    return "The pairing link is invalid. Use the full URL from Settings → Sharing & access or `supaterm pair`." satisfies string as string;
   }
 }
 
@@ -130,8 +130,8 @@ export class DesktopAppConnectionPlatformUnsupportedError extends Schema.TaggedE
   "DesktopAppConnectionPlatformUnsupportedError",
   {},
 ) {
-  override get message(): string {
-    return "Adding connections from the command line requires macOS or Linux. On Windows, paste the pairing link in Settings → Environments.";
+  override get message() {
+    return "Adding connections from the command line requires macOS or Linux. On Windows, paste the pairing link in Settings → Environments." satisfies string as string;
   }
 }
 
@@ -165,7 +165,7 @@ function sendDesktopAppActivationRequest(input: {
   readonly request: DesktopAppActivationRequest;
   readonly timeoutMs: number;
   readonly verifyEndpoint?: (address: string) => Promise<void>;
-}): Promise<DesktopAppActivationResponse> {
+}) {
   return new Promise((resolve, reject) => {
     const socket = NodeNet.createConnection(input.address);
     socket.setEncoding("utf8");
@@ -259,7 +259,7 @@ function sendDesktopAppActivationRequest(input: {
     socket.once("end", () => {
       finish({ type: "failure", error: new Error("The desktop app closed the connection.") });
     });
-  });
+  }) satisfies Promise<DesktopAppActivationResponse>;
 }
 
 const appEnvironment = Config.all({

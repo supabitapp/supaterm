@@ -14,19 +14,19 @@ export interface ExtractedToolActivityPresentation {
   readonly toolSource?: ToolActivitySource;
 }
 
-function asRecord(value: unknown): Record<string, unknown> | undefined {
+function asRecord(value: unknown) {
   return value !== null && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : undefined;
 }
 
-function trimmedString(value: unknown, maxLength: number): string | undefined {
+function trimmedString(value: unknown, maxLength: number) {
   if (typeof value !== "string") return undefined;
   const trimmed = value.trim();
   return trimmed && trimmed.length <= maxLength ? trimmed : undefined;
 }
 
-function imageUrl(value: unknown): string | undefined {
+function imageUrl(value: unknown) {
   const raw = trimmedString(value, 4096);
   if (!raw) return undefined;
   try {
@@ -39,7 +39,7 @@ function imageUrl(value: unknown): string | undefined {
   }
 }
 
-function pageUrl(value: unknown): string | undefined {
+function pageUrl(value: unknown) {
   const raw = trimmedString(value, 4096);
   if (!raw) return undefined;
   try {
@@ -50,20 +50,22 @@ function pageUrl(value: unknown): string | undefined {
   }
 }
 
-function nativeAppReference(value: unknown): ToolActivityNativeAppReference | undefined {
+function nativeAppReference(value: unknown) {
   const app = asRecord(value);
   const appId = trimmedString(app?.appId, 512);
   if (app?._tag === "app-id" && appId && /^[A-Za-z0-9._-]+$/u.test(appId)) {
-    return { _tag: "app-id", appId };
+    return { _tag: "app-id", appId } satisfies ToolActivityNativeAppReference | undefined;
   }
   const displayName = trimmedString(app?.displayName, 160);
   if (app?._tag === "display-name" && displayName) {
-    return { _tag: "display-name", displayName };
+    return { _tag: "display-name", displayName } satisfies
+      | ToolActivityNativeAppReference
+      | undefined;
   }
-  return undefined;
+  return undefined satisfies ToolActivityNativeAppReference | undefined;
 }
 
-function activityIcon(value: unknown): ToolActivityIcon | undefined {
+function activityIcon(value: unknown) {
   const icon = asRecord(value);
   if (icon?._tag === "website") {
     const resolvedPageUrl = pageUrl(icon.pageUrl);
@@ -75,12 +77,12 @@ function activityIcon(value: unknown): ToolActivityIcon | undefined {
         pageUrl: resolvedPageUrl,
         ...(faviconUrl ? { faviconUrl } : {}),
         ...(faviconUrlDark ? { faviconUrlDark } : {}),
-      };
+      } satisfies ToolActivityIcon | undefined;
     }
   }
   if (icon?._tag === "native-app") {
     const app = nativeAppReference(icon.app);
-    if (app) return { _tag: "native-app", app };
+    if (app) return { _tag: "native-app", app } satisfies ToolActivityIcon | undefined;
   }
   if (icon?._tag === "themed-logo") {
     const logoUrl = imageUrl(icon.logoUrl);
@@ -90,27 +92,25 @@ function activityIcon(value: unknown): ToolActivityIcon | undefined {
         _tag: "themed-logo",
         logoUrl,
         ...(logoUrlDark ? { logoUrlDark } : {}),
-      };
+      } satisfies ToolActivityIcon | undefined;
     }
   }
-  return undefined;
+  return undefined satisfies ToolActivityIcon | undefined;
 }
 
-function activitySource(value: unknown): ToolActivitySource | undefined {
+function activitySource(value: unknown) {
   const source = asRecord(value);
   const key = trimmedString(source?.key, 512);
   const name = trimmedString(source?.name, 160);
   const kind = source?.kind;
   if (!key || !name || (kind !== "browser" && kind !== "computer" && kind !== "integration")) {
-    return undefined;
+    return undefined satisfies ToolActivitySource | undefined;
   }
   const icon = activityIcon(source?.icon);
-  return { key, name, kind, ...(icon ? { icon } : {}) };
+  return { key, name, kind, ...(icon ? { icon } : {}) } satisfies ToolActivitySource | undefined;
 }
 
-export function extractToolActivityPresentation(
-  payloadValue: unknown,
-): ExtractedToolActivityPresentation {
+export function extractToolActivityPresentation(payloadValue: unknown) {
   const payload = asRecord(payloadValue);
   const retainedSource = activitySource(payload?.toolSource);
   const toolSurface =
@@ -139,5 +139,5 @@ export function extractToolActivityPresentation(
     isWorkspaceImagePreviewPath(viewedImagePath)
       ? { viewedImagePath }
       : {}),
-  };
+  } satisfies ExtractedToolActivityPresentation;
 }

@@ -42,7 +42,7 @@ export function buildDraftActionMenuItems(options: {
   readonly hasPath: boolean;
   readonly hasBranch: boolean;
   readonly hasProject: boolean;
-}): ReadonlyArray<ContextMenuItem<DraftActionMenuId>> {
+}) {
   return [
     {
       id: "copy",
@@ -66,7 +66,7 @@ export function buildDraftActionMenuItems(options: {
       destructive: true,
       separatorBefore: true,
     },
-  ];
+  ] satisfies ReadonlyArray<ContextMenuItem<DraftActionMenuId>>;
 }
 
 export interface ThreadActionMenuState {
@@ -95,7 +95,7 @@ export interface ThreadActionMenuState {
 }
 
 /** Local navigation, read markers, and copying remain available to read-only clients. */
-export function threadActionRequiresOperate(action: ThreadActionMenuId): boolean {
+export function threadActionRequiresOperate(action: ThreadActionMenuId) {
   return ![
     "find",
     "open-beside",
@@ -115,9 +115,7 @@ export function threadActionRequiresOperate(action: ThreadActionMenuId): boolean
  * menu and the chat header menu share labels and ordering.
  * Each surface supplies state for the actions it supports.
  */
-export function buildThreadActionMenuItems(
-  state: ThreadActionMenuState,
-): ReadonlyArray<ContextMenuItem<ThreadActionMenuId>> {
+export function buildThreadActionMenuItems(state: ThreadActionMenuState) {
   const items: ReadonlyArray<ContextMenuItem<ThreadActionMenuId>> = [
     ...(state.canFind
       ? [{ id: "find" as const, label: "Find in thread", icon: "text-search" }]

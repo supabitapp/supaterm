@@ -105,11 +105,15 @@ export interface ProviderContinuationIdentity {
 export function defaultProviderContinuationIdentity(input: {
   readonly driverKind: ProviderDriverKind;
   readonly instanceId: ProviderInstanceId;
-}): ProviderContinuationIdentity {
+}): ProviderContinuationIdentity;
+export function defaultProviderContinuationIdentity(input: {
+  readonly driverKind: ProviderDriverKind;
+  readonly instanceId: ProviderInstanceId;
+}) {
   return {
     driverKind: input.driverKind,
     continuationKey: `${input.driverKind}:instance:${input.instanceId}`,
-  };
+  } satisfies ProviderContinuationIdentity;
 }
 
 export interface ProviderDriverCreateInput<Config> {

@@ -24,10 +24,7 @@ export interface ThreadReferenceCopyTarget {
 }
 
 /** A thread chip pastes into any composer whose agent reads that thread's machine. */
-export function threadChipCopyTarget(
-  threadRef: ScopedThreadRef,
-  title: string,
-): ThreadReferenceCopyTarget {
+export function threadChipCopyTarget(threadRef: ScopedThreadRef, title: string) {
   const record = threadContextRecord(threadRef, title);
   return {
     kind: "thread",
@@ -37,7 +34,7 @@ export function threadChipCopyTarget(
     clipboardTarget: "thread",
     successTitle: "Thread copied",
     failureTitle: "Failed to copy thread",
-  };
+  } satisfies ThreadReferenceCopyTarget;
 }
 
 export function resolveThreadReferenceCopyTarget(input: {
@@ -47,20 +44,31 @@ export function resolveThreadReferenceCopyTarget(input: {
   readonly openPanelPullRequestUrl?: string | null | undefined;
   readonly pullRequests?: ReadonlyArray<ThreadPullRequestLink> | undefined;
   readonly linkedPullRequestUrl?: string | null;
-}): ThreadReferenceCopyTarget | null {
-  if (input.openPanelPullRequestUrl === null) return null;
+}): ThreadReferenceCopyTarget | null;
+export function resolveThreadReferenceCopyTarget(input: {
+  readonly threadRef: ScopedThreadRef;
+  readonly title: string;
+  /** Undefined means no PR panel; null means its URL is not available yet. */
+  readonly openPanelPullRequestUrl?: string | null | undefined;
+  readonly pullRequests?: ReadonlyArray<ThreadPullRequestLink> | undefined;
+  readonly linkedPullRequestUrl?: string | null;
+}) {
+  if (input.openPanelPullRequestUrl === null)
+    return null satisfies ThreadReferenceCopyTarget | null;
   const pullRequestUrl =
     input.openPanelPullRequestUrl ??
     resolveThreadCurrentPullRequestLink(input.pullRequests ?? [])?.url ??
     input.linkedPullRequestUrl;
-  return pullRequestUrl
-    ? {
-        kind: "pull-request",
-        value: pullRequestUrl,
-        description: pullRequestUrl,
-        clipboardTarget: "pull request link",
-        successTitle: "PR link copied",
-        failureTitle: "Failed to copy PR link",
-      }
-    : threadChipCopyTarget(input.threadRef, input.title);
+  return (
+    pullRequestUrl
+      ? {
+          kind: "pull-request",
+          value: pullRequestUrl,
+          description: pullRequestUrl,
+          clipboardTarget: "pull request link",
+          successTitle: "PR link copied",
+          failureTitle: "Failed to copy PR link",
+        }
+      : threadChipCopyTarget(input.threadRef, input.title)
+  ) satisfies ThreadReferenceCopyTarget | null;
 }

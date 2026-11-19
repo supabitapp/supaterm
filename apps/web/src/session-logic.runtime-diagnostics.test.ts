@@ -44,9 +44,7 @@ function workEntry(item: OrchestrationV2TurnItem) {
   return entry.entry;
 }
 
-function errorItem(
-  overrides: Partial<Extract<OrchestrationV2TurnItem, { type: "error" }>> = {},
-): Extract<OrchestrationV2TurnItem, { type: "error" }> {
+function errorItem(overrides: Partial<Extract<OrchestrationV2TurnItem, { type: "error" }>> = {}) {
   return {
     ...baseItem,
     type: "error",
@@ -57,7 +55,7 @@ function errorItem(
       retryable: false,
     },
     ...overrides,
-  };
+  } satisfies Extract<OrchestrationV2TurnItem, { type: "error" }>;
 }
 
 describe("runtime diagnostics in the v2 work log", () => {

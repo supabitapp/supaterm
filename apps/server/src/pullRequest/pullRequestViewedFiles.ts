@@ -106,7 +106,7 @@ const makeFileRevisions = (dependencies: FileRevisionsDependencies) => {
     paths: ReadonlyArray<string>,
     operation: string,
     freshness: "held" | "fresh" = "held",
-  ): Effect.Effect<ReadonlyMap<string, string> | null, PullRequestError> => {
+  ) => {
     const read = project.api.getFileRevisions;
     if (read === undefined) return Effect.succeed(null);
     const fetch = Effect.suspend(() => {
@@ -173,46 +173,46 @@ export const make = (dependencies: Dependencies) => {
       cause,
     });
 
-  const environmentFilesViewed = Effect.fn("pullRequestViewedFiles.environmentFilesViewed")(
-    function* (
-      project: SupportedProject,
-      ref: PullRequestRef,
-    ): Effect.fn.Return<PullRequestFilesViewedResult, PullRequestError> {
-      const viewer = yield* requiredViewerOf(project, "filesViewed");
-      const held = yield* filesViewedStore
-        .list(filesViewedScope(project, ref.number, viewer))
-        .pipe(Effect.mapError(toFilesViewedStoreError("filesViewed")));
-      const marks = held.files;
-      if (marks.length === 0) return { files: [], truncated: held.truncated };
-      const revisions = yield* fileRevisionsOf(
-        project,
-        ref,
-        marks.map((mark) => mark.path),
-        "filesViewed",
-      ).pipe(
-        Effect.catch((error) =>
-          Effect.logWarning("reporting viewed files without what the head has of them", {
-            operation: "filesViewed",
-            reason: error._tag,
-          }).pipe(Effect.as(null)),
-        ),
-      );
-      return {
-        files: marks.map((mark) => {
-          if (mark.revision === null) return { path: mark.path, state: "viewed" as const };
-          const revision = revisions?.get(mark.path);
-          return {
-            path: mark.path,
-            state:
-              revision === undefined || revision === mark.revision
-                ? ("viewed" as const)
-                : ("dismissed" as const),
-          };
-        }),
-        truncated: held.truncated,
-      };
-    },
-  );
+  const environmentFilesViewed: (
+    project: SupportedProject,
+    ref: PullRequestRef,
+  ) => Effect.Effect<PullRequestFilesViewedResult, PullRequestError> = Effect.fn(
+    "pullRequestViewedFiles.environmentFilesViewed",
+  )(function* (project: SupportedProject, ref: PullRequestRef) {
+    const viewer = yield* requiredViewerOf(project, "filesViewed");
+    const held = yield* filesViewedStore
+      .list(filesViewedScope(project, ref.number, viewer))
+      .pipe(Effect.mapError(toFilesViewedStoreError("filesViewed")));
+    const marks = held.files;
+    if (marks.length === 0) return { files: [], truncated: held.truncated };
+    const revisions = yield* fileRevisionsOf(
+      project,
+      ref,
+      marks.map((mark) => mark.path),
+      "filesViewed",
+    ).pipe(
+      Effect.catch((error) =>
+        Effect.logWarning("reporting viewed files without what the head has of them", {
+          operation: "filesViewed",
+          reason: error._tag,
+        }).pipe(Effect.as(null)),
+      ),
+    );
+    return {
+      files: marks.map((mark) => {
+        if (mark.revision === null) return { path: mark.path, state: "viewed" as const };
+        const revision = revisions?.get(mark.path);
+        return {
+          path: mark.path,
+          state:
+            revision === undefined || revision === mark.revision
+              ? ("viewed" as const)
+              : ("dismissed" as const),
+        };
+      }),
+      truncated: held.truncated,
+    };
+  });
 
   const filesViewedGates = new Map<
     string,
@@ -242,44 +242,44 @@ export const make = (dependencies: Dependencies) => {
         );
     });
 
-  const environmentSetFilesViewed = Effect.fn("pullRequestViewedFiles.environmentSetFilesViewed")(
-    function* (
-      project: SupportedProject,
-      input: PullRequestSetFilesViewedInput,
-    ): Effect.fn.Return<void, PullRequestError> {
-      const viewer = yield* requiredViewerOf(project, "setFilesViewed");
-      const cleared = input.files
-        .filter((file) => file.viewed && file.revision === undefined)
-        .map((file) => file.path);
-      const revisions =
-        cleared.length === 0
-          ? null
-          : yield* fileRevisionsOf(project, input, cleared, "setFilesViewed", "fresh").pipe(
-              Effect.catch((error) =>
-                Effect.logWarning("recording viewed files without what the head has of them", {
-                  operation: "setFilesViewed",
-                  reason: error._tag,
-                }).pipe(Effect.as(null)),
-              ),
-            );
-      const viewedAt = DateTime.formatIso(yield* DateTime.now);
-      yield* filesViewedStore
-        .set({
-          ...filesViewedScope(project, input.number, viewer),
-          files: input.files.map((file) => ({
-            path: file.path,
-            revision: file.revision ?? revisions?.get(file.path) ?? null,
-            viewed: file.viewed,
-          })),
-          viewedAt,
-        })
-        .pipe(Effect.mapError(toFilesViewedStoreError("setFilesViewed")));
-    },
-  );
+  const environmentSetFilesViewed: (
+    project: SupportedProject,
+    input: PullRequestSetFilesViewedInput,
+  ) => Effect.Effect<void, PullRequestError> = Effect.fn(
+    "pullRequestViewedFiles.environmentSetFilesViewed",
+  )(function* (project: SupportedProject, input: PullRequestSetFilesViewedInput) {
+    const viewer = yield* requiredViewerOf(project, "setFilesViewed");
+    const cleared = input.files
+      .filter((file) => file.viewed && file.revision === undefined)
+      .map((file) => file.path);
+    const revisions =
+      cleared.length === 0
+        ? null
+        : yield* fileRevisionsOf(project, input, cleared, "setFilesViewed", "fresh").pipe(
+            Effect.catch((error) =>
+              Effect.logWarning("recording viewed files without what the head has of them", {
+                operation: "setFilesViewed",
+                reason: error._tag,
+              }).pipe(Effect.as(null)),
+            ),
+          );
+    const viewedAt = DateTime.formatIso(yield* DateTime.now);
+    yield* filesViewedStore
+      .set({
+        ...filesViewedScope(project, input.number, viewer),
+        files: input.files.map((file) => ({
+          path: file.path,
+          revision: file.revision ?? revisions?.get(file.path) ?? null,
+          viewed: file.viewed,
+        })),
+        viewedAt,
+      })
+      .pipe(Effect.mapError(toFilesViewedStoreError("setFilesViewed")));
+  });
 
   const filesViewed = (input: PullRequestRef) =>
     requireProject(input).pipe(
-      Effect.flatMap((project): Effect.Effect<PullRequestFilesViewedResult, PullRequestError> => {
+      Effect.flatMap((project) => {
         const read = project.api.getFilesViewed;
         if (project.api.capabilities.viewedFiles === "host" && read) {
           return read({
@@ -287,25 +287,32 @@ export const make = (dependencies: Dependencies) => {
             repository: project.repository,
             host: project.host,
             number: input.number,
-          }).pipe(Effect.mapError(toPullRequestError("filesViewed")));
+          }).pipe(Effect.mapError(toPullRequestError("filesViewed"))) satisfies Effect.Effect<
+            PullRequestFilesViewedResult,
+            PullRequestError
+          > as Effect.Effect<PullRequestFilesViewedResult, PullRequestError>;
         }
         if (project.api.capabilities.viewedFiles === "environment") {
-          return environmentFilesViewed(project, input);
+          return environmentFilesViewed(project, input) satisfies Effect.Effect<
+            PullRequestFilesViewedResult,
+            PullRequestError
+          > as Effect.Effect<PullRequestFilesViewedResult, PullRequestError>;
         }
         return Effect.fail(
           new PullRequestOperationError({
             operation: "filesViewed",
             detail: "This host does not track which files a reader has seen.",
           }),
-        );
+        ) satisfies Effect.Effect<PullRequestFilesViewedResult, PullRequestError> as Effect.Effect<
+          PullRequestFilesViewedResult,
+          PullRequestError
+        >;
       }),
     );
 
-  const setFilesViewed = (
-    input: PullRequestSetFilesViewedInput,
-  ): Effect.Effect<void, PullRequestError> =>
+  const setFilesViewed = (input: PullRequestSetFilesViewedInput) =>
     requireProject(input).pipe(
-      Effect.flatMap((project): Effect.Effect<void, PullRequestError> => {
+      Effect.flatMap((project) => {
         const write = project.api.setFilesViewed;
         if (project.api.capabilities.viewedFiles === "host" && write) {
           return write({
@@ -314,21 +321,27 @@ export const make = (dependencies: Dependencies) => {
             host: project.host,
             number: input.number,
             files: input.files,
-          }).pipe(Effect.mapError(toPullRequestError("setFilesViewed")));
+          }).pipe(Effect.mapError(toPullRequestError("setFilesViewed"))) satisfies Effect.Effect<
+            void,
+            PullRequestError
+          > as Effect.Effect<void, PullRequestError>;
         }
         if (project.api.capabilities.viewedFiles === "environment") {
           return inFilesViewedOrder(
             project,
             input.number,
             environmentSetFilesViewed(project, input),
-          );
+          ) satisfies Effect.Effect<void, PullRequestError> as Effect.Effect<
+            void,
+            PullRequestError
+          >;
         }
         return Effect.fail(
           new PullRequestOperationError({
             operation: "setFilesViewed",
             detail: "This host does not track which files a reader has seen.",
           }),
-        );
+        ) satisfies Effect.Effect<void, PullRequestError> as Effect.Effect<void, PullRequestError>;
       }),
     );
 

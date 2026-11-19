@@ -19,8 +19,8 @@ export class BootstrapFdStatError extends Schema.TaggedError<BootstrapFdStatErro
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
-    return `Failed to stat bootstrap file descriptor ${this.fd}.`;
+  override get message() {
+    return `Failed to stat bootstrap file descriptor ${this.fd}.` satisfies string as string;
   }
 }
 
@@ -33,9 +33,9 @@ export class BootstrapInputStreamOpenError extends Schema.TaggedError<BootstrapI
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     const path = this.fdPath === undefined ? "" : ` via '${this.fdPath}'`;
-    return `Failed to open bootstrap input stream for file descriptor ${this.fd}${path} on '${this.platform}'.`;
+    return `Failed to open bootstrap input stream for file descriptor ${this.fd}${path} on '${this.platform}'.` satisfies string as string;
   }
 }
 
@@ -46,8 +46,8 @@ export class BootstrapEnvelopeReadError extends Schema.TaggedError<BootstrapEnve
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
-    return `Failed to read bootstrap envelope from file descriptor ${this.fd}.`;
+  override get message() {
+    return `Failed to read bootstrap envelope from file descriptor ${this.fd}.` satisfies string as string;
   }
 }
 
@@ -58,8 +58,8 @@ export class BootstrapEnvelopeDecodeError extends Schema.TaggedError<BootstrapEn
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
-    return `Failed to decode bootstrap envelope from file descriptor ${this.fd}.`;
+  override get message() {
+    return `Failed to decode bootstrap envelope from file descriptor ${this.fd}.` satisfies string as string;
   }
 }
 
@@ -77,7 +77,7 @@ export const readBootstrapEnvelope = Effect.fn("readBootstrapEnvelope")(function
   options?: {
     timeoutMs?: number;
   },
-): Effect.fn.Return<Option.Option<A>, BootstrapError> {
+) {
   const fdReady = yield* isFdReady(fd);
   if (!fdReady) return Option.none();
 
@@ -205,7 +205,7 @@ const makeBootstrapInputStream = Effect.fn("bootstrap.makeBootstrapInputStream")
   });
 });
 
-const makeDirectBootstrapStream = (fd: number): NodeStream.Readable => {
+const makeDirectBootstrapStream = (fd: number) => {
   try {
     return NodeFS.createReadStream("", {
       fd,
@@ -228,7 +228,7 @@ const isBootstrapFdPathDuplicationError = Predicate.compose(
   (_) => _.code === "ENXIO" || _.code === "EINVAL" || _.code === "EPERM" || _.code === "EACCES",
 );
 
-function resolveFdPath(fd: number, platform: NodeJS.Platform): string | undefined {
+function resolveFdPath(fd: number, platform: NodeJS.Platform) {
   if (platform === "linux") {
     return `/proc/self/fd/${fd}`;
   }

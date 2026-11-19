@@ -26,9 +26,7 @@ const driver = ProviderDriverKind.make("codex");
 const personalId = ProviderInstanceId.make("codex_personal");
 const workId = ProviderInstanceId.make("codex_work");
 
-const makeAdapter = (
-  instanceId: ProviderInstanceId,
-): ProviderAdapter.ProviderAdapterV2["Service"] =>
+const makeAdapter = (instanceId: ProviderInstanceId) =>
   ({
     instanceId,
     driver,
@@ -40,7 +38,7 @@ const makeAdapter = (
 const makeInstance = (
   instanceId: ProviderInstanceId,
   orchestrationAdapter: ProviderAdapter.ProviderAdapterV2["Service"],
-): ProviderInstance => ({
+) => ({
   instanceId,
   driverKind: driver,
   continuationIdentity: {

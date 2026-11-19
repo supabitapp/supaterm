@@ -43,7 +43,7 @@ function setup() {
   state.heads.clear();
 }
 
-function page(path: string, value: string, nextCursor: string | null): PullRequestDiffResult {
+function page(path: string, value: string, nextCursor: string | null) {
   return {
     patch: `diff --git a/${path} b/${path}\n--- a/${path}\n+++ b/${path}\n@@ -1 +1 @@\n-old\n+${value}\n`,
     truncated: false,
@@ -98,7 +98,7 @@ it("walks more cached pages than React's re-render limit and stops at the reques
   let pastPageReads = 0;
   state.pages.set(
     `cursor-${pageCount}`,
-    Atom.make((): AsyncResult.AsyncResult<PullRequestDiffResult> => {
+    Atom.make(() => {
       pastPageReads++;
       return AsyncResult.initial(true);
     }),

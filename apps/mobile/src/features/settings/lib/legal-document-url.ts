@@ -1,6 +1,6 @@
 const DEFAULT_MARKETING_SITE_URL = "https://supaterm.com";
 
-function resolveMarketingSiteUrl(override: string | undefined): URL {
+function resolveMarketingSiteUrl(override: string | undefined) {
   try {
     const url = new URL(override?.trim() || DEFAULT_MARKETING_SITE_URL);
     if (url.protocol !== "https:" && url.protocol !== "http:") {
@@ -18,7 +18,7 @@ function resolveMarketingSiteUrl(override: string | undefined): URL {
 
 const MARKETING_SITE_URL = resolveMarketingSiteUrl(process.env.EXPO_PUBLIC_MARKETING_SITE_URL);
 
-function marketingSiteDocumentUrl(path: string): string {
+function marketingSiteDocumentUrl(path: string) {
   return new URL(path, MARKETING_SITE_URL).toString();
 }
 
@@ -34,7 +34,7 @@ const ALLOWED_LEGAL_DOCUMENT_URLS = [
   SECURITY_POLICY_URL,
 ] as const;
 
-function webDocumentIdentity(value: string): string | null {
+function webDocumentIdentity(value: string) {
   try {
     const url = new URL(value);
     if (url.protocol !== "https:" && url.protocol !== "http:") return null;
@@ -53,7 +53,7 @@ const ALLOWED_LEGAL_DOCUMENT_IDENTITIES = new Set(
   }),
 );
 
-export function isLegalDocumentUrl(value: string): boolean {
+export function isLegalDocumentUrl(value: string) {
   const identity = webDocumentIdentity(value);
   return identity !== null && ALLOWED_LEGAL_DOCUMENT_IDENTITIES.has(identity);
 }

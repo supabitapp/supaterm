@@ -1,4 +1,4 @@
-import { use, type CSSProperties } from "react";
+import { use } from "react";
 
 import {
   withEmbeddedScripts,
@@ -11,7 +11,7 @@ import { getSyntaxHighlighterPromise } from "../../lib/syntaxHighlighting";
 
 const NO_EMBEDDED_SCRIPTS: ReadonlyArray<EmbeddedScript> = [];
 
-function syntaxTokenStyle(token: SyntaxToken): CSSProperties {
+function syntaxTokenStyle(token: SyntaxToken) {
   const fontStyle = token.fontStyle ?? 0;
   return {
     ...(token.color ? { color: token.color } : {}),
@@ -96,7 +96,7 @@ interface Word {
   readonly pieces: Array<{ key: string; text: string; token: SyntaxToken }>;
 }
 
-export function wordsOf(tokens: ReadonlyArray<SyntaxToken>): Array<string | Word> {
+export function wordsOf(tokens: ReadonlyArray<SyntaxToken>) {
   const parts: Array<string | Word> = [];
   let word: Word | null = null;
   for (const token of tokens) {

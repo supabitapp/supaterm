@@ -37,7 +37,10 @@ it.effect("keeps hosts independent when serials collide and another host fails",
         ),
       ),
     );
-    const host = (id: string, failed = false): DeviceHost.DeviceHost["Service"] => {
+    const host: (id: string, failed?: boolean) => DeviceHost.DeviceHost["Service"] = (
+      id: string,
+      failed = false,
+    ) => {
       const run = (command: string) =>
         Effect.succeed({
           stdout: command === "emulator" ? "" : " V....D libx264",

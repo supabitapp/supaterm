@@ -13,7 +13,12 @@ export function optimisticThreadCreationShell(
   input: StartThreadTurnInput,
   creation: NonNullable<NonNullable<StartThreadTurnInput["bootstrap"]>["createThread"]>,
   createdAt: DateTime.Utc,
-): OrchestrationV2ThreadShell {
+): OrchestrationV2ThreadShell;
+export function optimisticThreadCreationShell(
+  input: StartThreadTurnInput,
+  creation: NonNullable<NonNullable<StartThreadTurnInput["bootstrap"]>["createThread"]>,
+  createdAt: DateTime.Utc,
+) {
   const prepareWorktree = input.bootstrap?.prepareWorktree;
   return {
     id: input.threadId,
@@ -51,14 +56,14 @@ export function optimisticThreadCreationShell(
     doneOverride: null,
     doneAt: null,
     deletedAt: null,
-  };
+  } satisfies OrchestrationV2ThreadShell;
 }
 
 /** Appends creations the snapshot doesn't know yet, active or archived, keeping the first of each id. */
 export function withOptimisticThreadCreations(
   snapshot: OrchestrationV2ShellSnapshot | null,
   creations: ReadonlyArray<OrchestrationV2ThreadShell>,
-): OrchestrationV2ShellSnapshot | null {
+) {
   if (snapshot === null || creations.length === 0) return snapshot;
   const knownIds = new Set([
     ...snapshot.threads.map((thread) => thread.id),
@@ -96,7 +101,14 @@ export function createOptimisticThreadCreation(
       A,
       E
     >,
-  ): typeof command {
+  ): typeof command;
+  function wrap<A, E>(
+    command: AtomCommand<
+      { readonly environmentId: EnvironmentId; readonly input: StartThreadTurnInput },
+      A,
+      E
+    >,
+  ) {
     return {
       label: command.label,
       run: async (registry, target) => {
@@ -145,7 +157,7 @@ export function createOptimisticThreadCreation(
           }
         }
       },
-    };
+    } satisfies typeof command;
   }
 
   return { snapshotAtom, wrap };

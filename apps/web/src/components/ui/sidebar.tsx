@@ -75,11 +75,11 @@ function useMobileSidebarSheetMounted() {
 
 const SIDEBAR_MOBILE_QUERY = "(max-width: 767px)";
 
-function isMobileViewport(): boolean {
+function isMobileViewport() {
   return typeof window !== "undefined" && window.matchMedia(SIDEBAR_MOBILE_QUERY).matches;
 }
 
-function readStoredSidebarOpen(storageKey: string | undefined): boolean | null {
+function readStoredSidebarOpen(storageKey: string | undefined) {
   if (!storageKey) return null;
   try {
     return getLocalStorageItem(storageKey, Schema.Boolean);

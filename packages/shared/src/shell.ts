@@ -33,7 +33,7 @@ type ExecFileSyncLike = (
   },
 ) => string;
 
-function canExecuteFile(filePath: string): boolean {
+function canExecuteFile(filePath: string) {
   try {
     NodeFS.accessSync(filePath, NodeFS.constants.X_OK);
     return true;
@@ -54,7 +54,7 @@ export type CommandAvailabilityChecker = (
 
 const WINDOWS_SHELL_META_CHARS = /([()\][%!^"`<>&|;, *?])/g;
 
-function escapeWindowsShellArg(arg: string): string {
+function escapeWindowsShellArg(arg: string) {
   let escaped = arg.replace(/(\\*)"/g, '$1$1\\"');
   escaped = escaped.replace(/(\\*)$/, "$1$1");
   escaped = `"${escaped}"`;
@@ -77,7 +77,7 @@ function resolveSpawnExecutableWithNode(
   command: string,
   platform: NodeJS.Platform,
   env: NodeJS.ProcessEnv,
-): string | undefined {
+) {
   const path = platform === "win32" ? NodePath.win32 : NodePath.posix;
   const windowsPathExtensions = platform === "win32" ? resolveWindowsPathExtensions(env) : [];
   const candidates = resolveCommandCandidates(
@@ -124,12 +124,12 @@ export interface WindowsEnvironmentProbeOptions {
   readonly loadProfile?: boolean;
 }
 
-function trimNonEmpty(value: string | null | undefined): string | undefined {
+function trimNonEmpty(value: string | null | undefined) {
   const trimmed = value?.trim();
   return trimmed && trimmed.length > 0 ? trimmed : undefined;
 }
 
-export function readUserLoginShell(): string | undefined {
+export function readUserLoginShell() {
   try {
     return trimNonEmpty(NodeOS.userInfo().shell);
   } catch {
@@ -140,8 +140,13 @@ export function readUserLoginShell(): string | undefined {
 export function listLoginShellCandidates(
   platform: NodeJS.Platform,
   shell: string | undefined,
+  userShell?: ReturnType<typeof readUserLoginShell>,
+): ReadonlyArray<string>;
+export function listLoginShellCandidates(
+  platform: NodeJS.Platform,
+  shell: string | undefined,
   userShell = readUserLoginShell(),
-): ReadonlyArray<string> {
+) {
   const fallbackShell =
     platform === "darwin" ? "/bin/zsh" : platform === "linux" ? "/bin/bash" : undefined;
   const seen = new Set<string>();
@@ -155,12 +160,10 @@ export function listLoginShellCandidates(
     candidates.push(candidate);
   }
 
-  return candidates;
+  return candidates satisfies ReadonlyArray<string>;
 }
 
-export function readPathFromLaunchctl(
-  execFile: ExecFileSyncLike = NodeChildProcess.execFileSync,
-): string | undefined {
+export function readPathFromLaunchctl(execFile: ExecFileSyncLike = NodeChildProcess.execFileSync) {
   try {
     return trimNonEmpty(
       execFile("/bin/launchctl", ["getenv", "PATH"], {
@@ -177,7 +180,12 @@ export function mergePathEntries(
   preferredPath: string | undefined,
   inheritedPath: string | undefined,
   platform: NodeJS.Platform,
-): string | undefined {
+): string | undefined;
+export function mergePathEntries(
+  preferredPath: string | undefined,
+  inheritedPath: string | undefined,
+  platform: NodeJS.Platform,
+) {
   const delimiter = platform === "win32" ? ";" : ":";
   const merged: string[] = [];
   const seen = new Set<string>();
@@ -194,14 +202,14 @@ export function mergePathEntries(
     }
   }
 
-  return merged.length > 0 ? merged.join(delimiter) : undefined;
+  return (merged.length > 0 ? merged.join(delimiter) : undefined) satisfies string | undefined;
 }
 
-function envCaptureStart(name: string): string {
+function envCaptureStart(name: string) {
   return `__SUPATERM_ENV_${name}_START__`;
 }
 
-function envCaptureEnd(name: string): string {
+function envCaptureEnd(name: string) {
   return `__SUPATERM_ENV_${name}_END__`;
 }
 
@@ -212,10 +220,7 @@ const PRINTENV_CAPTURE_SYNTAX = new Map(
 ).set("fish", { assignment: "set -l __SUPATERM_PRINTENV (", orElse: "; or " });
 const PRINTENV_LOOKUP_COMMAND = `/bin/sh -c 'command -v printenv || { [ -n "$1" ] && PATH="$1" command -v printenv; } || printf %s /usr/bin/printenv' supaterm`;
 
-export function buildEnvironmentCaptureCommand(
-  shell: string,
-  names: ReadonlyArray<string>,
-): string {
+export function buildEnvironmentCaptureCommand(shell: string, names: ReadonlyArray<string>) {
   const executableName = NodePath.basename(shell).toLowerCase();
   const isNushell = executableName.startsWith("nu");
   const syntax = PRINTENV_CAPTURE_SYNTAX.get(executableName);
@@ -271,7 +276,7 @@ export function buildEnvironmentCaptureCommand(
     : command;
 }
 
-export function windowsEnvironmentValueCommand(name: string): string {
+export function windowsEnvironmentValueCommand(name: string) {
   if (name === "PATH") {
     return (
       "$value = (@(" +
@@ -284,7 +289,7 @@ export function windowsEnvironmentValueCommand(name: string): string {
   return `$value = [Environment]::GetEnvironmentVariable('${name}')`;
 }
 
-function buildWindowsEnvironmentCaptureCommand(names: ReadonlyArray<string>): string {
+function buildWindowsEnvironmentCaptureCommand(names: ReadonlyArray<string>) {
   return [
     "$ErrorActionPreference = 'Stop'",
     ...names.flatMap((name) => {
@@ -302,7 +307,7 @@ function buildWindowsEnvironmentCaptureCommand(names: ReadonlyArray<string>): st
   ].join("; ");
 }
 
-function extractEnvironmentValue(output: string, name: string): string | undefined {
+function extractEnvironmentValue(output: string, name: string) {
   const startMarker = envCaptureStart(name);
   const endMarker = envCaptureEnd(name);
   const startIndex = output.indexOf(startMarker);
@@ -321,10 +326,7 @@ function extractEnvironmentValue(output: string, name: string): string | undefin
 }
 
 /** Reads the values `buildEnvironmentCaptureCommand` printed; unset or empty names are omitted. */
-export function extractEnvironmentValues(
-  output: string,
-  names: ReadonlyArray<string>,
-): Partial<Record<string, string>> {
+export function extractEnvironmentValues(output: string, names: ReadonlyArray<string>) {
   const environment: Partial<Record<string, string>> = {};
   for (const name of names) {
     const value = extractEnvironmentValue(output, name);
@@ -443,24 +445,24 @@ export const readEnvironmentFromWindowsShell = Effect.fn("shell.readEnvironmentF
   },
 );
 
-function stripWrappingQuotes(value: string): string {
+function stripWrappingQuotes(value: string) {
   return value.replace(/^"+|"+$/g, "");
 }
 
-function trimPathEntry(entry: string, platform: NodeJS.Platform): string {
+function trimPathEntry(entry: string, platform: NodeJS.Platform) {
   return platform === "win32" ? entry.trim() : entry;
 }
 
-function pathDelimiterForPlatform(platform: NodeJS.Platform): string {
+function pathDelimiterForPlatform(platform: NodeJS.Platform) {
   return platform === "win32" ? WINDOWS_PATH_DELIMITER : POSIX_PATH_DELIMITER;
 }
 
-function normalizePathEntryForComparison(entry: string, platform: NodeJS.Platform): string {
+function normalizePathEntryForComparison(entry: string, platform: NodeJS.Platform) {
   const normalized = stripWrappingQuotes(trimPathEntry(entry, platform));
   return platform === "win32" ? normalized.toLowerCase() : normalized;
 }
 
-function sanitizePathEntry(entry: string, platform: NodeJS.Platform): string {
+function sanitizePathEntry(entry: string, platform: NodeJS.Platform) {
   return platform === "win32" ? entry.replaceAll('"', "") : entry;
 }
 
@@ -468,7 +470,7 @@ export function mergePathValues(
   preferredPath: string | undefined,
   inheritedPath: string | undefined,
   platform: NodeJS.Platform,
-): string | undefined {
+) {
   const delimiter = pathDelimiterForPlatform(platform);
   const merged: string[] = [];
   const seen = new Set<string>();
@@ -491,15 +493,15 @@ export function mergePathValues(
   return merged.length > 0 ? merged.join(delimiter) : undefined;
 }
 
-function readEnvPath(env: NodeJS.ProcessEnv): string | undefined {
+function readEnvPath(env: NodeJS.ProcessEnv) {
   return env.PATH ?? env.Path ?? env.path;
 }
 
-function resolvePathEnvironmentVariable(env: NodeJS.ProcessEnv): string {
+function resolvePathEnvironmentVariable(env: NodeJS.ProcessEnv) {
   return readEnvPath(env) ?? "";
 }
 
-function resolveWindowsPathExtensions(env: NodeJS.ProcessEnv): ReadonlyArray<string> {
+function resolveWindowsPathExtensions(env: NodeJS.ProcessEnv) {
   const rawValue =
     env.PATHEXT ??
     Object.entries(env).find(
@@ -522,7 +524,7 @@ function resolveCommandCandidates(
   platform: NodeJS.Platform,
   windowsPathExtensions: ReadonlyArray<string>,
   extname: (path: string) => string,
-): ReadonlyArray<string> {
+) {
   if (platform !== "win32") return [command];
   const extension = extname(command);
   const normalizedExtension = extension.toUpperCase();
@@ -575,16 +577,18 @@ const directoryMtime = (directory: string) =>
     Effect.catch((error) => Effect.succeed(error.reason._tag === "NotFound" ? null : undefined)),
   );
 
-const listPathDirectory = Effect.fnUntraced(function* (
+const listPathDirectory: (
   directory: string,
-): Effect.fn.Return<PathDirectoryListing, never, FileSystem.FileSystem> {
-  const modified = yield* directoryMtime(directory);
-  if (modified == null) return { modified, names: modified === null ? new Set() : undefined };
-  const entries = yield* FileSystem.FileSystem.use((fileSystem) =>
-    fileSystem.readDirectory(directory),
-  ).pipe(Effect.orElseSucceed(() => undefined));
-  return { modified, names: entries && new Set(entries.map((entry) => entry.toLowerCase())) };
-});
+) => Effect.Effect<PathDirectoryListing, never, FileSystem.FileSystem> = Effect.fnUntraced(
+  function* (directory: string) {
+    const modified = yield* directoryMtime(directory);
+    if (modified == null) return { modified, names: modified === null ? new Set() : undefined };
+    const entries = yield* FileSystem.FileSystem.use((fileSystem) =>
+      fileSystem.readDirectory(directory),
+    ).pipe(Effect.orElseSucceed(() => undefined));
+    return { modified, names: entries && new Set(entries.map((entry) => entry.toLowerCase())) };
+  },
+);
 
 const PathDirectoryListings = Context.Reference<
   Cache.Cache<string, PathDirectoryListing, never, FileSystem.FileSystem> | undefined
@@ -603,7 +607,7 @@ export const withPathDirectoryListings = Effect.fnUntraced(function* <A, E, R>(
 
 let spawnResolverCacheIdCount = 0;
 const spawnResolverCacheIds = new WeakMap<SpawnExecutableResolver | XcodeGitLocator, number>();
-function spawnResolverCacheId(resolver: SpawnExecutableResolver | XcodeGitLocator): number {
+function spawnResolverCacheId(resolver: SpawnExecutableResolver | XcodeGitLocator) {
   const known = spawnResolverCacheIds.get(resolver);
   if (known !== undefined) return known;
   const id = spawnResolverCacheIdCount++;
@@ -616,7 +620,7 @@ function cacheCommandResolution(
   cacheKey: string,
   resolvedPath: string | null,
   nowNanos: bigint,
-): void {
+) {
   if (cache.size >= COMMAND_RESOLUTION_CACHE_MAX_ENTRIES) {
     const oldestKey = cache.keys().next().value;
     if (oldestKey !== undefined) {
@@ -633,7 +637,7 @@ const isExecutableFile = Effect.fnUntraced(function* (
   filePath: string,
   platform: NodeJS.Platform,
   windowsPathExtensions: ReadonlyArray<string>,
-): Effect.fn.Return<boolean, never, FileSystem.FileSystem | Path.Path> {
+) {
   const fileSystem = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const stat = yield* fileSystem.stat(filePath).pipe(Effect.orElseSucceed(() => null));
@@ -654,7 +658,7 @@ const findOnPath = Effect.fnUntraced(function* (
   platform: NodeJS.Platform,
   windowsPathExtensions: ReadonlyArray<string>,
   isLast: (match: string) => boolean,
-): Effect.fn.Return<ReadonlyArray<string>, never, FileSystem.FileSystem | Path.Path> {
+) {
   const path = yield* Path.Path;
   const pathEntries: string[] = [];
   const seenPathEntries = new Set<string>();
@@ -690,7 +694,7 @@ const findOnPath = Effect.fnUntraced(function* (
 const resolveCommandPathForPlatform = Effect.fn("shell.resolveCommandPathForPlatform")(function* (
   command: string,
   options: CommandAvailabilityOptions & { readonly platform: NodeJS.Platform },
-): Effect.fn.Return<string | null, never, FileSystem.FileSystem | Path.Path> {
+) {
   const path = yield* Path.Path;
   const platform = options.platform;
   const env = options.env ?? process.env;
@@ -766,7 +770,7 @@ export const resolveCommandPaths = Effect.fn("shell.resolveCommandPaths")(functi
 
 const GIT_FOR_WINDOWS_BUILDS = ["ucrt64", "clangarm64", "mingw64", "mingw32"] as const;
 
-function isFileSync(filePath: string): boolean {
+function isFileSync(filePath: string) {
   try {
     return NodeFS.statSync(filePath).isFile();
   } catch {
@@ -783,7 +787,7 @@ export function preferGitForWindowsBinary(
   executable: string,
   env: NodeJS.ProcessEnv,
   isFile: (filePath: string) => boolean = isFileSync,
-): string {
+) {
   if (env.MSYSTEM) return executable;
   const path = NodePath.win32;
   if (path.basename(executable).toLowerCase() !== "git.exe") return executable;
@@ -810,7 +814,7 @@ const NPM_EXECUTABLE_SHIM_PREFIX = [
 ];
 const NPM_EXECUTABLE_SHIM_RUN = /^"%dp0%\\([^"%]+\.exe)" +%\*$/;
 
-function readFileSyncOrUndefined(filePath: string): string | undefined {
+function readFileSyncOrUndefined(filePath: string) {
   try {
     return NodeFS.readFileSync(filePath, "utf8");
   } catch {
@@ -822,7 +826,7 @@ export function npmShimExecutable(
   shimPath: string,
   readFile: (filePath: string) => string | undefined = readFileSyncOrUndefined,
   isFile: (filePath: string) => boolean = isFileSync,
-): string | undefined {
+) {
   const path = NodePath.win32;
   if (path.extname(shimPath).toLowerCase() !== ".cmd") return undefined;
 
@@ -841,7 +845,7 @@ export function npmShimExecutable(
 
 export type XcodeGitLocator = (env: NodeJS.ProcessEnv) => string | undefined;
 
-function locateXcodeGitWithXcrun(env: NodeJS.ProcessEnv): string | undefined {
+function locateXcodeGitWithXcrun(env: NodeJS.ProcessEnv) {
   try {
     const located = NodeChildProcess.execFileSync("/usr/bin/xcrun", ["--find", "git"], {
       encoding: "utf8",
@@ -917,7 +921,7 @@ export function runsGitWithoutConsole(
   platform: NodeJS.Platform,
   executable: string,
   args: ReadonlyArray<string>,
-): boolean {
+) {
   if (platform !== "win32") return false;
   const { basename, dirname } = NodePath.win32;
   const bin = dirname(executable);
@@ -941,7 +945,7 @@ export const resolveSpawnCommand = Effect.fnUntraced(function* (
   command: string,
   args: ReadonlyArray<string>,
   options: SpawnCommandOptions = {},
-): Effect.fn.Return<ResolvedSpawnCommand> {
+) {
   const platform = yield* HostProcess.Platform;
   const isMacosGit = platform === "darwin" && command === "git";
   if (platform !== "win32" && !isMacosGit) {
@@ -1010,7 +1014,7 @@ export const isCommandAvailable = Effect.fn("shell.isCommandAvailable")(function
   return (yield* resolveCommandPath(command, options)) !== null;
 });
 
-function resolveKnownWindowsCliDirs(env: NodeJS.ProcessEnv): ReadonlyArray<string> {
+function resolveKnownWindowsCliDirs(env: NodeJS.ProcessEnv) {
   const appData = env.APPDATA?.trim();
   const localAppData = env.LOCALAPPDATA?.trim();
   const userProfile = env.USERPROFILE?.trim();
@@ -1026,7 +1030,7 @@ function resolveKnownWindowsCliDirs(env: NodeJS.ProcessEnv): ReadonlyArray<strin
 }
 
 /** Keep one PATH spelling in copied Windows environment records. */
-export function setWindowsPath(env: NodeJS.ProcessEnv, value: string | null): void {
+export function setWindowsPath(env: NodeJS.ProcessEnv, value: string | null) {
   for (const key of Object.keys(env)) {
     if (key.toUpperCase() === "PATH") {
       delete env[key];
@@ -1035,10 +1039,7 @@ export function setWindowsPath(env: NodeJS.ProcessEnv, value: string | null): vo
   if (value !== null) env.PATH = value;
 }
 
-function mergeWindowsEnv(
-  currentEnv: NodeJS.ProcessEnv,
-  patch: Partial<Record<string, string>>,
-): NodeJS.ProcessEnv {
+function mergeWindowsEnv(currentEnv: NodeJS.ProcessEnv, patch: Partial<Record<string, string>>) {
   const nextEnv: NodeJS.ProcessEnv = { ...currentEnv };
   for (const [key, value] of Object.entries(patch)) {
     if (value === undefined) continue;
@@ -1053,7 +1054,7 @@ function mergeWindowsEnv(
 
 export const resolveWindowsEnvironment = Effect.fn("shell.resolveWindowsEnvironment")(function* (
   env: NodeJS.ProcessEnv,
-): Effect.fn.Return<Partial<NodeJS.ProcessEnv>, never, FileSystem.FileSystem | Path.Path> {
+) {
   const readEnvironment = yield* WindowsShellEnvironment;
   const commandAvailable = yield* CommandAvailability;
   const inheritedPath = readEnvPath(env);
@@ -1088,7 +1089,7 @@ export function applyShellEnvironment(
   env: NodeJS.ProcessEnv,
   patch: ShellEnvironmentPatch,
   platform: NodeJS.Platform,
-): void {
+) {
   for (const [key, value] of Object.entries(patch)) {
     if (key === "PATH" && platform === "win32") setWindowsPath(env, value);
     else if (value === null) delete env[key];
@@ -1112,9 +1113,7 @@ interface PathSetupInput {
  * PATH for new zsh, bash, or fish terminals, so it never shadows another `supaterm`. Undefined on Windows (writing PATH there would flatten the registry's
  * `%VAR%` entries), for other shells, macOS bash, or unsafe paths.
  */
-export function pathSetup(
-  input: PathSetupInput,
-): { readonly file: string; readonly line: string } | undefined {
+export function pathSetup(input: PathSetupInput) {
   if (input.platform === "win32" || !input.directory.startsWith("/")) return undefined;
   const underHome = input.directory.startsWith(`${input.home}/`);
   const rest = underHome ? input.directory.slice(input.home.length) : input.directory;
@@ -1142,7 +1141,7 @@ export function pathSetup(
 }
 
 /** A command to paste that does what {@link pathSetup} describes. */
-export function pathSetupCommand(input: PathSetupInput): string | undefined {
+export function pathSetupCommand(input: PathSetupInput) {
   const setup = pathSetup(input);
   if (!setup) return undefined;
   const append = `printf '\\n%s\\n' '${setup.line}' >> ${setup.file}`;

@@ -11,7 +11,7 @@ const SETTINGS_BREADCRUMB_LABELS: Readonly<Record<string, string>> = {
   "/settings/open-source-licenses": "Open source licenses",
 };
 
-function settingsBreadcrumbLabel(pathname: string): string | null {
+function settingsBreadcrumbLabel(pathname: string) {
   const normalizedPathname = pathname.replace(/\/+$/, "") || "/";
   return SETTINGS_BREADCRUMB_LABELS[normalizedPathname] ?? null;
 }

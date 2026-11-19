@@ -62,7 +62,7 @@ export function createVoiceInputTarget(
   readText: () => string | null,
   commitDraft: VoiceInputTarget["commitDraft"],
   selection: VoiceDraftSnapshot["selection"],
-): VoiceInputTarget {
+) {
   return {
     ownerKey,
     readDraft: () => {
@@ -112,26 +112,26 @@ export class VoiceInputSession {
     });
   }
 
-  get ownerKey(): string | null {
+  get ownerKey() {
     return this.target?.ownerKey ?? null;
   }
 
-  get label(): string | null {
+  get label() {
     return this.target?.label ?? null;
   }
 
-  get engine(): VoiceInputEngine | null {
+  get engine() {
     return this.target?.engine ?? null;
   }
 
-  readonly subscribe = (listener: () => void): (() => void) => {
+  readonly subscribe = (listener: () => void) => {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
   };
 
-  readonly getSnapshot = (): VoiceInputSnapshot => this.snapshot;
+  readonly getSnapshot = () => this.snapshot;
 
-  setOwnerFocused(ownerKey: string, focused: boolean): void {
+  setOwnerFocused(ownerKey: string, focused: boolean) {
     if (this.snapshot.focusedOwners.has(ownerKey) === focused) return;
     const focusedOwners = new Set(this.snapshot.focusedOwners);
     if (focused) focusedOwners.add(ownerKey);
@@ -139,39 +139,39 @@ export class VoiceInputSession {
     this.publish({ ...this.snapshot, focusedOwners });
   }
 
-  cancel(ownerKey: string | null): void {
+  cancel(ownerKey: string | null) {
     if (ownerKey !== null && this.ownerKey === ownerKey) this.controller.cancel();
   }
 
-  retry(): Promise<void> {
+  retry() {
     return this.target ? this.start(this.target) : Promise.resolve();
   }
 
-  stop(onCommit?: VoiceInputTarget["commitDraft"]): Promise<void> {
+  stop(onCommit?: VoiceInputTarget["commitDraft"]) {
     if (this.controller.currentState.phase !== "recording") return Promise.resolve();
     this.onCommit = onCommit;
     return this.controller.stop();
   }
 
   /** Hands the finished recording to `deliver` as the user's message, untranscribed. */
-  send(deliver: VoiceRecordingDelivery): Promise<void> {
+  send(deliver: VoiceRecordingDelivery) {
     return this.controller.send(deliver);
   }
 
-  start(target: VoiceInputTarget): Promise<void> {
+  start(target: VoiceInputTarget) {
     if (voiceInputBlocksSubmission(this.controller.currentState)) return Promise.resolve();
     this.target = target;
     this.startText = target.readDraft()?.text ?? null;
     return this.controller.start();
   }
 
-  dispose(): void {
+  dispose() {
     this.controller.dispose();
     this.stopRecordingActivity();
     this.listeners.clear();
   }
 
-  private handleStateChange(state: VoiceInputState): void {
+  private handleStateChange(state: VoiceInputState) {
     if (!voiceInputBlocksSubmission(state)) this.onCommit = undefined;
     const previousPhase = this.snapshot.state.phase;
     let elapsedSeconds = this.snapshot.elapsedSeconds;
@@ -194,20 +194,20 @@ export class VoiceInputSession {
     }
   }
 
-  private startRecordingActivity(): void {
+  private startRecordingActivity() {
     this.releaseKeepAwake = this.dependencies.keepAwake();
     this.sampleRecording();
     this.meteringInterval = setInterval(() => this.sampleRecording(), VOICE_METERING_INTERVAL_MS);
   }
 
-  private stopRecordingActivity(): void {
+  private stopRecordingActivity() {
     if (this.meteringInterval !== null) clearInterval(this.meteringInterval);
     this.meteringInterval = null;
     this.releaseKeepAwake?.();
     this.releaseKeepAwake = null;
   }
 
-  private sampleRecording(): void {
+  private sampleRecording() {
     if (this.controller.currentState.phase !== "recording") return;
     const sample = this.dependencies.sampleRecording();
     if (!sample) return;
@@ -226,17 +226,17 @@ export class VoiceInputSession {
     }
   }
 
-  private setAudioLevels(levels: ReadonlyArray<number>): void {
+  private setAudioLevels(levels: ReadonlyArray<number>) {
     this.audioLevels = levels;
     this.dependencies.publishAudioLevels(levels);
   }
 
-  private publish(snapshot: VoiceInputSnapshot): void {
+  private publish(snapshot: VoiceInputSnapshot) {
     this.snapshot = snapshot;
     for (const listener of this.listeners) listener();
   }
 }
 
-function capturesAudio(phase: VoiceInputPhase): boolean {
+function capturesAudio(phase: VoiceInputPhase) {
   return phase === "preparing" || phase === "recording";
 }

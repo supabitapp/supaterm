@@ -38,9 +38,8 @@ export interface SidePulseEngine {
   readonly step: (nowMs: number) => Uint8Array;
 }
 
-export async function instantiateSidePulseEngine(
-  module: WebAssembly.Module,
-): Promise<SidePulseEngine> {
+export function instantiateSidePulseEngine(module: WebAssembly.Module): Promise<SidePulseEngine>;
+export async function instantiateSidePulseEngine(module: WebAssembly.Module) {
   const { exports } = await WebAssembly.instantiate(module, {});
   if (!isSdledExports(exports)) throw new Error("The SidePulse LED engine has unexpected exports");
   const encoder = new TextEncoder();
@@ -62,12 +61,12 @@ export async function instantiateSidePulseEngine(
         SIDE_PULSE_LED_COUNT * 3,
       );
     },
-  };
+  } satisfies SidePulseEngine;
 }
 
 let compiled: Promise<WebAssembly.Module> | null = null;
 
-export function createSidePulseEngine(): Promise<SidePulseEngine> {
+export function createSidePulseEngine() {
   compiled ??= fetch(sdledWasmUrl)
     .then((response) => {
       if (!response.ok)

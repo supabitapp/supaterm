@@ -49,7 +49,7 @@ class MuseReplayTranscriptDecodeError extends Schema.TaggedError<MuseReplayTrans
   "MuseReplayTranscriptDecodeError",
   { scenario: Schema.optional(Schema.String), cause: Schema.Defect() },
 ) {
-  override get message(): string {
+  override get message() {
     return `Failed to decode Muse MSP replay transcript for scenario ${this.scenario ?? "<unknown>"}.`;
   }
 }
@@ -64,7 +64,7 @@ class MuseReplayMismatchError extends Schema.TaggedError<MuseReplayMismatchError
     actual: Schema.Unknown,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Muse replay frame mismatch at cursor ${this.cursor} from host ${this.host} in scenario ${this.scenario}.`;
   }
 }
@@ -78,7 +78,7 @@ class MuseReplayIncompleteError extends Schema.TaggedError<MuseReplayIncompleteE
     nextLabel: Schema.optional(Schema.String),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Muse replay ended with ${this.remaining} unconsumed entries at cursor ${this.cursor} (next ${this.nextLabel ?? "<none>"}) in scenario ${this.scenario}.`;
   }
 }
@@ -87,49 +87,50 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function replayValueMatches(expected: unknown, actual: unknown): boolean {
-  if (expected === MUSE_REPLAY_ANY) return true;
+function replayValueMatches(expected: unknown, actual: unknown): boolean;
+function replayValueMatches(expected: unknown, actual: unknown) {
+  if (expected === MUSE_REPLAY_ANY) return true satisfies boolean;
   if (Array.isArray(expected)) {
-    return (
-      Array.isArray(actual) &&
+    return (Array.isArray(actual) &&
       expected.length === actual.length &&
-      expected.every((entry, index) => replayValueMatches(entry, actual[index]))
-    );
+      expected.every((entry, index) => replayValueMatches(entry, actual[index]))) satisfies boolean;
   }
   if (isRecord(expected)) {
-    if (!isRecord(actual)) return false;
+    if (!isRecord(actual)) return false satisfies boolean;
     const keys = new Set([...Object.keys(expected), ...Object.keys(actual)]);
-    return [...keys].every((key) => replayValueMatches(expected[key], actual[key]));
+    return [...keys].every((key) =>
+      replayValueMatches(expected[key], actual[key]),
+    ) satisfies boolean;
   }
-  return Object.is(expected, actual);
+  return Object.is(expected, actual) satisfies boolean;
 }
 
-function clientRequestId(frame: unknown): number | undefined {
+function clientRequestId(frame: unknown) {
   return isRecord(frame) && typeof frame.method === "string" && typeof frame.id === "number"
     ? frame.id
     : undefined;
 }
 
-function withRequestId(expected: unknown, actual: unknown): unknown {
+function withRequestId(expected: unknown, actual: unknown) {
   const actualId = clientRequestId(actual);
   return isRecord(expected) && clientRequestId(expected) !== undefined && actualId !== undefined
     ? { ...expected, id: actualId }
     : expected;
 }
 
-function startsTurn(entry: ProviderReplayEntryType): boolean {
+function startsTurn(entry: ProviderReplayEntryType) {
   if (entry.type !== "expect_outbound" || !isRecord(entry.frame)) return false;
   const method = entry.frame.method ?? entry.frame.type;
   return method === "turn/start" || method === "session/compact" || method === "host_start";
 }
 
-function entryHost(entry: ProviderReplayEntryType): number {
+function entryHost(entry: ProviderReplayEntryType) {
   const label = entry.type === "runtime_exit" ? undefined : entry.label;
   const match = label === undefined ? null : /@h(\d+)$/u.exec(label);
   return match === null ? 1 : Number(match[1]);
 }
 
-function entryLabel(entry: ProviderReplayEntryType | undefined): string | undefined {
+function entryLabel(entry: ProviderReplayEntryType | undefined) {
   if (entry === undefined) return undefined;
   return entry.type === "runtime_exit" ? "runtime_exit" : (entry.label ?? entry.type);
 }
@@ -139,8 +140,14 @@ export function museRecordLabel(
   direction: "expect_outbound" | "emit_inbound",
   requestMethods: ReadonlyMap<unknown, string>,
   host: number,
-): string | undefined {
-  if (!isRecord(frame)) return undefined;
+): string | undefined;
+export function museRecordLabel(
+  frame: unknown,
+  direction: "expect_outbound" | "emit_inbound",
+  requestMethods: ReadonlyMap<unknown, string>,
+  host: number,
+) {
+  if (!isRecord(frame)) return undefined satisfies string | undefined;
   const method = typeof frame.method === "string" ? frame.method : undefined;
   const base =
     frame.type === "host_start"
@@ -152,7 +159,9 @@ export function museRecordLabel(
         : requestMethods.has(frame.id)
           ? `${direction === "emit_inbound" ? "response" : "reply"}:${requestMethods.get(frame.id)}`
           : undefined;
-  return base === undefined || host === 1 ? base : `${base}@h${host}`;
+  return (base === undefined || host === 1 ? base : `${base}@h${host}`) satisfies
+    | string
+    | undefined;
 }
 
 class LineQueue implements AsyncIterable<string> {
@@ -160,7 +169,7 @@ class LineQueue implements AsyncIterable<string> {
   private waiting: ((result: IteratorResult<string>) => void) | undefined;
   private ended = false;
 
-  push(line: string): void {
+  push(line: string) {
     if (this.ended) return;
     const waiting = this.waiting;
     if (waiting) {
@@ -169,13 +178,13 @@ class LineQueue implements AsyncIterable<string> {
     } else this.lines.push(line);
   }
 
-  end(): void {
+  end() {
     this.ended = true;
     this.waiting?.({ value: undefined, done: true });
     this.waiting = undefined;
   }
 
-  [Symbol.asyncIterator](): AsyncIterator<string> {
+  [Symbol.asyncIterator]() {
     return {
       next: () => {
         const line = this.lines.shift();
@@ -185,7 +194,7 @@ class LineQueue implements AsyncIterable<string> {
           this.waiting = resolve;
         });
       },
-    };
+    } satisfies AsyncIterator<string>;
   }
 }
 
@@ -212,7 +221,7 @@ class MuseReplayController {
     this.transcript = transcript;
   }
 
-  spawn(args: ReadonlyArray<string>): MuseReplayHost {
+  spawn(args: ReadonlyArray<string>) {
     let exit = () => {};
     const exited = new Promise<{ readonly code: number | null; readonly signal: null }>(
       (resolve) => {
@@ -233,7 +242,7 @@ class MuseReplayController {
     return host;
   }
 
-  mint(host: MuseReplayHost): string {
+  mint(host: MuseReplayHost) {
     const id = host.minted.shift();
     if (id === undefined) {
       throw new Error(`Muse replay host ${host.ordinal} minted more ids than were recorded.`);
@@ -241,7 +250,7 @@ class MuseReplayController {
     return id;
   }
 
-  receive(host: MuseReplayHost, actual: unknown): void {
+  receive(host: MuseReplayHost, actual: unknown) {
     if (this.failure !== null) return;
     const entries = this.transcript.entries;
     let possible = false;
@@ -270,13 +279,13 @@ class MuseReplayController {
     this.advance();
   }
 
-  close(host: MuseReplayHost): void {
+  close(host: MuseReplayHost) {
     host.open = false;
     host.incoming.end();
     host.exit();
   }
 
-  assertComplete(): void {
+  assertComplete() {
     if (this.failure !== null) throw this.failure;
     if (this.cursor !== this.transcript.entries.length || this.held.length > 0) {
       const nextLabel = entryLabel(this.transcript.entries[this.cursor]);
@@ -289,7 +298,7 @@ class MuseReplayController {
     }
   }
 
-  private advance(): void {
+  private advance() {
     let progressed = true;
     while (progressed && this.failure === null) {
       progressed = this.drainInbound();
@@ -303,7 +312,7 @@ class MuseReplayController {
     }
   }
 
-  private consumePending(host: MuseReplayHost, actual: unknown): boolean {
+  private consumePending(host: MuseReplayHost, actual: unknown) {
     const entries = this.transcript.entries;
     for (let index = this.cursor; index < entries.length; index += 1) {
       const entry = entries[index]!;
@@ -320,7 +329,7 @@ class MuseReplayController {
     return false;
   }
 
-  private drainInbound(): boolean {
+  private drainInbound() {
     let emitted = false;
     while (this.failure === null) {
       const entry = this.transcript.entries[this.cursor];
@@ -351,20 +360,27 @@ class MuseReplayController {
     return emitted;
   }
 
-  private fail(cause: unknown): void {
+  private fail(cause: unknown) {
     if (this.failure !== null) return;
     this.failure = cause;
     for (const host of this.hosts) host.incoming.end();
   }
 }
 
+export function connectMuseTransport(input: {
+  readonly transport: DuplexTransport;
+  readonly readOnly: boolean | undefined;
+  readonly mintCommandId?: () => string;
+  readonly exited: MuseSdkHost["exited"];
+  readonly close: () => Promise<void>;
+}): Promise<MuseSdkHost>;
 export async function connectMuseTransport(input: {
   readonly transport: DuplexTransport;
   readonly readOnly: boolean | undefined;
   readonly mintCommandId?: () => string;
   readonly exited: MuseSdkHost["exited"];
   readonly close: () => Promise<void>;
-}): Promise<MuseSdkHost> {
+}) {
   const connection = new Connection(
     input.transport,
     input.mintCommandId ? { mintCommandId: input.mintCommandId } : {},
@@ -381,11 +397,11 @@ export async function connectMuseTransport(input: {
     },
     exited: input.exited,
     close: input.close,
-  };
+  } satisfies MuseSdkHost;
 }
 
 function makeReplayCreateHost(controller: MuseReplayController) {
-  return async (options: MuseSdkHostOptions): Promise<MuseSdkHost> => {
+  return async (options: MuseSdkHostOptions) => {
     const host = controller.spawn(museServeArgs(options));
     return connectMuseTransport({
       transport: {

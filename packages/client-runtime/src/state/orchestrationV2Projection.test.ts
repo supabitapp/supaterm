@@ -42,7 +42,7 @@ const run = {
   contextHandoffId: null,
 } satisfies OrchestrationV2Run;
 
-function commandItem(id: string, output = "done", ordinal = 1): OrchestrationV2TurnItem {
+function commandItem(id: string, output = "done", ordinal = 1) {
   return {
     id: TurnItemId.make(id),
     threadId,
@@ -62,7 +62,7 @@ function commandItem(id: string, output = "done", ordinal = 1): OrchestrationV2T
     input: "pwd",
     output,
     exitCode: 0,
-  };
+  } satisfies OrchestrationV2TurnItem;
 }
 const emptyProjection = {
   thread: {
@@ -109,16 +109,17 @@ const emptyProjection = {
 
 describe("applyOrchestrationV2ProjectionEvent", () => {
   it("applies a compact PR sync without replacing other links or thread metadata", () => {
-    const link = (number: number): ThreadPullRequestLink => ({
-      host: "github.com",
-      repository: "supabitapp/supaterm",
-      number,
-      url: `https://github.com/supabitapp/supaterm/pull/${number}`,
-      source: "manual",
-      linkedAt: DateTime.formatIso(now),
-      snapshot: null,
-      stack: null,
-    });
+    const link = (number: number) =>
+      ({
+        host: "github.com",
+        repository: "supabitapp/supaterm",
+        number,
+        url: `https://github.com/supabitapp/supaterm/pull/${number}`,
+        source: "manual",
+        linkedAt: DateTime.formatIso(now),
+        snapshot: null,
+        stack: null,
+      }) satisfies ThreadPullRequestLink;
     const links = [link(1), link(2)];
     const projection = {
       ...emptyProjection,
@@ -399,7 +400,7 @@ describe("applyOrchestrationV2ProjectionEvent", () => {
     const windowOf = (
       runs: ReadonlyArray<OrchestrationV2Run>,
       items: ReadonlyArray<OrchestrationV2TurnItem>,
-    ): OrchestrationV2ThreadProjection => ({
+    ) => ({
       ...emptyProjection,
       runs,
       turnItems: items,
@@ -840,10 +841,7 @@ it("restores deduped bodies from the records it already holds, also in a partial
 });
 
 describe("provider-thread.updated", () => {
-  const providerThread = (
-    id: string,
-    overrides: Partial<OrchestrationV2ProviderThread> = {},
-  ): OrchestrationV2ProviderThread =>
+  const providerThread = (id: string, overrides: Partial<OrchestrationV2ProviderThread> = {}) =>
     ({
       id: ProviderThreadId.make(id),
       driver: "codex",

@@ -61,7 +61,7 @@ type ChecksReopenCommand = Extract<
 
 const testCrypto = SecureRandom.make((size) => new Uint8Array(size).fill(1));
 
-function makeProject(id: ProjectId = PROJECT_ID): OrchestrationProjectShell {
+function makeProject(id: ProjectId = PROJECT_ID) {
   return {
     id,
     title: `Project ${id}`,
@@ -73,10 +73,7 @@ function makeProject(id: ProjectId = PROJECT_ID): OrchestrationProjectShell {
   };
 }
 
-function makeThread(
-  id: string,
-  overrides: Partial<PullRequestTestThread> = {},
-): PullRequestTestThread {
+function makeThread(id: string, overrides: Partial<PullRequestTestThread> = {}) {
   return {
     id: ThreadId.make(id),
     projectId: PROJECT_ID,
@@ -97,14 +94,14 @@ function makeThread(
     doneAt: null,
     latestUserMessageAt: "2026-08-20T00:00:00.000Z",
     ...overrides,
-  };
+  } satisfies PullRequestTestThread;
 }
 
 function makeLink(
   number: number,
   snapshot: Partial<ThreadPullRequestSnapshot> | null = null,
   overrides: Partial<ThreadPullRequestLink> = {},
-): ThreadPullRequestLink {
+) {
   return {
     host: "github.com",
     repository: "owner/repository",
@@ -127,7 +124,7 @@ function makeLink(
           },
     stack: null,
     ...overrides,
-  };
+  } satisfies ThreadPullRequestLink;
 }
 
 interface TestShellSnapshot {
@@ -137,10 +134,7 @@ interface TestShellSnapshot {
   readonly updatedAt: string;
 }
 
-function makeSnapshot(
-  threads: ReadonlyArray<PullRequestTestThread>,
-  snapshotSequence = 1,
-): TestShellSnapshot {
+function makeSnapshot(threads: ReadonlyArray<PullRequestTestThread>, snapshotSequence = 1) {
   return {
     snapshotSequence,
     projects: [makeProject()],
@@ -149,10 +143,7 @@ function makeSnapshot(
   };
 }
 
-function makeSummary(
-  input: PullRequestRef,
-  overrides: Partial<PullRequestSummary> = {},
-): PullRequestSummary {
+function makeSummary(input: PullRequestRef, overrides: Partial<PullRequestSummary> = {}) {
   return {
     provider: SourceControlProviderKind.make("github"),
     projectId: input.projectId,
@@ -165,7 +156,7 @@ function makeSummary(
     baseBranch: "main",
     updatedAt: "2026-08-27T00:00:00.000Z",
     ...overrides,
-  };
+  } satisfies PullRequestSummary;
 }
 
 const missingSummary = Effect.fail(
@@ -344,10 +335,7 @@ const gitLabCliFailure = new PullRequestOperationError({
   detail: "GitLab CLI command failed",
 });
 
-function runUpdated(
-  threadId: ThreadId,
-  status: OrchestrationV2Run["status"],
-): OrchestrationV2DomainEvent {
+function runUpdated(threadId: ThreadId, status: OrchestrationV2Run["status"]) {
   const runId = RunId.make(`run:${threadId}:1`);
   const at = DateTime.makeUnsafe(NOW);
   return {
@@ -373,15 +361,10 @@ function runUpdated(
       checkpointId: null,
       contextHandoffId: null,
     },
-  };
+  } satisfies OrchestrationV2DomainEvent;
 }
 
-function commandRan(
-  threadId: ThreadId,
-  input: string,
-  output?: string,
-  name = "command",
-): OrchestrationV2DomainEvent {
+function commandRan(threadId: ThreadId, input: string, output?: string, name = "command") {
   const runId = RunId.make(`run:${threadId}:1`);
   const at = DateTime.makeUnsafe(NOW);
   return {
@@ -409,13 +392,10 @@ function commandRan(
       input,
       ...(output === undefined ? {} : { output }),
     },
-  };
+  } satisfies OrchestrationV2DomainEvent;
 }
 
-function applySync(
-  snapshot: TestShellSnapshot,
-  commands: ReadonlyArray<SyncCommand>,
-): TestShellSnapshot {
+function applySync(snapshot: TestShellSnapshot, commands: ReadonlyArray<SyncCommand>) {
   return {
     ...snapshot,
     snapshotSequence: snapshot.snapshotSequence + 1,
@@ -443,7 +423,7 @@ function makeGrowingStack() {
   let layers = [stackLayer(18), stackLayer(20)];
   const entries = new Map<number, { readonly layers: typeof layers; expiresAt: number }>();
   const invalidated: Array<number> = [];
-  const stackOf = (stackLayers: typeof layers): PullRequestStack => ({
+  const stackOf = (stackLayers: typeof layers) => ({
     id: "stack-80",
     number: 80,
     url: "https://github.com/owner/repository/stack/80",

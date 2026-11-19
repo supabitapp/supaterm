@@ -13,7 +13,7 @@ export function promptAssistantAnnotation(
   mode: "add" | "edit",
   onSave: (citation: AssistantCitation) => AnnotationRejection | null,
   comment = citation.comment ?? "",
-): void {
+) {
   Dialog.prompt({
     title: mode === "add" ? "Annotate" : "Annotation",
     message: `“${assistantCitationExcerpt(citation)}”`,

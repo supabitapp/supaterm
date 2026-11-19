@@ -170,14 +170,14 @@ export const LaunchEditorInput = Schema.Struct({
 });
 export type LaunchEditorInput = typeof LaunchEditorInput.Type;
 
-const remoteSchemeOf = (editor: EditorDefinition): string | undefined =>
+const remoteSchemeOf = (editor: EditorDefinition) =>
   editor.remoteScheme ?? (editor.jetbrainsProductCode === undefined ? undefined : "jetbrains");
 
 export const REMOTE_CAPABLE_EDITOR_IDS: ReadonlyArray<EditorId> = EDITORS.flatMap((editor) =>
   remoteSchemeOf(editor) !== undefined ? [editor.id] : [],
 );
 
-export const remoteSchemeForEditor = (id: EditorId): string | undefined => {
+export const remoteSchemeForEditor = (id: EditorId) => {
   const editor = EDITORS.find((candidate) => candidate.id === id);
   return editor === undefined ? undefined : remoteSchemeOf(editor);
 };
@@ -186,7 +186,7 @@ export const LOCAL_FILE_LINK_SCHEMES: ReadonlyArray<string> = EDITORS.flatMap((e
   editor.launchStyle === "goto" && "remoteScheme" in editor ? [editor.remoteScheme] : [],
 );
 
-export const isLocalEditorFileUrl = (url: URL): boolean =>
+export const isLocalEditorFileUrl = (url: URL) =>
   LOCAL_FILE_LINK_SCHEMES.includes(url.protocol.slice(0, -1)) &&
   url.host === "file" &&
   url.username.length === 0 &&
@@ -199,7 +199,7 @@ export const buildRemoteOpenUrl = (input: {
   readonly username?: string;
   readonly absolutePath: string;
   readonly isFile?: boolean;
-}): string | undefined => {
+}) => {
   const scheme = remoteSchemeForEditor(input.editor);
   if (scheme === undefined) {
     return undefined;
@@ -257,7 +257,7 @@ export class ExternalLauncherUnknownEditorError extends Schema.TaggedError<Exter
     editor: Schema.String,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Unknown editor: ${this.editor}`;
   }
 }
@@ -268,7 +268,7 @@ export class ExternalLauncherUnsupportedEditorError extends Schema.TaggedError<E
     editor: EditorId,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Unsupported editor: ${this.editor}`;
   }
 }
@@ -280,7 +280,7 @@ export class ExternalLauncherCommandNotFoundError extends Schema.TaggedError<Ext
     command: Schema.String,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Editor command not found: ${this.command}`;
   }
 }
@@ -291,7 +291,7 @@ export class ExternalLauncherUnsupportedTargetError extends Schema.TaggedError<E
     editor: EditorId,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `${this.editor} cannot open a path containing line breaks or double quotes`;
   }
 }
@@ -309,7 +309,7 @@ export class ExternalLauncherBrowserSpawnError extends Schema.TaggedError<Extern
     target: Schema.String,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Failed to launch browser target '${this.target}' with '${[this.command, ...this.args].join(" ")}'`;
   }
 }
@@ -322,7 +322,7 @@ export class ExternalLauncherEditorSpawnError extends Schema.TaggedError<Externa
     target: Schema.String,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Failed to launch '${this.target}' in ${this.editor} with '${[this.command, ...this.args].join(" ")}'`;
   }
 }

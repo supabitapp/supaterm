@@ -11,7 +11,7 @@ import {
 import { entryWithRoutes, mergeLearnedRoutes } from "./routes.ts";
 
 const environmentId = EnvironmentId.make("route-trust-test");
-function savedRoute(url: string): ConnectionCatalogEntry {
+function savedRoute(url: string) {
   const connectionId = `paired:${url}`;
   return {
     target: new BearerConnectionTarget({ environmentId, connectionId, label: "Remote" }),

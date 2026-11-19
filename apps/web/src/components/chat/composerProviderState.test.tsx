@@ -3,8 +3,6 @@ import {
   ProviderDriverKind,
   ProviderInstanceId,
   type ProviderOptionDescriptor,
-  type ProviderOptionSelection,
-  type ServerProviderModel,
 } from "@supaterm/contracts";
 import {
   getComposerProviderState,
@@ -21,7 +19,7 @@ function selectDescriptor(
   id: string,
   options: ReadonlyArray<{ id: string; label: string; isDefault?: boolean }>,
   promptInjectedValues?: ReadonlyArray<string>,
-): Extract<ProviderOptionDescriptor, { type: "select" }> {
+) {
   const defaultId = options.find((option) => option.isDefault)?.id;
   return {
     id,
@@ -32,32 +30,25 @@ function selectDescriptor(
     ...(promptInjectedValues && promptInjectedValues.length > 0
       ? { promptInjectedValues: [...promptInjectedValues] }
       : {}),
-  };
+  } satisfies Extract<ProviderOptionDescriptor, { type: "select" }>;
 }
 
-function booleanDescriptor(
-  id: string,
-  currentValue?: boolean,
-): Extract<ProviderOptionDescriptor, { type: "boolean" }> {
+function booleanDescriptor(id: string, currentValue?: boolean) {
   return {
     id,
     label: id,
     type: "boolean",
     ...(typeof currentValue === "boolean" ? { currentValue } : {}),
-  };
+  } satisfies Extract<ProviderOptionDescriptor, { type: "boolean" }>;
 }
 
-function modelWith(
-  descriptors: ReadonlyArray<ProviderOptionDescriptor>,
-): ReadonlyArray<ServerProviderModel> {
+function modelWith(descriptors: ReadonlyArray<ProviderOptionDescriptor>) {
   return [
     { slug: MODEL, name: MODEL, isCustom: false, capabilities: { optionDescriptors: descriptors } },
   ];
 }
 
-function selections(
-  ...entries: Array<[string, string | boolean]>
-): ReadonlyArray<ProviderOptionSelection> {
+function selections(...entries: Array<[string, string | boolean]>) {
   return entries.map(([id, value]) => ({ id, value }));
 }
 

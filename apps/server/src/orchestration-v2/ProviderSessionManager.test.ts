@@ -12,7 +12,6 @@ import {
   type OrchestrationV2ProviderSession,
   type OrchestrationV2ProviderThread,
   type OrchestrationV2TurnItem,
-  type Project,
   ProjectId,
   ProviderDriverKind,
   ProviderInstanceId,
@@ -230,7 +229,7 @@ function makeProviderSession(input: {
   readonly providerSessionId: ProviderSessionId;
   readonly now: DateTime.Utc;
   readonly capabilities?: OrchestrationV2ProviderCapabilities;
-}): OrchestrationV2ProviderSession {
+}) {
   return {
     id: input.providerSessionId,
     driver: CODEX_DRIVER,
@@ -242,7 +241,7 @@ function makeProviderSession(input: {
     createdAt: input.now,
     updatedAt: input.now,
     lastError: null,
-  };
+  } satisfies OrchestrationV2ProviderSession;
 }
 
 function makeThreadCreatedEvent(input: {
@@ -308,7 +307,14 @@ function makeProviderThread(input: {
   readonly providerSessionId: ProviderSessionId;
   readonly now: DateTime.Utc;
   readonly nativeThreadId?: string;
-}): OrchestrationV2ProviderThread {
+}): OrchestrationV2ProviderThread;
+function makeProviderThread(input: {
+  readonly idAllocator: IdAllocator.IdAllocatorV2["Service"];
+  readonly threadId: ThreadId;
+  readonly providerSessionId: ProviderSessionId;
+  readonly now: DateTime.Utc;
+  readonly nativeThreadId?: string;
+}) {
   const nativeThreadId = input.nativeThreadId ?? "native-thread";
   return {
     id: input.idAllocator.derive.providerThread({
@@ -333,7 +339,7 @@ function makeProviderThread(input: {
     forkedFrom: null,
     createdAt: input.now,
     updatedAt: input.now,
-  };
+  } satisfies OrchestrationV2ProviderThread;
 }
 
 const makeNativeChildFixture = Effect.fnUntraced(function* () {
@@ -803,7 +809,7 @@ const layerPausingMcpRegistry = (pause: {
     }),
   ).pipe(Layer.provide(layerTestMcpRegistry));
 
-function makeBrowserAccessProject(projectId: ProjectId): Project {
+function makeBrowserAccessProject(projectId: ProjectId) {
   return {
     id: projectId,
     title: "Browser access project",

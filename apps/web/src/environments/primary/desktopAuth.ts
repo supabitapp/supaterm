@@ -1,6 +1,6 @@
 let desktopBearerTokenPromise: Promise<string> | null = null;
 
-export function readDesktopPrimaryBearerToken(): Promise<string | null> {
+export function readDesktopPrimaryBearerToken() {
   if (typeof window === "undefined") {
     return Promise.resolve(null);
   }
@@ -16,6 +16,6 @@ export function readDesktopPrimaryBearerToken(): Promise<string | null> {
   return desktopBearerTokenPromise;
 }
 
-export function __resetDesktopPrimaryAuthForTests(): void {
+export function __resetDesktopPrimaryAuthForTests() {
   desktopBearerTokenPromise = null;
 }

@@ -17,17 +17,17 @@ import * as Schema from "effect/Schema";
 import type { CursorCredentialSource } from "./accountCache.ts";
 import { DEFAULT_CURSOR_API_ENDPOINT, exchangeCursorApiKey } from "./apiKey.ts";
 
-function object(value: unknown): Record<string, unknown> {
+function object(value: unknown) {
   return typeof value === "object" && value !== null && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : {};
 }
 
-function tokens(value: unknown): number {
+function tokens(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) && value > 0 ? Math.trunc(value) : 0;
 }
 
-export function cursorRateModel(model: string): string {
+export function cursorRateModel(model: string) {
   const base = model
     .replace(/^cursor-/, "")
     .replace(/(?:-thinking)?(?:-(?:none|minimal|low|medium|high|xhigh|max))?(?:-fast)?$/, "");
@@ -75,18 +75,19 @@ const billedEventIdentity = (...fields: readonly unknown[]) => JSON.stringify(fi
 
 const textEncoder = new TextEncoder();
 
-function canonicalJson(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
+function canonicalJson(value: unknown): string;
+function canonicalJson(value: unknown) {
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]` satisfies string;
   if (value !== null && typeof value === "object") {
     return `{${Object.entries(value)
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([key, entry]) => `${JSON.stringify(key)}:${canonicalJson(entry)}`)
-      .join(",")}}`;
+      .join(",")}}` satisfies string;
   }
-  return JSON.stringify(value) ?? "null";
+  return (JSON.stringify(value) ?? "null") satisfies string;
 }
 
-function boundaryOverlap(previous: readonly string[], current: readonly string[]): number {
+function boundaryOverlap(previous: readonly string[], current: readonly string[]) {
   const sequence = [...current, "", ...previous];
   const lengths = Array.from({ length: sequence.length }, () => 0);
   for (let index = 1; index < sequence.length; index++) {

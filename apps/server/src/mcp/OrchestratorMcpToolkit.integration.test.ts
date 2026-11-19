@@ -104,7 +104,7 @@ function makeProviderSnapshot(input: {
   readonly driver: ProviderDriverKind;
   readonly model: string;
   readonly optionDescriptors?: ReadonlyArray<ProviderOptionDescriptor>;
-}): ServerProvider {
+}) {
   return {
     instanceId: input.instanceId,
     driver: input.driver,
@@ -127,7 +127,7 @@ function makeProviderSnapshot(input: {
     ],
     slashCommands: [],
     skills: [],
-  };
+  } satisfies ServerProvider;
 }
 
 const client = McpSchema.McpServerClient.of({

@@ -19,7 +19,6 @@ import { scopedThreadKey } from "@supaterm/client-runtime/environment";
 
 import { BackgroundThreadContext } from "../chat/backgroundThread";
 import { useChatCanvas } from "../chat/ChatCanvasContext";
-import type { ChatCanvasPreview } from "../chat/chatCanvasLayout";
 import { BrowserSurfaceSlot } from "~/browser/BrowserSurfaceSlot";
 import {
   findActiveBrowserRecordingRuntimeTabId,
@@ -176,7 +175,7 @@ function useBrowserMiniPlayerSource(threadRef: ScopedThreadRef | null, tabId: st
 export function useThreadPreviewCanvasSource(
   threadRef: ScopedThreadRef | null,
   miniPlayer: PreviewMiniPlayerState | null,
-): ChatCanvasPreview | null {
+) {
   const source = miniPlayer?.source ?? null;
   const browser = useBrowserMiniPlayerSource(
     threadRef,

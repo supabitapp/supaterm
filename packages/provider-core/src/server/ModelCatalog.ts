@@ -41,10 +41,7 @@ export class ModelCatalog extends Context.Service<
   }
 >()("@supaterm/provider-core/server/ModelCatalog") {}
 
-export const catalogServerModel = (
-  catalog: ProviderCatalog,
-  entry: ProviderCatalogModel,
-): ServerProviderModel => ({
+export const catalogServerModel = (catalog: ProviderCatalog, entry: ProviderCatalogModel) => ({
   slug: entry.slug,
   name: entry.name,
   ...(entry.shortName ? { shortName: entry.shortName } : {}),
@@ -68,7 +65,12 @@ export function classifyCatalogModels(
   models: ReadonlyArray<ServerProviderModel>,
   catalog: ProviderCatalog | undefined,
   matching?: CatalogMatching,
-): ReadonlyArray<ServerProviderModel> {
+): ReadonlyArray<ServerProviderModel>;
+export function classifyCatalogModels(
+  models: ReadonlyArray<ServerProviderModel>,
+  catalog: ProviderCatalog | undefined,
+  matching?: CatalogMatching,
+) {
   return models.map((model) => {
     if (model.isCustom) return model;
     const entry =
@@ -78,16 +80,21 @@ export function classifyCatalogModels(
     if (!model.isLegacy) return model;
     const { isLegacy: _isLegacy, ...rest } = model;
     return rest;
-  });
+  }) satisfies ReadonlyArray<ServerProviderModel>;
 }
 
 export function applyCatalogDefault(
   models: ReadonlyArray<ServerProviderModel>,
   catalog: ProviderCatalog | undefined,
   matching?: CatalogMatching,
-): ReadonlyArray<ServerProviderModel> {
+): ReadonlyArray<ServerProviderModel>;
+export function applyCatalogDefault(
+  models: ReadonlyArray<ServerProviderModel>,
+  catalog: ProviderCatalog | undefined,
+  matching?: CatalogMatching,
+) {
   const requestedSlug = catalog?.defaultChatModel;
-  if (requestedSlug === undefined) return models;
+  if (requestedSlug === undefined) return models satisfies ReadonlyArray<ServerProviderModel>;
   const slug =
     models.find((model) => model.slug === requestedSlug)?.slug ??
     (matching?.family === undefined
@@ -96,9 +103,9 @@ export function applyCatalogDefault(
           (model) =>
             !model.isCustom && familyOf(matching, model.slug) === familyOf(matching, requestedSlug),
         )?.slug);
-  if (slug === undefined) return models;
+  if (slug === undefined) return models satisfies ReadonlyArray<ServerProviderModel>;
   const previous = models.find((model) => model.isDefault && model.slug !== slug);
-  if (!previous) return models;
+  if (!previous) return models satisfies ReadonlyArray<ServerProviderModel>;
   const movedAliases = previous.aliases ?? [];
   return models.map((model) => {
     if (model.slug === previous.slug) {
@@ -110,14 +117,19 @@ export function applyCatalogDefault(
       return { ...model, isDefault: true, ...(aliases.length > 0 ? { aliases } : {}) };
     }
     return model;
-  });
+  }) satisfies ReadonlyArray<ServerProviderModel>;
 }
 
 export function applyModelCatalog(
   draft: ServerProviderDraft,
   catalog: ProviderCatalog | undefined,
   matching?: CatalogMatching,
-): ServerProviderDraft {
+): ServerProviderDraft;
+export function applyModelCatalog(
+  draft: ServerProviderDraft,
+  catalog: ProviderCatalog | undefined,
+  matching?: CatalogMatching,
+) {
   const { updateRequiredModels: _previous, ...rest } = draft;
   return {
     ...rest,
@@ -126,5 +138,5 @@ export function applyModelCatalog(
       catalog,
       matching,
     ),
-  };
+  } satisfies ServerProviderDraft;
 }

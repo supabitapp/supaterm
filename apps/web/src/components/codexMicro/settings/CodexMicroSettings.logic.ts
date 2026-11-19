@@ -29,7 +29,6 @@ import {
   codexMicroActionLabel,
   codexMicroVisibleSlots,
   resolveCodexMicroEncoderAction,
-  type CodexMicroCommandGroup,
   type CodexMicroKeycap,
 } from "../codexMicroCatalog";
 import type { CodexMicroSlotView } from "../codexMicroStore";
@@ -46,30 +45,37 @@ interface CodexMicroConnectionSummary {
 
 const RETRY_SUFFIX = "Supaterm keeps trying.";
 
-export function codexMicroConnectionSummary(
-  enabled: boolean,
-  state: CodexMicroDeviceState | null,
-): CodexMicroConnectionSummary {
-  if (!enabled) return { label: "Off", description: null, tone: "muted" };
-  if (state === null) return { label: null, description: null, tone: "muted" };
+export function codexMicroConnectionSummary(enabled: boolean, state: CodexMicroDeviceState | null) {
+  if (!enabled)
+    return { label: "Off", description: null, tone: "muted" } satisfies CodexMicroConnectionSummary;
+  if (state === null)
+    return { label: null, description: null, tone: "muted" } satisfies CodexMicroConnectionSummary;
   switch (state.status) {
     case "disabled":
-      return { label: "Off", description: null, tone: "muted" };
+      return {
+        label: "Off",
+        description: null,
+        tone: "muted",
+      } satisfies CodexMicroConnectionSummary;
     case "not-detected":
       return {
         label: "Not detected",
         description: "Connect Codex Micro or Creator Micro 2 with USB.",
         tone: "muted",
-      };
+      } satisfies CodexMicroConnectionSummary;
     case "detected":
-      return { label: "Detected", description: null, tone: "muted" };
+      return {
+        label: "Detected",
+        description: null,
+        tone: "muted",
+      } satisfies CodexMicroConnectionSummary;
     case "connected":
       if (state.controlPlane === "unavailable") {
         return {
           label: "Connected with limited functionality",
           description: "Key presses still work. Lighting and battery are temporarily unavailable.",
           tone: "warning",
-        };
+        } satisfies CodexMicroConnectionSummary;
       }
       if (state.mappedAgentKeys !== null && state.mappedAgentKeys < CODEX_MICRO_SLOT_COUNT) {
         const mapped =
@@ -80,27 +86,31 @@ export function codexMicroConnectionSummary(
           label: "Connected",
           description: `${mapped} in the keyboard's keymap. A key follows a thread only when it is mapped to KV_OAI_AG00 through KV_OAI_AG05.`,
           tone: "warning",
-        };
+        } satisfies CodexMicroConnectionSummary;
       }
-      return { label: "Connected", description: null, tone: "success" };
+      return {
+        label: "Connected",
+        description: null,
+        tone: "success",
+      } satisfies CodexMicroConnectionSummary;
     case "error":
       if (state.error === "discovery-failed") {
         return {
           label: "Discovery failed",
           description: `Supaterm couldn't look for Codex Micro. ${RETRY_SUFFIX}`,
           tone: "error",
-        };
+        } satisfies CodexMicroConnectionSummary;
       }
       return {
         label: "Connection problem",
         description: `Supaterm couldn't talk to Codex Micro. ${RETRY_SUFFIX}`,
         tone: "error",
-      };
+      } satisfies CodexMicroConnectionSummary;
   }
 }
 
 /** Battery and firmware facts, only while a device is connected. */
-export function codexMicroDeviceDetails(state: CodexMicroDeviceState | null): string | null {
+export function codexMicroDeviceDetails(state: CodexMicroDeviceState | null) {
   if (state?.status !== "connected") return null;
   const details: string[] = [];
   if (state.battery !== null) {
@@ -125,17 +135,14 @@ export interface CodexMicroStatusLights {
   readonly label: string;
 }
 
-function batteryTone(state: CodexMicroDeviceState | null): CodexMicroTone {
+function batteryTone(state: CodexMicroDeviceState | null) {
   const battery = state?.status === "connected" ? state.battery : null;
   if (battery === null) return "muted";
   const low = battery.percentage <= LOW_BATTERY_PERCENTAGE && battery.isCharging !== true;
   return low ? "warning" : "success";
 }
 
-export function codexMicroStatusLights(
-  enabled: boolean,
-  state: CodexMicroDeviceState | null,
-): CodexMicroStatusLights {
+export function codexMicroStatusLights(enabled: boolean, state: CodexMicroDeviceState | null) {
   const summary = codexMicroConnectionSummary(enabled, state);
   const details = codexMicroDeviceDetails(state);
   return {
@@ -144,7 +151,7 @@ export function codexMicroStatusLights(
     label: ["Codex Micro", summary.label ?? "status unknown", details]
       .filter((part) => part !== null)
       .join(", "),
-  };
+  } satisfies CodexMicroStatusLights;
 }
 
 export const CODEX_MICRO_AUTO_DIM_LABELS: Readonly<Record<CodexMicroAutoDim, string>> = {
@@ -215,7 +222,7 @@ export function codexMicroEncoderModeOption(mode: CodexMicroEncoderMode) {
 export function codexMicroEncoderInputLabel(
   layout: Pick<CodexMicroLayout, "encoder" | "encoderMode">,
   input: CodexMicroEncoderInput,
-): string {
+) {
   return codexMicroActionLabel(resolveCodexMicroEncoderAction(layout, input));
 }
 
@@ -226,29 +233,29 @@ export function codexMicroEncoderInputLabel(
 export function codexMicroLayoutWithEncoderMode(
   layout: CodexMicroLayout,
   mode: CodexMicroEncoderMode,
-): CodexMicroLayout {
+) {
   if (mode !== "custom" || layout.encoderMode === "custom") {
-    return { ...layout, encoderMode: mode };
+    return { ...layout, encoderMode: mode } satisfies CodexMicroLayout;
   }
   const unassigned = Object.values(layout.encoder).every((action) => action === null);
   return {
     ...layout,
     encoderMode: "custom",
     encoder: unassigned ? CODEX_MICRO_ENCODER_PRESETS[layout.encoderMode] : layout.encoder,
-  };
+  } satisfies CodexMicroLayout;
 }
 
 export function codexMicroLayoutWithEncoderAction(
   layout: CodexMicroLayout,
   input: CodexMicroEncoderInput,
   action: CodexMicroAction | null,
-): CodexMicroLayout {
+) {
   const custom = codexMicroLayoutWithEncoderMode(layout, "custom");
-  return { ...custom, encoder: { ...custom.encoder, [input]: action } };
+  return { ...custom, encoder: { ...custom.encoder, [input]: action } } satisfies CodexMicroLayout;
 }
 
 /** Restores command keys, analog stick, and knob; how the microphone switches are split stays. */
-export function resetCodexMicroLayout(layout: CodexMicroLayout): CodexMicroLayout {
+export function resetCodexMicroLayout(layout: CodexMicroLayout) {
   return {
     ...DEFAULT_CODEX_MICRO_LAYOUT,
     separateMicrophoneKeys: layout.separateMicrophoneKeys,
@@ -256,7 +263,7 @@ export function resetCodexMicroLayout(layout: CodexMicroLayout): CodexMicroLayou
 }
 
 /** The CSS color for a key's light, or null while it is off. */
-export function codexMicroStatusColor(status: CodexMicroSlotStatus): string | null {
+export function codexMicroStatusColor(status: CodexMicroSlotStatus) {
   return status === "off"
     ? null
     : `#${CODEX_MICRO_STATUS_COLORS[status].toString(16).padStart(6, "0")}`;
@@ -272,7 +279,7 @@ export const CODEX_MICRO_STATUS_LABELS: Readonly<Record<CodexMicroSlotStatus, st
   error: "Error",
 };
 
-export function codexMicroAgentKeyNumber(key: CodexMicroAgentKey): number {
+export function codexMicroAgentKeyNumber(key: CodexMicroAgentKey) {
   return CODEX_MICRO_AGENT_KEYS.indexOf(key) + 1;
 }
 
@@ -286,7 +293,7 @@ export interface CodexMicroAgentKeyView {
 function codexMicroAssignmentLabel(
   assignment: CodexMicroAgentAssignment | null,
   threadTitles: ReadonlyMap<string, string>,
-): string {
+) {
   if (assignment === null) return "Unassigned";
   if (assignment.type === "action") return codexMicroActionLabel(assignment.action);
   return (
@@ -305,7 +312,7 @@ export function codexMicroAgentKeyView(
   binding: Pick<CodexMicroSlotView, "title" | "status" | "action"> | null,
   assignment: CodexMicroAgentAssignment | null | undefined,
   threadTitles: ReadonlyMap<string, string>,
-): CodexMicroAgentKeyView {
+) {
   const number = codexMicroAgentKeyNumber(key);
   if (binding !== null) {
     return {
@@ -314,21 +321,21 @@ export function codexMicroAgentKeyView(
       label:
         binding.title ?? (binding.action ? codexMicroActionLabel(binding.action) : "No thread"),
       status: binding.status,
-    };
+    } satisfies CodexMicroAgentKeyView;
   }
   return {
     key,
     number,
     label: assignment === undefined ? null : codexMicroAssignmentLabel(assignment, threadTitles),
     status: "off",
-  };
+  } satisfies CodexMicroAgentKeyView;
 }
 
 /** The illustration has one wide microphone key unless its two switches are mapped separately. */
 export function codexMicroPressedKey(
   event: CodexMicroInputEvent,
   layout: Pick<CodexMicroLayout, "separateMicrophoneKeys">,
-): CodexMicroKeyId | null {
+) {
   switch (event.type) {
     case "agent-key":
       return event.key;
@@ -347,23 +354,20 @@ export function codexMicroPressedKey(
 }
 
 /** The wide microphone key covers two switches, so it is named for both. */
-export function codexMicroSlotName(slot: CodexMicroActionSlot): string {
+export function codexMicroSlotName(slot: CodexMicroActionSlot) {
   return slot === "ACT10_ACT11" ? "ACT10+11" : slot;
 }
 
-function searchTokens(query: string): ReadonlyArray<string> {
+function searchTokens(query: string) {
   return query.trim().toLocaleLowerCase().split(/\s+/u).filter(Boolean);
 }
 
-function matchesTokens(haystack: string, tokens: ReadonlyArray<string>): boolean {
+function matchesTokens(haystack: string, tokens: ReadonlyArray<string>) {
   const normalized = haystack.toLocaleLowerCase();
   return tokens.every((token) => normalized.includes(token));
 }
 
-export function filterCodexMicroKeycaps(
-  keycaps: ReadonlyArray<CodexMicroKeycap>,
-  query: string,
-): ReadonlyArray<CodexMicroKeycap> {
+export function filterCodexMicroKeycaps(keycaps: ReadonlyArray<CodexMicroKeycap>, query: string) {
   const tokens = searchTokens(query);
   if (tokens.length === 0) return keycaps;
   return keycaps.filter((keycap) =>
@@ -376,9 +380,7 @@ export function filterCodexMicroKeycaps(
   );
 }
 
-export function filterCodexMicroCommandGroups(
-  query: string,
-): ReadonlyArray<CodexMicroCommandGroup> {
+export function filterCodexMicroCommandGroups(query: string) {
   const tokens = searchTokens(query);
   if (tokens.length === 0) return CODEX_MICRO_COMMAND_GROUPS;
   return CODEX_MICRO_COMMAND_GROUPS.flatMap((group) => {

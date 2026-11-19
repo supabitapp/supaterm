@@ -57,7 +57,7 @@ export interface Pose {
 }
 
 /** The still pose of each state, for paused and reduced-motion drawing and as idle's resting angle. */
-export function restPose(state: BoltComputerState): Pose {
+export function restPose(state: BoltComputerState) {
   const base = { yaw: 0, pitch: 0, roll: 0, lift: 0, sx: 1, sy: 1 };
   switch (state) {
     case "idle":
@@ -148,7 +148,7 @@ export class BoltComputerSim {
     return switching || t < GLITCH || (t >= REACTION && t < REACTION + GLITCH);
   }
 
-  get settled(): boolean {
+  get settled() {
     return (
       (this.state === "idle" || this.age >= this.restAt) &&
       faceStill(this.state, this.since) &&

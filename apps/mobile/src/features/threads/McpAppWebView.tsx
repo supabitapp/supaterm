@@ -245,7 +245,7 @@ export function ThreadMcpApp(props: {
   useEffect(() => {
     if (uri === null) return;
 
-    const hostContext = (): McpAppHostContext => {
+    const hostContext = () => {
       const current = latest.current;
       const isFullscreen = current.props.displayMode === "fullscreen";
       return {
@@ -271,7 +271,7 @@ export function ThreadMcpApp(props: {
         ...(current.toolDefinition === undefined
           ? {}
           : { toolInfo: { tool: current.toolDefinition } }),
-      };
+      } satisfies McpAppHostContext;
     };
     const requests = makeMcpAppRequests({
       target: () => latest.current.props,

@@ -51,13 +51,12 @@ const CODEX_DRIVER = ProviderDriverKind.make("codex");
 const CLAUDE_DRIVER = ProviderDriverKind.make("claudeAgent");
 const ITEM_ID = TurnItemId.make("turn-item:command");
 
-function applyFrame(
-  state: TerminalOutputState,
-  frame: OrchestrationV2CommandOutputFrame,
-): TerminalOutputState {
-  return frame.kind === "replace"
-    ? appendTerminalOutput({ ...EMPTY_TERMINAL_OUTPUT, truncated: frame.truncated }, frame.text)
-    : appendTerminalOutput(state, frame.text);
+function applyFrame(state: TerminalOutputState, frame: OrchestrationV2CommandOutputFrame) {
+  return (
+    frame.kind === "replace"
+      ? appendTerminalOutput({ ...EMPTY_TERMINAL_OUTPUT, truncated: frame.truncated }, frame.text)
+      : appendTerminalOutput(state, frame.text)
+  ) satisfies TerminalOutputState;
 }
 
 const seedThread = Effect.gen(function* () {

@@ -19,15 +19,15 @@ import {
 } from "../ui/dialog";
 import { Input } from "../ui/input";
 
-function describeSshTarget(request: DesktopSshPasswordPromptRequest): string {
+function describeSshTarget(request: DesktopSshPasswordPromptRequest) {
   return request.username ? `${request.username}@${request.destination}` : request.destination;
 }
 
-function formatRemainingSeconds(seconds: number): string {
+function formatRemainingSeconds(seconds: number) {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 }
 
-function getPromptErrorMessage(error: unknown): string {
+function getPromptErrorMessage(error: unknown) {
   const message = error instanceof Error ? error.message : "SSH verification prompt failed.";
   return message.includes("expired") || message.includes("no longer pending")
     ? "This SSH verification prompt expired. Try connecting again."
@@ -46,7 +46,7 @@ function setPromptQueue(next: readonly DesktopSshPasswordPromptRequest[]) {
  * Queues the desktop's SSH password prompts for the life of the page, so a prompt
  * that arrives while no dialog is mounted still waits for one.
  */
-export function startSshPasswordPromptQueue(): () => void {
+export function startSshPasswordPromptQueue() {
   const bridge = window.desktopBridge;
   if (!bridge) return () => undefined;
   const stopPrompts = bridge.onSshPasswordPrompt((request) => {
@@ -60,7 +60,7 @@ export function startSshPasswordPromptQueue(): () => void {
   };
 }
 
-function subscribePromptQueue(listener: () => void): () => void {
+function subscribePromptQueue(listener: () => void) {
   promptQueueListeners.add(listener);
   return () => {
     promptQueueListeners.delete(listener);

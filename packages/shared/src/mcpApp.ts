@@ -48,7 +48,7 @@ export interface McpAppReference {
 
 const DOMAIN_PATTERN = /^(?:https?|wss?):\/\/(?:\*\.)?[a-z0-9-]+(?:\.[a-z0-9-]+)*(?::\d{1,5})?$/i;
 
-function readDomains(value: unknown): ReadonlyArray<string> | undefined {
+function readDomains(value: unknown) {
   if (!Array.isArray(value)) return undefined;
   const domains = value
     .filter(
@@ -61,7 +61,7 @@ function readDomains(value: unknown): ReadonlyArray<string> | undefined {
   return domains.length === 0 ? undefined : domains;
 }
 
-export function readMcpAppCsp(value: unknown): McpAppCsp | undefined {
+export function readMcpAppCsp(value: unknown) {
   if (!Predicate.isObject(value)) return undefined;
   const csp: {
     connectDomains?: ReadonlyArray<string>;
@@ -83,7 +83,7 @@ export function readMcpAppCsp(value: unknown): McpAppCsp | undefined {
 
 const PERMISSION_KEYS = ["camera", "microphone", "geolocation", "clipboardWrite"] as const;
 
-export function readMcpAppPermissions(value: unknown): McpAppPermissions | undefined {
+export function readMcpAppPermissions(value: unknown) {
   if (!Predicate.isObject(value)) return undefined;
   const permissions: Partial<Record<(typeof PERMISSION_KEYS)[number], Record<string, never>>> = {};
   for (const key of PERMISSION_KEYS) {
@@ -97,7 +97,7 @@ const boundedName = (value: unknown) =>
     ? value
     : undefined;
 
-export function readMcpAppReference(value: unknown): McpAppReference | undefined {
+export function readMcpAppReference(value: unknown) {
   if (!Predicate.isObject(value)) return undefined;
   const attachmentId = boundedName(value.attachmentId);
   const server = boundedName(value.server);
@@ -128,7 +128,7 @@ export function readMcpAppReference(value: unknown): McpAppReference | undefined
   };
 }
 
-export function mcpAppReferencesEqual(left: McpAppReference, right: McpAppReference): boolean {
+export function mcpAppReferencesEqual(left: McpAppReference, right: McpAppReference) {
   return (
     left.attachmentId === right.attachmentId &&
     left.server === right.server &&
@@ -138,7 +138,7 @@ export function mcpAppReferencesEqual(left: McpAppReference, right: McpAppRefere
 }
 
 /** Reads a tool's `_meta.ui.resourceUri`, or the deprecated flat `ui/resourceUri`. */
-export function mcpAppToolResourceUri(meta: unknown): string | undefined {
+export function mcpAppToolResourceUri(meta: unknown) {
   if (!Predicate.isObject(meta)) return undefined;
   const uri =
     (Predicate.isObject(meta.ui) ? meta.ui.resourceUri : undefined) ?? meta["ui/resourceUri"];
@@ -152,23 +152,23 @@ export function mcpAppToolResourceUri(meta: unknown): string | undefined {
 export const claudeMcpToolNamePart = (name: string) => name.replace(/[^a-zA-Z0-9_-]/g, "_");
 
 /** Claude Code's `mcp__<server>__` prefix; it also collapses and trims `_` in `claude.ai ` connector names. */
-export function claudeMcpToolPrefix(server: string): string {
+export function claudeMcpToolPrefix(server: string) {
   const part = claudeMcpToolNamePart(server);
   return `mcp__${server.startsWith("claude.ai ") ? part.replace(/_+/g, "_").replace(/^_|_$/g, "") : part}__`;
 }
 
 /** Claude Code names MCP tools `mcp__<server>__<tool>`, replacing characters outside `[a-zA-Z0-9_-]`. */
-export function claudeMcpToolName(server: string, tool: string): string {
+export function claudeMcpToolName(server: string, tool: string) {
   return `${claudeMcpToolPrefix(server)}${claudeMcpToolNamePart(tool)}`;
 }
 
-export function mcpAppToolCallableByApp(meta: unknown): boolean {
+export function mcpAppToolCallableByApp(meta: unknown) {
   const visibility =
     Predicate.isObject(meta) && Predicate.isObject(meta.ui) ? meta.ui.visibility : undefined;
   return !Array.isArray(visibility) || visibility.includes("app");
 }
 
-export function mcpAppContentSecurityPolicy(csp: McpAppCsp | undefined): string {
+export function mcpAppContentSecurityPolicy(csp: McpAppCsp | undefined) {
   const resources = csp?.resourceDomains?.join(" ") ?? "";
   const list = (domains: ReadonlyArray<string> | undefined, fallback: string) =>
     domains === undefined || domains.length === 0 ? fallback : domains.join(" ");
@@ -190,7 +190,7 @@ export function mcpAppContentSecurityPolicy(csp: McpAppCsp | undefined): string 
 const escapeAttribute = (value: string) =>
   value.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
 
-export function injectMcpAppCsp(html: string, csp: McpAppCsp | undefined): string {
+export function injectMcpAppCsp(html: string, csp: McpAppCsp | undefined) {
   const meta = `<meta http-equiv="Content-Security-Policy" content="${escapeAttribute(
     mcpAppContentSecurityPolicy(csp),
   )}">`;
@@ -204,7 +204,8 @@ export function injectMcpAppCsp(html: string, csp: McpAppCsp | undefined): strin
 /**
  * The bridge uses an opaque origin, so authenticate messages by parent window.
  */
-export function injectMcpAppThemeBootstrap(html: string): string {
+export function injectMcpAppThemeBootstrap(html: string): string;
+export function injectMcpAppThemeBootstrap(html: string) {
   const script = `<script>
 (() => {
   try {
@@ -236,25 +237,28 @@ export function injectMcpAppThemeBootstrap(html: string): string {
     /^\uFEFF?\s*<!doctype[^>]*>\s*(?:<meta\s+http-equiv="Content-Security-Policy"[^>]*>)?/i.exec(
       html,
     );
-  return prefix
-    ? `${prefix[0]}${script}${html.slice(prefix[0].length)}`
-    : `<!doctype html>${script}${html}`;
+  return (
+    prefix
+      ? `${prefix[0]}${script}${html.slice(prefix[0].length)}`
+      : `<!doctype html>${script}${html}`
+  ) satisfies string;
 }
 
 /**
  * Analytics libraries often read cookies during startup. An opaque document
  * has none, but browsers throw instead of returning an empty cookie string.
  */
-export function injectMcpAppCookieBootstrap(html: string): string {
+export function injectMcpAppCookieBootstrap(html: string): string;
+export function injectMcpAppCookieBootstrap(html: string) {
   const bootstrap = `<script>(function(){try{void document.cookie;}catch(error){if(error&&error.name==="SecurityError"){Object.defineProperty(document,"cookie",{configurable:true,get:function(){return "";},set:function(){}});}}})();</script>`;
   const prefix =
     /^(?:\uFEFF?\s*<!doctype[^>]*>\s*)?(?:<meta http-equiv="Content-Security-Policy" content="[^"]*">)?/i.exec(
       html,
     )![0];
-  return `${prefix}${bootstrap}${html.slice(prefix.length)}`;
+  return `${prefix}${bootstrap}${html.slice(prefix.length)}` satisfies string;
 }
 
-export function mcpAppAllowAttribute(permissions: McpAppPermissions | undefined): string {
+export function mcpAppAllowAttribute(permissions: McpAppPermissions | undefined) {
   const features: Array<string> = [];
   if (permissions?.camera) features.push("camera");
   if (permissions?.microphone) features.push("microphone");
@@ -263,12 +267,12 @@ export function mcpAppAllowAttribute(permissions: McpAppPermissions | undefined)
   return features.join("; ");
 }
 
-export function clampMcpAppHeight(height: number): number {
+export function clampMcpAppHeight(height: number) {
   if (!Number.isFinite(height)) return MCP_APP_DEFAULT_HEIGHT;
   return Math.round(Math.min(MCP_APP_MAX_HEIGHT, Math.max(MCP_APP_MIN_HEIGHT, height)));
 }
 
-export function mcpAppFileName(reference: McpAppReference): string {
+export function mcpAppFileName(reference: McpAppReference) {
   const name = reference.tool.replace(/[^\w.-]+/g, "-").slice(0, 80) || "app";
   return `${name}.html`;
 }

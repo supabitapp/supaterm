@@ -107,7 +107,7 @@ export function resolveDeviceShape(options: {
   platform: DevicePlatform;
   name?: string;
   portraitAspect: number;
-}): DeviceShapeProfile {
+}) {
   const name = options.name ?? "";
   const namedTablet = /\b(ipad|tablet)\b/i.test(name);
   const namedPhone = /\b(iphone|phone)\b/i.test(name);

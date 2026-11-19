@@ -69,7 +69,7 @@ import {
 
 const PAIRING_URL = "http://192.168.1.10:3773/pair#token=abc";
 
-function settingsLink(params: object): PartialState<NavigationState> {
+function settingsLink(params: object) {
   return {
     routes: [
       { name: "Home" },

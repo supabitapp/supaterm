@@ -27,10 +27,7 @@ export const usePendingUserInputAnswers = create<
 >(() => ({}));
 export const usePendingUserInputQuestionIndex = create<Record<string, number>>(() => ({}));
 
-export function questionAttachmentDraftPrefix(
-  environmentId: EnvironmentId,
-  threadId: ThreadId,
-): string {
+export function questionAttachmentDraftPrefix(environmentId: EnvironmentId, threadId: ThreadId) {
   return `${encodeURIComponent(JSON.stringify(environmentId))}:question-${encodeURIComponent(JSON.stringify(threadId))}-`;
 }
 
@@ -39,7 +36,7 @@ export function questionAttachmentDraftId(
   threadId: ThreadId,
   requestId: string,
   questionId: string,
-): DraftId {
+) {
   return DraftId.make(
     `${questionAttachmentDraftPrefix(environmentId, threadId)}${encodeURIComponent(JSON.stringify([requestId, questionId]))}`,
   );
@@ -52,13 +49,11 @@ type OpenQuestionAttachmentDraft = {
 
 const openQuestionDrafts = new Map<string, OpenQuestionAttachmentDraft>();
 
-export function openQuestionAttachmentDraft(
-  threadRef: ScopedThreadRef,
-): OpenQuestionAttachmentDraft | null {
+export function openQuestionAttachmentDraft(threadRef: ScopedThreadRef) {
   return openQuestionDrafts.get(scopedThreadKey(threadRef)) ?? null;
 }
 
-export function countQuestionRequestAttachments(draftId: DraftId): number | null {
+export function countQuestionRequestAttachments(draftId: DraftId) {
   for (const draft of openQuestionDrafts.values()) {
     if (draft.draftId === draftId) return countQuestionAttachments(draft.requestKeys);
   }
@@ -68,7 +63,7 @@ export function countQuestionRequestAttachments(draftId: DraftId): number | null
 export function trackOpenQuestionAttachmentDraft(
   threadRef: ScopedThreadRef,
   draft: OpenQuestionAttachmentDraft,
-): () => void {
+) {
   const key = scopedThreadKey(threadRef);
   openQuestionDrafts.set(key, draft);
   return () => {
@@ -80,7 +75,7 @@ export const useQuestionAttachmentPreparation = create<{ counts: Record<string, 
   counts: {},
 }));
 
-export function countQuestionAttachments(keys: ReadonlyArray<DraftId>): number {
+export function countQuestionAttachments(keys: ReadonlyArray<DraftId>) {
   const store = useComposerDraftStore.getState();
   const { counts } = useQuestionAttachmentPreparation.getState();
   return keys.reduce((total, key) => {
@@ -89,7 +84,7 @@ export function countQuestionAttachments(keys: ReadonlyArray<DraftId>): number {
   }, 0);
 }
 
-export function changeQuestionAttachmentPreparation(key: DraftId, delta: number): void {
+export function changeQuestionAttachmentPreparation(key: DraftId, delta: number) {
   useQuestionAttachmentPreparation.setState((state) =>
     delta < 0 && !(key in state.counts)
       ? state
@@ -99,7 +94,7 @@ export function changeQuestionAttachmentPreparation(key: DraftId, delta: number)
   );
 }
 
-export function clearQuestionAttachmentDraft(key: DraftId): void {
+export function clearQuestionAttachmentDraft(key: DraftId) {
   const store = useComposerDraftStore.getState();
   const draft = store.getComposerDraft(key);
   if (draft) {
@@ -120,7 +115,7 @@ function pruneResolvedQuestionAttachmentDrafts(
   environmentId: EnvironmentId,
   threadId: ThreadId,
   pendingRequestIds: ReadonlyArray<string>,
-): void {
+) {
   const keys = new Set([
     ...Object.keys(useComposerDraftStore.getState().draftsByThreadKey),
     ...Object.keys(useQuestionAttachmentPreparation.getState().counts),
@@ -135,7 +130,7 @@ function returnUnsentAnswersToThreadDraft(
   environmentId: EnvironmentId,
   threadId: ThreadId,
   unansweredRequestIds: ReadonlyArray<RuntimeRequestId>,
-): void {
+) {
   const answers = usePendingUserInputAnswers.getState();
   const store = useComposerDraftStore.getState();
   const target = scopeThreadRef(environmentId, threadId);

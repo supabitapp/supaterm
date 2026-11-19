@@ -51,7 +51,7 @@ const transcript = JSON.parse(
     ? Buffer.from(encodedTranscript ?? "", "base64").toString("utf8")
     : NodeFS.readFileSync(transcriptPath, "utf8"),
 ) as ReplayTranscript;
-function resumedCursor(): number {
+function resumedCursor() {
   try {
     const previous = JSON.parse(NodeFS.readFileSync(statusPath ?? "", "utf8")) as {
       readonly cursor?: unknown;
@@ -72,7 +72,7 @@ let nextAgentRequestId = 1;
 const pendingClientRequestIds = new Map<string, string | number>();
 const pendingAgentRequestMethods = new Map<string, string>();
 
-function writeStatus(failure?: unknown): void {
+function writeStatus(failure?: unknown) {
   NodeFS.writeFileSync(
     replayStatusTempPath,
     JSON.stringify({
@@ -86,60 +86,62 @@ function writeStatus(failure?: unknown): void {
   NodeFS.renameSync(replayStatusTempPath, replayStatusPath);
 }
 
-function stableStringify(value: unknown): string {
+function stableStringify(value: unknown): string;
+function stableStringify(value: unknown) {
   if (Array.isArray(value)) {
-    return `[${value.map(stableStringify).join(",")}]`;
+    return `[${value.map(stableStringify).join(",")}]` satisfies string;
   }
   if (typeof value === "object" && value !== null) {
     const record = value as Record<string, unknown>;
     return `{${Object.keys(record)
       .toSorted()
       .map((key) => `${JSON.stringify(key)}:${stableStringify(record[key])}`)
-      .join(",")}}`;
+      .join(",")}}` satisfies string;
   }
-  return JSON.stringify(value);
+  return JSON.stringify(value) satisfies string;
 }
 
-function expandExpectedString(value: string): string {
-  return value.replaceAll("<workspace>", replayWorkspace);
+function expandExpectedString(value: string): string;
+function expandExpectedString(value: string) {
+  return value.replaceAll("<workspace>", replayWorkspace) satisfies string;
 }
 
-function matchesExpected(expected: unknown, actual: unknown): boolean {
-  if (expected === "<any>") return true;
+function matchesExpected(expected: unknown, actual: unknown): boolean;
+function matchesExpected(expected: unknown, actual: unknown) {
+  if (expected === "<any>") return true satisfies boolean;
   if (typeof expected === "string" && typeof actual === "string") {
     const expanded = expandExpectedString(expected);
-    if (!expanded.includes("<any>")) return expanded === actual;
+    if (!expanded.includes("<any>")) return (expanded === actual) satisfies boolean;
     const parts = expanded.split("<any>");
     let offset = 0;
     for (const part of parts) {
       const index = actual.indexOf(part, offset);
-      if (index === -1) return false;
+      if (index === -1) return false satisfies boolean;
       offset = index + part.length;
     }
-    return true;
+    return true satisfies boolean;
   }
   if (Array.isArray(expected)) {
-    return (
-      Array.isArray(actual) &&
+    return (Array.isArray(actual) &&
       expected.length === actual.length &&
-      expected.every((entry, index) => matchesExpected(entry, actual[index]))
-    );
+      expected.every((entry, index) => matchesExpected(entry, actual[index]))) satisfies boolean;
   }
   if (typeof expected === "object" && expected !== null) {
-    if (typeof actual !== "object" || actual === null || Array.isArray(actual)) return false;
+    if (typeof actual !== "object" || actual === null || Array.isArray(actual))
+      return false satisfies boolean;
     const expectedRecord = expected as Record<string, unknown>;
     const actualRecord = actual as Record<string, unknown>;
     const expectedKeys = Object.keys(expectedRecord).toSorted();
     const actualKeys = Object.keys(actualRecord).toSorted();
-    return (
-      stableStringify(expectedKeys) === stableStringify(actualKeys) &&
-      expectedKeys.every((key) => matchesExpected(expectedRecord[key], actualRecord[key]))
-    );
+    return (stableStringify(expectedKeys) === stableStringify(actualKeys) &&
+      expectedKeys.every((key) =>
+        matchesExpected(expectedRecord[key], actualRecord[key]),
+      )) satisfies boolean;
   }
-  return Object.is(expected, actual);
+  return Object.is(expected, actual) satisfies boolean;
 }
 
-function stopWithFailure(detail: string, actual?: unknown): void {
+function stopWithFailure(detail: string, actual?: unknown) {
   if (stopped) return;
   stopped = true;
   const entry = transcript.entries[cursor];
@@ -155,21 +157,21 @@ function stopWithFailure(detail: string, actual?: unknown): void {
   process.stdin.pause();
 }
 
-function isCleanRuntimeExit(entry: ReplayEntry | undefined): boolean {
+function isCleanRuntimeExit(entry: ReplayEntry | undefined) {
   return (
     entry?.type === "runtime_exit" && (entry.status === "success" || entry.status === "cancelled")
   );
 }
 
-function send(message: JsonRpcMessage): void {
+function send(message: JsonRpcMessage) {
   process.stdout.write(`${JSON.stringify(message)}\n`);
 }
 
-function pendingClientRequestId(method: string): string | number | undefined {
+function pendingClientRequestId(method: string) {
   return pendingClientRequestIds.get(method);
 }
 
-function logicalIncoming(message: JsonRpcMessage): LogicalFrame | undefined {
+function logicalIncoming(message: JsonRpcMessage) {
   if (typeof message.method === "string") {
     return {
       kind:
@@ -178,29 +180,31 @@ function logicalIncoming(message: JsonRpcMessage): LogicalFrame | undefined {
           : "request",
       method: message.method,
       ...(message.params === undefined ? {} : { params: message.params }),
-    };
+    } satisfies LogicalFrame | undefined;
   }
-  if (message.id === undefined || message.id === null) return undefined;
+  if (message.id === undefined || message.id === null)
+    return undefined satisfies LogicalFrame | undefined;
   const method = pendingAgentRequestMethods.get(String(message.id));
-  if (method === undefined) return undefined;
+  if (method === undefined) return undefined satisfies LogicalFrame | undefined;
   return {
     kind: "response",
     method,
     ...(message.result === undefined ? {} : { result: message.result }),
     ...(message.error === undefined ? {} : { error: message.error }),
-  };
+  } satisfies LogicalFrame | undefined;
 }
 
-function materializeInbound(value: unknown): unknown {
-  if (typeof value === "string") return expandExpectedString(value);
-  if (Array.isArray(value)) return value.map(materializeInbound);
-  if (typeof value !== "object" || value === null) return value;
+function materializeInbound(value: unknown): unknown;
+function materializeInbound(value: unknown) {
+  if (typeof value === "string") return expandExpectedString(value) satisfies unknown;
+  if (Array.isArray(value)) return value.map(materializeInbound) satisfies unknown;
+  if (typeof value !== "object" || value === null) return value satisfies unknown;
   return Object.fromEntries(
     Object.entries(value).map(([key, entry]) => [key, materializeInbound(entry)]),
-  );
+  ) satisfies unknown;
 }
 
-function inboundMessage(recorded: LogicalFrame): JsonRpcMessage | undefined {
+function inboundMessage(recorded: LogicalFrame) {
   const frame = materializeInbound(recorded) as LogicalFrame;
   switch (frame.kind) {
     case "notification":
@@ -238,7 +242,7 @@ function inboundMessage(recorded: LogicalFrame): JsonRpcMessage | undefined {
   }
 }
 
-function flushInbound(): void {
+function flushInbound() {
   const messages: Array<JsonRpcMessage> = [];
   while (!stopped) {
     const entry = transcript.entries[cursor];
@@ -271,7 +275,7 @@ function flushInbound(): void {
   messages.forEach(send);
 }
 
-function handleMessage(message: JsonRpcMessage): void {
+function handleMessage(message: JsonRpcMessage) {
   if (stopped) return;
   const actual = logicalIncoming(message);
   if (actual === undefined) {

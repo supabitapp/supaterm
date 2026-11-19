@@ -4,7 +4,7 @@ import * as DateTime from "effect/DateTime";
 export function isAutomaticCompletionRun(
   projection: Pick<OrchestrationV2ThreadProjection, "runs" | "messages">,
   run: OrchestrationV2Run,
-): boolean {
+) {
   return projection.messages.some(
     (message) => message.id === run.userMessageId && message.delegatedCompletion !== undefined,
   );
@@ -12,7 +12,7 @@ export function isAutomaticCompletionRun(
 
 export function queuedRunsInDeliveryOrder(
   projection: Pick<OrchestrationV2ThreadProjection, "runs" | "messages">,
-): ReadonlyArray<OrchestrationV2Run> {
+) {
   const automaticCompletionMessageIds = new Set(
     projection.messages
       .filter((message) => message.delegatedCompletion !== undefined)

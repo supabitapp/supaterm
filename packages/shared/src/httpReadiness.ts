@@ -7,7 +7,8 @@ import { HttpClient, HttpClientRequest } from "effect/http";
 
 const DEFAULT_HTTP_READY_PROBE_TIMEOUT_MS = 1_000;
 
-function describeReadinessCause(cause: unknown): unknown {
+function describeReadinessCause(cause: unknown): unknown;
+function describeReadinessCause(cause: unknown) {
   if (cause instanceof Error) {
     const tag = (cause as { readonly _tag?: unknown })._tag;
     const nested = (cause as { readonly cause?: unknown }).cause;
@@ -15,10 +16,10 @@ function describeReadinessCause(cause: unknown): unknown {
       ...(typeof tag === "string" ? { _tag: tag } : { name: cause.name }),
       message: cause.message,
       ...(nested === undefined ? {} : { cause: describeReadinessCause(nested) }),
-    };
+    } satisfies unknown;
   }
   if (typeof cause !== "object" || cause === null) {
-    return cause;
+    return cause satisfies unknown;
   }
 
   const record = cause as Readonly<Record<string, unknown>>;
@@ -27,7 +28,7 @@ function describeReadinessCause(cause: unknown): unknown {
     ...(typeof record.message === "string" ? { message: record.message } : {}),
     ...(record.reason === undefined ? {} : { reason: describeReadinessCause(record.reason) }),
     ...(record.cause === undefined ? {} : { cause: describeReadinessCause(record.cause) }),
-  };
+  } satisfies unknown;
 }
 
 export const waitForHttpReady = Effect.fn("shared.httpReadiness.waitForHttpReady")(function* <
@@ -44,7 +45,7 @@ export const waitForHttpReady = Effect.fn("shared.httpReadiness.waitForHttpReady
     readonly attempt: number;
     readonly cause: unknown;
   }) => E;
-}): Effect.fn.Return<void, E, HttpClient.HttpClient> {
+}) {
   const timeoutMs = input.timeoutMs ?? 30_000;
   const intervalMs = input.intervalMs ?? 100;
   const probeTimeoutMs = input.probeTimeoutMs ?? DEFAULT_HTTP_READY_PROBE_TIMEOUT_MS;
@@ -58,7 +59,7 @@ export const waitForHttpReady = Effect.fn("shared.httpReadiness.waitForHttpReady
 
   const makeError = input.makeError;
   const madeErrors = new WeakSet<object>();
-  const fail = (cause: unknown): E => {
+  const fail = (cause: unknown) => {
     const error = makeError({ requestUrl, probeTimeoutMs, attempt, cause });
     if (typeof error === "object" && error !== null) {
       madeErrors.add(error);

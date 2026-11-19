@@ -45,7 +45,7 @@ export interface BrowserFaviconStoreState {
   ) => void;
 }
 
-function pendingOriginKey(pageUrl: string): string | null {
+function pendingOriginKey(pageUrl: string) {
   return faviconKey("pending", pageUrl, null)?.slice("pending ".length) ?? null;
 }
 
@@ -53,12 +53,18 @@ function addPendingFavicon(
   pendingByThreadKey: Record<string, PendingFaviconsByOrigin>,
   threadKey: string,
   favicon: PendingFavicon,
-): Record<string, PendingFaviconsByOrigin> {
+): Record<string, PendingFaviconsByOrigin>;
+function addPendingFavicon(
+  pendingByThreadKey: Record<string, PendingFaviconsByOrigin>,
+  threadKey: string,
+  favicon: PendingFavicon,
+) {
   const originKey = pendingOriginKey(favicon.pageUrl);
-  if (!originKey) return pendingByThreadKey;
+  if (!originKey) return pendingByThreadKey satisfies Record<string, PendingFaviconsByOrigin>;
   const current = pendingByThreadKey[threadKey] ?? {};
   const existing = current[originKey];
-  if (existing && existing.capturedAt >= favicon.capturedAt) return pendingByThreadKey;
+  if (existing && existing.capturedAt >= favicon.capturedAt)
+    return pendingByThreadKey satisfies Record<string, PendingFaviconsByOrigin>;
   const nextForThread = {
     ...current,
     [originKey]: favicon,
@@ -73,18 +79,19 @@ function addPendingFavicon(
   delete withoutThread[threadKey];
   return Object.fromEntries(
     [...Object.entries(withoutThread), [threadKey, boundedForThread]].slice(-MAX_PENDING_THREADS),
-  );
+  ) satisfies Record<string, PendingFaviconsByOrigin>;
 }
 
-export function resolveBrowserFaviconStorage(): StateStorage {
+export function resolveBrowserFaviconStorage(): StateStorage;
+export function resolveBrowserFaviconStorage() {
   const fallback = createMemoryStorage();
   const shadowedNames = new Set<string>();
   let primary: Storage;
   try {
-    if (typeof window === "undefined") return fallback;
+    if (typeof window === "undefined") return fallback satisfies StateStorage;
     primary = window.localStorage;
   } catch {
-    return fallback;
+    return fallback satisfies StateStorage;
   }
   return {
     getItem: (name) => {
@@ -113,7 +120,7 @@ export function resolveBrowserFaviconStorage(): StateStorage {
         shadowedNames.add(name);
       }
     },
-  };
+  } satisfies StateStorage;
 }
 
 export const useBrowserFaviconStore = create<BrowserFaviconStoreState>()(
@@ -160,17 +167,14 @@ export const useBrowserFaviconStore = create<BrowserFaviconStoreState>()(
   ),
 );
 
-function mergeBrowserFaviconState(
-  persistedState: unknown,
-  currentState: BrowserFaviconStoreState,
-): BrowserFaviconStoreState {
+function mergeBrowserFaviconState(persistedState: unknown, currentState: BrowserFaviconStoreState) {
   return {
     ...currentState,
     ...sanitizePersistedBrowserFaviconState(persistedState),
   };
 }
 
-function useFaviconProjectRefForThread(threadRef: ScopedThreadRef): ScopedProjectRef | null {
+function useFaviconProjectRefForThread(threadRef: ScopedThreadRef) {
   const shell = useQuietThreadShell(threadRef);
   const draftProjectRef = useComposerDraftStore((state) => {
     const draft = state.getDraftSessionByRef(threadRef);
@@ -180,7 +184,7 @@ function useFaviconProjectRefForThread(threadRef: ScopedThreadRef): ScopedProjec
   return draftProjectRef === null ? null : parseScopedProjectKey(draftProjectRef);
 }
 
-function readThreadProjectRef(threadRef: ScopedThreadRef): ScopedProjectRef | null {
+function readThreadProjectRef(threadRef: ScopedThreadRef) {
   const projectId = readThreadShell(threadRef)?.projectId;
   if (projectId) return scopeProjectRef(threadRef.environmentId, projectId);
   const draft = useComposerDraftStore.getState().getDraftSessionByRef(threadRef);
@@ -191,7 +195,7 @@ export function recordFaviconForProject(
   projectRef: ScopedProjectRef,
   favicon: DesktopPreviewFavicon,
   environmentHostname: string | null,
-): boolean {
+) {
   if (!isStorableFaviconDataUrl(favicon.dataUrl) || !isValidFaviconCapturedAt(favicon.capturedAt)) {
     return false;
   }
@@ -218,10 +222,7 @@ export function recordFaviconForProject(
  * arrives; such captures wait per thread and land with the next capture that can
  * resolve them.
  */
-export function recordFaviconForThread(
-  threadRef: ScopedThreadRef,
-  favicon: DesktopPreviewFavicon,
-): boolean {
+export function recordFaviconForThread(threadRef: ScopedThreadRef, favicon: DesktopPreviewFavicon) {
   if (
     !isStorableFaviconDataUrl(favicon.dataUrl) ||
     !isValidFaviconCapturedAt(favicon.capturedAt) ||
@@ -258,7 +259,7 @@ function flushPendingFaviconsForThread(
   threadRef: ScopedThreadRef,
   projectRef: ScopedProjectRef,
   environmentHostname: string | undefined,
-): boolean {
+) {
   const threadKey = scopedThreadKey(threadRef);
   const pending = useBrowserFaviconStore.getState().pendingByThreadKey[threadKey];
   if (!pending) return true;
@@ -282,7 +283,7 @@ function flushPendingFaviconsForThread(
   return Object.keys(remaining).length === 0;
 }
 
-export function useFaviconForThreadUrl(threadRef: ScopedThreadRef, url: string): string | null {
+export function useFaviconForThreadUrl(threadRef: ScopedThreadRef, url: string) {
   const projectRef = useFaviconProjectRefForThread(threadRef);
   const preparedConnection = usePreparedConnection(threadRef.environmentId);
   const environmentHostname = Option.isSome(preparedConnection)
@@ -304,7 +305,7 @@ export function lookupFaviconForThread(
   projectRef: ScopedProjectRef | null,
   url: string,
   environmentHostname: string | null,
-): string | null {
+) {
   const stored = lookupFaviconEntry(state.byKey, projectRef, url, environmentHostname);
   const originKey = pendingOriginKey(url);
   const pending = originKey ? state.pendingByThreadKey[threadKey]?.[originKey] : undefined;
@@ -317,7 +318,7 @@ export function lookupFavicon(
   projectRef: ScopedProjectRef | null,
   url: string,
   environmentHostname: string | null,
-): string | null {
+) {
   return lookupFaviconEntry(byKey, projectRef, url, environmentHostname)?.dataUrl ?? null;
 }
 
@@ -326,7 +327,7 @@ function lookupFaviconEntry(
   projectRef: ScopedProjectRef | null,
   url: string,
   environmentHostname: string | null,
-): BrowserFaviconEntry | null {
+) {
   const key = projectRef
     ? faviconKey(scopedProjectKey(projectRef), url, environmentHostname)
     : null;
@@ -343,7 +344,7 @@ function lookupFaviconEntry(
   }
 }
 
-export function resetBrowserFaviconsForTests(): void {
+export function resetBrowserFaviconsForTests() {
   useBrowserFaviconStore.setState({
     byKey: {},
     pendingByThreadKey: {},

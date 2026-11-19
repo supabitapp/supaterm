@@ -4,7 +4,6 @@ import {
   type AssetResource,
   type EnvironmentId,
 } from "@supaterm/contracts";
-import type { ImageSource } from "expo-image";
 
 /**
  * Signed URLs change on each mint and reconnect, so a URL-keyed cache misses every time.
@@ -15,7 +14,7 @@ export function assetImageCacheKey(
   environmentId: EnvironmentId,
   resource: AssetResource,
   fileRevision?: string,
-): string | undefined {
+) {
   switch (resource._tag) {
     case "attachment":
       return `supaterm-attachment:${JSON.stringify([environmentId, resource.attachmentId])}`;
@@ -46,7 +45,7 @@ export function assetImageSource(
   resource: AssetResource,
   uri: string,
   fileRevision?: string,
-): ImageSource {
+) {
   const cacheKey = assetImageCacheKey(environmentId, resource, fileRevision);
   return cacheKey === undefined ? { uri } : { uri, cacheKey };
 }

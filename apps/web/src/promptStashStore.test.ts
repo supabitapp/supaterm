@@ -18,11 +18,7 @@ import {
   type PromptStashEntry,
 } from "./promptStashStore";
 
-function makeEntry(input: {
-  id: string;
-  prompt?: string;
-  attachmentChars?: number;
-}): PromptStashEntry {
+function makeEntry(input: { id: string; prompt?: string; attachmentChars?: number }) {
   return {
     id: input.id,
     createdAt: "2026-07-24T12:00:00.000Z",

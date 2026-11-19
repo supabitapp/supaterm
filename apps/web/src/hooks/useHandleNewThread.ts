@@ -53,7 +53,7 @@ import { resolveNewThreadModelSelection } from "@supaterm/shared/usageLimits";
 export const LAST_USED_PROJECT_STORAGE_KEY = "supaterm:last-used-project:v1";
 export const lastUsedProjectKeySchema = Schema.NullOr(Schema.String);
 
-export function readLastUsedProjectKey(): string | null {
+export function readLastUsedProjectKey() {
   try {
     return getLocalStorageItem(LAST_USED_PROJECT_STORAGE_KEY, lastUsedProjectKeySchema);
   } catch {
@@ -99,7 +99,7 @@ export function createNewThreadHandler(router: AnyRouter) {
       replace?: boolean;
       prompt?: string;
     },
-  ): Promise<{ draftId: DraftId; threadId: ThreadId } | null> => {
+  ) => {
     const projects = readProjects();
     const projectGroupingSettings = selectProjectGroupingSettings(getClientSettings());
     const environmentServerConfigs = appAtomRegistry.get(environmentServerConfigsAtom);
@@ -296,7 +296,7 @@ export function createNewThreadHandler(router: AnyRouter) {
           replace: options?.replace ?? false,
         });
         return opened;
-      })();
+      })() satisfies Promise<{ draftId: DraftId; threadId: ThreadId } | null>;
     }
 
     if (
@@ -324,7 +324,7 @@ export function createNewThreadHandler(router: AnyRouter) {
       return Promise.resolve({
         draftId: currentRouteTarget.draftId,
         threadId: latestActiveDraftThread.threadId,
-      });
+      }) satisfies Promise<{ draftId: DraftId; threadId: ThreadId } | null>;
     }
 
     const draftId = newDraftId();
@@ -385,7 +385,7 @@ export function createNewThreadHandler(router: AnyRouter) {
         replace: options?.replace ?? false,
       });
       return { draftId, threadId };
-    })();
+    })() satisfies Promise<{ draftId: DraftId; threadId: ThreadId } | null>;
   };
 }
 
@@ -398,7 +398,7 @@ export function resolveDefaultProjectRef(
   projectOrder: readonly string[],
   lastUsedProjectKey: string | null,
   fallbackReady = true,
-): ScopedProjectRef | null {
+) {
   const lastUsed = projects.find(
     (project) =>
       project.archivedAt == null &&

@@ -22,7 +22,7 @@ export type ThreadFixtureOverrides = Partial<Thread> & {
   readonly messages?: ReadonlyArray<ChatMessage>;
 };
 
-export function makeThreadProjectionFixture(): OrchestrationV2ThreadProjection {
+export function makeThreadProjectionFixture() {
   const now = DateTime.makeUnsafe(DEFAULT_TIMESTAMP);
   const id = ThreadId.make("thread-test");
   const providerInstanceId = ProviderInstanceId.make("codex");
@@ -67,10 +67,10 @@ export function makeThreadProjectionFixture(): OrchestrationV2ThreadProjection {
     contextTransfers: [],
     visibleTurnItems: [],
     updatedAt: now,
-  };
+  } satisfies OrchestrationV2ThreadProjection;
 }
 
-export function makeThreadFixture(overrides: ThreadFixtureOverrides = {}): Thread {
+export function makeThreadFixture(overrides: ThreadFixtureOverrides = {}) {
   const environmentId = overrides.environmentId ?? EnvironmentId.make("environment-test");
   const id = overrides.id ?? ThreadId.make("thread-test");
   const projectId = overrides.projectId ?? ProjectId.make("project-test");
@@ -254,7 +254,7 @@ export function withStreamedText(
   itemId: string,
   text: string,
   updatedAt: string,
-): OrchestrationV2ProjectedTurnItem[] {
+) {
   return rows.map((row) => {
     if (row.item.id !== itemId) return row;
     const updated = DateTime.makeUnsafe(updatedAt);

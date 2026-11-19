@@ -1,4 +1,4 @@
-import type { ProviderUserInputAnswers, UserInputQuestion } from "@supaterm/contracts";
+import type { ProviderUserInputAnswers } from "@supaterm/contracts";
 import * as Cause from "effect/Cause";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
@@ -52,9 +52,7 @@ const xAiSessionNotificationMethods = [
 
 const XAI_TASK_COMPLETED_PROMPT_ID_PREFIX = "task-completed-";
 
-export function xAiPromptCompleteFromSessionUpdate(
-  notification: XAiSessionUpdateNotification,
-): XAiPromptCompleteNotification | null {
+export function xAiPromptCompleteFromSessionUpdate(notification: XAiSessionUpdateNotification) {
   const update = notification.update;
   if (update.sessionUpdate !== "turn_completed") {
     return null;
@@ -75,7 +73,7 @@ export function xAiPromptCompleteFromSessionUpdate(
 /** Background command wakes use their own task-completed-* prompt IDs. */
 export function isXAiTaskCompletedWakeNotification(
   notification: EffectAcpSchema.SessionNotification,
-): boolean {
+) {
   const promptId = notification._meta?.promptId;
   return typeof promptId === "string" && promptId.startsWith(XAI_TASK_COMPLETED_PROMPT_ID_PREFIX);
 }
@@ -114,21 +112,21 @@ export interface XAiAcpSubagentEndNotice {
 
 const XAI_UUID_RE = "[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}";
 
-function unknownRecord(value: unknown): Record<string, unknown> | undefined {
+function unknownRecord(value: unknown) {
   return typeof value === "object" && value !== null && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : undefined;
 }
 
-function nonEmptyString(value: unknown): string | undefined {
+function nonEmptyString(value: unknown) {
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
 }
 
-function titleKey(toolCall: AcpToolCallState): string {
+function titleKey(toolCall: AcpToolCallState) {
   return (toolCall.title ?? "").trim().toLowerCase();
 }
 
-function decodeByteText(value: unknown): string | undefined {
+function decodeByteText(value: unknown) {
   if (typeof value === "string") return nonEmptyString(value);
   if (!Array.isArray(value)) return undefined;
   if (value.length === 0) return undefined;
@@ -140,7 +138,7 @@ function decodeByteText(value: unknown): string | undefined {
   }
 }
 
-function xAiToolOutputText(toolCall: AcpToolCallState): string | undefined {
+function xAiToolOutputText(toolCall: AcpToolCallState) {
   const rawOutput = unknownRecord(toolCall.data.rawOutput);
   if (rawOutput !== undefined) {
     const direct =
@@ -173,12 +171,12 @@ function xAiToolOutputText(toolCall: AcpToolCallState): string | undefined {
   return text.length > 0 ? text : undefined;
 }
 
-function firstUuidMatch(text: string, pattern: RegExp): string | undefined {
+function firstUuidMatch(text: string, pattern: RegExp) {
   const match = pattern.exec(text);
   return match?.[1];
 }
 
-function extractXAiChildSessionId(output: string | undefined): string | null {
+function extractXAiChildSessionId(output: string | undefined) {
   if (output === undefined) return null;
   return (
     firstUuidMatch(output, new RegExp(`(?:^|\\n)\\s*Agent ID:\\s*(${XAI_UUID_RE})\\b`, "i")) ??
@@ -188,7 +186,7 @@ function extractXAiChildSessionId(output: string | undefined): string | null {
   );
 }
 
-function isXAiAsyncSpawnAck(output: string | undefined): boolean {
+function isXAiAsyncSpawnAck(output: string | undefined) {
   if (output === undefined) return false;
   if (/subagent started in background/i.test(output)) return true;
   return (
@@ -197,7 +195,7 @@ function isXAiAsyncSpawnAck(output: string | undefined): boolean {
   );
 }
 
-function isXAiMonitorStartAck(output: string | undefined): boolean {
+function isXAiMonitorStartAck(output: string | undefined) {
   if (output === undefined) return false;
   return /monitor started\s*\(\s*task\s+/i.test(output);
 }
@@ -205,7 +203,7 @@ function isXAiMonitorStartAck(output: string | undefined): boolean {
 function isXAiSpawnOrTaskTool(
   toolCall: AcpToolCallState,
   rawInput: Record<string, unknown> | undefined,
-): boolean {
+) {
   const title = titleKey(toolCall);
   if (title === "task" || title === "spawn_subagent" || title.includes("spawn subagent")) {
     return true;
@@ -222,7 +220,7 @@ function isXAiSpawnOrTaskTool(
 function isXAiGetSubagentOutputTool(
   toolCall: AcpToolCallState,
   rawInput: Record<string, unknown> | undefined,
-): boolean {
+) {
   const title = titleKey(toolCall);
   if (
     title === "get_command_or_subagent_output" ||
@@ -240,7 +238,7 @@ function isXAiGetSubagentOutputTool(
   return false;
 }
 
-export function isXAiMonitorTool(toolCall: AcpToolCallState): boolean {
+export function isXAiMonitorTool(toolCall: AcpToolCallState) {
   const title = titleKey(toolCall);
   if (title === "monitor" || title.startsWith("monitor ")) return true;
   const rawInput = unknownRecord(toolCall.data.rawInput);
@@ -256,14 +254,14 @@ export function isXAiMonitorTool(toolCall: AcpToolCallState): boolean {
  * BackgroundTaskStarted completes the tool call while the shell process still runs.
  * The task ends on a completion notification or completed TaskOutput for its task id.
  */
-export function xAiBackgroundShellTaskId(toolCall: AcpToolCallState): string | undefined {
+export function xAiBackgroundShellTaskId(toolCall: AcpToolCallState) {
   const rawOutput = unknownRecord(toolCall.data.rawOutput);
   return nonEmptyString(rawOutput?.type) === "BackgroundTaskStarted"
     ? nonEmptyString(rawOutput?.task_id)
     : undefined;
 }
 
-export function extractXAiMonitorTaskId(toolCall: AcpToolCallState): string | undefined {
+export function extractXAiMonitorTaskId(toolCall: AcpToolCallState) {
   const backgroundShellTaskId = xAiBackgroundShellTaskId(toolCall);
   if (backgroundShellTaskId !== undefined) return backgroundShellTaskId;
   if (!isXAiMonitorTool(toolCall)) return undefined;
@@ -289,7 +287,7 @@ export function extractXAiMonitorTaskId(toolCall: AcpToolCallState): string | un
 }
 
 /** Persistent monitors must not hold root-turn deferred finalize. */
-export function isXAiPersistentMonitor(toolCall: AcpToolCallState): boolean {
+export function isXAiPersistentMonitor(toolCall: AcpToolCallState) {
   if (!isXAiMonitorTool(toolCall)) return false;
   const rawOutput = unknownRecord(toolCall.data.rawOutput);
   if (rawOutput !== undefined && nonEmptyString(rawOutput.type)?.toLowerCase() === "monitor") {
@@ -299,20 +297,25 @@ export function isXAiPersistentMonitor(toolCall: AcpToolCallState): boolean {
   return rawInput?.persistent === true;
 }
 
-export function extractXAiBackgroundTaskCompletion(toolCall: AcpToolCallState): ReadonlyArray<{
-  readonly taskId: string;
-  readonly status: "running" | "completed" | "failed";
-  readonly appendOutput: string;
-}> {
+export function extractXAiBackgroundTaskCompletion(toolCall: AcpToolCallState) {
   const rawInput = unknownRecord(toolCall.data.rawInput);
-  if (!isXAiGetSubagentOutputTool(toolCall, rawInput)) return [];
+  if (!isXAiGetSubagentOutputTool(toolCall, rawInput))
+    return [] satisfies ReadonlyArray<{
+      readonly taskId: string;
+      readonly status: "running" | "completed" | "failed";
+      readonly appendOutput: string;
+    }>;
   const text = xAiToolOutputText(toolCall);
   const status = statusFromGetOutputTool(toolCall, text);
   const appendOutput = resultFromGetOutputTool(toolCall, text) ?? "";
   const resultTaskId =
     structuredTaskIdFromGetOutputTool(toolCall) ?? resultTaskIdFromGetOutputTool(toolCall, text);
   if (resultTaskId !== undefined) {
-    return [{ taskId: resultTaskId, status, appendOutput }];
+    return [{ taskId: resultTaskId, status, appendOutput }] satisfies ReadonlyArray<{
+      readonly taskId: string;
+      readonly status: "running" | "completed" | "failed";
+      readonly appendOutput: string;
+    }>;
   }
   const requestIds: string[] = [];
   const push = (value: unknown) => {
@@ -327,7 +330,11 @@ export function extractXAiBackgroundTaskCompletion(toolCall: AcpToolCallState): 
   push(rawInput?.task_id);
   push(rawInput?.taskId);
   const unique = [...new Set(requestIds)];
-  return unique.map((taskId) => ({ taskId, status, appendOutput }));
+  return unique.map((taskId) => ({ taskId, status, appendOutput })) satisfies ReadonlyArray<{
+    readonly taskId: string;
+    readonly status: "running" | "completed" | "failed";
+    readonly appendOutput: string;
+  }>;
 }
 
 /**
@@ -336,11 +343,7 @@ export function extractXAiBackgroundTaskCompletion(toolCall: AcpToolCallState): 
  * A failed kill is not proof the target stopped, so leave the existing
  * task state unchanged until a genuine terminal signal arrives.
  */
-export function extractXAiKilledBackgroundTasks(toolCall: AcpToolCallState): ReadonlyArray<{
-  readonly taskId: string;
-  readonly status: "running" | "completed" | "failed";
-  readonly appendOutput: string;
-}> {
+export function extractXAiKilledBackgroundTasks(toolCall: AcpToolCallState) {
   const title = titleKey(toolCall);
   const rawInput = unknownRecord(toolCall.data.rawInput);
   const rawOutput = unknownRecord(toolCall.data.rawOutput);
@@ -404,9 +407,7 @@ export interface XAiBackgroundTaskLifecycleMutation {
     | { readonly kind: "monitor"; readonly label?: string };
 }
 
-function xAiBackgroundTaskReport(
-  update: XAiTaskLifecycleNotification["update"],
-): XAiBackgroundTaskLifecycleMutation["report"] {
+function xAiBackgroundTaskReport(update: XAiTaskLifecycleNotification["update"]) {
   const snapshot = update.task_snapshot;
   const monitorDescription = nonEmptyString(update.monitor_description ?? undefined);
   const displayCommand = nonEmptyString(snapshot?.display_command ?? undefined);
@@ -416,7 +417,8 @@ function xAiBackgroundTaskReport(
     displayCommand?.startsWith("[monitor]") === true;
   const isCommand =
     snapshot?.kind === "bash" || snapshot?.command !== undefined || update.command !== undefined;
-  if (!isMonitor && !isCommand) return undefined;
+  if (!isMonitor && !isCommand)
+    return undefined satisfies XAiBackgroundTaskLifecycleMutation["report"];
   const label =
     monitorDescription ??
     nonEmptyString(snapshot?.description ?? undefined) ??
@@ -425,21 +427,26 @@ function xAiBackgroundTaskReport(
     nonEmptyString(snapshot?.command) ??
     nonEmptyString(update.command);
   const named = label === undefined ? {} : { label };
-  if (isMonitor) return { kind: "monitor", ...named };
+  if (isMonitor)
+    return { kind: "monitor", ...named } satisfies XAiBackgroundTaskLifecycleMutation["report"];
   const exitCode = snapshot?.exit_code;
-  return { kind: "command", ...named, ...(typeof exitCode === "number" ? { exitCode } : {}) };
+  return {
+    kind: "command",
+    ...named,
+    ...(typeof exitCode === "number" ? { exitCode } : {}),
+  } satisfies XAiBackgroundTaskLifecycleMutation["report"];
 }
 
 export function xAiBackgroundTaskLifecycleMutation(
   notification: XAiTaskLifecycleNotification,
   status: "running" | "completed",
-): XAiBackgroundTaskLifecycleMutation | null {
+) {
   const update = notification.update;
   const taskId =
     nonEmptyString(update.task_snapshot?.task_id) ??
     nonEmptyString(update.task_id) ??
     nonEmptyString(update.tool_call_id);
-  if (taskId === undefined) return null;
+  if (taskId === undefined) return null satisfies XAiBackgroundTaskLifecycleMutation | null;
   const exitCode = update.task_snapshot?.exit_code;
   const output = update.task_snapshot?.output;
   const report = xAiBackgroundTaskReport(update);
@@ -450,14 +457,14 @@ export function xAiBackgroundTaskLifecycleMutation(
       status === "completed" && typeof exitCode === "number" && exitCode !== 0 ? "failed" : status,
     ...(output === undefined ? {} : { output }),
     ...(report === undefined ? {} : { report }),
-  };
+  } satisfies XAiBackgroundTaskLifecycleMutation | null;
 }
 
 /** Track both x.ai/task_* and legacy _x.ai/task_*; background tasks can survive cancellation. */
 export const registerXAiBackgroundTaskTracking = (
   runtime: Pick<AcpSessionRuntime.AcpSessionRuntime["Service"], "handleExtNotification">,
   apply: (mutation: XAiBackgroundTaskLifecycleMutation) => Effect.Effect<void>,
-): Effect.Effect<void, EffectAcpErrors.AcpError> =>
+) =>
   Effect.forEach(
     [
       ["x.ai/task_backgrounded", "running"],
@@ -481,27 +488,27 @@ export interface XAiSubagentFinishedNotice {
   readonly result: string | null;
 }
 
-export function xAiSubagentFinishedNotice(
-  notification: XAiSessionUpdateNotification,
-): XAiSubagentFinishedNotice | null {
+export function xAiSubagentFinishedNotice(notification: XAiSessionUpdateNotification) {
   const update = notification.update;
   const childSessionId = nonEmptyString(update.child_session_id);
-  if (update.sessionUpdate !== "subagent_finished" || childSessionId === undefined) return null;
+  if (update.sessionUpdate !== "subagent_finished" || childSessionId === undefined)
+    return null satisfies XAiSubagentFinishedNotice | null;
   const status = update.status;
-  if (status !== "completed" && status !== "failed" && status !== "cancelled") return null;
+  if (status !== "completed" && status !== "failed" && status !== "cancelled")
+    return null satisfies XAiSubagentFinishedNotice | null;
   const text = status === "completed" ? update.output : update.error;
   return {
     sessionId: notification.sessionId,
     childSessionId,
     status,
     result: nonEmptyString(text ?? undefined) ?? null,
-  };
+  } satisfies XAiSubagentFinishedNotice | null;
 }
 
 export const registerXAiSubagentFinished = (
   runtime: Pick<AcpSessionRuntime.AcpSessionRuntime["Service"], "handleExtNotification">,
   finish: (notice: XAiSubagentFinishedNotice) => Effect.Effect<void>,
-): Effect.Effect<void> =>
+) =>
   Effect.forEach(
     xAiSessionNotificationMethods,
     (method) =>
@@ -512,12 +519,12 @@ export const registerXAiSubagentFinished = (
     { discard: true },
   );
 
-function isGenericAcpToolTitle(title: string | undefined): boolean {
+function isGenericAcpToolTitle(title: string | undefined) {
   const key = (title ?? "").trim().toLowerCase();
   return key.length === 0 || key === "tool" || key === "tool call" || key === "terminal";
 }
 
-function resolveXAiAcpToolTitle(toolCall: AcpToolCallState): string | undefined {
+function resolveXAiAcpToolTitle(toolCall: AcpToolCallState) {
   if (!isGenericAcpToolTitle(toolCall.title)) {
     return nonEmptyString(toolCall.title);
   }
@@ -550,7 +557,7 @@ function resolveXAiAcpToolTitle(toolCall: AcpToolCallState): string | undefined 
   return nonEmptyString(toolCall.title);
 }
 
-function normalizeXAiMcpToolCall(toolCall: AcpToolCallState): AcpToolCallState {
+function normalizeXAiMcpToolCall(toolCall: AcpToolCallState) {
   const meta = unknownRecord(toolCall.data.meta);
   const rawInput = unknownRecord(toolCall.data.rawInput);
   const toolName = nonEmptyString(rawInput?.tool_name) ?? "";
@@ -594,7 +601,7 @@ function normalizeXAiMcpToolCall(toolCall: AcpToolCallState): AcpToolCallState {
   };
 }
 
-export function normalizeXAiAcpToolCallState(incoming: AcpToolCallState): AcpToolCallState {
+export function normalizeXAiAcpToolCallState(incoming: AcpToolCallState) {
   const toolCall = normalizeXAiMcpToolCall(incoming);
   const resolvedTitle = resolveXAiAcpToolTitle(toolCall);
   const withTitle =
@@ -611,33 +618,31 @@ export function normalizeXAiAcpToolCallState(incoming: AcpToolCallState): AcpToo
       .find((value) => typeof value === "number" && Number.isInteger(value));
     if (typeof exitCode === "number") {
       if (exitCode === 0 && (xAiToolOutputText(withTitle)?.trim().length ?? 0) === 0) {
-        return { ...withTitle, status: "inProgress" };
+        return { ...withTitle, status: "inProgress" } satisfies AcpToolCallState;
       }
       return {
         ...withTitle,
         status: exitCode === 0 ? "completed" : "failed",
-      };
+      } satisfies AcpToolCallState;
     }
   }
   if (xAiBackgroundShellTaskId(withTitle) !== undefined) {
-    return { ...withTitle, status: "inProgress" };
+    return { ...withTitle, status: "inProgress" } satisfies AcpToolCallState;
   }
   if (!isXAiMonitorTool(withTitle)) {
-    return withTitle;
+    return withTitle satisfies AcpToolCallState;
   }
   if (outputType === "monitor") {
-    return { ...withTitle, status: "inProgress" };
+    return { ...withTitle, status: "inProgress" } satisfies AcpToolCallState;
   }
   const output = xAiToolOutputText(withTitle);
   if (withTitle.status === "completed" && isXAiMonitorStartAck(output)) {
-    return { ...withTitle, status: "inProgress" };
+    return { ...withTitle, status: "inProgress" } satisfies AcpToolCallState;
   }
-  return withTitle;
+  return withTitle satisfies AcpToolCallState;
 }
 
-export function extractXAiAcpBackgroundToolMutation(
-  text: string,
-): ReadonlyArray<XAiAcpBackgroundToolMutation> {
+export function extractXAiAcpBackgroundToolMutation(text: string) {
   const mutations: XAiAcpBackgroundToolMutation[] = [];
 
   const eventRe = new RegExp(
@@ -691,7 +696,7 @@ export function extractXAiAcpBackgroundToolMutation(
   return mutations;
 }
 
-function stripLeadingBalancedParenGroup(text: string): string {
+function stripLeadingBalancedParenGroup(text: string) {
   const trimmed = text.replace(/^\s+/, "");
   if (!trimmed.startsWith("(")) return trimmed;
   let depth = 0;
@@ -706,26 +711,32 @@ function stripLeadingBalancedParenGroup(text: string): string {
   return trimmed;
 }
 
-export function extractXAiAcpSubagentEndNotice(text: string): XAiAcpSubagentEndNotice | undefined {
+export function extractXAiAcpSubagentEndNotice(text: string) {
   const match = text.match(new RegExp(`Background subagent\\s+["']?(${XAI_UUID_RE})["']?`, "i"));
-  if (match?.[1] === undefined) return undefined;
+  if (match?.[1] === undefined) return undefined satisfies XAiAcpSubagentEndNotice | undefined;
   const tail = stripLeadingBalancedParenGroup(text.slice((match.index ?? 0) + match[0].length));
   if (/completed successfully/i.test(tail)) {
-    return { childSessionId: match[1], status: "completed" };
+    return { childSessionId: match[1], status: "completed" } satisfies
+      | XAiAcpSubagentEndNotice
+      | undefined;
   }
   if (/\b(failed|errored|error|crashed|cancelled|canceled|interrupted|timed out)\b/i.test(tail)) {
-    return { childSessionId: match[1], status: "failed" };
+    return { childSessionId: match[1], status: "failed" } satisfies
+      | XAiAcpSubagentEndNotice
+      | undefined;
   }
   if (/\b(completed|finished|ended)\b/i.test(tail)) {
-    return { childSessionId: match[1], status: "completed" };
+    return { childSessionId: match[1], status: "completed" } satisfies
+      | XAiAcpSubagentEndNotice
+      | undefined;
   }
-  return undefined;
+  return undefined satisfies XAiAcpSubagentEndNotice | undefined;
 }
 
 function taskIdsFromGetOutputTool(
   toolCall: AcpToolCallState,
   rawInput: Record<string, unknown> | undefined,
-): ReadonlyArray<string> {
+) {
   const ids: string[] = [];
   const push = (value: unknown) => {
     const text = nonEmptyString(value);
@@ -743,7 +754,7 @@ function taskIdsFromGetOutputTool(
   return [...new Set(ids)];
 }
 
-function structuredTaskIdFromGetOutputTool(toolCall: AcpToolCallState): string | undefined {
+function structuredTaskIdFromGetOutputTool(toolCall: AcpToolCallState) {
   const rawOutput = unknownRecord(toolCall.data.rawOutput);
   const result = unknownRecord(rawOutput?.Result) ?? unknownRecord(rawOutput?.result);
   return (
@@ -754,10 +765,7 @@ function structuredTaskIdFromGetOutputTool(toolCall: AcpToolCallState): string |
   );
 }
 
-function resultTaskIdFromGetOutputTool(
-  toolCall: AcpToolCallState,
-  output: string | undefined,
-): string | undefined {
+function resultTaskIdFromGetOutputTool(toolCall: AcpToolCallState, output: string | undefined) {
   const structured = structuredTaskIdFromGetOutputTool(toolCall);
   if (structured !== undefined && new RegExp(`^${XAI_UUID_RE}$`, "i").test(structured)) {
     return structured;
@@ -770,10 +778,7 @@ function resultTaskIdFromGetOutputTool(
   return taskHeader;
 }
 
-function resultFromGetOutputTool(
-  toolCall: AcpToolCallState,
-  output: string | undefined,
-): string | null {
+function resultFromGetOutputTool(toolCall: AcpToolCallState, output: string | undefined) {
   const rawOutput = unknownRecord(toolCall.data.rawOutput);
   const result = unknownRecord(rawOutput?.Result) ?? unknownRecord(rawOutput?.result);
   const structured =
@@ -794,10 +799,7 @@ function resultFromGetOutputTool(
   return body.length > 0 ? body : null;
 }
 
-function statusFromGetOutputTool(
-  toolCall: AcpToolCallState,
-  output: string | undefined,
-): "running" | "completed" | "failed" {
+function statusFromGetOutputTool(toolCall: AcpToolCallState, output: string | undefined) {
   if (toolCall.status === "failed") return "failed";
   const rawOutput = unknownRecord(toolCall.data.rawOutput);
   const result = unknownRecord(rawOutput?.Result) ?? unknownRecord(rawOutput?.result);
@@ -823,9 +825,7 @@ function statusFromGetOutputTool(
 }
 
 /** Spawn ACKs return immediately; keep subagents running until a child or hydration terminal. */
-export function extractXAiAcpSubagentUpdate(
-  toolCall: AcpToolCallState,
-): XAiAcpSubagentUpdate | undefined {
+export function extractXAiAcpSubagentUpdate(toolCall: AcpToolCallState) {
   const rawInput = unknownRecord(toolCall.data.rawInput);
   const output = xAiToolOutputText(toolCall);
 
@@ -835,14 +835,14 @@ export function extractXAiAcpSubagentUpdate(
       structuredTaskId !== undefined &&
       !new RegExp(`^${XAI_UUID_RE}$`, "i").test(structuredTaskId)
     ) {
-      return undefined;
+      return undefined satisfies XAiAcpSubagentUpdate | undefined;
     }
     const taskIds = taskIdsFromGetOutputTool(toolCall, rawInput);
     const childSessionId =
       resultTaskIdFromGetOutputTool(toolCall, output) ??
       taskIds[0] ??
       extractXAiChildSessionId(output);
-    if (childSessionId === null) return undefined;
+    if (childSessionId === null) return undefined satisfies XAiAcpSubagentUpdate | undefined;
     return {
       nativeTaskId: toolCall.toolCallId,
       prompt: "",
@@ -852,10 +852,11 @@ export function extractXAiAcpSubagentUpdate(
       childSessionId,
       result: resultFromGetOutputTool(toolCall, output),
       suppressNormalTool: true,
-    };
+    } satisfies XAiAcpSubagentUpdate | undefined;
   }
 
-  if (!isXAiSpawnOrTaskTool(toolCall, rawInput)) return undefined;
+  if (!isXAiSpawnOrTaskTool(toolCall, rawInput))
+    return undefined satisfies XAiAcpSubagentUpdate | undefined;
 
   const childSessionId = extractXAiChildSessionId(output);
   const asyncSpawnAck = isXAiAsyncSpawnAck(output);
@@ -888,7 +889,7 @@ export function extractXAiAcpSubagentUpdate(
     childSessionId,
     result: asyncSpawnAck ? null : legacyResult,
     suppressNormalTool: true,
-  };
+  } satisfies XAiAcpSubagentUpdate | undefined;
 }
 
 const XAiAskUserQuestionOption = Schema.Struct({
@@ -940,11 +941,9 @@ export const XAiExitPlanModeRequest = Schema.Union([
   XAiExitPlanModeParams,
   XAiWrappedExitPlanModeParams,
 ]);
-
-type XAiExitPlanModeRequestParams = typeof XAiExitPlanModeParams.Type;
 type XAiExitPlanModeRequest = typeof XAiExitPlanModeRequest.Type;
 
-function unwrapExitPlanModeParams(params: XAiExitPlanModeRequest): XAiExitPlanModeRequestParams {
+function unwrapExitPlanModeParams(params: XAiExitPlanModeRequest) {
   return "params" in params ? params.params : params;
 }
 
@@ -954,7 +953,7 @@ export const XAI_EMPTY_PLAN_MARKDOWN =
 export function extractXAiExitPlanMarkdown(
   params: XAiExitPlanModeRequest,
   fallback?: string | null,
-): string {
+) {
   const content = unwrapExitPlanModeParams(params).planContent;
   const fromRequest = typeof content === "string" ? trimmed(content) : undefined;
   if (fromRequest) {
@@ -975,28 +974,24 @@ export interface XAiExitPlanModeResponse {
 }
 
 /** Abandon the native approval gate after Supaterm captures the plan; implementation uses Supaterm UI. */
-export function makeXAiExitPlanModeCapturedResponse(feedback?: string): XAiExitPlanModeResponse {
+export function makeXAiExitPlanModeCapturedResponse(feedback?: string) {
   return {
     outcome: "abandoned",
     feedback:
       feedback ??
       "The client captured your proposed plan. Stop here and wait for the user's feedback or implementation request in a later turn.",
-  };
+  } satisfies XAiExitPlanModeResponse;
 }
 
-function normalizeFsPath(value: string): string {
+function normalizeFsPath(value: string) {
   return value.trim().replace(/\\/g, "/").replace(/\/+$/, "");
 }
 
-function pathHasTraversalSegment(normalized: string): boolean {
+function pathHasTraversalSegment(normalized: string) {
   return normalized.split("/").includes("..");
 }
 
-function addGrokSessionPrefix(
-  prefixes: Set<string>,
-  homeOrRoot: string,
-  nestedGrokDir: boolean,
-): void {
+function addGrokSessionPrefix(prefixes: Set<string>, homeOrRoot: string, nestedGrokDir: boolean) {
   const root = normalizeFsPath(homeOrRoot);
   if (!root) {
     return;
@@ -1010,7 +1005,7 @@ export interface GrokPlanPathHost {
   readonly homeDirectory: string;
 }
 
-function grokPlanSessionPrefixes(host: GrokPlanPathHost): ReadonlySet<string> {
+function grokPlanSessionPrefixes(host: GrokPlanPathHost) {
   const { environment } = host;
   const prefixes = new Set<string>();
   addGrokSessionPrefix(prefixes, host.homeDirectory, true);
@@ -1031,10 +1026,7 @@ const CASE_INSENSITIVE_CANONICAL_HOME_GROK_SESSION_PATH = new RegExp(
   "i",
 );
 
-export function isGrokPlanMarkdownPath(
-  path: string | undefined | null,
-  host: GrokPlanPathHost,
-): boolean {
+export function isGrokPlanMarkdownPath(path: string | undefined | null, host: GrokPlanPathHost) {
   if (typeof path !== "string") {
     return false;
   }
@@ -1066,16 +1058,13 @@ export function isGrokPlanMarkdownPath(
 export function extractGrokPlanMarkdownFromToolCallData(
   data: Record<string, unknown> | undefined,
   host: GrokPlanPathHost,
-): string | undefined {
+) {
   if (!data) {
     return undefined;
   }
 
   let sawPlanWrite = false;
-  const takePlanText = (
-    value: string | undefined,
-    filePath: string | undefined,
-  ): string | undefined => {
+  const takePlanText = (value: string | undefined, filePath: string | undefined) => {
     if (!isGrokPlanMarkdownPath(filePath, host) || value === undefined) {
       return undefined;
     }
@@ -1118,20 +1107,16 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function trimmed(value: string | undefined): string | undefined {
+function trimmed(value: string | undefined) {
   const text = value?.trim();
   return text && text.length > 0 ? text : undefined;
 }
 
-function unwrapAskUserQuestionParams(
-  params: XAiAskUserQuestionRequest,
-): XAiAskUserQuestionRequestParams {
+function unwrapAskUserQuestionParams(params: XAiAskUserQuestionRequest) {
   return "params" in params ? params.params : params;
 }
 
-export function extractXAiAskUserQuestions(
-  params: XAiAskUserQuestionRequest,
-): ReadonlyArray<UserInputQuestion> {
+export function extractXAiAskUserQuestions(params: XAiAskUserQuestionRequest) {
   return unwrapAskUserQuestionParams(params).questions.map((question) => ({
     id: question.id ?? question.question,
     header: "Question",
@@ -1147,10 +1132,7 @@ export function extractXAiAskUserQuestions(
   }));
 }
 
-export function extractXAiAskUserQuestionIdentity(params: XAiAskUserQuestionRequest): {
-  readonly sessionId: string;
-  readonly toolCallId: string;
-} {
+export function extractXAiAskUserQuestionIdentity(params: XAiAskUserQuestionRequest) {
   const unwrapped = unwrapAskUserQuestionParams(params);
   return {
     sessionId: unwrapped.sessionId,
@@ -1173,13 +1155,7 @@ interface XAiAskUserQuestionCancelledResponse {
   readonly outcome: "cancelled";
 }
 
-interface NormalizedXAiAnswer {
-  readonly questionText: string;
-  readonly selectedLabels: ReadonlyArray<string>;
-  readonly annotation?: XAiAskUserQuestionAnnotation;
-}
-
-function answerValues(answer: unknown): ReadonlyArray<string> {
+function answerValues(answer: unknown) {
   if (Array.isArray(answer)) {
     return answer.flatMap((entry) => {
       const text = typeof entry === "string" ? trimmed(entry) : undefined;
@@ -1193,7 +1169,7 @@ function answerValues(answer: unknown): ReadonlyArray<string> {
 function normalizeAnswerForXAi(
   question: XAiAskUserQuestionRequestParams["questions"][number],
   answer: unknown,
-): NormalizedXAiAnswer | undefined {
+) {
   const values = answerValues(answer);
   if (values.length === 0) {
     return undefined;
@@ -1229,7 +1205,7 @@ function normalizeAnswerForXAi(
 function findQuestionAnswer(
   answers: ProviderUserInputAnswers,
   question: XAiAskUserQuestionRequestParams["questions"][number],
-): unknown {
+) {
   const key = question.id ?? question.question;
   return answers[key] ?? answers[question.question];
 }
@@ -1237,7 +1213,7 @@ function findQuestionAnswer(
 export function makeXAiAskUserQuestionResponse(
   params: XAiAskUserQuestionRequest,
   answers: ProviderUserInputAnswers,
-): XAiAskUserQuestionAcceptedResponse {
+) {
   const questions = unwrapAskUserQuestionParams(params).questions;
   const normalized = questions.flatMap((question) => {
     const entry = normalizeAnswerForXAi(question, findQuestionAnswer(answers, question));
@@ -1255,14 +1231,14 @@ export function makeXAiAskUserQuestionResponse(
       normalized.map((entry) => [entry.questionText, entry.selectedLabels]),
     ),
     ...(Object.keys(annotations).length > 0 ? { annotations } : {}),
-  };
+  } satisfies XAiAskUserQuestionAcceptedResponse;
 }
 
-export function makeXAiAskUserQuestionCancelledResponse(): XAiAskUserQuestionCancelledResponse {
-  return { outcome: "cancelled" };
+export function makeXAiAskUserQuestionCancelledResponse() {
+  return { outcome: "cancelled" } satisfies XAiAskUserQuestionCancelledResponse;
 }
 
-function promptIdFromResponse(response: EffectAcpSchema.PromptResponse): string | undefined {
+function promptIdFromResponse(response: EffectAcpSchema.PromptResponse) {
   const meta = response._meta;
   if (meta === null || typeof meta !== "object") {
     return undefined;
@@ -1271,7 +1247,7 @@ function promptIdFromResponse(response: EffectAcpSchema.PromptResponse): string 
   return typeof promptId === "string" && promptId.length > 0 ? promptId : undefined;
 }
 
-function normalizeXAiStopReason(value: string | undefined): EffectAcpSchema.StopReason {
+function normalizeXAiStopReason(value: string | undefined) {
   switch (value) {
     case "cancelled":
     case "end_turn":
@@ -1284,9 +1260,7 @@ function normalizeXAiStopReason(value: string | undefined): EffectAcpSchema.Stop
   }
 }
 
-function promptResponseFromXAi(
-  notification: XAiPromptCompleteNotification,
-): EffectAcpSchema.PromptResponse {
+function promptResponseFromXAi(notification: XAiPromptCompleteNotification) {
   const stopReason = normalizeXAiStopReason(notification.stopReason);
   const meta: Record<string, Schema.Json> = {
     sessionId: notification.sessionId,
@@ -1304,9 +1278,7 @@ function promptResponseFromXAi(
   };
 }
 
-function xAiPromptFailure(
-  notification: XAiPromptCompleteNotification,
-): EffectAcpErrors.AcpRequestError | null {
+function xAiPromptFailure(notification: XAiPromptCompleteNotification) {
   if (notification.stopReason === "rate_limit") {
     return new EffectAcpErrors.AcpRequestError({
       code: xAiRateLimitedErrorCode,

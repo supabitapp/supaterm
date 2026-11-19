@@ -30,8 +30,8 @@ export class SidePulseEjectGuardError extends Schema.TaggedError<SidePulseEjectG
   "SidePulseEjectGuardError",
   { operation: Schema.Literals(["install", "uninstall"]), detail: Schema.String },
 ) {
-  override get message(): string {
-    return `Could not ${this.operation} the SidePulse eject guard: ${this.detail}`;
+  override get message() {
+    return `Could not ${this.operation} the SidePulse eject guard: ${this.detail}` satisfies string as string;
   }
 }
 

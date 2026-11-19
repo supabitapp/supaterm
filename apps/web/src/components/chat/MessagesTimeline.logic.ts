@@ -73,7 +73,7 @@ import {
   workGroupIsExpanded,
 } from "./workGroupDisclosure";
 
-export function timelineEntryRunId(entry: TimelineEntry): RunId | null {
+export function timelineEntryRunId(entry: TimelineEntry) {
   if (entry.kind === "message") {
     return entry.message.role === "assistant" ? (entry.message.runId ?? null) : null;
   }
@@ -86,7 +86,7 @@ export function timelineEntryRunId(entry: TimelineEntry): RunId | null {
   return entry.kind === "work" ? (entry.entry.runId ?? null) : null;
 }
 
-function workEntryIsActiveTurnActivity(entry: WorkLogEntry): boolean {
+function workEntryIsActiveTurnActivity(entry: WorkLogEntry) {
   return (
     entry.toolLifecycleStatus === "inProgress" ||
     (entry.toolLifecycleStatus === undefined &&
@@ -94,7 +94,7 @@ function workEntryIsActiveTurnActivity(entry: WorkLogEntry): boolean {
   );
 }
 
-function singleToolCallLabel(entry: WorkLogEntry): string {
+function singleToolCallLabel(entry: WorkLogEntry) {
   if (entry.itemType === "reasoning") return entry.detail?.trim().replace(/\s+/g, " ") || "Thought";
   const toolPresentation = resolveWorkEntryToolPresentation(entry, "completed");
   if (toolPresentation) return toolPresentation.displayName;
@@ -106,7 +106,7 @@ function singleToolCallLabel(entry: WorkLogEntry): string {
   return workEntryDisplayLabel(entry, undefined);
 }
 
-function workEntryToolDataRecord(entry: WorkLogEntry): Record<string, unknown> | undefined {
+function workEntryToolDataRecord(entry: WorkLogEntry) {
   return entry.toolData !== null &&
     typeof entry.toolData === "object" &&
     !Array.isArray(entry.toolData)
@@ -114,7 +114,7 @@ function workEntryToolDataRecord(entry: WorkLogEntry): Record<string, unknown> |
     : undefined;
 }
 
-function workEntryReadRawPaths(entry: WorkLogEntry): readonly string[] {
+function workEntryReadRawPaths(entry: WorkLogEntry) {
   const fromChanged = entry.changedFiles ?? [];
   if (fromChanged.length > 0) return fromChanged;
   const structured = entry.structuredPayload;
@@ -125,7 +125,7 @@ function workEntryReadRawPaths(entry: WorkLogEntry): readonly string[] {
   return collectToolFilePaths(workEntryToolDataRecord(entry));
 }
 
-function workEntryReadPaths(entry: WorkLogEntry, workspaceRoot: string | undefined): string[] {
+function workEntryReadPaths(entry: WorkLogEntry, workspaceRoot: string | undefined) {
   return workEntryReadRawPaths(entry).map((filePath) =>
     formatWorkspaceRelativePath(filePath, workspaceRoot),
   );
@@ -137,7 +137,7 @@ export function workEntryDisplayLabel(entry: WorkLogEntry, workspaceRoot: string
 
 const graphemeSegmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
 
-function pathLabel(text: string): { text: string; tail: number } {
+function pathLabel(text: string) {
   const fileName = text.slice(text.lastIndexOf("/") + 1);
   return { text, tail: Array.from(graphemeSegmenter.segment(fileName)).length };
 }
@@ -145,51 +145,61 @@ function pathLabel(text: string): { text: string; tail: number } {
 export function workEntryDisplay(
   entry: WorkLogEntry,
   workspaceRoot: string | undefined,
-): { text: string; tail?: number } {
-  if (entry.itemType === "system_notice") return { text: entry.label };
+): { text: string; tail?: number };
+export function workEntryDisplay(entry: WorkLogEntry, workspaceRoot: string | undefined) {
+  if (entry.itemType === "system_notice")
+    return { text: entry.label } satisfies { text: string; tail?: number };
   if (entry.itemType === "reasoning" || entry.tone === "thinking") {
     const thought = entry.detail?.trim().replace(/\s+/g, " ");
-    return { text: thought || entry.label };
+    return { text: thought || entry.label } satisfies { text: string; tail?: number };
   }
   const toolPresentation = resolveWorkEntryToolPresentation(entry);
-  if (toolPresentation) return { text: toolPresentation.displayName };
-  if (entry.command?.trim()) return { text: commandDisplayText(entry.command) };
+  if (toolPresentation)
+    return { text: toolPresentation.displayName } satisfies { text: string; tail?: number };
+  if (entry.command?.trim())
+    return { text: commandDisplayText(entry.command) } satisfies { text: string; tail?: number };
   const action = toolGroupAction(entry);
   if (action === "code-search" || action === "search") {
     const searchLabel =
       entry.itemType === "file_search"
         ? entry.label
         : formatSearchToolLabel(workEntryToolDataRecord(entry));
-    if (searchLabel) return { text: searchLabel };
+    if (searchLabel) return { text: searchLabel } satisfies { text: string; tail?: number };
   }
   const readPaths = action === "read" ? workEntryReadPaths(entry, workspaceRoot) : [];
   if (action === "read" && readPaths[0]) {
-    return pathLabel(formatReadToolLabel(readPaths[0], readPaths.length - 1));
+    return pathLabel(formatReadToolLabel(readPaths[0], readPaths.length - 1)) satisfies {
+      text: string;
+      tail?: number;
+    };
   }
   const providerRetry =
     entry.projectedItem?.item.type === "error" && entry.projectedItem.item.retry !== undefined;
   const item = entry.structuredPayload;
   const title =
     item?.type === "dynamic_tool" ? dynamicToolTitle(item.toolName, item.input, item.title) : null;
-  if (title) return { text: title };
+  if (title) return { text: title } satisfies { text: string; tail?: number };
   const compactDetail = entry.detail?.trim();
   const detailIsSearchOutput =
     (action === "code-search" || action === "search") && /[\r\n]/.test(compactDetail ?? "");
   if (compactDetail && !providerRetry && action !== "read" && !detailIsSearchOutput) {
-    return { text: compactDetail };
+    return { text: compactDetail } satisfies { text: string; tail?: number };
   }
   const [firstPath] = entry.changedFiles ?? [];
   if (firstPath) {
     const path = formatWorkspaceRelativePath(firstPath, workspaceRoot);
     return pathLabel(
       entry.changedFiles!.length === 1 ? path : `${path} +${entry.changedFiles!.length - 1} more`,
-    );
+    ) satisfies { text: string; tail?: number };
   }
   if (action === "read" && !entry.viewedImagePath) {
-    return { text: "Read file" };
+    return { text: "Read file" } satisfies { text: string; tail?: number };
   }
   const heading = normalizeCompactToolLabel(entry.toolTitle || entry.label);
-  return { text: `${heading.charAt(0).toUpperCase()}${heading.slice(1)}` };
+  return { text: `${heading.charAt(0).toUpperCase()}${heading.slice(1)}` } satisfies {
+    text: string;
+    tail?: number;
+  };
 }
 
 export function threadReadTargetId(entry: Pick<WorkLogEntry, "structuredPayload">) {
@@ -223,7 +233,7 @@ export function workEntryReadOutput(
     "changedFiles" | "detail" | "viewedImagePath" | "structuredPayload" | "toolData"
   >,
   workspaceRoot: string | undefined,
-): string | null {
+) {
   const paths = [
     ...new Set(
       workEntryReadRawPaths(entry as WorkLogEntry)
@@ -279,10 +289,7 @@ export function liveWorkEntryLabel(
   return workEntryDisplayLabel(entry, workspaceRoot);
 }
 
-export function workEntryIsVisibleInGroup(
-  entry: WorkLogEntry,
-  expandedToolGroupEntry = false,
-): boolean {
+export function workEntryIsVisibleInGroup(entry: WorkLogEntry, expandedToolGroupEntry = false) {
   if (entry.itemType === "reasoning") return Boolean(entry.detail?.trim());
   return (
     (expandedToolGroupEntry &&
@@ -306,7 +313,7 @@ export interface WorkGroupScrollAnchor {
 export function resolveWorkGroupScrollIndex(
   entries: ReadonlyArray<{ readonly id: string }>,
   anchor: WorkGroupScrollAnchor | undefined,
-): { index: number; viewOffset: number } | undefined {
+) {
   if (!anchor) return undefined;
   const index = entries.findIndex((entry) => entry.id === anchor.entryId);
   return index < 0 ? undefined : { index, viewOffset: -anchor.offset };
@@ -316,7 +323,7 @@ export function shouldFollowWorkGroupAppend(
   previous: ReadonlyArray<{ readonly id: string }>,
   entries: ReadonlyArray<{ readonly id: string }>,
   distanceFromEnd: number,
-): boolean {
+) {
   return (
     previous.length > 0 &&
     entries.length > previous.length &&
@@ -335,10 +342,7 @@ interface TimelineEndState {
 
 const TIMELINE_FOLLOW_REARM_THRESHOLD_PX = 40;
 
-export function resolveTimelineIsAtEnd(
-  state: TimelineEndState | undefined,
-  pendingScrollPx = 0,
-): boolean | undefined {
+export function resolveTimelineIsAtEnd(state: TimelineEndState | undefined, pendingScrollPx = 0) {
   if (!state) {
     return undefined;
   }
@@ -351,12 +355,12 @@ export function resolveTimelineIsAtEnd(
   );
 }
 
-export function resolveTimelineMinimapHeightStyle(itemCount: number): string {
+export function resolveTimelineMinimapHeightStyle(itemCount: number) {
   const naturalHeight = Math.max(1, (itemCount - 1) * TIMELINE_MINIMAP_ITEM_SPACING);
   return `min(${naturalHeight}px, ${TIMELINE_MINIMAP_MAX_HEIGHT_CSS})`;
 }
 
-export function resolveTimelineMinimapTopPercent(index: number, itemCount: number): number {
+export function resolveTimelineMinimapTopPercent(index: number, itemCount: number) {
   if (itemCount <= 1) {
     return 0;
   }
@@ -368,7 +372,7 @@ export function resolveTimelineMinimapIndexFromPointer(input: {
   readonly railTop: number;
   readonly railHeight: number;
   readonly pointerY: number;
-}): number | null {
+}) {
   if (input.itemCount <= 0 || input.railHeight <= 0) {
     return null;
   }
@@ -417,7 +421,7 @@ export function isTimelineMinimapTurnVisible(
   nextTurnStartRowIndex: number | undefined,
   visibleStart: number | null | undefined,
   visibleEnd: number | null | undefined,
-): boolean {
+) {
   return (
     visibleStart != null &&
     visibleEnd != null &&
@@ -430,7 +434,7 @@ export function resolveTimelineMinimapCurrentIndex(input: {
   readonly visibleStart: number | null | undefined;
   readonly visibleEnd: number | null | undefined;
   readonly rowIndices: ReadonlyArray<number>;
-}): number | null {
+}) {
   if (input.visibleStart == null || input.visibleEnd == null) {
     return null;
   }
@@ -450,14 +454,14 @@ export function resolveTimelineTurnStep<Item extends { readonly id: string }>(in
   readonly currentIndex: number | null;
   readonly heldItemId: string | null;
   readonly delta: -1 | 1;
-}): Item | null {
+}) {
   const heldIndex = input.items.findIndex((item) => item.id === input.heldItemId);
   const base = heldIndex === -1 ? input.currentIndex : heldIndex;
   if (base === null) return null;
   return input.items[base + input.delta] ?? null;
 }
 
-function resolveTimelineSideGutter(viewportWidth: number, contentWidth: number): number {
+function resolveTimelineSideGutter(viewportWidth: number, contentWidth: number) {
   if (!Number.isFinite(viewportWidth) || viewportWidth <= 0 || !Number.isFinite(contentWidth)) {
     return 0;
   }
@@ -467,7 +471,7 @@ function resolveTimelineSideGutter(viewportWidth: number, contentWidth: number):
 export function resolveTimelineMinimapHasPersistentGutter(
   viewportWidth: number,
   contentWidth: number,
-): boolean {
+) {
   return (
     resolveTimelineSideGutter(viewportWidth, contentWidth) >= TIMELINE_MINIMAP_PERSISTENT_GUTTER
   );
@@ -476,10 +480,7 @@ export function resolveTimelineMinimapHasPersistentGutter(
 const TIMELINE_MINIMAP_HIT_STRIP_LEFT = 12;
 const TIMELINE_MINIMAP_HIT_STRIP_MAX_WIDTH = 40;
 
-export function resolveTimelineMinimapHitStripWidth(
-  viewportWidth: number,
-  contentWidth: number,
-): number {
+export function resolveTimelineMinimapHitStripWidth(viewportWidth: number, contentWidth: number) {
   const sideGutter = resolveTimelineSideGutter(viewportWidth, contentWidth);
   return Math.max(
     0,
@@ -492,18 +493,18 @@ export function resolveTimelineMinimapHitStripWidth(
 
 const TIMELINE_MINIMAP_NAVIGATION_REACH = 14;
 
-export function resolveTimelineMinimapNavigationInteractive(collapsedWidth: number): boolean {
+export function resolveTimelineMinimapNavigationInteractive(collapsedWidth: number) {
   return collapsedWidth >= TIMELINE_MINIMAP_NAVIGATION_REACH;
 }
 
-function computeElapsedMs(startIso: string, endIso: string): number | null {
+function computeElapsedMs(startIso: string, endIso: string) {
   const start = Date.parse(startIso);
   const end = Date.parse(endIso);
   if (!Number.isFinite(start) || !Number.isFinite(end)) return null;
   return Math.max(0, end - start);
 }
 
-function maxIsoTimestamp(a: string | null, b: string | null): string | null {
+function maxIsoTimestamp(a: string | null, b: string | null) {
   if (a === null) return b;
   if (b === null) return a;
   const aMs = Date.parse(a);
@@ -689,11 +690,11 @@ export interface StableMessagesTimelineRowsState {
   result: MessagesTimelineRow[];
 }
 
-function workGroupId(timelineEntryId: string): string {
+function workGroupId(timelineEntryId: string) {
   return `work-group:${timelineEntryId}`;
 }
 
-export function workGroupDetailsRowId(groupId: string): string {
+export function workGroupDetailsRowId(groupId: string) {
   return `${groupId}:details`;
 }
 
@@ -701,11 +702,13 @@ function viewedImagesRows(
   groupId: string,
   createdAt: string,
   groupedEntries: ReadonlyArray<WorkLogEntry>,
-): Array<Extract<MessagesTimelineRow, { kind: "viewed-images" }>> {
+) {
   const paths = workEntriesViewedImagePaths(groupedEntries);
-  return paths.length === 0
-    ? []
-    : [{ kind: "viewed-images", id: `${groupId}:viewed-images`, createdAt, paths }];
+  return (
+    paths.length === 0
+      ? []
+      : [{ kind: "viewed-images", id: `${groupId}:viewed-images`, createdAt, paths }]
+  ) satisfies Array<Extract<MessagesTimelineRow, { kind: "viewed-images" }>>;
 }
 
 export function resolveAssistantMessageCopyState({
@@ -769,9 +772,7 @@ interface SupersededAttemptFold {
   readonly hiddenEntryIds: ReadonlySet<string>;
 }
 
-function retainedAssistantReplyEntryIds(
-  timelineEntries: ReadonlyArray<TimelineEntry>,
-): ReadonlySet<string> {
+function retainedAssistantReplyEntryIds(timelineEntries: ReadonlyArray<TimelineEntry>) {
   const replyEntryIds = new Set<string>();
   const lastOutputByAttemptId = new Map<RunAttemptId, TimelineEntry>();
   for (const entry of timelineEntries) {
@@ -829,7 +830,7 @@ function deriveSupersededAttemptFolds(
   unfoldedRunIds: ReadonlySet<RunId>,
   liveSubagentEntryIds: ReadonlySet<string>,
   retainedReplyEntryIds: ReadonlySet<string>,
-): ReadonlyMap<string, SupersededAttemptFold> {
+) {
   const retainedAttemptIds = new Set(
     timelineEntries.flatMap((entry) =>
       entry.attempt !== undefined && retainedReplyEntryIds.has(entry.id) ? [entry.attempt.id] : [],
@@ -881,7 +882,7 @@ function deriveSupersededAttemptFolds(
 function deriveUnsettledRunId(
   latestRun: TimelineLatestRun | null,
   runningRunId: RunId | null = null,
-): RunId | null {
+) {
   if (runningRunId !== null) return runningRunId;
   if (!latestRun) {
     return null;
@@ -894,7 +895,7 @@ function deriveUnsettledRunId(
   return isSettled ? null : latestRun.runId;
 }
 
-function liveSubagentCardEntryIds(entries: ReadonlyArray<TimelineEntry>): ReadonlySet<string> {
+function liveSubagentCardEntryIds(entries: ReadonlyArray<TimelineEntry>) {
   const visible = new Set<string>();
   let batch: Array<Extract<TimelineEntry, { kind: "event" }>> = [];
   const flush = () => {
@@ -923,7 +924,7 @@ function liveSubagentCardEntryIds(entries: ReadonlyArray<TimelineEntry>): Readon
   return visible;
 }
 
-function timelineEntryFoldRunId(entry: TimelineEntry, runlessKey: RunId | null): RunId | null {
+function timelineEntryFoldRunId(entry: TimelineEntry, runlessKey: RunId | null) {
   if (entry.kind === "work" && entry.entry.itemType === "system_notice") return null;
   if (entry.kind === "message" && entry.message.role === "assistant") {
     return entry.message.runId ?? runlessKey;
@@ -940,7 +941,7 @@ function timelineEntryFoldRunId(entry: TimelineEntry, runlessKey: RunId | null):
   return null;
 }
 
-function timelineEntryIsSteer(entry: TimelineEntry): boolean {
+function timelineEntryIsSteer(entry: TimelineEntry) {
   return (
     entry.kind === "message" &&
     entry.message.role === "user" &&
@@ -949,28 +950,28 @@ function timelineEntryIsSteer(entry: TimelineEntry): boolean {
   );
 }
 
-export function timelineEntryStartsResponse(entry: TimelineEntry): boolean {
+export function timelineEntryStartsResponse(entry: TimelineEntry) {
   return (
     (entry.kind === "message" && entry.message.role === "user" && !timelineEntryIsSteer(entry)) ||
     (entry.kind === "work" && entry.entry.itemType === "notification")
   );
 }
 
-function timelineEntryEnd(entry: TimelineEntry): string {
+function timelineEntryEnd(entry: TimelineEntry) {
   return entry.kind === "message" ? entry.message.updatedAt : entry.createdAt;
 }
 
-function timelineEntryIsCompaction(entry: TimelineEntry): boolean {
+function timelineEntryIsCompaction(entry: TimelineEntry) {
   return entry.kind === "work" && entry.entry.sourceActivityKind === "context-compaction";
 }
 
-function responseBoundaryRunId(entry: TimelineEntry): RunId | null {
+function responseBoundaryRunId(entry: TimelineEntry) {
   if (entry.kind === "message") return entry.message.runId ?? null;
   if (entry.kind === "work") return entry.entry.runId ?? null;
   return null;
 }
 
-function lastResponseBoundaryIndex(timelineEntries: ReadonlyArray<TimelineEntry>): number {
+function lastResponseBoundaryIndex(timelineEntries: ReadonlyArray<TimelineEntry>) {
   return timelineEntries.findLastIndex(timelineEntryStartsResponse);
 }
 
@@ -978,7 +979,7 @@ function deriveActiveVisualResponseRunIds(input: {
   timelineEntries: ReadonlyArray<TimelineEntry>;
   unsettledRunId: RunId | null;
   isWorking: boolean;
-}): ReadonlySet<RunId> {
+}) {
   const runIds = new Set<RunId>();
   if (input.unsettledRunId === null) {
     return runIds;
@@ -1053,7 +1054,7 @@ function deriveTurnFolds(input: {
   runlessWorkActive: boolean;
   liveSubagentEntryIds: ReadonlySet<string>;
   retainedAssistantReplyEntryIds: ReadonlySet<string>;
-}): ReadonlyMap<string, TurnFold> {
+}) {
   const interruptedRunIds = new Set<RunId>();
   const promptIndexByRunId = new Map<RunId, number>();
   for (const [index, entry] of input.timelineEntries.entries()) {
@@ -1254,9 +1255,7 @@ function deriveTurnFolds(input: {
   return foldsByAnchorEntryId;
 }
 
-function attachTrailingToolGroupsToAssistant(
-  rows: ReadonlyArray<MessagesTimelineRow>,
-): MessagesTimelineRow[] {
+function attachTrailingToolGroupsToAssistant(rows: ReadonlyArray<MessagesTimelineRow>) {
   const messageRowsWithoutMeta = new Set<string>();
   const metaRowsAfterIndex = new Map<
     number,
@@ -1397,7 +1396,7 @@ function settleSupersededReasoning(entries: ReadonlyArray<TimelineEntry>) {
   });
 }
 
-function runningSubagentsAtRunTail(entries: ReadonlyArray<TimelineEntry>, runId: RunId): number {
+function runningSubagentsAtRunTail(entries: ReadonlyArray<TimelineEntry>, runId: RunId) {
   let running = 0;
   for (let index = entries.length - 1; index >= 0; index -= 1) {
     const entry = entries[index]!;
@@ -1458,7 +1457,7 @@ export function deriveMessagesTimelineRows(input: {
   availableRevertTurnCounts?: ReadonlySet<number> | undefined;
   worktreeSetup?: WorktreeSetupSnapshot | null;
   awaitingApproval?: boolean;
-}): MessagesTimelineRow[] {
+}) {
   const timelineEntries = timelineRowEntries(input.timelineEntries);
   const embeddedResultRunIds = new Set<RunId>();
   for (const entry of timelineEntries) {
@@ -2194,7 +2193,7 @@ function timelineRowIsOwnUserMessage(
   );
 }
 
-function timelineRowIsWorkLog(row: MessagesTimelineRow | undefined): boolean {
+function timelineRowIsWorkLog(row: MessagesTimelineRow | undefined) {
   return (
     row !== undefined &&
     (row.kind === "work" ||
@@ -2208,7 +2207,7 @@ function attachCreatedThreadSummaries(
   rows: MessagesTimelineRow[],
   timelineEntries: ReadonlyArray<TimelineEntry>,
   collapsedFoldMemberIds: ReadonlySet<string>,
-): MessagesTimelineRow[] {
+) {
   const terminalIndexes = new Map<RunId, number>();
   const createdByRun = new Map<RunId, Array<Extract<MessagesTimelineRow, { kind: "event" }>>>();
   for (const [index, row] of rows.entries()) {
@@ -2230,7 +2229,7 @@ function attachCreatedThreadSummaries(
       createdByRun.set(runId, entries);
     }
   }
-  return rows.flatMap((row, index): MessagesTimelineRow[] => {
+  return rows.flatMap((row, index) => {
     if (row.kind === "event" && row.projectedItem.item.type === "thread_created") {
       const runId = row.projectedItem.item.runId;
       const terminalIndex = runId === null ? undefined : terminalIndexes.get(runId);
@@ -2264,7 +2263,7 @@ export interface WorktreeSetupRowPlacement {
 export function nextWorktreeSetupRowPlacement(
   previous: WorktreeSetupRowPlacement | null,
   rows: ReadonlyArray<MessagesTimelineRow>,
-): WorktreeSetupRowPlacement | null {
+) {
   const index = rows.findIndex((row) => row.kind === "worktree-setup");
   const row = rows[index];
   if (row?.kind === "worktree-setup") return { row, anchorId: rows[index - 1]?.id ?? null };
@@ -2280,7 +2279,7 @@ export function resolveWorktreeSetupLabel(
   rows: ReadonlyArray<MessagesTimelineRow>,
   preparing: boolean,
   backgroundSetup: boolean,
-): "shown" | "exiting" | null {
+) {
   if (preparing) return "shown";
   const row = rows.find((candidate) => candidate.kind === "worktree-setup");
   if (row?.kind !== "worktree-setup" || row.embedded) return null;
@@ -2292,7 +2291,7 @@ export function resolveWorktreeSetupLabel(
 export function withExitingWorktreeSetupRow(
   rows: MessagesTimelineRow[],
   placement: WorktreeSetupRowPlacement | null,
-): MessagesTimelineRow[] {
+) {
   if (!placement?.row.exiting) return rows;
   const index =
     placement.anchorId === null ? 0 : rows.findIndex((row) => row.id === placement.anchorId) + 1;
@@ -2316,7 +2315,7 @@ export function timelineTurnFoldRunIdsByEntryId(
     MessagesTimelineRowsInput,
     "timelineEntries" | "latestRun" | "isWorking" | "runlessWorkActive" | "runningRunId"
   >,
-): ReadonlyMap<string, RunId> {
+) {
   const byEntryId = new Map<string, RunId>();
   for (const fold of deriveTimelineTurnFolds(input).values()) {
     for (const entryId of fold.hiddenEntryIds) byEntryId.set(entryId, fold.runId);
@@ -2327,7 +2326,7 @@ export function timelineTurnFoldRunIdsByEntryId(
 function sameCheckpointSummaries(
   previous: MessagesTimelineRowsInput["turnDiffSummaries"],
   next: MessagesTimelineRowsInput["turnDiffSummaries"],
-): boolean {
+) {
   if (previous === next) return true;
   if (previous.length !== next.length) return false;
   for (const [index, summary] of previous.entries()) {
@@ -2339,7 +2338,7 @@ function sameCheckpointSummaries(
 function replaceStreamingMessageRows(
   input: MessagesTimelineRowsInput,
   previous: MessagesTimelineRowsProjection,
-): MessagesTimelineRow[] | null {
+) {
   const {
     timelineEntries: previousEntries,
     latestRun: previousRun,
@@ -2440,7 +2439,7 @@ function replaceStreamingMessageRows(
     return patched;
   };
   const patchedLiveThoughtIds = new Set<string>();
-  const rows = previous.rows.map((row): MessagesTimelineRow => {
+  const rows = previous.rows.map((row) => {
     if (row.kind === "proposed-plan") {
       const proposedPlan = plans.get(row.id);
       return proposedPlan ? { ...row, proposedPlan } : row;
@@ -2476,7 +2475,7 @@ function replaceStreamingMessageRows(
   return rows;
 }
 
-function isStreamingThoughtUpdate(previous: WorkLogEntry, next: WorkLogEntry): boolean {
+function isStreamingThoughtUpdate(previous: WorkLogEntry, next: WorkLogEntry) {
   if (
     previous.itemType !== "reasoning" ||
     previous.projectedItem === undefined ||
@@ -2504,7 +2503,7 @@ function isStreamingThoughtUpdate(previous: WorkLogEntry, next: WorkLogEntry): b
 export function deriveMessagesTimelineRowsWithState(
   input: MessagesTimelineRowsInput,
   previous: MessagesTimelineRowsProjection | null = null,
-): MessagesTimelineRowsProjection {
+) {
   return {
     input,
     rows:
@@ -2516,7 +2515,7 @@ export function deriveMessagesTimelineRowsWithState(
 export function computeStableMessagesTimelineRows(
   rows: MessagesTimelineRow[],
   previous: StableMessagesTimelineRowsState,
-): StableMessagesTimelineRowsState {
+) {
   const next = new Map<string, MessagesTimelineRow>();
   let anyChanged = rows.length !== previous.byId.size;
 
@@ -2533,7 +2532,7 @@ export function computeStableMessagesTimelineRows(
   return anyChanged ? { byId: next, result } : previous;
 }
 
-function isRowUnchanged(a: MessagesTimelineRow, b: MessagesTimelineRow): boolean {
+function isRowUnchanged(a: MessagesTimelineRow, b: MessagesTimelineRow) {
   if (a.kind !== b.kind || a.id !== b.id || a.continuesWorkLog !== b.continuesWorkLog) return false;
 
   switch (a.kind) {
@@ -2684,7 +2683,7 @@ function isRowUnchanged(a: MessagesTimelineRow, b: MessagesTimelineRow): boolean
   }
 }
 
-export function handoffRunsSignature(runs: ReadonlyArray<HandoffTimelineRun>): string {
+export function handoffRunsSignature(runs: ReadonlyArray<HandoffTimelineRun>) {
   return runs
     .map(
       (run) =>
@@ -2693,10 +2692,7 @@ export function handoffRunsSignature(runs: ReadonlyArray<HandoffTimelineRun>): s
     .join("\n");
 }
 
-export function sameRowsInput(
-  left: MessagesTimelineRowsInput,
-  right: MessagesTimelineRowsInput,
-): boolean {
+export function sameRowsInput(left: MessagesTimelineRowsInput, right: MessagesTimelineRowsInput) {
   for (const key of Object.keys(right) as Array<keyof MessagesTimelineRowsInput>) {
     const previous = left[key];
     const next = right[key];

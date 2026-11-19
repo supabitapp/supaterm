@@ -12,15 +12,16 @@ import * as ProjectEnrichment from "./ProjectEnrichmentService.ts";
 import * as ProjectFaviconResolver from "./ProjectFaviconResolver.ts";
 import * as RepositoryIdentityResolver from "./RepositoryIdentityResolver.ts";
 
-const identity = (workspaceRoot: string, version = 1): RepositoryIdentity => ({
-  canonicalKey: `example.test/v${version}${workspaceRoot}`,
-  locator: {
-    source: "git-remote",
-    remoteName: "origin",
-    remoteUrl: `https://example.test/v${version}${workspaceRoot}.git`,
-  },
-  rootPath: workspaceRoot,
-});
+const identity = (workspaceRoot: string, version = 1) =>
+  ({
+    canonicalKey: `example.test/v${version}${workspaceRoot}`,
+    locator: {
+      source: "git-remote",
+      remoteName: "origin",
+      remoteUrl: `https://example.test/v${version}${workspaceRoot}.git`,
+    },
+    rootPath: workspaceRoot,
+  }) satisfies RepositoryIdentity;
 
 const waitForAvailable = Effect.fn("ProjectEnrichmentServiceTest.waitForAvailable")(function* (
   service: ProjectEnrichment.ProjectEnrichmentService["Service"],

@@ -24,7 +24,7 @@ export class PullRequestDiffCredentialRejectedError extends Schema.TaggedError<P
     cause: EnvironmentAuthInvalidError,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return "This environment session is no longer valid (invalid_credential). Refresh the page or quit and reopen Supaterm.";
   }
 }

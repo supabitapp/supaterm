@@ -65,11 +65,7 @@ export interface SshChildEnvironmentOptions {
 
 const SSH_ASKPASS_DIR_NAME = "supaterm-ssh-askpass";
 
-function joinSshAskpassPath(
-  directory: string,
-  fileName: string,
-  platform: NodeJS.Platform,
-): string {
+function joinSshAskpassPath(directory: string, fileName: string, platform: NodeJS.Platform) {
   const trimmed = directory.replace(/[\\/]+$/u, "");
   return platform === "win32" ? `${trimmed}\\${fileName}` : `${trimmed}/${fileName}`;
 }
@@ -103,9 +99,7 @@ exit 1\r
 `;
 
 const buildSshAskpassHelperDescriptor = Effect.fn("ssh/auth.buildSshAskpassHelperDescriptor")(
-  function* (input: {
-    readonly directory: string;
-  }): Effect.fn.Return<SshAskpassHelperDescriptor, never, Path.Path> {
+  function* (input: { readonly directory: string }) {
     const platform = yield* HostProcess.Platform;
     const path = yield* Path.Path;
     const directory = input.directory;
@@ -140,29 +134,30 @@ const buildSshAskpassHelperDescriptor = Effect.fn("ssh/auth.buildSshAskpassHelpe
   },
 );
 
-const ensureSshAskpassHelpers = Effect.fn("ssh/auth.ensureSshAskpassHelpers")(function* (input: {
+const ensureSshAskpassHelpers: (input: {
   readonly directory: string;
-}): Effect.fn.Return<string, PlatformError.PlatformError, FileSystem.FileSystem | Path.Path> {
-  const fs = yield* FileSystem.FileSystem;
-  const path = yield* Path.Path;
-  const descriptor = yield* buildSshAskpassHelperDescriptor(input);
-  const platform = yield* HostProcess.Platform;
+}) => Effect.Effect<string, PlatformError.PlatformError, FileSystem.FileSystem | Path.Path> =
+  Effect.fn("ssh/auth.ensureSshAskpassHelpers")(function* (input: { readonly directory: string }) {
+    const fs = yield* FileSystem.FileSystem;
+    const path = yield* Path.Path;
+    const descriptor = yield* buildSshAskpassHelperDescriptor(input);
+    const platform = yield* HostProcess.Platform;
 
-  yield* fs.makeDirectory(path.dirname(descriptor.launcherPath), { recursive: true });
+    yield* fs.makeDirectory(path.dirname(descriptor.launcherPath), { recursive: true });
 
-  for (const file of descriptor.files) {
-    const existing = yield* fs.exists(file.path);
-    const current = existing ? yield* fs.readFileString(file.path) : null;
-    if (current !== file.contents) {
-      yield* fs.writeFileString(file.path, file.contents);
+    for (const file of descriptor.files) {
+      const existing = yield* fs.exists(file.path);
+      const current = existing ? yield* fs.readFileString(file.path) : null;
+      if (current !== file.contents) {
+        yield* fs.writeFileString(file.path, file.contents);
+      }
+      if (file.mode !== undefined && platform !== "win32") {
+        yield* fs.chmod(file.path, file.mode);
+      }
     }
-    if (file.mode !== undefined && platform !== "win32") {
-      yield* fs.chmod(file.path, file.mode);
-    }
-  }
 
-  return descriptor.launcherPath;
-});
+    return descriptor.launcherPath;
+  });
 
 let defaultSshAskpassRuntimeDirectory: string | undefined;
 const defaultSshAskpassLock = Semaphore.makeUnsafe(1);
@@ -202,11 +197,7 @@ const ensureDefaultSshAskpassHelpers = Effect.fn("ssh/auth.ensureDefaultSshAskpa
 
 export const buildSshChildEnvironment = Effect.fn("ssh/auth.buildSshChildEnvironment")(function* (
   input: SshChildEnvironmentOptions = {},
-): Effect.fn.Return<
-  NodeJS.ProcessEnv,
-  PlatformError.PlatformError,
-  FileSystem.FileSystem | Path.Path
-> {
+) {
   const baseEnv = { ...input.baseEnv };
   if (!input.interactiveAuth) {
     return baseEnv;
@@ -234,21 +225,21 @@ export const buildSshChildEnvironment = Effect.fn("ssh/auth.buildSshChildEnviron
   };
 });
 
-export function isSshAuthFailure(error: unknown): boolean {
+export function isSshAuthFailure(error: unknown): boolean;
+export function isSshAuthFailure(error: unknown) {
   const message = error instanceof Error ? error.message : String(error);
   const normalized = message.toLowerCase();
-  return (
-    /permission denied \((?:publickey|password|keyboard-interactive|hostbased|gssapi-with-mic)[^)]*\)/u.test(
-      normalized,
-    ) ||
+  return (/permission denied \((?:publickey|password|keyboard-interactive|hostbased|gssapi-with-mic)[^)]*\)/u.test(
+    normalized,
+  ) ||
     /authentication failed/u.test(normalized) ||
-    /too many authentication failures/u.test(normalized)
-  );
+    /too many authentication failures/u.test(normalized)) satisfies boolean;
 }
 
-export function isSshAgentSigningFailure(error: unknown): boolean {
+export function isSshAgentSigningFailure(error: unknown): boolean;
+export function isSshAgentSigningFailure(error: unknown) {
   const message = error instanceof Error ? error.message : String(error);
   return /sign_and_send_pubkey: signing failed(?: for [^\n]* from agent:|: (?:agent refused operation|communication with agent failed))/u.test(
     message,
-  );
+  ) satisfies boolean;
 }

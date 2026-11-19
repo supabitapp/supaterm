@@ -1,5 +1,4 @@
 import type {
-  AuthBrowserSessionResult,
   AuthClientMetadata,
   AuthEnvironmentScope,
   ServerAuthSessionMethod,
@@ -49,7 +48,7 @@ export class PrimaryEnvironmentRequestError extends Schema.TaggedError<PrimaryEn
     readonly cause: unknown;
     readonly pairingLinkId?: string;
     readonly sessionId?: string;
-  }): PrimaryEnvironmentRequestError {
+  }) {
     const status = readHttpApiStatus(input.cause) ?? 500;
     return new PrimaryEnvironmentRequestError({
       operation: input.operation,
@@ -60,7 +59,7 @@ export class PrimaryEnvironmentRequestError extends Schema.TaggedError<PrimaryEn
     });
   }
 
-  override get message(): string {
+  override get message() {
     return `Primary environment request failed during ${this.operation} (HTTP ${this.status}).`;
   }
 }
@@ -74,7 +73,7 @@ export class PrimaryEnvironmentPairingCredentialRejectedError extends Schema.Tag
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return "Invalid pairing token. Check the token and try again.";
   }
 }
@@ -86,7 +85,7 @@ export class PrimaryEnvironmentAuthSessionTimeoutError extends Schema.TaggedErro
     elapsedMs: Schema.Number,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return "Timed out waiting for authenticated session after bootstrap.";
   }
 }
@@ -97,7 +96,7 @@ export class PrimaryEnvironmentPairingCredentialRequiredError extends Schema.Tag
     providedLength: Schema.Number,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return "Enter a pairing token to continue.";
   }
 }
@@ -140,8 +139,9 @@ let explicitPairingRequested = false;
 const AUTH_SESSION_ESTABLISH_TIMEOUT_MS = 2_000;
 const AUTH_SESSION_ESTABLISH_STEP_MS = 100;
 
-export function peekPairingTokenFromUrl(): string | null {
-  return getPairingTokenFromUrl(new URL(window.location.href));
+export function peekPairingTokenFromUrl(): string | null;
+export function peekPairingTokenFromUrl() {
+  return getPairingTokenFromUrl(new URL(window.location.href)) satisfies string | null;
 }
 
 export function stripPairingTokenFromUrl() {
@@ -153,16 +153,17 @@ export function stripPairingTokenFromUrl() {
   window.history.replaceState(window.history.state, document.title, next.toString());
 }
 
-export function takePairingTokenFromUrl(): string | null {
+export function takePairingTokenFromUrl(): string | null;
+export function takePairingTokenFromUrl() {
   const token = peekPairingTokenFromUrl();
   if (!token) {
-    return null;
+    return null satisfies string | null;
   }
   stripPairingTokenFromUrl();
-  return token;
+  return token satisfies string | null;
 }
 
-function getDesktopBootstrapCredential(): string | null {
+function getDesktopBootstrapCredential() {
   const bootstraps = window.desktopBridge?.getLocalEnvironmentBootstraps() ?? [];
   const primary = bootstraps.find((entry) => entry.id === PRIMARY_LOCAL_ENVIRONMENT_ID);
   return typeof primary?.bootstrapToken === "string" && primary.bootstrapToken.length > 0
@@ -170,7 +171,7 @@ function getDesktopBootstrapCredential(): string | null {
     : null;
 }
 
-export async function fetchSessionState(): Promise<AuthSessionState> {
+export async function fetchSessionState() {
   return retryTransientBootstrap(async () => {
     try {
       return await runPrimaryHttp(
@@ -187,7 +188,7 @@ export async function fetchSessionState(): Promise<AuthSessionState> {
   });
 }
 
-function readHttpApiStatus(error: unknown): number | null {
+function readHttpApiStatus(error: unknown) {
   if (isEnvironmentHttpCommonError(error)) {
     return readEnvironmentHttpErrorStatus(error);
   }
@@ -196,7 +197,7 @@ function readHttpApiStatus(error: unknown): number | null {
     : null;
 }
 
-function readEnvironmentHttpErrorStatus(error: EnvironmentHttpCommonErrorType): number {
+function readEnvironmentHttpErrorStatus(error: EnvironmentHttpCommonErrorType) {
   switch (error._tag) {
     case "EnvironmentRequestInvalidError":
       return 400;
@@ -212,7 +213,7 @@ function readEnvironmentHttpErrorStatus(error: EnvironmentHttpCommonErrorType): 
   }
 }
 
-async function exchangeBootstrapCredential(credential: string): Promise<AuthBrowserSessionResult> {
+async function exchangeBootstrapCredential(credential: string) {
   return retryTransientBootstrap(async () => {
     try {
       return await runPrimaryHttp(
@@ -243,7 +244,7 @@ async function exchangeBootstrapCredential(credential: string): Promise<AuthBrow
   });
 }
 
-async function waitForAuthenticatedSessionAfterBootstrap(): Promise<AuthSessionState> {
+async function waitForAuthenticatedSessionAfterBootstrap() {
   const startedAt = Date.now();
 
   while (true) {
@@ -268,7 +269,7 @@ const TRANSIENT_BOOTSTRAP_STATUS_CODES = new Set([502, 503, 504]);
 const BOOTSTRAP_RETRY_TIMEOUT_MS = 15_000;
 const BOOTSTRAP_RETRY_STEP_MS = 500;
 
-async function retryTransientBootstrap<T>(operation: () => Promise<T>): Promise<T> {
+async function retryTransientBootstrap<T>(operation: () => Promise<T>) {
   const startedAt = Date.now();
   while (true) {
     try {
@@ -287,13 +288,13 @@ async function retryTransientBootstrap<T>(operation: () => Promise<T>): Promise<
   }
 }
 
-function waitForBootstrapRetry(delayMs: number): Promise<void> {
+function waitForBootstrapRetry(delayMs: number) {
   return new Promise((resolve) => {
     setTimeout(resolve, delayMs);
-  });
+  }) satisfies Promise<void>;
 }
 
-function isTransientBootstrapError(error: unknown): boolean {
+function isTransientBootstrapError(error: unknown) {
   if (isPrimaryEnvironmentRequestError(error)) {
     return TRANSIENT_BOOTSTRAP_STATUS_CODES.has(error.status) || isTransportError(error.cause);
   }
@@ -305,11 +306,11 @@ function isTransientBootstrapError(error: unknown): boolean {
   return error instanceof DOMException && error.name === "AbortError";
 }
 
-function isTransportError(error: unknown): boolean {
+function isTransportError(error: unknown) {
   return HttpClientError.isHttpClientError(error) && error.reason._tag === "TransportError";
 }
 
-async function verifyPairingEnvironment(pairingUrl?: string): Promise<void> {
+async function verifyPairingEnvironment(pairingUrl?: string) {
   const expected =
     pairingUrl === undefined ? undefined : readPairingEnvironmentId(new URL(pairingUrl));
   if (expected === undefined) return;
@@ -327,13 +328,14 @@ async function verifyPairingEnvironment(pairingUrl?: string): Promise<void> {
   }
 }
 
-async function bootstrapServerAuth(
+function bootstrapServerAuth(
   urlCredential: string | null,
   pairingUrl?: string,
-): Promise<ServerAuthGateState> {
+): Promise<ServerAuthGateState>;
+async function bootstrapServerAuth(urlCredential: string | null, pairingUrl?: string) {
   const currentSession = await fetchSessionState();
   if (currentSession.authenticated && !urlCredential) {
-    return { status: "authenticated" };
+    return { status: "authenticated" } satisfies ServerAuthGateState;
   }
 
   const bootstrapCredential = urlCredential ?? getDesktopBootstrapCredential();
@@ -341,27 +343,24 @@ async function bootstrapServerAuth(
     return {
       status: "requires-auth",
       auth: currentSession.auth,
-    };
+    } satisfies ServerAuthGateState;
   }
 
   try {
     await verifyPairingEnvironment(pairingUrl);
     await exchangeBootstrapCredential(bootstrapCredential);
     await waitForAuthenticatedSessionAfterBootstrap();
-    return { status: "authenticated" };
+    return { status: "authenticated" } satisfies ServerAuthGateState;
   } catch (error) {
     return {
       status: "requires-auth",
       auth: currentSession.auth,
       errorMessage: error instanceof Error ? error.message : "Authentication failed.",
-    };
+    } satisfies ServerAuthGateState;
   }
 }
 
-export async function submitServerAuthCredential(
-  credential: string,
-  pairingUrl?: string,
-): Promise<void> {
+export async function submitServerAuthCredential(credential: string, pairingUrl?: string) {
   const trimmedCredential = credential.trim();
   if (!trimmedCredential) {
     throw new PrimaryEnvironmentPairingCredentialRequiredError({
@@ -379,7 +378,8 @@ export async function submitServerAuthCredential(
   stripPairingTokenFromUrl();
 }
 
-export async function resolveInitialServerAuthGateState(): Promise<ServerAuthGateState> {
+export function resolveInitialServerAuthGateState(): Promise<ServerAuthGateState>;
+export async function resolveInitialServerAuthGateState() {
   const pairingUrl = peekPairingTokenFromUrl() ? window.location.href : undefined;
   if (window.location.pathname.replace(/\/+$/, "") !== "/pair") {
     explicitPairingRequested = false;
@@ -388,7 +388,7 @@ export async function resolveInitialServerAuthGateState(): Promise<ServerAuthGat
   }
   if (explicitPairingRequested) {
     const currentSession = await fetchSessionState();
-    return { status: "requires-auth", auth: currentSession.auth };
+    return { status: "requires-auth", auth: currentSession.auth } satisfies ServerAuthGateState;
   }
 
   const urlCredential = takePairingTokenFromUrl();
@@ -397,11 +397,11 @@ export async function resolveInitialServerAuthGateState(): Promise<ServerAuthGat
     resolvedAuthenticatedGateState = null;
   } else {
     if (previousPromise) {
-      return previousPromise;
+      return previousPromise satisfies ServerAuthGateState;
     }
 
     if (resolvedAuthenticatedGateState?.status === "authenticated") {
-      return resolvedAuthenticatedGateState;
+      return resolvedAuthenticatedGateState satisfies ServerAuthGateState;
     }
   }
 
@@ -425,7 +425,7 @@ export async function resolveInitialServerAuthGateState(): Promise<ServerAuthGat
       if (bootstrapPromise === nextPromise) {
         bootstrapPromise = null;
       }
-    });
+    }) satisfies ServerAuthGateState;
 }
 
 export function __resetServerAuthBootstrapForTests() {

@@ -11,15 +11,14 @@ import {
   sideChatStartBlockedReason,
 } from "./sideChats.ts";
 
-const thread = (
-  overrides: Partial<Extract<SideChatParent, { kind: "thread" }>> = {},
-): SideChatParent => ({
-  kind: "thread",
-  lineage: { relationshipToParent: null },
-  deletedAt: null,
-  worktreePending: false,
-  ...overrides,
-});
+const thread = (overrides: Partial<Extract<SideChatParent, { kind: "thread" }>> = {}) =>
+  ({
+    kind: "thread",
+    lineage: { relationshipToParent: null },
+    deletedAt: null,
+    worktreePending: false,
+    ...overrides,
+  }) satisfies SideChatParent;
 
 describe("sideChatStartBlockedReason", () => {
   it.each([

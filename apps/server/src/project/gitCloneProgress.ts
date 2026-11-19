@@ -20,7 +20,7 @@ const PERCENT = /:\s+(\d+)%\s+\((\d+)\/(\d+)\)(.*)$/s;
 const DONE_SUFFIX = ", done.";
 
 /** Pass each bare-CR progress redraw as a separate line. */
-export function parseGitCloneProgressLine(line: string): GitCloneProgressLine | null {
+export function parseGitCloneProgressLine(line: string) {
   const trimmed = line.trim();
   const stageEntry = STAGE_PREFIXES.find(([pattern]) => pattern.test(trimmed));
   if (!stageEntry) return null;

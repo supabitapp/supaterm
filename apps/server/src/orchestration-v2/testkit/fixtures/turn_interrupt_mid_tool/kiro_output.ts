@@ -12,7 +12,7 @@ import {
 } from "../shared.ts";
 import { kiroFailedAfterCancel } from "../kiro_subagent_interrupt/output.ts";
 
-function kiroRunningBeforeCancel(transcript: ProviderReplayTranscript): Set<string> {
+function kiroRunningBeforeCancel(transcript: ProviderReplayTranscript) {
   const cancelIndex = transcript.entries.findIndex(
     (entry) => entry.type === "expect_outbound" && entry.label === "notification:session/cancel",
   );

@@ -120,6 +120,6 @@ const PROJECT_ICON_COLOR_CLASSES = Object.fromEntries(
   PROJECT_ICON_COLORS.map(({ value, className }) => [value, className]),
 ) as Record<ProjectIconColor, string>;
 
-export function projectIconColorClassName(color: ProjectIconColor): string {
+export function projectIconColorClassName(color: ProjectIconColor) {
   return PROJECT_ICON_COLOR_CLASSES[color];
 }

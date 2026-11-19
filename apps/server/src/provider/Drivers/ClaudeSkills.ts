@@ -36,7 +36,7 @@ type SkillFrontmatter =
       readonly userInvocable?: boolean;
     };
 
-function parseFrontmatterBoolean(value: unknown): boolean | undefined {
+function parseFrontmatterBoolean(value: unknown) {
   if (typeof value === "boolean") return value;
   if (typeof value === "number") {
     return value === 1 ? true : value === 0 ? false : undefined;
@@ -58,10 +58,10 @@ function parseFrontmatterBoolean(value: unknown): boolean | undefined {
   }
 }
 
-function parseSkillFrontmatter(contents: string): SkillFrontmatter {
+function parseSkillFrontmatter(contents: string) {
   const match = FRONTMATTER_PATTERN.exec(contents);
   if (!match) {
-    return { kind: "missing" };
+    return { kind: "missing" } satisfies SkillFrontmatter;
   }
 
   const frontmatter = match[1] ?? "";
@@ -82,11 +82,11 @@ function parseSkillFrontmatter(contents: string): SkillFrontmatter {
     try {
       parsed = parseYamlDocument(repaired);
     } catch {
-      return { kind: "malformed" };
+      return { kind: "malformed" } satisfies SkillFrontmatter;
     }
   }
   if (typeof parsed !== "object" || parsed === null) {
-    return { kind: "malformed" };
+    return { kind: "malformed" } satisfies SkillFrontmatter;
   }
 
   const record = parsed as Record<string, unknown>;
@@ -102,7 +102,7 @@ function parseSkillFrontmatter(contents: string): SkillFrontmatter {
     ...(parseFrontmatterBoolean(record["user-invocable"]) === false
       ? { userInvocable: false }
       : {}),
-  };
+  } satisfies SkillFrontmatter;
 }
 
 function windowsEnvironmentValue(environment: NodeJS.ProcessEnv, name: string) {
@@ -116,7 +116,7 @@ function claudeManagedDirectory(
   path: Path.Path,
   platform: NodeJS.Platform,
   environment: NodeJS.ProcessEnv,
-): string | undefined {
+) {
   if (platform === "darwin") {
     return "/Library/Application Support/ClaudeCode";
   }
@@ -131,7 +131,7 @@ function claudeManagedSettingsPaths(
   path: Path.Path,
   platform: NodeJS.Platform,
   environment: NodeJS.ProcessEnv,
-): ReadonlyArray<string> {
+) {
   const managedDirectory = claudeManagedDirectory(path, platform, environment);
   const programData =
     platform === "win32" ? windowsEnvironmentValue(environment, "ProgramData") : undefined;
@@ -148,7 +148,7 @@ function claudeSettingsPaths(
   platform: NodeJS.Platform,
   environment: NodeJS.ProcessEnv,
   repositoryRoot?: string,
-): ReadonlyArray<string> {
+) {
   const root = repositoryRoot !== undefined && repositoryRoot !== cwd ? repositoryRoot : undefined;
   return [
     path.join(configDirPath, "settings.json"),
@@ -163,9 +163,7 @@ function claudeSettingsPaths(
   ];
 }
 
-const findRepositoryRoot = Effect.fnUntraced(function* (
-  cwd: string,
-): Effect.fn.Return<string | undefined, never, FileSystem.FileSystem | Path.Path> {
+const findRepositoryRoot = Effect.fnUntraced(function* (cwd: string) {
   const fileSystem = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   let current = path.resolve(cwd);
@@ -236,7 +234,7 @@ type SkillOverride = {
   readonly userInvocationOnly: boolean;
 };
 
-function parseSkillOverride(value: typeof SkillOverrideValue.Type): SkillOverride {
+function parseSkillOverride(value: typeof SkillOverrideValue.Type) {
   switch (value) {
     case "off":
       return { enabled: false, userInvocationOnly: false };
@@ -345,18 +343,18 @@ const decodeSyncedPlugin = Schema.decodeUnknownOption(
 );
 const ACCOUNT_UUID_PATTERN = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
 
-function pluginNameKey(name: string): string {
+function pluginNameKey(name: string) {
   return name.normalize("NFC").toLowerCase();
 }
 
-function syncedPluginDirectoryName(name: string): string {
+function syncedPluginDirectoryName(name: string) {
   const replaced = name.replace(/[<>:"|?*\\/]/g, "_");
   let end = replaced.length;
   while (end > 0 && (replaced[end - 1] === "." || replaced[end - 1] === " ")) end--;
   return replaced.slice(0, end);
 }
 
-function isInsideDirectory(path: Path.Path, directory: string, candidate: string): boolean {
+function isInsideDirectory(path: Path.Path, directory: string, candidate: string) {
   const relative = path.relative(directory, candidate);
   return relative !== ".." && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative);
 }
@@ -455,9 +453,7 @@ const expandInlinePluginDirectory = Effect.fn("expandInlinePluginDirectory")(fun
   for (const component of [path.join(".claude-plugin", "plugin.json"), "skills", "SKILL.md"]) {
     if (yield* exists(path.join(directory, component))) return [directory];
   }
-  const children = yield* fileSystem
-    .readDirectory(directory)
-    .pipe(Effect.orElseSucceed((): ReadonlyArray<string> => []));
+  const children = yield* fileSystem.readDirectory(directory).pipe(Effect.orElseSucceed(() => []));
   return yield* Effect.filter(
     [...children].sort().map((child) => path.join(directory, child)),
     (child) => exists(path.join(child, ".claude-plugin", "plugin.json")),
@@ -612,7 +608,7 @@ export const readClaudeSettingsEnv = Effect.fn("readClaudeSettingsEnv")(function
   config: Pick<ClaudeSettings, "homePath">,
   cwd: string | undefined,
   environment: NodeJS.ProcessEnv,
-): Effect.fn.Return<typeof SettingsEnv.Type, never, FileSystem.FileSystem | Path.Path> {
+) {
   const fileSystem = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const platform = yield* HostProcess.Platform;
@@ -636,7 +632,7 @@ export const readClaudeSettingsEnv = Effect.fn("readClaudeSettingsEnv")(function
 });
 
 /** The host of an `ANTHROPIC_BASE_URL` that is not Anthropic's own API. */
-export function customClaudeApiEndpointHost(baseUrl: string | undefined): string | undefined {
+export function customClaudeApiEndpointHost(baseUrl: string | undefined) {
   const endpoint = URL.parse(baseUrl?.trim() ?? "");
   return endpoint !== null &&
     (endpoint.protocol === "http:" || endpoint.protocol === "https:") &&
@@ -646,7 +642,7 @@ export function customClaudeApiEndpointHost(baseUrl: string | undefined): string
     : undefined;
 }
 
-export function claudeLaunchArgDirectories(launchArgs?: string): ReadonlyArray<string> {
+export function claudeLaunchArgDirectories(launchArgs?: string) {
   const directories: string[] = [];
   let collecting = false;
   for (const token of tokenizeCliArgs(launchArgs)) {
@@ -670,7 +666,7 @@ export const discoverClaudeSkills = Effect.fn("discoverClaudeSkills")(function* 
   config: Pick<ClaudeSettings, "homePath"> & Partial<Pick<ClaudeSettings, "launchArgs">>,
   cwd?: string,
   environment?: NodeJS.ProcessEnv,
-): Effect.fn.Return<ReadonlyArray<ServerProviderSkill>, never, FileSystem.FileSystem | Path.Path> {
+) {
   const fileSystem = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const env = environment ?? process.env;
@@ -727,9 +723,7 @@ export const discoverClaudeSkills = Effect.fn("discoverClaudeSkills")(function* 
         .pipe(Effect.orElseSucceed(() => false)));
     const entries = singleSkill
       ? [path.basename(root.directory)]
-      : yield* fileSystem
-          .readDirectory(root.directory)
-          .pipe(Effect.orElseSucceed((): ReadonlyArray<string> => []));
+      : yield* fileSystem.readDirectory(root.directory).pipe(Effect.orElseSucceed(() => []));
 
     for (const entry of [...entries].sort()) {
       const skillPath = singleSkill

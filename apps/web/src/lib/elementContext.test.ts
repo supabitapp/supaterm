@@ -3,7 +3,7 @@ import { describe, expect, it } from "vite-plus/test";
 
 import { normalizeElementContextSelection } from "./elementContext";
 
-function makePayload(overrides?: Partial<PickedElementPayload>): PickedElementPayload {
+function makePayload(overrides?: Partial<PickedElementPayload>) {
   return {
     pageUrl: "https://example.com/dashboard",
     pageTitle: "Dashboard",

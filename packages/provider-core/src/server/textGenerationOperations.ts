@@ -54,9 +54,8 @@ export type Runner = <S extends Schema.Top>(
   request: Request<S>,
 ) => Effect.Effect<S["Type"], TextGenerationError, S["DecodingServices"]>;
 
-export const withoutInvestigation =
-  (provider: string, run: Runner): Runner =>
-  (request) =>
+export const withoutInvestigation: (provider: string, run: Runner) => Runner =
+  (provider: string, run: Runner) => (request) =>
     request.investigate
       ? Effect.fail(investigationUnsupported(request.operation, provider))
       : run(request);
@@ -95,7 +94,7 @@ export function fromRunner(
   name: string,
   run: Runner,
   options: { readonly supportsReviewGuides?: boolean } = {},
-): ProviderTextGeneration {
+) {
   const generateCommitMessage: ProviderTextGeneration["generateCommitMessage"] = Effect.fn(
     `${name}.generateCommitMessage`,
   )(function* (input) {

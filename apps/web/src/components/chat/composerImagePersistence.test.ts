@@ -6,7 +6,7 @@ import { serializeComposerImages } from "./composerImagePersistence";
 
 vi.mock("../../lib/imageCompression", () => ({ readFileAsDataUrl: vi.fn() }));
 
-function image(id: string): ComposerImageAttachment {
+function image(id: string) {
   const file = new File([id], `${id}.png`, { type: "image/png" });
   return {
     type: "image",
@@ -16,7 +16,7 @@ function image(id: string): ComposerImageAttachment {
     sizeBytes: file.size,
     previewUrl: `blob:${id}`,
     file,
-  };
+  } satisfies ComposerImageAttachment;
 }
 
 describe("serializeComposerImages", () => {

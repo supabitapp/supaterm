@@ -17,10 +17,7 @@ const CLI_ARCHIVE_PLATFORM_KEYS = [
 ] as const;
 export type CliArchivePlatformKey = (typeof CLI_ARCHIVE_PLATFORM_KEYS)[number];
 
-export function cliArchivePlatformKey(
-  platform: NodeJS.Platform,
-  arch: string,
-): CliArchivePlatformKey | undefined {
+export function cliArchivePlatformKey(platform: NodeJS.Platform, arch: string) {
   const key = `${platform}-${arch}`;
   return CLI_ARCHIVE_PLATFORM_KEYS.find((candidate) => candidate === key);
 }
@@ -29,13 +26,13 @@ export function cliArchivePlatformKey(
 export function cliArchiveTarCommand(
   platform: NodeJS.Platform,
   env: Readonly<Record<string, string | undefined>>,
-): string {
+) {
   if (platform !== "win32") return "tar";
   const systemRoot = env["SystemRoot"] ?? env["windir"] ?? "C:\\Windows";
   return `${systemRoot}\\System32\\tar.exe`;
 }
 
-export function cliArchiveFileName(version: string, platformKey: CliArchivePlatformKey): string {
+export function cliArchiveFileName(version: string, platformKey: CliArchivePlatformKey) {
   return `supaterm-${version}-${platformKey}.${platformKey.startsWith("win32") ? "zip" : "tar.gz"}`;
 }
 
@@ -44,11 +41,11 @@ const CLI_RELEASE_DEFAULT_BASE_URL = `https://github.com/${CLI_RELEASE_REPOSITOR
 export function cliReleaseDownloadBaseUrl(
   version: string,
   baseUrl: string | undefined = CLI_RELEASE_DEFAULT_BASE_URL,
-): string {
+) {
   return `${(baseUrl?.trim() || CLI_RELEASE_DEFAULT_BASE_URL).replace(/\/+$/, "")}/v${version}`;
 }
 
-export function parseChecksums(text: string): ReadonlyMap<string, string> {
+export function parseChecksums(text: string) {
   const checksums = new Map<string, string>();
   for (const line of text.split(/\r?\n/)) {
     const match = /^([0-9a-fA-F]{64})\s+\*?(\S.*)$/.exec(line.trim());
@@ -66,21 +63,21 @@ export const CLI_RELEASE_CHANNELS: ReadonlyArray<CliReleaseChannel> = [
   "preview",
 ];
 
-export function cliReleaseChannelOf(version: string): CliReleaseChannel {
+export function cliReleaseChannelOf(version: string) {
   const channel = /^[^-+]+-(nightly|preview)\.\d{8}\.\d+$/.exec(version)?.[1];
   return channel === "nightly" || channel === "preview" ? channel : "stable";
 }
 
 /** Whether updating between these versions crosses Stable and Nightly. Preview builds cross nothing.
  * Hosts refuse a crossing outside a track switch, which checks the database first. */
-export function crossesReleaseTrack(fromVersion: string, toVersion: string): boolean {
+export function crossesReleaseTrack(fromVersion: string, toVersion: string) {
   const from = cliReleaseChannelOf(fromVersion);
   const to = cliReleaseChannelOf(toVersion);
   return from !== to && from !== "preview" && to !== "preview";
 }
 
 /** The desktop update track a build belongs to. Preview builds have no feed and read as Stable. */
-export function desktopUpdateChannelOf(version: string): "latest" | "nightly" {
+export function desktopUpdateChannelOf(version: string) {
   return cliReleaseChannelOf(version) === "nightly" ? "nightly" : "latest";
 }
 
@@ -90,7 +87,7 @@ export function acceptsTrackSwitchRelease(
   found: string,
   channel: "latest" | "nightly",
   checked: string,
-): boolean {
+) {
   return (
     cliReleaseChannelOf(found) === (channel === "nightly" ? "nightly" : "stable") &&
     compareSemverVersions(found, checked) >= 0
@@ -98,7 +95,7 @@ export function acceptsTrackSwitchRelease(
 }
 
 /** Page until the channel matches; nightlies can push preview/stable releases past the first page. */
-export function cliReleaseIndexPageUrl(page: number): string {
+export function cliReleaseIndexPageUrl(page: number) {
   return `https://api.github.com/repos/${CLI_RELEASE_REPOSITORY}/releases?per_page=100&page=${page}`;
 }
 
@@ -109,7 +106,7 @@ export function newestCliReleaseVersion(
     readonly draft?: boolean | undefined;
   }>,
   channel: CliReleaseChannel,
-): string | undefined {
+) {
   for (const release of releases) {
     if (release.draft) continue;
     const version = /^v(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)$/.exec(release.tag_name)?.[1];
@@ -125,7 +122,7 @@ const NpmReleaseMigrationManifest = Schema.Struct({
 const decodeNpmReleaseMigrationManifest = Schema.decodeUnknownOption(NpmReleaseMigrationManifest);
 
 /** Highest database migration a release's server knows, from its npm `supaterm` manifest. */
-export function npmReleaseDatabaseMigration(manifest: unknown): number | undefined {
+export function npmReleaseDatabaseMigration(manifest: unknown) {
   return Option.getOrUndefined(decodeNpmReleaseMigrationManifest(manifest))?.supaterm
     .databaseMigration;
 }

@@ -28,13 +28,13 @@ function isReplayFrameWithType(
   );
 }
 
-function frameType(frame: unknown): string | undefined {
+function frameType(frame: unknown) {
   return typeof frame === "object" && frame !== null && "type" in frame
     ? (frame as { readonly type?: string }).type
     : undefined;
 }
 
-function assistantHasToolUse(frame: unknown): boolean {
+function assistantHasToolUse(frame: unknown) {
   if (frameType(frame) !== "assistant") {
     return false;
   }

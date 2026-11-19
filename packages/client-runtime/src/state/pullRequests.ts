@@ -28,7 +28,6 @@ import {
   type PullRequestState,
   PullRequestOperationError,
   PullRequestSummary,
-  type VcsStatusResult,
 } from "@supaterm/contracts";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
@@ -198,13 +197,13 @@ const noPendingEdits = Atom.make<ReadonlyArray<PullRequestPendingEdit>>([]);
 export function pullRequestPendingEditsFor(
   environmentId: EnvironmentId | null,
   reference: PullRequestRef | null,
-): Atom.Atom<ReadonlyArray<PullRequestPendingEdit>> {
+) {
   return environmentId === null || reference === null
     ? noPendingEdits
     : pendingEditsByPullRequest(JSON.stringify([environmentId, pullRequestReference(reference)]));
 }
 
-export function pullRequestHostAnswer<A>(reader: Atom.Atom<A>): Atom.Atom<A> {
+export function pullRequestHostAnswer<A>(reader: Atom.Atom<A>) {
   return (uneditedReaders.get(reader) ?? reader) as Atom.Atom<A>;
 }
 
@@ -218,7 +217,7 @@ function withEdit<T extends object>(
   value: T,
   edit: PullRequestPendingEdit,
   fields: ReadonlyArray<EditedField>,
-): T {
+) {
   const held = value as Record<string, unknown>;
   const changed = fields.filter(
     (field) => edit[field] !== undefined && held[field] !== edit[field],
@@ -237,7 +236,7 @@ function withEdit<T extends object>(
 function withLabelEdit<T extends { readonly labels: ReadonlyArray<PullRequestLabel> }>(
   value: T,
   edit: PullRequestPendingEdit,
-): T {
+) {
   if (edit.labels === undefined) return value;
   const { applied, labels: changed } = edit.labels;
   const names = new Set(changed.map((label) => label.name));
@@ -253,7 +252,7 @@ function withLabelEdit<T extends { readonly labels: ReadonlyArray<PullRequestLab
 function withLabelCandidateEdit(
   value: PullRequestLabelCandidateList,
   edit: PullRequestPendingEdit,
-): PullRequestLabelCandidateList {
+) {
   if (edit.labels === undefined) return value;
   const { applied, labels } = edit.labels;
   let changed = false;
@@ -276,7 +275,7 @@ function editedQuery<A, E>(
     ) => A;
   },
   idleTtlMs = 5 * 60_000,
-): Atom.Writable<AsyncResult.AsyncResult<A, E>> {
+) {
   const existing = editedReaders.get(inner);
   if (existing !== undefined) return existing as Atom.Writable<AsyncResult.AsyncResult<A, E>>;
   const shown = Atom.writable(
@@ -302,7 +301,7 @@ function editedQuery<A, E>(
 function showWhileInFlight<Target extends { readonly environmentId: EnvironmentId }, A, E, C>(
   command: C & AtomCommand<Target, A, E>,
   editOf: (registry: AtomRegistry.AtomRegistry, target: Target) => PullRequestPendingEdit | null,
-): C {
+) {
   return {
     ...command,
     run: async (registry, target) => {
@@ -344,7 +343,7 @@ function settleEdit(
   }
 }
 
-function pullRequestReference(input: PullRequestRef): PullRequestRef {
+function pullRequestReference(input: PullRequestRef) {
   const { projectId, host, repository, number, expectedAccountId } = input;
   return {
     projectId,
@@ -355,28 +354,28 @@ function pullRequestReference(input: PullRequestRef): PullRequestRef {
   };
 }
 
-function actionEdit(input: PullRequestActionInput): PullRequestPendingEdit | null {
-  if (input.stackNumber !== undefined) return null;
+function actionEdit(input: PullRequestActionInput) {
+  if (input.stackNumber !== undefined) return null satisfies PullRequestPendingEdit | null;
   const reference = pullRequestReference(input);
   switch (input.action) {
     case "close":
-      return { reference, state: "closed" };
+      return { reference, state: "closed" } satisfies PullRequestPendingEdit | null;
     case "reopen":
-      return { reference, state: "open" };
+      return { reference, state: "open" } satisfies PullRequestPendingEdit | null;
     case "ready":
-      return { reference, isDraft: false };
+      return { reference, isDraft: false } satisfies PullRequestPendingEdit | null;
     case "draft":
-      return { reference, isDraft: true };
+      return { reference, isDraft: true } satisfies PullRequestPendingEdit | null;
     case "enable-auto-merge":
-      return { reference, autoMergeEnabled: true };
+      return { reference, autoMergeEnabled: true } satisfies PullRequestPendingEdit | null;
     case "disable-auto-merge":
-      return { reference, autoMergeEnabled: false };
+      return { reference, autoMergeEnabled: false } satisfies PullRequestPendingEdit | null;
     default:
-      return null;
+      return null satisfies PullRequestPendingEdit | null;
   }
 }
 
-function updateEdit(input: PullRequestUpdateInput): PullRequestPendingEdit | null {
+function updateEdit(input: PullRequestUpdateInput) {
   if (input.title === undefined && input.body === undefined) return null;
   return {
     reference: pullRequestReference(input),
@@ -399,7 +398,7 @@ export function applyPullRequestSummaryEdits(
   reference: PullRequestRef | null,
   summary: PullRequestSummary | null,
   edits: ReadonlyArray<PullRequestPendingEdit>,
-): PullRequestSummary | null {
+) {
   if (reference === null || summary === null) return summary;
   return edits.reduce(
     (current, edit) =>
@@ -410,10 +409,7 @@ export function applyPullRequestSummaryEdits(
   );
 }
 
-function pickDefined<T extends object, K extends keyof T>(
-  source: T,
-  keys: ReadonlyArray<K>,
-): { [P in K]?: Exclude<T[P], undefined> } {
+function pickDefined<T extends object, K extends keyof T>(source: T, keys: ReadonlyArray<K>) {
   const picked: { [P in K]?: T[P] } = {};
   for (const key of keys) if (source[key] !== undefined) picked[key] = source[key];
   return picked as { [P in K]?: Exclude<T[P], undefined> };
@@ -454,10 +450,10 @@ export function patchPullRequestListEntries<Entry extends PullRequestListEntry>(
   reference: PullRequestRef,
   reply: PullRequestSummary,
   pending: ReadonlyArray<PullRequestPendingEdit> = [],
-): ReadonlyArray<Entry> | "refresh" {
+) {
   let found = false;
   let changed = false;
-  const patched = entries.flatMap((entry): Entry[] => {
+  const patched = entries.flatMap((entry) => {
     if (!samePullRequest(entry, reference)) return [entry];
     found = true;
     if (isStalePullRequestReply(entry, reply)) return [entry];
@@ -493,9 +489,9 @@ function editPullRequestListEntries<Entry extends PullRequestListEntry>(
   entries: ReadonlyArray<Entry>,
   edits: ReadonlyArray<PullRequestPendingEdit>,
   pending = edits,
-): ReadonlyArray<Entry> {
+) {
   let changed = false;
-  const edited = entries.flatMap((entry): Entry[] => {
+  const edited = entries.flatMap((entry) => {
     const next = edits.reduce(
       (current, edit) =>
         samePullRequest(entry, edit.reference)
@@ -515,7 +511,7 @@ export function editHeldPullRequestListEntries<Entry extends PullRequestListEntr
   entries: ReadonlyArray<Entry>,
   editsOf: (entry: Entry) => ReadonlyArray<PullRequestPendingEdit>,
   pending?: ReadonlyArray<PullRequestPendingEdit>,
-): ReadonlyArray<Entry> {
+) {
   let changed = false;
   const shown = entries.flatMap((entry) => {
     const edits = editsOf(entry);
@@ -546,7 +542,7 @@ function patchListWithReply(
   reference: PullRequestRef,
   reply: PullRequestSummary,
   pending: ReadonlyArray<PullRequestPendingEdit>,
-): PullRequestListResult | "refresh" {
+) {
   const entries = patchPullRequestListEntries(input, value.entries, reference, reply, pending);
   if (entries === "refresh") return entries;
   return entries === value.entries ? value : { ...value, entries };
@@ -677,7 +673,7 @@ const refreshFamiliesByRuntime = new WeakMap<
 
 function createPullRequestRefreshAtomFamily<R, E>(
   runtime: Atom.AtomRuntime<EnvironmentRegistry | R, E>,
-): ReturnType<typeof makePullRequestRefreshAtomFamily<R, E>> {
+) {
   const existing = refreshFamiliesByRuntime.get(runtime);
   if (existing) return existing as ReturnType<typeof makePullRequestRefreshAtomFamily<R, E>>;
   const refreshes = makePullRequestRefreshAtomFamily(runtime);
@@ -776,9 +772,7 @@ export function createPullRequestStackAtomFamily<R, E>(
   return Object.assign(stack, { answered });
 }
 
-export function pullRequestDetailToVcsStatus(
-  detail: PullRequestDetail | PullRequestSummary,
-): NonNullable<VcsStatusResult["pr"]> {
+export function pullRequestDetailToVcsStatus(detail: PullRequestDetail | PullRequestSummary) {
   return {
     number: detail.number,
     title: detail.title,
@@ -805,7 +799,7 @@ export function createPullRequestEnvironmentAtoms<R, E>(
     tag: WS_METHODS.pullRequestsSubscribeLinkedThreadRefreshes,
   });
   const linkedThreadsRefreshes = Atom.family((environmentId: EnvironmentId) =>
-    Atom.make((get): unknown => {
+    Atom.make((get) => {
       const signal = get(refreshes({ environmentId, input: {} }));
       const config = get(sessions.initialConfigValueAtom(environmentId));
       if (config?.environment.capabilities.linkedThreadRefreshes === true) {
@@ -999,7 +993,7 @@ export function createPullRequestEnvironmentAtoms<R, E>(
         readonly applied: boolean;
       };
     },
-  ): PullRequestPendingEdit => {
+  ) => {
     const candidates = Option.getOrUndefined(
       loadedValue<PullRequestLabelCandidateList>(registry, labelCandidates(target)),
     )?.candidates;
@@ -1102,7 +1096,7 @@ export function createPullRequestEnvironmentAtoms<R, E>(
       const patch = typeof atom === "string" ? undefined : actionReplyPatches.get(atom);
       return patch === undefined ? [] : [patch];
     });
-  const readsInFlight = (registry: AtomRegistry.AtomRegistry): ReadonlySet<object> =>
+  const readsInFlight = (registry: AtomRegistry.AtomRegistry) =>
     new Set(actionReplyReaders(registry).flatMap((reader) => reader.pendingRead(registry) ?? []));
   const applyActionReply = Effect.fn("PullRequests.applyActionReply")(function* (
     registry: AtomRegistry.AtomRegistry,

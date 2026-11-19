@@ -30,7 +30,7 @@ function makeThread(input: {
   readonly now: DateTime.Utc;
   readonly worktreePath: string | null;
   readonly runtimeMode?: RuntimeMode;
-}): OrchestrationV2AppThread {
+}) {
   const threadId = ThreadId.make("thread:runtime-policy");
   return {
     createdBy: "user",
@@ -58,7 +58,7 @@ function makeThread(input: {
     doneAt: null,
     lastVisitedAt: null,
     deletedAt: null,
-  };
+  } satisfies OrchestrationV2AppThread;
 }
 
 const grokInstanceId = ProviderInstanceId.make("grok");

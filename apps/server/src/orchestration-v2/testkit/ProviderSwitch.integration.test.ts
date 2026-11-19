@@ -130,7 +130,48 @@ function makeTestAdapter(input: {
   readonly backgroundWork?: Ref.Ref<boolean>;
   readonly closedSessions?: Ref.Ref<ReadonlyArray<string>>;
   readonly rollback?: "truncates" | "replaces_native_thread";
-}): ProviderAdapter.ProviderAdapterV2["Service"] {
+}): ProviderAdapter.ProviderAdapterV2["Service"];
+function makeTestAdapter(input: {
+  readonly instanceId: ProviderInstanceId;
+  readonly driver: ProviderDriverKind;
+  readonly capabilities: OrchestrationV2ProviderCapabilities;
+  readonly modelSelection: ModelSelection;
+  readonly responseByRunOrdinal: Readonly<Record<number, string>>;
+  readonly responseByThreadId?: Readonly<Record<string, Readonly<Record<number, string>>>>;
+  readonly capturedTurns: Ref.Ref<ReadonlyArray<CapturedTurn>>;
+  readonly injectedHistory?: Ref.Ref<ReadonlyArray<unknown>>;
+  readonly failStartOnce?: Ref.Ref<boolean>;
+
+  readonly refuseStarts?: Ref.Ref<number>;
+  readonly refusalCause?: unknown;
+  readonly failInjectionOnce?: Ref.Ref<boolean>;
+  readonly nativeThreadGeneration?: Ref.Ref<number>;
+  readonly failResume?: boolean;
+  readonly failResumeOnce?: Ref.Ref<boolean>;
+  readonly initialContextUsage?: OrchestrationV2ProviderThread["contextUsage"];
+  readonly getModelContextWindow?: (selection: ModelSelection) => number | undefined;
+  readonly canReuseContextUsage?: ProviderAdapter.ProviderAdapterV2SessionRuntime["canReuseContextUsage"];
+  readonly tokenUsageByRunOrdinal?: Readonly<
+    Record<number, Omit<OrchestrationV2ProviderTurnTokenUsage, "updatedAt">>
+  >;
+  readonly failure?: ReturnType<typeof makeProviderFailure>;
+  readonly failedRunOrdinals?: ReadonlySet<number>;
+  readonly interruptedRunOrdinals?: ReadonlySet<number>;
+  readonly cancelledRunOrdinals?: ReadonlySet<number>;
+  readonly holdRunOrdinal?: number;
+  readonly pendingBackgroundWork?: Ref.Ref<boolean>;
+  readonly subagentOnlyBackgroundWork?: boolean;
+  readonly holdFirstTurn?: Deferred.Deferred<void>;
+  readonly releaseFirstTurn?: Deferred.Deferred<void>;
+  readonly heldRunningToolCall?: {
+    readonly id: TurnItemId;
+    readonly toolName: string;
+  };
+  readonly backgroundTasksEndWithProcess?: true;
+  readonly backgroundWork?: Ref.Ref<boolean>;
+  readonly closedSessions?: Ref.Ref<ReadonlyArray<string>>;
+  readonly rollback?: "truncates" | "replaces_native_thread";
+}) {
   return {
     instanceId: input.instanceId,
     driver: input.driver,
@@ -469,7 +510,7 @@ function makeTestAdapter(input: {
         };
         return runtime;
       }),
-  };
+  } satisfies ProviderAdapter.ProviderAdapterV2["Service"];
 }
 
 const waitForIdle = Effect.fn("ProviderSwitchTest.waitForIdle")(function* (

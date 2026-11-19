@@ -13,7 +13,7 @@ type BrowserControllersByTabId = Readonly<
 export function agentControlledBrowserCloseConfirmation(
   surfaces: readonly RightPanelSurface[],
   desktopByTabId: BrowserControllersByTabId,
-): string | null {
+) {
   const activeBrowserCount = surfaces.filter(
     (surface) =>
       surface.kind === "preview" &&

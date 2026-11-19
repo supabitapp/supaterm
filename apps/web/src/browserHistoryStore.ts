@@ -7,7 +7,6 @@ import {
   type EnvironmentId,
   INCOGNITO_BROWSER_PROFILE_ID,
   type PreviewSessionSnapshot,
-  type ScopedProjectRef,
   type ScopedThreadRef,
 } from "@supaterm/contracts";
 import { create } from "zustand";
@@ -64,7 +63,7 @@ export function isValidHistoryTimestamp(value: unknown): value is number {
   );
 }
 
-export function normalizeHistoryUrl(raw: string): string | null {
+export function normalizeHistoryUrl(raw: string) {
   let parsed: URL;
   try {
     parsed = new URL(normalizePreviewUrl(raw));
@@ -75,14 +74,14 @@ export function normalizeHistoryUrl(raw: string): string | null {
   return parsed.href.length > BROWSER_HISTORY_MAX_URL_LENGTH ? null : parsed.href;
 }
 
-function titleLookupKey(normalized: string, environmentHostname?: string | null): string {
+function titleLookupKey(normalized: string, environmentHostname?: string | null) {
   const parsed = new URL(visitLookupKey(normalized, environmentHostname));
   if (parsed.pathname !== "/" && parsed.pathname.endsWith("/"))
     parsed.pathname = parsed.pathname.slice(0, -1);
   return parsed.href;
 }
 
-function visitLookupKey(normalized: string, environmentHostname?: string | null): string {
+function visitLookupKey(normalized: string, environmentHostname?: string | null) {
   const parsed = new URL(normalized);
   const host = normalizeHostname(parsed.hostname);
   const environmentHost = environmentHostname && normalizeHostname(environmentHostname);
@@ -91,7 +90,7 @@ function visitLookupKey(normalized: string, environmentHostname?: string | null)
   return parsed.href;
 }
 
-function isStableLocalUrl(normalized: string): boolean {
+function isStableLocalUrl(normalized: string) {
   const host = normalizeHostname(new URL(normalized).hostname);
   return isLocalLoopbackHost(host) || host === "0.0.0.0";
 }
@@ -101,7 +100,7 @@ export function upsertHistoryEntry(
   url: string,
   at: number,
   options?: { insertOrdered?: boolean; environmentHostname?: string | null },
-): BrowserHistoryEntry[] {
+) {
   const key = visitLookupKey(url, options?.environmentHostname);
   const existing = entries.find(
     (candidate) => visitLookupKey(candidate.url, options?.environmentHostname) === key,
@@ -123,9 +122,7 @@ export function upsertHistoryEntry(
   return next.slice(0, BROWSER_HISTORY_MAX_ENTRIES_PER_PROJECT);
 }
 
-function evictExcessProjects(
-  byProjectKey: Record<string, BrowserHistoryEntry[]>,
-): Record<string, BrowserHistoryEntry[]> {
+function evictExcessProjects(byProjectKey: Record<string, BrowserHistoryEntry[]>) {
   const keys = Object.keys(byProjectKey);
   if (keys.length <= BROWSER_HISTORY_MAX_PROJECTS) return byProjectKey;
   const kept = keys
@@ -137,9 +134,7 @@ function evictExcessProjects(
   return Object.fromEntries(kept.map((key) => [key, byProjectKey[key] ?? []]));
 }
 
-export function migratePersistedBrowserHistoryState(persistedState: unknown): {
-  byProjectKey: Record<string, BrowserHistoryEntry[]>;
-} {
+export function migratePersistedBrowserHistoryState(persistedState: unknown) {
   if (!persistedState || typeof persistedState !== "object") return { byProjectKey: {} };
   const raw = (persistedState as { byProjectKey?: unknown }).byProjectKey;
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return { byProjectKey: {} };
@@ -209,7 +204,7 @@ function addPendingByThread<T>(
   pendingByThreadKey: Record<string, T[]>,
   threadKey: string,
   item: T,
-): Record<string, T[]> {
+) {
   const existing = pendingByThreadKey[threadKey] ?? [];
   const next = { ...pendingByThreadKey };
   next[threadKey] = [...existing, item].slice(-PENDING_MAX_PER_THREAD);
@@ -319,7 +314,7 @@ export const useBrowserHistoryStore = create<BrowserHistoryStoreState>()(
 export function mergeBrowserHistoryState(
   persistedState: unknown,
   currentState: BrowserHistoryStoreState,
-): BrowserHistoryStoreState {
+) {
   const migrated = migratePersistedBrowserHistoryState(persistedState);
   return {
     ...currentState,
@@ -332,7 +327,7 @@ export function mergeBrowserHistoryState(
 function migratePersistedThreadProjectKeys(
   persistedState: unknown,
   byProjectKey: Record<string, BrowserHistoryEntry[]>,
-): Record<string, string> {
+) {
   if (!persistedState || typeof persistedState !== "object") return {};
   const raw = (persistedState as { projectKeyByThreadKey?: unknown }).projectKeyByThreadKey;
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
@@ -351,7 +346,7 @@ function deriveHistoryProjectKey(
   projects: ReadonlyArray<Project>,
   settings: ProjectGroupingSettings,
   primaryEnvironmentId: EnvironmentId | null,
-): string {
+) {
   return (
     buildPhysicalToLogicalProjectKeyMap({ projects, settings, primaryEnvironmentId }).get(
       derivePhysicalProjectKey(project),
@@ -359,14 +354,14 @@ function deriveHistoryProjectKey(
   );
 }
 
-function readThreadProjectRef(ref: ScopedThreadRef): ScopedProjectRef | null {
+function readThreadProjectRef(ref: ScopedThreadRef) {
   const projectId = readThreadShell(ref)?.projectId;
   if (projectId) return scopeProjectRef(ref.environmentId, projectId);
   const draft = useComposerDraftStore.getState().getDraftSessionByRef(ref);
   return draft ? scopeProjectRef(draft.environmentId, draft.projectId) : null;
 }
 
-function resolveThreadProjectKey(ref: ScopedThreadRef): string | undefined {
+function resolveThreadProjectKey(ref: ScopedThreadRef) {
   const state = useBrowserHistoryStore.getState();
   const registered = state.projectKeyByThreadKey[scopedThreadKey(ref)];
   if (!isClientSettingsHydrated()) {
@@ -389,7 +384,8 @@ function resolveThreadProjectKey(ref: ScopedThreadRef): string | undefined {
   return projectKey;
 }
 
-export function recordVisitForThread(ref: ScopedThreadRef, url: string, at?: number): void {
+export function recordVisitForThread(ref: ScopedThreadRef, url: string, at?: number): void;
+export function recordVisitForThread(ref: ScopedThreadRef, url: string, at?: number) {
   const threadKey = scopedThreadKey(ref);
   const projectKey = resolveThreadProjectKey(ref);
   const state = useBrowserHistoryStore.getState();
@@ -416,7 +412,7 @@ function recordPreviewTitles(
   only:
     | { readonly urls: ReadonlyArray<string> }
     | { readonly changedSince: ThreadPreviewState["sessions"] },
-): void {
+) {
   const state = useBrowserHistoryStore.getState();
   const projectKey = state.projectKeyByThreadKey[scopedThreadKey(ref)];
   if (!projectKey || !state.byProjectKey[projectKey]?.length) return;
@@ -458,7 +454,7 @@ function recordPreviewTitles(
 }
 
 /** Records settled page titles for every thread with previews, for the life of the page. */
-export function startPreviewTitleRecording(): () => void {
+export function startPreviewTitleRecording() {
   const followed = new Map<string, () => void>();
   const followNewThreads = (refs: ReadonlyMap<string, ScopedThreadRef>) => {
     for (const [threadKey, threadRef] of refs) {
@@ -485,7 +481,7 @@ export function startPreviewTitleRecording(): () => void {
   };
 }
 
-export function removeUrlForThread(ref: ScopedThreadRef, url: string): void {
+export function removeUrlForThread(ref: ScopedThreadRef, url: string) {
   const projectKey = resolveThreadProjectKey(ref);
   if (!projectKey) return;
   useBrowserHistoryStore.getState().removeUrl(projectKey, url);
@@ -493,7 +489,7 @@ export function removeUrlForThread(ref: ScopedThreadRef, url: string): void {
 
 const EMPTY_HISTORY: ReadonlyArray<BrowserHistoryEntry> = [];
 
-function useThreadHistoryProjectKey(ref: ScopedThreadRef): string | null {
+function useThreadHistoryProjectKey(ref: ScopedThreadRef) {
   const threadKey = scopedThreadKey(ref);
   const shellProjectId = useQuietThreadShell(ref)?.projectId ?? null;
   const draftProjectKey = useComposerDraftStore((state) => {
@@ -518,10 +514,7 @@ function useThreadHistoryProjectKey(ref: ScopedThreadRef): string | null {
     : registered;
 }
 
-export function useThreadRecentHistory(
-  ref: ScopedThreadRef,
-  limit: number,
-): ReadonlyArray<BrowserHistoryEntry> {
+export function useThreadRecentHistory(ref: ScopedThreadRef, limit: number) {
   const projectKey = useThreadHistoryProjectKey(ref);
   return useBrowserHistoryStore(
     useShallow((state) => {
@@ -531,7 +524,7 @@ export function useThreadRecentHistory(
   );
 }
 
-export function resetBrowserHistoryForTests(): void {
+export function resetBrowserHistoryForTests() {
   useBrowserHistoryStore.setState({
     byProjectKey: {},
     projectKeyByThreadKey: {},

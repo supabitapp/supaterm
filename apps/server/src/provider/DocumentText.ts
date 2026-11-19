@@ -19,7 +19,7 @@ class DocumentTextError extends Schema.TaggedError<DocumentTextError>()("Documen
   extension: Schema.String,
   cause: Schema.Defect(),
 }) {
-  override get message(): string {
+  override get message() {
     return `Failed to ${this.operation} ${this.extension} document text.`;
   }
 }

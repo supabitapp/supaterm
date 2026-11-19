@@ -102,9 +102,7 @@ function isIncomingResponse(value: unknown): value is typeof JsonRpcResponseEnve
 const encodeJsonString = Schema.encodeUnknownEffect(Schema.fromJsonString(Schema.Unknown));
 const decodeJsonString = Schema.decodeUnknownEffect(Schema.fromJsonString(Schema.Unknown));
 
-const encodeWireMessage = (
-  message: Record<string, unknown>,
-): Effect.Effect<string, CodexError.CodexAppServerProtocolParseError> =>
+const encodeWireMessage = (message: Record<string, unknown>) =>
   encodeJsonString(message).pipe(
     Effect.map((encoded) => `${encoded}\n`),
     Effect.mapError((cause) => {
@@ -124,9 +122,7 @@ const encodeWireMessage = (
     }),
   );
 
-const decodeWireMessage = (
-  line: string,
-): Effect.Effect<unknown, CodexError.CodexAppServerProtocolParseError> =>
+const decodeWireMessage = (line: string) =>
   decodeJsonString(line).pipe(
     Effect.mapError((cause) =>
       CodexError.CodexAppServerProtocolParseError.fromSchemaError("decode-wire-message", cause),
@@ -136,7 +132,7 @@ const decodeWireMessage = (
 const normalizeIncomingError = (
   error: unknown,
   operation: CodexError.CodexAppServerTransportOperation,
-): CodexError.CodexAppServerError =>
+) =>
   isCodexAppServerError(error)
     ? error
     : new CodexError.CodexAppServerTransportError({
@@ -150,16 +146,14 @@ const toProtocolMessage = (
     readonly result?: unknown;
     readonly error?: CodexError.CodexAppServerProtocolErrorShape;
   },
-): { readonly [key: string]: unknown } => ({
+) => ({
   id: requestId,
   ...(fields.result !== undefined ? { result: fields.result } : {}),
   ...(fields.error !== undefined ? { error: fields.error } : {}),
 });
 
 export const makeCodexAppServerPatchedProtocol = Effect.fn("makeCodexAppServerPatchedProtocol")(
-  function* (
-    options: CodexAppServerPatchedProtocolOptions,
-  ): Effect.fn.Return<CodexAppServerPatchedProtocol, never, Scope.Scope> {
+  function* (options: CodexAppServerPatchedProtocolOptions) {
     const protocolScope = yield* Scope.Scope;
     const requestHandlerScope = yield* Scope.fork(protocolScope, "parallel");
     const outgoing = yield* Queue.unbounded<string, Cause.Done<void>>();
@@ -404,7 +398,7 @@ export const makeCodexAppServerPatchedProtocol = Effect.fn("makeCodexAppServerPa
       return yield* CodexError.CodexAppServerProtocolParseError.fromUnroutableMessage(message);
     });
 
-    const handleLine = (line: string): Effect.Effect<void, CodexError.CodexAppServerError> => {
+    const handleLine = (line: string) => {
       if (line.trim().length === 0) {
         return Effect.void;
       }

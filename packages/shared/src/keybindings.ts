@@ -81,11 +81,12 @@ export const US_SHIFTED_TO_UNSHIFTED_KEYS: ReadonlyMap<string, string> = new Map
   ["?", "/"],
 ]);
 
-export function isMacPlatform(platform: string): boolean {
-  return /mac|iphone|ipad|ipod/i.test(platform);
+export function isMacPlatform(platform: string): boolean;
+export function isMacPlatform(platform: string) {
+  return /mac|iphone|ipad|ipod/i.test(platform) satisfies boolean;
 }
 
-export function shortcutConflictKey(shortcut: KeybindingShortcut, platform: string): string {
+export function shortcutConflictKey(shortcut: KeybindingShortcut, platform: string) {
   const useMetaForMod = isMacPlatform(platform);
   const metaKey = shortcut.metaKey || (shortcut.modKey && useMetaForMod);
   const ctrlKey = shortcut.ctrlKey || (shortcut.modKey && !useMetaForMod);
@@ -98,7 +99,7 @@ export function shortcutConflictKey(shortcut: KeybindingShortcut, platform: stri
   ].join("|");
 }
 
-export function normalizeEventKey(key: string): string {
+export function normalizeEventKey(key: string) {
   const normalized = key.toLowerCase();
   if (normalized === "esc") return "escape";
   return normalized;
@@ -106,7 +107,7 @@ export function normalizeEventKey(key: string): string {
 
 export function shortcutKeyFromEvent(
   event: Pick<ShortcutEventLike, "key" | "code" | "shiftKey" | "altKey">,
-): string {
+) {
   const layoutKey = normalizeEventKey(event.key);
   if (/^[a-z]$/.test(layoutKey)) return layoutKey;
   const isZoomPlus = layoutKey === "+" && !event.shiftKey && !event.altKey;
@@ -115,7 +116,7 @@ export function shortcutKeyFromEvent(
   return physicalKey ?? layoutKey;
 }
 
-export function resolveEventKeys(event: ShortcutEventLike): Set<string> {
+export function resolveEventKeys(event: ShortcutEventLike) {
   const layoutKey = normalizeEventKey(event.key);
   const keys = new Set([layoutKey]);
   const letterCode = event.code?.match(/^Key([A-Z])$/)?.[1];
@@ -130,7 +131,7 @@ export function matchesKeybindingShortcutModifiers(
   event: ShortcutModifierStateLike,
   shortcut: KeybindingShortcut,
   platform: string,
-): boolean {
+) {
   const useMetaForMod = isMacPlatform(platform);
   const expectedMeta = shortcut.metaKey || (shortcut.modKey && useMetaForMod);
   const expectedCtrl = shortcut.ctrlKey || (shortcut.modKey && !useMetaForMod);
@@ -146,7 +147,7 @@ export function matchesKeybindingShortcut(
   event: ShortcutEventLike,
   shortcut: KeybindingShortcut,
   platform: string,
-): boolean {
+) {
   if (
     !isMacPlatform(platform) &&
     event.getModifierState?.("AltGraph") &&
@@ -298,13 +299,13 @@ export const DEFAULT_KEYBINDINGS: ReadonlyArray<KeybindingRule> = [
   { key: "mod+shift+4", command: "usage.period.quarter", when: "usagePageOpen" },
 ];
 
-function normalizeKeyToken(token: string): string {
+function normalizeKeyToken(token: string) {
   if (token === "space") return " ";
   if (token === "esc") return "escape";
   return token;
 }
 
-export function parseKeybindingShortcut(value: string): KeybindingShortcut | null {
+export function parseKeybindingShortcut(value: string) {
   const rawTokens = value
     .toLowerCase()
     .split("+")
@@ -368,7 +369,7 @@ export function parseKeybindingShortcut(value: string): KeybindingShortcut | nul
   };
 }
 
-function tokenizeWhenExpression(expression: string): WhenToken[] | null {
+function tokenizeWhenExpression(expression: string) {
   const tokens: WhenToken[] = [];
   let index = 0;
 
@@ -417,12 +418,13 @@ function tokenizeWhenExpression(expression: string): WhenToken[] | null {
   return tokens;
 }
 
-export function parseKeybindingWhenExpression(expression: string): KeybindingWhenNode | null {
+export function parseKeybindingWhenExpression(expression: string): KeybindingWhenNode | null;
+export function parseKeybindingWhenExpression(expression: string) {
   const tokens = tokenizeWhenExpression(expression);
-  if (!tokens || tokens.length === 0) return null;
+  if (!tokens || tokens.length === 0) return null satisfies KeybindingWhenNode | null;
   let index = 0;
 
-  const parsePrimary = (depth: number): KeybindingWhenNode | null => {
+  const parsePrimary: (depth: number) => KeybindingWhenNode | null = (depth: number) => {
     if (depth > MAX_WHEN_EXPRESSION_DEPTH) {
       return null;
     }
@@ -448,7 +450,7 @@ export function parseKeybindingWhenExpression(expression: string): KeybindingWhe
     return null;
   };
 
-  const parseUnary = (depth: number): KeybindingWhenNode | null => {
+  const parseUnary: (depth: number) => KeybindingWhenNode | null = (depth: number) => {
     let notCount = 0;
     while (tokens[index]?.type === "not") {
       index += 1;
@@ -469,7 +471,7 @@ export function parseKeybindingWhenExpression(expression: string): KeybindingWhe
     return node;
   };
 
-  const parseAnd = (depth: number): KeybindingWhenNode | null => {
+  const parseAnd: (depth: number) => KeybindingWhenNode | null = (depth: number) => {
     let left = parseUnary(depth);
     if (!left) return null;
 
@@ -483,7 +485,7 @@ export function parseKeybindingWhenExpression(expression: string): KeybindingWhe
     return left;
   };
 
-  const parseOr = (depth: number): KeybindingWhenNode | null => {
+  const parseOr: (depth: number) => KeybindingWhenNode | null = (depth: number) => {
     let left = parseAnd(depth);
     if (!left) return null;
 
@@ -498,33 +500,35 @@ export function parseKeybindingWhenExpression(expression: string): KeybindingWhe
   };
 
   const ast = parseOr(0);
-  if (!ast || index !== tokens.length) return null;
-  return ast;
+  if (!ast || index !== tokens.length) return null satisfies KeybindingWhenNode | null;
+  return ast satisfies KeybindingWhenNode | null;
 }
 
-export function compileResolvedKeybindingRule(rule: KeybindingRule): ResolvedKeybindingRule | null {
+export function compileResolvedKeybindingRule(rule: KeybindingRule): ResolvedKeybindingRule | null;
+export function compileResolvedKeybindingRule(rule: KeybindingRule) {
   const shortcut = parseKeybindingShortcut(rule.key);
-  if (!shortcut) return null;
+  if (!shortcut) return null satisfies ResolvedKeybindingRule | null;
 
   if (rule.when !== undefined) {
     const whenAst = parseKeybindingWhenExpression(rule.when);
-    if (!whenAst) return null;
+    if (!whenAst) return null satisfies ResolvedKeybindingRule | null;
     return {
       command: rule.command,
       shortcut,
       whenAst,
-    };
+    } satisfies ResolvedKeybindingRule | null;
   }
 
   return {
     command: rule.command,
     shortcut,
-  };
+  } satisfies ResolvedKeybindingRule | null;
 }
 
 export function compileResolvedKeybindingsConfig(
   config: ReadonlyArray<KeybindingRule>,
-): ResolvedKeybindingsConfig {
+): ResolvedKeybindingsConfig;
+export function compileResolvedKeybindingsConfig(config: ReadonlyArray<KeybindingRule>) {
   const compiled: ResolvedKeybindingRule[] = [];
   for (const rule of config) {
     const result = compileResolvedKeybindingRule(rule);
@@ -532,14 +536,12 @@ export function compileResolvedKeybindingsConfig(
       compiled.push(result);
     }
   }
-  return compiled.slice(-MAX_KEYBINDINGS_COUNT);
+  return compiled.slice(-MAX_KEYBINDINGS_COUNT) satisfies ResolvedKeybindingsConfig;
 }
 
 export const DEFAULT_RESOLVED_KEYBINDINGS = compileResolvedKeybindingsConfig(DEFAULT_KEYBINDINGS);
 
-export function mergeWithDefaultKeybindings(
-  custom: ResolvedKeybindingsConfig,
-): ResolvedKeybindingsConfig {
+export function mergeWithDefaultKeybindings(custom: ResolvedKeybindingsConfig) {
   if (custom.length === 0) {
     return [...DEFAULT_RESOLVED_KEYBINDINGS];
   }

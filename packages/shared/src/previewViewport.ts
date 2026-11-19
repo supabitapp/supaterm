@@ -144,10 +144,8 @@ export const PREVIEW_VIEWPORT_PRESETS: ReadonlyArray<PreviewViewportPreset> =
     ...PREVIEW_VIEWPORT_PRESET_DEFINITIONS[id],
   }));
 
-export function resolvePreviewViewport(
-  input: PreviewAutomationResizeInput,
-): PreviewViewportSetting {
-  if (input.mode === "fill") return { _tag: "fill" };
+export function resolvePreviewViewport(input: PreviewAutomationResizeInput) {
+  if (input.mode === "fill") return { _tag: "fill" } satisfies PreviewViewportSetting;
   if (input.mode === "preset" && input.preset !== undefined) {
     const preset = PREVIEW_VIEWPORT_PRESETS.find((candidate) => candidate.id === input.preset);
     if (!preset) throw new Error(`Unknown preview viewport preset: ${input.preset}`);
@@ -160,7 +158,7 @@ export function resolvePreviewViewport(
       width: shouldSwap ? preset.height : preset.width,
       height: shouldSwap ? preset.width : preset.height,
       presetId: preset.id,
-    };
+    } satisfies PreviewViewportSetting;
   }
   if (input.width === undefined || input.height === undefined) {
     throw new Error("Custom preview viewport requires width and height");
@@ -169,5 +167,5 @@ export function resolvePreviewViewport(
     _tag: "freeform",
     width: input.width,
     height: input.height,
-  };
+  } satisfies PreviewViewportSetting;
 }

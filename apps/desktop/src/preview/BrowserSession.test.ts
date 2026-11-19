@@ -120,7 +120,7 @@ const certificateError = (
   return { guest, event, callback, trusted: Deferred.await(decision) };
 };
 
-const trustCertificateButton = (options: Electron.MessageBoxOptions): number => {
+const trustCertificateButton = (options: Electron.MessageBoxOptions) => {
   const index = (options.buttons ?? []).findIndex((label) => label.startsWith("Trust"));
   assert.notStrictEqual(index, -1, "the certificate prompt should offer to trust");
   return index;
@@ -275,7 +275,7 @@ describe("BrowserSession", () => {
       assert.isFunction(requestHandler);
       assert.isFunction(checkHandler);
 
-      const requestAllows = (permission: string): boolean => {
+      const requestAllows = (permission: string) => {
         let granted: boolean | undefined;
         requestHandler(null, permission, (value: boolean) => {
           granted = value;
@@ -367,7 +367,7 @@ describe("BrowserSession", () => {
             { requestingUrl, isMainFrame: true },
           );
         });
-      const checkClipboard = (origin: string): boolean =>
+      const checkClipboard = (origin: string) =>
         checkHandler(null, "clipboard-read", origin, {}) as boolean;
 
       showMessageBox.mockReset();

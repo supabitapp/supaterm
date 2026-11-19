@@ -22,7 +22,6 @@ import * as Layer from "effect/Layer";
 import * as Logger from "effect/Logger";
 import * as Option from "effect/Option";
 import * as Path from "effect/Path";
-import * as PlatformError from "effect/PlatformError";
 import * as References from "effect/References";
 import * as Ref from "effect/Ref";
 import * as Schema from "effect/Schema";
@@ -85,7 +84,8 @@ export interface DesktopComponentLogger {
   readonly logError: (message: string, annotations?: DesktopLogAnnotations) => Effect.Effect<void>;
 }
 
-export function makeComponentLogger(component: string): DesktopComponentLogger {
+export function makeComponentLogger(component: string): DesktopComponentLogger;
+export function makeComponentLogger(component: string) {
   const annotate: DesktopComponentLogger["annotate"] = (effect, annotations) =>
     effect.pipe(
       Effect.annotateLogs({
@@ -100,7 +100,7 @@ export function makeComponentLogger(component: string): DesktopComponentLogger {
     logInfo: (message, annotations) => annotate(Effect.logInfo(message), annotations),
     logWarning: (message, annotations) => annotate(Effect.logWarning(message), annotations),
     logError: (message, annotations) => annotate(Effect.logError(message), annotations),
-  };
+  } satisfies DesktopComponentLogger;
 }
 
 class DesktopLogFileWriterConfigurationError extends Schema.TaggedError<DesktopLogFileWriterConfigurationError>()(
@@ -115,11 +115,7 @@ class DesktopLogFileWriterConfigurationError extends Schema.TaggedError<DesktopL
   }
 }
 
-type DesktopLogFileWriterError =
-  | DesktopLogFileWriterConfigurationError
-  | PlatformError.PlatformError;
-
-const sanitizeLogValue = (value: string): string => value.replace(/\s+/g, " ").trim();
+const sanitizeLogValue = (value: string) => value.replace(/\s+/g, " ").trim();
 
 const DesktopBackendChildLogRecord = Schema.Struct({
   message: Schema.String,
@@ -159,7 +155,7 @@ function appendBoundedOutputChunk(
   session: BackendOutputSession,
   streamName: "stdout" | "stderr",
   chunk: Uint8Array,
-): BackendOutputSession {
+) {
   if (chunk.byteLength === 0) {
     return session;
   }
@@ -215,10 +211,7 @@ const currentDesktopRunId = Effect.gen(function* () {
   return typeof runId === "string" && runId.length > 0 ? runId : "unknown";
 });
 
-const refreshFileSize = (
-  fileSystem: FileSystem.FileSystem,
-  filePath: string,
-): Effect.Effect<number, never> =>
+const refreshFileSize = (fileSystem: FileSystem.FileSystem, filePath: string) =>
   fileSystem.stat(filePath).pipe(
     Effect.map((stat) => Number(stat.size)),
     Effect.orElseSucceed(() => 0),
@@ -228,11 +221,7 @@ export const makeRotatingLogFileWriter = Effect.fn("makeRotatingLogFileWriter")(
   readonly filePath: string;
   readonly maxBytes?: number;
   readonly maxFiles?: number;
-}): Effect.fn.Return<
-  RotatingLogFileWriter,
-  DesktopLogFileWriterError,
-  FileSystem.FileSystem | Path.Path
-> {
+}) {
   const fileSystem = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const maxBytes = input.maxBytes ?? DESKTOP_LOG_FILE_MAX_BYTES;
@@ -295,7 +284,7 @@ export const makeRotatingLogFileWriter = Effect.fn("makeRotatingLogFileWriter")(
     ),
   );
 
-  const writeBytes = (chunk: Uint8Array): Effect.Effect<void> => {
+  const writeBytes = (chunk: Uint8Array) => {
     if (chunk.byteLength === 0) return Effect.void;
 
     return mutex.withPermits(1)(
@@ -392,10 +381,7 @@ const resolveOtlpEndpoints = Effect.gen(function* () {
   };
 });
 
-const writeDevelopmentConsoleOutput = (
-  streamName: "stdout" | "stderr",
-  chunk: Uint8Array,
-): Effect.Effect<void> =>
+const writeDevelopmentConsoleOutput = (streamName: "stdout" | "stderr", chunk: Uint8Array) =>
   Effect.sync(() => {
     const output = streamName === "stderr" ? process.stderr : process.stdout;
     output.write(chunk);
@@ -409,7 +395,7 @@ const writeBackendChildLogRecord = Effect.fn("desktop.observability.writeBackend
       readonly level: "INFO" | "ERROR";
       readonly annotations: Record<string, unknown>;
     },
-  ): Effect.fn.Return<void> {
+  ) {
     return yield* Effect.gen(function* () {
       const timestamp = DateTime.formatIso(yield* DateTime.now);
       const encoded = yield* encodeDesktopBackendChildLogRecord({
@@ -427,12 +413,12 @@ const writeBackendChildLogRecord = Effect.fn("desktop.observability.writeBackend
 
 const PRIMARY_BACKEND_LOG_INSTANCE_ID = PRIMARY_LOCAL_ENVIRONMENT_ID;
 
-const sanitizeInstanceIdForFileName = (id: string): string => id.replace(/[^a-zA-Z0-9._-]+/g, "_");
+const sanitizeInstanceIdForFileName = (id: string) => id.replace(/[^a-zA-Z0-9._-]+/g, "_");
 
 const backendLogFilePathForInstance = (
   environment: DesktopEnvironment.DesktopEnvironment["Service"],
   id: string,
-): string => {
+) => {
   if (id === PRIMARY_BACKEND_LOG_INSTANCE_ID) {
     return environment.path.join(environment.logDir, "server-child.log");
   }
@@ -443,11 +429,7 @@ const backendLogFilePathForInstance = (
 const makeBackendOutputSinkForInstance = (
   environment: DesktopEnvironment.DesktopEnvironment["Service"],
   id: string,
-): Effect.Effect<
-  Option.Option<RotatingLogFileWriter>,
-  never,
-  FileSystem.FileSystem | Path.Path | Scope.Scope
-> =>
+) =>
   makeRotatingLogFileWriter({
     filePath: backendLogFilePathForInstance(environment, id),
   }).pipe(Effect.option);
@@ -456,7 +438,7 @@ const makeBackendOutputLogShape = (
   environment: DesktopEnvironment.DesktopEnvironment["Service"],
   id: string,
   sink: Option.Option<RotatingLogFileWriter>,
-): Effect.Effect<DesktopBackendOutputLogShape> =>
+) =>
   Option.match(sink, {
     onNone: () => Effect.succeed(DesktopBackendOutputLogNoop),
     onSome: Effect.fnUntraced(function* (logFile) {
@@ -556,7 +538,7 @@ const layerBackendOutputLogFactory = Layer.effect(
       ReadonlyMap<string, Option.Option<RotatingLogFileWriter>>
     >(new Map());
 
-    const makeForId = (id: string): Effect.Effect<DesktopBackendOutputLogShape> =>
+    const makeForId = (id: string) =>
       SynchronizedRef.modifyEffect(cacheRef, (cache) => {
         const cacheKey = backendLogFilePathForInstance(environment, id);
         const cached = cache.get(cacheKey);

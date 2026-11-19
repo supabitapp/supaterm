@@ -34,7 +34,7 @@ interface DiffPanelStoreState {
   removeThread: (ref: ScopedThreadRef) => void;
 }
 
-function normalizeBaseRef(baseRef: string | null): string | null {
+function normalizeBaseRef(baseRef: string | null) {
   const normalized = baseRef?.trim();
   return normalized ? normalized : null;
 }
@@ -42,7 +42,7 @@ function normalizeBaseRef(baseRef: string | null): string | null {
 function branchBaseRef(
   state: Pick<DiffPanelStoreState, "byThreadKey" | "branchBaseRefByThreadKey">,
   threadKey: string,
-): string | null {
+) {
   const previous = state.byThreadKey[threadKey];
   return previous?.kind === "branch" || previous?.kind === "commit"
     ? previous.baseRef
@@ -197,7 +197,7 @@ export const useDiffPanelSessionStore = create<DiffPanelSessionStoreState>()((se
 export function selectThreadDiffPanelSelection(
   byThreadKey: Record<string, DiffPanelSelection>,
   ref: ScopedThreadRef | null | undefined,
-): DiffPanelSelection {
+) {
   if (!ref) return DEFAULT_SELECTION;
   return byThreadKey[scopedThreadKey(ref)] ?? DEFAULT_SELECTION;
 }
@@ -205,14 +205,14 @@ export function selectThreadDiffPanelSelection(
 export function selectThreadBranchBaseRef(
   state: Pick<DiffPanelStoreState, "byThreadKey" | "branchBaseRefByThreadKey">,
   ref: ScopedThreadRef | null | undefined,
-): string | null {
+) {
   return ref ? branchBaseRef(state, scopedThreadKey(ref)) : null;
 }
 
 export function resolveToolCallDiffTarget(
   target: ToolCallDiffTarget,
   items: ReadonlyArray<ThreadStructureVisibleTurnItem>,
-): ToolCallDiffTarget {
+) {
   const row = items.find(
     (row) => row.sourceThreadId === target.threadId && row.sourceItemId === target.itemId,
   );

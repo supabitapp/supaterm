@@ -40,7 +40,7 @@ export function createTerminalOutputWriter(
   }
 
   return {
-    write(output: TerminalOutputState): Promise<void> {
+    write(output: TerminalOutputState) {
       if (disposed) return Promise.resolve();
       pending = output;
       draining ??= Promise.resolve().then(drain);

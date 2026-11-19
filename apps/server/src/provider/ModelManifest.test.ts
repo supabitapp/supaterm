@@ -100,17 +100,18 @@ describe("resolveProviderCatalog", () => {
     const invalidCatalog = (input: {
       readonly models: NonNullable<ModelManifest.ModelManifestData["providers"]>[string]["models"];
       readonly defaultChat?: string;
-    }): ModelManifest.ModelManifestData => ({
-      version: 1,
-      currentModels: {},
-      providers: {
-        synthetic: {
-          ...(input.defaultChat ? { defaults: { chat: input.defaultChat } } : {}),
-          profiles: {},
-          models: input.models,
+    }) =>
+      ({
+        version: 1,
+        currentModels: {},
+        providers: {
+          synthetic: {
+            ...(input.defaultChat ? { defaults: { chat: input.defaultChat } } : {}),
+            profiles: {},
+            models: input.models,
+          },
         },
-      },
-    });
+      }) satisfies ModelManifest.ModelManifestData;
 
     for (const invalid of [
       invalidCatalog({
@@ -175,9 +176,7 @@ const REMOTE_CLAUDE_MANIFEST: ModelManifest.ModelManifestData = {
   },
 };
 
-const remoteClaudeManifestWithCompatibility = (
-  compatibility: unknown,
-): ModelManifest.ModelManifestData => ({
+const remoteClaudeManifestWithCompatibility = (compatibility: unknown) => ({
   ...REMOTE_CLAUDE_MANIFEST,
   providers: {
     claudeAgent: {

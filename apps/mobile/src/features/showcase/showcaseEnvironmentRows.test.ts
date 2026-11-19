@@ -11,7 +11,7 @@ function environment(
   environmentId: string,
   environmentLabel: string,
   displayUrl = "http://127.0.0.1:3773/",
-): ConnectedEnvironmentSummary {
+) {
   return {
     environmentId: EnvironmentId.make(environmentId),
     environmentLabel,
@@ -20,7 +20,7 @@ function environment(
     connectionState: "connected",
     connectionError: null,
     connectionErrorTraceId: null,
-  };
+  } satisfies ConnectedEnvironmentSummary;
 }
 
 it("presents showcase transports as remote endpoints", () => {

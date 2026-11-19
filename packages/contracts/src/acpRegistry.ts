@@ -13,16 +13,14 @@ const AcpRegistryAgentId = TrimmedNonEmptyString.check(
 const ACP_REGISTRY_CDN_HOSTNAME = "cdn.agentclientprotocol.com";
 const ACP_REGISTRY_AGENT_ID_PATTERN = /^[a-z0-9][a-z0-9._-]*$/;
 
-export function officialAcpRegistryIconUrlForAgentId(
-  agentId: string | null | undefined,
-): string | null {
+export function officialAcpRegistryIconUrlForAgentId(agentId: string | null | undefined) {
   if (agentId === null || agentId === undefined || !ACP_REGISTRY_AGENT_ID_PATTERN.test(agentId)) {
     return null;
   }
   return `https://${ACP_REGISTRY_CDN_HOSTNAME}/registry/v1/latest/${agentId}.svg`;
 }
 
-export function resolveOfficialAcpRegistryIconUrl(icon: string | null | undefined): string | null {
+export function resolveOfficialAcpRegistryIconUrl(icon: string | null | undefined) {
   if (!icon) return null;
   try {
     const url = new URL(icon);

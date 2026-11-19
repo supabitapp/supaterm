@@ -2,7 +2,6 @@ import { formatFilePathForClipboard } from "@supaterm/client-runtime/media-actio
 import { fileBasename } from "@supaterm/shared/path";
 import type { ThreadId } from "@supaterm/contracts";
 import { resolveMarkdownLinkPresentation } from "../../lib/markdownLinks";
-import type { MarkdownFileContextMenu } from "../../native/SelectableMarkdownText.types";
 import { hostPreviewMimeTypeFromExtension } from "@supaterm/shared/filePreview";
 
 import {
@@ -20,15 +19,12 @@ export interface FileChipTarget {
 export function fileChipClipboardPath(
   target: FileChipTarget,
   action: "copy-full-path" | "copy-relative-path",
-): string | undefined {
+) {
   const path = action === "copy-full-path" ? target.fullPath : target.relativePath;
   return path === undefined ? undefined : formatFilePathForClipboard(path, target.fullPath);
 }
 
-export function resolveFileChipTarget(
-  href: string,
-  workspaceRoot: string | null | undefined,
-): FileChipTarget | null {
+export function resolveFileChipTarget(href: string, workspaceRoot: string | null | undefined) {
   const presentation = resolveMarkdownLinkPresentation(href);
   if (presentation.kind !== "file") return null;
   const path = resolveFileLinkPath(workspaceRoot, presentation.path);
@@ -67,7 +63,7 @@ export function fileChipShareSource(target: FileChipTarget, threadId: ThreadId) 
     : null;
 }
 
-export function fileChipMenu(target: FileChipTarget): MarkdownFileContextMenu {
+export function fileChipMenu(target: FileChipTarget) {
   return {
     title: target.fullPath ?? target.relativePath ?? "",
     actions: [

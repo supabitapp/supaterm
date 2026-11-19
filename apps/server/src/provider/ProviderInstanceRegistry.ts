@@ -48,10 +48,9 @@ interface RegistryState {
   readonly changes: PubSub.PubSub<void>;
 }
 
-const entryEqual = (a: ProviderInstanceConfig, b: ProviderInstanceConfig): boolean =>
-  Equal.equals(a, b);
+const entryEqual = (a: ProviderInstanceConfig, b: ProviderInstanceConfig) => Equal.equals(a, b);
 
-const resolveEntryEnabled = (entry: ProviderInstanceConfig, typedConfig: unknown): boolean => {
+const resolveEntryEnabled = (entry: ProviderInstanceConfig, typedConfig: unknown) => {
   const rawConfigEnabled = providerInstanceConfigEnabledFlag(entry.config);
   if (entry.enabled === false || rawConfigEnabled === false) {
     return false;
@@ -59,18 +58,24 @@ const resolveEntryEnabled = (entry: ProviderInstanceConfig, typedConfig: unknown
   return entry.enabled ?? providerInstanceConfigEnabledFlag(typedConfig) ?? true;
 };
 
-const buildEntry = Effect.fn("ProviderInstanceRegistry.buildEntry")(function* <R>(input: {
+const buildEntry: <R>(input: {
   readonly driversById: ReadonlyMap<ProviderDriverKind, AnyProviderDriver<R>>;
   readonly parentScope: Scope.Scope;
   readonly instanceId: ProviderInstanceId;
   readonly rawInstanceId: string;
   readonly entry: ProviderInstanceConfig;
-}): Effect.fn.Return<
+}) => Effect.Effect<
   | { readonly kind: "live"; readonly live: LiveEntry }
   | { readonly kind: "unavailable"; readonly snapshot: ServerProvider },
   never,
   R
-> {
+> = Effect.fn("ProviderInstanceRegistry.buildEntry")(function* <R>(input: {
+  readonly driversById: ReadonlyMap<ProviderDriverKind, AnyProviderDriver<R>>;
+  readonly parentScope: Scope.Scope;
+  readonly instanceId: ProviderInstanceId;
+  readonly rawInstanceId: string;
+  readonly entry: ProviderInstanceConfig;
+}) {
   const { driversById, parentScope, instanceId, rawInstanceId, entry } = input;
   const driver = driversById.get(entry.driver);
   if (!driver) {
@@ -150,14 +155,18 @@ const buildEntry = Effect.fn("ProviderInstanceRegistry.buildEntry")(function* <R
   };
 });
 
-const makeReconcile = <R>(input: {
+const makeReconcile: <R>(input: {
   readonly state: RegistryState;
   readonly driversById: ReadonlyMap<ProviderDriverKind, AnyProviderDriver<R>>;
   readonly parentScope: Scope.Scope;
-}): ((
+}) => (
   configMap: ProviderInstanceConfigMap,
   rebuild?: ReadonlySet<ProviderInstanceId>,
-) => Effect.Effect<void, never, R>) => {
+) => Effect.Effect<void, never, R> = <R>(input: {
+  readonly state: RegistryState;
+  readonly driversById: ReadonlyMap<ProviderDriverKind, AnyProviderDriver<R>>;
+  readonly parentScope: Scope.Scope;
+}) => {
   const { state, driversById, parentScope } = input;
   return (configMap, rebuild = new Set()) =>
     Effect.gen(function* () {
@@ -264,14 +273,7 @@ export const makeProviderInstanceRegistry = Effect.fn(
 )(function* <R>(input: {
   readonly drivers: ReadonlyArray<AnyProviderDriver<R>>;
   readonly configMap: ProviderInstanceConfigMap;
-}): Effect.fn.Return<
-  {
-    readonly registry: ProviderInstanceRegistry["Service"];
-    readonly mutator: ProviderInstanceRegistryMutator.ProviderInstanceRegistryMutatorShape;
-  },
-  never,
-  R | Scope.Scope
-> {
+}) {
   const driversById = new Map<ProviderDriverKind, AnyProviderDriver<R>>(
     input.drivers.map((driver) => [driver.driverKind, driver]),
   );
@@ -336,14 +338,17 @@ export const makeProviderInstanceRegistry = Effect.fn(
   return { registry, mutator };
 });
 
-export const layer = <R>(input: {
+export const layer: <R>(input: {
   readonly drivers: ReadonlyArray<AnyProviderDriver<R>>;
   readonly configMap: ProviderInstanceConfigMap;
-}): Layer.Layer<
+}) => Layer.Layer<
   ProviderInstanceRegistry | ProviderInstanceRegistryMutator.ProviderInstanceRegistryMutator,
   never,
   R
-> =>
+> = <R>(input: {
+  readonly drivers: ReadonlyArray<AnyProviderDriver<R>>;
+  readonly configMap: ProviderInstanceConfigMap;
+}) =>
   Layer.effectContext(
     makeProviderInstanceRegistry(input).pipe(
       Effect.map(({ registry, mutator }) =>

@@ -3,7 +3,7 @@ import type { OrchestrationV2RuntimeRequest } from "./orchestrationV2.ts";
 
 export const USER_INPUT_AUTO_DISMISS_TIMEOUT_MS = 120_000;
 
-export function canAutoDismissUserInput(request: OrchestrationV2RuntimeRequest): boolean {
+export function canAutoDismissUserInput(request: OrchestrationV2RuntimeRequest) {
   const driver = request.nativeRequestRef?.driver;
   return (
     request.kind === "user_input" &&
@@ -13,9 +13,7 @@ export function canAutoDismissUserInput(request: OrchestrationV2RuntimeRequest):
   );
 }
 
-export function userInputAutoDismissAt(
-  request: OrchestrationV2RuntimeRequest,
-): DateTime.Utc | null {
+export function userInputAutoDismissAt(request: OrchestrationV2RuntimeRequest) {
   if (!canAutoDismissUserInput(request) || request.autoDismissPaused === true) return null;
   return DateTime.add(request.createdAt, { milliseconds: USER_INPUT_AUTO_DISMISS_TIMEOUT_MS });
 }

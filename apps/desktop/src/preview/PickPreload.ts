@@ -3,8 +3,6 @@ import { ipcRenderer } from "electron";
 import { getElementContext } from "react-grab/primitives";
 import type {
   DesktopPreviewAnnotationTheme,
-  PickedElementPayload,
-  PickedElementStackFrame,
   PreviewAnnotationPayload,
   PreviewAnnotationPoint,
   PreviewAnnotationRect,
@@ -138,10 +136,7 @@ interface AnnotationSession {
 let activeSession: AnnotationSession | null = null;
 let annotationTheme: DesktopPreviewAnnotationTheme | null = null;
 
-const applyAnnotationTheme = (
-  host: HTMLElement,
-  theme: DesktopPreviewAnnotationTheme | null,
-): void => {
+const applyAnnotationTheme = (host: HTMLElement, theme: DesktopPreviewAnnotationTheme | null) => {
   if (!theme) return;
   host.style.colorScheme = theme.colorScheme;
   const variables = {
@@ -167,7 +162,7 @@ const applyAnnotationTheme = (
   }
 };
 
-const reportHumanPointerInput = (event: PointerEvent): void => {
+const reportHumanPointerInput = (event: PointerEvent) => {
   if (!event.isTrusted) return;
   ipcRenderer.sendToHost(POINTER_DOWN_HOST_CHANNEL);
   ipcRenderer.send(HUMAN_INPUT_CHANNEL, {
@@ -178,7 +173,7 @@ const reportHumanPointerInput = (event: PointerEvent): void => {
   });
 };
 
-const reportHumanKeyInput = (event: KeyboardEvent): void => {
+const reportHumanKeyInput = (event: KeyboardEvent) => {
   if (!event.isTrusted) return;
   ipcRenderer.send(HUMAN_INPUT_CHANNEL, {
     kind: "key",
@@ -190,7 +185,7 @@ const reportHumanKeyInput = (event: KeyboardEvent): void => {
 window.addEventListener("pointerdown", reportHumanPointerInput, true);
 window.addEventListener("keydown", reportHumanKeyInput, true);
 
-const reportUnhandledShortcut = (event: KeyboardEvent): void => {
+const reportUnhandledShortcut = (event: KeyboardEvent) => {
   if (!event.isTrusted || event.repeat || event.isComposing) return;
   if (!event.metaKey && !event.ctrlKey && !event.altKey && !/^F\d{1,2}$/u.test(event.key)) return;
   setTimeout(() => {
@@ -208,7 +203,7 @@ const reportUnhandledShortcut = (event: KeyboardEvent): void => {
 
 window.addEventListener("keydown", reportUnhandledShortcut, true);
 
-const isolateOverlayKey = (event: KeyboardEvent): void => {
+const isolateOverlayKey = (event: KeyboardEvent) => {
   if (!activeSession || !(event.target instanceof Element) || !isAnnotationNode(event.target))
     return;
   activeSession.handleOverlayKey(event);
@@ -241,31 +236,23 @@ ipcRenderer.on(
 
 const nextId = createAnnotationIdSource();
 
-const rectFromDomRect = (rect: DOMRect): PreviewAnnotationRect => ({
+const rectFromDomRect = (rect: DOMRect) => ({
   x: rect.left,
   y: rect.top,
   width: rect.width,
   height: rect.height,
 });
 
-const normalizeRect = (
-  startX: number,
-  startY: number,
-  endX: number,
-  endY: number,
-): PreviewAnnotationRect => ({
+const normalizeRect = (startX: number, startY: number, endX: number, endY: number) => ({
   x: Math.min(startX, endX),
   y: Math.min(startY, endY),
   width: Math.abs(endX - startX),
   height: Math.abs(endY - startY),
 });
 
-const isUsableRect = (rect: PreviewAnnotationRect): boolean => rect.width >= 3 && rect.height >= 3;
+const isUsableRect = (rect: PreviewAnnotationRect) => rect.width >= 3 && rect.height >= 3;
 
-function unionRects(
-  rects: ReadonlyArray<PreviewAnnotationRect>,
-  padding = 20,
-): PreviewAnnotationRect | null {
+function unionRects(rects: ReadonlyArray<PreviewAnnotationRect>, padding = 20) {
   if (rects.length === 0) return null;
   const left = Math.min(...rects.map((rect) => rect.x));
   const top = Math.min(...rects.map((rect) => rect.y));
@@ -280,11 +267,11 @@ function unionRects(
   };
 }
 
-function isAnnotationNode(element: Element): boolean {
+function isAnnotationNode(element: Element) {
   return element instanceof Element && element.closest(`[${OVERLAY_ATTRIBUTE}]`) !== null;
 }
 
-function pickFromPoint(clientX: number, clientY: number): Element | null {
+function pickFromPoint(clientX: number, clientY: number) {
   for (const candidate of document.elementsFromPoint(clientX, clientY)) {
     if (!(candidate instanceof Element)) continue;
     if (isAnnotationNode(candidate) || candidate.hasAttribute(INPUT_LAYER_ATTRIBUTE)) continue;
@@ -294,7 +281,7 @@ function pickFromPoint(clientX: number, clientY: number): Element | null {
   return null;
 }
 
-function describeRawElement(element: Element): string {
+function describeRawElement(element: Element) {
   const tag = element.tagName.toLowerCase();
   const id = element.id ? `#${element.id}` : "";
   const classes =
@@ -310,7 +297,7 @@ function describeRawElement(element: Element): string {
   return `${tag}${id}${classes}`;
 }
 
-function createBox(color: string, fill: string): HTMLDivElement {
+function createBox(color: string, fill: string) {
   const node = document.createElement("div");
   node.setAttribute(OVERLAY_ATTRIBUTE, "");
   node.style.cssText = [
@@ -326,7 +313,7 @@ function createBox(color: string, fill: string): HTMLDivElement {
   return node;
 }
 
-function positionBox(node: HTMLElement, rect: PreviewAnnotationRect): void {
+function positionBox(node: HTMLElement, rect: PreviewAnnotationRect) {
   if (rect.width <= 0 || rect.height <= 0) {
     node.style.display = "none";
     return;
@@ -337,7 +324,7 @@ function positionBox(node: HTMLElement, rect: PreviewAnnotationRect): void {
   node.style.height = `${rect.height}px`;
 }
 
-function visibleElementRect(element: Element): PreviewAnnotationRect {
+function visibleElementRect(element: Element) {
   const rect = element.getBoundingClientRect();
   let left = Math.max(0, rect.left);
   let top = Math.max(0, rect.top);
@@ -363,7 +350,7 @@ function visibleElementRect(element: Element): PreviewAnnotationRect {
   return { x: left, y: top, width: Math.max(0, right - left), height: Math.max(0, bottom - top) };
 }
 
-function createLabel(): HTMLDivElement {
+function createLabel() {
   const label = document.createElement("div");
   label.setAttribute(OVERLAY_ATTRIBUTE, "");
   label.className =
@@ -378,7 +365,7 @@ function createLabel(): HTMLDivElement {
   return label;
 }
 
-function updateSelectedVisual(target: SelectedElement): void {
+function updateSelectedVisual(target: SelectedElement) {
   if (!target.element.isConnected) {
     target.outline.style.display = "none";
     target.label.style.display = "none";
@@ -400,7 +387,7 @@ function toStackFrame(frame: {
   fileName?: string;
   lineNumber?: number;
   columnNumber?: number;
-}): PickedElementStackFrame {
+}) {
   return {
     functionName: frame.functionName ?? null,
     fileName: frame.fileName ?? null,
@@ -409,7 +396,7 @@ function toStackFrame(frame: {
   };
 }
 
-function withCaptureTimeout<A>(promise: Promise<A>, millis: number): Promise<A | null> {
+function withCaptureTimeout<A>(promise: Promise<A>, millis: number) {
   let timer: ReturnType<typeof setTimeout> | undefined;
   return Promise.race([
     promise,
@@ -421,7 +408,7 @@ function withCaptureTimeout<A>(promise: Promise<A>, millis: number): Promise<A |
 
 const HTML_PREVIEW_MAX_CHARS = 500;
 
-async function captureElement(element: Element): Promise<PickedElementPayload> {
+async function captureElement(element: Element) {
   const base = {
     pageUrl: location.href,
     pageTitle: document.title?.trim() || null,
@@ -457,7 +444,7 @@ async function captureElement(element: Element): Promise<PickedElementPayload> {
   };
 }
 
-function createButton(label: string, title: string): HTMLButtonElement {
+function createButton(label: string, title: string) {
   const button = document.createElement("button");
   button.type = "button";
   button.textContent = label;
@@ -467,13 +454,13 @@ function createButton(label: string, title: string): HTMLButtonElement {
   return button;
 }
 
-function styleControl(input: HTMLInputElement | HTMLSelectElement): void {
+function styleControl(input: HTMLInputElement | HTMLSelectElement) {
   input.setAttribute("aria-label", input.getAttribute("aria-label") ?? "Style value");
   input.className =
     "h-7 min-w-0 w-full appearance-none rounded-md border border-input bg-background px-2 font-mono text-xs text-foreground shadow-xs outline-none";
 }
 
-function createUnitControl(input: HTMLInputElement): HTMLElement {
+function createUnitControl(input: HTMLInputElement) {
   const wrapper = document.createElement("div");
   wrapper.style.cssText = "position:relative;min-width:0";
   const unit = document.createElement("span");
@@ -484,10 +471,7 @@ function createUnitControl(input: HTMLInputElement): HTMLElement {
   return wrapper;
 }
 
-function createField(
-  labelText: string,
-  input: HTMLInputElement | HTMLSelectElement,
-): HTMLLabelElement {
+function createField(labelText: string, input: HTMLInputElement | HTMLSelectElement) {
   const label = document.createElement("label");
   label.className =
     "grid min-h-7 grid-cols-[82px_minmax(0,1fr)] items-center gap-2 font-sans text-xs font-medium text-muted-foreground";
@@ -501,13 +485,13 @@ function createField(
   return label;
 }
 
-function createStyleSection(): HTMLElement {
+function createStyleSection() {
   const section = document.createElement("section");
   section.className = "grid gap-1 border-t border-border py-2";
   return section;
 }
 
-function createUnitInput(unit: string, placeholder = "0"): HTMLInputElement {
+function createUnitInput(unit: string, placeholder = "0") {
   const input = document.createElement("input");
   input.type = "number";
   input.placeholder = placeholder;
@@ -516,7 +500,7 @@ function createUnitInput(unit: string, placeholder = "0"): HTMLInputElement {
   return input;
 }
 
-function startAnnotation(sendEnabled: boolean): void {
+function startAnnotation(sendEnabled: boolean) {
   activeSession?.teardown(false);
   let finished = false;
   const host = document.createElement("div");
@@ -639,7 +623,7 @@ function startAnnotation(sendEnabled: boolean): void {
   let editorDrag: { pointerId: number; offsetX: number; offsetY: number } | null = null;
   let editorLayoutFrame: number | null = null;
 
-  const resizeComment = (): void => {
+  const resizeComment = () => {
     const maxHeight = 96;
     comment.style.height = "auto";
     const nextHeight = Math.min(comment.scrollHeight, maxHeight);
@@ -649,7 +633,7 @@ function startAnnotation(sendEnabled: boolean): void {
   };
   comment.addEventListener("input", resizeComment);
 
-  const updateStatus = (): void => {
+  const updateStatus = () => {
     const hasTargets = selected.size > 0 || regions.length > 0 || strokes.length > 0;
     editor.style.display = hasTargets ? "flex" : "none";
     submit.disabled = !hasTargets;
@@ -663,7 +647,7 @@ function startAnnotation(sendEnabled: boolean): void {
     }
   };
 
-  const refreshToolButtons = (): void => {
+  const refreshToolButtons = () => {
     for (const [candidate, button] of toolButtons) {
       const active = candidate === tool;
       button.classList.toggle("bg-primary/10", active);
@@ -675,7 +659,7 @@ function startAnnotation(sendEnabled: boolean): void {
     document.documentElement.setAttribute("data-supaterm-annotation-tool", tool);
   };
 
-  const removeSelected = (target: SelectedElement): void => {
+  const removeSelected = (target: SelectedElement) => {
     if (target.element instanceof HTMLElement || target.element instanceof SVGElement) {
       for (const [property, baseline] of target.baselineStyles) {
         if (baseline) target.element.style.setProperty(property, baseline);
@@ -691,7 +675,7 @@ function startAnnotation(sendEnabled: boolean): void {
     updateStatus();
   };
 
-  const addSelected = (element: Element): void => {
+  const addSelected = (element: Element) => {
     if (selected.has(element)) return;
     const target: SelectedElement = {
       id: nextId("element"),
@@ -710,7 +694,7 @@ function startAnnotation(sendEnabled: boolean): void {
     }
   };
 
-  const toggleSelected = (element: Element, additive: boolean): void => {
+  const toggleSelected = (element: Element, additive: boolean) => {
     const existing = selected.get(element);
     if (existing) {
       removeSelected(existing);
@@ -722,7 +706,7 @@ function startAnnotation(sendEnabled: boolean): void {
     addSelected(element);
   };
 
-  const setStyleForSelected = (property: string, value: string): void => {
+  const setStyleForSelected = (property: string, value: string) => {
     for (const target of selected.values()) {
       if (!(target.element instanceof HTMLElement || target.element instanceof SVGElement))
         continue;
@@ -787,11 +771,7 @@ function startAnnotation(sendEnabled: boolean): void {
   });
   textSection.appendChild(createField("Line height", lineHeight));
 
-  const createColorRow = (
-    labelText: string,
-    property: string,
-    section: HTMLElement,
-  ): { row: HTMLLabelElement; color: HTMLInputElement; text: HTMLInputElement } => {
+  const createColorRow = (labelText: string, property: string, section: HTMLElement) => {
     const row = document.createElement("label");
     row.className =
       "grid min-h-7 grid-cols-[82px_minmax(0,1fr)] items-center gap-2 font-sans text-xs font-medium text-muted-foreground";
@@ -887,7 +867,7 @@ function startAnnotation(sendEnabled: boolean): void {
 
   let aspectLocked = true;
   let aspectRatio = 1;
-  const refreshAspectButton = (): void => {
+  const refreshAspectButton = () => {
     aspectLock.innerHTML = aspectLocked
       ? '<svg viewBox="0 0 20 20" width="14" height="14" aria-hidden="true"><path d="M8 6.5 9.5 5A3.5 3.5 0 0 1 14.5 10l-1.5 1.5M12 13.5 10.5 15A3.5 3.5 0 0 1 5.5 10L7 8.5M7.5 12.5l5-5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>'
       : '<svg viewBox="0 0 20 20" width="14" height="14" aria-hidden="true"><path d="m6 6 8 8M8 6.5 9.5 5A3.5 3.5 0 0 1 14 9M12 13.5 10.5 15A3.5 3.5 0 0 1 6 11" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>';
@@ -923,11 +903,7 @@ function startAnnotation(sendEnabled: boolean): void {
   });
   refreshAspectButton();
 
-  const addSpacingField = (
-    label: string,
-    property: string,
-    placeholder: string,
-  ): HTMLInputElement => {
+  const addSpacingField = (label: string, property: string, placeholder: string) => {
     const input = document.createElement("input");
     input.type = "text";
     input.placeholder = placeholder;
@@ -941,7 +917,7 @@ function startAnnotation(sendEnabled: boolean): void {
   const margin = addSpacingField("Margin", "margin", "0 0 0 0");
   const gap = addSpacingField("Gap", "gap", "0px");
 
-  const syncStyleControls = (): void => {
+  const syncStyleControls = () => {
     const first = selected.values().next().value as SelectedElement | undefined;
     if (!first) return;
     const computed = getComputedStyle(first.element);
@@ -985,7 +961,7 @@ function startAnnotation(sendEnabled: boolean): void {
     toolbar.appendChild(button);
   }
 
-  const clampEditorPosition = (left: number, top: number): { left: number; top: number } => {
+  const clampEditorPosition = (left: number, top: number) => {
     const margin = 8;
     const rect = editor.getBoundingClientRect();
     return {
@@ -1000,7 +976,7 @@ function startAnnotation(sendEnabled: boolean): void {
     };
   };
 
-  const applyEditorPosition = (position: { left: number; top: number }): void => {
+  const applyEditorPosition = (position: { left: number; top: number }) => {
     const clamped = clampEditorPosition(position.left, position.top);
     editor.style.left = `${clamped.left}px`;
     editor.style.top = `${clamped.top}px`;
@@ -1009,7 +985,7 @@ function startAnnotation(sendEnabled: boolean): void {
     if (editorExpanded) editorPosition = clamped;
   };
 
-  const getAnnotationBounds = (): PreviewAnnotationRect | null =>
+  const getAnnotationBounds = () =>
     unionRects(
       [
         ...Array.from(selected.values(), (target) => visibleElementRect(target.element)).filter(
@@ -1021,7 +997,7 @@ function startAnnotation(sendEnabled: boolean): void {
       0,
     );
 
-  const positionCompactEditor = (): void => {
+  const positionCompactEditor = () => {
     const bounds = getAnnotationBounds();
     if (!bounds) return;
     const editorRect = editor.getBoundingClientRect();
@@ -1038,7 +1014,7 @@ function startAnnotation(sendEnabled: boolean): void {
         top: bounds.y - editorRect.height - gap,
       },
     ];
-    const overflow = (position: { left: number; top: number }): number =>
+    const overflow = (position: { left: number; top: number }) =>
       Math.max(0, -position.left) +
       Math.max(0, -position.top) +
       Math.max(0, position.left + editorRect.width - window.innerWidth) +
@@ -1049,7 +1025,7 @@ function startAnnotation(sendEnabled: boolean): void {
     applyEditorPosition(best);
   };
 
-  function queueEditorLayout(): void {
+  function queueEditorLayout() {
     if (editorLayoutFrame !== null) window.cancelAnimationFrame(editorLayoutFrame);
     editorLayoutFrame = window.requestAnimationFrame(() => {
       editorLayoutFrame = null;
@@ -1083,7 +1059,7 @@ function startAnnotation(sendEnabled: boolean): void {
     queueEditorLayout();
   });
 
-  const onEditorPointerDown = (event: PointerEvent): void => {
+  const onEditorPointerDown = (event: PointerEvent) => {
     if (event.button !== 0 || !editorExpanded) return;
     const rect = editor.getBoundingClientRect();
     editorDrag = {
@@ -1097,7 +1073,7 @@ function startAnnotation(sendEnabled: boolean): void {
     event.stopPropagation();
   };
 
-  const onEditorPointerMove = (event: PointerEvent): void => {
+  const onEditorPointerMove = (event: PointerEvent) => {
     if (!editorDrag || editorDrag.pointerId !== event.pointerId) return;
     applyEditorPosition({
       left: event.clientX - editorDrag.offsetX,
@@ -1107,7 +1083,7 @@ function startAnnotation(sendEnabled: boolean): void {
     event.stopPropagation();
   };
 
-  const onEditorPointerUp = (event: PointerEvent): void => {
+  const onEditorPointerUp = (event: PointerEvent) => {
     if (!editorDrag || editorDrag.pointerId !== event.pointerId) return;
     editorDrag = null;
     dragHandle.style.cursor = "grab";
@@ -1121,13 +1097,13 @@ function startAnnotation(sendEnabled: boolean): void {
   dragHandle.addEventListener("pointerup", onEditorPointerUp);
   dragHandle.addEventListener("pointercancel", onEditorPointerUp);
 
-  const repaint = (): void => {
+  const repaint = () => {
     for (const target of selected.values()) updateSelectedVisual(target);
     queueEditorLayout();
   };
   const rootResizeObserver = new ResizeObserver(repaint);
 
-  const removeTargetAtPoint = (x: number, y: number): boolean => {
+  const removeTargetAtPoint = (x: number, y: number) => {
     for (const target of Array.from(selected.values()).toReversed()) {
       const rect = target.element.getBoundingClientRect();
       if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
@@ -1164,7 +1140,7 @@ function startAnnotation(sendEnabled: boolean): void {
     return false;
   };
 
-  const selectElementsInRect = (rect: PreviewAnnotationRect): number => {
+  const selectElementsInRect = (rect: PreviewAnnotationRect) => {
     const candidates = Array.from(document.querySelectorAll("body *"))
       .filter((element) => !isAnnotationNode(element))
       .map((element) => ({ element, rect: element.getBoundingClientRect() }))
@@ -1199,11 +1175,11 @@ function startAnnotation(sendEnabled: boolean): void {
     return candidates.length;
   };
 
-  const clearHoverOutline = (): void => {
+  const clearHoverOutline = () => {
     hoverOutline.style.display = "none";
   };
 
-  const onPointerMove = (event: PointerEvent): void => {
+  const onPointerMove = (event: PointerEvent) => {
     if (isAnnotationNode(event.target as Element)) {
       clearHoverOutline();
       return;
@@ -1238,7 +1214,7 @@ function startAnnotation(sendEnabled: boolean): void {
     }
   };
 
-  const onPointerDown = (event: PointerEvent): void => {
+  const onPointerDown = (event: PointerEvent) => {
     if (event.button !== 0 || isAnnotationNode(event.target as Element)) return;
     event.preventDefault();
     event.stopPropagation();
@@ -1277,7 +1253,7 @@ function startAnnotation(sendEnabled: boolean): void {
     }
   };
 
-  const onPointerUp = (event: PointerEvent): void => {
+  const onPointerUp = (event: PointerEvent) => {
     if (!dragStart) return;
     event.preventDefault();
     event.stopPropagation();
@@ -1307,27 +1283,27 @@ function startAnnotation(sendEnabled: boolean): void {
     updateStatus();
   };
 
-  const onClick = (event: MouseEvent): void => {
+  const onClick = (event: MouseEvent) => {
     if (isAnnotationNode(event.target as Element)) return;
     event.preventDefault();
     event.stopPropagation();
   };
 
-  const stopAtOverlay = (event: Event): void => event.stopPropagation();
-  const onFocusOutToOverlay = (event: FocusEvent): void => {
+  const stopAtOverlay = (event: Event) => event.stopPropagation();
+  const onFocusOutToOverlay = (event: FocusEvent) => {
     if (event.relatedTarget instanceof Element && isAnnotationNode(event.relatedTarget))
       event.stopPropagation();
   };
 
-  const onPointerOut = (event: PointerEvent): void => {
+  const onPointerOut = (event: PointerEvent) => {
     if (event.relatedTarget === null) clearHoverOutline();
   };
 
-  const onWindowBlur = (): void => {
+  const onWindowBlur = () => {
     clearHoverOutline();
   };
 
-  const restoreStyles = (): void => {
+  const restoreStyles = () => {
     for (const target of selected.values()) {
       if (!(target.element instanceof HTMLElement || target.element instanceof SVGElement))
         continue;
@@ -1338,7 +1314,7 @@ function startAnnotation(sendEnabled: boolean): void {
     }
   };
 
-  const teardown = (notifyMain: boolean): void => {
+  const teardown = (notifyMain: boolean) => {
     if (finished) return;
     finished = true;
     rootResizeObserver.disconnect();
@@ -1369,9 +1345,9 @@ function startAnnotation(sendEnabled: boolean): void {
     if (notifyMain) ipcRenderer.send(ELEMENT_PICKED_CHANNEL, null);
   };
 
-  const onCancel = (): void => teardown(false);
-  const onCaptured = (): void => teardown(false);
-  const onKeyDown = (event: KeyboardEvent): void => {
+  const onCancel = () => teardown(false);
+  const onCaptured = () => teardown(false);
+  const onKeyDown = (event: KeyboardEvent) => {
     if (event.key === "Escape" && !event.isComposing) {
       event.preventDefault();
       event.stopPropagation();
@@ -1387,7 +1363,7 @@ function startAnnotation(sendEnabled: boolean): void {
     refreshToolButtons();
   };
 
-  const submitAnnotation = (submission: PreviewAnnotationSubmission): void => {
+  const submitAnnotation = (submission: PreviewAnnotationSubmission) => {
     if (submission === "send" && !sendEnabled) return;
     if (pendingCapture || (selected.size === 0 && regions.length === 0 && strokes.length === 0))
       return;
@@ -1449,7 +1425,7 @@ function startAnnotation(sendEnabled: boolean): void {
       });
   };
   submit.addEventListener("click", () => submitAnnotation("attach"));
-  const handleOverlayKey = (event: KeyboardEvent): void => {
+  const handleOverlayKey = (event: KeyboardEvent) => {
     if (event.type !== "keydown") return;
     onKeyDown(event);
     if (event.cancelBubble) return;

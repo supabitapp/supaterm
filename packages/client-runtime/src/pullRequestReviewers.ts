@@ -7,7 +7,7 @@ export function mergeReviewerCandidates(
   loaded: ReadonlyArray<PullRequestReviewerCandidate>,
   searched: ReadonlyArray<PullRequestReviewerCandidate>,
   query: string,
-): ReadonlyArray<PullRequestReviewerCandidate> {
+) {
   const needle = query.trim().toLowerCase();
   const key = (candidate: PullRequestReviewerCandidate) => `${candidate.kind}:${candidate.id}`;
   const known = new Set(loaded.map(key));
@@ -33,7 +33,7 @@ export interface ReviewerSearchInput {
 }
 
 /** What to ask the host for, or null when the loaded page already answers the query. */
-export function hostReviewerQuery(input: ReviewerSearchInput): string | null {
+export function hostReviewerQuery(input: ReviewerSearchInput) {
   const debounced = input.debouncedQuery.trim();
   return input.searchable && input.loaded?.truncated === true && debounced.length > 0
     ? debounced
@@ -58,13 +58,7 @@ export function reviewerCandidateView(
       readonly error: string | null;
     };
   },
-): {
-  readonly candidates: ReadonlyArray<PullRequestReviewerCandidate>;
-  /** Nothing matches yet and the host has not answered, which is not "nobody matches". */
-  readonly searchPending: boolean;
-  readonly searchError: string | null;
-  readonly truncation: ReviewerTruncation | null;
-} {
+) {
   const query = input.query.trim();
   const hostQuery = hostReviewerQuery(input);
   const searched = hostQuery !== null && hostQuery === query;

@@ -54,7 +54,7 @@ const usageLimitCodes = new Set<string>([
   "subscription_sharing_workplace_individual_usage_limit_exceeded",
 ]);
 
-function unwrapError(value: unknown): unknown {
+function unwrapError(value: unknown) {
   if (typeof value === "string") {
     try {
       value = JSON.parse(value);

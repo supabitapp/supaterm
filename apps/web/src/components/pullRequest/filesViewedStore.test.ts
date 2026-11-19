@@ -1,9 +1,4 @@
-import {
-  EnvironmentId,
-  ProjectId,
-  type PullRequestFilesViewedResult,
-  type PullRequestRef,
-} from "@supaterm/contracts";
+import { EnvironmentId, ProjectId, type PullRequestFilesViewedResult } from "@supaterm/contracts";
 import { Cause } from "effect";
 import { AsyncResult } from "effect/reactivity";
 import { describe, expect, it, vi } from "vite-plus/test";
@@ -14,7 +9,7 @@ import {
   type FilesViewedTarget,
 } from "./filesViewedStore";
 
-const reference = (number: number): PullRequestRef => ({
+const reference = (number: number) => ({
   projectId: ProjectId.make("project"),
   repository: "supaterm/code",
   number,
@@ -26,10 +21,11 @@ const first: FilesViewedTarget = {
 };
 const second: FilesViewedTarget = { ...first, reference: reference(2) };
 
-const answer = (viewed: boolean): PullRequestFilesViewedResult => ({
-  files: [{ path: "a.ts", state: viewed ? "viewed" : "unviewed" }],
-  truncated: false,
-});
+const answer = (viewed: boolean) =>
+  ({
+    files: [{ path: "a.ts", state: viewed ? "viewed" : "unviewed" }],
+    truncated: false,
+  }) satisfies PullRequestFilesViewedResult;
 
 function setup(initial: PullRequestFilesViewedResult | null = answer(false)) {
   vi.useFakeTimers();

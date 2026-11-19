@@ -1,7 +1,6 @@
 import {
   repositoryGroupingKeyOf,
   type EnvironmentId,
-  type ModelSelection,
   type ProjectId,
   type ServerSettings,
   resolveProjectProviderInstanceEnabled,
@@ -9,7 +8,6 @@ import {
   type RepositoryIdentity,
   type ServerProvider,
   type ThreadLinkedPullRequest,
-  type ThreadId,
   type ThreadPullRequestLink,
 } from "@supaterm/contracts";
 import { resolveSelectableModel, type SelectableModelOption } from "@supaterm/shared/model";
@@ -29,7 +27,7 @@ const PROMPT_LINK_REPOSITORY_HOSTS = ["github.com", "git.cafe", "staging.git.caf
  */
 export function findPromptLinkProjects<
   P extends { readonly repositoryIdentity?: RepositoryIdentity | null | undefined },
->(projects: ReadonlyArray<P>, repository: PromptLinkRepository): P[] {
+>(projects: ReadonlyArray<P>, repository: PromptLinkRepository) {
   const path = `${repository.owner}/${repository.name}`.toLowerCase();
   const keys = new Set(PROMPT_LINK_REPOSITORY_HOSTS.map((host) => `${host}/${path}`));
   return projects.filter(
@@ -46,7 +44,7 @@ export function findPromptLinkPullRequestThread<
     readonly linkedPullRequest?: ThreadLinkedPullRequest | null | undefined;
     readonly lineage?: { readonly sideChat?: boolean | undefined } | undefined;
   },
->(threads: ReadonlyArray<T>, pullRequest: PromptLinkPullRequest): T | undefined {
+>(threads: ReadonlyArray<T>, pullRequest: PromptLinkPullRequest) {
   const key = threadPullRequestKeyOf({
     host: "github.com",
     repository: `${pullRequest.owner}/${pullRequest.name}`,
@@ -73,7 +71,7 @@ export function pickPromptLinkPullRequestThread(
     readonly environmentId: EnvironmentId;
     readonly result: AsyncResult.AsyncResult<PullRequestLinkedThreadsResult, unknown>;
   }>,
-): { readonly environmentId: EnvironmentId; readonly id: ThreadId } | null | undefined {
+) {
   for (const { environmentId, result } of lookups) {
     if (result._tag === "Initial" || result.waiting) return undefined;
     const thread =
@@ -105,7 +103,7 @@ export function resolvePromptLinkModelSelection(
     readonly settings: Pick<ServerSettings, "providerInstances" | "projectSettingsOverrides">;
     readonly projectId: ProjectId | null;
   },
-): { readonly selection: ModelSelection; readonly exact: boolean } | null {
+) {
   const driver = PROVIDER_ALIASES[request.provider] ?? request.provider;
   const usable = providers.filter(
     (provider) =>

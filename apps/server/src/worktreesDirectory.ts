@@ -14,7 +14,7 @@ export function resolveWorktreesDirectory(
   defaultDir: string,
   path: Path.Path,
   home: string,
-): string | null {
+) {
   if (setting === "") return defaultDir;
   const expanded = expandHomePath(setting, home);
   if (!path.isAbsolute(expanded)) return null;
@@ -23,7 +23,7 @@ export function resolveWorktreesDirectory(
 }
 
 /** Callers re-check after resolving symlinks: a link can point at a root. */
-export function isFilesystemRoot(directory: string, path: Path.Path): boolean {
+export function isFilesystemRoot(directory: string, path: Path.Path) {
   return path.dirname(directory) === directory;
 }
 
@@ -35,7 +35,7 @@ export function managedWorktreesDirectories(
   defaultDir: string,
   path: Path.Path,
   home: string,
-): ReadonlyArray<string> {
+) {
   const directories = new Set([defaultDir]);
   for (const setting of [settings.worktreesDirectory, ...settings.previousWorktreesDirectories]) {
     const directory = resolveWorktreesDirectory(setting, defaultDir, path, home);
@@ -50,7 +50,7 @@ export const makeIsManagedWorktreePath = Effect.gen(function* () {
   const serverConfig = yield* ServerConfig.ServerConfig;
   const serverSettings = yield* ServerSettings.ServerSettingsService;
 
-  const realLocation = (target: string): Effect.Effect<string> =>
+  const realLocation: (target: string) => Effect.Effect<string> = (target: string) =>
     fileSystem.realPath(target).pipe(
       Effect.catch(() => {
         const parent = path.dirname(target);

@@ -104,16 +104,23 @@ function pairingConnectionId(
   entry: ConnectionCatalogEntry | undefined,
   environmentId: EnvironmentId,
   httpBaseUrl: string,
-): string {
+): string;
+function pairingConnectionId(
+  entry: ConnectionCatalogEntry | undefined,
+  environmentId: EnvironmentId,
+  httpBaseUrl: string,
+) {
   const paired =
     entry === undefined
       ? undefined
       : routesAt(entry, httpBaseUrl).find(
           (route) => route.target._tag === "BearerConnectionTarget" && !isLearned(route),
         );
-  return paired === undefined
-    ? `bearer:${environmentId}:${new URL(httpBaseUrl).origin}`
-    : connectionRouteId(paired.target);
+  return (
+    paired === undefined
+      ? `bearer:${environmentId}:${new URL(httpBaseUrl).origin}`
+      : connectionRouteId(paired.target)
+  ) satisfies string;
 }
 
 export const preparePairingRegistration = Effect.fn(

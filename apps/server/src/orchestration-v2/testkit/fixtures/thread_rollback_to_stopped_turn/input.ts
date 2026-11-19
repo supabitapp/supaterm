@@ -6,7 +6,7 @@ import {
   type OrchestratorFixtureInput,
 } from "../shared.ts";
 
-export function threadRollbackToStoppedTurnInput(): OrchestratorFixtureInput {
+export function threadRollbackToStoppedTurnInput() {
   return {
     steps: [
       { type: "message", text: THREAD_ROLLBACK_FIRST_PROMPT },
@@ -20,5 +20,5 @@ export function threadRollbackToStoppedTurnInput(): OrchestratorFixtureInput {
       },
       { type: "message", text: THREAD_ROLLBACK_AFTER_PROMPT },
     ],
-  };
+  } satisfies OrchestratorFixtureInput;
 }

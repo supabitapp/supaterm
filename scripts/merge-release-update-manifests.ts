@@ -20,7 +20,7 @@ function pairArchitectures(
   platformLabel: string,
   arm64: ReadonlyMap<string, string>,
   x64: ReadonlyMap<string, string>,
-): ReadonlyArray<{ readonly channel: string; readonly arm64: string; readonly x64: string }> {
+) {
   const channels = new Set([...arm64.keys(), ...x64.keys()]);
   if (channels.size === 0) {
     throw new Error(
@@ -40,9 +40,7 @@ function pairArchitectures(
   });
 }
 
-function planReleaseUpdateManifestMerges(
-  fileNames: ReadonlyArray<string>,
-): ReadonlyArray<ReleaseUpdateManifestMerge> {
+function planReleaseUpdateManifestMerges(fileNames: ReadonlyArray<string>) {
   const macArm64 = new Map<string, string>();
   const macX64 = new Map<string, string>();
   const winArm64 = new Map<string, string>();
@@ -69,22 +67,24 @@ function planReleaseUpdateManifestMerges(
 
   return [
     ...pairArchitectures("macOS", macArm64, macX64).map(
-      ({ arm64, x64 }): ReleaseUpdateManifestMerge => ({
-        platform: "mac",
-        primary: arm64,
-        secondary: x64,
-        output: arm64,
-      }),
+      ({ arm64, x64 }) =>
+        ({
+          platform: "mac",
+          primary: arm64,
+          secondary: x64,
+          output: arm64,
+        }) satisfies ReleaseUpdateManifestMerge,
     ),
     ...pairArchitectures("Windows", winArm64, winX64).map(
-      ({ channel, arm64, x64 }): ReleaseUpdateManifestMerge => ({
-        platform: "win",
-        primary: x64,
-        secondary: arm64,
-        output: `${channel}.yml`,
-      }),
+      ({ channel, arm64, x64 }) =>
+        ({
+          platform: "win",
+          primary: x64,
+          secondary: arm64,
+          output: `${channel}.yml`,
+        }) satisfies ReleaseUpdateManifestMerge,
     ),
-  ];
+  ] satisfies ReadonlyArray<ReleaseUpdateManifestMerge>;
 }
 
 export const mergeReleaseUpdateManifestFiles = Effect.fn("mergeReleaseUpdateManifestFiles")(

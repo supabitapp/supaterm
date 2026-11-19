@@ -23,11 +23,11 @@ const POWERLINE_SOLID_LEFT = "\ue0b2";
 const POWERLINE_ROUND_RIGHT = "\ue0b4";
 const POWERLINE_ROUND_LEFT = "\ue0b6";
 
-function cssColor(color: GhosttyColor): string {
+function cssColor(color: GhosttyColor) {
   return `rgb(${color.r}, ${color.g}, ${color.b})`;
 }
 
-function sameTextStyle(left: GhosttyCell, right: GhosttyCell): boolean {
+function sameTextStyle(left: GhosttyCell, right: GhosttyCell) {
   return (
     ghosttyColorsEqual(left.foreground, right.foreground) &&
     left.bold === right.bold &&
@@ -36,7 +36,7 @@ function sameTextStyle(left: GhosttyCell, right: GhosttyCell): boolean {
   );
 }
 
-function isSolidPowerlineSeparator(text: string): boolean {
+function isSolidPowerlineSeparator(text: string) {
   return (
     text === POWERLINE_SOLID_RIGHT ||
     text === POWERLINE_SOLID_LEFT ||
@@ -53,7 +53,7 @@ function fillSolidPowerlineSeparator(
   width: number,
   height: number,
   seamOverlap: number,
-): void {
+) {
   const right = left + width;
   const middle = top + height / 2;
   if (text === POWERLINE_ROUND_RIGHT || text === POWERLINE_ROUND_LEFT) {
@@ -79,7 +79,7 @@ function ghosttyTextRunEnd(
   cells: readonly GhosttyCell[],
   start: number,
   sameStyle: (cell: GhosttyCell) => boolean,
-): number {
+) {
   let end = start + 1;
   while (end < cells.length) {
     const next = cells[end];
@@ -94,7 +94,7 @@ function ghosttyTextRunEnd(
   return end;
 }
 
-function isWideGlyph(cells: readonly GhosttyCell[], index: number): boolean {
+function isWideGlyph(cells: readonly GhosttyCell[], index: number) {
   return cells[index + 1]?.wide === GHOSTTY_CELL_WIDE.spacerTail;
 }
 
@@ -107,7 +107,7 @@ function fillGhosttyRunText(
   left: number,
   baseline: number,
   cellWidth: number,
-): void {
+) {
   let segment = start;
   while (segment < end) {
     let segmentEnd = segment;
@@ -148,7 +148,7 @@ function fillCellDecorations(
   top: number,
   width: number,
   metrics: GhosttyCellMetrics,
-): void {
+) {
   if (underline) context.fillRect(left, top + metrics.height - 2, width, 1);
   if (cell.strikethrough) {
     context.fillRect(left, top + Math.floor(metrics.height * 0.55), width, 1);
@@ -156,7 +156,7 @@ function fillCellDecorations(
   if (cell.overline) context.fillRect(left, top + 1, width, 1);
 }
 
-function fontForCell(cell: GhosttyCell, fontSize: number, fontFamily: string): string {
+function fontForCell(cell: GhosttyCell, fontSize: number, fontFamily: string) {
   const style = cell.italic ? "italic" : "normal";
   const weight = cell.bold ? "700" : "400";
   return `${style} ${weight} ${fontSize}px ${fontFamily}`;
@@ -166,7 +166,7 @@ export function measureGhosttyCell(
   context: CanvasRenderingContext2D,
   fontSize: number,
   fontFamily: string,
-): GhosttyCellMetrics {
+) {
   context.font = `normal 400 ${fontSize}px ${fontFamily}`;
   const widthMeasurement = context.measureText("M");
   const verticalMeasurement = context.measureText("Mg");
@@ -186,7 +186,7 @@ export function terminalGridSize(
   height: number,
   metrics: GhosttyCellMetrics,
   padding: number,
-): { cols: number; rows: number } {
+) {
   return {
     cols: Math.max(1, Math.floor((width - padding * 2) / metrics.width)),
     rows: Math.max(1, Math.floor((height - padding * 2) / metrics.height)),
@@ -207,7 +207,7 @@ export function renderGhosttySnapshot(options: {
   readonly selectionBackground?: string;
   readonly hoveredLinkRange?: GhosttyCellRange | null;
   readonly originY?: number;
-}): void {
+}) {
   const {
     context,
     snapshot,

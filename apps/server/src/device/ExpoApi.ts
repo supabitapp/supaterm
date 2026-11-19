@@ -35,7 +35,7 @@ export class ExpoNotSignedInError extends Schema.TaggedError<ExpoNotSignedInErro
   "ExpoNotSignedInError",
   {},
 ) {
-  override get message(): string {
+  override get message() {
     return "No Expo credential on the server: save an access token for this host, set EXPO_TOKEN, or run `eas login`.";
   }
 }
@@ -50,7 +50,7 @@ export class ExpoInvalidCredentialError extends Schema.TaggedError<ExpoInvalidCr
   "ExpoInvalidCredentialError",
   { source: Schema.Literals(["settings", "env", "eas-login"]) },
 ) {
-  override get message(): string {
+  override get message() {
     return `${CREDENTIAL_SOURCE_NAMES[this.source]} is not a usable Expo credential. Replace it.`;
   }
 }
@@ -81,7 +81,7 @@ export class ExpoApiError extends Schema.TaggedError<ExpoApiError>()("ExpoApiErr
   /** The HTTP status Expo answered with, when it answered. */
   status: Schema.optional(Schema.Int),
 }) {
-  override get message(): string {
+  override get message() {
     return `Expo could not ${this.operation}${this.detail ? `: ${this.detail}` : "."}`;
   }
 }
@@ -151,7 +151,7 @@ const toExpoApiError = (
   operation: string,
   credential: ExpoCredential,
   error: GraphQLClientError.GraphQLClientError,
-): ExpoApiError => {
+) => {
   const reason = error.reason;
   const status =
     reason._tag === "TransportError" || reason._tag === "ResponseError" ? reason.status : undefined;
@@ -202,9 +202,7 @@ const toExpoApiError = (
   }
 };
 
-const toSession = (
-  session: SupatermEasSimulatorSession.Result["deviceRunSessions"]["byId"],
-): EasSession => {
+const toSession = (session: SupatermEasSimulatorSession.Result["deviceRunSessions"]["byId"]) => {
   const remote = session.remoteConfig;
   return {
     id: session.id,
@@ -285,7 +283,7 @@ export const makeExpoApi = (http: HttpClient.HttpClient, credential: ExpoCredent
                     ? (meActor.firstName ?? meActor.__typename)
                     : meActor.__typename,
               apps: meActor.accounts.flatMap((account) =>
-                account.appsPaginated.edges.map(({ node }): EasApp => node),
+                account.appsPaginated.edges.map(({ node }) => node),
               ),
             }),
       ),

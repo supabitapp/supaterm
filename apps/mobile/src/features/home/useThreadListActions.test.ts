@@ -183,7 +183,7 @@ import { useThreadListActions } from "./useThreadListActions";
 const primaryEnvironmentId = EnvironmentId.make("primary");
 const otherEnvironmentId = EnvironmentId.make("other");
 
-function makeThread(input: Partial<EnvironmentThreadShell> = {}): EnvironmentThreadShell {
+function makeThread(input: Partial<EnvironmentThreadShell> = {}) {
   return makeThreadShellFixture({
     id: ThreadId.make("thread"),
     title: "Thread",

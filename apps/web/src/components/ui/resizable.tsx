@@ -282,7 +282,7 @@ function useCollapsiblePanel(options: ResizablePanelWidthOptions) {
   };
 }
 
-function animateToggle(panel: HTMLElement): (() => void) | null {
+function animateToggle(panel: HTMLElement) {
   const group = panel.parentElement;
   if (!group) return null;
   const end = () => {

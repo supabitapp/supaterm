@@ -36,23 +36,21 @@ export interface ThreadRelationshipWalkRow {
   readonly edge: ThreadRelationshipEdge;
 }
 
-export function resolveMergeBackTargetThreadId(
-  projection: Pick<ThreadStructure, "thread"> | null,
-): ThreadId | null {
+export function resolveMergeBackTargetThreadId(projection: Pick<ThreadStructure, "thread"> | null) {
   if (projection?.thread.lineage.relationshipToParent !== "fork") return null;
   return projection.thread.forkedFrom?.type === "run"
     ? projection.thread.forkedFrom.threadId
     : projection.thread.lineage.parentThreadId;
 }
 
-function edgeKey(edge: ThreadRelationshipEdge): string {
+function edgeKey(edge: ThreadRelationshipEdge) {
   return `${edge.sourceThreadId}\u001f${edge.targetThreadId}\u001f${edge.kind}`;
 }
 
 export function deriveThreadRelationshipGraph(input: {
   readonly threads: ReadonlyArray<OrchestrationV2ThreadShell>;
   readonly projection: ThreadStructure | null;
-}): ThreadRelationshipGraph {
+}) {
   const threadsById = new Map<ThreadId, OrchestrationV2ThreadShell>();
   for (const thread of input.threads) {
     if (!threadsById.has(thread.id)) {
@@ -135,7 +133,7 @@ export function deriveThreadRelationshipGraph(input: {
  */
 export function subagentChildTitles(
   subagents: ReadonlyArray<Pick<OrchestrationV2Subagent, "childThreadId" | "title" | "workflow">>,
-): ReadonlyMap<ThreadId, string> {
+) {
   const titles = new Map<ThreadId, string>();
   for (const subagent of subagents) {
     if (subagent.childThreadId !== null) {
@@ -148,10 +146,7 @@ export function subagentChildTitles(
   return titles;
 }
 
-export function immediateThreadRelationships(
-  graph: ThreadRelationshipGraph,
-  threadId: ThreadId,
-): ReadonlyArray<ThreadRelationshipWalkRow> {
+export function immediateThreadRelationships(graph: ThreadRelationshipGraph, threadId: ThreadId) {
   const visited = new Set<ThreadId>();
   const rows: ThreadRelationshipWalkRow[] = [];
 
@@ -173,14 +168,14 @@ export function immediateThreadRelationships(
 export function isParentThreadRelationship(
   edge: ThreadRelationshipEdge,
   currentThreadId: ThreadId,
-): boolean {
+) {
   return edge.kind !== "transfer" && edge.targetThreadId === currentThreadId;
 }
 
 export function threadRelationshipRowStatus(
   graph: ThreadRelationshipGraph,
   row: Pick<ThreadRelationshipWalkRow, "threadId" | "edge">,
-): string | null {
+) {
   if (row.edge.kind === "transfer" || row.threadId === row.edge.targetThreadId) {
     return row.edge.status;
   }
@@ -188,7 +183,7 @@ export function threadRelationshipRowStatus(
   return thread?.activityRunStatus ?? thread?.status ?? null;
 }
 
-function threadCreatedAtMillis(node: ThreadRelationshipNode | undefined): number | null {
+function threadCreatedAtMillis(node: ThreadRelationshipNode | undefined) {
   const createdAt: unknown = node?.thread?.createdAt;
   if (!DateTime.isDateTime(createdAt)) return null;
   const millis = DateTime.toEpochMillis(createdAt);
@@ -204,8 +199,8 @@ export function orderWebThreadLineageRows(input: {
   readonly rows: ReadonlyArray<ThreadRelationshipWalkRow>;
   readonly currentThreadId: ThreadId;
   readonly mergeTargetThreadId: ThreadId | null;
-}): ReadonlyArray<ThreadRelationshipWalkRow> {
-  const pinRank = (row: ThreadRelationshipWalkRow): number => {
+}) {
+  const pinRank = (row: ThreadRelationshipWalkRow) => {
     if (isParentThreadRelationship(row.edge, input.currentThreadId)) return 0;
     if (row.threadId === input.mergeTargetThreadId) return 1;
     return 2;

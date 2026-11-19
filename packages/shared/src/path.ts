@@ -1,8 +1,8 @@
-export function isWindowsDrivePath(value: string): boolean {
+export function isWindowsDrivePath(value: string) {
   return /^[a-zA-Z]:([/\\]|$)/.test(value);
 }
 
-export function isUncPath(value: string): boolean {
+export function isUncPath(value: string) {
   return value.startsWith("\\\\");
 }
 
@@ -11,15 +11,15 @@ export function isUncPath(value: string): boolean {
  * or device path. Touching one makes Windows sign in to that host with the
  * user's NTLM credentials, so agent-authored paths must not reach one.
  */
-export function isNetworkPath(value: string): boolean {
+export function isNetworkPath(value: string) {
   return /^[\\/]{2}/.test(value);
 }
 
-export function isWindowsAbsolutePath(value: string): boolean {
+export function isWindowsAbsolutePath(value: string) {
   return isUncPath(value) || isWindowsDrivePath(value);
 }
 
-export function isExplicitRelativePath(value: string): boolean {
+export function isExplicitRelativePath(value: string) {
   return (
     value === "." ||
     value === ".." ||
@@ -30,11 +30,11 @@ export function isExplicitRelativePath(value: string): boolean {
   );
 }
 
-function isRootPath(value: string): boolean {
+function isRootPath(value: string) {
   return value === "/" || value === "\\" || /^[a-zA-Z]:[/\\]$/.test(value);
 }
 
-function trimTrailingPathSeparators(value: string): string {
+function trimTrailingPathSeparators(value: string) {
   if (value.length === 0 || isRootPath(value)) {
     return value;
   }
@@ -47,11 +47,11 @@ function trimTrailingPathSeparators(value: string): string {
   return /^[a-zA-Z]:$/.test(trimmed) ? `${trimmed}\\` : trimmed;
 }
 
-export function normalizeProjectPathForDispatch(value: string): string {
+export function normalizeProjectPathForDispatch(value: string) {
   return trimTrailingPathSeparators(value.trim());
 }
 
-export function normalizeProjectPathForComparison(value: string): string {
+export function normalizeProjectPathForComparison(value: string) {
   const normalized = normalizeProjectPathForDispatch(value);
   if (isWindowsDrivePath(normalized) || isUncPath(normalized)) {
     return normalized.replaceAll("/", "\\").toLowerCase();
@@ -62,7 +62,7 @@ export function normalizeProjectPathForComparison(value: string): string {
 const WINDOWS_RESERVED_NAME = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/;
 
 /** Folds accented Latin letters to ASCII ("tìm" -> "tim"); other scripts pass through. */
-export function foldLatinDiacritics(text: string): string {
+export function foldLatinDiacritics(text: string) {
   return text
     .normalize("NFKD")
     .replace(/[\u0300-\u036f]/g, "")
@@ -72,7 +72,7 @@ export function foldLatinDiacritics(text: string): string {
     .replace(/ẞ/g, "SS");
 }
 
-export function newProjectFolderName(name: string): string {
+export function newProjectFolderName(name: string) {
   const slug = foldLatinDiacritics(name)
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
@@ -85,21 +85,18 @@ export function newProjectFolderName(name: string): string {
 
 const SLASH_PREFIXED_WINDOWS_DRIVE_PATTERN = /^\/[A-Za-z]:[\\/]/;
 
-export function stripSlashPrefixedWindowsDrive(path: string): string {
+export function stripSlashPrefixedWindowsDrive(path: string) {
   return SLASH_PREFIXED_WINDOWS_DRIVE_PATTERN.test(path) ? path.slice(1) : path;
 }
 
-export function fileBasename(path: string): string {
+export function fileBasename(path: string) {
   const trimmed = path.replace(/[/\\]+$/, "");
   if (trimmed.length === 0) return path;
   const separatorIndex = Math.max(trimmed.lastIndexOf("/"), trimmed.lastIndexOf("\\"));
   return separatorIndex >= 0 ? trimmed.slice(separatorIndex + 1) : trimmed;
 }
 
-export function workspaceRelativeFilePath(
-  path: string,
-  workspaceRoot: string | null | undefined,
-): string | null {
+export function workspaceRelativeFilePath(path: string, workspaceRoot: string | null | undefined) {
   if (!workspaceRoot) return null;
   const caseInsensitive =
     isWindowsAbsolutePath(stripSlashPrefixedWindowsDrive(workspaceRoot)) ||
@@ -126,12 +123,12 @@ export function workspaceRelativeFilePath(
   return relativePath;
 }
 
-export function isAbsolutePath(value: string): boolean {
+export function isAbsolutePath(value: string) {
   return value.startsWith("/") || isWindowsAbsolutePath(value);
 }
 
 /** Home-relative host paths are expanded by the destination server. */
-export function isHostPath(value: string): boolean {
+export function isHostPath(value: string) {
   return isAbsolutePath(value) || value.startsWith("~/");
 }
 
@@ -142,7 +139,7 @@ const SHELL_ESCAPE = /\\([\s'"\\()[\]{}<>|&;$`!*?#~^=])/g;
  * What a folder box holds after a change. A full path pasted into it replaces the box, even after
  * the text already there, because `~/'/a b'` would create that nested folder.
  */
-export function resolvePastedPath(previous: string, next: string): string {
+export function resolvePastedPath(previous: string, next: string) {
   const isTyping = next.startsWith(previous)
     ? next.length === previous.length + 1
     : previous.startsWith(next);
@@ -160,7 +157,7 @@ export function resolvePastedPath(previous: string, next: string): string {
   return isWindowsAbsolutePath(path) ? path : path.replace(SHELL_ESCAPE, "$1");
 }
 
-export function resolveWorkspaceFilePath(path: string, workspaceRoot: string): string {
+export function resolveWorkspaceFilePath(path: string, workspaceRoot: string) {
   if (isAbsolutePath(path) || path.startsWith("~/") || path.startsWith("~\\")) return path;
   const base = workspaceRoot.replace(/[/\\]+$/, "");
   return isWindowsAbsolutePath(workspaceRoot)

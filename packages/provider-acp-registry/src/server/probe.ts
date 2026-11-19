@@ -48,16 +48,15 @@ const COMMAND_ADVERTISEMENT_GRACE = "500 millis";
 const MODEL_ADVERTISEMENT_GRACE = "5 seconds";
 const PROBE_SESSION_DELETE_TIMEOUT = "5 seconds";
 
-const boundedText = (value: string, maximumLength: number): string =>
-  value.trim().slice(0, maximumLength);
+const boundedText = (value: string, maximumLength: number) => value.trim().slice(0, maximumLength);
 
-const boundedOpaqueValue = (value: string, maximumLength: number): string | undefined =>
+const boundedOpaqueValue = (value: string, maximumLength: number) =>
   value.length > 0 && value === value.trim() && value.length <= maximumLength ? value : undefined;
 
 function advertisedReasoningEffort(
   option: EffectAcpSchema.SessionConfigOption | undefined,
   meta: Readonly<Record<string, unknown>> | null | undefined,
-): AcpRegistryProbeModel["reasoningEffort"] {
+) {
   if (option?.type !== "select" || meta == null) return undefined;
   if (meta.supportsReasoningEffort === false) return null;
   if (!Array.isArray(meta.reasoningEfforts)) return undefined;
@@ -83,13 +82,13 @@ function advertisedReasoningEffort(
   );
 }
 
-export function normalizeAcpRegistryWebUrl(value: string): string | undefined {
+export function normalizeAcpRegistryWebUrl(value: string) {
   if (value.length > 2_048 || !URL.canParse(value)) return undefined;
   const url = new URL(value);
   return url.protocol === "https:" || url.protocol === "http:" ? url.href : undefined;
 }
 
-function normalizedModel(id: string, candidate: AcpRegistryProbeModel): AcpRegistryProbeModel {
+function normalizedModel(id: string, candidate: AcpRegistryProbeModel) {
   return {
     id,
     name: boundedText(candidate.name, MAX_NAME_LENGTH) || id,
@@ -103,7 +102,7 @@ function normalizedModel(id: string, candidate: AcpRegistryProbeModel): AcpRegis
 function normalizeModels(
   candidates: ReadonlyArray<AcpRegistryProbeModel>,
   currentModelId: string | null,
-): ReadonlyArray<AcpRegistryProbeModel> {
+) {
   const seen = new Set<string>();
   const models: Array<AcpRegistryProbeModel> = [];
   for (const candidate of candidates) {
@@ -129,14 +128,14 @@ export interface AcpRegistryAuthSpawnContext {
 
 const SHELL_SAFE_TOKEN = /^[A-Za-z0-9_@%+=:,./-]+$/u;
 
-function shellDisplayToken(token: string): string {
+function shellDisplayToken(token: string) {
   return SHELL_SAFE_TOKEN.test(token) ? token : `'${token.replaceAll("'", `'\\''`)}'`;
 }
 
 function terminalAuthCommand(
   method: Extract<EffectAcpSchema.AuthMethod, { readonly type: "terminal" }>,
   spawn: AcpRegistryAuthSpawnContext,
-): string | undefined {
+) {
   const environmentPrefix = Object.entries(method.env ?? {}).map(
     ([name, value]) => `${name}=${shellDisplayToken(value)}`,
   );
@@ -148,7 +147,7 @@ function terminalAuthCommand(
 export function normalizeAcpRegistryAuthMethods(
   methods: ReadonlyArray<EffectAcpSchema.AuthMethod> | undefined,
   spawn?: AcpRegistryAuthSpawnContext,
-): ReadonlyArray<AcpRegistryProbeAuthMethod> {
+) {
   const normalized: Array<AcpRegistryProbeAuthMethod> = [];
   for (const method of methods ?? []) {
     const id = boundedOpaqueValue(method.id, MAX_ID_LENGTH);
@@ -205,7 +204,7 @@ export function normalizeAcpRegistryLiveConfiguration(
   configOptions: ReadonlyArray<EffectAcpSchema.SessionConfigOption>,
   modeState?: Parameters<typeof acpProviderOptionDescriptors>[0]["modeState"],
   modelState?: EffectAcpSchema.SessionModelState | null,
-): AcpRegistryLiveConfiguration {
+) {
   const modelOption = findModelConfigOption(configOptions);
   const currentModelId =
     modelOption?.type === "select" ? modelOption.currentValue : modelState?.currentModelId;
@@ -252,7 +251,7 @@ export function normalizeAcpRegistryLiveConfiguration(
   };
 }
 
-const emptyAcpRegistryAvailableCommands = (): AcpRegistryAvailableCommands => ({
+const emptyAcpRegistryAvailableCommands = () => ({
   slashCommands: [],
   skills: [],
 });
@@ -260,7 +259,7 @@ const emptyAcpRegistryAvailableCommands = (): AcpRegistryAvailableCommands => ({
 export function acpRegistryAdvertisesModelCatalog(
   configOptions: ReadonlyArray<EffectAcpSchema.SessionConfigOption> | null | undefined,
   modelState?: EffectAcpSchema.SessionModelState | null,
-): boolean {
+) {
   const modelOption = findModelConfigOption(configOptions);
   return (
     (modelOption !== undefined && flattenSelectChoices(modelOption.options).length > 1) ||
@@ -270,7 +269,7 @@ export function acpRegistryAdvertisesModelCatalog(
 
 export function normalizeAcpRegistryCommands(
   commands: ReadonlyArray<EffectAcpSchema.AvailableCommand>,
-): AcpRegistryAvailableCommands {
+) {
   const seen = new Set<string>();
   const slashCommands: Array<ServerProviderSlashCommand> = [];
   const skills: Array<ServerProviderSkill> = [];
@@ -309,7 +308,7 @@ export function acpRegistryProbeResult(
   icon: string | null = null,
   spawn?: AcpRegistryAuthSpawnContext,
   liveConfiguration?: AcpRegistryLiveConfiguration,
-): AcpRegistryProbeResult {
+) {
   const configuration =
     liveConfiguration ??
     normalizeAcpRegistryLiveConfiguration(
@@ -341,7 +340,7 @@ export function acpRegistryProbeFailure(
   error: EffectAcpErrors.AcpError,
   authMethods: ReadonlyArray<AcpRegistryProbeAuthMethod> = [],
   authAction?: AcpRegistryUrlAuthAction,
-): AcpRegistryOperationError {
+) {
   const detail = error._tag === "AcpTransportError" && error.detail ? error.detail : error.message;
   const authenticationFailed =
     (error._tag === "AcpRequestError" && error.code === -32000) ||
@@ -377,15 +376,7 @@ export type AcpRegistryConfigurationProbe<Requirements = never> = (
 ) => Effect.Effect<AcpRegistryConfigurationProbeResult, AcpRegistryOperationError, Requirements>;
 
 export const probeAcpRegistryConfiguration = Effect.fn("AcpRegistryProbe.probeConfiguration")(
-  function* (
-    input: AcpRegistryConfigurationProbeInput,
-  ): Effect.fn.Return<
-    AcpRegistryConfigurationProbeResult,
-    AcpRegistryOperationError,
-    | AcpRegistrySupport.AcpRegistryCatalog
-    | ChildProcessSpawner.ChildProcessSpawner
-    | SecureRandom.SecureRandom
-  > {
+  function* (input: AcpRegistryConfigurationProbeInput) {
     const catalog = yield* AcpRegistrySupport.AcpRegistryCatalog;
     const probeTimeoutMs = resolveProviderProbeTimeoutMs(
       "acp_registry",
@@ -652,7 +643,7 @@ function managementFailure(
     | "providers_disable"
     | "logout",
   error: EffectAcpErrors.AcpError | AcpRegistryOperationError,
-): AcpRegistryOperationError {
+) {
   if (error._tag === "AcpRegistryOperationError") return error;
   if (error._tag === "AcpRequestError" && error.code === -32601) {
     if (operation === "list") {

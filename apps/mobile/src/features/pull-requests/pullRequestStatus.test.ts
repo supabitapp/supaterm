@@ -1,8 +1,4 @@
-import type {
-  PullRequestActivity,
-  PullRequestCheck,
-  PullRequestComment,
-} from "@supaterm/contracts";
+import type { PullRequestCheck, PullRequestComment } from "@supaterm/contracts";
 import { describe, expect, it } from "vite-plus/test";
 import {
   normalizedReviewState,
@@ -11,7 +7,7 @@ import {
 } from "./pullRequestStatus";
 
 const author = { login: "julius", name: null, avatarUrl: null };
-function review(state: string, at: string): PullRequestComment {
+function review(state: string, at: string) {
   return {
     id: `${state}:${at}`,
     kind: "review",
@@ -21,14 +17,12 @@ function review(state: string, at: string): PullRequestComment {
     url: null,
     path: null,
     reviewState: state,
-  };
+  } satisfies PullRequestComment;
 }
-function activity(
-  comments: readonly PullRequestComment[],
-): Pick<PullRequestActivity, "comments" | "commits"> {
+function activity(comments: readonly PullRequestComment[]) {
   return { comments, commits: [] };
 }
-function check(status: PullRequestCheck["status"]): PullRequestCheck {
+function check(status: PullRequestCheck["status"]) {
   return { name: status, status, url: null, description: null };
 }
 

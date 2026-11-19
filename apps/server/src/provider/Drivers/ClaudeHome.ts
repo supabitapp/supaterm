@@ -18,7 +18,7 @@ export const resolveClaudeHomePath = Effect.fn("resolveClaudeHomePath")(function
   config: Pick<ClaudeSettings, "homePath">,
   environment?: NodeJS.ProcessEnv,
   cwd?: string,
-): Effect.fn.Return<string, never, Path.Path> {
+) {
   const path = yield* Path.Path;
   const home = yield* HostProcess.HomeDirectory;
   const homePath = config.homePath.trim();
@@ -37,7 +37,7 @@ export const hasClaudeTranscript = Effect.fn("hasClaudeTranscript")(function* (i
   readonly environment: NodeJS.ProcessEnv;
   readonly cwd: string | null;
   readonly sessionId: string;
-}): Effect.fn.Return<boolean, never, FileSystem.FileSystem | Path.Path> {
+}) {
   const fileSystem = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const projectsDir = path.join(
@@ -64,7 +64,7 @@ export const hasClaudeTranscript = Effect.fn("hasClaudeTranscript")(function* (i
 export const makeClaudeEnvironment = Effect.fn("makeClaudeEnvironment")(function* (
   config: Pick<ClaudeSettings, "homePath">,
   baseEnv?: NodeJS.ProcessEnv,
-): Effect.fn.Return<NodeJS.ProcessEnv, never, Path.Path> {
+) {
   const resolvedBaseEnv = baseEnv ?? process.env;
   const homePath = config.homePath.trim();
   if (homePath.length === 0) return resolvedBaseEnv;
@@ -164,10 +164,7 @@ export const claudeLocalSettingsDirectory = Effect.fn("claudeLocalSettingsDirect
 });
 
 export const makeClaudeContinuationGroupKey = Effect.fn("makeClaudeContinuationGroupKey")(
-  function* (
-    config: Pick<ClaudeSettings, "homePath">,
-    environment?: NodeJS.ProcessEnv,
-  ): Effect.fn.Return<string, never, Path.Path> {
+  function* (config: Pick<ClaudeSettings, "homePath">, environment?: NodeJS.ProcessEnv) {
     const resolvedHomePath = yield* resolveClaudeHomePath(config, environment);
     return `claude:home:${resolvedHomePath}`;
   },
@@ -178,7 +175,7 @@ export const makeClaudeCapabilitiesCacheKey = Effect.fn("makeClaudeCapabilitiesC
     config: Pick<ClaudeSettings, "binaryPath" | "homePath">,
     cwd?: string,
     environment?: NodeJS.ProcessEnv,
-  ): Effect.fn.Return<string, never, Path.Path> {
+  ) {
     const resolvedHomePath = yield* resolveClaudeHomePath(config, environment);
     return `${config.binaryPath}\0${resolvedHomePath}\0${cwd ?? ""}`;
   },
@@ -188,7 +185,7 @@ export const makeClaudeCapabilitiesCacheKey = Effect.fn("makeClaudeCapabilitiesC
 export const claudeSignedOutMessage = (input: {
   readonly configDir: string | undefined;
   readonly cwd: string;
-}): string => {
+}) => {
   const configuration =
     input.configDir !== undefined
       ? ` from ${quotePath(input.cwd)}, with CLAUDE_CONFIG_DIR set to ${quotePath(input.configDir)}`

@@ -17,11 +17,12 @@ export class VcsProvisioningService extends Context.Service<
   }
 >()("supaterm/vcs/VcsProvisioningService") {}
 
-function resolveRequestedKind(
-  kind: VcsDriverKind | undefined,
-): Effect.Effect<VcsDriverKind, VcsUnsupportedOperationError> {
+function resolveRequestedKind(kind: VcsDriverKind | undefined) {
   if (kind === undefined) {
-    return Effect.succeed("git");
+    return Effect.succeed("git") satisfies Effect.Effect<
+      VcsDriverKind,
+      VcsUnsupportedOperationError
+    >;
   }
   if (kind === "unknown") {
     return Effect.fail(
@@ -30,9 +31,9 @@ function resolveRequestedKind(
         kind,
         detail: "A concrete VCS driver kind is required for repository provisioning.",
       }),
-    );
+    ) satisfies Effect.Effect<VcsDriverKind, VcsUnsupportedOperationError>;
   }
-  return Effect.succeed(kind);
+  return Effect.succeed(kind) satisfies Effect.Effect<VcsDriverKind, VcsUnsupportedOperationError>;
 }
 
 /** @public */

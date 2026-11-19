@@ -24,7 +24,7 @@ export class SqliteStateMultipleSqlSourcesError extends Schema.TaggedError<Sqlit
   "SqliteStateMultipleSqlSourcesError",
   {},
 ) {
-  override get message(): string {
+  override get message() {
     return "Provide only one of --sql or --file.";
   }
 }
@@ -33,7 +33,7 @@ export class SqliteStateMissingSqlSourceError extends Schema.TaggedError<SqliteS
   "SqliteStateMissingSqlSourceError",
   {},
 ) {
-  override get message(): string {
+  override get message() {
     return "Provide one of --sql or --file.";
   }
 }
@@ -42,7 +42,7 @@ export class SqliteStateEmptySqlError extends Schema.TaggedError<SqliteStateEmpt
   "SqliteStateEmptySqlError",
   {},
 ) {
-  override get message(): string {
+  override get message() {
     return "SQL input is empty.";
   }
 }
@@ -53,7 +53,7 @@ export class SqliteStateDatabaseMissingError extends Schema.TaggedError<SqliteSt
     databasePath: Schema.String,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Database does not exist at '${this.databasePath}'. Start Supaterm once to run migrations.`;
   }
 }
@@ -62,7 +62,7 @@ export class SqliteStateSharedHomeMutationError extends Schema.TaggedError<Sqlit
   "SqliteStateSharedHomeMutationError",
   {},
 ) {
-  override get message(): string {
+  override get message() {
     return "Refusing to mutate the shared ~/.supaterm database. Use an isolated --base-dir.";
   }
 }
@@ -74,7 +74,7 @@ export class SqliteStateSqlFileError extends Schema.TaggedError<SqliteStateSqlFi
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Failed to read SQL from '${this.filePath}'.`;
   }
 }
@@ -87,7 +87,7 @@ export class SqliteStateDatabaseError extends Schema.TaggedError<SqliteStateData
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Failed to ${this.operation} SQLite database at '${this.databasePath}'.`;
   }
 }
@@ -158,7 +158,7 @@ const resolveSqlSource = Effect.fn("resolveSqliteStateSqlSource")(function* (
   return trimmed;
 });
 
-function normalizeSqliteValue(value: RawSqliteValue): typeof SqliteStateValue.Type {
+function normalizeSqliteValue(value: RawSqliteValue) {
   if (typeof value === "bigint") {
     const numericValue = Number(value);
     return Number.isSafeInteger(numericValue) ? numericValue : value.toString();
@@ -169,7 +169,7 @@ function normalizeSqliteValue(value: RawSqliteValue): typeof SqliteStateValue.Ty
   return value;
 }
 
-function normalizeSqliteRow(row: RawSqliteRow): typeof SqliteStateRow.Type {
+function normalizeSqliteRow(row: RawSqliteRow) {
   return Object.fromEntries(
     Object.entries(row).map(([key, value]) => [key, normalizeSqliteValue(value)]),
   );

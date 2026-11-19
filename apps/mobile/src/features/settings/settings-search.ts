@@ -123,7 +123,11 @@ export interface SettingsSearchSection<Row extends SettingsSearchRow> {
 export function filterSettingsSections<
   Row extends SettingsSearchRow,
   Section extends SettingsSearchSection<Row>,
->(sections: readonly Section[], query: string): Section[] {
+>(sections: readonly Section[], query: string): Section[];
+export function filterSettingsSections<
+  Row extends SettingsSearchRow,
+  Section extends SettingsSearchSection<Row>,
+>(sections: readonly Section[], query: string) {
   const normalizedQuery = foldSearchQuery(query);
   const rows = sections.flatMap((section) =>
     section.rows.map((row) => ({ row, section: section.title })),
@@ -142,5 +146,5 @@ export function filterSettingsSections<
   return sections.flatMap((section) => {
     const kept = matched ? section.rows.filter((row) => matched.has(row)) : section.rows;
     return kept.length ? [{ ...section, rows: kept }] : [];
-  });
+  }) satisfies Section[];
 }

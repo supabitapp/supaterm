@@ -22,20 +22,21 @@ export class HostPowerMonitor extends Context.Service<
 const makeUnknownSnapshot = (
   source: HostPowerSnapshot["source"],
   updatedAt: HostPowerSnapshot["updatedAt"],
-): HostPowerSnapshot => ({
-  source,
-  idle: "unknown",
-  idleSeconds: null,
-  locked: "unknown",
-  suspended: false,
-  onBattery: "unknown",
-  lowPowerMode: "unknown",
-  thermalState: "unknown",
-  stale: true,
-  updatedAt,
-});
+) =>
+  ({
+    source,
+    idle: "unknown",
+    idleSeconds: null,
+    locked: "unknown",
+    suspended: false,
+    onBattery: "unknown",
+    lowPowerMode: "unknown",
+    thermalState: "unknown",
+    stale: true,
+    updatedAt,
+  }) satisfies HostPowerSnapshot;
 
-function samePowerState(left: HostPowerSnapshot, right: HostPowerSnapshot): boolean {
+function samePowerState(left: HostPowerSnapshot, right: HostPowerSnapshot) {
   return (
     left.source === right.source &&
     left.idle === right.idle &&

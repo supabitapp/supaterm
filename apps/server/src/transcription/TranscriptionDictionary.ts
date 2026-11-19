@@ -18,7 +18,7 @@ const spokenKey = (value: string) => spokenWords(value).join("");
 export function applyDictionary(
   text: string,
   dictionary: ReadonlyArray<TranscriptionDictionaryEntry>,
-): string {
+) {
   const spellings = new Map<string, string>();
   const alternatives: string[] = [];
   for (const entry of dictionary) {

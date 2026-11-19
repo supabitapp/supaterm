@@ -27,7 +27,7 @@ export function selectPendingAcknowledgedMessages(
     readonly sequence: number;
     readonly projectedMessages: ReadonlyArray<{ readonly id: string }> | undefined;
   },
-): ReadonlyArray<AcknowledgedThreadMessage> {
+) {
   return acknowledged.filter(
     (message) =>
       scopedThreadKey(message.environmentId, message.threadId) === thread.threadKey &&
@@ -42,9 +42,14 @@ export function selectPendingAcknowledgedMessages(
 export function retainPendingCreationAttachments(
   feed: ReadonlyArray<ThreadFeedEntry>,
   pendingMessage: QueuedThreadMessage | null,
+  queued?: boolean,
+): ReadonlyArray<PendingThreadFeedEntry>;
+export function retainPendingCreationAttachments(
+  feed: ReadonlyArray<ThreadFeedEntry>,
+  pendingMessage: QueuedThreadMessage | null,
   queued = false,
-): ReadonlyArray<PendingThreadFeedEntry> {
-  if (!pendingMessage) return feed;
+) {
+  if (!pendingMessage) return feed satisfies ReadonlyArray<PendingThreadFeedEntry>;
   return feed.map((entry) =>
     entry.type === "message" && entry.message.id === pendingMessage.messageId
       ? {
@@ -53,7 +58,7 @@ export function retainPendingCreationAttachments(
           ...(queued ? { pendingMessage } : {}),
         }
       : entry,
-  );
+  ) satisfies ReadonlyArray<PendingThreadFeedEntry>;
 }
 
 /**
@@ -80,7 +85,7 @@ export function createThreadFeedGrouping() {
   return (
     feed: ReadonlyArray<ThreadFeedRow>,
     options: { readonly workflowOpeningMessageId?: string; readonly setupAnchorIndex?: number },
-  ): ReadonlyArray<GroupedThreadFeedRow> => {
+  ) => {
     const groupingMessage = (index: number) => {
       const entry = feed[index];
       return entry?.type === "message" &&
@@ -117,20 +122,26 @@ export function appendPendingThreadMessages(
   presentedFeed: ReadonlyArray<ThreadFeedEntry>,
   feed: ReadonlyArray<ThreadFeedEntry>,
   queuedMessages: ReadonlyArray<QueuedThreadMessage>,
-): ReadonlyArray<PendingThreadFeedEntry> {
-  if (queuedMessages.length === 0) return presentedFeed;
+): ReadonlyArray<PendingThreadFeedEntry>;
+export function appendPendingThreadMessages(
+  presentedFeed: ReadonlyArray<ThreadFeedEntry>,
+  feed: ReadonlyArray<ThreadFeedEntry>,
+  queuedMessages: ReadonlyArray<QueuedThreadMessage>,
+) {
+  if (queuedMessages.length === 0)
+    return presentedFeed satisfies ReadonlyArray<PendingThreadFeedEntry>;
   const deliveredIds = new Set(
     feed.flatMap((entry) => (entry.type === "message" ? [entry.message.id] : [])),
   );
   return finalizeThreadFeedPresentation([
-    ...presentedFeed.map((entry): PendingThreadFeedEntry => {
+    ...presentedFeed.map((entry) => {
       const pendingMessage = queuedMessages.find(
         (message) => message.creation !== undefined && message.messageId === entry.id,
       );
       return pendingMessage ? { ...entry, pendingMessage, acknowledged: false } : entry;
     }),
-    ...queuedMessages.flatMap((pendingMessage): PendingThreadFeedEntry[] => {
-      if (deliveredIds.has(pendingMessage.messageId)) return [];
+    ...queuedMessages.flatMap((pendingMessage) => {
+      if (deliveredIds.has(pendingMessage.messageId)) return [] satisfies PendingThreadFeedEntry[];
       return [
         {
           type: "message",
@@ -151,9 +162,9 @@ export function appendPendingThreadMessages(
             sourceThreadId: pendingMessage.threadId,
           },
         },
-      ];
+      ] satisfies PendingThreadFeedEntry[];
     }),
-  ]);
+  ]) satisfies ReadonlyArray<PendingThreadFeedEntry>;
 }
 
 /**
@@ -165,12 +176,17 @@ export function appendAcceptedThreadMessages(
   feed: ReadonlyArray<ThreadFeedEntry>,
   acknowledged: ReadonlyArray<QueuedThreadMessage>,
   creation: QueuedThreadMessage | null,
-): ReadonlyArray<PendingThreadFeedEntry> {
+): ReadonlyArray<PendingThreadFeedEntry>;
+export function appendAcceptedThreadMessages(
+  feed: ReadonlyArray<ThreadFeedEntry>,
+  acknowledged: ReadonlyArray<QueuedThreadMessage>,
+  creation: QueuedThreadMessage | null,
+) {
   const accepted = creation === null ? acknowledged : [...acknowledged, creation];
-  if (accepted.length === 0) return feed;
+  if (accepted.length === 0) return feed satisfies ReadonlyArray<PendingThreadFeedEntry>;
   return appendPendingThreadMessages(feed, feed, accepted).map((entry) =>
     entry.pendingMessage ? { ...entry, acknowledged: true } : entry,
-  );
+  ) satisfies ReadonlyArray<PendingThreadFeedEntry>;
 }
 
 /**
@@ -184,7 +200,7 @@ export function createPendingTurnAppender() {
   return (
     feed: ReadonlyArray<PendingThreadFeedEntry>,
     options: { readonly zen: boolean; readonly dispatchingMessageId: MessageId | null },
-  ): ReadonlyArray<PendingThreadFeedEntry | PendingFoldFeedEntry> => {
+  ) => {
     const last = feed.at(-1);
     if (
       last?.type !== "message" ||
@@ -225,7 +241,7 @@ export function createPendingTurnAppender() {
   };
 }
 
-export function isCompactionCommandFeedEntry(entry: PendingThreadFeedEntry): boolean {
+export function isCompactionCommandFeedEntry(entry: PendingThreadFeedEntry) {
   return (
     entry.type === "message" &&
     entry.pendingMessage === undefined &&

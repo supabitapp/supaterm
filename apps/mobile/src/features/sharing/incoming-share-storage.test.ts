@@ -19,16 +19,16 @@ const fileSystemMocks = vi.hoisted(() => {
       this.contents = typeof parent === "string" ? nameOrContents : "";
     }
 
-    get exists(): boolean {
+    get exists() {
       return files.has(this.name);
     }
 
-    create(): void {
+    create() {
       files.set(this.name, "");
       record();
     }
 
-    async write(contents: string): Promise<void> {
+    async write(contents: string) {
       files.set(this.name, contents.slice(0, 1));
       record();
       if (failNextWrite) {
@@ -39,7 +39,7 @@ const fileSystemMocks = vi.hoisted(() => {
       record();
     }
 
-    copySync(destination: File): void {
+    copySync(destination: File) {
       files.delete(destination.name);
       record();
       files.set(destination.name, files.get(this.name)!.slice(0, 1));
@@ -52,7 +52,7 @@ const fileSystemMocks = vi.hoisted(() => {
       record();
     }
 
-    moveSync(destination: File): void {
+    moveSync(destination: File) {
       files.delete(destination.name);
       record();
       if (destination.name.endsWith(failRelocationTo) && failRelocationTo) {
@@ -71,20 +71,20 @@ const fileSystemMocks = vi.hoisted(() => {
       record();
     }
 
-    delete(): void {
+    delete() {
       files.delete(this.name);
       record();
     }
 
-    async text(): Promise<string> {
+    async text() {
       return files.get(this.name)!;
     }
   }
 
   class Directory {
-    create(): void {}
+    create() {}
 
-    list(): ReadonlyArray<File> {
+    list() {
       return [...files].map(([name, contents]) => new File(name, contents));
     }
   }

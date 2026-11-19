@@ -1,7 +1,6 @@
 // @effect-diagnostics nodeBuiltinImport:off -- This native boundary keeps one JXA process open while the permission helper tracks System Settings.
 import * as NodeChildProcess from "node:child_process";
 import * as Schema from "effect/Schema";
-import type * as Electron from "electron";
 
 const SettingsWindow = Schema.NullOr(
   Schema.Struct({
@@ -54,7 +53,7 @@ function run() {
   }
 }`;
 
-export function settingsHelperBounds(settings: NonNullable<SettingsWindow>): Electron.Rectangle {
+export function settingsHelperBounds(settings: NonNullable<SettingsWindow>) {
   const sidebarWidth = 216;
   const inset = 16;
   const width = Math.min(560, settings.width - sidebarWidth - inset * 2);
@@ -69,7 +68,7 @@ export function settingsHelperBounds(settings: NonNullable<SettingsWindow>): Ele
 export function watchMacSettingsWindow(
   onChange: (window: SettingsWindow) => void,
   onUnavailable: () => void,
-): () => void {
+) {
   const child = NodeChildProcess.spawn(
     "/usr/bin/osascript",
     ["-l", "JavaScript", "-e", SETTINGS_WINDOW_SCRIPT],

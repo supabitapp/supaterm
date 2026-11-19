@@ -260,14 +260,17 @@ const WORDS = [
   "wheat",
 ] as const;
 
-export function relayName(address: string): string | null {
+export function relayName(address: string): string | null;
+export function relayName(address: string) {
   let identity: Uint8Array | null;
   try {
     identity = parseRelayAddress(address);
   } catch {
-    return null;
+    return null satisfies string | null;
   }
-  if (!identity) return null;
+  if (!identity) return null satisfies string | null;
   const digest = sha256(identity);
-  return [digest[0]!, digest[1]!, digest[2]!].map((byte) => WORDS[byte]).join("-");
+  return [digest[0]!, digest[1]!, digest[2]!].map((byte) => WORDS[byte]).join("-") satisfies
+    | string
+    | null;
 }

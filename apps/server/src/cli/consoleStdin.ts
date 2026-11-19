@@ -9,7 +9,7 @@ function needsConsoleStdin(input: {
   readonly env: NodeJS.ProcessEnv;
   readonly stdinMissing: boolean;
   readonly stdoutIsConsole: boolean;
-}): boolean {
+}) {
   return (
     input.platform === "win32" &&
     input.env.SUPATERM_DESKTOP_CLI_LAUNCHER === "1" &&
@@ -27,7 +27,7 @@ const isMissingInput = (fd: number) => {
 };
 
 /** Call before reading process.stdin. Returns the reopened fd for children, or undefined without changing stdin. */
-export function attachConsoleStdin(): number | undefined {
+export function attachConsoleStdin() {
   const needed = needsConsoleStdin({
     platform: HostProcess.Platform.defaultValue(),
     env: process.env,
@@ -65,4 +65,4 @@ export function attachConsoleStdin(): number | undefined {
 
 let consoleStdinFd: number | undefined;
 
-export const interactiveStdin = (): number | "inherit" => consoleStdinFd ?? "inherit";
+export const interactiveStdin = () => consoleStdinFd ?? "inherit";

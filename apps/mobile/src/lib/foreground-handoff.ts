@@ -1,7 +1,7 @@
 let activeHandoffs = 0;
 
 /** Returns an idempotent end function; call it when the handoff resolves. */
-export function beginForegroundHandoff(): () => void {
+export function beginForegroundHandoff() {
   activeHandoffs += 1;
   let ended = false;
   return () => {
@@ -11,6 +11,6 @@ export function beginForegroundHandoff(): () => void {
   };
 }
 
-export function isForegroundHandoffActive(): boolean {
+export function isForegroundHandoffActive() {
   return activeHandoffs > 0;
 }

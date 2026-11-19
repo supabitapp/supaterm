@@ -34,7 +34,7 @@ export type PersistentTerminalLaunchContext = {
   readonly worktreePath: string | null;
 };
 
-function terminalIdListsEqual(left: readonly string[], right: readonly string[]): boolean {
+function terminalIdListsEqual(left: readonly string[], right: readonly string[]) {
   if (left.length !== right.length) {
     return false;
   }
@@ -54,7 +54,7 @@ function terminalIdListsEqual(left: readonly string[], right: readonly string[])
 function serverTerminalIdsStrictSubsetOfClient(
   serverIds: readonly string[],
   clientIds: readonly string[],
-): boolean {
+) {
   if (serverIds.length >= clientIds.length || clientIds.length === 0) {
     return false;
   }

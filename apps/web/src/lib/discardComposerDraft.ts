@@ -13,7 +13,7 @@ import { showThreadUndoNotice } from "../hooks/showThreadUndoNotice";
 import * as ThreadUndo from "@supaterm/client-runtime/state/thread-undo";
 import { releaseDraftAttachments } from "./attachmentUploadQueue";
 
-export function discardComposerDraft(target: ComposerThreadTarget): void {
+export function discardComposerDraft(target: ComposerThreadTarget) {
   const store = useComposerDraftStore.getState();
   const key = resolveComposerDraftKey(store, target);
   const draft = key === null ? undefined : store.draftsByThreadKey[key];

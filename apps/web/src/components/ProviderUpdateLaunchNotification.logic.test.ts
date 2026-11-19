@@ -35,7 +35,7 @@ function provider(input: {
   readonly updateCommand?: string | null;
   readonly updateState?: ServerProvider["updateState"];
   readonly advisoryStatus?: NonNullable<ServerProvider["versionAdvisory"]>["status"];
-}): ServerProvider {
+}) {
   const result: ServerProvider = {
     instanceId: input.instanceId ?? instanceId(String(input.driver)),
     driver: input.driver,
@@ -66,7 +66,7 @@ function provider(input: {
   return result;
 }
 
-function updateCandidate(input: Parameters<typeof provider>[0]): ProviderUpdateCandidate {
+function updateCandidate(input: Parameters<typeof provider>[0]) {
   return provider(input) as ProviderUpdateCandidate;
 }
 
@@ -296,10 +296,7 @@ it("does not offer incompatible latest versions and restores suggestions after p
 });
 
 describe("getProviderUpdateRunToastView", () => {
-  const updateState = (
-    status: "succeeded" | "failed",
-    message: string,
-  ): ServerProvider["updateState"] => ({
+  const updateState = (status: "succeeded" | "failed", message: string) => ({
     status,
     startedAt: checkedAt,
     finishedAt: laterCheckedAt,

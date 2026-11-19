@@ -9,7 +9,7 @@ import {
 
 const NO_ATTEMPTS: RemoteDesktopUpdateAttempts = { checks: 0, downloads: 0 };
 
-function makeState(overrides: Partial<DesktopUpdateState> = {}): DesktopUpdateState {
+function makeState(overrides: Partial<DesktopUpdateState> = {}) {
   return {
     enabled: true,
     status: "idle",
@@ -28,7 +28,7 @@ function makeState(overrides: Partial<DesktopUpdateState> = {}): DesktopUpdateSt
     canRetry: false,
     omittedReleaseCount: 0,
     ...overrides,
-  };
+  } satisfies DesktopUpdateState;
 }
 
 describe("nextRemoteDesktopUpdateStep", () => {

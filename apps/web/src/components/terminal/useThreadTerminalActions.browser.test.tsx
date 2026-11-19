@@ -47,7 +47,7 @@ vi.mock(import("../../state/use-atom-command"), async (original) => ({
 import { useThreadTerminalActions } from "./useThreadTerminalActions";
 
 const environmentId = EnvironmentId.make("environment");
-const threadRef = (threadId: string): ScopedThreadRef => ({
+const threadRef = (threadId: string) => ({
   environmentId,
   threadId: ThreadId.make(threadId),
 });

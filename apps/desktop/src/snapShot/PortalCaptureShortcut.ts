@@ -198,7 +198,7 @@ export class PortalCaptureShortcut {
     this.close();
   };
 
-  private async wait<T>(promise: Promise<T>, timeoutMs = 5_000): Promise<T> {
+  private async wait<T>(promise: Promise<T>, timeoutMs = 5_000) {
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
       return await Promise.race([

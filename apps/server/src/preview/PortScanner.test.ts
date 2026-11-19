@@ -69,7 +69,7 @@ const layerProbeFailure = (
 
 const LSOF_TEST_PORT = 43_123;
 
-const processOutput = (stdout: string): ProcessRunner.ProcessRunOutput => ({
+const processOutput = (stdout: string) => ({
   stdout,
   stderr: "",
   code: ChildProcessSpawner.ExitCode(0),
@@ -1037,7 +1037,7 @@ const agentServer = () =>
       }),
   );
 
-const isRunning = (pid: number): boolean => {
+const isRunning = (pid: number) => {
   try {
     process.kill(pid, 0);
     return true;

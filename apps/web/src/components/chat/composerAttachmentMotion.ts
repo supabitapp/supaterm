@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 
 import { EASE_DRAWER, animationsSettled, prefersReducedMotion } from "~/lib/motion";
@@ -26,7 +26,7 @@ export function useAttachmentTrayMotion(
   attachmentIds: ReadonlyArray<string>,
   layoutKey: string,
   snapShotPending: boolean,
-): { readonly trayRef: RefObject<HTMLDivElement | null>; readonly tray: AttachmentTray } {
+) {
   const idsKey = attachmentIds.join("\n");
   const [tray, setTray] = useState({
     draftKey,

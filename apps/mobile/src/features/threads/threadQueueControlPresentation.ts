@@ -26,7 +26,7 @@ export function resolveThreadQueueRowControls(input: {
   readonly editBlocked?: boolean;
   readonly isEditing?: boolean;
   readonly text: string;
-}): ThreadQueueRowControls {
+}) {
   const mutationEnabled = input.canOperate && !input.busy;
   const isEditing = input.isEditing === true;
 
@@ -49,13 +49,7 @@ export function buildCancelQueuedRunCommand(input: {
   readonly environmentId: EnvironmentId;
   readonly runId: RunId;
   readonly threadId: ThreadId;
-}): {
-  readonly environmentId: EnvironmentId;
-  readonly input: {
-    readonly runId: RunId;
-    readonly threadId: ThreadId;
-  };
-} {
+}) {
   return {
     environmentId: input.environmentId,
     input: {

@@ -29,8 +29,12 @@ const kindOf = (kind: string) => SourceControlProviderKind.make(kind);
  */
 export function fakePullRequestProvider(
   kind: string,
+  overrides?: Partial<PullRequestProviderApi>,
+): PullRequestProviderApi;
+export function fakePullRequestProvider(
+  kind: string,
   overrides: Partial<PullRequestProviderApi> = {},
-): PullRequestProviderApi {
+) {
   return {
     kind: kindOf(kind),
     capabilities: {
@@ -69,7 +73,7 @@ export function fakePullRequestProvider(
     listReviewerCandidates: () => Effect.succeed({ candidates: [], truncated: false }),
     setReviewerRequest: () => Effect.void,
     ...overrides,
-  };
+  } satisfies PullRequestProviderApi;
 }
 
 type SourceControlProviderService = SourceControlProvider.SourceControlProvider["Service"];
@@ -81,7 +85,7 @@ const unexpected = (kind: string, operation: string) => () =>
 export function fakeSourceControlProvider(
   kind: string,
   overrides: Partial<SourceControlProviderService> = {},
-): SourceControlProviderService {
+) {
   return {
     kind: kindOf(kind),
     listChangeRequests: unexpected(kind, "listChangeRequests"),
@@ -99,7 +103,7 @@ export function fakeSourceControlProvider(
 export function fakeDiscovery(
   kind: string,
   overrides: Partial<Extract<SourceControlProviderDiscoverySpec, { readonly type: "api" }>> = {},
-): SourceControlProviderDiscoverySpec {
+) {
   return {
     type: "api",
     kind: kindOf(kind),
@@ -107,7 +111,7 @@ export function fakeDiscovery(
     installHint: `Install ${kind}.`,
     probeAuth: Effect.succeed(providerAuth({ status: "unknown" })),
     ...overrides,
-  };
+  } satisfies SourceControlProviderDiscoverySpec;
 }
 
 export interface FakeSourceControlDriverOptions {
@@ -122,12 +126,12 @@ export interface FakeSourceControlDriverOptions {
 export function fakeSourceControlDriverInstance(
   kind: string,
   options: FakeSourceControlDriverOptions = {},
-): SourceControlDriverInstance {
+) {
   return {
     sourceControl: fakeSourceControlProvider(kind, options.sourceControl),
     discovery: options.discovery ?? fakeDiscovery(kind),
     pullRequests:
       options.pullRequests === null ? null : fakePullRequestProvider(kind, options.pullRequests),
     ...(options.fetchMedia === undefined ? {} : { fetchMedia: options.fetchMedia }),
-  };
+  } satisfies SourceControlDriverInstance;
 }

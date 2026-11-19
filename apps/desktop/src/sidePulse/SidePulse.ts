@@ -1,7 +1,6 @@
 import {
   DEFAULT_CLIENT_SETTINGS,
   type SidePulseDevice,
-  type SidePulseDeviceError,
   type SidePulseDeviceState,
   type SidePulseLedState,
   type SidePulseSettings,
@@ -36,7 +35,7 @@ const PERMISSION_CODES: ReadonlySet<unknown> = new Set(["EACCES", "EPERM"]);
 
 const { logInfo, logWarning } = makeComponentLogger("desktop-sidepulse");
 
-function sidePulseMountRoots(platform: NodeJS.Platform, user: string): ReadonlyArray<string> {
+function sidePulseMountRoots(platform: NodeJS.Platform, user: string) {
   if (platform === "darwin") return ["/Volumes"];
   if (platform === "linux") {
     return [`/media/${user}`, `/run/media/${user}`, "/media", "/run/media", "/mnt"];
@@ -46,20 +45,20 @@ function sidePulseMountRoots(platform: NodeJS.Platform, user: string): ReadonlyA
 
 const SIDE_PULSE_PRO_VOLUME = /^sidepulse(?:pro)?\d*$/;
 
-function isSidePulseVolume(name: string): boolean {
+function isSidePulseVolume(name: string) {
   return SIDE_PULSE_PRO_VOLUME.test(name.toLowerCase().replaceAll(/[^a-z0-9]/g, ""));
 }
 
-function errorCode(error: PlatformError.PlatformError): unknown {
+function errorCode(error: PlatformError.PlatformError) {
   const { cause } = error.reason;
   return Predicate.hasProperty(cause, "code") ? cause.code : undefined;
 }
 
-function isPermissionDenied(error: PlatformError.PlatformError): boolean {
+function isPermissionDenied(error: PlatformError.PlatformError) {
   return error.reason._tag === "PermissionDenied" || PERMISSION_CODES.has(errorCode(error));
 }
 
-function writeError(error: PlatformError.PlatformError): SidePulseDeviceError {
+function writeError(error: PlatformError.PlatformError) {
   return isPermissionDenied(error) || errorCode(error) === "EROFS" ? "read-only" : "write-failed";
 }
 
@@ -127,7 +126,7 @@ export const make = Effect.fn("SidePulse.make")(function* (mountRoots: ReadonlyA
 
   const scanMountRoot = (root: string) =>
     fs.readDirectory(root).pipe(
-      Effect.orElseSucceed((): ReadonlyArray<string> => []),
+      Effect.orElseSucceed(() => []),
       Effect.flatMap((names) =>
         Effect.forEach(
           names.flatMap((name) =>

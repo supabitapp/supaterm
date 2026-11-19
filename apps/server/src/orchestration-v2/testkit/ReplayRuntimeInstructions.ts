@@ -5,7 +5,11 @@ import { buildRuntimeInstructions } from "@supaterm/provider-core/server/runtime
 export function materializeReplayTranscriptRuntimeInstructions(
   transcript: ProviderReplayTranscript,
   runtime: { readonly driver: ProviderDriverKind; readonly model: string },
-): ProviderReplayTranscript {
+): ProviderReplayTranscript;
+export function materializeReplayTranscriptRuntimeInstructions(
+  transcript: ProviderReplayTranscript,
+  runtime: { readonly driver: ProviderDriverKind; readonly model: string },
+) {
   const harness =
     runtime.driver === "cursor"
       ? "Cursor"
@@ -20,7 +24,7 @@ export function materializeReplayTranscriptRuntimeInstructions(
               : runtime.driver === "fx"
                 ? "fx"
                 : undefined;
-  if (harness === undefined) return transcript;
+  if (harness === undefined) return transcript satisfies ProviderReplayTranscript;
   const instructions = buildRuntimeInstructions({ harness, model: runtime.model });
   const sessionModels = new Map<unknown, string>();
   const notesFor = (sessionId: unknown) => {
@@ -250,10 +254,10 @@ export function materializeReplayTranscriptRuntimeInstructions(
       }
       return entry;
     }),
-  };
+  } satisfies ProviderReplayTranscript;
 }
 
-function promptPartText(part: unknown): string | undefined {
+function promptPartText(part: unknown) {
   return typeof part === "object" &&
     part !== null &&
     "type" in part &&
@@ -264,18 +268,10 @@ function promptPartText(part: unknown): string | undefined {
     : undefined;
 }
 
-type ReplayFrame = {
-  readonly kind?: unknown;
-  readonly method?: unknown;
-  readonly params?: unknown;
-  readonly result?: unknown;
-  readonly error?: unknown;
-};
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
-function asFrame(value: unknown): ReplayFrame | undefined {
+function asFrame(value: unknown) {
   return isRecord(value) ? value : undefined;
 }

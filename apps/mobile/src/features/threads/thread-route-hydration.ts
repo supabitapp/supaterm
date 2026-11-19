@@ -12,7 +12,7 @@ export function threadRouteIsHydrating(input: {
   readonly shellHasError: boolean;
   readonly detailStatus: EnvironmentThreadStatus;
   readonly detailHasError: boolean;
-}): boolean {
+}) {
   if (input.detailStatus === "deleted" || input.shellHasError || input.detailHasError) {
     return false;
   }
@@ -50,7 +50,7 @@ export function threadRouteIsHydrating(input: {
 export function threadRouteOpensDraft(input: {
   readonly connectionState: EnvironmentConnectionPhase;
   readonly detailStatus: EnvironmentThreadStatus;
-}): boolean {
+}) {
   if (input.detailStatus === "deleted") {
     return true;
   }
@@ -66,7 +66,7 @@ export function threadDetailErrorIsCurrent<E>(input: {
   readonly connectionState: EnvironmentConnectionPhase;
   readonly error: Option.Option<E>;
   readonly errorBeforeConnected: Option.Option<E>;
-}): boolean {
+}) {
   return (
     Option.isSome(input.error) &&
     !(input.connectionState === "connected" && input.error === input.errorBeforeConnected)

@@ -1,7 +1,7 @@
 import type { MaterialColors } from "@expo/ui/jetpack-compose";
 import { flattenThemeColor, type MobileThemeVariables } from "./mobileTheme";
 
-export function createNativeThemeColors(colors: MobileThemeVariables): MaterialColors {
+export function createNativeThemeColors(colors: MobileThemeVariables) {
   const roles = {
     primary: colors["--color-primary"],
     onPrimary: colors["--color-primary-foreground"],

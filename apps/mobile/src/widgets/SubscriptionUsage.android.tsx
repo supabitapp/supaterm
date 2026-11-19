@@ -86,7 +86,7 @@ export function SubscriptionUsage(props: SubscriptionUsageProps, environment: Wi
         window: SubscriptionUsageProps["providers"][number]["windows"][number];
       }
     | { type: "note"; provider: string; text: string };
-  const lines: Line[] = providers.flatMap((provider): Line[] => {
+  const lines: Line[] = providers.flatMap((provider) => {
     const stale =
       provider.windows.length > 0 && provider.expiresAt > 0 && now >= provider.expiresAt;
     if (stale || provider.windows.length === 0)
@@ -96,7 +96,7 @@ export function SubscriptionUsage(props: SubscriptionUsageProps, environment: Wi
           provider: provider.name,
           text: stale ? "Open Supaterm to refresh" : provider.detail,
         },
-      ];
+      ] satisfies Line[] as Line[];
     return [...provider.windows]
       .sort((a, b) => (kindOrder[a.kind ?? ""] ?? 2) - (kindOrder[b.kind ?? ""] ?? 2))
       .map((window) => ({
@@ -104,7 +104,7 @@ export function SubscriptionUsage(props: SubscriptionUsageProps, environment: Wi
         provider: provider.name,
         color: provider.colors?.[appearance] ?? colors.onSurface,
         window,
-      }));
+      })) satisfies Line[] as Line[];
   });
 
   const dropped = providers.reduce(

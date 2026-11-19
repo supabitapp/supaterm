@@ -9,7 +9,7 @@ import {
 } from "../../state/use-composer-drafts";
 import { linkedThreadDraftAction } from "./prompt-link-model";
 
-export function showPromptLinkNotice(notice: string): void {
+export function showPromptLinkNotice(notice: string) {
   Dialog.alert("Prompt from a link", notice);
 }
 
@@ -17,7 +17,7 @@ export async function applyLinkedPromptToThreadDraft(
   draftKey: string,
   prompt: LinkedPrompt,
   notice: string,
-): Promise<void> {
+) {
   try {
     await waitForComposerDraftsLoaded();
   } catch {
@@ -36,7 +36,7 @@ export async function applyLinkedPromptToThreadDraft(
   ]);
 }
 
-export async function copyPromptLink(prompt: string): Promise<void> {
+export async function copyPromptLink(prompt: string) {
   if (!(await tryCopyTextWithHaptic(buildNewThreadLink({ prompt }), { target: "prompt link" }))) {
     Dialog.alert("Could not copy", "Try again.");
   }

@@ -16,8 +16,9 @@ import { deriveThreadCheckpointSummaries } from "./threadCheckpoints.ts";
 
 function checkpoint(
   run: string,
-  overrides: Partial<OrchestrationV2Checkpoint> = {},
-): OrchestrationV2Checkpoint {
+  overrides?: Partial<OrchestrationV2Checkpoint>,
+): OrchestrationV2Checkpoint;
+function checkpoint(run: string, overrides: Partial<OrchestrationV2Checkpoint> = {}) {
   return {
     id: CheckpointId.make(`checkpoint-${run}`),
     threadId: ThreadId.make("thread"),
@@ -32,14 +33,19 @@ function checkpoint(
     files: [],
     capturedAt: DateTime.makeUnsafe("2026-10-26T09:30:00.123+11:00"),
     ...overrides,
-  };
+  } satisfies OrchestrationV2Checkpoint;
 }
 
 function message(
   run: string,
   id: string,
+  overrides?: Partial<OrchestrationV2ConversationMessage>,
+): OrchestrationV2ConversationMessage;
+function message(
+  run: string,
+  id: string,
   overrides: Partial<OrchestrationV2ConversationMessage> = {},
-): OrchestrationV2ConversationMessage {
+) {
   return {
     id: MessageId.make(id),
     threadId: ThreadId.make("thread"),
@@ -54,7 +60,7 @@ function message(
     createdAt: DateTime.makeUnsafe("2026-10-26T00:00:00.000Z"),
     updatedAt: DateTime.makeUnsafe("2026-10-26T00:00:00.000Z"),
     ...overrides,
-  };
+  } satisfies OrchestrationV2ConversationMessage;
 }
 
 describe("deriveThreadCheckpointSummaries", () => {
@@ -161,7 +167,7 @@ describe("deriveThreadCheckpointSummaries", () => {
     expect(
       deriveThreadCheckpointSummaries({
         checkpoints,
-        get messages(): ReadonlyArray<OrchestrationV2ConversationMessage> {
+        get messages() {
           throw new Error("Ineligible checkpoints must not read message history");
         },
       }),
@@ -194,7 +200,7 @@ describe("deriveThreadCheckpointSummaries", () => {
   it("stops at the newest requested assistant when only tail checkpoints are needed", () => {
     const history = Array.from({ length: 1_000 }, (_, index) => ({
       ...message(`old-${index}`, `old-${index}`),
-      get runId(): RunId {
+      get runId() {
         throw new Error("Tail checkpoints must not traverse older history");
       },
     }));
@@ -211,7 +217,7 @@ describe("deriveThreadCheckpointSummaries", () => {
   it("does not index assistant IDs from unrelated runs", () => {
     const unrelated = Array.from({ length: 1_000 }, (_, index) => ({
       ...message(`other-${index}`, `other-${index}`),
-      get id(): MessageId {
+      get id() {
         throw new Error("Unrequested runs must not be indexed");
       },
     }));
@@ -238,7 +244,7 @@ describe("deriveThreadCheckpointSummaries", () => {
             metadataVisits++;
             return entry.runId;
           },
-          get text(): string {
+          get text() {
             throw new Error("Checkpoint summaries must not read message bodies");
           },
         }));

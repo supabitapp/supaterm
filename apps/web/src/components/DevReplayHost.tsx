@@ -1,7 +1,7 @@
 import { useAtomValue } from "@effect/atom-react";
 import { scopeThreadRef } from "@supaterm/client-runtime/environment";
 import { squashAtomCommandFailure } from "@supaterm/client-runtime/state/runtime";
-import { ProviderInstanceId, type ThreadId } from "@supaterm/contracts";
+import { ProviderInstanceId } from "@supaterm/contracts";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import { useEffect, useEffectEvent, useState } from "react";
 
@@ -41,7 +41,7 @@ export function DevReplayHost() {
     environmentProjects.find((candidate) => candidate.id === routeThread?.projectId) ??
     environmentProjects[0];
 
-  const replay = async (scenario?: string): Promise<ThreadId> => {
+  const replay = async (scenario?: string) => {
     const model = scenario ?? scenarios[0]?.slug;
     if (environmentId === null || project === undefined || model === undefined) {
       throw new Error("Replay needs a dev server with a project and the Replay (dev) provider.");

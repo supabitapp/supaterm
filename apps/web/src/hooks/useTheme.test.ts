@@ -5,7 +5,8 @@ vi.mock(import("../state/server"), async () => {
   return { themeServerEnvironmentThemesAtom: Atom.make([]) } as never;
 });
 
-function createStorage(overrides: Partial<Storage> = {}): Storage {
+function createStorage(overrides?: Partial<Storage>): Storage;
+function createStorage(overrides: Partial<Storage> = {}) {
   const store = new Map<string, string>();
   return {
     clear: () => store.clear(),
@@ -21,7 +22,7 @@ function createStorage(overrides: Partial<Storage> = {}): Storage {
       store.set(key, value);
     },
     ...overrides,
-  };
+  } satisfies Storage;
 }
 
 afterEach(() => {

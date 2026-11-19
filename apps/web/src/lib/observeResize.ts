@@ -55,10 +55,7 @@ function deliver(entries: readonly ResizeObserverEntry[]) {
 }
 
 /** Flushes callbacks together before paint; ordinary React updates would leave a stale frame. */
-export function observeResize(
-  elements: Element | readonly Element[],
-  callback: ResizeCallback,
-): () => void {
+export function observeResize(elements: Element | readonly Element[], callback: ResizeCallback) {
   if (typeof ResizeObserver === "undefined") return () => {};
   const shared = (observer ??= new ResizeObserver(deliver));
   const subscription: Subscription = { callback, active: true };

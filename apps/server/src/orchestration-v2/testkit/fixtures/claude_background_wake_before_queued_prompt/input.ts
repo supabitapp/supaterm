@@ -15,7 +15,7 @@ export const CLAUDE_BACKGROUND_WAKE_BEFORE_QUEUED_PROMPT_LAUNCH_PROMPT = [
   "3) When Agent A's completion is reported, reply with exactly A_REPORTED and stop.",
 ].join("\n");
 
-export function claudeBackgroundWakeBeforeQueuedPromptInput(): OrchestratorFixtureInput {
+export function claudeBackgroundWakeBeforeQueuedPromptInput() {
   return {
     steps: [
       { type: "message", text: CLAUDE_BACKGROUND_WAKE_BEFORE_QUEUED_PROMPT_LAUNCH_PROMPT },
@@ -24,5 +24,5 @@ export function claudeBackgroundWakeBeforeQueuedPromptInput(): OrchestratorFixtu
       { type: "message", text: CLAUDE_BACKGROUND_SUBAGENT_LIFECYCLE_RESUME_PROMPT },
       { type: "message", text: CLAUDE_BACKGROUND_SUBAGENT_LIFECYCLE_FINAL_PROMPT },
     ],
-  };
+  } satisfies OrchestratorFixtureInput;
 }

@@ -22,7 +22,7 @@ export class RelayHostBrowserUnavailableError extends Error {
   }
 }
 
-const readEnvironmentUrl = (environmentId: EnvironmentId): URL => {
+const readEnvironmentUrl = (environmentId: EnvironmentId) => {
   const connection = readPreparedConnection(environmentId);
   if (!connection) throw new Error(`Environment ${environmentId} is not connected.`);
   if (connection.connectionMethod === "relay") {
@@ -39,7 +39,7 @@ const resolveEnvironmentPortTarget = (
   environmentUrl: URL,
   requestedUrl?: string,
   sourceUrl?: URL,
-): PreviewUrlResolution => {
+) => {
   if (!isPrivateNetworkHost(environmentUrl.hostname)) {
     throw new Error(
       "This environment port needs the planned authenticated preview gateway; its server address is not directly private-network reachable.",
@@ -67,10 +67,10 @@ const resolveEnvironmentPortTarget = (
       ? "direct"
       : "direct-private-network",
     environmentId,
-  };
+  } satisfies PreviewUrlResolution;
 };
 
-const reachesEnvironmentLoopback = (target: ConnectionTarget): boolean =>
+const reachesEnvironmentLoopback = (target: ConnectionTarget) =>
   isElectron &&
   (target._tag === "PrimaryConnectionTarget" || isDesktopLocalConnectionTarget(target));
 
@@ -78,7 +78,7 @@ export function resolveDiscoveredServerUrl(
   environmentId: EnvironmentId,
   rawUrl: string,
   options?: { readonly requireReachable: boolean },
-): string {
+) {
   try {
     const normalizedUrl = normalizePreviewUrl(rawUrl);
     const parsed = new URL(normalizedUrl);

@@ -84,7 +84,7 @@ export interface ServiceUnit {
   readonly reload: () => Promise<void>;
 }
 
-async function readSystemdUnitDirectory(): Promise<string | undefined> {
+async function readSystemdUnitDirectory() {
   try {
     const { stdout } = await NodeUtil.promisify(NodeChildProcess.execFile)(
       "busctl",
@@ -108,17 +108,15 @@ async function readSystemdUnitDirectory(): Promise<string | undefined> {
   }
 }
 
-async function serviceUnitFromEnvironment(
-  env: NodeJS.ProcessEnv = process.env,
-): Promise<ServiceUnit | undefined> {
+async function serviceUnitFromEnvironment(env: NodeJS.ProcessEnv = process.env) {
   const unitName = env[SERVICE_UNIT_ENV]?.trim();
   const home = env.HOME?.trim();
-  if (!unitName || !home) return undefined;
+  if (!unitName || !home) return undefined satisfies ServiceUnit | undefined;
   if (unitName.endsWith(".plist")) {
     return {
       path: NodePath.join(home, "Library", "LaunchAgents", unitName),
       reload: () => Promise.resolve(),
-    };
+    } satisfies ServiceUnit | undefined;
   }
   const xdgConfigHome = env.XDG_CONFIG_HOME?.trim();
   const unitDir =
@@ -145,7 +143,7 @@ async function serviceUnitFromEnvironment(
               : reject(new Error(`systemctl --user daemon-reload exited with ${code ?? signal}`)),
           );
       }),
-  };
+  } satisfies ServiceUnit | undefined;
 }
 
 const SERVICE_UNIT_PROGRAMS = [
@@ -153,7 +151,7 @@ const SERVICE_UNIT_PROGRAMS = [
   /(<string>[^<]*?[\\/]runtime[\\/]versions[\\/])([^\\/<]+)([\\/]supaterm<\/string>\s*<string>__service-launcher<\/string>)/,
 ] as const;
 
-function repointServiceUnit(contents: string, version: string): string {
+function repointServiceUnit(contents: string, version: string) {
   for (const program of SERVICE_UNIT_PROGRAMS) {
     const match = program.exec(contents);
     if (match === null) continue;
@@ -169,7 +167,7 @@ function repointServiceUnit(contents: string, version: string): string {
 const SERVICE_LOG_MAX_BYTES = 10 * 1024 * 1024;
 const SERVICE_LOG_CHECK_INTERVAL_MS = 10 * 60_000;
 
-async function boundServiceLog(logPath: string): Promise<void> {
+async function boundServiceLog(logPath: string) {
   const size = await NodeFSP.stat(logPath).then(
     (stats) => stats.size,
     () => 0,
@@ -183,7 +181,7 @@ async function boundServiceLog(logPath: string): Promise<void> {
   await NodeFSP.truncate(logPath, 0).catch(() => undefined);
 }
 
-async function serviceLogPath(serviceUnit: ServiceUnit | undefined): Promise<string | undefined> {
+async function serviceLogPath(serviceUnit: ServiceUnit | undefined) {
   if (serviceUnit === undefined) return undefined;
   const contents = await NodeFSP.readFile(serviceUnit.path, "utf8").catch(() => undefined);
   return contents === undefined ? undefined : serviceUnitLogPathOf(contents);
@@ -198,7 +196,7 @@ const databaseBackupDir = (baseDir: string, updateId: string) =>
 const databaseBackupFile = (backupDir: string, suffix: (typeof DB_FILE_SUFFIXES)[number]) =>
   NodePath.join(backupDir, suffix === "" ? "database" : `database${suffix}`);
 
-async function pathExists(target: string): Promise<boolean> {
+async function pathExists(target: string) {
   try {
     await NodeFSP.access(target);
     return true;
@@ -218,7 +216,7 @@ const MANAGED_SERVICE_ENV_NAMES = new Set([
 export async function readServiceEnvironment(
   baseDir: string,
   inherited: NodeJS.ProcessEnv = process.env,
-): Promise<NodeJS.ProcessEnv> {
+) {
   const environment = { ...inherited };
   let contents: string;
   try {
@@ -238,7 +236,7 @@ export async function readServiceEnvironment(
   return environment;
 }
 
-async function syncFile(filePath: string): Promise<void> {
+async function syncFile(filePath: string) {
   const handle = await NodeFSP.open(filePath, "r+");
   try {
     await handle.sync();
@@ -247,7 +245,7 @@ async function syncFile(filePath: string): Promise<void> {
   }
 }
 
-async function syncDirectory(directory: string): Promise<void> {
+async function syncDirectory(directory: string) {
   const handle = await NodeFSP.open(directory, "r");
   try {
     await handle.sync();
@@ -258,17 +256,13 @@ async function syncDirectory(directory: string): Promise<void> {
   }
 }
 
-function runCp(args: ReadonlyArray<string>, signal?: AbortSignal): Promise<boolean> {
+function runCp(args: ReadonlyArray<string>, signal?: AbortSignal) {
   return new Promise((resolve) => {
     NodeChildProcess.execFile("cp", args, { signal }, (error) => resolve(error === null));
-  });
+  }) satisfies Promise<boolean>;
 }
 
-async function copyDatabaseFile(
-  source: string,
-  destination: string,
-  signal?: AbortSignal,
-): Promise<void> {
+async function copyDatabaseFile(source: string, destination: string, signal?: AbortSignal) {
   // oxlint-disable-next-line supaterm/no-global-process-runtime -- Standalone launcher has no Effect runtime.
   const platform = process.platform;
   const hardLinked =
@@ -290,7 +284,7 @@ const CLONED_BACKUP_MIN_HEADROOM_BYTES = GIB;
 const CLONED_BACKUP_HEADROOM_FRACTION = 0.1;
 const ONLINE_BACKUP_WAL_HEADROOM_BYTES = 2 * 128 * 1024 ** 2;
 
-async function statDatabaseFiles(dbPath: string): Promise<ReadonlyArray<NodeFS.Stats>> {
+async function statDatabaseFiles(dbPath: string) {
   const stats: Array<NodeFS.Stats> = [];
   for (const suffix of DB_FILE_SUFFIXES) {
     const stat = await NodeFSP.stat(`${dbPath}${suffix}`).catch((cause: unknown) => {
@@ -302,7 +296,7 @@ async function statDatabaseFiles(dbPath: string): Promise<ReadonlyArray<NodeFS.S
   return stats;
 }
 
-async function backupCanClone(dbPath: string, backupRoot: string): Promise<boolean> {
+async function backupCanClone(dbPath: string, backupRoot: string) {
   // oxlint-disable-next-line supaterm/no-global-process-runtime -- Standalone launcher has no Effect runtime.
   const platform = process.platform;
   if (platform === "darwin") {
@@ -345,7 +339,7 @@ const filesystemBackupSpaceProbe: BackupSpaceProbe = {
   canClone: backupCanClone,
 };
 
-async function removeAbandonedBackupCopies(backupRoot: string): Promise<void> {
+async function removeAbandonedBackupCopies(backupRoot: string) {
   for (const entry of await NodeFSP.readdir(backupRoot)) {
     if (!entry.endsWith(".staging")) continue;
     await NodeFSP.rm(NodePath.join(backupRoot, entry), { recursive: true, force: true }).catch(
@@ -362,7 +356,7 @@ export async function databaseBackupBlocker(
   baseDir: string,
   dbPath: string,
   probe: Partial<BackupSpaceProbe> = {},
-): Promise<string | undefined> {
+) {
   const { readFreeBytes, canClone } = { ...filesystemBackupSpaceProbe, ...probe };
   const backupRoot = NodePath.join(baseDir, "runtime", "db-backup");
   await NodeFSP.mkdir(backupRoot, { recursive: true, mode: 0o700 });
@@ -382,7 +376,7 @@ export async function databaseBackupBlocker(
   return `Not enough free disk space to back up the database before updating: ${gb(needed)} GB needed, ${gb(free)} GB free. Free up disk space and try again. The server was not stopped.`;
 }
 
-async function copyWithoutOpening(source: string, destination: string): Promise<void> {
+async function copyWithoutOpening(source: string, destination: string) {
   // oxlint-disable-next-line supaterm/no-global-process-runtime -- Standalone launcher has no Effect runtime.
   if (process.platform === "win32") return NodeFSP.copyFile(source, destination);
   if (!(await runCp([source, destination]))) throw new Error(`cp ${source} failed.`);
@@ -392,7 +386,7 @@ async function startOnlineDatabaseBackup(
   baseDir: string,
   pending: PendingServiceUpdate,
   probe: Partial<BackupSpaceProbe> = {},
-): Promise<(() => Promise<void>) | undefined> {
+) {
   const backupDir = databaseBackupDir(baseDir, pending.id);
   if (await pathExists(backupDir)) return undefined;
   const { canClone } = { ...filesystemBackupSpaceProbe, ...probe };
@@ -457,7 +451,7 @@ async function backupDatabaseOnce(
   baseDir: string,
   pending: PendingServiceUpdate,
   signal: AbortSignal,
-): Promise<void> {
+) {
   const backupDir = databaseBackupDir(baseDir, pending.id);
   if (await pathExists(backupDir)) return;
 
@@ -487,7 +481,7 @@ const restoreMarkerPath = (baseDir: string, updateId: string) =>
 const databaseRestorePending = (baseDir: string, pending: PendingServiceUpdate) =>
   pathExists(restoreMarkerPath(baseDir, pending.id));
 
-async function markDatabaseRestorePending(backupDir: string): Promise<void> {
+async function markDatabaseRestorePending(backupDir: string) {
   const markerPath = NodePath.join(backupDir, RESTORE_MARKER);
   if (!(await pathExists(markerPath))) {
     const handle = await NodeFSP.open(markerPath, "wx", 0o600);
@@ -500,7 +494,7 @@ async function markDatabaseRestorePending(backupDir: string): Promise<void> {
   }
 }
 
-async function restoreTarget(path: string): Promise<string> {
+async function restoreTarget(path: string) {
   let current = path;
   for (let hops = 0; hops < 40; hops++) {
     try {
@@ -521,10 +515,7 @@ async function restoreTarget(path: string): Promise<string> {
   throw new Error(`Too many symbolic links resolving ${path}.`);
 }
 
-async function restoreDatabaseBackup(
-  baseDir: string,
-  pending: PendingServiceUpdate,
-): Promise<void> {
+async function restoreDatabaseBackup(baseDir: string, pending: PendingServiceUpdate) {
   const backupDir = databaseBackupDir(baseDir, pending.id);
   if (!(await pathExists(backupDir))) return;
 
@@ -549,31 +540,32 @@ async function restoreDatabaseBackup(
   for (const directory of directories) await syncDirectory(directory);
 }
 
-async function discardDatabaseBackup(baseDir: string, updateId: string): Promise<void> {
+async function discardDatabaseBackup(baseDir: string, updateId: string) {
   const backupDir = databaseBackupDir(baseDir, updateId);
   if (!(await pathExists(backupDir))) return;
   await NodeFSP.rm(backupDir, { recursive: true, force: true });
   await syncDirectory(NodePath.dirname(backupDir));
 }
 
-export async function readServiceState(filePath: string): Promise<ServiceState> {
+export function readServiceState(filePath: string): Promise<ServiceState>;
+export async function readServiceState(filePath: string) {
   const contents = await NodeFSP.readFile(filePath, "utf8");
   const state = parseServiceState(contents) ?? adoptLegacyServiceState(contents);
   if (state === undefined) throw new Error("Service state is invalid or unsupported.");
-  return state;
+  return state satisfies ServiceState;
 }
 
-function adoptLegacyServiceState(contents: string): ServiceState | undefined {
+function adoptLegacyServiceState(contents: string) {
   const legacy = parseLegacyServiceState(contents);
   return legacy && { protocol: SERVICE_LAUNCHER_PROTOCOL, activeVersion: legacy.activeVersion };
 }
 
-export async function writeServiceState(filePath: string, state: ServiceState): Promise<void> {
+export async function writeServiceState(filePath: string, state: ServiceState) {
   await NodeFSP.mkdir(NodePath.dirname(filePath), { recursive: true, mode: 0o700 });
   await replaceFileDurably(filePath, `${JSON.stringify(state, null, 2)}\n`);
 }
 
-async function replaceFileDurably(filePath: string, contents: string): Promise<void> {
+async function replaceFileDurably(filePath: string, contents: string) {
   const directory = NodePath.dirname(filePath);
   const tempPath = NodePath.join(
     directory,
@@ -594,7 +586,7 @@ async function replaceFileDurably(filePath: string, contents: string): Promise<v
   }
 }
 
-async function runtimeExists(baseDir: string, version: string): Promise<boolean> {
+async function runtimeExists(baseDir: string, version: string) {
   const paths = runtimePaths(baseDir, version);
   try {
     const [entry, sentinel] = await Promise.all([
@@ -611,7 +603,7 @@ function terminalUpdate<S extends TerminalStatus>(input: {
   readonly pending: PendingServiceUpdate;
   readonly status: S;
   readonly reason?: string;
-}): Exclude<ServiceUpdateRecord, PendingServiceUpdate> & { readonly status: S } {
+}) {
   return {
     id: input.pending.id,
     fromVersion: input.pending.fromVersion,
@@ -621,28 +613,26 @@ function terminalUpdate<S extends TerminalStatus>(input: {
   };
 }
 
-function sendMessage(
-  child: NodeChildProcess.ChildProcess,
-  message: ServiceLauncherParentMessage,
-): Promise<void> {
+function sendMessage(child: NodeChildProcess.ChildProcess, message: ServiceLauncherParentMessage) {
   return new Promise((resolve, reject) => {
     if (!child.connected || child.send === undefined) {
       reject(new Error("service child IPC is disconnected."));
       return;
     }
     child.send(message, (error) => (error === null ? resolve() : reject(error)));
-  });
+  }) satisfies Promise<void>;
 }
 
-function waitForExit(child: NodeChildProcess.ChildProcess): Promise<void> {
-  if (child.exitCode !== null || child.signalCode !== null) return Promise.resolve();
-  return new Promise((resolve) => child.once("exit", () => resolve()));
+function waitForExit(child: NodeChildProcess.ChildProcess) {
+  if (child.exitCode !== null || child.signalCode !== null)
+    return Promise.resolve() satisfies Promise<void>;
+  return new Promise((resolve) => child.once("exit", () => resolve())) satisfies Promise<void>;
 }
 
 async function terminateChild(
   child: NodeChildProcess.ChildProcess,
   signal: NodeJS.Signals = "SIGTERM",
-): Promise<void> {
+) {
   if (child.exitCode !== null || child.signalCode !== null) return;
   child.kill(signal);
   const force = setTimeout(() => child.kill("SIGKILL"), TERMINATE_GRACE_MS);
@@ -653,10 +643,7 @@ async function terminateChild(
   }
 }
 
-async function tryAcquireSqliteLock(
-  lockPath: string,
-  busyTimeoutMs = 0,
-): Promise<{ readonly close: () => void } | undefined> {
+async function tryAcquireSqliteLock(lockPath: string, busyTimeoutMs = 0) {
   const { DatabaseSync } = await import("node:sqlite");
   const db = new DatabaseSync(lockPath);
   try {
@@ -669,7 +656,7 @@ async function tryAcquireSqliteLock(
   }
 }
 
-async function sqliteLockHeld(lockPath: string): Promise<boolean> {
+async function sqliteLockHeld(lockPath: string) {
   if (
     !(await NodeFSP.access(lockPath).then(
       () => true,
@@ -686,10 +673,10 @@ const servingLockPath = (baseDir: string) =>
   NodePath.join(baseDir, "runtime", SERVICE_SERVING_LOCK_FILE);
 
 /** Whether a launcher has, or is about to start, a server for this home. An idle one does not. */
-export const serviceLauncherIsServing = (baseDir: string): Promise<boolean> =>
+export const serviceLauncherIsServing = (baseDir: string) =>
   sqliteLockHeld(servingLockPath(baseDir)).catch(() => false);
 
-export async function stateDirOwned(baseDir: string): Promise<boolean> {
+export async function stateDirOwned(baseDir: string) {
   const stateDir = NodePath.join(baseDir, "userdata");
   const lock = await tryAcquireSqliteLock(NodePath.join(stateDir, "server-owner.sqlite")).catch(
     () => null,
@@ -772,7 +759,7 @@ export class Launcher {
     this.#state = state;
   }
 
-  async run(): Promise<void> {
+  async run() {
     const onSigterm = () => void this.stop("SIGTERM");
     const onSigint = () => void this.stop("SIGINT");
     process.once("SIGTERM", onSigterm);
@@ -787,18 +774,18 @@ export class Launcher {
     }
   }
 
-  async #claimServing(): Promise<void> {
+  async #claimServing() {
     this.#servingLock ??= await tryAcquireSqliteLock(servingLockPath(this.#baseDir), 250).catch(
       () => undefined,
     );
   }
 
-  #releaseServing(): void {
+  #releaseServing() {
     this.#servingLock?.close();
     this.#servingLock = undefined;
   }
 
-  #enqueue(transition: () => Promise<void>): void {
+  #enqueue(transition: () => Promise<void>) {
     this.#transitions = this.#transitions
       .then(transition, transition)
       .catch((cause: unknown) =>
@@ -806,7 +793,7 @@ export class Launcher {
       );
   }
 
-  async #fatal(error: Error): Promise<void> {
+  async #fatal(error: Error) {
     if (this.#done) return;
     this.#done = true;
     this.#stopping = true;
@@ -817,7 +804,7 @@ export class Launcher {
     this.#completion.reject(error);
   }
 
-  async stop(signal: NodeJS.Signals): Promise<void> {
+  async stop(signal: NodeJS.Signals) {
     if (this.#stopRequested || this.#stopping) {
       await this.#completion.promise.catch(() => undefined);
       return;
@@ -837,18 +824,18 @@ export class Launcher {
     await this.#completion.promise.catch(() => undefined);
   }
 
-  #clearTimer(): void {
+  #clearTimer() {
     clearTimeout(this.#timer);
     this.#timer = undefined;
   }
 
-  async #serviceStartDiskSpaceBlocker(): Promise<string | undefined> {
+  async #serviceStartDiskSpaceBlocker() {
     const databasePath =
       this.#state.update?.status === "pending"
         ? this.#state.update.dbPath
         : NodePath.join(this.#baseDir, "userdata", "statev2.sqlite");
     const resolvedDatabasePath = await restoreTarget(databasePath).catch(() => databasePath);
-    const freeBytes = async (directory: string): Promise<number> => {
+    const freeBytes = async (directory: string) => {
       try {
         return await filesystemBackupSpaceProbe.readFreeBytes(directory);
       } catch (cause) {
@@ -869,7 +856,7 @@ export class Launcher {
       : undefined;
   }
 
-  async #deferForDiskSpace(retry: () => Promise<void>): Promise<boolean> {
+  async #deferForDiskSpace(retry: () => Promise<void>) {
     const reason = await this.#serviceStartDiskSpaceBlocker();
     if (reason === undefined) return false;
     if (this.#stopRequested) return true;
@@ -894,7 +881,7 @@ export class Launcher {
     return true;
   }
 
-  async #selectState(next: ServiceState): Promise<void> {
+  async #selectState(next: ServiceState) {
     const release = await acquireServiceSelectionLock(this.#statePath);
     try {
       const selected = await readServiceState(this.#statePath);
@@ -912,7 +899,7 @@ export class Launcher {
     }
   }
 
-  async #recover(): Promise<void> {
+  async #recover() {
     await this.#claimServing();
     const restartPending = restartPendingPath(this.#baseDir);
     try {
@@ -964,7 +951,7 @@ export class Launcher {
     await this.#startTrial(update);
   }
 
-  async #startTrial(pending: PendingServiceUpdate): Promise<void> {
+  async #startTrial(pending: PendingServiceUpdate) {
     if (await this.#deferForDiskSpace(() => this.#startTrial(pending))) return;
     try {
       await backupDatabaseOnce(this.#baseDir, pending, this.#stopSignal.signal);
@@ -981,7 +968,7 @@ export class Launcher {
     }
   }
 
-  async #startChild(version: string, role: ChildRole, update?: ServiceUpdateRecord): Promise<void> {
+  async #startChild(version: string, role: ChildRole, update?: ServiceUpdateRecord) {
     if (this.#stopping) return;
     if (
       await this.#deferForDiskSpace(() =>
@@ -1042,7 +1029,7 @@ export class Launcher {
     }
   }
 
-  async #handleMessage(child: ManagedChild, message: ServiceLauncherChildMessage): Promise<void> {
+  async #handleMessage(child: ManagedChild, message: ServiceLauncherChildMessage) {
     if (this.#child !== child || this.#stopping) return;
     if (message.type === "request-update") {
       await this.#handleUpdateRequest(child, message);
@@ -1054,7 +1041,7 @@ export class Launcher {
   async #handleUpdateRequest(
     child: ManagedChild,
     message: Extract<ServiceLauncherChildMessage, { readonly type: "request-update" }>,
-  ): Promise<void> {
+  ) {
     const reject = (reason: string) =>
       sendMessage(child.process, { type: "update-rejected", reason });
     if (child.role !== "active") {
@@ -1117,7 +1104,7 @@ export class Launcher {
     this.#timer = setTimeout(() => this.#enqueue(() => this.#beginTrial(child)), HANDOFF_DELAY_MS);
   }
 
-  async #beginTrial(child: ManagedChild): Promise<void> {
+  async #beginTrial(child: ManagedChild) {
     const pending = this.#state.update;
     if (this.#child !== child || child.role !== "active" || pending?.status !== "pending") {
       return;
@@ -1134,7 +1121,7 @@ export class Launcher {
     await this.#startTrial(pending);
   }
 
-  async #handlePrepared(child: ManagedChild, updateId: string): Promise<void> {
+  async #handlePrepared(child: ManagedChild, updateId: string) {
     const pending = this.#state.update;
     if (
       child.role !== "trial" ||
@@ -1165,7 +1152,7 @@ export class Launcher {
     }
   }
 
-  async #repointServiceUnit(version: string): Promise<void> {
+  async #repointServiceUnit(version: string) {
     const unit = this.#serviceUnit;
     if (unit === undefined) return;
     try {
@@ -1200,7 +1187,7 @@ export class Launcher {
     }
   }
 
-  async #handlePreparedTimeout(child: ManagedChild): Promise<void> {
+  async #handlePreparedTimeout(child: ManagedChild) {
     const pending = this.#state.update;
     if (this.#child !== child || child.role !== "trial" || pending?.status !== "pending") {
       return;
@@ -1209,11 +1196,7 @@ export class Launcher {
     await this.#returnToPrevious(pending, "rolled-back", "prepared-timeout", child);
   }
 
-  async #handleExit(
-    child: ManagedChild,
-    code: number | null,
-    signal: NodeJS.Signals | null,
-  ): Promise<void> {
+  async #handleExit(child: ManagedChild, code: number | null, signal: NodeJS.Signals | null) {
     if (this.#child !== child || this.#stopping) return;
     this.#child = null;
     if (code === STATE_DIR_OWNED_EXIT_CODE) {
@@ -1249,7 +1232,7 @@ export class Launcher {
     throw new Error(`Active child exited unexpectedly (${String(code ?? signal ?? "unknown")}).`);
   }
 
-  async #idleWhileStateDirOwned(): Promise<void> {
+  async #idleWhileStateDirOwned() {
     this.#clearTimer();
     const pending = this.#state.update;
     if (pending?.status === "pending") {
@@ -1278,7 +1261,7 @@ export class Launcher {
     );
   }
 
-  async #reclaimStateDir(): Promise<void> {
+  async #reclaimStateDir() {
     if (this.#stopRequested) {
       this.#clearTimer();
       return;
@@ -1303,7 +1286,7 @@ export class Launcher {
     status: "rolled-back" | "failed",
     reason: string,
     child?: ManagedChild,
-  ): Promise<void> {
+  ) {
     if (child !== undefined) {
       this.#child = null;
       await terminateChild(child.process);
@@ -1327,7 +1310,7 @@ export class Launcher {
   }
 }
 
-export async function main(): Promise<void> {
+export async function main() {
   const baseDir = process.env.SUPATERM_HOME;
   if (baseDir === undefined || baseDir.trim() === "") {
     throw new Error("SUPATERM_HOME is required by the Supaterm service launcher.");

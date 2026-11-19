@@ -14,7 +14,6 @@ import {
   type ScheduledTaskRunNowInput,
   type ScheduledTaskRunNowResult,
   type ScheduledTaskSetEnabledInput,
-  type ScheduledTaskThreadMode,
   type ScheduledTaskUpsertInput,
   scheduledTaskThreadMode,
 } from "@supaterm/contracts";
@@ -60,7 +59,7 @@ const decodeModelSelectionJson = Schema.decodeUnknownEffect(
 function resolveThreadMode(
   input: Pick<ScheduledTaskUpsertInput, "threadId" | "threadMode">,
   existing: Pick<ScheduledTask, "threadId" | "threadMode"> | null,
-): ScheduledTaskThreadMode {
+) {
   if (input.threadMode !== undefined) return input.threadMode;
   const stored = existing === null ? "new_thread" : scheduledTaskThreadMode(existing);
   return stored === "new_thread" && input.threadId != null ? "continue" : stored;
@@ -128,7 +127,7 @@ function taskError(message: string, input?: { taskId?: ScheduledTaskId; cause?: 
   });
 }
 
-function iso(value: DateTime.DateTime): string {
+function iso(value: DateTime.DateTime) {
   return DateTime.formatIso(DateTime.toUtc(value));
 }
 
@@ -141,10 +140,7 @@ const UNSUCCESSFUL_RUN_ERRORS = {
 } as const;
 const localNow = DateTime.withCurrentZoneLocal(DateTime.nowInCurrentZone);
 
-function nextRunAt(
-  task: Pick<ScheduledTask, "enabled" | "schedule">,
-  from: DateTime.DateTime,
-): string | null {
+function nextRunAt(task: Pick<ScheduledTask, "enabled" | "schedule">, from: DateTime.DateTime) {
   if (!task.enabled) return null;
   try {
     const next = nextScheduledRunAt(task.schedule, from);
@@ -157,7 +153,7 @@ function nextRunAt(
 function nextRunAfterRun(
   task: Pick<ScheduledTask, "enabled" | "schedule" | "lastRunAt">,
   now: DateTime.DateTime,
-): string | null {
+) {
   const startedAt =
     task.schedule.type === "once" && task.lastRunAt !== null
       ? DateTime.make(task.lastRunAt)
@@ -178,16 +174,19 @@ function requireFutureOnce(
     : Effect.void;
 }
 
-function errorMessage(error: unknown): string {
+function errorMessage(error: unknown) {
   const failure = Cause.isCause(error) ? Cause.squash(error) : error;
   return failure instanceof Error ? failure.message : String(failure);
 }
 
-function dispatchErrorMessage(cause: Cause.Cause<unknown>): string {
+function dispatchErrorMessage(cause: Cause.Cause<unknown>): string;
+function dispatchErrorMessage(cause: Cause.Cause<unknown>) {
   const failure = Cause.squash(cause);
-  return isOrchestratorDispatchError(failure) && typeof failure.cause === "string"
-    ? (userFacingDispatchErrorMessage(failure.cause) ?? errorMessage(failure))
-    : errorMessage(failure);
+  return (
+    isOrchestratorDispatchError(failure) && typeof failure.cause === "string"
+      ? (userFacingDispatchErrorMessage(failure.cause) ?? errorMessage(failure))
+      : errorMessage(failure)
+  ) satisfies string;
 }
 
 const decodeRow = Effect.fnUntraced(
@@ -652,11 +651,15 @@ export const layer = Layer.effect(
         const prompt = active.prompt;
         const threadMode = scheduledTaskThreadMode(active);
 
-        const sendBound = (
+        const sendBound: (
           threadId: ThreadId,
           projectId: ProjectId,
           retries: number,
-        ): ReturnType<typeof threadManagement.sendToThread> =>
+        ) => ReturnType<typeof threadManagement.sendToThread> = (
+          threadId: ThreadId,
+          projectId: ProjectId,
+          retries: number,
+        ) =>
           threadManagement
             .sendToThread({
               projectId,

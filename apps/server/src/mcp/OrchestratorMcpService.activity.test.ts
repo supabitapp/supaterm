@@ -56,18 +56,19 @@ const codexDriver = ProviderDriverKind.make("codex");
 const customCodexInstanceId = ProviderInstanceId.make("codex-custom-workspace");
 const parentInstanceId = ProviderInstanceId.make("codex");
 
-const makeScope = (): McpInvocationContext.McpInvocationScope => ({
-  environmentId,
-  requestNamespace: "provider-session-mcp-orchestrator-detail",
-  thread: {
-    threadId: parentThreadId,
-    providerSessionId: "provider-session-mcp-orchestrator-detail",
-    providerInstanceId: parentInstanceId,
-  },
-  client: undefined,
-  capabilities: new Set(["orchestration"]),
-  issuedAt: 1,
-});
+const makeScope = () =>
+  ({
+    environmentId,
+    requestNamespace: "provider-session-mcp-orchestrator-detail",
+    thread: {
+      threadId: parentThreadId,
+      providerSessionId: "provider-session-mcp-orchestrator-detail",
+      providerInstanceId: parentInstanceId,
+    },
+    client: undefined,
+    capabilities: new Set(["orchestration"]),
+    issuedAt: 1,
+  }) satisfies McpInvocationContext.McpInvocationScope;
 
 function baseThread(input: {
   readonly threadId: ThreadId;

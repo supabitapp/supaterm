@@ -11,7 +11,7 @@ const MARKDOWN_LINK_FAVICON_CLASS_NAME = "inline-block size-[14px] [vertical-ali
 
 const failedFaviconHosts = new Set<string>();
 
-function sourceControlHostIcon(host: string): ReactNode {
+function sourceControlHostIcon(host: string) {
   const definition = sourceControlClients.findByPublicDomain(host);
   if (definition === undefined) return null;
   const Icon = sourceControlIcon(definition);
@@ -45,13 +45,13 @@ const MarkdownLinkFavicon = memo(function MarkdownLinkFavicon({ host }: { host: 
   );
 });
 
-function leadingExternalLinkTextLength(text: string): number {
+function leadingExternalLinkTextLength(text: string) {
   const protocol = /^(?:https?:\/\/)/i.exec(text)?.[0];
   if (protocol) return protocol.length;
   return Array.from(text.slice(0, 2))[0]?.length ?? 0;
 }
 
-function breakableExternalLinkText(text: string): ReactNode[] {
+function breakableExternalLinkText(text: string) {
   return Array.from(text.matchAll(/\s+|\S+/g), ({ 0: word, index: start }) =>
     word.length <= 16 ? (
       word

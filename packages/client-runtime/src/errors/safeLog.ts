@@ -11,11 +11,11 @@ export interface SafeErrorLogAttributes {
   readonly stack?: string;
 }
 
-function readSafeLabel(value: unknown): string | undefined {
+function readSafeLabel(value: unknown) {
   return typeof value === "string" && SAFE_ERROR_LABEL.test(value) ? value : undefined;
 }
 
-function sanitizeStackUrl(value: string): string {
+function sanitizeStackUrl(value: string) {
   try {
     const url = new URL(value);
     const position = /(?::\d+){1,2}$/.exec(url.hash || url.search)?.[0] ?? "";
@@ -29,11 +29,11 @@ function sanitizeStackUrl(value: string): string {
   }
 }
 
-function sanitizeStackFrame(frame: string): string {
+function sanitizeStackFrame(frame: string) {
   return frame.replace(/(?:https?|file):\/\/[^\s)]+/g, sanitizeStackUrl);
 }
 
-function readSafeStack(error: Error): string | undefined {
+function readSafeStack(error: Error) {
   try {
     const frames = error.stack
       ?.split(/\r?\n/)
@@ -46,7 +46,7 @@ function readSafeStack(error: Error): string | undefined {
   }
 }
 
-function readErrorTag(error: unknown): string | undefined {
+function readErrorTag(error: unknown) {
   try {
     if (typeof error !== "object" || error === null) {
       return undefined;
@@ -57,7 +57,7 @@ function readErrorTag(error: unknown): string | undefined {
   }
 }
 
-function readTraceId(error: unknown): string | undefined {
+function readTraceId(error: unknown) {
   try {
     const seen = new Set<object>();
     let current: unknown = error;
@@ -77,7 +77,7 @@ function readTraceId(error: unknown): string | undefined {
   }
 }
 
-export function safeErrorLogAttributes(error: unknown): SafeErrorLogAttributes {
+export function safeErrorLogAttributes(error: unknown) {
   const errorTag = readErrorTag(error);
   const traceId = readTraceId(error);
 
@@ -90,7 +90,7 @@ export function safeErrorLogAttributes(error: unknown): SafeErrorLogAttributes {
       ...(errorTag !== undefined ? { errorTag } : {}),
       ...(traceId !== undefined ? { traceId } : {}),
       ...(stack !== undefined ? { stack } : {}),
-    };
+    } satisfies SafeErrorLogAttributes;
   }
 
   return {
@@ -104,5 +104,5 @@ export function safeErrorLogAttributes(error: unknown): SafeErrorLogAttributes {
             : "primitive",
     ...(errorTag !== undefined ? { errorTag } : {}),
     ...(traceId !== undefined ? { traceId } : {}),
-  };
+  } satisfies SafeErrorLogAttributes;
 }

@@ -5,7 +5,6 @@ import {
   voiceInputBlocksSubmission,
   voiceInputCue,
   voiceInputSessionActive,
-  type VoiceDraftSnapshot,
   type VoiceInputState,
   type VoiceRecordingHandOff,
 } from "@supaterm/client-runtime/voice-input";
@@ -83,7 +82,7 @@ export interface ComposerVoiceAvailability {
   readonly opensSettings: boolean;
 }
 
-function useAvailability(options: ComposerVoiceInputOptions): ComposerVoiceAvailability {
+function useAvailability(options: ComposerVoiceInputOptions) {
   const source = useVoiceTranscriptionSource(options.environmentId);
   const connected = useAtomValue(threadOutboxDeliverableAtom(options.environmentId));
   if (!canRecordVoice()) {
@@ -93,7 +92,7 @@ function useAvailability(options: ComposerVoiceInputOptions): ComposerVoiceAvail
       label: null,
       unavailableReason: "Voice input needs HTTPS or localhost.",
       opensSettings: false,
-    };
+    } satisfies ComposerVoiceAvailability;
   }
   if (source?.status === "unavailable") {
     return {
@@ -102,7 +101,7 @@ function useAvailability(options: ComposerVoiceInputOptions): ComposerVoiceAvail
       label: null,
       unavailableReason: source.message,
       opensSettings: true,
-    };
+    } satisfies ComposerVoiceAvailability;
   }
   const providerName = source ? (source.provider.displayName ?? source.provider.instanceId) : null;
   const canReview = connected && source !== null;
@@ -116,7 +115,7 @@ function useAvailability(options: ComposerVoiceInputOptions): ComposerVoiceAvail
         ? null
         : "Reconnect to transcribe, or clear the draft to send a voice message.",
     opensSettings: false,
-  };
+  } satisfies ComposerVoiceAvailability;
 }
 
 function createVoiceRuntime(onStateChange: (state: VoiceInputState) => void) {
@@ -125,7 +124,7 @@ function createVoiceRuntime(onStateChange: (state: VoiceInputState) => void) {
     if (options === null) throw new Error("Voice input was used before its composer mounted.");
     return options;
   };
-  const readDraft = (): VoiceDraftSnapshot => {
+  const readDraft = () => {
     const current = read();
     return {
       ownerKey: current.ownerKey,

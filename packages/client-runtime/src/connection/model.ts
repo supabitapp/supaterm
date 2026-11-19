@@ -90,7 +90,7 @@ export class ConnectionTransientError extends Schema.TaggedError<ConnectionTrans
     ...ConnectionFailureFields,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return this.detail;
   }
 }
@@ -106,8 +106,8 @@ export class ConnectionBlockedError extends Schema.TaggedError<ConnectionBlocked
     serverUpdateRequired: Schema.optionalKey(Schema.Boolean),
   },
 ) {
-  override get message(): string {
-    return this.detail;
+  override get message() {
+    return this.detail satisfies string as string;
   }
 }
 
@@ -157,9 +157,7 @@ export const NO_REFUSED_ROUTES: ReadonlyArray<string> = Object.freeze([]);
 
 export type ConnectionProjectionPhase = "disconnected" | "synchronizing" | "ready";
 
-export function connectionProjectionPhase(
-  state: SupervisorConnectionState,
-): ConnectionProjectionPhase {
+export function connectionProjectionPhase(state: SupervisorConnectionState) {
   switch (state.phase) {
     case "connecting":
       return "synchronizing";

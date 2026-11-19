@@ -15,7 +15,7 @@ export const ANTIGRAVITY_EDIT_DIFF_OMITTED = Symbol("AntigravityEditDiffOmitted"
 const SNIPPET_LABEL = " snippet, line unknown";
 
 /** True when no chunk could be placed; a patch never mixes placed and unplaced chunks. */
-export function isAntigravitySnippetPatch(patch: string): boolean {
+export function isAntigravitySnippetPatch(patch: string) {
   return /^@@ .* @@.*$/m.exec(patch)?.[0].endsWith(SNIPPET_LABEL) === true;
 }
 
@@ -42,7 +42,7 @@ const PASCAL_KEYS: Readonly<Record<string, string>> = {
   start_line: "StartLine",
   end_line: "EndLine",
 };
-const pascalKeys = (value: unknown): unknown => {
+const pascalKeys: (value: unknown) => unknown = (value: unknown) => {
   if (Array.isArray(value)) return value.map(pascalKeys);
   if (typeof value !== "object" || value === null) return value;
   const fields: Record<string, unknown> = value as Record<string, unknown>;
@@ -56,7 +56,7 @@ const pascalKeys = (value: unknown): unknown => {
 };
 
 /** Reads a small file for snippet matching; edits to large or unreadable files stay unlocated. */
-export function readAntigravityPreEditFile(path: string): string | undefined {
+export function readAntigravityPreEditFile(path: string) {
   try {
     const stat = NodeFS.statSync(path);
     return stat.isFile() && stat.size <= PRE_EDIT_FILE_LIMIT
@@ -72,7 +72,7 @@ function uniqueStartLine(
   snippet: string,
   from = 1,
   to = Number.POSITIVE_INFINITY,
-): number | undefined {
+) {
   if (text === undefined || snippet === "") return undefined;
   let found: { readonly line: number; readonly whole: boolean } | undefined;
   let line = 1;
@@ -95,11 +95,7 @@ function uniqueStartLine(
   return found?.whole === true ? found.line : undefined;
 }
 
-function snippetHunks(
-  oldText: string,
-  newText: string,
-  maxEditLength: number,
-): StructuredPatchHunk[] | undefined {
+function snippetHunks(oldText: string, newText: string, maxEditLength: number) {
   const before = oldText.replaceAll("\r\n", "\n");
   const after = newText.replaceAll("\r\n", "\n");
   const eol = before.endsWith("\n") ? "" : "\n";
@@ -126,7 +122,7 @@ export function antigravityEditPatch(input: {
   readonly locations?: unknown;
   /** Pass only while the edit is pending, when the file still holds the old text. */
   readonly readPreEditFile?: ((path: string) => string | undefined) | undefined;
-}): string | typeof ANTIGRAVITY_EDIT_DIFF_OMITTED | undefined {
+}) {
   const edit = Option.getOrUndefined(decodeEditInput(pascalKeys(input.rawInput)));
   if (edit === undefined) return undefined;
   const announced = lineOf(Option.getOrUndefined(decodeLocations(input.locations))?.[0]?.line);

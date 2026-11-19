@@ -1,5 +1,5 @@
 import { useAtomValue } from "@effect/atom-react";
-import { type VcsActionState, type VcsActionTarget } from "@supaterm/client-runtime/state/vcs";
+import { type VcsActionTarget } from "@supaterm/client-runtime/state/vcs";
 import { Atom } from "effect/reactivity";
 import { useEffect, useState } from "react";
 
@@ -7,7 +7,7 @@ import { playOutcomeHaptic } from "../lib/outcomeHaptic";
 import { appAtomRegistry } from "./atom-registry";
 import { vcsActionManager } from "./vcs";
 
-export function useVcsActionState(target: VcsActionTarget): VcsActionState {
+export function useVcsActionState(target: VcsActionTarget) {
   return useAtomValue(vcsActionManager.stateAtom(target));
 }
 
@@ -26,11 +26,12 @@ const gitActionResultAtom = Atom.make<GitActionResultNotification | null>(null).
 );
 let dismissTimer: ReturnType<typeof setTimeout> | null = null;
 
-function broadcast(result: GitActionResultNotification | null): void {
+function broadcast(result: GitActionResultNotification | null) {
   appAtomRegistry.set(gitActionResultAtom, result);
 }
 
-export function showGitActionResult(result: GitActionResultNotification): void {
+export function showGitActionResult(result: GitActionResultNotification): void;
+export function showGitActionResult(result: GitActionResultNotification) {
   playOutcomeHaptic(result.type === "success");
   if (dismissTimer) clearTimeout(dismissTimer);
   broadcast(result);
@@ -40,16 +41,13 @@ export function showGitActionResult(result: GitActionResultNotification): void {
   }, RESULT_DISMISS_MS);
 }
 
-export function dismissGitActionResult(): void {
+export function dismissGitActionResult() {
   if (dismissTimer) clearTimeout(dismissTimer);
   dismissTimer = null;
   broadcast(null);
 }
 
-function useGitActionResultNotification(): {
-  readonly result: GitActionResultNotification | null;
-  readonly dismiss: () => void;
-} {
+function useGitActionResultNotification() {
   const result = useAtomValue(gitActionResultAtom);
   return { result, dismiss: dismissGitActionResult };
 }
@@ -69,14 +67,14 @@ const EMPTY_PROGRESS: GitActionProgress = {
   description: null,
 };
 
-function formatElapsedSeconds(ms: number | null, nowMs: number): string | null {
+function formatElapsedSeconds(ms: number | null, nowMs: number) {
   if (ms === null) return null;
   const elapsed = Math.max(0, Math.floor((nowMs - ms) / 1000));
   if (elapsed < 2) return null;
   return `Running for ${elapsed}s`;
 }
 
-export function useGitActionProgress(target: VcsActionTarget): GitActionProgress {
+export function useGitActionProgress(target: VcsActionTarget) {
   const actionState = useVcsActionState(target);
   const { result } = useGitActionResultNotification();
 
@@ -96,7 +94,7 @@ export function useGitActionProgress(target: VcsActionTarget): GitActionProgress
       phase: "running",
       label: actionState.currentLabel,
       description,
-    };
+    } satisfies GitActionProgress;
   }
 
   if (result) {
@@ -105,8 +103,8 @@ export function useGitActionProgress(target: VcsActionTarget): GitActionProgress
       label: result.title,
       description: result.description ?? null,
       prUrl: result.prUrl,
-    };
+    } satisfies GitActionProgress;
   }
 
-  return EMPTY_PROGRESS;
+  return EMPTY_PROGRESS satisfies GitActionProgress;
 }

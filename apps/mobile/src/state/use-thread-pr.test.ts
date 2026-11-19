@@ -13,10 +13,7 @@ import {
   resolveThreadPrSource,
 } from "./thread-pr-presentation";
 
-function linkedPr(
-  number: number,
-  overrides: Partial<ThreadPullRequestLink> = {},
-): ThreadPullRequestLink {
+function linkedPr(number: number, overrides: Partial<ThreadPullRequestLink> = {}) {
   return {
     host: "github.com",
     repository: "supabitapp/supacode-next",
@@ -35,7 +32,7 @@ function linkedPr(
       syncedAt: "2026-09-08T00:00:00.000Z",
     },
     ...overrides,
-  };
+  } satisfies ThreadPullRequestLink;
 }
 
 describe("presentThreadLinkedPullRequests", () => {

@@ -4,7 +4,6 @@ import {
   EMPTY_V2_ITEM_SUPPORT,
   resolveV2ItemSupport,
   v2ItemSupportEqual,
-  type V2ItemSupport,
 } from "@supaterm/client-runtime/state/item-support";
 import type { EnvironmentId, ThreadId, TurnItemId } from "@supaterm/contracts";
 import { Atom } from "effect/reactivity";
@@ -17,11 +16,11 @@ interface ItemSupportTarget {
   readonly itemId: TurnItemId;
 }
 
-function supportKey(target: ItemSupportTarget): string {
+function supportKey(target: ItemSupportTarget) {
   return JSON.stringify(target);
 }
 
-function parseSupportKey(key: string): ItemSupportTarget {
+function parseSupportKey(key: string) {
   return JSON.parse(key) as ItemSupportTarget;
 }
 
@@ -29,7 +28,7 @@ const itemSupportAtomFamily = Atom.family((key: string) => {
   const target = parseSupportKey(key);
   const ref = scopeThreadRef(target.environmentId, target.threadId);
   let previous = EMPTY_V2_ITEM_SUPPORT;
-  return Atom.make((get): V2ItemSupport => {
+  return Atom.make((get) => {
     const scoped = get(environmentThreadDetails.threadAtom(ref));
     if (scoped === null) return EMPTY_V2_ITEM_SUPPORT;
     const next = resolveV2ItemSupport(scoped.projection, target.itemId);
@@ -43,7 +42,7 @@ export function useV2ItemSupport(target: {
   readonly environmentId: EnvironmentId;
   readonly sourceThreadId: ThreadId;
   readonly sourceItemId: TurnItemId;
-}): V2ItemSupport {
+}) {
   return useAtomValue(
     itemSupportAtomFamily(
       supportKey({

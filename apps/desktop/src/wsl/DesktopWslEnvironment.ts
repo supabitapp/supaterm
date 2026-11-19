@@ -80,7 +80,7 @@ export class DesktopWslDistroListError extends Schema.TaggedError<DesktopWslDist
   "DesktopWslDistroListError",
   { reason: Schema.String },
 ) {
-  override get message(): string {
+  override get message() {
     return this.reason;
   }
 }
@@ -115,10 +115,9 @@ export class DesktopWslEnvironment extends Context.Service<
   }
 >()("@supaterm/desktop/wsl/DesktopWslEnvironment") {}
 
-const buildDistroArgs = (distro: string | null): ReadonlyArray<string> =>
-  distro ? ["-d", distro] : [];
+const buildDistroArgs = (distro: string | null) => (distro ? ["-d", distro] : []);
 
-const concatChunks = (arrays: ReadonlyArray<Uint8Array>): Uint8Array => {
+const concatChunks = (arrays: ReadonlyArray<Uint8Array>) => {
   let totalLength = 0;
   for (const arr of arrays) totalLength += arr.byteLength;
   const out = new Uint8Array(totalLength);
@@ -130,7 +129,7 @@ const concatChunks = (arrays: ReadonlyArray<Uint8Array>): Uint8Array => {
   return out;
 };
 
-const decodeUtf8 = (bytes: Uint8Array): string => new TextDecoder("utf-8").decode(bytes);
+const decodeUtf8 = (bytes: Uint8Array) => new TextDecoder("utf-8").decode(bytes);
 
 interface ShellResult {
   readonly exitCode: number;
@@ -149,7 +148,7 @@ const TIMEOUT_RESULT: ShellResult = {
 const formatWslShellTransportFailureReason = (
   failure: ShellResult["transportFailure"],
   subject = "Node.js",
-): string | null => {
+) => {
   switch (failure) {
     case "timeout":
       return `WSL backend preflight timed out while probing for ${subject}. WSL may be slow to start; retry, or check that the distro is healthy.`;
@@ -164,7 +163,7 @@ const formatWslShellTransportFailureReason = (
 
 const buildWslNodeEnvPreamble = (
   nodeEngineRange?: string | null,
-): string => `${buildRemoteNodeEnvScript({ nodeEngineRange: nodeEngineRange ?? null })}
+) => `${buildRemoteNodeEnvScript({ nodeEngineRange: nodeEngineRange ?? null })}
 ensure_remote_node_path || true
 `;
 
@@ -172,7 +171,7 @@ const runWslProcess = (
   args: ReadonlyArray<string>,
   stdin: Stream.Stream<Uint8Array, PlatformError.PlatformError>,
   timeout: Duration.Duration,
-): Effect.Effect<ShellResult, never, ChildProcessSpawner.ChildProcessSpawner> => {
+) => {
   const spawner = ChildProcessSpawner.ChildProcessSpawner;
   const command = ChildProcess.make("wsl.exe", args, {
     stdin,
@@ -213,7 +212,7 @@ const runWslProcess = (
     }),
   ).pipe(
     Effect.timeoutOption(timeout),
-    Effect.map(Option.getOrElse((): ShellResult => TIMEOUT_RESULT)),
+    Effect.map(Option.getOrElse(() => TIMEOUT_RESULT)),
     Effect.catch((error) =>
       Effect.succeed<ShellResult>({
         exitCode: 127,
@@ -233,7 +232,7 @@ const runWslShell = (
     readonly nodeEngineRange?: string | null;
     readonly resolveNode?: boolean;
   } = {},
-): Effect.Effect<ShellResult, never, ChildProcessSpawner.ChildProcessSpawner> => {
+) => {
   const resolveNode = options.resolveNode !== false;
   return runWslProcess(
     resolveNode
@@ -250,19 +249,19 @@ const runWslShell = (
   );
 };
 
-const shellQuote = (value: string): string => `'${value.replaceAll("'", "'\\''")}'`;
+const shellQuote = (value: string) => `'${value.replaceAll("'", "'\\''")}'`;
 
 const WSL_RUNTIME_READY_MARKER = ".supaterm-wsl-runtime-ready";
 const WSL_RUNTIME_SELECTED_MARKER = ".supaterm-wsl-runtime-selected";
 const WSL_RUNTIME_SELECTION_GRACE_MINUTES = 5;
 
-const sanitizeWslRuntimeId = (value: string): string => value.replace(/[^A-Za-z0-9._-]/g, "_");
+const sanitizeWslRuntimeId = (value: string) => value.replace(/[^A-Za-z0-9._-]/g, "_");
 
 export const buildWslRuntimeInstallScript = (
   linuxArchivePath: string | null,
   runtimeId: string,
   archiveSha256: string,
-): string => {
+) => {
   const safeRuntimeId = sanitizeWslRuntimeId(runtimeId);
   const readyCheck = [
     "set -eu",
@@ -356,7 +355,7 @@ export const buildWslRuntimeInstallScript = (
 
 const ORPHANED_RUNTIME_SCRATCH_MAX_AGE_MINUTES = 120;
 
-export const buildWslRuntimePruneScript = (runtimeId: string): string => {
+export const buildWslRuntimePruneScript = (runtimeId: string) => {
   const safeRuntimeId = sanitizeWslRuntimeId(runtimeId);
   return [
     "set -eu",
@@ -404,7 +403,7 @@ export const buildWslRuntimePruneScript = (runtimeId: string): string => {
   ].join("\n");
 };
 
-export const buildWslRuntimeInvalidateScript = (runtimeId: string): string => {
+export const buildWslRuntimeInvalidateScript = (runtimeId: string) => {
   const safeRuntimeId = sanitizeWslRuntimeId(runtimeId);
   return [
     "set -eu",
@@ -412,7 +411,7 @@ export const buildWslRuntimeInvalidateScript = (runtimeId: string): string => {
   ].join("\n");
 };
 
-const parseAbsolutePathField = (stdout: string, field: string): string | null => {
+const parseAbsolutePathField = (stdout: string, field: string) => {
   const prefix = `${field}:`;
   const line = stdout.split("\n").find((candidate) => candidate.startsWith(prefix));
   if (line === undefined) return null;
@@ -420,12 +419,12 @@ const parseAbsolutePathField = (stdout: string, field: string): string | null =>
   return value.startsWith("/") ? value : null;
 };
 
-export const parseWslRuntimeRoot = (stdout: string): string | null =>
+export const parseWslRuntimeRoot = (stdout: string) =>
   parseAbsolutePathField(stdout, "runtimeRoot");
 
 const NODE_PTY_BINARY_MISSING_EXIT_CODE = 4;
 
-const formatNodePtyProbeFailureReason = (exitCode: number): string | null =>
+const formatNodePtyProbeFailureReason = (exitCode: number) =>
   exitCode === NODE_PTY_BINARY_MISSING_EXIT_CODE
     ? "WSL support is missing from this Supaterm build: the packaged Linux node-pty binary was not included. Install a build that includes WSL support."
     : null;
@@ -490,7 +489,7 @@ export interface ToolchainReport {
   readonly nodeVersion: string | null;
 }
 
-const parseToolchainReport = (stdout: string): ToolchainReport => {
+const parseToolchainReport = (stdout: string) => {
   const lines = stdout
     .split("\n")
     .map((line) => line.trim())
@@ -505,7 +504,7 @@ const parseToolchainReport = (stdout: string): ToolchainReport => {
   return { missingTools, nodeVersion };
 };
 
-const parseNodePath = (stdout: string): string | null => {
+const parseNodePath = (stdout: string) => {
   const path = stdout
     .split("\n")
     .map((line) => line.trim())
@@ -515,7 +514,7 @@ const parseNodePath = (stdout: string): string | null => {
   return path ?? null;
 };
 
-const parseNodeVersion = (stdout: string): string | null => {
+const parseNodeVersion = (stdout: string) => {
   const version = stdout
     .split("\n")
     .map((line) => line.trim())
@@ -525,7 +524,7 @@ const parseNodeVersion = (stdout: string): string | null => {
   return version ?? null;
 };
 
-export const parseResolvedPath = (stdout: string): string | null => {
+export const parseResolvedPath = (stdout: string) => {
   const prefix = "resolvedPath:";
   const line = stdout.split("\n").find((candidate) => candidate.startsWith(prefix));
   if (line === undefined) return null;
@@ -533,10 +532,7 @@ export const parseResolvedPath = (stdout: string): string | null => {
   return resolvedPath.length > 0 ? resolvedPath : null;
 };
 
-const formatMissingToolsReason = (
-  report: ToolchainReport,
-  requiredRange: string | null,
-): string | null => {
+const formatMissingToolsReason = (report: ToolchainReport, requiredRange: string | null) => {
   const nodeMissing = report.missingTools.includes("node");
   const nodeOutOfRange =
     !nodeMissing &&
@@ -576,7 +572,7 @@ const formatMissingToolsReason = (
 
 const probeWslRuntimeImpl = Effect.fn("DesktopWslEnvironment.probeWslRuntimeImpl")(function* (
   distro: string | null,
-): Effect.fn.Return<ProbeWslRuntimeResult, never, ChildProcessSpawner.ChildProcessSpawner> {
+) {
   const probe = yield* runWslShell(distro, buildWslRuntimeProbeScript(), PROBE_TIMEOUT, {
     resolveNode: false,
   });
@@ -601,7 +597,7 @@ const ensureNodePtyImpl = Effect.fn("DesktopWslEnvironment.ensureNodePtyImpl")(f
   distro: string | null,
   linuxRepoRoot: string,
   options: EnsureWslNodePtyOptions = {},
-): Effect.fn.Return<EnsureWslNodePtyResult, never, ChildProcessSpawner.ChildProcessSpawner> {
+) {
   const linuxServerDir = `${linuxRepoRoot}/apps/server`;
 
   const probe = yield* runWslShell(
@@ -765,7 +761,7 @@ const runWslRuntimeInstall = Effect.fn("desktop.wsl.runRuntimeInstall")(function
   distro: string | null,
   archive: WslRuntimeArchive,
   linuxArchivePath: string | null,
-): Effect.fn.Return<WslRuntimeInstallOutcome, never, ChildProcessSpawner.ChildProcessSpawner> {
+) {
   const install = yield* runWslShell(
     distro,
     buildWslRuntimeInstallScript(linuxArchivePath, archive.runtimeId, archive.sha256),
@@ -791,23 +787,29 @@ const runWslRuntimeInstall = Effect.fn("desktop.wsl.runRuntimeInstall")(function
   return { ok: true, stdout: install.stdout } as const;
 });
 
-const toPrepareWslRuntimeResult = (outcome: WslRuntimeInstallOutcome): PrepareWslRuntimeResult => {
-  if (!outcome.ok) return outcome;
+const toPrepareWslRuntimeResult = (outcome: WslRuntimeInstallOutcome) => {
+  if (!outcome.ok) return outcome satisfies PrepareWslRuntimeResult;
   const linuxAppRoot = parseWslRuntimeRoot(outcome.stdout);
-  return linuxAppRoot === null
-    ? {
-        ok: false,
-        reason: "WSL runtime installation completed without reporting its cache path.",
-      }
-    : { ok: true, linuxAppRoot };
+  return (
+    linuxAppRoot === null
+      ? {
+          ok: false,
+          reason: "WSL runtime installation completed without reporting its cache path.",
+        }
+      : { ok: true, linuxAppRoot }
+  ) satisfies PrepareWslRuntimeResult;
 };
 
-const installWslRuntimeFromHostCopy = Effect.fn("desktop.wsl.installRuntimeFromHostCopy")(
-  function* (
+const installWslRuntimeFromHostCopy: (
+  distro: string | null,
+  archive: WslRuntimeArchive,
+  archiveBytes: Stream.Stream<Uint8Array, PlatformError.PlatformError>,
+) => Effect.Effect<PrepareWslRuntimeResult, never, ChildProcessSpawner.ChildProcessSpawner> =
+  Effect.fn("desktop.wsl.installRuntimeFromHostCopy")(function* (
     distro: string | null,
     archive: WslRuntimeArchive,
     archiveBytes: Stream.Stream<Uint8Array, PlatformError.PlatformError>,
-  ): Effect.fn.Return<PrepareWslRuntimeResult, never, ChildProcessSpawner.ChildProcessSpawner> {
+  ) {
     const staged = yield* runWslRuntimeInstall(distro, archive, null);
     if (!staged.ok || parseWslRuntimeRoot(staged.stdout) !== null) {
       return toPrepareWslRuntimeResult(staged);
@@ -858,21 +860,27 @@ const installWslRuntimeFromHostCopy = Effect.fn("desktop.wsl.installRuntimeFromH
         }),
       ),
     );
-  },
-);
+  });
 
-const prepareWslRuntimeImpl = Effect.fn("desktop.wsl.prepareRuntimeImpl")(function* (
+const prepareWslRuntimeImpl: (
   distro: string | null,
   archive: WslRuntimeArchive,
   windowsToWslPath: (
     distro: string | null,
     windowsPath: string,
   ) => Effect.Effect<Option.Option<string>>,
-): Effect.fn.Return<
+) => Effect.Effect<
   PrepareWslRuntimeResult,
   never,
   ChildProcessSpawner.ChildProcessSpawner | FileSystem.FileSystem
-> {
+> = Effect.fn("desktop.wsl.prepareRuntimeImpl")(function* (
+  distro: string | null,
+  archive: WslRuntimeArchive,
+  windowsToWslPath: (
+    distro: string | null,
+    windowsPath: string,
+  ) => Effect.Effect<Option.Option<string>>,
+) {
   const linuxArchivePath = yield* windowsToWslPath(distro, archive.windowsPath);
   if (Option.isNone(linuxArchivePath)) {
     const fileSystem = yield* FileSystem.FileSystem;
@@ -890,7 +898,7 @@ const prepareWslRuntimeImpl = Effect.fn("desktop.wsl.prepareRuntimeImpl")(functi
 const pruneWslRuntimesImpl = Effect.fn("desktop.wsl.pruneRuntimesImpl")(function* (
   distro: string | null,
   runtimeId: string,
-): Effect.fn.Return<void, never, ChildProcessSpawner.ChildProcessSpawner> {
+) {
   const result = yield* runWslShell(
     distro,
     buildWslRuntimePruneScript(runtimeId),
@@ -910,7 +918,7 @@ const pruneWslRuntimesImpl = Effect.fn("desktop.wsl.pruneRuntimesImpl")(function
 const invalidateWslRuntimeImpl = Effect.fn("desktop.wsl.invalidateRuntimeImpl")(function* (
   distro: string | null,
   runtimeId: string,
-): Effect.fn.Return<void, never, ChildProcessSpawner.ChildProcessSpawner> {
+) {
   const result = yield* runWslShell(
     distro,
     buildWslRuntimeInvalidateScript(runtimeId),
@@ -971,9 +979,7 @@ const probeWslDistros: Effect.Effect<
   ),
 );
 
-const preWarmImpl = (
-  distro: string | null,
-): Effect.Effect<void, never, ChildProcessSpawner.ChildProcessSpawner> =>
+const preWarmImpl = (distro: string | null) =>
   Effect.scoped(
     Effect.gen(function* () {
       const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
@@ -989,10 +995,7 @@ const preWarmImpl = (
     }),
   ).pipe(Effect.timeoutOption(PRE_WARM_TIMEOUT), Effect.ignore);
 
-export const windowsToWslPathImpl = (
-  distro: string | null,
-  windowsPath: string,
-): Effect.Effect<Option.Option<string>, never, ChildProcessSpawner.ChildProcessSpawner> => {
+export const windowsToWslPathImpl = (distro: string | null, windowsPath: string) => {
   const normalized = windowsPath.replaceAll("\\", "/");
   return Effect.scoped(
     Effect.gen(function* () {
@@ -1024,9 +1027,7 @@ export const windowsToWslPathImpl = (
 
 const IPV4_PATTERN = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/;
 
-const getDistroIpImpl = (
-  distro: string | null,
-): Effect.Effect<Option.Option<string>, never, ChildProcessSpawner.ChildProcessSpawner> =>
+const getDistroIpImpl = (distro: string | null) =>
   Effect.scoped(
     Effect.gen(function* () {
       const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
@@ -1055,9 +1056,7 @@ const getDistroIpImpl = (
     Effect.orElseSucceed(() => Option.none<string>()),
   );
 
-const getUserHomeImpl = (
-  distro: string | null,
-): Effect.Effect<Option.Option<string>, never, ChildProcessSpawner.ChildProcessSpawner> =>
+const getUserHomeImpl = (distro: string | null) =>
   Effect.scoped(
     Effect.gen(function* () {
       const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
@@ -1094,7 +1093,7 @@ const getUserHomeImpl = (
 const makeIsAvailable = Effect.fn("DesktopWslEnvironment.makeIsAvailable")(function* (
   platform: NodeJS.Platform,
   windir: string,
-): Effect.fn.Return<boolean, never, FileSystem.FileSystem | Path.Path> {
+) {
   if (platform !== "win32") return false;
   const path = yield* Path.Path;
   const fileSystem = yield* FileSystem.FileSystem;
@@ -1195,8 +1194,7 @@ export const layer = Layer.effect(
 
     const provideSpawner = <A, E>(
       effect: Effect.Effect<A, E, ChildProcessSpawner.ChildProcessSpawner>,
-    ): Effect.Effect<A, E> =>
-      effect.pipe(Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner));
+    ) => effect.pipe(Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner));
 
     const wslAvailable = yield* makeIsAvailable(environment.platform, windir).pipe(
       Effect.provideService(FileSystem.FileSystem, fileSystem),

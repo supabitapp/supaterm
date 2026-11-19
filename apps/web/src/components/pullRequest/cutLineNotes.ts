@@ -21,7 +21,7 @@ let highlight: Highlight | null = null;
  * Styles cut-line notes so they do not read as code. Lines this long render untokenized, one
  * text node each, so a range highlight is the only way to reach the note without the code.
  */
-export function markCutLineNotes(fileContainer: HTMLElement): void {
+export function markCutLineNotes(fileContainer: HTMLElement) {
   const root = fileContainer.shadowRoot;
   if (root === null || typeof Highlight === "undefined" || !CSS.highlights) return;
   if (highlight === null) {

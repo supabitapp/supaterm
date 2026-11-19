@@ -38,7 +38,7 @@ export class InvalidAssetCollectionKeyError extends Schema.TaggedError<InvalidAs
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Invalid asset collection atom key: ${JSON.stringify(this.key)}.`;
   }
 }
@@ -47,9 +47,7 @@ const decodeAssetCollectionKey = Schema.decodeUnknownSync(
   Schema.Tuple([EnvironmentId, Schema.Array(AssetResource)]),
 );
 
-function parseAssetCollectionKey(
-  key: string,
-): readonly [EnvironmentId, ReadonlyArray<AssetResource>] {
+function parseAssetCollectionKey(key: string) {
   try {
     return decodeAssetCollectionKey(JSON.parse(key));
   } catch (cause) {
@@ -57,11 +55,12 @@ function parseAssetCollectionKey(
   }
 }
 
-export function resolveAssetUrl(httpBaseUrl: string, relativeUrl: string): string | null {
+export function resolveAssetUrl(httpBaseUrl: string, relativeUrl: string): string | null;
+export function resolveAssetUrl(httpBaseUrl: string, relativeUrl: string) {
   try {
-    return new URL(relativeUrl, httpBaseUrl).toString();
+    return new URL(relativeUrl, httpBaseUrl).toString() satisfies string | null;
   } catch {
-    return null;
+    return null satisfies string | null;
   }
 }
 
@@ -94,7 +93,7 @@ export function blockedAssetUrlState(
     readonly isPending: boolean;
     readonly error: string | null;
   },
-): AssetUrlState | null {
+) {
   if (
     resource === null ||
     fileAccess.canReadFiles ||
@@ -103,22 +102,25 @@ export function blockedAssetUrlState(
       resource._tag !== "draft-workspace-file" &&
       !(resource._tag === "native-app-icon" && resource.app._tag === "app-path"))
   ) {
-    return null;
+    return null satisfies AssetUrlState | null;
   }
-  if (fileAccess.isPending) return { _tag: "Loading" };
-  return fileAccess.error === null
-    ? { _tag: "Failure", reason: "missing-file-access" }
-    : { _tag: "Failure" };
+  if (fileAccess.isPending) return { _tag: "Loading" } satisfies AssetUrlState | null;
+  return (
+    fileAccess.error === null
+      ? { _tag: "Failure", reason: "missing-file-access" }
+      : { _tag: "Failure" }
+  ) satisfies AssetUrlState | null;
 }
 
 export function assetUrlStateFromResult(
   result: AsyncResult.AsyncResult<AssetCreateUrlResult, unknown>,
   httpBaseUrl: string | null,
-): AssetUrlState {
-  if (result._tag === "Failure") return { _tag: "Failure" };
-  if (httpBaseUrl === null || result._tag !== "Success") return { _tag: "Loading" };
+) {
+  if (result._tag === "Failure") return { _tag: "Failure" } satisfies AssetUrlState;
+  if (httpBaseUrl === null || result._tag !== "Success")
+    return { _tag: "Loading" } satisfies AssetUrlState;
   const url = resolveAssetUrl(httpBaseUrl, result.value.relativeUrl);
-  if (url === null) return { _tag: "Failure" };
+  if (url === null) return { _tag: "Failure" } satisfies AssetUrlState;
   return {
     _tag: "Success",
     url,
@@ -128,7 +130,7 @@ export function assetUrlStateFromResult(
       ? { imageDimensions: result.value.imageDimensions }
       : {}),
     ...(result.value.fileRevision !== undefined ? { fileRevision: result.value.fileRevision } : {}),
-  };
+  } satisfies AssetUrlState;
 }
 
 type AssetUrlTarget = {
@@ -349,14 +351,16 @@ export function createProjectFaviconUrlAtomFamily(input: {
           ),
         )
       : query;
-    const resolvedUrl = Atom.make((get): string | null => {
+    const resolvedUrl = Atom.make((get) => {
       const result = get(request);
       const connection = get(input.preparedConnection(environmentId));
       const state = assetUrlStateFromResult(
         result,
         Option.isSome(connection) ? connection.value.httpBaseUrl : null,
       );
-      return state._tag === "Success" ? state.url : Option.getOrNull(get.self<string | null>());
+      return (state._tag === "Success"
+        ? state.url
+        : Option.getOrNull(get.self<string | null>())) satisfies string | null as string | null;
     }).pipe(Atom.setIdleTTL(ASSET_URL_IDLE_TTL_MS));
     const cache = input.imageCache;
     if (!cache) return resolvedUrl;
@@ -368,7 +372,7 @@ export function createProjectFaviconUrlAtomFamily(input: {
       return Effect.promise((signal) => cache.resolve(target, url, signal));
     }).pipe(Atom.setIdleTTL(ASSET_URL_IDLE_TTL_MS));
 
-    return Atom.make((get): string | null => {
+    return Atom.make((get) => {
       const result = get(image);
       if (isProjectFaviconFallbackUrl(get(resolvedUrl))) return null;
       return AsyncResult.getOrElse(result, () => cache.peek(target));

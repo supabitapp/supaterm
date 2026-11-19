@@ -12,7 +12,7 @@ function useWorkspacePage() {
   );
 }
 
-export function useSidebarWorkspaceTabs(): "picker" | "toolbar" | null {
+export function useSidebarWorkspaceTabs() {
   const { layout } = useAdaptiveWorkspaceLayout();
   const deviceType = useDeviceType();
   const metrics = useNativeLayoutMetrics();

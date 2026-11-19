@@ -4,7 +4,7 @@ interface Size {
 }
 
 /** Largest frame with the video's aspect ratio that fits the bounds and the inline width cap. */
-export function fitVideoFrame(video: Size, bounds: Size, maxWidth: number): Size | null {
+export function fitVideoFrame(video: Size, bounds: Size, maxWidth: number) {
   if (video.width <= 0 || video.height <= 0 || bounds.width <= 0 || bounds.height <= 0) {
     return null;
   }

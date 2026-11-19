@@ -7,9 +7,7 @@ export interface ReviewSectionMenu {
   readonly turns: ReadonlyArray<ReviewSectionItem>;
 }
 
-export function buildReviewSectionMenu(
-  sections: ReadonlyArray<ReviewSectionItem>,
-): ReviewSectionMenu {
+export function buildReviewSectionMenu(sections: ReadonlyArray<ReviewSectionItem>) {
   const turns = sections.filter((section) => section.kind === "turn");
 
   return {

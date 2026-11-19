@@ -6,8 +6,6 @@ import {
   type SpeedCost,
 } from "@supaterm/shared/usageMerge";
 
-import type { ShareSegment } from "./UsageShareBar";
-
 export function sortModelsByTokens(models: readonly ModelTotals[]) {
   return models.toSorted(
     (left, right) => right.totalTokens - left.totalTokens || right.costUsd - left.costUsd,
@@ -15,19 +13,19 @@ export function sortModelsByTokens(models: readonly ModelTotals[]) {
 }
 
 /** Unknown cost yields null cost share; unpriced models still have token shares. */
-export function modelShare(model: ModelTotals, metric: "cost" | "tokens"): number | null {
+export function modelShare(model: ModelTotals, metric: "cost" | "tokens") {
   if (metric === "tokens") return model.tokenShare;
   return isModelCostUnknown(model) ? null : model.costShare;
 }
 
 /** Returns null without input; cache writes count as misses because input was fully processed. */
-export function cacheHitRate({ tokens }: ModelTotals): number | null {
+export function cacheHitRate({ tokens }: ModelTotals) {
   const input = tokens.uncachedInputTokens + tokens.cachedInputTokens + tokens.cacheCreationTokens;
   return input === 0 ? null : tokens.cachedInputTokens / input;
 }
 
 /** Effective USD per million priced tokens, or `null` when none were priced. */
-export function costPerMillionTokens(model: ModelTotals): number | null {
+export function costPerMillionTokens(model: ModelTotals) {
   const pricedTokens = model.totalTokens - model.unpricedTokens;
   return pricedTokens <= 0 || isModelCostUnknown(model)
     ? null
@@ -45,7 +43,7 @@ const TYPE_COLORS = {
   other: ink(44),
 };
 
-export function costTypeSegments(cost: CategoryCost): readonly ShareSegment[] {
+export function costTypeSegments(cost: CategoryCost) {
   return [
     { label: "Input", value: cost.input, color: TYPE_COLORS.input },
     { label: "Cache read", value: cost.cacheRead, color: TYPE_COLORS.cacheRead },
@@ -55,9 +53,7 @@ export function costTypeSegments(cost: CategoryCost): readonly ShareSegment[] {
   ];
 }
 
-export function tokenTypeSegments(
-  tokens: Omit<UsageTokenTotals, "reasoningTokens">,
-): readonly ShareSegment[] {
+export function tokenTypeSegments(tokens: Omit<UsageTokenTotals, "reasoningTokens">) {
   return [
     { label: "Input", value: tokens.uncachedInputTokens, color: TYPE_COLORS.input },
     { label: "Cache read", value: tokens.cachedInputTokens, color: TYPE_COLORS.cacheRead },
@@ -66,7 +62,7 @@ export function tokenTypeSegments(
   ];
 }
 
-export function speedCostSegments(cost: SpeedCost): readonly ShareSegment[] {
+export function speedCostSegments(cost: SpeedCost) {
   return [
     { label: "Standard", value: cost.standard, color: ink(34) },
     { label: "Fast", value: cost.fast, color: ink(66) },

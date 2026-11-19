@@ -75,16 +75,16 @@ function emitClientSettingsHydrationChange() {
   }
 }
 
-function getClientSettingsSnapshot(): ClientSettings {
+function getClientSettingsSnapshot() {
   return clientSettingsSnapshot;
 }
 
-function replaceClientSettingsSnapshot(settings: ClientSettings): void {
+function replaceClientSettingsSnapshot(settings: ClientSettings) {
   clientSettingsSnapshot = settings;
   emitClientSettingsChange();
 }
 
-function setClientSettingsHydrationStatus(nextStatus: ClientSettingsHydrationStatus): void {
+function setClientSettingsHydrationStatus(nextStatus: ClientSettingsHydrationStatus) {
   if (clientSettingsHydrationStatus === nextStatus) {
     return;
   }
@@ -92,7 +92,7 @@ function setClientSettingsHydrationStatus(nextStatus: ClientSettingsHydrationSta
   emitClientSettingsHydrationChange();
 }
 
-export function subscribeClientSettings(listener: () => void): () => void {
+export function subscribeClientSettings(listener: () => void) {
   clientSettingsListeners.add(listener);
   void hydrateClientSettings().catch(() => undefined);
   return () => {
@@ -100,15 +100,15 @@ export function subscribeClientSettings(listener: () => void): () => void {
   };
 }
 
-export function getClientSettingsHydratedSnapshot(): boolean {
+export function getClientSettingsHydratedSnapshot() {
   return clientSettingsHydrationStatus === "ready";
 }
 
-function getClientSettingsHydrationStatusSnapshot(): ClientSettingsHydrationStatus {
+function getClientSettingsHydrationStatusSnapshot() {
   return clientSettingsHydrationStatus;
 }
 
-export function subscribeClientSettingsHydration(listener: () => void): () => void {
+export function subscribeClientSettingsHydration(listener: () => void) {
   clientSettingsHydrationListeners.add(listener);
   void hydrateClientSettings().catch(() => undefined);
   return () => {
@@ -116,7 +116,7 @@ export function subscribeClientSettingsHydration(listener: () => void): () => vo
   };
 }
 
-async function hydrateClientSettings(): Promise<void> {
+async function hydrateClientSettings() {
   if (clientSettingsHydrationStatus === "ready") {
     return;
   }
@@ -165,7 +165,7 @@ async function hydrateClientSettings(): Promise<void> {
   return clientSettingsHydrationPromise;
 }
 
-function refreshClientSettingsFromOtherTab(): void {
+function refreshClientSettingsFromOtherTab() {
   void enqueueClientSettingsPersistence(async () => {
     const persistedSettings = await ensureLocalApi().persistence.getClientSettings();
     if (persistedSettings) {
@@ -179,10 +179,10 @@ function refreshClientSettingsFromOtherTab(): void {
   });
 }
 
-const defaultClientSettingsPersistence = (settings: ClientSettings): Promise<void> =>
+const defaultClientSettingsPersistence = (settings: ClientSettings) =>
   ensureLocalApi().persistence.setClientSettings(settings);
 
-function enqueueClientSettingsPersistence<A>(work: () => Promise<A>): Promise<A> {
+function enqueueClientSettingsPersistence<A>(work: () => Promise<A>) {
   const result = clientSettingsPersistenceQueue.then(work);
   clientSettingsPersistenceQueue = result.then(
     () => undefined,
@@ -195,7 +195,7 @@ function enqueueClientSettingsPersistence<A>(work: () => Promise<A>): Promise<A>
 export function persistClientSettingsPatch(
   patch: ClientSettingsPatch | ((settings: ClientSettings) => ClientSettingsPatch),
   persist: (settings: ClientSettings) => Promise<void> = defaultClientSettingsPersistence,
-): Promise<void> {
+) {
   const applyPatch = (current = getClientSettingsSnapshot()) => {
     const resolved = typeof patch === "function" ? patch(current) : patch;
     replaceClientSettingsSnapshot({ ...current, ...resolved });
@@ -243,7 +243,7 @@ export function persistClientSettingsPatch(
 export async function persistClientSettingsUpdate(
   update: (current: ClientSettings) => ClientSettings,
   persist: (settings: ClientSettings) => Promise<void> = defaultClientSettingsPersistence,
-): Promise<ClientSettings> {
+) {
   return enqueueClientSettingsPersistence(async () => {
     if (clientSettingsHydrationStatus !== "ready") {
       await hydrateClientSettings();
@@ -262,10 +262,7 @@ export async function persistClientSettingsUpdate(
 
 const SERVER_SETTINGS_KEYS = new Set<string>(Struct.keys(ServerSettings.fields));
 
-function splitPatch(patch: UnifiedSettingsPatch): {
-  serverPatch: ServerSettingsPatch;
-  clientPatch: ClientSettingsPatch;
-} {
+function splitPatch(patch: UnifiedSettingsPatch) {
   const serverPatch: Record<string, unknown> = {};
   const clientPatch: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(patch)) {
@@ -281,11 +278,11 @@ function splitPatch(patch: UnifiedSettingsPatch): {
   };
 }
 
-export function getClientSettings(): ClientSettings {
+export function getClientSettings() {
   return getClientSettingsSnapshot();
 }
 
-export function isClientSettingsHydrated(): boolean {
+export function isClientSettingsHydrated() {
   return getClientSettingsHydratedSnapshot();
 }
 
@@ -293,11 +290,11 @@ export function isClientSettingsHydrated(): boolean {
  * Failed reads reject and remain retryable. They must not allow defaults to overwrite saved
  * preferences.
  */
-export function ensureClientSettingsHydrated(): Promise<void> {
+export function ensureClientSettingsHydrated() {
   return hydrateClientSettings();
 }
 
-export function useClientSettingsHydrated(): boolean {
+export function useClientSettingsHydrated() {
   return useSyncExternalStore(
     subscribeClientSettingsHydration,
     getClientSettingsHydratedSnapshot,
@@ -305,12 +302,12 @@ export function useClientSettingsHydrated(): boolean {
   );
 }
 
-export function useClientSettingsHydrationStatus(): ClientSettingsHydrationStatus {
+export function useClientSettingsHydrationStatus() {
   return useSyncExternalStore(
     subscribeClientSettingsHydration,
     getClientSettingsHydrationStatusSnapshot,
     () => "pending",
-  );
+  ) satisfies ClientSettingsHydrationStatus;
 }
 
 const getDefaultClientSettings = () => DEFAULT_CLIENT_SETTINGS;
@@ -321,9 +318,7 @@ const selectWholeClientSettings = (settings: ClientSettings) => settings;
  * readers whose selected value changed. Selectors may build objects or arrays: a structurally
  * equal result keeps the previous reference.
  */
-export function useClientSettings<T = ClientSettings>(
-  selector?: (settings: ClientSettings) => T,
-): T {
+export function useClientSettings<T = ClientSettings>(selector?: (settings: ClientSettings) => T) {
   return useSyncExternalStoreWithSelector(
     subscribeClientSettings,
     getClientSettingsSnapshot,
@@ -336,7 +331,7 @@ export function useClientSettings<T = ClientSettings>(
 export function mergeEnvironmentSettings(
   serverSettings: ServerSettings,
   clientSettings: ClientSettings,
-): UnifiedSettings {
+) {
   return {
     ...clientSettings,
     ...serverSettings,
@@ -347,7 +342,7 @@ export function mergeEnvironmentSettings(
 export function useMergedSettings<T = UnifiedSettings>(
   serverSettings: ServerSettings,
   selector?: (settings: UnifiedSettings) => T,
-): T {
+) {
   return useClientSettings((clientSettings) => {
     const merged = mergeEnvironmentSettings(serverSettings, clientSettings);
     return selector ? selector(merged) : (merged as T);
@@ -427,7 +422,7 @@ export function useEnvironmentModelPreferences(environmentId: EnvironmentId | nu
 export function useEnvironmentSettings<T = UnifiedSettings>(
   environmentId: EnvironmentId,
   selector?: (settings: UnifiedSettings) => T,
-): T {
+) {
   const serverSettings = useAtomValue(serverEnvironment.settingsValueAtom(environmentId));
   return useMergedSettings(serverSettings ?? DEFAULT_SERVER_SETTINGS, selector);
 }
@@ -445,7 +440,7 @@ export function usePersistEnvironmentProviderInstanceMutation(environmentId: Env
 
 export function usePrimarySettings<T = UnifiedSettings>(
   selector?: (settings: UnifiedSettings) => T,
-): T {
+) {
   const settings = useAtomValue(primaryServerSettingsAtom);
   return useMergedSettings(settings, selector);
 }
@@ -458,12 +453,12 @@ export const PRIMARY_SETTINGS_UNAVAILABLE_MESSAGE =
  * primary: `usePrimarySettings` reads schema defaults there and writes have
  * nowhere to go.
  */
-export function usePrimarySettingsAvailable(): boolean {
+export function usePrimarySettingsAvailable() {
   const primaryEnvironment = usePrimaryEnvironment();
   return primaryEnvironment !== null || !isHostedStaticApp();
 }
 
-function useSharedSettingsSyncTargetIds(includePending = false): ReadonlyArray<EnvironmentId> {
+function useSharedSettingsSyncTargetIds(includePending = false) {
   const { environments } = useEnvironments();
   const targetIds = environments
     .filter(supportsSharedSettingsSync)
@@ -642,13 +637,11 @@ export function useUpdatePrimarySettings() {
   return useUpdateSettingsTarget(usePrimaryEnvironment()?.environmentId ?? null);
 }
 
-export function updateClientSettings(
-  patch: Parameters<typeof persistClientSettingsPatch>[0],
-): Promise<void> {
+export function updateClientSettings(patch: Parameters<typeof persistClientSettingsPatch>[0]) {
   return persistClientSettingsPatch(patch);
 }
 
-export function __resetClientSettingsPersistenceForTests(): void {
+export function __resetClientSettingsPersistenceForTests() {
   clientSettingsHydrationGeneration += 1;
   clientSettingsSnapshot = DEFAULT_CLIENT_SETTINGS;
   clientSettingsHydrationStatus = "pending";
@@ -661,7 +654,7 @@ export function __resetClientSettingsPersistenceForTests(): void {
   clientSettingsHydrationListeners.clear();
 }
 
-export function __setClientSettingsForTests(settings: ClientSettings): void {
+export function __setClientSettingsForTests(settings: ClientSettings) {
   clientSettingsHydrationGeneration += 1;
   clientSettingsSnapshot = settings;
   clientSettingsHydrationStatus = "ready";

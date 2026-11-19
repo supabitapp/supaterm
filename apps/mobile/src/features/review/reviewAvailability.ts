@@ -3,10 +3,7 @@ export function resolveReviewAvailability(input: {
   readonly isEnvironmentConnected: boolean;
   readonly hasCachedSelectedDiff: boolean;
   readonly hasAnyCachedDiff: boolean;
-}): {
-  readonly showConnectionNotice: boolean;
-  readonly showSectionToolbar: boolean;
-} {
+}) {
   const showConnectionNotice =
     input.hasEnvironmentPresentation &&
     !input.isEnvironmentConnected &&

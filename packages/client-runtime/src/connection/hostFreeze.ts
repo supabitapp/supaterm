@@ -9,10 +9,7 @@ export interface HostFreezeNotice {
  * Says why a host stopped answering, from the recent stall it reports on
  * connect. Web shows it as a toast, mobile in the environment's connection row.
  */
-export function hostFreezeNotice(
-  hostLabel: string,
-  stall: ServerEventLoopStall | undefined,
-): HostFreezeNotice | null {
+export function hostFreezeNotice(hostLabel: string, stall: ServerEventLoopStall | undefined) {
   if (stall === undefined) return null;
   const { loadAverage, cpuCount } = stall;
   return {

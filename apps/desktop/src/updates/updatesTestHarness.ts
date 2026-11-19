@@ -342,7 +342,7 @@ export function makeHarness(options: UpdatesHarnessOptions = {}) {
     installRecords,
     previousInstallRecord: () => previousInstallRecord,
     downloadCount: () => downloadCount,
-    feedUrls: (): ElectronUpdater.ElectronUpdaterFeedUrl[] => feedUrls,
+    feedUrls: () => feedUrls,
     fullChangelog: () => fullChangelog,
     checkAllowedDowngrade,
     allowDowngrade: () => allowDowngrade,

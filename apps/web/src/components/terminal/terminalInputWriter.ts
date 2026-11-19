@@ -56,7 +56,7 @@ export function createTerminalInputWriter(onIdle = () => {}) {
     send: SendTerminalChunk,
     recover: () => Promise<boolean> = async () => (await send("\x1b[201~")) === true,
     interrupted = () => {},
-  ): Promise<void> => {
+  ) => {
     const idle = () => {
       if (pending === null && immediate.size === 0 && closeInterruptedPaste === null) onIdle();
     };

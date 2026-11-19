@@ -13,7 +13,7 @@ import * as ServerConfig from "../config.ts";
 import * as DesktopTelemetryReceiver from "../resourceTelemetry/DesktopTelemetryReceiver.ts";
 import * as DesktopAppUpdate from "./DesktopAppUpdate.ts";
 
-function makeState(overrides: Partial<DesktopUpdateState> = {}): DesktopUpdateState {
+function makeState(overrides: Partial<DesktopUpdateState> = {}) {
   return {
     enabled: true,
     status: "idle",
@@ -32,7 +32,7 @@ function makeState(overrides: Partial<DesktopUpdateState> = {}): DesktopUpdateSt
     canRetry: false,
     omittedReleaseCount: 0,
     ...overrides,
-  };
+  } satisfies DesktopUpdateState;
 }
 
 function report(
@@ -43,7 +43,7 @@ function report(
     readonly reason?: string;
     readonly preparedRequestId?: string;
   },
-): DesktopUpdateStatusReport {
+) {
   return {
     version: 1,
     type: "desktopUpdateStatus",
@@ -54,7 +54,7 @@ function report(
       ? {}
       : { preparedRequestId: terminal.preparedRequestId }),
     state,
-  };
+  } satisfies DesktopUpdateStatusReport;
 }
 
 interface HarnessOptions {

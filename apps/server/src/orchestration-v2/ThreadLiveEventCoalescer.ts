@@ -21,7 +21,7 @@ const MAX_PENDING_UPDATES = 512;
 type ThreadLiveEvent = Extract<OrchestrationV2ThreadStreamItem, { readonly kind: "event" }>;
 export type ThreadLiveInput = ThreadLiveEvent | { readonly kind: "synchronized" };
 
-function coalescibleUpdateKey(input: ThreadLiveEvent): string | null {
+function coalescibleUpdateKey(input: ThreadLiveEvent) {
   const { event } = input;
   const prefix = `${event.threadId}\u0000${event.runId ?? ""}\u0000${event.type}`;
   if (event.type === "message.updated") {
@@ -47,9 +47,7 @@ function coalescibleUpdateKey(input: ThreadLiveEvent): string | null {
   return `${prefix}\u0000${event.payload.type}\u0000${event.payload.id}`;
 }
 
-export function coalesceLiveUpdatedEvents(
-  events: ReadonlyArray<ThreadLiveEvent>,
-): ReadonlyArray<ThreadLiveEvent> {
+export function coalesceLiveUpdatedEvents(events: ReadonlyArray<ThreadLiveEvent>) {
   const latestUpdates = new Map<string, number>();
   const superseded = new Set<number>();
   const pendingKeys = new Map<ThreadLiveEvent["event"]["type"], string>();

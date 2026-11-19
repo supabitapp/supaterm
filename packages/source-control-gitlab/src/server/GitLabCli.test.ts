@@ -20,7 +20,7 @@ const layer = it.layer(
   ),
 );
 
-function processOutput(stdout: string): SourceControlHost.SourceControlProcessOutput {
+function processOutput(stdout: string) {
   return {
     exitCode: ChildProcessSpawner.ExitCode(0),
     stdout,

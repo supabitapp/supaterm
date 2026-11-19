@@ -3,10 +3,14 @@ import { sourceDimensions } from "../preview/FaviconCapture.ts";
 
 const MAX_IMAGE_BYTES = 32 * 1024 * 1024;
 
+export function copyContextMenuImage(
+  contents: Electron.WebContents,
+  params: Electron.ContextMenuParams,
+): Promise<void>;
 export async function copyContextMenuImage(
   contents: Electron.WebContents,
   params: Electron.ContextMenuParams,
-): Promise<void> {
+) {
   const frame = params.frame;
   if (contents.isDestroyed() || !frame || frame.isDestroyed()) return;
   if (frame === contents.mainFrame) {

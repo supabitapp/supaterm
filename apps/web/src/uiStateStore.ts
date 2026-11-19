@@ -42,7 +42,7 @@ const initialState: UiState = {
   pullRequestMergeMethod: "merge",
 };
 
-function sanitizeStringArray(value: unknown): string[] {
+function sanitizeStringArray(value: unknown) {
   if (!Array.isArray(value)) {
     return [];
   }
@@ -53,13 +53,13 @@ function sanitizeStringArray(value: unknown): string[] {
   ];
 }
 
-function sanitizeOptionalKey(value: unknown): string | null {
+function sanitizeOptionalKey(value: unknown) {
   return typeof value === "string" && value.length > 0 ? value : null;
 }
 
 const isPullRequestMergeMethod = Schema.is(PullRequestMergeMethod);
 
-export function parsePersistedState(parsed: PersistedUiState): UiState {
+export function parsePersistedState(parsed: PersistedUiState) {
   return {
     projectOrder: sanitizeStringArray(parsed.projectOrder),
     threadChangedFilesExpandedById: sanitizePersistedThreadChangedFilesExpanded(
@@ -75,7 +75,7 @@ export function parsePersistedState(parsed: PersistedUiState): UiState {
   };
 }
 
-function readPersistedState(): UiState {
+function readPersistedState() {
   if (typeof window === "undefined") {
     return initialState;
   }
@@ -89,7 +89,7 @@ function readPersistedState(): UiState {
 
 function sanitizePersistedThreadChangedFilesExpanded(
   value: PersistedUiState["threadChangedFilesExpandedById"],
-): Record<string, Record<string, boolean>> {
+) {
   if (!value || typeof value !== "object") {
     return {};
   }
@@ -115,7 +115,7 @@ function sanitizePersistedThreadChangedFilesExpanded(
   return nextState;
 }
 
-export function persistState(state: UiState): void {
+export function persistState(state: UiState) {
   if (typeof window === "undefined") {
     return;
   }
@@ -144,7 +144,7 @@ function setThreadChangedFilesExpanded(
   threadId: string,
   turnId: string,
   expanded: boolean,
-): UiState {
+) {
   const currentThreadState = state.threadChangedFilesExpandedById[threadId] ?? {};
   if (currentThreadState[turnId] === expanded) {
     return state;
@@ -162,7 +162,7 @@ function setThreadChangedFilesExpanded(
   };
 }
 
-function setDefaultAdvertisedEndpointKey(state: UiState, key: string | null): UiState {
+function setDefaultAdvertisedEndpointKey(state: UiState, key: string | null) {
   const nextKey = key && key.length > 0 ? key : null;
   if (state.defaultAdvertisedEndpointKey === nextKey) {
     return state;
@@ -173,7 +173,7 @@ function setDefaultAdvertisedEndpointKey(state: UiState, key: string | null): Ui
   };
 }
 
-function setSidebarProjectScopeKeys(state: UiState, projectKeys: readonly string[]): UiState {
+function setSidebarProjectScopeKeys(state: UiState, projectKeys: readonly string[]) {
   const nextKeys = sanitizeStringArray(projectKeys);
   if (
     nextKeys.length === state.sidebarProjectScopeKeys.length &&
@@ -187,7 +187,7 @@ function setSidebarProjectScopeKeys(state: UiState, projectKeys: readonly string
   };
 }
 
-function setPullRequestMergeMethod(state: UiState, method: PullRequestMergeMethod): UiState {
+function setPullRequestMergeMethod(state: UiState, method: PullRequestMergeMethod) {
   return state.pullRequestMergeMethod === method
     ? state
     : { ...state, pullRequestMergeMethod: method };
@@ -198,7 +198,7 @@ export function reorderProjects(
   currentProjectOrder: readonly string[],
   draggedProjectIds: readonly string[],
   targetProjectIds: readonly string[],
-): UiState {
+) {
   if (draggedProjectIds.length === 0) {
     return state;
   }

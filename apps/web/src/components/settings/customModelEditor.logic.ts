@@ -116,20 +116,16 @@ export const DESCRIPTOR_PRESETS_BY_KIND: Partial<
 };
 
 let nextKey = 0;
-function newEditorKey(): string {
+function newEditorKey() {
   nextKey += 1;
   return `k${nextKey}`;
 }
 
-export function choiceFromPreset(choice: {
-  id: string;
-  label: string;
-  isDefault?: boolean;
-}): EditorChoice {
+export function choiceFromPreset(choice: { id: string; label: string; isDefault?: boolean }) {
   return { key: newEditorKey(), id: choice.id, label: choice.label, isDefault: !!choice.isDefault };
 }
 
-export function descriptorFromPreset(preset: DescriptorPreset): EditorDescriptor {
+export function descriptorFromPreset(preset: DescriptorPreset) {
   return {
     key: newEditorKey(),
     type: preset.type,
@@ -139,15 +135,21 @@ export function descriptorFromPreset(preset: DescriptorPreset): EditorDescriptor
   };
 }
 
-export function emptyEditorDescriptor(): EditorDescriptor {
-  return { key: newEditorKey(), type: "select", id: "", label: "", choices: [] };
+export function emptyEditorDescriptor() {
+  return {
+    key: newEditorKey(),
+    type: "select",
+    id: "",
+    label: "",
+    choices: [],
+  } satisfies EditorDescriptor;
 }
 
-export function emptyEditorChoice(): EditorChoice {
+export function emptyEditorChoice() {
   return { key: newEditorKey(), id: "", label: "", isDefault: false };
 }
 
-function descriptorToEditor(descriptor: ProviderOptionDescriptor): EditorDescriptor {
+function descriptorToEditor(descriptor: ProviderOptionDescriptor) {
   const promptInjected = new Set(
     descriptor.type === "select" ? (descriptor.promptInjectedValues ?? []) : [],
   );
@@ -180,7 +182,7 @@ function descriptorToEditor(descriptor: ProviderOptionDescriptor): EditorDescrip
 export function draftFromDefinition(
   entry: CustomModelDefinition,
   driverKind: ProviderDriverKind | null = null,
-): CustomModelDraft {
+) {
   return {
     slug: entry.slug,
     name: entry.name === entry.slug ? "" : entry.name,
@@ -194,13 +196,13 @@ export function draftFromDefinition(
 export function descriptorsFromCapabilities(
   capabilities: ModelCapabilities | null | undefined,
   driverKind: ProviderDriverKind | null,
-): EditorDescriptor[] {
+) {
   return (filterCustomModelCapabilities(driverKind, capabilities)?.optionDescriptors ?? [])
     .filter((descriptor) => driverKind !== "claudeAgent" || descriptor.id !== "contextWindow")
     .map(descriptorToEditor);
 }
 
-export function validateDraft(draft: CustomModelDraft): string | null {
+export function validateDraft(draft: CustomModelDraft) {
   const seenIds = new Set<string>();
   for (const [index, descriptor] of draft.descriptors.entries()) {
     const position = `Option ${index + 1}`;
@@ -224,7 +226,7 @@ export function validateDraft(draft: CustomModelDraft): string | null {
   return null;
 }
 
-export function definitionFromDraft(draft: CustomModelDraft): CustomModelDefinition {
+export function definitionFromDraft(draft: CustomModelDraft) {
   const descriptors: ProviderOptionDescriptor[] = draft.descriptors.map((descriptor) => {
     const id = descriptor.id.trim();
     const label = descriptor.label.trim();

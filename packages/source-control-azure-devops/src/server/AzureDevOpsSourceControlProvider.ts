@@ -1,7 +1,7 @@
 import { SourceControlProviderKind } from "@supaterm/contracts";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
-import { SourceControlProviderError, type ChangeRequest } from "@supaterm/contracts";
+import { SourceControlProviderError } from "@supaterm/contracts";
 
 import * as AzureDevOpsChangeRequestTemplate from "./azureDevOpsChangeRequestTemplate.ts";
 import * as SourceControlHost from "@supaterm/source-control-core/server/SourceControlHost";
@@ -55,7 +55,7 @@ export const discovery = {
     "Install the Azure command-line tools (`az`), then enable Azure DevOps support with `az extension add --name azure-devops`.",
 } satisfies SourceControlCliDiscoverySpec;
 
-function repositoryNameFromRemote(remoteUrl: string): string | null {
+function repositoryNameFromRemote(remoteUrl: string) {
   const path = URL.parse(remoteUrl.trim())?.pathname ?? remoteUrl.trim();
   const encoded = path.replace(/\/+$/u, "").split(/[/:]/u).at(-1);
   if (!encoded) return null;
@@ -69,7 +69,7 @@ function repositoryNameFromRemote(remoteUrl: string): string | null {
 const remoteOf = (input: { readonly context?: { readonly remoteUrl: string } | undefined }) =>
   input.context === undefined ? {} : { remoteUrl: input.context.remoteUrl };
 
-function toChangeRequest(summary: NormalizedAzureDevOpsPullRequestRecord): ChangeRequest {
+function toChangeRequest(summary: NormalizedAzureDevOpsPullRequestRecord) {
   return {
     provider: SourceControlProviderKind.make("azure-devops"),
     number: summary.number,

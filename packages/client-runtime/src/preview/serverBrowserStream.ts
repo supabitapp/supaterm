@@ -26,7 +26,7 @@ export interface PreviewStreamControl {
   };
 }
 
-export const previewStreamControlLabel = (control: PreviewStreamControl | null): string =>
+export const previewStreamControlLabel = (control: PreviewStreamControl | null) =>
   !control
     ? "Connecting..."
     : !control.canOperate
@@ -116,7 +116,7 @@ const previewStreamUploadUrl = (
   access: DeviceHubAccess,
   target: Pick<PreviewStreamTransferTarget, "threadId" | "tabId">,
   chooserId: string,
-): string =>
+) =>
   withDeviceHubQuery(
     `${access.httpBase}/upload?${new URLSearchParams({
       threadId: target.threadId,
@@ -130,7 +130,7 @@ const previewStreamUploadUrl = (
 export async function resolvePreviewStreamDownload(
   download: Pick<PreviewStreamDownload, "id">,
   target: PreviewStreamTransferTarget,
-): Promise<string> {
+) {
   const access = await target.resolveAccess();
   if (!access) throw new Error("The browser stream is no longer available.");
   return withDeviceHubQuery(
@@ -148,7 +148,7 @@ export async function uploadPreviewStreamFiles(
   chooser: PreviewStreamFileChooser,
   files: ReadonlyArray<Blob & { readonly name?: string }>,
   target: PreviewStreamTransferTarget,
-): Promise<void> {
+) {
   const body = new FormData();
   for (const file of files) body.append("file", file, file.name ?? "file");
   const access = await target.resolveAccess();
@@ -161,10 +161,10 @@ export async function uploadPreviewStreamFiles(
   if (!response.ok) throw new Error((await response.text()) || "The upload was refused.");
 }
 
-export const previewStreamDownloadUrl = (
+export const previewStreamDownloadUrl: (
   target: Pick<PreviewStreamTarget, "access" | "threadId" | "tabId">,
   id: string,
-): string =>
+) => string = (target: Pick<PreviewStreamTarget, "access" | "threadId" | "tabId">, id: string) =>
   withDeviceHubQuery(
     `${target.access.httpBase}/download?${new URLSearchParams({
       threadId: target.threadId,
@@ -192,7 +192,7 @@ export const previewStreamModifiers = (event: {
   readonly ctrlKey: boolean;
   readonly metaKey: boolean;
   readonly shiftKey: boolean;
-}): number =>
+}) =>
   (event.altKey ? 1 : 0) |
   (event.ctrlKey ? 2 : 0) |
   (event.metaKey ? 4 : 0) |
@@ -236,7 +236,11 @@ const ACK_MESSAGE = JSON.stringify({ type: "ack" });
 export function createPreviewStreamClient(
   target: PreviewStreamTarget,
   events: PreviewStreamEvents,
-): PreviewStreamClient {
+): PreviewStreamClient;
+export function createPreviewStreamClient(
+  target: PreviewStreamTarget,
+  events: PreviewStreamEvents,
+) {
   const query = new URLSearchParams({
     threadId: target.threadId,
     tabId: target.tabId,
@@ -421,7 +425,7 @@ export function createPreviewStreamClient(
       withdrawFileChooser();
       ws?.close();
     },
-  };
+  } satisfies PreviewStreamClient;
 }
 
 export interface PreviewFramePainter {
@@ -433,7 +437,8 @@ export interface PreviewFramePainter {
 export function createPreviewFramePainter(
   canvas: HTMLCanvasElement,
   onPainted?: () => void,
-): PreviewFramePainter {
+): PreviewFramePainter;
+export function createPreviewFramePainter(canvas: HTMLCanvasElement, onPainted?: () => void) {
   const context = canvas.getContext("2d");
   let stopped = false;
   let decoding = false;
@@ -472,20 +477,23 @@ export function createPreviewFramePainter(
       stopped = true;
       waiting = null;
     },
-  };
+  } satisfies PreviewFramePainter;
 }
 
-const decodeHostSetup = (reason: string): PreviewStreamHostSetup => {
+const decodeHostSetup = (reason: string) => {
   try {
     const value = JSON.parse(reason) as Partial<PreviewStreamHostSetup>;
     if (
       (value.need === "sandbox" || value.need === "libraries") &&
       typeof value.command === "string"
     ) {
-      return { need: value.need, command: value.command };
+      return { need: value.need, command: value.command } satisfies PreviewStreamHostSetup;
     }
   } catch {}
-  return { need: "sandbox", command: "sudo npx supaterm browser setup" };
+  return {
+    need: "sandbox",
+    command: "sudo npx supaterm browser setup",
+  } satisfies PreviewStreamHostSetup;
 };
 
 export const previewStreamHostSetupMessage = (setup: PreviewStreamHostSetup) =>

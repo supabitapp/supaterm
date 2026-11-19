@@ -113,7 +113,7 @@ const encodeDesktopSettingsJson = Schema.encodeEffect(DesktopSettingsJson);
 const decodeDesktopWindowBounds = Schema.decodeUnknownOption(DesktopWindowBoundsSchema);
 const desktopWindowBoundsEquivalence = Schema.toEquivalence(DesktopWindowBoundsSchema);
 
-const settingsChange = (settings: DesktopSettings, changed: boolean): DesktopSettingsChange => ({
+const settingsChange = (settings: DesktopSettings, changed: boolean) => ({
   settings,
   changed,
 });
@@ -136,7 +136,7 @@ export class DesktopSettingsWriteError extends Schema.TaggedError<DesktopSetting
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Desktop settings write failed during ${this.operation} at ${this.path}.`;
   }
 }
@@ -180,31 +180,28 @@ export class DesktopAppSettings extends Context.Service<
   }
 >()("@supaterm/desktop/settings/DesktopAppSettings") {}
 
-export function resolveDefaultDesktopSettings(appVersion: string): DesktopSettings {
+export function resolveDefaultDesktopSettings(appVersion: string) {
   return {
     ...DEFAULT_DESKTOP_SETTINGS,
     updateChannel: desktopUpdateChannelOf(appVersion),
-  };
+  } satisfies DesktopSettings;
 }
 
-function normalizeTailscaleServePort(value: unknown): number {
+function normalizeTailscaleServePort(value: unknown) {
   return typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= 65_535
     ? value
     : DEFAULT_TAILSCALE_SERVE_PORT;
 }
 
-function normalizeWslDistro(value: unknown): string | null {
+function normalizeWslDistro(value: unknown) {
   return typeof value === "string" && isValidDistroName(value) ? value : null;
 }
 
-export function normalizeMainWindowBounds(value: unknown): DesktopWindowBounds | null {
+export function normalizeMainWindowBounds(value: unknown) {
   return Option.getOrNull(decodeDesktopWindowBounds(value));
 }
 
-function normalizeDesktopSettingsDocument(
-  parsed: DesktopSettingsDocument,
-  appVersion: string,
-): DesktopSettings {
+function normalizeDesktopSettingsDocument(parsed: DesktopSettingsDocument, appVersion: string) {
   const defaultSettings = resolveDefaultDesktopSettings(appVersion);
   const mainWindowBounds = normalizeMainWindowBounds(parsed.mainWindowBounds);
   const parsedUpdateChannel = Option.fromNullishOr(parsed.updateChannel);
@@ -227,13 +224,10 @@ function normalizeDesktopSettingsDocument(
     wslBackendEnabled,
     wslDistro: normalizeWslDistro(parsed.wslDistro),
     wslOnly: parsed.wslOnly === true,
-  };
+  } satisfies DesktopSettings;
 }
 
-function toDesktopSettingsDocument(
-  settings: DesktopSettings,
-  defaults: DesktopSettings,
-): DesktopSettingsDocument {
+function toDesktopSettingsDocument(settings: DesktopSettings, defaults: DesktopSettings) {
   const document: Mutable<DesktopSettingsDocument> = {};
 
   if (settings.localEnvironmentEnabled !== defaults.localEnvironmentEnabled) {
@@ -280,7 +274,7 @@ function toDesktopSettingsDocument(
 function setServerExposureMode(
   settings: DesktopSettings,
   requestedMode: DesktopServerExposureMode,
-): DesktopSettings {
+) {
   return settings.serverExposureMode === requestedMode
     ? settings
     : {
@@ -293,7 +287,7 @@ function setMainWindowBounds(
   settings: DesktopSettings,
   bounds: DesktopWindowBounds,
   isMaximized: boolean,
-): DesktopSettings {
+) {
   return settings.mainWindowBounds !== null &&
     desktopWindowBoundsEquivalence(settings.mainWindowBounds, bounds) &&
     settings.mainWindowMaximized === isMaximized
@@ -308,7 +302,7 @@ function setMainWindowBounds(
 function setTailscaleServe(
   settings: DesktopSettings,
   input: { readonly enabled: boolean; readonly port: Option.Option<number> },
-): DesktopSettings {
+) {
   const port = Option.match(input.port, {
     onNone: () => settings.tailscaleServePort,
     onSome: normalizeTailscaleServePort,
@@ -322,10 +316,7 @@ function setTailscaleServe(
       };
 }
 
-function setUpdateChannel(
-  settings: DesktopSettings,
-  requestedChannel: DesktopUpdateChannel,
-): DesktopSettings {
+function setUpdateChannel(settings: DesktopSettings, requestedChannel: DesktopUpdateChannel) {
   return settings.updateChannel === requestedChannel
     ? settings
     : {
@@ -335,7 +326,7 @@ function setUpdateChannel(
       };
 }
 
-function setWslBackendEnabled(settings: DesktopSettings, enabled: boolean): DesktopSettings {
+function setWslBackendEnabled(settings: DesktopSettings, enabled: boolean) {
   return settings.wslBackendEnabled === enabled
     ? settings
     : {
@@ -344,7 +335,7 @@ function setWslBackendEnabled(settings: DesktopSettings, enabled: boolean): Desk
       };
 }
 
-function setWslDistro(settings: DesktopSettings, distro: string | null): DesktopSettings {
+function setWslDistro(settings: DesktopSettings, distro: string | null) {
   const normalized = normalizeWslDistro(distro);
   return settings.wslDistro === normalized
     ? settings
@@ -354,7 +345,7 @@ function setWslDistro(settings: DesktopSettings, distro: string | null): Desktop
       };
 }
 
-function setWslOnly(settings: DesktopSettings, enabled: boolean): DesktopSettings {
+function setWslOnly(settings: DesktopSettings, enabled: boolean) {
   return settings.wslOnly === enabled
     ? settings
     : {
@@ -363,21 +354,17 @@ function setWslOnly(settings: DesktopSettings, enabled: boolean): DesktopSetting
       };
 }
 
-function setLocalEnvironmentEnabled(settings: DesktopSettings, enabled: boolean): DesktopSettings {
+function setLocalEnvironmentEnabled(settings: DesktopSettings, enabled: boolean) {
   return settings.localEnvironmentEnabled === enabled
     ? settings
     : { ...settings, localEnvironmentEnabled: enabled };
 }
 
-function applyWslWindowsFallback(settings: DesktopSettings): DesktopSettings {
+function applyWslWindowsFallback(settings: DesktopSettings) {
   return setWslOnly(setWslBackendEnabled(settings, false), false);
 }
 
-function readSettings(
-  fileSystem: FileSystem.FileSystem,
-  settingsPath: string,
-  appVersion: string,
-): Effect.Effect<DesktopSettings, PlatformError.PlatformError> {
+function readSettings(fileSystem: FileSystem.FileSystem, settingsPath: string, appVersion: string) {
   const defaultSettings = resolveDefaultDesktopSettings(appVersion);
 
   return fileSystem.readFileString(settingsPath).pipe(
@@ -396,7 +383,7 @@ function readSettings(
           ),
       }),
     ),
-  );
+  ) satisfies Effect.Effect<DesktopSettings, PlatformError.PlatformError>;
 }
 
 const writeSettings = Effect.fn("desktop.settings.writeSettings")(function* (input: {
@@ -406,7 +393,7 @@ const writeSettings = Effect.fn("desktop.settings.writeSettings")(function* (inp
   readonly settings: DesktopSettings;
   readonly defaultSettings: DesktopSettings;
   readonly suffix: string;
-}): Effect.fn.Return<void, DesktopSettingsWriteError> {
+}) {
   const targetPath = yield* resolveSymlinkTarget(input.settingsPath).pipe(
     Effect.provideService(FileSystem.FileSystem, input.fileSystem),
     Effect.provideService(Path.Path, input.path),
@@ -482,9 +469,7 @@ export const make = Effect.gen(function* () {
       return [settingsChange(nextSettings, nextSettings !== settings), nextSettings] as const;
     });
 
-  const persist = (
-    update: (settings: DesktopSettings) => DesktopSettings,
-  ): Effect.Effect<DesktopSettingsChange, DesktopSettingsWriteError> =>
+  const persist = (update: (settings: DesktopSettings) => DesktopSettings) =>
     SynchronizedRef.modifyEffect(settingsRef, (settings) => {
       const nextSettings = update(settings);
       if (nextSettings === settings) {

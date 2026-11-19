@@ -50,14 +50,14 @@ export const readReplayFixtureTranscript = Effect.fn("readOrchestratorReplayTran
   return yield* readProviderReplayTranscript(file);
 }, Effect.provide(NodeServices.layer));
 
-function normalizeTestError(cause: unknown): Error {
+function normalizeTestError(cause: unknown) {
   return cause instanceof Error ? cause : new Error(String(cause));
 }
 
 function transcriptEntriesThroughLabel(
   transcript: ProviderReplayTranscript,
   label: string | undefined,
-): ProviderReplayTranscript {
+) {
   if (label === undefined) {
     return transcript;
   }
@@ -73,7 +73,7 @@ function transcriptEntriesThroughLabel(
   };
 }
 
-function isStreamingAssistantEvent(event: OrchestrationV2DomainEvent): boolean {
+function isStreamingAssistantEvent(event: OrchestrationV2DomainEvent) {
   switch (event.type) {
     case "node.updated":
       return event.payload.kind === "assistant_message" && event.payload.status === "running";

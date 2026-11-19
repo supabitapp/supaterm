@@ -128,7 +128,10 @@ interface AntigravityFlavorServices {
 
 export function makeAntigravityAcpAdapterFlavor(
   options: AntigravityAdapterV2Options & AntigravityFlavorServices,
-): AcpAdapterV2Flavor {
+): AcpAdapterV2Flavor;
+export function makeAntigravityAcpAdapterFlavor(
+  options: AntigravityAdapterV2Options & AntigravityFlavorServices,
+) {
   const { profileDirectory } = options;
   const antigravityClientFileRoots = (cwd: string | null) =>
     cwd === null ? [options.host.paths.attachmentsDir] : [cwd, options.host.paths.attachmentsDir];
@@ -191,7 +194,7 @@ export function makeAntigravityAcpAdapterFlavor(
       } satisfies typeof runtime;
     },
     Effect.provideService(SecureRandom.SecureRandom, options.random),
-    Effect.mapError((cause): EffectAcpErrors.AcpError =>
+    Effect.mapError((cause) =>
       cause._tag === "ProviderSetupError"
         ? new EffectAcpErrors.AcpTransportError({ detail: cause.detail, cause })
         : cause,
@@ -274,7 +277,7 @@ export function makeAntigravityAcpAdapterFlavor(
           watchPromptOutcome: (sessionId: string) =>
             watchAntigravityPromptOutcome(profileDirectory, sessionId),
         }),
-  };
+  } satisfies AcpAdapterV2Flavor;
 }
 
 export const makeAntigravityAdapterV2 = Effect.fn("makeAntigravityAdapterV2")(function* (

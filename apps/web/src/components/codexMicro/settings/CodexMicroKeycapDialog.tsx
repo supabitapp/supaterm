@@ -49,7 +49,7 @@ const TEXT_CHOICE = "text";
 const TEXT_CHOICE_LABEL = "Insert text…";
 const MAX_TEXT_LENGTH = 500;
 
-function initialChoice(action: CodexMicroAction | null | undefined): string {
+function initialChoice(action: CodexMicroAction | null | undefined) {
   if (action === undefined) return DEFAULT_CHOICE;
   if (action === null) return UNASSIGNED_CHOICE;
   return action.type === "composer-text" ? TEXT_CHOICE : codexMicroActionValue(action);
@@ -60,20 +60,21 @@ function chosenSlot(
   choice: string,
   text: string,
   preservedAction: CodexMicroAction | null,
-): CodexMicroKeySlot | null {
-  if (choice === DEFAULT_CHOICE) return { keycapId };
-  if (choice === UNASSIGNED_CHOICE) return { keycapId, action: null };
+) {
+  if (choice === DEFAULT_CHOICE) return { keycapId } satisfies CodexMicroKeySlot | null;
+  if (choice === UNASSIGNED_CHOICE)
+    return { keycapId, action: null } satisfies CodexMicroKeySlot | null;
   if (choice === TEXT_CHOICE) {
     const trimmed = text.trim();
-    return trimmed.length > 0
-      ? { keycapId, action: { type: "composer-text", text: trimmed } }
-      : null;
+    return (
+      trimmed.length > 0 ? { keycapId, action: { type: "composer-text", text: trimmed } } : null
+    ) satisfies CodexMicroKeySlot | null;
   }
   const action = CODEX_MICRO_COMMAND_OPTIONS.get(choice)?.action ?? preservedAction;
-  return action === null ? null : { keycapId, action };
+  return (action === null ? null : { keycapId, action }) satisfies CodexMicroKeySlot | null;
 }
 
-function choiceLabel(choice: string, action: CodexMicroAction | undefined | null): string {
+function choiceLabel(choice: string, action: CodexMicroAction | undefined | null) {
   if (choice === DEFAULT_CHOICE) return DEFAULT_CHOICE_LABEL;
   if (choice === TEXT_CHOICE) return TEXT_CHOICE_LABEL;
   return codexMicroActionLabel(action ?? null);

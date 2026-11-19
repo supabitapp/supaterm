@@ -17,7 +17,7 @@ function highlightedDocument(
   highlighter: DiffsHighlighter,
   themeName: DiffsThemeNames,
   children: ReturnType<typeof renderTokenLines>,
-): HighlightedDocument {
+) {
   const theme = highlighter.getTheme(themeName);
   return {
     type: "root" as const,

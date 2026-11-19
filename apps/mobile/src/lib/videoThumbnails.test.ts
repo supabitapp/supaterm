@@ -14,7 +14,7 @@ const player = () => {
       listeners.add(listener);
       return { remove: () => listeners.delete(listener) };
     }),
-    replaceAsync: vi.fn(async (): Promise<void> => queueMicrotask(attach)),
+    replaceAsync: vi.fn(async () => queueMicrotask(attach)),
     generateThumbnailsAsync: vi.fn(async () => [frame]),
     release: vi.fn(),
   };

@@ -69,7 +69,7 @@ export interface MergeProcessesResult {
   readonly deltas: ReadonlyArray<ProcessDelta>;
 }
 
-const emptyGroupCounters = (): GroupCounters => ({
+const emptyGroupCounters = () => ({
   cpuTimeMs: 0,
   ioReadBytes: 0,
   ioWriteBytes: 0,
@@ -77,30 +77,28 @@ const emptyGroupCounters = (): GroupCounters => ({
   processExits: 0,
 });
 
-export const emptyTelemetryCounters = (): TelemetryCounters => ({
+export const emptyTelemetryCounters = () => ({
   backend: emptyGroupCounters(),
   electron: emptyGroupCounters(),
   monitor: emptyGroupCounters(),
   allSupaterm: emptyGroupCounters(),
 });
 
-export function processIdentityKey(pid: number, startTimeMs: number): string {
+export function processIdentityKey(pid: number, startTimeMs: number) {
   return `${pid}:${startTimeMs}`;
 }
 
-function finiteNonNegative(value: number): number {
+function finiteNonNegative(value: number) {
   return Number.isFinite(value) ? Math.max(0, value) : 0;
 }
 
-function categoryGroup(
-  category: ResourceTelemetryProcessCategory,
-): "backend" | "electron" | "monitor" {
+function categoryGroup(category: ResourceTelemetryProcessCategory) {
   if (category === "resource-monitor") return "monitor";
   if (category.startsWith("electron-")) return "electron";
   return "backend";
 }
 
-function electronCategory(metric: DesktopElectronProcessMetric): ResourceTelemetryProcessCategory {
+function electronCategory(metric: DesktopElectronProcessMetric) {
   switch (metric.type) {
     case "Browser":
       return "electron-main";
@@ -113,9 +111,7 @@ function electronCategory(metric: DesktopElectronProcessMetric): ResourceTelemet
   }
 }
 
-function inferredElectronCategory(
-  process: ResourceMonitorProcessSample,
-): ResourceTelemetryProcessCategory {
+function inferredElectronCategory(process: ResourceMonitorProcessSample) {
   const command = process.command.toLowerCase();
   if (command.includes("--type=renderer")) return "electron-renderer";
   if (command.includes("--type=gpu-process")) return "electron-gpu";
@@ -125,7 +121,7 @@ function inferredElectronCategory(
 function matchElectronMetric(
   process: ResourceMonitorProcessSample,
   metricsByPid: ReadonlyMap<number, DesktopElectronProcessMetric>,
-): DesktopElectronProcessMetric | undefined {
+) {
   const metric = metricsByPid.get(process.pid);
   if (!metric) return undefined;
   return Math.abs(metric.creationTimeMs - process.startTimeMs) <= ELECTRON_IDENTITY_TOLERANCE_MS
@@ -137,7 +133,7 @@ function syntheticNativeSample(
   metric: DesktopElectronProcessMetric,
   sampledAtMs: number,
   previous: ProcessState | undefined,
-): ResourceMonitorProcessSample {
+) {
   const cpuTimeMs =
     metric.cumulativeCpuSeconds !== undefined
       ? Math.max(0, Math.round(metric.cumulativeCpuSeconds * 1_000))
@@ -160,13 +156,13 @@ function syntheticNativeSample(
     ioReadBytes: 0,
     ioWriteBytes: 0,
     ioSemantics: "storage",
-  };
+  } satisfies ResourceMonitorProcessSample;
 }
 
 function processDepths(
   processes: ReadonlyArray<ResourceMonitorProcessSample>,
   roots: ReadonlySet<number>,
-): ReadonlyMap<number, number> {
+) {
   const childrenByParent = new Map<number, number[]>();
   for (const process of processes) {
     const children = childrenByParent.get(process.ppid) ?? [];
@@ -192,7 +188,7 @@ function isElectronDescendant(
   processesByPid: ReadonlyMap<number, ResourceMonitorProcessSample>,
   electronPids: ReadonlySet<number>,
   serverPid: number,
-): boolean {
+) {
   const visited = new Set<number>();
   let currentPid = pid;
   while (!visited.has(currentPid)) {
@@ -211,7 +207,7 @@ function hasElectronAncestor(
   process: ResourceMonitorProcessSample,
   processesByPid: ReadonlyMap<number, ResourceMonitorProcessSample>,
   electronPids: ReadonlySet<number>,
-): boolean {
+) {
   const visited = new Set<number>();
   let currentPid = process.ppid;
   while (currentPid > 0 && !visited.has(currentPid)) {
@@ -227,7 +223,7 @@ function hasElectronAncestor(
 function orderProcessTree(
   processes: ReadonlyArray<ResourceTelemetryProcess>,
   rootPids: ReadonlyArray<number>,
-): ReadonlyArray<ResourceTelemetryProcess> {
+) {
   const processesByPid = new Map(processes.map((process) => [process.identity.pid, process]));
   const childrenByParent = new Map<number, ResourceTelemetryProcess[]>();
   for (const process of processes) {
@@ -241,7 +237,7 @@ function orderProcessTree(
 
   const ordered: ResourceTelemetryProcess[] = [];
   const visited = new Set<number>();
-  const visit = (process: ResourceTelemetryProcess): void => {
+  const visit = (process: ResourceTelemetryProcess) => {
     if (visited.has(process.identity.pid)) return;
     visited.add(process.identity.pid);
     ordered.push(process);
@@ -266,7 +262,7 @@ function delta(input: {
   readonly current: number;
   readonly previous: number;
   readonly elapsedMs: number;
-}): number {
+}) {
   if (
     input.elapsedMs <= 0 ||
     input.elapsedMs > MAX_DELTA_INTERVAL_MS ||
@@ -277,7 +273,7 @@ function delta(input: {
   return input.current - input.previous;
 }
 
-function incrementCounters(counters: GroupCounters, update: Partial<GroupCounters>): GroupCounters {
+function incrementCounters(counters: GroupCounters, update: Partial<GroupCounters>) {
   return {
     cpuTimeMs: counters.cpuTimeMs + (update.cpuTimeMs ?? 0),
     ioReadBytes: counters.ioReadBytes + (update.ioReadBytes ?? 0),
@@ -292,7 +288,7 @@ function applyLifecycleCounters(input: {
   readonly deltas: ReadonlyArray<ProcessDelta>;
   readonly current: ReadonlyMap<string, ProcessState>;
   readonly previous: ReadonlyMap<string, ProcessState>;
-}): TelemetryCounters {
+}) {
   let backend = input.counters.backend;
   let electron = input.counters.electron;
   let monitor = input.counters.monitor;
@@ -350,10 +346,7 @@ function applyLifecycleCounters(input: {
   return { backend, electron, monitor, allSupaterm };
 }
 
-function aggregate(
-  processes: ReadonlyArray<ResourceTelemetryProcess>,
-  counters: GroupCounters,
-): ResourceTelemetryAggregate {
+function aggregate(processes: ReadonlyArray<ResourceTelemetryProcess>, counters: GroupCounters) {
   return {
     processCount: processes.length,
     currentCpuPercent: processes.reduce((total, process) => total + process.cpuPercent, 0),
@@ -375,7 +368,7 @@ function aggregate(
   };
 }
 
-export function mergeProcesses(input: MergeProcessesInput): MergeProcessesResult {
+export function mergeProcesses(input: MergeProcessesInput) {
   const nativeProcesses = Option.match(input.nativeSnapshot, {
     onNone: () => [] as ReadonlyArray<ResourceMonitorProcessSample>,
     onSome: (snapshot) => snapshot.processes,
@@ -472,7 +465,7 @@ export function mergeProcesses(input: MergeProcessesInput): MergeProcessesResult
 
   const nextPrevious = new Map<string, ProcessState>();
   const processDeltas: ProcessDelta[] = [];
-  const normalized = processes.map((process): ResourceTelemetryProcess => {
+  const normalized = processes.map((process) => {
     const identityKey = processIdentityKey(process.pid, process.startTimeMs);
     const previous = input.previous.get(identityKey);
     const counterSampledAtMs = nativeProcessPids.has(process.pid)

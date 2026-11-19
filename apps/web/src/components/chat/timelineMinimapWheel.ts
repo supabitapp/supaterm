@@ -12,7 +12,7 @@ interface WheelGlide {
 
 const glides = new WeakMap<HTMLElement, WheelGlide>();
 
-function isPreciseWheel(event: WheelEvent): boolean {
+function isPreciseWheel(event: WheelEvent) {
   if (event.deltaMode !== WheelEvent.DOM_DELTA_PIXEL) return false;
   const { wheelDeltaY } = event as WheelEvent & { wheelDeltaY?: number };
   return (
@@ -21,7 +21,7 @@ function isPreciseWheel(event: WheelEvent): boolean {
   );
 }
 
-function stopGlide(timeline: HTMLElement): WheelGlide | undefined {
+function stopGlide(timeline: HTMLElement) {
   const glide = glides.get(timeline);
   if (!glide) return undefined;
   cancelAnimationFrame(glide.frame);
@@ -30,7 +30,7 @@ function stopGlide(timeline: HTMLElement): WheelGlide | undefined {
   return glide;
 }
 
-function glideBy(timeline: HTMLElement, distance: number): void {
+function glideBy(timeline: HTMLElement, distance: number) {
   const current = stopGlide(timeline);
   const scrollTop = timeline.scrollTop;
   const base = current ? current.to + scrollTop - current.written : scrollTop;
@@ -70,7 +70,7 @@ function glideBy(timeline: HTMLElement, distance: number): void {
   glides.set(timeline, glide);
 }
 
-export function forwardWheelToTimeline(event: WheelEvent, timeline: HTMLElement): void {
+export function forwardWheelToTimeline(event: WheelEvent, timeline: HTMLElement) {
   if (event.defaultPrevented || event.ctrlKey || event.deltaY === 0) return;
   event.preventDefault();
 

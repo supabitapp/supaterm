@@ -12,7 +12,7 @@ export type ModelPickerSearchableModel = {
 const MODEL_PICKER_FAVORITE_SCORE_BOOST = 24;
 const MODEL_PICKER_EXACT_NAME_SCORE = -1000;
 
-function getModelPickerSearchFields(model: ModelPickerSearchableModel): string[] {
+function getModelPickerSearchFields(model: ModelPickerSearchableModel) {
   return [
     normalizeSearchQuery(model.name),
     ...(model.shortName ? [normalizeSearchQuery(model.shortName)] : []),
@@ -23,11 +23,7 @@ function getModelPickerSearchFields(model: ModelPickerSearchableModel): string[]
   ];
 }
 
-function scoreModelPickerSearchToken(
-  field: string,
-  token: string,
-  fieldBase: number,
-): number | null {
+function scoreModelPickerSearchToken(field: string, token: string, fieldBase: number) {
   return scoreQueryMatch({
     value: field,
     query: token,
@@ -40,11 +36,11 @@ function scoreModelPickerSearchToken(
   });
 }
 
-function normalizeModelName(name: string): string {
+function normalizeModelName(name: string) {
   return normalizeSearchQuery(name).replace(/\s+/gu, " ");
 }
 
-function buildModelPickerSearchText(model: ModelPickerSearchableModel): string {
+function buildModelPickerSearchText(model: ModelPickerSearchableModel) {
   return normalizeSearchQuery(
     [model.name, model.shortName, model.subProvider, model.driverKind, model.providerDisplayName]
       .filter((value): value is string => typeof value === "string" && value.length > 0)
@@ -52,10 +48,7 @@ function buildModelPickerSearchText(model: ModelPickerSearchableModel): string {
   );
 }
 
-export function scoreModelPickerSearch(
-  model: ModelPickerSearchableModel,
-  query: string,
-): number | null {
+export function scoreModelPickerSearch(model: ModelPickerSearchableModel, query: string) {
   const tokens = normalizeSearchQuery(query)
     .split(/\s+/u)
     .filter((token) => token.length > 0);
@@ -98,7 +91,7 @@ export function rankModelPickerSearch<T>(
   items: ReadonlyArray<T>,
   query: string,
   toSearchable: (item: T) => ModelPickerSearchableModel,
-): T[] {
+) {
   const ranked: Array<{
     item: T;
     score: number;

@@ -48,8 +48,8 @@ export class ServerAlreadyRunningError extends Schema.TaggedError<ServerAlreadyR
 ) {
   override readonly [Runtime.errorExitCode] = SERVER_EXIT_CODE_STATE_DIR_OWNED;
 
-  override get message(): string {
-    return `A Supaterm server already owns ${this.stateDir}. Stop that server, or use a separate Supaterm home and pair with it, then retry. No server was stopped. server-owner.sqlite is the ownership lock; do not delete it while a server is running.`;
+  override get message() {
+    return `A Supaterm server already owns ${this.stateDir}. Stop that server, or use a separate Supaterm home and pair with it, then retry. No server was stopped. server-owner.sqlite is the ownership lock; do not delete it while a server is running.` satisfies string as string;
   }
 }
 
@@ -59,8 +59,8 @@ export class OlderBootServiceError extends Schema.TaggedError<OlderBootServiceEr
 ) {
   override readonly [Runtime.errorExitCode] = SERVER_EXIT_CODE_STATE_DIR_OWNED;
 
-  override get message(): string {
-    return `A Supaterm background service set up for ${this.baseDir} may still run a release without the ownership lock. On that machine, try \`supaterm update\` and let it restart (or run \`supaterm service restart\` if the update is already installed). If the older launcher cannot update, run \`supaterm service uninstall\`, then reinstall with \`supaterm service install\` from a current CLI. You can also leave the service uninstalled. Pass \`--base-dir ${this.baseDir}\` to each command, and use \`npx supaterm@latest\` if \`supaterm\` is not installed or is outdated. Then retry. No server was stopped.`;
+  override get message() {
+    return `A Supaterm background service set up for ${this.baseDir} may still run a release without the ownership lock. On that machine, try \`supaterm update\` and let it restart (or run \`supaterm service restart\` if the update is already installed). If the older launcher cannot update, run \`supaterm service uninstall\`, then reinstall with \`supaterm service install\` from a current CLI. You can also leave the service uninstalled. Pass \`--base-dir ${this.baseDir}\` to each command, and use \`npx supaterm@latest\` if \`supaterm\` is not installed or is outdated. Then retry. No server was stopped.` satisfies string as string;
   }
 }
 
@@ -68,8 +68,8 @@ export class ServerOwnershipError extends Schema.TaggedError<ServerOwnershipErro
   "ServerOwnershipError",
   { stateDir: Schema.String, cause: Schema.Defect() },
 ) {
-  override get message(): string {
-    return `Could not acquire server ownership of ${this.stateDir}.`;
+  override get message() {
+    return `Could not acquire server ownership of ${this.stateDir}.` satisfies string as string;
   }
 }
 

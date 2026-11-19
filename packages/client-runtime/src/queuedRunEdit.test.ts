@@ -11,7 +11,7 @@ import {
 } from "./queuedRunEdit.ts";
 
 const RUN = RunId.make("run-1");
-const queued = (status = "queued"): ReadonlyArray<QueuedRunStatus> => [{ id: RUN, status }];
+const queued = (status = "queued") => [{ id: RUN, status }];
 
 function setup(initialRuns: ReadonlyArray<QueuedRunStatus> | null = queued()) {
   const registry = AtomRegistry.make();

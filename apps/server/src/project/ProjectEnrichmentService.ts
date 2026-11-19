@@ -57,7 +57,7 @@ export class ProjectEnrichmentService extends Context.Service<
   }
 >()("supaterm/project/ProjectEnrichmentService") {}
 
-function availableValue<A, E>(cached: Option.Option<Exit.Exit<A, E>>): A | null {
+function availableValue<A, E>(cached: Option.Option<Exit.Exit<A, E>>) {
   return Option.match(cached, {
     onNone: () => null,
     onSome: (exit) =>
@@ -68,7 +68,7 @@ function availableValue<A, E>(cached: Option.Option<Exit.Exit<A, E>>): A | null 
   });
 }
 
-function isSuccessfullyResolved<A, E>(cached: Option.Option<Exit.Exit<A, E>>): boolean {
+function isSuccessfullyResolved<A, E>(cached: Option.Option<Exit.Exit<A, E>>) {
   return Option.match(cached, {
     onNone: () => false,
     onSome: (exit) => Exit.isSuccess(exit),

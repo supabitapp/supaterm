@@ -1,4 +1,3 @@
-import type { ModelSelection as CursorSdkModelSelection, ModelParameterValue } from "@cursor/sdk";
 import type { ModelSelection, ServerProviderModel } from "@supaterm/contracts";
 import { getProviderOptionCurrentValue } from "@supaterm/shared/model";
 
@@ -12,15 +11,15 @@ const PROVIDER_OPTION_TO_CURSOR_SDK_PARAMETER: Readonly<Record<string, string>> 
   fastMode: "fast",
 };
 
-export function cursorSdkProviderOptionId(parameterId: string): string {
+export function cursorSdkProviderOptionId(parameterId: string) {
   return CURSOR_SDK_PARAMETER_TO_PROVIDER_OPTION[parameterId] ?? parameterId;
 }
 
-function cursorSdkParameterId(providerOptionId: string): string {
+function cursorSdkParameterId(providerOptionId: string) {
   return PROVIDER_OPTION_TO_CURSOR_SDK_PARAMETER[providerOptionId] ?? providerOptionId;
 }
 
-export function cursorSdkParameterPriority(parameterId: string): number {
+export function cursorSdkParameterPriority(parameterId: string) {
   switch (parameterId) {
     case "effort":
     case "reasoning":
@@ -39,7 +38,7 @@ export function cursorSdkParameterPriority(parameterId: string): number {
 export function cursorContextWindowTokens(
   modelSelection: ModelSelection,
   models: ReadonlyArray<ServerProviderModel>,
-): number | undefined {
+) {
   const explicit = modelSelection.options?.find((option) => option.id === "contextWindow");
   let value = explicit?.value;
   if (explicit === undefined) {
@@ -57,7 +56,7 @@ export function cursorContextWindowTokens(
 export function cursorSdkModelSelection(
   modelSelection: ModelSelection,
   models: ReadonlyArray<ServerProviderModel> = [],
-): CursorSdkModelSelection {
+) {
   const explicit = modelSelection.options ?? [];
   const descriptors =
     models.find((model) => model.slug === modelSelection.model)?.capabilities?.optionDescriptors ??
@@ -73,7 +72,7 @@ export function cursorSdkModelSelection(
     ...(options.length === 0
       ? {}
       : {
-          params: options.map((option): ModelParameterValue => ({
+          params: options.map((option) => ({
             id: cursorSdkParameterId(option.id),
             value: String(option.value),
           })),

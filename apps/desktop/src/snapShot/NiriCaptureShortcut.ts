@@ -11,7 +11,7 @@ export async function startNiriCaptureShortcut(
   onCapture: () => void,
   onFailure: () => void,
   bus = sessionBus(),
-): Promise<() => void> {
+) {
   let closed = false;
   const close = () => {
     if (closed) return;

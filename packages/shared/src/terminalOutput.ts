@@ -46,13 +46,13 @@ const MAX_PENDING_ESCAPE = 64;
 
 const ESC = "\u001b";
 
-function sgr(pen: string): string {
+function sgr(pen: string) {
   return pen === "" ? `${ESC}[0m` : `${ESC}[0;${pen}m`;
 }
 
 const lineLengths = new WeakMap<Line, number>();
 
-function lineLength(line: Line): number {
+function lineLength(line: Line) {
   const cached = lineLengths.get(line);
   if (cached !== undefined) return cached;
   let length = 0;
@@ -65,18 +65,18 @@ const lineWidths = new WeakMap<Line, number>();
 const ZERO_WIDTH = /[\p{Mark}\p{Default_Ignorable_Code_Point}]/u;
 const ASCII = /^[\x00-\x7f]*$/u;
 
-function characterWidth(character: string): number {
+function characterWidth(character: string) {
   return ZERO_WIDTH.test(character) ? 0 : eastAsianWidth(character.codePointAt(0)!);
 }
 
-function textWidth(text: string): number {
+function textWidth(text: string) {
   if (ASCII.test(text)) return text.length;
   let width = 0;
   for (const character of text) width += characterWidth(character);
   return width;
 }
 
-function lineWidth(line: Line): number {
+function lineWidth(line: Line) {
   const cached = lineWidths.get(line);
   if (cached !== undefined) return cached;
   let width = 0;
@@ -87,7 +87,7 @@ function lineWidth(line: Line): number {
 
 const MAX_LINE_RUNS = 2_048;
 
-function sliceLine(line: Line, start: number, end: number): Array<Run> {
+function sliceLine(line: Line, start: number, end: number) {
   const out: Array<Run> = [];
   let col = 0;
   let base = 0;
@@ -128,7 +128,7 @@ function sliceLine(line: Line, start: number, end: number): Array<Run> {
   return out;
 }
 
-function pushRun(runs: Array<Run>, run: Run): void {
+function pushRun(runs: Array<Run>, run: Run) {
   if (run.text.length === 0) return;
   const last = runs.at(-1);
   if (last !== undefined && last.pen === run.pen) {
@@ -138,7 +138,7 @@ function pushRun(runs: Array<Run>, run: Run): void {
   }
 }
 
-function trimLineStart(runs: Array<Run>, count: number): number {
+function trimLineStart(runs: Array<Run>, count: number) {
   const width = lineWidth(runs);
   const length = lineLength(runs);
   let removedWidth = 0;
@@ -169,7 +169,7 @@ function trimLineStart(runs: Array<Run>, count: number): number {
   return removedWidth;
 }
 
-function writeLine(line: Line, col: number, text: string, pen: string): Line {
+function writeLine(line: Line, col: number, text: string, pen: string) {
   const length = lineWidth(line);
   if (col === length) {
     const runs = line.slice();
@@ -186,7 +186,7 @@ function writeLine(line: Line, col: number, text: string, pen: string): Line {
   return runs;
 }
 
-function eraseLine(line: Line, col: number, mode: number): Line {
+function eraseLine(line: Line, col: number, mode: number) {
   const length = lineWidth(line);
   if (mode === 0) return sliceLine(line, 0, col);
   if (mode === 1) {
@@ -198,7 +198,7 @@ function eraseLine(line: Line, col: number, mode: number): Line {
   return mode === 2 ? [] : line;
 }
 
-function serializeLine(line: Line): string {
+function serializeLine(line: Line) {
   let out = "";
   let current = "";
   for (const run of line) {
@@ -222,7 +222,7 @@ interface Attributes {
   bg: string;
 }
 
-function parsePen(pen: string): Attributes {
+function parsePen(pen: string) {
   const attributes: Attributes = {
     bold: false,
     dim: false,
@@ -237,7 +237,7 @@ function parsePen(pen: string): Attributes {
   return attributes;
 }
 
-function formatPen(attributes: Attributes): string {
+function formatPen(attributes: Attributes) {
   const parts: Array<string> = [];
   if (attributes.bold) parts.push("1");
   if (attributes.dim) parts.push("2");
@@ -250,27 +250,29 @@ function formatPen(attributes: Attributes): string {
   return parts.join(";");
 }
 
-function extendedColor(
-  code: number,
-  params: ReadonlyArray<number>,
-  index: number,
-): [string | undefined, number] {
+function extendedColor(code: number, params: ReadonlyArray<number>, index: number) {
   const mode = params[index + 1];
   if (mode === 5) {
     const value = params[index + 2];
-    return value === undefined || value > 255
-      ? [undefined, index + 3]
-      : [`${code};5;${value}`, index + 3];
+    return (
+      value === undefined || value > 255
+        ? [undefined, index + 3]
+        : [`${code};5;${value}`, index + 3]
+    ) satisfies [string | undefined, number];
   }
   if (mode === 2) {
     const [r, g, b] = [params[index + 2], params[index + 3], params[index + 4]];
-    if (r === undefined || g === undefined || b === undefined) return [undefined, index + 5];
-    return [`${code};2;${r & 255};${g & 255};${b & 255}`, index + 5];
+    if (r === undefined || g === undefined || b === undefined)
+      return [undefined, index + 5] satisfies [string | undefined, number];
+    return [`${code};2;${r & 255};${g & 255};${b & 255}`, index + 5] satisfies [
+      string | undefined,
+      number,
+    ];
   }
-  return [undefined, index + 2];
+  return [undefined, index + 2] satisfies [string | undefined, number];
 }
 
-function applySgr(attributes: Attributes, params: ReadonlyArray<number>): void {
+function applySgr(attributes: Attributes, params: ReadonlyArray<number>) {
   if (params.length === 0) params = [0];
   for (let index = 0; index < params.length;) {
     const code = params[index]!;
@@ -304,7 +306,7 @@ function applySgr(attributes: Attributes, params: ReadonlyArray<number>): void {
 
 const STRING_SEQUENCE_INTRODUCERS = new Set(["]", "P", "X", "_", "^"]);
 
-function escapeLength(input: string, index: number): number {
+function escapeLength(input: string, index: number) {
   const next = input[index + 1];
   if (next === undefined) return -1;
   if (next === ESC) return 1;
@@ -342,7 +344,7 @@ function escapeLength(input: string, index: number): number {
 
 const penTransitions = new Map<string, string>();
 
-function csiParams(params: string): Array<number> {
+function csiParams(params: string) {
   const numbers: Array<number> = [];
   let pending: "code" | "mode" | number = "code";
   for (const part of params.split(";")) {
@@ -401,7 +403,7 @@ class Terminal {
     this.saved = screen.saved;
   }
 
-  write(text: string): void {
+  write(text: string) {
     let line = this.lines[this.row]!;
     const length = lineWidth(line);
     const width = textWidth(text);
@@ -440,14 +442,14 @@ class Terminal {
     this.lines[this.row] = line;
   }
 
-  newline(): void {
+  newline() {
     this.row += 1;
     this.col = 0;
     if (this.row === this.lines.length) this.lines.push([]);
     while (this.lines.length > LIVE_LINES) this.scrollOut();
   }
 
-  scrollOut(): number {
+  scrollOut() {
     const line = this.lines.shift()!;
     this.settle(line);
     this.row -= 1;
@@ -455,7 +457,7 @@ class Terminal {
     return lineLength(line);
   }
 
-  settle(line: Line): void {
+  settle(line: Line) {
     this.settledTail += `${serializeLine(line)}\n`;
     if (this.settledHead.length + this.settledTail.length > 2 * this.maxChars) {
       [this.settledHead, this.settledTail = ""] = terminalOutputTailParts(
@@ -466,12 +468,12 @@ class Terminal {
     }
   }
 
-  moveTo(row: number, col: number): void {
+  moveTo(row: number, col: number) {
     this.row = Math.max(0, Math.min(this.lines.length - 1, row));
     this.col = Math.max(0, Math.min(2 * TERMINAL_OUTPUT_TAIL_CHARS, col));
   }
 
-  csi(params: string, final: string): void {
+  csi(params: string, final: string) {
     if (!/^[\d;:]*$/u.test(params) || (final !== "m" && params.includes(":"))) return;
     if (final === "m") {
       const key = `${this.pen}|${params}`;
@@ -538,7 +540,7 @@ class Terminal {
     }
   }
 
-  escape(sequence: string): void {
+  escape(sequence: string) {
     if (sequence[1] === "[") {
       this.csi(sequence.slice(2, -1), sequence.at(-1)!);
     } else if (sequence === `${ESC}7`) {
@@ -550,7 +552,7 @@ class Terminal {
     }
   }
 
-  feed(input: string): string {
+  feed(input: string) {
     let printable = 0;
     const flush = (end: number) => {
       if (end > printable) this.write(input.slice(printable, end));
@@ -590,7 +592,7 @@ class Terminal {
   }
 }
 
-function styleAt(text: string, index: number): { readonly start: number; readonly prefix: string } {
+function styleAt(text: string, index: number) {
   const lineStart = text.lastIndexOf("\n", index - 1) + 1;
   let prefix = "";
   let cursor = lineStart;
@@ -607,10 +609,7 @@ function styleAt(text: string, index: number): { readonly start: number; readonl
 }
 
 /** Keeps the last `maxChars`, preferring to start on a fresh line. */
-export function terminalOutputTail(
-  text: string,
-  maxChars: number,
-): { readonly text: string; readonly truncated: boolean } {
+export function terminalOutputTail(text: string, maxChars: number) {
   if (text.length <= maxChars) return { text, truncated: false };
   let start = text.length - maxChars;
   const newline = text.indexOf("\n", start);
@@ -624,13 +623,14 @@ export function terminalOutputTail(
   return { text: style.prefix + text.slice(start), truncated: true };
 }
 
-function terminalOutputTailParts(
-  parts: readonly [string, ...Array<string>],
-  maxChars: number,
-): { readonly parts: readonly [string, ...Array<string>]; readonly truncated: boolean } {
+function terminalOutputTailParts(parts: readonly [string, ...Array<string>], maxChars: number) {
   let total = 0;
   for (const part of parts) total += part.length;
-  if (total <= maxChars) return { parts, truncated: false };
+  if (total <= maxChars)
+    return { parts, truncated: false } satisfies {
+      readonly parts: readonly [string, ...Array<string>];
+      readonly truncated: boolean;
+    };
   const start = total - maxChars;
   let offset = 0;
   for (let index = 0; index < parts.length; index += 1) {
@@ -639,21 +639,30 @@ function terminalOutputTailParts(
       const newline = part.indexOf("\n", Math.max(0, start - offset));
       if (newline !== -1) {
         if (offset + newline - start >= maxChars / 4) break;
-        return { parts: [part.slice(newline + 1), ...parts.slice(index + 1)], truncated: true };
+        return {
+          parts: [part.slice(newline + 1), ...parts.slice(index + 1)],
+          truncated: true,
+        } satisfies {
+          readonly parts: readonly [string, ...Array<string>];
+          readonly truncated: boolean;
+        };
       }
     }
     offset += part.length;
   }
-  return { parts: [terminalOutputTail(parts.join(""), maxChars).text], truncated: true };
+  return { parts: [terminalOutputTail(parts.join(""), maxChars).text], truncated: true } satisfies {
+    readonly parts: readonly [string, ...Array<string>];
+    readonly truncated: boolean;
+  };
 }
 
 export function appendTerminalOutput(
   state: TerminalOutputState,
   chunk: string,
   maxChars: number = TERMINAL_OUTPUT_TAIL_CHARS,
-): TerminalOutputState {
+) {
   const input = state.pending + chunk;
-  if (input.length === 0) return state;
+  if (input.length === 0) return state satisfies TerminalOutputState;
   const terminal = new Terminal(state.screen, maxChars);
   const pending = terminal.feed(input);
   let truncated = state.truncated;
@@ -697,11 +706,12 @@ export function appendTerminalOutput(
       pen: terminal.pen,
       saved: terminal.saved,
     },
-  };
+  } satisfies TerminalOutputState;
 }
 
 /** Rebuilds state from empty, including cursor/style/pending escapes, so later raw chunks fold identically. */
-export function terminalOutputResumeText(state: TerminalOutputState): string {
+export function terminalOutputResumeText(state: TerminalOutputState): string;
+export function terminalOutputResumeText(state: TerminalOutputState) {
   const { screen } = state;
   const lastRow = screen.lines.length - 1;
   let reachable = 0;
@@ -728,13 +738,13 @@ export function terminalOutputResumeText(state: TerminalOutputState): string {
     suffix += goTo(screen.row, screen.col);
   }
   if (screen.pen !== "") suffix += sgr(screen.pen);
-  return state.text + suffix + state.pending;
+  return (state.text + suffix + state.pending) satisfies string;
 }
 
 export function normalizeTerminalOutput(
   text: string,
   maxChars: number = TERMINAL_OUTPUT_TAIL_CHARS,
-): { readonly text: string; readonly truncated: boolean } {
+) {
   const state = appendTerminalOutput(EMPTY_TERMINAL_OUTPUT, text, maxChars);
   return { text: state.text, truncated: state.truncated };
 }
@@ -793,7 +803,7 @@ export const TERMINAL_PALETTES = {
   ],
 } as const;
 
-function xtermColor(index: number, palette: ReadonlyArray<string>): string {
+function xtermColor(index: number, palette: ReadonlyArray<string>) {
   if (index < 16) return palette[index]!;
   if (index >= 232) {
     const level = 8 + (index - 232) * 10;
@@ -804,11 +814,7 @@ function xtermColor(index: number, palette: ReadonlyArray<string>): string {
   return `rgb(${channel(Math.floor(cube / 36))},${channel(Math.floor(cube / 6) % 6)},${channel(cube % 6)})`;
 }
 
-function resolveColor(
-  code: string,
-  base: number,
-  palette: ReadonlyArray<string>,
-): string | undefined {
+function resolveColor(code: string, base: number, palette: ReadonlyArray<string>) {
   const parts = code.split(";").map(Number);
   const head = parts[0]!;
   if (head === base + 8) {
@@ -822,17 +828,19 @@ function resolveColor(
 
 type Rgb = readonly [number, number, number];
 
-function parseCssColor(color: string): Rgb | undefined {
+function parseCssColor(color: string) {
   if (color.startsWith("#") && color.length === 7) {
     return [1, 3, 5].map((offset) =>
       Number.parseInt(color.slice(offset, offset + 2), 16),
-    ) as unknown as Rgb;
+    ) as unknown as Rgb satisfies Rgb | undefined;
   }
   const match = /^rgb\((\d+),(\d+),(\d+)\)$/u.exec(color);
-  return match === null ? undefined : [Number(match[1]), Number(match[2]), Number(match[3])];
+  return (
+    match === null ? undefined : [Number(match[1]), Number(match[2]), Number(match[3])]
+  ) satisfies Rgb | undefined;
 }
 
-function luminance([r, g, b]: Rgb): number {
+function luminance([r, g, b]: Rgb) {
   const channel = (value: number) => {
     const scaled = value / 255;
     return scaled <= 0.03928 ? scaled / 12.92 : ((scaled + 0.055) / 1.055) ** 2.4;
@@ -840,13 +848,13 @@ function luminance([r, g, b]: Rgb): number {
   return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
 }
 
-function contrastRatio(a: Rgb, b: Rgb): number {
+function contrastRatio(a: Rgb, b: Rgb) {
   const [first, second] = [luminance(a), luminance(b)];
   return (Math.max(first, second) + 0.05) / (Math.min(first, second) + 0.05);
 }
 
-function spanStyle(pen: string, palette: ReadonlyArray<string>): TerminalSpanStyle | null {
-  if (pen === "") return null;
+function spanStyle(pen: string, palette: ReadonlyArray<string>) {
+  if (pen === "") return null satisfies TerminalSpanStyle | null;
   const attributes = parsePen(pen);
   let color = attributes.fg === "" ? undefined : resolveColor(attributes.fg, 30, palette);
   let backgroundColor = attributes.bg === "" ? undefined : resolveColor(attributes.bg, 40, palette);
@@ -877,7 +885,7 @@ function spanStyle(pen: string, palette: ReadonlyArray<string>): TerminalSpanSty
     ...(attributes.dim ? { opacity: 0.65 } : {}),
     ...(attributes.italic ? { fontStyle: "italic" } : {}),
     ...(textDecorationLine === undefined ? {} : { textDecorationLine }),
-  };
+  } satisfies TerminalSpanStyle | null;
 }
 
 /** Caps styled spans at maxSpans, then emits one plain remainder to bound DOM/native nodes. */
@@ -885,7 +893,7 @@ export function terminalOutputSpans(
   text: string,
   palette: ReadonlyArray<string>,
   maxSpans = 2_000,
-): ReadonlyArray<TerminalSpan> {
+) {
   const spans: Array<TerminalSpan> = [];
   const styles = new Map<string, TerminalSpanStyle | null>();
   let pen = "";
@@ -921,6 +929,6 @@ export function terminalOutputSpans(
 
 const SGR_PATTERN = new RegExp(`${ESC}\\[[0-9;:]*m`, "gu");
 
-export function terminalOutputPlainText(text: string): string {
+export function terminalOutputPlainText(text: string) {
   return text.replace(SGR_PATTERN, "");
 }

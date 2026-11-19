@@ -11,18 +11,18 @@ export interface ThreadFindMatch {
   readonly occurrence: number;
 }
 
-function clampThreadFindIndex(index: number, total: number): number {
+function clampThreadFindIndex(index: number, total: number) {
   if (total <= 0 || !Number.isFinite(index) || index < 0) return 0;
   return Math.min(Math.trunc(index), total - 1);
 }
 
-export function stepThreadFindIndex(index: number, total: number, delta: number): number {
+export function stepThreadFindIndex(index: number, total: number, delta: number) {
   if (total <= 0) return 0;
   const clamped = clampThreadFindIndex(index, total);
   return (((clamped + delta) % total) + total) % total;
 }
 
-export function formatThreadFindCount(index: number, total: number): string {
+export function formatThreadFindCount(index: number, total: number) {
   return total <= 0 ? "0/0" : `${clampThreadFindIndex(index, total) + 1}/${total}`;
 }
 
@@ -44,7 +44,7 @@ export interface ThreadFindAnnouncement {
 export function nextThreadFindAnnouncement(
   previous: ThreadFindAnnouncement | null,
   next: ThreadFindAnnouncement,
-): ThreadFindAnnouncement {
+) {
   if (!next.settled) return previous ?? { ...next, text: "" };
   if (previous?.navigationId !== next.navigationId) return next;
   if (previous.settled && !previous.provisional) return previous;

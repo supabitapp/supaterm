@@ -192,15 +192,16 @@ describe("resolvePullRequestPreviewTarget", () => {
 });
 
 describe("projectChangeRequestUrl", () => {
-  const identity = (provider: string): RepositoryIdentity => ({
-    canonicalKey: "github.com/acme/default",
-    provider: SourceControlProviderKind.make(provider),
-    locator: {
-      source: "git-remote",
-      remoteName: "origin",
-      remoteUrl: "git@github.com:acme/default",
-    },
-  });
+  const identity = (provider: string) =>
+    ({
+      canonicalKey: "github.com/acme/default",
+      provider: SourceControlProviderKind.make(provider),
+      locator: {
+        source: "git-remote",
+        remoteName: "origin",
+        remoteUrl: "git@github.com:acme/default",
+      },
+    }) satisfies RepositoryIdentity;
 
   it("builds the requested repository's URL on the project's host", () => {
     expect(projectChangeRequestUrl(identity("github"), "acme/other", 42)).toBe(

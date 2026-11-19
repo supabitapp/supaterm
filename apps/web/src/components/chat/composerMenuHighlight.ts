@@ -4,7 +4,7 @@ export function resolveComposerMenuActiveItemId(input: {
   currentSearchKey: string | null;
   highlightedSearchKey: string | null;
   defaultToFirst: boolean;
-}): string | null {
+}) {
   if (input.items.length === 0) {
     return null;
   }

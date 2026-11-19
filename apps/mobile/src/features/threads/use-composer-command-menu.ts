@@ -11,7 +11,6 @@ import type {
 import {
   isMentionableProvider,
   matchComposerModelItems,
-  type ComposerModelCandidate,
 } from "@supaterm/client-runtime/composerModelMentions";
 import { matchComposerThreadItems } from "@supaterm/client-runtime/composerThreadItems";
 import type { EnvironmentThreadShell } from "@supaterm/client-runtime/state/models";
@@ -66,7 +65,7 @@ const idleWorkspaceSnapshotRefreshAtom: Atom.Atom<unknown> = Atom.make<void>(und
   Atom.withLabel("mobile:provider-workspace-snapshot-refresh:idle"),
 );
 
-function composerSelectionAtEnd(draftMessage: string): ComposerEditorSelection {
+function composerSelectionAtEnd(draftMessage: string) {
   return { start: draftMessage.length, end: draftMessage.length };
 }
 
@@ -84,7 +83,7 @@ export function resolveComposerMenuSelection(input: {
     readonly start: number;
     readonly end: number;
   };
-}): ComposerEditorSelection {
+}) {
   if (input.inserted) return input.inserted;
   if (input.local.ownerKey !== input.ownerKey) return composerSelectionAtEnd(input.draftMessage);
   const length = input.draftMessage.length;
@@ -100,7 +99,7 @@ export function buildComposerSlashCommandItems(input: {
   /** Supaterm's `/clear` replaces the provider's, which would clear a session Supaterm still treats as live. */
   readonly offersFreshSession?: boolean;
   readonly selectedProviderStatus: Pick<ServerProvider, "driver" | "slashCommands"> | null;
-}): ComposerCommandItem[] {
+}) {
   const query = input.query.toLowerCase();
   const builtIn = [
     {
@@ -169,7 +168,7 @@ export function buildComposerSlashCommandItems(input: {
 export function composerModelCandidates(
   serverConfig: ServerConfig | null | undefined,
   projectId: ProjectId | null,
-): ComposerModelCandidate[] {
+) {
   const mentionable = new Map(
     (serverConfig?.providers ?? []).flatMap((provider) =>
       isMentionableProvider(provider, true) ? [[provider.instanceId, provider] as const] : [],
@@ -196,10 +195,7 @@ export function resolveComposerCommandSelection(input: {
   readonly draftMessage: string;
   readonly trigger: Pick<ComposerTrigger, "rangeStart" | "rangeEnd">;
   readonly item: ComposerCommandItem;
-}): {
-  readonly text: string;
-  readonly cursor: number;
-} {
+}) {
   const { draftMessage, trigger, item } = input;
 
   let replacement = "";
@@ -327,8 +323,8 @@ export function useComposerCommandMenu({
     query: trigger?.kind === "pull-request" ? trigger.query : null,
   });
 
-  const items = ((): ComposerCommandItem[] => {
-    if (!trigger) return [];
+  const items = (() => {
+    if (!trigger) return [] satisfies ComposerCommandItem[] as ComposerCommandItem[];
 
     if (trigger.kind === "pull-request") {
       return pullRequestSearch.entries.map((entry) => ({
@@ -349,7 +345,7 @@ export function useComposerCommandMenu({
             ? ""
             : `${entry.repository} · `
         }${entry.title}`,
-      }));
+      })) satisfies ComposerCommandItem[] as ComposerCommandItem[];
     }
 
     if (trigger.kind === "slash-command") {
@@ -383,7 +379,10 @@ export function useComposerCommandMenu({
           description: skill.shortDescription ?? skill.description ?? "",
         }));
 
-      return [...commandItems, ...skillItems];
+      return [
+        ...commandItems,
+        ...skillItems,
+      ] satisfies ComposerCommandItem[] as ComposerCommandItem[];
     }
 
     if (trigger.kind === "skill" || (trigger.kind === "slash-skill" && showSkillsInSlashMenu)) {
@@ -399,7 +398,7 @@ export function useComposerCommandMenu({
           skill,
           label: skill.displayName ?? skill.name,
           description: skill.shortDescription ?? skill.description ?? "",
-        }));
+        })) satisfies ComposerCommandItem[] as ComposerCommandItem[];
       }
 
       const ranked: Array<{
@@ -466,7 +465,7 @@ export function useComposerCommandMenu({
         skill,
         label: skill.displayName ?? skill.name,
         description: skill.shortDescription ?? skill.description ?? "",
-      }));
+      })) satisfies ComposerCommandItem[] as ComposerCommandItem[];
     }
 
     if (trigger.kind === "path") {
@@ -496,10 +495,10 @@ export function useComposerCommandMenu({
             description: parts.length > 1 ? parts.slice(0, -1).join("/") : "",
           };
         }),
-      ];
+      ] satisfies ComposerCommandItem[] as ComposerCommandItem[];
     }
 
-    return [];
+    return [] satisfies ComposerCommandItem[] as ComposerCommandItem[];
   })();
 
   const onSelect = (item: ComposerCommandItem) => {

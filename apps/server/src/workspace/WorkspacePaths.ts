@@ -15,7 +15,7 @@ export class WorkspaceRootNotExistsError extends Schema.TaggedError<WorkspaceRoo
     normalizedWorkspaceRoot: Schema.String,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Workspace root does not exist: ${this.normalizedWorkspaceRoot}`;
   }
 }
@@ -28,7 +28,7 @@ export class WorkspaceRootCreateFailedError extends Schema.TaggedError<Workspace
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Failed to create workspace root: ${this.normalizedWorkspaceRoot}`;
   }
 }
@@ -42,7 +42,7 @@ export class WorkspaceRootStatFailedError extends Schema.TaggedError<WorkspaceRo
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Failed to stat workspace root '${this.normalizedWorkspaceRoot}' during '${this.phase}'.`;
   }
 }
@@ -54,7 +54,7 @@ export class WorkspaceRootNotDirectoryError extends Schema.TaggedError<Workspace
     normalizedWorkspaceRoot: Schema.String,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Workspace root is not a directory: ${this.normalizedWorkspaceRoot}`;
   }
 }
@@ -66,7 +66,7 @@ export class WorkspacePathOutsideRootError extends Schema.TaggedError<WorkspaceP
     relativePath: Schema.String,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Workspace file path must be relative to the project root: ${this.relativePath}`;
   }
 }

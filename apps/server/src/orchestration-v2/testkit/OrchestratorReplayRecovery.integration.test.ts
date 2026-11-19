@@ -101,7 +101,7 @@ const readClaudeCancelledSubagentResumeTranscript = Effect.fn(
       import.meta.url,
     ),
   );
-  const frameField = (index: number, key: string): unknown => {
+  const frameField: (index: number, key: string) => unknown = (index: number, key: string) => {
     const entry = recorded.entries[index];
     return entry?.type === "emit_inbound" && typeof entry.frame === "object" && entry.frame !== null
       ? Reflect.get(entry.frame, key)

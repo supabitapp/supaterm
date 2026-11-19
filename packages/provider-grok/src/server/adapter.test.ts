@@ -43,7 +43,7 @@ const layerTest = Layer.mergeAll(
 
 const DEFAULT_GROK_SETTINGS = Schema.decodeSync(GrokSettings)({});
 const instanceId = ProviderInstanceId.make("grok");
-const select = (model: string, reasoningEffort?: string): ModelSelection => ({
+const select = (model: string, reasoningEffort?: string) => ({
   instanceId,
   model,
   ...(reasoningEffort === undefined
@@ -62,7 +62,7 @@ const ModelRequest = Schema.Struct({
 });
 const decodeModelRequest = Schema.decodeUnknownSync(Schema.fromJsonString(ModelRequest));
 
-function modelWrites(requestLogPath: string): ReadonlyArray<string> {
+function modelWrites(requestLogPath: string) {
   return NodeFS.readFileSync(requestLogPath, "utf8")
     .split("\n")
     .filter(

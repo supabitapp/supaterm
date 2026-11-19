@@ -55,9 +55,7 @@ const LAUNCH_TEST_GROK_SETTINGS = Schema.decodeSync(GrokSettings)({
   binaryPath: "grok-launch-test",
 });
 
-function permissionRequest(
-  kind: EffectAcpSchema.ToolKind,
-): EffectAcpSchema.RequestPermissionRequest {
+function permissionRequest(kind: EffectAcpSchema.ToolKind) {
   return {
     sessionId: "session-1",
     options: [

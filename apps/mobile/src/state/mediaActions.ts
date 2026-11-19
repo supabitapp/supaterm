@@ -34,7 +34,7 @@ function allowsHostMedia(session: SessionGrantInput | null) {
   return session === null || sessionGrantsScope(session, AuthFilesystemReadScope);
 }
 
-function canReadHostMedia(environmentId: EnvironmentId | null): boolean {
+function canReadHostMedia(environmentId: EnvironmentId | null) {
   if (environmentId === null) return true;
   const result = appAtomRegistry.get(environmentSession.sessionStateAtom(environmentId));
   return result._tag !== "Failure" && allowsHostMedia(AsyncResult.getOrElse(result, () => null));

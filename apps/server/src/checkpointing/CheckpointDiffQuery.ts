@@ -70,7 +70,7 @@ function buildTurnDiffResult(
     readonly toTurnCount: number;
   },
   diff: string,
-): OrchestrationGetTurnDiffResultType {
+) {
   return {
     threadId: input.threadId,
     fromTurnCount: input.fromTurnCount,

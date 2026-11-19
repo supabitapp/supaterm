@@ -39,7 +39,7 @@ const subscribe = (listener: () => void) => {
 const serverPictureInPictureKey = (threadId: string, tabId: string) =>
   JSON.stringify([threadId, tabId]);
 
-function supportsServerPictureInPicture(): boolean {
+function supportsServerPictureInPicture() {
   if (typeof document === "undefined") return false;
   if (typeof HTMLCanvasElement.prototype.captureStream !== "function") return false;
   const video = HTMLVideoElement.prototype as HTMLVideoElement & WebKitVideo;
@@ -49,7 +49,7 @@ function supportsServerPictureInPicture(): boolean {
   );
 }
 
-function useServerPictureInPictureKey(): string | null {
+function useServerPictureInPictureKey() {
   return useSyncExternalStore(
     subscribe,
     () => active?.key ?? null,
@@ -57,7 +57,7 @@ function useServerPictureInPictureKey(): string | null {
   );
 }
 
-export function closeServerPictureInPicture(): void {
+export function closeServerPictureInPicture() {
   const current = active;
   active = null;
   current?.stop();
@@ -65,12 +65,18 @@ export function closeServerPictureInPicture(): void {
 }
 
 /** Open during user activation, seeding the video with the currently visible frame. */
+export function openServerPictureInPicture(input: {
+  readonly environmentId: EnvironmentId;
+  readonly threadId: ThreadId;
+  readonly tabId: string;
+  readonly seed: HTMLCanvasElement | null;
+}): Promise<void>;
 export async function openServerPictureInPicture(input: {
   readonly environmentId: EnvironmentId;
   readonly threadId: ThreadId;
   readonly tabId: string;
   readonly seed: HTMLCanvasElement | null;
-}): Promise<void> {
+}) {
   closeServerPictureInPicture();
   const canvas = document.createElement("canvas");
   const context = canvas.getContext("2d");
@@ -205,7 +211,7 @@ export function useServerPictureInPicture(input: {
   readonly tabId: string | null;
   readonly pdfUrl: string | null;
   readonly surfaceRef: RefObject<{ readonly canvas: () => HTMLCanvasElement | null } | null>;
-}): { readonly open: boolean; readonly available: boolean; readonly toggle: () => void } {
+}) {
   const { threadRef, tabId, pdfUrl, surfaceRef } = input;
   const activeKey = useServerPictureInPictureKey();
   const open = tabId !== null && activeKey === serverPictureInPictureKey(threadRef.threadId, tabId);

@@ -54,7 +54,7 @@ const ANDROID_APK_PATH = NodePath.join(
 export function resolveAndroidSdkRoot(
   environment: Readonly<Record<string, string | undefined>>,
   platform: NodeJS.Platform = NodeProcess.platform,
-): string {
+) {
   const configured = environment.ANDROID_HOME ?? environment.ANDROID_SDK_ROOT;
   if (configured) return configured;
   const home = environment.HOME ?? environment.USERPROFILE ?? "";
@@ -116,7 +116,7 @@ interface NetworkAddress {
   readonly internal: boolean;
 }
 
-export function selectLanIpv4Address(addresses: ReadonlyArray<NetworkAddress>): string | null {
+export function selectLanIpv4Address(addresses: ReadonlyArray<NetworkAddress>) {
   return (
     addresses.find(
       ({ address, family, internal }) =>
@@ -125,7 +125,7 @@ export function selectLanIpv4Address(addresses: ReadonlyArray<NetworkAddress>): 
   );
 }
 
-function lanIpv4Address(): string {
+function lanIpv4Address() {
   const address = selectLanIpv4Address(
     Object.values(NodeOS.networkInterfaces()).flatMap((addresses) => addresses ?? []),
   );
@@ -143,7 +143,7 @@ export interface PngMetadata {
   readonly hasAlpha: boolean;
 }
 
-export function readPngMetadata(bytes: Uint8Array): PngMetadata {
+export function readPngMetadata(bytes: Uint8Array) {
   const pngSignature = [137, 80, 78, 71, 13, 10, 26, 10];
   if (bytes.byteLength < 26 || !pngSignature.every((value, index) => bytes[index] === value)) {
     throw new Error("Captured file is not a valid PNG.");
@@ -159,15 +159,12 @@ export function readPngMetadata(bytes: Uint8Array): PngMetadata {
   };
 }
 
-export function readPngDimensions(bytes: Uint8Array): {
-  readonly width: number;
-  readonly height: number;
-} {
+export function readPngDimensions(bytes: Uint8Array) {
   const { width, height } = readPngMetadata(bytes);
   return { width, height };
 }
 
-export function normalizeStorePng(bytes: Uint8Array): Buffer {
+export function normalizeStorePng(bytes: Uint8Array) {
   const png = PNG.sync.read(Buffer.from(bytes));
   return PNG.sync.write(png, {
     bitDepth: 8,
@@ -181,7 +178,7 @@ export function validateStoreAsset(
   spec: ShowcaseStoreAssetSpec,
   bytes: Uint8Array,
   label = "Screenshot",
-): PngMetadata {
+) {
   const metadata = readPngMetadata(bytes);
   if (metadata.width !== spec.width || metadata.height !== spec.height) {
     throw new Error(
@@ -222,7 +219,7 @@ export function validateStoreAssetCount(
   spec: ShowcaseStoreAssetSpec,
   count: number,
   requireMinimum: boolean,
-): void {
+) {
   if (count > spec.maximumUploadCount) {
     throw new Error(
       `${spec.directory} contains ${count} screenshots; ${spec.store} allows at most ${spec.maximumUploadCount}.`,
@@ -238,7 +235,7 @@ export function validateStoreAssetCount(
 export function showcaseCaptureDirectory(
   outputDirectory: string,
   capture: Pick<ShowcaseCapture, "device" | "appearance" | "theme">,
-): string {
+) {
   return NodePath.join(
     outputDirectory,
     capture.device.storeAsset.directory,
@@ -247,7 +244,7 @@ export function showcaseCaptureDirectory(
   );
 }
 
-async function finalizeCapture(destination: string, device: ShowcaseDevice): Promise<void> {
+async function finalizeCapture(destination: string, device: ShowcaseDevice) {
   const normalized = normalizeStorePng(await NodeFSP.readFile(destination));
   await NodeFSP.writeFile(destination, normalized);
   const metadata = validateStoreAsset(
@@ -264,7 +261,7 @@ async function composeCaptureSet(
   capture: ShowcaseCapture,
   config: ShowcaseConfig,
   browser: Browser,
-): Promise<void> {
+) {
   const source = showcaseCaptureDirectory(
     NodePath.resolve(REPO_ROOT, config.captureDirectory),
     capture,
@@ -297,10 +294,7 @@ async function composeCaptureSet(
   await validateCaptureSet(capture, outputDirectory);
 }
 
-async function validateCaptureSet(
-  capture: ShowcaseCapture,
-  outputDirectory: string,
-): Promise<void> {
+async function validateCaptureSet(capture: ShowcaseCapture, outputDirectory: string) {
   const directory = showcaseCaptureDirectory(outputDirectory, capture);
   const files = (await NodeFSP.readdir(directory)).filter((file) => file.endsWith(".png")).sort();
   const expectedFiles = capture.scenes.map((scene) => `${scene}.png`).sort();
@@ -322,7 +316,7 @@ async function validateCaptureSet(
   );
 }
 
-function argumentValue(args: ReadonlyArray<string>, index: number, flag: string): string {
+function argumentValue(args: ReadonlyArray<string>, index: number, flag: string) {
   const value = args[index + 1];
   if (!value || value.startsWith("--")) {
     throw new Error(`${flag} requires a value.`);
@@ -330,7 +324,7 @@ function argumentValue(args: ReadonlyArray<string>, index: number, flag: string)
   return value;
 }
 
-export function parseShowcaseCliArgs(args: ReadonlyArray<string>): CliOptions {
+export function parseShowcaseCliArgs(args: ReadonlyArray<string>) {
   const platforms = new Set<ShowcaseDevice["platform"]>();
   const deviceIds = new Set<string>();
   const scenes = new Set<ShowcaseScene>();
@@ -425,7 +419,7 @@ export function parseShowcaseCliArgs(args: ReadonlyArray<string>): CliOptions {
 export function planShowcaseCaptures(
   config: ShowcaseConfig,
   options: Pick<CliOptions, "platforms" | "deviceIds" | "scenes" | "appearances" | "themes">,
-): ReadonlyArray<ShowcaseCapture> {
+) {
   const captures = config.devices
     .filter((device) => options.platforms.size === 0 || options.platforms.has(device.platform))
     .filter((device) => options.deviceIds.size === 0 || options.deviceIds.has(device.id))
@@ -465,7 +459,7 @@ export function planShowcaseCaptures(
   return captures;
 }
 
-function printUsage(config: ShowcaseConfig): void {
+function printUsage(config: ShowcaseConfig) {
   NodeProcess.stdout.write(`App screenshot showcase
 
 Usage:
@@ -502,7 +496,7 @@ function spawnProcess(
   command: string,
   args: ReadonlyArray<string>,
   options: NodeChildProcess.SpawnOptions = {},
-): NodeChildProcess.ChildProcess {
+) {
   return NodeChildProcess.spawn(command, args, {
     cwd: REPO_ROOT,
     env: NodeProcess.env,
@@ -515,7 +509,7 @@ async function runCommand(
   command: string,
   args: ReadonlyArray<string>,
   options: NodeChildProcess.SpawnOptions = {},
-): Promise<void> {
+) {
   await new Promise<void>((resolve, reject) => {
     const child = spawnProcess(command, args, options);
     child.once("error", reject);
@@ -537,7 +531,7 @@ async function commandOutput(
   command: string,
   args: ReadonlyArray<string>,
   options: NodeChildProcess.ExecFileOptions = {},
-): Promise<string> {
+) {
   return await new Promise<string>((resolve, reject) => {
     NodeChildProcess.execFile(
       command,
@@ -551,11 +545,11 @@ async function commandOutput(
   });
 }
 
-function delay(milliseconds: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+function delay(milliseconds: number) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds)) satisfies Promise<void>;
 }
 
-async function stopProcess(child: NodeChildProcess.ChildProcess): Promise<void> {
+async function stopProcess(child: NodeChildProcess.ChildProcess) {
   if (child.exitCode !== null || child.signalCode !== null) return;
 
   const exited = new Promise<void>((resolve) => {
@@ -569,7 +563,7 @@ async function stopProcess(child: NodeChildProcess.ChildProcess): Promise<void> 
   await Promise.race([exited, delay(1_000)]);
 }
 
-async function waitForPort(port: number, label = "Process", timeoutMs = 60_000): Promise<void> {
+async function waitForPort(port: number, label = "Process", timeoutMs = 60_000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const open = await new Promise<boolean>((resolve) => {
@@ -590,11 +584,7 @@ async function waitForPort(port: number, label = "Process", timeoutMs = 60_000):
   throw new Error(`${label} did not begin listening on port ${port} within ${timeoutMs}ms.`);
 }
 
-async function waitForFileContent(
-  filePath: string,
-  label: string,
-  timeoutMs = 60_000,
-): Promise<string> {
+async function waitForFileContent(filePath: string, label: string, timeoutMs = 60_000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const content = await NodeFSP.readFile(filePath, "utf8").then(
@@ -607,7 +597,7 @@ async function waitForFileContent(
   throw new Error(`${label} was not written to ${filePath} within ${timeoutMs}ms.`);
 }
 
-async function reserveAvailablePort(): Promise<number> {
+async function reserveAvailablePort() {
   return await new Promise<number>((resolve, reject) => {
     const server = NodeNet.createServer();
     server.once("error", reject);
@@ -651,7 +641,7 @@ async function waitForShowcaseThreads(dbPath: string, projectIds: ReadonlyArray<
   throw new Error(`Showcase threads were not imported into ${dbPath}.`);
 }
 
-async function createShowcaseShell(baseDir: string): Promise<string> {
+async function createShowcaseShell(baseDir: string) {
   const shellPath = NodePath.join(baseDir, "showcase-shell");
   await NodeFSP.writeFile(
     shellPath,
@@ -666,7 +656,7 @@ exec /bin/cat
   return shellPath;
 }
 
-async function createShowcaseLabelProbe(baseDir: string, label: string): Promise<string> {
+async function createShowcaseLabelProbe(baseDir: string, label: string) {
   const binDirectory = NodePath.join(baseDir, "showcase-bin");
   await NodeFSP.mkdir(binDirectory, { recursive: true });
   const probeScript = `#!/bin/sh
@@ -694,7 +684,7 @@ function startShowcaseServer(
   port: number,
   shellPath: string,
   labelProbeDirectory: string,
-): NodeChildProcess.ChildProcess {
+) {
   return spawnProcess(
     "node",
     [
@@ -732,7 +722,7 @@ interface ShowcaseEnvironment {
 async function startShowcaseEnvironments(
   rootDir: string,
   track: (server: NodeChildProcess.ChildProcess) => void,
-): Promise<ShowcaseEnvironment[]> {
+) {
   const started: ShowcaseEnvironment[] = [];
   for (const environment of SHOWCASE_ENVIRONMENTS) {
     const projectId = environment.projectIds[0];
@@ -778,7 +768,7 @@ async function startShowcaseEnvironments(
   return started;
 }
 
-export function parsePairingCredentialOutput(output: string): string {
+export function parsePairingCredentialOutput(output: string) {
   const jsonStart = output.indexOf("{");
   const jsonEnd = output.lastIndexOf("}");
   if (jsonStart === -1 || jsonEnd < jsonStart) {
@@ -793,7 +783,7 @@ export function parsePairingCredentialOutput(output: string): string {
   return parsed.credential;
 }
 
-async function issuePairingCredential(baseDir: string): Promise<string> {
+async function issuePairingCredential(baseDir: string) {
   const output = await commandOutput(
     "node",
     ["apps/server/src/bin.ts", "auth", "pairing", "create", "--base-dir", baseDir, "--json"],
@@ -802,17 +792,17 @@ async function issuePairingCredential(baseDir: string): Promise<string> {
   return parsePairingCredentialOutput(output);
 }
 
-function buildShowcasePairingUrl(host: string, port: number, credential: string): string {
+function buildShowcasePairingUrl(host: string, port: number, credential: string) {
   const url = new URL(`http://${host}:${port}/`);
   url.hash = new URLSearchParams([["token", credential]]).toString();
   return url.toString();
 }
 
-export function encodeAndroidPairingUrls(pairingUrls: ReadonlyArray<string>): string {
+export function encodeAndroidPairingUrls(pairingUrls: ReadonlyArray<string>) {
   return `json-uri:${encodeURIComponent(JSON.stringify(pairingUrls))}`;
 }
 
-function startMetro(config: ShowcaseConfig): NodeChildProcess.ChildProcess {
+function startMetro(config: ShowcaseConfig) {
   return spawnProcess(
     "pnpm",
     ["exec", "expo", "start", "--dev-client", "--port", String(config.metroPort)],
@@ -830,7 +820,7 @@ async function warmMetroBundle(
   platform: ShowcaseDevice["platform"],
   host: string,
   metroPort: number,
-): Promise<void> {
+) {
   const url = `http://${host}:${metroPort}/`;
   const curlOptions = ["--fail", "--silent", "--show-error", "--max-time", "300"];
   const manifest = JSON.parse(
@@ -850,7 +840,7 @@ async function warmMetroBundle(
   await runCommand("curl", [...curlOptions, "--output", "/dev/null", bundleUrl]);
 }
 
-async function buildIos(): Promise<string> {
+async function buildIos() {
   const derivedData = NodePath.join(MOBILE_ROOT, ".showcase/ios-derived-data");
   await runCommand("pnpm", ["exec", "expo", "prebuild", "--clean", "--platform", "ios"], {
     cwd: MOBILE_ROOT,
@@ -879,7 +869,7 @@ async function buildIos(): Promise<string> {
   return IOS_APP_PATH;
 }
 
-async function buildAndroid(abis: ReadonlyArray<string>): Promise<string> {
+async function buildAndroid(abis: ReadonlyArray<string>) {
   await runCommand("pnpm", ["exec", "expo", "prebuild", "--clean", "--platform", "android"], {
     cwd: MOBILE_ROOT,
     env: MOBILE_BUILD_ENV,
@@ -898,7 +888,7 @@ async function buildAndroid(abis: ReadonlyArray<string>): Promise<string> {
   return ANDROID_APK_PATH;
 }
 
-async function existingArtifact(path: string): Promise<string | null> {
+async function existingArtifact(path: string) {
   return await NodeFSP.access(path).then(
     () => path,
     () => null,
@@ -912,7 +902,7 @@ interface SimctlDevice {
   readonly isAvailable: boolean;
 }
 
-async function findIosSimulator(name: string): Promise<SimctlDevice | null> {
+async function findIosSimulator(name: string) {
   const parsed = JSON.parse(
     await commandOutput("xcrun", ["simctl", "list", "devices", "available", "-j"]),
   ) as {
@@ -925,10 +915,7 @@ async function findIosSimulator(name: string): Promise<SimctlDevice | null> {
   return candidates.at(-1) ?? null;
 }
 
-async function ensureIosSimulator(device: ShowcaseIosDevice): Promise<{
-  readonly simulator: SimctlDevice;
-  readonly createdByRunner: boolean;
-}> {
+async function ensureIosSimulator(device: ShowcaseIosDevice) {
   const existing = await findIosSimulator(device.simulator);
   if (existing) return { simulator: existing, createdByRunner: false };
   if (!device.simulatorDeviceType) {
@@ -951,7 +938,7 @@ async function ensureIosSimulator(device: ShowcaseIosDevice): Promise<{
   };
 }
 
-async function iosSimulatorDataPath(udid: string): Promise<string> {
+async function iosSimulatorDataPath(udid: string) {
   const parsed = JSON.parse(await commandOutput("xcrun", ["simctl", "list", "devices", "-j"])) as {
     readonly devices: Readonly<
       Record<string, ReadonlyArray<SimctlDevice & { readonly dataPath: string }>>
@@ -964,7 +951,7 @@ async function iosSimulatorDataPath(udid: string): Promise<string> {
   return dataPath;
 }
 
-async function suppressIosSystemFollowUps(udid: string): Promise<void> {
+async function suppressIosSystemFollowUps(udid: string) {
   const dataPath = await iosSimulatorDataPath(udid);
   const preferences = NodePath.join(dataPath, "Library/Preferences");
   await NodeFSP.mkdir(preferences, { recursive: true });
@@ -986,7 +973,7 @@ async function suppressIosSystemFollowUps(udid: string): Promise<void> {
   });
 }
 
-async function normalizeIosSimulator(appearance: ShowcaseAppearance, udid: string): Promise<void> {
+async function normalizeIosSimulator(appearance: ShowcaseAppearance, udid: string) {
   await runCommand("xcrun", ["simctl", "ui", udid, "appearance", appearance]);
   await runCommand("xcrun", [
     "simctl",
@@ -1006,7 +993,7 @@ async function normalizeIosSimulator(appearance: ShowcaseAppearance, udid: strin
   ]);
 }
 
-async function ensureIosFullScreenAppsMode(udid: string): Promise<void> {
+async function ensureIosFullScreenAppsMode(udid: string) {
   const current = await commandOutput("xcrun", [
     "simctl",
     "spawn",
@@ -1051,17 +1038,13 @@ async function ensureIosFullScreenAppsMode(udid: string): Promise<void> {
   }
 }
 
-async function iosAppContainer(udid: string): Promise<string> {
+async function iosAppContainer(udid: string) {
   return (
     await commandOutput("xcrun", ["simctl", "get_app_container", udid, ANDROID_PACKAGE, "data"])
   ).trim();
 }
 
-async function waitForIosShowcaseScene(
-  udid: string,
-  scene: ShowcaseScene,
-  timeoutMs = 90_000,
-): Promise<void> {
+async function waitForIosShowcaseScene(udid: string, scene: ShowcaseScene, timeoutMs = 90_000) {
   const readyPath = NodePath.join(
     await iosAppContainer(udid),
     "Library/Caches",
@@ -1084,7 +1067,7 @@ async function captureIos(
   metroHost: string,
   createPairingUrls: () => Promise<ReadonlyArray<string>>,
   registerCleanup: (cleanup: IosCaptureCleanup) => void,
-): Promise<void> {
+) {
   const { simulator, createdByRunner } = await ensureIosSimulator(capture.device);
   const startedByRunner = simulator.state !== "Booted";
   registerCleanup({ udid: simulator.udid, startedByRunner, createdByRunner });
@@ -1198,19 +1181,19 @@ async function captureIos(
   }
 }
 
-function androidSdkTool(relativePath: string): string {
+function androidSdkTool(relativePath: string) {
   return NodePath.join(ANDROID_SDK_ROOT, relativePath);
 }
 
-async function adbOutput(serial: string, args: ReadonlyArray<string>): Promise<string> {
+async function adbOutput(serial: string, args: ReadonlyArray<string>) {
   return await commandOutput(androidSdkTool("platform-tools/adb"), ["-s", serial, ...args]);
 }
 
-async function runAdb(serial: string, args: ReadonlyArray<string>): Promise<void> {
+async function runAdb(serial: string, args: ReadonlyArray<string>) {
   await runCommand(androidSdkTool("platform-tools/adb"), ["-s", serial, ...args]);
 }
 
-async function runningAndroidAvds(): Promise<ReadonlyMap<string, string>> {
+async function runningAndroidAvds() {
   const adb = androidSdkTool("platform-tools/adb");
   const devices = (await commandOutput(adb, ["devices"]))
     .split("\n")
@@ -1225,7 +1208,7 @@ async function runningAndroidAvds(): Promise<ReadonlyMap<string, string>> {
   return result;
 }
 
-async function waitForAndroidSerial(avd: string, timeoutMs = 300_000): Promise<string> {
+async function waitForAndroidSerial(avd: string, timeoutMs = 300_000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const serial = (await runningAndroidAvds()).get(avd);
@@ -1245,7 +1228,7 @@ async function normalizeAndroidEmulator(
   device: ShowcaseAndroidDevice,
   appearance: ShowcaseAppearance,
   serial: string,
-): Promise<void> {
+) {
   await runAdb(serial, ["shell", "settings", "put", "global", "window_animation_scale", "0"]);
   await runAdb(serial, ["shell", "settings", "put", "global", "transition_animation_scale", "0"]);
   await runAdb(serial, ["shell", "settings", "put", "global", "animator_duration_scale", "0"]);
@@ -1309,7 +1292,7 @@ async function waitForAndroidShowcaseScene(
   serial: string,
   scene: ShowcaseScene,
   timeoutMs = 90_000,
-): Promise<void> {
+) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const readyScene = await adbOutput(serial, [
@@ -1325,14 +1308,14 @@ async function waitForAndroidShowcaseScene(
   throw new Error(`Android showcase scene '${scene}' did not render within ${timeoutMs}ms.`);
 }
 
-async function writeAndroidShowcaseScene(serial: string, scene: ShowcaseScene): Promise<void> {
+async function writeAndroidShowcaseScene(serial: string, scene: ShowcaseScene) {
   await runAdb(serial, [
     "shell",
     `run-as ${ANDROID_PACKAGE} sh -c 'mkdir -p files && rm -f files/supaterm-showcase-ready && printf %s ${scene} > files/supaterm-showcase-scene'`,
   ]);
 }
 
-async function prepareAndroidShowcaseApp(serial: string): Promise<void> {
+async function prepareAndroidShowcaseApp(serial: string) {
   const preferences = `<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
 <map>
   <boolean name="motionGestureEnabled" value="false" />
@@ -1353,7 +1336,7 @@ async function captureAndroid(
   config: ShowcaseConfig,
   pairingUrls: ReadonlyArray<string>,
   registerCleanup: (cleanup: AndroidCaptureCleanup) => void,
-): Promise<void> {
+) {
   const running = await runningAndroidAvds();
   const existingSerial = running.get(capture.device.avd);
   const startedByRunner = !existingSerial;
@@ -1434,10 +1417,7 @@ async function captureAndroid(
   }
 }
 
-async function cleanupAndroidViewport(
-  device: ShowcaseAndroidDevice,
-  serial: string,
-): Promise<void> {
+async function cleanupAndroidViewport(device: ShowcaseAndroidDevice, serial: string) {
   await runAdb(serial, [
     "shell",
     "am",
@@ -1455,7 +1435,7 @@ async function cleanupAndroidViewport(
   }
 }
 
-async function main(): Promise<void> {
+async function main() {
   const options = parseShowcaseCliArgs(NodeProcess.argv.slice(2));
   if (options.list) {
     printUsage(showcaseConfig);
@@ -1487,7 +1467,7 @@ async function captureShowcase(
   captures: ReadonlyArray<ShowcaseCapture>,
   options: CliOptions,
   browser: Browser,
-): Promise<void> {
+) {
   const captureDirectory = NodePath.resolve(REPO_ROOT, showcaseConfig.captureDirectory);
   const outputDirectory = NodePath.resolve(REPO_ROOT, showcaseConfig.outputDirectory);
   const hasIos = captures.some((capture) => capture.device.platform === "ios");

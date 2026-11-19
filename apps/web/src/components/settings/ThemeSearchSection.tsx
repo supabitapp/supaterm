@@ -1,7 +1,7 @@
 import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
 import { RefreshIcon } from "~/components/ui/refresh-icon";
 import { ExternalLinkIcon, PackagePlusIcon, PaletteIcon, SearchIcon } from "@supaterm/icons";
-import { type ReactNode, useState } from "react";
+import { useState } from "react";
 import {
   importOpenVsxThemeExtension,
   searchOpenVsxThemes,
@@ -44,7 +44,7 @@ const SORT_OPTIONS: ReadonlyArray<{ value: OpenVsxThemeSort; label: string }> = 
 ];
 const SEARCH_DEBOUNCE_MS = 350;
 
-function sourceHost(url: string): string | null {
+function sourceHost(url: string) {
   try {
     return new URL(url).hostname.toLowerCase();
   } catch {
@@ -52,7 +52,7 @@ function sourceHost(url: string): string | null {
   }
 }
 
-function sourceLinkIcon(url: string): ReactNode {
+function sourceLinkIcon(url: string) {
   const host = sourceHost(url);
   const definition = host === null ? undefined : sourceControlClients.findByPublicDomain(host);
   const Icon = definition ? sourceControlIcon(definition) : ExternalLinkIcon;
@@ -205,7 +205,7 @@ export function createThemeSearch(
       view.setIsSearching(true);
       fetchResults();
     },
-    beginInstall(): AbortSignal {
+    beginInstall() {
       abortRequest();
       install?.abort();
       install = new AbortController();
@@ -213,7 +213,7 @@ export function createThemeSearch(
       view.setIsSearching(false);
       return install.signal;
     },
-    endInstall(installSignal: AbortSignal): boolean {
+    endInstall(installSignal: AbortSignal) {
       if (install?.signal !== installSignal) return false;
       install = null;
       if (query === "") clear();

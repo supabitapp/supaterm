@@ -136,7 +136,7 @@ function modelListChanges(current: ReadonlyArray<string>, next: ReadonlyArray<st
   );
 }
 
-function providerConfigString(config: unknown, key: string): string | null {
+function providerConfigString(config: unknown, key: string) {
   if (config === null || typeof config !== "object") return null;
   const value = (config as Record<string, unknown>)[key];
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
@@ -147,7 +147,7 @@ const PROVIDER_SETTINGS = providerClients.definitions.map((definition) => ({
   hasDefaultInstance: definition.hasDefaultInstance !== false,
 }));
 
-function configuredBinaryPath(config: unknown): string {
+function configuredBinaryPath(config: unknown) {
   if (config === null || typeof config !== "object" || !("binaryPath" in config)) return "";
   return typeof config.binaryPath === "string" ? config.binaryPath.trim() : "";
 }
@@ -186,7 +186,7 @@ function ProviderLastChecked({ environmentId }: { environmentId: EnvironmentId }
   );
 }
 
-function providerEnvironmentDetail(environment: EnvironmentPresentation): string {
+function providerEnvironmentDetail(environment: EnvironmentPresentation) {
   if (environment.entry.target._tag === "PrimaryConnectionTarget") return "Primary device";
   if (environment.entry.target._tag === "SshConnectionTarget") return "SSH";
   if (isDesktopLocalConnectionTarget(environment.entry.target)) return "Local device";

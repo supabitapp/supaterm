@@ -2,7 +2,6 @@ import type {
   ApplicationStoredEvent,
   OrchestrationProjectShell,
   OrchestrationV2OlderDoneCount,
-  OrchestrationV2OlderDoneThreads,
   OrchestrationV2ShellSnapshot,
   OrchestrationV2ThreadShell,
   OrchestrationV2ThreadShellSnapshot,
@@ -88,7 +87,7 @@ export const loadShellUnlessResumable = Effect.fnUntraced(function* <A, E, R>(in
  */
 export function projectIdentitiesDigest(
   projects: ReadonlyArray<Pick<OrchestrationProjectShell, "id" | "repositoryIdentity">>,
-): string {
+) {
   const hash = NodeCrypto.createHash("sha256");
   for (const project of projects) {
     hash.update(JSON.stringify([project.id, project.repositoryIdentity ?? null]));
@@ -107,7 +106,7 @@ export function resumeIdentityRoots(input: {
   >;
   readonly resolvedRepositoryIdentityRoots: ReadonlyArray<string>;
   readonly knownProjectIdentities: string | undefined;
-}): ReadonlyArray<string> {
+}) {
   if (input.knownProjectIdentities !== projectIdentitiesDigest(input.projects)) {
     return input.resolvedRepositoryIdentityRoots;
   }
@@ -145,7 +144,7 @@ function buildActiveShellSnapshot(input: {
   readonly projects: ReadonlyArray<OrchestrationProjectShell>;
   readonly threads: OrchestrationV2ThreadShellSnapshot;
   readonly snapshotSequence: number;
-}): OrchestrationV2ShellSnapshot {
+}) {
   return {
     schemaVersion: input.threads.schemaVersion,
     snapshotSequence: input.snapshotSequence,
@@ -169,7 +168,7 @@ interface ShellTrimFacts {
 
 const NEWEST_DONE_KEPT = 25;
 
-function shellTrimFacts(rows: ReadonlyArray<ShellTrimRow>): ShellTrimFacts {
+function shellTrimFacts(rows: ReadonlyArray<ShellTrimRow>) {
   const subagentParentIds = new Set<string>();
   const subagentThreadIds = new Set<string>();
   const doneTimes: Array<number> = [];
@@ -218,7 +217,7 @@ function hiddenChildAncestorIds(
 function omitIdleSubagentShellsWith(
   threads: ReadonlyArray<OrchestrationV2ThreadShell>,
   facts: Pick<ShellTrimFacts, "subagentParentIds">,
-): ReadonlyArray<OrchestrationV2ThreadShell> {
+) {
   return threads.filter(
     (thread) =>
       thread.lineage.relationshipToParent !== "subagent" ||
@@ -234,10 +233,7 @@ function omitOlderDoneShellsWith(
     readonly now: DateTime.Utc;
   },
   facts: Pick<ShellTrimFacts, "olderDoneBeforeMs" | "olderDoneCounts">,
-): {
-  readonly threads: ReadonlyArray<OrchestrationV2ThreadShell>;
-  readonly olderDone: OrchestrationV2OlderDoneThreads;
-} {
+) {
   const nowMs = DateTime.toEpochMillis(input.now);
   const beforeMs = facts.olderDoneBeforeMs ?? nowMs;
   const ancestorIds = hiddenChildAncestorIds(input.threads);
@@ -264,9 +260,7 @@ function omitOlderDoneShellsWith(
  * family instead. A child stays while it is live or the parent of another child, so the request
  * and working walks over shell rows never meet a gap in a nested chain.
  */
-export function omitIdleSubagentShells(
-  threads: ReadonlyArray<OrchestrationV2ThreadShell>,
-): ReadonlyArray<OrchestrationV2ThreadShell> {
+export function omitIdleSubagentShells(threads: ReadonlyArray<OrchestrationV2ThreadShell>) {
   return omitIdleSubagentShellsWith(threads, shellTrimFacts(threads));
 }
 
@@ -277,10 +271,7 @@ export function omitIdleSubagentShells(
 export function activeShellRowsForSubscriber(
   threads: ReadonlyArray<OrchestrationV2ThreadShell>,
   omitIdleSubagents: boolean,
-): {
-  readonly threads: ReadonlyArray<OrchestrationV2ThreadShell>;
-  readonly subagentThreadIds: Set<string>;
-} {
+) {
   const facts = shellTrimFacts(threads);
   return {
     threads: omitIdleSubagents ? omitIdleSubagentShellsWith(threads, facts) : threads,
@@ -298,10 +289,7 @@ export function omitOlderDoneShells(input: {
   readonly threads: ReadonlyArray<OrchestrationV2ThreadShell>;
   readonly snapshotSequence: number;
   readonly now: DateTime.Utc;
-}): {
-  readonly threads: ReadonlyArray<OrchestrationV2ThreadShell>;
-  readonly olderDone: OrchestrationV2OlderDoneThreads;
-} {
+}) {
   return omitOlderDoneShellsWith(input, shellTrimFacts(input.threads));
 }
 
@@ -314,7 +302,7 @@ function trimShellSnapshot(
   base: OrchestrationV2ShellSnapshot,
   facts: ShellTrimFacts,
   options: ShellSubscriberOptions & { readonly now: DateTime.Utc },
-): OrchestrationV2ShellSnapshot {
+) {
   const threads = options.omitIdleSubagents
     ? omitIdleSubagentShellsWith(base.threads, facts)
     : base.threads;
@@ -329,7 +317,7 @@ function trimShellSnapshot(
 function shellSubscriberThreadIds(
   index: ReadonlyArray<ActiveShellIndexEntry>,
   options: ShellSubscriberOptions,
-): ReadonlyArray<ThreadId> {
+) {
   const facts = shellTrimFacts(index);
   const subagents = index.filter(
     (entry) =>
@@ -503,7 +491,7 @@ const turnItemCanChangeUserWait = (item: { readonly type: string }) =>
 export function shouldPublishShellApplicationEvent(
   stored: ApplicationStoredEvent,
   subagentThreadIds: Set<string>,
-): boolean {
+) {
   if ("aggregateKind" in stored) return true;
   const { event } = stored;
   if (event.type === "thread.created") {
@@ -528,17 +516,15 @@ export function shouldPublishShellApplicationEvent(
 }
 
 /** Shell updates refetch the aggregate, so keep only which one changed and when. */
-export function toShellApplicationEvent(
-  stored: ApplicationStoredEvent,
-): ChangedApplicationAggregate {
-  return "aggregateKind" in stored
-    ? { aggregateKind: "project", aggregateId: stored.aggregateId, sequence: stored.sequence }
-    : { aggregateKind: "thread", aggregateId: stored.event.threadId, sequence: stored.sequence };
+export function toShellApplicationEvent(stored: ApplicationStoredEvent) {
+  return (
+    "aggregateKind" in stored
+      ? { aggregateKind: "project", aggregateId: stored.aggregateId, sequence: stored.sequence }
+      : { aggregateKind: "thread", aggregateId: stored.event.threadId, sequence: stored.sequence }
+  ) satisfies ChangedApplicationAggregate;
 }
 
-export function coalesceShellApplicationEvents(
-  events: ReadonlyArray<ChangedApplicationAggregate>,
-): ReadonlyArray<ChangedApplicationAggregate> {
+export function coalesceShellApplicationEvents(events: ReadonlyArray<ChangedApplicationAggregate>) {
   const latestByAggregate = new Map<string, ChangedApplicationAggregate>();
   for (const stored of events) {
     latestByAggregate.set(`${stored.aggregateKind}:${stored.aggregateId}`, stored);
@@ -553,7 +539,7 @@ export function composeShellStreamWithEnrichment<A, E, R, A2, E2, R2, A3, E3, R3
   readonly initial: Stream.Stream<A, E, R>;
   readonly tail: Stream.Stream<A2, E2, R2>;
   readonly enrichment: Stream.Stream<A3, E3, R3>;
-}): Stream.Stream<A | A2 | A3, E | E2 | E3, R | R2 | R3> {
+}) {
   const merged = Stream.fromPull(
     Effect.gen(function* () {
       const output = yield* Queue.bounded<
@@ -607,7 +593,7 @@ const sameProjects = Schema.toEquivalence(Schema.Array(ProjectShellSchema));
 
 export function dedupeShellEnrichment<E, R>(
   stream: Stream.Stream<OrchestrationV2ShellStreamItem, E, R>,
-): Stream.Stream<OrchestrationV2ShellStreamItem, E, R> {
+) {
   return Stream.suspend(() => {
     let previous:
       | {
@@ -649,7 +635,7 @@ export function dedupeShellEnrichment<E, R>(
 export function shellStreamItemFromEnrichmentRefresh(input: {
   readonly snapshot: OrchestrationV2ShellSnapshot;
   readonly changes: ReadonlyArray<{ readonly workspaceRoot: string }>;
-}): Extract<OrchestrationV2ShellStreamItem, { readonly kind: "snapshot" }> {
+}) {
   const resolvedRepositoryIdentityRoots = [
     ...new Set(input.changes.map((change) => change.workspaceRoot)),
   ];
@@ -664,19 +650,25 @@ export function shellStreamItemFromEnrichmentRefresh(input: {
       archivedThreads: [],
     },
     resolvedRepositoryIdentityRoots,
-  };
+  } satisfies Extract<OrchestrationV2ShellStreamItem, { readonly kind: "snapshot" }>;
 }
 
 export function shellStreamItemsFromInitialSnapshot(input: {
   readonly snapshot: OrchestrationV2ShellSnapshot;
   readonly resolvedRepositoryIdentityRoots: ReadonlyArray<string>;
-}): ReadonlyArray<Extract<OrchestrationV2ShellStreamItem, { readonly kind: "snapshot" }>> {
+}): ReadonlyArray<Extract<OrchestrationV2ShellStreamItem, { readonly kind: "snapshot" }>>;
+export function shellStreamItemsFromInitialSnapshot(input: {
+  readonly snapshot: OrchestrationV2ShellSnapshot;
+  readonly resolvedRepositoryIdentityRoots: ReadonlyArray<string>;
+}) {
   const authoritative = {
     kind: "snapshot" as const,
     snapshot: input.snapshot,
   };
   if (input.resolvedRepositoryIdentityRoots.length === 0) {
-    return [authoritative];
+    return [authoritative] satisfies ReadonlyArray<
+      Extract<OrchestrationV2ShellStreamItem, { readonly kind: "snapshot" }>
+    >;
   }
   return [
     authoritative,
@@ -692,16 +684,20 @@ export function shellStreamItemsFromInitialSnapshot(input: {
       },
       resolvedRepositoryIdentityRoots: [...new Set(input.resolvedRepositoryIdentityRoots)],
     },
-  ];
+  ] satisfies ReadonlyArray<Extract<OrchestrationV2ShellStreamItem, { readonly kind: "snapshot" }>>;
 }
 
 export function shellStreamItemsFromResumeSnapshot(input: {
   readonly snapshot: OrchestrationV2ShellSnapshot;
   readonly resolvedRepositoryIdentityRoots: ReadonlyArray<string>;
-}): ReadonlyArray<Extract<OrchestrationV2ShellStreamItem, { readonly kind: "snapshot" }>> {
+}): ReadonlyArray<Extract<OrchestrationV2ShellStreamItem, { readonly kind: "snapshot" }>>;
+export function shellStreamItemsFromResumeSnapshot(input: {
+  readonly snapshot: OrchestrationV2ShellSnapshot;
+  readonly resolvedRepositoryIdentityRoots: ReadonlyArray<string>;
+}) {
   return shellStreamItemsFromInitialSnapshot(input).filter(
     (item) => item.resolvedRepositoryIdentityRoots !== undefined,
-  );
+  ) satisfies ReadonlyArray<Extract<OrchestrationV2ShellStreamItem, { readonly kind: "snapshot" }>>;
 }
 
 const sameThreadShell = Schema.toEquivalence(ThreadShellSchema);
@@ -711,7 +707,7 @@ const UNCHANGED_THREAD_SHELL_RESEND_MS = 5_000;
 /** Resend unchanged shells after UNCHANGED_THREAD_SHELL_RESEND_MS so skipped deltas cannot leave resume cursors behind. */
 export function skipUnchangedThreadShells<A extends OrchestrationV2ShellStreamItem, E, R>(
   stream: Stream.Stream<A, E, R>,
-): Stream.Stream<A, E, R> {
+) {
   return Stream.suspend(() => {
     const lastSent = new Map<
       OrchestrationV2ThreadShell["id"],
@@ -747,10 +743,7 @@ export function skipUnchangedThreadShells<A extends OrchestrationV2ShellStreamIt
 export function shellStreamItemFromThreadShell(input: {
   readonly stored: ChangedApplicationAggregate;
   readonly shell: OrchestrationV2ThreadShell | null;
-}): Extract<
-  OrchestrationV2ShellStreamItem,
-  { readonly kind: "thread.updated" | "thread.removed" }
-> {
+}) {
   if (input.shell !== null) {
     if (input.shell.archivedAt !== null) {
       return {
@@ -758,14 +751,20 @@ export function shellStreamItemFromThreadShell(input: {
         sequence: input.stored.sequence,
         location: "active",
         threadId: input.shell.id,
-      };
+      } satisfies Extract<
+        OrchestrationV2ShellStreamItem,
+        { readonly kind: "thread.updated" | "thread.removed" }
+      >;
     }
     return {
       kind: "thread.updated",
       sequence: input.stored.sequence,
       location: "active",
       thread: input.shell,
-    };
+    } satisfies Extract<
+      OrchestrationV2ShellStreamItem,
+      { readonly kind: "thread.updated" | "thread.removed" }
+    >;
   }
 
   return {
@@ -773,5 +772,8 @@ export function shellStreamItemFromThreadShell(input: {
     sequence: input.stored.sequence,
     location: "active",
     threadId: ThreadId.make(input.stored.aggregateId),
-  };
+  } satisfies Extract<
+    OrchestrationV2ShellStreamItem,
+    { readonly kind: "thread.updated" | "thread.removed" }
+  >;
 }

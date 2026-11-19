@@ -6,7 +6,7 @@ import {
 
 export const ACTIVE_RUN_SHELL_SNAPSHOT_KEY = "active-run-over-cancelled-latest";
 
-export function queuedCancelledWhileActiveInput(): OrchestratorFixtureInput {
+export function queuedCancelledWhileActiveInput() {
   return {
     steps: [
       { type: "message", text: MULTI_TURN_FIRST_PROMPT },
@@ -21,5 +21,5 @@ export function queuedCancelledWhileActiveInput(): OrchestratorFixtureInput {
       { type: "capture_shell_snapshot", key: ACTIVE_RUN_SHELL_SNAPSHOT_KEY },
       { type: "release_replay_gate", label: "turn/completed" },
     ],
-  };
+  } satisfies OrchestratorFixtureInput;
 }

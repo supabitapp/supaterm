@@ -2,7 +2,7 @@ export const DATABASE_MIGRATIONS_STARTED_MESSAGE = "Running database migrations"
 export const DATABASE_MIGRATION_PROGRESS_MESSAGE = "Upgrading database";
 export const DATABASE_MIGRATIONS_FINISHED_MESSAGE = "Migrations ran successfully";
 
-export function isRunningDatabaseMigrations(output: string): boolean {
+export function isRunningDatabaseMigrations(output: string) {
   return (
     Math.max(
       output.lastIndexOf(DATABASE_MIGRATIONS_STARTED_MESSAGE),

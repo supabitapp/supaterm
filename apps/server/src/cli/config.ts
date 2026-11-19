@@ -250,9 +250,10 @@ export const sharedServerCommandFlags = {
   tailscaleServePort: tailscaleServePortFlag,
 } as const;
 
-const resolveOptionPrecedence = <Value>(
+const resolveOptionPrecedence: <Value>(
   ...values: ReadonlyArray<Option.Option<Value>>
-): Option.Option<Value> => Option.firstSomeOf(values);
+) => Option.Option<Value> = <Value>(...values: ReadonlyArray<Option.Option<Value>>) =>
+  Option.firstSomeOf(values);
 
 const loadPersistedObservabilitySettings = Effect.fn(function* (settingsPath: string) {
   const fs = yield* FileSystem.FileSystem;
@@ -553,9 +554,9 @@ export class CliServerVersionMismatchError extends Schema.TaggedError<CliServerV
   { cliVersion: Schema.String, serverVersion: Schema.NullOr(Schema.String) },
 ) {
   override readonly [Runtime.errorReported] = false;
-  override get message(): string {
+  override get message() {
     const server = this.serverVersion ?? "an unknown version";
-    return `This supaterm CLI is ${this.cliVersion}, but the running server is ${server}. Use the CLI from the same Supaterm release as the server.`;
+    return `This supaterm CLI is ${this.cliVersion}, but the running server is ${server}. Use the CLI from the same Supaterm release as the server.` satisfies string as string;
   }
 }
 
@@ -602,7 +603,7 @@ export const resolveCliAuthConfig = (
 
 const DurationShorthandPattern = /^(?<value>\d+)(?<unit>ms|s|m|h|d|w)$/i;
 
-const parseDurationInput = (value: string): Duration.Duration | null => {
+const parseDurationInput = (value: string) => {
   const trimmed = value.trim();
   if (trimmed.length === 0) return null;
 

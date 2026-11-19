@@ -41,7 +41,7 @@ export type ResolvedSettingsScope = ScopeTargets &
   );
 
 /** Stale IDs remain visible to the resolver so a removed target reads as unavailable, not as "all". */
-export function validateSettingsScopeSearch(raw: Record<string, unknown>): SettingsScopeSearch {
+export function validateSettingsScopeSearch(raw: Record<string, unknown>) {
   const stringValue = (value: unknown) =>
     typeof value === "string" && value.trim().length > 0 ? value : undefined;
   const project = stringValue(raw.project);
@@ -59,31 +59,42 @@ export function resolveSettingsScope(
   search: SettingsScopeSearch,
   groups: readonly SidebarProjectSnapshot[],
   environments: readonly Pick<EnvironmentPresentation, "environmentId" | "label">[],
-): ResolvedSettingsScope {
+) {
   const unavailable = (
     reason: Extract<ResolvedSettingsScope, { kind: "unavailable" }>["reason"],
     message: string,
-  ): ResolvedSettingsScope => ({
-    kind: "unavailable",
-    reason,
-    label: "Unavailable selection",
-    message,
-    members: [],
-    environmentIds: [],
-  });
+  ) =>
+    ({
+      kind: "unavailable",
+      reason,
+      label: "Unavailable selection",
+      message,
+      members: [],
+      environmentIds: [],
+    }) satisfies ResolvedSettingsScope;
 
   if (search.checkout && !search.project) {
-    return unavailable("project-required", "Select a project to choose one of its checkouts.");
+    return unavailable(
+      "project-required",
+      "Select a project to choose one of its checkouts.",
+    ) satisfies ResolvedSettingsScope;
   }
 
   const environment = environments.find((candidate) => candidate.environmentId === search.machine);
   if (search.machine && !environment) {
-    return unavailable("environment-missing", "This environment is no longer available.");
+    return unavailable(
+      "environment-missing",
+      "This environment is no longer available.",
+    ) satisfies ResolvedSettingsScope;
   }
 
   if (search.project) {
     const group = groups.find((candidate) => candidate.projectKey === search.project);
-    if (!group) return unavailable("project-missing", "This project is no longer available.");
+    if (!group)
+      return unavailable(
+        "project-missing",
+        "This project is no longer available.",
+      ) satisfies ResolvedSettingsScope;
     const members = group.memberProjects.filter(
       (member) =>
         (search.machine === undefined || member.environmentId === search.machine) &&
@@ -95,7 +106,7 @@ export function resolveSettingsScope(
         search.checkout
           ? "This checkout is no longer available in the selected project and environment."
           : "This project has no checkout on this environment.",
-      );
+      ) satisfies ResolvedSettingsScope;
     }
     if (search.checkout) {
       const checkout = members[0]!;
@@ -106,7 +117,7 @@ export function resolveSettingsScope(
         return unavailable(
           "environment-missing",
           "This checkout's environment is no longer available.",
-        );
+        ) satisfies ResolvedSettingsScope;
       }
       const sharesEnvironment = group.memberProjects.some(
         (member) =>
@@ -121,7 +132,7 @@ export function resolveSettingsScope(
         label: `${group.displayName} / ${checkoutEnvironment.label}${sharesEnvironment ? ` · ${checkout.workspaceRoot}` : ""}`,
         members,
         environmentIds: [checkout.environmentId],
-      };
+      } satisfies ResolvedSettingsScope;
     }
     return {
       kind: "project",
@@ -130,7 +141,7 @@ export function resolveSettingsScope(
       label: `${group.displayName} / ${environment?.label ?? "All checkouts"}`,
       members,
       environmentIds: [...new Set(members.map((member) => member.environmentId))],
-    };
+    } satisfies ResolvedSettingsScope;
   }
   if (environment) {
     return {
@@ -139,12 +150,12 @@ export function resolveSettingsScope(
       label: environment.label,
       members: [],
       environmentIds: [environment.environmentId],
-    };
+    } satisfies ResolvedSettingsScope;
   }
   return {
     kind: "all",
     label: "All environments",
     members: [],
     environmentIds: environments.map((candidate) => candidate.environmentId),
-  };
+  } satisfies ResolvedSettingsScope;
 }

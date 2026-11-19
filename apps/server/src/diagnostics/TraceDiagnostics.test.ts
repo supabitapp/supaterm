@@ -11,7 +11,7 @@ import * as Stream from "effect/Stream";
 
 import * as TraceDiagnostics from "./TraceDiagnostics.ts";
 
-function ns(ms: number): string {
+function ns(ms: number) {
   return String(BigInt(ms) * 1_000_000n);
 }
 

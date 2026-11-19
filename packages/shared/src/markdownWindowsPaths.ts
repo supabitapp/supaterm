@@ -88,7 +88,7 @@ export function remarkKeepWindowsPathDestinations(
 
 const parser = unified().use(remarkParse).use(remarkGfm);
 
-export function markdownWithAuthoredWindowsPaths(markdown: string): string {
+export function markdownWithAuthoredWindowsPaths(markdown: string) {
   if (!/\](?:\(|:)[\s>]*<?(?:[A-Za-z]:[\\/]|\\\\)/.test(markdown)) return markdown;
   const edits: Array<{ start: number; end: number; content: string; node: object }> = [];
   const tree = parser()

@@ -80,7 +80,7 @@ function storedPreferencesOf<E>(result: AsyncResult.AsyncResult<Preferences, E>)
   return AsyncResult.isSuccess(result) ? result.value : null;
 }
 
-const systemColorPalettesAtom = Atom.make((get): MaterialYouPalettes | null => {
+const systemColorPalettesAtom = Atom.make((get) => {
   const initial = readSystemColorPalettes();
   if (!isSystemColorsAvailable) return initial;
   let current = initial;
@@ -104,7 +104,7 @@ const systemColorPalettesAtom = Atom.make((get): MaterialYouPalettes | null => {
 function resolveThemeVariablesByAppearance(
   themeIds: MobileThemeIds,
   palettes: MaterialYouPalettes | null,
-): Readonly<Record<MobileThemeAppearance, MobileThemeVariables>> {
+) {
   const resolve = (appearance: MobileThemeAppearance) => {
     const base = getMobileThemeRuntimeVariables(themeIds[appearance], appearance, Platform.OS);
     return themeIds[appearance] === "material-you" && palettes
@@ -115,18 +115,18 @@ function resolveThemeVariablesByAppearance(
 }
 
 /** The appearance whose theme is on screen, read from the native scheme. */
-export function resolveThemeAppearance(stored: Preferences | null): MobileThemeAppearance {
+export function resolveThemeAppearance(stored: Preferences | null) {
   const themeMode = normalizeMobileThemeMode(stored?.themeMode);
   if (themeMode !== "system") return themeMode;
   return Appearance.getColorScheme() === "dark" ? "dark" : "light";
 }
 
-function runtimeStateFor(stored: Preferences | null): MobileThemeRuntimeState {
+function runtimeStateFor(stored: Preferences | null) {
   return {
     baseFontSize: resolveAppearancePreferences(stored).baseFontSize,
     themeMode: normalizeMobileThemeMode(stored?.themeMode),
     themeAppearance: resolveThemeAppearance(stored),
-  };
+  } satisfies MobileThemeRuntimeState;
 }
 
 const themeRuntimeStateAtom = Atom.make((get) =>
@@ -166,7 +166,7 @@ function currentRuntimeState() {
  * system palette listeners. Holding them here instead of `keepAlive` lets the
  * fast-refresh disposer release the replaced module's AppState listeners.
  */
-export function installAppearanceRuntime(): () => void {
+export function installAppearanceRuntime() {
   const unsubscribeRuntime = appAtomRegistry.subscribe(themeRuntimeStateAtom, applyThemeRuntime, {
     immediate: true,
   });
@@ -284,30 +284,31 @@ export function AppearancePreferencesProvider(props: { readonly children: ReactN
     updatePreferences({ mathRenderingEnabled: value });
 
   const value = useMemo(
-    (): AppearancePreferencesContextValue => ({
-      appearance,
-      themeId,
-      themeIds,
-      themeMode,
-      androidNavigationStyle,
-      setAndroidNavigationStyle,
-      themeAppearance,
-      systemColorsAvailable: isSystemColorsAvailable,
-      systemColorsActive,
-      themeVariables,
-      themeVariablesByAppearance,
-      systemColorPalettes,
-      isReady,
-      setThemeIdForAppearance,
-      setThemeIdForBothAppearances,
-      setThemeMode,
-      setBaseFontSize,
-      setTerminalFontSize,
-      setCodeFontSize,
-      setCodeWordBreak,
-      mathRenderingEnabled,
-      setMathRenderingEnabled,
-    }),
+    () =>
+      ({
+        appearance,
+        themeId,
+        themeIds,
+        themeMode,
+        androidNavigationStyle,
+        setAndroidNavigationStyle,
+        themeAppearance,
+        systemColorsAvailable: isSystemColorsAvailable,
+        systemColorsActive,
+        themeVariables,
+        themeVariablesByAppearance,
+        systemColorPalettes,
+        isReady,
+        setThemeIdForAppearance,
+        setThemeIdForBothAppearances,
+        setThemeMode,
+        setBaseFontSize,
+        setTerminalFontSize,
+        setCodeFontSize,
+        setCodeWordBreak,
+        mathRenderingEnabled,
+        setMathRenderingEnabled,
+      }) satisfies AppearancePreferencesContextValue,
     [
       appearance,
       themeId,
@@ -342,12 +343,13 @@ export function AppearancePreferencesProvider(props: { readonly children: ReactN
   );
 }
 
-export function useAppearancePreferences(): AppearancePreferencesContextValue {
+export function useAppearancePreferences(): AppearancePreferencesContextValue;
+export function useAppearancePreferences() {
   const context = use(AppearancePreferencesContext);
   if (!context) {
     throw new Error("useAppearancePreferences must be used within AppearancePreferencesProvider");
   }
-  return context;
+  return context satisfies AppearancePreferencesContextValue;
 }
 
 export function useAndroidFloatingTabs() {

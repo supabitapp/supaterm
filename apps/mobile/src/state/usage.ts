@@ -28,7 +28,7 @@ export interface EnvironmentUsageStatus {
 }
 
 const usageByWindowAtom = Atom.family((windowKey: string) =>
-  Atom.make((get): readonly EnvironmentUsageStatus[] => {
+  Atom.make((get) => {
     const input = JSON.parse(windowKey) as UsageSummaryInput;
     const presentations = get(environmentPresentations.presentationsAtom);
 
@@ -74,7 +74,7 @@ const usageByWindowAtom = Atom.family((windowKey: string) =>
   }).pipe(Atom.withLabel(`mobile-usage:window:${windowKey}`)),
 );
 
-const usageEnvironmentsAtom = Atom.make((get): readonly EnvironmentUsageStatus[] =>
+const usageEnvironmentsAtom = Atom.make((get) =>
   [...get(environmentPresentations.presentationsAtom)].map(([environmentId, presentation]) => ({
     environmentId,
     label: presentation.entry.target.label,
@@ -101,7 +101,7 @@ export function useUsage(
   input: UsageSummaryInput,
   selectedEnvironmentIds: ReadonlySet<EnvironmentId> | null = null,
   load = true,
-): UsageView {
+) {
   const windowKey = useMemo(
     () =>
       JSON.stringify({

@@ -33,7 +33,8 @@ const namespacePrefixes: Record<string, string> = {
   "http://www.idpf.org/2007/opf": "",
   "urn:oasis:names:tc:opendocument:xmlns:container": "",
 };
-function parseXml(source: string): XmlNode {
+function parseXml(source: string): XmlNode;
+function parseXml(source: string) {
   source = source.replaceAll(/<!DOCTYPE\s+[^<>[\]]*>/gi, "");
   if (
     source.length > 8 * 1024 * 1024 ||
@@ -56,7 +57,8 @@ function parseXml(source: string): XmlNode {
     items: OrderedXml[],
     depth: number,
     inherited: Record<string, string>,
-  ): XmlNode[] {
+  ): XmlNode[];
+  function convert(items: OrderedXml[], depth: number, inherited: Record<string, string>) {
     if (depth > 100) throw new Error("This document is nested too deeply to preview.");
     return items.map((item) => {
       if (++count > 100_000) throw new Error("This document has too much content to preview.");
@@ -101,32 +103,34 @@ function parseXml(source: string): XmlNode {
         children: Array.isArray(value) ? convert(value, depth + 1, namespaces) : [],
         text: typeof value === "string" ? decodeEntities(value) : "",
       };
-    });
+    }) satisfies XmlNode[];
   }
   return {
     name: "root",
     attrs: {},
     children: convert(ordered, 0, Object.create(null) as Record<string, string>),
     text: "",
-  };
+  } satisfies XmlNode;
 }
-function find(node: XmlNode, name: string, skip?: string): XmlNode[] {
+function find(node: XmlNode, name: string, skip?: string): XmlNode[];
+function find(node: XmlNode, name: string, skip?: string) {
   return node.children.flatMap((child) =>
     child.name === skip
       ? []
       : child.name === name || (!name.includes(":") && child.name.endsWith(`:${name}`))
         ? [child]
         : find(child, name, skip),
-  );
+  ) satisfies XmlNode[];
 }
-function text(node: XmlNode): string {
-  if (node.name === "office:annotation") return "";
-  if (node.name === "text:s") return " ".repeat(repeat(node.attrs["text:c"], 100));
-  if (node.name === "text:tab") return "\t";
-  if (node.name === "text:line-break") return "\n";
-  return node.name === "#text" ? node.text : node.children.map(text).join("");
+function text(node: XmlNode): string;
+function text(node: XmlNode) {
+  if (node.name === "office:annotation") return "" satisfies string;
+  if (node.name === "text:s") return " ".repeat(repeat(node.attrs["text:c"], 100)) satisfies string;
+  if (node.name === "text:tab") return "\t" satisfies string;
+  if (node.name === "text:line-break") return "\n" satisfies string;
+  return (node.name === "#text" ? node.text : node.children.map(text).join("")) satisfies string;
 }
-function archivePath(base: string, href: string): string | null {
+function archivePath(base: string, href: string) {
   if (/^(?:[a-z][a-z\d+.-]*:|\/|\\)/i.test(href)) return null;
   const parts = base.split("/").slice(0, -1);
   let decoded: string;
@@ -167,7 +171,7 @@ function htmlImagesFit(html: string) {
     if (!base64ImageFits(match[1]!)) return false;
   return true;
 }
-async function imageData(archive: JSZip, path: string | null): Promise<string> {
+async function imageData(archive: JSZip, path: string | null) {
   if (!path) return "";
   const mime = (
     { png: "png", jpg: "jpeg", jpeg: "jpeg", gif: "gif", webp: "webp" } as Record<string, string>
@@ -185,7 +189,7 @@ function reserveMarkup(size: number) {
   if (markupBytes > 16 * 1024 * 1024)
     throw new Error("The rendered document is too large to preview.");
 }
-function boundedMarkup(value: string): string {
+function boundedMarkup(value: string) {
   reserveMarkup(value.length);
   return value;
 }
@@ -228,7 +232,7 @@ const HTML_TAGS = new Set([
   "dt",
   "dd",
 ]);
-async function epubHtml(node: XmlNode, archive: JSZip, base: string): Promise<string> {
+async function epubHtml(node: XmlNode, archive: JSZip, base: string) {
   if (node.name === "#text") return pipe(text(node), escape, boundedMarkup);
   const tag =
     node.name
@@ -256,7 +260,7 @@ async function epubHtml(node: XmlNode, archive: JSZip, base: string): Promise<st
   reserveMarkup(tag.length * 2 + spans.length + 5);
   return `<${tag}${spans}>${children}</${tag}>`;
 }
-async function odfHtml(node: XmlNode, archive: JSZip): Promise<string> {
+async function odfHtml(node: XmlNode, archive: JSZip) {
   if (node.name === "#text") return pipe(text(node), escape, boundedMarkup);
   if (node.name === "text:s" || node.name === "text:tab")
     return boundedMarkup(
@@ -311,10 +315,11 @@ function repeat(value: string | undefined, max: number) {
     throw new Error("This document contains invalid repeated content.");
   return Math.min(count, max);
 }
-export async function openDocument(
+export function openDocument(
   archive: JSZip,
   kind: "odt" | "ods" | "odp",
-): Promise<OfficeWorkerResult> {
+): Promise<OfficeWorkerResult>;
+export async function openDocument(archive: JSZip, kind: "odt" | "ods" | "odp") {
   markupBytes = 0;
   const source = await archive.file("content.xml")?.async("string");
   if (!source) throw new Error("This OpenDocument file has no readable content.");
@@ -382,7 +387,7 @@ export async function openDocument(
           truncated,
         };
       }),
-    };
+    } satisfies OfficeWorkerResult;
   }
   const pages = kind === "odp" ? find(root, "draw:page") : find(root, "office:text");
   if (!pages.length || pages.length > 500)
@@ -394,9 +399,14 @@ export async function openDocument(
       html: await odfHtml(page, archive),
     });
   }
-  return { type: "document", navigation: kind === "odp" ? "slide" : "page", pages: rendered };
+  return {
+    type: "document",
+    navigation: kind === "odp" ? "slide" : "page",
+    pages: rendered,
+  } satisfies OfficeWorkerResult;
 }
-export async function openEpub(archive: JSZip): Promise<OfficeWorkerResult> {
+export function openEpub(archive: JSZip): Promise<OfficeWorkerResult>;
+export async function openEpub(archive: JSZip) {
   markupBytes = 0;
   const container = parseXml((await archive.file("META-INF/container.xml")?.async("string")) ?? "");
   const rootfile = find(container, "rootfile")[0]?.attrs["full-path"];
@@ -422,14 +432,14 @@ export async function openEpub(archive: JSZip): Promise<OfficeWorkerResult> {
     });
   }
   if (!pages.length) throw new Error("This EPUB has no readable XHTML chapters.");
-  return { type: "document", navigation: "chapter", pages };
+  return { type: "document", navigation: "chapter", pages } satisfies OfficeWorkerResult;
 }
-function record(value: unknown): Record<string, unknown> {
+function record(value: unknown) {
   return value !== null && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : {};
 }
-function notebookText(value: unknown, limit = 256_000): string {
+function notebookText(value: unknown, limit = 256_000) {
   const result =
     typeof value === "string"
       ? value
@@ -439,7 +449,7 @@ function notebookText(value: unknown, limit = 256_000): string {
   if (result.length > limit) throw new Error("A notebook cell is too large to preview.");
   return result;
 }
-function tracebackLines(value: unknown): unknown {
+function tracebackLines(value: unknown) {
   if (!Array.isArray(value)) return value;
   const frames = value
     .filter((frame): frame is string => typeof frame === "string")
@@ -448,7 +458,7 @@ function tracebackLines(value: unknown): unknown {
     index && !frames[index - 1]!.endsWith("\n") ? `\n${frame}` : frame,
   );
 }
-export function openNotebook(bytes: ArrayBuffer): OfficeWorkerResult {
+export function openNotebook(bytes: ArrayBuffer) {
   if (bytes.byteLength > 8 * 1024 * 1024)
     throw new Error("Notebook preview limited to files under 8 MB.");
   const notebook = record(JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes)));
@@ -487,7 +497,7 @@ export function openNotebook(bytes: ArrayBuffer): OfficeWorkerResult {
         .filter((output) => output.text.trim().length > 0),
     };
   });
-  return { type: "notebook", language, cells };
+  return { type: "notebook", language, cells } satisfies OfficeWorkerResult;
 }
 
 const RTF_CHARACTERS = new Map([
@@ -514,7 +524,7 @@ const RTF_CHARACTERS = new Map([
   ["rtlmark", "\u200f"],
 ]);
 
-export function openRtf(bytes: ArrayBuffer): OfficeWorkerResult {
+export function openRtf(bytes: ArrayBuffer) {
   if (bytes.byteLength > 8 * 1024 * 1024)
     throw new Error("Rich text preview limited to files under 8 MB.");
   const input = new Uint8Array(bytes);
@@ -716,5 +726,5 @@ export function openRtf(bytes: ArrayBuffer): OfficeWorkerResult {
   if (stack.length) throw new Error("This rich text document is damaged.");
   flush();
   if (html || !pages.length) finishPage();
-  return { type: "document", navigation: "page", pages };
+  return { type: "document", navigation: "page", pages } satisfies OfficeWorkerResult;
 }

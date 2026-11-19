@@ -10,7 +10,7 @@ export function NumberField({
   ...props
 }: NumberFieldPrimitive.Root.Props & {
   size?: "sm" | "default" | "lg";
-}): React.ReactElement {
+}) {
   const generatedId = React.useId();
   const fieldId = id ?? generatedId;
   return (
@@ -24,10 +24,7 @@ export function NumberField({
   );
 }
 
-export function NumberFieldGroup({
-  className,
-  ...props
-}: NumberFieldPrimitive.Group.Props): React.ReactElement {
+export function NumberFieldGroup({ className, ...props }: NumberFieldPrimitive.Group.Props) {
   return (
     <NumberFieldPrimitive.Group
       className={cn(
@@ -43,7 +40,7 @@ export function NumberFieldGroup({
 export function NumberFieldDecrement({
   className,
   ...props
-}: NumberFieldPrimitive.Decrement.Props): React.ReactElement {
+}: NumberFieldPrimitive.Decrement.Props) {
   return (
     <NumberFieldPrimitive.Decrement
       className={cn(
@@ -61,7 +58,7 @@ export function NumberFieldDecrement({
 export function NumberFieldIncrement({
   className,
   ...props
-}: NumberFieldPrimitive.Increment.Props): React.ReactElement {
+}: NumberFieldPrimitive.Increment.Props) {
   return (
     <NumberFieldPrimitive.Increment
       className={cn(
@@ -76,10 +73,7 @@ export function NumberFieldIncrement({
   );
 }
 
-export function NumberFieldInput({
-  className,
-  ...props
-}: NumberFieldPrimitive.Input.Props): React.ReactElement {
+export function NumberFieldInput({ className, ...props }: NumberFieldPrimitive.Input.Props) {
   return (
     <NumberFieldPrimitive.Input
       className={cn(

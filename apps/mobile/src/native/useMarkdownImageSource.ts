@@ -20,7 +20,15 @@ export function useMarkdownImageSource(props: {
   /** Bounds network paths when `workspaceRoot` is a nested directory relative images resolve from. */
   readonly projectRoot?: string | null;
   readonly captured?: boolean;
-}): MarkdownImageSourceResolver {
+}): MarkdownImageSourceResolver;
+export function useMarkdownImageSource(props: {
+  readonly environmentId: EnvironmentId;
+  readonly threadId: ThreadId | null;
+  readonly workspaceRoot: string | null;
+  /** Bounds network paths when `workspaceRoot` is a nested directory relative images resolve from. */
+  readonly projectRoot?: string | null;
+  readonly captured?: boolean;
+}) {
   const { environmentId, threadId, workspaceRoot, projectRoot, captured } = props;
   const connection = usePreparedConnection(environmentId);
   const environment = useEnvironmentPresentation(environmentId);
@@ -72,5 +80,5 @@ export function useMarkdownImageSource(props: {
       workspaceRoot,
       projectRoot,
     ],
-  );
+  ) satisfies MarkdownImageSourceResolver;
 }

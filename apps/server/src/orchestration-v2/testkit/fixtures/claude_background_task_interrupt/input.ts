@@ -10,11 +10,11 @@ export const CLAUDE_BACKGROUND_TASK_INTERRUPT_PROMPT = [
   "3) After it finishes, reply with exactly FINISHED.",
 ].join("\n");
 
-export function claudeBackgroundTaskInterruptInput(): OrchestratorFixtureInput {
+export function claudeBackgroundTaskInterruptInput() {
   return {
     steps: [
       { type: "message", text: CLAUDE_BACKGROUND_TASK_INTERRUPT_PROMPT },
       { type: "interrupt", targetRunIndex: 1, waitForTurnItemType: "command_execution" },
     ],
-  };
+  } satisfies OrchestratorFixtureInput;
 }

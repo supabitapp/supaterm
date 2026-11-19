@@ -84,7 +84,7 @@ export interface ThreadManagementProvenance {
 export function withCreationProvenance(
   command: OrchestrationV2Command,
   provenance: ThreadManagementProvenance,
-): OrchestrationV2Command {
+) {
   switch (command.type) {
     case "thread.create": {
       const { initialMessage: _initialMessage, ...rest } = command;
@@ -177,7 +177,7 @@ export class ThreadManagementThreadNotFoundError extends Schema.TaggedError<Thre
     threadId: ThreadId,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Thread ${this.threadId} was not found in project ${this.projectId}.`;
   }
 }
@@ -186,7 +186,7 @@ export class ThreadTranscriptTooLargeError extends Schema.TaggedError<ThreadTran
   "ThreadTranscriptTooLargeError",
   { threadId: ThreadId },
 ) {
-  override get message(): string {
+  override get message() {
     return "The thread transcript exceeds the file attachment limit.";
   }
 }
@@ -198,7 +198,7 @@ export class ThreadManagementRunNotFoundError extends Schema.TaggedError<ThreadM
     runId: RunId,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Run ${this.runId} does not belong to thread ${this.threadId}.`;
   }
 }
@@ -209,7 +209,7 @@ export class ThreadManagementThreadArchivedError extends Schema.TaggedError<Thre
     threadId: ThreadId,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Thread ${this.threadId} is archived and cannot receive messages.`;
   }
 }
@@ -221,7 +221,7 @@ export class ThreadManagementNoSteerableRunError extends Schema.TaggedError<Thre
     mode: Schema.Literals(["steer", "restart"]),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Thread ${this.threadId} has no running turn that can be ${this.mode === "steer" ? "steered" : "restarted"}.`;
   }
 }
@@ -233,7 +233,7 @@ export class ThreadManagementThreadNotInterruptibleError extends Schema.TaggedEr
     runId: RunId,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Run ${this.runId} is not currently interruptible.`;
   }
 }
@@ -246,7 +246,7 @@ export class ThreadManagementProjectionLoadError extends Schema.TaggedError<Thre
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Unable to load thread ${this.threadId} in project ${this.projectId}.`;
   }
 }
@@ -258,7 +258,7 @@ export class ThreadManagementProjectThreadsListError extends Schema.TaggedError<
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return this.projectId === undefined
       ? "Unable to list threads."
       : `Unable to list threads in project ${this.projectId}.`;
@@ -272,7 +272,7 @@ export class ThreadManagementDurableRunProjectionError extends Schema.TaggedErro
     messageId: MessageId,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Message ${this.messageId} was accepted on thread ${this.threadId} without a durable run projection.`;
   }
 }
@@ -284,7 +284,7 @@ export class ThreadManagementWorktreeRestoreError extends Schema.TaggedError<Thr
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     const detail = this.cause instanceof Error ? ` ${this.cause.message}` : "";
     return `Couldn't recreate the missing workspace of thread ${this.threadId}, so the message was not sent.${detail}`;
   }
@@ -297,8 +297,8 @@ export class ThreadManagementProviderInstanceDisabledError extends Schema.Tagged
     instanceId: ProviderInstanceId,
   },
 ) {
-  override get message(): string {
-    return `Provider instance "${this.instanceId}" is disabled for project ${this.projectId}.`;
+  override get message() {
+    return `Provider instance "${this.instanceId}" is disabled for project ${this.projectId}.` satisfies string as string;
   }
 }
 
@@ -310,7 +310,7 @@ export class ThreadManagementBackgroundWaitError extends Schema.TaggedError<Thre
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message(): string {
+  override get message() {
     switch (this.reason) {
       case "unsupported":
         return "This provider cannot mark background work as awaited.";
@@ -488,16 +488,14 @@ export class ThreadManagementService extends Context.Service<
   ThreadManagementServiceShape
 >()("supaterm/orchestration-v2/ThreadManagementService") {}
 
-function latestRun(
-  projection: Pick<OrchestrationV2ThreadProjection, "runs">,
-): OrchestrationV2Run | undefined {
+function latestRun(projection: Pick<OrchestrationV2ThreadProjection, "runs">) {
   return projection.runs.toSorted((left, right) => right.ordinal - left.ordinal)[0];
 }
 
 function latestRestartContinuation(
   runs: ReadonlyArray<OrchestrationV2Run>,
   run: OrchestrationV2Run,
-): OrchestrationV2Run {
+) {
   let current = run;
   for (let hops = 0; hops < runs.length; hops++) {
     const next = runs.find((candidate) => candidate.restartContinuationOfRunId === current.id);
@@ -513,15 +511,18 @@ export const ACTIVE_RUN_STATUSES = OrchestrationV2RunStatus.literals.filter(
 
 export function latestActiveRun(
   projection: Pick<OrchestrationV2ThreadProjection, "runs">,
-): OrchestrationV2Run | undefined {
+): OrchestrationV2Run | undefined;
+export function latestActiveRun(projection: Pick<OrchestrationV2ThreadProjection, "runs">) {
   return projection.runs
     .filter((run) => isOrchestrationV2RunInProgress(run.status))
-    .toSorted((left, right) => right.ordinal - left.ordinal)[0];
+    .toSorted((left, right) => right.ordinal - left.ordinal)[0] satisfies
+    | OrchestrationV2Run
+    | undefined;
 }
 
 function latestSteerableRun(
   projection: Pick<OrchestrationV2ThreadProjection, "runs" | "providerTurns">,
-): OrchestrationV2Run | undefined {
+) {
   return projection.runs
     .filter(
       (run) =>

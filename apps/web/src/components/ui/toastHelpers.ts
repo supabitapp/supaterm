@@ -14,9 +14,7 @@ export type StackedThreadToastOptions = {
   data?: Omit<ThreadToastData, "actionLayout">;
 };
 
-export function stackedThreadToast(
-  options: StackedThreadToastOptions,
-): ToastManagerAddOptions<ThreadToastData> {
+export function stackedThreadToast(options: StackedThreadToastOptions) {
   const { type, title, description, timeout, priority, actionProps, actionVariant, data } = options;
 
   const mergedData: ThreadToastData = {

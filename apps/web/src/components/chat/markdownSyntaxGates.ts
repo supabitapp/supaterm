@@ -75,7 +75,7 @@ function continuesTable({ events }: TokenizeContext) {
 let parsing = "";
 const gated = new WeakMap<Construct, Construct>();
 
-function gatedConstruct(construct: Construct, gate: Gate): Construct {
+function gatedConstruct(construct: Construct, gate: Gate) {
   const at = gate.at;
   if (!at) return construct;
   let wrapped = gated.get(construct);
@@ -99,7 +99,7 @@ function gatedConstruct(construct: Construct, gate: Gate): Construct {
 
 type ConstructMap = Record<string, Construct | Construct[] | undefined>;
 
-function gateExtension(extension: Extension, absent: ReadonlySet<Gate>): Extension {
+function gateExtension(extension: Extension, absent: ReadonlySet<Gate>) {
   const gateOf = (name: string | undefined) =>
     GATES.find((gate) => name && gate.names.includes(name));
   const result: Record<string, unknown> = {};
@@ -124,7 +124,7 @@ function gateExtension(extension: Extension, absent: ReadonlySet<Gate>): Extensi
 
 type MdastExtensions = NonNullable<FromMarkdownOptions["mdastExtensions"]>;
 
-function mergeMdastExtensions(extensions: MdastExtensions): MdastExtension {
+function mergeMdastExtensions(extensions: MdastExtensions) {
   const merged = {
     canContainEols: [] as string[],
     enter: {},
@@ -148,7 +148,7 @@ function mergeMdastExtensions(extensions: MdastExtensions): MdastExtension {
 
 const AUTOLINK_TEXT = /@|https?:\/\/|www\./i;
 
-function hasAutolinkText(node: MdastNodes): boolean {
+function hasAutolinkText(node: MdastNodes) {
   if (node.type === "text") return AUTOLINK_TEXT.test(node.value);
   if (node.type === "link" || node.type === "linkReference" || !("children" in node)) return false;
   return node.children.some(hasAutolinkText);

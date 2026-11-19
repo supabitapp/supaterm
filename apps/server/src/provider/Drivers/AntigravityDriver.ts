@@ -189,11 +189,7 @@ export const AntigravityDriver: ProviderDriver<
 
     const makeRuntime = Effect.fn("AntigravityDriver.makeRuntime")(function* (
       input: Omit<AntigravityAcpRuntimeInput, "spawn" | "childProcessSpawner">,
-    ): Effect.fn.Return<
-      AcpSessionRuntime.AcpSessionRuntime["Service"],
-      AcpErrors.AcpError | ProviderSetupError,
-      Scope.Scope
-    > {
+    ) {
       if (authConfigIssue !== null) {
         return yield* new ProviderSetupError({
           instanceId,
@@ -277,7 +273,7 @@ export const AntigravityDriver: ProviderDriver<
           runtime
             .start()
             .pipe(
-              Effect.tapError((cause): Effect.Effect<void> =>
+              Effect.tapError((cause) =>
                 input.onAuthorizationUrl === undefined && isAntigravitySignInRequiredError(cause)
                   ? provider.onAuthRequired
                   : Effect.void,

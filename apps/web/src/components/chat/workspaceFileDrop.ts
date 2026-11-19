@@ -22,20 +22,17 @@ export interface WorkspaceFileDropHost {
   addFolders(folders: File[]): void;
 }
 
-function isFileDrag(event: WorkspaceFileDragEvent): boolean {
+function isFileDrag(event: WorkspaceFileDragEvent) {
   return event.dataTransfer.types.includes("Files");
 }
 
-function movedWithinDropTarget(event: WorkspaceFileDragEvent): boolean {
+function movedWithinDropTarget(event: WorkspaceFileDragEvent) {
   return event.relatedTarget !== null && event.currentTarget.contains(event.relatedTarget as Node);
 }
 
 export function splitTransferredFiles(
   dataTransfer: Pick<WorkspaceFileDragEvent["dataTransfer"], "files" | "items">,
-): {
-  files: File[];
-  folders: File[];
-} {
+) {
   if (dataTransfer.items === undefined)
     return { files: Array.from(dataTransfer.files), folders: [] };
 

@@ -15,7 +15,7 @@ const playbookLinkEnd = (text: string, start: number) => {
  * link in `prompt` becomes the link in `preparedPrompt`, and the rest of the
  * text stays. A prompt without the link comes back unchanged.
  */
-export function replaceTriagePlaybookLink(prompt: string, preparedPrompt: string): string {
+export function replaceTriagePlaybookLink(prompt: string, preparedPrompt: string) {
   const preparedStart = preparedPrompt.indexOf(PLAYBOOK_LINK_START);
   const preparedEnd = preparedStart === -1 ? null : playbookLinkEnd(preparedPrompt, preparedStart);
   if (preparedEnd === null) return prompt;

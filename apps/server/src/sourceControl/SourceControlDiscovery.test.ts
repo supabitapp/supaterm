@@ -1,6 +1,5 @@
 import {
   SourceControlProviderKind,
-  type VcsError,
   VcsProcessExitError,
   VcsProcessSpawnError,
   VcsProcessTimeoutError,
@@ -40,7 +39,7 @@ const run = (
     SourceControlHost.SourceControlProcessInput,
     "operation" | "command" | "args" | "cwd"
   >,
-): Effect.Effect<SourceControlHost.SourceControlProcessOutput, VcsError> => {
+) => {
   const context = { operation: input.operation, command: input.command, cwd: input.cwd };
   if (input.command === "slow-cli") {
     return Effect.fail(new VcsProcessTimeoutError({ ...context, timeoutMs: 5_000 }));

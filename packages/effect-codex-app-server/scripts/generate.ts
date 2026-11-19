@@ -170,8 +170,10 @@ const DefinitionOverrides: Record<string, Schema.Json> = {
 
 const OpenStringEnumDefinitions = new Set(["CodexErrorInfo"]);
 
-function openStringEnum(schema: Schema.Json): Schema.Json {
-  if (!isJsonSchemaNode(schema) || !Array.isArray(schema.oneOf)) return schema;
+function openStringEnum(schema: Schema.Json): Schema.Json;
+function openStringEnum(schema: Schema.Json) {
+  if (!isJsonSchemaNode(schema) || !Array.isArray(schema.oneOf))
+    return schema satisfies Schema.Json;
   return {
     ...schema,
     oneOf: schema.oneOf.map((variant: Schema.Json) =>
@@ -179,11 +181,13 @@ function openStringEnum(schema: Schema.Json): Schema.Json {
         ? { type: "string" }
         : variant,
     ),
-  };
+  } satisfies Schema.Json;
 }
 
-function acceptImageFileIds(schema: Schema.Json): Schema.Json {
-  if (!isJsonSchemaNode(schema) || !Array.isArray(schema.oneOf)) return schema;
+function acceptImageFileIds(schema: Schema.Json): Schema.Json;
+function acceptImageFileIds(schema: Schema.Json) {
+  if (!isJsonSchemaNode(schema) || !Array.isArray(schema.oneOf))
+    return schema satisfies Schema.Json;
   return {
     ...schema,
     oneOf: schema.oneOf.map((variant: Schema.Json) => {
@@ -203,7 +207,7 @@ function acceptImageFileIds(schema: Schema.Json): Schema.Json {
         required: variant.required.filter((key: Schema.Json) => key !== "result"),
       };
     }),
-  };
+  } satisfies Schema.Json;
 }
 
 const getGeneratedPaths = Effect.fn("getGeneratedPaths")(function* () {
@@ -248,9 +252,7 @@ const fetchDirectoryEntries = Effect.fn("fetchDirectoryEntries")(function* (path
   return yield* decodeGithubContentEntries(raw);
 });
 
-function collectSchemaEntries(
-  chunk: string,
-): ReadonlyArray<{ readonly name: string; readonly code: string }> {
+function collectSchemaEntries(chunk: string) {
   const lines = chunk
     .split("\n")
     .map((line) => line.trim())
@@ -283,12 +285,13 @@ function collectSchemaEntries(
   return entries;
 }
 
-function normalizeNullableTypes(value: Schema.Json): Schema.Json {
+function normalizeNullableTypes(value: Schema.Json): Schema.Json;
+function normalizeNullableTypes(value: Schema.Json) {
   if (Array.isArray(value)) {
-    return value.map(normalizeNullableTypes);
+    return value.map(normalizeNullableTypes) satisfies Schema.Json;
   }
   if (value === null || typeof value !== "object") {
-    return value;
+    return value satisfies Schema.Json;
   }
 
   const normalizedEntries = Object.entries(value).map(([key, child]) => [
@@ -299,17 +302,17 @@ function normalizeNullableTypes(value: Schema.Json): Schema.Json {
   const typeValue = normalizedObject.type;
 
   if (!Array.isArray(typeValue)) {
-    return normalizedObject;
+    return normalizedObject satisfies Schema.Json;
   }
 
   const normalizedTypes = typeValue.filter((entry): entry is string => typeof entry === "string");
   if (normalizedTypes.length !== typeValue.length || !normalizedTypes.includes("null")) {
-    return normalizedObject;
+    return normalizedObject satisfies Schema.Json;
   }
 
   const nonNullTypes = normalizedTypes.filter((entry) => entry !== "null");
   if (nonNullTypes.length !== 1) {
-    return normalizedObject;
+    return normalizedObject satisfies Schema.Json;
   }
   const nonNullType = nonNullTypes[0]!;
 
@@ -328,22 +331,23 @@ function normalizeNullableTypes(value: Schema.Json): Schema.Json {
       },
       { type: "null" },
     ],
-  };
+  } satisfies Schema.Json;
 }
 
-function stripNullDefaults(value: Schema.Json): Schema.Json {
+function stripNullDefaults(value: Schema.Json): Schema.Json;
+function stripNullDefaults(value: Schema.Json) {
   if (Array.isArray(value)) {
-    return value.map(stripNullDefaults);
+    return value.map(stripNullDefaults) satisfies Schema.Json;
   }
   if (value === null || typeof value !== "object") {
-    return value;
+    return value satisfies Schema.Json;
   }
 
   return Object.fromEntries(
     Object.entries(value)
       .filter(([key, child]) => !(key === "default" && child === null))
       .map(([key, child]) => [key, stripNullDefaults(child)]),
-  ) as Schema.Json;
+  ) as Schema.Json satisfies Schema.Json;
 }
 
 type JsonSchemaNode = { readonly [key: string]: Schema.Json };
@@ -352,7 +356,7 @@ function isJsonSchemaNode(value: Schema.Json | undefined): value is JsonSchemaNo
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-function adaptSchemaForEffect(value: Schema.Json): Schema.Json {
+function adaptSchemaForEffect(value: Schema.Json) {
   if (!isJsonSchemaNode(value)) {
     return value;
   }
@@ -427,7 +431,7 @@ function toPascalCaseMethod(method: string) {
     .join("");
 }
 
-function parseRequestEntries(fileContents: string): ReadonlyArray<MethodEntry> {
+function parseRequestEntries(fileContents: string) {
   const entryPattern = /\{\s*"method":\s*"([^"]+)",\s*id:\s*RequestId,\s*params(\??):\s*([^,}|]+)/g;
   const entries: Array<MethodEntry> = [];
   let match: RegExpExecArray | null;
@@ -440,7 +444,7 @@ function parseRequestEntries(fileContents: string): ReadonlyArray<MethodEntry> {
   return entries;
 }
 
-function parseNotificationEntries(fileContents: string): ReadonlyArray<MethodEntry> {
+function parseNotificationEntries(fileContents: string) {
   const entryPattern = /\{\s*"method":\s*"([^"]+)"(?:,\s*"params":\s*([^ }]+))?\s*\}/g;
   const entries: Array<MethodEntry> = [];
   let match: RegExpExecArray | null;
@@ -453,10 +457,7 @@ function parseNotificationEntries(fileContents: string): ReadonlyArray<MethodEnt
   return entries;
 }
 
-function resolveSchemaTypeName(
-  rawTypeName: string,
-  generatedSchemaNames: ReadonlySet<string>,
-): string {
+function resolveSchemaTypeName(rawTypeName: string, generatedSchemaNames: ReadonlySet<string>) {
   if (rawTypeName === "undefined") {
     return "undefined";
   }
@@ -480,7 +481,7 @@ function resolveResponseTypeName(
   method: string,
   paramsType: string | undefined,
   generatedSchemaNames: ReadonlySet<string>,
-): string {
+) {
   const overrides: Record<string, string> = {
     "account/gatewayOAuth/cancel": "GatewayOAuthCancelResponse",
     "account/gatewayOAuth/login": "GatewayOAuthLoginResponse",
@@ -557,7 +558,7 @@ function renderSchemaTypeReference(schemaName: string) {
   return schemaName === "undefined" ? "undefined" : `CodexSchema.${schemaName}`;
 }
 
-function exportNameForPath(filePath: string): string {
+function exportNameForPath(filePath: string) {
   const relative = filePath.replace(/^schema\/json\//, "").replace(/\.json$/, "");
   if (!relative.includes("/")) {
     return relative;
@@ -574,7 +575,8 @@ function exportNameForPath(filePath: string): string {
 
 function buildJsonSchemaFiles(
   entries: ReadonlyArray<GithubContentEntry>,
-): ReadonlyArray<JsonSchemaFile> {
+): ReadonlyArray<JsonSchemaFile>;
+function buildJsonSchemaFiles(entries: ReadonlyArray<GithubContentEntry>) {
   return entries.flatMap((entry) => {
     if (
       entry.type !== "file" ||
@@ -605,7 +607,7 @@ function buildJsonSchemaFiles(
         qualifiedName: relative.replace(/\.json$/, ""),
       } satisfies JsonSchemaFile,
     ];
-  });
+  }) satisfies ReadonlyArray<JsonSchemaFile>;
 }
 
 function rewriteExternalRefs(
@@ -613,14 +615,20 @@ function rewriteExternalRefs(
   localDefinitionNames: ReadonlyMap<string, string>,
   currentNamespace: string | undefined,
   exportNameByQualifiedName: ReadonlyMap<string, string>,
-): Schema.Json {
+): Schema.Json;
+function rewriteExternalRefs(
+  value: Schema.Json,
+  localDefinitionNames: ReadonlyMap<string, string>,
+  currentNamespace: string | undefined,
+  exportNameByQualifiedName: ReadonlyMap<string, string>,
+) {
   if (Array.isArray(value)) {
     return value.map((entry) =>
       rewriteExternalRefs(entry, localDefinitionNames, currentNamespace, exportNameByQualifiedName),
-    );
+    ) satisfies Schema.Json;
   }
   if (value === null || typeof value !== "object") {
-    return value;
+    return value satisfies Schema.Json;
   }
 
   return Object.fromEntries(
@@ -663,7 +671,7 @@ function rewriteExternalRefs(
         ),
       ];
     }),
-  ) as Schema.Json;
+  ) as Schema.Json satisfies Schema.Json;
 }
 
 const generateFiles = Effect.fn("generateFiles")(function* () {

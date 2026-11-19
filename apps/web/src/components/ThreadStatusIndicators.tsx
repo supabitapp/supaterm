@@ -86,7 +86,7 @@ export function useLinkedThreadPullRequest(
   pullRequests: ReadonlyArray<ThreadPullRequestLink> | undefined,
   branchPullRequest?: ThreadLinkedPullRequest | null,
   enabled = true,
-): LinkedThreadPullRequestStatus | null {
+) {
   const current = resolveThreadCurrentPullRequestLink(pullRequests ?? []);
   const currentStatus = current === null ? null : linkedPullRequestSnapshotStatus(current);
   const fallback = current === null ? branchPullRequest : null;
@@ -148,9 +148,7 @@ function changeRequestTerminologyForUrl(url: string | undefined) {
   return (host ?? sourceControlClients.get(undefined)).changeRequest;
 }
 
-export function linkedPullRequestSnapshotStatus(
-  link: ThreadPullRequestLink,
-): LinkedThreadPullRequestStatus | null {
+export function linkedPullRequestSnapshotStatus(link: ThreadPullRequestLink) {
   const snapshot = link.snapshot;
   if (snapshot === null) return null;
   const kind = (
@@ -193,7 +191,7 @@ function resolveThreadPullRequestBadgePresentation({
   readonly number?: number | undefined;
   readonly url?: string | undefined;
   readonly status: PrStatusIndicator | null;
-}): ThreadPullRequestBadgePresentation | null {
+}) {
   const terminology = changeRequestTerminologyForUrl(url);
   if (badge?.kind === "stack") {
     const aggregate = PULL_REQUEST_STATE_PRESENTATION[badge.state];
@@ -465,7 +463,7 @@ function ThreadPullRequestMiniListItem({
 export function prStatusIndicator(
   pr: ThreadPr,
   provider: VcsStatusResult["sourceControlProvider"] | null | undefined,
-): PrStatusIndicator | null {
+) {
   if (!pr) return null;
   const { shortLabel } = sourceControlClients.get(provider?.kind).changeRequest;
   const state = resolvePullRequestState({ state: pr.state, isDraft: pr.isDraft === true });
@@ -509,7 +507,7 @@ export function resolveDisplayedThreadPr(input: {
   gitStatus: VcsStatusResult | null;
   linkedPullRequest?: ThreadLinkedPullRequest | null | undefined;
   linkedPullRequestStatus?: LinkedThreadPullRequestStatus | null | undefined;
-}): ThreadPr | null {
+}) {
   const { threadBranch, gitStatus, linkedPullRequest, linkedPullRequestStatus } = input;
   if (linkedPullRequest != null) {
     return linkedPullRequestStatus?.pr ?? null;
@@ -531,7 +529,7 @@ export function resolveDisplayedThreadPrProvider(input: {
   gitStatus: VcsStatusResult | null;
   linkedPullRequest?: ThreadLinkedPullRequest | null | undefined;
   linkedPullRequestStatus?: LinkedThreadPullRequestStatus | null | undefined;
-}): VcsStatusResult["sourceControlProvider"] | undefined {
+}) {
   const { gitStatus, linkedPullRequest, linkedPullRequestStatus } = input;
   if (linkedPullRequest != null) {
     return linkedPullRequestStatus?.sourceControlProvider;
@@ -543,17 +541,15 @@ export function resolveDisplayedThreadPrProvider(input: {
   return undefined;
 }
 
-export function terminalStatusFromRunningIds(
-  runningTerminalIds: ReadonlyArray<string>,
-): TerminalStatusIndicator | null {
+export function terminalStatusFromRunningIds(runningTerminalIds: ReadonlyArray<string>) {
   if (runningTerminalIds.length === 0) {
-    return null;
+    return null satisfies TerminalStatusIndicator | null;
   }
   return {
     label: "Terminal process running",
     colorClass: "text-teal-600 dark:text-teal-300/90",
     pulse: true,
-  };
+  } satisfies TerminalStatusIndicator | null;
 }
 
 function synchronizeTerminalPulse(event: AnimationEvent<SVGSVGElement>) {
@@ -818,7 +814,7 @@ export function ThreadRowTrailingStatus({ thread }: { thread: SidebarThreadSumma
   );
 }
 
-function donePrHoverColorClass(state: ThreadPullRequestBadge["state"]): string {
+function donePrHoverColorClass(state: ThreadPullRequestBadge["state"]) {
   switch (state) {
     case "draft":
       return "group-hover/sidebar-row:text-zinc-500 dark:group-hover/sidebar-row:text-zinc-400/80";

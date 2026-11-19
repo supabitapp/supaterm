@@ -60,25 +60,26 @@ export async function loadCitedHistory(input: {
   readonly signal: AbortSignal;
   readonly readThread: () => Promise<CitedThreadSnapshot | null>;
   readonly loadThrough: () => Promise<HistoryPageResult>;
-}): Promise<CitedHistoryOutcome> {
+}) {
   for (let attempts = 0; ; attempts += 1) {
     const thread = await input.readThread();
-    if (thread === null || input.signal.aborted) return { _tag: "aborted" };
-    if (thread.loadFailed) return COULD_NOT_LOAD;
-    if (thread.message === "assistant") return { _tag: "found" };
+    if (thread === null || input.signal.aborted)
+      return { _tag: "aborted" } satisfies CitedHistoryOutcome;
+    if (thread.loadFailed) return COULD_NOT_LOAD satisfies CitedHistoryOutcome;
+    if (thread.message === "assistant") return { _tag: "found" } satisfies CitedHistoryOutcome;
     if (thread.message === "other") {
       return {
         _tag: "failed",
         title: "The citation does not refer to an assistant response",
         description: "The selected text is still saved in your citation.",
-      };
+      } satisfies CitedHistoryOutcome;
     }
-    if (!thread.hasMoreHistory) return UNAVAILABLE;
-    if (attempts >= MAX_CITATION_PAGES) return COULD_NOT_LOAD;
+    if (!thread.hasMoreHistory) return UNAVAILABLE satisfies CitedHistoryOutcome;
+    if (attempts >= MAX_CITATION_PAGES) return COULD_NOT_LOAD satisfies CitedHistoryOutcome;
     const result = await input.loadThrough();
-    if (input.signal.aborted) return { _tag: "aborted" };
-    if (result._tag === "error") return COULD_NOT_LOAD;
-    if (result._tag === "noop") return UNAVAILABLE;
+    if (input.signal.aborted) return { _tag: "aborted" } satisfies CitedHistoryOutcome;
+    if (result._tag === "error") return COULD_NOT_LOAD satisfies CitedHistoryOutcome;
+    if (result._tag === "noop") return UNAVAILABLE satisfies CitedHistoryOutcome;
   }
 }
 
@@ -93,14 +94,15 @@ export function resolveCitationPhase(input: {
   readonly messageId: string;
   readonly entries: ReadonlyArray<TimelineEntry>;
   readonly rows: ReadonlyArray<MessagesTimelineRow>;
-}): CitationPhase {
-  if (input.history._tag === "failed") return { _tag: "failed" };
+}) {
+  if (input.history._tag === "failed") return { _tag: "failed" } satisfies CitationPhase;
   const source = input.entries.find((entry) => isCited(entry, input.messageId));
-  if (!source) return { _tag: "loading" };
-  if (source.kind === "message" && source.message.role !== "assistant") return { _tag: "failed" };
+  if (!source) return { _tag: "loading" } satisfies CitationPhase;
+  if (source.kind === "message" && source.message.role !== "assistant")
+    return { _tag: "failed" } satisfies CitationPhase;
   const row = input.rows.find((candidate) => isCited(candidate, input.messageId));
-  if (row) return { _tag: "ready", rowId: row.id };
-  return { _tag: "expanding" };
+  if (row) return { _tag: "ready", rowId: row.id } satisfies CitationPhase;
+  return { _tag: "expanding" } satisfies CitationPhase;
 }
 
 type ThreadDetail<K extends keyof typeof environmentThreadDetails> = Atom.Type<
@@ -118,11 +120,14 @@ export function citedThreadSnapshot(input: {
   readonly status: ThreadDetail<"statusAtom">;
   readonly error: ThreadDetail<"errorAtom">;
   readonly messageId: string;
-}): CitedThreadSnapshot | null {
-  if (input.history.loading) return null;
+}) {
+  if (input.history.loading) return null satisfies CitedThreadSnapshot | null;
   if (input.thread === null) {
-    if (input.status === "deleted") return { message: null, hasMoreHistory: false };
-    return input.error === null ? null : { message: null, hasMoreHistory: false, loadFailed: true };
+    if (input.status === "deleted")
+      return { message: null, hasMoreHistory: false } satisfies CitedThreadSnapshot | null;
+    return (
+      input.error === null ? null : { message: null, hasMoreHistory: false, loadFailed: true }
+    ) satisfies CitedThreadSnapshot | null;
   }
   const item = input.thread.projection.visibleTurnItems.find(({ item }) =>
     item.type === "assistant_message" || item.type === "user_message"
@@ -137,7 +142,7 @@ export function citedThreadSnapshot(input: {
   return {
     message: item === undefined ? null : citable ? "assistant" : "other",
     hasMoreHistory: input.history.hasMoreHistory,
-  };
+  } satisfies CitedThreadSnapshot | null;
 }
 
 interface CitedHistoryKey {
@@ -151,7 +156,7 @@ function waitForSettledThread(
   registry: AtomRegistry.AtomRegistry,
   atom: Atom.Atom<CitedThreadSnapshot | null>,
   signal: AbortSignal,
-): Promise<CitedThreadSnapshot | null> {
+) {
   return new Promise((resolve) => {
     let unsubscribe: (() => void) | null = null;
     let settled = false;
@@ -170,7 +175,7 @@ function waitForSettledThread(
     unsubscribe = registry.subscribe(atom, check);
     if (settled) unsubscribe();
     else check(registry.get(atom));
-  });
+  }) satisfies Promise<CitedThreadSnapshot | null>;
 }
 
 const citedHistoryAtom = Atom.family(
@@ -189,7 +194,7 @@ const citedHistoryAtom = Atom.family(
         messageId,
       }),
     );
-    return Atom.make((get): CitedHistory => {
+    return Atom.make((get) => {
       const controller = new AbortController();
       get.addFinalizer(() => controller.abort());
       void loadCitedHistory({
@@ -217,14 +222,14 @@ const citedHistoryAtom = Atom.family(
         }
         get.setSelf({ _tag: outcome._tag });
       });
-      return { _tag: "loading" };
+      return { _tag: "loading" } satisfies CitedHistory;
     }).pipe(Atom.withLabel(`assistant-citation:history:${key}`));
   },
 );
 
 const NO_CITED_HISTORY_ATOM = Atom.make<CitedHistory>({ _tag: "loading" });
 
-export function useCitedHistory(request: AssistantCitationRequest | null): CitedHistory {
+export function useCitedHistory(request: AssistantCitationRequest | null) {
   return useAtomValue(
     request === null
       ? NO_CITED_HISTORY_ATOM
@@ -234,5 +239,5 @@ export function useCitedHistory(request: AssistantCitationRequest | null): Cited
           threadId: request.citation.threadId,
           messageId: request.citation.messageId,
         }),
-  );
+  ) satisfies CitedHistory;
 }

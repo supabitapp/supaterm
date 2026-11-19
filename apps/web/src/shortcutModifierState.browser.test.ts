@@ -5,14 +5,14 @@ import {
   type ShortcutModifierState,
 } from "./shortcutModifierState";
 
-const emptyState = (): ShortcutModifierState => ({
+const emptyState = () => ({
   metaKey: false,
   ctrlKey: false,
   altKey: false,
   shiftKey: false,
 });
 
-function keyboardEventLike(type: "keydown" | "keyup", init: Partial<KeyboardEvent>): KeyboardEvent {
+function keyboardEventLike(type: "keydown" | "keyup", init: Partial<KeyboardEvent>) {
   return {
     type,
     key: "",

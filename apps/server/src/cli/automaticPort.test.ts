@@ -13,7 +13,7 @@ import * as AutomaticPort from "./automaticPort.ts";
 const WSL_KERNEL = "6.6.87.2-microsoft-standard-WSL2\n";
 const NETSTAT_PATH = "/windows/c/Windows/System32/netstat.exe";
 
-const output = (stdout: string, code: number | null = null): ProcessRunner.ProcessRunOutput => ({
+const output = (stdout: string, code: number | null = null) => ({
   stdout,
   stderr: "",
   code: code === null ? null : ChildProcessSpawner.ExitCode(code),

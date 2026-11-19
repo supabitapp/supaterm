@@ -22,7 +22,8 @@ vi.mock("./confirmDialog", () => ({
   requestConfirmDialog: requestConfirmDialogMock,
 }));
 
-function createLocalStorageStub(): Storage {
+function createLocalStorageStub(): Storage;
+function createLocalStorageStub() {
   const values = new Map<string, string>();
   return {
     getItem: (key) => values.get(key) ?? null,
@@ -37,10 +38,10 @@ function createLocalStorageStub(): Storage {
     get length() {
       return values.size;
     },
-  };
+  } satisfies Storage;
 }
 
-function testWindow(): Window & typeof globalThis {
+function testWindow() {
   return globalThis.window ?? (globalThis as unknown as Window & typeof globalThis);
 }
 

@@ -10,7 +10,7 @@ export type AudioSessionToken = {
 let owner: AudioSessionToken | null = null;
 let pending = Promise.resolve();
 
-function enqueue<T>(operation: () => Promise<T>): Promise<T> {
+function enqueue<T>(operation: () => Promise<T>) {
   const result = pending.then(operation);
   pending = result.then(
     () => {},
@@ -19,7 +19,7 @@ function enqueue<T>(operation: () => Promise<T>): Promise<T> {
   return result;
 }
 
-export function pauseAudioPlayer(player: { pause(deactivateSession?: boolean): void }): void {
+export function pauseAudioPlayer(player: { pause(deactivateSession?: boolean): void }) {
   if (owner && !owner.released) player.pause(false);
   else player.pause();
 }
@@ -27,7 +27,7 @@ export function pauseAudioPlayer(player: { pause(deactivateSession?: boolean): v
 export function disposeAudioPlayer(player: {
   pause(deactivateSession?: boolean): void;
   release(): void;
-}): void {
+}) {
   void enqueue(async () => {
     try {
       pauseAudioPlayer(player);
@@ -51,14 +51,11 @@ export function acquireAudioSession(
   return token;
 }
 
-export function isAudioSessionOwner(token: AudioSessionToken): boolean {
+export function isAudioSessionOwner(token: AudioSessionToken) {
   return owner === token && !token.released;
 }
 
-export function activateAudioSession(
-  token: AudioSessionToken,
-  nativePlayback = false,
-): Promise<boolean> {
+export function activateAudioSession(token: AudioSessionToken, nativePlayback = false) {
   return enqueue(async () => {
     if (!isAudioSessionOwner(token)) return false;
     if (nativePlayback) return true;
@@ -74,7 +71,7 @@ export function activateAudioSession(
   });
 }
 
-export function releaseAudioSession(token: AudioSessionToken): Promise<void> {
+export function releaseAudioSession(token: AudioSessionToken) {
   token.released = true;
   return enqueue(async () => {
     if (owner !== token) return;

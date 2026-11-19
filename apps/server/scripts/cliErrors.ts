@@ -9,7 +9,7 @@ export class ServerCliCommandExitError extends Schema.TaggedError<ServerCliComma
     exitCode: Schema.Int,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Command exited with non-zero exit code (${this.exitCode})`;
   }
 }
@@ -20,7 +20,7 @@ export class ServerCliDevelopmentIconSourceMissingError extends Schema.TaggedErr
     sourcePath: Schema.String,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Missing development icon source: ${this.sourcePath}`;
   }
 }
@@ -31,7 +31,7 @@ export class ServerCliDevelopmentIconTargetMissingError extends Schema.TaggedErr
     targetPath: Schema.String,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Missing development icon target: ${this.targetPath}. Build web first.`;
   }
 }
@@ -42,7 +42,7 @@ export class ServerCliBuildAssetMissingError extends Schema.TaggedError<ServerCl
     assetPath: Schema.String,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Missing build asset: ${this.assetPath}. Run the build subcommand first.`;
   }
 }
@@ -54,7 +54,7 @@ export class ServerCliExecutableImportError extends Schema.TaggedError<ServerCli
     specifiers: Schema.Array(Schema.String),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `${this.bundlePath} imports file-backed packages that a single-executable cannot resolve: ${this.specifiers.join(", ")}. Load them through createRequire instead.`;
   }
 }
@@ -66,7 +66,7 @@ export class ServerCliBootstrapTooLargeError extends Schema.TaggedError<ServerCl
     bytes: Schema.Number,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `${this.bootstrapPath} is ${this.bytes} bytes. The CLI was bundled into the executable bootstrap; keep ./binMain.ts external.`;
   }
 }

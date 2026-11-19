@@ -9,7 +9,7 @@ export type DesktopUpdateStatusIconState =
   | "downloaded"
   | "everything";
 
-function normalizeDesktopUpdateDownloadPercent(percent: number | null): number {
+function normalizeDesktopUpdateDownloadPercent(percent: number | null) {
   if (percent === null || !Number.isFinite(percent)) return 0;
   return Math.min(100, Math.max(0, percent));
 }

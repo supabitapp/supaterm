@@ -8,7 +8,7 @@ const ALWAYS_ACTIVE: DocumentActivity = { visible: true, focused: true };
 const listeners = new Set<() => void>();
 let snapshot: DocumentActivity = ALWAYS_ACTIVE;
 
-function readActivity(): DocumentActivity {
+function readActivity() {
   if (typeof document === "undefined") return ALWAYS_ACTIVE;
   const visible = document.visibilityState === "visible";
   const focused = document.hasFocus();
@@ -25,13 +25,13 @@ function handleActivityEvent() {
 }
 
 /** Whether the user is looking at this window: the tab is visible and the window has focus. */
-export function getDocumentActivity(): DocumentActivity {
+export function getDocumentActivity() {
   if (listeners.size === 0) snapshot = readActivity();
   return snapshot;
 }
 
 /** One visibilitychange/focus/blur listener set shared by every subscriber. */
-export function subscribeDocumentActivity(listener: () => void): () => void {
+export function subscribeDocumentActivity(listener: () => void) {
   if (typeof document === "undefined") return () => {};
   if (listeners.size === 0) {
     snapshot = readActivity();
@@ -54,7 +54,7 @@ export function subscribeDocumentActivity(listener: () => void): () => void {
  * focus coming back from an iframe, or an alt-tab whose blur was missed, still
  * counts as a return.
  */
-export function subscribeDocumentReturn(listener: () => void): () => void {
+export function subscribeDocumentReturn(listener: () => void) {
   if (typeof document === "undefined") return () => {};
   const handleVisibilityChange = () => {
     if (document.visibilityState === "visible") listener();

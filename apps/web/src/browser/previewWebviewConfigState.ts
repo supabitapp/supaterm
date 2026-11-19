@@ -17,7 +17,7 @@ export class PreviewWebviewBridgeUnavailableError extends Schema.TaggedError<Pre
   "PreviewWebviewBridgeUnavailableError",
   { environmentId: Schema.String },
 ) {
-  override get message(): string {
+  override get message() {
     return `Desktop preview configuration is unavailable for environment "${this.environmentId}".`;
   }
 }
@@ -29,7 +29,7 @@ export class PreviewWebviewConfigLoadError extends Schema.TaggedError<PreviewWeb
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Failed to load desktop preview configuration for environment "${this.environmentId}".`;
   }
 }
@@ -42,11 +42,15 @@ export type PreviewWebviewConfigError = typeof PreviewWebviewConfigError.Type;
 
 type PreviewConfigBridge = Pick<DesktopPreviewBridge, "getPreviewConfig">;
 
-const loadPreviewWebviewConfig = (
+const loadPreviewWebviewConfig: (
+  environmentId: EnvironmentId,
+  profileId?: string,
+  bridge?: PreviewConfigBridge | null,
+) => Effect.Effect<DesktopPreviewWebviewConfig, PreviewWebviewConfigError> = (
   environmentId: EnvironmentId,
   profileId?: string,
   bridge: PreviewConfigBridge | null = previewBridge,
-): Effect.Effect<DesktopPreviewWebviewConfig, PreviewWebviewConfigError> => {
+) => {
   if (bridge === null) {
     return Effect.fail(new PreviewWebviewBridgeUnavailableError({ environmentId }));
   }
@@ -59,10 +63,10 @@ const loadPreviewWebviewConfig = (
 
 const CONFIG_KEY_DELIMITER = "\u0000";
 
-const configKey = (environmentId: EnvironmentId, profileId: string | undefined): string =>
+const configKey = (environmentId: EnvironmentId, profileId: string | undefined) =>
   `${environmentId}${CONFIG_KEY_DELIMITER}${profileId ?? ""}`;
 
-const parseConfigKey = (key: string): { environmentId: EnvironmentId; profileId?: string } => {
+const parseConfigKey = (key: string) => {
   const delimiter = key.indexOf(CONFIG_KEY_DELIMITER);
   const environmentId = (delimiter === -1 ? key : key.slice(0, delimiter)) as EnvironmentId;
   const profileId = delimiter === -1 ? "" : key.slice(delimiter + CONFIG_KEY_DELIMITER.length);
@@ -87,7 +91,8 @@ const previewWebviewConfigAtom = Atom.family((key: string) => {
 export function usePreviewWebviewConfig(
   environmentId: EnvironmentId,
   profileId?: string,
-): DesktopPreviewWebviewConfig | null {
+): DesktopPreviewWebviewConfig | null;
+export function usePreviewWebviewConfig(environmentId: EnvironmentId, profileId?: string) {
   const result = useAtomValue(previewWebviewConfigAtom(configKey(environmentId, profileId)));
-  return AsyncResult.getOrElse(result, () => null);
+  return AsyncResult.getOrElse(result, () => null) satisfies DesktopPreviewWebviewConfig | null;
 }

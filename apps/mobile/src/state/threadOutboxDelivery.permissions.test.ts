@@ -201,7 +201,7 @@ const sendingMessageIds = () => Object.keys(appAtomRegistry.get(dispatchingQueue
 import { createThreadOutboxDelivery } from "./threadOutboxDelivery";
 import { workspaceConnections } from "./workspace";
 
-const message = (overrides: Partial<QueuedThreadMessage> = {}): QueuedThreadMessage => ({
+const message = (overrides: Partial<QueuedThreadMessage> = {}) => ({
   environmentId: EnvironmentId.make("secondary"),
   threadId: ThreadId.make("thread"),
   commandId: CommandId.make("command"),
@@ -214,7 +214,7 @@ const message = (overrides: Partial<QueuedThreadMessage> = {}): QueuedThreadMess
 const remaining = () =>
   Object.values(appAtomRegistry.get(state.manager.queuedMessagesByThreadKeyAtom)).flat();
 
-function setOperateGrant(environmentId: string, granted: boolean): void {
+function setOperateGrant(environmentId: string, granted: boolean) {
   const sessionAtom = environmentSession.sessionStateAtom(EnvironmentId.make(environmentId));
   appAtomRegistry.set(sessionAtom as unknown as Atom.Writable<boolean>, granted);
 }
@@ -228,7 +228,7 @@ function runDrain() {
   return settled.promise.finally(release);
 }
 
-function startDelivery(): void {
+function startDelivery() {
   if (state.delivery !== null) {
     state.delivery.drain();
     return;
@@ -578,7 +578,7 @@ describe("queued task whose launch reply is lost", () => {
       },
     });
 
-  async function loseLaunchReply(queued: QueuedThreadMessage, edit?: string): Promise<void> {
+  async function loseLaunchReply(queued: QueuedThreadMessage, edit?: string) {
     setOperateGrant("secondary", true);
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
     state.cleanups.push(() => vi.useRealTimers());
@@ -592,7 +592,7 @@ describe("queued task whose launch reply is lost", () => {
     appAtomRegistry.set(state.threadShells, [state.thread, { ...state.thread, id: "new-thread" }]);
   }
 
-  async function fireRetry(): Promise<void> {
+  async function fireRetry() {
     const settled = Promise.withResolvers<void>();
     const release = appAtomRegistry.subscribe(dispatchingQueuedMessageIdsAtom, (ids) => {
       if (Object.keys(ids).length === 0) settled.resolve();
@@ -663,7 +663,7 @@ describe("queued task whose launch reply is lost", () => {
 });
 
 describe("queued delivery timing", () => {
-  async function deliveryAfter(change: () => void): Promise<void> {
+  async function deliveryAfter(change: () => void) {
     const started = Promise.withResolvers<void>();
     const settled = Promise.withResolvers<void>();
     const release = appAtomRegistry.subscribe(dispatchingQueuedMessageIdsAtom, (ids) => {

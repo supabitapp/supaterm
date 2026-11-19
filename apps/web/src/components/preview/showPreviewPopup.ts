@@ -8,7 +8,7 @@ export function showPreviewPopup(
   threadRef: ScopedThreadRef,
   popupTabId: string,
   from: "panel" | "floating",
-): void {
+) {
   whenPreviewTabKnown(threadRef, popupTabId, () => {
     if (from === "floating") {
       usePreviewMiniPlayerStore.getState().open(threadRef, browserMiniPlayerSource(popupTabId));

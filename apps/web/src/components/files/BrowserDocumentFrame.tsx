@@ -76,8 +76,7 @@ const HTML_RENDER_SHORTCUT_COMMANDS: ReadonlySet<KeybindingCommand> = new Set([
   ...PANE_FOCUS_KEYBINDING_COMMANDS,
 ]);
 
-export const isPdfPreviewFile = (path: string): boolean =>
-  /\.pdf$/i.test(path.split(/[?#]/, 1)[0] ?? "");
+export const isPdfPreviewFile = (path: string) => /\.pdf$/i.test(path.split(/[?#]/, 1)[0] ?? "");
 
 const PdfViewer = lazy(() => import("./PdfViewer"));
 
@@ -175,10 +174,8 @@ interface FileDocumentFrames {
   readonly next: FileDocumentRevision | null;
 }
 
-const showRevision =
-  (next: FileDocumentRevision) =>
-  (current: FileDocumentFrames): FileDocumentFrames =>
-    current.next === next ? { shown: next, next: null } : current;
+const showRevision = (next: FileDocumentRevision) => (current: FileDocumentFrames) =>
+  current.next === next ? { shown: next, next: null } : current;
 
 const FILE_DOCUMENT_SWAP_TIMEOUT_MS = 5_000;
 
@@ -292,7 +289,7 @@ export function HtmlRenderDocument(props: {
     serverEnvironment.configValueAtom(props.threadRef?.environmentId ?? null),
   )?.keybindings;
   const mac = isMacPlatform(navigator.platform);
-  const resolve = (shortcut: KeybindingShortcut): HtmlRenderShortcut => ({
+  const resolve = (shortcut: KeybindingShortcut) => ({
     key: shortcut.key,
     metaKey: shortcut.metaKey || (shortcut.modKey && mac),
     ctrlKey: shortcut.ctrlKey || (shortcut.modKey && !mac),

@@ -19,14 +19,13 @@ import { createEnvironmentCatalogAtoms } from "./connections.ts";
 
 const ENVIRONMENT_ID = EnvironmentId.make("catalog-environment");
 
-const connectionState = (
-  overrides: Partial<SupervisorConnectionState>,
-): SupervisorConnectionState => ({
-  ...AVAILABLE_CONNECTION_STATE,
-  desired: true,
-  network: "online",
-  ...overrides,
-});
+const connectionState = (overrides: Partial<SupervisorConnectionState>) =>
+  ({
+    ...AVAILABLE_CONNECTION_STATE,
+    desired: true,
+    network: "online",
+    ...overrides,
+  }) satisfies SupervisorConnectionState;
 
 const makeCatalogHarness = Effect.fn("TestCatalog.makeHarness")(function* () {
   const state = yield* SubscriptionRef.make(

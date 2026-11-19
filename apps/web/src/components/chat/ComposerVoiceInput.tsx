@@ -209,9 +209,9 @@ export function ComposerVoiceSession(props: {
   );
 }
 
-export function composerVoiceBannerItem(voice: ComposerVoiceInput): ComposerBannerStackItem | null {
+export function composerVoiceBannerItem(voice: ComposerVoiceInput) {
   const { state } = voice;
-  if (state.phase !== "error") return null;
+  if (state.phase !== "error") return null satisfies ComposerBannerStackItem | null;
   return {
     id: "voice-input",
     variant: "error",
@@ -238,5 +238,5 @@ export function composerVoiceBannerItem(voice: ComposerVoiceInput): ComposerBann
       ) : null,
     dismissLabel: "Dismiss",
     onDismiss: voice.cancel,
-  };
+  } satisfies ComposerBannerStackItem | null;
 }

@@ -38,7 +38,7 @@ export const accessConfig: Record<
   ...runtimeModeConfig,
 };
 
-function redirectsToThisComputer(redirectHost: string): boolean {
+function redirectsToThisComputer(redirectHost: string) {
   return isLoopbackHost(new URL(`http://${redirectHost}`).hostname);
 }
 
@@ -59,14 +59,15 @@ function runApproval<A>(
   call: (
     client: Context.Service.Shape<typeof PrimaryEnvironmentHttpClient>,
   ) => Effect.Effect<A | { readonly redirectTo: string }, unknown>,
-): Promise<Answer<A>> {
+) {
   return runPrimaryHttp(
     PrimaryEnvironmentHttpClient.pipe(
       Effect.flatMap(call),
-      Effect.map((value): Answer<A> =>
-        typeof value === "object" && value !== null && "redirectTo" in value
-          ? { kind: "redirect", url: value.redirectTo }
-          : { kind: "ok", value: value as A },
+      Effect.map(
+        (value) =>
+          (typeof value === "object" && value !== null && "redirectTo" in value
+            ? { kind: "redirect", url: value.redirectTo }
+            : { kind: "ok", value: value as A }) satisfies Answer<A>,
       ),
       Effect.catch((error) =>
         Effect.succeed<Answer<A>>({
@@ -75,12 +76,14 @@ function runApproval<A>(
         }),
       ),
     ),
-  ).catch((): Answer<A> => ({ kind: "error", message: UNREACHABLE }));
+  ).catch(() => ({ kind: "error", message: UNREACHABLE }) satisfies Answer<A>) satisfies Promise<
+    Answer<A>
+  >;
 }
 
 const decodeAuthorizationRequest = Schema.decodeSync(AuthMcpAuthorizationRequest);
 
-function readAuthorizationRequest(): AuthMcpAuthorizationRequest {
+function readAuthorizationRequest() {
   return decodeAuthorizationRequest(Object.fromEntries(new URL(window.location.href).searchParams));
 }
 

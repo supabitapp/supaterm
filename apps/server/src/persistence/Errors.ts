@@ -2,17 +2,18 @@ import * as Predicate from "effect/Predicate";
 import * as Schema from "effect/Schema";
 import * as SchemaIssue from "effect/SchemaIssue";
 
-function summarizeSchemaIssue(issue: SchemaIssue.Issue): string {
+function summarizeSchemaIssue(issue: SchemaIssue.Issue): string;
+function summarizeSchemaIssue(issue: SchemaIssue.Issue) {
   switch (issue._tag) {
     case "Filter":
     case "Encoding":
     case "Pointer":
-      return `${issue._tag}(${summarizeSchemaIssue(issue.issue)})`;
+      return `${issue._tag}(${summarizeSchemaIssue(issue.issue)})` satisfies string;
     case "Composite":
     case "AnyOf":
-      return `${issue._tag}(${issue.issues.map(summarizeSchemaIssue).join(",")})`;
+      return `${issue._tag}(${issue.issues.map(summarizeSchemaIssue).join(",")})` satisfies string;
     default:
-      return issue._tag;
+      return issue._tag satisfies string;
   }
 }
 
@@ -33,7 +34,7 @@ export class PersistenceSqlError extends Schema.TaggedError<PersistenceSqlError>
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return this.detail === undefined
       ? `SQL error in ${this.operation}`
       : `SQL error in ${this.operation}: ${this.detail}`;
@@ -53,7 +54,7 @@ export class PersistenceDecodeError extends Schema.TaggedError<PersistenceDecode
     operation: string,
     cause: Schema.SchemaError,
     correlation?: PersistenceErrorCorrelation,
-  ): PersistenceDecodeError {
+  ) {
     return new PersistenceDecodeError({
       operation,
       issue: summarizeSchemaIssue(cause.issue),
@@ -62,12 +63,12 @@ export class PersistenceDecodeError extends Schema.TaggedError<PersistenceDecode
     });
   }
 
-  override get message(): string {
+  override get message() {
     return `Decode error in ${this.operation}: ${this.issue}`;
   }
 }
 
-function sqliteCondition(cause: unknown): string | undefined {
+function sqliteCondition(cause: unknown) {
   let value = cause;
   for (let depth = 0; depth < 4 && Predicate.isObject(value); depth += 1) {
     if (
@@ -83,13 +84,15 @@ function sqliteCondition(cause: unknown): string | undefined {
   return undefined;
 }
 
-function describeSqlCause(cause: unknown): string | undefined {
-  if (Schema.isSchemaError(cause)) return summarizeSchemaIssue(cause.issue);
-  return sqliteCondition(cause);
+function describeSqlCause(cause: unknown): string | undefined;
+function describeSqlCause(cause: unknown) {
+  if (Schema.isSchemaError(cause))
+    return summarizeSchemaIssue(cause.issue) satisfies string | undefined;
+  return sqliteCondition(cause) satisfies string | undefined;
 }
 
 export function toPersistenceSqlError(operation: string) {
-  return (cause: unknown): PersistenceSqlError => {
+  return (cause: unknown) => {
     const detail = describeSqlCause(cause);
     return new PersistenceSqlError({
       operation,
@@ -100,8 +103,7 @@ export function toPersistenceSqlError(operation: string) {
 }
 
 export function toPersistenceDecodeError(operation: string) {
-  return (cause: Schema.SchemaError): PersistenceDecodeError =>
-    PersistenceDecodeError.fromSchemaError(operation, cause);
+  return (cause: Schema.SchemaError) => PersistenceDecodeError.fromSchemaError(operation, cause);
 }
 
 export type OrchestrationEventStoreError = PersistenceSqlError | PersistenceDecodeError;

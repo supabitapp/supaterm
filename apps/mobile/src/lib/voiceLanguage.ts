@@ -1,7 +1,7 @@
 const LANGUAGE_TAG = /^[a-z]{2,3}(?:-[a-z0-9]{1,8})*$/i;
 
 /** BCP 47 from a platform locale such as `en_US` or `en-US-u-ca-gregory`, or null. */
-export function normalizeVoiceLanguage(locale: string | null | undefined): string | null {
+export function normalizeVoiceLanguage(locale: string | null | undefined) {
   const tag = locale
     ?.trim()
     .split("@")[0]
@@ -16,6 +16,6 @@ export function normalizeVoiceLanguage(locale: string | null | undefined): strin
   }
 }
 
-export function systemVoiceLanguage(): string {
+export function systemVoiceLanguage() {
   return normalizeVoiceLanguage(Intl.DateTimeFormat().resolvedOptions().locale) ?? "en";
 }

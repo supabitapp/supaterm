@@ -118,14 +118,15 @@ type EnvironmentDraftRow = {
 function makeEnvironmentDraftRow(
   variable: ProviderInstanceEnvironmentVariable,
   index: number,
-): EnvironmentDraftRow {
+): EnvironmentDraftRow;
+function makeEnvironmentDraftRow(variable: ProviderInstanceEnvironmentVariable, index: number) {
   return {
     id: `${index}:${variable.name}`,
     name: variable.name,
     value: variable.value,
     sensitive: variable.sensitive,
     ...(variable.valueRedacted !== undefined ? { valueRedacted: variable.valueRedacted } : {}),
-  };
+  } satisfies EnvironmentDraftRow;
 }
 
 const toEnvironmentDraftRows = (environment: ReadonlyArray<ProviderInstanceEnvironmentVariable>) =>
@@ -134,9 +135,12 @@ const toEnvironmentDraftRows = (environment: ReadonlyArray<ProviderInstanceEnvir
 function providerEnvironmentsEqual(
   left: ReadonlyArray<ProviderInstanceEnvironmentVariable>,
   right: ReadonlyArray<ProviderInstanceEnvironmentVariable>,
-): boolean {
-  return (
-    left.length === right.length &&
+): boolean;
+function providerEnvironmentsEqual(
+  left: ReadonlyArray<ProviderInstanceEnvironmentVariable>,
+  right: ReadonlyArray<ProviderInstanceEnvironmentVariable>,
+) {
+  return (left.length === right.length &&
     left.every((variable, index) => {
       const other = right[index];
       return (
@@ -146,21 +150,16 @@ function providerEnvironmentsEqual(
         variable.sensitive === other.sensitive &&
         variable.valueRedacted === other.valueRedacted
       );
-    })
-  );
+    })) satisfies boolean;
 }
 
-function readConfigString(config: unknown, key: string): string | null {
+function readConfigString(config: unknown, key: string) {
   if (config === null || typeof config !== "object") return null;
   const value = (config as Record<string, unknown>)[key];
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
 }
 
-function nextConfigBlobWithValue(
-  config: unknown,
-  key: string,
-  value: unknown,
-): Record<string, unknown> {
+function nextConfigBlobWithValue(config: unknown, key: string, value: unknown) {
   const base: Record<string, unknown> =
     config !== null && typeof config === "object" ? { ...(config as Record<string, unknown>) } : {};
   base[key] = value;
@@ -171,7 +170,7 @@ export function deriveProviderModelsForDisplay(input: {
   readonly driver: ProviderDriverKind;
   readonly liveModels: ReadonlyArray<ServerProviderModel> | undefined;
   readonly customModels: ReadonlyArray<CustomModelDefinition>;
-}): ReadonlyArray<ServerProviderModel> {
+}) {
   const liveCustomModelsBySlug = new Map(
     Arr.filterMap(input.liveModels ?? [], (model) =>
       model.isCustom ? Result.succeed([model.slug, model] as const) : Result.failVoid,
@@ -213,14 +212,14 @@ function ProviderAuthEmail(props: { readonly email: string | undefined }) {
 function readProviderEnvironmentVariable(
   environment: ReadonlyArray<ProviderInstanceEnvironmentVariable> | undefined,
   name: string,
-): ProviderInstanceEnvironmentVariable | undefined {
+) {
   return environment?.find((variable) => variable.name === name);
 }
 
 function providerEnvironmentWithoutNames(
   environment: ReadonlyArray<ProviderInstanceEnvironmentVariable> | undefined,
   names: ReadonlySet<string>,
-): ReadonlyArray<ProviderInstanceEnvironmentVariable> {
+) {
   return (environment ?? []).filter((variable) => !names.has(variable.name));
 }
 
@@ -228,7 +227,7 @@ export function nextProviderEnvironmentWithFieldValue(
   environment: ReadonlyArray<ProviderInstanceEnvironmentVariable> | undefined,
   field: ProviderEnvironmentField,
   value: string,
-): ReadonlyArray<ProviderInstanceEnvironmentVariable> {
+) {
   const trimmed = value.trim();
   const next: ProviderInstanceEnvironmentVariable[] = [];
   let found = false;

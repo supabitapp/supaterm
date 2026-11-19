@@ -58,7 +58,7 @@ export class PreviewBrowserSandboxError extends Schema.TaggedError<PreviewBrowse
   "PreviewBrowserSandboxError",
   { setupCommand: Schema.String },
 ) {
-  override get message(): string {
+  override get message() {
     return `This host blocks the sandbox Supaterm's browser runs in (AppArmor on Ubuntu 23.10+). Run \`${this.setupCommand}\` on the host once to allow it, then try again.`;
   }
 }
@@ -67,7 +67,7 @@ export class PreviewBrowserLibrariesError extends Schema.TaggedError<PreviewBrow
   "PreviewBrowserLibrariesError",
   { setupCommand: Schema.String, libraries: Schema.Array(Schema.String) },
 ) {
-  override get message(): string {
+  override get message() {
     return `This host is missing libraries Supaterm's browser needs (${this.libraries.join(", ")}). Run \`${this.setupCommand}\` on the host to install them, then try again.`;
   }
 }
@@ -76,7 +76,7 @@ export class PreviewBrowserRootError extends Schema.TaggedError<PreviewBrowserRo
   "PreviewBrowserRootError",
   {},
 ) {
-  override get message(): string {
+  override get message() {
     return "Supaterm server is running as root; Chrome's sandbox cannot start. Run Supaterm as a nonroot user. Otherwise set `SUPATERM_SERVER_BROWSER_SANDBOX=0` in the Supaterm server's environment and restart the server; this disables Chrome's sandbox. Manual: `SUPATERM_SERVER_BROWSER_SANDBOX=0 supaterm serve`. Systemd: add `Environment=SUPATERM_SERVER_BROWSER_SANDBOX=0` under `[Service]`, reload systemd, then restart the service. `supaterm browser setup` cannot fix root sandboxing.";
   }
 }

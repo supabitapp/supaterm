@@ -173,7 +173,7 @@ const primaryId = EnvironmentId.make("primary");
 const remoteId = EnvironmentId.make("remote");
 const permissionMessage = "This connection cannot import projects or thread history.";
 
-function session(scopes: ReadonlyArray<AuthEnvironmentScope>): AuthSessionState {
+function session(scopes: ReadonlyArray<AuthEnvironmentScope>) {
   return {
     authenticated: true,
     scopes: [AuthOrchestrationReadScope, ...scopes],
@@ -183,7 +183,7 @@ function session(scopes: ReadonlyArray<AuthEnvironmentScope>): AuthSessionState 
       sessionMethods: ["bearer-access-token"],
       sessionCookieName: "supaterm_session",
     },
-  };
+  } satisfies AuthSessionState;
 }
 
 function sessionAtom(environmentId: EnvironmentId) {
@@ -203,7 +203,7 @@ function setGrant(environmentId: EnvironmentId, allowed: boolean) {
 
 const NOW = Date.parse("2026-01-01T00:00:00.000Z");
 
-function candidate(path: string): AgentSessionProjectCandidate {
+function candidate(path: string) {
   return {
     path,
     title: path.split("/").at(-1)!,
@@ -211,7 +211,7 @@ function candidate(path: string): AgentSessionProjectCandidate {
     threadCount: 10,
     lastActiveAt: new Date(NOW - 60_000).toISOString(),
     alreadyImported: false,
-  };
+  } satisfies AgentSessionProjectCandidate;
 }
 
 function recordProject({ environmentId, input }: CreateProjectInput) {

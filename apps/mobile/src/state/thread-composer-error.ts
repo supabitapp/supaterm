@@ -16,14 +16,14 @@ export function setThreadComposerError(
   threadKey: string,
   message: string,
   messageId: string | null = null,
-): void {
+) {
   appAtomRegistry.set(threadComposerErrorsAtom, {
     ...appAtomRegistry.get(threadComposerErrorsAtom),
     [threadKey]: { message, messageId },
   });
 }
 
-export function clearThreadComposerError(threadKey: string, messageId?: string): void {
+export function clearThreadComposerError(threadKey: string, messageId?: string) {
   const current = appAtomRegistry.get(threadComposerErrorsAtom);
   const error = current[threadKey];
   if (!error || (messageId !== undefined && error.messageId !== messageId)) {
@@ -34,7 +34,7 @@ export function clearThreadComposerError(threadKey: string, messageId?: string):
   appAtomRegistry.set(threadComposerErrorsAtom, next);
 }
 
-export function clearThreadComposerErrorsForEnvironment(environmentId: string): void {
+export function clearThreadComposerErrorsForEnvironment(environmentId: string) {
   const current = appAtomRegistry.get(threadComposerErrorsAtom);
   const prefix = `${environmentId}:`;
   const keys = Object.keys(current).filter((key) => key.startsWith(prefix));

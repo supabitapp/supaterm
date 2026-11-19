@@ -1,7 +1,4 @@
-import {
-  PRIMARY_LOCAL_ENVIRONMENT_ID,
-  type DesktopEnvironmentBootstrap,
-} from "@supaterm/contracts";
+import { PRIMARY_LOCAL_ENVIRONMENT_ID } from "@supaterm/contracts";
 import * as Schema from "effect/Schema";
 
 import { isLocalEnvironmentDisabled } from "../../localEnvironment";
@@ -29,7 +26,7 @@ export class PrimaryEnvironmentUrlInvalidError extends Schema.TaggedError<Primar
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Could not parse ${this.urlKind} for the ${this.source} primary environment target.`;
   }
 }
@@ -41,7 +38,7 @@ export class PrimaryEnvironmentProtocolUnsupportedError extends Schema.TaggedErr
     protocol: Schema.String,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `The ${this.source} primary environment target uses unsupported protocol ${this.protocol}.`;
   }
 }
@@ -53,7 +50,7 @@ export class DesktopEnvironmentBootstrapIncompleteError extends Schema.TaggedErr
     hasWsBaseUrl: Schema.Boolean,
   },
 ) {
-  override get message(): string {
+  override get message() {
     const missing = [
       ...(this.hasHttpBaseUrl ? [] : ["httpBaseUrl"]),
       ...(this.hasWsBaseUrl ? [] : ["wsBaseUrl"]),
@@ -66,7 +63,7 @@ export class PrimaryEnvironmentDisabledError extends Schema.TaggedError<PrimaryE
   "PrimaryEnvironmentDisabledError",
   {},
 ) {
-  override get message(): string {
+  override get message() {
     return "The local environment is disabled.";
   }
 }
@@ -81,7 +78,7 @@ export interface PrimaryEnvironmentTarget {
 
 const LOOPBACK_HOSTNAMES = new Set(["127.0.0.1", "::1", "localhost"]);
 
-function getDesktopLocalEnvironmentBootstrap(): DesktopEnvironmentBootstrap | null {
+function getDesktopLocalEnvironmentBootstrap() {
   const bootstraps = window.desktopBridge?.getLocalEnvironmentBootstraps() ?? [];
   return bootstraps.find((entry) => entry.id === PRIMARY_LOCAL_ENVIRONMENT_ID) ?? null;
 }
@@ -91,7 +88,7 @@ function parseTargetUrl(input: {
   readonly baseUrl?: string;
   readonly source: PrimaryEnvironmentTargetSource;
   readonly urlKind: PrimaryEnvironmentUrlKind;
-}): URL {
+}) {
   try {
     return input.baseUrl === undefined
       ? new URL(input.rawValue)
@@ -109,7 +106,7 @@ function normalizeBaseUrl(
   rawValue: string,
   source: PrimaryEnvironmentTargetSource,
   urlKind: PrimaryEnvironmentUrlKind,
-): string {
+) {
   return parseTargetUrl({
     rawValue,
     baseUrl: window.location.origin,
@@ -122,7 +119,7 @@ function swapBaseUrlProtocol(
   rawValue: string,
   nextProtocol: "http:" | "https:" | "ws:" | "wss:",
   urlKind: PrimaryEnvironmentUrlKind,
-): string {
+) {
   const url = parseTargetUrl({
     rawValue,
     baseUrl: window.location.origin,
@@ -133,18 +130,18 @@ function swapBaseUrlProtocol(
   return url.toString();
 }
 
-function normalizeHostname(hostname: string): string {
+function normalizeHostname(hostname: string) {
   return hostname
     .trim()
     .toLowerCase()
     .replace(/^\[(.*)\]$/, "$1");
 }
 
-export function isLoopbackHostname(hostname: string): boolean {
+export function isLoopbackHostname(hostname: string) {
   return LOOPBACK_HOSTNAMES.has(normalizeHostname(hostname));
 }
 
-function resolveHttpRequestBaseUrl(primaryTarget: PrimaryEnvironmentTarget): string {
+function resolveHttpRequestBaseUrl(primaryTarget: PrimaryEnvironmentTarget) {
   const httpBaseUrl = primaryTarget.target.httpBaseUrl;
   const configuredDevServerUrl = import.meta.env.VITE_DEV_SERVER_URL?.trim();
   if (!configuredDevServerUrl) {
@@ -184,12 +181,12 @@ function resolveHttpRequestBaseUrl(primaryTarget: PrimaryEnvironmentTarget): str
   return currentUrl.origin;
 }
 
-function resolveConfiguredPrimaryTarget(): PrimaryEnvironmentTarget | null {
+function resolveConfiguredPrimaryTarget() {
   const configuredHttpBaseUrl = import.meta.env.VITE_HTTP_URL?.trim() || undefined;
   const configuredWsBaseUrl = import.meta.env.VITE_WS_URL?.trim() || undefined;
 
   if (!configuredHttpBaseUrl && !configuredWsBaseUrl) {
-    return null;
+    return null satisfies PrimaryEnvironmentTarget | null;
   }
 
   const resolvedHttpBaseUrl =
@@ -209,10 +206,10 @@ function resolveConfiguredPrimaryTarget(): PrimaryEnvironmentTarget | null {
       httpBaseUrl: normalizeBaseUrl(resolvedHttpBaseUrl, "configured", "http-base-url"),
       wsBaseUrl: normalizeBaseUrl(resolvedWsBaseUrl, "configured", "websocket-base-url"),
     },
-  };
+  } satisfies PrimaryEnvironmentTarget | null;
 }
 
-function resolveWindowOriginPrimaryTarget(): PrimaryEnvironmentTarget {
+function resolveWindowOriginPrimaryTarget() {
   const url = parseTargetUrl({
     rawValue: window.location.origin,
     source: "window-origin",
@@ -235,16 +232,16 @@ function resolveWindowOriginPrimaryTarget(): PrimaryEnvironmentTarget {
       httpBaseUrl,
       wsBaseUrl: url.toString(),
     },
-  };
+  } satisfies PrimaryEnvironmentTarget;
 }
 
-function resolveDesktopPrimaryTarget(): PrimaryEnvironmentTarget | null {
+function resolveDesktopPrimaryTarget() {
   const desktopBootstrap = getDesktopLocalEnvironmentBootstrap();
   if (!desktopBootstrap) {
-    return null;
+    return null satisfies PrimaryEnvironmentTarget | null;
   }
   if (!desktopBootstrap.httpBaseUrl && !desktopBootstrap.wsBaseUrl) {
-    return null;
+    return null satisfies PrimaryEnvironmentTarget | null;
   }
   if (!desktopBootstrap.httpBaseUrl || !desktopBootstrap.wsBaseUrl) {
     throw new DesktopEnvironmentBootstrapIncompleteError({
@@ -267,13 +264,13 @@ function resolveDesktopPrimaryTarget(): PrimaryEnvironmentTarget | null {
         "websocket-base-url",
       ),
     },
-  };
+  } satisfies PrimaryEnvironmentTarget | null;
 }
 
 export function resolvePrimaryEnvironmentHttpUrl(
   pathname: string,
   searchParams?: Record<string, string>,
-): string {
+) {
   const primaryTarget = readPrimaryEnvironmentTarget();
   if (!primaryTarget) {
     throw new PrimaryEnvironmentDisabledError();
@@ -292,13 +289,11 @@ export function resolvePrimaryEnvironmentHttpUrl(
 }
 
 /** Null only for desktop with its local environment disabled; other hosts fall back to page origin. */
-export function readPrimaryEnvironmentTarget(): PrimaryEnvironmentTarget | null {
+export function readPrimaryEnvironmentTarget() {
   if (isLocalEnvironmentDisabled()) {
-    return null;
+    return null satisfies PrimaryEnvironmentTarget | null;
   }
-  return (
-    resolveDesktopPrimaryTarget() ??
+  return (resolveDesktopPrimaryTarget() ??
     resolveConfiguredPrimaryTarget() ??
-    resolveWindowOriginPrimaryTarget()
-  );
+    resolveWindowOriginPrimaryTarget()) satisfies PrimaryEnvironmentTarget | null;
 }

@@ -2,7 +2,6 @@ import { useAtomValue } from "@effect/atom-react";
 import type { EnvironmentProject } from "@supaterm/client-runtime/state/shell";
 import { PrimaryConnectionTarget } from "@supaterm/client-runtime/connection";
 import * as Option from "effect/Option";
-import type { EnvironmentPresentation } from "../../state/environments";
 import type { ServerProvider } from "@supaterm/contracts";
 import {
   scopedThreadKey,
@@ -90,7 +89,7 @@ function setup() {
       machine: "desktop",
     })),
     environmentById: new Map(
-      [a, b].map((id): [EnvironmentId, EnvironmentPresentation] => [
+      [a, b].map((id) => [
         id,
         {
           environmentId: id,

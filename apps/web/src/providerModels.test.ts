@@ -1,18 +1,14 @@
-import {
-  ProviderDriverKind,
-  type ModelCapabilities,
-  type ServerProviderModel,
-} from "@supaterm/contracts";
+import { ProviderDriverKind, type ModelCapabilities } from "@supaterm/contracts";
 import { describe, expect, it } from "vite-plus/test";
 
 import { getProviderModelCapabilities } from "./providerModels";
 
 const PROVIDER = ProviderDriverKind.make("claudeAgent");
 
-function capabilities(id: string): ModelCapabilities {
+function capabilities(id: string) {
   return {
     optionDescriptors: [{ id, label: id, type: "boolean" }],
-  };
+  } satisfies ModelCapabilities;
 }
 
 function model(input: {
@@ -20,7 +16,7 @@ function model(input: {
   capabilities: ModelCapabilities;
   aliases?: ReadonlyArray<string>;
   isCustom?: boolean;
-}): ServerProviderModel {
+}) {
   return {
     slug: input.slug,
     name: input.slug,

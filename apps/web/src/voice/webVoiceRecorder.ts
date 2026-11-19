@@ -15,7 +15,7 @@ const FLUSH_TIMEOUT_MS = 1_000;
 
 const DEV_FAKE_MICROPHONE_STORAGE_KEY = "supaterm:dev-fake-microphone";
 
-function fakeMicrophoneSource(): string | null {
+function fakeMicrophoneSource() {
   if (!import.meta.env.DEV) return null;
   try {
     return window.localStorage.getItem(DEV_FAKE_MICROPHONE_STORAGE_KEY);
@@ -24,7 +24,7 @@ function fakeMicrophoneSource(): string | null {
   }
 }
 
-export function canRecordVoice(): boolean {
+export function canRecordVoice() {
   return (
     fakeMicrophoneSource() !== null ||
     (window.isSecureContext &&
@@ -40,7 +40,7 @@ export interface VoiceRecording {
 
 const recordings = new Map<string, VoiceRecording>();
 
-export function readVoiceRecording(uri: string): VoiceRecording {
+export function readVoiceRecording(uri: string) {
   const recording = recordings.get(uri);
   if (!recording) throw new Error("The recording is no longer available.");
   if (recording.durationMs < TRANSCRIPTION_MIN_DURATION_MS) {
@@ -50,7 +50,7 @@ export function readVoiceRecording(uri: string): VoiceRecording {
   return recording;
 }
 
-export function releaseVoiceRecording(uri: string): void {
+export function releaseVoiceRecording(uri: string) {
   if (!recordings.delete(uri)) return;
   URL.revokeObjectURL(uri);
 }
@@ -59,7 +59,7 @@ export type VoiceLevelListener = (levels: ReadonlyArray<number>) => void;
 /** Receives 16 kHz mono 16-bit PCM as it is recorded, about every 100 ms. */
 export type VoicePcmListener = (pcm: Uint8Array) => void;
 
-function levelOf(frame: Int16Array): number {
+function levelOf(frame: Int16Array) {
   let sum = 0;
   for (const sample of frame) sum += (sample / 32768) ** 2;
   return voiceLevelFromDecibels(10 * Math.log10(sum / Math.max(1, frame.length)));
@@ -97,21 +97,17 @@ export class WebVoiceRecorder implements VoiceRecorder {
     this.readMicrophone = options.readMicrophone;
   }
 
-  get elapsedMs(): number {
+  get elapsedMs() {
     return this.recording ? performance.now() - this.startedAt : 0;
   }
 
   /** Follows the recording as it is made; returns the unsubscribe. */
-  onPcm(listener: VoicePcmListener): () => void {
+  onPcm(listener: VoicePcmListener) {
     this.pcmListeners.add(listener);
     return () => this.pcmListeners.delete(listener);
   }
 
-  async requestPermission(): Promise<{
-    granted: boolean;
-    canAskAgain: boolean;
-    reason?: string;
-  }> {
+  async requestPermission() {
     if (this.stream) return { granted: true, canAskAgain: true };
     const generation = this.permissionGeneration;
     const fakeSource = fakeMicrophoneSource();
@@ -142,7 +138,7 @@ export class WebVoiceRecorder implements VoiceRecorder {
     }
   }
 
-  async prepareToRecordAsync(): Promise<void> {
+  async prepareToRecordAsync() {
     const stream = this.stream;
     if (!stream) throw new Error("The microphone is not open.");
     this.uri = null;
@@ -189,7 +185,7 @@ export class WebVoiceRecorder implements VoiceRecorder {
     this.stopped = null;
   }
 
-  record(options: { readonly forDuration: number }): void {
+  record(options: { readonly forDuration: number }) {
     const capture = this.capture;
     if (!capture || this.recording) return;
     // oxlint-disable-next-line unicorn/require-post-message-target-origin -- A MessagePort has no target origin.
@@ -205,18 +201,18 @@ export class WebVoiceRecorder implements VoiceRecorder {
     }, options.forDuration * 1_000);
   }
 
-  stop(): Promise<void> {
+  stop() {
     this.stopped ??= this.finish();
     return this.stopped;
   }
 
   /** The meter reads levels here, outside React, so recording never re-renders the composer. */
-  setLevelListener(listener: VoiceLevelListener | null): void {
+  setLevelListener(listener: VoiceLevelListener | null) {
     this.levelListener = listener;
     listener?.(this.levels);
   }
 
-  release(): void {
+  release() {
     this.permissionGeneration += 1;
     if (this.limitTimer) clearTimeout(this.limitTimer);
     this.limitTimer = null;
@@ -229,7 +225,7 @@ export class WebVoiceRecorder implements VoiceRecorder {
     this.closeCapture();
   }
 
-  private receive(frame: Int16Array): void {
+  private receive(frame: Int16Array) {
     if (!this.recording) return;
     const bytes = new Uint8Array(frame.buffer, frame.byteOffset, frame.byteLength);
     this.pcm.push(bytes);
@@ -240,7 +236,7 @@ export class WebVoiceRecorder implements VoiceRecorder {
     this.levelListener?.(this.levels);
   }
 
-  private async finish(): Promise<void> {
+  private async finish() {
     const capture = this.capture;
     if (this.limitTimer) clearTimeout(this.limitTimer);
     this.limitTimer = null;
@@ -267,12 +263,12 @@ export class WebVoiceRecorder implements VoiceRecorder {
     this.uri = uri;
   }
 
-  private resetLevels(): void {
+  private resetLevels() {
     this.levels = Array<number>(VOICE_LEVEL_HISTORY).fill(0);
     this.levelListener?.(this.levels);
   }
 
-  private closeCapture(): void {
+  private closeCapture() {
     const capture = this.capture;
     this.capture = null;
     if (!capture) return;
@@ -281,7 +277,7 @@ export class WebVoiceRecorder implements VoiceRecorder {
     void capture.context.close().catch(() => undefined);
   }
 
-  private async createFakeStream(source: string): Promise<MediaStream> {
+  private async createFakeStream(source: string) {
     const context = new AudioContext();
     const destination = context.createMediaStreamDestination();
     let node: AudioScheduledSourceNode;

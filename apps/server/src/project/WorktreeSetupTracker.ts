@@ -66,11 +66,11 @@ export class WorktreeSetupTracker extends Context.Service<
 
 const TAIL_LINE_LIMIT = 4;
 
-function clampText(text: string, maxLength: number): string {
+function clampText(text: string, maxLength: number) {
   return text.length <= maxLength ? text : `${text.slice(0, maxLength - 1)}\u2026`;
 }
 
-const clampDetail = (detail: string | null): string | null =>
+const clampDetail = (detail: string | null) =>
   detail === null ? null : clampText(detail, WORKTREE_SETUP_DETAIL_MAX_LENGTH);
 const FINISHED_RETENTION = "30 seconds";
 
@@ -81,7 +81,7 @@ interface TrackedSetup {
   readonly fiber: Fiber.Fiber<unknown, unknown> | null;
 }
 
-function emptyStage(id: WorktreeSetupStageId): WorktreeSetupStage {
+function emptyStage(id: WorktreeSetupStageId) {
   return {
     id,
     status: "pending",
@@ -90,7 +90,7 @@ function emptyStage(id: WorktreeSetupStageId): WorktreeSetupStage {
     percent: null,
     detail: null,
     tail: [],
-  };
+  } satisfies WorktreeSetupStage;
 }
 
 export const make = Effect.gen(function* () {
@@ -105,10 +105,7 @@ export const make = Effect.gen(function* () {
   const publish = (threadId: ThreadId, snapshot: WorktreeSetupSnapshot | null) =>
     PubSub.publish(changes, { threadId, snapshot }).pipe(Effect.asVoid);
 
-  const modify = (
-    threadId: ThreadId,
-    mutate: (tracked: TrackedSetup) => TrackedSetup,
-  ): Effect.Effect<WorktreeSetupSnapshot | null> =>
+  const modify = (threadId: ThreadId, mutate: (tracked: TrackedSetup) => TrackedSetup) =>
     Ref.modify(setups, (current) => {
       const existing = current.get(threadId);
       if (!existing) return [null, current] as const;

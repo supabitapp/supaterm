@@ -28,7 +28,7 @@ export class PreferredEditorEnvironmentRequiredError extends Schema.TaggedError<
     targetPath: Schema.String,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Cannot open ${this.targetPath} because no environment is selected.`;
   }
 }
@@ -41,7 +41,7 @@ export class PreferredEditorUnavailableError extends Schema.TaggedError<Preferre
     availableEditorIds: Schema.Array(EditorId),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `No available editor can open ${this.targetPath} in environment ${this.environmentId}.`;
   }
 }
@@ -57,7 +57,7 @@ export function usePreferredEditor(availableEditors: ReadonlyArray<EditorId>) {
   return [effectiveEditor, setLastEditor] as const;
 }
 
-function resolveAndPersistPreferredEditor(availableEditors: readonly EditorId[]): EditorId | null {
+function resolveAndPersistPreferredEditor(availableEditors: readonly EditorId[]) {
   const availableEditorIds = new Set(availableEditors);
   let stored: EditorId | null = null;
   try {
@@ -87,17 +87,7 @@ export function useOpenInPreferredEditor(
   });
   type OpenInEditorError = AtomCommandFailure<Awaited<ReturnType<typeof openInEditor>>>;
 
-  return async (
-    targetPath: string,
-  ): Promise<
-    AtomCommandResult<
-      EditorId,
-      | OpenInEditorError
-      | PreferredEditorEnvironmentRequiredError
-      | PreferredEditorUnavailableError
-      | EnvironmentAuthorizationError
-    >
-  > => {
+  return async (targetPath: string) => {
     if (environmentId === null) {
       return AsyncResult.failure(
         Cause.fail(
@@ -105,7 +95,19 @@ export function useOpenInPreferredEditor(
             targetPath,
           }),
         ),
-      );
+      ) satisfies AtomCommandResult<
+        EditorId,
+        | OpenInEditorError
+        | PreferredEditorEnvironmentRequiredError
+        | PreferredEditorUnavailableError
+        | EnvironmentAuthorizationError
+      > as AtomCommandResult<
+        EditorId,
+        | OpenInEditorError
+        | PreferredEditorEnvironmentRequiredError
+        | PreferredEditorUnavailableError
+        | EnvironmentAuthorizationError
+      >;
     }
     if (!readEnvironmentScope(environmentId, AuthOrchestrationOperateScope)) {
       return AsyncResult.failure(
@@ -115,7 +117,19 @@ export function useOpenInPreferredEditor(
             message: "This connection cannot open an editor on this environment.",
           }),
         ),
-      );
+      ) satisfies AtomCommandResult<
+        EditorId,
+        | OpenInEditorError
+        | PreferredEditorEnvironmentRequiredError
+        | PreferredEditorUnavailableError
+        | EnvironmentAuthorizationError
+      > as AtomCommandResult<
+        EditorId,
+        | OpenInEditorError
+        | PreferredEditorEnvironmentRequiredError
+        | PreferredEditorUnavailableError
+        | EnvironmentAuthorizationError
+      >;
     }
     const editor = resolveAndPersistPreferredEditor(availableEditors);
     if (!editor) {
@@ -127,7 +141,19 @@ export function useOpenInPreferredEditor(
             availableEditorIds: availableEditors,
           }),
         ),
-      );
+      ) satisfies AtomCommandResult<
+        EditorId,
+        | OpenInEditorError
+        | PreferredEditorEnvironmentRequiredError
+        | PreferredEditorUnavailableError
+        | EnvironmentAuthorizationError
+      > as AtomCommandResult<
+        EditorId,
+        | OpenInEditorError
+        | PreferredEditorEnvironmentRequiredError
+        | PreferredEditorUnavailableError
+        | EnvironmentAuthorizationError
+      >;
     }
     const uri = /^file:\/\//iu.test(targetPath) ? parseFileUrlHref(targetPath) : null;
     const { line, column } = uri ? splitFilePathPosition("", uri.hash) : {};
@@ -140,6 +166,18 @@ export function useOpenInPreferredEditor(
         ...(projectRoot ? { projectRoot } : {}),
       },
     });
-    return mapAtomCommandResult(result, () => editor);
+    return mapAtomCommandResult(result, () => editor) satisfies AtomCommandResult<
+      EditorId,
+      | OpenInEditorError
+      | PreferredEditorEnvironmentRequiredError
+      | PreferredEditorUnavailableError
+      | EnvironmentAuthorizationError
+    > as AtomCommandResult<
+      EditorId,
+      | OpenInEditorError
+      | PreferredEditorEnvironmentRequiredError
+      | PreferredEditorUnavailableError
+      | EnvironmentAuthorizationError
+    >;
   };
 }

@@ -1,11 +1,6 @@
 import { EnvironmentRegistry } from "@supaterm/client-runtime/connection";
 import { EnvironmentRpcSubscriptionObserver, request } from "@supaterm/client-runtime/rpc";
-import {
-  type BackgroundScope,
-  type ClientActivityReportInput,
-  type EnvironmentId,
-  WS_METHODS,
-} from "@supaterm/contracts";
+import { type BackgroundScope, type EnvironmentId, WS_METHODS } from "@supaterm/contracts";
 import * as Clock from "effect/Clock";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
@@ -28,9 +23,7 @@ const REPORT_TIMEOUT_MS = 15_000;
 const LEASE_TTL_MS = 45_000;
 const BASELINE_SCOPES: ReadonlyArray<BackgroundScope> = [{ type: "provider-status" }];
 
-function normalizeAppState(
-  state: string | null | undefined,
-): NonNullable<ClientActivityReportInput["appState"]> {
+function normalizeAppState(state: string | null | undefined) {
   if (state === "active" || state === "inactive" || state === "background") return state;
   return "unknown";
 }

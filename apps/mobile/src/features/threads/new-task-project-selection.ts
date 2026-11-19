@@ -24,7 +24,7 @@ export function getProjectScopeSelectionTarget(
   scope: HomeProjectScope,
   preferredEnvironmentId: EnvironmentId | null,
   connectedEnvironmentIds: ReadonlySet<EnvironmentId>,
-): EnvironmentProject {
+) {
   const rank = (project: EnvironmentProject) =>
     project.environmentId === preferredEnvironmentId ? 0 : project === scope.representative ? 1 : 2;
   const ordered = [...scope.projects].sort((left, right) => rank(left) - rank(right));
@@ -35,10 +35,7 @@ export function getProjectScopeSelectionTarget(
   );
 }
 
-export function filterProjectScopes(
-  scopes: ReadonlyArray<HomeProjectScope>,
-  searchText: string,
-): ReadonlyArray<HomeProjectScope> {
+export function filterProjectScopes(scopes: ReadonlyArray<HomeProjectScope>, searchText: string) {
   const query = searchText.trim().toLowerCase();
   if (!query) return scopes;
   return scopes.filter(
@@ -84,7 +81,7 @@ export function resolveNewTaskScratchOption(input: {
 export function resolveEnvironmentProjectMatch(
   projectsOnTarget: ReadonlyArray<EnvironmentProject>,
   selectedProject: EnvironmentProject | null,
-): EnvironmentProject | null {
+) {
   const repositoryKey = selectedProject?.repositoryIdentity
     ? repositoryGroupingKeyOf(selectedProject.repositoryIdentity)
     : null;
@@ -125,7 +122,7 @@ export function resolveEnvironmentProjectMatch(
 export function isSameRepository(
   left: EnvironmentProject | null,
   right: EnvironmentProject | null,
-): boolean {
+) {
   return (
     left?.repositoryIdentity != null &&
     right?.repositoryIdentity != null &&
@@ -143,22 +140,24 @@ export function resolveDraftProjectSelection(
     /** The draft's first project picker closed and the draft is showing again. */
     readonly pickerClosed: boolean;
   },
-): DraftProjectSelectionResolution {
+) {
   const hasExplicitProjectSelection =
     selectedProjectKey !== null &&
     projects.some(
       (project) => scopedProjectKey(project.environmentId, project.id) === selectedProjectKey,
     );
   if (hasExplicitProjectSelection) {
-    return { kind: "preserve" };
+    return { kind: "preserve" } satisfies DraftProjectSelectionResolution;
   }
   if (draft.pickerClosed && selectedProjectKey === null && draft.incomingShareId === undefined) {
-    return { kind: "dismiss" };
+    return { kind: "dismiss" } satisfies DraftProjectSelectionResolution;
   }
 
   const onlyScope =
     draft.incomingShareId !== undefined && projectScopes.length === 1 ? projectScopes[0] : null;
-  return onlyScope ? { kind: "select", project: onlyScope.representative } : { kind: "pick" };
+  return (
+    onlyScope ? { kind: "select", project: onlyScope.representative } : { kind: "pick" }
+  ) satisfies DraftProjectSelectionResolution;
 }
 
 type ProjectRef = { readonly environmentId: string; readonly projectId: string };
@@ -169,7 +168,7 @@ export function newTaskFilteredProject(
   preferredEnvironmentId: EnvironmentId | null,
   connectedEnvironmentIds: ReadonlySet<EnvironmentId>,
   lastProject: ProjectRef | undefined,
-): ProjectRef | undefined {
+) {
   const live = scope.projects.filter((project) => project.archivedAt == null);
   if (live.length === 0) return undefined;
   const project =

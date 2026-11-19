@@ -44,13 +44,14 @@ export interface Look {
   readonly floorShadow: boolean;
 }
 
-export const shellMaterial = (shell: RGB): Material => ({
-  albedo: linear(shell),
-  f0: 0.04,
-  spec: 0.2,
-  shininess: 14,
-  rim: 0.5,
-});
+export const shellMaterial = (shell: RGB) =>
+  ({
+    albedo: linear(shell),
+    f0: 0.04,
+    spec: 0.2,
+    shininess: 14,
+    rim: 0.5,
+  }) satisfies Material;
 
 const OUTER = extents(HOUSING);
 
@@ -72,7 +73,7 @@ export interface Frame {
   readonly cy: number;
 }
 
-export function frameFor(box: number): Frame {
+export function frameFor(box: number) {
   const unit = (box * (1 - 2 * BOX_INSET)) / (2 * Math.max(OUTER.hx, OUTER.hy));
   const above = box / 2 - OUTER.hy * unit;
   const reachUp = (TRAVEL.hop + TRAVEL.overshoot) * unit;
@@ -86,18 +87,15 @@ export function frameFor(box: number): Frame {
 
 const ERROR_RED: RGB = [255, 70, 64];
 
-const mix = (a: RGB, b: RGB, t: number): RGB => [
-  a[0] + (b[0] - a[0]) * t,
-  a[1] + (b[1] - a[1]) * t,
-  a[2] + (b[2] - a[2]) * t,
-];
+const mix = (a: RGB, b: RGB, t: number) =>
+  [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t] satisfies RGB;
 const rgb = (c: RGB) => `rgb(${Math.round(c[0])},${Math.round(c[1])},${Math.round(c[2])})`;
 
-function ledColor(sim: BoltComputerSim | null, look: Look): RGB {
+function ledColor(sim: BoltComputerSim | null, look: Look) {
   const of = (state: BoltComputerState) => (state === "error" ? ERROR_RED : look.phosphor);
-  if (!sim) return of(look.state);
-  if (sim.previous === null || sim.since >= FADE) return of(sim.state);
-  return mix(of(sim.previous), of(sim.state), sim.since / FADE);
+  if (!sim) return of(look.state) satisfies RGB;
+  if (sim.previous === null || sim.since >= FADE) return of(sim.state) satisfies RGB;
+  return mix(of(sim.previous), of(sim.state), sim.since / FADE) satisfies RGB;
 }
 
 const FRONT_Z = DEPTH / 2;
@@ -112,16 +110,16 @@ interface View {
   readonly plane: (c: CanvasRenderingContext2D, z: number, flip: boolean) => void;
 }
 
-function viewFor(frame: Frame, dpr: number, pose: Pose): View {
+function viewFor(frame: Frame, dpr: number, pose: Pose) {
   const R = rotation(pose.yaw, pose.pitch, pose.roll);
   const U = frame.unit * dpr;
   const cx = frame.cx * dpr;
   const rest = frame.cy * dpr;
   const cy = rest - pose.lift * U;
   const by = cy + OUTER.hy * U;
-  const project = (x: number, y: number, z: number): V3 => {
+  const project = (x: number, y: number, z: number) => {
     const r = rotate(R, x, y, z);
-    return [cx + r[0] * U * pose.sx, by + (cy + r[1] * U - by) * pose.sy, r[2]];
+    return [cx + r[0] * U * pose.sx, by + (cy + r[1] * U - by) * pose.sy, r[2]] satisfies V3;
   };
   const plane = (c: CanvasRenderingContext2D, z: number, flip: boolean) => {
     const o = project(0, 0, z);
@@ -129,7 +127,7 @@ function viewFor(frame: Frame, dpr: number, pose: Pose): View {
     const ey = project(0, 1, z);
     c.setTransform(ex[0] - o[0], ex[1] - o[1], ey[0] - o[0], ey[1] - o[1], o[0], o[1]);
   };
-  return { R, U, cx, cy, rest, project, plane };
+  return { R, U, cx, cy, rest, project, plane } satisfies View;
 }
 
 function drawFloorShadow(ctx: CanvasRenderingContext2D, view: View, pose: Pose) {
@@ -304,7 +302,7 @@ export class BoltComputerRenderer {
    * The still front view as the app icon's layers, bottom to top, each `size` px square with the
    * housing's outline touching its edges.
    */
-  paintIconLayers(size: number, look: Look): IconLayers {
+  paintIconLayers(size: number, look: Look) {
     const { view, sized } = this.iconView(size);
     const layer = (paint: (ctx: CanvasRenderingContext2D) => void) => {
       const canvas = makeCanvas(size, size);
@@ -320,7 +318,7 @@ export class BoltComputerRenderer {
   }
 
   /** The icon's screen layer with every LED off. */
-  paintIconUnlitScreen(size: number): HTMLCanvasElement {
+  paintIconUnlitScreen(size: number) {
     const { view, sized } = this.iconView(size);
     this.grid.v.fill(0);
     this.drawScreen(sized, this.grid, [0, 0, 0]);
@@ -330,7 +328,7 @@ export class BoltComputerRenderer {
   }
 
   /** Where the middle of the bolt's LED at `column`, `row` falls on the icon's layers, in px. */
-  iconLedCenter(size: number, column: number, row: number): readonly [number, number] {
+  iconLedCenter(size: number, column: number, row: number) {
     const { view, sized } = this.iconView(size);
     const [gx, gy] = boltCell(this.grid, column, row);
     const x =
@@ -340,7 +338,7 @@ export class BoltComputerRenderer {
       SCREEN.hy +
       ((sized.y0 + (gy + 0.5) * sized.pitch) / sized.screen.height) * 2 * SCREEN.hy;
     const [px, py] = view.project(x, y, FRONT_Z - RECESS);
-    return [px, py];
+    return [px, py] satisfies readonly [number, number];
   }
 
   private iconView(size: number) {
@@ -374,7 +372,7 @@ export class BoltComputerRenderer {
     ctx.drawImage(controls, -PLATE.hx, -PLATE.hy, PLATE.hx * 2, PLATE.hy * 2);
   }
 
-  private prepare(unit: number): Sized {
+  private prepare(unit: number) {
     if (this.sized && Math.abs(unit / this.sized.unit - 1) < 0.1) return this.sized;
     const screen = makeCanvas(SCREEN.hx * 2 * unit, SCREEN.hy * 2 * unit);
     const pitch = LED_PITCH * unit;
@@ -392,7 +390,7 @@ export class BoltComputerRenderer {
     return this.sized;
   }
 
-  private compose(sim: BoltComputerSim | null, state: BoltComputerState): Grid {
+  private compose(sim: BoltComputerSim | null, state: BoltComputerState) {
     const grid = this.grid;
     const g = grid.v;
     const { cols, rows } = grid;
@@ -550,7 +548,7 @@ function gouraud(
   projected: Float32Array,
   shaded: Float32Array,
   corners: readonly number[],
-): CanvasGradient | string {
+) {
   let mx = 0;
   let my = 0;
   let mr = 0;

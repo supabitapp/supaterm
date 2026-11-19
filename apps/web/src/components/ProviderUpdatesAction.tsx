@@ -90,16 +90,19 @@ export function useProviderUpdates() {
   const updateAll = async ({ quiet = false }: { readonly quiet?: boolean } = {}) => {
     const runs = await Promise.all(
       machines.flatMap(({ environmentId, label, candidates }) =>
-        candidates.map(async (candidate): Promise<ProviderUpdateRun> => ({
-          environmentId,
-          machineLabel: label,
-          driver: candidate.driver,
-          instanceId: candidate.instanceId,
-          result: await updateProvider({
-            environmentId,
-            input: { provider: candidate.driver, instanceId: candidate.instanceId },
-          }),
-        })),
+        candidates.map(
+          async (candidate) =>
+            ({
+              environmentId,
+              machineLabel: label,
+              driver: candidate.driver,
+              instanceId: candidate.instanceId,
+              result: await updateProvider({
+                environmentId,
+                input: { provider: candidate.driver, instanceId: candidate.instanceId },
+              }),
+            }) satisfies ProviderUpdateRun,
+        ),
       ),
     );
     const view = quiet ? null : getProviderUpdateRunToastView(runs);

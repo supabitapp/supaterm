@@ -60,11 +60,7 @@ export const ContextMenuItemSchema: Schema.Codec<ContextMenuItemSchemaType> = Sc
   icon: Schema.optionalKey(Schema.String),
   separatorBefore: Schema.optionalKey(Schema.Boolean),
   checked: Schema.optionalKey(Schema.Boolean),
-  children: Schema.optionalKey(
-    Schema.Array(
-      Schema.suspend((): Schema.Codec<ContextMenuItemSchemaType> => ContextMenuItemSchema),
-    ),
-  ),
+  children: Schema.optionalKey(Schema.Array(Schema.suspend(() => ContextMenuItemSchema))),
 });
 
 export const ContextMenuSource = Schema.Literals(["mouse", "keyboard"]);

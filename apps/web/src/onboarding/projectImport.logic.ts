@@ -32,7 +32,7 @@ export interface OnboardingProjectGroup<T> {
   readonly lastActiveAt: string | null;
 }
 
-function latestActivity(left: string | null, right: string | null): string | null {
+function latestActivity(left: string | null, right: string | null) {
   if (left === null) return right;
   if (right === null) return left;
   return left > right ? left : right;
@@ -93,7 +93,7 @@ export function resolveOnboardingProjectId(
   }>,
   environmentId: EnvironmentId,
   candidate: Pick<AgentSessionProjectCandidate, "path" | "projectId">,
-): ProjectId | null {
+) {
   if (candidate.projectId !== undefined) return candidate.projectId;
   const environmentProjects = projects.filter((project) => project.environmentId === environmentId);
   const currentRootMatch = findProjectByPath(environmentProjects, candidate.path);
@@ -105,7 +105,7 @@ export function resolveOnboardingLandingProject<T>(
   selection: ReadonlyArray<string>,
   projectsWithImportedHistory: ReadonlyMap<string, T>,
   completedProjects: ReadonlyMap<string, T>,
-): T | undefined {
+) {
   for (const path of selection) {
     const project = projectsWithImportedHistory.get(path);
     if (project !== undefined) return project;
@@ -117,10 +117,7 @@ export function resolveOnboardingLandingProject<T>(
   return undefined;
 }
 
-export function splitOnboardingProjectPath(path: string): {
-  readonly name: string;
-  readonly parent: string;
-} {
+export function splitOnboardingProjectPath(path: string) {
   if (/^[A-Za-z]:[\\/]+$/.test(path) || /^[\\/]{2}[^\\/]+[\\/][^\\/]+[\\/]*$/.test(path)) {
     return { name: path, parent: "" };
   }
@@ -131,6 +128,6 @@ export function splitOnboardingProjectPath(path: string): {
   return { name: trimmed.slice(separatorIndex + 1), parent: trimmed.slice(0, separatorIndex + 1) };
 }
 
-export function onboardingProjectKey(environmentId: EnvironmentId, path: string): string {
+export function onboardingProjectKey(environmentId: EnvironmentId, path: string) {
   return JSON.stringify([environmentId, path]);
 }

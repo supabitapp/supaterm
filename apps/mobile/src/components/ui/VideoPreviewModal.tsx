@@ -45,7 +45,7 @@ function NativeVideoPreview(props: {
     source.type === "media" && "environmentId" in source ? source.environmentId : null;
   const preparedConnection = usePreparedConnection(environmentId);
   const name = source.type === "media" ? source.name : source.attachment.name;
-  const resolvePlaybackUrl = useEffectEvent(async (): Promise<string> => {
+  const resolvePlaybackUrl = useEffectEvent(async () => {
     if (source.type !== "media") throw new Error("Could not load this video.");
     if (!("resource" in source)) return source.uri;
     const url = await refreshAssetUrl(source.environmentId, source.resource).catch(() => null);

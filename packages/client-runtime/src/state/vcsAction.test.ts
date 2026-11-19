@@ -82,7 +82,8 @@ const target = new PrimaryConnectionTarget({
   wsBaseUrl: "wss://environment.example.test",
 });
 
-function session(client: WsRpcProtocolClient): RpcSession {
+function session(client: WsRpcProtocolClient): RpcSession;
+function session(client: WsRpcProtocolClient) {
   return {
     client,
     initialConfig: Effect.never,
@@ -93,10 +94,10 @@ function session(client: WsRpcProtocolClient): RpcSession {
     probe: Effect.void,
     inboundFrames: Effect.succeed(0),
     closed: Effect.never,
-  };
+  } satisfies RpcSession;
 }
 
-function progress<T extends GitActionProgressEvent>(event: T): T {
+function progress<T extends GitActionProgressEvent>(event: T) {
   return event;
 }
 

@@ -61,7 +61,7 @@ vi.mock("expo-file-system", () => {
       outboxFiles.delete(this.name);
     }
 
-    async text(): Promise<string> {
+    async text() {
       const contents = outboxFiles.get(this.name);
       if (contents instanceof Error) throw contents;
       if (contents === undefined) throw new Error("Missing file");
@@ -105,7 +105,7 @@ function queuedMessage(input: {
   readonly threadId?: string;
   readonly messageId: string;
   readonly createdAt: string;
-}): QueuedThreadMessage {
+}) {
   return {
     environmentId: EnvironmentId.make(input.environmentId ?? "environment-1"),
     threadId: ThreadId.make(input.threadId ?? "thread-1"),

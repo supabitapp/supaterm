@@ -10,7 +10,7 @@ export const awaitLauncherLoss = Effect.fn("launcherWatch.awaitLauncherLoss")(fu
   readonly launcherPid?: number;
   readonly getParentPid?: () => number;
   readonly interval?: Duration.Input;
-}): Effect.fn.Return<void> {
+}) {
   const platform = yield* HostProcess.Platform;
   const launcherPid = options?.launcherPid ?? startupParentPid;
   const getParentPid = options?.getParentPid ?? (() => process.ppid);

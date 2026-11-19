@@ -114,14 +114,14 @@ const UNCAPTURED_TURN_TREE = {
 function uncapturedTurns(
   providerThreadId: ProviderThreadId,
   window = { startedAt: 150, completedAt: 200 },
-): ReadonlyArray<OrchestrationV2ProviderTurn> {
+) {
   const turn = (
     ordinal: number,
     nativeTurnRef: OrchestrationV2ProviderTurn["nativeTurnRef"],
     status: OrchestrationV2ProviderTurn["status"],
     startedAt: number,
     completedAt: number,
-  ): OrchestrationV2ProviderTurn => ({
+  ) => ({
     id: ProviderTurnId.make(`turn-${ordinal}`),
     providerThreadId,
     nodeId: NodeId.make(`node-${ordinal}`),
@@ -150,7 +150,7 @@ const runtimePolicy = ProviderAdapter.ProviderAdapterV2RuntimePolicy.make({
   cwd: null,
 });
 
-const modelSelection = (model: string): ModelSelection => ({
+const modelSelection = (model: string) => ({
   instanceId: PI_INSTANCE_ID,
   model,
 });
@@ -255,7 +255,7 @@ const makeFakePi: Effect.Effect<FakePi> = Effect.gen(function* () {
       }
     });
 
-  const respondTo = (record: PiRpcRecord): PiRpcRecord | null => {
+  const respondTo = (record: PiRpcRecord) => {
     if (
       typeof record["id"] !== "string" &&
       !(record["type"] === "prompt" && (isStreaming !== null || isCompacting))
@@ -421,7 +421,7 @@ const makeFakePi: Effect.Effect<FakePi> = Effect.gen(function* () {
     }),
   );
 
-  const takeRequest = (type: string): Effect.Effect<PiRpcRecord> =>
+  const takeRequest = (type: string) =>
     Effect.gen(function* () {
       while (true) {
         const record = yield* Queue.take(requests);
@@ -2617,7 +2617,7 @@ describe("PiAdapterV2", () => {
           modelSelection: modelSelection("default"),
           runtimePolicy,
         });
-        const selection = (model: string): ModelSelection => ({
+        const selection = (model: string) => ({
           instanceId: PI_INSTANCE_ID,
           model,
           options: [{ id: "thinking", value: "high" }],
@@ -2913,17 +2913,18 @@ describe("PiAdapterV2", () => {
         modelSelection: modelSelection("default"),
         runtimePolicy,
       });
-      const turn = (ordinal: number): OrchestrationV2ProviderTurn => ({
-        id: ProviderTurnId.make(`turn-${ordinal}`),
-        providerThreadId: source.id,
-        nodeId: NodeId.make(`node-${ordinal}`),
-        runAttemptId: null,
-        nativeTurnRef: { driver: PI_PROVIDER, nativeId: `u${ordinal}`, strength: "strong" },
-        ordinal,
-        status: "completed",
-        startedAt: null,
-        completedAt: null,
-      });
+      const turn = (ordinal: number) =>
+        ({
+          id: ProviderTurnId.make(`turn-${ordinal}`),
+          providerThreadId: source.id,
+          nodeId: NodeId.make(`node-${ordinal}`),
+          runAttemptId: null,
+          nativeTurnRef: { driver: PI_PROVIDER, nativeId: `u${ordinal}`, strength: "strong" },
+          ordinal,
+          status: "completed",
+          startedAt: null,
+          completedAt: null,
+        }) satisfies OrchestrationV2ProviderTurn;
       yield* startTurn(runtime, source, "anthropic/claude-sonnet");
       yield* fake.takeRequest("prompt");
       yield* fake.emit({ type: "agent_start" });
@@ -4103,18 +4104,21 @@ describe("PiAdapterV2", () => {
         modelSelection: modelSelection("default"),
         runtimePolicy,
       });
-      const turn = (ordinal: number, entryId: string | null): OrchestrationV2ProviderTurn => ({
-        id: ProviderTurnId.make(`turn-${ordinal}`),
-        providerThreadId: providerThread.id,
-        nodeId: NodeId.make(`node-${ordinal}`),
-        runAttemptId: null,
-        nativeTurnRef:
-          entryId === null ? null : { driver: PI_PROVIDER, nativeId: entryId, strength: "strong" },
-        ordinal,
-        status: "completed",
-        startedAt: null,
-        completedAt: null,
-      });
+      const turn = (ordinal: number, entryId: string | null) =>
+        ({
+          id: ProviderTurnId.make(`turn-${ordinal}`),
+          providerThreadId: providerThread.id,
+          nodeId: NodeId.make(`node-${ordinal}`),
+          runAttemptId: null,
+          nativeTurnRef:
+            entryId === null
+              ? null
+              : { driver: PI_PROVIDER, nativeId: entryId, strength: "strong" },
+          ordinal,
+          status: "completed",
+          startedAt: null,
+          completedAt: null,
+        }) satisfies OrchestrationV2ProviderTurn;
       const rollBackToFirst = (turns: ReadonlyArray<OrchestrationV2ProviderTurn>) =>
         runtime.rollbackThread({
           providerThread,
@@ -4249,17 +4253,18 @@ describe("PiAdapterV2", () => {
       });
       const sessionFile = providerThread.nativeThreadRef?.nativeId;
       assert.isDefined(sessionFile);
-      const turn = (ordinal: number, entryId: string): OrchestrationV2ProviderTurn => ({
-        id: ProviderTurnId.make(`turn-${ordinal}`),
-        providerThreadId: providerThread.id,
-        nodeId: NodeId.make(`node-${ordinal}`),
-        runAttemptId: null,
-        nativeTurnRef: { driver: PI_PROVIDER, nativeId: entryId, strength: "strong" },
-        ordinal,
-        status: "completed",
-        startedAt: null,
-        completedAt: null,
-      });
+      const turn = (ordinal: number, entryId: string) =>
+        ({
+          id: ProviderTurnId.make(`turn-${ordinal}`),
+          providerThreadId: providerThread.id,
+          nodeId: NodeId.make(`node-${ordinal}`),
+          runAttemptId: null,
+          nativeTurnRef: { driver: PI_PROVIDER, nativeId: entryId, strength: "strong" },
+          ordinal,
+          status: "completed",
+          startedAt: null,
+          completedAt: null,
+        }) satisfies OrchestrationV2ProviderTurn;
       const turns = [turn(1, "u1"), turn(2, "u2")];
 
       const fake = yield* makeFakePi;

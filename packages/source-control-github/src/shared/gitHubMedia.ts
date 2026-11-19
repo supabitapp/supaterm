@@ -14,7 +14,7 @@ const LEGACY_ATTACHMENT_PATH_PATTERN = /^\/[^/]+\/[^/]+\/assets\/\d+\/[\w-]+$/u;
 const REPOSITORY_FILE_PATTERN = /^\/([^/]+)\/([^/]+)\/(?:raw|blob)\/(.*[^/])$/u;
 const COMMIT_SHA_PATTERN = /^[0-9a-f]{40}$/u;
 
-function fileName(fetchUrl: string): string {
+function fileName(fetchUrl: string) {
   const segment = new URL(fetchUrl).pathname.split("/").pop() ?? "";
   let decoded: string;
   try {
@@ -26,27 +26,24 @@ function fileName(fetchUrl: string): string {
   return name.length > 0 ? name : "github-media";
 }
 
-function media(
-  fetchUrl: string,
-  extra: Pick<SourceControlMediaUrl, "kind" | "immutable"> = {},
-): SourceControlMediaUrl {
+function media(fetchUrl: string, extra: Pick<SourceControlMediaUrl, "kind" | "immutable"> = {}) {
   return { fetchUrl, fileName: fileName(fetchUrl), ...extra };
 }
 
-function rawFile(fetchUrl: string): SourceControlMediaUrl {
+function rawFile(fetchUrl: string) {
   const ref = new URL(fetchUrl).pathname.split("/")[3] ?? "";
   return media(fetchUrl, COMMIT_SHA_PATTERN.test(ref) ? { immutable: true } : {});
 }
 
 /** Where GitHub serves a Git LFS object; a raw read of an LFS-tracked file returns its pointer. */
-export function gitHubLfsMediaUrl(rawUrl: string): string | null {
+export function gitHubLfsMediaUrl(rawUrl: string) {
   const url = URL.parse(rawUrl);
   return url?.protocol === "https:" && url.hostname.toLowerCase() === RAW_HOST
     ? `https://${LFS_HOST}/media${url.pathname}${url.search}`
     : null;
 }
 
-export function gitHubMediaUrl(url: URL): SourceControlMediaUrl | null {
+export function gitHubMediaUrl(url: URL) {
   if (url.protocol !== "https:") return null;
   const host = url.hostname.toLowerCase();
   if (host === RAW_HOST) return rawFile(`https://${host}${url.pathname}${url.search}`);
@@ -68,7 +65,7 @@ export function gitHubRawFileUrl(input: {
   readonly repositoryUrl: string;
   readonly sha: string;
   readonly path: string;
-}): string | null {
+}) {
   if (!COMMIT_SHA_PATTERN.test(input.sha)) return null;
   const path = input.path.split("/").map(encodeURIComponent).join("/");
   let url: URL;

@@ -92,8 +92,8 @@ export class EventNdjsonLogDirectoryError extends Schema.TaggedError<EventNdjson
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
-    return `Failed to create provider event log directory '${this.directory}'`;
+  override get message() {
+    return `Failed to create provider event log directory '${this.directory}'` satisfies string as string;
   }
 }
 
@@ -141,56 +141,60 @@ interface FileOperationFailure {
   readonly cause: unknown;
 }
 
-interface RetentionResult {
-  readonly failures: ReadonlyArray<FileOperationFailure>;
-}
-
 interface DrainResult {
   readonly attributions: ReadonlyArray<AttributionSummary>;
   readonly failures: ReadonlyArray<FileOperationFailure>;
 }
 
-function logWarning(message: string, context: Record<string, unknown>): Effect.Effect<void> {
-  return Effect.logWarning(message, context).pipe(Effect.annotateLogs({ scope: LOG_SCOPE }));
+function logWarning(message: string, context: Record<string, unknown>): Effect.Effect<void>;
+function logWarning(message: string, context: Record<string, unknown>) {
+  return Effect.logWarning(message, context).pipe(
+    Effect.annotateLogs({ scope: LOG_SCOPE }),
+  ) satisfies Effect.Effect<void>;
 }
 
-function resolveThreadSegment(raw: string | null | undefined): string {
-  if (typeof raw !== "string") return GLOBAL_THREAD_SEGMENT;
+function resolveThreadSegment(raw: string | null | undefined): string;
+function resolveThreadSegment(raw: string | null | undefined) {
+  if (typeof raw !== "string") return GLOBAL_THREAD_SEGMENT satisfies string;
   const normalized = toSafeThreadAttachmentSegment(raw);
-  if (normalized === null) return GLOBAL_THREAD_SEGMENT;
-  if (raw.length <= ATTACHMENT_ID_THREAD_SEGMENT_MAX_CHARS) return normalized;
+  if (normalized === null) return GLOBAL_THREAD_SEGMENT satisfies string;
+  if (raw.length <= ATTACHMENT_ID_THREAD_SEGMENT_MAX_CHARS) return normalized satisfies string;
   const hash = NodeCrypto.createHash("sha256").update(raw).digest("hex").slice(0, 16);
-  return `${normalized}-${hash}`;
+  return `${normalized}-${hash}` satisfies string;
 }
 
-function resolveStreamLabel(stream: EventNdjsonStream): string {
-  return stream === "native" ? "NTIVE" : stream === "orchestration" ? "ORCH" : "CANON";
+function resolveStreamLabel(stream: EventNdjsonStream): string;
+function resolveStreamLabel(stream: EventNdjsonStream) {
+  return (
+    stream === "native" ? "NTIVE" : stream === "orchestration" ? "ORCH" : "CANON"
+  ) satisfies string;
 }
 
-function providerLogPrefix(filePath: string): string {
+function providerLogPrefix(filePath: string) {
   const basename = NodePath.basename(filePath);
   const extension = NodePath.extname(basename);
   return `${extension.length > 0 ? basename.slice(0, -extension.length) : basename}.`;
 }
 
-function providerLogPath(directory: string, prefix: string, threadSegment: string): string {
+function providerLogPath(directory: string, prefix: string, threadSegment: string) {
   return NodePath.join(directory, `${prefix}${threadSegment}.log`);
 }
 
-export function shouldPersistProviderEvent(stream: EventNdjsonStream, event: unknown): boolean {
+export function shouldPersistProviderEvent(stream: EventNdjsonStream, event: unknown): boolean;
+export function shouldPersistProviderEvent(stream: EventNdjsonStream, event: unknown) {
   if (stream === "orchestration" || typeof event !== "object" || event === null) {
-    return true;
+    return true satisfies boolean;
   }
   try {
     const type = Reflect.get(event, "type");
     if (typeof type === "string" && transientCanonicalEventTypes.has(type)) {
-      return false;
+      return false satisfies boolean;
     }
-    if (stream !== "native") return true;
+    if (stream !== "native") return true satisfies boolean;
 
     const nested = Reflect.get(event, "event");
     const envelope = typeof nested === "object" && nested !== null ? nested : event;
-    if (Reflect.get(envelope, "stage") === "raw") return false;
+    if (Reflect.get(envelope, "stage") === "raw") return false satisfies boolean;
     const decodedPayload = Reflect.get(envelope, "payload");
     const nativeEvent =
       Reflect.get(envelope, "stage") === "decoded" &&
@@ -204,14 +208,14 @@ export function shouldPersistProviderEvent(stream: EventNdjsonStream, event: unk
       (transientNativeMethods.has(method) ||
         method.startsWith("claude/stream_event/content_block_delta/"))
     ) {
-      return false;
+      return false satisfies boolean;
     }
 
     const nativeType = Reflect.get(nativeEvent, "type");
     if (nativeType === "system" && Reflect.get(nativeEvent, "subtype") === "thinking_tokens") {
-      return false;
+      return false satisfies boolean;
     }
-    if (nativeType === "message.part.delta") return false;
+    if (nativeType === "message.part.delta") return false satisfies boolean;
     if (nativeType === "stream_event") {
       const streamEvent = Reflect.get(nativeEvent, "event");
       if (
@@ -219,50 +223,52 @@ export function shouldPersistProviderEvent(stream: EventNdjsonStream, event: unk
         streamEvent !== null &&
         Reflect.get(streamEvent, "type") === "content_block_delta"
       ) {
-        return false;
+        return false satisfies boolean;
       }
     }
 
     if (nativeType === "interaction.update") {
       let update = Reflect.get(nativeEvent, "update");
-      if (typeof update !== "object" || update === null) return true;
+      if (typeof update !== "object" || update === null) return true satisfies boolean;
       if (Reflect.get(update, "type") === "tool-call-delta") {
         update = Reflect.get(update, "taskUpdate");
-        if (typeof update !== "object" || update === null) return true;
+        if (typeof update !== "object" || update === null) return true satisfies boolean;
       }
       const updateType = Reflect.get(update, "type");
-      return typeof updateType !== "string" || !transientCursorUpdates.has(updateType);
+      return (typeof updateType !== "string" ||
+        !transientCursorUpdates.has(updateType)) satisfies boolean;
     }
 
     const payload = Reflect.get(nativeEvent, "payload");
-    if (typeof payload !== "object" || payload === null) return true;
+    if (typeof payload !== "object" || payload === null) return true satisfies boolean;
 
     if (method === "session/update") {
       const update = Reflect.get(payload, "update");
-      if (typeof update !== "object" || update === null) return true;
+      if (typeof update !== "object" || update === null) return true satisfies boolean;
       const updateType = Reflect.get(update, "sessionUpdate");
-      return typeof updateType !== "string" || !transientAcpUpdates.has(updateType);
+      return (typeof updateType !== "string" ||
+        !transientAcpUpdates.has(updateType)) satisfies boolean;
     }
 
     if (nativeType === "message.part.updated") {
       const properties = Reflect.get(payload, "properties");
-      if (typeof properties !== "object" || properties === null) return true;
+      if (typeof properties !== "object" || properties === null) return true satisfies boolean;
       const part = Reflect.get(properties, "part");
-      if (typeof part !== "object" || part === null) return true;
+      if (typeof part !== "object" || part === null) return true satisfies boolean;
       const partType = Reflect.get(part, "type");
-      if (partType === "text" || partType === "reasoning") return false;
+      if (partType === "text" || partType === "reasoning") return false satisfies boolean;
       if (partType === "tool") {
         const state = Reflect.get(part, "state");
         if (typeof state === "object" && state !== null) {
-          return Reflect.get(state, "status") !== "running";
+          return (Reflect.get(state, "status") !== "running") satisfies boolean;
         }
       }
-      return true;
+      return true satisfies boolean;
     }
 
-    return true;
+    return true satisfies boolean;
   } catch {
-    return true;
+    return true satisfies boolean;
   }
 }
 
@@ -302,10 +308,11 @@ const summaryFields = [
   "content",
 ] as const;
 
-function summarizeProviderEvent(event: unknown): unknown {
+function summarizeProviderEvent(event: unknown): unknown;
+function summarizeProviderEvent(event: unknown) {
   let remainingFields = 128;
   let remainingCharacters = 8 * 1024;
-  const summarize = (value: unknown, depth: number): unknown => {
+  const summarize = (value: unknown, depth: number) => {
     if (typeof value === "string") {
       if (value.length > Math.min(1_024, remainingCharacters)) {
         return { omittedCharacters: value.length };
@@ -328,17 +335,18 @@ function summarizeProviderEvent(event: unknown): unknown {
     return summary;
   };
   try {
-    return summarize(event, 0);
+    return summarize(event, 0) satisfies unknown;
   } catch {
-    return { truncated: true };
+    return { truncated: true } satisfies unknown;
   }
 }
 
-export function boundProviderEventForLogging(event: unknown): unknown {
+export function boundProviderEventForLogging(event: unknown): unknown;
+export function boundProviderEventForLogging(event: unknown) {
   let remainingCharacters = MAX_RECORD_CHARACTERS;
   let remainingFields = MAX_RECORD_FIELDS;
   const ancestors = new WeakSet<object>();
-  const fits = (value: unknown, depth: number): boolean => {
+  const fits = (value: unknown, depth: number) => {
     if (typeof value === "string") {
       remainingCharacters -= value.length;
       return remainingCharacters >= 0;
@@ -362,9 +370,9 @@ export function boundProviderEventForLogging(event: unknown): unknown {
     return true;
   };
   try {
-    if (fits(event, 0)) return event;
+    if (fits(event, 0)) return event satisfies unknown;
   } catch {}
-  return summarizeProviderEvent(event);
+  return summarizeProviderEvent(event) satisfies unknown;
 }
 
 export const writeBatchedMessages = Effect.fnUntraced(function* (
@@ -398,11 +406,7 @@ export const writeBatchedMessages = Effect.fnUntraced(function* (
   yield* flush;
 });
 
-async function isProviderLogFile(
-  filePath: string,
-  fileName: string,
-  filePrefix: string,
-): Promise<boolean> {
+async function isProviderLogFile(filePath: string, fileName: string, filePrefix: string) {
   if (!/\.log(?:\.\d+)?$/u.test(fileName)) return false;
   if (fileName.startsWith(filePrefix)) return true;
 
@@ -423,7 +427,7 @@ async function enforceRetention(input: {
   readonly activeFilePaths: ReadonlySet<string>;
   readonly filePrefix: string;
   readonly now: number;
-}): Promise<RetentionResult> {
+}) {
   const failures: Array<FileOperationFailure> = [];
   const files: Array<{ filePath: string; mtimeMs: number; size: number }> = [];
 
@@ -474,7 +478,7 @@ async function enforceRetention(input: {
   return { failures };
 }
 
-function resolveOptions(options: EventNdjsonLogStoreOptions): Effect.Effect<ResolvedOptions> {
+function resolveOptions(options: EventNdjsonLogStoreOptions) {
   const resolved = {
     maxBytes: options.maxBytes ?? DEFAULT_MAX_BYTES,
     maxFiles: options.maxFiles ?? DEFAULT_MAX_FILES,
@@ -490,7 +494,7 @@ function resolveOptions(options: EventNdjsonLogStoreOptions): Effect.Effect<Reso
   return Effect.succeed(resolved);
 }
 
-const drainPending = Effect.fnUntraced(function* (input: {
+const drainPending: (input: {
   readonly directory: string;
   readonly options: ResolvedOptions;
   readonly state: StoreState;
@@ -501,7 +505,18 @@ const drainPending = Effect.fnUntraced(function* (input: {
   readonly makeSink: (
     filePath: string,
   ) => Effect.Effect<AsyncFileSink, Effect.Error<ReturnType<typeof makeAsyncRotatingFileSink>>>;
-}): Effect.fn.Return<readonly [DrainResult, StoreState]> {
+}) => Effect.Effect<readonly [DrainResult, StoreState]> = Effect.fnUntraced(function* (input: {
+  readonly directory: string;
+  readonly options: ResolvedOptions;
+  readonly state: StoreState;
+  readonly filePrefix: string;
+  readonly now: number;
+  readonly timerFired: boolean;
+  readonly close: boolean;
+  readonly makeSink: (
+    filePath: string,
+  ) => Effect.Effect<AsyncFileSink, Effect.Error<ReturnType<typeof makeAsyncRotatingFileSink>>>;
+}) {
   if (input.state.closed) {
     return [{ attributions: [], failures: [] }, input.state];
   }
@@ -612,14 +627,14 @@ const serializeEvent = Effect.fnUntraced(function* (event: unknown) {
   );
 });
 
-export const makeEventNdjsonLogStore = Effect.fnUntraced(function* (
+export const makeEventNdjsonLogStore: (
   filePath: string,
-  options: EventNdjsonLogStoreOptions = {},
-): Effect.fn.Return<
+  options?: EventNdjsonLogStoreOptions,
+) => Effect.Effect<
   EventNdjsonLogStore,
   EventNdjsonLogStoreError,
   FileSystem.FileSystem | Path.Path
-> {
+> = Effect.fnUntraced(function* (filePath: string, options: EventNdjsonLogStoreOptions = {}) {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const resolved = yield* resolveOptions(options);
@@ -729,7 +744,9 @@ export const makeEventNdjsonLogStore = Effect.fnUntraced(function* (
   });
 
   const loggerViews = new Map<EventNdjsonStream, ProviderEventLoggers.EventNdjsonLogger>();
-  const logger = (stream: EventNdjsonStream): ProviderEventLoggers.EventNdjsonLogger => {
+  const logger: (stream: EventNdjsonStream) => ProviderEventLoggers.EventNdjsonLogger = (
+    stream: EventNdjsonStream,
+  ) => {
     const existing = loggerViews.get(stream);
     if (existing) return existing;
 

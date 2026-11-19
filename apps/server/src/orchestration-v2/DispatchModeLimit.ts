@@ -30,10 +30,10 @@ const runtimeModeRank: Record<RuntimeMode, number> = {
 };
 const interactionModeRank: Record<ProviderInteractionMode, number> = { plan: 0, default: 1 };
 
-export const exceededDispatchModeLimit = (
+export const exceededDispatchModeLimit: (
   limit: DispatchModes,
   modes: DispatchModes,
-): "runtime" | "interaction" | undefined =>
+) => "runtime" | "interaction" | undefined = (limit: DispatchModes, modes: DispatchModes) =>
   runtimeModeRank[modes.runtimeMode] > runtimeModeRank[limit.runtimeMode]
     ? "runtime"
     : interactionModeRank[modes.interactionMode] > interactionModeRank[limit.interactionMode]

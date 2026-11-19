@@ -2,11 +2,7 @@ import type { FileDiffMetadata } from "@pierre/diffs";
 import type { PullRequestDiffSide } from "@supaterm/contracts";
 
 /** Only rendered hunks can anchor comments; list others off-diff. */
-export function isLineInFileDiff(
-  file: FileDiffMetadata,
-  side: PullRequestDiffSide,
-  line: number,
-): boolean {
+export function isLineInFileDiff(file: FileDiffMetadata, side: PullRequestDiffSide, line: number) {
   return file.hunks.some((hunk) =>
     side === "left"
       ? line >= hunk.deletionStart && line < hunk.deletionStart + hunk.deletionCount
@@ -18,7 +14,7 @@ export function getFileViewedRange<T extends { readonly fileKey: string }>(
   files: ReadonlyArray<T>,
   fileKey: string,
   anchorFileKey: string | null,
-): ReadonlyArray<T> {
+) {
   const index = files.findIndex((file) => file.fileKey === fileKey);
   if (index === -1) return [];
   const anchorIndex = files.findIndex((file) => file.fileKey === anchorFileKey);

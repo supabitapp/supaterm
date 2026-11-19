@@ -26,7 +26,17 @@ export function useReviewHeaderPresentation(props: {
   readonly selectedThreadCwd: string | null;
   readonly selectedSection: ReviewSectionItem | null;
   readonly onRefresh: () => Promise<void>;
-}): ReviewHeaderPresentation {
+}): ReviewHeaderPresentation;
+export function useReviewHeaderPresentation(props: {
+  readonly environmentId: EnvironmentId;
+  readonly threadId: ThreadId;
+  readonly title: string;
+  readonly subtitle: string;
+  readonly androidSubtitle: string;
+  readonly selectedThreadCwd: string | null;
+  readonly selectedSection: ReviewSectionItem | null;
+  readonly onRefresh: () => Promise<void>;
+}) {
   const { selectedThread } = useThreadSelection();
   const gitState = useSelectedThreadGitState();
   const gitActions = useSelectedThreadGitActions();
@@ -54,5 +64,5 @@ export function useReviewHeaderPresentation(props: {
     subtitle: props.subtitle,
     menuIcon: "ellipsis",
     gitMenu: gitMenuAvailable ? gitMenu : null,
-  };
+  } satisfies ReviewHeaderPresentation;
 }

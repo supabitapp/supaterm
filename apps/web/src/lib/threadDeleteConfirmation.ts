@@ -6,7 +6,7 @@ import { readSideChats } from "../state/entities";
 export function threadDeleteConfirmation(input: {
   readonly title: string | null;
   readonly threadRefs: ReadonlyArray<ScopedThreadRef>;
-}): string {
+}) {
   const sideChats = input.threadRefs.reduce((total, ref) => total + readSideChats(ref).length, 0);
   const alsoSideChats =
     sideChats === 0 ? "" : ` and ${sideChats} side chat${sideChats === 1 ? "" : "s"}`;

@@ -14,7 +14,7 @@ import { chartFonts, drawFrame, paintFrame, withoutGridlines } from "./sheet-fra
 import { maximumTrackSize, minimumTrackSize } from "./sheet-sizing";
 import { sheetFonts } from "./sheet-fonts";
 import { frozenSize } from "./sheet-paint";
-import type { SheetLayout, SheetMethods, SheetTab } from "./sheet-protocol";
+import type { SheetMethods } from "./sheet-protocol";
 import { serveWorker, Transfer } from "./worker-rpc";
 
 type Opened = {
@@ -194,7 +194,7 @@ function active(sheet: number) {
   return opened;
 }
 
-function show(opened: Opened, sheet: number): SheetLayout {
+function show(opened: Opened, sheet: number) {
   opened.workbook.setActiveSheet(sheet);
   opened.info = opened.workbook.sheetInfo();
 
@@ -304,7 +304,7 @@ function read(opened: Opened, sheet: number, range: CellRange) {
   return result?.ok ? result.ranges[0]?.cells : undefined;
 }
 
-function visibleTabs(workbook: WorkbookHandle, info: SheetInfo): SheetTab[] {
+function visibleTabs(workbook: WorkbookHandle, info: SheetInfo) {
   const names = info.sheetNames;
 
   const result = attempt(() =>

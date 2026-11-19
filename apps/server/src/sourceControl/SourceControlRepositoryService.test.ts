@@ -33,7 +33,7 @@ const CLONE_URLS = {
 
 function makeProvider(
   overrides: Partial<SourceControlProvider.SourceControlProvider["Service"]> = {},
-): SourceControlProvider.SourceControlProvider["Service"] {
+) {
   const unsupported = (operation: string) =>
     Effect.die(`unexpected provider operation ${operation}`) as Effect.Effect<
       never,
@@ -53,7 +53,7 @@ function makeProvider(
   };
 }
 
-function processOutput(): GitVcsDriver.ExecuteGitResult {
+function processOutput() {
   return {
     exitCode: ChildProcessSpawner.ExitCode(0),
     stdout: "",

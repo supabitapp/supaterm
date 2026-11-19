@@ -48,8 +48,10 @@ const ascii = (bytes: Uint8Array, offset: number) =>
  * Accepts only canonical PCM WAV: 16 kHz, mono, 16-bit. Chunk sizes are
  * checked against the bytes actually present, never the RIFF header's size.
  */
-export function parseWav(file: Uint8Array): WavAudio | null {
-  if (file.byteLength < 12 || ascii(file, 0) !== "RIFF" || ascii(file, 8) !== "WAVE") return null;
+export function parseWav(file: Uint8Array): WavAudio | null;
+export function parseWav(file: Uint8Array) {
+  if (file.byteLength < 12 || ascii(file, 0) !== "RIFF" || ascii(file, 8) !== "WAVE")
+    return null satisfies WavAudio | null;
   const view = new DataView(file.buffer, file.byteOffset, file.byteLength);
   let format: { readonly ok: boolean } | undefined;
   let offset = 12;
@@ -57,9 +59,9 @@ export function parseWav(file: Uint8Array): WavAudio | null {
     const id = ascii(file, offset);
     const size = view.getUint32(offset + 4, true);
     const bodyStart = offset + 8;
-    if (bodyStart + size > file.byteLength) return null;
+    if (bodyStart + size > file.byteLength) return null satisfies WavAudio | null;
     if (id === "fmt ") {
-      if (size < 16) return null;
+      if (size < 16) return null satisfies WavAudio | null;
       format = {
         ok:
           view.getUint16(bodyStart, true) === PCM_FORMAT &&
@@ -71,14 +73,14 @@ export function parseWav(file: Uint8Array): WavAudio | null {
       };
     }
     if (id === "data") {
-      if (!format?.ok || size % BYTES_PER_SAMPLE !== 0) return null;
+      if (!format?.ok || size % BYTES_PER_SAMPLE !== 0) return null satisfies WavAudio | null;
       return {
         file,
         pcm: file.subarray(bodyStart, bodyStart + size),
         durationMs: Math.round((size / (SAMPLE_RATE * BYTES_PER_SAMPLE)) * 1000),
-      };
+      } satisfies WavAudio | null;
     }
     offset = bodyStart + size + (size % 2);
   }
-  return null;
+  return null satisfies WavAudio | null;
 }

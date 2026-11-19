@@ -21,7 +21,7 @@ export function resolvePreviewMiniPlayerSourceSize(
   viewport: PreviewViewportSetting,
   fittedSourceContent: BrowserSurfaceContentPresentation | null,
   zoomFactor: number,
-): PreviewMiniPlayerSize {
+) {
   const normalizedZoomFactor = Number.isFinite(zoomFactor) && zoomFactor > 0 ? zoomFactor : 1;
   const fitted = resolveFittedBrowserViewport(viewport, fittedSourceContent, normalizedZoomFactor);
   return {
@@ -33,7 +33,7 @@ export function resolvePreviewMiniPlayerSourceSize(
 export function resolveDeviceMiniPlayerSourceSize(
   platform: DevicePlatform,
   screen: DeviceScreenSize | null,
-): PreviewMiniPlayerSize {
+) {
   if (!screen) {
     const width = 1_000;
     return { width, height: width / (platform === "ios" ? 9 / 19.5 : 9 / 20) };
@@ -50,7 +50,7 @@ export function resolveDeviceMiniPlayerSourceSize(
 export function resolveDeviceMiniPlayerCornerRadius(
   platform: DevicePlatform,
   player: PreviewMiniPlayerSize,
-): number {
+) {
   if (platform !== "android") return PREVIEW_MINI_PLAYER_CORNER_RADIUS;
   return Math.max(
     PREVIEW_MINI_PLAYER_CORNER_RADIUS,
@@ -74,7 +74,7 @@ const NO_PREVIEW_MINI_PLAYER_OBSTACLES: PreviewMiniPlayerObstacles = {
   detailsCard: null,
 };
 
-const spanOf = (x: number, width: number): HorizontalSpan => ({ left: x, right: x + width });
+const spanOf = (x: number, width: number) => ({ left: x, right: x + width });
 
 const spansOverlap = (a: HorizontalSpan, b: HorizontalSpan) => a.left < b.right && a.right > b.left;
 
@@ -82,14 +82,14 @@ function floorFor(
   span: HorizontalSpan,
   container: PreviewMiniPlayerSize,
   obstacles: PreviewMiniPlayerObstacles,
-): number {
+) {
   const { composer } = obstacles;
   return composer && spansOverlap(span, composer)
     ? container.height - Math.max(0, composer.height)
     : container.height;
 }
 
-function ceilingFor(span: HorizontalSpan, obstacles: PreviewMiniPlayerObstacles): number {
+function ceilingFor(span: HorizontalSpan, obstacles: PreviewMiniPlayerObstacles) {
   const bottomOf = (top: PreviewMiniPlayerObstacles["detailsCard"] | undefined) =>
     top && spansOverlap(span, top) ? top.bottom : 0;
   return Math.max(0, bottomOf(obstacles.detailsCard), bottomOf(obstacles.findBar));
@@ -99,7 +99,7 @@ const availableArea = (
   container: PreviewMiniPlayerSize,
   obstacles: PreviewMiniPlayerObstacles,
   span: HorizontalSpan | null,
-): PreviewMiniPlayerSize => ({
+) => ({
   width: container.width - PREVIEW_MINI_PLAYER_EDGE_GAP * 2,
   height:
     (span
@@ -119,7 +119,7 @@ function fitPreviewMiniPlayerWidth(
   source: PreviewMiniPlayerSize,
   max: PreviewMiniPlayerSize,
   minimumWidth = minimumPreviewMiniPlayerWidth(source),
-): PreviewMiniPlayerSize {
+) {
   const aspectRatio = source.width / source.height;
   const width = Math.min(
     Math.max(desiredWidth, minimumWidth),
@@ -129,7 +129,7 @@ function fitPreviewMiniPlayerWidth(
   return { width: Math.round(width), height: Math.round(width / aspectRatio) };
 }
 
-function defaultPreviewMiniPlayerWidth(source: PreviewMiniPlayerSize): number {
+function defaultPreviewMiniPlayerWidth(source: PreviewMiniPlayerSize) {
   return Math.min(
     PREVIEW_MINI_PLAYER_DEFAULT_BOX.width,
     (PREVIEW_MINI_PLAYER_DEFAULT_BOX.height * source.width) / source.height,
@@ -141,7 +141,7 @@ const clampToContainer = (
   container: PreviewMiniPlayerSize,
   player: PreviewMiniPlayerSize,
   minimumX = PREVIEW_MINI_PLAYER_EDGE_GAP,
-): PreviewMiniPlayerPosition => ({
+) => ({
   x: Math.min(
     Math.max(position.x, minimumX, PREVIEW_MINI_PLAYER_EDGE_GAP),
     Math.max(
@@ -163,7 +163,7 @@ const overlapsObstacle = (
   player: PreviewMiniPlayerSize,
   container: PreviewMiniPlayerSize,
   obstacles: PreviewMiniPlayerObstacles,
-): boolean => {
+) => {
   const span = spanOf(position.x, player.width);
   return (
     position.y + player.height > floorFor(span, container, obstacles) ||
@@ -177,11 +177,11 @@ export function clampPreviewMiniPlayerPosition(
   player: PreviewMiniPlayerSize,
   obstacles: PreviewMiniPlayerObstacles = NO_PREVIEW_MINI_PLAYER_OBSTACLES,
   minimumX = PREVIEW_MINI_PLAYER_EDGE_GAP,
-): PreviewMiniPlayerPosition {
+) {
   const inside = clampToContainer(position, container, player, minimumX);
   if (!overlapsObstacle(inside, player, container, obstacles)) return inside;
   const gap = PREVIEW_MINI_PLAYER_EDGE_GAP;
-  const fitRows = (x: number): PreviewMiniPlayerPosition => {
+  const fitRows = (x: number) => {
     const span = spanOf(x, player.width);
     return {
       x,
@@ -232,7 +232,7 @@ export function resolvePreviewMiniPlayerFrame(input: {
   readonly source: PreviewMiniPlayerSize;
   readonly container: PreviewMiniPlayerSize;
   readonly obstacles?: PreviewMiniPlayerObstacles;
-}): PreviewMiniPlayerFrame {
+}) {
   const {
     width,
     position,
@@ -269,7 +269,7 @@ export function resizePreviewMiniPlayer(input: {
   readonly source: PreviewMiniPlayerSize;
   readonly container: PreviewMiniPlayerSize;
   readonly obstacles?: PreviewMiniPlayerObstacles;
-}): PreviewMiniPlayerFrame {
+}) {
   const {
     start,
     direction,

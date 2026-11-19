@@ -21,7 +21,7 @@ export class TerminalLinkPreviewOpenError extends Schema.TaggedError<TerminalLin
   "TerminalLinkPreviewOpenError",
   terminalLinkErrorContext,
 ) {
-  override get message(): string {
+  override get message() {
     return `Failed to open terminal link ${this.targetOrigin} in preview for thread ${this.threadId}.`;
   }
 }
@@ -34,9 +34,7 @@ interface OpenTerminalLinkInPreviewInput<E> {
   readonly forceBrowser: boolean;
 }
 
-export async function openTerminalLinkInPreview<E>(
-  input: OpenTerminalLinkInPreviewInput<E>,
-): Promise<void> {
+export async function openTerminalLinkInPreview<E>(input: OpenTerminalLinkInPreviewInput<E>) {
   const supportsPreview =
     !input.forceBrowser &&
     isWebUrl(input.url) &&

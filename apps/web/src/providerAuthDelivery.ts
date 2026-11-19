@@ -13,7 +13,7 @@ type ProviderAuthDelivery = NonNullable<ReturnType<typeof readCodexAuthDelivery>
  * then hand it to its environment once that environment connects. Hosted web receives only
  * the one-time code; the selected environment verifies and stores tokens.
  */
-export function startProviderAuthDelivery(): void {
+export function startProviderAuthDelivery() {
   if (!window.location.hash.startsWith("#codex-auth=")) return;
   const delivery = readCodexAuthDelivery(window.location.href);
   window.history.replaceState(
@@ -35,7 +35,7 @@ export function startProviderAuthDelivery(): void {
   });
 }
 
-async function completeProviderAuth(delivery: ProviderAuthDelivery): Promise<void> {
+async function completeProviderAuth(delivery: ProviderAuthDelivery) {
   try {
     const result = await runAtomCommand(
       appAtomRegistry,

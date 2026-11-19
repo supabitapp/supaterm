@@ -1,9 +1,4 @@
-import type {
-  EnvironmentId,
-  ProjectId,
-  PullRequestRef,
-  RepositoryIdentity,
-} from "@supaterm/contracts";
+import type { EnvironmentId, ProjectId, RepositoryIdentity } from "@supaterm/contracts";
 import type { ChangeRequestLink } from "@supaterm/source-control-core/shared/definition";
 
 import { sourceControlClients } from "./sourceControlClients.ts";
@@ -18,7 +13,7 @@ interface ChangeRequestProject {
 export function findProjectForChangeRequest<Project extends ChangeRequestProject>(
   projects: ReadonlyArray<Project>,
   link: ChangeRequestLink,
-): Project | undefined {
+) {
   return projects.find((project) => {
     const identity = project.repositoryIdentity;
     return (
@@ -32,7 +27,7 @@ export function findProjectForChangeRequest<Project extends ChangeRequestProject
 export function findProjectOnChangeRequestHost<Project extends ChangeRequestProject>(
   projects: ReadonlyArray<Project>,
   link: ChangeRequestLink,
-): Project | undefined {
+) {
   return (
     findProjectForChangeRequest(projects, link) ??
     projects.find((project) => {
@@ -69,12 +64,7 @@ export function resolveChangeRequestLinkTarget<Project extends ChangeRequestProj
   projectId?: ProjectId | undefined;
   primaryEnvironmentId?: EnvironmentId | null | undefined;
   lendHostProject: boolean;
-}): {
-  readonly project: Project;
-  readonly repository: string;
-  readonly number: number;
-  readonly host: string;
-} | null {
+}) {
   const link = sourceControlClients.parseChangeRequestUrl(url)?.link;
   if (link === undefined) return null;
   const candidates = (
@@ -109,7 +99,7 @@ export function resolvePullRequestPreviewTarget({
   projects: ReadonlyArray<ChangeRequestProject>;
   pullRequestsEnabled: boolean;
   url: string;
-}): { environmentId: EnvironmentId; input: PullRequestRef } | null {
+}) {
   if (!pullRequestsEnabled || environmentId === null) return null;
   const parsed = sourceControlClients.parseChangeRequestUrl(url)?.link;
   if (parsed === undefined) return null;
@@ -138,7 +128,7 @@ export function resolvePullRequestPreviewTarget({
 export function changeRequestReferenceLabel(
   url: string,
   identity: RepositoryIdentity | null | undefined,
-): string | null {
+) {
   const link = sourceControlClients.parseChangeRequestUrl(url)?.link;
   if (link === undefined) return null;
   const { pathname, search, hash } = new URL(url);
@@ -154,7 +144,7 @@ export function projectChangeRequestUrl(
   identity: RepositoryIdentity | null | undefined,
   repository: string,
   number: number,
-): string | null {
+) {
   if (identity?.provider === undefined) return null;
   const [host, ...path] = identity.canonicalKey.split("/");
   if (!host) return null;
@@ -168,10 +158,7 @@ export function projectChangeRequestUrl(
   });
 }
 
-export function projectCommitUrl(
-  identity: RepositoryIdentity | null | undefined,
-  sha: string,
-): string | null {
+export function projectCommitUrl(identity: RepositoryIdentity | null | undefined, sha: string) {
   if (identity?.provider === undefined) return null;
   const [host, ...path] = identity.canonicalKey.split("/");
   if (!host) return null;

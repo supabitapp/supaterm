@@ -1691,16 +1691,16 @@ describe("CursorAdapterV2", () => {
         .childThreadId;
       assert.isDefined(childThreadId);
       assert.deepEqual(
-        events.flatMap((event): ReadonlyArray<unknown> => {
+        events.flatMap((event) => {
           if (event.type !== "turn_item.updated" || event.turnItem.threadId !== childThreadId) {
-            return [];
+            return [] satisfies ReadonlyArray<unknown> as ReadonlyArray<unknown>;
           }
           const item = event.turnItem;
-          return item.type === "file_search"
+          return (item.type === "file_search"
             ? [{ status: item.status, pattern: item.pattern, results: item.results ?? [] }]
             : item.type === "dynamic_tool"
               ? [{ status: item.status, toolName: item.toolName, output: item.output }]
-              : [];
+              : []) satisfies ReadonlyArray<unknown> as ReadonlyArray<unknown>;
         }),
         [
           {
@@ -1781,14 +1781,15 @@ describe("CursorAdapterV2", () => {
         );
       }
       assert.deepEqual(
-        childItems.flatMap(({ item }): ReadonlyArray<unknown> =>
-          item.status !== "completed"
-            ? []
-            : item.type === "reasoning" || item.type === "assistant_message"
-              ? [{ type: item.type, text: item.text }]
-              : item.type === "dynamic_tool"
-                ? [{ type: item.type, toolName: item.toolName }]
-                : [],
+        childItems.flatMap(
+          ({ item }) =>
+            (item.status !== "completed"
+              ? []
+              : item.type === "reasoning" || item.type === "assistant_message"
+                ? [{ type: item.type, text: item.text }]
+                : item.type === "dynamic_tool"
+                  ? [{ type: item.type, toolName: item.toolName }]
+                  : []) satisfies ReadonlyArray<unknown> as ReadonlyArray<unknown>,
         ),
         [
           { type: "reasoning", text: "Reading package.json." },

@@ -5,7 +5,7 @@ export function filterPullRequestTestFiles(
   parsed: ReviewParsedDiff,
   hideTestFiles: boolean,
   includePath?: string,
-): ReviewParsedDiff {
+) {
   if (!hideTestFiles || parsed.kind !== "files") return parsed;
   const files = parsed.files.filter(
     (file) => file.path === includePath || !isTestChangedFile(file.path),

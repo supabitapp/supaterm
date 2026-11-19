@@ -15,7 +15,7 @@ export class CheckoutCloneError extends Schema.TaggedError<CheckoutCloneError>()
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Could not clone ${this.source} to ${this.destination}${this.errno === undefined ? "" : ` (errno ${this.errno})`}.`;
   }
 }

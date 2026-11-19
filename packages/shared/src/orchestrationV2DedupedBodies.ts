@@ -36,15 +36,19 @@ const sameCheckpointFiles = Schema.toEquivalence(
 export function dedupeSubagentBodies<T extends WithSubagentBodies>(
   value: T,
   previous: SubagentBodies | undefined,
-): T {
+): T;
+export function dedupeSubagentBodies<T extends WithSubagentBodies>(
+  value: T,
+  previous: SubagentBodies | undefined,
+) {
   const prompt = value.prompt !== "" && previous?.prompt === value.prompt;
   const result = value.result !== null && previous?.result === value.result;
-  if (!prompt && !result) return value;
+  if (!prompt && !result) return value satisfies T;
   return {
     ...value,
     ...(prompt ? { prompt: "", promptOmitted: true as const } : {}),
     ...(result ? { result: null, resultOmitted: true as const } : {}),
-  };
+  } satisfies T;
 }
 
 /**
@@ -54,7 +58,7 @@ export function dedupeSubagentBodies<T extends WithSubagentBodies>(
 export function restoreSubagentBodies<T extends WithSubagentBodies>(
   value: T,
   previous: WithSubagentBodies | undefined,
-): T {
+) {
   if (previous === undefined) return value;
   const prompt = value.promptOmitted === true && previous.promptOmitted !== true;
   const result = value.resultOmitted === true && previous.resultOmitted !== true;
@@ -70,30 +74,35 @@ export function restoreSubagentBodies<T extends WithSubagentBodies>(
 export function dedupeTurnItemBodies(
   item: OrchestrationV2TurnItem,
   source: DedupedBodySource,
-): OrchestrationV2TurnItem {
+): OrchestrationV2TurnItem;
+export function dedupeTurnItemBodies(item: OrchestrationV2TurnItem, source: DedupedBodySource) {
   switch (item.type) {
     case "user_message":
     case "assistant_message":
-      return item.text !== "" && source.messageText(item.messageId) === item.text
-        ? { ...item, text: "", textOmitted: true }
-        : item;
+      return (
+        item.text !== "" && source.messageText(item.messageId) === item.text
+          ? { ...item, text: "", textOmitted: true }
+          : item
+      ) satisfies OrchestrationV2TurnItem;
     case "checkpoint": {
       const files = source.checkpointFiles(item.checkpointId);
-      return item.files.length > 0 && files !== undefined && sameCheckpointFiles(files, item.files)
-        ? { ...item, files: [], filesOmitted: true }
-        : item;
+      return (
+        item.files.length > 0 && files !== undefined && sameCheckpointFiles(files, item.files)
+          ? { ...item, files: [], filesOmitted: true }
+          : item
+      ) satisfies OrchestrationV2TurnItem;
     }
     case "subagent":
-      return dedupeSubagentBodies(item, source.subagent(item.subagentId));
+      return dedupeSubagentBodies(
+        item,
+        source.subagent(item.subagentId),
+      ) satisfies OrchestrationV2TurnItem;
     default:
-      return item;
+      return item satisfies OrchestrationV2TurnItem;
   }
 }
 
-export function restoreTurnItemBodies(
-  item: OrchestrationV2TurnItem,
-  source: DedupedBodySource,
-): OrchestrationV2TurnItem {
+export function restoreTurnItemBodies(item: OrchestrationV2TurnItem, source: DedupedBodySource) {
   switch (item.type) {
     case "user_message":
     case "assistant_message": {
@@ -118,7 +127,8 @@ export function restoreTurnItemBodies(
   }
 }
 
-function snapshotBodySource(projection: OrchestrationV2ThreadProjection): DedupedBodySource {
+function snapshotBodySource(projection: OrchestrationV2ThreadProjection): DedupedBodySource;
+function snapshotBodySource(projection: OrchestrationV2ThreadProjection) {
   let messages: Map<MessageId, string> | undefined;
   let checkpoints: Map<CheckpointId, OrchestrationV2Checkpoint["files"]> | undefined;
   let subagents: Map<NodeId, OrchestrationV2Subagent> | undefined;
@@ -135,13 +145,13 @@ function snapshotBodySource(projection: OrchestrationV2ThreadProjection): Dedupe
       (subagents ??= new Map(projection.subagents.map((subagent) => [subagent.id, subagent]))).get(
         id,
       ),
-  };
+  } satisfies DedupedBodySource;
 }
 
 function mapLocalTurnItems(
   projection: OrchestrationV2ThreadProjection,
   map: (item: OrchestrationV2TurnItem) => OrchestrationV2TurnItem,
-): OrchestrationV2ThreadProjection {
+) {
   const mapped = new Map<OrchestrationV2TurnItem, OrchestrationV2TurnItem>();
   let changed = false;
   const once = (item: OrchestrationV2TurnItem) => {
@@ -162,17 +172,13 @@ function mapLocalTurnItems(
   return changed ? { ...projection, visibleTurnItems, turnItems } : projection;
 }
 
-export function dedupeSnapshotBodies(
-  projection: OrchestrationV2ThreadProjection,
-): OrchestrationV2ThreadProjection {
+export function dedupeSnapshotBodies(projection: OrchestrationV2ThreadProjection) {
   const source = snapshotBodySource(projection);
   return mapLocalTurnItems(projection, (item) => dedupeTurnItemBodies(item, source));
 }
 
 /** Call on every decoded snapshot before reducers or caches see it. */
-export function restoreSnapshotBodies(
-  projection: OrchestrationV2ThreadProjection,
-): OrchestrationV2ThreadProjection {
+export function restoreSnapshotBodies(projection: OrchestrationV2ThreadProjection) {
   const source = snapshotBodySource(projection);
   return mapLocalTurnItems(projection, (item) => restoreTurnItemBodies(item, source));
 }

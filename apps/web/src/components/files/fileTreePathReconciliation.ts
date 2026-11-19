@@ -2,12 +2,12 @@ import type { FileTreeBatchOperation } from "@pierre/trees";
 
 const REBUILD_COST_IN_FOLDER_OPERATIONS = 300;
 
-function parentOf(path: string): string {
+function parentOf(path: string) {
   const end = path.endsWith("/") ? path.length - 1 : path.length;
   return path.slice(0, Math.max(0, path.lastIndexOf("/", end - 1)));
 }
 
-function countByParent(paths: readonly string[]): Map<string, number> {
+function countByParent(paths: readonly string[]) {
   const counts = new Map<string, number>();
   for (const path of paths) {
     const parent = parentOf(path);
@@ -20,7 +20,7 @@ export function shouldRebuildFileTree(
   previousPaths: readonly string[],
   nextPaths: readonly string[],
   updates: readonly FileTreeBatchOperation[],
-): boolean {
+) {
   if (updates.length <= REBUILD_COST_IN_FOLDER_OPERATIONS) return false;
   const previousCounts = countByParent(previousPaths);
   const nextCounts = countByParent(nextPaths);
@@ -34,11 +34,11 @@ export function shouldRebuildFileTree(
   return batchWork > REBUILD_COST_IN_FOLDER_OPERATIONS * rebuildWork;
 }
 
-function pathDepth(path: string): number {
+function pathDepth(path: string) {
   return path.split("/").filter(Boolean).length;
 }
 
-function isInsideRemovedDirectory(path: string, removedRoots: ReadonlySet<string>): boolean {
+function isInsideRemovedDirectory(path: string, removedRoots: ReadonlySet<string>) {
   for (let slash = path.indexOf("/"); slash !== -1; slash = path.indexOf("/", slash + 1)) {
     if (removedRoots.has(path.slice(0, slash + 1))) return true;
   }
@@ -48,7 +48,7 @@ function isInsideRemovedDirectory(path: string, removedRoots: ReadonlySet<string
 export function buildFileTreePathUpdates(
   previousPaths: readonly string[],
   nextPaths: readonly string[],
-): FileTreeBatchOperation[] {
+) {
   const previous = new Set(previousPaths);
   const next = new Set(nextPaths);
   const removedDirectoryRoots = new Set<string>();

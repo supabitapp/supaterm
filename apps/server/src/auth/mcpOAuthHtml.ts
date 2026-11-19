@@ -31,7 +31,7 @@ const shell = (title: string, body: string) => `<!doctype html>
   </body>
 </html>`;
 
-export function renderErrorPage(description: string): string {
+export function renderErrorPage(description: string) {
   return shell(
     "Sign-in failed",
     `<h1>This sign-in cannot continue</h1>

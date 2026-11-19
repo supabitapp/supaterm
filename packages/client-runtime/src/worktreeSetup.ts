@@ -5,7 +5,7 @@ export function resolveVisibleWorktreeSetup(input: {
   recorded: WorktreeSetupSnapshot | null;
   runs: ReadonlyArray<Pick<OrchestrationV2Run, "startedAt">>;
   followUpSent: boolean;
-}): WorktreeSetupSnapshot | null {
+}) {
   const snapshot =
     input.live && (!input.recorded || input.live.sequence >= input.recorded.sequence)
       ? input.live
@@ -18,6 +18,6 @@ export function resolveVisibleWorktreeSetup(input: {
   return snapshot.stages.some((stage) => stage.status === "failed") ? snapshot : null;
 }
 
-export function worktreeSetupAgentStarted(snapshot: WorktreeSetupSnapshot): boolean {
+export function worktreeSetupAgentStarted(snapshot: WorktreeSetupSnapshot) {
   return snapshot.stages.some((stage) => stage.id === "agent" && stage.status === "done");
 }

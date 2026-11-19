@@ -13,7 +13,7 @@ export const PROVIDER_ORDER: readonly UsageProviderKind[] = [
   "muse",
 ];
 
-export function usageProviderKind(driver: string): UsageProviderKind | null {
+export function usageProviderKind(driver: string) {
   if (driver === "claudeAgent") return "claude";
   return PROVIDER_ORDER.find((kind) => kind === driver) ?? null;
 }
@@ -29,7 +29,7 @@ export const PROVIDER_LABEL: Record<UsageProviderKind, string> = {
   muse: "Muse Code",
 };
 
-export function useProviderColors(): Record<UsageProviderKind, string> {
+export function useProviderColors() {
   return providerColors(useAppearancePreferences().themeAppearance);
 }
 

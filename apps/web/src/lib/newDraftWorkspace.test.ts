@@ -48,7 +48,7 @@ import { moveDraftToProject, resolveNewDraftWorkspace } from "./newDraftWorkspac
 const environmentId = EnvironmentId.make("environment-local");
 const draftId = DraftId.make("draft-move");
 
-function makeProject(id: string, overrides: Partial<Project> = {}): Project {
+function makeProject(id: string, overrides: Partial<Project> = {}) {
   return {
     id: ProjectId.make(id),
     environmentId,

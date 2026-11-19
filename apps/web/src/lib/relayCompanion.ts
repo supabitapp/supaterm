@@ -9,7 +9,7 @@ import * as Schema from "effect/Schema";
 
 const decodeReply = Schema.decodeUnknownSync(Schema.fromJsonString(RelayCompanionReply));
 
-export function isRelayCompanion(): boolean {
+export function isRelayCompanion() {
   return (
     typeof document !== "undefined" &&
     document.querySelector(`meta[name="${RELAY_COMPANION_META_NAME}"]`)?.getAttribute("content") ===

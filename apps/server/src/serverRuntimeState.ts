@@ -31,7 +31,7 @@ export class ServerRuntimeStateError extends Schema.TaggedError<ServerRuntimeSta
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Failed to ${this.operation} server runtime state at ${this.statePath}.`;
   }
 }
@@ -43,17 +43,21 @@ const decodePersistedServerRuntimeState = Schema.decodeUnknownEffect(
 export const runtimeOriginForConfig = (
   config: Pick<ServerConfig.ServerConfig["Service"], "host">,
   port: number,
-): PersistedServerRuntimeState["origin"] => {
+) => {
   const hostname =
     config.host && !isWildcardHost(config.host) ? formatHostForUrl(config.host) : "127.0.0.1";
   return `http://${hostname}:${port}`;
 };
 
-export const makePersistedServerRuntimeState = (input: {
+export const makePersistedServerRuntimeState: (input: {
   readonly config: Pick<ServerConfig.ServerConfig["Service"], "host" | "devUrl">;
   readonly port: number;
   readonly serviceManaged?: boolean;
-}): Effect.Effect<PersistedServerRuntimeState> =>
+}) => Effect.Effect<PersistedServerRuntimeState> = (input: {
+  readonly config: Pick<ServerConfig.ServerConfig["Service"], "host" | "devUrl">;
+  readonly port: number;
+  readonly serviceManaged?: boolean;
+}) =>
   Effect.map(DateTime.now, (now) => ({
     version: 1,
     pid: process.pid,
@@ -111,7 +115,7 @@ export const clearPersistedServerRuntimeState = Effect.fn(
 });
 
 /** Signal 0 only probes existence; EPERM still means alive. */
-export const isProcessAlive = (pid: number): boolean => {
+export const isProcessAlive = (pid: number) => {
   if (!Number.isInteger(pid) || pid <= 0) return false;
   try {
     process.kill(pid, 0);

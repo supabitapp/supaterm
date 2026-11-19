@@ -66,15 +66,15 @@ export interface McpSessionRegistryOptions {
 
 const DEFAULT_LIVENESS_WINDOW_MS = 24 * 60 * 60 * 1_000;
 
-const bytesToHex = (bytes: Uint8Array): string =>
+const bytesToHex = (bytes: Uint8Array) =>
   Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
 
-const tokenFromBytes = (bytes: Uint8Array): string => Buffer.from(bytes).toString("base64url");
+const tokenFromBytes = (bytes: Uint8Array) => Buffer.from(bytes).toString("base64url");
 
-const idleMs = (since: AliveMark, now: AliveMark): number =>
+const idleMs = (since: AliveMark, now: AliveMark) =>
   Math.max(now.wallMs - since.wallMs, now.monotonicMs - since.monotonicMs);
 
-const getHttpMcpEndpointHost = (address: NetAddress.IpAddress): string =>
+const getHttpMcpEndpointHost = (address: NetAddress.IpAddress) =>
   NetAddress.isUnspecified(address)
     ? "127.0.0.1"
     : NetAddress.formatUrlHostString(NetAddress.formatIp(address));
@@ -231,7 +231,7 @@ const make = Effect.acquireRelease(
 
 export const layer = Layer.effect(McpSessionRegistry, make);
 
-export const touchActiveMcpThread = (threadId: ThreadId): Effect.Effect<void> =>
+export const touchActiveMcpThread = (threadId: ThreadId) =>
   activeMcpSessionRegistry ? activeMcpSessionRegistry.touch(threadId) : Effect.void;
 
 export const __testing = {

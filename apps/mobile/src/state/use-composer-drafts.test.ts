@@ -71,7 +71,7 @@ const composerDraftFileMocks = vi.hoisted(() => {
     setOnWrite(callback: (() => void) | null) {
       onWrite = callback;
     },
-    getWrites(): ReadonlyArray<string> {
+    getWrites() {
       return writes;
     },
     resetWrites() {
@@ -248,7 +248,7 @@ afterEach(() => {
   incomingShareStorageMocks.load.mockResolvedValue([]);
 });
 
-function contextDraft(start: number, count: number): ComposerDraft {
+function contextDraft(start: number, count: number) {
   const records = Array.from({ length: count }, (_, index) => ({
     version: 1 as const,
     contextId: ComposerContextId.make(`skill-${start + index}`),
@@ -262,7 +262,7 @@ function contextDraft(start: number, count: number): ComposerDraft {
       .join(" "),
     context: { version: 1, records },
     attachments: [],
-  };
+  } satisfies ComposerDraft;
 }
 
 function modelReconciliationHarness(
@@ -314,7 +314,7 @@ function modelReconciliationHarness(
       ],
     ]),
   });
-  const noPendingThreadIdsAtom = Atom.make((): ReadonlySet<ThreadId> => new Set());
+  const noPendingThreadIdsAtom = Atom.make(() => new Set() satisfies ReadonlySet<ThreadId>);
   const shells = createEnvironmentThreadShellAtoms({
     catalogValueAtom,
     snapshotAtom: () => snapshotAtom,

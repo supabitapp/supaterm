@@ -14,12 +14,7 @@ import * as Option from "effect/Option";
 import * as RequestResolver from "effect/RequestResolver";
 import * as Result from "effect/Result";
 import * as Schema from "effect/Schema";
-import {
-  SourceControlProviderError,
-  TrimmedNonEmptyString,
-  type ChangeRequest,
-  type SourceControlRepositoryCloneUrls,
-} from "@supaterm/contracts";
+import { SourceControlProviderError, TrimmedNonEmptyString } from "@supaterm/contracts";
 import { GH_RESOLVED_CONFIG_ARGS, normalizeGitRemoteUrl } from "@supaterm/shared/git";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 import { decodeJsonResult } from "@supaterm/shared/schemaJson";
@@ -69,7 +64,7 @@ const decodeLinkSubject = Schema.decodeUnknownEffect(
   ),
 );
 
-function toChangeRequest(record: NormalizedGitHubPullRequestRecord): ChangeRequest {
+function toChangeRequest(record: NormalizedGitHubPullRequestRecord) {
   return { provider: SourceControlProviderKind.make("github"), ...record };
 }
 
@@ -86,7 +81,7 @@ const REPOSITORY_NOT_FOUND = "Repository not found. Check the owner and name and
 function fromGitHubApiError(
   error: GitHubRequestPolicy.GitHubApiError,
   notFound = PULL_REQUEST_NOT_FOUND,
-): GitHubFailure {
+) {
   switch (error._tag) {
     case "GitHubCliMissingError":
       return failure(
@@ -126,9 +121,7 @@ const RawRepositorySchema = Schema.Struct({
 });
 const decodeRawRepository = decodeJsonResult(RawRepositorySchema);
 
-function repositoryCloneUrls(
-  raw: Schema.Schema.Type<typeof RawRepositorySchema>,
-): SourceControlRepositoryCloneUrls {
+function repositoryCloneUrls(raw: Schema.Schema.Type<typeof RawRepositorySchema>) {
   return { nameWithOwner: raw.full_name, url: raw.html_url, sshUrl: raw.ssh_url };
 }
 
@@ -210,19 +203,20 @@ const HEAD_LOOKUP_MAX_RESPONSE_BYTES = 16_000_000;
 
 const OWNER_HEAD_SCAN_LIMIT = 100;
 
-function trimmed(value: string): string | null {
+function trimmed(value: string) {
   const text = value.trim();
   return text.length > 0 ? text : null;
 }
 
-function toPullRequestRecord(node: PullRequestNode): NormalizedGitHubPullRequestRecord | null {
+function toPullRequestRecord(node: PullRequestNode) {
   const title = trimmed(node.title);
   const url = trimmed(node.url);
   const baseRefName = trimmed(node.baseRefName);
   const headRefName = trimmed(node.headRefName);
   const updatedAt = DateTime.make(node.updatedAt);
-  if (node.number < 1 || !title || !url || !baseRefName || !headRefName) return null;
-  if (Option.isNone(updatedAt)) return null;
+  if (node.number < 1 || !title || !url || !baseRefName || !headRefName)
+    return null satisfies NormalizedGitHubPullRequestRecord | null;
+  if (Option.isNone(updatedAt)) return null satisfies NormalizedGitHubPullRequestRecord | null;
   return normalizeGitHubPullRequestRecord({
     ...node,
     title,
@@ -230,7 +224,7 @@ function toPullRequestRecord(node: PullRequestNode): NormalizedGitHubPullRequest
     baseRefName,
     headRefName,
     updatedAt: Option.some(DateTime.toUtc(updatedAt.value)),
-  });
+  }) satisfies NormalizedGitHubPullRequestRecord | null;
 }
 
 export function pullRequestCheckoutBranchName(input: {
@@ -238,7 +232,7 @@ export function pullRequestCheckoutBranchName(input: {
   readonly headOwner: string | null;
   readonly isCrossRepository: boolean;
   readonly defaultBranch: string | null;
-}): string {
+}) {
   return input.isCrossRepository &&
     input.headOwner !== null &&
     input.defaultBranch !== null &&

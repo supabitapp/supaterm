@@ -14,9 +14,7 @@ export interface StreamingMessageMark {
 
 const STREAM_HAPTIC_THROTTLE_MS = 320;
 
-function latestStreamingAssistantMessage(
-  thread: EnvironmentThread | null,
-): StreamingMessageMark | null {
+function latestStreamingAssistantMessage(thread: EnvironmentThread | null) {
   const messages = thread?.projection.messages ?? [];
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index];
@@ -36,7 +34,7 @@ export function shouldTickStreamHaptic(input: {
   readonly latest: StreamingMessageMark | null;
   readonly lastTickAt: number;
   readonly now: number;
-}): boolean {
+}) {
   const { previous, latest } = input;
   if (latest === null) return false;
   if (previous?.id !== latest.id) return true;
@@ -72,6 +70,6 @@ const noStreamHaptics = Atom.make<void>(undefined).pipe(
 );
 
 /** Mount while the thread is on screen to tick haptics as its reply streams. */
-export function threadStreamHaptics(ref: ScopedThreadRef | null): Atom.Atom<void> {
+export function threadStreamHaptics(ref: ScopedThreadRef | null) {
   return ref === null ? noStreamHaptics : streamHapticsFamily(threadKey(ref));
 }

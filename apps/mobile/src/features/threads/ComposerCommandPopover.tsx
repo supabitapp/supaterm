@@ -99,7 +99,7 @@ const SKILL_SOURCE_SYMBOL_BY_KIND: Record<ProviderSkillSourceKind, AppSymbolName
   other: "cube",
 };
 
-function itemIcon(item: ComposerCommandItem): AppSymbolName | null {
+function itemIcon(item: ComposerCommandItem) {
   switch (item.type) {
     case "pull-request":
       return pullRequestStatus(item.pullRequest).icon;
@@ -117,7 +117,7 @@ function itemIcon(item: ComposerCommandItem): AppSymbolName | null {
   }
 }
 
-function groupLabel(triggerKind: ComposerTriggerKind | null): string | null {
+function groupLabel(triggerKind: ComposerTriggerKind | null) {
   switch (triggerKind) {
     case "pull-request":
       return "Pull requests";
@@ -133,7 +133,7 @@ function groupLabel(triggerKind: ComposerTriggerKind | null): string | null {
   }
 }
 
-function emptyText(triggerKind: ComposerTriggerKind | null, isLoading: boolean): string {
+function emptyText(triggerKind: ComposerTriggerKind | null, isLoading: boolean) {
   if (isLoading) {
     return triggerKind === "path" ? "Searching files…" : "Loading…";
   }

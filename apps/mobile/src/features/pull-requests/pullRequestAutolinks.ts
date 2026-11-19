@@ -33,7 +33,7 @@ const UNLINKED_TYPES = new Set([
 export function linkReferenceAutolinks(
   markdown: string,
   autolinks: ((text: string) => ReadonlyArray<ReferenceAutolink>) | null,
-): string {
+) {
   if (autolinks === null) return markdown;
   const edits: { start: number; end: number; value: string }[] = [];
   const visit = (node: MarkdownNode) => {

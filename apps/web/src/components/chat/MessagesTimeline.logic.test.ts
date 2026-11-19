@@ -274,21 +274,22 @@ describe("deriveMessagesTimelineRows", () => {
   it("stops stranded thinking after a steer and follows the next thought or tool", () => {
     const runId = RunId.make("steered-run");
     const at = "2026-10-01T06:19:10Z";
-    const thought = (id: string): TimelineEntry => ({
-      kind: "work",
-      id,
-      createdAt: at,
-      entry: {
+    const thought = (id: string) =>
+      ({
+        kind: "work",
         id,
-        runId,
         createdAt: at,
-        label: "Thinking",
-        tone: "thinking",
-        itemType: "reasoning",
-        detail: id,
-        toolLifecycleStatus: "inProgress",
-      },
-    });
+        entry: {
+          id,
+          runId,
+          createdAt: at,
+          label: "Thinking",
+          tone: "thinking",
+          itemType: "reasoning",
+          detail: id,
+          toolLifecycleStatus: "inProgress",
+        },
+      }) satisfies TimelineEntry;
     const steer: TimelineEntry = {
       kind: "message",
       id: "steer",
@@ -1850,27 +1851,29 @@ describe("deriveMessagesTimelineRows", () => {
       second: number,
       role: "user" | "assistant",
       inputIntent?: "turn_start" | "steer",
-    ): TimelineEntry => ({
-      kind: "message",
-      id,
-      createdAt: time(second),
-      message: {
-        id: MessageId.make(id),
-        role,
-        text: id,
-        runId,
-        ...(inputIntent ? { inputIntent } : {}),
+    ) =>
+      ({
+        kind: "message",
+        id,
         createdAt: time(second),
-        updatedAt: time(second),
-        streaming: false,
-      },
-    });
-    const work = (id: string, second: number): TimelineEntry => ({
-      kind: "work",
-      id,
-      createdAt: time(second),
-      entry: { id, createdAt: time(second), runId, label: "Ran command", tone: "tool" },
-    });
+        message: {
+          id: MessageId.make(id),
+          role,
+          text: id,
+          runId,
+          ...(inputIntent ? { inputIntent } : {}),
+          createdAt: time(second),
+          updatedAt: time(second),
+          streaming: false,
+        },
+      }) satisfies TimelineEntry;
+    const work = (id: string, second: number) =>
+      ({
+        kind: "work",
+        id,
+        createdAt: time(second),
+        entry: { id, createdAt: time(second), runId, label: "Ran command", tone: "tool" },
+      }) satisfies TimelineEntry;
     const rows = (expandedRunIds: ReadonlySet<RunId>) =>
       deriveMessagesTimelineRows({
         timelineEntries: [
@@ -1917,21 +1920,22 @@ describe("deriveMessagesTimelineRows", () => {
       second: number,
       role: "user" | "assistant",
       inputIntent?: "turn_start" | "steer",
-    ): TimelineEntry => ({
-      kind: "message",
-      id,
-      createdAt: time(second),
-      message: {
-        id: MessageId.make(id),
-        role,
-        text: id,
-        runId,
-        ...(inputIntent ? { inputIntent } : {}),
+    ) =>
+      ({
+        kind: "message",
+        id,
         createdAt: time(second),
-        updatedAt: time(second),
-        streaming: false,
-      },
-    });
+        message: {
+          id: MessageId.make(id),
+          role,
+          text: id,
+          runId,
+          ...(inputIntent ? { inputIntent } : {}),
+          createdAt: time(second),
+          updatedAt: time(second),
+          streaming: false,
+        },
+      }) satisfies TimelineEntry;
     const prompt = message("prompt", 0, "user", "turn_start");
     const work: TimelineEntry = {
       kind: "work",
@@ -2246,12 +2250,13 @@ describe("deriveMessagesTimelineRows", () => {
       id: string,
       at: string,
       fields: Omit<WorkEntry["entry"], "id" | "createdAt" | "runId" | "label">,
-    ): WorkEntry => ({
-      id: `${id}-entry`,
-      kind: "work",
-      createdAt: at,
-      entry: { id, createdAt: at, runId: "turn-1" as never, label: id, ...fields },
-    });
+    ) =>
+      ({
+        id: `${id}-entry`,
+        kind: "work",
+        createdAt: at,
+        entry: { id, createdAt: at, runId: "turn-1" as never, label: id, ...fields },
+      }) satisfies WorkEntry;
     const rows = deriveMessagesTimelineRows({
       timelineEntries: [
         work("old-thought", "2026-01-01T00:00:01Z", {
@@ -4411,29 +4416,30 @@ describe("v2 run and attempt history", () => {
       attempt: typeof supersededAttempt | typeof nextAttempt,
       completedSecond: number,
       phase?: "commentary" | "partial_answer" | "final_answer",
-    ): TimelineEntry => ({
-      id,
-      kind: "message",
-      createdAt: at(2),
-      attempt,
-      message: {
-        id: MessageId.make(id),
-        role: "assistant",
-        text: `${id} text`,
-        runId,
+    ) =>
+      ({
+        id,
+        kind: "message",
         createdAt: at(2),
-        updatedAt: at(completedSecond),
-        streaming: false,
-      },
-      projectedItem: {
-        item: {
-          type: "assistant_message",
-          ...(phase === undefined ? {} : { phase }),
-          status: "completed",
-          completedAt: DateTime.makeUnsafe(at(completedSecond)),
+        attempt,
+        message: {
+          id: MessageId.make(id),
+          role: "assistant",
+          text: `${id} text`,
+          runId,
+          createdAt: at(2),
+          updatedAt: at(completedSecond),
+          streaming: false,
         },
-      } as never,
-    });
+        projectedItem: {
+          item: {
+            type: "assistant_message",
+            ...(phase === undefined ? {} : { phase }),
+            status: "completed",
+            completedAt: DateTime.makeUnsafe(at(completedSecond)),
+          },
+        } as never,
+      }) satisfies TimelineEntry;
     const rowsFor = (
       replyCompletedSecond: number,
       runStatus: "running" | "completed" = "completed",
@@ -5265,44 +5271,45 @@ describe("linked timeline resources", () => {
           } as OrchestrationV2ProjectedTurnItem,
         };
       };
-      const delegation = (id: string, taskId: string, failed = false): TimelineEntry => ({
-        id,
-        kind: "work",
-        createdAt: "2026-09-08T10:00:02Z",
-        entry: {
+      const delegation = (id: string, taskId: string, failed = false) =>
+        ({
           id,
-          runId,
+          kind: "work",
           createdAt: "2026-09-08T10:00:02Z",
-          label: "Delegated a child task",
-          tone: failed ? "error" : "tool",
-          itemType: "dynamic_tool",
-          toolLifecycleStatus: failed
-            ? "failed"
-            : status === "running"
-              ? "inProgress"
-              : "completed",
-          projectedItem: {
-            item: {
-              id,
-              runId,
-              type: "dynamic_tool",
-              status: failed ? "failed" : status,
-              toolName: "supaterm.delegate_task",
-              input: { task: taskId === "b" ? "a" : taskId, role },
-              ...(status === "completed"
-                ? {
-                    output:
-                      envelope === "structured"
-                        ? { content: JSON.stringify({ taskId }), structuredContent: { taskId } }
-                        : envelope === "text"
-                          ? { content: [{ type: "text", text: JSON.stringify({ taskId }) }] }
-                          : { taskId },
-                  }
-                : {}),
-            },
-          } as OrchestrationV2ProjectedTurnItem,
-        },
-      });
+          entry: {
+            id,
+            runId,
+            createdAt: "2026-09-08T10:00:02Z",
+            label: "Delegated a child task",
+            tone: failed ? "error" : "tool",
+            itemType: "dynamic_tool",
+            toolLifecycleStatus: failed
+              ? "failed"
+              : status === "running"
+                ? "inProgress"
+                : "completed",
+            projectedItem: {
+              item: {
+                id,
+                runId,
+                type: "dynamic_tool",
+                status: failed ? "failed" : status,
+                toolName: "supaterm.delegate_task",
+                input: { task: taskId === "b" ? "a" : taskId, role },
+                ...(status === "completed"
+                  ? {
+                      output:
+                        envelope === "structured"
+                          ? { content: JSON.stringify({ taskId }), structuredContent: { taskId } }
+                          : envelope === "text"
+                            ? { content: [{ type: "text", text: JSON.stringify({ taskId }) }] }
+                            : { taskId },
+                    }
+                  : {}),
+              },
+            } as OrchestrationV2ProjectedTurnItem,
+          },
+        }) satisfies TimelineEntry;
       const rows = deriveMessagesTimelineRows({
         ...common,
         isWorking: status === "running",
@@ -5778,22 +5785,25 @@ describe("failed turn transcript", () => {
             attachments: [],
           },
         },
-        ...commands.map((input, index): OrchestrationV2ProjectedTurnItem => ({
-          position: index + 1,
-          visibility: "local",
-          sourceThreadId: threadId,
-          sourceItemId: TurnItemId.make(index === 0 ? "command" : `command-${index}`),
-          item: {
-            ...base,
-            id: TurnItemId.make(index === 0 ? "command" : `command-${index}`),
-            ordinal: index + 1,
-            type: "command_execution",
-            status: "completed",
-            input,
-            output: "",
-            exitCode: 0,
-          },
-        })),
+        ...commands.map(
+          (input, index) =>
+            ({
+              position: index + 1,
+              visibility: "local",
+              sourceThreadId: threadId,
+              sourceItemId: TurnItemId.make(index === 0 ? "command" : `command-${index}`),
+              item: {
+                ...base,
+                id: TurnItemId.make(index === 0 ? "command" : `command-${index}`),
+                ordinal: index + 1,
+                type: "command_execution",
+                status: "completed",
+                input,
+                output: "",
+                exitCode: 0,
+              },
+            }) satisfies OrchestrationV2ProjectedTurnItem,
+        ),
         {
           position: commands.length + 1,
           visibility: "local",
@@ -5914,31 +5924,33 @@ describe("live subagents after their parent turn settles", () => {
     completedAt: at(second),
     updatedAt: at(second),
   });
-  const projected = (item: OrchestrationV2TurnItem): OrchestrationV2ProjectedTurnItem => ({
-    position: item.ordinal,
-    visibility: "local",
-    sourceThreadId: threadId,
-    sourceItemId: item.id,
-    item,
-  });
+  const projected = (item: OrchestrationV2TurnItem) =>
+    ({
+      position: item.ordinal,
+      visibility: "local",
+      sourceThreadId: threadId,
+      sourceItemId: item.id,
+      item,
+    }) satisfies OrchestrationV2ProjectedTurnItem;
   const child = (
     id: string,
     second: number,
     status: OrchestrationV2TurnItem["status"],
     origin: "app_owned" | "provider_native" = "app_owned",
-  ): OrchestrationV2TurnItem => ({
-    ...base(id, second),
-    status,
-    completedAt: status === "running" ? null : at(second),
-    type: "subagent",
-    subagentId: NodeId.make(id),
-    origin,
-    driver: ProviderDriverKind.make("codex"),
-    providerInstanceId: ProviderInstanceId.make("codex"),
-    childThreadId: origin === "app_owned" ? ThreadId.make(`${id}-thread`) : null,
-    prompt: `Inspect ${id}`,
-    result: null,
-  });
+  ) =>
+    ({
+      ...base(id, second),
+      status,
+      completedAt: status === "running" ? null : at(second),
+      type: "subagent",
+      subagentId: NodeId.make(id),
+      origin,
+      driver: ProviderDriverKind.make("codex"),
+      providerInstanceId: ProviderInstanceId.make("codex"),
+      childThreadId: origin === "app_owned" ? ThreadId.make(`${id}-thread`) : null,
+      prompt: `Inspect ${id}`,
+      result: null,
+    }) satisfies OrchestrationV2TurnItem;
   const rowsFor = (children: ReadonlyArray<OrchestrationV2TurnItem>) =>
     deriveMessagesTimelineRows({
       timelineEntries: deriveTimelineEntriesFromVisibleTurnItems({
@@ -6075,19 +6087,20 @@ describe("parent run waiting on foreground subagents", () => {
     completedAt: at(second),
     updatedAt: at(second),
   });
-  const child = (id: string, second: number): OrchestrationV2TurnItem => ({
-    ...base(id, second),
-    status: "running",
-    completedAt: null,
-    type: "subagent",
-    subagentId: NodeId.make(id),
-    origin: "provider_native",
-    driver: ProviderDriverKind.make("opencode"),
-    providerInstanceId: ProviderInstanceId.make("opencode"),
-    childThreadId: null,
-    prompt: `Read ${id}`,
-    result: null,
-  });
+  const child = (id: string, second: number) =>
+    ({
+      ...base(id, second),
+      status: "running",
+      completedAt: null,
+      type: "subagent",
+      subagentId: NodeId.make(id),
+      origin: "provider_native",
+      driver: ProviderDriverKind.make("opencode"),
+      providerInstanceId: ProviderInstanceId.make("opencode"),
+      childThreadId: null,
+      prompt: `Read ${id}`,
+      result: null,
+    }) satisfies OrchestrationV2TurnItem;
 
   const liveRow = (later: ReadonlyArray<OrchestrationV2TurnItem>) =>
     deriveMessagesTimelineRows({

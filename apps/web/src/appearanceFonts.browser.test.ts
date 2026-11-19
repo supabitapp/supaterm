@@ -3,7 +3,7 @@ import { describe, expect, it } from "vite-plus/test";
 import "~/index.css";
 import { applyAppearanceFontVariables } from "./appearanceFonts";
 
-function renderedFontSize(style: (probe: HTMLElement) => void): string {
+function renderedFontSize(style: (probe: HTMLElement) => void) {
   const probe = document.createElement("div");
   style(probe);
   document.body.append(probe);

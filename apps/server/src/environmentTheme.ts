@@ -61,7 +61,7 @@ export class EnvironmentThemeService extends Context.Service<
  * and size. Windows lacks both flags (OR-ing the undefined constants is a no-op), so it lstats
  * before the open.
  */
-export const readThemeFileGuarded = (filePath: string, maxBytes: number): string | null => {
+export const readThemeFileGuarded = (filePath: string, maxBytes: number) => {
   let fd: number;
   try {
     if (NodeFS.constants.O_NOFOLLOW === undefined && NodeFS.lstatSync(filePath).isSymbolicLink()) {
@@ -96,9 +96,7 @@ export const readThemeFileGuarded = (filePath: string, maxBytes: number): string
 
 export const readPublishedThemes = Effect.fn(function* (themesDir: string) {
   const fs = yield* FileSystem.FileSystem;
-  const entries = yield* fs
-    .readDirectory(themesDir)
-    .pipe(Effect.orElseSucceed((): Array<string> => []));
+  const entries = yield* fs.readDirectory(themesDir).pipe(Effect.orElseSucceed(() => []));
 
   const themes: Array<EnvironmentTheme> = [];
   let examined = 0;
@@ -176,14 +174,18 @@ const make = Effect.gen(function* () {
       const themes = yield* readPublishedThemes(environmentThemesDir).pipe(
         Effect.provideService(FileSystem.FileSystem, fs),
       );
-      const [changed, next] = yield* Ref.modify(
-        published,
-        (previous): readonly [readonly [boolean, PublishedThemes], PublishedThemes] => {
-          if (Equal.equals(previous.themes, themes)) return [[false, previous], previous];
-          const updated: PublishedThemes = { seq: previous.seq + 1, themes };
-          return [[true, updated], updated];
-        },
-      );
+      const [changed, next] = yield* Ref.modify(published, (previous) => {
+        if (Equal.equals(previous.themes, themes))
+          return [[false, previous], previous] satisfies readonly [
+            readonly [boolean, PublishedThemes],
+            PublishedThemes,
+          ] as readonly [readonly [boolean, PublishedThemes], PublishedThemes];
+        const updated: PublishedThemes = { seq: previous.seq + 1, themes };
+        return [[true, updated], updated] satisfies readonly [
+          readonly [boolean, PublishedThemes],
+          PublishedThemes,
+        ] as readonly [readonly [boolean, PublishedThemes], PublishedThemes];
+      });
       if (changed) yield* PubSub.publish(changes, next).pipe(Effect.asVoid);
       return next;
     }),

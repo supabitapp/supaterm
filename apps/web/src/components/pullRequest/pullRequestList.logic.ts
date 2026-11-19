@@ -58,8 +58,7 @@ export type PullRequestViewers = PullRequestListResult["viewers"];
 
 type ScopedEntry = PullRequestListEntry & { readonly environmentId?: string };
 
-const pullRequestViewerKey = (entry: ScopedEntry): string =>
-  `${entry.environmentId ?? ""} ${entry.host}`;
+const pullRequestViewerKey = (entry: ScopedEntry) => `${entry.environmentId ?? ""} ${entry.host}`;
 
 const GROUP_LABELS: Record<PullRequestGroupKey, string> = {
   reviewRequested: "Review requested",
@@ -67,12 +66,12 @@ const GROUP_LABELS: Record<PullRequestGroupKey, string> = {
   others: "Others",
 };
 
-function normalize(value: string | null | undefined): string | null {
+function normalize(value: string | null | undefined) {
   const trimmed = value?.trim().toLowerCase() ?? "";
   return trimmed.length > 0 ? trimmed : null;
 }
 
-export function pullRequestLabelColor(color: string | null): string | null {
+export function pullRequestLabelColor(color: string | null) {
   const hex = color?.trim().replace(/^#/, "") ?? "";
   return /^[0-9a-fA-F]{6}$/.test(hex) ? `#${hex}` : null;
 }
@@ -131,7 +130,7 @@ export function pullRequestAuthorChoices(
   facets: ReadonlyArray<PullRequestAuthorFacet>,
   hosted: ReadonlyArray<PullRequestActor>,
   query: string,
-): ReadonlyArray<PullRequestAuthorFacet> {
+) {
   const needle = normalize(query);
   const loaded = facets.filter(
     (facet) =>
@@ -159,7 +158,7 @@ export function selectedPullRequestAuthor(
   facets: ReadonlyArray<PullRequestAuthorFacet>,
   hosted: ReadonlyArray<PullRequestActor>,
   value: string | undefined,
-): PullRequestAuthorFacet | undefined {
+) {
   if (value === undefined) return undefined;
   const key = normalize(value);
   return (
@@ -179,7 +178,7 @@ export function pullRequestLabelChoices(
   facets: ReadonlyArray<PullRequestLabelFacet>,
   hosted: ReadonlyArray<PullRequestLabel>,
   query: string,
-): ReadonlyArray<PullRequestLabelFacet> {
+) {
   const needle = normalize(query);
   const loaded = facets.filter(
     (facet) => needle === null || facet.name.toLowerCase().includes(needle),
@@ -196,19 +195,16 @@ export function pullRequestLabelChoices(
   return [...loaded, ...added];
 }
 
-export function pullRequestEntryViewer(
-  entry: ScopedEntry,
-  viewers: PullRequestViewers,
-): string | null {
+export function pullRequestEntryViewer(entry: ScopedEntry, viewers: PullRequestViewers) {
   return normalize(viewers[pullRequestViewerKey(entry)] ?? viewers[entry.host]);
 }
 
-function isAuthoredByViewer(entry: ScopedEntry, viewers: PullRequestViewers): boolean {
+function isAuthoredByViewer(entry: ScopedEntry, viewers: PullRequestViewers) {
   const viewer = pullRequestEntryViewer(entry, viewers);
   return viewer !== null && normalize(entry.author?.login) === viewer;
 }
 
-export function matchesPullRequestQuery(entry: PullRequestListEntry, query: string): boolean {
+export function matchesPullRequestQuery(entry: PullRequestListEntry, query: string) {
   const normalizedQuery = query.trim().toLowerCase();
   if (normalizedQuery.length === 0) return true;
   return `#${entry.number} ${entry.title} ${entry.repository} ${entry.headBranch} ${entry.author?.login ?? ""}`
@@ -220,7 +216,7 @@ export function filterPullRequestsByInvolvement<Entry extends ScopedEntry>(
   entries: ReadonlyArray<Entry>,
   viewers: PullRequestViewers,
   involvement: PullRequestInvolvement,
-): ReadonlyArray<Entry> {
+) {
   if (involvement === "reviewing") {
     return entries.filter((entry) => entry.viewerReviewRequested);
   }
@@ -237,7 +233,7 @@ export function narrowPullRequestsToFilters<Entry extends PullRequestListEntry>(
     readonly projectId: string | undefined;
     readonly host: string | undefined;
   },
-): ReadonlyArray<Entry> {
+) {
   return entries.filter(
     (entry) =>
       (filters.state === "all" || entry.state === filters.state) &&
@@ -250,7 +246,7 @@ export function matchesPullRequestFilters(
   entry: PullRequestListEntry,
   filters: PullRequestListFilters,
   viewer?: string | null,
-): boolean {
+) {
   const labels = new Set(entry.labels.map((label) => label.name.trim().toLowerCase()));
   const holds = (label: string) => labels.has(label.trim().toLowerCase());
   return (
@@ -270,7 +266,7 @@ export function matchesPullRequestFilters(
 export function groupPullRequestsByInvolvement<Entry extends ScopedEntry>(
   entries: ReadonlyArray<Entry>,
   viewers: PullRequestViewers,
-): ReadonlyArray<PullRequestGroup<Entry>> {
+) {
   const buckets: Record<PullRequestGroupKey, Entry[]> = {
     reviewRequested: [],
     authored: [],
@@ -290,7 +286,7 @@ export function groupPullRequestsByInvolvement<Entry extends ScopedEntry>(
   );
 }
 
-export function pullRequestEntryKey(entry: ScopedEntry): string {
+export function pullRequestEntryKey(entry: ScopedEntry) {
   const scope = entry.environmentId === undefined ? "" : `${entry.environmentId}:`;
   return `${scope}${entry.host}:${entry.repository}#${entry.number}`;
 }
@@ -324,7 +320,7 @@ export function pullRequestStatsKeysToRequest(
   enteredKeys: ReadonlySet<string>,
   batches: ReadonlyArray<PullRequestStatsBatch>,
   statsByRow: ReadonlyMap<string, unknown>,
-): ReadonlySet<string> {
+) {
   const requested = new Set(batches.flatMap((batch) => [...batch.keys]));
   return new Set(
     [...enteredKeys].filter((key) => {
@@ -343,7 +339,7 @@ export function pullRequestStatsKeysToRequest(
 export function pullRequestStatsBatches(
   entriesByKey: ReadonlyMap<string, EnvironmentPullRequestEntry>,
   keys: ReadonlySet<string>,
-): ReadonlyArray<PullRequestStatsBatch> {
+) {
   const byEnvironment = new Map<
     EnvironmentId,
     Array<{
@@ -394,7 +390,7 @@ export function pullRequestStatsRequestBatches({
   readonly activeBatches: ReadonlyArray<PullRequestStatsBatch>;
   readonly statsByRow: ReadonlyMap<string, unknown>;
   readonly refresh?: boolean;
-}): ReadonlyArray<PullRequestStatsBatch> {
+}) {
   const requestedKeys = policy === "eager" ? new Set(entriesByKey.keys()) : candidateKeys;
   const keys = refresh
     ? requestedKeys
@@ -414,7 +410,7 @@ export function pullRequestStatsRefreshBatches({
   readonly entriesByKey: ReadonlyMap<string, EnvironmentPullRequestEntry>;
   readonly candidateKeys: ReadonlySet<string>;
   readonly statsByRow: ReadonlyMap<string, unknown>;
-}): ReadonlyArray<PullRequestStatsBatch> | null {
+}) {
   if (requestedScope.key !== currentScope.key || requestedScope.policy !== currentScope.policy) {
     return null;
   }
@@ -431,7 +427,7 @@ export function pullRequestStatsRefreshBatches({
 export function retainVisiblePullRequestStatsBatches(
   batches: ReadonlyArray<PullRequestStatsBatch>,
   visibleKeys: ReadonlySet<string>,
-): ReadonlyArray<PullRequestStatsBatch> {
+) {
   return batches.filter((batch) => {
     for (const key of batch.keys) {
       if (visibleKeys.has(key)) return true;
@@ -445,7 +441,7 @@ export function partitionPullRequestsWithPriority<Entry extends PullRequestListE
   entries: ReadonlyArray<Entry>,
   authored: ReadonlyArray<Entry>,
   reviewRequested: ReadonlyArray<Entry>,
-): ReadonlyArray<PullRequestGroup<Entry>> {
+) {
   const authoredByKey = new Map(authored.map((entry) => [entry.url, entry]));
   const reviewByKey = new Map(
     reviewRequested.flatMap((entry) =>
@@ -495,7 +491,7 @@ export function mergePullRequestDiffStats(
     readonly additions: number;
     readonly deletions: number;
   }>,
-): PullRequestDiffStats {
+) {
   if (stats.length === 0) return previous;
   const next = new Map(previous);
   for (const stat of stats) {
@@ -525,7 +521,7 @@ export interface MergedPullRequestList {
 
 export function mergePullRequestLists(
   answers: ReadonlyArray<readonly [EnvironmentId, PullRequestListResult]>,
-): MergedPullRequestList | null {
+) {
   if (answers.length === 0) return null;
   const viewers: Record<string, string> = {};
   const truncatedEnvironments = new Set<string>();
@@ -579,7 +575,7 @@ export function mergePullRequestLists(
   };
 }
 
-export const pullRequestEnvironmentSetKey = (environmentIds: ReadonlyArray<string>): string =>
+export const pullRequestEnvironmentSetKey = (environmentIds: ReadonlyArray<string>) =>
   [...environmentIds].sort((left, right) => left.localeCompare(right)).join(",");
 
 export interface PullRequestPartitionsSnapshot {
@@ -592,7 +588,7 @@ export function resolveProjectScope<Id extends string>(
   projectId: Id | undefined,
   projects: ReadonlyArray<{ readonly id: string }>,
   projectsKnown: boolean,
-): Id | undefined {
+) {
   if (projectId === undefined || !projectsKnown) return projectId;
   return projects.some((project) => project.id === projectId) ? projectId : undefined;
 }
@@ -603,7 +599,7 @@ export function findScopedProject<
   projects: ReadonlyArray<Project>,
   environmentId: string | null | undefined,
   projectId: string | undefined,
-): Project | undefined {
+) {
   if (projectId === undefined) return undefined;
   const matches = projects.filter((project) => project.id === projectId);
   if (environmentId === null || environmentId === undefined) {
@@ -618,7 +614,7 @@ export function resolveQueryEnvironmentIds<Id extends string>(
   scopedProject: { readonly environmentId: Id } | undefined,
   scopedProjectId: string | undefined,
   projectsKnown: boolean,
-): ReadonlyArray<Id> {
+) {
   if (scopedProject !== undefined) {
     return environmentIds.filter((environmentId) => environmentId === scopedProject.environmentId);
   }
@@ -634,13 +630,13 @@ export function resolveSelectedEnvironmentId<Id extends string>(
   namedEnvironmentId: Id | undefined,
   knownEnvironmentIds: ReadonlySet<Id>,
   fallbackEnvironmentId: Id | null,
-): Id | null {
+) {
   if (namedEnvironmentId === undefined) return fallbackEnvironmentId;
   return knownEnvironmentIds.has(namedEnvironmentId) ? namedEnvironmentId : fallbackEnvironmentId;
 }
 
 /** Host search also matches bodies and commits absent from visible row fields. */
-export function scorePullRequestMatch(entry: PullRequestListEntry, query: string): number {
+export function scorePullRequestMatch(entry: PullRequestListEntry, query: string) {
   const needle = query.trim().toLowerCase();
   if (needle.length === 0) return 0;
   const number = needle.replace(/^#/u, "");
@@ -661,7 +657,7 @@ export function scorePullRequestMatch(entry: PullRequestListEntry, query: string
 export function rankPullRequestMatches<Entry extends PullRequestListEntry>(
   entries: ReadonlyArray<Entry>,
   query: string,
-): ReadonlyArray<Entry> {
+) {
   if (query.trim().length === 0) return entries;
   return entries.toSorted((left, right) => {
     const byScore = scorePullRequestMatch(right, query) - scorePullRequestMatch(left, query);
@@ -672,7 +668,7 @@ export function rankPullRequestMatches<Entry extends PullRequestListEntry>(
 export function rankPullRequestsByMergeReadiness<Entry extends PullRequestListEntry>(
   entries: ReadonlyArray<Entry>,
   hasMeasuredSize: (entry: Entry) => boolean = (entry) => entry.additions + entry.deletions > 0,
-): ReadonlyArray<Entry> {
+) {
   const tier = (entry: Entry) => {
     if (entry.mergeability === "conflicting") return 4;
     if (entry.state !== "open") return 3;
@@ -705,7 +701,7 @@ export function comparePullRequestsByRecency(
 function rankByTierThenRecency<Entry extends PullRequestListEntry>(
   entries: ReadonlyArray<Entry>,
   tier: (entry: Entry) => number,
-): ReadonlyArray<Entry> {
+) {
   return entries.toSorted((left, right) => {
     const byTier = tier(left) - tier(right);
     return byTier !== 0 ? byTier : comparePullRequestsByRecency(left, right);
@@ -714,7 +710,7 @@ function rankByTierThenRecency<Entry extends PullRequestListEntry>(
 
 export function rankPullRequestsBlockedOnAuthor<Entry extends PullRequestListEntry>(
   entries: ReadonlyArray<Entry>,
-): ReadonlyArray<Entry> {
+) {
   return rankByTierThenRecency(entries, (entry) => {
     if (entry.state !== "open") return 6;
     if (entry.mergeability === "conflicting") return 0;
@@ -728,7 +724,7 @@ export function rankPullRequestsBlockedOnAuthor<Entry extends PullRequestListEnt
 
 function rankPullRequestsBlockedOnReviewer<Entry extends PullRequestListEntry>(
   entries: ReadonlyArray<Entry>,
-): ReadonlyArray<Entry> {
+) {
   return rankByTierThenRecency(entries, (entry) => (entry.state === "open" ? 0 : 1));
 }
 
@@ -738,7 +734,7 @@ export function sortPullRequestGroups<Entry extends PullRequestListEntry>(
   searchText: string,
   hasMeasuredSize: (entry: Entry) => boolean = (entry) => entry.additions + entry.deletions > 0,
   involvement: PullRequestInvolvement = "all",
-): ReadonlyArray<PullRequestGroup<Entry>> {
+) {
   const sortWithinGroups = (rank: (entries: ReadonlyArray<Entry>) => ReadonlyArray<Entry>) =>
     groups.map((group) => ({ ...group, entries: rank(group.entries) }));
 
@@ -790,7 +786,7 @@ export function withDiffStat<
 >(
   entry: Entry,
   statsByRow: ReadonlyMap<string, { readonly additions: number; readonly deletions: number }>,
-): Entry {
+) {
   if (entry.additions !== 0 || entry.deletions !== 0) return entry;
   const stat = statsByRow.get(pullRequestDiffStatKey(entry));
   return stat === undefined ? entry : { ...entry, ...stat };
@@ -813,7 +809,7 @@ export function pullRequestOverrideAfterAction(
   now: Date,
   token: number,
   reply?: PullRequestSummary,
-): PullRequestListOverride | null {
+) {
   if (reply !== undefined) {
     const { state, isDraft, updatedAt, observedAt } = reply;
     return {
@@ -824,22 +820,30 @@ export function pullRequestOverrideAfterAction(
       fromReply: true,
       token,
       at: now.getTime(),
-    };
+    } satisfies PullRequestListOverride | null;
   }
   const stamp = { updatedAt: now.toISOString(), token, at: now.getTime() };
   switch (action) {
     case "close":
-      return { state: "closed", ...stamp };
+      return { state: "closed", ...stamp } satisfies PullRequestListOverride | null;
     case "reopen":
-      return { state: "open", ...stamp };
+      return { state: "open", ...stamp } satisfies PullRequestListOverride | null;
     case "merge":
-      return { state: "merged", ...stamp };
+      return { state: "merged", ...stamp } satisfies PullRequestListOverride | null;
     case "draft":
-      return { state: entry.state, isDraft: true, ...stamp };
+      return {
+        state: entry.state,
+        isDraft: true,
+        ...stamp,
+      } satisfies PullRequestListOverride | null;
     case "ready":
-      return { state: entry.state, isDraft: false, ...stamp };
+      return {
+        state: entry.state,
+        isDraft: false,
+        ...stamp,
+      } satisfies PullRequestListOverride | null;
     default:
-      return null;
+      return null satisfies PullRequestListOverride | null;
   }
 }
 
@@ -848,7 +852,7 @@ export function applyPullRequestOverrides<Entry extends PullRequestListEntry>(
   overrides: ReadonlyMap<string, PullRequestListOverride>,
   keyOf: (entry: Entry) => string,
   state: PullRequestListState,
-): ReadonlyArray<Entry> {
+) {
   if (overrides.size === 0 && state === "all") return entries;
   const out: Entry[] = [];
   for (const entry of entries) {
@@ -865,7 +869,7 @@ export function reusePullRequestEntries<Entry extends PullRequestListEntry>(
   previous: ReadonlyArray<Entry>,
   next: ReadonlyArray<Entry>,
   keyOf: (entry: Entry) => string,
-): ReadonlyArray<Entry> {
+) {
   if (previous.length === 0) return next;
   const held = new Map(previous.map((entry) => [keyOf(entry), entry]));
   let reused = 0;
@@ -892,7 +896,7 @@ export function settlePullRequestOverrides<Entry extends PullRequestListEntry>(
   answered: ReadonlyArray<Entry>,
   keyOf: (entry: Entry) => string,
   now: number,
-): ReadonlyMap<string, PullRequestListOverride> {
+) {
   if (overrides.size === 0) return overrides;
   const byKey = new Map(answered.map((entry) => [keyOf(entry), entry]));
   const kept = new Map<string, PullRequestListOverride>();
@@ -917,7 +921,10 @@ export function pullRequestHostActions(
   providers: ReadonlyArray<PullRequestListResult["providers"][number]>,
 ): (
   entry: Pick<EnvironmentPullRequestEntry, "host" | "provider">,
-) => ReadonlySet<PullRequestAction> {
+) => ReadonlySet<PullRequestAction>;
+export function pullRequestHostActions(
+  providers: ReadonlyArray<PullRequestListResult["providers"][number]>,
+) {
   const byHost = new Map(
     providers.flatMap((provider) =>
       provider.actions === undefined
@@ -926,16 +933,18 @@ export function pullRequestHostActions(
     ),
   );
   const none = new Set<PullRequestAction>();
-  return (entry) =>
+  return ((entry) =>
     byHost.get(entry.host.toLowerCase()) ??
     sourceControlClients.find(entry.provider)?.changeRequestActionsWhenUnreported ??
-    none;
+    none) satisfies (
+    entry: Pick<EnvironmentPullRequestEntry, "host" | "provider">,
+  ) => ReadonlySet<PullRequestAction>;
 }
 
 export function pullRequestQuickActions(
   entry: Pick<EnvironmentPullRequestEntry, "state" | "isDraft">,
   hostActions: ReadonlySet<PullRequestAction>,
-): ReadonlyArray<PullRequestQuickAction> {
+) {
   const forState: ReadonlyArray<PullRequestQuickAction> =
     entry.state === "merged"
       ? []
@@ -947,9 +956,7 @@ export function pullRequestQuickActions(
   return forState.filter((action) => hostActions.has(action));
 }
 
-export function largestPullRequestReadCount(
-  entries: ReadonlyArray<EnvironmentPullRequestEntry>,
-): number {
+export function largestPullRequestReadCount(entries: ReadonlyArray<EnvironmentPullRequestEntry>) {
   const counts = new Map<string, number>();
   for (const entry of entries) {
     const read = `${entry.environmentId} ${entry.host.toLowerCase()} ${
@@ -977,7 +984,7 @@ export function findProjectForRepository<
     readonly scopedProjectId?: string | undefined;
     readonly scopedEnvironmentId?: string | null | undefined;
   },
-): Project | undefined {
+) {
   const repository = input.repository.toLowerCase();
   const host = input.host?.toLowerCase();
   const candidates = projects.filter((project) => {

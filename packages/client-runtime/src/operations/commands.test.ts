@@ -658,7 +658,7 @@ describe("V2 environment commands", () => {
       readonly ordinalWithinScope: number;
       readonly appRunOrdinal: number | null;
       readonly status: OrchestrationV2ThreadProjection["checkpoints"][number]["status"];
-    }): OrchestrationV2ThreadProjection["checkpoints"][number] => ({
+    }) => ({
       id: CheckpointId.make(input.id),
       threadId: v2ThreadId,
       scopeId: CheckpointScopeId.make(`${input.id}-scope`),

@@ -3,11 +3,11 @@ import { describe, expect, it } from "vite-plus/test";
 
 import { orderDiffFiles } from "./pullRequestFileOrder.logic";
 
-function file(name: string, additionLines: ReadonlyArray<string> = []): FileDiffMetadata {
+function file(name: string, additionLines: ReadonlyArray<string> = []) {
   return { name, hunks: [], additionLines, deletionLines: [] } as unknown as FileDiffMetadata;
 }
 
-function order(files: ReadonlyArray<FileDiffMetadata>): Array<string> {
+function order(files: ReadonlyArray<FileDiffMetadata>) {
   return orderDiffFiles(files).map((entry) => entry.name);
 }
 

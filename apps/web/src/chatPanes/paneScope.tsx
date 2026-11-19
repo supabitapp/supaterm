@@ -31,11 +31,11 @@ export function PaneScopeProvider(props: {
   return <PaneScopeContext value={props.value}>{props.children}</PaneScopeContext>;
 }
 
-export function usePaneScope(): PaneScope | null {
+export function usePaneScope() {
   return use(PaneScopeContext);
 }
 
-export function usePaneLayoutVersion(): string | null {
+export function usePaneLayoutVersion() {
   return use(PaneScopeContext)?.layoutVersion ?? null;
 }
 
@@ -44,19 +44,19 @@ export function usePaneLayoutVersion(): string | null {
  * a split every pane does; inside one only the focused pane does, so a shortcut
  * or a digit key never acts in two threads at once.
  */
-export function isPaneInputOwner(paneId: string | null): boolean {
+export function isPaneInputOwner(paneId: string | null) {
   if (paneId === null) return true;
   const layout = useChatPaneStore.getState().layout;
   return layout === null || layout.cells.length < 2 || layout.focusedPaneId === paneId;
 }
 
 /** A stable check for listeners, read when the event arrives rather than when it was registered. */
-export function usePaneInputOwner(): () => boolean {
+export function usePaneInputOwner() {
   const paneId = use(PaneScopeContext)?.paneId ?? null;
   return useStableCallback(() => isPaneInputOwner(paneId));
 }
 
-export function useIsPaneInputOwner(): boolean {
+export function useIsPaneInputOwner() {
   const paneId = use(PaneScopeContext)?.paneId ?? null;
   return useChatPaneStore((state) => {
     if (paneId === null || state.layout === null || state.layout.cells.length < 2) return true;
@@ -92,7 +92,7 @@ export function usePaneThreadNavigation() {
 
 const paneComposers = new Map<string, ComposerHandleRef>();
 
-export function registerPaneComposer(paneId: string, ref: ComposerHandleRef): () => void {
+export function registerPaneComposer(paneId: string, ref: ComposerHandleRef) {
   paneComposers.set(paneId, ref);
   return () => {
     if (paneComposers.get(paneId) === ref) paneComposers.delete(paneId);
@@ -108,7 +108,7 @@ export function focusPaneComposer(paneId: string) {
  * composer, so palette actions and focus restoration land in the thread the
  * user is working in.
  */
-export function createFocusedComposerRef(): ComposerHandleRef {
+export function createFocusedComposerRef() {
   let fallback: ChatComposerHandle | null = null;
   return {
     get current() {

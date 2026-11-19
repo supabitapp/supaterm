@@ -20,7 +20,7 @@ interface RasterizationGate {
 
 const rasterizationGates = new WeakMap<Electron.WebContents, RasterizationGate>();
 
-async function waitForRasterLaunch(previous: Promise<void>, signal: AbortSignal): Promise<void> {
+async function waitForRasterLaunch(previous: Promise<void>, signal: AbortSignal) {
   if (signal.aborted) return;
   await new Promise<void>((resolve) => {
     const finish = () => {
@@ -41,7 +41,7 @@ type RasterizationResult =
   | { readonly kind: "completed"; readonly value: unknown }
   | { readonly kind: "timed-out" };
 
-export function safeHttpOrigin(url: string): string | null {
+export function safeHttpOrigin(url: string) {
   try {
     const parsed = new URL(url);
     return parsed.protocol === "http:" || parsed.protocol === "https:" ? parsed.origin : null;
@@ -50,7 +50,7 @@ export function safeHttpOrigin(url: string): string | null {
   }
 }
 
-export function selectFaviconCandidates(candidates: ReadonlyArray<string>): ReadonlyArray<string> {
+export function selectFaviconCandidates(candidates: ReadonlyArray<string>) {
   const selected: string[] = [];
   const seen = new Set<string>();
   let inputUnits = 0;
@@ -65,20 +65,28 @@ export function selectFaviconCandidates(candidates: ReadonlyArray<string>): Read
   return selected;
 }
 
+export function captureFavicon(input: {
+  readonly webContents: Electron.WebContents;
+  readonly pageUrl: string;
+  readonly candidates: ReadonlyArray<string>;
+  readonly signal: AbortSignal;
+}): Promise<FaviconCaptureResult>;
 export async function captureFavicon(input: {
   readonly webContents: Electron.WebContents;
   readonly pageUrl: string;
   readonly candidates: ReadonlyArray<string>;
   readonly signal: AbortSignal;
-}): Promise<FaviconCaptureResult> {
+}) {
   const pageOrigin = safeHttpOrigin(input.pageUrl);
-  if (!pageOrigin) return { kind: "none" };
+  if (!pageOrigin) return { kind: "none" } satisfies FaviconCaptureResult;
   const captureTimeout = AbortSignal.timeout(FAVICON_CAPTURE_TIMEOUT_MS);
   const captureSignal = AbortSignal.any([input.signal, captureTimeout]);
 
   for (const candidate of selectFaviconCandidates(input.candidates)) {
     if (captureSignal.aborted) {
-      return input.signal.aborted ? { kind: "none" } : { kind: "timed-out" };
+      return (
+        input.signal.aborted ? { kind: "none" } : { kind: "timed-out" }
+      ) satisfies FaviconCaptureResult;
     }
     const captured = await captureCandidate({
       webContents: input.webContents,
@@ -87,33 +95,42 @@ export async function captureFavicon(input: {
       signal: captureSignal,
     });
     if (captureSignal.aborted) {
-      return input.signal.aborted ? { kind: "none" } : { kind: "timed-out" };
+      return (
+        input.signal.aborted ? { kind: "none" } : { kind: "timed-out" }
+      ) satisfies FaviconCaptureResult;
     }
-    if (captured.kind === "captured" || captured.kind === "timed-out") return captured;
+    if (captured.kind === "captured" || captured.kind === "timed-out")
+      return captured satisfies FaviconCaptureResult;
   }
 
-  return { kind: "none" };
+  return { kind: "none" } satisfies FaviconCaptureResult;
 }
 
+function captureCandidate(input: {
+  readonly webContents: Electron.WebContents;
+  readonly pageOrigin: string;
+  readonly candidate: string;
+  readonly signal: AbortSignal;
+}): Promise<FaviconCaptureResult>;
 async function captureCandidate(input: {
   readonly webContents: Electron.WebContents;
   readonly pageOrigin: string;
   readonly candidate: string;
   readonly signal: AbortSignal;
-}): Promise<FaviconCaptureResult> {
+}) {
   try {
     const inline = parseInlineFavicon(input.candidate);
     if (inline) {
-      return await normalizeFaviconBuffer(
+      return (await normalizeFaviconBuffer(
         input.webContents,
         inline.mime,
         inline.buffer,
         input.signal,
-      );
+      )) satisfies FaviconCaptureResult;
     }
 
     const candidateOrigin = safeHttpOrigin(input.candidate);
-    if (!candidateOrigin) return { kind: "none" };
+    if (!candidateOrigin) return { kind: "none" } satisfies FaviconCaptureResult;
     const response = await input.webContents.session.fetch(input.candidate, {
       credentials: candidateOrigin === input.pageOrigin ? "include" : "omit",
       redirect: "error",
@@ -121,21 +138,23 @@ async function captureCandidate(input: {
     });
     if (!response.ok) {
       await response.body?.cancel();
-      return { kind: "none" };
+      return { kind: "none" } satisfies FaviconCaptureResult;
     }
     const buffer = await readFaviconResponse(response, input.signal);
-    if (!buffer || input.signal.aborted) return { kind: "none" };
+    if (!buffer || input.signal.aborted) return { kind: "none" } satisfies FaviconCaptureResult;
     const mime = response.headers.get("content-type")?.split(";", 1)[0] ?? null;
-    return await normalizeFaviconBuffer(input.webContents, mime, buffer, input.signal);
+    return (await normalizeFaviconBuffer(
+      input.webContents,
+      mime,
+      buffer,
+      input.signal,
+    )) satisfies FaviconCaptureResult;
   } catch {
-    return { kind: "none" };
+    return { kind: "none" } satisfies FaviconCaptureResult;
   }
 }
 
-async function readFaviconResponse(
-  response: Response,
-  signal: AbortSignal,
-): Promise<Buffer | null> {
+async function readFaviconResponse(response: Response, signal: AbortSignal) {
   const contentLength = Number(response.headers.get("content-length"));
   if (Number.isFinite(contentLength) && contentLength > MAX_FAVICON_RESPONSE_BYTES) {
     await response.body?.cancel();
@@ -171,7 +190,7 @@ async function readFaviconResponse(
   }
 }
 
-function isSupportedFaviconUrl(url: string): boolean {
+function isSupportedFaviconUrl(url: string) {
   if (url.length > MAX_FAVICON_INLINE_URL_LENGTH) return false;
   if (/^data:/i.test(url)) return /^data:image\/[a-z0-9.+-]+(?:;[^,]*)?,/i.test(url);
   try {
@@ -184,7 +203,7 @@ function isSupportedFaviconUrl(url: string): boolean {
   }
 }
 
-function decodeInlineFaviconPayload(payload: string): Buffer | null {
+function decodeInlineFaviconPayload(payload: string) {
   const decoded = Buffer.allocUnsafe(Buffer.byteLength(payload));
   let inputOffset = 0;
   let outputOffset = 0;
@@ -202,9 +221,7 @@ function decodeInlineFaviconPayload(payload: string): Buffer | null {
   return decoded.subarray(0, outputOffset);
 }
 
-function parseInlineFavicon(
-  url: string,
-): { readonly buffer: Buffer; readonly mime: string } | null {
+function parseInlineFavicon(url: string) {
   if (url.length > MAX_FAVICON_INLINE_URL_LENGTH) return null;
   const match = /^data:(image\/[a-z0-9.+-]+)((?:;[^,]*)?),(.*)$/is.exec(url);
   if (!match) return null;
@@ -259,14 +276,14 @@ function safeDimensions(
   );
 }
 
-function pngDimensions(buffer: Buffer): ImageDimensions | null {
+function pngDimensions(buffer: Buffer) {
   if (!buffer.subarray(0, PNG_SIGNATURE.length).equals(PNG_SIGNATURE) || buffer.byteLength < 24) {
     return null;
   }
   return { width: buffer.readUInt32BE(16), height: buffer.readUInt32BE(20) };
 }
 
-function skipGifSubBlocks(buffer: Buffer, startOffset: number): number | null {
+function skipGifSubBlocks(buffer: Buffer, startOffset: number) {
   let offset = startOffset;
   while (offset < buffer.byteLength) {
     const blockLength = buffer[offset]!;
@@ -278,7 +295,7 @@ function skipGifSubBlocks(buffer: Buffer, startOffset: number): number | null {
   return null;
 }
 
-function gifDimensions(buffer: Buffer, maxPixels: number): ImageDimensions | null {
+function gifDimensions(buffer: Buffer, maxPixels: number) {
   if (buffer.byteLength < 13 || !/^GIF8[79]a$/u.test(buffer.subarray(0, 6).toString("ascii"))) {
     return null;
   }
@@ -335,34 +352,41 @@ interface JpegExifMetadata {
   readonly orientation: number | null;
 }
 
-function jpegExifMetadata(segment: Buffer): JpegExifMetadata | null {
+function jpegExifMetadata(segment: Buffer): JpegExifMetadata | null;
+function jpegExifMetadata(segment: Buffer) {
   if (segment.byteLength <= 6 || segment.subarray(0, 5).toString("binary") !== "Exif\0") {
-    return null;
+    return null satisfies JpegExifMetadata | null;
   }
-  const metadataWithoutOrientation = (): JpegExifMetadata => ({
+  const metadataWithoutOrientation = () => ({
     complete: true,
     orientation: null,
   });
-  if (segment.byteLength < 14) return metadataWithoutOrientation();
+  if (segment.byteLength < 14)
+    return metadataWithoutOrientation() satisfies JpegExifMetadata | null;
   const tiffOffset = 6;
   const littleEndian = segment[tiffOffset] === 0x49 && segment[tiffOffset + 1] === 0x49;
   const bigEndian = segment[tiffOffset] === 0x4d && segment[tiffOffset + 1] === 0x4d;
-  if (!littleEndian && !bigEndian) return metadataWithoutOrientation();
-  const readUInt16 = (offset: number): number | null => {
+  if (!littleEndian && !bigEndian)
+    return metadataWithoutOrientation() satisfies JpegExifMetadata | null;
+  const readUInt16 = (offset: number) => {
     if (offset < 0 || offset + 2 > segment.byteLength) return null;
     return littleEndian ? segment.readUInt16LE(offset) : segment.readUInt16BE(offset);
   };
-  const readUInt32 = (offset: number): number | null => {
+  const readUInt32 = (offset: number) => {
     if (offset < 0 || offset + 4 > segment.byteLength) return null;
     return littleEndian ? segment.readUInt32LE(offset) : segment.readUInt32BE(offset);
   };
   const relativeIfdOffset = readUInt32(tiffOffset + 4);
-  if (relativeIfdOffset === null) return metadataWithoutOrientation();
+  if (relativeIfdOffset === null)
+    return metadataWithoutOrientation() satisfies JpegExifMetadata | null;
   let remainingIfdEntryVisits = Math.ceil(segment.byteLength / 12);
   const budgetExhausted = Symbol("ifd-entry-budget-exhausted");
   type IfdOrientation = number | null | typeof budgetExhausted;
   const subIfdOrientationByOffset = new Map<number, number | null>();
-  const readIfdOrientation = (ifdOffset: number, isRoot: boolean): IfdOrientation => {
+  const readIfdOrientation: (ifdOffset: number, isRoot: boolean) => IfdOrientation = (
+    ifdOffset: number,
+    isRoot: boolean,
+  ) => {
     if (!isRoot && subIfdOrientationByOffset.has(ifdOffset)) {
       return subIfdOrientationByOffset.get(ifdOffset) ?? null;
     }
@@ -399,12 +423,14 @@ function jpegExifMetadata(segment: Buffer): JpegExifMetadata | null {
     return result;
   };
   const orientation = readIfdOrientation(tiffOffset + relativeIfdOffset, true);
-  return orientation === budgetExhausted
-    ? { complete: false, orientation: null }
-    : { complete: true, orientation };
+  return (
+    orientation === budgetExhausted
+      ? { complete: false, orientation: null }
+      : { complete: true, orientation }
+  ) satisfies JpegExifMetadata | null;
 }
 
-function jpegDimensions(buffer: Buffer): ImageDimensions | null {
+function jpegDimensions(buffer: Buffer) {
   if (buffer.byteLength < 4 || buffer[0] !== 0xff || buffer[1] !== 0xd8) return null;
   const startOfFrameMarkers = new Set([
     0xc0, 0xc1, 0xc2, 0xc3, 0xc5, 0xc6, 0xc7, 0xc9, 0xca, 0xcb, 0xcd, 0xce, 0xcf,
@@ -446,7 +472,7 @@ function jpegDimensions(buffer: Buffer): ImageDimensions | null {
     : dimensions;
 }
 
-function webpDimensions(buffer: Buffer): ImageDimensions | null {
+function webpDimensions(buffer: Buffer) {
   if (
     buffer.byteLength < 30 ||
     buffer.subarray(0, 4).toString("ascii") !== "RIFF" ||
@@ -476,7 +502,7 @@ function webpDimensions(buffer: Buffer): ImageDimensions | null {
   return null;
 }
 
-function dibDimensions(buffer: Buffer): ImageDimensions | null {
+function dibDimensions(buffer: Buffer) {
   if (buffer.byteLength < 12) return null;
   const headerSize = buffer.readUInt32LE(0);
   if (headerSize === 12) {
@@ -492,7 +518,7 @@ function dibDimensions(buffer: Buffer): ImageDimensions | null {
   };
 }
 
-function icoDimensions(buffer: Buffer, maxPixels: number): ImageDimensions | null {
+function icoDimensions(buffer: Buffer, maxPixels: number) {
   if (
     buffer.byteLength < 22 ||
     buffer.readUInt16LE(0) !== 0 ||
@@ -525,10 +551,7 @@ function icoDimensions(buffer: Buffer, maxPixels: number): ImageDimensions | nul
   return { width, height };
 }
 
-export function sourceDimensions(
-  buffer: Buffer,
-  maxPixels = MAX_FAVICON_SOURCE_PIXELS,
-): ImageDimensions | null {
+export function sourceDimensions(buffer: Buffer, maxPixels = MAX_FAVICON_SOURCE_PIXELS) {
   return (
     pngDimensions(buffer) ??
     gifDimensions(buffer, maxPixels) ??
@@ -538,12 +561,18 @@ export function sourceDimensions(
   );
 }
 
+function normalizeFaviconBuffer(
+  webContents: Electron.WebContents,
+  mime: string | null,
+  buffer: Buffer,
+  signal: AbortSignal,
+): Promise<FaviconCaptureResult>;
 async function normalizeFaviconBuffer(
   webContents: Electron.WebContents,
   mime: string | null,
   buffer: Buffer,
   signal: AbortSignal,
-): Promise<FaviconCaptureResult> {
+) {
   const declaredMime = mime?.trim().toLowerCase() || null;
   const normalizedMime =
     declaredMime === "application/x-icon"
@@ -558,7 +587,7 @@ async function normalizeFaviconBuffer(
     buffer.byteLength > MAX_FAVICON_RESPONSE_BYTES ||
     !safeDimensions(dimensions)
   ) {
-    return { kind: "none" };
+    return { kind: "none" } satisfies FaviconCaptureResult;
   }
 
   const rasterized = await rasterizeFavicon(
@@ -568,12 +597,14 @@ async function normalizeFaviconBuffer(
     dimensions,
     signal,
   );
-  if (rasterized.kind === "timed-out") return rasterized;
-  return typeof rasterized.value === "string" &&
+  if (rasterized.kind === "timed-out") return rasterized satisfies FaviconCaptureResult;
+  return (
+    typeof rasterized.value === "string" &&
     rasterized.value.startsWith("data:image/png;base64,") &&
     rasterized.value.length <= FAVICON_DATA_URL_MAX_LENGTH
-    ? { kind: "captured", dataUrl: rasterized.value }
-    : { kind: "none" };
+      ? { kind: "captured", dataUrl: rasterized.value }
+      : { kind: "none" }
+  ) satisfies FaviconCaptureResult;
 }
 
 async function rasterizeFavicon(
@@ -582,7 +613,7 @@ async function rasterizeFavicon(
   buffer: Buffer,
   dimensions: ImageDimensions,
   signal: AbortSignal,
-): Promise<RasterizationResult> {
+) {
   const gate = rasterizationGates.get(webContents) ?? { generation: 0 };
   rasterizationGates.set(webContents, gate);
   const generation = ++gate.generation;
@@ -591,7 +622,7 @@ async function rasterizeFavicon(
     await waitForRasterLaunch(previousLaunchAllowed, signal);
   }
   if (signal.aborted || generation !== gate.generation) {
-    return { kind: "completed", value: null };
+    return { kind: "completed", value: null } satisfies RasterizationResult;
   }
 
   const payload = buffer.toString("base64");
@@ -675,5 +706,5 @@ async function rasterizeFavicon(
   void launchAllowed.then(() => {
     if (gate.launchAllowed === launchAllowed) delete gate.launchAllowed;
   });
-  return await result;
+  return (await result) satisfies RasterizationResult;
 }

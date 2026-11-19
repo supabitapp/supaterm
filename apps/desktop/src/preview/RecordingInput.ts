@@ -16,7 +16,7 @@ export interface RecordingKeyPress {
   readonly shiftKey: boolean;
 }
 
-export function recordingKeyLabel(input: RecordingKeyPress, isMac: boolean): string | null {
+export function recordingKeyLabel(input: RecordingKeyPress, isMac: boolean) {
   if (["Dead", "Process", "Unidentified", ""].includes(input.key)) return null;
   const modifiers = [
     input.ctrlKey || input.key === "Control" ? (isMac ? "⌃" : "Ctrl") : null,
@@ -46,7 +46,7 @@ export function recordingKeyLabel(input: RecordingKeyPress, isMac: boolean): str
 }
 
 /** Unknown iframe or closed-shadow focus is excluded because its field type cannot be checked. */
-export function recordingKeysAreSensitive(document: Document): boolean {
+export function recordingKeysAreSensitive(document: Document) {
   let element = document.activeElement;
   while (element?.shadowRoot?.activeElement) element = element.shadowRoot.activeElement;
   return (

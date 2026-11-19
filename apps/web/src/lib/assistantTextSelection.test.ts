@@ -17,10 +17,7 @@ import {
   findAssistantCitationText,
 } from "./assistantTextSelection";
 
-function selector(
-  text: string,
-  overrides: Partial<Omit<AssistantTextSelector, "text">> = {},
-): AssistantTextSelector {
+function selector(text: string, overrides: Partial<Omit<AssistantTextSelector, "text">> = {}) {
   return {
     text,
     start: 0,
@@ -65,27 +62,31 @@ class SelectionNode {
   get length() {
     return this.data.length;
   }
-  get firstChild(): SelectionNode | null {
-    return this.childNodes[0] ?? null;
+  get firstChild() {
+    return (this.childNodes[0] ?? null) satisfies SelectionNode | null as SelectionNode | null;
   }
-  get lastChild(): SelectionNode | null {
-    return this.childNodes.at(-1) ?? null;
+  get lastChild() {
+    return (this.childNodes.at(-1) ?? null) satisfies SelectionNode | null as SelectionNode | null;
   }
-  get previousSibling(): SelectionNode | null {
+  get previousSibling() {
     const siblings = this.parentElement?.childNodes;
-    return siblings?.[siblings.indexOf(this) - 1] ?? null;
+    return (siblings?.[siblings.indexOf(this) - 1] ??
+      null) satisfies SelectionNode | null as SelectionNode | null;
   }
-  get nextSibling(): SelectionNode | null {
+  get nextSibling() {
     const siblings = this.parentElement?.childNodes;
-    return siblings?.[siblings.indexOf(this) + 1] ?? null;
+    return (siblings?.[siblings.indexOf(this) + 1] ??
+      null) satisfies SelectionNode | null as SelectionNode | null;
   }
   append(...children: SelectionNode[]) {
     for (const child of children) child.parentElement = this;
     this.childNodes.push(...children);
     return this;
   }
-  contains(node: SelectionNode): boolean {
-    return node === this || this.childNodes.some((child) => child.contains(node));
+  contains(node: SelectionNode): boolean;
+  contains(node: SelectionNode) {
+    return (node === this ||
+      this.childNodes.some((child) => child.contains(node))) satisfies boolean;
   }
   matches(selector: string) {
     return selector.split(", ").some((part) => {
@@ -97,8 +98,11 @@ class SelectionNode {
       );
     });
   }
-  closest(selector: string): SelectionNode | null {
-    return this.matches(selector) ? this : (this.parentElement?.closest(selector) ?? null);
+  closest(selector: string): SelectionNode | null;
+  closest(selector: string) {
+    return (
+      this.matches(selector) ? this : (this.parentElement?.closest(selector) ?? null)
+    ) satisfies SelectionNode | null;
   }
 }
 

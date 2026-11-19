@@ -142,9 +142,11 @@ export function createThreadEnvironmentAtoms<R, E>(
   const rowActionsAtom = Atom.family((_environmentId: EnvironmentId) =>
     Atom.make(0).pipe(Atom.keepAlive),
   );
-  const rowAction = <W extends { readonly environmentId: EnvironmentId }, A, E>(
+  const rowAction: <W extends { readonly environmentId: EnvironmentId }, A, E>(
     command: AtomCommand<W, A, E>,
-  ): AtomCommand<W, A, E> => ({
+  ) => AtomCommand<W, A, E> = <W extends { readonly environmentId: EnvironmentId }, A, E>(
+    command: AtomCommand<W, A, E>,
+  ) => ({
     label: command.label,
     run: (registry, target) => {
       registry.update(rowActionsAtom(target.environmentId), (count) => count + 1);

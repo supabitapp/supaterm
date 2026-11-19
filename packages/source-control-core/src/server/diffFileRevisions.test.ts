@@ -6,7 +6,7 @@ import {
   parseDiffFileRevisions,
 } from "./diffFileRevisions.ts";
 
-function patchOf(...lines: ReadonlyArray<string>): string {
+function patchOf(...lines: ReadonlyArray<string>) {
   return `${lines.join("\n")}\n`;
 }
 

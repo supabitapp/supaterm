@@ -19,7 +19,6 @@ import * as Ref from "effect/Ref";
 import * as Result from "effect/Result";
 import * as Schema from "effect/Schema";
 import * as Schedule from "effect/Schedule";
-import * as Scope from "effect/Scope";
 import * as Semaphore from "effect/Semaphore";
 import * as Stream from "effect/Stream";
 import { ChildProcess, ChildProcessSpawner } from "effect/process";
@@ -173,7 +172,7 @@ class StatusRemoteRefreshCacheKey extends Data.Class<{
   remoteName: string;
 }> {}
 
-function statusUpstreamRefreshFailureCooldown(consecutiveFailures: number): Duration.Duration {
+function statusUpstreamRefreshFailureCooldown(consecutiveFailures: number) {
   const exponent = Math.max(0, consecutiveFailures - 1);
   const cooldownMs =
     Duration.toMillis(STATUS_UPSTREAM_REFRESH_FAILURE_BASE_COOLDOWN) * Math.pow(2, exponent);
@@ -217,7 +216,7 @@ interface ExecuteGitOptions {
   writesSharedConfig?: boolean | undefined;
 }
 
-function parseBranchAb(value: string): { ahead: number; behind: number } {
+function parseBranchAb(value: string) {
   const match = value.match(/^\+(\d+)\s+-(\d+)$/);
   if (!match) return { ahead: 0, behind: 0 };
   return {
@@ -226,7 +225,7 @@ function parseBranchAb(value: string): { ahead: number; behind: number } {
   };
 }
 
-function rawChangeType(status: string): ReviewDiffChangeType {
+function rawChangeType(status: string) {
   switch (status[0]) {
     case "A":
       return "new";
@@ -239,7 +238,7 @@ function rawChangeType(status: string): ReviewDiffChangeType {
   }
 }
 
-function parseReviewNumstat(stdout: string): ReviewDiffFileStat[] {
+function parseReviewNumstat(stdout: string) {
   const fields = stdout.split("\0");
   const changeTypes = new Map<string, ReviewDiffChangeType>();
   const files: ReviewDiffFileStat[] = [];
@@ -275,17 +274,14 @@ const PORCELAIN_V2_FIELDS_BEFORE_PATH: Record<string, number> = {
   "!": 1,
 };
 
-function parsePorcelainPath(record: string): string | null {
+function parsePorcelainPath(record: string) {
   const fieldsBeforePath = PORCELAIN_V2_FIELDS_BEFORE_PATH[record[0] ?? ""];
   if (fieldsBeforePath === undefined) return null;
   const filePath = record.split(" ").slice(fieldsBeforePath).join(" ");
   return filePath.length > 0 ? filePath : null;
 }
 
-function filterBranchesForListQuery(
-  refs: ReadonlyArray<VcsRef>,
-  query?: string,
-): ReadonlyArray<VcsRef> {
+function filterBranchesForListQuery(refs: ReadonlyArray<VcsRef>, query?: string) {
   if (!query) {
     return refs;
   }
@@ -298,11 +294,7 @@ function paginateBranches(input: {
   refs: ReadonlyArray<VcsRef>;
   cursor?: number | undefined;
   limit?: number | undefined;
-}): {
-  refs: ReadonlyArray<VcsRef>;
-  nextCursor: number | null;
-  totalCount: number;
-} {
+}) {
   const cursor = input.cursor ?? 0;
   const limit = input.limit ?? GIT_LIST_BRANCHES_DEFAULT_LIMIT;
   const totalCount = input.refs.length;
@@ -316,7 +308,7 @@ function paginateBranches(input: {
   };
 }
 
-function parseWorktreeBranchPaths(stdout: string): ReadonlyMap<string, string> {
+function parseWorktreeBranchPaths(stdout: string) {
   const worktreePaths = new Map<string, string>();
   let currentPath: string | null = null;
   let currentBranch: string | null = null;
@@ -347,7 +339,7 @@ function parseWorktreeBranchPaths(stdout: string): ReadonlyMap<string, string> {
   return worktreePaths;
 }
 
-function splitNullSeparatedPaths(input: string, truncated: boolean): string[] {
+function splitNullSeparatedPaths(input: string, truncated: boolean) {
   const parts = input.split("\0");
   if (parts.length === 0) return [];
 
@@ -358,7 +350,7 @@ function splitNullSeparatedPaths(input: string, truncated: boolean): string[] {
   return parts.filter((value) => value.length > 0);
 }
 
-const gitSupportsPathspecFromFile = (versionOutput: string): boolean => {
+const gitSupportsPathspecFromFile = (versionOutput: string) => {
   const match = /^git version (\d+)\.(\d+)/.exec(versionOutput);
   if (match === null) return false;
   const major = Number(match[1]);
@@ -367,7 +359,7 @@ const gitSupportsPathspecFromFile = (versionOutput: string): boolean => {
 
 export function splitNullSeparatedGitStdoutPaths(
   result: Pick<GitVcsDriver.ExecuteGitResult, "stdout" | "stdoutTruncated">,
-): string[] {
+) {
   return splitNullSeparatedPaths(result.stdout, result.stdoutTruncated);
 }
 
@@ -383,7 +375,7 @@ const refuseOptionLikeRefName = (operation: string, cwd: string, refName: string
       )
     : Effect.void;
 
-function sanitizeRemoteName(value: string): string {
+function sanitizeRemoteName(value: string) {
   const sanitized = value
     .trim()
     .replace(/[^A-Za-z0-9._-]+/g, "-")
@@ -391,10 +383,7 @@ function sanitizeRemoteName(value: string): string {
   return sanitized.length > 0 ? sanitized : "fork";
 }
 
-function parseUpstreamRefWithRemoteNames(
-  upstreamRef: string,
-  remoteNames: ReadonlyArray<string>,
-): { upstreamRef: string; remoteName: string; branchName: string } | null {
+function parseUpstreamRefWithRemoteNames(upstreamRef: string, remoteNames: ReadonlyArray<string>) {
   const parsed = parseRemoteRefWithRemoteNames(upstreamRef, remoteNames);
   if (!parsed) {
     return null;
@@ -407,9 +396,7 @@ function parseUpstreamRefWithRemoteNames(
   };
 }
 
-function parseUpstreamRefByFirstSeparator(
-  upstreamRef: string,
-): { upstreamRef: string; remoteName: string; branchName: string } | null {
+function parseUpstreamRefByFirstSeparator(upstreamRef: string) {
   const separatorIndex = upstreamRef.indexOf("/");
   if (separatorIndex <= 0 || separatorIndex === upstreamRef.length - 1) {
     return null;
@@ -428,7 +415,7 @@ function parseUpstreamRefByFirstSeparator(
   };
 }
 
-function parseTrackingBranchByUpstreamRef(stdout: string, upstreamRef: string): string | null {
+function parseTrackingBranchByUpstreamRef(stdout: string, upstreamRef: string) {
   for (const line of stdout.split("\n")) {
     const trimmedLine = line.trim();
     if (trimmedLine.length === 0) {
@@ -448,7 +435,7 @@ function parseTrackingBranchByUpstreamRef(stdout: string, upstreamRef: string): 
   return null;
 }
 
-function deriveLocalBranchNameFromRemoteRef(branchName: string): string | null {
+function deriveLocalBranchNameFromRemoteRef(branchName: string) {
   const separatorIndex = branchName.indexOf("/");
   if (separatorIndex <= 0 || separatorIndex === branchName.length - 1) {
     return null;
@@ -504,7 +491,7 @@ const GIT_FAILURE_REASON_DETAILS: Partial<Record<GitCommandFailureReason, string
     "Another Git process kept the repository's config locked. Wait for it to finish, then retry.",
 };
 
-function gitFailureDetail(reason: GitCommandFailureReason | null): string {
+function gitFailureDetail(reason: GitCommandFailureReason | null) {
   return (
     (reason === null ? undefined : GIT_FAILURE_REASON_DETAILS[reason]) ??
     "Git command exited with a non-zero status."
@@ -517,7 +504,7 @@ const GIT_DIAGNOSTIC_LINE_PATTERN = /^(?:fatal|error):|^!\s|^\s+!\s/;
 const SSH_TRANSPORT_REFUSAL_PATTERN =
   /Permission denied \((?:publickey|password|keyboard-interactive)|Permission denied, please try again|Host key verification failed/i;
 
-function classifyGitFailure(stderr: string): GitCommandFailureReason | null {
+function classifyGitFailure(stderr: string) {
   const diagnostics = stderr
     .split(/\r?\n/)
     .filter(
@@ -536,14 +523,14 @@ function classifyGitFailure(stderr: string): GitCommandFailureReason | null {
   return null;
 }
 
-function branchNameFromHeadRef(value: string): string | null {
+function branchNameFromHeadRef(value: string) {
   const ref = value.trim();
   return ref.startsWith("refs/heads/") && ref.length > "refs/heads/".length
     ? ref.slice("refs/heads/".length)
     : null;
 }
 
-function parseDefaultBranchFromRemoteHeadRef(value: string, remoteName: string): string | null {
+function parseDefaultBranchFromRemoteHeadRef(value: string, remoteName: string) {
   const trimmed = value.trim();
   const prefix = `refs/remotes/${remoteName}/`;
   if (!trimmed.startsWith(prefix)) {
@@ -553,7 +540,7 @@ function parseDefaultBranchFromRemoteHeadRef(value: string, remoteName: string):
   return refName.length > 0 && refName !== "HEAD" ? refName : null;
 }
 
-function isMissingGitCwdError(error: GitCommandError): boolean {
+function isMissingGitCwdError(error: GitCommandError) {
   if (!(error.cause instanceof PlatformError.PlatformError)) {
     return false;
   }
@@ -573,7 +560,7 @@ function isMissingGitCwdError(error: GitCommandError): boolean {
   );
 }
 
-export function isNonRepositoryGitStderr(stderr: string): boolean {
+export function isNonRepositoryGitStderr(stderr: string) {
   const normalized = stderr.toLowerCase();
   return (
     normalized.includes("not a git repository") ||
@@ -581,10 +568,10 @@ export function isNonRepositoryGitStderr(stderr: string): boolean {
   );
 }
 const UNTRACKED_FILES_SHOWN_CONFIG_VALUES = new Set(["normal", "all", "true", "yes", "on", "1"]);
-function untrackedFilesHiddenByConfig(value: string | null): boolean {
+function untrackedFilesHiddenByConfig(value: string | null) {
   return value !== null && !UNTRACKED_FILES_SHOWN_CONFIG_VALUES.has(value.toLowerCase());
 }
-function isUnbornHeadStderr(stderr: string): boolean {
+function isUnbornHeadStderr(stderr: string) {
   const normalized = stderr.toLowerCase();
   return (
     normalized.includes("bad revision 'head'") ||
@@ -592,15 +579,14 @@ function isUnbornHeadStderr(stderr: string): boolean {
   );
 }
 
-function isMissingWorktreeStderr(stderr: string): boolean {
+function isMissingWorktreeStderr(stderr: string): boolean;
+function isMissingWorktreeStderr(stderr: string) {
   const normalized = stderr.toLowerCase();
-  return (
-    normalized.includes("is not a working tree") ||
-    normalized.includes("cannot remove working tree")
-  );
+  return (normalized.includes("is not a working tree") ||
+    normalized.includes("cannot remove working tree")) satisfies boolean;
 }
 
-function fetchFailureDetail(stderr: string): string | undefined {
+function fetchFailureDetail(stderr: string) {
   const lines = stderr.split(/\r?\n/).map((line) => line.trim());
   if (
     lines.some((line) =>
@@ -641,11 +627,11 @@ function fetchFailureDetail(stderr: string): string | undefined {
   return undefined;
 }
 
-function isGitFetchCommand(args: readonly string[]): boolean {
+function isGitFetchCommand(args: readonly string[]) {
   return args[0] === "fetch" || (args[0] === "--git-dir" && args[2] === "fetch");
 }
 
-function isTransientGitFetchFailure(stderr: string): boolean {
+function isTransientGitFetchFailure(stderr: string) {
   return stderr.split(/\r?\n/).some((line) => {
     const message = line.trim();
     return (
@@ -662,7 +648,7 @@ function isTransientGitFetchFailure(stderr: string): boolean {
   });
 }
 
-function isRefLockFailure(stderr: string): boolean {
+function isRefLockFailure(stderr: string) {
   return stderr
     .split(/\r?\n/)
     .some((line) =>
@@ -670,11 +656,6 @@ function isRefLockFailure(stderr: string): boolean {
         line.trim(),
       ),
     );
-}
-
-interface Trace2Monitor {
-  readonly env: NodeJS.ProcessEnv;
-  readonly flush: Effect.Effect<void, never>;
 }
 
 const nowUnixNano = DateTime.now.pipe(
@@ -694,7 +675,7 @@ const addCurrentSpanEvent = Effect.fnUntraced(
   }),
 );
 
-function trace2ChildKey(record: Record<string, unknown>): string | null {
+function trace2ChildKey(record: Record<string, unknown>) {
   const childId = record.child_id;
   if (typeof childId === "number" || typeof childId === "string") {
     return typeof record.sid === "string" ? `${record.sid}\n${childId}` : String(childId);
@@ -709,11 +690,7 @@ const decodeTrace2Record = decodeJsonResult(Trace2Record);
 const createTrace2Monitor = Effect.fnUntraced(function* (
   input: Pick<GitVcsDriver.ExecuteGitInput, "operation" | "cwd" | "args">,
   progress: GitVcsDriver.ExecuteGitProgress | undefined,
-): Effect.fn.Return<
-  Trace2Monitor,
-  PlatformError.PlatformError,
-  Scope.Scope | FileSystem.FileSystem | Path.Path
-> {
+) {
   if (!progress?.onHookStarted && !progress?.onHookFinished) {
     return {
       env: {},
@@ -864,9 +841,7 @@ const createTrace2Monitor = Effect.fnUntraced(function* (
 
 const GIT_CHECKOUT_PROGRESS_LINE = /Updating files:\s+(\d+)%\s+\((\d+)\/(\d+)\)/;
 
-export function parseGitCheckoutProgressLine(
-  line: string,
-): { percent: number; completed: number; total: number } | null {
+export function parseGitCheckoutProgressLine(line: string) {
   const match = GIT_CHECKOUT_PROGRESS_LINE.exec(line);
   if (!match) return null;
   const percent = Number(match[1]);
@@ -887,7 +862,7 @@ const collectOutput = Effect.fnUntraced(function* (
   appendTruncationMarker: boolean,
   onLine: ((line: string) => Effect.Effect<void, never>) | undefined,
   keepLineCallbacksAfterTruncation = false,
-): Effect.fn.Return<{ readonly text: string; readonly truncated: boolean }, GitCommandError> {
+) {
   const decoder = new TextDecoder("utf-8", { ignoreBOM: true });
   const lineDecoder = keepLineCallbacksAfterTruncation && onLine ? new TextDecoder() : null;
   let bytes = 0;
@@ -973,10 +948,7 @@ const collectOutput = Effect.fnUntraced(function* (
   };
 });
 
-export const windowsLongPathConfigEnv = (
-  platform: NodeJS.Platform,
-  env: NodeJS.ProcessEnv,
-): NodeJS.ProcessEnv =>
+export const windowsLongPathConfigEnv = (platform: NodeJS.Platform, env: NodeJS.ProcessEnv) =>
   platform === "win32" ? gitConfigEnv(env, "core.longpaths", "true", platform) : {};
 
 export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* () {
@@ -1220,7 +1192,7 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
     cwd: string,
     args: readonly string[],
     options: ExecuteGitOptions = {},
-  ): Effect.Effect<GitVcsDriver.ExecuteGitResult, GitCommandError> =>
+  ) =>
     execute({
       operation,
       cwd,
@@ -1257,12 +1229,17 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
       }),
     );
 
-  const executeGitWithStableDiagnostics = (
+  const executeGitWithStableDiagnostics: (
+    operation: string,
+    cwd: string,
+    args: readonly string[],
+    options?: ExecuteGitOptions,
+  ) => Effect.Effect<GitVcsDriver.ExecuteGitResult, GitCommandError> = (
     operation: string,
     cwd: string,
     args: readonly string[],
     options: ExecuteGitOptions = {},
-  ): Effect.Effect<GitVcsDriver.ExecuteGitResult, GitCommandError> =>
+  ) =>
     executeGit(operation, cwd, args, {
       ...options,
       env: {
@@ -1276,15 +1253,14 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
     cwd: string,
     args: readonly string[],
     options: ExecuteGitOptions = {},
-  ): Effect.Effect<void, GitCommandError> =>
-    executeGit(operation, cwd, args, options).pipe(Effect.asVoid);
+  ) => executeGit(operation, cwd, args, options).pipe(Effect.asVoid);
 
   const runGitStdout = (
     operation: string,
     cwd: string,
     args: readonly string[],
     allowNonZeroExit = false,
-  ): Effect.Effect<string, GitCommandError> =>
+  ) =>
     executeGit(operation, cwd, args, { allowNonZeroExit }).pipe(
       Effect.map((result) => result.stdout),
     );
@@ -1310,14 +1286,14 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
     cwd: string,
     args: readonly string[],
     options: ExecuteGitOptions = {},
-  ): Effect.Effect<string, GitCommandError> =>
+  ) =>
     executeGit(operation, cwd, args, options).pipe(
       Effect.map((result) =>
         result.stdoutTruncated ? `${result.stdout}${OUTPUT_TRUNCATED_MARKER}` : result.stdout,
       ),
     );
 
-  const branchExists = (cwd: string, refName: string): Effect.Effect<boolean, GitCommandError> =>
+  const branchExists = (cwd: string, refName: string) =>
     executeGit(
       "GitVcsDriver.branchExists",
       cwd,
@@ -1361,7 +1337,7 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
 
     const remoteNames = yield* runGitStdout("GitVcsDriver.listRemoteNames", cwd, ["remote"]).pipe(
       Effect.map(parseRemoteNames),
-      Effect.orElseSucceed((): ReadonlyArray<string> => []),
+      Effect.orElseSucceed(() => []),
     );
     return (
       parseUpstreamRefWithRemoteNames(upstreamRef, remoteNames) ??
@@ -1762,7 +1738,7 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
     cwd: string,
     remoteName: string,
     gitDirArgs: ReadonlyArray<string> = [],
-  ): Effect.Effect<string | null, GitCommandError> =>
+  ) =>
     executeGit(
       "GitVcsDriver.resolveDefaultBranchName",
       cwd,
@@ -1804,13 +1780,9 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
       },
     ).pipe(Effect.map((result) => result.exitCode === 0));
 
-  const originRemoteExists = (cwd: string): Effect.Effect<boolean, GitCommandError> =>
-    remoteExists({ cwd, remoteName: "origin" });
+  const originRemoteExists = (cwd: string) => remoteExists({ cwd, remoteName: "origin" });
 
-  const listRemoteNames = (
-    cwd: string,
-    gitDirArgs: ReadonlyArray<string> = [],
-  ): Effect.Effect<ReadonlyArray<string>, GitCommandError> =>
+  const listRemoteNames = (cwd: string, gitDirArgs: ReadonlyArray<string> = []) =>
     runGitStdout("GitVcsDriver.listRemoteNames", cwd, [...gitDirArgs, "remote"]).pipe(
       Effect.map(parseRemoteNamesInGitOrder),
     );
@@ -4649,7 +4621,7 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
 
   const listRefsEpochByCommonDir = new Map<string, number>();
   let listRefsEpochSequence = 0;
-  const bumpListRefsEpoch = (gitCommonDir: string): number => {
+  const bumpListRefsEpoch = (gitCommonDir: string) => {
     const nextEpoch = ++listRefsEpochSequence;
     listRefsEpochByCommonDir.delete(gitCommonDir);
     listRefsEpochByCommonDir.set(gitCommonDir, nextEpoch);
@@ -4663,7 +4635,7 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
   };
   const listRefsGenerationByCommonDir = new Map<string, number>();
   let listRefsGenerationSequence = 0;
-  const setListRefsGeneration = (gitCommonDir: string, generation: number): number => {
+  const setListRefsGeneration = (gitCommonDir: string, generation: number) => {
     listRefsGenerationByCommonDir.delete(gitCommonDir);
     listRefsGenerationByCommonDir.set(gitCommonDir, generation);
     if (listRefsGenerationByCommonDir.size > LIST_REFS_SNAPSHOT_CACHE_CAPACITY) {
@@ -4674,13 +4646,13 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
     }
     return generation;
   };
-  const currentListRefsGeneration = (gitCommonDir: string): number => {
+  const currentListRefsGeneration = (gitCommonDir: string) => {
     const current = listRefsGenerationByCommonDir.get(gitCommonDir);
     return current === undefined
       ? setListRefsGeneration(gitCommonDir, ++listRefsGenerationSequence)
       : setListRefsGeneration(gitCommonDir, current);
   };
-  const bumpListRefsGeneration = (gitCommonDir: string): number =>
+  const bumpListRefsGeneration = (gitCommonDir: string) =>
     setListRefsGeneration(gitCommonDir, ++listRefsGenerationSequence);
   const listRefsSnapshotCache = yield* Cache.makeWith(
     (cacheKey: GitRefsSnapshotCacheKey) => readGitRefsSnapshot(cacheKey.gitCommonDir),
@@ -5647,20 +5619,22 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
     (effect, input) => withSharedConfigLock(input.cwd, effect),
   );
 
-  const removeLeftoverLinks = Effect.fnUntraced(function* (
+  const removeLeftoverLinks: (
     target: string,
-  ): Effect.fn.Return<boolean, PlatformError.PlatformError | Cause.UnknownError> {
-    if (Option.isSome(yield* fileSystem.readLink(target).pipe(Effect.option))) {
-      yield* fileSystem.remove(target);
-      return true;
-    }
-    if ((yield* fileSystem.stat(target)).type !== "Directory") return false;
-    let empty = true;
-    for (const name of yield* fileSystem.readDirectory(target)) {
-      if (!(yield* removeLeftoverLinks(path.join(target, name)))) empty = false;
-    }
-    return empty && (yield* removeEmptyDirectory(target));
-  });
+  ) => Effect.Effect<boolean, PlatformError.PlatformError | Cause.UnknownError> = Effect.fnUntraced(
+    function* (target: string) {
+      if (Option.isSome(yield* fileSystem.readLink(target).pipe(Effect.option))) {
+        yield* fileSystem.remove(target);
+        return true;
+      }
+      if ((yield* fileSystem.stat(target)).type !== "Directory") return false;
+      let empty = true;
+      for (const name of yield* fileSystem.readDirectory(target)) {
+        if (!(yield* removeLeftoverLinks(path.join(target, name)))) empty = false;
+      }
+      return empty && (yield* removeEmptyDirectory(target));
+    },
+  );
 
   const removeWorktree: GitVcsDriver.GitVcsDriver["Service"]["removeWorktree"] = Effect.fn(
     "removeWorktree",
@@ -5952,10 +5926,7 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
       ),
     );
 
-  const withListRefsInvalidation = <A, E>(
-    cwd: string,
-    effect: Effect.Effect<A, E>,
-  ): Effect.Effect<A, E> =>
+  const withListRefsInvalidation = <A, E>(cwd: string, effect: Effect.Effect<A, E>) =>
     effect.pipe(
       Effect.ensuring(
         Effect.all([

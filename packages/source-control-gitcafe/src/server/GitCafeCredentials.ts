@@ -28,7 +28,7 @@ export class GitCafeCliMissingError extends Schema.TaggedError<GitCafeCliMissing
   "GitCafeCliMissingError",
   { host: Schema.String },
 ) {
-  override get message(): string {
+  override get message() {
     return `No GitCafe credential for ${this.host}: set CAFE_TOKEN, or install the GitCafe CLI and run \`cafe auth login\`.`;
   }
 }
@@ -37,7 +37,7 @@ export class GitCafeNotSignedInError extends Schema.TaggedError<GitCafeNotSigned
   "GitCafeNotSignedInError",
   { host: Schema.String },
 ) {
-  override get message(): string {
+  override get message() {
     return `No GitCafe credential for ${this.host}: run \`cafe auth login --host https://${this.host}/api\`.`;
   }
 }
@@ -46,7 +46,7 @@ export class GitCafeCliFailedError extends Schema.TaggedError<GitCafeCliFailedEr
   "GitCafeCliFailedError",
   { host: Schema.String, cause: Schema.Defect() },
 ) {
-  override get message(): string {
+  override get message() {
     return `The GitCafe CLI could not hand over a credential for ${this.host}. Check \`cafe auth status\` on the server.`;
   }
 }
@@ -70,10 +70,7 @@ export class GitCafeCredentials extends Context.Service<
 const DEFAULT_HOST = "git.cafe";
 
 /** Restrict CAFE_TOKEN to CAFE_HOST (default git.cafe), including for staging remotes. */
-export function environmentToken(
-  host: string,
-  env: Readonly<Record<string, string | undefined>>,
-): string | null {
+export function environmentToken(host: string, env: Readonly<Record<string, string | undefined>>) {
   const configured = env.CAFE_HOST?.trim();
   const configuredHost = configured
     ? URL.parse(configured.includes("://") ? configured : `https://${configured}`)?.host
@@ -82,7 +79,7 @@ export function environmentToken(
   return env.CAFE_TOKEN?.trim() || null;
 }
 
-function credentialPassword(output: string): string | null {
+function credentialPassword(output: string) {
   for (const line of output.split(/\r?\n/u)) {
     if (line.startsWith("password=")) return line.slice("password=".length).trim() || null;
   }
@@ -138,9 +135,11 @@ export const make = Effect.gen(function* () {
           Effect.orElseSucceed(() => null),
         );
 
-  const lookup = Effect.fn("GitCafeCredentials.lookup")(function* (
+  const lookup: (
     host: string,
-  ): Effect.fn.Return<GitCafeCredential, GitCafeCredentialUnavailableError> {
+  ) => Effect.Effect<GitCafeCredential, GitCafeCredentialUnavailableError> = Effect.fn(
+    "GitCafeCredentials.lookup",
+  )(function* (host: string) {
     const fromEnv = environmentToken(host, environment);
     const token = fromEnv ?? (yield* fromCafe(host));
     return { host, token: Redacted.make(token), source: fromEnv !== null ? "env" : "cafe" };
@@ -162,14 +161,17 @@ export const make = Effect.gen(function* () {
     get: Effect.fn("GitCafeCredentials.get")(function (host) {
       return fromSettings(host).pipe(
         Effect.flatMap(
-          (saved): Effect.Effect<GitCafeCredential, GitCafeCredentialUnavailableError> =>
-            saved === null
+          (saved) =>
+            (saved === null
               ? Cache.get(cache, normalizeHost(host))
               : Effect.succeed({
                   host: normalizeHost(host),
                   token: Redacted.make(saved),
                   source: "settings",
-                }),
+                })) satisfies Effect.Effect<
+              GitCafeCredential,
+              GitCafeCredentialUnavailableError
+            > as Effect.Effect<GitCafeCredential, GitCafeCredentialUnavailableError>,
         ),
       );
     }),

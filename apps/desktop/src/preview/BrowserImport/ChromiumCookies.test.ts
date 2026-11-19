@@ -16,19 +16,21 @@ import { ChromiumKeyError } from "./ChromiumKeys.ts";
 import { LinuxBrowserSecretPath } from "./LinuxBrowserSecret.ts";
 import { cookieScope } from "./CookieDatabase.ts";
 
-const encryptChromium = (
+const encryptChromium: (
   prefix: "v10" | "v11",
   value: string | Buffer,
   key: Buffer,
-): Uint8Array => {
+) => Uint8Array = (prefix: "v10" | "v11", value: string | Buffer, key: Buffer) => {
   const cipher = NodeCrypto.createCipheriv("aes-128-cbc", key, Buffer.alloc(16, 0x20));
   return Buffer.concat([Buffer.from(prefix), cipher.update(value), cipher.final()]);
 };
 
-const encryptV10 = (value: string | Buffer, key: Buffer): Uint8Array =>
-  encryptChromium("v10", value, key);
+const encryptV10: (value: string | Buffer, key: Buffer) => Uint8Array = (
+  value: string | Buffer,
+  key: Buffer,
+) => encryptChromium("v10", value, key);
 
-const encryptWindowsV10 = (value: string | Buffer, key: Buffer): Uint8Array => {
+const encryptWindowsV10 = (value: string | Buffer, key: Buffer) => {
   const nonce = Buffer.from("0123456789ab");
   const cipher = NodeCrypto.createCipheriv("aes-256-gcm", key, nonce);
   const encrypted = Buffer.concat([cipher.update(value), cipher.final()]);

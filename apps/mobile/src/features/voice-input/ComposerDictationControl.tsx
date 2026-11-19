@@ -16,7 +16,6 @@ import Animated, {
   useDerivedValue,
   useReducedMotion,
   withTiming,
-  type EntryExitAnimationFunction,
   type SharedValue,
 } from "react-native-reanimated";
 
@@ -51,11 +50,7 @@ const SESSION_CAPSULE_STYLE = {
 } as const;
 const TOOLBAR_PERSPECTIVE = 600;
 
-function toolbarFlip(
-  fromDegrees: number,
-  toDegrees: number,
-  faceHeight: number,
-): EntryExitAnimationFunction {
+function toolbarFlip(fromDegrees: number, toDegrees: number, faceHeight: number) {
   const halfHeight = faceHeight / 2;
   return () => {
     "worklet";
@@ -115,7 +110,7 @@ const TOOLBAR_FACES = {
 /** Height of the dictation toolbar row for a voice presentation's status. */
 export function composerDictationToolbarHeight(
   statusKind: VoiceComposerPresentation["statusKind"],
-): number {
+) {
   return TOOLBAR_FACES[statusKind ?? "draft"].height;
 }
 const WAVEFORM_BAR_HEIGHT = 16;

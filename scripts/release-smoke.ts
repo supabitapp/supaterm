@@ -57,7 +57,7 @@ const workspaceFiles = [
   "scripts/package.json",
 ] as const;
 
-function copyWorkspaceManifestFixture(targetRoot: string): void {
+function copyWorkspaceManifestFixture(targetRoot: string) {
   for (const relativePath of workspaceFiles) {
     const sourcePath = NodePath.resolve(repoRoot, relativePath);
     const destinationPath = NodePath.resolve(targetRoot, relativePath);
@@ -78,7 +78,7 @@ function copyWorkspaceManifestFixture(targetRoot: string): void {
   }
 }
 
-function writeMacManifestFixtures(targetRoot: string): { arm64Path: string; x64Path: string } {
+function writeMacManifestFixtures(targetRoot: string) {
   const assetDirectory = NodePath.resolve(targetRoot, "release-assets");
   NodeFS.mkdirSync(assetDirectory, { recursive: true });
 
@@ -120,10 +120,7 @@ releaseDate: '2026-03-08T10:36:07.540Z'
   return { arm64Path, x64Path };
 }
 
-function writeWindowsManifestFixtures(
-  targetRoot: string,
-  channel: string,
-): { arm64Path: string; x64Path: string } {
+function writeWindowsManifestFixtures(targetRoot: string, channel: string) {
   const assetDirectory = NodePath.resolve(targetRoot, "release-assets");
   NodeFS.mkdirSync(assetDirectory, { recursive: true });
 
@@ -165,10 +162,7 @@ releaseDate: '2026-03-08T10:36:07.540Z'
   return { arm64Path, x64Path };
 }
 
-function writeWindowsBuilderDebugFixtures(targetRoot: string): {
-  arm64Path: string;
-  x64Path: string;
-} {
+function writeWindowsBuilderDebugFixtures(targetRoot: string) {
   const assetDirectory = NodePath.resolve(targetRoot, "release-assets");
   NodeFS.mkdirSync(assetDirectory, { recursive: true });
 
@@ -187,19 +181,19 @@ nsis:
 
   return { arm64Path, x64Path };
 }
-function assertContains(haystack: string, needle: string, message: string): void {
+function assertContains(haystack: string, needle: string, message: string) {
   if (!haystack.includes(needle)) {
     throw new Error(message);
   }
 }
 
-function assertExists(path: string, message: string): void {
+function assertExists(path: string, message: string) {
   if (!NodeFS.existsSync(path)) {
     throw new Error(message);
   }
 }
 
-function assertPackageVersion(path: string, version: string): void {
+function assertPackageVersion(path: string, version: string) {
   const packageJson = JSON.parse(NodeFS.readFileSync(path, "utf8")) as {
     readonly version?: unknown;
   };
@@ -209,7 +203,7 @@ function assertPackageVersion(path: string, version: string): void {
   }
 }
 
-function assertMissing(path: string, message: string): void {
+function assertMissing(path: string, message: string) {
   if (NodeFS.existsSync(path)) {
     throw new Error(message);
   }

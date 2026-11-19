@@ -21,7 +21,7 @@ const onSubmit = vi.fn<Parameters<typeof ProjectScriptEditorDialog>[0]["onSubmit
 const onClose = vi.fn();
 const onDelete = vi.fn();
 
-function request(name: string, error?: string): ProjectScriptEditorRequest {
+function request(name: string, error?: string) {
   return {
     scriptId: name,
     initial: { ...EMPTY_PROJECT_SCRIPT_INPUT, name, command: `run-${name}` },

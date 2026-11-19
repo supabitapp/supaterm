@@ -39,7 +39,7 @@ export type RenderMetrics = Readonly<Record<string, ScenarioReport>>;
 
 const root = NodePath.resolve(import.meta.dirname, "..");
 
-function runOnce(): RenderMetrics {
+function runOnce() {
   const directory = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "supaterm-renders-"));
   try {
     const [command, commandArgs] = vitePlusCommand(["test", "run", "--project", "renders"]);
@@ -64,7 +64,7 @@ function runOnce(): RenderMetrics {
 }
 
 /** Scenarios whose counts differ between runs, by name. */
-export function nondeterministic(runs: ReadonlyArray<RenderMetrics>): string[] {
+export function nondeterministic(runs: ReadonlyArray<RenderMetrics>) {
   const [first, ...rest] = runs;
   if (!first) return [];
   return Object.keys(first).filter((scenario) =>
@@ -80,7 +80,7 @@ const change = (before: number | null, after: number | null) =>
       ? `${after}`
       : `${before} → ${after} (${signed(after - before)}${before ? `, ${signed(Math.round(((after - before) / before) * 100))}%` : ""})`;
 
-export function renderComparison(before: RenderMetrics, after: RenderMetrics, top = 10): string {
+export function renderComparison(before: RenderMetrics, after: RenderMetrics, top = 10) {
   const scenarios = [...new Set([...Object.keys(before), ...Object.keys(after)])].toSorted();
   const lines = [
     "### Render scenarios",
@@ -115,7 +115,7 @@ export function renderComparison(before: RenderMetrics, after: RenderMetrics, to
   return lines.join("\n");
 }
 
-function option(args: ReadonlyArray<string>, name: string): string | undefined {
+function option(args: ReadonlyArray<string>, name: string) {
   const index = args.indexOf(name);
   return index === -1 ? undefined : args[index + 1];
 }

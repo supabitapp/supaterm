@@ -71,7 +71,7 @@ export function previewStreamDocument(configuration: string, script: string) {
 </style></head><body><script>window.addEventListener("error",function(){${failure}});window.addEventListener("unhandledrejection",function(){${failure}});\n${safeScript}\ntry{SupatermPreviewStream.start(${safeConfiguration});}catch{${failure}}</script></body></html>`;
 }
 
-export function previewStreamMessage(data: string): PreviewStreamMessage | null {
+export function previewStreamMessage(data: string) {
   try {
     return JSON.parse(data) as PreviewStreamMessage;
   } catch {

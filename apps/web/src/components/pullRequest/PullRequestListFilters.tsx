@@ -86,7 +86,7 @@ export interface PullRequestExpectedHost {
 export function pullRequestHostLabel(
   entries: ReadonlyArray<{ readonly host: string; readonly kind: SourceControlProviderKind }>,
   entry: { readonly host: string; readonly kind: SourceControlProviderKind },
-): string {
+) {
   const sharing = entries.filter((candidate) => candidate.kind === entry.kind);
   return sharing.length > 1
     ? entry.host

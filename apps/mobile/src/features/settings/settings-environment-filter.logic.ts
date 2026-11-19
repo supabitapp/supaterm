@@ -4,7 +4,7 @@ export function toggleSettingsEnvironment(
   selected: ReadonlySet<EnvironmentId> | null,
   available: readonly { readonly environmentId: EnvironmentId }[],
   toggledId: EnvironmentId,
-): ReadonlySet<EnvironmentId> | null {
+) {
   const ids = available.map((entry) => entry.environmentId);
   const next = new Set(ids.filter((id) => selected === null || selected.has(id)));
   if (ids.includes(toggledId)) {
@@ -24,7 +24,7 @@ export function settingsTargetsForProject<T extends { readonly environmentId: En
       }
     | null
     | undefined,
-): readonly T[] {
+) {
   if (group === null) return targets;
   return targets.filter((target) =>
     group?.members.some((member) => member.project.environmentId === target.environmentId),

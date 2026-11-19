@@ -45,7 +45,7 @@ class ThreadPullRequestServiceV2 extends Context.Service<
 function samePullRequest(
   left: ThreadLinkedPullRequest | null | undefined,
   right: ThreadLinkedPullRequest | null,
-): boolean {
+) {
   if (left == null || right === null) return left == null && right === null;
   return (
     left.projectId === right.projectId &&
@@ -58,7 +58,7 @@ function samePullRequest(
 function pullRequestPredatesThread(
   pullRequest: Pick<PullRequestSummary, "state" | "closedAt" | "mergedAt">,
   createdAt: DateTime.Utc,
-): boolean {
+) {
   const terminalAt =
     pullRequest.state === "merged"
       ? pullRequest.mergedAt
@@ -71,7 +71,7 @@ function pullRequestPredatesThread(
 function pullRequestMatchesProject(
   pullRequest: GitManager.GitBranchPullRequest,
   project: OrchestrationProjectShell,
-): boolean {
+) {
   return (
     pullRequest.repositoryKey !== null &&
     project.repositoryIdentity != null &&
@@ -99,7 +99,7 @@ const resolveProjectForPullRequestDiscovery = Effect.fn(
 export function projectWorkspaceMatchesSnapshot(
   currentProject: Option.Option<Pick<OrchestrationProjectShell, "workspaceRoot">>,
   expectedWorkspaceRoot: string,
-): boolean {
+) {
   return (
     Option.isSome(currentProject) && currentProject.value.workspaceRoot === expectedWorkspaceRoot
   );

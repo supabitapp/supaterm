@@ -94,7 +94,7 @@ function textKey(
   });
 }
 
-function parseText(key: TextKey): readonly string[] {
+function parseText(key: TextKey) {
   return key.role === "plan"
     ? searchablePlanSegments(key.text, key.cwd)
     : (searchableMessageSegments(
@@ -109,7 +109,7 @@ function parseText(key: TextKey): readonly string[] {
       ) ?? []);
 }
 
-function documentFor(row: OrchestrationV2ProjectedTurnItem, count: number): FindDocument {
+function documentFor(row: OrchestrationV2ProjectedTurnItem, count: number) {
   return {
     position: row.position,
     visibility: row.visibility,
@@ -159,7 +159,7 @@ function resultForSelection(
   selected: ReturnType<typeof selectMatch>,
   documents: readonly FindDocument[],
   snapshotSequence: number,
-): OrchestrationV2SearchThreadResult {
+) {
   let startIndex = 0;
   const entries = documents.flatMap(({ entryId, runId, count }) => {
     const entry = { entryId, runId, count, startIndex };
@@ -271,8 +271,8 @@ export const makeThreadFind = Effect.fn("makeThreadFind")(function* (
     acquire: Effect.all({
       text: makeTextCache(8192),
       largeText: makeTextCache(32),
-      scans: Effect.sync((): CompletedScans => new Map()),
-      rendered: Effect.sync((): RenderedSnapshot => ({ current: undefined })),
+      scans: Effect.sync(() => new Map() satisfies CompletedScans as CompletedScans),
+      rendered: Effect.sync(() => ({ current: undefined })),
     }),
     idleTimeToLive: "1 minute",
   });

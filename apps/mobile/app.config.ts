@@ -3,8 +3,6 @@ import type { ExpoConfig } from "expo/config";
 import { BRAND_ASSET_PATHS } from "../../scripts/lib/brand-assets.ts";
 import { loadRepoEnv } from "../../scripts/lib/public-config.ts";
 
-type AppVariant = "development" | "preview" | "production";
-
 const repoEnv = loadRepoEnv();
 Object.assign(process.env, repoEnv);
 
@@ -89,7 +87,7 @@ const VARIANT_CONFIG = {
   },
 } as const;
 
-function resolveAppVariant(value: string | undefined): AppVariant {
+function resolveAppVariant(value: string | undefined) {
   switch (value) {
     case "development":
     case "preview":

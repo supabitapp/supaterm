@@ -17,18 +17,20 @@ export interface ServerConfigProjection {
  * Published themes are current machine state, so a cache could restore a set
  * the machine no longer reports.
  */
-export function withoutEnvironmentThemes(config: ServerConfig): ServerConfig {
-  if (config.environmentThemes === undefined) return config;
+export function withoutEnvironmentThemes(config: ServerConfig): ServerConfig;
+export function withoutEnvironmentThemes(config: ServerConfig) {
+  if (config.environmentThemes === undefined) return config satisfies ServerConfig;
   const { environmentThemes: _themes, ...rest } = config;
-  return rest;
+  return rest satisfies ServerConfig;
 }
 
 /**
  * Provider pushes, reconnects, and settings writes resend unchanged data.
  * Reuse deep-equal objects so memoized UI can skip unchanged providers, models, and skills.
  */
-export function reuseUnchanged<T>(previous: unknown, next: T): T {
-  if (Object.is(previous, next)) return next;
+export function reuseUnchanged<T>(previous: unknown, next: T): T;
+export function reuseUnchanged<T>(previous: unknown, next: T) {
+  if (Object.is(previous, next)) return next satisfies T;
   if (
     typeof previous !== "object" ||
     typeof next !== "object" ||
@@ -36,7 +38,7 @@ export function reuseUnchanged<T>(previous: unknown, next: T): T {
     next === null ||
     Array.isArray(previous) !== Array.isArray(next)
   ) {
-    return next;
+    return next satisfies T;
   }
   if (Array.isArray(next)) {
     const before = previous as ReadonlyArray<unknown>;
@@ -46,10 +48,10 @@ export function reuseUnchanged<T>(previous: unknown, next: T): T {
       if (reused !== before[index]) same = false;
       return reused;
     });
-    return (same ? previous : merged) as T;
+    return (same ? previous : merged) as T satisfies T;
   }
-  if (Equal.isEqual(next)) return (Equal.equals(previous, next) ? previous : next) as T;
-  if (Object.getPrototypeOf(next) !== Object.prototype) return next;
+  if (Equal.isEqual(next)) return (Equal.equals(previous, next) ? previous : next) as T satisfies T;
+  if (Object.getPrototypeOf(next) !== Object.prototype) return next satisfies T;
   const before = previous as Record<string, unknown>;
   const after = next as Record<string, unknown>;
   const keys = Object.keys(after);
@@ -60,15 +62,12 @@ export function reuseUnchanged<T>(previous: unknown, next: T): T {
     if (reused !== before[key] || !(key in before)) same = false;
     merged[key] = reused;
   }
-  return (same ? previous : merged) as T;
+  return (same ? previous : merged) as T satisfies T;
 }
 
 type ServerProviders = ServerConfig["providers"];
 
-function withHeldProviderCatalogs(
-  previous: ServerProviders | undefined,
-  next: ServerProviders,
-): ServerProviders {
+function withHeldProviderCatalogs(previous: ServerProviders | undefined, next: ServerProviders) {
   if (previous === undefined) return next;
   return next.map((provider) => {
     if (provider.catalogDigest === undefined || provider.loadedCatalogDigest !== undefined) {
@@ -90,7 +89,11 @@ function withHeldProviderCatalogs(
 export function applyServerConfigProjection(
   current: Option.Option<ServerConfigProjection>,
   event: ServerConfigStreamEvent,
-): Option.Option<ServerConfigProjection> {
+): Option.Option<ServerConfigProjection>;
+export function applyServerConfigProjection(
+  current: Option.Option<ServerConfigProjection>,
+  event: ServerConfigStreamEvent,
+) {
   switch (event.type) {
     case "snapshot": {
       const carriedThemes = Option.isSome(current)
@@ -108,7 +111,7 @@ export function applyServerConfigProjection(
         config: Option.isSome(current) ? reuseUnchanged(current.value.config, config) : config,
         latestEvent: event,
         source: "live" as const,
-      });
+      }) satisfies Option.Option<ServerConfigProjection>;
     }
     case "keybindingsUpdated":
       return Option.map(current, (projection) => ({
@@ -119,7 +122,7 @@ export function applyServerConfigProjection(
         },
         latestEvent: event,
         source: "live",
-      }));
+      })) satisfies Option.Option<ServerConfigProjection>;
     case "providerStatuses":
     case "providerStatusDeltas":
       return Option.map(current, (projection) => {
@@ -136,7 +139,7 @@ export function applyServerConfigProjection(
           latestEvent: event,
           source: "live",
         };
-      });
+      }) satisfies Option.Option<ServerConfigProjection>;
     case "settingsUpdated":
       return Option.map(current, (projection) => {
         const settings = reuseUnchanged(projection.config.settings, event.payload.settings);
@@ -148,7 +151,7 @@ export function applyServerConfigProjection(
           latestEvent: event,
           source: "live",
         };
-      });
+      }) satisfies Option.Option<ServerConfigProjection>;
     case "relayAdvertisementUpdated":
       return Option.map(current, (projection) => ({
         config: {
@@ -157,7 +160,7 @@ export function applyServerConfigProjection(
         },
         latestEvent: event,
         source: "live",
-      }));
+      })) satisfies Option.Option<ServerConfigProjection>;
     case "environmentThemesUpdated":
       return Option.map(current, (projection) => ({
         config: {
@@ -166,8 +169,8 @@ export function applyServerConfigProjection(
         },
         latestEvent: event,
         source: "live",
-      }));
+      })) satisfies Option.Option<ServerConfigProjection>;
     case "unknown-event":
-      return Option.none();
+      return Option.none() satisfies Option.Option<ServerConfigProjection>;
   }
 }

@@ -3,15 +3,13 @@ import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Path from "effect/Path";
-import type * as PlatformError from "effect/PlatformError";
-import type * as Scope from "effect/Scope";
 import * as DateTime from "effect/DateTime";
 import * as Option from "effect/Option";
 
 import type { VcsDriverKind } from "@supaterm/contracts";
 import * as VcsDriver from "../VcsDriver.ts";
 
-function normalizePathForComparison(value: string): string {
+function normalizePathForComparison(value: string) {
   return value.replaceAll("\\", "/");
 }
 
@@ -42,9 +40,7 @@ export interface VcsDriverContractSuiteInput<R, E> {
 }
 
 export function runVcsDriverContractSuite<R, E>(input: VcsDriverContractSuiteInput<R, E>) {
-  const makeTmpDir = (
-    prefix = `supaterm-${input.kind}-vcs-contract-`,
-  ): Effect.Effect<string, PlatformError.PlatformError, FileSystem.FileSystem | Scope.Scope> =>
+  const makeTmpDir = (prefix = `supaterm-${input.kind}-vcs-contract-`) =>
     Effect.gen(function* () {
       const fileSystem = yield* FileSystem.FileSystem;
       return yield* fileSystem.makeTempDirectoryScoped({ prefix });

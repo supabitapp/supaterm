@@ -35,7 +35,8 @@ const NODE = NodeId.make("node-interrupt-1");
 function makeRow(
   index: number,
   options?: { readonly outputBytes?: number },
-): OrchestrationV2ProjectedTurnItem {
+): OrchestrationV2ProjectedTurnItem;
+function makeRow(index: number, options?: { readonly outputBytes?: number }) {
   const id = TurnItemId.make(`item-${index}`);
   const output =
     options?.outputBytes !== undefined ? "x".repeat(options.outputBytes) : `output-${index}`;
@@ -64,13 +65,10 @@ function makeRow(
       completedAt: NOW,
       updatedAt: NOW,
     },
-  };
+  } satisfies OrchestrationV2ProjectedTurnItem;
 }
 
-function makeTurnStart(
-  index: number,
-  createdBy: "user" | "agent",
-): OrchestrationV2ProjectedTurnItem {
+function makeTurnStart(index: number, createdBy: "user" | "agent") {
   const row = makeRow(index);
   return {
     ...row,
@@ -91,7 +89,7 @@ function interruptItem(
   id: string,
   type: "run_interrupt_request" | "run_interrupt_result",
   ordinal: number,
-): OrchestrationV2TurnItem {
+) {
   return {
     id: TurnItemId.make(id),
     type,
@@ -112,10 +110,7 @@ function interruptItem(
   } as OrchestrationV2TurnItem;
 }
 
-function interruptRow(
-  index: number,
-  type: "run_interrupt_request" | "run_interrupt_result",
-): OrchestrationV2ProjectedTurnItem {
+function interruptRow(index: number, type: "run_interrupt_request" | "run_interrupt_result") {
   const item = interruptItem(
     type === "run_interrupt_request" ? "interrupt-req" : "interrupt-res",
     type,
@@ -127,7 +122,7 @@ function interruptRow(
     sourceThreadId: THREAD,
     sourceItemId: item.id,
     item,
-  };
+  } satisfies OrchestrationV2ProjectedTurnItem;
 }
 
 function makeProjection(visibleTurnItems: OrchestrationV2ProjectedTurnItem[]) {

@@ -58,7 +58,7 @@ function restartEffect(
       { readonly type: "provider-turn.restart" }
     >["sessionTransition"]
   >,
-): EffectOutbox.OrchestrationEffectV2 {
+) {
   const timestamp = DateTime.formatIso(now);
   return {
     id: `effect:restart:${sessionTransition.type}`,
@@ -81,7 +81,7 @@ function restartEffect(
     updatedAt: timestamp,
     completedAt: null,
     lastError: null,
-  };
+  } satisfies EffectOutbox.OrchestrationEffectV2;
 }
 
 function layerExecutorFor(input: {

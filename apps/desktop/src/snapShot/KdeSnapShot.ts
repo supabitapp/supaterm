@@ -29,7 +29,7 @@ export function kdeCapturePaths(paths: KdeCapturePaths) {
   };
 }
 
-function kdeCaptureDesktopEntry(executable: string): string {
+function kdeCaptureDesktopEntry(executable: string) {
   return [
     "[Desktop Entry]",
     "Type=Application",
@@ -42,7 +42,8 @@ function kdeCaptureDesktopEntry(executable: string): string {
   ].join("\n");
 }
 
-function run(executable: string, args: string[], signal?: AbortSignal): Promise<string> {
+function run(executable: string, args: string[], signal?: AbortSignal): Promise<string>;
+function run(executable: string, args: string[], signal?: AbortSignal) {
   return new Promise((resolve, reject) => {
     NodeChildProcess.execFile(
       executable,
@@ -78,10 +79,10 @@ function run(executable: string, args: string[], signal?: AbortSignal): Promise<
           );
       },
     );
-  });
+  }) satisfies Promise<string>;
 }
 
-async function regularFile(path: string): Promise<Buffer | undefined> {
+async function regularFile(path: string) {
   const stat = await NodeFSP.lstat(path).catch((error: NodeJS.ErrnoException) => {
     if (error.code !== "ENOENT") throw error;
     return undefined;
@@ -100,7 +101,8 @@ export class KdeCaptureSetup {
     this.paths = paths;
   }
 
-  async state(): Promise<DesktopCaptureHelperState> {
+  state(): Promise<DesktopCaptureHelperState>;
+  async state() {
     try {
       const { executable, desktop } = kdeCapturePaths(this.paths);
       const [installed, entry] = await Promise.all([regularFile(executable), regularFile(desktop)]);
@@ -109,29 +111,29 @@ export class KdeCaptureSetup {
           status: "not-installed",
           message:
             "Install the bundled helper to capture the window you're using without a picker.",
-        };
+        } satisfies DesktopCaptureHelperState;
       const bundle = await regularFile(this.paths.bundle);
       if (!bundle)
         return {
           status: "error",
           message: "The capture helper is missing from this build. Update or reinstall Supaterm.",
-        };
+        } satisfies DesktopCaptureHelperState;
       if (!installed.equals(bundle) || entry.toString() !== kdeCaptureDesktopEntry(executable))
         return {
           status: "update-required",
           message: "Update the bundled capture helper to continue.",
-        };
+        } satisfies DesktopCaptureHelperState;
       const capabilities = decodeCapabilities(await run(executable, ["check"]));
       return {
         status: "ready",
         message: "KDE capture access is ready. Next, choose your shortcut.",
         feedbackAvailable: capabilities.feedbackAvailable ?? false,
-      };
+      } satisfies DesktopCaptureHelperState;
     } catch (error) {
       return {
         status: "error",
         message: error instanceof Error ? error.message : "Couldn't check KDE capture access.",
-      };
+      } satisfies DesktopCaptureHelperState;
     }
   }
 
@@ -207,10 +209,14 @@ const decodeCapture = Schema.decodeUnknownSync(
   Schema.fromJsonString(Schema.Struct({ window: Schema.NullOr(Window) })),
 );
 
+export function captureKdeWindow(
+  paths: KdeCapturePaths,
+  options?: { readonly flash: boolean; readonly animate: boolean },
+): Promise<LinuxWindowSnapshot>;
 export async function captureKdeWindow(
   paths: KdeCapturePaths,
   options?: { readonly flash: boolean; readonly animate: boolean },
-): Promise<LinuxWindowSnapshot> {
+) {
   const state = await new KdeCaptureSetup(paths).state();
   if (state.status !== "ready") throw new CaptureSetupRequiredError(state.message);
   const { executable } = kdeCapturePaths(paths);
@@ -270,7 +276,7 @@ export async function captureKdeWindow(
         },
         close,
       },
-    };
+    } satisfies LinuxWindowSnapshot;
   } finally {
     if (!retained) await cleanup();
   }

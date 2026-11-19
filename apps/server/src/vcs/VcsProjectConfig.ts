@@ -36,7 +36,7 @@ export class VcsProjectConfigError extends Schema.TaggedError<VcsProjectConfigEr
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Failed to ${this.operation} VCS project config at ${this.configPath}.`;
   }
 }
@@ -50,7 +50,7 @@ export class VcsProjectConfig extends Context.Service<
   }
 >()("supaterm/vcs/VcsProjectConfig") {}
 
-function configuredKind(config: ProjectVcsConfigFile): VcsDriverKindType | "auto" {
+function configuredKind(config: ProjectVcsConfigFile) {
   return config.vcs?.kind ?? config.vcsKind ?? "auto";
 }
 

@@ -25,7 +25,7 @@ export interface TerminalContextReferenceSource {
   lineEnd: number;
 }
 
-export function formatTerminalContextReference(context: TerminalContextReferenceSource): string {
+export function formatTerminalContextReference(context: TerminalContextReferenceSource) {
   return formatComposerContextReference({
     kind: "terminal",
     contextId: toKindScopedComposerContextId("terminal", context.id),
@@ -33,25 +33,25 @@ export function formatTerminalContextReference(context: TerminalContextReference
   });
 }
 
-export function normalizeTerminalContextText(text: string): string {
+export function normalizeTerminalContextText(text: string) {
   return text.replace(/\r\n/g, "\n").replace(/^\n+|\n+$/g, "");
 }
 
-function hasTerminalContextText(context: { text: string }): boolean {
+function hasTerminalContextText(context: { text: string }) {
   return normalizeTerminalContextText(context.text).length > 0;
 }
 
-export function isTerminalContextExpired(context: { text: string }): boolean {
+export function isTerminalContextExpired(context: { text: string }) {
   return !hasTerminalContextText(context);
 }
 
 export function filterTerminalContextsWithText<T extends { text: string }>(
   contexts: ReadonlyArray<T>,
-): T[] {
+) {
   return contexts.filter((context) => hasTerminalContextText(context));
 }
 
-function formatTerminalContextRange(selection: { lineStart: number; lineEnd: number }): string {
+function formatTerminalContextRange(selection: { lineStart: number; lineEnd: number }) {
   return selection.lineStart === selection.lineEnd
     ? `line ${selection.lineStart}`
     : `lines ${selection.lineStart}-${selection.lineEnd}`;
@@ -61,6 +61,6 @@ export function formatTerminalContextLabel(selection: {
   terminalLabel: string;
   lineStart: number;
   lineEnd: number;
-}): string {
+}) {
   return `${selection.terminalLabel} ${formatTerminalContextRange(selection)}`;
 }

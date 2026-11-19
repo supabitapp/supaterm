@@ -11,7 +11,6 @@ import {
   type ServerSettings,
   type SupatermProjectFile,
   type ThreadEnvMode,
-  type WorktreeCleanupRules,
 } from "@supaterm/contracts";
 import { readCustomModelEntries } from "./model.ts";
 import { normalizeProjectPathForComparison } from "./path.ts";
@@ -37,7 +36,7 @@ const ENVIRONMENT_SOURCES: ProjectSettingSources = Object.fromEntries(
 
 export function hasProjectSettingsOverrides(
   settings: Pick<ServerSettings, "projectSettingsOverrides">,
-): boolean {
+) {
   for (const entry of Object.values(settings.projectSettingsOverrides)) {
     if (Object.values(entry).some((value) => value !== undefined)) return true;
   }
@@ -66,15 +65,20 @@ export function resolveProjectSettings(
   projectId: ProjectId | null,
   project?: LegacyProjectSettingsFields | null,
   projectFile?: SupatermProjectFile | null,
-): ResolvedProjectSettings {
+) {
   const resolved = resolveProjectOverrides(settings, projectId, project);
-  return projectFile === undefined ? resolved : applyProjectFile(resolved, projectFile);
+  return (projectFile === undefined
+    ? resolved
+    : applyProjectFile(
+        resolved,
+        projectFile,
+      )) satisfies ResolvedProjectSettings as ResolvedProjectSettings;
 }
 
 function applyProjectFile(
   resolved: ResolvedProjectSettings,
   projectFile: SupatermProjectFile | null,
-): ResolvedProjectSettings {
+) {
   let effective: Record<string, unknown> | null = null;
   let sources: Record<ProjectScopedServerSettingKey, ProjectSettingSource> | null = null;
   for (const key of Object.keys(PROJECT_FILE_BACKED_SETTINGS) as ProjectFileBackedSettingKey[]) {
@@ -94,22 +98,27 @@ export function resolveProjectFileBackedSetting<K extends ProjectFileBackedSetti
   key: K,
   setting: ServerSettings[K],
   projectFile: SupatermProjectFile | null,
-): { value: ResolvedServerSettings[K]; source: ProjectSettingSource } {
+) {
   if (setting !== null) {
-    return { value: setting as ResolvedServerSettings[K], source: "environment" };
+    return { value: setting as ResolvedServerSettings[K], source: "environment" } satisfies {
+      value: ResolvedServerSettings[K];
+      source: ProjectSettingSource;
+    };
   }
   const { field, builtIn } = PROJECT_FILE_BACKED_SETTINGS[key];
   const fromFile = projectFile?.[field] as ResolvedServerSettings[K] | undefined;
-  return fromFile === undefined
-    ? { value: builtIn as ResolvedServerSettings[K], source: "environment" }
-    : { value: fromFile, source: "supaterm.json" };
+  return (
+    fromFile === undefined
+      ? { value: builtIn as ResolvedServerSettings[K], source: "environment" }
+      : { value: fromFile, source: "supaterm.json" }
+  ) satisfies { value: ResolvedServerSettings[K]; source: ProjectSettingSource };
 }
 
 function resolveProjectOverrides(
   settings: ServerSettings,
   projectId: ProjectId | null,
   project?: LegacyProjectSettingsFields | null,
-): ResolvedProjectSettings {
+) {
   const stored = projectId === null ? undefined : settings.projectSettingsOverrides[projectId];
   const overrides: ProjectSettingsOverrides =
     project == null || settings.projectSettingsFolded
@@ -179,7 +188,7 @@ export function resolveNewThreadEnvMode(input: {
   readonly workspaceRoot: string | null;
   readonly newProjectsRoot: string | null | undefined;
   readonly projectHasThreads: boolean;
-}): ThreadEnvMode {
+}) {
   const configured = input.projectSettings.settings.defaultThreadEnvMode;
   if (
     configured === "local" ||
@@ -204,7 +213,7 @@ export function resolveNewThreadEnvMode(input: {
 export function resolveSendEnvMode(input: {
   readonly requestedEnvMode: ThreadEnvMode;
   readonly isGitRepo: boolean;
-}): ThreadEnvMode {
+}) {
   return input.isGitRepo ? input.requestedEnvMode : "local";
 }
 
@@ -216,7 +225,7 @@ export function resolveSendEnvMode(input: {
 export function projectSettingsOverridesForWrite(
   settings: Pick<ServerSettings, "projectSettingsOverrides">,
   projectId: ProjectId,
-): ProjectSettingsOverrides {
+) {
   const { providerInstances: _kept, ...entry } = settings.projectSettingsOverrides[projectId] ?? {};
   return entry;
 }
@@ -229,7 +238,7 @@ export function clearProjectSettingsOverrides(
   settings: Pick<ServerSettings, "projectSettingsOverrides">,
   projectId: ProjectId,
   keys: readonly ProjectScopedServerSettingKey[],
-): ProjectSettingsOverrides | null {
+) {
   const current = settings.projectSettingsOverrides[projectId];
   if (current === undefined) return null;
   const next = projectSettingsOverridesForWrite(settings, projectId);
@@ -237,10 +246,7 @@ export function clearProjectSettingsOverrides(
   return Object.keys(next).length === 0 && current.providerInstances === undefined ? null : next;
 }
 
-export function resolveWorktreeCleanup(
-  settings: ServerSettings,
-  projectId: ProjectId | null,
-): WorktreeCleanupRules {
+export function resolveWorktreeCleanup(settings: ServerSettings, projectId: ProjectId | null) {
   const policy = resolveProjectSettings(settings, projectId).settings.worktreeCleanup;
   if (policy?.mode === "custom") return policy.rules;
   if (policy?.mode === "off")

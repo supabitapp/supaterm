@@ -18,12 +18,7 @@ import {
 } from "./ui/alert-dialog";
 import { Button } from "./ui/button";
 
-type ConfirmationCopy = {
-  readonly title: string;
-  readonly description: string | null;
-};
-
-function resolveConfirmDialogCopy(message: string): ConfirmationCopy {
+function resolveConfirmDialogCopy(message: string) {
   const normalizedMessage = message.trim();
   const lines = normalizedMessage.split("\n");
   const questionLineIndex = lines.findIndex((line) => line.trim().endsWith("?"));

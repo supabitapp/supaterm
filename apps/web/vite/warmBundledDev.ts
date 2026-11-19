@@ -38,10 +38,7 @@ function hasBundledDevInternals(value: unknown): value is BundledDevInternals {
   );
 }
 
-async function warmLazyEntries(
-  server: ViteDevServer,
-  entries: readonly string[],
-): Promise<string[]> {
+async function warmLazyEntries(server: ViteDevServer, entries: readonly string[]) {
   const bundledDev: unknown = server.environments.client.bundledDev;
   if (!hasBundledDevInternals(bundledDev)) return [];
   await bundledDev.waitForInitialBuildFinish();
@@ -74,7 +71,7 @@ async function warmLazyEntries(
   return [...warmed];
 }
 
-export function warmBundledDevPlugin(): Plugin {
+export function warmBundledDevPlugin() {
   return {
     name: "supaterm:warm-bundled-dev",
     apply: "serve",
@@ -99,5 +96,5 @@ export function warmBundledDevPlugin(): Plugin {
         );
       });
     },
-  };
+  } satisfies Plugin;
 }

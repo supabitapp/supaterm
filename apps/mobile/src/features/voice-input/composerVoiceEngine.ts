@@ -24,14 +24,21 @@ export function resolveComposerVoiceEngine(input: {
   readonly environmentId: EnvironmentId | null;
   readonly context?: VoiceTranscriptionContext;
   readonly subscribeFrames: (push: (pcm: Uint8Array) => void) => () => void;
-}): ComposerVoiceEngineResolution {
+}) {
   const { environmentId } = input;
   if (environmentId === null) {
-    return { status: "unavailable", message: "Choose an environment to transcribe voice input." };
+    return {
+      status: "unavailable",
+      message: "Choose an environment to transcribe voice input.",
+    } satisfies ComposerVoiceEngineResolution;
   }
   const config = appAtomRegistry.get(serverEnvironment.configValueAtom(environmentId));
   const source = config === null ? null : resolveVoiceTranscriptionSource(config);
-  if (source?.status === "unavailable") return { status: "unavailable", message: source.message };
+  if (source?.status === "unavailable")
+    return {
+      status: "unavailable",
+      message: source.message,
+    } satisfies ComposerVoiceEngineResolution;
   const language = systemVoiceLanguage();
   const transcriber = createEnvironmentVoiceTranscriber({
     environmentId,
@@ -39,5 +46,8 @@ export function resolveComposerVoiceEngine(input: {
     ...(input.context ? { context: input.context } : {}),
     subscribeFrames: input.subscribeFrames,
   });
-  return { status: "ready", engine: { transcriber, language } };
+  return {
+    status: "ready",
+    engine: { transcriber, language },
+  } satisfies ComposerVoiceEngineResolution;
 }

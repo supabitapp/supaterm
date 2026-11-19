@@ -25,7 +25,7 @@ export type TextMeasure = {
  * run's text sits over its painted glyphs, merged with its neighbours on the line while their text runs on, so
  * selection, find and screen readers see whole words and lines.
  */
-export function pageText(page: DisplayPage, measure: TextMeasure): WordSpan[] {
+export function pageText(page: DisplayPage, measure: TextMeasure) {
   const body = page.primitives.slice(
     Math.min(page.watermarkPrimitiveCount ?? 0, page.primitives.length),
   );
@@ -33,7 +33,7 @@ export function pageText(page: DisplayPage, measure: TextMeasure): WordSpan[] {
 
   return [page.header?.primitives ?? [], body, ...notes, page.footer?.primitives ?? []].flatMap(
     (region) => regionText(region, page, measure),
-  );
+  ) satisfies WordSpan[];
 }
 
 /**
@@ -90,7 +90,7 @@ function regionText(
   primitives: readonly DisplayPrimitive[],
   page: DisplayPage,
   measure: TextMeasure,
-): WordSpan[] {
+) {
   const lines = primitives
     .flatMap((primitive) => {
       const piece = toPiece(primitive);
@@ -130,7 +130,7 @@ function regionText(
 
       return toSpan(piece, page, measure, separated(piece, following) ? "tab" : undefined);
     });
-  });
+  }) satisfies WordSpan[];
 }
 
 function separated(previous: Piece, next: Piece) {
@@ -146,7 +146,7 @@ function separated(previous: Piece, next: Piece) {
   return gap > next.size * 0.35;
 }
 
-function toPiece(primitive: DisplayPrimitive): Piece | undefined {
+function toPiece(primitive: DisplayPrimitive) {
   if (primitive.kind === "glyphRun") return glyphPiece(primitive);
 
   if (primitive.kind === "text") return textPiece(primitive);
@@ -154,7 +154,7 @@ function toPiece(primitive: DisplayPrimitive): Piece | undefined {
   return undefined;
 }
 
-function glyphPiece(primitive: GlyphRunPrimitive): Piece | undefined {
+function glyphPiece(primitive: GlyphRunPrimitive) {
   if (!primitive.text || primitive.glyphs.length === 0 || primitive.decorative) return undefined;
 
   const base = primitive.glyphs.find((glyph) => glyph.advance) ?? primitive.glyphs[0];
@@ -168,7 +168,7 @@ function glyphPiece(primitive: GlyphRunPrimitive): Piece | undefined {
   };
 }
 
-function textPiece(primitive: TextRunPrimitive): Piece | undefined {
+function textPiece(primitive: TextRunPrimitive) {
   if (!primitive.text || primitive.decorative) return undefined;
 
   return {
@@ -252,12 +252,7 @@ function joins(previous: Piece, piece: Piece) {
   return Math.abs(gap) < piece.size * 0.35;
 }
 
-function toSpan(
-  piece: Piece,
-  page: DisplayPage,
-  measure: TextMeasure,
-  after: WordSpan["after"],
-): WordSpan {
+function toSpan(piece: Piece, page: DisplayPage, measure: TextMeasure, after: WordSpan["after"]) {
   const natural = measure.width(piece.text);
   const stretch = natural > 0 && piece.rect.w > 0 ? piece.rect.w / (natural * piece.size) : 1;
   const above = (lineHeight + measure.ascent - measure.descent) / 2;
@@ -280,5 +275,5 @@ function toSpan(
     link: wordLink(piece.href),
     title: piece.title,
     after,
-  };
+  } satisfies WordSpan;
 }

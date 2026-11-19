@@ -520,7 +520,7 @@ export const makeMuseAdapterV2 = Effect.fn("makeMuseAdapterV2")(function* (
       });
       const childItemIdentity = (context: ChildContext, nativeId: string) =>
         `${options.instanceId}:child:${context.childSessionId}:${nativeId}`;
-      const itemStatus = (item: MuseItem): OrchestrationV2TurnItemStatus => {
+      const itemStatus: (item: MuseItem) => OrchestrationV2TurnItemStatus = (item: MuseItem) => {
         const status = museItemStatus(item);
         return status === "running" &&
           item.kind === "subagent" &&
@@ -1624,16 +1624,19 @@ export const makeMuseAdapterV2 = Effect.fn("makeMuseAdapterV2")(function* (
             const steps: ReadonlyArray<OrchestrationV2PlanStep> = todo.items
               .values()
               .filter((item) => item.text.trim() && item.status !== "cancelled")
-              .map((item, index): OrchestrationV2PlanStep => ({
-                id: `${turn.nativeId}:todo:${index}`,
-                text: item.text.trim(),
-                status:
-                  item.status === "completed"
-                    ? "completed"
-                    : item.status === "inProgress"
-                      ? "running"
-                      : "pending",
-              }))
+              .map(
+                (item, index) =>
+                  ({
+                    id: `${turn.nativeId}:todo:${index}`,
+                    text: item.text.trim(),
+                    status:
+                      item.status === "completed"
+                        ? "completed"
+                        : item.status === "inProgress"
+                          ? "running"
+                          : "pending",
+                  }) satisfies OrchestrationV2PlanStep,
+              )
               .toArray();
             const time = yield* DateTime.now;
             const base = baseItem(turn, "todo", time);
@@ -2187,12 +2190,12 @@ export const makeMuseAdapterV2 = Effect.fn("makeMuseAdapterV2")(function* (
         );
       });
 
-      const snapshot = Effect.fnUntraced(function* (
+      const snapshot: (
         current: OrchestrationV2ProviderThread,
-      ): Effect.fn.Return<
+      ) => Effect.Effect<
         ProviderAdapter.ProviderAdapterV2ThreadSnapshot,
         ProviderAdapter.ProviderAdapterV2Error
-      > {
+      > = Effect.fnUntraced(function* (current: OrchestrationV2ProviderThread) {
         const result = yield* request("session/read", { excludeItems: false }, false).pipe(
           Effect.flatMap((value) => decode(MuseSessionResult, value)),
         );
@@ -2203,28 +2206,29 @@ export const makeMuseAdapterV2 = Effect.fn("makeMuseAdapterV2")(function* (
         return {
           providerThread: current,
           providerTurns: [],
-          messages: items.flatMap((item): OrchestrationV2ConversationMessage[] =>
-            item.kind === "agentMessage" || item.kind === "userMessage"
-              ? [
-                  {
-                    id: idAllocator.derive.messageFromProviderItem({
-                      driver: MUSE_PROVIDER,
-                      nativeItemId: `${options.instanceId}:${current.id}:${item.turnId ?? "history"}:${item.itemId}`,
-                    }),
-                    threadId: current.appThreadId ?? input.threadId,
-                    runId: null,
-                    nodeId: null,
-                    role: item.kind === "agentMessage" ? "assistant" : "user",
-                    text: item.text ?? "",
-                    attachments: [],
-                    streaming: item.status === "inProgress",
-                    createdBy: item.kind === "agentMessage" ? "agent" : "user",
-                    creationSource: "provider",
-                    createdAt: now,
-                    updatedAt: now,
-                  },
-                ]
-              : [],
+          messages: items.flatMap(
+            (item) =>
+              (item.kind === "agentMessage" || item.kind === "userMessage"
+                ? [
+                    {
+                      id: idAllocator.derive.messageFromProviderItem({
+                        driver: MUSE_PROVIDER,
+                        nativeItemId: `${options.instanceId}:${current.id}:${item.turnId ?? "history"}:${item.itemId}`,
+                      }),
+                      threadId: current.appThreadId ?? input.threadId,
+                      runId: null,
+                      nodeId: null,
+                      role: item.kind === "agentMessage" ? "assistant" : "user",
+                      text: item.text ?? "",
+                      attachments: [],
+                      streaming: item.status === "inProgress",
+                      createdBy: item.kind === "agentMessage" ? "agent" : "user",
+                      creationSource: "provider",
+                      createdAt: now,
+                      updatedAt: now,
+                    },
+                  ]
+                : []) satisfies OrchestrationV2ConversationMessage[],
           ),
           runtimeRequests: [...pending.values()]
             .values()

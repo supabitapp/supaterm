@@ -31,10 +31,8 @@ import { resolveSpawnCommand } from "@supaterm/shared/shell";
 import {
   query as claudeQuery,
   type ModelInfo as ClaudeModelInfo,
-  type Options as ClaudeQueryOptions,
   type SlashCommand as ClaudeSlashCommand,
   type SDKControlGetUsageResponse,
-  type SDKUserMessage,
   type SettingSource,
   type SpawnOptions as ClaudeSpawnOptions,
 } from "@anthropic-ai/claude-agent-sdk";
@@ -61,7 +59,6 @@ import {
   discoverClaudeSkills,
   readClaudeSettingsEnv,
 } from "./Drivers/ClaudeSkills.ts";
-import type { ProviderWorkspaceSnapshot } from "@supaterm/provider-core/server/driver";
 import { makeUnavailableUsageLimits } from "@supaterm/provider-core/server/usageLimits";
 import {
   type ClaudeScopedLimitNames,
@@ -89,14 +86,18 @@ const DEFAULT_CLAUDE_MODEL_CAPABILITIES: ModelCapabilities = createModelCapabili
 function claudeProviderModels(
   builtInModels: ReadonlyArray<ServerProviderModel>,
   customModels: ClaudeSettings["customModels"],
-): ReadonlyArray<ServerProviderModel> {
+): ReadonlyArray<ServerProviderModel>;
+function claudeProviderModels(
+  builtInModels: ReadonlyArray<ServerProviderModel>,
+  customModels: ClaudeSettings["customModels"],
+) {
   return providerModelsFromSettings(
     builtInModels,
     customModels,
     DEFAULT_CLAUDE_MODEL_CAPABILITIES,
   ).map((model) =>
     model.isCustom ? { ...model, capabilities: withUltracodeToggle(model.capabilities) } : model,
-  );
+  ) satisfies ReadonlyArray<ServerProviderModel>;
 }
 
 const CLAUDE_PRESENTATION = {
@@ -104,7 +105,7 @@ const CLAUDE_PRESENTATION = {
   showInteractionModeToggle: true,
   reportsContextWindow: true,
 } as const;
-function toTitleCaseWords(value: string): string {
+function toTitleCaseWords(value: string) {
   const parts: Array<string> = [];
   for (const part of value.split(/[\s_-]+/g)) {
     if (part.length > 0) {
@@ -114,7 +115,7 @@ function toTitleCaseWords(value: string): string {
   return parts.join(" ");
 }
 
-function claudeSubscriptionLabel(subscriptionType: string | undefined): string | undefined {
+function claudeSubscriptionLabel(subscriptionType: string | undefined) {
   const normalized = subscriptionType?.toLowerCase().replace(/[\s_-]+/g, "");
   if (!normalized) return undefined;
 
@@ -151,7 +152,7 @@ function claudeSubscriptionLabel(subscriptionType: string | undefined): string |
   }
 }
 
-function normalizeClaudeAuthMethod(authMethod: string | undefined): string | undefined {
+function normalizeClaudeAuthMethod(authMethod: string | undefined) {
   const normalized = authMethod?.toLowerCase().replace(/[\s_-]+/g, "");
   if (!normalized) return undefined;
   if (
@@ -164,7 +165,7 @@ function normalizeClaudeAuthMethod(authMethod: string | undefined): string | und
   return undefined;
 }
 
-function formatClaudeSubscriptionAuthLabel(subscriptionType: string): string {
+function formatClaudeSubscriptionAuthLabel(subscriptionType: string) {
   const subscriptionLabel =
     claudeSubscriptionLabel(subscriptionType) ?? toTitleCaseWords(subscriptionType);
   const normalized = subscriptionLabel.toLowerCase().replace(/[\s_-]+/g, "");
@@ -181,7 +182,7 @@ function formatClaudeSubscriptionAuthLabel(subscriptionType: string): string {
   return `Claude ${subscriptionLabel} Subscription`;
 }
 
-function hasApiKey(apiKeySource: string | undefined): boolean {
+function hasApiKey(apiKeySource: string | undefined) {
   return Boolean(apiKeySource) && apiKeySource !== "none";
 }
 
@@ -189,7 +190,7 @@ function claudeAuthMetadata(input: {
   readonly subscriptionType: string | undefined;
   readonly authMethod: string | undefined;
   readonly apiKeySource: string | undefined;
-}): { readonly type: string; readonly label: string } | undefined {
+}) {
   if (normalizeClaudeAuthMethod(input.authMethod) === "apiKey" || hasApiKey(input.apiKeySource)) {
     return {
       type: "apiKey",
@@ -207,9 +208,7 @@ function claudeAuthMetadata(input: {
   return undefined;
 }
 
-function apiProviderAuthMetadata(
-  apiProvider: string | undefined,
-): { readonly type: string; readonly label: string } | undefined {
+function apiProviderAuthMetadata(apiProvider: string | undefined) {
   return apiProvider === "bedrock" ? { type: "bedrock", label: "Amazon Bedrock" } : undefined;
 }
 
@@ -218,14 +217,23 @@ function claudeAuthStatus(
     ClaudeCapabilitiesProbe,
     "email" | "subscriptionType" | "tokenSource" | "apiKeySource" | "apiProvider"
   >,
-): "authenticated" | "unauthenticated" {
+): "authenticated" | "unauthenticated";
+function claudeAuthStatus(
+  capabilities: Pick<
+    ClaudeCapabilitiesProbe,
+    "email" | "subscriptionType" | "tokenSource" | "apiKeySource" | "apiProvider"
+  >,
+) {
   if (capabilities.apiProvider !== undefined && capabilities.apiProvider !== "firstParty") {
-    return "authenticated";
+    return "authenticated" satisfies "authenticated" | "unauthenticated";
   }
-  if (capabilities.tokenSource !== "none") return "authenticated";
-  return hasApiKey(capabilities.apiKeySource) || capabilities.email || capabilities.subscriptionType
-    ? "authenticated"
-    : "unauthenticated";
+  if (capabilities.tokenSource !== "none")
+    return "authenticated" satisfies "authenticated" | "unauthenticated";
+  return (
+    hasApiKey(capabilities.apiKeySource) || capabilities.email || capabilities.subscriptionType
+      ? "authenticated"
+      : "unauthenticated"
+  ) satisfies "authenticated" | "unauthenticated";
 }
 
 const CLAUDE_SUBSCRIPTION_TOKEN_SOURCES: ReadonlySet<string> = new Set([
@@ -239,7 +247,7 @@ function claudeTranscriptionStatus(
     "subscriptionType" | "tokenSource" | "apiKeySource" | "apiProvider"
   >,
   customApiEndpoint: boolean,
-): ServerProviderTranscription {
+) {
   const firstParty =
     capabilities.apiProvider === undefined || capabilities.apiProvider === "firstParty";
   const subscriptionLogin =
@@ -247,9 +255,11 @@ function claudeTranscriptionStatus(
     (capabilities.tokenSource !== undefined &&
       CLAUDE_SUBSCRIPTION_TOKEN_SOURCES.has(capabilities.tokenSource));
   const apiKey = capabilities.apiKeySource !== undefined && capabilities.apiKeySource !== "none";
-  return firstParty && !customApiEndpoint && subscriptionLogin && !apiKey
-    ? { status: "ready" }
-    : { status: "unavailable", reason: "unsupportedLogin" };
+  return (
+    firstParty && !customApiEndpoint && subscriptionLogin && !apiKey
+      ? { status: "ready" }
+      : { status: "unavailable", reason: "unsupportedLogin" }
+  ) satisfies ServerProviderTranscription;
 }
 
 const CAPABILITIES_PROBE_TIMEOUT_MS = 25_000;
@@ -296,7 +306,7 @@ export function buildClaudeCapabilitiesProbeQueryOptions(input: {
   readonly cwd: string | undefined;
   readonly managedMcpConfig: boolean;
   readonly spawnVia: "env" | "launcher-thread" | undefined;
-}): ClaudeQueryOptions {
+}) {
   return {
     ...(input.spawnVia === "env" ? { spawnClaudeCodeProcess: spawnClaudeProbeThroughEnv } : {}),
     ...(input.spawnVia === "launcher-thread"
@@ -322,7 +332,7 @@ export function buildClaudeCapabilitiesProbeQueryOptions(input: {
   };
 }
 
-function nonEmptyProbeString(value: string): string | undefined {
+function nonEmptyProbeString(value: string) {
   const candidate = value.trim();
   return candidate ? candidate : undefined;
 }
@@ -361,13 +371,11 @@ type ClaudeSettingsQuery = {
   }>;
 };
 
-function parseClaudeMaxEffortLevel(value: unknown): ClaudeEffortLevel | undefined {
+function parseClaudeMaxEffortLevel(value: unknown) {
   return CLAUDE_EFFORT_LEVELS.find((level) => level === value);
 }
 
-function parseClaudeModelMaxEffortLevels(
-  modelSettings: unknown,
-): ReadonlyMap<string, ClaudeEffortLevel> | undefined {
+function parseClaudeModelMaxEffortLevels(modelSettings: unknown) {
   if (!modelSettings || typeof modelSettings !== "object") return undefined;
   const levels = new Map<string, ClaudeEffortLevel>();
   for (const [model, settings] of Object.entries(modelSettings)) {
@@ -381,7 +389,7 @@ function parseClaudeModelMaxEffortLevels(
   return levels.size > 0 ? levels : undefined;
 }
 
-function parseClaudeEffortCapSource(settings: unknown): ClaudeEffortCapSource | undefined {
+function parseClaudeEffortCapSource(settings: unknown) {
   if (!settings || typeof settings !== "object") return undefined;
   const { maxEffortLevel, modelSettings } = settings as {
     readonly maxEffortLevel?: unknown;
@@ -399,7 +407,7 @@ function parseClaudeEffortCapSource(settings: unknown): ClaudeEffortCapSource | 
 
 function parseClaudeEffortCapSources(
   settings: { readonly effective?: unknown; readonly sources?: unknown } | undefined,
-): ReadonlyArray<ClaudeEffortCapSource> | undefined {
+) {
   const sources = Array.isArray(settings?.sources)
     ? settings.sources.flatMap((source) => {
         const parsed = parseClaudeEffortCapSource(
@@ -415,7 +423,7 @@ function parseClaudeEffortCapSources(
 
 function parseClaudeInitializationCommands(
   commands: ReadonlyArray<ClaudeSlashCommand> | undefined,
-): ReadonlyArray<ServerProviderSlashCommand> {
+) {
   return dedupeSlashCommands(
     (commands ?? []).flatMap((command) => {
       const name = nonEmptyProbeString(command.name);
@@ -439,7 +447,8 @@ function parseClaudeInitializationCommands(
 
 function dedupeSlashCommands(
   commands: ReadonlyArray<ServerProviderSlashCommand>,
-): ReadonlyArray<ServerProviderSlashCommand> {
+): ReadonlyArray<ServerProviderSlashCommand>;
+function dedupeSlashCommands(commands: ReadonlyArray<ServerProviderSlashCommand>) {
   const commandsByName = new Map<string, ServerProviderSlashCommand>();
 
   for (const command of commands) {
@@ -473,19 +482,19 @@ function dedupeSlashCommands(
     });
   }
 
-  return [...commandsByName.values()];
+  return [...commandsByName.values()] satisfies ReadonlyArray<ServerProviderSlashCommand>;
 }
 
-function waitForAbortSignal(signal: AbortSignal): Promise<void> {
+function waitForAbortSignal(signal: AbortSignal) {
   if (signal.aborted) {
-    return Promise.resolve();
+    return Promise.resolve() satisfies Promise<void>;
   }
   return new Promise((resolve) => {
     signal.addEventListener("abort", () => resolve(), { once: true });
-  });
+  }) satisfies Promise<void>;
 }
 
-function claudeGatewayDiscoveryGraceMs(environment: Readonly<Record<string, unknown>>): number {
+function claudeGatewayDiscoveryGraceMs(environment: Readonly<Record<string, unknown>>) {
   const enabled = String(environment.CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY ?? "")
     .trim()
     .toLowerCase();
@@ -534,7 +543,7 @@ const probeClaudeCapabilities = (
     return yield* Effect.tryPromise(async () => {
       const q = claudeQuery({
         // oxlint-disable-next-line require-yield -- Never yield; we only need initialization data, not a conversation. This prevents any prompt from reaching the Anthropic API.
-        prompt: (async function* (): AsyncGenerator<SDKUserMessage> {
+        prompt: (async function* () {
           await waitForAbortSignal(abort.signal);
         })(),
         options: buildClaudeCapabilitiesProbeQueryOptions({
@@ -695,7 +704,7 @@ export const probeClaudeWorkspaceSnapshot = Effect.fn("probeClaudeWorkspaceSnaps
   machineSnapshot: ServerProvider,
   cwd: string,
   environment?: NodeJS.ProcessEnv,
-): Effect.fn.Return<ProviderWorkspaceSnapshot, never, FileSystem.FileSystem | Path.Path> {
+) {
   if (!claudeSettings.enabled) return machineSnapshot;
   const skills = yield* discoverClaudeSkills(claudeSettings, cwd, environment);
   const fileSystem = yield* FileSystem.FileSystem;
@@ -716,7 +725,21 @@ export const probeClaudeWorkspaceSnapshot = Effect.fn("probeClaudeWorkspaceSnaps
   };
 });
 
-export const checkClaudeProviderStatus = Effect.fn("checkClaudeProviderStatus")(function* (
+export const checkClaudeProviderStatus: (
+  claudeSettings: ClaudeSettings,
+  resolveCapabilities?: (
+    claudeSettings: ClaudeSettings,
+  ) => Effect.Effect<ClaudeCapabilitiesProbe | undefined, ClaudeCapabilitiesProbeError>,
+  environment?: NodeJS.ProcessEnv,
+  cwd?: string,
+  modelCatalog?: ClaudeModelCatalog,
+  scopedLimitNames?: Ref.Ref<ClaudeScopedLimitNames>,
+  resolveResetCredits?: (version: string) => Effect.Effect<ServerProviderResetCredits | undefined>,
+) => Effect.Effect<
+  ServerProviderDraft,
+  never,
+  ChildProcessSpawner.ChildProcessSpawner | FileSystem.FileSystem | Path.Path
+> = Effect.fn("checkClaudeProviderStatus")(function* (
   claudeSettings: ClaudeSettings,
   resolveCapabilities?: (
     claudeSettings: ClaudeSettings,
@@ -726,11 +749,7 @@ export const checkClaudeProviderStatus = Effect.fn("checkClaudeProviderStatus")(
   modelCatalog: ClaudeModelCatalog = BUNDLED_CLAUDE_MODEL_CATALOG,
   scopedLimitNames?: Ref.Ref<ClaudeScopedLimitNames>,
   resolveResetCredits?: (version: string) => Effect.Effect<ServerProviderResetCredits | undefined>,
-): Effect.fn.Return<
-  ServerProviderDraft,
-  never,
-  ChildProcessSpawner.ChildProcessSpawner | FileSystem.FileSystem | Path.Path
-> {
+) {
   const resolvedEnvironment = environment ?? process.env;
   const checkedAt = DateTime.formatIso(yield* DateTime.now);
   const allModels = claudeProviderModels(
@@ -961,11 +980,14 @@ export const checkClaudeProviderStatus = Effect.fn("checkClaudeProviderStatus")(
 
 const nowIso = Effect.map(DateTime.now, DateTime.formatIso);
 
-export const makePendingClaudeProvider = Effect.fn("ClaudeProvider.makePendingClaudeProvider")(
+export const makePendingClaudeProvider: (
+  claudeSettings: ClaudeSettings,
+  modelCatalog?: ClaudeModelCatalog,
+) => Effect.Effect<ServerProviderDraft> = Effect.fn("ClaudeProvider.makePendingClaudeProvider")(
   function* (
     claudeSettings: ClaudeSettings,
     modelCatalog: ClaudeModelCatalog = BUNDLED_CLAUDE_MODEL_CATALOG,
-  ): Effect.fn.Return<ServerProviderDraft> {
+  ) {
     const checkedAt = yield* nowIso;
     const models = claudeProviderModels(
       modelCatalog.models.map((entry) => entry.model),

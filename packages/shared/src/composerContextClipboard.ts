@@ -12,27 +12,22 @@ const decodeFragment = Schema.decodeUnknownOption(ComposerContextClipboardFragme
 
 export function encodeComposerContextFragment(
   fragment: ComposerContextClipboardFragment,
-): string | null {
+): string | null;
+export function encodeComposerContextFragment(fragment: ComposerContextClipboardFragment) {
   const encoded = JSON.stringify(fragment);
-  return encoded.length <= MAX_FRAGMENT_CHARS ? encoded : null;
+  return (encoded.length <= MAX_FRAGMENT_CHARS ? encoded : null) satisfies string | null;
 }
 
 const HTML_WRAPPER_SLACK_CHARS = 4096;
 
-export function encodeComposerContextClipboardHtml(
-  text: string,
-  fragment: string,
-  html?: string,
-): string {
+export function encodeComposerContextClipboardHtml(text: string, fragment: string, html?: string) {
   if (html !== undefined)
     return `<div data-supaterm-context-fragment="${encodeURIComponent(fragment)}">${html}</div>`;
   const escaped = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   return `<pre data-supaterm-context-fragment="${encodeURIComponent(fragment)}">${escaped}</pre>`;
 }
 
-export function decodeComposerContextClipboardHtml(
-  html: string | null | undefined,
-): ComposerContextClipboardFragment | null {
+export function decodeComposerContextClipboardHtml(html: string | null | undefined) {
   if (!html || html.length > MAX_FRAGMENT_CHARS * 9 + HTML_WRAPPER_SLACK_CHARS) return null;
   const match = /data-supaterm-context-fragment=(?:"([^"]+)"|'([^']+)')/.exec(html);
   const encoded = match?.[1] ?? match?.[2];
@@ -46,11 +41,15 @@ export function decodeComposerContextClipboardHtml(
 
 export function decodeComposerContextFragment(
   raw: string | null | undefined,
-): ComposerContextClipboardFragment | null {
-  if (!raw || raw.length > MAX_FRAGMENT_CHARS) return null;
+): ComposerContextClipboardFragment | null;
+export function decodeComposerContextFragment(raw: string | null | undefined) {
+  if (!raw || raw.length > MAX_FRAGMENT_CHARS)
+    return null satisfies ComposerContextClipboardFragment | null;
   try {
-    return Option.getOrNull(decodeFragment(JSON.parse(raw)));
+    return Option.getOrNull(
+      decodeFragment(JSON.parse(raw)),
+    ) satisfies ComposerContextClipboardFragment | null;
   } catch {
-    return null;
+    return null satisfies ComposerContextClipboardFragment | null;
   }
 }

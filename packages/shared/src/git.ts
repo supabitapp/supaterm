@@ -18,7 +18,7 @@ export const WORKTREE_BRANCH_PREFIX = "supaterm";
 
 export function resolveDefaultWorktreeBaseBranch(
   refs: ReadonlyArray<Pick<VcsRef, "name" | "isDefault" | "current" | "isRemote">>,
-): string | null {
+) {
   return (
     refs.find((ref) => ref.isDefault)?.name ??
     refs.find((ref) => ref.current && !ref.isRemote)?.name ??
@@ -28,7 +28,7 @@ export function resolveDefaultWorktreeBaseBranch(
 
 const TEMP_WORKTREE_BRANCH_PATTERN = new RegExp(`^${WORKTREE_BRANCH_PREFIX}[-/][0-9a-f]{8}$`);
 
-export function sanitizeBranchFragment(raw: string): string {
+export function sanitizeBranchFragment(raw: string) {
   const normalized = foldLatinDiacritics(raw)
     .trim()
     .toLowerCase()
@@ -47,10 +47,7 @@ export function sanitizeBranchFragment(raw: string): string {
 }
 
 /** Names branches after the repository a checkout is grouped under (a fork's own remote), or its folder without a remote. */
-export function repositoryBranchPrefix(
-  identity: RepositoryIdentity | null,
-  workspaceRoot: string,
-): string {
+export function repositoryBranchPrefix(identity: RepositoryIdentity | null, workspaceRoot: string) {
   const source = identity ? repositoryGroupingKeyOf(identity) : workspaceRoot;
   const basename = fileBasename(source);
   return basename
@@ -59,7 +56,7 @@ export function repositoryBranchPrefix(
     .toLowerCase();
 }
 
-export function formatGeneratedBranchName(raw: string, naming?: BranchNamingOptions): string {
+export function formatGeneratedBranchName(raw: string, naming?: BranchNamingOptions) {
   if (naming?.mode === "custom") return raw.trim();
   const branch = sanitizeBranchFragment(raw);
   if (naming?.mode !== "static") return branch;
@@ -76,9 +73,10 @@ export function formatGeneratedBranchName(raw: string, naming?: BranchNamingOpti
   return prefix ? `${prefix}/${branch}` : branch;
 }
 
-export function sanitizeFeatureBranchName(raw: string): string {
+export function sanitizeFeatureBranchName(raw: string): string;
+export function sanitizeFeatureBranchName(raw: string) {
   const sanitized = sanitizeBranchFragment(raw);
-  return sanitized.includes("/") ? sanitized : `feature/${sanitized}`;
+  return (sanitized.includes("/") ? sanitized : `feature/${sanitized}`) satisfies string;
 }
 
 const AUTO_FEATURE_BRANCH_FALLBACK = "feature/update";
@@ -86,7 +84,7 @@ const AUTO_FEATURE_BRANCH_FALLBACK = "feature/update";
 export function resolveAutoFeatureBranchName(
   existingBranchNames: readonly string[],
   preferredBranch?: string,
-): string {
+) {
   const preferred = preferredBranch?.trim();
   const resolvedBase = sanitizeFeatureBranchName(
     preferred && preferred.length > 0 ? preferred : AUTO_FEATURE_BRANCH_FALLBACK,
@@ -98,7 +96,7 @@ export function resolveAvailableGitBranchName(
   existingBranchNames: readonly string[],
   preferredBranch: string,
   firstSuffix = 2,
-): string {
+) {
   const existingNames = existingBranchNames.map((refName) => refName.toLowerCase());
   const existingRefs = new Set(existingNames);
   const parts = preferredBranch.split("/");
@@ -122,7 +120,7 @@ export function resolveAvailableGitBranchName(
   return resolved;
 }
 
-export function deriveLocalBranchNameFromRemoteRef(branchName: string): string {
+export function deriveLocalBranchNameFromRemoteRef(branchName: string) {
   const firstSeparatorIndex = branchName.indexOf("/");
   if (firstSeparatorIndex <= 0 || firstSeparatorIndex === branchName.length - 1) {
     return branchName;
@@ -130,9 +128,7 @@ export function deriveLocalBranchNameFromRemoteRef(branchName: string): string {
   return branchName.slice(firstSeparatorIndex + 1);
 }
 
-export function buildTemporaryWorktreeBranchName(
-  randomHex: (byteLength: number) => string,
-): string {
+export function buildTemporaryWorktreeBranchName(randomHex: (byteLength: number) => string) {
   const token = randomHex(4)
     .toLowerCase()
     .replace(/[^0-9a-f]/g, "")
@@ -141,7 +137,7 @@ export function buildTemporaryWorktreeBranchName(
 }
 
 /** Flatten temporary supaterm/<hex> refs because an existing supaterm branch blocks nested refs. */
-export function flattenTemporaryWorktreeBranchName(refName: string): string {
+export function flattenTemporaryWorktreeBranchName(refName: string) {
   const token = refName
     .trim()
     .toLowerCase()
@@ -149,13 +145,13 @@ export function flattenTemporaryWorktreeBranchName(refName: string): string {
   return `${WORKTREE_BRANCH_PREFIX}-${token}`;
 }
 
-export function isTemporaryWorktreeBranch(refName: string): boolean {
+export function isTemporaryWorktreeBranch(refName: string) {
   return TEMP_WORKTREE_BRANCH_PATTERN.test(refName.trim().toLowerCase());
 }
 
 const stripGitSuffix = (path: string) => path.replace(/\.git$/i, "");
 
-function canonicalPathSegment(segment: string): string {
+function canonicalPathSegment(segment: string) {
   try {
     return encodeURIComponent(decodeURIComponent(segment).toLowerCase()).toLowerCase();
   } catch {
@@ -167,11 +163,11 @@ function canonicalPathSegment(segment: string): string {
  * A repository path in one lower-case spelling. Remotes, browsers and agents escape a name
  * differently (`a%20(b)`, `a%20%28b%29`, `a (b)`), and keys built from them are compared as text.
  */
-export function canonicalRepositoryPath(path: string): string {
+export function canonicalRepositoryPath(path: string) {
   return path.split("/").map(canonicalPathSegment).join("/");
 }
 
-function lowerCaseRemote(value: string, dropSuffix = stripGitSuffix): string {
+function lowerCaseRemote(value: string, dropSuffix = stripGitSuffix) {
   return dropSuffix(value.trim().replace(/\/+$/g, "")).toLowerCase();
 }
 
@@ -183,7 +179,11 @@ function lowerCaseRemote(value: string, dropSuffix = stripGitSuffix): string {
 export function parseGitRemoteRepository(
   value: string,
   options?: { readonly keepGitSuffix?: boolean },
-): { readonly host: string; readonly path: string } | null {
+): { readonly host: string; readonly path: string } | null;
+export function parseGitRemoteRepository(
+  value: string,
+  options?: { readonly keepGitSuffix?: boolean },
+) {
   const dropSuffix = options?.keepGitSuffix ? (path: string) => path : stripGitSuffix;
   const normalized = lowerCaseRemote(value, dropSuffix);
 
@@ -194,10 +194,13 @@ export function parseGitRemoteRepository(
         .split("/")
         .filter((segment) => segment.length > 0);
       if (url.hostname && repositorySegments.length > 1) {
-        return { host: url.hostname, path: canonicalRepositoryPath(repositorySegments.join("/")) };
+        return {
+          host: url.hostname,
+          path: canonicalRepositoryPath(repositorySegments.join("/")),
+        } satisfies { readonly host: string; readonly path: string } | null;
       }
     } catch {
-      return null;
+      return null satisfies { readonly host: string; readonly path: string } | null;
     }
   }
 
@@ -208,13 +211,21 @@ export function parseGitRemoteRepository(
       );
   const scpHost = scpStyleHostAndPath?.[1];
   const scpPath = scpStyleHostAndPath?.[2];
-  if (!scpHost || !scpPath) return null;
+  if (!scpHost || !scpPath)
+    return null satisfies { readonly host: string; readonly path: string } | null;
   const path = canonicalRepositoryPath(scpPath);
-  if (!scpHost.startsWith("[")) return { host: scpHost, path };
+  if (!scpHost.startsWith("["))
+    return { host: scpHost, path } satisfies {
+      readonly host: string;
+      readonly path: string;
+    } | null;
   try {
-    return { host: new URL(`ssh://${scpHost}`).hostname, path };
+    return { host: new URL(`ssh://${scpHost}`).hostname, path } satisfies {
+      readonly host: string;
+      readonly path: string;
+    } | null;
   } catch {
-    return null;
+    return null satisfies { readonly host: string; readonly path: string } | null;
   }
 }
 
@@ -223,9 +234,12 @@ export function parseGitRemoteRepository(
  * spells repositories differently over SSH or treats `.git` literally has its source control registry's
  * `repositoryKeyFromRemote` rewrite this, so persisted keys come from that, not from here.
  */
-export function normalizeGitRemoteUrl(value: string): string {
+export function normalizeGitRemoteUrl(value: string): string;
+export function normalizeGitRemoteUrl(value: string) {
   const repository = parseGitRemoteRepository(value);
-  return repository === null ? lowerCaseRemote(value) : `${repository.host}/${repository.path}`;
+  return (
+    repository === null ? lowerCaseRemote(value) : `${repository.host}/${repository.path}`
+  ) satisfies string;
 }
 
 export type GitRemoteDirection = "fetch" | "push";
@@ -241,7 +255,7 @@ export interface GitRemoteVerboseUrls {
   readonly pushUrl?: string;
 }
 
-export function parseGitRemoteVerboseOutput(output: string): ReadonlyArray<GitRemoteVerboseEntry> {
+export function parseGitRemoteVerboseOutput(output: string) {
   const remotes: GitRemoteVerboseEntry[] = [];
   for (const line of output.split(/\r?\n/)) {
     const match = /^(\S+)\t(.+) \((fetch|push)\)(?:\s+\[[^\]]+\])?$/.exec(line);
@@ -257,9 +271,7 @@ export function parseGitRemoteVerboseOutput(output: string): ReadonlyArray<GitRe
   return remotes;
 }
 
-export function parseGitRemoteVerboseUrls(
-  output: string,
-): ReadonlyMap<string, GitRemoteVerboseUrls> {
+export function parseGitRemoteVerboseUrls(output: string) {
   const remotes = new Map<string, GitRemoteVerboseUrls>();
   for (const remote of parseGitRemoteVerboseOutput(output)) {
     const current = remotes.get(remote.name) ?? {};
@@ -273,7 +285,7 @@ export function parseGitRemoteVerboseUrls(
   return remotes;
 }
 
-export function parseGitRemoteFetchUrls(output: string): ReadonlyMap<string, string> {
+export function parseGitRemoteFetchUrls(output: string) {
   const fetchUrls = new Map<string, string>();
   for (const [name, remote] of parseGitRemoteVerboseUrls(output)) {
     if (remote.fetchUrl) fetchUrls.set(name, remote.fetchUrl);
@@ -292,9 +304,7 @@ export const GH_RESOLVED_CONFIG_ARGS = [
  * Parses `GH_RESOLVED_CONFIG_ARGS` output. A `base` resolution makes that remote's repository the
  * base; any other resolution names the base repository as `owner/name`.
  */
-export function parseGhResolvedRemotes(
-  output: string,
-): ReadonlyArray<{ readonly remoteName: string; readonly resolution: string }> {
+export function parseGhResolvedRemotes(output: string) {
   return output.split("\n").flatMap((line) => {
     const match = /^remote\.(.+)\.gh-resolved\s+(\S+)$/u.exec(line.trim());
     return match ? [{ remoteName: match[1]!, resolution: match[2]! }] : [];
@@ -324,7 +334,7 @@ function* gitConfigLines(configText: string) {
   if (pending.length > 0 && !quoted) yield pending;
 }
 
-function parseGitConfigValue(raw: string): string {
+function parseGitConfigValue(raw: string) {
   let out = "";
   let quoted = false;
   for (let index = 0; index < raw.length; index += 1) {
@@ -344,7 +354,7 @@ function parseGitConfigValue(raw: string): string {
   return out.trim();
 }
 
-function isTrueGitConfigValue(value: string): boolean {
+function isTrueGitConfigValue(value: string) {
   if (value === "true" || value === "yes" || value === "on") return true;
   const numeric = /^([+-]?)(0x[0-9a-f]+|0[0-7]*|[1-9][0-9]*)([kmg]?)$/.exec(value);
   if (numeric === null) return false;
@@ -358,7 +368,7 @@ function isTrueGitConfigValue(value: string): boolean {
   return number !== 0 && number >= -2147483648 && number <= 2147483647;
 }
 
-export function isBareGitConfig(configText: string): boolean {
+export function isBareGitConfig(configText: string) {
   let inCore = false;
   let bare = false;
   for (const rawLine of gitConfigLines(configText)) {
@@ -377,7 +387,7 @@ export function isBareGitConfig(configText: string): boolean {
   return bare;
 }
 
-export function parseOriginUrlFromGitConfig(configText: string): string | null {
+export function parseOriginUrlFromGitConfig(configText: string) {
   let section: string | null = null;
   let originUrl: string | null = null;
   let firstRemoteUrl: string | null = null;
@@ -406,13 +416,11 @@ export function parseOriginUrlFromGitConfig(configText: string): string | null {
   return originUrl ?? firstRemoteUrl;
 }
 
-export function sanitizeNewRefName(rawName: string): string {
+export function sanitizeNewRefName(rawName: string) {
   return rawName.trim().replace(/[ \t\n\r\f\v]+/g, "-");
 }
 
-export function dedupeRemoteBranchesWithLocalMatches(
-  refs: ReadonlyArray<VcsRef>,
-): ReadonlyArray<VcsRef> {
+export function dedupeRemoteBranchesWithLocalMatches(refs: ReadonlyArray<VcsRef>) {
   const localBranchNames = new Set(
     Arr.filterMap(refs, (refName) =>
       refName.isRemote ? Result.failVoid : Result.succeed(refName.name),
@@ -440,14 +448,14 @@ const EMPTY_GIT_STATUS_REMOTE: VcsStatusRemoteResult = {
 export function mergeGitStatusParts(
   local: VcsStatusLocalResult,
   remote: VcsStatusRemoteResult | null,
-): VcsStatusResult {
+) {
   return {
     ...local,
     ...(remote ?? EMPTY_GIT_STATUS_REMOTE),
   };
 }
 
-function toRemoteStatusPart(status: VcsStatusResult): VcsStatusRemoteResult {
+function toRemoteStatusPart(status: VcsStatusResult) {
   return {
     hasUpstream: status.hasUpstream,
     aheadCount: status.aheadCount,
@@ -459,7 +467,7 @@ function toRemoteStatusPart(status: VcsStatusResult): VcsStatusRemoteResult {
   };
 }
 
-function toLocalStatusPart(status: VcsStatusResult): VcsStatusLocalResult {
+function toLocalStatusPart(status: VcsStatusResult) {
   return {
     isRepo: status.isRepo,
     ...(status.sourceControlProvider
@@ -477,7 +485,7 @@ function toLocalStatusPart(status: VcsStatusResult): VcsStatusLocalResult {
 export function applyGitStatusStreamEvent(
   current: VcsStatusResult | null,
   event: VcsStatusStreamEvent,
-): VcsStatusResult {
+) {
   switch (event._tag) {
     case "snapshot":
       return mergeGitStatusParts(event.local, event.remote);

@@ -42,7 +42,7 @@ export interface CodexMicroKeymap {
   readonly mappedAgentKeys: number | null;
 }
 
-function countMappedAgentKeys(text: string): number | null {
+function countMappedAgentKeys(text: string) {
   const keymap = decodeKeymap(text);
   if (Option.isNone(keymap)) return null;
   const keycodes = new Set(

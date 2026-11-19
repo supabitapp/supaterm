@@ -108,7 +108,7 @@ import {
   type PullRequestEditorView,
 } from "./PullRequestSummaryTab.logic";
 
-function reviewerKey(login: string): string {
+function reviewerKey(login: string) {
   return login.toLowerCase();
 }
 
@@ -176,7 +176,7 @@ function CommentLocation({
   );
 }
 
-function reviewStateLabel(state: string): string {
+function reviewStateLabel(state: string) {
   const words = state.toLowerCase().replace(/_/g, " ");
   return words.charAt(0).toUpperCase() + words.slice(1);
 }
@@ -243,13 +243,17 @@ function CommentBody({
 function chatSubject(
   comment: PullRequestComment,
   thread: PullRequestConversationThread | undefined,
-): PullRequestChatSubject | null {
+) {
   if (thread !== undefined && thread.path !== null) {
-    return thread.comments.some((entry) => visibleBody(entry.body) !== null)
-      ? { kind: "thread", thread }
-      : null;
+    return (
+      thread.comments.some((entry) => visibleBody(entry.body) !== null)
+        ? { kind: "thread", thread }
+        : null
+    ) satisfies PullRequestChatSubject | null;
   }
-  return visibleBody(comment.body) === null ? null : { kind: "comment", comment };
+  return (
+    visibleBody(comment.body) === null ? null : { kind: "comment", comment }
+  ) satisfies PullRequestChatSubject | null;
 }
 
 function AddToChatButton({ onClick }: { onClick: () => void }) {

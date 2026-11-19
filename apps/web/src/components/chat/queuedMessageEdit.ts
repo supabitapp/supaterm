@@ -10,7 +10,7 @@ import {
 import { releaseDraftAttachments } from "../../lib/attachmentUploadQueue";
 
 /** Staged attachments upload as soon as they are added, so a dropped edit must release them. */
-export function discardQueuedEditDraft(target: ComposerThreadTarget): void {
+export function discardQueuedEditDraft(target: ComposerThreadTarget) {
   const store = useComposerDraftStore.getState();
   const draft = store.getComposerDraft(target);
   if (draft) {
@@ -27,7 +27,7 @@ export function recoverQueuedMessageEdit(input: {
   readonly threadTarget: ComposerThreadTarget;
   readonly originalText: string;
   readonly removedExistingAttachment?: boolean;
-}): "kept" | "discarded" | "clean" {
+}) {
   const store = useComposerDraftStore.getState();
   const draft = store.getComposerDraft(input.editTarget);
   const recovery = resolveQueuedEditExit({

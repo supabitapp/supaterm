@@ -24,7 +24,7 @@ const attachBackgroundThreadRegion = backgroundThreadLiveRegion.attach;
 export function startBackgroundThreadAnnouncements(
   registry: AtomRegistry.AtomRegistry,
   router: AnyRouter,
-): () => void {
+) {
   let memory: BackgroundThreadMemory = new Map();
   let openThreadKeys = readShownThreadKeys(router);
 

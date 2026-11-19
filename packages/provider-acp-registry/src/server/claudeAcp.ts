@@ -22,7 +22,7 @@ const decodeAsyncResponse = Schema.decodeUnknownOption(
   }),
 );
 
-export function isClaudeProvisionalSubagentTool(tool: AcpToolCallState): boolean {
+export function isClaudeProvisionalSubagentTool(tool: AcpToolCallState) {
   return (
     (tool.data.name === "Agent" || tool.data.name === "Task") &&
     tool.status !== "failed" &&
@@ -31,9 +31,7 @@ export function isClaudeProvisionalSubagentTool(tool: AcpToolCallState): boolean
   );
 }
 
-export function extractClaudeSubagentUpdate(
-  tool: AcpToolCallState,
-): AcpAdapterV2SubagentUpdate | undefined {
+export function extractClaudeSubagentUpdate(tool: AcpToolCallState) {
   if (tool.data.name !== "Agent" && tool.data.name !== "Task") return;
   const input = decodeAgentInput(tool.data.rawInput);
   if (Option.isNone(input)) return;
@@ -54,7 +52,7 @@ export function extractClaudeSubagentUpdate(
           ? "completed"
           : "running",
     result: null,
-  };
+  } satisfies AcpAdapterV2SubagentUpdate | undefined;
 }
 
 const decodeChildState = Schema.decodeUnknownOption(
@@ -77,9 +75,7 @@ const decodeDelegation = Schema.decodeUnknownOption(
   }),
 );
 
-export function extractClaudeSubagentSessionEvent(
-  notification: AcpSchema.SessionNotification,
-): AcpSubagentSessionEvent | undefined {
+export function extractClaudeSubagentSessionEvent(notification: AcpSchema.SessionNotification) {
   const update = notification.update;
   if (update.sessionUpdate !== "_supaterm_unknown") return;
   if (update.originalSessionUpdate === "subagent_update") {
@@ -100,7 +96,7 @@ export function extractClaudeSubagentSessionEvent(
               ? "cancelled"
               : "completed",
       result: state.error?.message ?? unfinishedMessage ?? null,
-    };
+    } satisfies AcpSubagentSessionEvent | undefined;
   }
   if (update.originalSessionUpdate === "session_message") {
     const delegation = decodeDelegation(update.raw);
@@ -113,6 +109,6 @@ export function extractClaudeSubagentSessionEvent(
       prompt: delegation.value.content
         .flatMap((block) => (block.type === "text" && block.text !== undefined ? [block.text] : []))
         .join("\n"),
-    };
+    } satisfies AcpSubagentSessionEvent | undefined;
   }
 }

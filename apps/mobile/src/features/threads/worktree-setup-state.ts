@@ -6,7 +6,7 @@ export function resolveWorktreeSetupSnapshot(
   threadId: ThreadId | null,
   latest: WorktreeSetupSnapshot | null | undefined,
   held: WorktreeSetupSnapshot | null,
-): WorktreeSetupSnapshot | null {
+) {
   const current = latest?.threadId === threadId ? latest : null;
   const previous = held?.threadId === threadId ? held : null;
   return current && (!previous || current.sequence >= previous.sequence) ? current : previous;
@@ -25,7 +25,7 @@ export interface WorktreeSetupPresence {
 export function nextWorktreeSetupPresence(
   previous: WorktreeSetupPresence,
   current: WorktreeSetupCardProps | null,
-): WorktreeSetupPresence {
+) {
   if (current === null) {
     return previous.setup === null || previous.exiting ? previous : { ...previous, exiting: true };
   }
@@ -38,10 +38,7 @@ export function nextWorktreeSetupPresence(
     : { ...previous, setup: current };
 }
 
-export function finishWorktreeSetupExit(
-  presence: WorktreeSetupPresence,
-  generation: number,
-): WorktreeSetupPresence {
+export function finishWorktreeSetupExit(presence: WorktreeSetupPresence, generation: number) {
   return presence.exiting && presence.generation === generation
     ? { setup: null, exiting: false, generation: generation + 1 }
     : presence;

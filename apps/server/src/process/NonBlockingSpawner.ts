@@ -135,9 +135,11 @@ const make = Effect.gen(function* () {
     return ChildProcess.make(trampoline.command, trampoline.args, options);
   });
 
-  const prepare = (
+  const prepare: (
     command: ChildProcess.Command,
-  ): Effect.Effect<ChildProcess.Command, PlatformError.PlatformError> =>
+  ) => Effect.Effect<ChildProcess.Command, PlatformError.PlatformError> = (
+    command: ChildProcess.Command,
+  ) =>
     command._tag === "StandardCommand"
       ? prepareStandard(command)
       : Effect.map(Effect.all([prepare(command.left), prepare(command.right)]), ([left, right]) =>

@@ -1,4 +1,4 @@
-export function parseUrl(value: string, base?: string): URL | null {
+export function parseUrl(value: string, base?: string) {
   try {
     return new URL(value, base);
   } catch {

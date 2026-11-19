@@ -7,7 +7,7 @@ import {
 } from "../shared.ts";
 
 /** Stop restarts the runtime; capture native rollback points before process exit. */
-export function threadRollbackAfterStopInput(): OrchestratorFixtureInput {
+export function threadRollbackAfterStopInput() {
   return {
     steps: [
       { type: "message", text: THREAD_ROLLBACK_FIRST_PROMPT },
@@ -21,5 +21,5 @@ export function threadRollbackAfterStopInput(): OrchestratorFixtureInput {
       },
       { type: "message", text: THREAD_ROLLBACK_AFTER_PROMPT },
     ],
-  };
+  } satisfies OrchestratorFixtureInput;
 }

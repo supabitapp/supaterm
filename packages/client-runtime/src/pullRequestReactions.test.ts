@@ -11,14 +11,14 @@ import {
   canReactPullRequestComment,
 } from "./pullRequestReactions.ts";
 
-function reaction(overrides: Partial<PullRequestReaction> = {}): PullRequestReaction {
+function reaction(overrides: Partial<PullRequestReaction> = {}) {
   return {
     content: "heart",
     count: 1,
     actors: ["octocat"],
     viewerHasReacted: false,
     ...overrides,
-  };
+  } satisfies PullRequestReaction;
 }
 
 describe("comment reaction permissions", () => {

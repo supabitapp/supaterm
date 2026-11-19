@@ -11,7 +11,7 @@ export const KIRO_PERMISSION_PROMPT = [
  * Supervised: the user approves the write, then accepts it again in Kiro's
  * own end-of-turn "Review changes", which Kiro asks only with Autopilot off.
  */
-export function kiroSupervisedWriteInput(): OrchestratorFixtureInput {
+export function kiroSupervisedWriteInput() {
   return {
     runtimeMode: "approval-required",
     steps: [
@@ -19,13 +19,13 @@ export function kiroSupervisedWriteInput(): OrchestratorFixtureInput {
       { type: "approve_next_runtime_request" },
       { type: "approve_next_runtime_request" },
     ],
-  };
+  } satisfies OrchestratorFixtureInput;
 }
 
 /** Full access: Kiro still asks before the write; Supaterm answers it by policy, never the user. */
-export function kiroFullAccessWriteInput(): OrchestratorFixtureInput {
+export function kiroFullAccessWriteInput() {
   return {
     runtimeMode: "full-access",
     steps: [{ type: "message", text: KIRO_PERMISSION_PROMPT }],
-  };
+  } satisfies OrchestratorFixtureInput;
 }

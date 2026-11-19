@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-function sameInputs(previous: ReadonlyArray<unknown>, inputs: ReadonlyArray<unknown>): boolean {
+function sameInputs(previous: ReadonlyArray<unknown>, inputs: ReadonlyArray<unknown>) {
   return (
     previous.length === inputs.length &&
     previous.every((value, index) => Object.is(value, inputs[index]))
@@ -9,7 +9,7 @@ function sameInputs(previous: ReadonlyArray<unknown>, inputs: ReadonlyArray<unkn
 
 type PrimitiveInput = string | number | boolean | null | undefined;
 
-export function useInputsChanged(inputs: ReadonlyArray<PrimitiveInput>): boolean {
+export function useInputsChanged(inputs: ReadonlyArray<PrimitiveInput>) {
   const [previous, setPrevious] = useState<ReadonlyArray<PrimitiveInput> | null>(null);
   if (previous !== null && sameInputs(previous, inputs)) {
     return false;
@@ -18,10 +18,7 @@ export function useInputsChanged(inputs: ReadonlyArray<PrimitiveInput>): boolean
   return true;
 }
 
-export function useInputsChangedWhileActive(
-  active: boolean,
-  inputs: ReadonlyArray<unknown>,
-): boolean {
+export function useInputsChangedWhileActive(active: boolean, inputs: ReadonlyArray<unknown>) {
   const [tracked, setTracked] = useState<ReadonlyArray<unknown> | null>(null);
   if (!active) {
     if (tracked !== null) setTracked(null);

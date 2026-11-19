@@ -10,7 +10,7 @@ import { markdownMathRanges, parseMarkdownWithMath } from "./markdownMath.ts";
 
 const parse = parseMarkdownWithMath;
 
-function collect(node: Nodes, out: Nodes[] = []): Nodes[] {
+function collect(node: Nodes, out: Nodes[] = []) {
   out.push(node);
   if ("children" in node) for (const child of node.children) collect(child, out);
   return out;

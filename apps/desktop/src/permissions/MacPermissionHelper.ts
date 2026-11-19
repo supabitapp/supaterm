@@ -18,7 +18,7 @@ const permissionGranted = (permission: MacPermission) => {
   return false;
 };
 
-function macAppBundlePath(executable: string): string | undefined {
+function macAppBundlePath(executable: string) {
   return /^(.+\.app)\/Contents\/MacOS\/[^/]+$/.exec(executable)?.[1];
 }
 

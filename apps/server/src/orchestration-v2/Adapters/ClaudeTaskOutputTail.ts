@@ -14,7 +14,7 @@ export function claudeTaskOutputRoot(
   path: Path.Path,
   cwd: string | null,
   platform: NodeJS.Platform,
-): string | undefined {
+) {
   const uid = process.getuid?.();
   if (uid === undefined) return undefined;
   const fallback =

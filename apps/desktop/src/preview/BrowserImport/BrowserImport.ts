@@ -2,7 +2,6 @@ import type {
   BrowserImportInput,
   BrowserImportResult,
   BrowserImportSource,
-  BrowserImportUnavailableReason,
 } from "@supaterm/contracts";
 import { BrowserImportFailureReason } from "@supaterm/contracts";
 import * as Context from "effect/Context";
@@ -41,7 +40,7 @@ export class BrowserImportFailedError extends Schema.TaggedError<BrowserImportFa
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Importing cookies from ${this.sourceId} failed: ${this.reason}.`;
   }
 }
@@ -54,7 +53,7 @@ export class BrowserCookieWriteError extends Schema.TaggedError<BrowserCookieWri
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Could not write imported cookie ${this.name} for ${this.url}.`;
   }
 }
@@ -75,11 +74,7 @@ export class BrowserImport extends Context.Service<
 const unavailableReason = Effect.fn("BrowserImport.unavailableReason")(function* (
   definition: BrowserImportSourceDefinition,
   context: BrowserImportPathContext,
-): Effect.fn.Return<
-  BrowserImportUnavailableReason | undefined,
-  never,
-  FileSystem.FileSystem | ChildProcessSpawner.ChildProcessSpawner
-> {
+) {
   if (!definition.platforms.includes(context.platform)) return "unsupportedPlatform";
   if (!(yield* isSourceInstalled(definition, context))) return "notInstalled";
   if (yield* isSourceRunning(definition, context)) return "browserRunning";
@@ -90,7 +85,7 @@ const unavailableReason = Effect.fn("BrowserImport.unavailableReason")(function*
   return undefined;
 });
 
-const cookieHost = (url: string): string => {
+const cookieHost = (url: string) => {
   try {
     return new URL(url).hostname;
   } catch {

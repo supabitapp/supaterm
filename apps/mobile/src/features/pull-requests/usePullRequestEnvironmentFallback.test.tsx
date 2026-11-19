@@ -28,7 +28,7 @@ function environment(
   environmentId: string,
   connectionState: EnvironmentConnectionPhase,
   isEnabled = true,
-): WorkspaceEnvironment {
+) {
   return {
     environmentId: EnvironmentId.make(environmentId),
     environmentLabel: environmentId,

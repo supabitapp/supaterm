@@ -5,22 +5,23 @@ import type { UsageRecord } from "@supaterm/provider-core/server/usage";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-const record = (timestampMs: number): UsageRecord => ({
-  provider: "cursor",
-  timestampMs,
-  model: "claude-fable-5",
-  sessionId: "conversation-1",
-  totals: {
-    uncachedInputTokens: 0,
-    cachedInputTokens: 0,
-    cacheCreationTokens: 0,
-    outputTokens: 1,
-    reasoningTokens: 0,
-  },
-  reportedCostUsd: null,
-  speed: "standard",
-  dedupeKey: `cursor-account:a:${timestampMs}:0`,
-});
+const record = (timestampMs: number) =>
+  ({
+    provider: "cursor",
+    timestampMs,
+    model: "claude-fable-5",
+    sessionId: "conversation-1",
+    totals: {
+      uncachedInputTokens: 0,
+      cachedInputTokens: 0,
+      cacheCreationTokens: 0,
+      outputTokens: 1,
+      reasoningTokens: 0,
+    },
+    reportedCostUsd: null,
+    speed: "standard",
+    dedupeKey: `cursor-account:a:${timestampMs}:0`,
+  }) satisfies UsageRecord;
 
 describe("cursorAccountCache", () => {
   it("refetches everything once the cache no longer reaches the retention start", () => {

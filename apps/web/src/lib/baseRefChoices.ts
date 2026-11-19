@@ -7,7 +7,7 @@ export interface BaseRefChoice {
   readonly remote: VcsRef | null;
 }
 
-function remoteBranchName(ref: VcsRef): string {
+function remoteBranchName(ref: VcsRef) {
   if (ref.remoteName && ref.name.startsWith(`${ref.remoteName}/`)) {
     return ref.name.slice(ref.remoteName.length + 1);
   }
@@ -17,7 +17,11 @@ function remoteBranchName(ref: VcsRef): string {
 export function buildBaseRefChoices(
   localRefs: ReadonlyArray<VcsRef>,
   remoteRefs: ReadonlyArray<VcsRef>,
-): ReadonlyArray<BaseRefChoice> {
+): ReadonlyArray<BaseRefChoice>;
+export function buildBaseRefChoices(
+  localRefs: ReadonlyArray<VcsRef>,
+  remoteRefs: ReadonlyArray<VcsRef>,
+) {
   const unusedRemoteRefs = new Set(remoteRefs);
   const pairedChoices = localRefs.map((local) => {
     const matches = remoteRefs.filter(
@@ -40,19 +44,20 @@ export function buildBaseRefChoices(
       : [],
   );
 
-  return [...pairedChoices, ...remoteOnlyChoices];
+  return [...pairedChoices, ...remoteOnlyChoices] satisfies ReadonlyArray<BaseRefChoice>;
 }
 
 export function filterBaseRefChoices(
   choices: ReadonlyArray<BaseRefChoice>,
   query: string,
-): ReadonlyArray<BaseRefChoice> {
+): ReadonlyArray<BaseRefChoice>;
+export function filterBaseRefChoices(choices: ReadonlyArray<BaseRefChoice>, query: string) {
   const normalizedQuery = query.trim().toLocaleLowerCase();
-  if (normalizedQuery.length === 0) return choices;
+  if (normalizedQuery.length === 0) return choices satisfies ReadonlyArray<BaseRefChoice>;
   return choices.filter(
     (choice) =>
       choice.label.toLocaleLowerCase().includes(normalizedQuery) ||
       choice.local?.name.toLocaleLowerCase().includes(normalizedQuery) === true ||
       choice.remote?.name.toLocaleLowerCase().includes(normalizedQuery) === true,
-  );
+  ) satisfies ReadonlyArray<BaseRefChoice>;
 }

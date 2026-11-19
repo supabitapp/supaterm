@@ -96,7 +96,7 @@ export interface AntigravityAuthOptions<
   readonly usesBrowser?: boolean;
 }
 
-function visibleSnapshot(snapshot: AuthSnapshot, ownerSessionId: string): ProviderAuthState {
+function visibleSnapshot(snapshot: AuthSnapshot, ownerSessionId: string) {
   if (snapshot.ownerSessionId === null || snapshot.ownerSessionId === ownerSessionId) {
     return snapshot.state;
   }
@@ -111,7 +111,7 @@ function visibleSnapshot(snapshot: AuthSnapshot, ownerSessionId: string): Provid
   };
 }
 
-function safeAuthFailure(cause: Cause.Cause<unknown>, usesBrowser: boolean): string {
+function safeAuthFailure(cause: Cause.Cause<unknown>, usesBrowser: boolean) {
   const error = Cause.findErrorOption(cause);
   if (Option.isSome(error)) {
     if (isSetupError(error.value)) {
@@ -139,9 +139,7 @@ function safeAuthFailure(cause: Cause.Cause<unknown>, usesBrowser: boolean): str
 
 export const makeAntigravityAuth = Effect.fn("makeAntigravityAuth")(function* <
   Runtime extends AntigravityAuthRuntime,
->(
-  options: AntigravityAuthOptions<Runtime>,
-): Effect.fn.Return<AntigravityAuth, never, SecureRandom.SecureRandom | Scope.Scope> {
+>(options: AntigravityAuthOptions<Runtime>) {
   const random = yield* SecureRandom.SecureRandom;
   const instanceScope = yield* Scope.Scope;
   const usesBrowser = options.usesBrowser ?? true;

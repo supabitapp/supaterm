@@ -50,7 +50,7 @@ export class HtmlRenderFileError extends Schema.TaggedError<HtmlRenderFileError>
   "HtmlRenderFileError",
   { path: Schema.String, cause: Schema.optional(Schema.Defect()) },
 ) {
-  override get message(): string {
+  override get message() {
     return `${this.path} is not a readable HTML document. Pass an absolute path to a regular .html file that starts with <!doctype html> or <html>, or pass html instead.`;
   }
 }
@@ -59,7 +59,7 @@ export class HtmlRenderFileTooLargeError extends Schema.TaggedError<HtmlRenderFi
   "HtmlRenderFileTooLargeError",
   { path: Schema.String, sizeBytes: Schema.Number },
 ) {
-  override get message(): string {
+  override get message() {
     return `${this.path} is ${formatMib(this.sizeBytes)}; a page must be at most ${formatMib(MAX_PAGE_BYTES)}.`;
   }
 }
@@ -68,7 +68,7 @@ export class HtmlRenderImagesNotFoundError extends Schema.TaggedError<HtmlRender
   "HtmlRenderImagesNotFoundError",
   { paths: Schema.Array(Schema.String) },
 ) {
-  override get message(): string {
+  override get message() {
     return `These local images could not be read: ${this.paths.join(", ")}. Use absolute paths to existing image files, or remove them.`;
   }
 }
@@ -77,7 +77,7 @@ export class HtmlRenderImageTooLargeError extends Schema.TaggedError<HtmlRenderI
   "HtmlRenderImageTooLargeError",
   { path: Schema.String, sizeBytes: Schema.Number },
 ) {
-  override get message(): string {
+  override get message() {
     return `${this.path} is ${formatMib(this.sizeBytes)}; each local image must be at most ${formatMib(MAX_IMAGE_BYTES)}.`;
   }
 }
@@ -86,7 +86,7 @@ export class HtmlRenderPageTooLargeError extends Schema.TaggedError<HtmlRenderPa
   "HtmlRenderPageTooLargeError",
   { sizeBytes: Schema.Number },
 ) {
-  override get message(): string {
+  override get message() {
     return `With its images inlined the page is ${formatMib(this.sizeBytes)}; the limit is ${formatMib(MAX_PAGE_BYTES)}. Use smaller images.`;
   }
 }
@@ -95,7 +95,7 @@ export class HtmlRenderViewportHeightError extends Schema.TaggedError<HtmlRender
   "HtmlRenderViewportHeightError",
   { found: Schema.String },
 ) {
-  override get message(): string {
+  override get message() {
     return `The page uses a viewport height unit (${this.found}). The frame grows to fit the page, so a size that follows the viewport makes it grow again and again. Let content set the height, or use fixed pixel heights.`;
   }
 }
@@ -117,7 +117,7 @@ export class HtmlRenderStoreError extends Schema.TaggedError<HtmlRenderStoreErro
   "HtmlRenderStoreError",
   { cause: Schema.Defect() },
 ) {
-  override get message(): string {
+  override get message() {
     return "The HTML render could not be saved.";
   }
 }

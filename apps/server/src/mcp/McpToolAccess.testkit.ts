@@ -1,5 +1,4 @@
 import {
-  type OrchestrationV2ThreadProjection,
   type OrchestrationV2ThreadShell,
   ProjectId,
   type ProviderInteractionMode,
@@ -16,7 +15,15 @@ import * as ThreadManagement from "../orchestration-v2/ThreadManagementService.t
 
 const EPOCH = DateTime.makeUnsafe("2026-01-01T00:00:00.000Z");
 
-export const liveThreadShell = (
+export const liveThreadShell: (
+  id: ThreadId,
+  modes?: {
+    readonly runtimeMode?: RuntimeMode;
+    readonly interactionMode?: ProviderInteractionMode;
+    readonly activeRunId?: RunId | null;
+    readonly sideChatOf?: ThreadId;
+  },
+) => OrchestrationV2ThreadShell = (
   id: ThreadId,
   modes: {
     readonly runtimeMode?: RuntimeMode;
@@ -24,7 +31,7 @@ export const liveThreadShell = (
     readonly activeRunId?: RunId | null;
     readonly sideChatOf?: ThreadId;
   } = {},
-): OrchestrationV2ThreadShell => {
+) => {
   const providerInstanceId = ProviderInstanceId.make("codex");
   return {
     id,
@@ -72,9 +79,7 @@ export const liveThreadsLayer = Layer.mock(ThreadManagement.ThreadManagementServ
   getThreadShell: (threadId) => Effect.succeed(liveThreadShell(threadId)),
 });
 
-export const idleThreadProjection = (
-  shell: OrchestrationV2ThreadShell,
-): OrchestrationV2ThreadProjection => {
+export const idleThreadProjection = (shell: OrchestrationV2ThreadShell) => {
   const {
     status: _status,
     activeRunId: _activeRunId,

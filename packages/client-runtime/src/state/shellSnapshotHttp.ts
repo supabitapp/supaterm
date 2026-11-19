@@ -72,16 +72,20 @@ const decodeEnvironmentHttpCommonError = Schema.decodeUnknownEffect(
 
 const isShellResumable = Schema.is(OrchestrationV2ShellResumable);
 
-const decodeShellSnapshotResponse = (
+const decodeShellSnapshotResponse: (
   response: HttpClientResponse.HttpClientResponse,
-): Effect.Effect<
+) => Effect.Effect<
   ShellHttpAnswer,
   HttpClientError.HttpClientError | Schema.SchemaError | EnvironmentHttpCommonError
-> => {
+> = (response: HttpClientResponse.HttpClientResponse) => {
   if (response.status === 200) {
     return response.json.pipe(
-      Effect.flatMap((json): Effect.Effect<ShellHttpAnswer, Schema.SchemaError> => {
-        if (isShellResumable(json)) return Effect.succeed(json);
+      Effect.flatMap((json) => {
+        if (isShellResumable(json))
+          return Effect.succeed(json) satisfies Effect.Effect<
+            ShellHttpAnswer,
+            Schema.SchemaError
+          > as Effect.Effect<ShellHttpAnswer, Schema.SchemaError>;
         const projectIdentities =
           Predicate.isObject(json) && typeof json.projectIdentities === "string"
             ? json.projectIdentities
@@ -90,7 +94,10 @@ const decodeShellSnapshotResponse = (
           Effect.map((snapshot) =>
             projectIdentities === undefined ? snapshot : { ...snapshot, projectIdentities },
           ),
-        );
+        ) satisfies Effect.Effect<ShellHttpAnswer, Schema.SchemaError> as Effect.Effect<
+          ShellHttpAnswer,
+          Schema.SchemaError
+        >;
       }),
     );
   }

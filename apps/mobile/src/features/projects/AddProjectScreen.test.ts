@@ -32,7 +32,7 @@ const state = vi.hoisted(() => ({
   createNewResult: null as Promise<unknown> | null,
   connectionStates: {} as Record<string, EnvironmentConnectionPhase>,
   newProjectsRoot: null as string | null,
-  waitForProject: vi.fn(async (): Promise<unknown> => null),
+  waitForProject: vi.fn(async () => null),
   dispatch: vi.fn(),
   alert: vi.fn(),
   navigationState: undefined as NavigationState | undefined,
@@ -181,14 +181,15 @@ import { AddProjectSourceRoute } from "./AddProjectSourceRoute";
 function findAction(
   node: ReactNode,
   label: string,
-  includeDisabled = false,
-): (() => unknown) | null {
+  includeDisabled?: boolean,
+): (() => unknown) | null;
+function findAction(node: ReactNode, label: string, includeDisabled = false) {
   if (Array.isArray(node)) {
     for (const child of node) {
       const action = findAction(child, label, includeDisabled);
-      if (action) return action;
+      if (action) return action satisfies (() => unknown) | null;
     }
-    return null;
+    return null satisfies (() => unknown) | null;
   }
   if (
     !isValidElement<{
@@ -199,12 +200,14 @@ function findAction(
       children?: ReactNode;
     }>(node)
   ) {
-    return null;
+    return null satisfies (() => unknown) | null;
   }
   if ((node.props.label ?? node.props.title) === label) {
-    return node.props.disabled && !includeDisabled ? null : (node.props.onPress ?? null);
+    return (
+      node.props.disabled && !includeDisabled ? null : (node.props.onPress ?? null)
+    ) satisfies (() => unknown) | null;
   }
-  return findAction(node.props.children, label, includeDisabled);
+  return findAction(node.props.children, label, includeDisabled) satisfies (() => unknown) | null;
 }
 
 const mountedRoots: ReturnType<typeof createRoot>[] = [];
@@ -586,7 +589,7 @@ describe("local project navigation", () => {
       screen = AddProjectNewScreen({ environmentId: "environment" });
       return null;
     }
-    function enterName(node: ReactNode): boolean {
+    function enterName(node: ReactNode) {
       if (Array.isArray(node)) return node.some(enterName);
       if (
         !isValidElement<{

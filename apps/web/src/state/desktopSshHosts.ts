@@ -8,7 +8,7 @@ type DesktopSshDiscoveryBridge = Pick<DesktopBridge, "discoverSshHosts">;
 export function filterDiscoveredSshHosts(
   hosts: ReadonlyArray<DesktopDiscoveredSshHost>,
   query: string,
-): ReadonlyArray<DesktopDiscoveredSshHost> {
+) {
   const normalizedQuery = query.trim().toLowerCase();
   if (normalizedQuery.length === 0) return hosts;
 
@@ -33,7 +33,7 @@ class DesktopSshDiscoveryUnavailableError extends Schema.TaggedError<DesktopSshD
   "DesktopSshDiscoveryUnavailableError",
   {},
 ) {
-  override get message(): string {
+  override get message() {
     return "Desktop SSH host discovery is unavailable.";
   }
 }
@@ -42,12 +42,12 @@ class DesktopSshDiscoveryError extends Schema.TaggedError<DesktopSshDiscoveryErr
   "DesktopSshDiscoveryError",
   { cause: Schema.Defect() },
 ) {
-  override get message(): string {
+  override get message() {
     return "Failed to discover SSH hosts.";
   }
 }
 
-function getDesktopSshDiscoveryBridge(): DesktopSshDiscoveryBridge | undefined {
+function getDesktopSshDiscoveryBridge() {
   return typeof window === "undefined" ? undefined : window.desktopBridge;
 }
 
@@ -58,7 +58,7 @@ function createDesktopSshHostsStateAtom(getBridge: () => DesktopSshDiscoveryBrid
       return yield* new DesktopSshDiscoveryUnavailableError();
     }
     return yield* Effect.tryPromise({
-      try: (): Promise<ReadonlyArray<DesktopDiscoveredSshHost>> => bridge.discoverSshHosts(),
+      try: () => bridge.discoverSshHosts(),
       catch: (cause) => new DesktopSshDiscoveryError({ cause }),
     });
   });

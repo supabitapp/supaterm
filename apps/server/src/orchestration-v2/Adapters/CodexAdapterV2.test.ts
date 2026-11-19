@@ -460,21 +460,22 @@ describe("CodexAdapterV2 rollback mapping", () => {
         id: string,
         ordinal: number,
         status: OrchestrationV2ProviderTurn["status"],
-      ): OrchestrationV2ProviderTurn => ({
-        id: ProviderTurnId.make(id),
-        providerThreadId,
-        nodeId: NodeId.make(`node-${id}`),
-        runAttemptId: RunAttemptId.make(`run-attempt-${id}`),
-        nativeTurnRef: {
-          driver: CodexAdapterV2.CODEX_DRIVER_KIND,
-          nativeId: `native-${id}`,
-          strength: "strong",
-        },
-        ordinal,
-        status,
-        startedAt: now,
-        completedAt: status === "running" || status === "pending" ? null : now,
-      });
+      ) =>
+        ({
+          id: ProviderTurnId.make(id),
+          providerThreadId,
+          nodeId: NodeId.make(`node-${id}`),
+          runAttemptId: RunAttemptId.make(`run-attempt-${id}`),
+          nativeTurnRef: {
+            driver: CodexAdapterV2.CODEX_DRIVER_KIND,
+            nativeId: `native-${id}`,
+            strength: "strong",
+          },
+          ordinal,
+          status,
+          startedAt: now,
+          completedAt: status === "running" || status === "pending" ? null : now,
+        }) satisfies OrchestrationV2ProviderTurn;
       const firstTurn = providerTurn("provider-turn-first", 1, "completed");
       const secondTurn = providerTurn("provider-turn-second", 2, "completed");
       const runningTurn = providerTurn("provider-turn-running", 3, "running");
@@ -525,46 +526,48 @@ describe("CodexAdapterV2 rollback mapping", () => {
 
 describe("CodexAdapterV2 fork boundary", () => {
   const providerThreadId = ProviderThreadId.make("provider-thread-codex-fork-boundary");
-  const makeProviderThread = (now: DateTime.Utc): OrchestrationV2ProviderThread => ({
-    id: providerThreadId,
-    driver: CodexAdapterV2.CODEX_DRIVER_KIND,
-    providerInstanceId: ProviderInstanceId.make("codex"),
-    providerSessionId: ProviderSessionId.make("provider-session-codex-fork-boundary"),
-    appThreadId: ThreadId.make("thread-codex-fork-boundary"),
-    ownerNodeId: null,
-    nativeThreadRef: {
+  const makeProviderThread = (now: DateTime.Utc) =>
+    ({
+      id: providerThreadId,
       driver: CodexAdapterV2.CODEX_DRIVER_KIND,
-      nativeId: "native-thread-codex-fork-boundary",
-      strength: "strong",
-    },
-    nativeConversationHeadRef: null,
-    status: "idle",
-    firstRunOrdinal: 1,
-    lastRunOrdinal: 2,
-    handoffIds: [],
-    forkedFrom: null,
-    createdAt: now,
-    updatedAt: now,
-  });
+      providerInstanceId: ProviderInstanceId.make("codex"),
+      providerSessionId: ProviderSessionId.make("provider-session-codex-fork-boundary"),
+      appThreadId: ThreadId.make("thread-codex-fork-boundary"),
+      ownerNodeId: null,
+      nativeThreadRef: {
+        driver: CodexAdapterV2.CODEX_DRIVER_KIND,
+        nativeId: "native-thread-codex-fork-boundary",
+        strength: "strong",
+      },
+      nativeConversationHeadRef: null,
+      status: "idle",
+      firstRunOrdinal: 1,
+      lastRunOrdinal: 2,
+      handoffIds: [],
+      forkedFrom: null,
+      createdAt: now,
+      updatedAt: now,
+    }) satisfies OrchestrationV2ProviderThread;
   const makeProviderTurn = (
     id: string,
     ordinal: number,
     nativeId: string | null,
     now: DateTime.Utc,
-  ): OrchestrationV2ProviderTurn => ({
-    id: ProviderTurnId.make(id),
-    providerThreadId,
-    nodeId: NodeId.make(`node-${id}`),
-    runAttemptId: RunAttemptId.make(`run-attempt-${id}`),
-    nativeTurnRef:
-      nativeId === null
-        ? { driver: CodexAdapterV2.CODEX_DRIVER_KIND, nativeId: null, strength: "none" }
-        : { driver: CodexAdapterV2.CODEX_DRIVER_KIND, nativeId, strength: "strong" },
-    ordinal,
-    status: "completed",
-    startedAt: now,
-    completedAt: now,
-  });
+  ) =>
+    ({
+      id: ProviderTurnId.make(id),
+      providerThreadId,
+      nodeId: NodeId.make(`node-${id}`),
+      runAttemptId: RunAttemptId.make(`run-attempt-${id}`),
+      nativeTurnRef:
+        nativeId === null
+          ? { driver: CodexAdapterV2.CODEX_DRIVER_KIND, nativeId: null, strength: "none" }
+          : { driver: CodexAdapterV2.CODEX_DRIVER_KIND, nativeId, strength: "strong" },
+      ordinal,
+      status: "completed",
+      startedAt: now,
+      completedAt: now,
+    }) satisfies OrchestrationV2ProviderTurn;
 
   it.effect("resolves the selected provider turn to an inclusive native fork boundary", () =>
     Effect.gen(function* () {
@@ -627,7 +630,7 @@ function makeCodexTestAppThread(input: {
   readonly threadId: ThreadId;
   readonly providerThread: OrchestrationV2ProviderThread;
   readonly now: DateTime.Utc;
-}): OrchestrationV2AppThread {
+}) {
   return {
     createdBy: "user",
     creationSource: "web",
@@ -654,7 +657,7 @@ function makeCodexTestAppThread(input: {
     doneAt: null,
     lastVisitedAt: null,
     deletedAt: null,
-  };
+  } satisfies OrchestrationV2AppThread;
 }
 
 function makeCodexTestTurnInput(input: {
@@ -663,7 +666,7 @@ function makeCodexTestTurnInput(input: {
   readonly now: DateTime.Utc;
   readonly attemptId: RunAttemptId;
   readonly text: string;
-}): ProviderAdapter.ProviderAdapterV2TurnInput {
+}) {
   return {
     appThread: makeCodexTestAppThread(input),
     threadId: input.threadId,
@@ -682,13 +685,17 @@ function makeCodexTestTurnInput(input: {
     },
     modelSelection: CODEX_TEST_MODEL_SELECTION,
     runtimePolicy: CODEX_TEST_RUNTIME_POLICY,
-  };
+  } satisfies ProviderAdapter.ProviderAdapterV2TurnInput;
 }
 
 function makeCodexReplayTurn(input: {
   readonly id: string;
   readonly status: "inProgress" | "completed" | "interrupted" | "failed";
-}): Record<string, unknown> {
+}): Record<string, unknown>;
+function makeCodexReplayTurn(input: {
+  readonly id: string;
+  readonly status: "inProgress" | "completed" | "interrupted" | "failed";
+}) {
   const terminal =
     input.status === "completed" || input.status === "interrupted" || input.status === "failed";
   return {
@@ -700,7 +707,7 @@ function makeCodexReplayTurn(input: {
     startedAt: 1782622440,
     completedAt: terminal ? 1782622450 : null,
     durationMs: null,
-  };
+  } satisfies Record<string, unknown>;
 }
 
 function codexReplayPreamble(input: {
@@ -713,7 +720,18 @@ function codexReplayPreamble(input: {
     typeof CodexClient.V2TurnStartParams.Type,
     "approvalPolicy" | "sandboxPolicy"
   >;
-}): Array<CodexReplay.CodexAppServerReplayEntry> {
+}): Array<CodexReplay.CodexAppServerReplayEntry>;
+function codexReplayPreamble(input: {
+  readonly nativeThreadId: string;
+  readonly nativeTurnId: string;
+  readonly prompt: string;
+  readonly sentPrompt?: string;
+  readonly effort?: string;
+  readonly turnPolicy?: Pick<
+    typeof CodexClient.V2TurnStartParams.Type,
+    "approvalPolicy" | "sandboxPolicy"
+  >;
+}) {
   return [
     {
       type: "expect_outbound",
@@ -842,12 +860,12 @@ function codexReplayPreamble(input: {
         },
       },
     },
-  ];
+  ] satisfies Array<CodexReplay.CodexAppServerReplayEntry>;
 }
 
 function withConfigReadBeforeTurnStart(
   entries: ReadonlyArray<CodexReplay.CodexAppServerReplayEntry>,
-): Array<CodexReplay.CodexAppServerReplayEntry> {
+) {
   const result: Array<CodexReplay.CodexAppServerReplayEntry> = [];
   let offset = 0;
   let clientIds = new Map<number, number>();
@@ -895,30 +913,41 @@ function withConfigReadBeforeTurnStart(
 
 function withConfigReads(
   transcript: CodexReplay.CodexAppServerReplayTranscript,
-): CodexReplay.CodexAppServerReplayTranscript {
-  return { ...transcript, entries: withConfigReadBeforeTurnStart(transcript.entries) };
+): CodexReplay.CodexAppServerReplayTranscript;
+function withConfigReads(transcript: CodexReplay.CodexAppServerReplayTranscript) {
+  return {
+    ...transcript,
+    entries: withConfigReadBeforeTurnStart(transcript.entries),
+  } satisfies CodexReplay.CodexAppServerReplayTranscript;
 }
 
 function makeCodexReplayTranscript(input: {
   readonly scenario: string;
   readonly entries: ReadonlyArray<CodexReplay.CodexAppServerReplayEntry>;
-}): CodexReplay.CodexAppServerReplayTranscript {
+}): CodexReplay.CodexAppServerReplayTranscript;
+function makeCodexReplayTranscript(input: {
+  readonly scenario: string;
+  readonly entries: ReadonlyArray<CodexReplay.CodexAppServerReplayEntry>;
+}) {
   return {
     provider: "codex",
     protocol: "codex.app-server",
     version: "0.144.0",
     scenario: input.scenario,
     entries: input.entries,
-  };
+  } satisfies CodexReplay.CodexAppServerReplayTranscript;
 }
 
 function withReplayRequestId(
   entry: CodexReplay.CodexAppServerReplayEntry,
   id: number,
-): CodexReplay.CodexAppServerReplayEntry {
-  return entry.type !== "runtime_exit" && Predicate.isObject(entry.frame)
-    ? { ...entry, frame: { ...entry.frame, id } }
-    : entry;
+): CodexReplay.CodexAppServerReplayEntry;
+function withReplayRequestId(entry: CodexReplay.CodexAppServerReplayEntry, id: number) {
+  return (
+    entry.type !== "runtime_exit" && Predicate.isObject(entry.frame)
+      ? { ...entry, frame: { ...entry.frame, id } }
+      : entry
+  ) satisfies CodexReplay.CodexAppServerReplayEntry;
 }
 
 describe("CodexAdapterV2 process exit", () => {
@@ -1480,7 +1509,7 @@ describe("CodexAdapterV2 session initialize", () => {
 describe("CodexAdapterV2 post-settle continuation", () => {
   const makeChangeSignal = Effect.gen(function* () {
     const changes = yield* PubSub.unbounded<void>();
-    const until = (predicate: () => boolean): Effect.Effect<void> =>
+    const until = (predicate: () => boolean) =>
       Effect.scoped(
         Effect.gen(function* () {
           const subscription = yield* PubSub.subscribe(changes);
@@ -1756,24 +1785,22 @@ describe("CodexAdapterV2 post-settle continuation", () => {
         result: imageData,
         ...image,
       }));
-      const imageEvent = (
-        item: GeneratedImage,
-        phase: "started" | "completed",
-      ): CodexReplay.CodexAppServerReplayEntry => ({
-        type: "emit_inbound",
-        frame: {
-          method: `item/${phase}`,
-          params: {
-            threadId: nativeThreadId,
-            turnId: nativeTurnId,
-            item:
-              phase === "started"
-                ? { ...item, status: "in_progress", savedPath: null, result: "" }
-                : item,
-            [`${phase}AtMs`]: 1782622445000,
+      const imageEvent = (item: GeneratedImage, phase: "started" | "completed") =>
+        ({
+          type: "emit_inbound",
+          frame: {
+            method: `item/${phase}`,
+            params: {
+              threadId: nativeThreadId,
+              turnId: nativeTurnId,
+              item:
+                phase === "started"
+                  ? { ...item, status: "in_progress", savedPath: null, result: "" }
+                  : item,
+              [`${phase}AtMs`]: 1782622445000,
+            },
           },
-        },
-      });
+        }) satisfies CodexReplay.CodexAppServerReplayEntry;
       const answers: Array<CodexReplay.CodexAppServerReplayEntry> = testCase.replies.map(
         (text, index) => ({
           type: "emit_inbound",
@@ -2661,41 +2688,38 @@ describe("CodexAdapterV2 post-settle continuation", () => {
       const prompt = "Delegate the README check.";
       const first = codexReplayPreamble({ nativeThreadId, nativeTurnId: "wake-turn-1", prompt });
       const second = codexReplayPreamble({ nativeThreadId, nativeTurnId: "wake-turn-2", prompt });
-      const completedAndSampled = (
-        nativeTurnId: string,
-        id: number,
-        text: string,
-      ): Array<CodexReplay.CodexAppServerReplayEntry> => [
-        {
-          type: "emit_inbound",
-          label: `${nativeTurnId} completed`,
-          frame: {
-            method: "turn/completed",
-            params: {
-              threadId: nativeThreadId,
-              turn: makeCodexReplayTurn({ id: nativeTurnId, status: "completed" }),
+      const completedAndSampled = (nativeTurnId: string, id: number, text: string) =>
+        [
+          {
+            type: "emit_inbound",
+            label: `${nativeTurnId} completed`,
+            frame: {
+              method: "turn/completed",
+              params: {
+                threadId: nativeThreadId,
+                turn: makeCodexReplayTurn({ id: nativeTurnId, status: "completed" }),
+              },
             },
           },
-        },
-        {
-          type: "expect_outbound",
-          label: `${nativeTurnId} thread/sample`,
-          frame: {
-            id,
-            method: "thread/sample",
-            params: {
-              threadId: nativeThreadId,
-              expectedTurnId: nativeTurnId,
-              prompt: CodexAdapterV2.CODEX_NEXT_PROMPT_REQUEST,
+          {
+            type: "expect_outbound",
+            label: `${nativeTurnId} thread/sample`,
+            frame: {
+              id,
+              method: "thread/sample",
+              params: {
+                threadId: nativeThreadId,
+                expectedTurnId: nativeTurnId,
+                prompt: CodexAdapterV2.CODEX_NEXT_PROMPT_REQUEST,
+              },
             },
           },
-        },
-        {
-          type: "emit_inbound",
-          label: `${nativeTurnId} thread/sample`,
-          frame: { id, result: { sourceTurnId: nativeTurnId, text } },
-        },
-      ];
+          {
+            type: "emit_inbound",
+            label: `${nativeTurnId} thread/sample`,
+            frame: { id, result: { sourceTurnId: nativeTurnId, text } },
+          },
+        ] satisfies Array<CodexReplay.CodexAppServerReplayEntry>;
       const firstSampleAnswered = yield* Deferred.make<void>();
       const harness = yield* makeCodexReplayHarness(
         makeCodexReplayTranscript({
@@ -3279,79 +3303,79 @@ describe("CodexAdapterV2 post-settle continuation", () => {
       } as const;
       const turnModes = ["approval-required", "full-access", "approval-required"] as const;
       const turnText = (index: number) => `Review round ${index + 1}.`;
-      const startTurn = (index: number): ReadonlyArray<CodexReplay.CodexAppServerReplayEntry> => [
-        {
-          type: "expect_outbound",
-          label: `turn ${index + 1} turn/start`,
-          frame: {
-            id: 3 + index,
-            method: "turn/start",
-            params: {
-              threadId: nativeThreadId,
-              input: [{ type: "text", text: turnText(index) }],
-              cwd: "/workspace",
-              model: "gpt-5.4",
-              ...turnPolicies[turnModes[index]!],
-              summary: "auto",
-              collaborationMode: { mode: "default", settings: { model: "gpt-5.4" } },
+      const startTurn = (index: number) =>
+        [
+          {
+            type: "expect_outbound",
+            label: `turn ${index + 1} turn/start`,
+            frame: {
+              id: 3 + index,
+              method: "turn/start",
+              params: {
+                threadId: nativeThreadId,
+                input: [{ type: "text", text: turnText(index) }],
+                cwd: "/workspace",
+                model: "gpt-5.4",
+                ...turnPolicies[turnModes[index]!],
+                summary: "auto",
+                collaborationMode: { mode: "default", settings: { model: "gpt-5.4" } },
+              },
             },
           },
-        },
-        {
-          type: "emit_inbound",
-          label: `turn ${index + 1} turn/start`,
-          frame: {
-            id: 3 + index,
-            result: { turn: makeCodexReplayTurn({ id: turnIds[index]!, status: "inProgress" }) },
+          {
+            type: "emit_inbound",
+            label: `turn ${index + 1} turn/start`,
+            frame: {
+              id: 3 + index,
+              result: { turn: makeCodexReplayTurn({ id: turnIds[index]!, status: "inProgress" }) },
+            },
           },
-        },
-        turnEvent("turn/started", turnIds[index]!),
-      ];
+          turnEvent("turn/started", turnIds[index]!),
+        ] satisfies ReadonlyArray<CodexReplay.CodexAppServerReplayEntry>;
       const approval = (input: {
         readonly id: number;
         readonly turnId: string;
         readonly kind: "commandExecution" | "fileChange";
         readonly itemId: string;
         readonly decision: string;
-      }): ReadonlyArray<CodexReplay.CodexAppServerReplayEntry> => [
-        {
-          type: "emit_inbound",
-          label: `${input.itemId} approval`,
-          frame: {
-            id: input.id,
-            method: `item/${input.kind}/requestApproval`,
-            params: {
-              threadId: nativeThreadId,
-              turnId: input.turnId,
-              itemId: input.itemId,
-              startedAtMs: 1782622441000,
-              ...(input.kind === "commandExecution" ? { command: `cat ${input.itemId}` } : {}),
+      }) =>
+        [
+          {
+            type: "emit_inbound",
+            label: `${input.itemId} approval`,
+            frame: {
+              id: input.id,
+              method: `item/${input.kind}/requestApproval`,
+              params: {
+                threadId: nativeThreadId,
+                turnId: input.turnId,
+                itemId: input.itemId,
+                startedAtMs: 1782622441000,
+                ...(input.kind === "commandExecution" ? { command: `cat ${input.itemId}` } : {}),
+              },
             },
           },
-        },
-        {
-          type: "expect_outbound",
-          label: `${input.itemId} decision`,
-          frame: { id: input.id, result: { decision: input.decision } },
-        },
-      ];
-      const turnEvent = (
-        method: "turn/started" | "turn/completed",
-        turnId: string,
-      ): CodexReplay.CodexAppServerReplayEntry => ({
-        type: "emit_inbound",
-        label: `${turnId} ${method}`,
-        frame: {
-          method,
-          params: {
-            threadId: nativeThreadId,
-            turn: makeCodexReplayTurn({
-              id: turnId,
-              status: method === "turn/started" ? "inProgress" : "completed",
-            }),
+          {
+            type: "expect_outbound",
+            label: `${input.itemId} decision`,
+            frame: { id: input.id, result: { decision: input.decision } },
           },
-        },
-      });
+        ] satisfies ReadonlyArray<CodexReplay.CodexAppServerReplayEntry>;
+      const turnEvent = (method: "turn/started" | "turn/completed", turnId: string) =>
+        ({
+          type: "emit_inbound",
+          label: `${turnId} ${method}`,
+          frame: {
+            method,
+            params: {
+              threadId: nativeThreadId,
+              turn: makeCodexReplayTurn({
+                id: turnId,
+                status: method === "turn/started" ? "inProgress" : "completed",
+              }),
+            },
+          },
+        }) satisfies CodexReplay.CodexAppServerReplayEntry;
       const [patchRequest, patchDecision] = approval({
         id: 102,
         turnId: turnIds[0]!,
@@ -4352,7 +4376,9 @@ describe("CodexAdapterV2 post-settle continuation", () => {
         message: "Selected model is at capacity. Please try a different model.",
         codexErrorInfo: "serverOverloaded",
       };
-      const failureEntries = (attempt: number): Array<CodexReplay.CodexAppServerReplayEntry> => [
+      const failureEntries: (attempt: number) => Array<CodexReplay.CodexAppServerReplayEntry> = (
+        attempt: number,
+      ) => [
         {
           type: "emit_inbound",
           frame: {
@@ -5299,73 +5325,71 @@ describe("CodexAdapterV2 post-settle continuation", () => {
       scenario,
       entries: [
         ...codexReplayPreamble({ nativeThreadId, nativeTurnId, prompt }),
-        ...answers.flatMap(
-          (answer, index): ReadonlyArray<CodexReplay.CodexAppServerReplayEntry> => {
-            const phase = answer.omitPhase
+        ...answers.flatMap((answer, index) => {
+          const phase = answer.omitPhase
+            ? {}
+            : { phase: answer.phase === undefined ? ("final_answer" as const) : answer.phase };
+          const completed: CodexReplay.CodexAppServerReplayEntry = {
+            type: "emit_inbound",
+            label: `item/completed/${answer.id}`,
+            ...(answer.completionDelayMs === undefined
               ? {}
-              : { phase: answer.phase === undefined ? ("final_answer" as const) : answer.phase };
-            const completed: CodexReplay.CodexAppServerReplayEntry = {
+              : { afterMs: answer.completionDelayMs }),
+            frame: {
+              method: "item/completed",
+              params: {
+                item: {
+                  type: "agentMessage",
+                  id: answer.id,
+                  text: answer.text,
+                  ...phase,
+                  memoryCitation: null,
+                },
+                threadId: nativeThreadId,
+                turnId: nativeTurnId,
+                completedAtMs: 1782622441000 + index,
+              },
+            },
+          };
+          if (!answer.streamed) {
+            return [completed] satisfies ReadonlyArray<CodexReplay.CodexAppServerReplayEntry>;
+          }
+          return [
+            {
               type: "emit_inbound",
-              label: `item/completed/${answer.id}`,
-              ...(answer.completionDelayMs === undefined
-                ? {}
-                : { afterMs: answer.completionDelayMs }),
+              label: `item/started/${answer.id}`,
               frame: {
-                method: "item/completed",
+                method: "item/started",
                 params: {
                   item: {
                     type: "agentMessage",
                     id: answer.id,
-                    text: answer.text,
+                    text: "",
                     ...phase,
                     memoryCitation: null,
                   },
                   threadId: nativeThreadId,
                   turnId: nativeTurnId,
-                  completedAtMs: 1782622441000 + index,
+                  startedAtMs: 1782622440500 + index,
                 },
               },
-            };
-            if (!answer.streamed) {
-              return [completed];
-            }
-            return [
-              {
-                type: "emit_inbound",
-                label: `item/started/${answer.id}`,
-                frame: {
-                  method: "item/started",
-                  params: {
-                    item: {
-                      type: "agentMessage",
-                      id: answer.id,
-                      text: "",
-                      ...phase,
-                      memoryCitation: null,
-                    },
-                    threadId: nativeThreadId,
-                    turnId: nativeTurnId,
-                    startedAtMs: 1782622440500 + index,
-                  },
+            },
+            {
+              type: "emit_inbound",
+              label: `item/agentMessage/delta/${answer.id}`,
+              frame: {
+                method: "item/agentMessage/delta",
+                params: {
+                  threadId: nativeThreadId,
+                  turnId: nativeTurnId,
+                  itemId: answer.id,
+                  delta: answer.text,
                 },
               },
-              {
-                type: "emit_inbound",
-                label: `item/agentMessage/delta/${answer.id}`,
-                frame: {
-                  method: "item/agentMessage/delta",
-                  params: {
-                    threadId: nativeThreadId,
-                    turnId: nativeTurnId,
-                    itemId: answer.id,
-                    delta: answer.text,
-                  },
-                },
-              },
-              completed,
-            ];
-          },
-        ),
+            },
+            completed,
+          ] satisfies ReadonlyArray<CodexReplay.CodexAppServerReplayEntry>;
+        }),
         {
           type: "emit_inbound",
           label: "turn/completed",
@@ -5526,7 +5550,7 @@ describe("CodexAdapterV2 post-settle continuation", () => {
   const BG_COMMAND = "sleep 20 && echo CODEX_BG_WAKE_DONE";
   const BG_PROMPT = "Start the sleep in the background and reply STARTED.";
 
-  const backgroundCommandItem = (status: "inProgress" | "completed"): Record<string, unknown> => ({
+  const backgroundCommandItem = (status: "inProgress" | "completed") => ({
     type: "commandExecution",
     id: BG_COMMAND_ITEM,
     command: BG_COMMAND,
@@ -6317,7 +6341,7 @@ describe("CodexAdapterV2 post-settle continuation", () => {
   const INTERRUPT_COMMAND_TWO = "bash -c 'sleep 20; echo SECOND_COMMAND'";
   const INTERRUPT_PROMPT = "Run a long foreground command and wait until interrupted.";
 
-  const interruptCommandItem = (status: "inProgress" | "completed"): Record<string, unknown> => ({
+  const interruptCommandItem = (status: "inProgress" | "completed") => ({
     type: "commandExecution",
     id: INTERRUPT_COMMAND_ITEM,
     command: INTERRUPT_COMMAND,
@@ -8617,61 +8641,58 @@ describe("CodexAdapterV2 post-settle continuation", () => {
     readonly completedAtMs: number;
     readonly afterMs?: number;
     readonly omitPhase?: boolean;
-  }): CodexReplay.CodexAppServerReplayEntry => ({
-    type: "emit_inbound",
-    label: `item/completed/${input.id}`,
-    ...(input.afterMs === undefined ? {} : { afterMs: input.afterMs }),
-    frame: {
-      method: "item/completed",
-      params: {
-        item: {
-          type: "agentMessage",
-          id: input.id,
-          text: input.text,
-          ...(input.omitPhase ? {} : { phase: "final_answer" as const }),
-          memoryCitation: null,
-        },
-        threadId: RESUME_CHILD_THREAD,
-        turnId: input.turnId,
-        completedAtMs: input.completedAtMs,
-      },
-    },
-  });
-
-  const childTurnStarted = (
-    turnId: string,
-    afterMs?: number,
-  ): CodexReplay.CodexAppServerReplayEntry => ({
-    type: "emit_inbound",
-    label: `turn/started/${turnId}`,
-    ...(afterMs === undefined ? {} : { afterMs }),
-    frame: {
-      method: "turn/started",
-      params: {
-        threadId: RESUME_CHILD_THREAD,
-        turn: {
-          ...makeCodexReplayTurn({ id: turnId, status: "inProgress" }),
-          startedAt: turnId === RESUME_CHILD_TURN_2 ? 1782622470 : 1782622440,
+  }) =>
+    ({
+      type: "emit_inbound",
+      label: `item/completed/${input.id}`,
+      ...(input.afterMs === undefined ? {} : { afterMs: input.afterMs }),
+      frame: {
+        method: "item/completed",
+        params: {
+          item: {
+            type: "agentMessage",
+            id: input.id,
+            text: input.text,
+            ...(input.omitPhase ? {} : { phase: "final_answer" as const }),
+            memoryCitation: null,
+          },
+          threadId: RESUME_CHILD_THREAD,
+          turnId: input.turnId,
+          completedAtMs: input.completedAtMs,
         },
       },
-    },
-  });
+    }) satisfies CodexReplay.CodexAppServerReplayEntry;
 
-  const childTurnCompleted = (
-    turnId: string,
-    afterMs?: number,
-  ): CodexReplay.CodexAppServerReplayEntry => ({
-    type: "emit_inbound",
-    label: `turn/completed/${turnId}`,
-    ...(afterMs === undefined ? {} : { afterMs }),
-    frame: {
-      method: "turn/completed",
-      params: {
-        threadId: RESUME_CHILD_THREAD,
-        turn: makeCodexReplayTurn({ id: turnId, status: "completed" }),
+  const childTurnStarted = (turnId: string, afterMs?: number) =>
+    ({
+      type: "emit_inbound",
+      label: `turn/started/${turnId}`,
+      ...(afterMs === undefined ? {} : { afterMs }),
+      frame: {
+        method: "turn/started",
+        params: {
+          threadId: RESUME_CHILD_THREAD,
+          turn: {
+            ...makeCodexReplayTurn({ id: turnId, status: "inProgress" }),
+            startedAt: turnId === RESUME_CHILD_TURN_2 ? 1782622470 : 1782622440,
+          },
+        },
       },
-    },
-  });
+    }) satisfies CodexReplay.CodexAppServerReplayEntry;
+
+  const childTurnCompleted = (turnId: string, afterMs?: number) =>
+    ({
+      type: "emit_inbound",
+      label: `turn/completed/${turnId}`,
+      ...(afterMs === undefined ? {} : { afterMs }),
+      frame: {
+        method: "turn/completed",
+        params: {
+          threadId: RESUME_CHILD_THREAD,
+          turn: makeCodexReplayTurn({ id: turnId, status: "completed" }),
+        },
+      },
+    }) satisfies CodexReplay.CodexAppServerReplayEntry;
 
   const resumeSubagentTranscript = makeCodexReplayTranscript({
     scenario: RESUME_SCENARIO,
@@ -9633,29 +9654,27 @@ describe("CodexAdapterV2 post-settle continuation", () => {
       Effect.gen(function* () {
         const marker = yield* Deferred.make<void>();
         const firstCompletion = yield* Deferred.make<void>();
-        const stateEntry = (
-          status: string,
-          id: string,
-        ): Extract<CodexReplay.CodexAppServerReplayEntry, { type: "emit_inbound" }> => ({
-          type: "emit_inbound",
-          label: id,
-          frame: {
-            method: "item/completed",
-            params: {
-              threadId: RESUME_NATIVE_THREAD,
-              turnId: RESUME_NATIVE_TURN,
-              item: {
-                type: "collabAgentToolCall",
-                id,
-                tool: "listAgents",
-                status: "completed",
-                senderThreadId: RESUME_NATIVE_THREAD,
-                receiverThreadIds: [RESUME_CHILD_THREAD],
-                agentsStates: { [RESUME_CHILD_THREAD]: { status, message: null } },
+        const stateEntry = (status: string, id: string) =>
+          ({
+            type: "emit_inbound",
+            label: id,
+            frame: {
+              method: "item/completed",
+              params: {
+                threadId: RESUME_NATIVE_THREAD,
+                turnId: RESUME_NATIVE_TURN,
+                item: {
+                  type: "collabAgentToolCall",
+                  id,
+                  tool: "listAgents",
+                  status: "completed",
+                  senderThreadId: RESUME_NATIVE_THREAD,
+                  receiverThreadIds: [RESUME_CHILD_THREAD],
+                  agentsStates: { [RESUME_CHILD_THREAD]: { status, message: null } },
+                },
               },
             },
-          },
-        });
+          }) satisfies Extract<CodexReplay.CodexAppServerReplayEntry, { type: "emit_inbound" }>;
         const entries: Array<CodexReplay.CodexAppServerReplayEntry> = [
           ...codexReplayPreamble({
             nativeThreadId: RESUME_NATIVE_THREAD,
@@ -9819,7 +9838,7 @@ describe("CodexAdapterV2 post-settle continuation", () => {
     reasoningEffort: "medium",
   });
 
-  const errorCauseChainText = (error: unknown): string =>
+  const errorCauseChainText: (error: unknown) => string = (error: unknown) =>
     error instanceof Error ? `${error.message} ${errorCauseChainText(error.cause)}` : String(error);
 
   const codexReplaySourceTurn = (input: {
@@ -9828,24 +9847,25 @@ describe("CodexAdapterV2 post-settle continuation", () => {
     readonly nativeId: string | null;
     readonly providerThreadId: ProviderThreadId;
     readonly now: DateTime.Utc;
-  }): OrchestrationV2ProviderTurn => ({
-    id: ProviderTurnId.make(input.id),
-    providerThreadId: input.providerThreadId,
-    nodeId: NodeId.make(`node-${input.id}`),
-    runAttemptId: RunAttemptId.make(`run-attempt-${input.id}`),
-    nativeTurnRef:
-      input.nativeId === null
-        ? { driver: CodexAdapterV2.CODEX_DRIVER_KIND, nativeId: null, strength: "none" }
-        : {
-            driver: CodexAdapterV2.CODEX_DRIVER_KIND,
-            nativeId: input.nativeId,
-            strength: "strong",
-          },
-    ordinal: input.ordinal,
-    status: "completed",
-    startedAt: input.now,
-    completedAt: input.now,
-  });
+  }) =>
+    ({
+      id: ProviderTurnId.make(input.id),
+      providerThreadId: input.providerThreadId,
+      nodeId: NodeId.make(`node-${input.id}`),
+      runAttemptId: RunAttemptId.make(`run-attempt-${input.id}`),
+      nativeTurnRef:
+        input.nativeId === null
+          ? { driver: CodexAdapterV2.CODEX_DRIVER_KIND, nativeId: null, strength: "none" }
+          : {
+              driver: CodexAdapterV2.CODEX_DRIVER_KIND,
+              nativeId: input.nativeId,
+              strength: "strong",
+            },
+      ordinal: input.ordinal,
+      status: "completed",
+      startedAt: input.now,
+      completedAt: input.now,
+    }) satisfies OrchestrationV2ProviderTurn;
 
   it.effect("fails honestly when rolling back a legacy Codex thread", () =>
     Effect.gen(function* () {
@@ -10102,10 +10122,11 @@ describe("CodexAdapterV2 post-settle continuation", () => {
         method: string,
         params: unknown,
         reply: { readonly result: unknown } | { readonly error: unknown },
-      ): Array<CodexReplay.CodexAppServerReplayEntry> => [
-        { type: "expect_outbound", label: method, frame: { id, method, params } },
-        { type: "emit_inbound", label: method, frame: { id, ...reply } },
-      ];
+      ) =>
+        [
+          { type: "expect_outbound", label: method, frame: { id, method, params } },
+          { type: "emit_inbound", label: method, frame: { id, ...reply } },
+        ] satisfies Array<CodexReplay.CodexAppServerReplayEntry>;
       const transcript = makeCodexReplayTranscript({
         scenario: "codex-archived-rollback",
         entries: [
@@ -10372,10 +10393,11 @@ describe("CodexAdapterV2 post-settle continuation", () => {
         method: string,
         params: unknown,
         reply: { readonly result: unknown } | { readonly error: unknown },
-      ): Array<CodexReplay.CodexAppServerReplayEntry> => [
-        { type: "expect_outbound", label: method, frame: { id, method, params } },
-        { type: "emit_inbound", label: method, frame: { id, ...reply } },
-      ];
+      ) =>
+        [
+          { type: "expect_outbound", label: method, frame: { id, method, params } },
+          { type: "emit_inbound", label: method, frame: { id, ...reply } },
+        ] satisfies Array<CodexReplay.CodexAppServerReplayEntry>;
       const transcript = makeCodexReplayTranscript({
         scenario: "codex-archived-fork",
         entries: [
@@ -10627,15 +10649,12 @@ describe("CodexAdapterV2 post-settle continuation", () => {
       createdAt: 1782622440,
       updatedAt: 1782622450,
     });
-    const notification = (
-      label: string,
-      method: string,
-      params: unknown,
-    ): CodexReplay.CodexAppServerReplayEntry => ({
-      type: "emit_inbound",
-      label,
-      frame: { method, params },
-    });
+    const notification = (label: string, method: string, params: unknown) =>
+      ({
+        type: "emit_inbound",
+        label,
+        frame: { method, params },
+      }) satisfies CodexReplay.CodexAppServerReplayEntry;
     const request = (id: number, method: string, params: unknown, result: unknown) =>
       [
         { type: "expect_outbound", label: method, frame: { id, method, params } },
@@ -11159,11 +11178,12 @@ describe("CodexAdapterV2 post-settle continuation", () => {
               modelSelection: CODEX_TEST_MODEL_SELECTION,
               hasSupatermMcp: true,
             }),
-            (params): CodexReplay.CodexAppServerReplayEntry => ({
-              type: "expect_outbound",
-              label: "turn/start",
-              frame: { id, method: "turn/start", params },
-            }),
+            (params) =>
+              ({
+                type: "expect_outbound",
+                label: "turn/start",
+                frame: { id, method: "turn/start", params },
+              }) satisfies CodexReplay.CodexAppServerReplayEntry,
           );
         const transcript = makeCodexReplayTranscript({
           scenario: "goal-paused-for-wake",
@@ -11647,64 +11667,67 @@ describe("CodexAdapterV2 post-settle continuation", () => {
       turnId: string,
       itemId: string,
       changes: ReadonlyArray<FileUpdateChange>,
-    ): CodexReplay.CodexAppServerReplayEntry => ({
-      type: "emit_inbound",
-      label: `${phase} ${itemId}`,
-      frame: {
-        method: `item/${phase}`,
-        params: {
-          threadId: nativeThreadId,
-          turnId,
-          ...(phase === "started" ? { startedAtMs: 1 } : { completedAtMs: 3 }),
-          item: {
-            type: "fileChange",
-            id: itemId,
-            status: phase === "started" ? "inProgress" : "completed",
-            changes,
+    ) =>
+      ({
+        type: "emit_inbound",
+        label: `${phase} ${itemId}`,
+        frame: {
+          method: `item/${phase}`,
+          params: {
+            threadId: nativeThreadId,
+            turnId,
+            ...(phase === "started" ? { startedAtMs: 1 } : { completedAtMs: 3 }),
+            item: {
+              type: "fileChange",
+              id: itemId,
+              status: phase === "started" ? "inProgress" : "completed",
+              changes,
+            },
           },
         },
-      },
-    });
+      }) satisfies CodexReplay.CodexAppServerReplayEntry;
 
     const approval = (input: {
       readonly id: number;
       readonly turnId: string;
       readonly itemId: string;
-    }): Array<CodexReplay.CodexAppServerReplayEntry> => [
-      {
-        type: "emit_inbound",
-        label: `approval ${input.itemId}`,
-        frame: {
-          id: input.id,
-          method: "item/fileChange/requestApproval",
-          params: {
-            threadId: nativeThreadId,
-            turnId: input.turnId,
-            itemId: input.itemId,
-            startedAtMs: 2,
-            reason: null,
-            grantRoot: null,
+    }) =>
+      [
+        {
+          type: "emit_inbound",
+          label: `approval ${input.itemId}`,
+          frame: {
+            id: input.id,
+            method: "item/fileChange/requestApproval",
+            params: {
+              threadId: nativeThreadId,
+              turnId: input.turnId,
+              itemId: input.itemId,
+              startedAtMs: 2,
+              reason: null,
+              grantRoot: null,
+            },
           },
         },
-      },
-      {
-        type: "expect_outbound",
-        label: `approval ${input.itemId}`,
-        frame: { id: input.id, result: { decision: "accept" } },
-      },
-    ];
-
-    const turnCompleted = (turnId: string): CodexReplay.CodexAppServerReplayEntry => ({
-      type: "emit_inbound",
-      label: `complete ${turnId}`,
-      frame: {
-        method: "turn/completed",
-        params: {
-          threadId: nativeThreadId,
-          turn: makeCodexReplayTurn({ id: turnId, status: "completed" }),
+        {
+          type: "expect_outbound",
+          label: `approval ${input.itemId}`,
+          frame: { id: input.id, result: { decision: "accept" } },
         },
-      },
-    });
+      ] satisfies Array<CodexReplay.CodexAppServerReplayEntry>;
+
+    const turnCompleted = (turnId: string) =>
+      ({
+        type: "emit_inbound",
+        label: `complete ${turnId}`,
+        frame: {
+          method: "turn/completed",
+          params: {
+            threadId: nativeThreadId,
+            turn: makeCodexReplayTurn({ id: turnId, status: "completed" }),
+          },
+        },
+      }) satisfies CodexReplay.CodexAppServerReplayEntry;
 
     const startApprovalTurn = (
       scenario: string,
@@ -11881,29 +11904,30 @@ describe("CodexAdapterV2 post-settle continuation", () => {
           id: number,
           itemId: string,
           entries: CodexSchema.PermissionsRequestApprovalParams__AdditionalFileSystemPermissions["entries"],
-        ): Array<CodexReplay.CodexAppServerReplayEntry> => [
-          {
-            type: "emit_inbound",
-            label: `permissions ${itemId}`,
-            frame: {
-              id,
-              method: "item/permissions/requestApproval",
-              params: {
-                threadId: nativeThreadId,
-                turnId: nativeTurnId,
-                itemId,
-                cwd: "/w",
-                startedAtMs: 2,
-                permissions: { fileSystem: { entries } },
+        ) =>
+          [
+            {
+              type: "emit_inbound",
+              label: `permissions ${itemId}`,
+              frame: {
+                id,
+                method: "item/permissions/requestApproval",
+                params: {
+                  threadId: nativeThreadId,
+                  turnId: nativeTurnId,
+                  itemId,
+                  cwd: "/w",
+                  startedAtMs: 2,
+                  permissions: { fileSystem: { entries } },
+                },
               },
             },
-          },
-          {
-            type: "expect_outbound",
-            label: `permissions ${itemId}`,
-            frame: { id, result: { permissions: { fileSystem: { entries } }, scope: "turn" } },
-          },
-        ];
+            {
+              type: "expect_outbound",
+              label: `permissions ${itemId}`,
+              frame: { id, result: { permissions: { fileSystem: { entries } }, scope: "turn" } },
+            },
+          ] satisfies Array<CodexReplay.CodexAppServerReplayEntry>;
         const { harness, answerNext } = yield* startApprovalTurn("permission-entries", [
           ...permissionRequest(0, "write-glob", [
             { access: "read", path: { type: "path", path: "/w/src" } },

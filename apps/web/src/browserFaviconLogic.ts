@@ -14,11 +14,11 @@ const BROWSER_FAVICON_MAX_FUTURE_SKEW_MS = 5 * 60 * 1_000;
 export const BROWSER_FAVICON_MAX_ALIASES_PER_ENTRY = 4;
 const BROWSER_FAVICON_MAX_ALIAS_LENGTH = 255;
 
-function formatFaviconHost(host: string): string {
+function formatFaviconHost(host: string) {
   return host.includes(":") ? `[${host}]` : host;
 }
 
-export function canCanonicalizeFaviconWithoutEnvironment(url: string): boolean {
+export function canCanonicalizeFaviconWithoutEnvironment(url: string) {
   try {
     const parsed = new URL(url);
     const host = normalizeHostname(parsed.hostname);
@@ -41,7 +41,7 @@ export function isValidFaviconCapturedAt(value: unknown): value is number {
   );
 }
 
-function isPersistedFaviconKey(key: string): boolean {
+function isPersistedFaviconKey(key: string) {
   if (key.length === 0 || key.length > BROWSER_FAVICON_MAX_KEY_LENGTH) return false;
   const separator = key.indexOf(" ");
   if (separator <= 0) return false;
@@ -60,7 +60,7 @@ function isPersistedFaviconKey(key: string): boolean {
   }
 }
 
-function persistedFaviconAlias(value: unknown): string | null {
+function persistedFaviconAlias(value: unknown) {
   if (typeof value !== "string" || value.length > BROWSER_FAVICON_MAX_ALIAS_LENGTH) return null;
   const normalized = normalizeHostname(value);
   if (!normalized || normalized !== value) return null;
@@ -72,11 +72,7 @@ function persistedFaviconAlias(value: unknown): string | null {
   }
 }
 
-export function faviconKey(
-  projectRefKey: string,
-  url: string,
-  environmentHostname: string | null,
-): string | null {
+export function faviconKey(projectRefKey: string, url: string, environmentHostname: string | null) {
   if (projectRefKey.length === 0) return null;
   try {
     const parsed = new URL(url);
@@ -99,7 +95,7 @@ export function faviconStorageLocation(
   projectRefKey: string,
   url: string,
   environmentHostname: string | null,
-): { readonly aliases: ReadonlyArray<string>; readonly key: string } | null {
+) {
   const canonicalKey = faviconKey(projectRefKey, url, environmentHostname);
   if (!canonicalKey) return null;
   if (environmentHostname === null) return { aliases: [], key: canonicalKey };
@@ -143,9 +139,7 @@ export function isStorableFaviconDataUrl(value: unknown): value is string {
   );
 }
 
-export function evictExcessFavicons(
-  byKey: Record<string, BrowserFaviconEntry>,
-): Record<string, BrowserFaviconEntry> {
+export function evictExcessFavicons(byKey: Record<string, BrowserFaviconEntry>) {
   const keys = Object.keys(byKey);
   if (keys.length <= BROWSER_FAVICON_MAX_ENTRIES) return byKey;
   return Object.fromEntries(
@@ -156,9 +150,7 @@ export function evictExcessFavicons(
   );
 }
 
-export function sanitizePersistedBrowserFaviconState(persistedState: unknown): {
-  byKey: Record<string, BrowserFaviconEntry>;
-} {
+export function sanitizePersistedBrowserFaviconState(persistedState: unknown) {
   if (!persistedState || typeof persistedState !== "object") return { byKey: {} };
   const raw = "byKey" in persistedState ? (persistedState as { byKey?: unknown }).byKey : null;
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return { byKey: {} };

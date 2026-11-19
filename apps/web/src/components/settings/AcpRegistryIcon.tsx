@@ -16,7 +16,7 @@ const inFlightIcons = new Map<string, Promise<Blob>>();
 
 export { officialAcpRegistryIconUrlForAgentId, resolveOfficialAcpRegistryIconUrl };
 
-async function checkedIconBlob(response: Response): Promise<Blob> {
+async function checkedIconBlob(response: Response) {
   if (!response.ok || response.redirected) throw new Error("ACP registry icon request failed.");
   const contentType = response.headers.get("content-type")?.split(";", 1)[0]?.trim() ?? "";
   if (!contentType.startsWith("image/")) throw new Error("ACP registry icon was not an image.");
@@ -29,7 +29,7 @@ async function checkedIconBlob(response: Response): Promise<Blob> {
   return new Blob([bytes], { type: contentType });
 }
 
-export function loadCachedAcpRegistryIcon(iconUrl: string): Promise<Blob> {
+export function loadCachedAcpRegistryIcon(iconUrl: string) {
   if (resolveOfficialAcpRegistryIconUrl(iconUrl) !== iconUrl) {
     return Promise.reject(new Error("ACP registry icon URL was not allowed."));
   }

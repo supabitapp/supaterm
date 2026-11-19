@@ -13,7 +13,7 @@ export async function refreshEnvironmentLimits(
   registry: AtomRegistry.AtomRegistry,
   environmentId: EnvironmentId,
   options: { readonly automatic?: boolean } = {},
-): Promise<void> {
+) {
   const result = await refreshUsageLimits(
     environmentId,
     () =>
@@ -35,11 +35,11 @@ const limitsAutoRefreshAtom = Atom.family((environmentId: EnvironmentId) =>
   }).pipe(Atom.withLabel(`mobile:limits-auto-refresh:${environmentId}`)),
 );
 
-export function environmentIdsKey(environmentIds: Iterable<EnvironmentId>): string {
+export function environmentIdsKey(environmentIds: Iterable<EnvironmentId>) {
   return [...environmentIds].sort().join(",");
 }
 
-function splitEnvironmentIds(key: string): EnvironmentId[] {
+function splitEnvironmentIds(key: string) {
   return key === "" ? [] : key.split(",").map((id) => EnvironmentId.make(id));
 }
 

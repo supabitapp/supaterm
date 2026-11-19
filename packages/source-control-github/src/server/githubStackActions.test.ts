@@ -101,7 +101,7 @@ const runGitHubStackAction = (send: Send, input: Parameters<typeof runStackActio
 
 const encodeJson = Schema.encodeSync(Schema.fromJsonString(Schema.Unknown));
 
-function words(head: string, fields: unknown): Call {
+function words(head: string, fields: unknown) {
   return [
     head,
     ...Object.entries((fields ?? {}) as Record<string, unknown>).map(

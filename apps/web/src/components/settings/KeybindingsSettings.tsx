@@ -26,7 +26,6 @@ import {
   AuthSettingsWriteScope,
   type KeybindingCommand,
   type KeybindingWhenNode,
-  type ServerRemoveKeybindingInput,
   type ServerUpsertKeybindingInput,
 } from "@supaterm/contracts";
 import {
@@ -152,18 +151,19 @@ type BooleanOperator = "and" | "or";
 function flattenWhenChildren(
   node: KeybindingWhenNode,
   operator: BooleanOperator,
-): KeybindingWhenNode[] {
-  if (node.type !== operator) return [node];
+): KeybindingWhenNode[];
+function flattenWhenChildren(node: KeybindingWhenNode, operator: BooleanOperator) {
+  if (node.type !== operator) return [node] satisfies KeybindingWhenNode[];
   return [
     ...flattenWhenChildren(node.left, operator),
     ...flattenWhenChildren(node.right, operator),
-  ];
+  ] satisfies KeybindingWhenNode[];
 }
 
 function buildWhenExpressionGroup(
   children: readonly KeybindingWhenNode[],
   operator: BooleanOperator,
-): KeybindingWhenNode | undefined {
+) {
   const first = children[0];
   if (!first) return undefined;
   return children.slice(1).reduce<KeybindingWhenNode>(
@@ -176,7 +176,7 @@ function buildWhenExpressionGroup(
   );
 }
 
-function conditionParts(node: KeybindingWhenNode): { identifier: string; negated: boolean } | null {
+function conditionParts(node: KeybindingWhenNode) {
   if (node.type === "identifier") return { identifier: node.name, negated: false };
   if (node.type === "not" && node.node.type === "identifier") {
     return { identifier: node.node.name, negated: true };
@@ -184,30 +184,30 @@ function conditionParts(node: KeybindingWhenNode): { identifier: string; negated
   return null;
 }
 
-function setConditionIdentifier(node: KeybindingWhenNode, identifier: string): KeybindingWhenNode {
+function setConditionIdentifier(node: KeybindingWhenNode, identifier: string) {
   const parts = conditionParts(node);
-  if (!parts) return node;
+  if (!parts) return node satisfies KeybindingWhenNode;
   const next: KeybindingWhenNode = { type: "identifier", name: identifier };
-  return parts.negated ? { type: "not", node: next } : next;
+  return (parts.negated ? { type: "not", node: next } : next) satisfies KeybindingWhenNode;
 }
 
-function setConditionNegated(node: KeybindingWhenNode, negated: boolean): KeybindingWhenNode {
+function setConditionNegated(node: KeybindingWhenNode, negated: boolean) {
   const parts = conditionParts(node);
-  if (!parts) return negated ? { type: "not", node } : node;
+  if (!parts) return (negated ? { type: "not", node } : node) satisfies KeybindingWhenNode;
   const identifier: KeybindingWhenNode = { type: "identifier", name: parts.identifier };
-  return negated ? { type: "not", node: identifier } : identifier;
+  return (negated ? { type: "not", node: identifier } : identifier) satisfies KeybindingWhenNode;
 }
 
-function defaultWhenCondition(): KeybindingWhenNode {
-  return { type: "identifier", name: DEFAULT_WHEN_VARIABLE };
+function defaultWhenCondition() {
+  return { type: "identifier", name: DEFAULT_WHEN_VARIABLE } satisfies KeybindingWhenNode;
 }
 
-function defaultWhenGroup(operator: BooleanOperator = "and"): KeybindingWhenNode {
+function defaultWhenGroup(operator: BooleanOperator = "and") {
   return {
     type: operator,
     left: defaultWhenCondition(),
     right: { type: "not", node: defaultWhenCondition() },
-  };
+  } satisfies KeybindingWhenNode;
 }
 
 function WarningTooltipIcon({
@@ -688,23 +688,24 @@ type KeybindingRowDraftState = {
   isWhenDraftValid: boolean;
 };
 
-function createKeybindingRowDraft(row: KeybindingRow): KeybindingRowDraftState {
+function createKeybindingRowDraft(row: KeybindingRow): KeybindingRowDraftState;
+function createKeybindingRowDraft(row: KeybindingRow) {
   return {
     keyDraft: row.key,
     whenDraft: row.binding.whenAst,
     isRecording: false,
     isWhenDraftValid: true,
-  };
+  } satisfies KeybindingRowDraftState;
 }
 
 function keybindingRowDraftReducer(
   state: KeybindingRowDraftState,
   patch: Partial<KeybindingRowDraftState>,
-): KeybindingRowDraftState {
+) {
   return { ...state, ...patch };
 }
 
-function rowKeybindingTarget(row: KeybindingRow): ServerRemoveKeybindingInput {
+function rowKeybindingTarget(row: KeybindingRow) {
   return {
     command: row.command,
     key: row.key,

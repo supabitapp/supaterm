@@ -35,10 +35,7 @@ export interface HomeProjectScope {
   readonly archived: boolean;
 }
 
-function getProjectSortTimestamp(
-  project: EnvironmentProject,
-  sortOrder: HomeProjectSortOrder,
-): number {
+function getProjectSortTimestamp(project: EnvironmentProject, sortOrder: HomeProjectSortOrder) {
   return sortOrder === "created_at"
     ? (toSortableTimestamp(project.createdAt) ?? Number.NEGATIVE_INFINITY)
     : (toSortableTimestamp(project.updatedAt) ??
@@ -50,7 +47,7 @@ export function buildHomeProjectScopes(input: {
   readonly projects: ReadonlyArray<EnvironmentProject>;
   readonly environmentId: EnvironmentId | null;
   readonly projectGroupingMode: SidebarProjectGroupingMode;
-}): ReadonlyArray<HomeProjectScope> {
+}) {
   const projects = input.projects.filter(
     (project) => input.environmentId === null || project.environmentId === input.environmentId,
   );
@@ -82,7 +79,7 @@ export function resolveHomeProjectFilterScope(
     readonly selectedProjectKey: string | null;
     readonly projectGroupingMode: SidebarProjectGroupingMode;
   },
-): HomeProjectScope | null {
+) {
   const key = resolveScratchProjectScopeKey(options.selectedProjectKey, projects, {
     sidebarProjectGroupingMode: options.projectGroupingMode,
     sidebarProjectGroupingOverrides: {},
@@ -90,10 +87,7 @@ export function resolveHomeProjectFilterScope(
   return pickableProjectGroups(scopes).find((scope) => scope.key === key) ?? null;
 }
 
-export function findHomeProjectScope(
-  scopes: ReadonlyArray<HomeProjectScope>,
-  key: string | null,
-): HomeProjectScope | null {
+export function findHomeProjectScope(scopes: ReadonlyArray<HomeProjectScope>, key: string | null) {
   if (key === null) {
     return null;
   }
@@ -113,7 +107,7 @@ export function sortHomeProjectScopes(input: {
   readonly threads: ReadonlyArray<EnvironmentThreadShell>;
   readonly pendingTasks: ReadonlyArray<PendingNewTask>;
   readonly projectSortOrder: HomeProjectSortOrder;
-}): ReadonlyArray<HomeProjectScope> {
+}) {
   const scopeKeyByProjectRef = new Map(
     input.scopes.flatMap((scope) =>
       scope.projectRefs.map(

@@ -12,10 +12,7 @@ interface DesktopTabLease {
 const leases = new Map<string, DesktopTabLease>();
 const pendingTabOperations = new Map<string, Promise<void>>();
 
-const enqueueDesktopTabOperation = (
-  tabId: string,
-  operation: () => Promise<void> | void,
-): Promise<void> => {
+const enqueueDesktopTabOperation = (tabId: string, operation: () => Promise<void> | void) => {
   const previous = pendingTabOperations.get(tabId);
   const pending = previous
     ? previous.catch(() => undefined).then(operation)
@@ -32,7 +29,7 @@ const enqueueDesktopTabOperation = (
 };
 
 /** Runs after tab creation and earlier calls. */
-export function withDesktopTab(tabId: string, operation: () => Promise<void>): void {
+export function withDesktopTab(tabId: string, operation: () => Promise<void>) {
   void enqueueDesktopTabOperation(tabId, operation).catch(() => undefined);
 }
 
@@ -44,7 +41,7 @@ export interface AcquiredDesktopTab {
 export function acquireDesktopTab(
   tabId: string,
   serverTab?: { readonly threadId: string; readonly tabId: string },
-): AcquiredDesktopTab {
+) {
   const current =
     leases.get(tabId) ??
     ({

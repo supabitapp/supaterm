@@ -25,13 +25,7 @@ class BrowserViewportCommitTimeoutError extends Error {
 
 const commitTails = new Map<string, Promise<void>>();
 
-const queueBrowserViewportMutation = <A>(
-  tabId: string,
-  start: () => Promise<A>,
-): {
-  readonly started: Promise<{ readonly operation: Promise<A> }>;
-  readonly execution: Promise<A>;
-} => {
+const queueBrowserViewportMutation = <A>(tabId: string, start: () => Promise<A>) => {
   const previous = commitTails.get(tabId) ?? Promise.resolve();
   const started = previous
     .catch(() => undefined)
@@ -48,7 +42,7 @@ const queueBrowserViewportMutation = <A>(
   return { started, execution };
 };
 
-const runHandlerWithTimeout = (tabId: string, operation: Promise<void>): Promise<void> => {
+const runHandlerWithTimeout = (tabId: string, operation: Promise<void>) => {
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<never>((_resolve, reject) => {
     timeoutId = setTimeout(
@@ -64,7 +58,7 @@ const runHandlerWithTimeout = (tabId: string, operation: Promise<void>): Promise
 async function resizeBrowserViewport(
   target: BrowserViewportTarget,
   viewport: PreviewViewportSetting,
-): Promise<void> {
+) {
   const result = await runAtomCommand(
     appAtomRegistry,
     previewEnvironment.resize,
@@ -91,10 +85,7 @@ async function resizeBrowserViewport(
  * caller-facing timeout starts only once it reaches the front of the queue,
  * while the queue itself waits for the real operation.
  */
-export function queueBrowserViewportCommit(
-  runtimeTabId: string,
-  operation: () => Promise<void>,
-): Promise<void> {
+export function queueBrowserViewportCommit(runtimeTabId: string, operation: () => Promise<void>) {
   const { started } = queueBrowserViewportMutation(runtimeTabId, operation);
   return started.then(({ operation: running }) => runHandlerWithTimeout(runtimeTabId, running));
 }
@@ -102,7 +93,7 @@ export function queueBrowserViewportCommit(
 export function commitBrowserViewportChange(
   target: BrowserViewportTarget,
   setting: PreviewViewportSetting,
-): Promise<void> {
+) {
   return queueBrowserViewportCommit(target.runtimeTabId, () =>
     resizeBrowserViewport(target, setting),
   );

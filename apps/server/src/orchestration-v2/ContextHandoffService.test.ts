@@ -35,7 +35,7 @@ function importedItem(
         readonly text: string;
         readonly ordinal: number;
       },
-): OrchestrationV2TurnItem {
+) {
   const now = DateTime.makeUnsafe("2026-01-01T00:00:00.000Z");
   const base = {
     id: TurnItemId.make(`turn-item:${input.id}`),
@@ -55,20 +55,22 @@ function importedItem(
     messageId: MessageId.make(`message:${input.id}`),
     text: input.text,
   };
-  return input.role === "user"
-    ? {
-        ...base,
-        createdBy: "user",
-        creationSource: "server",
-        type: "user_message",
-        inputIntent: "turn_start",
-        attachments: [],
-      }
-    : {
-        ...base,
-        type: "assistant_message",
-        streaming: false,
-      };
+  return (
+    input.role === "user"
+      ? {
+          ...base,
+          createdBy: "user",
+          creationSource: "server",
+          type: "user_message",
+          inputIntent: "turn_start",
+          attachments: [],
+        }
+      : {
+          ...base,
+          type: "assistant_message",
+          streaming: false,
+        }
+  ) satisfies OrchestrationV2TurnItem;
 }
 
 it.layer(layerTest)("ContextHandoffService legacy import", (it) => {

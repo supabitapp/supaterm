@@ -43,7 +43,7 @@ function HighlightedFuzzyText(props: {
   return <span className="text-muted-foreground">{parts}</span>;
 }
 
-function getEmptyStateMessage(query: string, error: string | null, isPending: boolean): string {
+function getEmptyStateMessage(query: string, error: string | null, isPending: boolean) {
   if (error) return error;
   const isSearching = query.trim().length > 0;
   if (isPending) return isSearching ? "Searching workspace files…" : "Indexing workspace files…";

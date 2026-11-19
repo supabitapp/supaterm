@@ -86,7 +86,7 @@ import ChatMarkdown from "./ChatMarkdown";
 
 const imageUrl = (version: string) =>
   `data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"/>#${version}`;
-const assetResult = (version: string): AssetCreateUrlResult => ({
+const assetResult = (version: string) => ({
   relativeUrl: imageUrl(version),
   expiresAt: 1,
 });

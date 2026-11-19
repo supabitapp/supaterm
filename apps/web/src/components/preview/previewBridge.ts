@@ -4,7 +4,7 @@ import * as Schema from "effect/Schema";
 
 const decodeCaptureFailure = Schema.decodeUnknownOption(PreviewCaptureFailure);
 
-function unwrapPreviewCaptureResult<A>(result: A | PreviewCaptureFailureEncoded): A {
+function unwrapPreviewCaptureResult<A>(result: A | PreviewCaptureFailureEncoded) {
   const failure = decodeCaptureFailure(result);
   if (Option.isSome(failure)) throw failure.value;
   return result as A;

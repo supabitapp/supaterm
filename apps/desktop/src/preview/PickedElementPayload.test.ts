@@ -2,7 +2,7 @@ import { describe, expect, it } from "vite-plus/test";
 
 import { isPickedElementPayload, isPreviewAnnotationPayload } from "./PickedElementPayload.ts";
 
-function validPayload(overrides?: Record<string, unknown>): Record<string, unknown> {
+function validPayload(overrides?: Record<string, unknown>) {
   return {
     pageUrl: "https://example.com/",
     pageTitle: "Example",
@@ -59,7 +59,7 @@ describe("isPickedElementPayload", () => {
   });
 });
 
-function validAnnotation(overrides?: Record<string, unknown>): Record<string, unknown> {
+function validAnnotation(overrides?: Record<string, unknown>) {
   return {
     id: "annotation_1",
     pageUrl: "https://example.com/",

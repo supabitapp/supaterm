@@ -62,7 +62,7 @@ export class IdAllocatorV2AllocationError extends Schema.TaggedError<IdAllocator
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Failed to allocate orchestration ${this.kind} id.`;
   }
 }
@@ -196,16 +196,21 @@ export class IdAllocatorV2 extends Context.Service<
   }
 >()("@supaterm/provider-core/server/IdAllocator/IdAllocatorV2") {}
 
-const encodePart = (part: string | number): string => encodeURIComponent(String(part));
+const encodePart = (part: string | number) => encodeURIComponent(String(part));
 
-const joinId = (prefix: string, ...parts: ReadonlyArray<string | number>): string =>
+const joinId = (prefix: string, ...parts: ReadonlyArray<string | number>) =>
   [prefix, ...parts.map(encodePart)].join(":");
 
 export function deriveThreadFromProviderThread(input: {
   readonly driver: ProviderDriverKind;
   readonly providerInstanceId?: ProviderInstanceId;
   readonly nativeThreadId: string;
-}): ThreadId {
+}): ThreadId;
+export function deriveThreadFromProviderThread(input: {
+  readonly driver: ProviderDriverKind;
+  readonly providerInstanceId?: ProviderInstanceId;
+  readonly nativeThreadId: string;
+}) {
   return ThreadId.make(
     joinId(
       "thread",
@@ -217,23 +222,28 @@ export function deriveThreadFromProviderThread(input: {
       "native-thread",
       input.nativeThreadId,
     ),
-  );
+  ) satisfies ThreadId;
 }
 
-const makeDeriveSubagentThread =
-  (legacyThreadIds: ReadonlySet<string>): IdAllocatorV2Derive["subagentThread"] =>
-  (input) => {
-    const legacy = deriveThreadFromProviderThread(input);
-    if (legacyThreadIds.has(legacy)) return legacy;
-    const digest = NodeCrypto.createHash("sha256").update(legacy).digest("hex").slice(0, 16);
-    return ThreadId.make(`thread:subagent:${digest}`);
-  };
+const makeDeriveSubagentThread: (
+  legacyThreadIds: ReadonlySet<string>,
+) => IdAllocatorV2Derive["subagentThread"] = (legacyThreadIds: ReadonlySet<string>) => (input) => {
+  const legacy = deriveThreadFromProviderThread(input);
+  if (legacyThreadIds.has(legacy)) return legacy;
+  const digest = NodeCrypto.createHash("sha256").update(legacy).digest("hex").slice(0, 16);
+  return ThreadId.make(`thread:subagent:${digest}`);
+};
 
 export function deriveProviderThread(input: {
   readonly driver: ProviderDriverKind;
   readonly providerInstanceId?: ProviderInstanceId;
   readonly nativeThreadId: string;
-}): ProviderThreadId {
+}): ProviderThreadId;
+export function deriveProviderThread(input: {
+  readonly driver: ProviderDriverKind;
+  readonly providerInstanceId?: ProviderInstanceId;
+  readonly nativeThreadId: string;
+}) {
   return ProviderThreadId.make(
     joinId(
       "provider-thread",
@@ -245,7 +255,7 @@ export function deriveProviderThread(input: {
       "native-thread",
       input.nativeThreadId,
     ),
-  );
+  ) satisfies ProviderThreadId;
 }
 
 const randomId =
@@ -255,7 +265,7 @@ const randomId =
     readonly parts: ReadonlyArray<string | number>;
     readonly make: (value: string) => Id;
   }) =>
-  (allocationInput: Input): Effect.Effect<Id, IdAllocatorV2Error> =>
+  (allocationInput: Input) =>
     randomUuidV4.pipe(
       Effect.map((uuid) => input.make(joinId(input.prefix, ...input.parts, uuid))),
       Effect.mapError(
@@ -270,7 +280,7 @@ const randomId =
 
 const DELEGATED_TASK_THREAD_PREFIX = joinId("thread", "delegated-task", "");
 
-export const isDelegatedTaskThread = (threadId: ThreadId): boolean =>
+export const isDelegatedTaskThread = (threadId: ThreadId) =>
   threadId.startsWith(DELEGATED_TASK_THREAD_PREFIX);
 
 export const derive: IdAllocatorV2Derive = {
@@ -455,9 +465,7 @@ export const layer: Layer.Layer<IdAllocatorV2> = Layer.succeed(
 );
 
 /** For adapters: subagent threads already stored under a legacy derived id keep that id. */
-export const layerWithLegacySubagentThreads = (
-  legacyThreadIds: ReadonlySet<string>,
-): Layer.Layer<IdAllocatorV2> =>
+export const layerWithLegacySubagentThreads = (legacyThreadIds: ReadonlySet<string>) =>
   Layer.effect(
     IdAllocatorV2,
     Effect.gen(function* () {

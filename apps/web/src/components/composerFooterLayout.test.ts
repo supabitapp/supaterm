@@ -73,7 +73,7 @@ describe("context strip labels and resting composer controls", () => {
   };
   const naturalWidth = resolveRestingComposerControlsNaturalWidth(measurement);
 
-  function hostWidth(compact: boolean): number {
+  function hostWidth(compact: boolean) {
     return stripWidth - chromeWidth - (compact ? 0 : labelWidth);
   }
 

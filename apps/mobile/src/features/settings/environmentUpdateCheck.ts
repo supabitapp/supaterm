@@ -37,15 +37,11 @@ export const environmentReleaseCheckAtom = Atom.family((environmentId: Environme
   ).pipe(Atom.withLabel(`mobile:environment-release-check:${environmentId}`)),
 );
 
-export function releaseCheckValue(
-  result: AsyncResult.AsyncResult<EnvironmentReleaseCheck, Error>,
-): EnvironmentReleaseCheck | null {
+export function releaseCheckValue(result: AsyncResult.AsyncResult<EnvironmentReleaseCheck, Error>) {
   return AsyncResult.getOrElse(result, () => null);
 }
 
-export function releaseCheckError(
-  result: AsyncResult.AsyncResult<EnvironmentReleaseCheck, Error>,
-): string | null {
+export function releaseCheckError(result: AsyncResult.AsyncResult<EnvironmentReleaseCheck, Error>) {
   if (!AsyncResult.isFailure(result) || result.waiting) return null;
   return Option.getOrNull(AsyncResult.error(result))?.message ?? null;
 }

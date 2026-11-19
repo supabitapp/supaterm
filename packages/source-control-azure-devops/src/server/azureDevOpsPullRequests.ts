@@ -62,7 +62,7 @@ const AzureDevOpsPullRequestSchema = Schema.Struct({
   ),
 });
 
-function normalizeAzureDevOpsPullRequestState(status: string): "open" | "closed" | "merged" {
+function normalizeAzureDevOpsPullRequestState(status: string) {
   switch (status.trim().toLowerCase()) {
     case "completed":
       return "merged";
@@ -73,13 +73,11 @@ function normalizeAzureDevOpsPullRequestState(status: string): "open" | "closed"
   }
 }
 
-function encodeAzureDevOpsPathSegment(segment: string): string {
+function encodeAzureDevOpsPathSegment(segment: string) {
   return encodeURIComponent(segment);
 }
 
-function azureDevOpsOrganizationBaseFromRestApiUrl(
-  value: string | null | undefined,
-): string | null {
+function azureDevOpsOrganizationBaseFromRestApiUrl(value: string | null | undefined) {
   const rawUrl = trimOptionalString(value);
   if (!rawUrl) {
     return null;
@@ -116,7 +114,7 @@ export function azureDevOpsPullRequestWebUrl(input: {
   readonly restApiUrl?: string | null | undefined;
   readonly projectName?: string | null | undefined;
   readonly repositoryName?: string | null | undefined;
-}): string {
+}) {
   const webLink = trimOptionalString(input.webLink);
   if (webLink) {
     return webLink;
@@ -141,7 +139,7 @@ export function azureDevOpsPullRequestWebUrl(input: {
 
 function normalizeAzureDevOpsPullRequestUrl(
   raw: Schema.Schema.Type<typeof AzureDevOpsPullRequestSchema>,
-): string {
+) {
   return azureDevOpsPullRequestWebUrl({
     pullRequestId: raw.pullRequestId,
     webLink: raw._links?.web?.href,
@@ -154,7 +152,7 @@ function normalizeAzureDevOpsPullRequestUrl(
 
 function normalizeAzureDevOpsPullRequestRecord(
   raw: Schema.Schema.Type<typeof AzureDevOpsPullRequestSchema>,
-): NormalizedAzureDevOpsPullRequestRecord {
+) {
   const state = normalizeAzureDevOpsPullRequestState(raw.status);
   const headSha = trimOptionalString(raw.lastMergeSourceCommit?.commitId);
   const terminalAt = Option.match(raw.closedDate ?? Option.none(), {
@@ -176,19 +174,14 @@ function normalizeAzureDevOpsPullRequestRecord(
     updatedAt: (raw.closedDate ?? Option.none()).pipe(
       Option.orElse(() => raw.creationDate ?? Option.none()),
     ),
-  };
+  } satisfies NormalizedAzureDevOpsPullRequestRecord;
 }
 
 const decodeAzureDevOpsPullRequestList = decodeJsonResult(Schema.Array(Schema.Unknown));
 const decodeAzureDevOpsPullRequest = decodeJsonResult(AzureDevOpsPullRequestSchema);
 const decodeAzureDevOpsPullRequestEntry = Schema.decodeUnknownExit(AzureDevOpsPullRequestSchema);
 
-export function decodeAzureDevOpsPullRequestListJson(
-  raw: string,
-): Result.Result<
-  ReadonlyArray<NormalizedAzureDevOpsPullRequestRecord>,
-  Cause.Cause<Schema.SchemaError>
-> {
+export function decodeAzureDevOpsPullRequestListJson(raw: string) {
   const result = decodeAzureDevOpsPullRequestList(raw);
   if (Result.isSuccess(result)) {
     const pullRequests: NormalizedAzureDevOpsPullRequestRecord[] = [];
@@ -204,12 +197,18 @@ export function decodeAzureDevOpsPullRequestListJson(
   return Result.fail(result.failure);
 }
 
-export function decodeAzureDevOpsPullRequestJson(
-  raw: string,
-): Result.Result<NormalizedAzureDevOpsPullRequestRecord, Cause.Cause<Schema.SchemaError>> {
+export function decodeAzureDevOpsPullRequestJson(raw: string) {
   const result = decodeAzureDevOpsPullRequest(raw);
   if (Result.isSuccess(result)) {
-    return Result.succeed(normalizeAzureDevOpsPullRequestRecord(result.success));
+    return Result.succeed(
+      normalizeAzureDevOpsPullRequestRecord(result.success),
+    ) satisfies Result.Result<
+      NormalizedAzureDevOpsPullRequestRecord,
+      Cause.Cause<Schema.SchemaError>
+    >;
   }
-  return Result.fail(result.failure);
+  return Result.fail(result.failure) satisfies Result.Result<
+    NormalizedAzureDevOpsPullRequestRecord,
+    Cause.Cause<Schema.SchemaError>
+  >;
 }

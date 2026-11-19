@@ -86,7 +86,7 @@ const layerBackgroundPolicyAlwaysRun = Layer.mock(BackgroundPolicy.BackgroundPol
   shouldRunOpportunisticWork: Effect.succeed(true),
 });
 
-const makeCodexConfig = (overrides: Partial<CodexSettings>): CodexSettings => ({
+const makeCodexConfig = (overrides: Partial<CodexSettings>) => ({
   enabled: false,
   binaryPath: "codex",
   homePath: "",
@@ -96,7 +96,7 @@ const makeCodexConfig = (overrides: Partial<CodexSettings>): CodexSettings => ({
   ...overrides,
 });
 
-const makeClaudeConfig = (overrides: Partial<ClaudeSettings>): ClaudeSettings => ({
+const makeClaudeConfig = (overrides: Partial<ClaudeSettings>) => ({
   enabled: false,
   binaryPath: "claude",
   homePath: "",

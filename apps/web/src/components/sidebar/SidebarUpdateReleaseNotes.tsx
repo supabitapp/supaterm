@@ -19,7 +19,7 @@ function keyReleaseNoteItems(items: ReadonlyArray<string>) {
   });
 }
 
-function formatReleaseAge(releasedAt: string): string {
+function formatReleaseAge(releasedAt: string) {
   const day = /^(\d{4})-(\d{2})-(\d{2})$/.exec(releasedAt);
   if (!day) return formatRelativeTimeLabel(releasedAt);
   const now = new Date();

@@ -127,7 +127,7 @@ function ErrorIcon({ className }: { className?: string }) {
   );
 }
 
-function safeHost(url: string): string | null {
+function safeHost(url: string) {
   try {
     return new URL(url).host;
   } catch {

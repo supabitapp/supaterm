@@ -4,6 +4,13 @@ export function resolveSidebarState(input: {
   isMobile: boolean;
   open: boolean;
   openMobile: boolean;
-}): ResponsiveSidebarState {
-  return (input.isMobile ? input.openMobile : input.open) ? "expanded" : "collapsed";
+}): ResponsiveSidebarState;
+export function resolveSidebarState(input: {
+  isMobile: boolean;
+  open: boolean;
+  openMobile: boolean;
+}) {
+  return (
+    (input.isMobile ? input.openMobile : input.open) ? "expanded" : "collapsed"
+  ) satisfies ResponsiveSidebarState;
 }

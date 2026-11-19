@@ -5,9 +5,7 @@ import * as Stream from "effect/Stream";
 
 const SSE_EVENT_SEPARATOR = /(?:\r\n|\r(?!\n)|\n){2}/u;
 
-async function* sseDataLines(
-  reader: ReadableStreamDefaultReader<Uint8Array>,
-): AsyncGenerator<string> {
+async function* sseDataLines(reader: ReadableStreamDefaultReader<Uint8Array>) {
   const decoder = new TextDecoder();
   let buffered = "";
   while (true) {
@@ -29,20 +27,24 @@ async function* sseDataLines(
   }
 }
 
-export const discardResponseBody = (response: Response): Effect.Effect<void> =>
-  Effect.promise(() => response.body?.cancel().catch(() => undefined) ?? Promise.resolve());
+export const discardResponseBody: (response: Response) => Effect.Effect<void> = (
+  response: Response,
+) => Effect.promise(() => response.body?.cancel().catch(() => undefined) ?? Promise.resolve());
 
 export function responsePayloads<E>(
   response: Response,
   onError: (cause: unknown) => E,
-): Stream.Stream<unknown, E> {
+): Stream.Stream<unknown, E>;
+export function responsePayloads<E>(response: Response, onError: (cause: unknown) => E) {
   if (response.status === 202 || response.status === 204) {
-    return Stream.unwrap(discardResponseBody(response).pipe(Effect.as(Stream.empty)));
+    return Stream.unwrap(
+      discardResponseBody(response).pipe(Effect.as(Stream.empty)),
+    ) satisfies Stream.Stream<unknown, E>;
   }
   const mediaType = (response.headers.get("content-type") ?? "").split(";", 1)[0]!.trim();
   if (mediaType.toLowerCase() === "text/event-stream") {
     const body = response.body;
-    if (body === null) return Stream.empty;
+    if (body === null) return Stream.empty satisfies Stream.Stream<unknown, E>;
     return Stream.unwrap(
       Effect.acquireRelease(
         Effect.sync(() => body.getReader()),
@@ -54,7 +56,9 @@ export function responsePayloads<E>(
               .then(() => reader.releaseLock()),
           ),
       ).pipe(Effect.map((reader) => Stream.fromAsyncIterable(sseDataLines(reader), onError))),
-    ).pipe(Stream.mapEffect((data) => Effect.try({ try: () => JSON.parse(data), catch: onError })));
+    ).pipe(
+      Stream.mapEffect((data) => Effect.try({ try: () => JSON.parse(data), catch: onError })),
+    ) satisfies Stream.Stream<unknown, E>;
   }
   return Stream.unwrap(
     Effect.tryPromise({ try: () => response.text(), catch: onError }).pipe(
@@ -66,5 +70,5 @@ export function responsePayloads<E>(
             ),
       ),
     ),
-  );
+  ) satisfies Stream.Stream<unknown, E>;
 }

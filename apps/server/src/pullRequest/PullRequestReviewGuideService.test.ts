@@ -98,7 +98,7 @@ const makeRepositories = Effect.gen(function* () {
   return { root, remote, workspace, headSha, lowerSha, upperSha };
 });
 
-const detail = (workspaceRoot: string, headSha: string): PullRequestDetail =>
+const detail = (workspaceRoot: string, headSha: string) =>
   ({
     provider: "github",
     number: 7,
@@ -122,36 +122,37 @@ const stack = (repositories: {
   readonly headSha: string;
   readonly lowerSha: string;
   readonly upperSha: string;
-}): PullRequestStack => ({
-  id: "stack",
-  number: 1,
-  url: "https://example.com/stack/1",
-  base: "main",
-  layers: [
-    {
-      number: 6,
-      title: "Lower",
-      headSha: repositories.lowerSha,
-      headBranch: "stack-base",
-      state: "open",
-    },
-    {
-      number: 7,
-      title: "Add the feature",
-      headSha: repositories.headSha,
-      headBranch: "feature",
-      state: "open",
-    },
-    {
-      number: 8,
-      title: "Upper",
-      headSha: repositories.upperSha.slice(0, 12),
-      headBranch: "upper",
-      state: "open",
-    },
-    { number: 9, title: "Unpushed", headSha: "f".repeat(40), headBranch: "gone", state: "open" },
-  ],
-});
+}) =>
+  ({
+    id: "stack",
+    number: 1,
+    url: "https://example.com/stack/1",
+    base: "main",
+    layers: [
+      {
+        number: 6,
+        title: "Lower",
+        headSha: repositories.lowerSha,
+        headBranch: "stack-base",
+        state: "open",
+      },
+      {
+        number: 7,
+        title: "Add the feature",
+        headSha: repositories.headSha,
+        headBranch: "feature",
+        state: "open",
+      },
+      {
+        number: 8,
+        title: "Upper",
+        headSha: repositories.upperSha.slice(0, 12),
+        headBranch: "upper",
+        state: "open",
+      },
+      { number: 9, title: "Unpushed", headSha: "f".repeat(40), headBranch: "gone", state: "open" },
+    ],
+  }) satisfies PullRequestStack;
 
 const makeLayer = (input: {
   readonly root: string;

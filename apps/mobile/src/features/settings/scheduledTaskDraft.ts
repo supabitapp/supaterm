@@ -24,7 +24,7 @@ import {
 export function scheduledTaskDefaultModel(
   config: ServerConfig | null,
   project: (LegacyProjectSettingsFields & { readonly id: ProjectId }) | null,
-): ModelSelection | null {
+) {
   const settings = config?.settings ?? DEFAULT_SERVER_SETTINGS;
   const configured = resolveProjectSettings(settings, project?.id ?? null, project).settings
     .defaultModelSelection;
@@ -61,7 +61,7 @@ export const DEFAULT_SCHEDULE: ScheduleDraft = {
   intervalMinutes: "15",
 };
 
-export function scheduleDraftForTask(task: Pick<ScheduledTask, "schedule">): ScheduleDraft {
+export function scheduleDraftForTask(task: Pick<ScheduledTask, "schedule">) {
   switch (task.schedule.type) {
     case "fixed_time":
       return {
@@ -70,31 +70,39 @@ export function scheduleDraftForTask(task: Pick<ScheduledTask, "schedule">): Sch
         weekdays: task.schedule.weekdays?.length
           ? [...new Set(task.schedule.weekdays)].sort((a, b) => a - b)
           : [0, 1, 2, 3, 4, 5, 6],
-      };
+      } satisfies ScheduleDraft;
     case "once":
-      return { ...DEFAULT_SCHEDULE, mode: "once", runAt: task.schedule.runAt };
+      return {
+        ...DEFAULT_SCHEDULE,
+        mode: "once",
+        runAt: task.schedule.runAt,
+      } satisfies ScheduleDraft;
     case "interval":
       return {
         ...DEFAULT_SCHEDULE,
         mode: "interval",
         intervalMinutes: String(Math.max(1, task.schedule.everyMs / 60_000)),
-      };
+      } satisfies ScheduleDraft;
   }
 }
 
-export function parseIntervalMinutes(value: string): number {
+export function parseIntervalMinutes(value: string) {
   return Number(value.trim().replace(",", "."));
 }
 
-export function scheduleFromDraft(draft: ScheduleDraft): ScheduledTaskSchedule | null {
+export function scheduleFromDraft(draft: ScheduleDraft) {
   if (draft.mode === "once") {
     const runAt = new Date(draft.runAt);
-    return Number.isNaN(runAt.getTime()) ? null : { type: "once", runAt: runAt.toISOString() };
+    return (
+      Number.isNaN(runAt.getTime()) ? null : { type: "once", runAt: runAt.toISOString() }
+    ) satisfies ScheduledTaskSchedule | null;
   }
   if (draft.mode === "interval") {
     const minutes = parseIntervalMinutes(draft.intervalMinutes);
     const everyMs = Math.round(minutes * 60_000);
-    return minutes >= 1 && Number.isSafeInteger(everyMs) ? { type: "interval", everyMs } : null;
+    return (
+      minutes >= 1 && Number.isSafeInteger(everyMs) ? { type: "interval", everyMs } : null
+    ) satisfies ScheduledTaskSchedule | null;
   }
   const weekdays = [...new Set(draft.weekdays)].sort((a, b) => a - b);
   if (
@@ -102,13 +110,13 @@ export function scheduleFromDraft(draft: ScheduleDraft): ScheduledTaskSchedule |
     weekdays.length === 0 ||
     weekdays.some((day) => !Number.isInteger(day) || day < 0 || day > 6)
   ) {
-    return null;
+    return null satisfies ScheduledTaskSchedule | null;
   }
   return {
     type: "fixed_time",
     timeOfDay: draft.timeOfDay,
     ...(weekdays.length === 7 ? {} : { weekdays }),
-  };
+  } satisfies ScheduledTaskSchedule | null;
 }
 
 type Workspace = "worktree" | "root" | "existing_worktree";
@@ -130,7 +138,7 @@ export type ScheduledTaskDraft = {
   readonly runtimeMode: RuntimeMode;
 };
 
-function draftSignature(draft: ScheduledTaskDraft): string {
+function draftSignature(draft: ScheduledTaskDraft) {
   return JSON.stringify([
     draft.title,
     draft.prompt,
@@ -159,14 +167,14 @@ function draftSignature(draft: ScheduledTaskDraft): string {
 export function hasScheduledTaskDraftChanges(
   initial: ScheduledTaskDraft,
   current: ScheduledTaskDraft,
-): boolean {
+) {
   return draftSignature(initial) !== draftSignature(current);
 }
 
 export function moveDraftToThread(
   draft: ScheduledTaskDraft,
   thread: { readonly id: ThreadId; readonly projectId: ProjectId },
-): ScheduledTaskDraft {
+) {
   return {
     ...draft,
     threadId: thread.id,
@@ -176,7 +184,7 @@ export function moveDraftToThread(
 }
 
 /** Leaves the thread but keeps the mode. Matches MCP: new threads stay out of the shared checkout. */
-export function unbindDraftFromThread(draft: ScheduledTaskDraft): ScheduledTaskDraft {
+export function unbindDraftFromThread(draft: ScheduledTaskDraft) {
   if (draft.threadId === null) return draft;
   return {
     ...draft,
@@ -187,18 +195,12 @@ export function unbindDraftFromThread(draft: ScheduledTaskDraft): ScheduledTaskD
   };
 }
 
-export function changeDraftProject(
-  draft: ScheduledTaskDraft,
-  projectId: ProjectId,
-): ScheduledTaskDraft {
+export function changeDraftProject(draft: ScheduledTaskDraft, projectId: ProjectId) {
   if (projectId === draft.projectId) return draft;
   return { ...unbindDraftFromThread(draft), projectId };
 }
 
-export function createDraft(
-  projectId: ProjectId | null,
-  modelSelection: ModelSelection | null,
-): ScheduledTaskDraft {
+export function createDraft(projectId: ProjectId | null, modelSelection: ModelSelection | null) {
   return {
     task: null,
     title: "",
@@ -215,10 +217,10 @@ export function createDraft(
     enabled: true,
     startFromOrigin: true,
     runtimeMode: "full-access",
-  };
+  } satisfies ScheduledTaskDraft;
 }
 
-export function editDraft(task: ScheduledTask): ScheduledTaskDraft {
+export function editDraft(task: ScheduledTask) {
   return {
     task,
     title: task.title,
@@ -241,5 +243,5 @@ export function editDraft(task: ScheduledTask): ScheduledTaskDraft {
         ? (task.workspaceStrategy.startFromOrigin ?? false)
         : true,
     runtimeMode: task.runtimeMode,
-  };
+  } satisfies ScheduledTaskDraft;
 }

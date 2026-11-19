@@ -2,7 +2,6 @@ import {
   DEFAULT_BROWSER_PROFILE_ID,
   resolveBrowserProfiles,
   type BrowserProfile,
-  type DesktopPreviewTabDefaults,
   type PreviewAppearancePreference,
   type PreviewViewportSetting,
   type PreviewZoomFactor,
@@ -30,7 +29,7 @@ const toBrowserDefaults = (settings: {
   readonly browserDefaultAppearance: PreviewAppearancePreference;
   readonly browserProfiles: ReadonlyArray<BrowserProfile>;
   readonly browserDefaultProfileId: string;
-}): BrowserDefaults => {
+}) => {
   const profiles = resolveBrowserProfiles(settings.browserProfiles);
   return {
     viewport: settings.browserDefaultViewport,
@@ -45,21 +44,21 @@ const toBrowserDefaults = (settings: {
   };
 };
 
-export function getBrowserDefaults(): BrowserDefaults {
+export function getBrowserDefaults() {
   return toBrowserDefaults(getClientSettings());
 }
 
 /** New tabs retain their initial defaults, so wait for settings hydration. Read failures reject. */
-export async function resolveBrowserDefaults(): Promise<BrowserDefaults> {
+export async function resolveBrowserDefaults() {
   await ensureClientSettingsHydrated();
   return getBrowserDefaults();
 }
 
-export function useBrowserDefaults(): BrowserDefaults {
+export function useBrowserDefaults() {
   return useClientSettings(toBrowserDefaults);
 }
 
-export function browserDefaultTabState(defaults: BrowserDefaults): DesktopPreviewTabDefaults {
+export function browserDefaultTabState(defaults: BrowserDefaults) {
   return { zoomFactor: defaults.zoomFactor, colorScheme: defaults.appearance };
 }
 
@@ -69,11 +68,11 @@ export function browserResponsiveViewportForToggle(input: {
   readonly defaults?: BrowserDefaults;
   readonly panelRect: { readonly width: number; readonly height: number } | null;
   readonly zoomFactor: number | undefined;
-}): PreviewViewportSetting {
+}) {
   const defaults = input.defaults ?? getBrowserDefaults();
-  if (defaults.viewport._tag !== "fill") return defaults.viewport;
+  if (defaults.viewport._tag !== "fill") return defaults.viewport satisfies PreviewViewportSetting;
   const size = input.panelRect
     ? resolveResponsiveBrowserViewportSize(input.panelRect, input.zoomFactor)
     : FALLBACK_RESPONSIVE_VIEWPORT_SIZE;
-  return { _tag: "freeform", ...size };
+  return { _tag: "freeform", ...size } satisfies PreviewViewportSetting;
 }

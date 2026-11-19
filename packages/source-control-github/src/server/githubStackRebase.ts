@@ -17,7 +17,7 @@ export class GitHubStackRebaseConflictError extends Schema.TaggedError<GitHubSta
   "GitHubStackRebaseConflictError",
   { number: Schema.Int, completed: Schema.Int },
 ) {
-  override get message(): string {
+  override get message() {
     return `PR #${this.number} conflicts with the layer below it. ${this.completed} layers were rebased; resolve #${this.number} with \`gh stack rebase\` and push.`;
   }
 }
@@ -26,12 +26,12 @@ export class GitHubStackRebaseGitError extends Schema.TaggedError<GitHubStackReb
   "GitHubStackRebaseGitError",
   { step: Schema.String, number: Schema.Int, completed: Schema.Int, cause: Schema.Defect() },
 ) {
-  override get message(): string {
+  override get message() {
     return `Stack rebase stopped at PR #${this.number} while ${this.step}. ${this.completed} layers were rebased.`;
   }
 }
 
-function remoteUrl(host: string, repository: string): string {
+function remoteUrl(host: string, repository: string) {
   return `https://${host.trim().toLowerCase()}/${repository}.git`;
 }
 

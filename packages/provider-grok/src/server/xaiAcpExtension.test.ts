@@ -65,7 +65,7 @@ describe("xAiPromptCompleteFromSessionUpdate", () => {
   });
 });
 
-function parseRecordedToolCallUpdate(update: Record<string, unknown>): AcpToolCallState {
+function parseRecordedToolCallUpdate(update: Record<string, unknown>) {
   const [event] = parseSessionUpdateEvent({
     sessionId: "01a0d660-c1bb-7842-91a3-02d91dc8b0d2",
     update,

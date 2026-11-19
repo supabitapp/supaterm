@@ -329,7 +329,7 @@ export function NewTaskBranchPickerRouteScreen() {
 function branchBadgeLabel(input: {
   readonly branch: VcsRef;
   readonly project: EnvironmentProject | null;
-}): string | null {
+}) {
   if (input.branch.current) {
     return "current";
   }

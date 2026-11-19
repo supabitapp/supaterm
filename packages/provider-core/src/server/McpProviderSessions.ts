@@ -57,7 +57,7 @@ interface PageInput {
   readonly height?: unknown;
 }
 
-const matchingPageIndex = (kept: ReadonlyArray<KeptHtmlRender>, input: PageInput): number => {
+const matchingPageIndex = (kept: ReadonlyArray<KeptHtmlRender>, input: PageInput) => {
   const height =
     typeof input.height === "string" && input.height.trim() !== ""
       ? Number(input.height)

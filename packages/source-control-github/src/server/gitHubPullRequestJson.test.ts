@@ -37,13 +37,19 @@ import { ReviewThreadComments, ReviewThreads } from "./pullRequestReviews.graphq
 
 const through =
   <S extends Schema.Codec<unknown, unknown>, A>(schema: S, map: (result: S["Type"]) => A | null) =>
-  (raw: string): Result.Result<A, unknown> => {
+  (raw: string) => {
     const decoded = Schema.decodeUnknownResult(schema)(
       (JSON.parse(raw) as { readonly data: unknown }).data,
     );
-    if (Result.isFailure(decoded)) return Result.fail(decoded.failure);
+    if (Result.isFailure(decoded))
+      return Result.fail(decoded.failure) satisfies Result.Result<A, unknown> as Result.Result<
+        A,
+        unknown
+      >;
     const mapped = map(decoded.success);
-    return mapped === null ? Result.fail("not found") : Result.succeed(mapped);
+    return (mapped === null
+      ? Result.fail("not found")
+      : Result.succeed(mapped)) satisfies Result.Result<A, unknown> as Result.Result<A, unknown>;
   };
 
 const user = (login: string, fields: Record<string, unknown> = {}) => ({
@@ -91,8 +97,9 @@ const decodePullRequestActivityJson = through(
 const decodePullRequestCoreJson = through(PullRequestCore.result, toPullRequestCore);
 type Json = Record<string, any>;
 const LAST_PAGE = { hasNextPage: false, endCursor: null };
-const nodesIn = (connection: Json | null | undefined): ReadonlyArray<Json> =>
-  connection?.["nodes"] ?? [];
+const nodesIn: (connection: Json | null | undefined) => ReadonlyArray<Json> = (
+  connection: Json | null | undefined,
+) => connection?.["nodes"] ?? [];
 const actor = (raw: Json | null | undefined) =>
   raw === null || raw === undefined ? null : { __typename: "User", avatarUrl: "", ...raw };
 const reactionGroups = (groups: ReadonlyArray<Json> | undefined) =>
@@ -142,7 +149,7 @@ const reviewCommit = ({ commit: { authors, ...commit } }: Json) => ({
     },
   },
 });
-const withReviewDefaults = (raw: string): string => {
+const withReviewDefaults = (raw: string) => {
   const { data } = JSON.parse(raw) as { data: Json };
   const pr = data["repository"]?.["pullRequest"];
   if (pr?.["reviewThreads"] !== undefined) {
@@ -217,7 +224,7 @@ const decodePullRequestFilesViewedJson = through(
   toPullRequestFilesViewedPage,
 );
 
-function listJson(entries: ReadonlyArray<Record<string, unknown>>): string {
+function listJson(entries: ReadonlyArray<Record<string, unknown>>) {
   return JSON.stringify({
     data: {
       repository: {
@@ -258,10 +265,11 @@ function listJson(entries: ReadonlyArray<Record<string, unknown>>): string {
   });
 }
 
-function expectSuccess<A>(result: Result.Result<A, unknown>): A {
+function expectSuccess<A>(result: Result.Result<A, unknown>): A;
+function expectSuccess<A>(result: Result.Result<A, unknown>) {
   expect(Result.isSuccess(result)).toBe(true);
   if (!Result.isSuccess(result)) throw new Error("expected a successful decode");
-  return result.success;
+  return result.success satisfies A;
 }
 
 describe("pull request list decoding", () => {
@@ -703,7 +711,7 @@ describe("review thread decoding", () => {
     nodes: ReadonlyArray<Record<string, unknown>>,
     totalCount = nodes.length,
     pageInfo: Record<string, unknown> = { hasNextPage: false, endCursor: null },
-  ): string =>
+  ) =>
     JSON.stringify({
       data: { repository: { pullRequest: { reviewThreads: { totalCount, pageInfo, nodes } } } },
     });
@@ -711,7 +719,7 @@ describe("review thread decoding", () => {
   const reviewJson = (input: {
     readonly requested?: ReadonlyArray<unknown>;
     readonly reviewed?: ReadonlyArray<unknown>;
-  }): string =>
+  }) =>
     JSON.stringify({
       data: {
         repository: {

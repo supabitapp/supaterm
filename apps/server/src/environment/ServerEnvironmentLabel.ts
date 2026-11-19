@@ -24,7 +24,7 @@ export class ServerEnvironmentLabelFileError extends Schema.TaggedError<ServerEn
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Failed to ${this.operation} environment-label file at ${this.path}.`;
   }
 }
@@ -38,17 +38,17 @@ export class ServerEnvironmentLabelCommandError extends Schema.TaggedError<Serve
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Failed to run environment-label probe '${this.probe}' with ${this.executable}.`;
   }
 }
 
-function normalizeLabel(value: string | null | undefined): string | null {
+function normalizeLabel(value: string | null | undefined) {
   const trimmed = value?.trim();
   return trimmed && trimmed.length > 0 ? trimmed : null;
 }
 
-function parseMachineInfoValue(raw: string, key: string): string | null {
+function parseMachineInfoValue(raw: string, key: string) {
   for (const line of raw.split(/\r?\n/g)) {
     const trimmed = line.trim();
     if (trimmed.length === 0 || trimmed.startsWith("#") || !trimmed.startsWith(`${key}=`)) {

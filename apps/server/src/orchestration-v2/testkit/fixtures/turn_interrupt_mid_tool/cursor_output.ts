@@ -12,13 +12,13 @@ import {
   TURN_INTERRUPT_MID_TOOL_PROMPT,
 } from "../shared.ts";
 
-function frameType(frame: unknown): string | undefined {
+function frameType(frame: unknown) {
   return typeof frame === "object" && frame !== null
     ? (Reflect.get(frame, "type") as string | undefined)
     : undefined;
 }
 
-function cursorUpdateType(frame: unknown): string | undefined {
+function cursorUpdateType(frame: unknown) {
   if (frameType(frame) !== "interaction.update") {
     return undefined;
   }

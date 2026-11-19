@@ -37,7 +37,7 @@ const command = {
   threadId,
 };
 
-function makeProjection(): OrchestrationV2ThreadProjection {
+function makeProjection() {
   const base = emptyProjection({
     id: EventId.make("event:delete-plan-created"),
     type: "thread.created",
@@ -131,7 +131,7 @@ function makeProjection(): OrchestrationV2ThreadProjection {
       createdAt,
       resolvedAt: status === "resolved" ? createdAt : null,
     })),
-  };
+  } satisfies OrchestrationV2ThreadProjection;
 }
 
 it.effect("cancels active work without reviving a run while disposing delegated completion", () =>

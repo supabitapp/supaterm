@@ -11,11 +11,12 @@ export const withInstanceIdentity =
     readonly accentColor: string | undefined;
     readonly continuationGroupKey: string;
   }) =>
-  (snapshot: ServerProviderDraft): ServerProvider => ({
-    ...snapshot,
-    instanceId: input.instanceId,
-    driver: input.driverKind,
-    ...(input.displayName ? { displayName: input.displayName } : {}),
-    ...(input.accentColor ? { accentColor: input.accentColor } : {}),
-    continuation: { groupKey: input.continuationGroupKey },
-  });
+  (snapshot: ServerProviderDraft) =>
+    ({
+      ...snapshot,
+      instanceId: input.instanceId,
+      driver: input.driverKind,
+      ...(input.displayName ? { displayName: input.displayName } : {}),
+      ...(input.accentColor ? { accentColor: input.accentColor } : {}),
+      continuation: { groupKey: input.continuationGroupKey },
+    }) satisfies ServerProvider as ServerProvider;

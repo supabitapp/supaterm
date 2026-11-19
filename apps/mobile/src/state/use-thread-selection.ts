@@ -5,14 +5,10 @@ import {
   EnvironmentId,
   ThreadId,
   type OrchestrationV2ThreadProjection,
-  type OrchestrationV2ThreadShell,
   type ScopedProjectRef,
   type ScopedThreadRef,
 } from "@supaterm/contracts";
-import {
-  presentThreadShell,
-  type EnvironmentThreadShell,
-} from "@supaterm/client-runtime/state/shell";
+import { presentThreadShell } from "@supaterm/client-runtime/state/shell";
 import {
   deriveLatestThreadRun,
   deriveThreadRuntime,
@@ -38,14 +34,12 @@ type ThreadSelectionRouteParams = {
   readonly threadId?: string | string[];
 };
 
-function firstRouteParam(value: string | string[] | undefined): string | null {
+function firstRouteParam(value: string | string[] | undefined) {
   const first = Array.isArray(value) ? value[0] : value;
   return first === undefined || first.trim().length === 0 ? null : first;
 }
 
-function latestUserMessageAt(
-  projection: OrchestrationV2ThreadProjection,
-): OrchestrationV2ThreadShell["latestUserMessageAt"] {
+function latestUserMessageAt(projection: OrchestrationV2ThreadProjection) {
   for (let index = projection.messages.length - 1; index >= 0; index -= 1) {
     const message = projection.messages[index];
     if (message?.role === "user") {
@@ -59,7 +53,7 @@ function latestUserMessageAt(
 function threadDetailToShell(
   environmentId: EnvironmentId,
   projection: OrchestrationV2ThreadProjection,
-): EnvironmentThreadShell {
+) {
   const thread = projection.thread;
   const latestRun = deriveLatestThreadRun(projection);
   const runtime = deriveThreadRuntime(projection);
@@ -145,7 +139,7 @@ function useResolvedThreadSelection(params: ThreadSelectionRouteParams | undefin
       : scopedThreadKey(selectedThreadRef.environmentId, selectedThreadRef.threadId);
   const queuedMessagesByThreadKey = useThreadOutboxMessages();
   const creationOutcome = useAtomValue(pendingThreadCreationOutcomesAtom);
-  const pendingCreation = ((): PendingThreadCreation | null => {
+  const pendingCreation = (() => {
     if (selectedThreadKey === null) {
       return null;
     }
@@ -210,9 +204,7 @@ function useResolvedThreadSelection(params: ThreadSelectionRouteParams | undefin
   };
 }
 
-type ThreadSelectionState = ReturnType<typeof useResolvedThreadSelection>;
-
-export function useThreadSelection(): ThreadSelectionState {
+export function useThreadSelection() {
   const route = useRoute<RouteProp<Record<string, ThreadSelectionRouteParams | undefined>>>();
   return useResolvedThreadSelection(route.params);
 }

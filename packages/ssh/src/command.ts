@@ -4,9 +4,7 @@ import * as Digest from "effect/crypto/Digest";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Hex from "effect/encoding/Hex";
-import * as FileSystem from "effect/FileSystem";
 import * as Option from "effect/Option";
-import * as Path from "effect/Path";
 import * as Scope from "effect/Scope";
 import * as Stream from "effect/Stream";
 import { ChildProcess, ChildProcessSpawner } from "effect/process";
@@ -17,7 +15,7 @@ import { SshCommandError, SshInvalidTargetError } from "./errors.ts";
 const DEFAULT_SSH_COMMAND_TIMEOUT_MS = 60_000;
 const MAX_SSH_ERROR_OUTPUT_LENGTH = 4_000;
 
-const sshCommandForPlatform = (platform: NodeJS.Platform): string =>
+const sshCommandForPlatform = (platform: NodeJS.Platform) =>
   platform === "win32" ? "ssh.exe" : "ssh";
 
 export const resolveSshCommand = Effect.map(HostProcess.Platform, sshCommandForPlatform);
@@ -38,7 +36,7 @@ export interface RunSshCommandOptions extends SshAuthOptions {
   readonly keepErrorOutputTail?: boolean;
 }
 
-export function parseSshResolveOutput(alias: string, stdout: string): DesktopSshEnvironmentTarget {
+export function parseSshResolveOutput(alias: string, stdout: string) {
   const values = new Map<string, string>();
   for (const line of stdout.split(/\r?\n/u)) {
     const trimmed = line.trim();
@@ -65,13 +63,13 @@ export function parseSshResolveOutput(alias: string, stdout: string): DesktopSsh
   };
 }
 
-export function targetConnectionKey(target: DesktopSshEnvironmentTarget): string {
+export function targetConnectionKey(target: DesktopSshEnvironmentTarget) {
   return `${target.alias}\u0000${target.hostname}\u0000${target.username ?? ""}\u0000${target.port ?? ""}`;
 }
 
 export const remoteStateKey = Effect.fn("ssh/command.remoteStateKey")(function* (
   target: DesktopSshEnvironmentTarget,
-): Effect.fn.Return<string, never, Digest.Digest> {
+) {
   const digestService = yield* Digest.Digest;
   const digest = yield* digestService.digest(
     Digest.sha256,
@@ -80,7 +78,7 @@ export const remoteStateKey = Effect.fn("ssh/command.remoteStateKey")(function* 
   return Hex.encode(digest).slice(0, 16);
 });
 
-function buildSshHostSpec(target: DesktopSshEnvironmentTarget): string {
+function buildSshHostSpec(target: DesktopSshEnvironmentTarget) {
   const destination = target.alias.trim() || target.hostname.trim();
   if (destination.length === 0) {
     throw new Error("SSH target is missing its alias/hostname.");
@@ -88,9 +86,7 @@ function buildSshHostSpec(target: DesktopSshEnvironmentTarget): string {
   return target.username ? `${target.username}@${destination}` : destination;
 }
 
-export const buildSshHostSpecEffect = (
-  target: DesktopSshEnvironmentTarget,
-): Effect.Effect<string, SshInvalidTargetError> =>
+export const buildSshHostSpecEffect = (target: DesktopSshEnvironmentTarget) =>
   Effect.try({
     try: () => buildSshHostSpec(target),
     catch: (cause) =>
@@ -102,7 +98,11 @@ export const buildSshHostSpecEffect = (
 export function baseSshArgs(
   target: DesktopSshEnvironmentTarget,
   input?: { readonly batchMode?: "yes" | "no" },
-): string[] {
+): string[];
+export function baseSshArgs(
+  target: DesktopSshEnvironmentTarget,
+  input?: { readonly batchMode?: "yes" | "no" },
+) {
   return [
     "-o",
     `BatchMode=${input?.batchMode ?? "no"}`,
@@ -113,10 +113,10 @@ export function baseSshArgs(
     "-o",
     "RequestTTY=no",
     ...(target.port !== null ? ["-p", String(target.port)] : []),
-  ];
+  ] satisfies string[];
 }
 
-export function getLastNonEmptyOutputLine(stdout: string): string | null {
+export function getLastNonEmptyOutputLine(stdout: string) {
   return (
     stdout
       .trim()
@@ -135,7 +135,7 @@ const collectProcessOutput = <E>(
   stream: Stream.Stream<Uint8Array, E>,
   output: SshCommandOutput,
   key: keyof SshCommandOutput,
-): Effect.Effect<void, E> =>
+) =>
   stream.pipe(
     Stream.decodeText(),
     Stream.runForEach((chunk) =>
@@ -145,7 +145,7 @@ const collectProcessOutput = <E>(
     ),
   );
 
-function redactSshErrorOutput(output: string, keepTail = false): string {
+function redactSshErrorOutput(output: string, keepTail = false) {
   const redacted = output.replace(
     /("(?:access_token|bearerToken|credential|pairingToken|token)"\s*:\s*")[^"]+(")/giu,
     "$1[redacted]$2",
@@ -156,13 +156,13 @@ function redactSshErrorOutput(output: string, keepTail = false): string {
     : `${redacted.slice(0, MAX_SSH_ERROR_OUTPUT_LENGTH)}\n[truncated]`;
 }
 
-export function shellSingleQuote(value: string): string {
+export function shellSingleQuote(value: string) {
   return `'${value.replaceAll("'", "'\\''")}'`;
 }
 
 const SAFE_SHELL_ARG = /^[\w@%+=:,./-]+$/u;
 
-function terminalArg(value: string, platform: NodeJS.Platform): string {
+function terminalArg(value: string, platform: NodeJS.Platform) {
   if (SAFE_SHELL_ARG.test(value)) return value;
   return platform === "win32" ? `"${value}"` : shellSingleQuote(value);
 }
@@ -172,7 +172,7 @@ function hostKeyVerificationMessage(input: {
   readonly hostSpec: string;
   readonly stderr: string;
   readonly platform: NodeJS.Platform;
-}): string | null {
+}) {
   const { target, hostSpec, stderr, platform } = input;
   if (!stderr.includes("Host key verification failed")) return null;
   const command = [
@@ -193,7 +193,7 @@ function normalizeSshErrorMessage(input: {
   readonly stdout?: string;
   readonly stderr: string;
   readonly fallbackMessage: string;
-}): string {
+}) {
   const cleanedStderr = input.stderr.trim();
   if (cleanedStderr.length > 0) {
     return cleanedStderr;
@@ -221,11 +221,7 @@ const runSshCommandInScope = Effect.fn("ssh/command.runSshCommand.inScope")(func
   input: RunSshCommandOptions,
   commandScope: Scope.Scope,
   output: SshCommandOutput,
-): Effect.fn.Return<
-  SshCommandResult,
-  SshCommandError | SshInvalidTargetError,
-  ChildProcessSpawner.ChildProcessSpawner | FileSystem.FileSystem | Path.Path
-> {
+) {
   const hostSpec = yield* buildSshHostSpecEffect(target);
   const environment = yield* buildSshChildEnvironment({
     ...(input.interactiveAuth === undefined ? {} : { interactiveAuth: input.interactiveAuth }),
@@ -353,11 +349,7 @@ const runSshCommandInScope = Effect.fn("ssh/command.runSshCommand.inScope")(func
 export const runSshCommand = Effect.fn("ssh/command.runSshCommand")(function* (
   target: DesktopSshEnvironmentTarget,
   input: RunSshCommandOptions = {},
-): Effect.fn.Return<
-  SshCommandResult,
-  SshCommandError | SshInvalidTargetError,
-  ChildProcessSpawner.ChildProcessSpawner | FileSystem.FileSystem | Path.Path
-> {
+) {
   const output: SshCommandOutput = { stdout: "", stderr: "" };
   return yield* Effect.scopedWith((commandScope) =>
     runSshCommandInScope(target, input, commandScope, output),
@@ -393,11 +385,7 @@ export const runSshCommand = Effect.fn("ssh/command.runSshCommand")(function* (
 
 export const resolveSshTarget = Effect.fn("ssh/command.resolveSshTarget")(function* (
   alias: string,
-): Effect.fn.Return<
-  DesktopSshEnvironmentTarget,
-  SshCommandError | SshInvalidTargetError,
-  ChildProcessSpawner.ChildProcessSpawner | FileSystem.FileSystem | Path.Path
-> {
+) {
   const trimmedAlias = alias.trim();
   if (trimmedAlias.length === 0) {
     return yield* new SshInvalidTargetError({ message: "SSH host alias is required." });

@@ -64,7 +64,7 @@ import {
 } from "./browserHistoryStore";
 import { applyPreviewServerSnapshot, resetPreviewStateForTests } from "./previewStateStore";
 
-function entry(overrides: Partial<BrowserHistoryEntry> = {}): BrowserHistoryEntry {
+function entry(overrides: Partial<BrowserHistoryEntry> = {}) {
   return { url: "http://localhost:3000/", lastVisitedAt: 1000, ...overrides };
 }
 
@@ -166,7 +166,7 @@ function settle(
   tabId = "tab_a",
   ref = threadRef,
   profileId?: BrowserProfileId,
-): void {
+) {
   doneAt += 1;
   const snapshot: PreviewSessionSnapshot = {
     threadId: ref.threadId,
@@ -180,7 +180,7 @@ function settle(
   applyPreviewServerSnapshot(ref, snapshot);
 }
 
-function resetStores(): () => void {
+function resetStores() {
   resetBrowserHistoryForTests();
   resetPreviewStateForTests();
   return startPreviewTitleRecording();

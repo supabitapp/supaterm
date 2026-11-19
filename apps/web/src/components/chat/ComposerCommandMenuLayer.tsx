@@ -12,7 +12,7 @@ type ComposerCommandMenuPosition = {
 function composerCommandMenuPositionsEqual(
   a: ComposerCommandMenuPosition,
   b: ComposerCommandMenuPosition,
-): boolean {
+) {
   return (
     a.bottom === b.bottom && a.left === b.left && a.maxHeight === b.maxHeight && a.width === b.width
   );

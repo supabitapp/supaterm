@@ -6,7 +6,11 @@ import * as DateTime from "effect/DateTime";
 export function threadContextAttachment(
   environmentId: EnvironmentId,
   transcript: OrchestrationV2ThreadTranscript,
-): File {
+): File;
+export function threadContextAttachment(
+  environmentId: EnvironmentId,
+  transcript: OrchestrationV2ThreadTranscript,
+) {
   const updatedAt = DateTime.formatIso(transcript.updatedAt);
   const name = toKindScopedComposerContextId(
     "thread",
@@ -20,5 +24,5 @@ export function threadContextAttachment(
     ],
     `${title}-${name.slice(-16)}.jsonl`,
     { type: "application/x-ndjson" },
-  );
+  ) satisfies File;
 }

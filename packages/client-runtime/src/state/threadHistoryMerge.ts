@@ -25,27 +25,22 @@ export const EMPTY_THREAD_HISTORY_META: ThreadHistoryMeta = {
 export function isActiveHistoryRequestCursor(
   requestCursor: string,
   history: { readonly historyCursor: string | null },
-): boolean {
+) {
   return history.historyCursor === requestCursor;
 }
 
-export function clearActiveHistoryLoading(
-  requestCursor: string,
-  history: ThreadHistoryMeta,
-): ThreadHistoryMeta {
+export function clearActiveHistoryLoading(requestCursor: string, history: ThreadHistoryMeta) {
   if (!isActiveHistoryRequestCursor(requestCursor, history) || !history.loading) {
     return history;
   }
   return { ...history, loading: false };
 }
 
-function projectedItemKey(row: OrchestrationV2ProjectedTurnItem): string {
+function projectedItemKey(row: OrchestrationV2ProjectedTurnItem) {
   return `${row.sourceThreadId}:${row.sourceItemId}`;
 }
 
-function renumberVisible(
-  rows: ReadonlyArray<OrchestrationV2ProjectedTurnItem>,
-): OrchestrationV2ProjectedTurnItem[] {
+function renumberVisible(rows: ReadonlyArray<OrchestrationV2ProjectedTurnItem>) {
   return rows.map((row, position) => (row.position === position ? row : { ...row, position }));
 }
 
@@ -53,7 +48,7 @@ function interleavePage(
   current: ReadonlyArray<OrchestrationV2ProjectedTurnItem>,
   page: ReadonlyArray<OrchestrationV2ProjectedTurnItem>,
   pageKeys: ReadonlySet<string>,
-): OrchestrationV2ProjectedTurnItem[] {
+) {
   const currentIndex = new Map(current.map((row, index) => [projectedItemKey(row), index]));
   const merged: OrchestrationV2ProjectedTurnItem[] = [];
   let pending: OrchestrationV2ProjectedTurnItem[] = [];
@@ -83,9 +78,14 @@ export function mergeOlderHistoryIntoProjection(
   projection: OrchestrationV2ThreadProjection,
   olderItems: ReadonlyArray<OrchestrationV2ProjectedTurnItem>,
   work?: { readonly anchorId: string; readonly nextCursor: string | null },
-): OrchestrationV2ThreadProjection {
+): OrchestrationV2ThreadProjection;
+export function mergeOlderHistoryIntoProjection(
+  projection: OrchestrationV2ThreadProjection,
+  olderItems: ReadonlyArray<OrchestrationV2ProjectedTurnItem>,
+  work?: { readonly anchorId: string; readonly nextCursor: string | null },
+) {
   if (olderItems.length === 0 && work === undefined) {
-    return projection;
+    return projection satisfies OrchestrationV2ThreadProjection;
   }
 
   const start =
@@ -94,7 +94,8 @@ export function mergeOlderHistoryIntoProjection(
       : projection.visibleTurnItems.findIndex((row) => row.sourceItemId === work.anchorId);
   const anchor = projection.visibleTurnItems[start];
   const deferred = anchor?.item.deferredWork;
-  if (work !== undefined && deferred === undefined) return projection;
+  if (work !== undefined && deferred === undefined)
+    return projection satisfies OrchestrationV2ThreadProjection;
   const currentByKey = new Map(
     projection.visibleTurnItems.map((row) => [projectedItemKey(row), row]),
   );
@@ -141,7 +142,8 @@ export function mergeOlderHistoryIntoProjection(
     )
       turnItemById.set(String(row.sourceItemId), row.item);
   }
-  if (page.length === 0 && work === undefined) return projection;
+  if (page.length === 0 && work === undefined)
+    return projection satisfies OrchestrationV2ThreadProjection;
 
   let visible: OrchestrationV2ProjectedTurnItem[];
   if (work && anchor && deferred) {
@@ -182,12 +184,12 @@ export function mergeOlderHistoryIntoProjection(
     visible.length === projection.visibleTurnItems.length &&
     visible.every((row, index) => row === projection.visibleTurnItems[index])
   )
-    return projection;
+    return projection satisfies OrchestrationV2ThreadProjection;
   return {
     ...projection,
     turnItems: [...turnItemById.values()],
     visibleTurnItems: renumberVisible(visible),
-  };
+  } satisfies OrchestrationV2ThreadProjection;
 }
 
 export function applyHistoryPageMeta(
@@ -196,7 +198,14 @@ export function applyHistoryPageMeta(
     readonly nextCursor: string | null;
     readonly hasMoreHistory: boolean;
   },
-): ThreadHistoryMeta {
+): ThreadHistoryMeta;
+export function applyHistoryPageMeta(
+  current: ThreadHistoryMeta,
+  page: {
+    readonly nextCursor: string | null;
+    readonly hasMoreHistory: boolean;
+  },
+) {
   return {
     historyCursor: page.nextCursor,
     hasMoreHistory: page.hasMoreHistory,
@@ -204,9 +213,9 @@ export function applyHistoryPageMeta(
     error: null,
     expanded: true,
     latestLocalTurnOrdinal: current.latestLocalTurnOrdinal,
-  };
+  } satisfies ThreadHistoryMeta;
 }
 
-export function shouldShowLoadEarlierControl(history: ThreadHistoryMeta): boolean {
+export function shouldShowLoadEarlierControl(history: ThreadHistoryMeta) {
   return history.hasMoreHistory || history.error !== null;
 }

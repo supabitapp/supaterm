@@ -1,7 +1,7 @@
 import type { ImageResolver } from "@betteroffice/docx/layout/render";
 import type { YrsMediaSource } from "@betteroffice/docx/yrs";
 import { officeImageBitmap } from "./image-bitmap";
-import type { VectorBitmap, VectorRequest } from "./vector-pictures";
+import type { VectorBitmap } from "./vector-pictures";
 
 const mediaToken = /^media:(0|[1-9]\d*)$/u;
 
@@ -25,7 +25,7 @@ export function createBitmapImageResolver(media: (token: string) => YrsMediaSour
   const placeholder = greyBox();
   const drawn = new Set<string>();
 
-  const decode = (source: string, entry: Decoded): Promise<CanvasImageSource | null> => {
+  const decode = (source: string, entry: Decoded) => {
     const token = mediaToken.test(source);
     const found = token ? media(source) : undefined;
 
@@ -43,7 +43,7 @@ export function createBitmapImageResolver(media: (token: string) => YrsMediaSour
       }
 
       return officeImageBitmap(decoded).then(
-        (bitmap): CanvasImageSource => bitmap,
+        (bitmap) => bitmap,
         () => (token ? placeholder : null),
       );
     });
@@ -82,7 +82,7 @@ export function createBitmapImageResolver(media: (token: string) => YrsMediaSour
 
   return {
     resolve,
-    vectors(sizes: ReadonlyMap<string, Size>): VectorRequest[] {
+    vectors(sizes: ReadonlyMap<string, Size>) {
       const requests = [...drawn].flatMap((source) => {
         const entry = cache.get(source);
         const size = sizes.get(source);

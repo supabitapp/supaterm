@@ -6,7 +6,7 @@ export const FilePreviewGallery = createContext<readonly FilePreviewItem[]>([]);
 
 export function useFilePreviewGallery() {
   const group = useContext(FilePreviewGallery);
-  return (source: FilePreviewSource): FilePreviewSource =>
+  return (source: FilePreviewSource) =>
     group.length === 0
       ? source
       : {

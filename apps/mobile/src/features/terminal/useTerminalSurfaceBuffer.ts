@@ -7,7 +7,7 @@ export function useTerminalSurfaceBuffer({
 }: {
   readonly terminalKey: string;
   readonly buffer: string | null;
-}): string {
+}) {
   const [snapshot, setSnapshot] = useState({ terminalKey, buffer: buffer ?? "" });
   const currentBuffer = buffer ?? (snapshot.terminalKey === terminalKey ? snapshot.buffer : "");
   if (snapshot.terminalKey !== terminalKey || snapshot.buffer !== currentBuffer) {

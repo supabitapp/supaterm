@@ -49,9 +49,7 @@ const failingGit: Git = {
   switchRef: unexpectedGit("switchRef"),
 };
 
-export const layer = (
-  options: TestSourceControlHostOptions = {},
-): Layer.Layer<SourceControlHost.SourceControlHost | TestSourceControlHostSettings> =>
+export const layer = (options: TestSourceControlHostOptions = {}) =>
   Layer.effectContext(
     Effect.gen(function* () {
       const settings = yield* Ref.make(options.settings ?? DEFAULT_SERVER_SETTINGS);
@@ -79,7 +77,7 @@ export const processOutput = (
     readonly stderr?: string;
     readonly exitCode?: ChildProcessSpawner.ExitCode;
   },
-): SourceControlHost.SourceControlProcessOutput => ({
+) => ({
   exitCode: options?.exitCode ?? ChildProcessSpawner.ExitCode(0),
   stdout,
   stderr: options?.stderr ?? "",
@@ -103,10 +101,7 @@ const collectText = <E>(stream: Stream.Stream<Uint8Array, E>, maxBytes: number, 
 const runForReal = (
   spawner: ChildProcessSpawner.ChildProcessSpawner["Service"],
   input: SourceControlHost.SourceControlProcessInput,
-): Effect.Effect<
-  SourceControlHost.SourceControlProcessOutput,
-  VcsProcessSpawnError | VcsProcessExitError
-> => {
+) => {
   const context = {
     operation: input.operation,
     command: input.command,
@@ -168,9 +163,7 @@ const runForReal = (
  * `layer` whose `process.run` and `git.execute` spawn real processes, for a forge test that needs
  * a real repository. Every other git operation still dies unless supplied.
  */
-export const layerWithRealGit = (
-  options: TestSourceControlHostOptions = {},
-): Layer.Layer<SourceControlHost.SourceControlHost | TestSourceControlHostSettings> =>
+export const layerWithRealGit = (options: TestSourceControlHostOptions = {}) =>
   Layer.unwrap(
     Effect.gen(function* () {
       const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;

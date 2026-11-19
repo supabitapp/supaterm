@@ -74,7 +74,7 @@ export class NoRunningServerError extends Schema.TaggedError<NoRunningServerErro
     serveCommand: Schema.String,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return [
       "No running Supaterm server found.",
       ...this.checkedStatePaths.map((statePath) => `  checked ${statePath}`),
@@ -82,7 +82,7 @@ export class NoRunningServerError extends Schema.TaggedError<NoRunningServerErro
         ? ["In a linked worktree, pass --base-dir to pair with a server outside it."]
         : []),
       `Start one with \`${this.serveCommand}\`.`,
-    ].join("\n");
+    ].join("\n") satisfies string as string;
   }
 }
 
@@ -90,8 +90,8 @@ export class TailscaleUnavailableError extends Schema.TaggedError<TailscaleUnava
   "TailscaleUnavailableError",
   { cause: Schema.Defect() },
 ) {
-  override get message(): string {
-    return "Could not talk to Tailscale. Is tailscaled running? Try `tailscale status`.";
+  override get message() {
+    return "Could not talk to Tailscale. Is tailscaled running? Try `tailscale status`." satisfies string as string;
   }
 }
 
@@ -99,8 +99,8 @@ export class MagicDnsNameMissingError extends Schema.TaggedError<MagicDnsNameMis
   "MagicDnsNameMissingError",
   {},
 ) {
-  override get message(): string {
-    return "This machine has no MagicDNS name. Run `tailscale up` and enable MagicDNS.";
+  override get message() {
+    return "This machine has no MagicDNS name. Run `tailscale up` and enable MagicDNS." satisfies string as string;
   }
 }
 
@@ -108,8 +108,8 @@ export class TailscaleServeNotEnabledError extends Schema.TaggedError<TailscaleS
   "TailscaleServeNotEnabledError",
   {},
 ) {
-  override get message(): string {
-    return "Tailscale Serve is not enabled on your tailnet. Enable HTTPS certificates at https://login.tailscale.com/admin/dns, then run this command again.";
+  override get message() {
+    return "Tailscale Serve is not enabled on your tailnet. Enable HTTPS certificates at https://login.tailscale.com/admin/dns, then run this command again." satisfies string as string;
   }
 }
 
@@ -117,8 +117,8 @@ export class ServesOtherEnvironmentError extends Schema.TaggedError<ServesOtherE
   "ServesOtherEnvironmentError",
   { servePort: Schema.Number },
 ) {
-  override get message(): string {
-    return `Tailscale Serve on HTTPS port ${String(this.servePort)} already fronts a different Supaterm server. Pass --tailscale-serve-port to publish this one on another port.`;
+  override get message() {
+    return `Tailscale Serve on HTTPS port ${String(this.servePort)} already fronts a different Supaterm server. Pass --tailscale-serve-port to publish this one on another port.` satisfies string as string;
   }
 }
 
@@ -126,8 +126,8 @@ export class TailscaleServeFailedError extends Schema.TaggedError<TailscaleServe
   "TailscaleServeFailedError",
   { servePort: Schema.Number, cause: Schema.Defect() },
 ) {
-  override get message(): string {
-    return `tailscale serve failed for HTTPS port ${String(this.servePort)}. Run \`tailscale serve --https=${String(this.servePort)} --bg <local-url>\` by hand to see why.`;
+  override get message() {
+    return `tailscale serve failed for HTTPS port ${String(this.servePort)}. Run \`tailscale serve --https=${String(this.servePort)} --bg <local-url>\` by hand to see why.` satisfies string as string;
   }
 }
 
@@ -135,8 +135,8 @@ export class TailscaleOperatorRequiredError extends Schema.TaggedError<Tailscale
   "TailscaleOperatorRequiredError",
   { cause: Schema.Defect() },
 ) {
-  override get message(): string {
-    return "Tailscale refused the Serve config because this user is not its operator. Run `sudo tailscale set --operator=$USER` once, then run this command again.";
+  override get message() {
+    return "Tailscale refused the Serve config because this user is not its operator. Run `sudo tailscale set --operator=$USER` once, then run this command again." satisfies string as string;
   }
 }
 
@@ -144,8 +144,8 @@ export class TailscaleServeTargetRefusedError extends Schema.TaggedError<Tailsca
   "TailscaleServeTargetRefusedError",
   { localHost: Schema.String },
 ) {
-  override get message(): string {
-    return `This Tailscale install can only proxy to localhost, and the server listens on ${this.localHost}. Restart it with \`--host 127.0.0.1\` or \`--host 0.0.0.0\`, then run this command again.`;
+  override get message() {
+    return `This Tailscale install can only proxy to localhost, and the server listens on ${this.localHost}. Restart it with \`--host 127.0.0.1\` or \`--host 0.0.0.0\`, then run this command again.` satisfies string as string;
   }
 }
 
@@ -153,20 +153,21 @@ export class ServePortOccupiedError extends Schema.TaggedError<ServePortOccupied
   "ServePortOccupiedError",
   { servePort: Schema.Number },
 ) {
-  override get message(): string {
-    return `HTTPS port ${String(this.servePort)} on the tailnet already serves something that is not a Supaterm server. Pass --tailscale-serve-port to publish this one on another port.`;
+  override get message() {
+    return `HTTPS port ${String(this.servePort)} on the tailnet already serves something that is not a Supaterm server. Pass --tailscale-serve-port to publish this one on another port.` satisfies string as string;
   }
 }
 
-const resolveDirectPairingBaseUrl = (state: PersistedServerRuntimeState): string =>
-  state.devUrl ?? resolveHeadlessConnectionString(state.host, state.port);
+const resolveDirectPairingBaseUrl: (state: PersistedServerRuntimeState) => string = (
+  state: PersistedServerRuntimeState,
+) => state.devUrl ?? resolveHeadlessConnectionString(state.host, state.port);
 
 export class DevServerNotProxiableError extends Schema.TaggedError<DevServerNotProxiableError>()(
   "DevServerNotProxiableError",
   { devUrl: Schema.String },
 ) {
-  override get message(): string {
-    return `Tailscale Serve can only proxy plain-HTTP local targets, and this dev server runs at ${this.devUrl}. Pair without --tailscale instead.`;
+  override get message() {
+    return `Tailscale Serve can only proxy plain-HTTP local targets, and this dev server runs at ${this.devUrl}. Pair without --tailscale instead.` satisfies string as string;
   }
 }
 
@@ -176,8 +177,8 @@ export class PublicRelayOffError extends Schema.TaggedError<PublicRelayOffError>
   "PublicRelayOffError",
   { settingsPath: Schema.String },
 ) {
-  override get message(): string {
-    return `Encrypted Relay is off for this server. Turn it on in Settings → Sharing & access, or set "publicRelayEnabled": true in ${this.settingsPath}, then run this again.`;
+  override get message() {
+    return `Encrypted Relay is off for this server. Turn it on in Settings → Sharing & access, or set "publicRelayEnabled": true in ${this.settingsPath}, then run this again.` satisfies string as string;
   }
 }
 
@@ -186,9 +187,7 @@ export class PublicRelayOffError extends Schema.TaggedError<PublicRelayOffError>
  * backend rides along behind Vite's proxy. Serve targets are always plain HTTP, so an HTTPS dev
  * URL cannot be proxied and is rejected.
  */
-export const resolveTailscaleLocalTarget = (
-  state: PersistedServerRuntimeState,
-): { readonly localPort: number; readonly localHost?: string } | DevServerNotProxiableError => {
+export const resolveTailscaleLocalTarget = (state: PersistedServerRuntimeState) => {
   if (state.devUrl !== undefined) {
     const devUrl = new URL(state.devUrl);
     if (devUrl.protocol !== "http:") {
@@ -205,14 +204,21 @@ export const resolveTailscaleLocalTarget = (
   return { localPort: state.port };
 };
 
-const formatPairOutput = (input: {
+const formatPairOutput: (input: {
   readonly serverLabel: string;
   readonly origin: string;
   readonly pairingUrl: string;
   readonly token: string;
   readonly expiresAt: DateTime.Utc;
   readonly notes: ReadonlyArray<string>;
-}): string =>
+}) => string = (input: {
+  readonly serverLabel: string;
+  readonly origin: string;
+  readonly pairingUrl: string;
+  readonly token: string;
+  readonly expiresAt: DateTime.Utc;
+  readonly notes: ReadonlyArray<string>;
+}) =>
   [
     `Pairing with ${input.serverLabel} (${input.origin}).`,
     "",

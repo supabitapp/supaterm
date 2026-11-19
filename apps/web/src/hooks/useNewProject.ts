@@ -16,7 +16,7 @@ import { sourceControlEnvironment } from "~/state/sourceControl";
 import { useAtomCommand } from "~/state/use-atom-command";
 import { useNewThreadHandler } from "./useHandleNewThread";
 
-function errorMessage(error: unknown): string {
+function errorMessage(error: unknown) {
   return error instanceof Error && error.message.trim().length > 0
     ? error.message
     : "An error occurred.";
@@ -69,7 +69,7 @@ export function useNewProject() {
     readonly environmentId: EnvironmentId;
     readonly name: string;
     readonly publishTo: NewProjectPublishTarget | null;
-  }): Promise<boolean> => {
+  }) => {
     const result = await createNew({
       environmentId: input.environmentId,
       input: { name: input.name },

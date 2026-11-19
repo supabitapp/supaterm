@@ -112,7 +112,7 @@ export const MuseDriver: ProviderDriver<
     const usagePermit = yield* Semaphore.make(1);
     const withLatestUsage = (provider: ServerProvider) =>
       Ref.get(latestUsage).pipe(
-        Effect.map((report): ServerProvider =>
+        Effect.map((report) =>
           report
             ? {
                 ...provider,

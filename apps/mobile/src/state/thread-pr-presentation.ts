@@ -42,7 +42,7 @@ const PR_STATE_TEXT_CLASS: Record<ThreadPr["state"], string> = {
 export function presentThreadPr(
   pr: ThreadPr,
   provider: VcsStatusResult["sourceControlProvider"] | null | undefined,
-): ThreadPrPresentation {
+) {
   const { changeRequest } = sourceControlClients.get(provider?.kind);
   const isDraft = pr.state === "open" && pr.isDraft === true;
   return {
@@ -57,15 +57,16 @@ export function presentThreadPr(
     label: String(pr.number),
     accessibilityLabel: `#${pr.number} ${changeRequest.singular} ${isDraft ? "draft" : pr.state}`,
     textClassName: isDraft ? "text-foreground-muted" : PR_STATE_TEXT_CLASS[pr.state],
-  };
+  } satisfies ThreadPrPresentation;
 }
 
 export function presentThreadLinkedPullRequests(
   links: ReadonlyArray<ThreadPullRequestLink>,
-): ThreadPrPresentation | null {
+): ThreadPrPresentation | null;
+export function presentThreadLinkedPullRequests(links: ReadonlyArray<ThreadPullRequestLink>) {
   const link = resolveThreadCurrentPullRequestLink(links);
   const badge = resolveThreadPullRequestBadge(links);
-  if (link === null || badge === null) return null;
+  if (link === null || badge === null) return null satisfies ThreadPrPresentation | null;
   const { changeRequest } =
     sourceControlClients.findByChangeRequestUrl(link.url) ?? sourceControlClients.get(undefined);
   const snapshot = link.snapshot;
@@ -102,7 +103,7 @@ export function presentThreadLinkedPullRequests(
           ? `${linkedCount} linked ${changeRequest.plural}, overall ${badge.state}`
           : `#${link.number} ${changeRequest.singular} ${state === null ? "status pending" : isDraft ? "draft" : state}`,
     textClassName: state === null || isDraft ? "text-foreground-muted" : PR_STATE_TEXT_CLASS[state],
-  };
+  } satisfies ThreadPrPresentation | null;
 }
 
 export function resolveThreadPrSource(
@@ -125,7 +126,7 @@ export function rememberBounded<V>(
   key: string,
   value: V,
   limit: number,
-): ReadonlyMap<string, V> {
+) {
   const next = new Map(current);
   next.delete(key);
   next.set(key, value);
@@ -141,7 +142,7 @@ export function knownPullRequestSummary(
   pullRequest: ThreadPullRequestKey,
   threads: Iterable<Pick<EnvironmentThreadShell, "projectId" | "pullRequests">>,
   summaries: Iterable<PullRequestSummary>,
-): PullRequestSummary | undefined {
+) {
   const key = threadPullRequestKeyOf(pullRequest);
   let newest:
     | { readonly summary: PullRequestSummary; readonly updatedAt: number; readonly readAt: number }

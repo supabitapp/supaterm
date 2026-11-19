@@ -3,7 +3,7 @@ import * as FileSystem from "effect/FileSystem";
 import * as Option from "effect/Option";
 import * as Path from "effect/Path";
 
-const pointsAtLinkedWorktree = (gitFileContents: string, path: Path.Path): boolean => {
+const pointsAtLinkedWorktree = (gitFileContents: string, path: Path.Path) => {
   const gitdir = gitFileContents
     .split(/\r?\n/)
     .map((line) => line.trim())
@@ -22,7 +22,7 @@ const pointsAtLinkedWorktree = (gitFileContents: string, path: Path.Path): boole
 
 export const resolveGitWorktreePath = Effect.fn("devHome.resolveGitWorktreePath")(function* (
   cwd: string,
-): Effect.fn.Return<string | undefined, never, FileSystem.FileSystem | Path.Path> {
+) {
   const fileSystem = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
 
@@ -53,7 +53,7 @@ export const resolveGitWorktreePath = Effect.fn("devHome.resolveGitWorktreePath"
  */
 export const resolveWorktreeSupatermHome = Effect.fn("devHome.resolveWorktreeT3Home")(function* (
   cwd: string,
-): Effect.fn.Return<string | undefined, never, FileSystem.FileSystem | Path.Path> {
+) {
   const worktreePath = yield* resolveGitWorktreePath(cwd);
   if (worktreePath === undefined) {
     return undefined;

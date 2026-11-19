@@ -3,7 +3,7 @@ import { Hct, argbFromHex, hexFromArgb } from "@material/material-color-utilitie
 import type { MobileThemeAppearance, MobileThemeVariables } from "./mobileTheme";
 import type { MaterialYouPalette } from "./materialYouPalette";
 
-function withAlpha(color: string, alpha: number): string {
+function withAlpha(color: string, alpha: number) {
   const match = /^#([\da-f]{6})(?:[\da-f]{2})?$/iu.exec(color);
   if (!match?.[1]) return color;
   const alphaByte = Math.round(Math.min(1, Math.max(0, alpha)) * 255)
@@ -13,7 +13,7 @@ function withAlpha(color: string, alpha: number): string {
   return `#${match[1]}${alphaByte}`;
 }
 
-function materialTone(color: string, tone: number): string {
+function materialTone(color: string, tone: number) {
   const match = /^#([\da-f]{6})(?:[\da-f]{2})?$/iu.exec(color);
   if (!match?.[1]) return color;
 
@@ -25,7 +25,7 @@ export function materialYouPaletteToMobileThemeVariables(
   palette: MaterialYouPalette,
   appearance: MobileThemeAppearance,
   base: MobileThemeVariables,
-): MobileThemeVariables {
+) {
   const dark = appearance === "dark";
   const userBubble = dark ? materialTone(palette.inversePrimary, 30) : palette.primary;
   const userBubbleForeground = dark ? materialTone(palette.inversePrimary, 90) : palette.onPrimary;

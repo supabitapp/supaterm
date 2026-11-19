@@ -58,7 +58,7 @@ interface FileBrowserPanelProps {
   answersPanelFind?: boolean;
 }
 
-function treePath(entry: ProjectEntry): string {
+function treePath(entry: ProjectEntry) {
   return entry.kind === "directory" ? `${entry.path}/` : entry.path;
 }
 

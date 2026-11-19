@@ -18,19 +18,22 @@ const settingsHooks = vi.hoisted(() => ({
   mutate: vi.fn(),
   useMutation: vi.fn(),
 }));
-const preparedAgent = vi.hoisted((): AcpRegistrySearchAgent => ({
-  id: "kilo",
-  name: "Kilo Code",
-  version: "4.2.0",
-  description: "Kilo ACP agent",
-  authors: ["Kilo"],
-  license: "Apache-2.0",
-  website: null,
-  repository: null,
-  icon: "https://cdn.agentclientprotocol.com/registry/v1/latest/kilo.svg",
-  distribution: "binary",
-  integrity: "sha256",
-}));
+const preparedAgent = vi.hoisted(
+  () =>
+    ({
+      id: "kilo",
+      name: "Kilo Code",
+      version: "4.2.0",
+      description: "Kilo ACP agent",
+      authors: ["Kilo"],
+      license: "Apache-2.0",
+      website: null,
+      repository: null,
+      icon: "https://cdn.agentclientprotocol.com/registry/v1/latest/kilo.svg",
+      distribution: "binary",
+      integrity: "sha256",
+    }) satisfies AcpRegistrySearchAgent,
+);
 
 vi.mock(import("@supaterm/client-runtime/state/runtime"), async (original) => ({
   ...(await original()),

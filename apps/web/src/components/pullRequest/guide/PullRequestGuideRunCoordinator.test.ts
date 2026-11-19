@@ -32,7 +32,7 @@ const guideAtom = Atom.family((_key: string) =>
 guides.family = guideAtom;
 
 const environmentId = EnvironmentId.make("env-1");
-function reference(number: number): PullRequestRef {
+function reference(number: number) {
   return { projectId: ProjectId.make("project-1"), repository: "acme/app", number };
 }
 const running = {

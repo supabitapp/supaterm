@@ -11,7 +11,7 @@ export function waitForQuerySettled<A, E, R>(input: {
   readonly atom: Atom.Atom<AsyncResult.AsyncResult<A, E>>;
   readonly settle: (value: A | null) => R | undefined;
   readonly signal: AbortSignal;
-}): Promise<R | undefined> {
+}) {
   const { registry, atom, settle, signal } = input;
   return new Promise((resolve) => {
     let done = false;
@@ -33,5 +33,5 @@ export function waitForQuerySettled<A, E, R>(input: {
     signal.addEventListener("abort", onAbort);
     unsubscribe = registry.subscribe(atom, check, { immediate: true });
     if (done) unsubscribe();
-  });
+  }) satisfies Promise<R | undefined>;
 }

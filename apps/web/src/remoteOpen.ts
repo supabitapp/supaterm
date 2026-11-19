@@ -42,7 +42,7 @@ const UNRESOLVED_REMOTE_OPEN: RemoteOpenResolution = {
   isResolved: false,
 };
 
-function parseHostname(url: string): string | null {
+function parseHostname(url: string) {
   try {
     return new URL(url).hostname;
   } catch {
@@ -56,21 +56,21 @@ export function resolveRemoteOpenState(input: {
   readonly remoteOpenTargets: ReadonlyArray<RemoteOpenTarget> | undefined;
   readonly isDesktopRenderer: boolean;
   readonly hostEnvironmentId: string | null;
-}): RemoteOpenState {
+}) {
   const { target } = input;
   if (target === null || target.environmentId === input.hostEnvironmentId) {
-    return LOCAL_EXEC;
+    return LOCAL_EXEC satisfies RemoteOpenState;
   }
   if (target._tag === "PrimaryConnectionTarget") {
     if (input.isDesktopRenderer) {
-      return LOCAL_EXEC;
+      return LOCAL_EXEC satisfies RemoteOpenState;
     }
     const hostname = parseHostname(target.httpBaseUrl);
     if (hostname !== null && isLoopbackHostname(hostname)) {
-      return LOCAL_EXEC;
+      return LOCAL_EXEC satisfies RemoteOpenState;
     }
   } else if (isDesktopLocalConnectionTarget(target)) {
-    return LOCAL_EXEC;
+    return LOCAL_EXEC satisfies RemoteOpenState;
   }
 
   if (input.sshTarget !== null && input.sshTarget.alias.length > 0) {
@@ -87,16 +87,16 @@ export function resolveRemoteOpenState(input: {
         host,
         ...(username === null ? {} : { username }),
       },
-    };
+    } satisfies RemoteOpenState;
   }
   const advertised = input.remoteOpenTargets?.[0];
   if (advertised !== undefined) {
-    return { mode: "remote-links", host: advertised };
+    return { mode: "remote-links", host: advertised } satisfies RemoteOpenState;
   }
-  return REMOTE_UNAVAILABLE;
+  return REMOTE_UNAVAILABLE satisfies RemoteOpenState;
 }
 
-function remoteOpenStatesEqual(previous: RemoteOpenState, next: RemoteOpenState): boolean {
+function remoteOpenStatesEqual(previous: RemoteOpenState, next: RemoteOpenState) {
   if (previous.mode !== next.mode) return false;
   if (previous.mode !== "remote-links" || next.mode !== "remote-links") return true;
   return (
@@ -107,7 +107,7 @@ function remoteOpenStatesEqual(previous: RemoteOpenState, next: RemoteOpenState)
 }
 
 const remoteOpenResolutionAtom = Atom.family((environmentId: EnvironmentId) =>
-  Atom.make((get): RemoteOpenResolution => {
+  Atom.make((get) => {
     const presentation = get(environmentPresentations.presentationAtom(environmentId));
     const entry = presentation?.entry ?? null;
     if (entry === null) {
@@ -136,24 +136,24 @@ const remoteOpenResolutionAtom = Atom.family((environmentId: EnvironmentId) =>
 
 const UNRESOLVED_REMOTE_OPEN_ATOM = Atom.make(UNRESOLVED_REMOTE_OPEN);
 
-export function useRemoteOpenResolution(environmentId: EnvironmentId | null): RemoteOpenResolution {
+export function useRemoteOpenResolution(environmentId: EnvironmentId | null) {
   return useAtomValue(
     environmentId === null ? UNRESOLVED_REMOTE_OPEN_ATOM : remoteOpenResolutionAtom(environmentId),
   );
 }
 
-export function useRemoteOpenState(environmentId: EnvironmentId | null): RemoteOpenState {
+export function useRemoteOpenState(environmentId: EnvironmentId | null) {
   return useRemoteOpenResolution(environmentId).state;
 }
 
 const REMOTE_FALLBACK_EDITORS: ReadonlyArray<EditorId> = ["vscode"];
 
-export function remoteFallbackEditors(identity: BrowserIdentity): ReadonlyArray<EditorId> {
+export function remoteFallbackEditors(identity: BrowserIdentity) {
   const os = browserClientOs(identity);
   return os === "iOS" || os === "Android" ? [] : REMOTE_FALLBACK_EDITORS;
 }
 
-const remoteCapableEditorsAtom = Atom.make((get): ReadonlyArray<EditorId> => {
+const remoteCapableEditorsAtom = Atom.make((get) => {
   const probe = window.desktopBridge?.probeRemoteEditors;
   probe?.().then(
     (ids) => {
@@ -165,12 +165,12 @@ const remoteCapableEditorsAtom = Atom.make((get): ReadonlyArray<EditorId> => {
   return remoteFallbackEditors(navigator);
 }).pipe(Atom.keepAlive, Atom.withLabel("remote-capable-editors"));
 
-export function useRemoteCapableEditors(): ReadonlyArray<EditorId> {
+export function useRemoteCapableEditors() {
   return useAtomValue(remoteCapableEditorsAtom);
 }
 
 /** Resolves false when the desktop refuses the URL, including unsupported editor schemes. */
-export async function openRemoteEditorUrl(url: string): Promise<boolean> {
+export async function openRemoteEditorUrl(url: string) {
   const bridge = window.desktopBridge;
   if (bridge !== undefined) {
     try {
@@ -185,7 +185,11 @@ export async function openRemoteEditorUrl(url: string): Promise<boolean> {
 
 const REMOTE_OPEN_HINT_KEY = "supaterm:remote-open-hint-seen";
 
-export function useRemoteOpenHint(): readonly [seen: boolean, markSeen: () => void] {
+export function useRemoteOpenHint(): readonly [seen: boolean, markSeen: () => void];
+export function useRemoteOpenHint() {
   const [seen, setSeen] = useLocalStorage(REMOTE_OPEN_HINT_KEY, false, Schema.Boolean);
-  return [seen, () => setSeen(true)] as const;
+  return [seen, () => setSeen(true)] as const satisfies readonly [
+    seen: boolean,
+    markSeen: () => void,
+  ];
 }

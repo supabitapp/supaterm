@@ -16,7 +16,7 @@ interface IdleDeadlineLike {
 
 type IdleCallback = (deadline: IdleDeadlineLike) => void;
 
-function scheduleIdle(callback: IdleCallback): number {
+function scheduleIdle(callback: IdleCallback) {
   if (typeof globalThis.requestIdleCallback === "function") {
     return globalThis.requestIdleCallback(callback, { timeout: 2_000 });
   }
@@ -27,7 +27,7 @@ function scheduleIdle(callback: IdleCallback): number {
   ) as unknown as number;
 }
 
-function cancelIdle(handle: number): void {
+function cancelIdle(handle: number) {
   if (typeof globalThis.cancelIdleCallback === "function") {
     globalThis.cancelIdleCallback(handle);
     return;
@@ -38,7 +38,7 @@ function cancelIdle(handle: number): void {
 function prewarmReviewDiffSection(input: {
   readonly threadKey: string;
   readonly section: ReviewSectionItem;
-}): void {
+}) {
   const { section, threadKey } = input;
   if (section.diff === null || section.diff.length > MAX_CACHED_REVIEW_SOURCE_CHARACTERS) {
     return;
@@ -56,7 +56,7 @@ function getReviewDiffPrewarmSections(input: {
   readonly threadKey: string;
   readonly sections: ReadonlyArray<ReviewSectionItem>;
   readonly selectedSectionId: string | null;
-}): ReadonlyArray<ReviewSectionItem> {
+}) {
   const { threadKey, sections, selectedSectionId } = input;
   const selectedIndex = sections.findIndex((section) => section.id === selectedSectionId);
   const selectedSection = sections[selectedIndex];
@@ -102,7 +102,7 @@ export function useReviewDiffPrewarming(input: {
   readonly threadKey: string | null;
   readonly sections: ReadonlyArray<ReviewSectionItem>;
   readonly selectedSectionId: string | null;
-}): void {
+}) {
   const { sections, selectedSectionId, threadKey } = input;
 
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- prewarms pending review diff sections in idle callbacks and cancels the idle handle on cleanup

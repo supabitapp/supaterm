@@ -1,6 +1,7 @@
 import { main as runServiceLauncher } from "../serviceLauncher.ts";
 
-export async function runServiceLauncherCli(): Promise<void> {
+export function runServiceLauncherCli(): Promise<void>;
+export async function runServiceLauncherCli() {
   try {
     await runServiceLauncher();
   } catch (cause) {

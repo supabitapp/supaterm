@@ -82,8 +82,8 @@ export class SettingsKeyUnknownError extends Schema.TaggedError<SettingsKeyUnkno
   "SettingsKeyUnknownError",
   { setting: Schema.String },
 ) {
-  override get message(): string {
-    return `Unknown setting "${this.setting}". Run \`supaterm settings list\` to see the supported settings.`;
+  override get message() {
+    return `Unknown setting "${this.setting}". Run \`supaterm settings list\` to see the supported settings.` satisfies string as string;
   }
 }
 
@@ -91,8 +91,8 @@ export class SettingsValueSyntaxError extends Schema.TaggedError<SettingsValueSy
   "SettingsValueSyntaxError",
   { setting: Schema.String, value: Schema.String, expected: Schema.String },
 ) {
-  override get message(): string {
-    return `Invalid value for ${this.setting}: ${this.value}. Expected ${this.expected}.`;
+  override get message() {
+    return `Invalid value for ${this.setting}: ${this.value}. Expected ${this.expected}.` satisfies string as string;
   }
 }
 
@@ -120,13 +120,12 @@ const resolveSettingsPath = Effect.fnUntraced(function* (explicitBaseDir: Option
     : paths.settingsPath;
 });
 
-const settingNames = (): ReadonlyArray<SettingName> =>
-  Object.keys(SETTABLE_SETTINGS) as Array<SettingName>;
+const settingNames = () => Object.keys(SETTABLE_SETTINGS) as Array<SettingName>;
 
-const settingName = (value: string): SettingName | undefined =>
+const settingName = (value: string) =>
   Object.hasOwn(SETTABLE_SETTINGS, value) ? (value as SettingName) : undefined;
 
-const parseValue = (setting: SettingName, raw: string): unknown => {
+const parseValue = (setting: SettingName, raw: string) => {
   const { kind } = SETTABLE_SETTINGS[setting];
   if (kind === "boolean") {
     if (raw === "true") return true;
@@ -146,7 +145,7 @@ const parseValue = (setting: SettingName, raw: string): unknown => {
   return undefined;
 };
 
-const requireSettingName = (raw: string): Effect.Effect<SettingName, SettingsKeyUnknownError> => {
+const requireSettingName = (raw: string) => {
   const setting = settingName(raw);
   return setting === undefined
     ? Effect.fail(new SettingsKeyUnknownError({ setting: raw }))

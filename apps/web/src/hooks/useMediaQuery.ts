@@ -14,17 +14,17 @@ type Breakpoint = keyof typeof BREAKPOINTS;
 
 type BreakpointQuery = Breakpoint | `max-${Breakpoint}` | `${Breakpoint}:max-${Breakpoint}`;
 
-function resolveMin(value: Breakpoint | number): string {
+function resolveMin(value: Breakpoint | number) {
   const px = typeof value === "number" ? value : BREAKPOINTS[value];
   return `(min-width: ${px}px)`;
 }
 
-function resolveMax(value: Breakpoint | number): string {
+function resolveMax(value: Breakpoint | number) {
   const px = typeof value === "number" ? value : BREAKPOINTS[value];
   return `(max-width: ${px - 1}px)`;
 }
 
-function parseQuery(query: BreakpointQuery | MediaQueryInput | (string & {})): string {
+function parseQuery(query: BreakpointQuery | MediaQueryInput | (string & {})) {
   if (typeof query !== "string") {
     const parts: string[] = [];
     if (query.min != null) parts.push(resolveMin(query.min));
@@ -50,7 +50,7 @@ function parseQuery(query: BreakpointQuery | MediaQueryInput | (string & {})): s
   return parts.length > 0 ? parts.join(" and ") : query;
 }
 
-function getServerSnapshot(): boolean {
+function getServerSnapshot() {
   return false;
 }
 
@@ -60,7 +60,7 @@ export type MediaQueryInput = {
   pointer?: "coarse" | "fine";
 };
 
-export function useMediaQuery(query: BreakpointQuery | MediaQueryInput | (string & {})): boolean {
+export function useMediaQuery(query: BreakpointQuery | MediaQueryInput | (string & {})) {
   const mediaQuery = parseQuery(query);
 
   const subscribe = (callback: () => void) => {

@@ -104,7 +104,7 @@ export function slideFonts(deck: PresentationHandle, fonts: FontFaceSet) {
       return [{ want: face.want, style }];
     });
 
-  const rename = (primitive: SlidePrimitive): SlidePrimitive => {
+  const rename: (primitive: SlidePrimitive) => SlidePrimitive = (primitive: SlidePrimitive) => {
     if (primitive.kind === "textBox")
       return {
         ...primitive,
@@ -149,7 +149,7 @@ export function slideFonts(deck: PresentationHandle, fonts: FontFaceSet) {
     },
 
     layout: async (index: number) => {
-      const settle = async (rounds: number): Promise<SlideDisplayList> => {
+      const settle: (rounds: number) => Promise<SlideDisplayList> = async (rounds: number) => {
         const frame = deck.layoutSlide(index);
         const wanted = rounds === 0 ? [] : missing(frame.primitives);
 
@@ -165,7 +165,8 @@ export function slideFonts(deck: PresentationHandle, fonts: FontFaceSet) {
   };
 }
 
-function textRuns(primitives: readonly SlidePrimitive[]): PositionedTextRun[] {
+function textRuns(primitives: readonly SlidePrimitive[]): PositionedTextRun[];
+function textRuns(primitives: readonly SlidePrimitive[]) {
   return primitives.flatMap((primitive) => {
     if (primitive.kind === "textBox") return primitive.lines.flatMap((line) => line.runs);
 
@@ -173,7 +174,7 @@ function textRuns(primitives: readonly SlidePrimitive[]): PositionedTextRun[] {
       return textRuns(primitive.primitives);
 
     return [];
-  });
+  }) satisfies PositionedTextRun[];
 }
 
 function wantKey(want: Want) {

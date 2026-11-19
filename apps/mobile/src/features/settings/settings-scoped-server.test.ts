@@ -55,7 +55,7 @@ describe("mobile usage-limit settings across environments", () => {
   );
 });
 
-function environment(environmentId: EnvironmentId, settings: ServerSettings): SettingsTarget {
+function environment(environmentId: EnvironmentId, settings: ServerSettings) {
   return {
     environmentId,
     serverConfig: {

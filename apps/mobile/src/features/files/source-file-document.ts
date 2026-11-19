@@ -13,7 +13,7 @@ export interface SourceFileDocument {
 const documentCache = new Map<string, SourceFileDocument>();
 let cachedCharacterCount = 0;
 
-function removeOldestCachedDocument(): void {
+function removeOldestCachedDocument() {
   const oldestKey = documentCache.keys().next().value;
   if (typeof oldestKey !== "string") {
     return;
@@ -23,7 +23,7 @@ function removeOldestCachedDocument(): void {
   cachedCharacterCount -= (document?.contents.length ?? 0) + (document?.rowsJson.length ?? 0);
 }
 
-export function prepareSourceFileDocument(contents: string): SourceFileDocument {
+export function prepareSourceFileDocument(contents: string) {
   const cached = documentCache.get(contents);
   if (cached !== undefined) {
     documentCache.delete(contents);
@@ -56,7 +56,7 @@ export function prepareSourceFileDocument(contents: string): SourceFileDocument 
 
 export function boundedSelectableSourceTokens(
   tokens: ReadonlyArray<ReadonlyArray<HighlightedToken>> | null,
-): typeof tokens {
+) {
   if (!tokens) return null;
   let spans = tokens.length;
   for (const line of tokens) {
@@ -74,7 +74,7 @@ export interface SelectableSourceHtmlStyle {
   readonly wordBreak: boolean;
 }
 
-export function selectableSourceHtml(contents: string, style: SelectableSourceHtmlStyle): string {
+export function selectableSourceHtml(contents: string, style: SelectableSourceHtmlStyle) {
   const text = contents
     .split("\n")
     .map(

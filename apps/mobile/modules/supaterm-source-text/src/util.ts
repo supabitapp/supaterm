@@ -1,5 +1,4 @@
 import { I18nManager, type StyleProp, StyleSheet, type TextStyle } from "react-native";
-import type { NativeFontWeight } from "./SupatermSourceTextRunNativeComponent";
 
 export function flattenStyles(rootStyle: TextStyle, style: StyleProp<TextStyle>) {
   const flattenedStyle = StyleSheet.flatten([rootStyle, style]) as TextStyle;
@@ -32,7 +31,7 @@ export function flattenStyles(rootStyle: TextStyle, style: StyleProp<TextStyle>)
   };
 }
 
-function fontWeightToNativeProp(fontWeight: TextStyle["fontWeight"]): NativeFontWeight {
+function fontWeightToNativeProp(fontWeight: TextStyle["fontWeight"]) {
   switch (fontWeight) {
     case "normal":
       return "normal";

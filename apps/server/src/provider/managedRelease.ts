@@ -15,7 +15,7 @@ export function selectManagedRelease<Release extends { readonly version: string 
   installedVersion: string | null,
   pinned: Release | null,
   upstream: Release | null,
-): Release | null {
+) {
   if (installedVersion === null) return pinned;
   let selected: Release | null = null;
   for (const candidate of [pinned, upstream]) {

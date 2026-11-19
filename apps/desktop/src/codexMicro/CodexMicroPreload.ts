@@ -16,8 +16,10 @@ function isFocusEvent(value: unknown): value is CodexMicroInputEvent {
 }
 
 /** Undefined in a desktop build packaged without Codex Micro, so the client hides it. */
-export function makeCodexMicroBridge(): DesktopCodexMicroBridge | undefined {
-  if (ipcRenderer.sendSync(IpcChannels.CODEX_MICRO_AVAILABLE_CHANNEL) !== true) return undefined;
+export function makeCodexMicroBridge(): DesktopCodexMicroBridge | undefined;
+export function makeCodexMicroBridge() {
+  if (ipcRenderer.sendSync(IpcChannels.CODEX_MICRO_AVAILABLE_CHANNEL) !== true)
+    return undefined satisfies DesktopCodexMicroBridge | undefined;
 
   let pendingFocus: { readonly event: CodexMicroInputEvent; readonly at: number } | null = null;
   let inputListeners = 0;
@@ -58,5 +60,5 @@ export function makeCodexMicroBridge(): DesktopCodexMicroBridge | undefined {
       };
     },
     setLighting: (model) => ipcRenderer.invoke(IpcChannels.CODEX_MICRO_SET_LIGHTING_CHANNEL, model),
-  };
+  } satisfies DesktopCodexMicroBridge | undefined;
 }

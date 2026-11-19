@@ -65,7 +65,7 @@ function arrangeSlots(slots: ReadonlyArray<StackSlot>) {
 function reconcileStackSlots(
   previous: ReadonlyArray<StackSlot>,
   live: ReadonlyArray<ComposerBannerStackEntry>,
-): ReadonlyArray<StackSlot> {
+) {
   const liveIds = new Set(live.map((item) => item.id));
   const previousLiveIds = new Set(previous.flatMap((slot) => (slot.exiting ? [] : [slot.item.id])));
   const previousFront = arrangeSlots(previous).front;
@@ -96,7 +96,7 @@ function reconcileStackSlots(
   ];
 }
 
-function releaseStackSlot(slots: ReadonlyArray<StackSlot>, id: string): ReadonlyArray<StackSlot> {
+function releaseStackSlot(slots: ReadonlyArray<StackSlot>, id: string) {
   const released = slots.find((slot) => slot.exiting && slot.item.id === id);
   if (!released) return slots;
   const remaining = slots.flatMap((slot) =>
@@ -341,7 +341,7 @@ export function ComposerBannerStack({ className, items }: ComposerBannerStackPro
 
 const SUBPIXEL_ROUNDING = 0.001;
 
-function contentWidth(element: Element, range: Range): number {
+function contentWidth(element: Element, range: Range) {
   let left = Infinity;
   let right = -Infinity;
   for (const node of element.childNodes) {

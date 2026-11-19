@@ -131,7 +131,7 @@ export function useComposerAttachmentIntake(input: {
       readonly selection?: { start: number; end: number };
       readonly skipImageInlineChip?: boolean;
     },
-  ): Promise<boolean> => {
+  ) => {
     if (!activeThreadId || files.length === 0 || isRevertingCheckpointRef.current) return false;
     if (
       pendingUserInputs.length > 0 &&
@@ -292,20 +292,21 @@ export function useComposerAttachmentIntake(input: {
     if (questionAttachmentTarget)
       changeQuestionAttachmentPreparation(questionAttachmentTarget, -stillPreparingIds.size);
     if (questionDiscarded) return false;
-    const nextImages = compressed.flatMap(({ id, file }): ComposerImageAttachment[] =>
-      stillPreparingIds.has(id)
-        ? [
-            {
-              type: "image",
-              id,
-              name: file.name || "image",
-              mimeType: file.type,
-              sizeBytes: file.size,
-              previewUrl: URL.createObjectURL(file),
-              file,
-            },
-          ]
-        : [],
+    const nextImages = compressed.flatMap(
+      ({ id, file }) =>
+        (stillPreparingIds.has(id)
+          ? [
+              {
+                type: "image",
+                id,
+                name: file.name || "image",
+                mimeType: file.type,
+                sizeBytes: file.size,
+                previewUrl: URL.createObjectURL(file),
+                file,
+              },
+            ]
+          : []) satisfies ComposerImageAttachment[],
     );
     const storedImageIds = new Set(
       nextImages.length === 1 && nextImages[0]
@@ -367,7 +368,7 @@ export function useComposerAttachmentIntake(input: {
     plainText: string,
     bypassAutoAttachment: boolean,
     selectionOverride?: { start: number; end: number },
-  ): boolean => {
+  ) => {
     if (isLiteralPendingAnswer) return false;
     const questionCanAttach =
       pendingUserInputs.length === 0 ||

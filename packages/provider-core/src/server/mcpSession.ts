@@ -25,7 +25,7 @@ export interface McpProviderSessionConfig {
 export function withAgentDeviceEnvironment(
   base: NodeJS.ProcessEnv,
   config: Pick<McpProviderSessionConfig, "agentDeviceEnvironment"> | undefined,
-): NodeJS.ProcessEnv {
+) {
   const extra = config?.agentDeviceEnvironment;
   if (!extra) return base;
   const separator = extra.PATH_SEPARATOR ?? ":";

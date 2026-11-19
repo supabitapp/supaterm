@@ -202,7 +202,7 @@ const PR_THREAD_CONTEXT_BYTES = 16_000;
 const PR_THREAD_COMMAND_OUTPUT_CHARS = 2_000;
 const isSourceControlProviderError = Schema.is(SourceControlProviderError);
 
-function prLookupFailureTtl(consecutiveFailures: number): Duration.Duration {
+function prLookupFailureTtl(consecutiveFailures: number) {
   const exponent = Math.max(0, consecutiveFailures - 1);
   const backoffMs = Duration.toMillis(PR_LOOKUP_FAILURE_BASE_TTL) * Math.pow(2, exponent);
   return Duration.min(Duration.millis(backoffMs), PR_LOOKUP_FAILURE_MAX_TTL);
@@ -211,7 +211,7 @@ type StripProgressContext<T> = T extends any ? Omit<T, "actionId" | "cwd" | "act
 type GitActionProgressPayload = StripProgressContext<GitActionProgressEvent>;
 type GitActionProgressEmitter = (event: GitActionProgressPayload) => Effect.Effect<void, never>;
 
-function isNotGitRepositoryError(error: GitCommandError): boolean {
+function isNotGitRepositoryError(error: GitCommandError) {
   return error.reason === "not_a_repository";
 }
 
@@ -265,25 +265,25 @@ interface BranchHeadContext {
   isCrossRepository: boolean;
 }
 
-export function pullRequestRepositoryKey(value: string): string | null {
+export function pullRequestRepositoryKey(value: string) {
   const repositoryUrl = sourceControlDefinitions.parseChangeRequestUrl(value)?.link.repositoryUrl;
   return repositoryUrl === undefined
     ? null
     : sourceControlDefinitions.repositoryKeyFromRemote(repositoryUrl);
 }
 
-function resolveHeadRepositoryNameWithOwner(pullRequest: PullRequestHeadRemoteInfo): string | null {
+function resolveHeadRepositoryNameWithOwner(pullRequest: PullRequestHeadRemoteInfo) {
   return normalizeOptionalString(pullRequest.headRepositoryNameWithOwner);
 }
 
-function isPullRequestWorktreeLocalBranchName(branch: string): boolean {
+function isPullRequestWorktreeLocalBranchName(branch: string) {
   return /^supaterm[/-]pr-\d+[/-]/u.test(branch);
 }
 
 function resolvePullRequestWorktreeLocalBranchName(
   pullRequest: ResolvedPullRequest & PullRequestHeadRemoteInfo,
   localBranches: ReadonlySet<string>,
-): string {
+) {
   if (!pullRequest.isCrossRepository) {
     return pullRequest.headBranch;
   }
@@ -315,7 +315,7 @@ export function parseRepositoryNameWithOwnerFromRemoteUrl(
     SourceControlProvider.SourceControlProvider["Service"],
     "repositoryNameFromRemoteUrl"
   >,
-): string | null {
+) {
   const trimmed = url?.trim() ?? "";
   if (trimmed.length === 0) return null;
   return (
@@ -324,7 +324,7 @@ export function parseRepositoryNameWithOwnerFromRemoteUrl(
   );
 }
 
-function parseRepositoryOwnerLogin(nameWithOwner: string | null): string | null {
+function parseRepositoryOwnerLogin(nameWithOwner: string | null) {
   const trimmed = nameWithOwner?.trim() ?? "";
   if (trimmed.length === 0) {
     return null;
@@ -334,29 +334,24 @@ function parseRepositoryOwnerLogin(nameWithOwner: string | null): string | null 
   return normalizedOwnerLogin.length > 0 ? normalizedOwnerLogin : null;
 }
 
-function normalizeOptionalString(value: string | null | undefined): string | null {
+function normalizeOptionalString(value: string | null | undefined) {
   const trimmed = value?.trim() ?? "";
   return trimmed.length > 0 ? trimmed : null;
 }
 
-function normalizeOptionalRepositoryNameWithOwner(value: string | null | undefined): string | null {
+function normalizeOptionalRepositoryNameWithOwner(value: string | null | undefined) {
   const normalized = normalizeOptionalString(value);
   return normalized ? normalized.toLowerCase() : null;
 }
 
-function normalizeOptionalOwnerLogin(value: string | null | undefined): string | null {
+function normalizeOptionalOwnerLogin(value: string | null | undefined) {
   const normalized = normalizeOptionalString(value);
   return normalized ? normalized.toLowerCase() : null;
-}
-
-interface PullRequestHeadIdentity {
-  readonly repositoryNameWithOwner: string | null;
-  readonly ownerLogin: string | null;
 }
 
 function resolveExpectedHeadIdentity(
   headContext: Pick<BranchHeadContext, "headRepositoryNameWithOwner" | "headRepositoryOwnerLogin">,
-): PullRequestHeadIdentity {
+) {
   const repositoryNameWithOwner = normalizeOptionalRepositoryNameWithOwner(
     headContext.headRepositoryNameWithOwner,
   );
@@ -368,7 +363,7 @@ function resolveExpectedHeadIdentity(
   };
 }
 
-function resolvePullRequestHeadIdentity(pr: PullRequestInfo): PullRequestHeadIdentity {
+function resolvePullRequestHeadIdentity(pr: PullRequestInfo) {
   const repositoryNameWithOwner = normalizeOptionalRepositoryNameWithOwner(
     resolveHeadRepositoryNameWithOwner(pr),
   );
@@ -386,7 +381,7 @@ export function matchesBranchHeadContext(
     BranchHeadContext,
     "headBranch" | "headRepositoryNameWithOwner" | "headRepositoryOwnerLogin" | "isCrossRepository"
   >,
-): boolean {
+) {
   if (pr.headRefName !== headContext.headBranch) {
     return false;
   }
@@ -439,7 +434,7 @@ export function matchesBranchHeadContext(
   return true;
 }
 
-function toPullRequestInfo(summary: ChangeRequest): PullRequestInfo {
+function toPullRequestInfo(summary: ChangeRequest) {
   return {
     number: summary.number,
     title: summary.title,
@@ -464,26 +459,23 @@ function toPullRequestInfo(summary: ChangeRequest): PullRequestInfo {
   };
 }
 
-function limitContext(value: string, maxChars: number): string {
+function limitContext(value: string, maxChars: number) {
   if (value.length <= maxChars) return value;
   return `${value.slice(0, maxChars)}\n\n[truncated]`;
 }
 
-function limitCommandOutput(item: OrchestrationV2TurnItem): OrchestrationV2TurnItem {
+function limitCommandOutput(item: OrchestrationV2TurnItem) {
   if (item.type !== "command_execution" || item.output === undefined) return item;
   if (item.output.length <= PR_THREAD_COMMAND_OUTPUT_CHARS) return item;
   return { ...item, output: `[truncated]\n${item.output.slice(-PR_THREAD_COMMAND_OUTPUT_CHARS)}` };
 }
 
-function shortenSha(sha: string | undefined): string | null {
+function shortenSha(sha: string | undefined) {
   if (!sha) return null;
   return sha.slice(0, SHORT_SHA_LENGTH);
 }
 
-function truncateText(
-  value: string | undefined,
-  maxLength = TOAST_DESCRIPTION_MAX,
-): string | undefined {
+function truncateText(value: string | undefined, maxLength = TOAST_DESCRIPTION_MAX) {
   if (!value) return undefined;
   if (value.length <= maxLength) return value;
   if (maxLength <= 3) return "...".slice(0, maxLength);
@@ -497,10 +489,7 @@ function withDescription(title: string, description: string | undefined) {
 function summarizeGitActionResult(
   result: Pick<GitRunStackedActionResult, "commit" | "push" | "pr">,
   terms: ChangeRequestTerminology,
-): {
-  title: string;
-  description?: string;
-} {
+) {
   if (result.pr.status === "created" || result.pr.status === "opened_existing") {
     const prNumber = result.pr.number ? ` #${result.pr.number}` : "";
     const title = `${result.pr.status === "created" ? "Created" : "Opened"} ${terms.shortLabel}${prNumber}`;
@@ -537,11 +526,7 @@ function sanitizeCommitMessage(
     branch?: string | undefined;
   },
   conventionalCommits: boolean,
-): {
-  subject: string;
-  body: string;
-  branch?: string | undefined;
-} {
+) {
   const rawSubject = generated.subject.trim().split(/\r?\n/g)[0]?.trim() ?? "";
   const trimmedSubject = rawSubject.replace(/[.]+$/g, "").trim();
   const subject = conventionalCommits
@@ -558,7 +543,7 @@ function sanitizeCommitMessage(
   };
 }
 
-function sanitizeProgressText(value: string): string | null {
+function sanitizeProgressText(value: string) {
   const trimmed = value.trim();
   if (trimmed.length === 0) {
     return null;
@@ -582,7 +567,7 @@ function isCommitAction(
   return action === "commit" || action === "commit_push" || action === "commit_push_pr";
 }
 
-function formatCommitMessage(subject: string, body: string): string {
+function formatCommitMessage(subject: string, body: string) {
   const trimmedBody = body.trim();
   if (trimmedBody.length === 0) {
     return subject;
@@ -590,7 +575,7 @@ function formatCommitMessage(subject: string, body: string): string {
   return `${subject}\n\n${trimmedBody}`;
 }
 
-function parseCustomCommitMessage(raw: string): { subject: string; body: string } | null {
+function parseCustomCommitMessage(raw: string) {
   const normalized = raw.replace(/\r\n/g, "\n").trim();
   if (normalized.length === 0) {
     return null;
@@ -608,7 +593,7 @@ function parseCustomCommitMessage(raw: string): { subject: string; body: string 
   };
 }
 
-function publishedRemoteName(branchRemote: string | null): string | null {
+function publishedRemoteName(branchRemote: string | null) {
   return branchRemote === "." ? null : branchRemote;
 }
 
@@ -626,7 +611,7 @@ function headBranchProbe(
   );
 }
 
-function appendUnique(values: string[], next: string | null | undefined): void {
+function appendUnique(values: string[], next: string | null | undefined) {
   const trimmed = next?.trim() ?? "";
   if (trimmed.length === 0 || values.includes(trimmed)) {
     return;
@@ -634,16 +619,7 @@ function appendUnique(values: string[], next: string | null | undefined): void {
   values.push(trimmed);
 }
 
-function toStatusPr(pr: PullRequestInfo): {
-  number: number;
-  title: string;
-  url: string;
-  baseRef: string;
-  headRef: string;
-  state: "open" | "closed" | "merged";
-  isDraft?: boolean;
-  updatedAt: string | null;
-} {
+function toStatusPr(pr: PullRequestInfo) {
   return {
     number: pr.number,
     title: pr.title,
@@ -659,7 +635,7 @@ function toStatusPr(pr: PullRequestInfo): {
   };
 }
 
-function normalizePullRequestReference(reference: string): string {
+function normalizePullRequestReference(reference: string) {
   const trimmed = reference.trim();
   const hashNumber = /^#(\d+)$/.exec(trimmed);
   return hashNumber?.[1] ?? trimmed;
@@ -672,7 +648,7 @@ function toResolvedPullRequest(pr: {
   baseRefName: string;
   headRefName: string;
   state?: "open" | "closed" | "merged";
-}): ResolvedPullRequest {
+}) {
   return {
     number: pr.number,
     title: pr.title,
@@ -683,7 +659,7 @@ function toResolvedPullRequest(pr: {
   };
 }
 
-function shouldPreferSshRemote(url: string | null): boolean {
+function shouldPreferSshRemote(url: string | null) {
   if (!url) return false;
   return isSshRemoteUrl(url);
 }
@@ -692,7 +668,7 @@ function toPullRequestHeadRemoteInfo(pr: {
   isCrossRepository?: boolean | undefined;
   headRepositoryNameWithOwner?: string | null | undefined;
   headRepositoryOwnerLogin?: string | null | undefined;
-}): PullRequestHeadRemoteInfo {
+}) {
   return {
     ...(pr.isCrossRepository !== undefined ? { isCrossRepository: pr.isCrossRepository } : {}),
     ...(pr.headRepositoryNameWithOwner !== undefined
@@ -1358,7 +1334,7 @@ export const make = Effect.gen(function* () {
   const resolveLastKnownPr = (
     branchKey: string,
     current: Pick<LastKnownPr, "upstreamRef" | "headBranch" | "remoteName" | "headRemoteUrlKey">,
-  ): LastKnownPr | null => {
+  ) => {
     const lastKnown = lastKnownPrByBranchKey.get(branchKey);
     if (!lastKnown) return null;
     if (lastKnown.headBranch !== current.headBranch) {
@@ -3417,10 +3393,7 @@ export const make = Effect.gen(function* () {
       const progress = yield* createProgressEmitter(input, options);
       const currentPhase = yield* Ref.make<Option.Option<GitActionProgressPhase>>(Option.none());
 
-      const runAction = Effect.fn("runStackedAction.runAction")(function* (): Effect.fn.Return<
-        GitRunStackedActionResult,
-        GitManagerServiceError
-      > {
+      const runAction = Effect.fn("runStackedAction.runAction")(function* () {
         const initialStatus = yield* gitCore.statusDetails(input.cwd);
         const wantsCommit = isCommitAction(input.action);
         const upToDateBranch =

@@ -14,7 +14,7 @@ it("blocks installation behind another supaterm without blocking removal of our 
     onPath: false,
     launcherPath: "/home/test/.supaterm/bin/supaterm",
   };
-  const getState = vi.fn(async (): Promise<DesktopCliCommandState> => ({
+  const getState = vi.fn(async () => ({
     ...state,
     shadowedBy: "/usr/local/bin/supaterm",
   }));

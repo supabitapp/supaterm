@@ -1,7 +1,8 @@
 import { DEFAULT_CLIENT_SETTINGS } from "@supaterm/contracts";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
-function createLocalStorageStub(): Storage {
+function createLocalStorageStub(): Storage;
+function createLocalStorageStub() {
   const store = new Map<string, string>();
   return {
     getItem: (key) => store.get(key) ?? null,
@@ -18,10 +19,10 @@ function createLocalStorageStub(): Storage {
     get length() {
       return store.size;
     },
-  };
+  } satisfies Storage;
 }
 
-function getTestWindow(): Window & typeof globalThis {
+function getTestWindow() {
   const localStorage = createLocalStorageStub();
   const testWindow = {
     localStorage,

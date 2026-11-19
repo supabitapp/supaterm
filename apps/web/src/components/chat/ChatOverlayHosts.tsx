@@ -30,7 +30,7 @@ import { registerThreadOverlay } from "./threadOverlayRetention";
 
 type ThreadOverlayAtom<T> = Atom.Writable<{ readonly threadKey: string; readonly value: T } | null>;
 
-function makeThreadOverlayAtom<T>(label: string): ThreadOverlayAtom<T> {
+function makeThreadOverlayAtom<T>(label: string) {
   const atom = Atom.make<{ readonly threadKey: string; readonly value: T } | null>(null).pipe(
     Atom.keepAlive,
     Atom.withLabel(`chat:${label}`),
@@ -42,11 +42,11 @@ function makeThreadOverlayAtom<T>(label: string): ThreadOverlayAtom<T> {
   return atom;
 }
 
-function closeThreadOverlay<T>(atom: ThreadOverlayAtom<T>): void {
+function closeThreadOverlay<T>(atom: ThreadOverlayAtom<T>) {
   appAtomRegistry.set(atom, null);
 }
 
-function useThreadOverlay<T>(atom: ThreadOverlayAtom<T>, threadKey: string | null): T | null {
+function useThreadOverlay<T>(atom: ThreadOverlayAtom<T>, threadKey: string | null) {
   const entry = useAtomValue(atom);
   return threadKey !== null && entry?.threadKey === threadKey ? entry.value : null;
 }
@@ -56,7 +56,7 @@ const pullRequestThreadDialogAtom = makeThreadOverlayAtom<{
   readonly key: number;
 }>("pull-request-thread-dialog");
 
-export function openPullRequestThreadDialog(threadKey: string, reference?: string): void {
+export function openPullRequestThreadDialog(threadKey: string, reference?: string) {
   appAtomRegistry.set(pullRequestThreadDialogAtom, {
     threadKey,
     value: { initialReference: reference ?? null, key: Date.now() },
@@ -94,7 +94,7 @@ export function PullRequestThreadDialogHost(props: {
 
 const deviceSetupDialogAtom = makeThreadOverlayAtom<true>("device-setup-dialog");
 
-export function openDeviceSetupDialog(threadKey: string): void {
+export function openDeviceSetupDialog(threadKey: string) {
   appAtomRegistry.set(deviceSetupDialogAtom, { threadKey, value: true });
 }
 
@@ -135,7 +135,7 @@ interface PendingRevert {
 
 const revertConfirmAtom = makeThreadOverlayAtom<PendingRevert>("revert-confirm");
 
-export function openRevertConfirm(threadKey: string, pending: PendingRevert): void {
+export function openRevertConfirm(threadKey: string, pending: PendingRevert) {
   appAtomRegistry.set(revertConfirmAtom, { threadKey, value: pending });
 }
 

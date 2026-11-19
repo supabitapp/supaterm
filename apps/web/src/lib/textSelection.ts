@@ -1,4 +1,4 @@
-export function hasTextSelection(): boolean {
+export function hasTextSelection() {
   let element = document.activeElement;
   while (element?.shadowRoot?.activeElement) element = element.shadowRoot.activeElement;
 

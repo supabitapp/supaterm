@@ -116,17 +116,20 @@ vi.mock("./ui/dialog", () => ({
 
 import { PullRequestThreadDialog } from "./PullRequestThreadDialog";
 
-function findAction(node: ReactNode, label: string): (() => unknown) | null {
+function findAction(node: ReactNode, label: string): (() => unknown) | null;
+function findAction(node: ReactNode, label: string) {
   if (Array.isArray(node)) {
     for (const child of node) {
       const action = findAction(child, label);
-      if (action) return action;
+      if (action) return action satisfies (() => unknown) | null;
     }
-    return null;
+    return null satisfies (() => unknown) | null;
   }
-  if (!isValidElement<{ children?: ReactNode; onClick?: () => unknown }>(node)) return null;
-  if (node.props.children === label) return node.props.onClick ?? null;
-  return findAction(node.props.children, label);
+  if (!isValidElement<{ children?: ReactNode; onClick?: () => unknown }>(node))
+    return null satisfies (() => unknown) | null;
+  if (node.props.children === label)
+    return (node.props.onClick ?? null) satisfies (() => unknown) | null;
+  return findAction(node.props.children, label) satisfies (() => unknown) | null;
 }
 
 function renderDialog() {

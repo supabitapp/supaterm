@@ -8,7 +8,7 @@ function isWeakKey(value: unknown): value is object {
   return (typeof value === "object" && value !== null) || typeof value === "function";
 }
 
-function permanentSourceFailureReason(error: unknown): string | undefined {
+function permanentSourceFailureReason(error: unknown) {
   for (let depth = 0; depth < 8 && typeof error === "object" && error !== null; depth++) {
     const reason = "reason" in error ? error.reason : undefined;
     const name = "name" in error ? error.name : undefined;
@@ -36,12 +36,9 @@ function permanentSourceFailureReason(error: unknown): string | undefined {
   return undefined;
 }
 
-function waitForSource(
-  promise: Promise<NativeReviewDiffSource | null>,
-  signal?: AbortSignal,
-): Promise<NativeReviewDiffSource | null> {
-  if (!signal) return promise;
-  if (signal.aborted) return Promise.resolve(null);
+function waitForSource(promise: Promise<NativeReviewDiffSource | null>, signal?: AbortSignal) {
+  if (!signal) return promise satisfies Promise<NativeReviewDiffSource | null>;
+  if (signal.aborted) return Promise.resolve(null) satisfies Promise<NativeReviewDiffSource | null>;
   return new Promise((resolve, reject) => {
     const abort = () => {
       signal.removeEventListener("abort", abort);
@@ -58,7 +55,7 @@ function waitForSource(
         reject(error);
       },
     );
-  });
+  }) satisfies Promise<NativeReviewDiffSource | null>;
 }
 
 export function createNativeReviewDiffSourceLoader<FileId>(

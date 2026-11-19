@@ -7,7 +7,7 @@ export function cursorReplayPromptsForWorkspace(input: {
   readonly configuredPrompts: ReadonlyArray<string>;
   readonly packageJsonPath: string;
   readonly tsconfigPath: string;
-}): ReadonlyArray<string> {
+}) {
   if (input.scenario !== "tool_call_read_only") {
     return input.configuredPrompts;
   }
@@ -20,10 +20,10 @@ export function cursorReplayPromptsForWorkspace(input: {
 export function shouldSeedCursorReplayWorkspace(input: {
   readonly scenario: string;
   readonly owned: boolean;
-}): boolean {
+}) {
   return input.owned && SEEDED_CURSOR_REPLAY_SCENARIOS.has(input.scenario);
 }
 
-export function cursorReplayTranscriptCwd(scenario: string): string | undefined {
+export function cursorReplayTranscriptCwd(scenario: string) {
   return scenario === "tool_call_read_only" ? TOOL_CALL_READ_ONLY_WORKSPACE_ROOT : undefined;
 }

@@ -48,7 +48,7 @@ const descriptor = {
   capabilities: {},
 };
 
-function routeTo(id: string, httpBaseUrl: string): ConnectionRoute {
+function routeTo(id: string, httpBaseUrl: string) {
   return {
     target: new BearerConnectionTarget({ environmentId, connectionId: id, label: "Test" }),
     profile: Option.some(
@@ -63,7 +63,7 @@ function routeTo(id: string, httpBaseUrl: string): ConnectionRoute {
   };
 }
 
-function directRoute(id: string): ConnectionRoute {
+function directRoute(id: string) {
   return routeTo(id, `https://${id}.example.test/`);
 }
 
@@ -139,7 +139,7 @@ const connect = Effect.fn("SessionStateTest.connect")(function* (
   yield* SubscriptionRef.set(supervisor.session, Option.some(session));
 });
 
-function prepared(route: ConnectionRoute): PreparedConnection {
+function prepared(route: ConnectionRoute) {
   return {
     environmentId,
     label: "Test",

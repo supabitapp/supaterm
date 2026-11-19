@@ -16,7 +16,7 @@ function quoteProviderBinary(
   binaryPath: string,
   fallback: string,
   platform: ExecutionEnvironmentPlatformOs,
-): string {
+) {
   if (
     SAFE_SHELL_BINARY_PATTERN.test(binaryPath) &&
     (platform === "windows" || !binaryPath.includes("\\"))
@@ -86,7 +86,7 @@ const NATIVE_INSTALL_COMMANDS = {
 export function resolveOnboardingProviderInstallCommand(
   driver: keyof typeof NATIVE_INSTALL_COMMANDS,
   platform: ExecutionEnvironmentPlatformOs,
-): string {
+) {
   const commands = NATIVE_INSTALL_COMMANDS[driver];
   return platform === "windows" ? commands.windows : commands.posix;
 }
@@ -95,7 +95,7 @@ export function resolveOnboardingProviderLoginCommand(
   provider: ServerProvider,
   settings: ServerSettings,
   platform: ExecutionEnvironmentPlatformOs,
-): string {
+) {
   const instance = settings.providerInstances[provider.instanceId];
 
   if (provider.driver === "claudeAgent") {

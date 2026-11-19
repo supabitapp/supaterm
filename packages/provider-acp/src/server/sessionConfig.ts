@@ -13,18 +13,16 @@ const MAX_OPTION_CHOICES = 64;
 const MAX_TEXT_LENGTH = 256;
 const MAX_DESCRIPTION_LENGTH = 1_024;
 
-const boundedText = (value: string | null | undefined, maximumLength: number): string =>
+const boundedText = (value: string | null | undefined, maximumLength: number) =>
   (value ?? "").trim().slice(0, maximumLength);
 
-const boundedOpaqueValue = (value: string, maximumLength: number): string | undefined =>
+const boundedOpaqueValue = (value: string, maximumLength: number) =>
   value.length > 0 && value === value.trim() && value.length <= maximumLength ? value : undefined;
 
-const choiceId = (value: string): string | undefined =>
+const choiceId = (value: string) =>
   value === "" ? ACP_EMPTY_OPTION_VALUE : boundedOpaqueValue(value, MAX_TEXT_LENGTH);
 
-export function flattenSelectChoices(
-  options: EffectAcpSchema.SessionConfigSelectOptions,
-): ReadonlyArray<EffectAcpSchema.SessionConfigSelectOption> {
+export function flattenSelectChoices(options: EffectAcpSchema.SessionConfigSelectOptions) {
   return options.flatMap((candidate) => ("value" in candidate ? [candidate] : candidate.options));
 }
 
@@ -34,7 +32,7 @@ function selectChoices(
     readonly name: string;
     readonly description?: string | null | undefined;
   }>,
-): ReadonlyArray<ProviderOptionChoice> {
+) {
   const seen = new Set<string>();
   const choices: Array<ProviderOptionChoice> = [];
   for (const candidate of candidates) {
@@ -55,7 +53,7 @@ function selectChoices(
 export function acpProviderOptionDescriptors(input: {
   readonly configOptions: ReadonlyArray<EffectAcpSchema.SessionConfigOption> | null | undefined;
   readonly modeState: AcpSessionModeState | undefined;
-}): ReadonlyArray<ProviderOptionDescriptor> {
+}) {
   const descriptors: Array<ProviderOptionDescriptor> = [];
   const seen = new Set<string>();
   const mirroredModeChoiceSets: Array<ReadonlySet<string>> = [];

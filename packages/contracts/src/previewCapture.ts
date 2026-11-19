@@ -14,7 +14,7 @@ export class PreviewCaptureFailure extends Schema.TaggedError<PreviewCaptureFail
     stage: Schema.Literals(["screenshot", "capture-page", "recording-start"]),
   },
 ) {
-  override get message(): string {
+  override get message() {
     switch (this.reason) {
       case "renderer-unavailable":
         return "The preview renderer is unavailable. Reopen the preview tab before retrying.";

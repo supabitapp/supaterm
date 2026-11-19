@@ -71,7 +71,7 @@ const decodeCodexSettings = Schema.decodeSync(CodexSettings);
 const DRIVER_KIND = ProviderDriverKind.make("codex");
 const CODEX_STANDALONE_HOME_PATTERN = /^(.*)\/packages\/standalone\//is;
 
-function codexStandaloneHome(commandPath: string): string | null {
+function codexStandaloneHome(commandPath: string) {
   const match = CODEX_STANDALONE_HOME_PATTERN.exec(commandPath.replaceAll("\\", "/"));
   if (!match) {
     return null;
@@ -106,8 +106,13 @@ const CodexNativeRelease = Schema.Struct({ tag_name: Schema.String });
 function withCodexNativeLatestVersion(
   capabilities: ProviderMaintenanceCapabilities,
   http: HttpClient.HttpClient,
-): ProviderMaintenanceCapabilities {
-  if (capabilities.update?.lockKey !== `${DRIVER_KIND}-native`) return capabilities;
+): ProviderMaintenanceCapabilities;
+function withCodexNativeLatestVersion(
+  capabilities: ProviderMaintenanceCapabilities,
+  http: HttpClient.HttpClient,
+) {
+  if (capabilities.update?.lockKey !== `${DRIVER_KIND}-native`)
+    return capabilities satisfies ProviderMaintenanceCapabilities;
   return {
     ...capabilities,
     latestVersion: null,
@@ -121,7 +126,7 @@ function withCodexNativeLatestVersion(
       Effect.map(Option.getOrNull),
       Effect.orElseSucceed(() => null),
     ),
-  };
+  } satisfies ProviderMaintenanceCapabilities;
 }
 
 export type CodexDriverEnv =
@@ -155,7 +160,7 @@ export const CodexDriver: ProviderDriver<
     supportsMultipleInstances: true,
   },
   configSchema: CodexSettings,
-  defaultConfig: (): CodexSettings => decodeCodexSettings({}),
+  defaultConfig: () => decodeCodexSettings({}),
   usage: codexUsageReader,
   create: Effect.fn("CodexDriver.create")(function* ({
     instanceId,

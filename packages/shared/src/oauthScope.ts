@@ -10,12 +10,12 @@ export class OAuthScopeEncodingError extends Schema.TaggedError<OAuthScopeEncodi
     duplicateScopes: Schema.Array(Schema.String),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return "OAuth scopes must be non-empty, syntactically valid, and unique.";
   }
 }
 
-export function parseOAuthScope(value: string): ReadonlyArray<string> | null {
+export function parseOAuthScope(value: string) {
   if (value.length === 0) {
     return null;
   }
@@ -28,7 +28,8 @@ export function parseOAuthScope(value: string): ReadonlyArray<string> | null {
   return [...new Set(scopes)];
 }
 
-export function encodeOAuthScope(scopes: ReadonlyArray<string>): string {
+export function encodeOAuthScope(scopes: ReadonlyArray<string>): string;
+export function encodeOAuthScope(scopes: ReadonlyArray<string>) {
   const invalidScopes = scopes.filter((scope) => !OAUTH_SCOPE_TOKEN.test(scope));
   const seen = new Set<string>();
   const duplicateScopes = new Set<string>();
@@ -44,5 +45,5 @@ export function encodeOAuthScope(scopes: ReadonlyArray<string>): string {
       duplicateScopes: [...duplicateScopes],
     });
   }
-  return scopes.join(" ");
+  return scopes.join(" ") satisfies string;
 }

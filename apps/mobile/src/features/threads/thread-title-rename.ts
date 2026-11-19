@@ -6,9 +6,10 @@ export type ThreadTitleRenameResolution =
 export function resolveThreadTitleRename(input: {
   readonly title: string;
   readonly originalTitle: string;
-}): ThreadTitleRenameResolution {
+}) {
   const title = input.title.trim();
-  if (title.length === 0) return { action: "reject-empty" };
-  if (title === input.originalTitle) return { action: "noop" };
-  return { action: "rename", title };
+  if (title.length === 0) return { action: "reject-empty" } satisfies ThreadTitleRenameResolution;
+  if (title === input.originalTitle)
+    return { action: "noop" } satisfies ThreadTitleRenameResolution;
+  return { action: "rename", title } satisfies ThreadTitleRenameResolution;
 }

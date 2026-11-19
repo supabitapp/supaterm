@@ -10,7 +10,6 @@ import { isTemporaryWorktreeBranch } from "@supaterm/shared/git";
 import type { ChangeRequestTerminology } from "@supaterm/client-runtime/source-control-clients";
 import {
   changeRequestTerminologyFor,
-  type DefaultBranchActionDialogCopy,
   type DefaultBranchConfirmableAction,
   type GitActionIconName,
   type GitDialogAction,
@@ -52,13 +51,11 @@ export interface GitActionResultToastTiming {
 
 export const GIT_ACTION_SUCCESS_VISIBLE_MS = 10_000;
 
-export function resolveGitActionResultToastTiming(
-  type: "error" | "success",
-): GitActionResultToastTiming {
+export function resolveGitActionResultToastTiming(type: "error" | "success") {
   return {
     timeout: 0,
     dismissAfterVisibleMs: type === "success" ? GIT_ACTION_SUCCESS_VISIBLE_MS : null,
-  };
+  } satisfies GitActionResultToastTiming;
 }
 
 export function resolveGitActionProgressPresentation(input: {
@@ -68,7 +65,7 @@ export function resolveGitActionProgressPresentation(input: {
   readonly lastOutputLine: string | null;
   readonly phaseStartedAtMs: number | null;
   readonly hookStartedAtMs: number | null;
-}): GitActionProgressPresentation | null {
+}) {
   if (
     !input.isRunning ||
     (input.operation !== "run_change_request" && input.operation !== "pull")
@@ -93,7 +90,7 @@ export function resolveGitActionProgressPresentation(input: {
   };
 }
 
-export function formatGitActionElapsed(startedAtMs: number | null, nowMs: number): string | null {
+export function formatGitActionElapsed(startedAtMs: number | null, nowMs: number) {
   if (startedAtMs === null) {
     return null;
   }
@@ -112,8 +109,8 @@ export function buildMenuItems(
   gitStatus: VcsStatusResult | null,
   isBusy: boolean,
   hasPrimaryRemote = true,
-): GitActionMenuItem[] {
-  if (!gitStatus) return [];
+) {
+  if (!gitStatus) return [] satisfies GitActionMenuItem[];
   const terminology = changeRequestTerminologyFor(gitStatus);
 
   const hasBranch = gitStatus.refName !== null;
@@ -147,7 +144,7 @@ export function buildMenuItems(
   };
 
   if (!hasPrimaryRemote) {
-    return [commitItem];
+    return [commitItem] satisfies GitActionMenuItem[];
   }
 
   const pushItem: GitActionMenuItem = {
@@ -160,7 +157,7 @@ export function buildMenuItems(
   };
 
   if (hasOpenPr) {
-    return [commitItem, pushItem];
+    return [commitItem, pushItem] satisfies GitActionMenuItem[];
   }
 
   return [
@@ -174,7 +171,7 @@ export function buildMenuItems(
       kind: "open_dialog",
       dialogAction: "create_pr",
     },
-  ];
+  ] satisfies GitActionMenuItem[];
 }
 
 export function getMenuActionDisabledReason({
@@ -187,7 +184,7 @@ export function getMenuActionDisabledReason({
   gitStatus: VcsStatusResult | null;
   isBusy: boolean;
   hasPrimaryRemote: boolean;
-}): string | null {
+}) {
   if (!item.disabled) return null;
   if (isBusy) return "Git action in progress.";
   if (!gitStatus) return "Git status is unavailable.";
@@ -241,7 +238,7 @@ export function hasUsableGitMenuContent(input: {
   readonly canWriteSourceControl: boolean;
   readonly canPublishRepository: boolean;
   readonly hasNotice: boolean;
-}): boolean {
+}) {
   return (
     input.canPublishRepository ||
     input.hasNotice ||
@@ -254,9 +251,14 @@ export function resolveQuickAction(
   isBusy: boolean,
   isDefaultRef = false,
   hasPrimaryRemote = true,
-): GitQuickAction {
+) {
   if (isBusy) {
-    return { label: "Commit", disabled: true, kind: "show_hint", hint: "Git action in progress." };
+    return {
+      label: "Commit",
+      disabled: true,
+      kind: "show_hint",
+      hint: "Git action in progress.",
+    } satisfies GitQuickAction;
   }
 
   if (!gitStatus) {
@@ -265,7 +267,7 @@ export function resolveQuickAction(
       disabled: true,
       kind: "show_hint",
       hint: "Git status is unavailable.",
-    };
+    } satisfies GitQuickAction;
   }
 
   const hasBranch = gitStatus.refName !== null;
@@ -283,22 +285,32 @@ export function resolveQuickAction(
       disabled: true,
       kind: "show_hint",
       hint: `Create and checkout a ref before pushing or opening a ${terminology.singular}.`,
-    };
+    } satisfies GitQuickAction;
   }
 
   if (hasChanges) {
     if (isBehind || (!gitStatus.hasUpstream && !hasPrimaryRemote)) {
-      return { label: "Commit", disabled: false, kind: "run_action", action: "commit" };
+      return {
+        label: "Commit",
+        disabled: false,
+        kind: "run_action",
+        action: "commit",
+      } satisfies GitQuickAction;
     }
     if (hasOpenPr || isDefaultRef) {
-      return { label: "Commit & push", disabled: false, kind: "run_action", action: "commit_push" };
+      return {
+        label: "Commit & push",
+        disabled: false,
+        kind: "run_action",
+        action: "commit_push",
+      } satisfies GitQuickAction;
     }
     return {
       label: `Commit, push & ${terminology.shortLabel}`,
       disabled: false,
       kind: "run_action",
       action: "commit_push_pr",
-    };
+    } satisfies GitQuickAction;
   }
 
   if (!gitStatus.hasUpstream) {
@@ -307,7 +319,7 @@ export function resolveQuickAction(
         label: "Publish repository",
         disabled: false,
         kind: "open_publish",
-      };
+      } satisfies GitQuickAction;
     }
     if (!isAhead) {
       if (hasOpenPr) {
@@ -316,14 +328,14 @@ export function resolveQuickAction(
           disabled: true,
           kind: "show_hint",
           hint: "Branch is up to date. No action needed.",
-        };
+        } satisfies GitQuickAction;
       }
       return {
         label: "Push",
         disabled: true,
         kind: "show_hint",
         hint: "No local commits to push.",
-      };
+      } satisfies GitQuickAction;
     }
     if (hasOpenPr || isDefaultRef) {
       return {
@@ -331,14 +343,14 @@ export function resolveQuickAction(
         disabled: false,
         kind: "run_action",
         action: isDefaultRef ? "commit_push" : "push",
-      };
+      } satisfies GitQuickAction;
     }
     return {
       label: `Push & create ${terminology.shortLabel}`,
       disabled: false,
       kind: "run_action",
       action: "create_pr",
-    };
+    } satisfies GitQuickAction;
   }
 
   if (isDiverged) {
@@ -347,7 +359,7 @@ export function resolveQuickAction(
       disabled: true,
       kind: "show_hint",
       hint: "Branch has diverged from upstream. Rebase/merge first.",
-    };
+    } satisfies GitQuickAction;
   }
 
   if (isBehind) {
@@ -355,7 +367,7 @@ export function resolveQuickAction(
       label: "Pull",
       disabled: false,
       kind: "run_pull",
-    };
+    } satisfies GitQuickAction;
   }
 
   if (isAhead) {
@@ -365,14 +377,14 @@ export function resolveQuickAction(
         disabled: false,
         kind: "run_action",
         action: isDefaultRef ? "commit_push" : "push",
-      };
+      } satisfies GitQuickAction;
     }
     return {
       label: `Push & create ${terminology.shortLabel}`,
       disabled: false,
       kind: "run_action",
       action: "create_pr",
-    };
+    } satisfies GitQuickAction;
   }
 
   if (hasOpenPr && gitStatus.hasUpstream) {
@@ -381,7 +393,7 @@ export function resolveQuickAction(
       disabled: true,
       kind: "show_hint",
       hint: "Branch is up to date. No action needed.",
-    };
+    } satisfies GitQuickAction;
   }
 
   if (hasDefaultBranchDelta && !isDefaultRef) {
@@ -390,7 +402,7 @@ export function resolveQuickAction(
       disabled: false,
       kind: "run_action",
       action: "create_pr",
-    };
+    } satisfies GitQuickAction;
   }
 
   return {
@@ -398,11 +410,11 @@ export function resolveQuickAction(
     disabled: true,
     kind: "show_hint",
     hint: "Branch is up to date. No action needed.",
-  };
+  } satisfies GitQuickAction;
 }
 
 /** Line totals miss binary, rename and mode changes, so files and commits decide instead. */
-export function hasChangesToReview(gitStatus: VcsStatusResult | null): boolean {
+export function hasChangesToReview(gitStatus: VcsStatusResult | null) {
   if (!gitStatus) return false;
   const totals = gitStatus.branchChanges ?? gitStatus.workingTree;
   return (
@@ -418,7 +430,7 @@ export function resolveDefaultBranchActionDialogCopy(input: {
   branchName: string;
   includesCommit: boolean;
   terminology: ChangeRequestTerminology;
-}): DefaultBranchActionDialogCopy {
+}) {
   const branchLabel = input.branchName;
   const suffix = ` on "${branchLabel}". You can continue on this ref or create a feature ref and run the same action there.`;
   const { terminology } = input;
@@ -456,7 +468,7 @@ export function resolveFeatureBranchUnavailableReason(input: {
   action: DefaultBranchConfirmableAction;
   branchName: string;
   hasWorkingTreeChanges: boolean;
-}): string | null {
+}) {
   if (!input.hasWorkingTreeChanges) {
     return `There are no changes to commit, so a feature branch can't be named. Create a branch yourself or continue on ${input.branchName}.`;
   }
@@ -466,9 +478,7 @@ export function resolveFeatureBranchUnavailableReason(input: {
   return null;
 }
 
-export function resolveThreadBranchUpdate(
-  result: GitRunStackedActionResult,
-): { branch: string } | null {
+export function resolveThreadBranchUpdate(result: GitRunStackedActionResult) {
   if (result.branch.status !== "created" || !result.branch.name) {
     return null;
   }
@@ -481,17 +491,14 @@ export function resolveThreadBranchUpdate(
 export function resolveThreadBranchMetadataPatch(
   branch: string | null,
   expectedBranch: string | null,
-): {
-  branch: string | null;
-  expectedBranch: string | null;
-} {
+) {
   return { branch, expectedBranch };
 }
 
 export function resolveLiveThreadBranchUpdate(input: {
   threadBranch: string | null;
   gitStatus: VcsStatusResult | null;
-}): { branch: string | null } | null {
+}) {
   if (!input.gitStatus) {
     return null;
   }
@@ -530,7 +537,7 @@ export type ChangesLineTotals = {
 export function resolveChangesTotals(
   status: VcsStatusResult | null | undefined,
   branchPreview?: ReviewDiffPreviewSource | null,
-): ChangesLineTotals | null {
+) {
   if (branchPreview?.files) {
     let insertions = 0;
     let deletions = 0;

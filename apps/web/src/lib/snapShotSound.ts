@@ -3,7 +3,7 @@ import type { SnapShotSound } from "@supaterm/contracts";
 import snapShotClickUrl from "../assets/snap-shot-click.mp3?url";
 import snapShotWhooshUrl from "../assets/snap-shot-whoosh.mp3?url";
 
-export function playSnapShotSound(sound: SnapShotSound): void {
+export function playSnapShotSound(sound: SnapShotSound) {
   const audio = new Audio(sound === "soft-pop" ? snapShotWhooshUrl : snapShotClickUrl);
   audio.preload = "auto";
   audio.currentTime = 0;

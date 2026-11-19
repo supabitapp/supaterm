@@ -53,14 +53,18 @@ export type McpAppDownload =
       readonly mimeType?: string;
     };
 
-export function mcpResourceBytes(content: unknown): Uint8Array | undefined {
-  if (!Predicate.isObject(content)) return undefined;
-  if (typeof content.text === "string") return encoder.encode(content.text);
+export function mcpResourceBytes(content: unknown): Uint8Array | undefined;
+export function mcpResourceBytes(content: unknown) {
+  if (!Predicate.isObject(content)) return undefined satisfies Uint8Array | undefined;
+  if (typeof content.text === "string")
+    return encoder.encode(content.text) satisfies Uint8Array | undefined;
   if (typeof content.blob === "string") {
     const decoded = Base64.decode(content.blob);
-    return Result.isSuccess(decoded) ? decoded.success : undefined;
+    return (Result.isSuccess(decoded) ? decoded.success : undefined) satisfies
+      | Uint8Array
+      | undefined;
   }
-  return undefined;
+  return undefined satisfies Uint8Array | undefined;
 }
 
 export interface McpAppCallToolResult {
@@ -113,7 +117,7 @@ export interface McpAppHost {
   readonly dispose: () => void;
 }
 
-function stringifyJson(value: unknown): string | undefined {
+function stringifyJson(value: unknown) {
   try {
     return JSON.stringify(value);
   } catch {
@@ -132,7 +136,7 @@ const MCP_CONTENT_BLOCK_STRING_FIELDS: ReadonlyMap<string, ReadonlyArray<string>
   ["resource_link", ["uri", "name"]],
 ]);
 
-function isMcpContentBlock(block: unknown): boolean {
+function isMcpContentBlock(block: unknown) {
   if (!Predicate.isObject(block) || typeof block.type !== "string") return false;
   if (block.type === "resource") {
     const resource = block.resource;
@@ -146,7 +150,8 @@ function isMcpContentBlock(block: unknown): boolean {
   return fields !== undefined && fields.every((field) => typeof block[field] === "string");
 }
 
-function normalizeMcpAppToolResult(result: McpAppCallToolResult): McpAppCallToolResult {
+function normalizeMcpAppToolResult(result: McpAppCallToolResult): McpAppCallToolResult;
+function normalizeMcpAppToolResult(result: McpAppCallToolResult) {
   return {
     content: Array.isArray(result.content) ? result.content.filter(isMcpContentBlock) : [],
     ...(Predicate.isObject(result.structuredContent)
@@ -154,7 +159,7 @@ function normalizeMcpAppToolResult(result: McpAppCallToolResult): McpAppCallTool
       : {}),
     ...(result.isError === true ? { isError: true } : {}),
     ...(Predicate.isObject(result._meta) ? { _meta: result._meta } : {}),
-  };
+  } satisfies McpAppCallToolResult;
 }
 
 const errorMessage = (error: unknown) =>
@@ -164,7 +169,7 @@ const errorMessage = (error: unknown) =>
       ? error.message
       : "Request failed.";
 
-export function makeMcpAppHost(options: McpAppHostOptions): McpAppHost {
+export function makeMcpAppHost(options: McpAppHostOptions) {
   let initialized = false;
   let disposed = false;
   let toolCall:
@@ -481,7 +486,7 @@ export function makeMcpAppHost(options: McpAppHostOptions): McpAppHost {
 
 const MAX_DOWNLOAD_NAME = 200;
 
-function downloadName(uri: unknown, name: unknown): string {
+function downloadName(uri: unknown, name: unknown) {
   const raw =
     typeof name === "string" && name.trim() !== ""
       ? name
@@ -498,7 +503,7 @@ function downloadName(uri: unknown, name: unknown): string {
   return safe || "download";
 }
 
-function readDownloads(contents: unknown): ReadonlyArray<McpAppDownload> | undefined {
+function readDownloads(contents: unknown) {
   if (!Array.isArray(contents) || contents.length === 0) return undefined;
   const files: Array<McpAppDownload> = [];
   for (const entry of contents) {
@@ -528,9 +533,7 @@ function readDownloads(contents: unknown): ReadonlyArray<McpAppDownload> | undef
   return files;
 }
 
-export function mcpAppStyleVariables(
-  theme: Readonly<Record<string, string>>,
-): Record<string, string> {
+export function mcpAppStyleVariables(theme: Readonly<Record<string, string>>) {
   const pick = (name: string) => theme[name];
   const pairs: ReadonlyArray<readonly [string, string | undefined]> = [
     ["--color-background-primary", pick("--background")],

@@ -60,60 +60,61 @@ const readRestartTranscript = Effect.fn("readRestartTranscript")(function* (
     throw new Error(`${SCENARIO} must open with a recorded query.open frame.`);
   }
   const { sessionId: _sessionId, ...resumeOptions } = queryOptions as Record<string, unknown>;
-  const resumedTurn = (label: string, text: string): ReadonlyArray<ProviderReplayEntry> => [
-    {
-      type: "expect_outbound",
-      label: `prompt.offer:${label}`,
-      frame: {
-        type: "prompt.offer",
-        message: {
-          type: "user",
-          message: { role: "user", content: text },
+  const resumedTurn = (label: string, text: string) =>
+    [
+      {
+        type: "expect_outbound",
+        label: `prompt.offer:${label}`,
+        frame: {
+          type: "prompt.offer",
+          message: {
+            type: "user",
+            message: { role: "user", content: text },
+            parent_tool_use_id: null,
+          },
+        },
+      },
+      {
+        type: "emit_inbound",
+        label: `assistant:${label}`,
+        frame: {
+          type: "assistant",
+          message: {
+            model: "claude-sonnet-4-6",
+            id: `msg_restart_${label}`,
+            type: "message",
+            role: "assistant",
+            content: [{ type: "text", text: `REPLY_${label}` }],
+            stop_reason: null,
+            stop_sequence: null,
+            usage: { input_tokens: 1, output_tokens: 1 },
+          },
           parent_tool_use_id: null,
+          session_id: SESSION_ID,
+          uuid: `restart-assistant-${label}`,
         },
       },
-    },
-    {
-      type: "emit_inbound",
-      label: `assistant:${label}`,
-      frame: {
-        type: "assistant",
-        message: {
-          model: "claude-sonnet-4-6",
-          id: `msg_restart_${label}`,
-          type: "message",
-          role: "assistant",
-          content: [{ type: "text", text: `REPLY_${label}` }],
-          stop_reason: null,
-          stop_sequence: null,
+      {
+        type: "emit_inbound",
+        label: `result:${label}`,
+        frame: {
+          type: "result",
+          subtype: "success",
+          is_error: false,
+          num_turns: 1,
+          result: `REPLY_${label}`,
+          stop_reason: "end_turn",
+          duration_ms: 1,
+          duration_api_ms: 1,
+          total_cost_usd: 0,
           usage: { input_tokens: 1, output_tokens: 1 },
+          modelUsage: {},
+          permission_denials: [],
+          session_id: SESSION_ID,
+          uuid: `restart-result-${label}`,
         },
-        parent_tool_use_id: null,
-        session_id: SESSION_ID,
-        uuid: `restart-assistant-${label}`,
       },
-    },
-    {
-      type: "emit_inbound",
-      label: `result:${label}`,
-      frame: {
-        type: "result",
-        subtype: "success",
-        is_error: false,
-        num_turns: 1,
-        result: `REPLY_${label}`,
-        stop_reason: "end_turn",
-        duration_ms: 1,
-        duration_api_ms: 1,
-        total_cost_usd: 0,
-        usage: { input_tokens: 1, output_tokens: 1 },
-        modelUsage: {},
-        permission_denials: [],
-        session_id: SESSION_ID,
-        uuid: `restart-result-${label}`,
-      },
-    },
-  ];
+    ] satisfies ReadonlyArray<ProviderReplayEntry>;
   return yield* ClaudeOrchestratorReplayHarness.decodeTranscript({
     ...recorded,
     entries: [

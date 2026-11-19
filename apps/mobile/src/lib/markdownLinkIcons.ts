@@ -12,7 +12,7 @@ export interface MarkdownLinkIcon {
   readonly tints: boolean;
 }
 
-export function markdownLinkIcon(host: string): MarkdownLinkIcon | null {
+export function markdownLinkIcon(host: string) {
   const definition = sourceControlClients.findByPublicDomain(host);
   const source = definition && SOURCE_CONTROL_LINK_ICON_SOURCES[definition.kind];
   return definition?.icon && source

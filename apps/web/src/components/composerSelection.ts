@@ -6,7 +6,7 @@ export type ComposerSelectionRange = {
 export function didComposerSelectionChangeVisibly(
   previous: ComposerSelectionRange,
   next: ComposerSelectionRange | null,
-): boolean {
+) {
   return (
     next !== null &&
     next.start !== next.end &&

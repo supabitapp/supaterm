@@ -22,14 +22,13 @@ import {
   createVoiceInputTarget,
   VoiceInputSession,
   type VoiceInputSessionDependencies,
-  type VoiceInputEngine,
   type VoiceInputTarget,
   type VoiceRecordingSample,
 } from "./voiceInputSession";
 
 let prepare: Mock<() => Promise<PreparedVoiceTranscription>>;
 
-const engine = (): VoiceInputEngine => ({
+const engine = () => ({
   transcriber: { prepare },
   language: "en-US",
 });
@@ -39,7 +38,7 @@ function createTarget(
   readText: () => string | null,
   commit: VoiceInputTarget["commitDraft"],
   selection: { start: number; end: number },
-): VoiceInputTarget {
+) {
   return {
     ...createVoiceInputTarget(ownerKey, readText, commit, selection),
     engine: engine(),
@@ -63,7 +62,7 @@ function createSession(
     record: vi.fn(),
     stop: vi.fn(async () => {}),
   };
-  prepare = vi.fn(async (): Promise<PreparedVoiceTranscription> => ({
+  prepare = vi.fn(async () => ({
     locale: "en-US",
     transcribe: async () => "spoken text",
   }));

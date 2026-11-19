@@ -276,7 +276,7 @@ const spawnStep = (command: string, args: ReadonlyArray<string>, cwd: string, de
     });
   });
 
-const checkPatches = async (deadline: number): Promise<StepResult> => {
+const checkPatches = async (deadline: number) => {
   const temp = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "supaterm-patch-check-"));
   try {
     const copy = (relative: string) => {
@@ -303,14 +303,17 @@ const checkPatches = async (deadline: number): Promise<StepResult> => {
       deadline,
     );
     if (result.outcome !== "FAIL" || !result.output.includes("ERR_PNPM_UNUSED_PATCH")) {
-      return result;
+      return result satisfies StepResult;
     }
     const hint =
       "Unused dependency patches: remove each patch named above from " +
       "patchedDependencies in pnpm-workspace.yaml and from patches/, " +
       "update it to the version the install resolves, " +
       "or pin the dependency that pulls it in to the patched version.\n";
-    return { outcome: "FAIL", output: Buffer.concat([result.output, Buffer.from(hint)]) };
+    return {
+      outcome: "FAIL",
+      output: Buffer.concat([result.output, Buffer.from(hint)]),
+    } satisfies StepResult;
   } finally {
     NodeFS.rmSync(temp, { recursive: true, force: true });
   }

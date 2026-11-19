@@ -8,7 +8,7 @@ export function isFileDiffCollapsed(
   foldOverride: DiffFoldOverride,
   choices: FileDiffFoldChoices,
   viewed = false,
-): boolean {
+) {
   return choices.get(fileKey) ?? (foldOverride === null ? viewed : foldOverride === "folded");
 }
 
@@ -16,7 +16,7 @@ export function withFileDiffFold(
   choices: FileDiffFoldChoices,
   fileKey: string,
   collapsed: boolean | undefined,
-): FileDiffFoldChoices {
+) {
   if (choices.get(fileKey) === collapsed) return choices;
   const next = new Map(choices);
   if (collapsed === undefined) next.delete(fileKey);

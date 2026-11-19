@@ -32,7 +32,7 @@ export class GitHubGraphQlTarget extends Context.Service<
   }
 >()("@supaterm/source-control-github/server/gitHubGraphQlClient/GitHubGraphQlTarget") {}
 
-function queryHash(query: string): string {
+function queryHash(query: string) {
   let hash = 0x811c9dc5;
   for (let index = 0; index < query.length; index++) {
     hash ^= query.charCodeAt(index);
@@ -46,7 +46,7 @@ function queryHash(query: string): string {
  * `repository.pullRequest` or `repository.issueOrPullRequest`. A NOT_FOUND deeper down is one
  * field GitHub could not resolve.
  */
-export const isNotFoundOnly = (error: unknown): boolean =>
+export const isNotFoundOnly = (error: unknown) =>
   GraphQLClientError.isGraphQLClientError(error) &&
   error.reason._tag === "ResponseError" &&
   error.reason.errors.every(
@@ -224,13 +224,16 @@ export const batchKey = (context: Context.Context<GitHubGraphQlTarget>) =>
     Context.getOrElse(context, SourceControlRateLimit.CredentialScope, () => ""),
   ]);
 
-const fromClientError = (
+const fromClientError: (
   target: { readonly host: string; readonly operation: string },
   error: GraphQLClientError.GraphQLClientError,
-):
+) =>
   | GitHubRequestPolicy.GitHubApiNotFoundError
   | GitHubRequestPolicy.GitHubApiResponseError
-  | GraphQLClientError.GraphQLClientError => {
+  | GraphQLClientError.GraphQLClientError = (
+  target: { readonly host: string; readonly operation: string },
+  error: GraphQLClientError.GraphQLClientError,
+) => {
   const reason = error.reason;
   if (reason._tag !== "ResponseError") return error;
   const context = {

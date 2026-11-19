@@ -30,9 +30,7 @@ const files = { key: "files", name: "ThreadFiles", params: thread.params };
 const settings = { key: "settings", name: "Settings" };
 const legal = { key: "legal", name: "SettingsLegal" };
 
-function history(
-  routes: StackNavigationState<ParamListBase>["routes"],
-): StackNavigationState<ParamListBase> {
+function history(routes: StackNavigationState<ParamListBase>["routes"]) {
   return {
     key: "router",
     type: "stack",
@@ -41,7 +39,7 @@ function history(
     routeNames: ["Home", "Thread", "ThreadFiles", "Settings", "SettingsLegal"],
     routes,
     preloadedRoutes: [],
-  };
+  } satisfies StackNavigationState<ParamListBase>;
 }
 
 describe("workspace presentation envelope", () => {

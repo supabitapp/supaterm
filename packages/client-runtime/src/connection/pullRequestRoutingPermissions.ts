@@ -25,7 +25,8 @@ export type StoredPullRequestRoutingPermission = typeof StoredPullRequestRouting
  * by a server alone. With several routes the key covers all of them, sorted so
  * reordering keeps trust but adding or changing an address revokes it.
  */
-export function pullRequestRoutingConnectionKey(entry: ConnectionCatalogEntry): string | null {
+export function pullRequestRoutingConnectionKey(entry: ConnectionCatalogEntry): string | null;
+export function pullRequestRoutingConnectionKey(entry: ConnectionCatalogEntry) {
   const routes = [
     { target: entry.target, profile: entry.profile },
     ...(entry.alternateRoutes ?? []),
@@ -33,16 +34,19 @@ export function pullRequestRoutingConnectionKey(entry: ConnectionCatalogEntry): 
     const profile = Option.getOrNull(route.profile);
     return !(profile?._tag === "BearerConnectionProfile" && profile.learned === true);
   });
-  if (routes.length === 0) return null;
-  if (routes.length === 1) return routeConnectionKey(routes[0]!.target, routes[0]!.profile);
+  if (routes.length === 0) return null satisfies string | null;
+  if (routes.length === 1)
+    return routeConnectionKey(routes[0]!.target, routes[0]!.profile) satisfies string | null;
   const keys = routes.map((route) => routeConnectionKey(route.target, route.profile));
-  return keys.every((key) => key !== null) ? JSON.stringify([...keys].sort()) : null;
+  return (keys.every((key) => key !== null) ? JSON.stringify([...keys].sort()) : null) satisfies
+    | string
+    | null;
 }
 
 function routeConnectionKey(
   target: ConnectionCatalogEntry["target"],
   routeProfile: ConnectionCatalogEntry["profile"],
-): string | null {
+) {
   const profile = Option.getOrNull(routeProfile);
   if (target._tag === "SshConnectionTarget") {
     if (profile?._tag !== "SshConnectionProfile") return null;
@@ -77,7 +81,7 @@ function routeConnectionKey(
 export function pullRequestRoutingPermissionFor(
   entry: ConnectionCatalogEntry,
   permissions: ReadonlyArray<StoredPullRequestRoutingPermission>,
-): PullRequestRoutingPermission {
+) {
   const key = pullRequestRoutingConnectionKey(entry);
   return key === null
     ? "off"

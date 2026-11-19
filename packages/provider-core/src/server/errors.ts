@@ -10,7 +10,7 @@ export class ProviderDriverError extends Schema.TaggedError<ProviderDriverError>
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Provider driver '${this.driver}' failed to create instance '${this.instanceId}': ${this.detail}`;
   }
 }
@@ -22,7 +22,7 @@ export class ProviderCredentialError extends Schema.TaggedError<ProviderCredenti
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Could not ${this.operation} stored provider credentials.`;
   }
 }

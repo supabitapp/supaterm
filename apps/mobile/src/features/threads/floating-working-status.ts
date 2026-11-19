@@ -33,7 +33,7 @@ export type FloatingWorkingStatus =
 export function connectionRetryLabel(input: {
   readonly connectionError: string | null;
   readonly connectionState: EnvironmentConnectionPhase;
-}): string | null {
+}) {
   if (input.connectionState !== "connecting" && input.connectionState !== "reconnecting") {
     return null;
   }
@@ -45,30 +45,33 @@ export function connectionFloatingStatus(input: {
   readonly connectionState: EnvironmentConnectionPhase;
   readonly environmentLabel: string | null;
   readonly onReconnect: () => void;
-}): FloatingWorkingStatus | null {
+}) {
   const environmentLabel = input.environmentLabel ?? "Environment";
-  const unavailable = (label: string): FloatingWorkingStatus => ({
-    kind: "connection",
-    label,
-    onPress: input.onReconnect,
-  });
+  const unavailable = (label: string) =>
+    ({
+      kind: "connection",
+      label,
+      onPress: input.onReconnect,
+    }) satisfies FloatingWorkingStatus;
 
   switch (input.connectionState) {
     case "offline":
-      return unavailable("You are offline");
+      return unavailable("You are offline") satisfies FloatingWorkingStatus | null;
     case "unsupported":
-      return unavailable("Client not supported");
+      return unavailable("Client not supported") satisfies FloatingWorkingStatus | null;
     case "error":
       return unavailable(
         input.connectionError
           ? `Failed to connect to ${environmentLabel}: ${input.connectionError}`
           : `Failed to connect to ${environmentLabel}`,
-      );
+      ) satisfies FloatingWorkingStatus | null;
     case "available":
-      return unavailable(`${environmentLabel} is not connected`);
+      return unavailable(
+        `${environmentLabel} is not connected`,
+      ) satisfies FloatingWorkingStatus | null;
     case "connecting":
     case "reconnecting":
     case "connected":
-      return null;
+      return null satisfies FloatingWorkingStatus | null;
   }
 }

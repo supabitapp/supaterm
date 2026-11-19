@@ -7,10 +7,7 @@ export interface PngIconImage {
   readonly contents: Buffer;
 }
 
-export function readPngDimensions(contents: Buffer): {
-  readonly width: number;
-  readonly height: number;
-} {
+export function readPngDimensions(contents: Buffer) {
   if (
     contents.length < 24 ||
     !contents.subarray(0, PNG_SIGNATURE.length).equals(PNG_SIGNATURE) ||
@@ -25,7 +22,7 @@ export function readPngDimensions(contents: Buffer): {
   };
 }
 
-export function encodePngIco(images: ReadonlyArray<PngIconImage>): Buffer {
+export function encodePngIco(images: ReadonlyArray<PngIconImage>) {
   if (images.length === 0) {
     throw new Error("An ICO file requires at least one PNG rendition.");
   }

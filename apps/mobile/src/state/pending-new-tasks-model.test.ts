@@ -22,11 +22,7 @@ import type { QueuedThreadMessage } from "./thread-outbox-model";
 const environmentId = EnvironmentId.make("env-1");
 const projectId = ProjectId.make("project-1");
 
-function draft(
-  text: string,
-  createdAt: string,
-  overrides: Partial<ComposerDraft> = {},
-): ComposerDraft {
+function draft(text: string, createdAt: string, overrides: Partial<ComposerDraft> = {}) {
   return {
     text,
     attachments: [],
@@ -139,7 +135,7 @@ const branches = [
   { name: "origin/main", current: false, isDefault: true, isRemote: true },
 ];
 
-function draftWith(workspaceSelection?: ComposerDraftWorkspaceSelection): ComposerDraft {
+function draftWith(workspaceSelection?: ComposerDraftWorkspaceSelection) {
   return {
     text: "unsent",
     attachments: [],
@@ -195,7 +191,7 @@ describe("resolvePendingDraftBranch", () => {
   });
 });
 
-function queuedCreation(environmentId: string): QueuedThreadMessage {
+function queuedCreation(environmentId: string) {
   return {
     environmentId: EnvironmentId.make(environmentId),
     threadId: ThreadId.make(`thread-${environmentId}`),
@@ -211,7 +207,7 @@ function queuedCreation(environmentId: string): QueuedThreadMessage {
       worktreePath: null,
     },
     createdAt: "2026-11-10T01:10:00.000Z",
-  };
+  } satisfies QueuedThreadMessage;
 }
 
 describe("buildPendingQueuedTasks", () => {

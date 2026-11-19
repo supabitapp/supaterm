@@ -13,7 +13,7 @@ type ProjectScriptSettings = Pick<
 export function resolveProjectScripts(
   settings: ProjectScriptSettings,
   project: { id: ProjectId; scripts: readonly ProjectScript[] },
-): readonly ProjectScript[] {
+) {
   const override = settings.projectSettingsOverrides[project.id]?.defaultProjectScripts;
   if (override !== undefined) return override;
   if (settings.projectSettingsFolded) return settings.defaultProjectScripts;
@@ -33,13 +33,11 @@ export function projectScriptCwd(input: {
     cwd: string;
   };
   worktreePath?: string | null;
-}): string {
+}) {
   return input.worktreePath ?? input.project.cwd;
 }
 
-export function projectScriptRuntimeEnv(
-  input: ProjectScriptRuntimeEnvInput,
-): Record<string, string> {
+export function projectScriptRuntimeEnv(input: ProjectScriptRuntimeEnvInput) {
   const env: Record<string, string> = {
     SUPATERM_PROJECT_ROOT: input.project.cwd,
   };
@@ -52,12 +50,12 @@ export function projectScriptRuntimeEnv(
   return env;
 }
 
-export function setupProjectScript(scripts: readonly ProjectScript[]): ProjectScript | null {
+export function setupProjectScript(scripts: readonly ProjectScript[]) {
   return scripts.find((script) => script.runOnWorktreeCreate) ?? null;
 }
 
 /** Menu label naming the lifecycle roles a script runs in, e.g. "Clean (on done)". */
-export function projectScriptMenuLabel(script: ProjectScript): string {
+export function projectScriptMenuLabel(script: ProjectScript) {
   const roles = [
     ...(script.runOnWorktreeCreate ? ["setup"] : []),
     ...(script.runOnDone ? ["on done"] : []),
@@ -65,10 +63,10 @@ export function projectScriptMenuLabel(script: ProjectScript): string {
   return roles.length === 0 ? script.name : `${script.name} (${roles.join(", ")})`;
 }
 
-export function doneProjectScript(scripts: readonly ProjectScript[]): ProjectScript | null {
+export function doneProjectScript(scripts: readonly ProjectScript[]) {
   return scripts.find((script) => script.runOnDone === true) ?? null;
 }
 
-export function projectScriptTerminalInput(command: string): string {
+export function projectScriptTerminalInput(command: string) {
   return ` ${command}\r`;
 }

@@ -1,4 +1,4 @@
-import type { EnvironmentId, OrchestrationV2ShellSnapshot } from "@supaterm/contracts";
+import type { EnvironmentId } from "@supaterm/contracts";
 import * as Option from "effect/Option";
 import { AsyncResult, Atom } from "effect/reactivity";
 
@@ -10,7 +10,7 @@ export function createEnvironmentSnapshotAtom<E>(
   ) => Atom.Atom<AsyncResult.AsyncResult<EnvironmentShellState, E>>,
 ) {
   return Atom.family((environmentId: EnvironmentId) =>
-    Atom.make((get): OrchestrationV2ShellSnapshot | null =>
+    Atom.make((get) =>
       Option.match(AsyncResult.value(get(shellStateAtom(environmentId))), {
         onNone: () => null,
         onSome: (state) => Option.getOrNull(state.snapshot),

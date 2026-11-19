@@ -29,7 +29,7 @@ const capabilitiesWithoutModelSwitch = {
   },
 };
 
-function projection(): OrchestrationV2ThreadProjection {
+function projection() {
   return {
     thread: {
       id: ThreadId.make("thread_switch_service"),
@@ -70,9 +70,7 @@ function layerTest(
   planSelectionTransition: ProviderAdapter.ProviderAdapterV2["Service"]["planSelectionTransition"] = () =>
     Effect.succeed({ type: "restart_session" }),
 ) {
-  const adapter = (
-    instanceId: ProviderInstanceId,
-  ): ProviderAdapter.ProviderAdapterV2["Service"] => ({
+  const adapter = (instanceId: ProviderInstanceId) => ({
     instanceId,
     driver,
     getCapabilities: () => Effect.succeed(capabilitiesWithoutModelSwitch),
@@ -159,7 +157,7 @@ it.effect("creates a fresh session with handoff when every recorded session is d
 function deadNativeThreadProjection(
   status: "stopped" | "error",
   capabilities = capabilitiesWithoutModelSwitch,
-): OrchestrationV2ThreadProjection {
+) {
   const thread = projection();
   return {
     ...thread,

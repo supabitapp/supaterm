@@ -29,11 +29,12 @@ const settle = Effect.gen(function* () {
   }
 });
 
-const request = (requestId: string): DesktopTelemetryRequestDesktopUpdate => ({
-  version: 1,
-  type: "requestDesktopUpdate",
-  requestId,
-});
+const request = (requestId: string) =>
+  ({
+    version: 1,
+    type: "requestDesktopUpdate",
+    requestId,
+  }) satisfies DesktopTelemetryRequestDesktopUpdate;
 
 function runRemoteUpdatesTest(
   harness: ReturnType<typeof makeHarness>,
@@ -76,7 +77,7 @@ function runRemoteUpdatesTest(
   ).pipe(Effect.provide(Layer.merge(TestClock.layer(), harness.layer)));
 }
 
-function terminalReports(reports: DesktopUpdateStatusReport[]): DesktopUpdateStatusReport[] {
+function terminalReports(reports: DesktopUpdateStatusReport[]) {
   return reports.filter((report) => report.outcome !== undefined);
 }
 

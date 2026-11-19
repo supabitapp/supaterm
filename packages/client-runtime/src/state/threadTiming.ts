@@ -1,6 +1,6 @@
 import { resolveThreadWorkingStartedAt, type EnvironmentThreadShell } from "./models.ts";
 
-export function formatWorkingDurationLabel(elapsedMs: number): string {
+export function formatWorkingDurationLabel(elapsedMs: number) {
   const seconds = Number.isFinite(elapsedMs) ? Math.max(0, Math.floor(elapsedMs / 1000)) : 0;
   if (seconds < 60) return `${seconds}s`;
   const minutes = Math.floor(seconds / 60);
@@ -13,7 +13,7 @@ export function formatWorkingDurationLabel(elapsedMs: number): string {
  * that never started, such as a cancelled queued message, never parked. */
 export function resolveThreadListDurationStartedAt(
   thread: Pick<EnvironmentThreadShell, "latestRun" | "runtime">,
-): string | null {
+) {
   if (thread.runtime?.status !== "idle") return resolveThreadWorkingStartedAt(thread);
   const run = thread.latestRun;
   if (run?.startedAt == null || run.completedAt == null) return null;
@@ -23,7 +23,7 @@ export function resolveThreadListDurationStartedAt(
 export function resolveThreadTotalWorkMs(
   thread: Pick<EnvironmentThreadShell, "completedWorkMs" | "latestRun" | "runtime">,
   nowMs: number,
-): number | null {
+) {
   if (thread.completedWorkMs === null) return null;
   const hasStarted =
     thread.runtime?.status !== "preparing" && thread.runtime?.status !== "starting";

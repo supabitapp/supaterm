@@ -82,7 +82,7 @@ it("observes both typed list failures without changing their status or replaying
   ).toBeUndefined();
 });
 
-function summary(overrides: Partial<PullRequestSummary> = {}): PullRequestSummary {
+function summary(overrides: Partial<PullRequestSummary> = {}) {
   return {
     provider: SourceControlProviderKind.make("github"),
     projectId: ProjectId.make("pull-request-cache-test"),
@@ -99,7 +99,7 @@ function summary(overrides: Partial<PullRequestSummary> = {}): PullRequestSummar
     mergeability: "mergeable",
     checksState: "passing",
     ...overrides,
-  };
+  } satisfies PullRequestSummary;
 }
 
 const observed = (value: PullRequestSummary, observedAt: number) => ({
@@ -363,7 +363,7 @@ describe("pull request list answers across a reload", () => {
 
   it("falls back to a fresh read when the browser blocks storage", () => {
     vi.stubGlobal("window", {
-      get localStorage(): Storage {
+      get localStorage() {
         throw new DOMException("The operation is insecure.", "SecurityError");
       },
     });

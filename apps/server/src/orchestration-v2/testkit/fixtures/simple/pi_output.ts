@@ -9,11 +9,11 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function field(value: unknown, key: string): unknown {
+function field(value: unknown, key: string) {
   return isRecord(value) ? value[key] : undefined;
 }
 
-function lastPiResponseData(transcript: ProviderReplayTranscript, command: string): unknown {
+function lastPiResponseData(transcript: ProviderReplayTranscript, command: string) {
   const frame = transcript.entries
     .flatMap((entry) => (entry.type === "emit_inbound" ? [entry.frame] : []))
     .findLast(

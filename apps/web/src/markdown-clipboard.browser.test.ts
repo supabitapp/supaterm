@@ -2,7 +2,7 @@ import { describe, expect, it } from "vite-plus/test";
 
 import { chatMarkdownClipboardPayload } from "./markdown-clipboard";
 
-function selectionOf(range: Range): Selection {
+function selectionOf(range: Range) {
   return { rangeCount: 1, getRangeAt: () => range } as unknown as Selection;
 }
 

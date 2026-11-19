@@ -35,13 +35,13 @@ import {
   singleAppearanceOf,
 } from "./themePalette";
 
-function asHex(value: string): string {
+function asHex(value: string) {
   const hex = themeColorToHex(value);
   if (!hex) throw new Error(`Expected a theme color, received ${value}`);
   return hex.slice(0, 7);
 }
 
-function canonical(value: string): string {
+function canonical(value: string) {
   const color = toCanonicalThemeColor(value);
   if (!color) throw new Error(`Expected a theme color, received ${value}`);
   return color;
@@ -50,13 +50,13 @@ function canonical(value: string): string {
 function expectThemeColors(
   colors: Readonly<Record<string, string>>,
   expected: Readonly<Record<string, string>>,
-): void {
+) {
   for (const [role, value] of Object.entries(expected)) {
     expect(asHex(colors[role]!)).toBe(value);
   }
 }
 
-function contrastRatio(first: string, second: string): number {
+function contrastRatio(first: string, second: string) {
   const toRgb = (value: string) => {
     const hex = asHex(value).slice(1);
     return [0, 1, 2].map(

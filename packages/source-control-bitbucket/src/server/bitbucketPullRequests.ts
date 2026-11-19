@@ -82,7 +82,7 @@ function normalizeBitbucketPullRequestState(state: string | null | undefined) {
 
 export function normalizeBitbucketPullRequestRecord(
   raw: Schema.Schema.Type<typeof BitbucketPullRequestSchema>,
-): NormalizedBitbucketPullRequestRecord {
+) {
   const headRepositoryNameWithOwner = trimOptionalString(raw.source.repository?.full_name);
   const baseRepositoryNameWithOwner = trimOptionalString(raw.destination.repository?.full_name);
   const headSha = trimOptionalString(raw.source.commit?.hash);

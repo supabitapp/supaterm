@@ -13,7 +13,7 @@ export function resolveThreadOutboxStatus(input: {
   readonly editingMessageId: string | null;
   readonly deliverable: boolean;
   readonly isSending: (id: string) => boolean;
-}): ThreadOutboxStatus {
+}) {
   const { head } = input;
   if (!head) return "waiting";
   if (head.status === "failed") return "failed";

@@ -16,15 +16,15 @@ const DESKTOP_HOST = "app";
 const DESKTOP_PRODUCTION_SCHEME = "supaterm";
 const DESKTOP_DEVELOPMENT_SCHEME = "supaterm-dev";
 
-export function getDesktopScheme(isDevelopment: boolean): string {
+export function getDesktopScheme(isDevelopment: boolean) {
   return isDevelopment ? DESKTOP_DEVELOPMENT_SCHEME : DESKTOP_PRODUCTION_SCHEME;
 }
 
-function getDesktopOrigin(isDevelopment: boolean): string {
+function getDesktopOrigin(isDevelopment: boolean) {
   return `${getDesktopScheme(isDevelopment)}://${DESKTOP_HOST}`;
 }
 
-export function getDesktopUrl(isDevelopment: boolean): string {
+export function getDesktopUrl(isDevelopment: boolean) {
   return `${getDesktopOrigin(isDevelopment)}/`;
 }
 
@@ -35,7 +35,7 @@ export class ElectronProtocolRegistrationError extends Schema.TaggedError<Electr
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Failed to register Electron protocol scheme "${this.scheme}".`;
   }
 }
@@ -47,7 +47,7 @@ export class ElectronProtocolUnregistrationError extends Schema.TaggedError<Elec
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Failed to unregister Electron protocol scheme "${this.scheme}".`;
   }
 }
@@ -65,7 +65,7 @@ export class ElectronProtocol extends Context.Service<
   }
 >()("@supaterm/desktop/electron/ElectronProtocol") {}
 
-function makeDesktopContentSecurityPolicy(input: DesktopProtocolRegistrationInput): string {
+function makeDesktopContentSecurityPolicy(input: DesktopProtocolRegistrationInput) {
   const scriptSources = ["'self'", "'unsafe-inline'", "'wasm-unsafe-eval'"];
 
   const connectSources = ["'self'", "blob:", "http:", "https:", "ws:", "wss:"];
@@ -85,7 +85,7 @@ function makeDesktopContentSecurityPolicy(input: DesktopProtocolRegistrationInpu
   ].join("; ");
 }
 
-function withContentSecurityPolicy(response: Response, policy: string): Response {
+function withContentSecurityPolicy(response: Response, policy: string) {
   const headers = new Headers(response.headers);
   headers.set("Content-Security-Policy", policy);
   return new Response(response.body, {
@@ -95,7 +95,7 @@ function withContentSecurityPolicy(response: Response, policy: string): Response
   });
 }
 
-function registerDesktopSchemePrivilegesSync(): void {
+function registerDesktopSchemePrivilegesSync() {
   Electron.protocol.registerSchemesAsPrivileged([
     {
       scheme: DESKTOP_PRODUCTION_SCHEME,

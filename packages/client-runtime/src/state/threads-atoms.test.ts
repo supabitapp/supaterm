@@ -626,17 +626,18 @@ it.effect("keeps snapshot boundaries and completion markers ordered inside a rep
     const h = yield* makeHarness();
     const unmount = h.registry.mount(h.stateAtom);
     const first = yield* Queue.take(h.subscriptions);
-    const title = (sequence: number, value: string): OrchestrationV2ThreadStreamItem => ({
-      kind: "event",
-      sequence,
-      event: {
-        id: EventId.make(`batch-title-${sequence}`),
-        type: "thread.metadata-updated",
-        threadId: THREAD_ID,
-        occurredAt: THREAD.thread.updatedAt,
-        payload: { ...THREAD.thread, title: value },
-      },
-    });
+    const title = (sequence: number, value: string) =>
+      ({
+        kind: "event",
+        sequence,
+        event: {
+          id: EventId.make(`batch-title-${sequence}`),
+          type: "thread.metadata-updated",
+          threadId: THREAD_ID,
+          occurredAt: THREAD.thread.updatedAt,
+          payload: { ...THREAD.thread, title: value },
+        },
+      }) satisfies OrchestrationV2ThreadStreamItem;
     yield* Queue.offerAll(first.events, [
       title(8, "Before snapshot"),
       {

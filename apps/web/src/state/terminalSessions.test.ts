@@ -44,11 +44,7 @@ const environmentA = EnvironmentId.make("environment-a");
 const threadA = ThreadId.make("thread-a");
 const threadB = ThreadId.make("thread-b");
 
-function summary(
-  threadId: string,
-  terminalId: string,
-  changes: Partial<TerminalSummary> = {},
-): TerminalSummary {
+function summary(threadId: string, terminalId: string, changes: Partial<TerminalSummary> = {}) {
   return {
     threadId,
     terminalId,
@@ -62,7 +58,7 @@ function summary(
     label: "Terminal",
     updatedAt: "2026-09-04T00:00:00.000Z",
     ...changes,
-  };
+  } satisfies TerminalSummary;
 }
 
 describe("selectKnownTerminalSessions", () => {

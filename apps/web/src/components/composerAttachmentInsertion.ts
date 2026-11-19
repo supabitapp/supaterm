@@ -41,7 +41,7 @@ export function captureComposerAttachmentInsertion(editor: Editor) {
     editor.off("transaction", track);
   };
   return {
-    insert: (references: ReadonlyArray<ComposerContextReference>): boolean => {
+    insert: (references: ReadonlyArray<ComposerContextReference>) => {
       dispose();
       if (lost || editor.isDestroyed || references.length === 0) return false;
       const nodeType = editor.schema.nodes["composer-context-reference"];

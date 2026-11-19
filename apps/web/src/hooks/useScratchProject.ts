@@ -38,7 +38,7 @@ export function pickScratchEnvironmentId(input: {
   readonly fallback: EnvironmentId | null;
   readonly environmentIds: ReadonlyArray<EnvironmentId>;
   readonly scratchWorkspaceRootFor: (environmentId: EnvironmentId) => string | null;
-}): EnvironmentId | null {
+}) {
   const { primary, fallback, scratchWorkspaceRootFor } = input;
   if (primary !== null && scratchWorkspaceRootFor(primary) !== null) return primary;
   if (fallback !== null && scratchWorkspaceRootFor(fallback) !== null) return fallback;
@@ -57,7 +57,7 @@ export function createScratchProjectActions(input: {
   readonly registry: AtomRegistry.AtomRegistry;
   readonly handleNewThread: NewThreadHandler;
 }) {
-  const scratchWorkspaceRootFor = (environmentId: EnvironmentId | null): string | null => {
+  const scratchWorkspaceRootFor = (environmentId: EnvironmentId | null) => {
     const environment = input.environments().find((entry) => entry.environmentId === environmentId);
     if (!environment) return null;
     return availableScratchWorkspaceRoot({
@@ -68,7 +68,7 @@ export function createScratchProjectActions(input: {
     });
   };
 
-  const scratchEnvironmentId = (fallback: EnvironmentId | null): EnvironmentId | null =>
+  const scratchEnvironmentId = (fallback: EnvironmentId | null) =>
     pickScratchEnvironmentId({
       primary: input.primaryEnvironmentId(),
       fallback,
@@ -79,7 +79,7 @@ export function createScratchProjectActions(input: {
   const openScratchProject = async (
     environmentId: EnvironmentId,
     failureTitle = "Could not start without a project",
-  ): Promise<EnvironmentProject | null> => {
+  ) => {
     const command = projectEnvironment.openScratch;
     const result = await runAtomCommand(
       input.registry,
@@ -87,11 +87,11 @@ export function createScratchProjectActions(input: {
       { environmentId, input: {} },
       { label: command.label, reportFailure: false, reportDefect: true },
     );
-    if (result._tag === "Success") return result.value;
+    if (result._tag === "Success") return result.value satisfies EnvironmentProject | null;
     if (!isAtomCommandInterrupted(result)) {
       reportScratchFailure(failureTitle, squashAtomCommandFailure(result));
     }
-    return null;
+    return null satisfies EnvironmentProject | null;
   };
 
   const startScratchThread = async (environmentId: EnvironmentId, prompt?: string) => {

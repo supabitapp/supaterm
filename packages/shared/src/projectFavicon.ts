@@ -4,7 +4,7 @@ export const PROJECT_FAVICON_FALLBACK_MARKER = "project-favicon-missing";
 
 export const PROJECT_FAVICON_EXTENSIONS = [...WORKSPACE_IMAGE_PREVIEW_EXTENSIONS, ".icns"] as const;
 
-export function isProjectFaviconPath(path: string): boolean {
+export function isProjectFaviconPath(path: string) {
   const literalPath = path.toLowerCase();
   return PROJECT_FAVICON_EXTENSIONS.some((extension) => literalPath.endsWith(extension));
 }
@@ -32,7 +32,7 @@ export function getProjectFaviconCacheKey(
   return JSON.stringify([environmentId, workspaceRoot, revision]);
 }
 
-export function isProjectFaviconFallbackUrl(url: string | null | undefined): boolean {
+export function isProjectFaviconFallbackUrl(url: string | null | undefined) {
   if (!url) return false;
 
   try {

@@ -56,7 +56,7 @@ class CodexStateReadError extends Schema.TaggedError<CodexStateReadError>()("Cod
   databasePath: Schema.String,
   cause: Schema.Defect(),
 }) {
-  override get message(): string {
+  override get message() {
     return `Could not read Codex projects from ${this.databasePath}.`;
   }
 }
@@ -251,7 +251,7 @@ interface MetadataReadBudget {
   truncated: boolean;
 }
 
-function splitOperationBudget(budget: number, count: number): Array<number> {
+function splitOperationBudget(budget: number, count: number) {
   return Array.from(
     { length: count },
     (_, index) => Math.floor(budget / count) + (index < budget % count ? 1 : 0),
@@ -278,18 +278,18 @@ function selectMetadataTranscripts(transcripts: ReadonlyArray<TranscriptCandidat
   return selected;
 }
 
-function splitTranscriptRecords(contents: string, limit: number): string[] {
+function splitTranscriptRecords(contents: string, limit: number) {
   const records = contents.endsWith("\n") ? contents.slice(0, -1) : contents;
   return records.split("\n", limit);
 }
 
-function isTextContentBlock(block: typeof TranscriptContentBlock.Type): boolean {
+function isTextContentBlock(block: typeof TranscriptContentBlock.Type) {
   return block.type === "text" || block.type === "input_text" || block.type === "output_text";
 }
 
 function extractText(
   content: string | ReadonlyArray<typeof TranscriptContentBlock.Type> | undefined,
-): string {
+) {
   if (typeof content === "string") return content.trim();
   if (content === undefined) return "";
   return content
@@ -299,13 +299,13 @@ function extractText(
     .join("\n");
 }
 
-function normalizeTimestamp(value: string | undefined, fallback: string): string {
+function normalizeTimestamp(value: string | undefined, fallback: string) {
   if (value === undefined) return fallback;
   const parsed = DateTime.make(value);
   return Option.isSome(parsed) ? DateTime.formatIso(parsed.value) : fallback;
 }
 
-function codexTurnId(metadata: unknown): string | null {
+function codexTurnId(metadata: unknown) {
   const decoded = decodeCodexTurnMetadata(metadata);
   if (
     Option.isNone(decoded) ||
@@ -317,7 +317,7 @@ function codexTurnId(metadata: unknown): string | null {
   return decoded.value.turn_id;
 }
 
-function isHiddenClaudeRecord(record: DecodedTranscriptRecord): boolean {
+function isHiddenClaudeRecord(record: DecodedTranscriptRecord) {
   return record.isSidechain === true || record.isMeta === true || record.isCompactSummary === true;
 }
 
@@ -335,7 +335,7 @@ const emptyClaudeFields: ClaudeFields = {
   model: undefined,
 };
 
-function foldClaudeFields(fields: ClaudeFields, record: DecodedTranscriptRecord): ClaudeFields {
+function foldClaudeFields(fields: ClaudeFields, record: DecodedTranscriptRecord) {
   if (isHiddenClaudeRecord(record)) return fields;
   const model = record.message?.model?.trim();
   return {
@@ -350,7 +350,7 @@ function foldClaudeFields(fields: ClaudeFields, record: DecodedTranscriptRecord)
 const CODEX_TITLE_PREAMBLE =
   /^(?:\s*(?:<(recommended_plugins|environment_context|user_instructions|INSTRUCTIONS|in-app-browser-context|external_codex_apps_open_page)(?:\s[^>]*)?>[\s\S]*?<\/\1>|# AGENTS\.md instructions\b[^\n]*|## My request for Codex:))+/;
 
-function parseCodexThreadNames(contents: string): ReadonlyMap<string, string> {
+function parseCodexThreadNames(contents: string) {
   const names = new Map<string, string>();
   for (const line of contents.split("\n")) {
     const entry = Option.getOrUndefined(decodeCodexSessionIndexEntry(line));
@@ -375,7 +375,7 @@ function codexHistoryBase(records: ReadonlyArray<DecodedTranscriptRecord>) {
 
 const WAKE_ENVELOPE = /^\s*<wake(?:\s[^>]*)?>([\s\S]*?)(?:<\/wake>|$)/;
 
-function deriveTitle(source: AgentSessionSource, text: string): string | undefined {
+function deriveTitle(source: AgentSessionSource, text: string) {
   const request = (source === "codex" ? text.replace(CODEX_TITLE_PREAMBLE, "") : text).replace(
     WAKE_ENVELOPE,
     "$1",
@@ -383,9 +383,7 @@ function deriveTitle(source: AgentSessionSource, text: string): string | undefin
   return request.trim().split("\n")[0]?.slice(0, 100).trim() || undefined;
 }
 
-function activePiBranch(
-  records: ReadonlyArray<DecodedTranscriptRecord>,
-): ReadonlyArray<DecodedTranscriptRecord> {
+function activePiBranch(records: ReadonlyArray<DecodedTranscriptRecord>) {
   const entries = records.filter((record) => record.type !== "session");
   const leaf = entries.at(-1);
   if (leaf?.id === undefined) return entries;
@@ -419,7 +417,7 @@ export function parseAgentSessionTranscript(
     readonly contents: string;
   },
   lines = splitTranscriptRecords(input.contents, MAX_IMPORT_RECORDS + 1),
-): AgentSessionThread | null {
+) {
   if (lines.length > MAX_IMPORT_RECORDS) return null;
   const records = lines.flatMap((line) => Option.toArray(decodeTranscriptRecord(line)));
   const claudeFields =
@@ -435,7 +433,7 @@ function parseAgentSessionRecords(
   records: ReadonlyArray<DecodedTranscriptRecord>,
   claudeFields: ClaudeFields,
   droppedMessageCount: number,
-): AgentSessionThread | "empty" | null {
+) {
   const fallbackTimestamp = DateTime.formatIso(DateTime.makeUnsafe(input.lastActiveAtMs));
   let providerSessionId =
     input.source === "codex"
@@ -648,15 +646,12 @@ function parseAgentSessionRecords(
   };
 }
 
-function extractDecodedCwd(record: DecodedTranscriptRecord): string | null {
+function extractDecodedCwd(record: DecodedTranscriptRecord) {
   const cwd = record.cwd?.trim() || record.payload?.cwd?.trim();
   return cwd && cwd.length > 0 ? cwd : null;
 }
 
-function shouldRetainDecodedRecord(
-  source: AgentSessionSource,
-  record: DecodedTranscriptRecord,
-): boolean {
+function shouldRetainDecodedRecord(source: AgentSessionSource, record: DecodedTranscriptRecord) {
   if (source === "pi") return true;
   if (source === "claudeAgent") {
     if (isHiddenClaudeRecord(record) || (record.type !== "user" && record.type !== "assistant")) {
@@ -685,7 +680,7 @@ function createClaudeHistoryWindow() {
   let firstUser: DecodedTranscriptRecord | undefined;
   let droppedMessageCount = 0;
   return {
-    push: (record: DecodedTranscriptRecord, bytes: number): number => {
+    push: (record: DecodedTranscriptRecord, bytes: number) => {
       if (firstUser === undefined && record.type === "user") firstUser = record;
       recent.push({ record, bytes });
       if (recent.length <= MAX_IMPORTED_MESSAGES) return 0;
@@ -702,16 +697,12 @@ function createClaudeHistoryWindow() {
   };
 }
 
-function normalizeForWorktreeMatch(value: string, caseFold: boolean): string {
+function normalizeForWorktreeMatch(value: string, caseFold: boolean) {
   const normalized = `${value.replaceAll("\\", "/")}/`;
   return caseFold ? normalized.toLowerCase() : normalized;
 }
 
-function isSupatermManagedWorktree(
-  candidatePath: string,
-  worktreesDir: string,
-  caseFold: boolean,
-): boolean {
+function isSupatermManagedWorktree(candidatePath: string, worktreesDir: string, caseFold: boolean) {
   const normalized = normalizeForWorktreeMatch(candidatePath, caseFold);
   return (
     normalized.startsWith(normalizeForWorktreeMatch(worktreesDir, caseFold)) ||
@@ -719,7 +710,7 @@ function isSupatermManagedWorktree(
   );
 }
 
-function extractCwd(line: string, source: AgentSessionSource): string | null | false {
+function extractCwd(line: string, source: AgentSessionSource) {
   let parsed: unknown;
   try {
     parsed = JSON.parse(line);
@@ -774,7 +765,7 @@ type TranscriptIdentity = Pick<
 
 const fileIdKey = (inode: TranscriptIdentity["inode"]) => (inode === null ? null : String(inode));
 
-function sameTranscriptIdentity(left: TranscriptIdentity, right: TranscriptIdentity): boolean {
+function sameTranscriptIdentity(left: TranscriptIdentity, right: TranscriptIdentity) {
   if (
     (typeof left.inode === "number" && !Number.isSafeInteger(left.inode)) ||
     (typeof right.inode === "number" && !Number.isSafeInteger(right.inode))
@@ -835,7 +826,7 @@ export const make = Effect.gen(function* () {
     isSupatermManagedWorktree(candidatePath, worktreesDir, foldWorktreeCase);
 
   const listDirectory = (directory: string) =>
-    fileSystem.readDirectory(directory).pipe(Effect.orElseSucceed((): ReadonlyArray<string> => []));
+    fileSystem.readDirectory(directory).pipe(Effect.orElseSucceed(() => []));
 
   const statOption = (target: string) =>
     fileSystem.stat(target).pipe(Effect.asSome, Effect.orElseSucceed(Option.none));
@@ -1299,10 +1290,14 @@ export const make = Effect.gen(function* () {
           start > 0 ? contents.slice(contents.indexOf("\n") + 1) : contents,
         );
       }),
-    ).pipe(Effect.orElseSucceed((): ReadonlyMap<string, string> => new Map()));
+    ).pipe(
+      Effect.orElseSucceed(
+        () => new Map() satisfies ReadonlyMap<string, string> as ReadonlyMap<string, string>,
+      ),
+    );
   });
 
-  const resolveClaudeConfigDir = (homePath: string, environmentHome?: string): string => {
+  const resolveClaudeConfigDir = (homePath: string, environmentHome?: string) => {
     const configured = homePath.trim();
     if (configured.length > 0) {
       return path.resolve(expandHomePath(configured, homeDir));
@@ -1424,7 +1419,15 @@ export const make = Effect.gen(function* () {
         }
       },
       catch: (cause) => new CodexStateReadError({ databasePath, cause }),
-    }).pipe(Effect.orElseSucceed((): ReadonlyMap<string, ReadonlyArray<string>> => new Map()));
+    }).pipe(
+      Effect.orElseSucceed(
+        () =>
+          new Map() satisfies ReadonlyMap<string, ReadonlyArray<string>> as ReadonlyMap<
+            string,
+            ReadonlyArray<string>
+          >,
+      ),
+    );
   });
 
   const projectCwd = (cwd: string, projectRoots: ReadonlyArray<string> | undefined) =>
@@ -1613,7 +1616,7 @@ export const make = Effect.gen(function* () {
       }
     }
 
-    return Array.from(byOwnerAndCwd.values(), (group): RawCandidate => ({
+    return Array.from(byOwnerAndCwd.values(), (group) => ({
       cwd: group.cwd,
       source,
       providerInstanceId: group.providerInstanceId,

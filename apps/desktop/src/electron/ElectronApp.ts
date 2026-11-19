@@ -23,7 +23,7 @@ export class ElectronAppMetadataReadError extends Schema.TaggedError<ElectronApp
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Failed to read Electron app metadata property "${this.property}".`;
   }
 }
@@ -35,7 +35,7 @@ export class ElectronAppWhenReadyError extends Schema.TaggedError<ElectronAppWhe
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Failed to wait for the Electron app to become ready (packaged: ${this.isPackaged}).`;
   }
 }
@@ -91,7 +91,7 @@ export class ElectronApp extends Context.Service<
 const addScopedAppListener = <Args extends ReadonlyArray<unknown>>(
   eventName: string,
   listener: (...args: Args) => void,
-): Effect.Effect<void, never, Scope.Scope> =>
+) =>
   Effect.acquireRelease(
     Effect.sync(() => {
       Electron.app.on(eventName as any, listener as any);
@@ -110,7 +110,7 @@ const readEnvironmentMachineSymbol = Effect.fn("desktop.readEnvironmentMachineSy
     }).pipe(Effect.orElseSucceed(() => null)),
 );
 
-export function toSystemLocaleTag(identifier: string, hourCycle?: "h12" | "h23"): string {
+export function toSystemLocaleTag(identifier: string, hourCycle?: "h12" | "h23") {
   const [base = "", keywords = ""] = identifier.split("@");
   const languageTag = base.replace(/_/g, "-");
   const region = /(?:^|;)rg=([a-z]{2}|\d{3})zzzz(?:;|$)/i.exec(keywords)?.[1]?.toUpperCase();

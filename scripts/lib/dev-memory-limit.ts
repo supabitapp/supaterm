@@ -15,7 +15,7 @@ export class DevRunnerMemoryLimitError extends Schema.TaggedError<DevRunnerMemor
   "DevRunnerMemoryLimitError",
   { usedBytes: Schema.Number, limitBytes: Schema.Number },
 ) {
-  override get message(): string {
+  override get message() {
     const gib = (bytes: number) => (bytes / GiB).toFixed(1);
     return `The dev server used ${gib(this.usedBytes)} GiB of RAM and swap, over its ${gib(this.limitBytes)} GiB limit, so it was stopped. Start it again, or set --memory-limit-gb (SUPATERM_DEV_MEMORY_LIMIT_GB; 0 turns the limit off).`;
   }
@@ -27,12 +27,12 @@ export interface ProcessSample {
 }
 
 /** `comm` can hold spaces and parentheses, so fields are read after its last `)`. */
-export function parseProcStatParentPid(stat: string): number | undefined {
+export function parseProcStatParentPid(stat: string) {
   const ppid = Number(stat.slice(stat.lastIndexOf(")") + 2).split(" ")[1]);
   return Number.isInteger(ppid) ? ppid : undefined;
 }
 
-export function parseProcStatusBytes(status: string): number {
+export function parseProcStatusBytes(status: string) {
   const kib = (field: string) =>
     Number(new RegExp(`^${field}:\\s+(\\d+) kB`, "m").exec(status)?.[1] ?? 0);
   return (kib("VmRSS") + kib("VmSwap")) * 1024;

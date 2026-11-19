@@ -9,7 +9,6 @@ import * as Schema from "effect/Schema";
 import type {
   PullRequestActor,
   PullRequestCheck,
-  PullRequestCheckStatus,
   PullRequestComment,
   PullRequestCommit,
   PullRequestMergeability,
@@ -187,7 +186,7 @@ function toActor(raw: Schema.Schema.Type<typeof RawUserSchema> | null | undefine
       };
 }
 
-function toState(raw: Schema.Schema.Type<typeof RawPullRequestSchema>): PullRequestState {
+function toState(raw: Schema.Schema.Type<typeof RawPullRequestSchema>) {
   switch (raw.state?.trim().toUpperCase()) {
     case "MERGED":
       return "merged";
@@ -199,7 +198,7 @@ function toState(raw: Schema.Schema.Type<typeof RawPullRequestSchema>): PullRequ
   }
 }
 
-function toBuildStatus(value: string | null | undefined): PullRequestCheckStatus {
+function toBuildStatus(value: string | null | undefined) {
   switch (value?.trim().toUpperCase()) {
     case "SUCCESSFUL":
       return "success";
@@ -214,15 +213,14 @@ function toBuildStatus(value: string | null | undefined): PullRequestCheckStatus
   }
 }
 
-function toReviews(
-  raw: Schema.Schema.Type<typeof RawPullRequestSchema>,
-): ReadonlyArray<PullRequestComment> {
-  return (raw.participants ?? []).flatMap((participant): ReadonlyArray<PullRequestComment> => {
+function toReviews(raw: Schema.Schema.Type<typeof RawPullRequestSchema>) {
+  return (raw.participants ?? []).flatMap((participant) => {
     const author = toActor(participant.user);
     const votedAt = trimmed(participant.participated_on);
     const reviewState =
       trimmed(participant.state) ?? (participant.approved === true ? "approved" : null);
-    if (author === null || votedAt === null || reviewState === null) return [];
+    if (author === null || votedAt === null || reviewState === null)
+      return [] satisfies ReadonlyArray<PullRequestComment>;
     return [
       {
         id: `${raw.id}:${author.login}`,
@@ -234,11 +232,11 @@ function toReviews(
         path: null,
         reviewState,
       },
-    ];
-  });
+    ] satisfies ReadonlyArray<PullRequestComment>;
+  }) satisfies ReadonlyArray<PullRequestComment>;
 }
 
-function toPullRequest(raw: Schema.Schema.Type<typeof RawPullRequestSchema>): BitbucketPullRequest {
+function toPullRequest(raw: Schema.Schema.Type<typeof RawPullRequestSchema>) {
   const reviewers = (raw.reviewers ?? []).flatMap((reviewer) => {
     const actor = toActor(reviewer);
     return actor === null ? [] : [actor];
@@ -263,7 +261,7 @@ function toPullRequest(raw: Schema.Schema.Type<typeof RawPullRequestSchema>): Bi
     reviewers,
     reviewerIds: (raw.reviewers ?? []).flatMap((reviewer) => trimmed(reviewer.uuid) ?? []),
     reviews: toReviews(raw),
-  };
+  } satisfies BitbucketPullRequest;
 }
 
 const decodePage = decodeJsonResult(RawPageSchema);
@@ -285,9 +283,7 @@ export interface BitbucketPage<A> {
   readonly next: string | null;
 }
 
-export function decodePullRequestPageJson(
-  raw: string,
-): Result.Result<BitbucketPage<BitbucketPullRequest>, DecodeFailure> {
+export function decodePullRequestPageJson(raw: string) {
   const decoded = decodePage(raw);
   if (!Result.isSuccess(decoded)) {
     return Result.fail(decoded.failure);
@@ -302,23 +298,26 @@ export function decodePullRequestPageJson(
   return Result.succeed({ items, next: trimmed(decoded.success.next) });
 }
 
-export function decodePullRequestJson(
-  raw: string,
-): Result.Result<BitbucketPullRequest, DecodeFailure> {
+export function decodePullRequestJson(raw: string) {
   const decoded = decodePullRequest(raw);
-  return Result.isSuccess(decoded)
-    ? Result.succeed(toPullRequest(decoded.success))
-    : Result.fail(decoded.failure);
+  return (
+    Result.isSuccess(decoded)
+      ? Result.succeed(toPullRequest(decoded.success))
+      : Result.fail(decoded.failure)
+  ) satisfies Result.Result<BitbucketPullRequest, DecodeFailure>;
 }
 
-export function decodeViewerJson(raw: string): Result.Result<string | null, DecodeFailure> {
+export function decodeViewerJson(raw: string): Result.Result<string | null, DecodeFailure>;
+export function decodeViewerJson(raw: string) {
   const decoded = decodeViewer(raw);
-  return Result.isSuccess(decoded)
-    ? Result.succeed(trimmed(decoded.success.nickname) ?? trimmed(decoded.success.display_name))
-    : Result.fail(decoded.failure);
+  return (
+    Result.isSuccess(decoded)
+      ? Result.succeed(trimmed(decoded.success.nickname) ?? trimmed(decoded.success.display_name))
+      : Result.fail(decoded.failure)
+  ) satisfies Result.Result<string | null, DecodeFailure>;
 }
 
-export function decodeRepositoryPermissionJson(raw: string): Result.Result<boolean, DecodeFailure> {
+export function decodeRepositoryPermissionJson(raw: string) {
   const decoded = decodeRepositoryPermissions(raw);
   if (!Result.isSuccess(decoded)) {
     return Result.fail(decoded.failure);
@@ -332,9 +331,7 @@ export function decodeRepositoryPermissionJson(raw: string): Result.Result<boole
  * administrators only — and a pull request can be sent to anyone in the workspace, so this is the
  * list Bitbucket's own reviewer field is filled from too.
  */
-export function decodeWorkspaceMembersJson(
-  raw: string,
-): Result.Result<BitbucketPage<PullRequestReviewerCandidate>, DecodeFailure> {
+export function decodeWorkspaceMembersJson(raw: string) {
   const decoded = decodePage(raw);
   if (!Result.isSuccess(decoded)) {
     return Result.fail(decoded.failure);
@@ -363,9 +360,7 @@ export interface BitbucketComments {
   readonly next: string | null;
 }
 
-export function buildReviewThreads(
-  comments: ReadonlyArray<BitbucketRawComment>,
-): ReadonlyArray<PullRequestReviewThread> {
+export function buildReviewThreads(comments: ReadonlyArray<BitbucketRawComment>) {
   const byId = new Map(comments.map((comment) => [comment.id, comment]));
   const rootOf = (comment: Schema.Schema.Type<typeof RawCommentSchema>) => {
     let current = comment;
@@ -416,7 +411,7 @@ export function buildReviewThreads(
   });
 }
 
-export function decodeCommentsJson(raw: string): Result.Result<BitbucketComments, DecodeFailure> {
+export function decodeCommentsJson(raw: string) {
   const decoded = decodePage(raw);
   if (!Result.isSuccess(decoded)) {
     return Result.fail(decoded.failure);
@@ -446,9 +441,7 @@ export function decodeCommentsJson(raw: string): Result.Result<BitbucketComments
   return Result.succeed({ comments, entries: kept, next: trimmed(decoded.success.next) });
 }
 
-export function decodeCommitsJson(
-  raw: string,
-): Result.Result<BitbucketPage<PullRequestCommit>, DecodeFailure> {
+export function decodeCommitsJson(raw: string) {
   const decoded = decodePage(raw);
   if (!Result.isSuccess(decoded)) {
     return Result.fail(decoded.failure);
@@ -477,9 +470,7 @@ export function decodeCommitsJson(
   return Result.succeed({ items: commits.toReversed(), next: trimmed(decoded.success.next) });
 }
 
-export function decodeStatusesJson(
-  raw: string,
-): Result.Result<BitbucketPage<PullRequestCheck>, DecodeFailure> {
+export function decodeStatusesJson(raw: string) {
   const decoded = decodePage(raw);
   if (!Result.isSuccess(decoded)) {
     return Result.fail(decoded.failure);
@@ -519,9 +510,7 @@ export interface BitbucketDiffStatPage extends BitbucketDiffStat {
   readonly next: string | null;
 }
 
-export function decodeDiffstatJson(
-  raw: string,
-): Result.Result<BitbucketDiffStatPage, DecodeFailure> {
+export function decodeDiffstatJson(raw: string) {
   const decoded = decodePage(raw);
   if (!Result.isSuccess(decoded)) {
     return Result.fail(decoded.failure);
@@ -544,11 +533,11 @@ export function decodeDiffstatJson(
   });
 }
 
-export function decodeConflictsJson(
-  raw: string,
-): Result.Result<PullRequestMergeability, DecodeFailure> {
+export function decodeConflictsJson(raw: string) {
   const decoded = decodeConflicts(raw);
-  return Result.isSuccess(decoded)
-    ? Result.succeed(decoded.success.values.length === 0 ? "mergeable" : "conflicting")
-    : Result.fail(decoded.failure);
+  return (
+    Result.isSuccess(decoded)
+      ? Result.succeed(decoded.success.values.length === 0 ? "mergeable" : "conflicting")
+      : Result.fail(decoded.failure)
+  ) satisfies Result.Result<PullRequestMergeability, DecodeFailure>;
 }

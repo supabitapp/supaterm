@@ -2,7 +2,7 @@ import { SUBAGENT_V2_NESTED_APPROVAL_PROMPT, type OrchestratorFixtureInput } fro
 
 export const NESTED_SUBAGENT_APPROVAL_PENDING_SHELL_KEY = "nested-subagent-approval-pending";
 
-export function subagentV2NestedApprovalInput(): OrchestratorFixtureInput {
+export function subagentV2NestedApprovalInput() {
   return {
     steps: [
       { type: "message", text: SUBAGENT_V2_NESTED_APPROVAL_PROMPT },
@@ -11,5 +11,5 @@ export function subagentV2NestedApprovalInput(): OrchestratorFixtureInput {
         shellSnapshotKeyWhilePending: NESTED_SUBAGENT_APPROVAL_PENDING_SHELL_KEY,
       },
     ],
-  };
+  } satisfies OrchestratorFixtureInput;
 }

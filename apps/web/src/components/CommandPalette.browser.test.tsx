@@ -53,7 +53,7 @@ function setup(state: { projects?: ReadonlyArray<Project>; threads?: ReadonlyArr
   entities.handleNewThread.mockClear();
 }
 
-function makeProject(title: string): Project {
+function makeProject(title: string) {
   return {
     id: ProjectId.make(title),
     environmentId: EnvironmentId.make("local"),
@@ -131,7 +131,7 @@ describe("CommandPalette open intents", () => {
 
   it("highlights the first project when New thread in... opens from the root list", async () => {
     const environmentId = EnvironmentId.make("local");
-    const project = (id: string, title: string): Project => ({
+    const project = (id: string, title: string) => ({
       id: ProjectId.make(id),
       environmentId,
       title,

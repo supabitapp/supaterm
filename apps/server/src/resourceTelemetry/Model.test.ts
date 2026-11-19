@@ -16,7 +16,7 @@ const BASE_TIME_MS = DateTime.toEpochMillis(DateTime.makeUnsafe("2026-06-17T12:0
 function processSample(
   input: Partial<ResourceMonitorProcessSample> &
     Pick<ResourceMonitorProcessSample, "pid" | "ppid" | "startTimeMs">,
-): ResourceMonitorProcessSample {
+) {
   return {
     runTimeMs: 1_000,
     name: `process-${input.pid}`,
@@ -30,14 +30,14 @@ function processSample(
     ioWriteBytes: 0,
     ioSemantics: "storage",
     ...input,
-  };
+  } satisfies ResourceMonitorProcessSample;
 }
 
 function nativeSnapshot(
   sampledAtUnixMs: number,
   processes: ReadonlyArray<ResourceMonitorProcessSample>,
   sequence = 1,
-): ResourceMonitorSnapshotEvent {
+) {
   return {
     version: 3,
     type: "snapshot",
@@ -48,13 +48,13 @@ function nativeSnapshot(
     retainedProcessCount: processes.length,
     inaccessibleProcessCount: 0,
     processes: [...processes],
-  };
+  } satisfies ResourceMonitorSnapshotEvent;
 }
 
 function electronMetric(
   input: Partial<DesktopElectronProcessMetric> &
     Pick<DesktopElectronProcessMetric, "pid" | "creationTimeMs" | "type">,
-): DesktopElectronProcessMetric {
+) {
   return {
     cpuPercent: 0,
     idleWakeupsPerSecond: 0,
@@ -67,7 +67,7 @@ function electronMetric(
 function desktopSnapshot(
   sampledAtUnixMs: number,
   electronProcesses: ReadonlyArray<DesktopElectronProcessMetric>,
-): DesktopHostTelemetrySnapshot {
+) {
   const sampledAt = DateTime.makeUnsafe(sampledAtUnixMs);
   return {
     version: 1,
@@ -89,7 +89,7 @@ function desktopSnapshot(
     },
     speedLimitPercent: Option.none(),
     electronProcesses: [...electronProcesses],
-  };
+  } satisfies DesktopHostTelemetrySnapshot;
 }
 
 function merge(input: {
@@ -97,7 +97,7 @@ function merge(input: {
   readonly desktop?: DesktopHostTelemetrySnapshot;
   readonly previous?: MergeProcessesResult;
   readonly sidecarPid?: number;
-}): MergeProcessesResult {
+}) {
   return mergeProcesses({
     serverPid: SERVER_PID,
     sidecarPid: Option.fromUndefinedOr(input.sidecarPid),

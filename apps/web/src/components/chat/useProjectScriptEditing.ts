@@ -55,14 +55,21 @@ export function useProjectScriptEditing(input: {
   const removeKeybinding = useAtomCommand(serverEnvironment.removeKeybinding, {
     reportFailure: false,
   });
-  const persistProjectScripts = async (input: {
+  const persistProjectScripts: (input: {
     projectId: ProjectId;
     projectCwd: string;
     previousScripts: ReadonlyArray<ProjectScript>;
     nextScripts: ReadonlyArray<ProjectScript>;
     keybinding: NewProjectScriptInput["keybinding"];
     keybindingCommand: KeybindingCommand | null;
-  }): Promise<AtomCommandResult<void, unknown>> => {
+  }) => Promise<AtomCommandResult<void, unknown>> = async (input: {
+    projectId: ProjectId;
+    projectCwd: string;
+    previousScripts: ReadonlyArray<ProjectScript>;
+    nextScripts: ReadonlyArray<ProjectScript>;
+    keybinding: NewProjectScriptInput["keybinding"];
+    keybindingCommand: KeybindingCommand | null;
+  }) => {
     const serverConfig = appAtomRegistry.get(serverEnvironment.configValueAtom(environmentId));
     const previousKeybinding = keybindingValueForCommand(
       serverConfig?.keybindings ?? [],
@@ -173,9 +180,9 @@ export function useProjectScriptEditing(input: {
         )
       : updateResult;
   };
-  const saveProjectScript = async (
+  const saveProjectScript: (
     input: NewProjectScriptInput,
-  ): Promise<AtomCommandResult<void, unknown>> => {
+  ) => Promise<AtomCommandResult<void, unknown>> = async (input: NewProjectScriptInput) => {
     if (!project) {
       return AsyncResult.success(undefined);
     }
@@ -198,10 +205,13 @@ export function useProjectScriptEditing(input: {
       keybindingCommand: commandForProjectScript(nextId),
     });
   };
-  const updateProjectScript = async (
+  const updateProjectScript: (
     scriptId: string,
     input: NewProjectScriptInput,
-  ): Promise<AtomCommandResult<void, unknown>> => {
+  ) => Promise<AtomCommandResult<void, unknown>> = async (
+    scriptId: string,
+    input: NewProjectScriptInput,
+  ) => {
     if (!project) {
       return AsyncResult.success(undefined);
     }
@@ -224,11 +234,9 @@ export function useProjectScriptEditing(input: {
       keybindingCommand: commandForProjectScript(scriptId),
     });
   };
-  const deleteProjectScript = async (
-    scriptId: string,
-  ): Promise<AtomCommandResult<void, unknown>> => {
+  const deleteProjectScript = async (scriptId: string) => {
     if (!project) {
-      return AsyncResult.success(undefined);
+      return AsyncResult.success(undefined) satisfies AtomCommandResult<void, unknown>;
     }
     const nextScripts = scripts.filter((script) => script.id !== scriptId);
 
@@ -257,7 +265,7 @@ export function useProjectScriptEditing(input: {
         }),
       );
     }
-    return result;
+    return result satisfies AtomCommandResult<void, unknown>;
   };
   return {
     saveProjectScript: useStableCallback(saveProjectScript),

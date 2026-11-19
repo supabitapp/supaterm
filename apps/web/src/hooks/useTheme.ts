@@ -47,17 +47,17 @@ const DEFAULT_THEME_SNAPSHOT: ThemeSnapshot = {
   themeHalves: null,
 };
 
-export function readThemeHalves(): ThemeHalves | null {
+export function readThemeHalves() {
   return readStoredThemeHalves();
 }
 
 /** Capture before setTheme clears the mix; unresolved published ids may still be valid. */
-export function readThemeHalvesRaw(): { light?: string; dark?: string } {
+export function readThemeHalvesRaw() {
   if (typeof window === "undefined") return {};
   return readStoredThemeHalvesRaw();
 }
 
-function readStoredThemeHalves(): ThemeHalves | null {
+function readStoredThemeHalves() {
   if (typeof window === "undefined") return null;
   try {
     return parseThemeHalves(window.localStorage.getItem(THEME_HALVES_STORAGE_KEY));
@@ -66,7 +66,7 @@ function readStoredThemeHalves(): ThemeHalves | null {
   }
 }
 
-function readStoredThemeHalvesRaw(): { light?: string; dark?: string } {
+function readStoredThemeHalvesRaw() {
   try {
     const value: unknown = JSON.parse(
       window.localStorage.getItem(THEME_HALVES_STORAGE_KEY) ?? "null",
@@ -83,7 +83,7 @@ function readStoredThemeHalvesRaw(): { light?: string; dark?: string } {
   }
 }
 
-function themeHalvesSignature(halves: ThemeHalves | null): string {
+function themeHalvesSignature(halves: ThemeHalves | null) {
   return `${halves?.light ?? ""}|${halves?.dark ?? ""}`;
 }
 
@@ -99,7 +99,7 @@ export class ThemeStorageError extends Schema.TaggedError<ThemeStorageError>()(
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Failed to ${this.operation} theme preference for ${this.storageKey}.`;
   }
 }
@@ -113,7 +113,7 @@ export class DesktopThemeSyncError extends Schema.TaggedError<DesktopThemeSyncEr
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Failed to sync the ${this.theme} theme to the desktop shell.`;
   }
 }
@@ -144,19 +144,20 @@ function isThemePreferenceMode(value: string | null): value is ThemePreferenceMo
   return value === "light" || value === "dark" || value === "system";
 }
 
-export function readAppearanceModePreference(theme: Theme): ThemePreferenceMode {
+export function readAppearanceModePreference(theme: Theme): ThemePreferenceMode;
+export function readAppearanceModePreference(theme: Theme) {
   if (typeof window !== "undefined") {
     try {
       const raw = window.localStorage.getItem(THEME_APPEARANCE_MODE_STORAGE_KEY);
-      if (isThemePreferenceMode(raw)) return raw;
+      if (isThemePreferenceMode(raw)) return raw satisfies ThemePreferenceMode;
     } catch {}
   }
 
-  if (theme === "system") return "system";
-  return getThemePreferenceMode(theme) ?? "light";
+  if (theme === "system") return "system" satisfies ThemePreferenceMode;
+  return (getThemePreferenceMode(theme) ?? "light") satisfies ThemePreferenceMode;
 }
 
-function writeAppearanceModePreference(appearanceMode: ThemePreferenceMode): void {
+function writeAppearanceModePreference(appearanceMode: ThemePreferenceMode) {
   if (typeof window === "undefined") return;
   try {
     window.localStorage.setItem(THEME_APPEARANCE_MODE_STORAGE_KEY, appearanceMode);
@@ -169,7 +170,7 @@ function writeAppearanceModePreference(appearanceMode: ThemePreferenceMode): voi
   }
 }
 
-export function readThemePreference(): Theme {
+export function readThemePreference() {
   if (typeof window === "undefined") return DEFAULT_THEME_SNAPSHOT.theme;
   let raw: string | null;
   try {
@@ -187,7 +188,7 @@ export function readThemePreference(): Theme {
   return DEFAULT_THEME_SNAPSHOT.theme;
 }
 
-function writeThemePreference(theme: Theme): void {
+function writeThemePreference(theme: Theme) {
   if (typeof window === "undefined") return;
   try {
     window.localStorage.setItem(STORAGE_KEY, theme);
@@ -202,7 +203,7 @@ function writeThemePreference(theme: Theme): void {
   }
 }
 
-function getStored(): Theme {
+function getStored() {
   if (themeStorageReadFailure !== null) {
     return DEFAULT_THEME_SNAPSHOT.theme;
   }
@@ -226,7 +227,7 @@ function getStored(): Theme {
   }
 }
 
-function ensureThemeColorMetaTag(): HTMLMetaElement {
+function ensureThemeColorMetaTag() {
   let element = document.querySelector<HTMLMetaElement>(DYNAMIC_THEME_COLOR_SELECTOR);
   if (element) {
     return element;
@@ -239,7 +240,7 @@ function ensureThemeColorMetaTag(): HTMLMetaElement {
   return element;
 }
 
-function normalizeThemeColor(value: string | null | undefined): string | null {
+function normalizeThemeColor(value: string | null | undefined) {
   const normalizedValue = value?.trim().toLowerCase();
   if (
     !normalizedValue ||
@@ -253,7 +254,7 @@ function normalizeThemeColor(value: string | null | undefined): string | null {
   return value?.trim() ?? null;
 }
 
-function resolveBrowserChromeSurface(): HTMLElement {
+function resolveBrowserChromeSurface() {
   return (
     document.querySelector<HTMLElement>("main[data-slot='sidebar-inset']") ??
     document.querySelector<HTMLElement>("[data-slot='sidebar-inner']") ??
@@ -337,7 +338,7 @@ async function syncDesktopThemePreference(
   followSystem?: boolean,
   appearanceMode?: ThemePreferenceMode,
   halves: ThemeHalves | null = readStoredThemeHalves(),
-): Promise<void> {
+) {
   try {
     await bridge.setTheme(resolveDesktopTheme(theme, followSystem, appearanceMode, halves));
   } catch (cause) {
@@ -379,7 +380,7 @@ if (typeof document !== "undefined" && typeof window !== "undefined") {
   applyTheme(getStored());
 }
 
-function getSnapshot(): ThemeSnapshot {
+function getSnapshot() {
   if (typeof window === "undefined") return DEFAULT_THEME_SNAPSHOT;
   if (!snapshotStale && lastSnapshot) return lastSnapshot;
   snapshotStale = false;
@@ -443,7 +444,7 @@ function handleStorageChange(e: StorageEvent) {
 
 let removeWindowListeners: (() => void) | null = null;
 
-function subscribe(listener: () => void): () => void {
+function subscribe(listener: () => void) {
   if (typeof window === "undefined") return () => {};
   listeners.push(listener);
 
@@ -467,12 +468,12 @@ function subscribe(listener: () => void): () => void {
 }
 
 /** For shortcuts and other handlers outside React that read the theme at event time. */
-export function getThemeSnapshot(): ThemeSnapshot {
+export function getThemeSnapshot() {
   return getSnapshot();
 }
 
 /** For code outside React (worker pools) that follows the rendered appearance. */
-export function subscribeRenderedAppearance(listener: () => void): () => void {
+export function subscribeRenderedAppearance(listener: () => void) {
   const unsubscribeTheme = subscribe(listener);
   const unsubscribePreview = subscribeToThemePreview(listener);
   return () => {
@@ -481,7 +482,7 @@ export function subscribeRenderedAppearance(listener: () => void): () => void {
   };
 }
 
-export function getRenderedAppearance(): ThemeAppearance {
+export function getRenderedAppearance() {
   return getThemePreviewAppearance() ?? getSnapshot().resolvedTheme;
 }
 
@@ -495,7 +496,7 @@ export function useRenderedAppearance() {
   return previewAppearance ?? resolvedTheme;
 }
 
-export function setTheme(next: Theme): boolean {
+export function setTheme(next: Theme) {
   if (typeof window === "undefined") return false;
   try {
     pipe(getStored(), readAppearanceModePreference, writeAppearanceModePreference);
@@ -533,7 +534,7 @@ export function setTheme(next: Theme): boolean {
   return true;
 }
 
-export function setAppearanceMode(nextAppearanceMode: ThemePreferenceMode): boolean {
+export function setAppearanceMode(nextAppearanceMode: ThemePreferenceMode) {
   if (typeof window === "undefined") return false;
   try {
     writeAppearanceModePreference(nextAppearanceMode);
@@ -558,7 +559,7 @@ export function setAppearanceMode(nextAppearanceMode: ThemePreferenceMode): bool
   return true;
 }
 
-function setThemeHalf(appearance: ThemeAppearance, themeId: string | null): boolean {
+function setThemeHalf(appearance: ThemeAppearance, themeId: string | null) {
   if (typeof window === "undefined") return false;
   try {
     const current = readStoredThemeHalvesRaw();
@@ -588,7 +589,7 @@ function setThemeHalf(appearance: ThemeAppearance, themeId: string | null): bool
   return true;
 }
 
-function clearThemeHalves(): boolean {
+function clearThemeHalves() {
   if (typeof window === "undefined") return false;
   try {
     window.localStorage.removeItem(THEME_HALVES_STORAGE_KEY);
@@ -610,7 +611,7 @@ function clearThemeHalves(): boolean {
   return true;
 }
 
-export function refreshTheme({ preservePreview = false } = {}): void {
+export function refreshTheme({ preservePreview = false } = {}) {
   if (typeof window === "undefined") return;
   lastAppliedTheme = null;
   applyTheme(getStored(), { suppressTransitions: true, preservePreview });
@@ -621,7 +622,7 @@ export function useTheme() {
   const snapshot = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
   const { theme, resolvedTheme } = snapshot;
 
-  const setFollowSystem = (nextFollowSystem: boolean): boolean => {
+  const setFollowSystem = (nextFollowSystem: boolean) => {
     const currentMode = readAppearanceModePreference(theme);
     const nextMode = nextFollowSystem
       ? "system"

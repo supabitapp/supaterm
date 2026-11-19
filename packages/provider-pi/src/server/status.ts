@@ -17,7 +17,6 @@ import * as Fiber from "effect/Fiber";
 import * as Option from "effect/Option";
 import * as Result from "effect/Result";
 import * as Schema from "effect/Schema";
-import * as HttpClient from "effect/http/HttpClient";
 import * as ChildProcess from "effect/process/ChildProcess";
 import * as ChildProcessSpawner from "effect/process/ChildProcessSpawner";
 
@@ -29,7 +28,6 @@ import {
   piRecordField as recordField,
   piRecordString as recordString,
 } from "./rpc.ts";
-import * as ProviderLatestVersions from "@supaterm/provider-core/server/ProviderLatestVersions";
 import {
   buildServerProvider,
   DEFAULT_TIMEOUT_MS,
@@ -84,7 +82,7 @@ interface PiDiscovery extends PiDiscoveredCommands {
 function piModelsFromSettings(
   customModels: ReadonlyArray<CustomModelSetting> | undefined,
   discovered: ReadonlyArray<ServerProviderModel> = [],
-): ReadonlyArray<ServerProviderModel> {
+) {
   return providerModelsFromSettings(
     [PI_DEFAULT_MODEL, ...discovered],
     customModels ?? [],
@@ -92,10 +90,7 @@ function piModelsFromSettings(
   );
 }
 
-function parseDiscoveredModels(
-  data: unknown,
-  state: unknown,
-): Result.Result<ReadonlyArray<ServerProviderModel>, PiRpcError> {
+function parseDiscoveredModels(data: unknown, state: unknown) {
   const models = recordField(data, "models");
   if (!Array.isArray(models)) {
     return Result.fail(
@@ -374,9 +369,11 @@ const describeUnavailablePiModel = Effect.fn("PiProviderStatus.describeUnavailab
   },
 );
 
-export const buildInitialPiProviderSnapshot = Effect.fn(
+export const buildInitialPiProviderSnapshot: (
+  piSettings: PiSettings,
+) => Effect.Effect<ServerProviderDraft> = Effect.fn(
   "PiProviderStatus.buildInitialPiProviderSnapshot",
-)(function* (piSettings: PiSettings): Effect.fn.Return<ServerProviderDraft> {
+)(function* (piSettings: PiSettings) {
   const checkedAt = yield* Effect.map(DateTime.now, DateTime.formatIso);
   const models = piModelsFromSettings(piSettings.customModels);
   if (!piSettings.enabled) {
@@ -409,11 +406,13 @@ export const buildInitialPiProviderSnapshot = Effect.fn(
   });
 });
 
-export const checkPiProviderStatus = Effect.fn("checkPiProviderStatus")(function* (
+export const checkPiProviderStatus: (
   piSettings: PiSettings,
-  environment: NodeJS.ProcessEnv = process.env,
+  environment?: NodeJS.ProcessEnv,
   cwd?: string,
-): Effect.fn.Return<ServerProviderDraft, never, ChildProcessSpawner.ChildProcessSpawner> {
+) => Effect.Effect<ServerProviderDraft, never, ChildProcessSpawner.ChildProcessSpawner> = Effect.fn(
+  "checkPiProviderStatus",
+)(function* (piSettings: PiSettings, environment: NodeJS.ProcessEnv = process.env, cwd?: string) {
   const checkedAt = DateTime.formatIso(yield* DateTime.now);
   const fallbackModels = piModelsFromSettings(piSettings.customModels);
 
@@ -632,11 +631,7 @@ export const enrichPiSnapshot = (input: {
   readonly maintenanceCapabilities: ProviderMaintenanceCapabilities;
   readonly enableProviderUpdateChecks?: boolean;
   readonly publishSnapshot: (snapshot: ServerProvider) => Effect.Effect<void>;
-}): Effect.Effect<
-  void,
-  never,
-  HttpClient.HttpClient | ProviderLatestVersions.ProviderLatestVersions
-> => {
+}) => {
   const { snapshot, publishSnapshot } = input;
   return enrichProviderSnapshotWithVersionAdvisory(snapshot, input.maintenanceCapabilities, {
     enableProviderUpdateChecks: input.enableProviderUpdateChecks,

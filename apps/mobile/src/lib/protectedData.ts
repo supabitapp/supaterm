@@ -7,7 +7,7 @@ const NativeControls = requireOptionalNativeModule<{
 
 let protectedDataAvailable: Promise<void> | undefined;
 
-export function whenProtectedDataAvailable(): Promise<void> {
+export function whenProtectedDataAvailable() {
   protectedDataAvailable ??= new Promise((resolve) => {
     const isAvailable = NativeControls?.isProtectedDataAvailable;
     if (Platform.OS !== "ios" || AppState.currentState === "active") {

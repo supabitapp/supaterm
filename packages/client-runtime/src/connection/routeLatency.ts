@@ -59,14 +59,15 @@ export const measureConnectionRouteLatency = Effect.fn("connection.measureRouteL
   },
 );
 
-export function connectionRouteLatencyLabel(latency: ConnectionRouteLatency | null): string {
-  if (latency === null) return "Checking…";
+export function connectionRouteLatencyLabel(latency: ConnectionRouteLatency | null): string;
+export function connectionRouteLatencyLabel(latency: ConnectionRouteLatency | null) {
+  if (latency === null) return "Checking…" satisfies string;
   switch (latency.status) {
     case "reachable":
-      return `${latency.latencyMs} ms`;
+      return `${latency.latencyMs} ms` satisfies string;
     case "unreachable":
-      return "Unreachable";
+      return "Unreachable" satisfies string;
     case "unmeasured":
-      return "Not measured";
+      return "Not measured" satisfies string;
   }
 }

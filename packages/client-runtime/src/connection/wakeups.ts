@@ -10,7 +10,7 @@ export type ConnectionWakeup =
   | "network-changed"
   | "system-resumed";
 
-export function shouldResubscribeAfterWakeup(reason: ConnectionWakeup): boolean {
+export function shouldResubscribeAfterWakeup(reason: ConnectionWakeup) {
   return (
     reason === "application-active" ||
     reason === "application-resumed" ||

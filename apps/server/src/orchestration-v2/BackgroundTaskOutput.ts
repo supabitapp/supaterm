@@ -39,9 +39,7 @@ export class BackgroundTaskOutput extends Context.Service<
 
 const isCommandOutputError = Schema.is(OrchestrationV2CommandOutputError);
 
-function framesFromChunks<E>(
-  chunks: Stream.Stream<string, E>,
-): Stream.Stream<OrchestrationV2CommandOutputFrame, E> {
+function framesFromChunks<E>(chunks: Stream.Stream<string, E>) {
   const opened: OrchestrationV2CommandOutputFrame = {
     kind: "replace",
     text: "",
@@ -67,14 +65,15 @@ function framesFromChunks<E>(
             return [next, [frame]] as const;
           },
           {
-            onHalt: (state): ReadonlyArray<OrchestrationV2CommandOutputFrame> => [
-              { kind: "append", text: "", truncated: state.truncated, running: false },
-            ],
+            onHalt: (state) =>
+              [
+                { kind: "append", text: "", truncated: state.truncated, running: false },
+              ] satisfies ReadonlyArray<OrchestrationV2CommandOutputFrame>,
           },
         ),
       ),
     ),
-  );
+  ) satisfies Stream.Stream<OrchestrationV2CommandOutputFrame, E>;
 }
 
 const make = Effect.gen(function* () {

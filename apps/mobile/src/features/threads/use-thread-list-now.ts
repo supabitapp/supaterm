@@ -11,7 +11,7 @@ import { nextSnoozeWakeAfter } from "./threadListV2";
  */
 export function useThreadListNow(
   threads: ReadonlyArray<{ readonly snoozedUntil?: string | null }>,
-): string {
+) {
   const minuteMs = useNowMinuteMs();
   const [latestMs, setLatestMs] = useState(minuteMs);
   const afterWakeMs = useNowAfter(nextSnoozeWakeAfter(threads, Math.max(minuteMs, latestMs)));

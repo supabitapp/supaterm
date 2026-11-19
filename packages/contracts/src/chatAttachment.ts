@@ -25,7 +25,7 @@ const PROVIDER_SEND_TURN_SUPPORTED_IMAGE_MIME_TYPE_SET = new Set<string>(
   PROVIDER_SEND_TURN_SUPPORTED_IMAGE_MIME_TYPES,
 );
 
-export function isProviderSendTurnSupportedImageMimeType(mimeType: string): boolean {
+export function isProviderSendTurnSupportedImageMimeType(mimeType: string) {
   return PROVIDER_SEND_TURN_SUPPORTED_IMAGE_MIME_TYPE_SET.has(mimeType.toLowerCase());
 }
 const PROVIDER_SEND_TURN_MAX_IMAGE_DATA_URL_CHARS = 14_000_000;
@@ -83,11 +83,9 @@ export const SnapShotAccessibilityNode: Schema.Codec<SnapShotAccessibilityNode> 
       Schema.isMaxLength(32),
     ),
   ),
-  children: Schema.mutable(
-    Schema.Array(
-      Schema.suspend((): Schema.Codec<SnapShotAccessibilityNode> => SnapShotAccessibilityNode),
-    ),
-  ).check(Schema.isMaxLength(SNAP_SHOT_ACCESSIBILITY_MAX_NODES)),
+  children: Schema.mutable(Schema.Array(Schema.suspend(() => SnapShotAccessibilityNode))).check(
+    Schema.isMaxLength(SNAP_SHOT_ACCESSIBILITY_MAX_NODES),
+  ),
 });
 
 const SnapShotAccessibilityWire = Schema.Union([
@@ -207,7 +205,7 @@ export type ChatAttachment = typeof ChatAttachment.Type;
 
 export function getProviderAttachmentLimitError(
   attachments: ReadonlyArray<Pick<ChatAttachment, "type" | "mimeType" | "sizeBytes">>,
-): string | undefined {
+) {
   if (attachments.length > PROVIDER_SEND_TURN_MAX_ATTACHMENTS) {
     return `You can attach up to ${PROVIDER_SEND_TURN_MAX_ATTACHMENTS} files per message or question response.`;
   }

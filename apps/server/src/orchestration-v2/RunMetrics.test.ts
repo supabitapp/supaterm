@@ -34,24 +34,25 @@ const runUpdated = (
   provider: string,
   run: Pick<OrchestrationV2Run, "id" | "status" | "startedAt" | "completedAt"> &
     Partial<OrchestrationV2Run>,
-): OrchestrationV2StoredEvent => ({
-  sequence,
-  commandId: null,
-  event: {
-    type: "run.updated",
-    id: EventId.make(`event:${provider}:${sequence}`),
-    threadId,
-    occurredAt: at("2026-10-19T12:00:00.000Z"),
-    payload: {
+) =>
+  ({
+    sequence,
+    commandId: null,
+    event: {
+      type: "run.updated",
+      id: EventId.make(`event:${provider}:${sequence}`),
       threadId,
-      ordinal: 1,
-      providerInstanceId: ProviderInstanceId.make(provider),
-      modelSelection: { instanceId: ProviderInstanceId.make(provider), model: "claude-opus-5-5" },
-      requestedAt: at("2026-10-19T12:00:00.000Z"),
-      ...run,
-    } as OrchestrationV2Run,
-  },
-});
+      occurredAt: at("2026-10-19T12:00:00.000Z"),
+      payload: {
+        threadId,
+        ordinal: 1,
+        providerInstanceId: ProviderInstanceId.make(provider),
+        modelSelection: { instanceId: ProviderInstanceId.make(provider), model: "claude-opus-5-5" },
+        requestedAt: at("2026-10-19T12:00:00.000Z"),
+        ...run,
+      } as OrchestrationV2Run,
+    },
+  }) satisfies OrchestrationV2StoredEvent;
 
 const commitWith =
   (recorder: ReturnType<typeof makeRunOutcomeRecorder<unknown>>) =>
@@ -157,7 +158,7 @@ describe("EventSink run outcomes", () => {
       },
     }) satisfies OrchestrationV2DomainEvent;
   const runId = RunId.make("run:metrics:sink:child");
-  const run = (status: OrchestrationV2Run["status"]): OrchestrationV2Run => ({
+  const run = (status: OrchestrationV2Run["status"]) => ({
     id: runId,
     threadId: childId,
     ordinal: 1,

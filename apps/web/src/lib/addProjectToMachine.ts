@@ -26,7 +26,7 @@ export const COPIED_FILES_MAX_COUNT = 200;
 const DEFAULT_COPIED_FILE_NAME = /^(?:\.env(?:\..+)?|\.envrc|\.dev\.vars)$/;
 
 /** Env files are the ignored files people almost always want on a new machine. */
-export function isDefaultCopiedFile(path: string): boolean {
+export function isDefaultCopiedFile(path: string) {
   const name = path.split("/").at(-1) ?? path;
   return DEFAULT_COPIED_FILE_NAME.test(name);
 }
@@ -43,7 +43,7 @@ export interface AddProjectToMachineInput {
   readonly files: ReadonlyArray<string>;
 }
 
-function failureMessage(result: Parameters<typeof squashAtomCommandFailure>[0]): string {
+function failureMessage(result: Parameters<typeof squashAtomCommandFailure>[0]) {
   const error = squashAtomCommandFailure(result);
   return error instanceof Error ? error.message : "An error occurred.";
 }
@@ -85,7 +85,7 @@ function setFileCopy(key: string, copy: ProjectFileCopy | null) {
 }
 
 /** The composer holds sends until the copy lands, and shows a failed copy until dismissed. */
-export function useProjectFileCopy(ref: ScopedProjectRef | null): ProjectFileCopy | null {
+export function useProjectFileCopy(ref: ScopedProjectRef | null) {
   return useFileCopies((state) => (ref ? (state.copies[scopedProjectKey(ref)] ?? null) : null));
 }
 
@@ -98,7 +98,8 @@ export function dismissProjectFileCopy(ref: ScopedProjectRef) {
  * two servers never talk. Resolves with the cloning project once it starts; the
  * caller opens it, and its composer shows progress, so nothing toasts.
  */
-export async function addProjectToMachine(input: AddProjectToMachineInput): Promise<ProjectId> {
+export function addProjectToMachine(input: AddProjectToMachineInput): Promise<ProjectId>;
+export async function addProjectToMachine(input: AddProjectToMachineInput) {
   const reads = await Promise.all(
     input.files.map(async (relativePath) => {
       const result = await executeAtomQuery(
@@ -148,7 +149,7 @@ export async function addProjectToMachine(input: AddProjectToMachineInput): Prom
       setFileCopy(requestedKey, null);
     }
   }
-  if (reads.length === 0) return projectId;
+  if (reads.length === 0) return projectId satisfies ProjectId;
 
   void (async () => {
     const clone = await waitForClone(input.target.environmentId, projectId);
@@ -191,5 +192,5 @@ export async function addProjectToMachine(input: AddProjectToMachineInput): Prom
           },
     );
   })();
-  return projectId;
+  return projectId satisfies ProjectId;
 }

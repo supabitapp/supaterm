@@ -3,7 +3,7 @@ import * as Schema from "effect/Schema";
 import { ThreadId, TurnItemId } from "./baseSchemas.ts";
 
 /** The http(s) page a secret card may open, or null for anything else. */
-export function secretRequestPageUrl(value: string): URL | null {
+export function secretRequestPageUrl(value: string) {
   try {
     const url = new URL(value);
     return (url.protocol === "https:" || url.protocol === "http:") && url.host !== "" ? url : null;
@@ -69,7 +69,7 @@ export class SecretRequestError extends Schema.TaggedError<SecretRequestError>()
     cause: Schema.optionalKey(Schema.Defect()),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return SECRET_REQUEST_FAILURE_MESSAGES[this.reason];
   }
 }

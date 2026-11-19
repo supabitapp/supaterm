@@ -10,7 +10,7 @@ import {
 function shortcutEvent(
   key: string,
   overrides: Partial<Parameters<typeof surfaceShortcutActionForKey>[1]> = {},
-): Parameters<typeof surfaceShortcutActionForKey>[1] {
+) {
   return {
     key,
     altKey: false,

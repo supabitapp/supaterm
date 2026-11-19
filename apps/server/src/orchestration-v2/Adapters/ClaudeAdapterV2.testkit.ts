@@ -72,7 +72,7 @@ export class ClaudeReplayTranscriptDecodeError extends Schema.TaggedError<Claude
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Failed to decode Claude Agent SDK replay transcript for scenario ${this.scenario ?? "<unknown>"}.`;
   }
 }
@@ -85,7 +85,7 @@ export class ClaudeReplayExhaustedError extends Schema.TaggedError<ClaudeReplayE
     actual: Schema.Unknown,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Claude Agent SDK replay transcript exhausted before outbound frame ${this.cursor} in scenario ${this.scenario}.`;
   }
 }
@@ -99,7 +99,7 @@ export class ClaudeReplayUnexpectedOutboundError extends Schema.TaggedError<Clau
     actual: Schema.Unknown,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Unexpected outbound Claude Agent SDK frame at replay cursor ${this.cursor} in scenario ${this.scenario}.`;
   }
 }
@@ -114,7 +114,7 @@ export class ClaudeReplayFrameMismatchError extends Schema.TaggedError<ClaudeRep
     actual: Schema.Unknown,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Outbound Claude Agent SDK frame did not match replay cursor ${this.cursor} in scenario ${this.scenario}.`;
   }
 }
@@ -128,7 +128,7 @@ export class ClaudeReplayRuntimeExitError extends Schema.TaggedError<ClaudeRepla
     error: Schema.optional(Schema.Unknown),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Claude Agent SDK replay exited with status ${this.status} at cursor ${this.cursor} in scenario ${this.scenario}.`;
   }
 }
@@ -141,7 +141,7 @@ export class ClaudeReplayIncompleteError extends Schema.TaggedError<ClaudeReplay
     remaining: Schema.Number,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Claude Agent SDK replay ended with ${this.remaining} unconsumed entries in scenario ${this.scenario}.`;
   }
 }
@@ -153,7 +153,7 @@ export class ClaudeReplayDriverError extends Schema.TaggedError<ClaudeReplayDriv
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Claude Agent SDK replay driver failed in scenario ${this.scenario}.`;
   }
 }
@@ -276,21 +276,22 @@ interface ClaudeQueryRunner {
   readonly assertComplete: () => void;
 }
 
-function stableStringify(value: unknown): string {
+function stableStringify(value: unknown): string;
+function stableStringify(value: unknown) {
   if (Array.isArray(value)) {
-    return `[${value.map(stableStringify).join(",")}]`;
+    return `[${value.map(stableStringify).join(",")}]` satisfies string;
   }
   if (typeof value === "object" && value !== null) {
     const record = value as Record<string, unknown>;
     return `{${Object.keys(record)
       .toSorted()
       .map((key) => `${JSON.stringify(key)}:${stableStringify(record[key])}`)
-      .join(",")}}`;
+      .join(",")}}` satisfies string;
   }
-  return JSON.stringify(value);
+  return JSON.stringify(value) satisfies string;
 }
 
-function normalizeContextHandoffText(value: string): string {
+function normalizeContextHandoffText(value: string) {
   if (!value.startsWith("Context handoff (")) {
     return value;
   }
@@ -303,22 +304,23 @@ function normalizeContextHandoffText(value: string): string {
   return `${value.slice(0, headerEndIndex + 2)}<dynamic-summary>${value.slice(userMessageIndex)}`;
 }
 
-function normalizeReplayFrame(value: unknown): unknown {
+function normalizeReplayFrame(value: unknown): unknown;
+function normalizeReplayFrame(value: unknown) {
   if (typeof value === "string") {
-    return normalizeContextHandoffText(value);
+    return normalizeContextHandoffText(value) satisfies unknown;
   }
   if (Array.isArray(value)) {
-    return value.map(normalizeReplayFrame);
+    return value.map(normalizeReplayFrame) satisfies unknown;
   }
   if (typeof value !== "object" || value === null) {
-    return value;
+    return value satisfies unknown;
   }
   return Object.fromEntries(
     Object.entries(value).map(([key, entry]) => [key, normalizeReplayFrame(entry)]),
-  );
+  ) satisfies unknown;
 }
 
-function sameFrame(left: unknown, right: unknown): boolean {
+function sameFrame(left: unknown, right: unknown) {
   return (
     stableStringify(normalizeReplayFrame(left)) === stableStringify(normalizeReplayFrame(right))
   );
@@ -340,7 +342,7 @@ function isClaudeSdkReplayMessage(frame: unknown): frame is SDKMessage {
   );
 }
 
-function sdkMessageFromReplayFrame(frame: unknown): SDKMessage {
+function sdkMessageFromReplayFrame(frame: unknown) {
   if (!isClaudeSdkReplayMessage(frame)) {
     throw new Error("Replay frame is not a Claude Agent SDK message.");
   }
@@ -363,19 +365,17 @@ function isClaudePermissionRequestFrame(frame: unknown): frame is ClaudePermissi
   );
 }
 
-function makeClaudePermissionResponseFrame(
-  result: PermissionResult,
-): ClaudePermissionResponseFrame {
+function makeClaudePermissionResponseFrame(result: PermissionResult) {
   return {
     type: "permission.response",
     result,
-  };
+  } satisfies ClaudePermissionResponseFrame;
 }
 
 function permissionRequestOptionsFromFrame(
   frame: ClaudePermissionRequestFrame,
   signal: AbortSignal,
-): Parameters<CanUseTool>[2] {
+) {
   const options = frame.options;
   return {
     signal,
@@ -391,12 +391,9 @@ function permissionRequestOptionsFromFrame(
   };
 }
 
-function unresolvedCursorSignal(): void {}
+function unresolvedCursorSignal() {}
 
-function makeCursorSignal(): {
-  readonly promise: Promise<void>;
-  readonly resolve: () => void;
-} {
+function makeCursorSignal() {
   let resolve: () => void = unresolvedCursorSignal;
   const promise = new Promise<void>((onResolve) => {
     resolve = onResolve;
@@ -404,7 +401,7 @@ function makeCursorSignal(): {
   return { promise, resolve };
 }
 
-function waitForCursorAdvance(promise: Promise<void>, signal: AbortSignal): Promise<void> {
+function waitForCursorAdvance(promise: Promise<void>, signal: AbortSignal) {
   if (signal.aborted) {
     return Promise.resolve();
   }
@@ -426,16 +423,14 @@ function waitForCursorAdvance(promise: Promise<void>, signal: AbortSignal): Prom
   });
 }
 
-async function waitForReplayDelay(afterMs: number, signal: AbortSignal): Promise<void> {
+async function waitForReplayDelay(afterMs: number, signal: AbortSignal) {
   const exit = await Effect.runPromiseExit(Effect.sleep(Duration.millis(afterMs)), { signal });
   if (Exit.isFailure(exit) && !Cause.hasInterruptsOnly(exit.cause)) {
     throw Cause.squash(exit.cause);
   }
 }
 
-function stableClaudeQueryOptions(
-  options: ClaudeAdapterV2.ClaudeAgentSdkQueryOptions,
-): ClaudeAdapterV2.ClaudeAgentSdkQueryOptions {
+function stableClaudeQueryOptions(options: ClaudeAdapterV2.ClaudeAgentSdkQueryOptions) {
   const stable = {
     model: options.model,
     tools: options.tools,
@@ -456,24 +451,32 @@ function stableClaudeQueryOptions(
 
 function makeClaudeQueryOpenFrame(
   input: Pick<ClaudeAdapterV2.ClaudeAgentSdkQueryOpenInput, "options">,
-): ClaudeQueryOpenFrame {
+): ClaudeQueryOpenFrame;
+function makeClaudeQueryOpenFrame(
+  input: Pick<ClaudeAdapterV2.ClaudeAgentSdkQueryOpenInput, "options">,
+) {
   return {
     type: "query.open",
     options: stableClaudeQueryOptions(input.options),
-  };
+  } satisfies ClaudeQueryOpenFrame;
 }
 
-function makeClaudePromptOfferFrame(message: SDKUserMessage): ClaudePromptOfferFrame {
+function makeClaudePromptOfferFrame(message: SDKUserMessage): ClaudePromptOfferFrame;
+function makeClaudePromptOfferFrame(message: SDKUserMessage) {
   return {
     type: "prompt.offer",
     message,
-  };
+  } satisfies ClaudePromptOfferFrame;
 }
 
 function makeClaudeSessionForkFrame(
   input: ClaudeAdapterV2.ClaudeAgentSdkSessionForkInput,
   scenario: string,
-): ClaudeSessionForkFrame {
+): ClaudeSessionForkFrame;
+function makeClaudeSessionForkFrame(
+  input: ClaudeAdapterV2.ClaudeAgentSdkSessionForkInput,
+  scenario: string,
+) {
   return {
     type: "session.fork",
     sessionId: input.sessionId,
@@ -484,13 +487,17 @@ function makeClaudeSessionForkFrame(
         : { upToMessageId: input.options.upToMessageId }),
       ...(input.options.title === undefined ? {} : { title: input.options.title }),
     },
-  };
+  } satisfies ClaudeSessionForkFrame;
 }
 
 function makeReplayQueryRunner(
   transcript: ClaudeAgentSdkReplayTranscript,
+  replayOptions?: { readonly replayGate?: ProviderReplayGate },
+): ClaudeQueryRunner;
+function makeReplayQueryRunner(
+  transcript: ClaudeAgentSdkReplayTranscript,
   replayOptions: { readonly replayGate?: ProviderReplayGate } = {},
-): ClaudeQueryRunner {
+) {
   let cursor = 0;
   let failure: ClaudeAgentSdkReplayError | null = null;
   let cursorAdvanced = makeCursorSignal();
@@ -523,10 +530,14 @@ function makeReplayQueryRunner(
     signal.resolve();
   };
 
+  function replayMessages(
+    options: ClaudeAdapterV2.ClaudeAgentSdkQueryOptions,
+    signal: AbortSignal,
+  ): AsyncGenerator<SDKMessage, void>;
   async function* replayMessages(
     options: ClaudeAdapterV2.ClaudeAgentSdkQueryOptions,
     signal: AbortSignal,
-  ): AsyncGenerator<SDKMessage, void> {
+  ) {
     while (true) {
       throwIfFailed();
 
@@ -624,9 +635,9 @@ function makeReplayQueryRunner(
     }
   }
 
-  const replayMessagesWithGateCleanup = (
+  const replayMessagesWithGateCleanup: (
     options: ClaudeAdapterV2.ClaudeAgentSdkQueryOptions,
-  ): AsyncIterable<SDKMessage> => ({
+  ) => AsyncIterable<SDKMessage> = (options: ClaudeAdapterV2.ClaudeAgentSdkQueryOptions) => ({
     [Symbol.asyncIterator]: () => {
       const abortController = new AbortController();
       iteratorAbortControllers.add(abortController);
@@ -658,8 +669,8 @@ function makeReplayQueryRunner(
   });
 
   const promptUuidReplacements = new Map<string, string>();
-  const replayedPromptUuid = (value: string): string => promptUuidReplacements.get(value) ?? value;
-  const withReplayedPromptUuids = (frame: unknown): unknown => {
+  const replayedPromptUuid = (value: string) => promptUuidReplacements.get(value) ?? value;
+  const withReplayedPromptUuids = (frame: unknown) => {
     if (promptUuidReplacements.size === 0 || typeof frame !== "object" || frame === null) {
       return frame;
     }
@@ -682,7 +693,7 @@ function makeReplayQueryRunner(
         : {}),
     };
   };
-  const promptOfferUuid = (frame: unknown): string | undefined => {
+  const promptOfferUuid = (frame: unknown) => {
     if (
       typeof frame !== "object" ||
       frame === null ||
@@ -695,7 +706,7 @@ function makeReplayQueryRunner(
       typeof message === "object" && message !== null ? Reflect.get(message, "uuid") : undefined;
     return typeof uuid === "string" ? uuid : undefined;
   };
-  const withoutPromptOfferUuid = (frame: unknown): unknown => {
+  const withoutPromptOfferUuid = (frame: unknown) => {
     if (promptOfferUuid(frame) === undefined || typeof frame !== "object" || frame === null) {
       return frame;
     }
@@ -753,10 +764,13 @@ function makeReplayQueryRunner(
     advance();
   };
 
-  const assertNextReplyFrame = <Frame extends ClaudeSessionForkedFrame | ClaudeSubagentFoundFrame>(
+  const assertNextReplyFrame: <Frame extends ClaudeSessionForkedFrame | ClaudeSubagentFoundFrame>(
     type: Frame["type"],
     isValid: (frame: object) => boolean,
-  ): Frame => {
+  ) => Frame = <Frame extends ClaudeSessionForkedFrame | ClaudeSubagentFoundFrame>(
+    type: Frame["type"],
+    isValid: (frame: object) => boolean,
+  ) => {
     const entry = transcript.entries[cursor];
     if (entry === undefined) {
       return fail(
@@ -886,14 +900,10 @@ function makeReplayQueryRunner(
         });
       }
     },
-  };
+  } satisfies ClaudeQueryRunner;
 }
 
-function metadataFromTranscript(transcript: ProviderReplayTranscript): {
-  readonly provider?: string;
-  readonly protocol?: string;
-  readonly scenario?: string;
-} {
+function metadataFromTranscript(transcript: ProviderReplayTranscript) {
   return {
     provider: transcript.provider,
     protocol: transcript.protocol,
@@ -901,7 +911,7 @@ function metadataFromTranscript(transcript: ProviderReplayTranscript): {
   };
 }
 
-function nativeSessionIdFor(transcript: ClaudeAgentSdkReplayTranscript): string {
+function nativeSessionIdFor(transcript: ClaudeAgentSdkReplayTranscript) {
   const metadataSessionId = transcript.metadata?.nativeSessionId;
   return typeof metadataSessionId === "string"
     ? metadataSessionId
@@ -914,9 +924,10 @@ const isClaudeAgentSdkReplayError = Schema.is(ClaudeAgentSdkReplayError);
 function replayQueryRunnerError(
   transcript: ClaudeAgentSdkReplayTranscript,
   cause: unknown,
-): ClaudeAdapterV2.ClaudeAgentSdkQueryRunnerError {
+): ClaudeAdapterV2.ClaudeAgentSdkQueryRunnerError;
+function replayQueryRunnerError(transcript: ClaudeAgentSdkReplayTranscript, cause: unknown) {
   if (isClaudeAgentSdkQueryRunnerError(cause)) {
-    return cause;
+    return cause satisfies ClaudeAdapterV2.ClaudeAgentSdkQueryRunnerError;
   }
   const replayCause = isClaudeAgentSdkReplayError(cause)
     ? cause
@@ -924,13 +935,13 @@ function replayQueryRunnerError(
   return new ClaudeAdapterV2.ClaudeAgentSdkQueryRunnerError({
     cause: replayCause,
     method: `replay-scenario:${transcript.scenario}`,
-  });
+  }) satisfies ClaudeAdapterV2.ClaudeAgentSdkQueryRunnerError;
 }
 
 function replayQueryRunnerService(
   transcript: ClaudeAgentSdkReplayTranscript,
   queryRunner: ClaudeQueryRunner,
-): ClaudeAdapterV2.ClaudeAgentSdkQueryRunner["Service"] {
+) {
   const replay = <A>(run: () => A) =>
     Effect.try({
       try: run,
@@ -952,7 +963,7 @@ function layerClaudeAgentSdkReplay(
     readonly replayGate?: ProviderReplayGate;
     readonly queryRunner?: ClaudeQueryRunner;
   } = {},
-): Layer.Layer<ClaudeAdapterV2.ClaudeAgentSdkQueryRunner> {
+) {
   if (options.queryRunner !== undefined) {
     return Layer.succeed(
       ClaudeAdapterV2.ClaudeAgentSdkQueryRunner,
@@ -1069,7 +1080,7 @@ function layerClaudeProviderAdapterRegistryReplay(
   );
 }
 
-function serializeReplayError(error: unknown, scenario?: string): unknown {
+function serializeReplayError(error: unknown, scenario?: string) {
   return error instanceof Error
     ? {
         name: error.name,
@@ -1086,7 +1097,7 @@ function permissionResultForRecording(input: {
   readonly toolInput: Record<string, unknown>;
   readonly toolUseID: string;
   readonly suggestions?: Parameters<CanUseTool>[2]["suggestions"];
-}): PermissionResult {
+}) {
   if (input.decision === "accept" || input.decision === "acceptForSession") {
     return {
       behavior: "allow",
@@ -1097,7 +1108,7 @@ function permissionResultForRecording(input: {
       ...(input.decision === "acceptForSession" && input.suggestions !== undefined
         ? { updatedPermissions: input.suggestions }
         : {}),
-    };
+    } satisfies PermissionResult;
   }
   return {
     behavior: "deny",
@@ -1108,14 +1119,14 @@ function permissionResultForRecording(input: {
     toolUseID: input.toolUseID,
     decisionClassification: "user_reject",
     ...(input.decision === "cancel" ? { interrupt: true } : {}),
-  };
+  } satisfies PermissionResult;
 }
 
 function permissionRequestFrame(input: {
   readonly toolName: string;
   readonly toolInput: Record<string, unknown>;
   readonly callbackOptions: Parameters<CanUseTool>[2];
-}): ClaudePermissionRequestFrame {
+}) {
   const { callbackOptions } = input;
   return {
     type: "permission.request",
@@ -1141,14 +1152,14 @@ function permissionRequestFrame(input: {
       toolUseID: callbackOptions.toolUseID,
       ...(callbackOptions.agentID === undefined ? {} : { agentID: callbackOptions.agentID }),
     },
-  };
+  } satisfies ClaudePermissionRequestFrame;
 }
 
-function sanitizedReplayCwd(scenario: string): string {
+function sanitizedReplayCwd(scenario: string) {
   return `/tmp/claude-replay-${scenario}`;
 }
 
-function parentDirectory(input: string): string {
+function parentDirectory(input: string) {
   const trimmed = input.replace(/\/+$/u, "");
   const lastSlash = trimmed.lastIndexOf("/");
   if (lastSlash <= 0) {
@@ -1157,7 +1168,7 @@ function parentDirectory(input: string): string {
   return trimmed.slice(0, lastSlash);
 }
 
-function sanitizeReplayText(input: { readonly text: string; readonly scenario: string }): string {
+function sanitizeReplayText(input: { readonly text: string; readonly scenario: string }) {
   const sanitizedCwd = sanitizedReplayCwd(input.scenario);
   const repoRoot = parentDirectory(parentDirectory(process.cwd()));
   return [repoRoot, process.cwd()]
@@ -1168,7 +1179,7 @@ function sanitizeReplayText(input: { readonly text: string; readonly scenario: s
 function sanitizeSdkMessageForReplay(input: {
   readonly message: SDKMessage;
   readonly scenario: string;
-}): SDKMessage {
+}) {
   const { message } = input;
   if (message.type === "system" && message.subtype === "init") {
     return {
@@ -1192,10 +1203,10 @@ function sanitizeSdkMessageForReplay(input: {
         : { fast_mode_state: message.fast_mode_state }),
       uuid: message.uuid,
       session_id: message.session_id,
-    };
+    } satisfies SDKMessage;
   }
   if (message.type === "system" && message.subtype === "commands_changed") {
-    return { ...message, commands: [] };
+    return { ...message, commands: [] } satisfies SDKMessage;
   }
   if (message.type === "rate_limit_event") {
     return {
@@ -1203,7 +1214,7 @@ function sanitizeSdkMessageForReplay(input: {
       rate_limit_info: {
         status: message.rate_limit_info.status,
       },
-    };
+    } satisfies SDKMessage;
   }
   if (message.type === "result" && message.subtype !== "success" && message.errors.length > 0) {
     return {
@@ -1211,9 +1222,9 @@ function sanitizeSdkMessageForReplay(input: {
       errors: message.errors.map((error) =>
         sanitizeReplayText({ text: error, scenario: input.scenario }),
       ),
-    };
+    } satisfies SDKMessage;
   }
-  return message;
+  return message satisfies SDKMessage;
 }
 
 class RecordingMessageReader implements AsyncIterator<SDKMessage> {
@@ -1224,13 +1235,13 @@ class RecordingMessageReader implements AsyncIterator<SDKMessage> {
     this.iterator = iterator;
   }
 
-  next(): Promise<IteratorResult<SDKMessage>> {
+  next() {
     const pending = this.pending ?? this.iterator.next();
     this.pending = undefined;
     return pending;
   }
 
-  async peekWithin(ms: number): Promise<SDKMessage | undefined> {
+  async peekWithin(ms: number) {
     const pending = this.pending ?? this.iterator.next();
     this.pending = pending;
     return Promise.race([
@@ -1248,14 +1259,14 @@ class RecordingPromptQueue implements AsyncIterable<SDKUserMessage> {
   private readonly waiters: Array<(result: IteratorResult<SDKUserMessage>) => void> = [];
   private closed = false;
 
-  offer(message: SDKUserMessage): void {
+  offer(message: SDKUserMessage) {
     if (this.closed) {
       throw new Error("Cannot offer a prompt to a closed Claude recording queue.");
     }
     this.push({ done: false, value: message });
   }
 
-  close(): void {
+  close() {
     if (this.closed) {
       return;
     }
@@ -1263,7 +1274,7 @@ class RecordingPromptQueue implements AsyncIterable<SDKUserMessage> {
     this.push({ done: true, value: undefined });
   }
 
-  async *[Symbol.asyncIterator](): AsyncIterator<SDKUserMessage> {
+  async *[Symbol.asyncIterator]() {
     while (true) {
       const next = await this.take();
       if (next.done === true) {
@@ -1273,7 +1284,7 @@ class RecordingPromptQueue implements AsyncIterable<SDKUserMessage> {
     }
   }
 
-  private push(result: IteratorResult<SDKUserMessage>): void {
+  private push(result: IteratorResult<SDKUserMessage>) {
     const waiter = this.waiters.shift();
     if (waiter === undefined) {
       this.pending.push(result);
@@ -1282,14 +1293,14 @@ class RecordingPromptQueue implements AsyncIterable<SDKUserMessage> {
     waiter(result);
   }
 
-  private take(): Promise<IteratorResult<SDKUserMessage>> {
+  private take() {
     const next = this.pending.shift();
     if (next !== undefined) {
-      return Promise.resolve(next);
+      return Promise.resolve(next) satisfies Promise<IteratorResult<SDKUserMessage>>;
     }
     return new Promise((resolve) => {
       this.waiters.push(resolve);
-    });
+    }) satisfies Promise<IteratorResult<SDKUserMessage>>;
   }
 }
 
@@ -1297,7 +1308,7 @@ async function recordMessagesUntilTurnResult(input: {
   readonly iterator: AsyncIterator<SDKMessage>;
   readonly entries: Array<ProviderReplayEntry>;
   readonly scenario: string;
-}): Promise<boolean> {
+}) {
   while (true) {
     const next = await input.iterator.next();
     if (next.done === true) {
@@ -1323,7 +1334,7 @@ async function recordMessagesUntilTurnResultAndFinalize(input: {
   readonly entries: Array<ProviderReplayEntry>;
   readonly scenario: string;
   readonly finalize: () => void;
-}): Promise<boolean> {
+}) {
   try {
     return await recordMessagesUntilTurnResult(input);
   } finally {
@@ -1335,10 +1346,7 @@ async function recordMessagesUntilTurnResultWithCursor(input: {
   readonly iterator: AsyncIterator<SDKMessage>;
   readonly entries: Array<ProviderReplayEntry>;
   readonly scenario: string;
-}): Promise<{
-  readonly completed: boolean;
-  readonly assistantMessageUuid: SDKAssistantMessage["uuid"] | null;
-}> {
+}) {
   let assistantMessageUuid: SDKAssistantMessage["uuid"] | null = null;
   while (true) {
     const next = await input.iterator.next();
@@ -1367,7 +1375,7 @@ function requireAssistantCursor(input: {
   readonly scenario: string;
   readonly promptIndex: number;
   readonly cursor: SDKAssistantMessage["uuid"] | null;
-}): SDKAssistantMessage["uuid"] {
+}) {
   if (input.cursor !== null) {
     return input.cursor;
   }
@@ -1381,7 +1389,7 @@ async function recordMessagesUntilTurnResults(input: {
   readonly entries: Array<ProviderReplayEntry>;
   readonly scenario: string;
   readonly resultCount: number;
-}): Promise<boolean> {
+}) {
   let seenResults = 0;
   while (true) {
     const next = await input.iterator.next();
@@ -1410,7 +1418,7 @@ async function recordMessagesUntilIteratorDone(input: {
   readonly iterator: AsyncIterator<SDKMessage>;
   readonly entries: Array<ProviderReplayEntry>;
   readonly scenario: string;
-}): Promise<void> {
+}) {
   while (true) {
     const next = await input.iterator.next();
     if (next.done === true) {
@@ -1430,11 +1438,11 @@ async function recordMessagesUntilIteratorDone(input: {
 
 const CLAUDE_RECORDING_WAKE_QUIET_MS = 5_000;
 
-function isSystemInitFrame(message: SDKMessage | undefined): boolean {
+function isSystemInitFrame(message: SDKMessage | undefined) {
   return message?.type === "system" && message.subtype === "init";
 }
 
-function isTaskNotificationOriginResultFrame(frame: unknown): boolean {
+function isTaskNotificationOriginResultFrame(frame: unknown) {
   if (typeof frame !== "object" || frame === null || Reflect.get(frame, "type") !== "result") {
     return false;
   }
@@ -1446,7 +1454,7 @@ function isTaskNotificationOriginResultFrame(frame: unknown): boolean {
   );
 }
 
-function sdkMessageHasRootToolUse(message: SDKMessage): boolean {
+function sdkMessageHasRootToolUse(message: SDKMessage) {
   return (
     message.type === "assistant" &&
     message.parent_tool_use_id === null &&
@@ -1459,7 +1467,7 @@ async function recordMessagesUntilToolUse(input: {
   readonly entries: Array<ProviderReplayEntry>;
   readonly scenario: string;
   readonly toolUseCount: number;
-}): Promise<void> {
+}) {
   let toolUses = 0;
   while (true) {
     const next = await input.iterator.next();
@@ -1531,7 +1539,7 @@ async function recordClaudeStreamingQuery(input: {
   readonly permissionDecision?: ProviderApprovalDecision;
   readonly backgroundWakeCounts?: ReadonlyArray<number>;
   readonly offerNextPromptImmediately?: boolean;
-}): Promise<void> {
+}) {
   const promptQueue = new RecordingPromptQueue();
   const canUseTool: CanUseTool | undefined =
     input.enablePermissionCallback === true
@@ -1593,7 +1601,7 @@ async function recordClaudeStreamingQuery(input: {
   });
   const iterator = new RecordingMessageReader(queryRuntime[Symbol.asyncIterator]());
   let wakeNumber = 0;
-  const recordTurn = async (promptNumber: number): Promise<"prompt" | "wake"> => {
+  const recordTurn = async (promptNumber: number) => {
     const completed = await recordMessagesUntilTurnResult({
       iterator,
       entries: input.entries,
@@ -1684,7 +1692,7 @@ async function recordClaudeActiveSteeringQuery(input: {
   readonly allowDangerouslySkipPermissions?: boolean;
   readonly enablePermissionCallback?: boolean;
   readonly permissionDecision?: ProviderApprovalDecision;
-}): Promise<void> {
+}) {
   if (input.prompts.length < 2) {
     throw new Error("Claude active steering replay recording requires at least two prompts.");
   }
@@ -1810,7 +1818,7 @@ async function recordClaudeRestartingQueries(input: {
   readonly allowedTools?: ReadonlyArray<string>;
   readonly disallowedTools?: ReadonlyArray<string>;
   readonly allowDangerouslySkipPermissions?: boolean;
-}): Promise<void> {
+}) {
   for (const [index, prompt] of input.prompts.entries()) {
     const promptQueue = new RecordingPromptQueue();
     const options = ClaudeAdapterV2.makeClaudeQueryOptions({
@@ -1898,7 +1906,7 @@ async function recordClaudeResumeAtCursorQuery(input: {
   readonly allowedTools?: ReadonlyArray<string>;
   readonly disallowedTools?: ReadonlyArray<string>;
   readonly allowDangerouslySkipPermissions?: boolean;
-}): Promise<void> {
+}) {
   if (input.prompts.length !== 3) {
     throw new Error(
       `Claude resume-at-cursor replay scenario ${input.scenario} requires exactly three prompts.`,
@@ -2062,7 +2070,7 @@ async function recordClaudeForkSessionQuery(input: {
   readonly allowedTools?: ReadonlyArray<string>;
   readonly disallowedTools?: ReadonlyArray<string>;
   readonly allowDangerouslySkipPermissions?: boolean;
-}): Promise<void> {
+}) {
   if (input.prompts.length < 2) {
     throw new Error(
       `Claude fork-session replay scenario ${input.scenario} requires at least two prompts.`,
@@ -2339,7 +2347,7 @@ async function recordInterruptedClaudeQuery(input: {
   readonly allowedTools?: ReadonlyArray<string>;
   readonly disallowedTools?: ReadonlyArray<string>;
   readonly allowDangerouslySkipPermissions?: boolean;
-}): Promise<void> {
+}) {
   const promptQueue = new RecordingPromptQueue();
   const options = ClaudeAdapterV2.makeClaudeQueryOptions({
     modelSelection: input.modelSelection,
@@ -2445,7 +2453,7 @@ async function recordClaudeInterruptQuery(input: {
   readonly allowDangerouslySkipPermissions?: boolean;
   readonly interruptAfter?: "prompt_offer" | "tool_use";
   readonly interruptAfterToolUses?: number;
-}): Promise<void> {
+}) {
   if (input.prompts.length !== 1) {
     throw new Error(
       `Claude interrupt replay scenario ${input.scenario} requires exactly one prompt.`,
@@ -2492,7 +2500,7 @@ async function recordClaudeInterruptRestartQuery(input: {
   readonly disallowedTools?: ReadonlyArray<string>;
   readonly allowDangerouslySkipPermissions?: boolean;
   readonly interruptAfter?: "prompt_offer" | "tool_use";
-}): Promise<void> {
+}) {
   if (input.prompts.length !== 2) {
     throw new Error(
       `Claude interrupt-restart replay scenario ${input.scenario} requires exactly two prompts.`,
@@ -2610,7 +2618,7 @@ export async function recordClaudeAgentSdkReplayTranscript(input: {
   readonly offerNextPromptImmediately?: boolean;
   readonly interruptAfter?: "prompt_offer" | "tool_use";
   readonly interruptAfterToolUses?: number;
-}): Promise<ClaudeAgentSdkReplayTranscript> {
+}) {
   if (input.prompts.length === 0) {
     throw new Error(
       `Claude Agent SDK replay scenario ${input.scenario} needs at least one prompt.`,

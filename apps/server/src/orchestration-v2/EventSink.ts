@@ -47,7 +47,7 @@ export class EventSinkWriteError extends Schema.TaggedError<EventSinkWriteError>
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Failed to write ${this.eventCount} orchestration V2 event(s).`;
   }
 }
@@ -60,7 +60,7 @@ export class EventSinkStreamError extends Schema.TaggedError<EventSinkStreamErro
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return this.threadId === undefined
       ? "Failed to stream orchestration V2 events."
       : `Failed to stream orchestration V2 events for thread ${this.threadId}.`;
@@ -384,15 +384,18 @@ const layerBase: Layer.Layer<
       );
       return Effect.forEach(
         events,
-        (event): Effect.Effect<OrchestrationV2DomainEvent, unknown> =>
-          event.type === "turn-item.updated"
+        (event) =>
+          (event.type === "turn-item.updated"
             ? turnItemPositions
                 .normalize(
                   event.payload,
                   event.payload.runId === null ? undefined : runOrdinals.get(event.payload.runId),
                 )
                 .pipe(Effect.map((payload) => ({ ...event, payload })))
-            : Effect.succeed(event),
+            : Effect.succeed(event)) satisfies Effect.Effect<
+            OrchestrationV2DomainEvent,
+            unknown
+          > as Effect.Effect<OrchestrationV2DomainEvent, unknown>,
         { concurrency: 1 },
       );
     };
@@ -735,7 +738,7 @@ const layerBase: Layer.Layer<
       }
       const storedEvents = yield* eventStore.readByCommandId({ commandId }).pipe(
         Stream.runCollect,
-        Effect.map((events): ReadonlyArray<OrchestrationV2StoredEvent> => Array.from(events)),
+        Effect.map((events) => Array.from(events)),
       );
       return { receipt: existing.value, storedEvents };
     });
@@ -933,14 +936,21 @@ const layerBase: Layer.Layer<
       );
     });
 
-    const catchUp = (input: {
+    const catchUp: (input: {
       readonly afterSequence: number;
       readonly throughSequence: number;
       readonly threadId?: ThreadId;
       readonly eventType?: OrchestrationV2DomainEvent["type"];
-    }): Stream.Stream<OrchestrationV2StoredEvent, unknown> => {
+    }) => Stream.Stream<OrchestrationV2StoredEvent, unknown> = (input: {
+      readonly afterSequence: number;
+      readonly throughSequence: number;
+      readonly threadId?: ThreadId;
+      readonly eventType?: OrchestrationV2DomainEvent["type"];
+    }) => {
       const pageSize = 256;
-      const loop = (afterSequence: number): Stream.Stream<OrchestrationV2StoredEvent, unknown> =>
+      const loop: (afterSequence: number) => Stream.Stream<OrchestrationV2StoredEvent, unknown> = (
+        afterSequence: number,
+      ) =>
         Stream.unwrap(
           eventStore
             .read({

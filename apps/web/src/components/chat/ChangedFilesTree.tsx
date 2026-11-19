@@ -395,7 +395,7 @@ function collectExpandedRows(
   allDirectoriesExpanded: boolean,
   depth = 0,
   rows: ChangedFileRow[] = [],
-): ChangedFileRow[] {
+) {
   for (const node of nodes) {
     rows.push({ node, depth });
     if (node.kind === "directory" && (overrides[node.path] ?? allDirectoriesExpanded)) {
@@ -405,7 +405,7 @@ function collectExpandedRows(
   return rows;
 }
 
-function collectDirectoryPaths(nodes: ReadonlyArray<TurnDiffTreeNode>): string[] {
+function collectDirectoryPaths(nodes: ReadonlyArray<TurnDiffTreeNode>) {
   const paths: string[] = [];
   for (const node of nodes) {
     if (node.kind !== "directory") continue;

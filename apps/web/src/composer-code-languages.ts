@@ -62,11 +62,11 @@ const LANGUAGE_ALIASES: Record<string, string> = {
   yml: "yaml",
 };
 
-export function languageOfInfoString(info: string): string {
+export function languageOfInfoString(info: string) {
   return info.trim().split(/\s+/, 1)[0] ?? "";
 }
 
-export function withInfoStringLanguage(info: string, language: string): string {
+export function withInfoStringLanguage(info: string, language: string) {
   const leading = /^\s*/.exec(info)![0];
 
   const rest = info.slice(leading.length + languageOfInfoString(info).length);
@@ -74,11 +74,11 @@ export function withInfoStringLanguage(info: string, language: string): string {
   return rest.trim() ? `${leading}text${rest}` : "";
 }
 
-export function codeLanguageEntry(language: string): CodeBlockLanguage | null {
+export function codeLanguageEntry(language: string) {
   const id = LANGUAGE_ALIASES[language.toLowerCase()] ?? language;
   return CODE_BLOCK_LANGUAGES.find((entry) => entry.id === id.toLowerCase()) ?? null;
 }
 
-export function codeLanguageLabel(language: string): string {
+export function codeLanguageLabel(language: string) {
   return codeLanguageEntry(language)?.label ?? language;
 }

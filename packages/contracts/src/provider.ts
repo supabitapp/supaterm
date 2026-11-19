@@ -44,7 +44,7 @@ export class ProviderUploadFeedbackError extends Schema.TaggedError<ProviderUplo
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Failed to upload feedback for thread ${this.threadId}.`;
   }
 }

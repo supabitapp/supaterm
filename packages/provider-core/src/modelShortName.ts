@@ -36,17 +36,14 @@ const VERSION = /^v?\d+(?:\.\d+)*[a-z]?$/i;
 
 const VENDOR_PREFIX = /^[A-Z][\w.&\- ]{0,24}: (?=\S)/;
 
-export function modelShortName(
-  name: string,
-  nativeFamilies: ReadonlyArray<string>,
-): string | undefined {
+export function modelShortName(name: string, nativeFamilies: ReadonlyArray<string>) {
   const unprefixed = name.replace(VENDOR_PREFIX, "");
   const short =
     withoutFamily(unprefixed, nativeFamilies) ?? (namesModel(unprefixed) ? unprefixed : name);
   return short === name ? undefined : short;
 }
 
-function withoutFamily(name: string, nativeFamilies: ReadonlyArray<string>): string | undefined {
+function withoutFamily(name: string, nativeFamilies: ReadonlyArray<string>) {
   const prefix = FAMILY_PREFIXES.find((candidate) => name.startsWith(candidate));
   if (!prefix) return undefined;
   const rest = name.slice(prefix.length).trim();
@@ -57,13 +54,13 @@ function withoutFamily(name: string, nativeFamilies: ReadonlyArray<string>): str
   return /\s/.test(rest) ? rest : rest.replaceAll("-", " ");
 }
 
-function nonVersionWords(text: string): ReadonlyArray<string> {
+function nonVersionWords(text: string) {
   return text
     .replace(/\(.*?\)/g, " ")
     .split(/[\s-]+/)
     .filter((word) => word.length > 0 && !VERSION.test(word));
 }
 
-function namesModel(text: string): boolean {
+function namesModel(text: string) {
   return nonVersionWords(text).some((word) => !VARIANT_WORDS.has(word.toLowerCase()));
 }

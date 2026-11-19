@@ -8,24 +8,29 @@ import { ConnectionBlockedError } from "./model.ts";
 
 export function orchestrationProtocolCompatibilityError(
   descriptor: ExecutionEnvironmentDescriptor,
-): ConnectionBlockedError | null {
+): ConnectionBlockedError | null;
+export function orchestrationProtocolCompatibilityError(
+  descriptor: ExecutionEnvironmentDescriptor,
+) {
   const serverProtocolVersion = descriptor.orchestrationProtocolVersion;
   if (serverProtocolVersion === ORCHESTRATION_PROTOCOL_VERSION) {
-    return null;
+    return null satisfies ConnectionBlockedError | null;
   }
-  return serverProtocolVersion > ORCHESTRATION_PROTOCOL_VERSION
-    ? new ConnectionBlockedError({
-        reason: "unsupported",
-        detail: `This client is not supported by this server. Update your app or use a compatible release to connect to ${descriptor.label}.`,
-      })
-    : new ConnectionBlockedError({
-        reason: "unsupported",
-        detail: `This client requires a newer server. Update Supaterm on ${descriptor.label} to connect.`,
-        ...(canSelfUpdate(descriptor) ? { serverUpdateRequired: true } : {}),
-      });
+  return (
+    serverProtocolVersion > ORCHESTRATION_PROTOCOL_VERSION
+      ? new ConnectionBlockedError({
+          reason: "unsupported",
+          detail: `This client is not supported by this server. Update your app or use a compatible release to connect to ${descriptor.label}.`,
+        })
+      : new ConnectionBlockedError({
+          reason: "unsupported",
+          detail: `This client requires a newer server. Update Supaterm on ${descriptor.label} to connect.`,
+          ...(canSelfUpdate(descriptor) ? { serverUpdateRequired: true } : {}),
+        })
+  ) satisfies ConnectionBlockedError | null;
 }
 
-function canSelfUpdate(descriptor: ExecutionEnvironmentDescriptor): boolean {
+function canSelfUpdate(descriptor: ExecutionEnvironmentDescriptor) {
   const { serverSelfUpdate, desktopAppUpdate } = descriptor.capabilities;
   return (
     serverSelfUpdate !== undefined &&
@@ -33,7 +38,7 @@ function canSelfUpdate(descriptor: ExecutionEnvironmentDescriptor): boolean {
   );
 }
 
-export function appendOrchestrationProtocol(socketUrl: string): string {
+export function appendOrchestrationProtocol(socketUrl: string) {
   const url = new URL(socketUrl);
   url.searchParams.set(ORCHESTRATION_PROTOCOL_QUERY_PARAM, String(ORCHESTRATION_PROTOCOL_VERSION));
   return url.toString();

@@ -143,7 +143,7 @@ export class AttachmentUploadSigningKeyError extends Schema.TaggedError<Attachme
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return "Failed to load the attachment upload signing key.";
   }
 }
@@ -154,7 +154,7 @@ export class AssetWorkspaceContextNotFoundError extends Schema.TaggedError<Asset
     resource: AssetResource,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return "Workspace context was not found.";
   }
 }
@@ -166,7 +166,7 @@ export class AssetWorkspaceContextResolutionError extends Schema.TaggedError<Ass
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return "Failed to resolve workspace context.";
   }
 }
@@ -178,7 +178,7 @@ export class AssetWorkspaceRootNormalizationError extends Schema.TaggedError<Ass
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return "Failed to normalize the workspace root.";
   }
 }
@@ -190,7 +190,7 @@ export class AssetWorkspacePathValidationError extends Schema.TaggedError<AssetW
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return "Workspace file path must be relative to the project root.";
   }
 }
@@ -201,7 +201,7 @@ export class AssetPreviewTypeValidationError extends Schema.TaggedError<AssetPre
     resource: AssetResource,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return this.resource._tag === "media-file" || this.resource._tag === "draft-workspace-file"
       ? "Only images, videos, audio, HTML, and PDF files can be previewed."
       : "Only browser documents and images can be previewed.";
@@ -215,7 +215,7 @@ export class AssetWorkspaceAssetInspectionError extends Schema.TaggedError<Asset
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return this.resource._tag === "media-file"
       ? "Failed to inspect the media file."
       : "Failed to inspect the workspace asset.";
@@ -229,7 +229,7 @@ export class AssetWorkspaceAssetNotFoundError extends Schema.TaggedError<AssetWo
     checkedPath: Schema.optionalKey(Schema.String),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return this.resource._tag === "media-file"
       ? "Media file was not found."
       : this.resource._tag === "tool-output-image"
@@ -245,7 +245,7 @@ export class AssetWorkspaceResolutionError extends Schema.TaggedError<AssetWorks
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return "Failed to resolve workspace.";
   }
 }
@@ -256,7 +256,7 @@ export class AssetAttachmentNotFoundError extends Schema.TaggedError<AssetAttach
     resource: AssetResource,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return "Attachment was not found.";
   }
 }
@@ -268,7 +268,7 @@ export class AssetProjectFaviconResolutionError extends Schema.TaggedError<Asset
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return "Failed to resolve project favicon.";
   }
 }
@@ -280,7 +280,7 @@ export class AssetProjectFaviconInspectionError extends Schema.TaggedError<Asset
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return "Failed to inspect the project favicon.";
   }
 }
@@ -291,7 +291,7 @@ export class AssetProjectFaviconNotFoundError extends Schema.TaggedError<AssetPr
     resource: AssetResource,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return "Project favicon was not found.";
   }
 }
@@ -303,7 +303,7 @@ export class AssetSigningKeyLoadError extends Schema.TaggedError<AssetSigningKey
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return "Failed to load the asset signing key.";
   }
 }
@@ -312,7 +312,7 @@ export class AssetSourceControlMediaUrlValidationError extends Schema.TaggedErro
   "AssetGitHubMediaUrlValidationError",
   {},
 ) {
-  override get message(): string {
+  override get message() {
     return "Only media a source control host keeps behind a credential can be fetched with one.";
   }
 }

@@ -45,7 +45,7 @@ class PiReplayTranscriptDecodeError extends Schema.TaggedError<PiReplayTranscrip
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Failed to decode Pi RPC replay transcript for scenario ${this.scenario ?? "<unknown>"}.`;
   }
 }
@@ -62,7 +62,7 @@ class PiReplayMismatchError extends Schema.TaggedError<PiReplayMismatchError>()(
     actual: Schema.Unknown,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Pi replay frame mismatch at cursor ${this.cursor} (expected ${this.label ?? "<none>"}, received ${this.actualType ?? "<untyped>"} from process ${this.process}) in scenario ${this.scenario}.`;
   }
 }
@@ -76,12 +76,12 @@ class PiReplayIncompleteError extends Schema.TaggedError<PiReplayIncompleteError
     nextLabel: Schema.optional(Schema.String),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Pi replay ended with ${this.remaining} unconsumed entries at cursor ${this.cursor} (next ${this.nextLabel ?? "<none>"}) in scenario ${this.scenario}.`;
   }
 }
 
-function entryLabel(entry: ProviderReplayEntryType | undefined): string | undefined {
+function entryLabel(entry: ProviderReplayEntryType | undefined) {
   if (entry === undefined) return undefined;
   return entry.type === "runtime_exit" ? "runtime_exit" : (entry.label ?? entry.type);
 }
@@ -96,31 +96,32 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function replayValueMatches(expected: unknown, actual: unknown): boolean {
-  if (expected === PI_REPLAY_ANY) return true;
+function replayValueMatches(expected: unknown, actual: unknown): boolean;
+function replayValueMatches(expected: unknown, actual: unknown) {
+  if (expected === PI_REPLAY_ANY) return true satisfies boolean;
   if (Array.isArray(expected)) {
-    return (
-      Array.isArray(actual) &&
+    return (Array.isArray(actual) &&
       expected.length === actual.length &&
-      expected.every((entry, index) => replayValueMatches(entry, actual[index]))
-    );
+      expected.every((entry, index) => replayValueMatches(entry, actual[index]))) satisfies boolean;
   }
   if (isRecord(expected)) {
-    if (!isRecord(actual)) return false;
+    if (!isRecord(actual)) return false satisfies boolean;
     const keys = new Set([...Object.keys(expected), ...Object.keys(actual)]);
-    return [...keys].every((key) => replayValueMatches(expected[key], actual[key]));
+    return [...keys].every((key) =>
+      replayValueMatches(expected[key], actual[key]),
+    ) satisfies boolean;
   }
-  return Object.is(expected, actual);
+  return Object.is(expected, actual) satisfies boolean;
 }
 
 const ADAPTER_REQUEST_ID = /^supaterm-(?:prompt-)?\d+$/u;
 
-function adapterRequestId(frame: unknown): string | undefined {
+function adapterRequestId(frame: unknown) {
   const id = isRecord(frame) ? frame.id : undefined;
   return typeof id === "string" && ADAPTER_REQUEST_ID.test(id) ? id : undefined;
 }
 
-function withRequestId(expected: unknown, actual: unknown): unknown {
+function withRequestId(expected: unknown, actual: unknown) {
   const actualId = adapterRequestId(actual);
   return isRecord(expected) &&
     actualId !== undefined &&
@@ -130,7 +131,7 @@ function withRequestId(expected: unknown, actual: unknown): unknown {
     : expected;
 }
 
-function startsTurn(entry: ProviderReplayEntryType): boolean {
+function startsTurn(entry: ProviderReplayEntryType) {
   if (entry.type !== "expect_outbound") return false;
   const type = isRecord(entry.frame) ? entry.frame.type : undefined;
   return type === "prompt" || type === "compact" || type === "process_start";
@@ -141,13 +142,13 @@ function processStartFrame(command: ChildProcess.Command) {
   return { type: "process_start", args: [...args] };
 }
 
-function entryProcess(entry: ProviderReplayEntryType): number {
+function entryProcess(entry: ProviderReplayEntryType) {
   const label = entry.type === "runtime_exit" ? undefined : entry.label;
   const match = label === undefined ? null : /@p(\d+)$/u.exec(label);
   return match === null ? 1 : Number(match[1]);
 }
 
-function recordLabel(frame: unknown, process: number): string | undefined {
+function recordLabel(frame: unknown, process: number) {
   const base = !isRecord(frame)
     ? undefined
     : frame.type === "response" && typeof frame.command === "string"
@@ -165,7 +166,7 @@ const encodeJsonLine = Schema.encodeSync(Schema.fromJsonString(Schema.Unknown));
 function makeLineSplitter() {
   let buffer = "";
   const decoder = new TextDecoder();
-  return (chunk: Uint8Array): ReadonlyArray<string> => {
+  return (chunk: Uint8Array) => {
     buffer += decoder.decode(chunk, { stream: true });
     const lines = buffer.split("\n");
     buffer = lines.pop() ?? "";
@@ -193,10 +194,7 @@ class PiReplayController {
     this.transcript = transcript;
   }
 
-  spawn(
-    command: ChildProcess.Command,
-    stdout: Queue.Queue<Uint8Array, Cause.Done>,
-  ): PiReplayProcess {
+  spawn(command: ChildProcess.Command, stdout: Queue.Queue<Uint8Array, Cause.Done>) {
     const process: PiReplayProcess = {
       ordinal: this.processes.length + 1,
       stdout,
@@ -208,7 +206,7 @@ class PiReplayController {
     return process;
   }
 
-  receive(process: PiReplayProcess, actual: unknown): void {
+  receive(process: PiReplayProcess, actual: unknown) {
     if (this.failure !== null) return;
     const entries = this.transcript.entries;
     let possible = false;
@@ -242,12 +240,12 @@ class PiReplayController {
     this.advance();
   }
 
-  close(process: PiReplayProcess): void {
+  close(process: PiReplayProcess) {
     process.open = false;
     Queue.endUnsafe(process.stdout);
   }
 
-  assertComplete(): void {
+  assertComplete() {
     if (this.failure !== null) throw this.failure;
     if (this.cursor !== this.transcript.entries.length || this.held.length > 0) {
       const nextLabel = entryLabel(this.transcript.entries[this.cursor]);
@@ -260,7 +258,7 @@ class PiReplayController {
     }
   }
 
-  private advance(): void {
+  private advance() {
     let progressed = true;
     while (progressed && this.failure === null) {
       progressed = this.drainInbound();
@@ -274,7 +272,7 @@ class PiReplayController {
     }
   }
 
-  private consumePending(process: PiReplayProcess, actual: unknown): boolean {
+  private consumePending(process: PiReplayProcess, actual: unknown) {
     const entries = this.transcript.entries;
     for (let index = this.cursor; index < entries.length; index += 1) {
       const entry = entries[index]!;
@@ -293,7 +291,7 @@ class PiReplayController {
     return false;
   }
 
-  private drainInbound(): boolean {
+  private drainInbound() {
     let emitted = false;
     while (this.failure === null) {
       const entry = this.transcript.entries[this.cursor];
@@ -320,7 +318,7 @@ class PiReplayController {
     return emitted;
   }
 
-  private fail(cause: unknown): void {
+  private fail(cause: unknown) {
     if (this.failure !== null) return;
     this.failure = cause;
     for (const process of this.processes) Queue.endUnsafe(process.stdout);
@@ -329,9 +327,7 @@ class PiReplayController {
 
 const REPLAY_PID = 999_999_999;
 
-function makePiReplaySpawner(
-  controller: PiReplayController,
-): ChildProcessSpawner.ChildProcessSpawner["Service"] {
+function makePiReplaySpawner(controller: PiReplayController) {
   return ChildProcessSpawner.make((command) =>
     Effect.gen(function* () {
       const process = controller.spawn(command, yield* Queue.unbounded<Uint8Array, Cause.Done>());
@@ -389,7 +385,7 @@ export function layer<E, R>(input: {
   );
 }
 
-function metadataString(transcript: PiRpcReplayTranscript, key: string): string {
+function metadataString(transcript: PiRpcReplayTranscript, key: string) {
   const value = transcript.metadata?.[key];
   return typeof value === "string" ? value : "";
 }
@@ -430,7 +426,7 @@ export const PiOrchestratorReplayHarness: OrchestratorV2ProviderReplayHarness<
 export function makePiRecordingSpawner(
   live: ChildProcessSpawner.ChildProcessSpawner["Service"],
   entries: Array<ProviderReplayEntryType>,
-): ChildProcessSpawner.ChildProcessSpawner["Service"] {
+) {
   let spawned = 0;
   return ChildProcessSpawner.make((command) =>
     Effect.gen(function* () {

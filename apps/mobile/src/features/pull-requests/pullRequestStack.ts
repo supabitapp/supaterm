@@ -30,7 +30,11 @@ export function pullRequestStackMerge(
 export function savedPullRequestStack(
   links: readonly ThreadPullRequestLink[],
   reference: PullRequestRef,
-): PullRequestStack | null {
+): PullRequestStack | null;
+export function savedPullRequestStack(
+  links: readonly ThreadPullRequestLink[],
+  reference: PullRequestRef,
+) {
   const matches = links.filter(
     (link) =>
       link.host.toLowerCase() === reference.host?.toLowerCase() &&
@@ -46,7 +50,8 @@ export function savedPullRequestStack(
       Date.parse(b.snapshot?.syncedAt ?? b.linkedAt) -
       Date.parse(a.snapshot?.syncedAt ?? a.linkedAt),
   )[0]?.stack;
-  if (!newest?.layers.some((layer) => layer.number === reference.number)) return null;
+  if (!newest?.layers.some((layer) => layer.number === reference.number))
+    return null satisfies PullRequestStack | null;
   return {
     ...newest,
     layers: newest.layers.map((layer) => {
@@ -64,7 +69,7 @@ export function savedPullRequestStack(
         ...(snapshot ? { title: snapshot.title, isDraft: snapshot.isDraft } : {}),
       };
     }),
-  };
+  } satisfies PullRequestStack | null;
 }
 
 /** The list summary describes the layer it was opened from, so another layer's route drops it. */

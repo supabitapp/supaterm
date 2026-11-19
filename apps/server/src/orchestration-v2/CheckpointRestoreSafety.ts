@@ -10,7 +10,7 @@ const SHARED_WORKSPACE_RESTORE_MESSAGE =
   "File restore requires an isolated worktree. This workspace may contain changes from another thread. Rewind the conversation without restoring files instead.";
 
 /** Names the side chats that worked in this worktree, which the user can finish or delete. */
-export function sharedWorkspaceRestoreMessage(blockingSideChats: ReadonlyArray<string>): string {
+export function sharedWorkspaceRestoreMessage(blockingSideChats: ReadonlyArray<string>) {
   if (blockingSideChats.length === 0) return SHARED_WORKSPACE_RESTORE_MESSAGE;
   const names = blockingSideChats.map((title) => `"${title}"`).join(", ");
   const subject =

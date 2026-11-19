@@ -27,7 +27,7 @@ export interface CodexTurnTokenUsageState {
 
 function codexTokenUsageBreakdown(
   usage: EffectCodexSchema.V2ThreadTokenUsageUpdatedNotification__TokenUsageBreakdown,
-): CodexCumulativeTokenUsage {
+) {
   return {
     inputTokens: usage.inputTokens,
     cachedInputTokens: usage.cachedInputTokens,
@@ -39,18 +39,16 @@ function codexTokenUsageBreakdown(
   };
 }
 
-export function makeCodexTurnTokenUsageState(): CodexTurnTokenUsageState {
+export function makeCodexTurnTokenUsageState(): CodexTurnTokenUsageState;
+export function makeCodexTurnTokenUsageState() {
   return {
     baseline: undefined,
     activeTurnId: undefined,
     byTurnId: new Map(),
-  };
+  } satisfies CodexTurnTokenUsageState;
 }
 
-export function getCodexTurnAccumulator(
-  state: CodexTurnTokenUsageState,
-  turnId: string,
-): CodexTurnTokenUsageAccumulator {
+export function getCodexTurnAccumulator(state: CodexTurnTokenUsageState, turnId: string) {
   const existing = state.byTurnId.get(turnId);
   if (existing) return existing;
   const created: CodexTurnTokenUsageAccumulator = {
@@ -70,7 +68,7 @@ function codexTurnTokenUsageDelta(
   previous: CodexCumulativeTokenUsage | undefined,
   current: CodexCumulativeTokenUsage,
   last: CodexCumulativeTokenUsage,
-): CodexCumulativeTokenUsage {
+) {
   if (
     previous === undefined ||
     current.inputTokens < previous.inputTokens ||
@@ -97,7 +95,12 @@ export function accumulateCodexTurnTokenUsage(
   state: CodexTurnTokenUsageState,
   turnId: string,
   usage: EffectCodexSchema.V2ThreadTokenUsageUpdatedNotification["tokenUsage"],
-): void {
+): void;
+export function accumulateCodexTurnTokenUsage(
+  state: CodexTurnTokenUsageState,
+  turnId: string,
+  usage: EffectCodexSchema.V2ThreadTokenUsageUpdatedNotification["tokenUsage"],
+) {
   const current = codexTokenUsageBreakdown(usage.total);
   if (state.activeTurnId !== turnId) {
     state.baseline = current;
@@ -135,7 +138,7 @@ export function completeCodexTurnTokenUsage(
   state: CodexTurnTokenUsageState,
   turnId: string,
   completed: boolean,
-): TurnTokenUsage {
+) {
   const usage = state.byTurnId.get(turnId);
   state.byTurnId.delete(turnId);
   if (state.activeTurnId === turnId) state.activeTurnId = undefined;
@@ -144,7 +147,7 @@ export function completeCodexTurnTokenUsage(
       usageStatus: "unavailable",
       usageScope: "main_agent",
       hasSubagents: false,
-    };
+    } satisfies TurnTokenUsage;
   }
 
   if (!usage.observed) {
@@ -152,7 +155,7 @@ export function completeCodexTurnTokenUsage(
       usageStatus: "unavailable",
       usageScope: "main_agent",
       hasSubagents: usage.hasSubagents,
-    };
+    } satisfies TurnTokenUsage;
   }
 
   return {
@@ -166,5 +169,5 @@ export function completeCodexTurnTokenUsage(
     outputTokens: usage.outputTokens,
     reasoningTokens: Math.min(usage.outputTokens, usage.reasoningTokens),
     hasSubagents: usage.hasSubagents,
-  };
+  } satisfies TurnTokenUsage;
 }

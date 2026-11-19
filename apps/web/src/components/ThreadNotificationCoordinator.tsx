@@ -68,7 +68,8 @@ interface WatchedEnvironment {
 export function startThreadNotifications(
   registry: AtomRegistry.AtomRegistry,
   router: AnyRouter,
-): () => void {
+): () => void;
+export function startThreadNotifications(registry: AtomRegistry.AtomRegistry, router: AnyRouter) {
   const pending = new Map<string, { environmentId: EnvironmentId; notification: Notification }>();
   const watched = new Map<EnvironmentId, WatchedEnvironment>();
 
@@ -138,7 +139,7 @@ export function startThreadNotifications(
     ) {
       const toastKey = threadKey({ environmentId, threadId: thread.id });
       const toastId: ToastId = toastManager.add({
-        onRemove: (): void => forgetToast(toastKey, toastId),
+        onRemove: () => forgetToast(toastKey, toastId),
         type: kind === "completion" ? "success" : status === "failed" ? "error" : "warning",
         title,
         description: thread.title,
@@ -261,7 +262,7 @@ export function startThreadNotifications(
     }
   };
 
-  const watchEnvironment = (environmentId: EnvironmentId): WatchedEnvironment => {
+  const watchEnvironment = (environmentId: EnvironmentId) => {
     const entry: WatchedEnvironment = {
       previous: new Map(),
       reconnecting: false,
@@ -368,7 +369,7 @@ export function startThreadNotifications(
   const unsubscribeRoute = router.subscribe("onResolved", closeOpenedThreadToasts);
   onSettings();
 
-  return () => {
+  return (() => {
     unsubscribeSettings();
     unsubscribeEnvironmentIds();
     unsubscribeRoute();
@@ -376,5 +377,5 @@ export function startThreadNotifications(
     watched.clear();
     stopModeListeners();
     closeToasts(() => true);
-  };
+  }) satisfies () => void;
 }

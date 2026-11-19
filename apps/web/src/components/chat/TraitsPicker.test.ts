@@ -7,19 +7,21 @@ function selectDescriptor(
   id: string,
   options: ReadonlyArray<{ id: string; label: string; isDefault?: boolean }>,
   currentValue: string,
-): Extract<ProviderOptionDescriptor, { type: "select" }> {
-  return { id, label: id, type: "select", options: [...options], currentValue };
+) {
+  return { id, label: id, type: "select", options: [...options], currentValue } satisfies Extract<
+    ProviderOptionDescriptor,
+    { type: "select" }
+  >;
 }
 
-function fastModeDescriptor(
-  currentValue: boolean,
-): Extract<ProviderOptionDescriptor, { type: "boolean" }> {
-  return { id: "fastMode", label: "Fast Mode", type: "boolean", currentValue };
+function fastModeDescriptor(currentValue: boolean) {
+  return { id: "fastMode", label: "Fast Mode", type: "boolean", currentValue } satisfies Extract<
+    ProviderOptionDescriptor,
+    { type: "boolean" }
+  >;
 }
 
-function serviceTierDescriptor(
-  currentValue: "default" | "priority" | "ultrafast" | "flex",
-): Extract<ProviderOptionDescriptor, { type: "select" }> {
+function serviceTierDescriptor(currentValue: "default" | "priority" | "ultrafast" | "flex") {
   return {
     id: "serviceTier",
     label: "Service Tier",
@@ -31,7 +33,7 @@ function serviceTierDescriptor(
       { id: "flex", label: "Flex" },
     ],
     currentValue,
-  };
+  } satisfies Extract<ProviderOptionDescriptor, { type: "select" }>;
 }
 
 const EFFORT = selectDescriptor(
@@ -110,12 +112,13 @@ describe("buildTraitsTriggerLabel", () => {
   });
 
   it("names the Ultracode toggle beside any effort only while it is on", () => {
-    const ultracode = (currentValue: boolean): ProviderOptionDescriptor => ({
-      id: "ultracode",
-      label: "Ultracode",
-      type: "boolean",
-      currentValue,
-    });
+    const ultracode = (currentValue: boolean) =>
+      ({
+        id: "ultracode",
+        label: "Ultracode",
+        type: "boolean",
+        currentValue,
+      }) satisfies ProviderOptionDescriptor;
     expect(label([EFFORT, ultracode(true)])).toBe("High · Ultracode");
     expect(label([EFFORT, ultracode(false)])).toBe("High");
   });

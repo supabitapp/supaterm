@@ -9,11 +9,12 @@ import { withNativeGlassHeaderItem } from "../native-glass-header-items";
 type NativeHeaderMenuItems = NativeStackHeaderItemMenu["menu"]["items"];
 type NativeHeaderIcon = NonNullable<Extract<NativeStackHeaderItem, { type: "button" }>["icon"]>;
 
-function sfSymbolIcon(name: string): NativeHeaderIcon {
-  return { type: "sfSymbol", name: name as never };
+function sfSymbolIcon(name: string) {
+  return { type: "sfSymbol", name: name as never } satisfies NativeHeaderIcon;
 }
 
-function toNativeHeaderMenuItems(items: ReadonlyArray<AppBarMenuItem>): NativeHeaderMenuItems {
+function toNativeHeaderMenuItems(items: ReadonlyArray<AppBarMenuItem>): NativeHeaderMenuItems;
+function toNativeHeaderMenuItems(items: ReadonlyArray<AppBarMenuItem>) {
   return items.map((item) =>
     "items" in item
       ? {
@@ -28,7 +29,7 @@ function toNativeHeaderMenuItems(items: ReadonlyArray<AppBarMenuItem>): NativeHe
           onPress: item.onPress,
           state: item.selected ? ("on" as const) : undefined,
         },
-  );
+  ) satisfies NativeHeaderMenuItems;
 }
 
 /** The sidebar column's bar items, as native header items so the title can size around them. */
@@ -40,7 +41,16 @@ export function createWorkspaceListHeaderItems(input: {
     readonly items: ReadonlyArray<AppBarMenuItem>;
   };
   readonly onOpenSettings?: () => void;
-}): NativeStackHeaderItem[] {
+}): NativeStackHeaderItem[];
+export function createWorkspaceListHeaderItems(input: {
+  readonly filter: {
+    readonly accessibilityLabel: string;
+    readonly icon: string;
+    readonly title: string;
+    readonly items: ReadonlyArray<AppBarMenuItem>;
+  };
+  readonly onOpenSettings?: () => void;
+}) {
   return [
     withNativeGlassHeaderItem({
       type: "menu",
@@ -65,5 +75,5 @@ export function createWorkspaceListHeaderItems(input: {
           }),
         ]
       : []),
-  ];
+  ] satisfies NativeStackHeaderItem[];
 }

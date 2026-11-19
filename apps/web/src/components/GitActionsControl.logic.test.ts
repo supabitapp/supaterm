@@ -16,7 +16,7 @@ import {
   getMenuActionDisabledReason,
 } from "./GitActionsControl.logic";
 
-function status(overrides: Partial<VcsStatusResult> = {}): VcsStatusResult {
+function status(overrides: Partial<VcsStatusResult> = {}) {
   return {
     isRepo: true,
     hasPrimaryRemote: true,
@@ -36,7 +36,7 @@ function status(overrides: Partial<VcsStatusResult> = {}): VcsStatusResult {
   };
 }
 
-function pushDisabledReason(gitStatus: VcsStatusResult): string | null {
+function pushDisabledReason(gitStatus: VcsStatusResult) {
   const item = buildMenuItems(gitStatus, false).find((menuItem) => menuItem.id === "push");
   assert.isDefined(item);
   return getMenuActionDisabledReason({ item, gitStatus, isBusy: false, hasPrimaryRemote: true });

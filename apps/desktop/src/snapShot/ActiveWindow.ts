@@ -95,7 +95,7 @@ function run() {
   });
 }`;
 
-function runMacLookup(): Promise<string> {
+function runMacLookup() {
   return new Promise((resolve, reject) => {
     NodeChildProcess.execFile(
       "/usr/bin/osascript",
@@ -106,12 +106,12 @@ function runMacLookup(): Promise<string> {
         else resolve(stdout);
       },
     );
-  });
+  }) satisfies Promise<string>;
 }
 
-async function macActiveWindow(): Promise<ActiveWindow | undefined> {
+async function macActiveWindow() {
   const output = (await runMacLookup()).trim();
-  if (!output) return undefined;
+  if (!output) return undefined satisfies ActiveWindow | undefined;
   const lookup = decodeMacActiveWindowLookup(output);
   const visible = lookup.windows.filter(
     (window) => window.alpha > 0 && window.bounds.width > 0 && window.bounds.height > 0,
@@ -139,7 +139,7 @@ async function macActiveWindow(): Promise<ActiveWindow | undefined> {
       );
     });
   });
-  if (!window) return undefined;
+  if (!window) return undefined satisfies ActiveWindow | undefined;
   return {
     platform: "macos",
     id: window.id,
@@ -151,15 +151,15 @@ async function macActiveWindow(): Promise<ActiveWindow | undefined> {
       path: lookup.owner.path,
       ...(lookup.owner.bundleId ? { bundleId: lookup.owner.bundleId } : {}),
     },
-  };
+  } satisfies ActiveWindow | undefined;
 }
 
-async function windowsActiveWindow(): Promise<ActiveWindow | undefined> {
+async function windowsActiveWindow() {
   const api = await loadWindowsForegroundApi();
   const handle = api.getForegroundWindow();
-  if (handle === 0n) return undefined;
+  if (handle === 0n) return undefined satisfies ActiveWindow | undefined;
   const bounds = api.getWindowRect(handle);
-  if (!bounds) return undefined;
+  if (!bounds) return undefined satisfies ActiveWindow | undefined;
   const { processId } = api.getWindowThreadAndProcessId(handle);
   const path = processId === 0 ? "" : api.getProcessImagePath(processId);
   const name = path.split(/[\\/]/).pop() ?? "";
@@ -169,11 +169,13 @@ async function windowsActiveWindow(): Promise<ActiveWindow | undefined> {
     title: api.getWindowText(handle),
     bounds,
     owner: { name, processId, path },
-  };
+  } satisfies ActiveWindow | undefined;
 }
 
-export function activeWindow(platform: NodeJS.Platform): Promise<ActiveWindow | undefined> {
-  if (platform === "darwin") return macActiveWindow();
-  if (platform === "win32") return windowsActiveWindow();
-  return Promise.resolve(undefined);
+export function activeWindow(platform: NodeJS.Platform): Promise<ActiveWindow | undefined>;
+export function activeWindow(platform: NodeJS.Platform) {
+  if (platform === "darwin") return macActiveWindow() satisfies Promise<ActiveWindow | undefined>;
+  if (platform === "win32")
+    return windowsActiveWindow() satisfies Promise<ActiveWindow | undefined>;
+  return Promise.resolve(undefined) satisfies Promise<ActiveWindow | undefined>;
 }

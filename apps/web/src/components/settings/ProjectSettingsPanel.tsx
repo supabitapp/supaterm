@@ -155,7 +155,7 @@ interface ProjectSelection {
   readonly memberKeys: ReadonlyArray<string>;
 }
 
-function sameProjectSelection(a: ProjectSelection | null, b: ProjectSelection): boolean {
+function sameProjectSelection(a: ProjectSelection | null, b: ProjectSelection) {
   return (
     a !== null &&
     a.key === b.key &&

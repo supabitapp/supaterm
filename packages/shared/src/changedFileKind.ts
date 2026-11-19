@@ -4,7 +4,7 @@ export type ChangedFileKind = keyof NonNullable<PullRequestChangeBreakdown>;
 
 export function summarizeChangedFiles(
   files: ReadonlyArray<{ path: string; additions: number; deletions: number }>,
-): NonNullable<PullRequestChangeBreakdown> {
+) {
   const empty = () => ({ additions: 0, deletions: 0 });
   const breakdown = {
     code: empty(),
@@ -85,12 +85,12 @@ const NOT_DOCS_NAME = /^(requirements.*|constraints.*|CMakeLists|robots|llms)\.t
  * output count as generated, and test support (mocks, fixtures, snapshots) is kept apart from the
  * tests themselves, and prose (Markdown, plain text) is its own kind, so a reviewer can see how much of a change is logic.
  */
-export function isTestChangedFile(path: string): boolean {
+export function isTestChangedFile(path: string) {
   const kind = classifyChangedFile(path);
   return kind === "tests" || kind === "mocks";
 }
 
-export function classifyChangedFile(path: string): ChangedFileKind {
+export function classifyChangedFile(path: string) {
   const segments = path.replaceAll("\\", "/").split("/");
   const name = segments.pop() ?? "";
   const dirs = segments.map((segment) => segment.toLowerCase());

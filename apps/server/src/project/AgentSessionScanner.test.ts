@@ -8,7 +8,6 @@ import * as NodeZlib from "node:zlib";
 import { describe, expect, it } from "@effect/vitest";
 import {
   AgentSessionImportSource,
-  type OrchestrationProjectShell,
   ProjectId,
   ProviderDriverKind,
   ProviderInstanceId,
@@ -36,7 +35,7 @@ import * as ProviderSessionRuntime from "../persistence/ProviderSessionRuntime.t
 import * as ServerSettings from "../serverSettings.ts";
 import * as AgentSessionScanner from "./AgentSessionScanner.ts";
 
-const makeProjectShell = (workspaceRoot: string): OrchestrationProjectShell => ({
+const makeProjectShell = (workspaceRoot: string) => ({
   id: ProjectId.make("project-1"),
   title: "Imported",
   workspaceRoot,
@@ -72,7 +71,7 @@ const layerRuntimeRepository = (imported: ScannerTestInput["importedTranscripts"
   Layer.mock(ProviderSessionRuntime.ProviderSessionRuntimeRepository)({
     list: () =>
       Effect.sync(() =>
-        (imported?.sources ?? []).map((source): ProviderSessionRuntime.ProviderSessionRuntime => ({
+        (imported?.sources ?? []).map((source) => ({
           threadId: ThreadId.make(
             `import:${source.providerInstanceId}:${source.providerSessionId}`,
           ),
@@ -198,7 +197,7 @@ const decodeImportSource = Schema.decodeUnknownSync(AgentSessionImportSource);
 
 const encodeTranscriptRecord = Schema.encodeUnknownSync(Schema.fromJsonString(Schema.Unknown));
 
-function makeRecordLimitTranscript(cwd: string, overflow: boolean): string {
+function makeRecordLimitTranscript(cwd: string, overflow: boolean) {
   const records =
     [
       encodeTranscriptRecord({
@@ -223,7 +222,7 @@ function makeRecordLimitTranscript(cwd: string, overflow: boolean): string {
     : records;
 }
 
-function makePiToolResultTranscript(sessionId: string, cwd: string, recordCount: number): string {
+function makePiToolResultTranscript(sessionId: string, cwd: string, recordCount: number) {
   const entry = (id: number, message: { readonly role: string; readonly content: string }) =>
     encodeTranscriptRecord({
       type: "message",

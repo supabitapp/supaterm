@@ -37,12 +37,7 @@ const EMPTY_DEVICE_STATE: DeviceServiceState = {
   revision: 0,
 };
 
-export function useDeviceState(environmentId: EnvironmentId | null): {
-  readonly state: DeviceServiceState;
-  readonly loaded: boolean;
-  readonly error: string | null;
-  readonly refresh: () => void;
-} {
+export function useDeviceState(environmentId: EnvironmentId | null) {
   const query = useEnvironmentQuery(
     environmentId === null ? null : deviceEnvironment.state({ environmentId, input: {} }),
   );
@@ -68,28 +63,32 @@ const deviceHubAccessAtom = Atom.family((environmentId: EnvironmentId) =>
 
 export function useDeviceHubAccess(
   environmentId: EnvironmentId | null,
-  hostId = "local",
-): DeviceHubAccess | null {
+  hostId?: string,
+): DeviceHubAccess | null;
+export function useDeviceHubAccess(environmentId: EnvironmentId | null, hostId = "local") {
   const result = useAtomValue(
     environmentId === null ? EMPTY_ACCESS_ATOM : deviceHubAccessAtom(environmentId),
   );
-  return AsyncResult.isSuccess(result)
-    ? { ...result.value, query: { ...result.value.query, hostId } }
-    : null;
+  return (
+    AsyncResult.isSuccess(result)
+      ? { ...result.value, query: { ...result.value.query, hostId } }
+      : null
+  ) satisfies DeviceHubAccess | null;
 }
 
 const EMPTY_ACCESS_ATOM = Atom.make(AsyncResult.initial<DeviceHubAccess, never>()).pipe(
   Atom.withLabel("device-hub-access:empty"),
 );
 
-export function refreshDeviceHubAccess(environmentId: EnvironmentId): void {
+export function refreshDeviceHubAccess(environmentId: EnvironmentId) {
   appAtomRegistry.refresh(deviceHubAccessAtom(environmentId));
 }
 
 export function renewDeviceHubAccess(
   environmentId: EnvironmentId,
-  hostId = "local",
-): Promise<DeviceHubAccess | null> {
+  hostId?: string,
+): Promise<DeviceHubAccess | null>;
+export function renewDeviceHubAccess(environmentId: EnvironmentId, hostId = "local") {
   const atom = deviceHubAccessAtom(environmentId);
   appAtomRegistry.refresh(atom);
   return Effect.runPromise(
@@ -98,7 +97,7 @@ export function renewDeviceHubAccess(
       Effect.timeout("10 seconds"),
       Effect.orElseSucceed(() => null),
     ),
-  );
+  ) satisfies Promise<DeviceHubAccess | null>;
 }
 
 export interface DeviceDetailKey {

@@ -5,7 +5,7 @@ import type * as NodeStream from "node:stream";
 export function guardHttpResponseWriteErrors<T extends NodeHttp.Server>(
   server: T,
   onError?: (error: unknown) => void,
-): T {
+) {
   server.on("request", (_request, response) => {
     response.on("error", (error) => {
       onError?.(error);
@@ -22,7 +22,7 @@ export function guardHttpResponseWriteErrors<T extends NodeHttp.Server>(
 const HTTP_KEEP_ALIVE_TIMEOUT_MS = 95_000;
 
 /** Install before `rejectRequestsUntilServing`, whose handoff starts at the next request listener. */
-export function keepIdleConnections<T extends NodeHttp.Server>(server: T): T {
+export function keepIdleConnections<T extends NodeHttp.Server>(server: T) {
   server.keepAliveTimeout = HTTP_KEEP_ALIVE_TIMEOUT_MS;
   const responsesInFlight = new WeakMap<object, number>();
   server.on("request", (request, response) => {
@@ -42,7 +42,7 @@ export function keepIdleConnections<T extends NodeHttp.Server>(server: T): T {
  * between would hang. Install this after the write-error guards so only the
  * serving handlers trigger the handoff.
  */
-export function rejectRequestsUntilServing<T extends NodeHttp.Server>(server: T): T {
+export function rejectRequestsUntilServing<T extends NodeHttp.Server>(server: T) {
   const rejectRequest = (_request: NodeHttp.IncomingMessage, response: NodeHttp.ServerResponse) => {
     response.writeHead(503, { "retry-after": "1", connection: "close" }).end();
   };

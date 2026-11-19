@@ -90,14 +90,11 @@ const PIERRE_DARK_THEME: TerminalTheme = {
   ],
 };
 
-function getPierreTerminalTheme(scheme: TerminalAppearanceScheme): TerminalTheme {
+function getPierreTerminalTheme(scheme: TerminalAppearanceScheme) {
   return scheme === "light" ? PIERRE_LIGHT_THEME : PIERRE_DARK_THEME;
 }
 
-export function getMobileTerminalTheme(
-  themeId: MobileThemeId,
-  scheme: TerminalAppearanceScheme,
-): TerminalTheme {
+export function getMobileTerminalTheme(themeId: MobileThemeId, scheme: TerminalAppearanceScheme) {
   const base = getPierreTerminalTheme(scheme);
   const paletteId = themeId === "material-you" ? "supaterm" : themeId;
   const palette = getMobileThemeColors(paletteId, scheme);
@@ -114,7 +111,7 @@ export function getMobileTerminalTheme(
   };
 }
 
-export function buildGhosttyThemeConfig(theme: TerminalTheme): string {
+export function buildGhosttyThemeConfig(theme: TerminalTheme) {
   const lines = [
     `background = ${theme.background}`,
     `foreground = ${theme.foreground}`,

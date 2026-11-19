@@ -137,7 +137,7 @@ export type SidebarProviderEntry = Pick<
   | "models"
 >;
 
-function compactSidebarTimeLabel(label: string): string {
+function compactSidebarTimeLabel(label: string) {
   if (label === "just now") return "now";
   return label.endsWith(" ago") ? label.slice(0, -4) : label;
 }
@@ -215,7 +215,7 @@ function SidebarThreadWorkTime(props: { thread: SidebarThreadSummary }) {
   );
 }
 
-function terminalProcessLabel(count: number): string {
+function terminalProcessLabel(count: number) {
   return `${count} terminal ${count === 1 ? "process" : "processes"} running`;
 }
 

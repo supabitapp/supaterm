@@ -45,7 +45,7 @@ type SelectionSource =
 
 type ClipRect = Pick<DOMRect, "left" | "right" | "top" | "bottom">;
 
-function ancestorClips(from: Element | null, until: Element | null): ClipRect[] {
+function ancestorClips(from: Element | null, until: Element | null) {
   const clips: ClipRect[] = [];
   for (let element = from; element && element !== until; element = element.parentElement) {
     const style = getComputedStyle(element);

@@ -16,10 +16,7 @@ export const GENERIC_MIME_TYPES = new Set([
   "video/vnd.dlna.mpeg-tts",
 ]);
 
-export function isSvgAttachment(attachment: {
-  readonly name: string;
-  readonly mimeType: string;
-}): boolean {
+export function isSvgAttachment(attachment: { readonly name: string; readonly mimeType: string }) {
   const mimeType = attachment.mimeType.split(";", 1)[0]?.trim().toLowerCase() ?? "";
   return (
     mimeType === "image/svg+xml" ||
@@ -30,18 +27,21 @@ export function isSvgAttachment(attachment: {
 export function imageMimeType(attachment: {
   readonly name: string;
   readonly mimeType: string;
-}): string | null {
+}): string | null;
+export function imageMimeType(attachment: { readonly name: string; readonly mimeType: string }) {
   const mimeType = attachment.mimeType.split(";", 1)[0]?.trim().toLowerCase() ?? "";
-  if (SUPPORTED_IMAGE_MIME_TYPES.has(mimeType)) return mimeType;
-  if (mimeType.startsWith("image/")) return null;
-  if (mimeType !== "" && !GENERIC_MIME_TYPES.has(mimeType)) return null;
+  if (SUPPORTED_IMAGE_MIME_TYPES.has(mimeType)) return mimeType satisfies string | null;
+  if (mimeType.startsWith("image/")) return null satisfies string | null;
+  if (mimeType !== "" && !GENERIC_MIME_TYPES.has(mimeType)) return null satisfies string | null;
   const dotIndex = attachment.name.lastIndexOf(".");
-  return dotIndex < 0
-    ? null
-    : (IMAGE_MIME_TYPE_BY_EXTENSION.get(
-        attachment.name
-          .slice(dotIndex + 1)
-          .trim()
-          .toLowerCase(),
-      ) ?? null);
+  return (
+    dotIndex < 0
+      ? null
+      : (IMAGE_MIME_TYPE_BY_EXTENSION.get(
+          attachment.name
+            .slice(dotIndex + 1)
+            .trim()
+            .toLowerCase(),
+        ) ?? null)
+  ) satisfies string | null;
 }

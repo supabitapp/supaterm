@@ -6,13 +6,13 @@ export interface SupatermToolSummaryCall {
   readonly outcome: "completed" | "failed" | "unfinished";
 }
 
-function asRecord(value: unknown): Record<string, unknown> | undefined {
+function asRecord(value: unknown) {
   return value !== null && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : undefined;
 }
 
-function id(value: unknown): string | undefined {
+function id(value: unknown) {
   return typeof value === "string" && value.trim() !== "" ? value : undefined;
 }
 
@@ -21,13 +21,14 @@ interface ToolResult {
   readonly failed: boolean;
 }
 
-function readResult(value: unknown, depth = 0): ToolResult {
-  if (depth > 4) return { failed: false };
+function readResult(value: unknown, depth?: number): ToolResult;
+function readResult(value: unknown, depth = 0) {
+  if (depth > 4) return { failed: false } satisfies ToolResult;
   if (typeof value === "string") {
     try {
-      return readResult(JSON.parse(value), depth + 1);
+      return readResult(JSON.parse(value), depth + 1) satisfies ToolResult;
     } catch {
-      return { failed: false };
+      return { failed: false } satisfies ToolResult;
     }
   }
   if (Array.isArray(value)) {
@@ -40,10 +41,10 @@ function readResult(value: unknown, depth = 0): ToolResult {
       data ??= result.data;
       failed ||= result.failed;
     }
-    return { ...(data ? { data } : {}), failed };
+    return { ...(data ? { data } : {}), failed } satisfies ToolResult;
   }
   const record = asRecord(value);
-  if (!record) return { failed: false };
+  if (!record) return { failed: false } satisfies ToolResult;
   const failed =
     record.isError === true ||
     record.is_error === true ||
@@ -52,29 +53,36 @@ function readResult(value: unknown, depth = 0): ToolResult {
   const content = record.structuredContent ?? record.content;
   if (content !== undefined) {
     const result = readResult(content, depth + 1);
-    return { ...(result.data ? { data: result.data } : {}), failed: failed || result.failed };
+    return {
+      ...(result.data ? { data: result.data } : {}),
+      failed: failed || result.failed,
+    } satisfies ToolResult;
   }
-  return { data: record, failed };
+  return { data: record, failed } satisfies ToolResult;
 }
 
-function readInput(value: unknown): Record<string, unknown> | undefined {
+function readInput(value: unknown): Record<string, unknown> | undefined;
+function readInput(value: unknown) {
   const input = readResult(value).data;
-  return input && typeof input.toolName === "string" ? asRecord(input.args) : input;
+  return (input && typeof input.toolName === "string" ? asRecord(input.args) : input) satisfies
+    | Record<string, unknown>
+    | undefined;
 }
 
 /** MCP errors can be returned as data even when the provider completed the tool call. */
-export function supatermToolResultIndicatesFailure(output: unknown): boolean {
-  return readResult(output).failed;
+export function supatermToolResultIndicatesFailure(output: unknown): boolean;
+export function supatermToolResultIndicatesFailure(output: unknown) {
+  return readResult(output).failed satisfies boolean;
 }
 
-function countEntities(ids: ReadonlyArray<string | undefined>): number {
+function countEntities(ids: ReadonlyArray<string | undefined>) {
   return (
     new Set(ids.filter((value) => value !== undefined)).size +
     ids.filter((value) => value === undefined).length
   );
 }
 
-function quantity(count: number, noun: string, plural = `${noun}s`): string {
+function quantity(count: number, noun: string, plural = `${noun}s`) {
   return `${count} ${count === 1 ? noun : plural}`;
 }
 
@@ -84,7 +92,7 @@ function pullRequestQuantity(
     readonly output: Record<string, unknown> | undefined;
   }>,
   countKey: "linkedCount" | "unlinkedCount",
-): string {
+) {
   let count = 0;
   for (const call of calls) {
     const reported = call.output?.[countKey];
@@ -98,7 +106,7 @@ function pullRequestQuantity(
 export function summarizeSupatermToolCalls(
   action: SupatermMcpToolSummaryAction,
   calls: ReadonlyArray<SupatermToolSummaryCall>,
-): { label: string; failedCount: number } {
+) {
   const results = calls.map((call) => {
     const result = readResult(call.output);
     return {

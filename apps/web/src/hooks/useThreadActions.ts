@@ -73,7 +73,7 @@ export class ThreadArchiveBlockedError extends Schema.TaggedError<ThreadArchiveB
     threadId: ThreadId,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return "Cannot archive while the provider is active.";
   }
 }
@@ -85,24 +85,25 @@ export class ThreadSnoozeBlockedError extends Schema.TaggedError<ThreadSnoozeBlo
     threadId: ThreadId,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return "This thread is waiting on you. Respond to the pending request before snoozing it.";
   }
 }
 
-function topOfPinnedRunOrderKey(): string | undefined {
+function topOfPinnedRunOrderKey(): string | undefined;
+function topOfPinnedRunOrderKey() {
   let firstKey: string | null = null;
   for (const shell of readThreadShells()) {
     if (shell.pinnedAt == null || shell.pinOrderKey == null) continue;
     if (firstKey === null || shell.pinOrderKey < firstKey) firstKey = shell.pinOrderKey;
   }
-  return pinOrderKeyBetween(null, firstKey) ?? undefined;
+  return (pinOrderKeyBetween(null, firstKey) ?? undefined) satisfies string | undefined;
 }
 
 function undoSnapshot<Shell extends ThreadSnoozeShell>(
   thread: Shell,
   now = new Date().toISOString(),
-): Shell {
+) {
   return {
     ...thread,
     snoozedUntil: effectiveSnoozed(thread, { now }) ? thread.snoozedUntil : null,
@@ -184,7 +185,7 @@ function clearDeletedThreadPanelState(ref: ScopedThreadRef) {
 }
 
 /** A No project thread that already has its own folder, on a server that can promote it. */
-export function canTurnThreadIntoProject(threadRef: ScopedThreadRef): boolean {
+export function canTurnThreadIntoProject(threadRef: ScopedThreadRef) {
   const thread = readThreadShell(threadRef);
   if (!thread?.worktreePath) return false;
   const config = appAtomRegistry.get(environmentServerConfigsAtom).get(threadRef.environmentId);

@@ -14,21 +14,21 @@ export type ShowcaseRenderSnapshot = Readonly<{
 
 let snapshot: ShowcaseRenderSnapshot = { signal: null, reports: 0 };
 
-export function getShowcaseRenderSnapshot(): ShowcaseRenderSnapshot {
+export function getShowcaseRenderSnapshot() {
   return snapshot;
 }
 
-export function subscribeToShowcaseRenderSignal(listener: () => void): () => void {
+export function subscribeToShowcaseRenderSignal(listener: () => void) {
   listeners.add(listener);
   return () => listeners.delete(listener);
 }
 
-export function reportShowcaseSceneRendered(signal: ShowcaseRenderSignal): void {
+export function reportShowcaseSceneRendered(signal: ShowcaseRenderSignal) {
   snapshot = { signal, reports: snapshot.reports + 1 };
   for (const listener of listeners) listener();
 }
 
-export function clearShowcaseRenderSignal(): void {
+export function clearShowcaseRenderSignal() {
   if (snapshot.signal === null) return;
   snapshot = { signal: null, reports: snapshot.reports + 1 };
   for (const listener of listeners) listener();
@@ -38,7 +38,7 @@ export function isShowcaseNativeContentReady(input: {
   readonly scene: ShowcaseScene;
   readonly themeId: MobileThemeId;
   readonly renderSignal: ShowcaseRenderSignal | null;
-}): boolean {
+}) {
   if (input.scene !== "review") return true;
   return input.renderSignal?.scene === "review" && input.renderSignal.themeId === input.themeId;
 }

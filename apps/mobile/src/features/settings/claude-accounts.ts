@@ -19,12 +19,12 @@ export interface ClaudeAccountDraft {
   readonly configDir: string;
 }
 
-function configRecord(instance: ProviderInstanceConfig | undefined): Record<string, unknown> {
+function configRecord(instance: ProviderInstanceConfig | undefined) {
   const config = instance?.config;
   return config !== null && typeof config === "object" ? (config as Record<string, unknown>) : {};
 }
 
-export function claudeConfigDir(instance: ProviderInstanceConfig | undefined): string {
+export function claudeConfigDir(instance: ProviderInstanceConfig | undefined) {
   const homePath = configRecord(instance).homePath;
   return typeof homePath === "string" ? homePath : "";
 }
@@ -34,13 +34,23 @@ export function planClaudeAccountSave(input: {
   readonly providerInstances: ServerSettings["providerInstances"];
   readonly instanceId: ProviderInstanceId | null;
   readonly draft: ClaudeAccountDraft;
-}): { readonly mutation: ProviderInstanceMutation } | { readonly error: string } {
+}): { readonly mutation: ProviderInstanceMutation } | { readonly error: string };
+export function planClaudeAccountSave(input: {
+  readonly providerInstances: ServerSettings["providerInstances"];
+  readonly instanceId: ProviderInstanceId | null;
+  readonly draft: ClaudeAccountDraft;
+}) {
   const name = input.draft.name.trim();
   const configDir = input.draft.configDir.trim();
   const adding = input.instanceId === null;
-  if (adding && name.length === 0) return { error: "Enter a name for this account." };
+  if (adding && name.length === 0)
+    return { error: "Enter a name for this account." } satisfies
+      | { readonly mutation: ProviderInstanceMutation }
+      | { readonly error: string };
   if (adding && configDir.length === 0) {
-    return { error: "Enter the Claude config folder this account is signed in with." };
+    return { error: "Enter the Claude config folder this account is signed in with." } satisfies
+      | { readonly mutation: ProviderInstanceMutation }
+      | { readonly error: string };
   }
   const instanceId =
     input.instanceId ??
@@ -65,5 +75,5 @@ export function planClaudeAccountSave(input: {
   };
   return {
     mutation: { operation: adding ? "create" : "upsert", instanceId, instance },
-  };
+  } satisfies { readonly mutation: ProviderInstanceMutation } | { readonly error: string };
 }

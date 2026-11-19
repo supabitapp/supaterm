@@ -118,7 +118,7 @@ interface Props {
 function previewProfileName(
   profiles: ReadonlyArray<{ readonly id: string; readonly name: string }>,
   profileId: string,
-): string {
+) {
   return profiles.find((profile) => profile.id === profileId)?.name ?? "Removed profile";
 }
 

@@ -10,7 +10,7 @@ export function chooseLoadBalancedEnvironment(
     weight: number;
   }>,
   now: number,
-): string | null {
+) {
   let selected: string | null = null;
   let bestRank = -1;
   let bestScore = 0;

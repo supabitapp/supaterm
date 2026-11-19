@@ -1,6 +1,6 @@
 import { getFiletypeFromFileName } from "@pierre/diffs";
 import type { ProjectContentMatch } from "@supaterm/contracts";
-import { memo, Suspense, use, type CSSProperties } from "react";
+import { memo, Suspense, use } from "react";
 
 import { resolveDiffThemeName } from "~/lib/diffRendering";
 import { getSyntaxHighlighterPromise } from "~/lib/syntaxHighlighting";
@@ -27,7 +27,7 @@ interface Segment {
   readonly token: CodeToken;
 }
 
-function normalizeRanges(match: ProjectContentMatch): Range[] {
+function normalizeRanges(match: ProjectContentMatch) {
   const ranges = match.matchRanges
     .map((range) => ({
       start: Math.max(0, Math.min(match.lineContent.length, range.start)),
@@ -48,7 +48,7 @@ function normalizeRanges(match: ProjectContentMatch): Range[] {
   return merged;
 }
 
-function splitToken(line: string, token: CodeToken, ranges: ReadonlyArray<Range>): Segment[] {
+function splitToken(line: string, token: CodeToken, ranges: ReadonlyArray<Range>) {
   const segments: Segment[] = [];
   const tokenEnd = token.offset + token.content.length;
   let cursor = token.offset;
@@ -91,7 +91,7 @@ function splitToken(line: string, token: CodeToken, ranges: ReadonlyArray<Range>
   return segments;
 }
 
-function tokenStyle(token: CodeToken): CSSProperties {
+function tokenStyle(token: CodeToken) {
   const fontStyle = token.fontStyle ?? 0;
   return {
     ...(token.color ? { color: token.color } : {}),

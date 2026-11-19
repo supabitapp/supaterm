@@ -92,7 +92,7 @@ export class VcsActionUnavailableError extends Schema.TaggedError<VcsActionUnava
     cwd: Schema.NullOr(Schema.String),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Source control operation '${this.operation.replaceAll("_", " ")}' is unavailable.`;
   }
 }
@@ -109,7 +109,7 @@ export class VcsActionRemoteFailureError extends Schema.TaggedError<VcsActionRem
     remoteMessageLength: Schema.Number,
   },
 ) {
-  override get message(): string {
+  override get message() {
     const phase = this.phase === null ? "execution" : this.phase;
     return `Source control action '${this.action}' failed during ${phase}.`;
   }
@@ -125,7 +125,7 @@ export class VcsActionMissingTerminalEventError extends Schema.TaggedError<VcsAc
     cwd: Schema.String,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Source control action '${this.action}' ended without a terminal result.`;
   }
 }
@@ -137,7 +137,7 @@ export class VcsActionTargetKeyParseError extends Schema.TaggedError<VcsActionTa
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Invalid source control action target key (${this.keyLength} characters).`;
   }
 }
@@ -162,7 +162,7 @@ export const EMPTY_VCS_ACTION_STATE = Object.freeze<VcsActionState>({
   error: null,
 });
 
-const nowMs = (): number => DateTime.toEpochMillis(DateTime.nowUnsafe());
+const nowMs = () => DateTime.toEpochMillis(DateTime.nowUnsafe());
 let nextLocalActionId = 0;
 const decodeVcsActionTargetKey = Schema.decodeUnknownSync(
   Schema.Tuple([EnvironmentId, Schema.String]),
@@ -180,14 +180,14 @@ const EMPTY_VCS_ACTION_ATOM = Atom.make(EMPTY_VCS_ACTION_STATE).pipe(
   Atom.withLabel("vcs-action:null"),
 );
 
-function getVcsActionTargetKey(target: VcsActionTarget): string | null {
+function getVcsActionTargetKey(target: VcsActionTarget) {
   if (target.environmentId === null || target.cwd === null) {
     return null;
   }
   return JSON.stringify([target.environmentId, target.cwd]);
 }
 
-export function parseVcsActionTargetKey(key: string): ResolvedVcsActionTarget {
+export function parseVcsActionTargetKey(key: string) {
   try {
     const [environmentId, cwd] = decodeVcsActionTargetKey(JSON.parse(key));
     return { environmentId, cwd };
@@ -201,14 +201,12 @@ function getVcsActionStateAtom(target: VcsActionTarget) {
   return key === null ? EMPTY_VCS_ACTION_ATOM : vcsActionStateAtom(key);
 }
 
-function createLocalActionId(): string {
+function createLocalActionId() {
   nextLocalActionId += 1;
   return `local-vcs-action:${nextLocalActionId}`;
 }
 
-export function beginVcsActionState(
-  input: BeginVcsActionInput,
-): VcsActionState & { readonly actionId: string } {
+export function beginVcsActionState(input: BeginVcsActionInput) {
   const actionId = input.actionId ?? createLocalActionId();
   const startedAt = nowMs();
   return {
@@ -222,11 +220,7 @@ export function beginVcsActionState(
   };
 }
 
-function failVcsActionState(
-  operation: VcsActionOperation,
-  actionId: string,
-  error: unknown,
-): VcsActionState {
+function failVcsActionState(operation: VcsActionOperation, actionId: string, error: unknown) {
   return {
     ...EMPTY_VCS_ACTION_STATE,
     operation,
@@ -235,10 +229,7 @@ function failVcsActionState(
   };
 }
 
-export function createVcsActionTransportId(
-  target: ResolvedVcsActionTarget,
-  actionId: string,
-): string {
+export function createVcsActionTransportId(target: ResolvedVcsActionTarget, actionId: string) {
   const targetKey = JSON.stringify([target.environmentId, target.cwd]);
   return `${targetKey.length}:${targetKey}${actionId}`;
 }
@@ -248,7 +239,7 @@ export function normalizeVcsActionProgressEvent(
   transportActionId: string,
   actionId: string,
   event: GitActionProgressEvent,
-): GitActionProgressEvent | null {
+) {
   if (event.actionId !== transportActionId || event.cwd !== target.cwd) {
     return null;
   }
@@ -267,7 +258,7 @@ export function consumeVcsActionProgress<E, R>(
     readonly action: GitStackedAction;
     readonly onProgress: (event: GitActionProgressEvent) => Effect.Effect<void>;
   },
-): Effect.Effect<GitRunStackedActionResult, E | VcsActionExecutionError, R> {
+) {
   return Effect.suspend(() => {
     let terminalEvent: GitActionProgressEvent | null = null;
     return stream.pipe(
@@ -320,9 +311,9 @@ export function consumeVcsActionProgress<E, R>(
 export function applyVcsActionProgressEvent(
   current: VcsActionState,
   event: GitActionProgressEvent,
-): VcsActionState {
+) {
   if (current.actionId !== event.actionId) {
-    return current;
+    return current satisfies VcsActionState;
   }
   const now = nowMs();
 
@@ -339,7 +330,7 @@ export function applyVcsActionProgressEvent(
         hookName: null,
         lastOutputLine: null,
         error: null,
-      };
+      } satisfies VcsActionState;
     case "phase_started":
       return {
         ...current,
@@ -354,7 +345,7 @@ export function applyVcsActionProgressEvent(
         hookName: null,
         lastOutputLine: null,
         error: null,
-      };
+      } satisfies VcsActionState;
     case "hook_started":
       return {
         ...current,
@@ -367,7 +358,7 @@ export function applyVcsActionProgressEvent(
         hookStartedAtMs: now,
         lastOutputLine: null,
         error: null,
-      };
+      } satisfies VcsActionState;
     case "hook_output":
       return {
         ...current,
@@ -377,7 +368,7 @@ export function applyVcsActionProgressEvent(
         operation: "run_change_request",
         lastOutputLine: event.text,
         error: null,
-      };
+      } satisfies VcsActionState;
     case "hook_finished":
       return {
         ...current,
@@ -390,7 +381,7 @@ export function applyVcsActionProgressEvent(
         hookStartedAtMs: null,
         lastOutputLine: null,
         error: null,
-      };
+      } satisfies VcsActionState;
     case "action_finished":
       return {
         ...current,
@@ -399,7 +390,7 @@ export function applyVcsActionProgressEvent(
         action: event.action,
         operation: "run_change_request",
         error: null,
-      };
+      } satisfies VcsActionState;
     case "action_failed":
       return {
         ...current,
@@ -408,7 +399,7 @@ export function applyVcsActionProgressEvent(
         action: event.action,
         operation: "run_change_request",
         error: event.message,
-      };
+      } satisfies VcsActionState;
   }
 }
 
@@ -535,7 +526,7 @@ export function createVcsActionManager<R, E>(
     registry: AtomRegistry.AtomRegistry,
     target: VcsActionTarget,
     update: (current: VcsActionState) => VcsActionState,
-  ): void => {
+  ) => {
     const key = getVcsActionTargetKey(target);
     if (key === null) {
       return;
@@ -552,7 +543,7 @@ export function createVcsActionManager<R, E>(
       target: VcsActionTarget,
       input: BeginVcsActionInput,
       action: () => Promise<AtomCommandResult<A, E>>,
-    ): Promise<AtomCommandResult<A, E | VcsActionUnavailableError>> => {
+    ) => {
       const key = getVcsActionTargetKey(target);
       if (key === null) {
         return AsyncResult.failure<never, VcsActionUnavailableError>(
@@ -563,7 +554,10 @@ export function createVcsActionManager<R, E>(
               cwd: target.cwd,
             }),
           ),
-        );
+        ) satisfies AtomCommandResult<A, E | VcsActionUnavailableError> as AtomCommandResult<
+          A,
+          E | VcsActionUnavailableError
+        >;
       }
       const stateAtom = vcsActionStateAtom(key);
       const next = beginVcsActionState(input);
@@ -571,7 +565,10 @@ export function createVcsActionManager<R, E>(
       const result = await action();
       const current = registry.get(stateAtom);
       if (current.actionId !== next.actionId) {
-        return result;
+        return result satisfies AtomCommandResult<
+          A,
+          E | VcsActionUnavailableError
+        > as AtomCommandResult<A, E | VcsActionUnavailableError>;
       }
       if (AsyncResult.isSuccess(result) || Cause.hasInterruptsOnly(result.cause)) {
         registry.set(stateAtom, EMPTY_VCS_ACTION_STATE);
@@ -583,13 +580,16 @@ export function createVcsActionManager<R, E>(
           );
         }
       }
-      return result;
+      return result satisfies AtomCommandResult<
+        A,
+        E | VcsActionUnavailableError
+      > as AtomCommandResult<A, E | VcsActionUnavailableError>;
     },
     resetError: (
       registry: AtomRegistry.AtomRegistry,
       target: VcsActionTarget,
       operation: VcsActionOperation,
-    ): void => {
+    ) => {
       setState(registry, target, (current) =>
         !current.isRunning && current.operation === operation ? EMPTY_VCS_ACTION_STATE : current,
       );

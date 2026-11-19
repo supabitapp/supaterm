@@ -8,13 +8,11 @@ import { restoreSnapshotBodies } from "./orchestrationV2DedupedBodies.ts";
 function isLocalTimelineRow(
   projection: Pick<OrchestrationV2ThreadProjection, "thread">,
   row: OrchestrationV2ProjectedTurnItem,
-): boolean {
+) {
   return row.visibility === "local" || row.sourceThreadId === projection.thread.id;
 }
 
-export function omitLocalVisibleTurnItems(
-  projection: OrchestrationV2ThreadProjection,
-): OrchestrationV2ThreadProjection | null {
+export function omitLocalVisibleTurnItems(projection: OrchestrationV2ThreadProjection) {
   let omitted = 0;
   for (const row of projection.visibleTurnItems) {
     if (!isLocalTimelineRow(projection, row)) continue;
@@ -26,9 +24,7 @@ export function omitLocalVisibleTurnItems(
   return { ...projection, turnItems: projection.turnItems.slice(omitted) };
 }
 
-export function restoreLocalVisibleTurnItems(
-  projection: OrchestrationV2ThreadProjection,
-): OrchestrationV2ThreadProjection {
+export function restoreLocalVisibleTurnItems(projection: OrchestrationV2ThreadProjection) {
   const local = projection.visibleTurnItems
     .filter((row) => isLocalTimelineRow(projection, row))
     .map((row) => row.item);
@@ -40,10 +36,14 @@ export function restoreLocalVisibleTurnItems(
 export function boundedSnapshotProjection(snapshot: {
   readonly projection: OrchestrationV2ThreadProjection;
   readonly turnItemsOmitLocalVisible?: true | undefined;
-}): OrchestrationV2ThreadProjection {
+}): OrchestrationV2ThreadProjection;
+export function boundedSnapshotProjection(snapshot: {
+  readonly projection: OrchestrationV2ThreadProjection;
+  readonly turnItemsOmitLocalVisible?: true | undefined;
+}) {
   return restoreSnapshotBodies(
     snapshot.turnItemsOmitLocalVisible === true
       ? restoreLocalVisibleTurnItems(snapshot.projection)
       : snapshot.projection,
-  );
+  ) satisfies OrchestrationV2ThreadProjection;
 }

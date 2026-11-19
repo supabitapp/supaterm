@@ -677,7 +677,7 @@ export class PreviewAutomationUnavailableError extends Schema.TaggedError<Previe
     ...McpCapabilityErrorFields,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `MCP credential does not grant the ${this.capability} capability: browser preview tools are off for this thread. Do not retry them. To check a page, use a headless browser from the shell, such as Playwright, or curl. The user can turn on "Agent browser access" in Settings; it applies when the agent session next starts.`;
   }
 }
@@ -689,7 +689,7 @@ export class McpCapabilityUnavailableError extends Schema.TaggedError<McpCapabil
     ...McpCapabilityErrorFields,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `MCP credential does not grant the ${this.capability} capability.`;
   }
 }
@@ -743,7 +743,7 @@ export class PreviewAutomationNoAvailableHostError extends Schema.TaggedError<Pr
     ...PreviewAutomationOptionalRemoteDiagnosticFields,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `No preview automation host is available for ${this.operation} in environment ${this.environmentId}. The server-owned browser may be starting or reconnecting. Retry preview_status, then call preview_open if no tab is available. If it remains unavailable, report the browser connection failure.`;
   }
 }
@@ -755,7 +755,7 @@ export class PreviewAutomationUnsupportedClientError extends Schema.TaggedError<
     ...PreviewAutomationRemoteDiagnosticFields,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Preview automation client ${this.clientId} does not support ${this.operation}.`;
   }
 }
@@ -767,7 +767,7 @@ export class PreviewAutomationTabNotFoundError extends Schema.TaggedError<Previe
     ...PreviewAutomationRemoteDiagnosticFields,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return this.tabId
       ? `Preview tab ${this.tabId} was not found for ${this.operation}. Omit tabId to use the current tab, or call preview_open.`
       : `No active preview tab was found for ${this.operation}. Call preview_open first.`;
@@ -796,7 +796,7 @@ export class PreviewAutomationTimeoutError extends Schema.TaggedError<PreviewAut
     reason: Schema.optional(Schema.String),
   },
 ) {
-  override get message(): string {
+  override get message() {
     const summary = `Preview automation ${this.operation} timed out after ${this.timeoutMs}ms.`;
     const stages = this.pendingStages?.length
       ? ` Waiting for: ${this.pendingStages.join(", ")}.`
@@ -826,7 +826,7 @@ export class PreviewAutomationControlInterruptedError extends Schema.TaggedError
     reason: Schema.optional(PreviewAutomationControlReason),
   },
 ) {
-  override get message(): string {
+  override get message() {
     if (this.reason === "agentMismatch")
       return "This browser tab belongs to another agent session or a human. Open your own tab.";
     if (this.reason === "unclaimedTab")
@@ -854,7 +854,7 @@ export class PreviewAutomationExecutionError extends Schema.TaggedError<PreviewA
     reason: Schema.optional(Schema.String),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return this.reason === undefined
       ? `Preview automation ${this.operation} failed on client ${this.clientId}.`
       : `Preview automation ${this.operation} failed: ${this.reason}`;
@@ -871,7 +871,7 @@ export class PreviewAutomationInvalidSelectorError extends Schema.TaggedError<Pr
     staleRef: Schema.optional(Schema.Boolean),
   },
 ) {
-  override get message(): string {
+  override get message() {
     if (this.staleRef)
       return "This element ref is stale. Navigation, dialogs, and new snapshots replace refs; take a fresh snapshot and use its refs.";
     if (this.selectorKind !== undefined && this.selectorLength !== undefined) {
@@ -894,7 +894,7 @@ export class PreviewAutomationTargetNotEditableError extends Schema.TaggedError<
     selectorLength: Schema.optional(Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))),
   },
 ) {
-  override get message(): string {
+  override get message() {
     if (this.selectorKind === "focused-element") {
       return `Preview automation ${this.operation} requires an editable focused element.`;
     }
@@ -913,7 +913,7 @@ export class PreviewAutomationResultTooLargeError extends Schema.TaggedError<Pre
     maximumBytes: Schema.optional(Schema.Int.check(Schema.isGreaterThan(0))),
   },
 ) {
-  override get message(): string {
+  override get message() {
     const summary =
       this.maximumBytes === undefined
         ? `Preview automation ${this.operation} produced a result that is too large.`
@@ -926,7 +926,7 @@ export class PreviewAutomationClientDisconnectedError extends Schema.TaggedError
   "PreviewAutomationClientDisconnectedError",
   PreviewAutomationRequestErrorFields,
 ) {
-  override get message(): string {
+  override get message() {
     return `Preview automation client ${this.clientId} disconnected during ${this.operation}.`;
   }
 }
@@ -935,7 +935,7 @@ export class PreviewAutomationRequestQueueClosedError extends Schema.TaggedError
   "PreviewAutomationRequestQueueClosedError",
   PreviewAutomationRequestErrorFields,
 ) {
-  override get message(): string {
+  override get message() {
     return `Preview automation client ${this.clientId} stopped accepting ${this.operation} requests.`;
   }
 }
@@ -947,7 +947,7 @@ export class PreviewAutomationRemoteUnavailableError extends Schema.TaggedError<
     ...PreviewAutomationRemoteDiagnosticFields,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Preview automation ${this.operation} is unavailable on client ${this.clientId}.`;
   }
 }
@@ -956,7 +956,7 @@ export class PreviewAutomationMalformedResponseError extends Schema.TaggedError<
   "PreviewAutomationMalformedResponseError",
   PreviewAutomationRequestErrorFields,
 ) {
-  override get message(): string {
+  override get message() {
     return `Preview automation client ${this.clientId} returned a malformed response for ${this.operation}.`;
   }
 }
@@ -968,7 +968,7 @@ export class PreviewAutomationRecordingTransferError extends Schema.TaggedError<
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return "Preview recording could not be saved to the agent environment.";
   }
 }
@@ -977,7 +977,7 @@ export class PreviewAutomationRecordingDesktopUpdateRequiredError extends Schema
   "PreviewAutomationRecordingDesktopUpdateRequiredError",
   { threadId: ThreadId, cause: Schema.optional(Schema.Defect()) },
 ) {
-  override get message(): string {
+  override get message() {
     return "Update the desktop app to transfer recordings. The recording remains on the desktop.";
   }
 }
@@ -986,7 +986,7 @@ export class PreviewAutomationRecordingTooLargeError extends Schema.TaggedError<
   "PreviewAutomationRecordingTooLargeError",
   { threadId: ThreadId, cause: Schema.optional(Schema.Defect()) },
 ) {
-  override get message(): string {
+  override get message() {
     return "The recording exceeds 50 MiB. Make a shorter recording.";
   }
 }
@@ -995,7 +995,7 @@ export class PreviewAutomationRecordingDeadlineExpiredError extends Schema.Tagge
   "PreviewAutomationRecordingDeadlineExpiredError",
   { threadId: ThreadId, cause: Schema.optional(Schema.Defect()) },
 ) {
-  override get message(): string {
+  override get message() {
     return "The recording transfer deadline expired.";
   }
 }

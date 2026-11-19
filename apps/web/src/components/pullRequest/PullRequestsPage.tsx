@@ -254,7 +254,7 @@ export function PullRequestsPage() {
     [Key in keyof PullRequestsSearch]?: PullRequestsSearch[Key] | undefined;
   }) =>
     void navigate({
-      search: (previous: PullRequestsSearch): PullRequestsSearch => {
+      search: (previous: PullRequestsSearch) => {
         const next = { ...previous, ...patch };
         return {
           involvement: next.involvement ?? previous.involvement,
@@ -276,7 +276,7 @@ export function PullRequestsPage() {
           ...(next.checks ? { checks: next.checks } : {}),
           ...(next.author ? { author: next.author } : {}),
           ...(next.labels && next.labels.length > 0 ? { labels: next.labels } : {}),
-        };
+        } satisfies PullRequestsSearch as PullRequestsSearch;
       },
       replace: true,
     });
@@ -470,7 +470,7 @@ export function PullRequestsPage() {
     entry: EnvironmentPullRequestEntry,
     action: PullRequestAction,
     reply?: PullRequestSummary,
-  ): number | null => {
+  ) => {
     const token = ++overrideToken.current;
     const override = pullRequestOverrideAfterAction(entry, action, new Date(), token, reply);
     if (override === null) return null;

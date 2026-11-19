@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test"
 
 const io = vi.hoisted(() => ({
   platform: vi.fn(() => "win32"),
-  stat: vi.fn(() => ({ isCharacterDevice: (): boolean => true })),
+  stat: vi.fn(() => ({ isCharacterDevice: () => true })),
   open: vi.fn(() => 42),
   close: vi.fn(),
   isatty: vi.fn((fd: number) => fd !== 0),

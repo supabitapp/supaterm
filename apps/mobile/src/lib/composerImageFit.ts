@@ -15,7 +15,7 @@ const MAX_BYTE_LIMIT_SHRINKS = 3;
 function shrinkToByteLimit(
   size: { readonly width: number; readonly height: number },
   bytes: number,
-): { width: number; height: number } | null {
+) {
   if (bytes <= PROVIDER_SEND_TURN_MAX_IMAGE_BYTES) return null;
   const scale = Math.sqrt(PROVIDER_SEND_TURN_MAX_IMAGE_BYTES / bytes) * 0.9;
   const next = {
@@ -25,10 +25,7 @@ function shrinkToByteLimit(
   return next.width < size.width || next.height < size.height ? next : null;
 }
 
-export async function renderPhoto(
-  uri: string,
-  format: "jpeg" | "png" = "jpeg",
-): Promise<{ base64: string; uri: string }> {
+export async function renderPhoto(uri: string, format: "jpeg" | "png" = "jpeg") {
   const { ImageManipulator, SaveFormat } = await import("expo-image-manipulator");
   let image = await ImageManipulator.manipulate(uri).renderAsync();
   try {
@@ -70,7 +67,7 @@ export async function fitComposerImage(image: {
   readonly uri: string;
   readonly mimeType: string;
   readonly base64: string;
-}): Promise<{ base64: string; uri: string } | null> {
+}) {
   const mimeType = downscalableImageMimeType(image.mimeType);
   if (mimeType === null) return null;
   try {

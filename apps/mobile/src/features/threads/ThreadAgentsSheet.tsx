@@ -3,7 +3,6 @@ import {
   deriveWorkflowGroups,
   projectedSubagentsToRuntime,
 } from "@supaterm/client-runtime/state/subagentRuntime";
-import type { ThreadTurnSubagents } from "@supaterm/client-runtime/state/thread-subagents";
 import {
   isOrchestrationV2WorkActive,
   type EnvironmentId,
@@ -31,7 +30,7 @@ import { useOpenThreadInspector } from "./thread-inspector-navigation";
 
 type AgentsTarget = { readonly environmentId: EnvironmentId; readonly threadId: ThreadId };
 
-function useThreadTurnSubagents(target: AgentsTarget): ThreadTurnSubagents | null {
+function useThreadTurnSubagents(target: AgentsTarget) {
   return useAtomValue(environmentThreadDetails.turnSubagentsAtom(target));
 }
 
@@ -184,7 +183,7 @@ function AgentElapsed(props: {
 function useSubagentElapsed(
   subagent: Pick<OrchestrationV2Subagent, "status" | "startedAt" | "completedAt">,
   tickSeconds: boolean,
-): string | null {
+) {
   const running = isOrchestrationV2WorkActive(subagent.status);
   const nowMs = useVisibleSecondClock(tickSeconds && running);
   const elapsedMs = deriveSubagentElapsedMs(

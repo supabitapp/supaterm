@@ -39,7 +39,7 @@ export async function resumeThread<E>(input: {
   readonly setInteractionMode: Command<SetThreadInteractionModeInput, E>;
   readonly startTurn: Command<StartThreadTurnInput, E>;
   readonly resumeQueue: Command<ResumeThreadQueueInput, E>;
-}): Promise<AtomCommandResult<unknown, E>> {
+}) {
   const { thread, runtimeMode, interactionMode, createdAt } = input;
   const environmentId = thread.environmentId;
   if (input.resumableRunId !== null) {

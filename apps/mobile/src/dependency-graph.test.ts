@@ -13,13 +13,13 @@ type Platform = keyof typeof PLATFORM_EXTENSION_ORDER;
 
 const PLATFORMS = Object.keys(PLATFORM_EXTENSION_ORDER) as ReadonlyArray<Platform>;
 
-const isGraphFile = (filePath: string): boolean =>
+const isGraphFile = (filePath: string) =>
   /\.tsx?$/.test(filePath) &&
   !filePath.includes(".test.") &&
   !filePath.includes("test-support") &&
   !filePath.endsWith(".d.ts");
 
-function isRelevantForPlatform(filePath: string, platform: Platform): boolean {
+function isRelevantForPlatform(filePath: string, platform: Platform) {
   const name = NodePath.basename(filePath);
   if (platform === "android") {
     return !name.includes(".ios.");
@@ -27,7 +27,7 @@ function isRelevantForPlatform(filePath: string, platform: Platform): boolean {
   return !name.includes(".android.");
 }
 
-function collectSourceFiles(dir: string, out: string[] = []): string[] {
+function collectSourceFiles(dir: string, out: string[] = []) {
   for (const entry of NodeFS.readdirSync(dir)) {
     const filePath = NodePath.join(dir, entry);
     if (NodeFS.statSync(filePath).isDirectory()) {
@@ -43,7 +43,7 @@ function resolveRelative(
   fromFile: string,
   specifier: string,
   extensionOrder: ReadonlyArray<string>,
-): string | null {
+) {
   if (!specifier.startsWith(".")) {
     return null;
   }
@@ -66,7 +66,7 @@ interface ParsedImport {
   readonly isDynamic: boolean;
 }
 
-function parseImports(source: string): ParsedImport[] {
+function parseImports(source: string) {
   const parsed: ParsedImport[] = [];
   const staticRe = /(?:^|\n)\s*(?:import|export)[\s\S]*?from\s+["']([^"']+)["']/g;
   const bareRe = /(?:^|\n)\s*import\s+["']([^"']+)["']/g;
@@ -85,7 +85,7 @@ function parseImports(source: string): ParsedImport[] {
 
 type Layer = "state" | "lib" | "components" | "native" | "features" | "other";
 
-function layerOf(relativePath: string): Layer {
+function layerOf(relativePath: string) {
   const top = relativePath.split(NodePath.sep)[0]!;
   if (top === "features") return "features";
   return top === "state" || top === "lib" || top === "components" || top === "native"
@@ -100,7 +100,7 @@ interface PlatformGraph {
   readonly crossLayerEdges: ReadonlySet<string>;
 }
 
-function buildPlatformGraph(platform: Platform): PlatformGraph {
+function buildPlatformGraph(platform: Platform) {
   const extensionOrder = PLATFORM_EXTENSION_ORDER[platform];
   const files = collectSourceFiles(SOURCE_ROOT)
     .filter((file) => isRelevantForPlatform(file, platform))
@@ -136,7 +136,7 @@ function buildPlatformGraph(platform: Platform): PlatformGraph {
   return { platform, files, staticEdges, crossLayerEdges };
 }
 
-function findCycles(graph: PlatformGraph): ReadonlyArray<ReadonlyArray<string>> {
+function findCycles(graph: PlatformGraph) {
   const index = new Map<string, number>();
   const low = new Map<string, number>();
   const onStack = new Set<string>();
@@ -144,7 +144,7 @@ function findCycles(graph: PlatformGraph): ReadonlyArray<ReadonlyArray<string>> 
   const cycles: string[][] = [];
   let nextIndex = 0;
 
-  const enter = (node: string): void => {
+  const enter = (node: string) => {
     index.set(node, nextIndex);
     low.set(node, nextIndex);
     nextIndex += 1;

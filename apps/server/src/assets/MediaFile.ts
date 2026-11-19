@@ -10,7 +10,7 @@ class MediaFileOpenError extends Schema.TaggedError<MediaFileOpenError>()("Media
   path: Schema.String,
   cause: Schema.Defect(),
 }) {
-  override get message(): string {
+  override get message() {
     return `Failed to open media file '${this.path}'.`;
   }
 }
@@ -19,7 +19,7 @@ class MediaFileReadError extends Schema.TaggedError<MediaFileReadError>()("Media
   path: Schema.String,
   cause: Schema.Defect(),
 }) {
-  override get message(): string {
+  override get message() {
     return `Failed to read media file '${this.path}'.`;
   }
 }
@@ -28,7 +28,7 @@ class MediaFileStatError extends Schema.TaggedError<MediaFileStatError>()("Media
   path: Schema.String,
   cause: Schema.Defect(),
 }) {
-  override get message(): string {
+  override get message() {
     return `Failed to read metadata for media file '${this.path}'.`;
   }
 }

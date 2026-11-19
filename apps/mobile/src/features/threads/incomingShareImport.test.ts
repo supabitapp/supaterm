@@ -7,7 +7,6 @@ import { undoComposerDraftMergeState, type ComposerDraft } from "../../state/use
 import {
   makeIncomingShareImports,
   type ShareImportDeps,
-  type ShareImportPhase,
   type ShareImportTarget,
   transitionShareImport,
 } from "./incomingShareImport";
@@ -20,7 +19,7 @@ function undoInto(
   draftKey: string,
   snapshot: ComposerDraft,
   merged: ComposerDraft,
-): void {
+) {
   const next = undoComposerDraftMergeState(Object.fromEntries(drafts), draftKey, snapshot, merged);
   drafts.clear();
   for (const [key, draft] of Object.entries(next)) drafts.set(key, draft);
@@ -33,7 +32,7 @@ function mergeInto(
     readonly text: string;
     readonly attachments: ReadonlyArray<DraftComposerAttachment>;
   },
-): void {
+) {
   const existing = drafts.get(draftKey) ?? { text: "", attachments: [] };
   drafts.set(draftKey, {
     text: `${existing.text}\n${content.text}`,
@@ -41,7 +40,7 @@ function mergeInto(
   });
 }
 
-function fileAttachment(id: string): DraftComposerAttachment {
+function fileAttachment(id: string) {
   return {
     id,
     type: "file",
@@ -49,10 +48,10 @@ function fileAttachment(id: string): DraftComposerAttachment {
     mimeType: "text/plain",
     sizeBytes: 4,
     fileUri: `file:///${id}.txt`,
-  };
+  } satisfies DraftComposerAttachment;
 }
 
-function share(attachments: ReadonlyArray<DraftComposerAttachment> = []): IncomingShareDraft {
+function share(attachments: ReadonlyArray<DraftComposerAttachment> = []) {
   return {
     schemaVersion: 1,
     id: "share-1",
@@ -60,10 +59,10 @@ function share(attachments: ReadonlyArray<DraftComposerAttachment> = []): Incomi
     text: "shared text",
     attachments,
     warnings: [],
-  };
+  } satisfies IncomingShareDraft;
 }
 
-function importTarget(overrides: Partial<ShareImportTarget> = {}): ShareImportTarget {
+function importTarget(overrides: Partial<ShareImportTarget> = {}) {
   return {
     flowKey: "flow-a",
     routeKey: "route-a",
@@ -118,7 +117,7 @@ function setup(overrides: Partial<ShareImportDeps> = {}) {
     const atom = imports.phaseAtom(target);
     const unmount = registry.mount(atom);
     registry.get(atom);
-    return { phase: (): ShareImportPhase => registry.get(atom), unmount };
+    return { phase: () => registry.get(atom), unmount };
   };
   return { imports, deps, drafts, inbox, calls, watch, registry };
 }

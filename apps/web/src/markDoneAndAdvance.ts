@@ -4,7 +4,7 @@ type MarkDoneAndAdvance = (threadRef: ScopedThreadRef) => void;
 
 let registeredMarkDoneAndAdvance: MarkDoneAndAdvance | null = null;
 
-export function registerMarkDoneAndAdvance(handler: MarkDoneAndAdvance): () => void {
+export function registerMarkDoneAndAdvance(handler: MarkDoneAndAdvance) {
   registeredMarkDoneAndAdvance = handler;
   return () => {
     if (registeredMarkDoneAndAdvance === handler) registeredMarkDoneAndAdvance = null;
@@ -14,7 +14,7 @@ export function registerMarkDoneAndAdvance(handler: MarkDoneAndAdvance): () => v
 /**
  * Returns false when no sidebar is mounted, so the caller marks done in place.
  */
-export function markDoneAndAdvance(threadRef: ScopedThreadRef): boolean {
+export function markDoneAndAdvance(threadRef: ScopedThreadRef) {
   if (!registeredMarkDoneAndAdvance) return false;
   registeredMarkDoneAndAdvance(threadRef);
   return true;

@@ -20,7 +20,7 @@ import {
 
 const textDecoder = new TextDecoder();
 
-function deviceReport(channel: number, text: string): Uint8Array {
+function deviceReport(channel: number, text: string) {
   const bytes = new TextEncoder().encode(text);
   const report = new Uint8Array(64);
   report[0] = 0x06;
@@ -43,7 +43,7 @@ const pushAll = (decoder: CodexMicroReportDecoder, reports: ReadonlyArray<Uint8A
 
 const model = (
   slots: Partial<Record<number, Partial<CodexMicroLightingModel["slots"][number]>>>,
-): CodexMicroLightingModel => ({
+) => ({
   ...EMPTY_LIGHTING_MODEL,
   slots: EMPTY_LIGHTING_MODEL.slots.map((slot, index) => ({ ...slot, ...slots[index] })),
 });

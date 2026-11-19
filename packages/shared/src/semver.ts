@@ -1,13 +1,6 @@
-interface ParsedSemver {
-  readonly major: number;
-  readonly minor: number;
-  readonly patch: number;
-  readonly prerelease: ReadonlyArray<string>;
-}
-
 const SEMVER_NUMBER_SEGMENT = /^\d+$/;
 
-export function normalizeSemverVersion(version: string): string {
+export function normalizeSemverVersion(version: string) {
   const [versionWithoutBuildMetadata = ""] = version.trim().split("+", 1);
   const [main, ...prereleaseParts] = versionWithoutBuildMetadata.split("-");
   const prerelease = prereleaseParts.join("-");
@@ -26,7 +19,7 @@ export function normalizeSemverVersion(version: string): string {
   return prerelease ? `${segments.join(".")}-${prerelease}` : segments.join(".");
 }
 
-export function parseSemver(value: string): ParsedSemver | null {
+export function parseSemver(value: string) {
   const normalized = normalizeSemverVersion(value).replace(/^v/, "");
   const [main = "", ...prereleaseParts] = normalized.split("-");
   const prerelease = prereleaseParts.join("-");
@@ -62,7 +55,7 @@ export function parseSemver(value: string): ParsedSemver | null {
   };
 }
 
-function parsePrereleaseSegments(prerelease: string | undefined): ReadonlyArray<string> {
+function parsePrereleaseSegments(prerelease: string | undefined) {
   if (prerelease === undefined) {
     return [];
   }
@@ -76,7 +69,7 @@ function parsePrereleaseSegments(prerelease: string | undefined): ReadonlyArray<
   return segments;
 }
 
-function comparePrereleaseIdentifier(left: string, right: string): number {
+function comparePrereleaseIdentifier(left: string, right: string) {
   const leftNumeric = SEMVER_NUMBER_SEGMENT.test(left);
   const rightNumeric = SEMVER_NUMBER_SEGMENT.test(right);
 
@@ -94,7 +87,7 @@ function comparePrereleaseIdentifier(left: string, right: string): number {
   return left === right ? 0 : left < right ? -1 : 1;
 }
 
-export function compareSemverVersions(left: string, right: string): number {
+export function compareSemverVersions(left: string, right: string) {
   const parsedLeft = parseSemver(left);
   const parsedRight = parseSemver(right);
   if (!parsedLeft || !parsedRight) {

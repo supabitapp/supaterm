@@ -19,7 +19,7 @@ interface MutableUpdateManifestFile {
   size?: number;
 }
 
-function stripSingleQuotes(value: string): string {
+function stripSingleQuotes(value: string) {
   if (value.startsWith("'") && value.endsWith("'")) {
     return value.slice(1, -1).replace(/''/g, "'");
   }
@@ -31,7 +31,7 @@ function parseFileRecord(
   sourcePath: string,
   lineNumber: number,
   platformLabel: string,
-): UpdateManifestFile | null {
+) {
   if (currentFile === null) {
     return null;
   }
@@ -51,7 +51,7 @@ function parseFileRecord(
   };
 }
 
-function parseScalarValue(rawValue: string): UpdateManifestScalar {
+function parseScalarValue(rawValue: string) {
   const trimmed = rawValue.trim();
   const isQuoted = trimmed.startsWith("'") && trimmed.endsWith("'") && trimmed.length >= 2;
   const value = isQuoted ? trimmed.slice(1, -1).replace(/''/g, "'") : trimmed;
@@ -64,11 +64,7 @@ function parseScalarValue(rawValue: string): UpdateManifestScalar {
   return value;
 }
 
-export function parseUpdateManifest(
-  raw: string,
-  sourcePath: string,
-  platformLabel: string,
-): UpdateManifest {
+export function parseUpdateManifest(raw: string, sourcePath: string, platformLabel: string) {
   const lines = raw.split(/\r?\n/);
   const files: UpdateManifestFile[] = [];
   const extras: Record<string, UpdateManifestScalar> = {};
@@ -189,7 +185,7 @@ function mergeExtras(
   primary: Readonly<Record<string, UpdateManifestScalar>>,
   secondary: Readonly<Record<string, UpdateManifestScalar>>,
   platformLabel: string,
-): Record<string, UpdateManifestScalar> {
+) {
   const merged: Record<string, UpdateManifestScalar> = { ...primary };
 
   for (const [key, value] of Object.entries(secondary)) {
@@ -209,7 +205,7 @@ export function mergeUpdateManifests(
   primary: UpdateManifest,
   secondary: UpdateManifest,
   platformLabel: string,
-): UpdateManifest {
+) {
   if (primary.version !== secondary.version) {
     throw new Error(
       `Cannot merge ${platformLabel} update manifests with different versions (${primary.version} vs ${secondary.version}).`,
@@ -236,11 +232,11 @@ export function mergeUpdateManifests(
   };
 }
 
-function quoteYamlString(value: string): string {
+function quoteYamlString(value: string) {
   return `'${value.replace(/'/g, "''")}'`;
 }
 
-function serializeScalarValue(value: UpdateManifestScalar): string {
+function serializeScalarValue(value: UpdateManifestScalar) {
   if (typeof value === "string") {
     return quoteYamlString(value);
   }
@@ -252,7 +248,7 @@ export function serializeUpdateManifest(
   options: {
     readonly platformLabel: string;
   },
-): string {
+) {
   const lines = [`version: ${quoteYamlString(manifest.version)}`, "files:"];
 
   for (const file of manifest.files) {

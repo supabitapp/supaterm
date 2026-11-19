@@ -1,13 +1,11 @@
 import { errorTag } from "@supaterm/shared/observability";
 
-export function structuralProtocolMethod(value: string): string {
+export function structuralProtocolMethod(value: string) {
   return value.length <= 128 && /^[A-Za-z][A-Za-z0-9._:/-]*$/.test(value) ? value : "unknown";
 }
 
 /** Never log payload values: they may contain secrets, prompts, or unbounded output. */
-export function summarizeNativeProtocolPayload(
-  payload: unknown,
-): Readonly<Record<string, unknown>> {
+export function summarizeNativeProtocolPayload(payload: unknown) {
   if (payload === null) return { valueType: "null" };
   if (typeof payload === "string") {
     return { valueType: "string", byteLength: new TextEncoder().encode(payload).byteLength };

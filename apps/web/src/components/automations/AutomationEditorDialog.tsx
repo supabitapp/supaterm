@@ -2,7 +2,6 @@ import { useAtomValue } from "@effect/atom-react";
 import { type ReactNode, useRef, useState } from "react";
 import type {
   EnvironmentId,
-  ModelSelection,
   OrchestrationV2ThreadLaunchWorkspaceStrategy,
   ProjectId,
   ScheduledTask,
@@ -301,7 +300,7 @@ function ScheduledTaskDestination({
   );
 }
 
-function splitModelKey(value: string): ModelSelection | null {
+function splitModelKey(value: string) {
   const index = value.indexOf(":");
   if (index <= 0 || index === value.length - 1) return null;
   return {

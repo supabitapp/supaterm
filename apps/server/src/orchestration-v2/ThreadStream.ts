@@ -22,14 +22,14 @@ export const THREAD_RESUME_MAX_REPLAY_ENCODED_BYTES = 1_048_576;
 /** Decoded objects and temporary strings exceed stored JSON size, even before wire slimming. */
 export const THREAD_RESUME_MAX_RAW_PAYLOAD_BYTES = 1_048_576;
 
-export function isThreadReplayRawPayloadSafe(rawPayloadBytes: number): boolean {
+export function isThreadReplayRawPayloadSafe(rawPayloadBytes: number) {
   return rawPayloadBytes <= THREAD_RESUME_MAX_RAW_PAYLOAD_BYTES;
 }
 
 export function threadReplayEncodedBytes(
   items: ReadonlyArray<unknown>,
   limit: number = THREAD_RESUME_MAX_REPLAY_ENCODED_BYTES,
-): number {
+) {
   let total = 0;
   for (const item of items) {
     const encoded = JSON.stringify(item);
@@ -70,7 +70,7 @@ export function buildBoundedThreadStreamSnapshot(input: {
   readonly compactTurnItems?: boolean;
   readonly dedupeBodies?: boolean;
   readonly compactIds?: boolean;
-}): ThreadSnapshotStreamItem {
+}) {
   const bounded = buildBoundedThreadProjection({
     snapshotSequence: input.snapshotSequence,
     projection: projectThreadProjectionForWire(input.projection),
@@ -84,7 +84,7 @@ export function buildBoundedThreadStreamSnapshot(input: {
       dedupeBodies: input.dedupeBodies === true,
       compactIds: input.compactIds === true,
     }),
-  };
+  } satisfies ThreadSnapshotStreamItem;
 }
 
 export type ThreadResumePlan =
@@ -101,17 +101,17 @@ export function decideThreadResume(input: {
   readonly highWater: number;
   readonly replayEventCount: number;
   readonly replayEncodedBytes: number;
-}): ThreadResumePlan {
+}) {
   if (
     input.afterSequence > input.highWater ||
     input.replayEventCount > THREAD_RESUME_MAX_REPLAY_EVENTS ||
     input.replayEncodedBytes > THREAD_RESUME_MAX_REPLAY_ENCODED_BYTES
   ) {
-    return { mode: "snapshot" };
+    return { mode: "snapshot" } satisfies ThreadResumePlan;
   }
   return {
     mode: "replay",
     afterSequence: input.afterSequence,
     throughSequence: input.highWater,
-  };
+  } satisfies ThreadResumePlan;
 }

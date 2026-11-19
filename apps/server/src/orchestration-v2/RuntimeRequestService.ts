@@ -30,7 +30,7 @@ export class RuntimeRequestResponseExecutionError extends Schema.TaggedError<Run
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message(): string {
+  override get message() {
     switch (this.reason) {
       case "request-missing":
         return `Runtime request ${this.requestId} no longer exists on thread ${this.threadId}.`;

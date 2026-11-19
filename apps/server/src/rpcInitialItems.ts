@@ -1,7 +1,7 @@
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
 
-export function rpcInitialItems<A>(items: ReadonlyArray<A>): Stream.Stream<A> {
+export function rpcInitialItems<A>(items: ReadonlyArray<A>) {
   let pending: ReadonlyArray<A> | undefined = items;
   return Stream.unwrap(
     Effect.sync(() => {

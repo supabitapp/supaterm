@@ -16,7 +16,7 @@ import {
   threadListV2LayoutTime,
 } from "./threadListV2";
 
-function useKeySet(newlineSeparatedKeys: string): ReadonlySet<string> {
+function useKeySet(newlineSeparatedKeys: string) {
   return useMemo(
     () => new Set(newlineSeparatedKeys.length === 0 ? [] : newlineSeparatedKeys.split("\n")),
     [newlineSeparatedKeys],
@@ -232,15 +232,22 @@ function olderDoneScopes(
     readonly loadedEnvironmentIds: ReadonlySet<EnvironmentId>;
   },
   hiddenEnvironmentIds: ReadonlySet<EnvironmentId>,
-): ReadonlyArray<OlderDoneScope> {
+) {
   const environmentIds = (
     input.environmentId === null ? [...input.loadedEnvironmentIds] : [input.environmentId]
   ).filter((environmentId) => !hiddenEnvironmentIds.has(environmentId));
-  return environmentIds.flatMap((environmentId): ReadonlyArray<OlderDoneScope> => {
-    if (input.projectRefs == null) return [{ environmentId, projectIds: null }];
+  return environmentIds.flatMap((environmentId) => {
+    if (input.projectRefs == null)
+      return [
+        { environmentId, projectIds: null },
+      ] satisfies ReadonlyArray<OlderDoneScope> as ReadonlyArray<OlderDoneScope>;
     const projectIds = input.projectRefs.flatMap((ref) =>
       ref.environmentId === environmentId ? [ref.projectId] : [],
     );
-    return projectIds.length === 0 ? [] : [{ environmentId, projectIds }];
-  });
+    return (projectIds.length === 0
+      ? []
+      : [
+          { environmentId, projectIds },
+        ]) satisfies ReadonlyArray<OlderDoneScope> as ReadonlyArray<OlderDoneScope>;
+  }) satisfies ReadonlyArray<OlderDoneScope>;
 }

@@ -70,7 +70,7 @@ export const CursorDriver: ProviderDriver<
     supportsMultipleInstances: true,
   },
   configSchema: CursorSettings,
-  defaultConfig: (): CursorSettings => decodeCursorSettings({}),
+  defaultConfig: () => decodeCursorSettings({}),
   usage: {
     kind: "scan",
     provider: "cursor",
@@ -131,7 +131,7 @@ export const CursorDriver: ProviderDriver<
       ...(processEnv.CURSOR_API_KEY ? { apiKey: processEnv.CURSOR_API_KEY } : {}),
       store: credentials.store,
       credentialBinding: credentials.binding,
-      onChanged: (signedIn): Effect.Effect<void, ProviderSetupError> =>
+      onChanged: (signedIn) =>
         snapshot.refresh.pipe(
           Effect.flatMap((provider) =>
             !signedIn || provider.auth.status === "authenticated"
@@ -144,7 +144,10 @@ export const CursorDriver: ProviderDriver<
                   }),
                 ),
           ),
-        ),
+        ) satisfies Effect.Effect<void, ProviderSetupError> as Effect.Effect<
+          void,
+          ProviderSetupError
+        >,
     });
     const stampSnapshot: typeof stampIdentity = (draft) =>
       stampIdentity({

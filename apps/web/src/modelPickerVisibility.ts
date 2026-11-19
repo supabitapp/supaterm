@@ -8,18 +8,18 @@ function setMountedModelPickers(next: number) {
   for (const listener of listeners) listener();
 }
 
-export function registerModelPickerContent(): () => void {
+export function registerModelPickerContent() {
   setMountedModelPickers(mountedModelPickers + 1);
   return () => {
     setMountedModelPickers(mountedModelPickers - 1);
   };
 }
 
-export function isModelPickerOpen(): boolean {
+export function isModelPickerOpen() {
   return mountedModelPickers > 0;
 }
 
-export function subscribeToModelPickerVisibility(listener: () => void): () => void {
+export function subscribeToModelPickerVisibility(listener: () => void) {
   listeners.add(listener);
   return () => {
     listeners.delete(listener);

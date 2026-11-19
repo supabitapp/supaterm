@@ -25,23 +25,25 @@ function createMutableNode(
   path: string,
   name: string,
   kind: ProjectEntry["kind"],
-): MutableFileTreeNode {
+): MutableFileTreeNode;
+function createMutableNode(path: string, name: string, kind: ProjectEntry["kind"]) {
   return {
     path,
     name,
     kind,
     children: new Map(),
-  };
+  } satisfies MutableFileTreeNode;
 }
 
-function freezeNode(node: MutableFileTreeNode): FileTreeNode {
+function freezeNode(node: MutableFileTreeNode): FileTreeNode;
+function freezeNode(node: MutableFileTreeNode) {
   return {
     path: node.path,
     name: node.name,
     kind: node.kind,
     ...(node.ignored ? { ignored: true } : {}),
     children: [...node.children.values()].sort(compareNodes).map(freezeNode),
-  };
+  } satisfies FileTreeNode;
 }
 
 const fileNameCollator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
@@ -49,14 +51,15 @@ const fileNameCollator = new Intl.Collator(undefined, { numeric: true, sensitivi
 function compareNodes(
   left: Pick<FileTreeNode, "kind" | "name">,
   right: Pick<FileTreeNode, "kind" | "name">,
-): number {
+) {
   if (left.kind !== right.kind) {
     return left.kind === "directory" ? -1 : 1;
   }
   return fileNameCollator.compare(left.name, right.name);
 }
 
-export function buildFileTree(entries: ReadonlyArray<ProjectEntry>): ReadonlyArray<FileTreeNode> {
+export function buildFileTree(entries: ReadonlyArray<ProjectEntry>): ReadonlyArray<FileTreeNode>;
+export function buildFileTree(entries: ReadonlyArray<ProjectEntry>) {
   const root = createMutableNode("", "", "directory");
 
   for (const entry of entries) {
@@ -87,7 +90,9 @@ export function buildFileTree(entries: ReadonlyArray<ProjectEntry>): ReadonlyArr
     }
   }
 
-  return [...root.children.values()].sort(compareNodes).map(freezeNode);
+  return [...root.children.values()]
+    .sort(compareNodes)
+    .map(freezeNode) satisfies ReadonlyArray<FileTreeNode>;
 }
 
 function flattenNode(
@@ -96,7 +101,7 @@ function flattenNode(
   depth: number,
   expanded: ReadonlySet<string>,
   searchResultPaths: ReadonlySet<string> | null,
-): boolean {
+) {
   const isSearching = searchResultPaths !== null;
   const matches = searchResultPaths?.has(node.path) ?? false;
   let descendantMatches = false;
@@ -124,7 +129,7 @@ export function flattenFileTree(input: {
   readonly nodes: ReadonlyArray<FileTreeNode>;
   readonly expanded: ReadonlySet<string>;
   readonly searchResultPaths?: ReadonlySet<string> | null;
-}): ReadonlyArray<VisibleFileTreeNode> {
+}) {
   const output: VisibleFileTreeNode[] = [];
   for (const node of input.nodes) {
     flattenNode(output, node, 0, input.expanded, input.searchResultPaths ?? null);

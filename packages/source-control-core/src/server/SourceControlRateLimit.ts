@@ -49,11 +49,11 @@ export class SourceControlRateLimitPausedError extends Schema.TaggedError<Source
     retryAt: Schema.Number,
   },
 ) {
-  get detail(): string {
+  get detail() {
     return `${this.provider} requests to ${this.host} are paused until the rate limit resets.`;
   }
 
-  override get message(): string {
+  override get message() {
     return this.detail;
   }
 }
@@ -72,18 +72,18 @@ export class SourceControlRateLimit extends Context.Service<
   }
 >()("@supaterm/source-control-core/server/SourceControlRateLimit") {}
 
-function normalizedKey(key: RateLimitKey, scope: string): string {
+function normalizedKey(key: RateLimitKey, scope: string) {
   return `${key.provider}\0${key.host.trim().toLowerCase()}\0${scope}`;
 }
 
-function fallbackCooldownMs(attempt: number): number {
+function fallbackCooldownMs(attempt: number) {
   return Math.min(
     Duration.toMillis(FALLBACK_COOLDOWN) * 2 ** Math.max(0, attempt - 1),
     Duration.toMillis(MAX_FALLBACK_COOLDOWN),
   );
 }
 
-export function retryAtFromHeader(value: string | undefined, now: number): number | undefined {
+export function retryAtFromHeader(value: string | undefined, now: number) {
   if (value === undefined) return undefined;
   const normalized = value.trim();
   if (/^\d+$/u.test(normalized)) {

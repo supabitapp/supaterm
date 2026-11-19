@@ -41,7 +41,7 @@ import { isExactServiceVersion } from "./serviceProtocol.ts";
 export function resolveServerSelfUpdateCapability(input: {
   readonly desktopManaged: boolean;
   readonly launcherManaged: boolean;
-}): ServerSelfUpdateCapability | null {
+}) {
   if (input.desktopManaged) return "desktop-managed" as const;
   return input.launcherManaged ? ("boot-service" as const) : null;
 }
@@ -112,7 +112,7 @@ export function trackSwitchBlockReason(input: {
   readonly targetDatabaseMigration: number | undefined;
   /** Read only for a crossing; undefined when the database cannot be read. */
   readonly databaseMigration: () => number | undefined;
-}): string | null {
+}) {
   if (!crossesReleaseTrack(input.serverVersion, input.targetVersion)) return null;
   const databaseMigration = input.databaseMigration();
   if (input.targetDatabaseMigration === undefined || databaseMigration === undefined) {

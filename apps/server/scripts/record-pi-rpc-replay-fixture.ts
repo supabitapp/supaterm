@@ -35,7 +35,7 @@ const HERMETIC_LAUNCH_ARGS =
 const WORKSPACE_PI_SETTINGS = { compaction: { keepRecentTokens: 50 } };
 const CLOCK_TICK = Duration.millis(20);
 
-function readArgValue(name: string): string | undefined {
+function readArgValue(name: string) {
   const index = process.argv.indexOf(name);
   return index === -1 ? undefined : process.argv[index + 1];
 }
@@ -59,7 +59,7 @@ const UUID_PATTERN = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{1
 const ISO_TIMESTAMP_PATTERN = /\b\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z\b/gu;
 const NORMALIZED_EPOCH_MS = DateTime.toEpochMillis(DateTime.makeUnsafe("2026-01-01T00:00:00.000Z"));
 
-function escapeRegExp(value: string): string {
+function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
 }
 
@@ -72,11 +72,17 @@ function normalizeEntries(input: {
   readonly workspace: string;
   readonly sessionDir: string;
   readonly modelSlug: string;
-}): ReadonlyArray<ProviderReplayEntry> {
+}): ReadonlyArray<ProviderReplayEntry>;
+function normalizeEntries(input: {
+  readonly entries: ReadonlyArray<ProviderReplayEntry>;
+  readonly workspace: string;
+  readonly sessionDir: string;
+  readonly modelSlug: string;
+}) {
   const sessionFiles = new Map<string, string>();
   const uuids = new Map<string, string>();
   let timeAnchorMs: number | undefined;
-  const shiftTime = (ms: number): number => {
+  const shiftTime = (ms: number) => {
     timeAnchorMs ??= ms;
     return NORMALIZED_EPOCH_MS + (ms - timeAnchorMs);
   };
@@ -84,7 +90,7 @@ function normalizeEntries(input: {
     `${escapeRegExp(input.sessionDir)}/[^\\s"']+?\\.jsonl`,
     "gu",
   );
-  const normalizeString = (value: string): string =>
+  const normalizeString = (value: string) =>
     value
       .replace(sessionFilePattern, (file) => {
         const existing = sessionFiles.get(file);
@@ -112,7 +118,7 @@ function normalizeEntries(input: {
         uuids.set(uuid.toLowerCase(), next);
         return next;
       });
-  const normalizeValue = (value: unknown): unknown => {
+  const normalizeValue: (value: unknown) => unknown = (value: unknown) => {
     if (typeof value === "string") return normalizeString(value);
     if (Array.isArray(value)) return value.map(normalizeValue);
     if (!isRecord(value)) return value;
@@ -135,7 +141,7 @@ function normalizeEntries(input: {
       ]),
     );
   };
-  const normalizeFrame = (frame: unknown): unknown => {
+  const normalizeFrame: (frame: unknown) => unknown = (frame: unknown) => {
     if (!isRecord(frame)) return normalizeValue(frame);
     const args = frame.args;
     if (frame.type === "process_start" && Array.isArray(args)) {
@@ -160,12 +166,12 @@ function normalizeEntries(input: {
   };
   return input.entries.map((entry) =>
     entry.type === "runtime_exit" ? entry : { ...entry, frame: normalizeFrame(entry.frame) },
-  );
+  ) satisfies ReadonlyArray<ProviderReplayEntry>;
 }
 
 const encodeJson = Schema.encodeSync(Schema.fromJsonString(Schema.Unknown));
 
-function encodeTranscriptNdjson(transcript: ProviderReplayTranscript): string {
+function encodeTranscriptNdjson(transcript: ProviderReplayTranscript) {
   const { entries, ...metadata } = transcript;
   return [
     encodeJson({ type: "transcript_start", ...metadata }),

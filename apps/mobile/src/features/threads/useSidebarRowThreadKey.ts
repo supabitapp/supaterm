@@ -6,7 +6,7 @@ import { scopedThreadKey } from "../../lib/scopedEntities";
 import { environmentThreadShells } from "../../state/threads";
 
 /** An open subagent, side chat or delegated task has no row; its listed ancestor's row is selected. */
-export function useSidebarRowThreadKey(openThreadKey: string | null): string | null {
+export function useSidebarRowThreadKey(openThreadKey: string | null) {
   const threads = useAtomValue(environmentThreadShells.quietThreadShellsAtom);
   const openThreadRef = openThreadKey === null ? null : parseScopedThreadKey(openThreadKey);
   if (openThreadRef === null) return openThreadKey;

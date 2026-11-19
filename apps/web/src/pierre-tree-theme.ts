@@ -15,11 +15,12 @@ export const PIERRE_TREE_UNSAFE_CSS = `
   svg[data-icon-name='supaterm-tree-icon-loading'] { opacity: 0.6; }
 `;
 
-export function pierreTreeStyle(colorScheme: "light" | "dark"): CSSProperties {
+export function pierreTreeStyle(colorScheme: "light" | "dark"): CSSProperties;
+export function pierreTreeStyle(colorScheme: "light" | "dark") {
   return {
     colorScheme,
     ["--trees-fg-override" as string]: "var(--contrast-foreground)",
     ["--trees-fg-muted-override" as string]: "var(--contrast-muted-foreground)",
     ["--trees-status-ignored-override" as string]: "var(--contrast-muted-foreground)",
-  };
+  } satisfies CSSProperties;
 }

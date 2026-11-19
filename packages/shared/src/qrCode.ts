@@ -9,12 +9,12 @@ type int = number;
 export class QrCode {
   public static Ecc: typeof QrCodeEcc;
 
-  public static encodeText(text: string, ecl: QrCodeEcc): QrCode {
+  public static encodeText(text: string, ecl: QrCodeEcc) {
     const segs: Array<QrSegment> = QrSegment.makeSegments(text);
     return QrCode.encodeSegments(segs, ecl);
   }
 
-  public static encodeBinary(data: Readonly<Array<byte>>, ecl: QrCodeEcc): QrCode {
+  public static encodeBinary(data: Readonly<Array<byte>>, ecl: QrCodeEcc) {
     const seg: QrSegment = QrSegment.makeBytes(data);
     return QrCode.encodeSegments([seg], ecl);
   }
@@ -26,7 +26,7 @@ export class QrCode {
     maxVersion: int = 40,
     mask: int = -1,
     boostEcl: boolean = true,
-  ): QrCode {
+  ) {
     if (
       !(
         QrCode.MIN_VERSION <= minVersion &&
@@ -137,11 +137,11 @@ export class QrCode {
     this.isFunction = [];
   }
 
-  public getModule(x: int, y: int): boolean {
+  public getModule(x: int, y: int) {
     return 0 <= x && x < this.size && 0 <= y && y < this.size && this.modules[y]![x]!;
   }
 
-  private drawFunctionPatterns(): void {
+  private drawFunctionPatterns() {
     for (let i = 0; i < this.size; i++) {
       this.setFunctionModule(6, i, i % 2 == 0);
       this.setFunctionModule(i, 6, i % 2 == 0);
@@ -164,7 +164,7 @@ export class QrCode {
     this.drawVersion();
   }
 
-  private drawFormatBits(mask: int): void {
+  private drawFormatBits(mask: int) {
     const data: int = (this.errorCorrectionLevel.formatBits << 3) | mask;
     let rem: int = data;
     for (let i = 0; i < 10; i++) rem = (rem << 1) ^ ((rem >>> 9) * 0x537);
@@ -182,7 +182,7 @@ export class QrCode {
     this.setFunctionModule(8, this.size - 8, true);
   }
 
-  private drawVersion(): void {
+  private drawVersion() {
     if (this.version < 7) return;
 
     let rem: int = this.version;
@@ -199,7 +199,7 @@ export class QrCode {
     }
   }
 
-  private drawFinderPattern(x: int, y: int): void {
+  private drawFinderPattern(x: int, y: int) {
     for (let dy = -4; dy <= 4; dy++) {
       for (let dx = -4; dx <= 4; dx++) {
         const dist: int = Math.max(Math.abs(dx), Math.abs(dy));
@@ -211,19 +211,19 @@ export class QrCode {
     }
   }
 
-  private drawAlignmentPattern(x: int, y: int): void {
+  private drawAlignmentPattern(x: int, y: int) {
     for (let dy = -2; dy <= 2; dy++) {
       for (let dx = -2; dx <= 2; dx++)
         this.setFunctionModule(x + dx, y + dy, Math.max(Math.abs(dx), Math.abs(dy)) != 1);
     }
   }
 
-  private setFunctionModule(x: int, y: int, isDark: boolean): void {
+  private setFunctionModule(x: int, y: int, isDark: boolean) {
     this.modules[y]![x] = isDark;
     this.isFunction[y]![x] = true;
   }
 
-  private addEccAndInterleave(data: Readonly<Array<byte>>): Array<byte> {
+  private addEccAndInterleave(data: Readonly<Array<byte>>) {
     const ver: int = this.version;
     const ecl: QrCodeEcc = this.errorCorrectionLevel;
     if (data.length != QrCode.getNumDataCodewords(ver, ecl))
@@ -258,7 +258,7 @@ export class QrCode {
     return result;
   }
 
-  private drawCodewords(data: Readonly<Array<byte>>): void {
+  private drawCodewords(data: Readonly<Array<byte>>) {
     if (data.length != Math.floor(QrCode.getNumRawDataModules(this.version) / 8))
       throw new RangeError("Invalid argument");
     let i: int = 0;
@@ -279,7 +279,7 @@ export class QrCode {
     assert(i == data.length * 8);
   }
 
-  private applyMask(mask: int): void {
+  private applyMask(mask: int) {
     if (mask < 0 || mask > 7) throw new RangeError("Mask value out of range");
     for (let y = 0; y < this.size; y++) {
       for (let x = 0; x < this.size; x++) {
@@ -317,7 +317,7 @@ export class QrCode {
     }
   }
 
-  private getPenaltyScore(): int {
+  private getPenaltyScore() {
     let result: int = 0;
 
     for (let y = 0; y < this.size; y++) {
@@ -379,7 +379,7 @@ export class QrCode {
     return result;
   }
 
-  private getAlignmentPatternPositions(): Array<int> {
+  private getAlignmentPatternPositions() {
     if (this.version == 1) return [];
     else {
       const numAlign: int = Math.floor(this.version / 7) + 2;
@@ -391,7 +391,7 @@ export class QrCode {
     }
   }
 
-  private static getNumRawDataModules(ver: int): int {
+  private static getNumRawDataModules(ver: int) {
     if (ver < QrCode.MIN_VERSION || ver > QrCode.MAX_VERSION)
       throw new RangeError("Version number out of range");
     let result: int = (16 * ver + 128) * ver + 64;
@@ -404,7 +404,7 @@ export class QrCode {
     return result;
   }
 
-  private static getNumDataCodewords(ver: int, ecl: QrCodeEcc): int {
+  private static getNumDataCodewords(ver: int, ecl: QrCodeEcc) {
     return (
       Math.floor(QrCode.getNumRawDataModules(ver) / 8) -
       QrCode.ECC_CODEWORDS_PER_BLOCK[ecl.ordinal]![ver]! *
@@ -412,7 +412,7 @@ export class QrCode {
     );
   }
 
-  private static reedSolomonComputeDivisor(degree: int): Array<byte> {
+  private static reedSolomonComputeDivisor(degree: int) {
     if (degree < 1 || degree > 255) throw new RangeError("Degree out of range");
     let result: Array<byte> = [];
     for (let i = 0; i < degree - 1; i++) result.push(0);
@@ -432,7 +432,7 @@ export class QrCode {
   private static reedSolomonComputeRemainder(
     data: Readonly<Array<byte>>,
     divisor: Readonly<Array<byte>>,
-  ): Array<byte> {
+  ) {
     let result: Array<byte> = divisor.map(() => 0);
     for (const b of data) {
       const factor: byte = b ^ (result.shift() as byte);
@@ -442,7 +442,7 @@ export class QrCode {
     return result;
   }
 
-  private static reedSolomonMultiply(x: byte, y: byte): byte {
+  private static reedSolomonMultiply(x: byte, y: byte) {
     if (x >>> 8 != 0 || y >>> 8 != 0) throw new RangeError("Byte out of range");
     let z: int = 0;
     for (let i = 7; i >= 0; i--) {
@@ -453,7 +453,7 @@ export class QrCode {
     return z as byte;
   }
 
-  private finderPenaltyCountPatterns(runHistory: Readonly<Array<int>>): int {
+  private finderPenaltyCountPatterns(runHistory: Readonly<Array<int>>) {
     const n: int = runHistory[1]!;
     assert(n <= this.size * 3);
     const core: boolean =
@@ -472,7 +472,7 @@ export class QrCode {
     currentRunColor: boolean,
     currentRunLength: int,
     runHistory: Array<int>,
-  ): int {
+  ) {
     if (currentRunColor) {
       this.finderPenaltyAddHistory(currentRunLength, runHistory);
       currentRunLength = 0;
@@ -482,7 +482,7 @@ export class QrCode {
     return this.finderPenaltyCountPatterns(runHistory);
   }
 
-  private finderPenaltyAddHistory(currentRunLength: int, runHistory: Array<int>): void {
+  private finderPenaltyAddHistory(currentRunLength: int, runHistory: Array<int>) {
     if (runHistory[0] === 0) currentRunLength += this.size;
     runHistory.pop();
     runHistory.unshift(currentRunLength);
@@ -535,29 +535,29 @@ export class QrCode {
   ];
 }
 
-function appendBits(val: int, len: int, bb: Array<bit>): void {
+function appendBits(val: int, len: int, bb: Array<bit>) {
   if (len < 0 || len > 31 || val >>> len != 0) throw new RangeError("Value out of range");
   for (let i = len - 1; i >= 0; i--) bb.push((val >>> i) & 1);
 }
 
-function getBit(x: int, i: int): boolean {
+function getBit(x: int, i: int) {
   return ((x >>> i) & 1) != 0;
 }
 
-function assert(cond: boolean): void {
+function assert(cond: boolean) {
   if (!cond) throw new Error("Assertion error");
 }
 
 export class QrSegment {
   public static Mode: typeof QrSegmentMode;
 
-  public static makeBytes(data: Readonly<Array<byte>>): QrSegment {
+  public static makeBytes(data: Readonly<Array<byte>>) {
     let bb: Array<bit> = [];
     for (const b of data) appendBits(b, 8, bb);
     return new QrSegment(QrSegment.Mode.BYTE, data.length, bb);
   }
 
-  public static makeNumeric(digits: string): QrSegment {
+  public static makeNumeric(digits: string) {
     if (!QrSegment.isNumeric(digits))
       throw new RangeError("String contains non-numeric characters");
     let bb: Array<bit> = [];
@@ -569,7 +569,7 @@ export class QrSegment {
     return new QrSegment(QrSegment.Mode.NUMERIC, digits.length, bb);
   }
 
-  public static makeAlphanumeric(text: string): QrSegment {
+  public static makeAlphanumeric(text: string) {
     if (!QrSegment.isAlphanumeric(text))
       throw new RangeError("String contains unencodable characters in alphanumeric mode");
     let bb: Array<bit> = [];
@@ -583,14 +583,14 @@ export class QrSegment {
     return new QrSegment(QrSegment.Mode.ALPHANUMERIC, text.length, bb);
   }
 
-  public static makeSegments(text: string): Array<QrSegment> {
+  public static makeSegments(text: string) {
     if (text == "") return [];
     else if (QrSegment.isNumeric(text)) return [QrSegment.makeNumeric(text)];
     else if (QrSegment.isAlphanumeric(text)) return [QrSegment.makeAlphanumeric(text)];
     else return [QrSegment.makeBytes(QrSegment.toUtf8ByteArray(text))];
   }
 
-  public static makeEci(assignVal: int): QrSegment {
+  public static makeEci(assignVal: int) {
     let bb: Array<bit> = [];
     if (assignVal < 0) throw new RangeError("ECI assignment value out of range");
     else if (assignVal < 1 << 7) appendBits(assignVal, 8, bb);
@@ -604,11 +604,11 @@ export class QrSegment {
     return new QrSegment(QrSegment.Mode.ECI, 0, bb);
   }
 
-  public static isNumeric(text: string): boolean {
+  public static isNumeric(text: string) {
     return QrSegment.NUMERIC_REGEX.test(text);
   }
 
-  public static isAlphanumeric(text: string): boolean {
+  public static isAlphanumeric(text: string) {
     return QrSegment.ALPHANUMERIC_REGEX.test(text);
   }
 
@@ -629,11 +629,11 @@ export class QrSegment {
     this.bitData = bitData.slice();
   }
 
-  public getData(): Array<bit> {
+  public getData() {
     return this.bitData.slice();
   }
 
-  public static getTotalBits(segs: Readonly<Array<QrSegment>>, version: int): number {
+  public static getTotalBits(segs: Readonly<Array<QrSegment>>, version: int) {
     let result: number = 0;
     for (const seg of segs) {
       const ccbits: int = seg.mode.numCharCountBits(version);
@@ -643,7 +643,7 @@ export class QrSegment {
     return result;
   }
 
-  private static toUtf8ByteArray(str: string): Array<byte> {
+  private static toUtf8ByteArray(str: string) {
     str = encodeURI(str);
     let result: Array<byte> = [];
     for (let i = 0; i < str.length; i++) {
@@ -694,7 +694,7 @@ class QrSegmentMode {
     this.numBitsCharCount = numBitsCharCount;
   }
 
-  public numCharCountBits(ver: int): int {
+  public numCharCountBits(ver: int) {
     return this.numBitsCharCount[Math.floor((ver + 7) / 17)]!;
   }
 }

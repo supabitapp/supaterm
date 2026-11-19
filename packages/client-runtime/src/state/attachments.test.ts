@@ -19,19 +19,13 @@ import {
 const environmentId = EnvironmentId.make("environment-1");
 const registry = {} as AtomRegistry.AtomRegistry;
 
-type CreateUploadUrlCommand = AtomCommand<
-  { readonly environmentId: EnvironmentId; readonly input: AttachmentCreateUploadUrlInput },
-  AttachmentCreateUploadUrlResult,
-  never
->;
-
 type RemoveCommand = AtomCommand<
   { readonly environmentId: EnvironmentId; readonly input: AttachmentDeleteInput },
   unknown,
   never
 >;
 
-function makeCreateUploadUrl(attachmentId: string): CreateUploadUrlCommand {
+function makeCreateUploadUrl(attachmentId: string) {
   return {
     label: "test:create-upload-url",
     run: async () =>

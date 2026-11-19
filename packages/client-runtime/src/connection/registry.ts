@@ -62,9 +62,7 @@ import {
 
 const isSshConnectionProfile = Schema.is(SshConnectionProfile);
 
-function unsupportedState(
-  entry: ConnectionCatalogEntry,
-): Pick<ConnectionCatalogEntry, "unsupportedReason" | "serverUpdateRequired"> {
+function unsupportedState(entry: ConnectionCatalogEntry) {
   return {
     ...(entry.unsupportedReason === undefined
       ? {}
@@ -79,7 +77,7 @@ export class EnvironmentNotRegisteredError extends Schema.TaggedError<Environmen
     environmentId: EnvironmentId,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Environment ${this.environmentId} is not registered.`;
   }
 }
@@ -90,7 +88,7 @@ export class PlatformEnvironmentRemovalError extends Schema.TaggedError<Platform
     environmentId: EnvironmentId,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Platform-managed environment ${this.environmentId} cannot be removed.`;
   }
 }
@@ -331,10 +329,7 @@ export const make = Effect.gen(function* () {
   const leaseLocksGuard = yield* Semaphore.make(1);
   const started = yield* Ref.make(false);
 
-  const withLeaseLock = <A, E, R>(
-    environmentId: EnvironmentId,
-    effect: Effect.Effect<A, E, R>,
-  ): Effect.Effect<A, E, R> =>
+  const withLeaseLock = <A, E, R>(environmentId: EnvironmentId, effect: Effect.Effect<A, E, R>) =>
     Effect.acquireUseRelease(
       leaseLocksGuard.withPermits(1)(
         Effect.gen(function* () {

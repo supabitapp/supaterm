@@ -27,7 +27,7 @@ export class DirectTunnelNotFoundError extends Schema.TaggedError<DirectTunnelNo
   "DirectTunnelNotFoundError",
   { reason: Schema.Literals(["not-websocket", "no-identity", "endpoint-mismatch"]) },
 ) {
-  override get message(): string {
+  override get message() {
     return "No direct tunnel endpoint matches this request.";
   }
 }
@@ -36,7 +36,7 @@ export class DirectTunnelBusyError extends Schema.TaggedError<DirectTunnelBusyEr
   "DirectTunnelBusyError",
   { limit: Schema.Literals(["pending-handshakes", "sessions", "peer-sessions"]) },
 ) {
-  override get message(): string {
+  override get message() {
     return "Too many direct tunnel connections.";
   }
 }
@@ -45,7 +45,7 @@ export class DirectTunnelIdentityError extends Schema.TaggedError<DirectTunnelId
   "DirectTunnelIdentityError",
   { cause: Schema.Defect() },
 ) {
-  override get message(): string {
+  override get message() {
     return "Failed to read the relay identity.";
   }
 }
@@ -208,9 +208,7 @@ const make = Effect.fn("DirectTunnel.make")(function* (limits: DirectTunnelLimit
     yield* run({ request: input.request, secret: current.value.secret, peer, ...slot });
   }, Effect.scoped);
 
-  const endpointsFor = (
-    found: Option.Option<{ readonly address: string }>,
-  ): Option.Option<ServerTunnelEndpoints> =>
+  const endpointsFor = (found: Option.Option<{ readonly address: string }>) =>
     Option.flatMap(found, ({ address }) => {
       const urls = resolveBoundEndpoints({
         platform,

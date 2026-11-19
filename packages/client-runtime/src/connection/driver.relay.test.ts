@@ -25,7 +25,7 @@ const environmentId = EnvironmentId.make("relay-driver-test");
 const relayAddress = `https://${"11".repeat(16)}.${"22".repeat(16)}.relay.supaterm.alt/`;
 const tunnelOrigin = "http://127.0.0.1:49000";
 
-function bearerRoute(connectionId: string, httpBaseUrl: string): ConnectionRoute {
+function bearerRoute(connectionId: string, httpBaseUrl: string) {
   const target = new BearerConnectionTarget({ environmentId, connectionId, label: "Test" });
   return {
     target,

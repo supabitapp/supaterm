@@ -115,7 +115,7 @@ export const OrchestrationV2AppThreadLineage = Schema.Struct({
 export type OrchestrationV2AppThreadLineage = typeof OrchestrationV2AppThreadLineage.Type;
 
 /** Subagents and side chats live inside their parent's view, never in thread lists. */
-export const isListedThreadLineage = (lineage: OrchestrationV2AppThreadLineage): boolean =>
+export const isListedThreadLineage = (lineage: OrchestrationV2AppThreadLineage) =>
   lineage.relationshipToParent !== "subagent" && lineage.sideChat !== true;
 
 export const OrchestrationV2ContextTransferType = Schema.Literals([
@@ -504,7 +504,7 @@ export type OrchestrationV2ThreadVisit = typeof OrchestrationV2ThreadVisit.Type;
 export function applyOrchestrationV2ThreadVisit<Thread extends OrchestrationV2AppThread>(
   thread: Thread,
   visit: OrchestrationV2ThreadVisit,
-): Thread {
+) {
   return {
     ...thread,
     lastVisitedAt: visit.lastVisitedAt,
@@ -518,8 +518,12 @@ export function applyOrchestrationV2ThreadVisit<Thread extends OrchestrationV2Ap
  */
 export function isProviderNativeSubagentThread(
   thread: Pick<OrchestrationV2AppThread, "lineage" | "creationSource">,
-): boolean {
-  return thread.lineage.relationshipToParent === "subagent" && thread.creationSource === "provider";
+): boolean;
+export function isProviderNativeSubagentThread(
+  thread: Pick<OrchestrationV2AppThread, "lineage" | "creationSource">,
+) {
+  return (thread.lineage.relationshipToParent === "subagent" &&
+    thread.creationSource === "provider") satisfies boolean;
 }
 
 /** A prompt that only asks the provider to compact, so its turn is the compaction itself. */
@@ -527,7 +531,7 @@ export function isCompactionCommandMessage(message: {
   readonly role: string;
   readonly text: string;
   readonly attachments?: ReadonlyArray<unknown> | undefined;
-}): boolean {
+}) {
   return (
     message.role === "user" &&
     message.text.trim().toLowerCase() === "/compact" &&
@@ -546,23 +550,24 @@ export type OrchestrationV2GoalCommand =
 export function parseGoalCommand(message: {
   readonly text: string;
   readonly attachments?: ReadonlyArray<unknown> | undefined;
-}): OrchestrationV2GoalCommand | null {
-  if ((message.attachments?.length ?? 0) > 0) return null;
+}) {
+  if ((message.attachments?.length ?? 0) > 0)
+    return null satisfies OrchestrationV2GoalCommand | null;
   const match = /^\/goal(?:\s+([\s\S]*))?$/u.exec(message.text.trim());
-  if (match === null) return null;
+  if (match === null) return null satisfies OrchestrationV2GoalCommand | null;
   const argument = (match[1] ?? "").trim();
   switch (argument.toLowerCase()) {
     case "":
     case "edit":
-      return { type: "show" };
+      return { type: "show" } satisfies OrchestrationV2GoalCommand | null;
     case "clear":
-      return { type: "clear" };
+      return { type: "clear" } satisfies OrchestrationV2GoalCommand | null;
     case "pause":
-      return { type: "pause" };
+      return { type: "pause" } satisfies OrchestrationV2GoalCommand | null;
     case "resume":
-      return { type: "resume" };
+      return { type: "resume" } satisfies OrchestrationV2GoalCommand | null;
     default:
-      return { type: "set", objective: argument };
+      return { type: "set", objective: argument } satisfies OrchestrationV2GoalCommand | null;
   }
 }
 
@@ -736,19 +741,18 @@ export const OrchestrationV2Run = Schema.Struct({
 export type OrchestrationV2Run = typeof OrchestrationV2Run.Type;
 
 /** Provider-finished runs can be forked before their checkpoint is captured. */
-export function isForkableSourceRunStatus(status: OrchestrationV2RunStatus): boolean {
-  return (
-    status === "completed" ||
+export function isForkableSourceRunStatus(status: OrchestrationV2RunStatus): boolean;
+export function isForkableSourceRunStatus(status: OrchestrationV2RunStatus) {
+  return (status === "completed" ||
     status === "waiting" ||
     status === "failed" ||
     status === "interrupted" ||
-    status === "cancelled"
-  );
+    status === "cancelled") satisfies boolean;
 }
 
 export function latestForkableRun<Run extends Pick<OrchestrationV2Run, "ordinal" | "status">>(
   runs: ReadonlyArray<Run>,
-): Run | null {
+) {
   return runs.reduce<Run | null>(
     (latest, run) =>
       isForkableSourceRunStatus(run.status) && (latest === null || run.ordinal > latest.ordinal)
@@ -760,7 +764,7 @@ export function latestForkableRun<Run extends Pick<OrchestrationV2Run, "ordinal"
 
 export function orchestrationV2RunWorkStartedAt(
   run: Pick<OrchestrationV2Run, "workStartedAt" | "startedAt" | "requestedAt">,
-): OrchestrationV2Run["requestedAt"] {
+) {
   return run.workStartedAt ?? run.startedAt ?? run.requestedAt;
 }
 
@@ -945,8 +949,9 @@ export type OrchestrationV2Subagent = typeof OrchestrationV2Subagent.Type;
 
 export function isOrchestrationV2WorkActive(
   status: OrchestrationV2ExecutionNode["status"],
-): boolean {
-  return status === "pending" || status === "running" || status === "waiting";
+): boolean;
+export function isOrchestrationV2WorkActive(status: OrchestrationV2ExecutionNode["status"]) {
+  return (status === "pending" || status === "running" || status === "waiting") satisfies boolean;
 }
 
 export const OrchestrationV2CheckpointScope = Schema.Struct({
@@ -994,7 +999,7 @@ export const OrchestrationV2ProviderSessionDetached = Schema.Struct({
 export type OrchestrationV2ProviderSessionDetached =
   typeof OrchestrationV2ProviderSessionDetached.Type;
 
-function encodedKind(member: Schema.Top): string {
+function encodedKind(member: Schema.Top) {
   const encoded = SchemaAST.toEncoded(member.ast);
   const kind = SchemaAST.isObjects(encoded)
     ? encoded.propertySignatures.find((property) => property.name === "kind")?.type
@@ -1225,10 +1230,7 @@ export type OrchestrationV2ProviderTurn = typeof OrchestrationV2ProviderTurn.Typ
  */
 export function latestProviderTurnForAttempt<
   Turn extends Pick<OrchestrationV2ProviderTurn, "runAttemptId" | "ordinal">,
->(
-  providerTurns: ReadonlyArray<Turn>,
-  attemptId: RunAttemptId | null | undefined,
-): Turn | undefined {
+>(providerTurns: ReadonlyArray<Turn>, attemptId: RunAttemptId | null | undefined) {
   let latest: Turn | undefined;
   for (const turn of providerTurns) {
     if (attemptId == null || turn.runAttemptId !== attemptId) continue;
@@ -1243,7 +1245,7 @@ export function isQueuedProviderThreadPlaceholder(
     OrchestrationV2ProviderThread,
     "status" | "firstRunOrdinal" | "nativeThreadRef" | "providerSessionId"
   >,
-): boolean {
+) {
   return (
     providerThread.status === "not_loaded" &&
     providerThread.firstRunOrdinal === null &&
@@ -1495,7 +1497,7 @@ export class OrchestrationV2CheckpointUnavailableError extends Schema.TaggedErro
     target: Schema.String,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Rollback target ${this.target} is unavailable for thread ${this.threadId}.`;
   }
 }
@@ -2229,7 +2231,7 @@ export function isLiveSubagentShell(
     OrchestrationV2ThreadShell,
     "activityRunStatus" | "status" | "pendingRuntimeRequest" | "pendingBackgroundTasks"
   >,
-): boolean {
+) {
   return (
     (thread.activityRunStatus ?? null) !== null ||
     isOrchestrationV2RunUnsettled(thread.status) ||
@@ -2245,7 +2247,7 @@ export function isLiveSubagentShell(
 export function isOlderDoneThreadShell(
   thread: Pick<OrchestrationV2ThreadShell, "lineage" | "doneOverride" | "doneAt">,
   beforeMs: number,
-): boolean {
+) {
   return (
     isListedThreadLineage(thread.lineage) &&
     thread.doneOverride === "done" &&
@@ -3944,7 +3946,7 @@ const knownDomainEventTypes: ReadonlySet<string> = new Set(
   }),
 );
 
-export function isKnownOrchestrationV2EventType(type: string): boolean {
+export function isKnownOrchestrationV2EventType(type: string) {
   return knownDomainEventTypes.has(type);
 }
 
@@ -4059,7 +4061,7 @@ export class OrchestrationV2StopWorkflowError extends Schema.TaggedError<Orchest
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message(): string {
+  override get message() {
     switch (this.reason) {
       case "not-running":
         return "This workflow is no longer running.";
@@ -4101,7 +4103,7 @@ export class OrchestrationV2ForceStopThreadError extends Schema.TaggedError<Orch
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return this.reason === "superseded"
       ? "A new turn started, so nothing was force stopped."
       : "Failed to force stop the agent.";
@@ -4188,7 +4190,7 @@ export class OrchestrationV2GetNativeChildWorkError extends Schema.TaggedError<O
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return "Failed to read the subagent's work.";
   }
 }
@@ -4221,7 +4223,7 @@ export class OrchestrationWorkflowFileError extends Schema.TaggedError<Orchestra
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return WORKFLOW_FILE_ERROR_MESSAGES[this.reason];
   }
 }
@@ -4266,7 +4268,7 @@ export class OrchestrationGetWorkflowScriptError extends Schema.TaggedError<Orch
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return WORKFLOW_SCRIPT_ERROR_MESSAGES[this.reason];
   }
 }
@@ -4321,7 +4323,7 @@ export class OrchestrationV2SearchThreadError extends Schema.TaggedError<Orchest
   "OrchestrationV2SearchThreadError",
   { cause: Schema.Defect() },
 ) {
-  override get message(): string {
+  override get message() {
     return "Could not search this thread. Please retry.";
   }
 }

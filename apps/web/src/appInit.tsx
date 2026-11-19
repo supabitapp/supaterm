@@ -1,5 +1,4 @@
 import { scopedThreadKey, scopeProjectRef } from "@supaterm/client-runtime/environment";
-import type { ScopedThreadRef } from "@supaterm/contracts";
 import type { ClientSettings } from "@supaterm/contracts/settings";
 import { createBrowserHistory, createHashHistory } from "@tanstack/react-router";
 import * as Schema from "effect/Schema";
@@ -51,7 +50,7 @@ import { registerOpenFavoriteEditorCommand } from "./components/chat/OpenInPicke
 import { environmentThreadShells, threadEnvironment } from "./state/threads";
 import { resolveActiveThreadRouteRef, resolveThreadRouteTarget } from "./threadRoutes";
 
-function startClientAppearance(): void {
+function startClientAppearance() {
   const root = document.documentElement;
   let applied: ClientSettings | null = null;
   let appliedSeparateFonts: boolean | null = null;
@@ -110,7 +109,7 @@ function startClientAppearance(): void {
   apply();
 }
 
-function readOpenThreadRef(router: AppRouter): ScopedThreadRef | null {
+function readOpenThreadRef(router: AppRouter) {
   const target = resolveThreadRouteTarget(router.state.matches.at(-1)?.params ?? {});
   const draft =
     target?.kind === "draft"
@@ -119,7 +118,7 @@ function readOpenThreadRef(router: AppRouter): ScopedThreadRef | null {
   return resolveActiveThreadRouteRef(target, draft);
 }
 
-function startDocumentTitle(router: AppRouter): void {
+function startDocumentTitle(router: AppRouter) {
   let openThreadRef = readOpenThreadRef(router);
   const write = () => {
     const thread =
@@ -175,7 +174,7 @@ function startDocumentTitle(router: AppRouter): void {
   useComposerDraftStore.subscribe(updateOpenThread);
 }
 
-function startBrowserChromeThemeSync(router: AppRouter): void {
+function startBrowserChromeThemeSync(router: AppRouter) {
   const resync = () => window.requestAnimationFrame(syncBrowserChromeTheme);
   router.subscribe("onRendered", resync);
   router.subscribe("onResolved", resync);
@@ -185,7 +184,7 @@ function startBrowserChromeThemeSync(router: AppRouter): void {
  * Starts every app-lifetime service once, before the first render, and returns the router.
  * They run for the life of the page, so their disposers are dropped here.
  */
-export function startAppServices(): AppRouter {
+export function startAppServices() {
   startProviderAuthDelivery();
 
   const router = getRouter(isElectron ? createHashHistory() : createBrowserHistory());

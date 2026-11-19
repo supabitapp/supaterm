@@ -2,7 +2,6 @@ import {
   isCompactionCommandMessage,
   type ModelSelection,
   type OrchestrationV2ThreadProjection,
-  type OrchestrationV2TurnItem,
 } from "@supaterm/contracts";
 import { modelSelectionsEqual } from "@supaterm/shared/model";
 import { runRanAfter } from "@supaterm/shared/orchestrationV2ThreadError";
@@ -17,7 +16,7 @@ export function modelSwitchSince(
   projection: Pick<OrchestrationV2ThreadProjection, "runs" | "turnItems">,
   to: ModelSelection,
   baseline?: ModelSelection,
-): Pick<Extract<OrchestrationV2TurnItem, { type: "user_message" }>, "modelSwitch"> {
+) {
   const shown = new Set(
     projection.turnItems.flatMap((item) =>
       item.type === "user_message" &&

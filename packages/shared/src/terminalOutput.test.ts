@@ -12,11 +12,11 @@ import {
   type TerminalOutputState,
 } from "./terminalOutput.ts";
 
-function feed(chunks: ReadonlyArray<string>, maxChars?: number): TerminalOutputState {
+function feed(chunks: ReadonlyArray<string>, maxChars?: number) {
   return chunks.reduce(
     (state, chunk) => appendTerminalOutput(state, chunk, maxChars),
     EMPTY_TERMINAL_OUTPUT,
-  );
+  ) satisfies TerminalOutputState;
 }
 
 describe("appendTerminalOutput", () => {

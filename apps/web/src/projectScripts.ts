@@ -19,7 +19,7 @@ export interface ProjectScriptInput {
   readonly autoOpenPreview: boolean;
 }
 
-export function buildProjectScript(id: string, input: ProjectScriptInput): ProjectScript {
+export function buildProjectScript(id: string, input: ProjectScriptInput) {
   return {
     id,
     name: input.name,
@@ -42,10 +42,7 @@ export function buildProjectScript(id: string, input: ProjectScriptInput): Proje
  * A project runs at most one setup script and one done script, so saving a
  * script that claims either role takes it from the script that held it.
  */
-export function releaseClaimedRoles(
-  script: ProjectScript,
-  saved: ProjectScriptInput,
-): ProjectScript {
+export function releaseClaimedRoles(script: ProjectScript, saved: ProjectScriptInput) {
   const releaseSetup = saved.runOnWorktreeCreate && script.runOnWorktreeCreate;
   const releaseDone = saved.runOnDone && script.runOnDone === true;
   if (!releaseSetup && !releaseDone) return script;
@@ -56,7 +53,7 @@ export function releaseClaimedRoles(
   };
 }
 
-function normalizeScriptId(value: string): string {
+function normalizeScriptId(value: string) {
   const cleaned = value
     .trim()
     .toLowerCase()
@@ -71,12 +68,13 @@ function normalizeScriptId(value: string): string {
   return cleaned.slice(0, MAX_SCRIPT_ID_LENGTH).replace(/-+$/g, "") || "script";
 }
 
-export function commandForProjectScript(scriptId: string): KeybindingCommand | null {
+export function commandForProjectScript(scriptId: string): KeybindingCommand | null;
+export function commandForProjectScript(scriptId: string) {
   const command = `script.${scriptId}.run`;
-  return isScriptRunCommand(command) ? command : null;
+  return (isScriptRunCommand(command) ? command : null) satisfies KeybindingCommand | null;
 }
 
-export function projectScriptIdFromCommand(command: string): string | null {
+export function projectScriptIdFromCommand(command: string) {
   const trimmed = command.trim();
   if (!isScriptRunCommand(trimmed)) {
     return null;
@@ -85,7 +83,7 @@ export function projectScriptIdFromCommand(command: string): string | null {
   return trimmed.slice(prefix.literal.length, -suffix.literal.length);
 }
 
-export function nextProjectScriptId(name: string, existingIds: Iterable<string>): string {
+export function nextProjectScriptId(name: string, existingIds: Iterable<string>) {
   const taken = new Set(Array.from(existingIds));
   const baseId = normalizeScriptId(name);
   if (!taken.has(baseId)) return baseId;
@@ -106,7 +104,7 @@ export function nextProjectScriptId(name: string, existingIds: Iterable<string>)
   return `${baseId}-${Date.now()}`.slice(0, MAX_SCRIPT_ID_LENGTH);
 }
 
-export function primaryProjectScript(scripts: ReadonlyArray<ProjectScript>): ProjectScript | null {
+export function primaryProjectScript(scripts: ReadonlyArray<ProjectScript>) {
   const regular = scripts.find((script) => !script.runOnWorktreeCreate && !script.runOnDone);
   return regular ?? scripts.find((script) => !script.runOnDone) ?? null;
 }

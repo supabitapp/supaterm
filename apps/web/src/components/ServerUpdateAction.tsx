@@ -40,7 +40,7 @@ const UPDATE_STAGE_LABELS: Record<ServerUpdateStage, string> = {
 };
 const pendingUpdateEnvironmentIds = new Set<EnvironmentId>();
 
-export function serverUpdateStageLabel(stage: ServerUpdateStage): string {
+export function serverUpdateStageLabel(stage: ServerUpdateStage) {
   return UPDATE_STAGE_LABELS[stage];
 }
 
@@ -53,7 +53,7 @@ function refusedCrossing(
     readonly channel?: DesktopUpdateChannel | undefined;
   },
   serverVersion: string | undefined,
-): boolean {
+) {
   return (
     target.channel === undefined &&
     target.selfUpdate !== null &&
@@ -66,7 +66,7 @@ function CrossTrackNote() {
   return <span className="text-muted-foreground text-xs">{CROSS_TRACK_NOTE}</span>;
 }
 
-function updateFailureMessage(error: unknown): string {
+function updateFailureMessage(error: unknown) {
   return error instanceof Error ? error.message : "Server update failed.";
 }
 
@@ -100,13 +100,13 @@ export function useServerUpdate() {
   return async (
     target: ServerUpdateTarget,
     { quiet = false }: { readonly quiet?: boolean } = {},
-  ): Promise<ServerUpdateOutcome> => {
+  ) => {
     const { environmentId, serverLabel, selfUpdate, targetVersion } = target;
     if (
       !canUpdateServer(appAtomRegistry.get(environmentSession.sessionStateAtom(environmentId))) ||
       pendingUpdateEnvironmentIds.has(environmentId)
     )
-      return { status: "skipped" };
+      return { status: "skipped" } satisfies ServerUpdateOutcome;
     pendingUpdateEnvironmentIds.add(environmentId);
     const result = await updateServer({
       environmentId,
@@ -120,7 +120,8 @@ export function useServerUpdate() {
     });
     pendingUpdateEnvironmentIds.delete(environmentId);
     if (result._tag === "Failure") {
-      if (isAtomCommandInterrupted(result)) return { status: "skipped" };
+      if (isAtomCommandInterrupted(result))
+        return { status: "skipped" } satisfies ServerUpdateOutcome;
       const message = updateFailureMessage(squashAtomCommandFailure(result));
       if (!quiet) {
         toastManager.add({
@@ -129,7 +130,7 @@ export function useServerUpdate() {
           description: message,
         });
       }
-      return { status: "failed", message };
+      return { status: "failed", message } satisfies ServerUpdateOutcome;
     }
     if (!quiet) {
       toastManager.add({
@@ -143,7 +144,7 @@ export function useServerUpdate() {
               : `Reconnected on supaterm@${result.value.targetVersion}.`,
       });
     }
-    return { status: "updated" };
+    return { status: "updated" } satisfies ServerUpdateOutcome;
   };
 }
 
@@ -201,9 +202,7 @@ export function ServerUpdatesAction({
   );
 }
 
-export function canUpdateServer(
-  result: AsyncResult.AsyncResult<AuthSessionState, unknown>,
-): boolean {
+export function canUpdateServer(result: AsyncResult.AsyncResult<AuthSessionState, unknown>) {
   if (result._tag !== "Success" || !result.value.authenticated) return false;
   return sessionGrantsScope(result.value, AuthEnvironmentMaintainScope);
 }

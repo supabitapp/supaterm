@@ -333,7 +333,7 @@ type ProjectEntriesFailureContext = {
   readonly cause?: unknown;
 };
 
-function decodedProjectErrorMessage(props: object): string | undefined {
+function decodedProjectErrorMessage(props: object) {
   if (!("message" in props)) return undefined;
   return typeof props.message === "string" ? props.message : undefined;
 }

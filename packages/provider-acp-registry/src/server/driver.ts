@@ -27,7 +27,6 @@ import * as ChildProcessSpawner from "effect/process/ChildProcessSpawner";
 
 import * as ProviderHost from "@supaterm/provider-core/server/ProviderHost";
 import { AcpRegistryAdapterV2Driver, type AcpRegistryAdapterV2DriverEnv } from "./adapter.ts";
-import type { ProviderTextGeneration } from "@supaterm/provider-core/server/textGeneration";
 import { ProviderDriverError } from "@supaterm/provider-core/server/errors";
 import { makeManagedServerProvider } from "@supaterm/provider-core/server/managedProvider";
 import { mergeProviderInstanceEnvironment } from "@supaterm/provider-core/server/instanceEnvironment";
@@ -69,7 +68,7 @@ const decodeSettings = Schema.decodeSync(AcpRegistrySettings);
 const PROBE_SUCCESS_TTL_MS = 15 * 60 * 1_000;
 const PROBE_PROVISIONAL_TTL_MS = 30 * 1_000;
 
-function acpRegistryProbeTtlMs(provider: ServerProvider): number {
+function acpRegistryProbeTtlMs(provider: ServerProvider) {
   const discoveredModels = provider.models.filter((model) => !model.isCustom);
   return discoveredModels.length <= 1 ? PROBE_PROVISIONAL_TTL_MS : PROBE_SUCCESS_TTL_MS;
 }
@@ -87,7 +86,7 @@ export function isAcpRegistryCacheValid(
   inspectedVersion: string | null,
   local: boolean,
   now: number,
-): boolean {
+) {
   return (
     entry.expiresAt > now &&
     ((local && inspectedVersion === null) || entry.provider.version === inspectedVersion)
@@ -99,7 +98,7 @@ export function updateAcpRegistryEnrichmentCache(input: {
   readonly configuration: AcpRegistryLiveConfiguration;
   readonly customModels: ReadonlyArray<CustomModelSetting>;
   readonly now: number;
-}): AcpRegistryEnrichmentCache {
+}) {
   const { cache, configuration, customModels, now } = input;
   if (cache.entry === null) {
     return { ...cache, generation: cache.generation + 1 };
@@ -126,7 +125,7 @@ const MAINTENANCE = makeManualOnlyProviderMaintenanceCapabilities({
   packageName: null,
 });
 
-const makeUnsupportedTextGeneration = (): ProviderTextGeneration => {
+const makeUnsupportedTextGeneration = () => {
   const unsupported = (operation: string) =>
     Effect.fail(
       new TextGenerationError({
@@ -152,7 +151,7 @@ function modelsFromDiscovery(
     | undefined,
   customModels: ReadonlyArray<CustomModelSetting>,
   previousModels: ReadonlyArray<ServerProviderModel> = [],
-): ReadonlyArray<ServerProviderModel> {
+) {
   const discovered = discovery?.models ?? [];
   const capabilities =
     discovery === undefined || discovery.configOptions.length === 0
@@ -204,10 +203,13 @@ function acpRegistrySnapshotReadiness(
   inspection:
     | AcpRegistrySupport.AcpRegistryInspection
     | { readonly status: "failed"; readonly message: string },
-): Pick<ServerProvider, "installed" | "version" | "status" | "message"> {
+) {
   switch (inspection.status) {
     case "ready":
-      return { installed: true, version: inspection.version, status: "ready" };
+      return { installed: true, version: inspection.version, status: "ready" } satisfies Pick<
+        ServerProvider,
+        "installed" | "version" | "status" | "message"
+      >;
     case "unconfigured":
       return {
         installed: false,
@@ -215,21 +217,21 @@ function acpRegistrySnapshotReadiness(
         status: "warning",
         message:
           "Select an ACP Registry agent or configure a local ACP executable before starting a thread.",
-      };
+      } satisfies Pick<ServerProvider, "installed" | "version" | "status" | "message">;
     case "not_found":
       return {
         installed: false,
         version: null,
         status: "error",
         message: `ACP Registry does not contain agent '${inspection.agentId}'.`,
-      };
+      } satisfies Pick<ServerProvider, "installed" | "version" | "status" | "message">;
     case "unsupported":
       return {
         installed: false,
         version: inspection.version,
         status: "error",
         message: `ACP Registry agent '${inspection.agentId}' has no compatible distribution for this environment.`,
-      };
+      } satisfies Pick<ServerProvider, "installed" | "version" | "status" | "message">;
     case "missing_runner":
       return {
         installed: false,
@@ -239,21 +241,21 @@ function acpRegistrySnapshotReadiness(
           inspection.distribution === "local"
             ? "Local ACP executable is not available on this environment's PATH."
             : `ACP executable '${inspection.runner}' is not available on this environment's PATH.`,
-      };
+      } satisfies Pick<ServerProvider, "installed" | "version" | "status" | "message">;
     case "unprepared":
       return {
         installed: false,
         version: inspection.version,
         status: "warning",
         message: `ACP Registry agent '${inspection.agentId}' has not been prepared on this environment.`,
-      };
+      } satisfies Pick<ServerProvider, "installed" | "version" | "status" | "message">;
     case "failed":
       return {
         installed: false,
         version: null,
         status: "error",
         message: inspection.message,
-      };
+      } satisfies Pick<ServerProvider, "installed" | "version" | "status" | "message">;
   }
 }
 
@@ -277,7 +279,7 @@ function baseSnapshot(
     readonly probe?: AcpRegistryConfigurationProbeResult;
     readonly probeError?: AcpRegistryOperationError;
   },
-): ServerProvider {
+) {
   const iconUrl =
     input.settings.source === "local"
       ? null
@@ -329,7 +331,7 @@ function baseSnapshot(
 export function applyAcpRegistryAvailableCommands(
   provider: ServerProvider,
   commands: Option.Option<AcpRegistryAvailableCommands>,
-): ServerProvider {
+) {
   return Option.match(commands, {
     onNone: () => provider,
     onSome: ({ slashCommands, skills }) => ({ ...provider, slashCommands, skills }),
@@ -340,8 +342,14 @@ export function applyAcpRegistryLiveConfiguration(
   provider: ServerProvider,
   configuration: AcpRegistryLiveConfiguration,
   customModels: ReadonlyArray<CustomModelSetting>,
+  previousModels?: ReadonlyArray<ServerProviderModel>,
+): ServerProvider;
+export function applyAcpRegistryLiveConfiguration(
+  provider: ServerProvider,
+  configuration: AcpRegistryLiveConfiguration,
+  customModels: ReadonlyArray<CustomModelSetting>,
   previousModels: ReadonlyArray<ServerProviderModel> = provider.models,
-): ServerProvider {
+) {
   const { message: _staleProbeMessage, ...snapshot } = provider;
   const probedModels = provider.models.filter((model) => !model.isCustom);
   const liveCatalogIsProvisional =
@@ -378,13 +386,13 @@ export function applyAcpRegistryLiveConfiguration(
             customModels,
             previousModels.filter((model) => !model.isCustom),
           ),
-  };
+  } satisfies ServerProvider;
 }
 
 function withAcpRegistryDefaultModel(
   models: ReadonlyArray<ServerProviderModel>,
   currentModelId: string | null,
-): ReadonlyArray<ServerProviderModel> {
+) {
   if (currentModelId === null) return models;
   let changed = false;
   const next = models.map((model) => {
@@ -401,7 +409,7 @@ function withAcpRegistryDefaultModel(
 function applyAcpRegistryUrlAuthAction(
   provider: ServerProvider,
   action: Option.Option<NonNullable<ServerProvider["auth"]["action"]>>,
-): ServerProvider {
+) {
   const { action: _previousAction, ...auth } = provider.auth;
   return {
     ...provider,
@@ -439,7 +447,7 @@ export function buildCheckedAcpRegistrySnapshot(
     readonly probe?: AcpRegistryConfigurationProbeResult;
     readonly probeError?: AcpRegistryOperationError;
   },
-): ServerProvider {
+) {
   const readiness = acpRegistrySnapshotReadiness(input.inspection);
   const probeFailed = input.probeError !== undefined;
   const advertisedAuthMethod =
@@ -499,7 +507,7 @@ export const checkAcpRegistryProviderStatus = Effect.fn("AcpRegistryDriver.check
       readonly environment: NodeJS.ProcessEnv;
     },
     probeConfiguration: AcpRegistryConfigurationProbe<Requirements>,
-  ): Effect.fn.Return<ServerProvider, never, AcpRegistrySupport.AcpRegistryCatalog | Requirements> {
+  ) {
     const checkedAt = DateTime.formatIso(yield* DateTime.now);
     if (!input.settings.enabled) {
       return yield* buildInitialAcpRegistrySnapshot(input);
@@ -554,7 +562,7 @@ export const checkAcpRegistryProviderReadiness = Effect.fn(
     readonly settings: AcpRegistrySettings;
     readonly environment: NodeJS.ProcessEnv;
   },
-): Effect.fn.Return<ServerProvider, never, AcpRegistrySupport.AcpRegistryCatalog> {
+) {
   const checkedAt = DateTime.formatIso(yield* DateTime.now);
   if (!input.settings.enabled) {
     return yield* buildInitialAcpRegistrySnapshot(input);
@@ -909,7 +917,7 @@ export const AcpRegistryDriver: ProviderDriver<AcpRegistrySettings, AcpRegistryD
         | ChildProcessSpawner.ChildProcessSpawner
         | SecureRandom.SecureRandom
       >,
-    ): Effect.Effect<A, E> => {
+    ) => {
       const provided = effect.pipe(
         Effect.provideService(AcpRegistrySupport.AcpRegistryCatalog, catalog),
         Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner),

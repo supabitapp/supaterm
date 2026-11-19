@@ -5,7 +5,7 @@ import {
   type ServerProvider,
 } from "@supaterm/contracts";
 
-function humanizeSlug(slug: string): string {
+function humanizeSlug(slug: string) {
   return slug
     .replace(/([a-z])([A-Z])/g, "$1 $2")
     .replace(/[_-]+/g, " ")
@@ -15,7 +15,7 @@ function humanizeSlug(slug: string): string {
 
 export function resolveProviderInstanceDisplayName(
   snapshot: Pick<ServerProvider, "instanceId" | "driver" | "displayName">,
-): string {
+) {
   const trimmedSnapshotName = snapshot.displayName?.trim();
   const kindLabel = PROVIDER_DISPLAY_NAMES[snapshot.driver] ?? humanizeSlug(snapshot.driver);
   if (trimmedSnapshotName && trimmedSnapshotName !== kindLabel) return trimmedSnapshotName;
@@ -26,7 +26,7 @@ export function resolveProviderInstanceDisplayName(
   return trimmedSnapshotName || kindLabel;
 }
 
-export function providerInstanceInitials(label: string): string {
+export function providerInstanceInitials(label: string) {
   const words = label
     .replace(/[^\P{P}'’]+/gu, " ")
     .split(/\s+/u)
@@ -40,7 +40,7 @@ export function providerInstanceInitials(label: string): string {
     .join("");
 }
 
-export function normalizeProviderAccentColor(value: string | undefined): string | undefined {
+export function normalizeProviderAccentColor(value: string | undefined) {
   const trimmed = value?.trim();
   if (!trimmed) return undefined;
   return /^#[0-9a-fA-F]{6}$/u.test(trimmed) ? trimmed : undefined;
@@ -70,7 +70,7 @@ export function shouldShowInstanceBadge(
     readonly acpRegistryAgentId?: string | undefined;
     readonly enabled: boolean;
   }>,
-): boolean {
+) {
   if (normalizeProviderAccentColor(entry.accentColor)) return true;
   let sharedProviderCount = 0;
   for (const candidate of entries) {

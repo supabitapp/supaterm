@@ -41,7 +41,7 @@ const REQUEST_ROUTE_PATTERN =
 const SCHEME_URL_PATTERN = /(?<![A-Za-z\d+.-])[+-]?[A-Za-z][A-Za-z\d+.-]+:\/\/[^\s"'`<>]+/gu;
 const SCP_REMOTE_PATTERN = /(?<![\w.@-])[\w.-]+@[\w.-]+:[^\s"'`<>]+/gu;
 
-function trimClosingDelimiters(value: string, kind: TerminalLinkKind): string {
+function trimClosingDelimiters(value: string, kind: TerminalLinkKind) {
   const output = value.replace(
     kind === "path" ? TRAILING_PATH_PUNCTUATION_PATTERN : TRAILING_PUNCTUATION_PATTERN,
     "",
@@ -64,7 +64,7 @@ function trimClosingDelimiters(value: string, kind: TerminalLinkKind): string {
   return output.slice(0, end);
 }
 
-function overlaps(a: { start: number; end: number }, b: { start: number; end: number }): boolean {
+function overlaps(a: { start: number; end: number }, b: { start: number; end: number }) {
   return a.start < b.end && b.start < a.end;
 }
 
@@ -73,7 +73,7 @@ function collectMatches(
   kind: TerminalLinkKind,
   pattern: RegExp,
   existing: TerminalLinkMatch[],
-): TerminalLinkMatch[] {
+) {
   const matches: TerminalLinkMatch[] = [];
   pattern.lastIndex = 0;
 
@@ -107,7 +107,7 @@ function collectMatches(
   return matches;
 }
 
-export function extractTerminalLinks(line: string): TerminalLinkMatch[] {
+export function extractTerminalLinks(line: string) {
   const promptPath = POWERSHELL_PROMPT_PATH_PATTERN.exec(line)?.[1];
   const promptMatches: TerminalLinkMatch[] = promptPath
     ? [{ kind: "path", text: promptPath, start: 3, end: 3 + promptPath.length }]
@@ -140,7 +140,7 @@ export function extractTerminalLinks(line: string): TerminalLinkMatch[] {
     .toSorted((a, b) => a.start - b.start);
 }
 
-export function isTerminalUrl(value: string): boolean {
+export function isTerminalUrl(value: string) {
   return /^https?:\/\//iu.test(value);
 }
 
@@ -149,7 +149,7 @@ export function isTerminalUrl(value: string): boolean {
  * `hostname` is the terminal's environment's, which producers such as GNU `ls` put in the URI.
  * A URI's path is the exact filename, so only its `#L12C3` hash is a position.
  */
-export function resolveTerminalLinkTarget(text: string, cwd: string, hostname?: string): string {
+export function resolveTerminalLinkTarget(text: string, cwd: string, hostname?: string) {
   const fileUrl = /^file:\/\//iu.test(text) ? parseFileUrlHref(text, hostname) : null;
   if (!fileUrl) return resolvePathLinkTarget(text, cwd);
   const uri = new URL(text);
@@ -160,7 +160,7 @@ export function resolveTerminalLinkTarget(text: string, cwd: string, hostname?: 
 export function collectWrappedTerminalLinkLine(
   bufferLineNumber: number,
   getLine: (bufferLineIndex: number) => TerminalBufferLineLike | null | undefined,
-): WrappedTerminalLinkLine | null {
+) {
   const anchorLine = getLine(bufferLineNumber - 1);
   if (!anchorLine) return null;
 
@@ -207,7 +207,7 @@ export function collectWrappedTerminalLinkLine(
 export function isTerminalLinkActivation(
   event: Pick<MouseEvent, "metaKey" | "ctrlKey">,
   platform = typeof navigator === "undefined" ? "" : navigator.platform,
-): boolean {
+) {
   if (platform.length === 0) return false;
   return isMacPlatform(platform)
     ? event.metaKey && !event.ctrlKey

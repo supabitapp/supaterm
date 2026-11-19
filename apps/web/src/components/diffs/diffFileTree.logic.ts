@@ -14,7 +14,7 @@ export interface DiffFileTreeEntry {
   readonly status: GitStatus;
 }
 
-function toGitStatus(file: FileDiffMetadata): GitStatus {
+function toGitStatus(file: FileDiffMetadata) {
   switch (file.type) {
     case "new":
       return "added";
@@ -28,9 +28,7 @@ function toGitStatus(file: FileDiffMetadata): GitStatus {
   }
 }
 
-export function diffFileTreeEntries(
-  files: ReadonlyArray<FileDiffMetadata>,
-): ReadonlyArray<DiffFileTreeEntry> {
+export function diffFileTreeEntries(files: ReadonlyArray<FileDiffMetadata>) {
   const statusByPath = new Map<string, GitStatus>();
   for (const file of files) {
     const path = resolveFileDiffPath(file);
@@ -71,7 +69,7 @@ export function diffFileTreeModel(paths: ReadonlyArray<string>) {
   };
 }
 
-export function collectDirectoryPaths(paths: ReadonlyArray<string>): ReadonlyArray<string> {
+export function collectDirectoryPaths(paths: ReadonlyArray<string>) {
   const directories = new Set<string>();
   for (const path of paths) {
     const segments = path.split("/");
@@ -84,7 +82,7 @@ export function collectDirectoryPaths(paths: ReadonlyArray<string>): ReadonlyArr
   return [...directories];
 }
 
-export function diffFileTreePositions(paths: ReadonlyArray<string>): ReadonlyMap<string, number> {
+export function diffFileTreePositions(paths: ReadonlyArray<string>) {
   const positions = new Map<string, number>();
   paths.forEach((path, index) => {
     positions.set(path, index);
@@ -97,9 +95,7 @@ export function diffFileTreePositions(paths: ReadonlyArray<string>): ReadonlyMap
   return positions;
 }
 
-export function orderDiffFilesLikeTree(
-  files: ReadonlyArray<FileDiffMetadata>,
-): ReadonlyArray<FileDiffMetadata> {
+export function orderDiffFilesLikeTree(files: ReadonlyArray<FileDiffMetadata>) {
   const paths = files.map(resolveFileDiffPath);
   const positions = diffFileTreePositions(paths);
   const keys = paths.map((path) => {
@@ -127,8 +123,9 @@ export function orderDiffFilesLikeTree(
 
 export function compareDiffFileTreeEntries(
   getPositions: () => ReadonlyMap<string, number>,
-): FileTreeSortComparator {
-  return (left, right) => {
+): FileTreeSortComparator;
+export function compareDiffFileTreeEntries(getPositions: () => ReadonlyMap<string, number>) {
+  return ((left, right) => {
     const positions = getPositions();
     return (
       (positions.get(left.path) ?? Number.MAX_SAFE_INTEGER) -
@@ -136,17 +133,17 @@ export function compareDiffFileTreeEntries(
       left.depth - right.depth ||
       left.path.localeCompare(right.path)
     );
-  };
+  }) satisfies FileTreeSortComparator;
 }
 
-function pathDepth(path: string): number {
+function pathDepth(path: string) {
   return path.split("/").filter(Boolean).length;
 }
 
 export function buildDiffFileTreeUpdates(
   previousPaths: ReadonlyArray<string>,
   nextPaths: ReadonlyArray<string>,
-): FileTreeBatchOperation[] {
+) {
   const previousDirectories = new Set(collectDirectoryPaths(previousPaths));
   const nextDirectories = new Set(collectDirectoryPaths(nextPaths));
   const previous = new Set(previousPaths);

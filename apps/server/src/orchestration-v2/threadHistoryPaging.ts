@@ -25,7 +25,7 @@ export const THREAD_HISTORY_INLINE_WORK_ITEM_LIMIT = 150;
 
 export const OLDER_THREAD_USER_TURN_LIMIT = 20;
 
-export function isConversationHistoryItem(item: Pick<OrchestrationV2TurnItem, "type">): boolean {
+export function isConversationHistoryItem(item: Pick<OrchestrationV2TurnItem, "type">) {
   return !["command_execution", "reasoning", "file_change", "dynamic_tool"].includes(item.type);
 }
 export const THREAD_HISTORY_MAX_RAW_TURNS = 150;
@@ -106,11 +106,11 @@ export class InvalidThreadHistoryCursorError extends Error {
   }
 }
 
-function bytesOfJson(value: unknown): number {
+function bytesOfJson(value: unknown) {
   return Buffer.byteLength(JSON.stringify(value), "utf8");
 }
 
-export function projectedRowEncodedBytes(row: HistoryRow): number {
+export function projectedRowEncodedBytes(row: HistoryRow) {
   return bytesOfJson(row);
 }
 
@@ -118,7 +118,7 @@ export function projectedRowEncodedBytes(row: HistoryRow): number {
 export function projectedRowBoundedSnapshotEncodedBytes(
   row: OrchestrationV2ProjectedTurnItem,
   threadId: ThreadId | string,
-): number {
+) {
   const rowBytes = projectedRowEncodedBytes(row);
   if (row.visibility === "local" || String(row.sourceThreadId) === String(threadId)) {
     return rowBytes + bytesOfJson(row.item);
@@ -126,11 +126,11 @@ export function projectedRowBoundedSnapshotEncodedBytes(
   return rowBytes;
 }
 
-function renumberPositions<Row extends HistoryRow>(items: ReadonlyArray<Row>): Row[] {
+function renumberPositions<Row extends HistoryRow>(items: ReadonlyArray<Row>) {
   return items.map((row, position) => (row.position === position ? row : { ...row, position }));
 }
 
-function encodeCursorPayload(payload: ThreadHistoryCursorPayload): string {
+function encodeCursorPayload(payload: ThreadHistoryCursorPayload) {
   return Buffer.from(JSON.stringify(payload), "utf8").toString("base64url");
 }
 
@@ -140,7 +140,7 @@ export function encodeThreadHistoryCursor(input: {
   readonly sourceItemId: TurnItemId | string;
   readonly position: number;
   readonly inclusive?: boolean;
-}): string {
+}) {
   return encodeCursorPayload({
     v: 1,
     seq: input.snapshotSequence,
@@ -151,7 +151,7 @@ export function encodeThreadHistoryCursor(input: {
   });
 }
 
-export function decodeThreadHistoryCursor(cursor: string): ThreadHistoryCursorPayload {
+export function decodeThreadHistoryCursor(cursor: string) {
   if (cursor.length === 0 || cursor.length > THREAD_HISTORY_CURSOR_MAX_LENGTH) {
     throw new InvalidThreadHistoryCursorError();
   }
@@ -188,7 +188,7 @@ export function decodeThreadHistoryCursor(cursor: string): ThreadHistoryCursorPa
   return parsed as ThreadHistoryCursorPayload;
 }
 
-function isThreadHistoryTurnStart(item: HistoryRow["item"]): boolean {
+function isThreadHistoryTurnStart(item: HistoryRow["item"]) {
   return (
     item.type === "user_message" &&
     (item.inputIntent === "turn_start" || item.inputIntent === "queued_turn")
@@ -204,7 +204,7 @@ export const DEFERRED_WORK_ITEM_TYPES = [
   "dynamic_tool",
 ] as const;
 
-function isDeferrableWorkItem(item: HistoryRow["item"]): boolean {
+function isDeferrableWorkItem(item: HistoryRow["item"]) {
   return (
     item.status === "completed" &&
     item.persistentOutput !== true &&
@@ -213,7 +213,7 @@ function isDeferrableWorkItem(item: HistoryRow["item"]): boolean {
 }
 
 /** A row that folds when its run is not blocked and its group is large enough. */
-export function isFoldableWorkItem(item: HistoryRow["item"]): boolean {
+export function isFoldableWorkItem(item: HistoryRow["item"]) {
   return (
     item.runId != null &&
     (item.runStatus === "completed" || item.attemptStatus === "superseded") &&
@@ -221,7 +221,8 @@ export function isFoldableWorkItem(item: HistoryRow["item"]): boolean {
   );
 }
 
-export function deferWorkHistoryRows<Row extends HistoryRow>(items: ReadonlyArray<Row>): Row[] {
+export function deferWorkHistoryRows<Row extends HistoryRow>(items: ReadonlyArray<Row>): Row[];
+export function deferWorkHistoryRows<Row extends HistoryRow>(items: ReadonlyArray<Row>) {
   const blocked = new Set(
     items.flatMap(({ item }) =>
       item.runId != null &&
@@ -269,7 +270,9 @@ export function deferWorkHistoryRows<Row extends HistoryRow>(items: ReadonlyArra
       },
     });
   }
-  return items.flatMap((row) => (omitted.has(row) ? [] : [anchors.get(row) ?? row]));
+  return items.flatMap((row) =>
+    omitted.has(row) ? [] : [anchors.get(row) ?? row],
+  ) satisfies Row[];
 }
 
 export function selectDeferredWorkPage<Row extends HistoryRow>(input: {
@@ -278,7 +281,7 @@ export function selectDeferredWorkPage<Row extends HistoryRow>(input: {
   readonly throughEntryId?: string | undefined;
   readonly snapshotSequence: number;
   readonly rowEncodedBytes?: ((row: Row) => number) | undefined;
-}): SelectTimelinePageResult<Row> {
+}) {
   const cursor = decodeThreadHistoryCursor(input.cursor);
   const end = findCursorEndIndex(input.items, cursor);
   const start = input.items.findIndex((row) => row.sourceItemId === input.throughEntryId);
@@ -305,7 +308,7 @@ export function selectDeferredWorkPage<Row extends HistoryRow>(input: {
 function threadHistoryTurnStarts(
   items: ReadonlyArray<HistoryRow["item"]>,
   earlierRuns?: ReadonlySet<string>,
-): ReadonlyArray<boolean> {
+) {
   const startedRuns = new Set<string>(earlierRuns);
   return items.map((item) => {
     if (item.type !== "user_message" && item.type !== "notification") return false;
@@ -315,7 +318,7 @@ function threadHistoryTurnStarts(
   });
 }
 
-export function isThreadHistoryUserTurn(item: HistoryRow["item"]): boolean {
+export function isThreadHistoryUserTurn(item: HistoryRow["item"]) {
   return (
     isThreadHistoryTurnStart(item) && item.type === "user_message" && item.createdBy === "user"
   );
@@ -328,7 +331,7 @@ function selectOlderTimelinePage<Row extends HistoryRow>(input: {
   readonly policy?: ThreadHistoryPagePolicy | undefined;
   readonly rowEncodedBytes?: ((row: Row) => number) | undefined;
   readonly prefix?: ThreadHistoryPrefix | undefined;
-}): SelectTimelinePageResult<Row> {
+}) {
   const policy = input.policy ?? THREAD_HISTORY_PAGE_POLICY;
   const rowCost = input.rowEncodedBytes ?? projectedRowEncodedBytes;
   const end = Math.min(Math.max(input.exclusiveEndIndex, 0), input.items.length);
@@ -404,20 +407,26 @@ export function selectRecentTimelineWindow(input: {
   readonly snapshotSequence: number;
   readonly policy?: ThreadHistoryPagePolicy | undefined;
   readonly rowEncodedBytes?: ((row: OrchestrationV2ProjectedTurnItem) => number) | undefined;
-}): SelectTimelinePageResult {
+}): SelectTimelinePageResult;
+export function selectRecentTimelineWindow(input: {
+  readonly items: ReadonlyArray<OrchestrationV2ProjectedTurnItem>;
+  readonly snapshotSequence: number;
+  readonly policy?: ThreadHistoryPagePolicy | undefined;
+  readonly rowEncodedBytes?: ((row: OrchestrationV2ProjectedTurnItem) => number) | undefined;
+}) {
   return selectOlderTimelinePage({
     items: input.items,
     exclusiveEndIndex: input.items.length,
     snapshotSequence: input.snapshotSequence,
     ...(input.policy === undefined ? {} : { policy: input.policy }),
     ...(input.rowEncodedBytes === undefined ? {} : { rowEncodedBytes: input.rowEncodedBytes }),
-  });
+  }) satisfies SelectTimelinePageResult;
 }
 
 export function findCursorEndIndex(
   items: ReadonlyArray<HistoryRow>,
   cursor: ThreadHistoryCursorPayload,
-): number {
+) {
   const byIdentity = items.findIndex(
     (row) => String(row.sourceThreadId) === cursor.st && String(row.sourceItemId) === cursor.si,
   );
@@ -442,7 +451,7 @@ export function olderHistoryPagePolicy<Row extends HistoryRow>(input: {
   readonly cursor: string;
   readonly policy?: ThreadHistoryPagePolicy | undefined;
   readonly throughEntryId?: string | undefined;
-}): ThreadHistoryPagePolicy {
+}) {
   const policy = input.policy ?? {
     ...THREAD_HISTORY_PAGE_POLICY,
     maxUserTurns: OLDER_THREAD_USER_TURN_LIMIT,
@@ -481,7 +490,7 @@ export function selectHistoryPageFromCursor<Row extends HistoryRow>(input: {
   readonly exclusiveEndIndex?: number | undefined;
   /** Set when `items` holds only the newest part of the history. */
   readonly prefix?: ThreadHistoryPrefix | undefined;
-}): SelectTimelinePageResult<Row> {
+}) {
   const decoded = decodeThreadHistoryCursor(input.cursor);
   return selectOlderTimelinePage({
     items: input.items,
@@ -501,7 +510,11 @@ export function selectHistoryPageFromCursor<Row extends HistoryRow>(input: {
 export function missingInterruptRequests<Row extends HistoryRow>(
   items: ReadonlyArray<Row>,
   page: ReadonlyArray<Pick<HistoryRow, "item" | "sourceThreadId" | "sourceItemId" | "position">>,
-): Row[] {
+): Row[];
+export function missingInterruptRequests<Row extends HistoryRow>(
+  items: ReadonlyArray<Row>,
+  page: ReadonlyArray<Pick<HistoryRow, "item" | "sourceThreadId" | "sourceItemId" | "position">>,
+) {
   const runs = new Set<string>();
   for (const row of page) {
     if (row.item.type === "run_interrupt_result" && row.item.runId != null)
@@ -511,25 +524,23 @@ export function missingInterruptRequests<Row extends HistoryRow>(
     if (row.item.type === "run_interrupt_request" && row.item.runId != null)
       runs.delete(row.item.runId);
   }
-  if (runs.size === 0) return [];
+  if (runs.size === 0) return [] satisfies Row[];
   return items.filter(
     (row) =>
       row.item.type === "run_interrupt_request" &&
       row.item.runId != null &&
       runs.has(row.item.runId),
-  );
+  ) satisfies Row[];
 }
 
 function isLocalProjectedRow(
   projection: OrchestrationV2ThreadProjection,
   row: OrchestrationV2ProjectedTurnItem,
-): boolean {
+) {
   return row.visibility === "local" || String(row.sourceThreadId) === String(projection.thread.id);
 }
 
-function windowDependencyTurnItems(
-  projection: OrchestrationV2ThreadProjection,
-): OrchestrationV2TurnItem[] {
+function windowDependencyTurnItems(projection: OrchestrationV2ThreadProjection) {
   const pendingRequestIds = new Set(
     projection.runtimeRequests
       .filter((request) => request.status === "pending")
@@ -550,7 +561,7 @@ function retainedDependencyTurnItems(
   projection: OrchestrationV2ThreadProjection,
   dependencies: ReadonlyArray<OrchestrationV2TurnItem>,
   visible: ReadonlyArray<OrchestrationV2ProjectedTurnItem>,
-): OrchestrationV2TurnItem[] {
+) {
   const visibleLocalIds = new Set<string>();
   for (const row of visible) {
     if (isLocalProjectedRow(projection, row)) {
@@ -563,14 +574,14 @@ function retainedDependencyTurnItems(
 function localTurnItemsForVisibleWindow(
   projection: OrchestrationV2ThreadProjection,
   visible: ReadonlyArray<OrchestrationV2ProjectedTurnItem>,
-): OrchestrationV2TurnItem[] {
+) {
   return visible.flatMap((row) => (isLocalProjectedRow(projection, row) ? [row.item] : []));
 }
 
 function messagesForBoundedProjection(
   projection: OrchestrationV2ThreadProjection,
   turnItems: ReadonlyArray<OrchestrationV2TurnItem>,
-): OrchestrationV2ThreadProjection["messages"] {
+) {
   const retainedMessageIds = new Set<string>();
   for (const item of turnItems) {
     if ("messageId" in item) {
@@ -602,7 +613,7 @@ function messagesForBoundedProjection(
 /** Watermark prevents old missing updates from appending newest when bounded windows lack local rows. */
 export function computeLatestLocalTurnOrdinal(
   turnItems: ReadonlyArray<{ readonly ordinal: number }>,
-): number | null {
+) {
   let latest: number | null = null;
   for (const item of turnItems) {
     if (latest === null || item.ordinal > latest) {
@@ -615,7 +626,7 @@ export function computeLatestLocalTurnOrdinal(
 export function boundedTimelineEncodedBytes(input: {
   readonly visibleTurnItems: ReadonlyArray<OrchestrationV2ProjectedTurnItem>;
   readonly turnItems: ReadonlyArray<OrchestrationV2TurnItem>;
-}): number {
+}) {
   let total = 0;
   for (const row of input.visibleTurnItems) {
     total += projectedRowEncodedBytes(row);
@@ -630,7 +641,12 @@ export function buildBoundedThreadProjection(input: {
   readonly projection: OrchestrationV2ThreadProjection;
   readonly snapshotSequence: number;
   readonly policy?: ThreadHistoryPagePolicy | undefined;
-}): BoundedProjectionResult {
+}): BoundedProjectionResult;
+export function buildBoundedThreadProjection(input: {
+  readonly projection: OrchestrationV2ThreadProjection;
+  readonly snapshotSequence: number;
+  readonly policy?: ThreadHistoryPagePolicy | undefined;
+}) {
   const policy = input.policy ?? THREAD_HISTORY_PAGE_POLICY;
   const threadId = input.projection.thread.id;
   const runOrdinals = new Map(input.projection.runs.map((run) => [run.id, run.ordinal]));
@@ -747,5 +763,5 @@ export function buildBoundedThreadProjection(input: {
     historyCursor: window.nextCursor,
     hasMoreHistory: window.hasMoreHistory,
     latestLocalTurnOrdinal,
-  };
+  } satisfies BoundedProjectionResult;
 }

@@ -29,7 +29,7 @@ export class DesktopAssetProbeError extends Schema.TaggedError<DesktopAssetProbe
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Failed to probe desktop asset "${this.fileName}" at ${this.candidatePath}.`;
   }
 }
@@ -49,11 +49,7 @@ export class DesktopAssets extends Context.Service<
 
 const resolveResourcePath = Effect.fn("desktop.assets.resolveResourcePath")(function* (
   fileName: string,
-): Effect.fn.Return<
-  Option.Option<string>,
-  DesktopAssetProbeError,
-  FileSystem.FileSystem | DesktopEnvironment.DesktopEnvironment
-> {
+) {
   const fileSystem = yield* FileSystem.FileSystem;
   const environment = yield* DesktopEnvironment.DesktopEnvironment;
   const candidates = environment.resolveResourcePathCandidates(fileName);
@@ -88,7 +84,7 @@ const sourceTreeIconFileNames = {
 function resolveSourceTreeIconPath(
   environment: DesktopEnvironment.DesktopEnvironment["Service"],
   ext: keyof DesktopIconPaths,
-): string | undefined {
+) {
   if (environment.isPackaged || ext === "icns") return undefined;
   const brand = environment.isDevelopment ? "dev" : "prod";
   const fileNames = sourceTreeIconFileNames[brand];
@@ -104,11 +100,7 @@ function resolveSourceTreeIconPath(
 const resolveAssetPath = Effect.fn("desktop.assets.resolveAssetPath")(function* (
   sourceTreePath: string | undefined,
   resourceFileName: string,
-): Effect.fn.Return<
-  Option.Option<string>,
-  DesktopAssetProbeError,
-  FileSystem.FileSystem | DesktopEnvironment.DesktopEnvironment
-> {
+) {
   const fileSystem = yield* FileSystem.FileSystem;
   if (sourceTreePath !== undefined) {
     const sourceTreeExists = yield* fileSystem.exists(sourceTreePath).pipe(

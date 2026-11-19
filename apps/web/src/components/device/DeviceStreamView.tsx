@@ -37,7 +37,7 @@ const NO_AX_ATOM = Atom.make(AsyncResult.initial<ReadonlyArray<DeviceAxElement>,
 );
 const CONTROLS_RAIL_WIDTH = 56;
 
-function screenAspect(platform: DevicePlatform, screen: DeviceScreenSize | null): number {
+function screenAspect(platform: DevicePlatform, screen: DeviceScreenSize | null) {
   if (!screen) return platform === "ios" ? 9 / 19.5 : 9 / 20;
   const landscape =
     screen.orientation === "landscape_left" || screen.orientation === "landscape_right";
@@ -50,7 +50,7 @@ function screenAspect(platform: DevicePlatform, screen: DeviceScreenSize | null)
   return w / h;
 }
 
-function screenRotation(platform: DevicePlatform, screen: DeviceScreenSize | null): number {
+function screenRotation(platform: DevicePlatform, screen: DeviceScreenSize | null) {
   if (platform !== "ios" || !screen || screen.width > screen.height) return 0;
   switch (screen.orientation) {
     case "landscape_left":

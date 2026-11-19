@@ -23,7 +23,7 @@ export type PullRequestAnchor =
   | { readonly kind: "timeline"; readonly anchor: string }
   | { readonly kind: "summary"; readonly anchor: string };
 
-function pullRequestUrlHash(url: string | null | undefined): string {
+function pullRequestUrlHash(url: string | null | undefined) {
   if (!url) return "";
   try {
     return decodeURIComponent(new URL(url).hash.slice(1));
@@ -32,44 +32,42 @@ function pullRequestUrlHash(url: string | null | undefined): string {
   }
 }
 
-function normalizePullRequestCommentAnchor(anchor: string): string {
+function normalizePullRequestCommentAnchor(anchor: string) {
   return anchor.replace(
     /^(?:r|discussion-diff-)(\d+)(?:[LR]\d+(?:-[LR]\d+)?)?$/i,
     "discussion_r$1",
   );
 }
 
-function pullRequestPathTab(pathname: string): PullRequestAnchor | null {
+function pullRequestPathTab(pathname: string) {
   const tab = /\/(?:pulls?|-\/merge_requests)\/\d+\/([a-z]+)(?:\/(.*))?$/i.exec(pathname);
   const rest = tab?.[2] ?? "";
   switch (tab?.[1]?.toLowerCase()) {
     case "files":
     case "changes":
     case "diffs":
-      return { kind: "code" };
+      return { kind: "code" } satisfies PullRequestAnchor | null;
     case "commits":
-      if (rest === "") return { kind: "commits" };
-      return /^[a-f0-9]{40}\/?$/i.test(rest) ? { kind: "code" } : null;
+      if (rest === "") return { kind: "commits" } satisfies PullRequestAnchor | null;
+      return (
+        /^[a-f0-9]{40}\/?$/i.test(rest) ? { kind: "code" } : null
+      ) satisfies PullRequestAnchor | null;
     case "checks":
     case "pipelines":
-      return rest === "" ? { kind: "checks" } : null;
+      return (rest === "" ? { kind: "checks" } : null) satisfies PullRequestAnchor | null;
     default:
-      return null;
+      return null satisfies PullRequestAnchor | null;
   }
 }
 
 const isLine = (line: number) => Number.isSafeInteger(line) && line >= 1;
 
-function gitLabLine(
-  start: number,
-  side: "left" | "right",
-  oldLine = 0,
-): PullRequestAnchorRange | null {
+function gitLabLine(start: number, side: "left" | "right", oldLine = 0) {
   if (!isLine(start)) return null;
   return { start, side, end: start, endSide: side, ...(isLine(oldLine) ? { oldLine } : {}) };
 }
 
-function gitLabDiffAnchor(anchor: string, file: string | null): PullRequestAnchor | null {
+function gitLabDiffAnchor(anchor: string, file: string | null) {
   const rapid = /^line_([a-f0-9]{9})_(A?)(\d+)$/i.exec(anchor);
   if (rapid) {
     const line = Number(rapid[3]);
@@ -77,12 +75,12 @@ function gitLabDiffAnchor(anchor: string, file: string | null): PullRequestAncho
       kind: "diff",
       digest: (rapid[1] ?? "").toLowerCase(),
       range: gitLabLine(line, rapid[2] ? "right" : "left"),
-    };
+    } satisfies PullRequestAnchor | null;
   }
   const code = /^(?:diff-content-)?([a-f0-9]{40})(?:_(\d+)_(\d+))?$/i.exec(anchor);
   const digest =
     code?.[1] ?? (!anchor && file !== null && /^[a-f0-9]{40}$/i.test(file) ? file : null);
-  if (digest === null) return null;
+  if (digest === null) return null satisfies PullRequestAnchor | null;
   const [oldLine, newLine] = [Number(code?.[2]), Number(code?.[3])];
   const range =
     code?.[2] === undefined
@@ -90,25 +88,26 @@ function gitLabDiffAnchor(anchor: string, file: string | null): PullRequestAncho
       : newLine === 0
         ? gitLabLine(oldLine, "left")
         : gitLabLine(newLine, "right", oldLine);
-  return { kind: "diff", digest: digest.toLowerCase(), range };
+  return { kind: "diff", digest: digest.toLowerCase(), range } satisfies PullRequestAnchor | null;
 }
 
 /** The range to select, once the diff shows whether a GitLab line code's old line was removed. */
 export function resolvePullRequestAnchorRange(
   range: PullRequestAnchorRange,
   isRemovedLine: (oldLine: number) => boolean,
-): PullRequestAnchorRange {
+) {
   return range.oldLine !== undefined && isRemovedLine(range.oldLine)
     ? (gitLabLine(range.oldLine, "left") ?? range)
     : range;
 }
 
-export function parsePullRequestAnchor(url: string | null | undefined): PullRequestAnchor | null {
+export function parsePullRequestAnchor(url: string | null | undefined): PullRequestAnchor | null;
+export function parsePullRequestAnchor(url: string | null | undefined) {
   let parsed: URL;
   try {
     parsed = new URL(url ?? "");
   } catch {
-    return null;
+    return null satisfies PullRequestAnchor | null;
   }
   const fallback = pullRequestPathTab(parsed.pathname);
   const anchor = pullRequestUrlHash(url);
@@ -118,8 +117,8 @@ export function parsePullRequestAnchor(url: string | null | undefined): PullRequ
       ? parsed.searchParams.get("file")
       : null,
   );
-  if (gitLab) return gitLab;
-  if (!anchor) return fallback;
+  if (gitLab) return gitLab satisfies PullRequestAnchor | null;
+  if (!anchor) return fallback satisfies PullRequestAnchor | null;
   const diff = /^diff-([a-f0-9]+)(?:([LR])(\d+)(?:-([LR])(\d+))?)?$/i.exec(anchor);
   if (diff) {
     const start = Number(diff[3]);
@@ -128,7 +127,7 @@ export function parsePullRequestAnchor(url: string | null | undefined): PullRequ
       diff[2] &&
       (!Number.isSafeInteger(start) || start < 1 || !Number.isSafeInteger(end) || end < 1)
     )
-      return fallback;
+      return fallback satisfies PullRequestAnchor | null;
     return {
       kind: "diff",
       digest: (diff[1] ?? "").toLowerCase(),
@@ -140,22 +139,22 @@ export function parsePullRequestAnchor(url: string | null | undefined): PullRequ
             endSide: (diff[4] ?? diff[2]).toUpperCase() === "L" ? "left" : "right",
           }
         : null,
-    };
+    } satisfies PullRequestAnchor | null;
   }
   if (
     /^(?:(?:issuecomment-|pullrequestreview-|discussion_r|r|commitcomment-|event-|note_|comment-)\d+|discussion-diff-\d+(?:[LR]\d+(?:-[LR]\d+)?)?)$/i.test(
       anchor,
     )
   ) {
-    return { kind: "timeline", anchor: normalizePullRequestCommentAnchor(anchor) };
+    return {
+      kind: "timeline",
+      anchor: normalizePullRequestCommentAnchor(anchor),
+    } satisfies PullRequestAnchor | null;
   }
-  return fallback ?? { kind: "summary", anchor };
+  return (fallback ?? { kind: "summary", anchor }) satisfies PullRequestAnchor | null;
 }
 
-export function pullRequestAnchorMatchesUrl(
-  anchor: string,
-  url: string | null | undefined,
-): boolean {
+export function pullRequestAnchorMatchesUrl(anchor: string, url: string | null | undefined) {
   return normalizePullRequestCommentAnchor(pullRequestUrlHash(url)) === anchor;
 }
 
@@ -173,7 +172,7 @@ export function resolvePullRequestReviewAnchor(
   anchor: string,
   comments: ReadonlyArray<Pick<AnchoredComment, "url">>,
   reviewThreads: ReadonlyArray<{ readonly comments: ReadonlyArray<AnchoredComment> }>,
-): string {
+) {
   if (!/^pullrequestreview-\d+$/i.test(anchor)) return anchor;
   if (comments.some((comment) => pullRequestAnchorMatchesUrl(anchor, comment.url))) return anchor;
   let posted: AnchoredComment | undefined;
@@ -185,14 +184,14 @@ export function resolvePullRequestReviewAnchor(
   return own || anchor;
 }
 
-export function pullRequestDiffPathMatches(digest: string, path: string): boolean {
+export function pullRequestDiffPathMatches(digest: string, path: string) {
   const bytes = utf8ToBytes(path);
   if (digest.length === 40 || digest.length === 9)
     return bytesToHex(sha1(bytes)).startsWith(digest);
   return digest === bytesToHex(digest.length === 32 ? md5(bytes) : sha256(bytes));
 }
 
-export function pullRequestLinkCommit(url: string | null | undefined): string | null {
+export function pullRequestLinkCommit(url: string | null | undefined) {
   if (!url) return null;
   try {
     const { pathname, searchParams } = new URL(url);

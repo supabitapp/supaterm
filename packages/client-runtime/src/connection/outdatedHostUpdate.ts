@@ -217,6 +217,8 @@ export const updateOutdatedHost = Effect.fn("clientRuntime.connection.updateOutd
   },
 );
 
-function isCompatibleDescriptor(descriptor: ExecutionEnvironmentDescriptor): boolean {
-  return descriptor.orchestrationProtocolVersion === ORCHESTRATION_PROTOCOL_VERSION;
+function isCompatibleDescriptor(descriptor: ExecutionEnvironmentDescriptor): boolean;
+function isCompatibleDescriptor(descriptor: ExecutionEnvironmentDescriptor) {
+  return (descriptor.orchestrationProtocolVersion ===
+    ORCHESTRATION_PROTOCOL_VERSION) satisfies boolean;
 }

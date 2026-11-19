@@ -20,11 +20,11 @@ const NOW = Date.UTC(2026, 9, 23);
 const scoreMessageMatch = (text: string, query: string) => messageMatcher(query)(text);
 const DAY = 24 * 60 * 60 * 1000;
 
-function thread(title: string, overrides: Partial<ThreadSearchSubject> = {}): ThreadSearchSubject {
+function thread(title: string, overrides: Partial<ThreadSearchSubject> = {}) {
   return { title, activityAt: NOW - 30 * DAY, ...overrides };
 }
 
-function rankTitles(query: string, threads: ReadonlyArray<ThreadSearchSubject>): string[] {
+function rankTitles(query: string, threads: ReadonlyArray<ThreadSearchSubject>) {
   const normalized = foldSearchQuery(query);
   return rankSearchItems(threads, (subject, options) =>
     scoreThreadSearch(normalized, subject, NOW, options),

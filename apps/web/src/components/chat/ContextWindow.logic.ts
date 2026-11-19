@@ -4,15 +4,13 @@ import {
   type ProviderInstanceEntry,
 } from "../../providerInstances";
 
-export function usageFillColor(usedPercent: number): string {
+export function usageFillColor(usedPercent: number) {
   return usedPercent > 90
     ? "var(--color-error)"
     : "color-mix(in oklab, var(--color-muted-foreground) 72%, transparent)";
 }
 
-function providerSupportsManualCompaction(
-  provider: ProviderInstanceEntry | null | undefined,
-): boolean {
+function providerSupportsManualCompaction(provider: ProviderInstanceEntry | null | undefined) {
   return provider?.snapshot.slashCommands.some((command) => command.name === "compact") ?? false;
 }
 
@@ -21,7 +19,7 @@ export function hasAvailableCompactionProvider(input: {
   readonly driverKind: ProviderDriverKind;
   readonly instanceId: ProviderInstanceId | null;
   readonly lockedInstanceId: ProviderInstanceId | null;
-}): boolean {
+}) {
   const driverProviders = input.providers.filter(
     (provider) => provider.driverKind === input.driverKind,
   );
@@ -43,7 +41,7 @@ export function hasAvailableCompactionProvider(input: {
 export function formatContextWindowCompactionMessage(
   modelDisplayName: string | null | undefined,
   autoCompactThreshold?: number | null,
-): string {
+) {
   if (typeof autoCompactThreshold === "number" && autoCompactThreshold > 0) {
     return `Compacts automatically at about ${autoCompactThreshold.toLocaleString("en-US")} tokens.`;
   }
@@ -55,7 +53,7 @@ export function formatContextWindowCompactionMessage(
 export function formatContextWindowCost(cost: {
   readonly amount: number;
   readonly currency: string;
-}): string {
+}) {
   const fractionDigits = Math.abs(cost.amount) > 0 && Math.abs(cost.amount) < 0.01 ? 4 : 2;
   try {
     return new Intl.NumberFormat("en-US", {

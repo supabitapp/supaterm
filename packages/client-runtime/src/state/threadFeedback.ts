@@ -19,7 +19,7 @@ export type CodexFeedbackSubmission = CodexFeedbackSubmissionDetails &
     | { readonly status: "failed"; readonly errorMessage: string }
   );
 
-export function parseCodexFeedbackCommand(text: string): { readonly reason?: string } | null {
+export function parseCodexFeedbackCommand(text: string) {
   const match = /^\/feedback(?:\s+([\s\S]*))?$/iu.exec(text.trim());
   if (!match) {
     return null;
@@ -57,7 +57,7 @@ export interface LocalChatMessage {
 export function codexFeedbackMessage(
   submission: CodexFeedbackSubmission,
   role: "user" | "assistant" = "user",
-): LocalChatMessage {
+) {
   const text =
     role === "user"
       ? submission.command
@@ -83,7 +83,7 @@ export async function submitCodexFeedback<E>(input: {
   readonly clearDraft: () => void;
   readonly onUpdate: (submission: CodexFeedbackSubmission) => void;
   readonly upload: () => Promise<AtomCommandResult<ProviderUploadFeedbackResult, E>>;
-}): Promise<AtomCommandResult<ProviderUploadFeedbackResult, E>> {
+}) {
   input.onUpdate({ ...input.submission, status: "uploading" });
   input.clearDraft();
 

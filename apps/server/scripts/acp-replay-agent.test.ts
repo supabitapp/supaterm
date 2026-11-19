@@ -26,10 +26,14 @@ const setModeExchange = [
   },
 ];
 
+function replayUntilFirstWrite(
+  entries: ReadonlyArray<unknown>,
+  request: { readonly method: string; readonly params: unknown },
+): Promise<{ readonly signal: NodeJS.Signals | null; readonly status: unknown }>;
 async function replayUntilFirstWrite(
   entries: ReadonlyArray<unknown>,
   request: { readonly method: string; readonly params: unknown },
-): Promise<{ readonly signal: NodeJS.Signals | null; readonly status: unknown }> {
+) {
   const directory = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "acp-replay-status-"));
   const statusPath = NodePath.join(directory, "status.json");
   try {
@@ -57,7 +61,10 @@ async function replayUntilFirstWrite(
     );
     agent.stdin.end(`${JSON.stringify({ jsonrpc: "2.0", id: 1, ...request })}\n`);
     const signal = await exitSignal;
-    return { signal, status: JSON.parse(NodeFS.readFileSync(statusPath, "utf8")) };
+    return { signal, status: JSON.parse(NodeFS.readFileSync(statusPath, "utf8")) } satisfies {
+      readonly signal: NodeJS.Signals | null;
+      readonly status: unknown;
+    };
   } finally {
     NodeFS.rmSync(directory, { recursive: true, force: true });
   }

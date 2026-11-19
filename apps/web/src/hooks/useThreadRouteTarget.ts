@@ -1,4 +1,3 @@
-import type { ScopedThreadRef } from "@supaterm/contracts";
 import { useParams } from "@tanstack/react-router";
 
 import {
@@ -13,12 +12,16 @@ function useThreadRouteIds() {
   return { environmentId, threadId };
 }
 
-export function useThreadRouteTarget(): ThreadRouteTarget | null {
+export function useThreadRouteTarget() {
   const { environmentId, threadId } = useThreadRouteIds();
   const draftId = useParams({ strict: false, select: (params) => params.draftId });
-  return resolveThreadRouteTarget({ environmentId, threadId, draftId });
+  return resolveThreadRouteTarget({
+    environmentId,
+    threadId,
+    draftId,
+  }) satisfies ThreadRouteTarget | null;
 }
 
-export function useThreadRouteRef(): ScopedThreadRef | null {
+export function useThreadRouteRef() {
   return resolveThreadRouteRef(useThreadRouteIds());
 }

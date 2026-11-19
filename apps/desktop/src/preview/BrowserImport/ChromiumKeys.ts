@@ -30,7 +30,7 @@ export class ChromiumKeyError extends Schema.TaggedError<ChromiumKeyError>()("Ch
   reason: ChromiumKeyFailure,
   cause: Schema.optional(Schema.Defect()),
 }) {
-  override get message(): string {
+  override get message() {
     return `Could not obtain the Chromium cookie key: ${this.reason}.`;
   }
 }
@@ -232,11 +232,7 @@ export interface ChromiumKeyRequest {
 
 export const resolveChromiumKeys = Effect.fn("ChromiumKeys.resolveChromiumKeys")(function* (
   request: ChromiumKeyRequest,
-): Effect.fn.Return<
-  ChromiumKeyMaterial,
-  ChromiumKeyError,
-  ChildProcessSpawner.ChildProcessSpawner
-> {
+) {
   if (request.platform === "darwin") {
     if (!request.keychainService || !request.keychainAccount) {
       return yield* new ChromiumKeyError({ reason: "unsupportedPlatform" });

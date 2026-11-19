@@ -15,18 +15,23 @@ export function registerThreadDismissal(key: string, dismiss: () => ThreadDismis
   };
 }
 
+export function withThreadDismissal<T>(
+  key: string,
+  action: () => Promise<T>,
+  succeeded: (result: T) => boolean,
+): Promise<T>;
 export async function withThreadDismissal<T>(
   key: string,
   action: () => Promise<T>,
   succeeded: (result: T) => boolean,
-): Promise<T> {
+) {
   const dismissals = Array.from(rows.get(key) ?? [], (dismiss) => dismiss());
   let committed = false;
   try {
     await Promise.all(dismissals.map(({ finished }) => finished));
     const result = await action();
     committed = succeeded(result);
-    return result;
+    return result satisfies T;
   } finally {
     if (!committed) dismissals.forEach(({ restore }) => restore());
   }

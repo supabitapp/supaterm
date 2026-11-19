@@ -2,7 +2,6 @@ import type { OpenCodeClient } from "@opencode/client/effect";
 import * as Effect from "effect/Effect";
 
 import * as OpenCodeRuntime from "./OpenCodeRuntime.ts";
-import type { OpenCode2Model } from "./status.ts";
 
 const PROVIDER_NAME_TIMEOUT = "3 seconds";
 
@@ -19,7 +18,7 @@ const readCatalog = <E>(
   client: OpenCodeClient,
   directory: string | undefined,
   providers: Effect.Effect<ReadonlyArray<{ readonly id: string; readonly name: string }>, E>,
-): Effect.Effect<ReadonlyArray<OpenCode2Model>, OpenCodeRuntime.OpenCodeRuntimeError> =>
+) =>
   Effect.all(
     {
       models: client.model.list(locationOf(directory)).pipe(Effect.map((list) => list.data)),

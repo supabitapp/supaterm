@@ -40,18 +40,20 @@ const decodeDisabledServers = Schema.decodeEffect(
   Schema.fromJsonString(Schema.Array(Schema.String)),
 );
 
-function expand<A>(value: A, resolve: (text: string) => string): A {
-  if (typeof value === "string") return resolve(value) as A;
-  if (Array.isArray(value)) return value.map((item: unknown) => expand(item, resolve)) as A;
+function expand<A>(value: A, resolve: (text: string) => string): A;
+function expand<A>(value: A, resolve: (text: string) => string) {
+  if (typeof value === "string") return resolve(value) as A satisfies A;
+  if (Array.isArray(value))
+    return value.map((item: unknown) => expand(item, resolve)) as A satisfies A;
   if (typeof value === "object" && value !== null) {
     return Object.fromEntries(
       Object.entries(value).map(([key, item]) => [key, expand(item, resolve)]),
-    ) as A;
+    ) as A satisfies A;
   }
-  return value;
+  return value satisfies A;
 }
 
-function needsWorkspaceExpansion(server: unknown): boolean {
+function needsWorkspaceExpansion(server: unknown) {
   if (typeof server !== "object" || server === null) return false;
   if ("envFile" in server || "enabledTools" in server) return false;
   const { command, cwd, args } = server as Record<string, unknown>;
@@ -67,7 +69,7 @@ function needsWorkspaceExpansion(server: unknown): boolean {
   );
 }
 
-function cursorProjectSlug(projectRoot: string): string {
+function cursorProjectSlug(projectRoot: string) {
   return projectRoot
     .replace(/[^a-zA-Z0-9]/g, "-")
     .replace(/-+/g, "-")
@@ -83,7 +85,7 @@ export const cursorWorkspaceMcpServers = Effect.fn("cursorWorkspaceMcpServers")(
   const path = yield* Path.Path;
   const readJsonc = (file: string) =>
     fileSystem.readFileString(file).pipe(
-      Effect.map((contents): unknown => {
+      Effect.map((contents) => {
         const errors: ParseError[] = [];
         const value: unknown = parseJsonc(contents, errors, { allowTrailingComma: true });
         return errors.length === 0 ? value : null;

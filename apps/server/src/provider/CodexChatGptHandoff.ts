@@ -56,12 +56,16 @@ export function subscribeChatGptHandoff(
       yield* auth.controller.start(owner, Effect.void, "chatgpt", input.returnUrl, "server");
       return auth.controller.subscribe(owner).pipe(
         Stream.takeUntil((state) => ["succeeded", "failed", "cancelled"].includes(state.phase)),
-        Stream.mapEffect((state): Effect.Effect<ChatGptHandoffState, ProviderSetupError> =>
-          state.phase === "succeeded"
-            ? auth.exportProfile.pipe(
-                Effect.map((profile) => ({ phase: "finished" as const, profile })),
-              )
-            : Effect.succeed({ phase: "auth" as const, state }),
+        Stream.mapEffect(
+          (state) =>
+            (state.phase === "succeeded"
+              ? auth.exportProfile.pipe(
+                  Effect.map((profile) => ({ phase: "finished" as const, profile })),
+                )
+              : Effect.succeed({ phase: "auth" as const, state })) satisfies Effect.Effect<
+              ChatGptHandoffState,
+              ProviderSetupError
+            > as Effect.Effect<ChatGptHandoffState, ProviderSetupError>,
         ),
       );
     }),

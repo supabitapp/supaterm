@@ -41,11 +41,11 @@ type GetPullRequestDiffFileContents<E> = (request: {
   readonly input: PullRequestDiffFileContentsInput;
 }) => Promise<AtomCommandResult<PullRequestDiffFileContentsResult, E>>;
 
-function splitLines(contents: string): ReadonlyArray<string> {
+function splitLines(contents: string) {
   return contents === "" ? [] : contents.split(/(?<=\n)/);
 }
 
-function sameLine(patchLine: string | undefined, fileLine: string | undefined): boolean {
+function sameLine(patchLine: string | undefined, fileLine: string | undefined) {
   return (
     patchLine !== undefined &&
     fileLine !== undefined &&
@@ -53,7 +53,7 @@ function sameLine(patchLine: string | undefined, fileLine: string | undefined): 
   );
 }
 
-function hunkSideEnd(start: number, count: number): number {
+function hunkSideEnd(start: number, count: number) {
   return start - (count === 0 ? 0 : 1) + count;
 }
 
@@ -63,7 +63,7 @@ function hunkSideMatches(
   fileLines: ReadonlyArray<string>,
   start: number,
   count: number,
-): boolean {
+) {
   const fileIndex = hunkSideEnd(start, count) - count;
   for (let offset = 0; offset < count; offset++) {
     if (!sameLine(patchLines[patchIndex + offset], fileLines[fileIndex + offset])) return false;
@@ -107,8 +107,16 @@ function createDiffFileContentsLoader(
     readonly newPath: string;
   }) => Promise<{ readonly oldContents: string; readonly newContents: string }>,
   cacheKey: string,
-): FileDiffContentsLoader {
-  return async (fileDiff) => {
+): FileDiffContentsLoader;
+function createDiffFileContentsLoader(
+  load: (input: {
+    readonly changeType: PullRequestDiffFileContentsInput["changeType"];
+    readonly oldPath: string;
+    readonly newPath: string;
+  }) => Promise<{ readonly oldContents: string; readonly newContents: string }>,
+  cacheKey: string,
+) {
+  return (async (fileDiff) => {
     const newPath = resolveFileDiffPath(fileDiff);
     const oldPath = fileDiff.prevName
       ? resolveFileDiffPath({ ...fileDiff, name: fileDiff.prevName })
@@ -135,13 +143,13 @@ function createDiffFileContentsLoader(
       },
       newFile,
     };
-  };
+  }) satisfies FileDiffContentsLoader;
 }
 
 export function createGitDiffFileContentsLoader<E>(
   getDiffFileContents: GetDiffFileContents<E>,
   source: GitDiffFileContentsSource,
-): FileDiffContentsLoader {
+) {
   return createDiffFileContentsLoader(async ({ changeType, oldPath, newPath }) => {
     const result = await getDiffFileContents({
       environmentId: source.environmentId,
@@ -165,7 +173,7 @@ export function createGitDiffFileContentsLoader<E>(
 export function createPullRequestDiffFileContentsLoader<E>(
   getDiffFileContents: GetPullRequestDiffFileContents<E>,
   source: PullRequestDiffFileContentsSource,
-): FileDiffContentsLoader {
+) {
   return createDiffFileContentsLoader(async ({ changeType, oldPath, newPath }) => {
     const result = await getDiffFileContents({
       environmentId: source.environmentId,

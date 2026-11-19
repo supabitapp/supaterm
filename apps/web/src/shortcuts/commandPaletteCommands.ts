@@ -11,17 +11,15 @@ import { toggleThemeEditorForTheme } from "../components/settings/themeEditorSto
 import { toastManager } from "../components/ui/toast";
 import { getThemeSnapshot, setAppearanceMode } from "../hooks/useTheme";
 import { selectActiveRightPanel, useRightPanelStore } from "../rightPanelStore";
-import { type CommandHandler, type CommandScopeOptions, registerCommands } from "./dispatcher";
+import { type CommandScopeOptions, registerCommands } from "./dispatcher";
 import { selectThreadTerminalUiState, useTerminalUiStateStore } from "../terminalUiStateStore";
 import { resolveThreadRouteTarget } from "../threadRoutes";
 
-const toggleOverlay =
-  (command: Parameters<typeof overlayModeForCommand>[0]): CommandHandler =>
-  () => {
-    const mode = overlayModeForCommand(command);
-    if (mode === null) return false;
-    dispatchCommandPalette({ _tag: "ToggleMode", mode });
-  };
+const toggleOverlay = (command: Parameters<typeof overlayModeForCommand>[0]) => () => {
+  const mode = overlayModeForCommand(command);
+  if (mode === null) return false;
+  dispatchCommandPalette({ _tag: "ToggleMode", mode });
+};
 
 /**
  * Palette, theme and page commands. They read the route, panels and theme
@@ -30,7 +28,7 @@ const toggleOverlay =
 export function installCommandPaletteCommands(
   router: AnyRouter,
   options: Pick<CommandScopeOptions, "keybindings"> = {},
-): () => void {
+) {
   const readRouteThreadRef = () => {
     const target = resolveThreadRouteTarget(router.state.matches.at(-1)?.params ?? {});
     return target?.kind === "server" ? target.threadRef : null;
@@ -52,12 +50,10 @@ export function installCommandPaletteCommands(
     },
   );
 
-  const openPage =
-    (to: "/usage" | "/automations"): CommandHandler =>
-    () => {
-      dispatchCommandPalette({ _tag: "SetOpen", open: false });
-      void router.navigate({ to });
-    };
+  const openPage = (to: "/usage" | "/automations") => () => {
+    dispatchCommandPalette({ _tag: "SetOpen", open: false });
+    void router.navigate({ to });
+  };
 
   const disposeCommands = registerCommands(
     {

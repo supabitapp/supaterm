@@ -8,8 +8,14 @@ function item(
   key: string,
   title: string,
   kind: CommandPaletteItem["kind"],
+  searchTerms?: string[],
+): CommandPaletteItem;
+function item(
+  key: string,
+  title: string,
+  kind: CommandPaletteItem["kind"],
   searchTerms: string[] = [],
-): CommandPaletteItem {
+) {
   return {
     key,
     title,
@@ -17,7 +23,7 @@ function item(
     searchTerms,
     ...(kind === "thread" ? { threadSearch: { title, activityAt: NOW } } : {}),
     run: () => {},
-  };
+  } satisfies CommandPaletteItem;
 }
 
 const items = [

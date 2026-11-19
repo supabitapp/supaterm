@@ -20,7 +20,7 @@ export function slotScreenOptions<Options extends object>(
   slot: WorkspaceSlotOptions | null,
   routeKey: string | undefined,
   options: Options,
-): Options {
+) {
   const own = routeKey === undefined ? undefined : slot?.byRoute.get(routeKey);
   return own ? { ...options, ...own } : options;
 }

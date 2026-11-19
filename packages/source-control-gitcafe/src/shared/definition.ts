@@ -111,7 +111,7 @@ export function parsePullRequestUrl(value: string) {
   }
 }
 
-export function canonicalizePullRequestUrl(value: string): string {
+export function canonicalizePullRequestUrl(value: string) {
   const link = parsePullRequestUrl(value);
   return link === null ? value : definition.changeRequestUrl(link);
 }

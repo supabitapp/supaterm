@@ -77,9 +77,7 @@ const ANDROID_ABIS = ["arm64-v8a", "x86_64", "x86", "armeabi-v7a"] as const;
 const STORE_SCENES = ["threads", "thread", "review", "terminal", "environments"] as const;
 const SPLIT_VIEW_STORE_SCENES = STORE_SCENES.filter((scene) => scene !== "thread");
 
-function resolveShowcaseAndroidAbi(
-  value: string | undefined,
-): NonNullable<ShowcaseAndroidDevice["abi"]> {
+function resolveShowcaseAndroidAbi(value: string | undefined) {
   if (!value) return "arm64-v8a";
   if (ANDROID_ABIS.some((abi) => abi === value)) {
     return value as NonNullable<ShowcaseAndroidDevice["abi"]>;

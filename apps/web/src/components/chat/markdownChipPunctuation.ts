@@ -9,7 +9,7 @@ type HastNode = {
 const LEADING_PUNCTUATION = /^[.,:;!?…)\]}"'’”]+/;
 
 export function rehypeChipPunctuation() {
-  const visit = (node: HastNode): void => {
+  const visit = (node: HastNode) => {
     if (node.tagName === "pre" || !node.children) return;
     const children: HastNode[] = [];
     for (const child of node.children) {

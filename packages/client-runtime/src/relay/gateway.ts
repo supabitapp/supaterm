@@ -138,7 +138,7 @@ export function layer(input: {
         address: string,
         relayUrl = DEFAULT_PUBLIC_RELAY_URL,
         direct?: ReadonlyArray<string>,
-      ): RelayOriginLease => {
+      ) => {
         const identity = key(address);
         if (!identity)
           return { prepare: async () => address, retain: () => {}, close: async () => {} };

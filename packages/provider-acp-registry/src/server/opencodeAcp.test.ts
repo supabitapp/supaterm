@@ -5,7 +5,7 @@ import { extractOpenCodeElicitationForm } from "./opencodeAcp.ts";
 
 type ElicitationRequest = Parameters<NonNullable<AcpAdapterV2Flavor["extractElicitationForm"]>>[0];
 
-const request = (properties: Record<string, unknown>): ElicitationRequest =>
+const request = (properties: Record<string, unknown>) =>
   ({
     mode: "form",
     sessionId: "session-id",

@@ -1,11 +1,8 @@
 import { scopeThreadRef } from "@supaterm/client-runtime/environment";
-import type { EnvironmentId, ScopedThreadRef, ThreadId } from "@supaterm/contracts";
+import type { EnvironmentId, ThreadId } from "@supaterm/contracts";
 import { useState } from "react";
 
-function toThreadRef(
-  environmentId: EnvironmentId | null,
-  threadId: ThreadId | null,
-): ScopedThreadRef | null {
+function toThreadRef(environmentId: EnvironmentId | null, threadId: ThreadId | null) {
   return environmentId !== null && threadId !== null
     ? scopeThreadRef(environmentId, threadId)
     : null;
@@ -14,7 +11,7 @@ function toThreadRef(
 /** Key by ids: streaming shell identity changes must not retrigger effects. */
 export function useActiveThreadRef(
   thread: { readonly environmentId: EnvironmentId; readonly id: ThreadId } | null | undefined,
-): ScopedThreadRef | null {
+) {
   const environmentId = thread?.environmentId ?? null;
   const threadId = thread?.id ?? null;
   const [ref, setRef] = useState(() => toThreadRef(environmentId, threadId));

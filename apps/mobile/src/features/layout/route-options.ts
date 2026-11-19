@@ -23,18 +23,20 @@ const SOLID_HEADER_OPTIONS: AppScreenOptions = {
   headerTransparent: false,
 };
 
-function headerOptions(header: HeaderStyle, itemStyle: "editor" | "standard"): AppScreenOptions {
-  if (header === "none") return { headerShown: false };
+function headerOptions(header: HeaderStyle, itemStyle: "editor" | "standard") {
+  if (header === "none") return { headerShown: false } satisfies AppScreenOptions;
   if (header === "glass") {
-    return itemStyle === "editor"
-      ? GLASS_HEADER_OPTIONS
-      : { ...GLASS_HEADER_OPTIONS, unstable_navigationItemStyle: undefined };
+    return (
+      itemStyle === "editor"
+        ? GLASS_HEADER_OPTIONS
+        : { ...GLASS_HEADER_OPTIONS, unstable_navigationItemStyle: undefined }
+    ) satisfies AppScreenOptions;
   }
   return {
     ...SOLID_HEADER_OPTIONS,
     unstable_navigationItemStyle:
       itemStyle === "editor" && Platform.OS === "ios" ? "editor" : undefined,
-  };
+  } satisfies AppScreenOptions;
 }
 
 export interface PageRouteOptions {
@@ -53,7 +55,8 @@ export interface PageRouteOptions {
 }
 
 /** A page in the workspace: pushed on compact windows, a column page on wide ones. */
-export function pageRoute(options: PageRouteOptions = {}): AppScreenOptions {
+export function pageRoute(options?: PageRouteOptions): AppScreenOptions;
+export function pageRoute(options: PageRouteOptions = {}) {
   return {
     ...headerOptions(options.header ?? "glass", options.itemStyle ?? "editor"),
     ...(options.title === undefined ? undefined : { title: options.title }),
@@ -61,7 +64,7 @@ export function pageRoute(options: PageRouteOptions = {}): AppScreenOptions {
       ? { unstable_headerMinimizationBehavior: options.duoMinimize }
       : undefined),
     ...(options.root ? { headerBackVisible: false } : undefined),
-  };
+  } satisfies AppScreenOptions;
 }
 
 export interface SheetRouteOptions {
@@ -89,7 +92,7 @@ export interface SheetRouteOptions {
   readonly duoMinimize?: "never" | "onScrollUp";
 }
 
-function sheetDetents(options: SheetRouteOptions): number[] {
+function sheetDetents(options: SheetRouteOptions) {
   if (options.detent === "full") return [1];
   if (options.fixed) return [options.detent];
   if (options.maxDetent !== undefined) return [options.detent, options.maxDetent];
@@ -97,7 +100,8 @@ function sheetDetents(options: SheetRouteOptions): number[] {
 }
 
 /** A sheet over the workspace: a formSheet with a grabber that closes, never goes back. */
-export function sheetRoute(options: SheetRouteOptions): AppScreenOptions {
+export function sheetRoute(options: SheetRouteOptions): AppScreenOptions;
+export function sheetRoute(options: SheetRouteOptions) {
   const header = headerOptions(options.header ?? "glass", options.itemStyle ?? "standard");
   const shared = {
     ...header,
@@ -109,10 +113,10 @@ export function sheetRoute(options: SheetRouteOptions): AppScreenOptions {
     gestureEnabled: true,
   } satisfies AppScreenOptions;
   if (Platform.OS === "android" && options.android === "card") {
-    return { ...shared, presentation: "card" };
+    return { ...shared, presentation: "card" } satisfies AppScreenOptions;
   }
   if (Platform.OS === "android" && options.android === "fullScreen") {
-    return { ...shared, presentation: "fullScreenModal" };
+    return { ...shared, presentation: "fullScreenModal" } satisfies AppScreenOptions;
   }
   return {
     ...shared,
@@ -124,7 +128,7 @@ export function sheetRoute(options: SheetRouteOptions): AppScreenOptions {
     ...(Platform.OS === "android" ? { sheetCornerRadius: 28 } : undefined),
     ...(options.spansRail ? { nativeContentInsetHorizontally: false } : undefined),
     ...(options.fixed ? { sheetExpandsWhenScrolledToEdge: false } : undefined),
-  } as AppScreenOptions;
+  } as AppScreenOptions satisfies AppScreenOptions;
 }
 
 export interface ModalRouteOptions {
@@ -136,7 +140,8 @@ export interface ModalRouteOptions {
 }
 
 /** A full-screen modal over the workspace with a close button, not a back button. */
-export function modalRoute(options: ModalRouteOptions = {}): AppScreenOptions {
+export function modalRoute(options?: ModalRouteOptions): AppScreenOptions;
+export function modalRoute(options: ModalRouteOptions = {}) {
   return {
     ...headerOptions(options.header ?? "none", options.itemStyle ?? "standard"),
     ...(options.title === undefined ? undefined : { title: options.title }),
@@ -145,7 +150,7 @@ export function modalRoute(options: ModalRouteOptions = {}): AppScreenOptions {
       : undefined),
     headerBackVisible: false,
     presentation: "fullScreenModal",
-  };
+  } satisfies AppScreenOptions;
 }
 
 /** Full-screen media (a device stream, a browser, an app) with no bar and no dismiss gesture. */

@@ -59,7 +59,8 @@ function convertIcon(
   return icon;
 }
 
-function convertMenu(menu: MenuInput, id: string): StackHeaderMenuIOS {
+function convertMenu(menu: MenuInput, id: string): StackHeaderMenuIOS;
+function convertMenu(menu: MenuInput, id: string) {
   const children = menu.items.flatMap<StackHeaderMenuElementIOS>((item, index) => {
     if ("hidden" in item && item.hidden) return [];
     const childId = `${id}:${index}`;
@@ -95,25 +96,31 @@ function convertMenu(menu: MenuInput, id: string): StackHeaderMenuIOS {
       },
     ];
   });
-  return { id, type: "menu", title: menu.title, children };
+  return { id, type: "menu", title: menu.title, children } satisfies StackHeaderMenuIOS;
 }
 
-function convertItems(items: NativeStackHeaderItem[], prefix: string): HeaderItem[] {
-  return items.map((item, index): HeaderItem => {
+function convertItems(items: NativeStackHeaderItem[], prefix: string): HeaderItem[];
+function convertItems(items: NativeStackHeaderItem[], prefix: string) {
+  return items.map((item, index) => {
     const id =
       item.type === "spacing" ? `${prefix}:${index}` : (item.identifier ?? `${prefix}:${index}`);
     switch (item.type) {
       case "spacing":
-        return "flexible" in item && item.flexible === true
+        return ("flexible" in item && item.flexible === true
           ? { type: "spacer", id, sizing: "flexible" }
-          : { type: "spacer", id, sizing: "fixed", width: item.spacing };
+          : {
+              type: "spacer",
+              id,
+              sizing: "fixed",
+              width: item.spacing,
+            }) satisfies HeaderItem as HeaderItem;
       case "custom":
         return {
           type: "item",
           id,
           render: () => item.element,
           hidesSharedBackground: item.hidesSharedBackground,
-        };
+        } satisfies HeaderItem as HeaderItem;
       case "menu":
         return {
           type: "item",
@@ -127,7 +134,7 @@ function convertItems(items: NativeStackHeaderItem[], prefix: string): HeaderIte
           variant: item.variant,
           tintColor: item.tintColor,
           hidesSharedBackground: item.hidesSharedBackground,
-        };
+        } satisfies HeaderItem as HeaderItem;
       case "button":
         return {
           type: "item",
@@ -143,9 +150,9 @@ function convertItems(items: NativeStackHeaderItem[], prefix: string): HeaderIte
           variant: item.variant,
           tintColor: item.tintColor,
           hidesSharedBackground: item.hidesSharedBackground,
-        };
+        } satisfies HeaderItem as HeaderItem;
     }
-  });
+  }) satisfies HeaderItem[];
 }
 
 export function V5StackHeader(props: {

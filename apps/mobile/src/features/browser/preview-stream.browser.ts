@@ -30,7 +30,7 @@ interface PresentationVideo extends HTMLVideoElement {
 
 type WheelInput = Extract<PreviewStreamInput, { type: "wheel" }>;
 type MouseInput = Extract<PreviewStreamInput, { type: "mouse" }>;
-const mouseButton = (button: number): MouseInput["button"] =>
+const mouseButton = (button: number) =>
   button === 0 ? "left" : button === 1 ? "middle" : button === 2 ? "right" : "none";
 
 const RESIZE_DEBOUNCE_MS = 150;
@@ -352,16 +352,17 @@ export function start(configuration: PreviewStreamConfiguration) {
     button: MouseInput["button"],
     buttons = event.buttons,
     clickCount = mouseClicks[button],
-  ): MouseInput => ({
-    type: "mouse",
-    action,
-    x: point.x,
-    y: point.y,
-    button,
-    buttons,
-    clickCount,
-    modifiers: previewStreamModifiers(event),
-  });
+  ) =>
+    ({
+      type: "mouse",
+      action,
+      x: point.x,
+      y: point.y,
+      button,
+      buttons,
+      clickCount,
+      modifiers: previewStreamModifiers(event),
+    }) satisfies MouseInput;
   const onPointerDown = (event: PointerEvent) => {
     if (control?.controller !== "you") return;
     if (!event.isPrimary) return;

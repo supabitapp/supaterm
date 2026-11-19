@@ -1,18 +1,16 @@
-import type { DesktopBridge } from "@supaterm/contracts";
-
 const SNAP_SHOT_FOCUS_EVENT = "supaterm:focus-composer";
 
-export function dispatchSnapShotComposerFocus(): void {
+export function dispatchSnapShotComposerFocus() {
   if (typeof window === "undefined") return;
   window.dispatchEvent(new Event(SNAP_SHOT_FOCUS_EVENT));
 }
 
-export function subscribeSnapShotComposerFocus(listener: () => void): () => void {
+export function subscribeSnapShotComposerFocus(listener: () => void) {
   if (typeof window === "undefined") return () => {};
   window.addEventListener(SNAP_SHOT_FOCUS_EVENT, listener);
   return () => window.removeEventListener(SNAP_SHOT_FOCUS_EVENT, listener);
 }
 
-export function getDesktopSnapShotBridge(): DesktopBridge | undefined {
+export function getDesktopSnapShotBridge() {
   return typeof window === "undefined" ? undefined : window.desktopBridge;
 }

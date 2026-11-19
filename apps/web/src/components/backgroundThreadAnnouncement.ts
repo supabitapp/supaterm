@@ -28,13 +28,32 @@ export function resolveBackgroundThreadRequest(
   > & {
     readonly source: Pick<SidebarThreadSummary["source"], "pendingRuntimeRequest">;
   },
-): Pick<BackgroundThreadSnapshot, "request" | "requestId"> {
+) {
   const ownRequestId = thread.source.pendingRuntimeRequest?.id ?? null;
-  if (thread.hasPendingApprovals) return { request: "approval", requestId: ownRequestId };
-  if (thread.pendingSubagentRequest === "approval") return { request: "approval", requestId: null };
-  if (thread.hasPendingUserInput) return { request: "input", requestId: ownRequestId };
-  if (thread.pendingSubagentRequest === "user_input") return { request: "input", requestId: null };
-  return { request: null, requestId: null };
+  if (thread.hasPendingApprovals)
+    return { request: "approval", requestId: ownRequestId } satisfies Pick<
+      BackgroundThreadSnapshot,
+      "request" | "requestId"
+    >;
+  if (thread.pendingSubagentRequest === "approval")
+    return { request: "approval", requestId: null } satisfies Pick<
+      BackgroundThreadSnapshot,
+      "request" | "requestId"
+    >;
+  if (thread.hasPendingUserInput)
+    return { request: "input", requestId: ownRequestId } satisfies Pick<
+      BackgroundThreadSnapshot,
+      "request" | "requestId"
+    >;
+  if (thread.pendingSubagentRequest === "user_input")
+    return { request: "input", requestId: null } satisfies Pick<
+      BackgroundThreadSnapshot,
+      "request" | "requestId"
+    >;
+  return { request: null, requestId: null } satisfies Pick<
+    BackgroundThreadSnapshot,
+    "request" | "requestId"
+  >;
 }
 
 interface BackgroundThreadMemoryEntry {
@@ -54,7 +73,7 @@ export function nextBackgroundThreadAnnouncement(
   previous: BackgroundThreadMemory,
   threads: ReadonlyArray<BackgroundThreadSnapshot>,
   openThreadKeys: ReadonlySet<string>,
-): { readonly memory: BackgroundThreadMemory; readonly announcement: string | null } {
+) {
   const memory = new Map<string, BackgroundThreadMemoryEntry>();
   const announcements: string[] = [];
   for (const thread of threads) {

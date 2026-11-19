@@ -154,7 +154,7 @@ const SETTINGS_SECTION_AVAILABILITY: Partial<Record<SettingsPath, () => boolean>
 };
 
 /** An unavailable section is hidden from navigation and search, and its route redirects. */
-export function isSettingsSectionAvailable(path: SettingsPath): boolean {
+export function isSettingsSectionAvailable(path: SettingsPath) {
   return SETTINGS_SECTION_AVAILABILITY[path]?.() ?? true;
 }
 
@@ -183,11 +183,7 @@ export function sourceControlHostSettingsSearchId(kind: string) {
 }
 
 /** Each host's own settings: its accounts and token, or the fields of its settings form. */
-export function sourceControlHostSearchItems(
-  definitions: ReadonlyArray<SourceControlDefinition>,
-): ReadonlyArray<
-  SettingsSearchItem & { readonly id: ReturnType<typeof sourceControlHostSettingsSearchId> }
-> {
+export function sourceControlHostSearchItems(definitions: ReadonlyArray<SourceControlDefinition>) {
   return definitions.flatMap((definition) => {
     if (!definition.settings) return [];
     const names = [definition.label, ...(definition.searchKeywords ?? [])].join(" ");
@@ -1195,7 +1191,7 @@ const MOVED_SECTION_ANCHORS: Readonly<Record<string, SettingsPath>> = {
 };
 
 /** Where an old settings link now lives. Its anchor finds the page its row moved to. */
-export function movedSettingsPath(pathname: string, hash: string): SettingsPath | null {
+export function movedSettingsPath(pathname: string, hash: string) {
   if (!SPLIT_SETTINGS_PATHS.has(pathname)) return null;
   const items: readonly SettingsSearchItem[] = SETTINGS_SEARCH_ITEMS;
   const anchored = hash
@@ -1247,7 +1243,7 @@ export function getThreadAutoMarkDoneSearchAvailability(
 export function isSettingsSearchScopeAvailable(
   requiredScope: SettingsSearchScope | null,
   scopeKind: ResolvedSettingsScope["kind"],
-): boolean {
+) {
   switch (requiredScope) {
     case null:
     case "connections":
@@ -1269,17 +1265,12 @@ export function isSettingsSearchScopeAvailable(
   }
 }
 
-export function searchableSetting(id: SettingsSearchItemId): {
-  readonly id: string;
-  readonly title: string;
-} {
+export function searchableSetting(id: SettingsSearchItemId) {
   const { id: anchorId, title } = SEARCH_ITEMS_BY_ID.get(id)!;
   return { id: anchorId, title };
 }
 
-export function filterAvailableSettingsSearchItems(
-  availability: SettingsSearchAvailability,
-): ReadonlyArray<SettingsSearchItem> {
+export function filterAvailableSettingsSearchItems(availability: SettingsSearchAvailability) {
   const items: ReadonlyArray<SettingsSearchItem> = SETTINGS_SEARCH_ITEMS;
   return items.filter(
     (item) =>
@@ -1293,9 +1284,7 @@ export function filterAvailableSettingsSearchItems(
 }
 
 /** The settings that exist on this platform and app channel. */
-export function settingsForThisPlatform(
-  items: ReadonlyArray<SettingsSearchItem>,
-): ReadonlyArray<SettingsSearchItem> {
+export function settingsForThisPlatform(items: ReadonlyArray<SettingsSearchItem>) {
   const platform = typeof navigator === "undefined" ? "" : navigator.platform;
   return items.filter(
     (item) =>
@@ -1310,7 +1299,7 @@ export function settingsForThisPlatform(
 export function searchSettings(
   query: string,
   items: ReadonlyArray<SettingsSearchItem> = SETTINGS_SEARCH_ITEMS,
-): ReadonlyArray<SettingsSearchItem> {
+) {
   const normalizedQuery = normalizeSearchText(query);
   if (normalizedQuery.length === 0) return [];
   const queryTokens = normalizedQuery.split(" ");
@@ -1357,7 +1346,7 @@ const ADVANCED_TYPOGRAPHY_TARGET_IDS: ReadonlySet<string> = new Set([
     : []),
 ]);
 
-export function isAdvancedTypographyTarget(targetId: string): boolean {
+export function isAdvancedTypographyTarget(targetId: string) {
   return ADVANCED_TYPOGRAPHY_TARGET_IDS.has(targetId);
 }
 
@@ -1366,7 +1355,7 @@ export function isAdvancedTypographyTarget(targetId: string): boolean {
  * its row is mounted to scroll to. The terminal reads the same flag, so it must
  * stay on after the jump.
  */
-export function revealSettingsSearchTarget(targetId: string): void {
+export function revealSettingsSearchTarget(targetId: string) {
   if (isAdvancedTypographyTarget(targetId)) {
     writeLocalStorageValue(TYPOGRAPHY_ADVANCED_STORAGE_KEY, true, false, Schema.Boolean);
   }

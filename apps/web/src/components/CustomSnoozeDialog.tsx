@@ -38,9 +38,11 @@ type SnoozeChoice = { readonly snoozedUntil: string };
 type Request = { readonly resolve: (choice: SnoozeChoice | null) => void };
 const useRequest = create<{ request: Request | null }>(() => ({ request: null }));
 
-export function requestCustomSnooze(): Promise<SnoozeChoice | null> {
+export function requestCustomSnooze() {
   useRequest.getState().request?.resolve(null);
-  return new Promise((resolve) => useRequest.setState({ request: { resolve } }));
+  return new Promise((resolve) =>
+    useRequest.setState({ request: { resolve } }),
+  ) satisfies Promise<SnoozeChoice | null>;
 }
 
 function finish(choice: SnoozeChoice | null) {

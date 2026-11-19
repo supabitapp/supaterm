@@ -30,13 +30,11 @@ const baseCapabilities: OrchestrationV2ProviderCapabilities = CodexProviderCapab
 
 function capabilities(
   override: (current: OrchestrationV2ProviderCapabilities) => OrchestrationV2ProviderCapabilities,
-): OrchestrationV2ProviderCapabilities {
+) {
   return override(baseCapabilities);
 }
 
-function dispatchProjection(
-  sessionCapabilities?: OrchestrationV2ProviderCapabilities,
-): OrchestrationV2ThreadProjection {
+function dispatchProjection(sessionCapabilities?: OrchestrationV2ProviderCapabilities) {
   const providerThreadId = ProviderThreadId.make("command-policy-provider-thread");
   const providerSessionId = ProviderSessionId.make("command-policy-provider-session");
   return {

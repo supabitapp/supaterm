@@ -12,11 +12,11 @@ const CLIPBOARD_EDIT_META = "composerClipboardEdit";
  * Tag custom paste/cut dispatches; ProseMirror only tags its built-in paths.
  * Not `uiEvent`: Tiptap's paste rules would style the already parsed paste a second time.
  */
-export function markAsClipboardEdit(tr: Transaction, event: "paste" | "cut"): Transaction {
+export function markAsClipboardEdit(tr: Transaction, event: "paste" | "cut") {
   return tr.setMeta(CLIPBOARD_EDIT_META, event);
 }
 
-function changeKindOf(tr: Transaction): ComposerChangeKind | null {
+function changeKindOf(tr: Transaction) {
   if (!tr.docChanged) return null;
   const uiEvent = tr.getMeta("uiEvent");
   if (uiEvent === "paste" || uiEvent === "drop" || uiEvent === "cut") return "other";
@@ -35,10 +35,7 @@ function changeKindOf(tr: Transaction): ComposerChangeKind | null {
 }
 
 /** Must run before the transaction is applied. */
-export function groupUndoByChangeKind(
-  tr: Transaction,
-  previous: ComposerChangeKind | null,
-): ComposerChangeKind | null {
+export function groupUndoByChangeKind(tr: Transaction, previous: ComposerChangeKind | null) {
   if (isHistoryTransaction(tr)) return "other";
   const kind = changeKindOf(tr);
   if (kind === null) return previous;

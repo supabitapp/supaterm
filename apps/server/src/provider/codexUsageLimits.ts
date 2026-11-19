@@ -1,9 +1,4 @@
-import type {
-  ProviderUsageLimitsUpdate,
-  ServerProviderResetCredits,
-  ServerProviderUsageLimits,
-  ServerProviderUsageWindow,
-} from "@supaterm/contracts";
+import type { ServerProviderUsageWindow } from "@supaterm/contracts";
 import * as DateTime from "effect/DateTime";
 import * as Option from "effect/Option";
 import type * as CodexErrors from "effect-codex-app-server/errors";
@@ -40,25 +35,23 @@ const SESSION_MINS = 5 * 60;
 const WEEK_MINS = 7 * 24 * 60;
 const MONTH_MINS = 30 * 24 * 60;
 
-function isoFromEpochSeconds(value: number | null | undefined): string | undefined {
+function isoFromEpochSeconds(value: number | null | undefined) {
   if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) return undefined;
   const dt = DateTime.make(value * 1000);
   return Option.isSome(dt) ? DateTime.formatIso(dt.value) : undefined;
 }
 
-function kindForDuration(mins: number): ServerProviderUsageWindow["kind"] {
+function kindForDuration(mins: number) {
   if (mins >= MONTH_MINS) return "monthly";
   if (mins >= WEEK_MINS) return "weekly";
   return "session";
 }
 
-function labelForKind(kind: ServerProviderUsageWindow["kind"]): string {
+function labelForKind(kind: ServerProviderUsageWindow["kind"]) {
   return kind === "session" ? "Session" : kind === "weekly" ? "Weekly" : "Monthly";
 }
 
-function codexRateLimitsToWindows(
-  snapshot: CodexRateLimitSnapshot,
-): ReadonlyArray<ServerProviderUsageWindow> {
+function codexRateLimitsToWindows(snapshot: CodexRateLimitSnapshot) {
   if (snapshot.limitId && snapshot.limitId !== "codex") return [];
   const isMonthlyPlan = snapshot.planType === "free" || snapshot.planType === "go";
   const positions = [
@@ -95,9 +88,7 @@ function codexRateLimitsToWindows(
   return windows;
 }
 
-function codexResetCreditsToContract(
-  summary: CodexResetCreditsSummary | null | undefined,
-): ServerProviderResetCredits | undefined {
+function codexResetCreditsToContract(summary: CodexResetCreditsSummary | null | undefined) {
   if (!summary) return undefined;
   const expiries = (summary.credits ?? [])
     .filter((credit) => credit.status === "available")
@@ -119,7 +110,7 @@ export function codexRateLimitsToLimits(input: {
     | undefined;
   readonly resetCredits?: CodexResetCreditsSummary | null | undefined;
   readonly checkedAt: string;
-}): ServerProviderUsageLimits {
+}) {
   const resetCredits = codexResetCreditsToContract(input.resetCredits);
   const windows = codexRateLimitsToWindows(input.rateLimitsByLimitId?.codex ?? input.snapshot);
   return {
@@ -134,7 +125,7 @@ export function codexRateLimitsToLimits(input: {
 export function codexRateLimitsToUpdate(
   snapshot: CodexRateLimitSnapshot,
   previous?: CodexRateLimitSnapshot,
-): ProviderUsageLimitsUpdate | undefined {
+) {
   const previousWindows = previous ? codexRateLimitsToWindows(previous) : [];
   const windows = codexRateLimitsToWindows(snapshot).filter((window) => {
     const existing = previousWindows.find((candidate) => candidate.id === window.id);
@@ -149,7 +140,7 @@ export function codexRateLimitsToUpdate(
   return windows.length > 0 ? { windows } : undefined;
 }
 
-export function codexRateLimitsFailureMessage(error: CodexErrors.CodexAppServerError): string {
+export function codexRateLimitsFailureMessage(error: CodexErrors.CodexAppServerError) {
   switch (error._tag) {
     case "CodexAppServerRequestError":
       return `Codex could not read usage (JSON-RPC ${error.code}).`;
@@ -166,7 +157,7 @@ export function codexRateLimitsFailureMessage(error: CodexErrors.CodexAppServerE
 export function mergeCodexRateLimits(
   previous: CodexRateLimitSnapshot | undefined,
   update: CodexRateLimitSnapshot,
-): CodexRateLimitSnapshot | undefined {
+) {
   if (update.limitId && update.limitId !== "codex") return previous;
   if (!previous) return update;
   return {
@@ -183,9 +174,7 @@ export function mergeCodexRateLimits(
 }
 
 /** All exhausted windows must reset before a continuation can run. */
-export function codexUsageLimitResetAt(
-  snapshot: CodexRateLimitSnapshot | undefined,
-): string | null {
+export function codexUsageLimitResetAt(snapshot: CodexRateLimitSnapshot | undefined) {
   if (!snapshot) return null;
   const windows = codexRateLimitsToWindows(snapshot).filter((window) => window.usedPercent >= 100);
   if (windows.length === 0 || windows.some((window) => !window.resetsAt)) return null;
@@ -203,9 +192,7 @@ const CODEX_RESET_TEXT =
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 /** The zone Codex prints reset times in: its own `TZ`, else the server's. */
-export function codexTimeZone(
-  environment: Readonly<Record<string, string | undefined>>,
-): DateTime.TimeZone {
+export function codexTimeZone(environment: Readonly<Record<string, string | undefined>>) {
   return Option.getOrElse(
     DateTime.zoneMakeNamed(environment.TZ?.replace(/^:/, "") ?? ""),
     DateTime.zoneMakeLocal,
@@ -222,7 +209,7 @@ export function codexMessageResetAt(
   message: string,
   failedAt: DateTime.DateTime,
   zone: DateTime.TimeZone,
-): string | null {
+) {
   const match = CODEX_RESET_TEXT.exec(message);
   if (!match) return null;
   const [, month, day, year, hour, minute, meridiem] = match;

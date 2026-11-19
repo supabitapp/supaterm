@@ -73,13 +73,7 @@ import {
   type ProviderReplayGate,
 } from "@supaterm/provider-testing/replayGate";
 
-export function makeReplayServerConfig(
-  scenario: string,
-): Effect.Effect<
-  ServerConfig.ServerConfig["Service"],
-  PlatformError.PlatformError,
-  FileSystem.FileSystem | Path.Path | Scope.Scope
-> {
+export function makeReplayServerConfig(scenario: string) {
   const safeScenario = scenario.replace(/[^a-z0-9_-]+/gi, "-");
   return Effect.gen(function* () {
     const fs = yield* FileSystem.FileSystem;
@@ -158,7 +152,11 @@ export function makeReplayServerConfig(
       serverRuntimeStatePath: path.join(stateDir, "server-runtime.json"),
       secretsDir: path.join(stateDir, "secrets"),
     };
-  });
+  }) satisfies Effect.Effect<
+    ServerConfig.ServerConfig["Service"],
+    PlatformError.PlatformError,
+    FileSystem.FileSystem | Path.Path | Scope.Scope
+  >;
 }
 
 export interface OrchestratorV2ProviderReplayScenario<
@@ -192,6 +190,32 @@ export function runOrchestratorV2ProviderReplayScenario<
 >(
   scenario: OrchestratorV2ProviderReplayScenario<Transcript>,
   harness: OrchestratorV2ProviderReplayHarness<Transcript, Error>,
+  options?: {
+    readonly databaseLayer?: Layer.Layer<
+      SqlClient.SqlClient,
+      MigrationError | PlatformError.PlatformError | SqlError
+    >;
+    readonly runEffectWorker?: boolean;
+    readonly runContinuationWorker?: boolean;
+    readonly recoverOnStartup?: boolean;
+    readonly continueThreadsAfterServerUpdate?: boolean;
+  },
+): Effect.Effect<
+  OrchestratorV2ScenarioResult,
+  | Orchestrator.OrchestratorV2Error
+  | OrchestratorV2ScenarioStepError
+  | Error
+  | MigrationError
+  | PlatformError.PlatformError
+  | SqlError,
+  never
+>;
+export function runOrchestratorV2ProviderReplayScenario<
+  Transcript extends ProviderReplayTranscript,
+  Error,
+>(
+  scenario: OrchestratorV2ProviderReplayScenario<Transcript>,
+  harness: OrchestratorV2ProviderReplayHarness<Transcript, Error>,
   options: {
     readonly databaseLayer?: Layer.Layer<
       SqlClient.SqlClient,
@@ -202,16 +226,7 @@ export function runOrchestratorV2ProviderReplayScenario<
     readonly recoverOnStartup?: boolean;
     readonly continueThreadsAfterServerUpdate?: boolean;
   } = {},
-): Effect.Effect<
-  OrchestratorV2ScenarioResult,
-  | Orchestrator.OrchestratorV2Error
-  | OrchestratorV2ScenarioStepError
-  | Error
-  | MigrationError
-  | PlatformError.PlatformError
-  | SqlError,
-  never
-> {
+) {
   const replayGate = makeProviderReplayGate(
     scenario.steps?.flatMap((step) =>
       step.type === "release_replay_gate" || step.type === "release_replay_gate_after_waiting"
@@ -228,9 +243,40 @@ export function runOrchestratorV2ProviderReplayScenario<
     const result = yield* runOrchestratorV2Scenario(scenario, { replayGate });
     const recorder = yield* CommandOutputRecorder.CommandOutputRecorder;
     return { ...result, commandOutput: yield* recorder.snapshot };
-  }).pipe(Effect.provide(layer));
+  }).pipe(Effect.provide(layer)) satisfies Effect.Effect<
+    OrchestratorV2ScenarioResult,
+    | Orchestrator.OrchestratorV2Error
+    | OrchestratorV2ScenarioStepError
+    | Error
+    | MigrationError
+    | PlatformError.PlatformError
+    | SqlError,
+    never
+  >;
 }
 
+export function layerProviderReplay<Transcript extends ProviderReplayTranscript, Error>(
+  scenario: OrchestratorV2ProviderReplayScenario<Transcript>,
+  harness: OrchestratorV2ProviderReplayHarness<Transcript, Error>,
+  options?: {
+    readonly databaseLayer?: Layer.Layer<
+      SqlClient.SqlClient,
+      MigrationError | PlatformError.PlatformError | SqlError
+    >;
+    readonly runEffectWorker?: boolean;
+    readonly runContinuationWorker?: boolean;
+    readonly recoverOnStartup?: boolean;
+    readonly continueThreadsAfterServerUpdate?: boolean;
+    readonly replayGate?: ProviderReplayGate;
+  },
+): Layer.Layer<
+  | Orchestrator.OrchestratorV2
+  | EffectWorker.OrchestrationEffectWorkerV2
+  | EventSink.EventSinkV2
+  | CommandOutputRecorder.CommandOutputRecorder
+  | ProviderSessionManager.ProviderSessionManagerV2,
+  Error | MigrationError | PlatformError.PlatformError | SqlError
+>;
 export function layerProviderReplay<Transcript extends ProviderReplayTranscript, Error>(
   scenario: OrchestratorV2ProviderReplayScenario<Transcript>,
   harness: OrchestratorV2ProviderReplayHarness<Transcript, Error>,
@@ -245,21 +291,52 @@ export function layerProviderReplay<Transcript extends ProviderReplayTranscript,
     readonly continueThreadsAfterServerUpdate?: boolean;
     readonly replayGate?: ProviderReplayGate;
   } = {},
-): Layer.Layer<
-  | Orchestrator.OrchestratorV2
-  | EffectWorker.OrchestrationEffectWorkerV2
-  | EventSink.EventSinkV2
-  | CommandOutputRecorder.CommandOutputRecorder
-  | ProviderSessionManager.ProviderSessionManagerV2,
-  Error | MigrationError | PlatformError.PlatformError | SqlError
-> {
+) {
   const layerRegistry = harness.makeProviderAdapterRegistryLayer(
     scenario.transcript,
     options.replayGate === undefined ? {} : { replayGate: options.replayGate },
   );
-  return layerWithRegistry(scenario, layerRegistry, options);
+  return layerWithRegistry(scenario, layerRegistry, options) satisfies Layer.Layer<
+    | Orchestrator.OrchestratorV2
+    | EffectWorker.OrchestrationEffectWorkerV2
+    | EventSink.EventSinkV2
+    | CommandOutputRecorder.CommandOutputRecorder
+    | ProviderSessionManager.ProviderSessionManagerV2,
+    Error | MigrationError | PlatformError.PlatformError | SqlError
+  >;
 }
 
+export function layerWithRegistry<Error>(
+  scenario: Pick<OrchestratorV2ProviderReplayScenario, "name" | "runtimePolicyOverride">,
+  registryLayer: Layer.Layer<
+    ProviderAdapterRegistry.ProviderAdapterRegistryV2,
+    Error,
+    McpProviderSessions.McpProviderSessions
+  >,
+  options?: {
+    readonly databaseLayer?: Layer.Layer<
+      SqlClient.SqlClient,
+      MigrationError | PlatformError.PlatformError | SqlError
+    >;
+    readonly runEffectWorker?: boolean;
+    readonly runContinuationWorker?: boolean;
+    readonly recoverOnStartup?: boolean;
+    readonly continueThreadsAfterServerUpdate?: boolean;
+    /** Lets a test hold a projection read open to order concurrent dispatches. */
+    readonly wrapProjectionStore?: (
+      store: ProjectionStore.ProjectionStoreV2Shape,
+    ) => ProjectionStore.ProjectionStoreV2Shape;
+  },
+): Layer.Layer<
+  | Orchestrator.OrchestratorV2
+  | EffectOutbox.EffectOutboxV2
+  | EffectWorker.OrchestrationEffectWorkerV2
+  | EventSink.EventSinkV2
+  | ProviderSessionManager.ProviderSessionManagerV2
+  | CommandOutputRecorder.CommandOutputRecorder
+  | ThreadCommandExecutor.ThreadCommandExecutor,
+  Error | MigrationError | PlatformError.PlatformError | SqlError
+>;
 export function layerWithRegistry<Error>(
   scenario: Pick<OrchestratorV2ProviderReplayScenario, "name" | "runtimePolicyOverride">,
   registryLayer: Layer.Layer<
@@ -281,16 +358,7 @@ export function layerWithRegistry<Error>(
       store: ProjectionStore.ProjectionStoreV2Shape,
     ) => ProjectionStore.ProjectionStoreV2Shape;
   } = {},
-): Layer.Layer<
-  | Orchestrator.OrchestratorV2
-  | EffectOutbox.EffectOutboxV2
-  | EffectWorker.OrchestrationEffectWorkerV2
-  | EventSink.EventSinkV2
-  | ProviderSessionManager.ProviderSessionManagerV2
-  | CommandOutputRecorder.CommandOutputRecorder
-  | ThreadCommandExecutor.ThreadCommandExecutor,
-  Error | MigrationError | PlatformError.PlatformError | SqlError
-> {
+) {
   const layerServerConfig = Layer.effect(
     ServerConfig.ServerConfig,
     makeReplayServerConfig(scenario.name).pipe(Effect.orDie),
@@ -557,7 +625,16 @@ export function layerWithRegistry<Error>(
   );
 
   if (options.runEffectWorker === false) {
-    return layerReplayRuntime;
+    return layerReplayRuntime satisfies Layer.Layer<
+      | Orchestrator.OrchestratorV2
+      | EffectOutbox.EffectOutboxV2
+      | EffectWorker.OrchestrationEffectWorkerV2
+      | EventSink.EventSinkV2
+      | ProviderSessionManager.ProviderSessionManagerV2
+      | CommandOutputRecorder.CommandOutputRecorder
+      | ThreadCommandExecutor.ThreadCommandExecutor,
+      Error | MigrationError | PlatformError.PlatformError | SqlError
+    >;
   }
   const layerStartupRecovery: Layer.Layer<
     never,
@@ -588,5 +665,17 @@ export function layerWithRegistry<Error>(
       yield* EffectWorker.runDaemon.pipe(Effect.forkScoped);
       return orchestrator;
     }),
-  ).pipe(Layer.provideMerge(layerReplayRuntime), Layer.provide(layerStartupRecovery));
+  ).pipe(
+    Layer.provideMerge(layerReplayRuntime),
+    Layer.provide(layerStartupRecovery),
+  ) satisfies Layer.Layer<
+    | Orchestrator.OrchestratorV2
+    | EffectOutbox.EffectOutboxV2
+    | EffectWorker.OrchestrationEffectWorkerV2
+    | EventSink.EventSinkV2
+    | ProviderSessionManager.ProviderSessionManagerV2
+    | CommandOutputRecorder.CommandOutputRecorder
+    | ThreadCommandExecutor.ThreadCommandExecutor,
+    Error | MigrationError | PlatformError.PlatformError | SqlError
+  >;
 }

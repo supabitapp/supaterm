@@ -229,11 +229,7 @@ type DiffModel = {
 const diffModels = new WeakMap<ReadonlyArray<DiffSlice>, Map<string, DiffModel>>();
 const patchHashes = new WeakMap<DiffSlice, number>();
 
-function diffModel(
-  slices: ReadonlyArray<DiffSlice>,
-  keyPrefix: string,
-  ignoreWhitespace: boolean,
-): DiffModel {
+function diffModel(slices: ReadonlyArray<DiffSlice>, keyPrefix: string, ignoreWhitespace: boolean) {
   let models = diffModels.get(slices);
   if (models === undefined) diffModels.set(slices, (models = new Map()));
   const cached = models.get(keyPrefix);
@@ -367,7 +363,7 @@ export interface PullRequestAgentSelectionInput {
   readonly request: string;
 }
 
-function isRemovedLine(fileDiff: FileDiffMetadata, oldLine: number): boolean {
+function isRemovedLine(fileDiff: FileDiffMetadata, oldLine: number) {
   return fileDiff.hunks.some((hunk) => {
     let next = hunk.deletionStart;
     return hunk.hunkContent.some((content) => {
@@ -1137,10 +1133,7 @@ function PullRequestCodeTab({
     },
   };
 
-  const runThreadCommand = async (
-    label: string,
-    run: () => Promise<{ readonly _tag: string }>,
-  ): Promise<boolean> => {
+  const runThreadCommand = async (label: string, run: () => Promise<{ readonly _tag: string }>) => {
     if (threadPending) return false;
     setThreadPending(true);
     const result = await run();
@@ -1171,7 +1164,7 @@ function PullRequestCodeTab({
       {...(onAddToChat
         ? { onAddToChat: (loaded) => onAddToChat({ kind: "thread", thread: loaded }) }
         : {})}
-      onLoadMore={async (cursor): Promise<PullRequestThreadCommentsResult | null> => {
+      onLoadMore={async (cursor) => {
         const result = await loadThreadComments({
           environmentId,
           input: { ...reference, threadId: thread.id, cursor },
@@ -1181,9 +1174,9 @@ function PullRequestCodeTab({
             type: "error",
             title: "More comments could not be loaded",
           });
-          return null;
+          return null satisfies PullRequestThreadCommentsResult | null;
         }
-        return result.value;
+        return result.value satisfies PullRequestThreadCommentsResult | null;
       }}
       onReply={(body) =>
         runThreadCommand("Reply could not be posted", () =>

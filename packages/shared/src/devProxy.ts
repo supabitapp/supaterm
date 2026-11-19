@@ -9,7 +9,7 @@ export const DEV_PROXIED_ORIGIN_PRESERVING_PREFIXES: ReadonlySet<string> = new S
   "/ws",
 ]);
 
-export function isDevProxiedPath(pathname: string): boolean {
+export function isDevProxiedPath(pathname: string) {
   return DEV_PROXIED_PATH_PREFIXES.some(
     (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
   );

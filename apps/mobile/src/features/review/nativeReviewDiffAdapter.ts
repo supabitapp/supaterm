@@ -1,5 +1,5 @@
 import { cutLineNoteStart } from "@supaterm/shared/diffCutLines";
-import type { NativeReviewDiffRow, NativeReviewDiffTheme } from "../diffs/nativeReviewDiffSurface";
+import type { NativeReviewDiffRow } from "../diffs/nativeReviewDiffSurface";
 import type { NativeReviewDiffFile } from "../diffs/nativeReviewDiffTypes";
 import * as Arr from "effect/Array";
 import { pipe } from "effect/Function";
@@ -29,10 +29,12 @@ export const NATIVE_REVIEW_DIFF_CONTENT_WIDTH = 2_800;
 
 export function buildNativeReviewSnippetRows(
   comment: Pick<ReviewInlineComment, "id" | "diff" | "fenceLanguage">,
-): NativeReviewDiffRow[] {
-  if ((comment.fenceLanguage ?? "diff") !== "diff" || !comment.diff.trim()) return [];
+) {
+  if ((comment.fenceLanguage ?? "diff") !== "diff" || !comment.diff.trim())
+    return [] satisfies NativeReviewDiffRow[];
   const lines = comment.diff.replace(/\r\n/g, "\n").replace(/\n$/, "").split("\n");
-  if (lines.some((line) => !/^[ +-]/.test(line) || /^(---|\+\+\+) /.test(line))) return [];
+  if (lines.some((line) => !/^[ +-]/.test(line) || /^(---|\+\+\+) /.test(line)))
+    return [] satisfies NativeReviewDiffRow[];
   return lines.map((line, index) => ({
     kind: "line",
     id: `${comment.id}:snippet:${index}`,
@@ -40,14 +42,14 @@ export function buildNativeReviewSnippetRows(
     change: line[0] === "+" ? "add" : line[0] === "-" ? "delete" : "context",
     oldLineNumber: null,
     newLineNumber: null,
-  }));
+  })) satisfies NativeReviewDiffRow[];
 }
 
-export function reviewCommentDiffText(diff: string): string {
+export function reviewCommentDiffText(diff: string) {
   return diff.trimStart().replace(/\n+$/, "");
 }
 
-export function buildReviewCommentPatch(comment: ReviewInlineComment): string {
+export function buildReviewCommentPatch(comment: ReviewInlineComment) {
   if ((comment.fenceLanguage ?? "diff") !== "diff") {
     return "";
   }
@@ -69,7 +71,7 @@ export function buildReviewCommentPatch(comment: ReviewInlineComment): string {
   ].join("\n");
 }
 
-function opaqueNativeHexColor(color: string, background: string): string {
+function opaqueNativeHexColor(color: string, background: string) {
   const hex = NATIVE_HEX_COLOR.exec(color);
   if (hex && !hex[4]) return color;
 
@@ -176,7 +178,7 @@ interface PreparedNativeReviewDiffData extends Omit<NativeReviewDiffData, "rows"
 const nativeReviewDiffDataCache = new WeakMap<ReviewParsedDiff, CachedNativeReviewDiffData>();
 const nativeReviewFileRowsCache = new WeakMap<ReviewRenderableFile, PreparedNativeReviewFileRows>();
 
-function buildReviewCommentsCacheKey(comments: ReadonlyArray<ReviewInlineComment>): string {
+function buildReviewCommentsCacheKey(comments: ReadonlyArray<ReviewInlineComment>) {
   if (comments.length === 0) {
     return "none";
   }
@@ -199,7 +201,7 @@ export function createNativeReviewDiffTheme(
   scheme: TerminalAppearanceScheme,
   themeId: MobileThemeId,
   appTheme: MobileThemeVariables,
-): NativeReviewDiffTheme {
+) {
   const terminalTheme = getMobileTerminalTheme(themeId, scheme);
   const [, terminalRed] = terminalTheme.palette;
   const screen = opaqueNativeHexColor(
@@ -248,7 +250,7 @@ export function createNativeReviewDiffTheme(
   };
 }
 
-function mapChangeType(file: ReviewRenderableFile): NativeReviewDiffRow["changeType"] {
+function mapChangeType(file: ReviewRenderableFile) {
   switch (file.changeType) {
     case "change":
       return "modified";
@@ -262,16 +264,16 @@ function mapChangeType(file: ReviewRenderableFile): NativeReviewDiffRow["changeT
   }
 }
 
-function createNoticeRow(fileId: string, suffix: string, text: string): NativeReviewDiffRow {
+function createNoticeRow(fileId: string, suffix: string, text: string) {
   return {
     kind: "notice",
     id: `${fileId}:notice:${suffix}`,
     fileId,
     text,
-  };
+  } satisfies NativeReviewDiffRow;
 }
 
-function noticeRowsForFile(file: ReviewRenderableFile): ReadonlyArray<NativeReviewDiffRow> {
+function noticeRowsForFile(file: ReviewRenderableFile) {
   if (file.notice) {
     return [
       {
@@ -279,30 +281,32 @@ function noticeRowsForFile(file: ReviewRenderableFile): ReadonlyArray<NativeRevi
         ...(file.noticeTone === undefined ? {} : { tone: file.noticeTone }),
         ...(file.noticeActionable ? { actionable: true } : {}),
       },
-    ];
+    ] satisfies ReadonlyArray<NativeReviewDiffRow>;
   }
   if (file.rows.length > 0) {
-    return [];
+    return [] satisfies ReadonlyArray<NativeReviewDiffRow>;
   }
 
   const previewState = getReviewFilePreviewState(file);
   if (previewState.kind === "suppressed" && previewState.reason === "non-text") {
     return [
       createNoticeRow(file.id, "non-text", "Unsupported format. Diff contents are not available."),
-    ];
+    ] satisfies ReadonlyArray<NativeReviewDiffRow>;
   }
 
   if (file.changeType === "rename-pure") {
-    return [createNoticeRow(file.id, "rename", "This file was renamed without modifications.")];
+    return [
+      createNoticeRow(file.id, "rename", "This file was renamed without modifications."),
+    ] satisfies ReadonlyArray<NativeReviewDiffRow>;
   }
 
-  return [];
+  return [] satisfies ReadonlyArray<NativeReviewDiffRow>;
 }
 
 function trimWordDiffRanges(
   content: string,
   ranges: NonNullable<NativeReviewDiffRow["wordDiffRanges"]>,
-): NonNullable<NativeReviewDiffRow["wordDiffRanges"]> {
+) {
   return pipe(
     ranges,
     Arr.flatMap((range) => {
@@ -348,7 +352,7 @@ function shouldUseWordDiffRanges(
 function addNativeWordDiffRanges(
   rows: ReadonlyArray<NativeReviewDiffRow>,
   lineRows: ReadonlyArray<ReviewRenderableLineRow>,
-): ReadonlyArray<NativeReviewDiffRow> {
+) {
   const nextRows = [...rows];
   const addedRowIndexes = new Map<number, number>();
   const pairs: Array<{ deletionRowIndex: number; additionTokenIndex: number }> = [];
@@ -392,11 +396,7 @@ function addNativeWordDiffRanges(
   return nextRows;
 }
 
-function mapLineRow(
-  file: ReviewRenderableFile,
-  row: ReviewRenderableLineRow,
-  rowIndex: number,
-): NativeReviewDiffRow {
+function mapLineRow(file: ReviewRenderableFile, row: ReviewRenderableLineRow, rowIndex: number) {
   const noteStart = cutLineNoteStart(row.content);
   return {
     kind: "line",
@@ -407,10 +407,10 @@ function mapLineRow(
     oldLineNumber: row.oldLineNumber,
     newLineNumber: row.newLineNumber,
     ...(noteStart === null ? {} : { noteStart }),
-  };
+  } satisfies NativeReviewDiffRow;
 }
 
-function prepareFileRows(file: ReviewRenderableFile): PreparedNativeReviewFileRows {
+function prepareFileRows(file: ReviewRenderableFile) {
   const cached = nativeReviewFileRowsCache.get(file);
   if (cached) return cached;
   const commentTargetsByRowId = new Map<string, NativeReviewDiffCommentTarget>();
@@ -485,7 +485,7 @@ function prepareFileRows(file: ReviewRenderableFile): PreparedNativeReviewFileRo
 function insertFileComments(
   file: PreparedNativeReviewFileRows,
   comments: ReadonlyArray<ReviewInlineComment>,
-): ReadonlyArray<NativeReviewDiffRow> {
+) {
   if (comments.length === 0) {
     file.commentedRows = null;
     return file.rows;
@@ -529,7 +529,8 @@ function insertFileComments(
   return rows;
 }
 
-function prepareNativeReviewDiffData(parsedDiff: ReviewParsedDiff): PreparedNativeReviewDiffData {
+function prepareNativeReviewDiffData(parsedDiff: ReviewParsedDiff): PreparedNativeReviewDiffData;
+function prepareNativeReviewDiffData(parsedDiff: ReviewParsedDiff) {
   if (parsedDiff.kind !== "files") {
     return {
       fileRows: [],
@@ -538,7 +539,7 @@ function prepareNativeReviewDiffData(parsedDiff: ReviewParsedDiff): PreparedNati
       rowIdByCommentLineId: new Map(),
       additions: 0,
       deletions: 0,
-    };
+    } satisfies PreparedNativeReviewDiffData;
   }
 
   const files = parsedDiff.files.map<NativeReviewDiffFile>((file) => ({
@@ -567,13 +568,13 @@ function prepareNativeReviewDiffData(parsedDiff: ReviewParsedDiff): PreparedNati
     rowIdByCommentLineId,
     additions: parsedDiff.additions,
     deletions: parsedDiff.deletions,
-  };
+  } satisfies PreparedNativeReviewDiffData;
 }
 
 function buildCommentedNativeReviewDiffData(
   prepared: PreparedNativeReviewDiffData,
   comments: ReadonlyArray<ReviewInlineComment>,
-): NativeReviewDiffData {
+) {
   const commentsByFilePath = new Map<string, ReviewInlineComment[]>();
   for (const comment of comments) {
     const existing = commentsByFilePath.get(comment.filePath);
@@ -601,7 +602,7 @@ export function buildNativeReviewDiffData(
 export function buildNativeReviewDiffData(parsedDiff: ReviewParsedDiff): NativeReviewDiffData;
 export function buildNativeReviewDiffData(
   input: ReviewParsedDiff | BuildNativeReviewDiffDataInput,
-): NativeReviewDiffData {
+) {
   const parsedDiff = "parsedDiff" in input ? input.parsedDiff : input;
   const comments = "parsedDiff" in input ? (input.comments ?? []) : [];
   return buildCommentedNativeReviewDiffData(prepareNativeReviewDiffData(parsedDiff), comments);
@@ -609,16 +610,17 @@ export function buildNativeReviewDiffData(
 
 export function getCachedNativeReviewDiffData(
   input: BuildNativeReviewDiffDataInput,
-): NativeReviewDiffData {
+): NativeReviewDiffData;
+export function getCachedNativeReviewDiffData(input: BuildNativeReviewDiffDataInput) {
   const comments = input.comments ?? [];
   const commentsKey = buildReviewCommentsCacheKey(comments);
   const cached = nativeReviewDiffDataCache.get(input.parsedDiff);
   if (cached?.commentsKey === commentsKey) {
-    return cached.data;
+    return cached.data satisfies NativeReviewDiffData;
   }
 
   const prepared = cached?.prepared ?? prepareNativeReviewDiffData(input.parsedDiff);
   const data = buildCommentedNativeReviewDiffData(prepared, comments);
   nativeReviewDiffDataCache.set(input.parsedDiff, { prepared, commentsKey, data });
-  return data;
+  return data satisfies NativeReviewDiffData;
 }

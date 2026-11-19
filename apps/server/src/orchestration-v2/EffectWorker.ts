@@ -46,7 +46,7 @@ export class OrchestrationEffectExecutionError extends Schema.TaggedError<Orches
 
 const isOrchestrationEffectExecutionError = Schema.is(OrchestrationEffectExecutionError);
 
-function isNonRetryableProviderTurnControlFailure(effectType: string, errorText: string): boolean {
+function isNonRetryableProviderTurnControlFailure(effectType: string, errorText: string) {
   if (effectType !== "provider-turn.interrupt") {
     return false;
   }
@@ -758,13 +758,7 @@ export interface OrchestrationEffectWorkerOptions {
   readonly maxAttempts?: number;
 }
 
-export const layerWithOptions = (
-  options: OrchestrationEffectWorkerOptions = {},
-): Layer.Layer<
-  OrchestrationEffectWorkerV2,
-  never,
-  EffectOutbox.EffectOutboxV2 | OrchestrationEffectExecutorV2
-> =>
+export const layerWithOptions = (options: OrchestrationEffectWorkerOptions = {}) =>
   Layer.effect(
     OrchestrationEffectWorkerV2,
     Effect.gen(function* () {

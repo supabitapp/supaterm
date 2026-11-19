@@ -38,7 +38,7 @@ const CONFIG_PART_AT = new RegExp(
 const PART_OPENER =
   /(?<=[{,]\s*["']?([\p{ID_Start}$_][\p{ID_Continue}$\u200c\u200d]*)["']?\s*:\s*[[{]\s*)/uy;
 
-const staticConfigUse = (source: string): "spreads" | "replaces" | "unclear" => {
+const staticConfigUse = (source: string) => {
   let spreads = 0;
   let at = 0;
   for (;;) {
@@ -71,7 +71,7 @@ const REPLACES_HOLDER =
   /(?:\.\s*(?:extra|eas)|\[\s*["'`](?:extra|eas)["'`]\s*\])\s*=(?!=)|\bdelete\b|\brequire\s*\(|\bimport\s*\((?!\s*(["'])expo\/config\1\s*\)\s*\.\s*[A-Z])/;
 const EXTRA_OR_EAS = /(?:\b(extra|eas)|["'`](extra|eas)["'`]\s*\]?)\s*:\s*/g;
 const SHORTHAND_EXTRA_OR_EAS = /(?<![.\p{ID_Continue}$])(?:extra|eas)\s*(?=[,}])/u;
-const keepsStaticExtra = (source: string): boolean => {
+const keepsStaticExtra = (source: string) => {
   if (SHORTHAND_EXTRA_OR_EAS.test(source)) return false;
   let entries = 0;
   for (const entry of source.matchAll(EXTRA_OR_EAS)) {

@@ -10,7 +10,7 @@ export function startGlobalShiftShortcutProcess(
   modifier: SnapShotModifier,
   onTrigger: () => void,
   onFailure: (error: Error) => void,
-): Promise<() => void> {
+) {
   const worker = NodeChildProcess.fork(workerPath, [modifier], {
     env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" },
     execArgv: [],
@@ -57,5 +57,5 @@ export function startGlobalShiftShortcutProcess(
     worker.once("exit", (code) => {
       fail(new Error(`Snapshot shortcut helper exited with code ${code}`));
     });
-  });
+  }) satisfies Promise<() => void>;
 }

@@ -1,7 +1,7 @@
 import type { PullRequestBodySegment } from "@supaterm/client-runtime/pull-request-markdown";
 import type { MarkdownNode } from "../../lib/markdownDocument";
 
-function isWebUrl(url: string): boolean {
+function isWebUrl(url: string) {
   try {
     const parsed = new URL(url);
     return parsed.protocol === "https:" || parsed.protocol === "http:";

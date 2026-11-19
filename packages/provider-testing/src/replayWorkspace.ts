@@ -2,7 +2,6 @@ import * as NodeServices from "@effect/platform-node/NodeServices";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
-import * as PlatformError from "effect/PlatformError";
 import * as Schema from "effect/Schema";
 import * as ChildProcess from "effect/process/ChildProcess";
 import * as ChildProcessSpawner from "effect/process/ChildProcessSpawner";
@@ -14,19 +13,12 @@ class ReplayFixtureGitCommandError extends Schema.TaggedError<ReplayFixtureGitCo
     exitCode: Schema.Number,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `${this.command} failed with exit ${this.exitCode}.`;
   }
 }
 
-function runGit(
-  cwd: string,
-  args: ReadonlyArray<string>,
-): Effect.Effect<
-  void,
-  ReplayFixtureGitCommandError | PlatformError.PlatformError,
-  ChildProcessSpawner.ChildProcessSpawner
-> {
+function runGit(cwd: string, args: ReadonlyArray<string>) {
   return Effect.gen(function* () {
     const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
     const exitCode = yield* spawner.exitCode(ChildProcess.make("git", args, { cwd }));
@@ -76,10 +68,7 @@ export const checkpointWorkspace = (fixtureName: string, files?: ReplayWorkspace
     removeCheckpointWorkspaceEffect(cwd).pipe(Effect.orDie),
   ).pipe(Effect.provide(NodeServices.layer));
 
-export async function makeCheckpointWorkspace(
-  fixtureName: string,
-  files?: ReplayWorkspaceFiles,
-): Promise<string> {
+export async function makeCheckpointWorkspace(fixtureName: string, files?: ReplayWorkspaceFiles) {
   return await Effect.runPromise(
     makeCheckpointWorkspaceEffect(fixtureName, files).pipe(Effect.provide(NodeServices.layer)),
   );

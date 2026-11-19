@@ -48,54 +48,56 @@ class FakeElement {
     private readonly attributes: Readonly<Record<string, string>> = {},
   ) {}
 
-  get localName(): string {
+  get localName() {
     return this.tagName.toLowerCase();
   }
 
-  get textContent(): string {
-    return this.childNodes.map((child) => child.textContent).join("");
+  get textContent() {
+    return this.childNodes.map((child) => child.textContent).join("") satisfies string as string;
   }
 
-  get children(): ReadonlyArray<FakeElement> {
+  get children() {
     return this.childNodes.filter((child): child is FakeElement => child instanceof FakeElement);
   }
 
-  append(...children: Array<FakeElement | FakeText>): this {
+  append(...children: Array<FakeElement | FakeText>) {
     this.childNodes.push(...children);
     return this;
   }
 
-  getAttribute(name: string): string | null {
-    return this.attributes[name] ?? null;
+  getAttribute(name: string): string | null;
+  getAttribute(name: string) {
+    return (this.attributes[name] ?? null) satisfies string | null;
   }
 
-  hasAttribute(name: string): boolean {
+  hasAttribute(name: string) {
     return Object.hasOwn(this.attributes, name);
   }
 
-  closest(): FakeElement | null {
+  closest() {
     return null;
   }
 
-  querySelector(selector: string): FakeElement | null {
+  querySelector(selector: string): FakeElement | null;
+  querySelector(selector: string) {
     if (selector.includes(", ")) {
       for (const part of selector.split(", ")) {
         const match = this.querySelector(part);
-        if (match) return match;
+        if (match) return match satisfies FakeElement | null;
       }
-      return null;
+      return null satisfies FakeElement | null;
     }
     const childOnly = selector.startsWith(":scope > ");
     const [target, ...rest] = (childOnly ? selector.slice(":scope > ".length) : selector).split(
       " > ",
     );
-    const matches = (element: FakeElement): boolean => {
+    const matches: (element: FakeElement) => boolean = (element: FakeElement) => {
       if (target === 'input[type="checkbox"]') {
         return element.tagName === "INPUT" && element.getAttribute("type") === "checkbox";
       }
       return element.tagName === target?.toUpperCase();
     };
-    const search = (parent: FakeElement): FakeElement | null => {
+    const search: (parent: FakeElement) => FakeElement | null = (parent: FakeElement) => {
       for (const child of parent.childNodes) {
         if (!(child instanceof FakeElement)) continue;
         if (matches(child)) {
@@ -110,10 +112,10 @@ class FakeElement {
       }
       return null;
     };
-    return search(this);
+    return search(this) satisfies FakeElement | null;
   }
 
-  querySelectorAll(selector: string): FakeElement[] {
+  querySelectorAll(selector: string) {
     return selector.split(", ").flatMap((part) =>
       part
         .replace(/^:scope > /, "")
@@ -129,16 +131,16 @@ class FakeElement {
   }
 }
 
-function asNode(element: FakeElement): Node {
+function asNode(element: FakeElement) {
   return element as unknown as Node;
 }
 
-function shikiCodeLine(text: string): FakeElement {
+function shikiCodeLine(text: string) {
   const token = new FakeElement("SPAN").append(new FakeText(text));
   return new FakeElement("SPAN", ["line"]).append(token);
 }
 
-function renderedCodeBlock(lines: ReadonlyArray<string>): FakeElement {
+function renderedCodeBlock(lines: ReadonlyArray<string>) {
   const code = new FakeElement("CODE");
   lines.forEach((line, index) => {
     if (index > 0) code.append(new FakeText("\n"));
@@ -433,14 +435,14 @@ describe("serializeRenderedMarkdownFragment", () => {
   });
 });
 
-function renderedFormula(tex: string): FakeElement {
+function renderedFormula(tex: string) {
   return new FakeElement("SPAN", [], {
     "data-markdown-math": "inline",
     "data-markdown-copy": `\\(${tex}\\)`,
   }).append(new FakeText(tex));
 }
 
-function renderedTable(...rows: Array<Array<FakeElement | FakeText>>): FakeElement {
+function renderedTable(...rows: Array<Array<FakeElement | FakeText>>) {
   const row = (tag: string, cells: Array<FakeElement | FakeText>) =>
     new FakeElement("TR").append(...cells.map((cell) => new FakeElement(tag).append(cell)));
   const [head = [], ...body] = rows;

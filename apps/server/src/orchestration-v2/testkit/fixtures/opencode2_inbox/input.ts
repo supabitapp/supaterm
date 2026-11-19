@@ -6,7 +6,7 @@ import {
   type OrchestratorFixtureInput,
 } from "../shared.ts";
 
-export function openCode2InboxInput(): OrchestratorFixtureInput {
+export function openCode2InboxInput() {
   return {
     steps: [
       { type: "message", text: OPENCODE2_STEER_PROMPT },
@@ -15,5 +15,5 @@ export function openCode2InboxInput(): OrchestratorFixtureInput {
       { type: "cancel_queued_run", targetRunIndex: 3 },
       { type: "steer", text: OPENCODE2_STEER_TEXT, targetRunIndex: 1 },
     ],
-  };
+  } satisfies OrchestratorFixtureInput;
 }

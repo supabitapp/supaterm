@@ -24,7 +24,7 @@ const GENERATED_DIRECTORIES = new Set([
 const TEST_DIRECTORIES = new Set(["__tests__", "tests", "test"]);
 const MODULE_EXTENSIONS = [".mts", ".cts", ".mjs", ".cjs", ".tsx", ".jsx", ".ts", ".js"];
 
-function diffFileTier(path: string): DiffFileTier {
+function diffFileTier(path: string) {
   const segments = path.split("/");
   const name = segments.at(-1) ?? "";
   if (
@@ -46,26 +46,26 @@ function diffFileTier(path: string): DiffFileTier {
   return "source";
 }
 
-function stripExtension(path: string): string {
+function stripExtension(path: string) {
   const dot = path.lastIndexOf(".");
   const slash = path.lastIndexOf("/");
   return dot > slash ? path.slice(0, dot) : path;
 }
 
-function baseName(path: string): string {
+function baseName(path: string) {
   return stripExtension(path.split("/").at(-1) ?? "");
 }
 
-function stripModuleExtension(path: string): string {
+function stripModuleExtension(path: string) {
   const extension = MODULE_EXTENSIONS.find((candidate) => path.endsWith(candidate));
   return extension === undefined ? path : path.slice(0, -extension.length);
 }
 
-function moduleName(path: string): string {
+function moduleName(path: string) {
   return stripModuleExtension(path.split("/").at(-1) ?? "");
 }
 
-function resolveRelative(fromPath: string, specifier: string): string {
+function resolveRelative(fromPath: string, specifier: string) {
   const segments = fromPath.split("/").slice(0, -1);
   for (const part of specifier.split("/")) {
     if (part === "." || part === "") continue;
@@ -82,7 +82,7 @@ function importedPaths(
   lines: ReadonlyArray<string>,
   byModulePath: ReadonlyMap<string, string>,
   byModuleName: ReadonlyMap<string, string>,
-): ReadonlySet<string> {
+) {
   const imported = new Set<string>();
   for (const line of lines) {
     IMPORT_SPECIFIER.lastIndex = 0;
@@ -106,7 +106,7 @@ function importedPaths(
 function orderByImports(
   paths: ReadonlyArray<string>,
   imports: ReadonlyMap<string, ReadonlySet<string>>,
-): Array<string> {
+) {
   const remaining = new Set(paths);
   const ordered: Array<string> = [];
   const sorted = [...paths].sort((left, right) => left.localeCompare(right));
@@ -122,7 +122,7 @@ function orderByImports(
   return ordered;
 }
 
-function testedSourcePosition(path: string, sourcePositions: ReadonlyMap<string, number>): number {
+function testedSourcePosition(path: string, sourcePositions: ReadonlyMap<string, number>) {
   let name = (path.split("/").at(-1) ?? "").replace(/\.(?:test|spec)\..*$/, "");
   while (true) {
     const position = sourcePositions.get(name);
@@ -133,9 +133,7 @@ function testedSourcePosition(path: string, sourcePositions: ReadonlyMap<string,
   }
 }
 
-export function orderDiffFiles(
-  files: ReadonlyArray<FileDiffMetadata>,
-): ReadonlyArray<FileDiffMetadata> {
+export function orderDiffFiles(files: ReadonlyArray<FileDiffMetadata>) {
   const byPath = new Map<string, FileDiffMetadata>();
   for (const file of files) byPath.set(resolveFileDiffPath(file), file);
   const tiers = new Map<string, DiffFileTier>();

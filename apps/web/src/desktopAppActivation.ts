@@ -44,35 +44,29 @@ export interface DesktopAppActivationDependencies {
   ) => Promise<{ readonly threadId: ThreadId } | null>;
 }
 
-function failure(
-  requestId: string,
-  code: DesktopAppActivationFailure["code"],
-  message: string,
-): DesktopAppActivationFailure {
-  return { version: 1, requestId, ok: false, code, message };
+function failure(requestId: string, code: DesktopAppActivationFailure["code"], message: string) {
+  return { version: 1, requestId, ok: false, code, message } satisfies DesktopAppActivationFailure;
 }
 
-function desktopPlatformToEnvironmentOs(
-  platform: DesktopAppActivationPlatform,
-): ExecutionEnvironmentPlatformOs {
+function desktopPlatformToEnvironmentOs(platform: DesktopAppActivationPlatform) {
   return platform === "win32" ? "windows" : platform;
 }
 
-function errorMessage(error: unknown, fallback: string): string {
+function errorMessage(error: unknown, fallback: string) {
   return error instanceof Error && error.message.trim().length > 0 ? error.message : fallback;
 }
 
 export async function handleDesktopAppActivationRequest(
   request: DesktopAppOpenWorkspaceRequest,
   dependencies: DesktopAppActivationDependencies,
-): Promise<DesktopAppActivationResponse> {
+) {
   const target = dependencies.getTarget();
   if (target === null) {
     return failure(
       request.requestId,
       "environment-unavailable",
       "The desktop app's primary local environment is not connected.",
-    );
+    ) satisfies DesktopAppActivationResponse;
   }
 
   const requestPlatform = desktopPlatformToEnvironmentOs(request.platform);
@@ -81,7 +75,7 @@ export async function handleDesktopAppActivationRequest(
       request.requestId,
       "platform-mismatch",
       `The command path is for ${requestPlatform}, but the desktop app's primary environment uses ${target.platform}. Cross-platform path mapping is not supported.`,
-    );
+    ) satisfies DesktopAppActivationResponse;
   }
 
   let projectId = dependencies.findProject(target.environmentId, request.workspaceRoot)?.id ?? null;
@@ -94,7 +88,7 @@ export async function handleDesktopAppActivationRequest(
         request.requestId,
         "project-create-failed",
         errorMessage(error, "Supaterm could not add the project."),
-      );
+      ) satisfies DesktopAppActivationResponse;
     }
   }
 
@@ -108,7 +102,7 @@ export async function handleDesktopAppActivationRequest(
         request.requestId,
         "thread-open-failed",
         "Supaterm could not open a new thread for the project.",
-      );
+      ) satisfies DesktopAppActivationResponse;
     }
     return {
       version: 1,
@@ -116,13 +110,13 @@ export async function handleDesktopAppActivationRequest(
       ok: true,
       projectId,
       threadId: opened.threadId,
-    };
+    } satisfies DesktopAppActivationResponse;
   } catch (error) {
     return failure(
       request.requestId,
       "thread-open-failed",
       errorMessage(error, "Supaterm could not open a new thread for the project."),
-    );
+    ) satisfies DesktopAppActivationResponse;
   }
 }
 
@@ -133,7 +127,7 @@ export async function handleDesktopAppConnectionRequest(
   }) => Promise<
     AtomCommandResult<EnvironmentId, ConnectionAttemptError | ConnectionPersistenceError>
   >,
-): Promise<DesktopAppActivationResponse> {
+) {
   const result = await registerPairing({ pairingUrl: request.pairingUrl });
   if (result._tag === "Success") {
     return {
@@ -142,7 +136,7 @@ export async function handleDesktopAppConnectionRequest(
       ok: true,
       result: "connection-added",
       environmentId: result.value,
-    };
+    } satisfies DesktopAppActivationResponse;
   }
   const error = Cause.findErrorOption(result.cause);
   if (Option.isNone(error)) {
@@ -150,20 +144,20 @@ export async function handleDesktopAppConnectionRequest(
       request.requestId,
       "internal-error",
       "Supaterm could not complete the connection request.",
-    );
+    ) satisfies DesktopAppActivationResponse;
   }
   if (error.value._tag === "ConnectionPersistenceError") {
     return failure(
       request.requestId,
       "connection-save-failed",
       "Supaterm could not save the connection. Check secure storage and try pairing again.",
-    );
+    ) satisfies DesktopAppActivationResponse;
   }
   return failure(
     request.requestId,
     "pairing-failed",
     "Supaterm could not pair with the environment. Check its address and use a fresh pairing link.",
-  );
+  ) satisfies DesktopAppActivationResponse;
 }
 
 export function createDesktopAppActivationRunner() {

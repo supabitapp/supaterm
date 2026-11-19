@@ -71,7 +71,7 @@ export class PullRequestThreadRequiredError extends Schema.TaggedError<PullReque
   "PullRequestThreadRequiredError",
   {},
 ) {
-  override get message(): string {
+  override get message() {
     return "Pass threadId: this MCP client is not running inside a Supaterm thread.";
   }
 }
@@ -80,7 +80,7 @@ export class PullRequestLinkFailedError extends Schema.TaggedError<PullRequestLi
   "PullRequestLinkFailedError",
   { cause: Schema.Defect() },
 ) {
-  override get message(): string {
+  override get message() {
     return "Could not link the pull request.";
   }
 }
@@ -89,7 +89,7 @@ export class PullRequestUnlinkFailedError extends Schema.TaggedError<PullRequest
   "PullRequestUnlinkFailedError",
   { cause: Schema.Defect() },
 ) {
-  override get message(): string {
+  override get message() {
     return "Could not unlink the pull request.";
   }
 }
@@ -98,7 +98,7 @@ export class PullRequestListFailedError extends Schema.TaggedError<PullRequestLi
   "PullRequestListFailedError",
   { cause: Schema.Defect() },
 ) {
-  override get message(): string {
+  override get message() {
     return "Could not list the pull request.";
   }
 }
@@ -107,7 +107,7 @@ export class PullRequestProjectNotFoundError extends Schema.TaggedError<PullRequ
   "PullRequestProjectNotFoundError",
   { repository: Schema.String },
 ) {
-  override get message(): string {
+  override get message() {
     return `No project in this environment is a checkout of ${this.repository}, so its pull requests cannot be read here. Add one with supaterm_project_create.`;
   }
 }
@@ -116,7 +116,7 @@ export class PullRequestGuideFailedError extends Schema.TaggedError<PullRequestG
   "PullRequestGuideFailedError",
   { detail: Schema.String, cause: Schema.optional(Schema.Defect()) },
 ) {
-  override get message(): string {
+  override get message() {
     return this.detail;
   }
 }

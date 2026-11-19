@@ -63,7 +63,16 @@ function loadDecodedCache<A, B>(input: {
   readonly operation: CacheOperation;
   readonly decode: (raw: string) => Effect.Effect<A, unknown>;
   readonly select: (value: A) => Option.Option<B>;
-}): Effect.Effect<Option.Option<B>, Persistence.ConnectionPersistenceError> {
+}): Effect.Effect<Option.Option<B>, Persistence.ConnectionPersistenceError>;
+function loadDecodedCache<A, B>(input: {
+  readonly database: MobileDatabase.MobileDatabase["Service"];
+  readonly environmentId: EnvironmentId;
+  readonly kind: MobileDatabase.ClientCacheKind;
+  readonly cacheKey: string;
+  readonly operation: CacheOperation;
+  readonly decode: (raw: string) => Effect.Effect<A, unknown>;
+  readonly select: (value: A) => Option.Option<B>;
+}) {
   return input.database.loadCache(input.environmentId, input.kind, input.cacheKey).pipe(
     Effect.mapError(mapDatabaseError(input.operation)),
     Effect.flatMap(
@@ -90,7 +99,7 @@ function loadDecodedCache<A, B>(input: {
           ),
       }),
     ),
-  );
+  ) satisfies Effect.Effect<Option.Option<B>, Persistence.ConnectionPersistenceError>;
 }
 
 export const make = Effect.fn("MobileEnvironmentCacheStore.make")(function* () {

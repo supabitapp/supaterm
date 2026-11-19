@@ -175,12 +175,12 @@ function FileHeader(props: {
 
 type FileViewMode = "preview" | "source";
 
-function firstRouteParam(value: string | string[] | undefined): string | null {
+function firstRouteParam(value: string | string[] | undefined) {
   const first = Array.isArray(value) ? value[0] : value;
   return first === undefined || first.trim().length === 0 ? null : first;
 }
 
-function normalizeRoutePath(value: string | string[] | undefined): string | null {
+function normalizeRoutePath(value: string | string[] | undefined) {
   const path = Array.isArray(value) ? value.join("/") : value;
   if (path === undefined || path.trim().length === 0) {
     return null;
@@ -188,7 +188,7 @@ function normalizeRoutePath(value: string | string[] | undefined): string | null
   return path;
 }
 
-function normalizeRouteLine(value: string | null): number | null {
+function normalizeRouteLine(value: string | null) {
   if (value === null) {
     return null;
   }
@@ -196,7 +196,7 @@ function normalizeRouteLine(value: string | null): number | null {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
 }
 
-function defaultViewMode(path: string | null): FileViewMode {
+function defaultViewMode(path: string | null) {
   return path !== null &&
     (isWorkspaceBrowserPreviewPath(path) ||
       isWorkspaceImagePreviewPath(path) ||

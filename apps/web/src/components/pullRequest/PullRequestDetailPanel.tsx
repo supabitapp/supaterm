@@ -166,7 +166,7 @@ import { guideRunKey, useGuideRunStore } from "./guide/guideRunStore";
 import { useReviewGuideWriter } from "./guide/useReviewGuideWriter";
 import { usePaneInputOwner } from "../../chatPanes/paneScope";
 
-const actionSuccessLabels = (term: string): Record<PullRequestAction, string> => ({
+const actionSuccessLabels = (term: string) => ({
   merge: `${capitalizeTerm(term)} merged`,
   ready: "Marked ready for review",
   draft: "Converted to draft",
@@ -181,7 +181,7 @@ const actionSuccessLabels = (term: string): Record<PullRequestAction, string> =>
   "approve-workflows": "Workflows approved",
 });
 
-const actionFailureLabels = (term: string): Record<PullRequestAction, string> => ({
+const actionFailureLabels = (term: string) => ({
   merge: `Could not merge this ${term}`,
   ready: "Could not mark this ready for review",
   draft: "Could not convert this to a draft",
@@ -195,7 +195,7 @@ const actionFailureLabels = (term: string): Record<PullRequestAction, string> =>
   "approve-workflows": "Could not approve workflows",
 });
 
-const actionFailureHints = (term: string): Record<PullRequestAction, string> => ({
+const actionFailureHints = (term: string) => ({
   merge:
     "The host refused the merge. Check that you have write access, that the checks it requires have passed, and that the branch is not conflicting.",
   ready: "The host refused it. Check that you have write access to this repository.",
@@ -249,7 +249,7 @@ function pullRequestMarkdownContext(
   };
 }
 
-function linkedTab(anchor: PullRequestAnchor | null): PullRequestDetailTab | null {
+function linkedTab(anchor: PullRequestAnchor | null) {
   switch (anchor?.kind) {
     case "code":
     case "diff":
@@ -831,17 +831,17 @@ export function PullRequestDetailPanel({
     projectRef: ReturnType<typeof scopeProjectRef>,
     task: PullRequestThreadTask | null,
     opened?: { draftId: DraftId },
-  ): Promise<{ draftId: DraftId } | null> => {
+  ) => {
     const session =
       opened ??
       (await newThread(projectRef).then(
         (result) => result,
         () => null,
       ));
-    if (session === null) return null;
-    if (task === null) return session;
+    if (session === null) return null satisfies { draftId: DraftId } | null;
+    if (task === null) return session satisfies { draftId: DraftId } | null;
     writeHandoffToComposer(session.draftId, task);
-    return session;
+    return session satisfies { draftId: DraftId } | null;
   };
 
   const startAsk = async (

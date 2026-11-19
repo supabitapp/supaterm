@@ -21,17 +21,12 @@ const DEVICE_TOOL_VERSIONS = JSON.parse(
   ),
 ) as { readonly "agent-device": string; readonly "expo-device-hub": string };
 
-async function writeJson(path: string, value: unknown): Promise<void> {
+async function writeJson(path: string, value: unknown) {
   await NodeFSP.mkdir(NodePath.dirname(path), { recursive: true });
   await NodeFSP.writeFile(path, `${JSON.stringify(value)}\n`, "utf8");
 }
 
-async function createFixture(): Promise<{
-  readonly appManifest: string;
-  readonly configFile: string;
-  readonly dependencyRoot: string;
-  readonly root: string;
-}> {
+async function createFixture() {
   const root = await NodeFSP.mkdtemp(NodePath.join(NodeOS.tmpdir(), "supaterm-licenses-"));
   tempDirectories.push(root);
   const appManifest = NodePath.join(root, "package.json");

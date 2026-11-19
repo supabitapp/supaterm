@@ -14,7 +14,6 @@ import type {
   SDKMessage,
   SDKResultMessage,
   SDKUserMessage,
-  SpawnedProcess,
   SpawnOptions,
 } from "@anthropic-ai/claude-agent-sdk";
 import type {
@@ -86,7 +85,6 @@ import * as PortScanner from "../../preview/PortScanner.ts";
 import { attachmentRelativePath } from "../../attachmentStore.ts";
 import { WorkflowAgentTranscriptReadObserver } from "../workflowAgentTranscript.ts";
 import * as ServerConfig from "../../config.ts";
-import * as McpProviderSession from "@supaterm/provider-core/server/mcpSession";
 import { SUPATERM_DEVICE_TOOL_INSTRUCTIONS_WITH_TOOL_SEARCH } from "@supaterm/provider-core/server/orchestrationInstructions";
 import * as McpProviderSessions from "@supaterm/provider-core/server/McpProviderSessions";
 import { PreviewControlsToolkit } from "../../mcp/toolkits/previewControls/tools.ts";
@@ -213,7 +211,7 @@ function makeClaudeTestAppThread(input: {
   readonly providerThread: OrchestrationV2ProviderThread;
   readonly now: DateTime.Utc;
   readonly title?: string;
-}): OrchestrationV2AppThread {
+}) {
   return {
     createdBy: "user",
     creationSource: "web",
@@ -240,7 +238,7 @@ function makeClaudeTestAppThread(input: {
     doneAt: null,
     lastVisitedAt: null,
     deletedAt: null,
-  };
+  } satisfies OrchestrationV2AppThread;
 }
 
 function makeClaudeTestTurnInput(input: {
@@ -257,7 +255,7 @@ function makeClaudeTestTurnInput(input: {
   readonly messageCreationSource?: ProviderAdapter.ProviderAdapterV2TurnInput["message"]["creationSource"];
   readonly modelSelection?: ModelSelection;
   readonly runtimePolicy?: ProviderAdapter.ProviderAdapterV2RuntimePolicy;
-}): ProviderAdapter.ProviderAdapterV2TurnInput {
+}) {
   return {
     appThread: makeClaudeTestAppThread(input),
     threadId: input.threadId,
@@ -279,7 +277,7 @@ function makeClaudeTestTurnInput(input: {
     },
     modelSelection: input.modelSelection ?? CLAUDE_TEST_MODEL_SELECTION,
     runtimePolicy: input.runtimePolicy ?? CLAUDE_TEST_RUNTIME_POLICY,
-  };
+  } satisfies ProviderAdapter.ProviderAdapterV2TurnInput;
 }
 
 describe("ClaudeAdapterV2 native resume history", () => {
@@ -652,7 +650,7 @@ describe("ClaudeAdapterV2 MCP query overrides", () => {
   const mcpSessionFor = (
     threadId: ThreadId,
     authorizationHeader = "Bearer secret-claude-token",
-  ): McpProviderSession.McpProviderSessionConfig => ({
+  ) => ({
     environmentId: EnvironmentId.make(`environment-${threadId}`),
     threadId,
     providerSessionId: `mcp-session-${threadId}`,
@@ -1548,15 +1546,13 @@ describe("ClaudeAdapterV2 approval cancellation", () => {
 });
 
 describe("ClaudeAdapterV2 MCP elicitation acceptance", () => {
-  const form = (
-    properties: Record<string, unknown>,
-    required?: ReadonlyArray<string>,
-  ): ElicitationRequest => ({
-    serverName: "deploys",
-    message: "Deploy web?",
-    mode: "form",
-    requestedSchema: { type: "object", properties, ...(required ? { required } : {}) },
-  });
+  const form = (properties: Record<string, unknown>, required?: ReadonlyArray<string>) =>
+    ({
+      serverName: "deploys",
+      message: "Deploy web?",
+      mode: "form",
+      requestedSchema: { type: "object", properties, ...(required ? { required } : {}) },
+    }) satisfies ElicitationRequest;
   const acceptOnCard = (request: ElicitationRequest) =>
     ClaudeAdapterV2.claudeMcpElicitationAcceptance(request, { fullAccess: false });
 
@@ -2878,7 +2874,7 @@ function makeFakeClaudeCli(answerSetServers = true) {
   const spawns: Array<SpawnOptions> = [];
   const controlRequests: Array<object> = [];
   const stdins: Array<NodeStream.PassThrough> = [];
-  const spawn = (options: SpawnOptions): SpawnedProcess => {
+  const spawn = (options: SpawnOptions) => {
     spawns.push(options);
     const stdin = new NodeStream.PassThrough();
     const stdout = new NodeStream.PassThrough();
@@ -3157,7 +3153,7 @@ describe("ClaudeAdapterV2 background wake turns", () => {
   const WAKE_ASSISTANT_TEXT = "WAKE_DONE";
   const WAKE_RESULT_TEXT = "WAKE_DONE";
 
-  function claudeSdkFrame(frame: unknown): SDKMessage {
+  function claudeSdkFrame(frame: unknown) {
     if (
       typeof frame !== "object" ||
       frame === null ||
@@ -3327,7 +3323,7 @@ describe("ClaudeAdapterV2 background wake turns", () => {
 
   const makeChangeSignal = Effect.gen(function* () {
     const changes = yield* PubSub.unbounded<void>();
-    const until = (predicate: () => boolean): Effect.Effect<void> =>
+    const until = (predicate: () => boolean) =>
       Effect.scoped(
         Effect.gen(function* () {
           const subscription = yield* PubSub.subscribe(changes);
@@ -3337,7 +3333,7 @@ describe("ClaudeAdapterV2 background wake turns", () => {
     return { notify: PubSub.publish(changes, undefined), until };
   });
 
-  const yieldTicks = (ticks: number): Effect.Effect<void> =>
+  const yieldTicks = (ticks: number) =>
     Effect.gen(function* () {
       for (let tick = 0; tick < ticks; tick++) yield* Effect.yieldNow;
     });
@@ -4143,7 +4139,7 @@ describe("ClaudeAdapterV2 background wake turns", () => {
           session_id: WAKE_NATIVE_SESSION,
           uuid,
         });
-      const latest = (): OrchestrationV2ProviderThread => {
+      const latest = () => {
         const event = harness.events.findLast(
           (candidate) => candidate.type === "provider_thread.updated",
         );
@@ -4223,7 +4219,7 @@ describe("ClaudeAdapterV2 background wake turns", () => {
       );
       yield* harness.offerAndWait(turnOneResult);
       yield* Queue.take(harness.terminalReceipts);
-      const latest = (): OrchestrationV2ProviderThread => {
+      const latest = () => {
         const event = harness.events.findLast(
           (candidate) => candidate.type === "provider_thread.updated",
         );
@@ -10900,7 +10896,17 @@ describe("ClaudeAdapterV2 background wake turns", () => {
       extraToolResult?: boolean;
       nonExecutionKind?: string;
     },
-  ): ReadonlyArray<SDKMessage> {
+  ): ReadonlyArray<SDKMessage>;
+  function taskToolFrames(
+    tool: TaskToolCall,
+    nextUuid: () => string,
+    options?: {
+      parentToolUseId?: string;
+      isError?: boolean;
+      extraToolResult?: boolean;
+      nonExecutionKind?: string;
+    },
+  ) {
     const uuid = nextUuid();
     const toolUseId = `tool-${uuid}`;
     const parentToolUseId = options?.parentToolUseId ?? null;
@@ -10959,7 +10965,7 @@ describe("ClaudeAdapterV2 background wake turns", () => {
         uuid: nextUuid(),
         session_id: WAKE_NATIVE_SESSION,
       }),
-    ];
+    ] satisfies ReadonlyArray<SDKMessage>;
   }
 
   const makeTaskToolHarnessWithOptions = (environment: NodeJS.ProcessEnv = {}) =>
@@ -11027,12 +11033,18 @@ describe("ClaudeAdapterV2 background wake turns", () => {
 
   const makeTaskToolHarness = makeTaskToolHarnessWithOptions();
 
-  const createTask = (id: string, subject: string): TaskToolCall => ({
+  const createTask: (id: string, subject: string) => TaskToolCall = (
+    id: string,
+    subject: string,
+  ) => ({
     name: "TaskCreate",
     input: { subject: `Requested ${subject}`, description: `Work on ${subject}.` },
     output: { task: { id, subject } },
   });
-  const updateTask = (input: TaskUpdateInput, success = true): TaskToolCall => ({
+  const updateTask: (input: TaskUpdateInput, success?: boolean) => TaskToolCall = (
+    input: TaskUpdateInput,
+    success = true,
+  ) => ({
     name: "TaskUpdate",
     input,
     output: { success, taskId: input.taskId, updatedFields: ["status"] },
@@ -14895,14 +14907,18 @@ describe("ClaudeAdapterV2 background wake turns", () => {
       );
       const statusOf = (type: "runtime_request.updated" | "node.updated" | "turn_item.updated") =>
         beforeTerminal
-          .flatMap((event): Array<{ readonly type: string; readonly status: string }> =>
-            event.type === "runtime_request.updated" && event.runtimeRequest.id === pending.id
-              ? [{ type: event.type, status: event.runtimeRequest.status }]
-              : event.type === "node.updated" && event.node.id === pending.nodeId
-                ? [{ type: event.type, status: event.node.status }]
-                : event.type === "turn_item.updated" && event.turnItem.nodeId === pending.nodeId
-                  ? [{ type: event.type, status: event.turnItem.status }]
-                  : [],
+          .flatMap(
+            (event) =>
+              (event.type === "runtime_request.updated" && event.runtimeRequest.id === pending.id
+                ? [{ type: event.type, status: event.runtimeRequest.status }]
+                : event.type === "node.updated" && event.node.id === pending.nodeId
+                  ? [{ type: event.type, status: event.node.status }]
+                  : event.type === "turn_item.updated" && event.turnItem.nodeId === pending.nodeId
+                    ? [{ type: event.type, status: event.turnItem.status }]
+                    : []) satisfies Array<{
+                readonly type: string;
+                readonly status: string;
+              }> as Array<{ readonly type: string; readonly status: string }>,
           )
           .findLast((entry) => entry.type === type)?.status;
       assert.equal(statusOf("runtime_request.updated"), "cancelled");
@@ -17089,7 +17105,7 @@ describe("ClaudeAdapterV2 background wake turns", () => {
     readonly messageId?: string;
     readonly text?: string;
     readonly bashToolUseId?: string;
-  }): ReadonlyArray<SDKMessage> =>
+  }) =>
     [
       ...(input.text === undefined ? [] : [{ type: "text", text: input.text }]),
       ...(input.bashToolUseId === undefined
@@ -24371,7 +24387,7 @@ describe("ClaudeAdapterV2 query message stream", () => {
       let releaseRead = () => {};
       const readStarted = Promise.withResolvers<void>();
       // oxlint-disable-next-line require-yield -- Never yields a message; the read stays pending until close() flips `closed` and releases the in-flight await.
-      async function* sdkMessages(): AsyncGenerator<SDKMessage, void> {
+      async function* sdkMessages() {
         for (;;) {
           if (closed) return;
           await new Promise<void>((resolve) => {

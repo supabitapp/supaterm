@@ -7,7 +7,7 @@ import type { ComposerThreadDraftState } from "../../composerDraftStore";
 export function composerDraftContentChanged(
   before: ComposerThreadDraftState | null,
   after: ComposerThreadDraftState | null,
-): boolean {
+) {
   if (before === after) return false;
   if (!before || !after) return true;
   const sameIds = (left: ReadonlyArray<{ id: string }>, right: ReadonlyArray<{ id: string }>) =>
@@ -27,7 +27,7 @@ export function composerDraftContentChanged(
 export function referencedThreadContexts(draft: {
   readonly prompt: string;
   readonly referenceContexts: ReadonlyArray<ReferenceContextRecord>;
-}): ReadonlyArray<ThreadContextRecord> {
+}) {
   if (draft.referenceContexts.length === 0) return [];
   const referenced = new Set(collectInlineContextIds(draft.prompt));
   return draft.referenceContexts.filter(
@@ -71,7 +71,7 @@ export function multipleModelSendBlock(input: {
   readonly isLocalDraftThread: boolean;
   readonly isGitRepo: boolean;
   readonly missingBaseBranch: boolean;
-}): "environment-disconnected" | "needs-new-git-thread" | null {
+}) {
   if (!input.environmentConnected) return "environment-disconnected";
   if (
     !input.isLocalDraftThread ||
@@ -90,7 +90,7 @@ export function approvalRedirectNotice(input: {
   readonly declined: boolean;
   readonly approvalResponding: boolean;
   readonly approvalArrived: boolean;
-}): string | null {
+}) {
   if (input.draftChanged) {
     return input.declined
       ? "Approval declined. Your message changed, so it wasn't sent."

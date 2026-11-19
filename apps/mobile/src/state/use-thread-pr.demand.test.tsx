@@ -73,7 +73,7 @@ const reference = {
   number: 12,
   url: "https://github.com/acme/app/pull/12",
 };
-function thread(overrides: Partial<EnvironmentThreadShell> = {}): EnvironmentThreadShell {
+function thread(overrides: Partial<EnvironmentThreadShell> = {}) {
   return {
     environmentId,
     id: ThreadId.make("thread"),

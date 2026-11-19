@@ -9,7 +9,7 @@ import { stackedThreadToast } from "./ui/toast";
 
 type TitleRegenerationResult = AtomCommandResult<ThreadTitleRegenerationOutcome | null, unknown>;
 
-function failureMessage(result: TitleRegenerationResult): string | null {
+function failureMessage(result: TitleRegenerationResult) {
   if (result._tag === "Failure") {
     if (isAtomCommandInterrupted(result)) return null;
     const error = squashAtomCommandFailure(result);
@@ -20,7 +20,7 @@ function failureMessage(result: TitleRegenerationResult): string | null {
     : null;
 }
 
-function isKept(result: TitleRegenerationResult): boolean {
+function isKept(result: TitleRegenerationResult) {
   return result._tag === "Success" && result.value?.status === "unchanged";
 }
 

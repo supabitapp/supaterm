@@ -14,7 +14,7 @@ const ICON_EXTENSION_BY_MIME_TYPE: Readonly<Record<string, string>> = {
   "text/x-shellscript": "sh",
 };
 
-export function fileIconPathForMimeType(path: string, mimeType?: string): string {
+export function fileIconPathForMimeType(path: string, mimeType?: string) {
   const extension = ICON_EXTENSION_BY_MIME_TYPE[mimeType ?? ""];
   return extension ? `file.${extension}` : path;
 }
@@ -65,13 +65,13 @@ const AUDIO_MIME_TYPE_BY_EXTENSION = new Map([
   [".weba", "audio/webm"],
 ]);
 
-export function audioMimeTypeFromExtension(extension: string): string | null {
+export function audioMimeTypeFromExtension(extension: string) {
   if (!/^\.[a-z0-9-]+$/i.test(extension)) return null;
   return AUDIO_MIME_TYPE_BY_EXTENSION.get(extension.toLowerCase()) ?? null;
 }
 
 /** Classifies a literal filesystem extension, without URL decoding or suffix removal. */
-export function mediaMimeTypeFromExtension(extension: string): string | null {
+export function mediaMimeTypeFromExtension(extension: string) {
   if (!/^\.[a-z0-9]+$/i.test(extension)) return null;
   return (
     IMAGE_MIME_TYPE_BY_EXTENSION.get(extension.toLowerCase()) ??
@@ -80,7 +80,7 @@ export function mediaMimeTypeFromExtension(extension: string): string | null {
 }
 
 /** Classifies an authored media path or URL. Filesystem validation uses the literal extension. */
-export function mediaMimeType(path: string): string | null {
+export function mediaMimeType(path: string) {
   const trimmed = path.trim();
   const source = trimmed.startsWith("<") && trimmed.endsWith(">") ? trimmed.slice(1, -1) : trimmed;
   const dataMimeType = /^data:((?:image|video|audio)\/[\w.+-]+)[;,]/i.exec(source)?.[1];
@@ -105,22 +105,24 @@ export function mediaMimeType(path: string): string | null {
         audioMimeTypeFromExtension(basename.slice(extensionIndex)));
 }
 
-export function mediaKindFromPath(path: string): "image" | "video" | "audio" | null {
+export function mediaKindFromPath(path: string): "image" | "video" | "audio" | null;
+export function mediaKindFromPath(path: string) {
   const mimeType = mediaMimeType(path);
-  if (mimeType === null) return null;
-  return mimeType.startsWith("audio/")
-    ? "audio"
-    : mimeType.startsWith("video/")
-      ? "video"
-      : "image";
+  if (mimeType === null) return null satisfies "image" | "video" | "audio" | null;
+  return (
+    mimeType.startsWith("audio/") ? "audio" : mimeType.startsWith("video/") ? "video" : "image"
+  ) satisfies "image" | "video" | "audio" | null;
 }
 
-export function isWorkspaceImagePreviewPath(path: string): boolean {
+export function isWorkspaceImagePreviewPath(path: string): boolean;
+export function isWorkspaceImagePreviewPath(path: string) {
   const literalPath = path.toLowerCase();
-  return WORKSPACE_IMAGE_PREVIEW_EXTENSIONS.some((extension) => literalPath.endsWith(extension));
+  return WORKSPACE_IMAGE_PREVIEW_EXTENSIONS.some((extension) =>
+    literalPath.endsWith(extension),
+  ) satisfies boolean;
 }
 
-export function isWorkspaceAudioPreviewPath(path: string): boolean {
+export function isWorkspaceAudioPreviewPath(path: string) {
   const extensionIndex = path.lastIndexOf(".");
   return extensionIndex >= 0 && audioMimeTypeFromExtension(path.slice(extensionIndex)) !== null;
 }

@@ -40,12 +40,14 @@ export interface BoltComputer {
   update(changes: Partial<BoltComputerSettings>): void;
 }
 
-export const hexToRgb = (hex: string): RGB => {
+export const hexToRgb = (hex: string) => {
   const n = Number.parseInt(hex.slice(1), 16);
-  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255] satisfies RGB;
 };
 
-export const lookOf = (settings: BoltComputerSettings): Look => ({
+export const lookOf: (settings: BoltComputerSettings) => Look = (
+  settings: BoltComputerSettings,
+) => ({
   state: settings.state,
   shell: shellMaterial(hexToRgb(settings.shell)),
   phosphor: hexToRgb(settings.phosphor),
@@ -61,11 +63,16 @@ export const lookOf = (settings: BoltComputerSettings): Look => ({
  */
 export function mountBoltComputer(
   container: HTMLElement,
+  initial?: BoltComputerSettings,
+  restAfter?: typeof Number.POSITIVE_INFINITY,
+): BoltComputer | null;
+export function mountBoltComputer(
+  container: HTMLElement,
   initial: BoltComputerSettings = DEFAULT_SETTINGS,
   restAfter = Number.POSITIVE_INFINITY,
-): BoltComputer | null {
+) {
   const canvas = document.createElement("canvas");
-  if (!canvas.getContext("2d")) return null;
+  if (!canvas.getContext("2d")) return null satisfies BoltComputer | null;
   canvas.setAttribute("aria-hidden", "true");
   const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
   let settings = initial;
@@ -139,5 +146,5 @@ export function mountBoltComputer(
       if (still()) sim.skipFade();
       draw();
     },
-  };
+  } satisfies BoltComputer | null;
 }

@@ -14,7 +14,7 @@ export const EMPTY_V2_ITEM_SUPPORT: V2ItemSupport = Object.freeze({
   contextTransfer: null,
 });
 
-export function resolveV2ItemSupport(projection: Projection, itemId: TurnItemId): V2ItemSupport {
+export function resolveV2ItemSupport(projection: Projection, itemId: TurnItemId) {
   const item =
     projection.turnItems.find((candidate) => candidate.id === itemId) ??
     projection.visibleTurnItems.find((candidate) => candidate.sourceItemId === itemId)?.item ??
@@ -47,7 +47,7 @@ export function resolveV2ItemSupport(projection: Projection, itemId: TurnItemId)
   return { providerSession, contextHandoff, contextTransfer };
 }
 
-export function v2ItemSupportEqual(left: V2ItemSupport, right: V2ItemSupport): boolean {
+export function v2ItemSupportEqual(left: V2ItemSupport, right: V2ItemSupport) {
   return (
     left.providerSession === right.providerSession &&
     left.contextHandoff === right.contextHandoff &&

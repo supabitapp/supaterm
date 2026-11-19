@@ -7,7 +7,7 @@ import {
   orderDiffFilesLikeTree,
 } from "./diffFileTree.logic";
 
-function file(type: FileDiffMetadata["type"], name: string, prevName = name): FileDiffMetadata {
+function file(type: FileDiffMetadata["type"], name: string, prevName = name) {
   return { type, name, prevName } as FileDiffMetadata;
 }
 

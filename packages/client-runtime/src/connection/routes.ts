@@ -33,24 +33,33 @@ export type ConnectionRouteKind =
   | "relay"
   | "ssh";
 
-export function connectionRouteId(target: ConnectionTarget): string {
+export function connectionRouteId(target: ConnectionTarget): string;
+export function connectionRouteId(target: ConnectionTarget) {
   switch (target._tag) {
     case "PrimaryConnectionTarget":
-      return "primary";
+      return "primary" satisfies string;
     case "BearerConnectionTarget":
     case "SshConnectionTarget":
-      return target.connectionId;
+      return target.connectionId satisfies string;
   }
 }
 
-export function connectionRoutes(entry: ConnectionCatalogEntry): ReadonlyArray<ConnectionRoute> {
-  return [{ target: entry.target, profile: entry.profile }, ...(entry.alternateRoutes ?? [])];
+export function connectionRoutes(entry: ConnectionCatalogEntry): ReadonlyArray<ConnectionRoute>;
+export function connectionRoutes(entry: ConnectionCatalogEntry) {
+  return [
+    { target: entry.target, profile: entry.profile },
+    ...(entry.alternateRoutes ?? []),
+  ] satisfies ReadonlyArray<ConnectionRoute>;
 }
 
 export function entryWithRoutes(
   entry: ConnectionCatalogEntry,
   routes: ReadonlyArray<ConnectionRoute>,
-): ConnectionCatalogEntry {
+): ConnectionCatalogEntry;
+export function entryWithRoutes(
+  entry: ConnectionCatalogEntry,
+  routes: ReadonlyArray<ConnectionRoute>,
+) {
   const [first, ...rest] = routes;
   if (first === undefined) throw new Error("A saved environment needs at least one route.");
   const { alternateRoutes: _previous, ...base } = entry;
@@ -59,23 +68,28 @@ export function entryWithRoutes(
     target: first.target,
     profile: first.profile,
     ...(rest.length === 0 ? {} : { alternateRoutes: rest }),
-  };
+  } satisfies ConnectionCatalogEntry;
 }
 
 export function routeEntry(
   entry: ConnectionCatalogEntry,
   route: ConnectionRoute,
-): ConnectionCatalogEntry {
-  return entryWithRoutes(entry, [route]);
+): ConnectionCatalogEntry;
+export function routeEntry(entry: ConnectionCatalogEntry, route: ConnectionRoute) {
+  return entryWithRoutes(entry, [route]) satisfies ConnectionCatalogEntry;
 }
 
-export function routeHttpBaseUrl(route: ConnectionRoute): string | null {
-  if (route.target._tag === "PrimaryConnectionTarget") return route.target.httpBaseUrl;
+export function routeHttpBaseUrl(route: ConnectionRoute): string | null;
+export function routeHttpBaseUrl(route: ConnectionRoute) {
+  if (route.target._tag === "PrimaryConnectionTarget")
+    return route.target.httpBaseUrl satisfies string | null;
   const profile = Option.getOrNull(route.profile);
-  return profile?._tag === "BearerConnectionProfile" ? profile.httpBaseUrl : null;
+  return (profile?._tag === "BearerConnectionProfile" ? profile.httpBaseUrl : null) satisfies
+    | string
+    | null;
 }
 
-function routeUrl(route: ConnectionRoute): URL | null {
+function routeUrl(route: ConnectionRoute) {
   const httpBaseUrl = routeHttpBaseUrl(route);
   if (httpBaseUrl === null) return null;
   try {
@@ -85,15 +99,12 @@ function routeUrl(route: ConnectionRoute): URL | null {
   }
 }
 
-function routeHostname(route: ConnectionRoute): string | null {
+function routeHostname(route: ConnectionRoute) {
   return routeUrl(route)?.hostname ?? null;
 }
 
 /** The saved routes that reach `httpBaseUrl`'s origin. */
-export function routesAt(
-  entry: ConnectionCatalogEntry,
-  httpBaseUrl: string,
-): ReadonlyArray<ConnectionRoute> {
+export function routesAt(entry: ConnectionCatalogEntry, httpBaseUrl: string) {
   const origin = new URL(httpBaseUrl).origin;
   return connectionRoutes(entry).filter((route) => routeUrl(route)?.origin === origin);
 }
@@ -117,7 +128,7 @@ export function pairingFallbackRoutes(
   entries: ReadonlyMap<EnvironmentId, ConnectionCatalogEntry>,
   httpBaseUrl: string,
   expectedEnvironmentId: EnvironmentId | undefined,
-): PairingFallback | null {
+) {
   const owner =
     expectedEnvironmentId === undefined
       ? onlyEnvironmentAt(entries, httpBaseUrl)
@@ -149,7 +160,7 @@ export function pairingFallbackRoutes(
 function onlyEnvironmentAt(
   entries: ReadonlyMap<EnvironmentId, ConnectionCatalogEntry>,
   httpBaseUrl: string,
-): ConnectionCatalogEntry | undefined {
+) {
   const [owner, ...others] = [...entries.values()].filter(
     (entry) => routesAt(entry, httpBaseUrl).length > 0,
   );
@@ -159,32 +170,36 @@ function onlyEnvironmentAt(
 const isTailnetAddress = (hostname: string) =>
   isTailnetHost(hostname) || isSharedAddressSpaceHost(hostname);
 
-function labelledTailscale(route: ConnectionRoute): boolean {
+function labelledTailscale(route: ConnectionRoute) {
   const profile = Option.getOrNull(route.profile);
   return profile?._tag === "BearerConnectionProfile" && profile.network === "tailscale";
 }
 
-function directAddressKind(hostname: string, tailscale = false): ConnectionRouteKind {
+function directAddressKind(hostname: string, tailscale = false) {
   if (isLocalLoopbackHost(hostname)) return "loopback";
   if (isTailnetHost(hostname) || (tailscale && isTailnetAddress(hostname))) return "tailnet";
   if (isSharedAddressSpaceHost(hostname)) return "vpn";
   return isPrivateNetworkHost(hostname) ? "lan" : "public";
 }
 
-export function connectionRouteKind(route: ConnectionRoute): ConnectionRouteKind {
+export function connectionRouteKind(route: ConnectionRoute): ConnectionRouteKind;
+export function connectionRouteKind(route: ConnectionRoute) {
   switch (route.target._tag) {
     case "SshConnectionTarget":
-      return "ssh";
+      return "ssh" satisfies ConnectionRouteKind;
     case "PrimaryConnectionTarget":
     case "BearerConnectionTarget": {
       const url = routeUrl(route);
-      if (url === null) return "public";
+      if (url === null) return "public" satisfies ConnectionRouteKind;
       try {
-        if (canonicalRelayAddress(url.href) !== null) return "relay";
+        if (canonicalRelayAddress(url.href) !== null) return "relay" satisfies ConnectionRouteKind;
       } catch {
-        return "public";
+        return "public" satisfies ConnectionRouteKind;
       }
-      return directAddressKind(url.hostname, labelledTailscale(route));
+      return directAddressKind(
+        url.hostname,
+        labelledTailscale(route),
+      ) satisfies ConnectionRouteKind;
     }
   }
 }
@@ -195,13 +210,14 @@ export function connectionRouteKind(route: ConnectionRoute): ConnectionRouteKind
  * a tailnet one too once Tailscale is down, can belong to another machine after
  * a network change, so an answer from it is not kept.
  */
-export function routeKeepsItsHost(route: ConnectionRoute): boolean {
-  if (routeHttpBaseUrl(route)?.startsWith("https:") === true) return true;
-  return connectionRouteKind(route) === "loopback";
+export function routeKeepsItsHost(route: ConnectionRoute): boolean;
+export function routeKeepsItsHost(route: ConnectionRoute) {
+  if (routeHttpBaseUrl(route)?.startsWith("https:") === true) return true satisfies boolean;
+  return (connectionRouteKind(route) === "loopback") satisfies boolean;
 }
 
 /** A loopback or LAN host answers within a few seconds or is not there. */
-export function isNearbyAddress(httpBaseUrl: string): boolean {
+export function isNearbyAddress(httpBaseUrl: string) {
   try {
     const kind = directAddressKind(new URL(httpBaseUrl).hostname);
     return kind === "loopback" || kind === "lan";
@@ -224,7 +240,7 @@ export function insertRoute(
   routes: ReadonlyArray<ConnectionRoute>,
   route: ConnectionRoute,
   { aheadOfSameKind = false }: { readonly aheadOfSameKind?: boolean } = {},
-): ReadonlyArray<ConnectionRoute> {
+) {
   const kind = connectionRouteKind(route);
   const rank = ROUTE_KIND_RANK[kind];
   const index = routes.findIndex((existing) => {
@@ -239,22 +255,31 @@ export function insertRoute(
 export function upsertRoute(
   routes: ReadonlyArray<ConnectionRoute>,
   route: ConnectionRoute,
-): ReadonlyArray<ConnectionRoute> {
+): ReadonlyArray<ConnectionRoute>;
+export function upsertRoute(routes: ReadonlyArray<ConnectionRoute>, route: ConnectionRoute) {
   const id = connectionRouteId(route.target);
-  return routes.some((existing) => connectionRouteId(existing.target) === id)
-    ? routes.map((existing) => (connectionRouteId(existing.target) === id ? route : existing))
-    : insertRoute(routes, route, { aheadOfSameKind: true });
+  return (
+    routes.some((existing) => connectionRouteId(existing.target) === id)
+      ? routes.map((existing) => (connectionRouteId(existing.target) === id ? route : existing))
+      : insertRoute(routes, route, { aheadOfSameKind: true })
+  ) satisfies ReadonlyArray<ConnectionRoute>;
 }
 
 export function findRouteToSameAddress(
   routes: ReadonlyArray<ConnectionRoute>,
   route: ConnectionRoute,
-): ConnectionRoute | undefined {
+): ConnectionRoute | undefined;
+export function findRouteToSameAddress(
+  routes: ReadonlyArray<ConnectionRoute>,
+  route: ConnectionRoute,
+) {
   const key = routeAddressKey(route);
-  return key === null ? undefined : routes.find((existing) => routeAddressKey(existing) === key);
+  return (
+    key === null ? undefined : routes.find((existing) => routeAddressKey(existing) === key)
+  ) satisfies ConnectionRoute | undefined;
 }
 
-function routeAddressKey(route: ConnectionRoute): string | null {
+function routeAddressKey(route: ConnectionRoute) {
   const profile = Option.getOrNull(route.profile);
   switch (profile?._tag) {
     case "BearerConnectionProfile":
@@ -266,7 +291,7 @@ function routeAddressKey(route: ConnectionRoute): string | null {
   }
 }
 
-export function connectionRouteLabel(route: ConnectionRoute): string {
+export function connectionRouteLabel(route: ConnectionRoute) {
   switch (connectionRouteKind(route)) {
     case "loopback":
       return "This device";
@@ -289,7 +314,7 @@ export function connectionRouteLabel(route: ConnectionRoute): string {
   }
 }
 
-export function connectionRouteAddress(route: ConnectionRoute): string | null {
+export function connectionRouteAddress(route: ConnectionRoute) {
   if (route.target._tag === "SshConnectionTarget") {
     const profile = Option.getOrNull(route.profile);
     return profile?._tag === "SshConnectionProfile" ? profile.target.alias : null;
@@ -337,7 +362,7 @@ function validatedRelayAdvertisement(value: RelayConnectionInfo | null | undefin
 
 const advertisedRouteKey = (url: string) => canonicalRelayAddress(url) ?? url.replace(/\/+$/, "");
 
-function relayIdentity(address: string): string | null {
+function relayIdentity(address: string) {
   try {
     return canonicalRelayAddress(address);
   } catch {
@@ -354,7 +379,7 @@ export function mergeLearnedRoutes(input: {
   readonly tunnelEndpoints?: ServerTunnelEndpoints | null | undefined;
   readonly allowRelay?: boolean;
   readonly allowInsecure: boolean;
-}): ReadonlyArray<ConnectionRoute> | null {
+}) {
   const saved = connectionRoutes(input.entry);
   const learned = learnAdvertisedRoutes(input, saved);
   const { tunnelEndpoints } = input;
@@ -368,7 +393,7 @@ export function mergeLearnedRoutes(input: {
 function learnAdvertisedRoutes(
   input: Parameters<typeof mergeLearnedRoutes>[0],
   saved: ReadonlyArray<ConnectionRoute>,
-): ReadonlyArray<ConnectionRoute> | null {
+) {
   const { entry } = input;
   const active = input.activeRoute.target;
   if (active._tag !== "BearerConnectionTarget") return null;
@@ -484,7 +509,7 @@ function learnAdvertisedRoutes(
 function withDirectTunnelUrls(
   route: ConnectionRoute,
   tunnelEndpoints: ServerTunnelEndpoints | null,
-): ConnectionRoute {
+) {
   const profile = Option.getOrNull(route.profile);
   if (profile?._tag !== "BearerConnectionProfile") return route;
   const identity = relayIdentity(profile.httpBaseUrl);
@@ -509,10 +534,7 @@ function withDirectTunnelUrls(
   };
 }
 
-function credentialRoute(
-  routes: ReadonlyArray<ConnectionRoute>,
-  credentialId: string,
-): ConnectionRoute | undefined {
+function credentialRoute(routes: ReadonlyArray<ConnectionRoute>, credentialId: string) {
   return routes.find((route) => connectionRouteId(route.target) === credentialId);
 }
 
@@ -520,7 +542,7 @@ function plainHttpAllowed(
   routes: ReadonlyArray<ConnectionRoute>,
   credentialId: string,
   tailnet: boolean,
-): boolean {
+) {
   const paired = credentialRoute(routes, credentialId);
   if (paired === undefined) return false;
   const kind = connectionRouteKind(paired);
@@ -541,19 +563,25 @@ export function sendsTokenInClear(
   routes: ReadonlyArray<ConnectionRoute>,
   route: ConnectionRoute,
   tailscale?: boolean,
-): boolean {
+): boolean;
+export function sendsTokenInClear(
+  routes: ReadonlyArray<ConnectionRoute>,
+  route: ConnectionRoute,
+  tailscale?: boolean,
+) {
   const profile = Option.getOrNull(route.profile);
-  if (profile?._tag !== "BearerConnectionProfile") return false;
-  if (profile.httpBaseUrl.startsWith("https:")) return profile.wsBaseUrl.startsWith("ws:");
-  if (!profile.httpBaseUrl.startsWith("http:")) return false;
+  if (profile?._tag !== "BearerConnectionProfile") return false satisfies boolean;
+  if (profile.httpBaseUrl.startsWith("https:"))
+    return profile.wsBaseUrl.startsWith("ws:") satisfies boolean;
+  if (!profile.httpBaseUrl.startsWith("http:")) return false satisfies boolean;
   const routeId = connectionRouteId(route.target);
   const credentialId = credentialConnectionId(routeId);
-  if (credentialId === routeId) return false;
+  if (credentialId === routeId) return false satisfies boolean;
   const tailnet = tailscale ?? (labelledTailscale(route) && isTailnetUrl(profile.httpBaseUrl));
-  return !plainHttpAllowed(routes, credentialId, tailnet);
+  return !plainHttpAllowed(routes, credentialId, tailnet) satisfies boolean;
 }
 
-function isTailnetUrl(httpBaseUrl: string): boolean {
+function isTailnetUrl(httpBaseUrl: string) {
   try {
     return isTailnetAddress(new URL(httpBaseUrl).hostname);
   } catch {
@@ -566,7 +594,7 @@ function isTailnetUrl(httpBaseUrl: string): boolean {
  * catalog forgets how it was paired, so a relay-paired route stays on relay
  * addresses: moving it to HTTPS first would let a later edit reach plain HTTP.
  */
-export function credentialAllowsAddress(credential: ConnectionRoute, httpBaseUrl: string): boolean {
+export function credentialAllowsAddress(credential: ConnectionRoute, httpBaseUrl: string) {
   let url: URL;
   try {
     url = new URL(httpBaseUrl);
@@ -584,13 +612,13 @@ export function credentialAllowsAddress(credential: ConnectionRoute, httpBaseUrl
 }
 
 /** Routes a connect may use: none sends a paired token unencrypted where it wasn't paired that way. */
-export function usableRoutes(entry: ConnectionCatalogEntry): ReadonlyArray<ConnectionRoute> {
+export function usableRoutes(entry: ConnectionCatalogEntry) {
   const routes = connectionRoutes(entry);
   return routes.filter((route) => !sendsTokenInClear(routes, route));
 }
 
 /** The relay host a relay route's tunnel reaches, or null for any other route. */
-export function relayRouteIdentity(route: ConnectionRoute): string | null {
+export function relayRouteIdentity(route: ConnectionRoute) {
   const address = routeHttpBaseUrl(route);
   return address === null || connectionRouteKind(route) !== "relay" ? null : relayIdentity(address);
 }
@@ -600,7 +628,7 @@ export interface ReportedEndpoint {
   readonly kind?: string;
 }
 
-function withNetwork(route: ConnectionRoute, tailscale: boolean): ConnectionRoute {
+function withNetwork(route: ConnectionRoute, tailscale: boolean) {
   const profile = Option.getOrNull(route.profile);
   if (profile?._tag !== "BearerConnectionProfile") return route;
   if ((profile.network === "tailscale") === tailscale) return route;
@@ -616,22 +644,18 @@ function withNetwork(route: ConnectionRoute, tailscale: boolean): ConnectionRout
   };
 }
 
-function learnedConnectionId(
-  environmentId: string,
-  origin: string,
-  sharedCredential: string,
-): string {
+function learnedConnectionId(environmentId: string, origin: string, sharedCredential: string) {
   return `learned:${environmentId}:${origin}@${sharedCredential}`;
 }
 
-export function credentialConnectionId(connectionId: string): string {
+export function credentialConnectionId(connectionId: string) {
   const at = connectionId.indexOf("@");
   return connectionId.startsWith("learned:") && at !== -1
     ? connectionId.slice(at + 1)
     : connectionId;
 }
 
-export function isLearned(route: ConnectionRoute): boolean {
+export function isLearned(route: ConnectionRoute) {
   const profile = Option.getOrNull(route.profile);
   return profile?._tag === "BearerConnectionProfile" && profile.learned === true;
 }
@@ -639,14 +663,15 @@ export function isLearned(route: ConnectionRoute): boolean {
 export function routesAfterRemoving(
   routes: ReadonlyArray<ConnectionRoute>,
   removedId: string,
-): ReadonlyArray<ConnectionRoute> {
+): ReadonlyArray<ConnectionRoute>;
+export function routesAfterRemoving(routes: ReadonlyArray<ConnectionRoute>, removedId: string) {
   const removed = routes.find((route) => connectionRouteId(route.target) === removedId);
-  if (removed === undefined) return routes;
+  if (removed === undefined) return routes satisfies ReadonlyArray<ConnectionRoute>;
   return routes.filter((route) => {
     if (route === removed) return false;
     if (!isLearned(route)) return true;
     return credentialConnectionId(connectionRouteId(route.target)) !== removedId;
-  });
+  }) satisfies ReadonlyArray<ConnectionRoute>;
 }
 
 /**
@@ -658,13 +683,13 @@ export function routesAfterRemoving(
 export function pendingRouteOrder(
   pending: ReadonlyArray<string> | null,
   savedIds: ReadonlyArray<string>,
-): ReadonlyArray<string> | null {
+) {
   if (pending === null || pending.length !== savedIds.length) return null;
   const saved = new Set(savedIds);
   if (!pending.every((id) => saved.has(id))) return null;
   return pending.some((id, index) => id !== savedIds[index]) ? pending : null;
 }
 
-export function sshTargetKey(target: DesktopSshEnvironmentTarget): string {
+export function sshTargetKey(target: DesktopSshEnvironmentTarget) {
   return JSON.stringify([target.alias, target.hostname, target.username, target.port]);
 }

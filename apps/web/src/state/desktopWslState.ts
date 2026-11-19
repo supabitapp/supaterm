@@ -1,4 +1,4 @@
-import type { DesktopBridge, DesktopWslState } from "@supaterm/contracts";
+import type { DesktopBridge } from "@supaterm/contracts";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import { Atom } from "effect/reactivity";
@@ -13,7 +13,7 @@ class DesktopWslStateUnavailableError extends Schema.TaggedError<DesktopWslState
   "DesktopWslStateUnavailableError",
   {},
 ) {
-  override get message(): string {
+  override get message() {
     return "Desktop WSL state is unavailable.";
   }
 }
@@ -22,12 +22,12 @@ class DesktopWslStateLoadError extends Schema.TaggedError<DesktopWslStateLoadErr
   "DesktopWslStateLoadError",
   { cause: Schema.Defect() },
 ) {
-  override get message(): string {
+  override get message() {
     return "Failed to load WSL state.";
   }
 }
 
-function getDesktopWslStateBridge(): DesktopWslStateBridge | undefined {
+function getDesktopWslStateBridge() {
   return typeof window === "undefined" ? undefined : window.desktopBridge;
 }
 
@@ -38,7 +38,7 @@ function createDesktopWslStateAtom(getBridge: () => DesktopWslStateBridge | unde
       return yield* new DesktopWslStateUnavailableError();
     }
     return yield* Effect.tryPromise({
-      try: (): Promise<DesktopWslState> => bridge.getWslState(),
+      try: () => bridge.getWslState(),
       catch: (cause) => new DesktopWslStateLoadError({ cause }),
     });
   });
@@ -55,6 +55,6 @@ function createDesktopWslStateAtom(getBridge: () => DesktopWslStateBridge | unde
 
 export const desktopWslStateAtom = createDesktopWslStateAtom(getDesktopWslStateBridge);
 
-export function refreshDesktopWslState(): void {
+export function refreshDesktopWslState() {
   appAtomRegistry.refresh(desktopWslStateAtom);
 }

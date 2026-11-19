@@ -28,7 +28,7 @@ function provider(input: {
   status?: ServerProvider["status"];
   models?: ServerProvider["models"];
   supportsTextGeneration?: boolean;
-}): ServerProvider {
+}) {
   return {
     instanceId: ProviderInstanceId.make(input.instanceId),
     driver: input.provider,
@@ -47,7 +47,7 @@ function provider(input: {
     models: input.models ?? [],
     slashCommands: [],
     skills: [],
-  };
+  } satisfies ServerProvider;
 }
 
 const model = (slug: string, isCustom = false, isDefault = false) => ({

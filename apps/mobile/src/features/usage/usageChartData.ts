@@ -15,7 +15,7 @@ export function buildChartDays(
   days: readonly string[],
   daily: readonly DailyTotals[],
   metric: UsageChartMetric,
-): readonly UsageChartDay[] {
+) {
   const byDay = new Map(daily.map((totals) => [totals.day, totals]));
   return days.map((day) => {
     const totals = byDay.get(day);

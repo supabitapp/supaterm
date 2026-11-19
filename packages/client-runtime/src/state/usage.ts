@@ -13,7 +13,7 @@ const isEnvironmentRpcUnavailable = Schema.is(EnvironmentRpcUnavailableError);
 export function usageSummaryInput(
   input: UsageSummaryInput,
   modelFilter: UsageModelFilter | undefined,
-): UsageSummaryInput {
+) {
   return modelFilter === undefined ? input : { ...input, modelFilter };
 }
 
@@ -24,7 +24,7 @@ export async function refreshUsageLimits<A>(
   environmentId: EnvironmentId,
   refresh: () => Promise<A>,
   automatic = false,
-): Promise<A | undefined> {
+) {
   const pending = limitsRefreshes.get(environmentId);
   if (pending !== undefined) {
     return automatic ? undefined : ((await pending) as A);
@@ -58,7 +58,7 @@ export async function refreshUsage({
   presentations: Pick<ReturnType<typeof createEnvironmentPresentationAtoms>, "presentationAtom">;
   environmentIds: readonly EnvironmentId[];
   input: UsageSummaryInput;
-}): Promise<void> {
+}) {
   await Promise.all(
     environmentIds.map(async (environmentId) => {
       const query = server.usageSummary({

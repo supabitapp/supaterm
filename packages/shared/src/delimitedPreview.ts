@@ -1,6 +1,6 @@
 import { GENERIC_MIME_TYPES } from "./image.ts";
 
-export function filePreviewDelimiter(file: { name: string; mimeType?: string }): "," | "\t" | null {
+export function filePreviewDelimiter(file: { name: string; mimeType?: string }) {
   const mime = file.mimeType?.split(";", 1)[0]?.trim().toLowerCase();
   if (mime === "text/csv") return ",";
   if (mime === "text/tab-separated-values") return "\t";

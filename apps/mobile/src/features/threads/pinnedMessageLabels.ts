@@ -7,11 +7,11 @@ const PIN_TIME_FORMATTER = new Intl.DateTimeFormat(undefined, {
   minute: "2-digit",
 });
 
-export function pinnedMessageTitle(pin: ThreadPinnedMessage): string {
+export function pinnedMessageTitle(pin: ThreadPinnedMessage) {
   return pin.preview === "" ? "Message with attachments" : pin.preview;
 }
 
-export function pinnedMessageCaption(pin: ThreadPinnedMessage): string {
+export function pinnedMessageCaption(pin: ThreadPinnedMessage) {
   const sentAt = Date.parse(pin.sentAt);
   const time = Number.isNaN(sentAt) ? "" : PIN_TIME_FORMATTER.format(sentAt);
   if (pin.role !== "user") return time;

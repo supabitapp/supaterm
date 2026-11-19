@@ -11,7 +11,7 @@ const state = vi.hoisted(() => ({
   routeParams: {} as Record<string, string>,
   preview: vi.fn(),
   openLink: vi.fn(async () => undefined),
-  navigate: vi.fn(async (): Promise<void> => undefined),
+  navigate: vi.fn(async () => undefined),
   openScratchProject: vi.fn(async () => null),
   confirm: vi.fn(async (_message: string) => true),
   connectPairing: vi.fn(async (_input: { pairingUrl: string }) => ({ _tag: "Success" })),

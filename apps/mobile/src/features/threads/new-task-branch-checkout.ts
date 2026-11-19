@@ -32,7 +32,7 @@ const encodeRequestKey = Schema.encodeSync(RequestKey);
 const decodeRequestKey = Schema.decodeSync(RequestKey);
 
 /** A pure, stable key for a request: the same fields always give the same key. */
-export function branchCheckoutRequestKey(request: BranchCheckoutRequest): string {
+export function branchCheckoutRequestKey(request: BranchCheckoutRequest) {
   return encodeRequestKey([
     request.flowKey,
     request.routeKey,
@@ -43,7 +43,7 @@ export function branchCheckoutRequestKey(request: BranchCheckoutRequest): string
   ]);
 }
 
-function requestFromKey(key: string): BranchCheckoutRequest {
+function requestFromKey(key: string) {
   const [flowKey, routeKey, environmentId, workspaceRoot, branch, worktreePath] =
     decodeRequestKey(key);
   return { flowKey, routeKey, environmentId, workspaceRoot, branch, worktreePath };
@@ -71,13 +71,13 @@ export function makeNewTaskBranchCheckouts(deps: {
   let tail: Promise<unknown> = Promise.resolve();
   const entries = new Map<string, CheckoutEntry>();
 
-  function abandon(key: string, entry: CheckoutEntry): void {
+  function abandon(key: string, entry: CheckoutEntry) {
     entry.abandoned = true;
     entry.release();
     entries.delete(key);
   }
 
-  function start(key: string): Promise<BranchCheckoutResult> {
+  function start(key: string) {
     const existing = entries.get(key);
     if (existing) return existing.checkout;
     const request = requestFromKey(key);
@@ -104,10 +104,10 @@ export function makeNewTaskBranchCheckouts(deps: {
         Atom.withLabel("mobile:new-task-branch-checkout"),
       ),
     ),
-    release(key: string): void {
+    release(key: string) {
       entries.get(key)?.release();
     },
-    prune(liveFlowKeys: ReadonlySet<string>): void {
+    prune(liveFlowKeys: ReadonlySet<string>) {
       for (const [key, entry] of entries) {
         if (!liveFlowKeys.has(entry.request.flowKey)) abandon(key, entry);
       }

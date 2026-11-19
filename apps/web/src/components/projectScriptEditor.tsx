@@ -110,7 +110,7 @@ export interface ProjectScriptEditorRequest {
 export function editorRequestForScript(
   script: ProjectScript,
   keybindings: ResolvedKeybindingsConfig,
-): ProjectScriptEditorRequest {
+) {
   return {
     scriptId: script.id,
     initial: {

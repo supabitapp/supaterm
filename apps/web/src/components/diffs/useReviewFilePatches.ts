@@ -1,5 +1,4 @@
 import { RegistryContext, useAtomValue } from "@effect/atom-react";
-import type { FileDiffMetadata } from "@pierre/diffs";
 import type {
   EnvironmentId,
   ReviewDiffPreviewInput,
@@ -103,7 +102,7 @@ export function useReviewFilePatches({
   const requestFile = (path: string) =>
     requestFiles([files.findIndex((file) => file.path === path)]);
   const renderableFiles = source
-    ? files.flatMap((file, index): FileDiffMetadata[] => {
+    ? files.flatMap((file, index) => {
         const result = patches.get(index);
         const value = result && Option.getOrUndefined(AsyncResult.value(result));
         if (value?.patch?.kind === "files") {

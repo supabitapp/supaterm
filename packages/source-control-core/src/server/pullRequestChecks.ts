@@ -26,7 +26,7 @@ function timestampParts(value: string) {
   };
 }
 
-function isAtLeastAsNew(candidate: string | null, kept: string | null): boolean {
+function isAtLeastAsNew(candidate: string | null, kept: string | null) {
   if (candidate === null) return kept === null;
   if (kept === null) return true;
   const candidateParts = timestampParts(candidate);
@@ -41,16 +41,17 @@ function isAtLeastAsNew(candidate: string | null, kept: string | null): boolean 
 
 export function rollupCheckStatuses(
   statuses: ReadonlyArray<PullRequestCheckStatus>,
-): PullRequestChecksState | null {
-  if (statuses.length === 0) return null;
-  if (statuses.includes("failure") || statuses.includes("cancelled")) return "failing";
-  if (statuses.includes("pending") || statuses.includes("action-required")) return "pending";
-  return statuses.includes("success") ? "passing" : null;
+): PullRequestChecksState | null;
+export function rollupCheckStatuses(statuses: ReadonlyArray<PullRequestCheckStatus>) {
+  if (statuses.length === 0) return null satisfies PullRequestChecksState | null;
+  if (statuses.includes("failure") || statuses.includes("cancelled"))
+    return "failing" satisfies PullRequestChecksState | null;
+  if (statuses.includes("pending") || statuses.includes("action-required"))
+    return "pending" satisfies PullRequestChecksState | null;
+  return (statuses.includes("success") ? "passing" : null) satisfies PullRequestChecksState | null;
 }
 
-export function sortChecks(
-  checks: ReadonlyArray<PullRequestCheck>,
-): ReadonlyArray<PullRequestCheck> {
+export function sortChecks(checks: ReadonlyArray<PullRequestCheck>) {
   return checks.toSorted(
     (a, b) =>
       Number(b.status === "failure" || b.status === "cancelled") -
@@ -69,7 +70,7 @@ export function dedupeChecks(
     readonly at: string | null;
     readonly sequence?: number;
   }>,
-): ReadonlyArray<PullRequestCheck> {
+) {
   const newestByCheck = new Map<string, (typeof entries)[number]>();
   for (const entry of entries) {
     const key = JSON.stringify([entry.workflowName ?? "", entry.check.name]);

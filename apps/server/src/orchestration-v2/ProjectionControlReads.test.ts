@@ -44,7 +44,7 @@ const providerInstanceId = ProviderInstanceId.make("codex");
 const driver = ProviderDriverKind.make("codex");
 const modelSelection = { instanceId: providerInstanceId, model: "gpt-6" };
 
-function fixtureEvents(now: DateTime.Utc): ReadonlyArray<OrchestrationV2DomainEvent> {
+function fixtureEvents(now: DateTime.Utc) {
   const common = { threadId, occurredAt: now };
   return [
     {
@@ -188,7 +188,7 @@ function fixtureEvents(now: DateTime.Utc): ReadonlyArray<OrchestrationV2DomainEv
         resolvedAt: now,
       },
     },
-  ];
+  ] satisfies ReadonlyArray<OrchestrationV2DomainEvent>;
 }
 
 const storageCases = [

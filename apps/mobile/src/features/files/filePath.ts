@@ -6,29 +6,30 @@ import {
   isWorkspaceVideoPreviewPath,
 } from "@supaterm/shared/filePreview";
 
-function isWindowsAbsolutePath(value: string): boolean {
+function isWindowsAbsolutePath(value: string) {
   return /^[A-Za-z]:[\\/]/.test(value) || value.startsWith("\\\\");
 }
 
-export function isAbsolutePath(value: string): boolean {
+export function isAbsolutePath(value: string) {
   return value.startsWith("/") || isWindowsAbsolutePath(value);
 }
 
-export function fileRoutePathSegments(path: string): string[] {
+export function fileRoutePathSegments(path: string): string[];
+export function fileRoutePathSegments(path: string) {
   const segments = path.split("/").filter((segment) => segment.length > 0);
-  return path.startsWith("/") ? ["", ...segments] : segments;
+  return (path.startsWith("/") ? ["", ...segments] : segments) satisfies string[];
 }
 
-function isWindowsPathStyle(value: string): boolean {
+function isWindowsPathStyle(value: string) {
   return isWindowsAbsolutePath(value) || /^[A-Za-z]:\\/.test(value);
 }
 
-export function basename(path: string): string {
+export function basename(path: string) {
   const parts = path.split(/[\\/]/).filter(Boolean);
   return parts.at(-1) ?? path;
 }
 
-export function resolveWorkspaceFilePath(cwd: string, relativePath: string): string {
+export function resolveWorkspaceFilePath(cwd: string, relativePath: string) {
   if (isAbsolutePath(relativePath)) {
     return relativePath;
   }
@@ -37,7 +38,7 @@ export function resolveWorkspaceFilePath(cwd: string, relativePath: string): str
   return joinPath(cwd, relativePath, separator);
 }
 
-function normalizeRelativePath(value: string): string | null {
+function normalizeRelativePath(value: string) {
   const segments: string[] = [];
   for (const segment of value.replaceAll("\\", "/").split("/")) {
     if (segment.length === 0 || segment === ".") {
@@ -55,10 +56,7 @@ function normalizeRelativePath(value: string): string | null {
   return segments.length > 0 ? segments.join("/") : null;
 }
 
-export function resolveFileLinkPath(
-  workspaceRoot: string | null | undefined,
-  targetPath: string,
-): string | null {
+export function resolveFileLinkPath(workspaceRoot: string | null | undefined, targetPath: string) {
   if (targetPath.startsWith("~/") || targetPath.startsWith("~\\")) {
     if (!workspaceRoot) return null;
     const expanded = resolvePathLinkTarget(targetPath, workspaceRoot);
@@ -70,13 +68,17 @@ export function resolveFileLinkPath(
 export function resolveWorkspaceRelativeFilePath(
   workspaceRoot: string | null | undefined,
   targetPath: string,
-): string | null {
+): string | null;
+export function resolveWorkspaceRelativeFilePath(
+  workspaceRoot: string | null | undefined,
+  targetPath: string,
+) {
   const resolved = resolveFileLinkPath(workspaceRoot, targetPath);
-  if (resolved === null) return null;
+  if (resolved === null) return null satisfies string | null;
   targetPath = resolved;
-  if (!isAbsolutePath(targetPath)) return targetPath;
+  if (!isAbsolutePath(targetPath)) return targetPath satisfies string | null;
   if (!workspaceRoot) {
-    return null;
+    return null satisfies string | null;
   }
 
   const normalizedTarget = targetPath.replaceAll("\\", "/");
@@ -85,29 +87,29 @@ export function resolveWorkspaceRelativeFilePath(
   const comparableTarget = caseInsensitive ? normalizedTarget.toLowerCase() : normalizedTarget;
   const comparableRoot = caseInsensitive ? normalizedRoot.toLowerCase() : normalizedRoot;
   if (!comparableTarget.startsWith(`${comparableRoot}/`)) {
-    return null;
+    return null satisfies string | null;
   }
 
   const relativePath = normalizedTarget.slice(normalizedRoot.length + 1);
   if (relativePath.split("/").includes("..")) {
-    return null;
+    return null satisfies string | null;
   }
-  return normalizeRelativePath(relativePath);
+  return normalizeRelativePath(relativePath) satisfies string | null;
 }
 
-export function isVideoPreviewFile(path: string): boolean {
+export function isVideoPreviewFile(path: string) {
   return isWorkspaceVideoPreviewPath(path);
 }
 
-export function isAudioPreviewFile(path: string): boolean {
+export function isAudioPreviewFile(path: string) {
   return isWorkspaceAudioPreviewPath(path);
 }
 
-export function isSvgImagePreviewFile(path: string): boolean {
+export function isSvgImagePreviewFile(path: string) {
   return /\.svg$/i.test(path);
 }
 
-export function isMarkdownPreviewFile(path: string): boolean {
+export function isMarkdownPreviewFile(path: string) {
   return /\.(?:md|mdx|markdown|mdown|mkd)$/i.test(path);
 }
 
@@ -115,7 +117,7 @@ export function needsWorkspaceFileContents(input: {
   readonly relativePath: string | null;
   readonly metadataKind: FilesystemEntryMetadata["kind"] | undefined;
   readonly activeMode: "preview" | "source";
-}): boolean {
+}) {
   const path = input.relativePath;
   return (
     input.metadataKind !== "directory" &&
@@ -128,7 +130,7 @@ export function needsWorkspaceFileContents(input: {
   );
 }
 
-export function fileHeaderSubtitle(projectName: string, relativePath: string): string {
+export function fileHeaderSubtitle(projectName: string, relativePath: string) {
   const parentDir = relativePath.slice(
     0,
     Math.max(relativePath.lastIndexOf("/"), relativePath.lastIndexOf("\\"), 0),

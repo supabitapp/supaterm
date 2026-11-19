@@ -191,7 +191,7 @@ const environment = (environmentId: EnvironmentId, label: string) => ({
   },
 });
 
-const task = (projectId: ProjectId): ScheduledTask =>
+const task = (projectId: ProjectId) =>
   ({
     id: taskId,
     title: "Read only automation",

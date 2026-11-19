@@ -20,10 +20,12 @@ export function SheetActionButton(props: {
 
 export function menuItemIconName(
   icon: "commit" | "push" | "pr",
-): ComponentProps<typeof SymbolView>["name"] {
-  if (icon === "commit") return "checkmark.circle";
-  if (icon === "push") return "arrow.up.circle";
-  return "arrow.up.right.circle";
+): ComponentProps<typeof SymbolView>["name"];
+export function menuItemIconName(icon: "commit" | "push" | "pr") {
+  if (icon === "commit")
+    return "checkmark.circle" satisfies ComponentProps<typeof SymbolView>["name"];
+  if (icon === "push") return "arrow.up.circle" satisfies ComponentProps<typeof SymbolView>["name"];
+  return "arrow.up.right.circle" satisfies ComponentProps<typeof SymbolView>["name"];
 }
 
 export function statusSummary(
@@ -36,7 +38,7 @@ export function statusSummary(
     readonly pr?: { readonly state?: string; readonly number?: number } | null;
     readonly sourceControlProvider?: { readonly kind: string } | null;
   } | null,
-): string {
+) {
   if (!gitStatus) {
     return "Loading branch status\u2026";
   }

@@ -18,7 +18,7 @@ function isNavigationTab(value: unknown): value is NavigationTab {
 }
 
 /** Complete older preferences without losing their order or retaining removed sections. */
-export function resolveNavigationTabOrder(saved?: readonly unknown[]): readonly NavigationTab[] {
+export function resolveNavigationTabOrder(saved?: readonly unknown[]) {
   if (!saved?.length) return NAVIGATION_TAB_ORDER;
   return [...new Set([...saved.filter(isNavigationTab), ...NAVIGATION_TAB_ORDER])];
 }
@@ -27,7 +27,7 @@ export function moveNavigationTab(
   saved: readonly unknown[] | undefined,
   tab: NavigationTab,
   position: number,
-): readonly NavigationTab[] {
+) {
   const order = [...resolveNavigationTabOrder(saved)];
   const from = order.indexOf(tab);
   const to = Math.max(0, Math.min(order.length - 1, position));
@@ -36,7 +36,7 @@ export function moveNavigationTab(
   return order;
 }
 
-export function resolveHiddenNavigationTabs(saved?: readonly unknown[]): readonly NavigationTab[] {
+export function resolveHiddenNavigationTabs(saved?: readonly unknown[]) {
   return [...new Set(saved?.filter(isNavigationTab) ?? [])];
 }
 
@@ -71,7 +71,7 @@ export function selectedNavigationTab(
   settingsOpen: boolean,
   hidden?: readonly unknown[],
   capacity = 4,
-): NavigationTab | "settings" {
+) {
   return settingsOpen || !visibleNavigationTabs(saved, hidden, capacity).includes(selected)
     ? "settings"
     : selected;

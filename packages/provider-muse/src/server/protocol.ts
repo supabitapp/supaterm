@@ -209,7 +209,7 @@ export const MuseDelta = Schema.Struct({
 
 export function museApprovalDecision(
   choice: Pick<MuseApproval["availableChoices"][number], "decision" | "scope">,
-): ProviderApprovalDecision | undefined {
+) {
   switch (choice.decision) {
     case "approved":
       return "accept";

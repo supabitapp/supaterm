@@ -111,7 +111,7 @@ vi.mock("../../components/ui/AppBar", () => {
     readonly onPress?: () => void;
     readonly items?: ReadonlyArray<Item>;
   }
-  const renderItems = (items: ReadonlyArray<Item>): ReactNode =>
+  const renderItems: (items: ReadonlyArray<Item>) => ReactNode = (items: ReadonlyArray<Item>) =>
     items.map((item) =>
       item.items ? (
         renderItems(item.items)

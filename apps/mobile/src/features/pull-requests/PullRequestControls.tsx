@@ -289,7 +289,7 @@ export function PullRequestActionToolbar(props: {
   );
 }
 
-function renderThreadMenuItems(items: MenuAction[], select: (id: string) => void): ReactNode {
+function renderThreadMenuItems(items: MenuAction[], select: (id: string) => void) {
   return items.map((item) =>
     item.subactions ? (
       <Toolbar.Menu key={item.id} title={item.title} icon={item.image}>

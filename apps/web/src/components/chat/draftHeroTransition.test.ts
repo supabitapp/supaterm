@@ -32,10 +32,11 @@ function stubEnvironment(input: {
   return root;
 }
 
-function deferredViewTransition(): StartViewTransition {
-  return (update) => ({
+function deferredViewTransition(): StartViewTransition;
+function deferredViewTransition() {
+  return ((update) => ({
     finished: Promise.resolve().then(update),
-  });
+  })) satisfies StartViewTransition;
 }
 
 describe("runMobileComposerTransition", () => {
@@ -90,7 +91,7 @@ describe("runMobileComposerTransition", () => {
   it.each([
     {
       name: "the transition cannot start",
-      startViewTransition: (): ReturnType<StartViewTransition> => {
+      startViewTransition: () => {
         throw new Error("InvalidStateError");
       },
       update: vi.fn(),

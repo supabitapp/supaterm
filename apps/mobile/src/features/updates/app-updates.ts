@@ -45,7 +45,7 @@ export interface AppUpdateDeferral {
   installInProgress: boolean;
 }
 
-export function createAppUpdateDeferral(): AppUpdateDeferral {
+export function createAppUpdateDeferral() {
   return { pendingInstall: false, installInProgress: false };
 }
 
@@ -90,10 +90,7 @@ export function isAppUpdateCheckAvailable(client: Pick<AppUpdateClient, "isEnabl
   return client.isEnabled && !(typeof __DEV__ !== "undefined" && __DEV__);
 }
 
-export function registerHiddenUpdateTap(count: number): {
-  readonly nextCount: number;
-  readonly shouldCheck: boolean;
-} {
+export function registerHiddenUpdateTap(count: number) {
   const nextCount = count + 1;
   if (nextCount >= HIDDEN_UPDATE_TAP_COUNT) {
     return {
@@ -107,7 +104,7 @@ export function registerHiddenUpdateTap(count: number): {
   };
 }
 
-export async function runAppUpdateCheck(options: AppUpdateCheckOptions = {}): Promise<void> {
+export async function runAppUpdateCheck(options: AppUpdateCheckOptions = {}) {
   const client = options.client ?? Updates;
   if (!isAppUpdateCheckAvailable(client)) return;
 
@@ -165,7 +162,7 @@ export async function runAppUpdateCheck(options: AppUpdateCheckOptions = {}): Pr
   }
 }
 
-function createDeferred(): Deferred {
+function createDeferred() {
   let reject!: Deferred["reject"];
   let resolve!: Deferred["resolve"];
   const promise = new Promise<void>((resolvePromise, rejectPromise) => {
@@ -175,7 +172,7 @@ function createDeferred(): Deferred {
   return { promise, reject, resolve };
 }
 
-function notifyListeners<A>(listeners: ReadonlySet<(value: A) => void>, value: A): void {
+function notifyListeners<A>(listeners: ReadonlySet<(value: A) => void>, value: A) {
   const snapshot = Array.from(listeners);
   for (const listener of snapshot) listener(value);
 }
@@ -183,7 +180,7 @@ function notifyListeners<A>(listeners: ReadonlySet<(value: A) => void>, value: A
 async function observeAppUpdateCheck(
   inFlight: AppUpdateCheckInFlight,
   options: AppUpdateCheckOptions,
-): Promise<void> {
+) {
   const onFailure = options.onFailure;
   const onStateChange = options.onStateChange;
 
@@ -204,10 +201,7 @@ async function observeAppUpdateCheck(
   }
 }
 
-async function performAppUpdateCheck(
-  client: AppUpdateClient,
-  options: AppUpdateCheckOptions,
-): Promise<void> {
+async function performAppUpdateCheck(client: AppUpdateClient, options: AppUpdateCheckOptions) {
   const setState = options.onStateChange ?? (() => {});
   const environment = options.environment ?? defaultAppUpdateEnvironment;
   const deferral = options.deferral ?? appUpdateDeferral;
@@ -260,15 +254,13 @@ async function performAppUpdateCheck(
   armDeferredAppUpdateInstall(client, environment, deferral);
 }
 
-type AppUpdateInstallOutcome = "installed" | "flush-failed" | "restart-failed";
-
 async function installAppUpdate(
   client: AppUpdateClient,
   environment: AppUpdateEnvironment,
   deferral: AppUpdateDeferral,
   options: AppUpdateCheckOptions,
   userRequested: boolean,
-): Promise<AppUpdateInstallOutcome> {
+) {
   if (deferral.installInProgress) return "installed";
   deferral.installInProgress = true;
   const setState = options.onStateChange ?? (() => {});
@@ -296,7 +288,7 @@ async function installPendingAppUpdate(
   environment: AppUpdateEnvironment,
   deferral: AppUpdateDeferral,
   options: AppUpdateCheckOptions,
-): Promise<void> {
+) {
   const outcome = await installAppUpdate(client, environment, deferral, options, true);
   if (outcome === "restart-failed") {
     deferral.pendingInstall = false;
@@ -307,7 +299,7 @@ function armDeferredAppUpdateInstall(
   client: AppUpdateClient,
   environment: AppUpdateEnvironment,
   deferral: AppUpdateDeferral,
-): void {
+) {
   if (deferral.pendingInstall) return;
   deferral.pendingInstall = true;
   scheduleDeferredAppUpdateInstall(client, environment, deferral, true);
@@ -320,7 +312,7 @@ async function promptDeferredAppUpdateInstall(
   client: AppUpdateClient,
   environment: AppUpdateEnvironment,
   deferral: AppUpdateDeferral,
-): Promise<void> {
+) {
   if (!deferral.pendingInstall || deferral.installInProgress) return;
   const installNow = await settlePromise(() => environment.confirmInstallNow());
   if (installNow._tag !== "Success" || !installNow.value) return;
@@ -333,7 +325,7 @@ function scheduleDeferredAppUpdateInstall(
   environment: AppUpdateEnvironment,
   deferral: AppUpdateDeferral,
   includeCurrent: boolean,
-): void {
+) {
   environment.onNextBackground(() => {
     void applyDeferredAppUpdateInstall(client, environment, deferral);
   }, includeCurrent);
@@ -343,7 +335,7 @@ async function applyDeferredAppUpdateInstall(
   client: AppUpdateClient,
   environment: AppUpdateEnvironment,
   deferral: AppUpdateDeferral,
-): Promise<void> {
+) {
   if (!deferral.pendingInstall || deferral.installInProgress) return;
   deferral.installInProgress = true;
   const flushed = await settlePromise(() => environment.flushPendingWrites());
@@ -364,7 +356,7 @@ async function applyDeferredAppUpdateInstall(
   }
 }
 
-async function defaultConfirmInstallNow(): Promise<boolean> {
+async function defaultConfirmInstallNow() {
   const Dialog = await import("../../components/ui/Dialog");
   return new Promise<boolean>((resolve) => {
     Dialog.alert(
@@ -379,7 +371,7 @@ async function defaultConfirmInstallNow(): Promise<boolean> {
   });
 }
 
-async function defaultFlushPendingWrites(): Promise<void> {
+async function defaultFlushPendingWrites() {
   const results = await Promise.allSettled([
     import("../../state/use-composer-drafts").then((drafts) => drafts.flushComposerDrafts()),
     import("../../state/thread-outbox").then((outbox) => outbox.flushThreadOutbox()),
@@ -390,13 +382,13 @@ async function defaultFlushPendingWrites(): Promise<void> {
   if (failed) throw failed.reason;
 }
 
-async function defaultIsSafeToRestartInBackground(): Promise<boolean> {
+async function defaultIsSafeToRestartInBackground() {
   const { isForegroundHandoffActive } = await import("../../lib/foreground-handoff");
   if (isForegroundHandoffActive()) return false;
   return AppState.currentState === "background";
 }
 
-function defaultOnNextBackground(apply: () => void, includeCurrent: boolean): void {
+function defaultOnNextBackground(apply: () => void, includeCurrent: boolean) {
   const subscription = AppState.addEventListener("change", (state) => {
     if (state !== "background") return;
     subscription.remove();
@@ -410,7 +402,7 @@ function defaultOnNextBackground(apply: () => void, includeCurrent: boolean): vo
 
 const DEFERRED_INSTALL_PROMPT_AFTER_MS = 30 * 60 * 1000;
 
-function defaultOnForegroundStay(apply: () => void): void {
+function defaultOnForegroundStay(apply: () => void) {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const arm = () => {
     timer ??= setTimeout(() => {
@@ -442,7 +434,7 @@ function reportUpdateFailure(
   result: AtomCommandResult<unknown, unknown>,
   fallback: string,
   onFailure: AppUpdateCheckOptions["onFailure"],
-): void {
+) {
   if (result._tag !== "Failure" || isAtomCommandInterrupted(result)) return;
   const error = squashAtomCommandFailure(result);
   if (isAppUpdateUnavailableError(error)) return;
@@ -451,7 +443,7 @@ function reportUpdateFailure(
   onFailure?.(error instanceof Error ? error.message : fallback);
 }
 
-function isAppUpdateUnavailableError(error: unknown): boolean {
+function isAppUpdateUnavailableError(error: unknown) {
   if (typeof error !== "object" || error === null || !("code" in error)) return false;
   const code = error.code;
   return typeof code === "string" && UPDATE_CHECK_UNAVAILABLE_ERROR_CODES.has(code);
@@ -463,7 +455,7 @@ function shouldRecheckAppUpdateOnForeground(
   backgroundedAtMs: number | null,
   activeAtMs: number,
   pendingInstall: boolean,
-): boolean {
+) {
   if (pendingInstall) return false;
   return (
     backgroundedAtMs !== null &&
@@ -478,7 +470,7 @@ function shouldRecheckAppUpdateOnForeground(
 export function installAppUpdateChecks(
   client: AppUpdateClient = Updates,
   deferral: AppUpdateDeferral = appUpdateDeferral,
-): () => void {
+) {
   if (!isAppUpdateCheckAvailable(client)) return () => undefined;
   void runAppUpdateCheck({ client, deferral });
   let backgroundedAtMs: number | null = null;

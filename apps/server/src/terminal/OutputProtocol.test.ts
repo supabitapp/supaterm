@@ -15,18 +15,15 @@ import { Rpc, RpcGroup, RpcMessage, RpcSerialization, RpcServer } from "effect/r
 
 import { terminalOutputStream, withOutputWindow } from "./OutputProtocol.ts";
 
-const eventWith = (
-  field: "data" | "message" | "threadId",
-  text: string,
-): TerminalAttachStreamEvent =>
-  field === "message"
+const eventWith = (field: "data" | "message" | "threadId", text: string) =>
+  (field === "message"
     ? { threadId: "thread-1", terminalId: "default", type: "error", message: text }
     : {
         threadId: field === "threadId" ? text : "thread-1",
         terminalId: "default",
         type: "output",
         data: field === "data" ? text : "x",
-      };
+      }) satisfies TerminalAttachStreamEvent;
 
 describe("terminal output window", () => {
   it.effect.each([
@@ -105,29 +102,31 @@ describe("terminal output window", () => {
   );
 });
 
-const output = (data: string): TerminalAttachStreamEvent => ({
-  type: "output",
-  threadId: "thread-1",
-  terminalId: "default",
-  data,
-});
-
-const snapshot = (history: string): TerminalAttachStreamEvent => ({
-  type: "snapshot",
-  snapshot: {
+const output = (data: string) =>
+  ({
+    type: "output",
     threadId: "thread-1",
     terminalId: "default",
-    cwd: "/repo",
-    worktreePath: null,
-    status: "running",
-    pid: 1,
-    history,
-    exitCode: null,
-    exitSignal: null,
-    label: "bash",
-    updatedAt: "2026-01-01T00:00:00.000Z",
-  },
-});
+    data,
+  }) satisfies TerminalAttachStreamEvent;
+
+const snapshot = (history: string) =>
+  ({
+    type: "snapshot",
+    snapshot: {
+      threadId: "thread-1",
+      terminalId: "default",
+      cwd: "/repo",
+      worktreePath: null,
+      status: "running",
+      pid: 1,
+      history,
+      exitCode: null,
+      exitSignal: null,
+      label: "bash",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    },
+  }) satisfies TerminalAttachStreamEvent;
 
 const makePublisher = () => {
   const listeners = new Set<(event: TerminalAttachStreamEvent) => Effect.Effect<void>>();

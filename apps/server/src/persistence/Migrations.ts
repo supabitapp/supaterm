@@ -68,7 +68,7 @@ const loaderThrough = (lastId: number) =>
 
 export function skippedMigrations(
   recorded: ReadonlyArray<{ readonly id: number; readonly name: string }>,
-): string[] {
+) {
   const latestRecordedId = Math.max(0, ...recorded.map((row) => row.id));
   const recordedNames = new Map(recorded.map((row) => [row.id, row.name]));
   return migrationManifest.flatMap(([id, name]) => {

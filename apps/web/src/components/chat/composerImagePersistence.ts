@@ -7,7 +7,7 @@ import { readFileAsDataUrl } from "../../lib/imageCompression";
 export async function serializeComposerImages(
   images: ReadonlyArray<ComposerImageAttachment>,
   persistedAttachments: ReadonlyArray<PersistedComposerImageAttachment>,
-): Promise<PersistedComposerImageAttachment[]> {
+) {
   const existingPersistedById = new Map(
     persistedAttachments.map((attachment) => [attachment.id, attachment]),
   );
@@ -29,5 +29,7 @@ export async function serializeComposerImages(
       }
     }),
   );
-  return staged.filter((attachment) => attachment !== undefined);
+  return staged.filter(
+    (attachment) => attachment !== undefined,
+  ) satisfies PersistedComposerImageAttachment[];
 }

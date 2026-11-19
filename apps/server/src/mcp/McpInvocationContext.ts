@@ -5,7 +5,6 @@ import {
   OrchestratorMcpFailure,
   PreviewAutomationUnavailableError,
   type ProviderInstanceId,
-  type RuntimeMode,
   type ThreadId,
 } from "@supaterm/contracts";
 import * as Context from "effect/Context";
@@ -39,7 +38,7 @@ export interface McpClientCaller {
 }
 
 /** Read-only clients map to the lowest mode because McpToolAccess blocks writes first. */
-export const clientRuntimeModeCeiling = (client: McpClientCaller | undefined): RuntimeMode =>
+export const clientRuntimeModeCeiling = (client: McpClientCaller | undefined) =>
   client === undefined || client.access === "read-only" ? "approval-required" : client.access;
 
 /** Thread callers default to their own thread; client callers need thread for tools that act as the caller. */
@@ -62,11 +61,15 @@ export interface McpInvocationScope {
  * they get a web URL on the origin they reached instead.
  * A known `title` labels the chip for clients that cannot load this environment's threads.
  */
-export const threadLinkFor = (
+export const threadLinkFor: (
   scope: Pick<McpInvocationScope, "environmentId" | "client">,
   threadId: ThreadId,
   title?: string,
-): string => {
+) => string = (
+  scope: Pick<McpInvocationScope, "environmentId" | "client">,
+  threadId: ThreadId,
+  title?: string,
+) => {
   const origin = scope.client?.webOrigin;
   return origin === undefined
     ? formatThreadLink({ environmentId: scope.environmentId, threadId }, title)
@@ -82,7 +85,7 @@ export class McpInvocationContext extends Context.Service<
  * `McpSchema.EnabledWhen` for tools a delegated child must not see or call.
  * EnabledWhen only receives the MCP client profile, so read the Supaterm caller from the request fiber.
  */
-export const hiddenFromSubagents = (): boolean => {
+export const hiddenFromSubagents = () => {
   const fiber = Fiber.getCurrent();
   const scope = fiber && Context.getOrUndefined(fiber.context, McpInvocationContext);
   return scope?.thread?.subagent !== true;
@@ -93,7 +96,7 @@ export const hiddenFromSubagents = (): boolean => {
  * from outside has none. Discovery only; `McpToolAccess` still refuses the
  * call, and `toLayer` requires this on every thread-bound declaration.
  */
-export const hiddenFromOutsideClients = (): boolean => {
+export const hiddenFromOutsideClients = () => {
   const fiber = Fiber.getCurrent();
   const scope = fiber && Context.getOrUndefined(fiber.context, McpInvocationContext);
   return scope === undefined || scope.thread !== undefined;
@@ -103,10 +106,7 @@ export type McpCapabilityError<C extends McpCapability> = C extends "preview"
   ? PreviewAutomationUnavailableError
   : McpCapabilityUnavailableError;
 
-const missingCapability = (
-  invocation: McpInvocationScope,
-  capability: McpCapability,
-): PreviewAutomationUnavailableError | McpCapabilityUnavailableError => {
+const missingCapability = (invocation: McpInvocationScope, capability: McpCapability) => {
   const fields = {
     environmentId: invocation.environmentId,
     ...(invocation.thread === undefined
@@ -122,9 +122,7 @@ const missingCapability = (
     : new McpCapabilityUnavailableError({ capability, ...fields });
 };
 
-export const requireMcpCapability = <const C extends McpCapability>(
-  capability: C,
-): Effect.Effect<McpInvocationScope, McpCapabilityError<C>, McpInvocationContext> =>
+export const requireMcpCapability = <const C extends McpCapability>(capability: C) =>
   McpInvocationContext.pipe(
     Effect.filterOrFail(
       (invocation) => invocation.capabilities.has(capability),
@@ -133,9 +131,7 @@ export const requireMcpCapability = <const C extends McpCapability>(
     Effect.withSpan("mcp.requireCapability"),
   );
 
-export const requireThreadMcpCapability = <const C extends "preview" | "device">(
-  capability: C,
-): Effect.Effect<McpThreadInvocationScope, McpCapabilityError<C>, McpInvocationContext> =>
+export const requireThreadMcpCapability = <const C extends "preview" | "device">(capability: C) =>
   McpInvocationContext.pipe(
     Effect.filterOrFail(
       (invocation): invocation is McpThreadInvocationScope =>

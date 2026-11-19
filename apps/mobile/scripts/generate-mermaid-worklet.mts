@@ -38,50 +38,53 @@ export async function generateMermaidWorklet(
     babelrc: false,
     compact: true,
     plugins: [
-      ({ types: t }): PluginObj => ({
-        visitor: {
-          TaggedTemplateExpression(path) {
-            const { tag, quasi } = path.node;
-            if (tag.type !== "MemberExpression")
-              throw new Error("Unsupported diagram template tag");
-            if (
-              !t.isIdentifier(tag.object, { name: "String" }) ||
-              !t.isIdentifier(tag.property, { name: "raw" })
-            ) {
-              throw new Error("Unsupported tagged template in diagram runtime");
-            }
-            const first = quasi.quasis[0];
-            if (!first) throw new Error("Missing diagram template literal");
-            const value = t.expressionStatement(t.stringLiteral(first.value.raw));
-            quasi.expressions.forEach((expression, index) => {
-              if (!t.isExpression(expression))
-                throw new Error("Unexpected diagram template expression");
-              value.expression = t.binaryExpression(
-                "+",
-                t.binaryExpression("+", value.expression, expression),
-                t.stringLiteral(quasi.quasis[index + 1]!.value.raw),
-              );
-            });
-            path.replaceWith(value.expression);
+      ({ types: t }) =>
+        ({
+          visitor: {
+            TaggedTemplateExpression(path) {
+              const { tag, quasi } = path.node;
+              if (tag.type !== "MemberExpression")
+                throw new Error("Unsupported diagram template tag");
+              if (
+                !t.isIdentifier(tag.object, { name: "String" }) ||
+                !t.isIdentifier(tag.property, { name: "raw" })
+              ) {
+                throw new Error("Unsupported tagged template in diagram runtime");
+              }
+              const first = quasi.quasis[0];
+              if (!first) throw new Error("Missing diagram template literal");
+              const value = t.expressionStatement(t.stringLiteral(first.value.raw));
+              quasi.expressions.forEach((expression, index) => {
+                if (!t.isExpression(expression))
+                  throw new Error("Unexpected diagram template expression");
+                value.expression = t.binaryExpression(
+                  "+",
+                  t.binaryExpression("+", value.expression, expression),
+                  t.stringLiteral(quasi.quasis[index + 1]!.value.raw),
+                );
+              });
+              path.replaceWith(value.expression);
+            },
+            "Function|Loop"(path: BabelNodePath) {
+              if (!path.isFunction() && !path.isLoop()) return;
+              const body = path.get("body");
+              if (Array.isArray(body)) throw new Error("Unexpected renderer body");
+              if (!body.isBlockStatement()) {
+                body.replaceWith(
+                  t.blockStatement([
+                    body.isExpression() ? t.returnStatement(body.node) : body.node,
+                  ]),
+                );
+              }
+              if (body.isBlockStatement()) {
+                body.unshiftContainer(
+                  "body",
+                  t.expressionStatement(t.callExpression(t.identifier("__checkDiagramBudget"), [])),
+                );
+              }
+            },
           },
-          "Function|Loop"(path: BabelNodePath) {
-            if (!path.isFunction() && !path.isLoop()) return;
-            const body = path.get("body");
-            if (Array.isArray(body)) throw new Error("Unexpected renderer body");
-            if (!body.isBlockStatement()) {
-              body.replaceWith(
-                t.blockStatement([body.isExpression() ? t.returnStatement(body.node) : body.node]),
-              );
-            }
-            if (body.isBlockStatement()) {
-              body.unshiftContainer(
-                "body",
-                t.expressionStatement(t.callExpression(t.identifier("__checkDiagramBudget"), [])),
-              );
-            }
-          },
-        },
-      }),
+        }) satisfies PluginObj as PluginObj,
     ],
   })?.code;
   if (!instrumented) throw new Error("Mermaid worklet instrumentation failed.");

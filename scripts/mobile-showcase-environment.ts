@@ -260,11 +260,11 @@ export const SHOWCASE_THREADS = [
   },
 ] as const;
 
-function minutesBefore(now: number, minutes: number): string {
+function minutesBefore(now: number, minutes: number) {
   return new Date(now - minutes * 60_000).toISOString();
 }
 
-async function runGit(workspaceRoot: string, args: ReadonlyArray<string>): Promise<void> {
+async function runGit(workspaceRoot: string, args: ReadonlyArray<string>) {
   await execFile("git", [...args], {
     cwd: workspaceRoot,
     env: {
@@ -281,14 +281,14 @@ async function initializeRepository(input: {
   readonly workspaceRoot: string;
   readonly repositoryUrl: string;
   readonly commitMessage: string;
-}): Promise<void> {
+}) {
   await runGit(input.workspaceRoot, ["init", "-b", "main"]);
   await runGit(input.workspaceRoot, ["remote", "add", "origin", input.repositoryUrl]);
   await runGit(input.workspaceRoot, ["add", "."]);
   await runGit(input.workspaceRoot, ["commit", "-m", input.commitMessage]);
 }
 
-async function seedSupatermWorkspace(workspaceRoot: string): Promise<void> {
+async function seedSupatermWorkspace(workspaceRoot: string) {
   await NodeFSP.mkdir(NodePath.join(workspaceRoot, "apps/mobile/src/features/settings"), {
     recursive: true,
   });
@@ -322,7 +322,7 @@ async function seedCompanionWorkspace(input: {
   readonly title: string;
   readonly repositoryUrl: string;
   readonly favicon: string;
-}): Promise<void> {
+}) {
   await NodeFSP.mkdir(input.workspaceRoot, { recursive: true });
   await NodeFSP.writeFile(NodePath.join(input.workspaceRoot, "favicon.svg"), input.favicon);
   await NodeFSP.writeFile(
@@ -336,7 +336,7 @@ async function seedCompanionWorkspace(input: {
   });
 }
 
-function encodePayload<A, I extends object>(schema: Schema.Codec<A, I>, payload: I): string {
+function encodePayload<A, I extends object>(schema: Schema.Codec<A, I>, payload: I) {
   Schema.decodeSync(schema)(payload);
   return JSON.stringify(payload);
 }
@@ -349,7 +349,7 @@ const SEEDED_THREAD_TABLES = [
 
 const SEEDED_TABLES = [...SEEDED_THREAD_TABLES, "projection_projects"] as const;
 
-function hasSeedableSchema(dbPath: string): boolean {
+function hasSeedableSchema(dbPath: string) {
   let database: NodeSqlite.DatabaseSync;
   try {
     database = new NodeSqlite.DatabaseSync(dbPath, { readOnly: true });
@@ -370,7 +370,7 @@ function hasSeedableSchema(dbPath: string): boolean {
   }
 }
 
-export async function waitForSeedableSchema(dbPath: string, timeoutMs = 60_000): Promise<void> {
+export async function waitForSeedableSchema(dbPath: string, timeoutMs = 60_000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     if (hasSeedableSchema(dbPath)) return;
@@ -385,7 +385,7 @@ function seedDatabase(
   projects: ReadonlyArray<(typeof SHOWCASE_PROJECTS)[number]>,
   threads: ReadonlyArray<(typeof SHOWCASE_THREADS)[number]>,
   now: number,
-): void {
+) {
   const database = new NodeSqlite.DatabaseSync(dbPath, { timeout: 30_000 });
   const insert = (table: string, row: Record<string, NodeSqlite.SQLInputValue>) => {
     const columns = Object.keys(row);
@@ -592,7 +592,7 @@ export async function seedShowcaseEnvironment(input: {
   readonly baseDir: string;
   readonly projectIds?: ReadonlyArray<string>;
   readonly now?: number;
-}): Promise<{ readonly dbPath: string; readonly workspaceRoot: string }> {
+}) {
   const now = input.now ?? Date.now();
   const selectedProjectIds = new Set(
     input.projectIds ?? SHOWCASE_PROJECTS.map((project) => project.id),

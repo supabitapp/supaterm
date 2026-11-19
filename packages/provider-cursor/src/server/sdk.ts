@@ -5,7 +5,7 @@ const requireCursorSdk = NodeModule.createRequire(import.meta.url);
 let sdk: typeof import("@cursor/sdk") | undefined;
 let sqlite: typeof import("@cursor/sdk/sqlite") | undefined;
 
-export function loadCursorSdk(): typeof import("@cursor/sdk") {
+export function loadCursorSdk() {
   if (sdk !== undefined) return sdk;
   const start = performance.now();
   sdk = requireCursorSdk("@cursor/sdk") as typeof import("@cursor/sdk");
@@ -15,7 +15,7 @@ export function loadCursorSdk(): typeof import("@cursor/sdk") {
   return sdk;
 }
 
-export function loadCursorSqlite(): typeof import("@cursor/sdk/sqlite") {
+export function loadCursorSqlite() {
   if (sqlite !== undefined) return sqlite;
   const start = performance.now();
   sqlite = requireCursorSdk("@cursor/sdk/sqlite") as typeof import("@cursor/sdk/sqlite");

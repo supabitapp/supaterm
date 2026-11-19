@@ -8,34 +8,29 @@ import {
   type ScopedThreadRef,
 } from "@supaterm/contracts";
 
-export function scopeProjectRef(
-  environmentId: EnvironmentIdType,
-  projectId: ProjectIdType,
-): ScopedProjectRef {
+export function scopeProjectRef(environmentId: EnvironmentIdType, projectId: ProjectIdType) {
   return { environmentId, projectId };
 }
 
-export function scopeThreadRef(
-  environmentId: EnvironmentIdType,
-  threadId: ThreadId,
-): ScopedThreadRef {
+export function scopeThreadRef(environmentId: EnvironmentIdType, threadId: ThreadId) {
   return { environmentId, threadId };
 }
 
-function scopedRefKey(ref: ScopedProjectRef | ScopedThreadRef): string {
+function scopedRefKey(ref: ScopedProjectRef | ScopedThreadRef) {
   const localId = "projectId" in ref ? ref.projectId : ref.threadId;
   return `${ref.environmentId}:${localId}`;
 }
 
-export function scopedProjectKey(ref: ScopedProjectRef): string {
+export function scopedProjectKey(ref: ScopedProjectRef) {
   return scopedRefKey(ref);
 }
 
-export function scopedThreadKey(ref: ScopedThreadRef): string {
-  return scopedRefKey(ref);
+export function scopedThreadKey(ref: ScopedThreadRef): string;
+export function scopedThreadKey(ref: ScopedThreadRef) {
+  return scopedRefKey(ref) satisfies string;
 }
 
-function parseScopedKey(key: string): { environmentId: EnvironmentIdType; localId: string } | null {
+function parseScopedKey(key: string) {
   const separatorIndex = key.indexOf(":");
   if (separatorIndex <= 0 || separatorIndex >= key.length - 1) {
     return null;
@@ -46,7 +41,7 @@ function parseScopedKey(key: string): { environmentId: EnvironmentIdType; localI
   };
 }
 
-export function parseScopedProjectKey(key: string): ScopedProjectRef | null {
+export function parseScopedProjectKey(key: string) {
   const parsed = parseScopedKey(key);
   if (!parsed) {
     return null;
@@ -57,7 +52,7 @@ export function parseScopedProjectKey(key: string): ScopedProjectRef | null {
   };
 }
 
-export function parseScopedThreadKey(key: string): ScopedThreadRef | null {
+export function parseScopedThreadKey(key: string) {
   const parsed = parseScopedKey(key);
   if (!parsed) {
     return null;

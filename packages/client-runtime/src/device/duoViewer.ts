@@ -59,7 +59,16 @@ export function createDuoViewer(options: {
   onModelError?: (cause: unknown) => void;
   onPanelRequested?: (panel: DuoPanelId) => void;
   onOrientationRequested?: (orientation: DeviceScreenSize["orientation"]) => void;
-}): DuoViewer {
+}): DuoViewer;
+export function createDuoViewer(options: {
+  canvas: HTMLCanvasElement;
+  sources: Record<DuoPanelId, HTMLCanvasElement>;
+  model: DeviceModelSource;
+  onUnavailable: () => void;
+  onModelError?: (cause: unknown) => void;
+  onPanelRequested?: (panel: DuoPanelId) => void;
+  onOrientationRequested?: (orientation: DeviceScreenSize["orientation"]) => void;
+}) {
   const surfaces = ([1, 3] as const)
     .map((id) => {
       const canvas = document.createElement("canvas");
@@ -569,5 +578,5 @@ export function createDuoViewer(options: {
       renderer.dispose();
       renderer.forceContextLoss();
     },
-  };
+  } satisfies DuoViewer;
 }

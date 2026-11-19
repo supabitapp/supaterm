@@ -25,7 +25,7 @@ export class MigrateDevDbNotInWorktreeError extends Schema.TaggedError<MigrateDe
   "MigrateDevDbNotInWorktreeError",
   {},
 ) {
-  override get message(): string {
+  override get message() {
     return "Not inside a linked git worktree. Pass --base-dir to target an isolated .supaterm directory.";
   }
 }
@@ -34,7 +34,7 @@ export class MigrateDevDbSharedHomeError extends Schema.TaggedError<MigrateDevDb
   "MigrateDevDbSharedHomeError",
   {},
 ) {
-  override get message(): string {
+  override get message() {
     return "Refusing to rebuild the shared ~/.supaterm database. Use an isolated --base-dir.";
   }
 }
@@ -45,7 +45,7 @@ export class MigrateDevDbSourceMissingError extends Schema.TaggedError<MigrateDe
     sourcePath: Schema.String,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Source database does not exist at '${this.sourcePath}'.`;
   }
 }
@@ -56,7 +56,7 @@ export class MigrateDevDbSourceIsDestinationError extends Schema.TaggedError<Mig
     sourcePath: Schema.String,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Source database '${this.sourcePath}' resolves to a path this command rewrites. Pick a different --source or --base-dir.`;
   }
 }
@@ -68,7 +68,7 @@ export class MigrateDevDbServerRunningError extends Schema.TaggedError<MigrateDe
     pid: Schema.Number,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Dev database at '${this.databasePath}' is open by a running server (pid ${this.pid} per server-runtime.json). Stop that server first; if that pid is not actually a Supaterm server (stale descriptor, reused pid), delete the server-runtime.json next to the database and retry.`;
   }
 }
@@ -81,7 +81,7 @@ export class MigrateDevDbDestinationBusyError extends Schema.TaggedError<Migrate
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message(): string {
+  override get message() {
     const detail =
       this.reason === "write-locked"
         ? "the database is write-locked"
@@ -98,7 +98,7 @@ export class MigrateDevDbPhaseError extends Schema.TaggedError<MigrateDevDbPhase
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `migrate-dev-db failed during ${this.phase} on '${this.databasePath}'.`;
   }
 }
@@ -130,7 +130,7 @@ const removeDatabaseFiles = Effect.fn("removeDatabaseFiles")(function* (database
 const ServerRuntimeState = Schema.fromJsonString(Schema.Struct({ pid: Schema.Number }));
 const decodeServerRuntimeState = Schema.decodeEffect(ServerRuntimeState);
 
-const isProcessAlive = (pid: number): boolean => {
+const isProcessAlive = (pid: number) => {
   try {
     process.kill(pid, 0);
     return true;
@@ -509,7 +509,7 @@ export const runMigrateDevDb = Effect.fn("runMigrateDevDb")(function* (
   };
 });
 
-const formatSize = (bytes: number): string =>
+const formatSize = (bytes: number) =>
   bytes >= 1024 * 1024
     ? `${(bytes / (1024 * 1024)).toFixed(1)} MB`
     : `${(bytes / 1024).toFixed(0)} KB`;

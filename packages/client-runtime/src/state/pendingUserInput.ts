@@ -19,16 +19,13 @@ export interface PendingUserInputDraftAnswer {
 
 export type PendingUserInputAnswer = string | ReadonlyArray<string>;
 
-function normalizeDraftAnswer(value: string | undefined): string | null {
+function normalizeDraftAnswer(value: string | undefined) {
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : null;
 }
 
-function resolvePendingUserInputOptionValue(
-  question: PendingUserInputQuestion,
-  value: string,
-): string | null {
+function resolvePendingUserInputOptionValue(question: PendingUserInputQuestion, value: string) {
   if (question.options.some((option) => option.value === value)) {
     return value;
   }
@@ -44,7 +41,7 @@ function resolvePendingUserInputOptionValue(
 export function normalizeSelectedOptionValues(
   question: PendingUserInputQuestion,
   value: ReadonlyArray<string> | undefined,
-): ReadonlyArray<string> {
+) {
   if (!Array.isArray(value)) {
     return [];
   }
@@ -62,7 +59,7 @@ export function normalizeSelectedOptionValues(
 export function resolvePendingUserInputAnswer(
   question: PendingUserInputQuestion,
   draft: PendingUserInputDraftAnswer | undefined,
-): PendingUserInputAnswer | null {
+) {
   if (draft?.attachmentsBlocked) return null;
   const customAnswer =
     question.allowCustomAnswer === false
@@ -95,7 +92,7 @@ export function setPendingUserInputCustomAnswer(
   question: PendingUserInputQuestion,
   draft: PendingUserInputDraftAnswer | undefined,
   customAnswer: string,
-): PendingUserInputDraftAnswer {
+) {
   if (question.allowCustomAnswer === false) {
     return draft ?? {};
   }
@@ -114,7 +111,7 @@ export function isPendingUserInputOptionSelected(
   question: PendingUserInputQuestion,
   draft: PendingUserInputDraftAnswer | undefined,
   optionValue: string,
-): boolean {
+) {
   if (question.allowCustomAnswer !== false && normalizeDraftAnswer(draft?.customAnswer)) {
     return false;
   }
@@ -133,7 +130,7 @@ export function togglePendingUserInputOptionSelection(
   question: PendingUserInputQuestion,
   draft: PendingUserInputDraftAnswer | undefined,
   optionValue: string,
-): PendingUserInputDraftAnswer {
+) {
   const resolvedOptionValue = resolvePendingUserInputOptionValue(question, optionValue);
   if (resolvedOptionValue === null) {
     return draft ?? {};
@@ -165,7 +162,7 @@ export function togglePendingUserInputOptionSelection(
 export function isPendingUserInputQuestionAnswered(
   question: PendingUserInputQuestion,
   draft: PendingUserInputDraftAnswer | undefined,
-): boolean {
+) {
   return resolvePendingUserInputAnswer(question, draft) !== null;
 }
 
@@ -173,7 +170,7 @@ export function isPendingUserInputQuestionAnswered(
 export function resumePendingUserInputQuestionIndex(
   questions: ReadonlyArray<PendingUserInputQuestion>,
   draftAnswers: Record<string, PendingUserInputDraftAnswer>,
-): number {
+) {
   const index = questions.findIndex(
     (question) => !isPendingUserInputQuestionAnswered(question, draftAnswers[question.id]),
   );
@@ -184,7 +181,7 @@ export function resumePendingUserInputQuestionIndex(
 export function buildPendingUserInputAnswers(
   questions: ReadonlyArray<PendingUserInputQuestion>,
   draftAnswers: Record<string, PendingUserInputDraftAnswer>,
-): Record<string, PendingUserInputAnswer> | null {
+) {
   const entries: Array<[string, PendingUserInputAnswer]> = [];
 
   for (const question of questions) {

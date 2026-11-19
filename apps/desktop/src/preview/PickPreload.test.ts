@@ -18,7 +18,7 @@ vi.mock("electron", () => ({
 
 vi.mock("react-grab/primitives", () => ({ getElementContext: async () => null }));
 
-const startAnnotation = (): ShadowRoot => {
+const startAnnotation = () => {
   vi.stubGlobal(
     "ResizeObserver",
     class {

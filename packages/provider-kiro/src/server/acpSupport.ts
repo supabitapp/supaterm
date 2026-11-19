@@ -1,16 +1,11 @@
 import type * as EffectAcpSchema from "effect-acp/compat";
 import type { ProviderApprovalOption, RuntimeMode } from "@supaterm/contracts";
 import type { KiroSettings } from "../settings.ts";
-import type * as SecureRandom from "effect/crypto/SecureRandom";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import type * as Scope from "effect/Scope";
-import type * as ChildProcessSpawner from "effect/process/ChildProcessSpawner";
-import type * as EffectAcpErrors from "effect-acp/errors";
 
 import {
   acpPermissionDisposition,
-  type AcpPermissionDisposition,
   type AcpRuntimePolicy,
 } from "@supaterm/provider-acp/server/clientPolicy";
 import * as AcpSessionRuntime from "@supaterm/provider-acp/server/AcpSessionRuntime";
@@ -59,7 +54,7 @@ export function kiroAutopilotValue(policy: {
   readonly runtimeMode: RuntimeMode;
   readonly approvalPolicy?: unknown;
   readonly sandboxPolicy?: unknown;
-}): "on" | "off" {
+}) {
   return policy.runtimeMode === "full-access" &&
     policy.approvalPolicy === undefined &&
     policy.sandboxPolicy === undefined
@@ -73,7 +68,7 @@ export function buildKiroAcpSpawnInput(
   settings: KiroAcpRuntimeSettings | null | undefined,
   cwd: string,
   environment?: NodeJS.ProcessEnv,
-): AcpSessionRuntime.AcpSpawnInput {
+) {
   return {
     command: settings?.binaryPath || "kiro-cli",
     args: [...KIRO_ACP_ARGS],
@@ -87,9 +82,7 @@ export function buildKiroAcpSpawnInput(
  * authoritative. Its `allow_always` saves a consent rule for the workspace or
  * wider, so it is offered, as "Always allow", only without a one-time choice.
  */
-export function kiroApprovalOptions(
-  request: EffectAcpSchema.RequestPermissionRequest,
-): ReadonlyArray<ProviderApprovalOption> {
+export function kiroApprovalOptions(request: EffectAcpSchema.RequestPermissionRequest) {
   const has = (kind: EffectAcpSchema.PermissionOption["kind"]) =>
     request.options.some((option) => option.kind === kind && option.optionId.trim().length > 0);
   return [
@@ -100,7 +93,7 @@ export function kiroApprovalOptions(
         : []),
     ...(has("reject_once") ? [{ decision: "decline", label: "Deny" } as const] : []),
     { decision: "cancel", label: "Cancel" },
-  ];
+  ] satisfies ReadonlyArray<ProviderApprovalOption>;
 }
 
 /**
@@ -112,7 +105,7 @@ export function kiroApprovalOptions(
 export function kiroPermissionDisposition(
   policy: AcpRuntimePolicy,
   request: EffectAcpSchema.RequestPermissionRequest,
-): AcpPermissionDisposition {
+) {
   const disposition = acpPermissionDisposition(policy, request);
   const offersOnce = request.options.some(
     (option) => option.kind === "allow_once" && option.optionId.trim().length > 0,
@@ -130,11 +123,7 @@ export interface KiroAcpRuntimeInput extends Omit<
 
 export const makeKiroAcpRuntime = Effect.fn("KiroAcpSupport.makeKiroAcpRuntime")(function* (
   input: KiroAcpRuntimeInput,
-): Effect.fn.Return<
-  AcpSessionRuntime.AcpSessionRuntime["Service"],
-  EffectAcpErrors.AcpError,
-  ChildProcessSpawner.ChildProcessSpawner | SecureRandom.SecureRandom | Scope.Scope
-> {
+) {
   const { settings, environment, ...runtimeOptions } = input;
   const context = yield* Layer.build(
     AcpSessionRuntime.layer({

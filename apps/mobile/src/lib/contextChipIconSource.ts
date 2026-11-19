@@ -8,6 +8,6 @@ export function contextChipIconSource(icon: ContextChipIconRef) {
     : markdownFileIconSource(icon.name);
 }
 
-export function contextChipIconUri(icon: ContextChipIconRef): string | null {
+export function contextChipIconUri(icon: ContextChipIconRef) {
   return markdownIconAssetUri(contextChipIconSource(icon)) ?? null;
 }

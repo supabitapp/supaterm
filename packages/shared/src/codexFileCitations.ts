@@ -9,18 +9,18 @@ export interface CodexFileCitationLink {
 
 export type CodexFileCitationAttributes = Readonly<Record<string, string | null | undefined>>;
 
-function positiveInteger(value: string | null | undefined): number | undefined {
+function positiveInteger(value: string | null | undefined) {
   if (value === null || value === undefined || value.trim().length === 0) return undefined;
   const parsed = Number(value);
   return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : undefined;
 }
 
-function citationLabel(path: string): string {
+function citationLabel(path: string) {
   const normalized = path.replaceAll("\\", "/").replace(/\/+$/, "");
   return normalized.slice(normalized.lastIndexOf("/") + 1) || normalized || "File";
 }
 
-function markdownDestinationPath(path: string): string {
+function markdownDestinationPath(path: string) {
   const destination = path.replaceAll("%", "%25").replaceAll("#", "%23").replaceAll("?", "%3F");
   return parseMarkdownFileLink(destination) || /^(?:[a-z][a-z\d+.-]*:|[\\/])/i.test(path)
     ? destination
@@ -29,7 +29,7 @@ function markdownDestinationPath(path: string): string {
 
 export function resolveCodexFileCitationLink(
   attributes: CodexFileCitationAttributes | null | undefined,
-): CodexFileCitationLink | null {
+) {
   const path = attributes?.path?.trim();
   if (!path) return null;
 
@@ -43,11 +43,11 @@ export function resolveCodexFileCitationLink(
   };
 }
 
-function markdownLabel(value: string): string {
+function markdownLabel(value: string) {
   return value.replace(/[\\[\]*_`<&]/g, "\\$&");
 }
 
-function markdownDestination(value: string): string {
+function markdownDestination(value: string) {
   return value
     .replaceAll("\\", "%5C")
     .replaceAll("&", "%26")
@@ -57,6 +57,6 @@ function markdownDestination(value: string): string {
     .replaceAll("\n", "%0A");
 }
 
-export function codexFileCitationMarkdown(citation: CodexFileCitationLink): string {
+export function codexFileCitationMarkdown(citation: CodexFileCitationLink) {
   return `[${markdownLabel(citation.label)}](<${markdownDestination(citation.href)}>)`;
 }

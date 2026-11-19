@@ -14,7 +14,7 @@ export class ElectronDialogPickFolderError extends Schema.TaggedError<ElectronDi
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     const owner = this.ownerWindowId === null ? "the application" : `window ${this.ownerWindowId}`;
     const defaultPath = this.defaultPath === null ? "no default path" : this.defaultPath;
     return `Failed to open the Electron folder picker for ${owner} with ${defaultPath}.`;
@@ -29,7 +29,7 @@ export class ElectronDialogPickFilesError extends Schema.TaggedError<ElectronDia
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     const owner = this.ownerWindowId === null ? "the application" : `window ${this.ownerWindowId}`;
     const defaultPath = this.defaultPath === null ? "no default path" : this.defaultPath;
     return `Failed to open the Electron file picker for ${owner} with ${defaultPath}.`;
@@ -47,7 +47,7 @@ export class ElectronDialogShowMessageBoxError extends Schema.TaggedError<Electr
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     const type = this.type === null ? "untyped" : this.type;
     return `Failed to show the Electron ${type} message box with ${this.buttonCount} buttons.`;
   }
@@ -61,7 +61,7 @@ export class ElectronDialogShowErrorBoxError extends Schema.TaggedError<Electron
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Failed to show the Electron error box with a ${this.titleLength}-character title and ${this.contentLength}-character content.`;
   }
 }

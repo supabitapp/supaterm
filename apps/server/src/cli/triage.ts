@@ -58,8 +58,8 @@ export class TriageAgentUnavailableError extends Schema.TaggedError<TriageAgentU
   "TriageAgentUnavailableError",
   { agent: Schema.String },
 ) {
-  override get message(): string {
-    return `\`${this.agent}\` is not installed or was not found on PATH.`;
+  override get message() {
+    return `\`${this.agent}\` is not installed or was not found on PATH.` satisfies string as string;
   }
 }
 
@@ -67,8 +67,8 @@ export class TriageAgentChoiceRequiredError extends Schema.TaggedError<TriageAge
   "TriageAgentChoiceRequiredError",
   {},
 ) {
-  override get message(): string {
-    return "Both claude and codex are installed and there is no terminal to ask which to use. Re-run with --agent claude or --agent codex.";
+  override get message() {
+    return "Both claude and codex are installed and there is no terminal to ask which to use. Re-run with --agent claude or --agent codex." satisfies string as string;
   }
 }
 
@@ -76,8 +76,8 @@ export class TriageAgentSpawnError extends Schema.TaggedError<TriageAgentSpawnEr
   "TriageAgentSpawnError",
   { command: Schema.String, cause: Schema.Defect() },
 ) {
-  override get message(): string {
-    return `Could not start \`${this.command}\`.`;
+  override get message() {
+    return `Could not start \`${this.command}\`.` satisfies string as string;
   }
 }
 

@@ -18,7 +18,7 @@ export class MobileStorageDecodeError extends Schema.TaggedError<MobileStorageDe
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Failed to decode mobile storage value for key ${this.key}.`;
   }
 }
@@ -30,7 +30,7 @@ export class MobileStorageEncodeError extends Schema.TaggedError<MobileStorageEn
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Failed to encode mobile storage value for key ${this.key}.`;
   }
 }
@@ -39,7 +39,7 @@ export class MobileDeviceIdGenerationError extends Schema.TaggedError<MobileDevi
   "MobileDeviceIdGenerationError",
   { cause: Schema.Defect() },
 ) {
-  override get message(): string {
+  override get message() {
     return "Failed to generate the mobile device id.";
   }
 }
@@ -74,7 +74,7 @@ export const make = Effect.fn("MobileStorage.make")(function* () {
   const secureStorage = yield* MobileSecureStorage.MobileSecureStorage;
   const deviceIdLock = yield* Semaphore.make(1);
 
-  const parseJson = <A>(key: string, raw: string): A | null => {
+  const parseJson = <A>(key: string, raw: string) => {
     if (!raw.trim()) return null;
     try {
       return JSON.parse(raw) as A;

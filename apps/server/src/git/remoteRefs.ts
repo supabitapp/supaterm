@@ -1,4 +1,4 @@
-export function parseRemoteNamesInGitOrder(stdout: string): ReadonlyArray<string> {
+export function parseRemoteNamesInGitOrder(stdout: string) {
   const remoteNames: Array<string> = [];
   for (const line of stdout.split("\n")) {
     const remoteName = line.trim();
@@ -9,14 +9,11 @@ export function parseRemoteNamesInGitOrder(stdout: string): ReadonlyArray<string
   return remoteNames;
 }
 
-export function parseRemoteNames(stdout: string): ReadonlyArray<string> {
+export function parseRemoteNames(stdout: string) {
   return parseRemoteNamesInGitOrder(stdout).toSorted((a, b) => b.length - a.length);
 }
 
-export function parseRemoteRefWithRemoteNames(
-  ref: string,
-  remoteNames: ReadonlyArray<string>,
-): { remoteRef: string; remoteName: string; branchName: string } | null {
+export function parseRemoteRefWithRemoteNames(ref: string, remoteNames: ReadonlyArray<string>) {
   const trimmedRef = ref.trim();
   if (trimmedRef.length === 0) {
     return null;
@@ -47,7 +44,7 @@ export function extractBranchNameFromRemoteRef(
     remoteName?: string | null;
     remoteNames?: ReadonlyArray<string>;
   },
-): string {
+) {
   const normalized = ref.trim();
   if (normalized.length === 0) {
     return "";

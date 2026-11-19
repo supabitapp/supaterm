@@ -298,13 +298,13 @@ const CLAUDE_RECORDINGS = {
   },
 } as const;
 
-function readArgValue(name: string): string | undefined {
+function readArgValue(name: string) {
   const args = process.argv.slice(2);
   const index = args.indexOf(name);
   return index >= 0 ? args[index + 1] : undefined;
 }
 
-function selectedQueryMode(defaultMode: ClaudeRecordingQueryMode): ClaudeRecordingQueryMode {
+function selectedQueryMode(defaultMode: ClaudeRecordingQueryMode) {
   const raw = readArgValue("--query-mode") ?? process.env.SUPATERM_CLAUDE_REPLAY_QUERY_MODE;
   if (raw === undefined) {
     return defaultMode;
@@ -354,7 +354,7 @@ const outputPath =
 
 function encodeTranscriptNdjson(
   transcript: Awaited<ReturnType<typeof recordClaudeAgentSdkReplayTranscript>>,
-): string {
+) {
   const { entries, ...metadata } = transcript;
   return [
     JSON.stringify({ type: "transcript_start", ...metadata }),
@@ -363,15 +363,15 @@ function encodeTranscriptNdjson(
   ].join("\n");
 }
 
-function joinPath(directory: string, fileName: string): string {
+function joinPath(directory: string, fileName: string) {
   return `${directory.replace(/\/+$/u, "")}/${fileName.replace(/^\/+/u, "")}`;
 }
 
-function runFileSystem<A, E>(effect: Effect.Effect<A, E, FileSystem.FileSystem>): Promise<A> {
+function runFileSystem<A, E>(effect: Effect.Effect<A, E, FileSystem.FileSystem>) {
   return Effect.runPromise(effect.pipe(Effect.provide(NodeServices.layer)));
 }
 
-function selectedPrompts(): ReadonlyArray<string> {
+function selectedPrompts() {
   if (process.env.SUPATERM_CLAUDE_REPLAY_PROMPTS !== undefined) {
     return process.env.SUPATERM_CLAUDE_REPLAY_PROMPTS.split("\n---\n").filter(
       (prompt) => prompt.length > 0,
@@ -396,7 +396,7 @@ validateClaudeReplayRecordingSelection({
 function runtimePolicyForRecording(input: {
   readonly cwd: string;
   readonly override?: RuntimePolicyV2Override;
-}): ProviderAdapter.ProviderAdapterV2RuntimePolicy {
+}) {
   return ProviderAdapter.ProviderAdapterV2RuntimePolicy.make({
     runtimeMode: "full-access",
     interactionMode: "default",
@@ -413,7 +413,7 @@ function runtimePolicyForRecording(input: {
   });
 }
 
-async function makeToolCallReadOnlyRecordingWorkspace(): Promise<string> {
+async function makeToolCallReadOnlyRecordingWorkspace() {
   await runFileSystem(
     Effect.gen(function* () {
       const fs = yield* FileSystem.FileSystem;
@@ -434,7 +434,7 @@ const shouldRemoveCwd = process.env.SUPATERM_CLAUDE_REPLAY_CWD === undefined;
 const expectedAbsentWorkspacePaths =
   "expectedAbsentWorkspacePaths" in recording ? recording.expectedAbsentWorkspacePaths : [];
 
-async function assertWorkspacePathsAbsent(phase: "before" | "after"): Promise<void> {
+async function assertWorkspacePathsAbsent(phase: "before" | "after") {
   const presentPaths = await runFileSystem(
     Effect.gen(function* () {
       const fs = yield* FileSystem.FileSystem;

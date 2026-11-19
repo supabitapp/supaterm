@@ -33,14 +33,12 @@ export const BUILT_IN_BROWSER_PROFILES: ReadonlyArray<BrowserProfile> = [
   { id: INCOGNITO_BROWSER_PROFILE_ID, name: "Incognito", kind: "incognito" },
 ];
 
-export function isBuiltInBrowserProfileId(id: string): boolean {
+export function isBuiltInBrowserProfileId(id: string) {
   return BUILT_IN_BROWSER_PROFILES.some((profile) => profile.id === id);
 }
 
 /** Deduplicates ids sharing a partition; only the built-in incognito id is actually ephemeral. */
-export function resolveBrowserProfiles(
-  userProfiles: ReadonlyArray<BrowserProfile>,
-): ReadonlyArray<BrowserProfile> {
+export function resolveBrowserProfiles(userProfiles: ReadonlyArray<BrowserProfile>) {
   const seen = new Set(BUILT_IN_BROWSER_PROFILES.map((profile) => profile.id));
   const resolved = [...BUILT_IN_BROWSER_PROFILES];
   for (const profile of userProfiles) {
@@ -54,6 +52,6 @@ export function resolveBrowserProfiles(
 export function findBrowserProfile(
   profiles: ReadonlyArray<BrowserProfile>,
   id: string | undefined,
-): BrowserProfile | undefined {
+) {
   return id === undefined ? undefined : profiles.find((profile) => profile.id === id);
 }

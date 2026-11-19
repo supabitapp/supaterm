@@ -8,25 +8,26 @@ const model = (
   totalTokens: number,
   costUsd: number,
   overrides: Partial<ModelTotals> = {},
-): ModelTotals => ({
-  model: name,
-  provider: "codex",
-  costUsd,
-  totalTokens,
-  tokens: {
-    uncachedInputTokens: totalTokens,
-    cachedInputTokens: 0,
-    cacheCreationTokens: 0,
-    outputTokens: 0,
-    reasoningTokens: 0,
-  },
-  records: 1,
-  unpricedRecords: 0,
-  unpricedTokens: 0,
-  costShare: 0,
-  tokenShare: 0,
-  ...overrides,
-});
+) =>
+  ({
+    model: name,
+    provider: "codex",
+    costUsd,
+    totalTokens,
+    tokens: {
+      uncachedInputTokens: totalTokens,
+      cachedInputTokens: 0,
+      cacheCreationTokens: 0,
+      outputTokens: 0,
+      reasoningTokens: 0,
+    },
+    records: 1,
+    unpricedRecords: 0,
+    unpricedTokens: 0,
+    costShare: 0,
+    tokenShare: 0,
+    ...overrides,
+  }) satisfies ModelTotals;
 
 describe("model rates", () => {
   it("counts cache writes as misses and leaves unpriced tokens out of $/1M", () => {

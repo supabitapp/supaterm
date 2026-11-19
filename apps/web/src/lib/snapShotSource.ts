@@ -3,7 +3,11 @@ import type { SnapShotAccessibilityNode, SnapShotSource } from "@supaterm/contra
 export function resizeSnapShotSource(
   source: SnapShotSource,
   imageSize?: { readonly width: number; readonly height: number },
-): SnapShotSource {
+): SnapShotSource;
+export function resizeSnapShotSource(
+  source: SnapShotSource,
+  imageSize?: { readonly width: number; readonly height: number },
+) {
   const accessibility = source.accessibility;
   if (
     !imageSize ||
@@ -11,11 +15,13 @@ export function resizeSnapShotSource(
     (imageSize.width === accessibility.imageSize.width &&
       imageSize.height === accessibility.imageSize.height)
   )
-    return source;
+    return source satisfies SnapShotSource;
 
   const scaleX = imageSize.width / accessibility.imageSize.width;
   const scaleY = imageSize.height / accessibility.imageSize.height;
-  const resizeNode = (node: SnapShotAccessibilityNode): SnapShotAccessibilityNode => {
+  const resizeNode: (node: SnapShotAccessibilityNode) => SnapShotAccessibilityNode = (
+    node: SnapShotAccessibilityNode,
+  ) => {
     let bounds = null;
     if (node.bounds) {
       const x = Math.min(imageSize.width, Math.round(node.bounds.x * scaleX));
@@ -35,5 +41,5 @@ export function resizeSnapShotSource(
   return {
     ...source,
     accessibility: { ...accessibility, imageSize, root: resizeNode(accessibility.root) },
-  };
+  } satisfies SnapShotSource;
 }

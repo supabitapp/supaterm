@@ -86,11 +86,7 @@ export function createWorkerClient<M extends Methods>(worker: Worker) {
   );
 
   return {
-    call<K extends keyof M & string>(
-      method: K,
-      input: M[K]["input"],
-      options: CallOptions = {},
-    ): Promise<M[K]["output"]> {
+    call<K extends keyof M & string>(method: K, input: M[K]["input"], options: CallOptions = {}) {
       if (state.failure) return Promise.reject(state.failure);
 
       if (options.signal?.aborted)

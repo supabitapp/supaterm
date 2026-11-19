@@ -11,7 +11,7 @@ import {
   type CustomModelDraft,
 } from "./customModelEditor.logic";
 
-const draft = (overrides: Partial<CustomModelDraft>): CustomModelDraft => ({
+const draft = (overrides: Partial<CustomModelDraft>) => ({
   slug: "my-model",
   name: "",
   descriptors: [],

@@ -8,7 +8,7 @@ function environment(
   environmentLabel: string,
   connectionState: WorkspaceEnvironment["connectionState"],
   connectionError: string | null = null,
-): WorkspaceEnvironment {
+) {
   return {
     environmentId: EnvironmentId.make(environmentLabel),
     environmentLabel,

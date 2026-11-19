@@ -25,7 +25,7 @@ class DesktopNetworkAccessUnavailableError extends Schema.TaggedError<DesktopNet
   "DesktopNetworkAccessUnavailableError",
   {},
 ) {
-  override get message(): string {
+  override get message() {
     return "Desktop network access is unavailable.";
   }
 }
@@ -34,7 +34,7 @@ class DesktopServerExposureStateLoadError extends Schema.TaggedError<DesktopServ
   "DesktopServerExposureStateLoadError",
   { cause: Schema.Defect() },
 ) {
-  override get message(): string {
+  override get message() {
     return "Failed to load desktop server exposure state.";
   }
 }
@@ -43,12 +43,12 @@ class DesktopAdvertisedEndpointsLoadError extends Schema.TaggedError<DesktopAdve
   "DesktopAdvertisedEndpointsLoadError",
   { cause: Schema.Defect() },
 ) {
-  override get message(): string {
+  override get message() {
     return "Failed to load advertised desktop endpoints.";
   }
 }
 
-function getDesktopNetworkAccessBridge(): DesktopNetworkAccessBridge | undefined {
+function getDesktopNetworkAccessBridge() {
   return typeof window === "undefined" ? undefined : window.desktopBridge;
 }
 
@@ -93,6 +93,6 @@ export const desktopNetworkAccessStateAtom = createDesktopNetworkAccessStateAtom
   getDesktopNetworkAccessBridge,
 );
 
-export function refreshDesktopNetworkAccessState(): void {
+export function refreshDesktopNetworkAccessState() {
   appAtomRegistry.refresh(desktopNetworkAccessStateAtom);
 }

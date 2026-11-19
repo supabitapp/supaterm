@@ -5,6 +5,6 @@ export function materialYouPaletteToMobileThemeVariables(
   _palette: MaterialYouPalette,
   _appearance: MobileThemeAppearance,
   base: MobileThemeVariables,
-): MobileThemeVariables {
+) {
   return base;
 }

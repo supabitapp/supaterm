@@ -164,7 +164,7 @@ const environmentId = EnvironmentId.make("remote-device");
 const codexId = ProviderInstanceId.make("codex");
 const customId = ProviderInstanceId.make("codex_work");
 
-function provider(): ServerProvider {
+function provider() {
   return {
     instanceId: codexId,
     driver: ProviderDriverKind.make("codex"),
@@ -186,7 +186,7 @@ function provider(): ServerProvider {
       checkedAt: "2026-07-24T12:00:00.000Z",
       message: "Update available.",
     },
-  };
+  } satisfies ServerProvider;
 }
 
 const setProviders = (providers: ReadonlyArray<ServerProvider>) =>

@@ -2,11 +2,11 @@ import type { ScopedThreadRef } from "@supaterm/contracts";
 
 const THREAD_RENAME_START_EVENT = "supaterm:thread-rename-start";
 
-export function requestThreadRename(threadRef: ScopedThreadRef): void {
+export function requestThreadRename(threadRef: ScopedThreadRef) {
   window.dispatchEvent(new CustomEvent(THREAD_RENAME_START_EVENT, { detail: threadRef }));
 }
 
-export function subscribeThreadRename(listener: (threadRef: ScopedThreadRef) => void): () => void {
+export function subscribeThreadRename(listener: (threadRef: ScopedThreadRef) => void) {
   const handler = (event: Event) => listener((event as CustomEvent<ScopedThreadRef>).detail);
   window.addEventListener(THREAD_RENAME_START_EVENT, handler);
   return () => window.removeEventListener(THREAD_RENAME_START_EVENT, handler);

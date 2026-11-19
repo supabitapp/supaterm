@@ -56,7 +56,7 @@ export class WorkspaceFileSystemOperationError extends Schema.TaggedError<Worksp
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Workspace file operation '${this.operation}' failed at '${this.operationPath}' for resolved path '${this.resolvedPath}' (requested as '${this.relativePath}' in '${this.workspaceRoot}').`;
   }
 }
@@ -70,7 +70,7 @@ export class WorkspaceFilePathEscapeError extends Schema.TaggedError<WorkspaceFi
     resolvedPath: Schema.String,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Workspace file '${this.relativePath}' resolves outside workspace root '${this.workspaceRoot}': ${this.resolvedPath}`;
   }
 }
@@ -83,7 +83,7 @@ export class WorkspacePathNotFileError extends Schema.TaggedError<WorkspacePathN
     resolvedPath: Schema.String,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Workspace path '${this.relativePath}' in '${this.workspaceRoot}' is not a file: ${this.resolvedPath}`;
   }
 }
@@ -96,7 +96,7 @@ export class WorkspaceBinaryFileError extends Schema.TaggedError<WorkspaceBinary
     resolvedPath: Schema.String,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Workspace file '${this.relativePath}' in '${this.workspaceRoot}' is binary and cannot be previewed as text.`;
   }
 }
@@ -136,7 +136,7 @@ export class WorkspaceFileSystem extends Context.Service<
 
 const UTF8_BOM = "\uFEFF";
 
-async function startsWithUtf8Bom(filePath: string): Promise<boolean> {
+async function startsWithUtf8Bom(filePath: string) {
   const handle = await NodeFSP.open(
     filePath,
     NodeFS.constants.O_RDONLY |

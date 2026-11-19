@@ -117,7 +117,7 @@ const preprocess = async (options: Parameters<Preprocessor>[0]) => {
     }
   }
 
-  const shares = Array.from({ length: WORKERS }, (): Array<Project> => []);
+  const shares = Array.from({ length: WORKERS }, () => []);
   [...projects]
     .sort(([, a], [, b]) => b.size - a.size)
     .forEach(([configPath, files], index) => {

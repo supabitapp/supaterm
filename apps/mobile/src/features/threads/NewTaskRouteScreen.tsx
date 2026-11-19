@@ -158,7 +158,7 @@ export function NewTaskRouteScreen({ route }: StaticScreenProps<NewTaskRoutePara
   const canStartScratch = scratchOption?.ready === true;
   const scratchStartInFlightRef = useRef(false);
 
-  async function selectProject(project: EnvironmentProject): Promise<void> {
+  async function selectProject(project: EnvironmentProject) {
     if (incomingShare?.destination && !reservedDestinationProject) {
       try {
         await releaseShareReservation(incomingShare.id, incomingShare.destination);
@@ -210,7 +210,7 @@ export function NewTaskRouteScreen({ route }: StaticScreenProps<NewTaskRoutePara
     });
   }
 
-  async function startScratch(): Promise<void> {
+  async function startScratch() {
     if (!canStartScratch || !scratchOption || scratchStartInFlightRef.current) return;
     const environmentId = scratchOption.environmentId;
     scratchStartInFlightRef.current = true;

@@ -4,7 +4,7 @@ const textEncoder = new TextEncoder();
 
 export type PastedTextDisposition = "attachment" | "inline";
 
-function isVKey(event: { readonly key: string; readonly code?: string }): boolean {
+function isVKey(event: { readonly key: string; readonly code?: string }) {
   const key = event.key.toLowerCase();
   return /^[a-z]$/.test(key) ? key === "v" : event.code === "KeyV";
 }
@@ -14,7 +14,7 @@ export function isPasteAsTextShortcut(
     readonly code?: string;
   },
   macPlatform: boolean,
-): boolean {
+) {
   return (
     isVKey(event) &&
     event.shiftKey &&
@@ -32,7 +32,7 @@ export function pastedTextDisposition(input: {
   readonly canAttach: boolean;
   readonly bypassAutoAttachment?: boolean;
   readonly wouldExceedInputLimit?: boolean;
-}): PastedTextDisposition {
+}) {
   if (input.bypassAutoAttachment || !input.canAttach || input.text.length === 0) {
     return "inline";
   }
@@ -43,7 +43,7 @@ export function pastedTextDisposition(input: {
     : "inline";
 }
 
-export function nextPastedTextFileName(existingNames: ReadonlyArray<string>): string {
+export function nextPastedTextFileName(existingNames: ReadonlyArray<string>) {
   const names = new Set(existingNames.map((name) => name.toLowerCase()));
   if (!names.has("pasted-text.txt")) {
     return "pasted-text.txt";
@@ -60,7 +60,7 @@ export function replaceTextSelection(input: {
   readonly value: string;
   readonly selection: { readonly start: number; readonly end: number };
   readonly text: string;
-}): { readonly value: string; readonly cursor: number } {
+}) {
   const start = Math.max(0, Math.min(input.value.length, input.selection.start));
   const end = Math.max(start, Math.min(input.value.length, input.selection.end));
   return {
@@ -74,7 +74,7 @@ export function wouldTextPasteExceedLimit(input: {
   readonly selection: { readonly start: number; readonly end: number };
   readonly textLength: number;
   readonly maxLength: number;
-}): boolean {
+}) {
   const start = Math.max(0, Math.min(input.valueLength, input.selection.start));
   const end = Math.max(start, Math.min(input.valueLength, input.selection.end));
   return input.valueLength - (end - start) + input.textLength > input.maxLength;

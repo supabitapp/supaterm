@@ -56,10 +56,7 @@ const revisionedFamily = (query: Atom.Atom<unknown>) => {
  * and refetches only a query that a reader without a revision already cached.
  * `undefined` reads without taking part, for readers that must not refetch now.
  */
-export function revisionedQuery<A>(
-  query: Atom.Atom<A>,
-  revision: string | null | undefined,
-): Atom.Atom<A> {
+export function revisionedQuery<A>(query: Atom.Atom<A>, revision: string | null | undefined) {
   if (revision === undefined) return query;
   return revisionedFamily(query)(revision) as Atom.Atom<A>;
 }

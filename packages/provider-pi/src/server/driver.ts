@@ -1,5 +1,5 @@
 import { expandHomePath } from "@supaterm/provider-core/server/pathExpansion";
-import { ProviderDriverKind, type ServerProvider } from "@supaterm/contracts";
+import { ProviderDriverKind } from "@supaterm/contracts";
 import { PiSettings } from "../settings.ts";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
@@ -66,7 +66,7 @@ const withInstanceIdentity =
     readonly accentColor: string | undefined;
     readonly continuationGroupKey: string;
   }) =>
-  (snapshot: ServerProviderDraft): ServerProvider => ({
+  (snapshot: ServerProviderDraft) => ({
     ...snapshot,
     instanceId: input.instanceId,
     driver: DRIVER_KIND,
@@ -83,7 +83,7 @@ export const PiDriver: ProviderDriver<PiSettings, PiDriverEnv, Path.Path> = {
   },
   usage: piUsageReader,
   configSchema: PiSettings,
-  defaultConfig: (): PiSettings => decodePiSettings({}),
+  defaultConfig: () => decodePiSettings({}),
   create: Effect.fn("PiDriver.create")(function* ({
     instanceId,
     displayName,

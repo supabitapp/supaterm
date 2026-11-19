@@ -103,7 +103,7 @@ const THREAD_MODE_LABELS: Record<ScheduledTaskThreadMode, string> = {
   fresh_session: "One thread, fresh session",
 };
 
-function describeSchedule(task: ScheduledTask, timeZone?: string): string {
+function describeSchedule(task: ScheduledTask, timeZone?: string) {
   if (task.schedule.type === "once") {
     const runAt = new Date(task.schedule.runAt);
     return `Once, ${formatRunAtDate(runAt)} at ${formatRunAtTime(runAt)}`;
@@ -114,7 +114,7 @@ function describeSchedule(task: ScheduledTask, timeZone?: string): string {
   return `${days} at ${formatTime(task.schedule.timeOfDay)}${zone === undefined ? "" : ` ${zone}`}`;
 }
 
-function formatTime(value: string): string {
+function formatTime(value: string) {
   const [hours, minutes] = value.split(":").map(Number);
   if (!Number.isInteger(hours) || !Number.isInteger(minutes)) return value;
   const time = new Date();
@@ -122,15 +122,15 @@ function formatTime(value: string): string {
   return time.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
 
-function formatRunAtDate(value: Date): string {
+function formatRunAtDate(value: Date) {
   return value.toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" });
 }
 
-function formatRunAtTime(value: Date): string {
+function formatRunAtTime(value: Date) {
   return value.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
 
-function timePickerValue(value: string): Date {
+function timePickerValue(value: string) {
   const [hours, minutes] = value.split(":").map(Number);
   const time = new Date();
   time.setHours(
@@ -142,7 +142,7 @@ function timePickerValue(value: string): Date {
   return time;
 }
 
-function repeatLabel(weekdays: ReadonlyArray<number>): string {
+function repeatLabel(weekdays: ReadonlyArray<number>) {
   const days = new Set(weekdays);
   if (days.size === 7) return "Every day";
   if (days.size === 5 && [1, 2, 3, 4, 5].every((day) => days.has(day))) return "Weekdays";

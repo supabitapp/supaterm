@@ -51,7 +51,7 @@ function readWindowFocus() {
 
 function selectConnectedEnvironmentIds(
   presentations: ReadonlyMap<EnvironmentId, EnvironmentPresentation>,
-): ReadonlySet<EnvironmentId> {
+) {
   const connected = new Set<EnvironmentId>();
   for (const [environmentId, presentation] of presentations) {
     if (isEnvironmentConnected(presentation)) connected.add(environmentId);

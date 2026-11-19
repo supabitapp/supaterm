@@ -58,28 +58,49 @@ type SavedBackendListRowProps = {
   onAddRoute: (environment: EnvironmentPresentation) => void;
 };
 
-function savedBackendStatus(environment: EnvironmentPresentation): {
-  readonly text: string;
-  readonly tone: "muted" | "warning" | "error";
-} {
+function savedBackendStatus(environment: EnvironmentPresentation) {
   if (!environment.entry.enabled && environment.connection.phase !== "unsupported")
-    return { text: "Off", tone: "muted" };
+    return { text: "Off", tone: "muted" } satisfies {
+      readonly text: string;
+      readonly tone: "muted" | "warning" | "error";
+    };
   const { connection } = environment;
   switch (connection.phase) {
     case "connected":
-      return { text: "Connected", tone: "muted" };
+      return { text: "Connected", tone: "muted" } satisfies {
+        readonly text: string;
+        readonly tone: "muted" | "warning" | "error";
+      };
     case "connecting":
-      return { text: "Connecting", tone: "warning" };
+      return { text: "Connecting", tone: "warning" } satisfies {
+        readonly text: string;
+        readonly tone: "muted" | "warning" | "error";
+      };
     case "reconnecting":
-      return { text: "Reconnecting", tone: "warning" };
+      return { text: "Reconnecting", tone: "warning" } satisfies {
+        readonly text: string;
+        readonly tone: "muted" | "warning" | "error";
+      };
     case "unsupported":
-      return { text: "Client not supported", tone: "muted" };
+      return { text: "Client not supported", tone: "muted" } satisfies {
+        readonly text: string;
+        readonly tone: "muted" | "warning" | "error";
+      };
     case "error":
-      return { text: "Connection failed", tone: "error" };
+      return { text: "Connection failed", tone: "error" } satisfies {
+        readonly text: string;
+        readonly tone: "muted" | "warning" | "error";
+      };
     case "offline":
-      return { text: "Offline", tone: "muted" };
+      return { text: "Offline", tone: "muted" } satisfies {
+        readonly text: string;
+        readonly tone: "muted" | "warning" | "error";
+      };
     case "available":
-      return { text: "Not connected", tone: "muted" };
+      return { text: "Not connected", tone: "muted" } satisfies {
+        readonly text: string;
+        readonly tone: "muted" | "warning" | "error";
+      };
   }
 }
 

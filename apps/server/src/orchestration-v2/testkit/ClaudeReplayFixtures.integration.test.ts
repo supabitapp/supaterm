@@ -128,10 +128,13 @@ describe("Claude Agent SDK replay fixtures", () => {
     const OPEN_TOOL_ID = "toolu_01QDa5jV5g1H9h6QyDfeJohD";
     const SUBAGENT_TASK_ID = "a2995bfced8019363";
 
-    const moveOpenToolBeforeRootResult = (
+    const moveOpenToolBeforeRootResult: (
       move: boolean,
       entries: ReadonlyArray<ProviderReplayEntry>,
-    ): ReadonlyArray<ProviderReplayEntry> => {
+    ) => ReadonlyArray<ProviderReplayEntry> = (
+      move: boolean,
+      entries: ReadonlyArray<ProviderReplayEntry>,
+    ) => {
       if (!move) return entries;
       const toolIndex = entries.findIndex(
         (entry) =>
@@ -256,8 +259,11 @@ describe("Claude Agent SDK replay fixtures", () => {
             ...transcript,
             entries: moveOpenToolBeforeRootResult(
               opens === "before root settles",
-              transcript.entries.flatMap((entry): ReadonlyArray<ProviderReplayEntry> => {
-                if (entry.type !== "emit_inbound") return [entry];
+              transcript.entries.flatMap((entry) => {
+                if (entry.type !== "emit_inbound")
+                  return [
+                    entry,
+                  ] satisfies ReadonlyArray<ProviderReplayEntry> as ReadonlyArray<ProviderReplayEntry>;
                 const frame = entry.frame as Record<string, any>;
                 if (
                   frame.type === "assistant" &&
@@ -283,7 +289,7 @@ describe("Claude Agent SDK replay fixtures", () => {
                         },
                       },
                     },
-                  ];
+                  ] satisfies ReadonlyArray<ProviderReplayEntry> as ReadonlyArray<ProviderReplayEntry>;
                 }
                 if (
                   (frame.type === "system" &&
@@ -295,7 +301,7 @@ describe("Claude Agent SDK replay fixtures", () => {
                     frame.parent_tool_use_id !== null &&
                     frame.message?.content?.[0]?.text === "SUB_FINAL_REPORT")
                 ) {
-                  return [];
+                  return [] satisfies ReadonlyArray<ProviderReplayEntry> as ReadonlyArray<ProviderReplayEntry>;
                 }
                 if (frame.type === "system" && frame.subtype === "task_updated") {
                   return [
@@ -309,16 +315,20 @@ describe("Claude Agent SDK replay fixtures", () => {
                         },
                       },
                     },
-                  ];
+                  ] satisfies ReadonlyArray<ProviderReplayEntry> as ReadonlyArray<ProviderReplayEntry>;
                 }
                 if (
                   frame.type === "system" &&
                   frame.subtype === "task_notification" &&
                   frame.task_id === SUBAGENT_TASK_ID
                 ) {
-                  return [{ ...entry, frame: { ...frame, status: notificationStatus } }];
+                  return [
+                    { ...entry, frame: { ...frame, status: notificationStatus } },
+                  ] satisfies ReadonlyArray<ProviderReplayEntry> as ReadonlyArray<ProviderReplayEntry>;
                 }
-                return [entry];
+                return [
+                  entry,
+                ] satisfies ReadonlyArray<ProviderReplayEntry> as ReadonlyArray<ProviderReplayEntry>;
               }),
             ),
           }),

@@ -54,7 +54,7 @@ export class DesktopConnectionCatalogStoreWriteError extends Schema.TaggedError<
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Desktop connection catalog write failed during ${this.operation} at ${this.path}.`;
   }
 }
@@ -67,7 +67,7 @@ export class DesktopConnectionCatalogStoreDecodeError extends Schema.TaggedError
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Failed to decode ${this.resource} for the desktop connection catalog at ${this.catalogPath}.`;
   }
 }
@@ -79,7 +79,7 @@ export class DesktopConnectionCatalogStoreReadError extends Schema.TaggedError<D
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Failed to read the desktop connection catalog at ${this.catalogPath}.`;
   }
 }
@@ -91,7 +91,7 @@ export class DesktopConnectionCatalogStoreDocumentDecodeError extends Schema.Tag
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Failed to decode the desktop connection catalog document at ${this.catalogPath}.`;
   }
 }
@@ -104,7 +104,7 @@ export class DesktopConnectionCatalogStoreProtectionError extends Schema.TaggedE
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Desktop connection catalog protection failed during ${this.operation} at ${this.catalogPath}.`;
   }
 }
@@ -128,10 +128,7 @@ export class DesktopConnectionCatalogStore extends Context.Service<
   }
 >()("@supaterm/desktop/app/DesktopConnectionCatalogStore") {}
 
-function decodeSecretBytes(
-  catalogPath: string,
-  encoded: string,
-): Effect.Effect<Uint8Array, DesktopConnectionCatalogStoreDecodeError> {
+function decodeSecretBytes(catalogPath: string, encoded: string) {
   return Effect.fromResult(Base64.decode(encoded)).pipe(
     Effect.mapError(
       (cause) =>
@@ -144,13 +141,7 @@ function decodeSecretBytes(
   );
 }
 
-const readDocument = (
-  fileSystem: FileSystem.FileSystem,
-  catalogPath: string,
-): Effect.Effect<
-  Option.Option<EncryptedConnectionCatalogDocument>,
-  DesktopConnectionCatalogStoreReadError | DesktopConnectionCatalogStoreDocumentDecodeError
-> =>
+const readDocument = (fileSystem: FileSystem.FileSystem, catalogPath: string) =>
   fileSystem.readFileString(catalogPath).pipe(
     Effect.catch((error) =>
       error.reason._tag === "NotFound"
@@ -184,7 +175,7 @@ const writeDocument = Effect.fn("desktop.connectionCatalogStore.writeDocument")(
   readonly catalogPath: string;
   readonly document: EncryptedConnectionCatalogDocument;
   readonly suffix: string;
-}): Effect.fn.Return<void, DesktopConnectionCatalogStoreWriteError> {
+}) {
   const directory = input.path.dirname(input.catalogPath);
   const tempPath = `${input.catalogPath}.${process.pid}.${input.suffix}.tmp`;
   const encoded = yield* encodeEncryptedConnectionCatalogDocumentJson(input.document).pipe(

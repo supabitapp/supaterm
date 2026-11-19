@@ -14,11 +14,14 @@ export { type DeviceHubAccess, withDeviceHubQuery } from "../device/hubAccess.ts
 
 const TICKET_TIMEOUT_MS = 8_000;
 
-export const resolveDeviceHubAccess = Effect.fn("clientRuntime.state.resolveDeviceHubAccess")(
-  function* (input: {
+export const resolveDeviceHubAccess: (input: {
+  readonly prepared: PreparedConnection;
+  readonly hubBasePath: string;
+}) => Effect.Effect<DeviceHubAccess, RemoteEnvironmentRequestError, HttpClient.HttpClient> =
+  Effect.fn("clientRuntime.state.resolveDeviceHubAccess")(function* (input: {
     readonly prepared: PreparedConnection;
     readonly hubBasePath: string;
-  }): Effect.fn.Return<DeviceHubAccess, RemoteEnvironmentRequestError, HttpClient.HttpClient> {
+  }) {
     const httpBase = environmentEndpointUrl(input.prepared.httpBaseUrl, input.hubBasePath);
     const wsBase = httpBase.replace(/^http/, "ws");
     if (input.prepared.httpAuthorization === null) {
@@ -43,5 +46,4 @@ export const resolveDeviceHubAccess = Effect.fn("clientRuntime.state.resolveDevi
       query: { wsTicket: Redacted.value(ticket.ticket) },
       credentials: false,
     };
-  },
-);
+  });

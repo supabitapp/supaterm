@@ -6,13 +6,11 @@ import * as Schema from "effect/Schema";
 import type {
   PullRequestActor,
   PullRequestCheck,
-  PullRequestCheckStatus,
   PullRequestChecksState,
   PullRequestComment,
   PullRequestCommit,
   PullRequestLabel,
   PullRequestMergeability,
-  PullRequestMergeCapabilities,
   PullRequestMergeMethod,
   PullRequestReaction,
   PullRequestReactionContent,
@@ -25,7 +23,6 @@ import type {
 import { TrimmedNonEmptyString } from "@supaterm/contracts";
 import { quoteGitPatchPath } from "@supaterm/shared/gitPatchPath";
 import { decodeJsonResult } from "@supaterm/shared/schemaJson";
-import type { ProviderChangeRequestWatchFingerprint } from "@supaterm/source-control-core/server/PullRequestProvider";
 
 const RawUserSchema = Schema.Struct({
   id: Schema.optional(Schema.Int),
@@ -252,7 +249,7 @@ function toActor(raw: Schema.Schema.Type<typeof RawUserSchema> | null | undefine
 
 function toState(
   raw: Pick<Schema.Schema.Type<typeof RawMergeRequestSchema>, "state" | "merged_at">,
-): PullRequestState {
+) {
   if (trimmed(raw.merged_at) !== null) return "merged";
   switch (raw.state?.trim().toLowerCase()) {
     case "merged":
@@ -266,7 +263,7 @@ function toState(
 
 function toMergeability(
   raw: Pick<Schema.Schema.Type<typeof RawMergeRequestSchema>, "has_conflicts" | "merge_status">,
-): PullRequestMergeability {
+) {
   if (raw.has_conflicts === true) return "conflicting";
   switch (raw.merge_status?.trim().toLowerCase()) {
     case "can_be_merged":
@@ -278,19 +275,19 @@ function toMergeability(
   }
 }
 
-function toLabels(raw: ReadonlyArray<string> | null | undefined): ReadonlyArray<PullRequestLabel> {
+function toLabels(raw: ReadonlyArray<string> | null | undefined) {
   return (raw ?? []).flatMap((label) => {
     const name = trimmed(label);
     return name === null ? [] : [{ name, color: null }];
   });
 }
 
-function toChangedFiles(value: string | null | undefined): number {
+function toChangedFiles(value: string | null | undefined) {
   const parsed = Number.parseInt(value?.trim() ?? "", 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
 }
 
-function toPipelineStatus(value: string | null | undefined): PullRequestCheckStatus {
+function toPipelineStatus(value: string | null | undefined) {
   switch (value?.trim().toLowerCase()) {
     case "success":
       return "success";
@@ -308,11 +305,9 @@ function toPipelineStatus(value: string | null | undefined): PullRequestCheckSta
   }
 }
 
-function toChecks(
-  raw: Schema.Schema.Type<typeof RawMergeRequestSchema>,
-): ReadonlyArray<PullRequestCheck> {
+function toChecks(raw: Schema.Schema.Type<typeof RawMergeRequestSchema>) {
   const pipeline = raw.head_pipeline;
-  if (!pipeline) return [];
+  if (!pipeline) return [] satisfies ReadonlyArray<PullRequestCheck>;
   return [
     {
       name: "Pipeline",
@@ -320,7 +315,7 @@ function toChecks(
       description: trimmed(pipeline.source),
       url: trimmed(pipeline.web_url),
     },
-  ];
+  ] satisfies ReadonlyArray<PullRequestCheck>;
 }
 
 export const PIPELINE_STAGES_GRAPHQL_QUERY = `query($fullPath: ID!, $iid: String!) {
@@ -426,10 +421,7 @@ const decodePipelineStages = decodeJsonResult(RawPipelineStagesSchema);
  * not list whole stays one check with GitLab's stage status. Null where there are no stages to
  * show, or GitLab returned only some of them, so the caller keeps the single pipeline check.
  */
-export function decodePipelineStageChecksJson(
-  raw: string,
-  origin: string,
-): Result.Result<ReadonlyArray<PullRequestCheck> | null, DecodeFailure> {
+export function decodePipelineStageChecksJson(raw: string, origin: string) {
   const decoded = decodePipelineStages(raw);
   if (!Result.isSuccess(decoded)) {
     return Result.fail(decoded.failure);
@@ -476,9 +468,7 @@ export function decodePipelineStageChecksJson(
   return Result.succeed(checks.length === 0 ? null : checks);
 }
 
-function toListItem(
-  raw: Schema.Schema.Type<typeof RawMergeRequestSchema>,
-): GitLabMergeRequestListItem {
+function toListItem(raw: Schema.Schema.Type<typeof RawMergeRequestSchema>) {
   const detailedMergeStatus = raw.detailed_merge_status?.trim().toLowerCase();
   return {
     number: raw.iid,
@@ -505,10 +495,10 @@ function toListItem(
       return login === null ? [] : [login];
     }),
     labels: toLabels(raw.labels),
-  };
+  } satisfies GitLabMergeRequestListItem;
 }
 
-function toDetail(raw: Schema.Schema.Type<typeof RawMergeRequestSchema>): GitLabMergeRequestDetail {
+function toDetail(raw: Schema.Schema.Type<typeof RawMergeRequestSchema>) {
   const listItem = toListItem(raw);
   const headSha = trimmed(raw.sha);
   const refs = raw.diff_refs;
@@ -554,7 +544,7 @@ function toDetail(raw: Schema.Schema.Type<typeof RawMergeRequestSchema>): GitLab
     raw.source_project_id !== raw.target_project_id
       ? { maintainerCanModify: raw.allow_collaboration === true }
       : {}),
-  };
+  } satisfies GitLabMergeRequestDetail;
 }
 
 const decodeUnknownList = decodeJsonResult(Schema.Array(Schema.Unknown));
@@ -593,9 +583,7 @@ export interface GitLabMergeRequestListBatch {
   readonly rawCount: number;
 }
 
-export function decodeMergeRequestListJson(
-  raw: string,
-): Result.Result<GitLabMergeRequestListBatch, DecodeFailure> {
+export function decodeMergeRequestListJson(raw: string) {
   const decoded = decodeUnknownList(raw);
   if (!Result.isSuccess(decoded)) {
     return Result.fail(decoded.failure);
@@ -614,11 +602,14 @@ export function decodeMergeRequestListJson(
 
 export function decodeMergeRequestDetailJson(
   raw: string,
-): Result.Result<GitLabMergeRequestDetail, DecodeFailure> {
+): Result.Result<GitLabMergeRequestDetail, DecodeFailure>;
+export function decodeMergeRequestDetailJson(raw: string) {
   const decoded = decodeMergeRequest(raw);
-  return Result.isSuccess(decoded)
-    ? Result.succeed(toDetail(decoded.success))
-    : Result.fail(decoded.failure);
+  return (
+    Result.isSuccess(decoded)
+      ? Result.succeed(toDetail(decoded.success))
+      : Result.fail(decoded.failure)
+  ) satisfies Result.Result<GitLabMergeRequestDetail, DecodeFailure>;
 }
 
 export interface GitLabTriggerJobChecks {
@@ -631,9 +622,7 @@ export interface GitLabTriggerJobChecks {
  * pipeline, so the head pipeline stays green when that pipeline fails. Each row carries the
  * downstream pipeline's own status instead of the trigger job's.
  */
-export function decodeTriggerJobChecksJson(
-  raw: string,
-): Result.Result<GitLabTriggerJobChecks, DecodeFailure> {
+export function decodeTriggerJobChecksJson(raw: string) {
   const decoded = decodeUnknownList(raw);
   if (!Result.isSuccess(decoded)) {
     return Result.fail(decoded.failure);
@@ -656,16 +645,17 @@ export function decodeTriggerJobChecksJson(
   return Result.succeed({ checks, rawCount: decoded.success.length });
 }
 
-export function decodeViewerJson(raw: string): Result.Result<string | null, DecodeFailure> {
+export function decodeViewerJson(raw: string): Result.Result<string | null, DecodeFailure>;
+export function decodeViewerJson(raw: string) {
   const decoded = decodeViewer(raw);
-  return Result.isSuccess(decoded)
-    ? Result.succeed(trimmed(decoded.success.username))
-    : Result.fail(decoded.failure);
+  return (
+    Result.isSuccess(decoded)
+      ? Result.succeed(trimmed(decoded.success.username))
+      : Result.fail(decoded.failure)
+  ) satisfies Result.Result<string | null, DecodeFailure>;
 }
 
-export function decodeProjectUsersJson(
-  raw: string,
-): Result.Result<GitLabProjectUsers, DecodeFailure> {
+export function decodeProjectUsersJson(raw: string) {
   const decoded = decodeUnknownList(raw);
   if (!Result.isSuccess(decoded)) {
     return Result.fail(decoded.failure);
@@ -697,10 +687,7 @@ const decodeReferenceEntry = Schema.decodeUnknownExit(RawReferenceSchema);
 export function decodeReferenceCandidatesJson(
   raw: string,
   kind: PullRequestReferenceCandidate["kind"],
-): Result.Result<
-  { readonly items: ReadonlyArray<PullRequestReferenceCandidate>; readonly rawCount: number },
-  DecodeFailure
-> {
+) {
   const decoded = decodeUnknownList(raw);
   if (!Result.isSuccess(decoded)) return Result.fail(decoded.failure);
   const items: PullRequestReferenceCandidate[] = [];
@@ -729,7 +716,7 @@ const RawLabelSchema = Schema.Struct({
 const decodeLabelEntry = Schema.decodeUnknownExit(RawLabelSchema);
 const decodeLabel = decodeJsonResult(RawLabelSchema);
 
-export function decodeLabelNameJson(raw: string): Result.Result<string | null, DecodeFailure> {
+export function decodeLabelNameJson(raw: string) {
   return Result.map(decodeLabel(raw), (label) => trimmed(label.name));
 }
 
@@ -743,9 +730,7 @@ export interface GitLabProjectLabels {
   readonly rawCount: number;
 }
 
-export function decodeProjectLabelsJson(
-  raw: string,
-): Result.Result<GitLabProjectLabels, DecodeFailure> {
+export function decodeProjectLabelsJson(raw: string) {
   const decoded = decodeUnknownList(raw);
   if (!Result.isSuccess(decoded)) {
     return Result.fail(decoded.failure);
@@ -767,9 +752,7 @@ export function decodeProjectLabelsJson(
   return Result.succeed({ labels, rawCount: decoded.success.length });
 }
 
-export function decodeProjectMergeCapabilitiesJson(
-  raw: string,
-): Result.Result<PullRequestMergeCapabilities, DecodeFailure> {
+export function decodeProjectMergeCapabilitiesJson(raw: string) {
   const decoded = decodeProjectMergeSettings(raw);
   if (!Result.isSuccess(decoded)) {
     return Result.fail(decoded.failure);
@@ -799,13 +782,11 @@ export interface GitLabDiscussions {
   readonly rawCount: number;
 }
 
-function toDiffRefs(raw: Schema.Schema.Type<typeof RawDiffRefs>): GitLabDiffRefs {
+function toDiffRefs(raw: Schema.Schema.Type<typeof RawDiffRefs>) {
   return { baseSha: raw.base_sha, headSha: raw.head_sha, startSha: raw.start_sha };
 }
 
-export function decodeDiscussionsJson(
-  raw: string,
-): Result.Result<GitLabDiscussions, DecodeFailure> {
+export function decodeDiscussionsJson(raw: string) {
   const decoded = decodeUnknownList(raw);
   if (!Result.isSuccess(decoded)) {
     return Result.fail(decoded.failure);
@@ -883,11 +864,19 @@ export function decodeDiscussionsJson(
 
 export function decodeDiffRefsJson(
   raw: string,
-): Result.Result<GitLabDiffRefs | null, DecodeFailure> {
+): Result.Result<GitLabDiffRefs | null, DecodeFailure>;
+export function decodeDiffRefsJson(raw: string) {
   const decoded = decodeDiffRefs(raw);
-  if (!Result.isSuccess(decoded)) return Result.fail(decoded.failure);
+  if (!Result.isSuccess(decoded))
+    return Result.fail(decoded.failure) satisfies Result.Result<
+      GitLabDiffRefs | null,
+      DecodeFailure
+    >;
   const refs = decoded.success.diff_refs;
-  return Result.succeed(refs ? toDiffRefs(refs) : null);
+  return Result.succeed(refs ? toDiffRefs(refs) : null) satisfies Result.Result<
+    GitLabDiffRefs | null,
+    DecodeFailure
+  >;
 }
 
 export interface GitLabRevertTarget {
@@ -898,9 +887,7 @@ export interface GitLabRevertTarget {
   readonly commitSha: string | null;
 }
 
-export function decodeRevertTargetJson(
-  raw: string,
-): Result.Result<GitLabRevertTarget, DecodeFailure> {
+export function decodeRevertTargetJson(raw: string) {
   const decoded = decodeRevertTarget(raw);
   if (!Result.isSuccess(decoded)) return Result.fail(decoded.failure);
   const mr = decoded.success;
@@ -912,12 +899,7 @@ export function decodeRevertTargetJson(
   });
 }
 
-export function decodeNotesJson(
-  raw: string,
-): Result.Result<
-  { readonly comments: ReadonlyArray<PullRequestComment>; readonly rawCount: number },
-  DecodeFailure
-> {
+export function decodeNotesJson(raw: string) {
   const decoded = decodeUnknownList(raw);
   if (!Result.isSuccess(decoded)) {
     return Result.fail(decoded.failure);
@@ -945,9 +927,7 @@ export function decodeNotesJson(
   return Result.succeed({ comments, rawCount: decoded.success.length });
 }
 
-export function decodeCommitsJson(
-  raw: string,
-): Result.Result<ReadonlyArray<PullRequestCommit>, DecodeFailure> {
+export function decodeCommitsJson(raw: string) {
   const decoded = decodeUnknownList(raw);
   if (!Result.isSuccess(decoded)) {
     return Result.fail(decoded.failure);
@@ -981,20 +961,22 @@ export function decodeCommitsJson(
 
 export function decodeCommitDiffRefsJson(
   raw: string,
-): Result.Result<GitLabDiffRefs | null, DecodeFailure> {
+): Result.Result<GitLabDiffRefs | null, DecodeFailure>;
+export function decodeCommitDiffRefsJson(raw: string) {
   const decoded = decodeCommit(raw);
-  if (!Result.isSuccess(decoded)) return Result.fail(decoded.failure);
+  if (!Result.isSuccess(decoded))
+    return Result.fail(decoded.failure) satisfies Result.Result<
+      GitLabDiffRefs | null,
+      DecodeFailure
+    >;
   const baseSha = trimmed(decoded.success.parent_ids?.[0]);
   const headSha = trimmed(decoded.success.id);
   return Result.succeed(
     baseSha === null || headSha === null ? null : { baseSha, headSha, startSha: baseSha },
-  );
+  ) satisfies Result.Result<GitLabDiffRefs | null, DecodeFailure>;
 }
 
-function diffHeaderPaths(raw: Schema.Schema.Type<typeof RawDiffSchema>): {
-  readonly from: string;
-  readonly to: string;
-} {
+function diffHeaderPaths(raw: Schema.Schema.Type<typeof RawDiffSchema>) {
   return {
     from: raw.new_file === true ? "/dev/null" : quoteGitPatchPath(`a/${raw.old_path}`),
     to: raw.deleted_file === true ? "/dev/null" : quoteGitPatchPath(`b/${raw.new_path}`),
@@ -1009,9 +991,7 @@ export interface GitLabMergeRequestPatch {
   readonly withheldPaths: ReadonlyArray<string>;
 }
 
-export function decodeMergeRequestDiffsJson(
-  raw: string,
-): Result.Result<GitLabMergeRequestPatch, DecodeFailure> {
+export function decodeMergeRequestDiffsJson(raw: string) {
   const decoded = decodeUnknownList(raw);
   if (!Result.isSuccess(decoded)) {
     return Result.fail(decoded.failure);
@@ -1019,9 +999,7 @@ export function decodeMergeRequestDiffsJson(
   return Result.succeed(mergeRequestPatch(decoded.success));
 }
 
-export function decodeMergeRequestChangesJson(
-  raw: string,
-): Result.Result<GitLabMergeRequestPatch, DecodeFailure> {
+export function decodeMergeRequestChangesJson(raw: string) {
   const decoded = decodeMergeRequestChanges(raw);
   if (!Result.isSuccess(decoded)) return Result.fail(decoded.failure);
   const patch = mergeRequestPatch(decoded.success.changes);
@@ -1034,7 +1012,7 @@ export function decodeMergeRequestChangesJson(
   });
 }
 
-function mergeRequestPatch(entries: ReadonlyArray<unknown>): GitLabMergeRequestPatch {
+function mergeRequestPatch(entries: ReadonlyArray<unknown>) {
   const sections: string[] = [];
   const withheldPaths: string[] = [];
   let truncated = false;
@@ -1091,8 +1069,9 @@ const CONTENT_BY_GITLAB_AWARD: Readonly<Record<string, PullRequestReactionConten
     Object.entries(GITLAB_AWARD_BY_CONTENT).map(([content, name]) => [name, content]),
   ) as Readonly<Record<string, PullRequestReactionContent>>;
 
-export function gitLabAwardName(content: PullRequestReactionContent): string {
-  return GITLAB_AWARD_BY_CONTENT[content];
+export function gitLabAwardName(content: PullRequestReactionContent): string;
+export function gitLabAwardName(content: PullRequestReactionContent) {
+  return GITLAB_AWARD_BY_CONTENT[content] satisfies string;
 }
 
 export const AWARD_EMOJI_GRAPHQL_QUERY = `query($fullPath: ID!, $iid: String!, $cursor: String) {
@@ -1190,7 +1169,7 @@ const decodeAwardEmojiPage = decodeJsonResult(RawAwardEmojiPageSchema);
 function toReactions(
   nodes: Schema.Schema.Type<typeof RawAwardEmojiNodesSchema>,
   viewer: string | null,
-): ReadonlyArray<PullRequestReaction> {
+) {
   const normalizedViewer = viewer?.toLowerCase() ?? null;
   const groups = new Map<
     PullRequestReactionContent,
@@ -1223,7 +1202,7 @@ function textEditedAt(
     readonly lastEditedBy?: { readonly username?: string | null | undefined } | null | undefined;
     readonly resolved?: boolean | null | undefined;
   } | null,
-): string | null {
+) {
   const editedAt = trimmed(note?.lastEditedAt);
   return editedAt !== null &&
     trimmed(note?.lastEditedBy?.username) !== null &&
@@ -1232,7 +1211,7 @@ function textEditedAt(
     : null;
 }
 
-function noteIdOf(gid: string | null | undefined): string | null {
+function noteIdOf(gid: string | null | undefined) {
   const id = trimmed(gid)?.split("/").at(-1);
   return id !== undefined && /^\d+$/.test(id) ? id : null;
 }
@@ -1245,9 +1224,7 @@ export interface GitLabAwardEmojiPage {
   readonly nextCursor: string | null;
 }
 
-export function decodeAwardEmojiJson(
-  raw: string,
-): Result.Result<GitLabAwardEmojiPage, DecodeFailure> {
+export function decodeAwardEmojiJson(raw: string) {
   const decoded = decodeAwardEmojiPage(raw);
   if (!Result.isSuccess(decoded)) {
     return Result.fail(decoded.failure);
@@ -1291,10 +1268,17 @@ const decodeAward = Schema.decodeUnknownExit(RawAwardSchema);
 export function decodeOwnAwardIdJson(
   raw: string,
   input: { readonly content: PullRequestReactionContent; readonly viewer: string },
-): Result.Result<{ readonly id: number | null; readonly empty: boolean }, DecodeFailure> {
+): Result.Result<{ readonly id: number | null; readonly empty: boolean }, DecodeFailure>;
+export function decodeOwnAwardIdJson(
+  raw: string,
+  input: { readonly content: PullRequestReactionContent; readonly viewer: string },
+) {
   const decoded = decodeUnknownList(raw);
   if (!Result.isSuccess(decoded)) {
-    return Result.fail(decoded.failure);
+    return Result.fail(decoded.failure) satisfies Result.Result<
+      { readonly id: number | null; readonly empty: boolean },
+      DecodeFailure
+    >;
   }
   const name = gitLabAwardName(input.content);
   for (const entry of decoded.success) {
@@ -1303,9 +1287,15 @@ export function decodeOwnAwardIdJson(
     const value = award.value;
     if (trimmed(value.name)?.toLowerCase() !== name) continue;
     if (trimmed(value.user?.username) !== input.viewer) continue;
-    return Result.succeed({ id: value.id, empty: false });
+    return Result.succeed({ id: value.id, empty: false }) satisfies Result.Result<
+      { readonly id: number | null; readonly empty: boolean },
+      DecodeFailure
+    >;
   }
-  return Result.succeed({ id: null, empty: decoded.success.length === 0 });
+  return Result.succeed({ id: null, empty: decoded.success.length === 0 }) satisfies Result.Result<
+    { readonly id: number | null; readonly empty: boolean },
+    DecodeFailure
+  >;
 }
 
 export const REPOSITORY_BLOBS_GRAPHQL_QUERY = `query($fullPath: ID!, $ref: String!, $paths: [String!]!) {
@@ -1354,9 +1344,7 @@ const RawRepositoryBlobsSchema = Schema.Struct({
 const decodeRepositoryBlobs = decodeJsonResult(RawRepositoryBlobsSchema);
 
 /** Null means unknown, not deleted; preserve viewed marks. */
-export function decodeRepositoryBlobsJson(
-  raw: string,
-): Result.Result<ReadonlyMap<string, string> | null, DecodeFailure> {
+export function decodeRepositoryBlobsJson(raw: string) {
   const decoded = decodeRepositoryBlobs(raw);
   if (!Result.isSuccess(decoded)) {
     return Result.fail(decoded.failure);
@@ -1421,9 +1409,7 @@ export interface GitLabSourceBranch {
   readonly canDelete: boolean;
 }
 
-export function decodeSourceBranchJson(
-  raw: string,
-): Result.Result<GitLabSourceBranch | null, DecodeFailure> {
+export function decodeSourceBranchJson(raw: string) {
   return Result.map(decodeSourceBranch(raw), (decoded) => {
     const mergeRequest = decoded.data.project?.mergeRequest;
     if (mergeRequest == null) return null;
@@ -1451,14 +1437,7 @@ const decodeBranch = decodeJsonResult(
   }),
 );
 
-export function decodeBranchJson(raw: string): Result.Result<
-  {
-    readonly isDefault: boolean;
-    readonly headSha: string | null;
-    readonly headAuthoredDate: string | null;
-  },
-  DecodeFailure
-> {
+export function decodeBranchJson(raw: string) {
   return Result.map(decodeBranch(raw), (branch) => ({
     isDefault: branch.default === true,
     headSha: trimmed(branch.commit?.id),
@@ -1503,7 +1482,8 @@ export interface GitLabMergeMessages {
 /** The messages GitLab would write from the project's merge and squash templates. */
 export function decodeMergeMessagesJson(
   raw: string,
-): Result.Result<GitLabMergeMessages, DecodeFailure> {
+): Result.Result<GitLabMergeMessages, DecodeFailure>;
+export function decodeMergeMessagesJson(raw: string) {
   return Result.map(decodeMergeMessages(raw), (decoded) => {
     const mergeRequest = decoded.data.project?.mergeRequest;
     return {
@@ -1512,7 +1492,7 @@ export function decodeMergeMessagesJson(
       squash: mergeRequest?.defaultSquashCommitMessage ?? null,
       squashOnMerge: mergeRequest?.squashOnMerge === true,
     };
-  });
+  }) satisfies Result.Result<GitLabMergeMessages, DecodeFailure>;
 }
 
 const LIST_STATE_GRAPHQL_FIELDS = `iid approved approvedBy(first: 1) { nodes { username } }
@@ -1594,7 +1574,7 @@ export interface GitLabMergeRequestListState {
   readonly checksState: PullRequestChecksState | null;
 }
 
-function toChecksState(pipelineStatus: string | null | undefined): PullRequestChecksState | null {
+function toChecksState(pipelineStatus: string | null | undefined) {
   if (pipelineStatus == null) return null;
   switch (toPipelineStatus(pipelineStatus)) {
     case "success":
@@ -1612,14 +1592,17 @@ function toChecksState(pipelineStatus: string | null | undefined): PullRequestCh
 function toListState(
   node: typeof RawListStateNodeSchema.Type,
   enterprise: boolean | null | undefined,
-): GitLabMergeRequestListState {
+) {
   const checksState = toChecksState(node.headPipeline?.status);
   if (
     node.reviewers?.nodes?.some(
       (reviewer) => reviewer?.mergeRequestInteraction?.reviewState === "REQUESTED_CHANGES",
     )
   ) {
-    return { reviewDecision: "changes-requested", checksState };
+    return {
+      reviewDecision: "changes-requested",
+      checksState,
+    } satisfies GitLabMergeRequestListState;
   }
   const approvals = node.approvedBy?.nodes?.length;
   if (
@@ -1627,7 +1610,7 @@ function toListState(
     approvals === undefined ||
     (node.approved === false && approvals === 0 && enterprise == null)
   ) {
-    return { checksState };
+    return { checksState } satisfies GitLabMergeRequestListState;
   }
   return {
     reviewDecision:
@@ -1637,12 +1620,10 @@ function toListState(
           ? "approved"
           : null,
     checksState,
-  };
+  } satisfies GitLabMergeRequestListState;
 }
 
-export function decodeListStatesJson(
-  raw: string,
-): Result.Result<ReadonlyMap<number, GitLabMergeRequestListState>, DecodeFailure> {
+export function decodeListStatesJson(raw: string) {
   const decoded = decodeListStates(raw);
   if (!Result.isSuccess(decoded)) {
     return Result.fail(decoded.failure);
@@ -1722,9 +1703,7 @@ export interface GitLabMergeRequestGraphqlPage {
   readonly endCursor: string | null;
 }
 
-export function decodeMergeRequestGraphqlListJson(
-  raw: string,
-): Result.Result<GitLabMergeRequestGraphqlPage, DecodeFailure> {
+export function decodeMergeRequestGraphqlListJson(raw: string) {
   const decoded = decodeGraphqlList(raw);
   if (!Result.isSuccess(decoded)) {
     return Result.fail(decoded.failure);
@@ -1797,7 +1776,7 @@ const decodeServerVersion = decodeJsonResult(
  * Whether the GraphQL merge request list takes every filter the REST list does: `search` came
  * last, in 17.9. An instance that hides its version keeps REST.
  */
-export function decodeGraphqlListSupportJson(raw: string): Result.Result<boolean, DecodeFailure> {
+export function decodeGraphqlListSupportJson(raw: string) {
   const decoded = decodeServerVersion(raw);
   if (!Result.isSuccess(decoded)) {
     return Result.fail(decoded.failure);
@@ -1821,9 +1800,7 @@ const decodeMutationPayloads = decodeJsonResult(
 );
 
 /** GitLab answers a refused mutation with HTTP 200 and the reasons in each payload's `errors`. */
-export function decodeMutationErrorsJson(
-  raw: string,
-): Result.Result<ReadonlyArray<string>, DecodeFailure> {
+export function decodeMutationErrorsJson(raw: string) {
   const decoded = decodeMutationPayloads(raw);
   if (!Result.isSuccess(decoded)) return Result.fail(decoded.failure);
   return Result.succeed(
@@ -1873,12 +1850,7 @@ const decodeMergeRequestStats = decodeJsonResult(RawMergeRequestStatsSchema);
  * The counts by merge request number. A merge request GitLab returned no summary for is left
  * out rather than counted as zero, so its row keeps whatever it already showed.
  */
-export function decodeMergeRequestStatsJson(
-  raw: string,
-): Result.Result<
-  ReadonlyMap<number, { readonly additions: number; readonly deletions: number }>,
-  DecodeFailure
-> {
+export function decodeMergeRequestStatsJson(raw: string) {
   const decoded = decodeMergeRequestStats(raw);
   if (!Result.isSuccess(decoded)) {
     return Result.fail(decoded.failure);
@@ -1917,7 +1889,7 @@ const decodeLabelPermission = decodeJsonResult(
   }),
 );
 
-export function decodeLabelPermissionJson(raw: string): Result.Result<boolean, DecodeFailure> {
+export function decodeLabelPermissionJson(raw: string) {
   const decoded = decodeLabelPermission(raw);
   return Result.isSuccess(decoded)
     ? Result.succeed(
@@ -1968,9 +1940,7 @@ const decodeMaintainerEditsPermission = decodeJsonResult(
   }),
 );
 
-export function decodeMaintainerEditsPermissionJson(
-  raw: string,
-): Result.Result<boolean, DecodeFailure> {
+export function decodeMaintainerEditsPermissionJson(raw: string) {
   const decoded = decodeMaintainerEditsPermission(raw);
   if (Result.isFailure(decoded)) return Result.fail(decoded.failure);
   const { currentUser, project } = decoded.success.data;
@@ -2020,17 +1990,7 @@ const decodeMergeRequestFileStats = decodeJsonResult(
  * GitLab stops listing files past its diff limits while the summary still counts them all, so a
  * shorter list is reported as truncated rather than as a breakdown that misses lines.
  */
-export function decodeMergeRequestFileStatsJson(raw: string): Result.Result<
-  {
-    readonly files: ReadonlyArray<{
-      readonly path: string;
-      readonly additions: number;
-      readonly deletions: number;
-    }>;
-    readonly truncated: boolean;
-  },
-  DecodeFailure
-> {
+export function decodeMergeRequestFileStatsJson(raw: string) {
   const decoded = decodeMergeRequestFileStats(raw);
   if (!Result.isSuccess(decoded)) {
     return Result.fail(decoded.failure);
@@ -2132,9 +2092,7 @@ const decodeMergeRequestWatchFingerprint = decodeJsonResult(
 );
 
 /** Null when GitLab returned no merge request, so the watch falls back to full reads. */
-export function decodeMergeRequestWatchFingerprintJson(
-  raw: string,
-): Result.Result<ProviderChangeRequestWatchFingerprint | null, DecodeFailure> {
+export function decodeMergeRequestWatchFingerprintJson(raw: string) {
   const decoded = decodeMergeRequestWatchFingerprint(raw);
   if (!Result.isSuccess(decoded)) {
     return Result.fail(decoded.failure);

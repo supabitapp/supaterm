@@ -25,9 +25,7 @@ import { Popover, PopoverPopup, PopoverTrigger } from "../ui/popover";
 import type { ComposerBannerStackItem } from "./ComposerBannerStack";
 import { ComposerServerUpdateIcon } from "./ComposerServerUpdateStatus";
 
-export function useAutoBalanceUpdateBanner(
-  environments: readonly EnvironmentPresentation[],
-): ComposerBannerStackItem | null {
+export function useAutoBalanceUpdateBanner(environments: readonly EnvironmentPresentation[]) {
   const updateStates = useAtomValue(
     environmentUpdateStatesAtom(
       environmentIdsKey(environments.map(({ environmentId }) => environmentId)),
@@ -70,7 +68,7 @@ export function useAutoBalanceUpdateBanner(
       },
     ];
   });
-  if (machines.length === 0) return null;
+  if (machines.length === 0) return null satisfies ComposerBannerStackItem | null;
 
   const running = machines.filter((machine) => machine.state.status === "running").length;
   const failed = machines.filter((machine) => machine.state.status === "failed").length;
@@ -152,5 +150,5 @@ export function useAutoBalanceUpdateBanner(
             setDismissedNotices(next);
           },
         }),
-  };
+  } satisfies ComposerBannerStackItem | null;
 }

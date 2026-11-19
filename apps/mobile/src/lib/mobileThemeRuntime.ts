@@ -44,7 +44,7 @@ const UNIWIND_THEME_NAMES: ReadonlyArray<"light" | "dark" | MobileUniwindThemeNa
 export function getMobileUniwindThemeName(
   themeId: MobileThemeId,
   appearance: MobileThemeAppearance,
-): MobileUniwindThemeName {
+) {
   return themeId === DEFAULT_MOBILE_THEME_ID ||
     themeId === "material-you" ||
     !mobileThemeSupportsAppearance(themeId, appearance)
@@ -55,7 +55,7 @@ export function getMobileUniwindThemeName(
 export function createMobileThemeRuntimeOperations(
   previous: MobileThemeRuntimeState | null,
   next: MobileThemeRuntimeState,
-): ReadonlyArray<MobileThemeRuntimeOperation> {
+) {
   const operations: MobileThemeRuntimeOperation[] = [];
 
   if (previous === null || previous.baseFontSize !== next.baseFontSize) {

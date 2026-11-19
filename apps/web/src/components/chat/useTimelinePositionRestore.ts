@@ -15,7 +15,7 @@ export function settleListScroll(
   list: Pick<LegendListRef, "getScrollableNode" | "scrollToOffset">,
   target: (element: HTMLElement) => number | undefined,
   isCancelled: () => boolean,
-): Promise<void> {
+) {
   return new Promise((resolve) => {
     let stableFrames = 0;
     let frames = 0;
@@ -37,7 +37,7 @@ export function settleListScroll(
       else requestAnimationFrame(reconcile);
     };
     requestAnimationFrame(reconcile);
-  });
+  }) satisfies Promise<void>;
 }
 
 export const measuredEndOffset = (element: HTMLElement) =>
@@ -73,7 +73,7 @@ export function startTimelinePositionRestore({
    */
   readonly releaseForFind: boolean;
   readonly onPositioned: (identity: string) => void;
-}): () => void {
+}) {
   if (citationPending) {
     onPositioned(listIdentityKey);
     return () => {};

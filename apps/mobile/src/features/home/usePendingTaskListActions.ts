@@ -19,7 +19,10 @@ export function usePendingTaskListActions(
 ): {
   readonly openPendingTask: (pendingTask: PendingNewTask) => void;
   readonly confirmDeletePendingTask: (pendingTask: PendingNewTask) => void;
-} {
+};
+export function usePendingTaskListActions(
+  selectThreadRoute: (params: ReactNavigation.RootParamList["Thread"]) => void,
+) {
   const navigation = useNavigation();
 
   const openPendingTask = useCallback(
@@ -125,5 +128,8 @@ export function usePendingTaskListActions(
     [navigation],
   );
 
-  return { openPendingTask, confirmDeletePendingTask };
+  return { openPendingTask, confirmDeletePendingTask } satisfies {
+    readonly openPendingTask: (pendingTask: PendingNewTask) => void;
+    readonly confirmDeletePendingTask: (pendingTask: PendingNewTask) => void;
+  };
 }

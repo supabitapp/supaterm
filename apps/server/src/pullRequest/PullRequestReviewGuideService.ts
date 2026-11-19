@@ -406,7 +406,7 @@ const make = Effect.gen(function* () {
     );
   });
 
-  const failureDetail = (cause: Cause.Cause<unknown>): string => {
+  const failureDetail = (cause: Cause.Cause<unknown>) => {
     const error = Cause.squash(cause);
     if (error instanceof Error && "detail" in error && typeof error.detail === "string") {
       return error.detail;

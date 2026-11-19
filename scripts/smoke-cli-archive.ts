@@ -23,7 +23,7 @@ export class CliArchiveSmokeError extends Schema.TaggedError<CliArchiveSmokeErro
   "CliArchiveSmokeError",
   { step: Schema.String, detail: Schema.String },
 ) {
-  override get message(): string {
+  override get message() {
     return `CLI archive smoke test failed while ${this.step}: ${this.detail}`;
   }
 }

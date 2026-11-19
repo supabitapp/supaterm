@@ -20,9 +20,7 @@ const ELECTRON_LIBSECRET_DESKTOPS = new Set([
 const ELECTRON_KDE_DESKTOP = "KDE";
 const ELECTRON_UNPROTECTED_DESKTOPS = new Set(["LXQt"]);
 
-export function normalizeLinuxPasswordStorePreference(
-  value: unknown,
-): LinuxPasswordStorePreference {
+export function normalizeLinuxPasswordStorePreference(value: unknown) {
   return value === "gnome-libsecret" ||
     value === "kwallet" ||
     value === "kwallet5" ||
@@ -34,7 +32,7 @@ export function normalizeLinuxPasswordStorePreference(
 export function resolveLinuxPasswordStoreSwitch(input: {
   readonly preference: LinuxPasswordStorePreference;
   readonly env: NodeJS.ProcessEnv;
-}): LinuxPasswordStoreSwitch | null {
+}) {
   if (input.preference !== "auto") {
     return input.preference;
   }
@@ -42,7 +40,7 @@ export function resolveLinuxPasswordStoreSwitch(input: {
   return electronSelectsProtectedBackend(input.env) ? null : "gnome-libsecret";
 }
 
-function electronSelectsProtectedBackend(env: NodeJS.ProcessEnv): boolean {
+function electronSelectsProtectedBackend(env: NodeJS.ProcessEnv) {
   for (const name of splitDesktopNameList(env.XDG_CURRENT_DESKTOP)) {
     const trimmed = name.trim();
     if (trimmed.length === 0) {
@@ -59,6 +57,6 @@ function electronSelectsProtectedBackend(env: NodeJS.ProcessEnv): boolean {
   return false;
 }
 
-function splitDesktopNameList(value: string | undefined): string[] {
+function splitDesktopNameList(value: string | undefined) {
   return value?.split(":") ?? [];
 }

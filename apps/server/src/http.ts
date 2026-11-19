@@ -72,15 +72,15 @@ const HTML_CONTENT_SECURITY_POLICY =
   "sandbox allow-scripts allow-forms allow-popups allow-downloads";
 
 const DOWNLOAD_MIME_TYPE_PATTERN = /^[\w!#$&^.+-]+\/[\w!#$&^.+-]+$/;
-const isSafeDownloadMimeType = (mimeType: string): boolean =>
+const isSafeDownloadMimeType = (mimeType: string) =>
   DOWNLOAD_MIME_TYPE_PATTERN.test(mimeType) &&
   !/(?:^text\/html$|\/xml(?:$|-)|\+xml$)/i.test(mimeType.trim().toLowerCase());
-const isSafeInlineMediaMimeType = (mimeType: string): boolean =>
+const isSafeInlineMediaMimeType = (mimeType: string) =>
   DOWNLOAD_MIME_TYPE_PATTERN.test(mimeType) && /^(?:audio|video)\//i.test(mimeType);
-const isSafeInlineDocumentMimeType = (mimeType: string): boolean =>
+const isSafeInlineDocumentMimeType = (mimeType: string) =>
   mimeType.toLowerCase() === "application/pdf" || mimeType.toLowerCase() === "text/html";
 
-export function downloadContentDisposition(fileName?: string): string {
+export function downloadContentDisposition(fileName?: string) {
   if (fileName === undefined) {
     return "attachment";
   }
@@ -103,7 +103,15 @@ export function assetResponseHeaders(
     readonly fileName?: string;
     readonly mimeType?: string;
   },
-): Record<string, string> {
+): Record<string, string>;
+export function assetResponseHeaders(
+  filePath: string,
+  options?: {
+    readonly download?: boolean;
+    readonly fileName?: string;
+    readonly mimeType?: string;
+  },
+) {
   const lowerPath = filePath.toLowerCase();
   const inlineMimeType = options?.mimeType?.split(";", 1)[0]?.trim();
   return {
@@ -139,7 +147,7 @@ export function assetResponseHeaders(
     ...(!options?.download && lowerPath.endsWith(".svg")
       ? { "Content-Security-Policy": SVG_CONTENT_SECURITY_POLICY }
       : {}),
-  };
+  } satisfies Record<string, string>;
 }
 
 function assetByteRange(header: string, size: bigint) {
@@ -301,7 +309,7 @@ export const layerBrowserApiCors = Layer.unwrap(
   }),
 );
 
-function isLoopbackHostname(hostname: string): boolean {
+function isLoopbackHostname(hostname: string) {
   const normalizedHostname = hostname
     .trim()
     .toLowerCase()
@@ -309,7 +317,7 @@ function isLoopbackHostname(hostname: string): boolean {
   return LOOPBACK_HOSTNAMES.has(normalizedHostname);
 }
 
-function resolveDevRedirectUrl(devUrl: URL, requestUrl: URL): string {
+function resolveDevRedirectUrl(devUrl: URL, requestUrl: URL) {
   const redirectUrl = new URL(devUrl.toString());
   redirectUrl.pathname = requestUrl.pathname;
   redirectUrl.search = requestUrl.search;

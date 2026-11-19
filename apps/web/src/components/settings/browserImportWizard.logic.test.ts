@@ -30,12 +30,13 @@ describe("wizard target selection", () => {
   });
 });
 
-const source = (over: Partial<BrowserImportSource> = {}): BrowserImportSource => ({
-  id: "helium",
-  name: "Helium",
-  profiles: [{ directory: "Default", name: "You" }],
-  ...over,
-});
+const source = (over: Partial<BrowserImportSource> = {}) =>
+  ({
+    id: "helium",
+    name: "Helium",
+    profiles: [{ directory: "Default", name: "You" }],
+    ...over,
+  }) satisfies BrowserImportSource;
 
 describe("initialWizardStep", () => {
   it("handles source availability before checking its profiles", () => {

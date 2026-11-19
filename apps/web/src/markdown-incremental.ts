@@ -10,15 +10,15 @@ interface ParsedPrefix {
   children: RootContent[];
 }
 
-function hasDefinitions(node: Root | RootContent): boolean {
-  return (
-    node.type === "definition" ||
+function hasDefinitions(node: Root | RootContent): boolean;
+function hasDefinitions(node: Root | RootContent) {
+  return (node.type === "definition" ||
     node.type === "footnoteDefinition" ||
-    ("children" in node && node.children.some((child) => hasDefinitions(child)))
-  );
+    ("children" in node && node.children.some((child) => hasDefinitions(child)))) satisfies boolean;
 }
 
-function shiftPositions(node: Root | RootContent, offset: number, lines: number): void {
+function shiftPositions(node: Root | RootContent, offset: number, lines: number): void;
+function shiftPositions(node: Root | RootContent, offset: number, lines: number) {
   if (node.position) {
     for (const point of [node.position.start, node.position.end]) {
       if (point.offset !== undefined) point.offset += offset;
@@ -30,10 +30,11 @@ function shiftPositions(node: Root | RootContent, offset: number, lines: number)
   }
 }
 
-function createIncrementalMarkdownParser(parse: Parser): Parser {
+function createIncrementalMarkdownParser(parse: Parser): Parser;
+function createIncrementalMarkdownParser(parse: Parser) {
   let cached: ParsedPrefix | undefined;
 
-  return (source, file) => {
+  return ((source, file) => {
     if (source.includes("\r") || source.includes("\uFEFF")) return parse(source, file);
 
     const prefix = cached && source.startsWith(cached.source) ? cached : undefined;
@@ -73,11 +74,12 @@ function createIncrementalMarkdownParser(parse: Parser): Parser {
       break;
     }
     return root;
-  };
+  }) satisfies Parser;
 }
 
 /** Use one cache per streaming renderer; extra syntax plugins require the normal parser. */
-export function createIncrementalMarkdownPlugin(): Plugin<[], Root> {
+export function createIncrementalMarkdownPlugin(): Plugin<[], Root>;
+export function createIncrementalMarkdownPlugin() {
   let parser: Parser | undefined;
   return function () {
     const original = this.parser;
@@ -90,5 +92,5 @@ export function createIncrementalMarkdownPlugin(): Plugin<[], Root> {
       documentParsed = true;
       return parseDocument(source, file);
     };
-  };
+  } satisfies Plugin<[], Root>;
 }

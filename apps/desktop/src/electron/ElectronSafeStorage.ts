@@ -17,7 +17,7 @@ export class ElectronSafeStorageAvailabilityError extends Schema.TaggedError<Ele
     ...electronSafeStorageErrorFields,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return "Electron safe storage failed to check encryption availability.";
   }
 }
@@ -28,7 +28,7 @@ export class ElectronSafeStorageEncryptError extends Schema.TaggedError<Electron
     ...electronSafeStorageErrorFields,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return "Electron safe storage failed to encrypt a string.";
   }
 }
@@ -39,7 +39,7 @@ export class ElectronSafeStorageDecryptError extends Schema.TaggedError<Electron
     ...electronSafeStorageErrorFields,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return "Electron safe storage failed to decrypt a string.";
   }
 }

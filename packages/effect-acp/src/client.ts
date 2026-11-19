@@ -6,7 +6,6 @@ import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import * as Predicate from "effect/Predicate";
-import * as Scope from "effect/Scope";
 import * as Stream from "effect/Stream";
 import * as RpcClient from "effect/rpc/RpcClient";
 import * as RpcMessage from "effect/rpc/RpcMessage";
@@ -285,35 +284,52 @@ interface BufferedNotificationHandler<A> {
   readonly pending: Array<A>;
 }
 
-function normalizeContentBlock(content: AcpSchemaV2.ContentBlock): AcpSchema.ContentBlock {
+function normalizeContentBlock(content: AcpSchemaV2.ContentBlock) {
   switch (content.type) {
     case "text":
     case "image":
     case "audio":
     case "resource_link":
     case "resource":
-      return content as AcpSchema.ContentBlock;
+      return content as AcpSchema.ContentBlock satisfies AcpSchema.ContentBlock;
     default:
-      return { type: "_supaterm_unknown", originalType: content.type, raw: content };
+      return {
+        type: "_supaterm_unknown",
+        originalType: content.type,
+        raw: content,
+      } satisfies AcpSchema.ContentBlock;
   }
 }
 
-function normalizeToolCallContent(content: AcpSchemaV2.ToolCallContent): AcpSchema.ToolCallContent {
+function normalizeToolCallContent(content: AcpSchemaV2.ToolCallContent) {
   if (content.type === "content") {
     const known = content as Extract<AcpSchemaV2.ToolCallContent, { readonly type: "content" }>;
-    return { ...known, content: normalizeContentBlock(known.content) };
+    return {
+      ...known,
+      content: normalizeContentBlock(known.content),
+    } satisfies AcpSchema.ToolCallContent;
   }
   if (content.type === "terminal") {
-    return content as Extract<AcpSchemaV2.ToolCallContent, { readonly type: "terminal" }>;
+    return content as Extract<
+      AcpSchemaV2.ToolCallContent,
+      { readonly type: "terminal" }
+    > satisfies AcpSchema.ToolCallContent;
   }
   if (content.type !== "diff") {
-    return { type: "_supaterm_unknown", originalType: content.type, raw: content };
+    return {
+      type: "_supaterm_unknown",
+      originalType: content.type,
+      raw: content,
+    } satisfies AcpSchema.ToolCallContent;
   }
 
-  return content as Extract<AcpSchemaV2.ToolCallContent, { readonly type: "diff" }>;
+  return content as Extract<
+    AcpSchemaV2.ToolCallContent,
+    { readonly type: "diff" }
+  > satisfies AcpSchema.ToolCallContent;
 }
 
-function normalizeToolCallUpdate(update: AcpSchemaV2.ToolCallUpdate): AcpSchema.ToolCallUpdate {
+function normalizeToolCallUpdate(update: AcpSchemaV2.ToolCallUpdate) {
   return {
     toolCallId: update.toolCallId,
     ...(update.name === undefined ? {} : { name: update.name }),
@@ -329,12 +345,10 @@ function normalizeToolCallUpdate(update: AcpSchemaV2.ToolCallUpdate): AcpSchema.
     ...(update.rawInput === undefined ? {} : { rawInput: update.rawInput }),
     ...(update.rawOutput === undefined ? {} : { rawOutput: update.rawOutput }),
     ...(update._meta === undefined ? {} : { _meta: update._meta }),
-  };
+  } satisfies AcpSchema.ToolCallUpdate;
 }
 
-function normalizeConfigOption(
-  option: AcpSchemaV2.SessionConfigOption,
-): AcpSchema.SessionConfigOption | undefined {
+function normalizeConfigOption(option: AcpSchemaV2.SessionConfigOption) {
   if (option.type === "boolean") {
     const known = option as Extract<AcpSchemaV2.SessionConfigOption, { readonly type: "boolean" }>;
     return {
@@ -345,7 +359,7 @@ function normalizeConfigOption(
       ...(known.description === undefined ? {} : { description: known.description }),
       ...(known.category === undefined ? {} : { category: known.category }),
       ...(known._meta === undefined ? {} : { _meta: known._meta }),
-    };
+    } satisfies AcpSchema.SessionConfigOption | undefined;
   }
   if (option.type === "select") {
     const known = option as Extract<AcpSchemaV2.SessionConfigOption, { readonly type: "select" }>;
@@ -358,23 +372,21 @@ function normalizeConfigOption(
       ...(known.description === undefined ? {} : { description: known.description }),
       ...(known.category === undefined ? {} : { category: known.category }),
       ...(known._meta === undefined ? {} : { _meta: known._meta }),
-    };
+    } satisfies AcpSchema.SessionConfigOption | undefined;
   }
-  return undefined;
+  return undefined satisfies AcpSchema.SessionConfigOption | undefined;
 }
 
 function normalizeConfigOptions(
   options: ReadonlyArray<AcpSchemaV2.SessionConfigOption> | undefined,
-): ReadonlyArray<AcpSchema.SessionConfigOption> | undefined {
+) {
   return options?.flatMap((option) => {
     const normalized = normalizeConfigOption(option);
     return normalized === undefined ? [] : [normalized];
-  });
+  }) satisfies ReadonlyArray<AcpSchema.SessionConfigOption> | undefined;
 }
 
-function normalizeSessionUpdate(
-  notification: AcpSchemaV2.UpdateSessionNotification,
-): AcpSchema.SessionNotification {
+function normalizeSessionUpdate(notification: AcpSchemaV2.UpdateSessionNotification) {
   const update = notification.update;
   const base = {
     sessionId: notification.sessionId,
@@ -395,7 +407,7 @@ function normalizeSessionUpdate(
         }
       >;
       const content = normalizeContentBlock(known.content);
-      return { ...base, update: { ...known, content } };
+      return { ...base, update: { ...known, content } } satisfies AcpSchema.SessionNotification;
     }
     case "user_message":
     case "agent_message":
@@ -420,7 +432,7 @@ function normalizeSessionUpdate(
                       ),
               }),
         },
-      } as AcpSchema.SessionNotification;
+      } as AcpSchema.SessionNotification satisfies AcpSchema.SessionNotification;
     }
     case "tool_call_update": {
       const known = update as Extract<
@@ -430,7 +442,7 @@ function normalizeSessionUpdate(
       return {
         ...base,
         update: { sessionUpdate: "tool_call_update", ...normalizeToolCallUpdate(known) },
-      };
+      } satisfies AcpSchema.SessionNotification;
     }
     case "tool_call_content_chunk": {
       const known = update as Extract<
@@ -445,7 +457,7 @@ function normalizeSessionUpdate(
           content: normalizeToolCallContent(known.content),
           ...(known._meta === undefined ? {} : { _meta: known._meta }),
         },
-      };
+      } satisfies AcpSchema.SessionNotification;
     }
     case "config_option_update": {
       const known = update as Extract<
@@ -462,7 +474,7 @@ function normalizeSessionUpdate(
           }),
           ...(known._meta === undefined ? {} : { _meta: known._meta }),
         },
-      };
+      } satisfies AcpSchema.SessionNotification;
     }
     case "state_update":
     case "terminal_update":
@@ -473,7 +485,10 @@ function normalizeSessionUpdate(
     case "usage_update":
     case "compaction_update":
     case "compaction_summary_chunk":
-      return { ...base, update } as AcpSchema.SessionNotification;
+      return {
+        ...base,
+        update,
+      } as AcpSchema.SessionNotification satisfies AcpSchema.SessionNotification;
     case "available_commands_update": {
       const known = update as Extract<
         AcpSchemaV2.SessionUpdate,
@@ -495,11 +510,12 @@ function normalizeSessionUpdate(
               : { input: null }),
           })),
         },
-      };
+      } satisfies AcpSchema.SessionNotification;
     }
     default: {
       const notice = decodeNoticeUpdate(update);
-      if (Option.isSome(notice)) return { ...base, update: notice.value };
+      if (Option.isSome(notice))
+        return { ...base, update: notice.value } satisfies AcpSchema.SessionNotification;
       return {
         ...base,
         update: {
@@ -507,14 +523,12 @@ function normalizeSessionUpdate(
           originalSessionUpdate: update.sessionUpdate,
           raw: update,
         },
-      };
+      } satisfies AcpSchema.SessionNotification;
     }
   }
 }
 
-function normalizeV1SessionUpdate(
-  notification: AcpSchemaV1.SessionNotification,
-): AcpSchema.SessionNotification {
+function normalizeV1SessionUpdate(notification: AcpSchemaV1.SessionNotification) {
   if ((notification.update.sessionUpdate as string) === "notice") {
     const notice = decodeNoticeUpdate(notification.update);
     return {
@@ -526,7 +540,7 @@ function normalizeV1SessionUpdate(
             originalSessionUpdate: "notice",
             raw: notification.update,
           },
-    };
+    } satisfies AcpSchema.SessionNotification;
   }
   const update = notification.update;
   if (
@@ -534,10 +548,13 @@ function normalizeV1SessionUpdate(
     update.name === null
   ) {
     const { name: _name, ...rest } = update;
-    return { ...notification, update: rest } as unknown as AcpSchema.SessionNotification;
+    return {
+      ...notification,
+      update: rest,
+    } as unknown as AcpSchema.SessionNotification satisfies AcpSchema.SessionNotification;
   }
   if (notification.update.sessionUpdate !== "available_commands_update") {
-    return notification as unknown as AcpSchema.SessionNotification;
+    return notification as unknown as AcpSchema.SessionNotification satisfies AcpSchema.SessionNotification;
   }
   return {
     ...notification,
@@ -551,10 +568,10 @@ function normalizeV1SessionUpdate(
         };
       }),
     },
-  };
+  } satisfies AcpSchema.SessionNotification;
 }
 
-function toV2McpServer(server: AcpSchema.McpServer): AcpSchemaV2.McpServer {
+function toV2McpServer(server: AcpSchema.McpServer) {
   if ("type" in server) return server;
   return {
     type: "stdio",
@@ -569,7 +586,7 @@ function toV2McpServer(server: AcpSchema.McpServer): AcpSchemaV2.McpServer {
 function toV2ResumeRequest(
   request: AcpSchema.ResumeSessionRequest,
   replayFrom?: AcpSchemaV2.ReplayFrom,
-): AcpSchemaV2.ResumeSessionRequest {
+) {
   const { mcpServers, ...rest } = request;
   return {
     ...rest,
@@ -578,7 +595,7 @@ function toV2ResumeRequest(
   };
 }
 
-function toV2ForkRequest(request: AcpSchema.ForkSessionRequest): AcpSchemaV2.ForkSessionRequest {
+function toV2ForkRequest(request: AcpSchema.ForkSessionRequest) {
   const { mcpServers, ...rest } = request;
   return {
     ...rest,
@@ -586,9 +603,7 @@ function toV2ForkRequest(request: AcpSchema.ForkSessionRequest): AcpSchemaV2.For
   };
 }
 
-function normalizeInitializeResponse(
-  response: AcpSchemaV2.InitializeResponse,
-): AcpSchema.InitializeResponse {
+function normalizeInitializeResponse(response: AcpSchemaV2.InitializeResponse) {
   const session = response.capabilities?.session;
   const prompt = session?.prompt;
   const mcp = session?.mcp;
@@ -689,9 +704,7 @@ function normalizeInitializeResponse(
   };
 }
 
-function toV2InitializeRequest(
-  request: AcpSchema.InitializeRequest,
-): AcpSchemaV2.InitializeRequest {
+function toV2InitializeRequest(request: AcpSchema.InitializeRequest) {
   const capabilities = request.clientCapabilities;
   return {
     protocolVersion: 2,
@@ -705,9 +718,7 @@ function toV2InitializeRequest(
   };
 }
 
-function toNegotiatingInitializeRequest(
-  request: AcpSchema.InitializeRequest,
-): AcpSchemaV1.InitializeRequest | AcpSchemaV2.InitializeRequest {
+function toNegotiatingInitializeRequest(request: AcpSchema.InitializeRequest) {
   return {
     ...toV2InitializeRequest(request),
     clientCapabilities: request.clientCapabilities ?? {},
@@ -738,7 +749,7 @@ function normalizeV2SessionSetupResponse(
 function normalizePermissionRequest(
   request: AcpSchemaV2.RequestPermissionRequest,
   context: AcpProtocol.AcpRequestContext,
-): AcpSchema.RequestPermissionRequest {
+) {
   const subject = request.subject;
   const toolCall =
     subject?.type === "tool_call" && "toolCall" in subject
@@ -761,14 +772,14 @@ function normalizePermissionRequest(
     toolCall,
     options: request.options,
     ...(request._meta === undefined ? {} : { _meta: request._meta }),
-  };
+  } satisfies AcpSchema.RequestPermissionRequest;
 }
 
 export const make = Effect.fn("effect-acp/AcpClient.make")(function* (
   stdio: AcpProtocol.AcpStdio,
   options: AcpClientOptions = {},
   terminationError?: Effect.Effect<AcpError.AcpError>,
-): Effect.fn.Return<AcpClient["Service"], never, Scope.Scope> {
+) {
   const coreHandlers: AcpCoreRequestHandlers = {};
   const notificationHandlers: AcpNotificationHandlers = {
     sessionUpdate: { handlers: [], pending: [] },
@@ -929,10 +940,7 @@ export const make = Effect.fn("effect-acp/AcpClient.make")(function* (
     onExtRequest: dispatchExtRequest,
   });
 
-  const requestContext = (
-    requestId: RpcMessage.RequestId,
-    method: string,
-  ): AcpProtocol.AcpRequestContext => ({
+  const requestContext = (requestId: RpcMessage.RequestId, method: string) => ({
     requestId: AcpProtocol.acpRequestIdentity(requestId),
     method,
   });
@@ -1418,7 +1426,7 @@ export const make = Effect.fn("effect-acp/AcpClient.make")(function* (
 export const layerChildProcess = (
   handle: ChildProcessSpawner.ChildProcessHandle,
   options: AcpClientOptions = {},
-): Layer.Layer<AcpClient> => {
+) => {
   const stdio = {
     ...makeChildStdio(handle),
     stdin: options.transformStdout?.(handle.stdout) ?? handle.stdout,

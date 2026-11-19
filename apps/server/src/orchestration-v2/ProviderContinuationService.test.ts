@@ -41,7 +41,7 @@ const projection = {
 const request = (
   dispatchIfCurrent?: ProviderContinuationRequests.ProviderContinuationRequest["dispatchIfCurrent"],
   detail: string | null = null,
-): ProviderContinuationRequests.ProviderContinuationRequest => ({
+) => ({
   threadId,
   providerThreadId,
   driver,

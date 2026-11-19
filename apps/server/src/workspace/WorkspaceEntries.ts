@@ -38,7 +38,7 @@ export class WorkspaceEntriesWindowsPathUnsupportedError extends Schema.TaggedEr
     platform: Schema.String,
   },
 ) {
-  override get message(): string {
+  override get message() {
     const cwd = this.cwd ? ` from '${this.cwd}'` : "";
     return `Windows-style workspace path '${this.partialPath}' is not supported on '${this.platform}'${cwd}.`;
   }
@@ -50,7 +50,7 @@ export class WorkspaceEntriesCurrentProjectRequiredError extends Schema.TaggedEr
     partialPath: Schema.String,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `A current project is required to browse relative workspace path '${this.partialPath}'.`;
   }
 }
@@ -64,11 +64,11 @@ export class WorkspaceEntriesReadDirectoryError extends Schema.TaggedError<Works
     cause: Schema.Defect(),
   },
 ) {
-  get pathMissing(): boolean {
+  get pathMissing() {
     return (this.cause as NodeJS.ErrnoException | undefined)?.code === "ENOENT";
   }
 
-  override get message(): string {
+  override get message() {
     const cwd = this.cwd ? ` from '${this.cwd}'` : "";
     return `Failed to read workspace directory '${this.parentPath}' while browsing '${this.partialPath}'${cwd}.`;
   }
@@ -124,7 +124,7 @@ const SYMLINK_RESOLVE_BATCH_SIZE = 64;
 const resolveBrowseTarget = Effect.fn("WorkspaceEntries.resolveBrowseTarget")(function* (
   input: FilesystemBrowseInput,
   path: Path.Path,
-): Effect.fn.Return<string, WorkspaceEntriesBrowseError> {
+) {
   const platform = yield* HostProcess.Platform;
   if (platform !== "win32" && isWindowsAbsolutePath(input.partialPath)) {
     return yield* new WorkspaceEntriesWindowsPathUnsupportedError({
@@ -158,7 +158,7 @@ export const make = Effect.gen(function* () {
 
   const normalizeWorkspaceRoot = Effect.fn("WorkspaceEntries.normalizeWorkspaceRoot")(function* (
     cwd: string,
-  ): Effect.fn.Return<string, WorkspaceEntriesError> {
+  ) {
     return yield* workspacePaths.normalizeWorkspaceRoot(cwd);
   });
 
@@ -342,7 +342,7 @@ export const make = Effect.gen(function* () {
     );
     return matches
       .filter((candidate) => candidate !== null)
-      .map((candidate): ProjectEntry => ({ path: candidate, kind: "file" }));
+      .map((candidate) => ({ path: candidate, kind: "file" }) satisfies ProjectEntry);
   });
 
   const searchContents: WorkspaceEntries["Service"]["searchContents"] = Effect.fn(
@@ -416,9 +416,7 @@ export const make = Effect.gen(function* () {
                 }
                 return folders;
               })());
-            const resolveSymlinkKind = async (
-              name: string,
-            ): Promise<ProjectEntry["kind"] | undefined> => {
+            const resolveSymlinkKind = async (name: string) => {
               const resolved = await NodeFSP.realpath(path.join(directory, name)).catch(
                 () => undefined,
               );
@@ -441,14 +439,12 @@ export const make = Effect.gen(function* () {
             for (let offset = 0; offset < children.length; offset += SYMLINK_RESOLVE_BATCH_SIZE) {
               kinds.push(
                 ...(await Promise.all(
-                  children
-                    .slice(offset, offset + SYMLINK_RESOLVE_BATCH_SIZE)
-                    .map(async (child): Promise<ProjectEntry["kind"] | undefined> => {
-                      if (child.name === ".git") return undefined;
-                      if (child.isDirectory()) return "directory";
-                      if (child.isFile()) return "file";
-                      return child.isSymbolicLink() ? resolveSymlinkKind(child.name) : undefined;
-                    }),
+                  children.slice(offset, offset + SYMLINK_RESOLVE_BATCH_SIZE).map(async (child) => {
+                    if (child.name === ".git") return undefined;
+                    if (child.isDirectory()) return "directory";
+                    if (child.isFile()) return "file";
+                    return child.isSymbolicLink() ? resolveSymlinkKind(child.name) : undefined;
+                  }),
                 )),
               );
             }
@@ -463,7 +459,7 @@ export const make = Effect.gen(function* () {
             }
             return {
               nestedGitRoots,
-              entries: children.flatMap((child, index): ProjectEntry[] => {
+              entries: children.flatMap((child, index) => {
                 const kind = kinds[index];
                 if (kind === undefined) return [];
                 return [

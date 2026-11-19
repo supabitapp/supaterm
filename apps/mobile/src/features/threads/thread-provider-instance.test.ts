@@ -25,7 +25,7 @@ function makeConfig(
     readonly displayName?: string;
     readonly accentColor?: string;
   }>,
-): ServerConfig {
+) {
   return {
     providers: providers.map((provider) => ({ enabled: true, ...provider })),
     environment: { capabilities: {}, platform: { machine: "laptop" } },
@@ -33,7 +33,7 @@ function makeConfig(
   } as unknown as ServerConfig;
 }
 
-function makeThread(environmentId: EnvironmentId, instanceId: string): EnvironmentThreadShell {
+function makeThread(environmentId: EnvironmentId, instanceId: string) {
   return {
     environmentId,
     id: ThreadId.make("thread-1"),

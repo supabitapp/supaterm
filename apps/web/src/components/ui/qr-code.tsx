@@ -19,7 +19,7 @@ const ERROR_CORRECTION_LEVELS = {
   H: QrCode.Ecc.HIGH,
 } as const;
 
-function buildQrPathData(qrCode: ReturnType<typeof QrCode.encodeText>, marginSize: number): string {
+function buildQrPathData(qrCode: ReturnType<typeof QrCode.encodeText>, marginSize: number) {
   const commands: Array<string> = [];
 
   for (let y = 0; y < qrCode.size; y += 1) {

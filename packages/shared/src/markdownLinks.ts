@@ -5,7 +5,6 @@ import {
   workspaceRelativeFilePath,
 } from "./path.ts";
 import {
-  type FilePathPosition,
   formatFilePathPosition,
   parseFileUrlHref,
   resolvePathLinkTarget,
@@ -32,7 +31,7 @@ const SPACED_ABSOLUTE_PATH_ROOT_PATTERN = /^(?:\/|~\/|[A-Za-z]:[\\/])/;
 const SPACED_PATH_BODY_PATTERN =
   /^(?:[\p{L}\p{M}\p{N}._$+@()[\]-]+(?: (?!-+\p{L})[\p{L}\p{M}\p{N}._$+@()[\]-]+)*(?:[\\/]|$))+$/u;
 
-function isSpacedAbsoluteFilePath(text: string): boolean {
+function isSpacedAbsoluteFilePath(text: string) {
   const root = SPACED_ABSOLUTE_PATH_ROOT_PATTERN.exec(text)?.[0];
   if (root === undefined) return false;
   const body = text.slice(root.length).replace(POSITION_SUFFIX_PATTERN, "");
@@ -176,7 +175,7 @@ const COUNTRY_HOSTNAME_TLDS = new Set([
   "cc",
 ]);
 
-function looksLikeHostname(segment: string, hasPosition: boolean): boolean {
+function looksLikeHostname(segment: string, hasPosition: boolean) {
   if (segment.startsWith(".")) return false;
   const lowered = segment.toLowerCase();
   if (SINGLE_LABEL_HOSTNAMES.has(lowered)) return true;
@@ -188,7 +187,7 @@ function looksLikeHostname(segment: string, hasPosition: boolean): boolean {
   return !hasPosition && COUNTRY_HOSTNAME_TLDS.has(lastLabel);
 }
 
-export function inlineCodeFilePathCandidate(codeText: string): string | null {
+export function inlineCodeFilePathCandidate(codeText: string) {
   const trimmed = codeText.trim();
   if (trimmed.length === 0 || trimmed.includes("`")) return null;
   if (INLINE_CODE_WHITESPACE_PATTERN.test(trimmed) && !isSpacedAbsoluteFilePath(trimmed)) {
@@ -229,7 +228,7 @@ export function inlineCodeFilePathCandidate(codeText: string): string | null {
   return candidate;
 }
 
-export function safeDecodeURIComponent(value: string): string {
+export function safeDecodeURIComponent(value: string) {
   try {
     return decodeURIComponent(value);
   } catch {
@@ -237,15 +236,15 @@ export function safeDecodeURIComponent(value: string): string {
   }
 }
 
-export function normalizeMarkdownLinkDestination(value: string): string {
+export function normalizeMarkdownLinkDestination(value: string): string;
+export function normalizeMarkdownLinkDestination(value: string) {
   const trimmed = value.trim();
-  return trimmed.startsWith("<") && trimmed.endsWith(">") ? trimmed.slice(1, -1) : trimmed;
+  return (
+    trimmed.startsWith("<") && trimmed.endsWith(">") ? trimmed.slice(1, -1) : trimmed
+  ) satisfies string;
 }
 
-export function splitMarkdownLinkSearchAndHash(value: string): {
-  readonly path: string;
-  readonly hash: string;
-} {
+export function splitMarkdownLinkSearchAndHash(value: string) {
   const hashIndex = value.indexOf("#");
   const pathWithSearch = hashIndex >= 0 ? value.slice(0, hashIndex) : value;
   const hash = hashIndex >= 0 ? value.slice(hashIndex) : "";
@@ -256,7 +255,7 @@ export function splitMarkdownLinkSearchAndHash(value: string): {
   };
 }
 
-export function isMarkdownFileLinkLabel(label: string, href: string): boolean {
+export function isMarkdownFileLinkLabel(label: string, href: string) {
   const destination = parseMarkdownFileLink(href);
   if (!destination) return false;
   const normalize = (path: string) =>
@@ -279,14 +278,14 @@ export function isMarkdownFileLinkLabel(label: string, href: string): boolean {
   return destinationPath === labelPath || destinationPath.endsWith(`/${labelPath}`);
 }
 
-export function isRelativeFilePath(path: string): boolean {
+export function isRelativeFilePath(path: string) {
   return (
     RELATIVE_PATH_PREFIX_PATTERN.test(path) ||
     (!path.startsWith("/") && !isWindowsAbsolutePath(path))
   );
 }
 
-function looksLikePosixFilesystemPath(path: string): boolean {
+function looksLikePosixFilesystemPath(path: string) {
   if (!path.startsWith("/")) return false;
   if (POSIX_FILE_ROOT_PREFIXES.some((prefix) => path.startsWith(prefix))) return true;
   if (POSITION_SUFFIX_PATTERN.test(path)) return true;
@@ -294,14 +293,14 @@ function looksLikePosixFilesystemPath(path: string): boolean {
   return EXTENSIONLESS_FILE_NAMES.has(basename) || FILE_EXTENSION_PATTERN.test(basename);
 }
 
-function looksLikeFilePath(path: string, authoredPath: string): boolean {
+function looksLikeFilePath(path: string, authoredPath: string) {
   if (isWindowsAbsolutePath(path) || RELATIVE_PATH_PREFIX_PATTERN.test(path)) return true;
   if (path.startsWith("/")) return looksLikePosixFilesystemPath(authoredPath);
   if (EXTENSIONLESS_FILE_NAMES.has(path)) return true;
   return RELATIVE_FILE_PATH_PATTERN.test(authoredPath) || RELATIVE_FILE_NAME_PATTERN.test(path);
 }
 
-function hasExternalScheme(path: string): boolean {
+function hasExternalScheme(path: string) {
   if (isWindowsAbsolutePath(path)) return false;
   const match = path.match(EXTERNAL_SCHEME_PATTERN);
   if (!match) return false;
@@ -310,7 +309,7 @@ function hasExternalScheme(path: string): boolean {
   return !POSITION_ONLY_PATTERN.test(rest);
 }
 
-export function parseMarkdownFileLink(href: string): FilePathPosition | null {
+export function parseMarkdownFileLink(href: string) {
   const normalized = normalizeMarkdownLinkDestination(href);
   if (normalized.length === 0 || normalized.startsWith("#") || normalized.startsWith("//")) {
     return null;
@@ -328,7 +327,7 @@ export function parseMarkdownFileLink(href: string): FilePathPosition | null {
   return path.includes("\\") ? parseFilePathLink(path.replaceAll("\\", "/"), hash) : null;
 }
 
-function parseFilePathLink(path: string, hash: string): FilePathPosition | null {
+function parseFilePathLink(path: string, hash: string) {
   const position = splitFilePathPosition(path, hash);
   return !ELIDED_PATH_SEGMENT_PATTERN.test(position.path) && looksLikeFilePath(position.path, path)
     ? position
@@ -339,7 +338,7 @@ const FENCED_CODE_SEGMENT_PATTERN = /(```[\s\S]*?(?:```|$))/;
 
 const INLINE_CODE_SPAN_PATTERN = /`([^`\n]+)`/g;
 
-export function extractInlineCodeSpans(text: string): string[] {
+export function extractInlineCodeSpans(text: string) {
   const spans: string[] = [];
   const segments = text.split(FENCED_CODE_SEGMENT_PATTERN);
   for (let index = 0; index < segments.length; index += 2) {
@@ -380,7 +379,7 @@ function markdownLinkTailScanner(markdown: string) {
 
 const MAX_BARE_DESTINATION_PAREN_DEPTH = 32;
 
-function bareMarkdownLinkDestinationEnd(markdown: string, start: number): number | null {
+function bareMarkdownLinkDestinationEnd(markdown: string, start: number) {
   const delimiter = /[\s()\\]/g;
   delimiter.lastIndex = start;
   let depth = 0;
@@ -422,7 +421,7 @@ function markdownLinkDestinationScanner(markdown: string) {
   };
 }
 
-function unescapedLabelEnd(markdown: string, start: number): number {
+function unescapedLabelEnd(markdown: string, start: number) {
   let end = markdown.indexOf("]", start);
   while (end !== -1) {
     let backslashes = 0;
@@ -433,7 +432,7 @@ function unescapedLabelEnd(markdown: string, start: number): number {
   return -1;
 }
 
-export function extractMarkdownLinkHrefs(markdown: string): string[] {
+export function extractMarkdownLinkHrefs(markdown: string) {
   const hrefs: string[] = [];
   const scanDestination = markdownLinkDestinationScanner(markdown);
   let cursor = 0;
@@ -457,7 +456,7 @@ export function resolveMarkdownFileLinkTarget(
   href: string | undefined,
   cwd?: string,
   baseDir: string | undefined = cwd,
-): string | null {
+) {
   if (!href) return null;
   const target = parseMarkdownFileLink(href);
   if (!target) return null;
@@ -472,11 +471,12 @@ export function resolveMarkdownFileLinkTarget(
   return resolvePathLinkTarget(pathWithPosition, baseDir);
 }
 
-export function isWindowsDrivePathHref(href: string): boolean {
+export function isWindowsDrivePathHref(href: string) {
   return /^[A-Za-z]:[\\/]/.test(safeDecodeURIComponent(href));
 }
 
-export function absoluteFilePathMatches(text: string): Array<{ index: number; path: string }> {
+export function absoluteFilePathMatches(text: string): Array<{ index: number; path: string }>;
+export function absoluteFilePathMatches(text: string) {
   const paths: Array<{ index: number; path: string }> = [];
   for (const match of text.matchAll(/(^|[\s(["'])(\/[^\s<>"'`]+)/g)) {
     const source = match[2]!;
@@ -513,5 +513,5 @@ export function absoluteFilePathMatches(text: string): Array<{ index: number; pa
     if (!parseMarkdownFileLink(path)) continue;
     paths.push({ index: match.index + match[1]!.length, path });
   }
-  return paths;
+  return paths satisfies Array<{ index: number; path: string }>;
 }

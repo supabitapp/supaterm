@@ -14,8 +14,11 @@ import {
 const FIRST_FINAL = "provider thread resume fixture first turn complete";
 const SECOND_FINAL = "provider thread resume fixture second turn complete";
 
-function field(value: unknown, key: string): unknown {
-  return typeof value === "object" && value !== null ? Reflect.get(value, key) : undefined;
+function field(value: unknown, key: string): unknown;
+function field(value: unknown, key: string) {
+  return (
+    typeof value === "object" && value !== null ? Reflect.get(value, key) : undefined
+  ) satisfies unknown;
 }
 
 export function assertPiProviderThreadResumeOutput(

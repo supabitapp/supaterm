@@ -33,7 +33,9 @@ describe("pull request body segmentation", () => {
     const body =
       '\n\n- [ ] Before\r\n\nhttps://example.com/shot.png\n\n\n<video controls>\n  <source src="https://example.com/a.mp4">\n</video>\n    - [ ] code\n- [x] After\n\r\n<table>\r\n<tr><td>\r\n\r\n- [ ] In a cell\r\n\r\n</td><td>\r\n\r\nhttps://example.com/b.mp4\r\n\r\n</td></tr>\r\n</table>\r\n- [ ] Last\n';
     type Prose = Extract<PullRequestBodySegment, { kind: "markdown" }>;
-    const prose = (segments: ReadonlyArray<PullRequestBodySegment>): Prose[] =>
+    const prose: (segments: ReadonlyArray<PullRequestBodySegment>) => Prose[] = (
+      segments: ReadonlyArray<PullRequestBodySegment>,
+    ) =>
       segments.flatMap((segment) =>
         segment.kind === "markdown"
           ? [segment]
@@ -183,7 +185,9 @@ describe("reference links around lifted media", () => {
   const recording =
     "https://github.com/user-attachments/assets/2f8c1a90-1b2c-4d5e-8f90-abcdef123456";
   const parser = unified().use(remarkParse).use(remarkGfm);
-  const prose = (segments: ReadonlyArray<PullRequestBodySegment>): string[] =>
+  const prose: (segments: ReadonlyArray<PullRequestBodySegment>) => string[] = (
+    segments: ReadonlyArray<PullRequestBodySegment>,
+  ) =>
     segments.flatMap((segment) =>
       segment.kind === "markdown"
         ? [segment.text]

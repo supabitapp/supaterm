@@ -15,7 +15,7 @@ import {
 import { ChatGptUsageButton } from "./ChatGptUsageButton";
 
 const STORAGE_KEY = "supaterm:chatgpt-sharing-welcome:v1";
-function readAcknowledgedProfiles(): string[] {
+function readAcknowledgedProfiles() {
   try {
     const value: unknown = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "[]");
     return Array.isArray(value)

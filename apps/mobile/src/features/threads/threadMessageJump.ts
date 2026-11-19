@@ -13,25 +13,25 @@ function notify() {
   for (const listener of listeners) listener();
 }
 
-export function requestThreadMessageJump(threadKey: string, messageId: MessageId): void {
+export function requestThreadMessageJump(threadKey: string, messageId: MessageId) {
   pending = { threadKey, messageId, at: Date.now() };
   notify();
 }
 
 /** The jump this thread should open at, if a palette pick asked for one; one object per request. */
-export function pendingThreadMessageJump(threadKey: string): PendingThreadMessageJump | null {
+export function pendingThreadMessageJump(threadKey: string) {
   return pending?.threadKey === threadKey && Date.now() - pending.at < PENDING_JUMP_MS
     ? pending
     : null;
 }
 
-export function finishThreadMessageJump(threadKey: string): void {
+export function finishThreadMessageJump(threadKey: string) {
   if (pending?.threadKey !== threadKey) return;
   pending = null;
   notify();
 }
 
-export function subscribeThreadMessageJump(listener: () => void): () => void {
+export function subscribeThreadMessageJump(listener: () => void) {
   listeners.add(listener);
   return () => {
     listeners.delete(listener);

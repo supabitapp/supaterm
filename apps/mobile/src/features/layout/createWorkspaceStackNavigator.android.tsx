@@ -159,6 +159,15 @@ export function createWorkspaceStackNavigator<
   const NavigatorID extends string | undefined = string | undefined,
   const TypeBag extends NavigatorTypeBagBase = WorkspaceTypeBag<ParamList, NavigatorID>,
   const Config extends StaticConfig<TypeBag> = StaticConfig<TypeBag>,
->(config?: Config): TypedNavigator<TypeBag, Config> {
-  return createNavigatorFactory(WorkspaceStackNavigator)(config);
+>(config?: Config): TypedNavigator<TypeBag, Config>;
+export function createWorkspaceStackNavigator<
+  const ParamList extends ParamListBase,
+  const NavigatorID extends string | undefined = string | undefined,
+  const TypeBag extends NavigatorTypeBagBase = WorkspaceTypeBag<ParamList, NavigatorID>,
+  const Config extends StaticConfig<TypeBag> = StaticConfig<TypeBag>,
+>(config?: Config) {
+  return createNavigatorFactory(WorkspaceStackNavigator)(config) satisfies TypedNavigator<
+    TypeBag,
+    Config
+  >;
 }

@@ -1,9 +1,9 @@
 import type { DesktopPreviewAnnotationTheme } from "@supaterm/contracts";
 
-const readVariable = (styles: CSSStyleDeclaration, name: string, fallback: string): string =>
+const readVariable = (styles: CSSStyleDeclaration, name: string, fallback: string) =>
   styles.getPropertyValue(name).trim() || fallback;
 
-export function readPreviewAnnotationTheme(): DesktopPreviewAnnotationTheme {
+export function readPreviewAnnotationTheme() {
   const root = document.documentElement;
   const styles = getComputedStyle(root);
   return {
@@ -24,5 +24,5 @@ export function readPreviewAnnotationTheme(): DesktopPreviewAnnotationTheme {
     ring: readVariable(styles, "--ring", "oklch(0.488 0.217 264)"),
     fontSans: readVariable(styles, "--font-sans", styles.fontFamily || "system-ui, sans-serif"),
     fontMono: readVariable(styles, "--font-mono", "ui-monospace, monospace"),
-  };
+  } satisfies DesktopPreviewAnnotationTheme;
 }

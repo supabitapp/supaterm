@@ -48,11 +48,11 @@ export const IncomingShareDraftSchema = Schema.Struct({
 
 const decodeIncomingShareDraftSync = Schema.decodeUnknownSync(IncomingShareDraftSchema);
 
-export function decodeIncomingShareDraft(value: unknown): IncomingShareDraft {
+export function decodeIncomingShareDraft(value: unknown) {
   return decodeIncomingShareDraftSync(value);
 }
 
-function normalizedFileUriPath(uri: string): string | null {
+function normalizedFileUriPath(uri: string) {
   try {
     const url = new URL(uri);
     if (url.protocol !== "file:") {
@@ -69,10 +69,7 @@ function normalizedFileUriPath(uri: string): string | null {
 }
 
 /** Delete only inside app-owned roots; iOS shares may reference the sender's original. */
-export function isShareFileUriUnderOwnedRoots(
-  uri: string,
-  ownedRootUris: ReadonlyArray<string>,
-): boolean {
+export function isShareFileUriUnderOwnedRoots(uri: string, ownedRootUris: ReadonlyArray<string>) {
   const path = normalizedFileUriPath(uri);
   if (path === null) {
     return false;
@@ -97,10 +94,7 @@ export interface IncomingShareFileReader {
 export function selectIncomingShareAttachments(input: {
   readonly attachments: ReadonlyArray<DraftComposerAttachment>;
   readonly maxFileAttachmentBytes: number | null;
-}): {
-  readonly attachments: ReadonlyArray<DraftComposerAttachment>;
-  readonly warnings: ReadonlyArray<string>;
-} {
+}) {
   const attachments: DraftComposerAttachment[] = [];
   const warnings: string[] = [];
 
@@ -139,10 +133,26 @@ export function selectIncomingShareAttachmentsForServer(input: {
       readonly status: "ready";
       readonly attachments: ReadonlyArray<DraftComposerAttachment>;
       readonly warnings: ReadonlyArray<string>;
-    } {
+    };
+export function selectIncomingShareAttachmentsForServer(input: {
+  readonly attachments: ReadonlyArray<DraftComposerAttachment>;
+  readonly serverConfig: {
+    readonly environment: {
+      readonly capabilities: {
+        readonly fileAttachments?: { readonly maxUploadBytes: number };
+      };
+    };
+  } | null;
+}) {
   const hasFiles = input.attachments.some((attachment) => attachment.type === "file");
   if (hasFiles && input.serverConfig === null) {
-    return { status: "pending" };
+    return { status: "pending" } satisfies
+      | { readonly status: "pending" }
+      | {
+          readonly status: "ready";
+          readonly attachments: ReadonlyArray<DraftComposerAttachment>;
+          readonly warnings: ReadonlyArray<string>;
+        };
   }
   const capabilities = input.serverConfig?.environment.capabilities;
   const maxFileAttachmentBytes = capabilities?.fileAttachments?.maxUploadBytes ?? null;
@@ -152,10 +162,16 @@ export function selectIncomingShareAttachmentsForServer(input: {
       attachments: input.attachments,
       maxFileAttachmentBytes,
     }),
-  };
+  } satisfies
+    | { readonly status: "pending" }
+    | {
+        readonly status: "ready";
+        readonly attachments: ReadonlyArray<DraftComposerAttachment>;
+        readonly warnings: ReadonlyArray<string>;
+      };
 }
 
-function sharedText(payloads: ReadonlyArray<SharePayload>): string {
+function sharedText(payloads: ReadonlyArray<SharePayload>) {
   const seen = new Set<string>();
   const values: string[] = [];
   for (const payload of payloads) {
@@ -177,7 +193,7 @@ function resolvedImageFor(
   index: number,
   resolvedPayloads: ReadonlyArray<ResolvedSharePayload>,
   consumedIndexes: Set<number>,
-): ResolvedSharePayload | undefined {
+) {
   const sameIndex = resolvedPayloads[index];
   if (
     !consumedIndexes.has(index) &&
@@ -203,7 +219,7 @@ function resolvedImageFor(
 async function releaseOwnedFiles(
   fileReader: IncomingShareFileReader,
   uris: ReadonlyArray<string | undefined>,
-): Promise<void> {
+) {
   for (const uri of new Set(uris.filter((candidate): candidate is string => Boolean(candidate)))) {
     try {
       await fileReader.removeOwnedFile(uri);
@@ -211,7 +227,7 @@ async function releaseOwnedFiles(
   }
 }
 
-function fallbackName(uri: string, index: number, mimeType: string): string {
+function fallbackName(uri: string, index: number, mimeType: string) {
   try {
     const pathName = new URL(uri).pathname.split("/").findLast((segment) => segment.length > 0);
     if (pathName) {
@@ -231,7 +247,7 @@ export async function buildIncomingShareDraft(input: {
   readonly fileReader: IncomingShareFileReader;
   readonly id: string;
   readonly createdAt: string;
-}): Promise<IncomingShareDraft> {
+}) {
   const attachments: DraftComposerAttachment[] = [];
   const warnings: string[] = [];
   const consumedResolvedPayloadIndexes = new Set<number>();
@@ -415,9 +431,9 @@ export async function buildIncomingShareDraft(input: {
     text: sharedText(input.payloads),
     attachments,
     warnings,
-  };
+  } satisfies IncomingShareDraft;
 }
 
-export function hasIncomingShareContent(draft: IncomingShareDraft): boolean {
+export function hasIncomingShareContent(draft: IncomingShareDraft) {
   return draft.text.trim().length > 0 || draft.attachments.length > 0;
 }

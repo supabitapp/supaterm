@@ -10,7 +10,6 @@ import {
   AuthSettingsWriteScope,
   AuthSourceControlWriteScope,
   AuthTerminalOperateScope,
-  type AuthEnvironmentScope,
 } from "./auth.ts";
 import { ORCHESTRATION_V2_WS_METHODS } from "./orchestrationV2.ts";
 import { WS_METHODS } from "./rpc.ts";
@@ -80,10 +79,7 @@ const isQuestionTimerCommand = Schema.is(
 );
 const decodeStackedAction = Schema.decodeUnknownSync(GitRunStackedActionInput);
 
-export function clientRpcRequiredScopes(
-  method: string,
-  input: unknown,
-): readonly AuthEnvironmentScope[] {
+export function clientRpcRequiredScopes(method: string, input: unknown) {
   if (method === ORCHESTRATION_V2_WS_METHODS.dispatchCommand && isQuestionTimerCommand(input))
     return [AuthOrchestrationOperateScope];
   if (method === WS_METHODS.gitPreparePullRequestThread && input !== undefined) {

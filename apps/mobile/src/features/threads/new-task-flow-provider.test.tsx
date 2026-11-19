@@ -219,7 +219,7 @@ const configs = new Map(
     },
   ]),
 );
-function project(environmentId: EnvironmentId, scratch = true): EnvironmentProject {
+function project(environmentId: EnvironmentId, scratch = true) {
   return {
     id: ProjectId.make(`${environmentId}-${scratch ? "scratch" : "repo"}`),
     environmentId,
@@ -355,7 +355,7 @@ function pushDraftRoute(draft?: Parameters<typeof draftRoute>[0]) {
 function popDraftRoute() {
   renderer!.update(draftStack(stack.slice(0, -1)));
 }
-function coveredFlow(index = stack.length - 2): NewTaskFlow {
+function coveredFlow(index = stack.length - 2) {
   return routeFlows.get(stack[index]!.key)!;
 }
 beforeEach(async () => {

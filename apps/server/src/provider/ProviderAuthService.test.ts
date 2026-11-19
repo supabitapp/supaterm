@@ -56,7 +56,12 @@ function makeInstance(input: {
   instanceId: ProviderInstanceId;
   enabled: boolean;
   auth?: ProviderAuthService.ProviderAuthController;
-}): ProviderInstance {
+}): ProviderInstance;
+function makeInstance(input: {
+  instanceId: ProviderInstanceId;
+  enabled: boolean;
+  auth?: ProviderAuthService.ProviderAuthController;
+}) {
   return {
     ...input,
     driverKind,
@@ -71,7 +76,7 @@ function makeInstance(input: {
     get textGeneration(): never {
       throw new Error("Auth routing must not generate text.");
     },
-  };
+  } satisfies ProviderInstance;
 }
 
 const nowUtc = DateTime.makeUnsafe(now);
@@ -79,7 +84,7 @@ const nowUtc = DateTime.makeUnsafe(now);
 function makeThread(
   thread: string,
   input: { readonly providerInstanceId?: ProviderInstanceId; readonly active?: boolean } = {},
-): OrchestrationV2ThreadShell {
+) {
   const shell: Pick<
     OrchestrationV2ThreadShell,
     "id" | "providerInstanceId" | "activeProviderThreadId"
@@ -96,7 +101,7 @@ function makeSession(
   session: string,
   status: OrchestrationV2ProviderSession["status"] = "ready",
   providerInstanceId = instanceId,
-): OrchestrationV2ProviderSession {
+) {
   return {
     id: ProviderSessionId.make(session),
     driver: driverKind,

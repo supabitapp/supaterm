@@ -56,15 +56,15 @@ const reactHooks = vi.hoisted(() => {
       cursor = 0;
       refs = [];
     },
-    useCallback<A>(callback: A): A {
+    useCallback<A>(callback: A) {
       nextIndex();
       return callback;
     },
-    useEffect(effect: () => void): void {
+    useEffect(effect: () => void) {
       nextIndex();
       effect();
     },
-    useRef<A>(initialValue: A): { current: A } {
+    useRef<A>(initialValue: A) {
       const index = nextIndex();
       refs[index] ??= { current: initialValue };
       return refs[index] as { current: A };
@@ -111,7 +111,7 @@ function deferred<A>() {
   return { promise, resolve };
 }
 
-function file(contents: string): ProjectReadFileResult {
+function file(contents: string) {
   return {
     relativePath: "src/preview.ts",
     contents,
@@ -120,7 +120,7 @@ function file(contents: string): ProjectReadFileResult {
   };
 }
 
-async function flushEffects(): Promise<void> {
+async function flushEffects() {
   await Promise.resolve();
   await Promise.resolve();
   await Promise.resolve();

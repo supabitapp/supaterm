@@ -9,7 +9,7 @@ type ComposerSubmissionInput = {
   submissionTarget: "provider-turn" | "pending-user-input";
 };
 
-export function getComposerPromptLengthValidationMessage(prompt: string): string | null {
+export function getComposerPromptLengthValidationMessage(prompt: string) {
   const normalizedPrompt = prompt.trim();
   const inputLength = Math.max(
     normalizedPrompt.length,
@@ -22,9 +22,7 @@ export function getComposerPromptLengthValidationMessage(prompt: string): string
   return `Prompt is ${excessCharacters.toLocaleString("en-US")} ${characterLabel} over the ${PROVIDER_SEND_TURN_MAX_INPUT_CHARS.toLocaleString("en-US")}-character limit. Shorten or split it before sending.`;
 }
 
-export function getComposerSubmissionValidationMessage(
-  options: ComposerSubmissionInput,
-): string | null {
+export function getComposerSubmissionValidationMessage(options: ComposerSubmissionInput) {
   return options.submissionTarget === "provider-turn"
     ? getComposerPromptLengthValidationMessage(options.providerInput ?? options.prompt)
     : null;
@@ -36,7 +34,7 @@ export function isComposerSubmissionBlocked(input: {
   sendDisabledReason: string | null;
   attachmentBlockReason: string | null;
   environmentUnavailable: boolean;
-}): boolean {
+}) {
   return input.submissionTarget === "pending-user-input"
     ? input.attachmentBlockReason !== null || input.environmentUnavailable
     : input.noProviderAvailable || input.sendDisabledReason !== null;
@@ -47,7 +45,7 @@ export function submitComposerDraft(
     event: ComposerSubmitEvent | undefined;
     onSend: (event?: ComposerSubmitEvent) => boolean | void;
   },
-): { validationMessage: string | null; didDispatch: boolean } {
+) {
   const validationMessage = getComposerSubmissionValidationMessage(options);
   if (validationMessage) {
     options.event?.preventDefault();

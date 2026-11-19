@@ -37,7 +37,7 @@ interface GuideRunStoreState {
   readonly showPageDetailTab: (key: string, tab: PullRequestDetailTab) => void;
 }
 
-export function guideRunKey(environmentId: EnvironmentId, reference: PullRequestRef): string {
+export function guideRunKey(environmentId: EnvironmentId, reference: PullRequestRef) {
   return `${environmentId}:${pullRequestReviewKey(reference)}`;
 }
 
@@ -64,10 +64,10 @@ export const useGuideRunStore = create<GuideRunStoreState>()((set) => ({
   showPageDetailTab: (key, tab) => set({ pageDetailTab: { key, tab } }),
 }));
 
-export function guideProgressKey(runKey: string, headSha: string): string {
+export function guideProgressKey(runKey: string, headSha: string) {
   return `${runKey}:${headSha}`;
 }
 
-export function useGuideProgress(key: string): GuideProgress {
+export function useGuideProgress(key: string) {
   return useGuideRunStore((state) => state.progress[key] ?? NO_PROGRESS);
 }

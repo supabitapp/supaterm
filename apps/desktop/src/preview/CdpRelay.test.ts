@@ -10,7 +10,7 @@ const makeTarget = (
   send: CdpRelayTarget["send"],
   setDownloadDirectory: CdpRelayTarget["setDownloadDirectory"] = () => {},
   ackScreencastFrame: CdpRelayTarget["ackScreencastFrame"] = () => {},
-): CdpRelayTarget => ({
+) => ({
   send,
   targetId: async () => "GUEST-TARGET",
   url: () => "http://localhost:4719/",

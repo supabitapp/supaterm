@@ -5,7 +5,6 @@ import {
   type TerminalCloseInput,
   type TerminalOpenInput,
   type TerminalResizeInput,
-  type TerminalSummary,
   type TerminalWriteInput,
   type ThreadId,
   WS_METHODS,
@@ -88,7 +87,7 @@ export function createTerminalEnvironmentAtoms<R, E>(
       label: "environment-data:terminal:metadata",
       subscribe: (_input: null) =>
         subscribe(WS_METHODS.subscribeTerminalMetadata, {}).pipe(
-          Stream.scan((): ReadonlyArray<TerminalSummary> => [], applyTerminalMetadataStreamEvent),
+          Stream.scan(() => [], applyTerminalMetadataStreamEvent),
           Stream.drop(1),
         ),
     }),
@@ -155,10 +154,13 @@ export type TerminalLifecycleCommand = "exit" | "reopen" | null;
 export function transitionTerminalLifecycle(
   state: TerminalLifecycleState,
   event: TerminalLifecycleEvent,
-): { readonly state: TerminalLifecycleState; readonly command: TerminalLifecycleCommand } {
+) {
   switch (event.type) {
     case "observed":
-      return { state: { ...state, observed: true }, command: null };
+      return { state: { ...state, observed: true }, command: null } satisfies {
+        readonly state: TerminalLifecycleState;
+        readonly command: TerminalLifecycleCommand;
+      };
     case "detached":
       return {
         state: {
@@ -167,20 +169,50 @@ export function transitionTerminalLifecycle(
           wasRunning: false,
         },
         command: null,
+      } satisfies {
+        readonly state: TerminalLifecycleState;
+        readonly command: TerminalLifecycleCommand;
       };
     case "reopen-failed":
-      return { state: { ...state, reopened: false }, command: null };
+      return { state: { ...state, reopened: false }, command: null } satisfies {
+        readonly state: TerminalLifecycleState;
+        readonly command: TerminalLifecycleCommand;
+      };
     case "status": {
-      if (event.version === 0) return { state, command: null };
+      if (event.version === 0)
+        return { state, command: null } satisfies {
+          readonly state: TerminalLifecycleState;
+          readonly command: TerminalLifecycleCommand;
+        };
       if (event.status === "running" || event.status === "starting") {
-        return { state: { ...state, wasRunning: true, reopened: false }, command: null };
+        return { state: { ...state, wasRunning: true, reopened: false }, command: null } satisfies {
+          readonly state: TerminalLifecycleState;
+          readonly command: TerminalLifecycleCommand;
+        };
       }
-      if (event.status !== "closed" && event.status !== "exited") return { state, command: null };
+      if (event.status !== "closed" && event.status !== "exited")
+        return { state, command: null } satisfies {
+          readonly state: TerminalLifecycleState;
+          readonly command: TerminalLifecycleCommand;
+        };
       if (state.wasRunning) {
-        return { state: { ...state, wasRunning: false, reopened: true }, command: "exit" };
+        return {
+          state: { ...state, wasRunning: false, reopened: true },
+          command: "exit",
+        } satisfies {
+          readonly state: TerminalLifecycleState;
+          readonly command: TerminalLifecycleCommand;
+        };
       }
-      if (state.observed || state.reopened) return { state, command: null };
-      return { state: { ...state, reopened: true }, command: "reopen" };
+      if (state.observed || state.reopened)
+        return { state, command: null } satisfies {
+          readonly state: TerminalLifecycleState;
+          readonly command: TerminalLifecycleCommand;
+        };
+      return { state: { ...state, reopened: true }, command: "reopen" } satisfies {
+        readonly state: TerminalLifecycleState;
+        readonly command: TerminalLifecycleCommand;
+      };
     }
   }
 }
@@ -253,7 +285,11 @@ export interface TerminalSession {
 export function createTerminalSession(
   atoms: TerminalSessionAtoms,
   options: TerminalSessionOptions,
-): TerminalSession {
+): TerminalSession;
+export function createTerminalSession(
+  atoms: TerminalSessionAtoms,
+  options: TerminalSessionOptions,
+) {
   const { environmentId, threadId, terminalId } = options.target;
   let lifecycle = INITIAL_TERMINAL_LIFECYCLE;
   let gridSize = options.gridSize;
@@ -436,7 +472,7 @@ export function createTerminalSession(
       gridSize = size;
       sendResize();
     },
-  };
+  } satisfies TerminalSession;
 }
 
 export * from "./terminalSession.ts";

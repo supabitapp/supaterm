@@ -1,5 +1,4 @@
 import { trimOptionalString } from "@supaterm/source-control-core/server/pullRequestUtils";
-import * as Cause from "effect/Cause";
 import * as DateTime from "effect/DateTime";
 import * as Exit from "effect/Exit";
 import * as Option from "effect/Option";
@@ -59,7 +58,7 @@ const GitHubPullRequestSchema = Schema.Struct({
 function normalizeGitHubPullRequestState(input: {
   state?: string | null | undefined;
   mergedAt?: string | null | undefined;
-}): "open" | "closed" | "merged" {
+}) {
   const normalizedState = input.state?.trim().toUpperCase();
   if (
     (typeof input.mergedAt === "string" && input.mergedAt.trim().length > 0) ||
@@ -75,7 +74,7 @@ function normalizeGitHubPullRequestState(input: {
 
 export function normalizeGitHubPullRequestRecord(
   raw: Schema.Schema.Type<typeof GitHubPullRequestSchema>,
-): NormalizedGitHubPullRequestRecord {
+) {
   const explicitNameWithOwner = trimOptionalString(raw.headRepository?.nameWithOwner);
   const headRepositoryName = trimOptionalString(raw.headRepository?.name);
   const headRepositoryOwnerLogin =
@@ -105,15 +104,13 @@ export function normalizeGitHubPullRequestRecord(
       : {}),
     ...(headRepositoryNameWithOwner ? { headRepositoryNameWithOwner } : {}),
     ...(headRepositoryOwnerLogin ? { headRepositoryOwnerLogin } : {}),
-  };
+  } satisfies NormalizedGitHubPullRequestRecord;
 }
 
 const decodeGitHubPullRequestList = decodeJsonResult(Schema.Array(Schema.Unknown));
 const decodeGitHubPullRequestEntry = Schema.decodeUnknownExit(GitHubPullRequestSchema);
 
-function decodeGitHubPullRequestEntries(
-  entries: ReadonlyArray<unknown>,
-): ReadonlyArray<NormalizedGitHubPullRequestRecord> {
+function decodeGitHubPullRequestEntries(entries: ReadonlyArray<unknown>) {
   const pullRequests: NormalizedGitHubPullRequestRecord[] = [];
   for (const entry of entries) {
     const decodedEntry = decodeGitHubPullRequestEntry(entry);
@@ -124,11 +121,6 @@ function decodeGitHubPullRequestEntries(
   return pullRequests;
 }
 
-export function decodeGitHubPullRequestListJson(
-  raw: string,
-): Result.Result<
-  ReadonlyArray<NormalizedGitHubPullRequestRecord>,
-  Cause.Cause<Schema.SchemaError>
-> {
+export function decodeGitHubPullRequestListJson(raw: string) {
   return Result.map(decodeGitHubPullRequestList(raw), decodeGitHubPullRequestEntries);
 }

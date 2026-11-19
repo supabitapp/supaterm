@@ -124,7 +124,7 @@ export class MobilePreferencesLoadError extends Schema.TaggedError<MobilePrefere
   "MobilePreferencesLoadError",
   { cause: Schema.Defect() },
 ) {
-  override get message(): string {
+  override get message() {
     return "Failed to load mobile preferences.";
   }
 }
@@ -133,15 +133,9 @@ export class MobilePreferencesSaveError extends Schema.TaggedError<MobilePrefere
   "MobilePreferencesSaveError",
   { cause: Schema.Defect() },
 ) {
-  override get message(): string {
+  override get message() {
     return "Failed to save mobile preferences.";
   }
-}
-
-interface PreferencesFallback {
-  readonly payload: string;
-  readonly updatedAt: number;
-  readonly preferences: Preferences;
 }
 
 export class MobilePreferencesStore extends Context.Service<
@@ -159,7 +153,7 @@ export class MobilePreferencesStore extends Context.Service<
 
 const isPullRequestMergeMethod = Schema.is(PullRequestMergeMethod);
 
-function sanitizePreferences(parsed: Preferences): Preferences {
+function sanitizePreferences(parsed: Preferences) {
   const preferences: {
     navigationTabOrder?: readonly string[];
     hiddenNavigationTabs?: readonly string[];
@@ -324,7 +318,7 @@ const make = Effect.fn("MobilePreferencesStore.make")(function* () {
   const lock = yield* Semaphore.make(1);
   const lastUpdatedAt = yield* Ref.make(0);
 
-  const parsePayload = (raw: string | null): Preferences | null => {
+  const parsePayload = (raw: string | null) => {
     if (raw === null || !raw.trim()) return null;
     let parsed: unknown;
     try {
@@ -341,7 +335,7 @@ const make = Effect.fn("MobilePreferencesStore.make")(function* () {
       : null;
   };
 
-  const parseFallback = (raw: string | null): PreferencesFallback | null => {
+  const parseFallback = (raw: string | null) => {
     if (raw === null || !raw.trim()) return null;
     let parsed: unknown;
     try {

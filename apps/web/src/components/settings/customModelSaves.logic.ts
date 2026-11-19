@@ -22,10 +22,7 @@ export const customModelsKey = (models: ReadonlyArray<CustomModelDefinition>) =>
  * because the stream can coalesce repeats, and a stale save would overwrite another writer later.
  * Any other change drops replied saves and marks in-flight ones raced.
  */
-export function pendingCustomModelSaves(
-  saves: ReadonlyArray<CustomModelSave>,
-  storedKey: string,
-): ReadonlyArray<CustomModelSave> {
+export function pendingCustomModelSaves(saves: ReadonlyArray<CustomModelSave>, storedKey: string) {
   const echoed = saves.findLastIndex((entry) => entry.key === storedKey);
   if (echoed >= 0) return saves.slice(echoed + 1);
   return saves.flatMap((entry) => (entry.replied ? [] : [{ ...entry, raced: true as const }]));
@@ -36,7 +33,7 @@ export function settleCustomModelSave(
   saves: ReadonlyArray<CustomModelSave>,
   sent: CustomModelSave,
   saved: boolean,
-): ReadonlyArray<CustomModelSave> {
+) {
   return saves.flatMap((entry) =>
     entry.models !== sent.models
       ? [entry]

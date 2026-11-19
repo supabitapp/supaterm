@@ -24,7 +24,7 @@ function getIncompatibleVersion(status: ServerProvider) {
     : null;
 }
 
-export function getProviderStatusBannerKey(status: ServerProvider | null): string | null {
+export function getProviderStatusBannerKey(status: ServerProvider | null) {
   if (!status || status.status === "disabled") return null;
   const incompatible = getIncompatibleVersion(status);
   if (incompatible) {
@@ -52,14 +52,14 @@ export function getProviderStatusBannerKey(status: ServerProvider | null): strin
 export function shouldShowProviderStatusBanner(
   status: ServerProvider | null,
   isDismissed: boolean,
-): boolean {
+) {
   return getProviderStatusBannerKey(status) !== null && !isDismissed;
 }
 
 export function getProviderStatusDismissalKey(
   environmentId: string | undefined,
   status: ServerProvider | null,
-): string | null {
+) {
   const bannerKey = getProviderStatusBannerKey(status);
   return bannerKey === null ? null : `${environmentId ?? ""}\u0000${bannerKey}`;
 }
@@ -67,13 +67,13 @@ export function getProviderStatusDismissalKey(
 const sessionDismissedProviderStatusBannerKeys = new Set<string>();
 const dismissalListeners = new Set<() => void>();
 
-export function dismissProviderStatusBannerForSession(bannerKey: string | null): void {
+export function dismissProviderStatusBannerForSession(bannerKey: string | null) {
   if (bannerKey === null || sessionDismissedProviderStatusBannerKeys.has(bannerKey)) return;
   sessionDismissedProviderStatusBannerKeys.add(bannerKey);
   for (const listener of dismissalListeners) listener();
 }
 
-export function isProviderStatusBannerDismissedForSession(bannerKey: string | null): boolean {
+export function isProviderStatusBannerDismissedForSession(bannerKey: string | null) {
   return bannerKey !== null && sessionDismissedProviderStatusBannerKeys.has(bannerKey);
 }
 
@@ -82,13 +82,13 @@ function subscribeToDismissals(listener: () => void) {
   return () => dismissalListeners.delete(listener);
 }
 
-export function useProviderStatusBannerDismissed(bannerKey: string | null): boolean {
+export function useProviderStatusBannerDismissed(bannerKey: string | null) {
   return useSyncExternalStore(subscribeToDismissals, () =>
     isProviderStatusBannerDismissedForSession(bannerKey),
   );
 }
 
-export function hasProviderSetup(status: ServerProvider): boolean {
+export function hasProviderSetup(status: ServerProvider) {
   return (
     status.driver === "antigravity" ||
     status.setup?.canAuthenticate === true ||
@@ -96,7 +96,7 @@ export function hasProviderSetup(status: ServerProvider): boolean {
   );
 }
 
-export function getProviderStatusMessage(status: ServerProvider): string {
+export function getProviderStatusMessage(status: ServerProvider) {
   if (
     status.auth.status !== "unauthenticated" &&
     status.compatibilityAdvisory?.status === "broken" &&

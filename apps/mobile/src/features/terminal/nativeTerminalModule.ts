@@ -63,7 +63,7 @@ function getExpoViewConfig(moduleName: string) {
   );
 }
 
-export function resolveNativeTerminalSurfaceView(): ComponentType<NativeTerminalSurfaceProps> | null {
+export function resolveNativeTerminalSurfaceView() {
   if (cachedNativeTerminalSurfaceView) {
     return cachedNativeTerminalSurfaceView;
   }
@@ -98,7 +98,7 @@ export function hasNativeTerminalSurface() {
   return resolveNativeTerminalSurfaceView() !== null;
 }
 
-export function supportsNativeTerminalOutput(): boolean {
+export function supportsNativeTerminalOutput() {
   try {
     const module = requireOptionalNativeModule<{ readonly outputRevision?: number }>(
       NATIVE_TERMINAL_MODULE_NAME,

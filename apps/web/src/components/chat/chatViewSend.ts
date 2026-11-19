@@ -76,10 +76,7 @@ export async function rewindToMessage(input: {
       scopeId?: string;
     };
   }) => Promise<AtomCommandResult<unknown, unknown>>;
-}): Promise<
-  | { readonly error: string; readonly prompt?: never }
-  | { readonly error: null; readonly prompt: string }
-> {
+}) {
   const { message, environmentId, draftTarget } = input;
   try {
     if (input.composerHasPendingAttachments) {
@@ -168,7 +165,7 @@ export function resolveMultipleModelTargets(input: {
   readonly providerInstanceEntries: ReadonlyArray<ProviderInstanceEntry>;
   readonly messageText: string;
   readonly interactionMode: ProviderInteractionMode;
-}): Array<MultipleModelTarget | { readonly error: string }> {
+}) {
   const { messageText } = input;
   return input.selections.map((selection) => {
     const provider = input.providerInstanceEntries.find(

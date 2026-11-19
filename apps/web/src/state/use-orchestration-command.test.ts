@@ -24,7 +24,7 @@ const first = EnvironmentId.make("primary");
 const second = EnvironmentId.make("secondary");
 type Target = { environmentId: EnvironmentId; input: { threadId: string } };
 const command: AtomCommand<Target, string, Error> = { label: "thread mutation", run: state.run };
-const target = (environmentId: EnvironmentId): Target => ({
+const target = (environmentId: EnvironmentId) => ({
   environmentId,
   input: { threadId: "thread-1" },
 });

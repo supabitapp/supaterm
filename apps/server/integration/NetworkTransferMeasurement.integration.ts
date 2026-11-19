@@ -112,14 +112,16 @@ interface NodeWebSocketWithTransport extends NodeWS.WebSocket {
   };
 }
 
-function rawDataBytes(data: NodeWS.RawData): number {
+function rawDataBytes(data: NodeWS.RawData): number;
+function rawDataBytes(data: NodeWS.RawData) {
   if (Array.isArray(data)) {
-    return data.reduce((total, chunk) => total + chunk.byteLength, 0);
+    return data.reduce((total, chunk) => total + chunk.byteLength, 0) satisfies number;
   }
-  return data.byteLength;
+  return data.byteLength satisfies number;
 }
 
-function makeWebSocketTransferRecorder(): WebSocketTransferRecorder {
+function makeWebSocketTransferRecorder(): WebSocketTransferRecorder;
+function makeWebSocketTransferRecorder() {
   let socket: NodeWebSocketWithTransport | null = null;
   let transport: NodeWebSocketWithTransport["_socket"] | null = null;
   let decodedBytes = 0;
@@ -159,7 +161,7 @@ function makeWebSocketTransferRecorder(): WebSocketTransferRecorder {
         orElse: () => Effect.die(new Error("Timed out waiting for the WebSocket to open")),
       }),
     ),
-  };
+  } satisfies WebSocketTransferRecorder;
 }
 
 function layerCountingWsRpcProtocol(input: {

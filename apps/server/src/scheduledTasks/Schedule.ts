@@ -4,16 +4,13 @@ import * as Option from "effect/Option";
 
 const MINUTE_MS = 60_000;
 
-function parseTimeOfDay(value: string): { hour: number; minute: number } | null {
+function parseTimeOfDay(value: string) {
   const match = /^([01]?\d|2[0-3]):([0-5]\d)$/.exec(value.trim());
   if (!match) return null;
   return { hour: Number(match[1]), minute: Number(match[2]) };
 }
 
-export function nextScheduledRunAt(
-  schedule: ScheduledTaskSchedule,
-  from: DateTime.DateTime,
-): DateTime.DateTime | null {
+export function nextScheduledRunAt(schedule: ScheduledTaskSchedule, from: DateTime.DateTime) {
   if (schedule.type === "once") {
     const runAt = DateTime.make(schedule.runAt);
     return Option.isSome(runAt) &&
@@ -43,13 +40,13 @@ export function nextScheduledRunAt(
   return null;
 }
 
-function weekdayKey(weekdays: ReadonlyArray<number> | undefined): string {
+function weekdayKey(weekdays: ReadonlyArray<number> | undefined) {
   const unique = [...new Set(weekdays ?? [])].toSorted((x, y) => x - y);
   if (unique.length === 0 || unique.length === 7) return "daily";
   return unique.join(",");
 }
 
-export function isSameSchedule(a: ScheduledTaskSchedule, b: ScheduledTaskSchedule): boolean {
+export function isSameSchedule(a: ScheduledTaskSchedule, b: ScheduledTaskSchedule) {
   if (a.type === "interval") {
     return b.type === "interval" && a.everyMs === b.everyMs;
   }
@@ -72,7 +69,7 @@ export function isMissedFixedTimeRun(
   schedule: ScheduledTaskSchedule,
   dueAt: DateTime.DateTime,
   now: DateTime.DateTime,
-): boolean {
+) {
   if (schedule.type !== "fixed_time") return false;
   return DateTime.toEpochMillis(now) - DateTime.toEpochMillis(dueAt) > MISSED_FIXED_TIME_GRACE_MS;
 }

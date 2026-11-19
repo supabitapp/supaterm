@@ -9,12 +9,9 @@ import { Button } from "../ui/button";
 import { toastManager } from "../ui/toast";
 import type { ComposerBannerStackItem } from "./ComposerBannerStack";
 
-export function feedbackBannerItem(
-  submission: CodexFeedbackSubmission,
-  onDismiss: () => void,
-): ComposerBannerStackItem | null {
+export function feedbackBannerItem(submission: CodexFeedbackSubmission, onDismiss: () => void) {
   const notice = codexFeedbackNotice(submission);
-  if (!notice) return null;
+  if (!notice) return null satisfies ComposerBannerStackItem | null;
   return {
     id: `feedback:${submission.id}`,
     variant:
@@ -45,5 +42,5 @@ export function feedbackBannerItem(
     ...(submission.status !== "uploading"
       ? { dismissLabel: "Dismiss feedback notice", onDismiss }
       : {}),
-  };
+  } satisfies ComposerBannerStackItem | null;
 }

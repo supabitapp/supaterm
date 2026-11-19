@@ -43,9 +43,9 @@ export function useProjectGroupUpdate() {
     members: ReadonlyArray<TMember>,
     input: ProjectGroupUpdate | ((member: TMember) => ProjectGroupUpdate),
     failureTitle: string,
-  ): Promise<AtomCommandResult<void, unknown>> => {
+  ) => {
     const denied = checkProjectAccess(members, failureTitle);
-    if (denied) return denied;
+    if (denied) return denied satisfies AtomCommandResult<void, unknown>;
     const unavailable = members.find((member) => {
       const environment = readEnvironment(member.environmentId);
       return environment?.connection.phase !== "connected" || !environment.serverConfig;
@@ -54,11 +54,11 @@ export function useProjectGroupUpdate() {
       return failWith(
         failureTitle,
         `Connect ${unavailable.environmentLabel ?? "the selected environment"} and try again.`,
-      );
+      ) satisfies AtomCommandResult<void, unknown>;
     }
     for (const member of members) {
       const revoked = checkProjectAccess([member], failureTitle);
-      if (revoked) return revoked;
+      if (revoked) return revoked satisfies AtomCommandResult<void, unknown>;
       const result = mapAtomCommandResult(
         await updateProject({
           environmentId: member.environmentId,
@@ -76,10 +76,10 @@ export function useProjectGroupUpdate() {
             : failureTitle,
           result,
         );
-        return result;
+        return result satisfies AtomCommandResult<void, unknown>;
       }
     }
-    return AsyncResult.success(undefined);
+    return AsyncResult.success(undefined) satisfies AtomCommandResult<void, unknown>;
   };
 
   const canOrganizeProjectGroup = (members: ReadonlyArray<ProjectGroupMember>) =>
@@ -127,7 +127,7 @@ export function useProjectPin() {
 export function checkProjectAccess(
   members: ReadonlyArray<ProjectGroupMember>,
   failureTitle: string,
-): AtomCommandResult<void, unknown> | null {
+) {
   const denied = members.find(
     (member) => !readEnvironmentScope(member.environmentId, AuthOrchestrationOperateScope),
   );
@@ -151,7 +151,7 @@ export function reportProjectFailure(title: string, result: AtomCommandResult<un
   );
 }
 
-function failWith(title: string, message: string): AtomCommandResult<void, unknown> {
+function failWith(title: string, message: string) {
   const result = AsyncResult.failure<void, Error>(Cause.fail(new Error(message)));
   reportProjectFailure(title, result);
   return result;

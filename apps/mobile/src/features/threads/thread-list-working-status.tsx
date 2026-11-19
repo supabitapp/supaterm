@@ -11,7 +11,7 @@ const TABULAR_DURATION_STYLE = {
   fontVariant: ["tabular-nums"],
 } as const;
 
-function elapsedLabel(environmentId: EnvironmentId, startedMs: number): string {
+function elapsedLabel(environmentId: EnvironmentId, startedMs: number) {
   return formatWorkingDurationLabel(toServerClock(environmentId, Date.now()) - startedMs);
 }
 

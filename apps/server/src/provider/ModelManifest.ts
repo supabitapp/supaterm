@@ -71,9 +71,7 @@ const ModelManifestEnvelopeSchema = Schema.Struct({
   providers: Schema.optional(Schema.Record(Schema.String, ManifestProviderCatalog)),
 });
 
-const hasValidProviderCatalogReferences = (
-  manifest: typeof ModelManifestEnvelopeSchema.Type,
-): boolean =>
+const hasValidProviderCatalogReferences = (manifest: typeof ModelManifestEnvelopeSchema.Type) =>
   Object.values(manifest.providers ?? {}).every((catalog) => {
     const slugs = new Set<string>();
     const modelsAreValid = catalog.models.every((model) => {
@@ -103,7 +101,7 @@ const decodeManifest = Schema.decodeUnknownEffect(ModelManifestSchema);
 export const BUNDLED_MODEL_MANIFEST: ModelManifestData =
   Schema.decodeUnknownSync(ModelManifestSchema)(bundledManifestJson);
 
-function manifestUpdatedAtMs(manifest: ModelManifestData): number {
+function manifestUpdatedAtMs(manifest: ModelManifestData) {
   if (manifest.updatedAt === undefined) return 0;
   const parsed = Date.parse(manifest.updatedAt);
   return Number.isNaN(parsed) ? 0 : parsed;
@@ -113,7 +111,7 @@ export function resolveProviderCatalog(
   manifest: ModelManifestData,
   driverKind: ProviderDriverKind,
   nowMs = DateTime.toEpochMillis(DateTime.nowUnsafe()),
-): ModelCatalog.ProviderCatalog | null {
+) {
   const catalog = manifest.providers?.[driverKind];
   if (!catalog) return null;
 

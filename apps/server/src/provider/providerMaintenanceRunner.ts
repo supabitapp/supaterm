@@ -216,15 +216,12 @@ const runProviderMaintenanceCommandWithSpawner = Effect.fn("ProviderMaintenanceR
   },
 );
 
-export function splitOutputLines(
-  partialLine: string,
-  text: string,
-): { readonly lines: ReadonlyArray<string>; readonly partialLine: string } {
+export function splitOutputLines(partialLine: string, text: string) {
   const parts = (partialLine + text).replace(/\x1b\[(?:0*1?G|999D)/g, "\r").split(/\r\n|\r|\n/);
   return { partialLine: (parts.pop() ?? "").slice(-UPDATE_PARTIAL_LINE_MAX_LENGTH), lines: parts };
 }
 
-export function toProgressLine(line: string): string | null {
+export function toProgressLine(line: string) {
   if (/\x1b(?:\[[0-9]*)?$/.test(line)) {
     return null;
   }
@@ -237,21 +234,21 @@ export function toProgressLine(line: string): string | null {
     : `${text.slice(0, UPDATE_PROGRESS_MAX_LENGTH - 1)}…`;
 }
 
-function describeCommand(command: ProviderMaintenanceCommandAction): string {
+function describeCommand(command: ProviderMaintenanceCommandAction) {
   const executable = command.executable.split(/[\\/]/).pop() || command.executable;
   return [executable, ...command.args].join(" ");
 }
 
-function trimNullable(value: string): string | null {
+function trimNullable(value: string) {
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : null;
 }
 
-function truncateText(value: string, maxLength: number): string {
+function truncateText(value: string, maxLength: number) {
   return value.length <= maxLength ? value : value.slice(0, maxLength);
 }
 
-function commandOutput(result: ProviderMaintenanceCommandResult): string | null {
+function commandOutput(result: ProviderMaintenanceCommandResult) {
   const output = trimNullable([result.stderr, result.stdout].filter(Boolean).join("\n\n"));
   if (!output) {
     return null;
@@ -259,7 +256,7 @@ function commandOutput(result: ProviderMaintenanceCommandResult): string | null 
   return truncateText(output, UPDATE_OUTPUT_MAX_BYTES);
 }
 
-function failureReason(result: ProviderMaintenanceCommandResult): string | null {
+function failureReason(result: ProviderMaintenanceCommandResult) {
   const streams = [result.stderr, result.stdout].map((output) =>
     output
       .split(/\r\n|\r|\n/)
@@ -273,7 +270,7 @@ function failureReason(result: ProviderMaintenanceCommandResult): string | null 
   );
 }
 
-function failureMessage(result: ProviderMaintenanceCommandResult): string {
+function failureMessage(result: ProviderMaintenanceCommandResult) {
   if (result.timedOut) {
     return `Update timed out after ${UPDATE_TIMEOUT_MINUTES} minutes.`;
   }
@@ -285,11 +282,11 @@ function failureMessage(result: ProviderMaintenanceCommandResult): string {
   return reason ? `${summary}: ${reason}` : `${summary}.`;
 }
 
-function isOutdatedProvider(provider: ServerProvider | undefined): boolean {
+function isOutdatedProvider(provider: ServerProvider | undefined) {
   return provider?.versionAdvisory?.status === "behind_latest";
 }
 
-function isStillInstalled(provider: ServerProvider): boolean {
+function isStillInstalled(provider: ServerProvider) {
   return provider.installed;
 }
 
@@ -299,7 +296,7 @@ function makeUpdateState(input: {
   readonly finishedAt: string | null;
   readonly message: string | null;
   readonly output?: string | null;
-}): ServerProviderUpdateState {
+}) {
   return {
     status: input.status,
     startedAt: input.startedAt,
@@ -362,7 +359,7 @@ export const make = Effect.fn("ProviderMaintenanceRunner.make")(function* () {
     maintenanceCapabilities: ProviderMaintenanceCapabilities,
     instanceId: ProviderInstanceId,
     phase: "pre-update" | "post-update",
-  ): Effect.Effect<VerifiedProviderRefresh> =>
+  ) =>
     refresh.pipe(
       Effect.flatMap((providers) => {
         const refreshedProviders = providers.filter(
@@ -389,11 +386,14 @@ export const make = Effect.fn("ProviderMaintenanceRunner.make")(function* () {
             concurrency: "unbounded",
           },
         ).pipe(
-          Effect.map((verifiedProviders): VerifiedProviderRefresh => ({
-            providers,
-            verifiedProviders,
-            advisoryEnriched: true,
-          })),
+          Effect.map(
+            (verifiedProviders) =>
+              ({
+                providers,
+                verifiedProviders,
+                advisoryEnriched: true,
+              }) satisfies VerifiedProviderRefresh,
+          ),
           Effect.catchCause((cause) =>
             Effect.logWarning("Provider version verification failed", {
               provider,
@@ -409,7 +409,7 @@ export const make = Effect.fn("ProviderMaintenanceRunner.make")(function* () {
           ),
         );
       }),
-    );
+    ) satisfies Effect.Effect<VerifiedProviderRefresh>;
 
   const updateProvider: ProviderMaintenanceRunnerShape["updateProvider"] = Effect.fn(
     "ProviderMaintenanceRunner.updateProvider",

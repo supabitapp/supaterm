@@ -8,10 +8,7 @@ import {
   scopeClaudeModelCatalog,
 } from "./provider/ClaudeModelCatalog.ts";
 
-const selection = (
-  model: string,
-  options: NonNullable<ModelSelection["options"]>,
-): ModelSelection => ({
+const selection = (model: string, options: NonNullable<ModelSelection["options"]>) => ({
   instanceId: ProviderInstanceId.make("claude_test"),
   model,
   options,

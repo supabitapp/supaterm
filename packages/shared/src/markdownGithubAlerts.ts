@@ -9,7 +9,7 @@ interface MarkdownAstNode {
 
 const GITHUB_ALERT_MARKER = /^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\](?:\r?\n|$)/i;
 
-function readGithubAlert(node: MarkdownAstNode): void {
+function readGithubAlert(node: MarkdownAstNode) {
   if (node.type !== "blockquote") return;
   const paragraph = node.children?.[0];
   const text = paragraph?.children?.[0];

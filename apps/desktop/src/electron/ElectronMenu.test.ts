@@ -26,7 +26,7 @@ vi.mock("electron", () => ({
 
 import * as ElectronMenu from "./ElectronMenu.ts";
 
-const makeWindow = (zoomFactor = 1): Electron.BrowserWindow =>
+const makeWindow = (zoomFactor = 1) =>
   ({
     id: 7,
     webContents: { getZoomFactor: () => zoomFactor },

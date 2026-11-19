@@ -168,13 +168,7 @@ const modelSelection = {
 const CODEX_DRIVER = ProviderDriverKind.make("codex");
 const isProviderEvent = Schema.is(ProviderAdapter.ProviderAdapterV2Event);
 
-function threadCreatedEvent(
-  now: DateTime.Utc,
-): Effect.Effect<
-  OrchestrationV2DomainEvent,
-  IdAllocator.IdAllocatorV2Error,
-  IdAllocator.IdAllocatorV2
-> {
+function threadCreatedEvent(now: DateTime.Utc) {
   return Effect.gen(function* () {
     const idAllocator = yield* IdAllocator.IdAllocatorV2;
     const projectId = yield* idAllocator.allocate.project({
@@ -225,7 +219,11 @@ function threadCreatedEvent(
       occurredAt: now,
       payload: thread,
     };
-  });
+  }) satisfies Effect.Effect<
+    OrchestrationV2DomainEvent,
+    IdAllocator.IdAllocatorV2Error,
+    IdAllocator.IdAllocatorV2
+  >;
 }
 
 const layer = it.layer(layerTest);
@@ -1541,31 +1539,27 @@ layer("ProviderEventIngestorV2", (it) => {
       });
       const readBase64 = Buffer.alloc(30_000, 7).toString("base64");
       const screenshotBase64 = Buffer.alloc(20_000, 9).toString("base64");
-      const toolItem = (
-        id: string,
-        ordinal: number,
-        toolName: string,
-        output: unknown,
-      ): OrchestrationV2TurnItem => ({
-        id: TurnItemId.make(id),
-        threadId: threadEvent.threadId,
-        runId: null,
-        nodeId: null,
-        providerThreadId: null,
-        providerTurnId: null,
-        nativeItemRef: null,
-        parentItemId: null,
-        ordinal,
-        status: "completed",
-        title: toolName,
-        startedAt: now,
-        completedAt: now,
-        updatedAt: now,
-        type: "dynamic_tool",
-        toolName,
-        input: {},
-        output,
-      });
+      const toolItem = (id: string, ordinal: number, toolName: string, output: unknown) =>
+        ({
+          id: TurnItemId.make(id),
+          threadId: threadEvent.threadId,
+          runId: null,
+          nodeId: null,
+          providerThreadId: null,
+          providerTurnId: null,
+          nativeItemRef: null,
+          parentItemId: null,
+          ordinal,
+          status: "completed",
+          title: toolName,
+          startedAt: now,
+          completedAt: now,
+          updatedAt: now,
+          type: "dynamic_tool",
+          toolName,
+          input: {},
+          output,
+        }) satisfies OrchestrationV2TurnItem;
       const read = toolItem("turn-item:read-image", 1, "Read", {
         type: "image",
         file: { base64: readBase64, type: "image/png", originalSize: 30_000 },
@@ -1702,29 +1696,26 @@ layer("ProviderEventIngestorV2", (it) => {
         threadId: threadEvent.threadId,
       });
       const largeDiff = `@@ -0,0 +1 @@\n${"+generated line\n".repeat(150_000)}`;
-      const fileChange = (
-        id: string,
-        ordinal: number,
-        diffStr: string,
-      ): OrchestrationV2TurnItem => ({
-        id: TurnItemId.make(id),
-        threadId: threadEvent.threadId,
-        runId: null,
-        nodeId: null,
-        providerThreadId: null,
-        providerTurnId: null,
-        nativeItemRef: null,
-        parentItemId: null,
-        ordinal,
-        status: "completed",
-        title: null,
-        startedAt: now,
-        completedAt: now,
-        updatedAt: now,
-        type: "file_change",
-        fileName: "src/generated.ts",
-        diffStr,
-      });
+      const fileChange = (id: string, ordinal: number, diffStr: string) =>
+        ({
+          id: TurnItemId.make(id),
+          threadId: threadEvent.threadId,
+          runId: null,
+          nodeId: null,
+          providerThreadId: null,
+          providerTurnId: null,
+          nativeItemRef: null,
+          parentItemId: null,
+          ordinal,
+          status: "completed",
+          title: null,
+          startedAt: now,
+          completedAt: now,
+          updatedAt: now,
+          type: "file_change",
+          fileName: "src/generated.ts",
+          diffStr,
+        }) satisfies OrchestrationV2TurnItem;
       const large = fileChange("turn-item:large-diff", 1, largeDiff);
       const small = fileChange("turn-item:small-diff", 2, "@@ -1 +1 @@\n-old\n+new\n");
 

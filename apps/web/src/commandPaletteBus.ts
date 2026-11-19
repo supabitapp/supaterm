@@ -13,7 +13,7 @@ export interface CommandPaletteOpenDetail {
   readonly linkedThreads?: CommandPaletteLinkedThreads;
 }
 
-export function openCommandPalette(detail: CommandPaletteOpenDetail = {}): void {
+export function openCommandPalette(detail: CommandPaletteOpenDetail = {}) {
   if (!isCommandPaletteMounted()) return;
   if (detail.open === "new-thread-in") {
     dispatchCommandPalette({ _tag: "OpenNewThreadIn" });
@@ -31,7 +31,7 @@ export function openCommandPalette(detail: CommandPaletteOpenDetail = {}): void 
 }
 
 /** True while the palette popup is on screen, including its closing animation. */
-export function isCommandPaletteOpen(): boolean {
+export function isCommandPaletteOpen() {
   return (
     typeof document !== "undefined" && document.querySelector("[data-command-palette]") !== null
   );

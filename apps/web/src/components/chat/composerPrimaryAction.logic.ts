@@ -52,30 +52,33 @@ export function stepComposerStop(
     readonly canInterrupt: boolean;
     readonly canOperateThread: boolean;
   },
-): ComposerStopState {
+) {
   if (input.runId !== null && state.runId !== input.runId) {
-    return { runId: input.runId, phase: "idle" };
+    return { runId: input.runId, phase: "idle" } satisfies ComposerStopState;
   }
-  if (!input.canOperateThread) return state;
+  if (!input.canOperateThread) return state satisfies ComposerStopState;
   if ((state.phase === "pending" || state.phase === "timedOut") && !input.canInterrupt) {
-    return { ...state, phase: "landed" };
+    return { ...state, phase: "landed" } satisfies ComposerStopState;
   }
-  if (state.phase === "landed" && input.canInterrupt) return { ...state, phase: "idle" };
-  return state;
+  if (state.phase === "landed" && input.canInterrupt)
+    return { ...state, phase: "idle" } satisfies ComposerStopState;
+  return state satisfies ComposerStopState;
 }
 
-export function requestComposerStop(state: ComposerStopState): ComposerStopState {
-  return state.phase === "pending" ? state : { ...state, phase: "pending" };
+export function requestComposerStop(state: ComposerStopState) {
+  return (
+    state.phase === "pending" ? state : { ...state, phase: "pending" }
+  ) satisfies ComposerStopState;
 }
 
 /** The phase a timer ends: an unanswered stop can be retried, and the click guard lifts. */
-export function expireComposerStop(state: ComposerStopState): ComposerStopState {
-  if (state.phase === "pending") return { ...state, phase: "timedOut" };
-  if (state.phase === "landed") return { ...state, phase: "idle" };
-  return state;
+export function expireComposerStop(state: ComposerStopState) {
+  if (state.phase === "pending") return { ...state, phase: "timedOut" } satisfies ComposerStopState;
+  if (state.phase === "landed") return { ...state, phase: "idle" } satisfies ComposerStopState;
+  return state satisfies ComposerStopState;
 }
 
-export function composerStopDeadlineMs(phase: ComposerStopPhase): number | null {
+export function composerStopDeadlineMs(phase: ComposerStopPhase) {
   if (phase === "pending") return COMPOSER_STOP_PENDING_MAX_MS;
   if (phase === "landed") return COMPOSER_STOP_LANDED_CLICK_GUARD_MS;
   return null;
@@ -110,41 +113,44 @@ export type ComposerPrimaryAction = {
   | { readonly kind: ComposerSubmitKind; readonly preparingWorktree: boolean }
 );
 
-function availabilityBlock(
-  input: ComposerPrimaryActionInput,
-  needsEnvironment: boolean,
-): ComposerPrimaryActionBlock | null {
+function availabilityBlock(input: ComposerPrimaryActionInput, needsEnvironment: boolean) {
   const providerBlocked = input.providerAvailability !== "ready";
   if (
     input.isEnvironmentUnavailable &&
     (needsEnvironment || providerBlocked || input.isProjectSelectionRequired)
   ) {
-    return { reason: "environment-disconnected" };
+    return { reason: "environment-disconnected" } satisfies ComposerPrimaryActionBlock | null;
   }
-  if (input.isProjectSelectionRequired) return { reason: "project-required" };
-  if (!providerBlocked) return null;
+  if (input.isProjectSelectionRequired)
+    return { reason: "project-required" } satisfies ComposerPrimaryActionBlock | null;
+  if (!providerBlocked) return null satisfies ComposerPrimaryActionBlock | null;
   return {
     reason: input.providerAvailability === "pending" ? "provider-pending" : "provider-unavailable",
-  };
+  } satisfies ComposerPrimaryActionBlock | null;
 }
 
-function answerBlock(
-  input: ComposerPrimaryActionInput,
-  pendingAction: ComposerPendingAnswer,
-): ComposerPrimaryActionBlock | null {
-  if (pendingAction.response === "not-resumable") return { reason: "question-not-answerable" };
-  if (input.isEnvironmentUnavailable) return { reason: "environment-disconnected" };
+function answerBlock(input: ComposerPrimaryActionInput, pendingAction: ComposerPendingAnswer) {
+  if (pendingAction.response === "not-resumable")
+    return { reason: "question-not-answerable" } satisfies ComposerPrimaryActionBlock | null;
+  if (input.isEnvironmentUnavailable)
+    return { reason: "environment-disconnected" } satisfies ComposerPrimaryActionBlock | null;
   if (input.sendDisabledReason !== null) {
-    return { reason: "send-disabled", message: input.sendDisabledReason };
+    return {
+      reason: "send-disabled",
+      message: input.sendDisabledReason,
+    } satisfies ComposerPrimaryActionBlock | null;
   }
-  if (!input.canOperateThread) return { reason: "not-permitted" };
+  if (!input.canOperateThread)
+    return { reason: "not-permitted" } satisfies ComposerPrimaryActionBlock | null;
   const answered = pendingAction.isLastQuestion
     ? pendingAction.isComplete
     : pendingAction.canAdvance;
-  return answered ? null : { reason: "answer-incomplete" };
+  return (
+    answered ? null : { reason: "answer-incomplete" }
+  ) satisfies ComposerPrimaryActionBlock | null;
 }
 
-function submitKind(input: ComposerPrimaryActionInput): ComposerSubmitKind {
+function submitKind(input: ComposerPrimaryActionInput) {
   if (input.isEditingQueuedMessage) return "update-queued";
   if (input.canResume && !input.hasSendableContent) return "resume";
   if (!input.isRunning) return "send";
@@ -157,25 +163,25 @@ function submitKind(input: ComposerPrimaryActionInput): ComposerSubmitKind {
   return mode === "queue" ? "queue" : "steer";
 }
 
-function submitBlock(
-  input: ComposerPrimaryActionInput,
-  kind: ComposerSubmitKind,
-): ComposerPrimaryActionBlock | null {
+function submitBlock(input: ComposerPrimaryActionInput, kind: ComposerSubmitKind) {
   const resumes = kind === "resume";
   const unavailable = availabilityBlock(input, resumes);
-  if (unavailable) return unavailable;
+  if (unavailable) return unavailable satisfies ComposerPrimaryActionBlock | null;
   if (input.sendDisabledReason !== null) {
-    return { reason: "send-disabled", message: input.sendDisabledReason };
+    return {
+      reason: "send-disabled",
+      message: input.sendDisabledReason,
+    } satisfies ComposerPrimaryActionBlock | null;
   }
   if (!(resumes ? input.canOperateThread : input.canQueueMessage)) {
-    return { reason: "not-permitted" };
+    return { reason: "not-permitted" } satisfies ComposerPrimaryActionBlock | null;
   }
-  return resumes || input.hasSendableContent ? null : { reason: "nothing-to-send" };
+  return (
+    resumes || input.hasSendableContent ? null : { reason: "nothing-to-send" }
+  ) satisfies ComposerPrimaryActionBlock | null;
 }
 
-export function resolveComposerPrimaryAction(
-  input: ComposerPrimaryActionInput,
-): ComposerPrimaryAction {
+export function resolveComposerPrimaryAction(input: ComposerPrimaryActionInput) {
   const { pendingAction, stopPhase } = input;
   const stopWaiting = stopPhase === "pending" || stopPhase === "timedOut";
   const stop =
@@ -190,7 +196,7 @@ export function resolveComposerPrimaryAction(
       blocked: answerBlock(input, pendingAction),
       stop,
       guarded,
-    };
+    } satisfies ComposerPrimaryAction;
   }
   if (stop !== "none" && !input.hasSendableContent && !input.isEditingQueuedMessage) {
     return {
@@ -199,7 +205,7 @@ export function resolveComposerPrimaryAction(
       blocked: input.canOperateThread ? null : { reason: "not-permitted" },
       stop,
       guarded: false,
-    };
+    } satisfies ComposerPrimaryAction;
   }
   const kind = submitKind(input);
   return {
@@ -209,5 +215,5 @@ export function resolveComposerPrimaryAction(
     blocked: submitBlock(input, kind),
     stop,
     guarded,
-  };
+  } satisfies ComposerPrimaryAction;
 }

@@ -52,7 +52,7 @@ const snoozedAt = DateTime.makeUnsafe("2026-07-24T09:05:00.000Z");
 const snoozedUntil = DateTime.makeUnsafe("2026-07-25T09:00:00.000Z");
 const childCreatedAt = DateTime.makeUnsafe("2026-07-24T09:10:00.000Z");
 
-function makeParentThread(): OrchestrationV2AppThread {
+function makeParentThread() {
   return {
     createdBy: "user",
     creationSource: "web",
@@ -82,7 +82,7 @@ function makeParentThread(): OrchestrationV2AppThread {
     snoozedAt,
     deletedAt: null,
     historyOrigin: "v1_import",
-  };
+  } satisfies OrchestrationV2AppThread;
 }
 
 it("keeps a subagent child awake when its parent thread is snoozed", () => {
@@ -244,7 +244,7 @@ function taskFixture() {
 
 it("reports the run that ended last, not the highest ordinal", () => {
   const { projection, run } = taskFixture();
-  const ended = (ordinal: number, completedAt: string): OrchestrationV2Run => ({
+  const ended = (ordinal: number, completedAt: string) => ({
     ...run,
     id: RunId.make(`run:${ordinal}`),
     ordinal,

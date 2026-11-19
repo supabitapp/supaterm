@@ -72,9 +72,7 @@ import * as ProjectStore from "./ProjectStore.ts";
 import * as ProviderRuntimeRecovery from "./ProviderRuntimeRecoveryService.ts";
 import * as TurnItemPositionStore from "./TurnItemPositionStore.ts";
 
-const workerStatements = vi.hoisted(
-  (): Array<{ readonly readOnly: boolean; readonly sql: string }> => [],
-);
+const workerStatements = vi.hoisted(() => []);
 
 vi.mock("node:worker_threads", async (importOriginal) => {
   const actual = await importOriginal<typeof NodeWorkerThreads>();
@@ -131,7 +129,7 @@ const modelSelection = {
   model: "gpt-5.4",
 } satisfies ModelSelection;
 
-function makeThread(threadId: ThreadId, now: DateTime.Utc): OrchestrationV2AppThread {
+function makeThread(threadId: ThreadId, now: DateTime.Utc) {
   return {
     createdBy: "user",
     creationSource: "web",
@@ -158,14 +156,14 @@ function makeThread(threadId: ThreadId, now: DateTime.Utc): OrchestrationV2AppTh
     doneAt: null,
     lastVisitedAt: null,
     deletedAt: null,
-  };
+  } satisfies OrchestrationV2AppThread;
 }
 
 function threadCreatedEvent(input: {
   readonly id: string;
   readonly thread: OrchestrationV2AppThread;
   readonly now: DateTime.Utc;
-}): OrchestrationV2DomainEvent {
+}) {
   return {
     id: EventId.make(input.id),
     type: "thread.created",
@@ -173,7 +171,7 @@ function threadCreatedEvent(input: {
     providerInstanceId,
     occurredAt: input.now,
     payload: input.thread,
-  };
+  } satisfies OrchestrationV2DomainEvent;
 }
 
 it.effect("rebuilds event history one bounded page at a time", () =>
@@ -389,26 +387,27 @@ it.effect(
       const now = yield* DateTime.now;
       const thread = makeThread(ThreadId.make("thread:single-stream-batch"), now);
       yield* sink.write({ events: [threadCreatedEvent({ id: "batch-created", thread, now })] });
-      const message = (id: string): OrchestrationV2DomainEvent => ({
-        id: EventId.make(id),
-        type: "message.updated",
-        threadId: thread.id,
-        occurredAt: now,
-        payload: {
-          id: MessageId.make("batch-message"),
+      const message = (id: string) =>
+        ({
+          id: EventId.make(id),
+          type: "message.updated",
           threadId: thread.id,
-          runId: null,
-          nodeId: null,
-          createdBy: "agent",
-          creationSource: "provider",
-          role: "assistant",
-          text: id,
-          streaming: true,
-          attachments: [],
-          createdAt: now,
-          updatedAt: now,
-        },
-      });
+          occurredAt: now,
+          payload: {
+            id: MessageId.make("batch-message"),
+            threadId: thread.id,
+            runId: null,
+            nodeId: null,
+            createdBy: "agent",
+            creationSource: "provider",
+            role: "assistant",
+            text: id,
+            streaming: true,
+            attachments: [],
+            createdAt: now,
+            updatedAt: now,
+          },
+        }) satisfies OrchestrationV2DomainEvent;
       const highWater = yield* sink.latestSequence();
       const callerError = { _tag: "CallerError" } as const;
       assert.strictEqual(
@@ -648,43 +647,50 @@ it.effect.each([false, true])("groups shutdown commits with rollback=%s", (fail)
       lastError: null,
     };
     yield* sink.write({
-      events: threads.flatMap((threadId, i): OrchestrationV2DomainEvent[] => [
-        threadCreatedEvent({ id: `shutdown-create:${i}`, thread: makeThread(threadId, now), now }),
-        ...(i < 2
-          ? [
-              {
-                id: EventId.make(`shutdown-session:${i}`),
-                type: "provider-session.attached" as const,
-                threadId,
-                occurredAt: now,
-                payload: sharedSession,
+      events: threads.flatMap(
+        (threadId, i) =>
+          [
+            threadCreatedEvent({
+              id: `shutdown-create:${i}`,
+              thread: makeThread(threadId, now),
+              now,
+            }),
+            ...(i < 2
+              ? [
+                  {
+                    id: EventId.make(`shutdown-session:${i}`),
+                    type: "provider-session.attached" as const,
+                    threadId,
+                    occurredAt: now,
+                    payload: sharedSession,
+                  },
+                ]
+              : []),
+            {
+              id: EventId.make(`shutdown-provider:${i}`),
+              type: "provider-thread.updated",
+              threadId,
+              occurredAt: now,
+              payload: {
+                id: ProviderThreadId.make(`shutdown-provider:${i}`),
+                driver: providerDriver,
+                providerInstanceId,
+                providerSessionId: i < 2 ? sharedSession.id : null,
+                appThreadId: threadId,
+                ownerNodeId: null,
+                nativeThreadRef: null,
+                nativeConversationHeadRef: null,
+                status: i === 1 || i === 32 ? "idle" : "active",
+                firstRunOrdinal: null,
+                lastRunOrdinal: null,
+                handoffIds: [],
+                forkedFrom: null,
+                createdAt: now,
+                updatedAt: now,
               },
-            ]
-          : []),
-        {
-          id: EventId.make(`shutdown-provider:${i}`),
-          type: "provider-thread.updated",
-          threadId,
-          occurredAt: now,
-          payload: {
-            id: ProviderThreadId.make(`shutdown-provider:${i}`),
-            driver: providerDriver,
-            providerInstanceId,
-            providerSessionId: i < 2 ? sharedSession.id : null,
-            appThreadId: threadId,
-            ownerNodeId: null,
-            nativeThreadRef: null,
-            nativeConversationHeadRef: null,
-            status: i === 1 || i === 32 ? "idle" : "active",
-            firstRunOrdinal: null,
-            lastRunOrdinal: null,
-            handoffIds: [],
-            forkedFrom: null,
-            createdAt: now,
-            updatedAt: now,
-          },
-        },
-      ]),
+            },
+          ] satisfies OrchestrationV2DomainEvent[],
+      ),
     });
     yield* outbox.enqueue(
       threads.map((threadId, i) => ({
@@ -999,14 +1005,15 @@ it.layer(layerTest)("orchestration V2 foundation persistence", (it) => {
         checkpointId: null,
         contextHandoffId: null,
       };
-      const runEvent = (id: string, payload: OrchestrationV2Run): OrchestrationV2DomainEvent => ({
-        id: EventId.make(id),
-        type: "run.updated",
-        threadId: payload.threadId,
-        runId: payload.id,
-        occurredAt: now,
-        payload,
-      });
+      const runEvent = (id: string, payload: OrchestrationV2Run) =>
+        ({
+          id: EventId.make(id),
+          type: "run.updated",
+          threadId: payload.threadId,
+          runId: payload.id,
+          occurredAt: now,
+          payload,
+        }) satisfies OrchestrationV2DomainEvent;
       const history = yield* sink.write({
         events: [
           threadCreatedEvent({ id: "event:filtered-worker:created", thread, now }),
@@ -1215,87 +1222,88 @@ it.layer(layerTest)("orchestration V2 foundation persistence", (it) => {
       const threadStateEvent = (
         suffix: string,
         type: "thread.visited" | "thread.metadata-updated",
-      ): OrchestrationV2DomainEvent => ({
-        id: EventId.make(`event:foundation-compact:${suffix}`),
-        type,
-        threadId,
-        providerInstanceId,
-        occurredAt: now,
-        payload: { ...thread, lastVisitedAt: now },
-      });
-      const messageEvent = (suffix: string, text: string): OrchestrationV2DomainEvent => ({
-        id: EventId.make(`event:foundation-compact:${suffix}`),
-        type: "message.updated",
-        threadId,
-        occurredAt: now,
-        payload: {
-          createdBy: "user",
-          creationSource: "web",
-          id: messageId,
+      ) =>
+        ({
+          id: EventId.make(`event:foundation-compact:${suffix}`),
+          type,
           threadId,
-          runId: null,
-          nodeId: null,
-          role: "user",
-          text,
-          attachments: [],
-          streaming: false,
-          createdAt: now,
-          updatedAt: now,
-        },
-      });
+          providerInstanceId,
+          occurredAt: now,
+          payload: { ...thread, lastVisitedAt: now },
+        }) satisfies OrchestrationV2DomainEvent;
+      const messageEvent = (suffix: string, text: string) =>
+        ({
+          id: EventId.make(`event:foundation-compact:${suffix}`),
+          type: "message.updated",
+          threadId,
+          occurredAt: now,
+          payload: {
+            createdBy: "user",
+            creationSource: "web",
+            id: messageId,
+            threadId,
+            runId: null,
+            nodeId: null,
+            role: "user",
+            text,
+            attachments: [],
+            streaming: false,
+            createdAt: now,
+            updatedAt: now,
+          },
+        }) satisfies OrchestrationV2DomainEvent;
       const nodeId = NodeId.make("node:foundation-compact");
-      const nodeEvent = (
-        suffix: string,
-        status: "running" | "completed",
-      ): OrchestrationV2DomainEvent => ({
-        id: EventId.make(`event:foundation-compact:${suffix}`),
-        type: "node.updated",
-        threadId,
-        occurredAt: now,
-        payload: {
-          id: nodeId,
+      const nodeEvent = (suffix: string, status: "running" | "completed") =>
+        ({
+          id: EventId.make(`event:foundation-compact:${suffix}`),
+          type: "node.updated",
           threadId,
-          runId: null,
-          parentNodeId: null,
-          rootNodeId: nodeId,
-          kind: "assistant_message",
-          status,
-          countsForRun: false,
-          providerThreadId: null,
-          providerTurnId: null,
-          nativeItemRef: null,
-          runtimeRequestId: null,
-          checkpointScopeId: null,
-          startedAt: now,
-          completedAt: status === "completed" ? now : null,
-        },
-      });
-      const itemEvent = (suffix: string, text: string): OrchestrationV2DomainEvent => ({
-        id: EventId.make(`event:foundation-compact:${suffix}`),
-        type: "turn-item.updated",
-        threadId,
-        occurredAt: now,
-        payload: {
-          id: TurnItemId.make("turn-item:foundation-compact"),
+          occurredAt: now,
+          payload: {
+            id: nodeId,
+            threadId,
+            runId: null,
+            parentNodeId: null,
+            rootNodeId: nodeId,
+            kind: "assistant_message",
+            status,
+            countsForRun: false,
+            providerThreadId: null,
+            providerTurnId: null,
+            nativeItemRef: null,
+            runtimeRequestId: null,
+            checkpointScopeId: null,
+            startedAt: now,
+            completedAt: status === "completed" ? now : null,
+          },
+        }) satisfies OrchestrationV2DomainEvent;
+      const itemEvent = (suffix: string, text: string) =>
+        ({
+          id: EventId.make(`event:foundation-compact:${suffix}`),
+          type: "turn-item.updated",
           threadId,
-          runId: null,
-          nodeId: null,
-          providerThreadId: null,
-          providerTurnId: null,
-          nativeItemRef: null,
-          parentItemId: null,
-          ordinal: 1,
-          status: "completed",
-          title: null,
-          startedAt: now,
-          completedAt: now,
-          updatedAt: now,
-          type: "assistant_message",
-          messageId,
-          text,
-          streaming: false,
-        },
-      });
+          occurredAt: now,
+          payload: {
+            id: TurnItemId.make("turn-item:foundation-compact"),
+            threadId,
+            runId: null,
+            nodeId: null,
+            providerThreadId: null,
+            providerTurnId: null,
+            nativeItemRef: null,
+            parentItemId: null,
+            ordinal: 1,
+            status: "completed",
+            title: null,
+            startedAt: now,
+            completedAt: now,
+            updatedAt: now,
+            type: "assistant_message",
+            messageId,
+            text,
+            streaming: false,
+          },
+        }) satisfies OrchestrationV2DomainEvent;
 
       yield* eventSink.write({
         events: [

@@ -156,7 +156,7 @@ export interface PullRequestTabStatus {
 
 export type PullRequestTabStatusSeed = Pick<PullRequestTabStatus, "state" | "isDraft">;
 
-function shouldOpenDefaultBrowserProfileFromMenuClick(pointerType: string | undefined): boolean {
+function shouldOpenDefaultBrowserProfileFromMenuClick(pointerType: string | undefined) {
   return pointerType !== "touch";
 }
 
@@ -205,14 +205,14 @@ type TabContextMenuAction =
 const TAB_SCROLL_EDGE_TOLERANCE = 1;
 const TAB_DRAG_MODIFIERS = [restrictToHorizontalAxis, restrictToFirstScrollableAncestor];
 
-function tabScrollViewport(root: HTMLDivElement | null): HTMLDivElement | null {
+function tabScrollViewport(root: HTMLDivElement | null) {
   return root?.querySelector<HTMLDivElement>('[data-slot="scroll-area-viewport"]') ?? null;
 }
 
 function previewTabIdOf(
   surface: RightPanelSurface,
   sessions: Readonly<Record<string, PreviewSessionSnapshot>>,
-): string | null {
+) {
   if (surface.kind !== "preview" || !surface.resourceId) return null;
   return sessions[surface.resourceId]?.tabId ?? null;
 }
@@ -220,7 +220,7 @@ function previewTabIdOf(
 function tabMuteMenuItem(input: {
   overlay: DesktopPreviewOverlay | null;
   canResolveRuntimeTabId: boolean;
-}): { label: string; disabled: boolean } {
+}) {
   const muted = input.overlay?.audioMuted ?? false;
   return {
     label: muted ? "Unmute tab" : "Mute tab",
@@ -230,7 +230,7 @@ function tabMuteMenuItem(input: {
 
 type TabAudioState = "none" | "audible" | "muted";
 
-function tabAudioState(overlay: DesktopPreviewOverlay | null): TabAudioState {
+function tabAudioState(overlay: DesktopPreviewOverlay | null) {
   if (!overlay?.audible) return "none";
   return overlay.audioMuted ? "muted" : "audible";
 }
@@ -243,7 +243,7 @@ type SurfaceShortcutEvent = Pick<
 
 export function surfaceShortcutActionForKey<
   const Action extends { available: boolean; shortcut: string },
->(actions: readonly Action[], event: SurfaceShortcutEvent): Action | null {
+>(actions: readonly Action[], event: SurfaceShortcutEvent) {
   if (event.defaultPrevented || event.isComposing) return null;
   if (event.metaKey || event.ctrlKey || event.altKey) return null;
   const key = surfaceShortcutKey(event);
@@ -255,7 +255,7 @@ export function surfaceShortcutActionForKey<
 /** Skip contenteditable=false islands to find their editable host, matching the composer typing guard. */
 export function surfaceShortcutTargetsTypingContext(
   target: { closest(selectors: string): unknown } | null,
-): boolean {
+) {
   return (
     target?.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"])') !=
     null
@@ -556,7 +556,7 @@ function surfaceTitle(
   surface: RightPanelSurface,
   sessions: Readonly<Record<string, PreviewSessionSnapshot>>,
   terminalLabelsById: ReadonlyMap<string, string>,
-): string {
+) {
   switch (surface.kind) {
     case "diff":
       return "Diff";
@@ -601,7 +601,7 @@ function PreviewFavicon({ capturedUrl, url }: { capturedUrl: string | null; url:
   );
 }
 
-function sameOrigin(left: string, right: string): boolean {
+function sameOrigin(left: string, right: string) {
   try {
     return new URL(left).origin === new URL(right).origin;
   } catch {
@@ -613,7 +613,7 @@ function previewFaviconOf(
   surface: RightPanelSurface,
   sessions: Readonly<Record<string, PreviewSessionSnapshot>>,
   desktopByTabId: Readonly<Record<string, DesktopPreviewOverlay>>,
-): { url: string | null; capturedUrl: string | null } {
+) {
   const snapshot =
     surface.kind === "preview" && surface.resourceId ? sessions[surface.resourceId] : null;
   const url = !snapshot || snapshot.navStatus._tag === "Idle" ? null : snapshot.navStatus.url;

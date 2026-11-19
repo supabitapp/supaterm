@@ -25,9 +25,7 @@ export interface EnvironmentCatalogState {
   readonly entries: ReadonlyMap<EnvironmentIdType, ConnectionCatalogEntry>;
 }
 
-export function* enabledEnvironmentIds(
-  catalog: EnvironmentCatalogState,
-): Generator<EnvironmentIdType> {
+export function* enabledEnvironmentIds(catalog: EnvironmentCatalogState) {
   for (const [environmentId, entry] of catalog.entries) {
     if (entry.enabled && entry.unsupportedReason === undefined) {
       yield environmentId;

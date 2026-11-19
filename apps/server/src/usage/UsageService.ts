@@ -119,7 +119,7 @@ const decodeScanCacheFile = Schema.decodeUnknownEffect(ScanCacheJson);
 const encodeUsageRecordKey = Schema.encodeSync(ScanCacheJson);
 const CachedSource = Schema.Struct({ dir: Schema.String, volumeId: Schema.String });
 
-function isLaterRead(a: CachedFile, b: CachedFile): boolean {
+function isLaterRead(a: CachedFile, b: CachedFile) {
   return a.mtimeMs > b.mtimeMs || (a.mtimeMs === b.mtimeMs && a.size > b.size);
 }
 
@@ -129,9 +129,7 @@ const sharedSessionProviders: ReadonlySet<UsageProviderKind> = new Set(
   ),
 );
 
-function sharedSessions(
-  files: readonly { readonly records: readonly UsageRecord[] }[],
-): ReadonlySet<string> {
+function sharedSessions(files: readonly { readonly records: readonly UsageRecord[] }[]) {
   const firstFile = new Map<string, number>();
   const shared = new Set<string>();
   for (const [index, file] of files.entries()) {
@@ -250,7 +248,7 @@ export const make = Effect.gen(function* () {
   let ratesStatus: UsagePricing["status"] = "unavailable";
   const ratesLock = yield* Semaphore.make(1);
 
-  const pricing = (): UsagePricing => ({
+  const pricing = () => ({
     status: ratesStatus,
     source: LITELLM_RATES_URL,
     fetchedAt:
@@ -531,18 +529,24 @@ export const make = Effect.gen(function* () {
   );
   yield* Effect.addFinalizer(() => awaitPersisted);
 
-  const readFileRecords = Effect.fnUntraced(function* (
+  const readFileRecords: (
     filePath: string,
     size: number,
     mtimeMs: number,
     provider: UsageProviderKind,
     format: TranscriptUsageFormat<unknown>,
-  ): Effect.fn.Return<{
+  ) => Effect.Effect<{
     readonly records: readonly UsageRecord[];
     readonly malformedRecords: number;
     readonly failed?: true;
     readonly update?: { readonly entry: CachedFile; readonly replaces: CachedFile | undefined };
-  }> {
+  }> = Effect.fnUntraced(function* (
+    filePath: string,
+    size: number,
+    mtimeMs: number,
+    provider: UsageProviderKind,
+    format: TranscriptUsageFormat<unknown>,
+  ) {
     const cached = fileCache.get(filePath);
     if (
       cached &&
@@ -755,7 +759,7 @@ export const make = Effect.gen(function* () {
                       physicalSourceId(source.dir),
                     ])
                   : Effect.succeed<[string, string | undefined]>([volumeId, undefined]),
-                ([resolved, sourceId]): ScannedDir => ({
+                ([resolved, sourceId]) => ({
                   ...source,
                   files: source.files?.map((file) => ({ ...file, malformedRecords: 0 })) ?? null,
                   provider: reader.provider,
@@ -1140,11 +1144,7 @@ export const make = Effect.gen(function* () {
 
   const inflightScans = new Map<string, Deferred.Deferred<UsageSummary, UsageReadError>>();
 
-  const scanKey = (
-    input: UsageSummaryInput,
-    settings: ServerSettingsValue,
-    provisional: boolean,
-  ): string =>
+  const scanKey = (input: UsageSummaryInput, settings: ServerSettingsValue, provisional: boolean) =>
     JSON.stringify([
       input.timeZone,
       input.sinceDay,

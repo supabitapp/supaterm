@@ -4,7 +4,7 @@ import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as PlatformError from "effect/PlatformError";
 
-const systemErrorTag = (cause: unknown): PlatformError.SystemErrorTag => {
+const systemErrorTag = (cause: unknown) => {
   switch ((cause as NodeJS.ErrnoException | undefined)?.code) {
     case "EEXIST":
       return "AlreadyExists";

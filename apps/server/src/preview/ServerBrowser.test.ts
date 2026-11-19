@@ -113,15 +113,33 @@ function makeSession(
     emitAsync: (name: string, ...args: unknown[]) =>
       Promise.all(events.listeners(name).map((listener) => listener(...args))),
     detach: vi.fn(async () => {}),
-    send: vi.fn(async (method: string, input?: unknown): Promise<Record<string, unknown>> => {
-      if (method === "Page.getNavigationHistory") return { currentIndex: 0, entries: [{}] };
-      if (method === "Page.getLayoutMetrics") return { cssVisualViewport: { pageX: 0, pageY: 0 } };
+    send: vi.fn(async (method: string, input?: unknown) => {
+      if (method === "Page.getNavigationHistory")
+        return { currentIndex: 0, entries: [{}] } satisfies Record<string, unknown> as Record<
+          string,
+          unknown
+        >;
+      if (method === "Page.getLayoutMetrics")
+        return { cssVisualViewport: { pageX: 0, pageY: 0 } } satisfies Record<
+          string,
+          unknown
+        > as Record<string, unknown>;
       if (method === "Page.captureScreenshot") {
         if ((input as { format: string }).format === "jpeg" && heldStill) await heldStill();
-        return { data: (input as { format: string }).format === "png" ? PNG_HEADER : "ZnJhbWU=" };
+        return {
+          data: (input as { format: string }).format === "png" ? PNG_HEADER : "ZnJhbWU=",
+        } satisfies Record<string, unknown> as Record<string, unknown>;
       }
-      if (method === "Runtime.callFunctionOn") return { result: { value: PNG_HEADER } };
-      if (method === "Page.getFrameTree") return { frameTree: { frame: { id: "main" } } };
+      if (method === "Runtime.callFunctionOn")
+        return { result: { value: PNG_HEADER } } satisfies Record<string, unknown> as Record<
+          string,
+          unknown
+        >;
+      if (method === "Page.getFrameTree")
+        return { frameTree: { frame: { id: "main" } } } satisfies Record<string, unknown> as Record<
+          string,
+          unknown
+        >;
       if (method === "Page.createIsolatedWorld") {
         const worldContexts: Record<string, number> = {
           "supaterm-preview-viewport": 9,
@@ -130,12 +148,15 @@ function makeSession(
         };
         return {
           executionContextId: worldContexts[(input as { worldName: string }).worldName] ?? 7,
-        };
+        } satisfies Record<string, unknown> as Record<string, unknown>;
       }
       if (method === "Runtime.evaluate" && (input as { contextId?: number }).contextId === 11)
-        return new Promise(() => {});
+        return new Promise(() => {}) satisfies Record<string, unknown> as Record<string, unknown>;
       if (method === "Runtime.evaluate" && (input as { contextId?: number }).contextId === 1) {
-        return { result: { value: [] } };
+        return { result: { value: [] } } satisfies Record<string, unknown> as Record<
+          string,
+          unknown
+        >;
       }
       if (method === "Page.addScriptToEvaluateOnNewDocument") frame?.recording.resolve();
       if (
@@ -149,11 +170,17 @@ function makeSession(
         const value = frame ? frame.copy : pageCopy;
         if (frame) frame.copy = "";
         else pageCopy = "";
-        return { result: { value } };
+        return { result: { value } } satisfies Record<string, unknown> as Record<string, unknown>;
       }
       if (method === "Runtime.evaluate" && (input as { contextId?: number }).contextId === 9)
-        return desktopSizeAnswer?.() ?? { result: { value: { ...viewport } } };
-      return { result: { value: "evaluated" } };
+        return (desktopSizeAnswer?.() ?? { result: { value: { ...viewport } } }) satisfies Record<
+          string,
+          unknown
+        > as Record<string, unknown>;
+      return { result: { value: "evaluated" } } satisfies Record<string, unknown> as Record<
+        string,
+        unknown
+      >;
     }),
   };
 }
@@ -234,7 +261,7 @@ function makeContext(onClose?: (context: BrowserContext) => void, initialUrl = "
       interactiveElements: [],
     })),
     ariaSnapshot: vi.fn(async () => '- button "delete" [ref=e1]'),
-    locator: vi.fn((): unknown => {
+    locator: vi.fn(() => {
       throw new Error("Unexpected locator action");
     }),
     isClosed: () => closed,

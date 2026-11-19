@@ -24,7 +24,8 @@ import { buildReviewParsedDiff, type ReviewParsedDiff } from "./reviewModel";
 
 vi.mock("diff", { spy: true });
 
-function makeComment(text: string): ReviewInlineComment {
+function makeComment(text: string): ReviewInlineComment;
+function makeComment(text: string) {
   return {
     id: "comment-1",
     sectionId: "git:working-tree",
@@ -35,7 +36,7 @@ function makeComment(text: string): ReviewInlineComment {
     rangeLabel: "-1",
     text,
     diff: "@@ -1,1 +1,0 @@\n-const before = 1;",
-  };
+  } satisfies ReviewInlineComment;
 }
 
 function filesPatch(paths: ReadonlyArray<string>) {

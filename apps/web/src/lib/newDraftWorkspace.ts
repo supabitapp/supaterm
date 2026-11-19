@@ -25,7 +25,7 @@ export interface NewDraftWorkspace {
 export async function resolveNewDraftWorkspace(
   projectRef: ScopedProjectRef,
   serverConfig: Pick<ServerConfig, "settings" | "newProjectsRoot"> | null | undefined,
-): Promise<NewDraftWorkspace> {
+) {
   const project = readProject(projectRef) ?? undefined;
   const serverSettings = serverConfig?.settings ?? DEFAULT_SERVER_SETTINGS;
   const projectSettings = resolveProjectSettings(serverSettings, project?.id ?? null, project);
@@ -77,7 +77,7 @@ export function moveDraftToProject(input: {
   readonly project: Project;
   readonly logicalProjectKey: string;
   readonly workspace: NewDraftWorkspace;
-}): void {
+}) {
   const { draftId, project } = input;
   const store = useComposerDraftStore.getState();
   const draft = store.getDraftSession(draftId);

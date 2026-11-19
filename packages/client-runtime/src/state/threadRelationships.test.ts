@@ -335,7 +335,7 @@ function orderedLineageIds(input: {
   readonly threads: ReadonlyArray<unknown>;
   readonly mergeTargetThreadId?: ThreadId | null;
   readonly projection?: unknown;
-}): ReadonlyArray<ThreadId> {
+}) {
   const graph = deriveThreadRelationshipGraph({
     threads: input.threads as never,
     projection: (input.projection ?? null) as never,

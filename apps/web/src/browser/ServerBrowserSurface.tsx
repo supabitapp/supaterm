@@ -94,14 +94,13 @@ interface TouchProbe {
   tapped: boolean;
 }
 
-const buttonOf = (button: number): PreviewStreamMouseButton =>
+const buttonOf = (button: number) =>
   button === 0 ? "left" : button === 1 ? "middle" : button === 2 ? "right" : "none";
 
-const pressedButtonOf = (buttons: number): PreviewStreamMouseButton =>
+const pressedButtonOf = (buttons: number) =>
   buttons & 1 ? "left" : buttons & 2 ? "right" : buttons & 4 ? "middle" : "none";
 
-const historyDeltaOf = (button: number): -1 | 1 | null =>
-  button === 3 ? -1 : button === 4 ? 1 : null;
+const historyDeltaOf = (button: number) => (button === 3 ? -1 : button === 4 ? 1 : null);
 
 async function copyPageText(text: string) {
   try {
@@ -291,7 +290,7 @@ export function ServerBrowserSurface(props: {
     scheduleFlush();
   };
 
-  const pagePoint = (clientX: number, clientY: number, clamp: boolean): PagePoint | null => {
+  const pagePoint = (clientX: number, clientY: number, clamp: boolean) => {
     const canvas = canvasRef.current;
     const viewport = viewportRef.current;
     if (!canvas || !viewport || !hasFrameRef.current || controlRef.current?.controller !== "you")
@@ -952,8 +951,14 @@ function placeAgentCursor(
   pointer: PreviewStreamPointer,
   canvas: HTMLCanvasElement | null,
   viewport: PreviewStreamViewport | null,
-): AgentCursorPlacement | null {
-  if (!canvas || !viewport || canvas.width < 1 || canvas.height < 1) return null;
+): AgentCursorPlacement | null;
+function placeAgentCursor(
+  pointer: PreviewStreamPointer,
+  canvas: HTMLCanvasElement | null,
+  viewport: PreviewStreamViewport | null,
+) {
+  if (!canvas || !viewport || canvas.width < 1 || canvas.height < 1)
+    return null satisfies AgentCursorPlacement | null;
   const box = { width: canvas.clientWidth, height: canvas.clientHeight };
   const fit = Math.min(box.width / canvas.width, box.height / canvas.height);
   const width = canvas.width * fit;
@@ -963,5 +968,5 @@ function placeAgentCursor(
     sequence: pointer.sequence,
     left: (box.width - width) / 2 + (pointer.x * width) / viewport.width,
     top: (box.height - height) / 2 + (pointer.y * height) / viewport.height,
-  };
+  } satisfies AgentCursorPlacement | null;
 }

@@ -95,7 +95,12 @@ function shareMetadataRead<A, R>(
   pending: PendingMetadata<A>,
   key: string,
   probe: Effect.Effect<A, never, R>,
-): Effect.Effect<A, never, R | EnvironmentSupervisor.EnvironmentSupervisor> {
+): Effect.Effect<A, never, R | EnvironmentSupervisor.EnvironmentSupervisor>;
+function shareMetadataRead<A, R>(
+  pending: PendingMetadata<A>,
+  key: string,
+  probe: Effect.Effect<A, never, R>,
+) {
   return Effect.uninterruptibleMask((restore) =>
     Effect.gen(function* () {
       const supervisor = yield* EnvironmentSupervisor.EnvironmentSupervisor;
@@ -121,10 +126,10 @@ function shareMetadataRead<A, R>(
         ),
       );
     }),
-  );
+  ) satisfies Effect.Effect<A, never, R | EnvironmentSupervisor.EnvironmentSupervisor>;
 }
 
-function isLocal(entry: ConnectionCatalogEntry): boolean {
+function isLocal(entry: ConnectionCatalogEntry) {
   const url =
     entry.target._tag === "PrimaryConnectionTarget"
       ? entry.target.httpBaseUrl
@@ -139,7 +144,7 @@ function isLocal(entry: ConnectionCatalogEntry): boolean {
   }
 }
 
-function rejectedBeforeDispatch(error: unknown): boolean {
+function rejectedBeforeDispatch(error: unknown) {
   return (
     typeof error === "object" &&
     error !== null &&
@@ -189,7 +194,7 @@ const routingAllowed = Effect.fn("PullRequestRouting.allowed")(function* (
   return true;
 });
 
-function matchesReference(reference: PullRequestRef, filter: PullRequestRef): boolean {
+function matchesReference(reference: PullRequestRef, filter: PullRequestRef) {
   return (
     reference.projectId === filter.projectId &&
     reference.repository.toLowerCase() === filter.repository.toLowerCase() &&
@@ -356,7 +361,7 @@ export function createPullRequestRouter() {
       ...remote.map((entry) => entry.id),
       ...(reads.has(tag) ? [origin.target.environmentId] : []),
     ];
-    const run = (id: EnvironmentId): ReturnType<typeof request<T>> =>
+    const run = (id: EnvironmentId) =>
       (id === origin.target.environmentId
         ? guardedSource
         : registry.run(id, request(tag, routedInput))
@@ -390,7 +395,7 @@ export function createPullRequestRouter() {
             : error,
         ),
       );
-    const visit = (index: number): ReturnType<typeof request<T>> => {
+    const visit: (index: number) => ReturnType<typeof request<T>> = (index: number) => {
       const id = candidates[index];
       if (id === undefined) return guardedSource;
       return Effect.gen(function* () {

@@ -32,7 +32,7 @@ export interface ReviewCommentColors {
   readonly codeBackground: ColorValue;
 }
 
-export function useReviewCommentColors(): ReviewCommentColors {
+export function useReviewCommentColors() {
   const theme = useUniwindTheme();
 
   return {

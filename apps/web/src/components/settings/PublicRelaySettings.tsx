@@ -12,7 +12,7 @@ import { Switch } from "../ui/switch";
 import { SettingsRow } from "./settingsLayout";
 import { searchableSetting } from "./settingsSearch";
 
-function statusDescription(status: RelayHostStatus): string | null {
+function statusDescription(status: RelayHostStatus) {
   const name = status.relayEndpoint === undefined ? null : relayName(status.relayEndpoint);
   switch (status.state) {
     case "off":
@@ -32,7 +32,7 @@ function statusDescription(status: RelayHostStatus): string | null {
   }
 }
 
-export function usePublicRelayStatus(environmentId: EnvironmentId | null): RelayHostStatus | null {
+export function usePublicRelayStatus(environmentId: EnvironmentId | null) {
   return (
     useEnvironmentQuery(
       environmentId === null ? null : serverEnvironment.relayStatus({ environmentId, input: {} }),

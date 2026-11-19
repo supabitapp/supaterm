@@ -58,7 +58,7 @@ const BASIC_OPERATIONS = [
   "recordingStop",
 ] as const;
 
-const makeHost = (overrides: Partial<PreviewAutomationHost> = {}): PreviewAutomationHost => ({
+const makeHost = (overrides: Partial<PreviewAutomationHost> = {}) => ({
   clientId: "client-1",
   environmentId: scope.environmentId,
   supportedOperations: BASIC_OPERATIONS,
@@ -72,7 +72,7 @@ type RoutedRequest = PreviewAutomationRequest & {
 const requestsFrom = (
   events: Stream.Stream<PreviewAutomationStreamEvent>,
   onConnected: (connectionId: PreviewAutomationStreamEvent["connectionId"]) => void = () => {},
-): Stream.Stream<RoutedRequest> =>
+) =>
   events.pipe(
     Stream.filterMap((event) => {
       if (event.type === "connected") {

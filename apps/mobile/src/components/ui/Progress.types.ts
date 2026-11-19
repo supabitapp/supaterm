@@ -5,7 +5,7 @@ export interface ProgressProps {
   readonly className?: string;
 }
 
-export function clampProgress(value: number | undefined): number | undefined {
+export function clampProgress(value: number | undefined) {
   return value === undefined || !Number.isFinite(value)
     ? undefined
     : Math.max(0, Math.min(1, value));

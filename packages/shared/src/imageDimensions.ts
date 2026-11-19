@@ -6,14 +6,14 @@ export interface ImageDimensions {
 /** Allows several 64 KiB JPEG metadata segments before the dimensions header. */
 export const IMAGE_DIMENSIONS_HEADER_BYTES = 256 * 1024;
 
-export function readImageDimensions(bytes: Uint8Array): ImageDimensions | null {
+export function readImageDimensions(bytes: Uint8Array) {
   const dimensions = readPng(bytes) ?? readGif(bytes) ?? readWebp(bytes) ?? readJpeg(bytes);
   return dimensions && dimensions.width > 0 && dimensions.height > 0 ? dimensions : null;
 }
 
 const view = (bytes: Uint8Array) => new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
 
-function readPng(bytes: Uint8Array): ImageDimensions | null {
+function readPng(bytes: Uint8Array) {
   if (bytes.length < 24) return null;
   if (
     bytes[0] !== 0x89 ||
@@ -31,14 +31,14 @@ function readPng(bytes: Uint8Array): ImageDimensions | null {
   return { width: data.getUint32(16), height: data.getUint32(20) };
 }
 
-function readGif(bytes: Uint8Array): ImageDimensions | null {
+function readGif(bytes: Uint8Array) {
   if (bytes.length < 10) return null;
   if (bytes[0] !== 0x47 || bytes[1] !== 0x49 || bytes[2] !== 0x46 || bytes[3] !== 0x38) return null;
   const data = view(bytes);
   return { width: data.getUint16(6, true), height: data.getUint16(8, true) };
 }
 
-function readWebp(bytes: Uint8Array): ImageDimensions | null {
+function readWebp(bytes: Uint8Array) {
   if (bytes.length < 16) return null;
   if (
     bytes[0] !== 0x52 ||
@@ -77,7 +77,7 @@ function readWebp(bytes: Uint8Array): ImageDimensions | null {
   }
 }
 
-function readJpeg(bytes: Uint8Array): ImageDimensions | null {
+function readJpeg(bytes: Uint8Array) {
   if (bytes.length < 4 || bytes[0] !== 0xff || bytes[1] !== 0xd8) return null;
   const data = view(bytes);
   let offset = 2;
@@ -108,7 +108,7 @@ function readJpeg(bytes: Uint8Array): ImageDimensions | null {
   return null;
 }
 
-function exifOrientationSwapsAxes(bytes: Uint8Array, start: number, end: number): boolean {
+function exifOrientationSwapsAxes(bytes: Uint8Array, start: number, end: number) {
   end = Math.min(end, bytes.length);
   if (end - start < 14 || String.fromCharCode(...bytes.subarray(start, start + 4)) !== "Exif") {
     return false;

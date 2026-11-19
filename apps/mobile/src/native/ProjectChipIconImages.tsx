@@ -23,7 +23,7 @@ const tiles = new Map<string, PendingTile>();
 let pendingTiles: ReadonlyArray<PendingTile> = [];
 const listeners = new Set<() => void>();
 
-export function projectGlyphKey(glyph: ProjectIconGlyph): string {
+export function projectGlyphKey(glyph: ProjectIconGlyph) {
   return JSON.stringify(
     glyph.kind === "emoji"
       ? ["emoji", glyph.emoji]
@@ -33,17 +33,18 @@ export function projectGlyphKey(glyph: ProjectIconGlyph): string {
   );
 }
 
-function decodeGlyphKey(key: string): ProjectIconGlyph {
+function decodeGlyphKey(key: string) {
   const value = JSON.parse(key) as
     | ["emoji", string]
     | ["icon", IconNode, ProjectIconColor]
     | ["monogram", string, ProjectIconColor];
-  if (value[0] === "emoji") return { kind: "emoji", emoji: value[1] };
-  if (value[0] === "icon") return { kind: "icon", node: value[1], color: value[2] };
-  return { kind: "monogram", text: value[1], color: value[2] };
+  if (value[0] === "emoji") return { kind: "emoji", emoji: value[1] } satisfies ProjectIconGlyph;
+  if (value[0] === "icon")
+    return { kind: "icon", node: value[1], color: value[2] } satisfies ProjectIconGlyph;
+  return { kind: "monogram", text: value[1], color: value[2] } satisfies ProjectIconGlyph;
 }
 
-function rasterize(key: string): Promise<string> {
+function rasterize(key: string) {
   const existing = tiles.get(key);
   if (existing) return existing.promise;
   let resolve!: (uri: string) => void;

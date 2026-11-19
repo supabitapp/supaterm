@@ -50,12 +50,11 @@ function reportFailure(title: string, result: AtomCommandResult<unknown, unknown
   });
 }
 
-function parseProviderHeaders(
-  text: string,
-):
-  | { readonly ok: true; readonly headers: Record<string, string> | undefined }
-  | { readonly ok: false; readonly error: string } {
-  if (text.trim().length === 0) return { ok: true, headers: undefined };
+function parseProviderHeaders(text: string) {
+  if (text.trim().length === 0)
+    return { ok: true, headers: undefined } satisfies
+      | { readonly ok: true; readonly headers: Record<string, string> | undefined }
+      | { readonly ok: false; readonly error: string };
   let parsed: unknown;
   try {
     parsed = JSON.parse(text);
@@ -63,7 +62,9 @@ function parseProviderHeaders(
     return {
       ok: false,
       error: error instanceof Error ? error.message : "Headers must be valid JSON.",
-    };
+    } satisfies
+      | { readonly ok: true; readonly headers: Record<string, string> | undefined }
+      | { readonly ok: false; readonly error: string };
   }
   if (
     typeof parsed !== "object" ||
@@ -71,9 +72,13 @@ function parseProviderHeaders(
     Array.isArray(parsed) ||
     !Object.values(parsed).every((value) => typeof value === "string")
   ) {
-    return { ok: false, error: "Headers must be a JSON object with string values." };
+    return { ok: false, error: "Headers must be a JSON object with string values." } satisfies
+      | { readonly ok: true; readonly headers: Record<string, string> | undefined }
+      | { readonly ok: false; readonly error: string };
   }
-  return { ok: true, headers: parsed as Record<string, string> };
+  return { ok: true, headers: parsed as Record<string, string> } satisfies
+    | { readonly ok: true; readonly headers: Record<string, string> | undefined }
+    | { readonly ok: false; readonly error: string };
 }
 
 interface AcpSessionManagementProps {

@@ -8,10 +8,7 @@ import { cn } from "~/lib/utils";
 import { Button } from "./ui/button";
 
 /** The thread pin shortcut, which pins the highlighted row in a project list. */
-export function isProjectPinShortcut(
-  event: KeyboardEvent,
-  keybindings: ResolvedKeybindingsConfig,
-): boolean {
+export function isProjectPinShortcut(event: KeyboardEvent, keybindings: ResolvedKeybindingsConfig) {
   return (
     resolveShortcutCommand(event.nativeEvent, keybindings, {
       platform: navigator.platform,
@@ -24,7 +21,7 @@ export function isProjectPinShortcut(
  * Whether a key press comes from an open project list, which owns the pin shortcut.
  * Menus that cannot rely on the combobox role mark themselves with `data-project-pin-list`.
  */
-export function isInOpenProjectList(target: EventTarget | null): boolean {
+export function isInOpenProjectList(target: EventTarget | null) {
   return (
     target instanceof Element &&
     target.closest('[role="combobox"][aria-expanded="true"], [data-project-pin-list]') !== null

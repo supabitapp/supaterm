@@ -5,7 +5,7 @@ import {
 
 import { readMediaPng } from "../media/mediaContent";
 
-export async function copySnapshot(src: string, text: string, fragment: string): Promise<void> {
+export async function copySnapshot(src: string, text: string, fragment: string) {
   if (!navigator.clipboard?.write || typeof ClipboardItem === "undefined") {
     throw new Error("Snapshot copying requires a secure browser connection.");
   }

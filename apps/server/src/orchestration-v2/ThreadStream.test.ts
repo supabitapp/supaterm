@@ -34,7 +34,7 @@ const LARGE_PROJECTABLE_OUTPUT_BYTES = 10 * 1_048_576;
 const LARGE_PROJECTABLE_RAW_PAYLOAD_BYTES = 10_486_214;
 const MAX_PROJECTED_DYNAMIC_REPLAY_BYTES = 2_048;
 
-function timelineProjection(itemCount: number): OrchestrationV2ThreadProjection {
+function timelineProjection(itemCount: number) {
   const visibleTurnItems: OrchestrationV2ProjectedTurnItem[] = Array.from(
     { length: itemCount },
     (_, index) => {
@@ -251,7 +251,7 @@ describe("compact bounded snapshots", () => {
   );
   const encodeStreamItem = Schema.encodeSync(Schema.toCodecJson(OrchestrationV2ThreadStreamItem));
 
-  function forkProjection(): OrchestrationV2ThreadProjection {
+  function forkProjection() {
     const base = timelineProjection(6);
     const local = base.visibleTurnItems.slice(3).map((row, index) => ({ ...row, position: index }));
     const inherited = base.visibleTurnItems.slice(0, 3).map((row, index) => {

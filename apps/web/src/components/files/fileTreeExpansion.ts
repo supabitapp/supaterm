@@ -13,7 +13,7 @@ type DirectoryHandle = {
   collapse(): void;
 };
 
-function asDirectoryHandle(item: unknown): DirectoryHandle | null {
+function asDirectoryHandle(item: unknown) {
   if (
     typeof item !== "object" ||
     item === null ||
@@ -39,7 +39,7 @@ function asDirectoryHandle(item: unknown): DirectoryHandle | null {
 export function subscribeOncePerTask(
   model: { subscribe(listener: () => void): () => void },
   listener: () => void,
-): () => void {
+) {
   let queued = false;
   let subscribed = true;
   const unsubscribe = model.subscribe(() => {
@@ -59,7 +59,7 @@ export function subscribeOncePerTask(
 export function areAllDirectoriesExpanded(
   model: FileTreeExpansionModel,
   directoryPaths: readonly string[],
-): boolean {
+) {
   return (
     directoryPaths.length > 0 &&
     directoryPaths.every((path) => {
@@ -73,7 +73,7 @@ export function setAllDirectoriesExpanded(
   model: FileTreeExpansionModel,
   directoryPaths: readonly string[],
   expanded: boolean,
-): void {
+) {
   for (const path of directoryPaths) {
     const item = asDirectoryHandle(model.getItem(path));
     if (item === null || item.isExpanded() === expanded) continue;
@@ -83,7 +83,7 @@ export function setAllDirectoriesExpanded(
 }
 
 /** Calls made while `run` is running rerun it once it returns, instead of nesting. */
-export function coalesceReentrantCalls(run: () => void): () => void {
+export function coalesceReentrantCalls(run: () => void) {
   let running = false;
   let calledAgain = false;
   return () => {
@@ -118,11 +118,11 @@ function readStoredExpandedDirectories() {
   }
 }
 
-export function readExpandedDirectories(root: string): readonly string[] {
+export function readExpandedDirectories(root: string) {
   return readStoredExpandedDirectories().find((entry) => entry.root === root)?.paths ?? [];
 }
 
-export function writeExpandedDirectories(root: string, paths: readonly string[]): void {
+export function writeExpandedDirectories(root: string, paths: readonly string[]) {
   const others = readStoredExpandedDirectories().filter((entry) => entry.root !== root);
   const next = paths.length > 0 ? [{ root, paths }, ...others] : others;
   try {

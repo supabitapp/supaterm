@@ -14,7 +14,7 @@ type FailureScanTurnItem =
 export function latestRootProviderFailure(
   run: OrchestrationV2Run | null,
   turnItems: ReadonlyArray<FailureScanTurnItem>,
-): OrchestrationV2ProviderFailure | null {
+) {
   if (run?.status !== "failed") return null;
   let latest: ErrorTurnItem | null = null;
   for (const item of turnItems) {
@@ -52,9 +52,7 @@ export function threadErrorSummary(
   };
 }
 
-export function latestExecutedRun(
-  runs: ReadonlyArray<OrchestrationV2Run>,
-): OrchestrationV2Run | null {
+export function latestExecutedRun(runs: ReadonlyArray<OrchestrationV2Run>) {
   let latest: OrchestrationV2Run | null = null;
   for (const run of runs) {
     if (run.status === "queued") continue;
@@ -72,7 +70,7 @@ export function latestExecutedRun(
 export function orchestrationV2WorktreePending(
   worktreePath: string | null,
   runs: ReadonlyArray<OrchestrationV2Run>,
-): boolean {
+) {
   const latest = latestExecutedRun(runs);
   return (
     worktreePath === null &&
@@ -87,7 +85,7 @@ export function orchestrationV2WorktreePending(
 export function runRanAfter(
   run: Pick<OrchestrationV2Run, "ordinal" | "completedAt">,
   other: Pick<OrchestrationV2Run, "ordinal" | "completedAt">,
-): boolean {
+) {
   const end = (candidate: typeof run) =>
     !candidate.completedAt
       ? Number.POSITIVE_INFINITY
@@ -99,7 +97,7 @@ export function usageLimitBlockedRun(
   runs: ReadonlyArray<OrchestrationV2Run>,
   turnItems: ReadonlyArray<FailureScanTurnItem>,
   sessionError: string | null,
-): OrchestrationV2Run | null {
+) {
   const executed = latestExecutedRun(runs);
   if (executed?.status !== "failed") return null;
   const summary = threadErrorSummary(latestRootProviderFailure(executed, turnItems), sessionError);
@@ -111,14 +109,12 @@ export function usageLimitRunPresentedAsLatest(
   runs: ReadonlyArray<OrchestrationV2Run>,
   turnItems: ReadonlyArray<FailureScanTurnItem>,
   sessionError: string | null,
-): OrchestrationV2Run | null {
+) {
   const blocked = usageLimitBlockedRun(runs, turnItems, sessionError);
   return blocked !== null && runs.some((run) => run.ordinal > blocked.ordinal) ? blocked : null;
 }
 
-export function latestUnheldRun(
-  runs: ReadonlyArray<OrchestrationV2Run>,
-): OrchestrationV2Run | null {
+export function latestUnheldRun(runs: ReadonlyArray<OrchestrationV2Run>) {
   let latest: OrchestrationV2Run | null = null;
   for (const run of runs) {
     if (run.status === "queued" && run.queueHeld === true) continue;
@@ -128,10 +124,7 @@ export function latestUnheldRun(
   return latest;
 }
 
-function outlivedBeforeStart(
-  run: OrchestrationV2Run,
-  runs: ReadonlyArray<OrchestrationV2Run>,
-): boolean {
+function outlivedBeforeStart(run: OrchestrationV2Run, runs: ReadonlyArray<OrchestrationV2Run>) {
   if (run.status !== "cancelled" || run.startedAt !== null || !run.completedAt) return false;
   const cancelledAt = DateTime.toEpochMillis(run.completedAt);
   return runs.some(

@@ -16,14 +16,14 @@ interface PendingScriptPaste {
 const surfaces = new Map<string, ScriptPasteSurface>();
 const pendingByKey = new Map<string, Set<PendingScriptPaste>>();
 
-function targetKey(target: ScriptPasteTarget): string {
+function targetKey(target: ScriptPasteTarget) {
   return JSON.stringify([target.environmentId, target.threadId, target.terminalId]);
 }
 
 export function registerTerminalScriptPasteSurface(
   target: ScriptPasteTarget,
   surface: ScriptPasteSurface,
-): () => void {
+) {
   const key = targetKey(target);
   const notify = () => {
     for (const pending of pendingByKey.get(key) ?? []) pending.tryEncode();
@@ -44,10 +44,7 @@ export function registerTerminalScriptPasteSurface(
  * lines after it, so scripts only go in as one bracketed paste. A fresh shell enables bracketed
  * paste after its first prompt, so wait for it instead of falling back to typing.
  */
-export function encodeTerminalScriptPaste(
-  target: ScriptPasteTarget,
-  script: string,
-): Promise<string> {
+export function encodeTerminalScriptPaste(target: ScriptPasteTarget, script: string) {
   const key = targetKey(target);
   return new Promise((resolve, reject) => {
     const pendingForKey = pendingByKey.get(key) ?? new Set<PendingScriptPaste>();
@@ -75,5 +72,5 @@ export function encodeTerminalScriptPaste(
     );
     pendingForKey.add(pending);
     pending.tryEncode();
-  });
+  }) satisfies Promise<string>;
 }

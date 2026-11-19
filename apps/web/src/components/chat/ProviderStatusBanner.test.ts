@@ -29,7 +29,7 @@ const provider: ServerProvider = {
   },
 };
 
-function shownAfterDismissing(dismissed: ServerProvider, shown: ServerProvider): boolean {
+function shownAfterDismissing(dismissed: ServerProvider, shown: ServerProvider) {
   return shouldShowProviderStatusBanner(
     shown,
     getProviderStatusBannerKey(shown) === getProviderStatusBannerKey(dismissed),

@@ -138,7 +138,7 @@ class TerminalSubprocessCheckError extends Schema.TaggedError<TerminalSubprocess
     stdoutTruncated: Schema.optional(Schema.Boolean),
   },
 ) {
-  override get message(): string {
+  override get message() {
     const details = [
       this.exitCode !== undefined && this.exitCode !== null ? `exit code ${this.exitCode}` : null,
       this.timedOut ? "timed out" : null,
@@ -158,7 +158,7 @@ class TerminalProcessSignalError extends Schema.TaggedError<TerminalProcessSigna
     terminalPid: Schema.Number,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Failed to send ${this.signal} to terminal process ${this.terminalPid}`;
   }
 }
@@ -365,12 +365,12 @@ interface TerminalManagerState {
   killFibers: Map<PtyAdapter.PtyProcess, Fiber.Fiber<void, never>>;
 }
 
-function truncateTerminalWireLabel(value: string): string {
+function truncateTerminalWireLabel(value: string) {
   if (value.length <= MAX_TERMINAL_LABEL_LENGTH) return value;
   return value.slice(0, MAX_TERMINAL_LABEL_LENGTH);
 }
 
-function normalizeChildCommandName(raw: string, platform: NodeJS.Platform): string | null {
+function normalizeChildCommandName(raw: string, platform: NodeJS.Platform) {
   let trimmed = raw.trim();
   if (trimmed.length === 0) return null;
   if (
@@ -386,17 +386,19 @@ function normalizeChildCommandName(raw: string, platform: NodeJS.Platform): stri
   return withoutExe.length > 0 ? withoutExe : null;
 }
 
-function terminalWireLabel(session: TerminalSessionState): string {
+function terminalWireLabel(session: TerminalSessionState): string;
+function terminalWireLabel(session: TerminalSessionState) {
   if (session.hasRunningSubprocess && session.childCommandLabel) {
     const trimmed = session.childCommandLabel.trim();
     if (trimmed.length > 0) {
-      return truncateTerminalWireLabel(trimmed);
+      return truncateTerminalWireLabel(trimmed) satisfies string;
     }
   }
-  return truncateTerminalWireLabel(getTerminalLabel(session.terminalId));
+  return truncateTerminalWireLabel(getTerminalLabel(session.terminalId)) satisfies string;
 }
 
-function snapshot(session: TerminalSessionState): TerminalSessionSnapshot {
+function snapshot(session: TerminalSessionState): TerminalSessionSnapshot;
+function snapshot(session: TerminalSessionState) {
   return {
     threadId: session.threadId,
     terminalId: session.terminalId,
@@ -413,10 +415,11 @@ function snapshot(session: TerminalSessionState): TerminalSessionSnapshot {
     cols: session.cols,
     rows: session.rows,
     ...(session.startupError === null ? {} : { error: session.startupError }),
-  };
+  } satisfies TerminalSessionSnapshot;
 }
 
-function summary(session: TerminalSessionState): TerminalSummary {
+function summary(session: TerminalSessionState): TerminalSummary;
+function summary(session: TerminalSessionState) {
   return {
     threadId: session.threadId,
     terminalId: session.terminalId,
@@ -429,10 +432,10 @@ function summary(session: TerminalSessionState): TerminalSummary {
     hasRunningSubprocess: session.hasRunningSubprocess,
     label: terminalWireLabel(session),
     updatedAt: session.updatedAt,
-  };
+  } satisfies TerminalSummary;
 }
 
-function shouldPublishTerminalMetadataEvent(event: TerminalEvent): boolean {
+function shouldPublishTerminalMetadataEvent(event: TerminalEvent) {
   switch (event.type) {
     case "started":
     case "restarted":
@@ -447,13 +450,14 @@ function shouldPublishTerminalMetadataEvent(event: TerminalEvent): boolean {
   }
 }
 
-function terminalEventToAttachEvent(event: TerminalEvent): TerminalAttachStreamEvent {
+function terminalEventToAttachEvent(event: TerminalEvent): TerminalAttachStreamEvent;
+function terminalEventToAttachEvent(event: TerminalEvent) {
   switch (event.type) {
     case "started":
       return {
         type: "snapshot",
         snapshot: event.snapshot,
-      };
+      } satisfies TerminalAttachStreamEvent;
     case "output":
     case "exited":
     case "closed":
@@ -461,7 +465,7 @@ function terminalEventToAttachEvent(event: TerminalEvent): TerminalAttachStreamE
     case "cleared":
     case "restarted":
     case "activity":
-      return event;
+      return event satisfies TerminalAttachStreamEvent;
   }
 }
 
@@ -480,15 +484,20 @@ function isDuplicateAttachSnapshotEvent(
 function advanceEventSequence(session: TerminalSessionState): {
   readonly updatedAt: string;
   readonly sequence: number;
-} {
+};
+function advanceEventSequence(session: TerminalSessionState) {
   const updatedAt = DateTime.formatIso(DateTime.nowUnsafe());
   session.eventSequence += 1;
   session.updatedAt = updatedAt;
-  return { updatedAt, sequence: session.eventSequence };
+  return { updatedAt, sequence: session.eventSequence } satisfies {
+    readonly updatedAt: string;
+    readonly sequence: number;
+  };
 }
 
-function terminalActivityMark(session: TerminalSessionState): number {
-  return session.eventSequence + session.inputCount;
+function terminalActivityMark(session: TerminalSessionState): number;
+function terminalActivityMark(session: TerminalSessionState) {
+  return (session.eventSequence + session.inputCount) satisfies number;
 }
 
 interface QuietTerminalSession {
@@ -497,7 +506,8 @@ interface QuietTerminalSession {
   readonly idleSnapshots: number;
 }
 
-function cleanupProcessHandles(session: TerminalSessionState): void {
+function cleanupProcessHandles(session: TerminalSessionState): void;
+function cleanupProcessHandles(session: TerminalSessionState) {
   session.unsubscribeData?.();
   session.unsubscribeData = null;
   session.unsubscribeExit?.();
@@ -508,30 +518,36 @@ function enqueueProcessEvent(
   session: TerminalSessionState,
   expectedPid: number,
   event: PendingProcessEvent,
-): boolean {
+): boolean;
+function enqueueProcessEvent(
+  session: TerminalSessionState,
+  expectedPid: number,
+  event: PendingProcessEvent,
+) {
   if (!session.process || session.status !== "running" || session.pid !== expectedPid) {
-    return false;
+    return false satisfies boolean;
   }
 
   session.pendingProcessEvents.push(event);
   if (session.processEventDrainRunning) {
-    return false;
+    return false satisfies boolean;
   }
 
   session.processEventDrainRunning = true;
-  return true;
+  return true satisfies boolean;
 }
 
-function survivesClear(event: PendingProcessEvent): boolean {
+function survivesClear(event: PendingProcessEvent): boolean;
+function survivesClear(event: PendingProcessEvent) {
   switch (event.type) {
     case "output":
-      return false;
+      return false satisfies boolean;
     case "exit":
-      return true;
+      return true satisfies boolean;
   }
 }
 
-function defaultShellResolver(platform: NodeJS.Platform, env: NodeJS.ProcessEnv): string {
+function defaultShellResolver(platform: NodeJS.Platform, env: NodeJS.ProcessEnv) {
   if (platform === "win32") {
     return "pwsh.exe";
   }
@@ -568,7 +584,7 @@ const normalizeShellCommand = Effect.fn("terminal.normalizeShellCommand")(functi
   return trimmed.split(/\s+(?=-)/)[0]?.replace(/^['"]|['"]$/g, "") || null;
 });
 
-function basenameForPlatform(command: string, platform: NodeJS.Platform): string {
+function basenameForPlatform(command: string, platform: NodeJS.Platform) {
   const normalized =
     platform === "win32" ? command.replaceAll("/", "\\") : command.replaceAll("\\", "/");
   const parts = normalized
@@ -577,7 +593,7 @@ function basenameForPlatform(command: string, platform: NodeJS.Platform): string
   return parts.at(-1) ?? normalized;
 }
 
-function joinWindowsPath(...parts: ReadonlyArray<string>): string {
+function joinWindowsPath(...parts: ReadonlyArray<string>) {
   return parts
     .map((part, index) => {
       if (index === 0) return part.replace(/[\\/]+$/g, "");
@@ -593,48 +609,56 @@ const POWERSHELL_UTF8_SETUP =
 function shellCandidateFromCommand(
   command: string | null,
   platform: NodeJS.Platform,
-): ShellCandidate | null {
-  if (!command || command.length === 0) return null;
+): ShellCandidate | null;
+function shellCandidateFromCommand(command: string | null, platform: NodeJS.Platform) {
+  if (!command || command.length === 0) return null satisfies ShellCandidate | null;
   const shellName = basenameForPlatform(command, platform).toLowerCase();
   if (platform === "win32" && (shellName === "pwsh.exe" || shellName === "powershell.exe")) {
-    return { shell: command, args: ["-NoLogo", "-NoExit", "-Command", POWERSHELL_UTF8_SETUP] };
+    return {
+      shell: command,
+      args: ["-NoLogo", "-NoExit", "-Command", POWERSHELL_UTF8_SETUP],
+    } satisfies ShellCandidate | null;
   }
   if (platform === "win32" && (shellName === "bash.exe" || shellName === "bash")) {
-    return { shell: command, args: ["--login", "-i"] };
+    return { shell: command, args: ["--login", "-i"] } satisfies ShellCandidate | null;
   }
   if (platform !== "win32" && shellName === "zsh") {
-    return { shell: command, args: ["-o", "nopromptsp"] };
+    return { shell: command, args: ["-o", "nopromptsp"] } satisfies ShellCandidate | null;
   }
   if (platform === "darwin" && shellName === "bash") {
-    return { shell: command, args: ["-l"] };
+    return { shell: command, args: ["-l"] } satisfies ShellCandidate | null;
   }
-  return { shell: command };
+  return { shell: command } satisfies ShellCandidate | null;
 }
 
-function windowsSystemRoot(env: NodeJS.ProcessEnv): string {
+function windowsSystemRoot(env: NodeJS.ProcessEnv) {
   return env.SystemRoot?.trim() || env.windir?.trim() || "C:\\Windows";
 }
 
-function windowsPowerShellPath(env: NodeJS.ProcessEnv): string {
+function windowsPowerShellPath(env: NodeJS.ProcessEnv): string;
+function windowsPowerShellPath(env: NodeJS.ProcessEnv) {
   return joinWindowsPath(
     windowsSystemRoot(env),
     "System32",
     "WindowsPowerShell",
     "v1.0",
     "powershell.exe",
-  );
+  ) satisfies string;
 }
 
-function windowsCmdPath(env: NodeJS.ProcessEnv): string {
-  return joinWindowsPath(windowsSystemRoot(env), "System32", "cmd.exe");
+function windowsCmdPath(env: NodeJS.ProcessEnv): string;
+function windowsCmdPath(env: NodeJS.ProcessEnv) {
+  return joinWindowsPath(windowsSystemRoot(env), "System32", "cmd.exe") satisfies string;
 }
 
-function formatShellCandidate(candidate: ShellCandidate): string {
-  if (!candidate.args || candidate.args.length === 0) return candidate.shell;
-  return `${candidate.shell} ${candidate.args.join(" ")}`;
+function formatShellCandidate(candidate: ShellCandidate): string;
+function formatShellCandidate(candidate: ShellCandidate) {
+  if (!candidate.args || candidate.args.length === 0) return candidate.shell satisfies string;
+  return `${candidate.shell} ${candidate.args.join(" ")}` satisfies string;
 }
 
-function uniqueShellCandidates(candidates: Array<ShellCandidate | null>): ShellCandidate[] {
+function uniqueShellCandidates(candidates: Array<ShellCandidate | null>): ShellCandidate[];
+function uniqueShellCandidates(candidates: Array<ShellCandidate | null>) {
   const seen = new Set<string>();
   const ordered: ShellCandidate[] = [];
   for (const candidate of candidates) {
@@ -644,7 +668,7 @@ function uniqueShellCandidates(candidates: Array<ShellCandidate | null>): ShellC
     seen.add(key);
     ordered.push(candidate);
   }
-  return ordered;
+  return ordered satisfies ShellCandidate[];
 }
 
 const resolveShellCandidates = Effect.fn("terminal.resolveShellCandidates")(function* (
@@ -685,7 +709,8 @@ const resolveShellCandidates = Effect.fn("terminal.resolveShellCandidates")(func
   ]);
 });
 
-function isRetryableShellSpawnError(error: PtyAdapter.PtySpawnError): boolean {
+function isRetryableShellSpawnError(error: PtyAdapter.PtySpawnError): boolean;
+function isRetryableShellSpawnError(error: PtyAdapter.PtySpawnError) {
   const queue: unknown[] = [error];
   const seen = new Set<unknown>();
   const messages: string[] = [];
@@ -722,13 +747,11 @@ function isRetryableShellSpawnError(error: PtyAdapter.PtySpawnError): boolean {
   }
 
   const message = messages.join(" ").toLowerCase();
-  return (
-    message.includes("posix_spawnp failed") ||
+  return (message.includes("posix_spawnp failed") ||
     message.includes("enoent") ||
     message.includes("not found") ||
     message.includes("file not found") ||
-    message.includes("no such file")
-  );
+    message.includes("no such file")) satisfies boolean;
 }
 
 interface TerminalProcessTableSnapshot {
@@ -740,14 +763,19 @@ function subprocessSnapshotPollDelayMs(
   pollIntervalMs: number,
   failureCount: number,
   queryElapsedMs: number,
-): number {
+): number;
+function subprocessSnapshotPollDelayMs(
+  pollIntervalMs: number,
+  failureCount: number,
+  queryElapsedMs: number,
+) {
   return Math.min(
     Math.max(pollIntervalMs * 2 ** failureCount, queryElapsedMs * 4),
     MAX_SUBPROCESS_POLL_INTERVAL_MS,
-  );
+  ) satisfies number;
 }
 
-function parsePosixProcessTable(stdout: string): TerminalProcessTableSnapshot {
+function parsePosixProcessTable(stdout: string) {
   const childrenByParent = new Map<number, number[]>();
   const commandById = new Map<number, string>();
   for (const line of stdout.split(/\r?\n/g)) {
@@ -766,7 +794,7 @@ function parsePosixProcessTable(stdout: string): TerminalProcessTableSnapshot {
 
 function processTableSnapshotFromProcesses(
   processes: ReadonlyArray<ResourceMonitorProcessTableEntry>,
-): TerminalProcessTableSnapshot {
+) {
   const childrenByParent = new Map<number, number[]>();
   const commandById = new Map<number, string>();
   for (const process of processes) {
@@ -799,7 +827,14 @@ function deriveSubprocessInspectResult(
   shell: string | null,
   platform: NodeJS.Platform,
   foregroundProcessGroup?: number | null,
-): TerminalSubprocessInspectResult {
+): TerminalSubprocessInspectResult;
+function deriveSubprocessInspectResult(
+  snapshot: TerminalProcessTableSnapshot,
+  terminalPid: number,
+  shell: string | null,
+  platform: NodeJS.Platform,
+  foregroundProcessGroup?: number | null,
+) {
   const commandName = (pid: number) =>
     normalizeChildCommandName(snapshot.commandById.get(pid) ?? "", platform);
   const shellName = commandName(terminalPid);
@@ -819,7 +854,11 @@ function deriveSubprocessInspectResult(
           (foregroundProcessGroup !== undefined && foregroundProcessGroup !== terminalPid),
       );
   if (childPid === undefined) {
-    return { hasRunningSubprocess: false, childCommand: null, processIds: [] };
+    return {
+      hasRunningSubprocess: false,
+      childCommand: null,
+      processIds: [],
+    } satisfies TerminalSubprocessInspectResult;
   }
   const processIds = new Set<number>([terminalPid]);
   const pending = [terminalPid];
@@ -837,12 +876,13 @@ function deriveSubprocessInspectResult(
     hasRunningSubprocess: true,
     childCommand: normalized ? truncateTerminalWireLabel(normalized) : null,
     processIds: [...processIds],
-  };
+  } satisfies TerminalSubprocessInspectResult;
 }
 
-function parseProcStatForegroundProcessGroup(stat: string): number | null {
+function parseProcStatForegroundProcessGroup(stat: string): number | null;
+function parseProcStatForegroundProcessGroup(stat: string) {
   const tpgid = Number(stat.slice(stat.lastIndexOf(")") + 2).split(" ")[5]);
-  return Number.isInteger(tpgid) ? tpgid : null;
+  return (Number.isInteger(tpgid) ? tpgid : null) satisfies number | null;
 }
 
 const POSIX_PS_ABSOLUTE_PATHS = ["/bin/ps", "/usr/bin/ps"] as const;
@@ -859,11 +899,7 @@ const resolvePosixPsCommand = Effect.fn("terminal.resolvePosixPsCommand")(functi
 const posixProcessTableSnapshot = Effect.fn("terminal.posixProcessTableSnapshot")(function* (
   psCommand: string,
   timeout: Duration.Input,
-): Effect.fn.Return<
-  TerminalProcessTableSnapshot,
-  TerminalSubprocessCheckError,
-  ProcessRunner.ProcessRunner
-> {
+) {
   const processRunner = yield* ProcessRunner.ProcessRunner;
   const result = yield* processRunner
     .run({
@@ -896,11 +932,7 @@ const posixProcessTableSnapshot = Effect.fn("terminal.posixProcessTableSnapshot"
 
 const windowsProcessTableSnapshot = Effect.fn("terminal.windowsProcessTableSnapshot")(function* (
   timeout: Duration.Input,
-): Effect.fn.Return<
-  TerminalProcessTableSnapshot,
-  TerminalSubprocessCheckError,
-  ProcessRunner.ProcessRunner
-> {
+) {
   const processRunner = yield* ProcessRunner.ProcessRunner;
   const command =
     '[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false); Get-CimInstance Win32_Process -ErrorAction Stop | ForEach-Object { Write-Output "$($_.ProcessId)|$($_.ParentProcessId)|$($_.Name)" }';
@@ -947,7 +979,7 @@ interface TerminalHistoryPersistenceCursor {
   readonly fileBytes: number;
 }
 
-function countLineBreaks(data: string): number {
+function countLineBreaks(data: string) {
   let lineBreaks = 0;
   for (let index = data.indexOf("\n"); index !== -1; index = data.indexOf("\n", index + 1)) {
     lineBreaks += 1;
@@ -974,7 +1006,7 @@ export class BoundedTerminalHistory {
     this.append(initial);
   }
 
-  append(text: string): void {
+  append(text: string) {
     if (text.length === 0) return;
     this.appendedLength += text.length;
     this.cachedValue = null;
@@ -1023,7 +1055,7 @@ export class BoundedTerminalHistory {
     }
   }
 
-  private appendChunk(data: string): void {
+  private appendChunk(data: string) {
     const byteLength = Buffer.byteLength(data);
     const lineBreaks = countLineBreaks(data);
     const previous = this.chunks.at(-1);
@@ -1040,7 +1072,7 @@ export class BoundedTerminalHistory {
     this.cachedValue = null;
   }
 
-  private discardChunk(): void {
+  private discardChunk() {
     const first = this.chunks[this.start]!;
     this.sequenceState = terminalSequenceStateAfter(this.sequenceState, first.data);
     this.byteLength -= first.byteLength;
@@ -1048,7 +1080,7 @@ export class BoundedTerminalHistory {
     this.chunks[this.start++] = undefined;
   }
 
-  private trimChunk(offset: number, byteLength: number, lineBreaks: number): void {
+  private trimChunk(offset: number, byteLength: number, lineBreaks: number) {
     const first = this.chunks[this.start]!;
     if (offset === first.data.length) {
       this.discardChunk();
@@ -1062,7 +1094,7 @@ export class BoundedTerminalHistory {
     this.lineBreaks -= lineBreaks;
   }
 
-  private trim(): void {
+  private trim() {
     const trailingNewline = this.lastCodeUnit === 10;
     let linesToDrop = this.lineBreaks + (trailingNewline ? 0 : 1) - this.maxLines;
     while (linesToDrop > 0) {
@@ -1117,7 +1149,8 @@ export class BoundedTerminalHistory {
     }
   }
 
-  clear(): void {
+  clear(): void;
+  clear() {
     this.generation += 1;
     this.appendedLength = 0;
     this.chunks = [];
@@ -1159,13 +1192,14 @@ export class BoundedTerminalHistory {
     };
   }
 
-  value(): string {
-    if (this.cachedValue !== null) return this.cachedValue;
+  value(): string;
+  value() {
+    if (this.cachedValue !== null) return this.cachedValue satisfies string;
     this.cachedValue = this.chunks
       .slice(this.start)
       .map((chunk) => chunk!.data)
       .join("");
-    return this.cachedValue;
+    return this.cachedValue satisfies string;
   }
 }
 
@@ -1174,7 +1208,8 @@ const INHERITED_INPUT_RESET =
   "\u001b[?1;9;66;67;1000;1002;1003;1004;1005;1006;1015;2004l" +
   "\u001b[?25;1035;1036h\u001b[<100u\u001b[=0;1u\u001b[>4m";
 
-function neutralizeInheritedHistory(history: string, maxLines: number, maxBytes: number): string {
+function neutralizeInheritedHistory(history: string, maxLines: number, maxBytes: number): string;
+function neutralizeInheritedHistory(history: string, maxLines: number, maxBytes: number) {
   const resetBytes = history.includes("\u001b")
     ? Buffer.byteLength(INHERITED_INPUT_RESET + "\u001b7\u001b[?1049l")
     : 0;
@@ -1183,7 +1218,7 @@ function neutralizeInheritedHistory(history: string, maxLines: number, maxBytes:
     history,
     Math.max(0, maxBytes - resetBytes),
   ).value();
-  if (!history.includes("\u001b")) return history;
+  if (!history.includes("\u001b")) return history satisfies string;
   let alternateScreen: number | undefined;
   for (const match of history.matchAll(/\u001b(?:\[\?([0-9;]+)([hl])|(c))/gu)) {
     if (match[3]) alternateScreen = undefined;
@@ -1196,18 +1231,18 @@ function neutralizeInheritedHistory(history: string, maxLines: number, maxBytes:
   }
   const leaveAlternateScreen =
     alternateScreen === undefined ? "" : `\u001b7\u001b[?${alternateScreen}l`;
-  return history + leaveAlternateScreen + INHERITED_INPUT_RESET;
+  return (history + leaveAlternateScreen + INHERITED_INPUT_RESET) satisfies string;
 }
 
-function isCsiFinalByte(codePoint: number): boolean {
+function isCsiFinalByte(codePoint: number) {
   return codePoint >= 0x40 && codePoint <= 0x7e;
 }
 
-function isControlSequenceCancel(codePoint: number): boolean {
+function isControlSequenceCancel(codePoint: number) {
   return codePoint === 0x18 || codePoint === 0x1a;
 }
 
-function shouldStripCsiSequence(body: string, finalByte: string): boolean {
+function shouldStripCsiSequence(body: string, finalByte: string) {
   if (finalByte === "n") {
     return true;
   }
@@ -1229,15 +1264,15 @@ function shouldStripCsiSequence(body: string, finalByte: string): boolean {
   return false;
 }
 
-function shouldStripDcsSequence(content: string): boolean {
+function shouldStripDcsSequence(content: string) {
   return /^[01]?[$+][qr]/.test(content);
 }
 
-function shouldStripOscSequence(content: string): boolean {
+function shouldStripOscSequence(content: string) {
   return /^(10|11|12);(?:\?|rgb:)/.test(content);
 }
 
-function stripStringTerminator(value: string): string {
+function stripStringTerminator(value: string) {
   if (value.endsWith("\u001b\\")) {
     return value.slice(0, -2);
   }
@@ -1248,13 +1283,7 @@ function stripStringTerminator(value: string): string {
   return value;
 }
 
-interface C1Effect {
-  readonly next: string;
-  readonly query: boolean;
-  readonly safe: string;
-}
-
-function c1Effect(codePoint: number): C1Effect | undefined {
+function c1Effect(codePoint: number) {
   if (codePoint >= 0xd800 && codePoint <= 0xdfff) return undefined;
   let next: string | undefined;
   let query = false;
@@ -1282,11 +1311,7 @@ function c1Effect(codePoint: number): C1Effect | undefined {
   return next === undefined ? undefined : { next, query, safe };
 }
 
-function findStringEnd(
-  input: string,
-  start: number,
-  isOsc: boolean,
-): { end: number; c1?: { effect: C1Effect; index: number } } | null {
+function findStringEnd(input: string, start: number, isOsc: boolean) {
   for (let index = start; index < input.length; index += 1) {
     const codePoint = input.charCodeAt(index);
     if ((isOsc && codePoint === 0x07) || isControlSequenceCancel(codePoint)) {
@@ -1307,15 +1332,15 @@ function findStringEnd(
   return null;
 }
 
-function isEscapeIntermediateByte(codePoint: number): boolean {
+function isEscapeIntermediateByte(codePoint: number) {
   return codePoint >= 0x20 && codePoint <= 0x2f;
 }
 
-function isEscapeFinalByte(codePoint: number): boolean {
+function isEscapeFinalByte(codePoint: number) {
   return codePoint >= 0x30 && codePoint <= 0x7e;
 }
 
-function findEscapeSequenceEndIndex(input: string, start: number): number | null {
+function findEscapeSequenceEndIndex(input: string, start: number) {
   let cursor = start;
   while (cursor < input.length && isEscapeIntermediateByte(input.charCodeAt(cursor))) {
     cursor += 1;
@@ -1332,10 +1357,7 @@ function findEscapeSequenceEndIndex(input: string, start: number): number | null
 const HISTORY_SEQUENCE_START = /\u001b/;
 const NEXT_HISTORY_SEQUENCE_START = new RegExp(HISTORY_SEQUENCE_START.source, "g");
 
-function sanitizeTerminalHistoryChunk(
-  pendingControlSequence: string,
-  data: string,
-): { visibleText: string; pendingControlSequence: string } {
+function sanitizeTerminalHistoryChunk(pendingControlSequence: string, data: string) {
   if (pendingControlSequence.length === 0 && !HISTORY_SEQUENCE_START.test(data)) {
     return { visibleText: data, pendingControlSequence: "" };
   }
@@ -1467,27 +1489,34 @@ function sanitizeTerminalHistoryChunk(
   return { visibleText, pendingControlSequence: c1Introducer };
 }
 
-function encodedHistoryThreadPart(threadId: string): string {
-  return `terminal_${Base64Url.encode(threadId)}`;
+function encodedHistoryThreadPart(threadId: string): string;
+function encodedHistoryThreadPart(threadId: string) {
+  return `terminal_${Base64Url.encode(threadId)}` satisfies string;
 }
 
-function hashId(id: string): string {
-  return NodeCrypto.createHash("sha256").update(id).digest("base64url");
+function hashId(id: string): string;
+function hashId(id: string) {
+  return NodeCrypto.createHash("sha256").update(id).digest("base64url") satisfies string;
 }
 
-function hashedHistoryThreadPart(threadId: string): string {
-  return `terminal_sha256.${hashId(threadId)}`;
+function hashedHistoryThreadPart(threadId: string): string;
+function hashedHistoryThreadPart(threadId: string) {
+  return `terminal_sha256.${hashId(threadId)}` satisfies string;
 }
 
-function joinHistoryFileName(threadPart: string, terminalPart: string | null): string {
-  return terminalPart === null ? `${threadPart}.log` : `${threadPart}_${terminalPart}.log`;
+function joinHistoryFileName(threadPart: string, terminalPart: string | null): string;
+function joinHistoryFileName(threadPart: string, terminalPart: string | null) {
+  return (
+    terminalPart === null ? `${threadPart}.log` : `${threadPart}_${terminalPart}.log`
+  ) satisfies string;
 }
 
-function toSessionKey(threadId: string, terminalId: string): string {
-  return `${threadId}\u0000${terminalId}`;
+function toSessionKey(threadId: string, terminalId: string): string;
+function toSessionKey(threadId: string, terminalId: string) {
+  return `${threadId}\u0000${terminalId}` satisfies string;
 }
 
-function shouldExcludeTerminalEnvKey(key: string): boolean {
+function shouldExcludeTerminalEnvKey(key: string) {
   const normalizedKey = key.toUpperCase();
   if (normalizedKey.startsWith("SUPATERM_")) {
     return true;
@@ -1506,11 +1535,11 @@ const APPIMAGE_PATH_LIKE_ENV_KEYS = [
   "GSETTINGS_SCHEMA_DIR",
 ] as const;
 
-function isPathSegmentUnderAppDir(segment: string, appDir: string): boolean {
+function isPathSegmentUnderAppDir(segment: string, appDir: string) {
   return segment === appDir || segment.startsWith(`${appDir}/`);
 }
 
-function stripAppImageRuntimeEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+function stripAppImageRuntimeEnv(env: NodeJS.ProcessEnv) {
   if (env.APPIMAGE === undefined && env.APPDIR === undefined) return env;
 
   const scrubbed: NodeJS.ProcessEnv = { ...env };
@@ -1542,7 +1571,13 @@ function createTerminalSpawnEnv(
   runtimeEnv: Record<string, string> | null | undefined,
   platform: NodeJS.Platform,
   home: string,
-): NodeJS.ProcessEnv {
+): NodeJS.ProcessEnv;
+function createTerminalSpawnEnv(
+  baseEnv: NodeJS.ProcessEnv,
+  runtimeEnv: Record<string, string> | null | undefined,
+  platform: NodeJS.Platform,
+  home: string,
+) {
   const spawnEnv: NodeJS.ProcessEnv = {};
   for (const [key, value] of Object.entries(baseEnv)) {
     if (value === undefined) continue;
@@ -1581,12 +1616,10 @@ function createTerminalSpawnEnv(
   if (!fishFeatures?.includes("query-term")) {
     spawnEnv[fishFeaturesKey] = fishFeatures ? `${fishFeatures},no-query-term` : "no-query-term";
   }
-  return stripAppImageRuntimeEnv(spawnEnv);
+  return stripAppImageRuntimeEnv(spawnEnv) satisfies NodeJS.ProcessEnv;
 }
 
-function normalizedRuntimeEnv(
-  env: Record<string, string> | undefined,
-): Record<string, string> | null {
+function normalizedRuntimeEnv(env: Record<string, string> | undefined) {
   if (!env) return null;
   const entries = Object.entries(env);
   if (entries.length === 0) return null;
@@ -1727,12 +1760,7 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
   const shellResolver = options.shellResolver ?? (() => defaultShellResolver(platform, baseEnv));
   const processRunner = yield* ProcessRunner.ProcessRunner;
   const resolveLaunchInputEnvironment = Effect.fn("terminal.resolveLaunchInputEnvironment")(
-    function* <Input extends TerminalOpenInput | TerminalAttachInput>(
-      input: Input,
-    ): Effect.fn.Return<
-      Input,
-      TerminalProviderInstanceNotFoundError | TerminalProviderEnvironmentError
-    > {
+    function* <Input extends TerminalOpenInput | TerminalAttachInput>(input: Input) {
       if (input.providerInstanceId === undefined) return input;
       const resolver = options.resolveProviderInstanceEnvironment;
       if (resolver === undefined) {
@@ -1758,13 +1786,11 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
         queryElapsedMs: Duration.toMillis(elapsed),
       })),
     );
-  const fetchProcessTableSnapshot = (
-    fallbackTimeout: Duration.Input,
-  ): Effect.Effect<{
+  const fetchProcessTableSnapshot: (fallbackTimeout: Duration.Input) => Effect.Effect<{
     readonly snapshot: Result.Result<TerminalProcessTableSnapshot, TerminalSubprocessCheckError>;
     readonly snapshotSucceeded: boolean;
     readonly queryElapsedMs: number;
-  }> =>
+  }> = (fallbackTimeout: Duration.Input) =>
     options.processTable
       ? options.processTable.pipe(
           Effect.map((entries) => ({
@@ -1809,13 +1835,11 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
               Effect.orElseSucceed(() => null),
             ));
   const customSubprocessInspector = options.subprocessInspector;
-  const acquireSubprocessInspector = (
-    fallbackTimeout: Duration.Input,
-  ): Effect.Effect<{
+  const acquireSubprocessInspector: (fallbackTimeout: Duration.Input) => Effect.Effect<{
     readonly inspector: Result.Result<TerminalSubprocessInspector, TerminalSubprocessCheckError>;
     readonly snapshotSucceeded: boolean;
     readonly queryElapsedMs: number;
-  }> =>
+  }> = (fallbackTimeout: Duration.Input) =>
     customSubprocessInspector !== undefined
       ? Effect.succeed({
           inspector: Result.succeed(customSubprocessInspector),
@@ -1827,8 +1851,8 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
           ({ snapshot, snapshotSucceeded, queryElapsedMs }) => ({
             inspector: Result.map(
               snapshot,
-              (table): TerminalSubprocessInspector =>
-                (terminalPid, shell) => {
+              (table) =>
+                ((terminalPid, shell) => {
                   const result = deriveSubprocessInspectResult(table, terminalPid, shell, platform);
                   if (
                     result.hasRunningSubprocess ||
@@ -1840,7 +1864,7 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
                   return Effect.map(foregroundProcessGroup(terminalPid), (group) =>
                     deriveSubprocessInspectResult(table, terminalPid, shell, platform, group),
                   );
-                },
+                }) satisfies TerminalSubprocessInspector as TerminalSubprocessInspector,
             ),
             snapshotSucceeded,
             queryElapsedMs,
@@ -1911,10 +1935,11 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
     f: (state: TerminalManagerState) => readonly [A, TerminalManagerState],
   ) => SynchronizedRef.modify(managerStateRef, f);
 
-  const withThreadLock = <A, E, R>(
+  const withThreadLock: <A, E, R>(
     threadId: string,
     effect: Effect.Effect<A, E, R>,
-  ): Effect.Effect<A, E, R> => threadLocks.withLock(threadId, effect);
+  ) => Effect.Effect<A, E, R> = <A, E, R>(threadId: string, effect: Effect.Effect<A, E, R>) =>
+    threadLocks.withLock(threadId, effect);
 
   const terminalViewers = new Map<string, Map<string, TerminalViewer>>();
   let anonymousViewerCount = 0;
@@ -1957,7 +1982,7 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
     return true;
   };
 
-  const sharedViewerGrid = (sessionKey: string): TerminalGrid | null => {
+  const sharedViewerGrid: (sessionKey: string) => TerminalGrid | null = (sessionKey: string) => {
     let shared: TerminalGrid | null = null;
     for (const viewer of terminalViewers.get(sessionKey)?.values() ?? []) {
       if (!viewer.grid) continue;
@@ -1971,12 +1996,15 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
     return shared;
   };
 
-  const withSharedGrid = <
+  const withSharedGrid: <
     A extends { readonly cols?: number | undefined; readonly rows?: number | undefined },
   >(
     sessionKey: string,
     input: A,
-  ): A => {
+  ) => A = <A extends { readonly cols?: number | undefined; readonly rows?: number | undefined }>(
+    sessionKey: string,
+    input: A,
+  ) => {
     const shared = sharedViewerGrid(sessionKey);
     return shared ? { ...input, cols: shared.cols, rows: shared.rows } : input;
   };
@@ -2400,19 +2428,21 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
     }
   });
 
-  const getSession = Effect.fn("terminal.getSession")(function* (
+  const getSession: (
     threadId: string,
     terminalId: string,
-  ): Effect.fn.Return<Option.Option<TerminalSessionState>> {
-    return yield* Effect.map(readManagerState, (state) =>
-      Option.fromNullishOr(state.sessions.get(toSessionKey(threadId, terminalId))),
-    );
-  });
+  ) => Effect.Effect<Option.Option<TerminalSessionState>> = Effect.fn("terminal.getSession")(
+    function* (threadId: string, terminalId: string) {
+      return yield* Effect.map(readManagerState, (state) =>
+        Option.fromNullishOr(state.sessions.get(toSessionKey(threadId, terminalId))),
+      );
+    },
+  );
 
   const requireSession = Effect.fn("terminal.requireSession")(function* (
     threadId: string,
     terminalId: string,
-  ): Effect.fn.Return<TerminalSessionState, TerminalSessionLookupError> {
+  ) {
     return yield* Effect.flatMap(getSession(threadId, terminalId), (session) =>
       Effect.fromOption(session, () => new TerminalSessionLookupError({ threadId, terminalId })),
     );
@@ -2604,16 +2634,22 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
     yield* evictInactiveSessionsIfNeeded();
   });
 
-  const trySpawn = Effect.fn("terminal.trySpawn")(function* (
+  const trySpawn: (
+    shellCandidates: ReadonlyArray<ShellCandidate>,
+    spawnEnv: NodeJS.ProcessEnv,
+    session: TerminalSessionState,
+    index?: number,
+    lastError?: PtyAdapter.PtySpawnError | null,
+  ) => Effect.Effect<
+    { process: PtyAdapter.PtyProcess; shell: string; shellLabel: string },
+    PtyAdapter.PtySpawnError
+  > = Effect.fn("terminal.trySpawn")(function* (
     shellCandidates: ReadonlyArray<ShellCandidate>,
     spawnEnv: NodeJS.ProcessEnv,
     session: TerminalSessionState,
     index = 0,
     lastError: PtyAdapter.PtySpawnError | null = null,
-  ): Effect.fn.Return<
-    { process: PtyAdapter.PtyProcess; shell: string; shellLabel: string },
-    PtyAdapter.PtySpawnError
-  > {
+  ) {
     if (index >= shellCandidates.length) {
       return yield* new PtyAdapter.PtySpawnError({
         adapter: "terminal-manager",
@@ -3553,9 +3589,9 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
     );
   };
 
-  const metadataEventFromTerminalEvent = (
+  const metadataEventFromTerminalEvent: (
     event: TerminalEvent,
-  ): Effect.Effect<TerminalMetadataStreamEvent | null> => {
+  ) => Effect.Effect<TerminalMetadataStreamEvent | null> = (event: TerminalEvent) => {
     if (!shouldPublishTerminalMetadataEvent(event)) {
       return Effect.succeed(null);
     }

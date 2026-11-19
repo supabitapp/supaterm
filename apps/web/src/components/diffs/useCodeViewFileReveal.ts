@@ -31,7 +31,7 @@ function expandPartialDiffToLine(
   diff: FileDiffMetadata,
   line: number,
   expandHunk: (hunkIndex: number, direction: "up" | "down", lineCount: number) => void,
-): boolean {
+) {
   const { hunks } = diff;
   if (
     hunks.some(

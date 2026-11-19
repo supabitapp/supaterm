@@ -6,11 +6,7 @@ export function resolveOnboardingSetup(
     readonly connection: { readonly phase: string };
   }>,
   selectedIds: ReadonlySet<EnvironmentId>,
-): {
-  readonly ready: boolean;
-  readonly environmentIds: ReadonlyArray<EnvironmentId>;
-  readonly skippedIds: ReadonlyArray<EnvironmentId>;
-} {
+) {
   const selected = environments.filter((environment) => selectedIds.has(environment.environmentId));
   const idsInPhase = (keep: (phase: string) => boolean) =>
     selected.flatMap((environment) =>

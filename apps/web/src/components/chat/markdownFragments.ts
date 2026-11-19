@@ -4,7 +4,7 @@ import { hastPlainTextDeep } from "./markdownHast.logic";
 
 const SANITIZED_FRAGMENT_PREFIX = "user-content-";
 
-function decodeMarkdownFragmentId(href: string): string {
+function decodeMarkdownFragmentId(href: string) {
   const encodedId = href.slice(1);
   try {
     return decodeURIComponent(encodedId);
@@ -13,7 +13,7 @@ function decodeMarkdownFragmentId(href: string): string {
   }
 }
 
-function normalizeSanitizedFragmentId(id: string): string {
+function normalizeSanitizedFragmentId(id: string) {
   let normalizedId = id;
   while (normalizedId.startsWith(SANITIZED_FRAGMENT_PREFIX)) {
     normalizedId = normalizedId.slice(SANITIZED_FRAGMENT_PREFIX.length);
@@ -21,7 +21,7 @@ function normalizeSanitizedFragmentId(id: string): string {
   return normalizedId;
 }
 
-function findMarkdownFragmentTarget(anchor: HTMLAnchorElement, href: string): HTMLElement | null {
+function findMarkdownFragmentTarget(anchor: HTMLAnchorElement, href: string) {
   const decodedId = decodeMarkdownFragmentId(href);
   const normalizedId = normalizeSanitizedFragmentId(decodedId);
   const matchesFragment = (element: HTMLElement) =>
@@ -66,7 +66,7 @@ type HeadingHastNode = {
   children?: HeadingHastNode[];
 };
 
-function githubHeadingSlug(text: string): string {
+function githubHeadingSlug(text: string) {
   return text
     .trim()
     .toLowerCase()

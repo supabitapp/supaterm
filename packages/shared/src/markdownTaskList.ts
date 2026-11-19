@@ -6,7 +6,7 @@ import { unified } from "unified";
 const parser = unified().use(remarkParse).use(remarkGfm);
 
 /** Offset of the `[ ]` marker on the first line of the list item starting at `listItemStart`. */
-export function taskListMarkerOffset(markdown: string, listItemStart: number): number | null {
+export function taskListMarkerOffset(markdown: string, listItemStart: number) {
   const firstLineEnd = markdown.indexOf("\n", listItemStart);
   const firstLine = markdown.slice(
     listItemStart,
@@ -17,11 +17,7 @@ export function taskListMarkerOffset(markdown: string, listItemStart: number): n
   return listItemStart + firstLine.indexOf(match[1]);
 }
 
-export function setMarkdownTaskChecked(
-  markdown: string,
-  markerOffset: number,
-  checked: boolean,
-): string {
+export function setMarkdownTaskChecked(markdown: string, markerOffset: number, checked: boolean) {
   if (
     markerOffset < 0 ||
     markdown[markerOffset] !== "[" ||
@@ -34,17 +30,18 @@ export function setMarkdownTaskChecked(
   return `${markdown.slice(0, markerOffset + 1)}${checked ? "x" : " "}${markdown.slice(markerOffset + 2)}`;
 }
 
-function plainText(node: Nodes): string {
-  if (node.type === "text" || node.type === "inlineCode") return node.value;
+function plainText(node: Nodes): string;
+function plainText(node: Nodes) {
+  if (node.type === "text" || node.type === "inlineCode") return node.value satisfies string;
   if (node.type === "break" || (node.type === "html" && /^<br\b/i.test(node.value))) {
-    return "\u2028";
+    return "\u2028" satisfies string;
   }
-  return "children" in node ? node.children.map(plainText).join("") : "";
+  return ("children" in node ? node.children.map(plainText).join("") : "") satisfies string;
 }
 
 const lettersAndDigits = (text: string) => text.replace(/[^\p{L}\p{N}]/gu, "");
 
-function renderedTexts(item: ListItem): string[] {
+function renderedTexts(item: ListItem) {
   const first = item.children[0];
   const text = first?.type === "paragraph" ? plainText(first) : "";
   return [text, text.replace(/\u2028[^]*$/, ""), text.replace(/[\u2028\n][^]*$/, "")].map(
@@ -63,7 +60,7 @@ export function markdownTaskMarkerOffset(
   index: number,
   renderedText: string,
   checked: boolean,
-): number | null {
+) {
   if (renderedText.includes("\uFFFC")) return null;
   const tasks: ListItem[] = [];
   const collect = (node: Nodes) => {

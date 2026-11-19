@@ -6,7 +6,7 @@ import { cancelledBeforeStart } from "./RestartBackgroundNote.ts";
 export function isScheduledFreshRun(
   run: Pick<OrchestrationV2Run, "freshContext" | "userMessageId">,
   turnItems: OrchestrationV2ThreadProjection["turnItems"],
-): boolean {
+) {
   return (
     run.freshContext === true &&
     turnItems.some(
@@ -21,7 +21,7 @@ export function isScheduledFreshRun(
 /** Ordinal of the latest started fresh-context run. Runs before it never reach a provider again. */
 export function contextBoundaryOrdinal(
   projection: Pick<OrchestrationV2ThreadProjection, "runs" | "turnItems">,
-): number {
+) {
   let boundary = 0;
   for (const run of projection.runs) {
     if (

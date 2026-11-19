@@ -22,25 +22,35 @@ export interface CreatedPullRequestKey {
 export function createdPullRequestKey(
   result: Pick<GitRunStackedActionResult, "pr">,
   project: OrchestrationProjectShell | undefined,
-): CreatedPullRequestKey | null {
+): CreatedPullRequestKey | null;
+export function createdPullRequestKey(
+  result: Pick<GitRunStackedActionResult, "pr">,
+  project: OrchestrationProjectShell | undefined,
+) {
   const { status, number, url } = result.pr;
   if ((status !== "created" && status !== "opened_existing") || number === undefined || !url) {
-    return null;
+    return null satisfies CreatedPullRequestKey | null;
   }
   const parsed = sourceControlDefinitions.parseChangeRequestUrl(url)?.link;
   if (parsed !== undefined) {
-    return { host: parsed.host, repository: parsed.repository, number: parsed.number, url };
+    return {
+      host: parsed.host,
+      repository: parsed.repository,
+      number: parsed.number,
+      url,
+    } satisfies CreatedPullRequestKey | null;
   }
   const identity = project?.repositoryIdentity;
   const kind = identity?.provider;
   const repository = sourceControlDefinitions.repositorySelector(identity);
-  if (!identity || kind === undefined || repository === null) return null;
+  if (!identity || kind === undefined || repository === null)
+    return null satisfies CreatedPullRequestKey | null;
   return {
     host: sourceControlDefinitions.changeRequestHost(identity, kind),
     repository: repository.toLowerCase(),
     number,
     url,
-  };
+  } satisfies CreatedPullRequestKey | null;
 }
 
 /**

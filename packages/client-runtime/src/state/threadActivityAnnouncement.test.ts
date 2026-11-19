@@ -18,16 +18,14 @@ import {
 const firstRun = RunId.make("run-1");
 const secondRun = RunId.make("run-2");
 
-const idle = (
-  runId: RunId | null,
-  runStatus: ThreadActivitySnapshot["runStatus"],
-): ThreadActivitySnapshot => ({ status: "idle", requestId: null, runId, runStatus });
+const idle = (runId: RunId | null, runStatus: ThreadActivitySnapshot["runStatus"]) =>
+  ({ status: "idle", requestId: null, runId, runStatus }) satisfies ThreadActivitySnapshot;
 const busy = (
   status: Exclude<ThreadActivitySnapshot["status"], "idle"> = "working",
   runId: RunId | null = secondRun,
   runStatus: ThreadActivitySnapshot["runStatus"] = "running",
   requestId: string | null = status === "working" ? null : "request-1",
-): ThreadActivitySnapshot => ({ status, requestId, runId, runStatus });
+) => ({ status, requestId, runId, runStatus });
 
 function speak(snapshots: ReadonlyArray<ThreadActivitySnapshot>) {
   let memory: ThreadAnnouncementMemory | null = null;

@@ -1,10 +1,10 @@
-export const normalizeHostname = (host: string): string =>
+export const normalizeHostname = (host: string) =>
   host
     .toLowerCase()
     .replace(/^\[|\]$/g, "")
     .replace(/\.+$/u, "");
 
-const parseIpv4Address = (host: string): readonly number[] | null => {
+const parseIpv4Address = (host: string) => {
   const parts = normalizeHostname(host).split(".").map(Number);
   return parts.length === 4 &&
     parts.every((part) => Number.isInteger(part) && part >= 0 && part <= 255)
@@ -12,7 +12,7 @@ const parseIpv4Address = (host: string): readonly number[] | null => {
     : null;
 };
 
-const parseIpv4MappedIpv6Address = (host: string): readonly number[] | null => {
+const parseIpv4MappedIpv6Address = (host: string) => {
   const normalized = normalizeHostname(host);
   if (!normalized.startsWith("::ffff:")) return null;
   const suffix = normalized.slice("::ffff:".length);
@@ -25,7 +25,7 @@ const parseIpv4MappedIpv6Address = (host: string): readonly number[] | null => {
   return [high >>> 8, high & 0xff, low >>> 8, low & 0xff];
 };
 
-const parseIpv6Address = (host: string): readonly number[] | null => {
+const parseIpv6Address = (host: string) => {
   const normalized = normalizeHostname(host);
   if (!normalized.includes(":")) return null;
   const halves = normalized.split("::");
@@ -44,7 +44,7 @@ const ipv6PrefixMatches = (
   address: readonly number[],
   prefix: readonly number[],
   prefixLength: number,
-): boolean => {
+) => {
   const fullHextets = Math.floor(prefixLength / 16);
   if (address.slice(0, fullHextets).some((part, index) => part !== prefix[index])) return false;
   const remainingBits = prefixLength % 16;
@@ -53,7 +53,7 @@ const ipv6PrefixMatches = (
   return (address[fullHextets]! & mask) === (prefix[fullHextets]! & mask);
 };
 
-const isPrivateIpv4Address = (parts: readonly number[]): boolean =>
+const isPrivateIpv4Address = (parts: readonly number[]) =>
   parts[0] === 0 ||
   parts[0] === 10 ||
   parts[0] === 127 ||
@@ -63,7 +63,7 @@ const isPrivateIpv4Address = (parts: readonly number[]): boolean =>
   (parts[0] === 169 && parts[1] === 254) ||
   (parts[0] === 198 && parts[1]! >= 18 && parts[1]! <= 19);
 
-const isSpecialPurposeIpv4Address = (parts: readonly number[]): boolean =>
+const isSpecialPurposeIpv4Address = (parts: readonly number[]) =>
   isPrivateIpv4Address(parts) ||
   parts[0]! >= 224 ||
   (parts[0] === 192 && parts[1] === 0 && parts[2] === 0) ||
@@ -72,25 +72,25 @@ const isSpecialPurposeIpv4Address = (parts: readonly number[]): boolean =>
   (parts[0] === 198 && parts[1] === 51 && parts[2] === 100) ||
   (parts[0] === 203 && parts[1] === 0 && parts[2] === 113);
 
-export const isLocalLoopbackHost = (host: string): boolean => {
+export const isLocalLoopbackHost = (host: string) => {
   const normalized = normalizeHostname(host);
   if (normalized === "localhost" || normalized === "::1") return true;
   return parseIpv4Address(normalized)?.[0] === 127;
 };
 
-export const isTailnetHost = (host: string): boolean => {
+export const isTailnetHost = (host: string) => {
   const normalized = normalizeHostname(host);
   if (normalized.endsWith(".ts.net")) return true;
   const ipv6 = parseIpv6Address(normalized);
   return ipv6 !== null && ipv6PrefixMatches(ipv6, [0xfd7a, 0x115c, 0xa1e0, 0, 0, 0, 0, 0], 48);
 };
 
-export const isSharedAddressSpaceHost = (host: string): boolean => {
+export const isSharedAddressSpaceHost = (host: string) => {
   const parts = parseIpv4Address(host);
   return parts !== null && parts[0] === 100 && parts[1]! >= 64 && parts[1]! <= 127;
 };
 
-export const isPrivateNetworkHost = (host: string): boolean => {
+export const isPrivateNetworkHost = (host: string) => {
   const normalized = normalizeHostname(host);
   if (
     normalized === "::" ||
@@ -131,7 +131,7 @@ const PRIVATE_FAVICON_TLDS = [
 ];
 const INTERNAL_HOST_LABELS: ReadonlySet<string> = new Set(["corp", "internal", "intranet"]);
 
-export const isPublicFaviconHost = (host: string): boolean => {
+export const isPublicFaviconHost = (host: string) => {
   if (host.endsWith("..")) return false;
   const normalized = normalizeHostname(host);
   if (isPrivateNetworkHost(normalized)) return false;
@@ -172,8 +172,8 @@ export const isPublicFaviconHost = (host: string): boolean => {
   return true;
 };
 
-export const isWildcardHost = (host: string | undefined): boolean =>
+export const isWildcardHost = (host: string | undefined) =>
   host === "0.0.0.0" || host === "::" || host === "[::]";
 
-export const formatHostForUrl = (host: string): string =>
+export const formatHostForUrl = (host: string) =>
   host.includes(":") && !host.startsWith("[") ? `[${host}]` : host;

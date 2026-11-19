@@ -6,9 +6,10 @@ import { isFileBackedComposerAttachment, type DraftComposerAttachment } from "./
 export function composerImageGallery(
   attachments: readonly DraftComposerAttachment[],
   environmentId?: EnvironmentId,
-): FilePreviewItem[] {
-  return attachments.flatMap((attachment): FilePreviewItem[] => {
-    if (attachment.type !== "image" && imageMimeType(attachment) === null) return [];
+) {
+  return attachments.flatMap((attachment) => {
+    if (attachment.type !== "image" && imageMimeType(attachment) === null)
+      return [] satisfies FilePreviewItem[] as FilePreviewItem[];
     if (environmentId !== undefined && attachment.uploadedAttachmentId) {
       return [
         {
@@ -22,13 +23,15 @@ export function composerImageGallery(
             mimeType: attachment.mimeType,
           },
         },
-      ];
+      ] satisfies FilePreviewItem[] as FilePreviewItem[];
     }
     if (isFileBackedComposerAttachment(attachment)) {
-      return [{ kind: "image", name: attachment.name, attachment }];
+      return [
+        { kind: "image", name: attachment.name, attachment },
+      ] satisfies FilePreviewItem[] as FilePreviewItem[];
     }
-    return attachment.type === "image"
+    return (attachment.type === "image"
       ? [{ kind: "image", name: attachment.name, uri: attachment.dataUrl ?? attachment.previewUri }]
-      : [];
-  });
+      : []) satisfies FilePreviewItem[] as FilePreviewItem[];
+  }) satisfies FilePreviewItem[];
 }

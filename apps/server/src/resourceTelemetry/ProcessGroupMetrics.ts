@@ -54,12 +54,10 @@ export interface ProcessGroupTotals {
   readonly count: number;
 }
 
-export function groupProcesses(
-  processes: ReadonlyArray<ResourceTelemetryProcess>,
-): ReadonlyMap<string, ProcessGroupTotals> {
+export function groupProcesses(processes: ReadonlyArray<ResourceTelemetryProcess>) {
   const byPid = new Map(processes.map((process) => [process.identity.pid, process]));
   const serverPid = processes.find((process) => process.category === "server")?.identity.pid;
-  const groupOf = (process: ResourceTelemetryProcess): string => {
+  const groupOf = (process: ResourceTelemetryProcess) => {
     if (process.category === "server") return "server";
     if (process.category === "resource-monitor") return "resource-monitor";
     if (process.category.startsWith("electron-")) return "electron";

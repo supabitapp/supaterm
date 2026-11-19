@@ -1,6 +1,6 @@
 import type { HighlightScheme } from "../../lib/highlights";
 
-function hashReviewDiffKey(diff: string | null | undefined): string {
+function hashReviewDiffKey(diff: string | null | undefined) {
   if (!diff) {
     return "empty";
   }
@@ -20,7 +20,7 @@ export function buildNativeReviewTokensResetKey(input: {
   readonly diff: string | null | undefined;
   readonly fileCount: number;
   readonly rowCount: number;
-}): string {
+}) {
   return [
     input.threadKey ?? "none",
     input.sectionId ?? "none",

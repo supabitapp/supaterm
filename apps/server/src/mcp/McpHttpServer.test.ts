@@ -1583,22 +1583,20 @@ it.effect("gives outside clients an upload URL on the origin their request reach
 it.effect("lists watch tools only to threads that are not delegated children", () =>
   Effect.scoped(
     Effect.gen(function* () {
-      const scopeFor = (
-        token: string,
-        subagent: boolean,
-      ): McpInvocationContext.McpThreadInvocationScope => ({
-        environmentId,
-        requestNamespace: token,
-        thread: {
-          threadId: ThreadId.make(`thread-${token}`),
-          providerSessionId: token,
-          providerInstanceId: ProviderInstanceId.make("codex"),
-          subagent,
-        },
-        client: undefined,
-        capabilities: new Set(["pull-requests"]),
-        issuedAt: 1,
-      });
+      const scopeFor = (token: string, subagent: boolean) =>
+        ({
+          environmentId,
+          requestNamespace: token,
+          thread: {
+            threadId: ThreadId.make(`thread-${token}`),
+            providerSessionId: token,
+            providerInstanceId: ProviderInstanceId.make("codex"),
+            subagent,
+          },
+          client: undefined,
+          capabilities: new Set(["pull-requests"]),
+          issuedAt: 1,
+        }) satisfies McpInvocationContext.McpThreadInvocationScope;
       const scopes = new Map([
         ["parentToken", scopeFor("parentToken", false)],
         ["childToken", scopeFor("childToken", true)],
@@ -1672,18 +1670,19 @@ it.effect("lists watch tools only to threads that are not delegated children", (
 it.effect("lists optional tools to a deferring client only after tool_search loads them", () =>
   Effect.scoped(
     Effect.gen(function* () {
-      const scopeFor = (token: string): McpInvocationContext.McpThreadInvocationScope => ({
-        environmentId,
-        requestNamespace: token,
-        thread: {
-          threadId: ThreadId.make(`thread-${token}`),
-          providerSessionId: token,
-          providerInstanceId: ProviderInstanceId.make("copilot"),
-        },
-        client: undefined,
-        capabilities: new Set(["orchestration"]),
-        issuedAt: 1,
-      });
+      const scopeFor = (token: string) =>
+        ({
+          environmentId,
+          requestNamespace: token,
+          thread: {
+            threadId: ThreadId.make(`thread-${token}`),
+            providerSessionId: token,
+            providerInstanceId: ProviderInstanceId.make("copilot"),
+          },
+          client: undefined,
+          capabilities: new Set(["orchestration"]),
+          issuedAt: 1,
+        }) satisfies McpInvocationContext.McpThreadInvocationScope;
       const scopes = new Map([
         ["deferringToken", scopeFor("deferringToken")],
         ["otherToken", scopeFor("otherToken")],
@@ -1755,7 +1754,7 @@ it.effect("lists optional tools to a deferring client only after tool_search loa
               })
               .pipe(
                 Effect.flatMap((response) => response.text),
-                Effect.map((text): unknown =>
+                Effect.map((text) =>
                   text
                     .split("\n")
                     .filter((line) => line.startsWith("data: ") || line.startsWith("{"))

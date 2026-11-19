@@ -19,7 +19,7 @@ import { PullRequestCandidatePicker } from "./PullRequestCandidatePicker";
 import { readableFailure } from "./pullRequestDetail.logic";
 import { pullRequestLabelColor } from "./pullRequestList.logic";
 
-function matches(candidate: PullRequestLabelCandidate, query: string): boolean {
+function matches(candidate: PullRequestLabelCandidate, query: string) {
   if (query.length === 0) return true;
   const needle = query.toLowerCase();
   return (

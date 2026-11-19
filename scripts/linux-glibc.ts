@@ -7,7 +7,7 @@ import * as NodeUtil from "node:util";
 const GLIBC_BUILD_CEILING = "2.39";
 const readelf = NodeUtil.promisify(NodeChildProcess.execFile);
 
-function compareVersions(left: string, right: string): number {
+function compareVersions(left: string, right: string) {
   const a = left.split(".").map(Number);
   const b = right.split(".").map(Number);
   for (let i = 0; i < Math.max(a.length, b.length); i++) {
@@ -17,7 +17,7 @@ function compareVersions(left: string, right: string): number {
   return 0;
 }
 
-export function parseGlibcNeeds(output: string): string | undefined {
+export function parseGlibcNeeds(output: string) {
   let inNeeds = false;
   let minimum: string | undefined;
   for (const line of output.split("\n")) {
@@ -33,13 +33,10 @@ export function parseGlibcNeeds(output: string): string | undefined {
   return minimum;
 }
 
-export async function scanGlibcNeeds(appOutDir: string): Promise<{
-  minimum: string;
-  elfCount: number;
-}> {
+export async function scanGlibcNeeds(appOutDir: string) {
   let minimum: string | undefined;
   let elfCount = 0;
-  async function walk(directory: string): Promise<void> {
+  async function walk(directory: string) {
     for (const entry of await NodeFSP.readdir(directory, { withFileTypes: true })) {
       const file = NodePath.join(directory, entry.name);
       if (entry.isDirectory()) {

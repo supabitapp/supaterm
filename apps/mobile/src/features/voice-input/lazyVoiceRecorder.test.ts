@@ -5,7 +5,6 @@ import { VoiceInputController } from "@supaterm/client-runtime/voice-input";
 import { createLazyVoiceRecorder, type VoiceRecordingInput } from "./lazyVoiceRecorder";
 
 type Status = { readonly isFinished: boolean };
-type State = { readonly isRecording: boolean };
 
 function createNativeRecorder(uri: string) {
   const listeners = new Set<(status: Status) => void>();
@@ -17,8 +16,8 @@ function createNativeRecorder(uri: string) {
       this.uri = this.prepared;
     }),
     record: vi.fn(),
-    stop: vi.fn(async (): Promise<void> => undefined),
-    getStatus: vi.fn((): State => ({ isRecording: true })),
+    stop: vi.fn(async () => undefined),
+    getStatus: vi.fn(() => ({ isRecording: true })),
     addListener: vi.fn((_event: "recordingStatusUpdate", listener: (status: Status) => void) => {
       listeners.add(listener);
       return { remove: () => listeners.delete(listener) };
@@ -28,7 +27,7 @@ function createNativeRecorder(uri: string) {
       return { remove: () => frameListeners.delete(listener) };
     },
     frameListeners,
-    getAvailableInputs: vi.fn((): ReadonlyArray<VoiceRecordingInput> => [
+    getAvailableInputs: vi.fn(() => [
       { uid: "car", name: "CarPlay", type: "CarAudio" },
       { uid: "built-in", name: "iPhone Microphone", type: "MicrophoneBuiltIn" },
     ]),

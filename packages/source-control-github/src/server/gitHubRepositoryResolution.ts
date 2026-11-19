@@ -14,9 +14,7 @@ export interface GitHubRepositoryLocator {
   readonly name: string;
 }
 
-export function parseFetchRemotes(
-  remotes: string,
-): ReadonlyArray<{ readonly name: string; readonly url: string }> {
+export function parseFetchRemotes(remotes: string) {
   return [...parseGitRemoteFetchUrls(remotes)].map(([name, url]) => ({ name, url }));
 }
 
@@ -24,7 +22,7 @@ export function selectGitHubBaseRepository(input: {
   readonly remotes: string;
   readonly resolved: string;
   readonly host: string;
-}): { readonly owner: string; readonly name: string } | null {
+}) {
   const host = input.host.toLowerCase();
   const remotes = parseFetchRemotes(input.remotes);
   const repositories = new Map<string, { readonly owner: string; readonly name: string }>();
@@ -68,7 +66,7 @@ export function resolveGitHubRepository(input: {
 
   readonly hostHint: string | undefined;
   readonly defaultHost: string;
-}): { readonly host: string; readonly locator: GitHubRepositoryLocator | null } {
+}) {
   const fetchRemotes = parseFetchRemotes(input.remotes).map((remote) => ({
     ...remote,
     host: gitHubApiHostForRemote(remote.url),
@@ -104,10 +102,7 @@ export function resolveGitHubRepository(input: {
   return { host, locator: null };
 }
 
-export function parseGitHubRepositorySelector(
-  selector: string,
-  defaultHost: string,
-): GitHubRepositoryLocator | null {
+export function parseGitHubRepositorySelector(selector: string, defaultHost: string) {
   const withoutGitSuffix = (path: string) => path.replace(/\.git\/*$/i, "");
   const trimmed = selector.trim();
   if (/^https?:\/\//i.test(trimmed)) {
@@ -129,15 +124,14 @@ export function parseGitHubRepositorySelector(
   return null;
 }
 
-export function parsePullRequestReference(
-  reference: string,
-):
-  | { readonly kind: "number"; readonly number: number }
-  | { readonly kind: "url"; readonly locator: GitHubRepositoryLocator; readonly number: number }
-  | { readonly kind: "branch"; readonly headSelector: string } {
+export function parsePullRequestReference(reference: string) {
   const trimmed = reference.trim();
   const numbered = /^#?([1-9]\d*)$/.exec(trimmed);
-  if (numbered) return { kind: "number", number: Number(numbered[1]) };
+  if (numbered)
+    return { kind: "number", number: Number(numbered[1]) } satisfies
+      | { readonly kind: "number"; readonly number: number }
+      | { readonly kind: "url"; readonly locator: GitHubRepositoryLocator; readonly number: number }
+      | { readonly kind: "branch"; readonly headSelector: string };
   if (/^https?:\/\//i.test(trimmed)) {
     try {
       const url = new URL(trimmed);
@@ -147,22 +141,32 @@ export function parsePullRequestReference(
           kind: "url",
           locator: { host: url.host.toLowerCase(), owner: match[1]!, name: match[2]! },
           number: Number(match[3]),
-        };
+        } satisfies
+          | { readonly kind: "number"; readonly number: number }
+          | {
+              readonly kind: "url";
+              readonly locator: GitHubRepositoryLocator;
+              readonly number: number;
+            }
+          | { readonly kind: "branch"; readonly headSelector: string };
       }
     } catch {}
   }
-  return { kind: "branch", headSelector: trimmed };
+  return { kind: "branch", headSelector: trimmed } satisfies
+    | { readonly kind: "number"; readonly number: number }
+    | { readonly kind: "url"; readonly locator: GitHubRepositoryLocator; readonly number: number }
+    | { readonly kind: "branch"; readonly headSelector: string };
 }
 
 const GITHUB_DOT_COM_SSH_ALIAS = /^github\.com-[a-z0-9_-]+$/u;
 
-function apiHostForSshAlias(host: string): string | null | undefined {
+function apiHostForSshAlias(host: string) {
   if (!host.includes(".")) return host.includes("github") ? "github.com" : null;
   return GITHUB_DOT_COM_SSH_ALIAS.test(host) ? "github.com" : undefined;
 }
 
 /** Recognized GitHub SSH aliases use github.com for API requests. */
-export function gitHubApiHostForRemote(remoteUrl: string): string | null {
+export function gitHubApiHostForRemote(remoteUrl: string) {
   const remote = parseGitRemoteHost(remoteUrl);
   if (remote === null) return null;
   const host = new URL(`https://${remote.host}`).host.toLowerCase();
@@ -173,7 +177,7 @@ export function gitHubApiHostForRemote(remoteUrl: string): string | null {
   return definition.recognizeRemote(remote) === null ? null : host;
 }
 
-function apiHostForHint(host: string, remotes: ReadonlyArray<{ readonly url: string }>): string {
+function apiHostForHint(host: string, remotes: ReadonlyArray<{ readonly url: string }>) {
   const normalized = host.toLowerCase();
   if (GITHUB_DOT_COM_SSH_ALIAS.test(normalized)) {
     const matching = remotes.filter(

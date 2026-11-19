@@ -13,7 +13,7 @@ function mountTimeline() {
   return Object.assign(timeline, { [Symbol.dispose]: () => timeline.remove() });
 }
 
-function wheel(deltaY: number, wheelDeltaY: number): WheelEvent {
+function wheel(deltaY: number, wheelDeltaY: number) {
   const init = { cancelable: true, deltaY, wheelDeltaY };
   return new WheelEvent("wheel", init);
 }

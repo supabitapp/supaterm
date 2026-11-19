@@ -1507,12 +1507,17 @@ describe("OrchestratorMcpService provider resolution", () => {
     issuedAt: 1,
   };
 
-  const providerSnapshot = (input: {
+  const providerSnapshot: (input: {
     readonly instanceId: ProviderInstanceId;
     readonly driver: ProviderDriverKind;
     readonly model?: string;
     readonly enabled?: boolean;
-  }): ServerProvider => ({
+  }) => ServerProvider = (input: {
+    readonly instanceId: ProviderInstanceId;
+    readonly driver: ProviderDriverKind;
+    readonly model?: string;
+    readonly enabled?: boolean;
+  }) => ({
     instanceId: input.instanceId,
     driver: input.driver,
     enabled: input.enabled ?? true,
@@ -1552,14 +1557,21 @@ describe("OrchestratorMcpService provider resolution", () => {
       }),
     );
 
-  const parentProjection = (
+  const parentProjection: (
+    subagents: ReadonlyArray<unknown>,
+    modelSelection?: {
+      readonly instanceId: ProviderInstanceId;
+      readonly model: string;
+      readonly options?: ReadonlyArray<{ readonly id: string; readonly value: unknown }>;
+    },
+  ) => OrchestrationV2ThreadProjection = (
     subagents: ReadonlyArray<unknown>,
     modelSelection: {
       readonly instanceId: ProviderInstanceId;
       readonly model: string;
       readonly options?: ReadonlyArray<{ readonly id: string; readonly value: unknown }>;
     } = { instanceId: codexInstanceId, model: "gpt-5.4" },
-  ): OrchestrationV2ThreadProjection =>
+  ) =>
     ({
       thread: {
         id: parentThreadId,
@@ -3595,29 +3607,30 @@ describe("OrchestratorMcpService provider resolution", () => {
   describe("scheduled tasks at modes above the caller's", () => {
     const projectId = ProjectId.make("project:scheduled");
     const boundThreadId = ThreadId.make("thread:scheduled-bound");
-    const task = (overrides: Partial<ScheduledTask>): ScheduledTask => ({
-      id: ScheduledTaskId.make("scheduled-task:interval"),
-      title: "Scheduled check",
-      prompt: "Check project status",
-      enabled: true,
-      schedule: { type: "interval", everyMs: 3600000 },
-      projectId,
-      threadId: null,
-      workspaceStrategy: { type: "root" },
-      modelSelection: { instanceId: ProviderInstanceId.make("codex"), model: "gpt-5" },
-      runtimeMode: "approval-required",
-      interactionMode: "default",
-      createdBy: "agent",
-      creationSource: "mcp",
-      createdAt: "2026-10-05T00:00:00.000Z",
-      updatedAt: "2026-10-05T00:00:00.000Z",
-      nextRunAt: null,
-      lastRunAt: null,
-      lastRunStatus: "never",
-      lastRunError: null,
-      runCount: 0,
-      ...overrides,
-    });
+    const task = (overrides: Partial<ScheduledTask>) =>
+      ({
+        id: ScheduledTaskId.make("scheduled-task:interval"),
+        title: "Scheduled check",
+        prompt: "Check project status",
+        enabled: true,
+        schedule: { type: "interval", everyMs: 3600000 },
+        projectId,
+        threadId: null,
+        workspaceStrategy: { type: "root" },
+        modelSelection: { instanceId: ProviderInstanceId.make("codex"), model: "gpt-5" },
+        runtimeMode: "approval-required",
+        interactionMode: "default",
+        createdBy: "agent",
+        creationSource: "mcp",
+        createdAt: "2026-10-05T00:00:00.000Z",
+        updatedAt: "2026-10-05T00:00:00.000Z",
+        nextRunAt: null,
+        lastRunAt: null,
+        lastRunStatus: "never",
+        lastRunError: null,
+        runCount: 0,
+        ...overrides,
+      }) satisfies ScheduledTask;
     const supervisedClient: McpInvocationScope = {
       environmentId: EnvironmentId.make("environment:scheduled"),
       requestNamespace: "client:scheduled",
@@ -4966,7 +4979,9 @@ describe("OrchestratorMcpService thread stop", () => {
     issuedAt: 1,
   };
 
-  const liveAdapter = (cwd: string): ProviderAdapter.ProviderAdapterV2["Service"] => ({
+  const liveAdapter: (cwd: string) => ProviderAdapter.ProviderAdapterV2["Service"] = (
+    cwd: string,
+  ) => ({
     instanceId,
     driver,
     getCapabilities: () => Effect.succeed(CodexProviderCapabilitiesV2),

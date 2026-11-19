@@ -117,7 +117,7 @@ function markdownThreadFindText(
   skills: readonly InlineSkill[] = [],
   lineBreaks = false,
   renderInsights = false,
-): string[] {
+) {
   const processor = userMessage
     ? userProcessor
     : lineBreaks
@@ -172,7 +172,7 @@ function markdownThreadFindText(
       }
       const target = candidate ? resolveMarkdownFileLinkTarget(candidate, cwd) : null;
       if (target) {
-        const labelText = (node: TextTree): string =>
+        const labelText: (node: TextTree) => string = (node: TextTree) =>
           node.value ?? (node.children ?? []).map(labelText).join("");
         const label = labelText(node);
         if (node.tagName === "a" && candidate && !isMarkdownFileLinkLabel(label, candidate))
@@ -218,7 +218,7 @@ function markdownThreadFindText(
   return segments;
 }
 
-export function searchablePlanSegments(markdown: string, cwd?: string): readonly string[] {
+export function searchablePlanSegments(markdown: string, cwd?: string) {
   return [
     proposedPlanTitle(markdown) ?? "Proposed plan",
     ...markdownThreadFindText(stripDisplayedPlanMarkdown(markdown), false, cwd, []),
@@ -229,7 +229,7 @@ export function searchableMessageSegments(
   message: Pick<OrchestrationV2ConversationMessage, "role" | "text" | "streaming" | "context">,
   cwd?: string,
   skills: readonly InlineSkill[] = [],
-): readonly string[] | null {
+) {
   if (message.role === "user") {
     if (isAttachmentOnlyBootstrapPrompt(message.text)) return [];
     const text = message.context ? message.text : upgradeLegacyContextMessage(message.text).text;

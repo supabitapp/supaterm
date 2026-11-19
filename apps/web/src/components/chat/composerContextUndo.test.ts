@@ -36,8 +36,12 @@ const annotation = {
   createdAt: "2026-01-01T00:00:00.000Z",
 } satisfies PreviewAnnotationPayload;
 
-function retention(): RetainedAttachmentContextPayloads {
-  return { files: new Map(), previewAnnotations: new Map() };
+function retention(): RetainedAttachmentContextPayloads;
+function retention() {
+  return {
+    files: new Map(),
+    previewAnnotations: new Map(),
+  } satisfies RetainedAttachmentContextPayloads;
 }
 
 describe("reconcileAttachmentContextReferences", () => {

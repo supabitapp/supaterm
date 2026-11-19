@@ -38,7 +38,7 @@ vi.mock(
 import { appAtomRegistry } from "../rpc/atomRegistry";
 import { startKeybindingsUpdateToasts } from "./KeybindingsUpdateToast";
 
-function keybindingsUpdated(issues: ReadonlyArray<unknown>): ServerConfigStreamEvent {
+function keybindingsUpdated(issues: ReadonlyArray<unknown>) {
   return { type: "keybindingsUpdated", payload: { keybindings: [], issues } } as never;
 }
 

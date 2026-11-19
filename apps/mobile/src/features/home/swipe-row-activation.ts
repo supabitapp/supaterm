@@ -41,7 +41,7 @@ export const SwipeRowActivationContext = createContext<SwipeRowActivation | null
 
 const subscribeNever = () => () => {};
 
-export function useSwipeRowDormant(key: string | undefined): boolean {
+export function useSwipeRowDormant(key: string | undefined) {
   const activation = use(SwipeRowActivationContext);
   return useSyncExternalStore(
     activation?.subscribe ?? subscribeNever,

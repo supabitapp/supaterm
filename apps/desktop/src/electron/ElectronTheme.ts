@@ -17,7 +17,7 @@ export class ElectronThemeSetSourceError extends Schema.TaggedError<ElectronThem
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Failed to set the Electron theme source to ${this.source}.`;
   }
 }

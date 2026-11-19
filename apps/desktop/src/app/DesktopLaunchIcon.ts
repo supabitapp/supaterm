@@ -35,20 +35,19 @@ const ease = (x: number) => {
   return t * t * (3 - 2 * t);
 };
 
-const dockAppearanceFor = (
-  iconStyle: string,
-  systemDarkMode: boolean,
-): Option.Option<DesktopAssets.IconAppearance> => {
+const dockAppearanceFor = (iconStyle: string, systemDarkMode: boolean) => {
   switch (iconStyle) {
     case "":
     case "RegularLight":
-      return Option.some("light");
+      return Option.some("light") satisfies Option.Option<DesktopAssets.IconAppearance>;
     case "RegularAutomatic":
-      return Option.some(systemDarkMode ? "dark" : "light");
+      return Option.some(
+        systemDarkMode ? "dark" : "light",
+      ) satisfies Option.Option<DesktopAssets.IconAppearance>;
     case "RegularDark":
-      return Option.some("dark");
+      return Option.some("dark") satisfies Option.Option<DesktopAssets.IconAppearance>;
     default:
-      return Option.none();
+      return Option.none() satisfies Option.Option<DesktopAssets.IconAppearance>;
   }
 };
 

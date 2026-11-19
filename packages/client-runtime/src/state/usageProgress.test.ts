@@ -8,7 +8,7 @@ import { describe, expect, it } from "vite-plus/test";
 
 import { usageEnvironmentProgress, usageLoadingState, usageProgress } from "./usageProgress.ts";
 
-function summary(refreshing: readonly UsageProviderKind[] = []): UsageSummary {
+function summary(refreshing: readonly UsageProviderKind[] = []) {
   return {
     contractVersion: USAGE_CONTRACT_VERSION,
     readAt: "2026-09-05T12:00:00Z",
@@ -28,7 +28,7 @@ function summary(refreshing: readonly UsageProviderKind[] = []): UsageSummary {
     })),
     pricing: { status: "fresh", source: "test", fetchedAt: null, knownModels: 1 },
     scanDurationMs: 1,
-  };
+  } satisfies UsageSummary;
 }
 
 function environment(

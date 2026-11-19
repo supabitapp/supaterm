@@ -183,7 +183,7 @@ import * as SecretRequests from "./secrets/SecretRequests.ts";
 const snapshotConfig = (fields: Partial<ServerConfig>) =>
   ({ availableEditors: [], settings: {}, ...fields }) as unknown as ServerConfig;
 
-const settingsUpdated = (settings: object): ServerConfigStreamEvent => ({
+const settingsUpdated: (settings: object) => ServerConfigStreamEvent = (settings: object) => ({
   version: 1,
   type: "settingsUpdated",
   payload: { settings: settings as ServerConfig["settings"] },
@@ -576,7 +576,7 @@ it.effect("shares each live event item across subscribers and dedupes bodies per
     const messageId = MessageId.make("message:shared-live");
     const at = DateTime.makeUnsafe("2026-10-31T00:00:00.000Z");
     const owner = { threadId, runId: null, nodeId: null, createdAt: at, updatedAt: at };
-    const freeze = <A>(value: A): A => {
+    const freeze = <A>(value: A) => {
       if (typeof value === "object" && value !== null && !DateTime.isDateTime(value)) {
         for (const child of Object.values(value)) freeze(child);
         Object.freeze(value);

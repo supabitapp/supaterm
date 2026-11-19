@@ -77,7 +77,7 @@ export const composerContextImportsAtom = Atom.make<Record<string, boolean>>({})
   Atom.keepAlive,
 );
 
-export function setComposerContextImporting(draftKey: string, importing: boolean): void {
+export function setComposerContextImporting(draftKey: string, importing: boolean) {
   const next = { ...appAtomRegistry.get(composerContextImportsAtom) };
   if (importing) next[draftKey] = true;
   else delete next[draftKey];
@@ -104,12 +104,12 @@ const composerDraftResetAtom = Atom.family((_draftKey: string) =>
 );
 const NO_COMPOSER_DRAFT_RESET_ATOM = Atom.make(0);
 
-function nextComposerDraftReset(): number {
+function nextComposerDraftReset() {
   lastComposerDraftReset += 1;
   return lastComposerDraftReset;
 }
 
-function markComposerDraftReset(draftKey: string): void {
+function markComposerDraftReset(draftKey: string) {
   appAtomRegistry.set(composerDraftResetAtom(draftKey), nextComposerDraftReset());
 }
 
@@ -118,7 +118,7 @@ function markComposerDraftReset(draftKey: string): void {
  * drafts. iOS editor events read it synchronously, so an edit the editor made before applying the
  * reset cannot restore the text or land in the next draft. Android ignores it.
  */
-export function useComposerDraftResetGeneration(draftKey: string | null): () => number {
+export function useComposerDraftResetGeneration(draftKey: string | null) {
   const atom = draftKey === null ? NO_COMPOSER_DRAFT_RESET_ATOM : composerDraftResetAtom(draftKey);
   useAtomValue(atom);
   const [selected, setSelected] = useState({ draftKey, generation: 0 });
@@ -132,32 +132,23 @@ export function rememberComposerDraftSelection(
   draftKey: string,
   text: string,
   selection: { start: number; end: number },
-): void {
+) {
   appAtomRegistry.set(composerDraftSelectionAtom(draftKey), { text, ...selection });
 }
 
-function matchingComposerDraftSelection(
-  selection: ComposerDraftSelection | null,
-  text: string,
-): { start: number; end: number } | null {
+function matchingComposerDraftSelection(selection: ComposerDraftSelection | null, text: string) {
   if (selection?.text !== text) return null;
   return { start: selection.start, end: selection.end };
 }
 
-function readComposerDraftSelection(
-  draftKey: string,
-  text: string,
-): { start: number; end: number } | null {
+function readComposerDraftSelection(draftKey: string, text: string) {
   return matchingComposerDraftSelection(
     appAtomRegistry.get(composerDraftSelectionAtom(draftKey)),
     text,
   );
 }
 
-export function useComposerDraftSelection(
-  draftKey: string | null,
-  text: string,
-): { start: number; end: number } | null {
+export function useComposerDraftSelection(draftKey: string | null, text: string) {
   const selection = useAtomValue(
     draftKey === null ? NO_COMPOSER_DRAFT_SELECTION_ATOM : composerDraftSelectionAtom(draftKey),
   );
@@ -173,7 +164,7 @@ export interface ComposerDraftInsertion {
 export function captureComposerDraftInsertion(
   draftKey: string,
   selection?: { start: number; end: number },
-): ComposerDraftInsertion {
+) {
   const { text } = getComposerDraftSnapshot(draftKey);
   return {
     text,
@@ -182,10 +173,7 @@ export function captureComposerDraftInsertion(
   };
 }
 
-function mapCapturedRange(
-  captured: ComposerDraftInsertion,
-  text: string,
-): { start: number; end: number } | null {
+function mapCapturedRange(captured: ComposerDraftInsertion, text: string) {
   if (captured.text === text) return captured;
   if (captured.start !== captured.end) return null;
   const previous = captured.text;
@@ -210,7 +198,7 @@ function caretAfterInsertion(
   previousText: string,
   range: { start: number; end: number },
   inserted: number,
-): { start: number; end: number } {
+) {
   const caret = readComposerDraftSelection(draftKey, previousText);
   if (caret && caret.start > range.end) {
     const delta = range.start + inserted - range.end;
@@ -243,14 +231,11 @@ function draftWithoutInsertionSelection(
 export function countComposerDraftAttachmentsAfterSelection(
   draftKey: string,
   target: ComposerDraftInsertion,
-): number {
+) {
   return getComposerDraftAfterSelection(draftKey, target).attachments.length;
 }
 
-export function getComposerDraftAfterSelection(
-  draftKey: string,
-  target: ComposerDraftInsertion,
-): ComposerDraft {
+export function getComposerDraftAfterSelection(draftKey: string, target: ComposerDraftInsertion) {
   return draftWithoutInsertionSelection(draftKey, getComposerDraftSnapshot(draftKey), target);
 }
 
@@ -258,7 +243,7 @@ function withReferencedContextFiles(
   draft: ComposerDraft,
   text: string,
   context: OrchestrationMessageContext | undefined,
-): ComposerDraft {
+) {
   const previousIds = new Set(
     draft.context?.records.flatMap((record) =>
       "attachmentId" in record ? [record.attachmentId] : [],
@@ -339,7 +324,7 @@ export function createComposerDraftContextHistory() {
 export function setComposerDraftContext(
   draftKey: string,
   context: OrchestrationMessageContext | undefined,
-): void {
+) {
   updateComposerDrafts((current) => ({
     ...current,
     [draftKey]: { ...normalizeDraft(current[draftKey]), context },
@@ -354,7 +339,7 @@ export function insertComposerDraftContext(
     attachments?: ReadonlyArray<DraftComposerAttachment>;
   },
   target?: ComposerDraftInsertion,
-): boolean {
+) {
   let inserted = false;
   let removed: ReadonlyArray<DraftComposerAttachment> = [];
   updateComposerDrafts((current) => {
@@ -386,7 +371,7 @@ function draftWithInsertedContext(
   draft: ComposerDraft,
   content: { text: string; context: OrchestrationMessageContext },
   target?: ComposerDraftInsertion,
-): ComposerDraft | null {
+) {
   const { start, end } = contextInsertionRange(draftKey, draft, target);
   const before = draft.text.slice(0, start);
   const after = draft.text.slice(end);
@@ -413,7 +398,7 @@ export class ComposerDraftPersistenceError extends Schema.TaggedError<ComposerDr
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Composer draft persistence operation ${this.operation} failed for ${this.directory}/${this.fileName}.`;
   }
 }
@@ -565,13 +550,13 @@ let dirtyGeneration = 0;
 let persistedGeneration = 0;
 const persistenceQueue = new SerializedAsyncQueue();
 
-function cancelPersistDebounce(): void {
+function cancelPersistDebounce() {
   if (persistTimer === null) return;
   clearTimeout(persistTimer);
   persistTimer = null;
 }
 
-export function resetComposerDraftsLoadState(): void {
+export function resetComposerDraftsLoadState() {
   loadPromise = null;
   appAtomRegistry.set(composerDraftsLoadedAtom, false);
   cancelPersistDebounce();
@@ -599,7 +584,7 @@ function attachmentContextRecord(
 function restoreMissingComposerFileReferences(
   draft: ComposerDraft,
   attachments = draft.attachments,
-): ComposerDraft {
+) {
   const records = [...(draft.context?.records ?? [])];
   const usedIds = new Set<string>(records.map((record) => record.contextId));
   const referenced = new Set(
@@ -637,10 +622,12 @@ function restoreMissingComposerFileReferences(
     referenced.add(key);
     changed = true;
   }
-  return changed ? { ...draft, text, context: { version: 1, records } } : draft;
+  return (
+    changed ? { ...draft, text, context: { version: 1, records } } : draft
+  ) satisfies ComposerDraft;
 }
 
-function normalizeDraft(draft: ComposerDraft | undefined): ComposerDraft {
+function normalizeDraft(draft: ComposerDraft | undefined) {
   if (!draft) {
     return EMPTY_DRAFT;
   }
@@ -651,15 +638,16 @@ function normalizeDraft(draft: ComposerDraft | undefined): ComposerDraft {
   };
 }
 
-export function getComposerDraftSnapshot(draftKey: string): ComposerDraft {
-  return normalizeDraft(appAtomRegistry.get(composerDraftsAtom)[draftKey]);
+export function getComposerDraftSnapshot(draftKey: string): ComposerDraft;
+export function getComposerDraftSnapshot(draftKey: string) {
+  return normalizeDraft(appAtomRegistry.get(composerDraftsAtom)[draftKey]) satisfies ComposerDraft;
 }
 
-export function isComposerDraftEmpty(draft: ComposerDraft): boolean {
+export function isComposerDraftEmpty(draft: ComposerDraft) {
   return isEmptyDraft(draft);
 }
 
-function isEmptyDraft(draft: ComposerDraft): boolean {
+function isEmptyDraft(draft: ComposerDraft) {
   return (
     draft.text.length === 0 &&
     draft.attachments.length === 0 &&
@@ -675,7 +663,7 @@ function withComposerDraft(
   current: Record<string, ComposerDraft>,
   draftKey: string,
   draft: ComposerDraft,
-): Record<string, ComposerDraft> {
+) {
   if (isEmptyDraft(draft) && draft.project === undefined) {
     const next = { ...current };
     delete next[draftKey];
@@ -686,7 +674,7 @@ function withComposerDraft(
 
 export { isNewTaskDraftKey, newTaskDraftKey } from "./new-task-draft-key";
 
-function newDraftId(): string {
+function newDraftId() {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
@@ -695,31 +683,40 @@ export function decodePersistedComposerState(value: unknown): {
   readonly stickyModelSelection: ModelSelection | null;
   readonly stickyNewTaskProject: ScopedProjectRef | null;
   readonly modelOptionMemory: ModelOptionMemoryState;
-} {
+};
+export function decodePersistedComposerState(value: unknown) {
   const parsed = decodePersistedComposerDraftsDocument(value);
   return {
     drafts: Object.fromEntries(
       Object.entries(parsed.drafts)
-        .map(([key, draft]): readonly [string, ComposerDraft] => [
-          key,
-          restoreMissingComposerFileReferences(
-            isNewTaskDraftKey(key) &&
-              draft.modelSelection &&
-              draft.text.length === 0 &&
-              draft.attachments.length === 0 &&
-              draft.runtimeMode === undefined &&
-              draft.interactionMode === undefined &&
-              draft.workspaceSelection === undefined
-              ? { ...draft, modelSelection: undefined }
-              : draft,
-          ),
-        ])
+        .map(
+          ([key, draft]) =>
+            [
+              key,
+              restoreMissingComposerFileReferences(
+                isNewTaskDraftKey(key) &&
+                  draft.modelSelection &&
+                  draft.text.length === 0 &&
+                  draft.attachments.length === 0 &&
+                  draft.runtimeMode === undefined &&
+                  draft.interactionMode === undefined &&
+                  draft.workspaceSelection === undefined
+                  ? { ...draft, modelSelection: undefined }
+                  : draft,
+              ),
+            ] satisfies readonly [string, ComposerDraft],
+        )
         .filter(([, draft]) => !isEmptyDraft(draft) || (draft.importedShareIds?.length ?? 0) > 0)
         .filter(([key]) => !isQueuedEditDraftKey(key)),
     ),
     stickyModelSelection: parsed.stickyModelSelection ?? null,
     stickyNewTaskProject: parsed.stickyNewTaskProject ?? null,
     modelOptionMemory: parsed.modelOptionMemory ?? {},
+  } satisfies {
+    readonly drafts: Record<string, ComposerDraft>;
+    readonly stickyModelSelection: ModelSelection | null;
+    readonly stickyNewTaskProject: ScopedProjectRef | null;
+    readonly modelOptionMemory: ModelOptionMemoryState;
   };
 }
 
@@ -730,9 +727,7 @@ async function getComposerDraftsFile() {
   return new File(directory, COMPOSER_DRAFTS_FILE);
 }
 
-async function loadPersistedComposerState(): Promise<
-  ReturnType<typeof decodePersistedComposerState>
-> {
+async function loadPersistedComposerState() {
   let operation: ComposerDraftPersistenceError["operation"] = "open";
   try {
     const file = await getComposerDraftsFile();
@@ -761,7 +756,7 @@ async function loadPersistedComposerState(): Promise<
 async function writePersistedComposerState(
   drafts: Record<string, ComposerDraft>,
   stickyModelSelection: ModelSelection | null,
-): Promise<void> {
+) {
   let operation: ComposerDraftPersistenceError["operation"] = "open";
   try {
     const file = await getComposerDraftsFile();
@@ -792,7 +787,7 @@ async function writePersistedComposerState(
   }
 }
 
-function persistDirtyComposerState(): Promise<void> {
+function persistDirtyComposerState() {
   cancelPersistDebounce();
   return persistenceQueue.run(async () => {
     await waitForComposerDraftsLoaded();
@@ -806,7 +801,7 @@ function persistDirtyComposerState(): Promise<void> {
   });
 }
 
-function persistComposerStateNow(): Promise<void> {
+function persistComposerStateNow() {
   dirtyGeneration += 1;
   return persistDirtyComposerState();
 }
@@ -815,7 +810,7 @@ function persistComposerStateNow(): Promise<void> {
  * A write failure propagates so the caller can decide whether the restart may
  * proceed.
  */
-export async function flushComposerDrafts(): Promise<void> {
+export async function flushComposerDrafts() {
   ensureComposerDraftsLoaded();
   if (loadPromise !== null) {
     await loadPromise;
@@ -829,7 +824,7 @@ export function findLocalComposerClipboardAttachment(
   knownEnvironmentIds: Iterable<EnvironmentId>,
   environmentId: EnvironmentId,
   id: string,
-): DraftComposerAttachment | undefined {
+) {
   const queuedMessages = Object.values(
     appAtomRegistry.get(threadOutboxManager.queuedMessagesByThreadKeyAtom),
   ).flat();
@@ -847,7 +842,7 @@ export function findLocalComposerClipboardAttachment(
     .find((attachment) => attachment.id === id);
 }
 
-function isComposerAttachmentFileReferenced(fileUri: string): boolean {
+function isComposerAttachmentFileReferenced(fileUri: string) {
   if (isComposerAttachmentFileRetained(fileUri)) {
     return true;
   }
@@ -869,10 +864,7 @@ function isComposerAttachmentFileReferenced(fileUri: string): boolean {
   );
 }
 
-function isComposerAttachmentUploadReferenced(
-  environmentId: EnvironmentId,
-  attachmentId: string,
-): boolean {
+function isComposerAttachmentUploadReferenced(environmentId: EnvironmentId, attachmentId: string) {
   const drafts = Object.values(appAtomRegistry.get(composerDraftsAtom));
   const queuedMessages = Object.values(
     appAtomRegistry.get(threadOutboxManager.queuedMessagesByThreadKeyAtom),
@@ -888,7 +880,7 @@ function isComposerAttachmentUploadReferenced(
 
 export async function releaseUnusedComposerAttachmentFiles(
   attachments: ReadonlyArray<DraftComposerAttachment>,
-): Promise<void> {
+) {
   const candidates = new Set(
     attachments.flatMap((attachment) =>
       attachment.fileUri !== undefined ? [attachment.fileUri] : [],
@@ -979,7 +971,10 @@ export async function releaseUnusedComposerAttachmentFiles(
 
 export function scheduleUnusedComposerAttachmentCleanup(
   attachments: ReadonlyArray<DraftComposerAttachment>,
-): void {
+): void;
+export function scheduleUnusedComposerAttachmentCleanup(
+  attachments: ReadonlyArray<DraftComposerAttachment>,
+) {
   if (
     !attachments.some(
       (attachment) =>
@@ -997,7 +992,7 @@ registerComposerAttachmentUnusedHandler((attachment) => {
   scheduleUnusedComposerAttachmentCleanup([attachment]);
 });
 
-export function schedulePersistComposerState(): void {
+export function schedulePersistComposerState() {
   dirtyGeneration += 1;
   cancelPersistDebounce();
   persistTimer = setTimeout(() => {
@@ -1007,7 +1002,7 @@ export function schedulePersistComposerState(): void {
   }, PERSIST_DEBOUNCE_MS);
 }
 
-export function ensureComposerDraftsLoaded(): void {
+export function ensureComposerDraftsLoaded() {
   if (loadPromise !== null) {
     return;
   }
@@ -1062,7 +1057,7 @@ export function ensureComposerDraftsLoaded(): void {
   });
 }
 
-export async function waitForComposerDraftsLoaded(): Promise<void> {
+export async function waitForComposerDraftsLoaded() {
   ensureComposerDraftsLoaded();
   if (loadPromise !== null) {
     await loadPromise;
@@ -1071,7 +1066,7 @@ export async function waitForComposerDraftsLoaded(): Promise<void> {
 
 function updateComposerDrafts(
   update: (current: Record<string, ComposerDraft>) => Record<string, ComposerDraft>,
-): void {
+) {
   const current = appAtomRegistry.get(composerDraftsAtom);
   const next = update(current);
   if (next === current) {
@@ -1081,12 +1076,12 @@ function updateComposerDrafts(
   schedulePersistComposerState();
 }
 
-export function setStickyComposerModelSelection(modelSelection: ModelSelection): void {
+export function setStickyComposerModelSelection(modelSelection: ModelSelection) {
   appAtomRegistry.set(stickyComposerModelSelectionAtom, modelSelection);
   schedulePersistComposerState();
 }
 
-export function setStickyNewTaskProject(project: ScopedProjectRef): void {
+export function setStickyNewTaskProject(project: ScopedProjectRef) {
   const current = appAtomRegistry.get(stickyNewTaskProjectAtom);
   if (current?.environmentId === project.environmentId && current.projectId === project.projectId) {
     return;
@@ -1095,7 +1090,7 @@ export function setStickyNewTaskProject(project: ScopedProjectRef): void {
   schedulePersistComposerState();
 }
 
-export function setComposerDraftText(draftKey: string, value: string): void {
+export function setComposerDraftText(draftKey: string, value: string) {
   let removed: ReadonlyArray<DraftComposerAttachment> = [];
   updateComposerDrafts((current) => {
     const existing = normalizeDraft(current[draftKey]);
@@ -1111,7 +1106,7 @@ export function insertComposerDraftText(
   draftKey: string,
   value: string,
   target: ComposerDraftInsertion,
-): void {
+) {
   const draft = getComposerDraftSnapshot(draftKey);
   const { start, end } = contextInsertionRange(draftKey, draft, target);
   const text = draft.text.slice(0, start) + value + draft.text.slice(end);
@@ -1120,7 +1115,7 @@ export function insertComposerDraftText(
   rememberComposerDraftSelection(draftKey, text, caret);
 }
 
-export function appendComposerDraftText(draftKey: string, value: string): void {
+export function appendComposerDraftText(draftKey: string, value: string) {
   updateComposerDrafts((current) => {
     const existing = normalizeDraft(current[draftKey]);
     return {
@@ -1133,7 +1128,7 @@ export function appendComposerDraftText(draftKey: string, value: string): void {
   });
 }
 
-function isSameAttachment(a: DraftComposerAttachment, b: DraftComposerAttachment): boolean {
+function isSameAttachment(a: DraftComposerAttachment, b: DraftComposerAttachment) {
   return (
     a.mimeType === b.mimeType &&
     a.sizeBytes === b.sizeBytes &&
@@ -1160,7 +1155,7 @@ export function appendComposerDraftAttachments(
     readonly insertion?: ComposerDraftInsertion;
     readonly maxAttachments?: number;
   },
-): ComposerDraftAttachmentsAppend {
+) {
   if (incoming.length === 0) {
     return { rejected: 0, duplicates: [] };
   }
@@ -1231,7 +1226,7 @@ export function appendComposerDraftAttachments(
 export function replaceComposerDraftAttachments(
   draftKey: string,
   attachments: ReadonlyArray<DraftComposerAttachment>,
-): void {
+) {
   const previousAttachments = getComposerDraftSnapshot(draftKey).attachments;
   const retainedIds = new Set(attachments.map((attachment) => attachment.id));
   updateComposerDrafts((current) => {
@@ -1257,7 +1252,8 @@ export function replaceComposerDraftAttachments(
   );
 }
 
-export function removeComposerDraftAttachment(draftKey: string, imageId: string): void {
+export function removeComposerDraftAttachment(draftKey: string, imageId: string): void;
+export function removeComposerDraftAttachment(draftKey: string, imageId: string) {
   const previousAttachments = getComposerDraftSnapshot(draftKey).attachments;
   updateComposerDrafts((current) => {
     const existing = normalizeDraft(current[draftKey]);
@@ -1285,7 +1281,7 @@ export function removeComposerDraftAttachment(draftKey: string, imageId: string)
 export function setComposerDraftAttachmentUpload(
   draftKey: string,
   attachment: DraftComposerAttachment,
-): boolean {
+) {
   let previous: DraftComposerAttachment | undefined;
   updateComposerDrafts((current) => {
     const draft = current[draftKey];
@@ -1319,7 +1315,7 @@ export function setComposerDraftAttachmentUpload(
 export function updateComposerDraftSettings(
   draftKey: string,
   settings: Partial<ComposerDraftSettingsUpdate>,
-): void {
+) {
   updateComposerDrafts((current) => {
     const draft = {
       ...normalizeDraft(current[draftKey]),
@@ -1333,7 +1329,7 @@ export function updateComposerDraftSettings(
 export function releaseComposerDraftModelSelection(
   draftKey: string,
   modelSelection: ModelSelection,
-): void {
+) {
   updateComposerDrafts((current) => {
     const existing = current[draftKey];
     if (existing?.modelSelection !== modelSelection) return current;
@@ -1342,12 +1338,12 @@ export function releaseComposerDraftModelSelection(
   });
 }
 
-export function setFreshSessionPending(draftKey: string, pending: boolean): void {
+export function setFreshSessionPending(draftKey: string, pending: boolean) {
   if ((getComposerDraftSnapshot(draftKey).freshContext === true) === pending) return;
   updateComposerDraftSettings(draftKey, { freshContext: pending ? true : undefined });
 }
 
-export function isFreshSessionPending(draftKey: string): boolean {
+export function isFreshSessionPending(draftKey: string) {
   return getComposerDraftSnapshot(draftKey).freshContext === true;
 }
 
@@ -1359,7 +1355,7 @@ export function subscribeComposerDraftModelReconciliation(input: {
     environmentId: EnvironmentId,
   ) => Atom.Atom<AsyncResult.AsyncResult<EnvironmentShellState, unknown>>;
   readonly pendingThreadIdsAtom: (environmentId: EnvironmentId) => Atom.Atom<ReadonlySet<ThreadId>>;
-}): () => void {
+}) {
   const draftsAtom = Atom.make(appAtomRegistry.get(composerDraftsAtom));
   const unsubscribeDrafts = appAtomRegistry.subscribe(composerDraftsAtom, (drafts) =>
     input.registry.set(draftsAtom, drafts),
@@ -1422,10 +1418,18 @@ export function clearComposerDraftContentState(
     readonly clearModelSelection?: boolean;
     readonly clearWorkspaceSelection?: boolean;
   },
-): Record<string, ComposerDraft> {
+): Record<string, ComposerDraft>;
+export function clearComposerDraftContentState(
+  current: Record<string, ComposerDraft>,
+  draftKey: string,
+  options?: {
+    readonly clearModelSelection?: boolean;
+    readonly clearWorkspaceSelection?: boolean;
+  },
+) {
   const existing = current[draftKey];
   if (!existing) {
-    return current;
+    return current satisfies Record<string, ComposerDraft>;
   }
   const {
     importedShareIds: _importedShareIds,
@@ -1447,19 +1451,19 @@ export function clearComposerDraftContentState(
   if (isEmptyDraft(draft)) {
     const next = { ...current };
     delete next[draftKey];
-    return next;
+    return next satisfies Record<string, ComposerDraft>;
   }
   return {
     ...current,
     [draftKey]: draft,
-  };
+  } satisfies Record<string, ComposerDraft>;
 }
 
 export function restoreComposerDraftSnapshotState(
   current: Record<string, ComposerDraft>,
   draftKey: string,
   snapshot: ComposerDraft,
-): Record<string, ComposerDraft> {
+) {
   const next = { ...current };
   if (isEmptyDraft(snapshot)) {
     delete next[draftKey];
@@ -1469,14 +1473,12 @@ export function restoreComposerDraftSnapshotState(
   return next;
 }
 
-function stripAttachmentUploadReference(
-  attachment: DraftComposerAttachment,
-): DraftComposerAttachment {
+function stripAttachmentUploadReference(attachment: DraftComposerAttachment) {
   const { uploadedAttachmentId: _id, uploadEnvironmentId: _environmentId, ...rest } = attachment;
   return rest;
 }
 
-function mergeComposerDraftText(existing: string, incoming: string): string {
+function mergeComposerDraftText(existing: string, incoming: string) {
   if (incoming.length === 0) {
     return existing;
   }
@@ -1504,10 +1506,10 @@ export function mergeComposerDraftContentState(
   current: Record<string, ComposerDraft>,
   draftKey: string,
   content: ComposerDraftContent,
-): Record<string, ComposerDraft> {
+) {
   const existing = normalizeDraft(current[draftKey]);
   if (content.sourceShareId && existing.importedShareIds?.includes(content.sourceShareId)) {
-    return current;
+    return current satisfies Record<string, ComposerDraft>;
   }
   const attachmentIds = new Set(existing.attachments.map((attachment) => attachment.id));
   const incomingAttachments = content.attachments.filter((attachment) => {
@@ -1532,7 +1534,7 @@ export function mergeComposerDraftContentState(
     content.context === undefined &&
     importedShareIds === existing.importedShareIds
   ) {
-    return current;
+    return current satisfies Record<string, ComposerDraft>;
   }
   return {
     ...current,
@@ -1546,11 +1548,11 @@ export function mergeComposerDraftContentState(
       },
       content.sourceShareId ? attachments.slice(existing.attachments.length) : [],
     ),
-  };
+  } satisfies Record<string, ComposerDraft>;
 }
 
 /** Publishes into loaded drafts and schedules persistence. Returns how many attachments the cap dropped. */
-export function applyComposerDraftContent(draftKey: string, content: ComposerDraftContent): number {
+export function applyComposerDraftContent(draftKey: string, content: ComposerDraftContent) {
   let skippedAttachmentCount = 0;
   updateComposerDrafts((current) => {
     const next = mergeComposerDraftContentState(current, draftKey, content);
@@ -1571,14 +1573,15 @@ export function applyComposerDraftContent(draftKey: string, content: ComposerDra
 /**
  * The durable write happens before the share inbox item can be acknowledged.
  */
-export async function mergeComposerDraftContent(
+export function mergeComposerDraftContent(
   draftKey: string,
   content: ComposerDraftContent,
-): Promise<{ readonly skippedAttachmentCount: number }> {
+): Promise<{ readonly skippedAttachmentCount: number }>;
+export async function mergeComposerDraftContent(draftKey: string, content: ComposerDraftContent) {
   await waitForComposerDraftsLoaded();
   const skippedAttachmentCount = applyComposerDraftContent(draftKey, content);
   await persistComposerStateNow();
-  return { skippedAttachmentCount };
+  return { skippedAttachmentCount } satisfies { readonly skippedAttachmentCount: number };
 }
 
 export interface ComposerDraftMergeReceipt {
@@ -1590,16 +1593,13 @@ export interface ComposerDraftMergeReceipt {
  * Runs synchronous writes to a loaded draft and returns what undoComposerDraftMerge takes back out.
  * The caller persists afterwards, so edits made during that await never count as part of the merge.
  */
-export function captureComposerDraftMerge(
-  draftKey: string,
-  merge: () => void,
-): ComposerDraftMergeReceipt {
+export function captureComposerDraftMerge(draftKey: string, merge: () => void) {
   const snapshot = getComposerDraftSnapshot(draftKey);
   merge();
   return { snapshot, merged: getComposerDraftSnapshot(draftKey) };
 }
 
-export function sameComposerDraftState(a: ComposerDraft, b: ComposerDraft): boolean {
+export function sameComposerDraftState(a: ComposerDraft, b: ComposerDraft) {
   return (
     a.text === b.text &&
     a.attachments === b.attachments &&
@@ -1622,7 +1622,7 @@ export function undoComposerDraftMergeState(
   draftKey: string,
   snapshot: ComposerDraft,
   merged: ComposerDraft,
-): Record<string, ComposerDraft> {
+) {
   const existing = normalizeDraft(current[draftKey]);
   if (sameComposerDraftState(existing, merged)) {
     return restoreComposerDraftSnapshotState(current, draftKey, snapshot);
@@ -1645,7 +1645,7 @@ export function undoComposerDraftMergeState(
       | "workspaceSelection",
   >(
     key: K,
-  ): ComposerDraft[K] => (existing[key] === merged[key] ? snapshot[key] : existing[key]);
+  ) => (existing[key] === merged[key] ? snapshot[key] : existing[key]);
   const text =
     insertedText.length > 0 && existing.text.startsWith(merged.text)
       ? snapshot.text + existing.text.slice(merged.text.length)
@@ -1668,11 +1668,16 @@ export function undoComposerDraftMergeState(
   return withComposerDraft(current, draftKey, draft);
 }
 
+export function undoComposerDraftMerge(
+  draftKey: string,
+  snapshot: ComposerDraft,
+  merged: ComposerDraft,
+): Promise<void>;
 export async function undoComposerDraftMerge(
   draftKey: string,
   snapshot: ComposerDraft,
   merged: ComposerDraft,
-): Promise<void> {
+) {
   ensureComposerDraftsLoaded();
   if (loadPromise !== null) {
     await loadPromise;
@@ -1694,7 +1699,15 @@ export function clearComposerDraftContent(
     readonly clearWorkspaceSelection?: boolean;
     readonly deferAttachmentCleanup?: boolean;
   },
-): void {
+): void;
+export function clearComposerDraftContent(
+  draftKey: string,
+  options?: {
+    readonly clearModelSelection?: boolean;
+    readonly clearWorkspaceSelection?: boolean;
+    readonly deferAttachmentCleanup?: boolean;
+  },
+) {
   const previousAttachments = getComposerDraftSnapshot(draftKey).attachments;
   markComposerDraftReset(draftKey);
   updateComposerDrafts((current) => clearComposerDraftContentState(current, draftKey, options));
@@ -1706,7 +1719,7 @@ export function clearComposerDraftContent(
 export function clearComposerDraft(
   draftKey: string,
   options?: { readonly deferAttachmentCleanup?: boolean },
-): void {
+) {
   abortComposerDraftOperations(draftKey);
   markComposerDraftReset(draftKey);
   const previousAttachments = getComposerDraftSnapshot(draftKey).attachments;
@@ -1726,7 +1739,7 @@ export function clearComposerDraft(
 export function removeComposerDraftsForEnvironment(
   drafts: Record<string, ComposerDraft>,
   environmentId: EnvironmentId,
-): Record<string, ComposerDraft> {
+) {
   const environmentPrefix = `${environmentId}:`;
   return Object.fromEntries(
     Object.entries(drafts).filter(
@@ -1739,7 +1752,7 @@ export function removeComposerDraftsForEnvironment(
 export function createNewTaskDraft(project: {
   readonly environmentId: EnvironmentId;
   readonly projectId: ProjectId;
-}): string {
+}) {
   const draftKey = newTaskDraftKey(newDraftId());
   const stamp: ComposerDraftProject = {
     environmentId: project.environmentId,
@@ -1757,7 +1770,7 @@ export function retargetNewTaskDraft(
   draftKey: string,
   project: { readonly environmentId: EnvironmentId; readonly projectId: ProjectId },
   options?: { readonly keepPullRequestWorkspace?: boolean },
-): void {
+) {
   updateComposerDrafts((current) => {
     const existing = current[draftKey];
     const stamp = existing?.project;
@@ -1799,7 +1812,7 @@ export function retargetNewTaskDraft(
 export async function retargetSavedNewTaskDraft(
   draftKey: string,
   project: { readonly environmentId: EnvironmentId; readonly projectId: ProjectId },
-): Promise<boolean> {
+) {
   await waitForComposerDraftsLoaded();
   if (appAtomRegistry.get(composerDraftsAtom)[draftKey] === undefined) return false;
   retargetNewTaskDraft(draftKey, project);
@@ -1809,7 +1822,7 @@ export async function retargetSavedNewTaskDraft(
 export function findNewTaskDraftKeys(
   drafts: Readonly<Record<string, ComposerDraft>>,
   project: { readonly environmentId: EnvironmentId; readonly projectId: ProjectId },
-): ReadonlyArray<string> {
+) {
   return Object.entries(drafts)
     .filter(
       ([key, draft]) =>
@@ -1823,7 +1836,7 @@ export function findNewTaskDraftKeys(
     .map(([key]) => key);
 }
 
-export async function clearComposerDraftsEnvironment(environmentId: EnvironmentId): Promise<void> {
+export async function clearComposerDraftsEnvironment(environmentId: EnvironmentId) {
   ensureComposerDraftsLoaded();
   if (loadPromise !== null) {
     await loadPromise;
@@ -1853,13 +1866,13 @@ const EMPTY_DRAFT_ATOM = Atom.make(EMPTY_DRAFT);
 
 type ComposerDraftsByKey = Readonly<Record<string, ComposerDraft>>;
 const EMPTY_DRAFTS: ComposerDraftsByKey = {};
-function sameDrafts(a: ComposerDraftsByKey, b: ComposerDraftsByKey): boolean {
+function sameDrafts(a: ComposerDraftsByKey, b: ComposerDraftsByKey) {
   const keys = Object.keys(a);
   return keys.length === Object.keys(b).length && keys.every((key) => a[key] === b[key]);
 }
 
 export const questionAttachmentDraftsAtom = Atom.family((prefix: string) =>
-  Atom.make((get): ComposerDraftsByKey => {
+  Atom.make((get) => {
     if (prefix === "") return EMPTY_DRAFTS;
     const matching = Object.entries(get(composerDraftsAtom)).filter(([key]) =>
       key.startsWith(prefix),
@@ -1868,7 +1881,7 @@ export const questionAttachmentDraftsAtom = Atom.family((prefix: string) =>
   }).pipe(Atom.withEquality(sameDrafts)),
 );
 
-export const newTaskComposerDraftsAtom = Atom.make((get): ComposerDraftsByKey => {
+export const newTaskComposerDraftsAtom = Atom.make((get) => {
   const matching = Object.entries(get(composerDraftsAtom)).filter(([key]) =>
     isNewTaskDraftKey(key),
   );
@@ -1878,7 +1891,7 @@ export const newTaskComposerDraftsAtom = Atom.make((get): ComposerDraftsByKey =>
 type ComposerDraftUploadSource = Pick<ComposerDraft, "attachments" | "project">;
 
 type ComposerDraftUploadSources = Readonly<Record<string, ComposerDraftUploadSource>>;
-export const composerDraftUploadSourcesAtom = Atom.make((get): ComposerDraftUploadSources =>
+export const composerDraftUploadSourcesAtom = Atom.make((get) =>
   Object.fromEntries(
     Object.entries(get(composerDraftsAtom)).map(([key, draft]) => [
       key,
@@ -1904,7 +1917,7 @@ type ComposerDraftSettings = Pick<
 const EMPTY_DRAFT_SETTINGS: ComposerDraftSettings = {};
 
 const composerDraftSettingsAtom = Atom.family((draftKey: string) =>
-  Atom.make((get): ComposerDraftSettings => {
+  Atom.make((get) => {
     const draft = get(composerDraftAtom(draftKey));
     return {
       modelSelection: draft.modelSelection,
@@ -1924,7 +1937,7 @@ const composerDraftSettingsAtom = Atom.family((draftKey: string) =>
 );
 const EMPTY_DRAFT_SETTINGS_ATOM = Atom.make(EMPTY_DRAFT_SETTINGS);
 
-export function useComposerDraftSettings(draftKey: string | null): ComposerDraftSettings {
+export function useComposerDraftSettings(draftKey: string | null) {
   const settings = useAtomValue(
     draftKey ? composerDraftSettingsAtom(draftKey) : EMPTY_DRAFT_SETTINGS_ATOM,
   );
@@ -1935,7 +1948,7 @@ export function useComposerDraftSettings(draftKey: string | null): ComposerDraft
   return settings;
 }
 
-export function useComposerDraft(draftKey: string | null): ComposerDraft {
+export function useComposerDraft(draftKey: string | null) {
   const draft = useAtomValue(draftKey ? composerDraftAtom(draftKey) : EMPTY_DRAFT_ATOM);
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- starts loading persisted composer drafts from native storage on first use
   useEffect(() => {
@@ -1944,7 +1957,7 @@ export function useComposerDraft(draftKey: string | null): ComposerDraft {
   return draft;
 }
 
-export function useStickyComposerModelSelection(): ModelSelection | null {
+export function useStickyComposerModelSelection() {
   const selection = useAtomValue(stickyComposerModelSelectionAtom);
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- starts loading persisted composer drafts from native storage on first use
   useEffect(() => {

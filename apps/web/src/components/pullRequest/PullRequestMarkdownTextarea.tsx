@@ -40,7 +40,7 @@ export function pullRequestCompletionScope(
   detail: Pick<PullRequestDetailView, "capabilities">,
   environmentId: EnvironmentId,
   reference: PullRequestRef,
-): PullRequestCompletionScope | null {
+) {
   const { mentions, referenceSigils } = detail.capabilities;
   return mentions === true || (referenceSigils?.length ?? 0) > 0
     ? { environmentId, projectId: reference.projectId, support: { mentions, referenceSigils } }
@@ -48,7 +48,7 @@ export function pullRequestCompletionScope(
 }
 const SUGGESTION_LIST_HEIGHT = 320;
 
-function suggestionSide(target: HTMLTextAreaElement): "top" | "bottom" {
+function suggestionSide(target: HTMLTextAreaElement) {
   const rect = target.getBoundingClientRect();
   const below = window.innerHeight - rect.bottom;
   return below < SUGGESTION_LIST_HEIGHT && rect.top > below ? "top" : "bottom";

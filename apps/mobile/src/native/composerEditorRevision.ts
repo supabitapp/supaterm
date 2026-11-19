@@ -14,7 +14,7 @@ export function acknowledgeComposerNativeEvent(
   incomingEventCount: number,
   resetGeneration = 0,
   incomingResetGeneration = 0,
-): number | null {
+) {
   if (
     !Number.isSafeInteger(incomingEventCount) ||
     incomingEventCount <= mostRecentEventCount ||
@@ -30,7 +30,7 @@ export function resolveComposerControlledEventCount(
   selection: ComposerEditorSelection | null,
   mostRecentEventCount: number,
   snapshots: ReadonlyArray<ComposerNativeEventSnapshot>,
-): number {
+) {
   let newestValueEventCount: number | null = null;
   for (let index = snapshots.length - 1; index >= 0; index -= 1) {
     const snapshot = snapshots[index];
@@ -52,7 +52,7 @@ export function resolveComposerControlledEventCount(
 function snapshotSelectionMatches(
   snapshot: ComposerNativeEventSnapshot,
   selection: ComposerEditorSelection,
-): boolean {
+) {
   if (snapshot.selection === null) return true;
   return snapshot.selection.start === selection.start && snapshot.selection.end === selection.end;
 }
@@ -62,7 +62,7 @@ export function isComposerNativeEcho(
   selection: ComposerEditorSelection | null,
   eventCount: number,
   snapshots: ReadonlyArray<ComposerNativeEventSnapshot>,
-): boolean {
+) {
   for (let index = snapshots.length - 1; index >= 0; index -= 1) {
     const snapshot = snapshots[index];
     if (
@@ -85,7 +85,7 @@ export function assumeComposerControlledState(
   snapshots: ReadonlyArray<ComposerNativeEventSnapshot>,
   eventCount: number,
   value: string,
-): ComposerNativeEventSnapshot[] {
+) {
   return [
     { eventCount, value, selection: null },
     ...snapshots.filter((snapshot) => snapshot.eventCount > eventCount),
@@ -95,7 +95,7 @@ export function assumeComposerControlledState(
 export function pruneAcknowledgedComposerNativeEvents(
   snapshots: ReadonlyArray<ComposerNativeEventSnapshot>,
   acknowledgedEventCount: number,
-): ComposerNativeEventSnapshot[] {
+) {
   let latestAcknowledgedIndex = -1;
   for (let index = snapshots.length - 1; index >= 0; index -= 1) {
     const snapshot = snapshots[index];

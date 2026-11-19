@@ -11,31 +11,38 @@ export type ProjectIconGlyph =
   | { readonly kind: "monogram"; readonly text: string; readonly color: ProjectIconColor };
 
 /** Hermes lacks Intl.Segmenter; fold combining marks into base characters instead. */
-export function countGlyphs(text: string): number {
+export function countGlyphs(text: string) {
   return Array.from(text.replace(/\p{M}/gu, "")).length;
 }
 
-export function projectAutoMonogram(
-  projectTitle: string,
-  color: ProjectIconColor,
-): ProjectIconGlyph | null {
-  if (!projectTitle.trim()) return null;
-  return { kind: "monogram", text: projectMonogram(projectTitle), color };
+export function projectAutoMonogram(projectTitle: string, color: ProjectIconColor) {
+  if (!projectTitle.trim()) return null satisfies ProjectIconGlyph | null;
+  return {
+    kind: "monogram",
+    text: projectMonogram(projectTitle),
+    color,
+  } satisfies ProjectIconGlyph | null;
 }
 
-export function resolveProjectIconGlyph(
-  projectIcon: ProjectIconOverride | null | undefined,
-): ProjectIconGlyph | null {
+export function resolveProjectIconGlyph(projectIcon: ProjectIconOverride | null | undefined) {
   switch (projectIcon?.kind) {
     case "emoji":
-      return { kind: "emoji", emoji: projectIcon.emoji };
+      return { kind: "emoji", emoji: projectIcon.emoji } satisfies ProjectIconGlyph | null;
     case "monogram":
-      return { kind: "monogram", text: projectIcon.text, color: projectIcon.color };
+      return {
+        kind: "monogram",
+        text: projectIcon.text,
+        color: projectIcon.color,
+      } satisfies ProjectIconGlyph | null;
     case "icon":
     case "lucide":
-      return { kind: "icon", node: resolveProjectIcon(projectIcon).node, color: projectIcon.color };
+      return {
+        kind: "icon",
+        node: resolveProjectIcon(projectIcon).node,
+        color: projectIcon.color,
+      } satisfies ProjectIconGlyph | null;
     case undefined:
-      return null;
+      return null satisfies ProjectIconGlyph | null;
   }
 }
 
@@ -50,13 +57,18 @@ export function resolveProjectChipIcon(
   scratchWorkspaceRoot: string | null | undefined,
   faviconUrl: () => string | null,
   monogramColor: (projectTitle: string) => ProjectIconColor,
-): ProjectChipIcon | null {
-  if (!project || isScratchProject(project, scratchWorkspaceRoot)) return null;
+) {
+  if (!project || isScratchProject(project, scratchWorkspaceRoot))
+    return null satisfies ProjectChipIcon | null;
   const glyph = resolveProjectIconGlyph(project.projectIcon);
-  if (glyph) return glyph;
+  if (glyph) return glyph satisfies ProjectChipIcon | null;
   const url = faviconUrl();
-  if (url && !isProjectFaviconFallbackUrl(url)) return { kind: "favicon", uri: url };
-  return projectAutoMonogram(project.title, monogramColor(project.title));
+  if (url && !isProjectFaviconFallbackUrl(url))
+    return { kind: "favicon", uri: url } satisfies ProjectChipIcon | null;
+  return projectAutoMonogram(
+    project.title,
+    monogramColor(project.title),
+  ) satisfies ProjectChipIcon | null;
 }
 
 const PROJECT_ICON_COLOR_CLASSES: Record<

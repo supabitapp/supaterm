@@ -186,12 +186,13 @@ describe("resuming the shell on a new connection", () => {
       Stream.filter((value) => value.status === "live"),
       Stream.runHead,
     );
-    const update = (sequence: number): OrchestrationV2ShellStreamItem => ({
-      kind: "thread.updated",
-      sequence,
-      location: "active",
-      thread: { ...v2ThreadShell, title: `at ${sequence}` },
-    });
+    const update = (sequence: number) =>
+      ({
+        kind: "thread.updated",
+        sequence,
+        location: "active",
+        thread: { ...v2ThreadShell, title: `at ${sequence}` },
+      }) satisfies OrchestrationV2ShellStreamItem;
 
     const awaitSubscriptions = (count: number) =>
       SubscriptionRef.changes(inputs).pipe(

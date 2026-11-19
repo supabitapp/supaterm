@@ -13,7 +13,7 @@ const working: ThreadNotificationObservation = {
   settled: false,
   completedAt: null,
 };
-const completed = (at: number): ThreadNotificationObservation => ({
+const completed = (at: number) => ({
   attention: null,
   requestId: null,
   settled: true,

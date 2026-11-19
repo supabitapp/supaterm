@@ -44,7 +44,7 @@ function Harness() {
   );
 }
 
-function freshStoredWidth(): Disposable {
+function freshStoredWidth() {
   const clear = () => STORAGE_KEYS.forEach((key) => localStorage.removeItem(key));
   clear();
   return { [Symbol.dispose]: clear };

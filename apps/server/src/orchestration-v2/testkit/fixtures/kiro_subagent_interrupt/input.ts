@@ -4,7 +4,7 @@ const KIRO_SUBAGENT_INTERRUPT_PROMPT =
   "Delegate this to one sub-agent with your sub-agent tool and run nothing yourself: the sub-agent must run the shell command `sleep 30` with its shell tool and then reply exactly: Done. Wait for it, then reply with exactly what it said.";
 
 /** Stop lands while the sub-agent's command runs. */
-export function kiroSubagentInterruptInput(): OrchestratorFixtureInput {
+export function kiroSubagentInterruptInput() {
   return {
     steps: [
       { type: "message", text: KIRO_SUBAGENT_INTERRUPT_PROMPT },
@@ -15,5 +15,5 @@ export function kiroSubagentInterruptInput(): OrchestratorFixtureInput {
         inSubagentThread: true,
       },
     ],
-  };
+  } satisfies OrchestratorFixtureInput;
 }

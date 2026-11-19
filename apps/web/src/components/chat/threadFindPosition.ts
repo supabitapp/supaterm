@@ -1,4 +1,3 @@
-import type { ThreadFindStart } from "./threadFind";
 import { collectThreadFindRanges } from "./threadFindHighlights";
 
 export function readThreadFindPosition(
@@ -6,7 +5,7 @@ export function readThreadFindPosition(
   query: string,
   resolveEntry: (rowId: string) => string | undefined,
   contentInsetEndAdjustment: number,
-): ThreadFindStart | undefined {
+) {
   const viewport = container.getBoundingClientRect();
   for (const row of container.querySelectorAll<HTMLElement>("[data-timeline-row-id]")) {
     const rect = row.getBoundingClientRect();

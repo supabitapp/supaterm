@@ -28,10 +28,7 @@ export interface LiveDictationOptions {
 }
 
 /** Opens the stream with the WebSocket that browsers and React Native share. */
-export function openLiveDictationSocket(
-  url: string,
-  events: LiveDictationSocketEvents,
-): LiveDictationSocket {
+export function openLiveDictationSocket(url: string, events: LiveDictationSocketEvents) {
   const socket = new WebSocket(url);
   socket.onmessage = (event) => events.message(event.data);
   socket.onclose = (event) => events.close(event.code);
@@ -83,29 +80,31 @@ export class LiveDictation {
   }
 
   /** Resolves `true` once the server holds every frame, `false` when the recording must be uploaded. */
-  finish(): Promise<boolean> {
+  finish(): Promise<boolean>;
+  finish() {
     if (this.state === "streaming") {
       this.state = "finishing";
       this.unsubscribe();
       this.sendFinish();
       setTimeout(() => this.settle(false), FINISH_TIMEOUT_MS);
     }
-    return this.finished;
+    return this.finished satisfies Promise<boolean>;
   }
 
   /** Stops streaming without finishing, as when the recording is discarded. */
-  close(): void {
+  close(): void;
+  close() {
     this.settle(false);
   }
 
-  private push(pcm: Uint8Array): void {
+  private push(pcm: Uint8Array) {
     if (this.state !== "streaming" || pcm.byteLength === 0) return;
     this.frames.push(pcm);
     this.recordedBytes += pcm.byteLength;
     if (this.sentBytes !== null) this.flush();
   }
 
-  private connect(): void {
+  private connect() {
     if (this.url === null || this.state === "done") return;
     this.sentBytes = null;
     try {
@@ -115,7 +114,7 @@ export class LiveDictation {
     }
   }
 
-  private open(url: string): void {
+  private open(url: string) {
     const socket = this.options.openSocket(url, {
       message: (data) => {
         if (this.socket !== socket || typeof data !== "string") return;
@@ -147,7 +146,7 @@ export class LiveDictation {
     this.socket = socket;
   }
 
-  private flush(): void {
+  private flush() {
     const socket = this.socket;
     if (socket === null || this.sentBytes === null) return;
     let offset = 0;
@@ -163,12 +162,12 @@ export class LiveDictation {
     if (socket.bufferedAmount > MAX_BUFFERED_BYTES) this.settle(false);
   }
 
-  private sendFinish(): void {
+  private sendFinish() {
     if (this.sentBytes === null || this.sentBytes < this.recordedBytes) return;
     this.socket?.send('{"type":"finish"}');
   }
 
-  private settle(streamed: boolean): void {
+  private settle(streamed: boolean) {
     if (this.state === "done") return;
     this.state = "done";
     this.unsubscribe();

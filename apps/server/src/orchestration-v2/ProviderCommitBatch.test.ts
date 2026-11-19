@@ -14,7 +14,7 @@ import * as TestClock from "effect/testing/TestClock";
 import * as ProviderCommitBatch from "./ProviderCommitBatch.ts";
 
 const driver = ProviderDriverKind.make("codex");
-function event(index: number, text = `delta:${index}`): ProviderAdapter.ProviderAdapterV2Event {
+function event(index: number, text = `delta:${index}`) {
   const threadId = ThreadId.make("single-thread");
   const now = DateTime.makeUnsafe("2026-11-03T00:00:00Z");
   return {
@@ -34,7 +34,7 @@ function event(index: number, text = `delta:${index}`): ProviderAdapter.Provider
       createdAt: now,
       updatedAt: now,
     },
-  };
+  } satisfies ProviderAdapter.ProviderAdapterV2Event;
 }
 const control: ProviderAdapter.ProviderAdapterV2Event = {
   type: "prompt_suggestion.expected",

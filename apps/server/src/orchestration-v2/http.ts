@@ -42,7 +42,7 @@ const isThreadTranscriptTooLargeError = Schema.is(
   ThreadManagementService.ThreadTranscriptTooLargeError,
 );
 
-function isThreadNotFound(error: unknown): boolean {
+function isThreadNotFound(error: unknown) {
   return (
     Predicate.hasProperty(error, "cause") &&
     Predicate.hasProperty(error.cause, "_tag") &&

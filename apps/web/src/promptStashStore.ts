@@ -6,7 +6,7 @@ import {
   PersistedComposerFileAttachment,
   PersistedComposerImageAttachment,
 } from "./composerDraftStore";
-import { createMemoryStorage, type StateStorage } from "./lib/storage";
+import { createMemoryStorage } from "./lib/storage";
 
 export const PROMPT_STASH_STORAGE_KEY = "supaterm:prompt-stash:v2";
 const PROMPT_STASH_STORAGE_VERSION = 2;
@@ -34,7 +34,7 @@ type PersistedPromptStashState = typeof PersistedPromptStashState.Type;
 
 const decodePersistedPromptStashState = Schema.decodeUnknownSync(PersistedPromptStashState);
 
-function clearOrphanedPendingImages(entry: PromptStashEntry): PromptStashEntry {
+function clearOrphanedPendingImages(entry: PromptStashEntry) {
   if (!entry.pendingImageCount) return entry;
   return {
     ...entry,
@@ -51,10 +51,7 @@ function clearOrphanedPendingImages(entry: PromptStashEntry): PromptStashEntry {
 
 export function partitionStashAttachments(
   attachments: ReadonlyArray<PersistedComposerImageAttachment>,
-): {
-  kept: PersistedComposerImageAttachment[];
-  droppedNames: string[];
-} {
+) {
   const kept: PersistedComposerImageAttachment[] = [];
   const droppedNames: string[] = [];
   let usedChars = 0;
@@ -69,7 +66,7 @@ export function partitionStashAttachments(
   return { kept, droppedNames };
 }
 
-function resolveBaseStorage(): { storage: StateStorage; durable: boolean } {
+function resolveBaseStorage() {
   try {
     if (typeof localStorage !== "undefined") {
       return { storage: localStorage, durable: true };
@@ -82,10 +79,7 @@ const { storage: baseStashStorage, durable: storageIsDurable } = resolveBaseStor
 
 const unpersistedFinalizedEntryIds = new Set<string>();
 
-function persistEntries(entries: ReadonlyArray<PromptStashEntry>): {
-  written: boolean;
-  durable: boolean;
-} {
+function persistEntries(entries: ReadonlyArray<PromptStashEntry>) {
   try {
     baseStashStorage.setItem(
       PROMPT_STASH_STORAGE_KEY,
@@ -102,7 +96,7 @@ function persistEntries(entries: ReadonlyArray<PromptStashEntry>): {
   }
 }
 
-function readStoredEntries(): ReadonlyArray<PromptStashEntry> | null {
+function readStoredEntries() {
   try {
     const raw = baseStashStorage.getItem(PROMPT_STASH_STORAGE_KEY);
     if (typeof raw !== "string" || raw.length === 0) return null;
@@ -115,11 +109,11 @@ function readStoredEntries(): ReadonlyArray<PromptStashEntry> | null {
   }
 }
 
-function readPersistedEntries(): ReadonlyArray<PromptStashEntry> | null {
+function readPersistedEntries() {
   return readStoredEntries()?.map(clearOrphanedPendingImages) ?? null;
 }
 
-function latestEntries(memory: ReadonlyArray<PromptStashEntry>): ReadonlyArray<PromptStashEntry> {
+function latestEntries(memory: ReadonlyArray<PromptStashEntry>) {
   const stored = readStoredEntries();
   if (!stored) return memory;
   const storedIds = new Set(stored.map((entry) => entry.id));
@@ -212,7 +206,7 @@ export const usePromptStashStore = create<PromptStashStoreState>()((set, get) =>
   }
 }
 
-export function writePromptStashStorageForTest(raw: string): void {
+export function writePromptStashStorageForTest(raw: string) {
   baseStashStorage.setItem(PROMPT_STASH_STORAGE_KEY, raw);
   usePromptStashStore.setState({ entries: readPersistedEntries() ?? [] });
 }

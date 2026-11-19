@@ -29,24 +29,24 @@ export class AcpMcpOverAcpError extends Error {
   override readonly name = "AcpMcpOverAcpError";
 }
 
-const bridgeError = (cause: unknown): AcpMcpOverAcpError =>
+const bridgeError = (cause: unknown) =>
   cause instanceof AcpMcpOverAcpError
     ? cause
     : new AcpMcpOverAcpError(cause instanceof Error ? cause.message : String(cause), { cause });
 
-const asEnvelope = (value: unknown): JsonRpcEnvelope | null =>
+const asEnvelope = (value: unknown) =>
   typeof value === "object" && value !== null && !Array.isArray(value)
     ? (value as JsonRpcEnvelope)
     : null;
 
-function protocolVersionOf(payload: unknown): string | null {
+function protocolVersionOf(payload: unknown) {
   const result = asEnvelope(payload)?.result;
   if (typeof result !== "object" || result === null || Array.isArray(result)) return null;
   const protocolVersion = (result as { readonly protocolVersion?: unknown }).protocolVersion;
   return typeof protocolVersion === "string" && protocolVersion.length > 0 ? protocolVersion : null;
 }
 
-function errorMessage(error: unknown): string {
+function errorMessage(error: unknown) {
   if (typeof error !== "object" || error === null || Array.isArray(error)) {
     return "The MCP server returned an error.";
   }
@@ -82,13 +82,13 @@ export interface AcpMcpOverAcpBridge {
 }
 
 export const makeAcpMcpOverAcpBridge = Effect.fn("AcpMcpOverAcpBridge.make")(
-  (options: AcpMcpOverAcpBridgeOptions): Effect.Effect<AcpMcpOverAcpBridge> =>
+  (options: AcpMcpOverAcpBridgeOptions) =>
     Effect.sync(() => {
       const fetchImplementation = options.fetchImplementation ?? fetch;
       const connections = new Map<string, Connection>();
       let callsStopped = Deferred.makeUnsafe<void>();
 
-      const connectionFor = (connectionId: string): Effect.Effect<Connection, AcpMcpOverAcpError> =>
+      const connectionFor = (connectionId: string) =>
         Effect.suspend(() => {
           const connection = connections.get(connectionId);
           return connection === undefined
@@ -103,10 +103,13 @@ export const makeAcpMcpOverAcpBridge = Effect.fn("AcpMcpOverAcpBridge.make")(
           connection.protocolVersion === null ? connection.mutex.withPermits(1)(effect) : effect,
         );
 
-      const sendNow = (
+      const sendNow: (
         connection: Connection,
         message: unknown,
-      ): Effect.Effect<ReadonlyArray<unknown>, AcpMcpOverAcpError> =>
+      ) => Effect.Effect<ReadonlyArray<unknown>, AcpMcpOverAcpError> = (
+        connection: Connection,
+        message: unknown,
+      ) =>
         untilNegotiated(
           connection,
           Effect.gen(function* () {
@@ -157,10 +160,13 @@ export const makeAcpMcpOverAcpBridge = Effect.fn("AcpMcpOverAcpBridge.make")(
           }).pipe(Effect.mapError(bridgeError)),
         );
 
-      const send = (
+      const send: (
         connection: Connection,
         message: unknown,
-      ): Effect.Effect<ReadonlyArray<unknown>, AcpMcpOverAcpError> =>
+      ) => Effect.Effect<ReadonlyArray<unknown>, AcpMcpOverAcpError> = (
+        connection: Connection,
+        message: unknown,
+      ) =>
         Effect.suspend(() =>
           Effect.raceFirst(
             sendNow(connection, message),
@@ -172,7 +178,7 @@ export const makeAcpMcpOverAcpBridge = Effect.fn("AcpMcpOverAcpBridge.make")(
 
       const disconnect = Effect.fn("mcpOverAcpBridge.disconnect")(function* (
         request: AcpSchema.DisconnectMcpRequest,
-      ): Effect.fn.Return<AcpSchema.DisconnectMcpResponse, AcpMcpOverAcpError> {
+      ) {
         const connection = yield* connectionFor(request.connectionId);
         connections.delete(request.connectionId);
         const sessionId = connection.sessionId;

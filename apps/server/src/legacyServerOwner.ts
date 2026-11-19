@@ -18,7 +18,7 @@ export const legacyOwnerStartedBeforeRecord = (
   output: string | undefined,
   recordedAt: number,
   platform: NodeJS.Platform,
-): boolean => {
+) => {
   if (output === undefined) return true;
   const trimmed = output.trim();
   const startedAt = Date.parse(platform === "win32" ? trimmed : `${trimmed} UTC`);

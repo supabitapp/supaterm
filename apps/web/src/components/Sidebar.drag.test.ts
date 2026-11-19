@@ -17,12 +17,16 @@ import {
   type SidebarSection,
 } from "./Sidebar.logic";
 
-const thread = (key: string, section: SidebarSection): SidebarListItem => ({
+const thread: (key: string, section: SidebarSection) => SidebarListItem = (
+  key: string,
+  section: SidebarSection,
+) => ({
   kind: "thread",
   key,
   section,
 });
-const marker = (marker: SidebarListMarker): SidebarListItem => ({ kind: "marker", marker });
+const marker = (marker: SidebarListMarker) =>
+  ({ kind: "marker", marker }) satisfies SidebarListItem;
 const pinnedHeader = marker("pinned-header");
 const divider = marker("pinned-divider");
 const doneHeader = marker("done-header");
@@ -66,9 +70,10 @@ type PreviewInput = Omit<Parameters<typeof createSidebarSortingStrategy>[0], "in
   readonly activeOrder?: readonly string[];
 };
 
-function withStatusInbox(input: PreviewInput): SortingStrategy {
+function withStatusInbox(input: PreviewInput): SortingStrategy;
+function withStatusInbox(input: PreviewInput) {
   let previous: { activeIndex: number; overIndex: number; strategy: SortingStrategy } | undefined;
-  return (args) => {
+  return ((args) => {
     if (previous?.activeIndex !== args.activeIndex || previous.overIndex !== args.overIndex) {
       const active = input.items[args.activeIndex];
       const over = input.items[args.overIndex];
@@ -98,7 +103,7 @@ function withStatusInbox(input: PreviewInput): SortingStrategy {
       };
     }
     return previous.strategy(args);
-  };
+  }) satisfies SortingStrategy;
 }
 
 function preview(
@@ -1050,14 +1055,15 @@ it("reserves a scaled header gap when a drag introduces a new group", () => {
 });
 
 describe("project group drag", () => {
-  const group = (key: string, projectKey: string | null): SidebarListItem => ({
-    kind: "group",
-    key: `project:${key}`,
-    projectKey,
-    label: key,
-    count: 1,
-    collapsed: false,
-  });
+  const group = (key: string, projectKey: string | null) =>
+    ({
+      kind: "group",
+      key: `project:${key}`,
+      projectKey,
+      label: key,
+      count: 1,
+      collapsed: false,
+    }) satisfies SidebarListItem;
   const first = group("first", "first");
   const second = group("second", "second");
   const other = group("unavailable", null);

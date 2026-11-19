@@ -7,7 +7,7 @@ const decodeJsonThreadTitle = Schema.decodeOption(
   Schema.fromJsonString(Schema.Struct({ title: Schema.String })),
 );
 
-export function toJsonSchemaObject(schema: Schema.Top): unknown {
+export function toJsonSchemaObject(schema: Schema.Top) {
   const document = Schema.toJsonSchemaDocument(Schema.toType(schema), {
     onExcessProperty: "error",
   });
@@ -17,14 +17,14 @@ export function toJsonSchemaObject(schema: Schema.Top): unknown {
   return document.schema;
 }
 
-export function limitSection(value: string, maxChars: number): string {
+export function limitSection(value: string, maxChars: number) {
   if (value.length <= maxChars) return value;
   const last = value.charCodeAt(maxChars - 1);
   const truncated = value.slice(0, last >= 0xd800 && last <= 0xdbff ? maxChars - 1 : maxChars);
   return `${truncated}\n\n[truncated]`;
 }
 
-export function sanitizeCommitSubject(raw: string): string {
+export function sanitizeCommitSubject(raw: string) {
   const singleLine = raw.trim().split(/\r?\n/g)[0]?.trim() ?? "";
   const withoutTrailingPeriod = singleLine.replace(/[.]+$/g, "").trim();
   if (withoutTrailingPeriod.length === 0) {
@@ -45,7 +45,7 @@ export function sanitizeCommitSubject(raw: string): string {
   return subject.trimEnd() || "Update project files";
 }
 
-export function sanitizePrTitle(raw: string): string {
+export function sanitizePrTitle(raw: string) {
   const singleLine = raw.trim().split(/\r?\n/g)[0]?.trim() ?? "";
   if (singleLine.length > 0) {
     return singleLine;
@@ -55,7 +55,7 @@ export function sanitizePrTitle(raw: string): string {
 
 const MAX_THREAD_TITLE_CHARS = 120;
 
-export function sanitizeThreadTitle(raw: string): string {
+export function sanitizeThreadTitle(raw: string) {
   const decoded = decodeJsonThreadTitle(raw);
   const title = Option.isSome(decoded) ? decoded.value.title : raw;
   const normalized = title
@@ -119,7 +119,7 @@ const NOT_A_NEXT_PROMPT: Record<string, (text: string, words: ReadonlyArray<stri
     ),
 };
 
-export function sanitizeNextPrompt(raw: string): string | null {
+export function sanitizeNextPrompt(raw: string) {
   const unwrapped = raw
     .trim()
     .replace(NEXT_PROMPT_WRAPPER, "$2")
@@ -134,7 +134,7 @@ export function sanitizeNextPrompt(raw: string): string | null {
   return Object.values(NOT_A_NEXT_PROMPT).some((rejects) => rejects(text, words)) ? null : text;
 }
 
-function cliLabel(cliName: string): string {
+function cliLabel(cliName: string) {
   const capitalized = cliName.charAt(0).toUpperCase() + cliName.slice(1);
   return `${capitalized} CLI (\`${cliName}\`)`;
 }
@@ -144,7 +144,7 @@ export function normalizeCliError(
   operation: string,
   error: unknown,
   fallback: string,
-): TextGenerationError {
+) {
   if (isTextGenerationError(error)) {
     return error;
   }

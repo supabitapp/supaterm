@@ -32,7 +32,7 @@ import { ProviderDriverKind } from "@supaterm/contracts";
 import { ProviderInstanceIcon } from "../chat/ProviderInstanceIcon";
 import { providerClients } from "./providerDriverMeta";
 
-function errorMessage(error: unknown): string {
+function errorMessage(error: unknown) {
   return error instanceof Error && error.message.trim()
     ? error.message
     : "The ACP could not be prepared.";
@@ -46,7 +46,7 @@ const FIRST_CLASS_REGISTRY_AGENT_IDS = new Set(
 function applyAcpRegistryPrepareResult(
   agent: AcpRegistrySearchAgent,
   prepared: AcpRegistryPrepareResult,
-): AcpRegistrySearchAgent {
+) {
   return {
     ...agent,
     id: prepared.agentId,

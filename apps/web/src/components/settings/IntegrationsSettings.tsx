@@ -144,7 +144,7 @@ export async function clearBrowserProfileData(
   environmentIds: ReadonlyArray<EnvironmentId>,
   profileId: string,
   server?: ServerProfileData,
-): Promise<void> {
+) {
   const desktopEnvironmentIds = bridge === null ? [] : environmentIds;
   const serverEnvironmentIds = server?.environmentIds ?? [];
   if (desktopEnvironmentIds.length === 0 && serverEnvironmentIds.length === 0) {
@@ -164,7 +164,7 @@ function browserProfileRemovalAvailable(
   environmentsReady: boolean,
   environmentCount: number,
   serverBrowserCount = 0,
-): boolean {
+) {
   return (bridgeAvailable || serverBrowserCount > 0) && environmentsReady && environmentCount > 0;
 }
 
@@ -187,7 +187,7 @@ class ProfileLimitReachedError extends Error {
   }
 }
 
-export const importFailureReason = (cause: unknown): BrowserImportFailureReason => {
+export const importFailureReason = (cause: unknown) => {
   const message = String((cause as { message?: unknown } | undefined)?.message ?? "");
   return (
     BrowserImportFailureReason.literals.find((reason) => message.includes(`failed: ${reason}.`)) ??
@@ -195,12 +195,18 @@ export const importFailureReason = (cause: unknown): BrowserImportFailureReason 
   );
 };
 
+function importBrowserCookiesIntoTarget(
+  bridge: NonNullable<typeof previewBridge>,
+  source: BrowserImportSource,
+  environmentId: EnvironmentId,
+  input: { readonly sourceProfileDirectory: string; readonly target: WizardTarget },
+): Promise<ImportOutcome>;
 async function importBrowserCookiesIntoTarget(
   bridge: NonNullable<typeof previewBridge>,
   source: BrowserImportSource,
   environmentId: EnvironmentId,
   input: { readonly sourceProfileDirectory: string; readonly target: WizardTarget },
-): Promise<ImportOutcome> {
+) {
   try {
     const result = await bridge.importBrowserCookies({
       environmentId,
@@ -214,7 +220,7 @@ async function importBrowserCookiesIntoTarget(
         (profile) => profile.id === input.target.profileId,
       )
     ) {
-      return { kind: "blocked", reason: "readFailed" };
+      return { kind: "blocked", reason: "readFailed" } satisfies ImportOutcome;
     }
     let targetName: string;
     if (input.target.kind === "new") {
@@ -264,13 +270,13 @@ async function importBrowserCookiesIntoTarget(
       skipped: result.skipped,
       skippedDomains: result.skippedDomains,
       targetName,
-    };
+    } satisfies ImportOutcome;
   } catch (cause) {
-    return { kind: "blocked", reason: importFailureReason(cause) };
+    return { kind: "blocked", reason: importFailureReason(cause) } satisfies ImportOutcome;
   }
 }
 
-const viewportSelectValue = (viewport: PreviewViewportSetting): string => {
+const viewportSelectValue = (viewport: PreviewViewportSetting) => {
   if (viewport._tag === "fill") return FILL_VALUE;
   if (
     viewport._tag === "preset" &&
@@ -281,7 +287,7 @@ const viewportSelectValue = (viewport: PreviewViewportSetting): string => {
   return RESPONSIVE_VALUE;
 };
 
-const viewportSelectLabel = (viewport: PreviewViewportSetting): string => {
+const viewportSelectLabel = (viewport: PreviewViewportSetting) => {
   const value = viewportSelectValue(viewport);
   if (value === FILL_VALUE) return "Fill panel";
   if (value === RESPONSIVE_VALUE) return "Responsive";
@@ -293,9 +299,7 @@ const isValidDimension = (value: number) =>
   value >= PREVIEW_VIEWPORT_MIN_DIMENSION &&
   value <= PREVIEW_VIEWPORT_MAX_DIMENSION;
 
-const rotateViewport = (
-  viewport: Exclude<PreviewViewportSetting, { readonly _tag: "fill" }>,
-): PreviewViewportSetting => ({
+const rotateViewport = (viewport: Exclude<PreviewViewportSetting, { readonly _tag: "fill" }>) => ({
   ...viewport,
   width: viewport.height,
   height: viewport.width,
@@ -1289,11 +1293,15 @@ function BrowserProfilesSetting({ disabled }: { readonly disabled: boolean }) {
       .catch(() => setSources((previous) => previous ?? []));
   };
 
-  const runWizardImport = async (
+  const runWizardImport: (
     source: BrowserImportSource,
     environmentId: EnvironmentId,
     input: { readonly sourceProfileDirectory: string; readonly target: WizardTarget },
-  ): Promise<ImportOutcome> => {
+  ) => Promise<ImportOutcome> = async (
+    source: BrowserImportSource,
+    environmentId: EnvironmentId,
+    input: { readonly sourceProfileDirectory: string; readonly target: WizardTarget },
+  ) => {
     if (!previewBridge) return { kind: "blocked", reason: "sessionUnavailable" };
     if (!settingsHydrated) return { kind: "blocked", reason: "sessionUnavailable" };
     if (
@@ -1315,9 +1323,7 @@ function BrowserProfilesSetting({ disabled }: { readonly disabled: boolean }) {
     );
   };
 
-  const refreshImportSource = async (
-    sourceId: BrowserImportSource["id"],
-  ): Promise<BrowserImportSource | undefined> => {
+  const refreshImportSource = async (sourceId: BrowserImportSource["id"]) => {
     if (!previewBridge) return undefined;
     try {
       const latest = await previewBridge.listBrowserImportSources();

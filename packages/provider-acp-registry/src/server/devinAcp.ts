@@ -2,15 +2,13 @@ import type * as AcpSchema from "effect-acp/compat";
 import type { AcpToolCallState } from "@supaterm/provider-acp/server/runtimeModel";
 import type { AcpAdapterV2SubagentUpdate } from "@supaterm/provider-acp/server/adapter";
 
-function record(value: unknown): Record<string, unknown> | undefined {
+function record(value: unknown) {
   return typeof value === "object" && value !== null && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : undefined;
 }
 
-export function normalizeDevinSessionUpdate(
-  notification: AcpSchema.SessionNotification,
-): AcpSchema.SessionNotification {
+export function normalizeDevinSessionUpdate(notification: AcpSchema.SessionNotification) {
   const update = notification.update;
   const meta = record("_meta" in update ? update._meta : undefined);
   const parentAgentId = record(meta?.["cognition.ai/subagent_context"])?.parentAgentId;
@@ -29,21 +27,20 @@ export function normalizeDevinSessionUpdate(
   return routed;
 }
 
-export function normalizeDevinToolCall(tool: AcpToolCallState): AcpToolCallState {
+export function normalizeDevinToolCall(tool: AcpToolCallState) {
   const name = record(tool.data.meta)?.["cognition.ai/inferenceToolName"];
   return typeof name === "string" && (!tool.title || tool.title === "Tool")
     ? { ...tool, title: name }
     : tool;
 }
 
-export function extractDevinSubagentUpdate(
-  tool: AcpToolCallState,
-): AcpAdapterV2SubagentUpdate | undefined {
+export function extractDevinSubagentUpdate(tool: AcpToolCallState) {
   const meta = record(tool.data.meta);
   const completed = record(meta?.["cognition.ai/subagent_completed"]);
   const started = record(meta?.["cognition.ai/subagent_started"]);
   const data = completed ?? started;
-  if (typeof data?.agentId !== "string") return undefined;
+  if (typeof data?.agentId !== "string")
+    return undefined satisfies AcpAdapterV2SubagentUpdate | undefined;
   return {
     nativeTaskId: data.agentId,
     childSessionId: data.agentId,
@@ -52,11 +49,9 @@ export function extractDevinSubagentUpdate(
     model: typeof started?.model === "string" ? started.model : null,
     status: completed ? (completed.success === false ? "failed" : "completed") : "running",
     result: typeof completed?.summary === "string" ? completed.summary : null,
-  };
+  } satisfies AcpAdapterV2SubagentUpdate | undefined;
 }
 
-export function devinAnswerablePermissionOptions(
-  request: AcpSchema.RequestPermissionRequest,
-): ReadonlyArray<AcpSchema.PermissionOption> {
+export function devinAnswerablePermissionOptions(request: AcpSchema.RequestPermissionRequest) {
   return request.options.filter((option) => option.optionId.trim() !== "plan_bypass");
 }

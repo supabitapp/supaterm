@@ -35,7 +35,7 @@ export const MINIMUM_OPENCODE_VERSION = "2.0.18";
 function resolveOpenCodeConfigContent(
   inputEnvironment: Readonly<Record<string, string | undefined>> | undefined,
   inheritedEnvironment: Readonly<Record<string, string | undefined>> = process.env,
-): string {
+) {
   return (
     inputEnvironment?.OPENCODE_CONFIG_CONTENT ??
     inheritedEnvironment.OPENCODE_CONFIG_CONTENT ??
@@ -65,19 +65,19 @@ export class OpenCodeRuntimeError extends Data.TaggedError(OPENCODE_RUNTIME_ERRO
 
 export type OpenCodeStartupFailureReason = "databaseLocked";
 
-function classifyStartupExit(stderr: string): OpenCodeStartupFailureReason | undefined {
+function classifyStartupExit(stderr: string) {
   return /SQLITE_BUSY|database is locked/i.test(stderr) ? "databaseLocked" : undefined;
 }
 
 export const isOpenCodeRuntimeError = (u: unknown): u is OpenCodeRuntimeError =>
   P.isTagged(u, OPENCODE_RUNTIME_ERROR_TAG);
 
-function encodeJsonStringForDiagnostics(input: unknown): string | undefined {
+function encodeJsonStringForDiagnostics(input: unknown) {
   const result = encodeUnknownJsonStringExit(input);
   return Exit.isSuccess(result) ? result.value : undefined;
 }
 
-export function openCodeRuntimeErrorDetail(cause: unknown): string {
+export function openCodeRuntimeErrorDetail(cause: unknown) {
   if (isOpenCodeRuntimeError(cause)) return cause.detail;
   if (cause instanceof Error) {
     const message = cause.message;
@@ -128,7 +128,7 @@ export class OpenCodeRuntime extends Context.Service<
   }
 >()("@supaterm/provider-opencode/server/OpenCodeRuntime") {}
 
-export function parseServerUrlFromOutput(output: string): string | null {
+export function parseServerUrlFromOutput(output: string) {
   for (const line of output.split("\n").slice(0, -1)) {
     const match = line.match(/server listening on\s+(https?:\/\/[^\s]+)/i);
     if (match?.[1]) return match[1];
@@ -136,9 +136,7 @@ export function parseServerUrlFromOutput(output: string): string | null {
   return null;
 }
 
-export function parseOpenCodeModelSlug(
-  slug: string | null | undefined,
-): ParsedOpenCodeModelSlug | null {
+export function parseOpenCodeModelSlug(slug: string | null | undefined) {
   if (typeof slug !== "string") {
     return null;
   }
@@ -159,7 +157,7 @@ function ensureRuntimeError(
   operation: OpenCodeRuntimeError["operation"],
   detail: string,
   cause: unknown,
-): OpenCodeRuntimeError {
+) {
   return isOpenCodeRuntimeError(cause)
     ? cause
     : new OpenCodeRuntimeError({ operation, detail, cause });

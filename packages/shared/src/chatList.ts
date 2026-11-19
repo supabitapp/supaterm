@@ -14,7 +14,7 @@ export function resolveChatListAnchoredEndSpace<Item, AnchorId>(
   anchorId: AnchorId | null,
   getAnchorId: (item: Item) => AnchorId | null,
   options: ChatListAnchorOptions = {},
-): ChatListAnchoredEndSpace | undefined {
+) {
   if (anchorId === null) {
     return undefined;
   }

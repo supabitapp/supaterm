@@ -20,7 +20,7 @@ export interface Grid {
   readonly oy: number;
 }
 
-export function makeGrid(cols: number, rows: number): Grid {
+export function makeGrid(cols: number, rows: number) {
   const c = FACE_COLS + 2 * Math.max(0, Math.ceil((cols - FACE_COLS) / 2));
   const r = FACE_ROWS + 2 * Math.max(0, Math.ceil((rows - FACE_ROWS) / 2));
   return {
@@ -56,10 +56,8 @@ const BOLT_X = 7;
 const BOLT_Y = 1;
 
 /** The matrix cell lighting the bolt's LED at `column`, `row`. */
-export const boltCell = (g: Grid, column: number, row: number): readonly [number, number] => [
-  g.ox + BOLT_X + column,
-  g.oy + BOLT_Y + row,
-];
+export const boltCell = (g: Grid, column: number, row: number) =>
+  [g.ox + BOLT_X + column, g.oy + BOLT_Y + row] satisfies readonly [number, number];
 
 const bolt = (g: Grid, level: (c: number, r: number) => number) => {
   for (const [c, r] of BOLT_CELLS) put(g, BOLT_X + c, BOLT_Y + r, level(c, r));

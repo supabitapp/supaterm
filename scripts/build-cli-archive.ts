@@ -67,7 +67,7 @@ export class CliArchiveCommandFailedError extends Schema.TaggedError<CliArchiveC
   "CliArchiveCommandFailedError",
   { command: Schema.String, exitCode: Schema.Int },
 ) {
-  override get message(): string {
+  override get message() {
     return `${this.command} exited with code ${this.exitCode}.`;
   }
 }
@@ -76,17 +76,17 @@ export class CliArchiveInputMissingError extends Schema.TaggedError<CliArchiveIn
   "CliArchiveInputMissingError",
   { inputPath: Schema.String, hint: Schema.String },
 ) {
-  override get message(): string {
+  override get message() {
     return `Missing ${this.inputPath}. ${this.hint}`;
   }
 }
 
-export function cliArchivePlatformKey(platform: BuildPlatform, arch: BuildArch): string {
+export function cliArchivePlatformKey(platform: BuildPlatform, arch: BuildArch) {
   const nodePlatform = platform === "mac" ? "darwin" : platform === "win" ? "win32" : "linux";
   return `${nodePlatform}-${arch}`;
 }
 
-export function cliArchiveStem(version: string, platform: BuildPlatform, arch: BuildArch): string {
+export function cliArchiveStem(version: string, platform: BuildPlatform, arch: BuildArch) {
   return `supaterm-${version}-${cliArchivePlatformKey(platform, arch)}`;
 }
 
@@ -197,9 +197,7 @@ const stageRuntimeExternals = Effect.fn("stageRuntimeExternals")(function* (inpu
   const prebuildsDir = path.join(input.stageDir, "node_modules/node-pty/prebuilds");
   const foreignPrebuilds = (yield* fs
     .readDirectory(prebuildsDir)
-    .pipe(Effect.orElseSucceed((): ReadonlyArray<string> => []))).filter(
-    (entry) => entry !== platformKey,
-  );
+    .pipe(Effect.orElseSucceed(() => []))).filter((entry) => entry !== platformKey);
   for (const entry of [
     "package.json",
     "pnpm-workspace.yaml",
@@ -216,26 +214,26 @@ const stageRuntimeExternals = Effect.fn("stageRuntimeExternals")(function* (inpu
   yield* removeNestedBinDirectories(fs, path, path.join(input.stageDir, "node_modules"));
 });
 
-const removeNestedBinDirectories = Effect.fn("build-cli-archive.removeNestedBinDirectories")(
-  function* (
-    fs: FileSystem.FileSystem,
-    path: Path.Path,
-    root: string,
-  ): Effect.fn.Return<void, PlatformError.PlatformError> {
-    const entries = yield* fs.readDirectory(root).pipe(Effect.orElseSucceed(() => []));
-    for (const entry of entries) {
-      const child = path.join(root, entry);
-      if (entry === ".bin") {
-        yield* fs.remove(child, { recursive: true, force: true });
-        continue;
-      }
-      const info = yield* fs.stat(child).pipe(Effect.option);
-      if (Option.isSome(info) && info.value.type === "Directory") {
-        yield* removeNestedBinDirectories(fs, path, child);
-      }
+const removeNestedBinDirectories: (
+  fs: FileSystem.FileSystem,
+  path: Path.Path,
+  root: string,
+) => Effect.Effect<void, PlatformError.PlatformError> = Effect.fn(
+  "build-cli-archive.removeNestedBinDirectories",
+)(function* (fs: FileSystem.FileSystem, path: Path.Path, root: string) {
+  const entries = yield* fs.readDirectory(root).pipe(Effect.orElseSucceed(() => []));
+  for (const entry of entries) {
+    const child = path.join(root, entry);
+    if (entry === ".bin") {
+      yield* fs.remove(child, { recursive: true, force: true });
+      continue;
     }
-  },
-);
+    const info = yield* fs.stat(child).pipe(Effect.option);
+    if (Option.isSome(info) && info.value.type === "Directory") {
+      yield* removeNestedBinDirectories(fs, path, child);
+    }
+  }
+});
 
 const stageWebClient = Effect.fn("stageWebClient")(function* (source: string, target: string) {
   const fs = yield* FileSystem.FileSystem;
@@ -311,7 +309,7 @@ export class CliArchiveNotarizationRejectedError extends Schema.TaggedError<CliA
   "CliArchiveNotarizationRejectedError",
   { submissionId: Schema.String, status: Schema.String },
 ) {
-  override get message(): string {
+  override get message() {
     return `Apple notarization ${this.submissionId} is ${this.status}, not Accepted.`;
   }
 }

@@ -7,7 +7,7 @@ export class NativeViewResolutionError extends Schema.TaggedError<NativeViewReso
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Failed to resolve native view ${this.nativeModuleName}.`;
   }
 }

@@ -23,7 +23,8 @@ export interface ResourceTelemetryState {
 
 export function useResourceTelemetry(
   targetEnvironmentId?: EnvironmentId | null,
-): ResourceTelemetryState {
+): ResourceTelemetryState;
+export function useResourceTelemetry(targetEnvironmentId?: EnvironmentId | null) {
   const primaryEnvironment = usePrimaryEnvironment();
   const environmentId =
     targetEnvironmentId === undefined
@@ -56,7 +57,7 @@ export function useResourceTelemetry(
     return result.value.snapshot;
   };
 
-  return { ...query, retry };
+  return { ...query, retry } satisfies ResourceTelemetryState;
 }
 
 export function useResourceTelemetryHistory(

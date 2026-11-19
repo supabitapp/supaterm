@@ -33,14 +33,15 @@ const CHAT_MARKDOWN_IMAGE_SIZE_CLASS_NAME = cn(
   CHAT_MARKDOWN_MEDIA_BOUNDS_CLASS_NAME,
 );
 
-export function markdownImageCopy(alt: string, src: string, title: string | undefined): string {
+export function markdownImageCopy(alt: string, src: string, title: string | undefined): string;
+export function markdownImageCopy(alt: string, src: string, title: string | undefined) {
   const escapedAlt = alt.replaceAll("\\", "\\\\").replaceAll("[", "\\[").replaceAll("]", "\\]");
   const titleSuffix =
     title === undefined ? "" : ` "${title.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`;
-  return `![${escapedAlt}](${markdownDestination(src)}${titleSuffix})`;
+  return `![${escapedAlt}](${markdownDestination(src)}${titleSuffix})` satisfies string;
 }
 
-function markdownDestination(src: string): string {
+function markdownDestination(src: string) {
   if (!/[\s<>()]/.test(src)) return src;
   const escaped = src
     .replaceAll("\\", "\\\\")
@@ -51,7 +52,7 @@ function markdownDestination(src: string): string {
   return `<${escaped}>`;
 }
 
-function parseImageDimension(value: string | number | undefined): number {
+function parseImageDimension(value: string | number | undefined) {
   return Number(typeof value === "string" ? value.trim().replace(/px$/i, "") : value);
 }
 
@@ -63,8 +64,13 @@ function parseImageDimension(value: string | number | undefined): number {
 export function authoredImageSizeStyle(
   width: string | number | undefined,
   height: string | number | undefined,
+  maxHeightRem?: number,
+): CSSProperties | undefined;
+export function authoredImageSizeStyle(
+  width: string | number | undefined,
+  height: string | number | undefined,
   maxHeightRem = 30,
-): CSSProperties | undefined {
+) {
   const parsedWidth = parseImageDimension(width);
   const parsedHeight = parseImageDimension(height);
   const hasWidth = Number.isFinite(parsedWidth) && parsedWidth > 0;
@@ -75,11 +81,13 @@ export function authoredImageSizeStyle(
       height: "auto",
       aspectRatio: `${parsedWidth} / ${parsedHeight}`,
       maxWidth: `min(100%, 30rem, ${(maxHeightRem * parsedWidth) / parsedHeight}rem)`,
-    };
+    } satisfies CSSProperties | undefined;
   }
-  if (hasWidth) return { maxWidth: `min(100%, 30rem, ${parsedWidth}px)` };
-  if (hasHeight) return { maxHeight: `min(30rem, ${parsedHeight}px)` };
-  return undefined;
+  if (hasWidth)
+    return { maxWidth: `min(100%, 30rem, ${parsedWidth}px)` } satisfies CSSProperties | undefined;
+  if (hasHeight)
+    return { maxHeight: `min(30rem, ${parsedHeight}px)` } satisfies CSSProperties | undefined;
+  return undefined satisfies CSSProperties | undefined;
 }
 
 const CHAT_MARKDOWN_WORKSPACE_IMAGE_CLASS_NAME = cn(
@@ -347,7 +355,17 @@ export function assetMediaActionsSource(input: {
   readonly workspaceRoot?: string | undefined;
   readonly originalUrl?: string | undefined;
   readonly downloadable?: boolean | undefined;
-}): MediaActionSource {
+}): MediaActionSource;
+export function assetMediaActionsSource(input: {
+  readonly environmentId: EnvironmentId;
+  readonly resource: ChatMarkdownAssetResource;
+  readonly kind: "image" | "video";
+  readonly name: string;
+  readonly src: string | null;
+  readonly workspaceRoot?: string | undefined;
+  readonly originalUrl?: string | undefined;
+  readonly downloadable?: boolean | undefined;
+}) {
   const { environmentId, resource } = input;
   const path =
     resource._tag === "media-file"
@@ -375,7 +393,7 @@ export function assetMediaActionsSource(input: {
               .openFile({ environmentId, threadId: resource.threadId }, relativePath),
         }
       : {}),
-  };
+  } satisfies MediaActionSource;
 }
 
 export const ChatMarkdownAssetImage = memo(function ChatMarkdownAssetImage(props: {

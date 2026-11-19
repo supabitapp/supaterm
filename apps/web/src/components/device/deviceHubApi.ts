@@ -46,11 +46,11 @@ const hubUrl = (target: DeviceHubTarget, path: string, params?: Record<string, s
   return withDeviceHubQuery(`${vendorBase(target)}${path}${search}`, target.access);
 };
 
-const fetchJson = async (
+const fetchJson: (
   target: DeviceHubTarget,
   url: string,
   signal?: AbortSignal,
-): Promise<unknown> => {
+) => Promise<unknown> = async (target: DeviceHubTarget, url: string, signal?: AbortSignal) => {
   const response = await fetch(url, {
     cache: "no-store",
     credentials: target.access.credentials ? "include" : "same-origin",
@@ -68,7 +68,7 @@ const numberOr = (value: unknown, fallback: number) =>
 
 const AX_ELEMENT_LIMIT = 500;
 
-const flattenIosAxTree = (roots: ReadonlyArray<unknown>): ReadonlyArray<DeviceAxElement> => {
+const flattenIosAxTree = (roots: ReadonlyArray<unknown>) => {
   const first = roots[0];
   const rootFrame = isRecord(first) && isRecord(first.frame) ? first.frame : null;
   const screenWidth = Math.max(1, numberOr(rootFrame?.width, 1));
@@ -99,10 +99,11 @@ const flattenIosAxTree = (roots: ReadonlyArray<unknown>): ReadonlyArray<DeviceAx
   return elements;
 };
 
-export async function fetchDeviceAxTree(
+export function fetchDeviceAxTree(
   target: DeviceHubTarget,
   signal?: AbortSignal,
-): Promise<DeviceAxTree> {
+): Promise<DeviceAxTree>;
+export async function fetchDeviceAxTree(target: DeviceHubTarget, signal?: AbortSignal) {
   if (target.platform === "ios") {
     const payload = await fetchJson(
       target,
@@ -111,9 +112,12 @@ export async function fetchDeviceAxTree(
     );
     if (!Array.isArray(payload)) {
       const error = isRecord(payload) && typeof payload.error === "string" ? payload.error : null;
-      return { elements: [], errors: [error ?? "Unexpected accessibility payload."] };
+      return {
+        elements: [],
+        errors: [error ?? "Unexpected accessibility payload."],
+      } satisfies DeviceAxTree;
     }
-    return { elements: flattenIosAxTree(payload), errors: [] };
+    return { elements: flattenIosAxTree(payload), errors: [] } satisfies DeviceAxTree;
   }
   const payload = await fetchJson(
     target,
@@ -122,7 +126,10 @@ export async function fetchDeviceAxTree(
   );
   if (!isRecord(payload) || !Array.isArray(payload.nodes)) {
     const error = isRecord(payload) && typeof payload.error === "string" ? payload.error : null;
-    return { elements: [], errors: [error ?? "Unexpected accessibility payload."] };
+    return {
+      elements: [],
+      errors: [error ?? "Unexpected accessibility payload."],
+    } satisfies DeviceAxTree;
   }
   const nodes = payload.nodes.filter(
     (node): node is Record<string, unknown> => isRecord(node) && isRecord(node.bounds),
@@ -130,7 +137,7 @@ export async function fetchDeviceAxTree(
   const root = nodes[0]?.bounds as Record<string, unknown> | undefined;
   const screenWidth = Math.max(1, numberOr(root?.right, 1));
   const screenHeight = Math.max(1, numberOr(root?.bottom, 1));
-  const elements = nodes.slice(1).flatMap((node): DeviceAxElement[] => {
+  const elements = nodes.slice(1).flatMap((node) => {
     const bounds = node.bounds as Record<string, unknown>;
     const left = numberOr(bounds.left, 0);
     const top = numberOr(bounds.top, 0);
@@ -154,14 +161,14 @@ export async function fetchDeviceAxTree(
       },
     ];
   });
-  return { elements, errors: [] };
+  return { elements, errors: [] } satisfies DeviceAxTree;
 }
 
 const openEventSource = (
   target: DeviceHubTarget,
   url: string,
   onMessage: (data: unknown) => void,
-): (() => void) => {
+) => {
   const source = new EventSource(url, { withCredentials: target.access.credentials });
   source.addEventListener("message", (event) => {
     try {
@@ -174,7 +181,7 @@ const openEventSource = (
 export function subscribeDeviceForeground(
   target: DeviceHubTarget,
   onChange: (app: DeviceForegroundInfo | null) => void,
-): () => void {
+) {
   if (target.platform !== "ios") return () => {};
   return openEventSource(
     target,
@@ -195,7 +202,7 @@ export function subscribeDeviceForeground(
   );
 }
 
-const toEventLogEntry = (raw: unknown): DeviceEventLogEntry | null => {
+const toEventLogEntry = (raw: unknown) => {
   if (!isRecord(raw) || typeof raw.id !== "number") return null;
   return {
     id: raw.id,
@@ -213,7 +220,7 @@ export function appendDeviceEventLog(
   current: ReadonlyArray<DeviceEventLogEntry>,
   incoming: ReadonlyArray<DeviceEventLogEntry>,
   reset: boolean,
-): ReadonlyArray<DeviceEventLogEntry> {
+) {
   const merged = reset ? [...incoming] : [...current, ...incoming];
   return merged.length > DEVICE_EVENT_LOG_LIMIT ? merged.slice(-DEVICE_EVENT_LOG_LIMIT) : merged;
 }
@@ -221,7 +228,7 @@ export function appendDeviceEventLog(
 export function subscribeDeviceEventLog(
   target: DeviceHubTarget,
   onEvents: (entries: ReadonlyArray<DeviceEventLogEntry>, reset: boolean) => void,
-): () => void {
+) {
   if (target.platform !== "ios") return () => {};
   return openEventSource(
     target,

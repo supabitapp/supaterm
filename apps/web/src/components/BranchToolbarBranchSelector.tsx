@@ -99,7 +99,7 @@ interface BranchToolbarBranchSelectorProps {
 
 const WORKTREE_CHANGE_BLOCKED_MESSAGE = "Stop the current turn to switch worktrees.";
 
-function toBranchActionErrorMessage(error: unknown): string {
+function toBranchActionErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "An error occurred.";
 }
 
@@ -438,7 +438,7 @@ export function BranchToolbarBranchSelector({
   };
 
   const latestSelectionIdRef = useRef(0);
-  const readSelectedRef = async (worktreePath: string, listedRef: VcsRef): Promise<VcsRef> => {
+  const readSelectedRef = async (worktreePath: string, listedRef: VcsRef) => {
     const result = await readRefs({
       environmentId,
       input: { cwd: worktreePath, query: listedRef.name, refKind: "local", limit: 1 },

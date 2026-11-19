@@ -6,7 +6,7 @@ import { FetchHttpClient, HttpClient, HttpClientRequest } from "effect/http";
 import { readDesktopPrimaryBearerToken } from "./desktopAuth";
 import { resolvePrimaryEnvironmentHttpUrl } from "./target";
 
-function isSameOriginBrowserPrimary(): boolean {
+function isSameOriginBrowserPrimary() {
   if (
     typeof window === "undefined" ||
     window.desktopBridge !== undefined ||
@@ -18,7 +18,7 @@ function isSameOriginBrowserPrimary(): boolean {
   return new URL(resolvePrimaryEnvironmentHttpUrl("/")).origin === window.location.origin;
 }
 
-function withPrimaryBearerToken(client: HttpClient.HttpClient): HttpClient.HttpClient {
+function withPrimaryBearerToken(client: HttpClient.HttpClient) {
   return client.pipe(
     HttpClient.mapRequestEffect((request) =>
       Effect.promise(readDesktopPrimaryBearerToken).pipe(

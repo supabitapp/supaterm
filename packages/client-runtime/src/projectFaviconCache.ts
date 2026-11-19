@@ -98,7 +98,7 @@ export function createProjectFaviconImageLoader(input: {
   ) => Promise<string>;
 }) {
   const fetchImpl = input.fetch ?? globalThis.fetch;
-  return async (url: string, signal: AbortSignal): Promise<string> => {
+  return async (url: string, signal: AbortSignal) => {
     const response = await fetchImpl(url, { signal });
     if (!response.ok) throw new Error(`Project icon request failed with ${response.status}.`);
     const contentType = response.headers
@@ -169,11 +169,7 @@ export function createProjectFaviconCache(input: {
 
   const peek = (target: ProjectFaviconTarget) => entries.get(keyFor(target))?.dataUrl ?? null;
 
-  const resolve = async (
-    target: ProjectFaviconTarget,
-    url: string | null,
-    signal: AbortSignal,
-  ): Promise<string | null> => {
+  const resolve = async (target: ProjectFaviconTarget, url: string | null, signal: AbortSignal) => {
     await clearing;
     const startGeneration = generation;
     const startRevision = environmentRevisions.get(target.environmentId) ?? 0;

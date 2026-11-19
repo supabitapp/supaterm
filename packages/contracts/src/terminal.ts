@@ -16,7 +16,7 @@ const SEQUENCE_DCS = 4;
 const SEQUENCE_SOS_PM_APC = 5;
 const SEQUENCE_OSC = 6;
 
-function nextTerminalSequenceState(state: number, unit: number): number {
+function nextTerminalSequenceState(state: number, unit: number) {
   if (unit === 0x1b) return SEQUENCE_ESCAPE;
   if (state === TERMINAL_SEQUENCE_GROUND || unit === 0x18 || unit === 0x1a) {
     return TERMINAL_SEQUENCE_GROUND;
@@ -68,7 +68,7 @@ export function terminalSequenceStateAfter(
   text: string,
   start = 0,
   end = text.length,
-): number {
+) {
   if (end <= start) return state;
   const escape = text.lastIndexOf("\u001b", end - 1);
   if (escape >= start) {
@@ -82,7 +82,7 @@ export function terminalSequenceStateAfter(
 }
 
 /** Where in `text` a terminal that entered it in `state` is first back in ground state. */
-export function terminalSequenceEnd(state: number, text: string): number {
+export function terminalSequenceEnd(state: number, text: string) {
   let index = 0;
   while (state !== TERMINAL_SEQUENCE_GROUND && index < text.length) {
     state = nextTerminalSequenceState(state, text.charCodeAt(index));
@@ -95,7 +95,7 @@ export function terminalSequenceEnd(state: number, text: string): number {
  * The final `maxBytes` of UTF-8 a client retains, starting at a code point boundary and
  * outside any control sequence the cut went through.
  */
-export function retainedTerminalHistory(history: string, maxBytes: number): string {
+export function retainedTerminalHistory(history: string, maxBytes: number) {
   if (maxBytes <= 0) {
     return "";
   }
@@ -195,7 +195,8 @@ export const TerminalWriteInput = Schema.Struct({
 export type TerminalWriteInput = Schema.Codec.Encoded<typeof TerminalWriteInput>;
 
 /** Splits input into writes that fit `TerminalWriteInput`, never between a surrogate pair. */
-export function chunkTerminalWrite(data: string): ReadonlyArray<string> {
+export function chunkTerminalWrite(data: string): ReadonlyArray<string>;
+export function chunkTerminalWrite(data: string) {
   const chunks: string[] = [];
   let start = 0;
   while (start < data.length) {
@@ -207,7 +208,7 @@ export function chunkTerminalWrite(data: string): ReadonlyArray<string> {
     chunks.push(data.slice(start, end));
     start = end;
   }
-  return chunks;
+  return chunks satisfies ReadonlyArray<string>;
 }
 
 export const TerminalResizeInput = Schema.Struct({

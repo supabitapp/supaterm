@@ -8,7 +8,7 @@ export const GROK_BACKGROUND_BASH_PROMPT =
 const GROK_BACKGROUND_BASH_WAKE_LABEL =
   "notification:session/update:agent_thought_chunk:task-completed-00000000-0000-4000-8000-000000000002";
 
-export function grokBackgroundBashInput(): OrchestratorFixtureInput {
+export function grokBackgroundBashInput() {
   return {
     steps: [
       { type: "message", text: GROK_BACKGROUND_BASH_PROMPT },
@@ -16,5 +16,5 @@ export function grokBackgroundBashInput(): OrchestratorFixtureInput {
       { type: "release_replay_gate", label: GROK_BACKGROUND_BASH_WAKE_LABEL },
       { type: "finish_held_run", targetRunIndex: 2, status: "completed" },
     ],
-  };
+  } satisfies OrchestratorFixtureInput;
 }

@@ -16,9 +16,7 @@ import * as Fiber from "effect/Fiber";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
-import * as PlatformError from "effect/PlatformError";
 import * as Result from "effect/Result";
-import * as Scope from "effect/Scope";
 import * as Stream from "effect/Stream";
 import * as TestClock from "effect/testing/TestClock";
 import { ChildProcessSpawner } from "effect/process";
@@ -33,7 +31,6 @@ import type {
 import {
   DEFAULT_SERVER_SETTINGS,
   EventId,
-  GitCommandError,
   MessageId,
   ProjectId,
   ProviderDriverKind,
@@ -132,7 +129,7 @@ const created = (calls: ReadonlyArray<FakeProviderCall>) =>
 
 type FakeGitTextGeneration = TextGeneration.TextGeneration["Service"];
 
-function runGitSyncForFakeCheckout(cwd: string, args: readonly string[]): void {
+function runGitSyncForFakeCheckout(cwd: string, args: readonly string[]) {
   const result = NodeChildProcess.spawnSync("git", args, {
     cwd,
     encoding: "utf8",
@@ -144,46 +141,28 @@ function runGitSyncForFakeCheckout(cwd: string, args: readonly string[]): void {
     `Failed to simulate a host checkout with git ${args.join(" ")}: ${result.stderr?.trim() || "unknown error"}`,
   );
 }
-function makeTempDir(
-  prefix: string,
-): Effect.Effect<string, PlatformError.PlatformError, FileSystem.FileSystem | Scope.Scope> {
+function makeTempDir(prefix: string) {
   return Effect.gen(function* () {
     const fileSystem = yield* FileSystem.FileSystem;
     return yield* fileSystem.makeTempDirectoryScoped({ prefix });
   });
 }
 
-function removePath(
-  targetPath: string,
-): Effect.Effect<void, PlatformError.PlatformError, FileSystem.FileSystem> {
+function removePath(targetPath: string) {
   return Effect.gen(function* () {
     const fileSystem = yield* FileSystem.FileSystem;
     yield* fileSystem.remove(targetPath, { recursive: true, force: true });
   });
 }
 
-function makeDirectory(
-  dirPath: string,
-): Effect.Effect<void, PlatformError.PlatformError, FileSystem.FileSystem> {
+function makeDirectory(dirPath: string) {
   return Effect.gen(function* () {
     const fileSystem = yield* FileSystem.FileSystem;
     yield* fileSystem.makeDirectory(dirPath, { recursive: true });
   });
 }
 
-function runGit(
-  cwd: string,
-  args: readonly string[],
-  allowNonZeroExit = false,
-): Effect.Effect<
-  {
-    readonly exitCode: GitVcsDriver.ExecuteGitResult["exitCode"];
-    readonly stdout: string;
-    readonly stderr: string;
-  },
-  GitCommandError,
-  GitVcsDriver.GitVcsDriver
-> {
+function runGit(cwd: string, args: readonly string[], allowNonZeroExit = false) {
   return Effect.gen(function* () {
     const git = yield* GitVcsDriver.GitVcsDriver;
     const result = yield* git.execute({
@@ -200,13 +179,7 @@ function runGit(
   });
 }
 
-function initRepo(
-  cwd: string,
-): Effect.Effect<
-  void,
-  PlatformError.PlatformError | GitCommandError,
-  FileSystem.FileSystem | Scope.Scope | GitVcsDriver.GitVcsDriver
-> {
+function initRepo(cwd: string) {
   return Effect.gen(function* () {
     const fs = yield* FileSystem.FileSystem;
     yield* runGit(cwd, ["init", "--initial-branch=main"]);
@@ -219,11 +192,7 @@ function initRepo(
   });
 }
 
-function createBareRemote(): Effect.Effect<
-  string,
-  PlatformError.PlatformError | GitCommandError,
-  FileSystem.FileSystem | Scope.Scope | GitVcsDriver.GitVcsDriver
-> {
+function createBareRemote() {
   return Effect.gen(function* () {
     const remoteDir = yield* makeTempDir("supaterm-git-remote-");
     yield* runGit(remoteDir, ["init", "--bare"]);
@@ -236,7 +205,7 @@ function configureRemote(
   remoteName: string,
   remotePath: string,
   fetchNamespace: string,
-): Effect.Effect<void, GitCommandError, GitVcsDriver.GitVcsDriver> {
+) {
   return Effect.gen(function* () {
     yield* runGit(cwd, ["config", `remote.${remoteName}.url`, remotePath]);
     yield* runGit(cwd, [
@@ -253,7 +222,7 @@ function configureVisibleRemoteUrlWithLocalRewrite(
   remoteName: string,
   visibleUrl: string,
   localRemotePath: string,
-): Effect.Effect<void, GitCommandError, GitVcsDriver.GitVcsDriver> {
+) {
   return Effect.gen(function* () {
     yield* runGit(cwd, ["config", `remote.${remoteName}.url`, visibleUrl]);
     yield* runGit(cwd, ["config", `url.${localRemotePath}.insteadOf`, visibleUrl]);
@@ -261,8 +230,9 @@ function configureVisibleRemoteUrlWithLocalRewrite(
 }
 
 function createTextGeneration(
-  overrides: Partial<FakeGitTextGeneration> = {},
-): TextGeneration.TextGeneration["Service"] {
+  overrides?: Partial<FakeGitTextGeneration>,
+): TextGeneration.TextGeneration["Service"];
+function createTextGeneration(overrides: Partial<FakeGitTextGeneration> = {}) {
   const implementation: FakeGitTextGeneration = {
     generateCommitMessage: (input) =>
       Effect.succeed({
@@ -333,13 +303,14 @@ function createTextGeneration(
         ),
       ),
     generateReviewGuide: (input) => implementation.generateReviewGuide(input),
-  };
+  } satisfies TextGeneration.TextGeneration["Service"];
 }
 
-function createFakeSourceControlProvider(scenario: FakeProviderScenario = {}): {
+function createFakeSourceControlProvider(scenario?: FakeProviderScenario): {
   service: SourceControlProvider["Service"];
   calls: FakeProviderCall[];
-} {
+};
+function createFakeSourceControlProvider(scenario: FakeProviderScenario = {}) {
   const kind = SourceControlProviderKind.make(scenario.kind ?? "github");
   const prListQueue = [...(scenario.prListSequence ?? [])];
   const prListQueueByHeadSelector = new Map(
@@ -366,7 +337,9 @@ function createFakeSourceControlProvider(scenario: FakeProviderScenario = {}): {
         : Effect.void;
     });
 
-  const toChangeRequest = (summary: FakeChangeRequest): ChangeRequest => ({
+  const toChangeRequest: (summary: FakeChangeRequest) => ChangeRequest = (
+    summary: FakeChangeRequest,
+  ) => ({
     ...summary,
     provider: kind,
     state: summary.state ?? "open",
@@ -378,7 +351,7 @@ function createFakeSourceControlProvider(scenario: FakeProviderScenario = {}): {
         : Option.some(DateTime.makeUnsafe(summary.updatedAt)),
   });
 
-  const pullRequest = (): FakeChangeRequest =>
+  const pullRequest: () => FakeChangeRequest = () =>
     scenario.pullRequest ?? {
       number: 101,
       title: "Pull request",
@@ -534,6 +507,9 @@ function createFakeSourceControlProvider(scenario: FakeProviderScenario = {}): {
         ),
     },
     calls,
+  } satisfies {
+    service: SourceControlProvider["Service"];
+    calls: FakeProviderCall[];
   };
 }
 
@@ -1019,17 +995,18 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
       yield* runGit(repoDir, ["checkout", "-b", "feature/racing-upstream"]);
       yield* runGit(repoDir, ["push", "-u", "origin", "feature/racing-upstream"]);
       yield* runGit(repoDir, ["push", "origin", "HEAD:refs/heads/feature/raced-head"]);
-      const pullRequest = (number: number, headRefName: string): FakeChangeRequest[] => [
-        {
-          number,
-          title: headRefName,
-          url: `https://github.com/supabitapp/supaterm/pull/${number}`,
-          baseRefName: "main",
-          headRefName,
-          state: "open",
-          updatedAt: "2026-04-07T15:00:00Z",
-        },
-      ];
+      const pullRequest = (number: number, headRefName: string) =>
+        [
+          {
+            number,
+            title: headRefName,
+            url: `https://github.com/supabitapp/supaterm/pull/${number}`,
+            baseRefName: "main",
+            headRefName,
+            state: "open",
+            updatedAt: "2026-04-07T15:00:00Z",
+          },
+        ] satisfies FakeChangeRequest[];
       const gate = {
         matches: (args: ReadonlyArray<string>) =>
           args[0] === "for-each-ref" && args.at(-1) === "refs/heads/feature/racing-upstream",
@@ -1125,7 +1102,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
       yield* runGit(repoDir, ["push", "-u", "origin", "main"]);
       yield* runGit(repoDir, ["checkout", "-b", "feature/done"]);
       yield* runGit(repoDir, ["push", "-u", "origin", "feature/done"]);
-      const pullRequest = (number: number, state: "open" | "merged"): FakeChangeRequest => ({
+      const pullRequest = (number: number, state: "open" | "merged") => ({
         number,
         title: "Done",
         url: `https://github.com/pingdotgg/codething-mvp/pull/${number}`,
@@ -1909,17 +1886,18 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
     });
   }
 
-  const squashMergedPr = (branch: string, headSha: string): FakeChangeRequest => ({
-    number: 217,
-    title: "Feature work",
-    url: "https://github.com/supabitapp/supaterm/pull/217",
-    baseRefName: "main",
-    headRefName: branch,
-    headSha,
-    state: "merged",
-    mergedAt: "2026-04-02T15:00:00Z",
-    updatedAt: "2026-04-02T15:00:00Z",
-  });
+  const squashMergedPr = (branch: string, headSha: string) =>
+    ({
+      number: 217,
+      title: "Feature work",
+      url: "https://github.com/supabitapp/supaterm/pull/217",
+      baseRefName: "main",
+      headRefName: branch,
+      headSha,
+      state: "merged",
+      mergedAt: "2026-04-02T15:00:00Z",
+      updatedAt: "2026-04-02T15:00:00Z",
+    }) satisfies FakeChangeRequest;
 
   it.effect("status reports nothing to ship after a squash merge deleted the remote branch", () =>
     Effect.gen(function* () {

@@ -3,9 +3,7 @@ import { describe, expect, it } from "vite-plus/test";
 
 import { mergeServers } from "./useDiscoveredLocalServers";
 
-const scannerServer = (
-  overrides: Partial<DiscoveredLocalServer & { requestedUrl: string }>,
-): DiscoveredLocalServer & { requestedUrl: string } => ({
+const scannerServer = (overrides: Partial<DiscoveredLocalServer & { requestedUrl: string }>) => ({
   host: "localhost",
   port: 5173,
   url: "http://localhost:5173",

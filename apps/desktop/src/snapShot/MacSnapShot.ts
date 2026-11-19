@@ -15,11 +15,11 @@ export type MacSnapShotSource = {
   readonly name: string;
 };
 
-function macSnapShotArguments(windowId: number, outputPath: string): string[] {
+function macSnapShotArguments(windowId: number, outputPath: string) {
   return ["-l", String(windowId), "-o", "-x", "-t", "png", outputPath];
 }
 
-function runMacSnapShot(windowId: number, outputPath: string): Promise<void> {
+function runMacSnapShot(windowId: number, outputPath: string) {
   return new Promise((resolve, reject) => {
     NodeChildProcess.execFile(
       MAC_SCREEN_CAPTURE_PATH,
@@ -30,14 +30,19 @@ function runMacSnapShot(windowId: number, outputPath: string): Promise<void> {
         else resolve();
       },
     );
-  });
+  }) satisfies Promise<void>;
 }
 
+export function captureMacWindowSnapshot(
+  active: ActiveWindow,
+  outputPath: string,
+  maxSize: Electron.Size,
+): Promise<{ readonly source: MacSnapShotSource; readonly png: Buffer }>;
 export async function captureMacWindowSnapshot(
   active: ActiveWindow,
   outputPath: string,
   maxSize: Electron.Size,
-): Promise<{ readonly source: MacSnapShotSource; readonly png: Buffer }> {
+) {
   await runMacSnapShot(active.id, outputPath);
   const capturedPng = await NodeFSP.readFile(outputPath);
   if (
@@ -66,5 +71,5 @@ export async function captureMacWindowSnapshot(
       name: active.title.trim() || active.owner.name.trim() || "Window",
     },
     png,
-  };
+  } satisfies { readonly source: MacSnapShotSource; readonly png: Buffer };
 }

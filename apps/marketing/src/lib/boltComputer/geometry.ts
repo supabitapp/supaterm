@@ -36,7 +36,7 @@ export function extents(o: Outline, inset = 0) {
 }
 
 /** Signed distance to `o` shrunk by `inset`, negative inside. */
-export function sd(o: Outline, x: number, y: number, inset = 0): number {
+export function sd(o: Outline, x: number, y: number, inset = 0) {
   const qx = Math.abs(x - o.cx) - o.bx;
   const qy = Math.abs(y - o.cy) - o.by;
   return (
@@ -50,7 +50,7 @@ export function trace(ctx: CanvasRenderingContext2D, o: Outline, inset = 0) {
 }
 
 /** Roll · Yaw · Pitch, row-major. */
-export function rotation(yaw: number, pitch: number, roll: number): Matrix {
+export function rotation(yaw: number, pitch: number, roll: number) {
   const cy = Math.cos(yaw);
   const sy = Math.sin(yaw);
   const cp = Math.cos(pitch);
@@ -68,15 +68,15 @@ export function rotation(yaw: number, pitch: number, roll: number): Matrix {
     -sy,
     cy * sp,
     cy * cp,
-  ];
+  ] satisfies Matrix;
 }
 
-export function rotate(m: Matrix, x: number, y: number, z: number): V3 {
+export function rotate(m: Matrix, x: number, y: number, z: number) {
   return [
     m[0] * x + m[1] * y + m[2] * z,
     m[3] * x + m[4] * y + m[5] * z,
     m[6] * x + m[7] * y + m[8] * z,
-  ];
+  ] satisfies V3;
 }
 
 export interface Mesh {
@@ -95,7 +95,7 @@ const CORNER_ARCS = [
   [-1, 1, Math.PI / 2],
 ] as const;
 
-function buildBody(): Mesh {
+function buildBody() {
   const { bx, by, r } = HOUSING;
   const zf = DEPTH / 2;
   const outline: Array<readonly [number, number, number, number]> = [];
@@ -158,7 +158,7 @@ function buildBody(): Mesh {
 }
 
 let body: Mesh | null = null;
-export function bodyMesh(): Mesh {
+export function bodyMesh() {
   body ??= buildBody();
   return body;
 }

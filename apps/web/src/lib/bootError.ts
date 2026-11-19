@@ -130,7 +130,8 @@ function clientPlatform(bridge: DesktopBridge | undefined) {
   }
 }
 
-function readEnvironment(bridge: DesktopBridge | undefined): BootErrorEnvironment {
+function readEnvironment(bridge: DesktopBridge | undefined): BootErrorEnvironment;
+function readEnvironment(bridge: DesktopBridge | undefined) {
   const version = import.meta.env.APP_VERSION;
   return {
     version,
@@ -140,7 +141,7 @@ function readEnvironment(bridge: DesktopBridge | undefined): BootErrorEnvironmen
     platform: clientPlatform(bridge),
     userAgent: navigator.userAgent,
     time: new Date().toISOString(),
-  };
+  } satisfies BootErrorEnvironment;
 }
 
 function isRepeatFailure(now: number) {

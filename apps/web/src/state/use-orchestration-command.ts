@@ -19,9 +19,9 @@ const ORCHESTRATION_OPERATE_DENIED_MESSAGE = "This connection cannot change thre
 export function useOrchestrationCommand<W extends { readonly environmentId: EnvironmentId }, A, E>(
   command: AtomCommand<W, A, E>,
   options?: string | AtomCommandOptions,
-): (value: W) => Promise<AtomCommandResult<A, E | EnvironmentAuthorizationError>> {
+) {
   const run = useAtomCommand(command, options);
-  return async (value: W): Promise<AtomCommandResult<A, E | EnvironmentAuthorizationError>> => {
+  return (async (value: W) => {
     if (!readEnvironmentScope(value.environmentId, AuthOrchestrationOperateScope)) {
       return AsyncResult.failure(
         Cause.fail(
@@ -30,8 +30,14 @@ export function useOrchestrationCommand<W extends { readonly environmentId: Envi
             message: ORCHESTRATION_OPERATE_DENIED_MESSAGE,
           }),
         ),
-      );
+      ) satisfies AtomCommandResult<A, E | EnvironmentAuthorizationError> as AtomCommandResult<
+        A,
+        E | EnvironmentAuthorizationError
+      >;
     }
-    return run(value);
-  };
+    return run(value) satisfies AtomCommandResult<
+      A,
+      E | EnvironmentAuthorizationError
+    > as AtomCommandResult<A, E | EnvironmentAuthorizationError>;
+  }) satisfies (value: W) => Promise<AtomCommandResult<A, E | EnvironmentAuthorizationError>>;
 }

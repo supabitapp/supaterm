@@ -56,7 +56,7 @@ function valueFor(
   totals: DailyTotals | HourlyTotals | undefined,
   provider: UsageProviderKind,
   metric: UsageChartMetric,
-): number {
+) {
   const entry = totals?.byProvider.get(provider);
   if (entry === undefined) return 0;
   return metric === "tokens" ? entry.totalTokens : entry.costUsd;
@@ -66,7 +66,7 @@ export function buildPeriodColumns(
   periods: readonly string[],
   byPeriod: ReadonlyMap<string, DailyTotals | HourlyTotals>,
   metric: UsageChartMetric,
-): readonly DayColumn[] {
+) {
   return periods.map((period) => {
     const entry = byPeriod.get(period);
     const bands = PROVIDER_ORDER.map((provider) => ({
@@ -77,7 +77,7 @@ export function buildPeriodColumns(
   });
 }
 
-function niceScale(peak: number, count: number): { max: number; ticks: readonly number[] } {
+function niceScale(peak: number, count: number) {
   if (peak <= 0) return { max: 0, ticks: [0] };
 
   const rawStep = peak / count;

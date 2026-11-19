@@ -38,7 +38,7 @@ export function cursorFetchRange(
   cache: CursorAccountCache | undefined,
   retentionStartMs: number,
   nowMs: number,
-): CursorFetchRange {
+) {
   return cache === undefined ||
     cache.sinceMs > retentionStartMs ||
     cache.untilMs - REFETCH_OVERLAP_MS < retentionStartMs
@@ -110,7 +110,7 @@ interface SerializedAccount {
   readonly records: readonly SerializedRecord[];
 }
 
-export function encodeCursorAccountCaches(caches: ReadonlyMap<string, CursorAccountCache>): string {
+export function encodeCursorAccountCaches(caches: ReadonlyMap<string, CursorAccountCache>) {
   const strings: string[] = [];
   const indexes = new Map<string, number>();
   const intern = (value: string) => {
@@ -148,7 +148,7 @@ export function encodeCursorAccountCaches(caches: ReadonlyMap<string, CursorAcco
 const isFiniteNumber = (value: unknown): value is number =>
   typeof value === "number" && Number.isFinite(value);
 
-export function decodeCursorAccountCaches(document: unknown): Map<string, CursorAccountCache> {
+export function decodeCursorAccountCaches(document: unknown) {
   const caches = new Map<string, CursorAccountCache>();
   if (typeof document !== "object" || document === null) return caches;
   const root = document as {
@@ -166,11 +166,10 @@ export function decodeCursorAccountCaches(document: unknown): Map<string, Cursor
   ) {
     return caches;
   }
-  const stringAt = (index: unknown): string | undefined =>
-    typeof index === "number" ? strings[index] : undefined;
+  const stringAt = (index: unknown) => (typeof index === "number" ? strings[index] : undefined);
 
-  const decodeRecord = (row: unknown): UsageRecord | null => {
-    if (!Array.isArray(row)) return null;
+  const decodeRecord = (row: unknown) => {
+    if (!Array.isArray(row)) return null satisfies UsageRecord | null;
     const [
       timestampMs,
       modelIndex,
@@ -195,7 +194,7 @@ export function decodeCursorAccountCaches(document: unknown): Map<string, Cursor
       (cost !== null && !isFiniteNumber(cost)) ||
       (key !== null && typeof key !== "string")
     ) {
-      return null;
+      return null satisfies UsageRecord | null;
     }
     return {
       provider: "cursor",
@@ -213,7 +212,7 @@ export function decodeCursorAccountCaches(document: unknown): Map<string, Cursor
       reportedCostUsd: cost,
       speed: "standard",
       dedupeKey: key,
-    };
+    } satisfies UsageRecord | null;
   };
 
   for (const [credentialKey, raw] of Object.entries(root.accounts)) {

@@ -1,9 +1,4 @@
-import type {
-  AuthClientMetadataDeviceType,
-  AuthClientPresentationMetadata,
-  ClientOs,
-  DesktopBridge,
-} from "@supaterm/contracts";
+import type { AuthClientPresentationMetadata, DesktopBridge } from "@supaterm/contracts";
 
 export interface BrowserIdentity {
   readonly userAgent: string;
@@ -11,7 +6,7 @@ export interface BrowserIdentity {
   readonly maxTouchPoints: number;
 }
 
-function clientOsFromElectronPlatform(platform: string | undefined): ClientOs {
+function clientOsFromElectronPlatform(platform: string | undefined) {
   switch (platform) {
     case "darwin":
       return "macOS";
@@ -24,7 +19,7 @@ function clientOsFromElectronPlatform(platform: string | undefined): ClientOs {
   }
 }
 
-function isIpadosDesktopUserAgent(identity: BrowserIdentity): boolean {
+function isIpadosDesktopUserAgent(identity: BrowserIdentity) {
   return (
     /macintosh/i.test(identity.userAgent) &&
     /mac/i.test(identity.platform) &&
@@ -32,7 +27,7 @@ function isIpadosDesktopUserAgent(identity: BrowserIdentity): boolean {
   );
 }
 
-export function browserClientOs(identity: BrowserIdentity): ClientOs {
+export function browserClientOs(identity: BrowserIdentity) {
   const userAgent = identity.userAgent;
   if (userAgent.trim() === "") return "unknown";
   if (/iphone|ipad|ipod/i.test(userAgent) || isIpadosDesktopUserAgent(identity)) return "iOS";
@@ -44,7 +39,7 @@ export function browserClientOs(identity: BrowserIdentity): ClientOs {
   return "other";
 }
 
-function browserFamily(userAgent: string): string {
+function browserFamily(userAgent: string) {
   if (userAgent.trim() === "") return "unknown";
   if (/edg(?:e|a|ios)?\//i.test(userAgent)) return "Edge";
   if (/opr\/|opios\//i.test(userAgent)) return "Opera";
@@ -55,7 +50,7 @@ function browserFamily(userAgent: string): string {
   return "other";
 }
 
-function browserDeviceType(identity: BrowserIdentity): AuthClientMetadataDeviceType {
+function browserDeviceType(identity: BrowserIdentity) {
   const userAgent = identity.userAgent;
   if (userAgent.trim() === "") return "unknown";
   if (
@@ -74,14 +69,14 @@ export function clientPresentationMetadata(input: {
   readonly hosted: boolean;
   readonly identity: BrowserIdentity;
   readonly desktopBridge: Pick<DesktopBridge, "getClientPlatform"> | undefined;
-}): AuthClientPresentationMetadata {
+}) {
   if (input.desktopBridge !== undefined) {
     return {
       label: "Supaterm Desktop",
       deviceType: "desktop",
       os: clientOsFromElectronPlatform(input.desktopBridge.getClientPlatform()),
       ...(input.appVersion === "0.0.0" ? {} : { appVersion: input.appVersion }),
-    };
+    } satisfies AuthClientPresentationMetadata;
   }
 
   return {
@@ -91,5 +86,5 @@ export function clientPresentationMetadata(input: {
     webDeployment: input.hosted ? "hosted" : "server",
     browser: browserFamily(input.identity.userAgent),
     ...(input.appVersion === "0.0.0" ? {} : { appVersion: input.appVersion }),
-  };
+  } satisfies AuthClientPresentationMetadata;
 }

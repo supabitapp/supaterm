@@ -23,7 +23,7 @@ import {
   retryFailedUpdateRunServers,
 } from "./updateEverythingRun";
 
-function useNow(intervalMs: number | null): number {
+function useNow(intervalMs: number | null) {
   const step = intervalMs ?? 60_000;
   const subscribe = (onChange: () => void) => {
     if (intervalMs === null) return () => {};
@@ -33,7 +33,7 @@ function useNow(intervalMs: number | null): number {
   return useSyncExternalStore(subscribe, () => Math.floor(Date.now() / step) * step);
 }
 
-function useUpdateRunMachineViews(run: UpdateEverythingRun): ReadonlyArray<UpdateRunMachineView> {
+function useUpdateRunMachineViews(run: UpdateEverythingRun) {
   const updateStates = useAtomValue(
     environmentUpdateStatesAtom(
       environmentIdsKey(run.machines.map(({ environmentId }) => environmentId)),
@@ -42,7 +42,7 @@ function useUpdateRunMachineViews(run: UpdateEverythingRun): ReadonlyArray<Updat
   return run.machines.map((machine, index) => ({
     machine,
     status: resolveUpdateRunMachineStatus(machine, run.phase, updateStates[index]!),
-  }));
+  })) satisfies ReadonlyArray<UpdateRunMachineView>;
 }
 
 function localStatusLabel(run: UpdateEverythingRun, local: UpdateRunLocalState, now: number) {

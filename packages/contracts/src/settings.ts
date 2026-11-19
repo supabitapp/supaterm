@@ -3,7 +3,6 @@ import {
   AuthOrchestrationOperateScope,
   AuthSettingsWriteScope,
   AuthProvidersManageScope,
-  type AuthEnvironmentScope,
 } from "./auth.ts";
 import * as Effect from "effect/Effect";
 import * as Duration from "effect/Duration";
@@ -209,9 +208,7 @@ export function isModifierPairShortcut(
   return "kind" in shortcut;
 }
 
-export function snapShotShortcutModifierPair(
-  shortcut: SnapShotModifierPairShortcut,
-): SnapShotModifier {
+export function snapShotShortcutModifierPair(shortcut: SnapShotModifierPairShortcut) {
   return shortcut.kind === "both-shift-keys" ? "shift" : shortcut.modifier;
 }
 
@@ -228,7 +225,7 @@ const OTHER_MODIFIER_LABELS: Record<SnapShotModifier, string> = {
   alt: "Alt",
 };
 
-export function snapShotModifierPairLabel(modifier: SnapShotModifier, apple: boolean): string {
+export function snapShotModifierPairLabel(modifier: SnapShotModifier, apple: boolean) {
   const label = (apple ? APPLE_MODIFIER_LABELS : OTHER_MODIFIER_LABELS)[modifier];
   return `${label} + ${label}`;
 }
@@ -557,7 +554,7 @@ export interface ProviderSettingsFormAnnotation {
 
 export function secretSettingsFields(schema: {
   readonly fields: Readonly<Record<string, Schema.Top>>;
-}): ReadonlyArray<string> {
+}) {
   return Object.entries(schema.fields).flatMap(([field, fieldSchema]) => {
     return isSecretSetting(fieldSchema) ? [field] : [];
   });
@@ -578,12 +575,13 @@ declare module "effect/Schema" {
   }
 }
 
-export function secretSetting<S extends Schema.Top>(schema: S): S["Rebuild"] {
-  return schema.annotateKey({ settingsSecret: true });
+export function secretSetting<S extends Schema.Top>(schema: S): S["Rebuild"];
+export function secretSetting<S extends Schema.Top>(schema: S) {
+  return schema.annotateKey({ settingsSecret: true }) satisfies S["Rebuild"];
 }
 
 /** A masked form field is a credential too, so none is saved or sent to clients as plain text. */
-export function isSecretSetting(schema: Schema.Top): boolean {
+export function isSecretSetting(schema: Schema.Top) {
   const annotations = Schema.resolveAnnotationsKey(schema) ?? Schema.resolveAnnotations(schema);
   return (
     annotations?.settingsSecret === true ||
@@ -601,13 +599,19 @@ export function makeProviderSettingsSchema<const Fields extends Schema.Struct.Fi
   options?: {
     readonly order?: ProviderSettingsOrder<Fields> | undefined;
   },
-): Schema.Struct<Fields> {
+): Schema.Struct<Fields>;
+export function makeProviderSettingsSchema<const Fields extends Schema.Struct.Fields>(
+  fields: Fields,
+  options?: {
+    readonly order?: ProviderSettingsOrder<Fields> | undefined;
+  },
+) {
   return Schema.Struct(fields).pipe(
     Schema.annotate({
       providerSettingsFormSchema:
         options?.order === undefined ? undefined : { order: options.order },
     }),
-  );
+  ) satisfies Schema.Struct<Fields>;
 }
 
 export const CodexSettings = makeProviderSettingsSchema(
@@ -836,11 +840,12 @@ const LegacySourceControlWritingStyle = TrimmedString.pipe(
   Schema.decodeTo(
     Schema.toType(SourceControlWritingStyleSettings),
     SchemaTransformation.transform({
-      decode: (value): SourceControlWritingStyleSettings => ({
-        mode: value.length > 0 ? "custom" : "repo_conventions",
-        customInstructions: value,
-        followChangeRequestTemplates: true,
-      }),
+      decode: (value) =>
+        ({
+          mode: value.length > 0 ? "custom" : "repo_conventions",
+          customInstructions: value,
+          followChangeRequestTemplates: true,
+        }) satisfies SourceControlWritingStyleSettings as SourceControlWritingStyleSettings,
       encode: (value) => value.customInstructions,
     }),
   ),
@@ -867,16 +872,11 @@ export interface BranchNamingOptions {
 export const BRANCH_NAMING_CHOICES = ["static", "repository", "semantic", "custom"] as const;
 export type BranchNamingChoice = (typeof BRANCH_NAMING_CHOICES)[number];
 
-export function branchNamingChoiceOf(
-  mode: BranchNamingMode,
-  prefixFromRepository: boolean,
-): BranchNamingChoice {
+export function branchNamingChoiceOf(mode: BranchNamingMode, prefixFromRepository: boolean) {
   return mode === "static" && prefixFromRepository ? "repository" : mode;
 }
 
-export function branchNamingChoicePatch(
-  choice: BranchNamingChoice,
-): Pick<ServerSettingsPatch, "branchNamingMode" | "branchNamePrefixFromRepository"> {
+export function branchNamingChoicePatch(choice: BranchNamingChoice) {
   return {
     branchNamingMode: choice === "repository" ? "static" : choice,
     branchNamePrefixFromRepository: choice === "repository",
@@ -1040,14 +1040,8 @@ export const ProjectSettingsOverrides = Schema.Struct({
 } satisfies Record<ProjectScopedServerSettingKey | "providerInstances", unknown>);
 export type ProjectSettingsOverrides = typeof ProjectSettingsOverrides.Type;
 
-const keepUnknownOverrideKeys = <Entry extends Schema.Struct<Schema.Struct.Fields>>(
-  entry: Entry,
-): Schema.Codec<
-  Entry["Type"],
-  Entry["Encoded"],
-  Entry["DecodingServices"],
-  Entry["EncodingServices"]
-> => Schema.StructWithRest(entry, [Schema.Record(Schema.String, Schema.Unknown)]);
+const keepUnknownOverrideKeys = <Entry extends Schema.Struct<Schema.Struct.Fields>>(entry: Entry) =>
+  Schema.StructWithRest(entry, [Schema.Record(Schema.String, Schema.Unknown)]);
 
 /**
  * An override entry as a settings patch carries it. Clients built before `worktreeKeepWhen` or
@@ -1080,7 +1074,7 @@ export type ProjectSettingsOverridesPatchEntry = typeof ProjectSettingsOverrides
  * request to remove the override, so a picker's "Inherit" item and the row's
  * reset do the same thing.
  */
-export function isNullableProjectSettingsOverride(key: ProjectScopedServerSettingKey): boolean {
+export function isNullableProjectSettingsOverride(key: ProjectScopedServerSettingKey) {
   return NULLABLE_PROJECT_SETTINGS_OVERRIDES.has(key);
 }
 const NULLABLE_PROJECT_SETTINGS_OVERRIDES: ReadonlySet<ProjectScopedServerSettingKey> = new Set<
@@ -1124,7 +1118,7 @@ export class DatabaseReclaimError extends Schema.TaggedError<DatabaseReclaimErro
 }
 
 /** Only suggest the offline conversion when it can reclaim enough to matter. */
-export function shouldRecommendDatabaseCompaction(status: DatabaseStorageStatus): boolean {
+export function shouldRecommendDatabaseCompaction(status: DatabaseStorageStatus) {
   return (
     !status.incrementalVacuumEnabled &&
     status.reclaimableBytes >= DATABASE_COMPACTION_RECOMMENDED_BYTES
@@ -1132,7 +1126,7 @@ export function shouldRecommendDatabaseCompaction(status: DatabaseStorageStatus)
 }
 
 /** Offline minutes the repair takes, at 30 s per GiB of live data (a BB-1 NVMe disk took 21 s). */
-export function databaseReclaimMinutes(status: DatabaseStorageStatus): number {
+export function databaseReclaimMinutes(status: DatabaseStorageStatus) {
   const liveGiB = (status.databaseBytes - status.reclaimableBytes) / 1024 ** 3;
   return Math.max(1, Math.ceil(liveGiB / 2));
 }
@@ -1375,7 +1369,7 @@ export type ServerSettings = typeof ServerSettings.Type;
 
 export const DEFAULT_SERVER_SETTINGS: ServerSettings = Schema.decodeSync(ServerSettings)({});
 
-export const providerInstanceConfigEnabledFlag = (config: unknown): boolean | undefined => {
+export const providerInstanceConfigEnabledFlag = (config: unknown) => {
   if (config === null || typeof config !== "object" || Array.isArray(config)) {
     return undefined;
   }
@@ -1393,15 +1387,15 @@ const DEFAULT_ENABLED_DEFAULT_INSTANCES: ReadonlySet<ProviderInstanceId> = new S
   ["codex", "claudeAgent"].map((instanceId) => ProviderInstanceId.make(instanceId)),
 );
 
-export const isUnconfiguredDefaultInstanceEnabled = (instanceId: ProviderInstanceId): boolean =>
+export const isUnconfiguredDefaultInstanceEnabled = (instanceId: ProviderInstanceId) =>
   DEFAULT_ENABLED_DEFAULT_INSTANCES.has(instanceId);
 
-const defaultEnabledForDriver = (driver: ProviderDriverKind): boolean =>
+const defaultEnabledForDriver = (driver: ProviderDriverKind) =>
   !DEFAULT_DISABLED_PROVIDER_DRIVERS.has(driver);
 
 export const resolveProviderInstanceEnabled = (
   instance: Pick<ProviderInstanceConfig, "driver" | "enabled" | "config">,
-): boolean => {
+) => {
   const configEnabled = providerInstanceConfigEnabledFlag(instance.config);
   if (instance.enabled === false || configEnabled === false) {
     return false;
@@ -1413,7 +1407,7 @@ export const resolveProjectProviderInstanceEnabled = (
   settings: Pick<ServerSettings, "providerInstances" | "projectSettingsOverrides">,
   projectId: ProjectId | null,
   instanceId: ProviderInstanceId,
-): boolean => {
+) => {
   const override =
     projectId === null
       ? undefined
@@ -1452,14 +1446,14 @@ export class ServerSettingsError extends Schema.TaggedError<ServerSettingsError>
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message(): string {
+  override get message() {
     const provider =
       this.providerInstanceId === undefined ? "" : ` for provider ${this.providerInstanceId}`;
     const variable =
       this.environmentVariable === undefined
         ? ""
         : ` and environment variable ${this.environmentVariable}`;
-    return `Server settings ${this.operation} failed${provider}${variable} at ${this.settingsPath}.`;
+    return `Server settings ${this.operation} failed${provider}${variable} at ${this.settingsPath}.` satisfies string as string;
   }
 }
 
@@ -1630,9 +1624,7 @@ export const ServerSettingsPatch = Schema.Struct({
 });
 export type ServerSettingsPatch = typeof ServerSettingsPatch.Type;
 
-export function requiredScopesForServerSettingsPatch(
-  patch: ServerSettingsPatch,
-): ReadonlyArray<AuthEnvironmentScope> {
+export function requiredScopesForServerSettingsPatch(patch: ServerSettingsPatch) {
   let changesProviders = Object.values(patch.projectSettingsOverrides ?? {}).some(
     (entry) => entry === null || entry?.providerInstances !== undefined,
   );
@@ -1656,9 +1648,7 @@ export function requiredScopesForServerSettingsPatch(
  * is marked done, so a project mutation that carries them needs the same grant as
  * saving project scripts through settings, on top of `orchestration:operate`.
  */
-export function requiredScopesForProjectMutation(
-  mutation: ProjectMutation,
-): ReadonlyArray<AuthEnvironmentScope> {
+export function requiredScopesForProjectMutation(mutation: ProjectMutation) {
   if (mutation.type === "project.delete" || mutation.scripts === undefined) {
     return [AuthOrchestrationOperateScope];
   }

@@ -17,10 +17,7 @@ import {
 } from "../../lib/providerOptions";
 import { canCommitPendingModel, pendingModelAfterPress } from "./thread-settings-sheet-state";
 
-function modelOption(
-  model: string,
-  options: ReadonlyArray<ProviderOptionSelection> = [],
-): ModelOption {
+function modelOption(model: string, options: ReadonlyArray<ProviderOptionSelection> = []) {
   return {
     key: `codex:${model}`,
     label: model,
@@ -59,7 +56,7 @@ function modelOption(
       model,
       options,
     },
-  };
+  } satisfies ModelOption;
 }
 
 beforeEach(() => {

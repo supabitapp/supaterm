@@ -17,7 +17,7 @@ export class PullRequestUrlInvalidError extends Schema.TaggedError<PullRequestUr
   "PullRequestUrlInvalidError",
   {},
 ) {
-  override get message(): string {
+  override get message() {
     return "This is not a recognised pull request URL. Pass repository and number instead.";
   }
 }
@@ -26,7 +26,7 @@ export class PullRequestTargetIncompleteError extends Schema.TaggedError<PullReq
   "PullRequestTargetIncompleteError",
   {},
 ) {
-  override get message(): string {
+  override get message() {
     return "Pass either url, or both repository and number.";
   }
 }
@@ -35,7 +35,7 @@ export class PullRequestHostRequiredError extends Schema.TaggedError<PullRequest
   "PullRequestHostRequiredError",
   {},
 ) {
-  override get message(): string {
+  override get message() {
     return "This thread's project has no recognised remote. Pass host or url.";
   }
 }
@@ -44,7 +44,7 @@ export class PullRequestUrlUnavailableError extends Schema.TaggedError<PullReque
   "PullRequestUrlUnavailableError",
   {},
 ) {
-  override get message(): string {
+  override get message() {
     return "This thread's project is on a host with no known pull request URL shape. Pass url.";
   }
 }
@@ -65,13 +65,21 @@ export interface ResolvedTarget {
 function projectHostAndProvider(project: OrchestrationProjectShell | undefined): {
   readonly host: string | null;
   readonly kind: SourceControlProviderKind | null;
-} {
+};
+function projectHostAndProvider(project: OrchestrationProjectShell | undefined) {
   const identity = project?.repositoryIdentity;
   const kind = identity?.provider ?? null;
-  if (!identity || kind === null) return { host: null, kind: null };
+  if (!identity || kind === null)
+    return { host: null, kind: null } satisfies {
+      readonly host: string | null;
+      readonly kind: SourceControlProviderKind | null;
+    };
   return {
     host: sourceControlDefinitions.changeRequestHost(identity, kind),
     kind,
+  } satisfies {
+    readonly host: string | null;
+    readonly kind: SourceControlProviderKind | null;
   };
 }
 

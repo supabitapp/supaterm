@@ -191,7 +191,7 @@ function makeProject(
   id: string,
   workspaceRoot: string,
   overrides: Partial<EnvironmentProject> = {},
-): EnvironmentProject {
+) {
   return {
     environmentId,
     id: ProjectId.make(id),
@@ -209,7 +209,7 @@ function makeProject(
 function settings(
   mode: ProjectGroupingSettings["sidebarProjectGroupingMode"],
   overrides: ProjectGroupingSettings["sidebarProjectGroupingOverrides"] = {},
-): ProjectGroupingSettings {
+) {
   return {
     sidebarProjectGroupingMode: mode,
     sidebarProjectGroupingOverrides: overrides,

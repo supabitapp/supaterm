@@ -35,7 +35,7 @@ export function projectWorkspaceStack(
 export function nativeWorkspacePopCount(
   state: Pick<NavigationState, "index" | "routes">,
   dismissedKey: string,
-): number {
+) {
   const index = state.routes.findIndex((route) => route.key === dismissedKey);
   return index <= 0 || index > state.index ? 0 : state.index - index + 1;
 }
@@ -106,10 +106,7 @@ export function collapsedSplitTransition(
   },
   state: Pick<NavigationState, "key" | "index" | "routes">,
   primaryKey: string,
-): {
-  readonly column: CollapsedSplitColumn;
-  readonly pop: ReturnType<typeof nativeStackPopAction>;
-} {
+) {
   switch (event.type) {
     case "willDisappear":
       return {
@@ -118,15 +115,31 @@ export function collapsedSplitTransition(
             ? { ...column, leaving: event.key, revealed: false }
             : column,
         pop: null,
+      } satisfies {
+        readonly column: CollapsedSplitColumn;
+        readonly pop: ReturnType<typeof nativeStackPopAction>;
       };
     case "willAppear":
-      if (column.leaving === event.key) return { column: { ...column, leaving: null }, pop: null };
-      return { column: column.leaving ? { ...column, revealed: true } : column, pop: null };
+      if (column.leaving === event.key)
+        return { column: { ...column, leaving: null }, pop: null } satisfies {
+          readonly column: CollapsedSplitColumn;
+          readonly pop: ReturnType<typeof nativeStackPopAction>;
+        };
+      return {
+        column: column.leaving ? { ...column, revealed: true } : column,
+        pop: null,
+      } satisfies {
+        readonly column: CollapsedSplitColumn;
+        readonly pop: ReturnType<typeof nativeStackPopAction>;
+      };
     case "didDisappear":
       return {
         column:
           column.leaving === event.key && !column.revealed ? { ...column, leaving: null } : column,
         pop: null,
+      } satisfies {
+        readonly column: CollapsedSplitColumn;
+        readonly pop: ReturnType<typeof nativeStackPopAction>;
       };
     case "didAppear":
       return {
@@ -135,6 +148,9 @@ export function collapsedSplitTransition(
           event.key === primaryKey && column.leaving
             ? nativeStackPopAction(state, column.leaving, primaryKey)
             : null,
+      } satisfies {
+        readonly column: CollapsedSplitColumn;
+        readonly pop: ReturnType<typeof nativeStackPopAction>;
       };
   }
 }
@@ -142,7 +158,7 @@ export function collapsedSplitTransition(
 export function partitionStackPresentations<T>(
   routes: readonly T[],
   isModal: (route: T) => boolean,
-): T[][] {
+) {
   const groups: T[][] = [];
   for (const route of routes) {
     if (groups.length === 0 || isModal(route)) groups.push([]);
@@ -156,7 +172,7 @@ export function reconcileStackScreens<T extends { readonly key: string }>(
   previous: readonly T[],
   current: readonly T[],
   completedNativeDismissals: ReadonlySet<string> = new Set(),
-): T[] {
+) {
   const active = new Set(current.map((route) => route.key));
   const screens = [...current];
   previous.forEach((route, index) => {

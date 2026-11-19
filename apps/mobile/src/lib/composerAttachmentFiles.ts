@@ -8,7 +8,7 @@ const IOS_DOCUMENTS_PATH = new RegExp(
 );
 const retainedFiles = new Map<string, number>();
 
-function fileUriPath(uri: string): string | null {
+function fileUriPath(uri: string) {
   try {
     const url = new URL(uri);
     if (url.protocol !== "file:" || url.hostname || url.search || url.hash) {
@@ -38,7 +38,7 @@ function ownedFileLocation(uri: string) {
   return { documentPath: path.slice(0, index), name };
 }
 
-export function composerAttachmentFileReferenceKey(uri: string): string {
+export function composerAttachmentFileReferenceKey(uri: string) {
   const location = ownedFileLocation(uri);
   if (!location) {
     return uri;
@@ -52,7 +52,7 @@ export function composerAttachmentFileReferenceKey(uri: string): string {
   return `file://${documentPath}/${COMPOSER_ATTACHMENT_DIRECTORY}/${encodeURIComponent(location.name)}`;
 }
 
-export function retainComposerAttachmentFile(uri: string, onLastRelease: () => void): () => void {
+export function retainComposerAttachmentFile(uri: string, onLastRelease: () => void) {
   const key = composerAttachmentFileReferenceKey(uri);
   retainedFiles.set(key, (retainedFiles.get(key) ?? 0) + 1);
   let released = false;
@@ -71,15 +71,12 @@ export function retainComposerAttachmentFile(uri: string, onLastRelease: () => v
   };
 }
 
-export function isComposerAttachmentFileRetained(uri: string): boolean {
+export function isComposerAttachmentFileRetained(uri: string) {
   return retainedFiles.has(composerAttachmentFileReferenceKey(uri));
 }
 
 /** iOS updates can change the Documents container UUID. Bypass source URIs from pickers or other apps. */
-export function resolveOwnedComposerAttachmentFileUri(
-  uri: string,
-  documentDirectoryUri: string,
-): string | null {
+export function resolveOwnedComposerAttachmentFileUri(uri: string, documentDirectoryUri: string) {
   const location = ownedFileLocation(uri);
   const documentPath = fileUriPath(documentDirectoryUri)?.replace(/\/+$/, "");
   if (!location || !documentPath) {

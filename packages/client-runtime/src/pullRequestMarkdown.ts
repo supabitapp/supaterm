@@ -57,7 +57,7 @@ const TABLE_STRUCTURE_TAG_PATTERN =
   /<(\/?)(table|thead|tbody|tfoot|tr|td|th)\b((?:[^<>"']|"[^"]*"|'[^']*')*)>/giu;
 const CELL_SPAN_PATTERN = /\b(?:col|row)span\b/iu;
 
-function isWebUrl(url: string): boolean {
+function isWebUrl(url: string) {
   try {
     const parsed = new URL(url);
     return parsed.protocol === "https:" || parsed.protocol === "http:";
@@ -66,22 +66,26 @@ function isWebUrl(url: string): boolean {
   }
 }
 
-function attachmentFromLine(
-  line: string,
-): { url: string; media: "video" | "image" | "unknown" } | null {
+function attachmentFromLine(line: string) {
   const url =
     BARE_URL_PATTERN.exec(line.trim())?.[1] ?? MARKDOWN_LINK_PATTERN.exec(line.trim())?.[1];
-  if (url === undefined || !isWebUrl(url)) return null;
+  if (url === undefined || !isWebUrl(url))
+    return null satisfies { url: string; media: "video" | "image" | "unknown" } | null;
   if (VIDEO_EXTENSION_PATTERN.test(url) || sourceControlClients.mediaUrl(url)?.kind === "video") {
-    return { url, media: "video" };
+    return { url, media: "video" } satisfies {
+      url: string;
+      media: "video" | "image" | "unknown";
+    } | null;
   }
-  if (IMAGE_EXTENSION_PATTERN.test(url)) return { url, media: "image" };
-  return null;
+  if (IMAGE_EXTENSION_PATTERN.test(url))
+    return { url, media: "image" } satisfies {
+      url: string;
+      media: "video" | "image" | "unknown";
+    } | null;
+  return null satisfies { url: string; media: "video" | "image" | "unknown" } | null;
 }
 
-type TableRows = ReadonlyArray<ReadonlyArray<PullRequestBodyTableCell>>;
-
-function tableRows(html: string, htmlOffset: number): TableRows | null {
+function tableRows(html: string, htmlOffset: number) {
   const rows: PullRequestBodyTableCell[][] = [];
   let row: PullRequestBodyTableCell[] | null = null;
   let cell: { tag: string; contentStart: number } | null = null;
@@ -125,11 +129,7 @@ function tableRows(html: string, htmlOffset: number): TableRows | null {
   return rows.filter((cells) => cells.length > 0);
 }
 
-function mediaTableAt(
-  lines: ReadonlyArray<string>,
-  start: number,
-  startOffset: number,
-): { end: number; rows: TableRows | null } {
+function mediaTableAt(lines: ReadonlyArray<string>, start: number, startOffset: number) {
   const lastCandidate = Math.min(start + TABLE_MAX_LINES, lines.length) - 1;
   let depth = 0;
   let end = start;
@@ -150,7 +150,7 @@ function mediaTableAt(
 
 const definitionParser = unified().use(remarkParse).use(remarkGfm);
 
-function referenceDefinitions(body: string): string[] {
+function referenceDefinitions(body: string) {
   const definitions = new Map<string, string>();
   const visit = (node: Root | RootContent, quotes: number) => {
     if (node.type === "definition" && !definitions.has(node.identifier)) {
@@ -168,8 +168,9 @@ function referenceDefinitions(body: string): string[] {
 function withDefinitions(
   segment: PullRequestBodySegment,
   definitions: string,
-): PullRequestBodySegment {
-  if (segment.kind === "attachment") return segment;
+): PullRequestBodySegment;
+function withDefinitions(segment: PullRequestBodySegment, definitions: string) {
+  if (segment.kind === "attachment") return segment satisfies PullRequestBodySegment;
   if (segment.kind === "table") {
     return {
       ...segment,
@@ -179,27 +180,31 @@ function withDefinitions(
           segments: cell.segments.map((inner) => withDefinitions(inner, definitions)),
         })),
       ),
-    };
+    } satisfies PullRequestBodySegment;
   }
-  if (!segment.text.includes("[")) return segment;
+  if (!segment.text.includes("[")) return segment satisfies PullRequestBodySegment;
   return {
     ...segment,
     text: definitions + segment.text,
     sourceOffset: segment.sourceOffset - definitions.length,
-  };
+  } satisfies PullRequestBodySegment;
 }
 
-export function splitPullRequestBody(body: string): ReadonlyArray<PullRequestBodySegment> {
+export function splitPullRequestBody(body: string): ReadonlyArray<PullRequestBodySegment>;
+export function splitPullRequestBody(body: string) {
   const segments = splitBodyAt(body, 0);
   const whole = segments.length === 1 && segments[0]!.kind === "markdown";
-  if (whole || !body.includes("]:")) return segments;
+  if (whole || !body.includes("]:"))
+    return segments satisfies ReadonlyArray<PullRequestBodySegment>;
   const definitions = referenceDefinitions(body);
-  if (definitions.length === 0) return segments;
+  if (definitions.length === 0) return segments satisfies ReadonlyArray<PullRequestBodySegment>;
   const leading = `${definitions.join("\n")}\n\n`;
-  return segments.map((segment) => withDefinitions(segment, leading));
+  return segments.map((segment) =>
+    withDefinitions(segment, leading),
+  ) satisfies ReadonlyArray<PullRequestBodySegment>;
 }
 
-function splitBodyAt(body: string, baseOffset: number): ReadonlyArray<PullRequestBodySegment> {
+function splitBodyAt(body: string, baseOffset: number) {
   const segments: PullRequestBodySegment[] = [];
   const markdown: string[] = [];
   let markdownStart = 0;
@@ -306,21 +311,25 @@ function splitBodyAt(body: string, baseOffset: number): ReadonlyArray<PullReques
  */
 export function changeRequestReferenceAutolinker(
   changeRequest: { readonly provider: string; readonly url: string } | null | undefined,
-): ((text: string) => ReadonlyArray<ReferenceAutolink>) | null {
-  if (!changeRequest) return null;
+): ((text: string) => ReadonlyArray<ReferenceAutolink>) | null;
+export function changeRequestReferenceAutolinker(
+  changeRequest: { readonly provider: string; readonly url: string } | null | undefined,
+) {
+  if (!changeRequest)
+    return null satisfies ((text: string) => ReadonlyArray<ReferenceAutolink>) | null;
   const find = sourceControlClients.get(changeRequest.provider).referenceAutolinks;
   const repositoryUrl = sourceControlClients.parseChangeRequestUrl(changeRequest.url)?.link
     .repositoryUrl;
-  return find === undefined || repositoryUrl === undefined
-    ? null
-    : (text) => find(text, repositoryUrl);
+  return (
+    find === undefined || repositoryUrl === undefined ? null : (text) => find(text, repositoryUrl)
+  ) satisfies ((text: string) => ReadonlyArray<ReferenceAutolink>) | null;
 }
 
 /**
  * Forges link uploads root-relative, as GitCafe's `/api/attachments/<id>`. In a change request
  * body that always means the forge's origin, never a path on the machine rendering it.
  */
-export function resolveChangeRequestMediaUrl(url: string, changeRequestUrl: string): string {
+export function resolveChangeRequestMediaUrl(url: string, changeRequestUrl: string) {
   if (!/^\/(?![/\\])/u.test(url)) return url;
   try {
     return new URL(url, changeRequestUrl).href;

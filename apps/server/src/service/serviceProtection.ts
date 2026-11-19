@@ -44,7 +44,7 @@ const dropIn = (
   section: string,
   properties: ReadonlyArray<string>,
   shared = false,
-): DropIn => ({
+) => ({
   unit,
   path: `${directory}/${unit}.d/${PROTECT_DROP_IN}`,
   contents: [`[${section}]`, ...properties, ""].join("\n"),
@@ -60,7 +60,7 @@ export function protectionPlan(input: {
   readonly userUnitDir: string;
   readonly remoteAccessUnits: ReadonlyArray<string>;
   readonly systemUnitDir?: string;
-}): ProtectionPlan {
+}) {
   const manager = `user@${input.uid}.service`;
   const remote = input.remoteAccessUnits;
   const systemUnitDir = input.systemUnitDir ?? SYSTEM_UNIT_DIR;
@@ -96,7 +96,7 @@ export function protectionPlan(input: {
 const quoteShell = (value: string) => `'${value.replaceAll("'", `'\\''`)}'`;
 const directoryOf = (file: string) => file.slice(0, file.lastIndexOf("/"));
 
-export function renderPrivilegedScript(plan: ProtectionPlan, mode: "apply" | "undo"): string {
+export function renderPrivilegedScript(plan: ProtectionPlan, mode: "apply" | "undo") {
   const lines = ["set -e"];
   const remove = (dropIns: ReadonlyArray<DropIn>, indent = "") => {
     for (const { path } of dropIns) {
@@ -146,14 +146,14 @@ export class ServiceProtectionError extends Schema.TaggedError<ServiceProtection
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message(): string {
-    return this.exitCode === undefined
+  override get message() {
+    return (this.exitCode === undefined
       ? `Could not ${this.step}.`
-      : `Could not ${this.step} (exit code ${this.exitCode}).`;
+      : `Could not ${this.step} (exit code ${this.exitCode}).`) satisfies string as string;
   }
 }
 
-function parseUnits(text: string): Array<Map<string, string>> {
+function parseUnits(text: string) {
   return text
     .split(/\n\s*\n/)
     .map(
@@ -169,7 +169,7 @@ function parseUnits(text: string): Array<Map<string, string>> {
 }
 
 /** Loaded remote-access units by canonical name, so an alias such as sshd.service counts once. */
-export function loadedRemoteAccessUnits(systemctlShow: string): ReadonlyArray<string> {
+export function loadedRemoteAccessUnits(systemctlShow: string) {
   const units = parseUnits(systemctlShow)
     .filter((values) => values.get("LoadState") === "loaded")
     .map((values) => values.get("Id") ?? "")

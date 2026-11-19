@@ -25,7 +25,7 @@ export const DEFAULT_PR_LIST_CONTROLS: PullRequestListControls = {
 export function withoutScratchProjectScope(
   controls: PullRequestListControls,
   projects: readonly { id: string; environmentId: string; isScratch?: true }[],
-): PullRequestListControls {
+) {
   return projects.some(
     (project) =>
       project.isScratch &&
@@ -107,10 +107,7 @@ export function withListedPullRequests(
     PullRequestListEntry,
     "projectId" | "repository" | "number" | "updatedAt"
   >[],
-): {
-  readonly cache: PullRequestStatsCache;
-  readonly refresh: readonly PullRequestListStatsInput[];
-} {
+) {
   const moved = entries.filter(
     (entry) => cache.updatedAt.get(pullRequestStatKey(entry)) !== entry.updatedAt,
   );
@@ -134,7 +131,7 @@ export function withAnsweredPullRequestStats(
   cache: PullRequestStatsCache,
   input: PullRequestListStatsInput,
   answered: readonly PullRequestDiffStat[],
-): PullRequestStatsCache {
+) {
   const stats = new Map(cache.stats);
   const answeredBy = new Map(cache.answeredBy);
   for (const row of answered) {
@@ -154,7 +151,7 @@ export function withShownPullRequestStats(
     readonly environmentId: EnvironmentId;
     readonly stats: readonly PullRequestDiffStat[];
   }[],
-): readonly EnvironmentPullRequestListEntry[] {
+) {
   const shown = new Map(
     answers.flatMap(({ environmentId, stats }) =>
       stats.map((row) => [`${environmentId}:${pullRequestStatKey(row)}`, row] as const),
@@ -256,7 +253,7 @@ export interface PullRequestListPages {
 export function pullRequestListHead(
   previous: PullRequestListPages | null,
   head: PullRequestListResult,
-): PullRequestListPages {
+) {
   if (previous?.head === head) return previous;
   return previous?.continued
     ? { ...previous, head, entries: mergePullRequestListEntries(previous.entries, head.entries) }
@@ -274,7 +271,7 @@ export function pullRequestListHead(
 export function shownPullRequestListPages(
   recorded: PullRequestListPages | null,
   head: PullRequestListResult | null,
-): PullRequestListPages | null {
+) {
   return head ? pullRequestListHead(recorded, head) : recorded;
 }
 
@@ -284,7 +281,7 @@ export function patchPullRequestListEntry(
   entry: PullRequestListEntry,
   patch: Partial<PullRequestListEntry>,
   observedAt: number,
-): PullRequestListPages | null {
+) {
   const pages = shownPullRequestListPages(recorded, head);
   return (
     pages && {
@@ -298,10 +295,7 @@ export function patchPullRequestListEntry(
   );
 }
 
-export function pullRequestListInput(
-  controls: PullRequestListControls,
-  query: string,
-): PullRequestListInput {
+export function pullRequestListInput(controls: PullRequestListControls, query: string) {
   const parsed = parsePullRequestQuery(query);
   return {
     state: controls.state,
@@ -313,10 +307,7 @@ export function pullRequestListInput(
   };
 }
 
-export function nextPullRequestListInput(
-  pages: PullRequestListPages,
-  input: PullRequestListInput,
-): PullRequestListInput | null {
+export function nextPullRequestListInput(pages: PullRequestListPages, input: PullRequestListInput) {
   if (Object.keys(pages.nextCursors).length)
     return { ...input, limit: PR_LIST_PAGE_SIZE, cursors: pages.nextCursors };
   return pages.truncated && pages.limit < 500
@@ -328,7 +319,7 @@ export function appendPullRequestListPage(
   previous: PullRequestListPages,
   page: PullRequestListResult,
   input: PullRequestListInput,
-): PullRequestListPages {
+) {
   return {
     ...previous,
     entries: mergePullRequestListEntries(previous.entries, page.entries),
@@ -346,7 +337,7 @@ export function pullRequestFilterChoices(input: {
   readonly suggestions: readonly string[];
   readonly hosted: readonly string[];
   readonly query: string;
-}): readonly string[] {
+}) {
   const needle = input.query.trim().toLowerCase();
   const seen = new Set<string>();
   const rows: string[] = [];
@@ -379,7 +370,7 @@ export function pullRequestListFacets(entries: readonly PullRequestListEntry[]) 
 /** Each label's dot color by lowercased name; the first usable color a name carries wins. */
 export function pullRequestLabelColors(
   labels: readonly { readonly name: string; readonly color: string | null }[],
-): Readonly<Record<string, string>> {
+) {
   const colors: Record<string, string> = {};
   for (const label of labels) {
     const key = label.name.toLowerCase();

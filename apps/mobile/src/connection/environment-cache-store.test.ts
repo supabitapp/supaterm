@@ -163,7 +163,7 @@ function cacheId(
   return `${environmentId}:${kind}:${cacheKey}`;
 }
 
-function threadSnapshotWithItems(): OrchestrationV2ThreadDetailSnapshot {
+function threadSnapshotWithItems() {
   const local = {
     id: TurnItemId.make("local-notice"),
     threadId: THREAD_ID,
@@ -213,13 +213,10 @@ function threadSnapshotWithItems(): OrchestrationV2ThreadDetailSnapshot {
         },
       ],
     },
-  };
+  } satisfies OrchestrationV2ThreadDetailSnapshot;
 }
 
-function threadSnapshotWithManyItems(
-  snapshotSequence: number,
-  message = "A done local notice.",
-): OrchestrationV2ThreadDetailSnapshot {
+function threadSnapshotWithManyItems(snapshotSequence: number, message = "A done local notice.") {
   const base = threadSnapshotWithItems();
   const turnItems = Array.from({ length: 40 }, (_, index) => ({
     ...base.projection.turnItems[0]!,

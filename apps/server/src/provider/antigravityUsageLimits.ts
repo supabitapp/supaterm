@@ -77,7 +77,7 @@ const decodeUserInfo = Schema.decodeUnknownEffect(UserInfo);
 const decodeSummary = Schema.decodeUnknownEffect(Summary);
 const decodeModels = Schema.decodeUnknownEffect(Models);
 
-function iso(value: string | undefined): string | undefined {
+function iso(value: string | undefined) {
   const parsed = value ? DateTime.make(value) : Option.none();
   return Option.isSome(parsed) ? DateTime.formatIso(parsed.value) : undefined;
 }
@@ -88,7 +88,7 @@ function quotaWindow(
   quota: typeof Quota.Type,
   kind: ServerProviderUsageWindow["kind"] = "other",
   windowDurationMins?: number,
-): ServerProviderUsageWindow | undefined {
+) {
   if (quota.remainingFraction === undefined || !Number.isFinite(quota.remainingFraction)) {
     return undefined;
   }
@@ -107,7 +107,7 @@ function summaryResetTime(
   bucket: typeof Bucket.Type,
   windowDurationMins: number | undefined,
   requestedAt: number,
-): string | undefined {
+) {
   const untouched =
     bucket.remainingFraction === 1 &&
     bucket.description === undefined &&

@@ -110,7 +110,7 @@ const ACTION_ICONS: Record<string, AppSymbolName> = {
   sendFeedback: "text.bubble",
 };
 
-function itemIcon(item: CommandPaletteItem): AppSymbolName {
+function itemIcon(item: CommandPaletteItem) {
   if (item.kind === "thread") return "text.bubble";
   return ACTION_ICONS[item.key] ?? "ellipsis";
 }

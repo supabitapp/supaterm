@@ -103,7 +103,7 @@ const RECORD_MAX_AGE_MS = 24 * 60 * 60_000;
 const UNCERTAIN_CREATE_MS = 5 * 60_000;
 const TRANSIENT_RETRY = { times: 3, schedule: Schedule.spaced("2 seconds") } as const;
 
-const decodePathSegment = (segment: string): string | null => {
+const decodePathSegment = (segment: string) => {
   try {
     return decodeURIComponent(segment);
   } catch {
@@ -587,7 +587,7 @@ export const make = Effect.fn("EasDeviceHost.make")(function* (config: EasDevice
         Effect.sync(() => ({
           devices: [
             ...CATALOG,
-            ...[...sessions.values()].map((session): DeviceHost.HostDevice => ({
+            ...[...sessions.values()].map((session) => ({
               id: session.sessionId,
               platform: session.platform,
               name: PLATFORMS[session.platform].name,

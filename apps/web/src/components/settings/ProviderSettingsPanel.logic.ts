@@ -19,7 +19,7 @@ export interface ProviderEnvironmentOptionLike {
 export function isProviderSettingsEnvironmentAvailable(input: {
   readonly connectionPhase: EnvironmentConnectionPhase;
   readonly hasServerConfig: boolean;
-}): boolean {
+}) {
   return input.connectionPhase === "connected" && input.hasServerConfig;
 }
 
@@ -27,7 +27,7 @@ export function buildProviderEnvironmentOptions<T extends ProviderEnvironmentOpt
   environments: ReadonlyArray<T>,
   primaryEnvironmentId: EnvironmentId | null,
   environmentIds?: readonly EnvironmentId[],
-): ReadonlyArray<T> {
+) {
   const allowed = environmentIds ? new Set(environmentIds) : null;
   return environments
     .filter((environment) => !allowed || allowed.has(environment.environmentId))
@@ -48,7 +48,7 @@ export function resolveSelectedProviderEnvironmentId(
   environments: ReadonlyArray<ProviderEnvironmentOptionLike>,
   selectedEnvironmentId: EnvironmentId | null,
   primaryEnvironmentId: EnvironmentId | null,
-): EnvironmentId | null {
+) {
   if (
     selectedEnvironmentId !== null &&
     environments.some((environment) => environment.environmentId === selectedEnvironmentId)
@@ -77,7 +77,7 @@ export function resolveRemoteOperateAccess(input: {
   readonly session: SessionGrantInput | null;
   readonly isPending: boolean;
   readonly hasError: boolean;
-}): ProviderOperateAccess {
+}) {
   if (input.hasError) return "denied";
   if (input.session === null) return input.isPending ? "pending" : "denied";
   return sessionGrantsScope(input.session, AuthProvidersManageScope) ? "granted" : "denied";
@@ -90,7 +90,7 @@ export function buildProviderInstanceOverridePatch(
   projectIds: readonly ProjectId[],
   instanceId: ProviderInstanceId,
   value: boolean | undefined,
-): Record<ProjectId, ProjectSettingsOverrides | null> {
+) {
   const patch: Record<ProjectId, ProjectSettingsOverrides | null> = {};
   for (const projectId of projectIds) {
     const current = settings.projectSettingsOverrides[projectId];
@@ -133,21 +133,21 @@ export function classifyProviderEnvironmentAccess(input: {
   readonly connectionPhase: EnvironmentConnectionPhase;
   readonly hasServerConfig: boolean;
   readonly operateAccess: ProviderOperateAccess;
-}): ProviderEnvironmentAccess {
+}) {
   if (input.connectionPhase === "error") {
-    return { kind: "error" };
+    return { kind: "error" } satisfies ProviderEnvironmentAccess;
   }
   if (input.connectionPhase !== "connected") {
-    return { kind: "unavailable" };
+    return { kind: "unavailable" } satisfies ProviderEnvironmentAccess;
   }
   if (!input.hasServerConfig) {
-    return { kind: "loading", reason: "config" };
+    return { kind: "loading", reason: "config" } satisfies ProviderEnvironmentAccess;
   }
   if (input.operateAccess === "pending") {
-    return { kind: "loading", reason: "permissions" };
+    return { kind: "loading", reason: "permissions" } satisfies ProviderEnvironmentAccess;
   }
   if (input.operateAccess === "denied") {
-    return { kind: "read-only" };
+    return { kind: "read-only" } satisfies ProviderEnvironmentAccess;
   }
-  return { kind: "editable" };
+  return { kind: "editable" } satisfies ProviderEnvironmentAccess;
 }

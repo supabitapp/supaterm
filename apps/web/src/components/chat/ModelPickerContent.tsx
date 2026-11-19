@@ -109,7 +109,7 @@ function shouldIncludeModelPickerOption(input: {
   readonly option: ModelEsque;
   readonly activeInstanceId: ProviderInstanceId;
   readonly activeModel: string;
-}): boolean {
+}) {
   if (input.entry.driverKind === "antigravity" && input.option.slug === ANTIGRAVITY_DEFAULT_MODEL) {
     return false;
   }
@@ -126,7 +126,7 @@ function shouldIncludeModelPickerOption(input: {
 function shouldOfferModelPickerSetup(
   entry: ProviderInstanceEntry,
   options: ReadonlyArray<ModelEsque>,
-): boolean {
+) {
   return (
     entry.enabled &&
     entry.status !== "disabled" &&
@@ -180,7 +180,7 @@ function modelJumpLabelsByKey(
   modelKeys: ReadonlyArray<string>,
   keybindings: ResolvedKeybindingsConfig,
   terminalOpen: boolean,
-): ReadonlyMap<string, string> {
+) {
   const shortcutLabelOptions = {
     platform: navigator.platform,
     context: { terminalFocus: false, terminalOpen, modelPickerOpen: true },
@@ -484,7 +484,7 @@ export const ModelPickerContent = memo(function ModelPickerContent(props: {
     modelSlug: string,
     instanceId: ProviderInstanceId,
     additive = false,
-  ): string | null => {
+  ) => {
     if (getModelDisabledReason?.(instanceId, modelSlug)) {
       return null;
     }
@@ -518,7 +518,7 @@ export const ModelPickerContent = memo(function ModelPickerContent(props: {
   const entryByInstanceId = new Map(instanceEntries.map((entry) => [entry.instanceId, entry]));
   const matchesLockedProvider = (
     entry: Pick<ProviderInstanceEntry, "driverKind" | "continuationGroupKey">,
-  ): boolean => {
+  ) => {
     if (lockedProvider === null) return true;
     if (entry.driverKind !== lockedProvider) return false;
     if (!lockedContinuationGroupKey) return true;
@@ -740,7 +740,7 @@ export const ModelPickerContent = memo(function ModelPickerContent(props: {
     .filter((model) => !getModelDisabledReason?.(model.instanceId, model.slug))
     .slice(0, MODEL_PICKER_JUMP_KEYBINDING_COMMANDS.length)
     .map((model) => modelPickerModelKey(model.instanceId, model.slug));
-  const allItemKeys = ((): string[] => [
+  const allItemKeys = (() => [
     ...flatModels.map((model) => modelPickerModelKey(model.instanceId, model.slug)),
     ...new Set(
       flatModels
@@ -748,7 +748,7 @@ export const ModelPickerContent = memo(function ModelPickerContent(props: {
         .map((model) => modelPickerLegacySectionKey(model.instanceId)),
     ),
   ])();
-  const filteredItemKeys = ((): string[] => {
+  const filteredItemKeys = (() => {
     const modelKeys = visibleModels.map((model) =>
       modelPickerModelKey(model.instanceId, model.slug),
     );
@@ -758,7 +758,7 @@ export const ModelPickerContent = memo(function ModelPickerContent(props: {
     modelKeys.splice(legacySection.currentModels.length, 0, legacySection.key);
     return modelKeys;
   })();
-  const filteredModelByKey = ((): ReadonlyMap<string, ModelPickerItem> =>
+  const filteredModelByKey = (() =>
     new Map(
       visibleModels.map(
         (model) => [modelPickerModelKey(model.instanceId, model.slug), model] as const,

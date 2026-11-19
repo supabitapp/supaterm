@@ -32,7 +32,7 @@ function provider(input: {
   instanceId: string;
   models?: ReadonlyArray<string>;
   supportsTextGeneration?: boolean;
-}): ServerProvider {
+}) {
   const driver =
     input.provider ??
     (input.instanceId.startsWith("claude_")
@@ -58,10 +58,10 @@ function provider(input: {
     })),
     slashCommands: [],
     skills: [],
-  };
+  } satisfies ServerProvider;
 }
 
-function settingsWithProviderInstances(): UnifiedSettings {
+function settingsWithProviderInstances() {
   return {
     ...DEFAULT_UNIFIED_SETTINGS,
     providerInstances: {

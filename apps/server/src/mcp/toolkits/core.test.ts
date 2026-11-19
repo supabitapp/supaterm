@@ -590,16 +590,15 @@ it.effect("resolves reused attachment references from stored metadata", () =>
   }),
 );
 
-const clientScope = (
-  access: McpInvocationContext.McpClientCaller["access"],
-): McpInvocationContext.McpInvocationScope => ({
-  environmentId: EnvironmentId.make("mcp-core-environment"),
-  requestNamespace: "client:session-1",
-  thread: undefined,
-  client: { sessionId: "session-1", label: "Claude Code", access },
-  issuedAt: 0,
-  capabilities: new Set(["orchestration", "worktree", "pull-requests"]),
-});
+const clientScope = (access: McpInvocationContext.McpClientCaller["access"]) =>
+  ({
+    environmentId: EnvironmentId.make("mcp-core-environment"),
+    requestNamespace: "client:session-1",
+    thread: undefined,
+    client: { sessionId: "session-1", label: "Claude Code", access },
+    issuedAt: 0,
+    capabilities: new Set(["orchestration", "worktree", "pull-requests"]),
+  }) satisfies McpInvocationContext.McpInvocationScope;
 
 it.effect("a client caller targets any thread within its ceiling and cannot act as a thread", () =>
   Effect.gen(function* () {

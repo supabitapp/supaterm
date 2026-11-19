@@ -86,7 +86,7 @@ type ProviderTerminalEvent = Extract<
   { readonly type: "turn.terminal" }
 >;
 
-function isTerminalProviderTurnStatus(status: OrchestrationV2ProviderTurn["status"]): boolean {
+function isTerminalProviderTurnStatus(status: OrchestrationV2ProviderTurn["status"]) {
   return (
     status === "completed" ||
     status === "interrupted" ||
@@ -95,8 +95,9 @@ function isTerminalProviderTurnStatus(status: OrchestrationV2ProviderTurn["statu
   );
 }
 
-function isSettledSubagentStatus(status: OrchestrationV2Subagent["status"]): boolean {
-  return !isOrchestrationV2WorkActive(status);
+function isSettledSubagentStatus(status: OrchestrationV2Subagent["status"]): boolean;
+function isSettledSubagentStatus(status: OrchestrationV2Subagent["status"]) {
+  return !isOrchestrationV2WorkActive(status) satisfies boolean;
 }
 
 const backgroundCapableTurnItemTypes: ReadonlySet<OrchestrationV2TurnItem["type"]> = new Set([
@@ -105,11 +106,12 @@ const backgroundCapableTurnItemTypes: ReadonlySet<OrchestrationV2TurnItem["type"
   "subagent",
 ]);
 
-function isSettledTurnItemStatus(status: OrchestrationV2TurnItem["status"]): boolean {
-  return !isOrchestrationV2WorkActive(status);
+function isSettledTurnItemStatus(status: OrchestrationV2TurnItem["status"]): boolean;
+function isSettledTurnItemStatus(status: OrchestrationV2TurnItem["status"]) {
+  return !isOrchestrationV2WorkActive(status) satisfies boolean;
 }
 
-function isSettledRunEligibleForInheritedBackground(status: OrchestrationV2Run["status"]): boolean {
+function isSettledRunEligibleForInheritedBackground(status: OrchestrationV2Run["status"]) {
   return status === "interrupted" || status === "failed" || status === "cancelled";
 }
 
@@ -120,7 +122,7 @@ export function selectInheritedBackgroundTurnItems(input: {
   readonly currentRunOrdinal: number;
   readonly runs: ReadonlyArray<OrchestrationV2Run>;
   readonly turnItems: ReadonlyArray<OrchestrationV2TurnItem>;
-}): ReadonlyArray<InheritedBackgroundTurnItemRoute> {
+}) {
   const settledPriorRunIds = new Set(
     input.runs
       .values()
@@ -171,7 +173,7 @@ type RunOwnedSubagentTerminalStatus = Extract<
   "interrupted" | "failed" | "cancelled"
 >;
 
-function isOpenExecutionNodeStatus(status: OrchestrationV2ExecutionNode["status"]): boolean {
+function isOpenExecutionNodeStatus(status: OrchestrationV2ExecutionNode["status"]) {
   return status === "pending" || status === "running" || status === "waiting";
 }
 
@@ -181,41 +183,46 @@ function isRunOwnedSubagentTerminalStatus(
   return status === "interrupted" || status === "failed" || status === "cancelled";
 }
 
-function streamedThreadId(event: ProviderAdapter.ProviderAdapterV2Event): ThreadId | null {
+function streamedThreadId(event: ProviderAdapter.ProviderAdapterV2Event) {
   if (event.type === "message.updated") return event.message.threadId;
   if (event.type === "turn_item.updated") return event.turnItem.threadId;
   return null;
 }
 
-function childTurnsContinue(terminal: ProviderTerminalEvent): boolean {
+function childTurnsContinue(terminal: ProviderTerminalEvent) {
   return terminal.status === "failed" && terminal.childTurnsContinue === true;
 }
 
 /** Launching runs still ingest running subagents; taking them over would duplicate events. */
-export function canRouteRelatedSubagent(status: OrchestrationV2Subagent["status"]): boolean {
+export function canRouteRelatedSubagent(status: OrchestrationV2Subagent["status"]) {
   return status === "completed";
 }
 
-function emptyOpenRunOwnedSubagentProjection(): OpenRunOwnedSubagentProjection {
+function emptyOpenRunOwnedSubagentProjection(): OpenRunOwnedSubagentProjection;
+function emptyOpenRunOwnedSubagentProjection() {
   return {
     subagents: new Map(),
     turnItems: new Map(),
     childTurnItems: new Map(),
     nodes: new Map(),
     linkedChildThreadIds: new Set(),
-  };
+  } satisfies OpenRunOwnedSubagentProjection;
 }
 
 function withLinkedChildThreadId(
   current: OpenRunOwnedSubagentProjection,
   childThreadId: ThreadId | null,
-): OpenRunOwnedSubagentProjection {
+): OpenRunOwnedSubagentProjection;
+function withLinkedChildThreadId(
+  current: OpenRunOwnedSubagentProjection,
+  childThreadId: ThreadId | null,
+) {
   if (childThreadId === null || current.linkedChildThreadIds.has(childThreadId)) {
-    return current;
+    return current satisfies OpenRunOwnedSubagentProjection;
   }
   const linkedChildThreadIds = new Set(current.linkedChildThreadIds);
   linkedChildThreadIds.add(childThreadId);
-  return { ...current, linkedChildThreadIds };
+  return { ...current, linkedChildThreadIds } satisfies OpenRunOwnedSubagentProjection;
 }
 
 export const cascadeTerminalizeRunOwnedSubagents = Effect.fn(
@@ -226,10 +233,7 @@ export const cascadeTerminalizeRunOwnedSubagents = Effect.fn(
   readonly status: RunOwnedSubagentTerminalStatus;
   readonly completedAt: DateTime.Utc;
   readonly allocateEventId: () => Effect.Effect<EventId, IdAllocator.IdAllocatorV2AllocationError>;
-}): Effect.fn.Return<
-  ReadonlyArray<OrchestrationV2DomainEvent>,
-  IdAllocator.IdAllocatorV2AllocationError
-> {
+}) {
   const events: Array<OrchestrationV2DomainEvent> = [];
   const childThreadIds = new Set(input.open.linkedChildThreadIds);
   for (const item of [...input.open.subagents.values(), ...input.open.turnItems.values()]) {
@@ -363,9 +367,7 @@ const interruptLostToolCalls = Effect.fn("RunExecutionService.interruptLostToolC
   },
 );
 
-function finalProviderThreadStatus(
-  disposition: ProviderTerminalEvent["threadDisposition"],
-): OrchestrationV2ProviderThread["status"] {
+function finalProviderThreadStatus(disposition: ProviderTerminalEvent["threadDisposition"]) {
   return disposition === "broken" ? "error" : "idle";
 }
 
@@ -375,7 +377,14 @@ export function makeProviderEventRoutingState(input: {
   readonly providerTurnId: ProviderTurnId | null;
   readonly relatedThreadIds?: ReadonlyArray<ThreadId>;
   readonly relatedProviderThreadIds?: ReadonlyArray<ProviderThreadId>;
-}): ProviderEventRoutingState {
+}): ProviderEventRoutingState;
+export function makeProviderEventRoutingState(input: {
+  readonly identity: ProviderEventRouteIdentity;
+  readonly inheritedBackgroundTurnItems?: ReadonlyArray<InheritedBackgroundTurnItemRoute>;
+  readonly providerTurnId: ProviderTurnId | null;
+  readonly relatedThreadIds?: ReadonlyArray<ThreadId>;
+  readonly relatedProviderThreadIds?: ReadonlyArray<ProviderThreadId>;
+}) {
   return {
     ownedThreadIds: new Set([input.identity.threadId, ...(input.relatedThreadIds ?? [])]),
     rootTurnEnded: false,
@@ -392,21 +401,21 @@ export function makeProviderEventRoutingState(input: {
       (input.inheritedBackgroundTurnItems ?? []).map((item) => [item.id, item.runId]),
     ),
     rootProviderTurnId: input.providerTurnId,
-  };
+  } satisfies ProviderEventRoutingState;
 }
 
 export function routeProviderEvent(
   event: ProviderAdapter.ProviderAdapterV2Event,
   input: ProviderEventRouteIdentity,
   state: ProviderEventRoutingState,
-): readonly [boolean, ProviderEventRoutingState] {
-  const ownsThread = (threadId: ThreadId): boolean => state.ownedThreadIds.has(threadId);
-  const ownsChildThread = (threadId: ThreadId): boolean =>
+) {
+  const ownsThread = (threadId: ThreadId) => state.ownedThreadIds.has(threadId);
+  const ownsChildThread = (threadId: ThreadId) =>
     threadId !== input.threadId && ownsThread(threadId);
-  const ownsRun = (runId: string | null): boolean => runId === input.runId;
-  const adoptsEarlierPlan = (threadId: ThreadId): boolean =>
+  const ownsRun = (runId: string | null) => runId === input.runId;
+  const adoptsEarlierPlan = (threadId: ThreadId) =>
     threadId === input.threadId && !state.rootTurnEnded;
-  const addProviderThread = (providerThreadId: ProviderThreadId): ProviderEventRoutingState => ({
+  const addProviderThread = (providerThreadId: ProviderThreadId) => ({
     ...state,
     ownedProviderThreadIds: new Set([...state.ownedProviderThreadIds, providerThreadId]),
   });
@@ -414,7 +423,7 @@ export function routeProviderEvent(
     providerTurnId: ProviderTurnId,
     providerThreadId: ProviderThreadId,
     root: boolean,
-  ): ProviderEventRoutingState => ({
+  ) => ({
     ...state,
     ownedProviderTurns: new Map(state.ownedProviderTurns).set(providerTurnId, providerThreadId),
     rootProviderTurnId: root ? providerTurnId : state.rootProviderTurnId,
@@ -422,10 +431,10 @@ export function routeProviderEvent(
 
   switch (event.type) {
     case "provider_session.updated":
-      return [false, state];
+      return [false, state] satisfies readonly [boolean, ProviderEventRoutingState];
     case "app_thread.created": {
       if (event.appThread.id === input.threadId) {
-        return [true, state];
+        return [true, state] satisfies readonly [boolean, ProviderEventRoutingState];
       }
       const isOwnedSubagent =
         event.appThread.lineage.relationshipToParent === "subagent" &&
@@ -435,7 +444,7 @@ export function routeProviderEvent(
           state.workflowMemberParents.get(event.appThread.id) ===
             event.appThread.lineage.parentThreadId);
       if (!isOwnedSubagent) {
-        return [false, state];
+        return [false, state] satisfies readonly [boolean, ProviderEventRoutingState];
       }
       return [
         true,
@@ -443,13 +452,15 @@ export function routeProviderEvent(
           ...state,
           ownedThreadIds: new Set([...state.ownedThreadIds, event.appThread.id]),
         },
-      ];
+      ] satisfies readonly [boolean, ProviderEventRoutingState];
     }
     case "provider_thread.updated": {
       const belongs =
         state.ownedProviderThreadIds.has(event.providerThread.id) ||
         (event.providerThread.appThreadId !== null && ownsThread(event.providerThread.appThreadId));
-      return belongs ? [true, addProviderThread(event.providerThread.id)] : [false, state];
+      return (
+        belongs ? [true, addProviderThread(event.providerThread.id)] : [false, state]
+      ) satisfies readonly [boolean, ProviderEventRoutingState];
     }
     case "provider_turn.updated": {
       const isRoot = event.providerTurn.runAttemptId === input.attemptId;
@@ -459,12 +470,14 @@ export function routeProviderEvent(
           state.ownedProviderThreadIds.has(event.providerTurn.providerThreadId)) ||
         state.ownedProviderTurns.has(event.providerTurn.id) ||
         (event.threadId !== undefined && ownsChildThread(event.threadId));
-      return belongs
-        ? [
-            true,
-            addProviderTurn(event.providerTurn.id, event.providerTurn.providerThreadId, isRoot),
-          ]
-        : [false, state];
+      return (
+        belongs
+          ? [
+              true,
+              addProviderTurn(event.providerTurn.id, event.providerTurn.providerThreadId, isRoot),
+            ]
+          : [false, state]
+      ) satisfies readonly [boolean, ProviderEventRoutingState];
     }
     case "node.updated": {
       const belongs =
@@ -473,9 +486,12 @@ export function routeProviderEvent(
         ((event.node.kind === "todo_list" || event.node.kind === "plan") &&
           adoptsEarlierPlan(event.node.threadId));
       if (!belongs || event.node.providerThreadId === null) {
-        return [belongs, state];
+        return [belongs, state] satisfies readonly [boolean, ProviderEventRoutingState];
       }
-      return [true, addProviderThread(event.node.providerThreadId)];
+      return [true, addProviderThread(event.node.providerThreadId)] satisfies readonly [
+        boolean,
+        ProviderEventRoutingState,
+      ];
     }
     case "subagent.updated": {
       const moved = event.subagent;
@@ -495,7 +511,10 @@ export function routeProviderEvent(
         for (const [turnId, threadId] of ownedProviderTurns) {
           if (threadId === moved.providerThreadId) ownedProviderTurns.delete(turnId);
         }
-        return [false, { ...state, ownedThreadIds, ownedProviderThreadIds, ownedProviderTurns }];
+        return [
+          false,
+          { ...state, ownedThreadIds, ownedProviderThreadIds, ownedProviderTurns },
+        ] satisfies readonly [boolean, ProviderEventRoutingState];
       }
       const belongs = ownsRun(event.subagent.runId) || ownsChildThread(event.subagent.threadId);
       const coordinator = event.subagent;
@@ -516,7 +535,7 @@ export function routeProviderEvent(
         coordinator.workflow === undefined ||
         coordinator.childThreadId === null
       ) {
-        return [belongs, adopted];
+        return [belongs, adopted] satisfies readonly [boolean, ProviderEventRoutingState];
       }
       const workflowMemberParents = new Map(state.workflowMemberParents);
       for (const member of coordinator.workflow.agents) {
@@ -524,12 +543,18 @@ export function routeProviderEvent(
           workflowMemberParents.set(member.childThreadId, coordinator.childThreadId);
         }
       }
-      return [true, { ...adopted, workflowMemberParents }];
+      return [true, { ...adopted, workflowMemberParents }] satisfies readonly [
+        boolean,
+        ProviderEventRoutingState,
+      ];
     }
     case "message.updated":
-      return [ownsRun(event.message.runId) || ownsChildThread(event.message.threadId), state];
+      return [
+        ownsRun(event.message.runId) || ownsChildThread(event.message.threadId),
+        state,
+      ] satisfies readonly [boolean, ProviderEventRoutingState];
     case "steer.updated":
-      return [ownsRun(event.runId), state];
+      return [ownsRun(event.runId), state] satisfies readonly [boolean, ProviderEventRoutingState];
     case "turn_item.updated": {
       if (
         ownsRun(event.turnItem.runId) ||
@@ -537,7 +562,7 @@ export function routeProviderEvent(
         ((event.turnItem.type === "todo_list" || event.turnItem.type === "proposed_plan") &&
           adoptsEarlierPlan(event.turnItem.threadId))
       ) {
-        return [true, state];
+        return [true, state] satisfies readonly [boolean, ProviderEventRoutingState];
       }
       const inheritedRunId = state.inheritedBackgroundTurnItems.get(event.turnItem.id);
       const isInheritedBackgroundItem =
@@ -546,14 +571,17 @@ export function routeProviderEvent(
         event.turnItem.runId === inheritedRunId &&
         backgroundCapableTurnItemTypes.has(event.turnItem.type);
       if (!isInheritedBackgroundItem) {
-        return [false, state];
+        return [false, state] satisfies readonly [boolean, ProviderEventRoutingState];
       }
       if (!isSettledTurnItemStatus(event.turnItem.status)) {
-        return [true, state];
+        return [true, state] satisfies readonly [boolean, ProviderEventRoutingState];
       }
       const inheritedBackgroundTurnItems = new Map(state.inheritedBackgroundTurnItems);
       inheritedBackgroundTurnItems.delete(event.turnItem.id);
-      return [true, { ...state, inheritedBackgroundTurnItems }];
+      return [true, { ...state, inheritedBackgroundTurnItems }] satisfies readonly [
+        boolean,
+        ProviderEventRoutingState,
+      ];
     }
     case "plan.updated":
       return [
@@ -561,22 +589,24 @@ export function routeProviderEvent(
           ownsChildThread(event.plan.threadId) ||
           adoptsEarlierPlan(event.plan.threadId),
         state,
-      ];
+      ] satisfies readonly [boolean, ProviderEventRoutingState];
     case "runtime_request.updated":
       return [
         (event.threadId !== undefined && ownsChildThread(event.threadId)) ||
           (event.runtimeRequest.providerTurnId !== null &&
             state.ownedProviderTurns.has(event.runtimeRequest.providerTurnId)),
         state,
-      ];
+      ] satisfies readonly [boolean, ProviderEventRoutingState];
     case "command_output.delta":
     case "prompt_suggestion.expected":
     case "prompt_suggestion.ready":
-      return [false, state];
+      return [false, state] satisfies readonly [boolean, ProviderEventRoutingState];
     case "turn.terminal":
-      return event.providerTurnId === state.rootProviderTurnId
-        ? [true, { ...state, rootTurnEnded: true }]
-        : [false, state];
+      return (
+        event.providerTurnId === state.rootProviderTurnId
+          ? [true, { ...state, rootTurnEnded: true }]
+          : [false, state]
+      ) satisfies readonly [boolean, ProviderEventRoutingState];
   }
 }
 
@@ -588,7 +618,7 @@ export class RunExecutionStartError extends Schema.TaggedError<RunExecutionStart
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Failed to start orchestration V2 run execution ${this.runId}.`;
   }
 }
@@ -602,7 +632,7 @@ export class RunExecutionIngestError extends Schema.TaggedError<RunExecutionInge
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Failed while ingesting orchestration V2 run execution ${this.runId}.`;
   }
 }
@@ -1066,17 +1096,18 @@ export const layer: Layer.Layer<
         const makeFailedTerminalEvent = (
           failure: OrchestrationV2ProviderFailure,
           failureItemOrdinal: number,
-        ): ProviderTerminalEvent => ({
-          type: "turn.terminal",
-          driver: input.providerThread.driver,
-          providerThreadId: input.providerThread.id,
-          providerTurnId: failedProviderTurnId,
-          runOrdinal: input.run.ordinal,
-          failureItemOrdinal,
-          status: "failed",
-          failure,
-          threadDisposition: "reusable",
-        });
+        ) =>
+          ({
+            type: "turn.terminal",
+            driver: input.providerThread.driver,
+            providerThreadId: input.providerThread.id,
+            providerTurnId: failedProviderTurnId,
+            runOrdinal: input.run.ordinal,
+            failureItemOrdinal,
+            status: "failed",
+            failure,
+            threadDisposition: "reusable",
+          }) satisfies ProviderTerminalEvent;
         const responseStreamingMode = yield* Effect.gen(function* () {
           const responseStreamingMode = yield* serverSettings.getSettings.pipe(
             Effect.map(
@@ -2197,7 +2228,7 @@ export function makeInterruptResultTurnItem(input: {
   readonly providerThread: OrchestrationV2ProviderThread;
   readonly reason: string | undefined;
   readonly completedAt: DateTime.Utc;
-}): OrchestrationV2TurnItem {
+}) {
   return {
     id: input.idAllocator.derive.runSignalTurnItem({
       runId: input.run.id,
@@ -2221,5 +2252,5 @@ export function makeInterruptResultTurnItem(input: {
     updatedAt: input.completedAt,
     type: "run_interrupt_result",
     message: input.reason ?? "Stopped by the provider",
-  };
+  } satisfies OrchestrationV2TurnItem;
 }

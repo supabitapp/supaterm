@@ -42,23 +42,29 @@ const retryingPreviewStreamAccessAtom = Atom.family((environmentId: EnvironmentI
 export function usePreviewStreamAccess(
   environmentId: EnvironmentId,
   options?: { readonly retry: boolean },
-): DeviceHubAccess | null {
+): DeviceHubAccess | null;
+export function usePreviewStreamAccess(
+  environmentId: EnvironmentId,
+  options?: { readonly retry: boolean },
+) {
   const result = useAtomValue(
     options?.retry
       ? retryingPreviewStreamAccessAtom(environmentId)
       : previewStreamAccessAtom(environmentId),
   );
-  return AsyncResult.isSuccess(result) ? result.value : null;
+  return (AsyncResult.isSuccess(result) ? result.value : null) satisfies DeviceHubAccess | null;
 }
 
-export function refreshPreviewStreamAccess(environmentId: EnvironmentId): void {
+export function refreshPreviewStreamAccess(environmentId: EnvironmentId): void;
+export function refreshPreviewStreamAccess(environmentId: EnvironmentId) {
   appAtomRegistry.refresh(previewStreamAccessAtom(environmentId));
 }
 
 export function readPreviewStreamAccess(
   environmentId: EnvironmentId,
   refresh: boolean,
-): Promise<DeviceHubAccess | null> {
+): Promise<DeviceHubAccess | null>;
+export function readPreviewStreamAccess(environmentId: EnvironmentId, refresh: boolean) {
   const atom = previewStreamAccessAtom(environmentId);
   if (refresh) appAtomRegistry.refresh(atom);
   return Effect.runPromise(
@@ -66,17 +72,18 @@ export function readPreviewStreamAccess(
       Effect.timeout("10 seconds"),
       Effect.orElseSucceed(() => null),
     ),
-  );
+  ) satisfies Promise<DeviceHubAccess | null>;
 }
 
 /** Resolves fresh access without refreshing the ticket held by an active viewer. */
 export function readFreshPreviewStreamAccess(
   environmentId: EnvironmentId,
-): Promise<DeviceHubAccess | null> {
+): Promise<DeviceHubAccess | null>;
+export function readFreshPreviewStreamAccess(environmentId: EnvironmentId) {
   const prepared = Option.getOrNull(
     appAtomRegistry.get(environmentSession.preparedConnectionValueAtom(environmentId)),
   );
-  if (prepared === null) return Promise.resolve(null);
+  if (prepared === null) return Promise.resolve(null) satisfies Promise<DeviceHubAccess | null>;
   const freshAccessAtom = connectionAtomRuntime
     .atom(resolveDeviceHubAccess({ prepared, hubBasePath: PREVIEW_STREAM_BASE_PATH }))
     .pipe(Atom.withLabel(`preview-transfer-access:${environmentId}`));
@@ -85,5 +92,5 @@ export function readFreshPreviewStreamAccess(
       Effect.timeout("10 seconds"),
       Effect.orElseSucceed(() => null),
     ),
-  );
+  ) satisfies Promise<DeviceHubAccess | null>;
 }

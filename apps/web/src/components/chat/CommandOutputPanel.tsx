@@ -23,7 +23,7 @@ const FOLLOW_SLACK_PX = 8;
 export function useCommandOutputStreaming(
   environmentId: EnvironmentId,
   projectedItem: OrchestrationV2ProjectedTurnItem,
-): boolean {
+) {
   const isCommand = projectedItem.item.type === "command_execution";
   const unavailable = useAtomValue(
     isCommand

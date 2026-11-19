@@ -15,7 +15,7 @@ export class HostResources extends Context.Service<
   { readonly read: Effect.Effect<HostResourcesSnapshot> }
 >()("supaterm/resourceTelemetry/HostResources") {}
 
-function parseCpuList(list: string): ReadonlySet<number> | null {
+function parseCpuList(list: string) {
   const cpus = new Set<number>();
   for (const range of list.split(",")) {
     const match = /^(\d+)(?:-(\d+))?$/.exec(range.trim());
@@ -51,7 +51,7 @@ function readCpu() {
   return { ...cpu, count: cpus.length };
 }
 
-function darwinAvailableMemory(output: string): number | null {
+function darwinAvailableMemory(output: string) {
   const pageSize = /page size of (\d+) bytes/.exec(output)?.[1];
   const free = /^Pages free:\s+(\d+)\./m.exec(output)?.[1];
   const inactive = /^Pages inactive:\s+(\d+)\./m.exec(output)?.[1];
@@ -61,7 +61,7 @@ function darwinAvailableMemory(output: string): number | null {
   return Number.isSafeInteger(available) && Number(pageSize) > 0 ? available : null;
 }
 
-function cgroupNumber(text: string, pattern: RegExp): number | null {
+function cgroupNumber(text: string, pattern: RegExp) {
   const value = pattern.exec(text)?.[1];
   return value === undefined ? null : Number(value);
 }

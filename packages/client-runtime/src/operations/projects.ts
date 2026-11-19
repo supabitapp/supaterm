@@ -33,7 +33,7 @@ export type AddProjectRemoteSource = SourceControlProviderKind | "url";
 
 export function canCreateProjectInEnvironment(
   connectionPhase: EnvironmentConnectionPhase | null | undefined,
-): boolean {
+) {
   return connectionPhase === "connected";
 }
 
@@ -42,7 +42,7 @@ export function availableScratchWorkspaceRoot(input: {
   readonly connectionPhase: EnvironmentConnectionPhase | null | undefined;
   readonly serverConfig: Pick<ServerConfig, "scratchWorkspaceRoot"> | null | undefined;
   readonly projects: ReadonlyArray<EnvironmentProject>;
-}): string | null {
+}) {
   const workspaceRoot = input.serverConfig?.scratchWorkspaceRoot;
   if (!workspaceRoot) return null;
   if (canCreateProjectInEnvironment(input.connectionPhase)) return workspaceRoot;
@@ -82,23 +82,19 @@ export type AddProjectCloneFlow =
 const ADD_PROJECT_REMOTE_PROVIDER_SOURCES: ReadonlyArray<SourceControlProviderKind> =
   sourceControlClients.definitions.map((definition) => definition.kind);
 
-export function addProjectRemoteSourceLabel(source: AddProjectRemoteSource): string {
+export function addProjectRemoteSourceLabel(source: AddProjectRemoteSource) {
   return source === "url" ? "Git URL" : sourceControlClients.get(source).pickerLabel;
 }
 
-export function addProjectRemoteSourcePathHint(source: AddProjectRemoteSource): string {
+export function addProjectRemoteSourcePathHint(source: AddProjectRemoteSource) {
   return source === "url" ? "URL" : sourceControlClients.get(source).repositoryPathHint;
 }
 
-export function addProjectRemoteSourceProvider(
-  source: AddProjectRemoteSource,
-): SourceControlProviderKind | null {
+export function addProjectRemoteSourceProvider(source: AddProjectRemoteSource) {
   return source === "url" ? null : source;
 }
 
-export function parseAddProjectRemoteSource(
-  value: string | null | undefined,
-): AddProjectRemoteSource {
+export function parseAddProjectRemoteSource(value: string | null | undefined) {
   return (value ? sourceControlClients.find(value)?.kind : undefined) ?? "url";
 }
 
@@ -108,7 +104,7 @@ const REPOSITORY_SHORTHAND = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})\/[A-Za-z0-9._-]
  * The clone URL of `owner/name` on the public host of the host a repository reads as before it
  * reports one. Null when that host has no public host.
  */
-export function defaultHostCloneUrl(repository: string): string | null {
+export function defaultHostCloneUrl(repository: string) {
   const definition = sourceControlClients.get(undefined);
   if (definition.publicHost === null) return null;
   const path = repository.endsWith(".git") ? repository : `${repository}.git`;
@@ -129,13 +125,13 @@ const INCOMPLETE_GITHUB_OWNER_REPOSITORY_MESSAGE = "Enter the full owner/reposit
 export function githubIncompleteOwnerRepositoryMessage(
   source: AddProjectRemoteSource,
   input: string,
-): string | null {
+) {
   if (source !== "github") return null;
   if (!INCOMPLETE_GITHUB_OWNER_PATH.test(input.trim())) return null;
   return INCOMPLETE_GITHUB_OWNER_REPOSITORY_MESSAGE;
 }
 
-export function normalizePastedCloneUrl(input: string): string {
+export function normalizePastedCloneUrl(input: string) {
   const trimmed = input.trim();
   if (REPOSITORY_SHORTHAND.test(trimmed)) return defaultHostCloneUrl(trimmed) ?? trimmed;
   return sourceControlClients.repositoryUrlFromPage(trimmed) ?? trimmed;
@@ -143,15 +139,13 @@ export function normalizePastedCloneUrl(input: string): string {
 
 export function getDefaultCloneUrl(
   repository: Pick<SourceControlRepositoryInfo, "provider" | "url" | "sshUrl">,
-): string {
+) {
   return sourceControlClients.get(repository.provider).defaultCloneTransport === "https"
     ? repository.url
     : repository.sshUrl;
 }
 
-export function sortAddProjectProviderSources(
-  readiness: AddProjectRemoteSourceReadiness,
-): ReadonlyArray<SourceControlProviderKind> {
+export function sortAddProjectProviderSources(readiness: AddProjectRemoteSourceReadiness) {
   return Arr.sort(
     ADD_PROJECT_REMOTE_PROVIDER_SOURCES,
     Order.mapInput(
@@ -175,11 +169,14 @@ const UNAVAILABLE: AddProjectRemoteSourceReadinessEntry = {
 
 export function buildAddProjectRemoteSourceReadiness(
   discovery: SourceControlDiscoveryResult | null,
-): AddProjectRemoteSourceReadiness {
+): AddProjectRemoteSourceReadiness;
+export function buildAddProjectRemoteSourceReadiness(
+  discovery: SourceControlDiscoveryResult | null,
+) {
   const providerByKind = new Map(
     (discovery?.sourceControlProviders ?? []).map((provider) => [provider.kind, provider]),
   );
-  return (source) => {
+  return ((source) => {
     if (source === "url") return READY;
     const provider = providerByKind.get(source);
     if (!provider) return UNAVAILABLE;
@@ -193,17 +190,17 @@ export function buildAddProjectRemoteSourceReadiness(
       };
     }
     return READY;
-  };
+  }) satisfies AddProjectRemoteSourceReadiness;
 }
 
-export function getAddProjectInitialQuery(baseDirectory: string | null | undefined): string {
+export function getAddProjectInitialQuery(baseDirectory: string | null | undefined) {
   const trimmed = baseDirectory?.trim() ?? "";
   if (trimmed.length === 0) return "~/";
   const isAnchored = trimmed === "~" || isHostPath(trimmed) || isExplicitRelativePath(trimmed);
   return ensureBrowseDirectoryPath(isAnchored ? trimmed : `~/${trimmed}`);
 }
 
-export function getCloneDirectoryName(repositoryOrRemoteUrl: string | null | undefined): string {
+export function getCloneDirectoryName(repositoryOrRemoteUrl: string | null | undefined) {
   const withoutQuery = (repositoryOrRemoteUrl ?? "").split(/[?#]/)[0]?.trim() ?? "";
   const schemeIndex = withoutQuery.indexOf("://");
   const hasHost = schemeIndex >= 0 || /^[^/\\:]+@[^/\\:]+:/.test(withoutQuery);
@@ -225,7 +222,7 @@ export function getCloneDirectoryPath(
   remoteUrl: string,
   ghqCloneLayout: boolean,
   repository = remoteUrl,
-): string {
+) {
   return (
     (ghqCloneLayout ? cloneUrlRepositoryPath(remoteUrl) : null) ?? getCloneDirectoryName(repository)
   );
@@ -236,14 +233,14 @@ export function getCloneDirectoryLeafName(
   remoteUrl: string,
   ghqCloneLayout: boolean,
   repository = remoteUrl,
-): string {
+) {
   return getCloneDirectoryPath(remoteUrl, ghqCloneLayout, repository).split("/").at(-1) ?? "";
 }
 
 export function getCloneDestinationPath(
   directoryPath: string,
   directoryName: string | null | undefined,
-): string {
+) {
   const name = directoryName?.trim() ?? "";
   if (name.length === 0) {
     return directoryPath;
@@ -252,7 +249,7 @@ export function getCloneDestinationPath(
   return `${base}${base.endsWith("\\") ? name.replaceAll("/", "\\") : name}`;
 }
 
-export function getNewProjectPathPreview(newProjectsRoot: string, name: string): string {
+export function getNewProjectPathPreview(newProjectsRoot: string, name: string) {
   return getCloneDestinationPath(newProjectsRoot, newProjectFolderName(name));
 }
 
@@ -261,9 +258,7 @@ export interface NewProjectPublishTarget {
   readonly owner: string | null;
 }
 
-export function getNewProjectPublishTargets(
-  discovery: SourceControlDiscoveryResult | null,
-): ReadonlyArray<NewProjectPublishTarget> {
+export function getNewProjectPublishTargets(discovery: SourceControlDiscoveryResult | null) {
   const readiness = buildAddProjectRemoteSourceReadiness(discovery);
   return sourceControlClients.definitions.flatMap((definition) => {
     if (!readiness(definition.kind).ready) return [];
@@ -280,14 +275,14 @@ export function getNewProjectPublishTargets(
 export function getNewProjectPublishTarget(
   targets: ReadonlyArray<NewProjectPublishTarget>,
   kind: SourceControlProviderKind | null,
-): NewProjectPublishTarget | null {
+) {
   return targets.find((target) => target.definition.kind === kind) ?? targets[0] ?? null;
 }
 
 export function getNewProjectRepository(
   target: Pick<NewProjectPublishTarget, "owner">,
   workspaceRoot: string,
-): string {
+) {
   const folderName = workspaceRoot.split(/[\\/]/).findLast(Boolean) ?? "";
   return target.owner ? `${target.owner}/${folderName}` : folderName;
 }
@@ -297,7 +292,7 @@ export function getCloneDestinationBrowsePath(input: {
   readonly selectedDirectoryName: string;
   readonly cloneDirectoryName: string;
   readonly caseSensitive: boolean;
-}): string {
+}) {
   const selectedDirectoryPath = appendBrowsePathSegment(
     input.browseDirectoryPath,
     input.selectedDirectoryName,
@@ -314,7 +309,7 @@ export function getCloneDestinationForPickedFolder(input: {
   readonly pickedPath: string;
   readonly cloneDirectoryName: string;
   readonly caseSensitive: boolean;
-}): string {
+}) {
   const parentPath = getBrowseParentPath(input.pickedPath);
   if (parentPath === null) {
     return getCloneDestinationPath(input.pickedPath, input.cloneDirectoryName);
@@ -331,26 +326,42 @@ export function resolveAddProjectPath(input: {
   readonly rawPath: string;
   readonly currentProjectCwd?: string | null;
   readonly platform: string;
-}): { readonly ok: true; readonly path: string } | { readonly ok: false; readonly error: string } {
+}) {
   const rawPath = input.rawPath.trim();
   if (rawPath.length === 0) {
-    return { ok: false, error: "Enter a project path." };
+    return { ok: false, error: "Enter a project path." } satisfies
+      | { readonly ok: true; readonly path: string }
+      | { readonly ok: false; readonly error: string };
   }
   if (isUnsupportedWindowsProjectPath(rawPath, input.platform)) {
-    return { ok: false, error: "Windows-style paths are only supported on Windows environments." };
+    return {
+      ok: false,
+      error: "Windows-style paths are only supported on Windows environments.",
+    } satisfies
+      | { readonly ok: true; readonly path: string }
+      | { readonly ok: false; readonly error: string };
   }
   if (isExplicitRelativeProjectPath(rawPath) && !input.currentProjectCwd) {
-    return { ok: false, error: "Relative paths require an active project in this environment." };
+    return {
+      ok: false,
+      error: "Relative paths require an active project in this environment.",
+    } satisfies
+      | { readonly ok: true; readonly path: string }
+      | { readonly ok: false; readonly error: string };
   }
   const path = resolveProjectPathForDispatch(rawPath, input.currentProjectCwd);
-  return path.length === 0 ? { ok: false, error: "Enter a project path." } : { ok: true, path };
+  return (
+    path.length === 0 ? { ok: false, error: "Enter a project path." } : { ok: true, path }
+  ) satisfies
+    | { readonly ok: true; readonly path: string }
+    | { readonly ok: false; readonly error: string };
 }
 
 export function findExistingAddProject(input: {
   readonly projects: ReadonlyArray<EnvironmentProject>;
   readonly environmentId: EnvironmentId;
   readonly path: string;
-}): EnvironmentProject | null {
+}) {
   return (
     findProjectByPath(
       input.projects.filter((project) => project.environmentId === input.environmentId),
@@ -363,7 +374,7 @@ export function buildProjectCreateCommand(input: {
   readonly commandId: CommandId;
   readonly projectId: ProjectId;
   readonly workspaceRoot: string;
-}): Extract<ProjectMutation, { type: "project.create" }> {
+}) {
   return {
     type: "project.create",
     commandId: input.commandId,
@@ -372,5 +383,5 @@ export function buildProjectCreateCommand(input: {
     workspaceRoot: input.workspaceRoot,
     createWorkspaceRootIfMissing: true,
     defaultModelSelection: null,
-  };
+  } satisfies Extract<ProjectMutation, { type: "project.create" }>;
 }

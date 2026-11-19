@@ -130,7 +130,7 @@ function codePairCaretPlugin(type: MarkType) {
   });
 }
 
-function closesBacktickPair($pos: ResolvedPos): boolean {
+function closesBacktickPair($pos: ResolvedPos) {
   return (
     $pos.parent.isTextblock &&
     !$pos.parent.type.spec.code &&
@@ -139,7 +139,7 @@ function closesBacktickPair($pos: ResolvedPos): boolean {
   );
 }
 
-function composedCodePair(tr: Transaction): CodePair | undefined {
+function composedCodePair(tr: Transaction) {
   if (tr.getMeta("composition") === undefined || tr.steps.length !== 1) {
     return undefined;
   }
@@ -190,7 +190,7 @@ export const ComposerCodeExtension = Code.extend({
   },
 });
 
-function literalBackticksBefore($pos: ResolvedPos): number {
+function literalBackticksBefore($pos: ResolvedPos) {
   let count = 0;
   $pos.parent.forEach((node, offset) => {
     if (offset >= $pos.parentOffset) return;
@@ -206,7 +206,7 @@ function literalBackticksBefore($pos: ResolvedPos): number {
   return count;
 }
 
-function touchesMarkdownSource(state: EditorState, from: number, to: number): boolean {
+function touchesMarkdownSource(state: EditorState, from: number, to: number) {
   const type = state.schema.marks[MARKDOWN_SOURCE_MARK];
   if (!type) return false;
   if (from < to) return state.doc.rangeHasMark(from, to, type);
@@ -300,7 +300,7 @@ export const ComposerStrikeExtension = Strike.extend({
 function withoutBlockChords<Shortcuts extends Record<string, unknown>>(
   shortcuts: Shortcuts | undefined,
   drop: readonly string[],
-): Shortcuts {
+) {
   return Object.fromEntries(
     Object.entries(shortcuts ?? {}).filter(([key]) => !drop.includes(key)),
   ) as Shortcuts;
@@ -353,7 +353,7 @@ export const ComposerCodeBlockExtension = CodeBlock.extend({
   },
 });
 
-function unwrapCodeBlockAtStart(editor: Editor): boolean {
+function unwrapCodeBlockAtStart(editor: Editor) {
   const { $from, empty } = editor.state.selection;
   if (!empty || $from.parent.type.name !== "codeBlock" || $from.parentOffset !== 0) return false;
   const { schema } = editor.state;
@@ -528,11 +528,11 @@ function listNormalizationPlugin(isComposing: () => boolean) {
   });
 }
 
-function paragraphText(node: ProseMirrorNode): string {
+function paragraphText(node: ProseMirrorNode) {
   return node.textBetween(0, node.content.size, undefined, "\ufffc");
 }
 
-function joinCompatibleLists(tr: Transaction, pos: number): void {
+function joinCompatibleLists(tr: Transaction, pos: number) {
   const $pos = tr.doc.resolve(pos);
   const before = $pos.nodeBefore;
   const after = $pos.nodeAfter;
@@ -593,7 +593,7 @@ export const ComposerBlockExtensions = [
   ComposerHeadingExtension,
 ];
 
-function alignListItemWithSiblings(tr: Transaction, itemType: string): void {
+function alignListItemWithSiblings(tr: Transaction, itemType: string) {
   const $pos = tr.selection.$from;
 
   if ($pos.depth < 3 || $pos.node(-1).type.name !== itemType) return;
@@ -616,12 +616,7 @@ function alignListItemWithSiblings(tr: Transaction, itemType: string): void {
   }
 }
 
-function renumberFollowingItems(
-  tr: Transaction,
-  listPos: number,
-  index: number,
-  marker: string,
-): void {
+function renumberFollowingItems(tr: Transaction, listPos: number, index: number, marker: string) {
   const list = tr.doc.nodeAt(listPos);
   if (!list) return;
   let pos = listPos + 1;
@@ -638,7 +633,7 @@ function renumberFollowingItems(
 }
 
 /** `prepare` runs first in the same transaction, which the split then reads. */
-export function splitOrLiftListItem(editor: Editor, prepare: Command): boolean {
+export function splitOrLiftListItem(editor: Editor, prepare: Command) {
   const $from = editor.state.selection.$from;
   const itemType = listItemTypeAt($from);
   if (!itemType) return false;
@@ -662,7 +657,7 @@ export function convertBulletItemToTask(
   from: number,
   to: number,
   checked: boolean,
-): void {
+) {
   tr.delete(from, to);
   const $pos = tr.doc.resolve(from);
   const item = $pos.node(-1);
@@ -694,12 +689,12 @@ export function convertBulletItemToTask(
   tr.setSelection(TextSelection.create(tr.doc, caret));
 }
 
-function listItemTypeAt($pos: ResolvedPos): "listItem" | "taskItem" | null {
+function listItemTypeAt($pos: ResolvedPos) {
   const name = $pos.depth > 1 ? $pos.node(-1).type.name : null;
   return name === "listItem" || name === "taskItem" ? name : null;
 }
 
-function backspaceAcrossList(editor: Editor): boolean {
+function backspaceAcrossList(editor: Editor) {
   const { state } = editor;
   const { $from, empty } = state.selection;
   if (!empty || $from.parentOffset !== 0) return false;
@@ -719,7 +714,7 @@ function backspaceAcrossList(editor: Editor): boolean {
   return false;
 }
 
-function deleteAcrossList(editor: Editor): boolean {
+function deleteAcrossList(editor: Editor) {
   const { state } = editor;
   const { $from, empty } = state.selection;
   if (!empty || !$from.parent.isTextblock || $from.depth === 0) return false;

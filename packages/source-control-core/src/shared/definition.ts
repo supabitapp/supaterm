@@ -162,7 +162,7 @@ export interface SourceControlIconPath {
 }
 
 /** Whether the mark is drawn in the text colour alone, so a client may tint it. */
-export function isMonochromeSourceControlIcon(icon: SourceControlIcon): boolean {
+export function isMonochromeSourceControlIcon(icon: SourceControlIcon) {
   return icon.paths.every(
     (path) =>
       (path.fill === undefined || path.fill === "currentColor") &&
@@ -353,7 +353,7 @@ export type SourceControlHostSettingsSchema = {
 
 const FULL_COMMIT_SHA = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/iu;
 
-export function parseCommitPath(url: URL, route: RegExp): CommitLink | null {
+export function parseCommitPath(url: URL, route: RegExp) {
   if (url.protocol !== "https:" && url.protocol !== "http:") return null;
   const match = route.exec(url.pathname);
   const repository = match?.[1];
@@ -371,7 +371,7 @@ export function parseCommitPath(url: URL, route: RegExp): CommitLink | null {
 export function buildCommitUrl(
   { host, repository, sha, remoteUrl, webUrl }: CommitUrlInput,
   route: string,
-): string | null {
+) {
   if (!repository || !FULL_COMMIT_SHA.test(sha)) return null;
   try {
     const url = new URL(webUrl || `${remoteWebOrigin(host, remoteUrl)}/${repository}`);
@@ -391,7 +391,7 @@ export function buildCommitUrl(
  * Reads a change request from `url` with `route`, whose first group is the repository path and
  * second the number.
  */
-export function parseChangeRequestPath(url: URL, route: RegExp): ParsedChangeRequestUrl | null {
+export function parseChangeRequestPath(url: URL, route: RegExp) {
   if (url.protocol !== "https:" && url.protocol !== "http:") return null;
   const match = route.exec(url.pathname);
   const repository = match?.[1];
@@ -407,7 +407,7 @@ export function parseChangeRequestPath(url: URL, route: RegExp): ParsedChangeReq
 }
 
 /** Reads a repository page from `url` with `route`, whose first group is the repository path. */
-export function repositoryUrlFromPagePath(url: URL, route: RegExp): string | null {
+export function repositoryUrlFromPagePath(url: URL, route: RegExp) {
   const repository = route.exec(url.pathname)?.[1];
   if (!repository) return null;
   const repositoryUrl = new URL(url);
@@ -417,12 +417,12 @@ export function repositoryUrlFromPagePath(url: URL, route: RegExp): string | nul
   return repositoryUrl.href;
 }
 
-export function changeRequestUrlBelow(webUrl: string, route: string): string {
+export function changeRequestUrlBelow(webUrl: string, route: string) {
   return `${webUrl.replace(/\/+$/u, "")}/${route}`;
 }
 
 /** An HTTP remote on `host` names the server's web origin, port included; SSH remotes do not. */
-export function remoteWebOrigin(host: string, remoteUrl: string | undefined): string {
+export function remoteWebOrigin(host: string, remoteUrl: string | undefined) {
   try {
     const remote = new URL(remoteUrl ?? "");
     if (
@@ -438,14 +438,14 @@ export function remoteWebOrigin(host: string, remoteUrl: string | undefined): st
 
 export function defineSourceControl<const Definition extends SourceControlDefinition>(
   definition: Definition,
-): Definition {
+) {
   return definition;
 }
 
 export function isChangeRequestAuthorityOfProject(
   identity: ChangeRequestProjectIdentity,
   link: ChangeRequestLink | CommitLink,
-): boolean {
+) {
   if (link.authority === undefined) return true;
   try {
     const remote = new URL(identity.locator.remoteUrl);
@@ -460,9 +460,15 @@ export function isChangeRequestAuthorityOfProject(
 export function projectChangeRequestHost<const Kind extends string | undefined>(
   identity: ChangeRequestHostIdentity,
   kind: Kind,
-): string | Kind {
+): string | Kind;
+export function projectChangeRequestHost<const Kind extends string | undefined>(
+  identity: ChangeRequestHostIdentity,
+  kind: Kind,
+) {
   const host = identity?.canonicalKey?.split("/")[0]?.trim();
-  return host === undefined || host.length === 0 ? kind : host.toLowerCase();
+  return (host === undefined || host.length === 0 ? kind : host.toLowerCase()) satisfies
+    | string
+    | Kind;
 }
 
 /** `projectHost` is the project's `changeRequestHost`. */
@@ -470,12 +476,12 @@ export function isChangeRequestOnProjectHost(
   projectHost: string,
   identity: ChangeRequestProjectIdentity,
   link: ChangeRequestLink | CommitLink,
-): boolean {
+) {
   if (!isChangeRequestAuthorityOfProject(identity, link)) return false;
   return projectHost === link.host.toLowerCase() || projectHost === link.authority;
 }
 
-function projectRepositoryPath(identity: ChangeRequestProjectIdentity): string | null {
+function projectRepositoryPath(identity: ChangeRequestProjectIdentity) {
   return (
     identity.displayName ??
     (identity.owner && identity.name ? `${identity.owner}/${identity.name}` : null)
@@ -486,7 +492,7 @@ export function isChangeRequestInProjectRepository(
   projectHost: string,
   identity: ChangeRequestProjectIdentity,
   link: ChangeRequestLink | CommitLink,
-): boolean {
+) {
   const repository = projectRepositoryPath(identity);
   return (
     repository !== null &&
@@ -498,9 +504,10 @@ export function isChangeRequestInProjectRepository(
 const SCP_REMOTE = /^[a-zA-Z0-9._-]+@([^:/]+):/;
 
 /** Null when the remote names no host, such as a local path. */
-export function parseGitRemoteHost(remoteUrl: string): GitRemoteHost | null {
+export function parseGitRemoteHost(remoteUrl: string): GitRemoteHost | null;
+export function parseGitRemoteHost(remoteUrl: string) {
   const trimmed = remoteUrl.trim();
-  if (trimmed.length === 0) return null;
+  if (trimmed.length === 0) return null satisfies GitRemoteHost | null;
   let host: string;
   const scpHost = SCP_REMOTE.exec(trimmed)?.[1] ?? userlessScpRemoteHost(trimmed);
   if (scpHost) {
@@ -510,43 +517,47 @@ export function parseGitRemoteHost(remoteUrl: string): GitRemoteHost | null {
       const url = new URL(trimmed);
       host = (url.protocol === "ssh:" ? url.hostname : url.host).toLowerCase();
     } catch {
-      return null;
+      return null satisfies GitRemoteHost | null;
     }
   }
-  if (host.length === 0) return null;
+  if (host.length === 0) return null satisfies GitRemoteHost | null;
   let hostname: string;
   try {
     hostname = new URL(`https://${host}`).hostname.toLowerCase();
   } catch {
     hostname = host.replace(/:\d+$/u, "").toLowerCase();
   }
-  return { remoteUrl: trimmed, host, hostname };
+  return { remoteUrl: trimmed, host, hostname } satisfies GitRemoteHost | null;
 }
 
 /** What a remote on a host no definition claims reads as. */
-export function unknownRemoteProvider(remote: GitRemoteHost): SourceControlProviderInfo {
+export function unknownRemoteProvider(remote: GitRemoteHost): SourceControlProviderInfo;
+export function unknownRemoteProvider(remote: GitRemoteHost) {
   return {
     kind: SourceControlProviderKind.make("unknown"),
     name: remote.host,
     baseUrl: `https://${remote.host}`,
-  };
+  } satisfies SourceControlProviderInfo;
 }
 
 /** What `definition` alone makes of a remote, for a host's own code that asks only about itself. */
 export function recognizeRemoteWith(
   definition: Pick<SourceControlDefinition, "recognizeRemote">,
   remoteUrl: string,
-): SourceControlProviderInfo | null {
+) {
   const remote = parseGitRemoteHost(remoteUrl);
   return remote === null ? null : definition.recognizeRemote(remote);
 }
 
 function defaultRepositorySelector(
   identity: RepositorySelectorIdentity | null | undefined,
-): string | null {
-  if (!identity) return null;
-  if (identity.displayName) return identity.displayName;
-  return identity.owner && identity.name ? `${identity.owner}/${identity.name}` : null;
+): string | null;
+function defaultRepositorySelector(identity: RepositorySelectorIdentity | null | undefined) {
+  if (!identity) return null satisfies string | null;
+  if (identity.displayName) return identity.displayName satisfies string | null;
+  return (identity.owner && identity.name ? `${identity.owner}/${identity.name}` : null) satisfies
+    | string
+    | null;
 }
 
 export const UNKNOWN_SOURCE_CONTROL_CLIENT: SourceControlDefinition = {
@@ -641,19 +652,22 @@ export interface SourceControlDefinitionRegistry {
   readonly mediaUrl: (url: string) => SourceControlMedia | null;
 }
 
-function httpUrl(value: string): URL | null {
+function httpUrl(value: string): URL | null;
+function httpUrl(value: string) {
   try {
     const url = new URL(value);
-    return url.protocol === "https:" || url.protocol === "http:" ? url : null;
+    return (
+      url.protocol === "https:" || url.protocol === "http:" ? url : null
+    ) satisfies URL | null;
   } catch {
-    return null;
+    return null satisfies URL | null;
   }
 }
 
 function inOrder(
   definitions: ReadonlyArray<SourceControlDefinition>,
   firstKinds: ReadonlyArray<SourceControlProviderKind> | undefined,
-): ReadonlyArray<SourceControlDefinition> {
+) {
   const first = (firstKinds ?? []).flatMap(
     (kind) => definitions.find((definition) => definition.kind === kind) ?? [],
   );
@@ -671,7 +685,14 @@ export function makeSourceControlDefinitionRegistry(
     readonly claimChangeRequestUrlsFirst?: ReadonlyArray<SourceControlProviderKind>;
     readonly recognizeRemotesIn?: ReadonlyArray<SourceControlProviderKind>;
   },
-): SourceControlDefinitionRegistry {
+): SourceControlDefinitionRegistry;
+export function makeSourceControlDefinitionRegistry(
+  definitions: ReadonlyArray<SourceControlDefinition>,
+  options?: {
+    readonly claimChangeRequestUrlsFirst?: ReadonlyArray<SourceControlProviderKind>;
+    readonly recognizeRemotesIn?: ReadonlyArray<SourceControlProviderKind>;
+  },
+) {
   const byKind = new Map<string, SourceControlDefinition>();
   for (const definition of definitions) {
     if (byKind.has(definition.kind)) {
@@ -697,7 +718,7 @@ export function makeSourceControlDefinitionRegistry(
   };
   const remoteOwner = (remote: GitRemoteHost) =>
     recognitionOrder.find((definition) => definition.recognizeRemote(remote) !== null);
-  const parseChangeRequestUrl = (value: string): ParsedChangeRequest | null => {
+  const parseChangeRequestUrl: (value: string) => ParsedChangeRequest | null = (value: string) => {
     const url = httpUrl(value);
     if (url === null) return null;
     for (const definition of claimOrder) {
@@ -811,13 +832,13 @@ export function makeSourceControlDefinitionRegistry(
       }
       return null;
     },
-  };
+  } satisfies SourceControlDefinitionRegistry;
 }
 
 export function readSourceControlHostSettings<S extends SourceControlHostSettingsSchema>(
   schema: S,
   saved: unknown,
-): S["Type"] {
+) {
   const decode = Schema.decodeUnknownOption(schema as Schema.Decoder<S["Type"]>);
   const decoded = decode(saved ?? {});
   if (decoded._tag === "Some") return decoded.value;

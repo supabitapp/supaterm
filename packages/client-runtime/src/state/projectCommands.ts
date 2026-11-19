@@ -56,7 +56,7 @@ export interface OptimisticProjectFileTarget {
   readonly relativePath: string;
 }
 
-function optimisticProjectFileKey(target: OptimisticProjectFileTarget): string {
+function optimisticProjectFileKey(target: OptimisticProjectFileTarget) {
   return JSON.stringify([target.environmentId, target.cwd, target.relativePath]);
 }
 
@@ -75,7 +75,7 @@ export class ScratchProjectNotLoadedError extends Schema.TaggedError<ScratchProj
   "ScratchProjectNotLoadedError",
   { projectId: ProjectId },
 ) {
-  override get message(): string {
+  override get message() {
     return "The folder for threads without a project has not reached this device yet. Try again.";
   }
 }
@@ -103,7 +103,7 @@ export function createProjectEnvironmentAtoms<R, E>(
     tag: WS_METHODS.projectsReadFile,
     staleTimeMs: 30_000,
     idleTtlMs: 5 * 60_000,
-    onAnswer: (target, _value, registry): Effect.Effect<void> =>
+    onAnswer: (target, _value, registry) =>
       Effect.sync(() => {
         const atom = optimisticFileFamily(
           optimisticProjectFileKey({ environmentId: target.environmentId, ...target.input }),

@@ -156,7 +156,7 @@ const {
 } = vi.hoisted(() => ({
   browserWindowConstructor: vi.fn(),
   clipboardItemConstructor: vi.fn(),
-  createFromPath: vi.fn((): { readonly isEmpty: () => boolean; readonly toPNG: () => Buffer } => ({
+  createFromPath: vi.fn(() => ({
     isEmpty: () => false,
     toPNG: () => Buffer.from("png"),
   })),
@@ -280,7 +280,7 @@ type TestPreviewWebContents = Electron.WebContents & {
   readonly setBackgroundThrottling: ReturnType<typeof vi.fn<(enabled: boolean) => void>>;
 };
 
-const makeTestHostWebContents = (): TestHostWebContents => {
+const makeTestHostWebContents = () => {
   let handler: TestDisplayMediaHandler | undefined;
   return {
     id: 7,
@@ -414,7 +414,7 @@ const setupRecordingRaceTabs = (manager: PreviewManager.PreviewManager["Service"
 
 const TEST_FAVICON = "data:image/png;base64,cG5n";
 
-const makeSourcePng = (width = 1, height = 1): Buffer => {
+const makeSourcePng = (width = 1, height = 1) => {
   const buffer = Buffer.alloc(24);
   Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]).copy(buffer);
   buffer.writeUInt32BE(width, 16);

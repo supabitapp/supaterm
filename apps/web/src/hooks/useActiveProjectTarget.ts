@@ -12,7 +12,7 @@ export interface ActiveProjectTarget {
   readonly threadRef: ScopedThreadRef;
 }
 
-export function useActiveProjectTarget(): ActiveProjectTarget | null {
+export function useActiveProjectTarget() {
   const { activeDraftThread, activeThread } = useHandleNewThread();
   const projects = useProjects();
   const thread = activeThread ?? activeDraftThread;

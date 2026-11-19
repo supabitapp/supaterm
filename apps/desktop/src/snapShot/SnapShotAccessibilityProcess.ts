@@ -34,18 +34,21 @@ type AccessibilityMessage =
   | "started"
   | { readonly type: "result"; readonly context?: CapturedWindowAccessibilityContext };
 
-const completedRead = (context?: CapturedWindowAccessibilityContext): AccessibilityRead => ({
+const completedRead: (context?: CapturedWindowAccessibilityContext) => AccessibilityRead = (
+  context?: CapturedWindowAccessibilityContext,
+) => ({
   started: Promise.resolve(),
   result: Promise.resolve(context),
 });
 
-const unavailableProcess = (): AccessibilityProcess => ({
+const unavailableProcess = () => ({
   alive: false,
   read: () => completedRead(),
   close: () => undefined,
 });
 
-export function startSnapShotAccessibilityProcess(workerPath: string): AccessibilityProcess {
+export function startSnapShotAccessibilityProcess(workerPath: string): AccessibilityProcess;
+export function startSnapShotAccessibilityProcess(workerPath: string) {
   let worker: NodeChildProcess.ChildProcess;
   try {
     worker = NodeChildProcess.fork(workerPath, ["read"], {
@@ -58,7 +61,7 @@ export function startSnapShotAccessibilityProcess(workerPath: string): Accessibi
       stdio: ["ignore", "ignore", "inherit", "ipc"],
     });
   } catch {
-    return unavailableProcess();
+    return unavailableProcess() satisfies AccessibilityProcess;
   }
 
   let ready = false;
@@ -128,10 +131,11 @@ export function startSnapShotAccessibilityProcess(workerPath: string): Accessibi
       return { started: started.promise, result: result.promise };
     },
     close: () => finish(),
-  };
+  } satisfies AccessibilityProcess;
 }
 
-export function makeSnapShotAccessibilityProcessPool(workerPath: string): AccessibilityProcessPool {
+export function makeSnapShotAccessibilityProcessPool(workerPath: string): AccessibilityProcessPool;
+export function makeSnapShotAccessibilityProcessPool(workerPath: string) {
   let standby: AccessibilityProcess | undefined;
   const active = new Set<AccessibilityProcess>();
   let closed = false;
@@ -170,5 +174,5 @@ export function makeSnapShotAccessibilityProcessPool(workerPath: string): Access
       for (const workerProcess of active) workerProcess.close();
       active.clear();
     },
-  };
+  } satisfies AccessibilityProcessPool;
 }

@@ -60,7 +60,7 @@ export class CheckpointRollbackExecutionError extends Schema.TaggedError<Checkpo
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message(): string {
+  override get message() {
     switch (this.reason) {
       case "rollback-target-invalid":
         return `Rollback target ${this.checkpointId} for provider thread ${this.providerThreadId} on thread ${this.threadId} is incomplete or invalid.`;
@@ -80,7 +80,7 @@ const isCheckpointRollbackExecutionError = Schema.is(CheckpointRollbackExecution
 const isVcsProcessExitError = Schema.is(VcsProcessExitError);
 const isCheckpointRestoreError = Schema.is(CheckpointRestoreError);
 
-export function rollbackFailureClientMessage(error: CheckpointRollbackExecutionError): string {
+export function rollbackFailureClientMessage(error: CheckpointRollbackExecutionError) {
   const restoreCause = isCheckpointRestoreError(error.cause) ? error.cause.cause : undefined;
   return isVcsProcessExitError(restoreCause) && restoreCause.detail === GIT_INDEX_LOCKED_DETAIL
     ? GIT_INDEX_LOCKED_DETAIL

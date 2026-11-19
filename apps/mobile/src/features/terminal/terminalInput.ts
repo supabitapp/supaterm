@@ -9,7 +9,7 @@ export type ModifiedTerminalInput =
 
 const UNSAFE_PASTE_BYTES = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g;
 
-function applyCtrlModifier(input: string): string {
+function applyCtrlModifier(input: string) {
   const firstCharacter = input[0];
   if (!firstCharacter) {
     return input;
@@ -36,10 +36,10 @@ export function resolveModifiedTerminalInput(input: {
   readonly data: string;
   readonly modifier: PendingModifier;
   readonly hostPlatform: HostPlatform;
-}): ModifiedTerminalInput {
+}) {
   const pasteModifier: PendingModifier = input.hostPlatform === "mac" ? "meta" : "ctrl";
   if (input.modifier === pasteModifier && input.data.toLowerCase() === "v") {
-    return { kind: "paste" };
+    return { kind: "paste" } satisfies ModifiedTerminalInput;
   }
 
   if (
@@ -47,22 +47,26 @@ export function resolveModifiedTerminalInput(input: {
     input.data.startsWith("\u001b[") &&
     /[ABCD]/.test(input.data.charAt(2))
   ) {
-    return { kind: "write", data: `\u001b[1;${input.modifier === "ctrl" ? 5 : 3}${input.data[2]}` };
+    return {
+      kind: "write",
+      data: `\u001b[1;${input.modifier === "ctrl" ? 5 : 3}${input.data[2]}`,
+    } satisfies ModifiedTerminalInput;
   }
 
   return {
     kind: "write",
     data: input.modifier === "ctrl" ? applyCtrlModifier(input.data) : `\u001b${input.data}`,
-  };
+  } satisfies ModifiedTerminalInput;
 }
 
 /** No DECSET 2004 state, so omit bracket markers. Strip unsafe controls and use CR; raw-mode TUIs read LF as Ctrl+J. */
-export function encodeTerminalPaste(text: string): string {
-  return text.replace(UNSAFE_PASTE_BYTES, " ").replace(/\r\n|\n/g, "\r");
+export function encodeTerminalPaste(text: string): string;
+export function encodeTerminalPaste(text: string) {
+  return text.replace(UNSAFE_PASTE_BYTES, " ").replace(/\r\n|\n/g, "\r") satisfies string;
 }
 
 /** Returns null for unknown OSes so callers can try weaker signals. */
-export function hostPlatformFromOs(os: ExecutionEnvironmentPlatformOs | null): HostPlatform | null {
+export function hostPlatformFromOs(os: ExecutionEnvironmentPlatformOs | null) {
   if (os === "darwin") return "mac";
   if (os === "linux") return "linux";
   if (os === "windows") return "windows";

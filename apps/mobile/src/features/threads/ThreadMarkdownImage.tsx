@@ -37,7 +37,7 @@ type ImageSize = { readonly width: number; readonly height: number };
 
 class SvgLoadError extends Data.TaggedError("SvgLoadError")<{ readonly cause: unknown }> {}
 
-async function readSvgXml(uri: string, signal: AbortSignal): Promise<string> {
+async function readSvgXml(uri: string, signal: AbortSignal) {
   if (uri.startsWith("data:image/svg+xml")) {
     const comma = uri.indexOf(",");
     if (comma < 0) throw new Error("SVG data URI has no content");
@@ -69,7 +69,7 @@ const svgDocumentAtom = Atom.family((uri: string) =>
     const cached = get(parsed);
     if (cached !== null) return Effect.succeed(cached);
     return Effect.tryPromise({
-      try: async (signal): Promise<SvgDocument> => {
+      try: async (signal) => {
         const xml = await readSvgXml(uri, signal);
         signal.throwIfAborted();
         const ast = parse(xml);

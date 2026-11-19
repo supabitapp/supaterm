@@ -442,9 +442,35 @@ function makeMockRuntime(input: {
     runtime: AcpSessionRuntime.AcpSessionRuntime["Service"],
     runtimeOrdinal: number,
   ) => AcpSessionRuntime.AcpSessionRuntime["Service"];
-}): AcpAdapterV2Flavor["makeRuntime"] {
+}): AcpAdapterV2Flavor["makeRuntime"];
+function makeMockRuntime(input: {
+  readonly childProcessSpawner: ChildProcessSpawner.ChildProcessSpawner["Service"];
+  readonly mockAgentPath: string;
+  readonly environment?:
+    | Readonly<Record<string, string>>
+    | ((runtimeOrdinal: number) => Readonly<Record<string, string>>);
+  readonly protocolEvents?: Queue.Queue<EffectAcpProtocol.AcpProtocolLogEvent>;
+  readonly cancelBehavior?: AcpSessionRuntime.AcpSessionRuntimeOptions["cancelBehavior"];
+  readonly ownDescendantProcessGroups?: boolean;
+  readonly ownDetachedProcessGroup?: boolean;
+  readonly processGroupPlatform?: NodeJS.Platform;
+  readonly processGroupTerminationGrace?: Duration.Input;
+  readonly linuxCgroupController?: AcpSessionRuntime.AcpSessionRuntimeOptions["linuxCgroupController"];
+  readonly posixProcessTreeController?: AcpSessionRuntime.AcpSessionRuntimeOptions["posixProcessTreeController"];
+  readonly windowsProcessTreeTerminator?: AcpSessionRuntime.AcpSessionRuntimeOptions["windowsProcessTreeTerminator"];
+  readonly wrapCancel?: (
+    cancel: AcpSessionRuntime.AcpSessionRuntime["Service"]["cancel"],
+  ) => AcpSessionRuntime.AcpSessionRuntime["Service"]["cancel"];
+  readonly wrapOutgoingResponse?: (
+    onOutgoingResponse: NonNullable<AcpAdapterV2RuntimeInput["onOutgoingResponse"]>,
+  ) => NonNullable<AcpAdapterV2RuntimeInput["onOutgoingResponse"]>;
+  readonly wrapRuntime?: (
+    runtime: AcpSessionRuntime.AcpSessionRuntime["Service"],
+    runtimeOrdinal: number,
+  ) => AcpSessionRuntime.AcpSessionRuntime["Service"];
+}) {
   let runtimeOrdinal = 0;
-  return (runtimeInput) =>
+  return ((runtimeInput) =>
     Effect.gen(function* () {
       runtimeOrdinal += 1;
       const protocolEvents = input.protocolEvents;
@@ -519,7 +545,7 @@ function makeMockRuntime(input: {
         ...(input.wrapCancel === undefined ? {} : { cancel: input.wrapCancel(runtime.cancel) }),
       };
       return input.wrapRuntime?.(wrapped, runtimeOrdinal) ?? wrapped;
-    });
+    })) satisfies AcpAdapterV2Flavor["makeRuntime"];
 }
 
 it.effect("detaches owned ACP processes on POSIX hosts but not on Windows", () =>
@@ -652,7 +678,7 @@ const makePromptInactivityHarness = Effect.fnUntraced(function* (input: {
   };
 });
 
-function rawProtocolMethod(event: EffectAcpProtocol.AcpProtocolLogEvent): string | undefined {
+function rawProtocolMethod(event: EffectAcpProtocol.AcpProtocolLogEvent) {
   if (event.stage !== "raw" || typeof event.payload !== "string") return undefined;
   for (const line of event.payload.split("\n")) {
     const trimmed = line.trim();
@@ -668,30 +694,33 @@ function rawProtocolMethod(event: EffectAcpProtocol.AcpProtocolLogEvent): string
 
 function rawProtocolRequest(
   event: EffectAcpProtocol.AcpProtocolLogEvent,
-): { readonly method?: unknown; readonly params?: unknown } | undefined {
-  if (event.stage !== "raw" || typeof event.payload !== "string") return undefined;
+): { readonly method?: unknown; readonly params?: unknown } | undefined;
+function rawProtocolRequest(event: EffectAcpProtocol.AcpProtocolLogEvent) {
+  if (event.stage !== "raw" || typeof event.payload !== "string")
+    return undefined satisfies { readonly method?: unknown; readonly params?: unknown } | undefined;
   for (const line of event.payload.split("\n")) {
     const trimmed = line.trim();
     if (trimmed.length === 0) continue;
     const decoded = Option.getOrUndefined(decodeUnknownJson(trimmed));
     if (typeof decoded === "object" && decoded !== null && "method" in decoded) {
-      return decoded;
+      return decoded satisfies { readonly method?: unknown; readonly params?: unknown } | undefined;
     }
   }
-  return undefined;
+  return undefined satisfies { readonly method?: unknown; readonly params?: unknown } | undefined;
 }
 
 function rawProtocolRequestParam(
   event: EffectAcpProtocol.AcpProtocolLogEvent,
   key: string,
-): unknown {
+): unknown;
+function rawProtocolRequestParam(event: EffectAcpProtocol.AcpProtocolLogEvent, key: string) {
   const params = rawProtocolRequest(event)?.params;
-  return typeof params === "object" && params !== null ? Reflect.get(params, key) : undefined;
+  return (
+    typeof params === "object" && params !== null ? Reflect.get(params, key) : undefined
+  ) satisfies unknown;
 }
 
-function rawProtocolPromptTextBlocks(
-  event: EffectAcpProtocol.AcpProtocolLogEvent,
-): Array<{ type: "text"; text: string }> {
+function rawProtocolPromptTextBlocks(event: EffectAcpProtocol.AcpProtocolLogEvent) {
   const prompt = rawProtocolRequestParam(event, "prompt");
   if (!Array.isArray(prompt)) return [];
   return prompt.flatMap((block) =>
@@ -3426,10 +3455,7 @@ describe("AcpAdapterV2", () => {
 
       const file = `${"x = 1\n".repeat(800)}END_OF_FILE\n`;
       const chunks = 200;
-      const streamedWrite = (
-        toolCallId: string,
-        parentAgentId?: string,
-      ): Array<EffectAcpSchema.SessionUpdate> => {
+      const streamedWrite = (toolCallId: string, parentAgentId?: string) => {
         const meta =
           parentAgentId === undefined ? {} : { "cognition.ai/subagent_context": { parentAgentId } };
         const write = (text: string, status?: "completed") => ({
@@ -3456,7 +3482,7 @@ describe("AcpAdapterV2", () => {
             write(file.slice(0, Math.ceil((file.length * (index + 1)) / chunks))),
           ),
           write(file, "completed"),
-        ];
+        ] satisfies Array<EffectAcpSchema.SessionUpdate>;
       };
       const instanceId = ProviderInstanceId.make("devin-streamed-write");
       const adapter = yield* makeAcpAdapterV2({

@@ -32,7 +32,6 @@ import * as ProviderEventLoggers from "@supaterm/provider-core/server/ProviderEv
 import type * as IdAllocator from "@supaterm/provider-core/server/IdAllocator";
 import {
   ProviderAdapterDriverCreateError,
-  type ProviderAdapterDriver,
   type ProviderAdapterDriverCreateInput,
 } from "@supaterm/provider-core/server/adapterDriver";
 import {
@@ -103,9 +102,7 @@ const decodeJsonString = Schema.decodeUnknownOption(Schema.fromJsonString(Schema
  * fx clips every tool result to 199 bytes, so a long sub-agent reply arrives
  * as cut-off `{"ok":…,"result":"…` JSON. Keeps the readable prefix and marks the cut.
  */
-export function fxSubagentOutcome(
-  text: string,
-): { readonly ok: boolean; readonly result: string | null } | undefined {
+export function fxSubagentOutcome(text: string) {
   const whole = decodeFxSubagentResult(text);
   if (Option.isSome(whole)) return whole.value;
   const clipped = /^\{"ok":(true|false),"result":"((?:[^"\\]|\\.)*)/.exec(text);
@@ -121,10 +118,11 @@ export function fxSubagentOutcome(
   };
 }
 
-function extractFxSubagentUpdate(tool: AcpToolCallState): AcpAdapterV2SubagentUpdate | undefined {
-  if (tool.data.name !== "subagent") return undefined;
+function extractFxSubagentUpdate(tool: AcpToolCallState) {
+  if (tool.data.name !== "subagent")
+    return undefined satisfies AcpAdapterV2SubagentUpdate | undefined;
   const input = decodeFxSubagentInput(tool.data.rawInput);
-  if (Option.isNone(input)) return undefined;
+  if (Option.isNone(input)) return undefined satisfies AcpAdapterV2SubagentUpdate | undefined;
   const request = "request" in input.value ? input.value.request : input.value;
   const text = Option.getOrUndefined(decodeFxToolContent(tool.data.content))?.[0]?.content.text;
   const outcome = text === undefined ? undefined : fxSubagentOutcome(text);
@@ -144,7 +142,7 @@ function extractFxSubagentUpdate(tool: AcpToolCallState): AcpAdapterV2SubagentUp
     model: request.model ?? null,
     status,
     result: status === "running" ? null : (outcome?.result ?? text ?? null),
-  };
+  } satisfies AcpAdapterV2SubagentUpdate | undefined;
 }
 
 export interface FxAdapterV2Options {
@@ -167,7 +165,7 @@ export interface FxAdapterV2Options {
   readonly assertComplete?: Effect.Effect<void, EffectAcpErrors.AcpError>;
 }
 
-function makeFxAcpAdapterFlavor(options: FxAdapterV2Options): AcpAdapterV2Flavor {
+function makeFxAcpAdapterFlavor(options: FxAdapterV2Options) {
   const makeRuntime =
     options.makeRuntime ??
     (({ runtimePolicy: _runtimePolicy, processEnvironment, ...input }: AcpAdapterV2RuntimeInput) =>
@@ -194,7 +192,7 @@ function makeFxAcpAdapterFlavor(options: FxAdapterV2Options): AcpAdapterV2Flavor
     permissionDisposition: fxPermissionDisposition,
     extractSubagentUpdate: extractFxSubagentUpdate,
     ...(options.assertComplete === undefined ? {} : { assertComplete: options.assertComplete }),
-  };
+  } satisfies AcpAdapterV2Flavor;
 }
 
 export const makeFxAdapterV2 = Effect.fn("makeFxAdapterV2")(function* (
@@ -220,12 +218,10 @@ export type FxAdapterV2DriverEnv =
   | ProviderHost.ProviderHost;
 
 /** `defaultModel` reads fx's id for "Default" from the provider snapshot. */
-export const makeFxAdapterV2Driver = (
-  defaultModel: Effect.Effect<string | undefined>,
-): ProviderAdapterDriver<FxSettings, FxAdapterV2DriverEnv> => ({
+export const makeFxAdapterV2Driver = (defaultModel: Effect.Effect<string | undefined>) => ({
   driverKind: FX_DRIVER_KIND,
   configSchema: FxSettings,
-  defaultConfig: (): FxSettings => DEFAULT_FX_SETTINGS,
+  defaultConfig: () => DEFAULT_FX_SETTINGS,
   create: Effect.fn("FxAdapterV2Driver.create")(
     function* (input: ProviderAdapterDriverCreateInput<FxSettings>) {
       const hostEnvironment = yield* HostProcess.Environment;

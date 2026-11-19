@@ -13,13 +13,11 @@ const CURSOR_SEPARATOR = ":";
 
 const CURSOR_COMPONENT = /^\d+$/;
 
-export function formatAzureDevOpsDiffCursor(cursor: AzureDevOpsDiffCursor): string {
+export function formatAzureDevOpsDiffCursor(cursor: AzureDevOpsDiffCursor) {
   return `${cursor.iterationId}${CURSOR_SEPARATOR}${cursor.fileIndex}`;
 }
 
-export function parseAzureDevOpsDiffCursor(
-  raw: string | null | undefined,
-): AzureDevOpsDiffCursor | null {
+export function parseAzureDevOpsDiffCursor(raw: string | null | undefined) {
   if (raw === null || raw === undefined) return null;
   const [iteration, file, ...rest] = raw.split(CURSOR_SEPARATOR);
   if (rest.length > 0) return null;
@@ -63,25 +61,25 @@ export const MAX_DIFF_SLICE_FILES = 300;
 
 const NO_NEWLINE_MARKER = "\\ No newline at end of file";
 
-function contentLines(contents: string): ReadonlyArray<string> {
+function contentLines(contents: string) {
   if (contents === "") return [];
   const lines = contents.split("\n");
   if (lines.at(-1) === "") lines.pop();
   return lines;
 }
 
-function isBinary(contents: string): boolean {
+function isBinary(contents: string) {
   return contents.includes("\u0000");
 }
 
 export const byteLength = (contents: string) => Buffer.byteLength(contents, "utf8");
 
-function hunkRange(start: number, lines: number): string {
+function hunkRange(start: number, lines: number) {
   if (lines === 0) return `${start - 1},0`;
   return lines === 1 ? String(start) : `${start},${lines}`;
 }
 
-function patchHeader(change: AzureDevOpsChangeEntry): string {
+function patchHeader(change: AzureDevOpsChangeEntry) {
   const oldSide = quoteGitPatchPath(`a/${change.oldPath}`);
   const newSide = quoteGitPatchPath(`b/${change.path}`);
   const lines = [`diff --git ${oldSide} ${newSide}`];
@@ -101,7 +99,7 @@ function patchHeader(change: AzureDevOpsChangeEntry): string {
   return lines.join("\n");
 }
 
-function replacementSection(header: string, texts: AzureDevOpsFileTexts): string {
+function replacementSection(header: string, texts: AzureDevOpsFileTexts) {
   const oldLines = contentLines(texts.oldContents);
   const newLines = contentLines(texts.newContents);
   const noNewline = (contents: string, lines: ReadonlyArray<string>) =>
@@ -120,7 +118,7 @@ function replacementSection(header: string, texts: AzureDevOpsFileTexts): string
 export function azureDevOpsFilePatch(input: {
   readonly change: AzureDevOpsChangeEntry;
   readonly texts: AzureDevOpsFileTexts;
-}): AzureDevOpsFilePatch {
+}) {
   const header = patchHeader(input.change);
   const { oldContents, newContents } = input.texts;
 
@@ -188,8 +186,6 @@ export function azureDevOpsFilePatch(input: {
   return { section, truncated: false, abandoned: false, edits };
 }
 
-export function azureDevOpsUnreadableFilePatch(
-  change: AzureDevOpsChangeEntry,
-): AzureDevOpsFilePatch {
+export function azureDevOpsUnreadableFilePatch(change: AzureDevOpsChangeEntry) {
   return { section: `${patchHeader(change)}\n`, truncated: true, abandoned: false, edits: 0 };
 }

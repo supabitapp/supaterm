@@ -25,7 +25,7 @@ export type ThreadRouteRenderState = "loading" | "ready" | "missing";
 
 export function isThreadRouteSnapshotAuthoritative(
   status: EnvironmentShellStatus | null | undefined,
-): boolean {
+) {
   return status === "live";
 }
 
@@ -37,7 +37,7 @@ export function resolveThreadRouteRenderState(input: {
   draftThreadExists: boolean;
   pendingThreadExists?: boolean;
   outboxLoaded?: boolean;
-}): ThreadRouteRenderState {
+}) {
   if (input.pendingThreadExists) return "ready";
   if (input.draftThreadExists || (input.serverThreadExists && !input.serverThreadDeleted)) {
     return "ready";
@@ -61,10 +61,7 @@ export function resolveThreadRouteRenderState(input: {
     : "ready";
 }
 
-export function buildThreadRouteParams(ref: ScopedThreadRef): {
-  environmentId: EnvironmentId;
-  threadId: ThreadId;
-} {
+export function buildThreadRouteParams(ref: ScopedThreadRef) {
   return {
     environmentId: ref.environmentId,
     threadId: ref.threadId,
@@ -72,7 +69,7 @@ export function buildThreadRouteParams(ref: ScopedThreadRef): {
 }
 
 /** The router keeps reserved characters encoded in location.pathname. */
-export function isThreadRoutePathname(pathname: string, ref: ScopedThreadRef): boolean {
+export function isThreadRoutePathname(pathname: string, ref: ScopedThreadRef) {
   const parts = pathname.replace(/\/$/, "").split("/");
   if (parts.length !== 3 || parts[0] !== "") return false;
   try {
@@ -85,15 +82,13 @@ export function isThreadRoutePathname(pathname: string, ref: ScopedThreadRef): b
   }
 }
 
-export function buildDraftThreadRouteParams(draftId: DraftId): {
-  draftId: DraftId;
-} {
+export function buildDraftThreadRouteParams(draftId: DraftId) {
   return { draftId };
 }
 
 export function resolveThreadRouteRef(
   params: Partial<Record<"environmentId" | "threadId", string | undefined>>,
-): ScopedThreadRef | null {
+) {
   if (!params.environmentId || !params.threadId) {
     return null;
   }
@@ -103,29 +98,29 @@ export function resolveThreadRouteRef(
 
 export function resolveThreadRouteTarget(
   params: Partial<Record<"environmentId" | "threadId" | "draftId", string | undefined>>,
-): ThreadRouteTarget | null {
+) {
   if (params.environmentId && params.threadId) {
     return {
       kind: "server",
       threadRef: scopeThreadRef(params.environmentId as EnvironmentId, params.threadId as ThreadId),
-    };
+    } satisfies ThreadRouteTarget | null;
   }
 
   if (!params.draftId) {
-    return null;
+    return null satisfies ThreadRouteTarget | null;
   }
 
   return {
     kind: "draft",
     draftId: params.draftId as DraftId,
-  };
+  } satisfies ThreadRouteTarget | null;
 }
 
 export function resolveActiveThreadRouteRef(
   target: ThreadRouteTarget | null,
   draftThread: DraftThreadRouteState | null,
   promotedDraftRedirect: ScopedThreadRef | null = null,
-): ScopedThreadRef | null {
+) {
   if (target?.kind === "server") {
     return target.threadRef;
   }

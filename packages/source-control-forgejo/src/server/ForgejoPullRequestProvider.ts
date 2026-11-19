@@ -9,7 +9,6 @@ import { parseDiffFileRevisions } from "@supaterm/source-control-core/server/dif
 import {
   PullRequestProviderError,
   type ProviderChangeRequestDetail,
-  type ProviderChangeRequestSummary,
   type ProviderRepositoryRef,
   type PullRequestProviderApi,
 } from "@supaterm/source-control-core/server/PullRequestProvider";
@@ -83,7 +82,7 @@ const reviewCommentId = (review: typeof ForgejoReview.Type) =>
 
 const decodePullRequest = decodeJsonResult(ForgejoPullRequest);
 
-function forgejoActionSummary(stdout: string): ProviderChangeRequestSummary | undefined {
+function forgejoActionSummary(stdout: string) {
   const decoded = decodePullRequest(stdout);
   if (Result.isFailure(decoded)) return undefined;
   const pr = decoded.success;
@@ -206,7 +205,7 @@ export const make = Effect.gen(function* () {
     repo: typeof ForgejoRepository.Type,
     pr: typeof ForgejoPullRequest.Type,
     viewer: string,
-  ): PullRequestViewerPermissions => {
+  ) => {
     const canWrite = repo.permissions?.push ?? false;
     const canEdit = canWrite || pr.user?.login === viewer;
     const active = !repo.archived;
@@ -227,7 +226,7 @@ export const make = Effect.gen(function* () {
       labels: active && canWrite,
       updateMethods:
         active && canWrite ? (repo.allow_rebase_update ? ["merge", "rebase"] : ["merge"]) : [],
-    };
+    } satisfies PullRequestViewerPermissions;
   };
   const getPermissions = Effect.fn("ForgejoPullRequestProvider.getPermissions")(function* (
     input: ProviderRepositoryRef & { readonly number: number },

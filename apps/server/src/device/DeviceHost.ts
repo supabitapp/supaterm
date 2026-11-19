@@ -18,7 +18,7 @@ export class DeviceHostError extends Schema.TaggedError<DeviceHostError>()("Devi
   step: Schema.String,
   cause: Schema.Defect(),
 }) {
-  override get message(): string {
+  override get message() {
     return `Device host ${this.hostId} failed while ${this.step}.`;
   }
 }
@@ -27,7 +27,7 @@ export class DeviceHostTimeoutError extends Schema.TaggedError<DeviceHostTimeout
   "DeviceHostTimeoutError",
   { hostId: Schema.String, timeoutMs: Schema.Number },
 ) {
-  override get message(): string {
+  override get message() {
     return `Device host ${this.hostId} did not start agent tools within ${this.timeoutMs} ms.`;
   }
 }
@@ -47,7 +47,7 @@ export class AgentDeviceStartError extends Schema.TaggedError<AgentDeviceStartEr
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     const exit = this.exitCode === null ? "" : ` (exit code ${this.exitCode})`;
     const detail =
       this.reason === "daemon_lock_not_directory"

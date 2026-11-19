@@ -80,7 +80,7 @@ export function isFileAttachment(attachment: ChatAttachment): attachment is Chat
   return attachment.type === "file" && !isImageAttachment(attachment);
 }
 
-export function isVideoAttachment(attachment: ChatFileAttachment): boolean {
+export function isVideoAttachment(attachment: ChatFileAttachment) {
   return videoMimeType(attachment) !== null;
 }
 

@@ -49,7 +49,7 @@ export function restartContinuationBlocked(
   source: OrchestrationV2Run,
   now: DateTime.Utc,
   settled: boolean,
-): boolean {
+) {
   const { thread } = projection;
   if (
     thread.archivedAt !== null ||
@@ -137,7 +137,7 @@ export const restartStopRequested = Effect.fn("RestartContinuation.restartStopRe
 function hasOpenAwaitedWork(
   projection: Pick<ProjectionRuntimeRecoveryState, "runs" | "turnItems">,
   providerThread: ProjectionRuntimeRecoveryState["providerThreads"][number],
-): boolean {
+) {
   const openItem = projection.turnItems.some((item) => {
     if (item.status !== "pending" && item.status !== "running" && item.status !== "waiting")
       return false;
@@ -172,7 +172,7 @@ export function restartContinuationRun(
     | "turnItems"
   >,
   now: DateTime.Utc,
-): OrchestrationV2Run | undefined {
+) {
   const run = projection.runs.reduce<OrchestrationV2Run | undefined>(
     (latest, candidate) =>
       candidate.status !== "queued" &&

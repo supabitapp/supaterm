@@ -35,8 +35,9 @@ export class ThreadForkPlanError extends Schema.TaggedError<ThreadForkPlanError>
 
 export function forkableSourceRunStatusError(
   run: Pick<OrchestrationV2Run, "id" | "status">,
-): string {
-  return `Fork source run ${run.id} is ${run.status}; in-progress and rolled-back runs cannot be forked.`;
+): string;
+export function forkableSourceRunStatusError(run: Pick<OrchestrationV2Run, "id" | "status">) {
+  return `Fork source run ${run.id} is ${run.status}; in-progress and rolled-back runs cannot be forked.` satisfies string;
 }
 
 export interface ThreadForkServiceV2Shape {

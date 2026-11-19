@@ -5,7 +5,7 @@ import * as NodeOS from "node:os";
 import * as NodePath from "node:path";
 import * as NodeSea from "node:sea";
 
-export function enableCliCompileCache(): void {
+export function enableCliCompileCache() {
   try {
     if (NodeSea.isSea()) return;
     const cacheRoot =

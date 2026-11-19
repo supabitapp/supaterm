@@ -2,15 +2,15 @@ import type { AssetResource, ProjectReadFileError, ScopedThreadRef } from "@supa
 import { mediaFileReference } from "@supaterm/client-runtime/media-reference";
 import { isHostPath, workspaceRelativeFilePath } from "@supaterm/shared/path";
 
-export function resolveFilePreviewPath(path: string | null, cwd: string): string | null {
+export function resolveFilePreviewPath(path: string | null, cwd: string) {
   if (path === null) return null;
   return path === "." || workspaceRelativeFilePath(path, cwd) === "." ? null : path;
 }
 
-export const isMarkdownPreviewFile = (path: string): boolean =>
+export const isMarkdownPreviewFile = (path: string) =>
   /\.(?:md|mdx|markdown|mdown|mkd)$/i.test(path);
 
-export function filePreviewReadErrorMessage(error: ProjectReadFileError): string {
+export function filePreviewReadErrorMessage(error: ProjectReadFileError) {
   switch (error.failure) {
     case "path_not_file":
       return "The path is a directory or special file, not a regular file.";
@@ -33,7 +33,7 @@ export function shouldShowFileExplorer(input: {
   readonly relativePath: string | null;
   readonly explorerOpen: boolean;
   readonly attachmentOpen: boolean;
-}): boolean {
+}) {
   if (input.attachmentOpen || (input.relativePath && isHostPath(input.relativePath))) {
     return false;
   }
@@ -51,9 +51,13 @@ export function workspaceAssetResource(input: {
   readonly draft: boolean;
   readonly workspaceRoot: string;
   readonly absolutePath: string;
-}): AssetResource {
+}) {
   if (input.draft) {
-    return { _tag: "draft-workspace-file", cwd: input.workspaceRoot, path: input.absolutePath };
+    return {
+      _tag: "draft-workspace-file",
+      cwd: input.workspaceRoot,
+      path: input.absolutePath,
+    } satisfies AssetResource;
   }
   const insideWorkspace =
     mediaFileReference(input.absolutePath, input.workspaceRoot).relativePath !== undefined;
@@ -61,5 +65,5 @@ export function workspaceAssetResource(input: {
     _tag: insideWorkspace ? input.kind : "media-file",
     threadId: input.threadRef.threadId,
     path: input.absolutePath,
-  };
+  } satisfies AssetResource;
 }

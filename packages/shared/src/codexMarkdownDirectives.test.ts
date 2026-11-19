@@ -31,12 +31,12 @@ const FOLLOW_UP =
 const ARTIFACT_TEMPLATE =
   '::artifact-template{skill_name="artifact-template-hello-world" skill_directory="/Users/test/.codex/skills/artifact-template-hello-world" display_name="Hello World" artifact_kind="document"}';
 
-function parse(markdown: string): TestNode {
+function parse(markdown: string) {
   const processor = unified().use(remarkParse).use(remarkCodexDirectives);
   return processor.runSync(processor.parse(markdown), { value: markdown }) as TestNode;
 }
 
-function parseOrdinaryMarkdown(markdown: string): TestNode {
+function parseOrdinaryMarkdown(markdown: string) {
   return unified().use(remarkParse).parse(markdown) as TestNode;
 }
 

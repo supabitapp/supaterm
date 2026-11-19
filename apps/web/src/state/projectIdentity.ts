@@ -6,7 +6,6 @@ import {
   preferredProjectColor,
   projectColorKey,
   projectMonogram,
-  type ProjectIdentity,
 } from "@supaterm/shared/projectIdentity";
 import { environmentProjects } from "./projects";
 
@@ -22,7 +21,7 @@ const projectColorAtom = Atom.family((colorKey: string) =>
   ),
 );
 
-export function useProjectIdentity(projectName: string): ProjectIdentity {
+export function useProjectIdentity(projectName: string) {
   return {
     monogram: projectMonogram(projectName),
     color: useAtomValue(projectColorAtom(projectColorKey(projectName))),

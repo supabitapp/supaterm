@@ -7,7 +7,7 @@ import { useTerminalUiStateStore } from "../terminalUiStateStore";
 import { useRightPanelSurfaceClose } from "./useRightPanelSurfaceClose";
 
 const fixture = vi.hoisted(() => ({
-  confirm: (): Promise<boolean> => Promise.resolve(false),
+  confirm: () => Promise.resolve(false),
   allowed: new Set<string>(),
   sessions: new Map<string, string>(),
   failClose: false,

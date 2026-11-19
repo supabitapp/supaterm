@@ -402,7 +402,7 @@ export const MarkdownFileLink = memo(function MarkdownFileLink({
 function areMarkdownFileLinkPropsEqual(
   previous: Readonly<MarkdownFileLinkProps>,
   next: Readonly<MarkdownFileLinkProps>,
-): boolean {
+) {
   return (
     previous.href === next.href &&
     previous.targetPath === next.targetPath &&

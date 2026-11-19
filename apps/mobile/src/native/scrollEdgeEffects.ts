@@ -9,22 +9,24 @@ export type NativeHeaderScrollEdgeEffects = {
 function nativeTopScrollEdgeEffect(
   os: string,
   _version: number | string,
-): NativeTopScrollEdgeEffect {
+): NativeTopScrollEdgeEffect;
+function nativeTopScrollEdgeEffect(os: string, _version: number | string) {
   if (os !== "ios") {
-    return "automatic";
+    return "automatic" satisfies NativeTopScrollEdgeEffect;
   }
 
-  return "automatic";
+  return "automatic" satisfies NativeTopScrollEdgeEffect;
 }
 
 export function nativeHeaderScrollEdgeEffects(
   os: string,
   version: number | string,
-): NativeHeaderScrollEdgeEffects {
+): NativeHeaderScrollEdgeEffects;
+export function nativeHeaderScrollEdgeEffects(os: string, version: number | string) {
   return {
     top: nativeTopScrollEdgeEffect(os, version),
     bottom: "hidden",
     left: "hidden",
     right: "hidden",
-  };
+  } satisfies NativeHeaderScrollEdgeEffects;
 }

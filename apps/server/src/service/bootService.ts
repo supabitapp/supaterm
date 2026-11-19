@@ -52,11 +52,11 @@ export const BOOT_SERVICE_LAUNCHD_LABEL = "com.supaterm.desktop.service";
 export const BOOT_SERVICE_PLIST_FILE = `${BOOT_SERVICE_LAUNCHD_LABEL}.plist`;
 export const BOOT_SERVICE_LOG_FILE = "boot-service.log";
 
-function escapeSystemdSpecifiers(value: string): string {
+function escapeSystemdSpecifiers(value: string) {
   return value.replaceAll("%", "%%");
 }
 
-function quoteSystemdValue(value: string): string {
+function quoteSystemdValue(value: string) {
   const escaped = escapeSystemdSpecifiers(value);
   return /[\s"'\\]/.test(escaped)
     ? `"${escaped.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`
@@ -77,7 +77,7 @@ const systemdUnsafeValue = (plan: BootServicePlan) =>
   /[\x00-\x1f\x7f"'\\]/.test(plan.program[0] ?? "");
 
 /** Service units cannot rely on the user's shell or PATH. */
-export function renderBootServiceUnit(plan: BootServicePlan): string {
+export function renderBootServiceUnit(plan: BootServicePlan) {
   if (systemdUnsafeValue(plan)) {
     throw new BootServiceBaseDirUnsupportedError({ baseDir: plan.baseDir });
   }
@@ -114,7 +114,7 @@ export function renderBootServiceUnit(plan: BootServicePlan): string {
   ].join("\n");
 }
 
-function escapeXmlText(value: string): string {
+function escapeXmlText(value: string) {
   return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
 }
 
@@ -122,7 +122,7 @@ function escapeXmlText(value: string): string {
 export function renderBootServicePlist(
   plan: BootServicePlan,
   options: { readonly homeDir: string; readonly environmentPath: string },
-): string {
+) {
   return [
     `<?xml version="1.0" encoding="UTF-8"?>`,
     `<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">`,
@@ -205,10 +205,7 @@ const defaultSystemdUnitDir = (path: Path.Path, homeDir: string, xdgConfigHome: 
 const launchdPlistPath = (path: Path.Path, homeDir: string) =>
   path.join(homeDir, "Library", "LaunchAgents", BOOT_SERVICE_PLIST_FILE);
 
-function systemdManager(input: {
-  readonly path: Path.Path;
-  readonly unitDir: string;
-}): BootServiceManager {
+function systemdManager(input: { readonly path: Path.Path; readonly unitDir: string }) {
   const unitPath = input.path.join(input.unitDir, BOOT_SERVICE_UNIT_FILE);
   const resetFailed = {
     step: "clearing the service's failed state",
@@ -280,7 +277,7 @@ function systemdManager(input: {
         args: ["--user", "daemon-reload"],
       },
     ],
-  };
+  } satisfies BootServiceManager;
 }
 
 function launchdManager(input: {
@@ -288,7 +285,7 @@ function launchdManager(input: {
   readonly homeDir: string;
   readonly uid: number;
   readonly environmentPath: string;
-}): BootServiceManager {
+}) {
   const unitPath = launchdPlistPath(input.path, input.homeDir);
   const domainTarget = `gui/${input.uid}`;
   const serviceTarget = `${domainTarget}/${BOOT_SERVICE_LAUNCHD_LABEL}`;
@@ -339,7 +336,7 @@ function launchdManager(input: {
       },
     ],
     finalize: [],
-  };
+  } satisfies BootServiceManager;
 }
 
 function selectBootServiceManager(input: {
@@ -350,9 +347,9 @@ function selectBootServiceManager(input: {
   readonly uid: number | undefined;
   readonly path: Path.Path;
   readonly environmentPath: string;
-}): BootServiceManager | undefined {
+}) {
   if (input.homeDir === "") {
-    return undefined;
+    return undefined satisfies BootServiceManager | undefined;
   }
   if (input.platform === "linux") {
     return systemdManager({
@@ -360,7 +357,7 @@ function selectBootServiceManager(input: {
       unitDir:
         input.systemdUnitDir ??
         defaultSystemdUnitDir(input.path, input.homeDir, input.xdgConfigHome),
-    });
+    }) satisfies BootServiceManager | undefined;
   }
   if (input.platform === "darwin" && input.uid !== undefined) {
     return launchdManager({
@@ -368,9 +365,9 @@ function selectBootServiceManager(input: {
       homeDir: input.homeDir,
       uid: input.uid,
       environmentPath: input.environmentPath,
-    });
+    }) satisfies BootServiceManager | undefined;
   }
-  return undefined;
+  return undefined satisfies BootServiceManager | undefined;
 }
 
 const decodeSystemdUnitPaths = Schema.decodeUnknownEffect(
@@ -417,8 +414,8 @@ export class BootServiceUnsupportedError extends Schema.TaggedError<BootServiceU
   "BootServiceUnsupportedError",
   { platform: Schema.String },
 ) {
-  override get message(): string {
-    return `Background setup supports Linux with systemd and macOS with launchd; this machine reports '${this.platform}'.`;
+  override get message() {
+    return `Background setup supports Linux with systemd and macOS with launchd; this machine reports '${this.platform}'.` satisfies string as string;
   }
 }
 
@@ -432,10 +429,10 @@ export class BootServiceCommandError extends Schema.TaggedError<BootServiceComma
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message(): string {
-    return this.exitCode === undefined
+  override get message() {
+    return (this.exitCode === undefined
       ? `Background setup failed while ${this.step}.`
-      : `Background setup failed while ${this.step} (exit code ${this.exitCode}).`;
+      : `Background setup failed while ${this.step} (exit code ${this.exitCode}).`) satisfies string as string;
   }
 }
 
@@ -443,8 +440,8 @@ export class BootServiceInstallError extends Schema.TaggedError<BootServiceInsta
   "BootServiceInstallError",
   { cause: Schema.Defect() },
 ) {
-  override get message(): string {
-    return "Could not set up the Supaterm background service.";
+  override get message() {
+    return "Could not set up the Supaterm background service." satisfies string as string;
   }
 }
 
@@ -464,7 +461,7 @@ export function formatBootServiceProblem(
     install: "supaterm service install",
     restart: "supaterm service restart",
   },
-): string {
+) {
   switch (problem) {
     case "user-manager-unavailable":
       return "Cannot reach the systemd user manager. Run `systemctl --user status` in a login session for the service user. Install your distribution's systemd user-session support if it is missing; do not run Supaterm with sudo.";
@@ -485,8 +482,8 @@ export class BootServicePrerequisiteError extends Schema.TaggedError<BootService
   "BootServicePrerequisiteError",
   { problem: BootServiceProblem, cause: Schema.optional(Schema.Defect()) },
 ) {
-  override get message(): string {
-    return `[${this.problem}] ${formatBootServiceProblem(this.problem)}`;
+  override get message() {
+    return `[${this.problem}] ${formatBootServiceProblem(this.problem)}` satisfies string as string;
   }
 }
 
@@ -494,11 +491,11 @@ export class BootServiceUpdatePendingError extends Schema.TaggedError<BootServic
   "BootServiceUpdatePendingError",
   { recoveryCommand: Schema.optional(Schema.String) },
 ) {
-  override get message(): string {
+  override get message() {
     if (this.recoveryCommand !== undefined) {
-      return `A remote server update is still pending, but its service definition is missing. With the service stopped, run this on the server machine: ${this.recoveryCommand}\nWait for the update to finish or roll back, stop the foreground launcher with Ctrl-C, then retry the install.`;
+      return `A remote server update is still pending, but its service definition is missing. With the service stopped, run this on the server machine: ${this.recoveryCommand}\nWait for the update to finish or roll back, stop the foreground launcher with Ctrl-C, then retry the install.` satisfies string as string;
     }
-    return "A remote server update is still pending. Wait for it to finish, then retry.";
+    return "A remote server update is still pending. Wait for it to finish, then retry." satisfies string as string;
   }
 }
 
@@ -509,8 +506,8 @@ export class BootServiceDowngradeRefusedError extends Schema.TaggedError<BootSer
     targetVersion: Schema.String,
   },
 ) {
-  override get message(): string {
-    return `Refusing to replace supaterm@${this.installedVersion} with older supaterm@${this.targetVersion}. Run the command again with --allow-downgrade to continue.`;
+  override get message() {
+    return `Refusing to replace supaterm@${this.installedVersion} with older supaterm@${this.targetVersion}. Run the command again with --allow-downgrade to continue.` satisfies string as string;
   }
 }
 
@@ -524,8 +521,8 @@ export class BootServiceOtherBaseDirError extends Schema.TaggedError<BootService
     baseDir: Schema.String,
   },
 ) {
-  override get message(): string {
-    return `The Supaterm service on this machine serves ${this.installedBaseDir}, not ${this.baseDir}. Pass ${formatBootServiceBaseDirOption(this.installedBaseDir)} to manage it, or run \`supaterm service uninstall ${formatBootServiceBaseDirOption(this.installedBaseDir)}\` first to move it; both data directories are kept.`;
+  override get message() {
+    return `The Supaterm service on this machine serves ${this.installedBaseDir}, not ${this.baseDir}. Pass ${formatBootServiceBaseDirOption(this.installedBaseDir)} to manage it, or run \`supaterm service uninstall ${formatBootServiceBaseDirOption(this.installedBaseDir)}\` first to move it; both data directories are kept.` satisfies string as string;
   }
 
   override get [CliError.userMessage]() {
@@ -537,8 +534,8 @@ export class BootServiceBaseDirUnsupportedError extends Schema.TaggedError<BootS
   "BootServiceBaseDirUnsupportedError",
   { baseDir: Schema.String },
 ) {
-  override get message(): string {
-    return `systemd cannot run Supaterm from ${JSON.stringify(this.baseDir)}: the path contains a quote, backslash or control character. Choose another Supaterm home with --base-dir.`;
+  override get message() {
+    return `systemd cannot run Supaterm from ${JSON.stringify(this.baseDir)}: the path contains a quote, backslash or control character. Choose another Supaterm home with --base-dir.` satisfies string as string;
   }
 
   override get [CliError.userMessage]() {
@@ -716,7 +713,7 @@ export const make = Effect.fn("cloud.boot_service.make")(function* (input: {
         );
       }),
     ).pipe(Effect.mapError((cause) => new BootServiceInstallError({ cause })));
-  const planForUnit = (unit: string): BootServicePlan => {
+  const planForUnit = (unit: string) => {
     const effectiveInstallBinDir =
       installBinDir || serviceUnitEnvironmentValueOf(unit, "SUPATERM_INSTALL_BIN_DIR");
     return effectiveInstallBinDir ? { ...plan, installBinDir: effectiveInstallBinDir } : plan;
@@ -1084,46 +1081,54 @@ export const make = Effect.fn("cloud.boot_service.make")(function* (input: {
     Effect.withSpan("cloud.boot_service.restart"),
   );
 
-  const withStopped = Effect.fn("cloud.boot_service.with_stopped")(function* <A, E, R>(
+  const withStopped: <A, E, R>(
     operation: Effect.Effect<A, E, R>,
-  ): Effect.fn.Return<A, E | BootServiceError, R> {
-    if (detectedManager === undefined) return yield* operation;
-    const manager = detectedManager;
-    const unit = yield* fs.readFileString(unitPath).pipe(Effect.option);
-    if (Option.isNone(unit)) return yield* operation;
-    const installedBaseDir = bootServiceBaseDirOf(unit.value);
-    if (
-      installedBaseDir === undefined ||
-      path.resolve(installedBaseDir) !== path.resolve(input.baseDir)
-    ) {
-      return yield* operation;
-    }
-    const restore =
-      manager.kind === "systemd"
-        ? yield* Effect.map(
-            Effect.all(
-              [
-                probe("systemctl", ["--user", "is-enabled", BOOT_SERVICE_UNIT_FILE]),
-                probe("systemctl", ["--user", "is-active", BOOT_SERVICE_UNIT_FILE]),
-              ],
-              { concurrency: "unbounded" },
-            ),
-            ([enabled, active]) => succeeded(active) || succeeded(enabled),
-          )
-        : succeeded(
-            yield* probe("launchctl", ["print", `gui/${uid}/${BOOT_SERVICE_LAUNCHD_LABEL}`]),
-          );
-    return yield* Effect.acquireUseRelease(
-      runSteps(manager.stop.map((step) => ({ ...step, optional: !restore }))).pipe(Effect.exit),
-      (stopped): Effect.Effect<A, E | BootServiceError, R> =>
-        Exit.isSuccess(stopped) ? operation : Effect.failCause(stopped.cause),
-      (_, exit) => {
-        if (!restore) return Effect.void;
-        const start = runSteps(manager.restart);
-        return Exit.isFailure(exit) ? Effect.ignore(start) : start;
-      },
-    );
-  });
+  ) => Effect.Effect<A, E | BootServiceError, R> = Effect.fn("cloud.boot_service.with_stopped")(
+    function* <A, E, R>(operation: Effect.Effect<A, E, R>) {
+      if (detectedManager === undefined) return yield* operation;
+      const manager = detectedManager;
+      const unit = yield* fs.readFileString(unitPath).pipe(Effect.option);
+      if (Option.isNone(unit)) return yield* operation;
+      const installedBaseDir = bootServiceBaseDirOf(unit.value);
+      if (
+        installedBaseDir === undefined ||
+        path.resolve(installedBaseDir) !== path.resolve(input.baseDir)
+      ) {
+        return yield* operation;
+      }
+      const restore =
+        manager.kind === "systemd"
+          ? yield* Effect.map(
+              Effect.all(
+                [
+                  probe("systemctl", ["--user", "is-enabled", BOOT_SERVICE_UNIT_FILE]),
+                  probe("systemctl", ["--user", "is-active", BOOT_SERVICE_UNIT_FILE]),
+                ],
+                { concurrency: "unbounded" },
+              ),
+              ([enabled, active]) => succeeded(active) || succeeded(enabled),
+            )
+          : succeeded(
+              yield* probe("launchctl", ["print", `gui/${uid}/${BOOT_SERVICE_LAUNCHD_LABEL}`]),
+            );
+      return yield* Effect.acquireUseRelease(
+        runSteps(manager.stop.map((step) => ({ ...step, optional: !restore }))).pipe(Effect.exit),
+        (stopped) =>
+          (Exit.isSuccess(stopped)
+            ? operation
+            : Effect.failCause(stopped.cause)) satisfies Effect.Effect<
+            A,
+            E | BootServiceError,
+            R
+          > as Effect.Effect<A, E | BootServiceError, R>,
+        (_, exit) => {
+          if (!restore) return Effect.void;
+          const start = runSteps(manager.restart);
+          return Exit.isFailure(exit) ? Effect.ignore(start) : start;
+        },
+      );
+    },
+  );
 
   const uninstall: BootService["Service"]["uninstall"] = Effect.gen(function* () {
     const manager = yield* requireManager;

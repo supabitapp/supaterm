@@ -46,7 +46,7 @@ const isChildRunLive = (thread: Pick<OrchestrationV2ThreadShell, "activityRunSta
 export function resolveListedAncestorThreadRef(
   ref: ScopedThreadRef,
   threads: readonly Pick<EnvironmentThreadShell, "id" | "environmentId" | "lineage">[],
-): ScopedThreadRef {
+) {
   const findThread = (target: ScopedThreadRef) =>
     threads.find(
       (thread) => thread.id === target.threadId && thread.environmentId === target.environmentId,
@@ -65,7 +65,7 @@ export function resolveListedAncestorThreadRef(
   return ref;
 }
 
-function subagentRequest(thread: OrchestrationV2ThreadShell): PendingSubagentRequest | null {
+function subagentRequest(thread: OrchestrationV2ThreadShell) {
   const kind = thread.pendingRuntimeRequest?.kind;
   if (
     kind === undefined ||
@@ -79,7 +79,7 @@ function subagentRequest(thread: OrchestrationV2ThreadShell): PendingSubagentReq
   return kind === "user_input" ? "user_input" : "approval";
 }
 
-function sideChatRequest(thread: OrchestrationV2ThreadShell): PendingSubagentRequest | null {
+function sideChatRequest(thread: OrchestrationV2ThreadShell) {
   const kind = thread.pendingRuntimeRequest?.kind;
   if (kind === undefined || kind === "auth_refresh" || thread.lineage.sideChat !== true) {
     return null;
@@ -89,7 +89,10 @@ function sideChatRequest(thread: OrchestrationV2ThreadShell): PendingSubagentReq
 
 export function pendingSubagentRequestsByThread(
   threads: ReadonlyArray<OrchestrationV2ThreadShell>,
-): ReadonlyMap<ThreadId, PendingSubagentRequest> {
+): ReadonlyMap<ThreadId, PendingSubagentRequest>;
+export function pendingSubagentRequestsByThread(
+  threads: ReadonlyArray<OrchestrationV2ThreadShell>,
+) {
   const requests = new Map<ThreadId, PendingSubagentRequest>();
   let byId: ReadonlyMap<ThreadId, OrchestrationV2ThreadShell> | undefined;
   for (const child of threads) {
@@ -121,12 +124,15 @@ export function pendingSubagentRequestsByThread(
       current = byId.get(parentId);
     }
   }
-  return requests.size === 0 ? EMPTY_SUBAGENT_REQUESTS : requests;
+  return (requests.size === 0 ? EMPTY_SUBAGENT_REQUESTS : requests) satisfies ReadonlyMap<
+    ThreadId,
+    PendingSubagentRequest
+  >;
 }
 
 export function childThreadInputsTitle(
   children: ReadonlyArray<Pick<EnvironmentThreadShell, "hasPendingApprovals" | "lineage">>,
-): string {
+) {
   const approvals = children.filter((child) => child.hasPendingApprovals).length;
   const need = approvals === 0 ? "input" : approvals === children.length ? "approval" : "you";
   const sideChats = children.filter((child) => child.lineage.sideChat === true).length;
@@ -139,10 +145,7 @@ export function childThreadInputsTitle(
 
 const sameWireThreadShell = Schema.toEquivalence(OrchestrationV2ThreadShell);
 
-function sameApartFromStreaming(
-  previous: EnvironmentThreadShell,
-  next: EnvironmentThreadShell,
-): boolean {
+function sameApartFromStreaming(previous: EnvironmentThreadShell, next: EnvironmentThreadShell) {
   if (
     previous.environmentId !== next.environmentId ||
     previous.pendingSubagentRequest !== next.pendingSubagentRequest ||
@@ -199,14 +202,13 @@ export function createEnvironmentThreadShellAtoms(input: {
   };
 
   const environmentThreadsAtom = Atom.family((environmentId: EnvironmentId) =>
-    Atom.make(
-      (get): ReadonlyArray<OrchestrationV2ThreadShell> =>
-        get(input.snapshotAtom(environmentId))?.threads ?? EMPTY_THREADS,
-    ).pipe(Atom.withLabel(`environment-threads:${environmentId}`)),
+    Atom.make((get) => get(input.snapshotAtom(environmentId))?.threads ?? EMPTY_THREADS).pipe(
+      Atom.withLabel(`environment-threads:${environmentId}`),
+    ),
   );
 
   const environmentThreadIndexAtom = Atom.family((environmentId: EnvironmentId) =>
-    Atom.make((get): ReadonlyMap<ThreadId, OrchestrationV2ThreadShell> => {
+    Atom.make((get) => {
       const threads = get(environmentThreadsAtom(environmentId));
       if (threads.length === 0) {
         return EMPTY_THREAD_INDEX;

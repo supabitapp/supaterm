@@ -40,7 +40,7 @@ export default function Presentation(props: {
       scale: number,
       signal: AbortSignal,
       again = false,
-    ): Promise<void> => {
+    ) => {
       const result = await engine.call(
         "paint",
         { index, density: (window.devicePixelRatio || 1) * scale },

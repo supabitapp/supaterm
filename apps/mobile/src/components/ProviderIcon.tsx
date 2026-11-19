@@ -158,7 +158,7 @@ export function providerInstanceNameLabel(props: {
   readonly iconUrl?: string | null | undefined;
   readonly displayName: string;
   readonly showBadge: boolean;
-}): string | null {
+}) {
   return props.showBadge &&
     props.provider === "acpRegistry" &&
     resolveOfficialAcpRegistryIconUrl(props.iconUrl) === null

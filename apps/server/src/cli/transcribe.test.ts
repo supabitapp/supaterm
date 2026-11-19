@@ -260,19 +260,29 @@ it.effect("a lost response picks up the same run instead of cancelling it", () =
     let attempts = 0;
     const calls: Array<string> = [];
     const call = ((tool: string) =>
-      Effect.suspend((): Effect.Effect<unknown, CliServerUnreachableError> => {
+      Effect.suspend(() => {
         calls.push(tool);
         if (tool === "supaterm_attachment_prepare_upload") {
-          return Effect.succeed({ attachmentId: "pending-1.wav", relativeUrl: "/u", expiresAt: 0 });
+          return Effect.succeed({
+            attachmentId: "pending-1.wav",
+            relativeUrl: "/u",
+            expiresAt: 0,
+          }) satisfies Effect.Effect<unknown, CliServerUnreachableError> as Effect.Effect<
+            unknown,
+            CliServerUnreachableError
+          >;
         }
-        return attempts++ === 0
+        return (attempts++ === 0
           ? Effect.fail(
               new CliServerUnreachableError({
                 origin: "http://127.0.0.1:1",
                 cause: new Error("socket hang up"),
               }),
             )
-          : Effect.succeed({ text: "already transcribed" });
+          : Effect.succeed({ text: "already transcribed" })) satisfies Effect.Effect<
+          unknown,
+          CliServerUnreachableError
+        > as Effect.Effect<unknown, CliServerUnreachableError>;
       })) as ServerTools["call"];
     const tools = { origin: "http://127.0.0.1:1", call } satisfies ServerTools;
 

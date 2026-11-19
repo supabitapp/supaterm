@@ -30,18 +30,18 @@ export function useComposerMenuProps() {
   };
 }
 
-function isInsideComposerFloatingLayer(target: EventTarget | null): boolean {
+function isInsideComposerFloatingLayer(target: EventTarget | null) {
   return target instanceof Element && target.closest(COMPOSER_FLOATING_LAYER_SELECTOR) !== null;
 }
 
-export function isInsideCollapsedComposerControls(target: EventTarget | null): boolean {
+export function isInsideCollapsedComposerControls(target: EventTarget | null) {
   return (
     target instanceof Element &&
     target.closest('[data-chat-composer-collapsed-controls="true"]') !== null
   );
 }
 
-export function isInsideRestingComposerControlScope(target: EventTarget | null): boolean {
+export function isInsideRestingComposerControlScope(target: EventTarget | null) {
   return (
     target instanceof Element &&
     (target.closest('[data-chat-composer-resting-controls="true"]') !== null ||

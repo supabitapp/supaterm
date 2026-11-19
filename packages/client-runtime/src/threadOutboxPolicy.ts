@@ -6,23 +6,24 @@ import {
 import type { EnvironmentShellStatus } from "./state/shell.ts";
 import type { ThreadFamilyRead } from "./state/threadFamilies.ts";
 
-export function threadOutboxRetryDelayMs(attempt: number): number {
+export function threadOutboxRetryDelayMs(attempt: number) {
   return Math.min(1_000 * 2 ** Math.max(0, attempt - 1), 16_000);
 }
 
-export function shouldRetryThreadOutboxDelivery(error: unknown): boolean {
+export function shouldRetryThreadOutboxDelivery(error: unknown): boolean;
+export function shouldRetryThreadOutboxDelivery(error: unknown) {
   if (typeof error === "object" && error !== null && "_tag" in error) {
     switch (error._tag) {
       case "OrchestrationDispatchCommandError":
       case "EnvironmentAuthorizationError":
-        return false;
+        return false satisfies boolean;
       case "ConnectionTransientError":
       case "RpcClientError":
       case "EnvironmentRpcUnavailableError":
       case "EnvironmentNotRegisteredError":
-        return true;
+        return true satisfies boolean;
       case "AttachmentUploadError":
-        return "cause" in error && shouldRetryThreadOutboxDelivery(error.cause);
+        return ("cause" in error && shouldRetryThreadOutboxDelivery(error.cause)) satisfies boolean;
     }
   }
   const message =
@@ -34,7 +35,7 @@ export function shouldRetryThreadOutboxDelivery(error: unknown): boolean {
       : typeof error === "string"
         ? error
         : null;
-  return isTransportConnectionErrorMessage(message);
+  return isTransportConnectionErrorMessage(message) satisfies boolean;
 }
 
 export type ThreadOutboxDeliveryAction = "wait" | "remove" | "send";
@@ -51,7 +52,7 @@ export function resolveThreadOutboxDeliveryAction(input: {
    * only a settled family read without the row is.
    */
   readonly familyRead?: ThreadFamilyRead;
-}): ThreadOutboxDeliveryAction {
+}) {
   if (input.isCreation) {
     if (input.threadExists) {
       return "remove";
@@ -85,27 +86,35 @@ export function resolveThreadOutboxDispatchStep(input: {
   readonly fileAttachments: ReadonlyArray<{ readonly name: string; readonly sizeBytes: number }>;
   /** Null while the environment's server config has not synced yet. */
   readonly serverConfig: { readonly maxFileUploadBytes: number | undefined } | null;
-}): ThreadOutboxDispatchStep {
+}) {
   if (input.deliveryAction !== "send") {
-    return { step: input.deliveryAction };
+    return { step: input.deliveryAction } satisfies ThreadOutboxDispatchStep;
   }
   if (input.serverConfig === null) {
-    return { step: "retry" };
+    return { step: "retry" } satisfies ThreadOutboxDispatchStep;
   }
   if (input.fileAttachments.length === 0) {
-    return { step: "send" };
+    return { step: "send" } satisfies ThreadOutboxDispatchStep;
   }
   const maxBytes = input.serverConfig.maxFileUploadBytes;
   if (maxBytes === undefined) {
-    return { step: "restore", reason: "This server does not support file attachments." };
+    return {
+      step: "restore",
+      reason: "This server does not support file attachments.",
+    } satisfies ThreadOutboxDispatchStep;
   }
   const effectiveMaxBytes = clampFileAttachmentUploadBytes(maxBytes);
   const oversized = input.fileAttachments.find(
     (attachment) => attachment.sizeBytes > effectiveMaxBytes,
   );
-  return oversized
-    ? { step: "restore", reason: fileAttachmentTooLargeMessage(oversized.name, effectiveMaxBytes) }
-    : { step: "send" };
+  return (
+    oversized
+      ? {
+          step: "restore",
+          reason: fileAttachmentTooLargeMessage(oversized.name, effectiveMaxBytes),
+        }
+      : { step: "send" }
+  ) satisfies ThreadOutboxDispatchStep;
 }
 
 export type ThreadOutboxCommandStage = "settings-sync" | "branch-resolution" | "start-turn";
@@ -115,7 +124,7 @@ export function resolveThreadOutboxFailureAction(input: {
   readonly stage: ThreadOutboxCommandStage;
   readonly error: unknown;
   readonly interrupted: boolean;
-}): ThreadOutboxFailureAction {
+}) {
   if (
     input.stage === "settings-sync" ||
     input.interrupted ||

@@ -12,7 +12,7 @@ const localEnvironmentId = EnvironmentId.make("local");
 const remoteEnvironmentId = EnvironmentId.make("remote");
 const customIcon = { kind: "lucide", name: "cloud", color: "red" } as const;
 
-function makeProject(environmentId: EnvironmentId, overrides: Partial<Project> = {}): Project {
+function makeProject(environmentId: EnvironmentId, overrides: Partial<Project> = {}) {
   return {
     environmentId,
     id: ProjectId.make(`${environmentId}-project`),
@@ -37,7 +37,7 @@ function makeProject(environmentId: EnvironmentId, overrides: Partial<Project> =
     createdAt: "2026-07-01T00:00:00.000Z",
     updatedAt: "2026-07-01T00:00:00.000Z",
     ...overrides,
-  };
+  } satisfies Project;
 }
 
 function projectGroup(projects: Project[]) {

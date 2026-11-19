@@ -94,30 +94,30 @@ class TestXmlHttpRequest {
     TestXmlHttpRequest.requests.push(this);
   }
 
-  open(method: string, url: string): void {
+  open(method: string, url: string) {
     this.method = method;
     this.url = url;
   }
 
-  setRequestHeader(name: string, value: string): void {
+  setRequestHeader(name: string, value: string) {
     this.headers.set(name, value);
   }
 
-  addEventListener(event: string, listener: () => void): void {
+  addEventListener(event: string, listener: () => void) {
     this.listeners.set(event, listener);
   }
 
-  send(): void {}
+  send() {}
 
-  abort(): void {
+  abort() {
     this.listeners.get("abort")?.();
   }
 
-  progress(loaded: number, total: number): void {
+  progress(loaded: number, total: number) {
     this.progressListener?.({ lengthComputable: true, loaded, total });
   }
 
-  complete(status = 204): void {
+  complete(status = 204) {
     this.status = status;
     this.listeners.get("load")?.();
   }
@@ -126,7 +126,7 @@ class TestXmlHttpRequest {
 const firstEnvironment = EnvironmentId.make("environment-1");
 const secondEnvironment = EnvironmentId.make("environment-2");
 
-function makeImage(id: string): ComposerImageAttachment {
+function makeImage(id: string) {
   const file = new File([new Uint8Array([1, 2, 3])], `${id}.png`, { type: "image/png" });
   return {
     type: "image",
@@ -136,10 +136,10 @@ function makeImage(id: string): ComposerImageAttachment {
     sizeBytes: file.size,
     previewUrl: `blob:${id}`,
     file,
-  };
+  } satisfies ComposerImageAttachment;
 }
 
-function makeFile(id: string): ComposerFileAttachment {
+function makeFile(id: string) {
   const file = new File([new Uint8Array([1, 2, 3])], `${id}.pdf`, {
     type: "application/pdf",
   });
@@ -150,7 +150,7 @@ function makeFile(id: string): ComposerFileAttachment {
     mimeType: file.type,
     sizeBytes: file.size,
     file,
-  };
+  } satisfies ComposerFileAttachment;
 }
 
 const connectionStates = Atom.family((_environmentId: EnvironmentId) =>

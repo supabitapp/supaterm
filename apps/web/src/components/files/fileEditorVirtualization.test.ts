@@ -90,7 +90,7 @@ class RecordedResizeObserver {
   }
 }
 
-function measuredElement(element: MeasuredElement): HTMLElement {
+function measuredElement(element: MeasuredElement) {
   return element as unknown as HTMLElement;
 }
 

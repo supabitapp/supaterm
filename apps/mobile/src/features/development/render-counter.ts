@@ -33,7 +33,7 @@ export interface RenderCounterReport {
 const COMPONENT_TAGS = new Set([0, 1, 11, 14, 15]);
 const PERFORMED_WORK = 1;
 
-function nameOf(fiber: Fiber): string | null {
+function nameOf(fiber: Fiber) {
   const type = fiber.type as {
     displayName?: string;
     name?: string;
@@ -46,7 +46,7 @@ function nameOf(fiber: Fiber): string | null {
   return raw.replace(/^(Forget\(|Memo\()+|\)+$/g, "") || null;
 }
 
-function isEffect(value: unknown): boolean {
+function isEffect(value: unknown) {
   return (
     typeof value === "object" &&
     value !== null &&
@@ -56,7 +56,7 @@ function isEffect(value: unknown): boolean {
   );
 }
 
-function changedStateSlot(alternate: Fiber, node: Fiber): number {
+function changedStateSlot(alternate: Fiber, node: Fiber) {
   let a = alternate.memoizedState;
   let b = node.memoizedState;
   for (let index = 0; a && b && index < 800; index++) {
@@ -69,7 +69,7 @@ function changedStateSlot(alternate: Fiber, node: Fiber): number {
   return -1;
 }
 
-function causeOf(node: Fiber, parentName: string): string {
+function causeOf(node: Fiber, parentName: string) {
   const alternate = node.alternate;
   if (!alternate) return "mount";
   const slot = changedStateSlot(alternate, node);
@@ -149,7 +149,7 @@ Object.assign(globalThis, {
     state.on = true;
     return true;
   },
-  __supatermRenderCounterStop(): RenderCounterReport {
+  __supatermRenderCounterStop() {
     state.on = false;
     const components = sorted(state.counts);
     return {

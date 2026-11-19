@@ -41,14 +41,11 @@ export class VcsDriverRegistry extends Context.Service<
 function detectionCacheKey(input: {
   readonly cwd: string;
   readonly requestedKind: VcsDriverKind | "auto";
-}): string {
+}) {
   return `${input.requestedKind}\0${input.cwd}`;
 }
 
-function parseDetectionCacheKey(key: string): {
-  readonly cwd: string;
-  readonly requestedKind: VcsDriverKind | "auto";
-} {
+function parseDetectionCacheKey(key: string) {
   const separatorIndex = key.indexOf("\0");
   return {
     requestedKind: key.slice(0, separatorIndex) as VcsDriverKind | "auto",

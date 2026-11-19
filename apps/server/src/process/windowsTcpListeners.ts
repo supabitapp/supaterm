@@ -12,7 +12,7 @@ export interface WindowsTcpListener {
   readonly pid: number | null;
 }
 
-const parseWindowsTcpListenerLine = (line: string): WindowsTcpListener | null => {
+const parseWindowsTcpListenerLine = (line: string) => {
   const fields = line.trim().split(/\s+/);
   if (fields.length < 4 || fields[0]?.toUpperCase() !== "TCP") return null;
   const localEndpoint = fields[1] ?? "";
@@ -28,13 +28,13 @@ const parseWindowsTcpListenerLine = (line: string): WindowsTcpListener | null =>
   return { port, pid: Number.isInteger(pid) && pid > 0 ? pid : null };
 };
 
-const parseWindowsTcpListeners = (raw: string): ReadonlyArray<WindowsTcpListener> =>
+const parseWindowsTcpListeners = (raw: string) =>
   raw.split(/\r?\n/g).flatMap((line) => {
     const listener = parseWindowsTcpListenerLine(line);
     return listener === null ? [] : [listener];
   });
 
-const exitedWithError = (result: ProcessRunner.ProcessRunOutput): boolean =>
+const exitedWithError = (result: ProcessRunner.ProcessRunOutput) =>
   result.code !== null && result.code !== 0;
 
 /** Resolves to `null` when either query exits nonzero. */

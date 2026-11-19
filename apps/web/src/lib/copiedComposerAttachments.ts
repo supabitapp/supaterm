@@ -5,14 +5,11 @@ let latestCopy: { environmentId: EnvironmentId; files: ReadonlyMap<string, File>
 export function rememberCopiedComposerAttachments(
   environmentId: EnvironmentId,
   files: ReadonlyMap<string, File>,
-): void {
+) {
   latestCopy = files.size > 0 ? { environmentId, files } : null;
 }
 
-export function copiedComposerAttachmentFile(
-  environmentId: EnvironmentId,
-  attachmentId: string,
-): File | undefined {
+export function copiedComposerAttachmentFile(environmentId: EnvironmentId, attachmentId: string) {
   return latestCopy?.environmentId === environmentId
     ? latestCopy.files.get(attachmentId)
     : undefined;

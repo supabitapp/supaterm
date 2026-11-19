@@ -7,7 +7,7 @@ import { expect, it, vi } from "vite-plus/test";
 type RefreshResult = AsyncResult.AsyncResult<void, string>;
 
 const state = vi.hoisted(() => ({
-  refresh: (_environmentId: string): Promise<RefreshResult> => {
+  refresh: (_environmentId: string) => {
     throw new Error("refresh not set up");
   },
 }));

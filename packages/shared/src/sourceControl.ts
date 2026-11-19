@@ -2,11 +2,11 @@ const SCP_SSH_REMOTE_PATTERN = /^[a-zA-Z0-9._-]+@([^:/]+):/;
 const USERLESS_SCP_SSH_REMOTE_PATTERN = /^([^@:/\\\s]{2,}):(?!:)\/?[^/\s]+(?:\/[^/\s]+)*\/?$/u;
 
 /** Null unless the remote is `host:path`, with no user. */
-export function userlessScpRemoteHost(remoteUrl: string): string | null {
+export function userlessScpRemoteHost(remoteUrl: string) {
   return USERLESS_SCP_SSH_REMOTE_PATTERN.exec(remoteUrl.trim())?.[1] ?? null;
 }
 
-export function isSshRemoteUrl(remoteUrl: string): boolean {
+export function isSshRemoteUrl(remoteUrl: string) {
   const trimmed = remoteUrl.trim();
   return (
     SCP_SSH_REMOTE_PATTERN.test(trimmed) ||

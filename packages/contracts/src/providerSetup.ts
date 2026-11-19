@@ -187,7 +187,7 @@ export class ProviderSetupError extends Schema.TaggedError<ProviderSetupError>()
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return this.detail;
   }
 }

@@ -7,7 +7,7 @@ export interface TurnCommandMetadata {
   readonly createdAt: string;
 }
 
-export function makeTurnCommandMetadata(): TurnCommandMetadata {
+export function makeTurnCommandMetadata() {
   return {
     commandId: uuidv4(),
     messageId: uuidv4(),
@@ -16,7 +16,7 @@ export function makeTurnCommandMetadata(): TurnCommandMetadata {
   };
 }
 
-export function makeQueuedMessageMetadata(): Omit<TurnCommandMetadata, "threadId"> {
+export function makeQueuedMessageMetadata() {
   return {
     commandId: uuidv4(),
     messageId: uuidv4(),

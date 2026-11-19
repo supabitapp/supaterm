@@ -35,7 +35,7 @@ export function threadCreated(
   provider: ProviderDriverKind,
   threadId: ThreadId = THREAD_ID,
   overrides: Partial<ThreadCreatedEvent["payload"]> = {},
-): ThreadCreatedEvent {
+) {
   const now = DateTime.makeUnsafe("2026-06-01T00:00:00Z");
   return {
     id: EventId.make(`thread-created:${threadId}`),
@@ -69,9 +69,9 @@ export function threadCreated(
       deletedAt: null,
       ...overrides,
     },
-  };
+  } satisfies ThreadCreatedEvent;
 }
-export function threadVisited(provider: ProviderDriverKind): OrchestrationV2DomainEvent {
+export function threadVisited(provider: ProviderDriverKind) {
   const now = DateTime.makeUnsafe("2026-06-01T00:10:30Z");
   return {
     id: EventId.make("thread-visited"),
@@ -79,13 +79,9 @@ export function threadVisited(provider: ProviderDriverKind): OrchestrationV2Doma
     threadId: THREAD_ID,
     occurredAt: now,
     payload: { ...threadCreated(provider).payload, lastVisitedAt: now },
-  };
+  } satisfies OrchestrationV2DomainEvent;
 }
-export function turnEvents(
-  provider: ProviderDriverKind,
-  index: number,
-  measured: boolean,
-): ReadonlyArray<OrchestrationV2DomainEvent> {
+export function turnEvents(provider: ProviderDriverKind, index: number, measured: boolean) {
   const now = DateTime.makeUnsafe(`2026-06-01T00:${String(index + 1).padStart(2, "0")}:00Z`);
   const runId = RunId.make(`run-${index}`);
   const nodeId = NodeId.make(`node-${index}`);
@@ -232,9 +228,7 @@ export const LONG_TURN_WORK_ROWS = 900;
  * Run, node, provider and item IDs follow the composite shapes the Claude adapter stores, and
  * every assistant message has its record, as real threads do.
  */
-export function longTurnThreadBatches(
-  provider: ProviderDriverKind,
-): ReadonlyArray<ReadonlyArray<OrchestrationV2DomainEvent>> {
+export function longTurnThreadBatches(provider: ProviderDriverKind) {
   const threadId = LONG_TURN_THREAD_ID;
   const providerInstanceId = ProviderInstanceId.make(provider);
   const modelSelection = {
@@ -245,7 +239,7 @@ export function longTurnThreadBatches(
   const text = (turn: number, row: number, targetBytes: number) =>
     diagnosticOutput({ provider, turnIndex: 100 + turn, toolIndex: row, targetBytes });
 
-  const turn = (index: number, workRows: number): OrchestrationV2DomainEvent[] => {
+  const turn = (index: number, workRows: number) => {
     const now = DateTime.makeUnsafe(`2026-06-02T00:${String(index).padStart(2, "0")}:00Z`);
     const runId = RunId.make(`run:thread:${threadId}:ordinal:${index + 1}`);
     const nodeId = NodeId.make(`node:run:${encodeURIComponent(runId)}:root`);
@@ -356,7 +350,7 @@ export function longTurnThreadBatches(
         },
       );
     };
-    const workItem = (row: number): OrchestrationV2TurnItem => {
+    const workItem = (row: number) => {
       if (row % 100 === 50) {
         return {
           ...base(String(row), "Checkpoint"),
@@ -369,7 +363,7 @@ export function longTurnThreadBatches(
             additions: file + 1,
             deletions: file,
           })),
-        };
+        } satisfies OrchestrationV2TurnItem;
       }
       if (row % 100 === 99) {
         return {
@@ -382,7 +376,7 @@ export function longTurnThreadBatches(
           childThreadId: null,
           prompt: text(index, row, 2_048),
           result: text(index, row + 1, 3_072),
-        };
+        } satisfies OrchestrationV2TurnItem;
       }
       switch (row % 8) {
         case 0:
@@ -392,7 +386,7 @@ export function longTurnThreadBatches(
             type: "reasoning",
             text: text(index, row, 1_536),
             streaming: false,
-          };
+          } satisfies OrchestrationV2TurnItem;
         case 3:
           return {
             ...base(String(row), `Edit module ${row}`),
@@ -401,7 +395,7 @@ export function longTurnThreadBatches(
             additions: 12,
             deletions: 4,
             diffStr: text(index, row, 2_048),
-          };
+          } satisfies OrchestrationV2TurnItem;
         case 4:
           return {
             ...base(String(row), "MCP search"),
@@ -409,7 +403,7 @@ export function longTurnThreadBatches(
             toolName: "mcp__test__search",
             input: { query: `module ${row}` },
             output: { text: text(index, row, 6_144) },
-          };
+          } satisfies OrchestrationV2TurnItem;
         default:
           return {
             ...base(String(row), `Run check ${row}`),
@@ -417,7 +411,7 @@ export function longTurnThreadBatches(
             input: `vp test run src/feature/module-${row}.test.ts`,
             output: text(index, row, 4_096),
             exitCode: 0,
-          };
+          } satisfies OrchestrationV2TurnItem;
       }
     };
 
@@ -452,7 +446,7 @@ export function longTurnThreadBatches(
     turn(2, 4),
     longTurn.slice(0, -1),
     longTurn.slice(-1),
-  ];
+  ] satisfies ReadonlyArray<ReadonlyArray<OrchestrationV2DomainEvent>>;
 }
 
 export const STALE_TODO_THREAD_ID = ThreadId.make("transfer-budget-stale-todo-lists");
@@ -475,9 +469,7 @@ export const STALE_TODO_LIVE_RUN_ID = staleTodoRunId(STALE_TODO_SETTLED_RUNS);
  * holds. Every run leaves its todo list node `running` and its plan `active`, as adapters do,
  * and has subagents, a provider turn and (once finished) a checkpoint. One batch per run.
  */
-export function staleTodoListThreadBatches(
-  provider: ProviderDriverKind,
-): ReadonlyArray<ReadonlyArray<OrchestrationV2DomainEvent>> {
+export function staleTodoListThreadBatches(provider: ProviderDriverKind) {
   const threadId = STALE_TODO_THREAD_ID;
   const providerInstanceId = ProviderInstanceId.make(provider);
   const modelSelection = {
@@ -492,7 +484,7 @@ export function staleTodoListThreadBatches(
   const text = (run: number, row: number, targetBytes: number) =>
     diagnosticOutput({ provider, turnIndex: 200 + run, toolIndex: row, targetBytes });
 
-  const turn = (index: number, live: boolean): OrchestrationV2DomainEvent[] => {
+  const turn = (index: number, live: boolean) => {
     const now = DateTime.makeUnsafe(Date.UTC(2026, 5, 4, 0, index));
     const runId = staleTodoRunId(index);
     const runKey = encodeURIComponent(runId);
@@ -841,7 +833,7 @@ export function staleTodoListThreadBatches(
     [threadCreated(provider, threadId)],
     ...Array.from({ length: STALE_TODO_SETTLED_RUNS }, (_, index) => turn(index, false)),
     turn(STALE_TODO_SETTLED_RUNS, true),
-  ];
+  ] satisfies ReadonlyArray<ReadonlyArray<OrchestrationV2DomainEvent>>;
 }
 
 const FLEET_PROJECT_ID = ProjectId.make("transfer-project");
@@ -889,9 +881,7 @@ export const SHELL_IDLE_SUBAGENTS = 40;
  * A busy sidebar: done top-level threads, done a minute apart, with idle subagent children
  * under the newest ones. Opted-in cold connects skip the children and all but 25 done threads.
  */
-export function shellFleetEvents(
-  provider: ProviderDriverKind,
-): ReadonlyArray<OrchestrationV2DomainEvent> {
+export function shellFleetEvents(provider: ProviderDriverKind) {
   return Array.from({ length: SHELL_DONE_THREADS }, (_, index) => {
     const threadId = ThreadId.make(`transfer-budget-done-${index}`);
     const doneAt = DateTime.makeUnsafe(Date.UTC(2026, 5, 3, 0, index));
@@ -916,5 +906,5 @@ export function shellFleetEvents(
         },
       }),
     ];
-  }).flat();
+  }).flat() satisfies ReadonlyArray<OrchestrationV2DomainEvent>;
 }

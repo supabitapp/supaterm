@@ -12,14 +12,7 @@ import { useEnvironmentQuery } from "./state/query";
 
 const EMPTY_PORTS: ReadonlyArray<DiscoveredLocalServer> = Object.freeze([]);
 
-interface DiscoveredPortsState {
-  readonly servers: ReadonlyArray<DiscoveredLocalServer>;
-  readonly configuredUrlProbing: boolean;
-}
-
-export function boundConfiguredLocalServerUrls(
-  urls: ReadonlyArray<string> | undefined,
-): ReadonlyArray<string> {
+export function boundConfiguredLocalServerUrls(urls: ReadonlyArray<string> | undefined) {
   const bounded: string[] = [];
   const seen = new Set<string>();
   for (const raw of urls ?? []) {
@@ -43,7 +36,7 @@ export function boundConfiguredLocalServerUrls(
 export function useDiscoveredPortsState(
   environmentId: EnvironmentId | null,
   configuredUrls?: ReadonlyArray<string>,
-): DiscoveredPortsState {
+) {
   const boundedConfiguredUrls = boundConfiguredLocalServerUrls(configuredUrls);
   const query = useEnvironmentQuery(
     environmentId === null
@@ -62,7 +55,7 @@ export function useDiscoveredPortsState(
 export function useThreadDiscoveredPorts(input: {
   readonly environmentId: EnvironmentId | null;
   readonly threadId: ThreadId | null;
-}): ReadonlyArray<DiscoveredLocalServer> {
+}) {
   const ports = useDiscoveredPortsState(input.environmentId).servers;
   return input.threadId
     ? ports.filter(

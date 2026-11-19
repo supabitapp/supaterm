@@ -30,7 +30,7 @@ const ROWS: ReadonlyArray<Row> = [
 const tasksOf = (tasks: ReadonlyArray<{ readonly taskId: string }> | undefined) =>
   `[${(tasks ?? []).map((task) => task.taskId).join(",")}]`;
 
-const describeEvent = (event: ProviderAdapter.ProviderAdapterV2Event): string | undefined => {
+const describeEvent = (event: ProviderAdapter.ProviderAdapterV2Event) => {
   switch (event.type) {
     case "provider_thread.updated":
       return `provider_thread.updated native=${event.providerThread.nativeThreadRef?.nativeId ?? "?"} pendingBackgroundWork=${String(event.pendingBackgroundWork)} pendingBackgroundTasks=${tasksOf(event.providerThread.pendingBackgroundTasks)}`;
@@ -45,9 +45,7 @@ const describeEvent = (event: ProviderAdapter.ProviderAdapterV2Event): string | 
   }
 };
 
-const tappedHarness = (
-  record: (event: ProviderAdapter.ProviderAdapterV2Event) => void,
-): typeof OpenCode2OrchestratorReplayHarness => ({
+const tappedHarness = (record: (event: ProviderAdapter.ProviderAdapterV2Event) => void) => ({
   ...OpenCode2OrchestratorReplayHarness,
   makeProviderAdapterRegistryLayer: (
     ...args: Parameters<typeof OpenCode2OrchestratorReplayHarness.makeProviderAdapterRegistryLayer>

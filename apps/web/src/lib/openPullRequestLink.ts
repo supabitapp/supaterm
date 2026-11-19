@@ -62,7 +62,7 @@ export function pullRequestLinkPanelTarget(input: {
 function shouldOpenPullRequestExternally(
   event: Pick<MouseEvent<HTMLElement>, "metaKey" | "ctrlKey"> &
     Partial<Pick<MouseEvent<HTMLElement>, "button">>,
-): boolean {
+) {
   return event.metaKey || event.ctrlKey || event.button === 1;
 }
 
@@ -79,7 +79,8 @@ export function useOpenChangeRequestLink(
   targetThreadRef?: ScopedThreadRef,
   targetEnvironmentId?: EnvironmentId,
   onCommitUnavailable?: () => void,
-) => boolean {
+) => boolean;
+export function useOpenChangeRequestLink(threadRef?: ScopedThreadRef, panelRef?: ScopedThreadRef) {
   const navigate = useNavigate();
   const primaryEnvironmentId = usePrimaryEnvironmentId();
   const openInApp = useClientSettings((settings) => settings.pullRequestLinksOpenInApp);
@@ -90,7 +91,7 @@ export function useOpenChangeRequestLink(
     refresh: true,
   });
   const openLink = useOpenLink(threadRef);
-  return (event, targetUrl, targetThreadRef, targetEnvironmentId, onCommitUnavailable) => {
+  return ((event, targetUrl, targetThreadRef, targetEnvironmentId, onCommitUnavailable) => {
     if (!openInApp || shouldOpenPullRequestExternally(event)) return false;
     const resolvedThreadRef = targetThreadRef ?? threadRef;
     const resolvedPanelRef = panelRef ?? resolvedThreadRef;
@@ -246,7 +247,17 @@ export function useOpenChangeRequestLink(
     event.preventDefault();
     event.stopPropagation();
     return true;
-  };
+  }) satisfies (
+    event: Pick<
+      MouseEvent<HTMLElement>,
+      "preventDefault" | "stopPropagation" | "metaKey" | "ctrlKey"
+    > &
+      Partial<Pick<MouseEvent<HTMLElement>, "button" | "shiftKey" | "altKey">>,
+    targetUrl: string,
+    targetThreadRef?: ScopedThreadRef,
+    targetEnvironmentId?: EnvironmentId,
+    onCommitUnavailable?: () => void,
+  ) => boolean;
 }
 
 export function useOpenPrLink(threadRef?: ScopedThreadRef) {

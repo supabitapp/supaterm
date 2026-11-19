@@ -6,7 +6,7 @@ import {
   formatUpcomingTimestamp,
 } from "./timestampFormat";
 
-function useTimeZone(timeZone: string): Disposable {
+function useTimeZone(timeZone: string) {
   const previous = process.env.TZ;
   process.env.TZ = timeZone;
   return {

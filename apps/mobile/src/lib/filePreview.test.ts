@@ -1412,33 +1412,34 @@ describe("ThreadFeed previews", () => {
     const environmentId = EnvironmentId.make("environment-1");
     const messageId = MessageId.make("message-1");
     const timestamp = "2026-10-20T00:00:00.000Z";
-    const feedFor = (threadId: ThreadId): ThreadFeedEntry[] => [
-      {
-        type: "message",
-        id: messageId,
-        createdAt: timestamp,
-        message: {
+    const feedFor = (threadId: ThreadId) =>
+      [
+        {
+          type: "message",
           id: messageId,
-          role: "user",
-          text: "report",
-          attachments: [
-            {
-              type: "file",
-              id: "report",
-              name: "report.pdf",
-              mimeType: "application/pdf",
-              sizeBytes: 12,
-            },
-          ],
           createdAt: timestamp,
-          updatedAt: timestamp,
-          runId: null,
-          streaming: false,
-          visibility: "local",
-          sourceThreadId: threadId,
+          message: {
+            id: messageId,
+            role: "user",
+            text: "report",
+            attachments: [
+              {
+                type: "file",
+                id: "report",
+                name: "report.pdf",
+                mimeType: "application/pdf",
+                sizeBytes: 12,
+              },
+            ],
+            createdAt: timestamp,
+            updatedAt: timestamp,
+            runId: null,
+            streaming: false,
+            visibility: "local",
+            sourceThreadId: threadId,
+          },
         },
-      },
-    ];
+      ] satisfies ThreadFeedEntry[];
     const container = document.createElement("div");
     const committedPreviews: Array<string | null> = [];
     function CommitProbe() {

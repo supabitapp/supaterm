@@ -7,8 +7,13 @@ import {
   usePullRequestReviewStore,
 } from "./pullRequestReviewStore";
 
-function comment(id: string, body = id): PendingReviewComment {
-  return { id, body, path: "src/app.ts", position: { kind: "added", newLine: 1 } };
+function comment(id: string, body = id) {
+  return {
+    id,
+    body,
+    path: "src/app.ts",
+    position: { kind: "added", newLine: 1 },
+  } satisfies PendingReviewComment;
 }
 
 describe("pull request review drafts", () => {

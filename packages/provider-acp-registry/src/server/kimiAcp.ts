@@ -1,4 +1,3 @@
-import type { OrchestrationV2ProviderFailure } from "@supaterm/contracts";
 import { makeProviderFailure } from "@supaterm/provider-core/server/failure";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 import * as Effect from "effect/Effect";
@@ -33,7 +32,7 @@ class KimiTurnNotEnded extends Schema.TaggedError<KimiTurnNotEnded>()("KimiTurnN
 
 const noOutcome = (_result: EffectAcpSchema.PromptResponse) => Effect.undefined;
 
-function turnFailure(ended: KimiTurnEnded): OrchestrationV2ProviderFailure | undefined {
+function turnFailure(ended: KimiTurnEnded) {
   if (ended.reason !== "failed") return undefined;
   const code = ended.error?.code;
   return makeProviderFailure({

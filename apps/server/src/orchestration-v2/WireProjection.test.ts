@@ -451,19 +451,17 @@ describe("orchestration V2 wire projection", () => {
 describe("live body deduper", () => {
   const at = base.updatedAt;
   const messageId = MessageId.make("message-live");
-  const event = (
-    sequence: number,
-    rest: Pick<OrchestrationV2DomainEvent, "type" | "payload">,
-  ): Extract<OrchestrationV2ThreadStreamItem, { kind: "event" }> => ({
-    kind: "event",
-    sequence,
-    event: {
-      id: EventId.make(`event-${sequence}`),
-      threadId: base.threadId,
-      occurredAt: at,
-      ...rest,
-    } as OrchestrationV2DomainEvent,
-  });
+  const event = (sequence: number, rest: Pick<OrchestrationV2DomainEvent, "type" | "payload">) =>
+    ({
+      kind: "event",
+      sequence,
+      event: {
+        id: EventId.make(`event-${sequence}`),
+        threadId: base.threadId,
+        occurredAt: at,
+        ...rest,
+      } as OrchestrationV2DomainEvent,
+    }) satisfies Extract<OrchestrationV2ThreadStreamItem, { kind: "event" }>;
   const message = (sequence: number, text: string) =>
     event(sequence, {
       type: "message.updated",

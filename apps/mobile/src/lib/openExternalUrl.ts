@@ -22,12 +22,12 @@ export class ExternalUrlOpenError extends Schema.TaggedError<ExternalUrlOpenErro
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Failed to open ${this.target} URL with the ${this.scheme} scheme.`;
   }
 }
 
-function externalUrlMetadata(url: string): { readonly scheme: string; readonly host?: string } {
+function externalUrlMetadata(url: string) {
   try {
     const parsed = new URL(url);
     return {
@@ -41,7 +41,7 @@ function externalUrlMetadata(url: string): { readonly scheme: string; readonly h
   }
 }
 
-export async function tryOpenExternalUrl(url: string, target: ExternalUrlTarget): Promise<boolean> {
+export async function tryOpenExternalUrl(url: string, target: ExternalUrlTarget) {
   try {
     await Linking.openURL(url);
     return true;

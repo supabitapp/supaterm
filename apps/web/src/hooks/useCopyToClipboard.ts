@@ -12,7 +12,7 @@ export class ClipboardApiUnavailableError extends Schema.TaggedError<ClipboardAp
     target: Schema.String,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Clipboard API is unavailable while copying ${this.target}.`;
   }
 }
@@ -24,7 +24,7 @@ export class ClipboardWriteError extends Schema.TaggedError<ClipboardWriteError>
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Failed to copy ${this.target} to the clipboard.`;
   }
 }
@@ -35,7 +35,7 @@ export class ClipboardReadUnavailableError extends Schema.TaggedError<ClipboardR
     target: Schema.String,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Clipboard API is unavailable while reading ${this.target}.`;
   }
 }
@@ -47,15 +47,12 @@ export class ClipboardReadError extends Schema.TaggedError<ClipboardReadError>()
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Failed to read ${this.target} from the clipboard.`;
   }
 }
 
-function writeTextWithExecCommand(
-  value: string,
-  extraFlavors?: Readonly<Record<string, string>>,
-): boolean {
+function writeTextWithExecCommand(value: string, extraFlavors?: Readonly<Record<string, string>>) {
   if (typeof document === "undefined" || typeof document.execCommand !== "function") return false;
 
   const textarea = document.createElement("textarea");
@@ -170,7 +167,7 @@ export async function writeTextToClipboard(
   }
 }
 
-export async function readTextFromClipboard(target = "text"): Promise<string> {
+export async function readTextFromClipboard(target = "text") {
   if (
     typeof window === "undefined" ||
     typeof navigator === "undefined" ||
@@ -203,10 +200,10 @@ export function useCopyToClipboard<TContext = void>({
   onCopy?: (ctx: TContext) => void;
   onError?: (error: Error, ctx: TContext) => void;
   extraFlavors?: Readonly<Record<string, string>>;
-} = {}): { copyToClipboard: (value: string, ctx: TContext) => void; isCopied: boolean } {
+} = {}) {
   const [isCopied, setIsCopied] = React.useState(false);
   const timeoutIdRef = React.useRef<NodeJS.Timeout | null>(null);
-  const copyToClipboard = useStableCallback((value: string, ctx: TContext): void => {
+  const copyToClipboard = useStableCallback((value: string, ctx: TContext) => {
     void writeTextToClipboard(value, target, extraFlavors).then(
       (didCopy) => {
         if (!didCopy) return;
@@ -233,7 +230,7 @@ export function useCopyToClipboard<TContext = void>({
 
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- clears the copied-state reset timer on unmount
   React.useEffect(() => {
-    return (): void => {
+    return () => {
       if (timeoutIdRef.current) {
         clearTimeout(timeoutIdRef.current);
       }

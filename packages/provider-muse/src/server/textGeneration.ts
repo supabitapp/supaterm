@@ -211,7 +211,7 @@ export const makeMuseTextGeneration = Effect.fn("makeMuseTextGeneration")(functi
     prompt: string;
     outputSchema: S;
     modelSelection: ModelSelection;
-  }): Effect.fn.Return<S["Type"], TextGenerationError, S["DecodingServices"]> {
+  }) {
     const { operation } = input;
     if (!settings.enabled) {
       return yield* new TextGenerationError({ operation, detail: "Muse Code is disabled." });

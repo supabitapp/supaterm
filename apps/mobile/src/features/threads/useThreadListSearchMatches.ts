@@ -23,7 +23,7 @@ export function useThreadListSearchMatches(
     readonly matches: ReadonlyArray<EnvironmentThreadSearchMatch>;
     readonly query: string;
   },
-): ReadonlyMap<string, EnvironmentThreadSearchMatch> {
+) {
   const [now] = useState(() => Date.now());
   const [shownOrder, setShownOrder] = useState<ShownOrder | null>(null);
   const rankedKeys = useMemo(() => {

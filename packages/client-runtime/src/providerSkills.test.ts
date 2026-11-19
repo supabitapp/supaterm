@@ -154,10 +154,7 @@ describe("provider workspace snapshot refresh atom", () => {
 
   const cwd = "/workspace/project-a";
   const environmentId = EnvironmentId.make("env");
-  const withSnapshot = (
-    checkedAt: string,
-    slashCommandsPending?: boolean,
-  ): ReadonlyArray<ServerProvider> => [
+  const withSnapshot = (checkedAt: string, slashCommandsPending?: boolean) => [
     {
       ...provider,
       workspaceSnapshots: [

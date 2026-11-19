@@ -1,4 +1,4 @@
-import type { PullRequestCheck, PullRequestCheckStatus } from "@supaterm/contracts";
+import type { PullRequestCheckStatus } from "@supaterm/contracts";
 import { describe, expect, it } from "vite-plus/test";
 
 import { dedupeChecks } from "./pullRequestChecks.ts";
@@ -11,12 +11,7 @@ function entry(
     readonly at?: string | null;
     readonly sequence?: number;
   } = {},
-): {
-  readonly check: PullRequestCheck;
-  readonly workflowName: string | null;
-  readonly at: string | null;
-  readonly sequence?: number;
-} {
+) {
   return {
     check: { name, status, description: null, url: null },
     workflowName: extra.workflowName ?? null,

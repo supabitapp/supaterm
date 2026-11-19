@@ -4,7 +4,7 @@ import { Tool } from "effect/ai";
 
 import { PreviewToolkit } from "./tools.ts";
 
-const schemaHasMultipleAllOfDescriptions = (schema: unknown): boolean => {
+const schemaHasMultipleAllOfDescriptions = (schema: unknown) => {
   if (!schema || typeof schema !== "object") return false;
   const record = schema as Record<string, unknown>;
   const allOf = Array.isArray(record.allOf) ? record.allOf : [];

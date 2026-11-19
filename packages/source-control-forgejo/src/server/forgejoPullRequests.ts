@@ -38,7 +38,8 @@ export const ForgejoPullRequestSchema = Schema.Struct({
   merged_at: Schema.optional(Schema.NullOr(Schema.String)),
   updated_at: Schema.optional(Schema.OptionFromNullOr(Schema.DateTimeUtcFromString)),
 });
-export function toForgejoChangeRequest(raw: typeof ForgejoPullRequestSchema.Type): ChangeRequest {
+export function toForgejoChangeRequest(raw: typeof ForgejoPullRequestSchema.Type): ChangeRequest;
+export function toForgejoChangeRequest(raw: typeof ForgejoPullRequestSchema.Type) {
   return {
     provider: SourceControlProviderKind.make("forgejo"),
     number: raw.number,
@@ -58,5 +59,5 @@ export function toForgejoChangeRequest(raw: typeof ForgejoPullRequestSchema.Type
       raw.head.repo.full_name !== raw.base.repo.full_name,
     headRepositoryNameWithOwner: raw.head.repo?.full_name ?? null,
     headRepositoryOwnerLogin: raw.head.repo?.owner.login ?? null,
-  };
+  } satisfies ChangeRequest;
 }

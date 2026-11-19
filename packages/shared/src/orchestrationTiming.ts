@@ -7,7 +7,7 @@ export function deriveSubagentElapsedMs(
     readonly completedAt: string | null;
   },
   nowMs: number,
-): number | null {
+) {
   if (agent.startedAt === null) return null;
   const end = isOrchestrationV2WorkActive(agent.status)
     ? nowMs
@@ -19,7 +19,7 @@ export function deriveSubagentElapsedMs(
   return Number.isFinite(start) && Number.isFinite(end) ? Math.max(0, end - start) : null;
 }
 
-export function formatDuration(durationMs: number): string {
+export function formatDuration(durationMs: number) {
   if (!Number.isFinite(durationMs) || durationMs < 0) return "0ms";
   if (durationMs < 1_000) return `${Math.max(1, Math.round(durationMs))}ms`;
   if (durationMs < 10_000) return `${Math.round(durationMs / 100) / 10}s`;

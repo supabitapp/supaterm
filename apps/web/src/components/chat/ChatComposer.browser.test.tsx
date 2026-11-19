@@ -24,9 +24,7 @@ const ENVIRONMENT_ID = EnvironmentId.make("environment-local");
 const THREAD_REF = scopeThreadRef(ENVIRONMENT_ID, ThreadId.make("composer-handle-thread"));
 const noop = () => {};
 
-function composerProps(
-  composerRef: React.RefObject<ChatComposerHandle | null>,
-): ComponentProps<typeof ChatComposer> {
+function composerProps(composerRef: React.RefObject<ChatComposerHandle | null>) {
   return {
     composerDraftTarget: THREAD_REF,
     environmentId: ENVIRONMENT_ID,
@@ -134,7 +132,7 @@ function composerProps(
     setThreadError: noop,
     onExpandImage: noop,
     onFileOpen: noop,
-  };
+  } satisfies ComponentProps<typeof ChatComposer>;
 }
 
 function readyProvider(
@@ -142,7 +140,7 @@ function readyProvider(
   driver: string,
   model: { slug: string; name: string },
   overrides: Partial<ServerProvider> = {},
-): ServerProvider {
+) {
   return {
     instanceId: ProviderInstanceId.make(instanceId),
     driver: ProviderDriverKind.make(driver),
@@ -156,7 +154,7 @@ function readyProvider(
     slashCommands: [],
     skills: [],
     ...overrides,
-  };
+  } satisfies ServerProvider;
 }
 
 describe("ChatComposer model mentions", () => {

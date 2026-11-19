@@ -68,7 +68,7 @@ export const KiroDriver: ProviderDriver<KiroSettings, KiroDriverEnv> = {
     supportsMultipleInstances: true,
   },
   configSchema: KiroSettings,
-  defaultConfig: (): KiroSettings => decodeKiroSettings({}),
+  defaultConfig: () => decodeKiroSettings({}),
   create: Effect.fn("KiroDriver.create")(function* ({
     instanceId,
     displayName,

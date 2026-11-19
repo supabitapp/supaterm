@@ -12,10 +12,7 @@ export function AppAtomRegistryProvider({ children }: React.PropsWithChildren) {
  * Calls `listener` with each value after the current one. A bare `subscribe` never computes a
  * derived atom nobody has read, so it never learns its parents and never fires.
  */
-export function subscribeAtomChanges<A>(
-  atom: Atom.Atom<A>,
-  listener: (value: A) => void,
-): () => void {
+export function subscribeAtomChanges<A>(atom: Atom.Atom<A>, listener: (value: A) => void) {
   let current = true;
   return appAtomRegistry.subscribe(
     atom,

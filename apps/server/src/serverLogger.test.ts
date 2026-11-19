@@ -220,7 +220,7 @@ describe("ServerLoggerLive", () => {
     Effect.gen(function* () {
       const output = yield* printThroughConsole({
         cause: Cause.fail(new Error("upstream refused")),
-        get detail(): string {
+        get detail() {
           throw new Error("getter must not run");
         },
       });

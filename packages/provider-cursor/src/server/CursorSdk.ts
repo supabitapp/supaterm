@@ -15,7 +15,7 @@ const CURSOR_SHELL_SPAWN_MARKERS = [
   "__CURSOR_SANDBOX_ENV_RESTORE",
 ] as const;
 
-function isCursorShellSpawnFailure(reason: unknown): boolean {
+function isCursorShellSpawnFailure(reason: unknown) {
   if (typeof reason !== "object" || reason === null) {
     return false;
   }
@@ -34,7 +34,7 @@ function isCursorShellSpawnFailure(reason: unknown): boolean {
   );
 }
 
-function isCursorClosedStreamWrite(reason: unknown): boolean {
+function isCursorClosedStreamWrite(reason: unknown) {
   if (!(reason instanceof Error)) {
     return false;
   }
@@ -48,7 +48,7 @@ function isCursorClosedStreamWrite(reason: unknown): boolean {
   );
 }
 
-function isCursorStallAbort(reason: unknown): boolean {
+function isCursorStallAbort(reason: unknown) {
   return (
     reason instanceof Error &&
     reason.name === "AbortError" &&
@@ -57,7 +57,7 @@ function isCursorStallAbort(reason: unknown): boolean {
   );
 }
 
-function onUnhandledRejection(reason: unknown): void {
+function onUnhandledRejection(reason: unknown) {
   if (isCursorShellSpawnFailure(reason)) {
     console.error("Cursor shell spawn failed. The server will keep running.", reason);
     return;

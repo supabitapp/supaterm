@@ -19,7 +19,7 @@ export function resolveThreadFeedSubmissionAnchor<AnchorId>(input: {
   readonly hasUserMessage: boolean;
   readonly queuedMessageCount: number;
   readonly deliveryDeferred: boolean;
-}): AnchorId | null {
+}) {
   if (input.currentAnchorMessageId !== null) {
     return input.currentAnchorMessageId;
   }

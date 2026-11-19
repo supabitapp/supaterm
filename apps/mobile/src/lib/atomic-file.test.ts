@@ -19,21 +19,21 @@ vi.mock("expo-file-system", () => ({
       this.parentDirectory = { uri: parentUri };
     }
 
-    get exists(): boolean {
+    get exists() {
       return files.has(this.uri) && files.get(this.uri)?.deleted === false;
     }
 
-    create(): void {
+    create() {
       files.set(this.uri, { text: "", deleted: false });
     }
 
-    async write(text: string): Promise<void> {
+    async write(text: string) {
       await Promise.resolve();
       if (failMode.current === "write") throw new Error("disk full");
       files.set(this.uri, { text, deleted: false });
     }
 
-    moveSync(destination: { readonly uri: string }): void {
+    moveSync(destination: { readonly uri: string }) {
       if (failMode.current === "move") throw new Error("rename failed");
       const entry = files.get(this.uri);
       if (!entry) throw new Error("missing staged file");
@@ -41,7 +41,7 @@ vi.mock("expo-file-system", () => ({
       files.delete(this.uri);
     }
 
-    delete(): void {
+    delete() {
       if (failMode.cleanupFails) throw new Error("cleanup failed");
       if (!files.has(this.uri)) throw new Error("missing file");
       files.delete(this.uri);
@@ -54,13 +54,13 @@ import { File as ExpoFile } from "expo-file-system";
 
 const DIRECTORY_URI = "file:///documents/thread-outbox";
 
-function tempFileUris(): Array<string> {
+function tempFileUris() {
   return [...files.keys()].filter(
     (uri) => uri.startsWith(`${DIRECTORY_URI}/`) && uri.endsWith(".tmp"),
   );
 }
 
-function makeFile(name: string): ExpoFile {
+function makeFile(name: string) {
   return new ExpoFile(DIRECTORY_URI, name);
 }
 

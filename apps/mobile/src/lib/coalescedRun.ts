@@ -4,10 +4,11 @@
  * arrives mid-run (a native share handed over on resume) is still read, and
  * the caller that asked for it sees how it ended.
  */
-export function coalescedRun(run: () => Promise<void>): () => Promise<void> {
+export function coalescedRun(run: () => Promise<void>): () => Promise<void>;
+export function coalescedRun(run: () => Promise<void>) {
   let inFlight: Promise<void> | null = null;
   let queued: Promise<void> | null = null;
-  const start = (): Promise<void> => {
+  const start: () => Promise<void> = () => {
     if (inFlight) {
       queued ??= inFlight
         .catch(() => undefined)
@@ -22,5 +23,5 @@ export function coalescedRun(run: () => Promise<void>): () => Promise<void> {
     });
     return inFlight;
   };
-  return start;
+  return start satisfies () => Promise<void>;
 }

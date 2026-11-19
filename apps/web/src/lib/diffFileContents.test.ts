@@ -1,4 +1,3 @@
-import type { FileDiffMetadata } from "@pierre/diffs";
 import { EnvironmentId } from "@supaterm/contracts";
 import { AsyncResult } from "effect/reactivity";
 import { describe, expect, it } from "vite-plus/test";
@@ -13,7 +12,7 @@ function toContents(lines: ReadonlyArray<string>) {
   return `${lines.join("\n")}\n`;
 }
 
-function parsePartialFileDiff(patch: string): FileDiffMetadata {
+function parsePartialFileDiff(patch: string) {
   const renderable = getRenderablePatch(patch, "diff-panel:light", {
     compactPartialHunkOffsets: true,
   });
@@ -21,7 +20,7 @@ function parsePartialFileDiff(patch: string): FileDiffMetadata {
   return renderable.files[0]!;
 }
 
-function partialFileDiff(): FileDiffMetadata {
+function partialFileDiff() {
   const patch = [
     "diff --git a/src/file01.ts b/src/file01.ts",
     "index 1111111..2222222 100644",

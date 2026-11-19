@@ -6,22 +6,22 @@ import {
 } from "@supaterm/shared/path";
 import { formatFilePathPosition, splitFilePathPosition } from "@supaterm/shared/fileLinks";
 
-function normalizePathSeparators(path: string): string {
+function normalizePathSeparators(path: string) {
   return path.replaceAll("\\", "/");
 }
 
-function trimTrailingPathSeparators(path: string): string {
+function trimTrailingPathSeparators(path: string) {
   return path.replace(/[\\/]+$/, "");
 }
 
-function stripRelativePrefixes(path: string): string {
+function stripRelativePrefixes(path: string) {
   return path.replace(/^\.\/+/, "").replace(/^\/+/, "");
 }
 
 export function formatWorkspaceRelativePath(
   pathWithPosition: string,
   workspaceRoot: string | undefined,
-): string {
+) {
   const position = splitFilePathPosition(pathWithPosition);
   const normalizedPath = stripSlashPrefixedWindowsDrive(normalizePathSeparators(position.path));
 

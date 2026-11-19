@@ -597,7 +597,7 @@ describe("mobile model options", () => {
     const projectId = ProjectId.make("project-a");
     const instanceId = ProviderInstanceId.make("codex_work");
 
-    function configWith(settings: ServerSettings): ServerConfig {
+    function configWith(settings: ServerSettings) {
       return {
         providers: [
           {

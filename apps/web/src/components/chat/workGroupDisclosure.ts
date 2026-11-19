@@ -9,17 +9,17 @@ export type WorkGroupDisclosure = "opening" | "open" | "closing";
 export type WorkGroupTransition = Exclude<WorkGroupDisclosure, "open">;
 export type WorkGroupDisclosures = ReadonlyMap<string, WorkGroupDisclosure>;
 
-export function workGroupIsExpanded(disclosure: WorkGroupDisclosure | undefined): boolean {
+export function workGroupIsExpanded(disclosure: WorkGroupDisclosure | undefined) {
   return disclosure === "opening" || disclosure === "open";
 }
 
-export function restoredWorkGroupDisclosures(
-  expandedGroupIds: ReadonlySet<string> | undefined,
-): WorkGroupDisclosures {
-  return new Map(Array.from(expandedGroupIds ?? [], (groupId) => [groupId, "open"]));
+export function restoredWorkGroupDisclosures(expandedGroupIds: ReadonlySet<string> | undefined) {
+  return new Map(
+    Array.from(expandedGroupIds ?? [], (groupId) => [groupId, "open"]),
+  ) satisfies WorkGroupDisclosures;
 }
 
-export function expandedWorkGroupIds(disclosures: WorkGroupDisclosures): ReadonlySet<string> {
+export function expandedWorkGroupIds(disclosures: WorkGroupDisclosures) {
   const expanded = new Set<string>();
   for (const [groupId, disclosure] of disclosures) {
     if (workGroupIsExpanded(disclosure)) expanded.add(groupId);
@@ -27,9 +27,7 @@ export function expandedWorkGroupIds(disclosures: WorkGroupDisclosures): Readonl
   return expanded;
 }
 
-export function nextWorkGroupTransition(
-  disclosure: WorkGroupDisclosure | undefined,
-): WorkGroupTransition {
+export function nextWorkGroupTransition(disclosure: WorkGroupDisclosure | undefined) {
   return workGroupIsExpanded(disclosure) ? "closing" : "opening";
 }
 
@@ -37,18 +35,28 @@ export function startWorkGroupTransition(
   disclosures: WorkGroupDisclosures,
   groupId: string,
   transition: WorkGroupTransition,
-): WorkGroupDisclosures {
-  return new Map(disclosures).set(groupId, transition);
+): WorkGroupDisclosures;
+export function startWorkGroupTransition(
+  disclosures: WorkGroupDisclosures,
+  groupId: string,
+  transition: WorkGroupTransition,
+) {
+  return new Map(disclosures).set(groupId, transition) satisfies WorkGroupDisclosures;
 }
 
 export function settleWorkGroupTransition(
   disclosures: WorkGroupDisclosures,
   groupId: string,
   transition: WorkGroupTransition,
-): WorkGroupDisclosures {
-  if (disclosures.get(groupId) !== transition) return disclosures;
+): WorkGroupDisclosures;
+export function settleWorkGroupTransition(
+  disclosures: WorkGroupDisclosures,
+  groupId: string,
+  transition: WorkGroupTransition,
+) {
+  if (disclosures.get(groupId) !== transition) return disclosures satisfies WorkGroupDisclosures;
   const next = new Map(disclosures);
   if (transition === "opening") next.set(groupId, "open");
   else next.delete(groupId);
-  return next;
+  return next satisfies WorkGroupDisclosures;
 }

@@ -47,11 +47,14 @@ const environmentId = EnvironmentId.make("environment-1");
 
 function makeThread(
   input: Partial<EnvironmentThreadShell> & Pick<EnvironmentThreadShell, "id" | "title">,
-): EnvironmentThreadShell {
+): EnvironmentThreadShell;
+function makeThread(
+  input: Partial<EnvironmentThreadShell> & Pick<EnvironmentThreadShell, "id" | "title">,
+) {
   return makeThreadShellFixture({
     environmentId,
     ...input,
-  });
+  }) satisfies EnvironmentThreadShell;
 }
 
 const NOW = "2026-06-02T00:00:00.000Z";
@@ -109,8 +112,8 @@ describe("resolveThreadListV2SnoozeMenuSelection", () => {
 });
 
 describe("layoutThreadListV2RowMenuActions", () => {
-  const actions = (...ids: string[]): MenuAction[] => ids.map((id) => ({ id, title: id }));
-  const leafIds = (items: readonly MenuAction[]): string[] =>
+  const actions = (...ids: string[]) => ids.map((id) => ({ id, title: id }));
+  const leafIds: (items: readonly MenuAction[]) => string[] = (items: readonly MenuAction[]) =>
     items.flatMap((item) => (item.subactions ? leafIds(item.subactions) : [item.id!]));
 
   it("keeps every action once while nesting iOS secondary actions under More", () => {
@@ -1140,11 +1143,7 @@ describe("buildThreadListV2Items done paging", () => {
 describe("buildThreadListV2Items done sort reuse", () => {
   const otherEnvironmentId = EnvironmentId.make("environment-2");
 
-  function makeDone(
-    id: string,
-    doneAt: string,
-    overrides: Partial<EnvironmentThreadShell> = {},
-  ): EnvironmentThreadShell {
+  function makeDone(id: string, doneAt: string, overrides: Partial<EnvironmentThreadShell> = {}) {
     return makeThread({
       id: ThreadId.make(id),
       title: id,
@@ -1212,7 +1211,7 @@ describe("buildThreadListV2Items done sort reuse", () => {
   });
 });
 
-function makePendingTask(id: string): PendingNewTask {
+function makePendingTask(id: string) {
   const creation = {
     projectId: ProjectId.make("project-1"),
     workspaceMode: "worktree" as const,
@@ -1240,10 +1239,10 @@ function makePendingTask(id: string): PendingNewTask {
       creation,
     },
     creation,
-  };
+  } satisfies PendingNewTask;
 }
 
-function makeDraftTask(id: string): PendingNewTask {
+function makeDraftTask(id: string) {
   return {
     kind: "draft",
     key: `draft-task:new-task:${id}`,
@@ -1259,7 +1258,7 @@ function makeDraftTask(id: string): PendingNewTask {
       attachments: [],
       project: { environmentId, projectId: ProjectId.make("project-1"), createdAt: NOW },
     },
-  };
+  } satisfies PendingNewTask;
 }
 
 describe("buildThreadListV2ListItems", () => {
@@ -2067,7 +2066,7 @@ function buildTickList(
     readonly queuedThreadKeys?: ReadonlySet<string>;
     readonly shelfPreferencesLoading?: boolean;
   },
-): ThreadListV2ListItem[] {
+) {
   const now = isoAt(clockMs);
   const layout = buildThreadListV2Items({
     threads,
@@ -2817,12 +2816,15 @@ describe("grouped inbox", () => {
           ],
         }),
         pendingTasks: [],
-      }).flatMap((row): Array<readonly [string, string | boolean | null]> =>
-        row.type === "v2-group-header"
-          ? [[row.label, row.projectKey]]
-          : row.type === "v2-thread"
-            ? [[row.item.thread.id, row.showProjectIcon]]
-            : [],
+      }).flatMap(
+        (row) =>
+          (row.type === "v2-group-header"
+            ? [[row.label, row.projectKey]]
+            : row.type === "v2-thread"
+              ? [[row.item.thread.id, row.showProjectIcon]]
+              : []) satisfies Array<readonly [string, string | boolean | null]> as Array<
+            readonly [string, string | boolean | null]
+          >,
       );
     expect(rows("project")).toEqual([
       ["pinned", true],

@@ -9,7 +9,7 @@ export class CopyTextClipboardWriteError extends Schema.TaggedError<CopyTextClip
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Failed to copy ${this.target} to the clipboard.`;
   }
 }
@@ -22,7 +22,7 @@ export class CopyTextHapticFeedbackError extends Schema.TaggedError<CopyTextHapt
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Failed to trigger ${this.feedback} haptic feedback after copying ${this.target}.`;
   }
 }
@@ -35,7 +35,7 @@ interface CopyTextWithHapticOptions {
 export async function tryCopyTextWithHaptic(
   value: string,
   options: CopyTextWithHapticOptions = {},
-): Promise<boolean> {
+) {
   const target = options.target ?? "text";
   const feedback = options.feedback ?? "light-impact";
 
@@ -66,6 +66,6 @@ export async function tryCopyTextWithHaptic(
   return await clipboardWrite;
 }
 
-export function copyTextWithHaptic(value: string, options: CopyTextWithHapticOptions = {}): void {
+export function copyTextWithHaptic(value: string, options: CopyTextWithHapticOptions = {}) {
   void tryCopyTextWithHaptic(value, options);
 }

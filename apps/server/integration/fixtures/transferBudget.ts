@@ -25,7 +25,7 @@ const sourceModules = [
   "server.ts",
 ] as const;
 
-function mix(value: number): number {
+function mix(value: number) {
   let mixed = value | 0;
   mixed ^= mixed >>> 16;
   mixed = Math.imul(mixed, 0x7feb352d);
@@ -35,7 +35,7 @@ function mix(value: number): number {
   return mixed >>> 0;
 }
 
-function digest(seed: number): string {
+function digest(seed: number) {
   return [0, 1, 2, 3]
     .map((offset) =>
       mix(seed + offset * 0x9e3779b9)
@@ -50,7 +50,7 @@ export function diagnosticOutput(input: {
   readonly turnIndex: number;
   readonly toolIndex: number;
   readonly targetBytes: number;
-}): string {
+}) {
   const chunks: string[] = [];
   const providerSeed = input.provider === "codex" ? 0x43_4f_44_45 : 0x43_4c_41_55;
   let length = 0;

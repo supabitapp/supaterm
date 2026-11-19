@@ -148,7 +148,7 @@ const IOS_TAG_INPUT_ADMITTED = 0x83;
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
-function webRtcSessionId(): string {
+function webRtcSessionId() {
   const bytes = globalThis.crypto.getRandomValues(new Uint8Array(16));
   bytes[6] = (bytes[6]! & 0x0f) | 0x40;
   bytes[8] = (bytes[8]! & 0x3f) | 0x80;
@@ -156,37 +156,35 @@ function webRtcSessionId(): string {
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
-const isWebCodecsSupported = (): boolean =>
+const isWebCodecsSupported = () =>
   typeof globalThis !== "undefined" &&
   "VideoDecoder" in globalThis &&
   "EncodedVideoChunk" in globalThis;
 
-function utf8ByteLength(codePoint: number): number {
-  if (codePoint <= 0x7f) return 1;
-  if (codePoint <= 0x7ff) return 2;
-  if (codePoint <= 0xffff) return 3;
-  return 4;
+function utf8ByteLength(codePoint: number): number;
+function utf8ByteLength(codePoint: number) {
+  if (codePoint <= 0x7f) return 1 satisfies number;
+  if (codePoint <= 0x7ff) return 2 satisfies number;
+  if (codePoint <= 0xffff) return 3 satisfies number;
+  return 4 satisfies number;
 }
 
-function taggedJson(tag: number, payload: unknown): Uint8Array<ArrayBuffer> {
+function taggedJson(tag: number, payload: unknown): Uint8Array<ArrayBuffer>;
+function taggedJson(tag: number, payload: unknown) {
   const json = encoder.encode(JSON.stringify(payload));
   const out = new Uint8Array(1 + json.length);
   out[0] = tag;
   out.set(json, 1);
-  return out;
+  return out satisfies Uint8Array<ArrayBuffer>;
 }
 
-export function avcCodecString(bytes: Uint8Array): string {
+export function avcCodecString(bytes: Uint8Array) {
   if (bytes.length < 4) return "avc1.42E01E";
   const hex = (byte: number) => byte.toString(16).padStart(2, "0");
   return `avc1.${hex(bytes[1]!)}${hex(bytes[2]!)}${hex(bytes[3]!)}`;
 }
 
-export function parseSemuPacket(raw: ArrayBuffer): {
-  readonly data: Uint8Array;
-  readonly isKey: boolean | null;
-  readonly timestamp: number | null;
-} {
+export function parseSemuPacket(raw: ArrayBuffer) {
   const bytes = new Uint8Array(raw);
   if (bytes.byteLength > SEMU_HEADER_BYTES) {
     const view = new DataView(raw, 0, SEMU_HEADER_BYTES);
@@ -211,7 +209,7 @@ const isVideoSessionMessage = (text: string) => {
   }
 };
 
-export function scanAccessUnit(buf: Uint8Array): { isKey: boolean; sps: Uint8Array | null } {
+export function scanAccessUnit(buf: Uint8Array) {
   let isKey = false;
   let sps: Uint8Array | null = null;
   const len = buf.length;
@@ -250,7 +248,7 @@ export class AvccDemuxer {
   private buffer = new Uint8Array(64 * 1024);
   private length = 0;
 
-  push(bytes: Uint8Array): AvccChunk[] {
+  push(bytes: Uint8Array) {
     if (this.length + bytes.length > this.buffer.length) {
       let capacity = this.buffer.length;
       while (capacity < this.length + bytes.length) capacity *= 2;
@@ -282,7 +280,7 @@ export class AvccDemuxer {
     return chunks;
   }
 
-  reset(): void {
+  reset() {
     this.length = 0;
   }
 }
@@ -356,11 +354,12 @@ const HID_USAGE_BY_CODE: Readonly<Record<string, number>> = {
   MetaRight: 0xe7,
 };
 
-function hidUsageForCode(code: string): number | null {
-  if (/^Key[A-Z]$/.test(code)) return 0x04 + (code.charCodeAt(3) - 65);
-  if (/^Digit[1-9]$/.test(code)) return 0x1e + (code.charCodeAt(5) - 49);
-  if (code === "Digit0") return 0x27;
-  return HID_USAGE_BY_CODE[code] ?? null;
+function hidUsageForCode(code: string): number | null;
+function hidUsageForCode(code: string) {
+  if (/^Key[A-Z]$/.test(code)) return (0x04 + (code.charCodeAt(3) - 65)) satisfies number | null;
+  if (/^Digit[1-9]$/.test(code)) return (0x1e + (code.charCodeAt(5) - 49)) satisfies number | null;
+  if (code === "Digit0") return 0x27 satisfies number | null;
+  return (HID_USAGE_BY_CODE[code] ?? null) satisfies number | null;
 }
 
 const ANDROID_KEYCODE_BY_KEY: Readonly<Record<string, number>> = {
@@ -390,7 +389,12 @@ export function createDeviceStreamClient(
   target: DeviceStreamTarget,
   output: HTMLCanvasElement | DeviceFrameSink,
   events: DeviceStreamEvents,
-): DeviceStreamClient {
+): DeviceStreamClient;
+export function createDeviceStreamClient(
+  target: DeviceStreamTarget,
+  output: HTMLCanvasElement | DeviceFrameSink,
+  events: DeviceStreamEvents,
+) {
   const { access, platform, deviceId } = target;
   const sink = "present" in output ? output : createCanvasFrameSink(output);
   const vendor = platform === "ios" ? "/vendor/serve-sim" : "/vendor/serve-emu";
@@ -610,10 +614,7 @@ export function createDeviceStreamClient(
     return decoder;
   };
 
-  const configureDecoder = async (
-    config: VideoDecoderConfig,
-    isCurrent = () => !stopped,
-  ): Promise<boolean> => {
+  const configureDecoder = async (config: VideoDecoderConfig, isCurrent = () => !stopped) => {
     const epoch = decoderEpoch;
     const full: VideoDecoderConfig = { ...config, optimizeForLatency: true };
     const support = await VideoDecoder.isConfigSupported(full).catch(() => ({ supported: false }));
@@ -819,7 +820,7 @@ export function createDeviceStreamClient(
     }
   };
 
-  const probeWebRtc = async (): Promise<WebRtcSettings | null> => {
+  const probeWebRtc = async () => {
     const probe = new AbortController();
     const timeout = setTimeout(() => probe.abort(), TRANSPORT_PROBE_TIMEOUT_MS);
     try {
@@ -1380,5 +1381,5 @@ export function createDeviceStreamClient(
     setOrientation: (orientation) => {
       if (platform === "ios") send(taggedJson(IOS_MSG_ORIENTATION, { orientation }));
     },
-  };
+  } satisfies DeviceStreamClient;
 }

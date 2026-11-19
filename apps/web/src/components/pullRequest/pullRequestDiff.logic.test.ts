@@ -10,7 +10,7 @@ function fileWithHunks(
     additionStart: number;
     additionCount: number;
   }>,
-): FileDiffMetadata {
+) {
   return { name: "src/app.ts", hunks } as unknown as FileDiffMetadata;
 }
 

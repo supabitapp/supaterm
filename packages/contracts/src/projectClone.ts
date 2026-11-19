@@ -76,7 +76,7 @@ export const ProjectCloneActionResult = Schema.Struct({
 });
 export type ProjectCloneActionResult = typeof ProjectCloneActionResult.Type;
 
-function projectCloneStageLabel(stage: ProjectCloneStage): string {
+function projectCloneStageLabel(stage: ProjectCloneStage) {
   switch (stage) {
     case "connecting":
       return "Connecting";
@@ -93,7 +93,7 @@ function projectCloneStageLabel(stage: ProjectCloneStage): string {
 
 export function projectCloneDisplayName(
   snapshot: Pick<ProjectCloneSnapshot, "repository" | "destinationPath">,
-): string {
+) {
   if (snapshot.repository) return snapshot.repository.nameWithOwner;
   const segments = snapshot.destinationPath.split(/[/\\]/).filter((segment) => segment.length > 0);
   return segments[segments.length - 1] ?? snapshot.destinationPath;
@@ -101,7 +101,7 @@ export function projectCloneDisplayName(
 
 export function projectCloneProgressSummary(
   snapshot: Pick<ProjectCloneSnapshot, "stage" | "percent" | "detail" | "stalled">,
-): string {
+) {
   const parts = [projectCloneStageLabel(snapshot.stage)];
   if (snapshot.percent !== null) parts.push(`${snapshot.percent}%`);
   if (snapshot.stalled) parts.push("Stalled");

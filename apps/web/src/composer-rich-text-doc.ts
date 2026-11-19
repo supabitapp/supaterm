@@ -13,14 +13,7 @@ export type SkillMeta = { label: string; description: string | null };
 export const LIST_NODE_NAMES = new Set(["taskList", "bulletList", "orderedList"]);
 export const LIST_ITEM_NODE_NAMES = new Set(["taskItem", "listItem"]);
 
-export function codeBlockSource(
-  node: ProseMirrorNode,
-  followed: boolean,
-): {
-  open: string;
-  content: string;
-  close: string;
-} {
+export function codeBlockSource(node: ProseMirrorNode, followed: boolean) {
   const attrs = node.attrs as Record<string, unknown>;
   let fence = typeof attrs.fence === "string" && attrs.fence ? attrs.fence : "```";
   const language = typeof attrs.language === "string" ? attrs.language : "";
@@ -43,7 +36,7 @@ export function codeBlockSource(
   return { open: `${fence}${language}${content ? "\n" : ""}`, content, close };
 }
 
-function randomNodeKey(): string {
+function randomNodeKey() {
   return `tiptap-${Math.random().toString(36).slice(2)}`;
 }
 
@@ -54,7 +47,7 @@ interface TaskLinePrefix {
   contentSpace: string;
 }
 
-function parseTaskPrefix(head: string): { prefix: TaskLinePrefix; markerLength: number } | null {
+function parseTaskPrefix(head: string) {
   const match = head.match(/^([ \t]*)-([ \t]+)\[([ xX])\]([ \t]*)/);
   if (!match) return null;
   const after = head.slice(match[0].length);
@@ -70,7 +63,7 @@ function parseTaskPrefix(head: string): { prefix: TaskLinePrefix; markerLength: 
   };
 }
 
-export function parseOpeningFence(line: string): { fence: string; language: string } | null {
+export function parseOpeningFence(line: string) {
   const match = /^(`{3,}|~{3,})([^\n]*)$/.exec(line);
   if (!match) return null;
   const fence = match[1]!;
@@ -79,7 +72,7 @@ export function parseOpeningFence(line: string): { fence: string; language: stri
   return { fence, language };
 }
 
-export function isClosingFence(line: string, fence: string): boolean {
+export function isClosingFence(line: string, fence: string) {
   const match = /^(`{3,}|~{3,})[ \t]*\r?$/.exec(line);
   if (!match) return false;
   const run = match[1]!;
@@ -90,32 +83,35 @@ type ListLinePrefix =
   | ({ kind: "task" } & TaskLinePrefix)
   | { kind: "bullet" | "ordered"; indent: string; marker: string; space: string };
 
-export function parseListPrefix(
-  line: string,
-): { prefix: ListLinePrefix; markerLength: number } | null {
+export function parseListPrefix(line: string) {
   const task = parseTaskPrefix(line);
-  if (task) return { prefix: { kind: "task", ...task.prefix }, markerLength: task.markerLength };
+  if (task)
+    return { prefix: { kind: "task", ...task.prefix }, markerLength: task.markerLength } satisfies {
+      prefix: ListLinePrefix;
+      markerLength: number;
+    } | null;
   const ordered = /^([ \t]*)(\d+[.)])((?:[ \t]+)|$)/.exec(line);
   if (ordered) {
     return {
       prefix: { kind: "ordered", indent: ordered[1]!, marker: ordered[2]!, space: ordered[3]! },
       markerLength: ordered[0].length,
-    };
+    } satisfies { prefix: ListLinePrefix; markerLength: number } | null;
   }
   const bullet = /^([ \t]*)([-*+])((?:[ \t]+)|$)/.exec(line);
   if (bullet) {
     return {
       prefix: { kind: "bullet", indent: bullet[1]!, marker: bullet[2]!, space: bullet[3]! },
       markerLength: bullet[0].length,
-    };
+    } satisfies { prefix: ListLinePrefix; markerLength: number } | null;
   }
-  return null;
+  return null satisfies { prefix: ListLinePrefix; markerLength: number } | null;
 }
 
-function listKey(prefix: ListLinePrefix): string {
-  if (prefix.kind === "task") return "task";
-  if (prefix.kind === "ordered") return `ordered:${prefix.marker.slice(-1)}`;
-  return `bullet:${prefix.marker}`;
+function listKey(prefix: ListLinePrefix): string;
+function listKey(prefix: ListLinePrefix) {
+  if (prefix.kind === "task") return "task" satisfies string;
+  if (prefix.kind === "ordered") return `ordered:${prefix.marker.slice(-1)}` satisfies string;
+  return `bullet:${prefix.marker}` satisfies string;
 }
 
 type InlineJson = Record<string, unknown>;
@@ -128,7 +124,7 @@ interface DocLine {
 function atomJsonForSegment(
   segment: Exclude<ReturnType<typeof splitPromptIntoComposerSegments>[number], { type: "text" }>,
   skillLabelFor: (name: string) => SkillMeta | null,
-): InlineJson | null {
+) {
   if (segment.type === "mention") {
     return {
       type: "composer-mention",
@@ -176,7 +172,8 @@ interface PendingList {
   items: PendingItem[];
 }
 
-function listJson(list: PendingList): InlineJson {
+function listJson(list: PendingList): InlineJson;
+function listJson(list: PendingList) {
   const first = list.items[0]!.prefix;
   const items = list.items.map((item) => {
     const content = [
@@ -201,18 +198,18 @@ function listJson(list: PendingList): InlineJson {
       content,
     };
   });
-  if (first.kind === "task") return { type: "taskList", content: items };
+  if (first.kind === "task") return { type: "taskList", content: items } satisfies InlineJson;
   if (first.kind === "ordered") {
     return {
       type: "orderedList",
       attrs: { start: Number.parseInt(first.marker, 10) || 1 },
       content: items,
-    };
+    } satisfies InlineJson;
   }
-  return { type: "bulletList", content: items };
+  return { type: "bulletList", content: items } satisfies InlineJson;
 }
 
-function textJsonForSpan(text: string, marks: RichTextMark[]): Record<string, unknown> {
+function textJsonForSpan(text: string, marks: RichTextMark[]) {
   const json: Record<string, unknown> = { type: "text", text };
   if (marks.length > 0) {
     json.marks = [...marks]
@@ -231,12 +228,17 @@ export function buildTiptapContent(
   value: string,
   skillLabelFor: (name: string) => SkillMeta | null,
   options?: { styling?: boolean; blocks?: boolean; literalText?: boolean; literalLength?: number },
-): Record<string, unknown>[] {
+): Record<string, unknown>[];
+export function buildTiptapContent(
+  value: string,
+  skillLabelFor: (name: string) => SkillMeta | null,
+  options?: { styling?: boolean; blocks?: boolean; literalText?: boolean; literalLength?: number },
+) {
   if (options?.literalText) {
     return value.split("\n").map((line) => ({
       type: "paragraph",
       ...(line ? { content: [{ type: "text", text: line }] } : {}),
-    }));
+    })) satisfies Record<string, unknown>[];
   }
   const styling = options?.styling ?? true;
 
@@ -278,7 +280,7 @@ export function buildTiptapContent(
     })
     .join("");
   let atomIndex = 0;
-  const buildInline = (content: string): InlineJson[] => {
+  const buildInline = (content: string) => {
     const spans = styling ? parseInlineMarkdown(content) : [{ text: content, marks: [] }];
     const inline: InlineJson[] = [];
     for (const span of spans) {
@@ -292,10 +294,10 @@ export function buildTiptapContent(
     }
     return inline;
   };
-  const buildDocLine = (line: string): DocLine => {
+  const buildDocLine = (line: string) => {
     const parsed = blockSyntax ? parseListPrefix(line) : null;
     const content = parsed ? line.slice(parsed.markerLength) : line;
-    return { list: parsed?.prefix ?? null, inline: buildInline(content) };
+    return { list: parsed?.prefix ?? null, inline: buildInline(content) } satisfies DocLine;
   };
 
   const sourceLines = text.split("\n");
@@ -378,7 +380,10 @@ export function buildTiptapContent(
     rootLists = [];
     stack = [];
   };
-  const openList = (container: PendingList[], key: string): PendingList => {
+  const openList: (container: PendingList[], key: string) => PendingList = (
+    container: PendingList[],
+    key: string,
+  ) => {
     const list = { key, items: [] };
     container.push(list);
     return list;
@@ -472,7 +477,7 @@ export function buildTiptapContent(
   }
   flushQuote();
   flushLists();
-  return blocks;
+  return blocks satisfies Record<string, unknown>[];
 }
 
 export function buildDocJson(

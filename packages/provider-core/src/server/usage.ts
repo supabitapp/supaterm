@@ -34,7 +34,7 @@ export const EMPTY_TOTALS: UsageTokenTotals = {
   reasoningTokens: 0,
 };
 
-export function totalTokens(totals: UsageTokenTotals): number {
+export function totalTokens(totals: UsageTokenTotals) {
   return (
     totals.uncachedInputTokens +
     totals.cachedInputTokens +
@@ -43,11 +43,11 @@ export function totalTokens(totals: UsageTokenTotals): number {
   );
 }
 
-export function tokenCount(value: unknown): number {
+export function tokenCount(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) && value > 0 ? Math.trunc(value) : 0;
 }
 
-export function parseTimestampMs(value: unknown): number | null {
+export function parseTimestampMs(value: unknown) {
   if (typeof value !== "string") return null;
   const parsed = Date.parse(value);
   return Number.isNaN(parsed) ? null : parsed;

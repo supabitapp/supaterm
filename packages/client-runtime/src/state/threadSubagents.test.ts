@@ -15,7 +15,7 @@ const at = (iso: string) => DateTime.makeUnsafe(iso);
 
 function subagent(
   overrides: Omit<Partial<OrchestrationV2Subagent>, "id"> & { readonly id: string },
-): OrchestrationV2Subagent {
+) {
   const { id, ...rest } = overrides;
   return {
     id: NodeId.make(id),
@@ -38,7 +38,7 @@ function subagent(
     completedAt: null,
     updatedAt: at("2026-06-20T00:00:01.000Z"),
     ...rest,
-  };
+  } satisfies OrchestrationV2Subagent;
 }
 
 const run = (

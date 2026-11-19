@@ -39,16 +39,17 @@ import {
 
 const primary = EnvironmentId.make("primary");
 const secondary = EnvironmentId.make("secondary");
-const session = (canOperate: boolean): AuthSessionState => ({
-  authenticated: true,
-  scopes: canOperate ? [AuthOrchestrationOperateScope] : [],
-  auth: {
-    policy: "remote-reachable",
-    bootstrapMethods: [],
-    sessionMethods: [],
-    sessionCookieName: "session",
-  },
-});
+const session = (canOperate: boolean) =>
+  ({
+    authenticated: true,
+    scopes: canOperate ? [AuthOrchestrationOperateScope] : [],
+    auth: {
+      policy: "remote-reachable",
+      bootstrapMethods: [],
+      sessionMethods: [],
+      sessionCookieName: "session",
+    },
+  }) satisfies AuthSessionState;
 const source = (id: EnvironmentId) =>
   environmentSession.sessionStateAtom(id) as unknown as Atom.Writable<
     AsyncResult.AsyncResult<AuthSessionState, Error>

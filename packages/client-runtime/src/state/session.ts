@@ -46,9 +46,7 @@ export class SessionHttpClientUnavailable extends Data.TaggedError(
   "SessionHttpClientUnavailable",
 ) {}
 
-function initialConfigOption<E>(
-  initialConfig: Effect.Effect<ServerConfig, E>,
-): Effect.Effect<Option.Option<ServerConfig>> {
+function initialConfigOption<E>(initialConfig: Effect.Effect<ServerConfig, E>) {
   return initialConfig.pipe(
     Effect.asSome,
     Effect.catch((error) =>
@@ -81,12 +79,12 @@ const isSessionRejectionError = Schema.is(
 export function sessionDeniesScope(
   result: AsyncResult.AsyncResult<AuthSessionState, unknown>,
   scope: AuthEnvironmentScope,
-): boolean {
+) {
   if (result._tag === "Success") return !sessionGrantsScope(result.value, scope);
   return result._tag === "Failure" && isSessionRejection(result.cause);
 }
 
-function isSessionRejection(cause: Cause.Cause<unknown>): boolean {
+function isSessionRejection(cause: Cause.Cause<unknown>) {
   const error = Option.getOrNull(Cause.findErrorOption(cause));
   if (error instanceof RemoteEnvironmentAuthUndeclaredStatusError) {
     return error.status === 401 || error.status === 403;
@@ -101,9 +99,11 @@ function isSessionRejection(cause: Cause.Cause<unknown>): boolean {
 export const fetchEnvironmentSessionState = Effect.fn(
   "clientRuntime.state.fetchEnvironmentSessionState",
 )(function* (input: { readonly prepared: PreparedConnection; readonly timeoutMs?: number }) {
-  const request = (
+  const request: (
     timeoutMs: number,
-  ): Effect.Effect<AuthSessionState, RemoteEnvironmentRequestError, HttpClient.HttpClient> =>
+  ) => Effect.Effect<AuthSessionState, RemoteEnvironmentRequestError, HttpClient.HttpClient> = (
+    timeoutMs: number,
+  ) =>
     executeAuthenticatedEnvironmentHttpRequest({
       ...input,
       group: "auth",
@@ -148,7 +148,7 @@ function makeEnvironmentSessionAtoms<R, E>(
   );
 
   const initialConfigValueAtom = Atom.family((environmentId: EnvironmentId) =>
-    Atom.make((get): ServerConfig | null =>
+    Atom.make((get) =>
       pipe(
         get(initialConfigAtom(environmentId)),
         AsyncResult.value,
@@ -251,8 +251,9 @@ function makeEnvironmentSessionAtoms<R, E>(
 
   const sessionStateValueAtom = Atom.family((environmentId: EnvironmentId) =>
     Atom.make(
-      (get): AuthSessionState | null =>
-        AsyncResult.getOrElse(get(sessionStateAtom(environmentId)), () => null) ?? null,
+      (get) =>
+        (AsyncResult.getOrElse(get(sessionStateAtom(environmentId)), () => null) ??
+          null) satisfies AuthSessionState | null,
     ).pipe(Atom.withLabel(`environment-session-state-value:${environmentId}`)),
   );
 
@@ -316,7 +317,7 @@ function makeEnvironmentSessionAtoms<R, E>(
       return connectionRouteLatencyLabel(
         result.waiting || result._tag === "Initial"
           ? null
-          : AsyncResult.getOrElse(result, (): ConnectionRouteLatency => ({
+          : AsyncResult.getOrElse(result, () => ({
               status: "unreachable",
             })),
       );
@@ -326,7 +327,7 @@ function makeEnvironmentSessionAtoms<R, E>(
 
   const relayGatewayAtom = runtime.atom(Effect.serviceOption(RelayGateway));
   const relayTransportAtom = Atom.family((identity: string) =>
-    Atom.make((get): RelayTransport | undefined => {
+    Atom.make((get) => {
       const gateway = Option.getOrUndefined(
         Option.flatten(AsyncResult.value(get(relayGatewayAtom))),
       );
@@ -359,10 +360,16 @@ const sessionAtomsByRuntime = new WeakMap<object, ReturnType<typeof makeEnvironm
 
 export function createEnvironmentSessionAtoms<R, E>(
   runtime: Atom.AtomRuntime<EnvironmentRegistry.EnvironmentRegistry | R, E>,
-): ReturnType<typeof makeEnvironmentSessionAtoms<R, E>> {
+): ReturnType<typeof makeEnvironmentSessionAtoms<R, E>>;
+export function createEnvironmentSessionAtoms<R, E>(
+  runtime: Atom.AtomRuntime<EnvironmentRegistry.EnvironmentRegistry | R, E>,
+) {
   const existing = sessionAtomsByRuntime.get(runtime);
-  if (existing) return existing as ReturnType<typeof makeEnvironmentSessionAtoms<R, E>>;
+  if (existing)
+    return existing as ReturnType<typeof makeEnvironmentSessionAtoms<R, E>> satisfies ReturnType<
+      typeof makeEnvironmentSessionAtoms<R, E>
+    >;
   const atoms = makeEnvironmentSessionAtoms(runtime);
   sessionAtomsByRuntime.set(runtime, atoms);
-  return atoms;
+  return atoms satisfies ReturnType<typeof makeEnvironmentSessionAtoms<R, E>>;
 }

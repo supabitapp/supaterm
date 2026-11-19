@@ -4,9 +4,7 @@ const PNG_SIGNATURE = [137, 80, 78, 71, 13, 10, 26, 10];
  * Returns the first complete PNG in `bytes`, or undefined. `adb exec-out screencap -p` can print
  * warnings, such as a foldable's multiple displays, around the image.
  */
-export const extractPng = <Buffer extends ArrayBufferLike>(
-  bytes: Uint8Array<Buffer>,
-): Uint8Array<Buffer> | undefined => {
+export const extractPng = <Buffer extends ArrayBufferLike>(bytes: Uint8Array<Buffer>) => {
   const start = bytes.findIndex((_, index) =>
     PNG_SIGNATURE.every((value, offset) => bytes[index + offset] === value),
   );

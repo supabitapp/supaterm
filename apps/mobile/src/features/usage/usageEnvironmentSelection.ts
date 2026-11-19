@@ -5,7 +5,7 @@ export function toggleUsageEnvironment(
   selected: ReadonlySet<EnvironmentId> | null,
   environments: readonly { readonly environmentId: EnvironmentId }[],
   toggledId: EnvironmentId,
-): ReadonlySet<EnvironmentId> | null {
+) {
   const ids = environments.map(({ environmentId }) => environmentId);
   const next = new Set(ids.filter((id) => selected === null || selected.has(id)));
   if (ids.includes(toggledId)) {

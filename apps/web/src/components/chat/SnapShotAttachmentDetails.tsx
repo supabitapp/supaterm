@@ -54,24 +54,24 @@ export function SnapShotAccessibilityData({
   );
 }
 
-export function snapShotAccessibilityDetails(
-  source: SnapShotSource,
-): SnapShotAccessibilityDetails | undefined {
+export function snapShotAccessibilityDetails(source: SnapShotSource) {
   if (source.accessibility?.format === "element-tree") {
     return {
       content: JSON.stringify(source.accessibility, null, 2),
       format: "json",
-    };
+    } satisfies SnapShotAccessibilityDetails | undefined;
   }
 
   const text =
     source.accessibility?.format === "flat-text"
       ? source.accessibility.text.trim()
       : source.accessibleText?.trim();
-  return text ? { content: text, format: "text" } : undefined;
+  return (text ? { content: text, format: "text" } : undefined) satisfies
+    | SnapShotAccessibilityDetails
+    | undefined;
 }
 
-function snapShotIncludesAccessibility(source: SnapShotSource): boolean {
+function snapShotIncludesAccessibility(source: SnapShotSource) {
   return Boolean(source.accessibility || source.accessibleText?.trim());
 }
 

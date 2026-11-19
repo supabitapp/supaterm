@@ -19,7 +19,7 @@ interface UploadRequest {
 const environmentId = EnvironmentId.make("environment-1");
 const uploadKey = (environment: EnvironmentId, id: string) => `${environment}:${id}`;
 
-function request(id: string, environment = environmentId): UploadRequest {
+function request(id: string, environment = environmentId) {
   return { environmentId: environment, attachment: { id, fileUri: `file:///documents/${id}.pdf` } };
 }
 
@@ -181,11 +181,7 @@ describe("attachment upload registry", () => {
     let states: Readonly<Record<string, AttachmentUploadStatus>> = {};
     const progress: number[] = [];
     const upload = vi.fn(
-      async (
-        _request: UploadRequest,
-        _signal: AbortSignal,
-        report: (value: number) => void,
-      ): Promise<string> => {
+      async (_request: UploadRequest, _signal: AbortSignal, report: (value: number) => void) => {
         report(0.12);
         report(0.13);
         report(1.1);

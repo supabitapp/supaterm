@@ -17,7 +17,7 @@ const webRoot = NodePath.dirname(NodePath.dirname(NodeURL.fileURLToPath(import.m
 const outputDirectory = NodePath.join(webRoot, "../mobile/assets/sounds");
 const cuelumeDirectory = NodePath.dirname(NodeURL.fileURLToPath(import.meta.resolve("cuelume")));
 
-function trim(samples: Float32Array): Float32Array {
+function trim(samples: Float32Array) {
   let end = samples.length;
   while (end > 0 && Math.abs(samples[end - 1] ?? 0) < SILENCE) end -= 1;
   const trimmed = samples.slice(0, end);
@@ -29,7 +29,7 @@ function trim(samples: Float32Array): Float32Array {
   return trimmed;
 }
 
-function encodeWav(samples: Float32Array): Buffer {
+function encodeWav(samples: Float32Array) {
   const data = Buffer.alloc(samples.length * 2);
   samples.forEach((sample, index) => {
     data.writeInt16LE(Math.round(Math.max(-1, Math.min(1, sample)) * 0x7fff), index * 2);

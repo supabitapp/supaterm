@@ -1,4 +1,4 @@
-export function plainHastText(node: unknown): string | null {
+export function plainHastText(node: unknown) {
   if (!node || typeof node !== "object" || !("children" in node) || !Array.isArray(node.children)) {
     return null;
   }
@@ -18,16 +18,17 @@ export function plainHastText(node: unknown): string | null {
   return parts.every((part) => part !== null) ? parts.join("") : null;
 }
 
-export function hastPlainTextDeep(node: unknown): string {
-  if (!node || typeof node !== "object") return "";
+export function hastPlainTextDeep(node: unknown): string;
+export function hastPlainTextDeep(node: unknown) {
+  if (!node || typeof node !== "object") return "" satisfies string;
   if ("type" in node && node.type === "text" && "value" in node && typeof node.value === "string") {
-    return node.value;
+    return node.value satisfies string;
   }
-  if (!("children" in node) || !Array.isArray(node.children)) return "";
-  return node.children.map(hastPlainTextDeep).join("");
+  if (!("children" in node) || !Array.isArray(node.children)) return "" satisfies string;
+  return node.children.map(hastPlainTextDeep).join("") satisfies string;
 }
 
-export function hastHasText(node: unknown): boolean {
+export function hastHasText(node: unknown) {
   if (!node || typeof node !== "object") return false;
   if (
     "type" in node &&

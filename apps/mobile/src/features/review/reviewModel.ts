@@ -109,11 +109,11 @@ export type ReviewParsedDiff =
       readonly notice: string | null;
     };
 
-function checkpointTitle(checkpoint: ThreadCheckpointSummary): string {
+function checkpointTitle(checkpoint: ThreadCheckpointSummary) {
   return `Turn ${checkpoint.checkpointTurnCount}`;
 }
 
-function checkpointSubtitle(checkpoint: ThreadCheckpointSummary): string {
+function checkpointSubtitle(checkpoint: ThreadCheckpointSummary) {
   const fileCount = checkpointFileTotals(checkpoint).count;
   if (checkpoint.status !== "ready") {
     return `Diff ${checkpoint.status}`;
@@ -124,7 +124,7 @@ function checkpointSubtitle(checkpoint: ThreadCheckpointSummary): string {
 function compareCheckpointTurnCountDescending(
   left: ThreadCheckpointSummary,
   right: ThreadCheckpointSummary,
-): -1 | 0 | 1 {
+) {
   if (left.checkpointTurnCount === right.checkpointTurnCount) {
     return 0;
   }
@@ -136,7 +136,7 @@ const readyCheckpointOrder = Order.make<ThreadCheckpointSummary>(
   compareCheckpointTurnCountDescending,
 );
 
-function gitSubtitle(section: ReviewDiffPreviewSource): string | null {
+function gitSubtitle(section: ReviewDiffPreviewSource) {
   if (section.kind === "working-tree") {
     return UNCOMMITTED_SUBTITLE;
   }
@@ -146,14 +146,11 @@ function gitSubtitle(section: ReviewDiffPreviewSource): string | null {
   return "Base branch unavailable";
 }
 
-function stripTrailingNewline(value: string): string {
+function stripTrailingNewline(value: string) {
   return value.endsWith("\n") ? value.slice(0, -1) : value;
 }
 
-function splitTruncationMarker(diff: string): {
-  readonly text: string;
-  readonly truncated: boolean;
-} {
+function splitTruncationMarker(diff: string) {
   const marker = /(?:(?:\r?\n){1,2}|^)\[truncated\]\s*$/.exec(diff);
   if (!marker) {
     return { text: diff, truncated: false };
@@ -165,7 +162,7 @@ function splitTruncationMarker(diff: string): {
   };
 }
 
-function runDiffParserSilently<T>(callback: () => T): T {
+function runDiffParserSilently<T>(callback: () => T) {
   const originalConsoleError = console.error;
   console.error = () => undefined;
   try {
@@ -224,7 +221,7 @@ const NON_TEXT_FILE_EXTENSIONS = new Set([
   "dylib",
 ]);
 
-function fnv1a32(input: string, seed: number, multiplier: number): number {
+function fnv1a32(input: string, seed: number, multiplier: number) {
   let hash = seed >>> 0;
   for (let index = 0; index < input.length; index += 1) {
     hash ^= input.charCodeAt(index);
@@ -233,7 +230,7 @@ function fnv1a32(input: string, seed: number, multiplier: number): number {
   return hash >>> 0;
 }
 
-function buildPatchCacheKey(patch: string, scope: string): string {
+function buildPatchCacheKey(patch: string, scope: string) {
   const primary = fnv1a32(patch, FNV_OFFSET_BASIS_32, FNV_PRIME_32).toString(36);
   const secondary = fnv1a32(patch, SECONDARY_HASH_SEED, SECONDARY_HASH_MULTIPLIER).toString(36);
   return `${scope}:${patch.length}:${primary}:${secondary}`;
@@ -241,7 +238,7 @@ function buildPatchCacheKey(patch: string, scope: string): string {
 
 const reviewPatchIds = new Map<string, string>();
 
-function getReviewPatchId(cacheKey: string): string {
+function getReviewPatchId(cacheKey: string) {
   let id = reviewPatchIds.get(cacheKey);
   if (id === undefined) {
     id = `p${reviewPatchIds.size.toString(36)}`;
@@ -250,23 +247,23 @@ function getReviewPatchId(cacheKey: string): string {
   return id;
 }
 
-function getFileExtension(path: string): string | null {
+function getFileExtension(path: string) {
   const match = /\.([a-z0-9]+)$/i.exec(path);
   return match?.[1]?.toLowerCase() ?? null;
 }
 
-function countReviewRenderableLineRows(file: ReviewRenderableFile): number {
+function countReviewRenderableLineRows(file: ReviewRenderableFile) {
   return file.rows.reduce((total, row) => total + (row.kind === "line" ? 1 : 0), 0);
 }
 
-function countReviewRenderableCharacters(file: ReviewRenderableFile): number {
+function countReviewRenderableCharacters(file: ReviewRenderableFile) {
   return file.rows.reduce(
     (total, row) => total + (row.kind === "line" ? row.content.length : row.header.length),
     0,
   );
 }
 
-export function getReviewFilePreviewState(file: ReviewRenderableFile): ReviewFilePreviewState {
+export function getReviewFilePreviewState(file: ReviewRenderableFile) {
   const extension = getFileExtension(file.path);
   if (extension && NON_TEXT_FILE_EXTENSIONS.has(extension)) {
     return {
@@ -275,7 +272,7 @@ export function getReviewFilePreviewState(file: ReviewRenderableFile): ReviewFil
       title: "Non-text file",
       message: "Diff preview is not available for this file format.",
       actionLabel: null,
-    };
+    } satisfies ReviewFilePreviewState;
   }
 
   const lineCount = countReviewRenderableLineRows(file);
@@ -287,20 +284,17 @@ export function getReviewFilePreviewState(file: ReviewRenderableFile): ReviewFil
       title: "Large diff",
       message: "Large diffs are not rendered by default.",
       actionLabel: "Load diff",
-    };
+    } satisfies ReviewFilePreviewState;
   }
 
-  return { kind: "render" };
+  return { kind: "render" } satisfies ReviewFilePreviewState;
 }
 
-function fallbackHunkHeader(hunk: FileDiffMetadata["hunks"][number]): string {
+function fallbackHunkHeader(hunk: FileDiffMetadata["hunks"][number]) {
   return `@@ -${hunk.deletionStart},${hunk.deletionCount} +${hunk.additionStart},${hunk.additionCount} @@`;
 }
 
-function buildRenderableRows(
-  file: FileDiffMetadata,
-  fileId: string,
-): ReadonlyArray<ReviewRenderableRow> {
+function buildRenderableRows(file: FileDiffMetadata, fileId: string) {
   const rows: ReviewRenderableRow[] = [];
   let rowIndex = 0;
 
@@ -453,11 +447,7 @@ function completePatchSource(file: FileDiffMetadata, rawPatch: string | null | u
   };
 }
 
-function mapRenderableFile(
-  file: FileDiffMetadata,
-  id: string,
-  rawPatch?: string | null,
-): ReviewRenderableFile {
+function mapRenderableFile(file: FileDiffMetadata, id: string, rawPatch?: string | null) {
   const path = file.name || file.prevName || "";
   const previousPath = file.prevName || null;
   const additions = file.hunks.reduce((total, hunk) => total + hunk.additionLines, 0);
@@ -484,13 +474,11 @@ function mapRenderableFile(
 
 export function getReviewSectionIdForCheckpoint(
   checkpoint: Pick<ThreadCheckpointSummary, "checkpointTurnCount">,
-): string {
+) {
   return `turn:${checkpoint.checkpointTurnCount}`;
 }
 
-export function getReadyReviewCheckpoints(
-  checkpoints: ReadonlyArray<ThreadCheckpointSummary>,
-): ReadonlyArray<ThreadCheckpointSummary> {
+export function getReadyReviewCheckpoints(checkpoints: ReadonlyArray<ThreadCheckpointSummary>) {
   return pipe(
     checkpoints,
     Arr.filter((checkpoint) => checkpoint.status === "ready"),
@@ -501,7 +489,7 @@ export function getReadyReviewCheckpoints(
 export function reviewTurnDiffsBySectionId(
   checkpoints: ReadonlyArray<Pick<ThreadCheckpointSummary, "checkpointTurnCount">>,
   diffByTurnCount: Readonly<Record<number, string | undefined>>,
-): Readonly<Record<string, string | undefined>> {
+) {
   return Object.fromEntries(
     checkpoints.map((checkpoint) => [
       getReviewSectionIdForCheckpoint(checkpoint),
@@ -515,7 +503,7 @@ export function buildReviewSectionItems(input: {
   readonly gitSections: ReadonlyArray<ReviewDiffPreviewSource>;
   readonly turnDiffById: Readonly<Record<string, string | undefined>>;
   readonly loadingGitSections: boolean;
-}): ReadonlyArray<ReviewSectionItem> {
+}) {
   const turnItems = getReadyReviewCheckpoints(input.checkpoints).map<ReviewSectionItem>(
     (checkpoint) => {
       const id = getReviewSectionIdForCheckpoint(checkpoint);
@@ -565,7 +553,7 @@ export function buildReviewSectionItems(input: {
   return [...turnItems, ...visibleGitItems];
 }
 
-function getDefaultReviewSectionId(sections: ReadonlyArray<ReviewSectionItem>): string | null {
+function getDefaultReviewSectionId(sections: ReadonlyArray<ReviewSectionItem>) {
   return (sections.find((section) => section.id === CHANGES_SECTION_ID) ?? sections[0])?.id ?? null;
 }
 
@@ -577,23 +565,20 @@ function getDefaultReviewSectionId(sections: ReadonlyArray<ReviewSectionItem>): 
 export function resolveReviewSelectedSectionId(
   sections: ReadonlyArray<ReviewSectionItem>,
   storedSectionId: string | null,
-): string | null {
+) {
   return storedSectionId !== null && sections.some((section) => section.id === storedSectionId)
     ? storedSectionId
     : getDefaultReviewSectionId(sections);
 }
 
-export function buildReviewParsedDiff(
-  diff: string | null | undefined,
-  cacheScope: string,
-): ReviewParsedDiff {
+export function buildReviewParsedDiff(diff: string | null | undefined, cacheScope: string) {
   if (!diff?.trim()) {
-    return { kind: "empty" };
+    return { kind: "empty" } satisfies ReviewParsedDiff;
   }
 
   const { text, truncated } = splitTruncationMarker(diff);
   if (text.length === 0) {
-    return { kind: "empty" };
+    return { kind: "empty" } satisfies ReviewParsedDiff;
   }
 
   const notice = truncated
@@ -633,7 +618,7 @@ export function buildReviewParsedDiff(
           ? "Diff was truncated before it could be parsed completely. Showing the raw excerpt."
           : "Unsupported diff format. Showing raw patch.",
         notice,
-      };
+      } satisfies ReviewParsedDiff;
     }
 
     return {
@@ -643,7 +628,7 @@ export function buildReviewParsedDiff(
       additions: files.reduce((total, file) => total + file.additions, 0),
       deletions: files.reduce((total, file) => total + file.deletions, 0),
       notice,
-    };
+    } satisfies ReviewParsedDiff;
   } catch {
     return {
       kind: "raw",
@@ -652,14 +637,14 @@ export function buildReviewParsedDiff(
         ? "Diff was truncated before it could be parsed completely. Showing the raw excerpt."
         : "Failed to parse patch. Showing raw patch.",
       notice,
-    };
+    } satisfies ReviewParsedDiff;
   }
 }
 
 export function applyReviewDiffMetadata(
   previewDiff: ReviewParsedDiff,
   selectedSection: Pick<ReviewSectionItem, "files" | "truncated"> | null,
-): ReviewParsedDiff {
+) {
   if (previewDiff.kind === "empty") return previewDiff;
   const notice = selectedSection?.truncated
     ? `This preview exceeds the size limit. Changes shown are incomplete.${selectedSection.files ? " Counts include all changes." : ""}`

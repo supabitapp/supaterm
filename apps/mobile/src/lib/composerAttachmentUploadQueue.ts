@@ -11,10 +11,7 @@ export interface ComposerAttachmentUploadRequest {
 
 export type ComposerAttachmentUploadState = AttachmentUploadStatus;
 
-export function composerAttachmentUploadKey(
-  environmentId: EnvironmentId,
-  attachmentId: string,
-): string {
+export function composerAttachmentUploadKey(environmentId: EnvironmentId, attachmentId: string) {
   return `${environmentId}:${attachmentId}`;
 }
 
@@ -32,7 +29,7 @@ export function composerDraftEnvironmentId(
     readonly environmentId: EnvironmentId;
   }>,
   draft?: { readonly project?: { readonly environmentId: EnvironmentId } },
-): EnvironmentId | null {
+) {
   if (draftKey.startsWith("pending-task:")) {
     return (
       queuedMessages.find((message) => `pending-task:${message.messageId}` === draftKey)
@@ -63,7 +60,7 @@ type UploadServerConfig = {
 export function canUploadComposerAttachment(
   attachment: DraftComposerAttachment,
   config: UploadServerConfig | null | undefined,
-): boolean {
+) {
   if (config == null) return false;
   const { fileAttachments } = config.environment.capabilities;
   return (
@@ -79,7 +76,7 @@ export function composerAttachmentUploadBlockReason(input: {
   readonly connected: boolean;
   readonly serverConfig: UploadServerConfig | null;
   readonly states: Readonly<Record<string, ComposerAttachmentUploadState>>;
-}): string | null {
+}) {
   if (!input.connected) return null;
   for (const attachment of input.attachments) {
     if (!canUploadComposerAttachment(attachment, input.serverConfig)) continue;
@@ -94,7 +91,7 @@ export function composerAttachmentsStillUploading(input: {
   readonly attachments: ReadonlyArray<DraftComposerAttachment>;
   readonly serverConfig: UploadServerConfig | null;
   readonly states: Readonly<Record<string, ComposerAttachmentUploadState>>;
-}): boolean {
+}) {
   return input.attachments.some((attachment) => {
     if (!canUploadComposerAttachment(attachment, input.serverConfig)) return false;
     const state = input.states[composerAttachmentUploadKey(input.environmentId, attachment.id)];

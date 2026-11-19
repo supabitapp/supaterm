@@ -82,7 +82,7 @@ function stopAnchorPositioning(scroll: VisitScrollState) {
   scroll.releaseAnchorScrollHold = null;
 }
 
-function listShowsMessage(list: LegendListRef | null, messageId: MessageId): boolean {
+function listShowsMessage(list: LegendListRef | null, messageId: MessageId) {
   const rows = list?.getState().data as ReadonlyArray<MessagesTimelineRow> | undefined;
   return rows?.some((row) => row.kind === "message" && row.message.id === messageId) === true;
 }
@@ -119,10 +119,7 @@ function createTimelineFollowStore() {
   };
 }
 
-function sameRunObservation(
-  next: TimelineRunObservation,
-  previous: TimelineRunObservation | null,
-): boolean {
+function sameRunObservation(next: TimelineRunObservation, previous: TimelineRunObservation | null) {
   return (
     previous !== null &&
     next.threadKey === previous.threadKey &&

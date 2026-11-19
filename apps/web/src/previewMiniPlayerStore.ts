@@ -48,16 +48,17 @@ interface PreviewMiniPlayerStoreState {
   readonly removeThread: (ref: ScopedThreadRef) => void;
 }
 
-export function previewMiniPlayerSourceKey(source: PreviewMiniPlayerSource): string {
+export function previewMiniPlayerSourceKey(source: PreviewMiniPlayerSource) {
   return source.kind === "browser"
     ? `browser:${source.tabId}`
     : `device:${encodeURIComponent(source.hostId)}:${encodeURIComponent(source.deviceId)}`;
 }
 
-export const browserMiniPlayerSource = (tabId: string): PreviewMiniPlayerSource => ({
-  kind: "browser",
-  tabId,
-});
+export const browserMiniPlayerSource = (tabId: string) =>
+  ({
+    kind: "browser",
+    tabId,
+  }) satisfies PreviewMiniPlayerSource;
 
 export const usePreviewMiniPlayerStore = create<PreviewMiniPlayerStoreState>()((set) => ({
   byThreadKey: {},
@@ -145,7 +146,7 @@ export const usePreviewMiniPlayerStore = create<PreviewMiniPlayerStoreState>()((
 export function selectThreadPreviewMiniPlayer(
   byThreadKey: Record<string, PreviewMiniPlayerState>,
   ref: ScopedThreadRef | null | undefined,
-): PreviewMiniPlayerState | null {
+) {
   if (!ref) return null;
   return byThreadKey[scopedThreadKey(ref)] ?? null;
 }
@@ -153,7 +154,7 @@ export function selectThreadPreviewMiniPlayer(
 export function selectThreadPreviewMiniPlayerTabId(
   byThreadKey: Record<string, PreviewMiniPlayerState>,
   ref: ScopedThreadRef | null | undefined,
-): string | null {
+) {
   const source = selectThreadPreviewMiniPlayer(byThreadKey, ref)?.source;
   return source?.kind === "browser" ? source.tabId : null;
 }

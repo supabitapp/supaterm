@@ -336,7 +336,7 @@ type MintResult = AsyncResult.AsyncResult<{
   fileRevision?: string;
 }>;
 
-const minted = (n: number, fileRevision?: string): MintResult =>
+const minted = (n: number, fileRevision?: string) =>
   AsyncResult.success({
     relativeUrl: `/a/${n}`,
     expiresAt: 60 * 60_000,

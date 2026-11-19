@@ -52,7 +52,7 @@ describe("ThreadPullRequestServiceV2 project guard", () => {
 
 describe("ThreadPullRequestServiceV2 reads", () => {
   const NOW = DateTime.makeUnsafe("2026-09-20T00:00:00.000Z");
-  const threadShell = (id: string): OrchestrationV2ThreadShell => {
+  const threadShell = (id: string) => {
     const threadId = ThreadId.make(id);
     return {
       id: threadId,
@@ -85,7 +85,7 @@ describe("ThreadPullRequestServiceV2 reads", () => {
       doneAt: null,
       lastVisitedAt: null,
       deletedAt: null,
-    };
+    } satisfies OrchestrationV2ThreadShell;
   };
 
   it.effect("does not sweep branch pull requests while no client is connected", () =>

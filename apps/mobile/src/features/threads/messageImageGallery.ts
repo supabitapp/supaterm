@@ -11,7 +11,7 @@ export function messageImageGallery(
     threadId: ThreadId;
     workspaceRoot: string | null | undefined;
   },
-): FilePreviewItem[] {
+) {
   const images: FilePreviewItem[] = [];
   for (const attachment of message.attachments ?? []) {
     if (attachment.type !== "image" && imageMimeType(attachment) === null) continue;

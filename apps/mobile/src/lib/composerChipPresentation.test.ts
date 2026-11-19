@@ -94,7 +94,7 @@ const CHIP_ACCENTS = [
   ),
 ];
 
-function relativeLuminance(hex: string): number {
+function relativeLuminance(hex: string) {
   const [red = 0, green = 0, blue = 0] = [1, 3, 5].map((offset) => {
     const value = Number.parseInt(hex.slice(offset, offset + 2), 16) / 255;
     return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
@@ -102,7 +102,7 @@ function relativeLuminance(hex: string): number {
   return 0.2126 * red + 0.7152 * green + 0.0722 * blue;
 }
 
-function contrastRatio(first: string, second: string): number {
+function contrastRatio(first: string, second: string) {
   const [darker = 0, lighter = 0] = [relativeLuminance(first), relativeLuminance(second)].sort(
     (a, b) => a - b,
   );

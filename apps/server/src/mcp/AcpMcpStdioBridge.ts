@@ -11,7 +11,7 @@ class AcpMcpBridgeError extends Error {
   readonly _tag = "AcpMcpBridgeError";
 }
 
-const bridgeError = (cause: unknown): AcpMcpBridgeError =>
+const bridgeError: (cause: unknown) => AcpMcpBridgeError = (cause: unknown) =>
   cause instanceof AcpMcpBridgeError
     ? cause
     : new AcpMcpBridgeError(cause instanceof Error ? cause.message : String(cause), { cause });
@@ -33,23 +33,32 @@ export interface AcpMcpStdioBridgeOptions {
   readonly fetchImplementation?: (url: string, init?: RequestInit) => Promise<Response>;
 }
 
-function asEnvelope(value: unknown): JsonRpcEnvelope | null {
-  return typeof value === "object" && value !== null ? (value as JsonRpcEnvelope) : null;
+function asEnvelope(value: unknown): JsonRpcEnvelope | null;
+function asEnvelope(value: unknown) {
+  return (
+    typeof value === "object" && value !== null ? (value as JsonRpcEnvelope) : null
+  ) satisfies JsonRpcEnvelope | null;
 }
 
-function protocolVersionOf(entry: unknown): string | null {
+function protocolVersionOf(entry: unknown): string | null;
+function protocolVersionOf(entry: unknown) {
   const result = asEnvelope(entry)?.result;
   const version =
     typeof result === "object" && result !== null
       ? (result as { readonly protocolVersion?: unknown }).protocolVersion
       : undefined;
-  return typeof version === "string" && version.length > 0 ? version : null;
+  return (typeof version === "string" && version.length > 0 ? version : null) satisfies
+    | string
+    | null;
 }
 
-function replyToServerRequest(envelope: JsonRpcEnvelope): unknown {
-  return envelope.method === "ping"
-    ? { jsonrpc: "2.0", id: envelope.id, result: {} }
-    : { jsonrpc: "2.0", id: envelope.id, error: { code: -32601, message: "Method not found" } };
+function replyToServerRequest(envelope: JsonRpcEnvelope): unknown;
+function replyToServerRequest(envelope: JsonRpcEnvelope) {
+  return (
+    envelope.method === "ping"
+      ? { jsonrpc: "2.0", id: envelope.id, result: {} }
+      : { jsonrpc: "2.0", id: envelope.id, error: { code: -32601, message: "Method not found" } }
+  ) satisfies unknown;
 }
 
 export interface McpToolSessionOptions {
@@ -71,9 +80,11 @@ export interface McpToolSession {
  * One initialized MCP session over Supaterm's HTTP endpoint, terminated when
  * the scope closes. Used by the ACP terminal fallback and `supaterm thread`.
  */
-export const mcpToolSession = (
+export const mcpToolSession: (
   options: McpToolSessionOptions,
-): Effect.Effect<McpToolSession, AcpMcpBridgeError, Scope.Scope> => {
+) => Effect.Effect<McpToolSession, AcpMcpBridgeError, Scope.Scope> = (
+  options: McpToolSessionOptions,
+) => {
   const fetchImplementation = options.fetchImplementation ?? fetch;
   let sessionId: string | null = null;
   let protocolVersion: string | null = null;
@@ -86,55 +97,56 @@ export const mcpToolSession = (
     ...(protocolVersion === null ? {} : { "mcp-protocol-version": protocolVersion }),
   });
 
-  const send = Effect.fn("AcpMcpStdioBridge.send")(function* (
-    message: unknown,
-  ): Effect.fn.Return<ReadonlyArray<unknown>, AcpMcpBridgeError> {
-    const response = yield* Effect.tryPromise({
-      try: (signal) =>
-        fetchImplementation(options.endpoint, {
-          method: "POST",
-          headers: { "content-type": "application/json", ...headers() },
-          body: JSON.stringify(message),
-          signal,
-        }),
-      catch: bridgeError,
-    });
-    sessionId = response.headers.get("mcp-session-id") ?? sessionId;
-    if (!response.ok) {
-      yield* discardResponseBody(response);
-      return yield* Effect.fail(
-        new AcpMcpBridgeError(`Supaterm MCP endpoint responded with HTTP ${response.status}.`),
-      );
-    }
-    const payloads: Array<unknown> = [];
-    yield* Stream.runForEach(responsePayloads(response, bridgeError), (payload) => {
-      protocolVersion = protocolVersionOf(payload) ?? protocolVersion;
-      const envelope = asEnvelope(payload);
-      if (envelope?.id !== undefined && typeof envelope.method === "string") {
-        return send(replyToServerRequest(envelope)).pipe(Effect.asVoid);
+  const send: (message: unknown) => Effect.Effect<ReadonlyArray<unknown>, AcpMcpBridgeError> =
+    Effect.fn("AcpMcpStdioBridge.send")(function* (message: unknown) {
+      const response = yield* Effect.tryPromise({
+        try: (signal) =>
+          fetchImplementation(options.endpoint, {
+            method: "POST",
+            headers: { "content-type": "application/json", ...headers() },
+            body: JSON.stringify(message),
+            signal,
+          }),
+        catch: bridgeError,
+      });
+      sessionId = response.headers.get("mcp-session-id") ?? sessionId;
+      if (!response.ok) {
+        yield* discardResponseBody(response);
+        return yield* Effect.fail(
+          new AcpMcpBridgeError(`Supaterm MCP endpoint responded with HTTP ${response.status}.`),
+        );
       }
-      payloads.push(payload);
-      return Effect.void;
+      const payloads: Array<unknown> = [];
+      yield* Stream.runForEach(responsePayloads(response, bridgeError), (payload) => {
+        protocolVersion = protocolVersionOf(payload) ?? protocolVersion;
+        const envelope = asEnvelope(payload);
+        if (envelope?.id !== undefined && typeof envelope.method === "string") {
+          return send(replyToServerRequest(envelope)).pipe(Effect.asVoid);
+        }
+        payloads.push(payload);
+        return Effect.void;
+      });
+      return payloads;
     });
-    return payloads;
-  });
 
-  const request = Effect.fn("AcpMcpStdioBridge.request")(function* (
+  const request: (
     method: string,
     params: unknown,
-  ): Effect.fn.Return<JsonRpcEnvelope, AcpMcpBridgeError> {
-    const id = `supaterm-cli-${nextId++}`;
-    const responses = yield* send({ jsonrpc: "2.0", id, method, params });
-    const envelope = asEnvelope(responses.find((entry) => asEnvelope(entry)?.id === id));
-    if (envelope === null || envelope.error !== undefined) {
-      return yield* Effect.fail(
-        new AcpMcpBridgeError(
-          `Supaterm MCP ${method} failed${envelope?.error === undefined ? "." : `: ${JSON.stringify(envelope.error)}`}`,
-        ),
-      );
-    }
-    return envelope;
-  });
+  ) => Effect.Effect<JsonRpcEnvelope, AcpMcpBridgeError> = Effect.fn("AcpMcpStdioBridge.request")(
+    function* (method: string, params: unknown) {
+      const id = `supaterm-cli-${nextId++}`;
+      const responses = yield* send({ jsonrpc: "2.0", id, method, params });
+      const envelope = asEnvelope(responses.find((entry) => asEnvelope(entry)?.id === id));
+      if (envelope === null || envelope.error !== undefined) {
+        return yield* Effect.fail(
+          new AcpMcpBridgeError(
+            `Supaterm MCP ${method} failed${envelope?.error === undefined ? "." : `: ${JSON.stringify(envelope.error)}`}`,
+          ),
+        );
+      }
+      return envelope;
+    },
+  );
 
   const terminate = Effect.suspend(() =>
     sessionId === null
@@ -172,39 +184,42 @@ export function callAcpMcpTool(options: {
   readonly tool: string;
   readonly arguments: Readonly<Record<string, unknown>>;
   readonly fetchImplementation?: (url: string, init?: RequestInit) => Promise<Response>;
-}): Effect.Effect<unknown, AcpMcpBridgeError> {
+}): Effect.Effect<unknown, AcpMcpBridgeError>;
+export function callAcpMcpTool(options: {
+  readonly endpoint: string;
+  readonly authorization: string;
+  readonly tool: string;
+  readonly arguments: Readonly<Record<string, unknown>>;
+  readonly fetchImplementation?: (url: string, init?: RequestInit) => Promise<Response>;
+}) {
   return mcpToolSession({ ...options, clientName: "supaterm-acp-cli" }).pipe(
     Effect.flatMap((session) => session.call(options.tool, options.arguments)),
     Effect.scoped,
-  );
+  ) satisfies Effect.Effect<unknown, AcpMcpBridgeError>;
 }
 
-export function runAcpMcpStdioBridge(options: AcpMcpStdioBridgeOptions): Effect.Effect<void> {
+export function runAcpMcpStdioBridge(options: AcpMcpStdioBridgeOptions) {
   const fetchImplementation = options.fetchImplementation ?? fetch;
   return Effect.gen(function* () {
     let sessionId: string | null = null;
     let protocolVersion: string | null = null;
     const running = new Set<Fiber.Fiber<void>>();
 
-    const writeMessage = (message: unknown): Effect.Effect<void> =>
+    const writeMessage = (message: unknown) =>
       Effect.sync(() => {
         options.output.write(`${JSON.stringify(message)}\n`);
       });
 
     const handleServerPayload = Effect.fn("AcpMcpStdioBridge.handleServerPayload")(function* (
       payload: unknown,
-    ): Effect.fn.Return<void> {
+    ) {
       for (const entry of Array.isArray(payload) ? payload : [payload]) {
         protocolVersion = protocolVersionOf(entry) ?? protocolVersion;
         yield* writeMessage(entry);
       }
     });
 
-    const respondWithError = (
-      requestId: unknown,
-      message: string,
-      code = -32603,
-    ): Effect.Effect<void> =>
+    const respondWithError = (requestId: unknown, message: string, code = -32603) =>
       writeMessage({
         jsonrpc: "2.0",
         id: requestId ?? null,
@@ -259,9 +274,7 @@ export function runAcpMcpStdioBridge(options: AcpMcpStdioBridgeOptions): Effect.
     let sessionBarrier: Effect.Effect<void> = Effect.void;
     let sessionBarrierPending = false;
 
-    const launch = Effect.fn("AcpMcpStdioBridge.launch")(function* (
-      task: Effect.Effect<void>,
-    ): Effect.fn.Return<void> {
+    const launch = Effect.fn("AcpMcpStdioBridge.launch")(function* (task: Effect.Effect<void>) {
       const fiber = yield* Effect.forkChild(task);
       running.add(fiber);
       yield* Effect.forkChild(
@@ -275,11 +288,11 @@ export function runAcpMcpStdioBridge(options: AcpMcpStdioBridgeOptions): Effect.
       );
     });
 
-    const dispatch = Effect.fn("AcpMcpStdioBridge.dispatch")(function* (
-      line: string,
-    ): Effect.fn.Return<void> {
+    const dispatch = Effect.fn("AcpMcpStdioBridge.dispatch")(function* (line: string) {
       if (line.trim().length === 0) return;
-      const parsed = yield* Effect.try((): unknown => JSON.parse(line)).pipe(Effect.result);
+      const parsed = yield* Effect.try(() => JSON.parse(line) satisfies unknown as unknown).pipe(
+        Effect.result,
+      );
       if (Result.isFailure(parsed)) {
         return yield* respondWithError(null, "Parse error", -32700);
       }
@@ -328,10 +341,14 @@ export function runAcpMcpStdioBridge(options: AcpMcpStdioBridgeOptions): Effect.
 }
 
 /** Avoid heavy imports on the ACP first-message path. */
+export function runAcpMcpCliFastPath(
+  command: "acp-mcp-bridge" | "acp-mcp-call",
+  args: ReadonlyArray<string>,
+): Promise<void>;
 export async function runAcpMcpCliFastPath(
   command: "acp-mcp-bridge" | "acp-mcp-call",
   args: ReadonlyArray<string>,
-): Promise<void> {
+) {
   const endpoint = process.env.SUPATERM_ACP_MCP_ENDPOINT;
   const authorization = process.env.SUPATERM_ACP_MCP_AUTHORIZATION;
   if (endpoint === undefined || authorization === undefined) {

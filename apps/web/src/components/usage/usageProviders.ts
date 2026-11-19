@@ -57,7 +57,7 @@ export function providersWithUsage(
     readonly costUsd: number;
     readonly totalTokens: number;
   }[],
-): readonly UsageProviderKind[] {
+) {
   const active = new Set(
     totals.flatMap((entry) => (entry.totalTokens > 0 || entry.costUsd > 0 ? [entry.provider] : [])),
   );
@@ -72,7 +72,7 @@ export function rankProvidersByMetric(
     readonly totalTokens: number;
   }[],
   metric: UsageMetric,
-): readonly UsageProviderKind[] {
+) {
   const field = metric === "cost" ? "costUsd" : "totalTokens";
   const value = (provider: UsageProviderKind) =>
     totals.find((entry) => entry.provider === provider)?.[field] ?? 0;

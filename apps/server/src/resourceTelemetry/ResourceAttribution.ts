@@ -22,11 +22,11 @@ export class ResourceAttribution extends Context.Service<
   }
 >()("supaterm/resourceTelemetry/ResourceAttribution") {}
 
-function key(input: Pick<ResourceAttributionRecord, "component" | "operation">): string {
+function key(input: Pick<ResourceAttributionRecord, "component" | "operation">) {
   return `${input.component}\u0000${input.operation}`;
 }
 
-function nonNegativeInteger(value: number | undefined, fallback: number): number {
+function nonNegativeInteger(value: number | undefined, fallback: number) {
   if (value === undefined) return fallback;
   if (!Number.isFinite(value)) return 0;
   return Math.max(0, Math.round(value));

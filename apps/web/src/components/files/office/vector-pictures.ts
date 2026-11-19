@@ -12,7 +12,7 @@ export type VectorRequest = {
 export type VectorBitmap = { readonly asset: string; readonly bitmap: ImageBitmap | undefined };
 
 /** Rasterizes a worker's SVG picture in the window. */
-export async function rasterize(request: VectorRequest): Promise<VectorBitmap> {
+export async function rasterize(request: VectorRequest) {
   const url = URL.createObjectURL(request.blob);
   const image = new Image();
   image.src = url;

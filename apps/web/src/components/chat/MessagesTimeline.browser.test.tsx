@@ -104,7 +104,7 @@ const CREATED_AT = "2026-03-17T19:12:28.000Z";
 type TimelineProps = ComponentProps<typeof MessagesTimeline>;
 type Entry = TimelineProps["timelineEntries"][number];
 
-function baseProps(): Omit<TimelineProps, "timelineEntries"> {
+function baseProps() {
   return {
     isWorking: false,
     listRef: createRef<LegendListRef | null>(),
@@ -132,14 +132,14 @@ function baseProps(): Omit<TimelineProps, "timelineEntries"> {
     liveFollowEnabled: true,
     onIsAtEndChange: () => {},
     onJumpToPinnedMessage: () => {},
-  };
+  } satisfies Omit<TimelineProps, "timelineEntries">;
 }
 
 function message(
   text: string,
   overrides: Partial<Extract<Entry, { kind: "message" }>["message"]> = {},
   id = "message-1",
-): Entry {
+) {
   return {
     id: `entry-${id}`,
     kind: "message",
@@ -154,10 +154,10 @@ function message(
       streaming: false,
       ...overrides,
     },
-  };
+  } satisfies Entry;
 }
 
-function work(id: string, entry: Record<string, unknown>): Entry {
+function work(id: string, entry: Record<string, unknown>) {
   return {
     id,
     kind: "work",
@@ -375,31 +375,28 @@ describe("MessagesTimeline work rows", () => {
       setup();
       const now = DateTime.makeUnsafe(CREATED_AT);
       const childThreadId = ThreadId.make("shared-child");
-      const task = (
-        id: string,
-        status: OrchestrationV2Subagent["status"],
-        result: string,
-      ): OrchestrationV2Subagent => ({
-        id: NodeId.make(id),
-        threadId: ThreadId.make("thread-1"),
-        runId: null,
-        parentNodeId: NodeId.make("parent-root"),
-        origin: "app_owned",
-        createdBy: "agent",
-        driver: ProviderDriverKind.make("claudeAgent"),
-        providerInstanceId: ProviderInstanceId.make("claudeAgent"),
-        providerThreadId: null,
-        childThreadId,
-        nativeTaskRef: null,
-        prompt: "Simplify delivery",
-        title: "Simplify delivery",
-        model: null,
-        status,
-        result,
-        startedAt: now,
-        completedAt: now,
-        updatedAt: now,
-      });
+      const task = (id: string, status: OrchestrationV2Subagent["status"], result: string) =>
+        ({
+          id: NodeId.make(id),
+          threadId: ThreadId.make("thread-1"),
+          runId: null,
+          parentNodeId: NodeId.make("parent-root"),
+          origin: "app_owned",
+          createdBy: "agent",
+          driver: ProviderDriverKind.make("claudeAgent"),
+          providerInstanceId: ProviderInstanceId.make("claudeAgent"),
+          providerThreadId: null,
+          childThreadId,
+          nativeTaskRef: null,
+          prompt: "Simplify delivery",
+          title: "Simplify delivery",
+          model: null,
+          status,
+          result,
+          startedAt: now,
+          completedAt: now,
+          updatedAt: now,
+        }) satisfies OrchestrationV2Subagent;
       const tasks = [
         task("original", "interrupted", "Old interrupted progress"),
         task("continued", "completed", "Final implementation report"),
@@ -1176,7 +1173,7 @@ describe("MessagesTimeline citations", () => {
     });
     const superseded = attempt("attempt-1", 1, "superseded");
     const active = attempt("attempt-2", 2, "running");
-    const inAttempt = (entry: Entry, entryAttempt: typeof superseded): Entry => ({
+    const inAttempt = (entry: Entry, entryAttempt: typeof superseded) => ({
       ...entry,
       attempt: entryAttempt,
     });
@@ -1993,7 +1990,7 @@ describe("compact reasoning math", () => {
   });
 
   it("stops reading the tree once the preview is full", () => {
-    const beyondCap = (): string => {
+    const beyondCap = () => {
       throw new Error("read beyond cap");
     };
     const head = "x".repeat(THOUGHT_PREVIEW_MAX_LENGTH - 2);

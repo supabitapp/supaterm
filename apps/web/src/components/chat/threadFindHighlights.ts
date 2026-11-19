@@ -14,7 +14,7 @@ interface ThreadFindRange {
   readonly range: Range;
 }
 
-export function collectThreadFindRanges(container: HTMLElement, query: string): ThreadFindRange[] {
+export function collectThreadFindRanges(container: HTMLElement, query: string) {
   if (query.length === 0) return [];
 
   const ranges: ThreadFindRange[] = [];
@@ -74,7 +74,7 @@ export function collectThreadFindRanges(container: HTMLElement, query: string): 
 
 const FOLD_SELECTOR = "[hidden], [data-thread-find-fold]";
 
-function foldsHiding(range: Range, container: HTMLElement): Element[] {
+function foldsHiding(range: Range, container: HTMLElement) {
   const folds: Element[] = [];
   for (
     let fold = range.startContainer.parentElement?.closest(FOLD_SELECTOR);
@@ -90,13 +90,13 @@ function foldsHiding(range: Range, container: HTMLElement): Element[] {
   return folds;
 }
 
-function revealFolded(range: Range, container: HTMLElement): boolean {
+function revealFolded(range: Range, container: HTMLElement) {
   const folds = foldsHiding(range, container);
   for (const fold of folds) fold.dispatchEvent(new Event("beforematch"));
   return folds.length > 0;
 }
 
-function affectsSearchableText(record: MutationRecord): boolean {
+function affectsSearchableText(record: MutationRecord) {
   if (record.type === "attributes") return true;
   const target =
     record.target.nodeType === 1 ? (record.target as Element) : record.target.parentElement;
@@ -115,7 +115,7 @@ export function useThreadFindHighlights(input: {
   readonly activeRowId: string | null;
   readonly activeOccurrence: number;
   readonly onActiveRange: (range: Range | null) => void;
-}): void {
+}) {
   const { container, query, activeRowId, activeOccurrence, onActiveRange } = input;
 
   const rangesRef = useRef<readonly ThreadFindRange[]>([]);

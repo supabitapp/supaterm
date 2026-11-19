@@ -1,5 +1,5 @@
 /** Resolves web references without inheriting the desktop renderer's custom app scheme. */
-export function resolveProtocolRelativeMediaUrl(src: string): string {
+export function resolveProtocolRelativeMediaUrl(src: string) {
   if (!src.startsWith("//")) return src;
   const protocol =
     typeof window !== "undefined" && window.location.protocol === "http:" ? "http:" : "https:";
@@ -19,7 +19,7 @@ function decodePercentBytes(payload: string) {
   );
 }
 
-function readDataUrlBlob(src: string): Blob {
+function readDataUrlBlob(src: string) {
   const url = src.split("#", 1)[0] ?? src;
   const comma = url.indexOf(",");
   const [mimeType = "", ...parameters] = url.slice("data:".length, comma).split(";");
@@ -36,7 +36,7 @@ function readDataUrlBlob(src: string): Blob {
   }
 }
 
-async function fetchMediaBlob(src: string): Promise<Blob> {
+async function fetchMediaBlob(src: string) {
   const response = await fetch(src).catch(() => null);
   if (response?.ok) return response.blob();
   const desktop = typeof window === "undefined" ? undefined : window.desktopBridge;
@@ -54,7 +54,7 @@ async function fetchMediaBlob(src: string): Promise<Blob> {
   );
 }
 
-async function readMediaBlob(src: string): Promise<Blob> {
+async function readMediaBlob(src: string) {
   if (/^data:/i.test(src)) return readDataUrlBlob(src);
   const blob = await fetchMediaBlob(src);
   if (blob.type.split(";", 1)[0] === "text/html") {
@@ -63,7 +63,7 @@ async function readMediaBlob(src: string): Promise<Blob> {
   return blob;
 }
 
-export async function downloadMedia(src: string, name: string): Promise<void> {
+export async function downloadMedia(src: string, name: string) {
   const url = URL.createObjectURL(await readMediaBlob(src));
   try {
     const anchor = document.createElement("a");
@@ -75,7 +75,7 @@ export async function downloadMedia(src: string, name: string): Promise<void> {
   }
 }
 
-export async function readMediaPng(src: string): Promise<Blob> {
+export async function readMediaPng(src: string) {
   const blob = await readMediaBlob(src);
   if (blob.type.split(";", 1)[0] === "image/png") return blob;
 

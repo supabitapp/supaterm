@@ -20,10 +20,10 @@ function patch(path: string, line: string) {
   return `diff --git a/${path} b/${path}\n--- a/${path}\n+++ b/${path}\n@@ -1 +1 @@\n-old\n+${line}\n`;
 }
 
-function files(diff: string): ReadonlyArray<ReviewRenderableFile> {
+function files(diff: string) {
   const parsed = buildReviewParsedDiff(diff, "turn:3");
   if (parsed.kind !== "files") throw new Error("Expected structured diff");
-  return parsed.files;
+  return parsed.files satisfies ReadonlyArray<ReviewRenderableFile>;
 }
 
 function visibility(current: ReadonlyArray<ReviewRenderableFile>) {

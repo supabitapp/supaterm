@@ -64,7 +64,7 @@ let registeredCommandsSnapshot: {
   readonly commands: ReadonlySet<HardwareKeyboardCommand>;
 } | null = null;
 
-function getRegisteredCommandsSnapshot(): ReadonlySet<HardwareKeyboardCommand> {
+function getRegisteredCommandsSnapshot() {
   const version = getHardwareKeyboardCommandRegistrationVersion();
   if (registeredCommandsSnapshot === null || registeredCommandsSnapshot.version !== version) {
     registeredCommandsSnapshot = { version, commands: getRegisteredHardwareKeyboardCommands() };

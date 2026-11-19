@@ -22,7 +22,7 @@ function makeStubInstance(input: {
   readonly label: string;
   readonly snapshot: DesktopBackendSnapshot;
   readonly start?: Effect.Effect<void>;
-}): DesktopBackendPool.DesktopBackendInstance {
+}) {
   return {
     id: input.id,
     label: Effect.succeed(input.label),

@@ -139,7 +139,7 @@ const decodeViewer = Schema.decodeUnknownOption(
   Schema.fromJsonString(Schema.Struct({ login: Schema.String })),
 );
 
-function environmentTokenVariable(host: string, environment: NodeJS.ProcessEnv): string | null {
+function environmentTokenVariable(host: string, environment: NodeJS.ProcessEnv) {
   const token = GitHubCredentials.environmentToken(host, environment);
   if (token === null) return null;
   const names =
@@ -158,7 +158,7 @@ interface DiscoveryTokenHost {
 function discoveryTokenHosts(
   settings: GitHubClient.GitHubSettings,
   environment: NodeJS.ProcessEnv,
-): ReadonlyArray<DiscoveryTokenHost> {
+) {
   const enabledSavedHosts = Object.entries(settings.tokens)
     .flatMap(([host, token]) =>
       token.trim() !== "" && settings.hosts[host]?.enabled !== false

@@ -29,13 +29,10 @@ import * as Clipboard from "expo-clipboard";
 
 import * as Dialog from "../../components/ui/Dialog";
 import { tryOpenExternalUrl } from "../../lib/openExternalUrl";
-import type { MenuProps } from "../../components/ui/Menu.types";
 import type { EnvironmentRuntimeState } from "../../state/remote-runtime-types";
 import { useEnvironmentScope } from "../../state/session";
 import { threadEnvironment } from "../../state/threads";
 import { useAtomCommand } from "../../state/use-atom-command";
-
-type MenuAction = MenuProps["actions"][number];
 
 export function useLinkedPullRequestActions(input: {
   readonly thread: EnvironmentThreadShell | null;
@@ -115,7 +112,7 @@ export function useLinkedPullRequestActions(input: {
     });
   };
 
-  const menuActions = (link: ThreadPullRequestLink): MenuAction[] => {
+  const menuActions = (link: ThreadPullRequestLink) => {
     const open = link.snapshot === null || link.snapshot.state === "open";
     const watching = link.watch !== undefined;
     return [

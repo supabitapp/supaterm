@@ -48,22 +48,20 @@ export interface ProviderInstanceEntry {
 }
 
 /** Status dots share one corner per user, so a badge on one row can't move only that row's dot. */
-export function hasInstanceBadge(entries: ReadonlyArray<ProviderInstanceEntry>): boolean {
+export function hasInstanceBadge(entries: ReadonlyArray<ProviderInstanceEntry>) {
   return entries.some((entry) => shouldShowInstanceBadge(entry, entries));
 }
 
 /** Disabled instances may retain ready status until reconciliation. */
-export function isProviderInstancePickerReady(entry: ProviderInstanceEntry): boolean {
+export function isProviderInstancePickerReady(entry: ProviderInstanceEntry) {
   return entry.enabled && entry.isAvailable && entry.status === "ready";
 }
 
-export function isProviderInstancePickerVisible(entry: ProviderInstanceEntry): boolean {
+export function isProviderInstancePickerVisible(entry: ProviderInstanceEntry) {
   return entry.enabled;
 }
 
-export function deriveProviderInstanceEntries(
-  providers: ReadonlyArray<ServerProvider>,
-): ReadonlyArray<ProviderInstanceEntry> {
+export function deriveProviderInstanceEntries(providers: ReadonlyArray<ServerProvider>) {
   return providers.map((snapshot) => {
     const instanceId = snapshot.instanceId;
     const driverKind = snapshot.driver;
@@ -103,7 +101,7 @@ export function deriveProviderEntriesByEnvironment(
       Pick<ServerSettings, "providerInstances" | "projectSettingsOverrides">?,
     ]
   >,
-): ReadonlyMap<string, ReadonlyMap<string, ProviderInstanceEntry>> {
+) {
   const byEnvironment = new Map<string, ReadonlyMap<string, ProviderInstanceEntry>>();
   for (const [environmentId, providers, settings] of providersByEnvironment) {
     const derived = deriveProviderInstanceEntries(providers);
@@ -119,7 +117,7 @@ export function deriveProviderEntriesByEnvironment(
 export function brandProviderInstanceEntries(
   entries: ReadonlyArray<ProviderInstanceEntry>,
   settings: Pick<ServerSettings, "providerInstances">,
-): ReadonlyArray<ProviderInstanceEntry> {
+) {
   return entries.map((entry) => applyProviderInstanceBranding(entry, settings));
 }
 
@@ -128,7 +126,7 @@ export function applyProviderInstanceSettings(
   entries: ReadonlyArray<ProviderInstanceEntry>,
   settings: Pick<ServerSettings, "providerInstances" | "projectSettingsOverrides">,
   projectId: ProjectId | null,
-): ReadonlyArray<ProviderInstanceEntry> {
+) {
   return entries.map((entry) => {
     const enabled = resolveProjectProviderInstanceEnabled(settings, projectId, entry.instanceId);
     return applyProviderInstanceBranding(
@@ -141,7 +139,7 @@ export function applyProviderInstanceSettings(
 function applyProviderInstanceBranding(
   entry: ProviderInstanceEntry,
   settings: Pick<ServerSettings, "providerInstances">,
-): ProviderInstanceEntry {
+) {
   const explicitInstance = Object.hasOwn(settings.providerInstances, entry.instanceId)
     ? settings.providerInstances[entry.instanceId]
     : undefined;
@@ -171,7 +169,7 @@ export function providerInstanceEntriesFor(
   providers: ReadonlyArray<ServerProvider>,
   settings: Pick<ServerSettings, "providerInstances" | "projectSettingsOverrides">,
   projectId: ProjectId | null,
-): ReadonlyArray<ProviderInstanceEntry> {
+) {
   return pipe(
     deriveProviderInstanceEntries(providers),
     (entries) => applyProviderInstanceSettings(entries, settings, projectId),
@@ -179,9 +177,7 @@ export function providerInstanceEntriesFor(
   );
 }
 
-function sortProviderInstanceEntries(
-  entries: ReadonlyArray<ProviderInstanceEntry>,
-): ReadonlyArray<ProviderInstanceEntry> {
+function sortProviderInstanceEntries(entries: ReadonlyArray<ProviderInstanceEntry>) {
   const byKind = new Map<ProviderDriverKind, ProviderInstanceEntry[]>();
   for (const entry of entries) {
     const bucket = byKind.get(entry.driverKind);
@@ -203,14 +199,14 @@ function sortProviderInstanceEntries(
 function getProviderInstanceEntry(
   providers: ReadonlyArray<ServerProvider>,
   instanceId: ProviderInstanceId,
-): ProviderInstanceEntry | undefined {
+) {
   return deriveProviderInstanceEntries(providers).find((entry) => entry.instanceId === instanceId);
 }
 
 export function getDefaultProviderInstanceModel(
   providers: ReadonlyArray<ServerProvider>,
   instanceId: ProviderInstanceId,
-): string | undefined {
+) {
   const entry = getProviderInstanceEntry(providers, instanceId);
   if (!entry) return undefined;
   return (
@@ -221,13 +217,13 @@ export function getDefaultProviderInstanceModel(
   );
 }
 
-const isSelectableProviderInstanceEntry = (entry: ProviderInstanceEntry): boolean =>
+const isSelectableProviderInstanceEntry = (entry: ProviderInstanceEntry) =>
   entry.enabled && entry.isAvailable;
 
 export function resolveSelectableProviderInstanceEntry(
   entries: ReadonlyArray<ProviderInstanceEntry>,
   instanceId: ProviderInstanceId | undefined,
-): ProviderInstanceEntry | undefined {
+) {
   if (instanceId !== undefined) {
     const requested = entries.find((entry) => entry.instanceId === instanceId);
     if (requested && isSelectableProviderInstanceEntry(requested)) {
@@ -243,7 +239,7 @@ export function resolveSelectableProviderInstanceEntry(
 export function resolveSelectableProviderInstance(
   providers: ReadonlyArray<ServerProvider>,
   instanceId: ProviderInstanceId | undefined,
-): ProviderInstanceId | undefined {
+) {
   const entries = deriveProviderInstanceEntries(providers);
   return resolveSelectableProviderInstanceEntry(entries, instanceId)?.instanceId;
 }
@@ -251,7 +247,7 @@ export function resolveSelectableProviderInstance(
 export function resolveDefaultProviderModelSelection(
   providers: ReadonlyArray<ServerProvider>,
   selection: ModelSelection | null | undefined,
-): ModelSelection | null {
+) {
   const instanceId = resolveSelectableProviderInstance(providers, selection?.instanceId);
   if (instanceId === undefined) return null;
   if (selection?.instanceId === instanceId) return selection;
@@ -263,7 +259,7 @@ export function resolveProjectDefaultProviderModelSelection(
   providers: ReadonlyArray<ServerProvider>,
   settings: ServerSettings,
   projectId: ProjectId | null,
-): ModelSelection | null {
+) {
   const entries = providerInstanceEntriesFor(providers, settings, projectId);
   const entry =
     resolveSelectableProviderInstanceEntry(

@@ -1,4 +1,3 @@
-import type { UsageTokenTotals } from "@supaterm/contracts";
 import * as Effect from "effect/Effect";
 import * as Path from "effect/Path";
 
@@ -16,7 +15,7 @@ import * as HostProcess from "@supaterm/shared/HostProcess";
 
 export const GROK_COST_USD_TICKS_PER_DOLLAR = 10_000_000_000;
 
-function grokCostTicksToUsd(ticks: unknown): number | null {
+function grokCostTicksToUsd(ticks: unknown) {
   if (typeof ticks !== "number" || !Number.isFinite(ticks) || ticks < 0) return null;
   return ticks / GROK_COST_USD_TICKS_PER_DOLLAR;
 }
@@ -30,7 +29,7 @@ interface GrokUsageTotals {
   readonly costUsdTicks: number | null;
 }
 
-function readGrokUsageTotals(value: unknown): GrokUsageTotals | null {
+function readGrokUsageTotals(value: unknown) {
   if (typeof value !== "object" || value === null) return null;
   const record = value as Record<string, unknown>;
   return {
@@ -46,7 +45,7 @@ function readGrokUsageTotals(value: unknown): GrokUsageTotals | null {
   };
 }
 
-function grokTotalsToUsage(totals: GrokUsageTotals): UsageTokenTotals {
+function grokTotalsToUsage(totals: GrokUsageTotals) {
   const cachedInputTokens = totals.cachedReadTokens;
   const cacheCreationTokens = totals.cacheCreationTokens;
   const uncachedInputTokens = Math.max(
@@ -63,31 +62,32 @@ function grokTotalsToUsage(totals: GrokUsageTotals): UsageTokenTotals {
   };
 }
 
-export function parseGrokLine(line: string): readonly UsageRecord[] {
+export function parseGrokLine(line: string) {
   let parsed: unknown;
   try {
     parsed = JSON.parse(line);
   } catch {
-    return [];
+    return [] satisfies readonly UsageRecord[];
   }
-  return parseGrokRecord(parsed);
+  return parseGrokRecord(parsed) satisfies readonly UsageRecord[];
 }
 
-function parseGrokRecord(parsed: unknown): readonly UsageRecord[] {
-  if (typeof parsed !== "object" || parsed === null) return [];
+function parseGrokRecord(parsed: unknown) {
+  if (typeof parsed !== "object" || parsed === null) return [] satisfies readonly UsageRecord[];
 
   const record = parsed as Record<string, unknown>;
   const params = record["params"];
-  if (typeof params !== "object" || params === null) return [];
+  if (typeof params !== "object" || params === null) return [] satisfies readonly UsageRecord[];
   const paramsRecord = params as Record<string, unknown>;
 
   const update = paramsRecord["update"];
-  if (typeof update !== "object" || update === null) return [];
+  if (typeof update !== "object" || update === null) return [] satisfies readonly UsageRecord[];
   const updateRecord = update as Record<string, unknown>;
-  if (updateRecord["sessionUpdate"] !== "turn_completed") return [];
+  if (updateRecord["sessionUpdate"] !== "turn_completed")
+    return [] satisfies readonly UsageRecord[];
 
   const usage = updateRecord["usage"];
-  if (typeof usage !== "object" || usage === null) return [];
+  if (typeof usage !== "object" || usage === null) return [] satisfies readonly UsageRecord[];
   const usageRecord = usage as Record<string, unknown>;
 
   const sessionId = typeof paramsRecord["sessionId"] === "string" ? paramsRecord["sessionId"] : "";
@@ -107,10 +107,10 @@ function parseGrokRecord(parsed: unknown): readonly UsageRecord[] {
       timestampMs = timestamp > 1e12 ? timestamp : timestamp * 1000;
     }
   }
-  if (timestampMs === null) return [];
+  if (timestampMs === null) return [] satisfies readonly UsageRecord[];
 
   const topLevel = readGrokUsageTotals(usageRecord);
-  if (topLevel === null) return [];
+  if (topLevel === null) return [] satisfies readonly UsageRecord[];
 
   const modelUsage = usageRecord["modelUsage"];
   const modelEntries: Array<{ model: string; totals: GrokUsageTotals }> = [];
@@ -124,7 +124,7 @@ function parseGrokRecord(parsed: unknown): readonly UsageRecord[] {
   }
 
   if (modelEntries.length === 0) {
-    if (totalTokens(grokTotalsToUsage(topLevel)) === 0) return [];
+    if (totalTokens(grokTotalsToUsage(topLevel)) === 0) return [] satisfies readonly UsageRecord[];
     return [
       {
         provider: "grok",
@@ -136,7 +136,7 @@ function parseGrokRecord(parsed: unknown): readonly UsageRecord[] {
         speed: "standard",
         dedupeKey: promptId === null ? null : `${sessionId}:${promptId}:${timestampMs}:grok`,
       },
-    ];
+    ] satisfies readonly UsageRecord[];
   }
 
   const topLevelCostUsd = grokCostTicksToUsd(topLevel.costUsdTicks);
@@ -176,7 +176,7 @@ function parseGrokRecord(parsed: unknown): readonly UsageRecord[] {
         promptId === null ? null : `${sessionId}:${promptId}:${timestampMs}:${entry.model}`,
     });
   }
-  return results;
+  return results satisfies readonly UsageRecord[];
 }
 
 export const grokUsageFormat: TranscriptUsageFormat<void> = {

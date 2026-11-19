@@ -45,25 +45,26 @@ export interface PaneLayoutSize {
   readonly height: number;
 }
 
-export function paneTargetKey(target: ThreadRouteTarget): string {
+export function paneTargetKey(target: ThreadRouteTarget) {
   return target.kind === "server" ? scopedThreadKey(target.threadRef) : `draft:${target.draftId}`;
 }
 
-export function createPaneLayout(target: ThreadRouteTarget, createId: () => string): PaneLayout {
+export function createPaneLayout(target: ThreadRouteTarget, createId: () => string): PaneLayout;
+export function createPaneLayout(target: ThreadRouteTarget, createId: () => string) {
   const id = createId();
   return {
     columns: [{ id: createId(), size: 100 }],
     rows: [{ id: createId(), size: 100 }],
     cells: [{ id, target, column: 0, columnSpan: 1, row: 0, rowSpan: 1 }],
     focusedPaneId: id,
-  };
+  } satisfies PaneLayout;
 }
 
-export function findPane(layout: PaneLayout, paneId: string): PaneCell | null {
+export function findPane(layout: PaneLayout, paneId: string) {
   return layout.cells.find((cell) => cell.id === paneId) ?? null;
 }
 
-export function findPaneByTarget(layout: PaneLayout, target: ThreadRouteTarget): PaneCell | null {
+export function findPaneByTarget(layout: PaneLayout, target: ThreadRouteTarget) {
   const key = paneTargetKey(target);
   return layout.cells.find((cell) => paneTargetKey(cell.target) === key) ?? null;
 }
@@ -73,7 +74,7 @@ export function findPromotedDraftPane(
   layout: PaneLayout,
   target: ThreadRouteTarget,
   draftThread: (draftId: DraftId) => ScopedThreadRef | null,
-): PaneCell | null {
+) {
   if (target.kind !== "server") return null;
   const key = scopedThreadKey(target.threadRef);
   return (
@@ -85,38 +86,38 @@ export function findPromotedDraftPane(
   );
 }
 
-export function focusedPane(layout: PaneLayout): PaneCell {
+export function focusedPane(layout: PaneLayout) {
   return findPane(layout, layout.focusedPaneId) ?? layout.cells[0]!;
 }
 
 /** Panes in reading order: top to bottom, then left to right. */
-export function orderedPanes(layout: PaneLayout): ReadonlyArray<PaneCell> {
+export function orderedPanes(layout: PaneLayout) {
   return [...layout.cells].toSorted((a, b) => a.row - b.row || a.column - b.column);
 }
 
-export function isSplit(layout: PaneLayout | null): boolean {
+export function isSplit(layout: PaneLayout | null) {
   return layout !== null && layout.cells.length > 1;
 }
 
-export function focusPane(layout: PaneLayout, paneId: string): PaneLayout {
+export function focusPane(layout: PaneLayout, paneId: string) {
   if (layout.focusedPaneId === paneId || !findPane(layout, paneId)) return layout;
   return { ...layout, focusedPaneId: paneId };
 }
 
-export function focusAdjacentPane(layout: PaneLayout, offset: 1 | -1): PaneLayout {
+export function focusAdjacentPane(layout: PaneLayout, offset: 1 | -1) {
   const panes = orderedPanes(layout);
   const index = panes.findIndex((pane) => pane.id === layout.focusedPaneId);
   const next = panes[(index + offset + panes.length) % panes.length];
   return next ? focusPane(layout, next.id) : layout;
 }
 
-function withSideChatOf(cell: PaneCell, parentPaneId: string | undefined): PaneCell {
+function withSideChatOf(cell: PaneCell, parentPaneId: string | undefined) {
   if (cell.sideChatOf === parentPaneId) return cell;
   const { sideChatOf: _sideChatOf, ...rest } = cell;
   return parentPaneId === undefined ? rest : { ...rest, sideChatOf: parentPaneId };
 }
 
-export function sideChatPanes(layout: PaneLayout, paneId: string): ReadonlyArray<PaneCell> {
+export function sideChatPanes(layout: PaneLayout, paneId: string) {
   return orderedPanes(layout).filter((cell) => cell.sideChatOf === paneId);
 }
 
@@ -124,20 +125,22 @@ export function linkSideChatPane(
   layout: PaneLayout,
   sideChatPaneId: string,
   parentPaneId: string,
-): PaneLayout {
+): PaneLayout;
+export function linkSideChatPane(layout: PaneLayout, sideChatPaneId: string, parentPaneId: string) {
   const parent = findPane(layout, parentPaneId);
-  if (sideChatPaneId === parentPaneId || !parent || parent.sideChatOf !== undefined) return layout;
-  if (sideChatPanes(layout, sideChatPaneId).length > 0) return layout;
+  if (sideChatPaneId === parentPaneId || !parent || parent.sideChatOf !== undefined)
+    return layout satisfies PaneLayout;
+  if (sideChatPanes(layout, sideChatPaneId).length > 0) return layout satisfies PaneLayout;
   return {
     ...layout,
     cells: layout.cells.map((cell) =>
       cell.id === sideChatPaneId ? withSideChatOf(cell, parentPaneId) : cell,
     ),
-  };
+  } satisfies PaneLayout;
 }
 
 /** Drops the ties of `paneId` itself and of the side chats tied to it. */
-export function unlinkPane(layout: PaneLayout, paneId: string): PaneLayout {
+export function unlinkPane(layout: PaneLayout, paneId: string) {
   const cells = layout.cells.map((cell) =>
     cell.id === paneId || cell.sideChatOf === paneId ? withSideChatOf(cell, undefined) : cell,
   );
@@ -148,11 +151,7 @@ export function unlinkPane(layout: PaneLayout, paneId: string): PaneLayout {
  * Shows `target` in `paneId`, which stops being tied to another thread's side chats. A target
  * already in another pane focuses that pane instead.
  */
-export function replacePaneTarget(
-  layout: PaneLayout,
-  paneId: string,
-  target: ThreadRouteTarget,
-): PaneLayout {
+export function replacePaneTarget(layout: PaneLayout, paneId: string, target: ThreadRouteTarget) {
   const existing = findPaneByTarget(layout, target);
   if (existing) return focusPane(layout, existing.id);
   const unlinked = unlinkPane(layout, paneId);
@@ -174,22 +173,17 @@ function cellSpan(cell: PaneCell, axis: PaneAxis) {
   return axis === "column" ? cell.columnSpan : cell.rowSpan;
 }
 
-function withCellPosition(cell: PaneCell, axis: PaneAxis, start: number, span: number): PaneCell {
+function withCellPosition(cell: PaneCell, axis: PaneAxis, start: number, span: number) {
   return axis === "column"
     ? { ...cell, column: start, columnSpan: span }
     : { ...cell, row: start, rowSpan: span };
 }
 
-function withTracks(
-  layout: PaneLayout,
-  axis: PaneAxis,
-  tracks: ReadonlyArray<PaneTrack>,
-): PaneLayout {
+function withTracks(layout: PaneLayout, axis: PaneAxis, tracks: ReadonlyArray<PaneTrack>) {
   return axis === "column" ? { ...layout, columns: tracks } : { ...layout, rows: tracks };
 }
 
-const edgeAxis = (edge: PaneEdge): PaneAxis =>
-  edge === "left" || edge === "right" ? "column" : "row";
+const edgeAxis = (edge: PaneEdge) => (edge === "left" || edge === "right" ? "column" : "row");
 const edgeLeads = (edge: PaneEdge) => edge === "left" || edge === "top";
 
 function splitTrack(
@@ -198,7 +192,7 @@ function splitTrack(
   trackIndex: number,
   offset: number,
   createId: () => string,
-): PaneLayout {
+) {
   const tracks = axisTracks(layout, axis);
   const track = tracks[trackIndex]!;
   const nextTracks = [
@@ -229,9 +223,18 @@ export function splitPane(
   target: ThreadRouteTarget,
   newPaneId: string,
   createId: () => string,
-): PaneLayout | null {
-  if (layout.cells.length >= MAX_CHAT_PANES || findPaneByTarget(layout, target)) return null;
-  return insertPane(layout, paneId, edge, target, newPaneId, createId);
+): PaneLayout | null;
+export function splitPane(
+  layout: PaneLayout,
+  paneId: string,
+  edge: PaneEdge,
+  target: ThreadRouteTarget,
+  newPaneId: string,
+  createId: () => string,
+) {
+  if (layout.cells.length >= MAX_CHAT_PANES || findPaneByTarget(layout, target))
+    return null satisfies PaneLayout | null;
+  return insertPane(layout, paneId, edge, target, newPaneId, createId) satisfies PaneLayout | null;
 }
 
 function insertPane(
@@ -241,7 +244,7 @@ function insertPane(
   target: ThreadRouteTarget,
   newPaneId: string,
   createId: () => string,
-): PaneLayout | null {
+) {
   const pane = findPane(layout, paneId);
   if (!pane) return null;
   const axis = edgeAxis(edge);
@@ -281,7 +284,7 @@ function insertPane(
 
 const CLOSE_FILL_ORDER: ReadonlyArray<PaneEdge> = ["left", "top", "right", "bottom"];
 
-function edgeNeighbours(layout: PaneLayout, cell: PaneCell, edge: PaneEdge): PaneCell[] | null {
+function edgeNeighbours(layout: PaneLayout, cell: PaneCell, edge: PaneEdge) {
   const axis = edgeAxis(edge);
   const across: PaneAxis = axis === "column" ? "row" : "column";
   const boundary = edgeLeads(edge)
@@ -307,7 +310,7 @@ function edgeNeighbours(layout: PaneLayout, cell: PaneCell, edge: PaneEdge): Pan
   return fits && covered === to - from ? touching : null;
 }
 
-function normalizePaneLayout(layout: PaneLayout): PaneLayout {
+function normalizePaneLayout(layout: PaneLayout) {
   let next = layout;
   for (const axis of ["column", "row"] as const) {
     let tracks = axisTracks(next, axis);
@@ -352,7 +355,7 @@ const OPPOSITE_EDGE: Record<PaneEdge, PaneEdge> = {
 };
 
 /** Closes `paneId`; neighbours that share its whole edge grow into its area. Null for the last pane. */
-export function closePane(layout: PaneLayout, paneId: string): ClosePaneResult | null {
+export function closePane(layout: PaneLayout, paneId: string) {
   const cell = findPane(layout, paneId);
   if (!cell || layout.cells.length < 2) return null;
   for (const edge of CLOSE_FILL_ORDER) {
@@ -379,7 +382,7 @@ export function closePane(layout: PaneLayout, paneId: string): ClosePaneResult |
   return null;
 }
 
-export function closeOtherPanes(layout: PaneLayout, paneId: string): PaneLayout {
+export function closeOtherPanes(layout: PaneLayout, paneId: string) {
   const cell = findPane(layout, paneId);
   if (!cell) return layout;
   return {
@@ -397,7 +400,7 @@ export function movePane(
   targetPaneId: string,
   edge: PaneEdge,
   createId: () => string,
-): PaneLayout | null {
+) {
   const moving = findPane(layout, paneId);
   if (!moving || paneId === targetPaneId || !findPane(layout, targetPaneId)) return null;
   const closed = closePane(layout, paneId);
@@ -411,11 +414,11 @@ export function movePane(
 }
 
 /** Exchanges two panes' places; both keep their ids and stay mounted. */
-export function swapPanes(layout: PaneLayout, firstId: string, secondId: string): PaneLayout {
+export function swapPanes(layout: PaneLayout, firstId: string, secondId: string) {
   const first = findPane(layout, firstId);
   const second = findPane(layout, secondId);
   if (!first || !second || firstId === secondId) return layout;
-  const place = (cell: PaneCell, from: PaneCell): PaneCell => ({
+  const place = (cell: PaneCell, from: PaneCell) => ({
     ...cell,
     column: from.column,
     columnSpan: from.columnSpan,
@@ -434,7 +437,11 @@ export function swapPanes(layout: PaneLayout, firstId: string, secondId: string)
 export function setTrackSizes(
   layout: PaneLayout,
   sizes: { readonly columns?: Record<string, number>; readonly rows?: Record<string, number> },
-): PaneLayout {
+): PaneLayout;
+export function setTrackSizes(
+  layout: PaneLayout,
+  sizes: { readonly columns?: Record<string, number>; readonly rows?: Record<string, number> },
+) {
   const apply = (tracks: ReadonlyArray<PaneTrack>, next: Record<string, number> | undefined) => {
     if (!next) return tracks;
     let changed = false;
@@ -448,24 +455,26 @@ export function setTrackSizes(
   };
   const columns = apply(layout.columns, sizes.columns);
   const rows = apply(layout.rows, sizes.rows);
-  return columns === layout.columns && rows === layout.rows ? layout : { ...layout, columns, rows };
+  return (
+    columns === layout.columns && rows === layout.rows ? layout : { ...layout, columns, rows }
+  ) satisfies PaneLayout;
 }
 
-export function equalizePaneLayout(layout: PaneLayout): PaneLayout {
+export function equalizePaneLayout(layout: PaneLayout) {
   const equal = (tracks: ReadonlyArray<PaneTrack>) =>
     tracks.map((track) => ({ ...track, size: 100 / tracks.length }));
   return { ...layout, columns: equal(layout.columns), rows: equal(layout.rows) };
 }
 
 /** Pixel floor per track: a track holding a pane by itself must fit that pane's minimum. */
-export function trackMinimumSize(layout: PaneLayout, axis: PaneAxis, index: number): number {
+export function trackMinimumSize(layout: PaneLayout, axis: PaneAxis, index: number) {
   const minimum = axis === "column" ? CHAT_PANE_MIN_WIDTH : CHAT_PANE_MIN_HEIGHT;
   return layout.cells.some((cell) => cellStart(cell, axis) === index && cellSpan(cell, axis) === 1)
     ? minimum
     : 0;
 }
 
-function minimumExtent(layout: PaneLayout, axis: PaneAxis): number {
+function minimumExtent(layout: PaneLayout, axis: PaneAxis) {
   return axisTracks(layout, axis).reduce(
     (sum, _track, index) => sum + trackMinimumSize(layout, axis, index),
     0,
@@ -473,7 +482,7 @@ function minimumExtent(layout: PaneLayout, axis: PaneAxis): number {
 }
 
 /** Whether every pane fits its minimum size in a workspace of `size`. */
-export function paneLayoutFits(layout: PaneLayout, size: PaneLayoutSize): boolean {
+export function paneLayoutFits(layout: PaneLayout, size: PaneLayoutSize) {
   return (
     minimumExtent(layout, "column") <= size.width && minimumExtent(layout, "row") <= size.height
   );
@@ -484,7 +493,7 @@ export function canSplitPane(
   paneId: string,
   edge: PaneEdge,
   size: PaneLayoutSize,
-): boolean {
+) {
   const pane = findPane(layout, paneId);
   if (!pane || layout.cells.length >= MAX_CHAT_PANES) return false;
   let probeId = 0;
@@ -501,7 +510,7 @@ export interface PaneGridline {
   readonly span: number;
 }
 
-export function paneGridlines(layout: PaneLayout): ReadonlyArray<PaneGridline> {
+export function paneGridlines(layout: PaneLayout) {
   const lines: PaneGridline[] = [];
   for (const axis of ["column", "row"] as const) {
     const across: PaneAxis = axis === "column" ? "row" : "column";
@@ -530,7 +539,7 @@ export function paneGridlines(layout: PaneLayout): ReadonlyArray<PaneGridline> {
 }
 
 /** Structural validity for persisted layouts: panes tile the grid exactly once each. */
-export function isValidPaneLayout(layout: PaneLayout): boolean {
+export function isValidPaneLayout(layout: PaneLayout) {
   const { columns, rows, cells } = layout;
   if (cells.length === 0 || cells.length > MAX_CHAT_PANES) return false;
   if (columns.length === 0 || rows.length === 0) return false;

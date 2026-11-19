@@ -25,8 +25,11 @@ const SUMMARY = /^\s*<summary\b[^>]*>([\s\S]*?)<\/summary\s*>/i;
  * Tags inside code, or a fold opened inline in a paragraph, stay Markdown. A fold whose
  * closing tag has not streamed yet runs to the end.
  */
-export function splitMarkdownDetails(markdown: string): ReadonlyArray<MarkdownDetailsSegment> {
-  if (!/<details\b/i.test(markdown)) return [{ kind: "markdown", markdown, sourceOffset: 0 }];
+export function splitMarkdownDetails(markdown: string) {
+  if (!/<details\b/i.test(markdown))
+    return [
+      { kind: "markdown", markdown, sourceOffset: 0 },
+    ] satisfies ReadonlyArray<MarkdownDetailsSegment>;
 
   const folds: Array<OpenFold & { end: number; closeTagLength: number }> = [];
   let depth = 0;
@@ -65,7 +68,10 @@ export function splitMarkdownDetails(markdown: string): ReadonlyArray<MarkdownDe
   };
   for (const node of parser.parse(markdown).children) scan(node, false);
   if (current) folds.push({ ...current, end: markdown.length, closeTagLength: 0 });
-  if (folds.length === 0) return [{ kind: "markdown", markdown, sourceOffset: 0 }];
+  if (folds.length === 0)
+    return [
+      { kind: "markdown", markdown, sourceOffset: 0 },
+    ] satisfies ReadonlyArray<MarkdownDetailsSegment>;
 
   const segments: MarkdownDetailsSegment[] = [];
   let cursor = 0;
@@ -93,5 +99,5 @@ export function splitMarkdownDetails(markdown: string): ReadonlyArray<MarkdownDe
   if (cursor < markdown.length) {
     segments.push({ kind: "markdown", markdown: markdown.slice(cursor), sourceOffset: cursor });
   }
-  return segments;
+  return segments satisfies ReadonlyArray<MarkdownDetailsSegment>;
 }

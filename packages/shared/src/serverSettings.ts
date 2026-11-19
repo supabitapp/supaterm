@@ -43,7 +43,7 @@ const decodeServerObservabilitySettingsJson = Schema.decodeUnknownOption(
 export function isModelSelectionProviderEnabled(
   settings: ServerSettings,
   selection: ModelSelection,
-): boolean {
+) {
   const instanceConfig = Object.hasOwn(settings.providerInstances, selection.instanceId)
     ? settings.providerInstances[selection.instanceId]
     : undefined;
@@ -70,7 +70,7 @@ export function fallbackTextGenerationModelSelection(
   providerInstances: ServerSettings["providerInstances"],
   isEnabled: (instanceId: ProviderInstanceId, driver: ProviderDriverKind, model: string) => boolean,
   options?: { readonly defaultModelSelection?: ModelSelection | null },
-): ModelSelection | null {
+) {
   const threadDefault = options?.defaultModelSelection;
   const selectionsFor = (instanceId: ProviderInstanceId, driver: ProviderDriverKind) => {
     const config = providerInstances[instanceId]?.config as { customModels?: unknown } | undefined;
@@ -100,7 +100,7 @@ export function fallbackTextGenerationModelSelection(
   return null;
 }
 
-function defaultTextGenerationModel(driver: ProviderDriverKind): string {
+function defaultTextGenerationModel(driver: ProviderDriverKind) {
   return (
     DEFAULT_TEXT_GENERATION_MODEL_BY_PROVIDER[driver] ??
     DEFAULT_MODEL_BY_PROVIDER[driver] ??
@@ -112,7 +112,7 @@ export function resolveSourceControlWriterModelSelection(
   settings: ServerSettings,
   providers: ReadonlyArray<ServerProvider> | undefined,
   projectId: ProjectId | null,
-): ModelSelection {
+) {
   const selection = settings.sourceControlWriterModelSelection;
   if (
     !selection ||
@@ -136,7 +136,7 @@ export function resolveReviewGuideModelSelection(
   settings: ServerSettings,
   providers: ReadonlyArray<ServerProvider> | undefined,
   projectId: ProjectId | null,
-): ModelSelection {
+) {
   const preferences = [
     settings.reviewGuideModelSelection,
     resolveSourceControlWriterModelSelection(settings, providers, projectId),
@@ -175,9 +175,7 @@ export interface PersistedServerObservabilitySettings {
   readonly otlpLogsUrl: string | undefined;
 }
 
-function normalizePersistedServerSettingString(
-  value: string | null | undefined,
-): string | undefined {
+function normalizePersistedServerSettingString(value: string | null | undefined) {
   const trimmed = value?.trim();
   return trimmed && trimmed.length > 0 ? trimmed : undefined;
 }
@@ -188,7 +186,7 @@ function extractPersistedServerObservabilitySettings(input: {
     readonly otlpMetricsUrl?: string;
     readonly otlpLogsUrl?: string;
   };
-}): PersistedServerObservabilitySettings {
+}) {
   return {
     otlpTracesUrl: normalizePersistedServerSettingString(input.observability?.otlpTracesUrl),
     otlpMetricsUrl: normalizePersistedServerSettingString(input.observability?.otlpMetricsUrl),
@@ -198,24 +196,31 @@ function extractPersistedServerObservabilitySettings(input: {
 
 export function parsePersistedServerObservabilitySettings(
   raw: string,
-): PersistedServerObservabilitySettings {
+): PersistedServerObservabilitySettings;
+export function parsePersistedServerObservabilitySettings(raw: string) {
   const decoded = decodeServerObservabilitySettingsJson(raw);
   if (Option.isSome(decoded)) {
-    return extractPersistedServerObservabilitySettings(decoded.value);
+    return extractPersistedServerObservabilitySettings(
+      decoded.value,
+    ) satisfies PersistedServerObservabilitySettings;
   }
-  return { otlpTracesUrl: undefined, otlpMetricsUrl: undefined, otlpLogsUrl: undefined };
+  return {
+    otlpTracesUrl: undefined,
+    otlpMetricsUrl: undefined,
+    otlpLogsUrl: undefined,
+  } satisfies PersistedServerObservabilitySettings;
 }
 
 function shouldReplaceTextGenerationModelSelection(
   patch: ServerSettingsPatch["textGenerationModelSelection"] | undefined,
-): boolean {
+) {
   return Boolean(patch && (patch.instanceId !== undefined || patch.model !== undefined));
 }
 
 function mergeModelSelectionOptionsById(input: {
   current: ReadonlyArray<{ readonly id: string; readonly value: string | boolean }> | undefined;
   patch: ReadonlyArray<{ readonly id: string; readonly value: string | boolean }> | undefined;
-}): Array<{ id: string; value: string | boolean }> | undefined {
+}) {
   if (input.patch === undefined) {
     return input.current ? [...input.current] : undefined;
   }
@@ -233,7 +238,7 @@ function mergeModelSelectionOptionsById(input: {
 function mergeSettingsEntries<Value>(
   current: Readonly<Record<string, Value>>,
   patch: Readonly<Record<string, Value | null>>,
-): Record<string, Value> {
+) {
   const next = new Map(Object.entries(current));
   for (const [id, config] of Object.entries(patch)) {
     if (config === null) {
@@ -264,8 +269,9 @@ const OVERRIDE_KEYS_OLDER_CLIENTS_OMIT = [
 function withStoredWorktreeRules(
   incoming: NonNullable<ProjectSettingsOverridesPatchEntry["worktreeCleanup"]> | null,
   stored: ProjectSettingsOverrides["worktreeCleanup"],
-): NonNullable<ProjectSettingsOverrides["worktreeCleanup"]> | null {
-  if (incoming === null || incoming.mode === "off") return incoming;
+) {
+  if (incoming === null || incoming.mode === "off")
+    return incoming satisfies NonNullable<ProjectSettingsOverrides["worktreeCleanup"]> | null;
   const storedRules = stored?.mode === "custom" ? stored.rules : undefined;
   const worktreeKeepWhen =
     incoming.rules.worktreeKeepWhen ?? storedRules?.worktreeKeepWhen ?? "uncommitted-changes";
@@ -273,14 +279,17 @@ function withStoredWorktreeRules(
     incoming.rules.worktreeDoneAfterDays === undefined
       ? (storedRules?.worktreeDoneAfterDays ?? null)
       : incoming.rules.worktreeDoneAfterDays;
-  return { mode: "custom", rules: { ...incoming.rules, worktreeKeepWhen, worktreeDoneAfterDays } };
+  return {
+    mode: "custom",
+    rules: { ...incoming.rules, worktreeKeepWhen, worktreeDoneAfterDays },
+  } satisfies NonNullable<ProjectSettingsOverrides["worktreeCleanup"]> | null;
 }
 
 function mergeProjectSettingsOverridesPatch(
   current: Readonly<Record<string, ProjectSettingsOverrides>>,
   patch: Readonly<Record<string, ProjectSettingsOverridesPatchEntry | null>>,
   removals: Readonly<Record<string, ReadonlyArray<ProjectScopedServerSettingKey>>>,
-): Record<string, ProjectSettingsOverrides> {
+) {
   const next = new Map(Object.entries(current));
   for (const [projectId, entry] of Object.entries(patch)) {
     if (entry === null) {
@@ -310,7 +319,8 @@ function mergeProjectSettingsOverridesPatch(
 export function applyServerSettingsPatch(
   current: ServerSettings,
   patch: ServerSettingsPatch,
-): ServerSettings {
+): ServerSettings;
+export function applyServerSettingsPatch(current: ServerSettings, patch: ServerSettingsPatch) {
   const selectionPatch = patch.textGenerationModelSelection;
   const {
     setModelFavorites,
@@ -529,7 +539,7 @@ export function applyServerSettingsPatch(
     backgroundActivity: normalizedBackgroundActivity,
   };
   if (!selectionPatch) {
-    return nextWithReplacements;
+    return nextWithReplacements satisfies ServerSettings;
   }
 
   const instanceId = selectionPatch.instanceId ?? current.textGenerationModelSelection.instanceId;
@@ -544,5 +554,5 @@ export function applyServerSettingsPatch(
   return {
     ...nextWithReplacements,
     textGenerationModelSelection: createModelSelection(instanceId, model, options),
-  };
+  } satisfies ServerSettings;
 }

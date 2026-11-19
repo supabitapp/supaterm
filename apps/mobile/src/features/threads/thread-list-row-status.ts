@@ -17,7 +17,7 @@ export function resolveThreadListV2RowStatusLabel(input: {
   readonly isUnread: boolean;
   readonly goalActive: boolean;
   readonly mutedClassName: string;
-}): { label: string; className: string } | undefined {
+}) {
   if (!input.environmentConnected) return { label: "Connecting", className: input.mutedClassName };
   if (input.status === "waiting") return { label: "Waiting", className: input.mutedClassName };
   const label = STATUS_LABEL_BY_STATUS[input.status];

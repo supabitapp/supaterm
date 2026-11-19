@@ -78,9 +78,14 @@ interface RestartAdapterState {
 
 function makeRestartAdapter(
   state: Ref.Ref<RestartAdapterState>,
+  sessionCapabilities?: OrchestrationV2ProviderCapabilities,
+  providerInstanceId?: typeof initialSelection.instanceId,
+): ProviderAdapter.ProviderAdapterV2["Service"];
+function makeRestartAdapter(
+  state: Ref.Ref<RestartAdapterState>,
   sessionCapabilities: OrchestrationV2ProviderCapabilities = pooledCapabilities,
   providerInstanceId = initialSelection.instanceId,
-): ProviderAdapter.ProviderAdapterV2["Service"] {
+) {
   return {
     instanceId: providerInstanceId,
     driver,
@@ -275,7 +280,7 @@ function makeRestartAdapter(
           forkThread: () => Effect.die("unused forkThread"),
         };
       }),
-  };
+  } satisfies ProviderAdapter.ProviderAdapterV2["Service"];
 }
 
 it.live("retries a failed selection restart session open before completing", () =>

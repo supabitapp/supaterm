@@ -38,7 +38,7 @@ const TITLEBAR_HEIGHT = 40;
 const MACOS_WORKSPACE_TOPBAR_HEIGHT = 52;
 const MACOS_WINDOW_BUTTON_RADIUS = 7;
 
-function parseMailtoAddress(rawUrl: string): Option.Option<string> {
+function parseMailtoAddress(rawUrl: string) {
   let url: URL;
   try {
     url = new URL(rawUrl);
@@ -53,7 +53,7 @@ function parseMailtoAddress(rawUrl: string): Option.Option<string> {
   }
 }
 
-function syncMacosWindowButtons(window: Electron.BrowserWindow): void {
+function syncMacosWindowButtons(window: Electron.BrowserWindow) {
   if (window.isDestroyed() || window.isFullScreen()) return;
   window.setWindowButtonPosition({
     x: 16,
@@ -127,10 +127,7 @@ export class DesktopWindow extends Context.Service<
 const { logInfo: logWindowInfo, logWarning: logWindowWarning } =
   makeComponentLogger("desktop-window");
 
-function getIconOption(
-  iconPaths: DesktopAssets.DesktopIconPaths,
-  platform: NodeJS.Platform,
-): { icon: string } | Record<string, never> {
+function getIconOption(iconPaths: DesktopAssets.DesktopIconPaths, platform: NodeJS.Platform) {
   if (platform === "darwin") return {};
   const ext = platform === "win32" ? "ico" : "png";
   return Option.match(iconPaths[ext], {
@@ -139,7 +136,7 @@ function getIconOption(
   });
 }
 
-function getInitialWindowBackgroundColor(shouldUseDarkColors: boolean): string {
+function getInitialWindowBackgroundColor(shouldUseDarkColors: boolean) {
   return shouldUseDarkColors ? "#1d1e22" : "#ffffff";
 }
 
@@ -150,7 +147,7 @@ const SAVED_BOUNDS_EDGE_TOLERANCE_PX = 1;
 function windowFitsWithinDisplay(
   windowBounds: DesktopAppSettings.DesktopWindowBounds,
   displayBounds: DisplayBounds,
-): boolean {
+) {
   const tolerance = SAVED_BOUNDS_EDGE_TOLERANCE_PX;
   return (
     windowBounds.x >= displayBounds.x - tolerance &&
@@ -160,16 +157,13 @@ function windowFitsWithinDisplay(
   );
 }
 
-function overlapArea(left: DisplayBounds, right: DisplayBounds): number {
+function overlapArea(left: DisplayBounds, right: DisplayBounds) {
   const width = Math.min(left.x + left.width, right.x + right.width) - Math.max(left.x, right.x);
   const height = Math.min(left.y + left.height, right.y + right.height) - Math.max(left.y, right.y);
   return width > 0 && height > 0 ? width * height : 0;
 }
 
-function displayMatching(
-  bounds: DisplayBounds,
-  displays: readonly DisplayBounds[],
-): DisplayBounds | undefined {
+function displayMatching(bounds: DisplayBounds, displays: readonly DisplayBounds[]) {
   let match: DisplayBounds | undefined;
   let matchArea = 0;
   for (const display of displays) {
@@ -186,7 +180,7 @@ function normalBoundsOnWindowDisplay(
   normalBounds: DisplayBounds,
   windowBounds: DisplayBounds,
   displays: readonly DisplayBounds[],
-): DisplayBounds {
+) {
   const target = displayMatching(windowBounds, displays);
   if (target === undefined || windowFitsWithinDisplay(normalBounds, target)) {
     return normalBounds;
@@ -203,7 +197,7 @@ function normalBoundsOnWindowDisplay(
   };
 }
 
-function readDisplayBoundsOrEmpty(): readonly DisplayBounds[] {
+function readDisplayBoundsOrEmpty() {
   try {
     return Electron.screen.getAllDisplays().map((display) => display.bounds);
   } catch {
@@ -214,7 +208,7 @@ function readDisplayBoundsOrEmpty(): readonly DisplayBounds[] {
 function windowBoundsEqual(
   left: DesktopAppSettings.DesktopWindowBounds,
   right: DesktopAppSettings.DesktopWindowBounds,
-): boolean {
+) {
   return (
     left.x === right.x &&
     left.y === right.y &&
@@ -226,7 +220,7 @@ function windowBoundsEqual(
 export function resolveInitialMainWindowBounds(
   persistedBounds: DesktopAppSettings.DesktopWindowBounds | null,
   displays: readonly DisplayBounds[],
-): DesktopAppSettings.DesktopWindowBounds | typeof DesktopAppSettings.DEFAULT_MAIN_WINDOW_SIZE {
+) {
   if (
     persistedBounds !== null &&
     displays.some((display) => windowFitsWithinDisplay(persistedBounds, display))
@@ -236,7 +230,7 @@ export function resolveInitialMainWindowBounds(
   return DesktopAppSettings.DEFAULT_MAIN_WINDOW_SIZE;
 }
 
-function buildConnectingSplashDataUrl(shouldUseDarkColors: boolean): string {
+function buildConnectingSplashDataUrl(shouldUseDarkColors: boolean) {
   const background = getInitialWindowBackgroundColor(shouldUseDarkColors);
   const label = shouldUseDarkColors ? "#9ca3af" : "#6b7280";
   const accent = shouldUseDarkColors ? "#f8fafc" : "#1f2937";
@@ -248,7 +242,7 @@ function buildConnectingSplashDataUrl(shouldUseDarkColors: boolean): string {
 export function isSameOriginRendererNavigation(input: {
   readonly applicationUrl: string;
   readonly navigationUrl: string;
-}): boolean {
+}) {
   try {
     const applicationUrl = new URL(input.applicationUrl);
     const navigationUrl = new URL(input.navigationUrl);
@@ -267,7 +261,7 @@ function isRetryableDevelopmentRendererLoadFailure(input: {
   readonly errorCode: number;
   readonly isMainFrame: boolean;
   readonly validatedUrl: string;
-}): boolean {
+}) {
   return (
     input.isMainFrame &&
     DEVELOPMENT_RETRYABLE_LOAD_ERROR_CODES.has(input.errorCode) &&
@@ -278,10 +272,7 @@ function isRetryableDevelopmentRendererLoadFailure(input: {
   );
 }
 
-function getWindowTitleBarOptions(
-  shouldUseDarkColors: boolean,
-  platform: NodeJS.Platform,
-): WindowTitleBarOptions {
+function getWindowTitleBarOptions(shouldUseDarkColors: boolean, platform: NodeJS.Platform) {
   if (platform === "darwin") {
     return {
       titleBarStyle: "hiddenInset",
@@ -289,7 +280,7 @@ function getWindowTitleBarOptions(
         x: 16,
         y: MACOS_WORKSPACE_TOPBAR_HEIGHT / 2 - MACOS_WINDOW_BUTTON_RADIUS,
       },
-    };
+    } satisfies WindowTitleBarOptions;
   }
 
   return {
@@ -299,7 +290,7 @@ function getWindowTitleBarOptions(
       height: TITLEBAR_HEIGHT,
       symbolColor: shouldUseDarkColors ? TITLEBAR_DARK_SYMBOL_COLOR : TITLEBAR_LIGHT_SYMBOL_COLOR,
     },
-  };
+  } satisfies WindowTitleBarOptions;
 }
 
 function syncWindowAppearance(
@@ -307,7 +298,7 @@ function syncWindowAppearance(
   hasTitleBarOverlay: boolean,
   shouldUseDarkColors: boolean,
   platform: NodeJS.Platform,
-): Effect.Effect<void> {
+) {
   return Effect.sync(() => {
     if (window.isDestroyed()) {
       return;
@@ -323,10 +314,7 @@ function syncWindowAppearance(
 
 type RevealSubscription = (listener: () => void) => void;
 
-function bindFirstRevealTrigger(
-  subscribers: readonly RevealSubscription[],
-  reveal: () => void,
-): void {
+function bindFirstRevealTrigger(subscribers: readonly RevealSubscription[], reveal: () => void) {
   let revealed = false;
   const fire = () => {
     if (revealed) return;
@@ -395,10 +383,10 @@ export const make = Effect.gen(function* () {
     yield* previewManager.reapplyZoom();
   });
 
-  const createWindow = Effect.fn("desktop.window.createWindow")(function* (): Effect.fn.Return<
+  const createWindow: () => Effect.Effect<
     Option.Option<Electron.BrowserWindow>,
     DesktopWindowError
-  > {
+  > = Effect.fn("desktop.window.createWindow")(function* () {
     if (yield* Ref.get(desktopState.quitting)) return Option.none();
     yield* previewManager.getBrowserSession();
     const applicationUrl = getDesktopUrl(environment.isDevelopment);
@@ -497,7 +485,7 @@ export const make = Effect.gen(function* () {
       ? null
       : (readPersistableState()?.bounds ?? null);
     const fallbackWindowMaximized = persistedSettings.mainWindowMaximized;
-    const persistCurrentBounds = (): Fiber.Fiber<void, never> | undefined => {
+    const persistCurrentBounds = () => {
       if (!boundsPersistenceEnabled) {
         return pendingBoundsPersistFiber;
       }
@@ -590,10 +578,10 @@ export const make = Effect.gen(function* () {
     });
 
     const contextMenuContents = new WeakSet<Electron.WebContents>();
-    const installContextMenu = (
+    const installContextMenu: (
       ownerWindow: Electron.BrowserWindow,
       contents: Electron.WebContents,
-    ): void => {
+    ) => void = (ownerWindow: Electron.BrowserWindow, contents: Electron.WebContents) => {
       if (contextMenuContents.has(contents)) return;
       contextMenuContents.add(contents);
       contents.on("context-menu", (event, params) => {

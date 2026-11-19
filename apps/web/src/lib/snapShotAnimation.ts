@@ -19,28 +19,28 @@ const listeners = new Set<() => void>();
 const DESTINATION_TIMEOUT_MS = 2_000;
 const ARRIVAL_MAX_AGE_MS = 10_000;
 
-export function shouldAnimateSnapShotArrival(capturedAt: string, now = Date.now()): boolean {
+export function shouldAnimateSnapShotArrival(capturedAt: string, now = Date.now()) {
   const capturedTime = Date.parse(capturedAt);
   const age = now - capturedTime;
   return Number.isFinite(capturedTime) && age >= 0 && age <= ARRIVAL_MAX_AGE_MS;
 }
 
-function targetKey(target: SnapShotTarget): string {
+function targetKey(target: SnapShotTarget) {
   return typeof target === "string" ? target.trim() : scopedThreadKey(target);
 }
 
-function emitChange(): void {
+function emitChange() {
   for (const listener of listeners) listener();
 }
 
-export function beginSnapShotAnimation(id: string, target: SnapShotTarget): void {
+export function beginSnapShotAnimation(id: string, target: SnapShotTarget) {
   if (pendingAnimations.some((capture) => capture.id === id)) return;
   destinationRequests.delete(id);
   pendingAnimations = [{ id, target }, ...pendingAnimations];
   emitChange();
 }
 
-export function finishSnapShotAnimation(id: string): void {
+export function finishSnapShotAnimation(id: string) {
   const next = pendingAnimations.filter((capture) => capture.id !== id);
   destinationRequests.delete(id);
   destinationMountCounts.delete(id);
@@ -49,7 +49,7 @@ export function finishSnapShotAnimation(id: string): void {
   emitChange();
 }
 
-export function updateSnapShotAnimationSource(id: string, source: SnapShotSource): void {
+export function updateSnapShotAnimationSource(id: string, source: SnapShotSource) {
   const index = pendingAnimations.findIndex((capture) => capture.id === id);
   if (index < 0 || pendingAnimations[index]?.source === source) return;
   pendingAnimations = pendingAnimations.map((capture, captureIndex) =>
@@ -58,7 +58,7 @@ export function updateSnapShotAnimationSource(id: string, source: SnapShotSource
   emitChange();
 }
 
-export async function dismissSnapShotAnimation(id: string): Promise<void> {
+export async function dismissSnapShotAnimation(id: string) {
   if (!pendingAnimations.some((capture) => capture.id === id)) return;
   finishSnapShotAnimation(id);
   const bridge = getDesktopSnapShotBridge();
@@ -66,7 +66,7 @@ export async function dismissSnapShotAnimation(id: string): Promise<void> {
   await bridge.dismissSnapShotAnimation(id).catch(() => undefined);
 }
 
-export function dismissAllSnapShotAnimations(): void {
+export function dismissAllSnapShotAnimations() {
   const ids = pendingAnimations.map((capture) => capture.id);
   if (ids.length === 0) return;
   pendingAnimations = [];
@@ -80,11 +80,11 @@ export function dismissAllSnapShotAnimations(): void {
   }
 }
 
-export function getPendingSnapShotAnimations(): ReadonlyArray<PendingSnapShotAnimation> {
+export function getPendingSnapShotAnimations() {
   return pendingAnimations;
 }
 
-export function subscribeToPendingSnapShotAnimations(listener: () => void): () => void {
+export function subscribeToPendingSnapShotAnimations(listener: () => void) {
   listeners.add(listener);
   return () => listeners.delete(listener);
 }
@@ -92,7 +92,7 @@ export function subscribeToPendingSnapShotAnimations(listener: () => void): () =
 export function pendingSnapShotAnimationIdsForTarget(
   pending: ReadonlyArray<PendingSnapShotAnimation>,
   target: SnapShotTarget,
-): ReadonlyArray<string> {
+) {
   const key = targetKey(target);
   return pending.flatMap((capture) => (targetKey(capture.target) === key ? [capture.id] : []));
 }
@@ -101,7 +101,7 @@ export function setSnapShotAnimationDestination(
   id: string,
   target: HTMLElement,
   source?: SnapShotSource,
-): void {
+) {
   if (!target.isConnected || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
     return;
   }
@@ -139,7 +139,7 @@ export function setSnapShotAnimationDestination(
   destinationRequests.set(id, request);
 }
 
-export async function waitForSnapShotAnimationDestination(id: string): Promise<void> {
+export async function waitForSnapShotAnimationDestination(id: string) {
   const request = destinationRequests.get(id);
   if (!request) return;
   let timeout: ReturnType<typeof setTimeout> | undefined;
@@ -155,7 +155,7 @@ export async function waitForSnapShotAnimationDestination(id: string): Promise<v
   }
 }
 
-export function scheduleSnapShotAnimationDestination(id: string, start: () => void): () => void {
+export function scheduleSnapShotAnimationDestination(id: string, start: () => void) {
   let active = true;
   destinationMountCounts.set(id, (destinationMountCounts.get(id) ?? 0) + 1);
   queueMicrotask(() => {

@@ -39,20 +39,20 @@ export class ServiceLauncherClientError extends Schema.TaggedError<ServiceLaunch
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message(): string {
+  override get message() {
     switch (this.operation) {
       case "decode-context":
-        return "The service launcher supplied invalid startup context.";
+        return "The service launcher supplied invalid startup context." satisfies string as string;
       case "version-mismatch":
-        return "The service launcher started a different Supaterm version.";
+        return "The service launcher started a different Supaterm version." satisfies string as string;
       case "unmanaged":
-        return "This server is not managed by the launcher.";
+        return "This server is not managed by the launcher." satisfies string as string;
       case "send":
-        return "Could not send a request to the service launcher.";
+        return "Could not send a request to the service launcher." satisfies string as string;
       case "disconnect":
-        return "The service launcher disconnected before acknowledging the request.";
+        return "The service launcher disconnected before acknowledging the request." satisfies string as string;
       case "timeout":
-        return "The service launcher did not respond within 30 seconds.";
+        return "The service launcher did not respond within 30 seconds." satisfies string as string;
     }
   }
 }
@@ -64,7 +64,7 @@ export class ServiceLauncherRejectedError extends Schema.TaggedError<ServiceLaun
     reason: Schema.String,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return this.reason;
   }
 }

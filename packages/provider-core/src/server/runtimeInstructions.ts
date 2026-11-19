@@ -13,7 +13,7 @@ export function buildRuntimeInstructions(runtime: {
   readonly reasoningEffort?: string | undefined;
   /** False when the session's system prompt already carries the linking instructions. */
   readonly pullRequestLinking?: boolean;
-}): string {
+}) {
   const harness = toSingleLine(runtime.harness);
   const model = toSingleLine(runtime.model ?? "");
   const modelName = toSingleLine(runtime.modelName ?? "");
@@ -28,6 +28,6 @@ export function buildRuntimeInstructions(runtime: {
     : `${runtimeInfo}\n\n${PULL_REQUEST_LINKING_INSTRUCTIONS}`;
 }
 
-function toSingleLine(value: string): string {
+function toSingleLine(value: string) {
   return value.replaceAll(/\s+/g, " ").trim();
 }

@@ -1,4 +1,3 @@
-import * as Scope from "effect/Scope";
 import * as Effect from "effect/Effect";
 import * as TxQueue from "effect/TxQueue";
 import * as TxRef from "effect/TxRef";
@@ -19,7 +18,7 @@ export const makeKeyedCoalescingWorker = Effect.fn(
 )(function* <K, V, E, R>(options: {
   readonly merge: (current: V, next: V) => V;
   readonly process: (key: K, value: V) => Effect.Effect<void, E, R>;
-}): Effect.fn.Return<KeyedCoalescingWorker<K, V>, never, Scope.Scope | R> {
+}) {
   const queue = yield* Effect.acquireRelease(TxQueue.unbounded<K>(), TxQueue.shutdown);
   const stateRef = yield* TxRef.make<KeyedCoalescingWorkerState<K, V>>({
     latestByKey: new Map(),
@@ -27,7 +26,7 @@ export const makeKeyedCoalescingWorker = Effect.fn(
     activeKeys: new Set(),
   });
 
-  const completeKey = (key: K): Effect.Effect<void> =>
+  const completeKey: (key: K) => Effect.Effect<void> = (key: K) =>
     TxRef.modify(stateRef, (state) => {
       const activeKeys = new Set(state.activeKeys);
       activeKeys.delete(key);

@@ -745,10 +745,7 @@ describe("message pins", () => {
     preview: "Ship the fix",
     sentAt: DateTime.formatIso(NOW),
   };
-  const threadState = (
-    sequence: number,
-    pinnedMessages: ReadonlyArray<ThreadPinnedMessage>,
-  ): AsyncResult.AsyncResult<EnvironmentThreadState> =>
+  const threadState = (sequence: number, pinnedMessages: ReadonlyArray<ThreadPinnedMessage>) =>
     AsyncResult.success({
       ...EMPTY_ENVIRONMENT_THREAD_STATE,
       status: "live",
@@ -758,7 +755,7 @@ describe("message pins", () => {
         thread: { ...v2Projection.thread, pinnedMessages },
         visibleTurnItems: [row],
       }),
-    });
+    }) satisfies AsyncResult.AsyncResult<EnvironmentThreadState>;
 
   const makePinHarness = Effect.fn("TestMessagePins.makeHarness")(function* (
     initial: AsyncResult.AsyncResult<EnvironmentThreadState>,

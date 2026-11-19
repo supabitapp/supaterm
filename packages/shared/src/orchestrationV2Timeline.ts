@@ -15,7 +15,7 @@ function isOrchestrationV2SupersededInterrupt(input: {
   readonly item: TimelineTurnItem;
   readonly attempts: ReadonlyArray<TimelineRunAttempt>;
   readonly items: ReadonlyArray<TimelineTurnItem>;
-}): boolean {
+}) {
   const { item } = input;
   if (item.type !== "run_interrupt_result" || item.runId === null || item.nodeId === null) {
     return false;
@@ -42,7 +42,7 @@ export function isOrchestrationV2TurnItemVisible(input: {
   readonly runs: ReadonlyArray<TimelineRun>;
   readonly attempts: ReadonlyArray<TimelineRunAttempt>;
   readonly items: ReadonlyArray<TimelineTurnItem>;
-}): boolean {
+}) {
   const { item } = input;
   if (
     item.runId !== null &&
@@ -73,7 +73,12 @@ export function createOrchestrationV2TurnItemVisibility(input: {
   readonly runs: ReadonlyArray<TimelineRun>;
   readonly attempts: ReadonlyArray<TimelineRunAttempt>;
   readonly items: ReadonlyArray<TimelineTurnItem>;
-}): (item: TimelineTurnItem) => boolean {
+}): (item: TimelineTurnItem) => boolean;
+export function createOrchestrationV2TurnItemVisibility(input: {
+  readonly runs: ReadonlyArray<TimelineRun>;
+  readonly attempts: ReadonlyArray<TimelineRunAttempt>;
+  readonly items: ReadonlyArray<TimelineTurnItem>;
+}) {
   const statuses = new Map<TimelineRun["id"], TimelineRun["status"]>();
   for (const run of input.runs) {
     if (run.status === "rolled_back" || run.status === "cancelled" || run.status === "queued")
@@ -90,14 +95,15 @@ export function createOrchestrationV2TurnItemVisibility(input: {
     if (roots === undefined) supersededRoots.set(attempt.runId, (roots = new Set()));
     roots.add(attempt.rootNodeId);
   }
-  if (statuses.size === 0 && supersededRoots.size === 0) return () => true;
+  if (statuses.size === 0 && supersededRoots.size === 0)
+    return (() => true) satisfies (item: TimelineTurnItem) => boolean;
   const interruptRuns = new Set<TimelineTurnItem["runId"]>();
   if (supersededRoots.size > 0) {
     for (const item of input.items) {
       if (item.type === "run_interrupt_request") interruptRuns.add(item.runId);
     }
   }
-  return (item) => {
+  return ((item) => {
     const status = item.runId === null ? undefined : statuses.get(item.runId);
     if (status === "rolled_back") return false;
     if (
@@ -113,5 +119,5 @@ export function createOrchestrationV2TurnItemVisibility(input: {
       supersededRoots.get(item.runId)?.has(item.nodeId) === true &&
       !interruptRuns.has(item.runId)
     );
-  };
+  }) satisfies (item: TimelineTurnItem) => boolean;
 }

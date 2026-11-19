@@ -1,5 +1,4 @@
 import type {
-  AnnotationSide,
   CodeViewDiffItem,
   CodeViewItem,
   DiffLineAnnotation,
@@ -38,7 +37,7 @@ type DiffCommentLineAnnotation = DiffLineAnnotation<DiffCommentAnnotationGroup>;
 export type AnnotatableCodeViewHandle = CodeViewHandle<DiffCommentAnnotationGroup, undefined>;
 const EMPTY_REVIEW_COMMENTS: ReadonlyArray<ReviewCommentContext> = [];
 
-function annotationSide(range: SelectedLineRange): AnnotationSide {
+function annotationSide(range: SelectedLineRange) {
   return (range.endSide ?? range.side) === "deletions" ? "deletions" : "additions";
 }
 
@@ -46,7 +45,7 @@ function appendAnnotationEntry(
   annotations: ReadonlyArray<DiffCommentLineAnnotation>,
   range: SelectedLineRange,
   entry: DiffCommentAnnotationEntry,
-): DiffCommentLineAnnotation[] {
+) {
   const side = annotationSide(range);
   const annotationIndex = annotations.findIndex(
     (annotation) => annotation.side === side && annotation.lineNumber === range.end,
@@ -59,7 +58,7 @@ function appendAnnotationEntry(
         lineNumber: range.end,
         metadata: { entries: [entry] },
       },
-    ];
+    ] satisfies DiffCommentLineAnnotation[];
   }
   return annotations.map((annotation, index) =>
     index === annotationIndex
@@ -68,7 +67,7 @@ function appendAnnotationEntry(
           metadata: { entries: [...annotation.metadata.entries, entry] },
         }
       : annotation,
-  );
+  ) satisfies DiffCommentLineAnnotation[];
 }
 
 interface AnnotatableCodeViewProps {

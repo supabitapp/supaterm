@@ -3,7 +3,6 @@ import {
   ServerProviderCompatibilityStatus,
   type ProviderDriverKind,
   type ServerProvider,
-  type ServerProviderCompatibilityAdvisory,
 } from "@supaterm/contracts";
 import { satisfiesSemverRange } from "@supaterm/shared/semver";
 import * as Schema from "effect/Schema";
@@ -59,7 +58,7 @@ export function resolveProviderCompatibility(
   driver: ProviderDriverKind,
   version: string | null,
   supatermVersion = packageJson.version,
-): ServerProviderCompatibilityAdvisory | undefined {
+) {
   const policy = policies?.find(
     (entry) =>
       entry.driver === driver && satisfiesSemverRange(supatermVersion, entry.supatermRange),
@@ -103,9 +102,14 @@ export function applyProviderCompatibility(
   snapshot: ServerProvider,
   policies: ReadonlyArray<ProviderCompatibilityPolicy> | undefined,
   fallback: ReadonlyArray<ProviderCompatibilityPolicy> | undefined,
-): ServerProvider {
+): ServerProvider;
+export function applyProviderCompatibility(
+  snapshot: ServerProvider,
+  policies: ReadonlyArray<ProviderCompatibilityPolicy> | undefined,
+  fallback: ReadonlyArray<ProviderCompatibilityPolicy> | undefined,
+) {
   const { compatibilityAdvisory: _previous, ...base } = snapshot;
-  if (!snapshot.enabled || !snapshot.installed) return base;
+  if (!snapshot.enabled || !snapshot.installed) return base satisfies ServerProvider;
   const advisory =
     resolveProviderCompatibility(policies, snapshot.driver, snapshot.version) ??
     resolveProviderCompatibility(fallback, snapshot.driver, snapshot.version);
@@ -119,16 +123,18 @@ export function applyProviderCompatibility(
     updateCommand?.startsWith("brew upgrade ") &&
     (advisory?.status === "unsupported" || advisory?.status === "broken") &&
     (latestAdvisory?.status === "unsupported" || latestAdvisory?.status === "broken");
-  return advisory
-    ? {
-        ...base,
-        compatibilityAdvisory: {
-          ...advisory,
-          message: needsHomebrewRefresh
-            ? `${advisory.message} Homebrew's local package metadata may be stale. Run brew update && ${updateCommand} on this environment's host, then refresh provider status.`
-            : advisory.message,
-          ...(latestAdvisory ? { latestVersionStatus: latestAdvisory.status } : {}),
-        },
-      }
-    : base;
+  return (
+    advisory
+      ? {
+          ...base,
+          compatibilityAdvisory: {
+            ...advisory,
+            message: needsHomebrewRefresh
+              ? `${advisory.message} Homebrew's local package metadata may be stale. Run brew update && ${updateCommand} on this environment's host, then refresh provider status.`
+              : advisory.message,
+            ...(latestAdvisory ? { latestVersionStatus: latestAdvisory.status } : {}),
+          },
+        }
+      : base
+  ) satisfies ServerProvider;
 }

@@ -39,11 +39,7 @@ import {
 const environmentId = EnvironmentId.make("environment-routes");
 const credential = "bearer:environment-routes";
 
-function route(
-  httpBaseUrl: string,
-  connectionId = credential,
-  environment = environmentId,
-): ConnectionRoute {
+function route(httpBaseUrl: string, connectionId = credential, environment = environmentId) {
   const target = new BearerConnectionTarget({
     environmentId: environment,
     label: "Remote",
@@ -451,7 +447,7 @@ describe("plain HTTP learned routes", () => {
   const base = { target: PUBLIC.target, profile: PUBLIC.profile, enabled: true };
   const ids = (routes: ReadonlyArray<ConnectionRoute> | null) =>
     routes?.map((item) => connectionRouteId(item.target)) ?? null;
-  const learnedRoute = (connectionId: string, httpBaseUrl: string): ConnectionRoute => {
+  const learnedRoute = (connectionId: string, httpBaseUrl: string) => {
     const plain = route(httpBaseUrl, connectionId);
     const profile = Option.getOrThrow(plain.profile);
     if (profile._tag !== "BearerConnectionProfile") throw new Error("Expected bearer profile");
@@ -460,7 +456,7 @@ describe("plain HTTP learned routes", () => {
       profile: Option.some(new BearerConnectionProfile({ ...profile, learned: true })),
     };
   };
-  const withTailscaleLabel = (learned: ConnectionRoute): ConnectionRoute => {
+  const withTailscaleLabel = (learned: ConnectionRoute) => {
     const profile = Option.getOrThrow(learned.profile);
     if (profile._tag !== "BearerConnectionProfile") throw new Error("Expected bearer profile");
     return {

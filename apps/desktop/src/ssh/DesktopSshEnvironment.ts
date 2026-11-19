@@ -81,7 +81,7 @@ export interface DesktopSshEnvironmentLayerOptions {
 export const resolveDesktopSshCliRunner = (
   environment: DesktopEnvironment.DesktopEnvironment["Service"],
   env: NodeJS.ProcessEnv,
-): SshTunnel.RemoteSupatermRunnerOptions => {
+) => {
   const devRemoteEntryPath = Option.getOrUndefined(environment.devRemoteSupatermServerEntryPath);
   if (environment.isDevelopment && devRemoteEntryPath !== undefined) {
     return {
@@ -133,7 +133,7 @@ function unexpectedPasswordPromptError(error: never): never {
 
 function toSshPasswordPromptError(
   cause: DesktopSshPasswordPrompts.DesktopSshPasswordPromptRequestError,
-): SshPasswordPromptError {
+) {
   let message: string;
   switch (cause._tag) {
     case "DesktopSshPromptRequestIdGenerationError":
@@ -163,7 +163,7 @@ function toSshPasswordPromptError(
 
 const makePasswordPrompt = (
   prompts: DesktopSshPasswordPrompts.DesktopSshPasswordPrompts["Service"],
-): SshAuth.SshPasswordPrompt["Service"] => ({
+) => ({
   isAvailable: true,
   request: (request: SshAuth.SshPasswordRequest) =>
     prompts.request(request).pipe(Effect.mapError(toSshPasswordPromptError)),

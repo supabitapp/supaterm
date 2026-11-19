@@ -16,7 +16,7 @@ const decodeServiceConfig = Schema.decodeUnknownOption(
   ),
 );
 
-function isRegisteredService(registeredUrl: string, serverUrl: string): boolean {
+function isRegisteredService(registeredUrl: string, serverUrl: string) {
   const registered = URL.parse(registeredUrl);
   const configured = URL.parse(serverUrl);
   if (

@@ -4,7 +4,6 @@ import {
   DEFAULT_PROVIDER_INTERACTION_MODE,
   DEFAULT_SERVER_SETTINGS,
   isListedThreadLineage,
-  type ModelSelection,
   type Project,
   ProjectId,
   ProviderInstanceId,
@@ -58,7 +57,7 @@ export class ServerRuntimeStartupError extends Schema.TaggedError<ServerRuntimeS
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return "Server runtime startup failed before command readiness.";
   }
 }
@@ -106,7 +105,7 @@ export const makeCommandGate = Effect.gen(function* () {
 
   const enqueueCommand = Effect.fn("serverRuntimeStartup.enqueueCommand")(function* <A, E>(
     effect: Effect.Effect<A, E>,
-  ): Effect.fn.Return<A, E | ServerRuntimeStartupError> {
+  ) {
     const readinessState = yield* Ref.get(commandReadinessState);
     if (readinessState === "ready") {
       return yield* effect;
@@ -140,7 +139,7 @@ export const makeCommandGate = Effect.gen(function* () {
   } satisfies CommandGate;
 });
 
-const getAutoBootstrapThreadModelSelection = (): ModelSelection => ({
+const getAutoBootstrapThreadModelSelection = () => ({
   instanceId: ProviderInstanceId.make("codex"),
   model: DEFAULT_MODEL,
 });
@@ -492,7 +491,7 @@ const make = Effect.fn("serverRuntimeStartup.make")(function* (options?: Startup
             ),
           )
         : Effect.succeed({})
-      ).pipe(Effect.map((targets): AutoBootstrapWelcomeTargets => targets)),
+      ).pipe(Effect.map((targets) => targets)),
     });
     yield* Effect.logInfo("V2 orchestration recovery completed", recovery);
     yield* runStartupPhase(

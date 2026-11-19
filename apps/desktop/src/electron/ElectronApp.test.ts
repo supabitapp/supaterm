@@ -31,7 +31,7 @@ const {
   autoUpdaterOnMock: vi.fn(),
   autoUpdaterRemoveListenerMock: vi.fn(),
   createFromNamedImageMock: vi.fn((name: string) => ({
-    isEmpty: (): boolean => false,
+    isEmpty: () => false,
     toDataURL: () => `data:image/png;base64,${name}`,
   })),
   exitMock: vi.fn(),

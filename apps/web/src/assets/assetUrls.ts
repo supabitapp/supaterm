@@ -30,7 +30,12 @@ export function useAssetUrlState(
   environmentId: EnvironmentId | null,
   resource: AssetResource | null,
   revision?: string | null,
-): AssetUrlState {
+): AssetUrlState;
+export function useAssetUrlState(
+  environmentId: EnvironmentId | null,
+  resource: AssetResource | null,
+  revision?: string | null,
+) {
   const blocked = blockedAssetUrlState(resource, useFilesystemReadAccess(environmentId));
   const preparedConnection = usePreparedConnection(environmentId);
   const result = useAtomValue(
@@ -40,38 +45,42 @@ export function useAssetUrlState(
         ? assetEnvironment.createUrl({ environmentId, input: { resource } })
         : revisionedAssetUrl({ environmentId, input: { resource }, revision }),
   );
-  if (blocked !== null) return blocked;
+  if (blocked !== null) return blocked satisfies AssetUrlState;
   return {
     ...assetUrlStateFromResult(
       result,
       preparedConnection._tag === "Some" ? preparedConnection.value.httpBaseUrl : null,
     ),
     ...(result.waiting ? { waiting: true } : {}),
-  };
+  } satisfies AssetUrlState;
 }
 
 export function useAssetUrlRefresh(
   environmentId: EnvironmentId | null,
   resource: AssetResource | null,
-): () => Promise<string | null> {
+): () => Promise<string | null>;
+export function useAssetUrlRefresh(
+  environmentId: EnvironmentId | null,
+  resource: AssetResource | null,
+) {
   const connection = usePreparedConnection(environmentId);
   const httpBaseUrl = connection._tag === "Some" ? connection.value.httpBaseUrl : null;
   const refresh = useAtomQueryRunner(assetEnvironment.createUrl, {
     reportFailure: false,
     refresh: true,
   });
-  return async () => {
+  return (async () => {
     if (environmentId === null || resource === null || httpBaseUrl === null) return null;
     const result = await refresh({ environmentId, input: { resource } });
     if (result._tag === "Failure") throw squashAtomCommandFailure(result);
     return resolveAssetUrl(httpBaseUrl, result.value.relativeUrl);
-  };
+  }) satisfies () => Promise<string | null>;
 }
 
 export function useAssetUrls(
   environmentId: EnvironmentId,
   resources: ReadonlyArray<AssetResource>,
-): ReadonlyArray<string | null> {
+) {
   const preparedConnection = usePreparedConnection(environmentId);
   const { canReadFiles } = useFilesystemReadAccess(environmentId);
   const allowedResources = canReadFiles
@@ -102,7 +111,7 @@ export function useAssetUrls(
   return urls;
 }
 
-function isFileResource(resource: AssetResource): boolean {
+function isFileResource(resource: AssetResource) {
   return (
     resource._tag === "workspace-file" ||
     resource._tag === "media-file" ||

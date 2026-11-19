@@ -46,10 +46,14 @@ class TestRow {
   removeAttribute(name: string) {
     this.attributes = this.attributes.filter((attribute) => attribute.name !== name);
   }
-  querySelectorAll(_selector: string): TestRow[] {
-    return this.children.flatMap((child) => [child, ...child.querySelectorAll("*")]);
+  querySelectorAll(_selector: string): TestRow[];
+  querySelectorAll(_selector: string) {
+    return this.children.flatMap((child) => [
+      child,
+      ...child.querySelectorAll("*"),
+    ]) satisfies TestRow[];
   }
-  cloneNode(_deep: boolean): TestRow {
+  cloneNode(_deep: boolean) {
     const clone = new TestRow(`${this.name} clone`, this.offsetHeight);
     clone.namespaceURI = this.namespaceURI;
     clone.style = { ...this.style };

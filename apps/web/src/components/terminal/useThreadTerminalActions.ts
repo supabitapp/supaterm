@@ -76,7 +76,7 @@ export function useThreadTerminalActions(threadRef: ScopedThreadRef | null) {
     return nextTerminalId([...ids], canReuse ? undefined : randomUUID());
   };
 
-  const defaultLaunchLocation = (): TerminalLaunchLocation | null =>
+  const defaultLaunchLocation = () =>
     project
       ? {
           cwd: projectScriptCwd({

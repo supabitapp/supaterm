@@ -69,16 +69,16 @@ let customThemeLibrarySnapshot: CustomThemeLibrarySnapshot | null = null;
 const themePreviewListeners = new Set<() => void>();
 let themePreviewAppearance: ThemeAppearance | null = null;
 
-export function getThemePreviewAppearance(): ThemeAppearance | null {
+export function getThemePreviewAppearance() {
   return themePreviewAppearance;
 }
 
-export function subscribeToThemePreview(listener: () => void): () => void {
+export function subscribeToThemePreview(listener: () => void) {
   themePreviewListeners.add(listener);
   return () => themePreviewListeners.delete(listener);
 }
 
-function setThemePreviewAppearance(appearance: ThemeAppearance | null): void {
+function setThemePreviewAppearance(appearance: ThemeAppearance | null) {
   if (themePreviewAppearance === appearance) return;
   themePreviewAppearance = appearance;
   for (const listener of themePreviewListeners) listener();
@@ -104,7 +104,7 @@ function isThemeLabel(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0 && value.trim().length <= 48;
 }
 
-function parseThemeCollection(value: unknown): ThemeCollection | undefined {
+function parseThemeCollection(value: unknown) {
   return isRecord(value) &&
     typeof value.id === "string" &&
     /^[a-z0-9][a-z0-9.:-]{0,127}$/i.test(value.id) &&
@@ -113,9 +113,7 @@ function parseThemeCollection(value: unknown): ThemeCollection | undefined {
     : undefined;
 }
 
-function lenientThemeColorOverrides(
-  value: Readonly<Record<string, unknown>>,
-): Partial<Record<ThemeColorRole, string>> {
+function lenientThemeColorOverrides(value: Readonly<Record<string, unknown>>) {
   const overrides: Partial<Record<ThemeColorRole, string>> = {};
   for (const [role, color] of Object.entries(value)) {
     const normalized = toCanonicalThemeColor(color);
@@ -126,15 +124,12 @@ function lenientThemeColorOverrides(
   return overrides;
 }
 
-function parseStoredThemeColors(value: unknown, appearance: ThemeAppearance): ThemeColors | null {
+function parseStoredThemeColors(value: unknown, appearance: ThemeAppearance) {
   if (!isRecord(value)) return null;
   return { ...getStandardThemeColors(appearance), ...lenientThemeColorOverrides(value) };
 }
 
-function parseStoredThemeVariants(
-  value: unknown,
-  baseAppearance: ThemeAppearance,
-): ThemeVariants | null | undefined {
+function parseStoredThemeVariants(value: unknown, baseAppearance: ThemeAppearance) {
   if (value === undefined) return undefined;
   if (!isRecord(value)) return null;
 
@@ -149,7 +144,7 @@ function parseStoredThemeVariants(
   return Object.keys(variants).length > 0 ? variants : undefined;
 }
 
-function parseStoredTheme(value: unknown): ThemeDefinition | null {
+function parseStoredTheme(value: unknown) {
   if (!isRecord(value)) return null;
   if (!isThemeId(value.id) || RESERVED_THEME_IDS.has(value.id)) return null;
   if (!isThemeLabel(value.label) || !isThemeAppearance(value.appearance)) return null;
@@ -170,7 +165,7 @@ function parseStoredTheme(value: unknown): ThemeDefinition | null {
   };
 }
 
-function parseStoredThemes(storedThemes: ReadonlyArray<unknown>): ReadonlyArray<ThemeDefinition> {
+function parseStoredThemes(storedThemes: ReadonlyArray<unknown>) {
   const themes: ThemeDefinition[] = [];
   for (const value of storedThemes) {
     const theme = parseStoredTheme(value);
@@ -181,32 +176,42 @@ function parseStoredThemes(storedThemes: ReadonlyArray<unknown>): ReadonlyArray<
   return themes;
 }
 
-function readCustomThemeLibrarySnapshot(): CustomThemeLibrarySnapshot {
+function readCustomThemeLibrarySnapshot() {
   if (typeof window === "undefined") {
-    return { status: "ready", storedThemes: [], themes: [] };
+    return { status: "ready", storedThemes: [], themes: [] } satisfies CustomThemeLibrarySnapshot;
   }
 
   let raw: string | null;
   try {
     raw = window.localStorage.getItem(CUSTOM_THEMES_STORAGE_KEY);
   } catch (cause) {
-    return { status: "unavailable", reason: "storage-unavailable", cause };
+    return {
+      status: "unavailable",
+      reason: "storage-unavailable",
+      cause,
+    } satisfies CustomThemeLibrarySnapshot;
   }
-  if (!raw) return { status: "ready", storedThemes: [], themes: [] };
+  if (!raw)
+    return { status: "ready", storedThemes: [], themes: [] } satisfies CustomThemeLibrarySnapshot;
 
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
   } catch {
-    return { status: "unavailable", reason: "malformed" };
+    return { status: "unavailable", reason: "malformed" } satisfies CustomThemeLibrarySnapshot;
   }
-  if (!Array.isArray(parsed)) return { status: "unavailable", reason: "malformed" };
+  if (!Array.isArray(parsed))
+    return { status: "unavailable", reason: "malformed" } satisfies CustomThemeLibrarySnapshot;
 
   const storedThemes = releaseBuiltInThemeIds(parsed);
-  return { status: "ready", storedThemes, themes: parseStoredThemes(storedThemes) };
+  return {
+    status: "ready",
+    storedThemes,
+    themes: parseStoredThemes(storedThemes),
+  } satisfies CustomThemeLibrarySnapshot;
 }
 
-function releaseBuiltInThemeIds(storedThemes: ReadonlyArray<unknown>): ReadonlyArray<unknown> {
+function releaseBuiltInThemeIds(storedThemes: ReadonlyArray<unknown>) {
   const takenIds = new Set<string>(RESERVED_THEME_IDS);
   for (const storedTheme of storedThemes) {
     if (isRecord(storedTheme) && typeof storedTheme.id === "string") takenIds.add(storedTheme.id);
@@ -220,7 +225,7 @@ function releaseBuiltInThemeIds(storedThemes: ReadonlyArray<unknown>): ReadonlyA
   });
 }
 
-function freeThemeId(builtInId: string, takenIds: ReadonlySet<string>): string {
+function freeThemeId(builtInId: string, takenIds: ReadonlySet<string>) {
   for (let attempt = 1; ; attempt += 1) {
     const suffix = attempt === 1 ? "-custom" : `-custom-${attempt}`;
     const id = `${builtInId.slice(0, 48 - suffix.length)}${suffix}`;
@@ -228,11 +233,11 @@ function freeThemeId(builtInId: string, takenIds: ReadonlySet<string>): string {
   }
 }
 
-function getCustomThemeLibrarySnapshot(): CustomThemeLibrarySnapshot {
+function getCustomThemeLibrarySnapshot() {
   if (customThemeLibrarySnapshot === null) {
     customThemeLibrarySnapshot = readCustomThemeLibrarySnapshot();
   }
-  return customThemeLibrarySnapshot;
+  return customThemeLibrarySnapshot satisfies CustomThemeLibrarySnapshot;
 }
 
 function notifyCustomThemeListeners() {
@@ -246,16 +251,19 @@ export function invalidateCustomThemes() {
 
 const EMPTY_CUSTOM_THEMES: ReadonlyArray<ThemeDefinition> = [];
 
-export function getCustomThemes(): ReadonlyArray<ThemeDefinition> {
+export function getCustomThemes(): ReadonlyArray<ThemeDefinition>;
+export function getCustomThemes() {
   const snapshot = getCustomThemeLibrarySnapshot();
-  return snapshot.status === "ready" ? snapshot.themes : EMPTY_CUSTOM_THEMES;
+  return (
+    snapshot.status === "ready" ? snapshot.themes : EMPTY_CUSTOM_THEMES
+  ) satisfies ReadonlyArray<ThemeDefinition>;
 }
 
 function publishedThemeColors(
   theme: EnvironmentTheme,
   appearance: ThemeAppearance,
   colors: Readonly<Record<string, string>> | undefined,
-): ThemeColors {
+) {
   const base =
     appearance === theme.appearance && theme.canvas !== undefined && theme.accent !== undefined
       ? createVividThemeColors(appearance, theme.canvas, theme.accent)
@@ -263,7 +271,7 @@ function publishedThemeColors(
   return { ...base, ...lenientThemeColorOverrides(colors ?? {}) };
 }
 
-export function environmentThemeDefinition(theme: EnvironmentTheme): ThemeDefinition {
+export function environmentThemeDefinition(theme: EnvironmentTheme) {
   const variants: Partial<Record<ThemeAppearance, ThemeColors>> = {};
   for (const [variantAppearance, variantColors] of Object.entries(theme.variants ?? {})) {
     if (variantAppearance === theme.appearance) continue;
@@ -295,9 +303,7 @@ export function environmentThemeDefinition(theme: EnvironmentTheme): ThemeDefini
  * card while "Use" resolved the built-in, and a published `dark.json` would
  * capture everyone whose stored preference is the stock `"dark"`.
  */
-export function publishedThemeDefinitions(
-  themes: ReadonlyArray<EnvironmentTheme>,
-): ReadonlyArray<ThemeDefinition> {
+export function publishedThemeDefinitions(themes: ReadonlyArray<EnvironmentTheme>) {
   return themes.flatMap((theme) => {
     if (isReservedThemeId(theme.id)) return [];
     if (theme.canvas !== undefined && theme.accent !== undefined) {
@@ -312,13 +318,13 @@ export function publishedThemeDefinitions(
   });
 }
 
-const publishedThemesAtom = Atom.make((get): ReadonlyArray<EnvironmentTheme> | null => {
+const publishedThemesAtom = Atom.make((get) => {
   const next = get(themeServerEnvironmentThemesAtom);
   const previous = Option.getOrNull(get.self<ReadonlyArray<EnvironmentTheme> | null>());
   return previous !== null && Equal.equals(previous, next) ? previous : next;
 }).pipe(Atom.withLabel("web-published-environment-themes"));
 
-function readStoredEnvironmentThemes(): ReadonlyArray<ThemeDefinition> {
+function readStoredEnvironmentThemes() {
   try {
     const parsed: unknown = JSON.parse(
       window.localStorage.getItem(ENVIRONMENT_THEMES_STORAGE_KEY) ?? "null",
@@ -349,23 +355,21 @@ export function storePublishedEnvironmentThemes(definitions: ReadonlyArray<Theme
   } catch {}
 }
 
-function getEnvironmentThemes(): ReadonlyArray<ThemeDefinition> {
+function getEnvironmentThemes() {
   return appAtomRegistry.get(environmentThemeDefinitionsAtom);
 }
 
-export function isReservedThemeId(themeId: string): boolean {
+export function isReservedThemeId(themeId: string) {
   return RESERVED_THEME_IDS.has(themeId);
 }
 
-export function getStoredCustomThemeCollection(
-  collectionId: string,
-): ReadonlyArray<ThemeDefinition> {
+export function getStoredCustomThemeCollection(collectionId: string) {
   return readWritableCustomThemeLibrary().themes.filter(
     (theme) => theme.collection?.id === collectionId,
   );
 }
 
-export function subscribeToCustomThemes(listener: () => void): () => void {
+export function subscribeToCustomThemes(listener: () => void) {
   customThemeListeners.add(listener);
   const unsubscribeEnvironment = subscribeAtomChanges(environmentThemeDefinitionsAtom, () =>
     listener(),
@@ -394,7 +398,7 @@ export function subscribeToCustomThemes(listener: () => void): () => void {
  * The standard Supaterm look as a theme palette: what renders when no theme is
  * installed, the seed for a new theme, and the fill for roles a theme file omits.
  */
-export function getStandardThemeColors(appearance: ThemeAppearance): ThemeColors {
+export function getStandardThemeColors(appearance: ThemeAppearance) {
   if (appearance === "dark") {
     return (standardDarkThemeColors ??= decodeThemeColors(SUPATERM_DARK_THEME_COLORS));
   }
@@ -408,7 +412,6 @@ type ThemeRgbColor = {
 };
 
 type ThemeOklch = { L: number; C: number; h: number };
-type ParsedThemeColor = { color: ThemeOklch; alpha: number };
 
 let standardLightThemeColors: ThemeColors | undefined;
 let standardDarkThemeColors: ThemeColors | undefined;
@@ -420,7 +423,7 @@ const THEME_BLACK_FOREGROUND: ThemeRgbColor = { r: 0, g: 0, b: 0 };
 
 const convertToOklch = converter("oklch");
 
-function parseThemeColor(value: unknown): ParsedThemeColor | null {
+function parseThemeColor(value: unknown) {
   if (typeof value !== "string") return null;
   const input = value.trim();
   const parsed = parse(input);
@@ -441,23 +444,23 @@ function parseThemeColor(value: unknown): ParsedThemeColor | null {
   };
 }
 
-function formatThemeColorNumber(value: number, precision: number): string {
+function formatThemeColorNumber(value: number, precision: number) {
   const rounded = Math.abs(value) < 10 ** -precision / 2 ? 0 : value;
   return rounded.toFixed(precision).replace(/(?:\.0+|(?:(\.[0-9]*?)0+))$/, "$1");
 }
 
-function formatOklchThemeColor(color: ThemeOklch, alpha = 1): string {
+function formatOklchThemeColor(color: ThemeOklch, alpha = 1) {
   const normalizedHue = color.C < 0.0000005 ? 0 : ((color.h % 360) + 360) % 360;
   const body = `${formatThemeColorNumber(color.L, 6)} ${formatThemeColorNumber(color.C, 6)} ${formatThemeColorNumber(normalizedHue, 3)}`;
   return alpha < 1 ? `oklch(${body} / ${formatThemeColorNumber(alpha, 4)})` : `oklch(${body})`;
 }
 
-export function toCanonicalThemeColor(value: unknown): string | null {
+export function toCanonicalThemeColor(value: unknown) {
   const parsed = parseThemeColor(value);
   return parsed ? formatOklchThemeColor(parsed.color, parsed.alpha) : null;
 }
 
-export function themeColorToHex(value: string): string | null {
+export function themeColorToHex(value: string) {
   const color = parseThemeColor(value);
   const parsed = color ? { rgb: themeOklchToRgb(color.color), alpha: color.alpha } : null;
   if (!parsed) return null;
@@ -470,12 +473,12 @@ export function themeColorToHex(value: string): string | null {
   return `${opaque}${alpha}`;
 }
 
-function parseThemeRgbColor(value: string, fallback: ThemeRgbColor): ThemeRgbColor {
+function parseThemeRgbColor(value: string, fallback: ThemeRgbColor) {
   const parsed = parseThemeColor(value);
   return parsed ? themeOklchToRgb(parsed.color) : fallback;
 }
 
-function themeRgbToHexColor(color: ThemeRgbColor): string {
+function themeRgbToHexColor(color: ThemeRgbColor) {
   return `#${[color.r, color.g, color.b]
     .map((channel) =>
       Math.round(Math.min(255, Math.max(0, channel)))
@@ -485,11 +488,11 @@ function themeRgbToHexColor(color: ThemeRgbColor): string {
     .join("")}`;
 }
 
-function themeRgbToThemeColor(color: ThemeRgbColor): string {
+function themeRgbToThemeColor(color: ThemeRgbColor) {
   return formatOklchThemeColor(themeRgbToOklch(color));
 }
 
-function decodeThemeColors(colors: ThemeColors): ThemeColors {
+function decodeThemeColors(colors: ThemeColors) {
   return Object.fromEntries(
     THEME_COLOR_ROLES.map((role) => {
       const color = toCanonicalThemeColor(colors[role]);
@@ -503,7 +506,7 @@ function decodeThemeColors(colors: ThemeColors): ThemeColors {
   ) as Record<ThemeColorRole, string>;
 }
 
-function canonicalizeThemeDefinition(theme: ThemeDefinition): ThemeDefinition {
+function canonicalizeThemeDefinition(theme: ThemeDefinition) {
   return {
     ...theme,
     colors: decodeThemeColors(theme.colors),
@@ -520,11 +523,7 @@ function canonicalizeThemeDefinition(theme: ThemeDefinition): ThemeDefinition {
   };
 }
 
-function mixThemeRgbColors(
-  base: ThemeRgbColor,
-  overlay: ThemeRgbColor,
-  amount: number,
-): ThemeRgbColor {
+function mixThemeRgbColors(base: ThemeRgbColor, overlay: ThemeRgbColor, amount: number) {
   return {
     r: base.r + (overlay.r - base.r) * amount,
     g: base.g + (overlay.g - base.g) * amount,
@@ -532,7 +531,7 @@ function mixThemeRgbColors(
   };
 }
 
-function themeRelativeLuminance(color: ThemeRgbColor): number {
+function themeRelativeLuminance(color: ThemeRgbColor) {
   const linearize = (channel: number) => {
     const normalized = channel / 255;
     return normalized <= 0.03928 ? normalized / 12.92 : ((normalized + 0.055) / 1.055) ** 2.4;
@@ -541,18 +540,18 @@ function themeRelativeLuminance(color: ThemeRgbColor): number {
   return 0.2126 * linearize(color.r) + 0.7152 * linearize(color.g) + 0.0722 * linearize(color.b);
 }
 
-function srgbChannelToLinear(channel: number): number {
+function srgbChannelToLinear(channel: number) {
   const c = channel / 255;
   return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
 }
 
-function linearChannelToSrgb(channel: number, round = true): number {
+function linearChannelToSrgb(channel: number, round = true) {
   const c = channel <= 0.0031308 ? channel * 12.92 : 1.055 * channel ** (1 / 2.4) - 0.055;
   const srgb = Math.min(1, Math.max(0, c)) * 255;
   return round ? Math.round(srgb) : srgb;
 }
 
-export function themeColorDistance(first: string, second: string): number {
+export function themeColorDistance(first: string, second: string) {
   const [a, b] = [first, second].map((value) => {
     const { L, C, h } = themeRgbToOklch(parseThemeRgbColor(value, { r: 0, g: 0, b: 0 }));
     const hue = (h * Math.PI) / 180;
@@ -561,7 +560,7 @@ export function themeColorDistance(first: string, second: string): number {
   return Math.hypot(a!.L - b!.L, a!.a - b!.a, a!.b - b!.b);
 }
 
-function themeRgbToOklch(color: ThemeRgbColor): ThemeOklch {
+function themeRgbToOklch(color: ThemeRgbColor) {
   const r = srgbChannelToLinear(color.r);
   const g = srgbChannelToLinear(color.g);
   const b = srgbChannelToLinear(color.b);
@@ -574,7 +573,7 @@ function themeRgbToOklch(color: ThemeRgbColor): ThemeOklch {
   return { L, C: Math.hypot(a, bb), h: (Math.atan2(bb, a) * 180) / Math.PI };
 }
 
-function oklchToRgbUnclamped({ L, C, h }: ThemeOklch): { r: number; g: number; b: number } {
+function oklchToRgbUnclamped({ L, C, h }: ThemeOklch) {
   const hr = (h * Math.PI) / 180;
   const a = C * Math.cos(hr);
   const bb = C * Math.sin(hr);
@@ -588,7 +587,7 @@ function oklchToRgbUnclamped({ L, C, h }: ThemeOklch): { r: number; g: number; b
   };
 }
 
-function mapThemeOklchToSrgbGamut(color: ThemeOklch): ThemeOklch {
+function mapThemeOklchToSrgbGamut(color: ThemeOklch) {
   const isInGamut = (C: number) => {
     const linear = oklchToRgbUnclamped({ ...color, C });
     return [linear.r, linear.g, linear.b].every(
@@ -612,7 +611,7 @@ function mapThemeOklchToSrgbGamut(color: ThemeOklch): ThemeOklch {
   return { ...color, C: low };
 }
 
-function themeOklchToRgb(color: ThemeOklch, round = true): ThemeRgbColor {
+function themeOklchToRgb(color: ThemeOklch, round = true) {
   const linear = oklchToRgbUnclamped(mapThemeOklchToSrgbGamut(color));
   return {
     r: linearChannelToSrgb(linear.r, round),
@@ -621,7 +620,7 @@ function themeOklchToRgb(color: ThemeOklch, round = true): ThemeRgbColor {
   };
 }
 
-function themeOklchToThemeColor(color: ThemeOklch): string {
+function themeOklchToThemeColor(color: ThemeOklch) {
   return formatOklchThemeColor(mapThemeOklchToSrgbGamut(color));
 }
 
@@ -630,7 +629,7 @@ function solveOklchLightness(
   against: ReadonlyArray<ThemeRgbColor>,
   minContrast: number,
   direction: "lighter" | "darker",
-): ThemeOklch {
+) {
   const contrastOf = (color: ThemeOklch) =>
     Math.min(...against.map((surface) => themeContrastRatio(themeOklchToRgb(color), surface)));
   let low = direction === "lighter" ? base.L : 0;
@@ -655,7 +654,7 @@ function solveOklchLightness(
  * Moves only the lightness, so a color that is too dim on `surface` keeps its
  * hue instead of collapsing to black or white.
  */
-export function readableThemeColorOn(color: string, surface: string, minContrast: number): string {
+export function readableThemeColorOn(color: string, surface: string, minContrast: number) {
   const parsedColor = parseThemeColor(color);
   const parsedSurface = parseThemeColor(surface);
   if (!parsedColor || !parsedSurface) return color;
@@ -672,7 +671,7 @@ const CONTEXT_CHIP_CONTRAST = 5;
 const CONTEXT_CHIP_MESSAGE_VARIABLE = "--context-chip-message";
 const CONTEXT_CHIP_INVALID_VARIABLE = "--context-chip-invalid";
 
-export function contextChipVariables(colors: ThemeColors): Readonly<Record<string, string>> {
+export function contextChipVariables(colors: ThemeColors) {
   const parsedCanvas = parseThemeColor(colors.canvas);
   const canvas = parsedCanvas ? themeOklchToRgb(parsedCanvas.color, false) : THEME_WHITE_FOREGROUND;
   const onCanvas = (value: string) => {
@@ -693,7 +692,7 @@ export function contextChipVariables(colors: ThemeColors): Readonly<Record<strin
   const minContrast = Math.min(CONTEXT_CHIP_CONTRAST, Math.max(blackContrast, whiteContrast));
   const accents: Array<[string, string]> = [
     ...(Object.entries(CONTEXT_CHIP_ACCENTS) as Array<[ContextChipAccentKind, string]>).map(
-      ([kind, accent]): [string, string] => [contextChipColorVariable(kind), accent],
+      ([kind, accent]) => [contextChipColorVariable(kind), accent] satisfies [string, string],
     ),
     [CONTEXT_CHIP_INVALID_VARIABLE, colors.errorForeground],
   ];
@@ -709,7 +708,7 @@ export function contextChipVariables(colors: ThemeColors): Readonly<Record<strin
   return variables;
 }
 
-function applyContextChipVariables(root: HTMLElement, colors: ThemeColors): void {
+function applyContextChipVariables(root: HTMLElement, colors: ThemeColors) {
   const variables = contextChipVariables(colors);
   root.style.removeProperty(CONTEXT_CHIP_MESSAGE_VARIABLE);
   root.style.removeProperty(CONTEXT_CHIP_INVALID_VARIABLE);
@@ -733,14 +732,7 @@ const STANDARD_STATUS_COLORS = {
   },
 } as const;
 
-function standardStatusColors(canvas: ThemeRgbColor): {
-  error: string;
-  errorForeground: string;
-  errorSurface: string;
-  warning: string;
-  warningForeground: string;
-  warningSurface: string;
-} {
+function standardStatusColors(canvas: ThemeRgbColor) {
   const appearance: ThemeAppearance = themeRelativeLuminance(canvas) < 0.179 ? "dark" : "light";
   const standard = STANDARD_STATUS_COLORS[appearance];
   const surfaceMix = appearance === "dark" ? 0.16 : 0.08;
@@ -770,7 +762,7 @@ export function createVividThemeColors(
   appearance: ThemeAppearance,
   backgroundValue: string,
   accentValue: string,
-): ThemeColors {
+) {
   const defaults = getStandardThemeColors(appearance);
   const canvasRgb = parseThemeRgbColor(
     backgroundValue,
@@ -784,7 +776,7 @@ export function createVividThemeColors(
   const tintC = Math.min(0.045, Math.max(0.008, accent.C * 0.22));
   const step = dark ? 1 : -1;
 
-  const surfaceAt = (deltaL: number, chroma = tintC): ThemeOklch => ({
+  const surfaceAt = (deltaL: number, chroma = tintC) => ({
     L: Math.min(0.98, Math.max(0.05, canvas.L + step * deltaL)),
     C: chroma,
     h: hue,
@@ -828,7 +820,7 @@ export function createVividThemeColors(
   const codeBackground = surfaceAt(0.035, tintC * 0.8);
   const updateSurface = surfaceAt(dark ? 0.14 : 0.09, Math.min(0.12, accent.C * 0.55));
 
-  const foregroundOn = (surfaceRgb: ThemeRgbColor): string =>
+  const foregroundOn = (surfaceRgb: ThemeRgbColor) =>
     themeOklchToThemeColor(
       solveOklchLightness(textBase, [surfaceRgb], 4.6, dark ? "lighter" : "darker"),
     );
@@ -901,7 +893,7 @@ export function createVividThemeColors(
   };
 }
 
-function themeContrastRatio(first: ThemeRgbColor, second: ThemeRgbColor): number {
+function themeContrastRatio(first: ThemeRgbColor, second: ThemeRgbColor) {
   const firstLuminance = themeRelativeLuminance(first);
   const secondLuminance = themeRelativeLuminance(second);
   const lighter = Math.max(firstLuminance, secondLuminance);
@@ -909,7 +901,7 @@ function themeContrastRatio(first: ThemeRgbColor, second: ThemeRgbColor): number
   return (lighter + 0.05) / (darker + 0.05);
 }
 
-function readableThemeForeground(background: ThemeRgbColor): ThemeRgbColor {
+function readableThemeForeground(background: ThemeRgbColor) {
   const lightContrast = themeContrastRatio(background, THEME_LIGHT_FOREGROUND);
   const darkContrast = themeContrastRatio(background, THEME_DARK_FOREGROUND);
   if (Math.max(lightContrast, darkContrast) >= 4.5) {
@@ -927,7 +919,7 @@ function readableThemeText(
   foreground: ThemeRgbColor,
   amount: number,
   minimumRatio: number,
-): ThemeRgbColor {
+) {
   const softened = mixThemeRgbColors(foreground, background, amount);
   if (themeContrastRatio(softened, background) >= minimumRatio) return softened;
 
@@ -950,10 +942,7 @@ function readableThemeText(
 const STANDARD_LIGHT_MUTED_CONTRAST = 4.705;
 const STANDARD_DARK_MUTED_CONTRAST = 5.082;
 
-function standardMutedThemeText(
-  background: ThemeRgbColor,
-  foreground: ThemeRgbColor,
-): ThemeRgbColor {
+function standardMutedThemeText(background: ThemeRgbColor, foreground: ThemeRgbColor) {
   const target =
     themeRelativeLuminance(background) < 0.179
       ? STANDARD_DARK_MUTED_CONTRAST
@@ -966,7 +955,7 @@ export function updateThemeColorFamily(
   colors: ThemeColors,
   role: ThemeColorRole,
   value: string,
-): ThemeColors {
+) {
   const parsedSelected = parseThemeColor(value);
   if (!parsedSelected) return { ...colors, [role]: value };
   const normalized = formatOklchThemeColor(parsedSelected.color, parsedSelected.alpha);
@@ -1161,13 +1150,12 @@ export function updateThemeColorFamily(
 
 const BUILT_IN_THEME_DEFINITIONS: ReadonlyArray<ThemeDefinition> = BUILT_IN_THEMES;
 
-export function getThemeDefinition(theme: ThemePreference): ThemeDefinition | null {
-  return (
-    BUILT_IN_THEME_DEFINITIONS.find((definition) => definition.id === theme) ??
+export function getThemeDefinition(theme: ThemePreference): ThemeDefinition | null;
+export function getThemeDefinition(theme: ThemePreference) {
+  return (BUILT_IN_THEME_DEFINITIONS.find((definition) => definition.id === theme) ??
     getCustomThemes().find((definition) => definition.id === theme) ??
     getEnvironmentThemes().find((definition) => definition.id === theme) ??
-    null
-  );
+    null) satisfies ThemeDefinition | null;
 }
 
 /**
@@ -1175,30 +1163,28 @@ export function getThemeDefinition(theme: ThemePreference): ThemeDefinition | nu
  * light/dark mix and leave the appearance tiles disagreeing with what is on
  * screen, so every path that selects a theme has to make the same call.
  */
-export function singleAppearanceOf(theme: ThemeDefinition): ThemeAppearance | null {
+export function singleAppearanceOf(theme: ThemeDefinition) {
   const modes = getThemeModes(theme);
   return modes.length === 1 ? modes[0]! : null;
 }
 
-export function getThemeColorsForMode(
-  theme: ThemeDefinition,
-  mode: ThemeAppearance,
-): ThemeColors | null {
+export function getThemeColorsForMode(theme: ThemeDefinition, mode: ThemeAppearance) {
   if (mode === theme.appearance) return theme.colors;
   return theme.variants?.[mode] ?? null;
 }
 
-export function getThemeModes(theme: ThemeDefinition): ReadonlyArray<ThemeAppearance> {
+export function getThemeModes(theme: ThemeDefinition) {
   return (["light", "dark"] as const).filter((mode) => getThemeColorsForMode(theme, mode) !== null);
 }
 
-export function getThemePreferenceMode(theme: ThemePreference): ThemeAppearance | null {
-  if (theme === "system") return null;
-  if (theme === "light" || theme === "dark") return theme;
-  return getThemeDefinition(theme)?.appearance ?? null;
+export function getThemePreferenceMode(theme: ThemePreference): ThemeAppearance | null;
+export function getThemePreferenceMode(theme: ThemePreference) {
+  if (theme === "system") return null satisfies ThemeAppearance | null;
+  if (theme === "light" || theme === "dark") return theme satisfies ThemeAppearance | null;
+  return (getThemeDefinition(theme)?.appearance ?? null) satisfies ThemeAppearance | null;
 }
 
-export function themeIdFromName(name: string): string {
+export function themeIdFromName(name: string) {
   const label = name.trim().toLowerCase();
   const normalized = label
     .replace(/[^a-z0-9]+/g, "-")
@@ -1223,7 +1209,7 @@ export class ThemeLibraryStorageError extends Schema.TaggedError<ThemeLibrarySto
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message(): string {
+  override get message() {
     const direction = this.operation === "read" ? "from" : "to";
     return `Failed to ${this.operation} the theme library ${direction} ${this.storageKey}.`;
   }
@@ -1232,7 +1218,7 @@ export class ThemeLibraryStorageError extends Schema.TaggedError<ThemeLibrarySto
 function saveCustomThemes(
   storedThemes: ReadonlyArray<unknown>,
   themes: ReadonlyArray<ThemeDefinition>,
-): void {
+) {
   if (typeof window === "undefined") return;
   try {
     window.localStorage.setItem(CUSTOM_THEMES_STORAGE_KEY, JSON.stringify(storedThemes));
@@ -1248,9 +1234,7 @@ function saveCustomThemes(
   notifyCustomThemeListeners();
 }
 
-function requireWritableCustomThemeLibrary(
-  snapshot: CustomThemeLibrarySnapshot,
-): Extract<CustomThemeLibrarySnapshot, { status: "ready" }> {
+function requireWritableCustomThemeLibrary(snapshot: CustomThemeLibrarySnapshot) {
   if (snapshot.status === "unavailable") {
     throw new ThemeLibraryStorageError({
       storageKey: CUSTOM_THEMES_STORAGE_KEY,
@@ -1262,22 +1246,19 @@ function requireWritableCustomThemeLibrary(
   return snapshot;
 }
 
-function getWritableCustomThemeLibrary(): Extract<CustomThemeLibrarySnapshot, { status: "ready" }> {
+function getWritableCustomThemeLibrary() {
   return requireWritableCustomThemeLibrary(getCustomThemeLibrarySnapshot());
 }
 
-function readWritableCustomThemeLibrary(): Extract<
-  CustomThemeLibrarySnapshot,
-  { status: "ready" }
-> {
+function readWritableCustomThemeLibrary() {
   return requireWritableCustomThemeLibrary(readCustomThemeLibrarySnapshot());
 }
 
-function storedThemeHasId(storedTheme: unknown, themeId: string): boolean {
+function storedThemeHasId(storedTheme: unknown, themeId: string) {
   return isRecord(storedTheme) && storedTheme.id === themeId;
 }
 
-function storedThemeHasCollectionId(storedTheme: unknown, collectionId: string): boolean {
+function storedThemeHasCollectionId(storedTheme: unknown, collectionId: string) {
   return (
     isRecord(storedTheme) &&
     isRecord(storedTheme.collection) &&
@@ -1285,7 +1266,7 @@ function storedThemeHasCollectionId(storedTheme: unknown, collectionId: string):
   );
 }
 
-export function installCustomTheme(theme: ThemeDefinition): ThemeDefinition {
+export function installCustomTheme(theme: ThemeDefinition) {
   if (RESERVED_THEME_IDS.has(theme.id)) {
     throw new Error(`The theme id "${theme.id}" is reserved.`);
   }
@@ -1302,7 +1283,7 @@ export function installCustomTheme(theme: ThemeDefinition): ThemeDefinition {
   return canonicalTheme;
 }
 
-export function updateCustomTheme(theme: ThemeDefinition): ThemeDefinition {
+export function updateCustomTheme(theme: ThemeDefinition) {
   if (RESERVED_THEME_IDS.has(theme.id)) {
     throw new Error(`The theme id "${theme.id}" is reserved.`);
   }
@@ -1336,7 +1317,7 @@ export function replaceCustomThemeCollection(
   collectionId: string,
   themes: ReadonlyArray<ThemeDefinition>,
   options?: { expectedCollection?: ReadonlyArray<ThemeDefinition> },
-): ReadonlyArray<ThemeDefinition> {
+) {
   if (themes.length === 0) throw new Error("A theme collection cannot be empty.");
 
   const validated = themes.map((theme) => parseStoredTheme(theme));
@@ -1389,11 +1370,11 @@ export function replaceCustomThemeCollection(
   return replacement;
 }
 
-export function removeCustomTheme(themeId: string): void {
+export function removeCustomTheme(themeId: string) {
   removeCustomThemes([themeId]);
 }
 
-export function removeCustomThemes(themeIds: ReadonlyArray<string>): void {
+export function removeCustomThemes(themeIds: ReadonlyArray<string>) {
   const removedIds = new Set(themeIds);
   if (removedIds.size === 0) return;
   const library = getWritableCustomThemeLibrary();
@@ -1410,7 +1391,7 @@ export function removeCustomThemes(themeIds: ReadonlyArray<string>): void {
   );
 }
 
-function parseThemeColorOverrides(value: unknown): ThemeColorOverrides {
+function parseThemeColorOverrides(value: unknown) {
   if (!isRecord(value)) throw new Error("Theme colors must be objects.");
 
   const overrides: Partial<Record<ThemeColorRole, string>> = {};
@@ -1432,14 +1413,14 @@ function parseThemeColorOverrides(value: unknown): ThemeColorOverrides {
   return overrides;
 }
 
-function parseThemeSeedColor(name: string, value: unknown): string {
+function parseThemeSeedColor(name: string, value: unknown) {
   if (typeof value !== "string" || !toCanonicalThemeColor(value)) {
     throw new Error(`The theme's "${name}" must be a literal CSS color.`);
   }
   return value;
 }
 
-export function parseThemeFile(value: unknown): ThemeDefinition {
+export function parseThemeFile(value: unknown) {
   if (!isRecord(value)) {
     throw new Error("Theme files must contain a JSON object.");
   }
@@ -1507,7 +1488,7 @@ export function parseThemeFile(value: unknown): ThemeDefinition {
   };
 }
 
-export function serializeThemeFile(theme: ThemeDefinition): string {
+export function serializeThemeFile(theme: ThemeDefinition) {
   const canonicalTheme = canonicalizeThemeDefinition(theme);
   const file: ThemeFile = {
     version: THEME_FILE_VERSION,
@@ -1586,7 +1567,7 @@ const APP_THEME_VARIABLES: Readonly<Record<ThemeColorRole, string>> = {
   terminalScrollbarHover: "--app-theme-terminal-scrollbar-hover",
 };
 
-export function getThemeColorVariable(role: ThemeColorRole): string {
+export function getThemeColorVariable(role: ThemeColorRole) {
   return APP_THEME_VARIABLES[role];
 }
 
@@ -1595,7 +1576,7 @@ export const THEME_PREVIEW_ID = "__preview";
 /**
  * Callers restore the stored theme (refreshTheme) when the draft goes away.
  */
-export function applyThemeColorPreview(colors: ThemeColors, appearance: ThemeAppearance): void {
+export function applyThemeColorPreview(colors: ThemeColors, appearance: ThemeAppearance) {
   if (typeof document === "undefined") return;
   const root = document.documentElement;
   if (!root?.style) return;
@@ -1609,7 +1590,7 @@ export function applyThemeColorPreview(colors: ThemeColors, appearance: ThemeApp
   setThemePreviewAppearance(appearance);
 }
 
-export function applyThemePalette(theme: ThemePreference, appearance?: ThemeAppearance): void {
+export function applyThemePalette(theme: ThemePreference, appearance?: ThemeAppearance) {
   if (typeof document === "undefined") return;
 
   const root = document.documentElement;
@@ -1635,24 +1616,33 @@ export function resolveThemeAppearance(
   followSystem?: boolean,
   appearanceMode?: ThemePreferenceMode,
   halves?: ThemeHalves | null,
-): "light" | "dark" {
+): "light" | "dark";
+export function resolveThemeAppearance(
+  theme: ThemePreference,
+  systemDark: boolean,
+  followSystem?: boolean,
+  appearanceMode?: ThemePreferenceMode,
+  halves?: ThemeHalves | null,
+) {
   const systemAppearance = systemDark ? "dark" : "light";
   const mode = appearanceMode ?? ((followSystem ?? theme === "system") ? "system" : null);
   if (mode === "system") {
-    if (halves?.[systemAppearance]) return systemAppearance;
+    if (halves?.[systemAppearance]) return systemAppearance satisfies "light" | "dark";
     const definition = getThemeDefinition(theme);
-    return definition && getThemeColorsForMode(definition, systemAppearance) === null
-      ? definition.appearance
-      : systemAppearance;
+    return (
+      definition && getThemeColorsForMode(definition, systemAppearance) === null
+        ? definition.appearance
+        : systemAppearance
+    ) satisfies "light" | "dark";
   }
   if (mode === "light" || mode === "dark") {
-    if (halves?.[mode]) return mode;
+    if (halves?.[mode]) return mode satisfies "light" | "dark";
     const definition = getThemeDefinition(theme);
-    return definition && getThemeColorsForMode(definition, mode) === null
-      ? definition.appearance
-      : mode;
+    return (
+      definition && getThemeColorsForMode(definition, mode) === null ? definition.appearance : mode
+    ) satisfies "light" | "dark";
   }
-  return getThemePreferenceMode(theme) ?? "light";
+  return (getThemePreferenceMode(theme) ?? "light") satisfies "light" | "dark";
 }
 
 export function resolveDesktopTheme(
@@ -1660,7 +1650,13 @@ export function resolveDesktopTheme(
   followSystem?: boolean,
   appearanceMode?: ThemePreferenceMode,
   halves?: ThemeHalves | null,
-): "light" | "dark" | "system" {
+): "light" | "dark" | "system";
+export function resolveDesktopTheme(
+  theme: ThemePreference,
+  followSystem?: boolean,
+  appearanceMode?: ThemePreferenceMode,
+  halves?: ThemeHalves | null,
+) {
   const mode = appearanceMode ?? ((followSystem ?? theme === "system") ? "system" : null);
   if (mode === "system") {
     const definition = getThemeDefinition(theme);
@@ -1670,26 +1666,28 @@ export function resolveDesktopTheme(
     const hasDarkMode =
       halves?.dark !== undefined ||
       (definition !== null && getThemeColorsForMode(definition, "dark") !== null);
-    return definition && (!hasLightMode || !hasDarkMode) ? definition.appearance : "system";
+    return (
+      definition && (!hasLightMode || !hasDarkMode) ? definition.appearance : "system"
+    ) satisfies "light" | "dark" | "system";
   }
   if (mode === "light" || mode === "dark") {
-    if (halves?.[mode]) return mode;
+    if (halves?.[mode]) return mode satisfies "light" | "dark" | "system";
     const definition = getThemeDefinition(theme);
-    return definition && getThemeColorsForMode(definition, mode) === null
-      ? definition.appearance
-      : mode;
+    return (
+      definition && getThemeColorsForMode(definition, mode) === null ? definition.appearance : mode
+    ) satisfies "light" | "dark" | "system";
   }
-  return getThemePreferenceMode(theme) ?? "system";
+  return (getThemePreferenceMode(theme) ?? "system") satisfies "light" | "dark" | "system";
 }
 
-export function isKnownThemePreference(theme: string): boolean {
+export function isKnownThemePreference(theme: string) {
   if (theme === "light" || theme === "dark" || theme === "system") return true;
   return getThemeDefinition(theme) !== null;
 }
 
 export type ThemeHalves = Readonly<{ light?: string; dark?: string }>;
 
-export function parseThemeHalves(raw: string | null): ThemeHalves | null {
+export function parseThemeHalves(raw: string | null) {
   if (!raw) return null;
   try {
     const value: unknown = JSON.parse(raw);
@@ -1713,6 +1711,6 @@ export function resolveThemeHalf(
   theme: ThemePreference,
   halves: ThemeHalves | null,
   appearance: ThemeAppearance,
-): ThemePreference {
+) {
   return halves?.[appearance] ?? theme;
 }

@@ -5,10 +5,11 @@ import { sourceControlClients, type ChangeRequestTerminology } from "./sourceCon
 
 const PULL_REQUEST_NUMBER_PATTERN = /^#?(\d+)$/;
 
-export function parsePullRequestReference(input: string): string | null {
+export function parsePullRequestReference(input: string): string | null;
+export function parsePullRequestReference(input: string) {
   const trimmed = input.trim();
   if (trimmed.length === 0) {
-    return null;
+    return null satisfies string | null;
   }
 
   const normalizedInput =
@@ -16,7 +17,7 @@ export function parsePullRequestReference(input: string): string | null {
       .map((definition) => definition.checkoutCommandArgument(trimmed))
       .find((argument) => argument !== null) ?? trimmed;
   if (normalizedInput.length === 0) {
-    return null;
+    return null satisfies string | null;
   }
 
   if (
@@ -24,15 +25,15 @@ export function parsePullRequestReference(input: string): string | null {
       definition.isChangeRequestReference(normalizedInput),
     )
   ) {
-    return normalizedInput;
+    return normalizedInput satisfies string | null;
   }
 
   const numberMatch = PULL_REQUEST_NUMBER_PATTERN.exec(normalizedInput);
   if (numberMatch?.[1]) {
-    return numberMatch[1];
+    return numberMatch[1] satisfies string | null;
   }
 
-  return null;
+  return null satisfies string | null;
 }
 
 /** The thread project's repository, so a bare number resolves to one of its pull requests. */
@@ -75,7 +76,7 @@ export function resolveLinkPullRequestInput(input: {
     readonly webUrl: (number: number) => string | null;
   } | null;
   readonly hasProject: (reference: ResolvedLink) => boolean;
-}): { link: ResolvedLink } | { error: string } | null {
+}) {
   const parsed =
     sourceControlClients.parseChangeRequestUrl(input.reference.trim()) !== null
       ? input.reference.trim()

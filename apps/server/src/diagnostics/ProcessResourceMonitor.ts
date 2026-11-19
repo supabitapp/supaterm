@@ -19,7 +19,7 @@ export class ProcessResourceMonitor extends Context.Service<
   }
 >()("supaterm/diagnostics/ProcessResourceMonitor") {}
 
-function isLegacyBackendCategory(category: ResourceTelemetryProcessCategory): boolean {
+function isLegacyBackendCategory(category: ResourceTelemetryProcessCategory) {
   return (
     category === "server" ||
     category === "server-child" ||

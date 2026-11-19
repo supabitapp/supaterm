@@ -13,7 +13,7 @@ const isObject = (value: unknown): value is JsonObject =>
 const isIdKey = (key: string) => key === "id" || key.endsWith("Id");
 const isIdListKey = (key: string) => key.endsWith("Ids");
 
-function internRecordIds(container: JsonObject, ids: Array<string | number>): JsonObject {
+function internRecordIds(container: JsonObject, ids: Array<string | number>) {
   const index = new Map<string | number, number>();
   const ref = (value: unknown) => {
     if (typeof value !== "string" && typeof value !== "number") return value;
@@ -25,7 +25,7 @@ function internRecordIds(container: JsonObject, ids: Array<string | number>): Js
     }
     return position;
   };
-  const internRecord = (record: JsonObject): JsonObject => {
+  const internRecord = (record: JsonObject) => {
     const out: JsonObject = {};
     for (const key in record) {
       const value = record[key];
@@ -51,7 +51,7 @@ function internRecordIds(container: JsonObject, ids: Array<string | number>): Js
   return out;
 }
 
-function expandRecordIds(container: JsonObject, ids: ReadonlyArray<unknown>): void {
+function expandRecordIds(container: JsonObject, ids: ReadonlyArray<unknown>) {
   const expandRecord = (record: JsonObject) => {
     for (const key in record) {
       const value = record[key];
@@ -96,7 +96,7 @@ export const withRecordIdTable = <S extends Schema.Top>(
   type Encoded = typeof codec.Encoded;
   return ParsedJson.pipe(
     Schema.decodeTo(codec, {
-      decode: SchemaGetter.transform((raw: unknown): Encoded => {
+      decode: SchemaGetter.transform((raw: unknown) => {
         if (!isObject(raw) || !Array.isArray(raw.ids)) return raw as Encoded;
         const ids: ReadonlyArray<unknown> = raw.ids;
         delete raw.ids;
@@ -105,7 +105,7 @@ export const withRecordIdTable = <S extends Schema.Top>(
         if (isObject(target)) expandRecordIds(target, ids);
         return raw as Encoded;
       }),
-      encode: SchemaGetter.transform((encoded: Encoded): unknown => {
+      encode: SchemaGetter.transform((encoded: Encoded) => {
         if (!isObject(encoded) || encoded.idTable !== true) return encoded;
         const { idTable: _idTable, ...rest } = encoded;
         const key = container(rest);

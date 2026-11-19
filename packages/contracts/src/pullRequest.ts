@@ -730,7 +730,7 @@ export type PullRequestActivity = typeof PullRequestActivity.Type;
 
 export const pullRequestConversationThreads = (
   activity: Pick<PullRequestActivity, "reviewThreads" | "overviewThreads">,
-): ReadonlyArray<PullRequestConversationThread> =>
+) =>
   activity.overviewThreads === undefined || activity.overviewThreads.length === 0
     ? activity.reviewThreads
     : [...activity.reviewThreads, ...activity.overviewThreads];
@@ -1000,7 +1000,7 @@ export type PullRequestUnavailableReason = typeof PullRequestUnavailableReason.T
 export function pullRequestActionAllowed(
   grant: Pick<PullRequestCapabilities | PullRequestViewerPermissions, "actions" | "deleteBranch">,
   action: PullRequestAction,
-): boolean {
+) {
   return action === "delete-branch" ? grant.deleteBranch === true : grant.actions.includes(action);
 }
 
@@ -1010,10 +1010,7 @@ export function pullRequestActionAllowed(
  * against the row's login, so the name is resolved before either comparison rather than being
  * matched as the literal login "me".
  */
-export function resolvePullRequestAuthorFilter(
-  author: string,
-  viewer: string | null | undefined,
-): string {
+export function resolvePullRequestAuthorFilter(author: string, viewer: string | null | undefined) {
   const trimmed = author.trim();
   if (!/^@?me$/i.test(trimmed)) return trimmed;
   return viewer === null || viewer === undefined || viewer.trim().length === 0 ? trimmed : viewer;
@@ -1045,19 +1042,21 @@ export class PullRequestUnavailableError extends Schema.TaggedError<PullRequestU
     return HttpServerResponse.schemaJson(PullRequestUnavailableError)(this, { status: 503 });
   }
 
-  override get message(): string {
+  override get message() {
     switch (this.reason) {
       case "cli-missing":
-        return this.requirement ?? "The tool this host is read through is not installed or set up.";
+        return (this.requirement ??
+          "The tool this host is read through is not installed or set up.") satisfies string as string;
       case "cli-unauthenticated":
-        return this.requirement ?? "This host has no working credentials.";
+        return (this.requirement ??
+          "This host has no working credentials.") satisfies string as string;
       case "provider-unsupported":
-        return "Change requests cannot be browsed for this project's host yet.";
+        return "Change requests cannot be browsed for this project's host yet." satisfies string as string;
       case "repository-without-project":
         if (this.host !== undefined) {
-          return `No project in Supaterm is on ${this.host}. Add any ${this.host} project to read its change requests.`;
+          return `No project in Supaterm is on ${this.host}. Add any ${this.host} project to read its change requests.` satisfies string as string;
         }
-        return `${this.repository ?? "This repository"} is not a project in Supaterm. Add it as a project to read its change requests.`;
+        return `${this.repository ?? "This repository"} is not a project in Supaterm. Add it as a project to read its change requests.` satisfies string as string;
     }
   }
 }
@@ -1077,7 +1076,7 @@ export class PullRequestOperationError extends Schema.TaggedError<PullRequestOpe
     return HttpServerResponse.schemaJson(PullRequestOperationError)(this, { status: 502 });
   }
 
-  override get message(): string {
-    return `Pull request operation ${this.operation} failed: ${this.detail}`;
+  override get message() {
+    return `Pull request operation ${this.operation} failed: ${this.detail}` satisfies string as string;
   }
 }

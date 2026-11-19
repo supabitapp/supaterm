@@ -88,8 +88,12 @@ type TestThreadInput = OrchestrationV2ThreadStreamItem | Error | typeof TEST_DEF
 
 function testSession(
   client: WsRpcProtocolClient,
+  initialConfig?: Effect.Effect<object>,
+): RpcSession.RpcSession;
+function testSession(
+  client: WsRpcProtocolClient,
   initialConfig: Effect.Effect<object> = Effect.succeed({}),
-): RpcSession.RpcSession {
+) {
   return {
     client,
     initialConfig: initialConfig as never,
@@ -100,7 +104,7 @@ function testSession(
     probe: Effect.void,
     inboundFrames: Effect.succeed(0),
     closed: Effect.never,
-  };
+  } satisfies RpcSession.RpcSession;
 }
 
 function awaitThreadState(
@@ -325,16 +329,14 @@ const makeHarness = Effect.fn("TestEnvironmentThreads.makeHarness")(function* (o
   };
 });
 
-const snapshot = (
-  projection: OrchestrationV2ThreadProjection,
-  snapshotSequence = 1,
-): Extract<OrchestrationV2ThreadStreamItem, { readonly kind: "snapshot" }> => ({
-  kind: "snapshot",
-  snapshotSequence,
-  projection,
-});
+const snapshot = (projection: OrchestrationV2ThreadProjection, snapshotSequence = 1) =>
+  ({
+    kind: "snapshot",
+    snapshotSequence,
+    projection,
+  }) satisfies Extract<OrchestrationV2ThreadStreamItem, { readonly kind: "snapshot" }>;
 
-const synchronized = (): OrchestrationV2ThreadStreamItem => ({ kind: "synchronized" });
+const synchronized: () => OrchestrationV2ThreadStreamItem = () => ({ kind: "synchronized" });
 
 const PENDING_QUESTION = {
   id: RuntimeRequestId.make("question"),
@@ -374,19 +376,20 @@ const PROJECTION_WITH_QUESTION = {
   turnItems: [QUESTION_CARD],
 };
 
-const questionResolved = (sequence: number): OrchestrationV2ThreadStreamItem => ({
-  kind: "event",
-  sequence,
-  event: {
-    id: EventId.make("event-request"),
-    type: "runtime-request.updated",
-    threadId: THREAD_ID,
-    occurredAt: v2Now,
-    payload: { ...PENDING_QUESTION, status: "resolved", resolvedAt: v2Now },
-  },
-});
+const questionResolved = (sequence: number) =>
+  ({
+    kind: "event",
+    sequence,
+    event: {
+      id: EventId.make("event-request"),
+      type: "runtime-request.updated",
+      threadId: THREAD_ID,
+      occurredAt: v2Now,
+      payload: { ...PENDING_QUESTION, status: "resolved", resolvedAt: v2Now },
+    },
+  }) satisfies OrchestrationV2ThreadStreamItem;
 
-const titleUpdated = (title: string, sequence = 2): OrchestrationV2ThreadStreamItem => {
+const titleUpdated = (title: string, sequence = 2) => {
   const occurredAt = DateTime.makeUnsafe("2026-06-20T01:00:00.000Z");
   return {
     kind: "event",
@@ -398,10 +401,10 @@ const titleUpdated = (title: string, sequence = 2): OrchestrationV2ThreadStreamI
       occurredAt,
       payload: { ...v2Projection.thread, title, updatedAt: occurredAt },
     },
-  };
+  } satisfies OrchestrationV2ThreadStreamItem;
 };
 
-const deleted = (sequence = 3): OrchestrationV2ThreadStreamItem => {
+const deleted = (sequence = 3) => {
   const occurredAt = DateTime.makeUnsafe("2026-06-20T02:00:00.000Z");
   return {
     kind: "event",
@@ -413,7 +416,7 @@ const deleted = (sequence = 3): OrchestrationV2ThreadStreamItem => {
       occurredAt,
       payload: { ...v2Projection.thread, updatedAt: occurredAt, deletedAt: occurredAt },
     },
-  };
+  } satisfies OrchestrationV2ThreadStreamItem;
 };
 
 describe("EnvironmentThreads", () => {
@@ -937,26 +940,27 @@ describe("EnvironmentThreads", () => {
       status: "running" | "completed",
       exitCode?: number,
       ordinal = id === "older-command" ? 1 : 2,
-    ): Extract<OrchestrationV2TurnItem, { type: "command_execution" }> => ({
-      id: TurnItemId.make(id),
-      threadId: THREAD_ID,
-      runId: null,
-      nodeId: null,
-      providerThreadId: null,
-      providerTurnId: null,
-      nativeItemRef: null,
-      parentItemId: null,
-      ordinal,
-      status,
-      title: null,
-      startedAt: at,
-      completedAt: status === "completed" ? at : null,
-      updatedAt: at,
-      type: "command_execution",
-      input: `run ${id}`,
-      output: "",
-      ...(exitCode === undefined ? {} : { exitCode }),
-    });
+    ) =>
+      ({
+        id: TurnItemId.make(id),
+        threadId: THREAD_ID,
+        runId: null,
+        nodeId: null,
+        providerThreadId: null,
+        providerTurnId: null,
+        nativeItemRef: null,
+        parentItemId: null,
+        ordinal,
+        status,
+        title: null,
+        startedAt: at,
+        completedAt: status === "completed" ? at : null,
+        updatedAt: at,
+        type: "command_execution",
+        input: `run ${id}`,
+        output: "",
+        ...(exitCode === undefined ? {} : { exitCode }),
+      }) satisfies Extract<OrchestrationV2TurnItem, { type: "command_execution" }>;
     const localRow = (item: OrchestrationV2TurnItem, position: number) => ({
       position,
       visibility: "local" as const,
@@ -2585,11 +2589,12 @@ describe("EnvironmentThreads", () => {
   it.effect("skips an unknown event type and resumes after it", () =>
     Effect.gen(function* () {
       const harness = yield* makeHarness({ cached: BASE_PROJECTION, completionMarker: true });
-      const unknown = (sequence: number): OrchestrationV2ThreadStreamItem => ({
-        kind: "unknown-event",
-        sequence,
-        eventType: "run.from-a-future-server",
-      });
+      const unknown = (sequence: number) =>
+        ({
+          kind: "unknown-event",
+          sequence,
+          eventType: "run.from-a-future-server",
+        }) satisfies OrchestrationV2ThreadStreamItem;
       const occurredAt = DateTime.makeUnsafe("2026-06-20T01:00:00.000Z");
       yield* Queue.offerAll(harness.inputs, [
         {

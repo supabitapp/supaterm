@@ -6,7 +6,7 @@ import { ENVIRONMENT_MACHINE_SYMBOLS } from "../../../components/EnvironmentMach
 import { useSettingsEnvironmentFilter } from "../settings-environment-filter";
 
 /** The settings scope filter, as an `AppBar` menu. */
-export function useSettingsEnvironmentMenu(): AppBarMenu {
+export function useSettingsEnvironmentMenu() {
   const {
     availableTargets,
     selectedTargets,
@@ -68,7 +68,7 @@ export function useSettingsEnvironmentMenu(): AppBarMenu {
         ],
       },
     ],
-  };
+  } satisfies AppBarMenu;
 }
 
 const projectMenuLabel = (group: { readonly label: string; readonly archived: boolean }) =>

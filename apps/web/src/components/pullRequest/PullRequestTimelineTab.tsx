@@ -174,7 +174,7 @@ function ActorTimelineMarker({
   );
 }
 
-function friendlyReviewState(value: string): string {
+function friendlyReviewState(value: string) {
   const words = value.toLowerCase().replaceAll("_", " ").replaceAll("-", " ");
   return words.replace(/^\w/u, (letter) => letter.toUpperCase());
 }

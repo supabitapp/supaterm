@@ -25,7 +25,7 @@ export class RelayIdentity extends Context.Service<
 const make = Effect.gen(function* () {
   const secrets = yield* ServerSecretStore.ServerSecretStore;
   const known = yield* SubscriptionRef.make(Option.none<Identity>());
-  const fromSecret = (secret: Uint8Array): Identity => {
+  const fromSecret = (secret: Uint8Array) => {
     const publicKey = relayPublicKey(secret);
     return { secret, address: relayHttpBaseUrl(publicKey), endpointId: relayEndpointId(publicKey) };
   };

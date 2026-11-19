@@ -22,7 +22,7 @@ export class OrchestrationSkillsError extends Schema.TaggedError<OrchestrationSk
   "OrchestrationSkillsError",
   { cause: Schema.optional(Schema.Defect()) },
 ) {
-  override get message(): string {
+  override get message() {
     return "Could not manage orchestration skills on this environment.";
   }
 }

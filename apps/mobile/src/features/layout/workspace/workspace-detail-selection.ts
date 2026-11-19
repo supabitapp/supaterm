@@ -32,11 +32,11 @@ export interface SelectWorkspaceDetailAction {
  * Shows `detail` as the workspace's only page, the way selecting a list row does. Drilling in
  * from a page pushes instead.
  */
-export function selectWorkspaceDetail(
-  detail: WorkspaceDetail,
-  sheet?: WorkspaceDetailSheet,
-): SelectWorkspaceDetailAction {
-  return { type: SELECT_WORKSPACE_DETAIL, payload: sheet ? { detail, sheet } : { detail } };
+export function selectWorkspaceDetail(detail: WorkspaceDetail, sheet?: WorkspaceDetailSheet) {
+  return {
+    type: SELECT_WORKSPACE_DETAIL,
+    payload: sheet ? { detail, sheet } : { detail },
+  } satisfies SelectWorkspaceDetailAction;
 }
 
 const IDENTITY = {
@@ -81,7 +81,10 @@ function workspaceDetailState<
 /** Root stack router overrides that handle `selectWorkspaceDetail`. */
 export function workspaceDetailRouter<Action extends NavigationAction>(
   original: Router<StackNavigationState<ParamListBase>, Action>,
-): Partial<Router<StackNavigationState<ParamListBase>, Action>> {
+): Partial<Router<StackNavigationState<ParamListBase>, Action>>;
+export function workspaceDetailRouter<Action extends NavigationAction>(
+  original: Router<StackNavigationState<ParamListBase>, Action>,
+) {
   return {
     getStateForAction(state, action, options) {
       if (action.type !== SELECT_WORKSPACE_DETAIL) {
@@ -92,16 +95,19 @@ export function workspaceDetailRouter<Action extends NavigationAction>(
       const reset = { type: "RESET", payload: { ...next, stale: false } };
       return original.getStateForAction(state, reset as unknown as Action, options);
     },
-  };
+  } satisfies Partial<Router<StackNavigationState<ParamListBase>, Action>>;
 }
 
 /** A link to a single thread or pull request selects it, like its list row would. */
-export function workspaceDetailLinkAction(
-  state: PartialState<NavigationState> | NavigationState,
-): SelectWorkspaceDetailAction | undefined {
+export function workspaceDetailLinkAction(state: PartialState<NavigationState> | NavigationState) {
   const pages = state.routes.filter((route) => route.name !== "Home");
   const [page] = pages;
-  if (pages.length !== 1 || !page || page.state) return undefined;
-  if (page.name !== "Thread" && page.name !== "PullRequest") return undefined;
-  return selectWorkspaceDetail({ name: page.name, params: page.params } as WorkspaceDetail);
+  if (pages.length !== 1 || !page || page.state)
+    return undefined satisfies SelectWorkspaceDetailAction | undefined;
+  if (page.name !== "Thread" && page.name !== "PullRequest")
+    return undefined satisfies SelectWorkspaceDetailAction | undefined;
+  return selectWorkspaceDetail({
+    name: page.name,
+    params: page.params,
+  } as WorkspaceDetail) satisfies SelectWorkspaceDetailAction | undefined;
 }

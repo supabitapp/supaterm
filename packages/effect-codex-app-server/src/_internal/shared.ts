@@ -17,11 +17,15 @@ export const JsonRpcResponseEnvelope = Schema.Struct({
   error: Schema.optional(JsonRpcError),
 });
 
-export const decodeOptionalPayload = <A, I>(
+export const decodeOptionalPayload: <A, I>(
   method: string,
   schema: Schema.Codec<A, I> | undefined,
   raw: unknown,
-): Effect.Effect<A, CodexError.CodexAppServerRequestError> => {
+) => Effect.Effect<A, CodexError.CodexAppServerRequestError> = <A, I>(
+  method: string,
+  schema: Schema.Codec<A, I> | undefined,
+  raw: unknown,
+) => {
   if (!schema) {
     if (raw === undefined) {
       return Effect.sync(() => undefined as A);
@@ -38,11 +42,15 @@ export const decodeOptionalPayload = <A, I>(
   );
 };
 
-export const encodeOptionalPayload = <A, I>(
+export const encodeOptionalPayload: <A, I>(
   method: string,
   schema: Schema.Codec<A, I> | undefined,
   payload: A,
-): Effect.Effect<I | undefined, CodexError.CodexAppServerRequestError> => {
+) => Effect.Effect<I | undefined, CodexError.CodexAppServerRequestError> = <A, I>(
+  method: string,
+  schema: Schema.Codec<A, I> | undefined,
+  payload: A,
+) => {
   if (!schema) {
     if (payload === undefined) {
       return Effect.undefined;
@@ -63,7 +71,7 @@ export const decodeNotificationPayload = <A, I>(
   method: string,
   schema: Schema.Codec<A, I> | undefined,
   raw: unknown,
-): Effect.Effect<A, CodexError.CodexAppServerProtocolParseError> =>
+) =>
   decodeOptionalPayload(method, schema, raw).pipe(
     Effect.mapError((error) =>
       CodexError.CodexAppServerProtocolParseError.fromRequestError(

@@ -16,8 +16,11 @@ import {
   projectionFor,
 } from "../shared.ts";
 
-function frameField(frame: unknown, key: string): unknown {
-  return typeof frame === "object" && frame !== null ? Reflect.get(frame, key) : undefined;
+function frameField(frame: unknown, key: string): unknown;
+function frameField(frame: unknown, key: string) {
+  return (
+    typeof frame === "object" && frame !== null ? Reflect.get(frame, key) : undefined
+  ) satisfies unknown;
 }
 
 /** Pi queues prompt streamingBehavior "steer" into the running turn without interruption or a second turn. */

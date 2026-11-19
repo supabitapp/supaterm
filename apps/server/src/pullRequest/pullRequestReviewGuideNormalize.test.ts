@@ -30,7 +30,7 @@ const patch = [
 ].join("\n");
 const change = parseReviewGuideChange("src/a.ts\0src/gone.ts\0docs/readme.md\0", patch);
 
-const stop = (overrides: Partial<PullRequestReviewGuideStop>): PullRequestReviewGuideStop => ({
+const stop = (overrides: Partial<PullRequestReviewGuideStop>) => ({
   title: "Stop",
   summary: "",
   attention: null,
@@ -41,7 +41,7 @@ const stop = (overrides: Partial<PullRequestReviewGuideStop>): PullRequestReview
   ...overrides,
 });
 
-const guide = (overrides: Partial<ReviewGuideGenerationResult>): ReviewGuideGenerationResult => ({
+const guide = (overrides: Partial<ReviewGuideGenerationResult>) => ({
   stops: [],
   ...overrides,
 });

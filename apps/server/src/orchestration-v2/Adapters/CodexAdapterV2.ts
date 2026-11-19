@@ -176,9 +176,14 @@ function codexFileChangeApprovalPrompt(input: {
   readonly reason?: string | null;
   readonly grantRoot?: string | null;
   readonly fileChanges?: CodexFileChangeKinds;
-}): string | undefined {
+}): string | undefined;
+function codexFileChangeApprovalPrompt(input: {
+  readonly reason?: string | null;
+  readonly grantRoot?: string | null;
+  readonly fileChanges?: CodexFileChangeKinds;
+}) {
   const reason = input.reason?.trim();
-  if (reason) return reason;
+  if (reason) return reason satisfies string | undefined;
   const entries = Object.entries(input.fileChanges ?? {}).toSorted(([left], [right]) =>
     left.localeCompare(right),
   );
@@ -188,18 +193,20 @@ function codexFileChangeApprovalPrompt(input: {
       return movePath ? `${change.type} ${path} -> ${movePath}` : `${change.type} ${path}`;
     });
     const remaining = entries.length - described.length;
-    return remaining > 0 ? `${described.join("\n")}\n+${remaining} more` : described.join("\n");
+    return (
+      remaining > 0 ? `${described.join("\n")}\n+${remaining} more` : described.join("\n")
+    ) satisfies string | undefined;
   }
-  return input.grantRoot?.trim() || undefined;
+  return (input.grantRoot?.trim() || undefined) satisfies string | undefined;
 }
 
-export function normalizeCodexThreadLoadModelSelection(selection: ModelSelection): ModelSelection {
+export function normalizeCodexThreadLoadModelSelection(selection: ModelSelection) {
   const { options, ...rest } = selection;
   const loadOptions = options?.filter((option) => option.id !== "reasoningEffort");
   return { ...rest, ...(loadOptions?.length ? { options: loadOptions } : {}) };
 }
 
-export function canReuseCodexContextUsage(previous: ModelSelection, next: ModelSelection): boolean {
+export function canReuseCodexContextUsage(previous: ModelSelection, next: ModelSelection) {
   return modelSelectionsEqual(
     {
       ...previous,
@@ -355,12 +362,13 @@ export const CodexProviderCapabilitiesV2 = {
 function toProtocolError(
   detail: string,
   payload?: unknown,
-): ProviderAdapter.ProviderAdapterProtocolError {
+): ProviderAdapter.ProviderAdapterProtocolError;
+function toProtocolError(detail: string, payload?: unknown) {
   return new ProviderAdapter.ProviderAdapterProtocolError({
     driver: CODEX_PROVIDER,
     detail,
     ...(payload === undefined ? {} : { payload }),
-  });
+  }) satisfies ProviderAdapter.ProviderAdapterProtocolError;
 }
 
 const CODEX_THREAD_IN_USE_MESSAGE =
@@ -368,7 +376,7 @@ const CODEX_THREAD_IN_USE_MESSAGE =
 
 const isCodexAppServerRequestError = Schema.is(CodexErrors.CodexAppServerRequestError);
 
-function isCodexActiveWriterError(error: unknown): boolean {
+function isCodexActiveWriterError(error: unknown) {
   return (
     isCodexAppServerRequestError(error) &&
     error.code === -32600 &&
@@ -376,7 +384,7 @@ function isCodexActiveWriterError(error: unknown): boolean {
   );
 }
 
-function isCodexThreadNotFoundError(error: unknown): boolean {
+function isCodexThreadNotFoundError(error: unknown) {
   return (
     isCodexAppServerRequestError(error) &&
     error.code === -32600 &&
@@ -384,24 +392,25 @@ function isCodexThreadNotFoundError(error: unknown): boolean {
   );
 }
 
-function codexTimestamp(seconds: number | null | undefined): DateTime.Utc {
-  return seconds === null || seconds === undefined
-    ? DateTime.nowUnsafe()
-    : DateTime.makeUnsafe(seconds * 1000);
+function codexTimestamp(seconds: number | null | undefined): DateTime.Utc;
+function codexTimestamp(seconds: number | null | undefined) {
+  return (
+    seconds === null || seconds === undefined
+      ? DateTime.nowUnsafe()
+      : DateTime.makeUnsafe(seconds * 1000)
+  ) satisfies DateTime.Utc;
 }
 
 function codexUserMessageText(
   content: ReadonlyArray<CodexSchema.V2ItemCompletedNotification__UserInput>,
-): string {
+) {
   return content
     .flatMap((item) => (item.type === "text" ? [item.text] : []))
     .join("\n")
     .trim();
 }
 
-function mapCodexTurnStatus(
-  status: CodexSchema.V2TurnCompletedNotification__TurnStatus,
-): OrchestrationV2ProviderTurn["status"] {
+function mapCodexTurnStatus(status: CodexSchema.V2TurnCompletedNotification__TurnStatus) {
   switch (status) {
     case "completed":
       return "completed";
@@ -414,9 +423,7 @@ function mapCodexTurnStatus(
   }
 }
 
-function providerTurnStatusToTerminal(
-  status: OrchestrationV2ProviderTurn["status"],
-): Extract<ProviderAdapter.ProviderAdapterV2Event, { type: "turn.terminal" }>["status"] {
+function providerTurnStatusToTerminal(status: OrchestrationV2ProviderTurn["status"]) {
   switch (status) {
     case "completed":
       return "completed";
@@ -432,32 +439,44 @@ function providerTurnStatusToTerminal(
   }
 }
 
-function codexItemStatus(status: "inProgress" | "completed" | "failed" | "declined"): {
-  readonly node: OrchestrationV2ExecutionNode["status"];
-  readonly turnItem: OrchestrationV2TurnItem["status"];
-  readonly completed: boolean;
-} {
+function codexItemStatus(status: "inProgress" | "completed" | "failed" | "declined") {
   switch (status) {
     case "inProgress":
-      return { node: "running", turnItem: "running", completed: false };
+      return { node: "running", turnItem: "running", completed: false } satisfies {
+        readonly node: OrchestrationV2ExecutionNode["status"];
+        readonly turnItem: OrchestrationV2TurnItem["status"];
+        readonly completed: boolean;
+      };
     case "completed":
       return {
         node: "completed",
         turnItem: "completed",
         completed: true,
+      } satisfies {
+        readonly node: OrchestrationV2ExecutionNode["status"];
+        readonly turnItem: OrchestrationV2TurnItem["status"];
+        readonly completed: boolean;
       };
     case "failed":
-      return { node: "failed", turnItem: "failed", completed: true };
+      return { node: "failed", turnItem: "failed", completed: true } satisfies {
+        readonly node: OrchestrationV2ExecutionNode["status"];
+        readonly turnItem: OrchestrationV2TurnItem["status"];
+        readonly completed: boolean;
+      };
     case "declined":
       return {
         node: "cancelled",
         turnItem: "cancelled",
         completed: true,
+      } satisfies {
+        readonly node: OrchestrationV2ExecutionNode["status"];
+        readonly turnItem: OrchestrationV2TurnItem["status"];
+        readonly completed: boolean;
       };
   }
 }
 
-function codexSkillMentionText(text: string): string {
+function codexSkillMentionText(text: string) {
   return text.replace(SKILL_MENTION_PATTERN, "$1$$$2");
 }
 
@@ -468,7 +487,7 @@ function codexBackgroundCommandDetail(item: {
   readonly command: string;
   readonly exitCode?: number | null | undefined;
   readonly aggregatedOutput?: string | null | undefined;
-}): string {
+}) {
   let commandEnd = BACKGROUND_COMMAND_DETAIL_COMMAND_MAX_LENGTH;
   const finalCommandUnit = item.command.charCodeAt(commandEnd - 1);
   if (finalCommandUnit >= 0xd800 && finalCommandUnit <= 0xdbff) commandEnd -= 1;
@@ -487,11 +506,11 @@ function codexBackgroundCommandDetail(item: {
   return outputTail.length === 0 ? header : `${header}\n\nOutput tail:\n${outputTail}`;
 }
 
-function codexNativeSubagentLabel(task: OrchestrationV2Subagent): string | undefined {
+function codexNativeSubagentLabel(task: OrchestrationV2Subagent) {
   return task.title?.trim() || task.prompt.trim() || undefined;
 }
 
-function codexNativeSubagentDetail(task: OrchestrationV2Subagent): string {
+function codexNativeSubagentDetail(task: OrchestrationV2Subagent) {
   const header = `Subagent ${task.status}: ${codexNativeSubagentLabel(task) ?? task.id}`;
   return task.result == null || task.result.length === 0
     ? header
@@ -506,9 +525,7 @@ export interface CodexDynamicToolProjection extends McpToolPresentation {
   readonly status: OrchestrationV2TurnItem["status"];
 }
 
-function codexMcpToolOutput(
-  item: Extract<CodexDynamicToolItem, { readonly type: "mcpToolCall" }>,
-): unknown | undefined {
+function codexMcpToolOutput(item: Extract<CodexDynamicToolItem, { readonly type: "mcpToolCall" }>) {
   const resultOutput =
     item.result === null || item.result === undefined
       ? undefined
@@ -524,7 +541,7 @@ function codexMcpToolOutput(
 
 const MCP_APP_CAPTURE_TIMEOUT = "20 seconds";
 
-function codexMcpAppResourceUri(item: CodexDynamicToolItem): string | undefined {
+function codexMcpAppResourceUri(item: CodexDynamicToolItem) {
   if (item.type !== "mcpToolCall") return undefined;
   const uri = item.mcpAppUi?.resourceUri ?? item.mcpAppResourceUri ?? item.appContext?.resourceUri;
   return typeof uri === "string" && uri.startsWith(MCP_APP_RESOURCE_SCHEME) ? uri : undefined;
@@ -534,7 +551,7 @@ const CODEX_IMAGE_DATA_URL = /^data:(image\/[a-z0-9.+-]+);base64,([A-Za-z0-9+/=]
 
 export function codexDynamicToolOutput(
   item: Extract<CodexDynamicToolItem, { readonly type: "dynamicToolCall" }>,
-): unknown | undefined {
+) {
   if (item.contentItems !== null && item.contentItems !== undefined) {
     return item.contentItems.map((content) => {
       if (content.type !== "inputImage") return content;
@@ -553,46 +570,46 @@ function codexToolItemStatus(item: CodexDynamicToolItem) {
   return codexItemStatus(item.status === "completed" ? "completed" : "inProgress");
 }
 
-export const projectCodexDynamicToolItem = Effect.fn("CodexAdapterV2.projectDynamicToolItem")(
-  function* (
-    item: CodexDynamicToolItem,
-  ): Effect.fn.Return<CodexDynamicToolProjection, never, Digest.Digest> {
-    if (item.type === "imageGeneration") {
-      return {
-        toolName: "image_gen",
-        title: "Generate image",
-        input: item.revisedPrompt ?? null,
-        output: { savedPath: item.savedPath ?? null, failure: item.failure ?? null },
-        status: codexToolItemStatus(item).turnItem,
-      };
-    }
-    const output =
-      item.type === "mcpToolCall" ? codexMcpToolOutput(item) : codexDynamicToolOutput(item);
-    const toolName =
-      item.type === "mcpToolCall"
-        ? `${item.server}.${item.tool}`
-        : [trimText(item.namespace), item.tool].filter(Boolean).join(".");
-    const presentation: McpToolPresentation =
-      item.type === "mcpToolCall" ? yield* mcpToolPresentation(item) : {};
-    const title =
-      dynamicToolTitle(toolName, item.arguments, presentation.title) ?? presentation.title;
-    const toolSurface = presentation.toolSurface ?? dynamicToolSurface(toolName, item.arguments);
-    const toolSource =
-      toolSurface === "computer" && presentation.toolSource?.kind !== "computer"
-        ? COMPUTER_USE_TOOL_SOURCE
-        : presentation.toolSource;
-    const projection: CodexDynamicToolProjection = {
-      ...presentation,
-      ...(toolSurface ? { toolSurface } : {}),
-      ...(toolSource ? { toolSource } : {}),
-      toolName,
-      ...(title ? { title } : {}),
-      input: item.arguments,
-      status: codexItemStatus(item.status).turnItem,
+export const projectCodexDynamicToolItem: (
+  item: CodexDynamicToolItem,
+) => Effect.Effect<CodexDynamicToolProjection, never, Digest.Digest> = Effect.fn(
+  "CodexAdapterV2.projectDynamicToolItem",
+)(function* (item: CodexDynamicToolItem) {
+  if (item.type === "imageGeneration") {
+    return {
+      toolName: "image_gen",
+      title: "Generate image",
+      input: item.revisedPrompt ?? null,
+      output: { savedPath: item.savedPath ?? null, failure: item.failure ?? null },
+      status: codexToolItemStatus(item).turnItem,
     };
-    return output === undefined ? projection : { ...projection, output };
-  },
-);
+  }
+  const output =
+    item.type === "mcpToolCall" ? codexMcpToolOutput(item) : codexDynamicToolOutput(item);
+  const toolName =
+    item.type === "mcpToolCall"
+      ? `${item.server}.${item.tool}`
+      : [trimText(item.namespace), item.tool].filter(Boolean).join(".");
+  const presentation: McpToolPresentation =
+    item.type === "mcpToolCall" ? yield* mcpToolPresentation(item) : {};
+  const title =
+    dynamicToolTitle(toolName, item.arguments, presentation.title) ?? presentation.title;
+  const toolSurface = presentation.toolSurface ?? dynamicToolSurface(toolName, item.arguments);
+  const toolSource =
+    toolSurface === "computer" && presentation.toolSource?.kind !== "computer"
+      ? COMPUTER_USE_TOOL_SOURCE
+      : presentation.toolSource;
+  const projection: CodexDynamicToolProjection = {
+    ...presentation,
+    ...(toolSurface ? { toolSurface } : {}),
+    ...(toolSource ? { toolSource } : {}),
+    toolName,
+    ...(title ? { title } : {}),
+    input: item.arguments,
+    status: codexItemStatus(item.status).turnItem,
+  };
+  return output === undefined ? projection : { ...projection, output };
+});
 
 function codexNativeItemRef(nativeItemId: string) {
   return {
@@ -602,31 +619,34 @@ function codexNativeItemRef(nativeItemId: string) {
   };
 }
 
-function trimText(value: string | null | undefined): string | undefined {
+function trimText(value: string | null | undefined): string | undefined;
+function trimText(value: string | null | undefined) {
   const trimmed = value?.trim();
-  return trimmed && trimmed.length > 0 ? trimmed : undefined;
+  return (trimmed && trimmed.length > 0 ? trimmed : undefined) satisfies string | undefined;
 }
 
-function nonEmptyText(value: string | null | undefined, fallback: string): string {
-  return trimText(value) ?? fallback;
+function nonEmptyText(value: string | null | undefined, fallback: string): string;
+function nonEmptyText(value: string | null | undefined, fallback: string) {
+  return (trimText(value) ?? fallback) satisfies string;
 }
 
 function codexPlanStepStatus(
   status: CodexSchema.V2TurnPlanUpdatedNotification__TurnPlanStepStatus,
-): OrchestrationV2PlanStep["status"] {
+): OrchestrationV2PlanStep["status"];
+function codexPlanStepStatus(
+  status: CodexSchema.V2TurnPlanUpdatedNotification__TurnPlanStepStatus,
+) {
   switch (status) {
     case "completed":
-      return "completed";
+      return "completed" satisfies OrchestrationV2PlanStep["status"];
     case "inProgress":
-      return "running";
+      return "running" satisfies OrchestrationV2PlanStep["status"];
     case "pending":
-      return "pending";
+      return "pending" satisfies OrchestrationV2PlanStep["status"];
   }
 }
 
-function approvalDecisionToLegacyReviewDecision(
-  decision: ProviderApprovalDecision,
-): CodexSchema.ExecCommandApprovalResponse__ReviewDecision {
+function approvalDecisionToLegacyReviewDecision(decision: ProviderApprovalDecision) {
   switch (decision) {
     case "accept":
       return "approved";
@@ -642,34 +662,44 @@ function approvalDecisionToLegacyReviewDecision(
 
 function providerRequestKindFromPermissions(
   permissions: CodexSchema.PermissionsRequestApprovalParams["permissions"],
-): ProviderRequestKind {
+): ProviderRequestKind;
+function providerRequestKindFromPermissions(
+  permissions: CodexSchema.PermissionsRequestApprovalParams["permissions"],
+) {
   const requests = (access: "read" | "write") =>
     (permissions.fileSystem?.[access]?.length ?? 0) > 0 ||
     permissions.fileSystem?.entries?.some((entry) => entry.access === access);
   if (requests("write")) {
-    return "file-change";
+    return "file-change" satisfies ProviderRequestKind;
   }
   if (requests("read")) {
-    return "file-read";
+    return "file-read" satisfies ProviderRequestKind;
   }
-  return "command";
+  return "command" satisfies ProviderRequestKind;
 }
 
 function permissionsResponseFromDecision(input: {
   readonly decision: ProviderApprovalDecision;
   readonly permissions: CodexSchema.PermissionsRequestApprovalParams["permissions"];
-}): CodexSchema.PermissionsRequestApprovalResponse {
+}): CodexSchema.PermissionsRequestApprovalResponse;
+function permissionsResponseFromDecision(input: {
+  readonly decision: ProviderApprovalDecision;
+  readonly permissions: CodexSchema.PermissionsRequestApprovalParams["permissions"];
+}) {
   if (input.decision !== "accept" && input.decision !== "acceptForSession") {
-    return { permissions: {}, scope: "turn" };
+    return {
+      permissions: {},
+      scope: "turn",
+    } satisfies CodexSchema.PermissionsRequestApprovalResponse;
   }
 
   return {
     permissions: input.permissions,
     scope: input.decision === "acceptForSession" ? "session" : "turn",
-  };
+  } satisfies CodexSchema.PermissionsRequestApprovalResponse;
 }
 
-function answerValueToStrings(value: unknown): ReadonlyArray<string> {
+function answerValueToStrings(value: unknown) {
   if (Array.isArray(value)) {
     return value.map((item) => String(item));
   }
@@ -688,7 +718,11 @@ function answerValueToStrings(value: unknown): ReadonlyArray<string> {
 function toCodexUserInputAnswers(
   answers: ProviderUserInputAnswers,
   nativeQuestionIds: ReadonlyMap<string, string>,
-): CodexSchema.ToolRequestUserInputResponse["answers"] {
+): CodexSchema.ToolRequestUserInputResponse["answers"];
+function toCodexUserInputAnswers(
+  answers: ProviderUserInputAnswers,
+  nativeQuestionIds: ReadonlyMap<string, string>,
+) {
   return Object.fromEntries(
     Object.entries(answers).flatMap(([questionId, value]) => {
       const nativeId = nativeQuestionIds.get(questionId);
@@ -696,17 +730,17 @@ function toCodexUserInputAnswers(
         ? []
         : [[nativeId, { answers: [...answerValueToStrings(value)] }]];
     }),
-  );
+  ) satisfies CodexSchema.ToolRequestUserInputResponse["answers"];
 }
 
-function compactStrings(values: ReadonlyArray<string | null | undefined>): ReadonlyArray<string> {
+function compactStrings(values: ReadonlyArray<string | null | undefined>) {
   return values.flatMap((value) => {
     const trimmed = trimText(value);
     return trimmed === undefined ? [] : [trimmed];
   });
 }
 
-function webSearchPatterns(item: CodexWebSearchItem): ReadonlyArray<string> {
+function webSearchPatterns(item: CodexWebSearchItem) {
   if (item.action === null || item.action === undefined) {
     return compactStrings([item.query]);
   }
@@ -739,11 +773,7 @@ const isProviderAdapterRuntimeRequestResponseError = Schema.is(
   ProviderAdapter.ProviderAdapterRuntimeRequestResponseError,
 );
 
-function codexRuntimeModeTurnDefaults(runtimeMode: RuntimeMode): {
-  readonly approvalPolicy: CodexSchema.V2TurnStartParams__AskForApproval;
-  readonly approvalsReviewer: CodexSchema.V2TurnStartParams__ApprovalsReviewer;
-  readonly sandboxPolicy: CodexSchema.V2TurnStartParams__SandboxPolicy;
-} {
+function codexRuntimeModeTurnDefaults(runtimeMode: RuntimeMode) {
   switch (runtimeMode) {
     case "approval-required":
       return {
@@ -752,6 +782,10 @@ function codexRuntimeModeTurnDefaults(runtimeMode: RuntimeMode): {
         sandboxPolicy: {
           type: "readOnly",
         },
+      } satisfies {
+        readonly approvalPolicy: CodexSchema.V2TurnStartParams__AskForApproval;
+        readonly approvalsReviewer: CodexSchema.V2TurnStartParams__ApprovalsReviewer;
+        readonly sandboxPolicy: CodexSchema.V2TurnStartParams__SandboxPolicy;
       };
     case "auto-accept-edits":
       return {
@@ -760,6 +794,10 @@ function codexRuntimeModeTurnDefaults(runtimeMode: RuntimeMode): {
         sandboxPolicy: {
           type: "workspaceWrite",
         },
+      } satisfies {
+        readonly approvalPolicy: CodexSchema.V2TurnStartParams__AskForApproval;
+        readonly approvalsReviewer: CodexSchema.V2TurnStartParams__ApprovalsReviewer;
+        readonly sandboxPolicy: CodexSchema.V2TurnStartParams__SandboxPolicy;
       };
     case "auto":
       return {
@@ -768,6 +806,10 @@ function codexRuntimeModeTurnDefaults(runtimeMode: RuntimeMode): {
         sandboxPolicy: {
           type: "workspaceWrite",
         },
+      } satisfies {
+        readonly approvalPolicy: CodexSchema.V2TurnStartParams__AskForApproval;
+        readonly approvalsReviewer: CodexSchema.V2TurnStartParams__ApprovalsReviewer;
+        readonly sandboxPolicy: CodexSchema.V2TurnStartParams__SandboxPolicy;
       };
     case "full-access":
       return {
@@ -784,16 +826,17 @@ function codexRuntimeModeTurnDefaults(runtimeMode: RuntimeMode): {
         sandboxPolicy: {
           type: "dangerFullAccess",
         },
+      } satisfies {
+        readonly approvalPolicy: CodexSchema.V2TurnStartParams__AskForApproval;
+        readonly approvalsReviewer: CodexSchema.V2TurnStartParams__ApprovalsReviewer;
+        readonly sandboxPolicy: CodexSchema.V2TurnStartParams__SandboxPolicy;
       };
   }
 }
 
 const isCodexCyberAccessProgram = Schema.is(CodexSchema.V2TurnStartParams__CyberAccessProgram);
 
-function codexCyberAccess(
-  models: ReadonlyArray<ServerProviderModel>,
-  model: string,
-): { readonly defaultProgram: string | undefined } | undefined {
+function codexCyberAccess(models: ReadonlyArray<ServerProviderModel>, model: string) {
   const descriptor = models
     .find((candidate) => candidate.slug === model)
     ?.capabilities?.optionDescriptors?.find((candidate) => candidate.id === "cyberAccessProgram");
@@ -892,7 +935,7 @@ function providerSession(input: {
   readonly cwd: string | null;
   readonly model: string;
   readonly now: DateTime.Utc;
-}): OrchestrationV2ProviderSession {
+}) {
   return {
     id: input.providerSessionId,
     driver: CODEX_PROVIDER,
@@ -904,7 +947,7 @@ function providerSession(input: {
     createdAt: input.now,
     updatedAt: input.now,
     lastError: null,
-  };
+  } satisfies OrchestrationV2ProviderSession;
 }
 
 const getNativeThreadId = Effect.fn("CodexAdapterV2.getNativeThreadId")(function* (
@@ -932,7 +975,7 @@ function providerThreadFromCodexThread(input: {
     readonly updatedAt: number;
   };
   readonly forkedFrom?: OrchestrationV2ProviderThread["forkedFrom"];
-}): OrchestrationV2ProviderThread {
+}) {
   return {
     id: input.idAllocator.derive.providerThread({
       driver: CODEX_PROVIDER,
@@ -956,10 +999,10 @@ function providerThreadFromCodexThread(input: {
     forkedFrom: input.forkedFrom ?? null,
     createdAt: codexTimestamp(input.thread.createdAt),
     updatedAt: codexTimestamp(input.thread.updatedAt),
-  };
+  } satisfies OrchestrationV2ProviderThread;
 }
 
-const isTerminalProviderTurn = (turn: OrchestrationV2ProviderTurn): boolean =>
+const isTerminalProviderTurn = (turn: OrchestrationV2ProviderTurn) =>
   turn.nativeTurnRef !== null &&
   (turn.status === "completed" ||
     turn.status === "interrupted" ||
@@ -999,7 +1042,7 @@ const CODEX_GOAL_STATUSES = {
   complete: "complete",
 } as const satisfies Record<CodexThreadGoal["status"], OrchestrationV2ProviderGoal["status"]>;
 
-function providerGoalFromCodex(goal: CodexThreadGoal): OrchestrationV2ProviderGoal | null {
+function providerGoalFromCodex(goal: CodexThreadGoal) {
   const objective = goal.objective.trim();
   if (objective.length === 0) return null;
   return {
@@ -1013,7 +1056,7 @@ function providerGoalFromCodex(goal: CodexThreadGoal): OrchestrationV2ProviderGo
 
 const providerGoalsEqual = Schema.toEquivalence(Schema.NullOr(OrchestrationV2ProviderGoal));
 
-function describeCodexGoal(goal: OrchestrationV2ProviderGoal): string {
+function describeCodexGoal(goal: OrchestrationV2ProviderGoal) {
   return `Goal ${goal.status.replace("_", " ")}: ${goal.objective}`;
 }
 
@@ -1022,13 +1065,12 @@ const CODEX_GOAL_CONTINUATION_GRACE = "5 seconds";
 const providerTurnsForThread = (
   providerTurns: ReadonlyArray<OrchestrationV2ProviderTurn>,
   providerThread: OrchestrationV2ProviderThread,
-): ReadonlyArray<OrchestrationV2ProviderTurn> =>
-  providerTurns.filter((turn) => turn.providerThreadId === providerThread.id);
+) => providerTurns.filter((turn) => turn.providerThreadId === providerThread.id);
 
 const countTerminalTurnsAfterBoundary = (
   providerTurns: ReadonlyArray<OrchestrationV2ProviderTurn>,
   providerTurnId: ProviderTurnId,
-): number | null => {
+) => {
   const boundaryTurn = providerTurns.find((turn) => turn.id === providerTurnId);
   if (boundaryTurn === undefined) {
     return null;
@@ -1156,9 +1198,7 @@ export const resolveCodexRollbackTarget = Effect.fn("CodexAdapterV2.resolveRollb
   },
 );
 
-function parseCodexRetryProgress(
-  message: string,
-): Pick<OrchestrationV2ProviderRetry, "attempt" | "maxAttempts"> | null {
+function parseCodexRetryProgress(message: string) {
   const match = /\b(\d+)\s*\/\s*(\d+)\b/u.exec(message);
   if (match?.[1] === undefined || match[2] === undefined) {
     return null;
@@ -1171,7 +1211,7 @@ function parseCodexRetryProgress(
   return { attempt, maxAttempts };
 }
 
-function codexErrorInfoCode(value: unknown): string | null {
+function codexErrorInfoCode(value: unknown) {
   if (typeof value === "string") {
     return value;
   }
@@ -1188,7 +1228,7 @@ class CodexGeneratedImages {
 
 type CodexErrorInfo = CodexSchema.ServerNotification__CodexErrorInfo;
 
-function codexExhaustionHttpStatus(errorInfo: CodexErrorInfo | null | undefined): number | null {
+function codexExhaustionHttpStatus(errorInfo: CodexErrorInfo | null | undefined) {
   return typeof errorInfo === "object" &&
     errorInfo !== null &&
     "responseTooManyFailedAttempts" in errorInfo
@@ -1196,21 +1236,21 @@ function codexExhaustionHttpStatus(errorInfo: CodexErrorInfo | null | undefined)
     : null;
 }
 
-function codexErrorHttpStatus(errorInfo: CodexErrorInfo | null | undefined): number | null {
+function codexErrorHttpStatus(errorInfo: CodexErrorInfo | null | undefined): number | null;
+function codexErrorHttpStatus(errorInfo: CodexErrorInfo | null | undefined) {
   const detail =
     typeof errorInfo === "object" && errorInfo !== null ? Object.values(errorInfo)[0] : undefined;
-  return typeof detail === "object" &&
+  return (
+    typeof detail === "object" &&
     detail !== null &&
     "httpStatusCode" in detail &&
     typeof detail.httpStatusCode === "number"
-    ? detail.httpStatusCode
-    : null;
+      ? detail.httpStatusCode
+      : null
+  ) satisfies number | null;
 }
 
-function codexUsageLimitError(
-  code: string | null,
-  errorInfo: CodexErrorInfo | null | undefined,
-): boolean {
+function codexUsageLimitError(code: string | null, errorInfo: CodexErrorInfo | null | undefined) {
   return (
     code === "usageLimitExceeded" ||
     code === "rateLimitExceeded" ||
@@ -1250,16 +1290,19 @@ function codexTerminalErrorNeedsEvidence(
 function withCodexManagedFailure(
   failure: OrchestrationV2ProviderFailure,
   nativeError: unknown,
-): OrchestrationV2ProviderFailure {
+): OrchestrationV2ProviderFailure;
+function withCodexManagedFailure(failure: OrchestrationV2ProviderFailure, nativeError: unknown) {
   const managed = classifyCodexManagedError(nativeError);
-  return managed === undefined
-    ? failure
-    : {
-        ...failure,
-        message: managed.message,
-        code: managed.code,
-        ...(managed.usageLimit ? { class: "usage_limit" } : {}),
-      };
+  return (
+    managed === undefined
+      ? failure
+      : {
+          ...failure,
+          message: managed.message,
+          code: managed.code,
+          ...(managed.usageLimit ? { class: "usage_limit" } : {}),
+        }
+  ) satisfies OrchestrationV2ProviderFailure;
 }
 
 function failureResetAt(
@@ -1353,7 +1396,7 @@ interface TrackedRunningCommandItem {
   readonly processId?: string;
 }
 
-function isPersistentCodexDynamicTool(item: CodexDynamicToolItem): boolean {
+function isPersistentCodexDynamicTool(item: CodexDynamicToolItem) {
   if (item.type === "imageGeneration") return true;
   const input = item.arguments;
   if (input === null || typeof input !== "object" || Array.isArray(input)) {
@@ -1394,12 +1437,7 @@ interface CodexSubagentThreadContext {
   task: OrchestrationV2Subagent;
 }
 
-const approvalOwnerCodexTurn = (
-  context: ActiveCodexTurnContext,
-): {
-  readonly owner: ActiveCodexTurnContext;
-  readonly subagent: CodexSubagentThreadContext | null;
-} => {
+const approvalOwnerCodexTurn = (context: ActiveCodexTurnContext) => {
   let owner = context;
   let subagent: CodexSubagentThreadContext | null = null;
   while (owner.subagent !== null) {
@@ -1412,7 +1450,7 @@ const approvalOwnerCodexTurn = (
 const isDescendantCodexTurn = (
   candidate: ActiveCodexTurnContext,
   ancestor: ActiveCodexTurnContext,
-): boolean => {
+) => {
   let parent = candidate.subagent?.parentContext;
   while (parent !== undefined) {
     if (parent === ancestor) {
@@ -1506,11 +1544,7 @@ function codexThreadRuntimeParams(input: {
   readonly mcpSession: McpProviderSession.McpProviderSessionConfig | undefined;
   readonly modelSelection?: { readonly model: string };
   readonly runtimePolicy?: ProviderAdapter.ProviderAdapterV2RuntimePolicy;
-}): {
-  readonly cwd?: string;
-  readonly model?: string;
-  readonly config: Readonly<Record<string, Schema.Json>>;
-} {
+}) {
   const { mcpSession } = input;
   const supatermServer =
     mcpSession === undefined
@@ -1602,7 +1636,7 @@ export const makeCodexAppServerSpawnCommand = Effect.fn(
   });
 });
 
-function readCodexProtocolPath(value: unknown, ...path: ReadonlyArray<string>): unknown {
+function readCodexProtocolPath(value: unknown, ...path: ReadonlyArray<string>) {
   let current = value;
   for (const key of path) {
     if (current === null || typeof current !== "object") return undefined;
@@ -1617,7 +1651,7 @@ const CODEX_THREAD_ENV_CONFIG_KEY = `shell_environment_policy.set.${PortScanner.
 function makeCodexProtocolThreadRouter() {
   const threadIdsByNativeId = new Map<string, ThreadId>();
   const threadIdsByRequest = new Map<string, ThreadId>();
-  return (direction: "incoming" | "outgoing", frame: unknown): ThreadId | null => {
+  return (direction: "incoming" | "outgoing", frame: unknown) => {
     const id = readCodexProtocolPath(frame, "id");
     const method = readCodexProtocolPath(frame, "method");
     const isRequest = typeof method === "string";
@@ -1671,14 +1705,18 @@ function makeCodexProtocolThreadRouter() {
 export function makeCodexAppServerProtocolLogger(input: {
   readonly nativeEventLogger: ProviderEventLoggers.EventNdjsonLogger | undefined;
   readonly providerSessionId: OrchestrationV2ProviderSession["id"];
-}): CodexClient.CodexAppServerClientOptions["logger"] | undefined {
+}): CodexClient.CodexAppServerClientOptions["logger"] | undefined;
+export function makeCodexAppServerProtocolLogger(input: {
+  readonly nativeEventLogger: ProviderEventLoggers.EventNdjsonLogger | undefined;
+  readonly providerSessionId: OrchestrationV2ProviderSession["id"];
+}) {
   const { nativeEventLogger } = input;
   if (nativeEventLogger === undefined) {
-    return undefined;
+    return undefined satisfies CodexClient.CodexAppServerClientOptions["logger"] | undefined;
   }
 
   const routeThread = makeCodexProtocolThreadRouter();
-  return (event) => {
+  return ((event) => {
     if (!shouldPersistProviderEvent("native", event)) return Effect.void;
     const threadId = event.stage === "decoded" ? routeThread(event.direction, event.payload) : null;
     return nativeEventLogger
@@ -1693,19 +1731,20 @@ export function makeCodexAppServerProtocolLogger(input: {
         threadId,
       )
       .pipe(Effect.ignore);
-  };
+  }) satisfies CodexClient.CodexAppServerClientOptions["logger"] | undefined;
 }
 
-function redactCodexProtocolValue(value: unknown): unknown {
+function redactCodexProtocolValue(value: unknown): unknown;
+function redactCodexProtocolValue(value: unknown) {
   if (Array.isArray(value)) {
-    return value.map(redactCodexProtocolValue);
+    return value.map(redactCodexProtocolValue) satisfies unknown;
   }
   if (value === null || typeof value !== "object") {
     if (typeof value !== "string") {
-      return value;
+      return value satisfies unknown;
     }
     if (/^Bearer\s+/i.test(value)) {
-      return "[REDACTED]";
+      return "[REDACTED]" satisfies unknown;
     }
     const trimmed = value.trim();
     if (
@@ -1714,7 +1753,7 @@ function redactCodexProtocolValue(value: unknown): unknown {
         (trimmed.startsWith("[") && trimmed.endsWith("]"))
       )
     ) {
-      return value;
+      return value satisfies unknown;
     }
     try {
       return pipe(
@@ -1722,9 +1761,9 @@ function redactCodexProtocolValue(value: unknown): unknown {
         boundProviderEventForLogging,
         redactCodexProtocolValue,
         JSON.stringify,
-      );
+      ) satisfies unknown;
     } catch {
-      return value;
+      return value satisfies unknown;
     }
   }
   return Object.fromEntries(
@@ -1732,10 +1771,10 @@ function redactCodexProtocolValue(value: unknown): unknown {
       key,
       isSensitiveCodexProtocolKey(key) ? "[REDACTED]" : redactCodexProtocolValue(nested),
     ]),
-  );
+  ) satisfies unknown;
 }
 
-function isSensitiveCodexProtocolKey(key: string): boolean {
+function isSensitiveCodexProtocolKey(key: string) {
   const normalized = key.replace(/[^a-z0-9]/gi, "").toLowerCase();
   return (
     normalized.endsWith("authorization") ||
@@ -2154,10 +2193,13 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
             sessionApprovals.delete(nativeThreadId);
           }
         };
-        const sessionAllowance = (
+        const sessionAllowance: (
           nativeThreadId: string,
           context: ActiveCodexTurnContext,
-        ): Set<ProviderRequestKind> => {
+        ) => Set<ProviderRequestKind> = (
+          nativeThreadId: string,
+          context: ActiveCodexTurnContext,
+        ) => {
           const runtimeMode = context.input.runtimePolicy.runtimeMode;
           const allowed = sessionApprovals.get(nativeThreadId);
           if (allowed?.runtimeMode === runtimeMode) return allowed.kinds;
@@ -2425,10 +2467,13 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
           );
         });
 
-        const awaitRegisteredTurn = Effect.fnUntraced(function* (
+        const awaitRegisteredTurn: (
+          lookup: Effect.Effect<ActiveCodexTurnContext | undefined>,
+          attemptsRemaining?: number,
+        ) => Effect.Effect<ActiveCodexTurnContext | undefined> = Effect.fnUntraced(function* (
           lookup: Effect.Effect<ActiveCodexTurnContext | undefined>,
           attemptsRemaining = 1_000,
-        ): Effect.fn.Return<ActiveCodexTurnContext | undefined> {
+        ) {
           const context = yield* lookup;
           if (context !== undefined || attemptsRemaining <= 0) {
             return context;
@@ -3337,7 +3382,7 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
               .request("thread/read", { threadId: input.nativeThreadId, includeTurns: false })
               .pipe(
                 Effect.flatMap(decodeCodexChildThread),
-                Effect.map((response): typeof CodexChildSelection.Type | null =>
+                Effect.map((response) =>
                   response.thread.id === input.nativeThreadId && response.thread.model?.trim()
                     ? {
                         thread: response.thread,
@@ -6080,94 +6125,69 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
           }).pipe(Effect.orDie),
         );
 
-        const makeRootTerminalEvent = Effect.fn("CodexAdapterV2.makeRootTerminalEvent")(
-          function* (input: {
-            readonly context: ActiveCodexTurnContext;
-            readonly status: OrchestrationV2ProviderTurn["status"];
-            readonly completedAt: DateTime.Utc;
-            readonly failureMessage?: string;
-            readonly failureErrorInfo?: CodexErrorInfo;
-            readonly providerRetry?: ActiveCodexProviderRetry;
-          }): Effect.fn.Return<CodexRootTerminalEvent> {
-            const terminalStatus = providerTurnStatusToTerminal(input.status);
-            if (terminalStatus === "failed") {
-              const previousFailure = input.context.latestProviderFailure ?? input.providerRetry;
-              const failureCode =
-                input.failureErrorInfo === undefined
-                  ? undefined
-                  : codexErrorInfoCode(input.failureErrorInfo);
-              const failureClass = codexTerminalFailureClass(
-                input.failureErrorInfo,
-                failureCode ?? null,
-              );
-              const completionHasClass =
-                failureCode != null &&
-                !codexTerminalErrorNeedsEvidence(input.failureErrorInfo, failureCode);
-              let failure =
-                previousFailure !== undefined &&
-                (input.failureMessage === undefined ||
-                  input.failureMessage === previousFailure.nativeMessage) &&
-                (failureCode === undefined || failureCode === previousFailure.nativeCode) &&
-                (!completionHasClass || previousFailure.failure.class === failureClass)
-                  ? previousFailure.failure
-                  : withCodexManagedFailure(
-                      makeProviderFailure({
-                        message: input.failureMessage,
-                        code: failureCode,
-                        class: failureClass,
-                      }),
-                      input.failureMessage,
-                    );
-              const retry = input.providerRetry;
-              const notification = input.context.latestProviderFailure;
-              if (
-                codexTerminalErrorNeedsEvidence(input.failureErrorInfo, failure.code) &&
-                failure.class === "provider_error" &&
-                (notification === undefined ||
-                  notification.failure.class === "transport_error" ||
-                  codexTerminalErrorNeedsEvidence(
-                    notification.errorInfo,
-                    notification.nativeCode,
-                  )) &&
-                ((retry !== undefined &&
-                  input.failureMessage !== undefined &&
-                  input.failureMessage === retry.nativeDetails &&
-                  codexTerminalFailureClass(retry.errorInfo, retry.nativeCode) ===
-                    "transport_error") ||
-                  (notification?.failure.class === "transport_error" &&
-                    input.failureMessage === notification.nativeMessage))
-              ) {
-                failure = { ...failure, class: "transport_error" };
-              }
-              return {
-                type: "turn.terminal",
-                driver: CODEX_PROVIDER,
-                providerThreadId: input.context.providerThread.id,
-                providerTurnId: input.context.providerTurnId,
-                runOrdinal: input.context.input.runOrdinal,
-                failureItemOrdinal: yield* resolveItemOrdinal(
-                  input.context,
-                  `terminal-failure:${input.context.providerTurnId}`,
-                ),
-                status: terminalStatus,
-                failure:
-                  failure.class === "usage_limit"
-                    ? {
-                        ...failure,
-                        resetAt: failureResetAt(failure, yield* Ref.get(rateLimitSnapshot), {
-                          failedAt: input.completedAt,
-                          zone: codexZone,
-                        }),
-                      }
-                    : failure,
-                ...(input.providerRetry === undefined
-                  ? {}
-                  : {
-                      retry: input.providerRetry.retry,
-                      retryStartedAt: input.providerRetry.startedAt,
+        const makeRootTerminalEvent: (input: {
+          readonly context: ActiveCodexTurnContext;
+          readonly status: OrchestrationV2ProviderTurn["status"];
+          readonly completedAt: DateTime.Utc;
+          readonly failureMessage?: string;
+          readonly failureErrorInfo?: CodexErrorInfo;
+          readonly providerRetry?: ActiveCodexProviderRetry;
+        }) => Effect.Effect<CodexRootTerminalEvent> = Effect.fn(
+          "CodexAdapterV2.makeRootTerminalEvent",
+        )(function* (input: {
+          readonly context: ActiveCodexTurnContext;
+          readonly status: OrchestrationV2ProviderTurn["status"];
+          readonly completedAt: DateTime.Utc;
+          readonly failureMessage?: string;
+          readonly failureErrorInfo?: CodexErrorInfo;
+          readonly providerRetry?: ActiveCodexProviderRetry;
+        }) {
+          const terminalStatus = providerTurnStatusToTerminal(input.status);
+          if (terminalStatus === "failed") {
+            const previousFailure = input.context.latestProviderFailure ?? input.providerRetry;
+            const failureCode =
+              input.failureErrorInfo === undefined
+                ? undefined
+                : codexErrorInfoCode(input.failureErrorInfo);
+            const failureClass = codexTerminalFailureClass(
+              input.failureErrorInfo,
+              failureCode ?? null,
+            );
+            const completionHasClass =
+              failureCode != null &&
+              !codexTerminalErrorNeedsEvidence(input.failureErrorInfo, failureCode);
+            let failure =
+              previousFailure !== undefined &&
+              (input.failureMessage === undefined ||
+                input.failureMessage === previousFailure.nativeMessage) &&
+              (failureCode === undefined || failureCode === previousFailure.nativeCode) &&
+              (!completionHasClass || previousFailure.failure.class === failureClass)
+                ? previousFailure.failure
+                : withCodexManagedFailure(
+                    makeProviderFailure({
+                      message: input.failureMessage,
+                      code: failureCode,
+                      class: failureClass,
                     }),
-                threadDisposition: "reusable",
-              };
+                    input.failureMessage,
+                  );
+            const retry = input.providerRetry;
+            const notification = input.context.latestProviderFailure;
+            if (
+              codexTerminalErrorNeedsEvidence(input.failureErrorInfo, failure.code) &&
+              failure.class === "provider_error" &&
+              (notification === undefined ||
+                notification.failure.class === "transport_error" ||
+                codexTerminalErrorNeedsEvidence(notification.errorInfo, notification.nativeCode)) &&
+              ((retry !== undefined &&
+                input.failureMessage !== undefined &&
+                input.failureMessage === retry.nativeDetails &&
+                codexTerminalFailureClass(retry.errorInfo, retry.nativeCode) ===
+                  "transport_error") ||
+                (notification?.failure.class === "transport_error" &&
+                  input.failureMessage === notification.nativeMessage))
+            ) {
+              failure = { ...failure, class: "transport_error" };
             }
             return {
               type: "turn.terminal",
@@ -6175,15 +6195,44 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
               providerThreadId: input.context.providerThread.id,
               providerTurnId: input.context.providerTurnId,
               runOrdinal: input.context.input.runOrdinal,
+              failureItemOrdinal: yield* resolveItemOrdinal(
+                input.context,
+                `terminal-failure:${input.context.providerTurnId}`,
+              ),
               status: terminalStatus,
-              failure: null,
-              ...(input.context.hookStopReason !== undefined
-                ? { reason: input.context.hookStopReason }
-                : {}),
+              failure:
+                failure.class === "usage_limit"
+                  ? {
+                      ...failure,
+                      resetAt: failureResetAt(failure, yield* Ref.get(rateLimitSnapshot), {
+                        failedAt: input.completedAt,
+                        zone: codexZone,
+                      }),
+                    }
+                  : failure,
+              ...(input.providerRetry === undefined
+                ? {}
+                : {
+                    retry: input.providerRetry.retry,
+                    retryStartedAt: input.providerRetry.startedAt,
+                  }),
               threadDisposition: "reusable",
             };
-          },
-        );
+          }
+          return {
+            type: "turn.terminal",
+            driver: CODEX_PROVIDER,
+            providerThreadId: input.context.providerThread.id,
+            providerTurnId: input.context.providerTurnId,
+            runOrdinal: input.context.input.runOrdinal,
+            status: terminalStatus,
+            failure: null,
+            ...(input.context.hookStopReason !== undefined
+              ? { reason: input.context.hookStopReason }
+              : {}),
+            threadDisposition: "reusable",
+          };
+        });
 
         const publishRootTerminal = Effect.fnUntraced(function* (
           context: ActiveCodexTurnContext,
@@ -7617,15 +7666,16 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
                     : {}),
                 }),
               ),
-              Effect.map((response): OrchestrationV2ProviderThread =>
-                providerThreadFromCodexThread({
-                  appThreadId: threadInput.threadId,
-                  idAllocator,
-                  ownerNodeId: null,
-                  providerSessionId: input.providerSessionId,
-                  providerInstanceId: adapterOptions.instanceId,
-                  thread: response.thread,
-                }),
+              Effect.map(
+                (response) =>
+                  providerThreadFromCodexThread({
+                    appThreadId: threadInput.threadId,
+                    idAllocator,
+                    ownerNodeId: null,
+                    providerSessionId: input.providerSessionId,
+                    providerInstanceId: adapterOptions.instanceId,
+                    thread: response.thread,
+                  }) satisfies OrchestrationV2ProviderThread,
               ),
               Effect.mapError(
                 (cause) =>

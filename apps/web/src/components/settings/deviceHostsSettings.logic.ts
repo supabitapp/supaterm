@@ -16,9 +16,7 @@ export interface DeviceHostGroup {
 }
 
 /** Only combine matching configurations; ambiguous identities keep their machine's list. */
-export function groupDeviceHosts(
-  environments: ReadonlyArray<DeviceHostEnvironment>,
-): ReadonlyArray<DeviceHostGroup> | null {
+export function groupDeviceHosts(environments: ReadonlyArray<DeviceHostEnvironment>) {
   const groups = new Map<string, DeviceHostGroup>();
   const identities = new Map<string, string>();
   const configurations = new Map<string, string>();
@@ -57,7 +55,7 @@ export function updateDeviceHosts(
   host: SshDeviceHostConfig,
   remove: boolean,
   original = host,
-): ReadonlyArray<SshDeviceHostConfig> {
+) {
   const sameDestination = (candidate: SshDeviceHostConfig, other: SshDeviceHostConfig) =>
     candidate.target === other.target &&
     candidate.port === other.port &&

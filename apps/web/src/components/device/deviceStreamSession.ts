@@ -73,7 +73,7 @@ export const deviceStreamScreenAtom = Atom.family((viewId: string) =>
 
 /** A device's video and input connection, live while a view reads it. */
 export const deviceStreamSessionAtom = Atom.family((key: DeviceStreamKey) =>
-  Atom.make((get): DeviceStreamSession => {
+  Atom.make((get) => {
     const screenAtom = deviceStreamScreenAtom(key.viewId);
     const canvas = document.createElement("canvas");
     canvas.style.display = "block";

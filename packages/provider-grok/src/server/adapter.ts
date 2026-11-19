@@ -12,7 +12,6 @@ import {
   defaultInstanceIdForDriver,
   ProviderDriverKind,
   type OrchestrationV2ProviderCapabilities,
-  type RuntimeMode,
 } from "@supaterm/contracts";
 import { GrokSettings } from "../settings.ts";
 import * as SecureRandom from "effect/crypto/SecureRandom";
@@ -250,7 +249,7 @@ const registerGrokAskUserQuestionExtensions = ({
 /** Explicit policy overrides launch in ask mode so Grok cannot bypass Supaterm approval checks. */
 export function grokLaunchRuntimeMode(
   runtimePolicy: ProviderAdapter.ProviderAdapterV2RuntimePolicy,
-): RuntimeMode {
+) {
   return runtimePolicy.approvalPolicy === undefined && runtimePolicy.sandboxPolicy === undefined
     ? runtimePolicy.runtimeMode
     : "approval-required";
@@ -339,7 +338,8 @@ const applyGrokSessionModelSelection: NonNullable<AcpAdapterV2Flavor["applyModel
 export function makeGrokAcpAdapterFlavor(
   options: GrokAdapterV2Options,
   homeDirectory: string,
-): AcpAdapterV2Flavor {
+): AcpAdapterV2Flavor;
+export function makeGrokAcpAdapterFlavor(options: GrokAdapterV2Options, homeDirectory: string) {
   return {
     driver: GROK_PROVIDER,
     runtimeHarness: "Grok",
@@ -432,7 +432,7 @@ export function makeGrokAcpAdapterFlavor(
     deferFinalizeForBackgroundWork: true,
     enablePostSettleContinuation: true,
     ...(options.assertComplete === undefined ? {} : { assertComplete: options.assertComplete }),
-  };
+  } satisfies AcpAdapterV2Flavor;
 }
 
 export const makeGrokAdapterV2 = Effect.fn("makeGrokAdapterV2")(function* (
@@ -463,7 +463,7 @@ export type GrokAdapterV2DriverEnv =
 export const GrokAdapterV2Driver: ProviderAdapterDriver<GrokSettings, GrokAdapterV2DriverEnv> = {
   driverKind: GROK_DRIVER_KIND,
   configSchema: GrokSettings,
-  defaultConfig: (): GrokSettings => DEFAULT_GROK_SETTINGS,
+  defaultConfig: () => DEFAULT_GROK_SETTINGS,
   create: Effect.fn("GrokAdapterV2Driver.create")(
     function* (input: ProviderAdapterDriverCreateInput<GrokSettings>) {
       const hostEnvironment = yield* HostProcess.Environment;

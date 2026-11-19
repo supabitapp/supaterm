@@ -187,27 +187,30 @@ export function Inspector(props: {
   return null;
 }
 
-function useStableActions(actions: Required<AdaptiveWorkspaceActions>): AdaptiveWorkspaceActions {
+function useStableActions(actions: Required<AdaptiveWorkspaceActions>) {
   const latest = useRef(actions);
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- points the stable actions at the handlers this commit rendered
   useLayoutEffect(() => {
     latest.current = actions;
   });
-  const [stable] = useState((): AdaptiveWorkspaceActions => ({
-    startNewTask: () => latest.current.startNewTask(),
-    selectDetail: (detail, sheet) => latest.current.selectDetail(detail, sheet),
-    registerWorkspaceInspector: (content, routeKey, revealKey) =>
-      latest.current.registerWorkspaceInspector(content, routeKey, revealKey),
-    setPrimarySidebarSearchQuery: (query) => latest.current.setPrimarySidebarSearchQuery(query),
-    showInspector: () => latest.current.showInspector(),
-    toggleAuxiliaryPane: () => latest.current.toggleAuxiliaryPane(),
-    togglePrimarySidebar: () => latest.current.togglePrimarySidebar(),
-    revealPrimarySidebar: () => latest.current.revealPrimarySidebar(),
-    setPrimarySidebarVisible: (visible) => latest.current.setPrimarySidebarVisible(visible),
-    openWorkspaceTab: (tab, options) => latest.current.openWorkspaceTab(tab, options),
-    setAuxiliaryPaneWidth: (width) => latest.current.setAuxiliaryPaneWidth(width),
-    setNativeInspectorWidth: (width) => latest.current.setNativeInspectorWidth(width),
-  }));
+  const [stable] = useState(
+    () =>
+      ({
+        startNewTask: () => latest.current.startNewTask(),
+        selectDetail: (detail, sheet) => latest.current.selectDetail(detail, sheet),
+        registerWorkspaceInspector: (content, routeKey, revealKey) =>
+          latest.current.registerWorkspaceInspector(content, routeKey, revealKey),
+        setPrimarySidebarSearchQuery: (query) => latest.current.setPrimarySidebarSearchQuery(query),
+        showInspector: () => latest.current.showInspector(),
+        toggleAuxiliaryPane: () => latest.current.toggleAuxiliaryPane(),
+        togglePrimarySidebar: () => latest.current.togglePrimarySidebar(),
+        revealPrimarySidebar: () => latest.current.revealPrimarySidebar(),
+        setPrimarySidebarVisible: (visible) => latest.current.setPrimarySidebarVisible(visible),
+        openWorkspaceTab: (tab, options) => latest.current.openWorkspaceTab(tab, options),
+        setAuxiliaryPaneWidth: (width) => latest.current.setAuxiliaryPaneWidth(width),
+        setNativeInspectorWidth: (width) => latest.current.setNativeInspectorWidth(width),
+      }) satisfies AdaptiveWorkspaceActions as AdaptiveWorkspaceActions,
+  );
   return stable;
 }
 

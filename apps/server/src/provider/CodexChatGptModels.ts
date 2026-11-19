@@ -44,7 +44,7 @@ export const chatGptModels = Effect.fn("chatGptModels")(function* (
   const catalog = yield* response.json.pipe(Effect.flatMap(Schema.decodeUnknownEffect(Catalog)));
   return catalog.models
     .filter((model) => model.visibility === "list")
-    .map((model): ServerProviderModel => {
+    .map((model) => {
       const native = nativeModels.find((candidate) => candidate.slug === model.slug);
       const catalogCapabilities =
         model.default_reasoning_level && model.supported_reasoning_levels

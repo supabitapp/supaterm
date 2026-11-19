@@ -23,8 +23,8 @@ export class SecretStoreSecureError extends Schema.TaggedError<SecretStoreSecure
     ...secretStoreErrorContext,
   },
 ) {
-  override get message(): string {
-    return `Failed to secure ${this.resource}.`;
+  override get message() {
+    return `Failed to secure ${this.resource}.` satisfies string as string;
   }
 }
 
@@ -34,8 +34,8 @@ export class SecretStoreReadError extends Schema.TaggedError<SecretStoreReadErro
     ...secretStoreErrorContext,
   },
 ) {
-  override get message(): string {
-    return `Failed to read ${this.resource}.`;
+  override get message() {
+    return `Failed to read ${this.resource}.` satisfies string as string;
   }
 }
 
@@ -45,8 +45,8 @@ export class SecretStoreTemporaryPathError extends Schema.TaggedError<SecretStor
     ...secretStoreErrorContext,
   },
 ) {
-  override get message(): string {
-    return `Failed to create temporary path for ${this.resource}.`;
+  override get message() {
+    return `Failed to create temporary path for ${this.resource}.` satisfies string as string;
   }
 }
 
@@ -56,8 +56,8 @@ export class SecretStorePersistError extends Schema.TaggedError<SecretStorePersi
     ...secretStoreErrorContext,
   },
 ) {
-  override get message(): string {
-    return `Failed to persist ${this.resource}.`;
+  override get message() {
+    return `Failed to persist ${this.resource}.` satisfies string as string;
   }
 }
 
@@ -67,8 +67,8 @@ export class SecretStoreRandomGenerationError extends Schema.TaggedError<SecretS
     ...secretStoreErrorContext,
   },
 ) {
-  override get message(): string {
-    return `Failed to generate random bytes for ${this.resource}.`;
+  override get message() {
+    return `Failed to generate random bytes for ${this.resource}.` satisfies string as string;
   }
 }
 
@@ -78,8 +78,8 @@ export class SecretStoreConcurrentReadError extends Schema.TaggedError<SecretSto
     resource: Schema.String,
   },
 ) {
-  override get message(): string {
-    return `Failed to read ${this.resource} after concurrent creation.`;
+  override get message() {
+    return `Failed to read ${this.resource} after concurrent creation.` satisfies string as string;
   }
 }
 
@@ -89,8 +89,8 @@ export class SecretStoreRemoveError extends Schema.TaggedError<SecretStoreRemove
     ...secretStoreErrorContext,
   },
 ) {
-  override get message(): string {
-    return `Failed to remove ${this.resource}.`;
+  override get message() {
+    return `Failed to remove ${this.resource}.` satisfies string as string;
   }
 }
 
@@ -100,8 +100,8 @@ export class SecretStoreDecodeError extends Schema.TaggedError<SecretStoreDecode
     ...secretStoreErrorContext,
   },
 ) {
-  override get message(): string {
-    return `Failed to decode ${this.resource}.`;
+  override get message() {
+    return `Failed to decode ${this.resource}.` satisfies string as string;
   }
 }
 
@@ -111,8 +111,8 @@ export class SecretStoreEncodeError extends Schema.TaggedError<SecretStoreEncode
     ...secretStoreErrorContext,
   },
 ) {
-  override get message(): string {
-    return `Failed to encode ${this.resource}.`;
+  override get message() {
+    return `Failed to encode ${this.resource}.` satisfies string as string;
   }
 }
 
@@ -133,7 +133,7 @@ const isSecretStoreError = Schema.is(SecretStoreError);
 const isPlatformError = (value: unknown): value is PlatformError.PlatformError =>
   Predicate.isTagged(value, "PlatformError");
 
-const isSecretAlreadyExistsError = (error: SecretStoreError): boolean =>
+const isSecretAlreadyExistsError = (error: SecretStoreError) =>
   "cause" in error && isPlatformError(error.cause) && error.cause.reason._tag === "AlreadyExists";
 
 export class ServerSecretStore extends Context.Service<

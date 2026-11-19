@@ -27,7 +27,7 @@ export function attachmentUploadBlockReason(input: {
   readonly imageIds: ReadonlyArray<string>;
   readonly uploadsByImageId: Readonly<Record<string, AttachmentUploadState>>;
   readonly environmentId: EnvironmentId;
-}): string | null {
+}) {
   let pending = 0;
   let failed = 0;
 
@@ -51,7 +51,7 @@ export function attachmentUploadBlockReason(input: {
   return null;
 }
 
-export function formatAttachmentUploadProgress(progress: number): string {
+export function formatAttachmentUploadProgress(progress: number) {
   const bounded = Math.max(0, Math.min(1, Number.isFinite(progress) ? progress : 0));
   return `${Math.floor(bounded * 100)}%`;
 }

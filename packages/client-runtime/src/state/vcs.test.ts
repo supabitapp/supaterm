@@ -94,7 +94,8 @@ const LIVE_REFS: VcsListRefsResult = {
   ],
 };
 
-function session(client: WsRpcProtocolClient): RpcSession {
+function session(client: WsRpcProtocolClient): RpcSession;
+function session(client: WsRpcProtocolClient) {
   return {
     client,
     initialConfig: Effect.never,
@@ -105,7 +106,7 @@ function session(client: WsRpcProtocolClient): RpcSession {
     probe: Effect.void,
     inboundFrames: Effect.succeed(0),
     closed: Effect.never,
-  };
+  } satisfies RpcSession;
 }
 
 function cacheWithRefs(
@@ -151,7 +152,10 @@ describe("branch subscriptions", () => {
                 ).pipe(Stream.ensuring(Queue.offer(released, refName)));
               },
           }) as unknown as WsRpcProtocolClient;
-        const branchSession = (refName: string, branchSupported: boolean): RpcSession => ({
+        const branchSession: (refName: string, branchSupported: boolean) => RpcSession = (
+          refName: string,
+          branchSupported: boolean,
+        ) => ({
           ...session(clientFor(refName, branchSupported)),
           initialConfig: Effect.succeed({
             environment: { capabilities: branchSupported ? { vcsBranchStatus: true } : {} },
@@ -988,7 +992,7 @@ const grantedSessions = Atom.family((_id: EnvironmentId) =>
   ),
 );
 
-function status(overrides: Partial<VcsStatusResult> = {}): VcsStatusResult {
+function status(overrides: Partial<VcsStatusResult> = {}) {
   return {
     isRepo: true,
     hasPrimaryRemote: true,

@@ -17,7 +17,7 @@ const models: Record<DeviceModelSource["id"], DeviceModelSource> = {
   "ipad-pro-13-m5": { id: "ipad-pro-13-m5", url: ipadPro13M5 },
 };
 
-export function deviceModel(platform: DevicePlatform, name: string): DeviceModelSource | null {
+export function deviceModel(platform: DevicePlatform, name: string) {
   const id = resolveDeviceModelId(platform, name);
   return id ? models[id] : null;
 }
@@ -28,9 +28,6 @@ const keyboard: DeviceAccessorySource = {
   url: magicKeyboard,
 };
 
-export function deviceKeyboard(
-  platform: DevicePlatform,
-  name: string,
-): DeviceAccessorySource | null {
+export function deviceKeyboard(platform: DevicePlatform, name: string) {
   return resolveDeviceModelId(platform, name) === keyboard.modelId ? keyboard : null;
 }

@@ -8,7 +8,7 @@ import { environmentThreadDetails } from "./threads";
 import { scheduleUnusedComposerAttachmentCleanup } from "./use-composer-drafts";
 
 /** App-lifetime: forgets acknowledged messages once their thread echoes them back. */
-export function startAcknowledgedThreadMessageCleanup(): () => void {
+export function startAcknowledgedThreadMessageCleanup() {
   const echoesAtom = createAcknowledgedThreadMessageEchoesAtom({
     messagesAtom: acknowledgedThreadMessagesAtom,
     threadAtom: environmentThreadDetails.threadAtom,

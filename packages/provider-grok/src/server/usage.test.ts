@@ -10,7 +10,7 @@ describe("parseGrokLine", () => {
     agentTimestampMs?: number;
     usage?: Record<string, unknown>;
     modelUsage?: Record<string, Record<string, unknown>> | null;
-  }): string {
+  }) {
     const modelUsage =
       overrides && "modelUsage" in overrides
         ? overrides.modelUsage

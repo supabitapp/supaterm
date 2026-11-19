@@ -31,14 +31,11 @@ const FILTER_THRESHOLD = 8;
 
 const PROVIDER_ALIAS_SLUGS = new Set(["default", "auto"]);
 
-function hasReasoningControl(model: ServerProviderModel): boolean {
+function hasReasoningControl(model: ServerProviderModel) {
   return (model.capabilities?.optionDescriptors ?? []).some(isReasoningControl);
 }
 
-function describeModelCapabilities(
-  model: ServerProviderModel,
-  flagMissingReasoning: boolean,
-): string[] {
+function describeModelCapabilities(model: ServerProviderModel, flagMissingReasoning: boolean) {
   const descriptors = model.capabilities?.optionDescriptors ?? [];
   const labels: string[] = [];
   const hasFastMode = descriptors.some(
@@ -68,7 +65,7 @@ function groupModelsForDisplay<T extends { readonly slug: string; readonly isCus
     readonly hiddenModels: ReadonlySet<string>;
     readonly modelOrder: ReadonlyArray<string>;
   },
-): T[] {
+) {
   const ordered = sortModelsForProviderInstance(models, {
     favoriteModels: options.favoriteModels,
     groupFavorites: true,
@@ -85,7 +82,7 @@ function groupModelsForDisplay<T extends { readonly slug: string; readonly isCus
 function nextHiddenModelsForBulkToggle(
   models: ReadonlyArray<Pick<ServerProviderModel, "slug" | "isCustom">>,
   hiddenModels: ReadonlyArray<string>,
-): string[] {
+) {
   const builtInSlugs = models.flatMap((model) => (model.isCustom ? [] : [model.slug]));
   const builtInSlugSet = new Set(builtInSlugs);
   const allBuiltInModelsHidden = builtInSlugs.every((slug) => hiddenModels.includes(slug));
@@ -147,7 +144,7 @@ export function ProviderModelsSection({
   const hiddenModelSet = new Set(hiddenModels);
   const favoriteModelSet = new Set(favoriteModels);
   const reportedSlugs = new Set(models.map((model) => model.slug));
-  const unreportedFavoriteModels = favoriteModels.flatMap((slug): ServerProviderModel[] =>
+  const unreportedFavoriteModels = favoriteModels.flatMap((slug) =>
     reportedSlugs.has(slug) ? [] : [{ slug, name: slug, isCustom: false, capabilities: null }],
   );
   const displayModels = groupModelsForDisplay([...models, ...unreportedFavoriteModels], {

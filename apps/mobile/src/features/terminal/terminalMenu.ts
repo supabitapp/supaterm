@@ -23,7 +23,7 @@ const terminalMenuSessionOrder = Order.make<TerminalMenuSession>((left, right) =
   return comparison < 0 ? -1 : 1;
 });
 
-export function basename(input: string | null): string | null {
+export function basename(input: string | null) {
   if (!input) {
     return null;
   }
@@ -40,7 +40,7 @@ export function basename(input: string | null): string | null {
 export function getTerminalStatusLabel(input: {
   readonly status: TerminalMenuSession["status"];
   readonly hasRunningSubprocess?: boolean;
-}): string {
+}) {
   if (input.status === "running") {
     return input.hasRunningSubprocess ? "Task running" : "Ready";
   }
@@ -62,7 +62,7 @@ export function nextOpenTerminalId(input: {
   readonly listedTerminalIds: ReadonlyArray<string>;
   readonly activeRouteTerminalId?: string | null;
   readonly uniqueSuffix?: string;
-}): string {
+}) {
   const listed = input.listedTerminalIds.filter((id) => id.trim().length > 0);
   const routeId = input.activeRouteTerminalId?.trim() ? input.activeRouteTerminalId : null;
 
@@ -77,7 +77,7 @@ export function buildTerminalMenuSessions(input: {
   readonly knownSessions: ReadonlyArray<KnownTerminalSession>;
   readonly workspaceRoot: string | null;
   readonly currentSession?: TerminalMenuSession | null;
-}): ReadonlyArray<TerminalMenuSession> {
+}) {
   const sessionsById = new Map<string, TerminalMenuSession>();
 
   for (const session of input.knownSessions) {
@@ -110,7 +110,7 @@ export function buildTerminalMenuSessions(input: {
 export function previousLiveTerminalId(input: {
   readonly sessions: ReadonlyArray<TerminalMenuSession>;
   readonly exitedTerminalId: string;
-}): string | null {
+}) {
   const live = Arr.sort(
     input.sessions.filter(
       (session) =>
@@ -134,7 +134,7 @@ export function resolveProjectScriptTerminalId(input: {
   readonly existingTerminalIds: ReadonlyArray<string>;
   readonly hasRunningTerminal: boolean;
   readonly uniqueSuffix?: string;
-}): string {
+}) {
   if (!input.hasRunningTerminal && input.uniqueSuffix === undefined) {
     return DEFAULT_TERMINAL_ID;
   }

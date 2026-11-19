@@ -5,7 +5,7 @@ import * as NodeURL from "node:url";
 
 import { isEntrypoint } from "./entrypoint.ts";
 
-async function loadCliMain(): Promise<typeof import("./binMain.ts")> {
+async function loadCliMain() {
   if (!NodeSea.isSea()) return import("./binMain.ts");
 
   const require = NodeModule.createRequire(import.meta.url);
@@ -27,7 +27,7 @@ async function loadCliMain(): Promise<typeof import("./binMain.ts")> {
   }
 }
 
-function ignoreOutputError(): void {}
+function ignoreOutputError() {}
 
 if (
   isEntrypoint({

@@ -1,6 +1,6 @@
 import type { IconProps } from "@phosphor-icons/react";
 
-export function iconDefaults(props: IconProps): IconProps {
+export function iconDefaults(props: IconProps) {
   const labelled =
     props["aria-label"] !== undefined ||
     props["aria-labelledby"] !== undefined ||

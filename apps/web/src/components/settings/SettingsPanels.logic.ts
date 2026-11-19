@@ -22,21 +22,21 @@ import {
 import * as Duration from "effect/Duration";
 import * as Equal from "effect/Equal";
 
-export function isProjectGroupingEnabled(mode: SidebarProjectGroupingMode): boolean {
+export function isProjectGroupingEnabled(mode: SidebarProjectGroupingMode) {
   return mode !== "separate";
 }
 
 export function projectGroupingModeFromToggle(
   enabled: boolean,
   lastEnabledMode: SidebarProjectGroupingMode = "repository",
-): SidebarProjectGroupingMode {
+) {
   if (!enabled) return "separate";
   return lastEnabledMode === "repository_path" ? "repository_path" : "repository";
 }
 
 const LAST_ENABLED_PROJECT_GROUPING_MODE_KEY = "supaterm:last-enabled-project-grouping-mode";
 
-export function readLastEnabledProjectGroupingMode(): SidebarProjectGroupingMode {
+export function readLastEnabledProjectGroupingMode() {
   try {
     return localStorage.getItem(LAST_ENABLED_PROJECT_GROUPING_MODE_KEY) === "repository_path"
       ? "repository_path"
@@ -46,7 +46,7 @@ export function readLastEnabledProjectGroupingMode(): SidebarProjectGroupingMode
   }
 }
 
-export function rememberEnabledProjectGroupingMode(mode: SidebarProjectGroupingMode): void {
+export function rememberEnabledProjectGroupingMode(mode: SidebarProjectGroupingMode) {
   if (mode === "separate") return;
   try {
     localStorage.setItem(LAST_ENABLED_PROJECT_GROUPING_MODE_KEY, mode);
@@ -55,7 +55,7 @@ export function rememberEnabledProjectGroupingMode(mode: SidebarProjectGroupingM
 
 export function hasChangedBackgroundActivitySettings(
   settings: Pick<UnifiedSettings, "backgroundActivity">,
-): boolean {
+) {
   return !Equal.equals(settings.backgroundActivity, DEFAULT_UNIFIED_SETTINGS.backgroundActivity);
 }
 
@@ -71,7 +71,7 @@ type TypographySettings = Pick<
   | "fontSizeTerminal"
 >;
 
-export function getChangedTypographySettingLabels(settings: TypographySettings): string[] {
+export function getChangedTypographySettingLabels(settings: TypographySettings) {
   return [
     ...(settings.fontFamilySans !== DEFAULT_UNIFIED_SETTINGS.fontFamilySans ||
     settings.fontSizeInterface !== DEFAULT_UNIFIED_SETTINGS.fontSizeInterface
@@ -107,10 +107,7 @@ export type BrowserDefaultSettings = Pick<
   | "pullRequestLinksOpenInApp"
 >;
 
-function isSamePreviewViewport(
-  left: PreviewViewportSetting,
-  right: PreviewViewportSetting,
-): boolean {
+function isSamePreviewViewport(left: PreviewViewportSetting, right: PreviewViewportSetting) {
   if (left._tag !== right._tag) return false;
   if (left._tag === "fill" || right._tag === "fill") return true;
   if (left.width !== right.width || left.height !== right.height) return false;
@@ -119,7 +116,7 @@ function isSamePreviewViewport(
     : true;
 }
 
-export function getChangedBrowserSettingLabels(settings: BrowserDefaultSettings): string[] {
+export function getChangedBrowserSettingLabels(settings: BrowserDefaultSettings) {
   return [
     ...(isSamePreviewViewport(
       settings.browserDefaultViewport,
@@ -154,9 +151,7 @@ export function getChangedBrowserSettingLabels(settings: BrowserDefaultSettings)
   ];
 }
 
-export function resolveBackgroundActivityProfileOption(
-  settings: ServerSettings,
-): BackgroundActivityProfile | "advanced" {
+export function resolveBackgroundActivityProfileOption(settings: ServerSettings) {
   const resolved = resolveServerBackgroundActivitySettings(settings);
   const normalized = normalizeBackgroundActivitySettings({
     schemaVersion: 1,
@@ -173,20 +168,22 @@ export function resolveBackgroundActivityProfileOption(
       pauseWhenOnBattery: resolved.pauseWhenOnBattery,
     },
   });
-  return normalized.profile === "custom" ? "advanced" : normalized.profile;
+  return (normalized.profile === "custom" ? "advanced" : normalized.profile) satisfies
+    | BackgroundActivityProfile
+    | "advanced";
 }
 
 export function backgroundActivitySharedPolicySettings(
   settings: ServerSettings,
   profile: BackgroundActivityProfile,
-): BackgroundActivitySettings {
+) {
   const normalized = normalizeServerBackgroundActivitySettings(settings);
   return {
     schemaVersion: 1,
     profile: "custom",
     baseProfile: profile,
     overrides: normalized.profile === "custom" ? normalized.overrides : {},
-  };
+  } satisfies BackgroundActivitySettings;
 }
 
 export function buildProviderInstanceUpdatePatch(input: {
@@ -196,7 +193,7 @@ export function buildProviderInstanceUpdatePatch(input: {
   readonly textGenerationModelSelection?:
     | ServerSettings["textGenerationModelSelection"]
     | undefined;
-}): Partial<UnifiedSettings> {
+}) {
   return {
     providerInstances: {
       ...input.settings.providerInstances,
@@ -216,11 +213,11 @@ type BackgroundActivityOverridePatch = Partial<{
     | undefined;
 }>;
 
-export function durationToSeconds(duration: Duration.Duration): number {
+export function durationToSeconds(duration: Duration.Duration) {
   return Math.round(Duration.toMillis(duration) / 1_000);
 }
 
-export function normalizeIntervalSeconds(value: number | null, minimum = 0): number {
+export function normalizeIntervalSeconds(value: number | null, minimum = 0) {
   if (value === null || !Number.isFinite(value)) {
     return minimum;
   }
@@ -270,39 +267,48 @@ export interface AutoMarkDoneDaysField {
   readonly revision: number;
 }
 
-export function autoMarkDoneDaysField(saved: number): AutoMarkDoneDaysField {
+export function autoMarkDoneDaysField(saved: number) {
   return { saved, draft: String(saved), dirty: false, pending: null, revision: 0 };
 }
 
 export function syncAutoMarkDoneDaysField(
   field: AutoMarkDoneDaysField,
   saved: number,
-): AutoMarkDoneDaysField {
+): AutoMarkDoneDaysField;
+export function syncAutoMarkDoneDaysField(field: AutoMarkDoneDaysField, saved: number) {
   const pending = field.pending === saved ? null : field.pending;
-  if (field.saved === saved && pending === field.pending) return field;
+  if (field.saved === saved && pending === field.pending)
+    return field satisfies AutoMarkDoneDaysField;
   return {
     ...field,
     saved,
     pending,
     draft: field.dirty ? field.draft : String(pending ?? saved),
-  };
+  } satisfies AutoMarkDoneDaysField;
 }
 
 export function editAutoMarkDoneDaysField(
   field: AutoMarkDoneDaysField,
   draft: string,
-): AutoMarkDoneDaysField {
-  return { ...field, draft, dirty: true };
+): AutoMarkDoneDaysField;
+export function editAutoMarkDoneDaysField(field: AutoMarkDoneDaysField, draft: string) {
+  return { ...field, draft, dirty: true } satisfies AutoMarkDoneDaysField;
 }
 
-export function cancelAutoMarkDoneDaysField(field: AutoMarkDoneDaysField): AutoMarkDoneDaysField {
-  return { ...field, draft: String(field.pending ?? field.saved), dirty: false };
+export function cancelAutoMarkDoneDaysField(field: AutoMarkDoneDaysField): AutoMarkDoneDaysField;
+export function cancelAutoMarkDoneDaysField(field: AutoMarkDoneDaysField) {
+  return {
+    ...field,
+    draft: String(field.pending ?? field.saved),
+    dirty: false,
+  } satisfies AutoMarkDoneDaysField;
 }
 
 export function commitAutoMarkDoneDaysField(field: AutoMarkDoneDaysField): {
   readonly field: AutoMarkDoneDaysField;
   readonly submit: number | null;
-} {
+};
+export function commitAutoMarkDoneDaysField(field: AutoMarkDoneDaysField) {
   const current = field.pending ?? field.saved;
   const days = field.draft.trim() === "" ? Number.NaN : Number(field.draft);
   if (
@@ -310,17 +316,35 @@ export function commitAutoMarkDoneDaysField(field: AutoMarkDoneDaysField): {
     days < MIN_SIDEBAR_AUTO_MARK_DONE_AFTER_DAYS ||
     days > MAX_SIDEBAR_AUTO_MARK_DONE_AFTER_DAYS
   ) {
-    return { field: { ...field, draft: String(current), dirty: false }, submit: null };
+    return { field: { ...field, draft: String(current), dirty: false }, submit: null } satisfies {
+      readonly field: AutoMarkDoneDaysField;
+      readonly submit: number | null;
+    };
   }
   const settled = { ...field, draft: String(days), dirty: false };
-  if (!field.dirty || days === field.pending) return { field: settled, submit: null };
-  return { field: { ...settled, pending: days, revision: field.revision + 1 }, submit: days };
+  if (!field.dirty || days === field.pending)
+    return { field: settled, submit: null } satisfies {
+      readonly field: AutoMarkDoneDaysField;
+      readonly submit: number | null;
+    };
+  return {
+    field: { ...settled, pending: days, revision: field.revision + 1 },
+    submit: days,
+  } satisfies {
+    readonly field: AutoMarkDoneDaysField;
+    readonly submit: number | null;
+  };
 }
 
 export function failAutoMarkDoneDaysField(
   field: AutoMarkDoneDaysField,
   revision: number,
-): AutoMarkDoneDaysField {
-  if (field.revision !== revision) return field;
-  return { ...field, pending: null, draft: field.dirty ? field.draft : String(field.saved) };
+): AutoMarkDoneDaysField;
+export function failAutoMarkDoneDaysField(field: AutoMarkDoneDaysField, revision: number) {
+  if (field.revision !== revision) return field satisfies AutoMarkDoneDaysField;
+  return {
+    ...field,
+    pending: null,
+    draft: field.dirty ? field.draft : String(field.saved),
+  } satisfies AutoMarkDoneDaysField;
 }

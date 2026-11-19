@@ -6,17 +6,23 @@ const SCP_LIKE_URL = /^(?:[^@/\s]+@)?(\[[^\]@/\s]+\]|[^:/\s[\]]+):(?!\/)(.+)$/;
 const SSH_URL = /^ssh:\/\/(?:[^/\s]*@)?(\[[^\]@/\s]+\]|[^@:/\s]+)(:\d+)?\/(.+)$/;
 const HTTPS_URL = /^https?:\/\/(?:[^/\s]*@)?(\[[^\]@/\s]+\]|[^@:/\s]+)(:\d+)?\/(.+)$/;
 
-function parseCloneUrl(url: string): {
-  protocol: CloneProtocol;
-  host: string;
-  path: string;
-  customPort: boolean;
-  scp: boolean;
-} | null {
+function parseCloneUrl(url: string) {
   const trimmed = url.trim();
   const ssh = SSH_URL.exec(trimmed);
   if (ssh)
-    return { protocol: "ssh", host: ssh[1]!, path: ssh[3]!, customPort: !!ssh[2], scp: false };
+    return {
+      protocol: "ssh",
+      host: ssh[1]!,
+      path: ssh[3]!,
+      customPort: !!ssh[2],
+      scp: false,
+    } satisfies {
+      protocol: CloneProtocol;
+      host: string;
+      path: string;
+      customPort: boolean;
+      scp: boolean;
+    } | null;
   const https = HTTPS_URL.exec(trimmed);
   if (https)
     return {
@@ -25,14 +31,39 @@ function parseCloneUrl(url: string): {
       path: https[3]!,
       customPort: !!https[2],
       scp: false,
-    };
+    } satisfies {
+      protocol: CloneProtocol;
+      host: string;
+      path: string;
+      customPort: boolean;
+      scp: boolean;
+    } | null;
   const scp = SCP_LIKE_URL.exec(trimmed);
-  if (scp) return { protocol: "ssh", host: scp[1]!, path: scp[2]!, customPort: false, scp: true };
-  return null;
+  if (scp)
+    return {
+      protocol: "ssh",
+      host: scp[1]!,
+      path: scp[2]!,
+      customPort: false,
+      scp: true,
+    } satisfies {
+      protocol: CloneProtocol;
+      host: string;
+      path: string;
+      customPort: boolean;
+      scp: boolean;
+    } | null;
+  return null satisfies {
+    protocol: CloneProtocol;
+    host: string;
+    path: string;
+    customPort: boolean;
+    scp: boolean;
+  } | null;
 }
 
-export function cloneUrlProtocol(url: string): CloneProtocol | null {
-  return parseCloneUrl(url)?.protocol ?? null;
+export function cloneUrlProtocol(url: string) {
+  return (parseCloneUrl(url)?.protocol ?? null) satisfies CloneProtocol | null;
 }
 
 /**
@@ -40,7 +71,7 @@ export function cloneUrlProtocol(url: string): CloneProtocol | null {
  * only have SSH keys or only an HTTPS credential helper. Returns null when the
  * URL cannot be rewritten safely, such as a custom port.
  */
-export function cloneUrlForProtocol(url: string, protocol: CloneProtocol): string | null {
+export function cloneUrlForProtocol(url: string, protocol: CloneProtocol) {
   const parsed = parseCloneUrl(url);
   if (!parsed) return null;
   if (parsed.protocol === protocol) return url.trim();
@@ -77,7 +108,7 @@ const WINDOWS_DEVICE_NAME =
  * The `<host>/<owner>/<repo>` folders ghq clones a URL into, or null for local paths and
  * anything with a folder that could leave the root.
  */
-export function cloneUrlRepositoryPath(url: string): string | null {
+export function cloneUrlRepositoryPath(url: string) {
   if (isWindowsDrivePath(url.trim())) return null;
   const parsed = parseCloneUrl(url);
   if (!parsed) return null;

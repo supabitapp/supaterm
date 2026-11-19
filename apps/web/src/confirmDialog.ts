@@ -28,14 +28,14 @@ let activeConfirmation: PendingConfirmation | null = null;
 let queuedConfirmations: PendingConfirmation[] = [];
 const listeners = new Set<() => void>();
 
-function publish(next: ConfirmDialogState): void {
+function publish(next: ConfirmDialogState) {
   state = next;
   for (const listener of listeners) {
     listener();
   }
 }
 
-function resolvePendingConfirmations(confirmed: boolean): void {
+function resolvePendingConfirmations(confirmed: boolean) {
   activeConfirmation?.resolve(confirmed);
   for (const confirmation of queuedConfirmations) {
     confirmation.resolve(confirmed);
@@ -44,7 +44,7 @@ function resolvePendingConfirmations(confirmed: boolean): void {
   queuedConfirmations = [];
 }
 
-export function readConfirmDialogState(): ConfirmDialogState {
+export function readConfirmDialogState() {
   return state;
 }
 
@@ -52,7 +52,7 @@ export function readConfirmDialogState(): ConfirmDialogState {
  * Only themed hosts subscribe, so a subscriber is a mounted host. When the last
  * one leaves, pending confirmations resolve as cancelled.
  */
-export function subscribeConfirmDialogHost(listener: () => void): () => void {
+export function subscribeConfirmDialogHost(listener: () => void) {
   listeners.add(listener);
   return () => {
     if (!listeners.delete(listener) || listeners.size > 0) return;
@@ -65,8 +65,9 @@ export function subscribeConfirmDialogHost(listener: () => void): () => void {
 export function requestConfirmDialog(
   message: string,
   options?: ConfirmDialogOptions,
-): Promise<boolean> | undefined {
-  if (listeners.size === 0) return undefined;
+): Promise<boolean> | undefined;
+export function requestConfirmDialog(message: string, options?: ConfirmDialogOptions) {
+  if (listeners.size === 0) return undefined satisfies Promise<boolean> | undefined;
 
   const confirmation = new Promise<boolean>((resolve) => {
     const pending = {
@@ -89,14 +90,14 @@ export function requestConfirmDialog(
     });
   });
 
-  return confirmation;
+  return confirmation satisfies Promise<boolean> | undefined;
 }
 
-export function isConfirmDialogActive(): boolean {
+export function isConfirmDialogActive() {
   return state.status !== "idle" || activeConfirmation !== null || queuedConfirmations.length > 0;
 }
 
-export function respondToConfirmDialog(confirmed: boolean): void {
+export function respondToConfirmDialog(confirmed: boolean) {
   if (state.status !== "confirming" || !activeConfirmation) return;
 
   const confirmation = activeConfirmation;
@@ -110,7 +111,7 @@ export function respondToConfirmDialog(confirmed: boolean): void {
   });
 }
 
-export function completeConfirmDialogClose(): void {
+export function completeConfirmDialogClose() {
   if (state.status !== "closing") return;
 
   const next = queuedConfirmations.shift();
@@ -128,7 +129,7 @@ export function completeConfirmDialogClose(): void {
   });
 }
 
-export function resetConfirmDialogForTests(): void {
+export function resetConfirmDialogForTests() {
   listeners.clear();
   resolvePendingConfirmations(false);
   publish(idleState);

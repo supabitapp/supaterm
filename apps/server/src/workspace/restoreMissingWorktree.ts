@@ -24,7 +24,7 @@ export class WorktreeRecreateError extends Schema.TaggedError<WorktreeRecreateEr
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Could not recreate the worktree for branch '${this.branch}' at ${this.worktreePath}.`;
   }
 }
@@ -33,7 +33,7 @@ class WorktreeRecreateNoBaseError extends Schema.TaggedError<WorktreeRecreateNoB
   "WorktreeRecreateNoBaseError",
   { worktreePath: Schema.String, branch: Schema.String },
 ) {
-  override get message(): string {
+  override get message() {
     return `Could not recreate branch '${this.branch}' at ${this.worktreePath}: the project workspace has no commit to start it from.`;
   }
 }

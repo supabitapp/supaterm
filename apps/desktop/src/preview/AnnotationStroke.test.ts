@@ -9,7 +9,7 @@ import {
   STROKE_SEGMENTS_PER_PATH,
 } from "./AnnotationStroke.ts";
 
-const fullPath = (points: ReadonlyArray<PreviewAnnotationPoint>): string => {
+const fullPath = (points: ReadonlyArray<PreviewAnnotationPoint>) => {
   let path = `M ${points[0]!.x} ${points[0]!.y}`;
   for (let index = 1; index < points.length - 1; index += 1) {
     const current = points[index]!;
@@ -31,7 +31,7 @@ const fullBounds = (points: ReadonlyArray<PreviewAnnotationPoint>, width: number
   return { x: left, y: top, width: right - left, height: bottom - top };
 };
 
-const joinPaths = (paths: ReadonlyArray<string>): string =>
+const joinPaths = (paths: ReadonlyArray<string>) =>
   paths
     .map((path, index) => {
       if (index === 0) return path;

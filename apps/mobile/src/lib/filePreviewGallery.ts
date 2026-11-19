@@ -1,6 +1,6 @@
 import type { FilePreviewItem, FilePreviewSource } from "../components/ui/FilePreviewModal.types";
 
-export function filePreviewKey(source: FilePreviewItem): string {
+export function filePreviewKey(source: FilePreviewItem) {
   if ("resource" in source)
     return JSON.stringify([
       source.environmentId,
@@ -13,7 +13,7 @@ export function filePreviewKey(source: FilePreviewItem): string {
 }
 
 /** The thumbnail a gallery page opens from and closes into, including pages that were not tapped. */
-export function filePreviewSourceIdentifier(source: FilePreviewItem): string {
+export function filePreviewSourceIdentifier(source: FilePreviewItem) {
   return source.sourceIdentifier ?? `preview:${filePreviewKey(source)}`;
 }
 
@@ -33,7 +33,7 @@ export function filePreviewGallery(source: FilePreviewSource, group: readonly Fi
   return items;
 }
 
-export function filePreviewName(source: FilePreviewItem): string {
+export function filePreviewName(source: FilePreviewItem) {
   const uriName = "uri" in source ? source.uri.split(/[?#]/)[0]?.split("/").pop() : undefined;
   const name =
     source.name ?? ("attachment" in source ? source.attachment.name : uriName) ?? "Preview";

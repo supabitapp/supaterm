@@ -32,13 +32,15 @@ const LAST_FRAMES_TIMEOUT_MS = 1_000;
 
 const pcmRecorder = requireOptionalNativeModule<PcmRecorderModule>("SupatermPcmRecorder");
 
-function decodeBase64(base64: string): Uint8Array {
-  return Uint8Array.from(atob(base64), (character) => character.charCodeAt(0));
+function decodeBase64(base64: string): Uint8Array;
+function decodeBase64(base64: string) {
+  return Uint8Array.from(atob(base64), (character) => character.charCodeAt(0)) satisfies Uint8Array;
 }
 
 function createRecorder(
   native: PcmRecorderModule,
-): NativeVoiceRecorder<VoiceRecordingStatusEvent, VoiceRecordingState> {
+): NativeVoiceRecorder<VoiceRecordingStatusEvent, VoiceRecordingState>;
+function createRecorder(native: PcmRecorderModule) {
   let uri: string | null = null;
   let frameListeners = 0;
   let deliveredBytes = 0;
@@ -88,7 +90,7 @@ function createRecorder(
     getAvailableInputs: () => native.getAvailableInputs?.() ?? [],
     setInput: (uid) => native.setInput?.(uid),
     release: () => native.release(),
-  };
+  } satisfies NativeVoiceRecorder<VoiceRecordingStatusEvent, VoiceRecordingState>;
 }
 
 /** Records 16 kHz mono PCM WAV on a native thread and reports the same PCM as it is written. */

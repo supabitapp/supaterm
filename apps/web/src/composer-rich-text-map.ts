@@ -1,7 +1,6 @@
 import type { SkillMeta } from "./composer-rich-text-doc";
 import { Fragment, Mark, type Node as ProseMirrorNode } from "@tiptap/pm/model";
 import type { EditorState } from "@tiptap/pm/state";
-import type { Transaction } from "@tiptap/pm/state";
 import { splitPromptIntoComposerSegments } from "~/composer-editor-mentions";
 import {
   MARK_NESTING_ORDER,
@@ -13,7 +12,7 @@ import {
 import { collectInlineContextIds } from "~/lib/composerContextReferences";
 import { codeBlockSource, LIST_NODE_NAMES, LIST_ITEM_NODE_NAMES } from "~/composer-rich-text-doc";
 
-function isTrailingLineAfterRule(doc: ProseMirrorNode, index: number): boolean {
+function isTrailingLineAfterRule(doc: ProseMirrorNode, index: number) {
   const block = doc.child(index);
   return (
     index === doc.childCount - 1 &&
@@ -50,7 +49,7 @@ export interface RichDocMap {
   readonly contextIds: ReadonlyArray<string>;
 }
 
-function readAtomSource(node: ProseMirrorNode): string {
+function readAtomSource(node: ProseMirrorNode) {
   const attrs = node.attrs as Record<string, unknown>;
   switch (node.type.name) {
     case "composer-mention":
@@ -74,7 +73,7 @@ interface RichAccumulator {
   md: number;
 }
 
-function pushBreakRun(acc: RichAccumulator, position?: number): void {
+function pushBreakRun(acc: RichAccumulator, position?: number) {
   const previous = acc.runs[acc.runs.length - 1];
   const pmPos = position ?? (previous ? previous.pmPos + previous.docLen : 1);
   acc.runs.push({
@@ -95,12 +94,12 @@ function pushBreakRun(acc: RichAccumulator, position?: number): void {
   acc.md += 1;
 }
 
-function horizontalRuleSource(block: ProseMirrorNode): string {
+function horizontalRuleSource(block: ProseMirrorNode) {
   const source = (block.attrs as Record<string, unknown>).source;
   return typeof source === "string" && source ? source : "---";
 }
 
-function needsBlankLineBetween(previous: ProseMirrorNode, block: ProseMirrorNode): boolean {
+function needsBlankLineBetween(previous: ProseMirrorNode, block: ProseMirrorNode) {
   if (previous.type.name === "blockquote") {
     return block.type.name === "paragraph" && block.content.size > 0;
   }
@@ -112,7 +111,7 @@ function needsBlankLineBetween(previous: ProseMirrorNode, block: ProseMirrorNode
   );
 }
 
-function pushBlankLineRun(acc: RichAccumulator, pmPos: number): void {
+function pushBlankLineRun(acc: RichAccumulator, pmPos: number) {
   acc.runs.push({
     kind: "prefix",
     flatStart: acc.flat,
@@ -130,11 +129,7 @@ function pushBlankLineRun(acc: RichAccumulator, pmPos: number): void {
   acc.md += 1;
 }
 
-export function serializedMarkdownOffset(
-  value: string,
-  serialized: string,
-  offset: number,
-): number {
+export function serializedMarkdownOffset(value: string, serialized: string, offset: number) {
   if (value === serialized) return offset;
   let index = 0;
   let mapped = 0;
@@ -148,11 +143,7 @@ export function serializedMarkdownOffset(
   return target < 0 ? mapped + (offset - index) : target;
 }
 
-function appendInlineRuns(
-  container: ProseMirrorNode,
-  contentStart: number,
-  acc: RichAccumulator,
-): void {
+function appendInlineRuns(container: ProseMirrorNode, contentStart: number, acc: RichAccumulator) {
   const children: ProseMirrorNode[] = [];
   container.forEach((child) => {
     if (!child.isText || child.marks.some((mark) => mark.type.name === "code")) {
@@ -286,7 +277,7 @@ function appendInlineRuns(
   }
 }
 
-function listItemPrefix(item: ProseMirrorNode, empty: boolean): string {
+function listItemPrefix(item: ProseMirrorNode, empty: boolean) {
   const attrs = item.attrs as Record<string, unknown>;
   const indent = typeof attrs.indent === "string" ? attrs.indent : "";
   if (item.type.name === "taskItem") {
@@ -306,7 +297,7 @@ function listItemPrefix(item: ProseMirrorNode, empty: boolean): string {
   return `${indent}${marker}${space}`;
 }
 
-function walkList(list: ProseMirrorNode, listStart: number, acc: RichAccumulator): void {
+function walkList(list: ProseMirrorNode, listStart: number, acc: RichAccumulator) {
   let itemPos = listStart + 1;
   let firstItem = true;
   list.content.forEach((item) => {
@@ -353,7 +344,7 @@ function appendCodeBlockRun(
   pmPos: number,
   followed: boolean,
   acc: RichAccumulator,
-): void {
+) {
   const { open, content, close } = codeBlockSource(block, followed);
   const pieces = content
     ? splitPromptIntoComposerSegments(content).map((segment) =>
@@ -389,7 +380,7 @@ function appendCodeBlockRun(
   acc.value += open + content + close;
 }
 
-function walkBlockquote(quote: ProseMirrorNode, quoteStart: number, acc: RichAccumulator): void {
+function walkBlockquote(quote: ProseMirrorNode, quoteStart: number, acc: RichAccumulator) {
   const attrs = quote.attrs as Record<string, unknown>;
   const prefix = typeof attrs.prefix === "string" ? attrs.prefix : "> ";
   let childPos = quoteStart + 1;
@@ -417,7 +408,7 @@ function walkBlockquote(quote: ProseMirrorNode, quoteStart: number, acc: RichAcc
   });
 }
 
-export function serializeSelection(doc: ProseMirrorNode, from: number, to: number): string {
+export function serializeSelection(doc: ProseMirrorNode, from: number, to: number) {
   const slice = doc.slice(from, to);
   const $from = doc.resolve(from);
   let depth = $from.sharedDepth(to);
@@ -437,7 +428,7 @@ export function serializeSelection(doc: ProseMirrorNode, from: number, to: numbe
 
 const serializedDocs = new WeakMap<ProseMirrorNode, RichDocMap>();
 
-export function serializeEditorDoc(doc: ProseMirrorNode): RichDocMap {
+export function serializeEditorDoc(doc: ProseMirrorNode) {
   let map = serializedDocs.get(doc);
   if (!map) {
     map = serializeDoc(doc);
@@ -446,7 +437,7 @@ export function serializeEditorDoc(doc: ProseMirrorNode): RichDocMap {
   return map;
 }
 
-function serializeDoc(doc: ProseMirrorNode): RichDocMap {
+function serializeDoc(doc: ProseMirrorNode) {
   const acc: RichAccumulator = { runs: [], value: "", flat: 0, collapsed: 0, md: 0 };
   const blocks: ProseMirrorNode[] = [];
   doc.content.forEach((node) => {
@@ -517,12 +508,12 @@ function serializeDoc(doc: ProseMirrorNode): RichDocMap {
   };
 }
 
-function runOwnsOffset(run: RichRun, flatOffset: number): boolean {
+function runOwnsOffset(run: RichRun, flatOffset: number) {
   const end = run.flatStart + run.docLen;
   return flatOffset < end || (flatOffset === end && run.nodeName === "codeBlock");
 }
 
-export function flatToMarkdown(map: RichDocMap, flatOffset: number): number {
+export function flatToMarkdown(map: RichDocMap, flatOffset: number) {
   const bounded = Math.max(0, Math.min(flatOffset, map.docLength));
   for (const run of map.runs) {
     if (runOwnsOffset(run, bounded)) {
@@ -536,7 +527,7 @@ export function flatToMarkdown(map: RichDocMap, flatOffset: number): number {
   return last ? last.mdStart + last.mdLen : 0;
 }
 
-export function flatToPm(map: RichDocMap, flatOffset: number): number {
+export function flatToPm(map: RichDocMap, flatOffset: number) {
   const bounded = Math.max(0, Math.min(flatOffset, map.docLength));
   for (const run of map.runs) {
     if (bounded < run.flatStart + run.docLen) {
@@ -548,7 +539,7 @@ export function flatToPm(map: RichDocMap, flatOffset: number): number {
   return last.pmPos + last.docLen;
 }
 
-export function pmToFlat(map: RichDocMap, pmPos: number): number {
+export function pmToFlat(map: RichDocMap, pmPos: number) {
   for (const run of map.runs) {
     if (pmPos >= run.pmPos && pmPos <= run.pmPos + run.docLen) {
       if (run.kind === "token" && pmPos === run.pmPos + run.docLen) {
@@ -564,7 +555,7 @@ export function pmToFlat(map: RichDocMap, pmPos: number): number {
   return Math.max(0, Math.min(best, map.docLength));
 }
 
-function styleMarks(marks: readonly Mark[]): readonly Mark[] {
+function styleMarks(marks: readonly Mark[]) {
   return marks.filter((mark) => mark.type.name !== MARKDOWN_SOURCE_MARK);
 }
 
@@ -580,7 +571,7 @@ function styledEdge(state: EditorState) {
 }
 
 /** True when the caret sits on a styled edge and types with the marks before it. */
-export function caretTakesMarksBefore(state: EditorState): boolean {
+export function caretTakesMarksBefore(state: EditorState) {
   const edge = styledEdge(state);
   return edge !== null && Mark.sameSet(edge.current, edge.before);
 }
@@ -590,10 +581,7 @@ export function caretTakesMarksBefore(state: EditorState): boolean {
  * `direction`. Returns null when there is no stop to take, so the arrow key
  * moves the caret as usual.
  */
-export function stepCaretAcrossStyledEdge(
-  state: EditorState,
-  direction: -1 | 1,
-): Transaction | null {
+export function stepCaretAcrossStyledEdge(state: EditorState, direction: -1 | 1) {
   const edge = styledEdge(state);
   if (!edge) return null;
   if (!Mark.sameSet(edge.current, edge.before) && !Mark.sameSet(edge.current, edge.after)) {
@@ -617,7 +605,7 @@ export interface SkillChipReplacement {
 export function skillChipReplacements(
   doc: ProseMirrorNode,
   skillLabelFor: (name: string) => SkillMeta | null,
-): SkillChipReplacement[] {
+) {
   const schema = doc.type.schema;
   const skillType = schema.nodes["composer-skill"];
   if (!skillType) return [];
@@ -663,7 +651,7 @@ export function skillChipReplacements(
   return replacements.sort((left, right) => right.from - left.from);
 }
 
-export function markdownToFlat(map: RichDocMap, markdownOffset: number): number {
+export function markdownToFlat(map: RichDocMap, markdownOffset: number) {
   for (const run of map.runs) {
     if (markdownOffset < run.mdStart + run.mdLen) {
       if (run.kind === "prefix") return run.flatStart;

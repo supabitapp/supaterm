@@ -8,17 +8,13 @@ export const DEFAULT_MOBILE_PROJECT_GROUPING_SETTINGS: ProjectGroupingSettings =
   sidebarProjectGroupingOverrides: {},
 };
 
-export function resolveMobileProjectGroupingSettings(
-  preferences: Preferences,
-): ProjectGroupingSettings {
+export function resolveMobileProjectGroupingSettings(preferences: Preferences) {
   return {
     sidebarProjectGroupingMode: preferences.projectGroupingMode ?? "repository",
     sidebarProjectGroupingOverrides: {},
   };
 }
 
-export function mobileProjectGroupingModePatch(
-  mode: SidebarProjectGroupingMode,
-): Partial<Preferences> {
+export function mobileProjectGroupingModePatch(mode: SidebarProjectGroupingMode) {
   return { projectGroupingMode: mode };
 }

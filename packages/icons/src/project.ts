@@ -8,7 +8,7 @@ const PROJECT_ICONS_BY_NAME: ReadonlyMap<string, ProjectIcon> = new Map(
   PROJECT_ICONS.map((icon) => [icon.name, icon]),
 );
 
-function projectIconNamed(name: string): ProjectIcon {
+function projectIconNamed(name: string) {
   const icon = PROJECT_ICONS_BY_NAME.get(name);
   if (!icon) throw new Error(`icons.json does not offer the "${name}" project icon`);
   return icon;
@@ -77,7 +77,7 @@ interface SavedProjectIcon {
   readonly name: string;
 }
 
-export function resolveProjectIcon(saved: SavedProjectIcon): ProjectIcon {
+export function resolveProjectIcon(saved: SavedProjectIcon) {
   const name =
     saved.kind === "lucide" ? (LEGACY_LUCIDE_NAMES[saved.name] ?? saved.name) : saved.name;
   return PROJECT_ICONS_BY_NAME.get(name) ?? DEFAULT_PROJECT_ICON;

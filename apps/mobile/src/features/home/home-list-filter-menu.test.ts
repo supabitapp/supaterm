@@ -44,11 +44,7 @@ describe("buildHomeListFilterMenu", () => {
   });
 });
 
-function environment(
-  environmentId: string,
-  environmentLabel: string,
-  isEnabled: boolean,
-): WorkspaceEnvironment {
+function environment(environmentId: string, environmentLabel: string, isEnabled: boolean) {
   return {
     environmentId: environmentId as EnvironmentId,
     environmentLabel,
@@ -57,7 +53,7 @@ function environment(
     connectionState: isEnabled ? "connected" : "available",
     connectionError: null,
     connectionErrorTraceId: null,
-  };
+  } satisfies WorkspaceEnvironment;
 }
 
 it("offers only switched-on environments, sorted by label", () => {

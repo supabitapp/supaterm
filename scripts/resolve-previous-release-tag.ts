@@ -21,7 +21,7 @@ export class InvalidReleaseTagError extends Schema.TaggedError<InvalidReleaseTag
     currentTag: Schema.String,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Invalid ${this.channel} release tag '${this.currentTag}'.`;
   }
 }
@@ -42,7 +42,7 @@ export class ReleaseTagListProcessError extends Schema.TaggedError<ReleaseTagLis
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Failed to list release tags during process operation "${this.operation}".`;
   }
 }
@@ -56,7 +56,7 @@ export class ReleaseTagListProcessExitError extends Schema.TaggedError<ReleaseTa
     stderrLength: NonNegativeInt,
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Release tag listing exited with code ${this.exitCode}.`;
   }
 }
@@ -67,7 +67,7 @@ export class PreviousReleaseTagGitHubOutputConfigError extends Schema.TaggedErro
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return "Failed to resolve the GITHUB_OUTPUT path for the previous release tag.";
   }
 }
@@ -79,7 +79,7 @@ export class PreviousReleaseTagGitHubOutputAppendError extends Schema.TaggedErro
     cause: Schema.Defect(),
   },
 ) {
-  override get message(): string {
+  override get message() {
     return `Failed to append the previous release tag to ${this.outputPath}.`;
   }
 }
@@ -99,10 +99,10 @@ interface NightlyVersion {
   readonly runNumber: number;
 }
 
-const parseNumericIdentifier = (identifier: string): number | undefined =>
+const parseNumericIdentifier = (identifier: string) =>
   /^\d+$/.test(identifier) ? Number(identifier) : undefined;
 
-const comparePrereleaseIdentifiers = (left: string, right: string): number => {
+const comparePrereleaseIdentifiers = (left: string, right: string) => {
   const leftNumeric = parseNumericIdentifier(left);
   const rightNumeric = parseNumericIdentifier(right);
 
@@ -118,7 +118,7 @@ const comparePrereleaseIdentifiers = (left: string, right: string): number => {
   return left.localeCompare(right);
 };
 
-const compareStableVersions = (left: StableVersion, right: StableVersion): number => {
+const compareStableVersions = (left: StableVersion, right: StableVersion) => {
   if (left.major !== right.major) return left.major - right.major;
   if (left.minor !== right.minor) return left.minor - right.minor;
   if (left.patch !== right.patch) return left.patch - right.patch;
@@ -143,7 +143,7 @@ const compareStableVersions = (left: StableVersion, right: StableVersion): numbe
   return 0;
 };
 
-const parseStableTag = (tag: string): StableVersion | undefined => {
+const parseStableTag = (tag: string) => {
   const match = /^v(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/.exec(tag);
   if (!match) return undefined;
 
@@ -163,7 +163,7 @@ const parseStableTag = (tag: string): StableVersion | undefined => {
   };
 };
 
-const compareNightlyVersions = (left: NightlyVersion, right: NightlyVersion): number => {
+const compareNightlyVersions = (left: NightlyVersion, right: NightlyVersion) => {
   if (left.major !== right.major) return left.major - right.major;
   if (left.minor !== right.minor) return left.minor - right.minor;
   if (left.patch !== right.patch) return left.patch - right.patch;
@@ -171,10 +171,7 @@ const compareNightlyVersions = (left: NightlyVersion, right: NightlyVersion): nu
   return left.runNumber - right.runNumber;
 };
 
-const parseNightlyTag = (
-  tag: string,
-  channel: "nightly" | "preview" = "nightly",
-): NightlyVersion | undefined => {
+const parseNightlyTag = (tag: string, channel: "nightly" | "preview" = "nightly") => {
   const match = new RegExp(`^v(\\d+)\\.(\\d+)\\.(\\d+)-${channel}\\.(\\d{8})\\.(\\d+)$`).exec(tag);
   if (!match) return undefined;
 
@@ -228,7 +225,7 @@ export const resolvePreviousReleaseTag = Effect.fn(
   return candidates[0]?.tag;
 });
 
-const collectStreamAsString = <E>(stream: Stream.Stream<Uint8Array, E>): Effect.Effect<string, E> =>
+const collectStreamAsString = <E>(stream: Stream.Stream<Uint8Array, E>) =>
   stream.pipe(
     Stream.decodeText(),
     Stream.runFold(

@@ -97,7 +97,7 @@ const stripMockStartupNotice = (stdout: ChildProcessSpawner.ChildProcessHandle["
     Stream.encodeText,
   );
 
-function concatBytes(chunks: ReadonlyArray<Uint8Array>): Uint8Array {
+function concatBytes(chunks: ReadonlyArray<Uint8Array>) {
   const batch = new Uint8Array(chunks.reduce((total, chunk) => total + chunk.length, 0));
   let offset = 0;
   for (const chunk of chunks) {

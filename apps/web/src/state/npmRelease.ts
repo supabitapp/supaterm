@@ -22,11 +22,14 @@ const isServerNpmReleaseError = Schema.is(ServerNpmReleaseError);
 const supportsLookup = (config: ServerConfig | null) =>
   config?.environment.capabilities.npmReleaseLookup === true;
 
-export function npmReleaseFailureMessage(cause: Cause.Cause<unknown>): string {
+export function npmReleaseFailureMessage(cause: Cause.Cause<unknown>): string;
+export function npmReleaseFailureMessage(cause: Cause.Cause<unknown>) {
   const error = Option.getOrUndefined(Cause.findErrorOption(cause));
-  return isServerNpmReleaseError(error)
-    ? error.message
-    : "Could not check this environment's npm registry. Check the connection and registry settings.";
+  return (
+    isServerNpmReleaseError(error)
+      ? error.message
+      : "Could not check this environment's npm registry. Check the connection and registry settings."
+  ) satisfies string;
 }
 
 const publicNpmReleaseAtom = Atom.family((spec: string) =>

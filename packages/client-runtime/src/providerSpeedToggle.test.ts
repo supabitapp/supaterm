@@ -11,15 +11,14 @@ const EFFORT: ProviderOptionDescriptor = {
   currentValue: "high",
 };
 
-function fastModeDescriptor(
-  currentValue: boolean,
-): Extract<ProviderOptionDescriptor, { type: "boolean" }> {
-  return { id: "fastMode", label: "Fast Mode", type: "boolean", currentValue };
+function fastModeDescriptor(currentValue: boolean) {
+  return { id: "fastMode", label: "Fast Mode", type: "boolean", currentValue } satisfies Extract<
+    ProviderOptionDescriptor,
+    { type: "boolean" }
+  >;
 }
 
-function serviceTierDescriptor(
-  currentValue: "default" | "priority" | "ultrafast" | "flex",
-): Extract<ProviderOptionDescriptor, { type: "select" }> {
+function serviceTierDescriptor(currentValue: "default" | "priority" | "ultrafast" | "flex") {
   return {
     id: "serviceTier",
     label: "Service Tier",
@@ -31,7 +30,7 @@ function serviceTierDescriptor(
       { id: "flex", label: "Flex" },
     ],
     currentValue,
-  };
+  } satisfies Extract<ProviderOptionDescriptor, { type: "select" }>;
 }
 
 describe("getSpeedToggle", () => {

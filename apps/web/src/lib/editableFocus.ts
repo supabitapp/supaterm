@@ -8,7 +8,7 @@ const EDITABLE_SELECTOR = [
   '[role="textbox"]',
 ].join(",");
 
-export function isEditableFocused(target: EventTarget | null = document.activeElement): boolean {
+export function isEditableFocused(target: EventTarget | null = document.activeElement) {
   let element = target instanceof Element ? target : null;
   while (element?.shadowRoot?.activeElement) element = element.shadowRoot.activeElement;
   return element !== null && element.closest(EDITABLE_SELECTOR) !== null;

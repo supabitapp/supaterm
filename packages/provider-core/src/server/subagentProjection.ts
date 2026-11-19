@@ -29,7 +29,7 @@ import {
   latestProviderTurnForAttempt,
 } from "@supaterm/contracts";
 
-function trimmed(value: string | null | undefined): string | undefined {
+function trimmed(value: string | null | undefined) {
   const result = value?.trim();
   return result && result.length > 0 ? result : undefined;
 }
@@ -39,7 +39,7 @@ export function subagentThreadTitle(input: {
   readonly title?: string | null;
   readonly prompt: string;
   readonly ordinal: number;
-}): string {
+}) {
   const detail = trimmed(input.title) ?? trimmed(input.prompt);
   if (detail === undefined) {
     return `${input.parentTitle} subagent ${input.ordinal}`;
@@ -65,7 +65,7 @@ export function makeSubagentChildThread(input: {
   readonly now: DateTime.Utc;
   readonly createdBy: OrchestrationV2Actor;
   readonly creationSource: OrchestrationV2CreationSource;
-}): OrchestrationV2AppThread {
+}) {
   return {
     ...input.parentThread,
     createdBy: input.createdBy,
@@ -101,7 +101,7 @@ export function makeSubagentChildThread(input: {
     autoMarkDoneDisabledAt: null,
     lastVisitedAt: null,
     deletedAt: null,
-  };
+  } satisfies OrchestrationV2AppThread;
 }
 
 export function makeSubagentConversationArtifacts(input: {
@@ -119,10 +119,7 @@ export function makeSubagentConversationArtifacts(input: {
   readonly workflowScript?: boolean;
   readonly ordinal: number;
   readonly now: DateTime.Utc;
-}): {
-  readonly message: OrchestrationV2ConversationMessage;
-  readonly turnItem: OrchestrationV2TurnItem;
-} {
+}) {
   const message: OrchestrationV2ConversationMessage = {
     createdBy: "agent",
     creationSource: "provider",
@@ -185,7 +182,7 @@ function withExecutedModelNote(
   result: string,
   requestedModel: string,
   executedModel: string | null | undefined,
-): string {
+) {
   return executedModel == null || executedModel === requestedModel
     ? result
     : `Requested model ${requestedModel}; the provider reported running ${executedModel}.\n\n${result}`;
@@ -197,7 +194,7 @@ export const PROVIDER_STOP_REASON_SIGNAL = "provider-stop-reason";
 function stopNotice(
   projection: Pick<OrchestrationV2ThreadProjection, "turnItems">,
   run: OrchestrationV2Run,
-): string | undefined {
+) {
   const id = derive.runSignalTurnItem({ runId: run.id, signal: PROVIDER_STOP_REASON_SIGNAL });
   const notice = projection.turnItems.find((item) => item.id === id);
   return notice?.type === "system_notice" ? notice.message : undefined;
@@ -225,8 +222,15 @@ export function delegatedTaskReportRuns(
     readonly messages: ReadonlyArray<MonitorNotice>;
   },
   run: OrchestrationV2Run,
-): ReadonlyArray<OrchestrationV2Run> {
-  if (run.status !== "completed") return [];
+): ReadonlyArray<OrchestrationV2Run>;
+export function delegatedTaskReportRuns(
+  projection: {
+    readonly runs: ReadonlyArray<OrchestrationV2Run>;
+    readonly messages: ReadonlyArray<MonitorNotice>;
+  },
+  run: OrchestrationV2Run,
+) {
+  if (run.status !== "completed") return [] satisfies ReadonlyArray<OrchestrationV2Run>;
   const monitorRuns = monitorUpdateRunIds(projection.messages);
   const earlier = projection.runs
     .filter(
@@ -242,7 +246,7 @@ export function delegatedTaskReportRuns(
     (candidate) =>
       candidate.status !== "completed" || candidate.delegatedTaskId !== run.delegatedTaskId,
   );
-  return end === -1 ? earlier : earlier.slice(0, end);
+  return (end === -1 ? earlier : earlier.slice(0, end)) satisfies ReadonlyArray<OrchestrationV2Run>;
 }
 
 /**
@@ -276,11 +280,7 @@ export function subagentResultForRun(
 function resultOfRun(
   projection: Pick<OrchestrationV2ThreadProjection, "messages" | "turnItems" | "providerTurns">,
   run: OrchestrationV2Run,
-): {
-  readonly text: string;
-  readonly messageId: OrchestrationV2ConversationMessage["id"] | null;
-  readonly turnItemId: OrchestrationV2TurnItem["id"] | null;
-} {
+) {
   const turnItem =
     projection.turnItems
       .filter(
@@ -346,7 +346,7 @@ function resultOfRun(
 
 export function subagentHoldsCompletion(
   task: Pick<OrchestrationV2ThreadProjection["subagents"][number], "status" | "completionDelivery">,
-): boolean {
+) {
   return (
     isOrchestrationV2WorkActive(task.status) ||
     (task.status !== "idle" &&
@@ -402,7 +402,7 @@ export function delegatedTaskProgress(projection: {
 function writtenIds(
   emitted: ReadonlyArray<OrchestrationV2DomainEvent>,
   type: "subagent.updated" | "node.updated" | "turn-item.updated" | "provider-turn.updated",
-): ReadonlySet<string> {
+) {
   return new Set(emitted.flatMap((event) => (event.type === type ? [event.payload.id] : [])));
 }
 

@@ -32,7 +32,7 @@ const utf8 = new TextEncoder();
 const fromUtf8 = new TextDecoder("utf-8", { ignoreBOM: true });
 
 /** Include the a/ or b/ prefix in the quoted token, as Git does. */
-export function quoteGitPatchPath(path: string): string {
+export function quoteGitPatchPath(path: string) {
   let body = "";
   let quoting = false;
   for (const character of path) {
@@ -53,7 +53,7 @@ export function quoteGitPatchPath(path: string): string {
   return quoting ? `${QUOTE}${body}${QUOTE}` : path;
 }
 
-function unescapeBody(body: string): string {
+function unescapeBody(body: string) {
   if (!body.includes("\\")) return body;
   const bytes: Array<number> = [];
   let literal = "";
@@ -98,7 +98,7 @@ function unescapeBody(body: string): string {
 }
 
 /** Unescape with or without quotes; client parsers strip them inconsistently across patch headers. */
-export function unquoteGitPatchPath(token: string): string {
+export function unquoteGitPatchPath(token: string) {
   if (token.length >= 2 && token.startsWith(QUOTE) && token.endsWith(QUOTE)) {
     return unescapeBody(token.slice(1, -1));
   }

@@ -174,7 +174,7 @@ export type TimelineEntry = (
   readonly attempt?: TimelineAttempt;
 };
 
-export function workLogEntryIsToolLike(entry: WorkLogEntry): boolean {
+export function workLogEntryIsToolLike(entry: WorkLogEntry) {
   return (
     entry.tone === "tool" ||
     entry.tone === "thinking" ||
@@ -184,11 +184,11 @@ export function workLogEntryIsToolLike(entry: WorkLogEntry): boolean {
   );
 }
 
-export function workEntrySignalsSevereFailure(entry: WorkLogEntry): boolean {
+export function workEntrySignalsSevereFailure(entry: WorkLogEntry) {
   return entry.itemType === "error";
 }
 
-export function workEntryIndicatesToolSuccess(entry: WorkLogEntry): boolean {
+export function workEntryIndicatesToolSuccess(entry: WorkLogEntry) {
   if (
     !workLogEntryIsToolLike(entry) ||
     workEntryIndicatesToolFailure(entry) ||
@@ -206,7 +206,7 @@ export function workEntryIndicatesToolSuccess(entry: WorkLogEntry): boolean {
   );
 }
 
-export function workEntryIndicatesToolNeutralStatus(entry: WorkLogEntry): boolean {
+export function workEntryIndicatesToolNeutralStatus(entry: WorkLogEntry) {
   return (
     workLogEntryIsToolLike(entry) &&
     !workEntryIndicatesToolFailure(entry) &&
@@ -217,29 +217,25 @@ export function workEntryIndicatesToolNeutralStatus(entry: WorkLogEntry): boolea
 export function isLatestRunSettled(
   latestRun: Pick<ThreadRunSummary, "runId" | "startedAt" | "completedAt" | "status"> | null,
   runtime: Pick<ThreadRuntimeSummary, "status" | "activeRunId"> | null,
-): boolean {
+) {
   if (latestRun === null) return false;
   if (isOrchestrationV2RunUnsettled(latestRun.status)) return false;
   return runtime?.activeRunId !== latestRun.runId;
 }
 
-export function derivePendingApprovals(
-  approvals: ReadonlyArray<ThreadPendingApproval>,
-): ThreadPendingApproval[] {
+export function derivePendingApprovals(approvals: ReadonlyArray<ThreadPendingApproval>) {
   return [...approvals].toSorted((left, right) => left.createdAt.localeCompare(right.createdAt));
 }
 
-export function derivePendingUserInputs(
-  inputs: ReadonlyArray<ThreadPendingUserInput>,
-): ThreadPendingUserInput[] {
+export function derivePendingUserInputs(inputs: ReadonlyArray<ThreadPendingUserInput>) {
   return [...inputs].toSorted((left, right) => left.createdAt.localeCompare(right.createdAt));
 }
 
 export function deriveActivePlanState(
   projection: ThreadStructure | null,
   latestRunId: RunId | undefined,
-): ActivePlanState | null {
-  if (projection === null) return null;
+) {
+  if (projection === null) return null satisfies ActivePlanState | null;
   const plans = projection.plans
     .filter((plan) => plan.kind === "todo_list")
     .filter((plan) => plan.status !== "superseded");
@@ -256,7 +252,7 @@ export function deriveActivePlanState(
           : latest,
       null,
     );
-  if (plan === null || plan.steps.length === 0) return null;
+  if (plan === null || plan.steps.length === 0) return null satisfies ActivePlanState | null;
   return {
     createdAt: planItemTime(projection, plan),
     runId: plan.runId,
@@ -266,7 +262,7 @@ export function deriveActivePlanState(
       status: status === "running" ? "inProgress" : status,
       ...(durationMs === undefined ? {} : { durationMs }),
     })),
-  };
+  } satisfies ActivePlanState | null;
 }
 
 export function selectComposerTasksPlan(
@@ -274,7 +270,7 @@ export function selectComposerTasksPlan(
   plan: ActivePlanState | null,
   activeRunId: RunId | null,
   activeRunSettled: boolean,
-): ActivePlanState | null {
+) {
   if (projection === null || plan === null) return null;
   if (activeRunId !== null && !activeRunSettled && plan.runId === activeRunId) return plan;
   if (plan.steps.every((step) => step.status === "completed")) return null;
@@ -302,7 +298,7 @@ export function selectComposerTasksPlan(
 function planItemTime(
   projection: ThreadStructure,
   plan: Pick<OrchestrationV2PlanArtifact, "id" | "runId">,
-): string {
+) {
   const item = projection.turnItems.findLast(
     (candidate) =>
       (candidate.type === "proposed_plan" || candidate.type === "todo_list") &&
@@ -332,19 +328,17 @@ const PERSISTENT_RESOURCE_V2_ITEM_TYPES = new Set<OrchestrationV2TurnItem["type"
   "secret_request",
 ]);
 
-export function timelineEntryIsPersistentResourceCard(entry: TimelineEntry): boolean {
+export function timelineEntryIsPersistentResourceCard(entry: TimelineEntry) {
   return (
     entry.kind === "event" && PERSISTENT_RESOURCE_V2_ITEM_TYPES.has(entry.projectedItem.item.type)
   );
 }
 
-function projectedItemCreatedAt(row: OrchestrationV2ProjectedTurnItem): string {
+function projectedItemCreatedAt(row: OrchestrationV2ProjectedTurnItem) {
   return DateTime.formatIso(row.item.startedAt ?? row.item.updatedAt);
 }
 
-function projectedWorkEntryStatus(
-  item: OrchestrationV2TurnItem,
-): NonNullable<WorkLogEntry["toolLifecycleStatus"]> {
+function projectedWorkEntryStatus(item: OrchestrationV2TurnItem) {
   switch (item.status) {
     case "pending":
     case "running":
@@ -362,7 +356,7 @@ function projectedWorkEntryStatus(
   }
 }
 
-function projectedWorkEntryTone(item: OrchestrationV2TurnItem): WorkLogEntry["tone"] {
+function projectedWorkEntryTone(item: OrchestrationV2TurnItem) {
   if (item.type === "error") return "info";
   if (item.type === "reasoning") return "thinking";
   switch (item.type) {
@@ -383,7 +377,7 @@ function projectedWorkEntryTone(item: OrchestrationV2TurnItem): WorkLogEntry["to
 
 export function providerErrorPresentation(
   item: Extract<OrchestrationV2TurnItem, { readonly type: "error" }>,
-): { readonly label: string; readonly detail: string } {
+) {
   if (item.retry === undefined) {
     return {
       label:
@@ -417,7 +411,7 @@ export function providerErrorPresentation(
   };
 }
 
-function projectedWorkEntry(row: OrchestrationV2ProjectedTurnItem): WorkLogEntry {
+function projectedWorkEntry(row: OrchestrationV2ProjectedTurnItem) {
   const { item } = row;
   const title = item.title?.trim() || null;
   const common = {
@@ -437,20 +431,20 @@ function projectedWorkEntry(row: OrchestrationV2ProjectedTurnItem): WorkLogEntry
       return {
         ...common,
         label: "Created thread",
-      };
+      } satisfies WorkLogEntry;
     case "compaction":
       return {
         ...common,
         label: contextCompactionLabel(item),
         sourceActivityKind: "context-compaction",
         ...(item.summary ? { detail: item.summary } : {}),
-      };
+      } satisfies WorkLogEntry;
     case "reasoning":
       return {
         ...common,
         label: title ?? "Thinking",
         ...(item.text ? { detail: item.text } : {}),
-      };
+      } satisfies WorkLogEntry;
     case "command_execution":
       return {
         ...common,
@@ -459,7 +453,7 @@ function projectedWorkEntry(row: OrchestrationV2ProjectedTurnItem): WorkLogEntry
         rawCommand: item.input,
         toolTitle: title ?? "Command",
         toolData: item,
-      };
+      } satisfies WorkLogEntry;
     case "file_change": {
       return {
         ...common,
@@ -473,7 +467,7 @@ function projectedWorkEntry(row: OrchestrationV2ProjectedTurnItem): WorkLogEntry
           : [item.fileName],
         toolTitle: title ?? "File change",
         toolData: item,
-      };
+      } satisfies WorkLogEntry;
     }
     case "file_search":
       return {
@@ -482,7 +476,7 @@ function projectedWorkEntry(row: OrchestrationV2ProjectedTurnItem): WorkLogEntry
         ...(item.pattern ? { detail: item.pattern } : {}),
         toolTitle: title ?? "File search",
         toolData: item,
-      };
+      } satisfies WorkLogEntry;
     case "web_search":
       return {
         ...common,
@@ -490,13 +484,13 @@ function projectedWorkEntry(row: OrchestrationV2ProjectedTurnItem): WorkLogEntry
         ...(item.patterns?.length ? { detail: item.patterns.join(", ") } : {}),
         toolTitle: title ?? "Web search",
         toolData: item,
-      };
+      } satisfies WorkLogEntry;
     case "system_notice":
       return {
         ...common,
         label: item.message,
         ...(item.level === "info" ? {} : { sourceActivityKind: "runtime.warning" }),
-      };
+      } satisfies WorkLogEntry;
     case "error": {
       const presentation = providerErrorPresentation(item);
       return {
@@ -508,7 +502,7 @@ function projectedWorkEntry(row: OrchestrationV2ProjectedTurnItem): WorkLogEntry
             ? { sourceActivityKind: "runtime.error" }
             : {}),
         toolData: item,
-      };
+      } satisfies WorkLogEntry;
     }
     case "dynamic_tool": {
       const classified = classifyToolActivity({
@@ -527,7 +521,7 @@ function projectedWorkEntry(row: OrchestrationV2ProjectedTurnItem): WorkLogEntry
               : (item.toolName ?? "Tool call")),
         toolTitle: title ?? item.toolName ?? "Tool",
         toolData: { input: item.input, output: item.output },
-      };
+      } satisfies WorkLogEntry;
     }
     case "approval_request":
       return {
@@ -535,20 +529,20 @@ function projectedWorkEntry(row: OrchestrationV2ProjectedTurnItem): WorkLogEntry
         label: title ?? "Approval requested",
         detail: item.prompt ?? item.requestKind,
         toolData: item,
-      };
+      } satisfies WorkLogEntry;
     case "user_input_request":
       return {
         ...common,
         label: title ?? (item.questionAnswer ? "Answered questions" : "Input requested"),
         ...(item.questionAnswer ? { questionAnswer: item.questionAnswer } : {}),
         toolData: item,
-      };
+      } satisfies WorkLogEntry;
     default:
       return {
         ...common,
         label: title ?? item.type.replaceAll("_", " "),
         toolData: item,
-      };
+      } satisfies WorkLogEntry;
   }
 }
 
@@ -566,9 +560,7 @@ export interface TimelineEntriesProjection {
   readonly entries: TimelineEntry[];
 }
 
-export function deriveTimelineEntriesFromVisibleTurnItems(
-  input: TimelineEntriesInput,
-): TimelineEntry[] {
+export function deriveTimelineEntriesFromVisibleTurnItems(input: TimelineEntriesInput) {
   const committedMessageIds = new Set<string>();
   const entries: TimelineEntry[] = [];
   const attemptByRootNodeId = new Map(
@@ -577,7 +569,7 @@ export function deriveTimelineEntriesFromVisibleTurnItems(
   const nodeById = new Map((input.nodes ?? []).map((node) => [node.id, node] as const));
   const planById = new Map((input.plans ?? []).map((plan) => [plan.id, plan] as const));
 
-  const resolveAttempt = (item: OrchestrationV2TurnItem): TimelineAttempt | undefined => {
+  const resolveAttempt = (item: OrchestrationV2TurnItem) => {
     if (item.nodeId === null || item.runId === null) return undefined;
     let nodeId: OrchestrationV2ExecutionNode["id"] | null = item.nodeId;
     const visited = new Set<OrchestrationV2ExecutionNode["id"]>();
@@ -789,9 +781,7 @@ export function deriveTimelineEntriesFromVisibleTurnItems(
 type AttachmentResource = Extract<AssetResource, { readonly _tag: "attachment" }>;
 const EMPTY_IMAGE_RESOURCES = Object.freeze<ReadonlyArray<AttachmentResource>>([]);
 
-export function selectMessageImageResources(
-  attachments: ChatMessage["attachments"],
-): ReadonlyArray<AttachmentResource> {
+export function selectMessageImageResources(attachments: ChatMessage["attachments"]) {
   const attachmentIds = new Set<string>();
   for (const attachment of attachments ?? []) {
     if (!isImageAttachment(attachment)) continue;
@@ -799,9 +789,11 @@ export function selectMessageImageResources(
     if (previewUrl?.startsWith("blob:") || previewUrl?.startsWith("data:")) continue;
     attachmentIds.add(attachment.id);
   }
-  return attachmentIds.size === 0
-    ? EMPTY_IMAGE_RESOURCES
-    : Array.from(attachmentIds, (attachmentId) => ({ _tag: "attachment", attachmentId }));
+  return (
+    attachmentIds.size === 0
+      ? EMPTY_IMAGE_RESOURCES
+      : Array.from(attachmentIds, (attachmentId) => ({ _tag: "attachment", attachmentId }))
+  ) satisfies ReadonlyArray<AttachmentResource>;
 }
 
 export function createMessageAttachmentPreviewProjector() {
@@ -813,7 +805,7 @@ export function createMessageAttachmentPreviewProjector() {
   return (
     message: ChatMessage,
     previewUrlFor: (attachment: ChatAttachment) => string | undefined,
-  ): ChatMessage => {
+  ) => {
     const source = message.attachments;
     if (!source || source.length === 0) return message;
     const previous = attachmentsBySource.get(source) ?? source;
@@ -851,7 +843,7 @@ export function createMessageAttachmentPreviewProjector() {
   };
 }
 
-export function isStreamingMessageTextUpdate(previous: ChatMessage, next: ChatMessage): boolean {
+export function isStreamingMessageTextUpdate(previous: ChatMessage, next: ChatMessage) {
   if (
     previous.role !== "assistant" ||
     next.role !== "assistant" ||
@@ -880,7 +872,7 @@ function streamedTextMetadata(item: OrchestrationV2TurnItem) {
 export function isStreamingTurnItemTextUpdate(
   previous: OrchestrationV2ProjectedTurnItem,
   next: OrchestrationV2ProjectedTurnItem,
-): boolean {
+) {
   const { item: previousItem, ...previousSource } = previous;
   const { item: nextItem, ...nextSource } = next;
   const previousMetadata = streamedTextMetadata(previousItem);
@@ -900,7 +892,7 @@ function canRederiveInPlace(
   input: TimelineEntriesInput,
   previousItem: OrchestrationV2ProjectedTurnItem,
   item: OrchestrationV2ProjectedTurnItem,
-): boolean {
+) {
   return (
     item.item.id === previousItem.item.id &&
     item.item.type === previousItem.item.type &&
@@ -917,7 +909,7 @@ function canRederiveInPlace(
 function samePlanStatuses(
   next: TimelineEntriesInput["plans"],
   previous: TimelineEntriesInput["plans"],
-): boolean {
+) {
   if (next === previous) return true;
   if (next === undefined || previous === undefined || next.length !== previous.length) return false;
   return next.every((plan, index) => {
@@ -926,10 +918,7 @@ function samePlanStatuses(
   });
 }
 
-function reuseTimelineEntries(
-  input: TimelineEntriesInput,
-  previous: TimelineEntriesProjection,
-): TimelineEntry[] | null {
+function reuseTimelineEntries(input: TimelineEntriesInput, previous: TimelineEntriesProjection) {
   const before = previous.input;
   if (
     input.visibleTurnItems.length < before.visibleTurnItems.length ||
@@ -991,7 +980,7 @@ function reuseTimelineEntries(
     return previous.entries;
   }
   let rederivedCount = 0;
-  const entries = previous.entries.map((entry): TimelineEntry => {
+  const entries = previous.entries.map((entry) => {
     const rederivedEntry = rederivedEntries.get(entry.id);
     if (rederivedEntry !== undefined) {
       rederivedCount += 1;
@@ -1027,7 +1016,7 @@ function reuseTimelineEntries(
 export function deriveTimelineEntriesFromVisibleTurnItemsWithState(
   input: TimelineEntriesInput,
   previous: TimelineEntriesProjection | null = null,
-): TimelineEntriesProjection {
+) {
   const reused = previous === null ? null : reuseTimelineEntries(input, previous);
   if (reused !== null) return { input, entries: reused };
   const entries = deriveTimelineEntriesFromVisibleTurnItems(input);
@@ -1069,7 +1058,7 @@ export function deriveRevertTurnCountByUserMessageId(input: {
   readonly threadStartCheckpointAvailable: boolean;
   readonly availableRevertTurnCounts?: ReadonlySet<number> | undefined;
   readonly unsettledRunId?: RunId | null;
-}): Map<ChatMessage["id"], number> {
+}) {
   const turnCountByRunId = new Map<RunId, number>();
   for (const checkpoint of input.checkpoints) {
     if (isRewindableCheckpoint(checkpoint)) {
@@ -1123,7 +1112,7 @@ function isRewindableCheckpoint(checkpoint: Pick<OrchestrationV2Checkpoint, "sta
 export function findRevertCheckpoint(
   checkpoints: ReadonlyArray<OrchestrationV2Checkpoint>,
   turnCount: number,
-): OrchestrationV2Checkpoint | undefined {
+) {
   return checkpoints.findLast(
     (checkpoint) =>
       isRewindableCheckpoint(checkpoint) &&
@@ -1133,18 +1122,20 @@ export function findRevertCheckpoint(
   );
 }
 
-export function derivePhase(runtime: ThreadStructureRuntime | null): SessionPhase {
-  if (runtime === null) return "disconnected";
-  if (isOrchestrationV2RunNotYetRunning(runtime.status)) return "connecting";
-  if (runtime.status === "running" || runtime.status === "waiting") return "running";
-  return "ready";
+export function derivePhase(runtime: ThreadStructureRuntime | null): SessionPhase;
+export function derivePhase(runtime: ThreadStructureRuntime | null) {
+  if (runtime === null) return "disconnected" satisfies SessionPhase;
+  if (isOrchestrationV2RunNotYetRunning(runtime.status)) return "connecting" satisfies SessionPhase;
+  if (runtime.status === "running" || runtime.status === "waiting")
+    return "running" satisfies SessionPhase;
+  return "ready" satisfies SessionPhase;
 }
 
 /** Preparing and starting runs can be interrupted; Stop need not wait for running. */
 export function deriveCanInterruptRunningThread(
   hasActiveThread: boolean,
   runtime: ThreadStructureRuntime | null,
-): boolean {
+) {
   return (
     hasActiveThread &&
     (derivePhase(runtime) === "running" || threadRuntimeHasInterruptibleRun(runtime))

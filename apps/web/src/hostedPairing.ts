@@ -16,20 +16,27 @@ export interface HostedPairingRequest extends SharedHostedPairingRequest {
 
 export type HostedAppChannel = "latest" | "nightly";
 
-export function configuredHostedAppUrl(): string {
-  return import.meta.env.VITE_HOSTED_APP_URL?.trim() || DEFAULT_HOSTED_APP_URL;
+export function configuredHostedAppUrl(): string;
+export function configuredHostedAppUrl() {
+  return (import.meta.env.VITE_HOSTED_APP_URL?.trim() || DEFAULT_HOSTED_APP_URL) satisfies string;
 }
 
-function configuredBackendUrl(): string {
-  return import.meta.env.VITE_HTTP_URL?.trim() || import.meta.env.VITE_WS_URL?.trim() || "";
+function configuredBackendUrl(): string;
+function configuredBackendUrl() {
+  return (import.meta.env.VITE_HTTP_URL?.trim() ||
+    import.meta.env.VITE_WS_URL?.trim() ||
+    "") satisfies string;
 }
 
-function configuredHostedAppChannel(): HostedAppChannel | null {
+function configuredHostedAppChannel(): HostedAppChannel | null;
+function configuredHostedAppChannel() {
   const channel = import.meta.env.VITE_HOSTED_APP_CHANNEL?.trim().toLowerCase();
-  return channel === "latest" || channel === "nightly" ? channel : null;
+  return (
+    channel === "latest" || channel === "nightly" ? channel : null
+  ) satisfies HostedAppChannel | null;
 }
 
-function originFromUrl(value: string): string | null {
+function originFromUrl(value: string) {
   try {
     return new URL(value).origin;
   } catch {
@@ -37,7 +44,7 @@ function originFromUrl(value: string): string | null {
   }
 }
 
-export function isHostedStaticApp(url?: URL): boolean {
+export function isHostedStaticApp(url?: URL) {
   if (isRelayCompanion()) return true;
   if (configuredBackendUrl()) {
     return false;
@@ -65,7 +72,7 @@ export function readHostedPairingRequest(url: URL = new URL(window.location.href
       } satisfies HostedPairingRequest);
 }
 
-export function hasHostedPairingRequest(url: URL = new URL(window.location.href)): boolean {
+export function hasHostedPairingRequest(url: URL = new URL(window.location.href)) {
   return readHostedPairingRequest(url) !== null;
 }
 
@@ -75,7 +82,7 @@ export function buildHostedPairingUrl(
     readonly token: string;
     readonly label?: string | null;
   } & PairingRouteHints,
-): string {
+) {
   const url = new URL("/pair", configuredHostedAppUrl());
   url.searchParams.set("host", input.host);
 
@@ -87,9 +94,7 @@ export function buildHostedPairingUrl(
   return setPairingTokenOnUrl(url, input.token, input).toString();
 }
 
-export function buildHostedChannelSelectionUrl(input: {
-  readonly channel: HostedAppChannel;
-}): string {
+export function buildHostedChannelSelectionUrl(input: { readonly channel: HostedAppChannel }) {
   const url = new URL("/__supaterm/channel", configuredHostedAppUrl());
   url.searchParams.set("channel", input.channel);
   return url.toString();

@@ -35,7 +35,6 @@ import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import {
   type BackgroundTaskOutputHandle,
   BackgroundTaskOutputPopover,
-  type BackgroundTaskOutputTarget,
   BackgroundWorkIcon,
   BackgroundWorkTitle,
   type BackgroundWorkTitleAction,
@@ -45,14 +44,14 @@ import type { ComposerBannerStackItem } from "./ComposerBannerStack";
 
 export function extensionStatusBannerItem(
   statuses: NonNullable<OrchestrationV2ProviderSession["extensionStatuses"]>,
-): ComposerBannerStackItem | null {
-  if (statuses.length === 0) return null;
+) {
+  if (statuses.length === 0) return null satisfies ComposerBannerStackItem | null;
   return {
     id: "pi-extension-status",
     variant: "default",
     icon: <PuzzleIcon />,
     title: <output>{`Pi · ${statuses.map((status) => status.text).join(" · ")}`}</output>,
-  };
+  } satisfies ComposerBannerStackItem | null;
 }
 
 /** Subagents waiting on the user, unless the parent is itself waiting on them. */
@@ -60,10 +59,10 @@ export function childInputBannerItem(input: {
   readonly childThreadInputs: ReadonlyArray<EnvironmentThreadShell>;
   readonly parentAwaitingUser: boolean;
   readonly onOpenThread: (threadId: ThreadId) => void;
-}): ComposerBannerStackItem | null {
+}) {
   const { childThreadInputs, onOpenThread } = input;
   const first = childThreadInputs[0];
-  if (!first || input.parentAwaitingUser) return null;
+  if (!first || input.parentAwaitingUser) return null satisfies ComposerBannerStackItem | null;
   return {
     id: `child-input:${first.id}`,
     variant: "info",
@@ -87,7 +86,7 @@ export function childInputBannerItem(input: {
         {first.hasPendingApprovals ? "Open approval" : "Open question"}
       </Button>
     ),
-  };
+  } satisfies ComposerBannerStackItem | null;
 }
 
 export function goalBannerItem(input: {
@@ -95,7 +94,7 @@ export function goalBannerItem(input: {
   readonly goal: OrchestrationV2ProviderGoal;
   readonly isWorking: boolean;
   readonly onSendCommand: (text: string, failureMessage: string) => Promise<void>;
-}): ComposerBannerStackItem {
+}) {
   const { isWorking, onSendCommand } = input;
   const presentation = presentProviderGoal(input.goal, isWorking);
   return {
@@ -128,7 +127,7 @@ export function goalBannerItem(input: {
         </Button>
       </>
     ),
-  };
+  } satisfies ComposerBannerStackItem;
 }
 
 /** A Stop the provider has not finished; Force stop once it stops answering. */
@@ -138,7 +137,7 @@ export function runStopBannerItem(input: {
   readonly canForceStop: boolean;
   readonly forceStopping: boolean;
   readonly onForceStop: () => void;
-}): ComposerBannerStackItem {
+}) {
   const unresponsive = input.stop.state === "unresponsive";
   const requestedAtMs = Date.parse(input.stop.requestedAt);
   return {
@@ -171,7 +170,7 @@ export function runStopBannerItem(input: {
         ) : null}
       </>
     ),
-  };
+  } satisfies ComposerBannerStackItem;
 }
 
 export function backgroundWorkBannerItem(input: {
@@ -185,11 +184,11 @@ export function backgroundWorkBannerItem(input: {
   readonly stopping: boolean;
   readonly onStop: () => Promise<void>;
   readonly onOpenThread: (threadId: ThreadId) => void;
-}): ComposerBannerStackItem | null {
+}) {
   const { onOpenThread } = input;
   const presentation = presentPendingBackgroundWork(input.tasks);
-  if (presentation === null) return null;
-  const outputTarget = (item: PendingBackgroundWorkItem): BackgroundTaskOutputTarget => {
+  if (presentation === null) return null satisfies ComposerBannerStackItem | null;
+  const outputTarget = (item: PendingBackgroundWorkItem) => {
     const task = input.tasks.find((candidate) => candidate.taskId === item.taskId);
     return {
       environmentId: input.environmentId,
@@ -290,7 +289,7 @@ export function backgroundWorkBannerItem(input: {
         </Button>
       </>
     ),
-  };
+  } satisfies ComposerBannerStackItem | null;
 }
 
 /** The local checkout moved off the branch this thread last ran on. */
@@ -303,7 +302,7 @@ export function branchMismatchBannerItem(input: {
   readonly hasWorkingTreeChanges: boolean;
   readonly onRestore: () => void;
   readonly onDismiss: () => void;
-}): ComposerBannerStackItem {
+}) {
   const { mismatch } = input;
   return {
     id: `branch-mismatch:${input.mismatchKey}`,
@@ -346,5 +345,5 @@ export function branchMismatchBannerItem(input: {
     ),
     dismissLabel: "Dismiss branch change notice",
     onDismiss: input.onDismiss,
-  };
+  } satisfies ComposerBannerStackItem;
 }

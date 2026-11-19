@@ -18,13 +18,13 @@ const FRAME_MS = 100;
  * for the microphone, so a simulator on a machine without one can still speak. It plays out in
  * real time, then silence, and the recording holds exactly the frames it streamed.
  */
-export function devFakeMicrophoneSource(): File | null {
+export function devFakeMicrophoneSource() {
   if (!__DEV__) return null;
   const source = new File(Paths.document, SOURCE_NAME);
   return source.exists ? source : null;
 }
 
-function pcmSamples(bytes: ArrayBuffer): Int16Array<ArrayBuffer> {
+function pcmSamples(bytes: ArrayBuffer) {
   const view = new DataView(bytes);
   let offset = 12;
   while (offset + 8 <= view.byteLength) {
@@ -44,7 +44,7 @@ function pcmSamples(bytes: ArrayBuffer): Int16Array<ArrayBuffer> {
   return new Int16Array();
 }
 
-function wavFile(pcm: Uint8Array): Uint8Array {
+function wavFile(pcm: Uint8Array) {
   const bytes = new Uint8Array(WAV_HEADER_BYTES + pcm.byteLength);
   const view = new DataView(bytes.buffer);
   const ascii = (offset: number, text: string) => {
@@ -69,7 +69,7 @@ function wavFile(pcm: Uint8Array): Uint8Array {
   return bytes;
 }
 
-function decibelsAt(samples: Int16Array<ArrayBuffer>, elapsedMs: number): number {
+function decibelsAt(samples: Int16Array<ArrayBuffer>, elapsedMs: number) {
   const start = Math.floor((elapsedMs / 1000) * SAMPLE_RATE);
   const end = Math.min(samples.length, start + (LEVEL_WINDOW_MS / 1000) * SAMPLE_RATE);
   if (start >= end) return -160;
@@ -83,7 +83,8 @@ function decibelsAt(samples: Int16Array<ArrayBuffer>, elapsedMs: number): number
 
 export function createDevFakeVoiceRecorder(
   source: File,
-): NativeVoiceRecorder<VoiceRecordingStatusEvent, VoiceRecordingState> {
+): NativeVoiceRecorder<VoiceRecordingStatusEvent, VoiceRecordingState>;
+export function createDevFakeVoiceRecorder(source: File) {
   const listeners = new Set<(status: VoiceRecordingStatusEvent) => void>();
   const frameListeners = new Set<(pcm: Uint8Array) => void>();
   let samples: Int16Array<ArrayBuffer> = new Int16Array();
@@ -173,5 +174,5 @@ export function createDevFakeVoiceRecorder(
       listeners.clear();
       frameListeners.clear();
     },
-  };
+  } satisfies NativeVoiceRecorder<VoiceRecordingStatusEvent, VoiceRecordingState>;
 }

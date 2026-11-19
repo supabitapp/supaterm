@@ -47,10 +47,11 @@ const legacyCitation: AssistantCitation = {
   suffix: " Next.",
 };
 
-function readProviderContext(expanded: string): unknown {
+function readProviderContext(expanded: string): unknown;
+function readProviderContext(expanded: string) {
   return JSON.parse(
     expanded.slice(expanded.indexOf("[\n"), expanded.lastIndexOf("\n</assistant_citations>")),
-  );
+  ) satisfies unknown;
 }
 
 describe("assistant citation references", () => {

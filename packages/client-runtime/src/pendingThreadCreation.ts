@@ -42,14 +42,26 @@ export function resolvePendingThreadCreation<Message extends PendingCreationMess
     readonly latestTurn?: { readonly turnId: string } | null;
     readonly session?: { readonly status: string } | null;
   } | null;
-}): PendingThreadCreation<Message> | null {
+}): PendingThreadCreation<Message> | null;
+export function resolvePendingThreadCreation<Message extends PendingCreationMessage>(input: {
+  readonly threadKey: string | null;
+  readonly pending: PendingThreadCreation<Message> | null;
+  readonly previous: PendingThreadCreation<Message> | null;
+  readonly detail: {
+    readonly messages: ReadonlyArray<{ readonly id: string }>;
+    readonly runs?: ReadonlyArray<{ readonly status: string }>;
+    readonly latestTurn?: { readonly turnId: string } | null;
+    readonly session?: { readonly status: string } | null;
+  } | null;
+}) {
   const creation = input.pending ?? input.previous;
   if (
     creation === null ||
     `${creation.message.environmentId}:${creation.message.threadId}` !== input.threadKey
   )
-    return null;
-  if (creation.outcome?.kind === "failed") return creation;
+    return null satisfies PendingThreadCreation<Message> | null;
+  if (creation.outcome?.kind === "failed")
+    return creation satisfies PendingThreadCreation<Message> | null;
   const detail = input.detail;
   const latestRun = detail?.runs?.at(-1);
   const terminalStatus = latestRun?.status ?? detail?.session?.status;
@@ -60,7 +72,7 @@ export function resolvePendingThreadCreation<Message extends PendingCreationMess
     terminalStatus === "stopped" ||
     terminalStatus === "interrupted"
   )
-    return null;
+    return null satisfies PendingThreadCreation<Message> | null;
   if (
     detail !== null &&
     (latestRun !== undefined || detail.latestTurn != null) &&
@@ -69,15 +81,15 @@ export function resolvePendingThreadCreation<Message extends PendingCreationMess
       loadedMessageIds: detail.messages.map((message) => message.id),
     })
   )
-    return null;
-  return creation;
+    return null satisfies PendingThreadCreation<Message> | null;
+  return creation satisfies PendingThreadCreation<Message> | null;
 }
 
 /** A shell can arrive before its prompt; only the matching message retires the local row. */
 export function isPendingThreadCreationVisible(input: {
   readonly creationMessageId: string;
   readonly loadedMessageIds: ReadonlyArray<string> | null;
-}): boolean {
+}) {
   return !input.loadedMessageIds?.includes(input.creationMessageId);
 }
 
@@ -154,7 +166,7 @@ export function buildPendingThreadShell(input: {
 export function pendingThreadCreationLabel(input: {
   readonly connected: boolean;
   readonly preparingWorktree: boolean;
-}): string {
+}) {
   if (!input.connected) return "Waiting for connection";
   return input.preparingWorktree ? "Setting up worktree…" : "Starting…";
 }

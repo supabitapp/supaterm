@@ -36,12 +36,20 @@ export interface CompiledClaudeModelSelection {
 
 export function compileClaudeModelSelection(
   selection: ModelSelection,
+  catalog?: ClaudeModelCatalog,
+  options?: {
+    readonly fastModeBlocked?: boolean;
+    readonly customModels?: ReadonlyArray<CustomModelSetting>;
+  },
+): CompiledClaudeModelSelection;
+export function compileClaudeModelSelection(
+  selection: ModelSelection,
   catalog: ClaudeModelCatalog = BUNDLED_CLAUDE_MODEL_CATALOG,
   options: {
     readonly fastModeBlocked?: boolean;
     readonly customModels?: ReadonlyArray<CustomModelSetting>;
   } = {},
-): CompiledClaudeModelSelection {
+) {
   const capabilities = getClaudeCatalogModelCapabilities(catalog, selection.model);
   const descriptors = getProviderOptionDescriptors({
     caps: capabilities,
@@ -94,5 +102,5 @@ export function compileClaudeModelSelection(
       settings,
       pinnedAlias: pinnedAlias ?? null,
     }),
-  };
+  } satisfies CompiledClaudeModelSelection;
 }

@@ -63,7 +63,7 @@ type ProviderOptions = ReadonlyArray<ProviderOptionSelection>;
  */
 export type PromptUltrathink = "none" | "prefix" | "body";
 
-export function readPromptUltrathink(prompt: string): PromptUltrathink {
+export function readPromptUltrathink(prompt: string) {
   if (!isClaudeUltrathinkPrompt(prompt)) return "none";
   return isClaudeUltrathinkPrompt(prompt.replace(/^Ultrathink:\s*/i, "")) ? "body" : "prefix";
 }
@@ -75,16 +75,14 @@ const SAVED_OPTION_LABELS: Readonly<Record<string, string>> = {
   variant: "Reasoning",
 };
 
-function savedOptionLabel(id: string): string {
+function savedOptionLabel(id: string) {
   return (
     SAVED_OPTION_LABELS[id] ??
     id.replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/^./, (character) => character.toUpperCase())
   );
 }
 
-function buildUnavailableModelOptionDescriptors(
-  selections: ProviderOptions | null | undefined,
-): ReadonlyArray<ProviderOptionDescriptor> {
+function buildUnavailableModelOptionDescriptors(selections: ProviderOptions | null | undefined) {
   return (selections ?? []).map((selection) =>
     typeof selection.value === "boolean"
       ? {
@@ -289,25 +287,26 @@ export function getSpeedToggleChange(input: {
   model: string | null | undefined;
   prompt: string;
   modelOptions: ProviderOptions | null | undefined;
-}): { modelOptions: ProviderOptions | undefined; level: SpeedToggleLevel } | null {
+}) {
   const { descriptors, speedToggle } = getTraitsSectionVisibility({
     ...input,
     promptUltrathink: readPromptUltrathink(input.prompt),
   });
-  if (speedToggle === null) return null;
+  if (speedToggle === null)
+    return null satisfies {
+      modelOptions: ProviderOptions | undefined;
+      level: SpeedToggleLevel;
+    } | null;
   const nextValue = getSpeedToggleNextValue(speedToggle);
   return {
     modelOptions: buildProviderOptionSelectionsFromDescriptors(
       replaceDescriptorCurrentValue(descriptors, speedToggle.descriptorId, nextValue),
     ),
     level: speedToggleLevelForValue(speedToggle, nextValue),
-  };
+  } satisfies { modelOptions: ProviderOptions | undefined; level: SpeedToggleLevel } | null;
 }
 
-function speedToggleLevelForValue(
-  speedToggle: SpeedToggle,
-  value: string | boolean,
-): SpeedToggleLevel {
+function speedToggleLevelForValue(speedToggle: SpeedToggle, value: string | boolean) {
   if (value === speedToggle.offValue) return "off";
   if (value === speedToggle.ultrafastValue) return "ultrafast";
   return "fast";
@@ -320,7 +319,7 @@ export function shouldRenderTraitsControls(input: {
   promptUltrathink?: PromptUltrathink | undefined;
   modelOptions: ProviderOptions | null | undefined;
   allowPromptInjectedEffort?: boolean;
-}): boolean {
+}) {
   return getTraitsSectionVisibility(input).hasAnyControls;
 }
 

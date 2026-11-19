@@ -16,7 +16,7 @@ import type { PendingThreadTurn } from "./threadOutbox";
 
 const modelSelection = { instanceId: ProviderInstanceId.make("codex"), model: "gpt" };
 
-function entry(status: PendingThreadTurn["status"]): PendingThreadTurn {
+function entry(status: PendingThreadTurn["status"]) {
   return {
     id: "message",
     scope: "environment:thread",
@@ -59,7 +59,7 @@ function entry(status: PendingThreadTurn["status"]): PendingThreadTurn {
       },
       localAttachments: [],
     },
-  };
+  } satisfies PendingThreadTurn;
 }
 
 describe("pendingThreadCreation", () => {

@@ -31,10 +31,10 @@ const decodeGlobalHealth = Schema.decodeUnknownOption(
   Schema.fromJsonString(Schema.Struct({ healthy: Schema.Literal(true), version: Schema.String })),
 );
 
-function probed(version: string | null | undefined): ProbedOpenCode | undefined {
+function probed(version: string | null | undefined) {
   const major = parseSemver(version ?? "")?.major;
-  if (!version || major === undefined) return undefined;
-  return { generation: major >= 2 ? "v2" : "v1", version };
+  if (!version || major === undefined) return undefined satisfies ProbedOpenCode | undefined;
+  return { generation: major >= 2 ? "v2" : "v1", version } satisfies ProbedOpenCode | undefined;
 }
 
 export const classifyOpenCodeCliVersion = (output: string) =>
@@ -47,15 +47,20 @@ function classifyOpenCodeProbeResponse(
     readonly contentType: string | undefined;
     readonly body: string;
   },
-): ProbedOpenCode | "unauthorized" | undefined {
-  if (response.status === 401) return "unauthorized";
+) {
+  if (response.status === 401)
+    return "unauthorized" satisfies ProbedOpenCode | "unauthorized" | undefined;
   const mediaType = response.contentType?.split(";")[0]?.trim().toLowerCase();
-  if (response.status !== 200 || mediaType !== "application/json") return undefined;
+  if (response.status !== 200 || mediaType !== "application/json")
+    return undefined satisfies ProbedOpenCode | "unauthorized" | undefined;
   const version: Option.Option<string> =
     path === "/api/info"
       ? Option.map(decodeApiInfo(response.body), (info) => info.version)
       : Option.map(decodeGlobalHealth(response.body), (health) => health.version);
-  return probed(Option.getOrUndefined(version));
+  return probed(Option.getOrUndefined(version)) satisfies
+    | ProbedOpenCode
+    | "unauthorized"
+    | undefined;
 }
 
 export const probeOpenCodeBinary = Effect.fn("probeOpenCodeBinary")(function* (
@@ -167,18 +172,25 @@ const probeOpenCodeServer = Effect.fn("probeOpenCodeServer")(function* (
   });
 });
 
-export const probeOpenCodeRuntime = (
+export const probeOpenCodeRuntime: (
   settings: {
     readonly binaryPath: string;
     readonly serverUrl: string;
     readonly serverPassword: string;
   },
   environment?: NodeJS.ProcessEnv,
-): Effect.Effect<
+) => Effect.Effect<
   ProbedOpenCode,
   OpenCodeRuntime.OpenCodeRuntimeError,
   HttpClient.HttpClient | OpenCodeRuntime.OpenCodeRuntime
-> =>
+> = (
+  settings: {
+    readonly binaryPath: string;
+    readonly serverUrl: string;
+    readonly serverPassword: string;
+  },
+  environment?: NodeJS.ProcessEnv,
+) =>
   settings.serverUrl.trim().length > 0
     ? probeOpenCodeServer(settings.serverUrl, settings.serverPassword, environment)
     : probeOpenCodeBinary(settings.binaryPath, environment);
