@@ -1018,6 +1018,7 @@ export function NewTaskDraftScreen(props: {
         onRespondToApproval={async () => {}}
         onSelectUserInputOption={() => {}}
         onChangeUserInputCustomAnswer={() => {}}
+        onPauseUserInputTimer={() => {}}
         onSubmitUserInput={async () => {}}
         onDismissUserInput={async () => {}}
       />

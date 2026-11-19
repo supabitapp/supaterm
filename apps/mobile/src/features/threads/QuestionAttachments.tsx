@@ -33,6 +33,11 @@ import {
   questionAttachmentDraftKey,
   questionAttachmentPreparationAtom,
 } from "../../state/question-attachments";
+import type { ComposerEditorSelection } from "../../components/ComposerEditor";
+import { ComposerDictationStartAction } from "../voice-input/ComposerDictationControl";
+import { TextFieldDictationToolbar } from "../voice-input/TextFieldDictationToolbar";
+import { useVoiceInputController } from "../voice-input/useVoiceInputController";
+import { resolveVoiceComposerPresentation } from "../voice-input/voiceInputPresentation";
 export function QuestionAttachments(props: {
   requestId: string;
   question: UserInputQuestion;
@@ -41,6 +46,7 @@ export function QuestionAttachments(props: {
   value: string;
   onChangeText: (value: string) => void;
   onInputFocusChange?: ((focused: boolean) => void) | undefined;
+  onStartDictation: () => void;
 }) {
   const { selectedThread } = useThreadSelection();
   const navigation = useNavigation();
@@ -69,10 +75,49 @@ export function QuestionAttachments(props: {
   useEffect(() => () => releaseFocus(), []);
   // A controlled value makes Fabric rebuild the native text on every keystroke, which discards
   // iOS's pending autocorrection. The input owns its text; the only outside write is an option
-  // selection clearing the draft.
+  // selection clearing the draft, and dictation remounting it with the transcript.
   const inputRef = useRef<TextInputInstance>(null);
-  const [initialText] = useState(props.value);
+  const [seed, setSeed] = useState({ text: props.value, revision: 0 });
   const nativeText = useRef(props.value);
+  const [selection, setSelection] = useState<ComposerEditorSelection>({
+    start: props.value.length,
+    end: props.value.length,
+  });
+  const key = selectedThread
+    ? questionAttachmentDraftKey(
+        selectedThread.environmentId,
+        selectedThread.id,
+        props.requestId,
+        props.question.id,
+      )
+    : null;
+  const voice = useVoiceInputController({
+    ownerKey: key,
+    label: props.question.header,
+    selection,
+    readDraftMessage: () => nativeText.current,
+    onChangeSelection: setSelection,
+    onChangeDraftMessage: (text) => {
+      nativeText.current = text;
+      setSeed((current) => ({ text, revision: current.revision + 1 }));
+      props.onChangeText(text);
+    },
+    disabled: props.disabled,
+    environmentId: selectedThread?.environmentId ?? null,
+    ...(selectedThread ? { context: { threadId: selectedThread.id } } : {}),
+  });
+  const voiceBusy = voice.isBusy;
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- holds submit and paging, like a converting paste, while dictation records or transcribes into this answer
+  useEffect(() => {
+    if (!voiceBusy || key === null) return;
+    changeQuestionAttachmentPreparation(key, 1);
+    return () => changeQuestionAttachmentPreparation(key, -1);
+  }, [voiceBusy, key]);
+  const cancelOwnDictation = useEffectEvent(() => {
+    if (voice.state.phase !== "idle") voice.cancel();
+  });
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- ends this answer's dictation or its error when the question leaves, so neither outlives a resolved draft
+  useEffect(() => () => cancelOwnDictation(), []);
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- pushes an option selection's cleared draft into the uncontrolled native input
   useEffect(() => {
     if (props.value !== "" || nativeText.current === "") return;
@@ -103,12 +148,7 @@ export function QuestionAttachments(props: {
   const paste = useNativePaste((uris) => {
     const scope = pickerScope.current;
     if (!selectedThread || props.disabled || !configs.has(selectedThread.environmentId)) return;
-    const key = questionAttachmentDraftKey(
-      selectedThread.environmentId,
-      selectedThread.id,
-      props.requestId,
-      props.question.id,
-    );
+    if (key === null) return;
     changeQuestionAttachmentPreparation(key, 1);
     void convertPastedImagesToAttachments({ uris })
       .then(async (result) => {
@@ -131,16 +171,12 @@ export function QuestionAttachments(props: {
       )
       .finally(() => changeQuestionAttachmentPreparation(key, -1));
   });
-  if (!selectedThread || props.question.allowCustomAnswer === false) return null;
+  if (!selectedThread || key === null || props.question.allowCustomAnswer === false) return null;
   const { environmentId, id: threadId } = selectedThread;
   const capabilities = configs.get(environmentId)?.environment.capabilities;
   const canAttach = capabilities !== undefined;
-  const key = questionAttachmentDraftKey(
-    environmentId,
-    threadId,
-    props.requestId,
-    props.question.id,
-  );
+  const presentation = resolveVoiceComposerPresentation(voice.state, voice.elapsedSeconds);
+  const showsDictation = presentation.statusLabel !== null;
   const attachments = drafts[key]?.attachments ?? [];
   const pick = async (kind: "media" | "files") => {
     const scope = pickerScope.current;
@@ -177,14 +213,6 @@ export function QuestionAttachments(props: {
   };
   return (
     <View className="gap-2">
-      {canAttach ? (
-        <ComposerAttachmentButton
-          disabled={props.disabled}
-          supportsFiles
-          onPickMedia={() => pick("media")}
-          onPickFiles={() => pick("files")}
-        />
-      ) : null}
       {attachments.length > 0 ? (
         <Animated.View entering={FadeIn.duration(140)} exiting={FadeOut.duration(120)}>
           <ComposerAttachmentStrip
@@ -217,29 +245,64 @@ export function QuestionAttachments(props: {
       ) : null}
       <FilePreviewModal source={previewFile} onRequestClose={() => setPreviewFile(null)} />
       <VideoPreviewModal source={previewVideo} onRequestClose={() => setPreviewVideo(null)} />
-      <TextInputWrapper onPaste={paste}>
-        <TextInput
-          ref={inputRef}
-          defaultValue={initialText}
-          multiline={props.question.initialAnswer !== undefined}
-          submitBehavior={props.question.initialAnswer !== undefined ? "newline" : undefined}
-          editable={!props.disabled}
-          onChangeText={(text) => {
-            nativeText.current = text;
-            props.onChangeText(text);
-          }}
-          onFocus={() => {
-            focusedRef.current = true;
-            onInputFocusChange?.(true);
-          }}
-          onBlur={() => {
-            focusedRef.current = false;
-            onInputFocusChange?.(false);
-          }}
-          placeholder="Or type a custom answer"
-          className="min-h-[54px] rounded-2xl border border-input-border bg-input px-3.5 py-3 font-sans text-base text-foreground"
+      <View className="relative">
+        <TextInputWrapper onPaste={paste}>
+          <TextInput
+            key={seed.revision}
+            ref={inputRef}
+            defaultValue={seed.text}
+            multiline={props.question.initialAnswer !== undefined}
+            submitBehavior={props.question.initialAnswer !== undefined ? "newline" : undefined}
+            editable={!props.disabled && !voice.freezesEditor}
+            onSelectionChange={({ nativeEvent }) => setSelection(nativeEvent.selection)}
+            onChangeText={(text) => {
+              nativeText.current = text;
+              props.onChangeText(text);
+            }}
+            onFocus={() => {
+              focusedRef.current = true;
+              onInputFocusChange?.(true);
+            }}
+            onBlur={() => {
+              focusedRef.current = false;
+              onInputFocusChange?.(false);
+            }}
+            placeholder="Or type a custom answer"
+            className={canAttach ? "min-h-[54px] pl-12 pr-12" : "min-h-[54px] pr-12"}
+          />
+        </TextInputWrapper>
+        {canAttach ? (
+          <View className="absolute bottom-[5px] left-1">
+            <ComposerAttachmentButton
+              disabled={props.disabled}
+              supportsFiles
+              onPickMedia={() => pick("media")}
+              onPickFiles={() => pick("files")}
+            />
+          </View>
+        ) : null}
+        {voice.isAvailable && !showsDictation ? (
+          <View className="absolute right-1 bottom-[5px]">
+            <ComposerDictationStartAction
+              state={voice.state}
+              isAvailable={voice.isAvailable}
+              disabled={props.disabled}
+              onStart={() => {
+                props.onStartDictation();
+                voice.start();
+              }}
+              onCancel={voice.cancel}
+            />
+          </View>
+        ) : null}
+      </View>
+      {showsDictation ? (
+        <TextFieldDictationToolbar
+          voiceInput={voice}
+          presentation={presentation}
+          disabled={props.disabled}
         />
-      </TextInputWrapper>
+      ) : null}
     </View>
   );
 }

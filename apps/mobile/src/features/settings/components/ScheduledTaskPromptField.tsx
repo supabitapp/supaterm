@@ -2,13 +2,8 @@ import { TextInput, View } from "react-native";
 
 import { AppText as Text } from "../../../components/ui/AppText";
 import type { ComposerEditorSelection } from "../../../components/ComposerEditor";
-import {
-  ComposerDictationLeadingAction,
-  ComposerDictationPrimaryAction,
-  ComposerDictationStartAction,
-  ComposerDictationStatus,
-  ComposerDictationToolbar,
-} from "../../voice-input/ComposerDictationControl";
+import { ComposerDictationStartAction } from "../../voice-input/ComposerDictationControl";
+import { TextFieldDictationToolbar } from "../../voice-input/TextFieldDictationToolbar";
 import type { useVoiceInputController } from "../../voice-input/useVoiceInputController";
 import { resolveVoiceComposerPresentation } from "../../voice-input/voiceInputPresentation";
 
@@ -54,31 +49,11 @@ export function ScheduledTaskPromptField(props: {
         ) : null}
       </View>
       {showsDictation ? (
-        <ComposerDictationToolbar statusKind={presentation.statusKind}>
-          <View className="h-full flex-row items-center gap-2">
-            <ComposerDictationLeadingAction
-              presentation={presentation}
-              onStop={voice.stop}
-              onCancel={voice.cancel}
-            />
-            <ComposerDictationStatus
-              audioLevels={voice.audioLevels}
-              elapsedSeconds={voice.elapsedSeconds}
-              phase={voice.state.phase}
-              presentation={presentation}
-              onDismissError={voice.cancel}
-            />
-            <ComposerDictationPrimaryAction
-              state={voice.state}
-              presentation={presentation}
-              isAvailable={voice.isAvailable}
-              disabled={props.disabled}
-              onStart={voice.start}
-              onConfirm={voice.stop}
-              onCancel={voice.cancel}
-            />
-          </View>
-        </ComposerDictationToolbar>
+        <TextFieldDictationToolbar
+          voiceInput={voice}
+          presentation={presentation}
+          disabled={props.disabled}
+        />
       ) : null}
     </View>
   );
