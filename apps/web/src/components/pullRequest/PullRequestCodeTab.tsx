@@ -82,8 +82,8 @@ import {
 } from "@supaterm/client-runtime/pull-request-editing";
 import { fileDiffRows } from "@supaterm/client-runtime/review-guide-tour";
 import { isTestChangedFile } from "@supaterm/shared/changedFileKind";
+import { orderDiffFilesForReview } from "@supaterm/client-runtime/diff-file-order";
 import { isWorkspaceImagePreviewPath } from "@supaterm/shared/mediaPreview";
-import { orderDiffFiles } from "./pullRequestFileOrder.logic";
 import {
   buildFileDiffIdentityKey,
   buildFileDiffRenderKey,
@@ -117,7 +117,7 @@ import { DiffFileTree } from "../diffs/DiffFileTree";
 import { FilePreviewSplit, PR_CODE_FILE_TREE_SIZING } from "../files/FileExplorerPane";
 import { useCodeViewFileReveal } from "../diffs/useCodeViewFileReveal";
 import { useHideTestFiles } from "../diffs/useHideTestFiles";
-import { diffFileTreeEntries, orderDiffFilesLikeTree } from "../diffs/diffFileTree.logic";
+import { diffFileTreeEntries } from "../diffs/diffFileTree.logic";
 import { StyledDiffCodeView } from "../diffs/StyledDiffCodeView";
 import { Button } from "../ui/button";
 import { Checkbox } from "../ui/checkbox";
@@ -260,10 +260,9 @@ function diffModel(
   });
   const model: DiffModel = {
     parsedSlices,
-    loadedFiles: orderDiffFilesLikeTree(
-      parsedSlices.flatMap((parsed) =>
-        parsed?.kind === "files" ? orderDiffFiles(parsed.files) : [],
-      ),
+    loadedFiles: orderDiffFilesForReview(
+      parsedSlices.flatMap((parsed) => (parsed?.kind === "files" ? parsed.files : [])),
+      resolveFileDiffPath,
     ),
     sourceFileStats: new Map(
       parsedSlices.flatMap((parsed) =>
