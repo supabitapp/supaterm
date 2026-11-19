@@ -317,7 +317,8 @@ const resolveCanonicalWorkspaceFile = Effect.fn("AssetAccess.resolveCanonicalWor
   function* (input: {
     readonly workspaceRoot: string;
     readonly relativePath: string;
-    readonly previewDependency?: boolean;
+    /** The HTML entry's folder, relative to the root, when serving one of its dependencies. */
+    readonly previewBaseRelativePath?: string;
   }) {
     const fileSystem = yield* FileSystem.FileSystem;
     const workspacePaths = yield* WorkspacePaths.WorkspacePaths;
@@ -339,7 +340,18 @@ const resolveCanonicalWorkspaceFile = Effect.fn("AssetAccess.resolveCanonicalWor
     const relative = path.relative(canonicalRoot.value, canonicalFile.value);
     if (relative === "" || relative.startsWith("..") || path.isAbsolute(relative)) return null;
 
-    if (input.previewDependency && !isPreviewDependencyPath(relative, path)) return null;
+    if (input.previewBaseRelativePath !== undefined) {
+      // The opened entry's own folder may be hidden; nothing below it, or reached outside it, may.
+      const canonicalBase = yield* optionOnNotFound(
+        fileSystem.realPath(path.join(canonicalRoot.value, input.previewBaseRelativePath)),
+      );
+      const belowBase = Option.isSome(canonicalBase)
+        ? path.relative(canonicalBase.value, canonicalFile.value)
+        : "..";
+      const dependency =
+        belowBase.startsWith("..") || path.isAbsolute(belowBase) ? relative : belowBase;
+      if (!isPreviewDependencyPath(dependency, path)) return null;
+    }
 
     const info = yield* optionOnNotFound(fileSystem.stat(canonicalFile.value));
     if (Option.isNone(info) || info.value.type !== "File") return null;
@@ -351,7 +363,7 @@ const resolveCanonicalWorkspaceFile = Effect.fn("AssetAccess.resolveCanonicalWor
 const resolveCanonicalWorkspaceFileForRequest = (input: {
   readonly workspaceRoot: string;
   readonly relativePath: string;
-  readonly previewDependency?: boolean;
+  readonly previewBaseRelativePath?: string;
 }) =>
   resolveCanonicalWorkspaceFile(input).pipe(
     Effect.tapError((cause) =>
@@ -1061,7 +1073,7 @@ export const resolveAsset = Effect.fn("AssetAccess.resolveAsset")(function* (
   const workspaceFile = yield* resolveCanonicalWorkspaceFileForRequest({
     workspaceRoot: claims.workspaceRoot,
     relativePath: joinedRelativePath,
-    previewDependency: !isEntry,
+    previewBaseRelativePath: claims.baseRelativePath,
   });
   return workspaceFile
     ? ({ kind: "file", path: workspaceFile, renderIntent: "file-preview" } satisfies ResolvedAsset)
