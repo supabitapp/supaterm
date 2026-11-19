@@ -21,7 +21,7 @@ on:
         required: false
         type: string
       review_ref:
-        description: Optional ref containing the current store-review automation
+        description: Optional ref for the submission automation (defaults to this workflow's commit)
         required: false
         type: string
 
@@ -120,7 +120,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          ref: ${{ inputs.review_ref || inputs.source_sha }}
+          ref: ${{ inputs.review_ref || github.sha }}
       - uses: ./.github/actions/setup-mise
         with:
           cache: false
@@ -163,10 +163,23 @@ jobs:
           persist-credentials: false
           sparse-checkout: .github/scripts
           path: .automation
+      - name: Check the review environment and prepare its QR code
+        if: matrix.platform == 'ios'
+        env:
+          MOBILE_REVIEW_PAIRING_URL: ${{ secrets.MOBILE_REVIEW_PAIRING_URL }}
+        run: |
+          origin=$(node -e 'console.log(new URL(process.argv[1]).origin)' "$MOBILE_REVIEW_PAIRING_URL")
+          node -e 'console.log("Authorization: Bearer " + new URLSearchParams(new URL(process.argv[1]).hash.slice(1)).get("token"))' \
+            "$MOBILE_REVIEW_PAIRING_URL" > "$RUNNER_TEMP/review-code-header"
+          curl -fsS --retry 3 -X POST -H @"$RUNNER_TEMP/review-code-header" -o /dev/null "$origin/review/code-check"
+          rm -f "$RUNNER_TEMP/review-code-header"
+          node scripts/mobile-review-access/qr-image.ts "$MOBILE_REVIEW_PAIRING_URL" "$RUNNER_TEMP/review-qr.png"
+          echo "MOBILE_REVIEW_QR_PATH=$RUNNER_TEMP/review-qr.png" >> "$GITHUB_ENV"
       - name: Upload screenshots and submit the exact build for review
         working-directory: apps/mobile
         env:
           MOBILE_PLATFORM: ${{ matrix.platform }}
+          MOBILE_REVIEW_INVITE_URL: ${{ secrets.MOBILE_REVIEW_INVITE_URL }}
         run: bundle exec fastlane "$MOBILE_PLATFORM" review
       - name: Record the version sent for App Store review
         if: matrix.platform == 'ios'

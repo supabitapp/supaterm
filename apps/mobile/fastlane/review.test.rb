@@ -54,6 +54,15 @@ class StoreApp < OpenStruct
   def get_ready_review_submission(**options) = ready_submission
 end
 
+class ReviewDetail < OpenStruct
+  def update(attributes:) = self.notes = attributes["notes"]
+  def upload_attachment(path:) = self.attachment = path
+end
+
+class StoreVersion < OpenStruct
+  def fetch_app_store_review_detail = review_detail
+end
+
 class StoreSubmission < OpenStruct
   def submit_for_review = self.submitted = true
 end
@@ -75,13 +84,17 @@ end
 ENV.update({"MOBILE_VERSION" => "26.0.10", "MOBILE_BUILD_NUMBER" => "10", "MOBILE_VERSION_CODE" => "25",
   "MOBILE_APPLICATION_ID" => "com.supaterm.mobile", "MOBILE_STORE_ASSETS" => "/tmp/test-assets",
   "APPLE_API_KEY_ID" => "test-key", "APPLE_API_ISSUER" => "test-issuer", "APPLE_API_KEY" => "test-key-content",
-  "GOOGLE_PLAY_JSON_KEY_PATH" => "/tmp/test-key.json"})
+  "GOOGLE_PLAY_JSON_KEY_PATH" => "/tmp/test-key.json",
+  "MOBILE_REVIEW_INVITE_URL" => "https://review.example.test/review#invite=test", "MOBILE_REVIEW_QR_PATH" => "/tmp/review-qr.png"})
 $store_build = OpenStruct.new(id: "exact-build", processing_state: "VALID", expired: false)
 $store_app = StoreApp.new(id: "app", versions: [])
 runner = LaneTest.new
 runner.run(:ios)
 check(runner.uploads.first[:build_number] == "10" && runner.uploads.first[:submit_for_review], "Exact iOS build was not submitted")
 check(runner.uploads.first[:automatic_release] == false, "iOS manual publishing changed")
+check(runner.uploads.first[:app_review_attachment_file] == "/tmp/review-qr.png", "iOS review QR was not attached")
+notes = runner.uploads.first[:app_review_information][:notes]
+check(notes.include?("review#invite=test") && notes.include?("Scan QR code") && !notes.include?("{{"), "iOS review notes were not filled in")
 
 %w[WAITING_FOR_REVIEW IN_REVIEW READY_FOR_DISTRIBUTION].each do |state|
   $store_app.versions = [OpenStruct.new(app_version_state: state, get_build: $store_build)]
@@ -91,12 +104,14 @@ check(runner.uploads.first[:automatic_release] == false, "iOS manual publishing 
 end
 $store_app.versions = [OpenStruct.new(app_version_state: "IN_REVIEW", get_build: OpenStruct.new(id: "other-build"))]
 rejects("different build") { LaneTest.new.run(:ios) }
-$store_app.versions = [OpenStruct.new(id: "ready-version", app_version_state: "READY_FOR_REVIEW", get_build: $store_build)]
+$ready_detail = ReviewDetail.new(app_store_review_attachments: [])
+$store_app.versions = [StoreVersion.new(id: "ready-version", app_version_state: "READY_FOR_REVIEW", get_build: $store_build, review_detail: $ready_detail)]
 $store_app.ready_submission = StoreSubmission.new(id: "submission", submitted: false)
 $ready_items = [OpenStruct.new(app_store_version: OpenStruct.new(id: "ready-version"))]
 runner = LaneTest.new
 runner.run(:ios)
 check($store_app.ready_submission.submitted && runner.uploads.empty?, "Partial iOS submission was not resumed")
+check($ready_detail.attachment == "/tmp/review-qr.png" && $ready_detail.notes.include?("review#invite=test"), "Resumed iOS submission skipped the review notes")
 $ready_items = [OpenStruct.new(app_store_version: OpenStruct.new(id: "other-version"))]
 rejects("other review items") { LaneTest.new.run(:ios) }
 $store_build.processing_state = "INVALID"

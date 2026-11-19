@@ -1,0 +1,9 @@
+[Unit]
+Description=Update the Supaterm app review environment
+After=network-online.target supacode-review.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/supacode-review/bin/update-environment.sh
+TimeoutStartSec=1h

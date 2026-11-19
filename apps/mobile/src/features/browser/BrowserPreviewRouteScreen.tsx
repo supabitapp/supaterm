@@ -6,7 +6,7 @@ import { EnvironmentId, ThreadId, type PreviewSessionSnapshot } from "@supaterm/
 import { normalizePreviewUrl, previewPdfAssetUrl } from "@supaterm/shared/preview";
 import * as Option from "effect/Option";
 import { useEffect, useRef, useState } from "react";
-import { Platform, TextInput, View } from "react-native";
+import { TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ControlPill } from "../../components/ui/ControlPill";
@@ -18,13 +18,7 @@ import { usePreparedConnection } from "../../state/session";
 import { useAppearancePreferences } from "../settings/appearance/AppearancePreferencesProvider";
 import { BrowserTabMenu } from "./BrowserTabMenu";
 import { browserTabTitle, browserTabUrl, latestBrowserTab } from "./browserTabs";
-import {
-  PreviewStreamWebView,
-  type PreviewPictureInPictureState,
-  type PreviewStreamRef,
-} from "./PreviewStreamWebView";
-
-const NO_PICTURE_IN_PICTURE: PreviewPictureInPictureState = { supported: false, active: false };
+import { PreviewStreamWebView, type PreviewStreamRef } from "./PreviewStreamWebView";
 
 type BrowserPreviewRouteScreenProps = StaticScreenProps<{
   readonly environmentId: string;
@@ -81,7 +75,6 @@ function BrowserPreviewScreen({
   const focused = useIsFocused();
   const foreground = useAppForeground();
   const [selectedTabId, setSelectedTabId] = useState(initialTabId);
-  const [pictureInPicture, setPictureInPicture] = useState(NO_PICTURE_IN_PICTURE);
   const [streaming, setStreaming] = useState(false);
   const [canControl, setCanControl] = useState(false);
   const streamRef = useRef<PreviewStreamRef>(null);
@@ -90,23 +83,12 @@ function BrowserPreviewScreen({
   const pdfUri =
     tab?.navStatus._tag === "Success" ? previewPdfAssetUrl(tab.navStatus.url, httpBaseUrl) : null;
   const tabId = tab?.tabId ?? null;
-  if (tabId !== null && tabId !== selectedTabId) {
-    setPictureInPicture(NO_PICTURE_IN_PICTURE);
-    setSelectedTabId(tabId);
-  }
+  if (tabId !== null && tabId !== selectedTabId) setSelectedTabId(tabId);
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- closes the focused route through the navigator once the thread has no browser tabs left
   useEffect(() => {
     if (focused && loaded && tabs.length === 0) onClose();
   }, [focused, loaded, tabs.length, onClose]);
-  const onPictureInPicture = (state: PreviewPictureInPictureState, detail?: string) => {
-    setPictureInPicture({ supported: state.supported, active: state.active });
-    if (detail) Dialog.alert("Picture in picture is unavailable", detail);
-  };
-  const selectTab = (next: string) => {
-    setPictureInPicture(NO_PICTURE_IN_PICTURE);
-    setSelectedTabId(next);
-  };
-  const live = (focused && foreground) || pictureInPicture.active;
+  const live = focused && foreground;
 
   return (
     <View
@@ -117,26 +99,6 @@ function BrowserPreviewScreen({
         title={tab ? browserTabTitle(tab) : "Browser"}
         onClose={onClose}
         accessibilityLabel="Close browser"
-        actions={
-          // Android WebView cannot play video in picture in picture.
-          Platform.OS === "ios" &&
-          pictureInPicture.supported &&
-          (pictureInPicture.active || pdfUri === null)
-            ? [
-                {
-                  accessibilityLabel: pictureInPicture.active
-                    ? "Exit picture in picture"
-                    : "Picture in picture",
-                  icon: {
-                    ios: pictureInPicture.active ? "pip.exit" : "pip.enter",
-                    android: "visibility",
-                  },
-                  selected: pictureInPicture.active,
-                  onPress: () => streamRef.current?.togglePictureInPicture(),
-                },
-              ]
-            : []
-        }
         menus={
           tabs.length > 1
             ? [
@@ -148,7 +110,7 @@ function BrowserPreviewScreen({
                     title: browserTabTitle(entry),
                     subtitle: browserTabUrl(entry),
                     selected: entry.tabId === tabId,
-                    onPress: () => selectTab(entry.tabId),
+                    onPress: () => setSelectedTabId(entry.tabId),
                   })),
                 },
               ]
@@ -176,7 +138,6 @@ function BrowserPreviewScreen({
               ref={streamRef}
               interactive
               background={themeVariables["--color-sheet-solid"]}
-              onPictureInPicture={onPictureInPicture}
               onStreamingChange={setStreaming}
               onControl={(control) => setCanControl(control?.controller === "you")}
             />

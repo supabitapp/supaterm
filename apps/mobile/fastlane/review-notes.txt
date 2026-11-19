@@ -1,0 +1,12 @@
+Hi! Supaterm is a free, open-source app for keeping an eye on coding agents that run on your own computer. There's no account to create and nothing to buy.
+
+So you don't have to set up a computer, we run a demo server with three small projects (Tidepool, Pantry and Ledger) that already have some agent conversations in them.
+
+{{QR_INSTRUCTIONS}}To connect with a link, open {{REVIEW_INVITE_URL}} in a browser. It shows a connection link and a QR code. In Supaterm, tap Add environment, then scan the code or paste the link into the Address field. Each link works once and expires after five minutes, so tap "Get a new connection link" if you need another.
+
+Some things to try:
+- In Tidepool, open "Add a °C / °F toggle" to see a finished change with its diff and test run.
+- Start a new thread in Tidepool and send "Draw the tide curve on the forecast card using tidePath, then run the tests." You can watch the agent work, see the changed files and follow the terminal.
+- Pantry and Ledger have a few more conversations to look through.
+
+The demo server stays up for the whole review. Thanks for taking a look!

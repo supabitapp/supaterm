@@ -23,6 +23,7 @@
       // worktree setup and cleanup (from supaterm.json) run directly, electron-builder
       // loads the macOS signer and the Linux afterPack hook by path, and release-desktop.yml
       // runs the desktop launch check through xvfb-run, which knip does not trace.
+      // The app review VM and mobile-store-review.yml run mobile-review-access by path.
       "entry": [
         "check-commit-message.ts",
         "clean-worktree.ts",
@@ -34,6 +35,7 @@
         "prepare-server-compile-cache.cjs",
         "smoke-desktop-app.ts",
         "verify-windows-desktop-artifact.ts",
+        "mobile-review-access/{qr-image.ts,page.js,seed-threads.mjs}",
       ],
       // mobile-showcase.ts runs agent-device's CLI by path.
       "ignoreDependencies": ["agent-device", "esbuild"],

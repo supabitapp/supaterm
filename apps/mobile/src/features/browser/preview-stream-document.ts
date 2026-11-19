@@ -27,13 +27,7 @@ export type PreviewStreamMessage =
   | { readonly type: "viewport"; readonly width: number; readonly height: number }
   | { readonly type: "clipboard"; readonly text: string }
   | ({ readonly type: "download" } & PreviewStreamDownload)
-  | { readonly type: "fileChooser"; readonly chooser: PreviewStreamFileChooser | null }
-  | {
-      readonly type: "pictureInPicture";
-      readonly supported: boolean;
-      readonly active: boolean;
-      readonly detail?: string;
-    };
+  | { readonly type: "fileChooser"; readonly chooser: PreviewStreamFileChooser | null };
 
 export function previewStreamDocument(configuration: string, script: string) {
   const safeConfiguration = configuration.replace(/</g, "\\u003c");
