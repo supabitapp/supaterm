@@ -31,7 +31,7 @@ export function NativeColumnContent(props: {
     measured ?? (props.column === undefined ? null : (shared?.byColumn.get(props.column) ?? null));
   return (
     <View
-      className={props.primary ? "flex-1 bg-drawer" : "flex-1 bg-screen"}
+      className={props.primary ? "flex-1 bg-transparent" : "flex-1 bg-screen"}
       style={
         props.backgroundColor === undefined ? undefined : { backgroundColor: props.backgroundColor }
       }

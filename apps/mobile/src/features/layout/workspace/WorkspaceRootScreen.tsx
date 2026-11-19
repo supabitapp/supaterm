@@ -113,7 +113,11 @@ function WorkspaceRootContent() {
 
   return (
     <WorkspaceTabsContext value={context}>
-      <View className={sidebarPicker ? "flex-1 bg-drawer" : "flex-1 bg-screen"}>
+      <View
+        className={
+          sidebarPicker ? "flex-1 ios:bg-transparent android:bg-drawer" : "flex-1 bg-screen"
+        }
+      >
         <NativeStackScreenOptions
           optionsVersion={[
             settingsOpen,

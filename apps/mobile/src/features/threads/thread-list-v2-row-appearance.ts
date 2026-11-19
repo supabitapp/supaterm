@@ -36,7 +36,7 @@ export function getThreadListV2RowAppearance(
   const selectedBackgroundColor = theme["--color-thread-selected"];
   const style: ViewStyle | undefined = sidebarPane
     ? {
-        backgroundColor: selected ? selectedBackgroundColor : theme["--color-drawer"],
+        backgroundColor: selected ? selectedBackgroundColor : "transparent",
         borderRadius: THREAD_LIST_V2_SIDEBAR_ROW_STYLE.borderRadius,
       }
     : undefined;
@@ -64,11 +64,11 @@ export function getThreadListV2RowAppearance(
     style,
     cardStyle: sidebarPane ? { ...style, ...THREAD_LIST_V2_SIDEBAR_ROW_STYLE } : undefined,
     swipeContainerStyle,
-    swipeBackgroundColor: theme[sidebarPane ? "--color-drawer" : "--color-screen"],
+    swipeBackgroundColor: sidebarPane ? "transparent" : theme["--color-screen"],
     providerIconSurfaceColor: sidebarPane
       ? selected
         ? selectedBackgroundColor
-        : theme["--color-drawer"]
+        : "transparent"
       : theme["--color-screen"],
   };
 }

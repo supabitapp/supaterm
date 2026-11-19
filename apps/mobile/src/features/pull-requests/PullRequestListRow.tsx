@@ -82,7 +82,7 @@ export const PullRequestListRow = memo(
             className={cn(
               "flex-row gap-3 overflow-hidden",
               !props.sidebar && "px-4 active:bg-row-hover",
-              props.sidebar && "bg-drawer",
+              props.sidebar && "android:bg-drawer",
               props.sidebar && !props.selected && "active:bg-thread-hover",
               props.selected && "bg-thread-selected",
               props.busy && "opacity-50",

@@ -365,7 +365,9 @@ function WorkspaceColumns(
       portraitPreferredDisplayMode={
         sidebarByOrientation ? sidebarDisplayMode(sidebarByOrientation.portrait, true) : undefined
       }
-      primaryBackgroundStyle={deviceType === "pad" ? "none" : "default"}
+      primaryBackgroundStyle={
+        deviceType === "pad" || deviceType === "duo-unfolded" ? "sidebar" : "default"
+      }
       topColumnForCollapsing={compactColumn}
       onCollapse={() => {
         collapsed.current = true;

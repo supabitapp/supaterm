@@ -187,7 +187,7 @@ function HomeScrollView(props: ComponentProps<typeof ScrollView>) {
     >
       <ScrollView
         {...props}
-        className={cn(props.className, sidebarSurface ? "bg-drawer" : "bg-screen")}
+        className={cn(props.className, sidebarSurface ? "bg-transparent" : "bg-screen")}
       />
     </ScrollViewMarker>
   );
@@ -204,7 +204,7 @@ export function HomeScreen(props: HomeScreenProps) {
   const [initialScrollOffset] = useState(() => workspace?.getScrollOffset("threads") ?? 0);
   const primaryColumn = use(NativePrimaryColumnContext);
   const sidebarSurface = usePaneRole() === "sidebar" && primaryColumn !== null;
-  const contentBackground = sidebarSurface ? "bg-drawer" : "bg-screen";
+  const contentBackground = sidebarSurface ? "bg-transparent" : "bg-screen";
   const containerClassName = cn(
     "flex-1",
     Platform.OS === "android" ? "bg-header" : contentBackground,

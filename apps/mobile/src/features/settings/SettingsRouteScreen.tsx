@@ -42,7 +42,11 @@ export function WorkspaceSettingsList() {
   const list = useSettingsListPlacement();
   return (
     <SettingsSidebarContext value={list.sidebar ? { selected: list.selected } : null}>
-      <View className="flex-1 bg-screen">
+      <View
+        className={
+          list.sidebar ? "flex-1 ios:bg-transparent android:bg-screen" : "flex-1 bg-screen"
+        }
+      >
         <SettingsListContent />
       </View>
     </SettingsSidebarContext>
@@ -75,7 +79,11 @@ export function SettingsListScreen(props: {
   const environmentMenu = useSettingsEnvironmentMenu();
   return (
     <SettingsSidebarContext value={props.sidebar ? { selected: props.selected } : null}>
-      <View className="flex-1 bg-screen">
+      <View
+        className={
+          props.sidebar ? "flex-1 ios:bg-transparent android:bg-screen" : "flex-1 bg-screen"
+        }
+      >
         <SettingsScreen
           title="Settings"
           workspaceRoot={props.sidebar}
@@ -125,7 +133,9 @@ function SettingsList(props: { readonly connections: readonly SettingsListRow[] 
   // UIKit's scroll-edge material takes the scroll view's own color; like the chat list, match
   // the sidebar's surface so the bar doesn't darken over content at rest.
   // Grouped cards only lift off the screen surface; the drawer is as dark as they are.
-  const listSurface = use(SettingsSidebarContext) ? "bg-drawer" : "bg-screen";
+  const listSurface = use(SettingsSidebarContext)
+    ? "ios:bg-transparent android:bg-drawer"
+    : "bg-screen";
   const insets = useSafeAreaInsets();
   // UIKit insets the scroll view by its column's safe area, which this context can report as 0.
   const bottomSafeArea = useNativeColumnLayoutMetrics()?.safeArea.bottom ?? insets.bottom;

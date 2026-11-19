@@ -287,7 +287,7 @@ export function PullRequestsScreen(
     },
   };
   const list = (
-    <View className={sidebar ? "flex-1 bg-drawer" : "flex-1 bg-screen"}>
+    <View className={sidebar ? "flex-1 ios:bg-transparent android:bg-drawer" : "flex-1 bg-screen"}>
       <LegendList
         ref={listRef}
         data={entries}
