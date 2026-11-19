@@ -6714,8 +6714,8 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
     events: Ref.Ref<Array<OrchestrationV2DomainEvent>>,
     effects: Ref.Ref<Array<PendingOrchestrationEffectV2>>,
   ) {
-    // A compacted thread reads every run and turn item, but attempts, nodes, messages and provider
-    // turns only for its recent runs and the runs this command names.
+    // A compacted thread reads every run, but attempts, nodes, messages, provider turns and prompts
+    // only for its recent runs and the runs this command names.
     let projection = yield* getProjectionWithPendingEvents(command.threadId, events, {
       keepRunIds: [
         command.manualContinuationOfRunId,
@@ -6950,7 +6950,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
     }
     const userMessages = projection.messages.filter((message) => message.role === "user");
     // The recent runs of a compacted thread can hold only a `/compact` while an older prompt
-    // exists. Every prompt's turn item is loaded; without one, every user message is checked.
+    // exists, so when every loaded prompt is one, every user message is checked.
     const onlyMaintenanceHistory = [
       ...userMessages,
       ...projection.turnItems.flatMap((item) => (item.type === "user_message" ? [item] : [])),
