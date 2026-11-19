@@ -1111,7 +1111,10 @@ const SUPATERM_MCP_TITLE_CALL =
 const SUPATERM_MCP_TITLE_SUFFIX_CALL =
   /^(?<tool>[A-Za-z0-9][A-Za-z0-9_.-]*?)(?: \(supaterm MCP Server\)(?::|$)|[-_.]supaterm$)/i;
 
-const SUPATERM_MCP_BARE_TITLE_CALL = /^(?:Running )?(?<tool>[A-Za-z0-9_]+)(?::\s*\{|$)/;
+const SUPATERM_MCP_BARE_TITLE_CALL = /^(?<tool>[A-Za-z0-9_]+)(?::\s*\{|$)/;
+
+// Antigravity titles calls "Running <tool>" or, from agy 1.5.8, "Run mcp_<server>_<tool>"; prompts end in "?".
+const ANTIGRAVITY_TOOL_TITLE = /^Run(?:ning)? (?<name>[^\s?]+)\??$/;
 
 /**
  * ACP has no typed MCP tool-call item, so agents surface MCP calls in agent-specific shapes:
@@ -1212,12 +1215,13 @@ export function extractMcpToolCallIdentity(
     }
     if (qualified?.[1] && qualified[2] && !/^supaterm$/i.test(qualified[1]))
       return { server: qualified[1], tool: qualified[2] };
+    const name = ANTIGRAVITY_TOOL_TITLE.exec(trimmed)?.groups?.name ?? trimmed;
     const candidateTool = [
       SUPATERM_MCP_TITLE_CALL,
       SUPATERM_MCP_TITLE_SUFFIX_CALL,
       SUPATERM_MCP_BARE_TITLE_CALL,
     ]
-      .map((pattern) => pattern.exec(trimmed)?.groups?.tool)
+      .map((pattern) => pattern.exec(name)?.groups?.tool)
       .find((tool) => tool !== undefined && SUPATERM_MCP_TOOL_NAMES.has(tool));
     if (candidateTool !== undefined) {
       return { server: "supaterm", tool: candidateTool };
