@@ -5,6 +5,7 @@ import {
   CommandId,
   PROVIDER_SEND_TURN_MAX_INPUT_CHARS,
   latestProviderTurnForAttempt,
+  withMessageSenderNote,
   type OrchestrationV2DomainEvent,
   type OrchestrationV2ContextHandoff,
   type OrchestrationV2ExecutionNode,
@@ -959,10 +960,13 @@ export const layer: Layer.Layer<
         manualResume && unsentResumeMessage === undefined && session.resumeTurn !== undefined;
       const promptedResume =
         manualResume && unsentResumeMessage === undefined && session.resumeTurn === undefined;
-      const userText = projectComposerContextForProvider({
-        text: promptedResume ? MANUAL_RESUME_PROMPT : providerMessage.text,
-        records: providerMessage.context?.records ?? [],
-      });
+      const userText = withMessageSenderNote(
+        providerMessage,
+        projectComposerContextForProvider({
+          text: promptedResume ? MANUAL_RESUME_PROMPT : providerMessage.text,
+          records: providerMessage.context?.records ?? [],
+        }),
+      );
       // Native goal commands go verbatim; handoff history waits a turn.
       const goalDriver =
         session.driver === "codex" ||

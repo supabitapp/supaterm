@@ -2,7 +2,15 @@ import { describe, expect, it } from "@effect/vitest";
 import * as DateTime from "effect/DateTime";
 import * as Schema from "effect/Schema";
 
-import { NodeId, ProviderInstanceId, RunAttemptId, TrimmedNonEmptyString } from "./index.ts";
+import {
+  EnvironmentId,
+  NodeId,
+  ProviderInstanceId,
+  RunAttemptId,
+  ScheduledTaskId,
+  ThreadId,
+  TrimmedNonEmptyString,
+} from "./index.ts";
 import {
   isOrchestrationV2RunInProgress,
   isOrchestrationV2RunNotYetRunning,
@@ -25,6 +33,7 @@ import {
   OrchestrationV2TurnItemJson,
   OrchestrationV2ShellStreamItem,
   OrchestrationV2ThreadStreamItem,
+  withMessageSenderNote,
 } from "./orchestrationV2.ts";
 
 const now = DateTime.makeUnsafe("2026-04-20T00:00:00.000Z");
@@ -841,5 +850,55 @@ describe("latestProviderTurnForAttempt", () => {
     ];
     expect(latestProviderTurnForAttempt(turns, RunAttemptId.make("goal-attempt"))?.id).toBe("last");
     expect(latestProviderTurnForAttempt(turns, null)).toBeUndefined();
+  });
+});
+
+describe("withMessageSenderNote", () => {
+  const thread = {
+    createdBy: "agent",
+    creationSource: "mcp",
+    senderThreadId: ThreadId.make("t"),
+  } as const;
+  it.each([
+    [
+      thread,
+      "Hi",
+      '[Supaterm: the agent in Supaterm thread "t" sent this message, not the user.]\n\nHi',
+    ],
+    [thread, "", '[Supaterm: the agent in Supaterm thread "t" sent this message, not the user.]'],
+    [thread, " /git/review staged", " /git/review staged"],
+    [thread, "$deploy ship it", "$deploy ship it"],
+    [
+      thread,
+      "$25 left",
+      '[Supaterm: the agent in Supaterm thread "t" sent this message, not the user.]\n\n$25 left',
+    ],
+    [
+      {
+        createdBy: "agent",
+        creationSource: "mcp",
+        linkedSender: {
+          environmentId: EnvironmentId.make("e"),
+          threadId: ThreadId.make("r"),
+          title: "x",
+        },
+      },
+      "Hi",
+      '[Supaterm: the agent in Supaterm thread "r" on linked environment "e" sent this message, not the user.]\n\nHi',
+    ],
+    [
+      { createdBy: "user", creationSource: "web", scheduledTaskId: ScheduledTaskId.make("s") },
+      "Hi",
+      '[Supaterm: scheduled task "s" sent this prompt, not the user typing in this chat.]\n\nHi',
+    ],
+    [
+      { createdBy: "agent", creationSource: "mcp" },
+      "Hi",
+      "[Supaterm: this message came through Supaterm's tools, not from the user typing in this chat.]\n\nHi",
+    ],
+    [{ createdBy: "user", creationSource: "web" }, "Hi", "Hi"],
+    [{ createdBy: "agent", creationSource: "server" }, "Hi", "Hi"],
+  ] as const)("labels %j's message %j for the provider", (message, text, expected) => {
+    expect(withMessageSenderNote(message, text)).toBe(expected);
   });
 });
