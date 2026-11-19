@@ -11,7 +11,8 @@ introduce another execution model. See
 An environment keeps its ID across server restarts and endpoint changes. Saved
 connections are local to a client profile; the server's identity and state are
 not. A repository identity can correlate clones across environments, but never
-routes work between them. A project and its threads belong to one environment.
+routes work between them. A project and its threads belong to one environment;
+an agent reaches another environment's threads only through a peer link.
 The canonical key follows the remote `gh repo set-default` marked as the base,
 else the `upstream` remote when one exists, so pull request features target the
 repository `gh` opens pull requests against. A fork also reports its own
@@ -55,6 +56,107 @@ because older clients turn every direct endpoint into a plain HTTP route.
 [Pull request routing trust](../../packages/client-runtime/src/connection/pullRequestRoutingPermissions.ts)
 covers every user-saved route. Adding or changing an address revokes the grant;
 reordering and learned-address changes preserve it.
+
+## Peer links
+
+A [peer link](../../apps/server/src/peer/PeerLinks.ts) lets one environment's
+agents work in another. The linking environment signs in to the other's `/mcp`
+as an outside MCP client, with a pairing code from it, and keeps that session's
+token in its own secret store. The other environment needs nothing new: it
+sees one more OAuth client, lists it in Sharing & access, and revokes it there.
+Unlinking on the linking side only forgets the token.
+
+- **The Linked environments beta (`linkedEnvironmentsEnabled`) gates both
+  sides.** Off on the linking side, `PeerLinks.link`, link requests and
+  `PeerForwarding.call`/`links` refuse; `readThread`, `waitForThread`,
+  `interruptThread` and `setThreadDone` do not, so a remote task already
+  running still completes and can still be cancelled. Off on the receiving
+  side, link registrations are refused and link sessions get a 403, which the
+  linking side reports as retryable so the task's follower waits rather than
+  failing it.
+- **A tool runs in a linked environment when its parameters take
+  `OrchestratorMcpEnvironmentTarget`** as `environmentId`.
+  [`McpToolAccess.toLayer`](../../apps/server/src/mcp/McpToolAccess.ts) sends
+  such a call there once the tool's access declaration has checked the caller,
+  so a read-only or ended caller is refused before anything is sent. The
+  thread or project the call names is checked where it lives. A tool that acts
+  as the calling thread itself cannot take a linked environment.
+- **Every forwarded call carries the calling agent's modes** in
+  `Supaterm-Mode-Limit`, which the receiving `/mcp` only ever narrows the
+  client's approved access with. A plan-mode agent therefore cannot start
+  full-access work through a full-access link.
+- **A descriptor's environment id filters addresses; it does not prove
+  identity.** The token goes only to an address that reports the linked id, so
+  a LAN address that now reports another machine's never receives it. Anything
+  can report any id, though, so only addresses from the user's client count as
+  a machine's, and never a loopback one, which names whichever machine opens
+  it. An address an agent gives is recorded alone, and
+  [`linkRequestTarget`](../../packages/client-runtime/src/linkRequest.ts) names
+  a machine for it only when the client already reaches exactly one machine
+  there. An address alone never moves an unexpired link to another address.
+- **A relay address is reached through a tunnel the server opens itself.**
+  `PeerLinks` holds a [`RelayCompanion`](../../apps/server/src/relay/RelayCompanion.ts)
+  lease per relay address, with the handshake a client uses, and releases it
+  when the link is forgotten. The peer's
+  [`RelayIngress`](../../apps/server/src/relay/RelayIngress.ts) lets `/mcp` and
+  the MCP OAuth endpoints through the tunnel for this and nothing else new.
+- **All callers on one side share the link's single session on the other**,
+  so idempotency keys are hashed with the caller's namespace before they
+  leave. Without that, two agents reusing a key would collide on the far side.
+- **A forwarded wait is split into calls of at most 45 s**, because the
+  receiving `/mcp` sends nothing while a wait is open and a proxy on the route
+  may drop an idle request.
+
+**Work a link paired below full access starts stays within that link.** The
+receiving environment knows a session is a peer link because the linking side
+registers its OAuth client with the `supaterm-peer-link` software id, and the
+marker is signed into the session. Threads that session launches carry it, with
+the access it was paired with, as an immutable `linkOrigin`, and so do the
+subagents, forks and `create_threads` they derive. The rules live in
+[`mcp/linkOrigin.ts`](../../apps/server/src/mcp/linkOrigin.ts) and run in the
+shared access declarations, not tool by tool:
+
+- linked work may change only threads with the same origin, not the user's own
+  threads and not another link's;
+- it cannot change projects, settings or scheduled tasks, nor use the receiving
+  environment's own links;
+- its project setup scripts are skipped
+  ([`ProjectSetupScriptRunner`](../../apps/server/src/project/ProjectSetupScriptRunner.ts)
+  checks every path that runs them).
+
+Reads are not fenced, and a client's own `thread.create` can never carry
+`linkOrigin`.
+
+The link is routing, not isolation: an agent the link starts runs as the
+receiving environment's user. **A full-access link is therefore not fenced**:
+its agents can already do anything that user can, so the fence would only stop
+Supaterm's own tools. Its work still carries `linkOrigin`, so clients show where
+it came from. A stamp that does not say its access is fenced.
+
+**A delegated task can run in a linked environment.** Its child is then an
+ordinary thread there, so the parent here records the task without a child
+thread of its own (`remoteChild` instead of `childThreadId`). A follower in
+[`RemoteDelegation`](../../apps/server/src/peer/RemoteDelegation.ts) waits on
+that thread and completes the task with `delegated_task.remote.complete`. That
+internal command reuses the parent half of a local finalize, so the parent
+wakes the same way. Open remote tasks are followed again at startup, which is
+also what keeps restart recovery from treating them as abandoned provider work.
+
+- **The task is recorded before its launch is sent** (`remoteLaunch`), with the
+  key the launch carries. A lost answer or a restart sends the same launch
+  again and finds the thread it already started. A link made again has another
+  session there that does not know the key, so the follower abandons the launch
+  instead of starting a second thread.
+- **Mark Done and Reopen on the parent are owed to the thread there**
+  (`remoteChild.doneOwed`), recorded in the same transaction on the latest task
+  of each thread so one follower sends them in order. The follower retries
+  while the peer does not answer. It drops a Done that new work here undid, or
+  that the thread there refuses while it still answers reads, because that
+  thread is in use there.
+
+Clients list a delegated thread under its parent only when they also list the
+parent ([`threadShell.ts`](../../packages/client-runtime/src/state/threadShell.ts)),
+so its work is never out of reach from a client connected to one side alone.
 
 ## Hosted web is a client
 
