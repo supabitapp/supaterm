@@ -845,51 +845,78 @@ function ThreadSwipeActions(props: {
     },
     [fullSwipeThreshold, onFullSwipeArmedChange, translation],
   );
+  const { width: windowWidth } = useWindowDimensions();
+  const revealClipStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: actionsWidth - Math.max(-translation.value, 0) }],
+  }));
+  const revealContentStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: Math.max(-translation.value, 0) - actionsWidth }],
+  }));
 
+  // A transparent row would show actions still underneath it, so clip them to the uncovered edge.
   return (
-    <View
-      style={{
-        backgroundColor: props.backgroundColor,
-        flexDirection: "row",
-        height: "100%",
-        width: actionsWidth,
-      }}
-    >
-      <SwipeActionButton
-        accessibilityLabel={props.primaryAction.accessibilityLabel}
-        actionsWidth={actionsWidth}
-        tone={props.primaryAction.tone ?? "primary"}
-        compact={props.compact}
-        entryRange={
-          secondaryAction === null
-            ? [8, ACTION_ITEM_WIDTH * 0.72]
-            : [ACTION_ITEM_WIDTH * 0.55, THREAD_SWIPE_ACTIONS_WIDTH * 0.85]
-        }
-        fullSwipeThreshold={props.fullSwipeThreshold}
-        icon={props.primaryAction.icon}
-        label={props.primaryAction.label}
-        onPress={props.primaryAction.onPress}
-        rowHeight={props.rowHeight}
-        stretchesOnFullSwipe={fullSwipeIsPrimary}
-        translation={props.translation}
-      />
-      {secondaryAction === null ? null : (
-        <SwipeActionButton
-          accessibilityLabel={secondaryAction.accessibilityLabel}
-          actionsWidth={actionsWidth}
-          tone={secondaryAction.tone}
-          compact={props.compact}
-          entryRange={[8, ACTION_ITEM_WIDTH * 0.72]}
-          fullSwipeThreshold={props.fullSwipeThreshold}
-          icon={secondaryAction.icon}
-          label={secondaryAction.label}
-          menu={secondaryAction.menu}
-          onPress={secondaryAction.onPress}
-          rowHeight={props.rowHeight}
-          stretchesOnFullSwipe={!fullSwipeIsPrimary}
-          translation={props.translation}
-        />
-      )}
+    <View style={{ height: "100%", width: actionsWidth }}>
+      <Animated.View
+        style={[
+          {
+            position: "absolute",
+            top: 0,
+            bottom: 0,
+            left: 0,
+            width: windowWidth,
+            overflow: "hidden",
+          },
+          revealClipStyle,
+        ]}
+      >
+        <Animated.View
+          style={[
+            {
+              backgroundColor: props.backgroundColor,
+              flexDirection: "row",
+              height: "100%",
+              width: actionsWidth,
+            },
+            revealContentStyle,
+          ]}
+        >
+          <SwipeActionButton
+            accessibilityLabel={props.primaryAction.accessibilityLabel}
+            actionsWidth={actionsWidth}
+            tone={props.primaryAction.tone ?? "primary"}
+            compact={props.compact}
+            entryRange={
+              secondaryAction === null
+                ? [8, ACTION_ITEM_WIDTH * 0.72]
+                : [ACTION_ITEM_WIDTH * 0.55, THREAD_SWIPE_ACTIONS_WIDTH * 0.85]
+            }
+            fullSwipeThreshold={props.fullSwipeThreshold}
+            icon={props.primaryAction.icon}
+            label={props.primaryAction.label}
+            onPress={props.primaryAction.onPress}
+            rowHeight={props.rowHeight}
+            stretchesOnFullSwipe={fullSwipeIsPrimary}
+            translation={props.translation}
+          />
+          {secondaryAction === null ? null : (
+            <SwipeActionButton
+              accessibilityLabel={secondaryAction.accessibilityLabel}
+              actionsWidth={actionsWidth}
+              tone={secondaryAction.tone}
+              compact={props.compact}
+              entryRange={[8, ACTION_ITEM_WIDTH * 0.72]}
+              fullSwipeThreshold={props.fullSwipeThreshold}
+              icon={secondaryAction.icon}
+              label={secondaryAction.label}
+              menu={secondaryAction.menu}
+              onPress={secondaryAction.onPress}
+              rowHeight={props.rowHeight}
+              stretchesOnFullSwipe={!fullSwipeIsPrimary}
+              translation={props.translation}
+            />
+          )}
+        </Animated.View>
+      </Animated.View>
     </View>
   );
 }
