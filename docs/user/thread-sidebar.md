@@ -390,7 +390,8 @@ mobile:
 - **Delete** removes the side chat.
 
 Side chats stay until you delete or promote them. Deleting a thread also deletes its
-side chats; the confirmation says how many.
+side chats; the confirmation says how many. Archiving a thread also archives its side
+chats and stops their work, and unarchiving the thread brings them back.
 
 ## Snooze until later
 
