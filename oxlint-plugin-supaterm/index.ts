@@ -12,6 +12,7 @@ import noInlineSchemaCompile from "./rules/no-inline-schema-compile.ts";
 import noLowValueComments from "./rules/no-low-value-comments.ts";
 import noManualMemo from "./rules/no-manual-memo.ts";
 import noManualEffectRuntimeInTests from "./rules/no-manual-effect-runtime-in-tests.ts";
+import noManualEffectErrorTag from "./rules/no-manual-effect-error-tag.ts";
 import noMobileUniwindThemeEscapeHatches from "./rules/no-mobile-uniwind-theme-escape-hatches.ts";
 import noAmbiguousDetailNavigation from "./rules/no-ambiguous-detail-navigation.ts";
 import noMobilePullRequestGlyphLiterals from "./rules/no-mobile-pull-request-glyph-literals.ts";
@@ -51,6 +52,7 @@ export default definePlugin({
     "no-inline-schema-compile": noInlineSchemaCompile,
     "no-low-value-comments": noLowValueComments,
     "no-manual-effect-runtime-in-tests": noManualEffectRuntimeInTests,
+    "no-manual-effect-error-tag": noManualEffectErrorTag,
     "no-manual-memo": noManualMemo,
     "no-mobile-uniwind-theme-escape-hatches": noMobileUniwindThemeEscapeHatches,
     "no-ambiguous-detail-navigation": noAmbiguousDetailNavigation,

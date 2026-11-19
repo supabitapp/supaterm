@@ -221,11 +221,8 @@ export default defineConfig({
       perf: "error",
     },
     rules: {
-      "anti-slop/no-chained-type-assertions": "off",
       "anti-slop/no-conditional-empty-object-spread": "off",
       "anti-slop/no-known-value-widening": "off",
-      "anti-slop/no-object-parameters": "off",
-      "anti-slop/no-reflect-get": "off",
       "anti-slop/no-runtime-typeof": "off",
       "anti-slop/no-shape-in-symbol-names": "off",
       "anti-slop/no-unknown-parameters": "off",
@@ -299,6 +296,7 @@ export default defineConfig({
       "supaterm/no-global-process-runtime": "error",
       "supaterm/no-inline-schema-compile": "error",
       "supaterm/no-low-value-comments": "error",
+      "supaterm/no-manual-effect-error-tag": "error",
       "supaterm/no-manual-effect-runtime-in-tests": "error",
       "supaterm/no-native-title-tooltip": "error",
       // Test files only (the rule checks the filename). denyWarnings makes it fail lint like an error.
@@ -324,6 +322,7 @@ export default defineConfig({
         ],
         plugins: ["vitest"],
         rules: {
+          "anti-slop/no-chained-type-assertions": "off",
           "test-waits/no-long-waits": "error",
           "vitest/expect-expect": "off",
           "vitest/no-conditional-expect": "off",

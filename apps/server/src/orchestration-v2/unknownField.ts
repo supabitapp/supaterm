@@ -1,6 +1,4 @@
-export function field(source: unknown, key: string): unknown {
-  return typeof source === "object" && source !== null ? Reflect.get(source, key) : undefined;
-}
+export { field } from "@supaterm/shared/Struct";
 
 export function text(value: unknown): string | undefined {
   if (typeof value !== "string") return undefined;

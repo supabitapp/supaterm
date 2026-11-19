@@ -21,3 +21,7 @@ export function deepMerge<T extends Record<string, unknown>>(current: T, patch: 
 
   return next as T;
 }
+
+export function field(source: unknown, key: PropertyKey): unknown {
+  return P.hasProperty(source, key) ? source[key] : undefined;
+}
