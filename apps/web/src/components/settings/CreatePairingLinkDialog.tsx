@@ -6,6 +6,7 @@ import {
   AuthGrantScope,
   AuthOrchestrationReadScope,
   AuthStandardClientScopes,
+  AuthTerminalOperateScope,
   AuthTerminalReadScope,
   type AuthEnvironmentScope,
   type AuthPairingCredentialResult,
@@ -253,6 +254,12 @@ export function CreatePairingLinkDialog({
                       <span className="block text-xs leading-5 text-muted-foreground">
                         {description}
                       </span>
+                      {scope === AuthTerminalOperateScope && selectedScopes.includes(scope) ? (
+                        <span className="block text-xs text-warning">
+                          Terminal commands can read or change files within the server account’s
+                          permissions.
+                        </span>
+                      ) : null}
                     </span>
                   </label>
                 ),
