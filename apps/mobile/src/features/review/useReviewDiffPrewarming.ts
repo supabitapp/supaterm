@@ -17,12 +17,9 @@ interface IdleDeadlineLike {
 type IdleCallback = (deadline: IdleDeadlineLike) => void;
 
 function scheduleIdle(callback: IdleCallback): () => void {
-  if (
-    typeof globalThis.requestIdleCallback === "function" &&
-    typeof globalThis.cancelIdleCallback === "function"
-  ) {
+  if (typeof globalThis.requestIdleCallback === "function") {
     const handle = globalThis.requestIdleCallback(callback, { timeout: 2_000 });
-    return () => globalThis.cancelIdleCallback(handle);
+    return () => globalThis.cancelIdleCallback?.(handle);
   }
 
   const timeout = setTimeout(() => callback({ didTimeout: true, timeRemaining: () => 0 }), 100);

@@ -353,12 +353,10 @@ export function boundProviderEventForLogging(event: unknown): unknown {
     if (depth > MAX_RECORD_DEPTH || ancestors.has(value)) return false;
     if (Array.isArray(value) && value.length > remainingFields) return false;
     ancestors.add(value);
-    for (const key in value) {
-      if (!Object.hasOwn(value, key)) continue;
+    for (const [key, child] of Object.entries(value)) {
       remainingFields -= 1;
       remainingCharacters -= key.length;
-      if (remainingFields < 0 || remainingCharacters < 0 || !fits(field(value, key), depth + 1))
-        return false;
+      if (remainingFields < 0 || remainingCharacters < 0 || !fits(child, depth + 1)) return false;
     }
     ancestors.delete(value);
     return true;
