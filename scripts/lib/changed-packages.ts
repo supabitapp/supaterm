@@ -19,7 +19,7 @@ const INERT = [
 // Every package: the root vite.config.ts loads these as setup for every
 // package's tests, and the vendored mobile tarballs are installed dependencies.
 const AFFECTS_EVERYTHING = [
-  /^packages\/shared\/src\/(HostProcess|testing\/longTempDir|testing\/providerEnv)\.ts$/,
+  /^packages\/shared\/src\/(HostProcess|testing\/(longTempDir|providerEnv|gitEnv|gitRepositoryEnv))\.ts$/,
   /^apps\/mobile\/deps\//,
 ];
 
