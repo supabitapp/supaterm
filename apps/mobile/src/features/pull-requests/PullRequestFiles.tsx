@@ -30,7 +30,7 @@ import {
 } from "./usePullRequestDiff";
 import { usePullRequestFileFilter } from "./usePullRequestFileFilter";
 import { usePullRequestFilesViewed } from "./usePullRequestFilesViewed";
-import { pullRequestFileJumpScope, requestPullRequestFileJump } from "./pullRequestFileJump";
+import { requestPullRequestFileJump } from "./pullRequestFileJump";
 
 const BREAKDOWN_LABELS = {
   code: "Code",
@@ -408,7 +408,6 @@ function DirectoryRow(props: {
 export function PullRequestFilesSheet({ route }: StaticScreenProps<PullRequestDiffParams>) {
   const params = route.params;
   const navigation = useNavigation();
-  const jumpScope = pullRequestFileJumpScope(params);
   const files = useChangedFiles(params);
   const { diff, filter, viewed, parsed, loading } = files;
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set());
@@ -466,7 +465,7 @@ export function PullRequestFilesSheet({ route }: StaticScreenProps<PullRequestDi
                   file={item.file}
                   viewed={viewed.isViewed(item.file.path)}
                   onPress={() => {
-                    requestPullRequestFileJump(jumpScope, item.file.path);
+                    requestPullRequestFileJump(navigation.getState()?.routes ?? [], item.file.path);
                     navigation.dispatch(
                       StackActions.popTo("PullRequestFile", {
                         ...params,

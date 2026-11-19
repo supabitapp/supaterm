@@ -24,8 +24,13 @@ import {
 } from "./pullRequestDiffDebug";
 import { usePullRequestDiffHighlightFiles } from "./usePullRequestDiffHighlightFiles";
 import { isTestChangedFile } from "@supaterm/shared/changedFileKind";
-import { pullRequestFileJumpScope, subscribePullRequestFileJump } from "./pullRequestFileJump";
-import { useFocusEffect, useNavigation, type StaticScreenProps } from "@react-navigation/native";
+import { subscribePullRequestFileJump } from "./pullRequestFileJump";
+import {
+  useFocusEffect,
+  useNavigation,
+  useRoute,
+  type StaticScreenProps,
+} from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 import { pullRequestReviewKey } from "./pullRequestReviewDrafts";
@@ -268,7 +273,7 @@ function PullRequestFileRouteContent({ route }: PullRequestFileRouteProps) {
       jumpedUnder.current = null;
     });
   };
-  const jumpScope = pullRequestFileJumpScope(route.params);
+  const routeKey = useRoute().key;
   // Each sheet selection jumps in this reader, including reselecting its original file.
   const jumpToFile = useEffectEvent((path: string) => {
     if (route.params.focus) navigation.setParams({ focus: undefined });
@@ -283,7 +288,7 @@ function PullRequestFileRouteContent({ route }: PullRequestFileRouteProps) {
   // Subscribed for the whole screen, so a pick made while the diff is still loading is kept for
   // the first draw.
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- subscribes to file jumps picked in the files sheet for this pull request's scope
-  useEffect(() => subscribePullRequestFileJump(jumpScope, (path) => jumpToFile(path)), [jumpScope]);
+  useEffect(() => subscribePullRequestFileJump(routeKey, (path) => jumpToFile(path)), [routeKey]);
   const { nativeReviewDiffStyle } = useAppearanceCodeSurface();
   const { themeAppearance, appearance, setCodeWordBreak } = useAppearancePreferences();
   const bridge = useNativeReviewDiffBridge({
