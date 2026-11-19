@@ -440,7 +440,7 @@ function WorkspaceColumns(
             selectedPullRequestKey={selectedPullRequestKey}
             onDismiss={handleNativeDismiss}
             onAppearance={(type, key) => {
-              if (type === "didAppear") setPrimaryPresented(true);
+              if (type === "willAppear") setPrimaryPresented(true);
               else if (type === "willDisappear") setPrimaryPresented(false);
               followCollapsedSplit(type, key);
             }}
