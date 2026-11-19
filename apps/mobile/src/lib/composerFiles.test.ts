@@ -54,7 +54,7 @@ vi.mock("expo-file-system", () => {
       this.uri = `${typeof root === "string" ? root : root.uri}/${name}`;
     }
 
-    create() {}
+    create(): void {}
   }
 
   class File {
@@ -64,7 +64,7 @@ vi.mock("expo-file-system", () => {
       this.uri = source instanceof Directory ? `${source.uri}/${name}` : source;
     }
 
-    get exists() {
+    get exists(): boolean {
       return true;
     }
 
@@ -72,22 +72,22 @@ vi.mock("expo-file-system", () => {
       return mocks.sizeOf(this.uri) ?? null;
     }
 
-    get name() {
+    get name(): string {
       return this.uri.split("/").at(-1) ?? "";
     }
 
-    get type() {
+    get type(): string {
       return "video/quicktime";
     }
 
-    create() {}
+    create(): void {}
 
     open(mode: string) {
       mocks.open(this.uri, mode);
       return mocks.openHandle(this.uri, mode);
     }
 
-    async copy(destination: File) {
+    async copy(destination: File): Promise<void> {
       mocks.copy(this.uri, destination.uri);
       mocks.copyBehavior(this.uri, destination.uri);
     }
@@ -98,7 +98,7 @@ vi.mock("expo-file-system", () => {
       return mocks.base64Of(this.uri);
     }
 
-    delete() {
+    delete(): void {
       mocks.delete(this.uri);
     }
   }

@@ -14,6 +14,7 @@ import { SUPATERM_MCP_TOOL_NAMES } from "@supaterm/shared/supatermMcpToolPresent
 import type {
   OrchestrationV2ProviderThreadNativeMetadata,
   ThreadTokenUsageSnapshot,
+  ToolLifecycleItemType,
 } from "@supaterm/contracts";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -63,7 +64,7 @@ const MAX_ACP_TERMINAL_OUTPUT_BYTES = 16 * 1024 * 1024;
 const ACP_TERMINAL_OUTPUT_TRIM_BYTES = 1024 * 1024;
 const MAX_ACP_TERMINAL_FRAME_BYTES = MAX_ACP_TERMINAL_OUTPUT_BYTES;
 
-function isBase64DataCode(code: number) {
+function isBase64DataCode(code: number): boolean {
   return (
     (code >= 65 && code <= 90) ||
     (code >= 97 && code <= 122) ||
@@ -73,7 +74,7 @@ function isBase64DataCode(code: number) {
   );
 }
 
-function decodeBase64TerminalFrame(encoded: string) {
+function decodeBase64TerminalFrame(encoded: string): Uint8Array | undefined {
   if (encoded.length > Math.ceil(MAX_ACP_TERMINAL_FRAME_BYTES / 3) * 4) {
     return undefined;
   }
@@ -94,7 +95,7 @@ function decodeBase64TerminalFrame(encoded: string) {
   return decoded.byteLength <= MAX_ACP_TERMINAL_FRAME_BYTES ? decoded : undefined;
 }
 
-function trailingIncompleteUtf8Start(bytes: Uint8Array) {
+function trailingIncompleteUtf8Start(bytes: Uint8Array): number {
   if (bytes.length === 0) return bytes.length;
   let leadIndex = bytes.length - 1;
   while (leadIndex >= 0 && (bytes[leadIndex]! & 0xc0) === 0x80) {
@@ -113,7 +114,10 @@ function trailingIncompleteUtf8Start(bytes: Uint8Array) {
   return bytes.length - leadIndex < expectedLength ? leadIndex : bytes.length;
 }
 
-function decodeTerminalOutputChunk(pending: Uint8Array | undefined, encoded: string) {
+function decodeTerminalOutputChunk(
+  pending: Uint8Array | undefined,
+  encoded: string,
+): { readonly text: string; readonly pendingOutputBytes?: Uint8Array } | undefined {
   const frame = decodeBase64TerminalFrame(encoded);
   if (frame === undefined) return undefined;
   const bytes = Buffer.concat([...(pending === undefined ? [] : [Buffer.from(pending)]), frame]);
@@ -124,7 +128,11 @@ function decodeTerminalOutputChunk(pending: Uint8Array | undefined, encoded: str
     : { text, pendingOutputBytes: Uint8Array.from(bytes.subarray(completeEnd)) };
 }
 
-function appendTerminalOutput(output: string, outputBytes: number, text: string) {
+function appendTerminalOutput(
+  output: string,
+  outputBytes: number,
+  text: string,
+): Pick<AcpAgentTerminalState, "output" | "outputBytes"> {
   const combined = `${output}${text}`;
   const combinedBytes = outputBytes + Buffer.byteLength(text, "utf8");
   const excess = combinedBytes - MAX_ACP_TERMINAL_OUTPUT_BYTES;
@@ -142,7 +150,7 @@ function appendTerminalOutput(output: string, outputBytes: number, text: string)
 export function applyAcpAgentTerminalUpdate(
   previous: AcpAgentTerminalState | undefined,
   update: AcpAgentTerminalUpdate,
-) {
+): AcpAgentTerminalState {
   const current = previous ?? { output: "", outputBytes: 0 };
   if (update.sessionUpdate === "terminal_output_chunk") {
     const decoded = decodeTerminalOutputChunk(current.pendingOutputBytes, update.data);
@@ -292,19 +300,21 @@ export type AcpParsedSessionEvent =
       readonly rawPayload: unknown;
     };
 
-const boundedContentMetadata = (value: string | null | undefined, maximumLength: number) =>
+const boundedContentMetadata = (value: string | null | undefined, maximumLength: number): string =>
   value?.trim().slice(0, maximumLength) ?? "";
 
 const MAX_ACP_CONTENT_TEXT_LENGTH = 65_536;
 
-const boundedContentText = (value: string) => value.slice(0, MAX_ACP_CONTENT_TEXT_LENGTH);
+const boundedContentText = (value: string): string => value.slice(0, MAX_ACP_CONTENT_TEXT_LENGTH);
 
-const boundedContentUri = (value: string | null | undefined) => {
+const boundedContentUri = (value: string | null | undefined): string => {
   const uri = boundedContentMetadata(value, 4_096);
   return uri.toLowerCase().startsWith("data:") ? "" : uri;
 };
 
-export function acpContentBlockDisplayText(content: EffectAcpSchema.ContentBlock) {
+export function acpContentBlockDisplayText(
+  content: EffectAcpSchema.ContentBlock,
+): string | undefined {
   switch (content.type) {
     case "text":
       return boundedContentText(content.text);
@@ -339,7 +349,9 @@ export function acpContentBlockDisplayText(content: EffectAcpSchema.ContentBlock
   }
 }
 
-function sanitizeAcpToolCallContent(content: ReadonlyArray<EffectAcpSchema.ToolCallContent>) {
+function sanitizeAcpToolCallContent(
+  content: ReadonlyArray<EffectAcpSchema.ToolCallContent>,
+): ReadonlyArray<EffectAcpSchema.ToolCallContent> {
   return content.map((entry) => {
     switch (entry.type) {
       case "content":
@@ -373,7 +385,7 @@ function sanitizeAcpToolCallContent(content: ReadonlyArray<EffectAcpSchema.ToolC
           raw: null,
         };
     }
-  }) satisfies ReadonlyArray<EffectAcpSchema.ToolCallContent>;
+  });
 }
 
 type AcpSessionSetupResponse =
@@ -394,21 +406,21 @@ type AcpSelectConfigOption = Extract<
 
 export function findModelConfigOption(
   configOptions: ReadonlyArray<EffectAcpSchema.SessionConfigOption> | null | undefined,
-) {
+): AcpSelectConfigOption | undefined {
   return configOptions?.find(
     (option): option is AcpSelectConfigOption =>
       option.category === "model" && option.type === "select" && option.id.trim().length > 0,
   );
 }
 
-export function extractModelConfigId(sessionResponse: AcpSessionSetupResponse) {
+export function extractModelConfigId(sessionResponse: AcpSessionSetupResponse): string | undefined {
   return findModelConfigOption(sessionResponse.configOptions)?.id.trim();
 }
 
 export function findSessionConfigOption(
   configOptions: ReadonlyArray<EffectAcpSchema.SessionConfigOption> | null | undefined,
   configId: string,
-) {
+): EffectAcpSchema.SessionConfigOption | undefined {
   if (!configOptions) {
     return undefined;
   }
@@ -421,7 +433,7 @@ export function findSessionConfigOption(
 
 export function collectSessionConfigOptionValues(
   configOption: EffectAcpSchema.SessionConfigOption,
-) {
+): ReadonlyArray<string> {
   if (configOption.type !== "select") {
     return [];
   }
@@ -430,7 +442,9 @@ export function collectSessionConfigOptionValues(
   );
 }
 
-export function parseSessionModeState(sessionResponse: AcpSessionSetupResponse) {
+export function parseSessionModeState(
+  sessionResponse: AcpSessionSetupResponse,
+): AcpSessionModeState | undefined {
   const modeConfig = sessionResponse.configOptions?.find(
     (option) => option.category === "mode" && option.type === "select",
   );
@@ -476,7 +490,9 @@ export function parseSessionModeState(sessionResponse: AcpSessionSetupResponse) 
   };
 }
 
-function normalizePlanStepStatus(raw: unknown) {
+function normalizePlanStepStatus(
+  raw: unknown,
+): "pending" | "inProgress" | "completed" | "cancelled" {
   switch (raw) {
     case "completed":
       return "completed";
@@ -493,7 +509,7 @@ function normalizePlanStepStatus(raw: unknown) {
 function normalizeToolCallStatus(
   raw: unknown,
   fallback?: "pending" | "inProgress" | "completed" | "failed",
-) {
+): "pending" | "inProgress" | "completed" | "failed" | undefined {
   switch (raw) {
     case "pending":
       return "pending";
@@ -510,7 +526,7 @@ function normalizeToolCallStatus(
   }
 }
 
-function normalizeCommandValue(value: unknown) {
+function normalizeCommandValue(value: unknown): string | undefined {
   if (typeof value === "string" && value.trim().length > 0) {
     return value.trim();
   }
@@ -529,7 +545,7 @@ function normalizeCommandValue(value: unknown) {
   return parts.length > 0 ? parts.join(" ") : undefined;
 }
 
-function extractCommandFromTitle(title: string | undefined) {
+function extractCommandFromTitle(title: string | undefined): string | undefined {
   if (!title) {
     return undefined;
   }
@@ -541,7 +557,7 @@ function extractToolCallCommand(
   rawInput: unknown,
   title: string | undefined,
   kind: string | undefined,
-) {
+): string | undefined {
   if (isRecord(rawInput)) {
     const directCommand = normalizeCommandValue(rawInput.command);
     if (directCommand) {
@@ -562,7 +578,7 @@ function extractToolCallCommand(
   return extractCommandFromTitle(title);
 }
 
-function filePathFromToolValue(value: unknown) {
+function filePathFromToolValue(value: unknown): string | undefined {
   if (typeof value !== "string") {
     return undefined;
   }
@@ -575,7 +591,7 @@ function locationsFromToolCallInput(input: {
   readonly content?: ReadonlyArray<EffectAcpSchema.ToolCallContent> | null | undefined;
   readonly rawInput?: unknown;
   readonly rawOutput?: unknown;
-}) {
+}): ReadonlyArray<EffectAcpSchema.ToolCallLocation> | undefined {
   if (input.locations === null || input.locations?.length === 0) {
     return [];
   }
@@ -627,7 +643,7 @@ function locationsFromToolCallInput(input: {
 const TOOL_CALL_CONTENT_MAX_CHARS = 8_000;
 const TOOL_CALL_CONTENT_TRUNCATION_MARKER = "[Earlier output truncated]\n\n";
 
-function boundToolCallOutputText(text: string) {
+function boundToolCallOutputText(text: string): string {
   if (text.length <= TOOL_CALL_CONTENT_MAX_CHARS) {
     return text;
   }
@@ -637,7 +653,7 @@ function boundToolCallOutputText(text: string) {
 
 const RAW_OUTPUT_TEXT_FIELDS = ["content", "stdout", "stderr", "output"] as const;
 
-function boundToolCallRawOutput(rawOutput: unknown) {
+function boundToolCallRawOutput(rawOutput: unknown): unknown {
   if (!isRecord(rawOutput)) {
     return rawOutput;
   }
@@ -653,14 +669,21 @@ function boundToolCallRawOutput(rawOutput: unknown) {
   return changed ? bounded : rawOutput;
 }
 
-function toolCallContentText(entry: EffectAcpSchema.ToolCallContent) {
+interface ExtractedToolCallContent {
+  readonly text: string | undefined;
+  readonly content: ReadonlyArray<EffectAcpSchema.ToolCallContent> | undefined;
+}
+
+function toolCallContentText(entry: EffectAcpSchema.ToolCallContent): string | undefined {
   if (entry.type !== "content" || entry.content.type !== "text") {
     return undefined;
   }
   return entry.content.text;
 }
 
-function boundToolCallContentEntries(content: ReadonlyArray<EffectAcpSchema.ToolCallContent>) {
+function boundToolCallContentEntries(
+  content: ReadonlyArray<EffectAcpSchema.ToolCallContent>,
+): ReadonlyArray<EffectAcpSchema.ToolCallContent> {
   let changed = false;
   const bounded = content.map((entry) => {
     const text = toolCallContentText(entry);
@@ -682,7 +705,7 @@ function boundToolCallContentEntries(content: ReadonlyArray<EffectAcpSchema.Tool
 
 function extractTextContentFromToolCallContent(
   content: ReadonlyArray<EffectAcpSchema.ToolCallContent> | null | undefined,
-) {
+): ExtractedToolCallContent {
   if (!content) {
     return { text: undefined, content: undefined };
   }
@@ -711,7 +734,7 @@ function extractTextContentFromToolCallContent(
 function distributeRetainedTailAcrossContent(
   content: ReadonlyArray<EffectAcpSchema.ToolCallContent>,
   tail: string,
-) {
+): ReadonlyArray<EffectAcpSchema.ToolCallContent> {
   const textRanges: Array<
     | {
         readonly start: number;
@@ -760,11 +783,11 @@ function distributeRetainedTailAcrossContent(
   });
 }
 
-function normalizeToolKind(kind: unknown) {
+function normalizeToolKind(kind: unknown): string | undefined {
   return typeof kind === "string" && kind.trim().length > 0 ? kind.trim() : undefined;
 }
 
-function canonicalItemTypeFromAcpToolKind(kind: string | undefined) {
+function canonicalItemTypeFromAcpToolKind(kind: string | undefined): ToolLifecycleItemType {
   switch (kind) {
     case "read":
       return "dynamic_tool_call";
@@ -798,7 +821,7 @@ function makeToolCallState(
   options?: {
     readonly fallbackStatus?: "pending" | "inProgress" | "completed" | "failed";
   },
-) {
+): AcpToolCallState | undefined {
   const toolCallId = input.toolCallId.trim();
   if (!toolCallId) {
     return undefined;
@@ -887,7 +910,7 @@ function parseTypedToolCallState(
   options?: {
     readonly fallbackStatus?: "pending" | "inProgress" | "completed" | "failed";
   },
-) {
+): AcpToolCallState | undefined {
   return makeToolCallState(
     {
       toolCallId: event.toolCallId,
@@ -905,7 +928,10 @@ function parseTypedToolCallState(
   );
 }
 
-export function mergeToolCallState(previous: AcpToolCallState | undefined, next: AcpToolCallState) {
+export function mergeToolCallState(
+  previous: AcpToolCallState | undefined,
+  next: AcpToolCallState,
+): AcpToolCallState {
   const nextKind = next.kind ?? (typeof next.data.kind === "string" ? next.data.kind : undefined);
   const kind = next.data.kind === null ? nextKind : (nextKind ?? previous?.kind);
   const title = next.data.title === null ? next.title : (next.title ?? previous?.title);
@@ -939,13 +965,13 @@ export interface AcpToolCallEmitDecision {
   readonly skippedSinceEmit: number;
 }
 
-function toolCallOutputUnchanged(previous: AcpToolCallState, next: AcpToolCallState) {
+function toolCallOutputUnchanged(previous: AcpToolCallState, next: AcpToolCallState): boolean {
   return (
     previous.data.content === next.data.content && previous.data.rawOutput === next.data.rawOutput
   );
 }
 
-export function toolCallProgressLength(state: AcpToolCallState) {
+export function toolCallProgressLength(state: AcpToolCallState): number {
   let contentChars = 0;
   const content = state.data.content;
   if (Array.isArray(content)) {
@@ -972,7 +998,7 @@ export function toolCallProgressLength(state: AcpToolCallState) {
   return Math.max(state.detail?.length ?? 0, contentChars, rawOutputChars);
 }
 
-function toolCallContentTexts(state: AcpToolCallState) {
+function toolCallContentTexts(state: AcpToolCallState): string {
   const content = state.data.content;
   if (!Array.isArray(content)) return "";
   return content
@@ -982,7 +1008,10 @@ function toolCallContentTexts(state: AcpToolCallState) {
     .join("\u0000");
 }
 
-export function toolCallVisibleOutputChanged(previous: AcpToolCallState, next: AcpToolCallState) {
+export function toolCallVisibleOutputChanged(
+  previous: AcpToolCallState,
+  next: AcpToolCallState,
+): boolean {
   return (
     previous.detail !== next.detail ||
     toolCallContentTexts(previous) !== toolCallContentTexts(next) ||
@@ -990,7 +1019,9 @@ export function toolCallVisibleOutputChanged(previous: AcpToolCallState, next: A
   );
 }
 
-export function decideToolCallUpdateEmission(input: AcpToolCallEmitDecisionInput) {
+export function decideToolCallUpdateEmission(
+  input: AcpToolCallEmitDecisionInput,
+): AcpToolCallEmitDecision {
   const { previous, next, lastEmittedDetailLength, skippedSinceEmit } = input;
   if (next.status === "completed" || next.status === "failed") {
     return { emit: true, skippedSinceEmit: 0 };
@@ -1019,7 +1050,7 @@ export interface AcpMcpToolCallIdentity {
 
 const ACP_MCP_FALLBACK_CALL = /(?:^|[\s"'=])acp-mcp-call[\s"']+([A-Za-z0-9_.-]+)(?:\s+(.+?))?\s*$/u;
 
-function acpMcpFallbackInput(value: string | undefined) {
+function acpMcpFallbackInput(value: string | undefined): Record<string, unknown> | undefined {
   if (value === undefined) return undefined;
   const trimmed = value.trim();
   const candidates = [
@@ -1055,7 +1086,7 @@ export function extractMcpToolCallIdentity(
   options?: {
     readonly embeddedTerminalCommands?: ReadonlyArray<string>;
   },
-) {
+): AcpMcpToolCallIdentity | undefined {
   const rawInput = isRecord(toolCall.data.rawInput) ? toolCall.data.rawInput : undefined;
   const meta = isRecord(toolCall.data.meta) ? toolCall.data.meta : undefined;
   const server = typeof rawInput?.server === "string" ? rawInput.server.trim() : "";
@@ -1167,7 +1198,7 @@ export function extractMcpToolCallIdentity(
  */
 export function embeddedTerminalIdsFromSessionUpdate(
   notification: EffectAcpSchema.SessionNotification,
-) {
+): { readonly toolCallId: string; readonly terminalIds: ReadonlyArray<string> } | undefined {
   const update = notification.update;
   if (update.sessionUpdate !== "tool_call" && update.sessionUpdate !== "tool_call_update") {
     return undefined;
@@ -1182,7 +1213,7 @@ export function embeddedTerminalIdsFromSessionUpdate(
 export function withTrackedPermissionToolCall(
   params: EffectAcpSchema.RequestPermissionRequest,
   tracked: AcpToolCallState | undefined,
-) {
+): EffectAcpSchema.RequestPermissionRequest {
   if (tracked === undefined) return params;
   const { title, kind, rawInput } = params.toolCall;
   return {
@@ -1202,8 +1233,7 @@ export function withTrackedPermissionToolCall(
 
 export function parsePermissionRequest(
   params: EffectAcpSchema.RequestPermissionRequest,
-): AcpPermissionRequest;
-export function parsePermissionRequest(params: EffectAcpSchema.RequestPermissionRequest) {
+): AcpPermissionRequest {
   const toolCall = makeToolCallState(
     {
       toolCallId: params.toolCall.toolCallId,
@@ -1227,10 +1257,10 @@ export function parsePermissionRequest(params: EffectAcpSchema.RequestPermission
     kind,
     ...(detail ? { detail } : {}),
     ...(toolCall ? { toolCall } : {}),
-  } satisfies AcpPermissionRequest;
+  };
 }
 
-export function sessionUpdateIsReplay(params: EffectAcpSchema.SessionNotification) {
+export function sessionUpdateIsReplay(params: EffectAcpSchema.SessionNotification): boolean {
   const meta = params._meta;
   return isRecord(meta) && meta.isReplay === true;
 }
@@ -1238,7 +1268,7 @@ export function sessionUpdateIsReplay(params: EffectAcpSchema.SessionNotificatio
 export function sessionUpdateCountsAsLoadReplayActivity(
   params: EffectAcpSchema.SessionNotification,
   gatedSessionId?: string,
-) {
+): boolean {
   if (gatedSessionId !== undefined && params.sessionId !== gatedSessionId) {
     return false;
   }
@@ -1282,7 +1312,9 @@ export interface SessionLoadGate {
 
 export const waitForSessionLoadReplayIdle = Effect.fn(
   "AcpRuntimeModel.waitForSessionLoadReplayIdle",
-)(function* (input: { readonly gateRef: Ref.Ref<Option.Option<SessionLoadGate>> }) {
+)(function* (input: {
+  readonly gateRef: Ref.Ref<Option.Option<SessionLoadGate>>;
+}): Effect.fn.Return<EffectAcpSchema.LoadSessionResponse, never> {
   const pollInterval = Duration.millis(25);
   while (true) {
     const gate = yield* Ref.get(input.gateRef);
@@ -1299,7 +1331,7 @@ export const waitForSessionLoadReplayIdle = Effect.fn(
 
 export function sessionModelStateFromInitialize(
   initializeResult: EffectAcpSchema.InitializeResponse,
-) {
+): EffectAcpSchema.SessionModelState | undefined {
   const meta = initializeResult._meta;
   const modelState = isRecord(meta) ? meta.modelState : undefined;
   return isSessionModelState(modelState) ? modelState : undefined;
@@ -1307,10 +1339,7 @@ export function sessionModelStateFromInitialize(
 
 export function syntheticLoadSessionResponseFromInitialize(
   initializeResult: EffectAcpSchema.InitializeResponse,
-): EffectAcpSchema.LoadSessionResponse;
-export function syntheticLoadSessionResponseFromInitialize(
-  initializeResult: EffectAcpSchema.InitializeResponse,
-) {
+): EffectAcpSchema.LoadSessionResponse {
   const meta = initializeResult._meta;
   const modeState = isRecord(meta) ? meta.modeState : undefined;
 
@@ -1321,14 +1350,14 @@ export function syntheticLoadSessionResponseFromInitialize(
     _meta: {
       supatermSessionLoadReady: "replay_idle",
     },
-  } satisfies EffectAcpSchema.LoadSessionResponse;
+  };
 }
 
 function boundToolCallRawPayload(
   params: EffectAcpSchema.SessionNotification,
   update: AcpToolCallUpdate,
   toolCall: AcpToolCallState,
-) {
+): unknown {
   const boundedContent = toolCall.data.content;
   const boundedRawOutput = toolCall.data.rawOutput;
   const contentBounded = update.content !== undefined && boundedContent !== update.content;
@@ -1349,8 +1378,7 @@ function boundToolCallRawPayload(
 export function parseSessionUpdateEvent(params: EffectAcpSchema.SessionNotification): {
   readonly modeId?: string;
   readonly events: ReadonlyArray<AcpParsedSessionEvent>;
-};
-export function parseSessionUpdateEvent(params: EffectAcpSchema.SessionNotification) {
+} {
   const upd = params.update;
   const events: Array<AcpParsedSessionEvent> = [];
   let modeId: string | undefined;
@@ -1603,8 +1631,5 @@ export function parseSessionUpdateEvent(params: EffectAcpSchema.SessionNotificat
       break;
   }
 
-  return { ...(modeId !== undefined ? { modeId } : {}), events } satisfies {
-    readonly modeId?: string;
-    readonly events: ReadonlyArray<AcpParsedSessionEvent>;
-  };
+  return { ...(modeId !== undefined ? { modeId } : {}), events };
 }

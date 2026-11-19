@@ -46,7 +46,7 @@ vi.mock("~/fileContextMenu", () => ({
 }));
 vi.mock("~/hooks/useWorkspaceMutationRefresh", () => ({ useWorkspaceMutationRefresh: () => {} }));
 
-function findTreeRow(path: string) {
+function findTreeRow(path: string): HTMLElement | null {
   for (const host of document.querySelectorAll("*")) {
     const row = host.shadowRoot?.querySelector<HTMLElement>(`[data-item-path="${path}"]`);
     if (row) return row;
@@ -54,7 +54,7 @@ function findTreeRow(path: string) {
   return null;
 }
 
-function withDirectoryListing(listing: readonly ProjectEntry[]) {
+function withDirectoryListing(listing: readonly ProjectEntry[]): Disposable {
   directory.entries = listing;
   return {
     [Symbol.dispose]: () => {
@@ -154,9 +154,9 @@ describe("FileBrowserPanel", () => {
 
     directory.entries = [
       ...entries,
-      ...Array.from({ length: 2_000 }, (_, index) => {
+      ...Array.from({ length: 2_000 }, (_, index): ProjectEntry => {
         const name = String((index * 7_919) % 2_000).padStart(4, "0");
-        return { path: `src/generated-${name}`, kind: "directory" } satisfies ProjectEntry;
+        return { path: `src/generated-${name}`, kind: "directory" };
       }),
     ];
     await screen.rerender(renderPanel());
@@ -186,9 +186,9 @@ describe("FileBrowserPanel", () => {
 
     directory.entries = [
       ...directory.entries,
-      ...Array.from({ length: 2_000 }, (_, index) => {
+      ...Array.from({ length: 2_000 }, (_, index): ProjectEntry => {
         const name = String((index * 7_919) % 2_000).padStart(4, "0");
-        return { path: `src/generated-${name}.ts`, kind: "file" } satisfies ProjectEntry;
+        return { path: `src/generated-${name}.ts`, kind: "file" };
       }),
     ];
     await screen.rerender(renderPanel());
@@ -223,9 +223,9 @@ describe("FileBrowserPanel", () => {
 
     directory.entries = [
       ...directory.entries,
-      ...Array.from({ length: 2_000 }, (_, index) => {
+      ...Array.from({ length: 2_000 }, (_, index): ProjectEntry => {
         const name = String((index * 7_919) % 2_000).padStart(4, "0");
-        return { path: `src/generated-${name}.ts`, kind: "file" } satisfies ProjectEntry;
+        return { path: `src/generated-${name}.ts`, kind: "file" };
       }),
     ];
     await screen.rerender(renderPanel());

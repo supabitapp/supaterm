@@ -228,7 +228,10 @@ function panel(activeSurface: RightPanelSurface) {
   return <RightPanelTabs {...props} />;
 }
 
-function releaseThumbButton(target: Element, button: 3 | 4) {
+function releaseThumbButton(
+  target: Element,
+  button: 3 | 4,
+): { focusMoved: boolean; routerMoved: boolean } {
   const focused = document.activeElement;
   const down = new MouseEvent("mousedown", { bubbles: true, cancelable: true, button });
   const up = new MouseEvent("mouseup", { bubbles: true, cancelable: true, button });

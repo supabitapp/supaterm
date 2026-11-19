@@ -39,9 +39,9 @@ export function matchComposerThreadItems(input: {
   query: string;
   /** Recency is measured against this time. */
   now: number;
-}) {
+}): ComposerThreadItem[] {
   const query = foldSearchQuery(input.query);
-  if (query.length === 0) return [] satisfies ComposerThreadItem[];
+  if (query.length === 0) return [];
   const candidates = input.shells.filter(
     (shell) =>
       shell.environmentId === input.environmentId &&
@@ -65,5 +65,5 @@ export function matchComposerThreadItems(input: {
       ),
       label: shell.title,
       description: "Thread",
-    })) satisfies ComposerThreadItem[];
+    }));
 }

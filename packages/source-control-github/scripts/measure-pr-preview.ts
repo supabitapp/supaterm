@@ -35,7 +35,7 @@ const decodeRateLimit = Schema.decodeUnknownSync(
   ),
 );
 
-function graphqlCost(headers: Readonly<Record<string, string | undefined>>) {
+function graphqlCost(headers: Readonly<Record<string, string | undefined>>): number {
   const used = Number(headers["x-ratelimit-used"]);
   const reset = headers["x-ratelimit-reset"] ?? "";
   if (headers["x-ratelimit-resource"] !== "graphql" || !Number.isFinite(used)) return 0;

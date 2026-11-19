@@ -180,7 +180,7 @@ export function createFilesViewedStore(deps: FilesViewedStoreDeps) {
   };
 
   return {
-    scope(target: FilesViewedTarget) {
+    scope(target: FilesViewedTarget): FilesViewedScopeHandle {
       const key = filesViewedScopeKey(target);
       const cached = handles.get(key);
       if (cached !== undefined) return cached;
@@ -202,7 +202,7 @@ export function createFilesViewedStore(deps: FilesViewedStoreDeps) {
   };
 }
 
-function filesViewedScopeKey({ environmentId, reference }: FilesViewedTarget) {
+function filesViewedScopeKey({ environmentId, reference }: FilesViewedTarget): string {
   return JSON.stringify([
     environmentId,
     reference.projectId,
@@ -232,6 +232,6 @@ const filesViewedStore = createFilesViewedStore({
   reportFailure: () => toastManager.add({ type: "error", title: "Could not update viewed files" }),
 });
 
-export function filesViewedScope(target: FilesViewedTarget) {
+export function filesViewedScope(target: FilesViewedTarget): FilesViewedScopeHandle {
   return filesViewedStore.scope(target);
 }

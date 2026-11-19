@@ -52,7 +52,7 @@ export interface GhosttyTerminalFont {
 
 let symbolsFontLoad: Promise<void> | null = null;
 
-function ensureTerminalSymbolsFont() {
+function ensureTerminalSymbolsFont(): Promise<void> {
   if (symbolsFontLoad !== null) return symbolsFontLoad;
   symbolsFontLoad = (async () => {
     try {
@@ -63,7 +63,7 @@ function ensureTerminalSymbolsFont() {
   return symbolsFontLoad;
 }
 
-function quoteTerminalFontFamilies(list: string) {
+function quoteTerminalFontFamilies(list: string): string {
   return list
     .split(",")
     .map((name) => {
@@ -77,14 +77,14 @@ function quoteTerminalFontFamilies(list: string) {
     .join(", ");
 }
 
-function uncheckedTerminalFontFamily(family?: string) {
+function uncheckedTerminalFontFamily(family?: string): string {
   const custom = family === undefined ? "" : quoteTerminalFontFamilies(family);
   return custom.length === 0
     ? DEFAULT_TERMINAL_FONT_FAMILY
     : `${custom}, ${TERMINAL_GLYPH_FALLBACKS}`;
 }
 
-export function terminalFontFamily(family?: string) {
+export function terminalFontFamily(family?: string): string {
   const custom = family === undefined ? "" : quoteTerminalFontFamilies(family);
   if (custom.length === 0) return DEFAULT_TERMINAL_FONT_FAMILY;
   if (!isMonospaceFamily(custom)) return DEFAULT_TERMINAL_FONT_FAMILY;
@@ -98,7 +98,7 @@ async function loadTerminalFontFamily(
     readonly load: (font: string, text: string) => Promise<unknown>;
     readonly resolve: (family: string | undefined) => string;
   },
-) {
+): Promise<string> {
   const candidate = uncheckedTerminalFontFamily(family);
   const load =
     environment?.load ?? ((font: string, text: string) => document.fonts.load(font, text));
@@ -112,7 +112,7 @@ async function loadTerminalFontFamily(
   return (environment?.resolve ?? terminalFontFamily)(family);
 }
 
-export function terminalFontSize(size?: number) {
+export function terminalFontSize(size?: number): number {
   if (size === undefined || !Number.isFinite(size)) return DEFAULT_TERMINAL_FONT_SIZE;
   return Math.max(MIN_TERMINAL_FONT_SIZE, Math.min(MAX_TERMINAL_FONT_SIZE, Math.round(size)));
 }
@@ -122,7 +122,7 @@ function shouldBlinkTerminalCursor(state: {
   readonly cursorBlinking: boolean;
   readonly cursorVisible: boolean;
   readonly reducedMotion: boolean;
-}) {
+}): boolean {
   return state.focused && state.cursorBlinking && state.cursorVisible && !state.reducedMotion;
 }
 
@@ -132,7 +132,7 @@ export function terminalContentOriginY(
   rows: number,
   cellHeight: number,
   anchorBottom: boolean,
-) {
+): number {
   if (!anchorBottom) return padding;
   const slack = mountHeight - padding * 2 - rows * cellHeight;
   return padding + Math.max(0, slack);
@@ -144,7 +144,10 @@ export interface TerminalScrollbarGeometry {
   readonly maxOffset: number;
 }
 
-function terminalScrollbarGeometry(state: GhosttyScrollbar, trackHeight: number) {
+function terminalScrollbarGeometry(
+  state: GhosttyScrollbar,
+  trackHeight: number,
+): TerminalScrollbarGeometry | null {
   const total = Math.max(0, state.total);
   const len = Math.max(0, Math.min(state.len, total));
   const maxOffset = Math.max(0, total - len);
@@ -167,7 +170,7 @@ function terminalScrollbarOffsetAtPointer(
   trackHeight: number,
   pointerY: number,
   pointerOffset: number,
-) {
+): number {
   const geometry = terminalScrollbarGeometry(state, trackHeight);
   if (geometry === null) return 0;
   const travel = Math.max(0, trackHeight - geometry.thumbHeight);
@@ -185,7 +188,7 @@ function terminalGridCellAt(options: {
   metrics: Pick<GhosttyCellMetrics, "width" | "height">;
   padding: number;
   originY: number;
-}) {
+}): { x: number; y: number } | null {
   const { bounds, clientX, clientY, cols, rows, metrics, padding, originY } = options;
   const gridX = clientX - bounds.left - padding;
   const gridY = clientY - bounds.top - originY;
@@ -198,19 +201,19 @@ function terminalGridCellAt(options: {
   };
 }
 
-function terminalCellText(cell: GhosttyCell) {
+function terminalCellText(cell: GhosttyCell): string {
   if (cell.wide === GHOSTTY_CELL_WIDE.spacerTail || cell.wide === GHOSTTY_CELL_WIDE.spacerHead) {
     return "";
   }
   return cell.text || " ";
 }
 
-function terminalRowText(row: GhosttySnapshot["rowData"][number], trimRight: boolean) {
+function terminalRowText(row: GhosttySnapshot["rowData"][number], trimRight: boolean): string {
   const text = row.cells.map(terminalCellText).join("");
   return trimRight ? text.trimEnd() : text;
 }
 
-function terminalColumnOffset(row: GhosttySnapshot["rowData"][number], column: number) {
+function terminalColumnOffset(row: GhosttySnapshot["rowData"][number], column: number): number {
   let offset = 0;
   for (let cellIndex = 0; cellIndex < column; cellIndex += 1) {
     const cell = row.cells[cellIndex];
@@ -224,7 +227,10 @@ export interface TerminalLinkWithRange {
   readonly range: GhosttyCellRange;
 }
 
-function isSameTerminalLink(left: TerminalLinkWithRange, right: TerminalLinkWithRange | null) {
+function isSameTerminalLink(
+  left: TerminalLinkWithRange,
+  right: TerminalLinkWithRange | null,
+): boolean {
   return (
     right?.text === left.text &&
     right.range.start.x === left.range.start.x &&
@@ -234,7 +240,7 @@ function isSameTerminalLink(left: TerminalLinkWithRange, right: TerminalLinkWith
   );
 }
 
-function terminalColumnAtOffset(row: GhosttySnapshot["rowData"][number], offset: number) {
+function terminalColumnAtOffset(row: GhosttySnapshot["rowData"][number], offset: number): number {
   for (let column = 0; column < row.cells.length; column += 1) {
     const nextOffset = terminalColumnOffset(row, column + 1);
     if (offset < nextOffset) return column;
@@ -246,7 +252,7 @@ export function terminalLinkAtPositionWithRange(
   rows: GhosttySnapshot["rowData"],
   rowIndex: number,
   column: number,
-) {
+): TerminalLinkWithRange | null {
   const wrappedLine = collectWrappedTerminalLinkLine(rowIndex + 1, (index) => {
     const row = rows[index];
     if (!row) return null;
@@ -318,7 +324,7 @@ export function isTerminalCopyShortcut(
 export function primeTerminalCopyInput(
   input: Pick<HTMLTextAreaElement, "value" | "select">,
   selection: string,
-) {
+): void {
   input.value = selection;
   if (selection.length === 0) return;
   input.select();
@@ -327,7 +333,7 @@ export function primeTerminalCopyInput(
 export function clearPrimedTerminalCopyInput(
   input: Pick<HTMLTextAreaElement, "value">,
   primedSelection: string,
-) {
+): void {
   if (primedSelection.length === 0 || input.value !== primedSelection) return;
   input.value = "";
 }
@@ -335,7 +341,7 @@ export function clearPrimedTerminalCopyInput(
 export function applyTerminalCopyEvent(
   selection: string,
   clipboardData: { setData: (type: string, data: string) => void } | null | undefined,
-) {
+): { preventDefault: boolean; claimWriteFallback: boolean } {
   if (selection.length === 0 || !clipboardData) {
     return { preventDefault: false, claimWriteFallback: false };
   }
@@ -355,11 +361,11 @@ function isTerminalPasteShortcut(
   return isMacPlatform(platform) ? event.metaKey : event.ctrlKey && event.shiftKey;
 }
 
-function isMiddleClickPastePlatform() {
+function isMiddleClickPastePlatform(): boolean {
   return /linux|bsd/i.test(navigator.platform);
 }
 
-function isTerminalCompositionCommitInput(event: Pick<InputEvent, "inputType">) {
+function isTerminalCompositionCommitInput(event: Pick<InputEvent, "inputType">): boolean {
   return (
     event.inputType === "" ||
     event.inputType === "insertCompositionText" ||
@@ -370,18 +376,18 @@ function isTerminalCompositionCommitInput(event: Pick<InputEvent, "inputType">) 
 export function isTerminalCompositionKey(
   event: Pick<KeyboardEvent, "isComposing" | "key" | "keyCode">,
   composing: boolean,
-) {
+): boolean {
   return event.isComposing || composing || event.key === "Process" || event.keyCode === 229;
 }
 
-function isTerminalAltGraphText(event: Pick<KeyboardEvent, "getModifierState" | "key">) {
+function isTerminalAltGraphText(event: Pick<KeyboardEvent, "getModifierState" | "key">): boolean {
   return event.getModifierState("AltGraph") && [...event.key].length === 1;
 }
 
 function shouldReportTerminalMouse(
   tracking: boolean,
   event: Pick<MouseEvent, "ctrlKey" | "metaKey" | "shiftKey">,
-) {
+): boolean {
   return tracking && !event.shiftKey && !event.ctrlKey && !event.metaKey;
 }
 
@@ -392,7 +398,7 @@ export function resolveTerminalMouseData(
   action: TerminalMouseAction,
   report: TerminalMouseReport,
   previousMotionData: TerminalMouseReport | null,
-) {
+): { readonly send: boolean; readonly nextMotionData: TerminalMouseReport | null } {
   const nextMotionData = action === "motion" ? report : null;
   return {
     send:
@@ -408,7 +414,7 @@ function resolveTerminalMouseTrackingState(
   previousTracking: boolean,
   tracking: boolean,
   motionData: TerminalMouseReport | null,
-) {
+): { readonly tracking: boolean; readonly motionData: TerminalMouseReport | null } {
   return {
     tracking,
     motionData: previousTracking === tracking ? motionData : null,
@@ -420,7 +426,7 @@ export function terminalWheelDeltaRows(
   cellHeight: number,
   viewportRows: number,
   remainder: number,
-) {
+): { readonly rows: number; readonly remainder: number } {
   const pixels =
     event.deltaMode === 1
       ? event.deltaY * cellHeight
@@ -435,14 +441,18 @@ export function terminalWheelDeltaRows(
 const SELECTION_AUTOSCROLL_RAMP_PX = 50;
 const SELECTION_AUTOSCROLL_MAX_ROWS = 15;
 
-export function terminalSelectionAutoscrollRows(clientY: number, top: number, bottom: number) {
+export function terminalSelectionAutoscrollRows(
+  clientY: number,
+  top: number,
+  bottom: number,
+): number {
   const distance = clientY < top ? clientY - top : clientY > bottom ? clientY - bottom : 0;
   if (distance === 0) return 0;
   const ramp = Math.max(-1, Math.min(1, distance / SELECTION_AUTOSCROLL_RAMP_PX));
   return Math.sign(ramp) + Math.round(ramp * (SELECTION_AUTOSCROLL_MAX_ROWS - 1));
 }
 
-function terminalWheelArrowData(rows: number, applicationCursorKeys: boolean) {
+function terminalWheelArrowData(rows: number, applicationCursorKeys: boolean): string {
   if (rows === 0) return "";
   const sequence =
     rows < 0
@@ -455,7 +465,7 @@ function terminalWheelArrowData(rows: number, applicationCursorKeys: boolean) {
   return sequence.repeat(Math.abs(rows));
 }
 
-function ghosttyMouseButton(button: number) {
+function ghosttyMouseButton(button: number): number | null {
   switch (button) {
     case 0:
       return 1;
@@ -484,7 +494,7 @@ const TERMINAL_LINK_DRAG_THRESHOLD_PX = 4;
 export function advanceTerminalSelectionClickSequence(
   previous: TerminalSelectionClickSequence | null,
   event: Pick<PointerEvent, "clientX" | "clientY" | "timeStamp">,
-) {
+): TerminalSelectionClickSequence {
   const repeats =
     previous !== null &&
     event.timeStamp - previous.time <= SELECTION_MULTI_CLICK_INTERVAL_MS &&
@@ -669,7 +679,10 @@ export class GhosttyTerminalSurface {
     this.stopObservingResize = observeResize(mount, () => this.fit());
   }
 
-  static async create(mount: HTMLElement, options: GhosttyTerminalSurfaceOptions) {
+  static async create(
+    mount: HTMLElement,
+    options: GhosttyTerminalSurfaceOptions,
+  ): Promise<GhosttyTerminalSurface> {
     const canvas = document.createElement("canvas");
     canvas.className = "block size-full cursor-text";
     canvas.style.touchAction = "pan-x pinch-zoom";
@@ -734,7 +747,7 @@ export class GhosttyTerminalSurface {
     return surface;
   }
 
-  setVisible(visible: boolean) {
+  setVisible(visible: boolean): void {
     if (this.disposed || this.visible === visible) return;
     this.visible = visible;
     this.cursorOn = true;
@@ -751,7 +764,7 @@ export class GhosttyTerminalSurface {
     this.fit();
   }
 
-  write(data: string) {
+  write(data: string): void {
     if (this.disposed) return;
     this.core.write(
       data,
@@ -766,7 +779,7 @@ export class GhosttyTerminalSurface {
     this.requestRender();
   }
 
-  resetAndWrite(data: string) {
+  resetAndWrite(data: string): void {
     if (this.disposed) return;
     this.cancelSynchronizedRenderTimer();
     this.lastMouseMotionData = null;
@@ -779,20 +792,20 @@ export class GhosttyTerminalSurface {
     this.requestRender();
   }
 
-  subscribeOutput(listener: () => void) {
+  subscribeOutput(listener: () => void): () => void {
     this.outputListeners.add(listener);
     return () => {
       this.outputListeners.delete(listener);
     };
   }
 
-  encodeScriptPaste(text: string) {
+  encodeScriptPaste(text: string): string | null {
     if (this.disposed || !this.core.isBracketedPasteMode()) return null;
     const encoded = this.core.encodePaste(text);
     return encoded.length > 0 ? `${encoded}\r` : null;
   }
 
-  setTheme(theme: GhosttyTheme) {
+  setTheme(theme: GhosttyTheme): void {
     if (this.disposed) return;
     this.theme = theme;
     this.core.setTheme(theme);
@@ -800,17 +813,17 @@ export class GhosttyTerminalSurface {
     this.requestRender();
   }
 
-  refreshLinkActivation() {
+  refreshLinkActivation(): void {
     if (this.disposed) return;
     this.refreshHoveredLink();
   }
 
   /** Mount height, in CSS pixels, that shows exactly `rows` rows at the current font. */
-  heightForRows(rows: number) {
+  heightForRows(rows: number): number {
     return Math.ceil(rows * this.metrics.height + CONTENT_PADDING * 2);
   }
 
-  async setFont(font: GhosttyTerminalFont) {
+  async setFont(font: GhosttyTerminalFont): Promise<void> {
     if (this.disposed) return;
     const fontSize = terminalFontSize(font.size);
     const epoch = ++this.fontEpoch;
@@ -824,7 +837,7 @@ export class GhosttyTerminalSurface {
     this.applyFontMetrics();
   }
 
-  private applyFontMetrics() {
+  private applyFontMetrics(): void {
     this.metrics = measureGhosttyCell(this.context, this.fontSize, this.fontFamily);
     this.core.resize(this.cols, this.rows, this.metrics.width, this.metrics.height);
     this.inputLeft = -1;
@@ -861,12 +874,12 @@ export class GhosttyTerminalSurface {
     this.applyFontMetrics();
   };
 
-  resendSize() {
+  resendSize(): void {
     this.resizeNotified = false;
     this.fit();
   }
 
-  fit() {
+  fit(): boolean {
     if (this.disposed || !this.visible) return false;
     const width = this.mount.clientWidth;
     const height = this.mount.clientHeight;
@@ -916,14 +929,14 @@ export class GhosttyTerminalSurface {
    * this surface's own fit: the server's grid lags a local resize, and read-only
    * observers never constrain it.
    */
-  setSharedGrid(grid: { readonly cols: number; readonly rows: number } | null) {
+  setSharedGrid(grid: { readonly cols: number; readonly rows: number } | null): void {
     if (this.disposed) return;
     if (this.sharedGrid?.cols === grid?.cols && this.sharedGrid?.rows === grid?.rows) return;
     this.sharedGrid = grid;
     if (this.hasSize && this.applyGrid()) this.requestRender();
   }
 
-  private applyGrid() {
+  private applyGrid(): boolean {
     const cols = Math.min(this.sharedGrid?.cols ?? this.measuredCols, this.measuredCols);
     const rows = Math.min(this.sharedGrid?.rows ?? this.measuredRows, this.measuredRows);
     if (cols === this.cols && rows === this.rows) return false;
@@ -935,7 +948,7 @@ export class GhosttyTerminalSurface {
     return true;
   }
 
-  private notifyResize() {
+  private notifyResize(): void {
     this.resizeNotified = true;
     if (this.resizeNotifyTimer !== null) window.clearTimeout(this.resizeNotifyTimer);
     this.resizeNotifyTimer = window.setTimeout(() => {
@@ -953,13 +966,16 @@ export class GhosttyTerminalSurface {
     this.options.onResize(this.measuredCols, this.measuredRows);
   };
 
-  focus() {
+  focus(): void {
     if (this.disposed || !this.visible) return;
     this.input.focus({ preventScroll: true });
   }
 
   /** Claims before reading; later shortcut or native pastes supersede the pending read. */
-  async pasteFromClipboard(readText: () => Promise<string>, isCurrent: () => boolean = () => true) {
+  async pasteFromClipboard(
+    readText: () => Promise<string>,
+    isCurrent: () => boolean = () => true,
+  ): Promise<void> {
     const token = ++this.pasteShortcutToken;
     const text = await readText();
     if (this.disposed || this.pasteShortcutToken !== token || !isCurrent()) return;
@@ -969,27 +985,27 @@ export class GhosttyTerminalSurface {
     if (encoded.length > 0) this.options.onData(encoded);
   }
 
-  private pasteTerminalSelection() {
+  private pasteTerminalSelection(): void {
     const selection = this.getSelection();
     if (selection.length === 0) return;
     void this.pasteFromClipboard(() => Promise.resolve(selection));
   }
 
-  hasSelection() {
+  hasSelection(): boolean {
     return this.core.selectionText().length > 0;
   }
 
-  getSelection() {
+  getSelection(): string {
     return this.core.selectionText();
   }
 
   /** An upper bound on the selection's size, read without formatting its text. */
-  getSelectionCellCount() {
+  getSelectionCellCount(): number {
     const range = this.core.selectionRange();
     return range ? (Math.abs(range.end.y - range.start.y) + 1) * this.cols : 0;
   }
 
-  selectAll() {
+  selectAll(): void {
     this.linkActivationRequestId += 1;
     this.clearPrimedCopy();
     const range = this.core.selectAll();
@@ -1003,7 +1019,7 @@ export class GhosttyTerminalSurface {
     this.requestRender();
   }
 
-  getSelectionPosition() {
+  getSelectionPosition(): GhosttySelectionPosition | null {
     const range = this.hasSelection() ? this.core.selectionRange() : null;
     if (!range) return null;
     const { start, end } = range;
@@ -1011,7 +1027,7 @@ export class GhosttyTerminalSurface {
     return before ? { start, end } : { start: end, end: start };
   }
 
-  clearSelection({ source = "user" }: { source?: "user" | "output" } = {}) {
+  clearSelection({ source = "user" }: { source?: "user" | "output" } = {}): void {
     if (source === "user") this.linkActivationRequestId += 1;
     this.clearPrimedCopy();
     this.core.clearSelection();
@@ -1025,18 +1041,18 @@ export class GhosttyTerminalSurface {
     this.requestRender();
   }
 
-  scrollToBottom() {
+  scrollToBottom(): void {
     this.core.scrollToBottom();
     this.forceFullRender = true;
     this.scrollbarDirty = true;
     this.requestRender();
   }
 
-  isAtBottom() {
+  isAtBottom(): boolean {
     return this.core.isViewportActive();
   }
 
-  dispose() {
+  dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
     this.outputListeners.clear();
@@ -1219,7 +1235,7 @@ export class GhosttyTerminalSurface {
     this.requestRender();
   };
 
-  private setFocused(focused: boolean) {
+  private setFocused(focused: boolean): void {
     if (this.focused === focused) return;
     this.focused = focused;
     const data = this.core.encodeFocus(focused);
@@ -1231,18 +1247,18 @@ export class GhosttyTerminalSurface {
     this.fit();
   };
 
-  private watchDevicePixelRatio() {
+  private watchDevicePixelRatio(): void {
     this.dprMedia?.removeEventListener("change", this.onDevicePixelRatioChange);
     this.dprMedia = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
     this.dprMedia.addEventListener("change", this.onDevicePixelRatioChange);
   }
 
-  private primeCopy(selection: string) {
+  private primeCopy(selection: string): void {
     this.primedCopySelection = selection;
     primeTerminalCopyInput(this.input, selection);
   }
 
-  private clearPrimedCopy() {
+  private clearPrimedCopy(): void {
     clearPrimedTerminalCopyInput(this.input, this.primedCopySelection);
     this.primedCopySelection = "";
   }
@@ -1305,7 +1321,7 @@ export class GhosttyTerminalSurface {
     this.input.value = "";
   };
 
-  private clearCompositionInputSuppression() {
+  private clearCompositionInputSuppression(): void {
     if (this.compositionSuppressionTimer !== null) {
       window.clearTimeout(this.compositionSuppressionTimer);
       this.compositionSuppressionTimer = null;
@@ -1371,7 +1387,9 @@ export class GhosttyTerminalSurface {
     this.canvas.setPointerCapture(event.pointerId);
   };
 
-  private recordSelectionClick(event: Pick<PointerEvent, "clientX" | "clientY" | "timeStamp">) {
+  private recordSelectionClick(
+    event: Pick<PointerEvent, "clientX" | "clientY" | "timeStamp">,
+  ): number {
     this.selectionClickSequence = advanceTerminalSelectionClickSequence(
       this.selectionClickSequence,
       event,
@@ -1379,7 +1397,7 @@ export class GhosttyTerminalSurface {
     return this.selectionClickSequence.count;
   }
 
-  private beginSelection(event: { clientX: number; clientY: number }, clickCount: number) {
+  private beginSelection(event: { clientX: number; clientY: number }, clickCount: number): void {
     const cell = this.cellAt(event.clientX, event.clientY);
     this.selectionMoved = false;
     this.selectionMode = clickCount >= 3 ? "line" : clickCount === 2 ? "word" : "cell";
@@ -1480,7 +1498,7 @@ export class GhosttyTerminalSurface {
     this.extendSelectionTo(event.clientX, event.clientY);
   };
 
-  private extendSelectionTo(clientX: number, clientY: number) {
+  private extendSelectionTo(clientX: number, clientY: number): void {
     if (this.selectionAnchorScreen === null) return;
     const anchorScreen = this.core.selectionRange()?.start;
     if (!anchorScreen) return;
@@ -1517,7 +1535,7 @@ export class GhosttyTerminalSurface {
     this.requestRender();
   }
 
-  private setSelectionAutoscroll(delta: number) {
+  private setSelectionAutoscroll(delta: number): void {
     this.selectionScrollDelta = delta;
     if (delta === 0) {
       if (this.selectionScrollTimer !== null) {
@@ -1535,7 +1553,7 @@ export class GhosttyTerminalSurface {
     }, 80);
   }
 
-  private updateHoverCursor(event: PointerEvent) {
+  private updateHoverCursor(event: PointerEvent): void {
     this.hoverPointer = { x: event.clientX, y: event.clientY };
     this.refreshHoveredLink();
   }
@@ -1545,21 +1563,21 @@ export class GhosttyTerminalSurface {
     this.clearHoveredLink();
   };
 
-  private clearHoveredLink(cursor = "") {
+  private clearHoveredLink(cursor = ""): void {
     this.hoverPointer = null;
     this.updateLinkHover(null);
     this.setHoveredLink(null);
     this.canvas.style.cursor = cursor;
   }
 
-  private refreshHoveredLink() {
+  private refreshHoveredLink(): void {
     const pointer = this.hoverPointer;
     const link = pointer ? this.findLinkAt(pointer.x, pointer.y) : null;
     this.updateLinkHover(link);
     this.setHoveredLink(link && this.options.canActivateLink?.(link.text) !== false ? link : null);
   }
 
-  private updateLinkHover(link: TerminalLinkWithRange | null) {
+  private updateLinkHover(link: TerminalLinkWithRange | null): void {
     if (!this.options.onLinkHover) return;
     if (link ? isSameTerminalLink(link, this.linkHoverCandidate) : this.linkHoverCandidate === null)
       return;
@@ -1587,7 +1605,7 @@ export class GhosttyTerminalSurface {
     }
   }
 
-  private updateLinkRowStability(reset: boolean) {
+  private updateLinkRowStability(reset: boolean): void {
     if (!this.options.onLinkHover || !this.snapshot) return;
     if (reset) {
       this.updateLinkHover(null);
@@ -1608,7 +1626,7 @@ export class GhosttyTerminalSurface {
     this.linkRowStability.length = this.snapshot.rows;
   }
 
-  private setHoveredLink(link: TerminalLinkWithRange | null) {
+  private setHoveredLink(link: TerminalLinkWithRange | null): void {
     const previous = this.hoveredLink;
     const unchanged =
       previous?.text === link?.text &&
@@ -1708,7 +1726,7 @@ export class GhosttyTerminalSurface {
     this.scrollRows(delta.rows, event);
   };
 
-  private scrollRows(rows: number, event: MouseEvent) {
+  private scrollRows(rows: number, event: MouseEvent): void {
     if (rows === 0) return;
     const magnitude = Math.abs(rows);
     if (shouldReportTerminalMouse(this.core.isMouseTracking(), event)) {
@@ -1808,7 +1826,7 @@ export class GhosttyTerminalSurface {
     this.scrollViewport(delta);
   };
 
-  private installEvents() {
+  private installEvents(): void {
     this.input.addEventListener("keydown", this.onKeyDown);
     this.input.addEventListener("keyup", this.onKeyUp);
     window.addEventListener("keyup", this.onWindowKeyUp, { capture: true });
@@ -1838,7 +1856,7 @@ export class GhosttyTerminalSurface {
     window.addEventListener("pointercancel", this.onWindowPointerRelease);
   }
 
-  private removeEvents() {
+  private removeEvents(): void {
     this.input.removeEventListener("keydown", this.onKeyDown);
     this.input.removeEventListener("keyup", this.onKeyUp);
     window.removeEventListener("keyup", this.onWindowKeyUp, { capture: true });
@@ -1868,7 +1886,7 @@ export class GhosttyTerminalSurface {
     window.removeEventListener("pointercancel", this.onWindowPointerRelease);
   }
 
-  private scrollViewport(deltaRows: number) {
+  private scrollViewport(deltaRows: number): void {
     let delta = Math.trunc(deltaRows);
     const state = this.readScrollbarState();
     if (state !== null) {
@@ -1884,7 +1902,7 @@ export class GhosttyTerminalSurface {
     this.requestRender();
   }
 
-  private scrollbarToPointer(clientY: number, bounds: DOMRect) {
+  private scrollbarToPointer(clientY: number, bounds: DOMRect): void {
     const state = this.scrollbarState;
     if (state === null) return;
     const offset = terminalScrollbarOffsetAtPointer(
@@ -1896,7 +1914,7 @@ export class GhosttyTerminalSurface {
     this.scrollViewport(offset - state.offset);
   }
 
-  private updateScrollbar() {
+  private updateScrollbar(): void {
     const state = this.readScrollbarState();
     const geometry =
       state === null
@@ -1917,13 +1935,13 @@ export class GhosttyTerminalSurface {
     this.scrollbarThumb.style.transform = `translateY(${geometry.thumbTop}px)`;
   }
 
-  private readScrollbarState() {
+  private readScrollbarState(): GhosttyScrollbar | null {
     const state = this.core.scrollbarState();
     this.scrollbarState = state;
     return state;
   }
 
-  private requestRender() {
+  private requestRender(): void {
     if (this.disposed || !this.visible || !this.hasSize) return;
     if (this.deferSynchronizedRender() || this.frame !== 0) return;
     this.frame = window.requestAnimationFrame(() => {
@@ -1932,7 +1950,7 @@ export class GhosttyTerminalSurface {
     });
   }
 
-  private cancelRender() {
+  private cancelRender(): void {
     this.cancelSynchronizedRenderTimer();
     if (this.frame !== 0) {
       window.cancelAnimationFrame(this.frame);
@@ -1944,13 +1962,13 @@ export class GhosttyTerminalSurface {
     }
   }
 
-  private cancelSynchronizedRenderTimer() {
+  private cancelSynchronizedRenderTimer(): void {
     if (this.synchronizedRenderTimer === null) return;
     window.clearTimeout(this.synchronizedRenderTimer);
     this.synchronizedRenderTimer = null;
   }
 
-  private deferSynchronizedRender() {
+  private deferSynchronizedRender(): boolean {
     if (!this.core.isSynchronizedOutput()) {
       this.cancelSynchronizedRenderTimer();
       return false;
@@ -1973,7 +1991,7 @@ export class GhosttyTerminalSurface {
     return true;
   }
 
-  private renderFrame() {
+  private renderFrame(): void {
     if (this.disposed || !this.visible) return;
     if (this.frame !== 0) {
       window.cancelAnimationFrame(this.frame);
@@ -2047,7 +2065,7 @@ export class GhosttyTerminalSurface {
     this.scheduleCursorBlink();
   }
 
-  private scheduleCursorBlink() {
+  private scheduleCursorBlink(): void {
     if (this.cursorTimer !== null) window.clearTimeout(this.cursorTimer);
     this.cursorTimer = null;
     if (!this.blinkEnabled()) return;
@@ -2058,7 +2076,7 @@ export class GhosttyTerminalSurface {
     }, CURSOR_BLINK_INTERVAL_MS);
   }
 
-  private blinkEnabled() {
+  private blinkEnabled(): boolean {
     const snapshot = this.snapshot;
     if (!snapshot || !this.visible || !this.hasSize) return false;
     return shouldBlinkTerminalCursor({
@@ -2069,7 +2087,7 @@ export class GhosttyTerminalSurface {
     });
   }
 
-  private positionInput() {
+  private positionInput(): void {
     const snapshot = this.snapshot;
     if (!snapshot || !snapshot.cursorVisible || snapshot.cursorX < 0 || snapshot.cursorY < 0) {
       return;
@@ -2084,7 +2102,7 @@ export class GhosttyTerminalSurface {
     this.input.style.height = `${this.metrics.height}px`;
   }
 
-  private cellAt(clientX: number, clientY: number) {
+  private cellAt(clientX: number, clientY: number): { x: number; y: number } {
     const bounds = this.canvas.getBoundingClientRect();
     return {
       x: Math.max(
@@ -2104,7 +2122,7 @@ export class GhosttyTerminalSurface {
     };
   }
 
-  private validateLink(text: string) {
+  private validateLink(text: string): Promise<boolean> | undefined {
     if (this.options.canActivateLink?.(text) !== false) return;
     const validation = this.options.validateLink?.(text);
     void validation?.catch(() => {});
@@ -2115,7 +2133,7 @@ export class GhosttyTerminalSurface {
     link: TerminalLinkWithRange,
     event: MouseEvent,
     validation = this.validateLink(link.text),
-  ) {
+  ): void {
     if (!validation) {
       this.options.onLinkActivate(link.text, event);
       return;
@@ -2137,7 +2155,11 @@ export class GhosttyTerminalSurface {
     );
   }
 
-  private linkAt(clientX: number, clientY: number, allowValidation = false) {
+  private linkAt(
+    clientX: number,
+    clientY: number,
+    allowValidation = false,
+  ): TerminalLinkWithRange | null {
     const link = this.findLinkAt(clientX, clientY);
     return link &&
       ((allowValidation && this.options.validateLink) ||
@@ -2146,7 +2168,7 @@ export class GhosttyTerminalSurface {
       : null;
   }
 
-  private findLinkAt(clientX: number, clientY: number) {
+  private findLinkAt(clientX: number, clientY: number): TerminalLinkWithRange | null {
     if (!this.snapshot) return null;
     const cell = terminalGridCellAt({
       bounds: this.canvas.getBoundingClientRect(),
@@ -2193,7 +2215,7 @@ export class GhosttyTerminalSurface {
     return terminalLinkAtPositionWithRange(this.snapshot.rowData, cell.y, cell.x);
   }
 
-  private sendMouse(action: TerminalMouseAction, button: number | null, event: MouseEvent) {
+  private sendMouse(action: TerminalMouseAction, button: number | null, event: MouseEvent): void {
     const bounds = this.canvas.getBoundingClientRect();
     const report = this.core.encodeMouse({
       action,
@@ -2222,7 +2244,7 @@ export class GhosttyTerminalSurface {
     else this.options.onData(report.data);
   }
 
-  private synchronizeMouseTrackingState() {
+  private synchronizeMouseTrackingState(): boolean {
     const tracking = this.core.isMouseAnyEventTracking();
     const state = resolveTerminalMouseTrackingState(
       this.mouseAnyEventTracking,
@@ -2234,7 +2256,7 @@ export class GhosttyTerminalSurface {
     return tracking;
   }
 
-  private buttonFromButtons(buttons: number) {
+  private buttonFromButtons(buttons: number): number | null {
     if ((buttons & 1) !== 0) return 1;
     if ((buttons & 4) !== 0) return 3;
     if ((buttons & 2) !== 0) return 2;

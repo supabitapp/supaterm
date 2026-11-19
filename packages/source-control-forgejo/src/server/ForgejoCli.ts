@@ -297,7 +297,10 @@ export const make = Effect.gen(function* () {
     return empty;
   });
 
-  const publicLogins = (keys: typeof ForgejoKeysSchema.Type, remoteUrl?: string) => {
+  const publicLogins = (
+    keys: typeof ForgejoKeysSchema.Type,
+    remoteUrl?: string,
+  ): ReturnType<typeof parseForgejoLogins> => {
     const remote = remoteUrl ? parseForgejoRemote(remoteUrl) : null;
     return Object.keys(keys.hosts).flatMap((host) => {
       const url = parseForgejoRemote(`https://${host}`);

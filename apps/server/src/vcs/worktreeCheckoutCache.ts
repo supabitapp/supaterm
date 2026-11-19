@@ -44,7 +44,7 @@ const CACHE_INDEX_CONFIG = [
 
 const foldCase = (file: string) => file.normalize("NFC").toLowerCase();
 
-function namesFilter(output: string) {
+function namesFilter(output: string): boolean {
   const fields = output.split("\0");
   for (let index = 1; index < fields.length; index += 3) {
     if (fields[index] === "filter") return true;
@@ -52,7 +52,7 @@ function namesFilter(output: string) {
   return false;
 }
 
-function parentDirectories(paths: Iterable<string>) {
+function parentDirectories(paths: Iterable<string>): Set<string> {
   const directories = new Set([""]);
   for (const entryPath of paths) {
     for (let slash = entryPath.lastIndexOf("/"); slash > 0;) {
@@ -69,7 +69,7 @@ class WorktreeCheckoutCacheError extends Schema.TaggedError<WorktreeCheckoutCach
   "WorktreeCheckoutCacheError",
   { detail: Schema.String },
 ) {
-  override get message() {
+  override get message(): string {
     return this.detail;
   }
 }
@@ -227,7 +227,7 @@ export const makeWorktreeCheckoutCache = Effect.fn("WorktreeCheckoutCache.make")
       ({ name, tree, fingerprint: entryFingerprint }) => {
         const directory = path.join(bucket, name);
         return fileSystem.stat(directory).pipe(
-          Effect.map((info) => ({
+          Effect.map((info): CacheEntry => ({
             directory,
             tree,
             fingerprint: entryFingerprint,

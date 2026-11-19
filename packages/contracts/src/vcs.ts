@@ -87,7 +87,7 @@ export class VcsProcessSpawnError extends Schema.TaggedError<VcsProcessSpawnErro
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `VCS process failed to spawn in ${this.operation}: ${this.command} (${this.cwd})`;
   }
 
@@ -114,7 +114,7 @@ export class VcsProcessExitError extends Schema.TaggedError<VcsProcessExitError>
     stderrTruncated: Schema.optional(Schema.Boolean),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `VCS process failed in ${this.operation}: ${this.command} (${this.cwd}) exited with ${this.exitCode} - ${this.detail}`;
   }
 
@@ -155,7 +155,7 @@ export class VcsProcessTimeoutError extends Schema.TaggedError<VcsProcessTimeout
     timeoutMs: Schema.Number,
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `VCS process timed out in ${this.operation}: ${this.command} (${this.cwd}) after ${this.timeoutMs}ms`;
   }
 
@@ -182,7 +182,7 @@ export class VcsProcessStdinWriteError extends Schema.TaggedError<VcsProcessStdi
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `VCS process failed to write ${this.stdinBytes} bytes to stdin in ${this.operation}: ${this.command} (${this.cwd})`;
   }
 }
@@ -195,7 +195,7 @@ export class VcsProcessOutputReadError extends Schema.TaggedError<VcsProcessOutp
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `VCS process failed to read ${this.stream} in ${this.operation}: ${this.command} (${this.cwd})`;
   }
 }
@@ -209,7 +209,7 @@ export class VcsProcessOutputLimitError extends Schema.TaggedError<VcsProcessOut
     observedBytes: NonNegativeInt,
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `VCS process ${this.stream} produced ${this.observedBytes} bytes in ${this.operation}: ${this.command} (${this.cwd}), exceeding the ${this.maxBytes} byte limit`;
   }
 }
@@ -218,7 +218,7 @@ export class VcsProcessMissingExitCodeError extends Schema.TaggedError<VcsProces
   "VcsProcessMissingExitCodeError",
   VcsProcessBoundaryErrorFields,
 ) {
-  override get message() {
+  override get message(): string {
     return `VCS process completed without an exit code in ${this.operation}: ${this.command} (${this.cwd})`;
   }
 }
@@ -232,7 +232,7 @@ export class VcsRepositoryDetectionError extends Schema.TaggedError<VcsRepositor
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `VCS repository detection failed in ${this.operation}: ${this.cwd} - ${this.detail}`;
   }
 }
@@ -245,7 +245,7 @@ export class VcsUnsupportedOperationError extends Schema.TaggedError<VcsUnsuppor
     detail: Schema.String,
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `VCS operation is unsupported for ${this.kind} in ${this.operation}: ${this.detail}`;
   }
 }
@@ -259,7 +259,7 @@ export class VcsCheckpointStorageError extends Schema.TaggedError<VcsCheckpointS
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Could not ${this.stage} checkpoint objects.`;
   }
 }

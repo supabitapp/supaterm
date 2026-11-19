@@ -43,7 +43,7 @@ export const MERGE_METHODS = {
 export function pullRequestActionLabel(
   action: PullRequestAction,
   terminology: ChangeRequestTerminology,
-) {
+): string {
   switch (action) {
     case "merge":
       return `Merge ${terminology.singular}`;

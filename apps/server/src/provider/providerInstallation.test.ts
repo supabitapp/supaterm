@@ -37,7 +37,7 @@ const state: ProviderInstallState = {
   message: null,
 };
 
-function instance(kind = driver, id = instanceId) {
+function instance(kind = driver, id = instanceId): ProviderInstance {
   return {
     instanceId: id,
     driverKind: kind,

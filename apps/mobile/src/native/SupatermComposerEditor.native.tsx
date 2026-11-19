@@ -107,7 +107,7 @@ interface NativeComposerEditorProps extends ViewProps {
 
 const NativeView = requireNativeView<NativeComposerEditorProps>(NATIVE_MODULE_NAME);
 
-function settleViewCommand(command: Promise<void> | undefined) {
+function settleViewCommand(command: Promise<void> | undefined): void {
   command?.catch(() => undefined);
 }
 

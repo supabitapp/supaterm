@@ -2,6 +2,7 @@ import { EnvironmentId, ProjectId } from "@supaterm/contracts";
 import { describe, expect, it } from "vite-plus/test";
 
 import type { EnvironmentProject } from "@supaterm/client-runtime/state/shell";
+import type { HomeProjectScope } from "../home/homeThreadList";
 import {
   getProjectScopeSelectionTarget,
   isSameRepository,
@@ -20,7 +21,7 @@ function makeProject(
     readonly workspaceRoot?: string;
     readonly repositoryKey?: string;
   } = {},
-) {
+): EnvironmentProject {
   return {
     environmentId: EnvironmentId.make(environmentId),
     id: ProjectId.make(id),
@@ -40,10 +41,10 @@ function makeProject(
     scripts: [],
     createdAt: "2026-07-01T00:00:00.000Z",
     updatedAt: "2026-07-01T00:00:00.000Z",
-  } satisfies EnvironmentProject;
+  };
 }
 
-function makeScope(projects: ReadonlyArray<EnvironmentProject>) {
+function makeScope(projects: ReadonlyArray<EnvironmentProject>): HomeProjectScope {
   return {
     key: "github.com/supabitapp/supacode-next",
     title: "supaterm",

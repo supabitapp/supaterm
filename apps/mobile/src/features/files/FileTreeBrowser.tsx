@@ -22,15 +22,14 @@ import {
 const fileTreeCache = new WeakMap<ReadonlyArray<ProjectEntry>, ReadonlyArray<FileTreeNode>>();
 const OPTIMISTIC_SELECTION_TIMEOUT_MS = 1_000;
 
-function cachedFileTree(entries: ReadonlyArray<ProjectEntry>): ReadonlyArray<FileTreeNode>;
-function cachedFileTree(entries: ReadonlyArray<ProjectEntry>) {
+function cachedFileTree(entries: ReadonlyArray<ProjectEntry>): ReadonlyArray<FileTreeNode> {
   const cached = fileTreeCache.get(entries);
   if (cached !== undefined) {
-    return cached satisfies ReadonlyArray<FileTreeNode>;
+    return cached;
   }
   const tree = buildFileTree(entries);
   fileTreeCache.set(entries, tree);
-  return tree satisfies ReadonlyArray<FileTreeNode>;
+  return tree;
 }
 
 const FileTreeRow = function FileTreeRow(props: {

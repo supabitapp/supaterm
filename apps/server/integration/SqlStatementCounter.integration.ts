@@ -6,7 +6,7 @@ export interface SqlStatementCounter {
 }
 
 /** Install on every test runtime to include background reactor statements. */
-export function makeSqlStatementCounter() {
+export function makeSqlStatementCounter(): SqlStatementCounter {
   let statements = 0;
   const tracer = Tracer.make({
     span: (options) => {

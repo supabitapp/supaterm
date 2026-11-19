@@ -1,7 +1,12 @@
 import { toIsoUtc } from "@supaterm/source-control-core/server/pullRequestUtils";
 import * as Schema from "effect/Schema";
 import type {
+  PullRequestActor,
+  PullRequestCheck,
+  PullRequestCheckStatus,
   PullRequestComment,
+  PullRequestCommit,
+  PullRequestReaction,
   PullRequestReactionContent,
   PullRequestReviewThread,
 } from "@supaterm/contracts";
@@ -115,7 +120,9 @@ export const ForgejoReaction = Schema.Struct({
   user: Schema.NullOr(ForgejoUser),
 });
 
-export function forgejoActor(user: typeof ForgejoUser.Type | null | undefined) {
+export function forgejoActor(
+  user: typeof ForgejoUser.Type | null | undefined,
+): PullRequestActor | null {
   return user?.login
     ? { login: user.login, name: user.full_name || null, avatarUrl: user.avatar_url || null }
     : null;
@@ -148,7 +155,7 @@ export function forgejoChangeRequest(pr: typeof ForgejoPullRequest.Type) {
   } satisfies ProviderChangeRequest;
 }
 
-export function forgejoComment(comment: typeof ForgejoComment.Type) {
+export function forgejoComment(comment: typeof ForgejoComment.Type): PullRequestComment {
   const createdAt = toIsoUtc(comment.created_at);
   const editedAt = comment.updated_at == null ? undefined : toIsoUtc(comment.updated_at);
   return {
@@ -161,10 +168,10 @@ export function forgejoComment(comment: typeof ForgejoComment.Type) {
     url: comment.html_url || null,
     path: null,
     reviewState: null,
-  } satisfies PullRequestComment;
+  };
 }
 
-export function forgejoReview(review: typeof ForgejoReview.Type) {
+export function forgejoReview(review: typeof ForgejoReview.Type): PullRequestComment {
   return {
     id: `review:${review.id}`,
     kind: "review",
@@ -181,10 +188,12 @@ export function forgejoReview(review: typeof ForgejoReview.Type) {
           : review.state === "COMMENT"
             ? "COMMENTED"
             : review.state,
-  } satisfies PullRequestComment;
+  };
 }
 
-export function forgejoReviewThread(comment: typeof ForgejoReviewComment.Type) {
+export function forgejoReviewThread(
+  comment: typeof ForgejoReviewComment.Type,
+): PullRequestReviewThread {
   const oldSide = comment.position === 0 && comment.original_position > 0;
   const line = oldSide ? comment.original_position : comment.position;
   return {
@@ -195,10 +204,10 @@ export function forgejoReviewThread(comment: typeof ForgejoReviewComment.Type) {
     isResolved: comment.resolver !== null,
     isOutdated: false,
     comments: [forgejoComment(comment)],
-  } satisfies PullRequestReviewThread;
+  };
 }
 
-export function forgejoCommit(commit: typeof ForgejoCommit.Type) {
+export function forgejoCommit(commit: typeof ForgejoCommit.Type): PullRequestCommit {
   const author = forgejoActor(commit.author);
   return {
     oid: commit.sha,
@@ -211,7 +220,7 @@ export function forgejoCommit(commit: typeof ForgejoCommit.Type) {
   };
 }
 
-function forgejoCheckStatus(state: string) {
+function forgejoCheckStatus(state: string): PullRequestCheckStatus {
   switch (state) {
     case "success":
       return "success";
@@ -230,7 +239,7 @@ function forgejoCheckStatus(state: string) {
 export function forgejoChecks(
   statuses: ReadonlyArray<typeof ForgejoStatus.Type>,
   pullRequestUrl: string,
-) {
+): ReadonlyArray<PullRequestCheck> {
   return dedupeChecks(
     statuses.map((status) => ({
       workflowName: null,
@@ -261,7 +270,7 @@ export const FORGEJO_REACTIONS: Record<PullRequestReactionContent, string> = {
 export function forgejoReactions(
   reactions: ReadonlyArray<typeof ForgejoReaction.Type>,
   viewer: string,
-) {
+): ReadonlyArray<PullRequestReaction> {
   return Object.entries(FORGEJO_REACTIONS).flatMap(([content, emoji]) => {
     const matching = reactions.filter((reaction) => reaction.content === emoji);
     return matching.length === 0

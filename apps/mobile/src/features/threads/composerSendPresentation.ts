@@ -30,7 +30,7 @@ export function resolveComposerSendPresentation(input: {
   readonly canSteer: boolean;
   readonly followUpBehavior: FollowUpBehavior;
   readonly deliveryDeferred: boolean;
-}) {
+}): ComposerSendPresentation {
   if (input.editingQueuedMessage) {
     return {
       label: "Update queued message",
@@ -38,7 +38,7 @@ export function resolveComposerSendPresentation(input: {
       action: null,
       alternate: null,
       offersFollowUpChoice: false,
-    } satisfies ComposerSendPresentation;
+    };
   }
   if (!input.running) {
     return {
@@ -47,7 +47,7 @@ export function resolveComposerSendPresentation(input: {
       action: null,
       alternate: null,
       offersFollowUpChoice: false,
-    } satisfies ComposerSendPresentation;
+    };
   }
   const action: ActiveTurnComposerAction = input.canSteer ? input.followUpBehavior : "queue";
   const alternate = alternateComposerDispatchAction(action);
@@ -57,5 +57,5 @@ export function resolveComposerSendPresentation(input: {
     action,
     alternate: input.canSteer ? alternate : null,
     offersFollowUpChoice: input.canSteer,
-  } satisfies ComposerSendPresentation;
+  };
 }

@@ -67,13 +67,13 @@ interface HeldUpload {
 const heldUploads = new Map<string, HeldUpload>();
 const jobKey = (job: UploadJob) => `${job.environmentId}:${job.image.id}`;
 
-function setUploadState(imageId: string, upload: AttachmentUploadState) {
+function setUploadState(imageId: string, upload: AttachmentUploadState): void {
   useAttachmentUploadStore.setState((state) => ({
     uploadsByImageId: { ...state.uploadsByImageId, [imageId]: upload },
   }));
 }
 
-function clearUploadState(imageId: string) {
+function clearUploadState(imageId: string): void {
   useAttachmentUploadStore.setState((state) => {
     if (!(imageId in state.uploadsByImageId)) {
       return state;
@@ -84,11 +84,11 @@ function clearUploadState(imageId: string) {
   });
 }
 
-export function readAttachmentUpload(imageId: string) {
+export function readAttachmentUpload(imageId: string): AttachmentUploadState | undefined {
   return useAttachmentUploadStore.getState().uploadsByImageId[imageId];
 }
 
-function resolveCurrentFileDraftTarget(job: DraftFileOwner) {
+function resolveCurrentFileDraftTarget(job: DraftFileOwner): ComposerThreadTarget | undefined {
   if (job.draftTarget === undefined || job.image.type !== "file") {
     return undefined;
   }
@@ -115,7 +115,7 @@ function resolveCurrentFileDraftTarget(job: DraftFileOwner) {
   return undefined;
 }
 
-function stampDraftFileUpload(job: DraftFileOwner, attachmentId: string) {
+function stampDraftFileUpload(job: DraftFileOwner, attachmentId: string): void {
   const draftTarget = resolveCurrentFileDraftTarget(job);
   if (draftTarget === undefined) {
     return;
@@ -125,7 +125,7 @@ function stampDraftFileUpload(job: DraftFileOwner, attachmentId: string) {
     .setFileUpload(draftTarget, job.image.id, job.environmentId, attachmentId);
 }
 
-function deletePendingUpload(environmentId: EnvironmentId, attachmentId: string) {
+function deletePendingUpload(environmentId: EnvironmentId, attachmentId: string): void {
   if (!readEnvironmentScope(environmentId, AuthOrchestrationOperateScope)) return;
   deletePendingAttachmentUpload({
     registry: appAtomRegistry,
@@ -141,7 +141,7 @@ function uploadBytes(input: {
   readonly mimeType: string;
   readonly signal: AbortSignal;
   readonly onProgress: (progress: number) => void;
-}) {
+}): Promise<void> {
   const xhr = new XMLHttpRequest();
   return new Promise<void>((resolve, reject) => {
     xhr.open("POST", input.url, true);
@@ -322,7 +322,7 @@ const uploads = createAttachmentUploadRegistry<UploadJob>({
     ),
 });
 
-function awaitHeldUpload(imageId: string) {
+function awaitHeldUpload(imageId: string): Effect.Effect<void> {
   const held = heldUploads.get(imageId);
   const fiber = held === undefined ? undefined : uploads.current(jobKey(held.job));
   return fiber === undefined ? Effect.void : Effect.asVoid(Fiber.await(fiber));
@@ -333,7 +333,7 @@ export function startAttachmentUpload(input: {
   readonly image: ComposerImageAttachment | ComposerFileAttachment;
   readonly draftTarget?: ComposerThreadTarget;
   readonly force?: boolean;
-}) {
+}): void {
   if (!canOperate(input.environmentId)) return;
   const existingHold = heldUploads.get(input.image.id);
   if (existingHold?.job.environmentId === input.environmentId) {
@@ -432,7 +432,7 @@ export function startAttachmentUpload(input: {
   });
 }
 
-function cancelAttachmentUpload(imageId: string) {
+function cancelAttachmentUpload(imageId: string): void {
   const held = heldUploads.get(imageId);
   if (!held) {
     return;
@@ -442,7 +442,7 @@ function cancelAttachmentUpload(imageId: string) {
   held.release();
 }
 
-export function releaseAttachmentUpload(imageId: string) {
+export function releaseAttachmentUpload(imageId: string): void {
   const upload = readAttachmentUpload(imageId);
   cancelAttachmentUpload(imageId);
   if (upload?.status === "ready") {
@@ -462,7 +462,7 @@ export function releasePersistedAttachmentUpload(input: {
   readonly id: string;
   readonly environmentId: EnvironmentId;
   readonly attachmentId: string;
-}) {
+}): void {
   const upload = readAttachmentUpload(input.id);
   if (
     upload?.status === "ready" &&
@@ -486,7 +486,7 @@ export function retryAttachmentUpload(input: {
   readonly environmentId: EnvironmentId;
   readonly image: ComposerImageAttachment | ComposerFileAttachment;
   readonly draftTarget?: ComposerThreadTarget;
-}) {
+}): void {
   if (!canOperate(input.environmentId)) return;
   const previous = readAttachmentUpload(input.image.id);
   const held = heldUploads.get(input.image.id);
@@ -507,7 +507,7 @@ export function retryAttachmentUpload(input: {
 export function verifyStashedAttachmentUpload(input: {
   readonly environmentId: EnvironmentId;
   readonly attachmentId: string;
-}) {
+}): Promise<PersistedAttachmentVerification> {
   return Effect.runPromise(
     verifyPersistedAttachmentUpload({
       registry: appAtomRegistry,
@@ -515,11 +515,11 @@ export function verifyStashedAttachmentUpload(input: {
       environmentId: input.environmentId,
       attachmentId: input.attachmentId,
     }),
-  ) satisfies Promise<PersistedAttachmentVerification>;
+  );
 }
 
 /** Resolves once these images' uploads finish, fail or are cancelled. */
-export function awaitAttachmentUploads(imageIds: ReadonlyArray<string>) {
+export function awaitAttachmentUploads(imageIds: ReadonlyArray<string>): Promise<void> {
   return Effect.runPromise(
     Effect.forEach(imageIds, awaitHeldUpload, { concurrency: "unbounded", discard: true }),
   );
@@ -530,7 +530,7 @@ export async function refreshExpiredAttachmentUploads(input: {
   readonly environmentId: EnvironmentId;
   readonly images: ReadonlyArray<ComposerImageAttachment | ComposerFileAttachment>;
   readonly draftTarget?: ComposerThreadTarget;
-}) {
+}): Promise<void> {
   const canVerify = readEnvironmentScope(input.environmentId, AuthOrchestrationReadScope);
   await Promise.all(
     input.images.map(async (image) => {
@@ -557,9 +557,7 @@ export async function refreshExpiredAttachmentUploads(input: {
       const verification = await verifyStashedAttachmentUpload({
         environmentId: input.environmentId,
         attachmentId: upload.attachmentId,
-      }).catch(
-        (error: unknown) => ({ status: "failed", error }) satisfies PersistedAttachmentVerification,
-      );
+      }).catch((error: unknown): PersistedAttachmentVerification => ({ status: "failed", error }));
       if (readAttachmentUpload(image.id) !== upload) return;
       if (verification.status === "verified") return;
       if (verification.status === "missing" && image.file) {
@@ -589,7 +587,7 @@ export async function refreshExpiredAttachmentUploads(input: {
 export function getUploadedAttachments(input: {
   readonly environmentId: EnvironmentId;
   readonly images: ReadonlyArray<ComposerImageAttachment | ComposerFileAttachment>;
-}) {
+}): ChatAttachment[] | null {
   const attachments: ChatAttachment[] = [];
   for (const image of input.images) {
     const upload = readAttachmentUpload(image.id);
@@ -611,7 +609,7 @@ export function getUploadedAttachments(input: {
 /** In-memory queue releases miss uploads after reload; every draft discard must use this path. */
 export function releaseDraftAttachment(
   attachment: ComposerImageAttachment | ComposerFileAttachment,
-) {
+): void {
   if (
     attachment.type === "file" &&
     attachment.uploadedAttachmentId !== undefined &&
@@ -632,7 +630,7 @@ export function releaseDraftAttachment(
 
 export function releaseDraftAttachments(
   attachments: ReadonlyArray<ComposerImageAttachment | ComposerFileAttachment>,
-) {
+): void {
   for (const attachment of attachments) {
     releaseDraftAttachment(attachment);
   }

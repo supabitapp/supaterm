@@ -17,7 +17,7 @@ import * as McpInvocationContext from "../../McpInvocationContext.ts";
 import * as McpToolAccess from "../../McpToolAccess.ts";
 import { DeviceScreenshotToolkit, DeviceStandardToolkit, DeviceToolkit } from "./tools.ts";
 
-function agentDeviceTargetArgs(device: DeviceSummary) {
+function agentDeviceTargetArgs(device: DeviceSummary): ReadonlyArray<string> {
   return device.platform === "ios"
     ? ["--platform", "ios", "--udid", device.id]
     : ["--platform", "android", "--serial", device.id];
@@ -32,7 +32,7 @@ export function agentDeviceQuickStart(
   targetArgs = agentDeviceTargetArgs(device),
   command = "agent-device",
   cloud = false,
-) {
+): string {
   const executable = shellWord(command);
   const target = targetArgs.map(shellWord).join(" ");
   const run = (args: string) => [executable, args, target].filter(Boolean).join(" ");
@@ -82,7 +82,7 @@ const requireDeviceAccess = McpInvocationContext.requireThreadMcpCapability("dev
 export const resolveHostId = Effect.fn("handlers.resolveHostId")(function* (
   hosts: ReadonlyArray<DeviceHostSummary>,
   hostId: string | undefined,
-) {
+): Effect.fn.Return<DeviceHostId | undefined, DeviceToolUnavailableError> {
   if (!hostId) return undefined;
   const exact = hosts.find((host) => host.id === hostId);
   if (exact) return exact.id;
@@ -149,7 +149,7 @@ const pickDevice = Effect.fn("handlers.pickDevice")(function* (
     readonly platform?: DevicePlatform | undefined;
     readonly hostId?: DeviceHostId | undefined;
   },
-) {
+): Effect.fn.Return<DeviceSummary, DeviceToolUnavailableError, DeviceService.DeviceService> {
   if (input.deviceId !== undefined) {
     const { deviceId, hostId } = input;
     const devices = yield* DeviceService.DeviceService;
@@ -350,7 +350,7 @@ const handlers = {
   ),
 } satisfies McpToolAccess.Handlers<typeof DeviceToolkit.tools>;
 
-export function pngDimensions(png: Uint8Array) {
+export function pngDimensions(png: Uint8Array): { width: number; height: number } {
   if (png.length < 24) return { width: 0, height: 0 };
   const view = new DataView(png.buffer, png.byteOffset, png.byteLength);
   const isPng =

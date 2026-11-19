@@ -82,7 +82,7 @@ function tool(
   summaryAction: SupatermMcpToolSummaryAction,
   icon: SupatermMcpToolDefinition["icon"] = "supaterm",
   displayName = `${labels[0]} ${labels[3]}`,
-) {
+): SupatermMcpToolDefinition {
   return { displayName, labels, icon, summaryAction };
 }
 
@@ -414,7 +414,7 @@ export const SUPATERM_MCP_TOOL_NAMES: ReadonlySet<string> = new Set(
   Object.keys(SUPATERM_MCP_TOOLS),
 );
 
-function normalizeSupatermMcpToolLabel(value: string) {
+function normalizeSupatermMcpToolLabel(value: string): string {
   return value.replace(/\s+(?:complete|completed)\s*$/i, "").trim();
 }
 
@@ -422,7 +422,7 @@ const toolNameCache = new Map<string, string | null>();
 const TOOL_NAME_CACHE_LIMIT = 10_000;
 const TOOL_NAME_CACHE_MAX_KEY_LENGTH = 256;
 
-function resolveSupatermMcpToolName(value: string) {
+function resolveSupatermMcpToolName(value: string): string | null {
   if (value.length > TOOL_NAME_CACHE_MAX_KEY_LENGTH) return parseSupatermMcpToolName(value);
   const cached = toolNameCache.get(value);
   if (cached !== undefined) return cached;
@@ -432,7 +432,7 @@ function resolveSupatermMcpToolName(value: string) {
   return name;
 }
 
-function parseSupatermMcpToolName(value: string) {
+function parseSupatermMcpToolName(value: string): string | null {
   const label = normalizeSupatermMcpToolLabel(value);
   const mcpMatch = /^mcp__(?<server>.+?)__(?<tool>.+)$/i.exec(label);
   if (mcpMatch?.groups) {
@@ -462,14 +462,14 @@ function parseSupatermMcpToolName(value: string) {
   return longest;
 }
 
-export function resolveSupatermMcpToolId(toolName: string | null | undefined) {
+export function resolveSupatermMcpToolId(toolName: string | null | undefined): string | null {
   const name = toolName == null ? null : resolveSupatermMcpToolName(toolName);
   return name !== null && Object.hasOwn(SUPATERM_MCP_TOOLS, name) ? name : null;
 }
 
 type SummaryInput = Readonly<Record<string, unknown>>;
 
-const asSummaryInput = (input: unknown) =>
+const asSummaryInput = (input: unknown): SummaryInput | undefined =>
   typeof input === "object" && input !== null ? (input as SummaryInput) : undefined;
 
 const ACTION_TOOLS: Readonly<Record<string, (action: string) => string | undefined>> = {
@@ -495,7 +495,7 @@ const FIELD_TOOLS: Readonly<Record<string, (input: SummaryInput) => string | und
 export function resolveSupatermMcpToolDefinition(
   toolName: string | null | undefined,
   input?: unknown,
-) {
+): SupatermMcpToolDefinition | null {
   const name = toolName == null ? null : resolveSupatermMcpToolName(toolName);
   if (name === null || !Object.hasOwn(SUPATERM_MCP_TOOLS, name)) return null;
   const fields = asSummaryInput(input);
@@ -511,16 +511,14 @@ export function resolveSupatermMcpToolDefinition(
 export function resolveSupatermMcpSummaryAction(
   toolName: string | null | undefined,
   input: unknown,
-) {
+): SupatermMcpToolSummaryAction | null {
   return resolveSupatermMcpToolDefinition(toolName, input)?.summaryAction ?? null;
 }
 
 export function resolveSupatermMcpToolPresentation(
   toolName: string | null | undefined,
   input?: unknown,
-) {
+): SupatermMcpToolPresentation | null {
   const definition = resolveSupatermMcpToolDefinition(toolName, input);
-  return (
-    definition === null ? null : { displayName: definition.displayName, logo: "supaterm" }
-  ) satisfies SupatermMcpToolPresentation | null;
+  return definition === null ? null : { displayName: definition.displayName, logo: "supaterm" };
 }

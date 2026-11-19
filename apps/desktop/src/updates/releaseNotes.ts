@@ -1,4 +1,4 @@
-import type { DesktopUpdateChannel } from "@supaterm/contracts";
+import type { DesktopUpdateChannel, DesktopUpdateReleaseNote } from "@supaterm/contracts";
 
 import { desktopUpdateChannelOf } from "@supaterm/shared/cliRelease";
 
@@ -29,14 +29,14 @@ const HTML_ENTITY_REPLACEMENTS: ReadonlyMap<string, string> = new Map([
   ["quot", '"'],
 ]);
 
-function decodeCodePoint(codePoint: number, entity: string) {
+function decodeCodePoint(codePoint: number, entity: string): string {
   if (!Number.isInteger(codePoint) || codePoint < 0 || codePoint > 0x10ffff) {
     return `&${entity};`;
   }
   return String.fromCodePoint(codePoint);
 }
 
-function decodeHtmlEntity(entity: string) {
+function decodeHtmlEntity(entity: string): string {
   const named = HTML_ENTITY_REPLACEMENTS.get(entity);
   if (named) return named;
   if (entity.startsWith("#x")) {
@@ -48,13 +48,13 @@ function decodeHtmlEntity(entity: string) {
   return `&${entity};`;
 }
 
-function decodeHtmlEntities(input: string) {
+function decodeHtmlEntities(input: string): string {
   return input.replace(/&([a-zA-Z]+|#\d+|#x[0-9a-fA-F]+);/g, (_, entity: string) =>
     decodeHtmlEntity(entity),
   );
 }
 
-function stripMarkup(input: string) {
+function stripMarkup(input: string): string {
   return decodeHtmlEntities(
     input
       .replace(/<br\s*\/?>/gi, "\n")
@@ -67,19 +67,19 @@ function stripMarkup(input: string) {
   );
 }
 
-function truncateReleaseNoteItem(item: string) {
+function truncateReleaseNoteItem(item: string): string {
   if (item.length <= MAX_RELEASE_NOTE_ITEM_LENGTH) return item;
   return `${item.slice(0, MAX_RELEASE_NOTE_ITEM_LENGTH - 3).trimEnd()}...`;
 }
 
-function normalizeReleaseNoteLine(line: string) {
+function normalizeReleaseNoteLine(line: string): string {
   return line
     .toLowerCase()
     .replace(/[*_`#]/g, "")
     .trim();
 }
 
-function isIgnoredReleaseNoteLine(line: string) {
+function isIgnoredReleaseNoteLine(line: string): boolean {
   const normalized = normalizeReleaseNoteLine(line);
   return (
     normalized === "" ||
@@ -91,7 +91,14 @@ function isIgnoredReleaseNoteLine(line: string) {
   );
 }
 
-function extractReleaseNoteSummary(summary: string) {
+interface ExtractedReleaseNoteItems {
+  readonly items: ReadonlyArray<string>;
+  readonly totalItems: number;
+  readonly intro?: string;
+  readonly stats?: string;
+}
+
+function extractReleaseNoteSummary(summary: string): ExtractedReleaseNoteItems {
   let stats: string | undefined;
   const intro: string[] = [];
   const items: string[] = [];
@@ -117,7 +124,7 @@ function extractReleaseNoteSummary(summary: string) {
   };
 }
 
-function extractReleaseNoteItems(note: string | null | undefined) {
+function extractReleaseNoteItems(note: string | null | undefined): ExtractedReleaseNoteItems {
   if (!note) return { items: [], totalItems: 0 };
 
   const summaryEnd = note.search(/<details>\s*<summary>\s*Full changelog\s*<\/summary>/i);
@@ -149,6 +156,11 @@ function resolveReleasedAt(version: string, offeredVersion: string, releaseDate?
   return day ? `${day[1]}-${day[2]}-${day[3]}` : undefined;
 }
 
+interface NormalizedDesktopUpdateReleaseNotes {
+  readonly releaseNotes: ReadonlyArray<DesktopUpdateReleaseNote>;
+  readonly omittedReleaseCount: number;
+}
+
 const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /**
@@ -159,7 +171,7 @@ export function releaseNotesOfOfferedVersion(info: {
   readonly version: string;
   readonly releaseNotes?: unknown;
   readonly releaseName?: string | null | undefined;
-}) {
+}): unknown {
   if (typeof info.releaseNotes !== "string" || !info.releaseName) return info.releaseNotes;
   const namesVersion = new RegExp(`(?:^|[^\\w.-])v?${escapeRegExp(info.version)}(?![\\w.-])`);
   return namesVersion.test(info.releaseName) ? info.releaseNotes : undefined;
@@ -171,7 +183,7 @@ export function normalizeDesktopUpdateReleaseNotes(
   fallbackVersion: string,
   channel: DesktopUpdateChannel,
   releaseDate?: string,
-) {
+): NormalizedDesktopUpdateReleaseNotes {
   const rawNotes = (
     typeof releaseNotes === "string"
       ? [{ version: fallbackVersion, note: releaseNotes }]

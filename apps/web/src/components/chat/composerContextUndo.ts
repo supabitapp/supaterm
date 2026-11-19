@@ -26,19 +26,17 @@ export interface RetainedContextPayloads extends RetainedAttachmentContextPayloa
   references: Map<string, ReferenceContextRecord>;
 }
 
-function createRetainedContextPayloads(): RetainedContextPayloads;
-function createRetainedContextPayloads() {
+function createRetainedContextPayloads(): RetainedContextPayloads {
   return {
     terminals: new Map(),
     reviewComments: new Map(),
     references: new Map(),
     files: new Map(),
     previewAnnotations: new Map(),
-  } satisfies RetainedContextPayloads;
+  };
 }
 
-export function useRetainedContextPayloads(draftTargetKey: string): RetainedContextPayloads;
-export function useRetainedContextPayloads(draftTargetKey: string) {
+export function useRetainedContextPayloads(draftTargetKey: string): RetainedContextPayloads {
   const [draft, setDraft] = useState(() => ({
     targetKey: draftTargetKey,
     payloads: createRetainedContextPayloads(),
@@ -54,7 +52,7 @@ export function useRetainedContextPayloads(draftTargetKey: string) {
     },
     [retained],
   );
-  return retained satisfies RetainedContextPayloads;
+  return retained;
 }
 
 export function reconcileAttachmentContextReferences(input: {
@@ -63,7 +61,12 @@ export function reconcileAttachmentContextReferences(input: {
   images: ReadonlyArray<ComposerImageAttachment>;
   previewAnnotations: ReadonlyArray<PreviewAnnotationPayload>;
   retained: RetainedAttachmentContextPayloads;
-}) {
+}): {
+  filesToRemove: string[];
+  filesToRestore: ComposerFileAttachment[];
+  annotationIdsToRemove: string[];
+  annotationsToRestore: RetainedPreviewAnnotation[];
+} {
   const liveFileContextIds = new Set<string>(
     input.files.map((file) => fileContextReference(file).contextId),
   );

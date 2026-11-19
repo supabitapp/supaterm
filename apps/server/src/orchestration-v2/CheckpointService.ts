@@ -35,7 +35,7 @@ export class CheckpointRootScopePrepareError extends Schema.TaggedError<Checkpoi
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Failed to prepare root checkpoint scope for run ${this.runId}.`;
   }
 }
@@ -48,7 +48,7 @@ export class CheckpointBaselineCaptureError extends Schema.TaggedError<Checkpoin
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Failed to capture checkpoint baseline ${this.ordinalWithinScope} for scope ${this.scopeId}.`;
   }
 }
@@ -61,7 +61,7 @@ export class CheckpointCaptureError extends Schema.TaggedError<CheckpointCapture
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Failed to capture checkpoint for scope ${this.scopeId}.`;
   }
 }
@@ -74,7 +74,7 @@ export class CheckpointRestoreError extends Schema.TaggedError<CheckpointRestore
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Failed to restore checkpoint ${this.checkpointId} for scope ${this.scopeId}.`;
   }
 }
@@ -87,7 +87,7 @@ export class CheckpointDeleteStaleRefsError extends Schema.TaggedError<Checkpoin
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Failed to delete stale checkpoint refs for scope ${this.scopeId}.`;
   }
 }
@@ -215,7 +215,7 @@ function makeCheckpoint(input: {
   readonly status: OrchestrationV2Checkpoint["status"];
   readonly files: OrchestrationV2Checkpoint["files"];
   readonly capturedAt: DateTime.Utc;
-}) {
+}): OrchestrationV2Checkpoint {
   return {
     id: input.id,
     threadId: input.scope.threadId,

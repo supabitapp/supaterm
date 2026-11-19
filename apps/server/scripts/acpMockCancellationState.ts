@@ -1,3 +1,3 @@
-export function beginAcpMockPrompt(cancelledSessions: Set<string>, sessionId: string) {
+export function beginAcpMockPrompt(cancelledSessions: Set<string>, sessionId: string): void {
   cancelledSessions.delete(sessionId);
 }

@@ -7,7 +7,7 @@ type RouteParams = Readonly<Record<string, unknown>> | undefined;
 export function promptLinkSearchFromParams(
   params: RouteParams,
   keys: ReadonlyArray<string> = PROMPT_LINK_PARAM_KEYS,
-) {
+): string | null {
   const search = new URLSearchParams();
   for (const key of keys) {
     const raw = params?.[key];
@@ -17,7 +17,7 @@ export function promptLinkSearchFromParams(
   return search.size > 0 ? search.toString() : null;
 }
 
-export function withoutPromptLinkParams(params: object | undefined) {
+export function withoutPromptLinkParams(params: object | undefined): Record<string, unknown> {
   return Object.fromEntries(
     Object.entries(params ?? {}).filter(
       ([key]) => !(PROMPT_LINK_PARAM_KEYS as ReadonlyArray<string>).includes(key),
@@ -29,7 +29,7 @@ export function promptLinkNotice(input: {
   readonly hiddenCharacters: number;
   readonly modelUnavailable?: boolean;
   readonly pullRequestUnavailable?: number | null;
-}) {
+}): string {
   return [
     input.hiddenCharacters > 0
       ? "This prompt had hidden characters, it may be malicious. They were removed. Read it before you send."
@@ -53,7 +53,7 @@ export function linkedThreadDraftAction(currentText: string, prompt: string) {
 export function promptLinkScratchEnvironmentId<Id extends string>(
   environmentIdsMostRecentFirst: ReadonlyArray<Id>,
   scratchEnvironmentIds: ReadonlyArray<Id>,
-) {
+): Id | null {
   return (
     environmentIdsMostRecentFirst.find((id) => scratchEnvironmentIds.includes(id)) ??
     scratchEnvironmentIds[0] ??
@@ -63,7 +63,7 @@ export function promptLinkScratchEnvironmentId<Id extends string>(
 
 export function latestThreadEnvironmentIds<Id extends string>(
   threads: ReadonlyArray<{ readonly environmentId: Id; readonly updatedAt: string }>,
-) {
+): ReadonlyArray<Id> {
   const latest = new Map<Id, string>();
   for (const thread of threads) {
     if (thread.updatedAt > (latest.get(thread.environmentId) ?? "")) {
@@ -86,7 +86,7 @@ export const promptLinkRepositoryName = (repository: PromptLinkRepository) =>
 export function stepPendingPromptLink<Link>(
   link: Link,
   input: { readonly screenOnStack: boolean; readonly ready: boolean },
-) {
+): { readonly pending: Link | null; readonly resolve: Link | null } {
   if (!input.screenOnStack) return { pending: null, resolve: null };
   if (input.ready) return { pending: null, resolve: link };
   return { pending: link, resolve: null };

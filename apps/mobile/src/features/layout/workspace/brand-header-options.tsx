@@ -10,16 +10,13 @@ function renderCompactBrandTitle() {
 
 export function getCompactBrandHeaderOptions(
   fallbackTitleStyle?: NativeStackNavigationOptions["headerTitleStyle"],
-): NativeStackNavigationOptions;
-export function getCompactBrandHeaderOptions(
-  fallbackTitleStyle?: NativeStackNavigationOptions["headerTitleStyle"],
-) {
+): NativeStackNavigationOptions {
   return {
     headerTitle: renderCompactBrandTitle,
     headerTitleStyle: fallbackTitleStyle,
     title: "Threads",
     unstable_headerLeftItems: undefined,
-  } satisfies NativeStackNavigationOptions;
+  };
 }
 
 export function getConnectionAwareBrandHeaderOptions(opts: {
@@ -27,7 +24,7 @@ export function getConnectionAwareBrandHeaderOptions(opts: {
   readonly trailingItemCount?: number;
   readonly onOpenEnvironments: () => void;
   readonly fallbackTitleStyle?: NativeStackNavigationOptions["headerTitleStyle"];
-}) {
+}): NativeStackNavigationOptions {
   const maxWidth = Math.max(0, opts.headerWidth - 64 - 44 * (opts.trailingItemCount ?? 1));
 
   return {

@@ -29,8 +29,7 @@ interface MutableNode {
 
 const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
 
-function freeze(node: MutableNode): ZipTreeNode;
-function freeze(node: MutableNode) {
+function freeze(node: MutableNode): ZipTreeNode {
   let current = node;
   let label = node.name;
   while (current.path !== "" && current.entry === null && current.children.size === 1) {
@@ -55,11 +54,10 @@ function freeze(node: MutableNode) {
     children,
     fileCount:
       current.entry === null ? children.reduce((sum, child) => sum + child.fileCount, 0) : 1,
-  } satisfies ZipTreeNode;
+  };
 }
 
-export function buildZipTree(entries: ReadonlyArray<ZipEntry>): ReadonlyArray<ZipTreeNode>;
-export function buildZipTree(entries: ReadonlyArray<ZipEntry>) {
+export function buildZipTree(entries: ReadonlyArray<ZipEntry>): ReadonlyArray<ZipTreeNode> {
   const root: MutableNode = { path: "", name: "", entry: null, children: new Map() };
   for (const entry of entries) {
     const parts = entry.path.split("/").filter(Boolean);
@@ -80,7 +78,7 @@ export function buildZipTree(entries: ReadonlyArray<ZipEntry>) {
       current = child;
     });
   }
-  return freeze(root).children satisfies ReadonlyArray<ZipTreeNode>;
+  return freeze(root).children;
 }
 
 function flatten(
@@ -89,7 +87,7 @@ function flatten(
   depth: number,
   collapsed: ReadonlySet<string>,
   query: string,
-) {
+): boolean {
   if (node.entry) {
     if (query && !node.entry.path.toLowerCase().includes(query)) return false;
     output.push({ node, depth });
@@ -111,7 +109,7 @@ export function flattenZipTree(
   nodes: ReadonlyArray<ZipTreeNode>,
   collapsed: ReadonlySet<string>,
   query: string,
-) {
+): ReadonlyArray<ZipTreeRow> {
   const output: ZipTreeRow[] = [];
   const normalized = query.trim().toLowerCase();
   for (const node of nodes) flatten(output, node, 0, collapsed, normalized);

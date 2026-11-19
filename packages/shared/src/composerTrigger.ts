@@ -13,16 +13,16 @@ export interface ComposerTrigger {
   rangeEnd: number;
 }
 
-function composerFileLinkBasename(path: string) {
+function composerFileLinkBasename(path: string): string {
   const separatorIndex = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"));
   return separatorIndex >= 0 ? path.slice(separatorIndex + 1) : path;
 }
 
-function escapeMarkdownLinkLabel(label: string) {
+function escapeMarkdownLinkLabel(label: string): string {
   return label.replace(/[\\[\]*_]/g, "\\$&");
 }
 
-function encodeMarkdownLinkDestination(path: string) {
+function encodeMarkdownLinkDestination(path: string): string {
   return encodeURI(path)
     .replaceAll("(", "%28")
     .replaceAll(")", "%29")
@@ -31,21 +31,21 @@ function encodeMarkdownLinkDestination(path: string) {
     .replaceAll("\\", "%5C");
 }
 
-export function serializeComposerFileLink(path: string) {
+export function serializeComposerFileLink(path: string): string {
   const label = escapeMarkdownLinkLabel(composerFileLinkBasename(path));
   return `[${label}](${encodeMarkdownLinkDestination(path)})`;
 }
 
-function clampCursor(text: string, cursor: number) {
+function clampCursor(text: string, cursor: number): number {
   if (!Number.isFinite(cursor)) return text.length;
   return Math.max(0, Math.min(text.length, Math.floor(cursor)));
 }
 
-function isWhitespace(char: string) {
+function isWhitespace(char: string): boolean {
   return char === " " || char === "\n" || char === "\t" || char === "\r";
 }
 
-function tokenStartForCursor(text: string, cursor: number) {
+function tokenStartForCursor(text: string, cursor: number): number {
   let index = cursor - 1;
   while (index >= 0 && !isWhitespace(text[index] ?? "")) {
     index -= 1;
@@ -53,7 +53,7 @@ function tokenStartForCursor(text: string, cursor: number) {
   return index + 1;
 }
 
-function tokenEndForCursor(text: string, cursor: number) {
+function tokenEndForCursor(text: string, cursor: number): number {
   let index = cursor;
   while (index < text.length && !isWhitespace(text[index] ?? "")) {
     index += 1;
@@ -61,7 +61,7 @@ function tokenEndForCursor(text: string, cursor: number) {
   return index;
 }
 
-function isCurrencyAmountQuery(query: string) {
+function isCurrencyAmountQuery(query: string): boolean {
   return /^\.?[0-9][0-9,._]*(?:[kKmMbBtT]|[eE][0-9]+)?[.,;:!?)]*$/.test(query);
 }
 
@@ -82,44 +82,43 @@ function detectComposerPullRequestTrigger(token: string, cursor: number) {
  * Detect an active trigger (@path, #pull-request, $skill, /command at prompt
  * start, /skill elsewhere) at the cursor position.
  */
-export function detectComposerTrigger(text: string, cursorInput: number) {
+export function detectComposerTrigger(text: string, cursorInput: number): ComposerTrigger | null {
   const cursor = clampCursor(text, cursorInput);
   const tokenStart = tokenStartForCursor(text, cursor);
   const token = text.slice(tokenStart, cursor);
   if (token.startsWith("/")) {
     const word = text.slice(tokenStart, tokenEndForCursor(text, cursor));
-    if (/[/\\]/.test(word.slice(1))) return null satisfies ComposerTrigger | null;
+    if (/[/\\]/.test(word.slice(1))) return null;
     if (Array.from(text.slice(0, tokenStart)).every(isWhitespace)) {
       return {
         kind: "slash-command",
         query: token.slice(1),
         rangeStart: tokenStart,
         rangeEnd: cursor,
-      } satisfies ComposerTrigger | null;
+      };
     }
     return {
       kind: "slash-skill",
       query: token.slice(1),
       rangeStart: tokenStart,
       rangeEnd: cursor,
-    } satisfies ComposerTrigger | null;
+    };
   }
 
   const pullRequestTrigger = detectComposerPullRequestTrigger(token, cursor);
-  if (pullRequestTrigger) return pullRequestTrigger satisfies ComposerTrigger | null;
+  if (pullRequestTrigger) return pullRequestTrigger;
   const skillPrefix = /^\p{Sc}/u.exec(token);
   if (skillPrefix) {
-    if (isCurrencyAmountQuery(token.slice(skillPrefix[0].length)))
-      return null satisfies ComposerTrigger | null;
+    if (isCurrencyAmountQuery(token.slice(skillPrefix[0].length))) return null;
     return {
       kind: "skill",
       query: token.slice(skillPrefix[0].length),
       rangeStart: tokenStart,
       rangeEnd: cursor,
-    } satisfies ComposerTrigger | null;
+    };
   }
   if (!token.startsWith("@")) {
-    return null satisfies ComposerTrigger | null;
+    return null;
   }
 
   return {
@@ -127,7 +126,7 @@ export function detectComposerTrigger(text: string, cursorInput: number) {
     query: token.slice(1),
     rangeStart: tokenStart,
     rangeEnd: cursor,
-  } satisfies ComposerTrigger | null;
+  };
 }
 
 /**
@@ -138,7 +137,7 @@ export function extendReplacementRangeForTrailingSpace(
   text: string,
   rangeEnd: number,
   replacement: string,
-) {
+): number {
   if (!replacement.endsWith(" ")) {
     return rangeEnd;
   }
@@ -146,7 +145,7 @@ export function extendReplacementRangeForTrailingSpace(
 }
 
 /** `/side [prompt]`, or its alias `/btw [prompt]`, as the whole message. */
-export function parseSideChatCommand(text: string) {
+export function parseSideChatCommand(text: string): { prompt: string } | null {
   const match = /^\/(?:side|btw)(?:\s+([\s\S]*))?$/i.exec(text.trim());
   return match ? { prompt: match[1]?.trim() ?? "" } : null;
 }
@@ -156,7 +155,7 @@ export function replaceTextRange(
   rangeStart: number,
   rangeEnd: number,
   replacement: string,
-) {
+): { text: string; cursor: number } {
   const safeStart = Math.max(0, Math.min(text.length, rangeStart));
   const safeEnd = Math.max(safeStart, Math.min(text.length, rangeEnd));
   const nextText = `${text.slice(0, safeStart)}${replacement}${text.slice(safeEnd)}`;
@@ -164,6 +163,6 @@ export function replaceTextRange(
 }
 
 /** `/clear` as the whole message arms a fresh session instead of sending. */
-export function isClearComposerCommand(text: string) {
+export function isClearComposerCommand(text: string): boolean {
   return /^\/clear\s*$/i.test(text.trim());
 }

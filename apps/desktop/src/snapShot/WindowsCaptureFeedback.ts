@@ -3,7 +3,7 @@ import * as Electron from "electron";
 const WINDOW_ANIMATIONS_DISABLED = "wm-window-animations-disabled";
 
 /** Show capture feedback without Aura's extra 200 ms fade/scale on transparent windows. */
-export function showWindowsCaptureOverlay(window: Electron.BaseWindow) {
+export function showWindowsCaptureOverlay(window: Electron.BaseWindow): void {
   const alreadyDisabled = Electron.app.commandLine.hasSwitch(WINDOW_ANIMATIONS_DISABLED);
   if (!alreadyDisabled) Electron.app.commandLine.appendSwitch(WINDOW_ANIMATIONS_DISABLED);
   try {

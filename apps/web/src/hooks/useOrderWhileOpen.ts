@@ -5,7 +5,7 @@ export function keepOrder<T>(
   items: ReadonlyArray<T>,
   order: ReadonlyArray<string> | null,
   key: (item: T) => string,
-) {
+): T[] {
   if (order === null) return [...items];
   const rank = new Map(order.map((itemKey, index) => [itemKey, index]));
   return items
@@ -15,7 +15,10 @@ export function keepOrder<T>(
 }
 
 /** `order` with keys it has not seen added at the end, or `order` itself when nothing is new. */
-export function withArrivedKeys(order: ReadonlyArray<string> | null, keys: ReadonlyArray<string>) {
+export function withArrivedKeys(
+  order: ReadonlyArray<string> | null,
+  keys: ReadonlyArray<string>,
+): ReadonlyArray<string> | null {
   const known = new Set(order);
   const arrived = keys.filter((itemKey) => !known.has(itemKey));
   return arrived.length === 0 ? order : [...(order ?? []), ...arrived];
@@ -30,7 +33,7 @@ export function useOrderWhileOpen<T>(
   items: ReadonlyArray<T>,
   key: (item: T) => string,
   open: boolean,
-) {
+): T[] {
   const [order, setOrder] = useState<ReadonlyArray<string> | null>(null);
   if (!open) {
     if (order !== null) setOrder(null);

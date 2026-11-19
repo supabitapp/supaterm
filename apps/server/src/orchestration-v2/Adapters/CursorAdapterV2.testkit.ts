@@ -52,7 +52,7 @@ export class CursorReplayTranscriptDecodeError extends Schema.TaggedError<Cursor
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Failed to decode Cursor Agent SDK replay transcript for scenario ${this.scenario ?? "<unknown>"}.`;
   }
 }
@@ -65,7 +65,7 @@ export class CursorReplayExhaustedError extends Schema.TaggedError<CursorReplayE
     actual: Schema.Unknown,
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Cursor Agent SDK replay transcript exhausted at cursor ${this.cursor} in scenario ${this.scenario}.`;
   }
 }
@@ -79,7 +79,7 @@ export class CursorReplayFrameMismatchError extends Schema.TaggedError<CursorRep
     actual: Schema.Unknown,
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Cursor Agent SDK replay frame mismatch at cursor ${this.cursor} in scenario ${this.scenario}.`;
   }
 }
@@ -92,7 +92,7 @@ export class CursorReplayIncompleteError extends Schema.TaggedError<CursorReplay
     remaining: Schema.Number,
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Cursor Agent SDK replay ended with ${this.remaining} unconsumed entries in scenario ${this.scenario}.`;
   }
 }
@@ -105,7 +105,7 @@ export class CursorReplayRuntimeError extends Schema.TaggedError<CursorReplayRun
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Cursor Agent SDK replay failed at cursor ${this.cursor} in scenario ${this.scenario}.`;
   }
 }
@@ -133,22 +133,21 @@ type CursorOutgoingFrame = Extract<
   { readonly direction: "outgoing" }
 >["payload"];
 
-function stableStringify(value: unknown): string;
-function stableStringify(value: unknown) {
+function stableStringify(value: unknown): string {
   if (Array.isArray(value)) {
-    return `[${value.map(stableStringify).join(",")}]` satisfies string;
+    return `[${value.map(stableStringify).join(",")}]`;
   }
   if (typeof value === "object" && value !== null) {
     const record = value as Record<string, unknown>;
     return `{${Object.keys(record)
       .toSorted()
       .map((key) => `${JSON.stringify(key)}:${stableStringify(record[key])}`)
-      .join(",")}}` satisfies string;
+      .join(",")}}`;
   }
-  return JSON.stringify(value) satisfies string;
+  return JSON.stringify(value);
 }
 
-function normalizeContextHandoffText(value: string) {
+function normalizeContextHandoffText(value: string): string {
   if (!value.startsWith("Context handoff (")) {
     return value;
   }
@@ -161,27 +160,29 @@ function normalizeContextHandoffText(value: string) {
   return `${value.slice(0, headerEnd + 2)}<dynamic-summary>${value.slice(markerIndex)}`;
 }
 
-function normalizeFrame(value: unknown): unknown;
-function normalizeFrame(value: unknown) {
+function normalizeFrame(value: unknown): unknown {
   if (typeof value === "string") {
-    return normalizeContextHandoffText(value) satisfies unknown;
+    return normalizeContextHandoffText(value);
   }
   if (Array.isArray(value)) {
-    return value.map(normalizeFrame) satisfies unknown;
+    return value.map(normalizeFrame);
   }
   if (typeof value !== "object" || value === null) {
-    return value satisfies unknown;
+    return value;
   }
   return Object.fromEntries(
     Object.entries(value).map(([key, entry]) => [key, normalizeFrame(entry)]),
-  ) satisfies unknown;
+  );
 }
 
-function sameFrame(left: unknown, right: unknown) {
+function sameFrame(left: unknown, right: unknown): boolean {
   return stableStringify(normalizeFrame(left)) === stableStringify(normalizeFrame(right));
 }
 
-function makeSignal() {
+function makeSignal(): {
+  readonly promise: Promise<void>;
+  readonly resolve: () => void;
+} {
   let resolve = () => {};
   const promise = new Promise<void>((onResolve) => {
     resolve = onResolve;
@@ -193,7 +194,7 @@ function replayRunnerError(
   transcript: CursorAgentSdkReplayTranscript,
   cause: unknown,
   method: string,
-) {
+): CursorAgentSdk.CursorAgentSdkRunnerError {
   if (isCursorAgentSdkRunnerError(cause)) {
     return cause;
   }
@@ -211,14 +212,13 @@ function replayRunnerError(
 
 export function makeCursorAgentSdkReplayRunner(
   transcript: CursorAgentSdkReplayTranscript,
-): CursorAgentSdk.CursorAgentSdkRunner["Service"];
-export function makeCursorAgentSdkReplayRunner(transcript: CursorAgentSdkReplayTranscript) {
+): CursorAgentSdk.CursorAgentSdkRunner["Service"] {
   const steerAcks = new Map<string, Deferred.Deferred<SteerAckOutcome>>();
   let cursor = 0;
   let failure: CursorAgentSdkReplayError | null = null;
   let cursorAdvanced = makeSignal();
 
-  const recordFailure = <Error extends CursorAgentSdkReplayError>(error: Error) => {
+  const recordFailure = <Error extends CursorAgentSdkReplayError>(error: Error): Error => {
     failure = error;
     cursorAdvanced.resolve();
     return error;
@@ -262,7 +262,9 @@ export function makeCursorAgentSdkReplayRunner(transcript: CursorAgentSdkReplayT
     advance();
   };
 
-  const consumeInbound = <Type extends CursorProtocolPayload["type"]>(type: Type) => {
+  const consumeInbound = <Type extends CursorProtocolPayload["type"]>(
+    type: Type,
+  ): Extract<CursorProtocolPayload, { readonly type: Type }> => {
     const entry = transcript.entries[cursor];
     if (
       entry === undefined ||
@@ -288,7 +290,7 @@ export function makeCursorAgentSdkReplayRunner(transcript: CursorAgentSdkReplayT
   const waitForRun = <Error>(
     runId: string,
     sendInput: CursorAgentSdk.CursorAgentSdkSendInput<Error>,
-  ) =>
+  ): Effect.Effect<RunResult, CursorAgentSdkReplayError> =>
     Effect.gen(function* () {
       while (true) {
         if (failure !== null) {
@@ -513,7 +515,7 @@ export function makeCursorAgentSdkReplayRunner(transcript: CursorAgentSdkReplayT
       },
       catch: (cause) => replayRunnerError(transcript, cause, "replay.assertComplete"),
     }),
-  } satisfies CursorAgentSdk.CursorAgentSdkRunner["Service"];
+  };
 }
 
 function layerCursorAgentSdkReplay(
@@ -522,7 +524,7 @@ function layerCursorAgentSdkReplay(
     readonly runner?: CursorAgentSdk.CursorAgentSdkRunner["Service"];
     readonly assertCompleteOnFinalize?: boolean;
   },
-) {
+): Layer.Layer<CursorAgentSdk.CursorAgentSdkRunner> {
   const runner = options?.runner ?? makeCursorAgentSdkReplayRunner(transcript);
   return Layer.effect(
     CursorAgentSdk.CursorAgentSdkRunner,
@@ -573,7 +575,11 @@ export function layer(
   );
 }
 
-function metadataFromTranscript(transcript: ProviderReplayTranscript) {
+function metadataFromTranscript(transcript: ProviderReplayTranscript): {
+  readonly provider?: string;
+  readonly protocol?: string;
+  readonly scenario?: string;
+} {
   return {
     provider: transcript.provider,
     protocol: transcript.protocol,
@@ -599,7 +605,10 @@ export const CursorOrchestratorReplayHarness: OrchestratorV2ProviderReplayHarnes
   makeProviderAdapterRegistryLayer: (transcript) => layer(transcript),
 };
 
-function sanitizeReplayText(text: string, replacements: ReadonlyArray<readonly [string, string]>) {
+function sanitizeReplayText(
+  text: string,
+  replacements: ReadonlyArray<readonly [string, string]>,
+): string {
   return replacements.reduce(
     (current, [from, to]) => (from.length === 0 ? current : current.replaceAll(from, to)),
     text,
@@ -609,29 +618,25 @@ function sanitizeReplayText(text: string, replacements: ReadonlyArray<readonly [
 function sanitizeReplayValue(
   value: unknown,
   replacements: ReadonlyArray<readonly [string, string]>,
-): unknown;
-function sanitizeReplayValue(
-  value: unknown,
-  replacements: ReadonlyArray<readonly [string, string]>,
-) {
+): unknown {
   if (typeof value === "string") {
-    return sanitizeReplayText(value, replacements) satisfies unknown;
+    return sanitizeReplayText(value, replacements);
   }
   if (Array.isArray(value)) {
-    return value.map((entry) => sanitizeReplayValue(entry, replacements)) satisfies unknown;
+    return value.map((entry) => sanitizeReplayValue(entry, replacements));
   }
   if (typeof value !== "object" || value === null) {
-    return value satisfies unknown;
+    return value;
   }
   return Object.fromEntries(
     Object.entries(value).map(([key, entry]) => [
       sanitizeReplayText(key, replacements),
       sanitizeReplayValue(entry, replacements),
     ]),
-  ) satisfies unknown;
+  );
 }
 
-function serializeCursorRecordingError(cause: unknown) {
+function serializeCursorRecordingError(cause: unknown): unknown {
   if (typeof cause !== "object" || cause === null) {
     return cause;
   }
@@ -648,7 +653,7 @@ function recordingRuntimePolicy(input: {
   readonly cwd: string;
   readonly interactionMode: "default" | "plan";
   readonly override?: Pick<RuntimePolicyV2Override, "approvalPolicy" | "sandboxPolicy">;
-}) {
+}): ProviderAdapter.ProviderAdapterV2RuntimePolicy {
   return {
     runtimeMode: "full-access",
     interactionMode: input.interactionMode,
@@ -658,7 +663,7 @@ function recordingRuntimePolicy(input: {
       type: "dangerFullAccess",
       networkAccess: true,
     },
-  } satisfies ProviderAdapter.ProviderAdapterV2RuntimePolicy;
+  };
 }
 
 class CursorReplayRecordingError extends Schema.TaggedError<CursorReplayRecordingError>()(
@@ -668,7 +673,7 @@ class CursorReplayRecordingError extends Schema.TaggedError<CursorReplayRecordin
     reason: Schema.String,
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Cursor Agent SDK replay recording failed in scenario ${this.scenario}: ${this.reason}`;
   }
 }
@@ -749,7 +754,7 @@ export const recordCursorAgentSdkReplayTranscript = Effect.fn(
   let runsStarted = 0;
   let resuming = false;
 
-  const frameLabel = (frame: CursorProtocolPayload) => {
+  const frameLabel = (frame: CursorProtocolPayload): string => {
     const beforeNextPrompt = `before-prompt-${runsStarted + 1}`;
     switch (frame.type) {
       case "agent.open":
@@ -767,7 +772,7 @@ export const recordCursorAgentSdkReplayTranscript = Effect.fn(
     }
   };
 
-  const transcriptFrame = (frame: CursorProtocolPayload) => {
+  const transcriptFrame = (frame: CursorProtocolPayload): CursorProtocolPayload => {
     switch (frame.type) {
       case "run.start":
         return { ...frame, message: input.transcriptPrompts?.[runsStarted - 1] ?? frame.message };

@@ -22,7 +22,7 @@ export class RotatingFileSinkConfigurationError extends Schema.TaggedError<Rotat
     minimum: Schema.Number,
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `${this.option} must be >= ${this.minimum} (received ${this.received})`;
   }
 }
@@ -35,7 +35,7 @@ export class RotatingFileSinkError extends Schema.TaggedError<RotatingFileSinkEr
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Failed to ${this.operation} rotating log file ${this.filePath}`;
   }
 }
@@ -86,7 +86,7 @@ export class RotatingFileSink {
     this.currentSize = this.readCurrentSize();
   }
 
-  write(chunk: string | Buffer) {
+  write(chunk: string | Buffer): void {
     const buffer = typeof chunk === "string" ? Buffer.from(chunk) : chunk;
     if (buffer.length === 0) return;
 
@@ -112,7 +112,7 @@ export class RotatingFileSink {
     }
   }
 
-  private rotate() {
+  private rotate(): void {
     try {
       const oldest = this.withSuffix(this.maxFiles);
       if (NodeFS.existsSync(oldest)) {
@@ -144,7 +144,7 @@ export class RotatingFileSink {
     }
   }
 
-  private pruneOverflowBackups() {
+  private pruneOverflowBackups(): void {
     try {
       const dir = NodePath.dirname(this.filePath);
       const baseName = NodePath.basename(this.filePath);
@@ -167,7 +167,7 @@ export class RotatingFileSink {
     }
   }
 
-  private readCurrentSize() {
+  private readCurrentSize(): number {
     try {
       return NodeFS.statSync(this.filePath).size;
     } catch (cause) {
@@ -182,7 +182,7 @@ export class RotatingFileSink {
     }
   }
 
-  private withSuffix(index: number) {
+  private withSuffix(index: number): string {
     return `${this.filePath}.${index}`;
   }
 }

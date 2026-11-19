@@ -2,7 +2,7 @@ import { SourceControlProviderKind } from "@supaterm/contracts";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
-import { SourceControlProviderError } from "@supaterm/contracts";
+import { SourceControlProviderError, type ChangeRequest } from "@supaterm/contracts";
 
 import * as BitbucketApi from "./BitbucketApi.ts";
 import type { NormalizedBitbucketPullRequestRecord } from "./bitbucketPullRequests.ts";
@@ -14,7 +14,7 @@ const isRepositoryLocatorError = Schema.is(BitbucketApi.BitbucketRepositoryLocat
 const repositoryDetail = (error: BitbucketApi.BitbucketApiError, fallback: string) =>
   isRepositoryLocatorError(error) ? error.detail : fallback;
 
-function toChangeRequest(summary: NormalizedBitbucketPullRequestRecord) {
+function toChangeRequest(summary: NormalizedBitbucketPullRequestRecord): ChangeRequest {
   return {
     provider: SourceControlProviderKind.make("bitbucket"),
     number: summary.number,

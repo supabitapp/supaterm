@@ -44,7 +44,7 @@ export class OpenCode2SilentStreamError extends Schema.TaggedError<OpenCode2Sile
   "OpenCode2SilentStreamError",
   {},
 ) {
-  override get message() {
+  override get message(): string {
     return "The OpenCode server stopped sending events.";
   }
 }
@@ -348,7 +348,7 @@ export const paginate = <Input extends { readonly cursor?: unknown }, Item, E, R
     E,
     R
   >,
-) =>
+): Stream.Stream<Item, E, R> =>
   Stream.paginate(input, (request) =>
     list(request).pipe(
       Effect.map(

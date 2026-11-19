@@ -7,21 +7,19 @@ function selectDescriptor(
   id: string,
   options: ReadonlyArray<{ id: string; label: string; isDefault?: boolean }>,
   currentValue: string,
-) {
-  return { id, label: id, type: "select", options: [...options], currentValue } satisfies Extract<
-    ProviderOptionDescriptor,
-    { type: "select" }
-  >;
+): Extract<ProviderOptionDescriptor, { type: "select" }> {
+  return { id, label: id, type: "select", options: [...options], currentValue };
 }
 
-function fastModeDescriptor(currentValue: boolean) {
-  return { id: "fastMode", label: "Fast Mode", type: "boolean", currentValue } satisfies Extract<
-    ProviderOptionDescriptor,
-    { type: "boolean" }
-  >;
+function fastModeDescriptor(
+  currentValue: boolean,
+): Extract<ProviderOptionDescriptor, { type: "boolean" }> {
+  return { id: "fastMode", label: "Fast Mode", type: "boolean", currentValue };
 }
 
-function serviceTierDescriptor(currentValue: "default" | "priority" | "ultrafast" | "flex") {
+function serviceTierDescriptor(
+  currentValue: "default" | "priority" | "ultrafast" | "flex",
+): Extract<ProviderOptionDescriptor, { type: "select" }> {
   return {
     id: "serviceTier",
     label: "Service Tier",
@@ -33,7 +31,7 @@ function serviceTierDescriptor(currentValue: "default" | "priority" | "ultrafast
       { id: "flex", label: "Flex" },
     ],
     currentValue,
-  } satisfies Extract<ProviderOptionDescriptor, { type: "select" }>;
+  };
 }
 
 const EFFORT = selectDescriptor(
@@ -112,13 +110,12 @@ describe("buildTraitsTriggerLabel", () => {
   });
 
   it("names the Ultracode toggle beside any effort only while it is on", () => {
-    const ultracode = (currentValue: boolean) =>
-      ({
-        id: "ultracode",
-        label: "Ultracode",
-        type: "boolean",
-        currentValue,
-      }) satisfies ProviderOptionDescriptor;
+    const ultracode = (currentValue: boolean): ProviderOptionDescriptor => ({
+      id: "ultracode",
+      label: "Ultracode",
+      type: "boolean",
+      currentValue,
+    });
     expect(label([EFFORT, ultracode(true)])).toBe("High · Ultracode");
     expect(label([EFFORT, ultracode(false)])).toBe("High");
   });

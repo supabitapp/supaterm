@@ -25,14 +25,14 @@ const MAX_BUFFERED_CHARS = 64 * 1024;
 
 const textEncoder = new TextEncoder();
 
-export function escapeNonAscii(json: string) {
+export function escapeNonAscii(json: string): string {
   return json.replace(
     /[\u0080-\uffff]/g,
     (character) => `\\u${character.charCodeAt(0).toString(16).padStart(4, "0")}`,
   );
 }
 
-export function nextRequestId(previous: number) {
+export function nextRequestId(previous: number): number {
   return (previous + 1) % REQUEST_ID_RANGE;
 }
 
@@ -40,13 +40,13 @@ export function encodeRequest(request: {
   readonly method: string;
   readonly params?: unknown;
   readonly id: number;
-}) {
+}): string {
   return escapeNonAscii(
     JSON.stringify({ method: request.method, params: request.params ?? null, id: request.id }),
   );
 }
 
-export function frameMessage(message: string) {
+export function frameMessage(message: string): ReadonlyArray<Uint8Array> {
   const bytes = textEncoder.encode(message);
   const reports: Array<Uint8Array> = [];
   for (let offset = 0; offset < bytes.length; offset += MAX_FRAGMENT_BYTES) {
@@ -73,21 +73,15 @@ export type CodexMicroReportEvent =
   | { readonly type: "message"; readonly message: CodexMicroIncomingMessage }
   | { readonly type: "debug"; readonly line: string };
 
-function classifyMessage(value: unknown) {
-  if (!Predicate.isObject(value)) return undefined satisfies CodexMicroIncomingMessage | undefined;
+function classifyMessage(value: unknown): CodexMicroIncomingMessage | undefined {
+  if (!Predicate.isObject(value)) return undefined;
   const id = value.id ?? value.i;
   if (Predicate.isNumber(id) || Predicate.isString(id)) {
-    return { type: "response", id: String(id), body: value } satisfies
-      | CodexMicroIncomingMessage
-      | undefined;
+    return { type: "response", id: String(id), body: value };
   }
   const method = value.method ?? value.m;
-  if (!Predicate.isString(method)) return undefined satisfies CodexMicroIncomingMessage | undefined;
-  return {
-    type: "notification",
-    method,
-    params: "params" in value ? value.params : value.p,
-  } satisfies CodexMicroIncomingMessage | undefined;
+  if (!Predicate.isString(method)) return undefined;
+  return { type: "notification", method, params: "params" in value ? value.params : value.p };
 }
 
 /** Reassembles device reports into debug lines and JSON-RPC messages. */
@@ -95,7 +89,7 @@ export class CodexMicroReportDecoder {
   private readonly channels = new Map<number, { decoder: TextDecoder; text: string }>();
   private pendingJson: string | null = null;
 
-  push(report: Uint8Array) {
+  push(report: Uint8Array): ReadonlyArray<CodexMicroReportEvent> {
     if (report.length < REPORT_HEADER_SIZE) return [];
     const channel = report[1]!;
     if (channel !== DEBUG_CHANNEL && channel !== RPC_CHANNEL) return [];
@@ -129,11 +123,11 @@ export class CodexMicroReportDecoder {
     return events;
   }
 
-  private assembleJson(line: string) {
+  private assembleJson(line: string): CodexMicroIncomingMessage | undefined {
     let candidate: string;
     if (this.pendingJson === null) {
       const start = line.indexOf("{");
-      if (start < 0) return undefined satisfies CodexMicroIncomingMessage | undefined;
+      if (start < 0) return undefined;
       candidate = line.slice(start);
     } else {
       candidate = `${this.pendingJson}\n${line}`;
@@ -143,10 +137,10 @@ export class CodexMicroReportDecoder {
       parsed = JSON.parse(candidate);
     } catch {
       this.pendingJson = candidate.length > MAX_BUFFERED_CHARS ? null : candidate;
-      return undefined satisfies CodexMicroIncomingMessage | undefined;
+      return undefined;
     }
     this.pendingJson = null;
-    return classifyMessage(parsed) satisfies CodexMicroIncomingMessage | undefined;
+    return classifyMessage(parsed);
   }
 }
 
@@ -154,21 +148,21 @@ export type CodexMicroResponse =
   | { readonly type: "result"; readonly result: unknown }
   | { readonly type: "error"; readonly code: number };
 
-export function parseResponseBody(body: { readonly [key: string]: unknown }) {
+export function parseResponseBody(body: {
+  readonly [key: string]: unknown;
+}): CodexMicroResponse | undefined {
   const hasResult = Object.hasOwn(body, "result");
-  if (hasResult === Object.hasOwn(body, "error"))
-    return undefined satisfies CodexMicroResponse | undefined;
-  if (hasResult)
-    return { type: "result", result: body.result } satisfies CodexMicroResponse | undefined;
+  if (hasResult === Object.hasOwn(body, "error")) return undefined;
+  if (hasResult) return { type: "result", result: body.result };
   const error = body.error;
   if (
     !Predicate.isObject(error) ||
     !Predicate.isNumber(error.code) ||
     !Predicate.isString(error.message)
   ) {
-    return undefined satisfies CodexMicroResponse | undefined;
+    return undefined;
   }
-  return { type: "error", code: error.code } satisfies CodexMicroResponse | undefined;
+  return { type: "error", code: error.code };
 }
 
 const DeviceStatusResult = Schema.Struct({
@@ -199,11 +193,14 @@ export const KEY_ACT_ROTATE = 2;
 export const isAgentKey = Schema.is(CodexMicroAgentKey);
 const isActionSlot = Schema.is(CodexMicroActionSlot);
 
-export function agentKeySlotIndex(key: CodexMicroAgentKey) {
+export function agentKeySlotIndex(key: CodexMicroAgentKey): number {
   return CODEX_MICRO_AGENT_KEYS.indexOf(key);
 }
 
-export function actionSlotFromWire(key: string, separateMicrophoneKeys: boolean) {
+export function actionSlotFromWire(
+  key: string,
+  separateMicrophoneKeys: boolean,
+): CodexMicroActionSlot | undefined {
   if (!isActionSlot(key) || key === "ACT10_ACT11") return undefined;
   if (separateMicrophoneKeys) return key;
   if (key === "ACT11") return undefined;
@@ -213,7 +210,7 @@ export function actionSlotFromWire(key: string, separateMicrophoneKeys: boolean)
 const JOYSTICK_DIRECTION_DISTANCE = 0.5;
 const JOYSTICK_REARM_DISTANCE = 0.25;
 
-export function joystickSector(angle: number) {
+export function joystickSector(angle: number): CodexMicroJoystickDirection {
   if (angle >= 0.625 && angle < 0.875) return "up";
   if (angle >= 0.125 && angle < 0.375) return "down";
   if (angle >= 0.375 && angle < 0.625) return "left";
@@ -224,24 +221,14 @@ export function joystickSector(angle: number) {
 export function trackJoystick(
   last: CodexMicroJoystickDirection | null,
   sample: { readonly angle: number; readonly distance: number },
-) {
-  if (sample.distance < JOYSTICK_REARM_DISTANCE)
-    return { last: null, emit: null } satisfies {
-      readonly last: CodexMicroJoystickDirection | null;
-      readonly emit: CodexMicroJoystickDirection | null;
-    };
-  if (sample.distance < JOYSTICK_DIRECTION_DISTANCE)
-    return { last, emit: null } satisfies {
-      readonly last: CodexMicroJoystickDirection | null;
-      readonly emit: CodexMicroJoystickDirection | null;
-    };
+): {
+  readonly last: CodexMicroJoystickDirection | null;
+  readonly emit: CodexMicroJoystickDirection | null;
+} {
+  if (sample.distance < JOYSTICK_REARM_DISTANCE) return { last: null, emit: null };
+  if (sample.distance < JOYSTICK_DIRECTION_DISTANCE) return { last, emit: null };
   const direction = joystickSector(sample.angle);
-  return (
-    direction === last ? { last, emit: null } : { last: direction, emit: direction }
-  ) satisfies {
-    readonly last: CodexMicroJoystickDirection | null;
-    readonly emit: CodexMicroJoystickDirection | null;
-  };
+  return direction === last ? { last, emit: null } : { last: direction, emit: direction };
 }
 
 const EFFECT_OFF = 0;
@@ -280,8 +267,12 @@ export interface CodexMicroLightingPayload {
 
 const ZONE_OFF: CodexMicroZoneLighting = { e: EFFECT_OFF, b: 0, s: 0, m: 0, c: 0 };
 
-const zone = (effect: number, color: number, brightness: number, speed = 0) =>
-  ({ e: effect, b: brightness, s: speed, m: 0, c: color }) satisfies CodexMicroZoneLighting;
+const zone = (
+  effect: number,
+  color: number,
+  brightness: number,
+  speed = 0,
+): CodexMicroZoneLighting => ({ e: effect, b: brightness, s: speed, m: 0, c: color });
 
 export function selectedLightingSlot(model: CodexMicroLightingModel) {
   const index = model.slots.findIndex((slot) => slot.selected && slot.status !== "off");
@@ -291,11 +282,11 @@ export function selectedLightingSlot(model: CodexMicroLightingModel) {
 export function serializeLighting(
   model: CodexMicroLightingModel,
   options: { readonly brightness: number; readonly highlight: boolean; readonly dimmed: boolean },
-) {
+): CodexMicroLightingPayload {
   const brightness = Math.min(1, Math.max(0, options.brightness));
-  const thstatus = model.slots.map((slot, id) => {
+  const thstatus = model.slots.map((slot, id): CodexMicroSlotLighting => {
     if (options.dimmed || slot.status === "off") {
-      return { id, c: 0, b: 0, e: EFFECT_OFF, s: 0, sk: 0, sa: 0 } satisfies CodexMicroSlotLighting;
+      return { id, c: 0, b: 0, e: EFFECT_OFF, s: 0, sk: 0, sa: 0 };
     }
     return {
       id,
@@ -305,13 +296,9 @@ export function serializeLighting(
       s: slot.selected ? ANIMATION_SPEED : 0,
       sk: 0,
       sa: 0,
-    } satisfies CodexMicroSlotLighting;
+    };
   });
-  if (options.dimmed)
-    return {
-      rgbcfg: { ambient: ZONE_OFF, keys: ZONE_OFF },
-      thstatus,
-    } satisfies CodexMicroLightingPayload;
+  if (options.dimmed) return { rgbcfg: { ambient: ZONE_OFF, keys: ZONE_OFF }, thstatus };
 
   const selected = selectedLightingSlot(model);
   const selectedStatus = selected?.slot.status;
@@ -331,7 +318,7 @@ export function serializeLighting(
   } else if (model.voiceActivity === "transcribing") {
     ambient = zone(EFFECT_SOLID, VOICE_COLOR, brightness);
   }
-  return { rgbcfg: { ambient, keys }, thstatus } satisfies CodexMicroLightingPayload;
+  return { rgbcfg: { ambient, keys }, thstatus };
 }
 
 export const EMPTY_LIGHTING_MODEL: CodexMicroLightingModel = {

@@ -69,7 +69,7 @@ async function postAttachmentBytes(
   url: string,
   attachment: typeof OutboxAttachment.Type,
   signal: AbortSignal,
-) {
+): Promise<void> {
   let response: Response;
   try {
     response = await fetch(url, {

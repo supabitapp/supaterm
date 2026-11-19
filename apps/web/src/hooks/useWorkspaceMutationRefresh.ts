@@ -1,6 +1,9 @@
 import { useEffect, useRef } from "react";
 
-function workspaceMutationRefreshToken(resourceKey: string, mutationId: string | null) {
+function workspaceMutationRefreshToken(
+  resourceKey: string,
+  mutationId: string | null,
+): string | null {
   return mutationId === null ? null : `${resourceKey}\u0000${mutationId}`;
 }
 
@@ -9,7 +12,7 @@ export function useWorkspaceMutationRefresh(input: {
   readonly mutationId: string | null;
   readonly refresh: () => void;
   readonly resourceKey: string;
-}) {
+}): void {
   const { enabled = true, mutationId, refresh, resourceKey } = input;
   const handledTokenRef = useRef<string | null>(null);
 

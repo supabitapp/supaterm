@@ -33,10 +33,23 @@ export function optimisticFileAtom(
 
 const unsavedFileMounts = new Map<ReturnType<typeof optimisticFileAtom>, () => void>();
 
-function releaseUnsavedFile(atom: ReturnType<typeof optimisticFileAtom>) {
+function releaseUnsavedFile(atom: ReturnType<typeof optimisticFileAtom>): void {
   const unmount = unsavedFileMounts.get(atom);
   unsavedFileMounts.delete(atom);
   unmount?.();
+}
+
+interface ProjectQueryState<A> {
+  readonly data: A | null;
+  readonly error: string | null;
+  readonly isPending: boolean;
+  readonly refresh: () => void;
+}
+
+interface ProjectFileQueryState extends ProjectQueryState<ProjectReadFileResult> {
+  readonly readError: ProjectReadFileError | null;
+  readonly isNotFile: boolean;
+  readonly isFile: boolean;
 }
 
 function getProjectEntriesQueryAtom(
@@ -70,7 +83,7 @@ export function setProjectFileQueryData(
   cwd: string,
   relativePath: string,
   contents: string,
-) {
+): void {
   const atom = optimisticFileAtom(environmentId, cwd, relativePath);
   if (!unsavedFileMounts.has(atom)) {
     unsavedFileMounts.set(atom, appAtomRegistry.mount(atom));
@@ -90,7 +103,7 @@ export function getOptimisticProjectFileQueryData(
   environmentId: EnvironmentId,
   cwd: string,
   relativePath: string,
-) {
+): ProjectReadFileResult | null {
   return appAtomRegistry.get(optimisticFileAtom(environmentId, cwd, relativePath))?.data ?? null;
 }
 
@@ -98,7 +111,7 @@ export function getProjectFileContents(
   environmentId: EnvironmentId,
   cwd: string,
   relativePath: string,
-) {
+): string | undefined {
   const optimistic = getOptimisticProjectFileQueryData(environmentId, cwd, relativePath);
   if (optimistic) return optimistic.contents;
   const result = appAtomRegistry.get(getProjectFileQueryAtom(environmentId, cwd, relativePath));
@@ -110,7 +123,7 @@ export function getUnsavedProjectFileQueryData(
   environmentId: EnvironmentId,
   cwd: string,
   relativePath: string,
-) {
+): ProjectReadFileResult | null {
   const optimistic = appAtomRegistry.get(optimisticFileAtom(environmentId, cwd, relativePath));
   return !optimistic?.saved ? (optimistic?.data ?? null) : null;
 }
@@ -120,7 +133,7 @@ export function confirmProjectFileQueryData(
   cwd: string,
   relativePath: string,
   contents: string,
-) {
+): boolean {
   const atom = optimisticFileAtom(environmentId, cwd, relativePath);
   const optimisticFile = appAtomRegistry.get(atom);
   if (optimisticFile?.data.contents !== contents) return false;
@@ -141,7 +154,7 @@ export function resolveProjectFileQueryData(
   cwd: string,
   relativePath: string | null,
   data: ProjectReadFileResult | null,
-) {
+): ProjectReadFileResult | null {
   if (relativePath === null) return data;
   return appAtomRegistry.get(optimisticFileAtom(environmentId, cwd, relativePath))?.data ?? data;
 }
@@ -150,17 +163,17 @@ export function clearProjectFileQueryData(
   environmentId: EnvironmentId,
   cwd: string,
   relativePath: string,
-) {
+): void {
   const atom = optimisticFileAtom(environmentId, cwd, relativePath);
   appAtomRegistry.set(atom, null);
   releaseUnsavedFile(atom);
 }
 
-function failureCause<A>(result: AsyncResult.AsyncResult<A, unknown>) {
+function failureCause<A>(result: AsyncResult.AsyncResult<A, unknown>): unknown {
   return result._tag === "Failure" ? Cause.squash(result.cause) : null;
 }
 
-function errorMessage(cause: unknown) {
+function errorMessage(cause: unknown): string | null {
   if (cause === null) return null;
   return cause instanceof Error ? cause.message : "Workspace query failed.";
 }
@@ -173,7 +186,7 @@ export function useProjectEntriesQuery(
   cwd: string,
   directoryPath?: string,
   revision?: string | null,
-) {
+): ProjectQueryState<ProjectListEntriesResult> {
   const fileAccess = useFilesystemReadAccess(environmentId);
   const { canReadFiles } = fileAccess;
   const atom = canReadFiles
@@ -227,7 +240,7 @@ export function useProjectFileQuery(
   cwd: string,
   relativePath: string | null,
   enabled = true,
-) {
+): ProjectFileQueryState {
   const fileAccess = useFilesystemReadAccess(environmentId);
   const { canReadFiles } = fileAccess;
   const isQueryEnabled = enabled;

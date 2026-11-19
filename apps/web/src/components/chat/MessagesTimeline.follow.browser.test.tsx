@@ -36,7 +36,7 @@ type TimelineProps = ComponentProps<typeof MessagesTimeline>;
 
 let threadCount = 0;
 
-function baseProps() {
+function baseProps(): Omit<TimelineProps, "timelineEntries"> {
   threadCount += 1;
   return {
     isWorking: false,
@@ -65,7 +65,7 @@ function baseProps() {
     liveFollowEnabled: true,
     onIsAtEndChange: () => {},
     onJumpToPinnedMessage: () => {},
-  } satisfies Omit<TimelineProps, "timelineEntries">;
+  };
 }
 
 let fixtureScreen: Screen;

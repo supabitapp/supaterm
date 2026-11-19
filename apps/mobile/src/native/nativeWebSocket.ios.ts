@@ -61,14 +61,14 @@ export class Connection implements Socket.WebSocketLike {
     type: EventType,
     listener: (event: Socket.WebSocketEvent) => void,
     options?: { readonly once?: boolean },
-  ) {
+  ): void {
     const entries = this.#listeners.get(type) ?? [];
     if (entries.some((entry) => entry.listener === listener)) return;
     entries.push({ listener, once: options?.once === true });
     this.#listeners.set(type, entries);
   }
 
-  removeEventListener(type: EventType, listener: (event: Socket.WebSocketEvent) => void) {
+  removeEventListener(type: EventType, listener: (event: Socket.WebSocketEvent) => void): void {
     const entries = this.#listeners.get(type);
     if (entries === undefined) return;
     this.#listeners.set(
@@ -77,7 +77,7 @@ export class Connection implements Socket.WebSocketLike {
     );
   }
 
-  send(data: string | Uint8Array<ArrayBuffer>) {
+  send(data: string | Uint8Array<ArrayBuffer>): void {
     if (this.readyState === Connection.CONNECTING) {
       throw new Error("InvalidStateError: WebSocket is still connecting");
     }
@@ -89,29 +89,29 @@ export class Connection implements Socket.WebSocketLike {
     }
   }
 
-  close(code = 1000, reason = "") {
+  close(code = 1000, reason = ""): void {
     if (this.readyState >= Connection.CLOSING) return;
     this.readyState = Connection.CLOSING;
     this.#sockets.native.close(this.#id, code, reason);
   }
 
-  handleOpen(_event: NativeEvents["open"]) {
+  handleOpen(_event: NativeEvents["open"]): void {
     if (this.readyState !== Connection.CONNECTING) return;
     this.readyState = Connection.OPEN;
     this.#dispatch("open", { type: "open" });
   }
 
-  handleMessage(event: NativeEvents["message"]) {
+  handleMessage(event: NativeEvents["message"]): void {
     if (this.readyState !== Connection.OPEN) return;
     this.#dispatch("message", { type: "message", data: event.text ?? event.data });
   }
 
-  handleError(event: NativeEvents["error"]) {
+  handleError(event: NativeEvents["error"]): void {
     if (this.readyState === Connection.CLOSED) return;
     this.#dispatch("error", { type: "error", message: event.message });
   }
 
-  handleClose(event: NativeEvents["close"]) {
+  handleClose(event: NativeEvents["close"]): void {
     if (this.readyState === Connection.CLOSED) return;
     this.readyState = Connection.CLOSED;
     this.#sockets.unregister(this.#id);
@@ -123,7 +123,7 @@ export class Connection implements Socket.WebSocketLike {
     });
   }
 
-  #dispatch(type: EventType, event: Socket.WebSocketEvent & Record<string, unknown>) {
+  #dispatch(type: EventType, event: Socket.WebSocketEvent & Record<string, unknown>): void {
     const entries = this.#listeners.get(type);
     if (entries === undefined || entries.length === 0) return;
     this.#listeners.set(
@@ -150,15 +150,15 @@ export class Sockets {
     ];
   }
 
-  register(id: number, socket: Connection) {
+  register(id: number, socket: Connection): void {
     this.#open.set(id, socket);
   }
 
-  unregister(id: number) {
+  unregister(id: number): void {
     this.#open.delete(id);
   }
 
-  dispose() {
+  dispose(): void {
     for (const subscription of this.#subscriptions) subscription.remove();
     for (const socket of this.#open.values()) {
       socket.close(1001);
@@ -167,7 +167,7 @@ export class Sockets {
   }
 }
 
-function layerFromModule(native: NativeModule) {
+function layerFromModule(native: NativeModule): Layer.Layer<Socket.WebSocketConstructor> {
   return Layer.effect(
     Socket.WebSocketConstructor,
     Effect.map(

@@ -27,7 +27,7 @@ const FIRST_PAINT_ROWS = 24;
 
 function firstPaintGroups<Group extends { entries: ReadonlyArray<unknown> }>(
   groups: ReadonlyArray<Group>,
-) {
+): ReadonlyArray<Group> {
   let left = FIRST_PAINT_ROWS;
   return groups.flatMap((group) => {
     const entries = group.entries.slice(0, left);

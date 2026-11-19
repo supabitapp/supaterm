@@ -48,7 +48,7 @@ it.each(["GLIBC_PRIVATE", "GLIBC_ABI_UNKNOWN"])("rejects unhandled requirement %
   ).toThrow(name);
 });
 
-function elfFixture(machine: number, version: string) {
+function elfFixture(machine: number, version: string): Buffer {
   const strings = Buffer.from(`\0libc.so.6\0GLIBC_${version}\0`);
   const names = Buffer.from("\0.shstrtab\0.dynstr\0.gnu.version_r\0");
   const stringsOffset = 64;

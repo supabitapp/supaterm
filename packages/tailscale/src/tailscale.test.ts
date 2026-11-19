@@ -29,10 +29,10 @@ import {
 
 const encoder = new TextEncoder();
 
-function assertCarriesNoSecret(error: object, secret: string) {
+function assertCarriesNoSecret(error: object, secret: string): void {
   const seen = new WeakSet<object>();
 
-  const walk = (value: unknown, path: string) => {
+  const walk = (value: unknown, path: string): void => {
     if (typeof value === "string") {
       assert.notInclude(value, secret, `${path} leaked stderr`);
       return;

@@ -385,14 +385,13 @@ describe("applyShellStreamEvents", () => {
     sequence: number,
     thread: typeof v2ThreadShell,
     location: "active" | "archive" = "active",
-  ) => ({ kind: "thread.updated", sequence, location, thread }) satisfies ShellStreamEvent;
-  const remove = (sequence: number, thread: typeof v2ThreadShell) =>
-    ({
-      kind: "thread.removed",
-      sequence,
-      location: "active",
-      threadId: thread.id,
-    }) satisfies ShellStreamEvent;
+  ): ShellStreamEvent => ({ kind: "thread.updated", sequence, location, thread });
+  const remove = (sequence: number, thread: typeof v2ThreadShell): ShellStreamEvent => ({
+    kind: "thread.removed",
+    sequence,
+    location: "active",
+    threadId: thread.id,
+  });
 
   it("matches sequential mixed deltas, including remove/reinsert order and stale events", () => {
     const otherProject = { ...v2Project, id: ProjectId.make("other-project") };

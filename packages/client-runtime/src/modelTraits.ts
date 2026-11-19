@@ -14,7 +14,7 @@ const REASONING_DESCRIPTOR_IDS: ReadonlySet<string> = new Set([
 ]);
 
 /** The model's reasoning control: a known effort id, or a select its agent marked as reasoning. */
-export function isReasoningControl(descriptor: ProviderOptionDescriptor) {
+export function isReasoningControl(descriptor: ProviderOptionDescriptor): boolean {
   return (
     (descriptor.type === "select" && descriptor.role === "reasoning") ||
     REASONING_DESCRIPTOR_IDS.has(descriptor.id)
@@ -31,7 +31,7 @@ export function replaceDescriptorCurrentValue(
   descriptors: ReadonlyArray<ProviderOptionDescriptor>,
   descriptorId: string,
   currentValue: string | boolean | undefined,
-) {
+): ReadonlyArray<ProviderOptionDescriptor> {
   return descriptors.map((descriptor) =>
     descriptor.id !== descriptorId
       ? descriptor
@@ -51,7 +51,7 @@ export function getDescriptorStringValue(
   descriptor: Extract<ProviderOptionDescriptor, { type: "select" }> | null,
   selection?: ModelSelection | null,
   reportedSelection?: ModelSelection | null,
-) {
+): string | null {
   if (!descriptor) {
     return null;
   }
@@ -116,7 +116,7 @@ export function buildTraitsTriggerLabel(input: {
   ultrathinkPromptControlled: boolean;
   modelSelection?: ModelSelection | null;
   reportedModelSelection?: ModelSelection | null | undefined;
-}) {
+}): string {
   let speedFallbackLabel: string | null = null;
   const labels: Array<string> = [];
   for (const descriptor of input.descriptors) {

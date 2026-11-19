@@ -23,7 +23,7 @@ describe("isJsonToolText", () => {
   });
 });
 
-function toolItem(output: unknown) {
+function toolItem(output: unknown): OrchestrationV2TurnItem {
   return {
     id: TurnItemId.make("images"),
     threadId: ThreadId.make("thread"),
@@ -43,7 +43,7 @@ function toolItem(output: unknown) {
     toolName: "screenshots",
     input: {},
     output,
-  } satisfies OrchestrationV2TurnItem;
+  };
 }
 
 describe("tool image output parsing", () => {

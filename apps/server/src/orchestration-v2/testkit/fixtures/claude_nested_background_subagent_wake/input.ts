@@ -10,7 +10,7 @@ export const CLAUDE_NESTED_BACKGROUND_SUBAGENT_WAKE_PROMPT = [
   "3) When its completion is reported, reply with exactly ROOT_WAKE_DONE and stop.",
 ].join("\n");
 
-export function claudeNestedBackgroundSubagentWakeInput() {
+export function claudeNestedBackgroundSubagentWakeInput(): OrchestratorFixtureInput {
   return {
     steps: [
       { type: "message", text: CLAUDE_NESTED_BACKGROUND_SUBAGENT_WAKE_PROMPT },
@@ -23,5 +23,5 @@ export function claudeNestedBackgroundSubagentWakeInput() {
       { type: "release_replay_gate", label: claudeBackgroundWakeResultLabel(1) },
       { type: "await_run_status", targetRunIndex: 2, status: "completed" },
     ],
-  } satisfies OrchestratorFixtureInput;
+  };
 }

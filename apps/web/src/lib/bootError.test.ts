@@ -15,7 +15,7 @@ import {
 const desktopWith = (getState: () => Promise<DesktopCliCommandState>) =>
   ({ cliCommand: { getState } }) as unknown as DesktopBridge;
 
-const notOnPath = (launcherPath: string | null) => ({
+const notOnPath = (launcherPath: string | null): DesktopCliCommandState => ({
   supported: launcherPath !== null,
   installedPath: null,
   onPath: false,

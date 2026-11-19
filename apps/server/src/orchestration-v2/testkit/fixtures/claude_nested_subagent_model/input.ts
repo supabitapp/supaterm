@@ -8,8 +8,8 @@ export const CLAUDE_NESTED_SUBAGENT_MODEL_PROMPT = [
   "2) When it finishes, reply with exactly what it said.",
 ].join("\n");
 
-export function claudeNestedSubagentModelInput() {
+export function claudeNestedSubagentModelInput(): OrchestratorFixtureInput {
   return {
     steps: [{ type: "message", text: CLAUDE_NESTED_SUBAGENT_MODEL_PROMPT }],
-  } satisfies OrchestratorFixtureInput;
+  };
 }

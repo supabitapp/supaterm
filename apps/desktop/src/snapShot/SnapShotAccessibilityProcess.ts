@@ -34,14 +34,12 @@ type AccessibilityMessage =
   | "started"
   | { readonly type: "result"; readonly context?: CapturedWindowAccessibilityContext };
 
-const completedRead: (context?: CapturedWindowAccessibilityContext) => AccessibilityRead = (
-  context?: CapturedWindowAccessibilityContext,
-) => ({
+const completedRead = (context?: CapturedWindowAccessibilityContext): AccessibilityRead => ({
   started: Promise.resolve(),
   result: Promise.resolve(context),
 });
 
-const unavailableProcess = () => ({
+const unavailableProcess = (): AccessibilityProcess => ({
   alive: false,
   read: () => completedRead(),
   close: () => undefined,
@@ -79,7 +77,7 @@ export function startSnapShotAccessibilityProcess(
   try {
     worker = fork(workerPath);
   } catch {
-    return unavailableProcess() satisfies AccessibilityProcess;
+    return unavailableProcess();
   }
 
   let ready = false;
@@ -149,7 +147,7 @@ export function startSnapShotAccessibilityProcess(
       return { started: started.promise, result: result.promise };
     },
     close: () => finish(),
-  } satisfies AccessibilityProcess;
+  };
 }
 
 export function makeSnapShotAccessibilityProcessPool(
@@ -198,5 +196,5 @@ export function makeSnapShotAccessibilityProcessPool(
       for (const workerProcess of active) workerProcess.close();
       active.clear();
     },
-  } satisfies AccessibilityProcessPool;
+  };
 }

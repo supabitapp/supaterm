@@ -17,7 +17,7 @@ it.each([
   ["with breaks", CHAT_MARKDOWN_REMARK_PLUGINS_WITH_BREAKS],
 ] as const)("preserves bare URL boundaries (%s)", (_, plugins) => {
   const processor = unified().use(remarkParse).use(plugins);
-  const shape: (node: Root | RootContent) => string = (node: Root | RootContent) => {
+  const shape = (node: Root | RootContent): string => {
     if (node.type === "text") return node.value;
     if (node.type === "inlineCode") return `\`${node.value}\``;
     if (node.type === "code") return `\`\`\`${node.value}\`\`\``;
@@ -233,7 +233,7 @@ it("ends bare URLs at CJK and Arabic punctuation with source positions", () => {
   expect(links.at(-1)).toMatchObject({
     position: { start: at(300, 4, lastLine + 3), end: at(300, 24, lastLine + 23) },
   });
-  const descendants: (node: Root | RootContent) => RootContent[] = (node: Root | RootContent) =>
+  const descendants = (node: Root | RootContent): RootContent[] =>
     "children" in node
       ? (node.children as RootContent[]).flatMap((child) => [child, ...descendants(child)])
       : [];
@@ -441,7 +441,7 @@ it("builds the tree rehype-raw builds for markdown without HTML", () => {
     data?: unknown;
     children?: Node[];
   };
-  const comparable = (node: Node) => {
+  const comparable = (node: Node): Node => {
     const { position, children, data, ...rest } = node;
     const result: Node =
       node.type === "text" || node.type === "root" ? rest : { ...rest, position, data };
@@ -544,7 +544,7 @@ it("keeps backslashes that CommonMark would read as escapes in prose Windows pat
     .use(remarkRehype, { allowDangerousHtml: true })
     .use(CHAT_MARKDOWN_REHYPE_PLUGINS);
   type Node = { type: string; value?: string; tagName?: string; children?: Node[] };
-  const text: (node: Node) => string = (node: Node) =>
+  const text = (node: Node): string =>
     node.type === "text"
       ? (node.value ?? "")
       : node.tagName === "code"
@@ -574,7 +574,7 @@ it("keeps an image on its own line under a label but leaves inline images inline
     .use(remarkRehype, { allowDangerousHtml: true })
     .use(CHAT_MARKDOWN_REHYPE_PLUGINS);
   type Node = { type: string; value?: string; tagName?: string; children?: Node[] };
-  const shape: (node: Node) => string = (node: Node) =>
+  const shape = (node: Node): string =>
     node.type === "text"
       ? (node.value ?? "")
       : node.tagName === "br" || node.tagName === "img"
@@ -591,7 +591,7 @@ it("keeps an image on its own line under a label but leaves inline images inline
 
 it("keeps the number written on each ordered list item only when enabled", () => {
   type Node = { tagName?: string; properties?: { value?: unknown }; children?: Node[] };
-  const values: (node: Node) => unknown[] = (node: Node) => [
+  const values = (node: Node): unknown[] => [
     ...(node.tagName === "li" ? [node.properties?.value] : []),
     ...(node.children ?? []).flatMap(values),
   ];
@@ -637,11 +637,11 @@ it("moves a <picture>'s color-scheme sources onto its <img>, which the renderer 
     .use(remarkRehype, { allowDangerousHtml: true })
     .use(CHAT_MARKDOWN_REHYPE_PLUGINS);
   type Node = { type: string; tagName?: string; properties?: object; children?: Node[] };
-  const tags: (node: Node) => string[] = (node: Node) => [
+  const tags = (node: Node): string[] => [
     ...(node.tagName ? [node.tagName] : []),
     ...(node.children ?? []).flatMap(tags),
   ];
-  const images: (node: Node) => Node[] = (node: Node) =>
+  const images = (node: Node): Node[] =>
     node.tagName === "img" ? [node] : (node.children ?? []).flatMap(images);
   const tree = processor.runSync(
     processor.parse(

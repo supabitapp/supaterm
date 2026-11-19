@@ -9,7 +9,7 @@ function claudeLine(overrides: {
   model?: string;
   outputTokens?: number;
   speed?: string;
-}) {
+}): string {
   return JSON.stringify({
     type: "assistant",
     timestamp: "2026-08-07T04:05:13.944Z",

@@ -204,13 +204,13 @@ function QuitStep({
   );
 }
 
-function cookieCountLabel(count: number | undefined) {
+function cookieCountLabel(count: number | undefined): string | undefined {
   if (count === undefined) return undefined;
   if (count === 0) return "no cookies";
   return `${count.toLocaleString()} ${count === 1 ? "cookie" : "cookies"}`;
 }
 
-function cookieResultCount(count: number) {
+function cookieResultCount(count: number): string {
   return `${count.toLocaleString()} ${count === 1 ? "cookie" : "cookies"}`;
 }
 

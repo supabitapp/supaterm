@@ -95,15 +95,15 @@ const layerRedactedUrlParams = Layer.effect(
   ]),
 );
 
-export const layerRemoteHttpClient: (
+export const layerRemoteHttpClient = (
   fetchFn: typeof globalThis.fetch,
-) => Layer.Layer<HttpClient.HttpClient> = (fetchFn: typeof globalThis.fetch) =>
+): Layer.Layer<HttpClient.HttpClient> =>
   Layer.merge(
     FetchHttpClient.layer.pipe(Layer.provide(Layer.succeed(FetchHttpClient.Fetch, fetchFn))),
     layerRedactedUrlParams,
   );
 
-const remoteApiBaseUrl = (httpBaseUrl: string) => {
+const remoteApiBaseUrl = (httpBaseUrl: string): string => {
   const url = new URL(httpBaseUrl);
   url.pathname = "/";
   url.search = "";
@@ -136,10 +136,10 @@ export const makeEnvironmentHttpApiUrlBuilder = (httpBaseUrl: string) =>
     baseUrl: remoteApiBaseUrl(httpBaseUrl),
   });
 
-const failRemoteRequest: (
+const failRemoteRequest = (
   requestUrl: string,
   cause: unknown,
-) => Effect.Effect<never, RemoteEnvironmentRequestError> = (requestUrl: string, cause: unknown) => {
+): Effect.Effect<never, RemoteEnvironmentRequestError> => {
   if (cause instanceof RemoteEnvironmentAuthTimeoutError) {
     return Effect.fail(cause);
   }
@@ -180,15 +180,11 @@ const failRemoteRequest: (
   );
 };
 
-export const executeEnvironmentHttpRequest: <A, E, R>(
+export const executeEnvironmentHttpRequest = <A, E, R>(
   requestUrl: string,
   timeoutMs: number,
   request: Effect.Effect<A, E, R>,
-) => Effect.Effect<A, RemoteEnvironmentRequestError, R> = <A, E, R>(
-  requestUrl: string,
-  timeoutMs: number,
-  request: Effect.Effect<A, E, R>,
-) =>
+): Effect.Effect<A, RemoteEnvironmentRequestError, R> =>
   request.pipe(
     Effect.timeoutOption(Duration.millis(timeoutMs)),
     Effect.flatMap(

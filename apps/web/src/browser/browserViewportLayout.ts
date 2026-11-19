@@ -30,18 +30,18 @@ export type BrowserViewportResizeDirection =
   | "west"
   | "northwest";
 
-export const browserViewportSettingKey = (setting: PreviewViewportSetting) =>
+export const browserViewportSettingKey = (setting: PreviewViewportSetting): string =>
   setting._tag === "fill"
     ? "fill"
     : `${setting._tag}:${setting.width}:${setting.height}:${setting._tag === "preset" ? setting.presetId : ""}`;
 
-const normalizeZoomFactor = (zoomFactor: number) =>
+const normalizeZoomFactor = (zoomFactor: number): number =>
   Number.isFinite(zoomFactor) && zoomFactor > 0 ? zoomFactor : 1;
 
 export const resolveBrowserLayoutZoomFactor = (
   previewZoomFactor: number,
   windowZoomFactor: number,
-) => normalizeZoomFactor(previewZoomFactor) / normalizeZoomFactor(windowZoomFactor);
+): number => normalizeZoomFactor(previewZoomFactor) / normalizeZoomFactor(windowZoomFactor);
 
 export function resolveFittedBrowserViewport(
   setting: PreviewViewportSetting,
@@ -51,9 +51,8 @@ export function resolveFittedBrowserViewport(
     readonly scale: number;
   } | null,
   zoomFactor = 1,
-) {
-  if (setting._tag !== "fill")
-    return setting satisfies Exclude<PreviewViewportSetting, { readonly _tag: "fill" }>;
+): Exclude<PreviewViewportSetting, { readonly _tag: "fill" }> {
+  if (setting._tag !== "fill") return setting;
   const normalizedZoomFactor = normalizeZoomFactor(zoomFactor);
   if (sourceContent) {
     return {
@@ -66,18 +65,15 @@ export function resolveFittedBrowserViewport(
         1,
         Math.round(sourceContent.height / sourceContent.scale / normalizedZoomFactor),
       ),
-    } satisfies Exclude<PreviewViewportSetting, { readonly _tag: "fill" }>;
+    };
   }
-  return { _tag: "freeform", width: 1280, height: 800 } satisfies Exclude<
-    PreviewViewportSetting,
-    { readonly _tag: "fill" }
-  >;
+  return { _tag: "freeform", width: 1280, height: 800 };
 }
 
 export function resolveBrowserDeviceViewportArea(container: {
   readonly width: number;
   readonly height: number;
-}) {
+}): PreviewViewportSize {
   return {
     width: Math.max(1, container.width - BROWSER_VIEWPORT_RESIZE_RAIL_SIZE * 2),
     height: Math.max(
@@ -91,7 +87,7 @@ export function resolveBrowserViewportLayout(
   container: { readonly width: number; readonly height: number },
   setting: PreviewViewportSetting,
   zoomFactor = 1,
-) {
+): BrowserViewportLayout {
   const containerWidth = Math.max(1, Math.round(container.width));
   const containerHeight = Math.max(1, Math.round(container.height));
   if (setting._tag === "fill") {
@@ -133,7 +129,10 @@ export function resolveBrowserViewportLayout(
  * Its raster scale also counts x/y-to-z terms, which a `preserve-3d` parent keeps and the
  * screen drops, so `fullDetail` draws like `scale()` but keeps full-resolution frames.
  */
-export function resolveBrowserViewportTransform(scale: number, fullDetail: boolean) {
+export function resolveBrowserViewportTransform(
+  scale: number,
+  fullDetail: boolean,
+): string | undefined {
   if (scale >= 1) return undefined;
   if (!fullDetail) return `scale(${scale})`;
   const depth = Math.sqrt(1 - scale * scale);
@@ -144,7 +143,7 @@ export function resolveBrowserDeviceViewportLayout(
   container: { readonly width: number; readonly height: number },
   setting: Exclude<PreviewViewportSetting, { readonly _tag: "fill" }>,
   zoomFactor = 1,
-) {
+): BrowserViewportLayout {
   const layout = resolveBrowserViewportLayout(
     resolveBrowserDeviceViewportArea(container),
     setting,
@@ -159,7 +158,7 @@ export function resolveBrowserDeviceViewportLayout(
   };
 }
 
-const clampViewportDimension = (value: number) =>
+const clampViewportDimension = (value: number): number =>
   Math.min(PREVIEW_VIEWPORT_MAX_DIMENSION, Math.max(PREVIEW_VIEWPORT_MIN_DIMENSION, value));
 
 const validAspectRatio = (aspectRatio: number | undefined): aspectRatio is number =>
@@ -169,7 +168,7 @@ function resizeAtAspectRatio(
   desired: number,
   aspectRatio: number,
   primaryAxis: "width" | "height",
-) {
+): PreviewViewportSize {
   if (primaryAxis === "width") {
     const minimum = Math.ceil(
       Math.max(PREVIEW_VIEWPORT_MIN_DIMENSION, PREVIEW_VIEWPORT_MIN_DIMENSION * aspectRatio),
@@ -215,7 +214,7 @@ export function resizeFreeformViewport(
   zoomFactor = 1,
   direction: BrowserViewportResizeDirection = "southeast",
   aspectRatio?: number,
-) {
+): PreviewViewportSize {
   const normalizedZoomFactor = normalizeZoomFactor(zoomFactor);
   const horizontalDelta = direction.includes("east")
     ? delta.x
@@ -264,13 +263,13 @@ export function resizeFreeformViewport(
   return { width, height };
 }
 
-const resizeFromEndRail = (start: number, pointerDelta: number, available: number) => {
+const resizeFromEndRail = (start: number, pointerDelta: number, available: number): number => {
   const startEdge = start < available ? (available + start) / 2 : start;
   const targetEdge = startEdge + pointerDelta;
   return targetEdge <= available ? targetEdge * 2 - available : targetEdge;
 };
 
-const resizeFromStartRail = (start: number, pointerDelta: number, available: number) => {
+const resizeFromStartRail = (start: number, pointerDelta: number, available: number): number => {
   if (start > available) {
     const distanceToFit = start - available;
     return pointerDelta <= distanceToFit
@@ -288,7 +287,7 @@ export function resizeBrowserViewportFromRail(
   zoomFactor = 1,
   direction: BrowserViewportResizeDirection = "southeast",
   aspectRatio?: number,
-) {
+): PreviewViewportSize {
   const normalizedZoomFactor = normalizeZoomFactor(zoomFactor);
   const startWidth = start.width * normalizedZoomFactor;
   const startHeight = start.height * normalizedZoomFactor;
@@ -319,7 +318,7 @@ export function resizeBrowserViewportFromRail(
 export function resolveResponsiveBrowserViewportSize(
   container: { readonly width: number; readonly height: number },
   zoomFactor = 1,
-) {
+): PreviewViewportSize {
   const area = resolveBrowserDeviceViewportArea(container);
   const normalizedZoomFactor = normalizeZoomFactor(zoomFactor);
   return resizeFreeformViewport(

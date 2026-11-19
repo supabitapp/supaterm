@@ -37,17 +37,16 @@ vi.mock("./presentation", async () => {
 import { canQueueComposerMessageAtom, readCanQueueComposerMessage } from "./composerQueue";
 
 const environmentId = EnvironmentId.make("queue-environment");
-const session = (allowed: boolean) =>
-  ({
-    authenticated: true,
-    scopes: allowed ? [AuthOrchestrationOperateScope] : [],
-    auth: {
-      policy: "loopback-browser",
-      bootstrapMethods: [],
-      sessionMethods: [],
-      sessionCookieName: "session",
-    },
-  }) satisfies AuthSessionState;
+const session = (allowed: boolean): AuthSessionState => ({
+  authenticated: true,
+  scopes: allowed ? [AuthOrchestrationOperateScope] : [],
+  auth: {
+    policy: "loopback-browser",
+    bootstrapMethods: [],
+    sessionMethods: [],
+    sessionCookieName: "session",
+  },
+});
 
 afterEach(() => harness.registry.reset());
 

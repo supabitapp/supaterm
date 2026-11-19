@@ -42,7 +42,7 @@ const MAX_ERROR_TRANSPORT_VALUE_LENGTH = 256;
  * The fixed product text a provider failure carries for the user, if it has one. Any other
  * detail may be upstream response text, so callers show a generic message instead.
  */
-export function userFacingSourceControlDetail(cause: unknown) {
+export function userFacingSourceControlDetail(cause: unknown): string | undefined {
   return typeof cause === "object" &&
     cause !== null &&
     "userFacingDetail" in cause &&
@@ -51,7 +51,7 @@ export function userFacingSourceControlDetail(cause: unknown) {
     : undefined;
 }
 
-export function transportSafeSourceControlErrorValue(value: string) {
+export function transportSafeSourceControlErrorValue(value: string): string {
   let printable = "";
   for (const character of value) {
     const codePoint = character.codePointAt(0);
@@ -72,42 +72,34 @@ export function transportSafeSourceControlErrorValue(value: string) {
   return safe.slice(0, MAX_ERROR_TRANSPORT_VALUE_LENGTH);
 }
 
-export function parseSourceControlOwnerRef(headSelector: string) {
+export function parseSourceControlOwnerRef(
+  headSelector: string,
+): SourceControlRefSelector | undefined {
   const match = /^([^:/\s]+):(.+)$/u.exec(headSelector.trim());
   const owner = match?.[1]?.trim();
   const refName = match?.[2]?.trim();
   return owner && refName ? { owner, refName } : undefined;
 }
 
-function normalizeSourceBranch(headSelector: string) {
+function normalizeSourceBranch(headSelector: string): string {
   return parseSourceControlOwnerRef(headSelector)?.refName ?? headSelector.trim();
 }
 
 export function sourceBranch(input: {
   readonly headSelector: string;
   readonly source?: SourceControlRefSelector;
-}): string;
-export function sourceBranch(input: {
-  readonly headSelector: string;
-  readonly source?: SourceControlRefSelector;
-}) {
-  return (input.source?.refName ?? normalizeSourceBranch(input.headSelector)) satisfies string;
+}): string {
+  return input.source?.refName ?? normalizeSourceBranch(input.headSelector);
 }
 
 export function sourceControlRefFromInput(input: {
   readonly headSelector: string;
   readonly source?: SourceControlRefSelector;
-}): SourceControlRefSelector | undefined;
-export function sourceControlRefFromInput(input: {
-  readonly headSelector: string;
-  readonly source?: SourceControlRefSelector;
-}) {
-  return (input.source ?? parseSourceControlOwnerRef(input.headSelector)) satisfies
-    | SourceControlRefSelector
-    | undefined;
+}): SourceControlRefSelector | undefined {
+  return input.source ?? parseSourceControlOwnerRef(input.headSelector);
 }
 
-export function repositoryPathFromRemoteUrl(url: string | null) {
+export function repositoryPathFromRemoteUrl(url: string | null): string | null {
   const remote = url?.trim() ?? "";
   const trimmed = /^(?:ssh|https?|git):\/\//iu.test(remote) ? remote.split(/[?#]/u, 1)[0]! : remote;
   if (trimmed.length === 0) {

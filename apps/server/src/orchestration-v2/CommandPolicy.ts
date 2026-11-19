@@ -47,7 +47,7 @@ export class CommandPolicyCapabilityUnsupportedError extends Schema.TaggedError<
     detail: Schema.String,
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `${this.providerInstanceId} cannot satisfy ${this.capability} for command ${this.commandId}: ${this.detail}`;
   }
 }
@@ -64,7 +64,7 @@ export function isNativeMaintenanceCommand(message: {
   readonly text: string;
   readonly attachments: ReadonlyArray<ChatAttachment>;
   readonly context?: import("@supaterm/contracts").OrchestrationMessageContext | undefined;
-}) {
+}): boolean {
   return (
     message.attachments.length === 0 &&
     ["/compact", "/logout"].includes(message.text.trim().toLowerCase())
@@ -78,7 +78,7 @@ export function isNativeMaintenanceCommand(message: {
 export function goalCommandStopsActiveRun(
   command: OrchestrationV2GoalCommand,
   goalStatus: OrchestrationV2ProviderGoalStatus | null,
-) {
+): boolean {
   switch (command.type) {
     case "set":
     case "resume":
@@ -95,30 +95,28 @@ export function resolveMessageDispatchIntent(
   projection: OrchestrationV2ThreadProjection,
   requestedMode: MessageDispatchMode,
   deliveryIntent?: "auto" | "steer" | "restart",
-) {
+): MessageDispatchMode {
   const mode = resolveDeliveryIntent(projection, requestedMode, deliveryIntent);
-  if (mode.type !== "steer_active") return mode satisfies MessageDispatchMode;
+  if (mode.type !== "steer_active") return mode;
   const target = projection.runs.find((run) => run.id === mode.targetRunId);
   const targetMessage = projection.messages.find((message) => message.id === target?.userMessageId);
   if (targetMessage !== undefined && isNativeMaintenanceCommand(targetMessage)) {
-    return { type: "queue_after_active" } satisfies MessageDispatchMode;
+    return { type: "queue_after_active" };
   }
   const turns =
     target === undefined || !isRunInProgress(target)
       ? undefined
       : providerTurnCapabilities(projection, target);
-  return (
-    turns !== undefined &&
+  return turns !== undefined &&
     !turns.supportsActiveSteering &&
     !(turns.supportsInterrupt && turns.supportsSteeringByInterruptRestart) &&
     turns.supportsQueuedMessages
-      ? { type: "queue_after_active" }
-      : mode
-  ) satisfies MessageDispatchMode;
+    ? { type: "queue_after_active" }
+    : mode;
 }
 
 /** A run that still owns the thread's provider turn. */
-export function isRunInProgress(run: OrchestrationV2Run) {
+export function isRunInProgress(run: OrchestrationV2Run): boolean {
   return isOrchestrationV2RunInProgress(run.status);
 }
 
@@ -142,16 +140,16 @@ function resolveDeliveryIntent(
   projection: OrchestrationV2ThreadProjection,
   requestedMode: MessageDispatchMode,
   deliveryIntent?: "auto" | "steer" | "restart",
-) {
-  if (deliveryIntent === undefined) return requestedMode satisfies MessageDispatchMode;
+): MessageDispatchMode {
+  if (deliveryIntent === undefined) return requestedMode;
 
   const activeRun = projection.runs.findLast(isRunInProgress);
-  if (activeRun === undefined) return { type: "start_immediately" } satisfies MessageDispatchMode;
+  if (activeRun === undefined) return { type: "start_immediately" };
   if (deliveryIntent === "steer") {
-    return { type: "steer_active", targetRunId: activeRun.id } satisfies MessageDispatchMode;
+    return { type: "steer_active", targetRunId: activeRun.id };
   }
   if (deliveryIntent === "restart") {
-    return { type: "restart_active", targetRunId: activeRun.id } satisfies MessageDispatchMode;
+    return { type: "restart_active", targetRunId: activeRun.id };
   }
   const providerTurn = latestProviderTurnForAttempt(
     projection.providerTurns.filter((turn) => turn.nodeId === activeRun.rootNodeId),
@@ -162,20 +160,20 @@ function resolveDeliveryIntent(
     (activeRun.status === "running" || activeRun.status === "waiting") &&
     providerTurn?.status === "completed";
   if (!canSteerRunningTurn && !canStartAfterCompletedTurn) {
-    return { type: "queue_after_active" } satisfies MessageDispatchMode;
+    return { type: "queue_after_active" };
   }
 
   const capabilities = providerTurnCapabilities(projection, activeRun);
   if (capabilities?.supportsActiveSteering === true) {
-    return { type: "steer_active", targetRunId: activeRun.id } satisfies MessageDispatchMode;
+    return { type: "steer_active", targetRunId: activeRun.id };
   }
   if (capabilities?.supportsQueuedMessages === true) {
-    return { type: "queue_after_active" } satisfies MessageDispatchMode;
+    return { type: "queue_after_active" };
   }
   if (capabilities?.supportsSteeringByInterruptRestart === true) {
-    return { type: "restart_active", targetRunId: activeRun.id } satisfies MessageDispatchMode;
+    return { type: "restart_active", targetRunId: activeRun.id };
   }
-  return { type: "queue_after_active" } satisfies MessageDispatchMode;
+  return { type: "queue_after_active" };
 }
 
 interface CapabilityCheckInput {

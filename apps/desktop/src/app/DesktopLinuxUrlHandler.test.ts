@@ -176,7 +176,7 @@ const runRegister = (
     yield* handler.register;
   }).pipe(Effect.provide(layerHandler(recorded, input)));
 
-const emptyRecording: () => RecordedRegistration = () => ({
+const emptyRecording = (): RecordedRegistration => ({
   directories: [],
   files: [],
   commands: [],

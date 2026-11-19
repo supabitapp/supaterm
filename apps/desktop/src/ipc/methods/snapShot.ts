@@ -26,7 +26,7 @@ class SnapShotIpcUnauthorizedSenderError extends Schema.TaggedError<SnapShotIpcU
   "SnapShotIpcUnauthorizedSenderError",
   {},
 ) {
-  override get message() {
+  override get message(): string {
     return "Snapshot request was rejected.";
   }
 }
@@ -49,7 +49,7 @@ function snapShotScreenFrame(
   viewportFrame: DesktopSnapShotAnimationDestination["viewportFrame"],
   contentBounds: Electron.Rectangle,
   zoomFactor: number,
-) {
+): Electron.Rectangle {
   return {
     x: contentBounds.x + viewportFrame.x * zoomFactor,
     y: contentBounds.y + viewportFrame.y * zoomFactor,
@@ -62,7 +62,7 @@ export function snapShotRelativeFrame(
   frame: DesktopSnapShotAnimationDestination["viewportFrame"],
   bounds: Electron.Rectangle,
   zoom: number,
-) {
+): Electron.Rectangle | undefined {
   if (bounds.width <= 0 || bounds.height <= 0) return undefined;
   return {
     x: (frame.x * zoom) / bounds.width,

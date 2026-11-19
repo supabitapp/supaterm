@@ -11,7 +11,7 @@ function claudeProvider(input: {
   instanceId: string;
   continuationGroupKey: string;
   enabled?: boolean;
-}) {
+}): ServerProvider {
   return {
     instanceId: ProviderInstanceId.make(input.instanceId),
     driver: ProviderDriverKind.make("claudeAgent"),
@@ -25,7 +25,7 @@ function claudeProvider(input: {
     models: [],
     slashCommands: [{ name: "compact", description: "" }],
     skills: [],
-  } satisfies ServerProvider;
+  };
 }
 
 describe("hasAvailableCompactionProvider", () => {

@@ -60,7 +60,10 @@ import {
   type SDKResultMessage,
   type SDKUserMessage,
 } from "@anthropic-ai/claude-agent-sdk";
-import type { WebSearchOutput } from "@anthropic-ai/claude-agent-sdk/sdk-tools";
+import type {
+  AskUserQuestionInput,
+  WebSearchOutput,
+} from "@anthropic-ai/claude-agent-sdk/sdk-tools";
 // @effect-diagnostics-next-line nodeBuiltinImport:off -- the SDK takes a Node ChildProcess for the CLI.
 import * as NodeChildProcess from "node:child_process";
 import * as NodeUtil from "node:util";
@@ -246,7 +249,7 @@ const CLAUDE_AGENT_SDK_QUERY_PROTOCOL = "claude-agent-sdk.query" as const;
 
 const CLAUDE_AUTO_COMPACT_RESERVE_TOKENS = 33_000;
 
-function isClaudeEnvTruthy(value: string | undefined) {
+function isClaudeEnvTruthy(value: string | undefined): boolean {
   return value !== undefined && ["1", "true", "yes", "on"].includes(value.trim().toLowerCase());
 }
 
@@ -261,7 +264,7 @@ function claudeMessageInputTokens(usage: {
   readonly input_tokens: number;
   readonly cache_creation_input_tokens?: number | null;
   readonly cache_read_input_tokens?: number | null;
-}) {
+}): number {
   return (
     usage.input_tokens +
     (usage.cache_creation_input_tokens ?? 0) +
@@ -304,7 +307,7 @@ function mergeClaudeStreamUsage(
     readonly cache_read_input_tokens?: number | null;
     readonly output_tokens: number;
   },
-) {
+): ClaudeMessageUsage {
   return {
     ...current,
     input_tokens: delta.input_tokens ?? current.input_tokens,
@@ -351,7 +354,7 @@ export function spawnClaudeProcessGroup(
   onStderr: (text: string) => void = () => {},
   onStderrClose: () => void = () => {},
   register?: (pid: number) => () => void,
-) {
+): ClaudeSpawnedProcess & Pick<NodeChildProcess.ChildProcess, "pid"> {
   const cwd = options.cwd ?? ".";
   const child = NodeChildProcess.spawn(
     "/bin/sh",
@@ -402,7 +405,7 @@ interface ClaudeProcessRow {
   readonly started: string;
 }
 
-function parseClaudeProcessTable(table: string) {
+function parseClaudeProcessTable(table: string): ReadonlyArray<ClaudeProcessRow> {
   return table.split("\n").flatMap((line) => {
     const [pid, ppid, pgid, ...started] = line.trim().split(/\s+/);
     const row = {
@@ -427,7 +430,10 @@ function killClaudeDescendant(row: ClaudeProcessRow) {
   } catch {}
 }
 
-function claudeDescendants(rows: ReadonlyArray<ClaudeProcessRow>, rootPids: ReadonlyArray<number>) {
+function claudeDescendants(
+  rows: ReadonlyArray<ClaudeProcessRow>,
+  rootPids: ReadonlyArray<number>,
+): ReadonlyArray<ClaudeProcessRow> {
   const children = Map.groupBy(rows, (row) => row.ppid);
   const found: Array<ClaudeProcessRow> = [];
   const seen = new Set<number>(rootPids);
@@ -553,7 +559,9 @@ export type ClaudeAgentSdkQueryTools = ClaudeAgentSdkQueryToolList | ClaudeAgent
 
 export const CLAUDE_READ_ONLY_ALLOWED_TOOLS = ["Read", "Glob", "Grep"] as const;
 
-function claudeAgentSdkQueryToolsForSdk(tools: ClaudeAgentSdkQueryTools) {
+function claudeAgentSdkQueryToolsForSdk(
+  tools: ClaudeAgentSdkQueryTools,
+): NonNullable<ClaudeQueryOptions["tools"]> {
   if (isClaudeAgentSdkQueryToolList(tools)) {
     return [...tools];
   }
@@ -643,7 +651,7 @@ export class ClaudeAgentSdkQueryRunnerError extends Schema.TaggedError<ClaudeAge
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return "Claude Agent SDK query failed.";
   }
 }
@@ -654,7 +662,7 @@ export class ClaudeCodeRootRefusalError extends Schema.TaggedError<ClaudeCodeRoo
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Claude Code exited before it started: ${CLAUDE_ROOT_REFUSAL}`;
   }
 }
@@ -665,7 +673,7 @@ export class ClaudeConversationNotFoundError extends Schema.TaggedError<ClaudeCo
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return "Claude Code could not find this conversation to resume. Send the message again to continue in a new Claude session with this thread's history.";
   }
 }
@@ -674,7 +682,7 @@ class ClaudeMcpRegistrationTimeoutError extends Schema.TaggedError<ClaudeMcpRegi
   "ClaudeMcpRegistrationTimeoutError",
   { phase: Schema.Literals(["initialize", "setMcpServers"]) },
 ) {
-  override get message() {
+  override get message(): string {
     return this.phase === "initialize"
       ? "Claude timed out while starting up. Retry the turn; if it keeps failing, check Claude and the server logs."
       : "Claude timed out while registering its MCP tools. Retry the turn; if it keeps failing, check Claude and the server logs.";
@@ -685,7 +693,7 @@ export class ClaudeBackgroundWorkBlocksQueryReplacementError extends Schema.Tagg
   "ClaudeBackgroundWorkBlocksQueryReplacementError",
   {},
 ) {
-  override get message() {
+  override get message(): string {
     return "Claude is still running background agents or commands, and this model or setting change would end them. Wait for them to finish, or press Stop, then send the message again.";
   }
 }
@@ -697,7 +705,7 @@ export class ClaudeAppendSystemPromptFileError extends Schema.TaggedError<Claude
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Claude could not read the --append-system-prompt-file launch argument at ${this.path}. Fix the path in the Claude launch arguments, then send the message again.`;
   }
 }
@@ -706,7 +714,7 @@ export class ClaudeAppendSystemPromptMissingValueError extends Schema.TaggedErro
   "ClaudeAppendSystemPromptMissingValueError",
   { flag: Schema.Literals(["--append-system-prompt", "--append-system-prompt-file"]) },
 ) {
-  override get message() {
+  override get message(): string {
     return `The ${this.flag} launch argument has no ${this.flag === "--append-system-prompt" ? "text" : "file path"}. Add it after the flag in the Claude launch arguments, then send the message again.`;
   }
 }
@@ -718,7 +726,7 @@ export class ClaudeSettingsLaunchArgError extends Schema.TaggedError<ClaudeSetti
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Claude could not read the --settings launch argument${this.path === undefined ? "" : ` at ${this.path}`} as a JSON object. Fix it in the Claude launch arguments, then send the message again.`;
   }
 }
@@ -782,7 +790,7 @@ const isProviderAdapterRollbackThreadError = Schema.is(
   ProviderAdapter.ProviderAdapterRollbackThreadError,
 );
 
-function queryRunnerError(cause: unknown, method: string) {
+function queryRunnerError(cause: unknown, method: string): ClaudeAgentSdkQueryRunnerError {
   return isClaudeAgentSdkQueryRunnerError(cause)
     ? cause
     : new ClaudeAgentSdkQueryRunnerError({ cause, method });
@@ -793,7 +801,9 @@ const CLAUDE_PROCESS_EXIT_ERROR_CLASSES: ReadonlySet<unknown> = new Set([
   "process_exited_nonzero",
 ]);
 
-function claudeProcessExitFailure(cause: Cause.Cause<ClaudeAgentSdkQueryRunnerError>) {
+function claudeProcessExitFailure(
+  cause: Cause.Cause<ClaudeAgentSdkQueryRunnerError>,
+): { readonly message: string; readonly code: string } | undefined {
   const error = Cause.squash(cause);
   const sdkError = isClaudeAgentSdkQueryRunnerError(error) ? error.cause : error;
   if (typeof sdkError !== "object" || sdkError === null) return undefined;
@@ -824,7 +834,10 @@ interface ClaudeControlRequestSender {
 const canSendClaudeControlRequest = (value: unknown): value is ClaudeControlRequestSender =>
   Predicate.hasProperty(value, "request") && typeof value.request === "function";
 
-async function sendClaudeControlRequest(queryRuntime: ClaudeQuery, request: ClaudeControlRequest) {
+async function sendClaudeControlRequest(
+  queryRuntime: ClaudeQuery,
+  request: ClaudeControlRequest,
+): Promise<unknown> {
   if (!canSendClaudeControlRequest(queryRuntime)) {
     throw new Error(`This Claude Agent SDK cannot send ${request.subtype}.`);
   }
@@ -854,14 +867,14 @@ const CLAUDE_MCP_APP_CAPABILITIES = [
 ] as const;
 const CLAUDE_MCP_APP_CAPTURE_TIMEOUT = "20 seconds";
 
-function claudeSupportsMcpApps(capabilities: ReadonlySet<string>) {
+function claudeSupportsMcpApps(capabilities: ReadonlySet<string>): boolean {
   return CLAUDE_MCP_APP_CAPABILITIES.every((capability) => capabilities.has(capability));
 }
 
 function claudeMcpServerPrefixOverlaps(
   statuses: ReadonlyArray<ClaudeMcpServerStatus>,
   server: string,
-) {
+): boolean {
   const prefix = claudeMcpToolPrefix(server);
   return statuses.some((status) => {
     if (status.name === server) return false;
@@ -870,7 +883,12 @@ function claudeMcpServerPrefixOverlaps(
   });
 }
 
-function findClaudeMcpTool(statuses: ReadonlyArray<ClaudeMcpServerStatus>, toolName: string) {
+function findClaudeMcpTool(
+  statuses: ReadonlyArray<ClaudeMcpServerStatus>,
+  toolName: string,
+):
+  | { readonly server: string; readonly tool: NonNullable<ClaudeMcpServerStatus["tools"]>[number] }
+  | undefined {
   const matches = statuses.flatMap((status) => {
     if (status.status !== "connected") return [];
     const prefix = claudeMcpToolPrefix(status.name);
@@ -887,19 +905,17 @@ function findClaudeMcpTool(statuses: ReadonlyArray<ClaudeMcpServerStatus>, toolN
     : match;
 }
 
-function withoutForgedMcpApp(output: ClaudeNativeToolOutput) {
+function withoutForgedMcpApp(output: ClaudeNativeToolOutput): ClaudeNativeToolOutput {
   const value = claudeNativeToolOutputValue(output);
-  return (
-    compactDynamicToolOutput(value)?.[MCP_APP_OUTPUT_KEY] === undefined
-      ? output
-      : { type: "structured_tool_use_result", value: { result: value } }
-  ) satisfies ClaudeNativeToolOutput;
+  return compactDynamicToolOutput(value)?.[MCP_APP_OUTPUT_KEY] === undefined
+    ? output
+    : { type: "structured_tool_use_result", value: { result: value } };
 }
 
 function claudeRulesMayCoverMcpTools(
   rules: ReadonlyArray<ClaudePermissionRule>,
   behaviors: ReadonlyArray<ClaudePermissionRule["behavior"]>,
-) {
+): boolean {
   return rules.some((entry) => {
     const name = entry.rule.split("(", 1)[0] ?? entry.rule;
     return (
@@ -937,8 +953,7 @@ function claudeMcpToolForApps(
 
 function claudeMcpCallToolResult(
   value: unknown,
-): ProviderAdapter.ProviderAdapterV2McpCallToolResult;
-function claudeMcpCallToolResult(value: unknown) {
+): ProviderAdapter.ProviderAdapterV2McpCallToolResult {
   const record = Predicate.isObject(value) && !Array.isArray(value) ? value : undefined;
   const content = record === undefined ? value : record.content;
   return {
@@ -953,10 +968,10 @@ function claudeMcpCallToolResult(value: unknown) {
       : { structuredContent: record.structuredContent }),
     ...(record?.isError === true ? { isError: true } : {}),
     ...(record?._meta === undefined ? {} : { _meta: record._meta }),
-  } satisfies ProviderAdapter.ProviderAdapterV2McpCallToolResult;
+  };
 }
 
-export function claudeQueryMessages(queryRuntime: ClaudeQuery) {
+export function claudeQueryMessages(queryRuntime: ClaudeQuery): AsyncIterable<SDKMessage, void> {
   return { [Symbol.asyncIterator]: () => queryRuntime };
 }
 
@@ -1104,7 +1119,9 @@ export type ClaudeAgentSdkProtocolLogger = (
   event: ClaudeAgentSdkProtocolLogEvent,
 ) => Effect.Effect<void>;
 
-export function loggedClaudeQueryOptions(options: ClaudeAgentSdkQueryOptions) {
+export function loggedClaudeQueryOptions(
+  options: ClaudeAgentSdkQueryOptions,
+): ClaudeAgentSdkLoggedQueryOptions {
   return {
     model: options.model,
     tools: options.tools,
@@ -1130,25 +1147,20 @@ export function loggedClaudeQueryOptions(options: ClaudeAgentSdkQueryOptions) {
     ...(options.canUseTool === undefined ? {} : { hasCanUseTool: true }),
     ...(options.env === undefined ? {} : { hasEnvironment: true }),
     ...(options.mcpServers === undefined ? {} : { hasMcpServers: true }),
-  } satisfies ClaudeAgentSdkLoggedQueryOptions;
+  };
 }
 
 function makeClaudeAgentSdkProtocolLogger(input: {
   readonly nativeEventLogger: ProviderEventLoggers.EventNdjsonLogger | undefined;
   readonly threadId: ThreadId;
   readonly providerSessionId: OrchestrationV2ProviderSession["id"];
-}): ClaudeAgentSdkProtocolLogger | undefined;
-function makeClaudeAgentSdkProtocolLogger(input: {
-  readonly nativeEventLogger: ProviderEventLoggers.EventNdjsonLogger | undefined;
-  readonly threadId: ThreadId;
-  readonly providerSessionId: OrchestrationV2ProviderSession["id"];
-}) {
+}): ClaudeAgentSdkProtocolLogger | undefined {
   const { nativeEventLogger } = input;
   if (nativeEventLogger === undefined) {
-    return undefined satisfies ClaudeAgentSdkProtocolLogger | undefined;
+    return undefined;
   }
 
-  return ((event) => {
+  return (event) => {
     if (!shouldPersistProviderEvent("native", event)) return Effect.void;
     return nativeEventLogger
       .write(
@@ -1162,7 +1174,7 @@ function makeClaudeAgentSdkProtocolLogger(input: {
         input.threadId,
       )
       .pipe(Effect.ignore);
-  }) satisfies ClaudeAgentSdkProtocolLogger | undefined;
+  };
 }
 
 const encodeClaudeJson = Schema.encodeSync(Schema.fromJsonString(Schema.Unknown));
@@ -1190,7 +1202,7 @@ export function claudeResumeSessionAt(
     readonly uuid: string;
     readonly message: { readonly content: unknown };
   }>,
-) {
+): string | undefined {
   let end = messages.length;
   let toolInterrupted = false;
   while (end > 0) {
@@ -1290,7 +1302,7 @@ const forkClaudeSessionInWorker = Effect.fn("forkClaudeSessionInWorker")(functio
 
 const CLAUDE_CAN_USE_TOOL_SHADOWED_WARNING = "CLAUDE_SDK_CAN_USE_TOOL_SHADOWED";
 
-export function withoutClaudeCanUseToolShadowedWarning<A>(run: () => A) {
+export function withoutClaudeCanUseToolShadowedWarning<A>(run: () => A): A {
   const emitWarning = process.emitWarning;
   process.emitWarning = function (this: NodeJS.Process, ...args: Parameters<typeof emitWarning>) {
     const [, options] = args;
@@ -1956,7 +1968,7 @@ type ClaudeFlagSettings = Parameters<ClaudeQuery["applyFlagSettings"]>[0];
 function canApplyClaudeSelectionLive(
   live: CompiledClaudeModelSelection,
   next: CompiledClaudeModelSelection,
-) {
+): boolean {
   return (
     live.settings.alwaysThinkingEnabled === next.settings.alwaysThinkingEnabled &&
     (next.effort !== undefined || live.effort === undefined) &&
@@ -1964,7 +1976,9 @@ function canApplyClaudeSelectionLive(
   );
 }
 
-function claudeLiveSelectionFlagSettings(selection: CompiledClaudeModelSelection) {
+function claudeLiveSelectionFlagSettings(
+  selection: CompiledClaudeModelSelection,
+): ClaudeFlagSettings {
   return {
     ...(selection.effort === undefined ? {} : { effortLevel: selection.effort as EffortLevel }),
     fastMode: selection.settings.fastMode,
@@ -1977,7 +1991,7 @@ export function claudeQueryEnvironment(
   appThread: Pick<OrchestrationV2AppThread, "lineage">,
   subagentPromptCacheTtl: "5m" | "1h" | undefined,
   resume = false,
-) {
+): NodeJS.ProcessEnv {
   const promptCacheTtl =
     appThread.lineage.relationshipToParent === "subagent" &&
     subagentPromptCacheTtl !== undefined &&
@@ -1995,7 +2009,7 @@ export function claudeQueryEnvironment(
   };
 }
 
-export function claudeToolSearchOverride(value: string | undefined) {
+export function claudeToolSearchOverride(value: string | undefined): "true" | undefined {
   if (value === undefined) return undefined;
   if (value === "auto") return "true";
   if (!value.startsWith("auto:")) return undefined;
@@ -2007,7 +2021,7 @@ export function claudeToolSearchOverride(value: string | undefined) {
 
 const CLAUDE_SCIENTIFIC_INTEGER = /^[+-]?(\d+(\.\d*)?|\.\d+)[eE][+-]?\d+$/;
 const CLAUDE_GROUPED_INTEGER = /^[+-]?\d{1,3}([_,\u00A0\u202F ])\d{3}(?:\1\d{3})*$/;
-function parseClaudeInteger(text: string) {
+function parseClaudeInteger(text: string): number {
   const value = text.trim();
   if (value.length <= 32 && CLAUDE_SCIENTIFIC_INTEGER.test(value)) {
     const number = Number(value);
@@ -2069,7 +2083,7 @@ export function makeClaudeQueryOptions(input: {
   readonly appendSystemPromptFileText?: string;
   readonly promptSuggestions?: boolean;
   readonly toolSearchOverride?: "true";
-}) {
+}): ClaudeAgentSdkQueryOptions {
   const compiledSelection =
     input.compiledSelection ??
     compileClaudeModelSelection(
@@ -2327,15 +2341,13 @@ export function claudeMcpQueryOverrides(input: {
   readonly mcpSession: McpProviderSession.McpProviderSessionConfig | undefined;
   readonly readOnlySandbox: boolean;
   readonly allowedTools?: ReadonlyArray<string>;
-}) {
+}): {
+  readonly allowedTools?: ReadonlyArray<string>;
+  readonly mcpServers?: ClaudeQueryOptions["mcpServers"];
+} {
   const session = input.mcpSession;
   if (session === undefined) {
-    return (
-      input.allowedTools === undefined ? {} : { allowedTools: input.allowedTools }
-    ) satisfies {
-      readonly allowedTools?: ReadonlyArray<string>;
-      readonly mcpServers?: ClaudeQueryOptions["mcpServers"];
-    };
+    return input.allowedTools === undefined ? {} : { allowedTools: input.allowedTools };
   }
   const mcpAllowedTools = input.readOnlySandbox
     ? CLAUDE_READ_ONLY_SUPATERM_MCP_ALLOWED_TOOLS
@@ -2352,9 +2364,6 @@ export function claudeMcpQueryOverrides(input: {
         timeout: CLAUDE_SUPATERM_MCP_TOOL_TIMEOUT_MS,
       },
     },
-  } satisfies {
-    readonly allowedTools?: ReadonlyArray<string>;
-    readonly mcpServers?: ClaudeQueryOptions["mcpServers"];
   };
 }
 
@@ -2364,7 +2373,7 @@ function providerSession(input: {
   readonly cwd: string | null;
   readonly model: string;
   readonly now: DateTime.Utc;
-}) {
+}): OrchestrationV2ProviderSession {
   return {
     id: input.providerSessionId,
     driver: CLAUDE_PROVIDER,
@@ -2376,14 +2385,14 @@ function providerSession(input: {
     createdAt: input.now,
     updatedAt: input.now,
     lastError: null,
-  } satisfies OrchestrationV2ProviderSession;
+  };
 }
 
-function textFromClaudeContent(content: SDKAssistantMessage["message"]["content"]) {
+function textFromClaudeContent(content: SDKAssistantMessage["message"]["content"]): string {
   return content.flatMap((part) => (part.type === "text" ? [part.text] : [])).join("");
 }
 
-function claudeWritesUpdatesAsThinking(model: string) {
+function claudeWritesUpdatesAsThinking(model: string): boolean {
   const match = /claude-[a-z]+-(\d+)(?:-(\d{1,2}))?(?!\d)/u.exec(model);
   if (match === null) return false;
   const major = Number(match[1]);
@@ -2393,29 +2402,28 @@ function claudeWritesUpdatesAsThinking(model: string) {
 const CLAUDE_GOAL_SET_PREFIX = "Goal set: ";
 const CLAUDE_GOAL_ACTIVE = /^Goal active: ([\s\S]+?) \((?:not yet evaluated|(\d+) turns?)\)/u;
 
-function nextClaudeGoal(current: OrchestrationV2ProviderGoal | null, message: SDKMessage) {
+function nextClaudeGoal(
+  current: OrchestrationV2ProviderGoal | null,
+  message: SDKMessage,
+): OrchestrationV2ProviderGoal | null | undefined {
   if (message.type === "assistant") {
     if (message.parent_tool_use_id !== null || message.message.model !== "<synthetic>") {
-      return undefined satisfies OrchestrationV2ProviderGoal | null | undefined;
+      return undefined;
     }
     const text = textFromClaudeContent(message.message.content).trim();
     if (text.startsWith(CLAUDE_GOAL_SET_PREFIX)) {
       const objective = text.slice(CLAUDE_GOAL_SET_PREFIX.length).trim();
-      return (
-        objective.length === 0 ? undefined : { objective, status: "active", checks: 0 }
-      ) satisfies OrchestrationV2ProviderGoal | null | undefined;
+      return objective.length === 0 ? undefined : { objective, status: "active", checks: 0 };
     }
-    if (text.startsWith("Goal cleared: ") || text.startsWith("No goal set"))
-      return null satisfies OrchestrationV2ProviderGoal | null | undefined;
+    if (text.startsWith("Goal cleared: ") || text.startsWith("No goal set")) return null;
     const active = CLAUDE_GOAL_ACTIVE.exec(text);
-    if (active?.[1] === undefined)
-      return undefined satisfies OrchestrationV2ProviderGoal | null | undefined;
+    if (active?.[1] === undefined) return undefined;
     return {
       ...(current?.objective === active[1] ? current : {}),
       objective: active[1],
       status: "active",
       checks: Number(active[2] ?? 0),
-    } satisfies OrchestrationV2ProviderGoal | null | undefined;
+    };
   }
   if (
     message.type !== "user" ||
@@ -2423,7 +2431,7 @@ function nextClaudeGoal(current: OrchestrationV2ProviderGoal | null, message: SD
     message.isSynthetic !== true ||
     current === null
   ) {
-    return undefined satisfies OrchestrationV2ProviderGoal | null | undefined;
+    return undefined;
   }
   const prefix = `Stop hook feedback:\n[${current.objective}]: `;
   const content = message.message.content;
@@ -2431,17 +2439,16 @@ function nextClaudeGoal(current: OrchestrationV2ProviderGoal | null, message: SD
     typeof content === "string"
       ? content
       : content.flatMap((part) => (part.type === "text" ? [part.text] : [])).join("");
-  if (!text.startsWith(prefix))
-    return undefined satisfies OrchestrationV2ProviderGoal | null | undefined;
+  if (!text.startsWith(prefix)) return undefined;
   return {
     ...current,
     status: "active",
     checks: (current.checks ?? 0) + 1,
     lastCheck: text.slice(prefix.length).trim(),
-  } satisfies OrchestrationV2ProviderGoal | null | undefined;
+  };
 }
 
-function isClaudeGoalAcknowledgement(message: SDKMessage) {
+function isClaudeGoalAcknowledgement(message: SDKMessage): boolean {
   if (
     message.type !== "assistant" ||
     message.parent_tool_use_id !== null ||
@@ -2455,11 +2462,13 @@ function isClaudeGoalAcknowledgement(message: SDKMessage) {
 
 const providerGoalsEqual = Schema.toEquivalence(Schema.NullOr(OrchestrationV2ProviderGoal));
 
-function normalizeClaudeResultText(text: string) {
+function normalizeClaudeResultText(text: string): string {
   return text.replace(/\s+/g, " ").trim();
 }
 
-function assistantTextFromSdkMessage(message: SDKMessage) {
+function assistantTextFromSdkMessage(
+  message: SDKMessage,
+): { readonly nativeItemId: string; readonly text: string } | null {
   if (message.type !== "assistant") {
     return null;
   }
@@ -2469,7 +2478,9 @@ function assistantTextFromSdkMessage(message: SDKMessage) {
   };
 }
 
-function resultTextFromSdkMessage(message: SDKMessage) {
+function resultTextFromSdkMessage(
+  message: SDKMessage,
+): { readonly nativeItemId: string; readonly text: string } | null {
   if (message.type !== "result" || message.subtype !== "success") {
     return null;
   }
@@ -2479,7 +2490,7 @@ function resultTextFromSdkMessage(message: SDKMessage) {
   };
 }
 
-function normalizeClaudeSessionTitle(title: string | null | undefined) {
+function normalizeClaudeSessionTitle(title: string | null | undefined): string | null {
   if (title === null || title === undefined) return null;
   const trimmed = title.trim();
   return trimmed.length > 0 ? trimmed : null;
@@ -2495,7 +2506,7 @@ function makeProviderThread(input: {
   readonly forkedFrom?: NonNullable<OrchestrationV2ProviderThread["forkedFrom"]>;
   readonly nativeMetadata?: NonNullable<OrchestrationV2ProviderThread["nativeMetadata"]>;
   readonly now: DateTime.Utc;
-}) {
+}): OrchestrationV2ProviderThread {
   return {
     id: input.idAllocator.derive.providerThread({
       driver: CLAUDE_PROVIDER,
@@ -2520,14 +2531,14 @@ function makeProviderThread(input: {
     ...(input.nativeMetadata === undefined ? {} : { nativeMetadata: input.nativeMetadata }),
     createdAt: input.now,
     updatedAt: input.now,
-  } satisfies OrchestrationV2ProviderThread;
+  };
 }
 
 const decodeClaudeTranscriptLine = Schema.decodeUnknownOption(
   Schema.fromJsonString(Schema.Struct({ type: Schema.String })),
 );
 
-const isClaudeConversationLine = (line: string) =>
+const isClaudeConversationLine = (line: string): boolean =>
   Option.match(decodeClaudeTranscriptLine(line), {
     onNone: () => false,
     onSome: (entry) => entry.type === "user" || entry.type === "assistant",
@@ -2546,9 +2557,9 @@ const getNativeThreadId = Effect.fnUntraced(function* (
   return nativeThreadId;
 });
 
-const isSyntheticClaudeTurnId = (nativeTurnId: string) => nativeTurnId.startsWith("turn:");
+const isSyntheticClaudeTurnId = (nativeTurnId: string): boolean => nativeTurnId.startsWith("turn:");
 
-const claudeTurnCursor = (turn: OrchestrationV2ProviderTurn) => {
+const claudeTurnCursor = (turn: OrchestrationV2ProviderTurn): string | null => {
   const ref = turn.nativeTurnRef;
   return ref !== null &&
     ref.driver === CLAUDE_PROVIDER &&
@@ -2558,7 +2569,7 @@ const claudeTurnCursor = (turn: OrchestrationV2ProviderTurn) => {
     : null;
 };
 
-const isTerminalProviderTurn = (turn: OrchestrationV2ProviderTurn) =>
+const isTerminalProviderTurn = (turn: OrchestrationV2ProviderTurn): boolean =>
   turn.status === "completed" ||
   turn.status === "interrupted" ||
   turn.status === "failed" ||
@@ -2707,7 +2718,7 @@ export function makeClaudeUserMessage(input: {
   readonly skills?: ReadonlyMap<string, ClaudeSkillTarget>;
   readonly skillMentionsFrom?: number;
   readonly uuid?: SDKUserMessage["uuid"];
-}) {
+}): SDKUserMessage {
   const dispatch =
     input.skills === undefined
       ? undefined
@@ -2731,10 +2742,10 @@ export function makeClaudeUserMessage(input: {
     parent_tool_use_id: null,
     ...(input.priority === undefined ? {} : { priority: input.priority }),
     ...(input.uuid === undefined ? {} : { uuid: input.uuid }),
-  } satisfies SDKUserMessage;
+  };
 }
 
-const estimateClaudePdfPages = (bytes: Buffer) => {
+const estimateClaudePdfPages = (bytes: Buffer): number | null => {
   if (bytes.length > 20 * 1024 * 1024 || bytes.subarray(0, 5).toString() !== "%PDF-") return null;
   if (!bytes.subarray(-1024).includes("%%EOF")) return null;
   let pages = 0;
@@ -3089,6 +3100,8 @@ function assertNever(value: never): never {
 const ClaudeRuntimeSandboxPolicyKind = Schema.Struct({
   type: Schema.Literals(["dangerFullAccess", "externalSandbox", "readOnly", "workspaceWrite"]),
 });
+type ClaudeRuntimeSandboxPolicy = typeof ClaudeRuntimeSandboxPolicyKind.Type;
+type ClaudeRuntimeSandboxPolicyKindName = ClaudeRuntimeSandboxPolicy["type"];
 const isClaudeRuntimeSandboxPolicyKind = Schema.is(ClaudeRuntimeSandboxPolicyKind);
 
 const ClaudeRuntimeReadOnlyFullAccessSandboxPolicy = Schema.Struct({
@@ -3103,7 +3116,7 @@ const isClaudeRuntimeReadOnlyFullAccessSandboxPolicy = Schema.is(
 
 function sandboxPolicyKindForClaudeRuntimePolicy(
   runtimePolicy: ProviderAdapter.ProviderAdapterV2RuntimePolicy,
-) {
+): ClaudeRuntimeSandboxPolicyKindName | undefined {
   return runtimePolicy.sandboxPolicy !== undefined &&
     isClaudeRuntimeSandboxPolicyKind(runtimePolicy.sandboxPolicy)
     ? runtimePolicy.sandboxPolicy.type
@@ -3112,7 +3125,7 @@ function sandboxPolicyKindForClaudeRuntimePolicy(
 
 function readOnlyPolicyAllowsGlobalReads(
   runtimePolicy: ProviderAdapter.ProviderAdapterV2RuntimePolicy,
-) {
+): boolean {
   return (
     runtimePolicy.sandboxPolicy !== undefined &&
     isClaudeRuntimeReadOnlyFullAccessSandboxPolicy(runtimePolicy.sandboxPolicy)
@@ -3121,7 +3134,7 @@ function readOnlyPolicyAllowsGlobalReads(
 
 function permissionModeForClaudeRuntimePolicy(
   runtimePolicy: ProviderAdapter.ProviderAdapterV2RuntimePolicy,
-) {
+): PermissionMode {
   if (runtimePolicy.interactionMode === "plan") {
     return "plan";
   }
@@ -3178,7 +3191,7 @@ export interface ClaudeRuntimeQueryPolicy {
 
 export function claudeRuntimeQueryPolicyForRuntimePolicy(
   runtimePolicy: ProviderAdapter.ProviderAdapterV2RuntimePolicy,
-) {
+): ClaudeRuntimeQueryPolicy {
   const permissionMode = permissionModeForClaudeRuntimePolicy(runtimePolicy);
   const readOnlyTools =
     sandboxPolicyKindForClaudeRuntimePolicy(runtimePolicy) === "readOnly"
@@ -3201,7 +3214,7 @@ export function claudeRuntimeQueryPolicyForRuntimePolicy(
     ...(allowedTools === undefined ? {} : { allowedTools }),
     ...(permissionMode === "bypassPermissions" ? { allowDangerouslySkipPermissions: true } : {}),
     requiresApproval,
-  } satisfies ClaudeRuntimeQueryPolicy;
+  };
 }
 
 const ClaudePromptCacheTtl = Schema.Literals(["5m", "1h"]);
@@ -3233,7 +3246,7 @@ const decodeClaudeEnvSettings = Schema.decodeUnknownEffect(
   ),
 );
 
-function claudeRuntimeQueryPolicyKey(policy: ClaudeRuntimeQueryPolicy) {
+function claudeRuntimeQueryPolicyKey(policy: ClaudeRuntimeQueryPolicy): string {
   return JSON.stringify({
     permissionMode: policy.permissionMode,
     tools: policy.tools,
@@ -3249,7 +3262,7 @@ export function claudeEffectiveQueryPolicyKey(
     readonly allowedTools?: ReadonlyArray<string>;
     readonly mcpServers?: ClaudeQueryOptions["mcpServers"];
   },
-) {
+): string {
   return JSON.stringify({
     runtimePolicy: claudeRuntimeQueryPolicyKey({
       ...queryPolicy,
@@ -3272,7 +3285,7 @@ interface ClaudeToolClassification {
   readonly requestKind: ProviderRequestKind;
 }
 
-function normalizedClaudeToolName(toolName: string) {
+function normalizedClaudeToolName(toolName: string): string {
   return toolName.toLowerCase().replaceAll(/[\s_-]/g, "");
 }
 
@@ -3303,25 +3316,23 @@ const CLAUDE_KNOWN_TOOL_CLASSIFICATIONS: Record<
   write: { itemType: "file_change", requestKind: "file-change" },
 };
 
-function classifyClaudeNativeTool(toolName: string) {
+function classifyClaudeNativeTool(toolName: string): ClaudeToolClassification {
   const normalizedName = normalizedClaudeToolName(toolName);
   const known = CLAUDE_KNOWN_TOOL_CLASSIFICATIONS[normalizedName];
-  return (
-    known === undefined
-      ? {
-          normalizedName,
-          itemType: "dynamic_tool",
-          requestKind: "command",
-        }
-      : {
-          normalizedName,
-          ...known,
-        }
-  ) satisfies ClaudeToolClassification;
+  return known === undefined
+    ? {
+        normalizedName,
+        itemType: "dynamic_tool",
+        requestKind: "command",
+      }
+    : {
+        normalizedName,
+        ...known,
+      };
 }
 
-function providerRequestKindFromClaudeTool(toolName: string) {
-  return classifyClaudeNativeTool(toolName).requestKind satisfies ProviderRequestKind;
+function providerRequestKindFromClaudeTool(toolName: string): ProviderRequestKind {
+  return classifyClaudeNativeTool(toolName).requestKind;
 }
 
 function isClaudeWebSearchOutput(output: unknown): output is WebSearchOutput {
@@ -3353,52 +3364,49 @@ const EMPTY_CLAUDE_NATIVE_TOOL_INPUT = {
   value: {},
 } satisfies ClaudeNativeToolInput;
 
-function claudeNativeToolInputFromUnknown(input: unknown) {
-  return (
-    isClaudeNativeToolInputRecord(input)
-      ? { type: "record", value: input }
-      : { type: "non_record", value: input }
-  ) satisfies ClaudeNativeToolInput;
+function claudeNativeToolInputFromUnknown(input: unknown): ClaudeNativeToolInput {
+  return isClaudeNativeToolInputRecord(input)
+    ? { type: "record", value: input }
+    : { type: "non_record", value: input };
 }
 
-function claudeNativeToolInputFromRecord(input: Record<string, unknown>) {
-  return { type: "record", value: input } satisfies ClaudeNativeToolInput;
+function claudeNativeToolInputFromRecord(input: Record<string, unknown>): ClaudeNativeToolInput {
+  return { type: "record", value: input };
 }
 
-function claudeNativeToolInputValue(input: ClaudeNativeToolInput): unknown;
-function claudeNativeToolInputValue(input: ClaudeNativeToolInput) {
-  return input.value satisfies unknown;
+function claudeNativeToolInputValue(input: ClaudeNativeToolInput): unknown {
+  return input.value;
 }
 
-function inputRecordValue(input: ClaudeNativeToolInput, key: string) {
+function inputRecordValue(input: ClaudeNativeToolInput, key: string): unknown {
   return input.type === "record" ? input.value[key] : undefined;
 }
 
 function firstStringInputField(
   input: ClaudeNativeToolInput,
   keys: ReadonlyArray<string>,
-): string | undefined;
-function firstStringInputField(input: ClaudeNativeToolInput, keys: ReadonlyArray<string>) {
+): string | undefined {
   for (const key of keys) {
     const value = inputRecordValue(input, key);
     if (typeof value === "string" && value.trim().length > 0) {
-      return value.trim() satisfies string | undefined;
+      return value.trim();
     }
   }
-  return undefined satisfies string | undefined;
+  return undefined;
 }
 
-function jsonStringifyForTool(value: unknown) {
+function jsonStringifyForTool(value: unknown): string {
   if (typeof value === "string") {
     return value;
   }
   return JSON.stringify(value) ?? String(value);
 }
 
-function commandInputFromClaudeTool(toolName: string, input: ClaudeNativeToolInput): string;
-function commandInputFromClaudeTool(toolName: string, input: ClaudeNativeToolInput) {
-  return (firstStringInputField(input, ["command", "cmd", "script"]) ??
-    `${toolName}: ${jsonStringifyForTool(claudeNativeToolInputValue(input))}`) satisfies string;
+function commandInputFromClaudeTool(toolName: string, input: ClaudeNativeToolInput): string {
+  return (
+    firstStringInputField(input, ["command", "cmd", "script"]) ??
+    `${toolName}: ${jsonStringifyForTool(claudeNativeToolInputValue(input))}`
+  );
 }
 
 const CLAUDE_OPAQUE_BACKGROUND_TASK_KINDS: ReadonlyMap<
@@ -3413,7 +3421,7 @@ const CLAUDE_GOAL_DEFERRING_TASK_TYPES: ReadonlySet<string> = new Set([
   "local_workflow",
 ]);
 
-function isClaudeOpaqueBackgroundTaskType(taskType: string | null | undefined) {
+function isClaudeOpaqueBackgroundTaskType(taskType: string | null | undefined): boolean {
   return typeof taskType === "string" && CLAUDE_OPAQUE_BACKGROUND_TASK_KINDS.has(taskType);
 }
 
@@ -3424,7 +3432,7 @@ function claudePendingBackgroundTask(input: {
   readonly description: string | undefined;
   readonly parentTaskId: unknown;
   readonly toolUseId: string | undefined;
-}) {
+}): OrchestrationV2PendingBackgroundTask {
   return {
     taskId: input.taskId,
     kind: input.startedByMonitor
@@ -3442,7 +3450,7 @@ function claudePendingBackgroundTask(input: {
   };
 }
 
-function claudeTaskTypeFromSdkMessage(message: SDKMessage) {
+function claudeTaskTypeFromSdkMessage(message: SDKMessage): string | null {
   if (typeof message !== "object" || message === null) {
     return null;
   }
@@ -3450,23 +3458,24 @@ function claudeTaskTypeFromSdkMessage(message: SDKMessage) {
   return typeof taskType === "string" ? taskType : null;
 }
 
-function isClaudeNonSubagentTask(message: SDKMessage) {
+function isClaudeNonSubagentTask(message: SDKMessage): boolean {
   return isClaudeOpaqueBackgroundTaskType(claudeTaskTypeFromSdkMessage(message));
 }
 
-function isClaudeBackgroundTasksChangedMessage(message: SDKMessage) {
+function isClaudeBackgroundTasksChangedMessage(message: SDKMessage): boolean {
   return message.type === "system" && (message.subtype as string) === "background_tasks_changed";
 }
 
-function isClaudeTurnStartMessage(message: SDKMessage) {
+function isClaudeTurnStartMessage(message: SDKMessage): boolean {
   return message.type === "system" && message.subtype === "init";
 }
 
-function isClaudeRootTurnFrame(message: SDKMessage): boolean;
-function isClaudeRootTurnFrame(message: SDKMessage) {
-  return (isClaudeTurnStartMessage(message) ||
+function isClaudeRootTurnFrame(message: SDKMessage): boolean {
+  return (
+    isClaudeTurnStartMessage(message) ||
     ((message.type === "user" || message.type === "assistant" || message.type === "stream_event") &&
-      message.parent_tool_use_id == null)) satisfies boolean;
+      message.parent_tool_use_id == null)
+  );
 }
 
 const CLAUDE_SCHEDULED_WAKEUP_TASK: OrchestrationV2PendingBackgroundTask = {
@@ -3477,7 +3486,7 @@ const CLAUDE_SCHEDULED_WAKEUP_TASK: OrchestrationV2PendingBackgroundTask = {
 
 const CLAUDE_SCHEDULED_WAKEUP_EARLY_FIRE_MARGIN_MS = 120_000;
 
-function isClaudeLocalCommandEcho(message: SDKMessage) {
+function isClaudeLocalCommandEcho(message: SDKMessage): boolean {
   if (message.type !== "user" || !("isReplay" in message) || !message.isReplay) return false;
   const content = message.message.content;
   return typeof content === "string" && content.startsWith("<local-command-stdout>");
@@ -3486,7 +3495,7 @@ function isClaudeLocalCommandEcho(message: SDKMessage) {
 function claudePendingBackgroundTasksFromRoster(
   roster: ReadonlyMap<string, OrchestrationV2PendingBackgroundTask>,
   awaitedTaskIds: ReadonlySet<string>,
-) {
+): ReadonlyArray<OrchestrationV2PendingBackgroundTask> {
   return Array.from(roster.values(), (task) =>
     awaitedTaskIds.has(task.taskId) ? { ...task, awaited: true as const } : task,
   );
@@ -3496,7 +3505,7 @@ function parseClaudeBackgroundTaskEntry(
   entry: unknown,
   monitorTasks: ReadonlyMap<string, unknown>,
   toolUseIds: ReadonlyMap<string, string>,
-) {
+): OrchestrationV2PendingBackgroundTask | null {
   if (entry === null || typeof entry !== "object") {
     return null;
   }
@@ -3520,15 +3529,11 @@ function parseClaudeBackgroundTaskEntry(
   });
 }
 
-function fileNameFromClaudeTool(toolName: string, input: ClaudeNativeToolInput): string;
-function fileNameFromClaudeTool(toolName: string, input: ClaudeNativeToolInput) {
-  return (firstStringInputField(input, [
-    "file_path",
-    "notebook_path",
-    "path",
-    "filename",
-    "fileName",
-  ]) ?? `${toolName} result`) satisfies string;
+function fileNameFromClaudeTool(toolName: string, input: ClaudeNativeToolInput): string {
+  return (
+    firstStringInputField(input, ["file_path", "notebook_path", "path", "filename", "fileName"]) ??
+    `${toolName} result`
+  );
 }
 
 type ClaudeNativeToolOutput =
@@ -3547,50 +3552,46 @@ type ClaudeNativeToolOutput =
 
 const NO_CLAUDE_NATIVE_TOOL_OUTPUT = { type: "none" } satisfies ClaudeNativeToolOutput;
 
-function claudeNativeToolOutputFromToolResult(toolResult: ClaudeToolResultContentBlock) {
+function claudeNativeToolOutputFromToolResult(
+  toolResult: ClaudeToolResultContentBlock,
+): ClaudeNativeToolOutput {
   const value = outputFromClaudeToolResult(toolResult);
-  return (
-    value === undefined ? NO_CLAUDE_NATIVE_TOOL_OUTPUT : { type: "content_block", value }
-  ) satisfies ClaudeNativeToolOutput;
+  return value === undefined ? NO_CLAUDE_NATIVE_TOOL_OUTPUT : { type: "content_block", value };
 }
 
 function claudeNativeToolOutputFromStructuredResult(input: {
   readonly structuredOutput: unknown;
   readonly fallbackValue?: ClaudeToolResultOutput;
-}) {
+}): ClaudeNativeToolOutput {
   return {
     type: "structured_tool_use_result",
     value: input.structuredOutput,
     ...(input.fallbackValue === undefined ? {} : { fallbackValue: input.fallbackValue }),
-  } satisfies ClaudeNativeToolOutput;
+  };
 }
 
-function claudeNativeToolOutputValue(output: ClaudeNativeToolOutput): unknown | undefined;
-function claudeNativeToolOutputValue(output: ClaudeNativeToolOutput) {
+function claudeNativeToolOutputValue(output: ClaudeNativeToolOutput): unknown | undefined {
   switch (output.type) {
     case "none":
-      return undefined satisfies unknown | undefined;
+      return undefined;
     case "content_block":
-      return output.value satisfies unknown | undefined;
+      return output.value;
     case "structured_tool_use_result":
       if (toolOutputImages(output.value).length === 0) {
         return mcpToolResultOutput({
           content: output.fallbackValue,
           structuredContent: output.value,
-        }) satisfies unknown | undefined;
+        });
       }
-      return output.value satisfies unknown | undefined;
+      return output.value;
     default:
-      return assertNever(output) satisfies unknown | undefined;
+      return assertNever(output);
   }
 }
 
-function claudeNativeToolOutputText(output: ClaudeNativeToolOutput): string;
-function claudeNativeToolOutputText(output: ClaudeNativeToolOutput) {
+function claudeNativeToolOutputText(output: ClaudeNativeToolOutput): string {
   const value = claudeNativeToolOutputValue(output);
-  return (
-    typeof value === "string" ? value : value === undefined ? "" : jsonStringifyForTool(value)
-  ) satisfies string;
+  return typeof value === "string" ? value : value === undefined ? "" : jsonStringifyForTool(value);
 }
 
 const decodeClaudeFileEditResult = Schema.decodeUnknownOption(
@@ -3612,13 +3613,12 @@ const decodeClaudeFileEditResult = Schema.decodeUnknownOption(
   }),
 );
 
-function claudeFileChangeText(output: ClaudeNativeToolOutput): string;
-function claudeFileChangeText(output: ClaudeNativeToolOutput) {
+function claudeFileChangeText(output: ClaudeNativeToolOutput): string {
   const result =
     output.type === "structured_tool_use_result"
       ? Option.getOrUndefined(decodeClaudeFileEditResult(output.value))
       : undefined;
-  if (result === undefined) return claudeNativeToolOutputText(output) satisfies string;
+  if (result === undefined) return claudeNativeToolOutputText(output);
   const patch =
     result.structuredPatch.length === 0 && result.type === "create" && result.content !== undefined
       ? structuredPatch("/dev/null", result.filePath, "", result.content)
@@ -3629,11 +3629,10 @@ function claudeFileChangeText(output: ClaudeNativeToolOutput) {
           newHeader: undefined,
           hunks: result.structuredPatch,
         };
-  return (patch.hunks.length === 0 ? "" : formatPatch(patch, FILE_HEADERS_ONLY)) satisfies string;
+  return patch.hunks.length === 0 ? "" : formatPatch(patch, FILE_HEADERS_ONLY);
 }
 
-function claudeCommandOutputText(output: ClaudeNativeToolOutput): string;
-function claudeCommandOutputText(output: ClaudeNativeToolOutput) {
+function claudeCommandOutputText(output: ClaudeNativeToolOutput): string {
   const value = claudeNativeToolOutputValue(output);
   if (typeof value === "object" && value !== null) {
     const stdout = Reflect.get(value, "stdout");
@@ -3643,15 +3642,13 @@ function claudeCommandOutputText(output: ClaudeNativeToolOutput) {
       const err = typeof stderr === "string" && stderr.trim().length > 0 ? stderr : "";
       const text =
         out.length > 0 && err.length > 0 && !out.endsWith("\n") ? `${out}\n${err}` : out + err;
-      if (text.length > 0) return text satisfies string;
-      return (
-        output.type === "structured_tool_use_result" && output.fallbackValue !== undefined
-          ? claudeSubagentResultText({ type: "content_block", value: output.fallbackValue })
-          : ""
-      ) satisfies string;
+      if (text.length > 0) return text;
+      return output.type === "structured_tool_use_result" && output.fallbackValue !== undefined
+        ? claudeSubagentResultText({ type: "content_block", value: output.fallbackValue })
+        : "";
     }
   }
-  return claudeNativeToolOutputText(output) satisfies string;
+  return claudeNativeToolOutputText(output);
 }
 
 const CLAUDE_TOOLS_USED_NOTE =
@@ -3662,7 +3659,7 @@ const CLAUDE_USAGE_TRAILER = /(?:^|\n)<usage>[^<]*<\/usage>\s*$/;
 const CLAUDE_AGENT_ID_TRAILER =
   /(?:^|\n)agentId: ([\w-]+) \(use SendMessage with to: '\1'[^\n]*\)\s*$/;
 
-function claudeSubagentResultText(output: ClaudeNativeToolOutput) {
+function claudeSubagentResultText(output: ClaudeNativeToolOutput): string {
   const unwrapped = claudeSubagentRawResultText(output)
     .replace(CLAUDE_TOOLS_USED_NOTE, "")
     .replace(CLAUDE_USAGE_TRAILER, "")
@@ -3671,7 +3668,7 @@ function claudeSubagentResultText(output: ClaudeNativeToolOutput) {
   return report === unwrapped ? report : report.replace(/^ {2}/gm, "");
 }
 
-function claudeSubagentRawResultText(output: ClaudeNativeToolOutput) {
+function claudeSubagentRawResultText(output: ClaudeNativeToolOutput): string {
   const value = claudeNativeToolOutputValue(output);
   const content = Array.isArray(value)
     ? value
@@ -3698,7 +3695,7 @@ function claudeSubagentRawResultText(output: ClaudeNativeToolOutput) {
   return claudeNativeToolOutputText(output);
 }
 
-function isClaudeSubagentAsyncLaunchAck(output: ClaudeNativeToolOutput) {
+function isClaudeSubagentAsyncLaunchAck(output: ClaudeNativeToolOutput): boolean {
   const value = claudeNativeToolOutputValue(output);
   if (typeof value === "object" && value !== null) {
     if ("isAsync" in value && value.isAsync === true) {
@@ -3716,7 +3713,7 @@ function isClaudeSubagentAsyncLaunchAck(output: ClaudeNativeToolOutput) {
 function claudeToolResultSettlesSubagent(
   toolResult: ClaudeToolResultContentBlock,
   output: ClaudeNativeToolOutput,
-) {
+): boolean {
   return (
     isClaudeToolResultError(toolResult) ||
     (parseClaudeWorkflowRunHandles(claudeNativeToolOutputValue(output)) === undefined &&
@@ -3724,8 +3721,7 @@ function claudeToolResultSettlesSubagent(
   );
 }
 
-function claudeSettledSubagentToolUseIds(messages: ReadonlyArray<SDKMessage>): ReadonlySet<string>;
-function claudeSettledSubagentToolUseIds(messages: ReadonlyArray<SDKMessage>) {
+function claudeSettledSubagentToolUseIds(messages: ReadonlyArray<SDKMessage>): ReadonlySet<string> {
   return new Set(
     messages.flatMap((entry) =>
       entry.type === "user" && entry.parent_tool_use_id == null
@@ -3734,10 +3730,10 @@ function claudeSettledSubagentToolUseIds(messages: ReadonlyArray<SDKMessage>) {
           )
         : [],
     ),
-  ) satisfies ReadonlySet<string>;
+  );
 }
 
-function claudeWakeBufferDetail(messages: ReadonlyArray<SDKMessage>) {
+function claudeWakeBufferDetail(messages: ReadonlyArray<SDKMessage>): string | null {
   return (
     messages
       .flatMap((entry) =>
@@ -3757,27 +3753,20 @@ const WEB_FETCH_SNIPPET_MAX_CHARS = 8_000;
 function webSearchPatternsFromClaudeTool(input: {
   readonly toolInput: ClaudeNativeToolInput;
   readonly output: ClaudeNativeToolOutput;
-}): ReadonlyArray<string>;
-function webSearchPatternsFromClaudeTool(input: {
-  readonly toolInput: ClaudeNativeToolInput;
-  readonly output: ClaudeNativeToolOutput;
-}) {
+}): ReadonlyArray<string> {
   const output = claudeNativeToolOutputValue(input.output);
   const pattern =
     firstStringInputField(input.toolInput, ["query", "url", "pattern"]) ??
     (isClaudeWebSearchOutput(output) ? output.query : undefined);
-  return (
-    pattern === undefined || pattern.trim().length === 0 ? [] : [pattern]
-  ) satisfies ReadonlyArray<string>;
+  return pattern === undefined || pattern.trim().length === 0 ? [] : [pattern];
 }
 
 function webSearchResultsFromClaudeOutput(
   output: ClaudeNativeToolOutput,
-): ReadonlyArray<OrchestrationV2WebSearchResult>;
-function webSearchResultsFromClaudeOutput(output: ClaudeNativeToolOutput) {
+): ReadonlyArray<OrchestrationV2WebSearchResult> {
   const value = claudeNativeToolOutputValue(output);
   if (!isClaudeWebSearchOutput(value)) {
-    return [] satisfies ReadonlyArray<OrchestrationV2WebSearchResult>;
+    return [];
   }
 
   return value.results.flatMap((result) => {
@@ -3788,10 +3777,10 @@ function webSearchResultsFromClaudeOutput(output: ClaudeNativeToolOutput) {
       title: content.title,
       url: content.url,
     }));
-  }) satisfies ReadonlyArray<OrchestrationV2WebSearchResult>;
+  });
 }
 
-function summarizeClaudeToolRequest(toolName: string, input: ClaudeNativeToolInput) {
+function summarizeClaudeToolRequest(toolName: string, input: ClaudeNativeToolInput): string {
   const command = firstStringInputField(input, ["command", "cmd", "script"]);
   if (command !== undefined) {
     return `${toolName}: ${command.slice(0, 400)}`;
@@ -3806,7 +3795,9 @@ function summarizeClaudeToolRequest(toolName: string, input: ClaudeNativeToolInp
     : `${toolName}: ${serialized.slice(0, 397)}...`;
 }
 
-function outputFromClaudeToolResult(toolResult: ClaudeToolResultContentBlock) {
+function outputFromClaudeToolResult(
+  toolResult: ClaudeToolResultContentBlock,
+): ClaudeToolResultOutput | undefined {
   switch (toolResult.type) {
     case "tool_result":
       return toolResult.content;
@@ -3825,7 +3816,7 @@ function outputFromClaudeToolResult(toolResult: ClaudeToolResultContentBlock) {
   }
 }
 
-function isClaudeTypedToolResultErrorContent(content: ClaudeTypedToolResultContent) {
+function isClaudeTypedToolResultErrorContent(content: ClaudeTypedToolResultContent): boolean {
   if (Array.isArray(content)) {
     return false;
   }
@@ -3844,7 +3835,7 @@ function isClaudeTypedToolResultErrorContent(content: ClaudeTypedToolResultConte
   }
 }
 
-function isClaudeToolResultError(toolResult: ClaudeToolResultContentBlock) {
+function isClaudeToolResultError(toolResult: ClaudeToolResultContentBlock): boolean {
   switch (toolResult.type) {
     case "tool_result":
       return toolResult.is_error === true;
@@ -3863,7 +3854,7 @@ function isClaudeToolResultError(toolResult: ClaudeToolResultContentBlock) {
   }
 }
 
-function toolNameFromClaudeToolResult(toolResult: ClaudeToolResultContentBlock) {
+function toolNameFromClaudeToolResult(toolResult: ClaudeToolResultContentBlock): string {
   switch (toolResult.type) {
     case "bash_code_execution_tool_result":
       return "bash_code_execution";
@@ -3912,7 +3903,9 @@ function isClaudeToolUseContentBlock(
   );
 }
 
-function claudeToolUseBlocksFromAssistantMessage(message: SDKMessage) {
+function claudeToolUseBlocksFromAssistantMessage(
+  message: SDKMessage,
+): ReadonlyArray<ClaudeToolUseContentBlock> {
   if (message.type !== "assistant") {
     return [];
   }
@@ -3921,7 +3914,9 @@ function claudeToolUseBlocksFromAssistantMessage(message: SDKMessage) {
 
 type ClaudeToolPresentation = ReturnType<typeof mcpToolPresentation>;
 
-function claudeToolPresentationsFromAssistantMessage(message: SDKMessage) {
+function claudeToolPresentationsFromAssistantMessage(
+  message: SDKMessage,
+): ReadonlyMap<string, ClaudeToolPresentation> {
   const presentations = new Map<string, ClaudeToolPresentation>();
   const meta = message.type === "assistant" ? Reflect.get(message, "tool_use_meta") : undefined;
   if (!Array.isArray(meta)) return presentations;
@@ -3948,21 +3943,28 @@ function claudeToolPresentationsFromAssistantMessage(message: SDKMessage) {
   return presentations;
 }
 
-function claudeToolResultBlocksFromAssistantMessage(message: SDKMessage) {
+function claudeToolResultBlocksFromAssistantMessage(
+  message: SDKMessage,
+): ReadonlyArray<ClaudeToolResultContentBlock> {
   if (message.type !== "assistant") {
     return [];
   }
   return message.message.content.filter(isClaudeAssistantToolResultContentBlock);
 }
 
-function claudeToolResultBlocksFromUserMessage(message: SDKMessage) {
+function claudeToolResultBlocksFromUserMessage(
+  message: SDKMessage,
+): ReadonlyArray<ClaudeToolResultContentBlock> {
   if (message.type !== "user" || typeof message.message.content === "string") {
     return [];
   }
   return message.message.content.filter(isClaudeUserToolResultContentBlock);
 }
 
-function claudeToolResultEntriesFromMessage(message: SDKMessage) {
+function claudeToolResultEntriesFromMessage(message: SDKMessage): ReadonlyArray<{
+  readonly toolResult: ClaudeToolResultContentBlock;
+  readonly output: ClaudeNativeToolOutput;
+}> {
   const assistantResults = claudeToolResultBlocksFromAssistantMessage(message).map(
     (toolResult) => ({ toolResult, output: claudeNativeToolOutputFromToolResult(toolResult) }),
   );
@@ -3981,10 +3983,7 @@ function claudeToolResultEntriesFromMessage(message: SDKMessage) {
               fallbackValue: outputFromClaudeToolResult(toolResult),
             }),
     })),
-  ] satisfies ReadonlyArray<{
-    readonly toolResult: ClaudeToolResultContentBlock;
-    readonly output: ClaudeNativeToolOutput;
-  }>;
+  ];
 }
 
 const ClaudeToolResultMetadata = Schema.Struct({
@@ -4004,7 +4003,7 @@ function claudeToolNonExecutionKind(message: SDKMessage, toolUseId: string) {
     : undefined;
 }
 
-function parentToolUseIdFromSdkMessage(message: SDKMessage) {
+function parentToolUseIdFromSdkMessage(message: SDKMessage): string | null {
   return message.type === "assistant" || message.type === "user"
     ? message.parent_tool_use_id
     : null;
@@ -4021,7 +4020,10 @@ export function claudeApprovalPresentation(input: {
     Parameters<CanUseTool>[2],
     "decisionReason" | "suppressAlwaysAllowRule"
   >;
-}) {
+}): {
+  readonly reason?: string;
+  readonly options?: ReadonlyArray<ProviderApprovalOption>;
+} {
   const reason = NodeUtil.stripVTControlCharacters(
     input.callbackOptions.decisionReason ?? "",
   ).trim();
@@ -4040,7 +4042,7 @@ export function permissionResultFromDecision(input: {
   readonly toolUseID: string;
   readonly suggestions?: Parameters<CanUseTool>[2]["suggestions"];
   readonly feedback?: string;
-}) {
+}): PermissionResult {
   if (input.decision === "accept" || input.decision === "acceptForSession") {
     return {
       behavior: "allow",
@@ -4053,7 +4055,7 @@ export function permissionResultFromDecision(input: {
             updatedPermissions: toSessionPermissionUpdates(input.toolName, input.suggestions),
           }
         : {}),
-    } satisfies PermissionResult;
+    };
   }
 
   const feedback = input.feedback?.trim();
@@ -4067,22 +4069,19 @@ export function permissionResultFromDecision(input: {
     toolUseID: input.toolUseID,
     decisionClassification: "user_reject",
     ...(input.decision === "cancel" ? { interrupt: true } : {}),
-  } satisfies PermissionResult;
+  };
 }
 
 function toSessionPermissionUpdates(
   toolName: string,
   suggestions: ReadonlyArray<PermissionUpdate> | undefined,
-) {
-  const updates = (suggestions ?? []).map(
-    (suggestion) =>
-      ({
-        ...suggestion,
-        destination: "session",
-      }) satisfies PermissionUpdate,
-  );
+): Array<PermissionUpdate> {
+  const updates = (suggestions ?? []).map((suggestion): PermissionUpdate => ({
+    ...suggestion,
+    destination: "session",
+  }));
   if (updates.length > 0) {
-    return updates satisfies Array<PermissionUpdate>;
+    return updates;
   }
   return [
     {
@@ -4091,7 +4090,7 @@ function toSessionPermissionUpdates(
       behavior: "allow",
       destination: "session",
     },
-  ] satisfies Array<PermissionUpdate>;
+  ];
 }
 
 export const awaitClaudeApprovalDecision = Effect.fn("awaitClaudeApprovalDecision")(function* (
@@ -4126,7 +4125,7 @@ const isClaudeMcpElicitationValue = (
   typeof value === "boolean" ||
   (Array.isArray(value) && value.every((item) => typeof item === "string"));
 
-const withoutSchemaDefaults = (schema: Record<string, unknown>) => {
+const withoutSchemaDefaults = (schema: Record<string, unknown>): Record<string, unknown> => {
   const properties = schema.properties;
   if (typeof properties !== "object" || properties === null || Array.isArray(properties)) {
     return schema;
@@ -4146,14 +4145,9 @@ const withoutSchemaDefaults = (schema: Record<string, unknown>) => {
 
 export function claudeMcpElicitationAcceptance(
   request: ElicitationRequest,
-  arg1: { readonly fullAccess: boolean },
-): ElicitationResult | undefined;
-export function claudeMcpElicitationAcceptance(
-  request: ElicitationRequest,
   { fullAccess }: { readonly fullAccess: boolean },
-) {
-  if (request.mode === "url" || request.requestedSchema === undefined)
-    return undefined satisfies ElicitationResult | undefined;
+): ElicitationResult | undefined {
+  if (request.mode === "url" || request.requestedSchema === undefined) return undefined;
   const response = toMcpElicitationResponse(
     {
       mode: "form",
@@ -4170,15 +4164,14 @@ export function claudeMcpElicitationAcceptance(
     filled === null ||
     Array.isArray(filled)
   ) {
-    return undefined satisfies ElicitationResult | undefined;
+    return undefined;
   }
   const content: ClaudeMcpElicitationContent = {};
   for (const [key, value] of Object.entries(filled)) {
-    if (!isClaudeMcpElicitationValue(value))
-      return undefined satisfies ElicitationResult | undefined;
+    if (!isClaudeMcpElicitationValue(value)) return undefined;
     content[key] = value;
   }
-  return { action: "accept", content } satisfies ElicitationResult | undefined;
+  return { action: "accept", content };
 }
 
 const awaitClaudeUserInputAnswers = Effect.fn("awaitClaudeUserInputAnswers")(function* (
@@ -4194,7 +4187,7 @@ const awaitClaudeUserInputAnswers = Effect.fn("awaitClaudeUserInputAnswers")(fun
   return yield* Effect.raceFirst(Deferred.await(answers), cancellation);
 });
 
-function resultUserFacingError(result: SDKResultMessage) {
+function resultUserFacingError(result: SDKResultMessage): string | undefined {
   const errors = "errors" in result && Array.isArray(result.errors) ? result.errors : [];
   if (result.subtype === "success" && !result.is_error) {
     return undefined;
@@ -4207,7 +4200,10 @@ function resultUserFacingError(result: SDKResultMessage) {
 const CONTEXT_WINDOW_FULL_ERROR =
   "Claude stopped: the prompt exceeds the model's context window. Run /compact or start a new thread.";
 
-function terminalResultError(reason: SDKResultMessage["terminal_reason"], failureHint?: string) {
+function terminalResultError(
+  reason: SDKResultMessage["terminal_reason"],
+  failureHint?: string,
+): string | undefined {
   switch (reason) {
     case "api_error":
       return failureHint ?? "Claude gave up after repeated API errors.";
@@ -4236,11 +4232,17 @@ function terminalResultError(reason: SDKResultMessage["terminal_reason"], failur
   }
 }
 
-function isOverloadedResult(result: SDKResultMessage) {
+function isOverloadedResult(result: SDKResultMessage): boolean {
   return result.subtype === "success" && result.api_error_status === 529;
 }
 
-function terminalStatusFromResult(message: SDKResultMessage, failureHint?: string) {
+function terminalStatusFromResult(
+  message: SDKResultMessage,
+  failureHint?: string,
+): Extract<
+  OrchestrationV2ProviderTurn["status"],
+  "completed" | "interrupted" | "failed" | "cancelled"
+> {
   if (
     message.terminal_reason === "aborted_tools" ||
     message.terminal_reason === "aborted_streaming"
@@ -4265,17 +4267,19 @@ function terminalStatusFromResult(message: SDKResultMessage, failureHint?: strin
   return "failed";
 }
 
-function isClaudeActiveSteeringAbortResult(message: SDKResultMessage) {
+function isClaudeActiveSteeringAbortResult(message: SDKResultMessage): boolean {
   return (
     message.terminal_reason === "aborted_streaming" || message.terminal_reason === "aborted_tools"
   );
 }
 
-function isClaudeProviderContinuationTurn(input: ProviderAdapter.ProviderAdapterV2TurnInput) {
+function isClaudeProviderContinuationTurn(
+  input: ProviderAdapter.ProviderAdapterV2TurnInput,
+): boolean {
   return input.message.createdBy === "agent" && input.message.creationSource === "provider";
 }
 
-function isClaudePromptEchoGatedFrame(message: SDKMessage) {
+function isClaudePromptEchoGatedFrame(message: SDKMessage): boolean {
   switch (message.type) {
     case "assistant":
     case "stream_event":
@@ -4288,7 +4292,7 @@ function isClaudePromptEchoGatedFrame(message: SDKMessage) {
   }
 }
 
-function claudeFrameToolUseIds(message: SDKMessage) {
+function claudeFrameToolUseIds(message: SDKMessage): ReadonlyArray<string> {
   const ids: Array<string> = [];
   const parent = Reflect.get(message, "parent_tool_use_id");
   if (typeof parent === "string") {
@@ -4303,7 +4307,7 @@ function claudeFrameToolUseIds(message: SDKMessage) {
   return ids;
 }
 
-function claudeEchoedPromptUuids(message: SDKMessage) {
+function claudeEchoedPromptUuids(message: SDKMessage): ReadonlyArray<string> {
   const uuids = Reflect.get(message, "user_message_uuids");
   if (Array.isArray(uuids)) {
     return uuids.filter((uuid): uuid is string => typeof uuid === "string");
@@ -4312,7 +4316,9 @@ function claudeEchoedPromptUuids(message: SDKMessage) {
   return typeof uuid === "string" ? [uuid] : [];
 }
 
-function claudePromptLifecycle(message: SDKMessage) {
+function claudePromptLifecycle(
+  message: SDKMessage,
+): { readonly uuid: string; readonly state: string } | null {
   const type: unknown = Reflect.get(message, "type");
   if (type !== "command_lifecycle") return null;
   const uuid: unknown = Reflect.get(message, "command_uuid");
@@ -4325,7 +4331,7 @@ function isClaudeResultForOtherTurn(input: {
   readonly promptUuid: string;
   readonly steerUuids: ReadonlySet<string>;
   readonly promptEchoMode: ClaudeLiveQueryContext["promptEchoMode"];
-}) {
+}): boolean {
   const echoed = claudeEchoedPromptUuids(input.message);
   if (echoed.length > 0) {
     return !echoed.some((uuid) => uuid === input.promptUuid || input.steerUuids.has(uuid));
@@ -4346,14 +4352,15 @@ function isClaudeTaskNotificationOriginResult(message: SDKMessage): message is S
   return message.type === "result" && message.origin?.kind === "task-notification";
 }
 
-function isClaudeEmptyTaskNotificationSuccess(message: SDKMessage): boolean;
-function isClaudeEmptyTaskNotificationSuccess(message: SDKMessage) {
-  return (isClaudeTaskNotificationOriginResult(message) &&
+function isClaudeEmptyTaskNotificationSuccess(message: SDKMessage): boolean {
+  return (
+    isClaudeTaskNotificationOriginResult(message) &&
     message.subtype === "success" &&
     !message.is_error &&
     message.num_turns === 0 &&
     message.result.length === 0 &&
-    terminalStatusFromResult(message) === "completed") satisfies boolean;
+    terminalStatusFromResult(message) === "completed"
+  );
 }
 
 const isClaudeBlockedAssistantRateLimit = Schema.is(
@@ -4371,14 +4378,17 @@ const isClaudeBlockedAssistantRateLimit = Schema.is(
   }),
 );
 
-function claudeUsageLimitResetAt(resetsAt: unknown) {
+function claudeUsageLimitResetAt(resetsAt: unknown): string | null {
   const resetMs = typeof resetsAt === "number" ? resetsAt * 1000 : NaN;
   return Number.isFinite(resetMs) && resetMs > 0 && resetMs < 8.64e15
     ? DateTime.formatIso(DateTime.makeUnsafe(resetMs))
     : null;
 }
 
-function gatewayCooldownResetAt(cooldown: RegExpExecArray | null, completedAt: DateTime.Utc) {
+function gatewayCooldownResetAt(
+  cooldown: RegExpExecArray | null,
+  completedAt: DateTime.Utc,
+): string | undefined {
   if (cooldown === null) return undefined;
   const seconds =
     Number(cooldown[1] ?? 0) * 3_600 + Number(cooldown[2] ?? 0) * 60 + Number(cooldown[3] ?? 0);
@@ -4391,7 +4401,10 @@ function gatewayCooldownResetAt(cooldown: RegExpExecArray | null, completedAt: D
 const CLAUDE_UNSUPPORTED_VERSION_ERROR =
   /^API Error: 400 Claude Code (\d+\.\d+\.\d+) does not support this model; version (\d+\.\d+\.\d+) or newer is required\./;
 
-function claudeRewrittenVersion(message: SDKResultMessage, sessionVersion: string | undefined) {
+function claudeRewrittenVersion(
+  message: SDKResultMessage,
+  sessionVersion: string | undefined,
+): string | undefined {
   if (message.subtype !== "success" || message.terminal_reason !== "api_error") return undefined;
   const [, reported, required] = CLAUDE_UNSUPPORTED_VERSION_ERROR.exec(message.result.trim()) ?? [];
   if (reported === undefined || required === undefined || sessionVersion === undefined) {
@@ -4408,7 +4421,7 @@ function providerFailureFromResult(
   receivedAt: DateTime.Utc,
   failureHint?: string,
   usageLimited = false,
-) {
+): OrchestrationV2ProviderFailure | null {
   const gatewayResetAt =
     failureHint === undefined &&
     message.subtype === "success" &&
@@ -4486,7 +4499,7 @@ function providerFailureFromResult(
   });
 }
 
-function providerFailureFromApiRetry(message: SDKAPIRetryMessage) {
+function providerFailureFromApiRetry(message: SDKAPIRetryMessage): OrchestrationV2ProviderFailure {
   const errorName = message.error.replaceAll("_", " ");
   return makeProviderFailure({
     message: `Claude API ${errorName}.`,
@@ -4515,7 +4528,11 @@ function buildAssistantArtifacts(input: {
   readonly startedAt: DateTime.Utc;
   readonly completedAt: DateTime.Utc;
   readonly createdAt?: DateTime.Utc;
-}) {
+}): {
+  readonly node: OrchestrationV2ExecutionNode;
+  readonly message: OrchestrationV2ConversationMessage;
+  readonly turnItem: OrchestrationV2TurnItem;
+} {
   const nodeId = input.idAllocator.derive.nodeFromProviderItem({
     driver: CLAUDE_PROVIDER,
     nativeItemId: input.nativeItemId,
@@ -4589,10 +4606,6 @@ function buildAssistantArtifacts(input: {
       text: input.text,
       streaming,
     },
-  } satisfies {
-    readonly node: OrchestrationV2ExecutionNode;
-    readonly message: OrchestrationV2ConversationMessage;
-    readonly turnItem: OrchestrationV2TurnItem;
   };
 }
 
@@ -4611,7 +4624,7 @@ function describeClaudeUsageLimit(
   info: SDKRateLimitInfo,
   nowMs: number,
   names: ClaudeScopedLimitNames,
-) {
+): string {
   const label =
     info.rateLimitType === "seven_day_overage_included" && names.overageIncluded
       ? `7-day ${names.overageIncluded}`
@@ -4630,7 +4643,7 @@ function describeClaudeUsageLimit(
   }limit resets${wait ? ` in ${wait}` : ""}.`;
 }
 
-function formatClaudeUsageLimitWait(waitMs: number) {
+function formatClaudeUsageLimitWait(waitMs: number): string {
   const totalMinutes = Math.ceil(waitMs / 60_000);
   const hours = Math.floor(totalMinutes / 60);
   const minutes = totalMinutes % 60;
@@ -4800,7 +4813,7 @@ interface ClaudeSubagentProjectionTarget {
   readonly stopRequestedAt?: number | undefined;
 }
 
-function isClaudeTranscriptTurnEnd(entry: unknown) {
+function isClaudeTranscriptTurnEnd(entry: unknown): boolean {
   if (field(entry, "type") !== "assistant") return false;
   const stopReason = field(field(entry, "message"), "stop_reason");
   return typeof stopReason === "string" && stopReason !== "tool_use";
@@ -4824,7 +4837,7 @@ interface PendingClaudeSubagentLaunch {
   readonly ownerToolUseId?: string;
 }
 
-function canonicalClaudeSubagentModel(catalog: ClaudeModelCatalog, model: string) {
+function canonicalClaudeSubagentModel(catalog: ClaudeModelCatalog, model: string): string {
   return resolveClaudeModelSlug(catalog, model);
 }
 
@@ -4833,7 +4846,7 @@ function claudeSubagentModelSelection(
   instanceId: ModelSelection["instanceId"],
   model: string,
   effort: string | undefined,
-) {
+): ModelSelection {
   const descriptor = getClaudeCatalogModelCapabilities(catalog, model).optionDescriptors?.find(
     (candidate) => candidate.id === "effort",
   );
@@ -4851,7 +4864,7 @@ function rememberPendingClaudeSubagentLaunch(
   pending: Map<string, PendingClaudeSubagentLaunch>,
   toolUseId: string,
   launch: PendingClaudeSubagentLaunch,
-) {
+): void {
   pending.set(toolUseId, { ...pending.get(toolUseId), ...launch });
   if (pending.size <= PENDING_CLAUDE_SUBAGENT_CAP) {
     return;
@@ -4869,7 +4882,7 @@ function rememberClaudeSubagentLaunch(
   toolUseId: string,
   input: ClaudeNativeToolInput,
   ownerToolUseId: string | null,
-) {
+): void {
   if (context.subagentsByToolUseId.has(toolUseId)) return;
   const requested = firstStringInputField(input, ["model"]);
   const model =
@@ -4909,7 +4922,9 @@ type PendingClaudeRuntimeRequest =
       readonly answers: Deferred.Deferred<ProviderUserInputAnswers, never>;
     };
 
-export function claudeUserInputQuestions(input: unknown) {
+export function claudeUserInputQuestions(
+  input: unknown,
+): ReadonlyArray<OrchestrationV2UserInputQuestion> {
   const value =
     typeof input === "object" && input !== null && Reflect.get(input, "type") === "record"
       ? Reflect.get(input, "value")
@@ -4957,7 +4972,9 @@ export function claudeUserInputQuestions(input: unknown) {
   });
 }
 
-export function claudeSdkUserInputAnswers(answers: ProviderUserInputAnswers) {
+export function claudeSdkUserInputAnswers(
+  answers: ProviderUserInputAnswers,
+): NonNullable<AskUserQuestionInput["answers"]> {
   return Object.fromEntries(
     Object.entries(answers).map(([question, answer]) => [
       question,
@@ -4970,14 +4987,14 @@ export function claudeSdkUserInputAnswers(answers: ProviderUserInputAnswers) {
   );
 }
 
-function claudeTodoSteps(input: unknown) {
+function claudeTodoSteps(input: unknown): ReadonlyArray<OrchestrationV2PlanStep> {
   const value =
     typeof input === "object" && input !== null && Reflect.get(input, "type") === "record"
       ? Reflect.get(input, "value")
       : input;
   const todos =
     typeof value === "object" && value !== null ? Reflect.get(value, "todos") : undefined;
-  if (!Array.isArray(todos)) return [] satisfies ReadonlyArray<OrchestrationV2PlanStep>;
+  if (!Array.isArray(todos)) return [];
   return todos.flatMap((todo, index) => {
     if (typeof todo !== "object" || todo === null) return [];
     const text =
@@ -4998,24 +5015,21 @@ function claudeTodoSteps(input: unknown) {
               : "pending",
       },
     ];
-  }) satisfies ReadonlyArray<OrchestrationV2PlanStep>;
+  });
 }
 
 type ClaudeTaskList = ReadonlyMap<string, Omit<OrchestrationV2PlanStep, "id">>;
 
-function claudeTaskField(value: unknown, key: string): unknown;
-function claudeTaskField(value: unknown, key: string) {
-  return (
-    typeof value === "object" && value !== null ? Reflect.get(value, key) : undefined
-  ) satisfies unknown;
+function claudeTaskField(value: unknown, key: string): unknown {
+  return typeof value === "object" && value !== null ? Reflect.get(value, key) : undefined;
 }
 
-function claudeTaskString(value: unknown, key: string) {
+function claudeTaskString(value: unknown, key: string): string | undefined {
   const field = claudeTaskField(value, key);
   return typeof field === "string" && field.trim().length > 0 ? field.trim() : undefined;
 }
 
-function claudeFocusRequestedPanePlugin(message: SDKMessage) {
+function claudeFocusRequestedPanePlugin(message: SDKMessage): string | null {
   if (message.type !== "system" || claudeTaskField(message, "subtype") !== "ui_panes") return null;
   const paneId = claudeTaskString(message, "focus_requested_id");
   if (paneId === undefined) return null;
@@ -5026,7 +5040,7 @@ function claudeFocusRequestedPanePlugin(message: SDKMessage) {
   return claudeTaskString(pane, "plugin") ?? paneId;
 }
 
-function claudeTaskStatus(value: unknown) {
+function claudeTaskStatus(value: unknown): OrchestrationV2PlanStep["status"] | undefined {
   switch (value) {
     case "pending":
       return "pending";
@@ -5044,7 +5058,7 @@ function applyClaudeTaskTool(
   toolName: string,
   input: unknown,
   result: unknown,
-) {
+): ClaudeTaskList | undefined {
   if (toolName === "TaskList") {
     const listed = claudeTaskField(result, "tasks");
     if (!Array.isArray(listed)) return undefined;
@@ -5092,7 +5106,9 @@ function applyClaudeTaskTool(
   return new Map(tasks).set(id, { text, status });
 }
 
-function claudeCreatedTaskFromText(result: unknown) {
+function claudeCreatedTaskFromText(
+  result: unknown,
+): { readonly id: string; readonly subject: string } | undefined {
   const match =
     typeof result === "string" ? /^Task #(\S+) created successfully: (.+)$/s.exec(result) : null;
   return match === null ? undefined : { id: match[1]!, subject: match[2]!.trim() };
@@ -5141,14 +5157,14 @@ const readClaudeTaskList = Effect.fnUntraced(
     }
     return tasks;
   },
-  Effect.orElseSucceed(() => undefined),
+  Effect.orElseSucceed((): ClaudeTaskList | undefined => undefined),
 );
 
-function claudeTaskSteps(tasks: ClaudeTaskList) {
+function claudeTaskSteps(tasks: ClaudeTaskList): ReadonlyArray<OrchestrationV2PlanStep> {
   return [...tasks].map(([id, task]) => ({ id: `task-${id}`, ...task }));
 }
 
-function claudeProposedPlan(input: unknown) {
+function claudeProposedPlan(input: unknown): string | null {
   const value =
     typeof input === "object" && input !== null && Reflect.get(input, "type") === "record"
       ? Reflect.get(input, "value")
@@ -5208,7 +5224,7 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
   );
   let modelCatalog = yield* loadModelCatalog;
   const reportedContextWindows = new Map<string, number>();
-  const claudeContextWindow = (modelSelection: ModelSelection) =>
+  const claudeContextWindow = (modelSelection: ModelSelection): number | null =>
     resolveClaudeCatalogContextWindowTokens(modelCatalog, modelSelection) ??
     reportedContextWindows.get(
       compileClaudeModelSelection(modelSelection, modelCatalog).apiModelId,
@@ -5653,7 +5669,7 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
           nativeThreadId: string | null,
           roster: ReadonlyMap<string, OrchestrationV2PendingBackgroundTask>,
           awaitedTaskIds: ReadonlySet<string>,
-        ) => {
+        ): ReadonlyArray<OrchestrationV2PendingBackgroundTask> => {
           const tasks = claudePendingBackgroundTasksFromRoster(roster, awaitedTaskIds);
           return nativeThreadId !== null && scheduledWakeupsByNativeThread.has(nativeThreadId)
             ? [...tasks, CLAUDE_SCHEDULED_WAKEUP_TASK]
@@ -5706,13 +5722,10 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
         };
         const claudeTaskOutcome = (status: "completed" | "failed" | "stopped") =>
           status === "completed" ? "completed" : status === "stopped" ? "cancelled" : "failed";
-        const opaqueTaskWakeReport: (
+        const opaqueTaskWakeReport = Effect.fnUntraced(function* (
           nativeThreadId: string,
           message: Extract<SDKMessage, { readonly subtype: "task_notification" }>,
-        ) => Effect.Effect<BackgroundWorkReport> = Effect.fnUntraced(function* (
-          nativeThreadId: string,
-          message: Extract<SDKMessage, { readonly subtype: "task_notification" }>,
-        ) {
+        ): Effect.fn.Return<BackgroundWorkReport> {
           const task =
             rosterForNativeThread(
               yield* SubscriptionRef.get(pendingBackgroundTasksByNativeThread),
@@ -5757,7 +5770,7 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
         const withAdapterNativeMetadata = (
           providerThread: OrchestrationV2ProviderThread,
           nativeThreadId: string,
-        ) => {
+        ): OrchestrationV2ProviderThread => {
           const budget = pdfBudgets.get(nativeThreadId);
           const hasAppliedTitle = appliedSessionTitles.has(nativeThreadId);
           const recordedTitle = providerThread.nativeMetadata?.title;
@@ -6019,7 +6032,8 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
         const rosterForNativeThread = (
           all: ReadonlyMap<string, Map<string, OrchestrationV2PendingBackgroundTask>>,
           nativeThreadId: string,
-        ) => all.get(nativeThreadId) ?? new Map<string, OrchestrationV2PendingBackgroundTask>();
+        ): Map<string, OrchestrationV2PendingBackgroundTask> =>
+          all.get(nativeThreadId) ?? new Map<string, OrchestrationV2PendingBackgroundTask>();
 
         const hasPendingBackgroundTaskOnNativeThread = (nativeThreadId: string, taskId: string) =>
           SubscriptionRef.get(pendingBackgroundTasksByNativeThread).pipe(
@@ -6029,7 +6043,7 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
         const taskIdSetForNativeThread = (
           all: ReadonlyMap<string, Set<string>>,
           nativeThreadId: string,
-        ) => all.get(nativeThreadId) ?? new Set<string>();
+        ): Set<string> => all.get(nativeThreadId) ?? new Set<string>();
 
         const addTaskIdsToNativeThreadSet = (
           ref: Ref.Ref<Map<string, Set<string>>>,
@@ -6512,25 +6526,24 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
           readonly context: ActiveClaudeTurnContext;
           readonly status: OrchestrationV2ProviderTurn["status"];
           readonly completedAt: DateTime.Utc | null;
-        }) =>
-          ({
-            id: input.context.providerTurnId,
-            providerThreadId: input.context.input.providerThread.id,
-            nodeId: input.context.input.rootNodeId,
-            runAttemptId: input.context.input.attemptId,
-            nativeTurnRef: {
-              driver: CLAUDE_PROVIDER,
-              nativeId: input.context.nativeMessageCursor ?? input.context.nativeTurnId,
-              strength: "weak",
-            },
-            ordinal: input.context.providerTurnOrdinal,
-            status: input.status,
-            startedAt: input.context.startedAt,
-            completedAt: input.completedAt,
-            ...(input.context.executedModel === undefined
-              ? {}
-              : { model: input.context.executedModel }),
-          }) satisfies OrchestrationV2ProviderTurn;
+        }): OrchestrationV2ProviderTurn => ({
+          id: input.context.providerTurnId,
+          providerThreadId: input.context.input.providerThread.id,
+          nodeId: input.context.input.rootNodeId,
+          runAttemptId: input.context.input.attemptId,
+          nativeTurnRef: {
+            driver: CLAUDE_PROVIDER,
+            nativeId: input.context.nativeMessageCursor ?? input.context.nativeTurnId,
+            strength: "weak",
+          },
+          ordinal: input.context.providerTurnOrdinal,
+          status: input.status,
+          startedAt: input.context.startedAt,
+          completedAt: input.completedAt,
+          ...(input.context.executedModel === undefined
+            ? {}
+            : { model: input.context.executedModel }),
+        });
 
         const buildToolCallArtifacts = (input: {
           readonly context: ActiveClaudeTurnContext | null;
@@ -6855,7 +6868,7 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
         const withWorkflowMemberThreadIds = (
           workflow: OrchestrationV2SubagentWorkflow,
           coordinatorChildThreadId: ThreadId,
-        ) => ({
+        ): OrchestrationV2SubagentWorkflow => ({
           ...workflow,
           agents: workflow.agents.map((member) => ({
             ...member,
@@ -7317,7 +7330,7 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
           let found: string | undefined;
           for (const project of yield* fileSystem
             .readDirectory(projectsDir)
-            .pipe(Effect.orElseSucceed(() => []))) {
+            .pipe(Effect.orElseSucceed((): ReadonlyArray<string> => []))) {
             const candidate = path.join(projectsDir, project, context.nativeThreadId, "subagents");
             if (
               yield* fileSystem
@@ -8025,7 +8038,9 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
           return toolCall;
         });
 
-        const subagentProjectionTarget = (subagent: ActiveClaudeSubagent) => ({
+        const subagentProjectionTarget = (
+          subagent: ActiveClaudeSubagent,
+        ): ClaudeSubagentProjectionTarget => ({
           childThreadId: subagent.childThreadId,
           childRootNodeId: subagent.childRootNodeId,
           nextOrdinal: () => ++subagent.nextChildItemOrdinal,
@@ -9469,7 +9484,7 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
             threadId: route.threadId,
             providerThreadId: route.providerThreadId,
           });
-          const retire: () => Effect.Effect<void> = () =>
+          const retire = (): Effect.Effect<void> =>
             sdkMessageLock.withPermits(1)(retireOfferedWake(nativeThreadId, token));
           yield* continuationRequests.offer({
             threadId: route.threadId,
@@ -11348,7 +11363,7 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
           }
         });
 
-        const heldToolUseIds = (context: ActiveClaudeTurnContext) =>
+        const heldToolUseIds = (context: ActiveClaudeTurnContext): ReadonlySet<string> =>
           new Set(
             context.heldRootFrames.flatMap((frame) =>
               parentToolUseIdFromSdkMessage(frame) === null

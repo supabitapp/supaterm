@@ -51,7 +51,7 @@ export class DesktopTelemetryDescriptorUnavailable extends Schema.TaggedError<De
     mode: Schema.String,
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Desktop telemetry descriptor is unavailable in '${this.mode}' mode.`;
   }
 }
@@ -63,7 +63,7 @@ export class DesktopTelemetryProtocolMismatch extends Schema.TaggedError<Desktop
     receivedVersion: Schema.Number,
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Desktop telemetry protocol ${this.receivedVersion} is incompatible with expected protocol ${this.expectedVersion}.`;
   }
 }
@@ -74,7 +74,7 @@ export class DesktopTelemetryDecodeFailed extends Schema.TaggedError<DesktopTele
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return "Failed to decode desktop telemetry.";
   }
 }
@@ -86,8 +86,8 @@ export class DesktopTelemetryStreamFailed extends Schema.TaggedError<DesktopTele
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
-    return `Desktop telemetry stream on fd ${this.fd} failed.` satisfies string as string;
+  override get message(): string {
+    return `Desktop telemetry stream on fd ${this.fd} failed.`;
   }
 }
 
@@ -97,7 +97,7 @@ export class DesktopTelemetryStreamClosed extends Schema.TaggedError<DesktopTele
     fd: Schema.Number,
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Desktop telemetry stream on fd ${this.fd} closed.`;
   }
 }
@@ -109,7 +109,7 @@ export class DesktopTelemetryStale extends Schema.TaggedError<DesktopTelemetrySt
     staleAfterMs: Schema.Number,
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Desktop telemetry on fd ${this.fd} has not updated for ${this.staleAfterMs}ms.`;
   }
 }
@@ -129,7 +129,7 @@ export class DesktopTelemetryControlFailed extends Schema.TaggedError<DesktopTel
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Desktop telemetry control '${this.operation}' failed on fd ${this.fd}.`;
   }
 }
@@ -141,7 +141,7 @@ export class DesktopTelemetryControlStalled extends Schema.TaggedError<DesktopTe
     remainingBytes: Schema.Number,
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Desktop telemetry control stalled on fd ${this.fd} with ${this.remainingBytes} bytes remaining.`;
   }
 }
@@ -214,7 +214,7 @@ class DesktopShellCertificatesUpdateFailed extends Schema.TaggedError<DesktopShe
   "DesktopShellCertificatesUpdateFailed",
   { cause: Schema.Defect() },
 ) {
-  override get message() {
+  override get message(): string {
     return "Failed to update desktop shell TLS certificates.";
   }
 }
@@ -280,7 +280,10 @@ const isProtocolMismatch = Schema.is(DesktopTelemetryProtocolMismatch);
 const isDecodeFailed = Schema.is(DesktopTelemetryDecodeFailed);
 const isStreamFailed = Schema.is(DesktopTelemetryStreamFailed);
 
-function isDesktopTelemetryContactStale(lastContactAtMs: Option.Option<number>, nowMs: number) {
+function isDesktopTelemetryContactStale(
+  lastContactAtMs: Option.Option<number>,
+  nowMs: number,
+): boolean {
   return Option.exists(
     lastContactAtMs,
     (lastContact) => nowMs - lastContact >= INITIAL_SAMPLE_DEADLINE_MS,
@@ -290,14 +293,17 @@ function isDesktopTelemetryContactStale(lastContactAtMs: Option.Option<number>, 
 function resolveDesktopTelemetrySnapshotStaleAfterMs(
   activeIntervalMs: number,
   idleIntervalMs: number,
-) {
+): number {
   return Math.max(
     MIN_SNAPSHOT_STALE_AFTER_MS,
     Math.max(activeIntervalMs, idleIntervalMs) + STALE_GRACE_MS,
   );
 }
 
-function initialDesktopTelemetryContactAt(desktopTelemetryFd: number | undefined, nowMs: number) {
+function initialDesktopTelemetryContactAt(
+  desktopTelemetryFd: number | undefined,
+  nowMs: number,
+): Option.Option<number> {
   return desktopTelemetryFd === undefined ? Option.none() : Option.some(nowMs);
 }
 
@@ -317,17 +323,16 @@ const recordDesktopTelemetrySampleHealth = Effect.fn(
   yield* PubSub.publish(healthChanges, next);
 });
 
-function normalizeReceiverError(error: unknown): DesktopTelemetryReceiverError;
-function normalizeReceiverError(error: unknown) {
+function normalizeReceiverError(error: unknown): DesktopTelemetryReceiverError {
   if (
     isDescriptorUnavailable(error) ||
     isProtocolMismatch(error) ||
     isDecodeFailed(error) ||
     isStreamFailed(error)
   ) {
-    return error satisfies DesktopTelemetryReceiverError;
+    return error;
   }
-  return new DesktopTelemetryDecodeFailed({ cause: error }) satisfies DesktopTelemetryReceiverError;
+  return new DesktopTelemetryDecodeFailed({ cause: error });
 }
 
 export const writeAllToFileDescriptor = Effect.fn(
@@ -383,7 +388,7 @@ export function requireDesktopTelemetryWriteProgress(
   fd: number,
   remainingBytes: number,
   written: number,
-) {
+): Effect.Effect<void, DesktopTelemetryControlStalled> {
   return written > 0
     ? Effect.void
     : Effect.fail(new DesktopTelemetryControlStalled({ fd, remainingBytes }));
@@ -547,32 +552,27 @@ export const make = Effect.fn("resourceTelemetry.desktopTelemetryReceiver.make")
         onError: (cause) => new DesktopTelemetryStreamFailed({ fd, cause }),
       }).pipe(
         Stream.pipeThroughChannel(Ndjson.decode({ ignoreEmptyLines: true })),
-        Stream.mapEffect((value) => {
-          const version = messageVersion(value);
-          if (version !== undefined && version !== 1) {
-            return Effect.fail(
-              new DesktopTelemetryProtocolMismatch({
-                expectedVersion: 1,
-                receivedVersion: version,
-              }),
-            ) satisfies Effect.Effect<
-              DesktopHostTelemetryMessageValue,
-              DesktopTelemetryProtocolMismatch | DesktopTelemetryDecodeFailed
-            > as Effect.Effect<
-              DesktopHostTelemetryMessageValue,
-              DesktopTelemetryProtocolMismatch | DesktopTelemetryDecodeFailed
-            >;
-          }
-          return decodeMessage(value).pipe(
-            Effect.mapError((cause) => new DesktopTelemetryDecodeFailed({ cause })),
-          ) satisfies Effect.Effect<
+        Stream.mapEffect(
+          (
+            value,
+          ): Effect.Effect<
             DesktopHostTelemetryMessageValue,
             DesktopTelemetryProtocolMismatch | DesktopTelemetryDecodeFailed
-          > as Effect.Effect<
-            DesktopHostTelemetryMessageValue,
-            DesktopTelemetryProtocolMismatch | DesktopTelemetryDecodeFailed
-          >;
-        }),
+          > => {
+            const version = messageVersion(value);
+            if (version !== undefined && version !== 1) {
+              return Effect.fail(
+                new DesktopTelemetryProtocolMismatch({
+                  expectedVersion: 1,
+                  receivedVersion: version,
+                }),
+              );
+            }
+            return decodeMessage(value).pipe(
+              Effect.mapError((cause) => new DesktopTelemetryDecodeFailed({ cause })),
+            );
+          },
+        ),
         Stream.mapError(normalizeReceiverError),
       );
 
@@ -586,7 +586,7 @@ export const make = Effect.fn("resourceTelemetry.desktopTelemetryReceiver.make")
         if (message.type === "desktopTelemetryHello") {
           return recordContact.pipe(
             Effect.andThen(
-              updateHealth((current) => ({
+              updateHealth((current): DesktopTelemetryReceiverHealth => ({
                 ...current,
                 status: "healthy",
                 lastError: Option.none(),
@@ -618,14 +618,14 @@ export const make = Effect.fn("resourceTelemetry.desktopTelemetryReceiver.make")
         );
       }),
       Effect.andThen(
-        updateHealth((current) => ({
+        updateHealth((current): DesktopTelemetryReceiverHealth => ({
           ...current,
           status: "stopped",
           lastError: Option.some(new DesktopTelemetryStreamClosed({ fd }).message),
         })),
       ),
       Effect.catch((error) =>
-        updateHealth((current) => ({
+        updateHealth((current): DesktopTelemetryReceiverHealth => ({
           ...current,
           status: "degraded",
           lastError: Option.some(error.message),
@@ -752,7 +752,9 @@ export const make = Effect.fn("resourceTelemetry.desktopTelemetryReceiver.make")
 
 export const layer = Layer.effect(DesktopTelemetryReceiver, make());
 
-export const layerTest = (overrides: Partial<DesktopTelemetryReceiver["Service"]> = {}) => {
+export const layerTest = (
+  overrides: Partial<DesktopTelemetryReceiver["Service"]> = {},
+): Layer.Layer<DesktopTelemetryReceiver> => {
   const latest = overrides.latest ?? Effect.succeedNone;
   const changes = overrides.changes ?? Stream.empty;
   const health =

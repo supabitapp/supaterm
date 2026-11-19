@@ -57,7 +57,7 @@ export function evaluatePullRequestWatch(
   >,
   remarks: ReadonlyArray<PullRequestComment> | null,
   now: number,
-) {
+): PullRequestWatchReport {
   const changes: Array<PullRequestWatchChange> = [];
   const headSha = detail.headSha ?? watch.headSha;
   const headMoved = watch.headSha !== null && headSha !== watch.headSha;
@@ -255,7 +255,7 @@ const PROSE_MARKUP = new RegExp(
   "g",
 );
 
-function withoutTags(prose: string) {
+function withoutTags(prose: string): string {
   const kept = new Map<string, number>();
   let text = "";
   let from = 0;
@@ -278,7 +278,7 @@ function withoutTags(prose: string) {
   return text + prose.slice(from);
 }
 
-function withoutMarkup(body: string) {
+function withoutMarkup(body: string): string {
   const parts: Array<string> = [];
   let prose: Array<string> = [];
   let fence: string | undefined;
@@ -313,7 +313,7 @@ function withoutMarkup(body: string) {
   return parts.join("\n");
 }
 
-function snippet(body: string) {
+function snippet(body: string): string {
   const text = withoutMarkup(body.replaceAll(/<!--[\s\S]*?-->/g, " "))
     .replaceAll(/\s+/g, " ")
     .trim();
@@ -323,7 +323,7 @@ function snippet(body: string) {
   return `${text.slice(0, end)}...`;
 }
 
-function listed<T>(items: ReadonlyArray<T>, line: (item: T) => string) {
+function listed<T>(items: ReadonlyArray<T>, line: (item: T) => string): Array<string> {
   const lines = items.slice(0, LISTED_ITEMS).map(line);
   if (items.length > LISTED_ITEMS) lines.push(`  - and ${items.length - LISTED_ITEMS} more`);
   return lines;
@@ -335,7 +335,7 @@ const failedCheckLine = (check: PullRequestCheck) =>
 function changeLines(
   change: PullRequestWatchChange,
   context: { readonly baseBranch: string; readonly commit: string },
-) {
+): Array<string> {
   switch (change.kind) {
     case "checks-failed":
       return [`- Checks failed${context.commit}:`, ...listed(change.failed, failedCheckLine)];
@@ -408,8 +408,8 @@ export interface PullRequestWatchWake {
 /** One wake for news on several pull requests, with the closing instructions said once. */
 export function combinePullRequestWatchWakes(
   wakes: readonly [PullRequestWatchWake, ...ReadonlyArray<PullRequestWatchWake>],
-) {
-  if (wakes.length === 1) return wakes[0] satisfies PullRequestWatchWake;
+): PullRequestWatchWake {
+  if (wakes.length === 1) return wakes[0];
   const closing = `\n\n${WATCHING_CLOSING}`;
   const watching = wakes.some((wake) => wake.text.endsWith(closing));
   const outcomes = wakes.map((wake) => wake.notification.outcome);
@@ -429,7 +429,7 @@ export function combinePullRequestWatchWakes(
           : "updated",
       summary: wakes.map((wake) => wake.notification.summary).join("; "),
     },
-  } satisfies PullRequestWatchWake;
+  };
 }
 
 export function pullRequestWatchMessage(input: {
@@ -438,7 +438,7 @@ export function pullRequestWatchMessage(input: {
   readonly baseBranch: string;
   readonly headSha: string | null;
   readonly report: PullRequestWatchReport;
-}) {
+}): { readonly text: string; readonly notification: OrchestrationV2Notification } {
   const { changes, exhausted } = input.report;
   const context = {
     baseBranch: input.baseBranch,
@@ -473,5 +473,5 @@ export function pullRequestWatchMessage(input: {
           : "updated",
       summary: `#${input.number}: ${summary.join(", ")}`,
     },
-  } satisfies { readonly text: string; readonly notification: OrchestrationV2Notification };
+  };
 }

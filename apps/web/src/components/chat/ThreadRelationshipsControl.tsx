@@ -85,7 +85,10 @@ import {
 const THREAD_LINEAGE_INITIAL_COUNT = 6;
 const THREAD_LINEAGE_PAGE_COUNT = 12;
 
-function resolveThreadLineageWindow<Row>(rows: ReadonlyArray<Row>, visibleCount: number) {
+function resolveThreadLineageWindow<Row>(
+  rows: ReadonlyArray<Row>,
+  visibleCount: number,
+): { readonly visibleRows: ReadonlyArray<Row>; readonly hiddenCount: number } {
   const visibleRows = rows.slice(0, visibleCount);
   return { visibleRows, hiddenCount: rows.length - visibleRows.length };
 }
@@ -168,7 +171,10 @@ function relationshipLabel(edge: ThreadRelationshipEdge, currentThreadId: Thread
   return edge.sourceThreadId === currentThreadId ? "Fork" : "Parent thread";
 }
 
-function relationshipThreadTitle(input: { readonly title: string; readonly isSubagent: boolean }) {
+function relationshipThreadTitle(input: {
+  readonly title: string;
+  readonly isSubagent: boolean;
+}): string {
   if (!input.isSubagent) return input.title;
   return formatSubagentDisplayTitle(input.title);
 }
@@ -185,7 +191,7 @@ function LineageTooltipContent(props: { readonly title: string; readonly hint: s
 function currentSubagent<Agent extends RuntimeSubagent>(
   agent: Agent | undefined,
   childThread: OrchestrationV2ThreadShell | null | undefined,
-) {
+): Agent | undefined {
   if (!agent || !childThread || isOrchestrationV2WorkActive(agent.status)) return agent;
   const liveStatus =
     childThread.activityRunStatus ?? (childThread.status === "queued" ? "queued" : null);

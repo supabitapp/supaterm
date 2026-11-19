@@ -20,14 +20,14 @@ const MAX_HIGHLIGHTED_CODE_BLOCK_LENGTH = 20_000;
 const DEFERRED_HIGHLIGHT_CODE_BLOCK_LENGTH = 2_000;
 const DEFERRED_HIGHLIGHT_DELAY_MS = 300;
 
-function shouldHighlightCodeBlock(code: string) {
+function shouldHighlightCodeBlock(code: string): boolean {
   return code.length <= MAX_HIGHLIGHTED_CODE_BLOCK_LENGTH;
 }
-function blockSignature(node: ProseMirrorNode, theme: DiffThemeName) {
+function blockSignature(node: ProseMirrorNode, theme: DiffThemeName): string {
   return [theme, String(node.attrs.language ?? ""), node.textContent].join("\u0000");
 }
 
-function collectCodeBlocks(state: EditorState) {
+function collectCodeBlocks(state: EditorState): Array<{ node: ProseMirrorNode; pos: number }> {
   const blocks: Array<{ node: ProseMirrorNode; pos: number }> = [];
   state.doc.forEach((node, pos) => {
     if (node.type.name === "codeBlock") blocks.push({ node, pos });
@@ -163,7 +163,7 @@ export function tokenizeBlock(
   code: string,
   language: string,
   theme: DiffThemeName,
-) {
+): ReadonlyArray<{ from: number; to: number; color: string }> {
   let tokens;
   try {
     tokens = highlighter.codeToTokens(code, { lang: language, theme }).tokens;
@@ -191,7 +191,7 @@ function buildDecorations(
   cache: Map<string, HighlightedBlock>,
   theme: DiffThemeName,
   previous: DecorationSet,
-) {
+): DecorationSet {
   const decorations: Decoration[] = [];
   for (const { node, pos } of collectCodeBlocks(state)) {
     if (!shouldHighlightCodeBlock(node.textContent)) continue;
@@ -223,6 +223,6 @@ function buildDecorations(
   return DecorationSet.create(state.doc, decorations);
 }
 
-function colorDecoration(from: number, to: number, color: string) {
+function colorDecoration(from: number, to: number, color: string): Decoration {
   return Decoration.inline(from, to, { style: `color:${color}` }, { color });
 }

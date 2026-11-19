@@ -2,7 +2,7 @@ import { scaledTypographyLineHeight } from "./appearancePreferences";
 import { MOBILE_TYPOGRAPHY } from "./typography";
 import type { NativeLayoutMetrics } from "./reserved-regions";
 
-function clamp(value: number, min: number, max: number) {
+function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
 }
 
@@ -93,13 +93,7 @@ export function deriveLayout(input: {
   readonly height: number;
   readonly nativeMetrics?: NativeLayoutMetrics | null;
   readonly nativeWorkspace?: boolean;
-}): Layout;
-export function deriveLayout(input: {
-  readonly width: number;
-  readonly height: number;
-  readonly nativeMetrics?: NativeLayoutMetrics | null;
-  readonly nativeWorkspace?: boolean;
-}) {
+}): Layout {
   const { width, height } = input;
   const metrics = input.nativeMetrics;
   const usableWidth = width - (metrics?.safeArea.left ?? 0) - (metrics?.safeArea.right ?? 0);
@@ -131,7 +125,7 @@ export function deriveLayout(input: {
       usesSplitView: false,
       listPaneWidth: null,
       shellPadding: 0,
-    } satisfies Layout;
+    };
   }
 
   const division = metrics?.reservedRegions.find(
@@ -155,7 +149,7 @@ export function deriveLayout(input: {
           )),
     ...(division ? { listPaneGap: division.width } : {}),
     shellPadding: 0,
-  } satisfies Layout;
+  };
 }
 
 export interface VerticalHinge {
@@ -172,7 +166,7 @@ export function alignListPaneToHinge(input: {
   readonly hinge: VerticalHinge | null;
   readonly viewportWidth: number;
   readonly leadingWidth: number;
-}) {
+}): Layout {
   const { layout, hinge } = input;
   if (!hinge || !layout.usesSplitView) return layout;
   const listPaneWidth = hinge.x - input.leadingWidth;
@@ -186,7 +180,7 @@ export function alignListPaneToHinge(input: {
 }
 
 /** Home's list, or the Settings list in its place, with no detail selected. */
-export function isWorkspaceListPath(pathname: string) {
+export function isWorkspaceListPath(pathname: string): boolean {
   return pathname === "/" || pathname === "/settings";
 }
 
@@ -194,7 +188,7 @@ export function isPrimarySidebarPinned(input: {
   readonly pathname: string;
   readonly nativeWorkspace: boolean;
   readonly usesSplitView: boolean;
-}) {
+}): boolean {
   return isWorkspaceListPath(input.pathname) && !(input.nativeWorkspace && input.usesSplitView);
 }
 
@@ -211,7 +205,7 @@ export function deriveWorkspacePaneLayout(input: {
   readonly auxiliaryPanePreferredWidth?: number;
   /** The native inspector column's width; UIKit lays it out, not this layout. */
   readonly nativeInspectorWidth?: number;
-}) {
+}): WorkspacePaneLayout {
   const viewportWidth = Math.max(0, input.viewportWidth);
   const floats = input.primarySidebarFloats ?? input.layout.variant === "medium";
   const preferredPrimarySidebarVisible =
@@ -279,7 +273,7 @@ export function deriveFileInspectorPaneLayout(input: {
   readonly viewportWidth: number;
   readonly preferredWidth?: number;
   readonly reservedLeadingWidth?: number;
-}) {
+}): FileInspectorPaneLayout {
   const viewportWidth = Math.max(0, input.viewportWidth);
   const reservedLeadingWidth = Number.isFinite(input.reservedLeadingWidth)
     ? Math.max(0, input.reservedLeadingWidth ?? 0)
@@ -308,7 +302,7 @@ export function deriveFileInspectorPaneLayout(input: {
 export function constrainAuxiliaryPaneWidth(input: {
   readonly preferredWidth: number;
   readonly availableWidth: number;
-}) {
+}): number {
   const safePreferredWidth = Number.isFinite(input.preferredWidth)
     ? input.preferredWidth
     : AUXILIARY_PANE_MIN_WIDTH;
@@ -326,7 +320,7 @@ export function deriveCenteredContentHorizontalPadding(input: {
   readonly viewportWidth: number;
   readonly maxContentWidth: number | null;
   readonly minimumPadding: number;
-}) {
+}): number {
   const viewportWidth = Number.isFinite(input.viewportWidth) ? Math.max(0, input.viewportWidth) : 0;
   const minimumPadding = Number.isFinite(input.minimumPadding)
     ? Math.max(0, input.minimumPadding)

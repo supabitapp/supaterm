@@ -63,33 +63,35 @@ const WORK = "/work/opencode2";
 const instanceId = ProviderInstanceId.make("opencode");
 const threadId = ThreadId.make("thread:opencode2-adapter");
 
-const out = (type: string, input?: unknown) =>
-  ({
-    type: "expect_outbound",
-    frame: input === undefined ? { type } : { type, input },
-  }) satisfies ProviderReplayEntry;
-const reply = (operation: string, data: unknown) =>
-  ({
-    type: "emit_inbound",
-    frame: { type: "sdk.response", operation, data },
-  }) satisfies ProviderReplayEntry;
+const out = (type: string, input?: unknown): ProviderReplayEntry => ({
+  type: "expect_outbound",
+  frame: input === undefined ? { type } : { type, input },
+});
+const reply = (operation: string, data: unknown): ProviderReplayEntry => ({
+  type: "emit_inbound",
+  frame: { type: "sdk.response", operation, data },
+});
 const replyData = (operation: string, data: unknown) => reply(operation, { data });
-const event = (type: string, data: Record<string, unknown>, label?: string, version = 1) =>
-  ({
-    type: "emit_inbound",
-    frame: {
-      type: "sdk.event",
-      event: {
-        id: `evt_${type.replaceAll(".", "")}0000`,
-        created: 1,
-        type,
-        ...(type.startsWith("rpc.") ? { location: { directory: WORK } } : {}),
-        data,
-        durable: { ...durable.durable, version },
-      },
+const event = (
+  type: string,
+  data: Record<string, unknown>,
+  label?: string,
+  version = 1,
+): ProviderReplayEntry => ({
+  type: "emit_inbound",
+  frame: {
+    type: "sdk.event",
+    event: {
+      id: `evt_${type.replaceAll(".", "")}0000`,
+      created: 1,
+      type,
+      ...(type.startsWith("rpc.") ? { location: { directory: WORK } } : {}),
+      data,
+      durable: { ...durable.durable, version },
     },
-    ...(label === undefined ? {} : { label }),
-  }) satisfies ProviderReplayEntry;
+  },
+  ...(label === undefined ? {} : { label }),
+});
 const durable = { durable: { aggregateID: SESSION, seq: 1, version: 1 } };
 
 const mcpRules = [
@@ -155,7 +157,9 @@ const noOpenRequests: ReadonlyArray<ProviderReplayEntry> = [
   replyData("session.form.list", []),
 ];
 
-const withInstructions = (entries: ReadonlyArray<ProviderReplayEntry>) => {
+const withInstructions = (
+  entries: ReadonlyArray<ProviderReplayEntry>,
+): ReadonlyArray<ProviderReplayEntry> => {
   const first = entries.findIndex(
     (entry) =>
       entry.type === "expect_outbound" &&
@@ -181,20 +185,18 @@ const withInstructions = (entries: ReadonlyArray<ProviderReplayEntry>) => {
       entry.frame.operation === "mcp.add",
   );
   const at = after < 0 ? first : after + 1;
-  return (
-    first < 0
-      ? entries
-      : [
-          ...entries.slice(0, at),
-          out("session.instructions.entry.put", {
-            sessionID: SESSION,
-            key: "supaterm",
-            value: "<any>",
-          }),
-          reply("session.instructions.entry.put", null),
-          ...entries.slice(at),
-        ]
-  ) satisfies ReadonlyArray<ProviderReplayEntry>;
+  return first < 0
+    ? entries
+    : [
+        ...entries.slice(0, at),
+        out("session.instructions.entry.put", {
+          sessionID: SESSION,
+          key: "supaterm",
+          value: "<any>",
+        }),
+        reply("session.instructions.entry.put", null),
+        ...entries.slice(at),
+      ];
 };
 
 const openCode2ReplayRuntimeWithInstructions = (
@@ -207,11 +209,10 @@ const opening: ReadonlyArray<ProviderReplayEntry> = [
   out("model.list", "<any>"),
   reply("model.list", modelCatalog),
 ];
-const directoryModels = (directory: string) =>
-  [
-    out("model.list", { "location[directory]": directory }),
-    reply("model.list", { ...modelCatalog, location: { directory } }),
-  ] satisfies ReadonlyArray<ProviderReplayEntry>;
+const directoryModels = (directory: string): ReadonlyArray<ProviderReplayEntry> => [
+  out("model.list", { "location[directory]": directory }),
+  reply("model.list", { ...modelCatalog, location: { directory } }),
+];
 
 const bigPickle: ModelSelection = { instanceId, model: "opencode/big-pickle" };
 const policy = (runtimeMode: "full-access" | "approval-required" = "full-access") => ({
@@ -220,24 +221,23 @@ const policy = (runtimeMode: "full-access" | "approval-required" = "full-access"
   cwd: WORK,
 });
 
-const providerThread = (now: DateTime.Utc) =>
-  ({
-    id: ProviderThreadId.make("provider-thread:opencode2-adapter"),
-    driver: OPENCODE_PROVIDER,
-    providerInstanceId: instanceId,
-    providerSessionId: ProviderSessionId.make("provider-session:opencode2-adapter"),
-    appThreadId: threadId,
-    ownerNodeId: null,
-    nativeThreadRef: { driver: OPENCODE_PROVIDER, nativeId: SESSION, strength: "strong" },
-    nativeConversationHeadRef: null,
-    status: "idle",
-    firstRunOrdinal: null,
-    lastRunOrdinal: null,
-    handoffIds: [],
-    forkedFrom: null,
-    createdAt: now,
-    updatedAt: now,
-  }) satisfies OrchestrationV2ProviderThread;
+const providerThread = (now: DateTime.Utc): OrchestrationV2ProviderThread => ({
+  id: ProviderThreadId.make("provider-thread:opencode2-adapter"),
+  driver: OPENCODE_PROVIDER,
+  providerInstanceId: instanceId,
+  providerSessionId: ProviderSessionId.make("provider-session:opencode2-adapter"),
+  appThreadId: threadId,
+  ownerNodeId: null,
+  nativeThreadRef: { driver: OPENCODE_PROVIDER, nativeId: SESSION, strength: "strong" },
+  nativeConversationHeadRef: null,
+  status: "idle",
+  firstRunOrdinal: null,
+  lastRunOrdinal: null,
+  handoffIds: [],
+  forkedFrom: null,
+  createdAt: now,
+  updatedAt: now,
+});
 
 const turnInput = (
   thread: OrchestrationV2ProviderThread,
@@ -889,7 +889,7 @@ it.layer(McpProviderSessions.layer)("OpenCode2 adapter", (it) => {
     agent: "general",
     model: { id: "big-pickle", providerID: "opencode", variant: "default" },
   });
-  const backgroundLaunch = (child: string) => {
+  const backgroundLaunch = (child: string): ReadonlyArray<ProviderReplayEntry> => {
     const call = "call-background";
     const tool = { sessionID: SESSION, assistantMessageID: "msg_assistant", id: call };
     return [
@@ -908,7 +908,7 @@ it.layer(McpProviderSessions.layer)("OpenCode2 adapter", (it) => {
         ...tool,
         metadata: { sessionID: child, status: "running" },
       }),
-    ] satisfies ReadonlyArray<ProviderReplayEntry>;
+    ];
   };
   const withLineage = (thread: OrchestrationV2ProviderThread) => ({
     ...turnInput(thread),
@@ -1652,31 +1652,30 @@ it.layer(McpProviderSessions.layer)("OpenCode2 adapter", (it) => {
       }),
   );
 
-  const returnedRunning = (id: string) =>
-    ({
-      type: "emit_inbound",
-      frame: {
-        type: "sdk.event",
-        event: {
-          id: `evt_toolsuccess_${id}`,
-          created: 1,
-          type: "session.tool.success",
-          data: {
-            sessionID: SESSION,
-            assistantMessageID: "msg_assistant",
-            id,
-            content: [{ type: "text", text: "The subagent is working in the background." }],
-            metadata: { sessionID: CHILD, status: "running" },
-            executed: true,
-          },
-          durable: { aggregateID: SESSION, seq: 1, version: 2 },
+  const returnedRunning = (id: string): ProviderReplayEntry => ({
+    type: "emit_inbound",
+    frame: {
+      type: "sdk.event",
+      event: {
+        id: `evt_toolsuccess_${id}`,
+        created: 1,
+        type: "session.tool.success",
+        data: {
+          sessionID: SESSION,
+          assistantMessageID: "msg_assistant",
+          id,
+          content: [{ type: "text", text: "The subagent is working in the background." }],
+          metadata: { sessionID: CHILD, status: "running" },
+          executed: true,
         },
+        durable: { aggregateID: SESSION, seq: 1, version: 2 },
       },
-    }) satisfies ProviderReplayEntry;
+    },
+  });
   const callAgain = (
     input: Record<string, unknown>,
     { id = "call-again", writesRules = true } = {},
-  ) => {
+  ): ReadonlyArray<ProviderReplayEntry> => {
     const tool = { sessionID: SESSION, assistantMessageID: "msg_assistant", id };
     return [
       event("session.tool.input.started", { ...tool, name: "subagent" }),
@@ -1697,7 +1696,7 @@ it.layer(McpProviderSessions.layer)("OpenCode2 adapter", (it) => {
           ]
         : []),
       returnedRunning(tool.id),
-    ] satisfies ReadonlyArray<ProviderReplayEntry>;
+    ];
   };
   const childReport = (inboxID: string, text: string, description = "Sleep") =>
     event("session.inbox.enqueued", {
@@ -1764,7 +1763,7 @@ it.layer(McpProviderSessions.layer)("OpenCode2 adapter", (it) => {
         Stream.runDrain,
         Effect.forkScoped,
       );
-      const until: (check: () => boolean) => Effect.Effect<void> = (check: () => boolean) =>
+      const until = (check: () => boolean): Effect.Effect<void> =>
         Effect.suspend(() => {
           if (check()) return Effect.void;
           return Effect.gen(function* () {
@@ -2196,7 +2195,7 @@ it.layer(McpProviderSessions.layer)("OpenCode2 adapter", (it) => {
         Stream.runDrain,
         Effect.forkScoped,
       );
-      const until: (check: () => boolean) => Effect.Effect<void> = (check: () => boolean) =>
+      const until = (check: () => boolean): Effect.Effect<void> =>
         Effect.suspend(() => {
           if (check()) return Effect.void;
           return Effect.gen(function* () {
@@ -3251,13 +3250,15 @@ it.layer(McpProviderSessions.layer)("OpenCode2 adapter", (it) => {
       cursor: {},
     }),
   ];
-  const openRequests = (permissions: ReadonlyArray<unknown>, forms: ReadonlyArray<unknown> = []) =>
-    [
-      out("permission.list", { sessionID: SESSION }),
-      replyData("permission.list", permissions),
-      out("session.form.list", { sessionID: SESSION }),
-      replyData("session.form.list", forms),
-    ] satisfies ReadonlyArray<ProviderReplayEntry>;
+  const openRequests = (
+    permissions: ReadonlyArray<unknown>,
+    forms: ReadonlyArray<unknown> = [],
+  ): ReadonlyArray<ProviderReplayEntry> => [
+    out("permission.list", { sessionID: SESSION }),
+    replyData("permission.list", permissions),
+    out("session.form.list", { sessionID: SESSION }),
+    replyData("session.form.list", forms),
+  ];
 
   const turnItems = (collected: ReadonlyArray<ProviderAdapter.ProviderAdapterV2Event>) =>
     collected.flatMap((event) =>
@@ -4768,11 +4769,10 @@ it.layer(McpProviderSessions.layer)("OpenCode2 adapter", (it) => {
         assistantMessageID: "msg_assistant",
         id,
       });
-      const call = (id: string, todos: unknown) =>
-        [
-          event("session.tool.input.started", { ...tool(id), name: "todowrite" }),
-          event("session.tool.called", { ...tool(id), input: { todos }, executed: false }),
-        ] satisfies ReadonlyArray<ProviderReplayEntry>;
+      const call = (id: string, todos: unknown): ReadonlyArray<ProviderReplayEntry> => [
+        event("session.tool.input.started", { ...tool(id), name: "todowrite" }),
+        event("session.tool.called", { ...tool(id), input: { todos }, executed: false }),
+      ];
       const { runtime, thread } = yield* resumed([
         out("session.prompt", { sessionID: SESSION, text: "<any>" }),
         promptAccepted,
@@ -6181,38 +6181,39 @@ it.layer(McpProviderSessions.layer)("OpenCode2 adapter", (it) => {
   it.effect("prompts under ids no other session on the server can hold", () =>
     Effect.gen(function* () {
       const OTHER = "ses_f148ca2deffeOtherSession000";
-      const steerInto = (session: string, recorded: string) =>
-        [
-          out("session.prompt", {
-            sessionID: session,
-            id: recorded,
-            text: "<any>",
-            delivery: "steer",
-          }),
-          replyData("session.prompt", {
-            id: recorded,
-            sessionID: session,
-            time: { created: 1790656601500 },
-            type: "user",
-            payload: { text: "Also say STEERED." },
-            delivery: "steer",
-          }),
-          event("session.inbox.delivered", { sessionID: session, inboxID: recorded }),
-          event("session.execution.succeeded", { sessionID: session }),
-        ] satisfies ReadonlyArray<ProviderReplayEntry>;
-      const promptInto = (session: string, recorded: string) =>
-        [
-          out("session.prompt", { sessionID: session, id: recorded, text: "<any>" }),
-          replyData("session.prompt", {
-            id: recorded,
-            sessionID: session,
-            time: { created: 1790656601410 },
-            type: "user",
-            payload: { text: "hi" },
-            delivery: "steer",
-          }),
-          event("session.execution.started", { sessionID: session }),
-        ] satisfies ReadonlyArray<ProviderReplayEntry>;
+      const steerInto = (session: string, recorded: string): ReadonlyArray<ProviderReplayEntry> => [
+        out("session.prompt", {
+          sessionID: session,
+          id: recorded,
+          text: "<any>",
+          delivery: "steer",
+        }),
+        replyData("session.prompt", {
+          id: recorded,
+          sessionID: session,
+          time: { created: 1790656601500 },
+          type: "user",
+          payload: { text: "Also say STEERED." },
+          delivery: "steer",
+        }),
+        event("session.inbox.delivered", { sessionID: session, inboxID: recorded }),
+        event("session.execution.succeeded", { sessionID: session }),
+      ];
+      const promptInto = (
+        session: string,
+        recorded: string,
+      ): ReadonlyArray<ProviderReplayEntry> => [
+        out("session.prompt", { sessionID: session, id: recorded, text: "<any>" }),
+        replyData("session.prompt", {
+          id: recorded,
+          sessionID: session,
+          time: { created: 1790656601410 },
+          type: "user",
+          payload: { text: "hi" },
+          delivery: "steer",
+        }),
+        event("session.execution.started", { sessionID: session }),
+      ];
       const { runtime, thread } = yield* resumed([
         out("session.get", { sessionID: OTHER }),
         replyData("session.get", sessionInfo({ id: OTHER })),
@@ -6276,18 +6277,20 @@ it.layer(McpProviderSessions.layer)("OpenCode2 adapter", (it) => {
   it.effect("reports the shared session's status only when it changes", () =>
     Effect.gen(function* () {
       const OTHER = "ses_f148ca2deffeOtherSession000";
-      const promptInto = (session: string, recorded: string) =>
-        [
-          out("session.prompt", { sessionID: session, id: recorded, text: "<any>" }),
-          replyData("session.prompt", {
-            id: recorded,
-            sessionID: session,
-            time: { created: 1790656601410 },
-            type: "user",
-            payload: { text: "hi" },
-            delivery: "steer",
-          }),
-        ] satisfies ReadonlyArray<ProviderReplayEntry>;
+      const promptInto = (
+        session: string,
+        recorded: string,
+      ): ReadonlyArray<ProviderReplayEntry> => [
+        out("session.prompt", { sessionID: session, id: recorded, text: "<any>" }),
+        replyData("session.prompt", {
+          id: recorded,
+          sessionID: session,
+          time: { created: 1790656601410 },
+          type: "user",
+          payload: { text: "hi" },
+          delivery: "steer",
+        }),
+      ];
       const { runtime, thread } = yield* resumed([
         out("session.get", { sessionID: OTHER }),
         replyData("session.get", sessionInfo({ id: OTHER })),

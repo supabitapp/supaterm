@@ -1,4 +1,4 @@
-import type { KeybindingCommand } from "@supaterm/contracts";
+import type { KeybindingCommand, ResolvedKeybindingsConfig } from "@supaterm/contracts";
 import { describe, expect, it, vi } from "vite-plus/test";
 
 import {
@@ -10,7 +10,7 @@ import {
   runCommand,
 } from "./dispatcher";
 
-function bindings(entries: ReadonlyArray<[string, KeybindingCommand]>) {
+function bindings(entries: ReadonlyArray<[string, KeybindingCommand]>): ResolvedKeybindingsConfig {
   return entries.map(([key, command]) => ({
     command,
     shortcut: {
@@ -30,7 +30,7 @@ const keybindings = () =>
     ["j", "chat.newLocal"],
   ]);
 
-function press(key: string) {
+function press(key: string): KeyboardEvent {
   const event = new KeyboardEvent("keydown", { key, cancelable: true, bubbles: true });
   window.dispatchEvent(event);
   return event;

@@ -51,7 +51,7 @@ export const WEB_ASSET_CHANNELS = ["latest", "nightly"] as const;
 
 export type WebAssetChannel = (typeof WEB_ASSET_CHANNELS)[number];
 
-export function resolveWebAssetBrandForChannel(channel: WebAssetChannel) {
+export function resolveWebAssetBrandForChannel(channel: WebAssetChannel): WebAssetBrand {
   return channel === "nightly" ? "nightly" : "production";
 }
 
@@ -96,7 +96,10 @@ const WEB_ICON_SOURCE_PATHS_BY_BRAND = {
   },
 } as const satisfies Record<WebAssetBrand, Record<keyof typeof WEB_ICON_TARGET_FILENAMES, string>>;
 
-export function resolveWebIconOverrides(brand: WebAssetBrand, targetDirectory: string) {
+export function resolveWebIconOverrides(
+  brand: WebAssetBrand,
+  targetDirectory: string,
+): ReadonlyArray<IconOverride> {
   const sourcePaths = WEB_ICON_SOURCE_PATHS_BY_BRAND[brand];
   return [
     {

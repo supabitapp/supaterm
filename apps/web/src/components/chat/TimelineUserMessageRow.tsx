@@ -363,7 +363,7 @@ function AutomationMessageRow({ row }: { row: Extract<TimelineRow, { kind: "mess
 export function useScheduledTaskTitle(
   environmentId: EnvironmentId,
   scheduledTaskId: ScheduledTaskId | undefined,
-) {
+): string | undefined {
   const tasksQuery = useEnvironmentQuery(
     scheduledTaskId ? serverEnvironment.scheduledTasksLive({ environmentId, input: {} }) : null,
   );

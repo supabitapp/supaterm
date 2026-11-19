@@ -10,14 +10,14 @@ import { isShowcaseNativeContentReady, type ShowcaseRenderSignal } from "./showc
 export const SHOWCASE_THREAD_ID = "offline-reason";
 
 /** The scene whose screen a capture shows. A split view opens the showcase thread beside the list. */
-export function showcaseScreenScene(captureScene: ShowcaseScene, splitView: boolean): ShowcaseScene;
-export function showcaseScreenScene(captureScene: ShowcaseScene, splitView: boolean) {
-  return (
-    splitView && captureScene === "threads" ? "thread" : captureScene
-  ) satisfies ShowcaseScene;
+export function showcaseScreenScene(
+  captureScene: ShowcaseScene,
+  splitView: boolean,
+): ShowcaseScene {
+  return splitView && captureScene === "threads" ? "thread" : captureScene;
 }
 
-export function showcaseSceneOnScreen(pathname: string) {
+export function showcaseSceneOnScreen(pathname: string): ShowcaseScene | null {
   const routePath = pathname.split(/[?#]/u, 1)[0] ?? pathname;
   if (routePath === "/settings" || routePath.endsWith("/settings/environments")) {
     return "environments";
@@ -44,16 +44,14 @@ export interface ShowcaseNavigationTarget {
 export function shouldNavigateToShowcaseScene(
   last: ShowcaseNavigationTarget | null,
   next: ShowcaseNavigationTarget,
-): boolean;
-export function shouldNavigateToShowcaseScene(
-  last: ShowcaseNavigationTarget | null,
-  next: ShowcaseNavigationTarget,
-) {
-  return (next.scene !== next.requestedScene &&
+): boolean {
+  return (
+    next.scene !== next.requestedScene &&
     (last === null ||
       last.requestedScene !== next.requestedScene ||
       last.scene !== next.scene ||
-      last.thread !== next.thread)) satisfies boolean;
+      last.thread !== next.thread)
+  );
 }
 
 /** Captures follow the system appearance, so both appearances must use the requested theme. */
@@ -63,7 +61,7 @@ export function isShowcaseThemeApplied(input: {
   readonly requestedTheme: MobileThemeId | null;
   readonly themeMode: string;
   readonly themeId: MobileThemeId;
-}) {
+}): boolean {
   if (!input.preferencesReady || input.themeMode !== "system") return false;
   return input.requestedTheme === null
     ? input.launchRequestRead
@@ -105,7 +103,7 @@ export interface ShowcaseReadinessInput {
  * The capture key for a scene that is ready to be marked, or null while any
  * precondition is missing. A changed key restarts the settle delay.
  */
-export function showcaseReadinessKey(input: ShowcaseReadinessInput) {
+export function showcaseReadinessKey(input: ShowcaseReadinessInput): string | null {
   const { scene } = input;
   if (
     scene === null ||

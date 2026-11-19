@@ -4,7 +4,7 @@ import type { ScopedThreadRef } from "@supaterm/contracts";
 const closingIdsByThread = new Map<string, Map<string, number>>();
 
 /** IDs a new terminal must not take until their pending closes settle. */
-export function closingTerminalIds(threadRef: ScopedThreadRef) {
+export function closingTerminalIds(threadRef: ScopedThreadRef): ReadonlyArray<string> {
   return [...(closingIdsByThread.get(scopedThreadKey(threadRef))?.keys() ?? [])];
 }
 
@@ -12,7 +12,7 @@ export async function holdTerminalIdWhileClosing<A>(
   threadRef: ScopedThreadRef,
   terminalId: string,
   close: () => Promise<A>,
-) {
+): Promise<A> {
   const key = scopedThreadKey(threadRef);
   const closing = closingIdsByThread.get(key) ?? new Map<string, number>();
   closingIdsByThread.set(key, closing);

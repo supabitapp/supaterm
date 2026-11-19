@@ -26,25 +26,24 @@ export function withOrchestrationProtocolHeader(
   headers: EnvironmentHttpAuthHeaders,
 ): EnvironmentHttpAuthHeaders & {
   readonly [ORCHESTRATION_PROTOCOL_HEADER]: typeof ORCHESTRATION_PROTOCOL_VERSION_TEXT;
-};
-export function withOrchestrationProtocolHeader(headers: EnvironmentHttpAuthHeaders) {
+} {
   return {
     ...headers,
     [ORCHESTRATION_PROTOCOL_HEADER]: ORCHESTRATION_PROTOCOL_VERSION_TEXT,
-  } satisfies EnvironmentHttpAuthHeaders & {
-    readonly [ORCHESTRATION_PROTOCOL_HEADER]: typeof ORCHESTRATION_PROTOCOL_VERSION_TEXT;
   };
 }
 
 const withEnvironmentCredentials = <A, E, R>(
   authorization: PreparedHttpAuthorization | null,
   request: Effect.Effect<A, E, R>,
-) =>
+): Effect.Effect<A, E, R> =>
   authorization === null
     ? request.pipe(Effect.provideService(FetchHttpClient.RequestInit, { credentials: "include" }))
     : request;
 
-const environmentAuthHeaders = (authorization: PreparedHttpAuthorization | null) =>
+const environmentAuthHeaders = (
+  authorization: PreparedHttpAuthorization | null,
+): EnvironmentHttpAuthHeaders =>
   authorization === null ? {} : { authorization: `Bearer ${authorization.token}` };
 
 interface EnvironmentHttpRequestInput<
@@ -62,23 +61,15 @@ interface EnvironmentHttpRequestInput<
   }) => Effect.Effect<A, E, R>;
 }
 
-export const executeAuthenticatedEnvironmentHttpRequest: <
-  Group extends Parameters<typeof makeEnvironmentHttpApiGroupClient>[1],
-  A,
-  E,
-  R,
->(
+export const executeAuthenticatedEnvironmentHttpRequest = Effect.fn(
+  "clientRuntime.state.executeAuthenticatedEnvironmentHttpRequest",
+)(function* <Group extends Parameters<typeof makeEnvironmentHttpApiGroupClient>[1], A, E, R>(
   input: EnvironmentHttpRequestInput<Group, A, E, R> & { readonly prepared: PreparedConnection },
-) => Effect.Effect<
+): Effect.fn.Return<
   A,
   RemoteEnvironmentRequestError,
   Effect.Services<ReturnType<typeof makeEnvironmentHttpApiGroupClient<Group>>> | R
-> = Effect.fn("clientRuntime.state.executeAuthenticatedEnvironmentHttpRequest")(function* <
-  Group extends Parameters<typeof makeEnvironmentHttpApiGroupClient>[1],
-  A,
-  E,
-  R,
->(input: EnvironmentHttpRequestInput<Group, A, E, R> & { readonly prepared: PreparedConnection }) {
+> {
   const { httpBaseUrl, httpAuthorization } = input.prepared;
   const requestUrl = input.url(makeEnvironmentHttpApiUrlBuilder(httpBaseUrl)[input.group]);
   return yield* Effect.gen(function* () {

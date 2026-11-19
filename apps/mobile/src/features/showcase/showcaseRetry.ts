@@ -7,11 +7,14 @@ export interface ShowcaseRetryOptions {
 const DEFAULT_ATTEMPT_TIMEOUT_MS = 10_000;
 const DEFAULT_RETRY_DELAY_MS = 500;
 
-function delay(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms)) satisfies Promise<void>;
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function runAttemptWithTimeout(operation: () => Promise<boolean>, timeoutMs: number) {
+async function runAttemptWithTimeout(
+  operation: () => Promise<boolean>,
+  timeoutMs: number,
+): Promise<boolean> {
   let timeout: ReturnType<typeof setTimeout> | null = null;
   try {
     return await Promise.race([
@@ -30,7 +33,7 @@ async function runAttemptWithTimeout(operation: () => Promise<boolean>, timeoutM
 export async function retryShowcaseOperation(
   operation: () => Promise<boolean>,
   options: ShowcaseRetryOptions,
-) {
+): Promise<boolean> {
   const attemptTimeoutMs = options.attemptTimeoutMs ?? DEFAULT_ATTEMPT_TIMEOUT_MS;
   const retryDelayMs = options.retryDelayMs ?? DEFAULT_RETRY_DELAY_MS;
 

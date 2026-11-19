@@ -25,7 +25,7 @@ import {
 } from "./use-thread-outbox";
 
 /** Take delivery ownership before any await; the durable draft then takes ownership of the files. */
-export async function editPendingThreadMessage(message: QueuedThreadMessage) {
+export async function editPendingThreadMessage(message: QueuedThreadMessage): Promise<boolean> {
   if (
     message.creation ||
     message.voice ||

@@ -22,7 +22,7 @@ export function isPinnableProjectedItem(
 
 export function useMessagePinned(
   projectedItem: Extract<TimelineRow, { kind: "message" }>["projectedItem"],
-) {
+): boolean {
   const ctx = use(TimelineRowCtx);
   return projectedItem !== undefined && ctx.pinnedItemIds.has(projectedItem.sourceItemId);
 }

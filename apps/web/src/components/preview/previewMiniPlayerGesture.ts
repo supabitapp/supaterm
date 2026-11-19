@@ -40,13 +40,12 @@ export function stepPreviewMiniPlayerGesture(
   gesture: PreviewMiniPlayerGesture,
   pointer: GesturePointer,
   container: PreviewMiniPlayerSize,
-) {
-  if (pointer.pointerId !== gesture.pointerId)
-    return { kind: "ignore" } satisfies PreviewMiniPlayerGestureStep;
-  if ((pointer.buttons & 1) === 0) return { kind: "end" } satisfies PreviewMiniPlayerGestureStep;
+): PreviewMiniPlayerGestureStep {
+  if (pointer.pointerId !== gesture.pointerId) return { kind: "ignore" };
+  if ((pointer.buttons & 1) === 0) return { kind: "end" };
   const delta = { x: pointer.clientX - gesture.pointerX, y: pointer.clientY - gesture.pointerY };
   if (!gesture.moved && Math.hypot(delta.x, delta.y) < HANDLE_TAP_SLOP_PX) {
-    return { kind: "ignore" } satisfies PreviewMiniPlayerGestureStep;
+    return { kind: "ignore" };
   }
   if (gesture.direction === null) {
     return {
@@ -56,7 +55,7 @@ export function stepPreviewMiniPlayerGesture(
         container,
         gesture.frame,
       ),
-    } satisfies PreviewMiniPlayerGestureStep;
+    };
   }
   return {
     kind: "resize",
@@ -67,7 +66,7 @@ export function stepPreviewMiniPlayerGesture(
       source: gesture.source,
       container,
     }),
-  } satisfies PreviewMiniPlayerGestureStep;
+  };
 }
 
 /**
@@ -80,7 +79,7 @@ export function settlePreviewMiniPlayerResize(input: {
   readonly held: PreviewMiniPlayerSize;
   readonly source: PreviewMiniPlayerSize;
   readonly container: PreviewMiniPlayerSize;
-}) {
+}): PreviewMiniPlayerFrame | null {
   const { frame, direction, held, source, container } = input;
   if (held.width * source.height === source.width * held.height) return null;
   return resizePreviewMiniPlayer({

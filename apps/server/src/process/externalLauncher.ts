@@ -59,6 +59,12 @@ interface ProcessLaunch {
   readonly options: ChildProcess.CommandOptions;
 }
 
+interface TargetPathAndPosition {
+  readonly path: string;
+  readonly line: string;
+  readonly column: Option.Option<string>;
+}
+
 const WINDOWS_SHIM_UNSAFE_ARG_PATTERN = /[\u0000-\u001f\u007f"]/;
 const TARGET_WITH_POSITION_PATTERN = /^(.*?):(\d+)(?::(\d+))?$/;
 const POWERSHELL_ARGUMENTS_PREFIX = [
@@ -78,7 +84,7 @@ const DETACHED_IGNORE_STDIO_OPTIONS = {
   stderr: "ignore",
 } as const satisfies ChildProcess.CommandOptions;
 
-const compactEnv = (input: Record<string, Option.Option<string>>) =>
+const compactEnv = (input: Record<string, Option.Option<string>>): NodeJS.ProcessEnv =>
   Object.fromEntries(
     Object.entries(input).flatMap(([key, value]) =>
       Option.match(value, {
@@ -116,7 +122,7 @@ const CommandLookupEnvConfig = Config.all({
 const readBrowserLaunchEnv = BrowserLaunchEnvConfig.pipe(Effect.orElseSucceed(() => ({})));
 const readCommandLookupEnv = CommandLookupEnvConfig.pipe(Effect.orElseSucceed(() => ({})));
 
-function parseTargetPathAndPosition(target: string) {
+function parseTargetPathAndPosition(target: string): Option.Option<TargetPathAndPosition> {
   const match = TARGET_WITH_POSITION_PATTERN.exec(target);
   if (!match?.[1] || !match[2]) {
     return Option.none();
@@ -135,7 +141,7 @@ function resolveCommandEditorArgs(
   isDirectory: boolean,
   projectRoot: string | undefined,
   position: LaunchEditorInput["position"],
-) {
+): ReadonlyArray<string> {
   const parsedTarget =
     position === undefined
       ? parseTargetPathAndPosition(target)
@@ -179,7 +185,7 @@ function resolveCommandEditorArgs(
   }
 }
 
-function encodeUtf16LeBase64(input: string) {
+function encodeUtf16LeBase64(input: string): string {
   const bytes = new Uint8Array(input.length * 2);
   for (let index = 0; index < input.length; index += 1) {
     const code = input.charCodeAt(index);
@@ -189,25 +195,28 @@ function encodeUtf16LeBase64(input: string) {
   return Base64.encode(bytes);
 }
 
-function escapePowerShellStringLiteral(input: string) {
+function escapePowerShellStringLiteral(input: string): string {
   return `'${input.replace(/['\u2018-\u201b]/g, "$&$&")}'`;
 }
 
-function resolveWindowsRoot(env: NodeJS.ProcessEnv) {
+function resolveWindowsRoot(env: NodeJS.ProcessEnv): string {
   return env.SYSTEMROOT || env.windir || String.raw`C:\Windows`;
 }
 
-function resolvePowerShellPath(env: NodeJS.ProcessEnv = {}) {
+function resolvePowerShellPath(env: NodeJS.ProcessEnv = {}): string {
   return `${resolveWindowsRoot(env)}\\System32\\WindowsPowerShell\\v1.0\\powershell.exe`;
 }
 
-function resolveWslPowerShellPath() {
+function resolveWslPowerShellPath(): string {
   return "/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe";
 }
 
 const WSL_POWERSHELL_COMMAND = "powershell.exe";
 
-function shouldUseWindowsHostFromWsl(platform: NodeJS.Platform, env: NodeJS.ProcessEnv = {}) {
+function shouldUseWindowsHostFromWsl(
+  platform: NodeJS.Platform,
+  env: NodeJS.ProcessEnv = {},
+): boolean {
   return (
     platform === "linux" &&
     (env.WSL_DISTRO_NAME !== undefined || env.WSL_INTEROP !== undefined) &&
@@ -217,7 +226,11 @@ function shouldUseWindowsHostFromWsl(platform: NodeJS.Platform, env: NodeJS.Proc
   );
 }
 
-function resolveWindowsBrowserLaunch(target: string, command: string, detached: boolean) {
+function resolveWindowsBrowserLaunch(
+  target: string,
+  command: string,
+  detached: boolean,
+): ProcessLaunch {
   const encodedCommand = encodeUtf16LeBase64(
     `$ProgressPreference = 'SilentlyContinue'; Start ${escapePowerShellStringLiteral(target)}`,
   );
@@ -231,16 +244,19 @@ function resolveWindowsBrowserLaunch(target: string, command: string, detached: 
       stdout: "ignore",
       stderr: "ignore",
     },
-  } satisfies ProcessLaunch;
+  };
 }
 
-function hasGraphicalLinuxSession(env: NodeJS.ProcessEnv) {
+function hasGraphicalLinuxSession(env: NodeJS.ProcessEnv): boolean {
   return [env.DISPLAY, env.WAYLAND_DISPLAY].some(
     (value) => value !== undefined && value.trim().length > 0,
   );
 }
 
-function fileManagerCommandForPlatform(platform: NodeJS.Platform, env: NodeJS.ProcessEnv) {
+function fileManagerCommandForPlatform(
+  platform: NodeJS.Platform,
+  env: NodeJS.ProcessEnv,
+): string | undefined {
   switch (platform) {
     case "darwin":
       return "open";
@@ -257,7 +273,13 @@ function fileManagerCommandForPlatform(platform: NodeJS.Platform, env: NodeJS.Pr
 const LINUX_DIRECTORY_HANDLER_PROBE_TIMEOUT = "2 seconds";
 
 const hasUsableLinuxDirectoryHandler = Effect.fn("externalLauncher.hasUsableLinuxDirectoryHandler")(
-  function* (env: NodeJS.ProcessEnv) {
+  function* (
+    env: NodeJS.ProcessEnv,
+  ): Effect.fn.Return<
+    boolean,
+    never,
+    FileSystem.FileSystem | Path.Path | ChildProcessSpawner.ChildProcessSpawner
+  > {
     if (!(yield* isCommandAvailable("xdg-mime", { env }))) {
       return false;
     }
@@ -285,7 +307,14 @@ const hasUsableLinuxDirectoryHandler = Effect.fn("externalLauncher.hasUsableLinu
 );
 
 const isUsableFileManagerCommand = Effect.fn("externalLauncher.isUsableFileManagerCommand")(
-  function* (command: string, env: NodeJS.ProcessEnv) {
+  function* (
+    command: string,
+    env: NodeJS.ProcessEnv,
+  ): Effect.fn.Return<
+    boolean,
+    never,
+    FileSystem.FileSystem | Path.Path | ChildProcessSpawner.ChildProcessSpawner
+  > {
     if (!(yield* isCommandAvailable(command, { env }))) {
       return false;
     }
@@ -295,7 +324,14 @@ const isUsableFileManagerCommand = Effect.fn("externalLauncher.isUsableFileManag
 
 const resolveUsableFileManagerCommand = Effect.fn(
   "externalLauncher.resolveUsableFileManagerCommand",
-)(function* (platform: NodeJS.Platform, env: NodeJS.ProcessEnv) {
+)(function* (
+  platform: NodeJS.Platform,
+  env: NodeJS.ProcessEnv,
+): Effect.fn.Return<
+  string | undefined,
+  never,
+  FileSystem.FileSystem | Path.Path | ChildProcessSpawner.ChildProcessSpawner
+> {
   const command = fileManagerCommandForPlatform(platform, env);
   if (command !== undefined && (yield* isUsableFileManagerCommand(command, env))) {
     return command;
@@ -312,7 +348,14 @@ const resolveUsableFileManagerCommand = Effect.fn(
 
 const fileManagerRevealKindForPlatform = Effect.fn(
   "externalLauncher.fileManagerRevealKindForPlatform",
-)(function* (platform: NodeJS.Platform, env: NodeJS.ProcessEnv) {
+)(function* (
+  platform: NodeJS.Platform,
+  env: NodeJS.ProcessEnv,
+): Effect.fn.Return<
+  FileManagerRevealKind | undefined,
+  never,
+  FileSystem.FileSystem | Path.Path | ChildProcessSpawner.ChildProcessSpawner
+> {
   if (platform === "darwin") return "finder";
   if (platform === "win32") {
     return (yield* isCommandAvailable(resolvePowerShellPath(env), { env }))
@@ -334,13 +377,16 @@ const fileManagerRevealKindForPlatform = Effect.fn(
   return hasGraphicalLinuxSession(env) ? "files" : undefined;
 });
 
-function wslUncFallbackPath(target: string, distroName: string) {
+function wslUncFallbackPath(target: string, distroName: string): string {
   const relativePath = target.replace(/^\/+/, "").replaceAll("/", "\\");
   return `\\\\wsl.localhost\\${distroName}${relativePath.length > 0 ? `\\${relativePath}` : ""}`;
 }
 
 export const resolveWslFileManagerPath = Effect.fn("externalLauncher.resolveWslFileManagerPath")(
-  function* (target: string, distroName: string) {
+  function* (
+    target: string,
+    distroName: string,
+  ): Effect.fn.Return<string, never, ChildProcessSpawner.ChildProcessSpawner> {
     const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
     return yield* spawner
       .spawn(ChildProcess.make("wslpath", ["-w", target], { stdin: "ignore", stderr: "ignore" }))
@@ -367,13 +413,13 @@ function buildBrowserLaunch(
   target: string,
   platform: NodeJS.Platform,
   env: NodeJS.ProcessEnv = {},
-) {
+): ProcessLaunch {
   if (platform === "darwin") {
     return {
       command: "open",
       args: [target],
       options: DETACHED_IGNORE_STDIO_OPTIONS,
-    } satisfies ProcessLaunch;
+    };
   }
 
   if (platform === "win32") {
@@ -381,28 +427,28 @@ function buildBrowserLaunch(
       target,
       resolvePowerShellPath(env),
       WINDOWS_POWERSHELL_DETACHED,
-    ) satisfies ProcessLaunch;
+    );
   }
 
   if (shouldUseWindowsHostFromWsl(platform, env)) {
-    return resolveWindowsBrowserLaunch(
-      target,
-      resolveWslPowerShellPath(),
-      true,
-    ) satisfies ProcessLaunch;
+    return resolveWindowsBrowserLaunch(target, resolveWslPowerShellPath(), true);
   }
 
   return {
     command: "xdg-open",
     args: [target],
     options: DETACHED_IGNORE_STDIO_OPTIONS,
-  } satisfies ProcessLaunch;
+  };
 }
 
 const buildAvailableEditors = Effect.fn("externalLauncher.buildAvailableEditors")(function* (
   platform: NodeJS.Platform,
   env: NodeJS.ProcessEnv,
-) {
+): Effect.fn.Return<
+  ReadonlyArray<EditorId>,
+  never,
+  FileSystem.FileSystem | Path.Path | ChildProcessSpawner.ChildProcessSpawner
+> {
   const available: EditorId[] = [];
 
   for (const editor of EDITORS) {
@@ -466,13 +512,13 @@ export class ExternalLauncher extends Context.Service<
   }
 >()("supaterm/process/externalLauncher") {}
 
-const resolveEditorLaunch: (
+const resolveEditorLaunch = Effect.fn("resolveEditorLaunch")(function* (
   input: LaunchEditorInput,
-) => Effect.Effect<
+): Effect.fn.Return<
   EditorLaunch,
   ExternalLauncherError,
   FileSystem.FileSystem | Path.Path | ChildProcessSpawner.ChildProcessSpawner
-> = Effect.fn("resolveEditorLaunch")(function* (input: LaunchEditorInput) {
+> {
   const platform = yield* HostProcess.Platform;
   const env = yield* readEditorEnv();
   yield* Effect.annotateCurrentSpan({
@@ -557,40 +603,39 @@ const resolveEditorLaunch: (
   };
 });
 
-function buildFileManagerRevealPowerShellSource(target: string, parent: string) {
+function buildFileManagerRevealPowerShellSource(target: string, parent: string): string {
   const literal = escapePowerShellStringLiteral(target);
   const folderClass = /^[a-z]:\\$/i.test(parent) ? "Drive" : "Directory";
   return String.raw`$ProgressPreference = 'SilentlyContinue'; $folderVerb = '${folderClass}', 'Folder' | ForEach-Object { $key = "Registry::HKEY_CLASSES_ROOT\$_\shell"; $verb = (Get-ItemProperty -LiteralPath $key -ErrorAction SilentlyContinue).'(default)'; if ($verb -and $verb -ne 'none') { $handler = Get-ItemProperty -LiteralPath "$key\$verb\command" -ErrorAction SilentlyContinue; if ($handler.DelegateExecute -ne '{11dbb47c-a525-400b-9e80-a54615a090c0}' -and $handler.'(default)' -notmatch '^\s*"?(?:[^"]*[\\/])?explorer\.exe(?:["\s]|$)') { $verb } } }; if ($folderVerb) { Invoke-Item -LiteralPath ${escapePowerShellStringLiteral(parent)} } else { Start-Process 'explorer.exe' -ArgumentList ('/select,"' + ${literal} + '"') }`;
 }
 
-function powerShellFileManagerLaunch(target: string, source: string, powershellCommand: string) {
+function powerShellFileManagerLaunch(
+  target: string,
+  source: string,
+  powershellCommand: string,
+): EditorLaunch {
   return {
     editor: "file-manager",
     target,
     command: powershellCommand,
     args: [...POWERSHELL_ARGUMENTS_PREFIX, encodeUtf16LeBase64(source)],
-  } satisfies EditorLaunch;
+  };
 }
 
-function normalizeWindowsFileManagerPath(target: string) {
+function normalizeWindowsFileManagerPath(target: string): string {
   return target.replaceAll("/", "\\");
 }
 
-const resolveFileManagerRevealLaunch: (
+const resolveFileManagerRevealLaunch = Effect.fn("resolveFileManagerRevealLaunch")(function* (
   target: string,
   platform: NodeJS.Platform,
   env: NodeJS.ProcessEnv,
   command: string,
-) => Effect.Effect<
+): Effect.fn.Return<
   EditorLaunch,
   never,
   FileSystem.FileSystem | Path.Path | ChildProcessSpawner.ChildProcessSpawner
-> = Effect.fn("resolveFileManagerRevealLaunch")(function* (
-  target: string,
-  platform: NodeJS.Platform,
-  env: NodeJS.ProcessEnv,
-  command: string,
-) {
+> {
   if (platform === "darwin") {
     return { editor: "file-manager", target, command: "open", args: ["-R", target] };
   }
@@ -795,13 +840,13 @@ const readGraphicalSessionEnv = Effect.fn("externalLauncher.readGraphicalSession
     );
   },
   Effect.timeout("2 seconds"),
-  Effect.orElseSucceed(() => ({})),
+  Effect.orElseSucceed((): NodeJS.ProcessEnv => ({})),
 );
 
 const launchAndUnref = Effect.fn("externalLauncher.launchAndUnref")(function* (
   launch: ProcessLaunch,
   onError: (cause: unknown) => ExternalLauncherError,
-) {
+): Effect.fn.Return<void, ExternalLauncherError, ChildProcessSpawner.ChildProcessSpawner> {
   const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
 
   const { ELECTRON_RUN_AS_NODE: _runAsNode, ...env } = yield* HostProcess.Environment;
@@ -819,7 +864,9 @@ const launchAndUnref = Effect.fn("externalLauncher.launchAndUnref")(function* (
   );
 });
 
-const launchBrowser = Effect.fn("externalLauncher.launchBrowser")(function* (target: string) {
+const launchBrowser = Effect.fn("externalLauncher.launchBrowser")(function* (
+  target: string,
+): Effect.fn.Return<void, ExternalLauncherError, ChildProcessSpawner.ChildProcessSpawner> {
   const launch = yield* resolveBrowserLaunch(target);
   return yield* launchAndUnref(
     launch,
@@ -835,7 +882,11 @@ const launchBrowser = Effect.fn("externalLauncher.launchBrowser")(function* (tar
 
 const launchEditorProcess = Effect.fn("externalLauncher.launchEditorProcess")(function* (
   launch: EditorLaunch,
-) {
+): Effect.fn.Return<
+  void,
+  ExternalLauncherError,
+  ChildProcessSpawner.ChildProcessSpawner | FileSystem.FileSystem | Path.Path
+> {
   const env = yield* readCommandLookupEnv;
   if (!(yield* isCommandAvailable(launch.command, { env }))) {
     return yield* new ExternalLauncherCommandNotFoundError({

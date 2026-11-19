@@ -61,7 +61,7 @@ function providerDisplayLabel(provider: {
   readonly displayName?: string | undefined;
   readonly driver: string;
   readonly instanceId: string;
-}) {
+}): string {
   if (provider.displayName) return provider.displayName;
   if (provider.driver === "codex") return "Codex";
   if (provider.driver === "claudeAgent") return "Claude";
@@ -75,7 +75,7 @@ function isProviderEnabledForProject(
     | { readonly instanceId: ModelSelection["instanceId"]; readonly enabled: boolean }
     | undefined,
   projectId: ProjectId | null,
-) {
+): boolean {
   if (!provider) {
     return false;
   }
@@ -88,7 +88,7 @@ function isProjectDisabledOverride(
   config: SupatermServerConfig | null | undefined,
   instanceId: ModelSelection["instanceId"],
   projectId: ProjectId | null,
-) {
+): boolean {
   if (!projectId || !config?.settings) {
     return false;
   }
@@ -105,7 +105,7 @@ function isDisabledForProject(
     | undefined,
   instanceId: ModelSelection["instanceId"],
   projectId: ProjectId | null,
-) {
+): boolean {
   if (isProjectDisabledOverride(config, instanceId, projectId)) {
     return true;
   }
@@ -115,7 +115,7 @@ function isDisabledForProject(
 function normalizeSelectionOptions(
   selection: ModelSelection,
   capabilities: ModelCapabilities | null,
-) {
+): ModelSelection {
   if (!capabilities) {
     return selection;
   }
@@ -141,7 +141,7 @@ function normalizeSelectionOptions(
 export function serverConfigForCwd<C extends SupatermServerConfig | null | undefined>(
   config: C,
   cwd: string | null,
-) {
+): C {
   if (!config) return config;
   const providers = resolveProvidersForCwd(config.providers, cwd);
   return providers === config.providers ? config : { ...config, providers };
@@ -152,7 +152,7 @@ export function isModelSelectionUnavailable(
   config: SupatermServerConfig | null | undefined,
   selection: ModelSelection | null | undefined,
   projectId: ProjectId | null,
-) {
+): boolean {
   if (!config || !selection) {
     return false;
   }
@@ -178,7 +178,7 @@ export function describeUnavailableModelSelection(
   config: SupatermServerConfig | null | undefined,
   selection: ModelSelection,
   projectId: ProjectId | null,
-) {
+): { readonly title: string; readonly detail: string } {
   const provider = config?.providers.find(
     (candidate) => candidate.instanceId === selection.instanceId,
   );
@@ -197,7 +197,7 @@ export function resolveSelectableModelSelection(
   config: SupatermServerConfig | null | undefined,
   selection: ModelSelection | null,
   projectId: ProjectId | null,
-) {
+): ModelSelection | null {
   if (!selection || !config) {
     return selection;
   }
@@ -221,7 +221,7 @@ export function resolveDefaultableModelSelection(
   config: SupatermServerConfig | null | undefined,
   selection: ModelSelection | null,
   projectId: ProjectId | null,
-) {
+): ModelSelection | null {
   const usable = resolveSelectableModelSelection(config, selection, projectId);
   if (!usable || !config) {
     return usable;
@@ -236,7 +236,7 @@ export function resolveNewTaskModelSelection(input: {
   readonly projectDefaultSelection: ModelSelection | null;
   readonly stickySelection: ModelSelection | null;
   readonly modelOptions: ReadonlyArray<ModelOption>;
-}) {
+}): ModelSelection | null {
   return (
     input.draftSelection ??
     input.projectDefaultSelection ??
@@ -247,7 +247,10 @@ export function resolveNewTaskModelSelection(input: {
   );
 }
 
-export function withStoredThreadModelOptions(selection: ModelSelection, stored: ModelSelection) {
+export function withStoredThreadModelOptions(
+  selection: ModelSelection,
+  stored: ModelSelection,
+): ModelSelection {
   if (
     (selection.options?.length ?? 0) > 0 ||
     !stored.options?.length ||
@@ -265,7 +268,7 @@ export function buildModelOptions(
   providerInstanceId: ModelSelection["instanceId"] | undefined,
   projectId: ProjectId | null,
   includeHidden = false,
-) {
+): ReadonlyArray<ModelOption> {
   const options = new Map<string, ModelOption>();
   const lockedProvider = config?.providers.find(
     (provider) => provider.instanceId === providerInstanceId,
@@ -440,7 +443,7 @@ export function buildModelOptions(
   return [...options.values()];
 }
 
-export function groupByProvider(options: ReadonlyArray<ModelOption>) {
+export function groupByProvider(options: ReadonlyArray<ModelOption>): ReadonlyArray<ProviderGroup> {
   const groups = new Map<
     string,
     {

@@ -1,12 +1,15 @@
 import { resolvePullRequestAuthorFilter, SourceControlProviderKind } from "@supaterm/contracts";
 import * as Effect from "effect/Effect";
-import type { PullRequestCapabilities } from "@supaterm/contracts";
+import type { PullRequestCapabilities, PullRequestViewerPermissions } from "@supaterm/contracts";
 
 import * as BitbucketApi from "./BitbucketApi.ts";
 import * as BitbucketPullRequestApi from "./BitbucketPullRequestApi.ts";
 import {
   PullRequestProviderError,
   type PullRequestProviderFailure,
+  type ProviderChangeRequest,
+  type ProviderChangeRequestActivity,
+  type ProviderChangeRequestDetail,
   type ProviderChangeRequestSummary,
   type PullRequestProviderApi,
 } from "@supaterm/source-control-core/server/PullRequestProvider";
@@ -44,7 +47,9 @@ const UNAVAILABLE_REQUIREMENT = {
  * and the permission response says nothing about who opened this one — so withholding the
  * control from the one person entitled to it is the worse of the two mistakes.
  */
-export function bitbucketViewerPermissions(input: { readonly canWrite: boolean }) {
+export function bitbucketViewerPermissions(input: {
+  readonly canWrite: boolean;
+}): PullRequestViewerPermissions {
   return {
     actions: CAPABILITIES.actions.filter((action) => action !== "merge" || input.canWrite),
     comment: true,
@@ -56,15 +61,15 @@ export function bitbucketViewerPermissions(input: { readonly canWrite: boolean }
 
 export function bitbucketProviderFailure(
   error: BitbucketPullRequestApi.BitbucketPullRequestApiError,
-) {
+): PullRequestProviderFailure {
   if (error._tag === "BitbucketResponseError" && error.status === 401) {
-    return { reason: "unauthenticated" } satisfies PullRequestProviderFailure;
+    return { reason: "unauthenticated" };
   }
   if (error._tag === "BitbucketResponseError" && error.status === 403) {
-    return { reason: "forbidden" } satisfies PullRequestProviderFailure;
+    return { reason: "forbidden" };
   }
   if (error._tag === "SourceControlRateLimitPausedError") {
-    return { reason: "rate-limited", retryAt: error.retryAt } satisfies PullRequestProviderFailure;
+    return { reason: "rate-limited", retryAt: error.retryAt };
   }
   if (
     (error._tag === "BitbucketResponseError" || error._tag === "BitbucketResponseBodyReadError") &&
@@ -73,18 +78,18 @@ export function bitbucketProviderFailure(
     return {
       reason: "rate-limited",
       ...(error.retryAt === undefined ? {} : { retryAt: error.retryAt }),
-    } satisfies PullRequestProviderFailure;
+    };
   }
   if (
     (error._tag === "BitbucketResponseError" || error._tag === "BitbucketResponseBodyReadError") &&
     error.status === 404
   ) {
-    return { reason: "not-found" } satisfies PullRequestProviderFailure;
+    return { reason: "not-found" };
   }
-  return { reason: "failed" } satisfies PullRequestProviderFailure;
+  return { reason: "failed" };
 }
 
-function toChangeRequest(pullRequest: BitbucketPullRequest) {
+function toChangeRequest(pullRequest: BitbucketPullRequest): ProviderChangeRequest {
   return {
     number: pullRequest.number,
     title: pullRequest.title,
@@ -108,7 +113,7 @@ function toChangeRequest(pullRequest: BitbucketPullRequest) {
   };
 }
 
-function toActionSummary(pullRequest: BitbucketPullRequest) {
+function toActionSummary(pullRequest: BitbucketPullRequest): ProviderChangeRequestSummary {
   return {
     number: pullRequest.number,
     title: pullRequest.title,
@@ -227,20 +232,28 @@ export const make = Effect.gen(function* () {
         { concurrency: 5 },
       ).pipe(
         Effect.mapError(fail("getChangeRequest")),
-        Effect.map(([pullRequest, diffStat, mergeability, checks, canWrite]) => ({
-          ...toChangeRequest(pullRequest),
-          mergeability,
-          additions: diffStat.additions,
-          deletions: diffStat.deletions,
-          changedFiles: diffStat.changedFiles,
-          body: pullRequest.body,
-          mergedAt: pullRequest.state === "merged" ? pullRequest.closedAt : null,
-          closedAt: pullRequest.state === "closed" ? pullRequest.closedAt : null,
-          reviewers: pullRequest.reviewers,
-          checks,
-          mergeCapabilities: { merge: true, squash: true, rebase: true },
-          viewerPermissions: bitbucketViewerPermissions({ canWrite }),
-        })),
+        Effect.map(
+          ([
+            pullRequest,
+            diffStat,
+            mergeability,
+            checks,
+            canWrite,
+          ]): ProviderChangeRequestDetail => ({
+            ...toChangeRequest(pullRequest),
+            mergeability,
+            additions: diffStat.additions,
+            deletions: diffStat.deletions,
+            changedFiles: diffStat.changedFiles,
+            body: pullRequest.body,
+            mergedAt: pullRequest.state === "merged" ? pullRequest.closedAt : null,
+            closedAt: pullRequest.state === "closed" ? pullRequest.closedAt : null,
+            reviewers: pullRequest.reviewers,
+            checks,
+            mergeCapabilities: { merge: true, squash: true, rebase: true },
+            viewerPermissions: bitbucketViewerPermissions({ canWrite }),
+          }),
+        ),
       );
     },
 
@@ -255,7 +268,7 @@ export const make = Effect.gen(function* () {
         { concurrency: 3 },
       ).pipe(
         Effect.mapError(fail("getChangeRequestActivity")),
-        Effect.map(([pullRequest, comments, commits]) => ({
+        Effect.map(([pullRequest, comments, commits]): ProviderChangeRequestActivity => ({
           comments: [...comments.comments, ...pullRequest.reviews].toSorted((left, right) =>
             left.createdAt.localeCompare(right.createdAt),
           ),

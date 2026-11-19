@@ -33,6 +33,7 @@ import {
   type PreviewAutomationSelectInput,
   type PreviewAutomationSetColorSchemeInput,
   type PreviewAutomationSnapshotInput,
+  type PreviewAutomationStatus,
   type PreviewAutomationTypeInput,
   type PreviewAutomationUploadInput,
   type PreviewAutomationWaitForInput,
@@ -164,7 +165,7 @@ export class ServerBrowserTabNotFoundError extends Schema.TaggedError<ServerBrow
   "ServerBrowserTabNotFoundError",
   { threadId: Schema.String, tabId: Schema.String },
 ) {
-  override get message() {
+  override get message(): string {
     return "The server preview tab does not exist.";
   }
 }
@@ -182,7 +183,7 @@ export class ServerBrowserLaunchError extends Schema.TaggedError<ServerBrowserLa
   "ServerBrowserLaunchError",
   { cause: Schema.Defect() },
 ) {
-  override get message() {
+  override get message(): string {
     return "The server preview browser could not start.";
   }
 }
@@ -423,7 +424,7 @@ const viewportSettingsEqual = (left: PreviewViewportSetting, right: PreviewViewp
 const fixedViewportSize = (setting: PreviewViewportSetting) =>
   setting._tag === "fill" ? null : { width: setting.width, height: setting.height };
 
-const asRecord = (value: unknown) =>
+const asRecord = (value: unknown): Record<string, unknown> | null =>
   typeof value === "object" && value !== null ? (value as Record<string, unknown>) : null;
 
 const num = (value: unknown, fallback = 0) =>
@@ -436,7 +437,7 @@ const modifiersOf = (message: Record<string, unknown>) => {
 
 type PointerMotion = ReadonlyArray<Record<string, unknown>>;
 
-const pointerMotionOf = (message: Record<string, unknown>) => {
+const pointerMotionOf = (message: Record<string, unknown>): PointerMotion | null => {
   const motion =
     message.type === "wheel" ||
     (message.type === "mouse" &&
@@ -446,7 +447,7 @@ const pointerMotionOf = (message: Record<string, unknown>) => {
   return motion ? [message] : null;
 };
 
-const mergePointerMotion = (waiting: PointerMotion, next: PointerMotion) =>
+const mergePointerMotion = (waiting: PointerMotion, next: PointerMotion): PointerMotion =>
   next.reduce((merged, message) => {
     const prior = merged.find((other) => other.type === message.type);
     const latest =
@@ -1039,7 +1040,10 @@ const make = Effect.gen(function* () {
     }
   };
 
-  const createTab = async (snapshot: PreviewSessionSnapshot, crashedUrl?: string) => {
+  const createTab = async (
+    snapshot: PreviewSessionSnapshot,
+    crashedUrl?: string,
+  ): Promise<ServerTab> => {
     const opened: Array<() => Promise<void>> = [];
     try {
       return await setUpTab(snapshot, opened, crashedUrl);
@@ -1053,7 +1057,7 @@ const make = Effect.gen(function* () {
     snapshot: PreviewSessionSnapshot,
     opened: Array<() => Promise<void>>,
     crashedUrl: string | undefined,
-  ) => {
+  ): Promise<ServerTab> => {
     const adopted = adoptedPages.get(tabKey(snapshot.threadId, snapshot.tabId));
     adoptedPages.delete(tabKey(snapshot.threadId, snapshot.tabId));
     const desktop =
@@ -1442,15 +1446,15 @@ const make = Effect.gen(function* () {
     }
   };
 
-  const fileChooserMessage = (tab: ServerTab) =>
-    (tab.fileChooser
+  const fileChooserMessage = (tab: ServerTab): ServerBrowserViewerOutput | null =>
+    tab.fileChooser
       ? {
           _tag: "fileChooser",
           id: tab.fileChooser.id,
           multiple: tab.fileChooser.chooser.isMultiple(),
           accept: tab.fileChooser.accept,
         }
-      : null) satisfies ServerBrowserViewerOutput | null;
+      : null;
 
   const isFileChooserCurrent = (chooser: FileChooser) =>
     chooser
@@ -1607,9 +1611,10 @@ const make = Effect.gen(function* () {
   const takeSessionCopies = async (cdp: CDPSession, since: number, until: number) => {
     const tree = await cdp.send("Page.getFrameTree").catch(() => null);
     if (!tree) return [];
-    const frameIds: (node: typeof tree.frameTree) => Array<string> = (
-      node: typeof tree.frameTree,
-    ) => [node.frame.id, ...(node.childFrames ?? []).flatMap(frameIds)];
+    const frameIds = (node: typeof tree.frameTree): Array<string> => [
+      node.frame.id,
+      ...(node.childFrames ?? []).flatMap(frameIds),
+    ];
     return Promise.all(
       frameIds(tree.frameTree).map((frameId) =>
         cdp
@@ -1672,7 +1677,7 @@ const make = Effect.gen(function* () {
     );
   };
 
-  const ensureTab = (snapshot: PreviewSessionSnapshot) => {
+  const ensureTab = (snapshot: PreviewSessionSnapshot): Promise<ServerTab> => {
     const key = tabKey(snapshot.threadId, snapshot.tabId);
     const pending = pendingTabs.get(key);
     if (pending?.promise) return pending.promise;
@@ -1929,14 +1934,16 @@ const make = Effect.gen(function* () {
       }),
   ).pipe(
     Effect.map(
-      (client) => (input) =>
-        Effect.sync(() => {
-          if (input.recordingFrameRate !== undefined) recordingFrameRate = input.recordingFrameRate;
-          reportsByClient.delete(client);
-          reportsByClient.set(client, input);
-          rebuildReportedProfiles();
-          catalogToSave = reportedProfiles;
-        }).pipe(Effect.andThen(saveReportedProfiles), Effect.uninterruptible),
+      (client): ProfileReporter =>
+        (input) =>
+          Effect.sync(() => {
+            if (input.recordingFrameRate !== undefined)
+              recordingFrameRate = input.recordingFrameRate;
+            reportsByClient.delete(client);
+            reportsByClient.set(client, input);
+            rebuildReportedProfiles();
+            catalogToSave = reportedProfiles;
+          }).pipe(Effect.andThen(saveReportedProfiles), Effect.uninterruptible),
     ),
   );
 
@@ -1952,7 +1959,7 @@ const make = Effect.gen(function* () {
     };
   };
 
-  const resolveOpenProfile = (requested: string | undefined) => {
+  const resolveOpenProfile = (requested: string | undefined): string | undefined => {
     if (requested === undefined) return reportedProfiles?.defaultProfileId;
     const profiles = reportedProfiles?.profiles ?? BUILT_IN_BROWSER_PROFILES;
     const wanted = requested.toLowerCase();
@@ -1968,7 +1975,7 @@ const make = Effect.gen(function* () {
     );
   };
 
-  const loadErrorOf = (tab: ServerTab) => {
+  const loadErrorOf = (tab: ServerTab): PreviewAutomationLoadError | undefined => {
     if (tab.crash) return tab.crash;
     if (!tab.page.url().startsWith("chrome-error://")) return undefined;
     if (tab.loadError || !tab.desktop || tab.navigationGeneration > 0) return tab.loadError;
@@ -1997,7 +2004,7 @@ const make = Effect.gen(function* () {
     }
   };
 
-  const withinStatusDeadline = <A>(read: Promise<A>, late: () => A) => {
+  const withinStatusDeadline = <A>(read: Promise<A>, late: () => A): Promise<A> => {
     let timer: ReturnType<typeof setTimeout> | undefined;
     const deadline = new Promise<A>((resolve) => {
       timer = setTimeout(() => resolve(late()), STATUS_READ_MS);
@@ -2005,7 +2012,10 @@ const make = Effect.gen(function* () {
     return Promise.race([read, deadline]).finally(() => clearTimeout(timer));
   };
 
-  const statusWithTitle = async (tab: ServerTab | undefined, agentSessionId?: string) => {
+  const statusWithTitle = async (
+    tab: ServerTab | undefined,
+    agentSessionId?: string,
+  ): Promise<PreviewAutomationStatus> => {
     if (!tab) {
       return {
         available: false,
@@ -2136,7 +2146,7 @@ const make = Effect.gen(function* () {
     assertNavigationSucceeded(tab);
   };
 
-  const withCaptureLock = <A>(tab: ServerTab, operation: () => Promise<A>) => {
+  const withCaptureLock = <A>(tab: ServerTab, operation: () => Promise<A>): Promise<A> => {
     const run = tab.captureLock.then(() => {
       if (tab.closing) throw new Error("The preview tab closed.");
       return operation();
@@ -2145,7 +2155,7 @@ const make = Effect.gen(function* () {
     return run;
   };
 
-  const startRecording = (tab: ServerTab) => {
+  const startRecording = (tab: ServerTab): Promise<Recording> => {
     const started = withCaptureLock(tab, async () => {
       if (tab.recording) return tab.recording;
       const encoder = await contexts.scratchPage();
@@ -2217,7 +2227,7 @@ const make = Effect.gen(function* () {
     return started;
   };
 
-  const withScreencastsPaused = <A>(tab: ServerTab, capture: () => Promise<A>) =>
+  const withScreencastsPaused = <A>(tab: ServerTab, capture: () => Promise<A>): Promise<A> =>
     withCaptureLock(tab, async () => {
       tab.capturing += 1;
       const recording = tab.recording;
@@ -2338,8 +2348,8 @@ const make = Effect.gen(function* () {
     });
 
   let pointerSequence = 0;
-  const pointerFor: (tab: ServerTab) => ServerBrowserPage.PointerReporter =
-    (tab: ServerTab) =>
+  const pointerFor =
+    (tab: ServerTab): ServerBrowserPage.PointerReporter =>
     async ({ x, y }, phase) => {
       const encoder = tab.recording?.encoder;
 
@@ -2370,7 +2380,7 @@ const make = Effect.gen(function* () {
       await sleepUntil(Date.now() + AGENT_CURSOR_CLICK_LEAD_MS);
     };
 
-  const recordAction = <A>(tab: ServerTab, action: string, run: () => Promise<A>) => {
+  const recordAction = <A>(tab: ServerTab, action: string, run: () => Promise<A>): Promise<A> => {
     const event: {
       -readonly [K in keyof PreviewAutomationActionEvent]: PreviewAutomationActionEvent[K];
     } = {
@@ -2438,10 +2448,10 @@ const make = Effect.gen(function* () {
     }
   };
 
-  const runOperation: (
+  const runOperation = async (
     request: PreviewAutomationRequest,
     deadlineMs: number,
-  ) => Promise<unknown> = async (request: PreviewAutomationRequest, deadlineMs: number) => {
+  ): Promise<unknown> => {
     const input = request.input;
     switch (request.operation) {
       case "status":

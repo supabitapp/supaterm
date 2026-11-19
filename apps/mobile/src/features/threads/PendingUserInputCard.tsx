@@ -39,6 +39,7 @@ import Animated, {
   type DerivedValue,
   type EntryAnimationsValues,
   type ExitAnimationsValues,
+  type LayoutAnimation,
   type SharedValue,
 } from "react-native-reanimated";
 
@@ -118,7 +119,7 @@ function QuestionPage(props: {
 }) {
   const { direction } = props;
   const pushIn = useCallback(
-    (values: EntryAnimationsValues) => {
+    (values: EntryAnimationsValues): LayoutAnimation => {
       "worklet";
       return {
         initialValues: { transform: [{ translateX: values.windowWidth * direction.get() }] },
@@ -128,7 +129,7 @@ function QuestionPage(props: {
     [direction],
   );
   const pushOut = useCallback(
-    (values: ExitAnimationsValues) => {
+    (values: ExitAnimationsValues): LayoutAnimation => {
       "worklet";
       return {
         initialValues: { transform: [{ translateX: 0 }] },

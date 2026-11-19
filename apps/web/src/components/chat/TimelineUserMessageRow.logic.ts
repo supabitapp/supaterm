@@ -12,7 +12,7 @@ export function resolvePreviewAnnotationImage(input: {
   userImages: ReadonlyArray<ChatImageAttachment>;
   previewImages: ReadonlyArray<ChatImageAttachment>;
   annotationRecordIds: ReadonlyArray<string>;
-}) {
+}): ChatImageAttachment | null {
   const screenshotRecord = input.record.screenshotContextId
     ? asKnownContextRecord(input.recordsById.get(input.record.screenshotContextId))
     : undefined;

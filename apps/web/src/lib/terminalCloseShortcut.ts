@@ -18,7 +18,7 @@ export function preventTerminalCloseShortcut(
   event: TerminalCloseShortcutEvent,
   keybindings: ResolvedKeybindingsConfig,
   platform?: string,
-) {
+): boolean {
   if (!isTerminalCloseShortcut(event, keybindings, terminalCloseShortcutOptions(platform))) {
     return false;
   }
@@ -30,7 +30,7 @@ export function preventRepeatedTerminalCloseShortcut(
   event: TerminalCloseShortcutEvent,
   keybindings: ResolvedKeybindingsConfig,
   platform?: string,
-) {
+): boolean {
   if (!event.repeat) return false;
   return preventTerminalCloseShortcut(event, keybindings, platform);
 }

@@ -11,12 +11,13 @@ const WINDOW_KIND_ORDER: Record<ServerProviderUsageWindow["kind"], number> = {
   other: 3,
 };
 
-export function clampPercent(value: number): number;
-export function clampPercent(value: number) {
-  return (Number.isFinite(value) ? Math.max(0, Math.min(100, value)) : 0) satisfies number;
+export function clampPercent(value: number): number {
+  return Number.isFinite(value) ? Math.max(0, Math.min(100, value)) : 0;
 }
 
-function sortWindows(windows: Iterable<ServerProviderUsageWindow>) {
+function sortWindows(
+  windows: Iterable<ServerProviderUsageWindow>,
+): ReadonlyArray<ServerProviderUsageWindow> {
   return [...windows].toSorted(
     (left, right) =>
       WINDOW_KIND_ORDER[left.kind] - WINDOW_KIND_ORDER[right.kind] ||
@@ -27,27 +28,15 @@ function sortWindows(windows: Iterable<ServerProviderUsageWindow>) {
 export function makeUsageLimits(input: {
   readonly checkedAt: string;
   readonly windows: Iterable<ServerProviderUsageWindow>;
-}): ServerProviderUsageLimits;
-export function makeUsageLimits(input: {
-  readonly checkedAt: string;
-  readonly windows: Iterable<ServerProviderUsageWindow>;
-}) {
-  return {
-    checkedAt: input.checkedAt,
-    windows: sortWindows(input.windows),
-  } satisfies ServerProviderUsageLimits;
+}): ServerProviderUsageLimits {
+  return { checkedAt: input.checkedAt, windows: sortWindows(input.windows) };
 }
 
 export function makeUnavailableUsageLimits(input: {
   readonly checkedAt: string;
   readonly reason: "unsupported" | "probeFailed";
   readonly message?: string;
-}): ServerProviderUsageLimits;
-export function makeUnavailableUsageLimits(input: {
-  readonly checkedAt: string;
-  readonly reason: "unsupported" | "probeFailed";
-  readonly message?: string;
-}) {
+}): ServerProviderUsageLimits {
   return {
     checkedAt: input.checkedAt,
     windows: [],
@@ -55,14 +44,14 @@ export function makeUnavailableUsageLimits(input: {
       reason: input.reason,
       ...(input.message ? { message: input.message } : {}),
     },
-  } satisfies ServerProviderUsageLimits;
+  };
 }
 
 export function applyUsageLimitsUpdate(input: {
   readonly previous: ServerProviderUsageLimits | undefined;
   readonly update: ProviderUsageLimitsUpdate;
   readonly checkedAt: string;
-}) {
+}): ServerProviderUsageLimits | undefined {
   const { previous, update } = input;
   if (update.windows.length === 0 || previous?.unavailable?.reason === "unsupported") {
     return previous;
@@ -99,7 +88,7 @@ export function applyUsageLimitsUpdate(input: {
   };
 }
 
-function usageWindowEquals(a: ServerProviderUsageWindow, b: ServerProviderUsageWindow) {
+function usageWindowEquals(a: ServerProviderUsageWindow, b: ServerProviderUsageWindow): boolean {
   return (
     a.id === b.id &&
     a.kind === b.kind &&
@@ -123,7 +112,7 @@ function usageWindowEquals(a: ServerProviderUsageWindow, b: ServerProviderUsageW
 export function resolveUsageLimitsAfterProbe(input: {
   readonly published: ServerProviderUsageLimits | undefined;
   readonly probed: ServerProviderUsageLimits | undefined;
-}) {
+}): ServerProviderUsageLimits | undefined {
   const { published, probed } = input;
   if (probed?.unavailable?.reason === "probeFailed" && published && !published.unavailable) {
     return published;

@@ -212,7 +212,7 @@ export class ServerBrowserContexts {
     await browser.close().catch(constVoid);
   }
 
-  contextFor(profileId: string, isolationKey?: string) {
+  contextFor(profileId: string, isolationKey?: string): Promise<BrowserContext> {
     if (this.closing) return Promise.reject(new Error("The preview browser is closed."));
     const key = JSON.stringify([profileId, isolationKey ?? null]);
     const cached = this.contexts.get(key);

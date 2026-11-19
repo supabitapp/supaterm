@@ -34,11 +34,11 @@ export class ScratchUnavailableError extends Schema.TaggedError<ScratchUnavailab
     repositoryRoot: Schema.optional(Schema.String),
   },
 ) {
-  override get message() {
+  override get message(): string {
     if (this.repositoryRoot === undefined) {
-      return "Threads without a project are not available on this environment." satisfies string as string;
+      return "Threads without a project are not available on this environment.";
     }
-    return `Threads without a project are off because the Supaterm home ${this.baseDir} is inside the Git repository ${this.repositoryRoot}. If that repository was created by mistake, move ${this.repositoryRoot}/.git out of the way; otherwise point SUPATERM_HOME (or --base-dir) at a folder outside it. Then restart Supaterm.` satisfies string as string;
+    return `Threads without a project are off because the Supaterm home ${this.baseDir} is inside the Git repository ${this.repositoryRoot}. If that repository was created by mistake, move ${this.repositoryRoot}/.git out of the way; otherwise point SUPATERM_HOME (or --base-dir) at a folder outside it. Then restart Supaterm.`;
   }
 }
 
@@ -49,8 +49,8 @@ export class ScratchFolderError extends Schema.TaggedError<ScratchFolderError>()
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
-    return "Failed to create the folder for threads without a project." satisfies string as string;
+  override get message(): string {
+    return "Failed to create the folder for threads without a project.";
   }
 }
 
@@ -61,8 +61,8 @@ export class ScratchProjectError extends Schema.TaggedError<ScratchProjectError>
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
-    return "Failed to create the project for threads without a project." satisfies string as string;
+  override get message(): string {
+    return "Failed to create the project for threads without a project.";
   }
 }
 
@@ -86,7 +86,7 @@ export class NamedProjectFolderError extends Schema.TaggedError<NamedProjectFold
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return isGitCommandError(this.cause) && isMissingExecutable(this.cause.cause)
       ? "Git isn't installed on this machine. Install Git to create a project."
       : "Failed to create the project folder.";
@@ -100,7 +100,7 @@ export class NamedProjectCreateError extends Schema.TaggedError<NamedProjectCrea
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return "Failed to create the project.";
   }
 }
@@ -161,7 +161,7 @@ const ICON_BACKGROUNDS = [
 
 const MAX_NAMED_FOLDER_ATTEMPTS = 100;
 
-function escapeXml(value: string) {
+function escapeXml(value: string): string {
   return value
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
@@ -169,7 +169,7 @@ function escapeXml(value: string) {
     .replaceAll('"', "&quot;");
 }
 
-function namedProjectIconSvg(name: string) {
+function namedProjectIconSvg(name: string): string {
   const words = name.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
   const initials =
     words
@@ -191,7 +191,7 @@ function namedProjectIconSvg(name: string) {
   ].join("\n");
 }
 
-function namedProjectReadme(name: string) {
+function namedProjectReadme(name: string): string {
   return [
     `<img src="assets/icon.svg" width="64" height="64" alt="">`,
     "",
@@ -202,7 +202,7 @@ function namedProjectReadme(name: string) {
   ].join("\n");
 }
 
-function describeCommitFailure(stderr: string) {
+function describeCommitFailure(stderr: string): string {
   if (/identity unknown|tell me who you are|no (name|email) was given/i.test(stderr)) {
     return "Git has no name or email on this machine. Set user.name and user.email, then commit.";
   }
@@ -252,24 +252,18 @@ const make = Effect.gen(function* () {
   const [probe, invalidate] = yield* Effect.cachedInvalidateWithTTL(
     gitWorkflow.repositoryRoot(config.baseDir).pipe(
       Effect.catchIf(isGitMissing, () => Effect.succeed(null)),
-      Effect.flatMap((repositoryRoot) => {
-        if (repositoryRoot === null) {
-          return Effect.succeed(
-            Result.succeed(scratchFolderRoot(config.baseDir, path)),
-          ) satisfies Effect.Effect<
-            Result.Result<string, ScratchUnavailableError>
-          > as Effect.Effect<Result.Result<string, ScratchUnavailableError>>;
-        }
-        const unavailable = new ScratchUnavailableError({
-          baseDir: config.baseDir,
-          repositoryRoot,
-        });
-        return Effect.logWarning(unavailable.message).pipe(
-          Effect.as(Result.fail(unavailable)),
-        ) satisfies Effect.Effect<Result.Result<string, ScratchUnavailableError>> as Effect.Effect<
-          Result.Result<string, ScratchUnavailableError>
-        >;
-      }),
+      Effect.flatMap(
+        (repositoryRoot): Effect.Effect<Result.Result<string, ScratchUnavailableError>> => {
+          if (repositoryRoot === null) {
+            return Effect.succeed(Result.succeed(scratchFolderRoot(config.baseDir, path)));
+          }
+          const unavailable = new ScratchUnavailableError({
+            baseDir: config.baseDir,
+            repositoryRoot,
+          });
+          return Effect.logWarning(unavailable.message).pipe(Effect.as(Result.fail(unavailable)));
+        },
+      ),
     ),
     Exit.match({ onSuccess: () => Duration.infinity, onFailure: () => Duration.zero }),
   );

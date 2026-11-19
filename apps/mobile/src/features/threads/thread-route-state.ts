@@ -28,7 +28,7 @@ export function submittedThreadParams(environmentId: string, threadId: string) {
   return { draft: undefined, environmentId, threadId };
 }
 
-export function draftRouteIdentity(draft: NewTaskDraftRouteParams) {
+export function draftRouteIdentity(draft: NewTaskDraftRouteParams): string {
   const first = (value: string | string[] | undefined) => (Array.isArray(value) ? value[0] : value);
   return JSON.stringify([
     draft.requestId,

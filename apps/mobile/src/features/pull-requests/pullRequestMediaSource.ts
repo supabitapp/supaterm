@@ -24,6 +24,9 @@ export function pullRequestMediaSource(url: string, location: PullRequestMediaLo
     : { uri: url };
 }
 
-export function pullRequestImageSource(url: string, location: PullRequestMediaLocation | null) {
-  return { kind: "image", ...pullRequestMediaSource(url, location) } satisfies FilePreviewItem;
+export function pullRequestImageSource(
+  url: string,
+  location: PullRequestMediaLocation | null,
+): FilePreviewItem {
+  return { kind: "image", ...pullRequestMediaSource(url, location) };
 }

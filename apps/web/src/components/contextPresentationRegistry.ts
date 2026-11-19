@@ -54,7 +54,9 @@ const DEFINITIONS = [
   },
 ] as const satisfies ReadonlyArray<ContextPresentationDefinition>;
 
-function buildDefinitionRegistry(definitions: ReadonlyArray<ContextPresentationDefinition>) {
+function buildDefinitionRegistry(
+  definitions: ReadonlyArray<ContextPresentationDefinition>,
+): ReadonlyMap<KnownComposerContextKind, ContextPresentationDefinition> {
   const registry = new Map<KnownComposerContextKind, ContextPresentationDefinition>();
   for (const definition of definitions) {
     if (registry.has(definition.kind)) {
@@ -74,9 +76,8 @@ const CONTEXT_PRESENTATION_DEFINITIONS = buildDefinitionRegistry(DEFINITIONS);
 
 function contextPresentationDefinition(
   kind: KnownComposerContextKind,
-): ContextPresentationDefinition;
-function contextPresentationDefinition(kind: KnownComposerContextKind) {
-  return CONTEXT_PRESENTATION_DEFINITIONS.get(kind)! satisfies ContextPresentationDefinition;
+): ContextPresentationDefinition {
+  return CONTEXT_PRESENTATION_DEFINITIONS.get(kind)!;
 }
 
 export interface ContextPresentationHandler<TRecord, TRenderContext, TResult> {
@@ -98,12 +99,7 @@ export function createContextPresentationRegistry<TRecord, TRenderContext, TResu
   handlers: ReadonlyArray<ContextPresentationHandler<TRecord, TRenderContext, TResult>>;
   requiredKinds?: ReadonlyArray<KnownComposerContextKind>;
   fallback: (kind: string, record: TRecord | undefined, context: TRenderContext) => TResult;
-}): ContextPresentationRegistry<TRecord, TRenderContext, TResult>;
-export function createContextPresentationRegistry<TRecord, TRenderContext, TResult>(options: {
-  handlers: ReadonlyArray<ContextPresentationHandler<TRecord, TRenderContext, TResult>>;
-  requiredKinds?: ReadonlyArray<KnownComposerContextKind>;
-  fallback: (kind: string, record: TRecord | undefined, context: TRenderContext) => TResult;
-}) {
+}): ContextPresentationRegistry<TRecord, TRenderContext, TResult> {
   const handlers = new Map<
     KnownComposerContextKind,
     ContextPresentationHandler<TRecord, TRenderContext, TResult>
@@ -129,5 +125,5 @@ export function createContextPresentationRegistry<TRecord, TRenderContext, TResu
       }
       return handler.render(record, context, contextPresentationDefinition(handler.kind));
     },
-  } satisfies ContextPresentationRegistry<TRecord, TRenderContext, TResult>;
+  };
 }

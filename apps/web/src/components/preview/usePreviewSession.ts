@@ -21,7 +21,7 @@ class PreviewSessionThreadKeyParseError extends Schema.TaggedError<PreviewSessio
   "PreviewSessionThreadKeyParseError",
   { threadKey: Schema.String },
 ) {
-  override get message() {
+  override get message(): string {
     return `Invalid scoped preview thread key: ${this.threadKey}`;
   }
 }
@@ -89,7 +89,7 @@ const previewSessionSyncAtom = Atom.family((threadKey: string) => {
   }).pipe(Atom.setIdleTTL(1_000), Atom.withLabel(`preview:session-sync:${threadKey}`));
 });
 
-export function usePreviewSession(threadRef: ScopedThreadRef) {
+export function usePreviewSession(threadRef: ScopedThreadRef): void {
   useAtomValue(previewSessionSyncAtom(scopedThreadKey(threadRef)));
 }
 
@@ -131,7 +131,7 @@ const desktopHostedPreviewSyncAtom = Atom.family((environmentId: EnvironmentId) 
   }).pipe(Atom.withLabel(`preview:desktop-hosted-sync:${environmentId}`));
 });
 
-export function useDesktopHostedPreviewSessions(environmentId: EnvironmentId | null) {
+export function useDesktopHostedPreviewSessions(environmentId: EnvironmentId | null): void {
   useAtomValue(
     isElectron && environmentId !== null
       ? desktopHostedPreviewSyncAtom(environmentId)

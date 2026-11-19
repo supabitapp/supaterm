@@ -136,7 +136,7 @@ const composerDraftFileMocks = vi.hoisted(() => {
     setOnWrite(callback: (() => void) | null) {
       onWrite = callback;
     },
-    getWrites() {
+    getWrites(): ReadonlyArray<string> {
       return writes;
     },
     resetWrites() {
@@ -336,7 +336,7 @@ function contextDraft(start: number, count: number) {
       .join(" "),
     context: { version: 1, records },
     attachments: [],
-  } satisfies ComposerDraft;
+  };
 }
 
 function modelReconciliationHarness(
@@ -388,7 +388,7 @@ function modelReconciliationHarness(
       ],
     ]),
   });
-  const noPendingThreadIdsAtom = Atom.make(() => new Set() satisfies ReadonlySet<ThreadId>);
+  const noPendingThreadIdsAtom = Atom.make((): ReadonlySet<ThreadId> => new Set());
   const shells = createEnvironmentThreadShellAtoms({
     catalogValueAtom,
     snapshotAtom: () => snapshotAtom,

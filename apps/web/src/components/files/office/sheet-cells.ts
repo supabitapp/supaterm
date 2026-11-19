@@ -10,14 +10,15 @@ import {
 export const lastCell = { row: 1048575, col: 16383 };
 
 /** A column's letters, such as "A", "Z" or "AA". */
-export function columnName(index: number): string;
-export function columnName(index: number) {
-  return ((index < 26 ? "" : columnName(Math.floor(index / 26) - 1)) +
-    String.fromCharCode(65 + (index % 26))) satisfies string;
+export function columnName(index: number): string {
+  return (
+    (index < 26 ? "" : columnName(Math.floor(index / 26) - 1)) +
+    String.fromCharCode(65 + (index % 26))
+  );
 }
 
 /** The cells an export anchor names: one range for a cell or range anchor, none for any other kind. */
-export function anchorRange(anchor: XlsxAnchor) {
+export function anchorRange(anchor: XlsxAnchor): CellRange[] {
   if (anchor.kind !== "cell" && anchor.kind !== "range") return [];
 
   const range = parseRange(anchor.a1);
@@ -26,7 +27,7 @@ export function anchorRange(anchor: XlsxAnchor) {
 }
 
 /** An A1 cell or range, such as "B2" or "A1:F20"; undefined for anything else. */
-export function parseRange(a1: string) {
+export function parseRange(a1: string): CellRange | undefined {
   const corners = a1.split(":");
   const first = parseCell(corners[0] ?? "");
   const last = corners.length === 1 ? first : parseCell(corners[1] ?? "");
@@ -42,7 +43,7 @@ export function parseRange(a1: string) {
 }
 
 /** Grows a range until it covers every merged cell it touches, as Excel selects. */
-export function coverMerges(range: CellRange, merges: readonly CellRange[]) {
+export function coverMerges(range: CellRange, merges: readonly CellRange[]): CellRange {
   let grown = range;
   for (let pass = 0; pass < 2; pass++) {
     const next = merges.reduce(
@@ -108,7 +109,11 @@ export function coverMerges(range: CellRange, merges: readonly CellRange[]) {
  * Moves a collapsed selection the way Excel moves its active cell around merged cells: landing in one selects its
  * first cell, and a step that stays inside the merged cell it started from steps past it.
  */
-export function settleMerges(previous: Selection, next: Selection, merges: readonly CellRange[]) {
+export function settleMerges(
+  previous: Selection,
+  next: Selection,
+  merges: readonly CellRange[],
+): Selection {
   if (!collapsed(next)) return next;
 
   const merge = merges.find((candidate) => contains(candidate, next.focus));
@@ -138,7 +143,7 @@ export function settleMerges(previous: Selection, next: Selection, merges: reado
 export type Span = { readonly start: number; readonly end: number };
 
 /** Hidden row spans such as "5:7", or column spans such as "C:D", as the export lists them. */
-export function parseSpans(spans: readonly string[], axis: "rows" | "columns") {
+export function parseSpans(spans: readonly string[], axis: "rows" | "columns"): Span[] {
   return spans.flatMap((span) => {
     const [first = "", last = first] = span.split(":");
     const start = axis === "rows" ? Number(first) - 1 : columnIndex(first);
@@ -158,7 +163,7 @@ export function skipHidden(
   from: CellAddr,
   selection: Selection,
   hidden: { readonly rows: readonly Span[]; readonly columns: readonly Span[] },
-) {
+): Selection {
   const focus = {
     row: clear(from.row, selection.focus.row, hidden.rows, lastCell.row),
     col: clear(from.col, selection.focus.col, hidden.columns, lastCell.col),
@@ -172,7 +177,7 @@ export function skipHidden(
 }
 
 /** Runs an engine call that throws on input it cannot take, such as a viewport with too many cells to draw. */
-export function attempt<T>(run: () => T) {
+export function attempt<T>(run: () => T): T | undefined {
   try {
     return run();
   } catch {
@@ -190,7 +195,7 @@ export function contains(range: CellRange, cell: CellAddr) {
   );
 }
 
-function parseCell(a1: string) {
+function parseCell(a1: string): CellAddr | undefined {
   const match = /^\$?([A-Z]{1,3})\$?([1-9]\d*)$/i.exec(a1);
 
   if (!match) return undefined;
@@ -214,7 +219,7 @@ function columnIndex(letters: string) {
   );
 }
 
-function clear(from: number, to: number, spans: readonly Span[], last: number) {
+function clear(from: number, to: number, spans: readonly Span[], last: number): number {
   const span = spans.find((candidate) => to >= candidate.start && to <= candidate.end);
 
   if (!span || to === from) return to;

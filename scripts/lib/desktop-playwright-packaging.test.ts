@@ -33,7 +33,7 @@ async function stagePackage(
   from: string,
   destination: string,
   staged = new Set<string>(),
-) {
+): Promise<void> {
   if (staged.has(name)) return;
   staged.add(name);
 

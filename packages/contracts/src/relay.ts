@@ -2,18 +2,16 @@ import * as Schema from "effect/Schema";
 
 export const DEFAULT_PUBLIC_RELAY_URL = "wss://relay.supaterm.com";
 
-export function normalizeRelayServerUrl(input: string): string | null;
-export function normalizeRelayServerUrl(input: string) {
+export function normalizeRelayServerUrl(input: string): string | null {
   let url: URL;
   try {
     url = new URL(input.trim());
   } catch {
-    return null satisfies string | null;
+    return null;
   }
-  if (!["ws:", "wss:"].includes(url.protocol) || url.username || url.password)
-    return null satisfies string | null;
-  if (url.search || url.hash) return null satisfies string | null;
-  return `${url.origin}${url.pathname.replace(/\/+$/, "")}` satisfies string | null;
+  if (!["ws:", "wss:"].includes(url.protocol) || url.username || url.password) return null;
+  if (url.search || url.hash) return null;
+  return `${url.origin}${url.pathname.replace(/\/+$/, "")}`;
 }
 
 export const RelayServerUrl = Schema.String.check(
@@ -49,7 +47,7 @@ export type RelayConnectionInfo = typeof RelayConnectionInfo.Type;
 export function relayAdvertisementFrom(value: {
   readonly relayEndpoint?: string;
   readonly relayUrl?: string;
-}) {
+}): RelayConnectionInfo | null {
   return value.relayEndpoint === undefined || value.relayUrl === undefined
     ? null
     : { relayEndpoint: value.relayEndpoint, relayUrl: value.relayUrl };
@@ -70,18 +68,18 @@ export class RelayPreparationError extends Schema.TaggedError<RelayPreparationEr
   },
   { httpApiStatus: 503 },
 ) {
-  override get message() {
+  override get message(): string {
     switch (this.reason) {
       case "off":
-        return "Enable Encrypted Relay before creating a relay pairing link." satisfies string as string;
+        return "Enable Encrypted Relay before creating a relay pairing link.";
       case "invalid-url":
-        return "The relay server URL is invalid." satisfies string as string;
+        return "The relay server URL is invalid.";
       case "superseded":
-        return "Another host is using this relay identity. Turn Encrypted Relay off and on to reconnect here." satisfies string as string;
+        return "Another host is using this relay identity. Turn Encrypted Relay off and on to reconnect here.";
       case "timeout":
-        return "The relay did not connect in time. Try creating the link again." satisfies string as string;
+        return "The relay did not connect in time. Try creating the link again.";
       case "unavailable":
-        return "The relay could not be prepared. Try creating the link again." satisfies string as string;
+        return "The relay could not be prepared. Try creating the link again.";
     }
   }
 }

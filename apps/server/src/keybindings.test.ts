@@ -323,20 +323,14 @@ it.layer(NodeServices.layer)("keybindings", (it) => {
       { key: "mod+shift+s", command: "thread.mark-done", when: "!terminalFocus" },
       { key: "mod+alt+d", command: "thread.mark-done" },
     ],
-    ...["shift+mod+d", "cmd+shift+d", "ctrl+shift+d"].map(
-      (key) =>
-        [
-          { key: "mod+shift+s", command: "thread.mark-done", when: "!terminalFocus" },
-          { key, command: "script.custom-action.run" },
-        ] satisfies readonly KeybindingRule[],
-    ),
-    ...["ctrl+m", "mod+m"].map(
-      (key) =>
-        [
-          { key: "mod+shift+space", command: "composer.voice", when: "!terminalFocus" },
-          { key, command: "script.custom-action.run" },
-        ] satisfies readonly KeybindingRule[],
-    ),
+    ...["shift+mod+d", "cmd+shift+d", "ctrl+shift+d"].map((key): readonly KeybindingRule[] => [
+      { key: "mod+shift+s", command: "thread.mark-done", when: "!terminalFocus" },
+      { key, command: "script.custom-action.run" },
+    ]),
+    ...["ctrl+m", "mod+m"].map((key): readonly KeybindingRule[] => [
+      { key: "mod+shift+space", command: "composer.voice", when: "!terminalFocus" },
+      { key, command: "script.custom-action.run" },
+    ]),
   ])("preserves customized or conflicting moved default shortcuts on startup %#", (rules) =>
     Effect.gen(function* () {
       const { keybindingsConfigPath } = yield* ServerConfig.ServerConfig;
@@ -673,7 +667,7 @@ it.layer(NodeServices.layer)("keybindings", (it) => {
 
       const commands = Array.from(
         { length: 20 },
-        (_, index) => `script.concurrent-${index}.run` satisfies KeybindingCommand,
+        (_, index): KeybindingCommand => `script.concurrent-${index}.run`,
       );
       yield* Effect.gen(function* () {
         const keybindings = yield* Keybindings.Keybindings;

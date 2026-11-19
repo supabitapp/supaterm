@@ -27,7 +27,7 @@ const processOutput = TestSourceControlHost.processOutput;
 const encodeJson = Schema.encodeSync(Schema.fromJsonString(Schema.Unknown));
 const decodeJson = Schema.decodeUnknownSync(Schema.fromJsonString(Schema.Unknown));
 
-const requestJson = (request: HttpClientRequest.HttpClientRequest) => {
+const requestJson = (request: HttpClientRequest.HttpClientRequest): unknown => {
   assert.strictEqual(request.body._tag, "Uint8Array");
   return request.body._tag === "Uint8Array"
     ? decodeJson(new TextDecoder().decode(request.body.body))

@@ -85,16 +85,16 @@ type Oklab = Readonly<{ l: number; a: number; b: number }>;
 const OKLCH_PATTERN = /^oklch\(\s*([\d.]+)\s+([\d.]+)\s+(-?[\d.]+)/;
 const HEX_PATTERN = /^#([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i;
 
-function srgbToLinear(value: number) {
+function srgbToLinear(value: number): number {
   return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
 }
 
-function linearToSrgb(value: number) {
+function linearToSrgb(value: number): number {
   const converted = value <= 0.0031308 ? 12.92 * value : 1.055 * value ** (1 / 2.4) - 0.055;
   return Math.round(Math.min(1, Math.max(0, converted)) * 255);
 }
 
-function parseOklab(value: string) {
+function parseOklab(value: string): Oklab | null {
   const oklch = OKLCH_PATTERN.exec(value);
   if (oklch) {
     const lightness = Number(oklch[1]);
@@ -118,7 +118,7 @@ function parseOklab(value: string) {
   };
 }
 
-function oklabToHex(color: Oklab) {
+function oklabToHex(color: Oklab): string {
   const lPrime = color.l + 0.3963377774 * color.a + 0.2158037573 * color.b;
   const mPrime = color.l - 0.1055613458 * color.a - 0.0638541728 * color.b;
   const sPrime = color.l - 0.0894841775 * color.a - 1.291485548 * color.b;
@@ -133,7 +133,7 @@ function oklabToHex(color: Oklab) {
   return `#${channels.map((channel) => channel.toString(16).padStart(2, "0")).join("")}`;
 }
 
-export function mixThemePreviewBase(colors: ThemePreviewColors, mode: ThemeAppearance) {
+export function mixThemePreviewBase(colors: ThemePreviewColors, mode: ThemeAppearance): string {
   const spec = THEME_PREVIEW_RENDER_SPECS[mode]!;
   const canvas = parseOklab(colors.canvas);
   const target = parseOklab(spec.baseTarget);

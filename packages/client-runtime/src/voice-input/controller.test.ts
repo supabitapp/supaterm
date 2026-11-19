@@ -49,15 +49,12 @@ class TestRecorder implements VoiceRecorder {
 }
 
 function preparedTranscription(
-  transcribe?: PreparedVoiceTranscription["transcribe"],
-): PreparedVoiceTranscription;
-function preparedTranscription(
   transcribe: PreparedVoiceTranscription["transcribe"] = async () => "new text",
-) {
-  return { locale: "en-US", transcribe } satisfies PreparedVoiceTranscription;
+): PreparedVoiceTranscription {
+  return { locale: "en-US", transcribe };
 }
 
-function draft(overrides: Partial<VoiceDraftSnapshot> = {}) {
+function draft(overrides: Partial<VoiceDraftSnapshot> = {}): VoiceDraftSnapshot {
   return {
     ownerKey: "environment:thread",
     text: "hello world",
@@ -451,7 +448,7 @@ describe("VoiceInputController", () => {
       const preparationEntered = deferred<void>();
       const preparationSignals: AbortSignal[] = [];
       const transcriptionSignals: AbortSignal[] = [];
-      const transcriber: (text: string) => VoiceTranscriber = (text: string) => ({
+      const transcriber = (text: string): VoiceTranscriber => ({
         prepare: async ({ signal }) => {
           preparationSignals.push(signal);
           preparationEntered.resolve(undefined);

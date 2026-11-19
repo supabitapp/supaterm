@@ -106,7 +106,7 @@ function mapRepositoryError(operation: string, provider: SourceControlProviderKi
 function toRepositoryInfo(
   provider: SourceControlProviderKind,
   urls: SourceControlRepositoryCloneUrls,
-) {
+): SourceControlRepositoryInfo {
   return {
     provider,
     nameWithOwner: urls.nameWithOwner,
@@ -115,7 +115,7 @@ function toRepositoryInfo(
   };
 }
 
-function redactRemoteUrl(remoteUrl: string) {
+function redactRemoteUrl(remoteUrl: string): string {
   try {
     const url = new URL(remoteUrl);
     if (url.username.length === 0 && url.password.length === 0 && url.search.length === 0) {
@@ -134,7 +134,7 @@ const URL_WITH_USERINFO = /\b([a-z][a-z0-9+.-]*:\/\/)[^\s/?#]+@/gi;
 const QUOTED_URL_QUERY = /(['"])([a-z][a-z0-9+.-]*:\/\/[^\s?]*)\?.*\1(?=[\s:]|$)/gi;
 const URL_QUERY = /\b([a-z][a-z0-9+.-]*:\/\/[^\s?]*)\?[^\s]*/gi;
 
-function redactUrlCredentials(text: string) {
+function redactUrlCredentials(text: string): string {
   return text
     .replace(QUOTED_URL_QUERY, "$1$2$1")
     .replace(URL_QUERY, "$1")
@@ -146,7 +146,7 @@ function publishPushFailureDetail(input: {
   readonly remoteName: string;
   readonly remoteUrl: string;
   readonly reason: GitCommandFailureReason | undefined;
-}) {
+}): string {
   const created = `Created ${input.urls.nameWithOwner} and added it as remote "${input.remoteName}", but the push failed`;
   const switchToHttps = `git remote set-url ${input.remoteName} ${input.urls.url}`;
   const usesSsh = input.remoteUrl === input.urls.sshUrl;
@@ -165,7 +165,7 @@ function publishPushFailureDetail(input: {
 function httpsFallbackUrl(
   input: SourceControlCloneRepositoryInput,
   prepared: SourceControlPreparedClone,
-) {
+): string | null {
   if (input.protocol === "ssh" || cloneUrlProtocol(prepared.cloneUrl) !== "ssh") return null;
   if (prepared.repository?.sshUrl === prepared.cloneUrl) return prepared.repository.url;
   return cloneUrlForProtocol(prepared.cloneUrl, "https");
@@ -178,7 +178,7 @@ const isSshRejection = (error: SourceControlRepositoryError) =>
 function selectRemoteUrl(
   urls: SourceControlRepositoryCloneUrls,
   protocol: SourceControlCloneProtocol | undefined,
-) {
+): string {
   switch (protocol ?? "auto") {
     case "https":
       return urls.url;

@@ -162,7 +162,7 @@ const {
   appGetPath: configurableFake<(name: string) => string | undefined>(() => undefined),
   browserWindowConstructor: configurableFake<(options?: unknown) => unknown>(() => undefined),
   clipboardItemConstructor: vi.fn(),
-  createFromPath: vi.fn(() => ({
+  createFromPath: vi.fn((): { readonly isEmpty: () => boolean; readonly toPNG: () => Buffer } => ({
     isEmpty: () => false,
     toPNG: () => Buffer.from("png"),
   })),
@@ -293,7 +293,7 @@ type TestPreviewWebContents = Electron.WebContents & {
   };
 };
 
-const makeTestHostWebContents = () => {
+const makeTestHostWebContents = (): TestHostWebContents => {
   let handler: TestDisplayMediaHandler | undefined;
   return {
     id: 7,
@@ -427,7 +427,7 @@ const setupRecordingRaceTabs = (manager: PreviewManager.PreviewManager["Service"
 
 const TEST_FAVICON = "data:image/png;base64,cG5n";
 
-const makeSourcePng = (width = 1, height = 1) => {
+const makeSourcePng = (width = 1, height = 1): Buffer => {
   const buffer = Buffer.alloc(24);
   Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]).copy(buffer);
   buffer.writeUInt32BE(width, 16);

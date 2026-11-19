@@ -793,18 +793,17 @@ describe("AcpRuntimeModel", () => {
     });
 
     it("coalesces command-tool updates whose content grew while detail stayed the command", () => {
-      const commandCall = (stdout: string) =>
-        ({
-          toolCallId: "tool-1",
-          title: "Ran command",
-          status: "inProgress",
+      const commandCall = (stdout: string): AcpToolCallState => ({
+        toolCallId: "tool-1",
+        title: "Ran command",
+        status: "inProgress",
+        command: "ls",
+        detail: "ls",
+        data: {
           command: "ls",
-          detail: "ls",
-          data: {
-            command: "ls",
-            content: [{ type: "content", content: { type: "text", text: stdout } }],
-          },
-        }) satisfies AcpToolCallState;
+          content: [{ type: "content", content: { type: "text", text: stdout } }],
+        },
+      });
 
       let previous: AcpToolCallState | undefined;
       let lastEmittedDetailLength: number | undefined;
@@ -1285,8 +1284,7 @@ describe("AcpRuntimeModel", () => {
 describe("extractMcpToolCallIdentity", () => {
   function toolCallFromUpdate(
     update: EffectAcpSchema.SessionNotification["update"],
-  ): NonNullable<ReturnType<typeof parsePermissionRequest>["toolCall"]>;
-  function toolCallFromUpdate(update: EffectAcpSchema.SessionNotification["update"]) {
+  ): NonNullable<ReturnType<typeof parsePermissionRequest>["toolCall"]> {
     const parsed = parseSessionUpdateEvent({ sessionId: "session-1", update });
     const event = parsed.events.find(
       (
@@ -1295,9 +1293,7 @@ describe("extractMcpToolCallIdentity", () => {
         candidate._tag === "ToolCallUpdated",
     );
     if (event === undefined) throw new Error("expected a tool call event");
-    return event.toolCall satisfies NonNullable<
-      ReturnType<typeof parsePermissionRequest>["toolCall"]
-    >;
+    return event.toolCall;
   }
 
   it("recovers server and tool from codex-acp tagged execute calls", () => {

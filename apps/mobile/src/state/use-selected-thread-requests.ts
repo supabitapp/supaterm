@@ -61,7 +61,7 @@ const userInputDraftsByRequestKeyAtom = Atom.make<
 function seededDraft(
   drafts: Record<string, PendingUserInputDraftAnswer> | undefined,
   question: ThreadUserInputQuestion,
-) {
+): PendingUserInputDraftAnswer | undefined {
   return seedUserInputDraftAnswers([question], drafts ?? {})[question.id];
 }
 
@@ -69,7 +69,7 @@ function setUserInputDraftOption(
   requestKey: string,
   question: ThreadUserInputQuestion,
   value: string,
-) {
+): void {
   const current = appAtomRegistry.get(userInputDraftsByRequestKeyAtom);
   appAtomRegistry.set(userInputDraftsByRequestKeyAtom, {
     ...current,
@@ -88,7 +88,7 @@ function setUserInputDraftCustomAnswer(
   requestKey: string,
   question: ThreadUserInputQuestion,
   customAnswer: string,
-) {
+): void {
   const current = appAtomRegistry.get(userInputDraftsByRequestKeyAtom);
   appAtomRegistry.set(userInputDraftsByRequestKeyAtom, {
     ...current,
@@ -107,7 +107,7 @@ function pruneResolvedRequestDrafts(
   environmentId: EnvironmentId,
   threadId: ThreadId,
   pendingRequestIds: ReadonlyArray<RuntimeRequestId>,
-) {
+): void {
   const drafts = appAtomRegistry.get(userInputDraftsByRequestKeyAtom);
   const prunedDrafts = pruneResolvedUserInputDrafts(
     drafts,

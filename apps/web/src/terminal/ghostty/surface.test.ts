@@ -15,7 +15,7 @@ import {
   SCRIPT_PASTE_READY_TIMEOUT_MS,
   SCRIPT_PASTE_UNSUPPORTED_MESSAGE,
 } from "../scriptPaste";
-import { GhosttyTerminalCore, type GhosttyRow } from "./core";
+import { GhosttyTerminalCore, type GhosttyCell, type GhosttyRow } from "./core";
 import {
   advanceTerminalSelectionClickSequence,
   applyTerminalCopyEvent,
@@ -858,7 +858,7 @@ describe("GhosttyTerminalSurface visibility", () => {
   );
 });
 
-const cell = (text: string) => ({
+const cell = (text: string): GhosttyCell => ({
   text,
   wide: 0,
   foreground: { r: 255, g: 255, b: 255 },
@@ -910,7 +910,7 @@ describe("terminalLinkAtPositionWithRange", () => {
   });
 
   it("activates a wrapped quoted Windows path from its spaces and position suffix", () => {
-    const row = (text: string, isWrapContinuation: boolean) => ({
+    const row = (text: string, isWrapContinuation: boolean): GhosttyRow => ({
       cells: Array.from(text, (character) => cell(character)),
       text,
       isWrapContinuation,
@@ -956,7 +956,7 @@ describe("terminalLinkAtPositionWithRange", () => {
   });
 
   it("uses shared path matching and reconstructs soft-wrapped links", () => {
-    const row = (text: string, isWrapContinuation: boolean, wrapsToNext = false) => ({
+    const row = (text: string, isWrapContinuation: boolean, wrapsToNext = false): GhosttyRow => ({
       cells: Array.from(text.padEnd(16), (character) => cell(character)),
       text: text.trimEnd(),
       isWrapContinuation,
@@ -991,7 +991,7 @@ describe("terminalLinkAtPositionWithRange", () => {
   });
 
   it("refuses links truncated at the viewport edges instead of mis-resolving", () => {
-    const row = (text: string, isWrapContinuation: boolean, wrapsToNext = false) => ({
+    const row = (text: string, isWrapContinuation: boolean, wrapsToNext = false): GhosttyRow => ({
       cells: Array.from(text.padEnd(16), (character) => cell(character)),
       text: text.trimEnd(),
       isWrapContinuation,

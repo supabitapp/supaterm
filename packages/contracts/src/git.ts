@@ -371,7 +371,7 @@ export class GitCommandError extends Schema.TaggedError<GitCommandError>()("GitC
   detail: Schema.String,
   cause: Schema.optional(Schema.Defect()),
 }) {
-  override get message() {
+  override get message(): string {
     const reason = this.reason === undefined ? "" : ` (${this.reason})`;
     return `Git command failed in ${this.operation} (${this.cwd}): ${this.detail}${reason}`;
   }
@@ -385,7 +385,7 @@ export class TextGenerationError extends Schema.TaggedError<TextGenerationError>
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Text generation failed in ${this.operation}: ${this.detail}`;
   }
 }
@@ -396,7 +396,7 @@ export class GitManagerError extends Schema.TaggedError<GitManagerError>()("GitM
   detail: Schema.String,
   cause: Schema.optional(Schema.Defect()),
 }) {
-  override get message() {
+  override get message(): string {
     return `Git manager failed in ${this.operation}: ${this.detail}`;
   }
 }
@@ -412,7 +412,7 @@ export class GitPullRequestMaterializationError extends Schema.TaggedError<GitPu
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Failed to materialize pull request #${this.pullRequestNumber} branch ${this.headBranch} as ${this.localBranch}.`;
   }
 }

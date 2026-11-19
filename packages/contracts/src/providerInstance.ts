@@ -71,6 +71,5 @@ export const ProviderInstanceConfigMap = Schema.Record(ProviderInstanceId, Provi
 export type ProviderInstanceConfigMap = typeof ProviderInstanceConfigMap.Type;
 
 /** Driver-kind ids keep stored selections routable without migration. */
-export const defaultInstanceIdForDriver: (driver: ProviderDriverKind) => ProviderInstanceId = (
-  driver: ProviderDriverKind,
-) => ProviderInstanceId.make(driver);
+export const defaultInstanceIdForDriver = (driver: ProviderDriverKind): ProviderInstanceId =>
+  ProviderInstanceId.make(driver);

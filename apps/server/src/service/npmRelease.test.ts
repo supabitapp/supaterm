@@ -17,7 +17,7 @@ import * as ProcessRunner from "../processRunner.ts";
 import * as NpmRelease from "./npmRelease.ts";
 
 const version = "0.1.5-nightly.20261030.1";
-const output = (stdout: string, code = 0) => ({
+const output = (stdout: string, code = 0): ProcessRunner.ProcessRunOutput => ({
   stdout,
   stderr: "",
   code: ChildProcessSpawner.ExitCode(code),

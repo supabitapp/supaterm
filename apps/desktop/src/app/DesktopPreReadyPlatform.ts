@@ -29,7 +29,7 @@ export interface DesktopPreReadyCommandLineReader {
 function readCommandLineSwitchValue(
   commandLine: DesktopPreReadyCommandLineReader,
   switchName: string,
-) {
+): string | null {
   if (!commandLine.hasSwitch(switchName)) {
     return null;
   }
@@ -38,7 +38,9 @@ function readCommandLineSwitchValue(
   return value.length > 0 ? value : null;
 }
 
-export const resolveEarlyLinuxElectronOptionsFromProcess = (homeDirectory: string) =>
+export const resolveEarlyLinuxElectronOptionsFromProcess = (
+  homeDirectory: string,
+): DesktopEarlyElectronStartup.EarlyLinuxElectronOptions =>
   DesktopEarlyElectronStartup.resolveEarlyLinuxElectronOptions({
     env: process.env,
     homeDirectory,
@@ -58,7 +60,7 @@ export class DesktopPreReadyElectronOptions extends Context.Service<
 export const make = Effect.gen(function* () {
   const platform = yield* HostProcess.Platform;
   const homeDirectory = yield* HostProcess.HomeDirectory;
-  return yield* Effect.sync(() => {
+  return yield* Effect.sync((): DesktopPreReadyElectronOptions["Service"] => {
     const linuxPasswordStoreCommandLine =
       platform === "linux"
         ? readCommandLineSwitchValue(Electron.app.commandLine, "password-store")

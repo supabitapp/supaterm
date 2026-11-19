@@ -33,7 +33,7 @@ export const NO_TURN_DETAIL: TurnDetail = { activity: null, messages: [], tailId
 const ACTIVITY_MAX_LENGTH = 120;
 const MESSAGE_MAX_LENGTH = 2_000;
 
-function cutText(text: string, maxLength: number) {
+function cutText(text: string, maxLength: number): string | null {
   if (text.length <= maxLength) return null;
   const characters = Array.from(text);
   return characters.length > maxLength ? characters.slice(0, maxLength).join("") : null;
@@ -60,7 +60,7 @@ function completedBeforeSuperseded(entry: MessageEntry) {
   );
 }
 
-function stepLabel(work: WorkLogEntry, workspaceRoot: string | undefined) {
+function stepLabel(work: WorkLogEntry, workspaceRoot: string | undefined): string | null {
   if (work.itemType === "reasoning") return "Thinking";
   const status = work.toolLifecycleStatus;
   if (status === "failed" || status === "declined" || status === "stopped") return null;
@@ -80,7 +80,7 @@ export function turnDetail(
   entries: ReadonlyArray<TimelineEntry>,
   workspaceRoot: string | undefined,
   knownTailId: string | null,
-) {
+): TurnDetail {
   const messages: TurnMessage[] = [];
   const continuedRunIds = new Set<RunId | null>();
   const continuedAttemptIds = new Set<string>();
@@ -161,7 +161,11 @@ const MESSAGE_AUTHOR = "Supaterm";
 export function nextTurnDetailAnnouncement(
   previous: TurnDetailMemory | null,
   next: TurnDetailSnapshot,
-) {
+): {
+  readonly memory: TurnDetailMemory;
+  readonly messages: ReadonlyArray<string>;
+  readonly activity: string | null;
+} {
   const memory: TurnDetailMemory = {
     activity: next.status === "working" ? next.activity : null,
     messages: new Map(next.messages.map((message) => [message.id, message.finished])),

@@ -21,20 +21,20 @@ const preferences = [
 
 type LoadPreference = (typeof preferences)[number]["value"];
 
-function loadPreferenceForWeight(weight: number | undefined) {
+function loadPreferenceForWeight(weight: number | undefined): LoadPreference {
   if (weight === undefined || weight === 50) return 50;
   if (weight === 0) return 0;
   return weight < 50 ? 25 : 100;
 }
 
-function preferenceLabel(preference: LoadPreference) {
+function preferenceLabel(preference: LoadPreference): string {
   return preferences.find((entry) => entry.value === preference)!.label;
 }
 
 function summarizeLoadPreferences(
   environments: ReadonlyArray<Pick<EnvironmentPresentation, "environmentId" | "label">>,
   weights: Readonly<Record<string, number>>,
-) {
+): string | null {
   const parts = environments.flatMap((environment) => {
     const preference = loadPreferenceForWeight(weights[environment.environmentId]);
     return preference === 50

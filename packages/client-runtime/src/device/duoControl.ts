@@ -41,7 +41,10 @@ export function duoFoldState(
   } as const;
 }
 
-export function duoHoldOrientation(vertical: boolean, screenId: number | undefined) {
+export function duoHoldOrientation(
+  vertical: boolean,
+  screenId: number | undefined,
+): DuoOrientation {
   if (screenId === 1) return vertical ? "portrait" : "landscape_left";
   return vertical ? "landscape_left" : "portrait_upside_down";
 }

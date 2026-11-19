@@ -27,7 +27,7 @@ const monitorPid = process.pid + 4;
 function processSample(
   input: Partial<ResourceMonitorProcessSample> &
     Pick<ResourceMonitorProcessSample, "pid" | "ppid" | "startTimeMs">,
-) {
+): ResourceMonitorProcessSample {
   return {
     runTimeMs: 1_000,
     name: `process-${input.pid}`,
@@ -41,7 +41,7 @@ function processSample(
     ioWriteBytes: 0,
     ioSemantics: "storage",
     ...input,
-  } satisfies ResourceMonitorProcessSample;
+  };
 }
 
 function nativeSnapshot(input: {
@@ -50,7 +50,7 @@ function nativeSnapshot(input: {
   readonly childCpuTimeMs: number;
   readonly childWriteBytes: number;
   readonly externalProcesses?: ResourceMonitorSnapshotEvent["externalProcesses"];
-}) {
+}): ResourceMonitorSnapshotEvent {
   const processes = [
     processSample({
       pid: process.pid,
@@ -97,14 +97,17 @@ function nativeSnapshot(input: {
       ? {}
       : { externalProcesses: input.externalProcesses }),
     processes,
-  } satisfies ResourceMonitorSnapshotEvent;
+  };
 }
 
-function nativeGeneration(snapshot: ResourceMonitorSnapshotEvent, generation: number) {
+function nativeGeneration(
+  snapshot: ResourceMonitorSnapshotEvent,
+  generation: number,
+): NativeTelemetryClient.NativeTelemetrySnapshot {
   return { generation, snapshot };
 }
 
-function desktopSnapshot(sampledAtUnixMs: number) {
+function desktopSnapshot(sampledAtUnixMs: number): DesktopHostTelemetrySnapshot {
   const sampledAt = DateTime.makeUnsafe(sampledAtUnixMs);
   return {
     version: 1,
@@ -138,7 +141,7 @@ function desktopSnapshot(sampledAtUnixMs: number) {
         peakWorkingSetBytes: 8_192,
       },
     ],
-  } satisfies DesktopHostTelemetrySnapshot;
+  };
 }
 
 describe("ResourceTelemetry", () => {

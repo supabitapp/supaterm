@@ -35,23 +35,21 @@ type MuseToolPresentation = {
   | Fields<"dynamic_tool", "type" | "toolName" | "input" | "output">
 );
 
-export function museItemStatus(item: MuseItem): OrchestrationV2TurnItemStatus;
-export function museItemStatus(item: MuseItem) {
-  if (item.status === "inProgress") return "running" satisfies OrchestrationV2TurnItemStatus;
-  if (item.status === "cancelled") return "cancelled" satisfies OrchestrationV2TurnItemStatus;
+export function museItemStatus(item: MuseItem): OrchestrationV2TurnItemStatus {
+  if (item.status === "inProgress") return "running";
+  if (item.status === "cancelled") return "cancelled";
   if (
     item.status === "completed" &&
     !(item.kind === "compaction" && item.outcome && item.outcome !== "compacted")
   )
-    return "completed" satisfies OrchestrationV2TurnItemStatus;
-  return "failed" satisfies OrchestrationV2TurnItemStatus;
+    return "completed";
+  return "failed";
 }
 
 export function museToolPresentation(
   item: MuseItem,
-  status?: ReturnType<typeof museItemStatus>,
-): MuseToolPresentation;
-export function museToolPresentation(item: MuseItem, status = museItemStatus(item)) {
+  status = museItemStatus(item),
+): MuseToolPresentation {
   let args: Record<string, unknown> | undefined;
   if (item.args) {
     try {
@@ -93,7 +91,7 @@ export function museToolPresentation(item: MuseItem, status = museItemStatus(ite
       input: item.commandText ?? stringArg("command", "cmd") ?? item.args ?? "",
       output,
       ...(item.exitCode === undefined ? {} : { exitCode: item.exitCode }),
-    } satisfies MuseToolPresentation;
+    };
   }
   if (item.kind === "toolCall" && /write|edit|patch/i.test(toolName)) {
     const fileName = stringArg("file_path", "path", "filePath")?.trim();
@@ -108,7 +106,7 @@ export function museToolPresentation(item: MuseItem, status = museItemStatus(ite
         ...(oldStr === undefined ? {} : { oldStr }),
         ...(newStr === undefined ? {} : { newStr }),
         ...(diffStr === undefined ? {} : { diffStr }),
-      } satisfies MuseToolPresentation;
+      };
     }
   }
   if (item.kind === "toolCall" && /web|browse|fetch/i.test(toolName)) {
@@ -131,7 +129,7 @@ export function museToolPresentation(item: MuseItem, status = museItemStatus(ite
       type: "web_search",
       ...(query ? { patterns: [query] } : {}),
       ...(results.length ? { results } : {}),
-    } satisfies MuseToolPresentation;
+    };
   }
   return {
     ...shared,
@@ -139,5 +137,5 @@ export function museToolPresentation(item: MuseItem, status = museItemStatus(ite
     toolName,
     input: args ?? item.args ?? "",
     output,
-  } satisfies MuseToolPresentation;
+  };
 }

@@ -49,11 +49,11 @@ export class WorktreeMcpService extends Context.Service<
   }
 >()("supaterm/mcp/WorktreeMcpService") {}
 
-function failure(code: WorktreeMcpFailure["code"], message: string) {
+function failure(code: WorktreeMcpFailure["code"], message: string): WorktreeMcpFailure {
   return new WorktreeMcpFailure({ code, message });
 }
 
-function errorMessage(error: unknown) {
+function errorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
   if (typeof error === "object" && error !== null && "message" in error) {
     return String((error as { message: unknown }).message);
@@ -356,15 +356,14 @@ const make = Effect.gen(function* () {
               },
             })
             .pipe(
-              Effect.map(
-                (result) =>
-                  (result.status === "started"
-                    ? {
-                        status: "started",
-                        scriptName: result.scriptName,
-                        terminalId: result.terminalId,
-                      }
-                    : { status: "no-script" }) satisfies WorktreeMcpSetupScriptStatus,
+              Effect.map((result): WorktreeMcpSetupScriptStatus =>
+                result.status === "started"
+                  ? {
+                      status: "started",
+                      scriptName: result.scriptName,
+                      terminalId: result.terminalId,
+                    }
+                  : { status: "no-script" },
               ),
               reportFailed("worktree handoff setup script failed"),
             );

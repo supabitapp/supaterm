@@ -48,7 +48,10 @@ type AccessibilityReadProgress = {
   timedOut: boolean;
 };
 
-function accessibilityReadSnapshot(progress: AccessibilityReadProgress, imageSize: Electron.Size) {
+function accessibilityReadSnapshot(
+  progress: AccessibilityReadProgress,
+  imageSize: Electron.Size,
+): CapturedWindowAccessibilityContext | undefined {
   const richTree = progress.richRoot
     ? compactAccessibilityTree(progress.richRoot, {
         descendantLocationsReliable: progress.richLocationsReliable,
@@ -94,13 +97,18 @@ function accessibilityReadSnapshot(progress: AccessibilityReadProgress, imageSiz
   ) as CapturedWindowAccessibilityContext;
 }
 
-async function windowsForPid(App: AccessibilityApp, processId: number) {
+type AccessibilityElement = Awaited<ReturnType<InstanceType<AccessibilityApp>["children"]>>[number];
+
+async function windowsForPid(
+  App: AccessibilityApp,
+  processId: number,
+): Promise<readonly AccessibilityElement[]> {
   return await App.byPid(processId, { timeout: 0 })
     .then((app) => app.children())
     .catch(() => []);
 }
 
-async function windowsFromAppList(App: AccessibilityApp) {
+async function windowsFromAppList(App: AccessibilityApp): Promise<readonly AccessibilityElement[]> {
   const apps = await App.list().catch(() => []);
   return (await Promise.all(apps.map((app) => app.children().catch(() => [])))).flat();
 }
@@ -110,7 +118,7 @@ async function readCapturedWindowAccessibility(
   request: SnapShotAccessibilityRequest,
   progress: AccessibilityReadProgress,
   onStarted: () => void,
-) {
+): Promise<CapturedWindowAccessibilityContext | undefined> {
   const { active, platform, sourceTitle, imageSize } = request;
   const foreground = platform === "win32" ? await App.foreground({ timeout: 0 }) : undefined;
   const pidWindows =
@@ -194,7 +202,10 @@ async function readCapturedWindowAccessibility(
 
 let activeAccessibilityRead: Promise<unknown> | undefined;
 
-async function raceAccessibleRead<T>(run: () => Promise<T>, timeoutValue: () => T | undefined) {
+async function raceAccessibleRead<T>(
+  run: () => Promise<T>,
+  timeoutValue: () => T | undefined,
+): Promise<T | undefined> {
   if (activeAccessibilityRead) return undefined;
   const read = run().catch(() => undefined);
   activeAccessibilityRead = read;
@@ -218,7 +229,7 @@ export function readAccessibleWindowContextWithApp(
   App: AccessibilityApp,
   request: SnapShotAccessibilityRequest,
   onStarted: () => void = () => undefined,
-) {
+): Promise<CapturedWindowAccessibilityContext | undefined> {
   const progress: AccessibilityReadProgress = {
     accessibleText: undefined,
     flatComplete: false,

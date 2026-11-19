@@ -32,7 +32,7 @@ export function usePullRequestFilesViewed(options: {
   readonly environmentId: EnvironmentId;
   readonly reference: PullRequestRef;
   readonly enabled: boolean;
-}) {
+}): PullRequestFilesViewedView {
   const { environmentId, reference, enabled } = options;
   const query = useEnvironmentQuery(
     enabled ? pullRequestEnvironment.filesViewed({ environmentId, input: reference }) : null,

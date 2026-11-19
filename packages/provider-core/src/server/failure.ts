@@ -77,7 +77,10 @@ const PROVIDER_FAILURE_REASONS: Record<ProviderAdapterFailureReason, string> = {
   attachment_unreadable: "an attachment could not be read",
 };
 
-function curatedCauseMessages(cause: unknown) {
+function curatedCauseMessages(cause: unknown): {
+  readonly known: string | undefined;
+  readonly category: string | undefined;
+} {
   const seen = new Set<unknown>();
   let category: (typeof PROVIDER_FAILURE_CATEGORIES)[string];
   let reason: string | undefined;
@@ -182,7 +185,7 @@ function curatedCauseMessages(cause: unknown) {
   return { known: undefined, category: categoryMessage() };
 }
 
-function processExitStatus(exited: object) {
+function processExitStatus(exited: object): string {
   const { signal, code } = exited as Record<string, unknown>;
   if (typeof signal === "string" && /^SIG[A-Z0-9]{1,16}$/u.test(signal)) {
     return ` after signal ${signal}`;
@@ -195,11 +198,11 @@ function processExitStatus(exited: object) {
  * Callers that pass their own `message` to `makeProviderFailure` check it
  * first, so a known reason is not hidden behind a wrapper's text.
  */
-export function knownProviderFailureMessage(cause: unknown) {
+export function knownProviderFailureMessage(cause: unknown): string | undefined {
   return curatedCauseMessages(cause).known;
 }
 
-function stringField(value: unknown, key: "message" | "code") {
+function stringField(value: unknown, key: "message" | "code"): string | undefined {
   if (typeof value !== "object" || value === null) return undefined;
   try {
     const candidate = (value as Record<string, unknown>)[key];
@@ -209,7 +212,7 @@ function stringField(value: unknown, key: "message" | "code") {
   }
 }
 
-function redactUrl(match: string) {
+function redactUrl(match: string): string {
   const trailing = /[),.;!?]+$/u.exec(match)?.[0] ?? "";
   const candidate = trailing.length === 0 ? match : match.slice(0, -trailing.length);
   try {
@@ -224,7 +227,7 @@ function redactUrl(match: string) {
   }
 }
 
-function replaceUnsafeControlCharacters(value: string) {
+function replaceUnsafeControlCharacters(value: string): string {
   const sanitized: Array<string> = [];
   for (const character of value) {
     const codePoint = character.codePointAt(0) ?? 0;
@@ -240,7 +243,7 @@ function replaceUnsafeControlCharacters(value: string) {
   return sanitized.join("");
 }
 
-function redactProviderFailureText(value: string) {
+function redactProviderFailureText(value: string): string {
   return replaceUnsafeControlCharacters(value)
     .replace(/\bhttps?:\/\/[^\s<>"']+/giu, redactUrl)
     .replace(/\b(Bearer|Basic)\s+[^\s,;]+/giu, "$1 [REDACTED]")
@@ -256,7 +259,7 @@ function redactProviderFailureText(value: string) {
     .trim();
 }
 
-function boundedText(value: string, maxLength: number) {
+function boundedText(value: string, maxLength: number): string {
   const redacted = redactProviderFailureText(value);
   if (redacted.length <= maxLength) return redacted;
   let end = Math.max(0, maxLength - 1);
@@ -274,15 +277,7 @@ export function makeProviderFailure(input: {
   readonly class?: OrchestrationV2ProviderFailureClass;
   readonly retryable?: boolean | null;
   readonly resetAt?: string | null;
-}): OrchestrationV2ProviderFailure;
-export function makeProviderFailure(input: {
-  readonly cause?: unknown;
-  readonly message?: string | undefined;
-  readonly code?: string | null | undefined;
-  readonly class?: OrchestrationV2ProviderFailureClass;
-  readonly retryable?: boolean | null;
-  readonly resetAt?: string | null;
-}) {
+}): OrchestrationV2ProviderFailure {
   const curated = curatedCauseMessages(input.cause);
   const requestTooLarge =
     input.message !== undefined &&
@@ -305,7 +300,7 @@ export function makeProviderFailure(input: {
     Number.isFinite(Date.parse(input.resetAt))
       ? { resetAt: DateTime.formatIso(DateTime.makeUnsafe(input.resetAt)) }
       : {}),
-  } satisfies OrchestrationV2ProviderFailure;
+  };
 }
 
 export function makeProviderFailureTurnItem(input: {
@@ -320,7 +315,7 @@ export function makeProviderFailureTurnItem(input: {
   readonly retry?: OrchestrationV2ProviderRetry;
   readonly retryStartedAt?: DateTime.Utc;
   readonly occurredAt: DateTime.Utc;
-}) {
+}): Extract<OrchestrationV2TurnItem, { readonly type: "error" }> {
   return {
     id: IdAllocator.derive.turnItemFromProviderItem({
       driver: input.driver,
@@ -342,7 +337,7 @@ export function makeProviderFailureTurnItem(input: {
     type: "error",
     failure: input.failure,
     ...(input.retry === undefined ? {} : { retry: input.retry }),
-  } satisfies Extract<OrchestrationV2TurnItem, { readonly type: "error" }>;
+  };
 }
 
 /**
@@ -368,7 +363,7 @@ export function makeProviderRetryTurnItem(input: {
   >;
   readonly startedAt: DateTime.Utc;
   readonly updatedAt: DateTime.Utc;
-}) {
+}): Extract<OrchestrationV2TurnItem, { readonly type: "error" }> {
   const completed = input.status !== "running";
   let title = "Provider retry";
   if (input.status === "completed") {
@@ -399,5 +394,5 @@ export function makeProviderRetryTurnItem(input: {
     type: "error",
     failure: input.failure,
     retry: input.retry,
-  } satisfies Extract<OrchestrationV2TurnItem, { readonly type: "error" }>;
+  };
 }

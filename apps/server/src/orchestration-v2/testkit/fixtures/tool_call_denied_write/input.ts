@@ -9,11 +9,11 @@ export const TOOL_CALL_DENIED_WRITE_TARGET = ".claude-denied-write.txt";
 
 export const TOOL_CALL_DENIED_WRITE_PROMPT = `Use the Write tool once to create ${TOOL_CALL_DENIED_WRITE_TARGET} containing exactly: approval fixture. If permission is denied, do not retry or use another tool; reply exactly: write permission denied. Do not read any files, use the shell, network, or MCP.`;
 
-export function toolCallDeniedWriteInput() {
+export function toolCallDeniedWriteInput(): OrchestratorFixtureInput {
   return {
     steps: [
       { type: "message", text: TOOL_CALL_DENIED_WRITE_PROMPT },
       { type: "approve_next_runtime_request", decision: "decline" },
     ],
-  } satisfies OrchestratorFixtureInput;
+  };
 }

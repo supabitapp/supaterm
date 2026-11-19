@@ -40,7 +40,7 @@ export class DeviceToolchainInstallError extends Schema.TaggedError<DeviceToolch
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message() {
+  override get message(): string {
     if (this.reason === "npm_not_found")
       return "Device support needs npm, which is not on the Supaterm server's PATH. Install npm (it comes with Node.js from nodejs.org), restart Supaterm, then retry.";
     const suffix = this.exitCode === undefined ? "" : ` (exit code ${this.exitCode})`;
@@ -66,7 +66,7 @@ const AGENT_DEVICE_SPEC: ToolSpec = {
   entry: ["bin", "agent-device.mjs"],
 };
 
-const toolPaths = (path: Path.Path, baseDir: string, spec: ToolSpec) => {
+const toolPaths = (path: Path.Path, baseDir: string, spec: ToolSpec): DeviceToolPaths => {
   const installDir = path.join(baseDir, "tools", spec.name, spec.version);
   return {
     installDir,
@@ -75,12 +75,12 @@ const toolPaths = (path: Path.Path, baseDir: string, spec: ToolSpec) => {
   };
 };
 
-const deviceToolchainPaths = (path: Path.Path, baseDir: string) => ({
+const deviceToolchainPaths = (path: Path.Path, baseDir: string): DeviceToolchainPaths => ({
   hub: toolPaths(path, baseDir, HUB_SPEC),
   agentDevice: toolPaths(path, baseDir, AGENT_DEVICE_SPEC),
 });
 
-export const agentDeviceStateDir = (path: Path.Path, stateDir: string) =>
+export const agentDeviceStateDir = (path: Path.Path, stateDir: string): string =>
   path.join(stateDir, "device", "agent-device");
 
 const isInstalled = Effect.fn("DeviceToolchain.isInstalled")(function* (

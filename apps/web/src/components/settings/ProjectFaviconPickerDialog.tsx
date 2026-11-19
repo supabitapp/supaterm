@@ -19,12 +19,12 @@ import { CommandDialog, CommandDialogPopup, CommandFooterAction } from "../ui/co
 import { toastManager } from "../ui/toast";
 import { ProjectFaviconThumbnail } from "./ProjectFaviconThumbnail";
 
-function emptyMessage(query: string, error: string | null, isPending: boolean) {
+function emptyMessage(query: string, error: string | null, isPending: boolean): string {
   if (error) return error;
   if (isPending) return query.trim() ? "Searching project files…" : "Indexing project files…";
   return query.trim() ? "No matching image files." : "No image files found.";
 }
-export function canPickExternalProjectFavicon(cwd: string, platform: string) {
+export function canPickExternalProjectFavicon(cwd: string, platform: string): boolean {
   return !isWindowsPlatform(platform) || isWindowsAbsolutePath(cwd);
 }
 

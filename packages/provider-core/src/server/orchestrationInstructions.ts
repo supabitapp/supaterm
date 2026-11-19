@@ -73,7 +73,7 @@ export function supatermAcpPromptWithInstructions(input: {
   readonly prompt: string;
   readonly state: SupatermAcpInstructionState;
   readonly previousState?: SupatermAcpInstructionState;
-}) {
+}): string {
   if (input.prompt.trimStart().startsWith("/")) return input.prompt;
   if (
     input.previousState?.interactionMode === input.state.interactionMode &&
@@ -103,7 +103,7 @@ const orchestrationInstructions = (hasDeviceTools: boolean) =>
     ? `${SUPATERM_ORCHESTRATION_INSTRUCTIONS}\n${SUPATERM_DEVICE_TOOL_INSTRUCTIONS}\n`
     : SUPATERM_ORCHESTRATION_INSTRUCTIONS;
 
-function prependSupatermOrchestrationInstructions(prompt: string, instructions: string) {
+function prependSupatermOrchestrationInstructions(prompt: string, instructions: string): string {
   return `<supaterm_orchestration_instructions>${instructions.trim()}</supaterm_orchestration_instructions>\n\n<user_request>\n${prompt}\n</user_request>`;
 }
 
@@ -114,7 +114,7 @@ export function supatermOrchestrationPrompt(input: {
   readonly hasDeviceTools: boolean;
   readonly orchestrationDelivered: boolean;
   readonly deviceInstructionsDelivered: boolean;
-}) {
+}): string {
   if (!input.hasSupatermMcp) return input.prompt;
   if (!input.orchestrationDelivered) {
     return prependSupatermOrchestrationInstructions(
@@ -130,6 +130,6 @@ export function supatermOrchestrationPrompt(input: {
 export function supatermOrchestrationSystemPrompt(
   hasSupatermMcp: boolean,
   hasDeviceTools: boolean,
-) {
+): string | undefined {
   return hasSupatermMcp ? orchestrationInstructions(hasDeviceTools) : undefined;
 }

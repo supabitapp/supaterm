@@ -9,7 +9,10 @@ import {
   type ThemeAppearance,
   type ThemeColors,
 } from "@supaterm/shared/themePalettes";
-import { STANDARD_THEME_PREVIEW_COLORS } from "@supaterm/shared/themePreview";
+import {
+  STANDARD_THEME_PREVIEW_COLORS,
+  type ThemePreviewColors,
+} from "@supaterm/shared/themePreview";
 
 export const DEFAULT_MOBILE_THEME_ID = MOBILE_DEFAULT_THEME_ID;
 export const MOBILE_THEME_IDS = [...SHARED_MOBILE_THEME_IDS, "material-you"] as const;
@@ -33,25 +36,25 @@ export type MobileThemeVariables = Readonly<Record<MobileThemeVariable, string>>
 export function mobileThemeSupportsAppearance(
   themeId: MobileThemeId,
   appearance: MobileThemeAppearance,
-) {
+): boolean {
   const theme = BUILT_IN_THEMES.find((candidate) => candidate.id === themeId);
   return theme === undefined || getThemeColorsForAppearance(theme, appearance) !== null;
 }
 
-export function normalizeMobileThemeId(value: unknown) {
+export function normalizeMobileThemeId(value: unknown): MobileThemeId {
   return typeof value === "string" && (MOBILE_THEME_IDS as readonly string[]).includes(value)
     ? (value as MobileThemeId)
     : DEFAULT_MOBILE_THEME_ID;
 }
 
-export function normalizeMobileThemeMode(value: unknown) {
+export function normalizeMobileThemeMode(value: unknown): MobileThemeMode {
   return value === "light" || value === "dark" || value === "system" ? value : "system";
 }
 
 export function resolveMobileThemeIds(preferences: {
   readonly lightThemeId?: unknown;
   readonly darkThemeId?: unknown;
-}) {
+}): MobileThemeIds {
   const resolve = (appearance: MobileThemeAppearance, value: unknown) => {
     const themeId = normalizeMobileThemeId(value);
     return mobileThemeSupportsAppearance(themeId, appearance) ? themeId : DEFAULT_MOBILE_THEME_ID;
@@ -88,7 +91,7 @@ export function createMobileThemePairPatch(themeIds: MobileThemeIds, value: Mobi
 
 const OKLCH_PATTERN = /^oklch\(\s*([\d.]+)\s+([\d.]+)\s+(-?[\d.]+)(?:\s*\/\s*([\d.]+))?\s*\)$/;
 
-function linearToSrgb(value: number) {
+function linearToSrgb(value: number): number {
   const converted = value <= 0.0031308 ? 12.92 * value : 1.055 * value ** (1 / 2.4) - 0.055;
   return Math.round(Math.min(1, Math.max(0, converted)) * 255);
 }
@@ -110,7 +113,7 @@ function oklabToSrgb(lightness: number, a: number, b: number) {
 }
 
 /** React Native does not accept OKLCH ColorValues, so palettes cross the app boundary as sRGB. */
-export function themeColorToNativeColor(value: string) {
+export function themeColorToNativeColor(value: string): string {
   const match = OKLCH_PATTERN.exec(value);
   if (!match) return value;
 
@@ -125,13 +128,13 @@ export function themeColorToNativeColor(value: string) {
     : `#${[red, green, blue].map((channel) => channel.toString(16).padStart(2, "0")).join("")}`;
 }
 
-export function nativeColors(colors: ThemeColors) {
+export function nativeColors(colors: ThemeColors): ThemeColors {
   return Object.fromEntries(
     Object.entries(colors).map(([role, color]) => [role, themeColorToNativeColor(color)]),
   ) as ThemeColors;
 }
 
-function withAlpha(color: string, alpha: number) {
+function withAlpha(color: string, alpha: number): string {
   const hex = color.startsWith("#") ? color.slice(1) : "";
   if (hex.length !== 6) return color;
   const [red, green, blue] = [0, 2, 4].map((offset) =>
@@ -140,19 +143,15 @@ function withAlpha(color: string, alpha: number) {
   return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
 }
 
-function rgbChannels(color: string) {
+function rgbChannels(color: string): readonly [number, number, number] | null {
   const match = /^#([\da-f]{2})([\da-f]{2})([\da-f]{2})(?:[\da-f]{2})?$/i.exec(color);
-  if (!match) return null satisfies readonly [number, number, number] | null;
+  if (!match) return null;
   const [, red = "0", green = "0", blue = "0"] = match;
-  return [
-    Number.parseInt(red, 16),
-    Number.parseInt(green, 16),
-    Number.parseInt(blue, 16),
-  ] satisfies readonly [number, number, number] | null;
+  return [Number.parseInt(red, 16), Number.parseInt(green, 16), Number.parseInt(blue, 16)];
 }
 
 /** Native chips require opaque hex; flatten translucent roles. */
-export function flattenThemeColor(color: string, surface: string) {
+export function flattenThemeColor(color: string, surface: string): string {
   const alphaHex = /^#([\da-f]{6})([\da-f]{2})$/i.exec(color);
   if (alphaHex) {
     const channels = rgbChannels(color)!;
@@ -173,7 +172,7 @@ export function flattenThemeColor(color: string, surface: string) {
   return `#${channels.map((channel) => channel.toString(16).padStart(2, "0")).join("")}`;
 }
 
-function srgbToLinear(channel: number) {
+function srgbToLinear(channel: number): number {
   const value = channel / 255;
   return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
 }
@@ -190,12 +189,12 @@ function srgbToOklab(channels: readonly [number, number, number]) {
   ] as const;
 }
 
-function relativeLuminance(channels: readonly [number, number, number]) {
+function relativeLuminance(channels: readonly [number, number, number]): number {
   const [red, green, blue] = channels.map(srgbToLinear);
   return 0.2126 * red! + 0.7152 * green! + 0.0722 * blue!;
 }
 
-export function isDarkThemeColor(color: string) {
+export function isDarkThemeColor(color: string): boolean {
   const channels = rgbChannels(color);
   return channels !== null && relativeLuminance(channels) < 0.18;
 }
@@ -203,7 +202,7 @@ export function isDarkThemeColor(color: string) {
 function contrastRatio(
   first: readonly [number, number, number],
   second: readonly [number, number, number],
-) {
+): number {
   const firstLuminance = relativeLuminance(first);
   const secondLuminance = relativeLuminance(second);
   return (
@@ -212,7 +211,7 @@ function contrastRatio(
   );
 }
 
-export function themeColorContrastRatio(first: string, second: string) {
+export function themeColorContrastRatio(first: string, second: string): number {
   const firstChannels = rgbChannels(first);
   const secondChannels = rgbChannels(second);
   return firstChannels && secondChannels ? contrastRatio(firstChannels, secondChannels) : 1;
@@ -222,7 +221,7 @@ export function themeColorWithContrast(
   accent: string,
   surface: string | ReadonlyArray<string>,
   minimum = 4.5,
-) {
+): string {
   const accentChannels = rgbChannels(accent);
   const surfaceChannels = (typeof surface === "string" ? [surface] : surface)
     .map(rgbChannels)
@@ -269,7 +268,7 @@ export function themeAccentWithContrast(
   accent: string,
   surfaces: ReadonlyArray<string>,
   minimum = 4.5,
-) {
+): string {
   const accentChannels = rgbChannels(accent);
   const surfaceChannels = surfaces.flatMap((surface) => {
     const channels = rgbChannels(surface);
@@ -320,7 +319,7 @@ export function themeAccentWithContrast(
   return lighten ? "#ffffff" : "#000000";
 }
 
-export function themeColorWithAlpha(color: string, alpha: number) {
+export function themeColorWithAlpha(color: string, alpha: number): string {
   const channels = rgbChannels(color);
   if (channels) {
     return `rgba(${channels[0]}, ${channels[1]}, ${channels[2]}, ${alpha})`;
@@ -460,7 +459,7 @@ export function createMobileThemeVariables(
 export function getMobileThemeColors(
   themeId: SharedMobileThemeId,
   appearance: MobileThemeAppearance,
-) {
+): ThemeColors {
   const theme = BUILT_IN_THEMES.find((candidate) => candidate.id === themeId);
   return (
     (theme ? getThemeColorsForAppearance(theme, appearance) : null) ??
@@ -472,7 +471,7 @@ export function getMobileThemeVariables(
   themeId: SharedMobileThemeId,
   appearance: MobileThemeAppearance,
   overrides: Partial<MobileThemeVariables> | null = null,
-) {
+): MobileThemeVariables {
   const colors = getMobileThemeColors(themeId, appearance);
   const isStandard =
     themeId === DEFAULT_MOBILE_THEME_ID || !mobileThemeSupportsAppearance(themeId, appearance);
@@ -494,7 +493,7 @@ export function getMobileThemeVariables(
 export function getMobileThemePreviewColors(
   themeId: MobileThemeId,
   appearance: MobileThemeAppearance,
-) {
+): ThemePreviewColors {
   if (themeId === DEFAULT_MOBILE_THEME_ID || themeId === "material-you") {
     const colors = STANDARD_THEME_PREVIEW_COLORS[appearance];
     return {

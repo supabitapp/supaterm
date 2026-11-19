@@ -268,7 +268,7 @@ const ComposerCommandMenuItem = memo(function ComposerCommandMenuItem(props: {
   );
 });
 
-export function composerSuggestionOptionId(listId: string, itemId: string) {
+export function composerSuggestionOptionId(listId: string, itemId: string): string {
   return `${listId}-${encodeURIComponent(JSON.stringify(itemId))}`;
 }
 

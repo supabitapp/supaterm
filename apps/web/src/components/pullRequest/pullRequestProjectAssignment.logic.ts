@@ -38,14 +38,13 @@ export type PullRequestHostRead = {
 
 export function resetPullRequestHosts(
   previous: ReadonlyMap<EnvironmentId, PullRequestHostRead>,
-): ReadonlyMap<EnvironmentId, PullRequestHostRead>;
-export function resetPullRequestHosts(previous: ReadonlyMap<EnvironmentId, PullRequestHostRead>) {
+): ReadonlyMap<EnvironmentId, PullRequestHostRead> {
   return new Map(
     [...previous].map(([id, read]) => [
       id,
       { ...read, resetAt: read.observedAt, hosts: new Map(), projectHosts: new Map() },
     ]),
-  ) satisfies ReadonlyMap<EnvironmentId, PullRequestHostRead>;
+  );
 }
 
 export function rememberPullRequestHosts(
@@ -57,7 +56,7 @@ export function rememberPullRequestHosts(
       number,
     ]
   >,
-) {
+): ReadonlyMap<EnvironmentId, PullRequestHostRead> {
   const activeHosts = new Map<
     EnvironmentId,
     Map<string, { configured: boolean; observedAt: number }>
@@ -116,7 +115,7 @@ export function rememberPullRequestHosts(
   return next;
 }
 
-function repositoryKey(project: AssignableProject) {
+function repositoryKey(project: AssignableProject): string | undefined {
   return project.repositoryIdentity?.canonicalKey?.toLowerCase();
 }
 
@@ -126,7 +125,7 @@ export function assignProjectsToEnvironments(
   preferredEnvironmentId?: EnvironmentId | null,
   hostAvailability?: PullRequestHostAvailability,
   unreachableEnvironmentIds: ReadonlySet<EnvironmentId> = new Set(),
-) {
+): Map<EnvironmentId, ProjectId[]> {
   const rank = new Map(environmentIds.map((id, index) => [id, index] as const));
   const owner = new Map<string, AssignableProject>();
   const unreadable = (project: AssignableProject) => {
@@ -185,13 +184,7 @@ export function pullRequestProjectQueries(
 ): ReadonlyArray<{
   readonly environmentId: EnvironmentId;
   readonly projectIds?: ReadonlyArray<ProjectId>;
-}>;
-export function pullRequestProjectQueries(
-  projects: ReadonlyArray<AssignableProject>,
-  environmentIds: ReadonlyArray<EnvironmentId>,
-  hostAvailability?: PullRequestHostAvailability,
-  unreachableEnvironmentIds?: ReadonlySet<EnvironmentId>,
-) {
+}> {
   const assignment = assignProjectsToEnvironments(
     projects,
     environmentIds,
@@ -215,10 +208,7 @@ export function pullRequestProjectQueries(
       });
     }
     return queries;
-  }) satisfies ReadonlyArray<{
-    readonly environmentId: EnvironmentId;
-    readonly projectIds?: ReadonlyArray<ProjectId>;
-  }>;
+  });
 }
 
 export interface PickableEnvironment {
@@ -237,7 +227,7 @@ export function resolvePickableEnvironments(
     readonly label: string;
     readonly machine?: EnvironmentMachineKind;
   }>,
-) {
+): ReadonlyArray<PickableEnvironment> {
   const own = projects.find(
     (project) =>
       project.environmentId === current.environmentId && project.id === current.projectId,

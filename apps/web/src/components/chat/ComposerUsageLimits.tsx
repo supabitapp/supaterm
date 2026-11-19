@@ -12,7 +12,7 @@ import { LimitWindows, ResetCredits } from "../usage/UsageLimits";
 import { ComposerBanner } from "./ComposerBanner";
 import type { ComposerBannerStackItem } from "./ComposerBannerStack";
 
-function accountLabel(account: UsageLimitsReport["accounts"][number]) {
+function accountLabel(account: UsageLimitsReport["accounts"][number]): string {
   const driver = providerClients.get(account.driver)?.label ?? String(account.driver);
   const instance =
     account.displayName?.trim() ||
@@ -48,7 +48,7 @@ export function usageLimitsBannerItem(
   report: UsageLimitsReport,
   environmentId: EnvironmentId,
   onDismiss: () => void,
-) {
+): ComposerBannerStackItem {
   const [first] = report.accounts;
   const single = report.accounts.length === 1 && first ? first : null;
   const summary = single ? (
@@ -66,7 +66,7 @@ export function usageLimitsBannerItem(
     dismissLabel: "Dismiss usage limits",
     onDismiss,
     children: <UsageLimitsBannerBody report={report} environmentId={environmentId} />,
-  } satisfies ComposerBannerStackItem;
+  };
 }
 
 export function modelFallbackBannerItem({
@@ -85,7 +85,7 @@ export function modelFallbackBannerItem({
   readonly timestampFormat: TimestampFormat;
   readonly onUseDefault: () => void;
   readonly onDismiss: () => void;
-}) {
+}): ComposerBannerStackItem {
   return {
     id: "fallback-model",
     variant: "info",
@@ -99,7 +99,7 @@ export function modelFallbackBannerItem({
     ),
     dismissLabel: "Dismiss fallback model notice",
     onDismiss,
-  } satisfies ComposerBannerStackItem;
+  };
 }
 
 function UsageLimitsBannerBody({

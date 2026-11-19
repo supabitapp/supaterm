@@ -24,7 +24,7 @@ const firstScopeId = CheckpointScopeId.make("scope:checkpoint-diff-v2:1");
 const secondScopeId = CheckpointScopeId.make("scope:checkpoint-diff-v2:2");
 const secondRef = CheckpointRef.make("refs/supaterm/test/second");
 
-function makeProjection() {
+function makeProjection(): ProjectionCheckpointContext {
   return {
     runs: [
       { id: firstRunId, ordinal: 1, status: "completed" },
@@ -44,7 +44,7 @@ function makeProjection() {
         ref: secondRef,
       },
     ],
-  } satisfies ProjectionCheckpointContext;
+  };
 }
 
 function layerFor(input: {
@@ -108,15 +108,17 @@ it.effect("excludes ready checkpoints from rolled-back runs", () => {
 
 function makeProjectionAfterStoppedRun(stoppedRunCheckpoint: boolean) {
   const thirdRunId = RunId.make("run:checkpoint-diff-v2:3");
-  const checkpoint = (ordinalWithinScope: number, runId: RunId | null) =>
-    ({
-      scopeId: firstScopeId,
-      runId,
-      ordinalWithinScope,
-      appRunOrdinal: runId === null ? null : ordinalWithinScope,
-      status: "ready",
-      ref: CheckpointRef.make(`refs/supaterm/test/ordinal/${ordinalWithinScope}`),
-    }) satisfies ProjectionCheckpointContext["checkpoints"][number];
+  const checkpoint = (
+    ordinalWithinScope: number,
+    runId: RunId | null,
+  ): ProjectionCheckpointContext["checkpoints"][number] => ({
+    scopeId: firstScopeId,
+    runId,
+    ordinalWithinScope,
+    appRunOrdinal: runId === null ? null : ordinalWithinScope,
+    status: "ready",
+    ref: CheckpointRef.make(`refs/supaterm/test/ordinal/${ordinalWithinScope}`),
+  });
   return {
     runs: [
       { id: firstRunId, ordinal: 1, status: "completed" },

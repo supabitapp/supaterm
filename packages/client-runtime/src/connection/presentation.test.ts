@@ -39,7 +39,7 @@ const ENTRY: ConnectionCatalogEntry = {
   enabled: true,
 };
 
-function supervisorState(overrides: Partial<SupervisorConnectionState>) {
+function supervisorState(overrides: Partial<SupervisorConnectionState>): SupervisorConnectionState {
   return {
     desired: true,
     network: "online",
@@ -51,7 +51,7 @@ function supervisorState(overrides: Partial<SupervisorConnectionState>) {
     retryAt: null,
     refusedRouteIds: [],
     ...overrides,
-  } satisfies SupervisorConnectionState;
+  };
 }
 
 describe("connection presentation", () => {
@@ -162,7 +162,7 @@ describe("connection presentation", () => {
   });
 
   it("copies the MCP address of the route this device is connected over", () => {
-    const route = (connectionId: string, httpBaseUrl: string) => {
+    const route = (connectionId: string, httpBaseUrl: string): ConnectionRoute => {
       const target = new BearerConnectionTarget({ ...TARGET, connectionId });
       return {
         target,

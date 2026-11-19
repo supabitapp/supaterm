@@ -1,4 +1,4 @@
-import type { DesktopSnapShotState, SnapShotSound } from "@supaterm/contracts";
+import type { ClientSettingsPatch, DesktopSnapShotState, SnapShotSound } from "@supaterm/contracts";
 import {
   captureSetupBackend,
   captureSetupDesktopName,
@@ -6,14 +6,14 @@ import {
   captureSetupMacPermissionsReady,
 } from "./SnapShotSetupDialog.logic";
 
-export function snapShotStatus(state: DesktopSnapShotState | null, enabled: boolean) {
+export function snapShotStatus(state: DesktopSnapShotState | null, enabled: boolean): string {
   if (!state) return "Checking snapshots…";
   if (state.mode === "unavailable") return state.message ?? "Not supported on this platform.";
   if (!enabled) return "Turn this on to set up snapshots.";
   return snapShotSetupSummary(state, enabled);
 }
 
-export function snapShotSetupSummary(state: DesktopSnapShotState, enabled: boolean) {
+export function snapShotSetupSummary(state: DesktopSnapShotState, enabled: boolean): string {
   if (state.message) return "Capture needs attention";
   if (state.linuxBackend === "hyprland" && state.hyprlandHelper?.status !== "ready")
     return state.hyprlandHelper?.status === "error"
@@ -41,7 +41,7 @@ export function snapShotSetupSummary(state: DesktopSnapShotState, enabled: boole
   return "Finish shortcut setup";
 }
 
-export function snapShotShortcutStatus(state: DesktopSnapShotState | null) {
+export function snapShotShortcutStatus(state: DesktopSnapShotState | null): string | null {
   if (!state) return null;
   if (state.linuxBackend === "hyprland") return state.shortcutMessage;
   if (state.shortcutPending) return "Approve the shortcut permission prompt to continue.";
@@ -49,7 +49,7 @@ export function snapShotShortcutStatus(state: DesktopSnapShotState | null) {
   return state.shortcutMessage;
 }
 
-export function snapShotSetupButtonLabel(state: DesktopSnapShotState | null) {
+export function snapShotSetupButtonLabel(state: DesktopSnapShotState | null): string {
   if (!state) return "Continue setup";
   if (captureSetupAccessReady(state)) return "Manage capture";
   const desktop = captureSetupDesktopName(state);
@@ -59,7 +59,7 @@ export function snapShotSetupButtonLabel(state: DesktopSnapShotState | null) {
 export function snapShotSetupComplete(
   state: DesktopSnapShotState | null,
   includeAccessibility: boolean,
-) {
+): boolean {
   if (state?.windows) return true;
   return (
     state?.macPermissions !== undefined &&
@@ -71,7 +71,9 @@ export function snapShotSetupComplete(
 
 export type SnapShotSoundSelection = SnapShotSound | "off";
 
-export function snapShotFeedbackUnavailableMessage(state: DesktopSnapShotState | null) {
+export function snapShotFeedbackUnavailableMessage(
+  state: DesktopSnapShotState | null,
+): string | undefined {
   if (state?.mode !== "portal" || state.linuxFeedbackAvailable) return undefined;
   if (state.linuxBackend === "hyprland")
     return state.hyprlandHelper?.status === "ready"
@@ -89,27 +91,29 @@ export function snapShotFeedbackUnavailableMessage(state: DesktopSnapShotState |
       : "Capture effects aren't available on this desktop.";
 }
 
-export function snapShotDescription(state: DesktopSnapShotState | null) {
+export function snapShotDescription(state: DesktopSnapShotState | null): string {
   return state?.mode === "portal" && captureSetupBackend(state) === "picker"
     ? "Automatic capture isn't available here. Choose a window instead."
     : "Capture a window and attach it to your current draft.";
 }
 
-export function snapShotAccessibilityUnavailableMessage(state: DesktopSnapShotState | null) {
+export function snapShotAccessibilityUnavailableMessage(
+  state: DesktopSnapShotState | null,
+): string | undefined {
   if (state?.mode !== "portal") return undefined;
   if (state.linuxBackend === "picker" || state.linuxBackend === "screenshot-portal")
     return "This desktop only provides a screenshot.";
   return undefined;
 }
 
-export function snapShotUnavailableMessage(hasBridge: boolean) {
+export function snapShotUnavailableMessage(hasBridge: boolean): string | undefined {
   if (hasBridge) return undefined;
   return typeof window !== "undefined" && window.desktopBridge
     ? "Update the desktop app to use snapshots."
     : "Only available in the desktop app.";
 }
 
-export function snapShotSoundPatch(sound: SnapShotSoundSelection) {
+export function snapShotSoundPatch(sound: SnapShotSoundSelection): ClientSettingsPatch {
   return sound === "off"
     ? { snapShotPlaySound: false }
     : { snapShotPlaySound: true, snapShotSound: sound };

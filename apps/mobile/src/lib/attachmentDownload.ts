@@ -11,7 +11,7 @@ const DOWNLOAD_RETENTION_MS = 24 * 60 * 60_000;
 const DOWNLOAD_DIRECTORY_NAME = /^(\d+)-[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i;
 const activeDirectories = new Set<string>();
 
-function downloadFileName(name: string) {
+function downloadFileName(name: string): string {
   const basename = name.split(/[\\/]/).at(-1) ?? "";
   const sanitized = Array.from(basename, (character) => {
     const codePoint = character.codePointAt(0)!;
@@ -44,7 +44,7 @@ function downloadFileName(name: string) {
   return `${shortStem || "attachment"}${extension}`;
 }
 
-function removeDownloadDirectory(directory: Directory) {
+function removeDownloadDirectory(directory: Directory): void {
   try {
     if (directory.exists) {
       directory.delete();
@@ -160,7 +160,7 @@ async function createCachedAttachmentFile(attachment: AttachmentFileMetadata) {
   };
 }
 
-export function nativeViewerErrorMessage(cause: unknown) {
+export function nativeViewerErrorMessage(cause: unknown): string {
   const text = cause instanceof Error ? cause.message : String(cause);
   return /ActivityNotFound|cannot be previewed/i.test(text)
     ? "No app on this device can show this format. Save or share it to open it elsewhere."
@@ -171,7 +171,7 @@ export async function openAttachmentInViewer(input: {
   readonly uri: string;
   readonly attachment: AttachmentFileMetadata;
   readonly signal: AbortSignal;
-}) {
+}): Promise<void> {
   const { File } = await loadExpoFileSystem();
   const { requireNativeModule } = await import("expo");
   if (input.signal.aborted) return;
@@ -205,7 +205,7 @@ export async function downloadAttachmentForPreview(input: {
   readonly url: string;
   readonly attachment: AttachmentFileMetadata;
   readonly signal: AbortSignal;
-}) {
+}): Promise<AttachmentPreviewFile | null> {
   if (input.signal.aborted) return null;
   const { File } = await loadExpoFileSystem();
   const cached = await createCachedAttachmentFile(input.attachment);
@@ -234,7 +234,7 @@ export async function downloadAndShareAttachment(input: {
   readonly attachment: AttachmentFileMetadata;
   readonly signal: AbortSignal;
   readonly sourceIdentifier?: string;
-}) {
+}): Promise<void> {
   if ((await availableSharing(input.signal)) === null) return;
   const file = await downloadAttachmentForPreview(input);
   if (file === null) return;
@@ -245,18 +245,12 @@ export async function downloadAndShareAttachment(input: {
   }
 }
 
-export function shareLocalAttachment(input: {
-  readonly uri: string;
-  readonly attachment: AttachmentFileMetadata;
-  readonly signal: AbortSignal;
-  readonly sourceIdentifier?: string;
-}): Promise<void>;
 export async function shareLocalAttachment(input: {
   readonly uri: string;
   readonly attachment: AttachmentFileMetadata;
   readonly signal: AbortSignal;
   readonly sourceIdentifier?: string;
-}) {
+}): Promise<void> {
   if ((await availableSharing(input.signal)) === null) return;
   const { File } = await loadExpoFileSystem();
   const cached = await createCachedAttachmentFile(input.attachment);
@@ -279,7 +273,7 @@ export async function shareLocalAttachment(input: {
 export async function writeGeneratedAttachmentFile(input: {
   readonly bytes: Uint8Array;
   readonly attachment: AttachmentFileMetadata;
-}) {
+}): Promise<AttachmentPreviewFile> {
   const cached = await createCachedAttachmentFile(input.attachment);
   try {
     await cached.file.write(input.bytes);
@@ -294,7 +288,7 @@ export async function shareGeneratedAttachment(input: {
   readonly bytes: Uint8Array;
   readonly attachment: AttachmentFileMetadata;
   readonly signal: AbortSignal;
-}) {
+}): Promise<boolean> {
   const sharing = await availableSharing(input.signal).catch(() => null);
   if (sharing === null) return false;
   const cached = await createCachedAttachmentFile(input.attachment);

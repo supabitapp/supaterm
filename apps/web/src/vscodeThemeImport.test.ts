@@ -16,13 +16,13 @@ import {
   resolveThemeLabelCollisions,
 } from "./vscodeThemeImport";
 
-function asHex(value: string) {
+function asHex(value: string): string {
   const hex = themeColorToHex(value);
   if (!hex) throw new Error(`Expected a theme color, received ${value}`);
   return hex;
 }
 
-function contrastRatio(first: string, second: string) {
+function contrastRatio(first: string, second: string): number {
   const toChannels = (value: string) => {
     const hex = asHex(value).slice(1);
     return [0, 1, 2].map(
@@ -38,7 +38,7 @@ function contrastRatio(first: string, second: string) {
   return (lighter + 0.05) / (darker + 0.05);
 }
 
-function oklchParts(value: string) {
+function oklchParts(value: string): { chroma: number; hue: number } {
   const [, chroma, hue] = /^oklch\(\S+ (\S+) (\S+)\)$/.exec(value)!;
   return { chroma: Number(chroma), hue: Number(hue) };
 }

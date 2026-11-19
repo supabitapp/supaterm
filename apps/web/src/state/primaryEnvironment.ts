@@ -40,7 +40,7 @@ export const themeEnvironmentIdAtom = createThemeEnvironmentIdAtom({
   catalogValueAtom: environmentCatalog.catalogValueAtom,
 });
 
-export function startHostEnvironmentLookup() {
+export function startHostEnvironmentLookup(): void {
   void window.desktopBridge
     ?.getHostEnvironmentId?.()
     .then((environmentId) => appAtomRegistry.set(hostEnvironmentIdAtom, environmentId))

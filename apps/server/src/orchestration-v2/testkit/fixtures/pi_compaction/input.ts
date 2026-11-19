@@ -6,7 +6,7 @@ const PI_COMPACTION_RECALL_PROMPT =
   "Return the opaque marker I asked you to remember. Respond with only the marker.";
 
 /** Tiny keepRecentTokens makes the short recording compactable. */
-export function piCompactionInput() {
+export function piCompactionInput(): OrchestratorFixtureInput {
   return {
     steps: [
       {
@@ -19,5 +19,5 @@ export function piCompactionInput() {
       { type: "message", text: "/compact" },
       { type: "message", text: PI_COMPACTION_RECALL_PROMPT },
     ],
-  } satisfies OrchestratorFixtureInput;
+  };
 }

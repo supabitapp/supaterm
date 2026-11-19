@@ -127,7 +127,10 @@ export function ReviewGuideExcerpt({
     </View>
   );
 }
-function excerptPatch(file: FileDiffMetadata | undefined, excerpt: PullRequestReviewGuideExcerpt) {
+function excerptPatch(
+  file: FileDiffMetadata | undefined,
+  excerpt: PullRequestReviewGuideExcerpt,
+): string {
   if (!file) return "";
   try {
     return rowsToPatch(

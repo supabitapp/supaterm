@@ -20,8 +20,8 @@ export class SettingsFileUnreadableError extends Schema.TaggedError<SettingsFile
   "SettingsFileUnreadableError",
   { settingsPath: Schema.String, cause: Schema.Defect() },
 ) {
-  override get message() {
-    return `Could not read ${this.settingsPath}. Fix its permissions, then run this again.` satisfies string as string;
+  override get message(): string {
+    return `Could not read ${this.settingsPath}. Fix its permissions, then run this again.`;
   }
 }
 
@@ -29,8 +29,8 @@ export class SettingsFileMalformedError extends Schema.TaggedError<SettingsFileM
   "SettingsFileMalformedError",
   { settingsPath: Schema.String, cause: Schema.Defect() },
 ) {
-  override get message() {
-    return `${this.settingsPath} is not a JSON object. Fix it, then run this again.` satisfies string as string;
+  override get message(): string {
+    return `${this.settingsPath} is not a JSON object. Fix it, then run this again.`;
   }
 }
 
@@ -38,8 +38,8 @@ export class SettingsWriteBusyError extends Schema.TaggedError<SettingsWriteBusy
   "SettingsWriteBusyError",
   { settingsPath: Schema.String, attempts: Schema.Number },
 ) {
-  override get message() {
-    return `${this.settingsPath} kept changing while writing (gave up after ${this.attempts} attempts). Try again.` satisfies string as string;
+  override get message(): string {
+    return `${this.settingsPath} kept changing while writing (gave up after ${this.attempts} attempts). Try again.`;
   }
 }
 
@@ -47,8 +47,8 @@ export class SettingsWriteError extends Schema.TaggedError<SettingsWriteError>()
   "SettingsWriteError",
   { settingsPath: Schema.String, cause: Schema.Defect() },
 ) {
-  override get message() {
-    return `Could not write ${this.settingsPath}.` satisfies string as string;
+  override get message(): string {
+    return `Could not write ${this.settingsPath}.`;
   }
 }
 

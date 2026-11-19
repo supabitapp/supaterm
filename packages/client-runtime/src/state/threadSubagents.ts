@@ -24,11 +24,13 @@ export interface SubagentPillSegment {
   readonly accessibilityLabel: string;
 }
 
-function orderKey(subagent: Subagent) {
+function orderKey(subagent: Subagent): number {
   return DateTime.toEpochMillis(subagent.startedAt ?? subagent.updatedAt);
 }
 
-export function deriveThreadTurnSubagents(projection: Pick<Projection, "runs" | "subagents">) {
+export function deriveThreadTurnSubagents(
+  projection: Pick<Projection, "runs" | "subagents">,
+): ThreadTurnSubagents | null {
   const rolledBackRunIds = new Set(
     projection.runs.filter((run) => run.status === "rolled_back").map((run) => run.id),
   );
@@ -86,7 +88,9 @@ export function deriveThreadTurnSubagents(projection: Pick<Projection, "runs" | 
   };
 }
 
-export function resolveSubagentPillSegment(turn: ThreadTurnSubagents | null) {
+export function resolveSubagentPillSegment(
+  turn: ThreadTurnSubagents | null,
+): SubagentPillSegment | null {
   if (turn === null) return null;
   if (
     !turn.turnActive &&

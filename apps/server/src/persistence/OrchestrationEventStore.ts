@@ -187,7 +187,7 @@ const decodeV2StoredEvent = Schema.decodeUnknownEffect(OrchestrationV2StoredEven
 const decodeJson = Schema.decodeUnknownEffect(Schema.fromJsonString(Schema.Unknown));
 const encodeJson = Schema.encodeEffect(Schema.fromJsonString(Schema.Unknown));
 
-function metadataForV2Event(event: OrchestrationV2DomainEvent) {
+function metadataForV2Event(event: OrchestrationV2DomainEvent): Record<string, unknown> {
   return {
     ...(event.runId === undefined ? {} : { runId: event.runId }),
     ...(event.nodeId === undefined ? {} : { nodeId: event.nodeId }),
@@ -247,11 +247,8 @@ const rowToProjectEvent = Effect.fn("OrchestrationEventStore.rowToProjectEvent")
 
 function rowToApplicationStoredEvent(
   row: ApplicationEventRow,
-): Effect.Effect<ApplicationStoredEvent, Schema.SchemaError>;
-function rowToApplicationStoredEvent(row: ApplicationEventRow) {
-  return (
-    row.aggregate_kind === "project" ? rowToProjectEvent(row) : rowToV2StoredEvent(row)
-  ) satisfies Effect.Effect<ApplicationStoredEvent, Schema.SchemaError>;
+): Effect.Effect<ApplicationStoredEvent, Schema.SchemaError> {
+  return row.aggregate_kind === "project" ? rowToProjectEvent(row) : rowToV2StoredEvent(row);
 }
 
 const keepReplayRow = (row: ApplicationEventRow, skipUnknownEventTypes?: boolean) =>
@@ -262,7 +259,7 @@ const keepReplayRow = (row: ApplicationEventRow, skipUnknownEventTypes?: boolean
         eventTypeLength: row.event_type.length,
       }).pipe(Effect.as(false));
 
-function inferActorKind(event: UnsequencedProjectEvent) {
+function inferActorKind(event: UnsequencedProjectEvent): typeof ActorKind.Type {
   if (event.commandId !== null && event.commandId.startsWith("provider:")) {
     return "provider";
   }
@@ -283,7 +280,7 @@ function inferActorKind(event: UnsequencedProjectEvent) {
 }
 
 function toPersistenceSqlOrDecodeError(sqlOperation: string, decodeOperation: string) {
-  return (cause: unknown) =>
+  return (cause: unknown): OrchestrationEventStoreError =>
     Schema.isSchemaError(cause)
       ? toPersistenceDecodeError(decodeOperation)(cause)
       : toPersistenceSqlError(sqlOperation)(cause);
@@ -674,13 +671,10 @@ const makeEventStore = Effect.gen(function* () {
         ),
       );
 
-  const catchUpApplicationEvents: (input: {
+  const catchUpApplicationEvents = (input: {
     readonly afterSequence: number;
     readonly throughSequence: number;
-  }) => Stream.Stream<ApplicationStoredEvent, OrchestrationEventStoreError> = (input: {
-    readonly afterSequence: number;
-    readonly throughSequence: number;
-  }) =>
+  }): Stream.Stream<ApplicationStoredEvent, OrchestrationEventStoreError> =>
     Stream.paginate(input.afterSequence, (afterSequence) =>
       readApplicationRows({
         afterSequence,

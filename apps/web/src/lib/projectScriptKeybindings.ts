@@ -1,6 +1,7 @@
 import {
   KeybindingRule as KeybindingRuleSchema,
   type KeybindingCommand,
+  type KeybindingRule,
   type ResolvedKeybindingsConfig,
 } from "@supaterm/contracts";
 import * as Schema from "effect/Schema";
@@ -9,7 +10,9 @@ export const PROJECT_SCRIPT_KEYBINDING_INVALID_MESSAGE = "Invalid keybinding.";
 
 const decodeKeybindingRule = Schema.decodeUnknownOption(KeybindingRuleSchema);
 
-function normalizeProjectScriptKeybindingInput(keybinding: string | null | undefined) {
+function normalizeProjectScriptKeybindingInput(
+  keybinding: string | null | undefined,
+): string | null {
   const trimmed = keybinding?.trim() ?? "";
   return trimmed.length > 0 ? trimmed : null;
 }
@@ -17,7 +20,7 @@ function normalizeProjectScriptKeybindingInput(keybinding: string | null | undef
 export function decodeProjectScriptKeybindingRule(input: {
   keybinding: string | null | undefined;
   command: KeybindingCommand | null;
-}) {
+}): KeybindingRule | null {
   const normalizedKey = normalizeProjectScriptKeybindingInput(input.keybinding);
   if (!normalizedKey) return null;
 
@@ -38,7 +41,7 @@ export function decodeProjectScriptKeybindingRule(input: {
 export function keybindingValueForCommand(
   keybindings: ResolvedKeybindingsConfig,
   command: KeybindingCommand | null,
-) {
+): string | null {
   if (command === null) return null;
   for (let index = keybindings.length - 1; index >= 0; index -= 1) {
     const binding = keybindings[index];

@@ -80,34 +80,34 @@ class FakePtyProcess implements PtyAdapter.PtyProcess {
     this.pid = pid;
   }
 
-  write(data: string | Buffer) {
+  write(data: string | Buffer): void {
     if (this.writeFailure !== undefined) {
       throw this.writeFailure;
     }
     this.writes.push(data);
   }
 
-  resize(cols: number, rows: number) {
+  resize(cols: number, rows: number): void {
     if (this.resizeFailure !== undefined) {
       throw this.resizeFailure;
     }
     this.resizeCalls.push({ cols, rows });
   }
 
-  kill(signal?: string) {
+  kill(signal?: string): void {
     this.killed = true;
     this.killSignals.push(signal);
     this.onKill?.(signal);
   }
 
-  onData(callback: (data: string) => void) {
+  onData(callback: (data: string) => void): () => void {
     this.dataListeners.add(callback);
     return () => {
       this.dataListeners.delete(callback);
     };
   }
 
-  onExit(callback: (event: PtyAdapter.PtyExitEvent) => void) {
+  onExit(callback: (event: PtyAdapter.PtyExitEvent) => void): () => void {
     if (this.exitOnSubscribe) callback(this.exitOnSubscribe);
     this.exitListeners.add(callback);
     return () => {
@@ -115,17 +115,17 @@ class FakePtyProcess implements PtyAdapter.PtyProcess {
     };
   }
 
-  emitData(data: string) {
+  emitData(data: string): void {
     for (const listener of this.dataListeners) {
       listener(data);
     }
   }
 
-  get exitListenerCount() {
+  get exitListenerCount(): number {
     return this.exitListeners.size;
   }
 
-  emitExit(event: PtyAdapter.PtyExitEvent) {
+  emitExit(event: PtyAdapter.PtyExitEvent): void {
     for (const listener of this.exitListeners) {
       listener(event);
     }
@@ -144,7 +144,9 @@ class FakePtyAdapter {
     this.mode = mode;
   }
 
-  spawn(input: PtyAdapter.PtySpawnInput) {
+  spawn(
+    input: PtyAdapter.PtySpawnInput,
+  ): Effect.Effect<PtyAdapter.PtyProcess, PtyAdapter.PtySpawnError> {
     this.spawnInputs.push(input);
     const failure = this.spawnFailures.shift();
     if (failure) {
@@ -197,7 +199,9 @@ class GatedPtyAdapter extends FakePtyAdapter {
     readonly release: Deferred.Deferred<void>;
   } | null = null;
 
-  override spawn(input: PtyAdapter.PtySpawnInput) {
+  override spawn(
+    input: PtyAdapter.PtySpawnInput,
+  ): Effect.Effect<PtyAdapter.PtyProcess, PtyAdapter.PtySpawnError> {
     const gate = this.gate;
     this.gate = null;
     if (!gate) return super.spawn(input);
@@ -208,7 +212,7 @@ class GatedPtyAdapter extends FakePtyAdapter {
   }
 }
 
-function openInput(overrides: Partial<TerminalOpenInput> = {}) {
+function openInput(overrides: Partial<TerminalOpenInput> = {}): TerminalOpenInput {
   return {
     threadId: "thread-1",
     terminalId: DEFAULT_TERMINAL_ID,
@@ -253,7 +257,22 @@ interface CreateManagerOptions {
   inspectState?: (readState: Effect.Effect<unknown>) => void;
 }
 
-const createManager = (historyLineLimit = 5, options: CreateManagerOptions = {}) =>
+interface ManagerFixture {
+  readonly baseDir: string;
+  readonly logsDir: string;
+  readonly ptyAdapter: FakePtyAdapter;
+  readonly manager: TerminalManager.TerminalManager["Service"];
+  readonly getEvents: Effect.Effect<ReadonlyArray<TerminalEvent>>;
+}
+
+const createManager = (
+  historyLineLimit = 5,
+  options: CreateManagerOptions = {},
+): Effect.Effect<
+  ManagerFixture,
+  PlatformError.PlatformError,
+  FileSystem.FileSystem | Path.Path | Scope.Scope | ProcessRunner.ProcessRunner
+> =>
   Effect.flatMap(Effect.service(FileSystem.FileSystem), (fs) =>
     Effect.gen(function* () {
       const { join } = yield* Path.Path;
@@ -316,7 +335,7 @@ const createManager = (historyLineLimit = 5, options: CreateManagerOptions = {})
 const layerWithHostPlatform = (platform: NodeJS.Platform) =>
   Layer.succeed(HostProcess.Platform, platform);
 
-function retainedHistory(text: string, maxLines: number, maxBytes = Infinity) {
+function retainedHistory(text: string, maxLines: number, maxBytes = Infinity): string {
   const terminated = text.endsWith("\n");
   const lines = text.split("\n");
   if (terminated) lines.pop();
@@ -1060,17 +1079,12 @@ it.layer(
     }).pipe(Effect.provide(TestClock.layer())),
   );
 
-  const slowProcessTable: (
+  const slowProcessTable = (
     platform: "linux" | "win32",
     queryDuration: Duration.Input,
     queries: Array<{ start: number; end?: number }>,
     started: ReadonlyArray<Deferred.Deferred<void>>,
-  ) => ProcessRunner.ProcessRunner["Service"] = (
-    platform: "linux" | "win32",
-    queryDuration: Duration.Input,
-    queries: Array<{ start: number; end?: number }>,
-    started: ReadonlyArray<Deferred.Deferred<void>>,
-  ) => ({
+  ): ProcessRunner.ProcessRunner["Service"] => ({
     run: (input) =>
       Effect.gen(function* () {
         const query: { start: number; end?: number } = { start: yield* Clock.currentTimeMillis };

@@ -20,7 +20,7 @@ import { isUndeliveredMailboxSteer } from "./NotificationMailbox.ts";
 
 const CONTINUATION_MESSAGE_TEXT = "Background task completed.";
 
-function delegatedCompletionText(taskIds: ReadonlyArray<string>) {
+function delegatedCompletionText(taskIds: ReadonlyArray<string>): string {
   const taskList = taskIds.join(", ");
   return taskIds.length === 1
     ? `Delegated task ${taskList} reached a terminal state. Use task_status with taskId ${taskList} to read the result.`
@@ -56,7 +56,7 @@ function delegatedCompletionRetryKey(
   completion: NonNullable<
     ProviderContinuationRequests.ProviderContinuationRequest["delegatedCompletion"]
   >,
-) {
+): string {
   return `${request.threadId}:${completion.parentRunId}:${completion.generation}:${completion.messageId}`;
 }
 

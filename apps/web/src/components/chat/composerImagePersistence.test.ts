@@ -36,7 +36,7 @@ const { fake } = vi.hoisted(() => ({
 }));
 const readFileAsDataUrl = fake<(file: Blob) => Promise<string>>();
 
-function image(id: string) {
+function image(id: string): ComposerImageAttachment {
   const file = new File([id], `${id}.png`, { type: "image/png" });
   return {
     type: "image",
@@ -46,7 +46,7 @@ function image(id: string) {
     sizeBytes: file.size,
     previewUrl: `blob:${id}`,
     file,
-  } satisfies ComposerImageAttachment;
+  };
 }
 
 describe("serializeComposerImages", () => {

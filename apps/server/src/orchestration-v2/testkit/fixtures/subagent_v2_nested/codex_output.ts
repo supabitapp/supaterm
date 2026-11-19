@@ -17,7 +17,10 @@ import {
   SUBAGENT_V2_NESTED_PROMPT,
 } from "../shared.ts";
 
-function projectionById(result: OrchestratorV2ScenarioResult, threadId: ThreadId) {
+function projectionById(
+  result: OrchestratorV2ScenarioResult,
+  threadId: ThreadId,
+): OrchestrationV2ThreadProjection {
   const projection = result.projections.get(threadId);
   assert.isDefined(projection, `missing projection for ${threadId}`);
   return projection;

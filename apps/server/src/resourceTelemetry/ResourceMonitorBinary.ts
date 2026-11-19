@@ -16,7 +16,7 @@ export class ResourceMonitorBinaryUnsupported extends Schema.TaggedError<Resourc
     architecture: Schema.String,
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Resource monitoring is unsupported on ${this.platform}/${this.architecture}.`;
   }
 }
@@ -29,7 +29,7 @@ export class ResourceMonitorBinaryNotFound extends Schema.TaggedError<ResourceMo
     candidates: Schema.Array(Schema.String),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Resource monitor binary was not found for ${this.platform}/${this.architecture}.`;
   }
 }
@@ -41,7 +41,7 @@ export class ResourceMonitorBinaryNotExecutable extends Schema.TaggedError<Resou
     mode: Schema.Number,
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Resource monitor binary at '${this.path}' is not executable.`;
   }
 }
@@ -58,13 +58,13 @@ export class ResourceMonitorBinary extends Context.Service<
   }
 >()("supaterm/resourceTelemetry/ResourceMonitorBinary") {}
 
-function binaryName(platform: NodeJS.Platform) {
+function binaryName(platform: NodeJS.Platform): string {
   return platform === "win32" ? "supaterm-resource-monitor.exe" : "supaterm-resource-monitor";
 }
 
 export type ResourceMonitorLinuxLibc = "gnu" | "musl";
 
-function detectResourceMonitorLinuxLibc() {
+function detectResourceMonitorLinuxLibc(): ResourceMonitorLinuxLibc {
   try {
     const report = process.report?.getReport() as
       | {
@@ -86,7 +86,10 @@ export const ResourceMonitorHostLinuxLibc = Context.Reference<ResourceMonitorLin
   },
 );
 
-function resourceMonitorPlatformKey(platform: NodeJS.Platform, architecture: NodeJS.Architecture) {
+function resourceMonitorPlatformKey(
+  platform: NodeJS.Platform,
+  architecture: NodeJS.Architecture,
+): string | undefined {
   if (
     (platform !== "darwin" && platform !== "linux" && platform !== "win32") ||
     (architecture !== "arm64" && architecture !== "x64")
@@ -100,7 +103,7 @@ function resourceMonitorRustTarget(
   platform: NodeJS.Platform,
   architecture: NodeJS.Architecture,
   linuxLibc?: ResourceMonitorLinuxLibc,
-) {
+): string | undefined {
   if (platform === "darwin") {
     return architecture === "arm64"
       ? "aarch64-apple-darwin"

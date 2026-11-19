@@ -1,6 +1,8 @@
 // @effect-diagnostics nodeBuiltinImport:off
 import * as NodeZlib from "node:zlib";
 
+import type { AzureDevOpsItemContent } from "./azureDevOpsPullRequestJson.ts";
+
 const END_OF_CENTRAL_DIRECTORY = 0x06054b50;
 const CENTRAL_DIRECTORY_ENTRY = 0x02014b50;
 const LOCAL_FILE_HEADER = 0x04034b50;
@@ -16,7 +18,11 @@ const entryName = new TextDecoder();
  * this cannot read; an entry over `maxEntryBytes`, past `maxTotalBytes` in all, or in another method
  * is left out.
  */
-export function readBlobZip(zip: Uint8Array, maxEntryBytes: number, maxTotalBytes: number) {
+export function readBlobZip(
+  zip: Uint8Array,
+  maxEntryBytes: number,
+  maxTotalBytes: number,
+): ReadonlyMap<string, Uint8Array> | null {
   const view = new DataView(zip.buffer, zip.byteOffset, zip.byteLength);
   let end = -1;
   for (let at = zip.length - 22; at >= 0 && at >= zip.length - 22 - 0xffff; at -= 1) {
@@ -73,7 +79,7 @@ const strictUtf8 = new TextDecoder("utf-8", { fatal: true });
  * A blob's text as Azure's item read would give it, or null where Azure decodes the bytes itself
  * (UTF-16, or text that is not UTF-8 such as Windows-1252) and only that read is faithful.
  */
-export function blobContent(bytes: Uint8Array) {
+export function blobContent(bytes: Uint8Array): AzureDevOpsItemContent | null {
   const utf16 =
     (bytes[0] === 0xff && bytes[1] === 0xfe) || (bytes[0] === 0xfe && bytes[1] === 0xff);
   if (utf16) return null;

@@ -94,9 +94,12 @@ type PreviewEventDraft = PreviewEvent extends infer Event
     : never
   : never;
 
-const compositeKey = (threadId: string, tabId: string) => `${threadId}\u0000${tabId}`;
+const compositeKey = (threadId: string, tabId: string): string => `${threadId}\u0000${tabId}`;
 
-const sessionsForThread = (state: ManagerState, threadId: string) => {
+const sessionsForThread = (
+  state: ManagerState,
+  threadId: string,
+): ReadonlyArray<PreviewSessionState> => {
   const out: PreviewSessionState[] = [];
   for (const session of state.sessions.values()) {
     if (session.threadId === threadId) out.push(session);
@@ -104,7 +107,7 @@ const sessionsForThread = (state: ManagerState, threadId: string) => {
   return out;
 };
 
-const normalizeUrl = (rawUrl: string) =>
+const normalizeUrl = (rawUrl: string): Effect.Effect<string, PreviewInvalidUrlError> =>
   Effect.try({
     try: () => normalizePreviewUrl(rawUrl),
     catch: (cause) => {
@@ -150,7 +153,7 @@ export const make = Effect.gen(function* PreviewManagerMake() {
     mutator: (
       session: PreviewSessionState,
     ) => Effect.Effect<{ next: PreviewSessionState; emit: PreviewEventDraft | null; result: R }, E>,
-  ) => {
+  ): Effect.Effect<R, E | PreviewSessionLookupError> => {
     type ModifyResult =
       | { kind: "fail"; error: PreviewSessionLookupError }
       | { kind: "ok"; result: R };
@@ -463,7 +466,7 @@ export const make = Effect.gen(function* PreviewManagerMake() {
   const list: PreviewManager["Service"]["list"] = Effect.fn("PreviewManager.list")(
     function* (input) {
       return yield* SynchronizedRef.get(stateRef).pipe(
-        Effect.map((state) => ({
+        Effect.map((state): PreviewListResult => ({
           sessions: sessionsForThread(state, input.threadId)
             .map((s) => s.snapshot)
             .toSorted((a, b) => a.updatedAt.localeCompare(b.updatedAt)),

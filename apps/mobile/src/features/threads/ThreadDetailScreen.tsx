@@ -788,9 +788,8 @@ function ThreadDetailBody(
           Dialog.alert("Pi", props.extensionStatuses?.map((status) => status.text).join("\n\n")),
       }
     : null;
-  const backgroundLine = (() => {
-    if (pendingBackgroundWork === null || contentPresentationKind !== "ready")
-      return null satisfies ThreadStatusLineModel | null as ThreadStatusLineModel | null;
+  const backgroundLine = ((): ThreadStatusLineModel | null => {
+    if (pendingBackgroundWork === null || contentPresentationKind !== "ready") return null;
     return {
       key: "background",
       icon: pendingBackgroundWork.waiting ? "person.2" : "terminal",
@@ -811,11 +810,10 @@ function ThreadDetailBody(
         disabled: !props.canOperateThread || statusPending,
         onPress: () => void runStatusAction("stop"),
       },
-    } satisfies ThreadStatusLineModel | null as ThreadStatusLineModel | null;
+    };
   })();
-  const lifecycleLine = (() => {
-    if (contentPresentationKind !== "ready" || !(lifecycleSnoozed || done || woke))
-      return null satisfies ThreadStatusLineModel | null;
+  const lifecycleLine = ((): ThreadStatusLineModel | null => {
+    if (contentPresentationKind !== "ready" || !(lifecycleSnoozed || done || woke)) return null;
     const actionLabel = lifecycleSnoozed ? "Wake now" : done ? "Reopen" : "Dismiss";
     const wake =
       lifecycleSnoozed && snoozedUntil !== null
@@ -844,10 +842,10 @@ function ThreadDetailBody(
         onPress: () =>
           void runStatusAction(lifecycleSnoozed ? "wake" : done ? "reopen" : "dismiss"),
       },
-    } satisfies ThreadStatusLineModel | null;
+    };
   })();
   const statusLines = [backgroundLine, lifecycleLine].filter((line) => line !== null);
-  const deriveFloatingStatus = (ready: boolean) => {
+  const deriveFloatingStatus = (ready: boolean): FloatingWorkingStatus | null => {
     const connectionStatus = connectionFloatingStatus({
       connectionError: props.connectionError,
       connectionState: props.connectionStateLabel,
@@ -855,7 +853,7 @@ function ThreadDetailBody(
       onReconnect: props.onReconnectEnvironment,
     });
     if (connectionStatus !== null && showConnectionStatus && !props.draftMode) {
-      return connectionStatus satisfies FloatingWorkingStatus | null;
+      return connectionStatus;
     }
     if (runStop !== null && ready) {
       const unresponsive = runStop.state === "unresponsive";
@@ -880,26 +878,25 @@ function ThreadDetailBody(
                   }),
               }
             : null,
-      } satisfies FloatingWorkingStatus | null;
+      };
     }
     if (props.activePendingApproval !== null || props.activePendingUserInput !== null) {
-      return null satisfies FloatingWorkingStatus | null;
+      return null;
     }
     if (props.creationState?.kind === "preparing") {
-      if (props.worktreeSetup || preparingWorktreeInFeed)
-        return null satisfies FloatingWorkingStatus | null;
+      if (props.worktreeSetup || preparingWorktreeInFeed) return null;
       return {
         kind: "preparing",
         label: pendingThreadCreationLabel({
           connected: props.connectionStateLabel === "connected",
           preparingWorktree: props.creationState.preparingWorktree,
         }),
-      } satisfies FloatingWorkingStatus | null;
+      };
     }
     if (props.creationState?.kind === "failed") {
-      return null satisfies FloatingWorkingStatus | null;
+      return null;
     }
-    if (!ready) return null satisfies FloatingWorkingStatus | null;
+    if (!ready) return null;
     const childInput = childThreadInputs[0];
     if (childInput) {
       return {
@@ -910,7 +907,7 @@ function ThreadDetailBody(
           Keyboard.dismiss();
           openLinkedThread({ environmentId: props.environmentId, threadId: childInput.id });
         },
-      } satisfies FloatingWorkingStatus | null;
+      };
     }
     if (props.selectedThread.goal !== null) {
       const goal = presentProviderGoal(props.selectedThread.goal, false);
@@ -918,12 +915,12 @@ function ThreadDetailBody(
         kind: "goal",
         label: goal.title,
         accessibilityLabel: `${goal.title}: ${goal.objective}`,
-      } satisfies FloatingWorkingStatus | null;
+      };
     }
     if (extensionStatus !== null) {
-      return { kind: "extension", ...extensionStatus } satisfies FloatingWorkingStatus | null;
+      return { kind: "extension", ...extensionStatus };
     }
-    return null satisfies FloatingWorkingStatus | null;
+    return null;
   };
   const floatingStatus = deriveFloatingStatus(contentPresentationKind === "ready");
   const showWorkingControl = floatingStatus !== null;

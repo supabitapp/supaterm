@@ -19,7 +19,7 @@ import { useClientSettings } from "./useSettings";
 export function useLogicalProjectEnvironments(
   activeProject: EnvironmentProject | null,
   scratchDraft: boolean,
-) {
+): readonly EnvironmentOption[] {
   const { environments } = useEnvironments();
   const allProjects = useProjects();
   const primaryEnvironmentId = usePrimaryEnvironmentId();

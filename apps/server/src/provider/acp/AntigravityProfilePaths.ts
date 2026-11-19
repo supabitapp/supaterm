@@ -12,7 +12,7 @@ export async function antigravityManagedPath(
   profileRoot: string,
   segments: ReadonlyArray<string>,
   kind: "file" | "directory",
-) {
+): Promise<{ readonly path: string; readonly info: NodeFS.Stats } | undefined> {
   let current = profileRoot;
   let info: NodeFS.Stats | undefined;
   for (const [index, segment] of segments.entries()) {

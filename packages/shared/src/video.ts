@@ -15,17 +15,12 @@ export const VIDEO_FILE_EXTENSIONS = Object.freeze([...VIDEO_MIME_TYPE_BY_EXTENS
 export function videoMimeType(attachment: {
   readonly name: string;
   readonly mimeType: string;
-}): string | null;
-export function videoMimeType(attachment: { readonly name: string; readonly mimeType: string }) {
+}): string | null {
   const mimeType = attachment.mimeType.split(";", 1)[0]?.trim().toLowerCase() ?? "";
-  if (mimeType.startsWith("video/") && !GENERIC_MIME_TYPES.has(mimeType))
-    return mimeType satisfies string | null;
-  if (mimeType !== "" && !GENERIC_MIME_TYPES.has(mimeType)) return null satisfies string | null;
+  if (mimeType.startsWith("video/") && !GENERIC_MIME_TYPES.has(mimeType)) return mimeType;
+  if (mimeType !== "" && !GENERIC_MIME_TYPES.has(mimeType)) return null;
   const dotIndex = attachment.name.lastIndexOf(".");
-  return (
-    dotIndex < 0
-      ? null
-      : (VIDEO_MIME_TYPE_BY_EXTENSION.get(attachment.name.slice(dotIndex + 1).toLowerCase()) ??
-        null)
-  ) satisfies string | null;
+  return dotIndex < 0
+    ? null
+    : (VIDEO_MIME_TYPE_BY_EXTENSION.get(attachment.name.slice(dotIndex + 1).toLowerCase()) ?? null);
 }

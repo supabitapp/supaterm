@@ -12,7 +12,7 @@ const EMPTY_CLONE_ATOM = Atom.make<ProjectCloneSnapshot | null>(null).pipe(
 );
 
 export const environmentProjectClonesAtom = Atom.family((environmentId: EnvironmentId) =>
-  Atom.make((get) => {
+  Atom.make((get): ReadonlyArray<ProjectCloneSnapshot> => {
     if (!get(environmentServerConfigsAtom).has(environmentId)) return EMPTY_CLONES;
     const result = get(sourceControlEnvironment.projectClones({ environmentId, input: {} }));
     return AsyncResult.getOrElse(result, () => EMPTY_CLONES);
@@ -21,18 +21,20 @@ export const environmentProjectClonesAtom = Atom.family((environmentId: Environm
 
 const projectCloneAtom = Atom.family((key: string) => {
   const ref = parseScopedProjectKey(key);
-  return Atom.make((get) => {
+  return Atom.make((get): ProjectCloneSnapshot | null => {
     if (ref === null) return null;
     const clones = get(environmentProjectClonesAtom(ref.environmentId));
     return clones.find((clone) => clone.projectId === ref.projectId) ?? null;
   }).pipe(Atom.withLabel(`web-project-clone:${key}`));
 });
 
-export function useProjectClone(ref: ScopedProjectRef | null) {
+export function useProjectClone(ref: ScopedProjectRef | null): ProjectCloneSnapshot | null {
   return useAtomValue(ref === null ? EMPTY_CLONE_ATOM : projectCloneAtom(scopedProjectKey(ref)));
 }
 
-export function useEnvironmentProjectClones(environmentId: EnvironmentId) {
+export function useEnvironmentProjectClones(
+  environmentId: EnvironmentId,
+): ReadonlyArray<ProjectCloneSnapshot> {
   return useAtomValue(environmentProjectClonesAtom(environmentId));
 }
 
@@ -47,6 +49,6 @@ export function silenceProjectCloneToasts(ref: ScopedProjectRef) {
   silencedCloneToasts.add(scopedProjectKey(ref));
 }
 
-export function isProjectCloneToastSilenced(ref: ScopedProjectRef) {
+export function isProjectCloneToastSilenced(ref: ScopedProjectRef): boolean {
   return silencedCloneToasts.has(scopedProjectKey(ref));
 }

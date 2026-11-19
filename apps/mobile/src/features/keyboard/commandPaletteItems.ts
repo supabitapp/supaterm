@@ -8,6 +8,7 @@ import {
   scoreThreadSearch,
   type SearchMatchHint,
   type SearchRange,
+  type SearchTermsMatch,
   type ThreadSearchSubject,
 } from "@supaterm/shared/paletteSearch";
 
@@ -44,24 +45,20 @@ export function filterCommandPaletteItems(
   items: ReadonlyArray<CommandPaletteItem>,
   query: string,
   messageMatchKeys: ReadonlyArray<string>,
-  now?: ReturnType<typeof Date.now>,
-): CommandPaletteResult[];
-export function filterCommandPaletteItems(
-  items: ReadonlyArray<CommandPaletteItem>,
-  query: string,
-  messageMatchKeys: ReadonlyArray<string>,
   now = Date.now(),
-) {
+): CommandPaletteResult[] {
   const actionsOnly = query.startsWith(">");
   const normalizedQuery = foldSearchQuery(actionsOnly ? query.slice(1) : query);
   const candidates = actionsOnly ? items.filter((item) => item.kind === "action") : items;
-  if (!normalizedQuery)
-    return candidates.filter((item) => item.kind !== "project") satisfies CommandPaletteResult[];
+  if (!normalizedQuery) return candidates.filter((item) => item.kind !== "project");
 
   const kinds = ["action", "thread", "project"] as const;
   const groups = rankSearchGroups(
     kinds.map((kind) => ({ group: kind, items: candidates.filter((item) => item.kind === kind) })),
-    (item, options) => {
+    (
+      item,
+      options,
+    ): (SearchTermsMatch & { explain?: () => SearchMatchHint | undefined }) | null => {
       const match = item.threadSearch
         ? scoreThreadSearch(normalizedQuery, item.threadSearch, now, options)
         : scoreSearchTerms(normalizedQuery, [item.title, ...item.searchTerms], options);
@@ -83,16 +80,12 @@ export function filterCommandPaletteItems(
             ? PALETTE_SECONDARY_LIMIT
             : entries.length,
       )
-      .map(({ item, match }) => {
+      .map(({ item, match }): CommandPaletteResult => {
         const matchHint = match.explain?.();
-        return {
-          ...item,
-          titleRanges: match.ranges,
-          ...(matchHint ? { matchHint } : {}),
-        } satisfies CommandPaletteResult as CommandPaletteResult;
+        return { ...item, titleRanges: match.ranges, ...(matchHint ? { matchHint } : {}) };
       }),
   );
-  if (actionsOnly) return ranked satisfies CommandPaletteResult[];
+  if (actionsOnly) return ranked;
 
   const listed = new Set(ranked.map((item) => item.key));
   const threadByKey = new Map(
@@ -102,7 +95,7 @@ export function filterCommandPaletteItems(
     const item = threadByKey.get(key);
     return item && !listed.has(key) ? [{ ...item, fromMessages: true }] : [];
   });
-  return [...ranked, ...fromMessages] satisfies CommandPaletteResult[];
+  return [...ranked, ...fromMessages];
 }
 
 export function nextPaletteIndex(index: number, direction: -1 | 1, count: number) {

@@ -25,7 +25,7 @@ export interface SearchRange {
 const fieldCache = new Map<string, SearchField>();
 const FIELD_CACHE_LIMIT = 100_000;
 
-function foldCharacter(character: string) {
+function foldCharacter(character: string): string {
   return character
     .normalize("NFKD")
     .replace(COMBINING_MARKS, "")
@@ -34,17 +34,16 @@ function foldCharacter(character: string) {
     .replace(/[‘’]/, "'");
 }
 
-function foldInPlace(text: string): string;
-function foldInPlace(text: string) {
+function foldInPlace(text: string): string {
   return text
     .replace(/[\u0080-\uffff]/g, (character) => {
       const folded = foldCharacter(character);
       return folded.length === 1 ? folded : character;
     })
-    .toLowerCase() satisfies string;
+    .toLowerCase();
 }
 
-function isCjk(character: string) {
+function isCjk(character: string): boolean {
   const code = character.codePointAt(0)!;
   return (
     (code >= 0x3040 && code <= 0x30ff) ||
@@ -54,14 +53,19 @@ function isCjk(character: string) {
   );
 }
 
-function hasCjkWord(token: string) {
+function hasCjkWord(token: string): boolean {
   return Array.from(token).some((character) => {
     const code = character.codePointAt(0)!;
     return isCjk(character) || (code >= 0xac00 && code <= 0xd7af);
   });
 }
 
-function isWordStart(beforePrevious: string, previous: string, character: string, next: string) {
+function isWordStart(
+  beforePrevious: string,
+  previous: string,
+  character: string,
+  next: string,
+): boolean {
   const afterApostrophe = APOSTROPHE.test(previous) && ALPHANUMERIC.test(beforePrevious);
   return (
     (ALPHANUMERIC.test(character) || SYMBOL.test(character)) &&
@@ -75,7 +79,7 @@ function isWordStart(beforePrevious: string, previous: string, character: string
   );
 }
 
-function foldSearchField(source: string) {
+function foldSearchField(source: string): SearchField {
   const wordStarts = new Uint8Array(source.length);
   const characters = Array.from(source);
   let index = 0;
@@ -90,7 +94,7 @@ function foldSearchField(source: string) {
   return { text: foldInPlace(source), wordStarts };
 }
 
-function prepareSearchField(source: string) {
+function prepareSearchField(source: string): SearchField {
   const cached = fieldCache.get(source);
   if (cached) return cached;
   if (fieldCache.size >= FIELD_CACHE_LIMIT) {
@@ -104,14 +108,14 @@ function prepareSearchField(source: string) {
 const WRAPPING_QUOTES = /^\s*["'`“”‘’]+|["'`“”‘’]+\s*$/g;
 
 /** Folded, whitespace-collapsed query; empty when there is nothing to match. */
-export function foldSearchQuery(query: string) {
+export function foldSearchQuery(query: string): string {
   return foldInPlace(query.replace(WRAPPING_QUOTES, "").normalize("NFC"))
     .split(/\s+/)
     .filter((token) => token.length > 0)
     .join(" ");
 }
 
-function wordEnd(field: SearchField, index: number) {
+function wordEnd(field: SearchField, index: number): number {
   let end = index + 1;
   while (end < field.text.length && !field.wordStarts[end] && ALPHANUMERIC.test(field.text[end]!)) {
     end++;
@@ -119,7 +123,7 @@ function wordEnd(field: SearchField, index: number) {
   return end;
 }
 
-function withinOneEdit(left: string, right: string, swapOnly: boolean) {
+function withinOneEdit(left: string, right: string, swapOnly: boolean): boolean {
   if (Math.abs(left.length - right.length) > (swapOnly ? 0 : 1)) return false;
   let index = 0;
   while (index < left.length && index < right.length && left[index] === right[index]) index++;
@@ -157,7 +161,7 @@ function matchToken(
   typos: boolean,
   isPrimary: boolean,
   midWord: boolean,
-) {
+): TokenMatch | null {
   if (token.length === 0) return null;
   let best: TokenMatch | null = null;
   let ownBoundary: boolean | undefined;
@@ -218,7 +222,7 @@ function matchToken(
   return best;
 }
 
-function matchJoinedWords(field: SearchField, token: string) {
+function matchJoinedWords(field: SearchField, token: string): TokenMatch | null {
   for (
     let start = field.text.indexOf(token[0]!);
     start !== -1;
@@ -266,13 +270,20 @@ interface WeightedSearchField {
   readonly midWord?: boolean;
 }
 
-function preparedField(weighted: WeightedSearchField) {
+interface SearchFieldsMatch {
+  readonly quality: number;
+  readonly wholeWords: boolean;
+  readonly strong: boolean;
+  readonly primaryRanges: ReadonlyArray<SearchRange>;
+}
+
+function preparedField(weighted: WeightedSearchField): SearchField {
   return (weighted.prepared ??= prepareSearchField(weighted.value));
 }
 
 const FILLER_WORDS = new Set(["a", "an", "and", "for", "in", "of", "on", "the", "to", "with"]);
 
-function mergeRanges(ranges: ReadonlyArray<SearchRange>) {
+function mergeRanges(ranges: ReadonlyArray<SearchRange>): SearchRange[] {
   const merged: SearchRange[] = [];
   for (const range of [...ranges].sort((left, right) => left.start - right.start)) {
     const last = merged.at(-1);
@@ -305,7 +316,7 @@ function matchSearchFields(
   normalizedQuery: string,
   fields: ReadonlyArray<WeightedSearchField>,
   options?: { readonly typos?: boolean },
-) {
+): SearchFieldsMatch | null {
   if (normalizedQuery.length === 0) return null;
   const primary = fields[0]?.value ? preparedField(fields[0]) : undefined;
   const { tokens, fillerOptional } = queryTokens(normalizedQuery);
@@ -362,7 +373,12 @@ const MESSAGE_TOKEN_MIN_LENGTH = 3;
  * Every `long` token must match; `short` tokens only narrow hits. No long tokens means no search.
  * Two CJK characters count as long.
  */
-export function messageSearchTokens(query: string) {
+export function messageSearchTokens(query: string): {
+  readonly long: ReadonlyArray<string>;
+  readonly short: ReadonlyArray<string>;
+  /** Every token, in the order typed. */
+  readonly words: ReadonlyArray<string>;
+} {
   const tokens = query
     .replace(WRAPPING_QUOTES, "")
     .replace(CURLY_APOSTROPHES, "'")
@@ -385,7 +401,7 @@ export function messageSearchTokens(query: string) {
  * Matches the query's words side by side as whole words, as typed, whatever
  * whitespace is between them and ignoring case; null for a single word.
  */
-export function messagePhrase(query: string) {
+export function messagePhrase(query: string): RegExp | null {
   const { words } = messageSearchTokens(query);
   return words.length > 1
     ? new RegExp(
@@ -405,7 +421,7 @@ const NON_ASCII = /[\u0080-\uffff]/;
 const MESSAGE_WORD_START_LENGTH = 4;
 const MESSAGE_PREFIX = 0.8;
 
-function startsWordAt(text: string, index: number) {
+function startsWordAt(text: string, index: number): boolean {
   const character = text[index]!;
   if (!ALPHANUMERIC.test(character) && !SYMBOL.test(character)) return true;
   return isWordStart(
@@ -416,7 +432,7 @@ function startsWordAt(text: string, index: number) {
   );
 }
 
-function endsWordAt(text: string, end: number) {
+function endsWordAt(text: string, end: number): boolean {
   return end >= text.length || !ALPHANUMERIC.test(text[end]!) || startsWordAt(text, end);
 }
 
@@ -427,8 +443,7 @@ function findMessageToken(
   folded: string,
   token: string,
   firstOnly: boolean,
-): { readonly at: ReadonlyArray<number>; readonly quality: number } | null;
-function findMessageToken(text: string, folded: string, token: string, firstOnly: boolean) {
+): { readonly at: ReadonlyArray<number>; readonly quality: number } | null {
   let quality = 0;
   let at: number[] = [];
   let run = { start: 0, end: -1, hex: false };
@@ -449,19 +464,12 @@ function findMessageToken(text: string, folded: string, token: string, firstOnly
     if (found > quality) {
       quality = found;
       at = [index];
-      if (firstOnly && quality === 1)
-        return { at, quality } satisfies {
-          readonly at: ReadonlyArray<number>;
-          readonly quality: number;
-        } | null;
+      if (firstOnly && quality === 1) return { at, quality };
     } else if (!firstOnly && found === quality) {
       at.push(index);
     }
   }
-  return (at.length === 0 ? null : { at, quality }) satisfies {
-    readonly at: ReadonlyArray<number>;
-    readonly quality: number;
-  } | null;
+  return at.length === 0 ? null : { at, quality };
 }
 
 export interface MessageMatch {
@@ -482,8 +490,7 @@ export interface MessageMatch {
  * "drafts"). Case and accents are ignored, as in the server's index. The
  * query is prepared once, since the server grades thousands of hits for it.
  */
-export function messageMatcher(query: string): (text: string) => MessageMatch | null;
-export function messageMatcher(query: string) {
+export function messageMatcher(query: string): (text: string) => MessageMatch | null {
   const { long, short, words } = messageSearchTokens(query);
   const tokens = [...long, ...short].map((token) => ({
     token,
@@ -497,7 +504,7 @@ export function messageMatcher(query: string) {
     words.map((word) => foldInPlace(word).replace(COMBINING_MARKS, "")).join(" "),
   );
   const queryNonAscii = NON_ASCII.test(query);
-  return ((text) => {
+  return (text) => {
     const lower = text.toLowerCase();
     const plain = lower.length === text.length ? lower : foldInPlace(text);
     let folded: string | null = null;
@@ -533,14 +540,13 @@ export function messageMatcher(query: string) {
           : quality,
       offset: near.start,
     };
-  }) satisfies (text: string) => MessageMatch | null;
+  };
 }
 
 function shortestSpan(places: ReadonlyArray<ReadonlyArray<number>>): {
   readonly start: number;
   readonly length: number;
-};
-function shortestSpan(places: ReadonlyArray<ReadonlyArray<number>>) {
+} {
   const hits = places
     .flatMap((at, word) => at.map((index) => ({ index, word })))
     .sort((left, right) => left.index - right.index);
@@ -561,10 +567,7 @@ function shortestSpan(places: ReadonlyArray<ReadonlyArray<number>>) {
       left++;
     }
   }
-  return best satisfies {
-    readonly start: number;
-    readonly length: number;
-  };
+  return best;
 }
 
 /**
@@ -573,7 +576,7 @@ function shortestSpan(places: ReadonlyArray<ReadonlyArray<number>>) {
  * snippet, and a short long token only counts where it starts a word.
  * Snippets vary per query, so they skip the field cache.
  */
-export function findSearchTokenRanges(text: string, query: string) {
+export function findSearchTokenRanges(text: string, query: string): SearchRange[] {
   const tokens = new Map(
     messageSearchTokens(query)
       .long.map(
@@ -606,7 +609,10 @@ export interface SearchTextPart {
 }
 
 /** `text` cut into plain and highlighted parts at sorted, non-overlapping `ranges`. */
-export function splitSearchText(text: string, ranges: ReadonlyArray<SearchRange>) {
+export function splitSearchText(
+  text: string,
+  ranges: ReadonlyArray<SearchRange>,
+): SearchTextPart[] {
   const parts: SearchTextPart[] = [];
   let cursor = 0;
   for (const range of ranges) {
@@ -638,12 +644,12 @@ const THREAD_SEARCH_PICK_MAX_LENGTH = 32;
  * length without splitting an emoji in two. Clients and the server both use
  * it, so a long pick matches its query again.
  */
-export function pickedQuery(query: string) {
+export function pickedQuery(query: string): string {
   const cut = foldSearchQuery(query).slice(0, THREAD_SEARCH_PICK_MAX_LENGTH);
   return (/[\ud800-\udbff]$/.test(cut) ? cut.slice(0, -1) : cut).trim();
 }
 
-function decay(ageMs: number) {
+function decay(ageMs: number): number {
   return 2 ** (-Math.max(0, ageMs) / SEARCH_RECENCY_HALF_LIFE_MS);
 }
 
@@ -658,7 +664,7 @@ export function recordThreadOpen(
   previous: ThreadOpenStats | null,
   at: number,
   query: string | undefined,
-) {
+): ThreadOpenStats {
   const pick = pickedQuery(query ?? "");
   const earlier = (previous?.picks ?? []).filter((entry) => at - entry.at <= PICK_WINDOW_MS);
   const picks = pick
@@ -695,7 +701,7 @@ export interface ThreadSearchSubject {
 
 const USE_BOOST_LIMIT = 2.5;
 
-function threadUsageBoost(thread: ThreadSearchSubject, now: number) {
+function threadUsageBoost(thread: ThreadSearchSubject, now: number): number {
   const recency = thread.activityAt === null ? 0 : decay(now - thread.activityAt);
   const opens = thread.opens ? thread.opens.score * decay(now - thread.opens.openedAt) : 0;
   return Math.min(USE_BOOST_LIMIT, 1 + recency + 0.5 * Math.log2(1 + opens));
@@ -705,7 +711,10 @@ const REFERENCE_PREFIX_MIN = 8;
 
 const notCut = (text: string, end: number) => !DIGIT.test(text[end] ?? "");
 
-function matchReference(normalizedQuery: string, thread: ThreadSearchSubject) {
+function matchReference(
+  normalizedQuery: string,
+  thread: ThreadSearchSubject,
+): SearchFieldsMatch | null {
   if (normalizedQuery.length < REFERENCE_PREFIX_MIN) return null;
   const anywhere = DIGIT.test(normalizedQuery);
   const matches = (reference: string) => {
@@ -725,7 +734,11 @@ function matchReference(normalizedQuery: string, thread: ThreadSearchSubject) {
 const PICK_WINDOW_MS = 21 * DAY_MS;
 const PICK_PREFIX_MIN_LENGTH = 3;
 
-function activePick(thread: ThreadSearchSubject, normalizedQuery: string, now: number) {
+function activePick(
+  thread: ThreadSearchSubject,
+  normalizedQuery: string,
+  now: number,
+): ThreadOpenStats["picks"][number] | undefined {
   const query = pickedQuery(normalizedQuery);
   const prefix = query.length >= PICK_PREFIX_MIN_LENGTH;
   let exact: ThreadOpenStats["picks"][number] | undefined;
@@ -777,11 +790,15 @@ const FLAT_BRANCH_QUERY_PREFIX_PATTERN = new RegExp(
   "g",
 );
 
-function searchableBranch(branch: string | null | undefined) {
+function searchableBranch(branch: string | null | undefined): string | null {
   return branch ? branch.replace(WORKTREE_BRANCH_PREFIX_PATTERN, "") : null;
 }
 
-function matchHint(normalizedQuery: string, thread: ThreadSearchSubject, typos: boolean) {
+function matchHint(
+  normalizedQuery: string,
+  thread: ThreadSearchSubject,
+  typos: boolean,
+): SearchMatchHint | undefined {
   const candidates: Array<{ readonly label: string; readonly text: string | null | undefined }> = [
     ...(thread.pullRequests ?? []).map((pullRequest) => ({
       label: "PR",
@@ -814,7 +831,7 @@ function matchHint(normalizedQuery: string, thread: ThreadSearchSubject, typos: 
 
 const threadFieldsCache = new WeakMap<ThreadSearchSubject, ReadonlyArray<WeightedSearchField>>();
 
-function threadSearchFields(thread: ThreadSearchSubject) {
+function threadSearchFields(thread: ThreadSearchSubject): ReadonlyArray<WeightedSearchField> {
   const cached = threadFieldsCache.get(thread);
   if (cached) return cached;
   const fields: WeightedSearchField[] = [{ value: thread.title, weight: 1, midWord: true }];
@@ -836,7 +853,7 @@ function threadSearchFields(thread: ThreadSearchSubject) {
 
 let lastFieldQuery: { readonly query: string; readonly fieldQuery: string } | undefined;
 
-function threadFieldQuery(normalizedQuery: string) {
+function threadFieldQuery(normalizedQuery: string): string {
   if (lastFieldQuery?.query !== normalizedQuery) {
     lastFieldQuery = {
       query: normalizedQuery,
@@ -867,34 +884,21 @@ export function scoreThreadSearch(
      */
     readonly picks?: boolean;
   },
-): ThreadSearchMatch | null;
-export function scoreThreadSearch(
-  normalizedQuery: string,
-  thread: ThreadSearchSubject,
-  now: number,
-  options?: {
-    readonly typos?: boolean;
-    /**
-     * Palette picks; off where a pick would show up unexplained, such as a
-     * sidebar filter or an agent's search.
-     */
-    readonly picks?: boolean;
-  },
-) {
+): ThreadSearchMatch | null {
   const fields = threadSearchFields(thread);
   const fieldQuery = threadFieldQuery(normalizedQuery);
   const fieldMatch = matchSearchFields(fieldQuery, fields, options);
   const referenceMatch = fieldMatch ? null : matchReference(normalizedQuery, thread);
   const match = fieldMatch ?? referenceMatch;
-  if (match === null) return null satisfies ThreadSearchMatch | null;
+  if (match === null) return null;
   const typos = options?.typos ?? false;
   const titleShowsMatch = match.primaryRanges.length > 0;
   const checkHint = !titleShowsMatch && referenceMatch === null && fieldQuery.includes(" ");
   const checkedHint = checkHint ? matchHint(fieldQuery, thread, typos) : undefined;
-  if (checkHint && checkedHint === undefined) return null satisfies ThreadSearchMatch | null;
+  if (checkHint && checkedHint === undefined) return null;
   const explain = titleShowsMatch
     ? undefined
-    : () =>
+    : (): SearchMatchHint | undefined =>
         referenceMatch
           ? { label: "ID or link", text: normalizedQuery, ranges: [] }
           : (checkedHint ?? matchHint(fieldQuery, thread, typos));
@@ -909,15 +913,15 @@ export function scoreThreadSearch(
     ...(explain ? { explain } : {}),
     ...(pick ? { pickedAt: pick.at } : {}),
     ...(pick?.query === pickedQuery(normalizedQuery) ? { pickedExactly: true } : {}),
-  } satisfies ThreadSearchMatch | null;
+  };
 }
 
 /** When the user last used a thread: their last message or their last open. */
-export function threadRecentUse(thread: ThreadSearchSubject) {
+export function threadRecentUse(thread: ThreadSearchSubject): number {
   return Math.max(thread.activityAt ?? 0, thread.opens?.openedAt ?? 0);
 }
 
-function messageMatchWeight(hits: number) {
+function messageMatchWeight(hits: number): number {
   return 1 + Math.log2(1 + hits);
 }
 
@@ -934,7 +938,7 @@ export function rankMessageMatches<
   normalizedQuery: string,
   now: number,
   options?: { readonly picks?: boolean; readonly withoutTitleMatches?: boolean },
-) {
+): T[] {
   return matches
     .flatMap((match) => {
       const subject = subjectOf(match);
@@ -973,7 +977,7 @@ export const PALETTE_MESSAGE_LIMIT = 10;
 /** Next to matching threads, other groups show only their best few rows. */
 export const PALETTE_SECONDARY_LIMIT = 3;
 
-function matchClass(quality: number) {
+function matchClass(quality: number): number {
   return quality >= WHOLE_NAME ? 3 : quality >= 0.7 ? 2 : quality >= 0.4 ? 1 : 0;
 }
 
@@ -1001,7 +1005,7 @@ export function rankSearchGroups<
 >(
   groups: ReadonlyArray<{ readonly group: G; readonly items: ReadonlyArray<T> }>,
   score: (item: T, options: { readonly typos: boolean }, group: G) => M | null,
-) {
+): Array<{ readonly group: G; readonly ranked: ReadonlyArray<RankedSearchItem<T, M>> }> {
   const rank = (typos: boolean) =>
     groups.map(({ group, items }) => {
       const options = { typos };
@@ -1047,13 +1051,8 @@ export function rankSearchItems<
 >(
   items: ReadonlyArray<T>,
   score: (item: T, options: { readonly typos: boolean }) => M | null,
-): ReadonlyArray<RankedSearchItem<T, M>>;
-export function rankSearchItems<
-  T,
-  M extends { readonly score: number; readonly quality: number; readonly strong: boolean },
->(items: ReadonlyArray<T>, score: (item: T, options: { readonly typos: boolean }) => M | null) {
-  return (rankSearchGroups([{ group: null, items }], score)[0]?.ranked ??
-    []) satisfies ReadonlyArray<RankedSearchItem<T, M>>;
+): ReadonlyArray<RankedSearchItem<T, M>> {
+  return rankSearchGroups([{ group: null, items }], score)[0]?.ranked ?? [];
 }
 
 export interface SearchTermsMatch {
@@ -1076,7 +1075,7 @@ export function scoreSearchTerms(
   normalizedQuery: string,
   terms: ReadonlyArray<string>,
   options?: { readonly typos?: boolean },
-) {
+): SearchTermsMatch | null {
   const meaningful = normalizedQuery
     .split(" ")
     .filter((token) => !FILLER_WORDS.has(token))

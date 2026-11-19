@@ -46,11 +46,11 @@ export const useThreadFindStore = create<{ readonly finds: ReadonlyMap<string, T
   () => ({ finds: new Map() }),
 );
 
-function threadFind(threadKey: string) {
+function threadFind(threadKey: string): ThreadFindState | undefined {
   return useThreadFindStore.getState().finds.get(threadKey);
 }
 
-function writeThreadFind(threadKey: string, find: ThreadFindState) {
+function writeThreadFind(threadKey: string, find: ThreadFindState): void {
   useThreadFindStore.setState((state) => ({ finds: new Map(state.finds).set(threadKey, find) }));
 }
 
@@ -64,12 +64,12 @@ interface ThreadFindTimeline {
 
 const attachedTimelines = new Map<string, ThreadFindTimeline>();
 
-function timelineFor(threadKey: string) {
+function timelineFor(threadKey: string): ThreadFindTimeline | null {
   return attachedTimelines.get(threadKey) ?? null;
 }
 
 /** Attaches the timeline showing a thread; returns the detach. */
-export function attachThreadFindTimeline(timeline: ThreadFindTimeline) {
+export function attachThreadFindTimeline(timeline: ThreadFindTimeline): () => void {
   attachedTimelines.set(timeline.threadKey, timeline);
   return () => {
     if (attachedTimelines.get(timeline.threadKey) === timeline) {
@@ -78,16 +78,16 @@ export function attachThreadFindTimeline(timeline: ThreadFindTimeline) {
   };
 }
 
-function readThreadFindPosition(threadKey: string, query: string) {
+function readThreadFindPosition(threadKey: string, query: string): ThreadFindStart | undefined {
   return timelineFor(threadKey)?.readPosition(query);
 }
 
-function announceOpening(threadKey: string) {
+function announceOpening(threadKey: string): void {
   if (threadFind(threadKey) === undefined) timelineFor(threadKey)?.navigate();
 }
 
 /** Opens find, or refocuses it and restarts its search from the viewport when already open. */
-export function openThreadFind(threadKey: string) {
+export function openThreadFind(threadKey: string): void {
   const current = threadFind(threadKey) ?? CLOSED_THREAD_FIND;
   const query = current.query.trim();
   const start = query ? readThreadFindPosition(threadKey, query) : undefined;
@@ -117,7 +117,7 @@ export interface PendingThreadFind {
  * Opens find on `query` in the thread, such as at the message a search result
  * came from. The thread's view shows it once it is on screen.
  */
-export function openThreadFindOnQuery(threadKey: string, find: PendingThreadFind) {
+export function openThreadFindOnQuery(threadKey: string, find: PendingThreadFind): void {
   const previous = threadFind(threadKey) ?? CLOSED_THREAD_FIND;
   announceOpening(threadKey);
   writeThreadFind(threadKey, {
@@ -136,12 +136,12 @@ export function openThreadFindOnQuery(threadKey: string, find: PendingThreadFind
 export function updateThreadFind(
   threadKey: string,
   update: (previous: ThreadFindState) => ThreadFindState,
-) {
+): void {
   const previous = threadFind(threadKey);
   if (previous !== undefined) writeThreadFind(threadKey, update(previous));
 }
 
-export function setThreadFindQuery(threadKey: string, query: string) {
+export function setThreadFindQuery(threadKey: string, query: string): void {
   const start = readThreadFindPosition(threadKey, query.trim());
   updateThreadFind(threadKey, (previous) => ({
     ...previous,
@@ -154,7 +154,7 @@ export function setThreadFindQuery(threadKey: string, query: string) {
   }));
 }
 
-export function closeThreadFind(threadKey: string) {
+export function closeThreadFind(threadKey: string): void {
   useThreadFindStore.setState((state) => {
     if (!state.finds.has(threadKey)) return state;
     const finds = new Map(state.finds);
@@ -170,7 +170,7 @@ registerThreadOverlay((shownThreadKeys) => {
 });
 
 /** Whether find is open in `thread`, as long as find is available there. */
-export function useThreadFindOpen(thread: ScopedThreadRef | null, enabled: boolean) {
+export function useThreadFindOpen(thread: ScopedThreadRef | null, enabled: boolean): boolean {
   const threadKey = thread ? scopedThreadKey(thread) : null;
   const open = useThreadFindStore((state) => threadKey !== null && state.finds.has(threadKey));
   return enabled && open;
@@ -185,7 +185,7 @@ export function useThreadFindOpen(thread: ScopedThreadRef | null, enabled: boole
 export function findForMessageMatch(
   match: Pick<OrchestrationThreadSearchMatch, "snippet" | "messageId">,
   query: string,
-) {
+): PendingThreadFind {
   const start = match.messageId ? { start: { entryId: match.messageId, occurrence: 0 } } : {};
   const together = messagePhrase(query)?.exec(match.snippet.replace(/[\u2018\u2019]/g, "'"));
   if (together) {

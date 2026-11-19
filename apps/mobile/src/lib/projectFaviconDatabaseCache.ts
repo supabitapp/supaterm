@@ -72,11 +72,11 @@ export const projectFaviconDatabaseCache = createSharedProjectFaviconCache({
       runDatabase((database) =>
         database.listCache(CACHE_KIND).pipe(
           Effect.map((payloads) =>
-            payloads.flatMap((payload) => {
+            payloads.flatMap((payload): Array<unknown> => {
               try {
-                return [JSON.parse(payload)] satisfies Array<unknown> as Array<unknown>;
+                return [JSON.parse(payload)];
               } catch {
-                return [] satisfies Array<unknown> as Array<unknown>;
+                return [];
               }
             }),
           ),

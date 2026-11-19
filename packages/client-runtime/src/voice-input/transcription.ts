@@ -37,7 +37,7 @@ export class VoiceTranscriptionError extends Error {
   }
 }
 
-export function throwIfVoiceTranscriptionAborted(signal: AbortSignal) {
+export function throwIfVoiceTranscriptionAborted(signal: AbortSignal): void {
   if (signal.aborted) {
     throw new VoiceTranscriptionError("cancelled", "Voice transcription was cancelled.");
   }

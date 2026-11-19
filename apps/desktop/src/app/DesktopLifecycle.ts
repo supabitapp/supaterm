@@ -32,7 +32,7 @@ export class DesktopLifecycleRelaunchError extends Schema.TaggedError<DesktopLif
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Desktop relaunch failed for reason "${this.reason}".`;
   }
 }
@@ -75,7 +75,7 @@ function addScopedListener<Args extends ReadonlyArray<unknown>>(
   eventName: string,
   listener: (...args: Args) => void,
   options: { readonly prepend?: boolean } = {},
-) {
+): Effect.Effect<void, never, Scope.Scope> {
   const eventTarget = target as {
     on: (eventName: string, listener: (...args: Array<unknown>) => void) => unknown;
     prependListener: (eventName: string, listener: (...args: Array<unknown>) => void) => unknown;
@@ -95,7 +95,9 @@ function addScopedListener<Args extends ReadonlyArray<unknown>>(
 }
 
 const requestDesktopShutdownAndWait = Effect.fn("desktop.lifecycle.requestShutdownAndWait")(
-  function* (afterBoundsFlush: Effect.Effect<void> = Effect.void) {
+  function* (
+    afterBoundsFlush: Effect.Effect<void> = Effect.void,
+  ): Effect.fn.Return<void, never, DesktopShutdown.DesktopShutdown | DesktopWindow.DesktopWindow> {
     const shutdown = yield* DesktopShutdown.DesktopShutdown;
     const desktopWindow = yield* DesktopWindow.DesktopWindow;
     yield* desktopWindow.flushMainWindowBounds;
@@ -141,14 +143,7 @@ function handleBeforeQuit(
     effect: Effect.Effect<A, E, DesktopLifecycleRegistrationServices>,
   ) => Promise<A>,
   quit: QuitState,
-): void;
-function handleBeforeQuit(
-  event: Electron.Event,
-  runEffect: <A, E>(
-    effect: Effect.Effect<A, E, DesktopLifecycleRegistrationServices>,
-  ) => Promise<A>,
-  quit: QuitState,
-) {
+): void {
   if (quit.phase === "allowed") {
     void runEffect(
       Effect.gen(function* () {
@@ -197,7 +192,7 @@ function quitFromSignal(
     effect: Effect.Effect<A, E, DesktopLifecycleRegistrationServices>,
   ) => Promise<A>,
   quit: QuitState,
-) {
+): void {
   if (quit.phase === "waiting") {
     void runEffect(exitIfShutdownStalled(quit, signal));
     return;

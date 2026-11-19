@@ -7,11 +7,13 @@ import {
   type RuntimeMode,
 } from "@supaterm/contracts";
 import * as HostProcess from "@supaterm/shared/HostProcess";
+import * as SecureRandom from "effect/crypto/SecureRandom";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Path from "effect/Path";
 import * as Predicate from "effect/Predicate";
+import * as Scope from "effect/Scope";
 import * as Stream from "effect/Stream";
 import * as ChildProcessSpawner from "effect/process/ChildProcessSpawner";
 import * as EffectAcpErrors from "effect-acp/errors";
@@ -63,7 +65,7 @@ function compareVersions(left: ReadonlyArray<number>, right: ReadonlyArray<numbe
   return 0;
 }
 
-function antigravityWritesRunWorkflowSkill(version: string | null | undefined) {
+function antigravityWritesRunWorkflowSkill(version: string | null | undefined): boolean {
   const parsed = parseAntigravityVersion(version);
   return (
     parsed !== undefined &&
@@ -76,9 +78,8 @@ function antigravityWritesRunWorkflowSkill(version: string | null | undefined) {
  * Releases Supaterm qualified for native range reads and linked video. On 1.4.5 the client-read path
  * sends a whole file to serve one line, and the native reader keeps diff edits.
  */
-export function isQualifiedAntigravityRelease(version: string | null | undefined): boolean;
-export function isQualifiedAntigravityRelease(version: string | null | undefined) {
-  return (version?.trim() === "1.4.5") satisfies boolean;
+export function isQualifiedAntigravityRelease(version: string | null | undefined): boolean {
+  return version?.trim() === "1.4.5";
 }
 
 const OPEN_MODEL_ACCESS_RELEASE = [1, 5, 1] as const;
@@ -102,11 +103,7 @@ export const antigravityAppendsSystemPrompt = (
 export function antigravitySessionMeta(
   initializeResult: EffectAcpSchema.InitializeResponse,
   systemPromptAppend?: string,
-): EffectAcpSchema.NewSessionRequest["_meta"] | undefined;
-export function antigravitySessionMeta(
-  initializeResult: EffectAcpSchema.InitializeResponse,
-  systemPromptAppend?: string,
-) {
+): EffectAcpSchema.NewSessionRequest["_meta"] | undefined {
   const antigravity = {
     ...(antigravityWritesRunWorkflowSkill(initializeResult.agentInfo?.version)
       ? { disabledTools: ["run_workflow"] }
@@ -115,9 +112,7 @@ export function antigravitySessionMeta(
       ? { systemPrompt: { append: systemPromptAppend } }
       : {}),
   };
-  return (Object.keys(antigravity).length === 0 ? undefined : { antigravity }) satisfies
-    | EffectAcpSchema.NewSessionRequest["_meta"]
-    | undefined;
+  return Object.keys(antigravity).length === 0 ? undefined : { antigravity };
 }
 
 /** Older releases offer non-Gemini models only to allowlisted clients such as Zed. */
@@ -130,7 +125,11 @@ export function antigravityClientInfo(version: string | null | undefined) {
 
 export const makeAntigravityAcpRuntime = Effect.fn("makeAntigravityAcpRuntime")(function* (
   input: AntigravityAcpRuntimeInput,
-) {
+): Effect.fn.Return<
+  AcpSessionRuntime.AcpSessionRuntime["Service"],
+  EffectAcpErrors.AcpError,
+  SecureRandom.SecureRandom | Scope.Scope
+> {
   const context = yield* Layer.build(
     AcpSessionRuntime.layer({
       ...input,
@@ -166,7 +165,7 @@ export const makeAntigravityAcpRuntime = Effect.fn("makeAntigravityAcpRuntime")(
   return yield* Effect.service(AcpSessionRuntime.AcpSessionRuntime).pipe(Effect.provide(context));
 });
 
-export function antigravityPermissionMode(runtimeMode: RuntimeMode) {
+export function antigravityPermissionMode(runtimeMode: RuntimeMode): string {
   switch (runtimeMode) {
     case "full-access":
       return "yolo";
@@ -183,9 +182,8 @@ export function antigravityPermissionMode(runtimeMode: RuntimeMode) {
  * it asks before acting and Supaterm answers from the live runtime policy, so permission changes apply
  * on the next turn without a restart.
  */
-export function antigravityCliSessionMode(modeId: string): string;
-export function antigravityCliSessionMode(modeId: string) {
-  return (modeId === "yolo" || modeId === "auto_edit" ? "default" : modeId) satisfies string;
+export function antigravityCliSessionMode(modeId: string): string {
+  return modeId === "yolo" || modeId === "auto_edit" ? "default" : modeId;
 }
 
 export function antigravityModelOptions(
@@ -218,7 +216,7 @@ function resolveAntigravityModel(input: {
   readonly configOptions: ReadonlyArray<EffectAcpSchema.SessionConfigOption>;
   readonly model: string | null | undefined;
   readonly defaultModel?: string | undefined;
-}) {
+}): string | undefined {
   const modelConfig = input.configOptions.find((option) => option.id === "model");
   const current = modelConfig?.type === "select" ? modelConfig.currentValue : undefined;
   if (input.model && input.model !== ANTIGRAVITY_DEFAULT_MODEL) return input.model;
@@ -240,7 +238,7 @@ export const applyAntigravityAcpModelSelection = Effect.fn("applyAntigravityAcpM
     readonly model: string | null | undefined;
     readonly defaultModel?: string | undefined;
     readonly mapError: (cause: EffectAcpErrors.AcpError) => E;
-  }) {
+  }): Effect.fn.Return<string | undefined, E> {
     const configOptions = yield* input.runtime.getConfigOptions;
     const modelConfig = configOptions.find((option) => option.id === "model");
     const current = modelConfig?.type === "select" ? modelConfig.currentValue : undefined;
@@ -294,7 +292,7 @@ const ANTIGRAVITY_MAX_VIDEO_ATTACHMENT_BYTES = 20 * 1024 * 1024;
 
 function antigravityModelAcceptsVideo(
   model: { readonly id: string; readonly name: string | undefined } | undefined,
-) {
+): boolean {
   return model !== undefined && (/^gemini-/i.test(model.id) || /^gemini\b/i.test(model.name ?? ""));
 }
 const TEXT_MIME_TYPES = new Set([
@@ -369,7 +367,11 @@ export const buildAntigravityPrompt = Effect.fn("buildAntigravityPrompt")(functi
   /** Linked video needs a runtime whose `resource_link` handling is qualified and a Gemini model. */
   readonly agentVersion?: string | undefined;
   readonly currentModel?: { readonly id: string; readonly name: string | undefined } | undefined;
-}) {
+}): Effect.fn.Return<
+  ReadonlyArray<EffectAcpSchema.ContentBlock>,
+  EffectAcpErrors.AcpError,
+  FileSystem.FileSystem | Path.Path
+> {
   const fileSystem = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const platform = yield* HostProcess.Platform;

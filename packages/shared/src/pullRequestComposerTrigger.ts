@@ -33,28 +33,23 @@ export function detectPullRequestComposerTrigger(
   text: string,
   cursor: number,
   support: PullRequestCompletionSupport,
-) {
+): PullRequestComposerTrigger | null {
   const end = Math.max(0, Math.min(text.length, cursor));
   const next = text[end];
-  if (next !== undefined && !/\s/.test(next))
-    return null satisfies PullRequestComposerTrigger | null;
+  if (next !== undefined && !/\s/.test(next)) return null;
   let start = end;
   while (start > 0 && !/\s/.test(text[start - 1] ?? "")) start -= 1;
   const match = TOKEN.exec(text.slice(start, end));
-  if (!match) return null satisfies PullRequestComposerTrigger | null;
+  if (!match) return null;
   const sigil = match[2];
   if (sigil === "#" || sigil === "!") {
-    return (
-      support.referenceSigils?.includes(sigil)
-        ? { kind: "reference", sigil, query: match[3] ?? "", rangeStart: start, rangeEnd: end }
-        : null
-    ) satisfies PullRequestComposerTrigger | null;
+    return support.referenceSigils?.includes(sigil)
+      ? { kind: "reference", sigil, query: match[3] ?? "", rangeStart: start, rangeEnd: end }
+      : null;
   }
-  return (
-    support.mentions === true
-      ? { kind: "mention", sigil: "@", query: match[1] ?? "", rangeStart: start, rangeEnd: end }
-      : null
-  ) satisfies PullRequestComposerTrigger | null;
+  return support.mentions === true
+    ? { kind: "mention", sigil: "@", query: match[1] ?? "", rangeStart: start, rangeEnd: end }
+    : null;
 }
 
 /** Replaces the trigger with `token` and leaves the caret past the space after it. */
@@ -62,7 +57,7 @@ export function insertPullRequestCompletion(
   text: string,
   trigger: PullRequestComposerTrigger,
   token: string,
-) {
+): { text: string; cursor: number } {
   const followedBySpace = /[ \t]/.test(text[trigger.rangeEnd] ?? "");
   if (!followedBySpace) {
     return replaceTextRange(text, trigger.rangeStart, trigger.rangeEnd, `${token} `);
@@ -74,7 +69,7 @@ export function insertPullRequestCompletion(
 /** The key a debounce delays: the trigger's sigil and its host search, or `null` with no trigger. */
 export function pullRequestCompletionKey(
   trigger: Pick<PullRequestComposerTrigger, "sigil" | "query"> | null,
-) {
+): string | null {
   return trigger === null ? null : `${trigger.sigil}${trigger.query.slice(0, 100)}`;
 }
 
@@ -85,7 +80,7 @@ export function pullRequestCompletionKey(
 export function debouncedPullRequestCompletionSearch(
   trigger: Pick<PullRequestComposerTrigger, "sigil">,
   debouncedKey: string | null,
-) {
+): string | undefined {
   return debouncedKey?.startsWith(trigger.sigil)
     ? debouncedKey.slice(trigger.sigil.length) || undefined
     : undefined;
@@ -95,7 +90,7 @@ export function narrowPullRequestMentions<A extends { login: string; name: strin
   users: ReadonlyArray<A>,
   typed: string,
   limit: number,
-) {
+): A[] {
   const needle = typed.toLowerCase();
   return users
     .filter(
@@ -113,7 +108,7 @@ export function narrowPullRequestReferences<
   candidates: ReadonlyArray<A>,
   trigger: Pick<PullRequestComposerTrigger, "sigil" | "query">,
   limit: number,
-) {
+): A[] {
   const needle = trigger.query.toLowerCase();
   return candidates
     .filter(
@@ -138,19 +133,17 @@ export function pullRequestCompletions(
   trigger: PullRequestComposerTrigger | null,
   options: Pick<PullRequestFilterOptions, "authors" | "references"> | null,
   limit: number,
-) {
-  if (trigger === null) return [] satisfies ReadonlyArray<PullRequestCompletion>;
-  return (
-    trigger.kind === "mention"
-      ? narrowPullRequestMentions(options?.authors ?? [], trigger.query, limit).map((actor) => ({
-          kind: "mention",
-          token: `@${actor.login}`,
-          actor,
-        }))
-      : narrowPullRequestReferences(options?.references ?? [], trigger, limit).map((candidate) => ({
-          kind: "reference",
-          token: candidate.reference,
-          candidate,
-        }))
-  ) satisfies ReadonlyArray<PullRequestCompletion>;
+): ReadonlyArray<PullRequestCompletion> {
+  if (trigger === null) return [];
+  return trigger.kind === "mention"
+    ? narrowPullRequestMentions(options?.authors ?? [], trigger.query, limit).map((actor) => ({
+        kind: "mention",
+        token: `@${actor.login}`,
+        actor,
+      }))
+    : narrowPullRequestReferences(options?.references ?? [], trigger, limit).map((candidate) => ({
+        kind: "reference",
+        token: candidate.reference,
+        candidate,
+      }));
 }

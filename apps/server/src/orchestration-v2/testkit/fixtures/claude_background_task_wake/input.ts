@@ -12,7 +12,7 @@ export const CLAUDE_BACKGROUND_TASK_WAKE_PROMPT = [
 
 export const CLAUDE_BACKGROUND_TASK_WAKE_FOLLOW_UP_PROMPT = "Reply with exactly: USER_REPLY";
 
-export function claudeBackgroundTaskWakeInput() {
+export function claudeBackgroundTaskWakeInput(): OrchestratorFixtureInput {
   return {
     steps: [
       { type: "message", text: CLAUDE_BACKGROUND_TASK_WAKE_PROMPT },
@@ -26,5 +26,5 @@ export function claudeBackgroundTaskWakeInput() {
       { type: "await_run_status", targetRunIndex: 2, status: "completed" },
       { type: "message", text: CLAUDE_BACKGROUND_TASK_WAKE_FOLLOW_UP_PROMPT },
     ],
-  } satisfies OrchestratorFixtureInput;
+  };
 }

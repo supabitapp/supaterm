@@ -15,11 +15,13 @@ import { type AtomCommand, runAtomCommand } from "./state/runtime.ts";
 
 export type ProviderSkillSourceKind = "app" | "repo" | "project" | "personal" | "system" | "other";
 
-function normalizePathSeparators(pathValue: string) {
+function normalizePathSeparators(pathValue: string): string {
   return pathValue.replaceAll("\\", "/");
 }
 
-export function dedupeProviderSkillsByName(skills: ReadonlyArray<ServerProviderSkill>) {
+export function dedupeProviderSkillsByName(
+  skills: ReadonlyArray<ServerProviderSkill>,
+): ServerProviderSkill[] {
   const seenNames = new Set<string>();
   return skills.filter((skill) => {
     const normalizedName = skill.name.trim().toLowerCase();
@@ -37,14 +39,14 @@ export function dedupeProviderSkillsByName(skills: ReadonlyArray<ServerProviderS
  */
 export function isProviderSkillUserInvocable(
   skill: Pick<ServerProviderSkill, "enabled" | "userInvocable">,
-) {
+): boolean {
   return skill.enabled && skill.userInvocable !== false;
 }
 
 export function getProviderSkillsForSlashMenu(
   skills: ReadonlyArray<ServerProviderSkill>,
   showSkillsInSlashMenu: boolean,
-) {
+): ServerProviderSkill[] {
   return showSkillsInSlashMenu
     ? dedupeProviderSkillsByName(skills.filter(isProviderSkillUserInvocable))
     : [];
@@ -53,12 +55,14 @@ export function getProviderSkillsForSlashMenu(
 export function getProviderSlashCommandsForSlashMenu(
   slashCommands: ReadonlyArray<ServerProviderSlashCommand>,
   visibleSkills: ReadonlyArray<ServerProviderSkill>,
-) {
+): ServerProviderSlashCommand[] {
   const skillNames = new Set(visibleSkills.map((skill) => skill.name.trim().toLowerCase()));
   return slashCommands.filter((command) => !skillNames.has(command.name.trim().toLowerCase()));
 }
 
-export function resolveProviderSkillSourceKind(skill: Pick<ServerProviderSkill, "path" | "scope">) {
+export function resolveProviderSkillSourceKind(
+  skill: Pick<ServerProviderSkill, "path" | "scope">,
+): ProviderSkillSourceKind {
   const normalizedPath = normalizePathSeparators(skill.path);
   if (normalizedPath.includes("/.codex/plugins/") || normalizedPath.includes("/.agents/plugins/")) {
     return "app";
@@ -97,7 +101,7 @@ function resolveProviderWorkspaceSnapshot(
 export function hasCompleteProviderWorkspaceSnapshot(
   provider: ServerProvider | null | undefined,
   cwd: string | null | undefined,
-) {
+): boolean {
   const snapshot = provider && resolveProviderWorkspaceSnapshot(provider, cwd);
   return Boolean(snapshot && !isProviderWorkspaceSnapshotPending(snapshot));
 }
@@ -106,7 +110,7 @@ function hasCurrentProviderWorkspaceSnapshot(
   provider: ServerProvider | null | undefined,
   cwd: string | null | undefined,
   nowMs: number,
-) {
+): boolean {
   const snapshot = provider && resolveProviderWorkspaceSnapshot(provider, cwd);
   return Boolean(
     snapshot &&
@@ -118,18 +122,21 @@ function hasCurrentProviderWorkspaceSnapshot(
 export function resolveProviderSkillsForCwd(
   provider: ServerProvider,
   cwd: string | null | undefined,
-) {
+): ServerProvider["skills"] {
   return resolveProviderWorkspaceSnapshot(provider, cwd)?.skills ?? provider.skills;
 }
 
 export function resolveProviderSlashCommandsForCwd(
   provider: ServerProvider,
   cwd: string | null | undefined,
-) {
+): ServerProvider["slashCommands"] {
   return resolveProviderWorkspaceSnapshot(provider, cwd)?.slashCommands ?? provider.slashCommands;
 }
 
-function resolveProviderModelsForCwd(provider: ServerProvider, cwd: string | null | undefined) {
+function resolveProviderModelsForCwd(
+  provider: ServerProvider,
+  cwd: string | null | undefined,
+): ServerProvider["models"] {
   return resolveProviderWorkspaceSnapshot(provider, cwd)?.models ?? provider.models;
 }
 
@@ -137,7 +144,7 @@ function resolveProviderModelsForCwd(provider: ServerProvider, cwd: string | nul
 export function resolveProvidersForCwd<P extends ServerProvider>(
   providers: ReadonlyArray<P>,
   cwd: string | null | undefined,
-) {
+): ReadonlyArray<P> {
   const resolved = providers.map((provider) => {
     const models = resolveProviderModelsForCwd(provider, cwd);
     return models === provider.models ? provider : { ...provider, models };
@@ -176,7 +183,11 @@ function planProviderWorkspaceSnapshotRefresh(
   provider: ServerProvider | null | undefined,
   cwd: string,
   now: number,
-) {
+): {
+  readonly state: ProviderWorkspaceSnapshotRefreshState;
+  readonly refresh: boolean;
+  readonly recheckAt: number | null;
+} {
   const hasSnapshot = hasCompleteProviderWorkspaceSnapshot(provider, cwd);
   const snapshot = provider && resolveProviderWorkspaceSnapshot(provider, cwd);
   const pending = Boolean(snapshot && isProviderWorkspaceSnapshotPending(snapshot));
@@ -211,7 +222,7 @@ function failProviderWorkspaceSnapshotRefresh(
   requestedAt: number,
   now: number,
   cooldownMs = WORKSPACE_SNAPSHOT_RETRY_COOLDOWN_MS,
-) {
+): ProviderWorkspaceSnapshotRefreshState {
   if (state.requestedAt !== requestedAt) return state;
   const failedAttempts = state.failedAttempts + 1;
   if (failedAttempts >= WORKSPACE_SNAPSHOT_MAX_ATTEMPTS) return { ...state, failedAttempts };
@@ -231,7 +242,7 @@ function failProviderWorkspaceSnapshotRefresh(
  */
 export function isProviderWorkspaceSnapshotScanning(
   state: ProviderWorkspaceSnapshotRefreshState | undefined,
-) {
+): boolean {
   return (
     state !== undefined &&
     (state.requestedAt !== null || state.snapshotPending) &&
@@ -240,7 +251,12 @@ export function isProviderWorkspaceSnapshotScanning(
   );
 }
 
-function resolveWorkspaceSnapshotStatus(provider: ServerProvider | undefined, cwd: string) {
+type WorkspaceSnapshotStatus = "absent" | "pending" | "complete";
+
+function resolveWorkspaceSnapshotStatus(
+  provider: ServerProvider | undefined,
+  cwd: string,
+): WorkspaceSnapshotStatus {
   const snapshot = provider && resolveProviderWorkspaceSnapshot(provider, cwd);
   if (!snapshot) return "absent";
   return isProviderWorkspaceSnapshotPending(snapshot) ? "pending" : "complete";
@@ -283,7 +299,7 @@ export function createProviderWorkspaceSnapshotRefreshAtomFamily(input: {
       state: ProviderWorkspaceSnapshotRefreshState,
     ) => ProviderWorkspaceSnapshotRefreshState;
     const refreshAtom: Atom.Writable<ProviderWorkspaceSnapshotRefreshState, Update> = Atom.writable(
-      (get) => {
+      (get): ProviderWorkspaceSnapshotRefreshState => {
         get(statusAtom);
         const provider = findProvider(get.once(input.providers(environmentId)));
         // @effect-diagnostics-next-line globalDate:off
@@ -339,6 +355,8 @@ export function createProviderWorkspaceSnapshotRefreshAtomFamily(input: {
     ).pipe(Atom.withLabel(`provider-workspace-snapshot-refresh:${key}`));
     return refreshAtom;
   });
-  return (target: ProviderWorkspaceSnapshotRefreshTarget) =>
+  return (
+    target: ProviderWorkspaceSnapshotRefreshTarget,
+  ): Atom.Atom<ProviderWorkspaceSnapshotRefreshState> =>
     family({ environmentId: target.environmentId, instanceId: target.instanceId, cwd: target.cwd });
 }

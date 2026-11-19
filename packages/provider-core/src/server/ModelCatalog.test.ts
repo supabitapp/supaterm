@@ -3,9 +3,7 @@ import type { ServerProviderModel } from "@supaterm/contracts";
 
 import * as ModelCatalog from "./ModelCatalog.ts";
 
-const model: (overrides: Partial<ServerProviderModel>) => ServerProviderModel = (
-  overrides: Partial<ServerProviderModel>,
-) => ({
+const model = (overrides: Partial<ServerProviderModel>): ServerProviderModel => ({
   slug: "model-test",
   name: "Model Test",
   isCustom: false,
@@ -13,7 +11,10 @@ const model: (overrides: Partial<ServerProviderModel>) => ServerProviderModel = 
   ...overrides,
 });
 
-const catalogModel = (slug: string, status: ModelCatalog.ProviderCatalogModel["status"]) => ({
+const catalogModel = (
+  slug: string,
+  status: ModelCatalog.ProviderCatalogModel["status"],
+): ModelCatalog.ProviderCatalogModel => ({
   slug,
   name: slug,
   status,

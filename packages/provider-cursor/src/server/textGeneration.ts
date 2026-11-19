@@ -23,7 +23,7 @@ const CURSOR_TIMEOUT_MS = 180_000;
 
 const isTextGenerationError = Schema.is(TextGenerationError);
 
-function cursorSdkResultDetail(result: RunResult) {
+function cursorSdkResultDetail(result: RunResult): string {
   switch (result.status) {
     case "cancelled":
       return "Cursor SDK request was cancelled.";
@@ -36,7 +36,7 @@ function cursorSdkResultDetail(result: RunResult) {
   }
 }
 
-function cursorSandboxUnsupported(cause: unknown) {
+function cursorSandboxUnsupported(cause: unknown): boolean {
   const seen = new Set<object>();
   let current = cause;
   while (typeof current === "object" && current !== null && !seen.has(current)) {

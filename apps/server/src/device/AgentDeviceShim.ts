@@ -295,7 +295,7 @@ export const agentDeviceCloseOutcome = (result: {
   readonly code: number | null;
   readonly stderr: string;
   readonly timedOut: boolean;
-}) =>
+}): AgentDeviceCloseOutcome =>
   result.timedOut
     ? "timed-out"
     : result.code === 0

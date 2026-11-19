@@ -6,6 +6,10 @@ interface WorkspaceEmptyState {
   readonly loading: boolean;
 }
 
+interface HomeEmptyState extends WorkspaceEmptyState {
+  readonly showsAddEnvironment: boolean;
+}
+
 const HOME_CONNECTING: WorkspaceEmptyState = {
   title: "Connecting to environment",
   detail: "Loading projects and threads from the saved environment.",
@@ -27,7 +31,7 @@ const NO_PROJECTS: WorkspaceEmptyState = {
 function resolveMissingShellEmptyState(
   phase: WorkspacePhase,
   detail: { readonly noEnvironments: string; readonly connecting: string },
-) {
+): WorkspaceEmptyState | null {
   if (workspaceHasShellSnapshot(phase)) {
     return null;
   }
@@ -68,7 +72,7 @@ interface HomeEmptyStateInput {
   readonly projectCount: number;
 }
 
-function resolveHomeContent(input: HomeEmptyStateInput) {
+function resolveHomeContent(input: HomeEmptyStateInput): WorkspaceEmptyState {
   const missingShell = resolveMissingShellEmptyState(input.phase, {
     noEnvironments: "Add an environment to load projects and start coding sessions.",
     connecting: HOME_CONNECTING.detail,
@@ -78,7 +82,7 @@ function resolveHomeContent(input: HomeEmptyStateInput) {
   return input.projectCount === 0 ? NO_PROJECTS : NO_THREADS;
 }
 
-export function resolveHomeEmptyState(input: HomeEmptyStateInput) {
+export function resolveHomeEmptyState(input: HomeEmptyStateInput): HomeEmptyState {
   const content = resolveHomeContent(input);
   const state =
     content.loading && input.phase.type === "connected"
@@ -87,7 +91,7 @@ export function resolveHomeEmptyState(input: HomeEmptyStateInput) {
   return { ...state, showsAddEnvironment: !state.loading && input.phase.type !== "connected" };
 }
 
-export function resolveNewTaskProjectEmptyState(phase: WorkspacePhase) {
+export function resolveNewTaskProjectEmptyState(phase: WorkspacePhase): WorkspaceEmptyState {
   return (
     resolveMissingShellEmptyState(phase, {
       noEnvironments: "Add an environment before creating a task.",

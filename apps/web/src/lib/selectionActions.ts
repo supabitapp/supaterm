@@ -8,7 +8,7 @@ export function resolveSelectionActionPosition(options: {
   selectionRect: { right: number; bottom: number } | null;
   pointer: SelectionActionPoint | null;
   viewport: { width: number; height: number };
-}) {
+}): SelectionActionPoint {
   const { bounds, selectionRect, pointer, viewport } = options;
   const preferred = pointer ?? {
     x: selectionRect?.right ?? bounds.left + bounds.width - 140,

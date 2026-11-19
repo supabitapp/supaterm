@@ -11,7 +11,10 @@ import {
 
 const now = Date.parse("2026-08-22T12:00:00.000Z");
 
-function candidate(path: string, overrides: Partial<AgentSessionProjectCandidate> = {}) {
+function candidate(
+  path: string,
+  overrides: Partial<AgentSessionProjectCandidate> = {},
+): AgentSessionProjectCandidate {
   return {
     title: path.split("/").at(-1) ?? path,
     path,
@@ -21,7 +24,7 @@ function candidate(path: string, overrides: Partial<AgentSessionProjectCandidate
     alreadyImported: false,
     git: { remoteKey: null, repository: null },
     ...overrides,
-  } satisfies AgentSessionProjectCandidate;
+  };
 }
 
 const github = (repository: string) => ({

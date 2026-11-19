@@ -16,7 +16,7 @@ const SCRATCH_PROJECT_ICON = {
 export function scopeProjectSettingsGroup(
   group: SidebarProjectSnapshot,
   members: readonly SidebarProjectGroupMember[],
-) {
+): SidebarProjectSnapshot {
   const representative =
     members.find(
       (member) => member.environmentId === group.environmentId && member.id === group.id,
@@ -28,7 +28,7 @@ export function projectGroupTitleNeedsUpdate(
   members: ReadonlyArray<Pick<Project, "title" | "hasCustomTitle">>,
   nextTitle: string,
   wasEdited: boolean,
-) {
+): boolean {
   return (
     wasEdited &&
     members.some((member) => member.title !== nextTitle || member.hasCustomTitle !== true)
@@ -41,7 +41,7 @@ export function defaultProjectIcon(project: Pick<Project, "isScratch">) {
 
 export function hasDefaultProjectIcon(
   project: Pick<Project, "isScratch" | "faviconPath" | "projectIcon">,
-) {
+): boolean {
   if (project.faviconPath != null) return false;
   const icon = project.projectIcon ?? null;
   if (!project.isScratch) return icon === null;

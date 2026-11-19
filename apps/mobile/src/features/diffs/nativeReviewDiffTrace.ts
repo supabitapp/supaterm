@@ -5,7 +5,7 @@ const objectIds = new WeakMap<object, number>();
 const primitiveIds = new Map<unknown, number>();
 let fileSink: Promise<import("expo-file-system").File | null> | undefined;
 
-export function diffHighlightTraceHash(value: string) {
+export function diffHighlightTraceHash(value: string): number {
   let hash = 2166136261;
   for (let index = 0; index < value.length; index++)
     hash = Math.imul(hash ^ value.charCodeAt(index), 16777619);
@@ -31,7 +31,7 @@ function appendTraceLine(line: string) {
   });
 }
 
-export function diffHighlightTraceId(value: unknown) {
+export function diffHighlightTraceId(value: unknown): number {
   if (process.env.EXPO_PUBLIC_SUPATERM_DIFF_TRACE !== "1" || eventCount >= MAX_TRACE_EVENTS)
     return 0;
   if ((typeof value === "object" && value !== null) || typeof value === "function") {

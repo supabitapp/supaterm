@@ -5,7 +5,7 @@ export interface DesktopAppControlAddress {
   readonly directory: string | null;
 }
 
-function shortHash(value: string) {
+function shortHash(value: string): string {
   return Array.from(sha256(new TextEncoder().encode(value)).slice(0, 12), (byte) =>
     byte.toString(16).padStart(2, "0"),
   ).join("");
@@ -18,7 +18,7 @@ export function resolveDesktopAppControlAddress(input: {
   readonly tempDir: string;
   readonly userId: number | undefined;
   readonly joinPath: (...segments: readonly string[]) => string;
-}) {
+}): DesktopAppControlAddress {
   const stateHash = shortHash(input.stateDir);
   if (input.platform === "win32") {
     return {

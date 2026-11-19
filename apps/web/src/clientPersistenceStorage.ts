@@ -4,11 +4,11 @@ import { getLocalStorageItem, setLocalStorageItem } from "./hooks/useLocalStorag
 
 const CLIENT_SETTINGS_STORAGE_KEY = "supaterm:client-settings:v1";
 
-function hasWindow() {
+function hasWindow(): boolean {
   return typeof window !== "undefined";
 }
 
-export function readBrowserClientSettings() {
+export function readBrowserClientSettings(): ClientSettings | null {
   if (!hasWindow()) {
     return null;
   }
@@ -16,8 +16,7 @@ export function readBrowserClientSettings() {
   return getLocalStorageItem(CLIENT_SETTINGS_STORAGE_KEY, ClientSettingsSchema);
 }
 
-export function writeBrowserClientSettings(settings: ClientSettings): void;
-export function writeBrowserClientSettings(settings: ClientSettings) {
+export function writeBrowserClientSettings(settings: ClientSettings): void {
   if (!hasWindow()) {
     return;
   }
@@ -26,7 +25,7 @@ export function writeBrowserClientSettings(settings: ClientSettings) {
 }
 
 /** Storage events fire only for other tabs' writes; a null key means storage was cleared. */
-export function subscribeBrowserClientSettingsWrites(onChange: () => void) {
+export function subscribeBrowserClientSettingsWrites(onChange: () => void): () => void {
   if (!hasWindow()) {
     return () => undefined;
   }

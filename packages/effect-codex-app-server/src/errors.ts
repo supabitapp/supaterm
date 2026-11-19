@@ -24,12 +24,18 @@ const CodexAppServerSchemaIssueKind = Schema.Literals([
 ]);
 type CodexAppServerSchemaIssueKind = typeof CodexAppServerSchemaIssueKind.Type;
 
-const schemaIssueDiagnostics = (root: SchemaIssue.Issue) => {
+interface CodexAppServerSchemaIssueDiagnostics {
+  readonly issueCount: number;
+  readonly issueKinds: ReadonlyArray<CodexAppServerSchemaIssueKind>;
+  readonly maximumPathDepth: number;
+}
+
+const schemaIssueDiagnostics = (root: SchemaIssue.Issue): CodexAppServerSchemaIssueDiagnostics => {
   let issueCount = 0;
   let maximumPathDepth = 0;
   const issueKinds = new Set<CodexAppServerSchemaIssueKind>();
 
-  const visit = (issue: SchemaIssue.Issue, pathDepth: number) => {
+  const visit = (issue: SchemaIssue.Issue, pathDepth: number): void => {
     issueCount += 1;
     issueKinds.add(issue._tag);
     maximumPathDepth = Math.max(maximumPathDepth, pathDepth);
@@ -70,7 +76,7 @@ const CodexAppServerPayloadKind = Schema.Literals([
 ]);
 type CodexAppServerPayloadKind = typeof CodexAppServerPayloadKind.Type;
 
-const payloadKind: (payload: unknown) => CodexAppServerPayloadKind = (payload: unknown) => {
+const payloadKind = (payload: unknown): CodexAppServerPayloadKind => {
   if (payload === null) return "null";
   if (Array.isArray(payload)) return "array";
   return typeof payload;
@@ -353,7 +359,7 @@ export class CodexAppServerRequestError extends Schema.TaggedError<CodexAppServe
     });
   }
 
-  toProtocolError() {
+  toProtocolError(): CodexAppServerProtocolErrorShape {
     return {
       code: this.code,
       message: this.errorMessage,

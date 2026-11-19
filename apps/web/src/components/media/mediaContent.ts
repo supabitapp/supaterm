@@ -1,5 +1,5 @@
 /** Resolves web references without inheriting the desktop renderer's custom app scheme. */
-export function resolveProtocolRelativeMediaUrl(src: string) {
+export function resolveProtocolRelativeMediaUrl(src: string): string {
   if (!src.startsWith("//")) return src;
   const protocol =
     typeof window !== "undefined" && window.location.protocol === "http:" ? "http:" : "https:";
@@ -19,7 +19,7 @@ function decodePercentBytes(payload: string) {
   );
 }
 
-function readDataUrlBlob(src: string) {
+function readDataUrlBlob(src: string): Blob {
   const url = src.split("#", 1)[0] ?? src;
   const comma = url.indexOf(",");
   const [mimeType = "", ...parameters] = url.slice("data:".length, comma).split(";");

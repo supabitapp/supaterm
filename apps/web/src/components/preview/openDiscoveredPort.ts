@@ -16,18 +16,13 @@ import { useRightPanelStore } from "~/rightPanelStore";
 import { openPreviewSession } from "./openPreviewSession";
 import { previewRuntimeFor } from "~/browser/previewRuntime";
 
-export function openDiscoveredPort<E>(input: {
+export async function openDiscoveredPort<E>(input: {
   readonly threadRef: ScopedThreadRef;
   readonly port: DiscoveredLocalServer;
   readonly openPreview: OpenPreviewMutation<E>;
 }): Promise<
   AtomCommandResult<void, E | BrowserSettingsReadError | RelayHostBrowserUnavailableError>
->;
-export async function openDiscoveredPort<E>(input: {
-  readonly threadRef: ScopedThreadRef;
-  readonly port: DiscoveredLocalServer;
-  readonly openPreview: OpenPreviewMutation<E>;
-}) {
+> {
   let resolvedUrl: string;
   try {
     resolvedUrl =
@@ -38,10 +33,7 @@ export async function openDiscoveredPort<E>(input: {
           });
   } catch (error) {
     if (error instanceof RelayHostBrowserUnavailableError)
-      return AsyncResult.failure(Cause.fail(error)) satisfies AtomCommandResult<
-        void,
-        E | BrowserSettingsReadError | RelayHostBrowserUnavailableError
-      >;
+      return AsyncResult.failure(Cause.fail(error));
     throw error;
   }
   const result = await openPreviewSession({
@@ -52,8 +44,5 @@ export async function openDiscoveredPort<E>(input: {
   return mapAtomCommandResult(result, (snapshot) => {
     recordVisitForThread(input.threadRef, input.port.url);
     useRightPanelStore.getState().openBrowser(input.threadRef, snapshot.tabId);
-  }) satisfies AtomCommandResult<
-    void,
-    E | BrowserSettingsReadError | RelayHostBrowserUnavailableError
-  >;
+  });
 }

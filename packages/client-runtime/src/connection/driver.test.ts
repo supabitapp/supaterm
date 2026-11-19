@@ -31,7 +31,7 @@ import {
 } from "./driver.ts";
 import * as ConnectionResolver from "./resolver.ts";
 
-function route(id: string, host: string) {
+function route(id: string, host: string): ConnectionRoute {
   const httpBaseUrl = host.startsWith("https://") ? host : `http://${host}/`;
   const target = new BearerConnectionTarget({
     connectionId: id,

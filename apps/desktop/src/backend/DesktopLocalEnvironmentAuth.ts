@@ -21,7 +21,7 @@ const BOOTSTRAP_TRANSIENT_RETRY_TIMEOUT = Duration.seconds(60);
 const BOOTSTRAP_TRANSIENT_RETRY_INTERVAL = Duration.millis(500);
 const TRANSIENT_BOOTSTRAP_STATUS_CODES = new Set([502, 503, 504]);
 
-const isTransientBearerBootstrapError = (error: RemoteEnvironmentRequestError) => {
+const isTransientBearerBootstrapError = (error: RemoteEnvironmentRequestError): boolean => {
   switch (error._tag) {
     case "RemoteEnvironmentAuthFetchError":
     case "RemoteEnvironmentAuthTimeoutError":
@@ -37,7 +37,7 @@ export class DesktopLocalEnvironmentAuthBackendNotConfiguredError extends Schema
   "DesktopLocalEnvironmentAuthBackendNotConfiguredError",
   {},
 ) {
-  override get message() {
+  override get message(): string {
     return "Local backend is not configured.";
   }
 }
@@ -46,7 +46,7 @@ export class DesktopLocalEnvironmentAuthSessionBootstrapError extends Schema.Tag
   "DesktopLocalEnvironmentAuthSessionBootstrapError",
   { cause: Schema.Defect() },
 ) {
-  override get message() {
+  override get message(): string {
     return "Failed to create the local desktop bearer session.";
   }
 }

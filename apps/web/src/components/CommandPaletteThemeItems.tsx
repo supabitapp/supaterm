@@ -25,7 +25,7 @@ export const APPEARANCE_OPTIONS = [
   { mode: "dark", label: "Dark", icon: MoonIcon },
 ] as const;
 
-export function notifyThemeSaveFailure() {
+export function notifyThemeSaveFailure(): void {
   toastManager.add(
     stackedThreadToast({
       type: "error",

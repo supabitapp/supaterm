@@ -80,15 +80,14 @@ describe("desktop-hosted preview session sync", () => {
     const listAtom = harness.lists.get(ref.threadId)!.atom;
     const listRequests = () => harness.lists.get(ref.threadId)!.requests;
     const isListMounted = () => appAtomRegistry.getNodes().has(listAtom);
-    const snapshot = (tabId: string) =>
-      ({
-        threadId: ref.threadId,
-        tabId,
-        navStatus: { _tag: "Idle" },
-        canGoBack: false,
-        canGoForward: false,
-        updatedAt: "2026-10-02T00:00:00.000Z",
-      }) satisfies PreviewSessionSnapshot;
+    const snapshot = (tabId: string): PreviewSessionSnapshot => ({
+      threadId: ref.threadId,
+      tabId,
+      navStatus: { _tag: "Idle" },
+      canGoBack: false,
+      canGoForward: false,
+      updatedAt: "2026-10-02T00:00:00.000Z",
+    });
     let revision = 0;
     const emit = (type: "opened" | "closed", tabId: string) =>
       act(async () => {

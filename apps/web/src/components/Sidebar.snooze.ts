@@ -19,7 +19,7 @@ export function resolveSnoozePresets(
   now: Date,
   timestampFormat: TimestampFormat,
   environmentId: EnvironmentId,
-) {
+): ReadonlyArray<SnoozePreset> {
   return resolveSharedSnoozePresets(now, snoozeOptions(timestampFormat, environmentId));
 }
 
@@ -29,7 +29,7 @@ export function pickSnoozePreset(
   id: string,
   timestampFormat: TimestampFormat,
   environmentId: EnvironmentId,
-) {
+): SnoozePreset | undefined {
   const picked = pickSharedSnoozePreset({
     shown,
     id,

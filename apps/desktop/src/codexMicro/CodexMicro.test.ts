@@ -49,15 +49,16 @@ const THREAD = {
   threadId: ThreadId.make("thread-1"),
 };
 
-const settings = (patch: Partial<CodexMicroSettings> = {}) =>
-  ({
-    ...DEFAULT_CLIENT_SETTINGS.codexMicro,
-    enabled: true,
-    autoDim: "off",
-    ...patch,
-  }) satisfies CodexMicroSettings;
+const settings = (patch: Partial<CodexMicroSettings> = {}): CodexMicroSettings => ({
+  ...DEFAULT_CLIENT_SETTINGS.codexMicro,
+  enabled: true,
+  autoDim: "off",
+  ...patch,
+});
 
-const modelWith = (slot: Partial<CodexMicroLightingModel["slots"][number]>) => ({
+const modelWith = (
+  slot: Partial<CodexMicroLightingModel["slots"][number]>,
+): CodexMicroLightingModel => ({
   ...EMPTY_LIGHTING_MODEL,
   slots: EMPTY_LIGHTING_MODEL.slots.map((empty, index) =>
     index === 0 ? { ...empty, ...slot } : empty,

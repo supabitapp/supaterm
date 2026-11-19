@@ -30,7 +30,7 @@ function aggregateCacheSummary(
     readonly recordCount: number;
     readonly payloadBytes: number;
   }>,
-) {
+): ClientCacheSummary {
   const environments = new Map<EnvironmentId, EnvironmentClientCacheSummary>();
   let recordCount = 0;
   let payloadBytes = 0;

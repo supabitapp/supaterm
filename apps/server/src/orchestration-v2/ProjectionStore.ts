@@ -126,7 +126,7 @@ export class ProjectionStoreApplyEventError extends Schema.TaggedError<Projectio
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Failed to apply orchestration projection event ${this.eventType}.`;
   }
 }
@@ -137,7 +137,7 @@ export class ProjectionStoreSetupError extends Schema.TaggedError<ProjectionStor
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return "Failed to initialize orchestration projection store.";
   }
 }
@@ -148,7 +148,7 @@ export class ProjectionStoreThreadNotFoundError extends Schema.TaggedError<Proje
     threadId: ThreadId,
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `No orchestration projection exists for thread ${this.threadId}.`;
   }
 }
@@ -160,7 +160,7 @@ export class ProjectionStoreReadError extends Schema.TaggedError<ProjectionStore
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Failed to read orchestration projection for thread ${this.threadId}.`;
   }
 }
@@ -818,7 +818,7 @@ export class ProjectionStoreV2 extends Context.Service<ProjectionStoreV2, Projec
 
 export const ORCHESTRATION_V2_PROJECTION_SCHEMA_VERSION = 2;
 
-function upsertById<T extends { readonly id: string }>(items: ReadonlyArray<T>, next: T) {
+function upsertById<T extends { readonly id: string }>(items: ReadonlyArray<T>, next: T): Array<T> {
   const index = items.findIndex((item) => item.id === next.id);
   if (index === -1) {
     return [...items, next];
@@ -833,7 +833,7 @@ function attributePendingBackgroundTasks(
   next: OrchestrationV2ProviderThread,
   previous: Pick<OrchestrationV2ProviderThread, "pendingBackgroundTasks"> | undefined,
   runId: OrchestrationV2DomainEvent["runId"],
-) {
+): OrchestrationV2ProviderThread {
   const tasks = next.pendingBackgroundTasks ?? [];
   if (tasks.every((task) => task.runId !== undefined)) return next;
   const known = new Map(
@@ -851,7 +851,7 @@ function attributePendingBackgroundTasks(
 function upsertProviderTurn(
   turns: ReadonlyArray<OrchestrationV2ProviderTurn>,
   next: OrchestrationV2ProviderTurn,
-) {
+): Array<OrchestrationV2ProviderTurn> {
   const current = turns.find((turn) => turn.id === next.id);
   return upsertById(turns, {
     ...next,
@@ -864,7 +864,7 @@ function upsertProviderTurn(
 function preserveRunRecordedFields(
   current: OrchestrationV2Run | undefined,
   next: OrchestrationV2Run,
-) {
+): OrchestrationV2Run {
   if (current === undefined) return next;
   return {
     ...next,
@@ -881,7 +881,7 @@ function preserveRunRecordedFields(
 function preserveCompletionDelivery(
   current: OrchestrationV2Subagent | undefined,
   next: OrchestrationV2Subagent,
-) {
+): OrchestrationV2Subagent {
   if (next.completionDelivery !== undefined || current?.completionDelivery === undefined) {
     return next;
   }
@@ -890,7 +890,7 @@ function preserveCompletionDelivery(
 
 export function emptyProjection(
   event: Extract<OrchestrationV2DomainEvent, { readonly type: "thread.created" }>,
-) {
+): OrchestrationV2ThreadProjection {
   return {
     thread: event.payload,
     runs: [],
@@ -916,7 +916,7 @@ export function emptyProjection(
 export function applyToProjection(
   projection: OrchestrationV2ThreadProjection,
   event: OrchestrationV2DomainEvent,
-) {
+): OrchestrationV2ThreadProjection {
   const base = {
     ...projection,
     thread: {
@@ -1197,16 +1197,15 @@ const shellIndexLineage = (row: {
   readonly parent_thread_id: string | null;
   readonly root_thread_id: string;
   readonly side_chat: number | null;
-}) =>
-  ({
-    parentThreadId: row.parent_thread_id === null ? null : ThreadId.make(row.parent_thread_id),
-    relationshipToParent:
-      row.relationship_to_parent === "fork" || row.relationship_to_parent === "subagent"
-        ? row.relationship_to_parent
-        : null,
-    rootThreadId: ThreadId.make(row.root_thread_id),
-    ...(row.side_chat === null ? {} : { sideChat: row.side_chat === 1 }),
-  }) satisfies OrchestrationV2ThreadShell["lineage"];
+}): OrchestrationV2ThreadShell["lineage"] => ({
+  parentThreadId: row.parent_thread_id === null ? null : ThreadId.make(row.parent_thread_id),
+  relationshipToParent:
+    row.relationship_to_parent === "fork" || row.relationship_to_parent === "subagent"
+      ? row.relationship_to_parent
+      : null,
+  rootThreadId: ThreadId.make(row.root_thread_id),
+  ...(row.side_chat === null ? {} : { sideChat: row.side_chat === 1 }),
+});
 
 const encodeIdList = Schema.encodeSync(Schema.fromJsonString(Schema.Array(Schema.String)));
 
@@ -1354,16 +1353,16 @@ const decodeContextTransferPayload = Schema.decodeUnknownEffect(
 const isProjectionStoreThreadNotFoundError = Schema.is(ProjectionStoreThreadNotFoundError);
 const isProjectionStoreReadError = Schema.is(ProjectionStoreReadError);
 
-function parseEncodedPayload(json: string) {
+function parseEncodedPayload(json: string): Record<string, unknown> {
   return JSON.parse(json) as Record<string, unknown>;
 }
 
-function stringField(payload: Record<string, unknown>, field: string) {
+function stringField(payload: Record<string, unknown>, field: string): string {
   const value = payload[field];
   return typeof value === "string" ? value : String(value);
 }
 
-function nullableStringField(payload: Record<string, unknown>, field: string) {
+function nullableStringField(payload: Record<string, unknown>, field: string): string | null {
   const value = payload[field];
   if (value === null || value === undefined) {
     return null;
@@ -1371,13 +1370,13 @@ function nullableStringField(payload: Record<string, unknown>, field: string) {
   return typeof value === "string" ? value : String(value);
 }
 
-function booleanInt(value: boolean) {
+function booleanInt(value: boolean): 0 | 1 {
   return value ? 1 : 0;
 }
 
 const decodeRows =
   <A, E>(decode: (json: string) => Effect.Effect<A, E>, threadId: ThreadId) =>
-  (rows: ReadonlyArray<PayloadRow>) =>
+  (rows: ReadonlyArray<PayloadRow>): Effect.Effect<Array<A>, ProjectionStoreReadError> =>
     Effect.forEach(rows, (row) => decode(row.payload_json)).pipe(
       Effect.mapError(
         (cause) =>
@@ -1388,7 +1387,7 @@ const decodeRows =
       ),
     );
 
-function messageIdForTurnItem(item: OrchestrationV2TurnItem) {
+function messageIdForTurnItem(item: OrchestrationV2TurnItem): string | null {
   switch (item.type) {
     case "user_message":
     case "assistant_message":
@@ -1402,7 +1401,7 @@ function sortMessagesByTurnItemOrder(
   messages: ReadonlyArray<OrchestrationV2ConversationMessage>,
   turnItems: ReadonlyArray<OrchestrationV2TurnItem>,
   messageOrdinals = new Map<string, number>(),
-) {
+): Array<OrchestrationV2ConversationMessage> {
   for (const turnItem of turnItems) {
     const messageId = messageIdForTurnItem(turnItem);
     if (messageId === null) {
@@ -1431,7 +1430,9 @@ function sortMessagesByTurnItemOrder(
   });
 }
 
-function activeLocalTurnItems(projection: OrchestrationV2ThreadProjection) {
+function activeLocalTurnItems(
+  projection: OrchestrationV2ThreadProjection,
+): Array<OrchestrationV2ProjectedTurnItem> {
   const isVisible = createOrchestrationV2TurnItemVisibility({
     runs: projection.runs,
     attempts: projection.attempts,
@@ -1446,11 +1447,15 @@ function activeLocalTurnItems(projection: OrchestrationV2ThreadProjection) {
   }));
 }
 
-function localVisibleTurnItems(projection: OrchestrationV2ThreadProjection) {
+function localVisibleTurnItems(
+  projection: OrchestrationV2ThreadProjection,
+): Array<OrchestrationV2ProjectedTurnItem> {
   return activeLocalTurnItems(projection);
 }
 
-function inheritedVisibleTurnItemsFromLocalItems(items: ReadonlyArray<OrchestrationV2TurnItem>) {
+function inheritedVisibleTurnItemsFromLocalItems(
+  items: ReadonlyArray<OrchestrationV2TurnItem>,
+): Array<Omit<OrchestrationV2ProjectedTurnItem, "position">> {
   return items.map((item) => ({
     visibility: "inherited" as const,
     sourceThreadId: item.threadId,
@@ -1459,7 +1464,9 @@ function inheritedVisibleTurnItemsFromLocalItems(items: ReadonlyArray<Orchestrat
   }));
 }
 
-function withLocalVisibleTurnItems(projection: OrchestrationV2ThreadProjection) {
+function withLocalVisibleTurnItems(
+  projection: OrchestrationV2ThreadProjection,
+): OrchestrationV2ThreadProjection {
   return {
     ...projection,
     visibleTurnItems: localVisibleTurnItems(projection),
@@ -1469,7 +1476,7 @@ function withLocalVisibleTurnItems(projection: OrchestrationV2ThreadProjection) 
 function renumberVisibleTurnItems(
   rows: ReadonlyArray<Omit<OrchestrationV2ProjectedTurnItem, "position">>,
   offset = 0,
-) {
+): Array<OrchestrationV2ProjectedTurnItem> {
   return rows.map((row, position) => ({ ...row, position: position + offset }));
 }
 
@@ -1477,7 +1484,7 @@ function makeForkMarkerTurnItem(input: {
   readonly targetProjection: Pick<OrchestrationV2ThreadProjection, "thread">;
   readonly sourceThreadId: ThreadId;
   readonly sourceRunId: NonNullable<OrchestrationV2TurnItem["runId"]>;
-}) {
+}): Extract<OrchestrationV2TurnItem, { type: "fork" }> {
   const createdAt = input.targetProjection.thread.createdAt;
   return {
     id: TurnItemId.make(`turn-item:fork:${input.targetProjection.thread.id}`),
@@ -1496,7 +1503,7 @@ function makeForkMarkerTurnItem(input: {
     type: "fork",
     source: { type: "run", threadId: input.sourceThreadId, runId: input.sourceRunId },
     targetThreadId: input.targetProjection.thread.id,
-  } satisfies Extract<OrchestrationV2TurnItem, { type: "fork" }>;
+  };
 }
 
 function isTurnItemAtOrBeforeRun(input: {
@@ -1504,7 +1511,7 @@ function isTurnItemAtOrBeforeRun(input: {
   readonly itemRunId: OrchestrationV2TurnItem["runId"];
   readonly runOrdinalById: ReadonlyMap<NonNullable<OrchestrationV2TurnItem["runId"]>, number>;
   readonly sourceRunOrdinal: number;
-}) {
+}): boolean {
   if (input.itemRunId === null) {
     return input.historyOrigin === "v1_import";
   }
@@ -1536,14 +1543,17 @@ function runRolledBackAt(run: Pick<OrchestrationV2Run, "status" | "completedAt">
   return run.status === "rolled_back" ? run.completedAt : null;
 }
 
-function isRolledBackBeforeFork(rolledBackAt: DateTime.Utc | null, forkCreatedAt: DateTime.Utc) {
+function isRolledBackBeforeFork(
+  rolledBackAt: DateTime.Utc | null,
+  forkCreatedAt: DateTime.Utc,
+): boolean {
   return rolledBackAt !== null && DateTime.isLessThan(rolledBackAt, forkCreatedAt);
 }
 
 export function forkInheritedRunOrdinals(
   runs: ReadonlyArray<OrchestrationV2Run>,
   forkCreatedAt: DateTime.Utc,
-) {
+): Map<RunId, number> {
   return new Map(
     runs.flatMap((run) =>
       isRolledBackBeforeFork(runRolledBackAt(run), forkCreatedAt)
@@ -1557,7 +1567,7 @@ function visibleTurnItemsThroughRun(input: {
   readonly sourceProjection: OrchestrationV2ThreadProjection;
   readonly sourceRunId: NonNullable<OrchestrationV2TurnItem["runId"]>;
   readonly forkCreatedAt: DateTime.Utc;
-}) {
+}): Array<Omit<OrchestrationV2ProjectedTurnItem, "position">> {
   const sourceRun = input.sourceProjection.runs.find((run) => run.id === input.sourceRunId);
   if (sourceRun === undefined) {
     return [];
@@ -1605,7 +1615,7 @@ function buildVisibleTurnItems(input: {
   readonly projection: OrchestrationV2ThreadProjection;
   readonly sourceProjection: OrchestrationV2ThreadProjection | null;
   readonly inheritedRowCount?: number;
-}) {
+}): Array<OrchestrationV2ProjectedTurnItem> {
   const forkedFrom = inheritedRunFork(input.projection.thread);
   if (
     forkedFrom === null ||
@@ -1651,7 +1661,7 @@ function buildVisibleTurnItems(input: {
 
 function pendingRuntimeRequestSummary(
   request: OrchestrationV2ThreadProjection["runtimeRequests"][number] | null,
-) {
+): OrchestrationV2PendingRuntimeRequestSummary | null {
   if (request === null) return null;
   return {
     id: request.id,
@@ -1661,16 +1671,17 @@ function pendingRuntimeRequestSummary(
   };
 }
 
-function secretRequestAsPendingInput(item: OrchestrationV2TurnItem | null) {
-  if (item?.type !== "secret_request" || item.nodeId === null)
-    return null satisfies OrchestrationV2PendingRuntimeRequestSummary | null;
+function secretRequestAsPendingInput(
+  item: OrchestrationV2TurnItem | null,
+): OrchestrationV2PendingRuntimeRequestSummary | null {
+  if (item?.type !== "secret_request" || item.nodeId === null) return null;
   return {
     id: RuntimeRequestId.make(item.id),
     kind: "user_input",
     createdAt: item.startedAt ?? item.updatedAt,
     blocking: true,
     userOnly: true,
-  } satisfies OrchestrationV2PendingRuntimeRequestSummary | null;
+  };
 }
 
 const waitsOnUser = (item: OrchestrationV2TurnItem, liveRunIds: ReadonlySet<RunId>) =>
@@ -1678,8 +1689,7 @@ const waitsOnUser = (item: OrchestrationV2TurnItem, liveRunIds: ReadonlySet<RunI
 
 export function threadShellFromProjection(
   projection: OrchestrationV2ThreadProjection,
-): OrchestrationV2ThreadShell;
-export function threadShellFromProjection(projection: OrchestrationV2ThreadProjection) {
+): OrchestrationV2ThreadShell {
   const providerSession =
     projection.providerSessions
       .filter((session) => session.providerInstanceId === projection.thread.providerInstanceId)
@@ -1849,7 +1859,7 @@ export function threadShellFromProjection(projection: OrchestrationV2ThreadProje
     lastTitleRegeneration: projection.thread.lastTitleRegeneration ?? null,
     limitRecovery: projection.thread.limitRecovery ?? null,
     deletedAt: projection.thread.deletedAt,
-  } satisfies OrchestrationV2ThreadShell;
+  };
 }
 
 function providerInstanceHistoryForShell(input: {
@@ -1857,13 +1867,7 @@ function providerInstanceHistoryForShell(input: {
   readonly providerThreads: ReadonlyArray<
     OrchestrationV2ThreadProjection["providerThreads"][number]
   >;
-}): ReadonlyArray<ProviderInstanceId>;
-function providerInstanceHistoryForShell(input: {
-  readonly threadId: ThreadId;
-  readonly providerThreads: ReadonlyArray<
-    OrchestrationV2ThreadProjection["providerThreads"][number]
-  >;
-}) {
+}): ReadonlyArray<ProviderInstanceId> {
   const history: Array<ProviderInstanceId> = [];
   for (const providerThread of input.providerThreads
     .filter((thread) => thread.appThreadId === input.threadId && thread.ownerNodeId === null)
@@ -1876,19 +1880,14 @@ function providerInstanceHistoryForShell(input: {
       history.push(providerThread.providerInstanceId);
     }
   }
-  return history satisfies ReadonlyArray<ProviderInstanceId>;
+  return history;
 }
 
 function activeProviderGoalForShell(
   providerThreads: ReadonlyArray<OrchestrationV2ThreadProjection["providerThreads"][number]>,
   activeProviderThreadId: OrchestrationV2ThreadProjection["thread"]["activeProviderThreadId"],
-): OrchestrationV2ThreadShell["goal"];
-function activeProviderGoalForShell(
-  providerThreads: ReadonlyArray<OrchestrationV2ThreadProjection["providerThreads"][number]>,
-  activeProviderThreadId: OrchestrationV2ThreadProjection["thread"]["activeProviderThreadId"],
-) {
-  return (providerThreads.find((thread) => thread.id === activeProviderThreadId)?.goal ??
-    null) satisfies OrchestrationV2ThreadShell["goal"];
+): OrchestrationV2ThreadShell["goal"] {
+  return providerThreads.find((thread) => thread.id === activeProviderThreadId)?.goal ?? null;
 }
 
 const BACKGROUND_WAKE_SOURCE_KINDS = new Set(["background_task", "command", "monitor"]);
@@ -1896,7 +1895,7 @@ const BACKGROUND_WAKE_SOURCE_KINDS = new Set(["background_task", "command", "mon
 function isBackgroundWakeRunForShell(
   run: OrchestrationV2ThreadProjection["runs"][number],
   projection: Pick<OrchestrationV2ThreadProjection, "messages">,
-) {
+): boolean {
   const message = projection.messages.find((candidate) => candidate.id === run.userMessageId);
   return (
     message?.delegatedCompletion === undefined &&
@@ -1908,7 +1907,7 @@ function isBackgroundWakeRunForShell(
   );
 }
 
-function isInterruptibleRunForShell(run: OrchestrationV2ThreadProjection["runs"][number]) {
+function isInterruptibleRunForShell(run: OrchestrationV2ThreadProjection["runs"][number]): boolean {
   return isOrchestrationV2RunInterruptible(run.status);
 }
 
@@ -1925,11 +1924,7 @@ type ShellWorkSession = { readonly workStartedAt: number; readonly completedAt: 
 function completedWorkMsForShell(
   runs: Iterable<ShellWorkSession>,
   activityRun: { readonly status: string | null; readonly workStartedAt: number | null },
-): number;
-function completedWorkMsForShell(
-  runs: Iterable<ShellWorkSession>,
-  activityRun: { readonly status: string | null; readonly workStartedAt: number | null },
-) {
+): number {
   const sessionEnds = new Map<number, number>();
   for (const run of runs) {
     sessionEnds.set(
@@ -1943,7 +1938,7 @@ function completedWorkMsForShell(
   }
   let total = 0;
   for (const [start, end] of sessionEnds) total += Math.max(0, end - start);
-  return total satisfies number;
+  return total;
 }
 
 type ShellThreadState = {
@@ -1978,11 +1973,10 @@ type ShellThreadState = {
   readonly itemCountByRunId: ReadonlyMap<RunId, number>;
 };
 
-function shellStatusFromStoredRunStatus(status: string | null): OrchestrationV2ShellThreadStatus;
-function shellStatusFromStoredRunStatus(status: string | null) {
+function shellStatusFromStoredRunStatus(status: string | null): OrchestrationV2ShellThreadStatus {
   switch (status) {
     case null:
-      return "idle" satisfies OrchestrationV2ShellThreadStatus;
+      return "idle";
     case "preparing":
     case "queued":
     case "starting":
@@ -1993,9 +1987,9 @@ function shellStatusFromStoredRunStatus(status: string | null) {
     case "failed":
     case "cancelled":
     case "rolled_back":
-      return status satisfies OrchestrationV2ShellThreadStatus;
+      return status;
     default:
-      return "failed" satisfies OrchestrationV2ShellThreadStatus;
+      return "failed";
   }
 }
 
@@ -2003,7 +1997,7 @@ function itemCountThroughRun(input: {
   readonly state: ShellThreadState;
   readonly runId: RunId;
   readonly forkCreatedAt: DateTime.Utc;
-}) {
+}): number {
   const runOrdinal = input.state.runsById.get(input.runId)?.ordinal;
   if (runOrdinal === undefined) {
     return 0;
@@ -2025,7 +2019,7 @@ function itemCountThroughRun(input: {
 
 function shellForkSourceIds(
   rows: ReadonlyArray<{ readonly forked_from_run_source_thread_id: string | null }>,
-) {
+): ReadonlyArray<ThreadId> {
   return [
     ...new Set(
       rows.flatMap((row) =>
@@ -2041,30 +2035,25 @@ function visibleItemCountForShell(input: {
   readonly threadId: ThreadId;
   readonly statesByThreadId: ReadonlyMap<ThreadId, ShellThreadState>;
   readonly seenThreadIds?: ReadonlySet<ThreadId>;
-}): number;
-function visibleItemCountForShell(input: {
-  readonly threadId: ThreadId;
-  readonly statesByThreadId: ReadonlyMap<ThreadId, ShellThreadState>;
-  readonly seenThreadIds?: ReadonlySet<ThreadId>;
-}) {
+}): number {
   const state = input.statesByThreadId.get(input.threadId);
   if (state === undefined) {
-    return 0 satisfies number;
+    return 0;
   }
 
   const forkedFrom = inheritedRunFork(state.thread);
   if (forkedFrom === null) {
-    return state.itemCount satisfies number;
+    return state.itemCount;
   }
 
   const seenThreadIds = input.seenThreadIds ?? new Set<ThreadId>();
   if (seenThreadIds.has(state.thread.id)) {
-    return state.itemCount satisfies number;
+    return state.itemCount;
   }
 
   const sourceState = input.statesByThreadId.get(forkedFrom.threadId);
   if (sourceState === undefined) {
-    return state.itemCount satisfies number;
+    return state.itemCount;
   }
 
   const inheritedPrefixCount =
@@ -2076,24 +2065,22 @@ function visibleItemCountForShell(input: {
         }) - sourceState.itemCount
       : 0;
 
-  return (inheritedPrefixCount +
+  return (
+    inheritedPrefixCount +
     itemCountThroughRun({
       state: sourceState,
       runId: forkedFrom.runId,
       forkCreatedAt: state.thread.createdAt,
     }) +
     1 +
-    state.itemCount) satisfies number;
+    state.itemCount
+  );
 }
 
 function shellFromState(input: {
   readonly state: ShellThreadState;
   readonly visibleItemCount: number;
-}): OrchestrationV2ThreadShell;
-function shellFromState(input: {
-  readonly state: ShellThreadState;
-  readonly visibleItemCount: number;
-}) {
+}): OrchestrationV2ThreadShell {
   return {
     createdBy: input.state.thread.createdBy,
     creationSource: input.state.thread.creationSource,
@@ -2166,7 +2153,7 @@ function shellFromState(input: {
     lastTitleRegeneration: input.state.thread.lastTitleRegeneration ?? null,
     limitRecovery: input.state.thread.limitRecovery ?? null,
     deletedAt: input.state.thread.deletedAt,
-  } satisfies OrchestrationV2ThreadShell;
+  };
 }
 
 const INLINE_WORK_OUTPUT = new RegExp(
@@ -6771,7 +6758,7 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
         }
         WHERE item.thread_id = ${threadId} ${where}
         ORDER BY item.ordinal ASC, item.turn_item_id ASC ${limit}`;
-      return rows.map((row) => ({
+      return rows.map((row): TimelineIndexItem => ({
         id: TurnItemId.make(row.turn_item_id),
         threadId,
         runId: row.run_id === null ? null : RunId.make(row.run_id),
@@ -6789,13 +6776,12 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
         ...(row.message_id === null ? {} : { messageId: MessageId.make(row.message_id) }),
       }));
     });
-    const localTimelineRow = (item: TimelineIndexItem) =>
-      ({
-        sourceThreadId: item.threadId,
-        sourceItemId: item.id,
-        visibility: "local",
-        item,
-      }) satisfies TimelineIndexRow;
+    const localTimelineRow = (item: TimelineIndexItem): TimelineIndexRow => ({
+      sourceThreadId: item.threadId,
+      sourceItemId: item.id,
+      visibility: "local",
+      item,
+    });
 
     const openLocalTimeline = Effect.fn("ProjectionStore.openLocalTimeline")(function* (
       threadId: ThreadId,
@@ -7025,11 +7011,11 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
           from: number | null,
         ) {
           let position = from === null ? 0 : yield* local.visibleBefore(from);
-          return items.flatMap((item) => {
-            if (!local.isVisible(item)) return [] satisfies ReadonlyArray<IndexedTimelineRow>;
+          return items.flatMap((item): ReadonlyArray<IndexedTimelineRow> => {
+            if (!local.isVisible(item)) return [];
             const row = { ...localTimelineRow(item), position, canonicalPosition: position };
             position += 1;
-            return [row] satisfies ReadonlyArray<IndexedTimelineRow>;
+            return [row];
           });
         });
         const isCursorRow = (row: TimelineIndexRow) => row.sourceItemId === cursor.si;
@@ -7228,7 +7214,7 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
                   );
             const whole = Effect.gen(function* () {
               const index = full ?? (yield* readSnapshotTimelineIndex(threadId, withWork));
-              const indexed = index.visible.map((row, position) => ({
+              const indexed = index.visible.map((row, position): IndexedTimelineRow => ({
                 ...row,
                 position,
                 canonicalPosition: position,
@@ -8298,7 +8284,7 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
         `;
           return yield* Effect.forEach(rows, (row) =>
             decodeThreadPayload(row.payload_json).pipe(
-              Effect.map((thread) => ({
+              Effect.map((thread): ProjectionThreadPullRequests => ({
                 id: thread.id,
                 projectId: thread.projectId,
                 lineage: thread.lineage,
@@ -8755,24 +8741,18 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
           AND t.archived_at IS NULL
         ORDER BY t.updated_at ASC, t.thread_id ASC
       `;
-      return rows.map(
-        (row) =>
-          ({
-            id: ThreadId.make(row.thread_id),
-            projectId: ProjectId.make(row.project_id),
-            lineage: shellIndexLineage(row),
-            doneOverride:
-              row.done_override === "done" || row.done_override === "active"
-                ? row.done_override
-                : null,
-            doneAt: row.done_at === null ? null : DateTime.makeUnsafe(row.done_at),
-            pinnedAt: row.pinned_at === null ? null : DateTime.makeUnsafe(row.pinned_at),
-            pinOrderKey: row.pin_order_key,
-            snoozedUntil:
-              row.snoozed_until === null ? null : DateTime.makeUnsafe(row.snoozed_until),
-            mayBeLive: row.may_be_live === 1,
-          }) satisfies ActiveShellIndexEntry,
-      );
+      return rows.map((row): ActiveShellIndexEntry => ({
+        id: ThreadId.make(row.thread_id),
+        projectId: ProjectId.make(row.project_id),
+        lineage: shellIndexLineage(row),
+        doneOverride:
+          row.done_override === "done" || row.done_override === "active" ? row.done_override : null,
+        doneAt: row.done_at === null ? null : DateTime.makeUnsafe(row.done_at),
+        pinnedAt: row.pinned_at === null ? null : DateTime.makeUnsafe(row.pinned_at),
+        pinOrderKey: row.pin_order_key,
+        snoozedUntil: row.snoozed_until === null ? null : DateTime.makeUnsafe(row.snoozed_until),
+        mayBeLive: row.may_be_live === 1,
+      }));
     }, Effect.mapError(shellSnapshotReadError));
 
     const listActiveThreads = Effect.fn("ProjectionStore.listActiveThreads")(function* (
@@ -8807,23 +8787,17 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
         WHERE t.deleted_at IS NULL
           AND t.archived_at IS NULL${projectId === undefined ? sql`` : sql` AND t.project_id = ${projectId}`}
       `;
-      return rows.map(
-        (row) =>
-          ({
-            id: ThreadId.make(row.thread_id),
-            projectId: ProjectId.make(row.project_id),
-            title: row.title,
-            lineage: shellIndexLineage(row),
-            doneOverride:
-              row.done_override === "done" || row.done_override === "active"
-                ? row.done_override
-                : null,
-            doneAt: row.done_at === null ? null : DateTime.makeUnsafe(row.done_at),
-            snoozedUntil:
-              row.snoozed_until === null ? null : DateTime.makeUnsafe(row.snoozed_until),
-            updatedAt: DateTime.makeUnsafe(row.updated_at),
-          }) satisfies ActiveThreadListEntry,
-      );
+      return rows.map((row): ActiveThreadListEntry => ({
+        id: ThreadId.make(row.thread_id),
+        projectId: ProjectId.make(row.project_id),
+        title: row.title,
+        lineage: shellIndexLineage(row),
+        doneOverride:
+          row.done_override === "done" || row.done_override === "active" ? row.done_override : null,
+        doneAt: row.done_at === null ? null : DateTime.makeUnsafe(row.done_at),
+        snoozedUntil: row.snoozed_until === null ? null : DateTime.makeUnsafe(row.snoozed_until),
+        updatedAt: DateTime.makeUnsafe(row.updated_at),
+      }));
     }, Effect.mapError(shellSnapshotReadError));
 
     const getThreadLinkMetadata = Effect.fn("ProjectionStore.getThreadLinkMetadata")(function* (
@@ -8997,7 +8971,7 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
       <Args extends ReadonlyArray<unknown>, A, E, R>(
         method: (...args: Args) => Effect.Effect<A, E, R>,
       ) =>
-      (...args: Args) =>
+      (...args: Args): Effect.Effect<A, E, R> =>
         method(...args).pipe(NodeSqliteClient.readOnly);
 
     return {

@@ -1,6 +1,6 @@
 import { parseMarkdownDocument, type MarkdownNode } from "./markdownDocument";
 
-export function markdownImageSources(markdown: string) {
+export function markdownImageSources(markdown: string): string[] {
   if (!markdown.includes("![") && !/<img[\s>]/i.test(markdown)) return [];
   const sources = new Set<string>();
   const visit = (node: MarkdownNode) => {

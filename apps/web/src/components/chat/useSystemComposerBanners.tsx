@@ -167,7 +167,7 @@ export function useSystemComposerBanners(input: SystemComposerBannersInput) {
   const serverUpdateFailureDismissed =
     serverUpdateState === dismissedServerUpdateState ||
     isServerUpdateFailureDismissed(serverUpdateState);
-  return (() => {
+  return ((): ComposerBannerStackItem[] => {
     const items: ComposerBannerStackItem[] = [];
     const updateRunning = serverUpdateState.status === "running";
     const unavailableConnection = activeEnvironmentUnavailableState?.connection ?? null;

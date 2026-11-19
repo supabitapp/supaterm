@@ -24,7 +24,7 @@ export interface SecretRequestInput {
 
 export function secretRequestInputs(
   item: Pick<SecretRequestItem, "label" | "placeholder" | "fields">,
-) {
+): ReadonlyArray<SecretRequestInput> {
   if (item.fields === undefined) {
     return [
       {
@@ -49,7 +49,7 @@ export const secretRequestValue = (values: Readonly<Record<string, string>>, key
 
 const REASON_LINK =
   /`(https?:\/\/[^`\s]+)`|<(https?:\/\/[^>\s]+)>|\]\((https?:\/\/(?:[^()\s]|\([^()\s]*\))+)\)|(https?:\/\/[^\s<>"'`[\]]+)/giu;
-function trimPunctuation(link: string) {
+function trimPunctuation(link: string): string {
   let end = link.length;
   while (end > 0 && ".,;:!?)".includes(link[end - 1]!)) {
     const kept = link.slice(0, end);
@@ -71,7 +71,7 @@ function trimEmphasis(link: string, before: string) {
   return closed ? link : trimPunctuation(link.slice(0, -run.length));
 }
 
-function reasonLink(reason: string) {
+function reasonLink(reason: string): string | undefined {
   const raw = Array.from(reason.matchAll(REASON_LINK), (match) => {
     const [, ticked, angled, target, bare] = match;
     if (bare === undefined) return ticked ?? angled ?? target ?? "";
@@ -136,7 +136,7 @@ const PENDING_ELSEWHERE_DISPLAY: SecretRequestDisplay = {
 export function secretRequestDisplay(
   item: Pick<SecretRequestItem, "secretStatus" | "timedOut">,
   visibility: "local" | "inherited" | "synthetic",
-) {
+): SecretRequestDisplay {
   switch (item.secretStatus) {
     case "pending":
       return visibility === "local" ? PENDING_DISPLAY : PENDING_ELSEWHERE_DISPLAY;
@@ -157,25 +157,17 @@ export type SecretRequestReply =
 export function secretRequestAnswerInput(
   item: Pick<SecretRequestItem, "id" | "threadId" | "label" | "placeholder" | "fields">,
   answer: SecretRequestReply,
-) {
+): SecretRequestAnswerInput | null {
   const base = { threadId: item.threadId, turnItemId: item.id };
-  if (answer.type === "decline")
-    return { ...base, answer: { type: "decline" } } satisfies SecretRequestAnswerInput | null;
+  if (answer.type === "decline") return { ...base, answer: { type: "decline" } };
   const entries = secretRequestInputs(item).map(
     (input) => [input.key, secretRequestValue(answer.values, input.key)] as const,
   );
-  if (entries.some(([, value]) => value.trim().length === 0))
-    return null satisfies SecretRequestAnswerInput | null;
+  if (entries.some(([, value]) => value.trim().length === 0)) return null;
   if (item.fields === undefined) {
-    return {
-      ...base,
-      answer: { type: "save", secret: entries[0]?.[1] ?? "" },
-    } satisfies SecretRequestAnswerInput | null;
+    return { ...base, answer: { type: "save", secret: entries[0]?.[1] ?? "" } };
   }
-  return {
-    ...base,
-    answer: { type: "save", values: Object.fromEntries(entries) },
-  } satisfies SecretRequestAnswerInput | null;
+  return { ...base, answer: { type: "save", values: Object.fromEntries(entries) } };
 }
 
 const USER_FACING_FAILURE_TAGS = new Set(["SecretRequestError", "EnvironmentAuthorizationError"]);
@@ -184,7 +176,7 @@ const USER_FACING_FAILURE_TAGS = new Set(["SecretRequestError", "EnvironmentAuth
  * Only known server errors pass their message through: anything else (transport or encoding
  * failures) gets the generic copy, so the typed value can never surface in the UI.
  */
-export function secretRequestFailureMessage(failure: unknown) {
+export function secretRequestFailureMessage(failure: unknown): string {
   if (
     typeof failure === "object" &&
     failure !== null &&

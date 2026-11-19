@@ -39,7 +39,7 @@ const macApplicationSupport = (
   ...segments: ReadonlyArray<string>
 ) => context.path.join(context.home, "Library", "Application Support", ...segments);
 
-const chromiumSource: (input: {
+const chromiumSource = (input: {
   readonly id: BrowserImportSourceId;
   readonly name: string;
   readonly keychainService: string;
@@ -48,16 +48,7 @@ const chromiumSource: (input: {
   readonly linuxSegments?: ReadonlyArray<string>;
   readonly linuxSecretApplication?: string;
   readonly windowsSegments?: ReadonlyArray<string>;
-}) => BrowserImportSourceDefinition = (input: {
-  readonly id: BrowserImportSourceId;
-  readonly name: string;
-  readonly keychainService: string;
-  readonly keychainAccount: string;
-  readonly macSegments: ReadonlyArray<string>;
-  readonly linuxSegments?: ReadonlyArray<string>;
-  readonly linuxSecretApplication?: string;
-  readonly windowsSegments?: ReadonlyArray<string>;
-}) => ({
+}): BrowserImportSourceDefinition => ({
   id: input.id,
   name: input.name,
   engine: "chromium",
@@ -209,7 +200,7 @@ const cookieDatabaseCandidatePaths = (
   definition: BrowserImportSourceDefinition,
   context: BrowserImportPathContext,
   profileDirectory: string,
-) => {
+): ReadonlyArray<string> => {
   const root = definition.userDataDirectory(context);
   if (root === undefined) return [];
   const profilePath = context.path.isAbsolute(profileDirectory)
@@ -239,7 +230,11 @@ export const resolveCookieDatabase = Effect.fnUntraced(function* (
 });
 
 /** Install* sections select defaults, not profiles; only ProfileN blocks describe profiles. */
-export function parseFirefoxProfiles(ini: string, path: Path.Path, root: string) {
+export function parseFirefoxProfiles(
+  ini: string,
+  path: Path.Path,
+  root: string,
+): ReadonlyArray<BrowserImportSourceProfile> {
   const profiles: BrowserImportSourceProfile[] = [];
   let current: { name?: string; path?: string; isRelative?: string } | null = null;
 
@@ -325,7 +320,7 @@ const LocalState = Schema.Struct({
 });
 const decodeLocalState = Schema.decodeUnknownEffect(Schema.fromJsonString(LocalState));
 
-const isSafeProfileDirectory = (directory: string) =>
+const isSafeProfileDirectory = (directory: string): boolean =>
   directory.length > 0 &&
   directory !== "." &&
   directory !== ".." &&
@@ -339,7 +334,7 @@ const countProfileCookies = Effect.fnUntraced(function* (
   definition: BrowserImportSourceDefinition,
   context: BrowserImportPathContext,
   directory: string,
-) {
+): Effect.fn.Return<number | undefined, never, FileSystem.FileSystem> {
   const database = yield* resolveCookieDatabase(definition, context, directory);
   if (database === undefined) return undefined;
   return yield* Effect.gen(function* () {
@@ -433,7 +428,7 @@ const listSafariProfiles = Effect.fnUntraced(function* (
 const listSourceProfilesInDirectory = Effect.fnUntraced(function* (
   definition: BrowserImportSourceDefinition,
   context: BrowserImportPathContext,
-) {
+): Effect.fn.Return<ReadonlyArray<BrowserImportSourceProfile>, never, FileSystem.FileSystem> {
   const fileSystem = yield* FileSystem.FileSystem;
   const root = definition.userDataDirectory(context);
   if (root === undefined) return [];
@@ -510,7 +505,7 @@ const listSourceProfilesInDirectory = Effect.fnUntraced(function* (
 export const listSourceProfiles = Effect.fn("BrowserImportSources.listSourceProfiles")(function* (
   definition: BrowserImportSourceDefinition,
   context: BrowserImportPathContext,
-) {
+): Effect.fn.Return<ReadonlyArray<BrowserImportSourceProfile>, never, FileSystem.FileSystem> {
   if (definition.engine !== "firefox" || context.platform !== "linux") {
     return yield* listSourceProfilesInDirectory(definition, context);
   }
@@ -580,7 +575,8 @@ export const chromiumSingletonLockIsHeld = Effect.fnUntraced(function* (
   return yield* isProcessAlive(pid);
 });
 
-const isWindowsLockHeldError = (error: PlatformError.PlatformError) => error.reason._tag === "Busy";
+const isWindowsLockHeldError = (error: PlatformError.PlatformError): boolean =>
+  error.reason._tag === "Busy";
 
 const windowsLockIsHeld = Effect.fnUntraced(function* (lockPath: string) {
   const fileSystem = yield* FileSystem.FileSystem;
@@ -693,7 +689,11 @@ const firefoxProfileIsHeld = Effect.fnUntraced(function* (
 export const isSourceRunning = Effect.fn("BrowserImportSources.isSourceRunning")(function* (
   definition: BrowserImportSourceDefinition,
   context: BrowserImportPathContext,
-) {
+): Effect.fn.Return<
+  boolean,
+  never,
+  FileSystem.FileSystem | ChildProcessSpawner.ChildProcessSpawner
+> {
   const fileSystem = yield* FileSystem.FileSystem;
   const root = definition.userDataDirectory(context);
   if (root === undefined) return false;
@@ -726,7 +726,7 @@ export const isSourceRunning = Effect.fn("BrowserImportSources.isSourceRunning")
 export const isSourceInstalled = Effect.fn("BrowserImportSources.isSourceInstalled")(function* (
   definition: BrowserImportSourceDefinition,
   context: BrowserImportPathContext,
-) {
+): Effect.fn.Return<boolean, never, FileSystem.FileSystem> {
   const profiles = yield* listSourceProfiles(definition, context);
   const found = yield* Effect.forEach(profiles, (profile) =>
     resolveCookieDatabase(definition, context, profile.directory).pipe(

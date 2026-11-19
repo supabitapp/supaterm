@@ -43,9 +43,9 @@ type ProviderInstanceRegistryHydrationEnv =
   | PortScanner.PortDiscovery
   | SqlClient.SqlClient;
 
-export const deriveProviderInstanceConfigMap: (
+export const deriveProviderInstanceConfigMap = (
   settings: ServerSettings,
-) => ProviderInstanceConfigMap = (settings: ServerSettings) => {
+): ProviderInstanceConfigMap => {
   const merged: Record<string, ProviderInstanceConfig> = { ...settings.providerInstances };
 
   for (const driver of BUILT_IN_DRIVERS) {

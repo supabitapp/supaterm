@@ -22,7 +22,7 @@ export type YamlStringifyOptions = DocumentOptions &
   CreateNodeOptions &
   ToStringOptions;
 
-function formatYamlParseError(error: unknown) {
+function formatYamlParseError(error: unknown): string {
   if (!(error instanceof YAMLParseError)) {
     return "Invalid YAML.";
   }
@@ -32,7 +32,7 @@ function formatYamlParseError(error: unknown) {
   return `Invalid YAML (code=${error.code}${location}).`;
 }
 
-function parseYaml<E extends string>(options?: YamlParseOptions) {
+function parseYaml<E extends string>(options?: YamlParseOptions): SchemaGetter.Getter<unknown, E> {
   return SchemaGetter.transformEffect((input: E) =>
     Effect.try({
       try: () => parseYamlString(input, options) as unknown,
@@ -41,7 +41,7 @@ function parseYaml<E extends string>(options?: YamlParseOptions) {
   );
 }
 
-function stringifyYaml(options?: YamlStringifyOptions) {
+function stringifyYaml(options?: YamlStringifyOptions): SchemaGetter.Getter<string, unknown> {
   return SchemaGetter.transformEffect((input: unknown) =>
     Effect.try({
       try: () => stringifyYamlValue(input, options),

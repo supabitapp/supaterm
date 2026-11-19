@@ -41,7 +41,9 @@ const THREAD_ID = ThreadId.make("thread-1");
 
 const testCrypto = SecureRandom.make((size) => new Uint8Array(size).fill(7));
 
-const invocation = (capabilities: ReadonlyArray<McpInvocationContext.McpCapability>) => ({
+const invocation = (
+  capabilities: ReadonlyArray<McpInvocationContext.McpCapability>,
+): McpInvocationContext.McpInvocationScope => ({
   environmentId: EnvironmentId.make("environment-1"),
   requestNamespace: "provider-session-1",
   thread: {
@@ -67,7 +69,7 @@ function makeProject(
     owner: "supabitapp",
     name: "supaterm",
   },
-) {
+): OrchestrationProjectShell {
   return {
     id: PROJECT_ID,
     title: "Project",
@@ -80,7 +82,7 @@ function makeProject(
   };
 }
 
-function makeThread(pullRequests: ReadonlyArray<ThreadPullRequestLink>) {
+function makeThread(pullRequests: ReadonlyArray<ThreadPullRequestLink>): PullRequestTestThread {
   return {
     id: THREAD_ID,
     projectId: PROJECT_ID,
@@ -97,7 +99,7 @@ function makeThread(pullRequests: ReadonlyArray<ThreadPullRequestLink>) {
     doneOverride: null,
     doneAt: null,
     latestUserMessageAt: "2026-08-20T00:00:00.000Z",
-  } satisfies PullRequestTestThread;
+  };
 }
 
 function makeLink(
@@ -106,7 +108,7 @@ function makeLink(
     readonly headBranch?: string;
     readonly baseBranch?: string;
   } = {},
-) {
+): ThreadPullRequestLink {
   const { headBranch, baseBranch, ...rest } = overrides;
   return {
     host: "github.com",
@@ -129,7 +131,7 @@ function makeLink(
           },
     stack: null,
     ...rest,
-  } satisfies ThreadPullRequestLink;
+  };
 }
 
 interface HarnessOptions {

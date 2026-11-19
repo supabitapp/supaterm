@@ -105,7 +105,7 @@ const PROMPT_REFUSAL_TAGS = [
   "ClaudeMcpRegistrationTimeoutError",
 ] as const;
 
-const refusedBeforePrompt: (error: unknown) => boolean = (error: unknown) =>
+const refusedBeforePrompt = (error: unknown): boolean =>
   PROMPT_REFUSAL_TAGS.some((tag) => Predicate.isTagged(error, tag)) ||
   (isProviderAdapterProtocolError(error) &&
     error.driver === CLAUDE_PROVIDER &&
@@ -119,7 +119,7 @@ const nativeSessionMissesKeptTurns = (
   >,
   providerThread: OrchestrationV2ProviderThread,
   run: OrchestrationV2Run,
-) => {
+): boolean => {
   const nativeId = providerThread.nativeThreadRef?.nativeId;
   if (nativeId === undefined) return false;
   const acceptedAttemptIds = new Set(projection.providerTurns.map((turn) => turn.runAttemptId));
@@ -168,7 +168,7 @@ export const isProviderTurnStartRunStateMissingError = Schema.is(
 const START_GAVE_UP_MESSAGE =
   "Supaterm could not start this turn. Send the message again; if it keeps failing, check the server logs.";
 
-const startFailureMessage = (error: Error) => {
+const startFailureMessage = (error: Error): string => {
   const nestedCause = "cause" in error ? error.cause : undefined;
   return (
     knownProviderFailureMessage(error) ??
@@ -677,7 +677,7 @@ export const layer: Layer.Layer<
       }
       const selectInheritedBackgroundItems = (
         current: ProjectionStore.ProjectionRuntimeRecoveryState,
-      ) =>
+      ): ReturnType<typeof RunExecutionService.selectInheritedBackgroundTurnItems> =>
         RunExecutionService.selectInheritedBackgroundTurnItems({
           threadId: current.thread.id,
           currentProviderThreadId: providerThread.id,

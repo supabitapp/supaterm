@@ -13,12 +13,12 @@ export const SupatermProjectFileFromJson = fromLenientJson(SupatermProjectFile);
 
 const decodeSupatermProjectFile = Schema.decodeExit(SupatermProjectFileFromJson);
 
-export function parseSupatermProjectFile(contents: string) {
+export function parseSupatermProjectFile(contents: string): SupatermProjectFile | null {
   const decoded = decodeSupatermProjectFile(contents);
   return Exit.isSuccess(decoded) ? decoded.value : null;
 }
 
-export function buildSupatermProjectFileJsonSchema() {
+export function buildSupatermProjectFileJsonSchema(): Record<string, unknown> {
   const document = Schema.toJsonSchemaDocument(SupatermProjectFile, { onExcessProperty: "error" });
   const jsonSchema: Record<string, unknown> = {
     $schema: "https://json-schema.org/draft/2020-12/schema",

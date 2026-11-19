@@ -68,7 +68,9 @@ export class SourceControlProviderRegistry extends Context.Service<
   }
 >()("supaterm/sourceControl/SourceControlProviderRegistry") {}
 
-function unsupportedProvider(kind: SourceControlProviderKind) {
+function unsupportedProvider(
+  kind: SourceControlProviderKind,
+): SourceControlProvider.SourceControlProvider["Service"] {
   return SourceControlProvider.SourceControlProvider.of({
     kind,
     listChangeRequests: (input) =>
@@ -135,7 +137,7 @@ function selectProviderContext(
     readonly name: string;
     readonly url: string;
   }>,
-) {
+): SourceControlProvider.SourceControlProviderContext | null {
   const candidates: Array<SourceControlProvider.SourceControlProviderContext> = [];
   for (const remote of remotes) {
     const provider = sourceControlDefinitions.recognizeRemote(remote.url);
@@ -173,10 +175,10 @@ class UnknownRemoteLookup {
     ].join("\n");
   }
 
-  [Equal.symbol](that: unknown) {
+  [Equal.symbol](that: unknown): boolean {
     return that instanceof UnknownRemoteLookup && that.key === this.key;
   }
-  [Hash.symbol]() {
+  [Hash.symbol](): number {
     return Hash.string(this.key);
   }
 }
@@ -184,7 +186,7 @@ class UnknownRemoteLookup {
 function bindProviderContext(
   provider: SourceControlProvider.SourceControlProvider["Service"],
   context: SourceControlProvider.SourceControlProviderContext | null,
-) {
+): SourceControlProvider.SourceControlProvider["Service"] {
   if (context === null) {
     return provider;
   }
@@ -265,7 +267,7 @@ export const makeWithProviders = Effect.fn("makeSourceControlProviderRegistryWit
     const refineContext = (
       cwd: string,
       context: SourceControlProvider.SourceControlProviderContext | null,
-    ) =>
+    ): Effect.Effect<SourceControlProvider.SourceControlProviderContext | null> =>
       context === null || context.provider.kind !== "unknown"
         ? Effect.succeed(context)
         : Cache.get(
@@ -366,7 +368,7 @@ export const makeWithProviders = Effect.fn("makeSourceControlProviderRegistryWit
 const make = Effect.gen(function* () {
   const drivers = yield* BuiltInDrivers.SourceControlDrivers;
   return yield* makeWithProviders(
-    drivers.map(({ driver, instance }) => ({
+    drivers.map(({ driver, instance }): SourceControlProviderRegistration => ({
       kind: driver.kind,
       provider: instance.sourceControl,
       discovery: instance.discovery,

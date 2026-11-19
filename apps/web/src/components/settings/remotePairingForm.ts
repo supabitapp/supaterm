@@ -12,7 +12,7 @@ export const emptyRemotePairingForm: RemotePairingForm = {
   pairingUrl: "",
 };
 
-function parsePairingUrlFields(input: string, baseUrl: string) {
+function parsePairingUrlFields(input: string, baseUrl: string): RemotePairingForm | null {
   const trimmed = input.trim();
   if (!trimmed) return null;
   try {
@@ -35,11 +35,18 @@ function parsePairingUrlFields(input: string, baseUrl: string) {
   }
 }
 
-export function updateRemotePairingHost(form: RemotePairingForm, host: string, baseUrl: string) {
+export function updateRemotePairingHost(
+  form: RemotePairingForm,
+  host: string,
+  baseUrl: string,
+): RemotePairingForm {
   return parsePairingUrlFields(host, baseUrl) ?? { ...form, host, pairingUrl: "" };
 }
 
-export function updateRemotePairingCode(form: RemotePairingForm, pairingCode: string) {
+export function updateRemotePairingCode(
+  form: RemotePairingForm,
+  pairingCode: string,
+): RemotePairingForm {
   return { ...form, pairingCode, pairingUrl: "" };
 }
 

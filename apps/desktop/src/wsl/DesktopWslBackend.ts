@@ -30,20 +30,20 @@ export class DesktopWslBackend extends Context.Service<
 const { logInfo: logWslBackendInfo, logWarning: logWslBackendWarning } =
   DesktopObservability.makeComponentLogger("desktop-wsl-backend");
 
-const resolveTargetInstanceId = (distro: string | null) =>
+const resolveTargetInstanceId = (distro: string | null): DesktopBackendPool.BackendInstanceId =>
   DesktopBackendPool.BackendInstanceId(
     distro === null ? WSL_DEFAULT_DISTRO_ID : `${WSL_INSTANCE_ID_PREFIX}${distro}`,
   );
 
-const isWslInstanceId = (id: DesktopBackendPool.BackendInstanceId) =>
+const isWslInstanceId = (id: DesktopBackendPool.BackendInstanceId): boolean =>
   id.startsWith(WSL_INSTANCE_ID_PREFIX);
 
-const buildLabel = (distro: string | null) =>
+const buildLabel = (distro: string | null): string =>
   distro === null ? "WSL (default distro)" : `WSL (${distro})`;
 
 const scanForWslPort = Effect.fn("desktop.wslBackend.scanForWslPort")(function* (
   startPort: number,
-) {
+): Effect.fn.Return<number, NetService.NetError, NetService.NetService> {
   const net = yield* NetService.NetService;
   for (let port = startPort; port <= MAX_TCP_PORT; port += 1) {
     if (yield* net.canListenOnHost(port, "127.0.0.1")) {

@@ -49,7 +49,7 @@ function deliver(shared: SharedObserver, entries: readonly IntersectionObserverE
   }
 }
 
-function observersFor(root: Element) {
+function observersFor(root: Element): Map<string, SharedObserver> {
   let observers = elementRootObservers.get(root);
   if (!observers) {
     observers = new Map();
@@ -66,14 +66,9 @@ function observersFor(root: Element) {
 export function observeIntersection(
   element: Element,
   callback: IntersectionCallback,
-  options?: ObserveIntersectionOptions,
-): () => void;
-export function observeIntersection(
-  element: Element,
-  callback: IntersectionCallback,
   options: ObserveIntersectionOptions = {},
-) {
-  if (typeof IntersectionObserver === "undefined") return (() => {}) satisfies () => void;
+): () => void {
+  if (typeof IntersectionObserver === "undefined") return () => {};
   const root = options.root ?? null;
   const key = `${options.rootMargin ?? ""}|${options.threshold ?? 0}`;
   const observersForRoot = root === null ? viewportObservers : observersFor(root);
@@ -109,7 +104,7 @@ export function observeIntersection(
       owner.observer.observe(element);
     }
   }
-  return (() => {
+  return () => {
     if (!subscription.active) return;
     subscription.active = false;
     const current = owner.targets.get(element);
@@ -124,5 +119,5 @@ export function observeIntersection(
     owner.observer.disconnect();
     observersForRoot.delete(key);
     if (root !== null && observersForRoot.size === 0) elementRootObservers.delete(root);
-  }) satisfies () => void;
+  };
 }

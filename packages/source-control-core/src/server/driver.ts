@@ -64,7 +64,8 @@ export interface SourceControlDriver {
   >;
 }
 
-export const defineSourceControlDriver = (driver: SourceControlDriver) => driver;
+export const defineSourceControlDriver = (driver: SourceControlDriver): SourceControlDriver =>
+  driver;
 
 /**
  * `make` over a host's own `services`, built into the caller's scope so they live as long as the
@@ -73,4 +74,5 @@ export const defineSourceControlDriver = (driver: SourceControlDriver) => driver
 export const withOwnServices = <A, R, ROut, RIn>(
   make: Effect.Effect<A, never, R>,
   services: Layer.Layer<ROut, never, RIn>,
-) => Layer.build(services).pipe(Effect.flatMap((context) => make.pipe(Effect.provide(context))));
+): Effect.Effect<A, never, Exclude<R, ROut> | RIn | Scope.Scope> =>
+  Layer.build(services).pipe(Effect.flatMap((context) => make.pipe(Effect.provide(context))));

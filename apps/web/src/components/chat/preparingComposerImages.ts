@@ -21,18 +21,20 @@ export function usePreparingComposerImages(targetKey: string) {
   );
 }
 
-export function getPreparingComposerImages(targetKey: string) {
+export function getPreparingComposerImages(
+  targetKey: string,
+): ReadonlyArray<PreparingComposerImage> {
   return usePreparingComposerImageStore.getState().byTargetKey[targetKey] ?? NO_PREPARING_IMAGES;
 }
 
-export function countPreparingComposerImages(targetKey: string) {
+export function countPreparingComposerImages(targetKey: string): number {
   return getPreparingComposerImages(targetKey).length;
 }
 
 export function addPreparingComposerImages(
   targetKey: string,
   images: ReadonlyArray<PreparingComposerImage>,
-) {
+): void {
   usePreparingComposerImageStore.setState((state) => ({
     byTargetKey: {
       ...state.byTargetKey,
@@ -41,7 +43,7 @@ export function addPreparingComposerImages(
   }));
 }
 
-export function isPreparingComposerImage(targetKey: string, imageId: string) {
+export function isPreparingComposerImage(targetKey: string, imageId: string): boolean {
   return (
     usePreparingComposerImageStore
       .getState()
@@ -50,7 +52,10 @@ export function isPreparingComposerImage(targetKey: string, imageId: string) {
 }
 
 /** Returns the ids that were still preparing; any other id was cancelled from the strip. */
-export function removePreparingComposerImages(targetKey: string, imageIds: ReadonlySet<string>) {
+export function removePreparingComposerImages(
+  targetKey: string,
+  imageIds: ReadonlySet<string>,
+): ReadonlySet<string> {
   const current =
     usePreparingComposerImageStore.getState().byTargetKey[targetKey] ?? NO_PREPARING_IMAGES;
   const removed = new Set(
@@ -73,7 +78,7 @@ export function removePreparingComposerImages(targetKey: string, imageIds: Reado
 }
 
 /** Drops every image still preparing for the target, so its compression result is discarded. */
-export function cancelPreparingComposerImages(targetKey: string) {
+export function cancelPreparingComposerImages(targetKey: string): void {
   if (!usePreparingComposerImageStore.getState().byTargetKey[targetKey]) return;
   usePreparingComposerImageStore.setState((state) => {
     const byTargetKey = { ...state.byTargetKey };

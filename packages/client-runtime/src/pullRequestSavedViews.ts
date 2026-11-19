@@ -14,7 +14,7 @@ export function pullRequestViewNameError(
   name: string,
   views: ReadonlyArray<typeof PullRequestSavedViewIdentity.Type>,
   editingId?: string,
-) {
+): string | null {
   const trimmed = name.trim();
   if (!trimmed) return "Enter a name for this view.";
   if (trimmed.length > PULL_REQUEST_VIEW_NAME_MAX_LENGTH) {

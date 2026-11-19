@@ -84,12 +84,11 @@ const CONFIG = {
   environment: { capabilities: {} },
 } as unknown as ServerConfig;
 
-const snapshotEvent = (config: ServerConfig) =>
-  ({
-    version: 1,
-    type: "snapshot",
-    config,
-  }) satisfies ServerConfigStreamEvent;
+const snapshotEvent = (config: ServerConfig): ServerConfigStreamEvent => ({
+  version: 1,
+  type: "snapshot",
+  config,
+});
 
 const TARGET = new PrimaryConnectionTarget({
   environmentId: EnvironmentId.make("environment-1"),
@@ -98,8 +97,7 @@ const TARGET = new PrimaryConnectionTarget({
   wsBaseUrl: "wss://environment.example.test",
 });
 
-function session(client: WsRpcProtocolClient): RpcSession;
-function session(client: WsRpcProtocolClient) {
+function session(client: WsRpcProtocolClient): RpcSession {
   return {
     client,
     initialConfig: Effect.succeed(CONFIG),
@@ -110,7 +108,7 @@ function session(client: WsRpcProtocolClient) {
     probe: Effect.void,
     inboundFrames: Effect.succeed(0),
     closed: Effect.never,
-  } satisfies RpcSession;
+  };
 }
 
 describe("update restart reconnect nudges", () => {
@@ -453,27 +451,26 @@ describe("server state projection", () => {
   it.effect("skips duplicate keybinding saves but persists changed keybindings", () =>
     Effect.gen(function* () {
       const saved = yield* Ref.make<ReadonlyArray<ServerConfig>>([]);
-      const keybindingsEvent = (key: string) =>
-        ({
-          version: 1,
-          type: "keybindingsUpdated",
-          payload: {
-            keybindings: [
-              {
-                command: "terminal.toggle",
-                shortcut: {
-                  key,
-                  metaKey: false,
-                  ctrlKey: false,
-                  shiftKey: false,
-                  altKey: false,
-                  modKey: true,
-                },
+      const keybindingsEvent = (key: string): ServerConfigStreamEvent => ({
+        version: 1,
+        type: "keybindingsUpdated",
+        payload: {
+          keybindings: [
+            {
+              command: "terminal.toggle",
+              shortcut: {
+                key,
+                metaKey: false,
+                ctrlKey: false,
+                shiftKey: false,
+                altKey: false,
+                modKey: true,
               },
-            ],
-            issues: [],
-          },
-        }) satisfies ServerConfigStreamEvent;
+            },
+          ],
+          issues: [],
+        },
+      });
       yield* Effect.scoped(
         Effect.gen(function* () {
           const h = yield* makeConfigPersistenceHarness((_id, config) =>
@@ -1503,7 +1500,7 @@ describe("launcher update resume", () => {
         ).pipe(Stream.concat(Stream.never), Stream.ensuring(reconnect));
       },
     } as unknown as WsRpcProtocolClient;
-    const updateSession: () => RpcSession = () => ({
+    const updateSession = (): RpcSession => ({
       ...session(client),
       initialConfig: Effect.succeed(UPDATE_CONFIG),
     });
@@ -1667,18 +1664,17 @@ describe("provider setup commands", () => {
     Effect.gen(function* () {
       const requested = yield* Queue.unbounded<ProviderInstanceId>();
       const release = yield* Deferred.make<void>();
-      const installState = (driver: string) =>
-        ({
-          driver: ProviderDriverKind.make(driver),
-          operationId: null,
-          phase: "downloading",
-          downloadedBytes: 0,
-          totalBytes: null,
-          version: null,
-          installedVersion: null,
-          canRemove: false,
-          message: null,
-        }) satisfies ProviderInstallState;
+      const installState = (driver: string): ProviderInstallState => ({
+        driver: ProviderDriverKind.make(driver),
+        operationId: null,
+        phase: "downloading",
+        downloadedBytes: 0,
+        totalBytes: null,
+        version: null,
+        installedVersion: null,
+        canRemove: false,
+        message: null,
+      });
       const client = {
         [WS_METHODS.providerInstallStart]: ({ instanceId }: ProviderSetupInput) =>
           Queue.offer(requested, instanceId).pipe(

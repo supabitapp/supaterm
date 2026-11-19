@@ -27,7 +27,7 @@ describe("PR comments in continuous native diffs", () => {
   it("returns unannotated data unchanged without reading or indexing rows", () => {
     const unannotated = {
       ...data,
-      get rows() {
+      get rows(): NativeReviewDiffData["rows"] {
         throw new Error("Empty annotation must not read rows");
       },
     };

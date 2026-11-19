@@ -31,7 +31,7 @@ function output(stdout: string, stdoutTruncated = false, stdoutInvalidUtf8 = fal
   };
 }
 
-function mergeRequests(count: number, firstNumber: number) {
+function mergeRequests(count: number, firstNumber: number): string {
   return JSON.stringify(
     Array.from({ length: count }, (_, index) => ({
       iid: firstNumber + index,
@@ -45,7 +45,7 @@ function mergeRequests(count: number, firstNumber: number) {
   );
 }
 
-function diffPage(firstIndex: number, count = 100) {
+function diffPage(firstIndex: number, count = 100): string {
   return JSON.stringify(
     Array.from({ length: count }, (_, index) => ({
       old_path: `src/${firstIndex + index}.ts`,
@@ -55,7 +55,7 @@ function diffPage(firstIndex: number, count = 100) {
   );
 }
 
-function notes(count: number, firstId: number) {
+function notes(count: number, firstId: number): string {
   return JSON.stringify(
     Array.from({ length: count }, (_, index) => ({
       id: firstId + index,
@@ -74,7 +74,7 @@ const labelPermission = output(
 );
 const reviewer = { id: 5, username: "octocat" };
 
-function mergeRequestJson(overrides: Record<string, unknown>) {
+function mergeRequestJson(overrides: Record<string, unknown>): string {
   return JSON.stringify({
     iid: 7,
     title: "Merge request 7",
@@ -92,7 +92,7 @@ function commitJson(id: string) {
   return { id, title: "Commit", committed_date: "2026-07-01T00:00:00Z" };
 }
 
-function sourceBranchJson(overrides: Record<string, unknown>) {
+function sourceBranchJson(overrides: Record<string, unknown>): string {
   return JSON.stringify({
     data: {
       project: {
@@ -109,7 +109,7 @@ function sourceBranchJson(overrides: Record<string, unknown>) {
   });
 }
 
-function argsOfCall(index: number) {
+function argsOfCall(index: number): ReadonlyArray<string> {
   return callAt(index).args;
 }
 
@@ -122,7 +122,7 @@ function callAt(index: number) {
 function graphqlListPage(
   numbers: ReadonlyArray<number>,
   pageInfo: { readonly hasNextPage: boolean; readonly endCursor: string | null },
-) {
+): string {
   return JSON.stringify({
     data: {
       metadata: { enterprise: true },

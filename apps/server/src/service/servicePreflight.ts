@@ -39,13 +39,7 @@ export function runServicePreflight(input: {
   readonly databasePath?: string | undefined;
   readonly launcherProtocol: number;
   readonly version?: string;
-}): ServicePreflightResult;
-export function runServicePreflight(input: {
-  /** Absent when an older server runs this build's preflight; it then skips the database check. */
-  readonly databasePath?: string | undefined;
-  readonly launcherProtocol: number;
-  readonly version?: string;
-}) {
+}): ServicePreflightResult {
   const version = input.version ?? packageJson.version;
   const { launcherProtocol } = input;
   if (!isSupportedLauncherProtocol(launcherProtocol)) {
@@ -58,7 +52,7 @@ export function runServicePreflight(input: {
         `Check that \`supaterm --version\` prints ${version} and that \`which -a supaterm\` lists no older supaterm (such as an npm or nvm install) first, then run \`~/.local/bin/supaterm service install\` (the installer's default path).`,
         "Updating the desktop app does not update this CLI.",
       ].join(" "),
-    } satisfies ServicePreflightResult;
+    };
   }
 
   const recorded = input.databasePath === undefined ? [] : recordedMigrations(input.databasePath);
@@ -67,7 +61,7 @@ export function runServicePreflight(input: {
       status: "blocked",
       version,
       reason: `Could not read this database to confirm supaterm@${version} supports it.`,
-    } satisfies ServicePreflightResult;
+    };
   }
   const newer = recorded
     .filter(({ id }) => id > BUILD_MIGRATION_HEAD)
@@ -77,7 +71,7 @@ export function runServicePreflight(input: {
       status: "blocked",
       version,
       reason: `This database has migrations that supaterm@${version} does not know: ${newer.join(", ")}. A newer build wrote them, and running supaterm@${version} on this database is not safe. Stay on the newer release, or wait for a release that includes these migrations.`,
-    } satisfies ServicePreflightResult;
+    };
   }
 
   const incompatible = skippedMigrations(recorded);
@@ -86,15 +80,18 @@ export function runServicePreflight(input: {
       status: "blocked",
       version,
       reason: `This database has incompatible migration history: ${incompatible.join(", ")}. Start the build that wrote it, or report this migration history so an upgrade path can be added.`,
-    } satisfies ServicePreflightResult;
+    };
   }
 
-  return { status: "ready", version, launcherProtocol } satisfies ServicePreflightResult;
+  return { status: "ready", version, launcherProtocol };
 }
 
-function decodeServicePreflightResult(value: unknown, launcherProtocol: SupportedLauncherProtocol) {
+function decodeServicePreflightResult(
+  value: unknown,
+  launcherProtocol: SupportedLauncherProtocol,
+): ServicePreflightResult | undefined {
   if (typeof value !== "object" || value === null) {
-    return undefined satisfies ServicePreflightResult | undefined;
+    return undefined;
   }
   const record = value as Record<string, unknown>;
   if (
@@ -102,20 +99,16 @@ function decodeServicePreflightResult(value: unknown, launcherProtocol: Supporte
     record.launcherProtocol === launcherProtocol &&
     typeof record.version === "string"
   ) {
-    return { status: "ready", version: record.version, launcherProtocol } satisfies
-      | ServicePreflightResult
-      | undefined;
+    return { status: "ready", version: record.version, launcherProtocol };
   }
   if (
     record.status === "blocked" &&
     typeof record.version === "string" &&
     typeof record.reason === "string"
   ) {
-    return { status: "blocked", version: record.version, reason: record.reason } satisfies
-      | ServicePreflightResult
-      | undefined;
+    return { status: "blocked", version: record.version, reason: record.reason };
   }
-  return undefined satisfies ServicePreflightResult | undefined;
+  return undefined;
 }
 
 /** Asks a staged runtime whether it can run on this database under this launcher protocol. */

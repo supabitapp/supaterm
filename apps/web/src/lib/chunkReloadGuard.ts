@@ -4,7 +4,7 @@ export function reloadOnceForChunkLoadError(
   getStorage: () => Storage = () => window.sessionStorage,
   reload: () => void = () => window.location.reload(),
   build = import.meta.env.APP_VERSION,
-) {
+): boolean {
   let alreadyReloaded: boolean;
   try {
     const storage = getStorage();
@@ -24,7 +24,7 @@ const CHUNK_LOAD_ERROR_PREFIXES = [
   "Importing a module script failed",
 ];
 
-export function isChunkLoadError(error: unknown) {
+export function isChunkLoadError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : undefined;
   return (
     message !== undefined && CHUNK_LOAD_ERROR_PREFIXES.some((prefix) => message.startsWith(prefix))

@@ -17,7 +17,7 @@ export interface EnvironmentPresentation extends BaseEnvironmentPresentation {
 function projectEnvironmentPresentation(
   environmentId: EnvironmentId,
   presentation: BaseEnvironmentPresentation,
-) {
+): EnvironmentPresentation {
   return {
     ...presentation,
     environmentId,

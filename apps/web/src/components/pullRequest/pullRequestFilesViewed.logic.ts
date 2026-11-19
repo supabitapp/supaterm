@@ -4,16 +4,18 @@ export type FileViewedStates = ReadonlyMap<string, PullRequestFileViewedState>;
 
 export type FileViewedOverlay = ReadonlyMap<string, boolean>;
 
-export function toFileViewedStates(result: PullRequestFilesViewedResult | null) {
+export function toFileViewedStates(
+  result: PullRequestFilesViewedResult | null,
+): FileViewedStates | null {
   if (result === null) return null;
   return new Map(result.files.map((file) => [file.path, file.state]));
 }
 
-function isViewedState(state: PullRequestFileViewedState | undefined) {
+function isViewedState(state: PullRequestFileViewedState | undefined): boolean {
   return state === "viewed";
 }
 
-export function isStaleViewedState(state: PullRequestFileViewedState | undefined) {
+export function isStaleViewedState(state: PullRequestFileViewedState | undefined): boolean {
   return state === "dismissed";
 }
 
@@ -21,7 +23,7 @@ export function isFileViewed(
   path: string,
   states: FileViewedStates | null,
   overlay: FileViewedOverlay,
-) {
+): boolean {
   const pressed = overlay.get(path);
   return pressed ?? isViewedState(states?.get(path));
 }
@@ -32,7 +34,7 @@ export function settleFileViewedOverlay(
   states: FileViewedStates | null,
   pending: ReadonlySet<string>,
   answered: ReadonlySet<string>,
-) {
+): FileViewedOverlay {
   if (states === null || overlay.size === 0) return overlay;
   const next = new Map(overlay);
   for (const [path, pressed] of overlay) {
@@ -47,7 +49,7 @@ export function revertFileViewedOverlay(
   overlay: FileViewedOverlay,
   batch: ReadonlyArray<{ readonly path: string; readonly viewed: boolean }>,
   owned: ReadonlySet<string>,
-) {
+): FileViewedOverlay {
   const next = new Map(overlay);
   for (const { path, viewed } of batch) {
     if (!owned.has(path)) continue;
@@ -61,7 +63,9 @@ export interface FileViewedPress {
   readonly revision: string | undefined;
 }
 
-export function toFileViewedBatch(presses: ReadonlyMap<string, FileViewedPress>) {
+export function toFileViewedBatch(
+  presses: ReadonlyMap<string, FileViewedPress>,
+): ReadonlyArray<{ readonly path: string; readonly viewed: boolean; readonly revision?: string }> {
   return [...presses].map(([path, { viewed, revision }]) =>
     revision === undefined ? { path, viewed } : { path, viewed, revision },
   );

@@ -61,7 +61,7 @@ interface AcpToolCallTrackedState {
   readonly skippedSinceEmit: number;
 }
 
-function formatConfigOptionValue(value: string | boolean) {
+function formatConfigOptionValue(value: string | boolean): string {
   return JSON.stringify(value);
 }
 
@@ -183,7 +183,7 @@ export class AcpProcessGroupTerminationError extends Schema.TaggedError<AcpProce
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return this.detail;
   }
 }
@@ -227,19 +227,18 @@ export interface AcpPosixOwnershipRoot {
   value: AcpOwnedPosixProcess | undefined;
 }
 
-function decodeMountInfoPath(value: string) {
+function decodeMountInfoPath(value: string): string {
   return value.replace(/\\([0-7]{3})/g, (_match, octal: string) =>
     String.fromCharCode(Number.parseInt(octal, 8)),
   );
 }
 
-export function parseUnifiedCgroupPath(contents: string): string | undefined;
-export function parseUnifiedCgroupPath(contents: string) {
+export function parseUnifiedCgroupPath(contents: string): string | undefined {
   const matches = [...contents.matchAll(/^0::(\/.*)$/gm)];
-  return (matches.length === 1 ? matches[0]![1] : undefined) satisfies string | undefined;
+  return matches.length === 1 ? matches[0]![1] : undefined;
 }
 
-export function isSafeCgroupPath(value: string) {
+export function isSafeCgroupPath(value: string): boolean {
   return (
     value.startsWith("/") &&
     !value.includes("(deleted)") &&
@@ -247,7 +246,9 @@ export function isSafeCgroupPath(value: string) {
   );
 }
 
-export function parseCgroup2Mounts(contents: string) {
+export function parseCgroup2Mounts(
+  contents: string,
+): ReadonlyArray<{ readonly mountPoint: string; readonly root: string }> {
   const mounts: Array<{ readonly mountPoint: string; readonly root: string }> = [];
   for (const line of contents.split("\n")) {
     const [mount, filesystem] = line.split(" - ");
@@ -266,7 +267,7 @@ export function wrapCommandForLinuxCgroup(
   lease: AcpLinuxCgroupLease,
   command: string,
   args: ReadonlyArray<string>,
-) {
+): { readonly command: string; readonly args: ReadonlyArray<string> } {
   return {
     command: "/bin/sh",
     args: [
@@ -298,7 +299,7 @@ export function resolveLinuxCgroupTargetCommand(
   command: string,
   cwd: string,
   environment: NodeJS.ProcessEnv,
-) {
+): string | undefined {
   const pathEnv = environment.PATH === undefined ? "/usr/bin:/bin" : environment.PATH;
   const candidates = command.includes(NodePath.sep)
     ? [NodePath.resolve(cwd, command)]
@@ -333,7 +334,7 @@ export interface SweepStaleLinuxCgroupSiblingsOptions {
   readonly remove?: (siblingPath: string) => void;
 }
 
-function defaultCgroupOwnerIsAlive(pid: number) {
+function defaultCgroupOwnerIsAlive(pid: number): boolean {
   try {
     process.kill(pid, 0);
     return true;
@@ -342,7 +343,7 @@ function defaultCgroupOwnerIsAlive(pid: number) {
   }
 }
 
-function defaultReadCgroupPopulated(siblingPath: string) {
+function defaultReadCgroupPopulated(siblingPath: string): "0" | "1" | undefined {
   const state = /(?:^|\n)populated ([01])(?:\n|$)/.exec(
     NodeFS.readFileSync(NodePath.join(siblingPath, "cgroup.events"), "utf8"),
   )?.[1];
@@ -352,7 +353,7 @@ function defaultReadCgroupPopulated(siblingPath: string) {
 export function sweepStaleLinuxCgroupSiblings(
   parentPath: string,
   options: SweepStaleLinuxCgroupSiblingsOptions = {},
-) {
+): void {
   const currentPid = options.currentPid ?? process.pid;
   const isProcessAlive = options.isProcessAlive ?? defaultCgroupOwnerIsAlive;
   const readPopulated = options.readPopulated ?? defaultReadCgroupPopulated;
@@ -378,11 +379,7 @@ export function sweepStaleLinuxCgroupSiblings(
 function tryCreateLinuxCgroupLease(
   currentRelative: string,
   mount: { readonly mountPoint: string; readonly root: string },
-): AcpLinuxCgroupLease | undefined;
-function tryCreateLinuxCgroupLease(
-  currentRelative: string,
-  mount: { readonly mountPoint: string; readonly root: string },
-) {
+): AcpLinuxCgroupLease | undefined {
   if (
     !isSafeCgroupPath(mount.root) ||
     !isSafeCgroupPath(mount.mountPoint) ||
@@ -392,21 +389,20 @@ function tryCreateLinuxCgroupLease(
       currentRelative.startsWith(`${mount.root}/`)
     )
   ) {
-    return undefined satisfies AcpLinuxCgroupLease | undefined;
+    return undefined;
   }
   const mountRelative =
     mount.root === "/" ? currentRelative : currentRelative.slice(mount.root.length);
   const currentPath = NodePath.resolve(mount.mountPoint, `.${mountRelative}`);
   const resolvedMount = NodePath.resolve(mount.mountPoint);
   if (currentPath !== resolvedMount && !currentPath.startsWith(`${resolvedMount}${NodePath.sep}`)) {
-    return undefined satisfies AcpLinuxCgroupLease | undefined;
+    return undefined;
   }
   sweepStaleLinuxCgroupSiblings(currentPath);
   const childName = `supaterm-acp-${process.pid}-${NodeCrypto.randomUUID().replaceAll("-", "")}`;
   const childPath = NodePath.join(currentPath, childName);
   const childRelative = NodePath.posix.join(currentRelative, childName);
-  if (NodePath.dirname(childPath) !== currentPath)
-    return undefined satisfies AcpLinuxCgroupLease | undefined;
+  if (NodePath.dirname(childPath) !== currentPath) return undefined;
   try {
     NodeFS.mkdirSync(childPath, { mode: 0o700 });
     NodeFS.accessSync(NodePath.join(childPath, "cgroup.procs"), NodeFS.constants.W_OK);
@@ -420,7 +416,7 @@ function tryCreateLinuxCgroupLease(
     try {
       NodeFS.rmdirSync(childPath);
     } catch {}
-    return undefined satisfies AcpLinuxCgroupLease | undefined;
+    return undefined;
   }
   return {
     contains: (pid) =>
@@ -437,7 +433,7 @@ function tryCreateLinuxCgroupLease(
       return state === "1";
     },
     remove: () => {
-      const directories: (path: string) => ReadonlyArray<string> = (path: string) =>
+      const directories = (path: string): ReadonlyArray<string> =>
         NodeFS.readdirSync(path, { withFileTypes: true }).flatMap((entry) =>
           entry.isDirectory()
             ? [...directories(NodePath.join(path, entry.name)), NodePath.join(path, entry.name)]
@@ -446,10 +442,10 @@ function tryCreateLinuxCgroupLease(
       for (const directory of directories(childPath)) NodeFS.rmdirSync(directory);
       NodeFS.rmdirSync(childPath);
     },
-  } satisfies AcpLinuxCgroupLease | undefined;
+  };
 }
 
-export function makeLinuxCgroupController() {
+export function makeLinuxCgroupController(): AcpLinuxCgroupController {
   return {
     create: () => {
       let currentRelative: string | undefined;
@@ -478,10 +474,12 @@ export function makeLinuxCgroupController() {
 }
 
 const wallClock = Clock.Clock.defaultValue();
-const withWallClock = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
+const withWallClock = <A, E, R>(effect: Effect.Effect<A, E, R>): Effect.Effect<A, E, R> =>
   Effect.provideService(effect, Clock.Clock, wallClock);
 
-export function terminateLinuxCgroupLease(lease: AcpLinuxCgroupLease) {
+export function terminateLinuxCgroupLease(
+  lease: AcpLinuxCgroupLease,
+): Effect.Effect<void, AcpProcessGroupTerminationError> {
   const failure = (name: string, cause: unknown) =>
     new AcpProcessGroupTerminationError({
       cause,
@@ -544,7 +542,7 @@ export function signalLinuxCgroupRootTerm(input: {
   readonly controller: AcpPosixProcessTreeController;
   readonly lease: AcpLinuxCgroupLease;
   readonly root: AcpPosixOwnershipRoot;
-}) {
+}): void {
   const root = input.root.value;
   if (root === undefined) return;
   try {
@@ -554,12 +552,11 @@ export function signalLinuxCgroupRootTerm(input: {
   } catch {}
 }
 
-function readLinuxProcessIdentity(pid: number): AcpPosixProcessIdentity | undefined;
-function readLinuxProcessIdentity(pid: number) {
+function readLinuxProcessIdentity(pid: number): AcpPosixProcessIdentity | undefined {
   try {
     const stat = NodeFS.readFileSync(`/proc/${pid}/stat`, "utf8");
     const commandEnd = stat.lastIndexOf(")");
-    if (commandEnd < 0) return undefined satisfies AcpPosixProcessIdentity | undefined;
+    if (commandEnd < 0) return undefined;
     const fields = stat
       .slice(commandEnd + 2)
       .trim()
@@ -576,7 +573,7 @@ function readLinuxProcessIdentity(pid: number) {
       !Number.isSafeInteger(sid) ||
       startTime === undefined
     ) {
-      return undefined satisfies AcpPosixProcessIdentity | undefined;
+      return undefined;
     }
     let executable: string | undefined;
     try {
@@ -584,21 +581,18 @@ function readLinuxProcessIdentity(pid: number) {
     } catch {
       executable = undefined;
     }
-    return { executable, pgid, pid, ppid, sid, startTime, state } satisfies
-      | AcpPosixProcessIdentity
-      | undefined;
+    return { executable, pgid, pid, ppid, sid, startTime, state };
   } catch {
-    return undefined satisfies AcpPosixProcessIdentity | undefined;
+    return undefined;
   }
 }
 
 /** Linux zombies keep pid/starttime until reaped; they are not live survivors. */
-export function posixProcessIsZombie(process: AcpPosixProcessIdentity) {
+export function posixProcessIsZombie(process: AcpPosixProcessIdentity): boolean {
   return process.state === "Z";
 }
 
-function readLinuxChildPids(pid: number): ReadonlyArray<number>;
-function readLinuxChildPids(pid: number) {
+function readLinuxChildPids(pid: number): ReadonlyArray<number> {
   const childPids = new Set<number>();
   let taskIds: ReadonlyArray<string> = [];
   try {
@@ -606,7 +600,7 @@ function readLinuxChildPids(pid: number) {
       /^[1-9][0-9]*$/.test(entry),
     );
   } catch {
-    return [] satisfies ReadonlyArray<number>;
+    return [];
   }
   for (const taskId of taskIds) {
     try {
@@ -619,11 +613,10 @@ function readLinuxChildPids(pid: number) {
       }
     } catch {}
   }
-  return [...childPids] satisfies ReadonlyArray<number>;
+  return [...childPids];
 }
 
-function makeLinuxProcessTreeController(): AcpPosixProcessTreeController;
-function makeLinuxProcessTreeController() {
+function makeLinuxProcessTreeController(): AcpPosixProcessTreeController {
   return {
     childPidsOf: readLinuxChildPids,
     childrenOf: (pid) =>
@@ -639,7 +632,7 @@ function makeLinuxProcessTreeController() {
         return identity === undefined ? [] : [identity];
       }),
     signalProcess: (pid, signal) => process.kill(pid, signal),
-  } satisfies AcpPosixProcessTreeController;
+  };
 }
 
 export function observePosixOwnershipLedger(input: {
@@ -650,7 +643,7 @@ export function observePosixOwnershipLedger(input: {
   readonly maxProcesses?: number;
   readonly root: AcpPosixOwnershipRoot;
   readonly rootPid: number;
-}) {
+}): void {
   let rootIdentity: AcpPosixProcessIdentity | undefined = input.root.value;
   if (rootIdentity === undefined) {
     if (input.root.captureAttempted === true) {
@@ -740,7 +733,7 @@ function observePosixOwnershipLedgerContinuously(input: {
   readonly ledger: Map<string, AcpOwnedPosixProcess>;
   readonly root: AcpPosixOwnershipRoot;
   readonly rootPid: number;
-}) {
+}): Effect.Effect<never> {
   return Effect.forever(
     Effect.gen(function* () {
       const startedAt = yield* Clock.currentTimeMillis;
@@ -754,7 +747,9 @@ function observePosixOwnershipLedgerContinuously(input: {
   ).pipe(withWallClock);
 }
 
-export function makePosixProcessTreeController(platform: NodeJS.Platform) {
+export function makePosixProcessTreeController(
+  platform: NodeJS.Platform,
+): AcpPosixProcessTreeController {
   if (platform === "linux") return makeLinuxProcessTreeController();
   throw new AcpProcessGroupTerminationError({
     detail: `Detached ACP descendant ownership is unsupported on ${platform}`,
@@ -764,7 +759,7 @@ export function makePosixProcessTreeController(platform: NodeJS.Platform) {
 function samePosixProcessIdentity(
   expected: AcpPosixProcessIdentity,
   observed: AcpPosixProcessIdentity | undefined,
-) {
+): boolean {
   return (
     observed !== undefined &&
     observed.pid === expected.pid &&
@@ -777,14 +772,14 @@ export interface AcpOwnedPosixProcess extends AcpPosixProcessIdentity {
   readonly parentStartTime: string;
 }
 
-function processIdentityKey(process: AcpPosixProcessIdentity) {
+function processIdentityKey(process: AcpPosixProcessIdentity): string {
   return `${process.pid}:${process.startTime}`;
 }
 
 function processDepth(
   process: AcpPosixProcessIdentity,
   ledgerByPid: ReadonlyMap<number, AcpOwnedPosixProcess>,
-) {
+): number {
   let depth = 0;
   let current = process;
   const seen = new Set<number>();
@@ -804,7 +799,7 @@ export function capturePosixOwnershipLedger(input: {
   readonly root?: AcpPosixOwnershipRoot;
   readonly rootPid: number;
   readonly table?: ReadonlyArray<AcpPosixProcessIdentity>;
-}) {
+}): ReadonlyArray<AcpPosixProcessIdentity> {
   let table: ReadonlyArray<AcpPosixProcessIdentity>;
   if (input.table === undefined) {
     try {
@@ -893,7 +888,7 @@ export function terminatePosixOwnedProcessTree(input: {
   readonly ledger?: Map<string, AcpOwnedPosixProcess>;
   readonly root?: AcpPosixOwnershipRoot;
   readonly rootPid: number;
-}) {
+}): Effect.Effect<void, AcpProcessGroupTerminationError> {
   const ledger = input.ledger ?? new Map<string, AcpOwnedPosixProcess>();
 
   const fail = (detail: string, cause?: unknown) =>
@@ -1024,11 +1019,13 @@ export function terminatePosixOwnedProcessTree(input: {
   }).pipe(withWallClock);
 }
 
-function windowsTaskkillResultIsSuccess(exitCode: number, _output?: string) {
+function windowsTaskkillResultIsSuccess(exitCode: number, _output?: string): boolean {
   return exitCode === 0;
 }
 
-const terminateWindowsProcessTreeWithTaskkill = (pid: number) =>
+const terminateWindowsProcessTreeWithTaskkill = (
+  pid: number,
+): Effect.Effect<void, AcpProcessGroupTerminationError, ChildProcessSpawner.ChildProcessSpawner> =>
   Effect.scoped(
     Effect.gen(function* () {
       const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
@@ -1067,7 +1064,7 @@ const terminateWindowsProcessTreeWithTaskkill = (pid: number) =>
 export function selectAcpAgentAuthMethod(
   authMethods: ReadonlyArray<EffectAcpSchema.AuthMethod> | undefined,
   preferredMethodId?: string,
-) {
+): EffectAcpSchema.AuthMethod | undefined {
   const preferred = preferredMethodId?.trim();
   if (preferred) {
     return authMethods?.find((method) => method.id === preferred);
@@ -1075,7 +1072,7 @@ export function selectAcpAgentAuthMethod(
   return authMethods?.find((method) => method.type === undefined || method.type === "agent");
 }
 
-function isAcpAuthenticationRequired(error: EffectAcpErrors.AcpError) {
+function isAcpAuthenticationRequired(error: EffectAcpErrors.AcpError): boolean {
   return error._tag === "AcpRequestError" && error.code === -32000;
 }
 
@@ -1258,7 +1255,11 @@ const awaitPromptQueued = (prompt: AcpActivePrompt) =>
 
 export const make = Effect.fn("AcpSessionRuntime.make")(function* (
   options: AcpSessionRuntimeOptions,
-) {
+): Effect.fn.Return<
+  AcpSessionRuntime["Service"],
+  EffectAcpErrors.AcpError,
+  ChildProcessSpawner.ChildProcessSpawner | SecureRandom.SecureRandom | Scope.Scope
+> {
   const random = yield* SecureRandom.SecureRandom;
   const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
   const hostPlatform = yield* HostProcess.Platform;
@@ -1313,7 +1314,9 @@ export const make = Effect.fn("AcpSessionRuntime.make")(function* (
     }
   });
 
-  const enrichProcessExitWithStderr = (error: EffectAcpErrors.AcpError) =>
+  const enrichProcessExitWithStderr = (
+    error: EffectAcpErrors.AcpError,
+  ): Effect.Effect<EffectAcpErrors.AcpError> =>
     error._tag !== "AcpProcessExitedError" || (error.stderr?.trim().length ?? 0) > 0
       ? Effect.succeed(error)
       : Deferred.await(stderrDrained).pipe(
@@ -1360,7 +1363,7 @@ export const make = Effect.fn("AcpSessionRuntime.make")(function* (
     method: string,
     payload: unknown,
     effect: Effect.Effect<A, EffectAcpErrors.AcpError>,
-  ) =>
+  ): Effect.Effect<A, EffectAcpErrors.AcpError> =>
     logRequest({ method, payload, status: "started" }).pipe(
       Effect.flatMap(() =>
         (options.onStderr ? Effect.raceFirst(effect, Deferred.await(stderrFailure)) : effect).pipe(
@@ -1808,7 +1811,11 @@ export const make = Effect.fn("AcpSessionRuntime.make")(function* (
   });
 
   const validateConfigOptionValue = Effect.fn("AcpSessionRuntime.validateConfigOptionValue")(
-    function* (configId: string, value: string | boolean, allowUnlistedValue: boolean) {
+    function* (
+      configId: string,
+      value: string | boolean,
+      allowUnlistedValue: boolean,
+    ): Effect.fn.Return<void, EffectAcpErrors.AcpError> {
       const configOptions = yield* SubscriptionRef.get(configOptionsRef);
       const configOption = findSessionConfigOption(configOptions, configId);
       if (!configOption) {
@@ -1878,7 +1885,7 @@ export const make = Effect.fn("AcpSessionRuntime.make")(function* (
     });
   });
 
-  const updateCurrentModeId = (modeId: string) =>
+  const updateCurrentModeId = (modeId: string): Effect.Effect<void> =>
     Ref.update(modeStateRef, (current) =>
       current ? { ...current, currentModeId: modeId } : current,
     );
@@ -1890,7 +1897,7 @@ export const make = Effect.fn("AcpSessionRuntime.make")(function* (
       | EffectAcpSchema.LoadSessionResponse
       | EffectAcpSchema.NewSessionResponse
       | EffectAcpSchema.ResumeSessionResponse,
-  ) {
+  ): Effect.fn.Return<AcpSessionRuntimeStartResult, EffectAcpErrors.AcpError> {
     const current = yield* getStartedState;
     const meta = sessionSetupResult._meta;
     const syntheticReplayIdle =
@@ -1934,13 +1941,10 @@ export const make = Effect.fn("AcpSessionRuntime.make")(function* (
     return nextState;
   });
 
-  const runLoadSessionWithReplayIdle: (
+  const runLoadSessionWithReplayIdle = (
     loadPayload: EffectAcpSchema.LoadSessionRequest,
     initializeResult: EffectAcpSchema.InitializeResponse,
-  ) => Effect.Effect<EffectAcpSchema.LoadSessionResponse, EffectAcpErrors.AcpError> = (
-    loadPayload: EffectAcpSchema.LoadSessionRequest,
-    initializeResult: EffectAcpSchema.InitializeResponse,
-  ) =>
+  ): Effect.Effect<EffectAcpSchema.LoadSessionResponse, EffectAcpErrors.AcpError> =>
     sessionLoadSemaphore.withPermits(1)(
       Effect.gen(function* () {
         const sessionLoadTimeout = Duration.fromInputUnsafe(
@@ -2030,7 +2034,7 @@ export const make = Effect.fn("AcpSessionRuntime.make")(function* (
       readonly allowUnlistedValue?: boolean;
       readonly resendCurrentValue?: boolean;
     },
-  ) =>
+  ): Effect.Effect<EffectAcpSchema.SetSessionConfigOptionResponse, EffectAcpErrors.AcpError> =>
     validateConfigOptionValue(configId, value, options?.allowUnlistedValue === true).pipe(
       Effect.andThen(getStartedState),
       Effect.flatMap((started) =>
@@ -2134,7 +2138,7 @@ export const make = Effect.fn("AcpSessionRuntime.make")(function* (
   const sessionMcpServers = (
     initializeResult: EffectAcpSchema.InitializeResponse,
     activationOptions?: AcpSessionActivationOptions,
-  ) => {
+  ): ReadonlyArray<EffectAcpSchema.McpServer> => {
     const mcpCapabilities = initializeResult.agentCapabilities?.mcpCapabilities;
     const acpServers = activationOptions?.acpMcpServers ?? options.acpMcpServers ?? [];
     if (mcpCapabilities?.acp === true && acpServers.length > 0) {
@@ -2161,7 +2165,9 @@ export const make = Effect.fn("AcpSessionRuntime.make")(function* (
     const initializeResult = yield* initialize;
 
     const authenticateAfterRequired = Effect.fn("AcpSessionRuntime.authenticateAfterRequired")(
-      function* (authRequiredError: EffectAcpErrors.AcpError) {
+      function* (
+        authRequiredError: EffectAcpErrors.AcpError,
+      ): Effect.fn.Return<void, EffectAcpErrors.AcpError> {
         const configuredAuthMethodId = options.authMethodId?.trim();
         const authMethod = selectAcpAgentAuthMethod(
           initializeResult.authMethods,
@@ -2750,13 +2756,13 @@ export const make = Effect.fn("AcpSessionRuntime.make")(function* (
   } satisfies AcpSessionRuntime["Service"];
 });
 
-export const layer: (
+export const layer = (
   options: AcpSessionRuntimeOptions,
-) => Layer.Layer<
+): Layer.Layer<
   AcpSessionRuntime,
   EffectAcpErrors.AcpError,
   ChildProcessSpawner.ChildProcessSpawner | SecureRandom.SecureRandom
-> = (options: AcpSessionRuntimeOptions) => Layer.effect(AcpSessionRuntime, make(options));
+> => Layer.effect(AcpSessionRuntime, make(options));
 
 function sessionConfigOptionsFromSetup(
   response:
@@ -2764,14 +2770,14 @@ function sessionConfigOptionsFromSetup(
         readonly configOptions?: ReadonlyArray<EffectAcpSchema.SessionConfigOption> | null;
       }
     | undefined,
-) {
+): ReadonlyArray<EffectAcpSchema.SessionConfigOption> {
   return response?.configOptions ?? [];
 }
 
 function configOptionCurrentValueMatches(
   configOption: EffectAcpSchema.SessionConfigOption,
   value: string | boolean,
-) {
+): boolean {
   const currentValue = configOption.currentValue;
   if (configOption.type === "boolean") {
     return currentValue === value;
@@ -2782,7 +2788,7 @@ function configOptionCurrentValueMatches(
   return currentValue.trim() === String(value).trim();
 }
 
-function isStartupMetadataUpdate(notification: EffectAcpSchema.SessionNotification) {
+function isStartupMetadataUpdate(notification: EffectAcpSchema.SessionNotification): boolean {
   switch (notification.update.sessionUpdate) {
     case "current_mode_update":
     case "config_option_update":
@@ -2813,7 +2819,7 @@ const handleSessionUpdate = Effect.fnUntraced(function* ({
   readonly assistantSegmentRef: Ref.Ref<AcpAssistantSegmentState>;
   readonly assistantItemRuntimeId: string;
   readonly params: EffectAcpSchema.SessionNotification;
-}) {
+}): Effect.fn.Return<void> {
   if (params.update.sessionUpdate === "config_option_update") {
     const configOptions = params.update.configOptions;
     yield* SubscriptionRef.set(configOptionsRef, configOptions);
@@ -2894,7 +2900,7 @@ const handleSessionUpdate = Effect.fnUntraced(function* ({
   }
 });
 
-function updateModeState(modeState: AcpSessionModeState, nextModeId: string) {
+function updateModeState(modeState: AcpSessionModeState, nextModeId: string): AcpSessionModeState {
   const normalized = nextModeId.trim();
   if (!normalized) {
     return modeState;

@@ -57,7 +57,7 @@ import {
   GhosttyTerminalSurface,
   type GhosttyTerminalSurfaceOptions,
 } from "~/terminal/ghostty/surface";
-import { type GhosttyColor } from "~/terminal/ghostty/core";
+import { type GhosttyColor, type GhosttyTheme } from "~/terminal/ghostty/core";
 import { registerTerminalScriptPasteSurface } from "~/terminal/scriptPaste";
 import { useOpenInPreferredEditor } from "../editorPreferences";
 import { isTerminalUrl, resolveTerminalLinkTarget } from "../terminal-links";
@@ -121,7 +121,7 @@ interface DrawerLayout {
   composerHeight?: number;
 }
 
-function resolveTerminalDrawerMaxHeight(input: DrawerLayout) {
+function resolveTerminalDrawerMaxHeight(input: DrawerLayout): number {
   const windowCap = Math.max(
     MIN_DRAWER_HEIGHT,
     Math.floor(input.viewportHeight * MAX_DRAWER_HEIGHT_RATIO),
@@ -136,16 +136,16 @@ function resolveTerminalDrawerMaxHeight(input: DrawerLayout) {
 const DRAG_HEIGHT_PROPERTY = "--terminal-drawer-drag-height";
 const TERMINAL_POINTER_IDLE_MS = 2_000;
 
-function clampDrawerHeight(height: number, maxHeight: number) {
+function clampDrawerHeight(height: number, maxHeight: number): number {
   const safeHeight = Number.isFinite(height) ? height : DEFAULT_THREAD_TERMINAL_HEIGHT;
   return Math.min(Math.max(Math.round(safeHeight), MIN_DRAWER_HEIGHT), maxHeight);
 }
 
-function chatColumnOf(drawer: HTMLElement | null) {
+function chatColumnOf(drawer: HTMLElement | null): HTMLElement | null {
   return drawer?.closest<HTMLElement>("[data-chat-column]") ?? null;
 }
 
-function readDrawerLayout(column: HTMLElement | null) {
+function readDrawerLayout(column: HTMLElement | null): Omit<DrawerLayout, "composerHeight"> {
   const viewportHeight = typeof window === "undefined" ? 0 : window.innerHeight;
   if (!column) return { viewportHeight };
   return {
@@ -155,14 +155,17 @@ function readDrawerLayout(column: HTMLElement | null) {
   };
 }
 
-function writeSystemMessage(terminal: Pick<GhosttyTerminalSurface, "write">, message: string) {
+function writeSystemMessage(
+  terminal: Pick<GhosttyTerminalSurface, "write">,
+  message: string,
+): void {
   terminal.write(`\r\n[terminal] ${message}\r\n`);
 }
 
 export function writeTerminalOutputUpdate(
   terminal: Pick<GhosttyTerminalSurface, "resetAndWrite" | "write">,
   update: TerminalOutputUpdate,
-) {
+): void {
   if (update.type === "reset") {
     terminal.resetAndWrite(update.data);
   } else if (update.type === "append") {
@@ -179,7 +182,7 @@ export function synchronizeTerminalOutput(
   >,
   session: Pick<TerminalSessionState, "output" | "version">,
   cursor: TerminalOutputCursor,
-) {
+): TerminalOutputCursor {
   if (session.version === 0) return cursor;
   const update = readTerminalOutputUpdate(session.output, cursor);
   if (update.type === "none") return update.cursor;
@@ -199,7 +202,7 @@ export function synchronizeTerminalSession(
   previous: Pick<TerminalSessionState, "output" | "version" | "error">,
   session: Pick<TerminalSessionState, "output" | "version" | "error">,
   cursor: TerminalOutputCursor,
-) {
+): TerminalOutputCursor {
   const nextCursor =
     session.version === previous.version && session.output === previous.output
       ? cursor
@@ -215,7 +218,7 @@ export function synchronizeTerminalSession(
   return nextCursor;
 }
 
-function parseTerminalColor(value: string, fallback: GhosttyColor) {
+function parseTerminalColor(value: string, fallback: GhosttyColor): GhosttyColor {
   if (typeof document === "undefined") return fallback;
 
   const canvas = document.createElement("canvas");
@@ -237,7 +240,7 @@ function parseTerminalColor(value: string, fallback: GhosttyColor) {
   };
 }
 
-function hexToGhosttyColor(hex: string) {
+function hexToGhosttyColor(hex: string): GhosttyColor {
   const value = Number.parseInt(hex.slice(1), 16);
   return { r: (value >> 16) & 255, g: (value >> 8) & 255, b: value & 255 };
 }
@@ -284,7 +287,7 @@ const TERMINAL_PALETTES = {
 function withLiveVisibility(
   visibleRef: { readonly current: boolean },
   options: Omit<GhosttyTerminalSurfaceOptions, "visible">,
-) {
+): GhosttyTerminalSurfaceOptions {
   return {
     ...options,
     get visible() {
@@ -293,7 +296,7 @@ function withLiveVisibility(
   };
 }
 
-function runtimeEnvSignature(runtimeEnv: Record<string, string> | undefined) {
+function runtimeEnvSignature(runtimeEnv: Record<string, string> | undefined): string {
   if (!runtimeEnv) return "";
   return JSON.stringify(
     Object.entries(runtimeEnv)
@@ -302,7 +305,7 @@ function runtimeEnvSignature(runtimeEnv: Record<string, string> | undefined) {
   );
 }
 
-function normalizeComputedColor(value: string | null | undefined, fallback: string) {
+function normalizeComputedColor(value: string | null | undefined, fallback: string): string {
   const normalizedValue = value?.trim().toLowerCase();
   if (
     !normalizedValue ||
@@ -315,16 +318,16 @@ function normalizeComputedColor(value: string | null | undefined, fallback: stri
   return value ?? fallback;
 }
 
-function readThemeColor(styles: CSSStyleDeclaration, variable: string, fallback: string) {
+function readThemeColor(styles: CSSStyleDeclaration, variable: string, fallback: string): string {
   return normalizeComputedColor(styles.getPropertyValue(variable), fallback);
 }
 
-function terminalFontOptions(family: string, size: number) {
+function terminalFontOptions(family: string, size: number): { family?: string; size: number } {
   const trimmed = family.trim();
   return trimmed.length > 0 ? { family: trimmed, size } : { size };
 }
 
-export function terminalThemeFromApp(mountElement?: HTMLElement | null) {
+export function terminalThemeFromApp(mountElement?: HTMLElement | null): GhosttyTheme {
   const drawerSurface =
     mountElement?.closest("[data-thread-terminal-drawer]") ??
     document.querySelector("[data-thread-terminal-drawer]") ??
@@ -388,7 +391,10 @@ export function terminalThemeFromApp(mountElement?: HTMLElement | null) {
   };
 }
 
-function terminalSelectionLineRange(position: { start: { y: number }; end: { y: number } }) {
+function terminalSelectionLineRange(position: { start: { y: number }; end: { y: number } }): {
+  lineStart: number;
+  lineEnd: number;
+} {
   const lineStart = position.start.y + 1;
   return {
     lineStart,
@@ -403,20 +409,22 @@ export type TerminalContextMenuAction =
   | "select-all"
   | "scroll-to-bottom";
 
-function terminalSelectionMenuItems(options?: { canAddToChat?: boolean }) {
+function terminalSelectionMenuItems(options?: {
+  canAddToChat?: boolean;
+}): ContextMenuItem<"add-to-chat" | "copy">[] {
   return [
     ...(options?.canAddToChat === false
       ? []
       : ([{ id: "add-to-chat", label: "Add to chat" }] satisfies ContextMenuItem<"add-to-chat">[])),
     { id: "copy", label: "Copy" },
-  ] satisfies ContextMenuItem<"add-to-chat" | "copy">[];
+  ];
 }
 
 function terminalContextMenuItems(options: {
   hasSelection: boolean;
   canAddToChat?: boolean;
   readOnly?: boolean;
-}) {
+}): ContextMenuItem<TerminalContextMenuAction>[] {
   const { hasSelection, canAddToChat = true } = options;
   return [
     ...terminalSelectionMenuItems({ canAddToChat }).map((item) => ({
@@ -426,10 +434,13 @@ function terminalContextMenuItems(options: {
     { id: "paste", label: "Paste", ...(options.readOnly ? { disabled: true } : {}) },
     { id: "select-all", label: "Select all" },
     { id: "scroll-to-bottom", label: "Jump to latest" },
-  ] satisfies ContextMenuItem<TerminalContextMenuAction>[];
+  ];
 }
 
-function writableSessionGeneration(session: TerminalSessionState, canOperate: boolean) {
+function writableSessionGeneration(
+  session: TerminalSessionState,
+  canOperate: boolean,
+): number | null {
   return canOperate && session.version > 0 && session.status === "running"
     ? session.output.generation
     : null;
@@ -440,7 +451,7 @@ export function shouldHandleTerminalExit(
   synchronized: TerminalSessionState["status"],
   alreadyHandled: boolean,
   version: number,
-) {
+): boolean {
   return (
     version > 0 &&
     (current === "closed" || current === "exited") &&
@@ -697,7 +708,7 @@ function TerminalSessionViewport({
     let setupTerminal: GhosttyTerminalSurface | null = null;
     let setupCleanups: Array<() => void> = [];
 
-    const setup = async () => {
+    const setup = async (): Promise<(() => void) | null> => {
       const setupFont = terminalFontRef.current;
       const terminalOptions = withLiveVisibility(visibleRef, {
         theme: terminalThemeFromApp(mount),
@@ -781,7 +792,10 @@ function TerminalSessionViewport({
       };
       setupCleanups.push(clearSelectionAction);
 
-      const readSelectionAction = () => {
+      const readSelectionAction = (): {
+        clipboardText: string;
+        selection: TerminalContextSelection;
+      } | null => {
         const activeTerminal = terminalRef.current;
         if (!activeTerminal || !activeTerminal.hasSelection()) {
           return null;
@@ -965,7 +979,7 @@ function TerminalSessionViewport({
         );
       };
 
-      function handleBeforeKey(event: KeyboardEvent) {
+      function handleBeforeKey(event: KeyboardEvent): boolean {
         const currentKeybindings = readKeybindings();
         const options = { context: { terminalFocus: true, terminalOpen: true } };
         if (preventTerminalCloseShortcut(event, currentKeybindings)) {
@@ -1007,7 +1021,7 @@ function TerminalSessionViewport({
         return false;
       }
 
-      function handleLinkActivate(text: string, event: MouseEvent) {
+      function handleLinkActivate(text: string, event: MouseEvent): void {
         if (
           !isTerminalUrl(text) &&
           !readEnvironmentScope(environmentId, AuthOrchestrationOperateScope)
@@ -1059,7 +1073,7 @@ function TerminalSessionViewport({
         })();
       }
 
-      function handleData(data: string) {
+      function handleData(data: string): void {
         void sendTerminalInput(data, "Terminal write failed");
       }
 
@@ -1408,7 +1422,7 @@ export default function ThreadTerminalDrawer({
     const usedGroupIds = new Set<string>();
     const nextGroups: ThreadTerminalGroup[] = [];
 
-    const assignUniqueGroupId = (groupId: string) => {
+    const assignUniqueGroupId = (groupId: string): string => {
       if (!usedGroupIds.has(groupId)) {
         usedGroupIds.add(groupId);
         return groupId;
@@ -1512,7 +1526,7 @@ export default function ThreadTerminalDrawer({
     resolvedTerminalGroups.length > 1 ||
     resolvedTerminalGroups.some((terminalGroup) => terminalGroup.terminalIds.length > 1);
   const hasReachedSplitLimit = visibleTerminalIds.length >= MAX_TERMINALS_PER_GROUP;
-  const resolveTerminalLaunchLocation = (terminalId: string) =>
+  const resolveTerminalLaunchLocation = (terminalId: string): TerminalLaunchLocation =>
     terminalLaunchLocationsById?.get(terminalId) ?? {
       cwd,
       ...(worktreePath !== undefined ? { worktreePath } : {}),

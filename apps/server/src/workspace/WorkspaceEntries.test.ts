@@ -7,6 +7,7 @@ import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Path from "effect/Path";
+import * as PlatformError from "effect/PlatformError";
 import { vi } from "vite-plus/test";
 
 import * as ServerConfig from "../config.ts";
@@ -70,7 +71,11 @@ const makeTempDir = Effect.fn(function* (opts?: { prefix?: string; git?: boolean
   return dir;
 });
 
-function writeTextFile(cwd: string, relativePath: string, contents = "") {
+function writeTextFile(
+  cwd: string,
+  relativePath: string,
+  contents = "",
+): Effect.Effect<void, PlatformError.PlatformError, FileSystem.FileSystem | Path.Path> {
   return Effect.gen(function* () {
     const fileSystem = yield* FileSystem.FileSystem;
     const path = yield* Path.Path;
@@ -1049,7 +1054,7 @@ it.layer(layerTest, { excludeTestServices: true })("WorkspaceEntries", (it) => {
             useRegex: false,
           })
           .pipe(
-            Effect.map((result) => result.matches.map((match) => match.path)),
+            Effect.map((result): unknown => result.matches.map((match) => match.path)),
             Effect.catchTags({
               WorkspaceSearchIndexScanTimedOut: (error) => Effect.succeed<unknown>(error._tag),
             }),

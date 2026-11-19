@@ -25,7 +25,7 @@ export function isSnoozedForNotification(
   thread: ThreadSnoozeShell,
   completedAt: number | null,
   now: number,
-) {
+): boolean {
   if (effectiveSnoozed(thread, { now: new Date(now).toISOString() })) return true;
   if (completedAt === null) return false;
   if (thread.snoozedAt != null && completedAt < Date.parse(thread.snoozedAt)) return false;
@@ -55,7 +55,7 @@ export function createThreadNotificationGate<Key>(
     key: Key,
     prior: ThreadNotificationObservation | undefined,
     next: ThreadNotificationObservation,
-  ) => {
+  ): boolean => {
     if (next.attention === null) {
       attended.delete(key);
       return false;
@@ -73,7 +73,7 @@ export function createThreadNotificationGate<Key>(
       prior: ThreadNotificationObservation | undefined,
       next: ThreadNotificationObservation,
       options: { readonly archived: boolean; readonly quiet: boolean; readonly snoozed: boolean },
-    ) {
+    ): void {
       const silenced = options.archived || options.quiet || options.snoozed;
       if (next.settled && next.completedAt !== null) lastSettled.set(key, next.completedAt);
       if (!next.settled || silenced) cancel(key);
@@ -99,16 +99,16 @@ export function createThreadNotificationGate<Key>(
         }, WORKING_EXIT_GRACE_MS),
       });
     },
-    retain(keys: ReadonlySet<Key>) {
+    retain(keys: ReadonlySet<Key>): void {
       for (const key of pending.keys()) if (!keys.has(key)) cancel(key);
       for (const key of handled.keys()) if (!keys.has(key)) handled.delete(key);
       for (const key of lastSettled.keys()) if (!keys.has(key)) lastSettled.delete(key);
       for (const key of attended.keys()) if (!keys.has(key)) attended.delete(key);
     },
-    cancelPending() {
+    cancelPending(): void {
       for (const key of pending.keys()) cancel(key);
     },
-    clear() {
+    clear(): void {
       for (const key of pending.keys()) cancel(key);
       handled.clear();
       lastSettled.clear();

@@ -89,7 +89,7 @@ const threadSearch = createThreadSearchResultsAtomFamily({
   labelPrefix: "web:thread-search",
 });
 
-export function useDebouncedValue<A>(value: A, delayMs: number) {
+export function useDebouncedValue<A>(value: A, delayMs: number): A {
   const [debounced, setDebounced] = useState(value);
 
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- debounce timer that publishes the value after delayMs
@@ -114,7 +114,11 @@ export function useThreadSearch(
   environmentIds: ReadonlyArray<EnvironmentId>,
   query: string,
   scope: ThreadSearchScope = {},
-) {
+): {
+  readonly matches: ReadonlyArray<EnvironmentThreadSearchMatch>;
+  readonly query: string;
+  readonly isPending: boolean;
+} {
   const normalizedQuery = query.trim().slice(0, THREAD_SEARCH_QUERY_MAX_LENGTH).trim();
   const debouncedQuery = useDebouncedValue(normalizedQuery, THREAD_SEARCH_DEBOUNCE_MS);
   const anyOlderDone = useAtomValue(anyOlderDoneAtom(JSON.stringify(environmentIds)));
@@ -287,7 +291,7 @@ type ProjectPathSearchTarget = ComposerPathSearchTarget & {
 function areProjectPathSearchTargetsEqual(
   left: ProjectPathSearchTarget,
   right: ProjectPathSearchTarget,
-) {
+): boolean {
   return (
     left.environmentId === right.environmentId &&
     left.cwd === right.cwd &&

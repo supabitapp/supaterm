@@ -62,7 +62,7 @@ function parseSshConfigLine(line: string) {
   return { directive, args };
 }
 
-function expandHomePath(input: string, homeDir: string) {
+function expandHomePath(input: string, homeDir: string): string {
   return input.replace(/^~(?=$|\/|\\)/u, () => homeDir);
 }
 
@@ -78,44 +78,38 @@ const resolveSshConfigIncludePattern = Effect.fnUntraced(function* (
     : path.resolve(path.join(homeDir, ".ssh"), expandedPattern);
 });
 
-function hasSshPattern(value: string): boolean;
-function hasSshPattern(value: string) {
-  return (value.includes("*") || value.includes("?") || value.startsWith("!")) satisfies boolean;
+function hasSshPattern(value: string): boolean {
+  return value.includes("*") || value.includes("?") || value.startsWith("!");
 }
 
-function escapeRegex(value: string) {
+function escapeRegex(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
 }
 
 const utf8 = new TextEncoder();
 
-function globBytes(value: string): string;
-function globBytes(value: string) {
-  return Array.from(utf8.encode(value), (byte) => String.fromCharCode(byte)).join(
-    "",
-  ) satisfies string;
+function globBytes(value: string): string {
+  return Array.from(utf8.encode(value), (byte) => String.fromCharCode(byte)).join("");
 }
 
-function globToRegExp(pattern: string): RegExp;
-function globToRegExp(pattern: string) {
+function globToRegExp(pattern: string): RegExp {
   return new RegExp(
     `^${escapeRegex(pattern).replace(/\\\*/gu, "[^]*").replace(/\\\?/gu, ".")}$`,
     "u",
-  ) satisfies RegExp;
+  );
 }
 
-function hasGlobWildcard(value: string): boolean;
-function hasGlobWildcard(value: string) {
-  return (value.includes("*") || value.includes("?")) satisfies boolean;
+function hasGlobWildcard(value: string): boolean {
+  return value.includes("*") || value.includes("?");
 }
 
-const expandGlob: (
+const expandGlob = Effect.fnUntraced(function* (
   pattern: string,
-) => Effect.Effect<
+): Effect.fn.Return<
   ReadonlyArray<string>,
   PlatformError.PlatformError,
   FileSystem.FileSystem | Path.Path
-> = Effect.fnUntraced(function* (pattern: string) {
+> {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   if (!hasGlobWildcard(pattern)) {
@@ -157,7 +151,7 @@ interface HostRule {
   readonly value: string | null;
 }
 
-function matchesHostPatterns(alias: string, patterns: ReadonlyArray<string>) {
+function matchesHostPatterns(alias: string, patterns: ReadonlyArray<string>): boolean {
   let matched = false;
   for (const pattern of patterns) {
     const negated = pattern.startsWith("!");
@@ -203,103 +197,95 @@ function resolveConfiguredPort(alias: string, rules: ReadonlyArray<HostRule>) {
   return port === undefined ? "22" : (port ?? "*");
 }
 
-const collectSshConfigAliasesFromFile: (
+const collectSshConfigAliasesFromFile = Effect.fnUntraced(function* (
   filePath: string,
   visited: Set<string>,
   homeDir: string,
   aliases: Set<string>,
   hostNameRules: Array<HostRule>,
   inheritedConditions: ReadonlyArray<HostCondition>,
-) => Effect.Effect<void, PlatformError.PlatformError, FileSystem.FileSystem | Path.Path> =
-  Effect.fnUntraced(function* (
-    filePath: string,
-    visited: Set<string>,
-    homeDir: string,
-    aliases: Set<string>,
-    hostNameRules: Array<HostRule>,
-    inheritedConditions: ReadonlyArray<HostCondition>,
-  ) {
-    const fs = yield* FileSystem.FileSystem;
-    const path = yield* Path.Path;
-    const resolvedPath = path.resolve(filePath);
-    if (visited.has(resolvedPath)) {
-      hostNameRules.push({ conditions: inheritedConditions, directive: null, value: null });
-      return;
-    }
-    if (!(yield* fs.exists(resolvedPath))) return;
-    if ((yield* fs.stat(resolvedPath)).type === "Directory") return;
-    visited.add(resolvedPath);
+): Effect.fn.Return<void, PlatformError.PlatformError, FileSystem.FileSystem | Path.Path> {
+  const fs = yield* FileSystem.FileSystem;
+  const path = yield* Path.Path;
+  const resolvedPath = path.resolve(filePath);
+  if (visited.has(resolvedPath)) {
+    hostNameRules.push({ conditions: inheritedConditions, directive: null, value: null });
+    return;
+  }
+  if (!(yield* fs.exists(resolvedPath))) return;
+  if ((yield* fs.stat(resolvedPath)).type === "Directory") return;
+  visited.add(resolvedPath);
 
-    const directory = path.dirname(resolvedPath);
-    const raw = yield* fs.readFileString(resolvedPath);
-    let condition: HostCondition = ["*"];
+  const directory = path.dirname(resolvedPath);
+  const raw = yield* fs.readFileString(resolvedPath);
+  let condition: HostCondition = ["*"];
 
-    for (const line of raw.split(/\r?\n/u)) {
-      const parsed = parseSshConfigLine(line);
-      if (!parsed) continue;
-      const { directive, args } = parsed;
-      const conditions = [...inheritedConditions, condition];
+  for (const line of raw.split(/\r?\n/u)) {
+    const parsed = parseSshConfigLine(line);
+    if (!parsed) continue;
+    const { directive, args } = parsed;
+    const conditions = [...inheritedConditions, condition];
 
-      if (directive === "host") {
-        condition = args;
-        for (const alias of args ?? []) {
-          if (alias.length > 0 && !hasSshPattern(alias)) aliases.add(alias);
-        }
-      } else if (directive === "match") {
-        condition = null;
-      } else if (directive === "hostname") {
-        hostNameRules.push({
-          conditions,
-          directive: "hostname",
-          value: args?.length === 1 ? args[0]! : null,
-        });
-      } else if (directive === "port") {
-        const port = args?.length === 1 ? Number(args[0]) : Number.NaN;
-        hostNameRules.push({
-          conditions,
-          directive: "port",
-          value: Number.isInteger(port) && port >= 1 && port <= 65535 ? String(port) : null,
-        });
-      } else if (directive === "include") {
-        if (args === null) {
+    if (directive === "host") {
+      condition = args;
+      for (const alias of args ?? []) {
+        if (alias.length > 0 && !hasSshPattern(alias)) aliases.add(alias);
+      }
+    } else if (directive === "match") {
+      condition = null;
+    } else if (directive === "hostname") {
+      hostNameRules.push({
+        conditions,
+        directive: "hostname",
+        value: args?.length === 1 ? args[0]! : null,
+      });
+    } else if (directive === "port") {
+      const port = args?.length === 1 ? Number(args[0]) : Number.NaN;
+      hostNameRules.push({
+        conditions,
+        directive: "port",
+        value: Number.isInteger(port) && port >= 1 && port <= 65535 ? String(port) : null,
+      });
+    } else if (directive === "include") {
+      if (args === null) {
+        hostNameRules.push({ conditions, directive: null, value: null });
+        continue;
+      }
+      for (const includePattern of args) {
+        const resolvedPattern = yield* resolveSshConfigIncludePattern(
+          includePattern,
+          directory,
+          homeDir,
+        );
+        if (
+          /%|\$\{|\[/u.test(includePattern) ||
+          (includePattern.startsWith("~") && !/^~(?=$|\/|\\)/u.test(includePattern))
+        ) {
           hostNameRules.push({ conditions, directive: null, value: null });
           continue;
         }
-        for (const includePattern of args) {
-          const resolvedPattern = yield* resolveSshConfigIncludePattern(
-            includePattern,
-            directory,
+        const includedPaths = yield* expandGlob(resolvedPattern);
+        for (const includedPath of includedPaths) {
+          yield* collectSshConfigAliasesFromFile(
+            includedPath,
+            visited,
             homeDir,
+            aliases,
+            hostNameRules,
+            conditions,
           );
-          if (
-            /%|\$\{|\[/u.test(includePattern) ||
-            (includePattern.startsWith("~") && !/^~(?=$|\/|\\)/u.test(includePattern))
-          ) {
-            hostNameRules.push({ conditions, directive: null, value: null });
-            continue;
-          }
-          const includedPaths = yield* expandGlob(resolvedPattern);
-          for (const includedPath of includedPaths) {
-            yield* collectSshConfigAliasesFromFile(
-              includedPath,
-              visited,
-              homeDir,
-              aliases,
-              hostNameRules,
-              conditions,
-            );
-          }
         }
       }
     }
-  });
+  }
+});
 
 interface KnownHost {
   readonly hostname: string;
   readonly port: number | null;
 }
 
-function parseKnownHostsHost(rawHost: string) {
+function parseKnownHostsHost(rawHost: string): KnownHost | null {
   const bracketMatch = /^\[([^\]]+)\]:(\d+)$/u.exec(rawHost);
   if (bracketMatch?.[1]) {
     const port = Number(bracketMatch[2]);
@@ -318,7 +304,7 @@ function parseKnownHostsHost(rawHost: string) {
   };
 }
 
-export function parseKnownHosts(raw: string) {
+export function parseKnownHosts(raw: string): ReadonlyArray<KnownHost> {
   const hosts = new Map<string, KnownHost>();
 
   for (const line of raw.split(/\r?\n/u)) {

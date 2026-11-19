@@ -138,15 +138,11 @@ type TranscriptDecision =
   | { readonly _tag: "settled"; readonly live: Live | undefined }
   | { readonly _tag: "submit"; readonly target: TranscriptionUploadSubmit };
 
-const settledEntry: (
+const settledEntry = (
   entry: Extract<Entry, { readonly work: Work }>,
   outcome: Outcome,
   settledAt: number,
-) => Entry = (
-  entry: Extract<Entry, { readonly work: Work }>,
-  outcome: Outcome,
-  settledAt: number,
-) => ({
+): Entry => ({
   _tag: "Settled",
   request: entry.request,
   providerInstanceId: entry.providerInstanceId,
@@ -160,7 +156,10 @@ const sameTarget = (left: TranscriptionUploadSubmit, right: TranscriptionUploadS
   left.commandId === right.commandId &&
   left.messageId === right.messageId;
 
-const messageDispatch = (submit: TranscriptionUploadSubmit, text: string) => {
+const messageDispatch = (
+  submit: TranscriptionUploadSubmit,
+  text: string,
+): Extract<OrchestrationV2Command, { readonly type: "message.dispatch" }> => {
   const delivery = submit.delivery ?? "auto";
   return {
     type: "message.dispatch",
@@ -176,7 +175,7 @@ const messageDispatch = (submit: TranscriptionUploadSubmit, text: string) => {
     ...(delivery === "queue" ? {} : { deliveryIntent: delivery }),
     dispatchMode:
       delivery === "queue" ? { type: "queue_after_active" } : { type: "start_immediately" },
-  } satisfies Extract<OrchestrationV2Command, { readonly type: "message.dispatch" }>;
+  };
 };
 
 export class TranscriptionUploads extends Context.Service<
@@ -376,30 +375,24 @@ const make = Effect.gen(function* () {
   ) {
     const settledAt = yield* Clock.currentTimeMillis;
     const decision = yield* storeLock.withPermits(1)(
-      Ref.modify(entriesRef, (entries) => {
-        const entry = entries.get(uploadId);
-        if (entry?._tag !== "Transcribing" || entry.work.result !== result) {
-          return [{ _tag: "gone" }, entries] satisfies readonly [
-            TranscriptDecision,
-            ReadonlyMap<string, Entry>,
-          ] as readonly [TranscriptDecision, ReadonlyMap<string, Entry>];
-        }
-        if (entry.submit === undefined) {
-          const next = new Map(entries).set(
-            uploadId,
-            settledEntry(entry, Exit.succeed({ text }), settledAt),
-          );
-          return [{ _tag: "settled", live: entry.live }, next] satisfies readonly [
-            TranscriptDecision,
-            ReadonlyMap<string, Entry>,
-          ] as readonly [TranscriptDecision, ReadonlyMap<string, Entry>];
-        }
-        const next = new Map(entries).set(uploadId, { ...entry, _tag: "Submitting" as const });
-        return [{ _tag: "submit", target: entry.submit }, next] satisfies readonly [
-          TranscriptDecision,
-          ReadonlyMap<string, Entry>,
-        ] as readonly [TranscriptDecision, ReadonlyMap<string, Entry>];
-      }),
+      Ref.modify(
+        entriesRef,
+        (entries): readonly [TranscriptDecision, ReadonlyMap<string, Entry>] => {
+          const entry = entries.get(uploadId);
+          if (entry?._tag !== "Transcribing" || entry.work.result !== result) {
+            return [{ _tag: "gone" }, entries];
+          }
+          if (entry.submit === undefined) {
+            const next = new Map(entries).set(
+              uploadId,
+              settledEntry(entry, Exit.succeed({ text }), settledAt),
+            );
+            return [{ _tag: "settled", live: entry.live }, next];
+          }
+          const next = new Map(entries).set(uploadId, { ...entry, _tag: "Submitting" as const });
+          return [{ _tag: "submit", target: entry.submit }, next];
+        },
+      ),
     );
     if (decision._tag === "gone") return;
     if (decision._tag === "settled") {
@@ -589,7 +582,7 @@ const make = Effect.gen(function* () {
       })
       .pipe(
         Effect.ensuring(removeFile(audioPath)),
-        Effect.flatMap(({ text }) =>
+        Effect.flatMap(({ text }): Effect.Effect<TranscriptionUploadResult, TranscriptionError> =>
           request.submit === undefined
             ? Effect.succeed({ text })
             : submit(uploadId, result, request.submit, text),

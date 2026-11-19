@@ -403,7 +403,7 @@ interface PendingRequest {
     | { readonly type: "form"; readonly id: string; readonly form: NativeForm };
 }
 
-const rule = (action: string, effect: Rule["effect"]) => ({ action, resource: "*", effect });
+const rule = (action: string, effect: Rule["effect"]): Rule => ({ action, resource: "*", effect });
 
 /**
  * OpenCode skips every tool of a server whose name is over 64 characters (its
@@ -422,33 +422,32 @@ export const supatermMcpServerName = Effect.fn("supatermMcpServerName")(function
   return `supaterm-${Hex.encode(digest).slice(0, 16)}`;
 });
 
-const mcpRules = (mcpServerName: string | null) =>
-  (mcpServerName === null
+const mcpRules = (mcpServerName: string | null): ReadonlyArray<Rule> =>
+  mcpServerName === null
     ? []
     : [
         { action: "supaterm-*", resource: "*", effect: "deny" },
         { action: `${mcpServerName}_*`, resource: "*", effect: "allow" },
-      ]) satisfies ReadonlyArray<Rule>;
+      ];
 
 const sessionRules = (
   policy: RulesPolicy,
   paths: ReadonlyArray<Rule>,
   grants: ReadonlyArray<Rule>,
   mcpServerName: string | null,
-) =>
-  [
-    ...(policy.runtimeMode === "full-access"
-      ? [rule("*", "allow")]
-      : [
-          rule("shell", "ask"),
-          rule("edit", policy.runtimeMode === "auto-accept-edits" ? "allow" : "ask"),
-          rule("external_directory", "ask"),
-        ]),
-    ...grants,
-    ...(policy.interactionMode === "plan" ? [rule("edit", "deny")] : []),
-    ...paths,
-    ...mcpRules(mcpServerName),
-  ] satisfies ReadonlyArray<Rule>;
+): ReadonlyArray<Rule> => [
+  ...(policy.runtimeMode === "full-access"
+    ? [rule("*", "allow")]
+    : [
+        rule("shell", "ask"),
+        rule("edit", policy.runtimeMode === "auto-accept-edits" ? "allow" : "ask"),
+        rule("external_directory", "ask"),
+      ]),
+  ...grants,
+  ...(policy.interactionMode === "plan" ? [rule("edit", "deny")] : []),
+  ...paths,
+  ...mcpRules(mcpServerName),
+];
 
 const sameRules = (left: ReadonlyArray<Rule> | undefined, right: ReadonlyArray<Rule>) =>
   left?.length === right.length &&
@@ -472,7 +471,11 @@ const sessionGrantLabel = (action: string, save: ReadonlyArray<string>) =>
 
 const text = (value: string | undefined, fallback: string) => value?.trim() || fallback;
 
-const formQuestions = (form: NativeForm) => {
+const formQuestions = (
+  form: NativeForm,
+):
+  | { readonly questions: ReadonlyArray<OrchestrationV2UserInputQuestion> }
+  | { readonly unsupported: string } => {
   const questions: Array<OrchestrationV2UserInputQuestion> = [];
   for (const [index, field] of form.fields.entries()) {
     if (field.type === "external") return { unsupported: "a link to open" };
@@ -855,17 +858,12 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
       state.unsettledRun = busy.has(state.sessionId) ? "started" : "notStarted";
     };
 
-    const newThreadState: (
+    const newThreadState = (
       sessionId: string,
       providerThread: OrchestrationV2ProviderThread,
       directory: string,
       subagent: ThreadState["subagent"],
-    ) => ThreadState = (
-      sessionId: string,
-      providerThread: OrchestrationV2ProviderThread,
-      directory: string,
-      subagent: ThreadState["subagent"],
-    ) => ({
+    ): ThreadState => ({
       sessionId,
       providerThread,
       imageJobs: new Map(),
@@ -894,13 +892,13 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
       instructions: undefined,
     });
 
-    const rootOf = (state: ThreadState) => {
+    const rootOf = (state: ThreadState): ThreadState => {
       let current = state;
       while (current.subagent !== undefined) current = current.subagent.call.state;
       return current;
     };
 
-    const sessionsOf = (thread: ThreadState) => [
+    const sessionsOf = (thread: ThreadState): ReadonlyArray<ThreadState> => [
       thread,
       ...[...threads.values()].filter((state) => {
         for (let above = state.subagent?.call.state; above; above = above.subagent?.call.state) {
@@ -910,10 +908,10 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
       }),
     ];
 
-    const runningCalls = (thread: ThreadState) =>
+    const runningCalls = (thread: ThreadState): ReadonlyArray<SubagentCall> =>
       sessionsOf(thread).flatMap((state) => [...state.calls.values()]);
 
-    const callsAttachedTo = (child: ThreadState) => {
+    const callsAttachedTo = (child: ThreadState): ReadonlyArray<SubagentCall> => {
       const parent = child.subagent?.call.state;
       if (parent === undefined) return [];
       return [...parent.calls.values()].filter((candidate) => candidate.child === child);
@@ -1527,15 +1525,11 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
       });
     };
 
-    const makeTurn: (
+    const makeTurn = (
       owner: TurnOwner,
       providerTurn: OrchestrationV2ProviderTurn,
       options: { readonly scope: string; readonly awaitingStart: boolean },
-    ) => ActiveTurn = (
-      owner: TurnOwner,
-      providerTurn: OrchestrationV2ProviderTurn,
-      options: { readonly scope: string; readonly awaitingStart: boolean },
-    ) => ({
+    ): ActiveTurn => ({
       input: owner,
       providerTurn,
       texts: new Map(),
@@ -1965,7 +1959,7 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
     const withReportedModel = (
       providerThread: OrchestrationV2ProviderThread,
       model: ModelRef | undefined,
-    ) => {
+    ): OrchestrationV2ProviderThread => {
       if (model === undefined) return providerThread;
       const modelSelection: ModelSelection = {
         instanceId,
@@ -2403,7 +2397,7 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
     const stopStaleRequest = (
       sessionId: string,
       native: { readonly type: "permission" | "form"; readonly id: string },
-    ) =>
+    ): Effect.Effect<void> =>
       native.type === "permission"
         ? client.permission
             .reply({
@@ -3729,11 +3723,9 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
 
     let currentScope = initial.scope;
     yield* Effect.addFinalizer(() => Scope.close(currentScope, Exit.void));
-    const follow: (
+    const follow = (
       stream: Stream.Stream<OpenCode2Client.OpenCode2StreamEvent, unknown>,
-    ) => Effect.Effect<void> = (
-      stream: Stream.Stream<OpenCode2Client.OpenCode2StreamEvent, unknown>,
-    ) =>
+    ): Effect.Effect<void> =>
       stream.pipe(
         Stream.runForEach((event) =>
           lock.withPermit(
@@ -4084,7 +4076,7 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
         client.message.list,
       ).pipe(Stream.runCollect);
       const snapshotAt = yield* DateTime.now;
-      const messages = history.flatMap((message) => {
+      const messages = history.flatMap((message): Array<OrchestrationV2ConversationMessage> => {
         const text =
           message.type === "user"
             ? message.text
@@ -4092,7 +4084,7 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
               ? textOf(message.content)
               : "";
         if (text.length === 0 || (message.type !== "user" && message.type !== "assistant")) {
-          return [] satisfies Array<OrchestrationV2ConversationMessage>;
+          return [];
         }
         const createdAt = message.time.created;
         return [
@@ -4113,7 +4105,7 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
             createdAt,
             updatedAt: createdAt,
           },
-        ] satisfies Array<OrchestrationV2ConversationMessage>;
+        ];
       });
       const lastUser = history.findLast((message) => message.type === "user")?.id;
       const state = threads.get(sessionId);

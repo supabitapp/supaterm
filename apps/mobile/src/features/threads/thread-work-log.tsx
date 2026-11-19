@@ -306,49 +306,49 @@ export function ShimmeringWorkContent(props: {
   );
 }
 
-function workRowSymbolName(icon: ThreadFeedActivity["icon"]) {
+function workRowSymbolName(icon: ThreadFeedActivity["icon"]): WorkContentIcon {
   switch (icon) {
     case "agent":
-      return "robot" satisfies WorkContentIcon;
+      return "robot";
     case "alert":
-      return { ios: "exclamationmark.triangle", android: "error" } satisfies WorkContentIcon;
+      return { ios: "exclamationmark.triangle", android: "error" };
     case "browser":
-      return { ios: "safari", android: "public" } satisfies WorkContentIcon;
+      return { ios: "safari", android: "public" };
     case "check":
-      return { ios: "checkmark", android: "check" } satisfies WorkContentIcon;
+      return { ios: "checkmark", android: "check" };
     case "command":
-      return { ios: "terminal", android: "terminal" } satisfies WorkContentIcon;
+      return { ios: "terminal", android: "terminal" };
     case "computer":
-      return "computer" satisfies WorkContentIcon;
+      return "computer";
     case "code":
-      return "chevron.left.forwardslash.chevron.right" satisfies WorkContentIcon;
+      return "chevron.left.forwardslash.chevron.right";
     case "edit":
-      return { ios: "square.and.pencil", android: "edit" } satisfies WorkContentIcon;
+      return { ios: "square.and.pencil", android: "edit" };
     case "eye":
-      return { ios: "eye", android: "visibility" } satisfies WorkContentIcon;
+      return { ios: "eye", android: "visibility" };
     case "globe":
-      return { ios: "globe", android: "public" } satisfies WorkContentIcon;
+      return { ios: "globe", android: "public" };
     case "search":
-      return "magnifyingglass" satisfies WorkContentIcon;
+      return "magnifyingglass";
     case "stop":
-      return "stop.fill" satisfies WorkContentIcon;
+      return "stop.fill";
     case "hammer":
-      return { ios: "hammer", android: "construction" } satisfies WorkContentIcon;
+      return { ios: "hammer", android: "construction" };
     case "lock":
-      return { ios: "lock", android: "lock" } satisfies WorkContentIcon;
+      return { ios: "lock", android: "lock" };
     case "message":
-      return { ios: "bubble.left", android: "chat_bubble" } satisfies WorkContentIcon;
+      return { ios: "bubble.left", android: "chat_bubble" };
     case "warning":
-      return { ios: "xmark", android: "close" } satisfies WorkContentIcon;
+      return { ios: "xmark", android: "close" };
     case "wrench":
-      return { ios: "wrench", android: "build" } satisfies WorkContentIcon;
+      return { ios: "wrench", android: "build" };
     case "zap":
-      return { ios: "bolt", android: "bolt" } satisfies WorkContentIcon;
+      return { ios: "bolt", android: "bolt" };
   }
 }
 
 const FRESH_ROW_WINDOW_MS = 3_000;
-function isFreshRow(createdAt: string) {
+function isFreshRow(createdAt: string): boolean {
   const timestamp = Date.parse(createdAt);
   return Number.isFinite(timestamp) && Date.now() - timestamp < FRESH_ROW_WINDOW_MS;
 }
@@ -364,14 +364,14 @@ export const WORK_GROUP_TOGGLE_HEIGHT = THREAD_WORK_ROW_MIN_HEIGHT;
 function workLogRowsHeight(
   activities: ReadonlyArray<ThreadFeedActivity>,
   rowHeight = WORK_ROW_HEIGHT,
-) {
+): number {
   return activities.length * rowHeight + Math.max(0, activities.length - 1) * WORK_ROW_GAP;
 }
 
 export function collapsedWorkLogHeight(
   activities: ReadonlyArray<ThreadFeedActivity>,
   continues = false,
-) {
+): number {
   const bottomMargin = continues ? 0 : WORK_LOG_BOTTOM_MARGIN;
   if (activities.length === 0) {
     return 0;
@@ -690,7 +690,7 @@ function EdgeFade(props: { readonly color: string; readonly direction: "up" | "d
   );
 }
 
-function workLogRowKey(row: ThreadFeedActivity) {
+function workLogRowKey(row: ThreadFeedActivity): string {
   return row.id;
 }
 
@@ -1220,7 +1220,7 @@ function ToolActivityImage(props: {
   );
 }
 
-function toolGroupSummarySymbolName(kind: ToolGroupSummaryKind) {
+function toolGroupSummarySymbolName(kind: ToolGroupSummaryKind): AppSymbolName {
   switch (kind) {
     case "pull-request":
     case "link-pr":
@@ -1228,33 +1228,33 @@ function toolGroupSummarySymbolName(kind: ToolGroupSummaryKind) {
     case "list-prs":
     case "watch-pr":
     case "unwatch-pr":
-      return PullRequestGlyph.pullRequest satisfies AppSymbolName;
+      return PullRequestGlyph.pullRequest;
     case "read":
-      return { ios: "eye", android: "visibility" } satisfies AppSymbolName;
+      return { ios: "eye", android: "visibility" };
     case "edit":
-      return { ios: "square.and.pencil", android: "edit" } satisfies AppSymbolName;
+      return { ios: "square.and.pencil", android: "edit" };
     case "thread-create":
-      return { ios: "bubble.left", android: "chat" } satisfies AppSymbolName;
+      return { ios: "bubble.left", android: "chat" };
     case "command":
-      return { ios: "terminal", android: "terminal" } satisfies AppSymbolName;
+      return { ios: "terminal", android: "terminal" };
     case "device":
-      return { ios: "iphone", android: "smartphone" } satisfies AppSymbolName;
+      return { ios: "iphone", android: "smartphone" };
     case "browser":
     case "search":
-      return { ios: "globe", android: "public" } satisfies AppSymbolName;
+      return { ios: "globe", android: "public" };
     case "code-search":
-      return "magnifyingglass" satisfies AppSymbolName;
+      return "magnifyingglass";
     case "other":
-      return { ios: "wrench", android: "build" } satisfies AppSymbolName;
+      return { ios: "wrench", android: "build" };
     case "reasoning":
-      return { ios: "brain", android: "psychology" } satisfies AppSymbolName;
+      return { ios: "brain", android: "psychology" };
     case "agent-tool":
-      return "robot" satisfies AppSymbolName;
+      return "robot";
     case "tone-tool":
-      return { ios: "bolt", android: "bolt" } satisfies AppSymbolName;
+      return { ios: "bolt", android: "bolt" };
     case "dynamic-tool":
     case "update":
     case "mixed":
-      return { ios: "hammer", android: "construction" } satisfies AppSymbolName;
+      return { ios: "hammer", android: "construction" };
   }
 }

@@ -93,7 +93,7 @@ const testNetService = NetService.NetService.of({
   findAvailablePort: (preferred) => Effect.succeed(preferred),
 });
 
-function commandArgs(command: ChildProcess.Command) {
+function commandArgs(command: ChildProcess.Command): ReadonlyArray<string> {
   return command._tag === "StandardCommand" ? command.args.map(String) : [];
 }
 

@@ -52,6 +52,7 @@ import {
   type ServerConfig,
   type ScopedThreadRef,
   type ServerProviderSkill,
+  type ThreadPullRequestKey,
 } from "@supaterm/contracts";
 import {
   isAtomCommandInterrupted,
@@ -332,7 +333,10 @@ function CodexArtifactTemplateCard(props: {
 
 const WINDOWS_DRIVE_PATH_REGEX = /^[A-Za-z]:[\\/]/;
 
-function orderedListGutterStyle(itemValues: ReadonlyArray<unknown>, start: unknown) {
+function orderedListGutterStyle(
+  itemValues: ReadonlyArray<unknown>,
+  start: unknown,
+): { "--list-gutter": string } | undefined {
   const parsedStart = Number.parseInt(String(start ?? 1), 10);
   let number = Number.isNaN(parsedStart) ? 1 : parsedStart;
   let markerWidth = String(number).length;
@@ -388,7 +392,7 @@ const GITHUB_ALERT_PRESENTATIONS: Record<
   },
 };
 
-function normalizeMarkdownLinkHrefKey(href: string) {
+function normalizeMarkdownLinkHrefKey(href: string): string {
   const normalizedHref = normalizeMarkdownLinkDestination(href);
   const rewrittenHref = rewriteMarkdownFileUriHref(normalizedHref) ?? normalizedHref;
   return WINDOWS_DRIVE_PATH_REGEX.test(rewrittenHref)
@@ -439,7 +443,7 @@ function markdownServerConfigFields(config: ServerConfig | null) {
 function markdownServerConfigFieldsEqual(
   previous: MarkdownServerConfigFields,
   next: MarkdownServerConfigFields,
-) {
+): boolean {
   return (
     previous.pullRequestsEnabled === next.pullRequestsEnabled &&
     previous.isMacOS === next.isMacOS &&
@@ -461,7 +465,7 @@ function fileLinkSourcesKey(
   text: string,
   cwd: string | undefined,
   imageBaseDir: string | undefined,
-) {
+): string {
   const hrefs = extractMarkdownLinkHrefs(renderCodexInlineDirectivesAsMarkdown(text))
     .filter((href) => !parseComposerContextHref(href))
     .map(decodeMarkdownLinkEscapes)
@@ -689,7 +693,9 @@ function useChatMarkdownState({
   const fileLinksKey = `${fileLinkSourcesKey(text, cwd, imageBaseDir)}`;
   const { markdownFileLinkMetaByHref, inlineCodeFileLinkMetaByText, fileLinkParentSuffixByPath } =
     resolveFileLinkSources(fileLinksKey, cwd, imageBaseDir);
-  const resolveThreadPullRequest = (href: string) => {
+  const resolveThreadPullRequest = (
+    href: string,
+  ): (ThreadPullRequestKey & { readonly url: string }) | null => {
     if (
       threadRef === undefined ||
       readThreadShell(threadRef) === null ||
@@ -1721,7 +1727,7 @@ const INSIGHT_REMARK_PLUGINS: PluggableList = [remarkAssistantInsights];
 
 const combinedPlugins = new WeakMap<PluggableList, WeakMap<PluggableList, PluggableList>>();
 
-function withExtraPlugins(shared: PluggableList, extra: PluggableList) {
+function withExtraPlugins(shared: PluggableList, extra: PluggableList): PluggableList {
   if (extra.length === 0) return shared;
   let byShared = combinedPlugins.get(extra);
   if (!byShared) combinedPlugins.set(extra, (byShared = new WeakMap()));

@@ -46,7 +46,7 @@ import { readComposerImageBytes } from "../chat/composerAttachmentFiles";
 type CaptureTarget = DraftId | ScopedThreadRef;
 type CaptureFailure = "missing-project" | "delivery";
 
-function isSameCaptureTarget(a: CaptureTarget, b: CaptureTarget) {
+function isSameCaptureTarget(a: CaptureTarget, b: CaptureTarget): boolean {
   if (typeof a === "string" || typeof b === "string") return a === b;
   return a.environmentId === b.environmentId && a.threadId === b.threadId;
 }
@@ -54,7 +54,7 @@ function isSameCaptureTarget(a: CaptureTarget, b: CaptureTarget) {
 export function resolveExistingSnapShotTarget(
   target: CaptureTarget,
   routeThreadRef: ScopedThreadRef | null,
-) {
+): CaptureTarget | null {
   const store = useComposerDraftStore.getState();
   if (typeof target === "string") {
     const draftSession = store.getDraftSession(target);
@@ -76,7 +76,7 @@ export function resolveSnapShotAttachmentTarget(
   pins: Map<string, DraftId | null>,
   id: string,
   target: CaptureTarget,
-) {
+): CaptureTarget {
   const open = typeof target === "string" ? null : openQuestionAttachmentDraft(target);
   if (!pins.has(id)) pins.set(id, open?.draftId ?? null);
   const pinned = pins.get(id);
@@ -89,7 +89,7 @@ export async function beginSnapShotAnimationWhenReady(
   id: string,
   target: Promise<CaptureTarget | null>,
   pendingStarts: Set<string>,
-) {
+): Promise<void> {
   pendingStarts.add(id);
   try {
     const resolvedTarget = await target;
@@ -105,7 +105,7 @@ export function dismissFailedSnapShot(
   id: string | undefined,
   soundedIds: Set<string>,
   pendingStarts: Set<string>,
-) {
+): void {
   if (id) {
     pendingStarts.delete(id);
     soundedIds.delete(id);
@@ -120,7 +120,7 @@ export function dismissFailedSnapShot(
 export function resolveSnapShotTargetOnce(
   resolutionRef: { current: Promise<CaptureTarget | null> | null },
   resolveTarget: () => Promise<CaptureTarget | null>,
-) {
+): Promise<CaptureTarget | null> {
   if (resolutionRef.current) return resolutionRef.current;
   const resolution = resolveTarget().finally(() => {
     if (resolutionRef.current === resolution) resolutionRef.current = null;
@@ -133,7 +133,7 @@ export function resolveSnapShotDeliveryTarget(
   targets: Map<string, Promise<CaptureTarget | null>>,
   id: string,
   resolveTarget: () => Promise<CaptureTarget | null>,
-) {
+): Promise<CaptureTarget | null> {
   const existing = targets.get(id);
   if (existing) return existing;
   const target = resolveTarget().catch(() => null);
@@ -144,7 +144,7 @@ export function resolveSnapShotDeliveryTarget(
   return target;
 }
 
-async function afterNextPaint() {
+async function afterNextPaint(): Promise<void> {
   await new Promise<void>((resolve) => {
     const fallback = window.setTimeout(resolve, NEXT_PAINT_FALLBACK_MS);
     requestAnimationFrame(() => {
@@ -294,14 +294,14 @@ export function SnapShotCoordinator() {
     settledTargetRef.current = { routeTarget, target };
   };
 
-  const resolveTarget = async () => {
+  const resolveTarget = async (): Promise<CaptureTarget | null> => {
     const routeTarget = readLastRouteTarget();
     const lastTarget = readSettledTarget(routeTarget);
     if (lastTarget) {
       const existingTarget = resolveExistingSnapShotTarget(lastTarget, routeThreadRef);
       if (existingTarget) {
         settleTarget(routeTarget, existingTarget);
-        return existingTarget satisfies CaptureTarget | null;
+        return existingTarget;
       }
       settleTarget(routeTarget, null);
     }
@@ -311,11 +311,11 @@ export function SnapShotCoordinator() {
       defaultProjectRef,
       handleNewThread,
     });
-    if (!projectRef) return null satisfies CaptureTarget | null;
+    if (!projectRef) return null;
     const created = await handleNewThread(projectRef);
-    if (!created) return null satisfies CaptureTarget | null;
+    if (!created) return null;
     settleTarget(routeTarget, created.draftId);
-    return created.draftId satisfies CaptureTarget | null;
+    return created.draftId;
   };
 
   const resolveCaptureTarget = () => resolveSnapShotTargetOnce(targetResolutionRef, resolveTarget);

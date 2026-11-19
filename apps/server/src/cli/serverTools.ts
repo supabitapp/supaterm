@@ -34,11 +34,11 @@ export class CliServerNotRunningError extends Schema.TaggedError<CliServerNotRun
   { baseDir: Schema.String, inLinkedWorktree: Schema.Boolean },
 ) {
   override readonly [Runtime.errorReported] = false;
-  override get message() {
+  override get message(): string {
     const hint = this.inLinkedWorktree
       ? " In a linked worktree, pass --base-dir to reach a server outside it."
       : "";
-    return `No running Supaterm server uses ${this.baseDir}. Start Supaterm, then retry.${hint}` satisfies string as string;
+    return `No running Supaterm server uses ${this.baseDir}. Start Supaterm, then retry.${hint}`;
   }
 }
 
@@ -47,9 +47,9 @@ export class CliServerUnreachableError extends Schema.TaggedError<CliServerUnrea
   { origin: Schema.String, cause: Schema.Defect() },
 ) {
   override readonly [Runtime.errorReported] = false;
-  override get message() {
+  override get message(): string {
     const reason = this.cause instanceof Error ? ` ${this.cause.message}` : "";
-    return `Could not reach the Supaterm server at ${this.origin}.${reason}` satisfies string as string;
+    return `Could not reach the Supaterm server at ${this.origin}.${reason}`;
   }
 }
 
@@ -58,8 +58,8 @@ export class CliToolFailedError extends Schema.TaggedError<CliToolFailedError>()
   { tool: Schema.String, detail: Schema.String },
 ) {
   override readonly [Runtime.errorReported] = false;
-  override get message() {
-    return this.detail satisfies string as string;
+  override get message(): string {
+    return this.detail;
   }
 }
 
@@ -68,8 +68,8 @@ export class CliProjectNotFoundError extends Schema.TaggedError<CliProjectNotFou
   { identifier: Schema.String },
 ) {
   override readonly [Runtime.errorReported] = false;
-  override get message() {
-    return `No Supaterm project matches '${this.identifier}'. Pass a project id or a path inside a project.` satisfies string as string;
+  override get message(): string {
+    return `No Supaterm project matches '${this.identifier}'. Pass a project id or a path inside a project.`;
   }
 }
 
@@ -78,8 +78,8 @@ export class CliProjectAmbiguousError extends Schema.TaggedError<CliProjectAmbig
   { identifier: Schema.String, projects: Schema.Array(Schema.String) },
 ) {
   override readonly [Runtime.errorReported] = false;
-  override get message() {
-    return `'${this.identifier}' is in a git worktree shared by several projects: ${this.projects.join(", ")}. Pass a project id instead.` satisfies string as string;
+  override get message(): string {
+    return `'${this.identifier}' is in a git worktree shared by several projects: ${this.projects.join(", ")}. Pass a project id instead.`;
   }
 }
 
@@ -135,7 +135,7 @@ export const makeServerTools = (session: McpToolSession, origin: string) => {
       tool: string,
       args: Readonly<Record<string, unknown>>,
       schema: S,
-    ) {
+    ): Effect.fn.Return<S["Type"], CliServerUnreachableError | CliToolFailedError> {
       const raw = yield* session
         .call(tool, args)
         .pipe(Effect.mapError((cause) => new CliServerUnreachableError({ origin, cause })));

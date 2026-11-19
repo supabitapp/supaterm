@@ -31,7 +31,7 @@ export const {
 /** The server refuses new watches on Done, archived, and subagent threads. */
 export function canStartThreadPullRequestWatch(
   thread: Pick<EnvironmentThreadShell, "archivedAt" | "doneAt" | "doneOverride" | "lineage">,
-) {
+): boolean {
   return (
     thread.archivedAt === null &&
     thread.doneAt === null &&

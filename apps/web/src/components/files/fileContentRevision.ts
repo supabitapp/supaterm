@@ -1,4 +1,4 @@
-function fileContentRevision(contents: string) {
+function fileContentRevision(contents: string): string {
   let hash = 2_166_136_261;
   for (let index = 0; index < contents.length; index += 1) {
     hash ^= contents.charCodeAt(index);
@@ -7,6 +7,6 @@ function fileContentRevision(contents: string) {
   return `${contents.length}:${(hash >>> 0).toString(36)}`;
 }
 
-export function projectFileCacheKey(cwd: string, relativePath: string, contents: string) {
+export function projectFileCacheKey(cwd: string, relativePath: string, contents: string): string {
   return `${cwd}:${relativePath}:${fileContentRevision(contents)}`;
 }

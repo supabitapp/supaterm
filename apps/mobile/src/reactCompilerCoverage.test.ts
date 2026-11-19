@@ -34,7 +34,7 @@ function walkAst(
   for (const child of Object.values(value)) walkAst(child, visit, childAncestors);
 }
 
-function compilerCachedCalls(file: string, callee: string) {
+function compilerCachedCalls(file: string, callee: string): boolean[] {
   const result = compileLikeMetro(file, [], { ast: true });
   const cached: boolean[] = [];
   if (typeof result !== "object" || result === null || !("ast" in result)) return cached;

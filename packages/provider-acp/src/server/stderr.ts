@@ -8,7 +8,7 @@ const API_KEY_HEADER_PATTERN = /\bx-api-key:\s*\S+/gi;
 const SECRET_TOKEN_PATTERN =
   /\b(?:sk-[A-Za-z0-9][A-Za-z0-9_-]{7,}|ghp_[A-Za-z0-9]+|xox[a-zA-Z]-[A-Za-z0-9-]+)\b/g;
 
-export function appendAcpStderrTail(current: string, chunk: string) {
+export function appendAcpStderrTail(current: string, chunk: string): string {
   const next = `${current}${chunk}`;
   return next.length <= ACP_STDERR_TAIL_MAX_CHARS ? next : next.slice(-ACP_STDERR_TAIL_MAX_CHARS);
 }
@@ -17,7 +17,7 @@ export function sanitizeAcpStderrExcerpt(
   text: string,
   homeDirectory: string,
   environment: NodeJS.ProcessEnv = process.env,
-) {
+): string {
   let result = text.replaceAll("\0", "");
   const homes = [environment.HOME, environment.USERPROFILE, homeDirectory].filter(
     (value): value is string => typeof value === "string" && value.length > 1,

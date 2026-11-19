@@ -39,7 +39,7 @@ const decoder = new TextDecoder();
  * Reads a SHA-1 index that Supaterm wrote itself (versions 2 and 3). Anything else, including
  * conflicts, sparse entries, split indexes and fsmonitor data, returns null so callers use Git.
  */
-export function parseIndex(bytes: Uint8Array) {
+export function parseIndex(bytes: Uint8Array): ParsedIndex | null {
   if (bytes.length < 12 + SHA1_BYTES) return null;
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   if (decoder.decode(bytes.subarray(0, 4)) !== "DIRC") return null;
@@ -78,7 +78,7 @@ export function parseIndex(bytes: Uint8Array) {
   return offset === bytes.length - SHA1_BYTES ? { bytes, entries } : null;
 }
 
-function kindForMode(mode: number) {
+function kindForMode(mode: number): IndexEntryStat["kind"] {
   switch (mode & MODE_TYPE_MASK) {
     case MODE_REGULAR:
       return mode & 0o111 ? "executable" : "file";
@@ -101,7 +101,7 @@ export function restatIndex(
   parsed: ParsedIndex,
   stats: ReadonlyArray<IndexEntryStat | undefined>,
   options: { readonly verify: boolean },
-) {
+): Uint8Array | null {
   const bytes = new Uint8Array(parsed.bytes);
   const view = new DataView(bytes.buffer);
   const files = new Set<string>();
@@ -160,7 +160,7 @@ export function indexEntryStat(stat: {
   readonly gid: bigint;
   readonly size: bigint;
   readonly mode: bigint;
-}) {
+}): IndexEntryStat {
   const type = Number(stat.mode) & MODE_TYPE_MASK;
   return {
     ctimeSeconds: Number((stat.ctimeNs / BILLION) & U32),
@@ -182,5 +182,5 @@ export function indexEntryStat(stat: {
           : type === 0o040000
             ? "directory"
             : "other",
-  } satisfies IndexEntryStat;
+  };
 }

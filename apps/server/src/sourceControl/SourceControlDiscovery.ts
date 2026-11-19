@@ -82,7 +82,9 @@ export const make = Effect.gen(function* () {
     Effect.cachedWithTTL(Duration.seconds(10)),
   );
 
-  const probe = <Kind extends VcsDriverKind>(input: VcsProbe & { readonly kind: Kind }) => {
+  const probe = <Kind extends VcsDriverKind>(
+    input: VcsProbe & { readonly kind: Kind },
+  ): Effect.Effect<DiscoveryProbeResult<Kind>> => {
     const executable = input.executable;
     const versionArgs = input.versionArgs;
 

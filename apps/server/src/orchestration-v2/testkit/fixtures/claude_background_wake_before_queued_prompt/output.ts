@@ -20,11 +20,8 @@ import { CLAUDE_BACKGROUND_WAKE_BEFORE_QUEUED_PROMPT_LAUNCH_PROMPT } from "./inp
 const STOP_WAKE_REPLY =
   "Agent B's kill is confirmed by the notification. No further action needed — the task is complete.";
 
-function frameField(frame: unknown, key: string): unknown;
-function frameField(frame: unknown, key: string) {
-  return (
-    typeof frame === "object" && frame !== null ? Reflect.get(frame, key) : undefined
-  ) satisfies unknown;
+function frameField(frame: unknown, key: string): unknown {
+  return typeof frame === "object" && frame !== null ? Reflect.get(frame, key) : undefined;
 }
 
 function assertRecordedWakeBeforePrompt(transcript: ProviderReplayTranscript) {

@@ -11,6 +11,7 @@ import {
   themeColorToHex,
   themeIdFromName,
   THEME_FILE_VERSION,
+  type ThemeAppearance,
   type ThemeColorRole,
   type ThemeDefinition,
 } from "./themePalette";
@@ -22,16 +23,16 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function decodeGamma(value: number) {
+function decodeGamma(value: number): number {
   return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
 }
 
-function encodeGamma(value: number) {
+function encodeGamma(value: number): number {
   const clamped = Math.max(0, Math.min(1, value));
   return clamped <= 0.0031308 ? clamped * 12.92 : 1.055 * clamped ** (1 / 2.4) - 0.055;
 }
 
-function parseColorFunction(value: string) {
+function parseColorFunction(value: string): VsCodeRgba | null {
   const match = /^color\(\s*(display-p3|srgb)\s+([^)]+)\)$/i.exec(value);
   if (!match) return null;
   const [space, body] = [match[1]!.toLowerCase(), match[2]!];
@@ -67,7 +68,7 @@ function parseColorFunction(value: string) {
   return { r: srgb[0], g: srgb[1], b: srgb[2], a: Math.max(0, Math.min(1, alpha)) };
 }
 
-function parseVsCodeColor(value: unknown) {
+function parseVsCodeColor(value: unknown): VsCodeRgba | null {
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
   if (trimmed.startsWith("color(")) return parseColorFunction(trimmed);
@@ -91,7 +92,7 @@ function parseVsCodeColor(value: unknown) {
   };
 }
 
-function toHex(color: VsCodeRgb) {
+function toHex(color: VsCodeRgb): string {
   const channel = (value: number) =>
     Math.max(0, Math.min(255, Math.round(value)))
       .toString(16)
@@ -99,7 +100,7 @@ function toHex(color: VsCodeRgb) {
   return `#${channel(color.r)}${channel(color.g)}${channel(color.b)}`;
 }
 
-function flattenOver(color: VsCodeRgba, base: VsCodeRgb) {
+function flattenOver(color: VsCodeRgba, base: VsCodeRgb): string {
   if (color.a >= 1) return toHex(color);
   return toHex({
     r: color.r * color.a + base.r * (1 - color.a),
@@ -108,7 +109,7 @@ function flattenOver(color: VsCodeRgba, base: VsCodeRgb) {
   });
 }
 
-function relativeLuminance(color: VsCodeRgb) {
+function relativeLuminance(color: VsCodeRgb): number {
   const channel = (value: number) => {
     const ratio = value / 255;
     return ratio <= 0.03928 ? ratio / 12.92 : ((ratio + 0.055) / 1.055) ** 2.4;
@@ -116,17 +117,17 @@ function relativeLuminance(color: VsCodeRgb) {
   return 0.2126 * channel(color.r) + 0.7152 * channel(color.g) + 0.0722 * channel(color.b);
 }
 
-function contrastRatio(first: VsCodeRgb, second: VsCodeRgb) {
+function contrastRatio(first: VsCodeRgb, second: VsCodeRgb): number {
   const a = relativeLuminance(first);
   const b = relativeLuminance(second);
   return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
 }
 
-function hexToRgb(value: string) {
+function hexToRgb(value: string): VsCodeRgb {
   return parseVsCodeColor(themeColorToHex(value) ?? value) ?? { r: 0, g: 0, b: 0, a: 1 };
 }
 
-export function isVsCodeThemeFile(value: unknown) {
+export function isVsCodeThemeFile(value: unknown): boolean {
   if (!isRecord(value)) return false;
   if (value.version === THEME_FILE_VERSION) return false;
   const hasWorkbenchColors =
@@ -134,7 +135,7 @@ export function isVsCodeThemeFile(value: unknown) {
   return hasWorkbenchColors || Array.isArray(value.tokenColors);
 }
 
-export function parseThemeImport(source: string) {
+export function parseThemeImport(source: string): ThemeDefinition {
   const errors: ParseError[] = [];
   const value: unknown = parse(source, errors, { allowTrailingComma: true });
   if (errors.length > 0) throw new Error("That theme file is not valid JSON.");
@@ -143,14 +144,14 @@ export function parseThemeImport(source: string) {
     : parseThemeFile(JSON.parse(source));
 }
 
-function resolveAppearance(value: Record<string, unknown>, canvas: VsCodeRgb) {
+function resolveAppearance(value: Record<string, unknown>, canvas: VsCodeRgb): ThemeAppearance {
   const type = typeof value.type === "string" ? value.type.toLowerCase() : null;
   if (type === "light" || type === "hc-light") return "light";
   if (type === "dark" || type === "hc-black") return "dark";
   return relativeLuminance(canvas) < 0.179 ? "dark" : "light";
 }
 
-export function humanizeThemeName(raw: string) {
+export function humanizeThemeName(raw: string): string {
   const trimmed = raw.trim();
   if (/\s/.test(trimmed) || !/[-_.]/.test(trimmed)) return trimmed;
   return trimmed
@@ -160,7 +161,7 @@ export function humanizeThemeName(raw: string) {
     .join(" ");
 }
 
-function resolveName(value: Record<string, unknown>) {
+function resolveName(value: Record<string, unknown>): string {
   for (const candidate of [value.displayName, value.name]) {
     if (typeof candidate !== "string") continue;
     const humanized = humanizeThemeName(candidate);
@@ -169,18 +170,18 @@ function resolveName(value: Record<string, unknown>) {
   return "VS Code theme";
 }
 
-export function parseVsCodeThemeFile(value: unknown) {
+export function parseVsCodeThemeFile(value: unknown): ThemeDefinition {
   if (!isRecord(value)) throw new Error("Theme files must contain a JSON object.");
   const colors = isRecord(value.colors) ? value.colors : {};
 
-  const pick = (...keys: ReadonlyArray<string>) => {
+  const pick = (...keys: ReadonlyArray<string>): VsCodeRgba | null => {
     for (const key of keys) {
       const parsed = parseVsCodeColor(colors[key]);
       if (parsed) return parsed;
     }
     return null;
   };
-  const solidOver = (base: VsCodeRgb, ...keys: ReadonlyArray<string>) => {
+  const solidOver = (base: VsCodeRgb, ...keys: ReadonlyArray<string>): string | null => {
     const parsed = pick(...keys);
     return parsed ? flattenOver(parsed, base) : null;
   };
@@ -252,14 +253,18 @@ export function parseVsCodeThemeFile(value: unknown) {
   const isReadableOn = (foreground: string, surface: string) =>
     contrastRatio(hexToRgb(foreground), hexToRgb(surface)) >= 4.5;
 
-  const readableOn = (surface: string, fallback: string, ...keys: ReadonlyArray<string>) => {
+  const readableOn = (
+    surface: string,
+    fallback: string,
+    ...keys: ReadonlyArray<string>
+  ): string => {
     const surfaceRgb = hexToRgb(surface);
     const specified = solidOver(surfaceRgb, ...keys);
     if (specified && isReadableOn(specified, surface)) return specified;
     if (isReadableOn(fallback, surface)) return fallback;
     return relativeLuminance(surfaceRgb) < 0.179 ? "#ffffff" : "#000000";
   };
-  const readableStatusColor = (fallback: string, ...keys: ReadonlyArray<string>) => {
+  const readableStatusColor = (fallback: string, ...keys: ReadonlyArray<string>): string => {
     const specified = solidOver(canvas, ...keys);
     const base = specified && standsApart(specified, canvasHex) ? specified : fallback;
     return readableThemeColorOn(base, canvasHex, 4.5);
@@ -424,7 +429,7 @@ export function pairVsCodeThemes(
   options?: {
     pairedId?: (light: ThemeDefinition, dark: ThemeDefinition) => string;
   },
-) {
+): ReadonlyArray<ThemeDefinition> {
   const stripAppearance = (label: string) =>
     label
       .replace(/\b(?:light|dark)\b/gi, " ")
@@ -473,8 +478,8 @@ export function pairVsCodeThemes(
 
 export function resolveThemeLabelCollisions(
   entries: ReadonlyArray<{ theme: ThemeDefinition; sourceName?: string | undefined }>,
-) {
-  const rename = (theme: ThemeDefinition, name: string) => {
+): ReadonlyArray<ThemeDefinition> {
+  const rename = (theme: ThemeDefinition, name: string): ThemeDefinition | null => {
     try {
       return parseThemeFile({
         version: THEME_FILE_VERSION,

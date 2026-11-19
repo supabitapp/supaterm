@@ -5,6 +5,7 @@ import {
   voiceInputBlocksSubmission,
   voiceInputCue,
   voiceInputSessionActive,
+  type VoiceDraftSnapshot,
   type VoiceInputState,
   type VoiceRecordingHandOff,
 } from "@supaterm/client-runtime/voice-input";
@@ -82,7 +83,7 @@ export interface ComposerVoiceAvailability {
   readonly opensSettings: boolean;
 }
 
-function useAvailability(options: ComposerVoiceInputOptions) {
+function useAvailability(options: ComposerVoiceInputOptions): ComposerVoiceAvailability {
   const source = useVoiceTranscriptionSource(options.environmentId);
   const connected = useAtomValue(threadOutboxDeliverableAtom(options.environmentId));
   if (!canRecordVoice()) {
@@ -92,7 +93,7 @@ function useAvailability(options: ComposerVoiceInputOptions) {
       label: null,
       unavailableReason: "Voice input needs HTTPS or localhost.",
       opensSettings: false,
-    } satisfies ComposerVoiceAvailability;
+    };
   }
   if (source?.status === "unavailable") {
     return {
@@ -101,7 +102,7 @@ function useAvailability(options: ComposerVoiceInputOptions) {
       label: null,
       unavailableReason: source.message,
       opensSettings: true,
-    } satisfies ComposerVoiceAvailability;
+    };
   }
   const providerName = source ? (source.provider.displayName ?? source.provider.instanceId) : null;
   const canReview = connected && source !== null;
@@ -115,7 +116,7 @@ function useAvailability(options: ComposerVoiceInputOptions) {
         ? null
         : "Reconnect to transcribe, or clear the draft to send a voice message.",
     opensSettings: false,
-  } satisfies ComposerVoiceAvailability;
+  };
 }
 
 function createVoiceRuntime(onStateChange: (state: VoiceInputState) => void) {
@@ -124,7 +125,7 @@ function createVoiceRuntime(onStateChange: (state: VoiceInputState) => void) {
     if (options === null) throw new Error("Voice input was used before its composer mounted.");
     return options;
   };
-  const readDraft = () => {
+  const readDraft = (): VoiceDraftSnapshot => {
     const current = read();
     return {
       ownerKey: current.ownerKey,

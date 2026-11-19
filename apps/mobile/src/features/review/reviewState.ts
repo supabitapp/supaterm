@@ -75,20 +75,20 @@ export interface ReviewCacheForThread {
 function buildThreadKey(input: {
   readonly environmentId?: EnvironmentId;
   readonly threadId?: ThreadId;
-}) {
+}): string | null {
   return input.environmentId && input.threadId
     ? scopedThreadKey(input.environmentId, input.threadId)
     : null;
 }
 
-function buildSectionCacheKey(threadKey: string, sectionId: string) {
+function buildSectionCacheKey(threadKey: string, sectionId: string): string {
   return `${threadKey}:${sectionId}`;
 }
 
 export function useReviewCacheForThread(input: {
   readonly environmentId?: EnvironmentId;
   readonly threadId?: ThreadId;
-}) {
+}): ReviewCacheForThread {
   const threadKey = buildThreadKey(input);
   const selectedSectionId = useAtomValue(
     threadKey
@@ -118,7 +118,7 @@ export function useReviewCacheForThread(input: {
   };
 }
 
-export function setReviewSelectedSectionId(threadKey: string, sectionId: string | null) {
+export function setReviewSelectedSectionId(threadKey: string, sectionId: string | null): void {
   clearReviewCommentTarget();
   appAtomRegistry.set(reviewSelectedSectionIdByThreadKeyAtom(threadKey), sectionId);
 }
@@ -127,7 +127,7 @@ export function updateReviewExpandedFileIds(
   threadKey: string,
   sectionId: string,
   update: (current: ReadonlyArray<string> | undefined) => ReadonlyArray<string> | undefined,
-) {
+): void {
   const atom = reviewExpandedFileIdsByThreadKeyAtom(threadKey);
   const current = appAtomRegistry.get(atom);
   const nextValue = update(current[sectionId]);
@@ -141,7 +141,7 @@ export function updateReviewViewedFileIds(
   threadKey: string,
   sectionId: string,
   update: (current: ReadonlyArray<string> | undefined) => ReadonlyArray<string> | undefined,
-) {
+): void {
   const atom = reviewViewedFileIdsByThreadKeyAtom(threadKey);
   const current = appAtomRegistry.get(atom);
   const nextValue = update(current[sectionId]);
@@ -155,7 +155,7 @@ export function getReviewParsedDiffSourceCharacterCount(input: {
   readonly threadKey: string;
   readonly sectionId: string;
   readonly diff: string | null;
-}) {
+}): number {
   const sourceCharacterCount = input.diff?.length ?? 0;
   const cache = appAtomRegistry.get(reviewParsedDiffCacheAtom);
   const cached = cache.entries.get(buildSectionCacheKey(input.threadKey, input.sectionId));
@@ -168,12 +168,9 @@ export function getCachedReviewParsedDiff(input: {
   readonly threadKey: string | null;
   readonly sectionId: string | null;
   readonly diff: string | null | undefined;
-}) {
+}): ReviewParsedDiff {
   if (!input.threadKey || !input.sectionId) {
-    return buildReviewParsedDiff(
-      input.diff,
-      input.sectionId ?? "mobile-review",
-    ) satisfies ReviewParsedDiff;
+    return buildReviewParsedDiff(input.diff, input.sectionId ?? "mobile-review");
   }
 
   const cacheKey = buildSectionCacheKey(input.threadKey, input.sectionId);
@@ -183,7 +180,7 @@ export function getCachedReviewParsedDiff(input: {
   if (cached && cached.diff === normalizedDiff) {
     cache.entries.delete(cacheKey);
     cache.entries.set(cacheKey, cached);
-    return cached.parsed satisfies ReviewParsedDiff;
+    return cached.parsed;
   }
 
   const parsed = buildReviewParsedDiff(input.diff, input.sectionId);
@@ -193,7 +190,7 @@ export function getCachedReviewParsedDiff(input: {
   }
   const sourceCharacterCount = input.diff?.length ?? 0;
   if (sourceCharacterCount > MAX_CACHED_REVIEW_SOURCE_CHARACTERS) {
-    return parsed satisfies ReviewParsedDiff;
+    return parsed;
   }
 
   for (const [oldestKey, oldest] of cache.entries) {
@@ -212,5 +209,5 @@ export function getCachedReviewParsedDiff(input: {
     sourceCharacterCount,
   });
   cache.sourceCharacterCount += sourceCharacterCount;
-  return parsed satisfies ReviewParsedDiff;
+  return parsed;
 }

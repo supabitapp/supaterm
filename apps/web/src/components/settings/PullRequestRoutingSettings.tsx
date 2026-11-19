@@ -29,7 +29,7 @@ function summarizePullRequestRouting(
     readonly label: string;
     readonly permission: PullRequestRoutingPermission;
   }>,
-) {
+): string | null {
   const groups = (["read-write", "read"] as const).flatMap((permission) => {
     const labels = entries.filter((entry) => entry.permission === permission);
     return labels.length === 0

@@ -7,7 +7,7 @@ export const resolveCodexLaunchArgs = (
   environment: NodeJS.ProcessEnv = process.env,
 ) => environment[SUPATERM_CODEX_LAUNCH_ARGS_ENV]?.trim() || launchArgs?.trim() || "";
 
-const codexLaunchArgv = (launchArgs?: string) => tokenizeCliArgs(launchArgs);
+const codexLaunchArgv = (launchArgs?: string): ReadonlyArray<string> => tokenizeCliArgs(launchArgs);
 
 export const codexAppServerArgs = (launchArgs?: string) => [
   "app-server",

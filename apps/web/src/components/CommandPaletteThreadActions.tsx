@@ -129,21 +129,11 @@ const THREAD_PALETTE_COMMANDS: Record<
 export function buildThreadPaletteItems(
   items: ReadonlyArray<ContextMenuItem<ThreadActionMenuId>>,
   run: (action: ThreadActionMenuId) => Promise<void>,
-): Array<CommandPaletteActionItem | CommandPaletteSubmenuItem>;
-export function buildThreadPaletteItems(
-  items: ReadonlyArray<ContextMenuItem<ThreadActionMenuId>>,
-  run: (action: ThreadActionMenuId) => Promise<void>,
-) {
-  return items.flatMap((item) => {
-    if (item.checked)
-      return [] satisfies Array<CommandPaletteActionItem | CommandPaletteSubmenuItem> as Array<
-        CommandPaletteActionItem | CommandPaletteSubmenuItem
-      >;
+): Array<CommandPaletteActionItem | CommandPaletteSubmenuItem> {
+  return items.flatMap((item): Array<CommandPaletteActionItem | CommandPaletteSubmenuItem> => {
+    if (item.checked) return [];
     const command = isSnoozePresetAction(item.id) ? null : THREAD_PALETTE_COMMANDS[item.id];
-    if (command === null)
-      return (item.children ? buildThreadPaletteItems(item.children, run) : []) satisfies Array<
-        CommandPaletteActionItem | CommandPaletteSubmenuItem
-      > as Array<CommandPaletteActionItem | CommandPaletteSubmenuItem>;
+    if (command === null) return item.children ? buildThreadPaletteItems(item.children, run) : [];
     const Icon = command.icon;
     const title = command.title ?? item.label;
     const shared = {
@@ -154,10 +144,7 @@ export function buildThreadPaletteItems(
       ...(item.disabled ? { disabled: true } : {}),
       ...(command.shortcutCommand ? { shortcutCommand: command.shortcutCommand } : {}),
     };
-    if (!item.children)
-      return [{ ...shared, kind: "action", run: () => run(item.id) }] satisfies Array<
-        CommandPaletteActionItem | CommandPaletteSubmenuItem
-      > as Array<CommandPaletteActionItem | CommandPaletteSubmenuItem>;
+    if (!item.children) return [{ ...shared, kind: "action", run: () => run(item.id) }];
     return [
       {
         ...shared,
@@ -182,8 +169,6 @@ export function buildThreadPaletteItems(
           },
         ],
       },
-    ] satisfies Array<CommandPaletteActionItem | CommandPaletteSubmenuItem> as Array<
-      CommandPaletteActionItem | CommandPaletteSubmenuItem
-    >;
-  }) satisfies Array<CommandPaletteActionItem | CommandPaletteSubmenuItem>;
+    ];
+  });
 }

@@ -11,8 +11,7 @@ const AGENT_EMAILS = new Set([
 const GENERATED_BY_AGENT =
   /^(?:🤖\s*)?generated (?:with|by)\s+(?:claude(?: code)?|codex|cursor|github copilot|copilot|opencode|grok|antigravity)[.!]?$/i;
 
-export function removeAgentCredits(message: string): string;
-export function removeAgentCredits(message: string) {
+export function removeAgentCredits(message: string): string {
   let fence: string | undefined;
   let removed = false;
   const newline = message.includes("\r\n") ? "\r\n" : "\n";
@@ -49,7 +48,5 @@ export function removeAgentCredits(message: string) {
     removed = true;
     return false;
   });
-  return (
-    removed ? lines.join(newline).replace(/(?:\r?\n[ \t]*)+$/, "") : message
-  ) satisfies string;
+  return removed ? lines.join(newline).replace(/(?:\r?\n[ \t]*)+$/, "") : message;
 }

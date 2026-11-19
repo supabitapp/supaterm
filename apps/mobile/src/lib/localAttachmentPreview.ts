@@ -12,21 +12,17 @@ import { resolveOwnedComposerAttachmentFileUri } from "./composerAttachmentFiles
 import { shareLocalAttachment, type AttachmentPreviewFile } from "./attachmentDownload";
 import { retainComposerAttachmentFileForPreview } from "./composerAttachmentPreviewRetention";
 
-export function loadLocalAttachmentPreview(
-  attachment: FileBackedComposerAttachment,
-  signal: AbortSignal,
-): Promise<AttachmentPreviewFile | null>;
 export async function loadLocalAttachmentPreview(
   attachment: FileBackedComposerAttachment,
   signal: AbortSignal,
-) {
-  if (signal.aborted) return null satisfies AttachmentPreviewFile | null;
+): Promise<AttachmentPreviewFile | null> {
+  if (signal.aborted) return null;
   const release = retainComposerAttachmentFileForPreview(attachment);
   try {
     const { File, Paths } = await loadExpoFileSystem();
     if (signal.aborted) {
       release();
-      return null satisfies AttachmentPreviewFile | null;
+      return null;
     }
     const uri =
       resolveOwnedComposerAttachmentFileUri(attachment.fileUri, Paths.document.uri) ??
@@ -63,24 +59,24 @@ export async function loadLocalAttachmentPreview(
           releaseShare();
         }
       },
-    } satisfies AttachmentPreviewFile | null;
+    };
   } catch (cause) {
     release();
-    if (signal.aborted) return null satisfies AttachmentPreviewFile | null;
+    if (signal.aborted) return null;
     throw new Error("This attachment is no longer available. Attach the file again.", { cause });
   }
 }
 
 class LocalAttachmentPreviewKey implements Equal.Equal {
   constructor(readonly attachment: FileBackedComposerAttachment) {}
-  [Equal.symbol](that: unknown) {
+  [Equal.symbol](that: unknown): boolean {
     return (
       that instanceof LocalAttachmentPreviewKey &&
       that.attachment.id === this.attachment.id &&
       that.attachment.fileUri === this.attachment.fileUri
     );
   }
-  [Hash.symbol]() {
+  [Hash.symbol](): number {
     return Hash.string(`${this.attachment.id}\u0000${this.attachment.fileUri}`);
   }
 }
@@ -104,13 +100,10 @@ const noLocalAttachmentPreview = Atom.make(
 
 export function localAttachmentPreviewAtom(
   attachment: FileBackedComposerAttachment | null,
-): Atom.Atom<AsyncResult.AsyncResult<AttachmentPreviewFile, Error>>;
-export function localAttachmentPreviewAtom(attachment: FileBackedComposerAttachment | null) {
-  return (
-    attachment === null
-      ? noLocalAttachmentPreview
-      : localAttachmentPreviewFamily(new LocalAttachmentPreviewKey(attachment))
-  ) satisfies Atom.Atom<AsyncResult.AsyncResult<AttachmentPreviewFile, Error>>;
+): Atom.Atom<AsyncResult.AsyncResult<AttachmentPreviewFile, Error>> {
+  return attachment === null
+    ? noLocalAttachmentPreview
+    : localAttachmentPreviewFamily(new LocalAttachmentPreviewKey(attachment));
 }
 
 export interface LocalAttachmentPreviewState {
@@ -120,21 +113,15 @@ export interface LocalAttachmentPreviewState {
 
 export function localAttachmentPreviewState(
   result: AsyncResult.AsyncResult<AttachmentPreviewFile, Error>,
-): LocalAttachmentPreviewState;
-export function localAttachmentPreviewState(
-  result: AsyncResult.AsyncResult<AttachmentPreviewFile, Error>,
-) {
+): LocalAttachmentPreviewState {
   return {
     uri: result._tag === "Success" && !result.waiting ? result.value.uri : null,
     error: result._tag === "Failure" ? Option.getOrNull(AsyncResult.error(result)) : null,
-  } satisfies LocalAttachmentPreviewState;
+  };
 }
 
 export function useLocalAttachmentPreview(
   attachment: FileBackedComposerAttachment | null,
-): LocalAttachmentPreviewState;
-export function useLocalAttachmentPreview(attachment: FileBackedComposerAttachment | null) {
-  return localAttachmentPreviewState(
-    useAtomValue(localAttachmentPreviewAtom(attachment)),
-  ) satisfies LocalAttachmentPreviewState;
+): LocalAttachmentPreviewState {
+  return localAttachmentPreviewState(useAtomValue(localAttachmentPreviewAtom(attachment)));
 }

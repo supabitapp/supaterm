@@ -210,7 +210,7 @@ export const RPC_REQUIRED_SCOPES = {
   [WS_METHODS.subscribeRelayStatus]: AuthOrchestrationReadScope,
 } as const satisfies Readonly<Record<WsRpcMethod, AuthEnvironmentScope>>;
 
-export function requiredScopeForRpcMethod(method: string) {
+export function requiredScopeForRpcMethod(method: string): AuthEnvironmentScope {
   if (!Object.hasOwn(RPC_REQUIRED_SCOPES, method)) {
     throw new Error(`RPC method ${method} has no declared authorization scope.`);
   }
@@ -246,7 +246,10 @@ const requiredScopesForSettingsUpdate = (payload: unknown) => {
 
 const decodeProjectMutation = Schema.decodeUnknownSync(ProjectMutation);
 
-const requiredScopesForRpcCall = (method: string, payload: unknown) => {
+const requiredScopesForRpcCall = (
+  method: string,
+  payload: unknown,
+): ReadonlyArray<AuthEnvironmentScope> => {
   if (method === WS_METHODS.serverRetryResourceTelemetry) {
     return [AuthEnvironmentMaintainScope, AuthDiagnosticsReadScope];
   }
@@ -279,7 +282,7 @@ export const layer = (scopes: ReadonlyArray<AuthEnvironmentScope>) =>
   });
 
 /** Retrying can install or restart tools even though ordinary listing is readable. */
-export const requiredScopeForDeviceList = (input: DeviceListInput) =>
+export const requiredScopeForDeviceList = (input: DeviceListInput): AuthEnvironmentScope =>
   input.retryHostId || input.updateTool
     ? AuthOrchestrationOperateScope
     : AuthOrchestrationReadScope;

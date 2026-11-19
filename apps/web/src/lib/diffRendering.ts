@@ -10,7 +10,7 @@ const DIFF_THEME_NAMES = {
 
 export type DiffThemeName = (typeof DIFF_THEME_NAMES)[keyof typeof DIFF_THEME_NAMES];
 
-export function resolveDiffThemeName(theme: "light" | "dark") {
+export function resolveDiffThemeName(theme: "light" | "dark"): DiffThemeName {
   return DIFF_THEME_NAMES[theme];
 }
 
@@ -19,7 +19,11 @@ const FNV_PRIME_32 = 0x01000193;
 const SECONDARY_HASH_SEED = 0x9e3779b9;
 const SECONDARY_HASH_MULTIPLIER = 0x85ebca6b;
 
-export function fnv1a32(input: string, seed = FNV_OFFSET_BASIS_32, multiplier = FNV_PRIME_32) {
+export function fnv1a32(
+  input: string,
+  seed = FNV_OFFSET_BASIS_32,
+  multiplier = FNV_PRIME_32,
+): number {
   let hash = seed >>> 0;
   for (let index = 0; index < input.length; index += 1) {
     hash ^= input.charCodeAt(index);
@@ -28,7 +32,7 @@ export function fnv1a32(input: string, seed = FNV_OFFSET_BASIS_32, multiplier = 
   return hash >>> 0;
 }
 
-function buildPatchCacheKey(patch: string, scope = "diff-panel") {
+function buildPatchCacheKey(patch: string, scope = "diff-panel"): string {
   const primary = fnv1a32(patch, FNV_OFFSET_BASIS_32, FNV_PRIME_32).toString(36);
   const secondary = fnv1a32(patch, SECONDARY_HASH_SEED, SECONDARY_HASH_MULTIPLIER).toString(36);
   return `${scope}:${patch.length}:${primary}:${secondary}`;
@@ -51,7 +55,7 @@ export interface DiffLineStat {
   deletions: number;
 }
 
-export function getDiffLineStat(files: ReadonlyArray<FileDiffMetadata>) {
+export function getDiffLineStat(files: ReadonlyArray<FileDiffMetadata>): DiffLineStat {
   return files.reduce<DiffLineStat>(
     (total, file) => {
       for (const hunk of file.hunks) {
@@ -71,7 +75,7 @@ interface RenderablePatchOptions {
   compactPartialHunkOffsets?: boolean;
 }
 
-function hideWhitespaceChanges(file: FileDiffMetadata) {
+function hideWhitespaceChanges(file: FileDiffMetadata): FileDiffMetadata {
   let splitDelta = 0;
   let unifiedDelta = 0;
   const hunks = file.hunks.map((hunk) => {
@@ -124,7 +128,7 @@ function hideWhitespaceChanges(file: FileDiffMetadata) {
   };
 }
 
-function compactPartialHunkOffsets(file: FileDiffMetadata) {
+function compactPartialHunkOffsets(file: FileDiffMetadata): FileDiffMetadata {
   if (!file.isPartial) return file;
 
   let splitLineStart = 0;
@@ -153,8 +157,8 @@ export function getRenderablePatch(
   patch: string | undefined,
   cacheScope = "diff-panel",
   options: RenderablePatchOptions = {},
-) {
-  if (!patch?.trim()) return null satisfies RenderablePatch | null;
+): RenderablePatch | null {
+  if (!patch?.trim()) return null;
 
   try {
     const parsedPatches = parsePatchFiles(patch, buildPatchCacheKey(patch, cacheScope));
@@ -164,52 +168,51 @@ export function getRenderablePatch(
       return options.compactPartialHunkOffsets ? compactPartialHunkOffsets(filtered) : filtered;
     });
     if (files.length > 0) {
-      return { kind: "files", files, sourceFiles } satisfies RenderablePatch | null;
+      return { kind: "files", files, sourceFiles };
     }
 
     return {
       kind: "raw",
       text: patch,
       reason: "Unsupported diff format. Showing raw patch.",
-    } satisfies RenderablePatch | null;
+    };
   } catch {
     return {
       kind: "raw",
       text: patch,
       reason: "Failed to parse patch. Showing raw patch.",
-    } satisfies RenderablePatch | null;
+    };
   }
 }
 
 /** Uses the parser-decoded filename, including Git's quoted and escaped names. */
-export function resolveFileDiffPath(fileDiff: FileDiffMetadata): string;
-export function resolveFileDiffPath(fileDiff: FileDiffMetadata) {
-  return (fileDiff.name ?? fileDiff.prevName ?? "") satisfies string;
+export function resolveFileDiffPath(fileDiff: FileDiffMetadata): string {
+  return fileDiff.name ?? fileDiff.prevName ?? "";
 }
 
-export function resolveFileDiffPreviousPath(fileDiff: FileDiffMetadata) {
+export function resolveFileDiffPreviousPath(fileDiff: FileDiffMetadata): string {
   return fileDiff.prevName ?? fileDiff.name ?? "";
 }
 
 /** Includes change type to distinguish deletion/addition pairs for file-to-symlink changes. */
-export function buildFileDiffIdentityKey(fileDiff: FileDiffMetadata) {
+export function buildFileDiffIdentityKey(fileDiff: FileDiffMetadata): string {
   return `${resolveFileDiffPreviousPath(fileDiff)}\u0000${resolveFileDiffPath(fileDiff)}\u0000${fileDiff.type}`;
 }
 
-export function buildFileDiffRenderKey(fileDiff: FileDiffMetadata) {
+export function buildFileDiffRenderKey(fileDiff: FileDiffMetadata): string {
   const cacheKey = fileDiff.cacheKey;
   if (!cacheKey) return `${fileDiff.prevName ?? "none"}:${fileDiff.name}`;
 
   return cacheKey.endsWith(":hydrated") ? cacheKey.slice(0, -":hydrated".length) : cacheKey;
 }
 
-function hashFileDiffPart(hash: number, value: string | number | boolean | undefined) {
+function hashFileDiffPart(hash: number, value: string | number | boolean | undefined): number {
   const serialized = value === undefined ? "undefined" : String(value);
   const withLength = fnv1a32(`${typeof value}:${serialized.length}:`, hash);
   return fnv1a32(serialized, withLength);
 }
 
-export function buildFileDiffContentVersion(fileDiff: FileDiffMetadata) {
+export function buildFileDiffContentVersion(fileDiff: FileDiffMetadata): number {
   let hash = FNV_OFFSET_BASIS_32;
   const append = (value: string | number | boolean | undefined) => {
     hash = hashFileDiffPart(hash, value);
@@ -259,7 +262,7 @@ export function buildFileDiffContentVersion(fileDiff: FileDiffMetadata) {
   return hash;
 }
 
-export function getDiffCollapseIconClassName(fileDiff: FileDiffMetadata) {
+export function getDiffCollapseIconClassName(fileDiff: FileDiffMetadata): string {
   switch (fileDiff.type) {
     case "new":
       return "text-[var(--diffs-addition-base)]";

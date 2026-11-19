@@ -18,14 +18,14 @@ const sameRepositoryIdentity = Schema.toEquivalence(
 export function sameThreadPullRequests(
   left: OrchestrationV2ThreadShell["pullRequests"],
   right: OrchestrationV2ThreadShell["pullRequests"],
-) {
+): boolean {
   return left === right || sameLinks(left, right);
 }
 
 export function reuseUnchangedThreadShells(
   previous: OrchestrationV2ShellSnapshot | null,
   next: OrchestrationV2ShellSnapshot,
-) {
+): OrchestrationV2ShellSnapshot {
   if (previous === null || previous.threads.length === 0) return next;
   const previousById = new Map(previous.threads.map((thread) => [thread.id, thread] as const));
   let changed = false;
@@ -43,7 +43,10 @@ export function reuseUnchangedThreadShells(
   return changed ? { ...next, threads } : next;
 }
 
-function upsertById<T extends { readonly id: unknown }>(items: ReadonlyArray<T>, item: T) {
+function upsertById<T extends { readonly id: unknown }>(
+  items: ReadonlyArray<T>,
+  item: T,
+): ReadonlyArray<T> {
   const index = items.findIndex((candidate) => candidate.id === item.id);
   if (index === -1) return [...items, item];
   return items.map((candidate, candidateIndex) => (candidateIndex === index ? item : candidate));
@@ -52,7 +55,7 @@ function upsertById<T extends { readonly id: unknown }>(items: ReadonlyArray<T>,
 function retainRepositoryIdentity(
   previous: OrchestrationProjectShell | undefined,
   next: OrchestrationProjectShell,
-) {
+): OrchestrationProjectShell {
   if (
     next.repositoryIdentity == null &&
     previous?.repositoryIdentity != null &&
@@ -76,7 +79,7 @@ export function mergeShellSnapshotProjects(
   previous: OrchestrationV2ShellSnapshot | null | undefined,
   next: OrchestrationV2ShellSnapshot,
   options?: MergeShellSnapshotOptions,
-) {
+): OrchestrationV2ShellSnapshot {
   if (previous === null || previous === undefined) {
     return next;
   }
@@ -127,7 +130,7 @@ export type ShellStreamEvent = Extract<
 export function applyShellStreamEvent(
   snapshot: OrchestrationV2ShellSnapshot,
   event: ShellStreamEvent,
-) {
+): OrchestrationV2ShellSnapshot {
   if (event.sequence <= snapshot.snapshotSequence) return snapshot;
 
   switch (event.kind) {
@@ -205,7 +208,7 @@ function batchRows<T extends { readonly id: unknown }>(rows: ReadonlyArray<T>) {
 export function applyShellStreamEvents(
   snapshot: OrchestrationV2ShellSnapshot,
   events: ReadonlyArray<ShellStreamEvent>,
-) {
+): OrchestrationV2ShellSnapshot {
   if (events.length === 1) return applyShellStreamEvent(snapshot, events[0]!);
   const projects = batchRows(snapshot.projects);
   const threads = batchRows(snapshot.threads);
@@ -273,12 +276,9 @@ export function advanceShellResume(
   progress: ShellResumeProgress,
   item: OrchestrationV2ShellStreamItem,
   generation: string | null,
-) {
-  if (item.kind === "unknown-item") return { _tag: "tainted" } satisfies ShellResumeProgress;
-  if (isAuthoritativeShellSnapshot(item)) return PENDING_SHELL_RESUME satisfies ShellResumeProgress;
-  if (item.kind !== "synchronized" || progress._tag === "tainted")
-    return progress satisfies ShellResumeProgress;
-  return (
-    generation === null ? PENDING_SHELL_RESUME : { _tag: "completed", generation }
-  ) satisfies ShellResumeProgress;
+): ShellResumeProgress {
+  if (item.kind === "unknown-item") return { _tag: "tainted" };
+  if (isAuthoritativeShellSnapshot(item)) return PENDING_SHELL_RESUME;
+  if (item.kind !== "synchronized" || progress._tag === "tainted") return progress;
+  return generation === null ? PENDING_SHELL_RESUME : { _tag: "completed", generation };
 }

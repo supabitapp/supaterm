@@ -1324,7 +1324,7 @@ describe("VcsStatusBroadcaster", () => {
   });
 
   it.effect("an explicit refresh re-reads local totals only after refs moved", () => {
-    const totals = (insertions: number) => ({
+    const totals = (insertions: number): VcsStatusLocalResult => ({
       ...baseLocalStatus,
       branchChanges: { baseRef: "origin/main", insertions, deletions: 0 },
     });
@@ -2135,7 +2135,7 @@ describe("VcsStatusBroadcaster", () => {
   });
 });
 
-const newState: () => Parameters<typeof layerTestFor>[0] = () => ({
+const newState = (): Parameters<typeof layerTestFor>[0] => ({
   fileSystem: FileSystem.makeNoop({ realPath: (cwd) => Effect.succeed(cwd) }),
   currentLocalStatus: baseLocalStatus,
   currentRemoteStatus: null,

@@ -5,7 +5,7 @@ import { terminalContextRecord } from "./composerContextRecords";
 
 import { formatTerminalContextReference, type TerminalContextDraft } from "./terminalContext";
 
-function makeContext(overrides?: Partial<TerminalContextDraft>) {
+function makeContext(overrides?: Partial<TerminalContextDraft>): TerminalContextDraft {
   return {
     id: "context-1",
     threadId: ThreadId.make("thread-1"),

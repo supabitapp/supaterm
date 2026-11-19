@@ -31,12 +31,11 @@ function run(events: ReadonlyArray<TerminalLifecycleEvent>) {
   return commands;
 }
 
-const status = (value: TerminalBufferState["status"], version = 1) =>
-  ({
-    type: "status",
-    status: value,
-    version,
-  }) satisfies TerminalLifecycleEvent;
+const status = (value: TerminalBufferState["status"], version = 1): TerminalLifecycleEvent => ({
+  type: "status",
+  status: value,
+  version,
+});
 
 it("does not respawn a terminal that exited after operate was revoked", () => {
   expect(

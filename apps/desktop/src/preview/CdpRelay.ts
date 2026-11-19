@@ -52,7 +52,7 @@ const serializedSize = (text: string) =>
 
 const fitsPayloadBudget = (message: unknown) => {
   let remaining = MAX_CDP_PAYLOAD_SIZE;
-  const visit: (value: unknown) => boolean = (value: unknown) => {
+  const visit = (value: unknown): boolean => {
     remaining -= typeof value === "string" ? serializedSize(value) : 26;
     if (remaining < 0) return false;
     if (typeof value !== "object" || value === null) return true;
@@ -80,12 +80,7 @@ export function createCdpRelayConnection(
   target: CdpRelayTarget,
   write: (message: string) => void,
   close: () => void,
-): CdpRelayConnection;
-export function createCdpRelayConnection(
-  target: CdpRelayTarget,
-  write: (message: string) => void,
-  close: () => void,
-) {
+): CdpRelayConnection {
   let closed = false;
   const send = (message: Record<string, unknown>) => {
     if (closed) return;
@@ -136,7 +131,7 @@ export function createCdpRelayConnection(
     browserContextId: BROWSER_CONTEXT_ID,
   });
 
-  const browserCommand: (command: CdpCommand) => Promise<unknown> = async (command: CdpCommand) => {
+  const browserCommand = async (command: CdpCommand): Promise<unknown> => {
     if (ACKNOWLEDGED.has(command.method)) return {};
     switch (command.method) {
       case "Browser.setDownloadBehavior": {
@@ -211,7 +206,7 @@ export function createCdpRelayConnection(
 
   let runtimeReset: Promise<unknown> | undefined;
 
-  const pageCommand: (command: CdpCommand) => Promise<unknown> = (command: CdpCommand) => {
+  const pageCommand = (command: CdpCommand): Promise<unknown> => {
     const child = sessions.get(command.sessionId!) === "page" ? undefined : command.sessionId;
     const owner =
       child === undefined && command.sessionId !== PAGE_SESSION_ID ? command.sessionId : undefined;
@@ -318,5 +313,5 @@ export function createCdpRelayConnection(
       for (const [id, kind] of sessions)
         if (kind === "page") send({ method, params, sessionId: id });
     },
-  } satisfies CdpRelayConnection;
+  };
 }

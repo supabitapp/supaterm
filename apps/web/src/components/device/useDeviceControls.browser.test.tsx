@@ -93,17 +93,16 @@ const device: DeviceSummary = {
   booted: true,
   physical: false,
 };
-const snapshot = (appearance: "light" | "dark") =>
-  ({
-    _tag: "Success",
-    value: {
-      hostId: "remote",
-      deviceId: "phone",
-      settings: { appearance },
-      foregroundApp: null,
-      readAt: "2026-09-20T00:00:00Z",
-    },
-  }) satisfies Result;
+const snapshot = (appearance: "light" | "dark"): Result => ({
+  _tag: "Success",
+  value: {
+    hostId: "remote",
+    deviceId: "phone",
+    settings: { appearance },
+    foregroundApp: null,
+    readAt: "2026-09-20T00:00:00Z",
+  },
+});
 function deferred() {
   let resolve!: (value: Result) => void;
   const promise = new Promise<Result>((done) => {

@@ -19,7 +19,10 @@ const SHARED_SERVER_SETTING_KEYS = [
 
 const SHARED_KEY_SET = new Set<string>(SHARED_SERVER_SETTING_KEYS);
 
-export function splitSharedServerPatch(patch: ServerSettingsPatch) {
+export function splitSharedServerPatch(patch: ServerSettingsPatch): {
+  sharedPatch: ServerSettingsPatch;
+  localPatch: ServerSettingsPatch;
+} {
   const sharedPatch: Record<string, unknown> = {};
   const localPatch: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(patch)) {
@@ -40,7 +43,7 @@ export function filterSharedServerPatch(
   settings?: ServerSettings,
   sourceSettings = settings,
   targetIsSource = false,
-) {
+): ServerSettingsPatch {
   const instanceId =
     patch.textGenerationModelSelection?.instanceId ??
     sourceSettings?.textGenerationModelSelection.instanceId;
@@ -65,6 +68,6 @@ export function filterSharedServerPatch(
 export function supportsSharedSettingsSync(environment: {
   readonly connection: { readonly phase: EnvironmentConnectionPhase };
   readonly serverConfig: unknown;
-}) {
+}): boolean {
   return environment.connection.phase === "connected" && environment.serverConfig != null;
 }

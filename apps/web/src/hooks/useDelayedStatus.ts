@@ -7,7 +7,7 @@ import { useState } from "react";
 
 import { useDeadlinePassed } from "./useDeadline";
 
-export function useDelayedStatus<A>(key: string, value: A | null, showDelayMs?: number) {
+export function useDelayedStatus<A>(key: string, value: A | null, showDelayMs?: number): A | null {
   const [state, setState] = useState(() =>
     stepDelayedStatus<A>(null, { key, value, deadlinePassed: false, showDelayMs }, Date.now),
   );

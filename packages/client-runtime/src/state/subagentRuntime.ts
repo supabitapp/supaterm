@@ -85,19 +85,19 @@ const TERMINAL_STATUSES: ReadonlySet<RuntimeSubagentStatus> = new Set([
   "interrupted",
 ]);
 
-export function isTerminalSubagentStatus(status: RuntimeSubagentStatus) {
+export function isTerminalSubagentStatus(status: RuntimeSubagentStatus): boolean {
   return TERMINAL_STATUSES.has(status);
 }
 
-export function isActiveSubagentStatus(status: RuntimeSubagentStatus) {
+export function isActiveSubagentStatus(status: RuntimeSubagentStatus): boolean {
   return isOrchestrationV2WorkActive(status);
 }
 
-export function isLiveSubagentTurnItem(item: OrchestrationV2TurnItem) {
+export function isLiveSubagentTurnItem(item: OrchestrationV2TurnItem): boolean {
   return item.type === "subagent" && isOrchestrationV2WorkActive(item.status);
 }
 
-export function waitingOnSubagentsLabel(count: number) {
+export function waitingOnSubagentsLabel(count: number): string {
   return count === 1 ? "Waiting on a subagent" : `Waiting on ${count} subagents`;
 }
 
@@ -117,7 +117,7 @@ function workflowUsage(source: {
   readonly totalTokens?: number | undefined;
   readonly toolCalls?: number | undefined;
   readonly durationMs?: number | undefined;
-}) {
+}): SubagentUsage | null {
   if (source.totalTokens === undefined) return null;
   return {
     totalTokens: source.totalTokens,
@@ -126,14 +126,14 @@ function workflowUsage(source: {
   };
 }
 
-function isoFromEpochMillis(value: number | undefined) {
+function isoFromEpochMillis(value: number | undefined): string | null {
   return value === undefined ? null : DateTime.formatIso(DateTime.makeUnsafe(value));
 }
 
 function workflowMembersToRuntime(
   coordinator: RuntimeSubagent,
   workflow: OrchestrationV2SubagentWorkflow,
-) {
+): ReadonlyArray<RuntimeSubagent> {
   return workflow.agents.map((agent) => {
     const status =
       (agent.state === "queued" || agent.state === "running") &&
@@ -180,7 +180,7 @@ function workflowMembersToRuntime(
   });
 }
 
-function promptTitle(prompt: string) {
+function promptTitle(prompt: string): string {
   if (prompt.length <= 80) return prompt;
   let end = 77;
   const previous = prompt.charCodeAt(end - 1);
@@ -194,7 +194,7 @@ function promptTitle(prompt: string) {
 export function workflowMemberModelSelection(
   member: Pick<RuntimeSubagent, "model" | "effort" | "speed">,
   instanceId: ModelSelection["instanceId"],
-) {
+): ModelSelection | undefined {
   if (!member.model) return undefined;
   return {
     instanceId,
@@ -221,7 +221,7 @@ export function projectedSubagentsToRuntime(
     readonly completedAt: DateTime.Utc | null;
     readonly updatedAt: DateTime.Utc;
   }>,
-) {
+): ReadonlyArray<RuntimeSubagent> {
   return subagents.flatMap((subagent) => {
     const updatedAt = DateTime.formatIso(subagent.updatedAt);
     const startedAt = subagent.startedAt === null ? null : DateTime.formatIso(subagent.startedAt);
@@ -264,7 +264,9 @@ export function projectedSubagentsToRuntime(
   });
 }
 
-export function deriveWorkflowGroups(agents: ReadonlyArray<RuntimeSubagent>) {
+export function deriveWorkflowGroups(
+  agents: ReadonlyArray<RuntimeSubagent>,
+): ReadonlyArray<SubagentWorkflowGroup> {
   const workflows = agents
     .filter((agent) => agent.kind === "workflow")
     .sort((a, b) => a.firstSeenAt.localeCompare(b.firstSeenAt) || a.id.localeCompare(b.id));
@@ -327,7 +329,7 @@ export function isWorkflowScriptMessage(message: {
   readonly role: string;
   readonly text: string;
   readonly workflowScript?: boolean | undefined;
-}) {
+}): boolean {
   return (
     message.role === "user" && (message.workflowScript ?? WORKFLOW_SCRIPT_START.test(message.text))
   );
@@ -361,7 +363,7 @@ export function resolveWorkflowOpening(input: {
     readonly workflowScript?: boolean | undefined;
   }>;
   readonly parentSubagents: ReadonlyArray<ProjectedSubagent> | null;
-}) {
+}): WorkflowOpening | null {
   if (!isProviderNativeSubagentThread(input.thread)) return null;
   const first = input.messages.find((message) => message.role === "user");
   if (first === undefined) return null;
@@ -392,7 +394,7 @@ export function resolveWorkflowOpening(input: {
 export function workflowOpeningParentThreadId(input: {
   readonly thread: Pick<OrchestrationV2AppThread, "lineage" | "creationSource">;
   readonly messages: ReadonlyArray<Parameters<typeof isWorkflowScriptMessage>[0]>;
-}) {
+}): OrchestrationV2AppThread["id"] | null {
   if (!isProviderNativeSubagentThread(input.thread)) return null;
   const first = input.messages.find((message) => message.role === "user");
   return first !== undefined && isWorkflowScriptMessage(first)
@@ -401,7 +403,11 @@ export function workflowOpeningParentThreadId(input: {
 }
 
 /** The opening block's heading: the workflow, what it does, and how its agents stand. */
-export function workflowOpeningHeadline(opening: WorkflowOpening) {
+export function workflowOpeningHeadline(opening: WorkflowOpening): {
+  readonly title: string;
+  readonly description: string | null;
+  readonly agents: string | null;
+} {
   const title = opening.name ?? opening.description ?? "Workflow";
   const members =
     opening.group === null

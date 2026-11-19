@@ -7,7 +7,7 @@ export interface DeviceHubAccess {
   readonly credentials: boolean;
 }
 
-export const withDeviceHubQuery = (url: string, access: DeviceHubAccess) => {
+export const withDeviceHubQuery = (url: string, access: DeviceHubAccess): string => {
   const entries = Object.entries(access.query);
   if (entries.length === 0) return url;
   const separator = url.includes("?") ? "&" : "?";

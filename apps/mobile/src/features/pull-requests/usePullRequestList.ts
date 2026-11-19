@@ -28,6 +28,7 @@ import {
   scopedPullRequestListKey,
   withShownPullRequestStats,
   type EnvironmentPullRequestListEntry,
+  type PullRequestListPages,
 } from "./pullRequestList";
 
 type ListTarget = { readonly environmentId: EnvironmentId; readonly input: PullRequestListInput };
@@ -40,7 +41,7 @@ function currentHead(read: Read, target: ListTarget) {
   );
 }
 
-function currentPages(read: Read, target: ListTarget) {
+function currentPages(read: Read, target: ListTarget): PullRequestListPages | null {
   return shownPullRequestListPages(
     read(pullRequestListPagesFamily(pullRequestListPagesKey(target))),
     currentHead(read, target),
@@ -374,7 +375,7 @@ function answeredStats(
     >;
   }[],
   previous: readonly StatsAnswer[],
-) {
+): readonly StatsAnswer[] {
   const next = counts.flatMap(({ environmentId, result }) => {
     const kept = previous.find((answer) => answer.environmentId === environmentId);
     if (!AsyncResult.isSuccess(result)) return kept ? [kept] : [];

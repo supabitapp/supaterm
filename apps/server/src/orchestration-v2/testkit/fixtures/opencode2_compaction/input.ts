@@ -4,12 +4,12 @@ import {
   type OrchestratorFixtureInput,
 } from "../shared.ts";
 
-export function openCode2CompactionInput() {
+export function openCode2CompactionInput(): OrchestratorFixtureInput {
   return {
     steps: [
       { type: "message", text: OPENCODE2_COMPACTION_FIRST_PROMPT },
       { type: "message", text: "/compact" },
       { type: "message", text: OPENCODE2_COMPACTION_RECALL_PROMPT },
     ],
-  } satisfies OrchestratorFixtureInput;
+  };
 }

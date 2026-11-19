@@ -21,7 +21,7 @@ export function annotateAssistantText(input: {
   };
   readonly draftKey: string;
   readonly selection: MarkdownTextSelection;
-}) {
+}): void {
   const citation = assistantCitationFromSelection(input.source, input.selection);
   if (citation === "empty") return;
   if (citation === "too-long") {
@@ -47,7 +47,7 @@ export interface HtmlRenderAnnotation {
 }
 
 /** A render is cited by its turn item id in the message slot, as web does. */
-export function annotateHtmlRenderText(render: HtmlRenderAnnotation, text: string) {
+export function annotateHtmlRenderText(render: HtmlRenderAnnotation, text: string): void {
   annotateAssistantText({
     source: {
       environmentId: render.environmentId,

@@ -22,7 +22,7 @@ import {
 const projectId = ProjectId.make("project-a");
 const instanceId = ProviderInstanceId.make("codex_work");
 
-function settingsWith(overrides: Partial<ServerSettings>) {
+function settingsWith(overrides: Partial<ServerSettings>): ServerSettings {
   return { ...DEFAULT_SERVER_SETTINGS, ...overrides };
 }
 

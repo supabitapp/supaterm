@@ -18,13 +18,9 @@ type HotAtomRuntimeGlobal = typeof globalThis & {
   [hotAtomRuntimesKey]?: Map<string, HotAtomRuntimeEntry>;
 };
 
-function hotAtomRuntimes(): Map<string, HotAtomRuntimeEntry>;
-function hotAtomRuntimes() {
+function hotAtomRuntimes(): Map<string, HotAtomRuntimeEntry> {
   const runtimeGlobal = globalThis as HotAtomRuntimeGlobal;
-  return (runtimeGlobal[hotAtomRuntimesKey] ??= new Map()) satisfies Map<
-    string,
-    HotAtomRuntimeEntry
-  >;
+  return (runtimeGlobal[hotAtomRuntimesKey] ??= new Map());
 }
 
 export function hotSwappableAtomRuntime<R, E>(options: {
@@ -32,15 +28,9 @@ export function hotSwappableAtomRuntime<R, E>(options: {
   readonly hotModule: AcceptingHotModule | undefined;
   readonly registry: AtomRegistry.AtomRegistry;
   readonly layer: Layer.Layer<R, E, AtomRegistry.AtomRegistry | Reactivity.Reactivity>;
-}): Atom.AtomRuntime<R, E>;
-export function hotSwappableAtomRuntime<R, E>(options: {
-  readonly id: string;
-  readonly hotModule: AcceptingHotModule | undefined;
-  readonly registry: AtomRegistry.AtomRegistry;
-  readonly layer: Layer.Layer<R, E, AtomRegistry.AtomRegistry | Reactivity.Reactivity>;
-}) {
+}): Atom.AtomRuntime<R, E> {
   if (options.hotModule === undefined || typeof __DEV__ === "undefined" || !__DEV__) {
-    return Atom.runtime(options.layer) satisfies Atom.AtomRuntime<R, E>;
+    return Atom.runtime(options.layer);
   }
 
   const runtimes = hotAtomRuntimes();
@@ -67,5 +57,5 @@ export function hotSwappableAtomRuntime<R, E>(options: {
   }
 
   options.hotModule.accept();
-  return entry.runtime as Atom.AtomRuntime<R, E> satisfies Atom.AtomRuntime<R, E>;
+  return entry.runtime as Atom.AtomRuntime<R, E>;
 }

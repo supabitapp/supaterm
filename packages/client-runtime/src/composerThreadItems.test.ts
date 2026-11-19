@@ -5,7 +5,11 @@ import { matchComposerThreadItems, type ComposerThreadCandidate } from "./compos
 
 const environmentId = EnvironmentId.make("env-composer");
 
-function shell(id: string, title: string, overrides: Partial<ComposerThreadCandidate> = {}) {
+function shell(
+  id: string,
+  title: string,
+  overrides: Partial<ComposerThreadCandidate> = {},
+): ComposerThreadCandidate {
   return {
     environmentId,
     id: ThreadId.make(id),

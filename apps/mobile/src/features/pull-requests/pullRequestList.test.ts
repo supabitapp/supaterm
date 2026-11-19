@@ -30,7 +30,7 @@ import {
   pullRequestProjectChoices,
 } from "./pullRequestList";
 
-function entry(number: number, patch: Partial<PullRequestListEntry> = {}) {
+function entry(number: number, patch: Partial<PullRequestListEntry> = {}): PullRequestListEntry {
   return {
     number,
     provider: SourceControlProviderKind.make("github"),
@@ -54,12 +54,12 @@ function entry(number: number, patch: Partial<PullRequestListEntry> = {}) {
     viewerReviewRequested: false,
     labels: [],
     ...patch,
-  } satisfies PullRequestListEntry;
+  };
 }
 function page(
   entries: readonly PullRequestListEntry[],
   nextCursors: PullRequestListResult["nextCursors"] = {},
-) {
+): PullRequestListResult {
   return {
     entries,
     nextCursors,

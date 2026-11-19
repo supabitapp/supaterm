@@ -1,14 +1,14 @@
 import type { ModelOption, ProviderGroup } from "../../lib/modelOptions";
 import type { ModelSelection, ProviderInstanceId } from "@supaterm/contracts";
 
-export function modelFavoriteKey(provider: ProviderInstanceId, model: string) {
+export function modelFavoriteKey(provider: ProviderInstanceId, model: string): string {
   return `${provider}:${model}`;
 }
 
 export function favoritesFirst(
   models: ReadonlyArray<ModelOption>,
   favoriteKeys: ReadonlySet<string>,
-) {
+): ReadonlyArray<ModelOption> {
   const favorites: ModelOption[] = [];
   const others: ModelOption[] = [];
   for (const model of models) {
@@ -21,7 +21,7 @@ export function modelMatchesCatalogQuery(input: {
   readonly model: ModelOption;
   readonly providerLabel: string;
   readonly query: string;
-}) {
+}): boolean {
   const query = input.query.trim().toLocaleLowerCase();
   if (query.length === 0) {
     return true;
@@ -40,7 +40,7 @@ export function pendingModelAfterPress(input: {
   readonly pressed: ModelOption;
   readonly pressedIsApplied: boolean;
   readonly restoreSelection?: (selection: ModelSelection) => ModelSelection;
-}) {
+}): ModelOption | null {
   if (input.pressedIsApplied) {
     return null;
   }
@@ -52,7 +52,10 @@ export function pendingModelAfterPress(input: {
     : input.pressed;
 }
 
-export function canCommitPendingModel(pending: ModelOption, groups: ReadonlyArray<ProviderGroup>) {
+export function canCommitPendingModel(
+  pending: ModelOption,
+  groups: ReadonlyArray<ProviderGroup>,
+): boolean {
   return groups.some((group) =>
     group.models.some(
       (model) => model.key === pending.key && !model.isUnavailable && !model.isHidden,
@@ -64,7 +67,7 @@ export function providerSectionIsCollapsed(input: {
   readonly defaultExpanded: boolean;
   readonly hasExpansionOverride: boolean;
   readonly isNarrowed: boolean;
-}) {
+}): boolean {
   if (input.isNarrowed) {
     return false;
   }

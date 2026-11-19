@@ -15,7 +15,7 @@ class IconInputsStaleError extends Schema.TaggedError<IconInputsStaleError>()(
   "IconInputsStaleError",
   {},
 ) {
-  override get message() {
+  override get message(): string {
     return `The bolt computer or the icon's appearance changed since the icons were last rendered. Run \`vp run icons:export\` on macOS and commit the result (${ICON_INPUTS_STAMP}).`;
   }
 }

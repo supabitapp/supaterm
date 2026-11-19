@@ -6,7 +6,7 @@ export interface FoundationHotModule {
 export function disposeOnFoundationReplace(
   hotModule: FoundationHotModule | undefined,
   dispose: () => void | Promise<void>,
-) {
+): void {
   if (hotModule === undefined || typeof __DEV__ === "undefined" || !__DEV__) return;
 
   hotModule.dispose(() => {

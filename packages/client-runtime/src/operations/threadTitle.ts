@@ -9,11 +9,11 @@ export interface ThreadTitleSeedInput {
   readonly fallbackLabels?: ReadonlyArray<string | null | undefined>;
 }
 
-function normalizeTitleSeed(value: string) {
+function normalizeTitleSeed(value: string): string {
   return assistantCitationsToPlainText(value).trim().replace(/\s+/gu, " ");
 }
 
-export function threadTitleTextFromPrompt(value: string) {
+export function threadTitleTextFromPrompt(value: string): string {
   const imageIds = new Set<string>();
   const prose = replaceComposerContextReferences(value, (reference) => {
     if (reference.kind === "image") {
@@ -28,29 +28,28 @@ export function threadTitleTextFromPrompt(value: string) {
   );
 }
 
-export function deriveThreadTitleSeed(input: ThreadTitleSeedInput): string;
-export function deriveThreadTitleSeed(input: ThreadTitleSeedInput) {
+export function deriveThreadTitleSeed(input: ThreadTitleSeedInput): string {
   const text = threadTitleTextFromPrompt(input.text);
   if (text.length > 0) {
-    return truncate(text) satisfies string;
+    return truncate(text);
   }
 
   const images = input.attachments.filter((attachment) => attachment.type === "image");
   if (images.length > 0) {
-    return (images.length === 1 ? "Attached image" : "Attached images") satisfies string;
+    return images.length === 1 ? "Attached image" : "Attached images";
   }
 
   const attachmentName = normalizeTitleSeed(input.attachments[0]?.name ?? "");
   if (attachmentName.length > 0) {
-    return truncate(`File: ${attachmentName}`) satisfies string;
+    return truncate(`File: ${attachmentName}`);
   }
 
   for (const label of input.fallbackLabels ?? []) {
     const normalized = normalizeTitleSeed(label ?? "");
     if (normalized.length > 0) {
-      return truncate(normalized) satisfies string;
+      return truncate(normalized);
     }
   }
 
-  return "New thread" satisfies string;
+  return "New thread";
 }

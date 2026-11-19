@@ -47,12 +47,8 @@ describe("OpenCode replay fixtures", () => {
   );
 });
 
-function undecodableEvent(entry: ProviderReplayEntry): ProviderReplayEntry;
-function undecodableEvent(entry: ProviderReplayEntry) {
-  if (entry.type !== "emit_inbound") return entry satisfies ProviderReplayEntry;
+function undecodableEvent(entry: ProviderReplayEntry): ProviderReplayEntry {
+  if (entry.type !== "emit_inbound") return entry;
   const frame = entry.frame as { readonly event: Record<string, unknown> };
-  return {
-    ...entry,
-    frame: { ...frame, event: { ...frame.event, durable: "not-an-envelope" } },
-  } satisfies ProviderReplayEntry;
+  return { ...entry, frame: { ...frame, event: { ...frame.event, durable: "not-an-envelope" } } };
 }

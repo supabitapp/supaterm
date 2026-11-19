@@ -24,7 +24,7 @@ vi.mock("./vendor/ghostty-write-pty.wasm?url&no-inline", async () => ({
   default: (await import("./vendor/ghostty-write-pty.wasm?inline")).default,
 }));
 
-function codepointView(codepoints: ReadonlyArray<number>) {
+function codepointView(codepoints: ReadonlyArray<number>): DataView {
   const view = new DataView(new ArrayBuffer(codepoints.length * 4));
   codepoints.forEach((codepoint, index) => view.setUint32(index * 4, codepoint, true));
   return view;

@@ -63,11 +63,11 @@ const CODEX_VOICE_LANGUAGES = [
 ];
 
 /** Unknown drivers get Claude's list, which every transcription backend accepts. */
-export function voiceLanguageOptions(driver: string | undefined) {
+export function voiceLanguageOptions(driver: string | undefined): ReadonlyArray<string> {
   return driver === "codex" ? CODEX_VOICE_LANGUAGES : CLAUDE_VOICE_LANGUAGES;
 }
 
-export function voiceLanguageLabel(tag: string) {
+export function voiceLanguageLabel(tag: string): string {
   try {
     return new Intl.DisplayNames([navigator.language], { type: "language" }).of(tag) ?? tag;
   } catch {
@@ -75,7 +75,7 @@ export function voiceLanguageLabel(tag: string) {
   }
 }
 
-export function systemVoiceLanguage() {
+export function systemVoiceLanguage(): string {
   return navigator.language || "en";
 }
 

@@ -139,7 +139,7 @@ describe("applyWslEnableSelection", () => {
   });
 });
 
-function makeEndpoint(overrides: Partial<AdvertisedEndpoint>) {
+function makeEndpoint(overrides: Partial<AdvertisedEndpoint>): AdvertisedEndpoint {
   return {
     id: "desktop-lan:http://192.168.1.42:4780",
     label: "Local network",
@@ -151,7 +151,7 @@ function makeEndpoint(overrides: Partial<AdvertisedEndpoint>) {
     source: "desktop-core",
     status: "available",
     ...overrides,
-  } satisfies AdvertisedEndpoint;
+  };
 }
 
 describe("selectQrEndpointOption", () => {

@@ -7,7 +7,7 @@ import type * as Electron from "electron";
 
 import * as ElectronMenu from "./ElectronMenu.ts";
 
-const makeWindow = (zoomFactor = 1) =>
+const makeWindow = (zoomFactor = 1): Electron.BrowserWindow =>
   ({
     id: 7,
     webContents: { getZoomFactor: () => zoomFactor },

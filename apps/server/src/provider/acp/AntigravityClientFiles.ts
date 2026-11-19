@@ -6,7 +6,7 @@ import type * as EffectAcpSchema from "effect-acp/compat";
 
 const CLIENT_FILE_MAX_BYTES = 8 * 1024 * 1024;
 
-function isInsideRoot(path: Path.Path, root: string, candidate: string) {
+function isInsideRoot(path: Path.Path, root: string, candidate: string): boolean {
   const relative = path.relative(root, candidate);
   return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
 }
@@ -66,7 +66,7 @@ export const readAntigravityClientTextFile = Effect.fn("AntigravityClientFiles.r
     readonly path: Path.Path;
     readonly allowedRoots: ReadonlyArray<string>;
     readonly request: EffectAcpSchema.ReadTextFileRequest;
-  }) {
+  }): Effect.fn.Return<EffectAcpSchema.ReadTextFileResponse, EffectAcpErrors.AcpError> {
     const filePath = yield* resolveClientFilePath({ ...input, requestPath: input.request.path });
     const info = yield* input.fileSystem
       .stat(filePath)

@@ -29,6 +29,7 @@ import {
   createVoiceInputTarget,
   VoiceInputSession,
   type VoiceInputSessionDependencies,
+  type VoiceInputEngine,
   type VoiceInputTarget,
   type VoiceRecordingSample,
 } from "./voiceInputSession";
@@ -45,7 +46,7 @@ function createTarget(
   readText: () => string | null,
   commit: VoiceInputTarget["commitDraft"],
   selection: { start: number; end: number },
-) {
+): VoiceInputTarget {
   return {
     ...createVoiceInputTarget(ownerKey, readText, commit, selection),
     engine: engine(),

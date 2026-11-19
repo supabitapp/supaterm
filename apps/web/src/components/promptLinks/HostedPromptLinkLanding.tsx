@@ -7,7 +7,7 @@ import {
 } from "@supaterm/shared/promptLinks";
 import { useLocation } from "@tanstack/react-router";
 import * as Schema from "effect/Schema";
-import { useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 
 import { useLocalStorage } from "~/hooks/useLocalStorage";
 import { isHostedStaticApp } from "~/hostedPairing";
@@ -29,26 +29,22 @@ interface LinkSummary {
 
 function summarize(
   appPath: string,
-): { ok: true; value: LinkSummary } | { ok: false; error: string };
-function summarize(appPath: string) {
+): { ok: true; value: LinkSummary } | { ok: false; error: string } {
   const url = new URL(appPath, window.location.origin);
   if (url.pathname !== "/new") {
     const prompt = parseThreadLinkPrompt(url.search);
-    return (
-      prompt.ok
-        ? { ok: true, value: { prompt: prompt.value, details: ["Opens one of your threads."] } }
-        : prompt
-    ) satisfies { ok: true; value: LinkSummary } | { ok: false; error: string };
+    return prompt.ok
+      ? { ok: true, value: { prompt: prompt.value, details: ["Opens one of your threads."] } }
+      : prompt;
   }
   const link = parseNewThreadLink(url.search);
-  if (!link.ok)
-    return link satisfies { ok: true; value: LinkSummary } | { ok: false; error: string };
+  if (!link.ok) return link;
   if (link.value.kind === "pull-request") {
     const { owner, name, number } = link.value.pullRequest;
     return {
       ok: true,
       value: { prompt: link.value.prompt, details: [`Pull request ${owner}/${name}#${number}`] },
-    } satisfies { ok: true; value: LinkSummary } | { ok: false; error: string };
+    };
   }
   const { repository, provider, model } = link.value;
   return {
@@ -60,7 +56,7 @@ function summarize(appPath: string) {
         ...(provider ? [`Model ${model ? `${provider} ${model}` : provider}`] : []),
       ],
     },
-  } satisfies { ok: true; value: LinkSummary } | { ok: false; error: string };
+  };
 }
 
 /**
@@ -68,7 +64,7 @@ function summarize(appPath: string) {
  * (through `supaterm://`), this browser when it is connected to a machine, or the download page.
  * Returns that page, or null when the link should open in this browser as usual.
  */
-export function useHostedPromptLinkLanding(enabled: boolean) {
+export function useHostedPromptLinkLanding(enabled: boolean): ReactNode | null {
   const href = useLocation({ select: (location) => location.href });
   const { environments, isReady } = useEnvironments();
   const [opener, setOpener] = useLocalStorage(OPENER_STORAGE_KEY, null, Opener);

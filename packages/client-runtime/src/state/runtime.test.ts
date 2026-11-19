@@ -5,6 +5,7 @@ import { vi } from "vite-plus/test";
 import {
   DEFAULT_MAX_TERMINAL_BUFFER_BYTES,
   EnvironmentId,
+  type FilesystemBrowseEntry,
   ORCHESTRATION_V2_WS_METHODS,
   type OrchestrationV2ArchivedShellSnapshot,
   ThreadId,
@@ -93,7 +94,9 @@ const BLOCKED_QUERY_FAILURE = new ConnectionBlockedError({
   detail: "Access denied.",
 });
 
-function queryConnectionState(overrides: Partial<SupervisorConnectionState> = {}) {
+function queryConnectionState(
+  overrides: Partial<SupervisorConnectionState> = {},
+): SupervisorConnectionState {
   return {
     ...AVAILABLE_CONNECTION_STATE,
     desired: true,
@@ -102,7 +105,7 @@ function queryConnectionState(overrides: Partial<SupervisorConnectionState> = {}
     attempt: 1,
     generation: 1,
     ...overrides,
-  } satisfies SupervisorConnectionState;
+  };
 }
 
 const makeEnvironmentQueryHarness = Effect.fn("TestEnvironmentQuery.makeHarness")(function* <A, E>(
@@ -1156,7 +1159,7 @@ describe("environment query lifecycle", () => {
   it.effect("filesystem browse lists the directory afresh when a picker reopens it", () =>
     Effect.gen(function* () {
       const harness = yield* makeEnvironmentQueryHarness(Effect.void);
-      const entry = (name: string) => ({
+      const entry = (name: string): FilesystemBrowseEntry => ({
         name,
         fullPath: `/tmp/supaterm-11476-repro/${name}`,
       });

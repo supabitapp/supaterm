@@ -33,6 +33,7 @@ import { pullRequestLabelColor } from "./pullRequestList.logic";
 import {
   PULL_REQUEST_STATE_PRESENTATION,
   PullRequestGlyph,
+  type PullRequestStatePresentation,
   type PullRequestGlyphIcon,
 } from "./pullRequestIcons";
 
@@ -115,7 +116,7 @@ export function PullRequestReviewDecisionGlyph({
 export function resolvePullRequestState(input: {
   readonly state: PullRequestState;
   readonly isDraft: boolean;
-}) {
+}): PullRequestStatePresentation {
   const key = input.state === "open" && input.isDraft ? "draft" : input.state;
   return PULL_REQUEST_STATE_PRESENTATION[key];
 }
@@ -131,7 +132,7 @@ function resolvePullRequestConflict(input: {
   readonly isDraft: boolean;
   readonly mergeability?: PullRequestMergeability;
   readonly baseBranch?: string;
-}) {
+}): PullRequestConflictPresentation | null {
   if (input.state !== "open" || input.isDraft || input.mergeability !== "conflicting") {
     return null;
   }
@@ -225,7 +226,7 @@ const CHECK_STATUS_PRESENTATION = {
   { label: string; Icon: typeof CircleCheckIcon | typeof Spinner; toneClassName: string }
 >;
 
-function isWorkflowApprovalCheck(check: Pick<PullRequestCheck, "status" | "url">) {
+function isWorkflowApprovalCheck(check: Pick<PullRequestCheck, "status" | "url">): boolean {
   return (
     check.status === "action-required" &&
     check.url !== null &&
@@ -233,7 +234,9 @@ function isWorkflowApprovalCheck(check: Pick<PullRequestCheck, "status" | "url">
   );
 }
 
-export function pullRequestCheckStatusLabel(check: Pick<PullRequestCheck, "status" | "url">) {
+export function pullRequestCheckStatusLabel(
+  check: Pick<PullRequestCheck, "status" | "url">,
+): string {
   return isWorkflowApprovalCheck(check)
     ? "Awaiting approval"
     : CHECK_STATUS_PRESENTATION[check.status].label;
@@ -333,7 +336,9 @@ export function pullRequestChecksStatePresentation(state: PullRequestChecksState
   return CHECKS_STATE_PRESENTATION[state];
 }
 
-export function pullRequestChecksState(checks: ReadonlyArray<PullRequestCheck>) {
+export function pullRequestChecksState(
+  checks: ReadonlyArray<PullRequestCheck>,
+): PullRequestChecksState | null {
   if (checks.length === 0) return null;
   const statuses = new Set(checks.map((check) => check.status));
   if (statuses.has("failure") || statuses.has("cancelled")) return "failing";
@@ -380,7 +385,7 @@ const REVIEW_OUTCOME_PRESENTATION = {
   }
 >;
 
-export function pullRequestReviewOutcomeToneClassName(outcome: PullRequestReviewOutcome) {
+export function pullRequestReviewOutcomeToneClassName(outcome: PullRequestReviewOutcome): string {
   return REVIEW_OUTCOME_PRESENTATION[outcome].toneClassName;
 }
 
@@ -393,12 +398,12 @@ export function pullRequestReviewOutcomeToneClassName(outcome: PullRequestReview
 export function pullRequestReviewOutcomeRingClassName(
   outcome: PullRequestReviewOutcome,
   stale = false,
-) {
+): string {
   const presentation = REVIEW_OUTCOME_PRESENTATION[outcome];
   return stale ? presentation.staleRingClassName : presentation.ringClassName;
 }
 
-export function pullRequestReviewOutcomeStaleLabel(outcome: PullRequestReviewOutcome) {
+export function pullRequestReviewOutcomeStaleLabel(outcome: PullRequestReviewOutcome): string {
   return `${REVIEW_OUTCOME_PRESENTATION[outcome].label} earlier changes`;
 }
 
@@ -439,7 +444,7 @@ export function PullRequestReviewOutcomeAvatarBadge({
   );
 }
 
-export function pullRequestReviewOutcomeLabel(outcome: PullRequestReviewOutcome) {
+export function pullRequestReviewOutcomeLabel(outcome: PullRequestReviewOutcome): string {
   return REVIEW_OUTCOME_PRESENTATION[outcome].label;
 }
 
@@ -569,7 +574,7 @@ export function PullRequestDiffStat({
   );
 }
 
-function separatorKey(segment: ReactNode) {
+function separatorKey(segment: ReactNode): string {
   return `separator:${isValidElement(segment) ? String(segment.key) : String(segment)}`;
 }
 
@@ -601,7 +606,7 @@ export function PullRequestMetaLine({
   );
 }
 
-export function summarizePullRequestChecks(checks: ReadonlyArray<PullRequestCheck>) {
+export function summarizePullRequestChecks(checks: ReadonlyArray<PullRequestCheck>): string {
   if (checks.length === 0) return "No checks reported";
   const actionRequired = checks.filter((check) => check.status === "action-required");
   const workflowApprovalRequired = actionRequired.filter(isWorkflowApprovalCheck).length;

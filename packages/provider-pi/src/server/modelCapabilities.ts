@@ -31,7 +31,10 @@ export const EMPTY_PI_MODEL_CAPABILITIES: ModelCapabilities = createModelCapabil
 /** Selecting Standard sends no `service_tier`, leaving the endpoint's default. */
 export const PI_STANDARD_SERVICE_TIER = "default";
 
-export function piModelCapabilities(model: unknown, defaultThinkingLevel: unknown) {
+export function piModelCapabilities(
+  model: unknown,
+  defaultThinkingLevel: unknown,
+): ModelCapabilities {
   const optionDescriptors = [
     thinkingDescriptor(model, defaultThinkingLevel),
     serviceTierDescriptor(model),
@@ -41,25 +44,28 @@ export function piModelCapabilities(model: unknown, defaultThinkingLevel: unknow
     : createModelCapabilities({ optionDescriptors });
 }
 
-function thinkingDescriptor(model: unknown, defaultThinkingLevel: unknown) {
+function thinkingDescriptor(
+  model: unknown,
+  defaultThinkingLevel: unknown,
+): ProviderOptionDescriptor | undefined {
   const levels = supportedPiThinkingLevelsFromModel(model);
-  if (levels.length === 0) return undefined satisfies ProviderOptionDescriptor | undefined;
+  if (levels.length === 0) return undefined;
   const defaultLevel = clampPiThinkingLevel(defaultThinkingLevel, levels);
   return {
     id: "thinking",
     label: "Thinking",
     type: "select",
-    options: levels.map((level) => ({
+    options: levels.map((level): ProviderOptionChoice => ({
       id: level,
       label: PI_THINKING_LEVEL_LABELS[level],
       ...(level === defaultLevel ? { isDefault: true } : {}),
     })),
-  } satisfies ProviderOptionDescriptor | undefined;
+  };
 }
 
-function serviceTierDescriptor(model: unknown) {
+function serviceTierDescriptor(model: unknown): ProviderOptionDescriptor | undefined {
   const tiers = recordField(model, "serviceTiers");
-  if (!Array.isArray(tiers)) return undefined satisfies ProviderOptionDescriptor | undefined;
+  if (!Array.isArray(tiers)) return undefined;
   const seen = new Set<string>([PI_STANDARD_SERVICE_TIER]);
   const options: Array<ProviderOptionChoice> = [];
   for (const tier of tiers) {
@@ -74,17 +80,20 @@ function serviceTierDescriptor(model: unknown) {
       ...(typeof description === "string" && description.trim() !== "" ? { description } : {}),
     });
   }
-  if (options.length === 0) return undefined satisfies ProviderOptionDescriptor | undefined;
+  if (options.length === 0) return undefined;
   return {
     id: "serviceTier",
     label: "Service Tier",
     type: "select",
     options: [{ id: PI_STANDARD_SERVICE_TIER, label: "Standard", isDefault: true }, ...options],
     currentValue: PI_STANDARD_SERVICE_TIER,
-  } satisfies ProviderOptionDescriptor | undefined;
+  };
 }
 
-function clampPiThinkingLevel(input: unknown, availableLevels: ReadonlyArray<PiThinkingLevel>) {
+function clampPiThinkingLevel(
+  input: unknown,
+  availableLevels: ReadonlyArray<PiThinkingLevel>,
+): PiThinkingLevel | undefined {
   if (typeof input !== "string") return undefined;
   const requestedIndex = PI_THINKING_LEVELS.findIndex((level) => level === input);
   if (requestedIndex === -1) return undefined;
@@ -101,7 +110,7 @@ function clampPiThinkingLevel(input: unknown, availableLevels: ReadonlyArray<PiT
   return availableLevels[0];
 }
 
-function supportedPiThinkingLevelsFromModel(model: unknown) {
+function supportedPiThinkingLevelsFromModel(model: unknown): ReadonlyArray<PiThinkingLevel> {
   if (recordField(model, "reasoning") !== true) return [];
   const thinkingLevelMap = thinkingLevelMapFromModel(model);
   return PI_THINKING_LEVELS.filter((level) => {
@@ -112,12 +121,12 @@ function supportedPiThinkingLevelsFromModel(model: unknown) {
   });
 }
 
-function thinkingLevelMapFromModel(model: unknown) {
+function thinkingLevelMapFromModel(model: unknown): Record<string, unknown> | undefined {
   const value = recordField(model, "thinkingLevelMap");
   if (typeof value !== "object" || value === null || Array.isArray(value)) return undefined;
   return value as Record<string, unknown>;
 }
 
-function recordField(input: unknown, key: string) {
+function recordField(input: unknown, key: string): unknown {
   return Predicate.isObject(input) ? input[key] : undefined;
 }

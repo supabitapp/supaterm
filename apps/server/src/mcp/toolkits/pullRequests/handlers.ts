@@ -31,6 +31,7 @@ import * as McpToolAccess from "../../McpToolAccess.ts";
 import { threadNotFound } from "../../OrchestratorMcpService.ts";
 import {
   CHILD_PULL_REQUEST_REPORT_NEXT,
+  type ListThreadPullRequestsResult,
   PullRequestLinkFailedError,
   PullRequestUnlinkFailedError,
   PullRequestListFailedError,
@@ -45,7 +46,7 @@ import {
 function entryOf(
   link: ThreadPullRequestLink,
   chains: ReturnType<typeof resolveThreadPullRequestChains>,
-) {
+): ThreadPullRequestEntry {
   const key = threadPullRequestKeyOf(link);
   let stack: ThreadPullRequestEntry["stack"] = null;
   for (const chain of chains) {
@@ -74,7 +75,7 @@ function entryOf(
 
 const PULL_REQUEST_LIST_PAGE_SIZE = 50;
 
-function pullRequestListPosition(link: ThreadPullRequestLink) {
+function pullRequestListPosition(link: ThreadPullRequestLink): string {
   return [link.linkedAt, link.host, link.repository, String(link.number).padStart(10, "0")].join(
     " ",
   );
@@ -84,7 +85,7 @@ export function listThreadPullRequests(
   thread: Pick<OrchestrationV2ThreadShell, "pullRequests">,
   cursor?: string,
   states?: ReadonlyArray<PullRequestState>,
-) {
+): ListThreadPullRequestsResult {
   const chains = resolveThreadPullRequestChains(thread.pullRequests ?? []);
   const after = visibleThreadPullRequests(thread.pullRequests ?? [])
     .filter((link) => states === undefined || states.includes(link.snapshot?.state ?? "open"))
@@ -162,7 +163,9 @@ const make = Effect.gen(function* () {
 
   const dispatchFailure =
     (Failure: typeof PullRequestLinkFailedError | typeof PullRequestUnlinkFailedError) =>
-    <E>(cause: Cause.Cause<E>) =>
+    <E>(
+      cause: Cause.Cause<E>,
+    ): Effect.Effect<never, PullRequestLinkFailedError | PullRequestUnlinkFailedError> =>
       Cause.hasInterruptsOnly(cause)
         ? Effect.failCause(cause as Cause.Cause<never>)
         : Effect.fail(new Failure({ cause }));

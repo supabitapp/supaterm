@@ -57,7 +57,7 @@ export function contextChipAccent(
   accent: string | undefined,
   theme: MobileThemeVariables,
   textColor: string,
-) {
+): string | undefined {
   if (!accent) return undefined;
   const screen = theme["--color-screen"];
   const darkText = isDarkThemeColor(textColor);
@@ -86,7 +86,7 @@ export const UNAVAILABLE_CONTEXT_CHIP_PRESENTATION: ContextChipPresentation = {
 export function composerChipSizeSuffix(record?: {
   readonly kind?: string;
   readonly sizeBytes?: number;
-}) {
+}): string {
   if (record?.kind !== "file" && record?.kind !== "image") return "";
   return typeof record.sizeBytes === "number" ? formatAttachmentSize(record.sizeBytes) : "";
 }
@@ -110,7 +110,7 @@ export function contextChipPresentation(
       readonly isDraft?: boolean;
     };
   },
-) {
+): ContextChipPresentation {
   const presentationKind =
     kind === "file" &&
     videoMimeType({
@@ -146,15 +146,13 @@ export type ContextChipIconRef =
 export function contextChipIcon(
   presentation: Pick<ContextChipPresentation, "icon">,
   fileName: string,
-) {
-  return (
-    presentation.icon
-      ? { kind: "chip", name: presentation.icon }
-      : { kind: "file", name: resolveMarkdownFileIcon(fileName) }
-  ) satisfies ContextChipIconRef;
+): ContextChipIconRef {
+  return presentation.icon
+    ? { kind: "chip", name: presentation.icon }
+    : { kind: "file", name: resolveMarkdownFileIcon(fileName) };
 }
 
-export function contextRecordFileName(record?: object) {
+export function contextRecordFileName(record?: object): string {
   if (record && "path" in record && typeof record.path === "string") return record.path;
   if (record && "name" in record && typeof record.name === "string") return record.name;
   return "";

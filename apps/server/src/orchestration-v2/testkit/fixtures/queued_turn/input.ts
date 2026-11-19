@@ -4,11 +4,11 @@ import {
   type OrchestratorFixtureInput,
 } from "../shared.ts";
 
-export function queuedTurnInput() {
+export function queuedTurnInput(): OrchestratorFixtureInput {
   return {
     steps: [
       { type: "message", text: MULTI_TURN_FIRST_PROMPT },
       { type: "queue_message", text: MULTI_TURN_SECOND_PROMPT },
     ],
-  } satisfies OrchestratorFixtureInput;
+  };
 }

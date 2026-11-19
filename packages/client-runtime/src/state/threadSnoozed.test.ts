@@ -25,7 +25,7 @@ const SNOOZED_AT = "2026-04-10T09:00:00.000Z";
 const FUTURE_WAKE = "2026-04-11T09:00:00.000Z";
 const PAST_WAKE = "2026-04-10T10:00:00.000Z";
 
-function localDate(year: number, month: number, day: number, hour: number, minute = 0) {
+function localDate(year: number, month: number, day: number, hour: number, minute = 0): Date {
   return new Date(year, month - 1, day, hour, minute, 0, 0);
 }
 
@@ -37,7 +37,7 @@ function makeShell(input: {
   readonly pendingUserInputAt?: string | null;
   readonly turnRequestedAt?: string | null;
   readonly turnCompletedAt?: string | null;
-}) {
+}): ThreadSnoozeShell {
   const threadId = ThreadId.make("thread-1");
   return {
     snoozedUntil: input.snoozedUntil ?? null,
@@ -73,7 +73,7 @@ function makeShell(input: {
 
 type QueuedTurnShell = Parameters<typeof hasQueuedTurnStart>[0];
 
-function makeQueuedTurnShell(overrides: Partial<QueuedTurnShell> = {}) {
+function makeQueuedTurnShell(overrides: Partial<QueuedTurnShell> = {}): QueuedTurnShell {
   return { latestUserMessageAt: null, latestTurn: null, session: null, ...overrides };
 }
 

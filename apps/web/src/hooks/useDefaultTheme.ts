@@ -7,7 +7,7 @@ import { setAppearanceMode, setTheme } from "./useTheme";
 const APPLIED_DEFAULT_THEME_STORAGE_PREFIX = "supaterm:default-theme-applied:v2:";
 
 /** Include set time so reasserting the same theme still applies. */
-export function defaultThemeGeneration(theme: string, setAt: string) {
+export function defaultThemeGeneration(theme: string, setAt: string): string {
   return setAt.length > 0 ? `${theme}@${setAt}` : theme;
 }
 
@@ -17,7 +17,7 @@ export function defaultThemeToApply(input: {
   readonly defaultThemeSetAt: string;
   readonly appliedGeneration: string | null;
   readonly resolves: boolean;
-}) {
+}): string | null {
   if (input.environmentId === null || input.defaultTheme.length === 0) return null;
   const generation = defaultThemeGeneration(input.defaultTheme, input.defaultThemeSetAt);
   if (input.appliedGeneration === generation) return null;
@@ -25,7 +25,7 @@ export function defaultThemeToApply(input: {
   return generation;
 }
 
-function readAppliedGeneration(storageKey: string) {
+function readAppliedGeneration(storageKey: string): string | null {
   if (typeof window === "undefined") return null;
   try {
     return window.localStorage.getItem(storageKey);
@@ -34,13 +34,13 @@ function readAppliedGeneration(storageKey: string) {
   }
 }
 
-function writeAppliedGeneration(storageKey: string, generation: string) {
+function writeAppliedGeneration(storageKey: string, generation: string): void {
   try {
     window.localStorage.setItem(storageKey, generation);
   } catch {}
 }
 
-function adoptDefaultTheme() {
+function adoptDefaultTheme(): void {
   if (typeof window === "undefined") return;
   const environmentId = appAtomRegistry.get(themeEnvironmentIdAtom);
   if (environmentId === null) return;
@@ -68,7 +68,7 @@ function adoptDefaultTheme() {
  * already in the library; it re-checks when published or custom palettes change, so a theme
  * that resolves late still applies.
  */
-export function startDefaultThemeAdoption() {
+export function startDefaultThemeAdoption(): () => void {
   const unsubscribes = [
     appAtomRegistry.subscribe(themeEnvironmentIdAtom, adoptDefaultTheme),
     appAtomRegistry.subscribe(themeServerSettingsAtom, adoptDefaultTheme),

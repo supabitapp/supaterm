@@ -1,7 +1,7 @@
 import { type SlowRpcAckRequest, subscribeSlowRpcAckRequests } from "../rpc/requestLatencyState";
 import { toastManager } from "./ui/toast";
 
-function describeSlowRequests(requests: ReadonlyArray<SlowRpcAckRequest>) {
+function describeSlowRequests(requests: ReadonlyArray<SlowRpcAckRequest>): string {
   const count = requests.length;
   const thresholdSeconds = Math.round(
     Math.min(...requests.map((request) => request.thresholdMs)) / 1000,
@@ -29,7 +29,7 @@ function SlowRequestDetails({ requests }: { requests: ReadonlyArray<SlowRpcAckRe
 }
 
 /** One warning toast that tracks the set of slow requests while any are outstanding. */
-export function startSlowRpcRequestToasts() {
+export function startSlowRpcRequestToasts(): () => void {
   let toastId: ReturnType<typeof toastManager.add> | null = null;
 
   const unsubscribe = subscribeSlowRpcAckRequests((slowRequests) => {

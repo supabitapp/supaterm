@@ -11,16 +11,16 @@ export const threadOutboxManager = createThreadOutboxManager({
 });
 
 /** Drain queued mutations too; optimistic publication precedes the durable file write. */
-export async function flushThreadOutbox() {
+export async function flushThreadOutbox(): Promise<void> {
   await threadOutboxManager.serialize(async () => {});
   await flushThreadOutboxWrites();
 }
 
-export function enqueueThreadOutboxMessage(message: QueuedThreadMessage) {
+export function enqueueThreadOutboxMessage(message: QueuedThreadMessage): Promise<void> {
   return threadOutboxManager.enqueue(message);
 }
 
-export function confirmThreadOutboxMessageQueued(message: QueuedThreadMessage) {
+export function confirmThreadOutboxMessageQueued(message: QueuedThreadMessage): Promise<boolean> {
   return threadOutboxManager.confirmQueued(message);
 }
 
@@ -29,17 +29,17 @@ export function updateThreadOutboxMessage(
   message: QueuedThreadMessage,
   expectedRevision?: number,
   canUpdate?: () => boolean,
-) {
+): Promise<boolean> {
   return threadOutboxManager.update(message, expectedRevision, canUpdate);
 }
 
 /** Lets the drain deliver a held message again, under the command id its hold minted. */
-export function retryHeldThreadOutboxMessage(message: QueuedThreadMessage) {
+export function retryHeldThreadOutboxMessage(message: QueuedThreadMessage): Promise<boolean> {
   if (message.failure === undefined) return Promise.resolve(false);
   const { failure: _, ...retried } = message;
   return threadOutboxManager.update(retried, threadOutboxManager.revisionOf(message.messageId));
 }
 
-export function threadOutboxRevision(messageId: QueuedThreadMessage["messageId"]) {
+export function threadOutboxRevision(messageId: QueuedThreadMessage["messageId"]): number {
   return threadOutboxManager.revisionOf(messageId);
 }

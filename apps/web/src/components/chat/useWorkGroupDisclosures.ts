@@ -17,11 +17,7 @@ import {
 export function useWorkGroupDisclosures(
   identity: string,
   rememberedExpandedIds: ReadonlySet<string> | undefined,
-): readonly [WorkGroupDisclosures, (groupId: string, transition: WorkGroupTransition) => void];
-export function useWorkGroupDisclosures(
-  identity: string,
-  rememberedExpandedIds: ReadonlySet<string> | undefined,
-) {
+): readonly [WorkGroupDisclosures, (groupId: string, transition: WorkGroupTransition) => void] {
   const [state, setState] = useState(() => ({
     identity,
     disclosures: restoredWorkGroupDisclosures(rememberedExpandedIds),
@@ -62,8 +58,5 @@ export function useWorkGroupDisclosures(
     );
   };
 
-  return [current.disclosures, beginTransition] satisfies readonly [
-    WorkGroupDisclosures,
-    (groupId: string, transition: WorkGroupTransition) => void,
-  ];
+  return [current.disclosures, beginTransition];
 }

@@ -28,7 +28,11 @@ import {
   updateReleasePackageVersions,
 } from "./update-release-package-versions.ts";
 import { applyWebBrandAssets } from "./apply-web-brand-assets.ts";
-import { BRAND_ASSET_PATHS, resolveWebAssetBrandForChannel } from "./lib/brand-assets.ts";
+import {
+  BRAND_ASSET_PATHS,
+  resolveWebAssetBrandForChannel,
+  type WebAssetBrand,
+} from "./lib/brand-assets.ts";
 import { getDefaultBuildArch } from "./lib/build-target-arch.ts";
 import {
   findInlinedExternalPackages,
@@ -127,7 +131,7 @@ interface PlatformConfig {
 export function resolveResourceMonitorRustTargets(
   platform: typeof BuildPlatform.Type,
   arch: typeof BuildArch.Type,
-) {
+): ReadonlyArray<string> {
   if (platform === "mac") {
     if (arch === "universal") {
       return ["aarch64-apple-darwin", "x86_64-apple-darwin"];
@@ -140,7 +144,7 @@ export function resolveResourceMonitorRustTargets(
   return [arch === "arm64" ? "aarch64-pc-windows-msvc" : "x86_64-pc-windows-msvc"];
 }
 
-export function resourceMonitorExecutableName(platform: typeof BuildPlatform.Type) {
+export function resourceMonitorExecutableName(platform: typeof BuildPlatform.Type): string {
   return platform === "win" ? "supaterm-resource-monitor.exe" : "supaterm-resource-monitor";
 }
 
@@ -178,7 +182,7 @@ interface BuildCliInput {
   readonly wslRuntime: Option.Option<string>;
 }
 
-function detectHostBuildPlatform(hostPlatform: string) {
+function detectHostBuildPlatform(hostPlatform: string): typeof BuildPlatform.Type | undefined {
   if (hostPlatform === "darwin") return "mac";
   if (hostPlatform === "linux") return "linux";
   if (hostPlatform === "win32") return "win";
@@ -205,7 +209,7 @@ export class KeyringNativePackageMissingError extends Schema.TaggedError<Keyring
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Keyring native package is missing: ${this.packageName}`;
   }
 }
@@ -216,7 +220,7 @@ export class UnsupportedHostBuildPlatformError extends Schema.TaggedError<Unsupp
     hostPlatform: Schema.String,
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Unsupported host platform '${this.hostPlatform}'.`;
   }
 }
@@ -229,7 +233,7 @@ export class UnsupportedDesktopBuildArchitectureError extends Schema.TaggedError
     supportedArchitectures: Schema.Array(BuildArch),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Unsupported architecture '${this.arch}' for ${this.platform}.`;
   }
 }
@@ -248,7 +252,7 @@ export class InvalidMockUpdateServerPortError extends Schema.TaggedError<Invalid
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return "Invalid mock update server port.";
   }
 
@@ -265,7 +269,7 @@ export class DesktopBuildManifestRestoreError extends Schema.TaggedError<Desktop
   "DesktopBuildManifestRestoreError",
   { failures: Schema.Array(ReleasePackageManifestError) },
 ) {
-  override get message() {
+  override get message(): string {
     return `Failed to restore release manifests: ${this.failures.map((failure) => failure.filePath).join(", ")}`;
   }
 }
@@ -279,7 +283,7 @@ export class BuildCommandFailedError extends Schema.TaggedError<BuildCommandFail
     stderrTail: Schema.optionalKey(Schema.String),
   },
 ) {
-  override get message() {
+  override get message(): string {
     const outputSections = [
       `Command: ${this.command}`,
       formatOutputSection("stdout", this.stdoutTail ?? ""),
@@ -315,7 +319,7 @@ export class LinuxDesktopBuildPrerequisitesMissingError extends Schema.TaggedErr
     rustTarget: Schema.String,
   },
 ) {
-  override get message() {
+  override get message(): string {
     const missingRequirements = LINUX_DESKTOP_BUILD_PREREQUISITES.filter((requirement) =>
       this.missing.includes(requirement.id),
     );
@@ -362,7 +366,7 @@ export class MacDesktopBuildPrerequisitesMissingError extends Schema.TaggedError
     rustTargets: Schema.Array(Schema.String),
   },
 ) {
-  override get message() {
+  override get message(): string {
     const details = MAC_DESKTOP_BUILD_PREREQUISITES.flatMap((requirement) =>
       this.missing.includes(requirement.id) ? [`  - ${requirement.description}`] : [],
     ).join("\n");
@@ -396,7 +400,7 @@ export class WindowsDesktopBuildPrerequisitesMissingError extends Schema.TaggedE
     rustTarget: Schema.String,
   },
 ) {
-  override get message() {
+  override get message(): string {
     const details = WINDOWS_DESKTOP_BUILD_PREREQUISITES.flatMap((requirement) =>
       this.missing.includes(requirement.id) ? [`  - ${requirement.description}`] : [],
     ).join("\n");
@@ -423,7 +427,7 @@ export class ResourceMonitorBuildOutputMissingError extends Schema.TaggedError<R
     arch: BuildArch,
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Resource monitor build for ${this.rustTarget} did not produce ${this.binaryPath}.`;
   }
 }
@@ -438,7 +442,7 @@ export class LinuxBrowserSecretHostError extends Schema.TaggedError<LinuxBrowser
   "LinuxBrowserSecretHostError",
   { hostPlatform: Schema.String },
 ) {
-  override get message() {
+  override get message(): string {
     return `Linux desktop builds must run on a Linux host: the browser secret helper links against libsecret and cannot be built on '${this.hostPlatform}'.`;
   }
 }
@@ -450,7 +454,7 @@ export class DesktopIconSourceMissingError extends Schema.TaggedError<DesktopIco
     sourcePath: Schema.String,
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Desktop ${desktopIconPlatformNames[this.platform]} icon source is missing at ${this.sourcePath}`;
   }
 }
@@ -462,7 +466,7 @@ export class DesktopDmgBackgroundSourceMissingError extends Schema.TaggedError<D
     sourcePath: Schema.String,
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Desktop ${this.channel} DMG background source is missing at ${this.sourcePath}`;
   }
 }
@@ -474,7 +478,7 @@ export class BundledClientAssetsMissingError extends Schema.TaggedError<BundledC
     missingFiles: Schema.Array(Schema.String),
   },
 ) {
-  override get message() {
+  override get message(): string {
     const preview = this.missingFiles.slice(0, 6).join(", ");
     const suffix = this.missingFiles.length > 6 ? ` (+${this.missingFiles.length - 6} more)` : "";
     return `Bundled client references missing files in ${this.indexPath}: ${preview}${suffix}. Rebuild web/server artifacts.`;
@@ -487,7 +491,7 @@ export class UnsupportedDesktopBuildPlatformError extends Schema.TaggedError<Uns
     platform: Schema.String,
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Unsupported platform '${this.platform}'.`;
   }
 }
@@ -511,7 +515,7 @@ export class DesktopBuildDependencyResolutionError extends Schema.TaggedError<De
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Could not resolve ${dependencyResolutionDescriptions[this.kind]} from ${this.manifestPath}.`;
   }
 }
@@ -522,7 +526,7 @@ export class MissingServerProductionDependenciesError extends Schema.TaggedError
     manifestPath: Schema.String,
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Could not resolve production dependencies from ${this.manifestPath}.`;
   }
 }
@@ -567,7 +571,7 @@ export class ExternalizedBundleError extends Schema.TaggedError<ExternalizedBund
   "ExternalizedBundleError",
   { sentinel: Schema.String, inlinedPackageCount: Schema.Number },
 ) {
-  override get message() {
+  override get message(): string {
     return `The server bundle did not inline "${this.sentinel}" (${this.inlinedPackageCount} packages inlined). The bundle is meant to be self-contained apart from the runtime externals; if its dependencies are external again they will be absent from the sidecar, and the backend will fail with ERR_MODULE_NOT_FOUND. Check the deps.alwaysBundle wiring in apps/server/vite.config.ts.`;
   }
 }
@@ -576,7 +580,7 @@ export class BundleNotSelfContainedError extends Schema.TaggedError<BundleNotSel
   "BundleNotSelfContainedError",
   { exitCode: Schema.Number, output: Schema.String },
 ) {
-  override get message() {
+  override get message(): string {
     return `The packaged server bundle could not load from the isolated, extracted sidecar (exit ${this.exitCode}). Anything it imports that is neither a Node built-in nor in the selected runtime-external closure is unavailable to both backends. Output:
 ${this.output}`;
   }
@@ -586,7 +590,7 @@ export class InlinedNativePackageError extends Schema.TaggedError<InlinedNativeP
   "InlinedNativePackageError",
   { packages: Schema.Array(Schema.String) },
 ) {
-  override get message() {
+  override get message(): string {
     return `The server bundle inlined packages that load native binaries: ${this.packages.join(", ")}. A node-gyp-build style loader resolves prebuilds relative to its own file, so inlined into a chunk it finds none and the importer quietly falls back to a slower JS path. Add them to CLI_RUNTIME_EXTERNAL_PREFIXES in scripts/lib/cli-external-packages.ts so they stay external and are staged in the sidecar.`;
   }
 }
@@ -595,7 +599,7 @@ export class InlinedExternalPackageError extends Schema.TaggedError<InlinedExter
   "InlinedExternalPackageError",
   { packages: Schema.Array(Schema.String) },
 ) {
-  override get message() {
+  override get message(): string {
     return `The server bundle inlined packages that must stay external: ${this.packages.join(", ")}. These are native addons or their loaders; inlined, they resolve prebuilds relative to the bundle and silently lose native acceleration. Check the deps.neverBundle wiring in apps/server/vite.config.ts.`;
   }
 }
@@ -608,7 +612,7 @@ export class MissingDesktopBuildInputError extends Schema.TaggedError<MissingDes
     buildCommand: Schema.Literal("vp run build:desktop"),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Missing ${desktopBuildInputArtifactNames[this.artifact]} at ${this.artifactPath}. Run '${this.buildCommand}' first.`;
   }
 }
@@ -621,7 +625,7 @@ export class DesktopBuildDistDirectoryMissingError extends Schema.TaggedError<De
     arch: BuildArch,
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Build completed but dist directory was not found at ${this.distPath}`;
   }
 }
@@ -634,7 +638,7 @@ export class DesktopBuildNoArtifactsProducedError extends Schema.TaggedError<Des
     arch: BuildArch,
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Build completed but no files were produced in ${this.distPath}`;
   }
 }
@@ -645,7 +649,7 @@ export class WslRuntimeArchiveMissingError extends Schema.TaggedError<WslRuntime
     archivePath: Schema.String,
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `WSL runtime archive not found at ${this.archivePath}.`;
   }
 }
@@ -657,7 +661,7 @@ export class WindowsServerSidecarPackError extends Schema.TaggedError<WindowsSer
     cause: Schema.optionalKey(Schema.Defect()),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Failed to pack the Windows server sidecar at ${this.asarPath}.`;
   }
 }
@@ -670,7 +674,7 @@ export class WindowsPrimaryNativeProbeError extends Schema.TaggedError<WindowsPr
     output: Schema.String,
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `The packaged Windows primary could not load fff from server.asar (exit ${this.exitCode}). Output:\n${this.output}`;
   }
 }
@@ -697,7 +701,7 @@ export class WindowsPackagedPayloadValidationError extends Schema.TaggedError<Wi
     cause: Schema.optionalKey(Schema.Defect()),
   },
 ) {
-  override get message() {
+  override get message(): string {
     if (this.reason === "file-limit-exceeded") {
       return `Windows packaged payload contains ${String(this.fileCount)} files; expected at most ${String(this.fileLimit)}.`;
     }
@@ -733,12 +737,12 @@ export class LinuxIconResizeError extends Schema.TaggedError<LinuxIconResizeErro
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Failed to ${this.operation} the Linux desktop icon to ${this.iconSize}x${this.iconSize} with \`${this.primaryTool}\` or \`${this.fallbackTool}\`. Install ImageMagick so either tool is available.`;
   }
 }
 
-const collectStreamAsString = <E>(stream: Stream.Stream<Uint8Array, E>) =>
+const collectStreamAsString = <E>(stream: Stream.Stream<Uint8Array, E>): Effect.Effect<string, E> =>
   stream.pipe(
     Stream.decodeText(),
     Stream.runFold(
@@ -749,12 +753,12 @@ const collectStreamAsString = <E>(stream: Stream.Stream<Uint8Array, E>) =>
 
 const COMMAND_OUTPUT_TAIL_LENGTH = 20_000;
 
-function appendOutputTail(acc: string, chunk: string) {
+function appendOutputTail(acc: string, chunk: string): string {
   const next = acc + chunk;
   return next.length > COMMAND_OUTPUT_TAIL_LENGTH ? next.slice(-COMMAND_OUTPUT_TAIL_LENGTH) : next;
 }
 
-function formatOutputSection(label: string, output: string) {
+function formatOutputSection(label: string, output: string): string | undefined {
   const trimmed = output.trim();
   if (!trimmed) return undefined;
   return `${label} tail:\n${trimmed}`;
@@ -764,7 +768,7 @@ const collectCommandStream = <E>(
   stream: Stream.Stream<Uint8Array, E>,
   output: NodeJS.WriteStream,
   verbose: boolean,
-) =>
+): Effect.Effect<string, E> =>
   stream.pipe(
     Stream.decodeText(),
     Stream.runFoldEffect(
@@ -1046,7 +1050,7 @@ export const WSL_RUNTIME_ARCHIVE_HASH_EXTRA_RESOURCE = {
 export const bundlesWslRuntime = (input: {
   readonly platform: typeof BuildPlatform.Type;
   readonly runtimeArchivePath: string | undefined;
-}) => input.platform === "win" && input.runtimeArchivePath !== undefined;
+}): boolean => input.platform === "win" && input.runtimeArchivePath !== undefined;
 
 export const WSL_RUNTIME_EXTRA_RESOURCES = [
   WSL_RUNTIME_ARCHIVE_EXTRA_RESOURCE,
@@ -1085,7 +1089,7 @@ export function resolveFffNativeDependencies(
   platform: typeof BuildPlatform.Type,
   arch: typeof BuildArch.Type,
   version: string,
-) {
+): Record<string, string> {
   const architectures = arch === "universal" ? (["arm64", "x64"] as const) : [arch];
 
   if (platform === "mac") {
@@ -1146,7 +1150,7 @@ export interface NativeAddonArtifact {
 export function resolveKeyringNativeArtifacts(
   platform: typeof BuildPlatform.Type,
   arch: typeof BuildArch.Type,
-) {
+): readonly NativeAddonArtifact[] {
   const architectures = arch === "universal" ? (["arm64", "x64"] as const) : [arch];
 
   if (platform === "mac") {
@@ -1205,7 +1209,7 @@ export function createStageWorkspaceConfig(input: {
   readonly allowBuilds?: Record<string, boolean>;
   readonly patchedDependencies?: Record<string, string>;
   readonly overrides?: Record<string, string>;
-}) {
+}): StageWorkspaceConfig {
   const { platform, arch, allowBuilds, patchedDependencies, overrides } = input;
   const hostOs = platform === "mac" ? "darwin" : platform === "win" ? "win32" : "linux";
   const hostCpu = arch === "universal" ? ["arm64", "x64"] : [arch];
@@ -1234,7 +1238,7 @@ export function createStageWorkspaceConfig(input: {
 export function createStagePatchedDependencies(
   patchedDependencies: Record<string, string>,
   dependencies: Record<string, unknown>,
-) {
+): Record<string, string> {
   return Object.fromEntries(
     Object.entries(patchedDependencies).filter(([patchKey]) =>
       Object.hasOwn(dependencies, getPatchedDependencyPackageName(patchKey)),
@@ -1242,7 +1246,7 @@ export function createStagePatchedDependencies(
   );
 }
 
-function getPatchedDependencyPackageName(patchKey: string) {
+function getPatchedDependencyPackageName(patchKey: string): string {
   const versionSeparator = patchKey.lastIndexOf("@");
   return versionSeparator > 0 ? patchKey.slice(0, versionSeparator) : patchKey;
 }
@@ -1287,7 +1291,9 @@ const MockUpdateServerPortSchema = Schema.NumberFromString.check(
 );
 const decodeMockUpdateServerPort = Schema.decodeUnknownEffect(MockUpdateServerPortSchema);
 
-function invalidMockUpdateServerPortReason(configuredPort: string) {
+function invalidMockUpdateServerPortReason(
+  configuredPort: string,
+): typeof InvalidMockUpdateServerPortReason.Type {
   const parsed = Number(configuredPort);
   if (!Number.isFinite(parsed)) return "not-numeric";
   if (!Number.isInteger(parsed)) return "not-integer";
@@ -1419,7 +1425,7 @@ export class DesktopBuildAlreadyRunningError extends Schema.TaggedError<DesktopB
   "DesktopBuildAlreadyRunningError",
   { lockPath: Schema.String },
 ) {
-  override get message() {
+  override get message(): string {
     return `Another desktop build owns '${this.lockPath}'. Wait for it to finish. If a build was killed, confirm no desktop build is running, inspect and restore any changed release manifests, then remove this lock.`;
   }
 }
@@ -1625,7 +1631,7 @@ export const preflightMacDesktopBuild = Effect.fn("preflightMacDesktopBuild")(fu
   }
 });
 
-function windowsVswherePrerequisiteScript(arch: typeof BuildArch.Type) {
+function windowsVswherePrerequisiteScript(arch: typeof BuildArch.Type): string {
   const toolComponents =
     arch === "arm64"
       ? ["Microsoft.VisualStudio.Component.VC.Tools.ARM64"]
@@ -1687,13 +1693,13 @@ export const preflightWindowsDesktopBuild = Effect.fn("preflightWindowsDesktopBu
   },
 );
 
-function trimTrailingSeparators(value: string) {
+function trimTrailingSeparators(value: string): string {
   let end = value.length;
   while (end > 1 && (value[end - 1] === "/" || value[end - 1] === "\\")) end -= 1;
   return value.slice(0, end);
 }
 
-function uncShareRootLength(value: string) {
+function uncShareRootLength(value: string): number {
   const isUnc = value.startsWith("\\\\") || value.startsWith("//");
   if (!isUnc) return 0;
   const separator = /[\\/]/;
@@ -1704,7 +1710,10 @@ function uncShareRootLength(value: string) {
   return shareEnd < 0 ? value.length : shareStart + shareEnd;
 }
 
-export function ancestorNodeModulesPaths(startDir: string, separator: string) {
+export function ancestorNodeModulesPaths(
+  startDir: string,
+  separator: string,
+): ReadonlyArray<string> {
   const paths: string[] = [];
   let current = trimTrailingSeparators(startDir);
   const uncRootLength = uncShareRootLength(current);
@@ -1759,49 +1768,49 @@ export const copyDirectoryPreservingSymlinks = Effect.fn("copyDirectoryPreservin
 
     yield* fs.copy(source, destination);
 
-    const restoreRelativeSymlinks: (
-      sourceDirectory: string,
-      destinationDirectory: string,
-    ) => Effect.Effect<void, PlatformError | BundleNotSelfContainedError> = Effect.fn(
-      "build-desktop-artifact.restoreRelativeSymlinks",
-    )(function* (sourceDirectory: string, destinationDirectory: string) {
-      for (const entry of yield* fs.readDirectory(sourceDirectory)) {
-        const sourceEntry = path.join(sourceDirectory, entry);
-        const destinationEntry = path.join(destinationDirectory, entry);
-        const linkTarget = yield* fs.readLink(sourceEntry).pipe(Effect.option);
-        if (Option.isSome(linkTarget)) {
-          const absoluteSourceTarget = path.isAbsolute(linkTarget.value)
-            ? linkTarget.value
-            : path.resolve(path.dirname(sourceEntry), linkTarget.value);
-          const sourceRelativeTarget = path.relative(source, absoluteSourceTarget);
-          if (
-            sourceRelativeTarget === ".." ||
-            sourceRelativeTarget.startsWith(`..${path.sep}`) ||
-            path.isAbsolute(sourceRelativeTarget)
-          ) {
-            return yield* new BundleNotSelfContainedError({
-              exitCode: -1,
-              output: `Refusing to copy symlink ${sourceEntry}: its target ${absoluteSourceTarget} escapes the packaged tree.`,
-            });
-          }
-          const target = path.join(destination, sourceRelativeTarget);
-          yield* fs.remove(destinationEntry, { recursive: true, force: true });
-          yield* Effect.tryPromise({
-            try: () => NodeFSP.symlink(target, destinationEntry, "junction"),
-            catch: (cause) =>
-              new BundleNotSelfContainedError({
+    const restoreRelativeSymlinks = Effect.fn("build-desktop-artifact.restoreRelativeSymlinks")(
+      function* (
+        sourceDirectory: string,
+        destinationDirectory: string,
+      ): Effect.fn.Return<void, PlatformError | BundleNotSelfContainedError> {
+        for (const entry of yield* fs.readDirectory(sourceDirectory)) {
+          const sourceEntry = path.join(sourceDirectory, entry);
+          const destinationEntry = path.join(destinationDirectory, entry);
+          const linkTarget = yield* fs.readLink(sourceEntry).pipe(Effect.option);
+          if (Option.isSome(linkTarget)) {
+            const absoluteSourceTarget = path.isAbsolute(linkTarget.value)
+              ? linkTarget.value
+              : path.resolve(path.dirname(sourceEntry), linkTarget.value);
+            const sourceRelativeTarget = path.relative(source, absoluteSourceTarget);
+            if (
+              sourceRelativeTarget === ".." ||
+              sourceRelativeTarget.startsWith(`..${path.sep}`) ||
+              path.isAbsolute(sourceRelativeTarget)
+            ) {
+              return yield* new BundleNotSelfContainedError({
                 exitCode: -1,
-                output: `Could not isolate ${sourceEntry}: ${String(cause)}`,
-              }),
-          });
-        } else {
-          const info = yield* fs.stat(sourceEntry);
-          if (info.type === "Directory") {
-            yield* restoreRelativeSymlinks(sourceEntry, destinationEntry);
+                output: `Refusing to copy symlink ${sourceEntry}: its target ${absoluteSourceTarget} escapes the packaged tree.`,
+              });
+            }
+            const target = path.join(destination, sourceRelativeTarget);
+            yield* fs.remove(destinationEntry, { recursive: true, force: true });
+            yield* Effect.tryPromise({
+              try: () => NodeFSP.symlink(target, destinationEntry, "junction"),
+              catch: (cause) =>
+                new BundleNotSelfContainedError({
+                  exitCode: -1,
+                  output: `Could not isolate ${sourceEntry}: ${String(cause)}`,
+                }),
+            });
+          } else {
+            const info = yield* fs.stat(sourceEntry);
+            if (info.type === "Directory") {
+              yield* restoreRelativeSymlinks(sourceEntry, destinationEntry);
+            }
           }
         }
-      }
-    });
+      },
+    );
 
     yield* restoreRelativeSymlinks(source, destination);
   },
@@ -2281,7 +2290,9 @@ const validateBundledClientAssets = Effect.fn("build-desktop-artifact.validateBu
 
 const CODEX_MICRO_RUNTIME_DEPENDENCIES: ReadonlySet<string> = new Set(["node-hid"]);
 
-function withoutCodexMicroDependencies(dependencies: Record<string, string>) {
+function withoutCodexMicroDependencies(
+  dependencies: Record<string, string>,
+): Record<string, string> {
   return Object.fromEntries(
     Object.entries(dependencies).filter(([name]) => !CODEX_MICRO_RUNTIME_DEPENDENCIES.has(name)),
   );
@@ -2290,7 +2301,7 @@ function withoutCodexMicroDependencies(dependencies: Record<string, string>) {
 export function resolveDesktopRuntimeDependencies(
   dependencies: Record<string, string> | undefined,
   catalog: Record<string, string>,
-) {
+): Record<string, string> {
   if (!dependencies || Object.keys(dependencies).length === 0) {
     return {};
   }
@@ -2328,19 +2339,19 @@ export const resolveGitHubPublishConfig = Effect.fn("resolveGitHubPublishConfig"
   };
 });
 
-export function resolveDesktopUpdateChannel(version: string) {
+export function resolveDesktopUpdateChannel(version: string): "latest" | "nightly" {
   return /-nightly\.\d{8}\.\d+$/.test(version) ? "nightly" : "latest";
 }
 
-export function isDesktopPreviewVersion(version: string) {
+export function isDesktopPreviewVersion(version: string): boolean {
   return /-pr\./.test(version) || /-preview\.\d{8}\.\d+$/.test(version);
 }
 
-export function resolveDesktopWebAssetBrand(version: string) {
+export function resolveDesktopWebAssetBrand(version: string): WebAssetBrand {
   return resolveWebAssetBrandForChannel(resolveDesktopUpdateChannel(version));
 }
 
-export function resolveDesktopBuildIconAssets(version: string) {
+export function resolveDesktopBuildIconAssets(version: string): DesktopBuildIconAssets {
   if (resolveDesktopUpdateChannel(version) === "nightly") {
     return {
       macIconPng: BRAND_ASSET_PATHS.nightlyMacIconPng,
@@ -2360,11 +2371,11 @@ export function resolveDesktopBuildIconAssets(version: string) {
   };
 }
 
-export function resolveMockUpdateServerUrl(mockUpdateServerPort: number | undefined) {
+export function resolveMockUpdateServerUrl(mockUpdateServerPort: number | undefined): string {
   return `http://localhost:${mockUpdateServerPort ?? 3000}`;
 }
 
-export function resolvePackageManagerUserAgent(packageManager: string) {
+export function resolvePackageManagerUserAgent(packageManager: string): string {
   const trimmed = packageManager.trim();
   const versionSeparator = trimmed.lastIndexOf("@");
   if (versionSeparator <= 0 || versionSeparator === trimmed.length - 1) {
@@ -2374,7 +2385,7 @@ export function resolvePackageManagerUserAgent(packageManager: string) {
   return `${trimmed.slice(0, versionSeparator)}/${trimmed.slice(versionSeparator + 1)}`;
 }
 
-export function resolveDesktopProductName(version: string) {
+export function resolveDesktopProductName(version: string): string {
   return resolveDesktopUpdateChannel(version) === "nightly"
     ? "Supaterm (Nightly)"
     : (desktopPackageJson.productName ?? "Supaterm");
@@ -2646,12 +2657,10 @@ export const stageWslRuntimeArchive = Effect.fn("stageWslRuntimeArchive")(functi
   );
 });
 
-export const wslRuntimeArchiveStem: (version: string, arch: typeof BuildArch.Type) => string = (
-  version: string,
-  arch: typeof BuildArch.Type,
-) => `supaterm-${version}-linux-${arch}`;
+export const wslRuntimeArchiveStem = (version: string, arch: typeof BuildArch.Type): string =>
+  `supaterm-${version}-linux-${arch}`;
 
-export const parseWslRuntimeArchiveMembers = (listing: string) =>
+export const parseWslRuntimeArchiveMembers = (listing: string): ReadonlyArray<string> =>
   listing
     .split(/\r?\n/)
     .map((member) => member.replace(/^\.\//, "").replace(/\/$/, ""))
@@ -2788,7 +2797,7 @@ function collectUnpackedAsarFiles(
   directory: DirectoryRecord,
   parentPath = "",
   output: string[] = [],
-) {
+): readonly string[] {
   for (const [name, entry] of Object.entries(directory.files)) {
     const entryPath = parentPath.length === 0 ? name : `${parentPath}/${name}`;
     if ("files" in entry) {
@@ -3156,7 +3165,7 @@ export class MacPackagedAppMissingError extends Schema.TaggedError<MacPackagedAp
   "MacPackagedAppMissingError",
   { stageDistDir: Schema.String },
 ) {
-  override get message() {
+  override get message(): string {
     return `Expected electron-builder to leave a packaged .app with Contents/Resources/app.asar under ${this.stageDistDir}/mac*.`;
   }
 }
@@ -3192,7 +3201,7 @@ export class LinuxPackagedAppMissingError extends Schema.TaggedError<LinuxPackag
   "LinuxPackagedAppMissingError",
   { stageDistDir: Schema.String },
 ) {
-  override get message() {
+  override get message(): string {
     return `Expected electron-builder to leave resources/app.asar under ${this.stageDistDir}/linux*-unpacked.`;
   }
 }

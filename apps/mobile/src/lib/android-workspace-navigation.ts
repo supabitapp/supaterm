@@ -42,11 +42,7 @@ export function parentThreadIsBelow(
 export function linkedThreadStep(
   state: NavigationState,
   target: ReactNavigation.RootParamList["Thread"],
-): "stay" | "pop" | "push";
-export function linkedThreadStep(
-  state: NavigationState,
-  target: ReactNavigation.RootParamList["Thread"],
-) {
+): "stay" | "pop" | "push" {
   const params = state.routes[state.index]?.params as
     | ReactNavigation.RootParamList["Thread"]
     | undefined;
@@ -55,9 +51,9 @@ export function linkedThreadStep(
     params?.environmentId === target?.environmentId &&
     params?.threadId === target?.threadId
   ) {
-    return "stay" satisfies "stay" | "pop" | "push";
+    return "stay";
   }
-  return (parentThreadIsBelow(state, target) ? "pop" : "push") satisfies "stay" | "pop" | "push";
+  return parentThreadIsBelow(state, target) ? "pop" : "push";
 }
 
 export function returnToAndroidWorkspaceList(

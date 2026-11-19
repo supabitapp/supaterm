@@ -51,14 +51,18 @@ export class AcpReplayTranscriptDecodeError extends Schema.TaggedError<AcpReplay
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Failed to decode ${this.expectedProvider} ACP replay transcript for scenario ${this.scenario ?? "<unknown>"}.`;
   }
 }
 
 const isAcpReplayTranscriptDecodeError = Schema.is(AcpReplayTranscriptDecodeError);
 
-function metadataFromTranscript(transcript: ProviderReplayTranscript) {
+function metadataFromTranscript(transcript: ProviderReplayTranscript): {
+  readonly provider?: string;
+  readonly protocol?: string;
+  readonly scenario?: string;
+} {
   return {
     provider: transcript.provider,
     protocol: transcript.protocol,
@@ -70,7 +74,7 @@ export function decodeAcpReplayTranscript(
   transcript: ProviderReplayTranscript,
   expectedProvider: ProviderDriverKind,
   options: { readonly retargetProvider?: boolean } = {},
-) {
+): Effect.Effect<AcpReplayTranscript, AcpReplayTranscriptDecodeError> {
   const candidate = options.retargetProvider
     ? { ...transcript, provider: expectedProvider }
     : transcript;
@@ -102,7 +106,7 @@ interface ReplayStatus {
   readonly failure?: unknown;
 }
 
-function decodeReplayStatus(raw: string) {
+function decodeReplayStatus(raw: string): ReplayStatus {
   const value: unknown = JSON.parse(raw);
   if (
     typeof value !== "object" ||
@@ -119,7 +123,7 @@ export function makeAcpReplayCompletenessAssertion(
   fileSystem: FileSystem.FileSystem,
   statusPath: string,
   transcript: AcpReplayTranscript,
-) {
+): Effect.Effect<void, EffectAcpErrors.AcpError> {
   return fileSystem.readFileString(statusPath).pipe(
     Effect.mapError(
       (cause) =>
@@ -156,22 +160,20 @@ export function makeAcpReplayCompletenessAssertion(
   );
 }
 
-function acpReplayAgentArgs(scriptPath: string): ReadonlyArray<string>;
-function acpReplayAgentArgs(scriptPath: string) {
-  return ["--experimental-strip-types", scriptPath] satisfies ReadonlyArray<string>;
+function acpReplayAgentArgs(scriptPath: string): ReadonlyArray<string> {
+  return ["--experimental-strip-types", scriptPath];
 }
 
 function holdGatedReplayLines(
   transcript: AcpReplayTranscript,
   replayGate: ProviderReplayGate,
-): NonNullable<AcpSessionRuntime.AcpSessionRuntimeOptions["transformStdout"]>;
-function holdGatedReplayLines(transcript: AcpReplayTranscript, replayGate: ProviderReplayGate) {
+): NonNullable<AcpSessionRuntime.AcpSessionRuntimeOptions["transformStdout"]> {
   const inboundLabels = transcript.entries.flatMap((entry) =>
     entry.type === "emit_inbound" ? [entry.label] : [],
   );
   let inboundIndex = 0;
   const encoder = new TextEncoder();
-  return ((stdout) =>
+  return (stdout) =>
     stdout.pipe(
       Stream.decodeText,
       Stream.splitLines,
@@ -181,7 +183,7 @@ function holdGatedReplayLines(transcript: AcpReplayTranscript, replayGate: Provi
           Effect.as(encoder.encode(`${line}\n`)),
         );
       }),
-    )) satisfies NonNullable<AcpSessionRuntime.AcpSessionRuntimeOptions["transformStdout"]>;
+    );
 }
 
 export function makeAcpReplayRuntime(input: {
@@ -201,21 +203,9 @@ export function makeAcpReplayRuntime(input: {
   AcpSessionRuntime.AcpSessionRuntime["Service"],
   EffectAcpErrors.AcpError,
   SecureRandom.SecureRandom | Scope.Scope
->;
-export function makeAcpReplayRuntime(input: {
-  readonly transcript: AcpReplayTranscript;
-  readonly statusPath: string;
-  readonly scriptPath: string;
-  readonly childProcessSpawner: ChildProcessSpawner.ChildProcessSpawner["Service"];
-  readonly fileSystem: FileSystem.FileSystem;
-  readonly customModels?: AcpSessionRuntime.AcpSessionRuntimeOptions["customModels"];
-  readonly cancelMeta?: AcpSessionRuntime.AcpSessionRuntimeOptions["cancelMeta"];
-  readonly cancelBehavior?: AcpSessionRuntime.AcpSessionRuntimeOptions["cancelBehavior"];
-  readonly initializeMeta?: AcpSessionRuntime.AcpSessionRuntimeOptions["initializeMeta"];
-  readonly replayGate?: ProviderReplayGate;
-}) {
+> {
   const transcriptPath = `${input.statusPath}.transcript.json`;
-  return ((runtimeInput) =>
+  return (runtimeInput) =>
     Effect.gen(function* () {
       yield* input.fileSystem
         .writeFileString(transcriptPath, encodeReplayTranscriptJson(input.transcript))
@@ -259,13 +249,7 @@ export function makeAcpReplayRuntime(input: {
       return yield* Effect.service(AcpSessionRuntime.AcpSessionRuntime).pipe(
         Effect.provide(context),
       );
-    })) satisfies (
-    runtimeInput: AcpAdapterV2RuntimeInput,
-  ) => Effect.Effect<
-    AcpSessionRuntime.AcpSessionRuntime["Service"],
-    EffectAcpErrors.AcpError,
-    SecureRandom.SecureRandom | Scope.Scope
-  >;
+    });
 }
 
 export function makeTurnInput(input: {
@@ -279,7 +263,7 @@ export function makeTurnInput(input: {
   readonly messageCreatedBy?: "user" | "agent";
   readonly messageCreationSource?: "web" | "mobile" | "mcp" | "provider" | "server";
   readonly messageText?: string;
-}) {
+}): ProviderAdapter.ProviderAdapterV2TurnInput {
   const ordinal = input.ordinal ?? 1;
   const suffix = `${input.threadId}:${ordinal}`;
   const modelSelection =
@@ -328,5 +312,5 @@ export function makeTurnInput(input: {
     },
     modelSelection,
     runtimePolicy: input.runtimePolicy,
-  } satisfies ProviderAdapter.ProviderAdapterV2TurnInput;
+  };
 }

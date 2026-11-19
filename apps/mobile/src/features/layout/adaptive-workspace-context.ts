@@ -98,11 +98,11 @@ export const WorkspacePaneStateContext = createContext<WorkspacePaneStateValue>(
 });
 
 /** The window's layout and the workspace's actions. Toggling a pane doesn't re-render readers. */
-export function useAdaptiveWorkspaceLayout() {
+export function useAdaptiveWorkspaceLayout(): AdaptiveWorkspaceLayoutValue {
   return use(AdaptiveWorkspaceContext);
 }
 
 /** Which panes show, and the keyboard's hold on them. Re-renders on every pane toggle. */
-export function useWorkspacePaneState() {
+export function useWorkspacePaneState(): WorkspacePaneStateValue {
   return use(WorkspacePaneStateContext);
 }

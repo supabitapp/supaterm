@@ -78,7 +78,10 @@ import {
 } from "@supaterm/contracts";
 import { PlusIcon } from "@supaterm/icons";
 import { withoutOfflineEnvironmentThreads } from "@supaterm/client-runtime/state/presentation";
-import { resolveListedAncestorThreadRef } from "@supaterm/client-runtime/state/threads";
+import {
+  resolveListedAncestorThreadRef,
+  type OlderDoneScope,
+} from "@supaterm/client-runtime/state/threads";
 import {
   useEffect,
   useEffectEvent,
@@ -261,7 +264,7 @@ import { SidebarDraftBlock } from "./sidebar/SidebarDraftBlock";
 function sameSidebarProviderEntries(
   left: ReadonlyMap<string, SidebarProviderEntry>,
   right: ReadonlyMap<string, SidebarProviderEntry>,
-) {
+): boolean {
   if (left.size !== right.size) return false;
   for (const [instanceId, entry] of right) {
     const other = left.get(instanceId);
@@ -361,7 +364,7 @@ function resolveDraggedDoneOrder(input: {
   readonly drag: { readonly activeKey: string; readonly occurredAt: string };
   readonly threadByKey: ReadonlyMap<string, EnvironmentThreadShell>;
   readonly doneThreads: readonly EnvironmentThreadShell[];
-}) {
+}): readonly string[] {
   const { drag, threadByKey, doneThreads } = input;
   const thread = threadByKey.get(drag.activeKey);
   if (thread === undefined) return NO_DRAGGED_ORDER;
@@ -374,7 +377,7 @@ function resolveDraggedDoneOrder(input: {
 function routeThreadOnly(
   threads: readonly EnvironmentThreadShell[],
   routeThreadKey: string | null,
-) {
+): readonly EnvironmentThreadShell[] {
   if (routeThreadKey === null) return EMPTY_THREADS;
   const routeThread = threads.find((thread) => threadShellKey(thread) === routeThreadKey);
   return routeThread === undefined ? EMPTY_THREADS : [routeThread];
@@ -578,7 +581,7 @@ function useSidebarThreads(input: {
 function olderDoneScopes(
   environmentIds: ReadonlyArray<EnvironmentId>,
   scopedProjectKeys: ReadonlySet<string> | null,
-) {
+): ReadonlyArray<OlderDoneScope> {
   if (scopedProjectKeys === null) {
     return environmentIds.map((environmentId) => ({ environmentId, projectIds: null }));
   }
@@ -684,7 +687,7 @@ function isOptimisticDropReleased(input: {
   readonly threads: readonly EnvironmentThreadShell[];
   readonly pinnedKeys: readonly string[];
   readonly now: string;
-}) {
+}): boolean {
   const { optimisticDrop, threads, pinnedKeys, now } = input;
   const canonicalByKey = new Map(threads.map((thread) => [threadShellKey(thread), thread]));
   const thread = canonicalByKey.get(optimisticDrop.key);
@@ -775,7 +778,9 @@ function useSidebarLookups() {
   };
 }
 
-function canOperateThreads(threads: ReadonlyArray<Pick<SidebarThreadSummary, "environmentId">>) {
+function canOperateThreads(
+  threads: ReadonlyArray<Pick<SidebarThreadSummary, "environmentId">>,
+): boolean {
   return threads.every((thread) =>
     readEnvironmentScope(thread.environmentId, AuthOrchestrationOperateScope),
   );
@@ -783,7 +788,7 @@ function canOperateThreads(threads: ReadonlyArray<Pick<SidebarThreadSummary, "en
 
 function checkThreadOperations(
   threads: ReadonlyArray<Pick<SidebarThreadSummary, "environmentId">>,
-) {
+): boolean {
   if (canOperateThreads(threads)) return true;
   toastManager.add({
     type: "error",
@@ -809,7 +814,7 @@ function toastThreadActionFailure(title: string, result: AtomCommandResult<unkno
   );
 }
 
-function readRouteThreadKey(router: AnyRouter) {
+function readRouteThreadKey(router: AnyRouter): string | null {
   const target = resolveThreadRouteTarget(router.state.matches.at(-1)?.params ?? {});
   const draft =
     target?.kind === "draft"
@@ -1329,7 +1334,10 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     },
   );
 
-  const planForwardNavigation = (threadKey: string, coParkingKeys?: ReadonlySet<string>) => {
+  const planForwardNavigation = (
+    threadKey: string,
+    coParkingKeys?: ReadonlySet<string>,
+  ): (() => void) | null => {
     if (readRouteThreadKey(router) !== threadKey) return null;
     const shell = threadByKeyRef.current.get(threadKey);
     const orderedKeys = orderedThreadKeysRef.current;
@@ -1471,7 +1479,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
   const cancelThreadDrag = () => {
     dragSensorRef.current?.cancel();
   };
-  const contextDragThreads = () => {
+  const contextDragThreads = (): ReadonlyArray<ScopedThreadRef> => {
     const key = contextDragKeyRef.current;
     if (key === null) return [];
     const selected = useThreadSelectionStore.getState().selectedThreadKeys;

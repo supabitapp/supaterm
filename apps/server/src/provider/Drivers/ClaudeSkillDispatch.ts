@@ -15,7 +15,7 @@ export function planClaudeSkillDispatch(
   prompt: string,
   skills: ReadonlyMap<string, ClaudeSkillTarget>,
   mentionsFrom = 0,
-) {
+): ClaudeSkillDispatch | undefined {
   const mentions = [...prompt.matchAll(SKILL_MENTION_PATTERN)].flatMap((match) => {
     const name = match[2] ?? "";
     const skill = skills.get(name);

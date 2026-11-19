@@ -10,6 +10,7 @@ import * as Queue from "effect/Queue";
 import * as Ref from "effect/Ref";
 import type * as PlatformError from "effect/PlatformError";
 import * as Schema from "effect/Schema";
+import * as Scope from "effect/Scope";
 import * as Stream from "effect/Stream";
 import * as Stdio from "effect/Stdio";
 import * as RpcClient from "effect/rpc/RpcClient";
@@ -36,7 +37,7 @@ export interface AcpRequestContext {
   readonly method: string;
 }
 
-export function acpRequestIdentity(requestId: AcpError.AcpRequestId) {
+export function acpRequestIdentity(requestId: AcpError.AcpRequestId): string {
   const prefix = "$supaterm:jsonrpc:";
   if (typeof requestId === "number") return `${prefix}number:${requestId}`;
   return requestId.startsWith(prefix) ? `${prefix}string:${requestId}` : requestId;
@@ -183,36 +184,32 @@ const makeStrictNdJsonRpcParser = () => {
   const codec = RpcSerialization.jsonRpc().makeUnsafe();
   const decoder = new TextDecoder();
   let buffer = "";
-  const decodeLine = (line: string) =>
+  const decodeLine = (line: string): ReadonlyArray<AcpDecodedWireMessage> =>
     codec.decode(line).map((message) => ({
       message: normalizeAcpJsonRpcError(
         message as RpcMessage.FromClientEncoded | RpcMessage.FromServerEncoded,
       ),
       lineLength: line.length,
-    })) satisfies ReadonlyArray<AcpDecodedWireMessage>;
+    }));
   return {
-    decode: (bytes: Uint8Array | string) => {
+    decode: (bytes: Uint8Array | string): ReadonlyArray<AcpDecodedWireMessage> => {
       const chunk = typeof bytes === "string" ? bytes : decoder.decode(bytes, { stream: true });
       const lastNewline = chunk.lastIndexOf("\n");
       if (lastNewline === -1) {
         buffer += chunk;
-        return [] satisfies ReadonlyArray<AcpDecodedWireMessage>;
+        return [];
       }
       const lines = (buffer + chunk.slice(0, lastNewline)).split("\n");
       buffer = chunk.slice(lastNewline + 1);
-      return lines.flatMap((line) =>
-        line.trim() === "" ? [] : decodeLine(line),
-      ) satisfies ReadonlyArray<AcpDecodedWireMessage>;
+      return lines.flatMap((line) => (line.trim() === "" ? [] : decodeLine(line)));
     },
-    end: () => {
+    end: (): ReadonlyArray<AcpDecodedWireMessage> => {
       const line = buffer + decoder.decode();
       buffer = "";
       try {
-        return (
-          line.trim() === "" ? [] : decodeLine(line)
-        ) satisfies ReadonlyArray<AcpDecodedWireMessage>;
+        return line.trim() === "" ? [] : decodeLine(line);
       } catch {
-        return [] satisfies ReadonlyArray<AcpDecodedWireMessage>;
+        return [];
       }
     },
     encode: (response: Parameters<typeof codec.encode>[0]) => {
@@ -232,10 +229,9 @@ const isCauseResponse = Schema.is(
 const isProtocolFailure = Schema.is(Schema.TaggedStruct("Fail", { error: AcpSchema.Error }));
 const isInterruptReason = Schema.is(Schema.TaggedStruct("Interrupt", {}));
 
-function normalizeOutgoingFrame(frame: unknown): unknown;
-function normalizeOutgoingFrame(frame: unknown) {
-  if (Array.isArray(frame)) return frame.map(normalizeOutgoingFrame) satisfies unknown;
-  if (!isCauseResponse(frame)) return frame satisfies unknown;
+function normalizeOutgoingFrame(frame: unknown): unknown {
+  if (Array.isArray(frame)) return frame.map(normalizeOutgoingFrame);
+  if (!isCauseResponse(frame)) return frame;
   const reasons = frame.error.data.filter((reason) => !isInterruptReason(reason));
   const [failure] = reasons;
   const error =
@@ -249,7 +245,7 @@ function normalizeOutgoingFrame(frame: unknown) {
       message: error.message,
       ...(error.data === undefined ? {} : { data: error.data }),
     },
-  } satisfies unknown;
+  };
 }
 
 const MAX_BUFFERED_RAW_NOTIFICATIONS = 32;
@@ -276,21 +272,20 @@ const encodeJsonRpcNotification = Schema.encodeUnknownExit(
 
 export const RPC_REQUEST_ID_START = 2 ** 30;
 
-const isEffectRpcRequestId = (requestId: AcpError.AcpRequestId) =>
+const isEffectRpcRequestId = (requestId: AcpError.AcpRequestId): boolean =>
   typeof requestId === "number" && Number.isSafeInteger(requestId);
 
 function normalizeAcpJsonRpcError(
   message: RpcMessage.FromClientEncoded | RpcMessage.FromServerEncoded,
-) {
-  if (message._tag !== "Exit" || message.exit._tag !== "Failure")
-    return message satisfies RpcMessage.FromClientEncoded | RpcMessage.FromServerEncoded;
+): RpcMessage.FromClientEncoded | RpcMessage.FromServerEncoded {
+  if (message._tag !== "Exit" || message.exit._tag !== "Failure") return message;
   const [failure] = message.exit.cause;
   if (
     message.exit.cause.length !== 1 ||
     failure?._tag !== "Die" ||
     !isProtocolError(failure.defect)
   ) {
-    return message satisfies RpcMessage.FromClientEncoded | RpcMessage.FromServerEncoded;
+    return message;
   }
   return {
     ...message,
@@ -298,12 +293,12 @@ function normalizeAcpJsonRpcError(
       _tag: "Failure",
       cause: [{ _tag: "Fail", error: failure.defect }],
     },
-  } satisfies RpcMessage.FromClientEncoded | RpcMessage.FromServerEncoded;
+  };
 }
 
 export const makeAcpPatchedProtocol = Effect.fn("makeAcpPatchedProtocol")(function* (
   options: AcpPatchedProtocolOptions,
-) {
+): Effect.fn.Return<AcpPatchedProtocol, never, Scope.Scope> {
   const parser = makeStrictNdJsonRpcParser();
   const serverQueue = yield* Queue.unbounded<RpcMessage.FromClientEncoded>();
   const clientQueue = yield* Queue.unbounded<RpcMessage.FromServerEncoded>();
@@ -742,7 +737,10 @@ export const makeAcpPatchedProtocol = Effect.fn("makeAcpPatchedProtocol")(functi
       }),
     );
 
-  const routeDecodedMessage = ({ message, lineLength }: AcpDecodedWireMessage) => {
+  const routeDecodedMessage = ({
+    message,
+    lineLength,
+  }: AcpDecodedWireMessage): Effect.Effect<void, AcpError.AcpError> => {
     switch (message._tag) {
       case "Request":
         return handleRequestEncoded(message, lineLength);

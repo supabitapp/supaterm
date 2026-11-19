@@ -3,7 +3,7 @@ import * as Config from "effect/Config";
 import * as ConfigProvider from "effect/ConfigProvider";
 import * as Option from "effect/Option";
 
-const trimNonEmptyOption = (value: string) => {
+const trimNonEmptyOption = (value: string): Option.Option<string> => {
   const trimmed = value.trim();
   return trimmed.length > 0 ? Option.some(trimmed) : Option.none();
 };
@@ -28,7 +28,7 @@ const commaSeparatedStrings = (name: string) =>
     ),
   );
 
-const compactEnv = (env: Readonly<Record<string, string | undefined>>) =>
+const compactEnv = (env: Readonly<Record<string, string | undefined>>): Record<string, string> =>
   Object.fromEntries(
     Object.entries(env).filter((entry): entry is [string, string] => entry[1] !== undefined),
   );

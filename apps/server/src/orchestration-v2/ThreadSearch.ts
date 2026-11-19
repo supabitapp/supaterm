@@ -30,6 +30,7 @@ import {
   rankSearchItems,
   messageMatcher,
   scoreThreadSearch,
+  type ThreadSearchSubject,
 } from "@supaterm/shared/paletteSearch";
 import { threadSearchPullRequests } from "@supaterm/shared/threadPullRequests";
 import {
@@ -57,7 +58,7 @@ export class ThreadSearchError extends Schema.TaggedError<ThreadSearchError>()(
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Thread search ${this.operation} failed.`;
   }
 }
@@ -97,7 +98,7 @@ const MESSAGE_CANDIDATE_LIMIT = 10_000;
 const MESSAGE_SCAN_LIMIT = 20_000;
 const NON_ASCII = /[\u0080-\uffff]/;
 
-function shortTokenSpellings(token: string) {
+function shortTokenSpellings(token: string): ReadonlyArray<string> {
   const forms = (char: string) => {
     const plain = char.normalize("NFD").replace(/\p{M}/gu, "");
     return [char, char.toUpperCase(), plain, plain.toUpperCase()];
@@ -124,7 +125,7 @@ const MESSAGE_HOLDS_ACCENTED_LATIN = [
   .map((lead) => `instr(CAST(message.text AS BLOB), x'${lead}') > 0`)
   .join(" OR ");
 
-function accentInsensitiveGlob(token: string) {
+function accentInsensitiveGlob(token: string): string {
   const pattern = Array.from(token, (char) => {
     const letter = foldSearchQuery(char);
     if (/^[a-z]$/.test(letter)) {
@@ -135,7 +136,10 @@ function accentInsensitiveGlob(token: string) {
   return `*${pattern.join("")}*`;
 }
 
-function buildMessageSearch(query: string, hasIndex: boolean) {
+function buildMessageSearch(
+  query: string,
+  hasIndex: boolean,
+): Omit<typeof SearchRequest.Type, "projectId" | "excludedThreadIds"> | null {
   const { long, short } = messageSearchTokens(query);
   if (long.length === 0) return null;
   const indexed = hasIndex && long.every((token) => Array.from(token).length >= 3);
@@ -161,7 +165,7 @@ const isLowSurrogate = (code: number) => code >= 0xdc00 && code <= 0xdfff;
  * whitespace collapsed, with ellipses where the text was cut. The client finds
  * the highlights again in the result.
  */
-export function buildSearchSnippet(text: string, matchStart: number) {
+export function buildSearchSnippet(text: string, matchStart: number): string {
   let start = Math.max(0, matchStart - SNIPPET_LEAD);
   const wordStart = text.slice(start, matchStart).search(/\s/);
   if (start > 0 && wordStart !== -1) start += wordStart + 1;
@@ -553,7 +557,7 @@ export const make = Effect.gen(function* () {
     const now = DateTime.toEpochMillis(yield* DateTime.now);
     const candidates = yield* read(titleCandidates({ projectId: input.projectId ?? null }));
     const subjectById = new Map(
-      candidates.map((row) => [
+      candidates.map((row): [ThreadId, ThreadSearchSubject] => [
         row.thread.id,
         {
           id: row.thread.id,
@@ -609,7 +613,7 @@ export const make = Effect.gen(function* () {
     const candidates = yield* read(
       olderDoneTitleCandidates({ before, projectIds: projectIds ?? null }),
     );
-    const subjectOf = (row: typeof OlderDoneTitleRow.Type) => ({
+    const subjectOf = (row: typeof OlderDoneTitleRow.Type): ThreadSearchSubject => ({
       id: row.id,
       title: row.title,
       branch: row.branch,

@@ -28,14 +28,13 @@ export async function checkoutNewTaskBranch<E>(input: {
     readonly environmentId: EnvironmentProject["environmentId"];
     readonly input: VcsSwitchRefInput;
   }) => Promise<AtomCommandResult<VcsSwitchRefResult, E>>;
-}) {
+}): Promise<AtomCommandResult<VcsRef, E | Error>> {
   if (!input.project) {
     return AsyncResult.failure(
       Cause.fail(new Error("The selected project is unavailable. Reconnect and try again.")),
-    ) satisfies AtomCommandResult<VcsRef, E | Error>;
+    );
   }
-  if (input.workspaceMode === "worktree")
-    return AsyncResult.success(input.branch) satisfies AtomCommandResult<VcsRef, E | Error>;
+  if (input.workspaceMode === "worktree") return AsyncResult.success(input.branch);
 
   const localName = localBranchName(input.branch);
   let cursor: number | undefined;
@@ -49,19 +48,14 @@ export async function checkoutNewTaskBranch<E>(input: {
         ...(cursor === undefined ? { refresh: true } : { cursor }),
       },
     });
-    if (refs._tag === "Failure")
-      return AsyncResult.failure(refs.cause) satisfies AtomCommandResult<VcsRef, E | Error>;
+    if (refs._tag === "Failure") return AsyncResult.failure(refs.cause);
     const local = refs.value.refs.find((ref) => ref.name === localName);
     if (
       local &&
       (!input.branch.isRemote || local.upstreamRef === `refs/remotes/${input.branch.name}`) &&
       (local.current || local.worktreePath)
     ) {
-      if (local.current)
-        return AsyncResult.success({ ...local, worktreePath: null }) satisfies AtomCommandResult<
-          VcsRef,
-          E | Error
-        >;
+      if (local.current) return AsyncResult.success({ ...local, worktreePath: null });
       if (refs.value.isAtRepositoryRoot === undefined) {
         return AsyncResult.failure(
           Cause.fail(
@@ -69,7 +63,7 @@ export async function checkoutNewTaskBranch<E>(input: {
               "The server did not report whether this project is at the repository root, so this worktree cannot be reused safely. Update the server or choose another branch.",
             ),
           ),
-        ) satisfies AtomCommandResult<VcsRef, E | Error>;
+        );
       }
       if (!refs.value.isAtRepositoryRoot) {
         return AsyncResult.failure(
@@ -78,9 +72,9 @@ export async function checkoutNewTaskBranch<E>(input: {
               "This project is a repository subdirectory. Choose another branch or add the repository root as a project to reuse this worktree.",
             ),
           ),
-        ) satisfies AtomCommandResult<VcsRef, E | Error>;
+        );
       }
-      return AsyncResult.success(local) satisfies AtomCommandResult<VcsRef, E | Error>;
+      return AsyncResult.success(local);
     }
     if (local || refs.value.nextCursor === null) break;
     cursor = refs.value.nextCursor;
@@ -96,10 +90,10 @@ export async function checkoutNewTaskBranch<E>(input: {
     isRemote: false,
     name: value.refName ?? input.branch.name,
     worktreePath: null,
-  })) satisfies AtomCommandResult<VcsRef, E | Error>;
+  }));
 }
 
-function localBranchName(branch: VcsRef) {
+function localBranchName(branch: VcsRef): string {
   if (!branch.isRemote) return branch.name;
   const prefix = branch.remoteName ? `${branch.remoteName}/` : null;
   return prefix && branch.name.startsWith(prefix)

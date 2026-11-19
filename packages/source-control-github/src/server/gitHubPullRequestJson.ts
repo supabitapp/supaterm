@@ -10,6 +10,7 @@ import type {
   PullRequestReferenceCandidate,
   PullRequestPreview,
   PullRequestCheck,
+  PullRequestCheckStatus,
   PullRequestChecksState,
   PullRequestComment,
   PullRequestCommit,
@@ -28,9 +29,12 @@ import type {
   PullRequestReviewThread,
   PullRequestReviewVerdict,
   PullRequestReviewerCandidate,
+  PullRequestReviewerCandidateList,
   PullRequestReviewerKind,
   PullRequestLabelCandidate,
+  PullRequestLabelCandidateList,
   PullRequestState,
+  PullRequestThreadComment,
 } from "@supaterm/contracts";
 import { quoteGitPatchPath } from "@supaterm/shared/gitPatchPath";
 import { decodeJsonResult } from "@supaterm/shared/schemaJson";
@@ -159,13 +163,8 @@ interface PageInfoFields {
 
 function nodesOf<A>(
   connection: { readonly nodes?: ReadonlyArray<A | null> | null | undefined } | null | undefined,
-): ReadonlyArray<A>;
-function nodesOf<A>(
-  connection: { readonly nodes?: ReadonlyArray<A | null> | null | undefined } | null | undefined,
-) {
-  return (connection?.nodes ?? []).flatMap((node) =>
-    node === null ? [] : [node],
-  ) satisfies ReadonlyArray<A>;
+): ReadonlyArray<A> {
+  return (connection?.nodes ?? []).flatMap((node) => (node === null ? [] : [node]));
 }
 
 const REACTION_CONTENT_BY_GITHUB: Readonly<Record<string, PullRequestReactionContent>> = {
@@ -192,14 +191,16 @@ const GITHUB_REACTION_BY_CONTENT: Readonly<
   eyes: "EYES",
 };
 
-export function gitHubReactionContent(content: PullRequestReactionContent) {
+export function gitHubReactionContent(
+  content: PullRequestReactionContent,
+): GitHubSchema.ReactionContent {
   return GITHUB_REACTION_BY_CONTENT[content];
 }
 
 function toReactions(
   groups: ReadonlyArray<ReactionGroup> | null | undefined,
   viewer: string | null,
-) {
+): ReadonlyArray<PullRequestReaction> {
   const normalizedViewer = viewer?.toLowerCase() ?? null;
   const reactions: PullRequestReaction[] = [];
   for (const group of groups ?? []) {
@@ -240,15 +241,16 @@ const RawPullRequestFileSchema = Schema.Struct({
 });
 
 /** Null for a number that names no pull request the viewer can see. */
-export function toPullRequestPreview(result: PullRequestPreviewQuery.Result) {
+export function toPullRequestPreview(
+  result: PullRequestPreviewQuery.Result,
+): Omit<PullRequestPreview, "projectId" | "repository"> | null {
   const pullRequest = result.repository?.pullRequest;
-  if (pullRequest == null)
-    return null satisfies Omit<PullRequestPreview, "projectId" | "repository"> | null;
+  if (pullRequest == null) return null;
   return {
     ...pullRequest,
     author: toActor(pullRequest.author),
     state: toState(pullRequest),
-  } satisfies Omit<PullRequestPreview, "projectId" | "repository"> | null;
+  };
 }
 
 /**
@@ -258,15 +260,14 @@ export function toPullRequestPreview(result: PullRequestPreviewQuery.Result) {
 export const PULL_REQUEST_SEARCH_MAX_ROWS = 100;
 
 /** A row count a listing read may ask for. */
-export function pageRows(rows: number): number;
-export function pageRows(rows: number) {
-  return Math.min(Math.max(Math.trunc(rows), 1), PULL_REQUEST_SEARCH_MAX_ROWS) satisfies number;
+export function pageRows(rows: number): number {
+  return Math.min(Math.max(Math.trunc(rows), 1), PULL_REQUEST_SEARCH_MAX_ROWS);
 }
 
 /** The pull request's own node id, or null where GitHub found none. */
 export function toPullRequestNodeId(result: {
   readonly repository: { readonly pullRequest: { readonly id: string } | null } | null;
-}) {
+}): string | null {
   return result.repository?.pullRequest?.id ?? null;
 }
 
@@ -274,7 +275,7 @@ export function toPullRequestNodeId(result: {
  * True when the subject named is the pull request itself, or hangs off it — false for anything
  * else, including a subject or a pull request this host could not find.
  */
-export function isSubjectOfPullRequest(result: PullRequestSubject.Result) {
+export function isSubjectOfPullRequest(result: PullRequestSubject.Result): boolean {
   const expected = result.repository?.pullRequest?.id ?? null;
   const node = result.node;
   const actual =
@@ -311,27 +312,19 @@ const REVIEW_EVENTS: Record<PullRequestReviewVerdict, "COMMENT" | "APPROVE" | "R
   "request-changes": "REQUEST_CHANGES",
 };
 
-function gitHubReviewPosition(position: PullRequestReviewPosition) {
+function gitHubReviewPosition(position: PullRequestReviewPosition): {
+  readonly line: number;
+  readonly side: "LEFT" | "RIGHT";
+} {
   switch (position.kind) {
     case "added":
-      return { line: position.newLine, side: "RIGHT" } satisfies {
-        readonly line: number;
-        readonly side: "LEFT" | "RIGHT";
-      };
+      return { line: position.newLine, side: "RIGHT" };
     case "deleted":
-      return { line: position.oldLine, side: "LEFT" } satisfies {
-        readonly line: number;
-        readonly side: "LEFT" | "RIGHT";
-      };
+      return { line: position.oldLine, side: "LEFT" };
     case "context":
-      return (
-        position.side === "left"
-          ? { line: position.oldLine, side: "LEFT" }
-          : { line: position.newLine, side: "RIGHT" }
-      ) satisfies {
-        readonly line: number;
-        readonly side: "LEFT" | "RIGHT";
-      };
+      return position.side === "left"
+        ? { line: position.oldLine, side: "LEFT" }
+        : { line: position.newLine, side: "RIGHT" };
   }
 }
 
@@ -339,7 +332,7 @@ export function buildReviewSubmission(input: {
   readonly verdict: PullRequestReviewVerdict;
   readonly body: string;
   readonly comments: ReadonlyArray<PullRequestReviewCommentDraft>;
-}) {
+}): typeof ReviewSubmissionSchema.Type {
   return {
     event: REVIEW_EVENTS[input.verdict],
     body: input.body,
@@ -355,7 +348,7 @@ export function buildReviewSubmission(input: {
         body: comment.body,
       };
     }),
-  } satisfies typeof ReviewSubmissionSchema.Type;
+  };
 }
 
 export interface GitHubPullRequestListItem {
@@ -414,7 +407,7 @@ export interface GitHubPullRequestActivity {
   readonly truncated: boolean;
 }
 
-function nextCursorOf(pageInfo: PageInfoFields | null | undefined) {
+function nextCursorOf(pageInfo: PageInfoFields | null | undefined): string | null {
   return pageInfo?.hasNextPage === true ? trimmed(pageInfo.endCursor) : null;
 }
 
@@ -426,11 +419,11 @@ function toPullRequestViewerFields(
       }
     | null
     | undefined,
-) {
+): { readonly canUpdate: boolean; readonly didAuthor: boolean } {
   return { canUpdate: raw?.viewerCanUpdate !== false, didAuthor: raw?.viewerDidAuthor === true };
 }
 
-function toActor(raw: ActorFields | null | undefined) {
+function toActor(raw: ActorFields | null | undefined): PullRequestActor | null {
   const login = trimmed(raw?.login);
   return login === null
     ? null
@@ -448,7 +441,7 @@ interface RequestedTeamFields {
   readonly teamAvatarUrl?: string | null | undefined;
 }
 
-function toRequestedTeam(raw: object | null | undefined) {
+function toRequestedTeam(raw: object | null | undefined): PullRequestActor | null {
   if (raw == null || !("combinedSlug" in raw)) return null;
   const team = raw as RequestedTeamFields;
   const login = trimmed(team.combinedSlug);
@@ -461,7 +454,7 @@ function toCommitActor(raw: {
   readonly email?: string | null | undefined;
   readonly login?: string | null | undefined;
   readonly name?: string | null | undefined;
-}) {
+}): PullRequestActor | null {
   const login = trimmed(raw.login) ?? trimmed(raw.name) ?? trimmed(raw.email);
   return login === null ? null : { login, name: trimmed(raw.name), avatarUrl: null };
 }
@@ -470,7 +463,7 @@ function toGraphqlCommitActor(raw: {
   readonly name?: string | null | undefined;
   readonly avatarUrl?: string | null | undefined;
   readonly user?: { readonly login?: string | null | undefined } | null | undefined;
-}) {
+}): PullRequestActor | null {
   const login = trimmed(raw.user?.login) ?? trimmed(raw.name);
   return login === null
     ? null
@@ -480,7 +473,7 @@ function toGraphqlCommitActor(raw: {
 function toState(raw: {
   readonly state?: string | null | undefined;
   readonly mergedAt?: string | null | undefined;
-}) {
+}): PullRequestState {
   if (trimmed(raw.mergedAt) !== null) return "merged";
   const state = raw.state?.trim().toUpperCase();
   if (state === "MERGED") return "merged";
@@ -488,7 +481,7 @@ function toState(raw: {
   return "open";
 }
 
-function toMergeability(value: string | null | undefined) {
+function toMergeability(value: string | null | undefined): PullRequestMergeability {
   switch (value?.trim().toUpperCase()) {
     case "MERGEABLE":
       return "mergeable";
@@ -499,7 +492,7 @@ function toMergeability(value: string | null | undefined) {
   }
 }
 
-function toMergeMethod(value: string | null | undefined) {
+function toMergeMethod(value: string | null | undefined): PullRequestMergeMethod | undefined {
   switch (value?.trim().toUpperCase()) {
     case "MERGE":
       return "merge";
@@ -512,8 +505,10 @@ function toMergeMethod(value: string | null | undefined) {
   }
 }
 
-export function toPullRequestActionSummary(raw: PullRequestActionSummary | null | undefined) {
-  if (raw == null) return undefined satisfies ProviderChangeRequestSummary | undefined;
+export function toPullRequestActionSummary(
+  raw: PullRequestActionSummary | null | undefined,
+): ProviderChangeRequestSummary | undefined {
+  if (raw == null) return undefined;
   const autoMergeMethod = toMergeMethod(raw.autoMergeRequest?.mergeMethod);
   return {
     number: raw.number,
@@ -530,13 +525,13 @@ export function toPullRequestActionSummary(raw: PullRequestActionSummary | null 
     headSha: raw.headRefOid,
     autoMergeEnabled: raw.autoMergeRequest !== null,
     ...(autoMergeMethod === undefined ? {} : { autoMergeMethod }),
-  } satisfies ProviderChangeRequestSummary | undefined;
+  };
 }
 
 function toReviewDecisionWithReviews(
   value: string | null | undefined,
   reviews: ReadonlyArray<LatestReviewFields> | undefined,
-) {
+): PullRequestReviewDecision | null {
   const summarized = toReviewDecision(value);
   if (summarized === "approved" || summarized === "changes-requested") return summarized;
   const states = new Set(
@@ -549,7 +544,7 @@ function toReviewDecisionWithReviews(
   return summarized;
 }
 
-function toReviewDecision(value: string | null | undefined) {
+function toReviewDecision(value: string | null | undefined): PullRequestReviewDecision | null {
   switch (value?.trim().toUpperCase()) {
     case "APPROVED":
       return "approved";
@@ -562,7 +557,7 @@ function toReviewDecision(value: string | null | undefined) {
   }
 }
 
-function toLabels(raw: ReadonlyArray<LabelFields> | undefined) {
+function toLabels(raw: ReadonlyArray<LabelFields> | undefined): ReadonlyArray<PullRequestLabel> {
   return (raw ?? []).flatMap((label) => {
     const name = trimmed(label.name);
     return name === null
@@ -571,14 +566,16 @@ function toLabels(raw: ReadonlyArray<LabelFields> | undefined) {
   });
 }
 
-function toReviewRequestLogins(raw: ReadonlyArray<ReviewRequestFields> | undefined) {
+function toReviewRequestLogins(
+  raw: ReadonlyArray<ReviewRequestFields> | undefined,
+): ReadonlyArray<string> {
   return (raw ?? []).flatMap((request) => {
     const login = trimmed(request.login);
     return login === null ? [] : [login];
   });
 }
 
-function hasTeamReviewRequest(raw: ReadonlyArray<ReviewRequestFields> | undefined) {
+function hasTeamReviewRequest(raw: ReadonlyArray<ReviewRequestFields> | undefined): boolean {
   return (raw ?? []).some(
     (request) =>
       trimmed(request.login) === null &&
@@ -586,7 +583,7 @@ function hasTeamReviewRequest(raw: ReadonlyArray<ReviewRequestFields> | undefine
   );
 }
 
-function toCheckStatus(raw: CheckFields) {
+function toCheckStatus(raw: CheckFields): PullRequestCheckStatus {
   const status = raw.status?.trim().toUpperCase();
   if (status !== undefined && status !== "COMPLETED" && status !== "") {
     return "pending";
@@ -617,16 +614,20 @@ const UNSET_TIMESTAMP = "0001-01-01T00:00:00Z";
 
 const STILL_RUNNING = "9999-12-31T23:59:59Z";
 
-function realTimestamp(value: string | null | undefined) {
+function realTimestamp(value: string | null | undefined): string | null {
   const at = trimmed(value);
   return at === null || at === UNSET_TIMESTAMP ? null : at;
 }
 
-function isNamelessCheck(raw: CheckFields) {
+function isNamelessCheck(raw: CheckFields): boolean {
   return trimmed(raw.name) === null && trimmed(raw.context) === null;
 }
 
-function toCheckEntries(raw: ReadonlyArray<CheckFields> | null | undefined) {
+function toCheckEntries(raw: ReadonlyArray<CheckFields> | null | undefined): ReadonlyArray<{
+  readonly check: PullRequestCheck;
+  readonly workflowName: string | null;
+  readonly at: string | null;
+}> {
   return (raw ?? []).flatMap((check) => {
     const name = trimmed(check.name) ?? trimmed(check.context);
     if (name === null) return [];
@@ -647,25 +648,25 @@ function toCheckEntries(raw: ReadonlyArray<CheckFields> | null | undefined) {
             : (realTimestamp(check.completedAt) ?? realTimestamp(check.startedAt)),
       },
     ];
-  }) satisfies ReadonlyArray<{
-    readonly check: PullRequestCheck;
-    readonly workflowName: string | null;
-    readonly at: string | null;
-  }>;
+  });
 }
 
-function rollupChecksState(raw: ReadonlyArray<CheckFields> | null | undefined) {
+function rollupChecksState(
+  raw: ReadonlyArray<CheckFields> | null | undefined,
+): PullRequestChecksState | null {
   return rollupCheckStatuses([
     ...toChecks(raw).map((check) => check.status),
     ...(raw ?? []).filter(isNamelessCheck).map((check) => toCheckStatus(check)),
   ]);
 }
 
-function toChecks(raw: ReadonlyArray<CheckFields> | null | undefined) {
+function toChecks(
+  raw: ReadonlyArray<CheckFields> | null | undefined,
+): ReadonlyArray<PullRequestCheck> {
   return dedupeChecks(toCheckEntries(raw));
 }
 
-function isReviewVerdict(reviewState: string | null) {
+function isReviewVerdict(reviewState: string | null): boolean {
   switch (reviewState?.toUpperCase()) {
     case "APPROVED":
     case "CHANGES_REQUESTED":
@@ -690,24 +691,21 @@ function toComments(raw: {
   readonly reviews: ReadonlyArray<
     RemarkFields & { readonly state: string; readonly submittedAt: string | null }
   >;
-}) {
+}): ReadonlyArray<PullRequestComment> {
   const issueComments = raw.comments
     .filter((comment) => !comment.isMinimized)
-    .map(
-      (comment) =>
-        ({
-          id: comment.id,
-          kind: "issue-comment",
-          author: toActor(comment.author),
-          body: comment.body ?? "",
-          createdAt: comment.createdAt,
-          editedAt: comment.lastEditedAt ?? null,
-          url: trimmed(comment.url),
-          path: null,
-          reviewState: null,
-        }) satisfies PullRequestComment,
-    );
-  const reviews = raw.reviews.flatMap((review) => {
+    .map((comment): PullRequestComment => ({
+      id: comment.id,
+      kind: "issue-comment",
+      author: toActor(comment.author),
+      body: comment.body ?? "",
+      createdAt: comment.createdAt,
+      editedAt: comment.lastEditedAt ?? null,
+      url: trimmed(comment.url),
+      path: null,
+      reviewState: null,
+    }));
+  const reviews = raw.reviews.flatMap((review): ReadonlyArray<PullRequestComment> => {
     const submittedAt = trimmed(review.submittedAt);
     const reviewState = trimmed(review.state);
     if (
@@ -715,7 +713,7 @@ function toComments(raw: {
       submittedAt === null ||
       ((review.body ?? "").trim().length === 0 && !isReviewVerdict(reviewState))
     ) {
-      return [] satisfies ReadonlyArray<PullRequestComment>;
+      return [];
     }
     return [
       {
@@ -729,11 +727,11 @@ function toComments(raw: {
         path: null,
         reviewState,
       },
-    ] satisfies ReadonlyArray<PullRequestComment>;
+    ];
   });
   return [...issueComments, ...reviews].toSorted((left, right) =>
     left.createdAt.localeCompare(right.createdAt),
-  ) satisfies ReadonlyArray<PullRequestComment>;
+  );
 }
 
 function toCommits(
@@ -743,7 +741,7 @@ function toCommits(
     readonly committedDate: string;
     readonly authors: ReadonlyArray<Parameters<typeof toCommitActor>[0]>;
   }>,
-) {
+): ReadonlyArray<PullRequestCommit> {
   return commits.map((commit) => ({
     oid: commit.oid,
     messageHeadline: commit.messageHeadline,
@@ -752,8 +750,7 @@ function toCommits(
   }));
 }
 
-function toListItem(raw: ListItemFields): GitHubPullRequestListItem;
-function toListItem(raw: ListItemFields) {
+function toListItem(raw: ListItemFields): GitHubPullRequestListItem {
   return {
     number: raw.number,
     title: raw.title,
@@ -773,7 +770,7 @@ function toListItem(raw: ListItemFields) {
     hasTeamReviewRequest: hasTeamReviewRequest(raw.reviewRequests),
     labels: toLabels(raw.labels),
     checksState: rollupChecksState(raw.statusCheckRollup),
-  } satisfies GitHubPullRequestListItem;
+  };
 }
 
 interface DetailFields extends ListItemFields {
@@ -789,7 +786,7 @@ interface DetailFields extends ListItemFields {
     | undefined;
 }
 
-function toDetail(raw: DetailFields) {
+function toDetail(raw: DetailFields): GitHubPullRequestDetail {
   const autoMergeMethod = toMergeMethod(raw.autoMergeRequest?.mergeMethod);
   return {
     ...toListItem(raw),
@@ -807,7 +804,7 @@ function toDetail(raw: DetailFields) {
       ? {}
       : { autoMergeEnabled: raw.autoMergeRequest !== null }),
     ...(autoMergeMethod === undefined ? {} : { autoMergeMethod }),
-  } satisfies GitHubPullRequestDetail;
+  };
 }
 
 const decodeUnknownList = decodeJsonResult(Schema.Array(Schema.Unknown));
@@ -856,58 +853,33 @@ export function toPullRequestRows(
   readonly rawCount: number;
   readonly hasNextPage: boolean;
   readonly endCursor: string | null;
-};
-export function toPullRequestRows(
-  connection:
-    | { readonly pageInfo: PageInfoFields; readonly nodes: ReadonlyArray<unknown> | null }
-    | null
-    | undefined,
-) {
+} {
   const nodes = connection?.nodes ?? [];
   return {
     rows: nodes.flatMap((entry) => toRow(entry) ?? []),
     rawCount: nodes.length,
     hasNextPage: connection?.pageInfo.hasNextPage === true,
     endCursor: nextCursorOf(connection?.pageInfo),
-  } satisfies {
-    readonly rows: ReadonlyArray<{
-      readonly item: GitHubPullRequestListItem;
-      readonly repository: string | null;
-    }>;
-    readonly rawCount: number;
-    readonly hasNextPage: boolean;
-    readonly endCursor: string | null;
   };
 }
 
 function toRow(
   entry: unknown,
-): { readonly item: GitHubPullRequestListItem; readonly repository: string | null } | null;
-function toRow(entry: unknown) {
+): { readonly item: GitHubPullRequestListItem; readonly repository: string | null } | null {
   const decodedNode = decodeRow(entry);
-  if (!Exit.isSuccess(decodedNode))
-    return null satisfies {
-      readonly item: GitHubPullRequestListItem;
-      readonly repository: string | null;
-    } | null;
+  if (!Exit.isSuccess(decodedNode)) return null;
   const node = decodedNode.value;
   const stack = toStackMembership(node);
-  const reviewRequests = nodesOf(node.reviewRequests).flatMap((request) => {
-    const reviewer = request.requestedReviewer;
-    if (reviewer === null)
-      return [] satisfies ReadonlyArray<ReviewRequestFields> as ReadonlyArray<ReviewRequestFields>;
-    const login = "login" in reviewer ? trimmed(reviewer.login) : null;
-    if (login !== null)
-      return [
-        { login },
-      ] satisfies ReadonlyArray<ReviewRequestFields> as ReadonlyArray<ReviewRequestFields>;
-    const slug = "slug" in reviewer ? trimmed(reviewer.slug) : null;
-    return (slug === null
-      ? []
-      : [
-          { slug },
-        ]) satisfies ReadonlyArray<ReviewRequestFields> as ReadonlyArray<ReviewRequestFields>;
-  });
+  const reviewRequests = nodesOf(node.reviewRequests).flatMap(
+    (request): ReadonlyArray<ReviewRequestFields> => {
+      const reviewer = request.requestedReviewer;
+      if (reviewer === null) return [];
+      const login = "login" in reviewer ? trimmed(reviewer.login) : null;
+      if (login !== null) return [{ login }];
+      const slug = "slug" in reviewer ? trimmed(reviewer.slug) : null;
+      return slug === null ? [] : [{ slug }];
+    },
+  );
   return {
     item: {
       ...toListItem({
@@ -920,26 +892,18 @@ function toRow(entry: unknown) {
       ...(stack === undefined ? {} : { stack }),
     },
     repository: trimmed(node.repository.nameWithOwner),
-  } satisfies {
-    readonly item: GitHubPullRequestListItem;
-    readonly repository: string | null;
-  } | null;
+  };
 }
 
 function rollupStates(commits: {
   readonly nodes: ReadonlyArray<{
     readonly commit: { readonly statusCheckRollup: { readonly state: string } | null };
   } | null> | null;
-}): ReadonlyArray<CheckFields>;
-function rollupStates(commits: {
-  readonly nodes: ReadonlyArray<{
-    readonly commit: { readonly statusCheckRollup: { readonly state: string } | null };
-  } | null> | null;
-}) {
+}): ReadonlyArray<CheckFields> {
   return nodesOf(commits).flatMap((commitNode) => {
     const state = trimmed(commitNode.commit.statusCheckRollup?.state);
     return state === null ? [] : [{ state }];
-  }) satisfies ReadonlyArray<CheckFields>;
+  });
 }
 
 export interface GitHubPullRequestSearchItem extends GitHubPullRequestListItem {
@@ -953,25 +917,15 @@ export function toStackMembership(raw: {
     readonly baseRefName: string;
   } | null;
   readonly stackEntry?: { readonly position: number } | null;
-}): PullRequestStackMembership | undefined;
-export function toStackMembership(raw: {
-  readonly stack?: {
-    readonly number: number;
-    readonly size: number;
-    readonly baseRefName: string;
-  } | null;
-  readonly stackEntry?: { readonly position: number } | null;
-}) {
-  return (
-    raw.stack && raw.stackEntry
-      ? {
-          number: raw.stack.number,
-          size: raw.stack.size,
-          base: raw.stack.baseRefName,
-          position: raw.stackEntry.position,
-        }
-      : undefined
-  ) satisfies PullRequestStackMembership | undefined;
+}): PullRequestStackMembership | undefined {
+  return raw.stack && raw.stackEntry
+    ? {
+        number: raw.stack.number,
+        size: raw.stack.size,
+        base: raw.stack.baseRefName,
+        position: raw.stackEntry.position,
+      }
+    : undefined;
 }
 
 const REPOSITORY_PART = /^[A-Za-z0-9._-]+$/;
@@ -980,7 +934,9 @@ const REPOSITORY_PART = /^[A-Za-z0-9._-]+$/;
  * The variables of one pull request lookup, or null for a selector or number GitHub cannot
  * name: a batch would send it, and GitHub would refuse the whole request rather than its part.
  */
-export function repositoryLookup(repository: string) {
+export function repositoryLookup(
+  repository: string,
+): { readonly owner: string; readonly name: string } | null {
   const [owner, name, ...rest] = repository.trim().split("/");
   if (rest.length > 0 || owner === undefined || name === undefined) return null;
   return REPOSITORY_PART.test(owner) && REPOSITORY_PART.test(name) ? { owner, name } : null;
@@ -989,24 +945,13 @@ export function repositoryLookup(repository: string) {
 export function pullRequestLookup(changeRequest: {
   readonly repository: string;
   readonly number: number;
-}): { readonly owner: string; readonly name: string; readonly number: number } | null;
-export function pullRequestLookup(changeRequest: {
-  readonly repository: string;
-  readonly number: number;
-}) {
+}): { readonly owner: string; readonly name: string; readonly number: number } | null {
   const repository = repositoryLookup(changeRequest.repository);
-  if (repository === null)
-    return null satisfies {
-      readonly owner: string;
-      readonly name: string;
-      readonly number: number;
-    } | null;
+  if (repository === null) return null;
   const { number } = changeRequest;
-  return (
-    Number.isSafeInteger(number) && number > 0 && number <= 2_147_483_647
-      ? { ...repository, number }
-      : null
-  ) satisfies { readonly owner: string; readonly name: string; readonly number: number } | null;
+  return Number.isSafeInteger(number) && number > 0 && number <= 2_147_483_647
+    ? { ...repository, number }
+    : null;
 }
 
 export interface GitHubPullRequestSummary {
@@ -1032,7 +977,7 @@ export interface GitHubPullRequestSummary {
 }
 
 /** The summary a linked thread keeps current, from one slice of the batched read. */
-export function toPullRequestSummary(pr: SummarizedPullRequest) {
+export function toPullRequestSummary(pr: SummarizedPullRequest): GitHubPullRequestSummary {
   return {
     number: pr.number,
     title: pr.title,
@@ -1052,7 +997,7 @@ export function toPullRequestSummary(pr: SummarizedPullRequest) {
     checksState: rollupChecksState(rollupStates(pr.commits)),
     mergeability: toMergeability(pr.mergeable),
     ...(pr.stack === undefined ? {} : { stack: toStackMembership(pr) ?? null }),
-  } satisfies GitHubPullRequestSummary;
+  };
 }
 
 export interface GitHubPullRequestWatchFingerprint {
@@ -1077,7 +1022,9 @@ const stateCounts = (counts: StateCounts) =>
     .toSorted()
     .join(",");
 
-export function toPullRequestWatchFingerprint(pr: WatchedPullRequest) {
+export function toPullRequestWatchFingerprint(
+  pr: WatchedPullRequest,
+): GitHubPullRequestWatchFingerprint {
   const contexts = pr.commits.nodes?.[0]?.commit.statusCheckRollup?.contexts;
   return {
     status: [
@@ -1115,11 +1062,10 @@ type CoreRequestedReviewer = NonNullable<
 >[number];
 
 /** Null for a repository or number that names no pull request the viewer can see. */
-export function toPullRequestCore(result: PullRequestCore.Result): GitHubPullRequestCore | null;
-export function toPullRequestCore(result: PullRequestCore.Result) {
+export function toPullRequestCore(result: PullRequestCore.Result): GitHubPullRequestCore | null {
   const repository = result.repository;
   const pr = repository?.pullRequest;
-  if (repository == null || pr == null) return null satisfies GitHubPullRequestCore | null;
+  if (repository == null || pr == null) return null;
   const contexts = nodesOf(pr.commits)[0]?.commit.statusCheckRollup?.contexts;
   const removal = nodesOf(pr.mergeQueueRemovals).at(-1);
   return {
@@ -1188,7 +1134,7 @@ export function toPullRequestCore(result: PullRequestCore.Result) {
             viewerCanUpdate: pr.viewerCanUpdateBranch,
           },
     checksTruncated: contexts?.pageInfo.hasNextPage === true,
-  } satisfies GitHubPullRequestCore | null;
+  };
 }
 
 export interface GitHubWorkflowRunPage {
@@ -1196,7 +1142,9 @@ export interface GitHubWorkflowRunPage {
   readonly rawCount: number;
 }
 
-export function decodeWorkflowRunsJson(raw: string) {
+export function decodeWorkflowRunsJson(
+  raw: string,
+): Result.Result<GitHubWorkflowRunPage, DecodeFailure> {
   const decoded = decodeWorkflowRuns(raw);
   if (!Result.isSuccess(decoded)) return Result.fail(decoded.failure);
   return Result.succeed({
@@ -1220,14 +1168,9 @@ const UNFINISHED_WORKFLOW_RUN_STATUSES = new Set([
 /** Workflow runs GitHub has not finished, which may have no check runs on the head yet. */
 export function decodeUnfinishedWorkflowRunsJson(
   raw: string,
-): Result.Result<ReadonlyArray<GitHubWorkflowRunApproval>, DecodeFailure>;
-export function decodeUnfinishedWorkflowRunsJson(raw: string) {
+): Result.Result<ReadonlyArray<GitHubWorkflowRunApproval>, DecodeFailure> {
   const decoded = decodeWorkflowRuns(raw);
-  if (!Result.isSuccess(decoded))
-    return Result.fail(decoded.failure) satisfies Result.Result<
-      ReadonlyArray<GitHubWorkflowRunApproval>,
-      DecodeFailure
-    >;
+  if (!Result.isSuccess(decoded)) return Result.fail(decoded.failure);
   return Result.succeed(
     decoded.success.workflow_runs
       .filter((run) => UNFINISHED_WORKFLOW_RUN_STATUSES.has(run.status ?? ""))
@@ -1236,11 +1179,14 @@ export function decodeUnfinishedWorkflowRunsJson(raw: string) {
         name: trimmed(run.name) ?? `Workflow run ${run.id}`,
         url: trimmed(run.html_url),
       })),
-  ) satisfies Result.Result<ReadonlyArray<GitHubWorkflowRunApproval>, DecodeFailure>;
+  );
 }
 
 /** One page of open pull requests on one head branch; an unseen repository is an empty page. */
-export function toPullRequestHeads(result: PullRequestHeads.Result) {
+export function toPullRequestHeads(result: PullRequestHeads.Result): {
+  readonly heads: ReadonlyArray<GitHubPullRequestHead>;
+  readonly nextCursor: string | null;
+} {
   const connection = result.repository?.pullRequests;
   return {
     heads: nodesOf(connection).map((pullRequest) => ({
@@ -1265,10 +1211,9 @@ export interface GitHubPullRequestActivityPage {
 /** One page of the activity read; null for a pull request the viewer cannot see. */
 export function toPullRequestActivityPage(
   result: PullRequestActivity.Result,
-): GitHubPullRequestActivityPage | null;
-export function toPullRequestActivityPage(result: PullRequestActivity.Result) {
+): GitHubPullRequestActivityPage | null {
   const pr = result.repository?.pullRequest;
-  if (pr == null) return null satisfies GitHubPullRequestActivityPage | null;
+  if (pr == null) return null;
   return {
     nonMergeCommitIds: nodesOf(pr.commits).flatMap(({ commit }) =>
       commit.parents.totalCount > 1 ? [] : [commit.id],
@@ -1290,7 +1235,7 @@ export function toPullRequestActivityPage(result: PullRequestActivity.Result) {
     remarks: toComments({ comments: nodesOf(pr.comments), reviews: nodesOf(pr.reviews) }),
     nextCommentsCursor: nextCursorOf(pr.comments?.pageInfo),
     nextReviewsCursor: nextCursorOf(pr.reviews?.pageInfo),
-  } satisfies GitHubPullRequestActivityPage | null;
+  };
 }
 
 export function toPullRequestCommitStats(result: PullRequestCommitStats.Result) {
@@ -1314,7 +1259,7 @@ export function toPullRequestCommitStats(result: PullRequestCommitStats.Result) 
 /** A check context as the rollup reports it; opaque outside this module. */
 export type GitHubCheckContext = CheckFields;
 
-function toCheckContexts(nodes: ReadonlyArray<CheckContext>) {
+function toCheckContexts(nodes: ReadonlyArray<CheckContext>): ReadonlyArray<GitHubCheckContext> {
   return nodes.map((check) =>
     check.__typename === "CheckRun"
       ? { ...check, workflowName: check.checkSuite.workflowRun?.workflow.name ?? null }
@@ -1327,36 +1272,22 @@ export function toPullRequestCheckContextsPage(result: PullRequestCheckContexts.
   readonly headSha: string;
   readonly contexts: ReadonlyArray<GitHubCheckContext>;
   readonly nextCursor: string | null;
-} | null;
-export function toPullRequestCheckContextsPage(result: PullRequestCheckContexts.Result) {
+} | null {
   const pr = result.repository?.pullRequest;
-  if (pr == null)
-    return null satisfies {
-      readonly headSha: string;
-      readonly contexts: ReadonlyArray<GitHubCheckContext>;
-      readonly nextCursor: string | null;
-    } | null;
+  if (pr == null) return null;
   const contexts = nodesOf(pr.commits)[0]?.commit.statusCheckRollup?.contexts;
   return {
     headSha: pr.headRefOid,
     contexts: toCheckContexts(nodesOf(contexts)),
     nextCursor: nextCursorOf(contexts?.pageInfo),
-  } satisfies {
-    readonly headSha: string;
-    readonly contexts: ReadonlyArray<GitHubCheckContext>;
-    readonly nextCursor: string | null;
-  } | null;
+  };
 }
 
 export function pullRequestChecksFromContexts(contexts: ReadonlyArray<GitHubCheckContext>): {
   readonly checks: ReadonlyArray<PullRequestCheck>;
   readonly checksState: PullRequestChecksState | null;
-};
-export function pullRequestChecksFromContexts(contexts: ReadonlyArray<GitHubCheckContext>) {
-  return { checks: toChecks(contexts), checksState: rollupChecksState(contexts) } satisfies {
-    readonly checks: ReadonlyArray<PullRequestCheck>;
-    readonly checksState: PullRequestChecksState | null;
-  };
+} {
+  return { checks: toChecks(contexts), checksState: rollupChecksState(contexts) };
 }
 
 export interface GitHubReviewThreadComments {
@@ -1402,27 +1333,28 @@ export interface GitHubReviewThreadPage {
   readonly nextDismissalCursor: string | null;
 }
 
-export function reviewThreadConversation(threads: ReadonlyArray<PullRequestReviewThread>) {
+export function reviewThreadConversation(
+  threads: ReadonlyArray<PullRequestReviewThread>,
+): ReadonlyArray<PullRequestComment> {
   return threads.flatMap((thread) =>
-    thread.comments.map(
-      (comment) =>
-        ({
-          id: comment.id,
-          kind: "review-comment",
-          author: comment.author,
-          body: comment.body,
-          createdAt: comment.createdAt,
-          editedAt: comment.editedAt ?? null,
-          url: comment.url,
-          path: thread.path,
-          reviewState: null,
-          reactions: comment.reactions ?? [],
-        }) satisfies PullRequestComment,
-    ),
-  ) satisfies ReadonlyArray<PullRequestComment>;
+    thread.comments.map((comment): PullRequestComment => ({
+      id: comment.id,
+      kind: "review-comment",
+      author: comment.author,
+      body: comment.body,
+      createdAt: comment.createdAt,
+      editedAt: comment.editedAt ?? null,
+      url: comment.url,
+      path: thread.path,
+      reviewState: null,
+      reactions: comment.reactions ?? [],
+    })),
+  );
 }
 
-function toDismissalEntries(connection: ReviewThreadsPullRequest["reviewDismissals"]) {
+function toDismissalEntries(
+  connection: ReviewThreadsPullRequest["reviewDismissals"],
+): Map<string, string> {
   const entries = new Map<string, string>();
   for (const node of nodesOf(connection)) {
     if (!("dismissalMessage" in node)) continue;
@@ -1434,7 +1366,10 @@ function toDismissalEntries(connection: ReviewThreadsPullRequest["reviewDismissa
 }
 
 /** One further page of dismissal events, in the shape the thread read's own page carries. */
-export function toReviewDismissalsPage(result: ReviewDismissals.Result) {
+export function toReviewDismissalsPage(result: ReviewDismissals.Result): {
+  readonly dismissalsByReviewId: ReadonlyMap<string, string>;
+  readonly nextCursor: string | null;
+} | null {
   const items = result.repository?.pullRequest?.timelineItems;
   if (items === undefined) return null;
   return {
@@ -1443,7 +1378,7 @@ export function toReviewDismissalsPage(result: ReviewDismissals.Result) {
   };
 }
 
-function toThreadComment(comment: ThreadComment, viewer: string | null) {
+function toThreadComment(comment: ThreadComment, viewer: string | null): PullRequestThreadComment {
   const reviewUrl = trimmed(comment.pullRequestReview?.url);
   return {
     id: comment.id,
@@ -1463,13 +1398,12 @@ type ReviewThreadsPullRequest = NonNullable<
 
 function toReviewThreadEntries(threads: ReviewThreadPage, viewer: string | null) {
   const threadNodes = nodesOf(threads);
-  const entries = threadNodes.flatMap((thread) => {
+  const entries = threadNodes.flatMap((thread): ReadonlyArray<GitHubReviewThreadEntry> => {
     const path = trimmed(thread.path);
     const id = trimmed(thread.id);
     const loaded = nodesOf(thread.comments);
     const comments = loaded.filter((comment) => !comment.isMinimized);
-    if (path === null || id === null || comments.length === 0)
-      return [] satisfies ReadonlyArray<GitHubReviewThreadEntry>;
+    if (path === null || id === null || comments.length === 0) return [];
     return [
       {
         thread: {
@@ -1484,7 +1418,7 @@ function toReviewThreadEntries(threads: ReviewThreadPage, viewer: string | null)
         commentCount: thread.comments.totalCount - (loaded.length - comments.length),
         nextCommentCursor: nextCursorOf(thread.comments.pageInfo),
       },
-    ] satisfies ReadonlyArray<GitHubReviewThreadEntry>;
+    ];
   });
   return {
     entries,
@@ -1507,31 +1441,26 @@ function collectActors(raws: ReadonlyArray<ActorFields | null | undefined>) {
   return { avatarsByLogin, botLogins };
 }
 
-export function toLaterReviewThreadPage(result: ReviewThreadPages.Result) {
+export function toLaterReviewThreadPage(
+  result: ReviewThreadPages.Result,
+): Pick<GitHubReviewThreadPage, "threads" | "nextCursor" | "avatarsByLogin" | "botLogins"> | null {
   const threads = result.repository?.pullRequest?.reviewThreads;
-  if (threads === undefined)
-    return null satisfies Pick<
-      GitHubReviewThreadPage,
-      "threads" | "nextCursor" | "avatarsByLogin" | "botLogins"
-    > | null;
+  if (threads === undefined) return null;
   const { entries, nextCursor, authors } = toReviewThreadEntries(
     threads,
     trimmed(result.viewer.login),
   );
-  return { threads: entries, nextCursor, ...collectActors(authors) } satisfies Pick<
-    GitHubReviewThreadPage,
-    "threads" | "nextCursor" | "avatarsByLogin" | "botLogins"
-  > | null;
+  return { threads: entries, nextCursor, ...collectActors(authors) };
 }
 
 /** One page of review threads; null for a pull request the viewer cannot see. */
-export function toReviewThreadPage(result: ReviewThreads.Result) {
+export function toReviewThreadPage(result: ReviewThreads.Result): GitHubReviewThreadPage | null {
   const pullRequest = result.repository?.pullRequest;
-  if (pullRequest == null) return null satisfies GitHubReviewThreadPage | null;
+  if (pullRequest == null) return null;
   const viewer = trimmed(result.viewer.login);
   const page = toReviewThreadEntries(pullRequest.reviewThreads, viewer);
   const requestedReviewers = nodesOf(pullRequest.reviewRequests).map(
-    (node) => node.requestedReviewer,
+    (node): ActorFields | null => node.requestedReviewer,
   );
   const latestReviews = nodesOf(pullRequest.latestReviews).filter((node) => !node.isMinimized);
   const comments = nodesOf(pullRequest.comments);
@@ -1585,11 +1514,16 @@ export function toReviewThreadPage(result: ReviewThreads.Result) {
     viewer: toPullRequestViewerFields(pullRequest),
     dismissalsByReviewId: toDismissalEntries(pullRequest.reviewDismissals),
     nextDismissalCursor: nextCursorOf(pullRequest.reviewDismissals.pageInfo),
-  } satisfies GitHubReviewThreadPage | null;
+  };
 }
 
 /** The rest of one thread's comments, in the shape the first page already delivered them. */
-export function toReviewThreadCommentsPage(result: ReviewThreadComments.Result) {
+export function toReviewThreadCommentsPage(result: ReviewThreadComments.Result): {
+  readonly belongsToPullRequest: boolean;
+  readonly comments: ReadonlyArray<PullRequestThreadComment>;
+  readonly hiddenCount: number;
+  readonly nextCursor: string | null;
+} {
   const viewer = trimmed(result.viewer.login);
   const thread = result.node?.__typename === "PullRequestReviewThread" ? result.node : null;
   const pullRequestId = result.repository?.pullRequest?.id;
@@ -1620,7 +1554,7 @@ export const IMMEDIATELY_MERGEABLE: ReadonlySet<string> = new Set([
  * GitHub answers null only to a GitHub App installation, and no API says what an installation
  * may do, so null is granted and GitHub refuses whatever the app was not given.
  */
-export function toCanWrite(viewerPermission: string | null | undefined) {
+export function toCanWrite(viewerPermission: string | null | undefined): boolean {
   if (viewerPermission === null) return true;
   switch (viewerPermission?.trim().toUpperCase()) {
     case "ADMIN":
@@ -1632,7 +1566,7 @@ export function toCanWrite(viewerPermission: string | null | undefined) {
   }
 }
 
-function toCanTriage(viewerPermission: string | null | undefined) {
+function toCanTriage(viewerPermission: string | null | undefined): boolean {
   return viewerPermission?.trim().toUpperCase() === "TRIAGE" || toCanWrite(viewerPermission);
 }
 
@@ -1646,7 +1580,10 @@ export interface GitHubBaseComparison {
  * asked leads even when GitHub does not count them assignable, because a request that cannot be
  * seen cannot be taken back. Null for a repository the viewer cannot see.
  */
-export function toReviewerCandidates(result: ReviewerCandidates.Result, query?: string) {
+export function toReviewerCandidates(
+  result: ReviewerCandidates.Result,
+  query?: string,
+): PullRequestReviewerCandidateList | null {
   const repository = result.repository;
   if (repository == null) return null;
   const pullRequest = repository.pullRequest;
@@ -1697,7 +1634,7 @@ const ReviewerRequestSchema = Schema.Struct({
 
 export function buildReviewerRequest(
   reviewers: ReadonlyArray<{ readonly id: string; readonly kind: PullRequestReviewerKind }>,
-) {
+): typeof ReviewerRequestSchema.Type {
   return {
     reviewers: reviewers.flatMap((reviewer) => (reviewer.kind === "user" ? [reviewer.id] : [])),
     team_reviewers: reviewers.flatMap((reviewer) =>
@@ -1712,7 +1649,9 @@ export function buildReviewerRequest(
  * the list anyway, because a label that cannot be seen cannot be taken off. Null for a repository
  * the viewer cannot see.
  */
-export function toLabelCandidates(result: LabelCandidates.Result) {
+export function toLabelCandidates(
+  result: LabelCandidates.Result,
+): PullRequestLabelCandidateList | null {
   const repository = result.repository;
   if (repository == null) return null;
   const applied = new Set(
@@ -1739,7 +1678,9 @@ export function toLabelCandidates(result: LabelCandidates.Result) {
   };
 }
 
-export function toRepositoryLabels(result: RepositoryLabels.Result) {
+export function toRepositoryLabels(
+  result: RepositoryLabels.Result,
+): { readonly items: ReadonlyArray<PullRequestLabel>; readonly truncated: boolean } | null {
   const repository = result.repository;
   if (repository == null) return null;
   return {
@@ -1751,7 +1692,9 @@ export function toRepositoryLabels(result: RepositoryLabels.Result) {
   };
 }
 
-export function toRepositoryAuthors(result: RepositoryAuthors.Result) {
+export function toRepositoryAuthors(
+  result: RepositoryAuthors.Result,
+): { readonly items: ReadonlyArray<PullRequestActor>; readonly truncated: boolean } | null {
   const repository = result.repository;
   if (repository == null) return null;
   return {
@@ -1766,7 +1709,7 @@ export function toRepositoryAuthors(result: RepositoryAuthors.Result) {
 }
 
 /** The `search` string for {@link toRepositoryReferences}; a numeric query searches recent items. */
-export function referenceSearchQuery(repository: string, query: string | undefined) {
+export function referenceSearchQuery(repository: string, query: string | undefined): string {
   const text = query?.trim() ?? "";
   const titled = text.length === 0 || /^\d+$/.test(text) ? [] : [`in:title ${searchPhrase(text)}`];
   return [`repo:${repository}`, ...titled, "sort:updated-desc"].join(" ");
@@ -1777,7 +1720,7 @@ export function referenceSearchQuery(repository: string, query: string | undefin
  * `label:x` as another, so text typed into a search box could widen the very listing it is
  * meant to narrow — inside them it is only text.
  */
-export function searchPhrase(query: string) {
+export function searchPhrase(query: string): string {
   return `"${query.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`;
 }
 
@@ -1785,7 +1728,7 @@ type ReferenceNode =
   | ReferenceCandidate
   | NonNullable<NonNullable<RepositoryReferences.Result["search"]["nodes"]>[number]>;
 
-function toReferenceCandidate(node: ReferenceNode) {
+function toReferenceCandidate(node: ReferenceNode): PullRequestReferenceCandidate | null {
   if (node.__typename === "Issue") {
     return {
       reference: `#${node.number}`,
@@ -1793,7 +1736,7 @@ function toReferenceCandidate(node: ReferenceNode) {
       number: node.number,
       title: node.title,
       state: node.issueState === "OPEN" ? "open" : "closed",
-    } satisfies PullRequestReferenceCandidate | null;
+    };
   }
   if (node.__typename === "PullRequest") {
     return {
@@ -1807,12 +1750,15 @@ function toReferenceCandidate(node: ReferenceNode) {
           : node.pullRequestState === "MERGED"
             ? "merged"
             : "closed",
-    } satisfies PullRequestReferenceCandidate | null;
+    };
   }
-  return null satisfies PullRequestReferenceCandidate | null;
+  return null;
 }
 
-export function toRepositoryReferences(result: RepositoryReferences.Result) {
+export function toRepositoryReferences(result: RepositoryReferences.Result): {
+  readonly items: ReadonlyArray<PullRequestReferenceCandidate>;
+  readonly truncated: boolean;
+} {
   const exact = result.repository?.issueOrPullRequest;
   const nodes = [...(exact == null ? [] : [exact]), ...nodesOf(result.search)];
   return {
@@ -1821,13 +1767,12 @@ export function toRepositoryReferences(result: RepositoryReferences.Result) {
       return candidate === null ? [] : [candidate];
     }),
     truncated: result.search.pageInfo.hasNextPage,
-  } satisfies {
-    readonly items: ReadonlyArray<PullRequestReferenceCandidate>;
-    readonly truncated: boolean;
   };
 }
 
-export function buildLabelRequest(labels: ReadonlyArray<string>) {
+export function buildLabelRequest(labels: ReadonlyArray<string>): {
+  readonly labels: ReadonlyArray<string>;
+} {
   return { labels };
 }
 
@@ -1850,11 +1795,9 @@ export interface GitHubViewerAccess {
 /** Null for a repository the viewer cannot see. */
 export function toViewerPermissions(
   result: ViewerPermissions.Result,
-): (GitHubViewerAccess & GitHubRepositoryAccess) | null;
-export function toViewerPermissions(result: ViewerPermissions.Result) {
+): (GitHubViewerAccess & GitHubRepositoryAccess) | null {
   const repository = result.repository;
-  if (repository == null)
-    return null satisfies (GitHubViewerAccess & GitHubRepositoryAccess) | null;
+  if (repository == null) return null;
   return {
     mergeCapabilities: {
       merge: repository.mergeCommitAllowed,
@@ -1866,7 +1809,7 @@ export function toViewerPermissions(result: ViewerPermissions.Result) {
     canDeleteBranch: toCanWrite(repository.pullRequest?.headRepository?.viewerPermission),
     canTriage: toCanTriage(repository.viewerPermission),
     ...toPullRequestViewerFields(repository.pullRequest),
-  } satisfies (GitHubViewerAccess & GitHubRepositoryAccess) | null;
+  };
 }
 
 export interface GitHubPullRequestFilesPatch {
@@ -1880,11 +1823,15 @@ export interface GitHubPullRequestFilesPatch {
  * The files API returns hunks per file with no `diff --git` header, so the unified patch every
  * diff viewer expects is assembled here.
  */
-export function decodePullRequestFilesJson(raw: string) {
+export function decodePullRequestFilesJson(
+  raw: string,
+): Result.Result<GitHubPullRequestFilesPatch, DecodeFailure> {
   return Result.map(decodeUnknownList(raw), toFilesPatch);
 }
 
-export function decodeCommitFilesJson(raw: string) {
+export function decodeCommitFilesJson(
+  raw: string,
+): Result.Result<GitHubPullRequestFilesPatch, DecodeFailure> {
   return Result.map(decodeCommitFiles(raw), (commit) => toFilesPatch(commit.files ?? []));
 }
 
@@ -1892,7 +1839,7 @@ const decodeCommitFiles = decodeJsonResult(
   Schema.Struct({ files: Schema.optional(Schema.NullOr(Schema.Array(Schema.Unknown))) }),
 );
 
-function toFilesPatch(entries: ReadonlyArray<unknown>) {
+function toFilesPatch(entries: ReadonlyArray<unknown>): GitHubPullRequestFilesPatch {
   const sections: string[] = [];
   const omittedFileStats: PullRequestOmittedFileStat[] = [];
   let truncated = false;
@@ -1944,7 +1891,7 @@ export interface GitHubPullRequestFilesViewedPage {
   readonly nextCursor: string | null;
 }
 
-function toFileViewedState(raw: string) {
+function toFileViewedState(raw: string): PullRequestFileViewedState {
   switch (raw.trim().toUpperCase()) {
     case "VIEWED":
       return "viewed";
@@ -1958,8 +1905,7 @@ function toFileViewedState(raw: string) {
 /** One page of viewed state; empty for a pull request the host has nothing to say about. */
 export function toPullRequestFilesViewedPage(
   result: PullRequestFilesViewed.Result,
-): GitHubPullRequestFilesViewedPage;
-export function toPullRequestFilesViewedPage(result: PullRequestFilesViewed.Result) {
+): GitHubPullRequestFilesViewedPage {
   const files = result.repository?.pullRequest?.files;
   return {
     files: nodesOf(files).flatMap((node) =>
@@ -1968,7 +1914,7 @@ export function toPullRequestFilesViewedPage(result: PullRequestFilesViewed.Resu
         : [{ path: node.path, state: toFileViewedState(node.viewerViewedState) }],
     ),
     nextCursor: nextCursorOf(files?.pageInfo),
-  } satisfies GitHubPullRequestFilesViewedPage;
+  };
 }
 
 export interface GitHubPullRequestFileStat {
@@ -1982,7 +1928,9 @@ export interface GitHubPullRequestFileStatsPage {
   readonly nextCursor: string | null;
 }
 
-export function toPullRequestFileStatsPage(result: PullRequestFileStats.Result) {
+export function toPullRequestFileStatsPage(
+  result: PullRequestFileStats.Result,
+): GitHubPullRequestFileStatsPage {
   const files = result.repository?.pullRequest?.files;
   return {
     files: nodesOf(files).flatMap(({ path, additions, deletions }) =>
@@ -2032,20 +1980,11 @@ export interface GitHubPullRequestStack {
 
 export function decodePullRequestStacksJson(
   raw: string,
-): Result.Result<GitHubPullRequestStack | null, DecodeFailure>;
-export function decodePullRequestStacksJson(raw: string) {
+): Result.Result<GitHubPullRequestStack | null, DecodeFailure> {
   const decoded = decodeStacks(raw);
-  if (!Result.isSuccess(decoded))
-    return Result.fail(decoded.failure) satisfies Result.Result<
-      GitHubPullRequestStack | null,
-      DecodeFailure
-    >;
+  if (!Result.isSuccess(decoded)) return Result.fail(decoded.failure);
   const stack = decoded.success[0];
-  if (stack === undefined)
-    return Result.succeed(null) satisfies Result.Result<
-      GitHubPullRequestStack | null,
-      DecodeFailure
-    >;
+  if (stack === undefined) return Result.succeed(null);
   return Result.succeed({
     id: stack.id == null ? (trimmed(stack.node_id) ?? String(stack.number)) : String(stack.id),
     number: stack.number,
@@ -2059,5 +1998,5 @@ export function decodePullRequestStacksJson(raw: string) {
       headBranch: pullRequest.head.ref,
       state: toState({ state: pullRequest.state, mergedAt: pullRequest.merged_at }),
     })),
-  }) satisfies Result.Result<GitHubPullRequestStack | null, DecodeFailure>;
+  });
 }

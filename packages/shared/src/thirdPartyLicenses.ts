@@ -31,7 +31,7 @@ function isHttpUrl(value: unknown): value is string {
   }
 }
 
-function decodeEntry(value: unknown, index: number) {
+function decodeEntry(value: unknown, index: number): ThirdPartyLicenseEntry {
   if (!isRecord(value)) {
     throw new Error(`License entry ${String(index + 1)} is not an object.`);
   }
@@ -55,10 +55,10 @@ function decodeEntry(value: unknown, index: number) {
     noticeText: value.noticeText,
     sourceUrl: value.sourceUrl,
     version: value.version,
-  } satisfies ThirdPartyLicenseEntry;
+  };
 }
 
-export function decodeThirdPartyLicenseManifest(value: unknown) {
+export function decodeThirdPartyLicenseManifest(value: unknown): ThirdPartyLicenseManifest {
   if (!isRecord(value) || value.schemaVersion !== 1 || !Array.isArray(value.entries)) {
     throw new Error("The open-source license manifest has an unsupported format.");
   }
@@ -74,13 +74,13 @@ export function decodeThirdPartyLicenseManifest(value: unknown) {
   return {
     schemaVersion: 1,
     entries,
-  } satisfies ThirdPartyLicenseManifest;
+  };
 }
 
 export function filterThirdPartyLicenseEntries(
   entries: ReadonlyArray<ThirdPartyLicenseEntry>,
   query: string,
-) {
+): ReadonlyArray<ThirdPartyLicenseEntry> {
   const terms = query
     .trim()
     .toLowerCase()
@@ -107,7 +107,7 @@ const BUNDLE_LABELS: Readonly<Record<string, string>> = {
   web: "Web",
 };
 
-export function formatLicenseBundles(bundles: ReadonlyArray<string>) {
+export function formatLicenseBundles(bundles: ReadonlyArray<string>): string {
   return bundles
     .map((bundle) =>
       Object.prototype.hasOwnProperty.call(BUNDLE_LABELS, bundle) ? BUNDLE_LABELS[bundle] : bundle,
@@ -115,16 +115,13 @@ export function formatLicenseBundles(bundles: ReadonlyArray<string>) {
     .join(", ");
 }
 
-export function thirdPartyLicenseEntryKey(entry: ThirdPartyLicenseEntry): string;
-export function thirdPartyLicenseEntryKey(entry: ThirdPartyLicenseEntry) {
-  return encodeURIComponent(
-    JSON.stringify([entry.kind, entry.name, entry.version]),
-  ) satisfies string;
+export function thirdPartyLicenseEntryKey(entry: ThirdPartyLicenseEntry): string {
+  return encodeURIComponent(JSON.stringify([entry.kind, entry.name, entry.version]));
 }
 
 export function findThirdPartyLicenseEntry(
   entries: ReadonlyArray<ThirdPartyLicenseEntry>,
   key: string,
-) {
+): ThirdPartyLicenseEntry | undefined {
   return entries.find((entry) => thirdPartyLicenseEntryKey(entry) === key);
 }

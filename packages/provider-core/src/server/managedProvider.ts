@@ -11,6 +11,7 @@ import * as Fiber from "effect/Fiber";
 import * as PubSub from "effect/PubSub";
 import * as Queue from "effect/Queue";
 import * as Ref from "effect/Ref";
+import * as Scope from "effect/Scope";
 import * as Stream from "effect/Stream";
 import * as Semaphore from "effect/Semaphore";
 
@@ -29,7 +30,10 @@ interface ProviderSnapshotState {
   readonly checked: boolean;
 }
 
-function withUsageLimits(snapshot: ServerProvider, usageLimits: ServerProvider["usageLimits"]) {
+function withUsageLimits(
+  snapshot: ServerProvider,
+  usageLimits: ServerProvider["usageLimits"],
+): ServerProvider {
   if (snapshot.usageLimits === usageLimits) {
     return snapshot;
   }
@@ -59,7 +63,11 @@ export const makeManagedServerProvider = Effect.fn("makeManagedServerProvider")(
   readonly refreshInterval?: Duration.Input;
   readonly refreshOnInterval?: boolean | ((snapshot: ServerProvider) => boolean);
   readonly checkProviderOnSettingsChange?: (previous: Settings, next: Settings) => boolean;
-}) {
+}): Effect.fn.Return<
+  ManagedServerProvider,
+  ServerSettingsError,
+  Scope.Scope | ProviderHost.ProviderHost
+> {
   const host = yield* ProviderHost.ProviderHost;
   const refreshSemaphore = yield* Semaphore.make(1);
   const usageRefreshQueued = yield* Ref.make<symbol | null>(null);

@@ -30,7 +30,7 @@ export interface EnvironmentUsageStatus {
 }
 
 const usageByWindowAtom = Atom.family((windowKey: string) =>
-  Atom.make((get) => {
+  Atom.make((get): readonly EnvironmentUsageStatus[] => {
     const input = JSON.parse(windowKey) as UsageSummaryInput;
     const presentations = get(environmentPresentations.presentationsAtom);
 
@@ -91,7 +91,7 @@ export interface UsageView {
 export function mergeAnsweredUsage(
   environments: readonly EnvironmentUsageStatus[],
   keepBucket?: (bucket: UsageBucket) => boolean,
-) {
+): MergedUsage {
   const answered: EnvironmentUsage[] = environments.flatMap(({ environmentId, label, summary }) =>
     summary === null
       ? []
@@ -114,7 +114,7 @@ const NO_HIDDEN_PROVIDERS: ReadonlySet<UsageProviderKind> = new Set();
 function withoutProviders(
   environments: readonly EnvironmentUsageStatus[],
   hiddenProviders: ReadonlySet<UsageProviderKind>,
-) {
+): readonly EnvironmentUsageStatus[] {
   if (hiddenProviders.size === 0) return environments;
   return environments.map((environment) =>
     environment.summary === null
@@ -156,7 +156,7 @@ export function useUsage(
   input: UsageSummaryInput,
   selectedEnvironmentIds: ReadonlySet<EnvironmentId> | null = null,
   hiddenProviders: ReadonlySet<UsageProviderKind> = NO_HIDDEN_PROVIDERS,
-) {
+): UsageView {
   const windowKey = JSON.stringify({
     sinceDay: input.sinceDay,
     untilDay: input.untilDay,

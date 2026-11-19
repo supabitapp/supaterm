@@ -17,11 +17,11 @@ const AUTOMATIC_PROJECT_COLORS = [
   "pink",
 ] as const satisfies ReadonlyArray<ProjectIconColor>;
 
-function normalizeProjectName(projectName: string) {
+function normalizeProjectName(projectName: string): string {
   return projectName.normalize("NFKC").trim();
 }
 
-export function projectMonogram(projectName: string) {
+export function projectMonogram(projectName: string): string {
   const words = normalizeProjectName(projectName).match(/[\p{L}\p{N}]+/gu) ?? [];
   const firstWord = words[0];
   if (!firstWord) return "PR";
@@ -35,11 +35,11 @@ export function projectMonogram(projectName: string) {
   return Array.from(`${first}${second}`.toUpperCase()).slice(0, 2).join("");
 }
 
-export function projectColorKey(projectName: string) {
+export function projectColorKey(projectName: string): string {
   return normalizeProjectName(projectName).toLocaleLowerCase("en-US");
 }
 
-function preferredColorIndex(colorKey: string) {
+function preferredColorIndex(colorKey: string): number {
   let hash = 0x811c9dc5;
   for (const glyph of colorKey) {
     hash = Math.imul(hash ^ (glyph.codePointAt(0) ?? 0), 0x01000193);
@@ -47,16 +47,16 @@ function preferredColorIndex(colorKey: string) {
   return (hash >>> 0) % AUTOMATIC_PROJECT_COLORS.length;
 }
 
-export function preferredProjectColor(colorKey: string) {
+export function preferredProjectColor(colorKey: string): ProjectIconColor {
   return AUTOMATIC_PROJECT_COLORS[preferredColorIndex(colorKey)] ?? "blue";
 }
 
-function hueDistance(left: number, right: number) {
+function hueDistance(left: number, right: number): number {
   const distance = Math.abs(left - right);
   return Math.min(distance, AUTOMATIC_PROJECT_COLORS.length - distance);
 }
 
-function distinctColorIndex(preferred: number, used: ReadonlySet<number>) {
+function distinctColorIndex(preferred: number, used: ReadonlySet<number>): number {
   if (!used.has(preferred)) return preferred;
   let best = preferred;
   let bestDistance = 0;
@@ -79,7 +79,7 @@ function distinctColorIndex(preferred: number, used: ReadonlySet<number>) {
  */
 export function assignProjectColors(
   projects: ReadonlyArray<{ readonly title: string; readonly createdAt: string }>,
-) {
+): ReadonlyMap<string, ProjectIconColor> {
   const colors = new Map<string, ProjectIconColor>();
   let used = new Set<number>();
   const oldestFirst = [...projects].sort((left, right) =>

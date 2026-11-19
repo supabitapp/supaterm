@@ -8,17 +8,16 @@ import { loadExpoFileSystem } from "./expoFileSystem";
 
 const PREVIEW_CACHE_DIRECTORY = "supaterm-composer-previews";
 
-function materializeDataUrlPreview(id: string, dataUrl: string): Promise<string | null>;
-async function materializeDataUrlPreview(id: string, dataUrl: string) {
+async function materializeDataUrlPreview(id: string, dataUrl: string): Promise<string | null> {
   const comma = dataUrl.indexOf(",");
-  if (comma < 0) return null satisfies string | null;
+  if (comma < 0) return null;
   const { Directory, File, Paths } = await loadExpoFileSystem();
   const mimeType = /^data:([^;,]+)/.exec(dataUrl)?.[1] ?? "image/jpeg";
   const extension = (mimeType.split("/")[1] ?? "jpg").replace("jpeg", "jpg");
   const directory = new Directory(Paths.cache, PREVIEW_CACHE_DIRECTORY);
   directory.create({ idempotent: true, intermediates: true });
   const file = new File(directory, `${id}.${extension}`);
-  if (file.exists) return file.uri satisfies string | null;
+  if (file.exists) return file.uri;
   const partial = new File(directory, `${id}.${extension}.partial`);
   if (partial.exists) partial.delete();
   partial.create();
@@ -29,18 +28,17 @@ async function materializeDataUrlPreview(id: string, dataUrl: string) {
     throw error;
   }
   await partial.move(file);
-  return file.uri satisfies string | null;
+  return file.uri;
 }
 
 const inFlightPreviews = new Map<string, Promise<string | null>>();
 
-function materializePreviewOnce(id: string, dataUrl: string): Promise<string | null>;
-function materializePreviewOnce(id: string, dataUrl: string) {
+function materializePreviewOnce(id: string, dataUrl: string): Promise<string | null> {
   const pending = inFlightPreviews.get(id);
-  if (pending) return pending satisfies Promise<string | null>;
+  if (pending) return pending;
   const next = materializeDataUrlPreview(id, dataUrl).finally(() => inFlightPreviews.delete(id));
   inFlightPreviews.set(id, next);
-  return next satisfies Promise<string | null>;
+  return next;
 }
 
 /**
@@ -50,10 +48,10 @@ function materializePreviewOnce(id: string, dataUrl: string) {
  */
 export class MaterializedPreviewKey implements Equal.Equal {
   constructor(readonly attachment: DraftComposerImageAttachment) {}
-  [Equal.symbol](that: unknown) {
+  [Equal.symbol](that: unknown): boolean {
     return that instanceof MaterializedPreviewKey && that.attachment.id === this.attachment.id;
   }
-  [Hash.symbol]() {
+  [Hash.symbol](): number {
     return Hash.string(this.attachment.id);
   }
 }

@@ -1,5 +1,10 @@
 // @effect-diagnostics globalDate:off -- Usage windows are calendar days in the viewer's zone, derived from wall-clock "now" via Intl.
-import { UsageDay, type UsageResolution, type UsageSource } from "@supaterm/contracts";
+import {
+  UsageDay,
+  type UsageResolution,
+  type UsageSource,
+  type UsageSummaryInput,
+} from "@supaterm/contracts";
 
 import type { UsageContractMismatch } from "./usageMerge.ts";
 
@@ -12,11 +17,11 @@ const CURRENCY = new Intl.NumberFormat("en-US", {
 
 const INTEGER = new Intl.NumberFormat("en-US");
 
-export function formatMalformedUsageWarning(count: number) {
+export function formatMalformedUsageWarning(count: number): string {
   return `${count} malformed or inconsistent usage record(s) were skipped; usage may be incomplete.`;
 }
 
-export function usageSourceMessages(sources: readonly UsageSource[]) {
+export function usageSourceMessages(sources: readonly UsageSource[]): readonly string[] {
   const messages = new Set<string>();
   const malformedBySource = new Map<string, number>();
   for (const source of sources) {
@@ -49,17 +54,17 @@ export function usageSourceMessages(sources: readonly UsageSource[]) {
   return [...messages];
 }
 
-export function formatUsd(value: number) {
+export function formatUsd(value: number): string {
   return CURRENCY.format(value);
 }
 
-export function formatCount(value: number) {
+export function formatCount(value: number): string {
   return INTEGER.format(Math.round(value));
 }
 
 const TOKEN_SUFFIXES = ["K", "M", "B", "T"] as const;
 
-export function formatTokens(value: number) {
+export function formatTokens(value: number): string {
   if (Math.abs(Math.round(value)) < 1e3) return INTEGER.format(Math.round(value));
   let scaled = value / 1e3;
   let unit = 0;
@@ -70,13 +75,13 @@ export function formatTokens(value: number) {
   return `${trim(scaled)}${TOKEN_SUFFIXES[unit]}`;
 }
 
-function trim(value: number) {
+function trim(value: number): string {
   const abs = Math.abs(value);
   const digits = abs >= 100 ? 0 : abs >= 10 ? 1 : 2;
   return value.toFixed(digits).replace(/\.0+$/, "");
 }
 
-export function formatPercent(share: number, digits = 1) {
+export function formatPercent(share: number, digits = 1): string {
   const percent = share * 100;
   const smallest = 10 ** -digits;
   if (percent > 0 && percent < smallest) return `<${smallest.toFixed(digits)}%`;
@@ -86,13 +91,13 @@ export function formatPercent(share: number, digits = 1) {
 export function formatUsageContractMismatch(
   environmentLabel: string,
   mismatch: Pick<UsageContractMismatch, "direction">,
-) {
+): string {
   return mismatch.direction === "serverBehind"
     ? `${environmentLabel} runs an older server version and is excluded from totals.`
     : `This client is older than the server on ${environmentLabel}; its usage is excluded from totals.`;
 }
 
-export function formatDayShort(day: string) {
+export function formatDayShort(day: string): string {
   const [year, month, dayOfMonth] = day.split("-").map((part) => Number(part));
   if (year === undefined || month === undefined || dayOfMonth === undefined) return day;
   const MONTHS = [
@@ -112,7 +117,7 @@ export function formatDayShort(day: string) {
   return `${MONTHS[month - 1] ?? ""} ${dayOfMonth}`;
 }
 
-export function enumerateDays(sinceDay: string, untilDay: string) {
+export function enumerateDays(sinceDay: string, untilDay: string): readonly string[] {
   const days: string[] = [];
   const start = Date.parse(`${sinceDay}T00:00:00Z`);
   const end = Date.parse(`${untilDay}T00:00:00Z`);
@@ -141,7 +146,7 @@ export interface UsageCalendar {
 
 const MONDAY_FIRST_WEEKDAY = [6, 0, 1, 2, 3, 4, 5];
 
-function quartileCutoffs(values: readonly number[]) {
+function quartileCutoffs(values: readonly number[]): readonly number[] {
   const sorted = values.filter((value) => value > 0).sort((a, b) => a - b);
   if (sorted.length === 0) return [];
   return [0.25, 0.5, 0.75].map(
@@ -149,7 +154,10 @@ function quartileCutoffs(values: readonly number[]) {
   );
 }
 
-export function buildUsageCalendar(days: readonly string[], values: readonly number[]) {
+export function buildUsageCalendar(
+  days: readonly string[],
+  values: readonly number[],
+): UsageCalendar {
   const first = days[0];
   if (first === undefined) return { weeks: [], months: [], peak: null };
   const lead = MONDAY_FIRST_WEEKDAY[new Date(`${first}T00:00:00Z`).getUTCDay()] ?? 0;
@@ -182,7 +190,7 @@ export function buildUsageCalendar(days: readonly string[], values: readonly num
   };
 }
 
-export function periodAverage(totals: readonly number[], lastInProgress: boolean) {
+export function periodAverage(totals: readonly number[], lastInProgress: boolean): number {
   const settled = lastInProgress ? totals.slice(0, -1) : totals;
   return settled.length === 0 ? 0 : settled.reduce((sum, total) => sum + total, 0) / settled.length;
 }
@@ -191,7 +199,10 @@ const HOUR_MS = 60 * 60 * 1000;
 
 const dateTimeFormatters = new Map<string, Intl.DateTimeFormat>();
 
-function dateTimeFormatter(locale: string, options: Intl.DateTimeFormatOptions) {
+function dateTimeFormatter(
+  locale: string,
+  options: Intl.DateTimeFormatOptions,
+): Intl.DateTimeFormat {
   if (options.timeZone === undefined) return new Intl.DateTimeFormat(locale, options);
   const key = JSON.stringify([locale, options]);
   let formatter = dateTimeFormatters.get(key);
@@ -203,7 +214,7 @@ function dateTimeFormatter(locale: string, options: Intl.DateTimeFormatOptions) 
   return formatter;
 }
 
-export function enumerateHourStarts(sinceTime: string, untilTime: string) {
+export function enumerateHourStarts(sinceTime: string, untilTime: string): readonly string[] {
   const starts: string[] = [];
   const start = Date.parse(sinceTime);
   const end = Date.parse(untilTime);
@@ -215,13 +226,11 @@ export function enumerateHourStarts(sinceTime: string, untilTime: string) {
   return starts;
 }
 
-function hourOptions(hour12: boolean) {
-  return (
-    hour12 ? { hour: "numeric" } : { hour: "2-digit", hourCycle: "h23" }
-  ) satisfies Intl.DateTimeFormatOptions;
+function hourOptions(hour12: boolean): Intl.DateTimeFormatOptions {
+  return hour12 ? { hour: "numeric" } : { hour: "2-digit", hourCycle: "h23" };
 }
 
-function formatHour(formatter: Intl.DateTimeFormat, date: Date, hour12: boolean) {
+function formatHour(formatter: Intl.DateTimeFormat, date: Date, hour12: boolean): string {
   if (hour12) return formatter.format(date);
 
   return formatter
@@ -234,7 +243,7 @@ function formatHour(formatter: Intl.DateTimeFormat, date: Date, hour12: boolean)
  * Repeated wall-clock hours during a fall-back transition include their short zone name so the
  * two distinct buckets remain distinguishable.
  */
-export function formatHourShort(hourStart: string, timeZone?: string, hour12 = true) {
+export function formatHourShort(hourStart: string, timeZone?: string, hour12 = true): string {
   const instant = new Date(hourStart);
   if (Number.isNaN(instant.getTime())) return hourStart;
   const options = timeZone === undefined ? {} : { timeZone };
@@ -264,7 +273,7 @@ export function formatHourShort(hourStart: string, timeZone?: string, hour12 = t
   return formatHour(zonedHourFormat, instant, hour12);
 }
 
-export function formatDateTimeShort(instant: string, timeZone?: string, hour12 = true) {
+export function formatDateTimeShort(instant: string, timeZone?: string, hour12 = true): string {
   const date = new Date(instant);
   if (Number.isNaN(date.getTime())) return instant;
   const dateHourFormat = dateTimeFormatter("en-US", {
@@ -281,7 +290,7 @@ export function formatRelativeHourShort(
   relativeTo: string,
   timeZone?: string,
   hour12 = true,
-) {
+): string {
   const instant = new Date(hourStart);
   const reference = new Date(relativeTo);
   if (Number.isNaN(instant.getTime()) || Number.isNaN(reference.getTime())) {

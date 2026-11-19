@@ -17,9 +17,8 @@ const TAILSCALE_KILL_GRACE = Duration.millis(500);
 const TAILSCALE_SERVE_TIMEOUT = Duration.seconds(10);
 const TAILSCALE_PROBE_TIMEOUT = Duration.millis(2_500);
 
-const tailscaleCommandForPlatform: (platform: NodeJS.Platform) => "tailscale" | "tailscale.exe" = (
-  platform: NodeJS.Platform,
-) => (platform === "win32" ? "tailscale.exe" : "tailscale");
+const tailscaleCommandForPlatform = (platform: NodeJS.Platform): "tailscale" | "tailscale.exe" =>
+  platform === "win32" ? "tailscale.exe" : "tailscale";
 
 const TailscaleCommandContext = {
   executable: Schema.Literals(["tailscale", "tailscale.exe"]),
@@ -50,9 +49,7 @@ const STDERR_DIAGNOSTIC_PATTERNS: ReadonlyArray<
   [/doesn't support connecting to remote destinations/i, "unsupported-target"],
 ];
 
-const stderrDiagnosticOf: (stderr: string) => TailscaleStderrDiagnostic | undefined = (
-  stderr: string,
-) => {
+const stderrDiagnosticOf = (stderr: string): TailscaleStderrDiagnostic | undefined => {
   if (stderr.trim().length === 0) {
     return undefined;
   }
@@ -66,7 +63,7 @@ export class TailscaleCommandSpawnError extends Schema.TaggedError<TailscaleComm
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Failed to spawn tailscale ${this.subcommand}.`;
   }
 }
@@ -78,7 +75,7 @@ class TailscaleCommandOutputError extends Schema.TaggedError<TailscaleCommandOut
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Failed to read output from tailscale ${this.subcommand}.`;
   }
 }
@@ -93,7 +90,7 @@ export class TailscaleCommandExitError extends Schema.TaggedError<TailscaleComma
     stderrDiagnostic: Schema.optional(TailscaleStderrDiagnostic),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `tailscale ${this.subcommand} exited with code ${this.exitCode}.`;
   }
 }
@@ -106,7 +103,7 @@ export class TailscaleCommandTimeoutError extends Schema.TaggedError<TailscaleCo
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `tailscale ${this.subcommand} timed out after ${this.timeoutMs}ms.`;
   }
 }
@@ -121,7 +118,7 @@ export class TailscaleStatusParseError extends Schema.TaggedError<TailscaleStatu
   "TailscaleStatusParseError",
   { cause: Schema.Defect() },
 ) {
-  override get message() {
+  override get message(): string {
     return "Failed to decode tailscale status JSON.";
   }
 }
@@ -155,9 +152,7 @@ export interface TailscaleStatus {
   readonly httpsServeEnabled: boolean | null;
 }
 
-const collectStdout: <E>(stream: Stream.Stream<Uint8Array, E>) => Effect.Effect<string, E> = <E>(
-  stream: Stream.Stream<Uint8Array, E>,
-) =>
+const collectStdout = <E>(stream: Stream.Stream<Uint8Array, E>): Effect.Effect<string, E> =>
   stream.pipe(
     Stream.decodeText(),
     Stream.runFold(
@@ -170,7 +165,7 @@ const collectStderr = collectStdout;
 
 const decodeTailscaleStatusJson = Schema.decodeEffect(Schema.fromJsonString(TailscaleStatusJson));
 
-function normalizeMagicDnsName(status: TailscaleStatusJson) {
+function normalizeMagicDnsName(status: TailscaleStatusJson): string | null {
   const dnsName = status.Self?.DNSName;
   if (typeof dnsName !== "string") {
     return null;
@@ -180,7 +175,7 @@ function normalizeMagicDnsName(status: TailscaleStatusJson) {
   return normalized.length > 0 ? normalized : null;
 }
 
-export function isTailscaleIpv4Address(address: string) {
+export function isTailscaleIpv4Address(address: string): boolean {
   const parts = address.split(".");
   if (parts.length !== 4) {
     return false;
@@ -198,7 +193,9 @@ export function isTailscaleIpv4Address(address: string) {
   return first === 100 && second >= 64 && second <= 127;
 }
 
-export const parseTailscaleStatus = (rawStatusJson: string) =>
+export const parseTailscaleStatus = (
+  rawStatusJson: string,
+): Effect.Effect<TailscaleStatus, TailscaleStatusParseError> =>
   decodeTailscaleStatusJson(rawStatusJson).pipe(
     Effect.mapError((cause) => new TailscaleStatusParseError({ cause })),
     Effect.map((parsed) => {
@@ -300,7 +297,9 @@ const decodeTailscalePrefsJson = Schema.decodeEffect(Schema.fromJsonString(Tails
  * `tailscale status --json` does not report this for the local node. `tailscale
  * down` clears WantRunning but keeps RunSSH, so check both.
  */
-export const parseTailscaleSshEnabled = (rawPrefsJson: string) =>
+export const parseTailscaleSshEnabled = (
+  rawPrefsJson: string,
+): Effect.Effect<boolean, TailscaleStatusParseError> =>
   decodeTailscalePrefsJson(rawPrefsJson).pipe(
     Effect.mapError((cause) => new TailscaleStatusParseError({ cause })),
     Effect.map((prefs) => prefs.RunSSH === true && prefs.WantRunning !== false),
@@ -313,7 +312,7 @@ export const readTailscaleSshEnabled = readTailscaleOutput("debug", ["debug", "p
 export function buildTailscaleHttpsBaseUrl(input: {
   readonly magicDnsName: string;
   readonly servePort?: number;
-}) {
+}): string {
   const url = new URL(`https://${input.magicDnsName}`);
   const servePort = input.servePort ?? DEFAULT_TAILSCALE_SERVE_PORT;
   if (servePort !== DEFAULT_TAILSCALE_SERVE_PORT) {
@@ -323,73 +322,69 @@ export function buildTailscaleHttpsBaseUrl(input: {
   return url.toString();
 }
 
-const runTailscaleCommand: (
+const runTailscaleCommand = Effect.fn("tailscale.runTailscaleCommand")(function* (
   args: readonly string[],
   timeoutInput: Duration.Input,
-) => Effect.Effect<void, TailscaleCommandError, ChildProcessSpawner.ChildProcessSpawner> =
-  Effect.fn("tailscale.runTailscaleCommand")(function* (
-    args: readonly string[],
-    timeoutInput: Duration.Input,
-  ) {
-    const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
-    const hostPlatform = yield* HostProcess.Platform;
-    const executable = tailscaleCommandForPlatform(hostPlatform);
-    const commandContext = {
-      executable,
-      subcommand: "serve" as const,
-      argumentCount: args.length,
-    };
-    const timeout = Duration.fromInputUnsafe(timeoutInput);
-    return yield* Effect.gen(function* () {
-      const child = yield* spawner
-        .spawn(ChildProcess.make(executable, args, { forceKillAfter: TAILSCALE_KILL_GRACE }))
-        .pipe(
-          Effect.mapError((cause) => new TailscaleCommandSpawnError({ ...commandContext, cause })),
-          Effect.catchDefect((cause) =>
-            Effect.fail(new TailscaleCommandSpawnError({ ...commandContext, cause })),
-          ),
-        );
-      const [, stderr, exitCode] = yield* Effect.all(
-        [
-          Stream.runDrain(child.stdout),
-          collectStderr(child.stderr),
-          child.exitCode.pipe(Effect.map(Number)),
-        ],
-        { concurrency: "unbounded" },
-      ).pipe(
-        Effect.mapError((cause) => new TailscaleCommandOutputError({ ...commandContext, cause })),
+): Effect.fn.Return<void, TailscaleCommandError, ChildProcessSpawner.ChildProcessSpawner> {
+  const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
+  const hostPlatform = yield* HostProcess.Platform;
+  const executable = tailscaleCommandForPlatform(hostPlatform);
+  const commandContext = {
+    executable,
+    subcommand: "serve" as const,
+    argumentCount: args.length,
+  };
+  const timeout = Duration.fromInputUnsafe(timeoutInput);
+  return yield* Effect.gen(function* () {
+    const child = yield* spawner
+      .spawn(ChildProcess.make(executable, args, { forceKillAfter: TAILSCALE_KILL_GRACE }))
+      .pipe(
+        Effect.mapError((cause) => new TailscaleCommandSpawnError({ ...commandContext, cause })),
+        Effect.catchDefect((cause) =>
+          Effect.fail(new TailscaleCommandSpawnError({ ...commandContext, cause })),
+        ),
       );
-      if (exitCode !== 0) {
-        return yield* new TailscaleCommandExitError({
-          ...commandContext,
-          exitCode,
-          stderrLength: stderr.length,
-          ...(stderrDiagnosticOf(stderr) !== undefined
-            ? { stderrDiagnostic: stderrDiagnosticOf(stderr) }
-            : {}),
-        });
-      }
-    }).pipe(
-      Effect.scoped,
-      Effect.timeout(timeout),
-      Effect.catchTags({
-        TimeoutError: (cause) =>
-          Effect.fail(
-            new TailscaleCommandTimeoutError({
-              ...commandContext,
-              timeoutMs: Duration.toMillis(timeout),
-              cause,
-            }),
-          ),
-      }),
+    const [, stderr, exitCode] = yield* Effect.all(
+      [
+        Stream.runDrain(child.stdout),
+        collectStderr(child.stderr),
+        child.exitCode.pipe(Effect.map(Number)),
+      ],
+      { concurrency: "unbounded" },
+    ).pipe(
+      Effect.mapError((cause) => new TailscaleCommandOutputError({ ...commandContext, cause })),
     );
-  });
+    if (exitCode !== 0) {
+      return yield* new TailscaleCommandExitError({
+        ...commandContext,
+        exitCode,
+        stderrLength: stderr.length,
+        ...(stderrDiagnosticOf(stderr) !== undefined
+          ? { stderrDiagnostic: stderrDiagnosticOf(stderr) }
+          : {}),
+      });
+    }
+  }).pipe(
+    Effect.scoped,
+    Effect.timeout(timeout),
+    Effect.catchTags({
+      TimeoutError: (cause) =>
+        Effect.fail(
+          new TailscaleCommandTimeoutError({
+            ...commandContext,
+            timeoutMs: Duration.toMillis(timeout),
+            cause,
+          }),
+        ),
+    }),
+  );
+});
 
 export class TailscaleServeHttpsDisabledError extends Schema.TaggedError<TailscaleServeHttpsDisabledError>()(
   "TailscaleServeHttpsDisabledError",
   {},
 ) {
-  override get message() {
+  override get message(): string {
     return "Tailscale Serve needs HTTPS enabled on the tailnet. Enable HTTPS certificates at https://login.tailscale.com/admin/dns.";
   }
 }
@@ -398,7 +393,11 @@ export const ensureTailscaleServe = Effect.fn("tailscale.ensureTailscaleServe")(
   readonly localPort: number;
   readonly servePort?: number;
   readonly localHost?: string;
-}) {
+}): Effect.fn.Return<
+  void,
+  TailscaleCommandError | TailscaleServeHttpsDisabledError,
+  ChildProcessSpawner.ChildProcessSpawner
+> {
   const status = yield* Effect.option(readTailscaleStatus);
   if (Option.isSome(status) && status.value.httpsServeEnabled === false) {
     return yield* new TailscaleServeHttpsDisabledError();
@@ -413,7 +412,7 @@ export const disableTailscaleServe = Effect.fn("tailscale.disableTailscaleServe"
   input: {
     readonly servePort?: number;
   } = {},
-) {
+): Effect.fn.Return<void, TailscaleCommandError, ChildProcessSpawner.ChildProcessSpawner> {
   const servePort = input.servePort ?? DEFAULT_TAILSCALE_SERVE_PORT;
   return yield* runTailscaleCommand(
     ["serve", `--https=${servePort}`, "off"],
@@ -457,7 +456,7 @@ const decodeTailscaleServeStatusJson = Schema.decodeUnknownOption(
   Schema.fromJsonString(Schema.NullOr(TailscaleServeStatusJson)),
 );
 
-const reaches = (hostname: string, bindHost: string) => {
+const reaches = (hostname: string, bindHost: string): "exact" | "either" | undefined => {
   let address = normalizeHostname(hostname);
   if (address.includes(":") && URL.canParse(`http://[${address}]`)) {
     address = normalizeHostname(new URL(`http://[${address}]`).hostname);
@@ -506,16 +505,16 @@ const reachesTarget = (url: string, target: { readonly host: string; readonly po
  * The Serve routes that forward to the server bound at `target`, or undefined when the status
  * cannot be read.
  */
-export const parseTailscaleServeRoutesTo: (
+export const parseTailscaleServeRoutesTo = (
   rawServeStatusJson: string,
   target: { readonly host: string; readonly port: number },
-) => ReadonlyArray<TailscaleServeRoute> | undefined = (
-  rawServeStatusJson: string,
-  target: { readonly host: string; readonly port: number },
-) => {
+): ReadonlyArray<TailscaleServeRoute> | undefined => {
   const status = decodeTailscaleServeStatusJson(rawServeStatusJson);
   if (Option.isNone(status)) return undefined;
-  const routesIn = (config: typeof TailscaleServeConfigJson.Type | undefined, owner?: string) => {
+  const routesIn = (
+    config: typeof TailscaleServeConfigJson.Type | undefined,
+    owner?: string,
+  ): ReadonlyArray<TailscaleServeRoute> => {
     const scope = owner === undefined ? {} : { owner };
     const reached = (url: string) => {
       const found = reachesTarget(url, target);
@@ -581,29 +580,31 @@ export const parseTailscaleServeRootHolders = (
   rawServeStatusJson: string,
   servePort: number,
   target: { readonly host: string; readonly port: number },
-) => {
+): ReadonlyArray<TailscaleServeRootHolder> | undefined => {
   const status = decodeTailscaleServeStatusJson(rawServeStatusJson);
   if (Option.isNone(status)) return undefined;
   const config = status.value ?? undefined;
   const tcp: ReadonlyArray<TailscaleServeRootHolder> =
     config?.TCP?.[String(servePort)]?.TCPForward === undefined ? [] : [{ ours: false }];
-  const web = Object.entries(config?.Web ?? {}).flatMap(([hostPort, site]) => {
-    const root = site.Handlers?.["/"];
-    if (Number(hostPort.slice(hostPort.lastIndexOf(":") + 1)) !== servePort || root === undefined)
-      return [];
-    if (root.Proxy === undefined) return [{ ours: false }];
-    const url = expandProxy(root.Proxy);
-    if (reachesTarget(url, target) !== undefined) return [{ ours: true }];
-    const dialed = dialedHostPort(url);
-    return [
-      dialed !== undefined && isLocalLoopbackHost(dialed.host)
-        ? {
-            ours: false,
-            loopback: { host: normalizeHostname(dialed.host), port: Number(dialed.port) },
-          }
-        : { ours: false },
-    ];
-  });
+  const web = Object.entries(config?.Web ?? {}).flatMap(
+    ([hostPort, site]): ReadonlyArray<TailscaleServeRootHolder> => {
+      const root = site.Handlers?.["/"];
+      if (Number(hostPort.slice(hostPort.lastIndexOf(":") + 1)) !== servePort || root === undefined)
+        return [];
+      if (root.Proxy === undefined) return [{ ours: false }];
+      const url = expandProxy(root.Proxy);
+      if (reachesTarget(url, target) !== undefined) return [{ ours: true }];
+      const dialed = dialedHostPort(url);
+      return [
+        dialed !== undefined && isLocalLoopbackHost(dialed.host)
+          ? {
+              ours: false,
+              loopback: { host: normalizeHostname(dialed.host), port: Number(dialed.port) },
+            }
+          : { ours: false },
+      ];
+    },
+  );
   return [...tcp, ...web];
 };
 

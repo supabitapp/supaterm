@@ -13,7 +13,7 @@ import { pageRoute } from "./route-options";
  * Screen options for a stack nested in a sheet, so its pages push inside the sheet with the
  * same bar as a sheet route. Android hides the native header: pages draw AppBar in-tree.
  */
-export function useSheetStackOptions() {
+export function useSheetStackOptions(): AppScreenOptions {
   const theme = useUniwindTheme();
   const background = theme["--color-sheet-solid"];
   return {
@@ -24,7 +24,7 @@ export function useSheetStackOptions() {
     headerShown: Platform.OS !== "android",
     headerStyle: { backgroundColor: NATIVE_LIQUID_GLASS_SUPPORTED ? "transparent" : background },
     headerTintColor: theme["--color-foreground"],
-  } satisfies AppScreenOptions;
+  };
 }
 
 const Standalone = createV5StackNavigator<{ Standalone: undefined }>();

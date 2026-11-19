@@ -69,7 +69,7 @@ interface ClaudeManifestAdapterInput {
     | undefined;
 }
 
-export function hasValidClaudeManifestAdapters(manifest: ClaudeManifestAdapterInput) {
+export function hasValidClaudeManifestAdapters(manifest: ClaudeManifestAdapterInput): boolean {
   const catalog = manifest.providers?.claudeAgent;
   if (!catalog) return true;
 

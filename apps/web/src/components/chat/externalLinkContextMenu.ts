@@ -32,7 +32,7 @@ const EXTERNAL_LINK_CONTEXT_MENU_ITEMS = [
 function externalLinkContextMenuItems(options: {
   readonly canOpenInPreview: boolean;
   readonly threadLinkAction?: "link-to-thread" | "unlink-from-thread" | undefined;
-}) {
+}): readonly ContextMenuItem<ExternalLinkContextMenuAction>[] {
   const items = options.canOpenInPreview
     ? EXTERNAL_LINK_CONTEXT_MENU_ITEMS
     : EXTERNAL_LINK_CONTEXT_MENU_ITEMS.filter((item) => item.id !== "open-in-preview");
@@ -66,7 +66,7 @@ interface ShowExternalLinkContextMenuOptions {
   ) => void;
 }
 
-function resolveExternalWebLink(href: string | null | undefined) {
+function resolveExternalWebLink(href: string | null | undefined): URL | null {
   if (!href) return null;
   try {
     const url = new URL(href.startsWith("//") ? `https:${href}` : href);
@@ -77,11 +77,11 @@ function resolveExternalWebLink(href: string | null | undefined) {
   }
 }
 
-export function resolveExternalWebLinkHref(href: string | null | undefined) {
+export function resolveExternalWebLinkHref(href: string | null | undefined): string | null {
   return resolveExternalWebLink(href)?.href ?? null;
 }
 
-export function resolveExternalWebLinkHost(href: string | undefined) {
+export function resolveExternalWebLinkHost(href: string | undefined): string | null {
   return resolveExternalWebLink(href)?.hostname || null;
 }
 
@@ -96,7 +96,7 @@ export async function showExternalLinkContextMenu({
   copyLink,
   updateThreadLink,
   reportFailure,
-}: ShowExternalLinkContextMenuOptions) {
+}: ShowExternalLinkContextMenuOptions): Promise<void> {
   let action: ExternalLinkContextMenuAction | null;
   try {
     action = await showContextMenu(

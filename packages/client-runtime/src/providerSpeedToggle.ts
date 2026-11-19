@@ -20,7 +20,9 @@ export const SPEED_TOGGLE_LABELS: Readonly<Record<SpeedToggleLevel, string>> = {
   ultrafast: "Ultrafast mode on",
 };
 
-export function getSpeedToggle(descriptors: ReadonlyArray<ProviderOptionDescriptor>) {
+export function getSpeedToggle(
+  descriptors: ReadonlyArray<ProviderOptionDescriptor>,
+): SpeedToggle | null {
   for (const descriptor of descriptors) {
     if (descriptor.type === "boolean" && descriptor.id === "fastMode") {
       return {
@@ -29,7 +31,7 @@ export function getSpeedToggle(descriptors: ReadonlyArray<ProviderOptionDescript
         onValue: true,
         offValue: false,
         coversDescriptor: true,
-      } satisfies SpeedToggle | null;
+      };
     }
     if (descriptor.type !== "select" || descriptor.id !== "serviceTier") {
       continue;
@@ -53,12 +55,15 @@ export function getSpeedToggle(descriptors: ReadonlyArray<ProviderOptionDescript
       coversDescriptor: descriptor.options.every(
         ({ id }) => id === STANDARD_SERVICE_TIER || id === onTier.id,
       ),
-    } satisfies SpeedToggle | null;
+    };
   }
-  return null satisfies SpeedToggle | null;
+  return null;
 }
 
-export function getSpeedToggleNextValue(toggle: SpeedToggle, preferUltrafast = false) {
+export function getSpeedToggleNextValue(
+  toggle: SpeedToggle,
+  preferUltrafast = false,
+): string | boolean {
   if (preferUltrafast && toggle.ultrafastValue !== undefined) return toggle.ultrafastValue;
   return toggle.level === "off" ? toggle.onValue : toggle.offValue;
 }

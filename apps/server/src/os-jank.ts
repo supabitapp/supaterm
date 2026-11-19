@@ -14,6 +14,7 @@ import {
 import { resolveDefaultSupatermHome } from "@supaterm/shared/supatermHome";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
+import * as FileSystem from "effect/FileSystem";
 import * as Option from "effect/Option";
 import * as Path from "effect/Path";
 import * as Stream from "effect/Stream";
@@ -23,7 +24,7 @@ import * as ChildProcessSpawner from "effect/process/ChildProcessSpawner";
 import * as NodeChildProcess from "node:child_process";
 import * as NodeOS from "node:os";
 
-function logPathHydrationWarning(message: string, error?: unknown) {
+function logPathHydrationWarning(message: string, error?: unknown): void {
   process.stderr.write(
     `[server] ${message} ${error instanceof Error ? error.message : (error ?? "")}\n`,
   );
@@ -49,7 +50,7 @@ function applyLoginShellEnvironment(
   platform: NodeJS.Platform,
   shellEnvironment: Partial<Record<string, string>>,
   fallbackPath?: string,
-) {
+): void {
   const shellPath = shellEnvironment.PATH;
   const mergedPath = mergePathEntries(shellPath ?? fallbackPath, env.PATH, platform);
   if (mergedPath) {
@@ -101,7 +102,7 @@ function hydratePosixPath(
 export function hydratePosixHome(
   env: NodeJS.ProcessEnv,
   resolveHomeDir = () => NodeOS.userInfo().homedir,
-) {
+): void {
   if ((env.HOME?.trim() ?? "").length > 0) return;
 
   const homeDir = resolveHomeDir();

@@ -12,15 +12,13 @@ export function externalUrl(href: string) {
 }
 
 /** Where a Word link leads, if it is one a reader may follow: a bookmark in the document, or an `externalUrl`. */
-export function wordLink(href: string | undefined) {
-  if (!href) return undefined satisfies WordLink | undefined;
+export function wordLink(href: string | undefined): WordLink | undefined {
+  if (!href) return undefined;
 
   if (href.startsWith("#"))
-    return (href.length > 1 ? { kind: "internal", bookmark: href.slice(1) } : undefined) satisfies
-      | WordLink
-      | undefined;
+    return href.length > 1 ? { kind: "internal", bookmark: href.slice(1) } : undefined;
 
   const url = externalUrl(href);
 
-  return (url ? { kind: "external", url } : undefined) satisfies WordLink | undefined;
+  return url ? { kind: "external", url } : undefined;
 }

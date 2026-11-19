@@ -15,7 +15,7 @@ function provider(input: {
   enabled?: boolean;
   availability?: ServerProvider["availability"];
   models: ReadonlyArray<string>;
-}) {
+}): ServerProvider {
   return {
     instanceId: ProviderInstanceId.make(input.instanceId),
     driver: ProviderDriverKind.make(input.driver),
@@ -35,7 +35,7 @@ function provider(input: {
     })),
     slashCommands: [],
     skills: [],
-  } satisfies ServerProvider;
+  };
 }
 
 const claudeAndCodex = [

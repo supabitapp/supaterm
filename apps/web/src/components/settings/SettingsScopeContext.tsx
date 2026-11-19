@@ -54,14 +54,11 @@ function useMemberProjectFiles(scope: ReturnType<typeof resolveSettingsScope>) {
   return useAtomValue(
     memberProjectFilesAtom(
       JSON.stringify(
-        members.map(
-          (member) =>
-            [
-              member.environmentId,
-              member.workspaceRoot,
-              member.physicalProjectKey,
-            ] satisfies ProjectFileMember,
-        ),
+        members.map((member): ProjectFileMember => [
+          member.environmentId,
+          member.workspaceRoot,
+          member.physicalProjectKey,
+        ]),
       ),
     ),
   );

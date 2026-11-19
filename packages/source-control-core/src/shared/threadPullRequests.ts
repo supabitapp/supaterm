@@ -14,11 +14,11 @@ type ThreadPullRequestKeySource = ThreadPullRequestKey & {
   readonly url?: string;
 };
 
-function isOpen(link: ThreadPullRequestLink) {
+function isOpen(link: ThreadPullRequestLink): boolean {
   return link.snapshot === null || link.snapshot.state === "open";
 }
 
-function latestUpdatedAt(link: ThreadPullRequestLink) {
+function latestUpdatedAt(link: ThreadPullRequestLink): number {
   const value = link.snapshot?.updatedAt ?? link.linkedAt;
   const ms = Date.parse(value);
   return Number.isNaN(ms) ? 0 : ms;
@@ -32,7 +32,7 @@ export type ThreadCurrentPullRequest =
       readonly top: ThreadPullRequestLink;
     };
 
-function layersFromTop(chain: ThreadPullRequestChain) {
+function layersFromTop(chain: ThreadPullRequestChain): Array<ThreadPullRequestLink> {
   return chain.layers
     .map((link, index) => ({ link, index, depth: chain.depths[index]! }))
     .sort((left, right) => right.depth - left.depth || right.index - left.index)
@@ -68,7 +68,7 @@ export function makeThreadPullRequests(
 ) {
   const parse = (url: string) => registry.parseChangeRequestUrl(url)?.link ?? null;
 
-  function normalizeThreadPullRequestKey(key: ThreadPullRequestKeySource) {
+  function normalizeThreadPullRequestKey(key: ThreadPullRequestKeySource): ThreadPullRequestKey {
     const parsed = key.url === undefined ? null : parse(key.url);
     const authority =
       key.authority ??
@@ -90,7 +90,7 @@ export function makeThreadPullRequests(
   function legacyThreadPullRequestKey(
     linked: Pick<ThreadLinkedPullRequest, "repository" | "number" | "url">,
     fallbackHost?: string,
-  ) {
+  ): ThreadPullRequestKey {
     const parsed = parse(linked.url);
     if (parsed !== null && parsed.number === linked.number) {
       if (
@@ -118,13 +118,13 @@ export function makeThreadPullRequests(
   function threadPullRequestKeysEqual(
     left: ThreadPullRequestKeySource,
     right: ThreadPullRequestKeySource,
-  ) {
+  ): boolean {
     return threadPullRequestKeyOf(left) === threadPullRequestKeyOf(right);
   }
 
   const normalizedKeys = new WeakMap<ThreadPullRequestKeySource, ThreadPullRequestKey>();
 
-  function normalizedKeyOf(key: ThreadPullRequestKeySource) {
+  function normalizedKeyOf(key: ThreadPullRequestKeySource): ThreadPullRequestKey {
     let normalized = normalizedKeys.get(key);
     if (normalized === undefined) {
       normalized = normalizeThreadPullRequestKey(key);
@@ -133,17 +133,18 @@ export function makeThreadPullRequests(
     return normalized;
   }
 
-  function threadPullRequestKeyOf(key: ThreadPullRequestKeySource) {
+  function threadPullRequestKeyOf(key: ThreadPullRequestKeySource): string {
     const normalized = normalizedKeyOf(key);
     return `${normalized.host}/${normalized.repository}#${normalized.number}`;
   }
 
-  function resolveThreadCurrentPullRequest(links: ReadonlyArray<ThreadPullRequestLink>) {
+  function resolveThreadCurrentPullRequest(
+    links: ReadonlyArray<ThreadPullRequestLink>,
+  ): ThreadCurrentPullRequest | null {
     const visible = visibleThreadPullRequests(links);
-    if (visible.length === 0) return null satisfies ThreadCurrentPullRequest | null;
+    if (visible.length === 0) return null;
     const open = visible.filter(isOpen);
-    if (open.length === 1)
-      return { kind: "single", link: open[0]! } satisfies ThreadCurrentPullRequest | null;
+    if (open.length === 1) return { kind: "single", link: open[0]! };
     const chains = resolveThreadPullRequestChains(visible);
     if (open.length > 1) {
       const openChains = chains
@@ -159,17 +160,10 @@ export function makeThreadPullRequests(
               }))
               .sort((left, right) => right.newestLinkedAt - left.newestLinkedAt)
               .flatMap((chain) => chain.layers);
-      return {
-        kind: "stack",
-        open: ordered,
-        top: ordered[0]!,
-      } satisfies ThreadCurrentPullRequest | null;
+      return { kind: "stack", open: ordered, top: ordered[0]! };
     }
     if (chains.length === 1) {
-      return {
-        kind: "single",
-        link: layersFromTop(chains[0]!)[0]!,
-      } satisfies ThreadCurrentPullRequest | null;
+      return { kind: "single", link: layersFromTop(chains[0]!)[0]! };
     }
     let latest = visible[0]!;
     let latestTimestamp = latestUpdatedAt(latest);
@@ -181,18 +175,20 @@ export function makeThreadPullRequests(
         latestTimestamp = timestamp;
       }
     }
-    return { kind: "single", link: latest } satisfies ThreadCurrentPullRequest | null;
+    return { kind: "single", link: latest };
   }
 
-  function resolveThreadCurrentPullRequestLink(links: ReadonlyArray<ThreadPullRequestLink>) {
+  function resolveThreadCurrentPullRequestLink(
+    links: ReadonlyArray<ThreadPullRequestLink>,
+  ): ThreadPullRequestLink | null {
     const current = resolveThreadCurrentPullRequest(links);
-    if (current === null) return null satisfies ThreadPullRequestLink | null;
-    return (
-      current.kind === "single" ? current.link : current.top
-    ) satisfies ThreadPullRequestLink | null;
+    if (current === null) return null;
+    return current.kind === "single" ? current.link : current.top;
   }
 
-  function resolveThreadPullRequestChains(links: ReadonlyArray<ThreadPullRequestLink>) {
+  function resolveThreadPullRequestChains(
+    links: ReadonlyArray<ThreadPullRequestLink>,
+  ): ReadonlyArray<ThreadPullRequestChain> {
     const visible = visibleThreadPullRequests(links);
     const chains: Array<ThreadPullRequestChain> = [];
     const placed = new Set<string>();
@@ -287,9 +283,9 @@ export function makeThreadPullRequests(
 
   function resolveThreadPullRequestBadge(
     pullRequests: ReadonlyArray<ThreadPullRequestLink> | undefined,
-  ) {
+  ): ThreadPullRequestBadge | null {
     const visible = visibleThreadPullRequests(pullRequests ?? []);
-    if (visible.length === 0) return null satisfies ThreadPullRequestBadge | null;
+    if (visible.length === 0) return null;
     const states = visible.map((link) => link.snapshot?.state ?? "open");
     const state = visible.every((link) => link.snapshot?.state === "open" && link.snapshot.isDraft)
       ? "draft"
@@ -300,29 +296,21 @@ export function makeThreadPullRequests(
           : "closed";
     const chains = resolveThreadPullRequestChains(visible);
     if (visible.length > 1 && chains.length === 1) {
-      return {
-        kind: "stack",
-        layers: visible.length,
-        state,
-      } satisfies ThreadPullRequestBadge | null;
+      return { kind: "stack", layers: visible.length, state };
     }
-    return {
-      kind: "pull-request",
-      others: visible.length - 1,
-      state,
-    } satisfies ThreadPullRequestBadge | null;
+    return { kind: "pull-request", others: visible.length - 1, state };
   }
 
   function threadPullRequestsOf(thread: {
     readonly pullRequests?: ReadonlyArray<ThreadPullRequestLink> | undefined;
-  }) {
+  }): ReadonlyArray<ThreadPullRequestLink> {
     return thread.pullRequests ?? [];
   }
 
   function applyThreadPullRequestLinkUpdate(
     thread: OrchestrationV2AppThread,
     updated: ThreadPullRequestLink,
-  ) {
+  ): OrchestrationV2AppThread {
     return {
       ...thread,
       pullRequests: threadPullRequestsOf(thread).map((link) =>
@@ -352,12 +340,14 @@ export interface PullRequestListLine {
   readonly stack: { readonly kind: ThreadPullRequestChain["kind"]; readonly size: number } | null;
 }
 
-function chainKeyOf(chain: ThreadPullRequestChain) {
+function chainKeyOf(chain: ThreadPullRequestChain): string {
   const bottom = chain.layers[0]!;
   return `${bottom.host}/${bottom.repository}#${bottom.number}`;
 }
 
-export function pullRequestListLines(chains: ReadonlyArray<ThreadPullRequestChain>) {
+export function pullRequestListLines(
+  chains: ReadonlyArray<ThreadPullRequestChain>,
+): ReadonlyArray<PullRequestListLine> {
   const ordered = [...chains].sort(
     (left, right) =>
       Math.max(...right.layers.map(latestUpdatedAt)) -

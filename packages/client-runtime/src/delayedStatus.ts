@@ -33,37 +33,34 @@ export function stepDelayedStatus<A>(
   state: DelayedStatusState<A> | null,
   { key, value, deadlinePassed, showDelayMs = STATUS_SHOW_DELAY_MS }: DelayedStatusInput<A>,
   now: () => number,
-) {
-  const idle = () => ({ phase: "idle", key }) satisfies DelayedStatusState<A>;
-  const pending = () =>
-    ({
-      phase: "pending",
-      key,
-      showAt: now() + showDelayMs,
-    }) satisfies DelayedStatusState<A>;
-  const shown = (shownValue: A) =>
-    ({
-      phase: "shown",
-      key,
-      value: shownValue,
-      holdUntil: now() + STATUS_MIN_VISIBLE_MS,
-    }) satisfies DelayedStatusState<A>;
+): DelayedStatusState<A> {
+  const idle = (): DelayedStatusState<A> => ({ phase: "idle", key });
+  const pending = (): DelayedStatusState<A> => ({
+    phase: "pending",
+    key,
+    showAt: now() + showDelayMs,
+  });
+  const shown = (shownValue: A): DelayedStatusState<A> => ({
+    phase: "shown",
+    key,
+    value: shownValue,
+    holdUntil: now() + STATUS_MIN_VISIBLE_MS,
+  });
 
-  if (state === null || state.key !== key)
-    return (value === null ? idle() : pending()) satisfies DelayedStatusState<A>;
+  if (state === null || state.key !== key) return value === null ? idle() : pending();
   switch (state.phase) {
     case "idle":
-      return (value === null ? state : pending()) satisfies DelayedStatusState<A>;
+      return value === null ? state : pending();
     case "pending":
-      if (value === null) return idle() satisfies DelayedStatusState<A>;
-      return (deadlinePassed ? shown(value) : state) satisfies DelayedStatusState<A>;
+      if (value === null) return idle();
+      return deadlinePassed ? shown(value) : state;
     case "shown":
-      if (value === null) return (deadlinePassed ? idle() : state) satisfies DelayedStatusState<A>;
-      return (value === state.value ? state : shown(value)) satisfies DelayedStatusState<A>;
+      if (value === null) return deadlinePassed ? idle() : state;
+      return value === state.value ? state : shown(value);
   }
 }
 
-export function delayedStatusDeadline<A>(state: DelayedStatusState<A>) {
+export function delayedStatusDeadline<A>(state: DelayedStatusState<A>): number | null {
   switch (state.phase) {
     case "idle":
       return null;
@@ -74,6 +71,6 @@ export function delayedStatusDeadline<A>(state: DelayedStatusState<A>) {
   }
 }
 
-export function shownDelayedStatus<A>(state: DelayedStatusState<A>, key: string) {
+export function shownDelayedStatus<A>(state: DelayedStatusState<A>, key: string): A | null {
   return state.phase === "shown" && state.key === key ? state.value : null;
 }

@@ -35,7 +35,7 @@ interface SourcePiece {
   marks: RichTextMark[];
 }
 
-function sameMarks(left: readonly RichTextMark[], right: readonly RichTextMark[]) {
+function sameMarks(left: readonly RichTextMark[], right: readonly RichTextMark[]): boolean {
   return left.length === right.length && left.every((mark, index) => mark === right[index]);
 }
 
@@ -45,7 +45,7 @@ const EMPHASIS_ALTERNATIVES = /^_[^/]+_(?:\/_[^/]+_)+$/;
 const WORD_CHARACTER_BEFORE = /[\p{L}\p{M}\p{N}_]$/u;
 const WORD_CHARACTER_AFTER = /^[\p{L}\p{M}\p{N}_]/u;
 
-function literalUnderscoreRuns(text: string) {
+function literalUnderscoreRuns(text: string): Set<number> {
   const literal = new Set<number>();
   if (!text.includes("_")) return literal;
   for (const match of text.matchAll(PATH_TOKEN)) {
@@ -75,7 +75,7 @@ function literalUnderscoreRuns(text: string) {
   return literal;
 }
 
-function parseInlineMarkdownPieces(text: string) {
+function parseInlineMarkdownPieces(text: string): SourcePiece[] {
   const literalRuns = literalUnderscoreRuns(text);
   const root: SourcePiece[] = [];
   const stack: { delimiter: string; mark: RichTextMark; start: number; pieces: SourcePiece[] }[] =
@@ -172,7 +172,7 @@ function parseInlineMarkdownPieces(text: string) {
   return root;
 }
 
-export function parseInlineMarkdown(text: string) {
+export function parseInlineMarkdown(text: string): RichTextSpan[] {
   const spans: RichTextSpan[] = [];
   for (const { start, end, marks } of parseInlineMarkdownPieces(text)) {
     const last = spans.at(-1);
@@ -189,7 +189,7 @@ export function parseInlineMarkdown(text: string) {
 export const MARKDOWN_SOURCE_MARK = "markdownSource";
 
 /** Marks for each UTF-16 unit of `text`, or null for a delimiter that parsing drops. */
-export function inlineMarkdownUnitMarks(text: string) {
+export function inlineMarkdownUnitMarks(text: string): Array<RichTextMark[] | null> {
   const result: Array<RichTextMark[] | null> = Array.from({ length: text.length }, () => null);
   for (const { start, end, marks } of parseInlineMarkdownPieces(text)) {
     result.fill(marks, start, end);

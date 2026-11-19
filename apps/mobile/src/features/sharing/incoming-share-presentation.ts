@@ -19,7 +19,7 @@ export function transitionIncomingSharePresentation(
     readonly isShareSheetPresented: boolean;
     readonly pendingShareId: string | null;
   },
-) {
+): IncomingSharePresentationTransition {
   if (input.isShareSheetPresented) {
     if (state.presentedShareId !== null && input.pendingShareId !== state.presentedShareId) {
       return {

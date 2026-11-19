@@ -20,8 +20,7 @@ const MODEL_SETTINGS_ENV_PREFIXES = [
   "VERTEX_",
 ];
 
-function claudeModelSettingsKey(settings: ClaudeSdkSettings): string;
-function claudeModelSettingsKey(settings: ClaudeSdkSettings) {
+function claudeModelSettingsKey(settings: ClaudeSdkSettings): string {
   const sortedEntries = (record: Readonly<Record<string, string | undefined>> | undefined) =>
     Object.entries(record ?? {}).toSorted(([a], [b]) => a.localeCompare(b));
   return JSON.stringify([
@@ -30,7 +29,7 @@ function claudeModelSettingsKey(settings: ClaudeSdkSettings) {
     sortedEntries(settings.env).filter(([name]) =>
       MODEL_SETTINGS_ENV_PREFIXES.some((prefix) => name.startsWith(prefix)),
     ),
-  ]) satisfies string;
+  ]);
 }
 
 const NO_MODEL_SETTINGS_KEY = claudeModelSettingsKey({});

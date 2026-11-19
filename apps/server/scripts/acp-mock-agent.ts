@@ -124,7 +124,9 @@ const cancelledSessions = new Set<string>();
 const sessionsLoading = new Set<string>();
 let configuredProvider: AcpSchema.ProviderCurrentConfig | null = null;
 
-function promptIdFromRequestMeta(request: Pick<AcpSchema.PromptRequest, "_meta">) {
+function promptIdFromRequestMeta(
+  request: Pick<AcpSchema.PromptRequest, "_meta">,
+): string | undefined {
   const meta = request._meta;
   if (meta === null || typeof meta !== "object") {
     return undefined;
@@ -133,7 +135,7 @@ function promptIdFromRequestMeta(request: Pick<AcpSchema.PromptRequest, "_meta">
   return typeof promptId === "string" && promptId.length > 0 ? promptId : undefined;
 }
 
-function writeJsonRpcNotification(method: string, params: unknown) {
+function writeJsonRpcNotification(method: string, params: unknown): void {
   process.stdout.write(`${JSON.stringify({ jsonrpc: "2.0", method, params })}\n`);
 }
 
@@ -145,7 +147,7 @@ process.once("SIGINT", () => {
   process.exit(0);
 });
 
-function configOptions() {
+function configOptions(): ReadonlyArray<AcpSchema.SessionConfigOption> {
   if (antigravityProfile) {
     return [
       {
@@ -323,7 +325,7 @@ function configOptions() {
   ];
 }
 
-function modelConfigOptionsFor(modelId: string) {
+function modelConfigOptionsFor(modelId: string): ReadonlyArray<AcpSchema.SessionConfigOption> {
   const previousModelId = currentModelId;
   try {
     currentModelId = modelId;
@@ -335,7 +337,11 @@ function modelConfigOptionsFor(modelId: string) {
   }
 }
 
-function availableModels() {
+function availableModels(): ReadonlyArray<{
+  readonly value: string;
+  readonly name: string;
+  readonly configOptions: ReadonlyArray<AcpSchema.SessionConfigOption>;
+}> {
   return [
     { value: "default", name: "Auto" },
     { value: "composer-2", name: "Composer 2" },
@@ -383,7 +389,7 @@ const availableModes: ReadonlyArray<AcpCompat.SessionMode> = antigravityProfile
         },
       ];
 
-function modeState() {
+function modeState(): AcpCompat.SessionModeState {
   return {
     currentModeId,
     availableModes,
@@ -409,7 +415,7 @@ const grokAcpModels: ReadonlyArray<AcpCompat.ModelInfo> = [
   { modelId: "grok-mock-alt", name: "Grok Mock Alt" },
 ];
 
-function modelState() {
+function modelState(): AcpCompat.SessionModelState {
   if (antigravityProfile) {
     return { currentModelId, availableModels: antigravityModels };
   }
@@ -422,7 +428,11 @@ function modelState() {
   };
 }
 
-function emitGrokKillTaskScenario(sessionId: string, promptId: string | undefined, shape: string) {
+function emitGrokKillTaskScenario(
+  sessionId: string,
+  promptId: string | undefined,
+  shape: string,
+): void {
   const taskId = "call-fb9d0000-0000-0000-0000-000000000026-29";
   const outcome =
     shape === "already_exited" || shape === "known_failure" ? "already_exited" : "killed";

@@ -81,15 +81,15 @@ export class BitbucketRepositoryLocatorError extends Schema.TaggedError<Bitbucke
 ) {
   static readonly detail = "Bitbucket repositories must be specified as workspace/repository.";
 
-  get detail() {
+  get detail(): string {
     return BitbucketRepositoryLocatorError.detail;
   }
 
-  get userFacingDetail() {
+  get userFacingDetail(): string {
     return BitbucketRepositoryLocatorError.detail;
   }
 
-  override get message() {
+  override get message(): string {
     return `Bitbucket API failed: ${this.detail}`;
   }
 }
@@ -101,11 +101,11 @@ export class BitbucketRequestError extends Schema.TaggedError<BitbucketRequestEr
     cause: Schema.Defect(),
   },
 ) {
-  get detail() {
+  get detail(): string {
     return "Failed to send the Bitbucket request.";
   }
 
-  override get message() {
+  override get message(): string {
     return `Bitbucket API failed in ${this.operation}: ${this.detail}`;
   }
 }
@@ -119,11 +119,11 @@ export class BitbucketResponseError extends Schema.TaggedError<BitbucketResponse
     retryAt: Schema.optional(Schema.Number),
   },
 ) {
-  get detail() {
+  get detail(): string {
     return `Bitbucket returned HTTP ${this.status}.`;
   }
 
-  override get message() {
+  override get message(): string {
     return `Bitbucket API failed in ${this.operation}: ${this.detail}`;
   }
 }
@@ -137,11 +137,11 @@ export class BitbucketResponseBodyReadError extends Schema.TaggedError<Bitbucket
     cause: Schema.Defect(),
   },
 ) {
-  get detail() {
+  get detail(): string {
     return `Bitbucket returned HTTP ${this.status}.`;
   }
 
-  override get message() {
+  override get message(): string {
     return `Bitbucket API failed in ${this.operation}: ${this.detail}`;
   }
 }
@@ -154,11 +154,11 @@ export class BitbucketResponseDecodeError extends Schema.TaggedError<BitbucketRe
     cause: Schema.Defect(),
   },
 ) {
-  get detail() {
+  get detail(): string {
     return "Bitbucket returned invalid JSON for the requested resource.";
   }
 
-  override get message() {
+  override get message(): string {
     return `Bitbucket API failed in ${this.operation}: ${this.detail}`;
   }
 }
@@ -170,11 +170,11 @@ export class BitbucketRepositoryVcsResolveError extends Schema.TaggedError<Bitbu
     cause: Schema.Defect(),
   },
 ) {
-  get detail() {
+  get detail(): string {
     return `Failed to resolve VCS repository for ${this.cwd}.`;
   }
 
-  override get message() {
+  override get message(): string {
     return `Bitbucket API failed in resolveRepository: ${this.detail}`;
   }
 }
@@ -186,11 +186,11 @@ export class BitbucketRepositoryRemotesListError extends Schema.TaggedError<Bitb
     cause: Schema.Defect(),
   },
 ) {
-  get detail() {
+  get detail(): string {
     return `Failed to list remotes for ${this.cwd}.`;
   }
 
-  override get message() {
+  override get message(): string {
     return `Bitbucket API failed in resolveRepository: ${this.detail}`;
   }
 }
@@ -201,11 +201,11 @@ export class BitbucketRepositoryRemoteNotFoundError extends Schema.TaggedError<B
     cwd: Schema.String,
   },
 ) {
-  get detail() {
+  get detail(): string {
     return `No Bitbucket repository remote was detected for ${this.cwd}.`;
   }
 
-  override get message() {
+  override get message(): string {
     return `Bitbucket API failed in resolveRepository: ${this.detail}`;
   }
 }
@@ -218,11 +218,11 @@ export class BitbucketPullRequestBodyReadError extends Schema.TaggedError<Bitbuc
     cause: Schema.Defect(),
   },
 ) {
-  get detail() {
+  get detail(): string {
     return `Failed to read pull request body file ${this.bodyFile}.`;
   }
 
-  override get message() {
+  override get message(): string {
     return `Bitbucket API failed in createPullRequest: ${this.detail}`;
   }
 }
@@ -235,11 +235,11 @@ export class BitbucketCheckoutError extends Schema.TaggedError<BitbucketCheckout
     cause: Schema.Defect(),
   },
 ) {
-  get detail() {
+  get detail(): string {
     return "Failed to check out the Bitbucket pull request.";
   }
 
-  override get message() {
+  override get message(): string {
     return `Bitbucket API failed in checkoutPullRequest: ${this.detail}`;
   }
 }
@@ -252,11 +252,11 @@ export class BitbucketUntrustedUrlError extends Schema.TaggedError<BitbucketUntr
     host: Schema.String,
   },
 ) {
-  get detail() {
+  get detail(): string {
     return `The response pointed at ${this.host}, outside the configured Bitbucket.`;
   }
 
-  override get message() {
+  override get message(): string {
     return `Bitbucket API failed in request: ${this.detail}`;
   }
 }
@@ -389,12 +389,12 @@ export class BitbucketApi extends Context.Service<
   }
 >()("@supaterm/source-control-bitbucket/server/BitbucketApi") {}
 
-function nonEmpty(value: string | undefined) {
+function nonEmpty(value: string | undefined): Option.Option<string> {
   const trimmed = value?.trim();
   return trimmed === undefined || trimmed.length === 0 ? Option.none() : Option.some(trimmed);
 }
 
-function normalizeChangeRequestId(reference: string) {
+function normalizeChangeRequestId(reference: string): string {
   const trimmed = reference.trim().replace(/^#/, "");
   const urlMatch = /(?:pull-requests|pullrequests|pull-request|pull|pr)\/(\d+)(?:\D.*)?$/i.exec(
     trimmed,
@@ -405,12 +405,12 @@ function normalizeChangeRequestId(reference: string) {
 function sourceWorkspace(input: {
   readonly headSelector: string;
   readonly source?: SourceControlProvider.SourceControlRefSelector;
-}) {
+}): string | undefined {
   if (input.source?.owner) return input.source.owner;
   return SourceControlProvider.parseSourceControlOwnerRef(input.headSelector)?.owner;
 }
 
-function toBitbucketStates(state: "open" | "closed" | "merged" | "all") {
+function toBitbucketStates(state: "open" | "closed" | "merged" | "all"): ReadonlyArray<string> {
   switch (state) {
     case "open":
       return ["OPEN"];
@@ -423,17 +423,17 @@ function toBitbucketStates(state: "open" | "closed" | "merged" | "all") {
   }
 }
 
-function bitbucketQueryString(filters: ReadonlyArray<string>) {
+function bitbucketQueryString(filters: ReadonlyArray<string>): string {
   return filters.join(" AND ");
 }
 
-function bitbucketStateFilter(states: ReadonlyArray<string>) {
+function bitbucketStateFilter(states: ReadonlyArray<string>): string {
   return states.length === 1
     ? `state = "${states[0]}"`
     : `(${states.map((state) => `state = "${state}"`).join(" OR ")})`;
 }
 
-function parseBitbucketRepositorySlug(value: string) {
+function parseBitbucketRepositorySlug(value: string): BitbucketRepositoryLocator | null {
   const normalized = value.trim().replace(/\.git$/u, "");
   const parts = normalized.split("/").filter((part) => part.length > 0);
   if (parts.length < 2) return null;
@@ -444,21 +444,18 @@ function parseBitbucketRepositorySlug(value: string) {
 
 function requireRepositoryLocator(
   repository: string,
-): Effect.Effect<BitbucketRepositoryLocator, BitbucketApiError>;
-function requireRepositoryLocator(repository: string) {
+): Effect.Effect<BitbucketRepositoryLocator, BitbucketApiError> {
   const locator = parseBitbucketRepositorySlug(repository);
-  return (
-    locator
-      ? Effect.succeed(locator)
-      : Effect.fail(
-          new BitbucketRepositoryLocatorError({
-            repository,
-          }),
-        )
-  ) satisfies Effect.Effect<BitbucketRepositoryLocator, BitbucketApiError>;
+  return locator
+    ? Effect.succeed(locator)
+    : Effect.fail(
+        new BitbucketRepositoryLocatorError({
+          repository,
+        }),
+      );
 }
 
-function parseBitbucketRemoteUrl(remoteUrl: string) {
+function parseBitbucketRemoteUrl(remoteUrl: string): BitbucketRepositoryLocator | null {
   const trimmed = remoteUrl.trim();
   const scpMatch = /^[a-zA-Z0-9._-]+@[^:/]+:(.+)$/.exec(trimmed);
   if (scpMatch?.[1]) {
@@ -474,8 +471,7 @@ function parseBitbucketRemoteUrl(remoteUrl: string) {
 
 function normalizeRepositoryCloneUrls(
   raw: typeof RawBitbucketRepositorySchema.Type,
-): SourceControlRepositoryCloneUrls;
-function normalizeRepositoryCloneUrls(raw: typeof RawBitbucketRepositorySchema.Type) {
+): SourceControlRepositoryCloneUrls {
   const httpClone =
     raw.links.clone?.find((entry) => entry.name.toLowerCase() === "https")?.href ??
     raw.links.html?.href;
@@ -485,13 +481,13 @@ function normalizeRepositoryCloneUrls(raw: typeof RawBitbucketRepositorySchema.T
     nameWithOwner: raw.full_name,
     url: httpClone ?? raw.links.html?.href ?? raw.full_name,
     sshUrl: sshClone ?? httpClone ?? raw.full_name,
-  } satisfies SourceControlRepositoryCloneUrls;
+  };
 }
 
 function defaultChangeRequestTargetBranch(input: {
   readonly repository: typeof RawBitbucketRepositorySchema.Type;
   readonly branchingModel: typeof RawBitbucketBranchingModelSchema.Type | null;
-}) {
+}): string | null {
   const repositoryMainBranch = input.repository.mainbranch?.name ?? null;
   const development = input.branchingModel?.development;
   if (!development || development.use_mainbranch === true || development.is_valid === false) {
@@ -506,7 +502,7 @@ function defaultChangeRequestTargetBranch(input: {
   return developmentBranch;
 }
 
-function shouldPreferSshRemote(originRemoteUrl: string | null) {
+function shouldPreferSshRemote(originRemoteUrl: string | null): boolean {
   if (!originRemoteUrl) return false;
   return isSshRemoteUrl(originRemoteUrl);
 }
@@ -514,7 +510,7 @@ function shouldPreferSshRemote(originRemoteUrl: string | null) {
 function selectCloneUrl(input: {
   readonly cloneUrls: SourceControlRepositoryCloneUrls;
   readonly originRemoteUrl: string | null;
-}) {
+}): string {
   return shouldPreferSshRemote(input.originRemoteUrl)
     ? input.cloneUrls.sshUrl
     : input.cloneUrls.url;
@@ -524,7 +520,7 @@ function checkoutBranchName(input: {
   readonly pullRequestId: number;
   readonly headBranch: string;
   readonly isCrossRepository: boolean;
-}) {
+}): string {
   if (!input.isCrossRepository) {
     return input.headBranch;
   }
@@ -534,12 +530,12 @@ function checkoutBranchName(input: {
 
 function repositoryNameWithOwner(
   repository: Schema.Schema.Type<typeof BitbucketPullRequestSchema>["source"]["repository"],
-) {
+): string | null {
   const fullName = repository?.full_name?.trim() ?? "";
   return fullName.length > 0 ? fullName : null;
 }
 
-function repositoryOwnerName(repositoryName: string) {
+function repositoryOwnerName(repositoryName: string): string {
   return repositoryName.split("/")[0]?.trim() || "bitbucket";
 }
 
@@ -553,43 +549,38 @@ function credentialFrom(input: {
   readonly accessToken: string;
   readonly email: string;
   readonly apiToken: string;
-}) {
+}): BitbucketCredential | null {
   if (HEADER_SAFE.test(input.accessToken)) {
-    return {
-      kind: "access-token",
-      accessToken: input.accessToken,
-    } satisfies BitbucketCredential | null;
+    return { kind: "access-token", accessToken: input.accessToken };
   }
   if (HEADER_SAFE.test(input.email) && HEADER_SAFE.test(input.apiToken)) {
-    return {
-      kind: "api-token",
-      email: input.email,
-      apiToken: input.apiToken,
-    } satisfies BitbucketCredential | null;
+    return { kind: "api-token", email: input.email, apiToken: input.apiToken };
   }
-  return null satisfies BitbucketCredential | null;
+  return null;
 }
 
 function resolveCredential(
   settings: BitbucketClient.BitbucketSettings,
   env: Config.Success<typeof BitbucketApiEnvConfig>,
-) {
-  return (credentialFrom(settings) ??
+): BitbucketCredential | null {
+  return (
+    credentialFrom(settings) ??
     credentialFrom({
       accessToken: Option.getOrElse(env.accessToken, () => ""),
       email: Option.getOrElse(env.email, () => ""),
       apiToken: Option.getOrElse(env.apiToken, () => ""),
-    })) satisfies BitbucketCredential | null;
+    })
+  );
 }
 
-function authFromCredential(credential: BitbucketCredential | null) {
+function authFromCredential(credential: BitbucketCredential | null): SourceControlProviderAuth {
   if (credential?.kind === "access-token") {
     return {
       status: "unknown",
       account: Option.none(),
       host: Option.some("bitbucket.org"),
       detail: Option.some("An access token is configured."),
-    } satisfies SourceControlProviderAuth;
+    };
   }
 
   if (credential?.kind === "api-token") {
@@ -598,7 +589,7 @@ function authFromCredential(credential: BitbucketCredential | null) {
       account: Option.some(credential.email),
       host: Option.some("bitbucket.org"),
       detail: Option.some("An API token is configured."),
-    } satisfies SourceControlProviderAuth;
+    };
   }
 
   return {
@@ -608,10 +599,10 @@ function authFromCredential(credential: BitbucketCredential | null) {
     detail: Option.some(
       "Add a Bitbucket token in Settings → Source Control, or set the SUPATERM_BITBUCKET_* environment variables on the server.",
     ),
-  } satisfies SourceControlProviderAuth;
+  };
 }
 
-function originOf(value: string) {
+function originOf(value: string): string | null {
   try {
     return new URL(value).origin;
   } catch {
@@ -622,7 +613,7 @@ function originOf(value: string) {
 const responseError = Effect.fn("BitbucketApi.responseError")(function* (
   operation: BitbucketApiOperation,
   response: HttpClientResponse.HttpClientResponse,
-) {
+): Effect.fn.Return<never, BitbucketApiError> {
   const now = yield* Clock.currentTimeMillis;
   const retryAt = SourceControlRateLimit.retryAtFromHeader(response.headers["retry-after"], now);
   const collected = yield* collectUint8StreamText({
@@ -725,7 +716,7 @@ export const make = Effect.gen(function* () {
     operation: BitbucketApiOperation,
     schema: S,
     response: HttpClientResponse.HttpClientResponse,
-  ) =>
+  ): Effect.Effect<S["Type"], BitbucketApiError, S["DecodingServices"]> =>
     HttpClientResponse.matchStatus({
       "2xx": (success) =>
         HttpClientResponse.schemaBodyJson(schema)(success).pipe(
@@ -741,15 +732,11 @@ export const make = Effect.gen(function* () {
       orElse: (failed) => responseError(operation, failed),
     })(response);
 
-  const executeJson: <S extends Schema.Top>(
+  const executeJson = <S extends Schema.Top>(
     operation: BitbucketApiOperation,
     request: HttpClientRequest.HttpClientRequest,
     schema: S,
-  ) => Effect.Effect<S["Type"], BitbucketApiError, S["DecodingServices"]> = <S extends Schema.Top>(
-    operation: BitbucketApiOperation,
-    request: HttpClientRequest.HttpClientRequest,
-    schema: S,
-  ) =>
+  ): Effect.Effect<S["Type"], BitbucketApiError, S["DecodingServices"]> =>
     throttled(
       request.method,
       withAuth(request.pipe(HttpClientRequest.acceptJson)).pipe(
@@ -932,23 +919,18 @@ export const make = Effect.gen(function* () {
 
   const apiOrigin = originOf(config.baseUrl);
 
-  const trustedUrl = (value: string) => {
+  const trustedUrl = (value: string): string | null => {
     if (!/^https?:\/\//u.test(value)) return apiUrl(value);
     const origin = originOf(value);
     return origin !== null && origin === apiOrigin ? value : null;
   };
 
-  const send: (input: {
+  const send = (input: {
     readonly method: "GET" | "POST" | "PUT" | "DELETE";
     readonly url: string;
     readonly body?: string;
     readonly redirects: number;
-  }) => Effect.Effect<HttpClientResponse.HttpClientResponse, BitbucketApiError> = (input: {
-    readonly method: "GET" | "POST" | "PUT" | "DELETE";
-    readonly url: string;
-    readonly body?: string;
-    readonly redirects: number;
-  }) => {
+  }): Effect.Effect<HttpClientResponse.HttpClientResponse, BitbucketApiError> => {
     const url = trustedUrl(input.url);
     if (url === null) {
       return Effect.fail(
@@ -969,7 +951,9 @@ export const make = Effect.gen(function* () {
         : base.pipe(HttpClientRequest.bodyText(input.body, "application/json"));
     return withAuth(withBody).pipe(
       Effect.flatMap(httpClient.execute),
-      Effect.mapError((cause) => new BitbucketRequestError({ operation: "request", cause })),
+      Effect.mapError(
+        (cause): BitbucketApiError => new BitbucketRequestError({ operation: "request", cause }),
+      ),
       Effect.flatMap((response) => {
         const location = response.headers.location;
         if (
@@ -1152,7 +1136,9 @@ export const make = Effect.gen(function* () {
             {
               repository: getRepositoryFromLocator(locator),
               branchingModel: getBranchingModelFromLocator(locator).pipe(
-                Effect.orElseSucceed(() => null),
+                Effect.orElseSucceed(
+                  (): typeof RawBitbucketBranchingModelSchema.Type | null => null,
+                ),
               ),
             },
             { concurrency: "unbounded" },

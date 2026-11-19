@@ -6,7 +6,9 @@ interface DesktopDeviceStateSource<State> {
 }
 
 /** A desktop device's pushed state, seeded by one read that never overwrites a newer push. */
-export function useDesktopDeviceState<State>(source: DesktopDeviceStateSource<State> | null) {
+export function useDesktopDeviceState<State>(
+  source: DesktopDeviceStateSource<State> | null,
+): State | null {
   const [state, setState] = useState<State | null>(null);
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- subscribes to a desktop bridge's device state and reads its current state once
   useEffect(() => {

@@ -8,6 +8,7 @@ import {
   ThreadId,
 } from "@supaterm/contracts";
 import { deriveThreadFeedPresentation } from "../../lib/threadActivity";
+import type { QueuedThreadMessage } from "../../state/thread-outbox-model";
 import {
   appendAcceptedThreadMessages,
   appendPendingThreadMessages,
@@ -18,7 +19,7 @@ import {
   selectPendingAcknowledgedMessages,
 } from "./pending-thread-feed";
 
-const pending = (id: string) => ({
+const pending = (id: string): QueuedThreadMessage => ({
   environmentId: EnvironmentId.make("env"),
   threadId: ThreadId.make("thread"),
   messageId: MessageId.make(id),

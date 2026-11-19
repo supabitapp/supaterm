@@ -18,14 +18,14 @@ export interface EnvironmentQueryView<A, E = unknown> {
   readonly refresh: () => void;
 }
 
-export function formatEnvironmentQueryError(cause: Cause.Cause<unknown>) {
+export function formatEnvironmentQueryError(cause: Cause.Cause<unknown>): string {
   const error = Cause.squash(cause);
   return error instanceof Error && error.message.trim().length > 0
     ? error.message
     : "The environment request failed.";
 }
 
-function queryUpdatedAt(result: AsyncResult.AsyncResult<unknown, unknown>) {
+function queryUpdatedAt(result: AsyncResult.AsyncResult<unknown, unknown>): number {
   return result._tag === "Success"
     ? result.timestamp
     : result._tag === "Failure"
@@ -35,8 +35,7 @@ function queryUpdatedAt(result: AsyncResult.AsyncResult<unknown, unknown>) {
 
 export function useEnvironmentQuery<A, E>(
   atom: Atom.Atom<AsyncResult.AsyncResult<A, E>> | null,
-): EnvironmentQueryView<A, E>;
-export function useEnvironmentQuery<A, E>(atom: Atom.Atom<AsyncResult.AsyncResult<A, E>> | null) {
+): EnvironmentQueryView<A, E> {
   const selectedAtom = atom ?? EMPTY_ASYNC_RESULT_ATOM;
   const result = useAtomValue(selectedAtom);
   const refresh = useAtomRefresh(selectedAtom);
@@ -49,14 +48,14 @@ export function useEnvironmentQuery<A, E>(atom: Atom.Atom<AsyncResult.AsyncResul
     isPending: atom !== null && result.waiting,
     isSuccess: result._tag === "Success",
     refresh,
-  } satisfies EnvironmentQueryView<A, E>;
+  };
 }
 
 /** Keep select outside the component; a new function rebuilds the derived atom on every render. */
 export function useEnvironmentQuerySelector<A, E, B>(
   atom: Atom.Atom<AsyncResult.AsyncResult<A, E>> | null,
   select: (result: AsyncResult.AsyncResult<A, E>) => B,
-) {
+): B {
   return useAtomValue(atom ?? EMPTY_ASYNC_RESULT_ATOM, select);
 }
 
@@ -65,7 +64,7 @@ const queryIsNewerAtoms = new WeakMap<
   QueryResultAtom,
   WeakMap<QueryResultAtom, Atom.Atom<boolean>>
 >();
-function queryIsNewerAtom(query: QueryResultAtom, than: QueryResultAtom) {
+function queryIsNewerAtom(query: QueryResultAtom, than: QueryResultAtom): Atom.Atom<boolean> {
   let byThan = queryIsNewerAtoms.get(query);
   if (byThan === undefined) {
     byThan = new WeakMap();
@@ -82,7 +81,7 @@ function queryIsNewerAtom(query: QueryResultAtom, than: QueryResultAtom) {
 export function useEnvironmentQueryIsNewer(
   query: QueryResultAtom | null,
   than: QueryResultAtom | null,
-) {
+): boolean {
   return useAtomValue(
     queryIsNewerAtom(query ?? EMPTY_ASYNC_RESULT_ATOM, than ?? EMPTY_ASYNC_RESULT_ATOM),
   );
@@ -91,7 +90,7 @@ export function useEnvironmentQueryIsNewer(
 /** Returns refresh and call-time pending state without subscribing to it. */
 export function useEnvironmentQueryRefresh<A, E>(
   atom: Atom.Atom<AsyncResult.AsyncResult<A, E>> | null,
-) {
+): { readonly refresh: () => void; readonly isPending: () => boolean } {
   const registry = useContext(RegistryContext);
   const selectedAtom = atom ?? EMPTY_ASYNC_RESULT_ATOM;
   const refresh = useAtomRefresh(selectedAtom);

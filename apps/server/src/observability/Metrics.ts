@@ -92,8 +92,9 @@ export const secretRequestsTotal = Metric.counter("supaterm_secret_requests_tota
   description: "Secrets agents asked users for, by how each request ended.",
 });
 
-export const metricAttributes = (attributes: Readonly<Record<string, unknown>>) =>
-  Object.entries(compactMetricAttributes(attributes));
+export const metricAttributes = (
+  attributes: Readonly<Record<string, unknown>>,
+): ReadonlyArray<[string, string]> => Object.entries(compactMetricAttributes(attributes));
 
 export const increment = (
   metric: Metric.Metric<number, unknown>,
@@ -144,7 +145,10 @@ const recordMetrics = Effect.fnUntraced(function* (
   }
 });
 
-const withMetricsImpl = <A, E, R>(effect: Effect.Effect<A, E, R>, options: WithMetricsOptions) =>
+const withMetricsImpl = <A, E, R>(
+  effect: Effect.Effect<A, E, R>,
+  options: WithMetricsOptions,
+): Effect.Effect<A, E, R> =>
   Effect.flatMap(Clock.monotonicTimeNanos, (startedAt) =>
     Effect.onExit(effect, (exit) => recordMetrics(options, startedAt, exit)),
   );
@@ -159,7 +163,7 @@ export const withMetrics: {
 export const withCommandMetrics = <A, E, R>(
   effect: Effect.Effect<A, E, R>,
   command: { readonly type: string },
-) =>
+): Effect.Effect<A, E, R> =>
   withMetrics(effect, {
     counter: orchestrationCommandsTotal,
     timer: orchestrationCommandDuration,

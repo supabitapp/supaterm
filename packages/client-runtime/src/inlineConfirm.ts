@@ -12,11 +12,7 @@ export interface InlineConfirm<Key extends string> {
 export function createInlineConfirm<Key extends string>(
   onChange: (armed: Key | null) => void,
   schedule: InlineConfirmSchedule,
-): InlineConfirm<Key>;
-export function createInlineConfirm<Key extends string>(
-  onChange: (armed: Key | null) => void,
-  schedule: InlineConfirmSchedule,
-) {
+): InlineConfirm<Key> {
   let armed: Key | null = null;
   let armedAt = 0;
   let cancelTimeout: (() => void) | undefined;
@@ -54,5 +50,5 @@ export function createInlineConfirm<Key extends string>(
       }
       return attachment;
     },
-  } satisfies InlineConfirm<Key>;
+  };
 }

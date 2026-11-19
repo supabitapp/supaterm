@@ -55,7 +55,7 @@ export class PullRequestFilesViewedRepository extends Context.Service<
 >()("supaterm/persistence/PullRequestFilesViewed/PullRequestFilesViewedRepository") {}
 
 function toSqlOrDecodeError(sqlOperation: string, decodeOperation: string) {
-  return (cause: unknown) =>
+  return (cause: unknown): PullRequestFilesViewedRepositoryError =>
     Schema.isSchemaError(cause)
       ? PersistenceDecodeError.fromSchemaError(decodeOperation, cause)
       : new PersistenceSqlError({ operation: sqlOperation, cause });

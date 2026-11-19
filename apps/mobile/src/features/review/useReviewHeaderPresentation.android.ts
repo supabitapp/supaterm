@@ -3,7 +3,7 @@ import type { useReviewHeaderPresentation as useIosReviewHeaderPresentation } fr
 // oxlint-disable-next-line supaterm/no-hookless-use-function -- Android stub of a hook; the iOS file calls hooks.
 export function useReviewHeaderPresentation(
   props: Parameters<typeof useIosReviewHeaderPresentation>[0],
-) {
+): ReturnType<typeof useIosReviewHeaderPresentation> {
   return {
     title: "Review changes",
     subtitle: props.androidSubtitle || "Select a diff",

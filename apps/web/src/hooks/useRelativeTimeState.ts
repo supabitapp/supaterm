@@ -7,7 +7,7 @@ import {
   type RelativeTimeState,
 } from "../timestampFormat";
 
-export function useRelativeTimeState(isoDate: string | null) {
+export function useRelativeTimeState(isoDate: string | null): RelativeTimeState {
   const subscribe = (onChange: () => void) => {
     if (isoDate === null) return () => {};
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -25,7 +25,7 @@ export function useRelativeTimeState(isoDate: string | null) {
   const getSnapshot = () => (isoDate === null ? null : relativeTimeElapsedMs(isoDate));
   const elapsedMs = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 
-  if (isoDate === null) return { status: "missing" } satisfies RelativeTimeState;
-  if (elapsedMs === null) return { status: "invalid" } satisfies RelativeTimeState;
-  return { status: "relative", ...formatRelativeElapsed(elapsedMs) } satisfies RelativeTimeState;
+  if (isoDate === null) return { status: "missing" };
+  if (elapsedMs === null) return { status: "invalid" };
+  return { status: "relative", ...formatRelativeElapsed(elapsedMs) };
 }

@@ -40,14 +40,14 @@ export function answerContextRecords(
       }
     | null
     | undefined,
-) {
+): AnswerContextRecord[] {
   return [
     ...(questionDraft?.referenceContexts ?? []),
     ...(threadDraft?.reviewComments ?? []).map(reviewCommentContextRecord),
     ...(threadDraft?.previewAnnotations ?? []).map((annotation) =>
       previewAnnotationContextRecord(annotation),
     ),
-  ] satisfies AnswerContextRecord[];
+  ];
 }
 
 export function projectPendingUserInputAnswer(
@@ -94,7 +94,7 @@ const DISPLACED_ANSWER_SEPARATOR = "\n\n";
 export function carryDisplacedCustomAnswerIntoPrompt(
   prompt: string,
   customAnswer: string | undefined,
-) {
+): string {
   const displaced = customAnswer?.trim() ?? "";
   if (displaced.length === 0) {
     return prompt;
@@ -114,7 +114,7 @@ export function withdrawDisplacedCustomAnswerFromPrompt(
   prompt: string,
   displaced: string,
   laterDisplaced: ReadonlyArray<string> = [],
-) {
+): string {
   const text = displaced.trim();
   if (text.length === 0) return prompt;
   const later = laterDisplaced.flatMap((entry) => {
@@ -133,7 +133,7 @@ export function withdrawDisplacedCustomAnswerFromPrompt(
 function countAnsweredPendingUserInputQuestions(
   questions: ReadonlyArray<UserInputQuestion>,
   draftAnswers: Record<string, PendingUserInputDraftAnswer>,
-) {
+): number {
   return questions.reduce((count, question) => {
     return resolvePendingUserInputAnswer(question, draftAnswers[question.id]) !== null
       ? count + 1
@@ -145,7 +145,7 @@ export function derivePendingUserInputProgress<Q extends UserInputQuestion>(
   questions: ReadonlyArray<Q>,
   draftAnswers: Record<string, PendingUserInputDraftAnswer>,
   questionIndex: number,
-) {
+): PendingUserInputProgress<Q> {
   const normalizedQuestionIndex =
     questions.length === 0 ? 0 : Math.max(0, Math.min(questionIndex, questions.length - 1));
   const activeQuestion = questions[normalizedQuestionIndex] ?? null;

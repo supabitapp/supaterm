@@ -8,26 +8,27 @@ import type {
 export function withPullRequestWatch(
   link: ThreadPullRequestLink,
   watch: ThreadPullRequestWatch | undefined,
-) {
+): ThreadPullRequestLink {
   const { watch: previous, endedWatch, ...rest } = link;
   if (watch !== undefined) return { ...rest, watch };
   const ended = previous ?? endedWatch;
   return ended === undefined ? rest : { ...rest, endedWatch: ended };
 }
 
-export function endWatches(thread: OrchestrationV2AppThread) {
+export function endWatches(thread: OrchestrationV2AppThread): OrchestrationV2AppThread {
   return {
     ...thread,
     pullRequests: thread.pullRequests?.map((link) => withPullRequestWatch(link, undefined)),
   };
 }
 
-export function withoutInheritedWatches(thread: OrchestrationV2AppThread): OrchestrationV2AppThread;
-export function withoutInheritedWatches(thread: OrchestrationV2AppThread) {
+export function withoutInheritedWatches(
+  thread: OrchestrationV2AppThread,
+): OrchestrationV2AppThread {
   return {
     ...thread,
     pullRequests: thread.pullRequests?.map(
       ({ watch: _watch, endedWatch: _endedWatch, ...link }) => link,
     ),
-  } satisfies OrchestrationV2AppThread;
+  };
 }

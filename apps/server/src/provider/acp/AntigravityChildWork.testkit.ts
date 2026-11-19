@@ -10,7 +10,7 @@ export const ROOT = "7d40e54d-5977-4239-940b-246cdd81a12b";
 export const CHILD = "a357bf2720914589dd1ec49f7a816115";
 export const LAUNCH = { role: "Readme Reader", prompt: "Read README.md and report the marker" };
 
-const varint = (value: number) => {
+const varint = (value: number): number[] => {
   const bytes: number[] = [];
   while (value >= 0x80) {
     bytes.push((value & 0x7f) | 0x80);

@@ -23,7 +23,7 @@ function item(
   id: string,
   ordinal: number,
   type: "command_execution" | "run_interrupt_request" | "fork" = "command_execution",
-) {
+): OrchestrationV2TurnItem {
   return {
     id: TurnItemId.make(id),
     type,
@@ -49,14 +49,14 @@ function row(
   visibility: OrchestrationV2ProjectedTurnItem["visibility"],
   sourceThreadId: ThreadId,
   value: OrchestrationV2TurnItem,
-) {
+): Omit<OrchestrationV2ProjectedTurnItem, "position"> {
   return { visibility, sourceThreadId, sourceItemId: value.id, item: value };
 }
 
 function projection(input: {
   readonly visible: ReadonlyArray<Omit<OrchestrationV2ProjectedTurnItem, "position">>;
   readonly turnItems: ReadonlyArray<OrchestrationV2TurnItem>;
-}) {
+}): OrchestrationV2ThreadProjection {
   return {
     thread: { id: CHILD },
     turnItems: [...input.turnItems],

@@ -2,6 +2,7 @@ import {
   isListedThreadLineage,
   SIDE_PULSE_LED_STATES,
   type EnvironmentId,
+  type SidePulseLedState,
 } from "@supaterm/contracts";
 import { scopedThreadKey } from "@supaterm/client-runtime/environment";
 import {
@@ -16,7 +17,7 @@ import { backgroundWorkHoldsCompletion } from "@supaterm/shared/orchestrationV2P
 
 import { hasUnseenCompletion, resolveSidebarThreadStatus } from "../Sidebar.logic";
 
-function threadLedState(thread: EnvironmentThreadShell, seen: boolean) {
+function threadLedState(thread: EnvironmentThreadShell, seen: boolean): SidePulseLedState {
   const status = resolveSidebarThreadStatus(thread);
   if (status === "approval" || status === "input") return "attention";
   if (
@@ -39,7 +40,7 @@ export function selectSidePulseLedState(input: {
   /** The thread on screen in a focused window, whose finished reply counts as seen. */
   readonly viewingThreadKey: string | null;
   readonly now: string;
-}) {
+}): SidePulseLedState {
   let rank = 0;
   for (const thread of input.threads) {
     if (

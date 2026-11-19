@@ -174,13 +174,12 @@ describe("createThreadFamilyAtoms", () => {
         threads: [parent],
         archivedThreads: [],
       } as OrchestrationV2ShellSnapshot;
-      const shellAt = (generation: number) =>
-        ({
-          ...EMPTY_SHELL_STATE,
-          status: "live",
-          snapshot: Option.some(shellSnapshot),
-          generation,
-        }) satisfies EnvironmentShellState;
+      const shellAt = (generation: number): EnvironmentShellState => ({
+        ...EMPTY_SHELL_STATE,
+        status: "live",
+        snapshot: Option.some(shellSnapshot),
+        generation,
+      });
       const shellState = Atom.make<AsyncResult.AsyncResult<EnvironmentShellState>>(
         AsyncResult.success(shellAt(0)),
       );

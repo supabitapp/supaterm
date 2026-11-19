@@ -146,7 +146,10 @@ const renderScenariosProject = {
   },
 } satisfies TestProjectInlineConfiguration;
 
-function resolveDevProxyTarget(backendPort: string | undefined, wsUrl: string | undefined) {
+function resolveDevProxyTarget(
+  backendPort: string | undefined,
+  wsUrl: string | undefined,
+): string | undefined {
   const port = Number(backendPort?.trim());
   if (Number.isInteger(port) && port > 0) {
     return `http://localhost:${port}/`;
@@ -174,7 +177,7 @@ function resolveDevProxyTarget(backendPort: string | undefined, wsUrl: string | 
 
 const devProxyTarget = resolveDevProxyTarget(process.env.SUPATERM_PORT, configuredWsUrl);
 
-function devCompressionPlugin() {
+function devCompressionPlugin(): Plugin {
   return {
     name: "supaterm:dev-compression",
     apply: "serve",
@@ -185,10 +188,10 @@ function devCompressionPlugin() {
         }) as unknown as Connect.NextHandleFunction,
       );
     },
-  } satisfies Plugin;
+  };
 }
 
-function chunkCycleGuardPlugin() {
+function chunkCycleGuardPlugin(): Plugin {
   return {
     name: "supaterm:chunk-cycle-guard",
     apply: "build",
@@ -207,10 +210,10 @@ function chunkCycleGuardPlugin() {
       };
       for (const fileName of Object.keys(bundle)) visit(fileName, []);
     },
-  } satisfies Plugin;
+  };
 }
 
-function bundledDevStableNamesPlugin() {
+function bundledDevStableNamesPlugin(): Plugin {
   return {
     name: "supaterm:bundled-dev-stable-names",
     apply: "serve",
@@ -219,7 +222,7 @@ function bundledDevStableNamesPlugin() {
       chunkFileNames: "assets/[name].js",
       assetFileNames: "assets/[name][extname]",
     }),
-  } satisfies Plugin;
+  };
 }
 
 const configuredAllowedHosts = (process.env.SUPATERM_DEV_ALLOWED_HOSTS ?? "")

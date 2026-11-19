@@ -205,12 +205,12 @@ export class AcpRegistryError extends Schema.TaggedError<AcpRegistryError>()("Ac
   detail: Schema.String,
   cause: Schema.optional(Schema.Defect()),
 }) {
-  override get message() {
+  override get message(): string {
     return this.detail;
   }
 }
 
-export function toAcpRegistryOperationError(error: AcpRegistryError) {
+export function toAcpRegistryOperationError(error: AcpRegistryError): AcpRegistryOperationError {
   return new AcpRegistryOperationError({
     reason: error.reason,
     message: error.detail,
@@ -231,11 +231,7 @@ export type AcpRegistryPlatformTarget =
 function resolveAcpRegistryPlatformTarget(
   platform: NodeJS.Platform,
   architecture: NodeJS.Architecture,
-): AcpRegistryPlatformTarget | undefined;
-function resolveAcpRegistryPlatformTarget(
-  platform: NodeJS.Platform,
-  architecture: NodeJS.Architecture,
-) {
+): AcpRegistryPlatformTarget | undefined {
   const os =
     platform === "darwin"
       ? "darwin"
@@ -245,25 +241,25 @@ function resolveAcpRegistryPlatformTarget(
           ? "windows"
           : undefined;
   const arch = architecture === "arm64" ? "aarch64" : architecture === "x64" ? "x86_64" : undefined;
-  return (os && arch ? (`${os}-${arch}` as AcpRegistryPlatformTarget) : undefined) satisfies
-    | AcpRegistryPlatformTarget
-    | undefined;
+  return os && arch ? (`${os}-${arch}` as AcpRegistryPlatformTarget) : undefined;
 }
 
 function resolveAcpRegistryPlatformTargetCandidates(
   platformTarget: AcpRegistryPlatformTarget | undefined,
-): ReadonlyArray<AcpRegistryPlatformTarget>;
-function resolveAcpRegistryPlatformTargetCandidates(
-  platformTarget: AcpRegistryPlatformTarget | undefined,
-) {
-  if (platformTarget === undefined) return [] satisfies ReadonlyArray<AcpRegistryPlatformTarget>;
+): ReadonlyArray<AcpRegistryPlatformTarget> {
+  if (platformTarget === undefined) return [];
   if (platformTarget === "windows-aarch64") {
-    return ["windows-aarch64", "windows-x86_64"] satisfies ReadonlyArray<AcpRegistryPlatformTarget>;
+    return ["windows-aarch64", "windows-x86_64"];
   }
-  return [platformTarget] satisfies ReadonlyArray<AcpRegistryPlatformTarget>;
+  return [platformTarget];
 }
 
-function parseNpxPackageSpec(packageSpec: string) {
+interface ExactPackageSpec {
+  readonly name: string;
+  readonly version: string;
+}
+
+function parseNpxPackageSpec(packageSpec: string): ExactPackageSpec {
   const separator = packageSpec.lastIndexOf("@");
   return {
     name: packageSpec.slice(0, separator),
@@ -271,7 +267,7 @@ function parseNpxPackageSpec(packageSpec: string) {
   };
 }
 
-function parseUvxPackageSpec(packageSpec: string) {
+function parseUvxPackageSpec(packageSpec: string): ExactPackageSpec {
   const equalsSeparator = packageSpec.lastIndexOf("==");
   const separator = equalsSeparator >= 0 ? equalsSeparator : packageSpec.lastIndexOf("@");
   const separatorLength = equalsSeparator >= 0 ? 2 : 1;
@@ -281,11 +277,14 @@ function parseUvxPackageSpec(packageSpec: string) {
   };
 }
 
-function packageManagerFor(distribution: AcpRegistryDistributionKind) {
+function packageManagerFor(distribution: AcpRegistryDistributionKind): "npm" | "uv" | undefined {
   return distribution === "npx" ? "npm" : distribution === "uvx" ? "uv" : undefined;
 }
 
-function packageCommandCandidates(agent: AcpRegistryAgent, packageName: string) {
+function packageCommandCandidates(
+  agent: AcpRegistryAgent,
+  packageName: string,
+): ReadonlyArray<string> {
   const unscopedPackageName = packageName.split("/").pop() ?? packageName;
   return Array.from(
     new Set(
@@ -296,7 +295,10 @@ function packageCommandCandidates(agent: AcpRegistryAgent, packageName: string) 
   );
 }
 
-function readEnvironmentPath(environment: NodeJS.ProcessEnv, platform: NodeJS.Platform) {
+function readEnvironmentPath(
+  environment: NodeJS.ProcessEnv,
+  platform: NodeJS.Platform,
+): string | undefined {
   if (platform !== "win32") return environment.PATH;
   return (
     environment.PATH ??
@@ -308,7 +310,7 @@ function withPreferredPath(
   environment: NodeJS.ProcessEnv,
   directory: string,
   platform: NodeJS.Platform,
-) {
+): NodeJS.ProcessEnv {
   return {
     ...environment,
     PATH: mergePathEntries(directory, readEnvironmentPath(environment, platform), platform),
@@ -321,7 +323,7 @@ export const acpRegistryManagedBinaryDirectories = Effect.fn("acpRegistryManaged
     readonly toolsDir: string;
     readonly platform: NodeJS.Platform;
     readonly architecture: NodeJS.Architecture;
-  }) {
+  }): Effect.fn.Return<ReadonlyArray<string>, never, FileSystem.FileSystem | Path.Path> {
     const fileSystem = yield* FileSystem.FileSystem;
     const path = yield* Path.Path;
     const target = resolveAcpRegistryPlatformTarget(input.platform, input.architecture);
@@ -329,7 +331,7 @@ export const acpRegistryManagedBinaryDirectories = Effect.fn("acpRegistryManaged
     const installsDirectory = input.toolsDir;
     const packageReceiptsDirectory = path.join(registryDirectory, "package-installs");
     const listDirectories = (directory: string) =>
-      fileSystem.readDirectory(directory).pipe(Effect.orElseSucceed(() => []));
+      fileSystem.readDirectory(directory).pipe(Effect.orElseSucceed((): Array<string> => []));
     const directories: Array<string> = [];
 
     for (const receiptFile of (yield* listDirectories(packageReceiptsDirectory)).toSorted()) {
@@ -370,7 +372,7 @@ export const acpRegistryManagedBinaryDirectories = Effect.fn("acpRegistryManaged
             return Option.isSome(decoded) ? [decoded.value] : [];
           }),
         ),
-        Effect.orElseSucceed(() => []),
+        Effect.orElseSucceed((): ReadonlyArray<AcpRegistryAgent> => []),
       );
     const cachedAgentByInstall = new Map(
       cachedAgents.map(
@@ -418,7 +420,7 @@ export function resolveAcpRegistryDistribution(input: {
   readonly agent: AcpRegistryAgent;
   readonly preference: AcpRegistryDistributionPreference;
   readonly platformTarget: AcpRegistryPlatformTarget | undefined;
-}) {
+}): ResolvedAcpRegistryDistribution | undefined {
   const { agent, platformTarget } = input;
   const binary = resolveAcpRegistryPlatformTargetCandidates(platformTarget)
     .map((candidate) => agent.distribution.binary?.[candidate])
@@ -547,12 +549,11 @@ const INSTALL_LOCK_RETRY_DELAY = "100 millis";
 const INSTALL_LOCK_STALE_MS = 5 * 60 * 1_000;
 const PREPARED_BINARY_RESERVATION_MS = 30 * 1_000;
 
-function isAlreadyExists(error: PlatformError.PlatformError) {
+function isAlreadyExists(error: PlatformError.PlatformError): boolean {
   return error.reason._tag === "AlreadyExists";
 }
 
-function normalizeRegistryCommandPath(command: string): ReadonlyArray<string> | undefined;
-function normalizeRegistryCommandPath(command: string) {
+function normalizeRegistryCommandPath(command: string): ReadonlyArray<string> | undefined {
   const normalized = command.trim().replaceAll("\\", "/").replace(/^\.\//u, "");
   const segments = normalized.split("/").filter((segment) => segment.length > 0);
   if (
@@ -561,12 +562,12 @@ function normalizeRegistryCommandPath(command: string) {
     /^[a-zA-Z]:/u.test(normalized) ||
     segments.some((segment) => segment === "." || segment === "..")
   ) {
-    return undefined satisfies ReadonlyArray<string> | undefined;
+    return undefined;
   }
-  return segments satisfies ReadonlyArray<string> | undefined;
+  return segments;
 }
 
-function validateArchiveEntries(output: string) {
+function validateArchiveEntries(output: string): boolean {
   return output
     .split(/\r?\n/u)
     .map((entry) => entry.trim())
@@ -576,7 +577,7 @@ function validateArchiveEntries(output: string) {
 
 type ArchiveKind = "raw" | "tar_bz2" | "tar_gz" | "zip";
 
-function archiveKind(url: string) {
+function archiveKind(url: string): ArchiveKind {
   const pathname = new URL(url).pathname.toLowerCase();
   if (pathname.endsWith(".tar.gz") || pathname.endsWith(".tgz")) return "tar_gz";
   if (pathname.endsWith(".tar.bz2") || pathname.endsWith(".tbz2")) return "tar_bz2";
@@ -584,7 +585,7 @@ function archiveKind(url: string) {
   return "raw";
 }
 
-function archiveFileName(kind: ArchiveKind) {
+function archiveFileName(kind: ArchiveKind): string {
   switch (kind) {
     case "tar_gz":
       return "agent.tar.gz";
@@ -597,11 +598,11 @@ function archiveFileName(kind: ArchiveKind) {
   }
 }
 
-function compareText(left: string, right: string) {
+function compareText(left: string, right: string): number {
   return left < right ? -1 : left > right ? 1 : 0;
 }
 
-function searchRank(agent: AcpRegistryAgent, query: string) {
+function searchRank(agent: AcpRegistryAgent, query: string): number | undefined {
   const normalized = query.trim().toLowerCase();
   if (normalized.length === 0) return 100;
 
@@ -623,7 +624,17 @@ function searchRank(agent: AcpRegistryAgent, query: string) {
 
 export const makeAcpRegistryCatalog = Effect.fn("AcpRegistryCatalog.make")(function* (
   input: AcpRegistryCatalogOptions,
-) {
+): Effect.fn.Return<
+  AcpRegistryCatalog["Service"],
+  never,
+  | ChildProcessSpawner.ChildProcessSpawner
+  | SecureRandom.SecureRandom
+  | Digest.Digest
+  | FileSystem.FileSystem
+  | HttpClient.HttpClient
+  | Path.Path
+  | ProviderHost.ProviderHost
+> {
   const random = yield* SecureRandom.SecureRandom;
   const digester = yield* Digest.Digest;
   const sha256Hex = (data: Uint8Array) =>
@@ -1077,7 +1088,7 @@ export const makeAcpRegistryCatalog = Effect.fn("AcpRegistryCatalog.make")(funct
     agent: AcpRegistryAgent,
     packageName: string,
     manifest: typeof NpmPackageManifest.Type,
-  ) => {
+  ): string | undefined => {
     const packageBaseName = packageName.split("/").pop() ?? packageName;
     if (typeof manifest.bin === "string") return packageBaseName;
     const entries = Object.entries(manifest.bin).toSorted(([left], [right]) =>
@@ -1379,7 +1390,7 @@ export const makeAcpRegistryCatalog = Effect.fn("AcpRegistryCatalog.make")(funct
       const agentRoot = path.join(installsDirectory, agentId);
       const versions = yield* fileSystem
         .readDirectory(agentRoot)
-        .pipe(Effect.orElseSucceed(() => []));
+        .pipe(Effect.orElseSucceed((): Array<string> => []));
       for (const version of versions) {
         for (const candidateTarget of resolveAcpRegistryPlatformTargetCandidates(platformTarget)) {
           if (

@@ -10,7 +10,7 @@ function shouldLiveRefresh(input: {
   readonly visible: boolean;
   readonly now: number;
   readonly lastRefreshedAt: number;
-}) {
+}): boolean {
   return input.visible && input.now - input.lastRefreshedAt >= LIVE_REFRESH_MIN_INTERVAL_MS;
 }
 
@@ -18,7 +18,7 @@ function shouldRefreshOnArrival(input: {
   readonly visible: boolean;
   readonly now: number;
   readonly lastRefreshedAt: number | undefined;
-}) {
+}): boolean {
   return (
     input.lastRefreshedAt !== undefined &&
     shouldLiveRefresh({ ...input, lastRefreshedAt: input.lastRefreshedAt })
@@ -30,7 +30,7 @@ function shouldRefreshOnInterval(input: {
   readonly now: number;
   readonly lastRefreshedAt: number;
   readonly lastInteractedAt: number;
-}) {
+}): boolean {
   return (
     input.now - input.lastInteractedAt < LIVE_REFRESH_IDLE_AFTER_MS && shouldLiveRefresh(input)
   );
@@ -48,7 +48,7 @@ const noteInteraction = () => {
   if (wasIdle) for (const resume of interactionWatchers) resume();
 };
 
-function watchInteraction(resume: () => void) {
+function watchInteraction(resume: () => void): () => void {
   if (interactionWatchers.size === 0) {
     lastInteractedAt = Date.now();
     for (const event of INTERACTION_EVENTS) {
@@ -79,7 +79,7 @@ export function useLiveRefresh(
      */
     readonly refreshOnShow?: boolean;
   } = {},
-) {
+): void {
   const {
     enabled = true,
     key,

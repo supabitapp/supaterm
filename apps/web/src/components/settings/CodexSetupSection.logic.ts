@@ -1,7 +1,7 @@
 import type { PreparedConnection } from "@supaterm/client-runtime/connection";
 import { isLoopbackHost } from "@supaterm/shared/preview";
 
-export function isLocalProviderAuthConnection(connection: PreparedConnection | null) {
+export function isLocalProviderAuthConnection(connection: PreparedConnection | null): boolean {
   return (
     connection !== null &&
     connection.connectionMethod !== "relay" &&
@@ -14,7 +14,7 @@ import type {
   ProviderInstallState,
 } from "@supaterm/contracts";
 
-export function readCodexSetupMode(config: unknown) {
+export function readCodexSetupMode(config: unknown): "managed" | "existing" {
   return config !== null &&
     typeof config === "object" &&
     "setupMode" in config &&
@@ -33,7 +33,7 @@ const RUNNING_INSTALL_PHASES = new Set(["downloading", "extracting", "verifying"
 export function settleProviderInstall(
   started: ProviderInstallState,
   current: ProviderInstallState | null,
-) {
+): boolean | undefined {
   const state = RUNNING_INSTALL_PHASES.has(started.phase)
     ? current?.operationId === started.operationId
       ? current
@@ -49,7 +49,10 @@ export function settleProviderInstall(
  * starting. A `flowId` limits this to one flow, because auth state is shared
  * per instance and another client can start a flow of its own.
  */
-export function settleAuthorizationPage(state: ProviderAuthState | null, flowId: string | null) {
+export function settleAuthorizationPage(
+  state: ProviderAuthState | null,
+  flowId: string | null,
+): string | null | undefined {
   if (state === null || state.flowId === null) return undefined;
   if (flowId !== null && state.flowId !== flowId) return undefined;
   if (state.phase === "succeeded" || state.phase === "failed" || state.phase === "cancelled")
@@ -60,7 +63,9 @@ export function settleAuthorizationPage(state: ProviderAuthState | null, flowId:
   return url ?? undefined;
 }
 
-export function settleHandoffAuthorizationPage(state: ChatGptHandoffState | null) {
+export function settleHandoffAuthorizationPage(
+  state: ChatGptHandoffState | null,
+): string | null | undefined {
   if (state === null) return undefined;
   return state.phase === "finished" ? null : settleAuthorizationPage(state.state, null);
 }

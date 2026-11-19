@@ -79,26 +79,34 @@ const THEME_UTILITY_PREFIXES: Readonly<Record<ThemePaintKind, ReadonlyArray<stri
   foreground: ["text-", "caret-", "fill-", "stroke-"],
 };
 
-function clearThemeInspectorAttribute(attribute: string) {
+function clearThemeInspectorAttribute(attribute: string): void {
   document
     .querySelectorAll(`[${attribute}]`)
     .forEach((element) => element.removeAttribute(attribute));
 }
 
-export function clearThemeInspectorHighlights() {
+export function clearThemeInspectorHighlights(): void {
   clearThemeInspectorAttribute(THEME_INSPECTOR_MATCH_ATTRIBUTE);
   document.getElementById(THEME_SPOTLIGHT_ID)?.remove();
 }
 
-export function clearThemeInspectorHover() {
+export function clearThemeInspectorHover(): void {
   document.getElementById(THEME_HOVER_ID)?.remove();
 }
 
-function svgElement<Name extends keyof SVGElementTagNameMap>(name: Name) {
+function svgElement<Name extends keyof SVGElementTagNameMap>(
+  name: Name,
+): SVGElementTagNameMap[Name] {
   return document.createElementNS(SVG_NAMESPACE, name);
 }
 
-function spotlightRect(element: Element) {
+function spotlightRect(element: Element): {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  radius: number;
+} | null {
   const bounds = element.getBoundingClientRect();
   if (
     bounds.width <= 0 ||
@@ -125,7 +133,7 @@ function spotlightRect(element: Element) {
   };
 }
 
-export function showThemeInspectorHover(inspection: ThemeElementInspection, label: string) {
+export function showThemeInspectorHover(inspection: ThemeElementInspection, label: string): void {
   const rectangle = spotlightRect(inspection.element);
   if (!rectangle) {
     clearThemeInspectorHover();
@@ -153,7 +161,7 @@ export function showThemeInspectorHover(inspection: ThemeElementInspection, labe
   if (tokenLabel) tokenLabel.textContent = label;
 }
 
-function renderThemeInspectorSpotlight(elements: ReadonlyArray<Element>) {
+function renderThemeInspectorSpotlight(elements: ReadonlyArray<Element>): void {
   const rectangles = new Map<string, NonNullable<ReturnType<typeof spotlightRect>>>();
   for (const element of elements) {
     const rectangle = spotlightRect(element);
@@ -233,13 +241,13 @@ function renderThemeInspectorSpotlight(elements: ReadonlyArray<Element>) {
   spotlight.replaceChildren(definitions, dimmer, glowGroup);
 }
 
-export function refreshThemeInspectorSpotlight() {
+export function refreshThemeInspectorSpotlight(): void {
   renderThemeInspectorSpotlight([
     ...document.querySelectorAll(`[${THEME_INSPECTOR_MATCH_ATTRIBUTE}]`),
   ]);
 }
 
-function elementHasVisibleText(element: Element) {
+function elementHasVisibleText(element: Element): boolean {
   if (element.matches("input, textarea, select, option")) return true;
   return Array.from(element.childNodes).some(
     (node) => node.nodeType === Node.TEXT_NODE && Boolean(node.textContent?.trim()),
@@ -249,7 +257,7 @@ function elementHasVisibleText(element: Element) {
 function getThemePaintSnapshot(
   element: Element,
   { forHitTest = false }: { forHitTest?: boolean } = {},
-) {
+): ThemePaintSnapshot | null {
   const style = window.getComputedStyle(element);
   if (style.display === "none" || style.visibility === "hidden" || Number(style.opacity) === 0) {
     return null;
@@ -284,11 +292,14 @@ function getThemePaintSnapshot(
   };
 }
 
-function changedThemePaintKinds(before: ThemePaintSnapshot, after: ThemePaintSnapshot) {
+function changedThemePaintKinds(
+  before: ThemePaintSnapshot,
+  after: ThemePaintSnapshot,
+): ReadonlyArray<ThemePaintKind> {
   return THEME_PAINT_KIND_ORDER.filter((kind) => before[kind] !== after[kind]);
 }
 
-function withThemeTokenProbeSession<Result>(run: () => Result) {
+function withThemeTokenProbeSession<Result>(run: () => Result): Result {
   const root = document.documentElement;
   const wasAlreadyProbing = root.hasAttribute(THEME_TOKEN_PROBE_ATTRIBUTE);
   if (!wasAlreadyProbing) root.setAttribute(THEME_TOKEN_PROBE_ATTRIBUTE, "");
@@ -300,7 +311,7 @@ function withThemeTokenProbeSession<Result>(run: () => Result) {
   }
 }
 
-function applyThemeTokenProbe(role: ThemeColorRole) {
+function applyThemeTokenProbe(role: ThemeColorRole): () => void {
   const root = document.documentElement;
   const variable = getThemeColorVariable(role);
   const originalValue = root.style.getPropertyValue(variable);
@@ -321,14 +332,14 @@ function applyThemeTokenProbe(role: ThemeColorRole) {
   };
 }
 
-function applyThemeTokenProbes(roles: ReadonlyArray<ThemeColorRole>) {
+function applyThemeTokenProbes(roles: ReadonlyArray<ThemeColorRole>): () => void {
   const restores = roles.map(applyThemeTokenProbe);
   return () => {
     for (const restore of restores.toReversed()) restore();
   };
 }
 
-function themeInspectorCandidates() {
+function themeInspectorCandidates(): ReadonlyArray<Element> {
   return [document.body, ...document.body.querySelectorAll("*")].filter(
     (element) =>
       !element.closest("[data-theme-editor-panel]") &&
@@ -336,7 +347,7 @@ function themeInspectorCandidates() {
   );
 }
 
-function themeRoleFromUtilityClass(className: string, kind: ThemePaintKind) {
+function themeRoleFromUtilityClass(className: string, kind: ThemePaintKind): ThemeColorRole | null {
   if (className.includes(":")) return null;
   for (const prefix of THEME_UTILITY_PREFIXES[kind]) {
     if (!className.startsWith(prefix)) continue;
@@ -346,7 +357,7 @@ function themeRoleFromUtilityClass(className: string, kind: ThemePaintKind) {
   return null;
 }
 
-function themeRoleFromUtilities(element: Element) {
+function themeRoleFromUtilities(element: Element): ThemeColorRole | null {
   for (const kind of THEME_PAINT_KIND_ORDER) {
     for (const className of element.classList) {
       const role = themeRoleFromUtilityClass(className, kind);
@@ -356,7 +367,7 @@ function themeRoleFromUtilities(element: Element) {
   return null;
 }
 
-function themeInspectionCandidates(initialElement: Element) {
+function themeInspectionCandidates(initialElement: Element): ReadonlyArray<Element> {
   const candidates: Array<Element> = [];
   let element: Element | null = initialElement;
   while (element && element !== document.documentElement) {
@@ -366,7 +377,9 @@ function themeInspectionCandidates(initialElement: Element) {
   return candidates;
 }
 
-export function inspectThemeRoleFromUtilitiesAtElement(initialElement: Element) {
+export function inspectThemeRoleFromUtilitiesAtElement(
+  initialElement: Element,
+): ThemeElementInspection | null {
   if (initialElement.closest("[data-theme-editor-panel]")) return null;
   for (const candidate of themeInspectionCandidates(initialElement)) {
     const role = themeRoleFromUtilities(candidate);
@@ -375,7 +388,7 @@ export function inspectThemeRoleFromUtilitiesAtElement(initialElement: Element) 
   return null;
 }
 
-export function highlightThemeRoleUsage(roles: ReadonlyArray<ThemeColorRole>) {
+export function highlightThemeRoleUsage(roles: ReadonlyArray<ThemeColorRole>): number {
   clearThemeInspectorAttribute(THEME_INSPECTOR_MATCH_ATTRIBUTE);
   const candidates = themeInspectorCandidates();
   const matches = withThemeTokenProbeSession(() => {
@@ -411,7 +424,7 @@ export function highlightThemeRoleUsage(roles: ReadonlyArray<ThemeColorRole>) {
   return highlightedElements.size;
 }
 
-export function inspectThemeRoleAtElement(initialElement: Element) {
+export function inspectThemeRoleAtElement(initialElement: Element): ThemeElementInspection | null {
   if (initialElement.closest("[data-theme-editor-panel]")) return null;
 
   const candidates = themeInspectionCandidates(initialElement);

@@ -6,7 +6,7 @@ export async function waitForAtomValue<A>(input: {
   readonly predicate: (value: A) => boolean;
   readonly timeoutMs?: number;
   readonly signal?: AbortSignal;
-}) {
+}): Promise<boolean> {
   if (input.signal?.aborted) return false;
   const read = () => input.registry.get(input.atom);
   if (input.predicate(read())) {

@@ -22,7 +22,7 @@ const window = {
 } as const;
 const limits = { checkedAt, windows: [window] };
 const deepLink = "supaterm-dev://settings/usage?tab=limits";
-function provider(overrides: Partial<ServerProvider> = {}) {
+function provider(overrides: Partial<ServerProvider> = {}): ServerProvider {
   return {
     instanceId: ProviderInstanceId.make("codex"),
     driver: ProviderDriverKind.make("codex"),
@@ -37,7 +37,7 @@ function provider(overrides: Partial<ServerProvider> = {}) {
     skills: [],
     usageLimits: limits,
     ...overrides,
-  } satisfies ServerProvider;
+  };
 }
 function presentations(providers: readonly ServerProvider[] = [provider()]) {
   return new Map([

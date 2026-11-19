@@ -20,11 +20,11 @@ const sharp = NodeModule.createRequire(
 
 const SIZE = 64;
 
-function attribute(name: string, value: string | number | undefined) {
+function attribute(name: string, value: string | number | undefined): string {
   return value === undefined ? "" : ` ${name}="${value}"`;
 }
 
-function svgMarkup(icon: SourceControlIcon) {
+function svgMarkup(icon: SourceControlIcon): string {
   const paint = (value: SourceControlIcon["paths"][number]["fill"]) =>
     value === undefined
       ? "none"

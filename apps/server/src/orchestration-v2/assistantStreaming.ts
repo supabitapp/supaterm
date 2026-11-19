@@ -25,7 +25,7 @@ const EMPTY_SCAN: AssistantTextScan = {
   titleAwaitingContent: false,
 };
 
-function trimLineEnd(text: string, start: number, end: number) {
+function trimLineEnd(text: string, start: number, end: number): string {
   while (end > start) {
     const char = text.charCodeAt(end - 1);
     if (char !== 32 && char !== 9 && char !== 13) break;
@@ -34,7 +34,7 @@ function trimLineEnd(text: string, start: number, end: number) {
   return text.slice(start, end);
 }
 
-function advanceScan(previous: AssistantTextScan, text: string) {
+function advanceScan(previous: AssistantTextScan, text: string): AssistantTextScan {
   const resumed = text.startsWith(previous.text);
   let { openFence, boundary, lineStart, titleAwaitingContent } = resumed ? previous : EMPTY_SCAN;
   let searchFrom = resumed ? previous.text.length : 0;
@@ -82,7 +82,7 @@ function advanceScan(previous: AssistantTextScan, text: string) {
   return { text, lineStart, openFence, boundary, titleAwaitingContent };
 }
 
-function readyBoundary(scan: AssistantTextScan) {
+function readyBoundary(scan: AssistantTextScan): number {
   if (scan.openFence === null && scan.lineStart > 0 && !scan.titleAwaitingContent) {
     PARTIAL_LIST_ITEM_START_PATTERN.lastIndex = scan.lineStart;
     if (PARTIAL_LIST_ITEM_START_PATTERN.test(scan.text)) return scan.lineStart;
@@ -91,7 +91,7 @@ function readyBoundary(scan: AssistantTextScan) {
 }
 
 /** Emit terminated lines only, except partial list-start lookahead for tight lists. Hold section titles until content follows. */
-export function splitBufferedAssistantText(text: string) {
+export function splitBufferedAssistantText(text: string): { ready: string; rest: string } {
   const boundary = readyBoundary(advanceScan(EMPTY_SCAN, text));
   if (boundary === -1) {
     return { ready: "", rest: text };
@@ -101,6 +101,12 @@ export function splitBufferedAssistantText(text: string) {
 
 const ASSISTANT_IDLE_FLUSH_MS = 800;
 
+type StreamedMessage = {
+  readonly id: string;
+  readonly text: string;
+  readonly streaming: boolean;
+};
+
 interface StreamTrack {
   readonly text: string;
   readonly at: number;
@@ -109,7 +115,7 @@ interface StreamTrack {
   readonly scan: AssistantTextScan;
 }
 
-function streamedMessage(event: ProviderAdapter.ProviderAdapterV2Event) {
+function streamedMessage(event: ProviderAdapter.ProviderAdapterV2Event): StreamedMessage | null {
   if (event.type === "message.updated" && event.message.role === "assistant") return event.message;
   if (
     event.type === "turn_item.updated" &&
@@ -119,7 +125,10 @@ function streamedMessage(event: ProviderAdapter.ProviderAdapterV2Event) {
   return null;
 }
 
-function withText(event: ProviderAdapter.ProviderAdapterV2Event, text: string) {
+function withText(
+  event: ProviderAdapter.ProviderAdapterV2Event,
+  text: string,
+): ProviderAdapter.ProviderAdapterV2Event {
   if (event.type === "message.updated") return { ...event, message: { ...event.message, text } };
   if (
     event.type === "turn_item.updated" &&
@@ -146,7 +155,10 @@ export function makeAssistantStreamingFilter(
       nextDueAt = value.dueAt;
   };
   return {
-    filter(event: ProviderAdapter.ProviderAdapterV2Event, now: number) {
+    filter(
+      event: ProviderAdapter.ProviderAdapterV2Event,
+      now: number,
+    ): ProviderAdapter.ProviderAdapterV2Event | null {
       if (
         event.type === "node.updated" &&
         event.node.kind === "assistant_message" &&
@@ -187,8 +199,8 @@ export function makeAssistantStreamingFilter(
       });
       return withText(event, ready);
     },
-    nextIdleFlushAt: () => nextDueAt,
-    takeIdleFlushes(now: number) {
+    nextIdleFlushAt: (): number | null => nextDueAt,
+    takeIdleFlushes(now: number): ReadonlyArray<ProviderAdapter.ProviderAdapterV2Event> {
       const due: Array<ProviderAdapter.ProviderAdapterV2Event> = [];
       nextDueAt = null;
       for (const [key, current] of tracks) {

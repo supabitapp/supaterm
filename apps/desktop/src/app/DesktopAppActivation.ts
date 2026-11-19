@@ -41,22 +41,27 @@ export class DesktopAppActivationStartError extends Schema.TaggedError<DesktopAp
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Could not start the desktop app control socket at ${this.address}.`;
   }
 }
 
-function invalidResponse(requestId: string, message: string) {
+interface RunningControlServer {
+  readonly reclaim: () => Promise<void>;
+  readonly close: () => Promise<void>;
+}
+
+function invalidResponse(requestId: string, message: string): DesktopAppActivationResponse {
   return {
     version: DESKTOP_APP_ACTIVATION_PROTOCOL_VERSION,
     requestId,
     ok: false,
     code: "invalid-request",
     message,
-  } satisfies DesktopAppActivationResponse;
+  };
 }
 
-function requestIdFromUnknown(value: unknown) {
+function requestIdFromUnknown(value: unknown): string {
   if (
     typeof value === "object" &&
     value !== null &&
@@ -72,7 +77,7 @@ function requestIdFromUnknown(value: unknown) {
 async function prepareUnixDirectory(input: {
   readonly directory: string;
   readonly userId: number | undefined;
-}) {
+}): Promise<boolean> {
   const created = await NodeFSP.mkdir(input.directory, { recursive: true, mode: 0o700 });
   const stat = await NodeFSP.lstat(input.directory);
   if (!stat.isDirectory() || stat.isSymbolicLink()) {
@@ -85,7 +90,7 @@ async function prepareUnixDirectory(input: {
   return created !== undefined;
 }
 
-async function inodeAt(path: string) {
+async function inodeAt(path: string): Promise<number | null> {
   return NodeFSP.lstat(path).then(
     (stat) => stat.ino,
     (error: NodeJS.ErrnoException) => {
@@ -95,8 +100,8 @@ async function inodeAt(path: string) {
   );
 }
 
-function closeServer(server: NodeNet.Server) {
-  return new Promise((resolve) => server.close(() => resolve())) satisfies Promise<void>;
+function closeServer(server: NodeNet.Server): Promise<void> {
+  return new Promise((resolve) => server.close(() => resolve()));
 }
 
 export async function startDesktopAppControlServer(input: {
@@ -106,7 +111,7 @@ export async function startDesktopAppControlServer(input: {
   readonly handle: (request: DesktopAppActivationRequest) => Promise<DesktopAppActivationResponse>;
   readonly cancel: (requestId: string) => void;
   readonly onReclaimError: (error: unknown) => void;
-}) {
+}): Promise<RunningControlServer> {
   const sockets = new Set<NodeNet.Socket>();
   const handleConnection = (socket: NodeNet.Socket) => {
     sockets.add(socket);

@@ -10,8 +10,7 @@ export interface WorkspaceFilterMenu {
   readonly customized: boolean;
 }
 
-export function workspaceFilterAppBarMenu(menu: WorkspaceFilterMenu): AppBarMenu;
-export function workspaceFilterAppBarMenu(menu: WorkspaceFilterMenu) {
+export function workspaceFilterAppBarMenu(menu: WorkspaceFilterMenu): AppBarMenu {
   return {
     title: menu.accessibilityLabel,
     status: menu.title,
@@ -21,5 +20,5 @@ export function workspaceFilterAppBarMenu(menu: WorkspaceFilterMenu) {
     items: appBarMenuItemsFromActions(menu.actions, (event) =>
       menu.onPressAction({ nativeEvent: { event } }),
     ),
-  } satisfies AppBarMenu;
+  };
 }

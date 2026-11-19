@@ -56,7 +56,7 @@ export function createFileSaveSessions(deps: FileSaveSessionDeps) {
     if (unsaved !== null) coordinator.change(unsaved);
   };
 
-  const create = (key: string, target: FileSaveTarget) => {
+  const create = (key: string, target: FileSaveTarget): FileSaveSession => {
     const listeners = new Map<FilePendingListener, number>();
     const coordinator: FileSaveCoordinator = new FileSaveCoordinator({
       debounceMs: deps.debounceMs,
@@ -88,7 +88,7 @@ export function createFileSaveSessions(deps: FileSaveSessionDeps) {
     return session;
   };
 
-  const acquire = (target: FileSaveTarget, onPendingChange: FilePendingListener) => {
+  const acquire = (target: FileSaveTarget, onPendingChange: FilePendingListener): (() => void) => {
     const key = fileSaveKey(target);
     const existing = sessions.get(key);
     const session = existing ?? create(key, target);
@@ -118,14 +118,14 @@ export function createFileSaveSessions(deps: FileSaveSessionDeps) {
 
   return {
     acquire,
-    change(target: FileSaveTarget, contents: string) {
+    change(target: FileSaveTarget, contents: string): void {
       const session = sessions.get(fileSaveKey(target));
       if (session && session.leases > 0) session.coordinator.change(contents);
     },
   };
 }
 
-function fileSaveKey({ environmentId, cwd, relativePath }: FileSaveTarget) {
+function fileSaveKey({ environmentId, cwd, relativePath }: FileSaveTarget): string {
   return `${environmentId}\u0000${cwd}\u0000${relativePath}`;
 }
 
@@ -158,7 +158,7 @@ const fileSaveSessions = createFileSaveSessions({
 export function useFileSaveSession(
   { environmentId, cwd, relativePath }: FileSaveTarget,
   onPendingChange: FilePendingListener,
-) {
+): void {
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- the lease is a mount-scoped external resource; React runs every unmount cleanup before mount setups, so a surface switch flushes before the next surface recovers.
   useEffect(
     () => fileSaveSessions.acquire({ environmentId, cwd, relativePath }, onPendingChange),
@@ -166,6 +166,6 @@ export function useFileSaveSession(
   );
 }
 
-export function changeFileSaveSession(target: FileSaveTarget, contents: string) {
+export function changeFileSaveSession(target: FileSaveTarget, contents: string): void {
   fileSaveSessions.change(target, contents);
 }

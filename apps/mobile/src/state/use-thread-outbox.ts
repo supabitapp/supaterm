@@ -8,16 +8,18 @@ import { environmentShell } from "./shell";
 import { threadOutboxManager } from "./thread-outbox";
 import { composerDraftsAtom } from "./use-composer-drafts";
 
-export const threadOutboxShellStatusesAtom = Atom.make((get) => {
-  const statuses = new Map<EnvironmentId, EnvironmentShellStatus>();
-  for (const queue of Object.values(get(threadOutboxManager.queuedMessagesByThreadKeyAtom))) {
-    const environmentId = queue[0]?.environmentId;
-    if (environmentId !== undefined && !statuses.has(environmentId)) {
-      statuses.set(environmentId, get(environmentShell.stateValueAtom(environmentId)).status);
+export const threadOutboxShellStatusesAtom = Atom.make(
+  (get): ReadonlyMap<EnvironmentId, EnvironmentShellStatus> => {
+    const statuses = new Map<EnvironmentId, EnvironmentShellStatus>();
+    for (const queue of Object.values(get(threadOutboxManager.queuedMessagesByThreadKeyAtom))) {
+      const environmentId = queue[0]?.environmentId;
+      if (environmentId !== undefined && !statuses.has(environmentId)) {
+        statuses.set(environmentId, get(environmentShell.stateValueAtom(environmentId)).status);
+      }
     }
-  }
-  return statuses;
-}).pipe(Atom.withLabel("mobile:thread-outbox:shell-statuses"));
+    return statuses;
+  },
+).pipe(Atom.withLabel("mobile:thread-outbox:shell-statuses"));
 
 /**
  * Queued pending tasks the outbox drain must not deliver right now: the one
@@ -39,7 +41,7 @@ export const retryingQueuedMessageIdsAtom = Atom.make<Readonly<Partial<Record<Me
   {},
 ).pipe(Atom.keepAlive, Atom.withLabel("mobile:thread-outbox:retrying-message-ids"));
 
-export function holdEditingQueuedMessage(messageId: MessageId) {
+export function holdEditingQueuedMessage(messageId: MessageId): boolean {
   const current = appAtomRegistry.get(editingQueuedMessageIdsAtom);
   if (current[messageId] === "editing" || current[messageId] === "deleting") {
     return false;
@@ -49,7 +51,7 @@ export function holdEditingQueuedMessage(messageId: MessageId) {
 }
 
 /** Ends the editor's ownership while retaining its protection against stale sends. */
-export function pauseEditingQueuedMessage(messageId: MessageId) {
+export function pauseEditingQueuedMessage(messageId: MessageId): void {
   const current = appAtomRegistry.get(editingQueuedMessageIdsAtom);
   if (current[messageId] === "editing") {
     appAtomRegistry.set(editingQueuedMessageIdsAtom, { ...current, [messageId]: "paused" });
@@ -57,17 +59,16 @@ export function pauseEditingQueuedMessage(messageId: MessageId) {
 }
 
 /** A dismissed editor's retained draft must not prevent an explicit deletion. */
-export function holdDeletingQueuedMessage(messageId: MessageId): boolean;
-export function holdDeletingQueuedMessage(messageId: MessageId) {
+export function holdDeletingQueuedMessage(messageId: MessageId): boolean {
   const current = appAtomRegistry.get(editingQueuedMessageIdsAtom);
   if (current[messageId] === "editing" || current[messageId] === "deleting") {
-    return false satisfies boolean;
+    return false;
   }
   appAtomRegistry.set(editingQueuedMessageIdsAtom, { ...current, [messageId]: "deleting" });
-  return true satisfies boolean;
+  return true;
 }
 
-export function releaseEditingQueuedMessage(messageId: MessageId) {
+export function releaseEditingQueuedMessage(messageId: MessageId): void {
   const current = appAtomRegistry.get(editingQueuedMessageIdsAtom);
   if (!current[messageId] || current[messageId] === "deleting") {
     return;
@@ -77,8 +78,7 @@ export function releaseEditingQueuedMessage(messageId: MessageId) {
   appAtomRegistry.set(editingQueuedMessageIdsAtom, next);
 }
 
-export function releaseDeletingQueuedMessage(messageId: MessageId, removed: boolean): void;
-export function releaseDeletingQueuedMessage(messageId: MessageId, removed: boolean) {
+export function releaseDeletingQueuedMessage(messageId: MessageId, removed: boolean): void {
   const current = appAtomRegistry.get(editingQueuedMessageIdsAtom);
   if (current[messageId] !== "deleting") {
     return;
@@ -96,7 +96,7 @@ export function useThreadOutboxMessages() {
   return useAtomValue(threadOutboxManager.queuedMessagesByThreadKeyAtom);
 }
 
-export const queuedThreadKeysAtom = Atom.make((get) => {
+export const queuedThreadKeysAtom = Atom.make((get): ReadonlySet<string> => {
   const keys = new Set<string>();
   for (const [threadKey, queue] of Object.entries(
     get(threadOutboxManager.queuedMessagesByThreadKeyAtom),
@@ -108,6 +108,6 @@ export const queuedThreadKeysAtom = Atom.make((get) => {
   return keys;
 }).pipe(Atom.keepAlive, Atom.withLabel("mobile:thread-outbox:queued-thread-keys"));
 
-export function useQueuedThreadKeys() {
+export function useQueuedThreadKeys(): ReadonlySet<string> {
   return useAtomValue(queuedThreadKeysAtom);
 }

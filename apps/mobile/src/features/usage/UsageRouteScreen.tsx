@@ -699,7 +699,7 @@ function ModelsSection(props: {
   );
 }
 
-function usageEnvironmentStatus(environment: EnvironmentUsageStatus, refreshing: boolean) {
+function usageEnvironmentStatus(environment: EnvironmentUsageStatus, refreshing: boolean): string {
   if (
     environment.summary &&
     !isCompatibleUsageContractVersion(environment.summary.contractVersion, USAGE_CONTRACT_VERSION)

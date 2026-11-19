@@ -11,7 +11,7 @@ import { buildThreadListV2Items } from "../threads/threadListV2";
 
 function makeProject(
   input: Partial<EnvironmentProject> & Pick<EnvironmentProject, "environmentId" | "id" | "title">,
-) {
+): EnvironmentProject {
   return {
     workspaceRoot: `/workspaces/${input.id}`,
     repositoryIdentity: null,
@@ -26,7 +26,7 @@ function makeProject(
 function makeThread(
   input: Partial<EnvironmentThreadShell> &
     Pick<EnvironmentThreadShell, "environmentId" | "id" | "projectId" | "title">,
-) {
+): EnvironmentThreadShell {
   return makeThreadShellFixture({
     modelSelection: { instanceId: ProviderInstanceId.make("codex"), model: "gpt-5.4" },
     runtimeMode: "full-access",

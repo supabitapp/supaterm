@@ -30,7 +30,10 @@ const PROVIDER_TEXT_COLOR_BY_PROVIDER: Partial<Record<ProviderDriverKind, string
   [ProviderDriverKind.make("antigravity")]: "text-[#5b87bf]",
 };
 
-export function providerTextColor(driverKind: ProviderDriverKind) {
+export function providerTextColor(driverKind: ProviderDriverKind): {
+  readonly className?: string;
+  readonly style?: CSSProperties;
+} {
   const icon = providerClients.get(driverKind)?.icon;
   if (icon) {
     return {
@@ -46,7 +49,7 @@ export function resolveProviderInstanceAcpRegistryIconUrl(input: {
   readonly driverKind: ProviderDriverKind;
   readonly agentId?: string | undefined;
   readonly iconUrl?: string | undefined;
-}) {
+}): string | null {
   if (input.driverKind !== "acpRegistry") return null;
   return (
     resolveOfficialAcpRegistryIconUrl(input.iconUrl ?? null) ??

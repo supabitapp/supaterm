@@ -17,7 +17,7 @@ interface AfterPackContext {
   }>;
 }
 
-export default async function afterPack(context: AfterPackContext) {
+export default async function afterPack(context: AfterPackContext): Promise<void> {
   await prepareServerCompileCache(context);
   await removeSharedWriteAccess(context.appOutDir);
   const { minimum } = await scanGlibcNeeds(context.appOutDir);
@@ -33,7 +33,7 @@ export default async function afterPack(context: AfterPackContext) {
   }
 }
 
-export async function removeSharedWriteAccess(path: string) {
+export async function removeSharedWriteAccess(path: string): Promise<void> {
   const stats = await NodeFSP.lstat(path);
   if (stats.isSymbolicLink()) return;
   if (stats.mode & 0o022) await NodeFSP.chmod(path, stats.mode & 0o7755);

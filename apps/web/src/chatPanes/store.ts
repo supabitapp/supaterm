@@ -97,8 +97,7 @@ const decodePersistedChatPaneState = Schema.decodeUnknownOption(PersistedChatPan
 
 export type ClosedPaneRecord = typeof ClosedPaneRecordSchema.Type;
 
-function createPaneStorage(): StateStorage;
-function createPaneStorage() {
+function createPaneStorage(): StateStorage {
   const session = resolveStorage(typeof window !== "undefined" ? window.sessionStorage : undefined);
   const local = resolveStorage(typeof window !== "undefined" ? window.localStorage : undefined);
   return {
@@ -117,7 +116,7 @@ function createPaneStorage() {
       session.removeItem(name);
       local.removeItem(name);
     },
-  } satisfies StateStorage;
+  };
 }
 
 /** How the URL should follow a focus change: an open adds history, a click does not. */
@@ -188,7 +187,10 @@ interface ChatPaneState {
   reopenClosed: (workspace: PaneLayoutSize | null) => boolean;
 }
 
-function remember(closed: ReadonlyArray<ClosedPaneRecord>, record: ClosedPaneRecord) {
+function remember(
+  closed: ReadonlyArray<ClosedPaneRecord>,
+  record: ClosedPaneRecord,
+): ReadonlyArray<ClosedPaneRecord> {
   return [record, ...closed].slice(0, MAX_CLOSED_RECORDS);
 }
 
@@ -489,11 +491,11 @@ export const useChatPaneStore = create<ChatPaneState>()(
   ),
 );
 
-export function newestClosedPaneAt() {
+export function newestClosedPaneAt(): number | null {
   return useChatPaneStore.getState().closed[0]?.closedAt ?? null;
 }
 
-export function isThreadShownInSplit(threadRef: ScopedThreadRef) {
+export function isThreadShownInSplit(threadRef: ScopedThreadRef): boolean {
   const { layout } = useChatPaneStore.getState();
   return (
     layout !== null &&
@@ -510,7 +512,7 @@ export function isThreadShownInSplit(threadRef: ScopedThreadRef) {
 export function closePaneShowingThread(
   threadRef: ScopedThreadRef,
   options: { readonly remember: boolean; readonly onlyInBackground?: boolean },
-) {
+): boolean {
   const { layout, close } = useChatPaneStore.getState();
   if (!layout || layout.cells.length < 2) return false;
   const pane = findPaneByTarget(layout, { kind: "server", threadRef });

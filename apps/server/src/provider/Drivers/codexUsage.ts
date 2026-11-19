@@ -35,7 +35,7 @@ type CodexTokenUsage = typeof CodexTokenUsage.Type;
 const isCodexTokenUsage = Schema.is(CodexTokenUsage);
 const CODEX_USAGE_FIELDS = Object.keys(CodexTokenUsage.fields) as (keyof CodexTokenUsage)[];
 
-function readCodexTokenUsage(value: unknown) {
+function readCodexTokenUsage(value: unknown): CodexTokenUsage | null {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
   const raw = value as Record<string, unknown>;
   const input = raw["input_tokens"];
@@ -147,8 +147,7 @@ export const CodexScanState = Schema.Struct({
 });
 export type CodexScanState = typeof CodexScanState.Type;
 
-export function initialCodexScanState(): CodexScanState;
-export function initialCodexScanState() {
+export function initialCodexScanState(): CodexScanState {
   return {
     model: "",
     speed: "standard",
@@ -162,12 +161,12 @@ export function initialCodexScanState() {
     sawThreadSettings: false,
     suppressingForkCopies: false,
     forkCopyAnchorMs: 0,
-  } satisfies CodexScanState;
+  };
 }
 
 const FORK_COPY_MAX_GAP_MS = 1000;
 
-function isForkedSessionMeta(payload: Record<string, unknown>) {
+function isForkedSessionMeta(payload: Record<string, unknown>): boolean {
   if (typeof payload["forked_from_id"] === "string") return true;
   const source = payload["source"];
   if (typeof source !== "object" || source === null) return false;
@@ -178,7 +177,7 @@ function isForkedSessionMeta(payload: Record<string, unknown>) {
   return typeof (spawn as Record<string, unknown>)["parent_thread_id"] === "string";
 }
 
-function isForkCopy(state: CodexScanState, timestampMs: number) {
+function isForkCopy(state: CodexScanState, timestampMs: number): boolean {
   if (!state.suppressingForkCopies) return false;
   if (timestampMs - state.forkCopyAnchorMs < FORK_COPY_MAX_GAP_MS) {
     state.forkCopyAnchorMs = timestampMs;
@@ -193,27 +192,27 @@ function isForkCopy(state: CodexScanState, timestampMs: number) {
  * Identified request-ledger entries report spending independently of context snapshots.
  * Legacy snapshots validate request deltas against cumulative counters.
  */
-export function parseCodexLine(line: string, state: CodexScanState) {
+export function parseCodexLine(line: string, state: CodexScanState): readonly UsageRecord[] {
   let parsed: unknown;
   try {
     parsed = JSON.parse(line);
   } catch {
-    return [] satisfies readonly UsageRecord[];
+    return [];
   }
-  return parseCodexRecord(parsed, state) satisfies readonly UsageRecord[];
+  return parseCodexRecord(parsed, state);
 }
 
-function parseCodexRecord(parsed: unknown, state: CodexScanState) {
-  if (typeof parsed !== "object" || parsed === null) return [] satisfies readonly UsageRecord[];
+function parseCodexRecord(parsed: unknown, state: CodexScanState): readonly UsageRecord[] {
+  if (typeof parsed !== "object" || parsed === null) return [];
 
   const record = parsed as Record<string, unknown>;
   const payload = record["payload"];
-  if (typeof payload !== "object" || payload === null) return [] satisfies readonly UsageRecord[];
+  if (typeof payload !== "object" || payload === null) return [];
   const payloadRecord = payload as Record<string, unknown>;
   const payloadType = payloadRecord["type"];
 
   if (record["type"] === "session_meta") {
-    if (state.sawSessionMeta) return [] satisfies readonly UsageRecord[];
+    if (state.sawSessionMeta) return [];
     state.sawSessionMeta = true;
     const id = payloadRecord["id"] ?? payloadRecord["session_id"];
     if (typeof id === "string") state.sessionId = id;
@@ -225,7 +224,7 @@ function parseCodexRecord(parsed: unknown, state: CodexScanState) {
       state.suppressingForkCopies = true;
       state.forkCopyAnchorMs = metaTimestampMs;
     }
-    return [] satisfies readonly UsageRecord[];
+    return [];
   }
 
   if (record["type"] === "turn_context") {
@@ -237,15 +236,14 @@ function parseCodexRecord(parsed: unknown, state: CodexScanState) {
       payloadRecord["model"].length > 0
         ? payloadRecord["turn_id"]
         : "";
-    return [] satisfies readonly UsageRecord[];
+    return [];
   }
 
   if (record["type"] === "token_usage_record") {
     const timestampMs = parseTimestampMs(record["timestamp"]);
     const usage = readCodexTokenUsage(payloadRecord["usage"]);
-    if (timestampMs === null || usage === null || state.model.length === 0)
-      return [] satisfies readonly UsageRecord[];
-    if (isForkCopy(state, timestampMs)) return [] satisfies readonly UsageRecord[];
+    if (timestampMs === null || usage === null || state.model.length === 0) return [];
+    if (isForkCopy(state, timestampMs)) return [];
     const responseId = payloadRecord["response_id"];
     if (typeof responseId === "string" && responseId.length > 0) {
       const pending = state.unreportedRequests ?? [];
@@ -262,11 +260,11 @@ function parseCodexRecord(parsed: unknown, state: CodexScanState) {
           ...codexRequestRecord(state, usage, codexAttribution(state, timestampMs)),
           dedupeKey: JSON.stringify(["codex", state.sessionId, responseId]),
         },
-      ] satisfies readonly UsageRecord[];
+      ];
     }
     state.requestLedgerActive = false;
     (state.unreportedRequests ??= []).push({ ...codexAttribution(state, timestampMs), usage });
-    return [] satisfies readonly UsageRecord[];
+    return [];
   }
 
   if (payloadType === "thread_settings_applied") {
@@ -275,17 +273,17 @@ function parseCodexRecord(parsed: unknown, state: CodexScanState) {
     if (typeof settings === "object" && settings !== null) {
       state.speed = codexSpeed((settings as Record<string, unknown>)["service_tier"]);
     }
-    return [] satisfies readonly UsageRecord[];
+    return [];
   }
 
-  if (payloadType !== "token_count") return [] satisfies readonly UsageRecord[];
+  if (payloadType !== "token_count") return [];
 
   const info = payloadRecord["info"];
-  if (typeof info !== "object" || info === null) return [] satisfies readonly UsageRecord[];
+  if (typeof info !== "object" || info === null) return [];
   const infoRecord = info as Record<string, unknown>;
 
   const timestampMs = parseTimestampMs(record["timestamp"]);
-  if (timestampMs === null || state.model.length === 0) return [] satisfies readonly UsageRecord[];
+  if (timestampMs === null || state.model.length === 0) return [];
 
   const last = readCodexTokenUsage(infoRecord["last_token_usage"]);
   const rawCumulative = infoRecord["total_token_usage"];
@@ -300,12 +298,12 @@ function parseCodexRecord(parsed: unknown, state: CodexScanState) {
       dateCodexBaseline(state, timestampMs);
     }
     state.lastUsageSignature = signature;
-    return [] satisfies readonly UsageRecord[];
+    return [];
   }
 
   if (state.requestLedgerActive) {
     if (cumulative !== null) rebaseCodexUsage(state, cumulative, timestampMs);
-    return [] satisfies readonly UsageRecord[];
+    return [];
   }
 
   const previous = state.lastCumulativeUsage;
@@ -314,12 +312,12 @@ function parseCodexRecord(parsed: unknown, state: CodexScanState) {
   if (cumulative !== null) rebaseCodexUsage(state, cumulative, timestampMs);
   if (last === null || (hasCumulative && cumulative === null)) {
     state.malformedRecords += 1;
-    return [] satisfies readonly UsageRecord[];
+    return [];
   }
 
   if (last.input_tokens + last.output_tokens === 0) {
     state.lastUsageSignature = null;
-    return [] satisfies readonly UsageRecord[];
+    return [];
   }
 
   if (
@@ -327,12 +325,12 @@ function parseCodexRecord(parsed: unknown, state: CodexScanState) {
     previous !== null &&
     CODEX_USAGE_FIELDS.every((key) => cumulative[key] === previous[key])
   ) {
-    return [] satisfies readonly UsageRecord[];
+    return [];
   }
 
   if (last.total_tokens !== last.input_tokens + last.output_tokens) {
     state.malformedRecords += 1;
-    return [] satisfies readonly UsageRecord[];
+    return [];
   }
 
   const signature = JSON.stringify(last);
@@ -343,7 +341,7 @@ function parseCodexRecord(parsed: unknown, state: CodexScanState) {
     if (restarted && sequenceStart === state.sequenceStartSignature) {
       state.lastCumulativeUsage = previous;
       if (latestCumulativeAtMs === undefined) delete state.latestCumulativeAtMs;
-      return [] satisfies readonly UsageRecord[];
+      return [];
     }
     const lowered =
       previous !== null && CODEX_USAGE_FIELDS.some((key) => cumulative[key] < previous[key]);
@@ -369,7 +367,7 @@ function parseCodexRecord(parsed: unknown, state: CodexScanState) {
           if (pending !== undefined) state.unreportedRequests = pending;
         }
         state.malformedRecords += 1;
-        return [] satisfies readonly UsageRecord[];
+        return [];
       }
       unreported = bridged;
     } else if (!restarted && rewound) {
@@ -377,11 +375,11 @@ function parseCodexRecord(parsed: unknown, state: CodexScanState) {
     }
     if (restarted) state.sequenceStartSignature = sequenceStart;
   } else {
-    if (signature === state.lastUsageSignature) return [] satisfies readonly UsageRecord[];
+    if (signature === state.lastUsageSignature) return [];
     const advanced = advanceCodexUsage(previous, last);
     if (advanced === null) {
       state.malformedRecords += 1;
-      return [] satisfies readonly UsageRecord[];
+      return [];
     }
     state.lastCumulativeUsage = advanced;
     dateCodexBaseline(state, timestampMs);
@@ -391,10 +389,10 @@ function parseCodexRecord(parsed: unknown, state: CodexScanState) {
   return [
     ...unreported.map((request) => codexRequestRecord(state, request.usage, request)),
     codexRequestRecord(state, last, codexAttribution(state, timestampMs)),
-  ] satisfies readonly UsageRecord[];
+  ];
 }
 
-function codexAttribution(state: CodexScanState, timestampMs: number) {
+function codexAttribution(state: CodexScanState, timestampMs: number): CodexRequestAttribution {
   return {
     timestampMs,
     model: state.model,
@@ -408,7 +406,7 @@ function codexRequestRecord(
   state: CodexScanState,
   usage: CodexTokenUsage,
   { timestampMs, model, turnId, speed, sawThreadSettings }: CodexRequestAttribution,
-) {
+): UsageRecord {
   const inputTokens = usage.input_tokens;
   const cachedInputTokens = usage.cached_input_tokens;
   const cacheCreationTokens = usage.cache_write_input_tokens;
@@ -437,10 +435,10 @@ function codexRequestRecord(
       ? { unresolvedServiceTierTurnId: turnId }
       : {}),
     dedupeKey: null,
-  } satisfies UsageRecord;
+  };
 }
 
-function codexSpeed(serviceTier: unknown) {
+function codexSpeed(serviceTier: unknown): UsageSpeed {
   if (serviceTier === "priority" || serviceTier === "fast") return "fast";
   if (serviceTier === "ultrafast") return "ultrafast";
   return "standard";

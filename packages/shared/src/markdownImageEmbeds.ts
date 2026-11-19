@@ -17,18 +17,18 @@ interface ImageNode {
   readonly children?: ReadonlyArray<ImageNode>;
 }
 
-function imagePathKey(value: string) {
+function imagePathKey(value: string): string {
   const path = stripSlashPrefixedWindowsDrive(value);
   return isWindowsAbsolutePath(path) ? path.replaceAll("\\", "/").toLowerCase() : path;
 }
 
-function imageDestination(path: string) {
+function imageDestination(path: string): string {
   const normalized = isWindowsAbsolutePath(path) ? path.replaceAll("\\", "/") : path;
   const destination = isUncPath(path) ? `file:${normalized}` : normalized;
   return encodeURI(destination).replace(/[?#&]/g, encodeURIComponent);
 }
 
-function unclosedBlockEnd(text: string, tree: Root) {
+function unclosedBlockEnd(text: string, tree: Root): string | undefined {
   const last = tree.children.at(-1);
   const source = text.slice(last?.position?.start.offset, last?.position?.end.offset);
   if (last?.type === "html") {
@@ -51,7 +51,7 @@ function unclosedBlockEnd(text: string, tree: Root) {
   return closed ? undefined : fence;
 }
 
-export function appendMissingImageEmbeds(text: string, paths: Iterable<string>) {
+export function appendMissingImageEmbeds(text: string, paths: Iterable<string>): string {
   const embedded = new Set<string>();
   let tree: Root | undefined;
   if (text.includes("![")) {

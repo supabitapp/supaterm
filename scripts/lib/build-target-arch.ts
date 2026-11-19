@@ -15,7 +15,7 @@ const WindowsProcessorArchitectureConfig = Config.all({
   processorArchitectureW6432: Config.String("PROCESSOR_ARCHITEW6432").pipe(Config.option),
 });
 
-function normalizeWindowsArch(value: string | undefined) {
+function normalizeWindowsArch(value: string | undefined): BuildArch | undefined {
   const normalized = value?.trim().toLowerCase();
   if (!normalized) return undefined;
   if (normalized.includes("arm64") || normalized === "aarch64") return "arm64";
@@ -23,7 +23,8 @@ function normalizeWindowsArch(value: string | undefined) {
   return undefined;
 }
 
-const optionToUndefined = <A>(value: Option.Option<A>) => Option.getOrUndefined(value);
+const optionToUndefined = <A>(value: Option.Option<A>): A | undefined =>
+  Option.getOrUndefined(value);
 
 const resolveHostProcessArch = Effect.fn("resolveHostProcessArch")(function* () {
   const platform = yield* HostProcess.Platform;

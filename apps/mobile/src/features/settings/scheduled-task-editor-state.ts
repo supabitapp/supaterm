@@ -28,7 +28,7 @@ let newTaskLinkAwaitsDiscard = false;
 export function scheduledTaskEditorHasChanges(
   initial: ScheduledTaskEditor | null,
   current: ScheduledTaskEditor | null,
-) {
+): boolean {
   return Boolean(
     initial &&
     current &&
@@ -37,7 +37,7 @@ export function scheduledTaskEditorHasChanges(
   );
 }
 
-export function startScheduledTaskEditor(next: ScheduledTaskEditor | null) {
+export function startScheduledTaskEditor(next: ScheduledTaskEditor | null): void {
   newTaskLinkAwaitsDiscard = false;
   appAtomRegistry.set(scheduledTaskEditorSessionAtom, {
     id: ++nextEditorId,
@@ -52,7 +52,7 @@ export function updateScheduledTaskEditor(
     | null
     | ((current: ScheduledTaskEditor | null) => ScheduledTaskEditor | null),
   defaultEditor: ScheduledTaskEditor | null,
-) {
+): void {
   const session = appAtomRegistry.get(scheduledTaskEditorSessionAtom);
   const previous = session ? session.current : defaultEditor;
   appAtomRegistry.set(scheduledTaskEditorSessionAtom, {
@@ -66,7 +66,7 @@ export function updateScheduledTaskEditor(
  * A saved task is the new baseline. Without it a later new-task link reads the saved edits as
  * unsaved, keeps them under "New", and saving there would overwrite the task.
  */
-export function markScheduledTaskEditorSaved() {
+export function markScheduledTaskEditorSaved(): void {
   newTaskLinkAwaitsDiscard = false;
   const session = appAtomRegistry.get(scheduledTaskEditorSessionAtom);
   if (session) {
@@ -77,7 +77,7 @@ export function markScheduledTaskEditorSaved() {
 export function readScheduledTaskEditor(
   voiceOwnerKey: string,
   defaultEditor: ScheduledTaskEditor | null,
-) {
+): ScheduledTaskEditor | null {
   const session = appAtomRegistry.get(scheduledTaskEditorSessionAtom);
   if (`scheduled-task:${session?.id ?? 0}` !== voiceOwnerKey) return null;
   return session ? session.current : defaultEditor;
@@ -90,8 +90,7 @@ export function readScheduledTaskEditor(
  */
 export function takeScheduledTaskNewLink(
   state: PartialState<NavigationState> | undefined,
-): PartialState<NavigationState> | undefined;
-export function takeScheduledTaskNewLink(state: PartialState<NavigationState> | undefined) {
+): PartialState<NavigationState> | undefined {
   if (findLinkedRoute(state, ["SettingsScheduledTaskNew"])) {
     const session = appAtomRegistry.get(scheduledTaskEditorSessionAtom);
     if (session && scheduledTaskEditorHasChanges(session.initial, session.current)) {
@@ -100,11 +99,11 @@ export function takeScheduledTaskNewLink(state: PartialState<NavigationState> | 
       appAtomRegistry.set(scheduledTaskEditorSessionAtom, null);
     }
   }
-  return state satisfies PartialState<NavigationState> | undefined;
+  return state;
 }
 
 /** Drops unsaved changes; a new-task link that waited on them then opens a fresh editor. */
-export function discardScheduledTaskEditor() {
+export function discardScheduledTaskEditor(): void {
   if (newTaskLinkAwaitsDiscard) {
     newTaskLinkAwaitsDiscard = false;
     appAtomRegistry.set(scheduledTaskEditorSessionAtom, null);

@@ -11,7 +11,7 @@ export function pullRequestSyncKey(
   reference: Pick<PullRequestRef, "host" | "repository" | "number"> &
     Partial<Pick<PullRequestRef, "projectId">>,
   identity?: RepositoryIdentity | null,
-) {
+): ThreadPullRequestKey | null {
   const host = identity
     ? sourceControlDefinitions.changeRequestHost(identity, identity.provider)
     : undefined;

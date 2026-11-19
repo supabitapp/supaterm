@@ -38,7 +38,7 @@ export function createAttachmentEnvironmentAtoms<R, E>(
  * lookup. A structural `_tag` check rather than a schema check: the squashed cause of a failed
  * RPC is not guaranteed to be a decoded error class instance, only a tagged value.
  */
-export function isAssetAttachmentNotFoundFailure(error: unknown) {
+export function isAssetAttachmentNotFoundFailure(error: unknown): boolean {
   return (
     typeof error === "object" &&
     error !== null &&
@@ -62,7 +62,7 @@ export function verifyPersistedAttachmentUpload<A, E>(input: {
   }) => Atom.Atom<AsyncResult.AsyncResult<A, E>>;
   readonly environmentId: EnvironmentId;
   readonly attachmentId: string;
-}) {
+}): Effect.Effect<PersistedAttachmentVerification> {
   return Effect.promise(() =>
     executeAtomQuery(
       input.registry,
@@ -73,18 +73,15 @@ export function verifyPersistedAttachmentUpload<A, E>(input: {
       { reportFailure: false, reportDefect: false, refresh: true },
     ),
   ).pipe(
-    Effect.map((result) => {
-      if (result._tag === "Success")
-        return { status: "verified" } satisfies PersistedAttachmentVerification;
+    Effect.map((result): PersistedAttachmentVerification => {
+      if (result._tag === "Success") return { status: "verified" };
       const error = squashAtomCommandFailure(result);
-      return (
-        isAssetAttachmentNotFoundFailure(error)
-          ? { status: "missing" }
-          : { status: "failed", error }
-      ) satisfies PersistedAttachmentVerification;
+      return isAssetAttachmentNotFoundFailure(error)
+        ? { status: "missing" }
+        : { status: "failed", error };
     }),
     Effect.withSpan("Attachments.verifyPersistedUpload"),
-  ) satisfies Effect.Effect<PersistedAttachmentVerification>;
+  );
 }
 
 type AttachmentCreateUploadUrlCommand<E> = AtomCommand<
@@ -104,7 +101,7 @@ export function deletePendingAttachmentUpload<E>(input: {
   readonly remove: AttachmentRemoveCommand<E>;
   readonly environmentId: EnvironmentId;
   readonly attachmentId: string;
-}) {
+}): void {
   void runAtomCommand(
     input.registry,
     input.remove,
@@ -136,7 +133,7 @@ export function runAttachmentUploadCycle<E, RE, TE>(input: {
   readonly resolveUploadUrl: (relativeUrl: string) => string | null;
   /** Sends the bytes; interrupting it aborts the transfer. */
   readonly transport: (url: string) => Effect.Effect<void, TE>;
-}) {
+}): Effect.Effect<AttachmentUploadCycleResult> {
   return Effect.uninterruptibleMask((restore) =>
     Effect.gen(function* () {
       const minted = yield* Effect.promise(() =>
@@ -199,16 +196,16 @@ export function runAttachmentUploadCycle<E, RE, TE>(input: {
  * The contract caps what a turn may reference, so a larger advertised value must not admit
  * files the send would then refuse.
  */
-export function clampFileAttachmentUploadBytes(advertisedMaxUploadBytes: number) {
+export function clampFileAttachmentUploadBytes(advertisedMaxUploadBytes: number): number {
   return Math.min(advertisedMaxUploadBytes, PROVIDER_SEND_TURN_MAX_FILE_BYTES);
 }
 
-export function formatAttachmentSize(sizeBytes: number) {
+export function formatAttachmentSize(sizeBytes: number): string {
   const kilobytes = Math.max(1, Math.ceil(sizeBytes / 1024));
   return kilobytes >= 1024 ? `${(sizeBytes / (1024 * 1024)).toFixed(1)} MB` : `${kilobytes} KB`;
 }
 
-export function fileAttachmentTooLargeMessage(name: string, maxUploadBytes: number) {
+export function fileAttachmentTooLargeMessage(name: string, maxUploadBytes: number): string {
   const maxUploadSize =
     maxUploadBytes >= 1024 * 1024 && maxUploadBytes % (1024 * 1024) === 0
       ? `${maxUploadBytes / (1024 * 1024)} MB`

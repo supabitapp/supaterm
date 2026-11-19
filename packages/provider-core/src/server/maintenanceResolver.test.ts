@@ -48,8 +48,10 @@ const makeTempDir = (name: string) =>
     Effect.flatMap((random) => random.uuidV4()),
     Effect.map((id) => NodePath.join(NodeFS.realpathSync(NodeOS.tmpdir()), `${name}-${id}`)),
   );
-const isNativeTestCommandPath = (expectedPathSegment: string) => (commandPath: string) =>
-  normalizeCommandPath(commandPath).includes(expectedPathSegment) satisfies boolean as boolean;
+const isNativeTestCommandPath =
+  (expectedPathSegment: string) =>
+  (commandPath: string): boolean =>
+    normalizeCommandPath(commandPath).includes(expectedPathSegment);
 const packageToolUpdate = makePackageManagedProviderMaintenanceResolver({
   provider: driver("packageTool"),
   npmPackageName: "@example/package-tool",

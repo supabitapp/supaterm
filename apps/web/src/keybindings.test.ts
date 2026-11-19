@@ -9,6 +9,7 @@ import {
   type KeybindingCommand,
   type KeybindingShortcut,
   type KeybindingWhenNode,
+  type ResolvedKeybindingsConfig,
 } from "@supaterm/contracts";
 import {
   effectiveShortcutsForCommand,
@@ -24,7 +25,7 @@ import {
   type ShortcutEventLike,
 } from "./keybindings";
 
-function event(overrides: Partial<ShortcutEventLike> = {}) {
+function event(overrides: Partial<ShortcutEventLike> = {}): ShortcutEventLike {
   return {
     key: "j",
     metaKey: false,
@@ -60,7 +61,10 @@ describe("terminal word navigation", () => {
   );
 });
 
-function modShortcut(key: string, overrides: Partial<Omit<KeybindingShortcut, "key">> = {}) {
+function modShortcut(
+  key: string,
+  overrides: Partial<Omit<KeybindingShortcut, "key">> = {},
+): KeybindingShortcut {
   return {
     key,
     metaKey: false,
@@ -72,16 +76,16 @@ function modShortcut(key: string, overrides: Partial<Omit<KeybindingShortcut, "k
   };
 }
 
-function whenIdentifier(name: string) {
-  return { type: "identifier", name } satisfies KeybindingWhenNode;
+function whenIdentifier(name: string): KeybindingWhenNode {
+  return { type: "identifier", name };
 }
 
-function whenNot(node: KeybindingWhenNode) {
-  return { type: "not", node } satisfies KeybindingWhenNode;
+function whenNot(node: KeybindingWhenNode): KeybindingWhenNode {
+  return { type: "not", node };
 }
 
-function whenAnd(left: KeybindingWhenNode, right: KeybindingWhenNode) {
-  return { type: "and", left, right } satisfies KeybindingWhenNode;
+function whenAnd(left: KeybindingWhenNode, right: KeybindingWhenNode): KeybindingWhenNode {
+  return { type: "and", left, right };
 }
 
 interface TestBinding {
@@ -90,7 +94,7 @@ interface TestBinding {
   whenAst?: KeybindingWhenNode;
 }
 
-function compile(bindings: TestBinding[]) {
+function compile(bindings: TestBinding[]): ResolvedKeybindingsConfig {
   return bindings.map((binding) => ({
     command: binding.command,
     shortcut: binding.shortcut,

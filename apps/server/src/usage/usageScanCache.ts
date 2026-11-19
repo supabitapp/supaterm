@@ -95,17 +95,11 @@ interface InternTables {
   readonly sessionIndex: Map<string, number>;
 }
 
-function makeInternTables(): InternTables;
-function makeInternTables() {
-  return {
-    models: [],
-    sessions: [],
-    modelIndex: new Map(),
-    sessionIndex: new Map(),
-  } satisfies InternTables;
+function makeInternTables(): InternTables {
+  return { models: [], sessions: [], modelIndex: new Map(), sessionIndex: new Map() };
 }
 
-function intern(table: string[], index: Map<string, number>, value: string) {
+function intern(table: string[], index: Map<string, number>, value: string): number {
   const existing = index.get(value);
   if (existing !== undefined) return existing;
   const next = table.length;
@@ -114,29 +108,28 @@ function intern(table: string[], index: Map<string, number>, value: string) {
   return next;
 }
 
-function serializeFile(entry: CachedFile, tables: InternTables) {
-  const serializeRecord = (record: UsageRecord) =>
-    [
-      record.timestampMs,
-      intern(tables.models, tables.modelIndex, record.model),
-      intern(tables.sessions, tables.sessionIndex, record.sessionId),
-      record.totals.uncachedInputTokens,
-      record.totals.cachedInputTokens,
-      record.totals.cacheCreationTokens,
-      record.totals.outputTokens,
-      record.totals.reasoningTokens,
-      record.dedupeKey,
-      record.reportedCostUsd,
-      SPEEDS.indexOf(record.speed),
-      record.rateModel === undefined
-        ? null
-        : intern(tables.models, tables.modelIndex, record.rateModel),
-      ...(record.cacheCreation1hTokens !== undefined
-        ? ([record.unresolvedServiceTierTurnId ?? null, record.cacheCreation1hTokens] as const)
-        : record.unresolvedServiceTierTurnId !== undefined
-          ? ([record.unresolvedServiceTierTurnId] as const)
-          : ([] as const)),
-    ] satisfies SerializedRecord;
+function serializeFile(entry: CachedFile, tables: InternTables): SerializedFile {
+  const serializeRecord = (record: UsageRecord): SerializedRecord => [
+    record.timestampMs,
+    intern(tables.models, tables.modelIndex, record.model),
+    intern(tables.sessions, tables.sessionIndex, record.sessionId),
+    record.totals.uncachedInputTokens,
+    record.totals.cachedInputTokens,
+    record.totals.cacheCreationTokens,
+    record.totals.outputTokens,
+    record.totals.reasoningTokens,
+    record.dedupeKey,
+    record.reportedCostUsd,
+    SPEEDS.indexOf(record.speed),
+    record.rateModel === undefined
+      ? null
+      : intern(tables.models, tables.modelIndex, record.rateModel),
+    ...(record.cacheCreation1hTokens !== undefined
+      ? ([record.unresolvedServiceTierTurnId ?? null, record.cacheCreation1hTokens] as const)
+      : record.unresolvedServiceTierTurnId !== undefined
+        ? ([record.unresolvedServiceTierTurnId] as const)
+        : ([] as const)),
+  ];
   return {
     s: entry.size,
     m: entry.mtimeMs,
@@ -148,15 +141,14 @@ function serializeFile(entry: CachedFile, tables: InternTables) {
     gl: entry.position.guardLength,
     gh: entry.position.guardHash,
     cs: entry.position.state,
-  } satisfies SerializedFile;
+  };
 }
 
 /** Yields the document in pieces so large caches never become one string; growing intern tables preserve indexes, retaining unused strings until restart. */
 export function makeScanCacheWriter(): (
   cache: ScanCache,
   extra: Readonly<Record<string, unknown>>,
-) => Iterable<string>;
-export function makeScanCacheWriter() {
+) => Iterable<string> {
   const tables = makeInternTables();
   function* encode(entries: readonly (readonly [string, CachedFile])[], extra: object) {
     yield '{"files":{';
@@ -171,10 +163,7 @@ export function makeScanCacheWriter() {
     });
     yield `},${tail.slice(1)}`;
   }
-  return ((cache, extra) => encode([...cache], extra)) satisfies (
-    cache: ScanCache,
-    extra: Readonly<Record<string, unknown>>,
-  ) => Iterable<string>;
+  return (cache, extra) => encode([...cache], extra);
 }
 
 function isRecordArray(value: unknown): value is readonly unknown[] {
@@ -184,7 +173,7 @@ function isRecordArray(value: unknown): value is readonly unknown[] {
 export function decodeScanCache(
   document: unknown,
   formats: ReadonlyMap<UsageProviderKind, TranscriptUsageFormat<unknown>>,
-) {
+): ScanCache {
   const cache: ScanCache = new Map();
   const isValidState = makeStateValidators(formats);
   if (typeof document !== "object" || document === null) return cache;
@@ -206,7 +195,10 @@ export function decodeScanCache(
   const models = root.models as readonly string[];
   const sessions = root.sessions as readonly string[];
 
-  const decodeRecords = (rows: readonly unknown[], provider: UsageProviderKind) => {
+  const decodeRecords = (
+    rows: readonly unknown[],
+    provider: UsageProviderKind,
+  ): UsageRecord[] | null => {
     const records: UsageRecord[] = [];
     for (const row of rows) {
       if (!isRecordArray(row) || row.length < 11) return null;
@@ -343,7 +335,7 @@ export function decodeScanCache(
 
 function makeStateValidators(
   formats: ReadonlyMap<UsageProviderKind, TranscriptUsageFormat<unknown>>,
-) {
+): ReadonlyMap<UsageProviderKind, (value: unknown) => boolean> {
   return new Map(
     [...formats].map(([provider, format]) => {
       const isState = format.state === undefined ? undefined : Schema.is(format.state.schema);
@@ -355,7 +347,7 @@ function makeStateValidators(
   );
 }
 
-export function pruneScanCache(cache: ScanCache, retentionCutoffMs: number) {
+export function pruneScanCache(cache: ScanCache, retentionCutoffMs: number): number {
   let removed = 0;
   for (const [path, entry] of cache) {
     if (entry.mtimeMs < retentionCutoffMs) {
@@ -367,7 +359,7 @@ export function pruneScanCache(cache: ScanCache, retentionCutoffMs: number) {
 }
 
 /** Pass only newline-terminated records: an unterminated tail can still change, so the aggregator merges it per scan. */
-export function dedupeWithinFile(records: readonly UsageRecord[]) {
+export function dedupeWithinFile(records: readonly UsageRecord[]): readonly UsageRecord[] {
   const kept: UsageRecord[] = [];
   const firstIndex = new Map<string, number>();
   for (const record of records) {

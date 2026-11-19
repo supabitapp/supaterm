@@ -55,7 +55,7 @@ function queuedMessage(input: {
   readonly messageId: string;
   readonly fileUri: string;
   readonly creation?: true;
-}) {
+}): QueuedThreadMessage {
   return {
     environmentId: EnvironmentId.make(input.environmentId),
     threadId: ThreadId.make(`thread-${input.messageId}`),
@@ -83,7 +83,7 @@ function queuedMessage(input: {
         }
       : {}),
     createdAt: "2026-08-24T12:00:00.000Z",
-  } satisfies QueuedThreadMessage;
+  };
 }
 
 afterEach(() => {

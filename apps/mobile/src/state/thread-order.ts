@@ -29,7 +29,7 @@ export function usePendingThreadOrder() {
 let refreshPendingOrder: (() => void) | undefined;
 let teardownPendingOrder: (() => void) | undefined;
 
-export function getPendingThreadOrder() {
+export function getPendingThreadOrder(): PendingThreadOrder | null {
   refreshPendingOrder?.();
   return appAtomRegistry.get(pendingThreadOrderAtom);
 }

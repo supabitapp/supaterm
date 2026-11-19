@@ -1,4 +1,4 @@
-import { DiffHunksRenderer, hydratePartialDiff } from "@pierre/diffs";
+import { DiffHunksRenderer, hydratePartialDiff, type FileDiffMetadata } from "@pierre/diffs";
 import { excerptRows, fileDiffRows, rowsToPatch } from "@supaterm/client-runtime/review-guide-tour";
 import { EnvironmentId } from "@supaterm/contracts";
 import { AsyncResult } from "effect/reactivity";
@@ -8,7 +8,7 @@ import { createGitDiffFileContentsLoader } from "~/lib/diffFileContents";
 import { getRenderablePatch } from "~/lib/diffRendering";
 import { excerptLoader } from "./GuideExcerpt.logic";
 
-function parse(patch: string) {
+function parse(patch: string): FileDiffMetadata {
   const renderable = getRenderablePatch(patch, "guide-excerpt-test");
   if (renderable?.kind !== "files") throw new Error("Expected a parsed patch.");
   return renderable.files[0]!;

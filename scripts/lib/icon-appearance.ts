@@ -5,7 +5,7 @@ import * as Predicate from "effect/Predicate";
  * `*-specializations` list keeps only that appearance's value, falling back to
  * the unconditional one, so tools that render one appearance render this one.
  */
-export function bakeIconAppearance(document: string, appearance: string) {
+export function bakeIconAppearance(document: string, appearance: string): string {
   const appearanceOf = (entry: unknown) => (Predicate.isObject(entry) ? entry.appearance : null);
   const specialize = (entries: ReadonlyArray<unknown>) => {
     const forAppearance = entries.filter((entry) => appearanceOf(entry) === appearance);
@@ -19,7 +19,7 @@ export function bakeIconAppearance(document: string, appearance: string) {
         : entry,
     );
   };
-  const bake: (node: unknown) => unknown = (node: unknown) => {
+  const bake = (node: unknown): unknown => {
     if (Array.isArray(node)) return node.map(bake);
     if (!Predicate.isObject(node)) return node;
     return Object.fromEntries(

@@ -22,7 +22,7 @@ export interface ReopenOwnerState {
 export function planNextReopen(
   entries: readonly ClosedViewEntry[],
   ownerState: (entry: ClosedViewEntry) => ReopenOwnerState,
-) {
+): { drop: ClosedViewEntry[]; restore: ClosedViewEntry | null } {
   const drop: ClosedViewEntry[] = [];
   for (const entry of entries) {
     const owner = ownerState(entry);
@@ -61,11 +61,7 @@ type PullRequestsSearchLike = Partial<PullRequestListPreferences> & {
 export function pullRequestsSearchForRestore<S extends PullRequestsSearchLike>(
   previous: S,
   selected: RightPanelSurface | null,
-): S & PullRequestListPreferences;
-export function pullRequestsSearchForRestore<S extends PullRequestsSearchLike>(
-  previous: S,
-  selected: RightPanelSurface | null,
-) {
+): S & PullRequestListPreferences {
   const {
     repository: _repository,
     number: _number,
@@ -89,7 +85,7 @@ export function pullRequestsSearchForRestore<S extends PullRequestsSearchLike>(
             : { selectedEnvironmentId: selected.environmentId as EnvironmentId }),
         }
       : {}),
-  } as S & PullRequestListPreferences satisfies S & PullRequestListPreferences;
+  } as S & PullRequestListPreferences;
 }
 
 export async function reopenClosedView(
@@ -99,7 +95,7 @@ export async function reopenClosedView(
     workspaceAvailable: boolean;
     runtime?: PreviewRuntime;
   },
-) {
+): Promise<boolean> {
   const panels = useRightPanelStore.getState();
   const ref = view.threadRef;
 

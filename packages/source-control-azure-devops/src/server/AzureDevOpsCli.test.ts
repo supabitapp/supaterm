@@ -16,7 +16,7 @@ import * as AzureDevOpsCli from "./AzureDevOpsCli.ts";
 import { primaryRemoteUrl, scopeAzureCliArgs } from "./AzureDevOpsCli.ts";
 import { scriptedFunction } from "@supaterm/source-control-testing/scriptedFunction";
 
-const processOutput = (stdout: string) => ({
+const processOutput = (stdout: string): SourceControlHost.SourceControlProcessOutput => ({
   exitCode: ChildProcessSpawner.ExitCode(0),
   stdout,
   stderr: "",

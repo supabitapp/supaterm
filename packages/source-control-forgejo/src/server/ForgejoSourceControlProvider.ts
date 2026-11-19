@@ -198,7 +198,7 @@ export const makeDiscovery = Effect.gen(function* () {
   } satisfies SourceControlManagedCliDiscoverySpec;
 });
 
-export function repositoryNameFromRemoteUrl(url: string) {
+export function repositoryNameFromRemoteUrl(url: string): string | null {
   const path = SourceControlProvider.repositoryPathFromRemoteUrl(url);
   return path === null || !/^https?:\/\//iu.test(url.trim())
     ? path

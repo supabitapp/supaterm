@@ -5,11 +5,9 @@ import * as Layer from "effect/Layer";
 import * as Stream from "effect/Stream";
 import { makeManualOnlyProviderMaintenanceCapabilities } from "@supaterm/provider-core/server/maintenanceResolver";
 
-const makeProviderRegistryMock: (
-  providers?: ReadonlyArray<ServerProvider>,
-) => ProviderRegistry.ProviderRegistry["Service"] = (
+const makeProviderRegistryMock = (
   providers: ReadonlyArray<ServerProvider> = [],
-) => ({
+): ProviderRegistry.ProviderRegistry["Service"] => ({
   getProviders: Effect.succeed(providers),
   refresh: () => Effect.succeed(providers),
   refreshInstance: () => Effect.succeed(providers),

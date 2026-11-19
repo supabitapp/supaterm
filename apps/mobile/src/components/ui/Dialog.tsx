@@ -3,12 +3,11 @@ import type { ConfirmDialogRequest, TextInputDialogRequest } from "./Dialog.type
 
 export type { ConfirmDialogRequest, TextInputDialogRequest } from "./Dialog.types";
 
-export function alert(...args: Parameters<typeof Alert.alert>): void;
-export function alert(...args: Parameters<typeof Alert.alert>) {
+export function alert(...args: Parameters<typeof Alert.alert>): void {
   Alert.alert(...args);
 }
 
-export function confirm(request: ConfirmDialogRequest) {
+export function confirm(request: ConfirmDialogRequest): void {
   Alert.alert(request.title, request.message, [
     { text: request.cancelText ?? "Cancel", style: "cancel", onPress: request.onCancel },
     {
@@ -19,7 +18,7 @@ export function confirm(request: ConfirmDialogRequest) {
   ]);
 }
 
-export function prompt(request: TextInputDialogRequest) {
+export function prompt(request: TextInputDialogRequest): void {
   Alert.prompt(
     request.title,
     request.message,

@@ -73,29 +73,29 @@ const shells = new Map([
   ],
 ]);
 
-const threadCaller = (threadId: ThreadId) =>
-  ({
-    environmentId: EnvironmentId.make("environment"),
-    requestNamespace: `provider:${threadId}`,
-    thread: {
-      threadId,
-      providerSessionId: `provider:${threadId}`,
-      providerInstanceId: ProviderInstanceId.make("codex"),
-    },
-    client: undefined,
-    capabilities: new Set(["orchestration"]),
-    issuedAt: 0,
-  }) satisfies McpInvocationContext.McpInvocationScope;
+const threadCaller = (threadId: ThreadId): McpInvocationContext.McpInvocationScope => ({
+  environmentId: EnvironmentId.make("environment"),
+  requestNamespace: `provider:${threadId}`,
+  thread: {
+    threadId,
+    providerSessionId: `provider:${threadId}`,
+    providerInstanceId: ProviderInstanceId.make("codex"),
+  },
+  client: undefined,
+  capabilities: new Set(["orchestration"]),
+  issuedAt: 0,
+});
 
-const clientCaller = (access: McpInvocationContext.McpClientCaller["access"]) =>
-  ({
-    environmentId: EnvironmentId.make("environment"),
-    requestNamespace: "client:session",
-    thread: undefined,
-    client: { sessionId: "session", label: "Claude Code", access },
-    capabilities: new Set(["orchestration"]),
-    issuedAt: 0,
-  }) satisfies McpInvocationContext.McpInvocationScope;
+const clientCaller = (
+  access: McpInvocationContext.McpClientCaller["access"],
+): McpInvocationContext.McpInvocationScope => ({
+  environmentId: EnvironmentId.make("environment"),
+  requestNamespace: "client:session",
+  thread: undefined,
+  client: { sessionId: "session", label: "Claude Code", access },
+  capabilities: new Set(["orchestration"]),
+  issuedAt: 0,
+});
 
 const mcpClient = McpSchema.McpServerClient.of({
   clientId: 1,

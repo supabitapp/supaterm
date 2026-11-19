@@ -28,8 +28,7 @@ const pendingConnectionErrorAtom = Atom.make<string | null>(null).pipe(
   Atom.withLabel("mobile:pending-connection-error"),
 );
 
-export function setPendingConnectionError(message: string | null): void;
-export function setPendingConnectionError(message: string | null) {
+export function setPendingConnectionError(message: string | null): void {
   appAtomRegistry.set(pendingConnectionErrorAtom, message);
 }
 
@@ -40,7 +39,10 @@ export interface PairingOutcome {
 }
 
 /** Pairs with the environment behind a pairing link and saves it. */
-export async function pairEnvironment(pairingUrl: string, expectedEnvironmentId?: EnvironmentId) {
+export async function pairEnvironment(
+  pairingUrl: string,
+  expectedEnvironmentId?: EnvironmentId,
+): Promise<PairingOutcome> {
   const result = await runAtomCommand(
     appAtomRegistry,
     connectPairingUrlCommand,
@@ -107,7 +109,9 @@ export function useSavedRemoteConnections() {
   };
 }
 
-export function useSavedRemoteConnection(environmentId: EnvironmentId | null) {
+export function useSavedRemoteConnection(
+  environmentId: EnvironmentId | null,
+): SavedRemoteConnection | null {
   return useAtomValue(
     environmentId === null
       ? EMPTY_SAVED_CONNECTION_ATOM
@@ -117,13 +121,12 @@ export function useSavedRemoteConnection(environmentId: EnvironmentId | null) {
 
 export function useRemoteEnvironmentRuntime(
   environmentId: EnvironmentId | null,
-): EnvironmentRuntimeState | null;
-export function useRemoteEnvironmentRuntime(environmentId: EnvironmentId | null) {
+): EnvironmentRuntimeState | null {
   return useAtomValue(
     environmentId === null
       ? EMPTY_RUNTIME_STATE_ATOM
       : remoteEnvironmentProjections.runtimeStateAtom(environmentId),
-  ) satisfies EnvironmentRuntimeState | null;
+  );
 }
 
 export function useRemoteConnectionStatus() {

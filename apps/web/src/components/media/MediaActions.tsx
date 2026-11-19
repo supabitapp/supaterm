@@ -39,7 +39,7 @@ export interface MediaActionSource {
   readonly onOpenFile?: () => void;
 }
 
-function mediaFileName(source: MediaActionSource) {
+function mediaFileName(source: MediaActionSource): string {
   return (
     (source.reference && mediaReferenceFileName(source.reference)) || source.name || source.kind
   );
@@ -49,7 +49,7 @@ function allowsHostMedia(session: SessionGrantInput | null) {
   return session === null || sessionGrantsScope(session, AuthFilesystemReadScope);
 }
 
-function canReadHostMedia(environmentId: EnvironmentId | null) {
+function canReadHostMedia(environmentId: EnvironmentId | null): boolean {
   if (environmentId === null) return true;
   const result = appAtomRegistry.get(environmentSession.sessionStateAtom(environmentId));
   return result._tag !== "Failure" && allowsHostMedia(AsyncResult.getOrElse(result, () => null));

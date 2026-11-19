@@ -9,6 +9,7 @@ import {
   ProjectId,
   ProviderInstanceId,
   type ServerProvider,
+  type ServerProviderSkill,
   ThreadId,
   TranscriptionError,
 } from "@supaterm/contracts";
@@ -58,7 +59,7 @@ const wav = (input: { readonly durationMs: number; readonly sampleRate?: number 
   return bytes;
 };
 
-const skill = (name: string, enabled = true) => ({
+const skill = (name: string, enabled = true): ServerProviderSkill => ({
   name,
   path: `/skills/${name}`,
   enabled,

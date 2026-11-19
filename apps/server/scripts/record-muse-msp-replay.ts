@@ -41,7 +41,7 @@ import {
 
 const CLOCK_TICK = Duration.millis(20);
 
-function readArgValue(name: string) {
+function readArgValue(name: string): string | undefined {
   const index = process.argv.indexOf(name);
   return index === -1 ? undefined : process.argv[index + 1];
 }
@@ -67,17 +67,13 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function normalizeEntries(
   entries: ReadonlyArray<ProviderReplayEntry>,
   workspaces: ReadonlyArray<string>,
-): ReadonlyArray<ProviderReplayEntry>;
-function normalizeEntries(
-  entries: ReadonlyArray<ProviderReplayEntry>,
-  workspaces: ReadonlyArray<string>,
-) {
-  const normalizeString = (value: string) => {
+): ReadonlyArray<ProviderReplayEntry> {
+  const normalizeString = (value: string): string => {
     let next = value;
     for (const workspace of workspaces) next = next.replaceAll(workspace, "<workspace>");
     return home.length > 1 ? next.replaceAll(home, "~") : next;
   };
-  const normalizeValue: (value: unknown) => unknown = (value: unknown) =>
+  const normalizeValue = (value: unknown): unknown =>
     typeof value === "string"
       ? normalizeString(value)
       : Array.isArray(value)
@@ -89,12 +85,12 @@ function normalizeEntries(
           : value;
   return entries.map((entry) =>
     entry.type === "runtime_exit" ? entry : { ...entry, frame: normalizeValue(entry.frame) },
-  ) satisfies ReadonlyArray<ProviderReplayEntry>;
+  );
 }
 
 const encodeJson = Schema.encodeSync(Schema.fromJsonString(Schema.Unknown));
 
-function encodeTranscriptNdjson(transcript: ProviderReplayTranscript) {
+function encodeTranscriptNdjson(transcript: ProviderReplayTranscript): string {
   const { entries, ...metadata } = transcript;
   return [
     encodeJson({ type: "transcript_start", ...metadata }),
@@ -113,12 +109,8 @@ const followWallClock = Effect.gen(function* () {
 function makeRecordingCreateHost(
   entries: Array<ProviderReplayEntry>,
   commandIds: Array<Array<string>>,
-): Parameters<typeof museReplayLayer>[0]["createHost"];
-function makeRecordingCreateHost(
-  entries: Array<ProviderReplayEntry>,
-  commandIds: Array<Array<string>>,
-) {
-  return (async (options) => {
+): Parameters<typeof museReplayLayer>[0]["createHost"] {
+  return async (options) => {
     const hostOrdinal = commandIds.length + 1;
     const minted: Array<string> = [];
     commandIds.push(minted);
@@ -193,7 +185,7 @@ function makeRecordingCreateHost(
       exited,
       close,
     });
-  }) satisfies Parameters<typeof museReplayLayer>[0]["createHost"];
+  };
 }
 
 const readMuseVersion = Effect.sync(() => {

@@ -46,7 +46,7 @@ export default function WordDocument(props: {
       scale: number,
       signal: AbortSignal,
       again = false,
-    ) => {
+    ): Promise<void> => {
       const painted = await engine.call(
         "paint",
         { index, scale, ratio: window.devicePixelRatio || 1 },

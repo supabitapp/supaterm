@@ -61,7 +61,7 @@ function hostedBrowserSessions(
   );
 }
 
-function startAnnotationThemeSync(preview: DesktopPreviewBridge) {
+function startAnnotationThemeSync(preview: DesktopPreviewBridge): () => void {
   let lastSerializedTheme = "";
   const syncTheme = () => {
     const theme = readPreviewAnnotationTheme();
@@ -91,7 +91,7 @@ function startAnnotationThemeSync(preview: DesktopPreviewBridge) {
   };
 }
 
-function openLinkInPreview({ tabId, url, background }: DesktopPreviewOpenLinkEvent) {
+function openLinkInPreview({ tabId, url, background }: DesktopPreviewOpenLinkEvent): void {
   const source = hostedBrowserSessions(
     readActivePreviewSessions(),
     appAtomRegistry.get(primaryEnvironmentIdAtom),
@@ -107,7 +107,7 @@ function openLinkInPreview({ tabId, url, background }: DesktopPreviewOpenLinkEve
 }
 
 /** App-lifetime listeners for the desktop preview bridge: annotation theme, agent pointer, links. */
-export function startElectronBrowserHost() {
+export function startElectronBrowserHost(): () => void {
   const preview = window.desktopBridge?.preview;
   if (!preview) return () => {};
   const disposers = [
@@ -169,7 +169,7 @@ function AuthorizedBrowserWebview(props: ComponentProps<typeof HostedBrowserWebv
   return canOperatePreview ? <HostedBrowserWebview {...props} profileId={profileId} /> : null;
 }
 
-function useTabProfileId(profileId: string | undefined) {
+function useTabProfileId(profileId: string | undefined): string | undefined {
   const hydrated = useClientSettingsHydrated();
   const defaultProfileId = useBrowserDefaults().profileId;
   const [fallback, setFallback] = useState<string | undefined>(undefined);

@@ -44,13 +44,13 @@ const CHAT: Match[] = [
   { routeId: "/_chat", pathname: "/" },
 ];
 
-function pressEscape() {
+function pressEscape(): KeyboardEvent {
   const event = new KeyboardEvent("keydown", { key: "Escape", cancelable: true, bubbles: true });
   window.dispatchEvent(event);
   return event;
 }
 
-function addPane(name: string, clicked: string[]) {
+function addPane(name: string, clicked: string[]): HTMLElement {
   const pane = document.createElement("div");
   pane.dataset.chatPane = "";
   const trigger = document.createElement("button");

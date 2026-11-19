@@ -10,7 +10,7 @@ const PAYLOAD: SharePayload = {
   value: "Fix this",
 };
 
-function draft(id: string, createdAt = "2026-07-16T08:00:00.000Z") {
+function draft(id: string, createdAt = "2026-07-16T08:00:00.000Z"): IncomingShareDraft {
   return {
     schemaVersion: 1,
     id,
@@ -18,7 +18,7 @@ function draft(id: string, createdAt = "2026-07-16T08:00:00.000Z") {
     text: PAYLOAD.value,
     attachments: [],
     warnings: [],
-  } satisfies IncomingShareDraft;
+  };
 }
 
 function deferred() {

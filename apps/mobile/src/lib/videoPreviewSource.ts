@@ -33,12 +33,15 @@ export type MediaVideoPreviewSource = {
     }
 );
 
-export function mediaVideoPreviewUri(source: MediaVideoPreviewSource, assetUrl: string | null) {
+export function mediaVideoPreviewUri(
+  source: MediaVideoPreviewSource,
+  assetUrl: string | null,
+): string | null {
   if ("uri" in source) return source.uri;
   return assetUrl === null ? null : assetUrl + (source.srcFragment ?? "");
 }
 
-export function mediaVideoThumbnailKey(source: MediaVideoPreviewSource) {
+export function mediaVideoThumbnailKey(source: MediaVideoPreviewSource): string {
   return JSON.stringify(
     "uri" in source
       ? ["media-video", source.uri]
@@ -85,7 +88,7 @@ export function attachmentVideoPreviewSource(
   environmentId: EnvironmentId,
   attachment: ChatFileAttachment,
   sourceIdentifier?: string,
-) {
+): MediaVideoPreviewSource {
   const mimeType = videoMimeType(attachment) ?? attachment.mimeType;
   const resource = {
     _tag: "attachment" as const,
@@ -107,5 +110,5 @@ export function attachmentVideoPreviewSource(
       environmentId,
       resource,
     },
-  } satisfies MediaVideoPreviewSource;
+  };
 }

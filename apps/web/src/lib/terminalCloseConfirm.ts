@@ -28,7 +28,7 @@ export interface TerminalCloseTarget {
 }
 
 /** Whether a terminal-close action is waiting on settings or user confirmation. */
-export function isTerminalCloseConfirmPending() {
+export function isTerminalCloseConfirmPending(): boolean {
   return pendingConfirmations > 0;
 }
 

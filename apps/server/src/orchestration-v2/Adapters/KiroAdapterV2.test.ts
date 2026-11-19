@@ -79,17 +79,17 @@ const SESSION_ID = "sess_abb5e0cf-d4a2-4360-9f03-2f8f0889a707";
 const ENABLED_KIRO_SETTINGS = Schema.decodeSync(KiroSettings)({ enabled: true });
 
 type Frame = Record<string, unknown>;
-const outbound = (method: string, params: unknown = "<any>", label = method) => ({
+const outbound = (method: string, params: unknown = "<any>", label = method): Frame => ({
   type: "expect_outbound",
   label,
   frame: { kind: "request", method, params },
 });
-const answer = (method: string, result: unknown, label = `${method}.result`) => ({
+const answer = (method: string, result: unknown, label = `${method}.result`): Frame => ({
   type: "emit_inbound",
   label,
   frame: { kind: "response", method, result },
 });
-const update = (sessionUpdate: Record<string, unknown>) => ({
+const update = (sessionUpdate: Record<string, unknown>): Frame => ({
   type: "emit_inbound",
   label: `update.${String(sessionUpdate.sessionUpdate)}`,
   frame: {
@@ -98,7 +98,7 @@ const update = (sessionUpdate: Record<string, unknown>) => ({
     params: { sessionId: SESSION_ID, update: sessionUpdate },
   },
 });
-const kiroNotification = (method: string, params: unknown) => ({
+const kiroNotification = (method: string, params: unknown): Frame => ({
   type: "emit_inbound",
   label: method,
   frame: { kind: "notification", method, params },
@@ -257,7 +257,7 @@ const turnPrompt = outbound("session/prompt", {
 const openSessionFrames = (input: {
   readonly initialize: unknown;
   readonly configOptions: ReadonlyArray<unknown>;
-}) => [
+}): ReadonlyArray<Frame> => [
   outbound("initialize"),
   answer("initialize", input.initialize),
   outbound("session/new", { cwd: "<workspace>", mcpServers: "<any>" }),
@@ -373,7 +373,7 @@ const runKiroScript = Effect.fn("runKiroScript")(function* (input: {
       model: string,
       options?: ModelSelection["options"],
       text = "Say hello",
-    ) => {
+    ): ProviderAdapterV2TurnInput => {
       const suffix = `${threadId}:${ordinal}`;
       const turnSelection = { instanceId, model, ...(options === undefined ? {} : { options }) };
       return {
@@ -416,7 +416,7 @@ const runKiroScript = Effect.fn("runKiroScript")(function* (input: {
         },
         modelSelection: turnSelection,
         runtimePolicy,
-      } satisfies ProviderAdapterV2TurnInput;
+      };
     };
     const startTurnOn = (ordinal: number, model: string, options?: ModelSelection["options"]) =>
       session.startTurn(turnInput(ordinal, model, options));
@@ -932,7 +932,7 @@ describe("KiroAdapterV2 agents", () => {
 });
 
 describe("KiroAdapterV2 early Stop", () => {
-  const kiroInfo = (label: string, kiro: Record<string, unknown>) => ({
+  const kiroInfo = (label: string, kiro: Record<string, unknown>): Frame => ({
     ...update({ sessionUpdate: "session_info_update", _meta: { kiro } }),
     label,
   });
@@ -1345,7 +1345,9 @@ describe("Kiro permission policy", () => {
     );
   });
 
-  const writeRequest = (options: EffectAcpSchema.RequestPermissionRequest["options"]) => ({
+  const writeRequest = (
+    options: EffectAcpSchema.RequestPermissionRequest["options"],
+  ): EffectAcpSchema.RequestPermissionRequest => ({
     sessionId: "session-1",
     toolCall: { toolCallId: "call-1", title: "Write File", kind: "edit" },
     options,

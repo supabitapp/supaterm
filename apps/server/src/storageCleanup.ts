@@ -82,7 +82,7 @@ class WorktreeDirectoryReadError extends Schema.TaggedError<WorktreeDirectoryRea
   "WorktreeDirectoryReadError",
   { cause: Schema.Defect() },
 ) {
-  override get message() {
+  override get message(): string {
     return "Could not read a worktree directory.";
   }
 }
@@ -113,7 +113,7 @@ const worktreeCleanupEnabled = (rules: WorktreeCleanupRules) =>
 function anyWorktreePolicy(
   settings: ServerSettings,
   predicate: (rules: WorktreeCleanupRules) => boolean,
-) {
+): boolean {
   return (
     predicate(resolveWorktreeCleanup(settings, null)) ||
     Object.keys(settings.projectSettingsOverrides).some((projectId) =>
@@ -122,7 +122,7 @@ function anyWorktreePolicy(
   );
 }
 
-function sameProjectWorktreePolicies(left: ServerSettings, right: ServerSettings) {
+function sameProjectWorktreePolicies(left: ServerSettings, right: ServerSettings): boolean {
   return [
     ...new Set([
       ...Object.keys(left.projectSettingsOverrides),
@@ -145,7 +145,7 @@ export function storageCleanupThreadIdle(
   thread: OrchestrationV2ThreadShell,
   now: number,
   settings: LimitRecoverySettings,
-) {
+): boolean {
   return thread.worktreePath !== null && threadIdle(thread, now, settings);
 }
 
@@ -153,7 +153,7 @@ function threadIdle(
   thread: OrchestrationV2ThreadShell,
   now: number,
   settings: LimitRecoverySettings,
-) {
+): boolean {
   return (
     thread.activeRunId === null &&
     !isOrchestrationV2RunUnsettled(thread.status) &&
@@ -168,7 +168,7 @@ function heldForLimitRecovery(
   thread: OrchestrationV2ThreadShell,
   now: number,
   settings: LimitRecoverySettings,
-) {
+): boolean {
   if (
     thread.status !== "failed" ||
     thread.lastErrorClass !== "usage_limit" ||
@@ -191,7 +191,7 @@ function heldForLimitRecovery(
 }
 
 /** PR metadata refreshes must not reset the inactivity clock. */
-export function storageCleanupActivityAt(thread: OrchestrationV2ThreadShell) {
+export function storageCleanupActivityAt(thread: OrchestrationV2ThreadShell): number {
   return Math.max(
     ...[
       thread.createdAt,
@@ -272,7 +272,7 @@ export function storageCleanupPullRequestMerged(
     readonly headSha: string;
     readonly integrated: boolean;
   },
-) {
+): boolean {
   return (
     pullRequest?.state === "merged" &&
     (worktree.integrated ||
@@ -609,7 +609,7 @@ const make = Effect.gen(function* () {
     const nestedWorktrees = Effect.fnUntraced(function* (folder: string, managedRoot: string) {
       if (yield* fs.exists(path.join(folder, ".git"))) return [];
       registered ??= (yield* Effect.forEach(new Set(projectRoots), (root) =>
-        git.listWorktreePaths(root).pipe(Effect.orElseSucceed(() => [])),
+        git.listWorktreePaths(root).pipe(Effect.orElseSucceed((): string[] => [])),
       )).flat();
       return yield* Effect.filter(
         registered.filter(
@@ -1551,32 +1551,28 @@ const make = Effect.gen(function* () {
     const realRoot = yield* fs.realPath(root);
     const realParent = yield* fs.realPath(path.dirname(root));
     if (realRoot !== path.join(realParent, path.basename(root))) return removed;
-    const visit: (directory: string) => Effect.Effect<void, PlatformError | ServerSettingsError> =
-      Effect.fn("StorageCleanup.visitFiles")(function* (directory: string) {
-        for (const name of yield* fs.readDirectory(directory)) {
-          const target = path.join(directory, name);
-          if ((yield* fs.realPath(target)) !== target || !inside(realRoot, target)) continue;
-          const stat = yield* fs.stat(target);
-          if (stat.type === "Directory" && rotatedLogs) {
-            yield* visit(target);
-          } else if (
-            stat.type === "File" &&
-            (!rotatedLogs || /\.(?:log|ndjson)\.\d+$/.test(name))
-          ) {
-            const modified = Option.getOrNull(stat.mtime);
-            if (modified !== null && modified.getTime() < now - days * DAY_MS) {
-              const current = (yield* settingsService.getSettings).storageCleanup;
-              if (
-                (rotatedLogs ? current.logsAfterDays : current.browserArtifactsAfterDays) !== days
-              )
-                return;
-              yield* fs.remove(target);
-              removed.files++;
-              removed.bytes += Number(stat.size);
-            }
+    const visit = Effect.fn("StorageCleanup.visitFiles")(function* (
+      directory: string,
+    ): Effect.fn.Return<void, PlatformError | ServerSettingsError> {
+      for (const name of yield* fs.readDirectory(directory)) {
+        const target = path.join(directory, name);
+        if ((yield* fs.realPath(target)) !== target || !inside(realRoot, target)) continue;
+        const stat = yield* fs.stat(target);
+        if (stat.type === "Directory" && rotatedLogs) {
+          yield* visit(target);
+        } else if (stat.type === "File" && (!rotatedLogs || /\.(?:log|ndjson)\.\d+$/.test(name))) {
+          const modified = Option.getOrNull(stat.mtime);
+          if (modified !== null && modified.getTime() < now - days * DAY_MS) {
+            const current = (yield* settingsService.getSettings).storageCleanup;
+            if ((rotatedLogs ? current.logsAfterDays : current.browserArtifactsAfterDays) !== days)
+              return;
+            yield* fs.remove(target);
+            removed.files++;
+            removed.bytes += Number(stat.size);
           }
         }
-      });
+      }
+    });
     yield* visit(realRoot);
     return removed;
   });

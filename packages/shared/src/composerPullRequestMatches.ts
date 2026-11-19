@@ -43,7 +43,7 @@ export function filterComposerPullRequestMatches<
   readonly query: string;
   readonly limit: number;
   readonly keyOf: (entry: Entry | Linked) => string;
-}) {
+}): ReadonlyArray<Entry | Linked> {
   const repository = input.repository.trim().toLowerCase();
   const { keyOf } = input;
   const linked = (input.linked ?? []).filter((entry) => String(entry.number).includes(input.query));
@@ -86,36 +86,20 @@ export function withLinkedComposerPullRequestsFirst<
   readonly query: string;
   readonly limit: number;
   readonly keyOf: (entry: Entry | Linked) => string;
-}): ReadonlyArray<Entry | Linked>;
-export function withLinkedComposerPullRequestsFirst<
-  Entry extends ComposerPullRequestMatch,
-  Linked extends ComposerPullRequestMatch & {
-    readonly title: string;
-    readonly headBranch: string;
-  },
->(input: {
-  readonly matches: ReadonlyArray<Entry>;
-  readonly linked: ReadonlyArray<Linked>;
-  readonly query: string;
-  readonly limit: number;
-  readonly keyOf: (entry: Entry | Linked) => string;
-}) {
+}): ReadonlyArray<Entry | Linked> {
   const { keyOf } = input;
   const matchesByKey = new Map(input.matches.map((entry) => [keyOf(entry), entry]));
   const words = input.query.toLowerCase().split(/\s+/u).filter(Boolean);
-  const linked = input.linked.flatMap((entry) => {
+  const linked = input.linked.flatMap((entry): Array<Entry | Linked> => {
     const match = matchesByKey.get(keyOf(entry));
-    if (match !== undefined)
-      return [match] satisfies Array<Entry | Linked> as Array<Entry | Linked>;
+    if (match !== undefined) return [match];
     const text =
       `#${entry.number} ${entry.title} ${entry.repository} ${entry.headBranch}`.toLowerCase();
-    return (words.every((word) => text.includes(word)) ? [entry] : []) satisfies Array<
-      Entry | Linked
-    > as Array<Entry | Linked>;
+    return words.every((word) => text.includes(word)) ? [entry] : [];
   });
   const linkedKeys = new Set(linked.map(keyOf));
   return [...linked, ...input.matches.filter((entry) => !linkedKeys.has(keyOf(entry)))].slice(
     0,
     input.limit,
-  ) satisfies ReadonlyArray<Entry | Linked>;
+  );
 }

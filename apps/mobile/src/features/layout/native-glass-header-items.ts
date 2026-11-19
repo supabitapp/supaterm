@@ -16,7 +16,7 @@ export function withNativeGlassHeaderItem<T extends NativeGlassHeaderItem>(
     readonly sharesBackground?: boolean;
     readonly width?: number;
   } = {},
-) {
+): T {
   const sharesBackground = options.sharesBackground ?? item.sharesBackground ?? true;
   return {
     ...item,

@@ -34,7 +34,7 @@ type RecoveryProps = {
   onChange: (recovery: OrchestrationV2LimitRecoveryUpdate) => Promise<void>;
 };
 
-export function usageLimitRecoveryBannerItem(props: RecoveryProps) {
+export function usageLimitRecoveryBannerItem(props: RecoveryProps): ComposerBannerStackItem {
   const {
     runId,
     errorCode,
@@ -72,7 +72,7 @@ export function usageLimitRecoveryBannerItem(props: RecoveryProps) {
       title: "Usage limit reached",
       description: resetDescription,
       actions: recoveryActions,
-    } satisfies ComposerBannerStackItem;
+    };
   }
   return {
     id: `usage-limit-recovery:${runId}`,
@@ -96,7 +96,7 @@ export function usageLimitRecoveryBannerItem(props: RecoveryProps) {
         )}
       </>
     ),
-  } satisfies ComposerBannerStackItem;
+  };
 }
 
 function RecoveryActions({ runId, resetAt, recovery, snoozedUntil, onChange }: RecoveryProps) {

@@ -36,11 +36,11 @@ type SnapShotPromptAccessibility =
       readonly root: SnapShotPromptAccessibilityNode;
     };
 
-function normalizedAccessibilityLabel(value: string) {
+function normalizedAccessibilityLabel(value: string): string {
   return value.trim().replaceAll(/\s+/g, " ").toLowerCase();
 }
 
-function isRedundantWindowButtonDescription(node: SnapShotAccessibilityNode) {
+function isRedundantWindowButtonDescription(node: SnapShotAccessibilityNode): boolean {
   if (node.role !== "button" || !node.name || !node.description) return false;
   return (
     normalizedAccessibilityLabel(node.description) ===
@@ -51,7 +51,7 @@ function isRedundantWindowButtonDescription(node: SnapShotAccessibilityNode) {
 function isFullImageBounds(
   bounds: NonNullable<SnapShotAccessibilityNode["bounds"]>,
   imageSize: { readonly width: number; readonly height: number },
-) {
+): boolean {
   return (
     bounds.x === 0 &&
     bounds.y === 0 &&
@@ -64,12 +64,7 @@ function compactAccessibilityNodeForPrompt(
   node: SnapShotAccessibilityNode,
   imageSize: { readonly width: number; readonly height: number },
   options: { readonly isRoot: boolean; readonly parentName?: string },
-): ReadonlyArray<SnapShotPromptAccessibilityNode>;
-function compactAccessibilityNodeForPrompt(
-  node: SnapShotAccessibilityNode,
-  imageSize: { readonly width: number; readonly height: number },
-  options: { readonly isRoot: boolean; readonly parentName?: string },
-) {
+): ReadonlyArray<SnapShotPromptAccessibilityNode> {
   const bounds =
     node.bounds && !(options.isRoot && isFullImageBounds(node.bounds, imageSize))
       ? node.bounds
@@ -106,15 +101,14 @@ function compactAccessibilityNodeForPrompt(
     compacted.state ||
     compacted.actions,
   );
-  if (!options.isRoot && node.role === "group" && !hasMetadata)
-    return children satisfies ReadonlyArray<SnapShotPromptAccessibilityNode>;
+  if (!options.isRoot && node.role === "group" && !hasMetadata) return children;
   if (
     !options.isRoot &&
     (node.role === "separator" || node.role === "tab_group") &&
     !hasMetadata &&
     children.length === 0
   ) {
-    return [] satisfies ReadonlyArray<SnapShotPromptAccessibilityNode>;
+    return [];
   }
   if (
     !options.isRoot &&
@@ -123,25 +117,24 @@ function compactAccessibilityNodeForPrompt(
     !hasMetadata &&
     children.length === 0
   ) {
-    return [] satisfies ReadonlyArray<SnapShotPromptAccessibilityNode>;
+    return [];
   }
-  return [compacted] satisfies ReadonlyArray<SnapShotPromptAccessibilityNode>;
+  return [compacted];
 }
 
-function accessibilityNodeHasBounds(node: SnapShotPromptAccessibilityNode) {
+function accessibilityNodeHasBounds(node: SnapShotPromptAccessibilityNode): boolean {
   return Boolean(node.bounds || node.children?.some(accessibilityNodeHasBounds));
 }
 
 function compactAccessibilityForPrompt(
   accessibility: SnapShotAccessibility,
-): SnapShotPromptAccessibility;
-function compactAccessibilityForPrompt(accessibility: SnapShotAccessibility) {
+): SnapShotPromptAccessibility {
   if (accessibility.format === "flat-text") {
     return {
       format: "flat-text",
       text: accessibility.text,
       ...(accessibility.truncated ? { truncated: true } : {}),
-    } satisfies SnapShotPromptAccessibility;
+    };
   }
 
   const root = compactAccessibilityNodeForPrompt(accessibility.root, accessibility.imageSize, {
@@ -155,10 +148,10 @@ function compactAccessibilityForPrompt(accessibility: SnapShotAccessibility) {
       : {}),
     ...(accessibility.truncated ? { truncated: true } : {}),
     root,
-  } satisfies SnapShotPromptAccessibility;
+  };
 }
 
-export function isProviderNativeImageAttachment(attachment: ChatAttachment) {
+export function isProviderNativeImageAttachment(attachment: ChatAttachment): boolean {
   return (
     attachment.type === "image" && isProviderSendTurnSupportedImageMimeType(attachment.mimeType)
   );

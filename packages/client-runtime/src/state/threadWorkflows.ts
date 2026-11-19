@@ -18,6 +18,7 @@ import {
 type Projection = ThreadStructure;
 type Run = Projection["runs"][number];
 type Message = Projection["messages"][number];
+type ProviderSession = Projection["providerSessions"][number];
 
 const MERGE_BACK_RUN_STATUSES = new Set<Run["status"]>(["waiting", "completed"]);
 
@@ -41,7 +42,7 @@ export interface ThreadQueueWorkflowState {
   readonly canSendNow: boolean;
 }
 
-export function resolveActiveThreadRun(projection: Pick<Projection, "runs">) {
+export function resolveActiveThreadRun(projection: Pick<Projection, "runs">): Run | null {
   return projection.runs.findLast((run) => isOrchestrationV2RunInProgress(run.status)) ?? null;
 }
 
@@ -65,7 +66,7 @@ export function resolveThreadForkSource(projection: {
  * checkpoint is captured. Keep that newest turn available for merge-back
  * instead of falling through to an older fully checkpointed run.
  */
-export function resolveLatestMergeBackRun(projection: Projection) {
+export function resolveLatestMergeBackRun(projection: Projection): Run | null {
   const latestProviderFinishedRun = projection.runs.reduce<Run | null>(
     (latest, run) =>
       MERGE_BACK_RUN_STATUSES.has(run.status) && (latest === null || run.ordinal > latest.ordinal)
@@ -94,7 +95,7 @@ export function sideChatBringBackBlockedReason(input: {
   return input.mergeRun === null ? "Available after a finished reply." : null;
 }
 
-function resolveThreadProviderSession(projection: Projection) {
+function resolveThreadProviderSession(projection: Projection): ProviderSession | null {
   const activeRun = resolveActiveThreadRun(projection);
   const providerThreadId = activeRun?.providerThreadId ?? projection.thread.activeProviderThreadId;
   const activeProviderThread =
@@ -118,7 +119,7 @@ function resolveThreadProviderSession(projection: Projection) {
   );
 }
 
-export function threadSteersDuringCompaction(projection: Projection | null | undefined) {
+export function threadSteersDuringCompaction(projection: Projection | null | undefined): boolean {
   if (projection == null) return false;
   return (
     resolveThreadProviderSession(projection)?.capabilities.turns.activeSteeringDuringCompaction ===
@@ -126,7 +127,7 @@ export function threadSteersDuringCompaction(projection: Projection | null | und
   );
 }
 
-export function threadSupportsProviderHandoff(projection: Projection | null | undefined) {
+export function threadSupportsProviderHandoff(projection: Projection | null | undefined): boolean {
   if (projection == null) return false;
   const session = resolveThreadProviderSession(projection);
   if (session !== null) {
@@ -143,7 +144,9 @@ export function threadSupportsProviderHandoff(projection: Projection | null | un
   );
 }
 
-export function getUserQueuedThreadRuns(projection: Pick<Projection, "runs" | "messages">) {
+export function getUserQueuedThreadRuns(
+  projection: Pick<Projection, "runs" | "messages">,
+): ReadonlyArray<Run> {
   const automaticCompletionMessageIds = new Set(
     projection.messages
       .filter(
@@ -163,7 +166,7 @@ export function deriveThreadQueueWorkflowState(
     /** The server advertises `deferredSteering`; older servers reject a steer during setup. */
     readonly deferredSteering?: boolean;
   },
-) {
+): ThreadQueueWorkflowState {
   const activeRun = resolveActiveThreadRun(projection);
   const session = resolveThreadProviderSession(projection);
   const capabilities = session?.capabilities.turns;
@@ -220,7 +223,7 @@ export function deriveThreadQueueWorkflowState(
 export function canForkProjectedAssistantItem(input: {
   readonly projectedItem: OrchestrationV2ProjectedTurnItem;
   readonly capabilities?: OrchestrationV2ProviderCapabilities | undefined;
-}) {
+}): boolean {
   const item = input.projectedItem.item;
   if (item.type !== "assistant_message" || item.runId === null || item.status !== "completed") {
     return false;

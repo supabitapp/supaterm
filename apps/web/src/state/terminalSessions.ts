@@ -45,7 +45,10 @@ const groupsByAnchor = new WeakMap<
   >
 >();
 
-function knownSession(summary: TerminalSummary, environmentId: EnvironmentId) {
+function knownSession(
+  summary: TerminalSummary,
+  environmentId: EnvironmentId,
+): KnownTerminalSession {
   let byEnvironment = sessionsBySummary.get(summary);
   const previous = byEnvironment?.get(environmentId);
   if (previous) return previous;
@@ -65,7 +68,7 @@ function knownSession(summary: TerminalSummary, environmentId: EnvironmentId) {
   return session;
 }
 
-function terminalMetadataIndex(metadata: ReadonlyArray<TerminalSummary>) {
+function terminalMetadataIndex(metadata: ReadonlyArray<TerminalSummary>): TerminalMetadataIndex {
   let index = metadataIndexes.get(metadata);
   if (!index) {
     const compare = new Intl.Collator(undefined, { numeric: true }).compare;
@@ -86,7 +89,7 @@ export function selectKnownTerminalSessions(
   metadata: ReadonlyArray<TerminalSummary> | null,
   environmentId: EnvironmentId | null,
   threadId: ThreadId | null,
-) {
+): ReadonlyArray<KnownTerminalSession> {
   if (environmentId === null || metadata === null || metadata.length === 0) {
     return EMPTY_KNOWN_TERMINAL_SESSIONS;
   }
@@ -140,7 +143,7 @@ const attachedTerminalSessionFamily = Atom.family((key: string) => {
     }).pipe(Atom.withLabel(`web-terminal-session:${key}`));
   }
   const [environmentId, terminal] = decoded.value;
-  return Atom.make((get) => {
+  return Atom.make((get): TerminalSessionState => {
     const session = get(environmentSession.sessionStateAtom(environmentId));
     const canRead = sessionHasScope(session, AuthTerminalReadScope);
     const canOperate = sessionHasScope(session, AuthTerminalOperateScope);
@@ -171,11 +174,9 @@ const attachedTerminalSessionFamily = Atom.family((key: string) => {
         ? EMPTY_TERMINAL_BUFFER_STATE
         : AsyncResult.getOrElse(attach, () => EMPTY_TERMINAL_BUFFER_STATE);
     const state = combineTerminalSessionState(summary, buffer);
-    return (
-      attach?._tag === "Failure"
-        ? { ...state, error: formatEnvironmentQueryError(attach.cause), status: "error" }
-        : state
-    ) satisfies TerminalSessionState;
+    return attach?._tag === "Failure"
+      ? { ...state, error: formatEnvironmentQueryError(attach.cause), status: "error" }
+      : state;
   }).pipe(Atom.withLabel(`web-terminal-session:${key}`));
 });
 
@@ -187,12 +188,9 @@ const attachedTerminalSessionFamily = Atom.family((key: string) => {
 export function attachedTerminalSessionAtom(
   environmentId: EnvironmentId | null,
   terminal: TerminalAttachInput | null,
-) {
-  if (environmentId === null || terminal === null)
-    return EMPTY_TERMINAL_SESSION_ATOM satisfies Atom.Atom<TerminalSessionState>;
-  return attachedTerminalSessionFamily(
-    JSON.stringify([environmentId, terminal]),
-  ) satisfies Atom.Atom<TerminalSessionState>;
+): Atom.Atom<TerminalSessionState> {
+  if (environmentId === null || terminal === null) return EMPTY_TERMINAL_SESSION_ATOM;
+  return attachedTerminalSessionFamily(JSON.stringify([environmentId, terminal]));
 }
 
 const NO_KNOWN_TERMINAL_SESSIONS_ATOM = Atom.make<ReadonlyArray<KnownTerminalSession> | null>(null);
@@ -211,14 +209,17 @@ const knownTerminalSessionsFamily = Atom.family((key: string) => {
   }).pipe(Atom.withLabel(`web-known-terminal-sessions:${key}`));
 });
 
-export function knownTerminalSessionsAtom(environmentId: EnvironmentId, threadId: ThreadId | null) {
+export function knownTerminalSessionsAtom(
+  environmentId: EnvironmentId,
+  threadId: ThreadId | null,
+): Atom.Atom<ReadonlyArray<KnownTerminalSession> | null> {
   return knownTerminalSessionsFamily(JSON.stringify([environmentId, threadId]));
 }
 
 export function useKnownTerminalSessions(input: {
   readonly environmentId: EnvironmentId | null;
   readonly threadId: ThreadId | null;
-}) {
+}): ReadonlyArray<KnownTerminalSession> | null {
   const canRead = useEnvironmentScope(input.environmentId, AuthTerminalReadScope);
   return useAtomValue(
     input.environmentId === null || !canRead
@@ -230,7 +231,7 @@ export function useKnownTerminalSessions(input: {
 export function useThreadRunningTerminalIds(input: {
   readonly environmentId: EnvironmentId | null;
   readonly threadId: ThreadId | null;
-}) {
+}): ReadonlyArray<string> {
   const sessions = useKnownTerminalSessions(input);
   return selectRunningSubprocessTerminalIds(sessions ?? []);
 }

@@ -24,7 +24,7 @@ export class ProjectStoreV2Error extends Schema.TaggedError<ProjectStoreV2Error>
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Project store operation '${this.operation}' failed.`;
   }
 }
@@ -57,7 +57,7 @@ const ProjectDbRow = Schema.Struct({
   scripts: Schema.fromJsonString(Schema.Array(ProjectScript)),
 });
 
-function toShell(row: ProjectRow) {
+function toShell(row: ProjectRow): OrchestrationProjectShell {
   return {
     id: row.projectId,
     title: row.title,

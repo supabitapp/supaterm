@@ -133,10 +133,10 @@ it("baselines the first device snapshot without reopening dismissed devices", as
 
 it("reports a failed first device load and retries it", async () => {
   let attempts = 0;
-  const stateAtom = Atom.make(() => {
-    attempts += 1;
-    return (
-      attempts === 1
+  const stateAtom = Atom.make(
+    (): AsyncResult.AsyncResult<DeviceServiceState, EnvironmentAuthorizationError> => {
+      attempts += 1;
+      return attempts === 1
         ? AsyncResult.fail(
             new EnvironmentAuthorizationError({
               requiredScope: "orchestration:read",
@@ -153,9 +153,9 @@ it("reports a failed first device load and retries it", async () => {
             agentAccessEnabled: false,
             hubBasePath: "/api/device-hub",
             revision: 1,
-          })
-    ) satisfies AsyncResult.AsyncResult<DeviceServiceState, EnvironmentAuthorizationError>;
-  }).pipe(Atom.keepAlive);
+          });
+    },
+  ).pipe(Atom.keepAlive);
   const registry = AtomRegistry.make();
   using _registry = { [Symbol.dispose]: () => registry.dispose() };
   using _subscription = vi.spyOn(deviceEnvironment, "state").mockReturnValue(stateAtom);

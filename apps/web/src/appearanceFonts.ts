@@ -26,7 +26,7 @@ export function resolveTerminalFontPreference(input: {
   readonly advanced: boolean;
   readonly code: string;
   readonly terminal: string;
-}) {
+}): string {
   if (input.advanced) return input.terminal;
   return input.code;
 }
@@ -35,12 +35,12 @@ export function resolveTerminalFontSizePreference(input: {
   readonly advanced: boolean;
   readonly code: number;
   readonly terminal: number;
-}) {
+}): number {
   if (input.advanced) return input.terminal;
   return input.code;
 }
 
-function quoteFontFamilyName(name: string) {
+function quoteFontFamilyName(name: string): string {
   const bare = name.trim();
   if (bare.length === 0) return "";
   if (/^(['"]).*\1$/.test(bare)) return bare;
@@ -48,7 +48,7 @@ function quoteFontFamilyName(name: string) {
   return `"${bare.replaceAll('"', "")}"`;
 }
 
-export function cssFontFamilies(input: string) {
+export function cssFontFamilies(input: string): string | null {
   const families = input
     .split(",")
     .map(quoteFontFamilyName)
@@ -56,11 +56,11 @@ export function cssFontFamilies(input: string) {
   return families.length > 0 ? families.join(", ") : null;
 }
 
-export function fontFamilyLabel(family: string) {
+export function fontFamilyLabel(family: string): string {
   return family === SYSTEM_SANS_FONT_FAMILY ? "System" : family;
 }
 
-export function appearanceFontStack(custom: string, defaultStack: string) {
+export function appearanceFontStack(custom: string, defaultStack: string): string {
   const families = cssFontFamilies(custom);
   return families === null ? defaultStack : `${families}, ${defaultStack}`;
 }
@@ -80,7 +80,7 @@ export interface AppearanceFontPreferences {
 export function applyAppearanceFontVariables(
   root: HTMLElement,
   preferences: AppearanceFontPreferences,
-) {
+): void {
   const families: ReadonlyArray<readonly [variable: string, custom: string, fallback: string]> = [
     ["--font-sans", preferences.sans, DEFAULT_SANS_FONT_STACK],
     ["--font-mono", preferences.code, DEFAULT_CODE_FONT_STACK],
@@ -121,12 +121,12 @@ export function applyAppearanceFontVariables(
   }
 }
 
-function clampFontSize(value: number, minimum: number, maximum: number, fallback: number) {
+function clampFontSize(value: number, minimum: number, maximum: number, fallback: number): number {
   if (!Number.isFinite(value)) return fallback;
   return Math.min(maximum, Math.max(minimum, Math.round(value)));
 }
 
-function clampInterfaceFontSize(value: number) {
+function clampInterfaceFontSize(value: number): number {
   return clampFontSize(
     value,
     MIN_INTERFACE_FONT_SIZE,
@@ -135,11 +135,11 @@ function clampInterfaceFontSize(value: number) {
   );
 }
 
-function clampPromptFontSize(value: number) {
+function clampPromptFontSize(value: number): number {
   return clampFontSize(value, MIN_PROMPT_FONT_SIZE, MAX_PROMPT_FONT_SIZE, DEFAULT_PROMPT_FONT_SIZE);
 }
 
-function clampCodeFontSize(value: number) {
+function clampCodeFontSize(value: number): number {
   return clampFontSize(value, MIN_CODE_FONT_SIZE, MAX_CODE_FONT_SIZE, DEFAULT_CODE_FONT_SIZE);
 }
 
@@ -148,7 +148,7 @@ const LIST_MARKER_PROBE_TEXT = "0. ";
 const PROBE_FONT_SIZE = 16;
 let fontProbeContext: CanvasRenderingContext2D | null | undefined;
 
-function probeWidth(fontList: string, text = FONT_PROBE_TEXT) {
+function probeWidth(fontList: string, text = FONT_PROBE_TEXT): number | null {
   if (fontProbeContext === undefined) {
     fontProbeContext = document.createElement("canvas").getContext("2d");
   }
@@ -162,7 +162,7 @@ function probeWidth(fontList: string, text = FONT_PROBE_TEXT) {
  * for families that are not installed at all (nothing needs loading), so it
  * cannot filter the dropdown.
  */
-export function isFontFamilyAvailable(family: string) {
+export function isFontFamilyAvailable(family: string): boolean {
   const families = cssFontFamilies(family);
   if (families === null) return false;
   if (/^(system-ui|sans-serif|serif|monospace|ui-monospace)$/i.test(families)) return true;
@@ -183,7 +183,7 @@ const MONOSPACE_PROBE_VARIANTS = ["normal 400", "normal 700", "italic 400", "ita
 const MONOSPACE_PROBE_GLYPHS = ["i", "M", "W", "0", "@", "#", ".", " "] as const;
 const MONOSPACE_ADVANCE_TOLERANCE = 0.01;
 
-function areFontAdvancesMonospace(advances: readonly number[]) {
+function areFontAdvancesMonospace(advances: readonly number[]): boolean {
   const reference = advances[0];
   if (
     reference === undefined ||
@@ -195,7 +195,7 @@ function areFontAdvancesMonospace(advances: readonly number[]) {
   return advances.every((advance) => Math.abs(advance - reference) < MONOSPACE_ADVANCE_TOLERANCE);
 }
 
-export function isMonospaceFamily(family: string) {
+export function isMonospaceFamily(family: string): boolean {
   const families = cssFontFamilies(family);
   if (families === null) return true;
   try {
@@ -226,9 +226,8 @@ let installedFamiliesCache: InstalledFontFamiliesResult | null = null;
  * Call from a user gesture: the first call raises the browser's local-fonts
  * permission prompt.
  */
-export async function queryInstalledFontFamilies() {
-  if (installedFamiliesCache !== null)
-    return installedFamiliesCache satisfies InstalledFontFamiliesResult;
+export async function queryInstalledFontFamilies(): Promise<InstalledFontFamiliesResult> {
+  if (installedFamiliesCache !== null) return installedFamiliesCache;
   const query = (
     window as Window & {
       queryLocalFonts?: () => Promise<ReadonlyArray<{ readonly family: string }>>;
@@ -236,18 +235,17 @@ export async function queryInstalledFontFamilies() {
   ).queryLocalFonts;
   if (typeof query !== "function") {
     installedFamiliesCache = { families: [], status: "unsupported" };
-    return installedFamiliesCache satisfies InstalledFontFamiliesResult;
+    return installedFamiliesCache;
   }
   try {
     const fonts = await query.call(window);
     const families = [...new Set(fonts.map((font) => font.family))]
       .filter((family) => !family.startsWith("."))
       .sort((left, right) => left.localeCompare(right));
-    if (families.length === 0)
-      return { families: [], status: "denied" } satisfies InstalledFontFamiliesResult;
+    if (families.length === 0) return { families: [], status: "denied" };
     installedFamiliesCache = { families, status: "granted" };
-    return installedFamiliesCache satisfies InstalledFontFamiliesResult;
+    return installedFamiliesCache;
   } catch {
-    return { families: [], status: "denied" } satisfies InstalledFontFamiliesResult;
+    return { families: [], status: "denied" };
   }
 }

@@ -15,8 +15,7 @@ function shipped(script: BundledFontScript) {
 }
 
 /** The faces Word substitutes for a document's fonts: metric-compatible ones first, then Word's own fallbacks. */
-export function wordFonts(): BundledFontProvider;
-export function wordFonts() {
+export function wordFonts(): BundledFontProvider {
   const loader = (face: BundledFontFace | undefined) => (face ? () => loadFace(face) : undefined);
 
   return {
@@ -27,11 +26,11 @@ export function wordFonts() {
     resolveScriptFallback: (script, bold, italic) => loader(scriptFace(script, bold, italic)),
     resolveLastResort: (family, bold, italic) => () =>
       loadFace(lastResortFace(family, bold, italic, "word")),
-  } satisfies BundledFontProvider;
+  };
 }
 
 /** The face PowerPoint draws a family with: its metric-compatible or bundled face, else PowerPoint's substitute. */
-export function presentationFace(family: string, bold: boolean, italic: boolean) {
+export function presentationFace(family: string, bold: boolean, italic: boolean): BundledFontFace {
   return (
     shippedFace(resolveMetricCompatFace(family, bold, italic)) ??
     shippedFace(resolveBundledFamilyFace(family, bold, italic)) ??

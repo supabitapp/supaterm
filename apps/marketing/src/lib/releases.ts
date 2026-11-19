@@ -24,33 +24,29 @@ function cacheKey(channel: ReleaseChannel) {
   return `supaterm-${channel}-release`;
 }
 
-function fetchJson<T>(url: string): Promise<T>;
-async function fetchJson<T>(url: string) {
+async function fetchJson<T>(url: string): Promise<T> {
   const response = await fetch(url);
   if (!response.ok) throw new Error(`GitHub API responded ${response.status}`);
-  return response.json() satisfies T;
+  return response.json();
 }
 
-function fetchStable(): Promise<Release>;
-async function fetchStable() {
-  return fetchJson(LATEST_API_URL) satisfies Release;
+async function fetchStable(): Promise<Release> {
+  return fetchJson(LATEST_API_URL);
 }
 
-function fetchNightly(): Promise<Release>;
-async function fetchNightly() {
+async function fetchNightly(): Promise<Release> {
   const list = await fetchJson<Release[]>(LIST_API_URL);
   const nightly = Array.isArray(list)
     ? list.find((release) => release.tag_name?.includes("-nightly."))
     : undefined;
   if (!nightly) throw new Error("No nightly release in the latest page");
-  return nightly satisfies Release;
+  return nightly;
 }
 
-export function fetchLatestRelease(channel?: ReleaseChannel): Promise<Release>;
-export async function fetchLatestRelease(channel: ReleaseChannel = "stable") {
+export async function fetchLatestRelease(channel: ReleaseChannel = "stable"): Promise<Release> {
   const key = cacheKey(channel);
   const cached = sessionStorage.getItem(key);
-  if (cached) return JSON.parse(cached) satisfies Release;
+  if (cached) return JSON.parse(cached);
 
   const data = channel === "nightly" ? await fetchNightly() : await fetchStable();
 
@@ -58,5 +54,5 @@ export async function fetchLatestRelease(channel: ReleaseChannel = "stable") {
     sessionStorage.setItem(key, JSON.stringify(data));
   }
 
-  return data satisfies Release;
+  return data;
 }

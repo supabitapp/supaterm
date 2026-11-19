@@ -17,7 +17,7 @@ import { useToolbarLayout } from "./useToolbarLayout";
  * translucent bar starts, and where an overlay pinned under the bar goes. Measured by the native
  * column or stack on iOS; Android draws the bar in-tree from the toolbar geometry.
  */
-export function useBarInset() {
+export function useBarInset(): number {
   const headerHeight = use(HeaderHeightContext);
   const columnMetrics = useNativeColumnLayoutMetrics();
   const insets = useSafeAreaInsets();
@@ -32,7 +32,7 @@ export function useBarInset() {
  * How far the bar covers the top of the body below it: the bar inset where the body runs under
  * the iOS bar, 0 on Android, where the bar sits above the body in flow.
  */
-export function useBarOverlap() {
+export function useBarOverlap(): number {
   const barInset = useBarInset();
   return Platform.OS === "android" ? 0 : barInset;
 }
@@ -42,21 +42,21 @@ export function useBarOverlap() {
  * under, glass or solid, and zero on Android, where the bar sits in flow. For manual scroll
  * content insets.
  */
-export function useContentTopInset() {
+export function useContentTopInset(): number {
   const insets = useSafeAreaInsets();
   const columnMetrics = useNativeColumnLayoutMetrics();
   return Platform.OS === "ios" ? (columnMetrics?.safeArea.top ?? insets.top) : 0;
 }
 
 /** The content's bottom safe area on iOS, which a list with manual insets must add itself. */
-export function useContentBottomInset() {
+export function useContentBottomInset(): number {
   const insets = useSafeAreaInsets();
   const columnMetrics = useNativeColumnLayoutMetrics();
   return Platform.OS === "ios" ? (columnMetrics?.safeArea.bottom ?? insets.bottom) : 0;
 }
 
 /** How much of the screen's bottom edge an AppBar `search` covers: iOS's bottom search toolbar. */
-export function useSearchToolbarInset(search: AppBarSearch | undefined) {
+export function useSearchToolbarInset(search: AppBarSearch | undefined): number {
   const { layout } = useAdaptiveWorkspaceLayout();
   const usesNativeMailSearchToolbar = useNativeMailSearchToolbar();
   return search !== undefined &&
@@ -67,7 +67,7 @@ export function useSearchToolbarInset(search: AppBarSearch | undefined) {
 }
 
 /** Where a sheet's scrolling content ends: clear of the bottom safe area, with a little room. */
-export function useSheetContentBottomInset() {
+export function useSheetContentBottomInset(): number {
   const insets = useSafeAreaInsets();
   const columnMetrics = useNativeColumnLayoutMetrics();
   return Platform.OS === "ios"
@@ -76,7 +76,7 @@ export function useSheetContentBottomInset() {
 }
 
 /** The bottom safe area a list in a sheet pads itself: Android's, which its sheets don't adjust for. */
-export function useUnadjustedBottomInset() {
+export function useUnadjustedBottomInset(): number {
   const insets = useSafeAreaInsets();
   return Platform.OS === "android" ? insets.bottom : 0;
 }

@@ -38,7 +38,7 @@ export function resolveMarkdownImageDisplaySize(input: {
   readonly sourceWidth: number;
   readonly sourceHeight: number;
   readonly availableWidth: number;
-}) {
+}): MarkdownImageDisplaySize | null {
   if (
     !Number.isFinite(input.sourceWidth) ||
     !Number.isFinite(input.sourceHeight) ||

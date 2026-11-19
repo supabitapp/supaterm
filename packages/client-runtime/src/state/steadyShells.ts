@@ -57,11 +57,15 @@ export function stepSteadyShells(
   inputs: ReadonlyArray<SteadyShellInput>,
   now: number,
   windowMs = STEADY_SHELL_RELEASE_WINDOW_MS,
-) {
+): SteadyShellsState {
   const shells = new Map<EnvironmentId, SteadyShell>();
   const waiting: Array<SteadyShellInput> = [];
   let othersOweRows = false;
-  const show = (input: SteadyShellInput, caughtUp: boolean, current: SteadyShell | undefined) => ({
+  const show = (
+    input: SteadyShellInput,
+    caughtUp: boolean,
+    current: SteadyShell | undefined,
+  ): SteadyShell => ({
     shown: input.snapshot,
     shownSequence: input.serverSequence,
     shownGeneration: input.generation,
@@ -176,9 +180,10 @@ export function createSteadyShellAtoms<E>(input: {
   }).pipe(Atom.withLabel("steady-shells"));
 
   const snapshotAtom = Atom.family((environmentId: EnvironmentId) =>
-    Atom.make((get) => get(stateAtom).shells.get(environmentId)?.shown ?? null).pipe(
-      Atom.withLabel(`steady-shell-snapshot:${environmentId}`),
-    ),
+    Atom.make(
+      (get): OrchestrationV2ShellSnapshot | null =>
+        get(stateAtom).shells.get(environmentId)?.shown ?? null,
+    ).pipe(Atom.withLabel(`steady-shell-snapshot:${environmentId}`)),
   );
 
   const holdingAtom = Atom.make((get) => {

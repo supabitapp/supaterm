@@ -70,22 +70,16 @@ const ADD_CANDIDATES: ReadonlyArray<SnoozePresetSetting> = [
   { kind: "after", minutes: 24 * 60 },
 ];
 
-function splitMinutes(minutes: number) {
+function splitMinutes(minutes: number): { amount: number; unit: DurationUnit } {
   if (minutes % UNIT_MINUTES.days === 0)
-    return { amount: minutes / UNIT_MINUTES.days, unit: "days" } satisfies {
-      amount: number;
-      unit: DurationUnit;
-    };
+    return { amount: minutes / UNIT_MINUTES.days, unit: "days" };
   if (minutes % UNIT_MINUTES.hours === 0) {
-    return { amount: minutes / UNIT_MINUTES.hours, unit: "hours" } satisfies {
-      amount: number;
-      unit: DurationUnit;
-    };
+    return { amount: minutes / UNIT_MINUTES.hours, unit: "hours" };
   }
-  return { amount: minutes, unit: "minutes" } satisfies { amount: number; unit: DurationUnit };
+  return { amount: minutes, unit: "minutes" };
 }
 
-function nextCandidate(presets: ReadonlyArray<SnoozePresetSetting>) {
+function nextCandidate(presets: ReadonlyArray<SnoozePresetSetting>): SnoozePresetSetting {
   const used = new Set(presets.map(snoozePresetId));
   return (
     ADD_CANDIDATES.find((candidate) => !used.has(snoozePresetId(candidate))) ?? {
@@ -111,18 +105,16 @@ interface KindMemory {
   readonly time: string;
 }
 
-function withWhen(preset: SnoozePresetSetting, when: string, memory: KindMemory) {
+function withWhen(
+  preset: SnoozePresetSetting,
+  when: string,
+  memory: KindMemory,
+): SnoozePresetSetting | null {
   if (when === "after") {
-    return (
-      preset.kind === "after" ? preset : { kind: "after", minutes: memory.minutes }
-    ) satisfies SnoozePresetSetting | null;
+    return preset.kind === "after" ? preset : { kind: "after", minutes: memory.minutes };
   }
-  if (!isSnoozePresetDay(when)) return null satisfies SnoozePresetSetting | null;
-  return {
-    kind: "at",
-    day: when,
-    time: preset.kind === "at" ? preset.time : memory.time,
-  } satisfies SnoozePresetSetting | null;
+  if (!isSnoozePresetDay(when)) return null;
+  return { kind: "at", day: when, time: preset.kind === "at" ? preset.time : memory.time };
 }
 
 /**

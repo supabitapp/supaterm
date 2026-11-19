@@ -2,7 +2,7 @@ const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
 
-export function formatScheduledTaskInterval(everyMs: number) {
+export function formatScheduledTaskInterval(everyMs: number): string {
   const units = [
     [7 * DAY, "week"],
     [DAY, "day"],
@@ -23,11 +23,11 @@ export function formatScheduledTaskInterval(everyMs: number) {
   return `Every ${parts.join(" ")}`;
 }
 
-function localCalendarDay(date: Date) {
+function localCalendarDay(date: Date): number {
   return Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) / DAY;
 }
 
-export function formatNextScheduledTaskRun(nextRunAt: string, now: number) {
+export function formatNextScheduledTaskRun(nextRunAt: string, now: number): string {
   const next = new Date(nextRunAt);
   const current = new Date(now);
   const remaining = next.getTime() - now;

@@ -23,7 +23,7 @@ function createLocalStorageStub(readFailures: Array<Error>) {
     get length() {
       return store.size;
     },
-  } satisfies Storage;
+  };
 }
 
 function getTestWindow(readFailures: Array<Error> = []) {

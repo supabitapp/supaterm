@@ -45,11 +45,11 @@ const CHECKOUT_REFRESH_RETRY = Schedule.exponential(Duration.seconds(1)).pipe(
 );
 const MAX_FAILURE_DIAGNOSTIC_VALUE_LENGTH = 128;
 
-function boundedDiagnosticValue(value: string) {
+function boundedDiagnosticValue(value: string): string {
   return value.slice(0, MAX_FAILURE_DIAGNOSTIC_VALUE_LENGTH);
 }
 
-function diagnosticValueTag(value: unknown) {
+function diagnosticValueTag(value: unknown): string {
   try {
     if (
       typeof value === "object" &&
@@ -68,7 +68,7 @@ function diagnosticValueTag(value: unknown) {
   }
 }
 
-function diagnosticFailureOperation(value: unknown) {
+function diagnosticFailureOperation(value: unknown): string | undefined {
   try {
     if (
       typeof value === "object" &&
@@ -84,7 +84,7 @@ function diagnosticFailureOperation(value: unknown) {
   return undefined;
 }
 
-function addUniqueDiagnosticValue(values: Array<string>, value: string | undefined) {
+function addUniqueDiagnosticValue(values: Array<string>, value: string | undefined): void {
   if (
     value !== undefined &&
     values.length < MAX_FAILURE_DIAGNOSTIC_VALUES &&
@@ -239,7 +239,7 @@ export class VcsStatusBroadcaster extends Context.Service<
   }
 >()("supaterm/vcs/VcsStatusBroadcaster") {}
 
-function fingerprintStatusPart(status: unknown) {
+function fingerprintStatusPart(status: unknown): string {
   return JSON.stringify(status);
 }
 
@@ -894,11 +894,14 @@ export const make = Effect.gen(function* () {
     const requested = yield* Deferred.make<VcsStatusResult, GitManagerServiceError>();
     const shared = yield* Effect.uninterruptible(
       Effect.gen(function* () {
-        const followUp = yield* Ref.modify(queuedRefreshesRef, (queued) => {
-          if (!queued.has(rawCwd)) return [undefined, new Map(queued).set(rawCwd, null)];
-          const followUp = queued.get(rawCwd) ?? requested;
-          return [followUp, new Map(queued).set(rawCwd, followUp)];
-        });
+        const followUp = yield* Ref.modify(
+          queuedRefreshesRef,
+          (queued): readonly [SharedRefresh | undefined, Map<string, SharedRefresh | null>] => {
+            if (!queued.has(rawCwd)) return [undefined, new Map(queued).set(rawCwd, null)];
+            const followUp = queued.get(rawCwd) ?? requested;
+            return [followUp, new Map(queued).set(rawCwd, followUp)];
+          },
+        );
         if (followUp !== undefined) return followUp;
         yield* runQueuedRefreshes(rawCwd, requested).pipe(Effect.forkIn(broadcasterScope));
         return requested;

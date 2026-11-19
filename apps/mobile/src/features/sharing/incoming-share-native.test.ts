@@ -1,10 +1,11 @@
 import { describe, expect, it, vi } from "@effect/vitest";
+import type { SharePayload } from "expo-sharing";
 
 import { createIncomingSharePayloadReader } from "./incoming-share-native";
 
 describe("createIncomingSharePayloadReader", () => {
   it("treats a missing iOS App Group as an unavailable inbox", () => {
-    const readPayloads = vi.fn(() => {
+    const readPayloads = vi.fn((): ReadonlyArray<SharePayload> => {
       throw Object.assign(new Error("Expo-sharing has failed to fetch the app group id"), {
         code: "ERR_FAILED_TO_RESOLVE_APP_GROUP_ID",
       });

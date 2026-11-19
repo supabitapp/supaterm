@@ -1,6 +1,13 @@
+interface ParsedSemver {
+  readonly major: number;
+  readonly minor: number;
+  readonly patch: number;
+  readonly prerelease: ReadonlyArray<string>;
+}
+
 const SEMVER_NUMBER_SEGMENT = /^\d+$/;
 
-export function normalizeSemverVersion(version: string) {
+export function normalizeSemverVersion(version: string): string {
   const [versionWithoutBuildMetadata = ""] = version.trim().split("+", 1);
   const [main, ...prereleaseParts] = versionWithoutBuildMetadata.split("-");
   const prerelease = prereleaseParts.join("-");
@@ -19,7 +26,7 @@ export function normalizeSemverVersion(version: string) {
   return prerelease ? `${segments.join(".")}-${prerelease}` : segments.join(".");
 }
 
-export function parseSemver(value: string) {
+export function parseSemver(value: string): ParsedSemver | null {
   const normalized = normalizeSemverVersion(value).replace(/^v/, "");
   const [main = "", ...prereleaseParts] = normalized.split("-");
   const prerelease = prereleaseParts.join("-");
@@ -55,7 +62,7 @@ export function parseSemver(value: string) {
   };
 }
 
-function parsePrereleaseSegments(prerelease: string | undefined) {
+function parsePrereleaseSegments(prerelease: string | undefined): ReadonlyArray<string> {
   if (prerelease === undefined) {
     return [];
   }
@@ -69,7 +76,7 @@ function parsePrereleaseSegments(prerelease: string | undefined) {
   return segments;
 }
 
-function comparePrereleaseIdentifier(left: string, right: string) {
+function comparePrereleaseIdentifier(left: string, right: string): number {
   const leftNumeric = SEMVER_NUMBER_SEGMENT.test(left);
   const rightNumeric = SEMVER_NUMBER_SEGMENT.test(right);
 
@@ -87,7 +94,7 @@ function comparePrereleaseIdentifier(left: string, right: string) {
   return left === right ? 0 : left < right ? -1 : 1;
 }
 
-export function compareSemverVersions(left: string, right: string) {
+export function compareSemverVersions(left: string, right: string): number {
   const parsedLeft = parseSemver(left);
   const parsedRight = parseSemver(right);
   if (!parsedLeft || !parsedRight) {

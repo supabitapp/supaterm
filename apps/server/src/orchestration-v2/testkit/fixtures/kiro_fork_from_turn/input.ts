@@ -6,12 +6,12 @@ import {
 } from "../shared.ts";
 
 /** Forks from the first of two turns, so the fork must leave the second behind. */
-export function kiroForkFromTurnInput() {
+export function kiroForkFromTurnInput(): OrchestratorFixtureInput {
   return {
     steps: [
       { type: "message", text: THREAD_FORK_NATIVE_PRIOR_TURN_ALPHA_PROMPT },
       { type: "message", text: THREAD_FORK_NATIVE_PRIOR_TURN_BETA_PROMPT },
       { type: "fork", fromRunIndex: 1, text: THREAD_FORK_NATIVE_PRIOR_TURN_REPEAT_PROMPT },
     ],
-  } satisfies OrchestratorFixtureInput;
+  };
 }

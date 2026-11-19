@@ -27,16 +27,20 @@ function presentation(
   environmentId: EnvironmentId,
   endpoint: string = environmentId,
   serverConfig: ServerConfig | null = null,
-) {
+): EnvironmentPresentation {
   return {
     entry: { target: target(environmentId, endpoint), profile: Option.none(), enabled: true },
     connection: { phase: "connected", error: null, traceId: null },
     serverConfig,
     refusedRouteIds: [],
-  } satisfies EnvironmentPresentation;
+  };
 }
 
-function prepared(environmentId: EnvironmentId, endpoint: string, token: string) {
+function prepared(
+  environmentId: EnvironmentId,
+  endpoint: string,
+  token: string,
+): PreparedConnection {
   return {
     environmentId,
     label: `Environment ${environmentId}`,
@@ -44,7 +48,7 @@ function prepared(environmentId: EnvironmentId, endpoint: string, token: string)
     socketUrl: `wss://${endpoint}.example.test/ws?token=redacted`,
     httpAuthorization: { _tag: "Bearer", token },
     target: target(environmentId, endpoint),
-  } satisfies PreparedConnection;
+  };
 }
 
 function makeHarness() {

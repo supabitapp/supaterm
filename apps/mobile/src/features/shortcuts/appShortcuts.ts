@@ -1,6 +1,6 @@
 import type { Action } from "expo-quick-actions";
 import type { NavigationState } from "@react-navigation/native";
-import { EnvironmentId, ThreadId } from "@supaterm/contracts";
+import { EnvironmentId, ThreadId, type ScopedThreadRef } from "@supaterm/contracts";
 
 import type { RecentThreadShortcut } from "../../persistence/imperative";
 
@@ -13,11 +13,11 @@ const SHORTCUT_ICON = "shortcut_icon";
 
 const THREAD_SHORTCUT_HREF_PATTERN = /^\/threads\/[^/?#]+\/[^/?#]+$/;
 
-function threadShortcutHref(thread: RecentThreadShortcut) {
+function threadShortcutHref(thread: RecentThreadShortcut): string {
   return `/threads/${encodeURIComponent(thread.environmentId)}/${encodeURIComponent(thread.threadId)}`;
 }
 
-function firstRouteParam(value: string | string[] | undefined) {
+function firstRouteParam(value: string | string[] | undefined): string | null {
   if (Array.isArray(value)) {
     return value[0] ?? null;
   }
@@ -26,7 +26,7 @@ function firstRouteParam(value: string | string[] | undefined) {
 }
 
 /** Never throw: malformed deep-link or restored ids can fail schema constructors during root-stack render. */
-export function activeThreadRef(state: NavigationState) {
+export function activeThreadRef(state: NavigationState): ScopedThreadRef | null {
   const route = state.routes[state.index];
   if (route?.name !== "Thread") {
     return null;
@@ -54,13 +54,13 @@ export function activeThreadRef(state: NavigationState) {
   }
 }
 
-function threadShortcutLabel(thread: RecentThreadShortcut) {
+function threadShortcutLabel(thread: RecentThreadShortcut): string {
   const title = thread.title.trim();
   return title.length > 0 ? title : "Thread";
 }
 
 /** Launcher shortcuts survive updates; allowlist destinations so malformed or stale paths cannot navigate. */
-export function shortcutHref(action: Action) {
+export function shortcutHref(action: Action): string | null {
   const href = action.params?.href;
   if (typeof href !== "string") {
     return null;
@@ -72,7 +72,7 @@ export function shortcutHref(action: Action) {
 export function withRecentThreadShortcut(
   current: ReadonlyArray<RecentThreadShortcut>,
   opened: RecentThreadShortcut,
-) {
+): ReadonlyArray<RecentThreadShortcut> {
   const existing = current.find(
     (thread) =>
       thread.environmentId === opened.environmentId && thread.threadId === opened.threadId,
@@ -88,7 +88,7 @@ export function withRecentThreadShortcut(
   ].slice(0, MAX_RECENT_THREAD_SHORTCUTS);
 }
 
-export function buildShortcutActions(recents: ReadonlyArray<RecentThreadShortcut>) {
+export function buildShortcutActions(recents: ReadonlyArray<RecentThreadShortcut>): Action[] {
   return [
     {
       id: NEW_TASK_SHORTCUT_ID,
@@ -96,7 +96,7 @@ export function buildShortcutActions(recents: ReadonlyArray<RecentThreadShortcut
       icon: SHORTCUT_ICON,
       params: { href: NEW_TASK_SHORTCUT_HREF },
     },
-    ...recents.slice(0, MAX_RECENT_THREAD_SHORTCUTS).map((thread) => ({
+    ...recents.slice(0, MAX_RECENT_THREAD_SHORTCUTS).map((thread): Action => ({
       id: `thread:${threadShortcutHref(thread)}`,
       title: threadShortcutLabel(thread),
       icon: SHORTCUT_ICON,

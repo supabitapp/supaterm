@@ -40,17 +40,16 @@ const sessions = Atom.family((_id: EnvironmentId) =>
 );
 const env = EnvironmentId.make("target");
 const other = EnvironmentId.make("other");
-const grant = (allowed: boolean) =>
-  ({
-    authenticated: true,
-    auth: {
-      policy: "remote-reachable",
-      bootstrapMethods: [],
-      sessionMethods: [],
-      sessionCookieName: "test",
-    },
-    scopes: allowed ? [AuthOrchestrationOperateScope] : [],
-  }) satisfies AuthSessionState;
+const grant = (allowed: boolean): AuthSessionState => ({
+  authenticated: true,
+  auth: {
+    policy: "remote-reachable",
+    bootstrapMethods: [],
+    sessionMethods: [],
+    sessionCookieName: "test",
+  },
+  scopes: allowed ? [AuthOrchestrationOperateScope] : [],
+});
 const runtime = Atom.runtime(
   Layer.succeed(EnvironmentRegistry, {
     run: (_id: EnvironmentId, effect: Effect.Effect<unknown>) => effect,

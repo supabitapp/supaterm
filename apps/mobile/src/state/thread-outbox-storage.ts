@@ -13,14 +13,14 @@ const THREAD_OUTBOX_DIRECTORY = "thread-outbox";
 
 const inFlightWrites = new Set<Promise<void>>();
 
-function trackInFlightWrite(operation: Promise<void>) {
+function trackInFlightWrite(operation: Promise<void>): Promise<void> {
   inFlightWrites.add(operation);
   void operation.catch(() => undefined).finally(() => inFlightWrites.delete(operation));
   return operation;
 }
 
 /** Waits for in-flight writes before app-update restart. */
-export async function flushThreadOutboxWrites() {
+export async function flushThreadOutboxWrites(): Promise<void> {
   while (inFlightWrites.size > 0) {
     await Promise.allSettled(inFlightWrites);
   }
@@ -37,7 +37,7 @@ export class ThreadOutboxStorageError extends Schema.TaggedError<ThreadOutboxSto
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Thread outbox storage operation ${this.operation} failed for environment ${this.environmentId ?? "unknown"}, thread ${this.threadId ?? "unknown"}, message ${this.messageId ?? "unknown"}, file ${this.fileName ?? "unknown"}.`;
   }
 }
@@ -53,7 +53,7 @@ export interface ThreadOutboxStorage {
   readonly remove: (message: QueuedThreadMessage) => Promise<void>;
 }
 
-function messageFileName(messageId: MessageId) {
+function messageFileName(messageId: MessageId): string {
   return `${encodeURIComponent(messageId)}.json`;
 }
 

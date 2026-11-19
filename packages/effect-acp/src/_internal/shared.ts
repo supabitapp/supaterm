@@ -11,7 +11,7 @@ const isAcpError = Schema.is(AcpError.AcpError);
 export const callRpc = <A>(
   method: string,
   effect: Effect.Effect<A, RpcClientError.RpcClientError | AcpSchema.Error>,
-) =>
+): Effect.Effect<A, AcpError.AcpError> =>
   effect.pipe(
     Effect.catchIf(isError, (error) =>
       Effect.fail(AcpError.AcpRequestError.fromProtocolError(error, { method })),
@@ -66,7 +66,10 @@ export function decodeExtRequestRegistration<A, I>(
     context: { readonly requestId: string; readonly method: string },
   ) => Effect.Effect<unknown, AcpError.AcpError>,
 ) {
-  return (params: unknown, context: { readonly requestId: string; readonly method: string }) =>
+  return (
+    params: unknown,
+    context: { readonly requestId: string; readonly method: string },
+  ): Effect.Effect<unknown, AcpError.AcpError> =>
     Schema.decodeUnknownEffect(payload)(params).pipe(
       Effect.mapError((error) => AcpError.AcpRequestError.invalidExtensionPayload(method, error)),
       Effect.flatMap((decoded) => handler(decoded, context)),
@@ -78,7 +81,7 @@ export function decodeExtNotificationRegistration<A, I>(
   payload: Schema.Codec<A, I>,
   handler: (payload: A) => Effect.Effect<void, AcpError.AcpError>,
 ) {
-  return (params: unknown) =>
+  return (params: unknown): Effect.Effect<void, AcpError.AcpError> =>
     Schema.decodeUnknownEffect(payload)(params).pipe(
       Effect.mapError((error) =>
         AcpError.AcpProtocolParseError.fromSchemaError(

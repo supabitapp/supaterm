@@ -16,7 +16,7 @@ export class ProviderAdapterDriverCreateError extends Schema.TaggedError<Provide
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Failed to create orchestration-v2 provider adapter ${this.instanceId} (${this.driver}): ${this.detail}`;
   }
 }

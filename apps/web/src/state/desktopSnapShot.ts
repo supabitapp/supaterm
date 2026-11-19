@@ -9,7 +9,7 @@ export interface SnapShotSetupError {
   readonly message: string;
 }
 
-export function snapShotSetupError(title: string, error: unknown) {
+export function snapShotSetupError(title: string, error: unknown): SnapShotSetupError {
   return { title, message: error instanceof Error ? error.message : "Try again." };
 }
 
@@ -28,7 +28,7 @@ let stateRequestId = 0;
  * may have changed OS permissions) and when the desktop reports a shortcut change.
  */
 export const desktopSnapShotAtom = Atom.writable(
-  (get) => {
+  (get): DesktopSnapShotLoad => {
     get.addFinalizer(() => {
       stateRequestId++;
     });
@@ -61,7 +61,7 @@ export const desktopSnapShotAtom = Atom.writable(
 export async function refreshDesktopSnapShotState(
   registry: AtomRegistry.AtomRegistry,
   onError: (error: unknown) => void,
-) {
+): Promise<DesktopSnapShotState | undefined> {
   const bridge = getDesktopSnapShotBridge();
   if (!bridge) return undefined;
   const requestId = ++stateRequestId;

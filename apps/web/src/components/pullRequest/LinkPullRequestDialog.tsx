@@ -28,7 +28,7 @@ const linkPullRequestDialogThreadAtom = Atom.make<ScopedThreadRef | null>(null).
   Atom.withLabel("pull-requests:link-dialog-thread"),
 );
 
-export function openLinkPullRequestDialog(threadRef: ScopedThreadRef) {
+export function openLinkPullRequestDialog(threadRef: ScopedThreadRef): void {
   appAtomRegistry.set(linkPullRequestDialogThreadAtom, threadRef);
 }
 

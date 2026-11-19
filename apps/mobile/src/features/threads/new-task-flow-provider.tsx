@@ -130,13 +130,13 @@ import { resolveProjectThreadCreationBranch } from "./projectThreadCreationValid
 
 type WorkspaceMode = "local" | "worktree";
 
-function pendingTaskDraftKey(messageId: string) {
+function pendingTaskDraftKey(messageId: string): string {
   return `pending-task:${messageId}`;
 }
 
 let activeEditingMessageId: string | null = null;
 
-function findQueuedPendingTask(messageId: string) {
+function findQueuedPendingTask(messageId: string): QueuedThreadMessage | null {
   const message = flattenQueuedThreadMessages(
     appAtomRegistry.get(threadOutboxManager.queuedMessagesByThreadKeyAtom),
   ).find((candidate) => candidate.messageId === messageId);
@@ -146,7 +146,7 @@ function findQueuedPendingTask(messageId: string) {
 function canMoveEditedPendingTask(
   editing: QueuedThreadMessage | null,
   environmentId: EnvironmentId,
-) {
+): boolean {
   if (
     editing === null ||
     editing.environmentId === environmentId ||
@@ -299,11 +299,7 @@ export function useServedNewTaskFlow() {
 function useNewTaskFlowValue(
   route: NewTaskFlowRoute | undefined,
   instance: { readonly owner: boolean; readonly served: boolean; readonly active: boolean },
-): NewTaskFlowContextValue;
-function useNewTaskFlowValue(
-  route: NewTaskFlowRoute | undefined,
-  instance: { readonly owner: boolean; readonly served: boolean; readonly active: boolean },
-) {
+): NewTaskFlowContextValue {
   const projects = useProjects();
   const threads = useThreadShells();
   const { savedConnectionsById } = useSavedRemoteConnections();
@@ -348,7 +344,7 @@ function useNewTaskFlowValue(
     flow: NewTaskFlowState,
     loaded: boolean,
     stamp: Parameters<typeof resolveRouteDraft>[0]["stamp"],
-  ) =>
+  ): RouteDraftResolution =>
     resolveRouteDraft({
       flow,
       routeDraftId,
@@ -356,7 +352,7 @@ function useNewTaskFlowValue(
       stamp,
       projects,
       stampedEnvironmentLoading,
-    }) satisfies RouteDraftResolution;
+    });
   const routeDraftResolution = resolveRoute(storedFlowState, draftsLoaded, routeDraft.project);
   const flowState =
     routeDraftResolution.kind === "open" ? routeDraftResolution.flow : storedFlowState;
@@ -368,14 +364,14 @@ function useNewTaskFlowValue(
   } = flowState;
   const editingPendingTask = flowState.editingPendingTask?.message ?? null;
   const switchingToEnvironmentId = flowState.environmentSwitch?.environmentId ?? null;
-  const readFlow = () => {
+  const readFlow = (): NewTaskFlowState => {
     const stored = readNewTaskFlowState(flowKey);
     const resolution = resolveRoute(
       stored,
       appAtomRegistry.get(composerDraftsLoadedAtom),
       routeDraftId === undefined ? undefined : getComposerDraftSnapshot(routeDraftId).project,
     );
-    return (resolution.kind === "open" ? resolution.flow : stored) satisfies NewTaskFlowState;
+    return resolution.kind === "open" ? resolution.flow : stored;
   };
   const updateFlow = (patch: Partial<NewTaskFlowState>) =>
     updateNewTaskFlowState(flowKey, { ...readFlow(), ...patch });
@@ -405,7 +401,7 @@ function useNewTaskFlowValue(
     Arr.filter((project) => project.environmentId === selectedEnvironmentId),
   );
 
-  const editingPendingProject = (() => {
+  const editingPendingProject = ((): EnvironmentProject | null => {
     const creation = editingPendingTask?.creation;
     if (!editingPendingTask || !creation) {
       return null;
@@ -643,7 +639,7 @@ function useNewTaskFlowValue(
   const carryDraftContentTo = (
     project: EnvironmentProject,
     options?: Parameters<typeof retargetNewTaskDraft>[2],
-  ) => {
+  ): string | null => {
     const target = { environmentId: project.environmentId, projectId: project.id };
     const flow = readFlow();
     if (flow.draftKey !== null && isNewTaskDraftKey(flow.draftKey)) {
@@ -689,7 +685,7 @@ function useNewTaskFlowValue(
 
   const openScratch = useAtomCommand(projectEnvironment.openScratch, { reportFailure: false });
   const prepareTriage = usePrepareTriage();
-  const switchEnvironment = async (environmentId: EnvironmentId) => {
+  const switchEnvironment = async (environmentId: EnvironmentId): Promise<boolean> => {
     if (readFlow().submitting) return false;
     if (!canMoveEditedPendingTask(readEditingPendingTask(), environmentId)) return false;
     if (environmentId === selectedEnvironmentId) {
@@ -811,7 +807,7 @@ function useNewTaskFlowValue(
       updateComposerDraftSettings(selectedProjectDraftKey, { runtimeMode: value });
     }
   };
-  const beginEditingPendingTask = (messageId: string) => {
+  const beginEditingPendingTask = (messageId: string): boolean => {
     const message = findQueuedPendingTask(messageId);
     if (!message?.creation || !holdEditingQueuedMessage(message.messageId)) {
       return false;
@@ -852,7 +848,7 @@ function useNewTaskFlowValue(
       readonly currentCheckoutBranch?: string | null;
       readonly useDefaultBranch?: boolean;
     },
-  ) => {
+  ): QueuedThreadMessage | null => {
     if (readFlow().environmentSwitch !== null) return null;
     if (!selectedProject || !selectedProjectDraftKey) {
       return null;
@@ -1126,5 +1122,5 @@ function useNewTaskFlowValue(
     loadBranches,
     setRuntimeMode,
     setSelectedModelOptions,
-  } satisfies NewTaskFlowContextValue;
+  };
 }

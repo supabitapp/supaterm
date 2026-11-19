@@ -20,20 +20,20 @@ export interface MarkdownClipboardPayload {
   html: string;
 }
 
-function isSkippedElement(element: Element) {
+function isSkippedElement(element: Element): boolean {
   if (SKIPPED_TAGS.has(element.tagName) || element.localName === "svg") return true;
   if (element.getAttribute("aria-hidden") === "true") return true;
   return SKIPPED_CLASS_NAMES.some((className) => element.classList.contains(className));
 }
 
-function wrapInlineMarker(content: string, marker: string) {
+function wrapInlineMarker(content: string, marker: string): string {
   const match = /^(\s*)([\s\S]*?)(\s*)$/.exec(content);
   const core = match?.[2] ?? "";
   if (!core) return content;
   return `${match?.[1] ?? ""}${marker}${core}${marker}${match?.[3] ?? ""}`;
 }
 
-function isBlockCodeElement(element: Element, content: string) {
+function isBlockCodeElement(element: Element, content: string): boolean {
   if (content.includes("\n")) return true;
   for (const child of element.childNodes) {
     if (child.nodeType === Node.ELEMENT_NODE && (child as Element).classList.contains("line")) {
@@ -43,7 +43,7 @@ function isBlockCodeElement(element: Element, content: string) {
   return false;
 }
 
-function wrapInlineCode(code: string) {
+function wrapInlineCode(code: string): string {
   const longestRun = [...(code.match(/`+/g) ?? [])].reduce(
     (max, run) => Math.max(max, run.length),
     0,
@@ -54,7 +54,7 @@ function wrapInlineCode(code: string) {
   return `${fence}${pad}${code}${pad}${fence}`;
 }
 
-function codeFenceFor(code: string) {
+function codeFenceFor(code: string): string {
   const longestRun = [...(code.match(/`{3,}/g) ?? [])].reduce(
     (max, run) => Math.max(max, run.length),
     0,
@@ -62,7 +62,7 @@ function codeFenceFor(code: string) {
   return "`".repeat(Math.max(3, longestRun + 1));
 }
 
-export function serializeCodeBlockToMarkdown(source: string, language: string | null) {
+export function serializeCodeBlockToMarkdown(source: string, language: string | null): string {
   const code = source.replace(/\n$/, "");
   const fence = codeFenceFor(code);
   return `${fence}${language ?? ""}\n${code}\n${fence}\n\n`;
@@ -70,11 +70,11 @@ export function serializeCodeBlockToMarkdown(source: string, language: string | 
 
 const CODE_BOUNDARY = "\u0000";
 
-function verbatimBlock(code: string) {
+function verbatimBlock(code: string): string {
   return `${CODE_BOUNDARY}${code}${CODE_BOUNDARY}\n\n`;
 }
 
-function outsideCode(markdown: string, tidy: (prose: string) => string) {
+function outsideCode(markdown: string, tidy: (prose: string) => string): string {
   return markdown
     .split(CODE_BOUNDARY)
     .map((part, index) =>
@@ -83,15 +83,15 @@ function outsideCode(markdown: string, tidy: (prose: string) => string) {
     .join("");
 }
 
-function serializeCodeBlock(pre: Element) {
+function serializeCodeBlock(pre: Element): string {
   return verbatimBlock((pre.textContent ?? "").replace(/\n$/, ""));
 }
 
-function serializeTableCell(cell: Element) {
+function serializeTableCell(cell: Element): string {
   return serializeChildren(cell, true).replace(/\n+/g, " ").trim();
 }
 
-function tableSeparatorFor(headerCells: Element[]) {
+function tableSeparatorFor(headerCells: Element[]): string {
   const markers = headerCells.map((cell) => {
     const align = (cell as HTMLElement).style?.textAlign ?? cell.getAttribute("align") ?? "";
     if (align === "center") return ":---:";
@@ -101,7 +101,7 @@ function tableSeparatorFor(headerCells: Element[]) {
   return `| ${markers.join(" | ")} |`;
 }
 
-function serializeTable(table: Element) {
+function serializeTable(table: Element): string {
   const rows = [...table.querySelectorAll(":scope > thead > tr, :scope > tbody > tr, :scope > tr")];
   if (rows.length === 0) return "";
   const lines: string[] = [];
@@ -120,7 +120,12 @@ function serializeTable(table: Element) {
   return `${lines.join("\n")}\n\n`;
 }
 
-function serializeListItem(item: Element, ordered: boolean, index: number, inTableCell: boolean) {
+function serializeListItem(
+  item: Element,
+  ordered: boolean,
+  index: number,
+  inTableCell: boolean,
+): string {
   const checkbox = item.querySelector(
     ':scope > input[type="checkbox"], :scope > p > input[type="checkbox"]',
   );
@@ -142,7 +147,7 @@ function serializeListItem(item: Element, ordered: boolean, index: number, inTab
   ].join("\n");
 }
 
-function numberedListItems(list: Element) {
+function numberedListItems(list: Element): { item: Element; number: number }[] {
   const start = Number.parseInt(list.getAttribute("start") ?? "1", 10);
   let next = Number.isNaN(start) ? 1 : start;
   return [...list.children].flatMap((item) => {
@@ -153,7 +158,7 @@ function numberedListItems(list: Element) {
   });
 }
 
-function serializeList(list: Element, ordered: boolean, inTableCell: boolean) {
+function serializeList(list: Element, ordered: boolean, inTableCell: boolean): string {
   const items = numberedListItems(list);
   if (items.length === 0) return "";
   return `${items
@@ -161,7 +166,7 @@ function serializeList(list: Element, ordered: boolean, inTableCell: boolean) {
     .join("\n")}\n\n`;
 }
 
-function serializeQuoteBody(quote: Element, inTableCell: boolean) {
+function serializeQuoteBody(quote: Element, inTableCell: boolean): string {
   let content = "";
   for (const child of quote.childNodes) {
     if (child.nodeType === Node.ELEMENT_NODE && (child as Element).hasAttribute(ALERT_LABEL)) {
@@ -172,7 +177,7 @@ function serializeQuoteBody(quote: Element, inTableCell: boolean) {
   return outsideCode(content, (prose) => prose.replace(/\n{3,}/g, "\n\n")).trim();
 }
 
-function serializeBlockquote(quote: Element, inTableCell: boolean, marker = "") {
+function serializeBlockquote(quote: Element, inTableCell: boolean, marker = ""): string {
   const body = serializeQuoteBody(quote, inTableCell);
   const content = marker && body ? `${marker}\n${body}` : marker || body;
   if (!content) return "";
@@ -183,12 +188,12 @@ function serializeBlockquote(quote: Element, inTableCell: boolean, marker = "") 
   return `${quoted}\n\n`;
 }
 
-function serializeInsight(insight: Element, inTableCell: boolean) {
+function serializeInsight(insight: Element, inTableCell: boolean): string {
   const body = serializeQuoteBody(insight, inTableCell);
   return `★ Insight ${"─".repeat(37)}\n${body ? `${body}\n` : ""}${"─".repeat(49)}\n\n`;
 }
 
-function serializeDetails(details: Element) {
+function serializeDetails(details: Element): string {
   const summary =
     details.querySelector(":scope > [data-markdown-details-summary]")?.textContent?.trim() ??
     "Details";
@@ -201,7 +206,7 @@ function serializeDetails(details: Element) {
 const INLINE_MARKDOWN = /\\(?=[!-/:-@[-`{-~\n]|$)|[`[\]]|\*+|_+|~{2,}/g;
 const ESCAPED_PUNCTUATION = /\\([!-/:-@[-`{-~])/g;
 
-function escapeProse(text: string) {
+function escapeProse(text: string): string {
   return text.replace(/\S+/g, (word, wordOffset: number) => {
     const drive = UNFINISHED_DRIVE_PATH.exec(word);
     const driveStart = drive ? drive.index + drive[0].search(/[A-Za-z]/) + 2 : Infinity;
@@ -219,7 +224,7 @@ function escapeProse(text: string) {
   });
 }
 
-function serializeAnchor(anchor: Element, inTableCell: boolean) {
+function serializeAnchor(anchor: Element, inTableCell: boolean): string {
   const markdownCopy = anchor.getAttribute("data-markdown-copy");
   if (markdownCopy !== null) return escapeTablePipes(markdownCopy, inTableCell);
   const content = serializeChildren(anchor, inTableCell);
@@ -235,11 +240,11 @@ function serializeAnchor(anchor: Element, inTableCell: boolean) {
   return `[${label}](${destination})`;
 }
 
-function escapeTablePipes(text: string, inTableCell: boolean) {
+function escapeTablePipes(text: string, inTableCell: boolean): string {
   return inTableCell ? text.replaceAll("|", "\\|") : text;
 }
 
-function serializeChildren(node: Node, inTableCell = false) {
+function serializeChildren(node: Node, inTableCell = false): string {
   let out = "";
   for (const child of node.childNodes) {
     out += serializeNode(child, inTableCell);
@@ -247,7 +252,7 @@ function serializeChildren(node: Node, inTableCell = false) {
   return out;
 }
 
-function serializeNode(node: Node, inTableCell = false) {
+function serializeNode(node: Node, inTableCell = false): string {
   if (node.nodeType === Node.TEXT_NODE) {
     const text = node.textContent ?? "";
     if (text.includes("\n") && text.trim().length === 0) return "\n";
@@ -330,7 +335,7 @@ interface SoleCodeBlockScan {
   other: boolean;
 }
 
-function scanForSoleCodeBlock(node: Node, scan: SoleCodeBlockScan) {
+function scanForSoleCodeBlock(node: Node, scan: SoleCodeBlockScan): void {
   for (const child of node.childNodes) {
     if (scan.other) return;
     if (child.nodeType === Node.TEXT_NODE) {
@@ -368,13 +373,13 @@ function scanForSoleCodeBlock(node: Node, scan: SoleCodeBlockScan) {
   }
 }
 
-function soleCodeBlock(container: Node) {
+function soleCodeBlock(container: Node): Element | null {
   const scan: SoleCodeBlockScan = { pre: null, other: false };
   scanForSoleCodeBlock(container, scan);
   return scan.other ? null : scan.pre;
 }
 
-function tidyMarkdown(markdown: string) {
+function tidyMarkdown(markdown: string): string {
   const parts = markdown.split(CODE_BOUNDARY);
   const last = parts.length - 1;
   return parts
@@ -388,23 +393,23 @@ function tidyMarkdown(markdown: string) {
     .join("");
 }
 
-export function serializeRenderedMarkdownFragment(container: Node) {
+export function serializeRenderedMarkdownFragment(container: Node): string {
   const codeBlock = soleCodeBlock(container);
   if (codeBlock) return (codeBlock.textContent ?? "").replace(/\n$/, "");
   return tidyMarkdown(serializeChildren(container));
 }
 
-export function serializeTableElementToMarkdown(table: Element) {
+export function serializeTableElementToMarkdown(table: Element): string {
   return serializeTable(table).replaceAll(CODE_BOUNDARY, "").trim();
 }
 
 const MATH_SELECTOR = "[data-markdown-math]";
 
-export function mathWrapperOf(element: Element | null) {
+export function mathWrapperOf(element: Element | null): Element | null {
   return element?.closest(MATH_SELECTOR) ?? null;
 }
 
-function csvCellText(cell: Element) {
+function csvCellText(cell: Element): string {
   if (!cell.querySelector(MATH_SELECTOR)) return cell.textContent ?? "";
   const copy = cell.cloneNode(true) as Element;
   for (const wrapper of copy.querySelectorAll(MATH_SELECTOR)) {
@@ -413,12 +418,12 @@ function csvCellText(cell: Element) {
   return copy.textContent ?? "";
 }
 
-function csvCell(value: string) {
+function csvCell(value: string): string {
   const normalized = value.replace(/\s+/g, " ").trim();
   return /[",\n]/.test(normalized) ? `"${normalized.replaceAll('"', '""')}"` : normalized;
 }
 
-export function serializeTableElementToCsv(table: Element) {
+export function serializeTableElementToCsv(table: Element): string {
   const rows = [...table.querySelectorAll(":scope > thead > tr, :scope > tbody > tr, :scope > tr")];
   const lines: string[] = [];
   for (const row of rows) {
@@ -439,7 +444,7 @@ function mermaidSourceHtml(source: string) {
   return pre;
 }
 
-function mathSourceElement(wrapper: Element) {
+function mathSourceElement(wrapper: Element): Element {
   const code = document.createElement("code");
   code.textContent = wrapper.getAttribute("data-markdown-copy")?.trim() ?? "";
   if (wrapper.getAttribute("data-markdown-math") !== "display") return code;
@@ -448,7 +453,7 @@ function mathSourceElement(wrapper: Element) {
   return pre;
 }
 
-function sanitizedHtmlFrom(container: Element) {
+function sanitizedHtmlFrom(container: Element): string {
   for (const diagram of container.querySelectorAll("[data-markdown-mermaid]")) {
     const source = diagram.getAttribute("data-markdown-copy");
     if (source !== null) diagram.replaceChildren(mermaidSourceHtml(source));
@@ -471,7 +476,7 @@ function sanitizedHtmlFrom(container: Element) {
   return `<meta charset="utf-8">${container.innerHTML}`;
 }
 
-function keepStartListNumbers(range: Range, container: Element) {
+function keepStartListNumbers(range: Range, container: Element): void {
   const chain: Node[] = [];
   for (
     let node: Node | null = range.startContainer;
@@ -499,7 +504,9 @@ function keepStartListNumbers(range: Range, container: Element) {
   }
 }
 
-export function chatMarkdownClipboardPayload(selection: Selection) {
+export function chatMarkdownClipboardPayload(
+  selection: Selection,
+): MarkdownClipboardPayload | null {
   const texts: string[] = [];
   const htmls: string[] = [];
   for (let index = 0; index < selection.rangeCount; index += 1) {

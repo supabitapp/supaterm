@@ -38,7 +38,7 @@ const optimisticFile = projectEnvironment.optimisticFile({
   relativePath: "convex.json",
 });
 
-function drainRegistryTasks() {
+function drainRegistryTasks(): void {
   while (registryTasks.size > 0) {
     const tasks = [...registryTasks];
     registryTasks.clear();

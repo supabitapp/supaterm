@@ -5,6 +5,7 @@ import {
 import {
   isMentionableProvider,
   matchComposerModelItems,
+  type ComposerModelCandidate,
 } from "@supaterm/client-runtime/composerModelMentions";
 import { matchComposerThreadItems } from "@supaterm/client-runtime/composerThreadItems";
 import { useState } from "react";
@@ -58,7 +59,7 @@ const EMPTY_PULL_REQUEST_LIST_TARGETS: ReadonlyArray<EnvironmentQueryTarget<Pull
 function composerModelCandidates(
   entries: ReadonlyArray<ProviderInstanceEntry>,
   modelOptionsByInstance: ReadonlyMap<ProviderInstanceId, ReadonlyArray<AppModelOption>>,
-) {
+): ComposerModelCandidate[] {
   return entries.flatMap((entry) => {
     if (!isMentionableProvider(entry.snapshot, entry.enabled)) return [];
     const options = modelOptionsByInstance.get(entry.instanceId) ?? [];
@@ -195,8 +196,8 @@ export function useComposerMenuItems({
       ? []
       : composerPullRequestsFromLinks(threadPullRequests ?? [], pullRequestProjectId);
 
-  const items = (() => {
-    if (!composerTrigger) return [] satisfies ComposerCommandItem[] as ComposerCommandItem[];
+  const items = ((): ComposerCommandItem[] => {
+    if (!composerTrigger) return [];
     if (composerTrigger.kind === "path") {
       return [
         ...matchComposerThreadItems({
@@ -219,7 +220,7 @@ export function useComposerMenuItems({
           label: basenameOfPath(entry.path),
           description: entry.path.slice(0, Math.max(0, entry.path.lastIndexOf("/"))),
         })),
-      ] satisfies ComposerCommandItem[] as ComposerCommandItem[];
+      ];
     }
     if (composerTrigger.kind === "slash-command") {
       const builtInSlashCommandItems = [
@@ -295,7 +296,7 @@ export function useComposerMenuItems({
       return searchSlashCommandItems(
         [...builtInSlashCommandItems, ...visibleProviderSlashCommandItems, ...skillItems],
         query,
-      ) satisfies ComposerCommandItem[] as ComposerCommandItem[];
+      );
     }
     if (
       composerTrigger.kind === "skill" ||
@@ -311,7 +312,7 @@ export function useComposerMenuItems({
           skill.shortDescription ??
           skill.description ??
           (skill.scope ? `${skill.scope} skill` : "Run provider skill"),
-      })) satisfies ComposerCommandItem[] as ComposerCommandItem[];
+      }));
     }
     if (
       composerTrigger.kind === "pull-request" &&
@@ -379,9 +380,9 @@ export function useComposerMenuItems({
           pullRequest.repository.trim().toLowerCase() === pullRequestRepository.trim().toLowerCase()
             ? pullRequest.title
             : `${pullRequest.repository} · ${pullRequest.title}`,
-      })) satisfies ComposerCommandItem[] as ComposerCommandItem[];
+      }));
     }
-    return [] satisfies ComposerCommandItem[] as ComposerCommandItem[];
+    return [];
   })();
   const isLoading =
     (composerTriggerKind === "path" && workspaceEntries.isPending) ||

@@ -150,7 +150,7 @@ export function startThreadNotifications(
     ) {
       const toastKey = threadKey({ environmentId, threadId: thread.id });
       const toastId: ToastId = toastManager.add({
-        onRemove: () => forgetToast(toastKey, toastId),
+        onRemove: (): void => forgetToast(toastKey, toastId),
         type: kind === "completion" ? "success" : status === "failed" ? "error" : "warning",
         title,
         description: thread.title,
@@ -273,7 +273,7 @@ export function startThreadNotifications(
     }
   };
 
-  const watchEnvironment = (environmentId: EnvironmentId) => {
+  const watchEnvironment = (environmentId: EnvironmentId): WatchedEnvironment => {
     const entry: WatchedEnvironment = {
       previous: new Map(),
       reconnecting: false,
@@ -380,7 +380,7 @@ export function startThreadNotifications(
   const unsubscribeRoute = router.subscribe("onResolved", closeOpenedThreadToasts);
   onSettings();
 
-  return (() => {
+  return () => {
     unsubscribeSettings();
     unsubscribeEnvironmentIds();
     unsubscribeRoute();
@@ -388,5 +388,5 @@ export function startThreadNotifications(
     watched.clear();
     stopModeListeners();
     closeToasts(() => true);
-  }) satisfies () => void;
+  };
 }

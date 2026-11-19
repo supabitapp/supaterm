@@ -36,11 +36,9 @@ const EMPTY_CAPABILITIES: ModelCapabilities = createModelCapabilities({
 
 const CURSOR_SDK_CATALOG_TIMEOUT_MS = 15_000;
 
-export const buildInitialCursorProviderSnapshot: (
-  cursorSettings: CursorSettings,
-) => Effect.Effect<ServerProviderDraft> = Effect.fn(
+export const buildInitialCursorProviderSnapshot = Effect.fn(
   "CursorProviderStatus.buildInitialCursorProviderSnapshot",
-)(function* (cursorSettings: CursorSettings) {
+)(function* (cursorSettings: CursorSettings): Effect.fn.Return<ServerProviderDraft> {
   const checkedAt = yield* Effect.map(DateTime.now, DateTime.formatIso);
   const models = getCursorFallbackModels(cursorSettings);
 
@@ -78,16 +76,11 @@ export const buildInitialCursorProviderSnapshot: (
 
 function getCursorFallbackModels(
   cursorSettings: Pick<CursorSettings, "customModels">,
-): ReadonlyArray<ServerProviderModel>;
-function getCursorFallbackModels(cursorSettings: Pick<CursorSettings, "customModels">) {
-  return providerModelsFromSettings(
-    [],
-    cursorSettings.customModels,
-    EMPTY_CAPABILITIES,
-  ) satisfies ReadonlyArray<ServerProviderModel>;
+): ReadonlyArray<ServerProviderModel> {
+  return providerModelsFromSettings([], cursorSettings.customModels, EMPTY_CAPABILITIES);
 }
 
-function toTitleCaseWords(value: string) {
+function toTitleCaseWords(value: string): string {
   const parts: Array<string> = [];
   for (const part of value.split(/[\s_-]+/g)) {
     if (part.length > 0) {
@@ -97,13 +90,13 @@ function toTitleCaseWords(value: string) {
   return parts.join(" ");
 }
 
-function cursorSdkDefaultParameterValue(model: SDKModel, parameterId: string) {
+function cursorSdkDefaultParameterValue(model: SDKModel, parameterId: string): string | undefined {
   return model.variants
     ?.find((variant) => variant.isDefault)
     ?.params.find((parameter) => parameter.id === parameterId)?.value;
 }
 
-export function buildCursorCapabilitiesFromSdkModel(model: SDKModel) {
+export function buildCursorCapabilitiesFromSdkModel(model: SDKModel): ModelCapabilities {
   const seen = new Set<string>();
   const optionDescriptors: Array<ProviderOptionDescriptor> = [];
   const parameters = (model.parameters ?? [])
@@ -172,8 +165,7 @@ export function buildCursorCapabilitiesFromSdkModel(model: SDKModel) {
 
 export function buildCursorDiscoveredModelsFromSdk(
   models: ReadonlyArray<SDKModel>,
-): ReadonlyArray<ServerProviderModel>;
-export function buildCursorDiscoveredModelsFromSdk(models: ReadonlyArray<SDKModel>) {
+): ReadonlyArray<ServerProviderModel> {
   const seen = new Set<string>();
   return models.flatMap((model) => {
     const slug = model.id.trim();
@@ -192,11 +184,10 @@ export function buildCursorDiscoveredModelsFromSdk(models: ReadonlyArray<SDKMode
         capabilities: buildCursorCapabilitiesFromSdkModel(model),
       } satisfies ServerProviderModel,
     ];
-  }) satisfies ReadonlyArray<ServerProviderModel>;
+  });
 }
 
-function cursorSdkAuth(user: SDKUser | undefined, type: "api-key" | "browser"): ServerProviderAuth;
-function cursorSdkAuth(user: SDKUser | undefined, type: "api-key" | "browser") {
+function cursorSdkAuth(user: SDKUser | undefined, type: "api-key" | "browser"): ServerProviderAuth {
   const email = user?.userEmail?.trim();
   const apiKeyName = user?.apiKeyName.trim();
   return {
@@ -209,7 +200,7 @@ function cursorSdkAuth(user: SDKUser | undefined, type: "api-key" | "browser") {
           ? `Cursor API key (${apiKeyName})`
           : "Cursor API key",
     ...(email ? { email } : {}),
-  } satisfies ServerProviderAuth;
+  };
 }
 
 interface CursorProviderProbeResult {
@@ -219,7 +210,7 @@ interface CursorProviderProbeResult {
   readonly message?: string;
 }
 
-function joinProviderMessages(...messages: ReadonlyArray<string | undefined>) {
+function joinProviderMessages(...messages: ReadonlyArray<string | undefined>): string | undefined {
   const parts: Array<string> = [];
   for (const message of messages) {
     const trimmed = message?.trim();
@@ -236,14 +227,7 @@ export function buildCursorProviderSnapshot(input: {
   readonly parsed: CursorProviderProbeResult;
   readonly discoveredModels?: ReadonlyArray<ServerProviderModel>;
   readonly discoveryWarning?: string;
-}): ServerProviderDraft;
-export function buildCursorProviderSnapshot(input: {
-  readonly checkedAt: string;
-  readonly cursorSettings: CursorSettings;
-  readonly parsed: CursorProviderProbeResult;
-  readonly discoveredModels?: ReadonlyArray<ServerProviderModel>;
-  readonly discoveryWarning?: string;
-}) {
+}): ServerProviderDraft {
   const message = joinProviderMessages(input.parsed.message, input.discoveryWarning);
   return buildServerProvider({
     presentation: CURSOR_PRESENTATION,
@@ -263,20 +247,14 @@ export function buildCursorProviderSnapshot(input: {
       auth: input.parsed.auth,
       ...(message ? { message } : {}),
     },
-  }) satisfies ServerProviderDraft;
+  });
 }
 
-export const checkCursorProviderStatus: (
-  cursorSettings: CursorSettings,
-  environment?: NodeJS.ProcessEnv,
-  authenticationType?: "api-key" | "browser",
-) => Effect.Effect<ServerProviderDraft, never, CursorSdkCatalog.CursorSdkCatalog> = Effect.fn(
-  "checkCursorProviderStatus",
-)(function* (
+export const checkCursorProviderStatus = Effect.fn("checkCursorProviderStatus")(function* (
   cursorSettings: CursorSettings,
   environment?: NodeJS.ProcessEnv,
   authenticationType: "api-key" | "browser" = "api-key",
-) {
+): Effect.fn.Return<ServerProviderDraft, never, CursorSdkCatalog.CursorSdkCatalog> {
   const checkedAt = DateTime.formatIso(yield* DateTime.now);
   const fallbackModels = getCursorFallbackModels(cursorSettings);
 

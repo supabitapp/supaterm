@@ -43,11 +43,11 @@ export class AzureDevOpsPullRequestReadError extends Schema.TaggedError<AzureDev
     cause: Schema.Defect(),
   },
 ) {
-  get detail() {
+  get detail(): string {
     return `Azure CLI returned an unreadable ${this.operation} response.`;
   }
 
-  override get message() {
+  override get message(): string {
     return `Azure CLI failed in ${this.operation}: ${this.detail}`;
   }
 }
@@ -59,11 +59,11 @@ export class AzureDevOpsViewerUnavailableError extends Schema.TaggedError<AzureD
     cwd: Schema.String,
   },
 ) {
-  get detail() {
+  get detail(): string {
     return "Azure CLI could not name the signed-in account. Run `az login` and retry.";
   }
 
-  override get message() {
+  override get message(): string {
     return `Azure CLI failed in getViewer: ${this.detail}`;
   }
 }
@@ -76,11 +76,11 @@ export class AzureDevOpsPullRequestIncompleteError extends Schema.TaggedError<Az
     number: Schema.Int,
   },
 ) {
-  get detail() {
+  get detail(): string {
     return "Azure DevOps returned no branch or link for the pull request.";
   }
 
-  override get message() {
+  override get message(): string {
     return `Azure CLI failed in getPullRequest: ${this.detail}`;
   }
 }
@@ -92,11 +92,11 @@ export class AzureDevOpsReviewerNameError extends Schema.TaggedError<AzureDevOps
     cwd: Schema.String,
   },
 ) {
-  get detail() {
+  get detail(): string {
     return "A reviewer is named by an email address or an identity id.";
   }
 
-  override get message() {
+  override get message(): string {
     return `Azure CLI failed in setPullRequestReviewers: ${this.detail}`;
   }
 }
@@ -235,7 +235,7 @@ export class AzureDevOpsPullRequestCli extends Context.Service<
   }
 >()("@supaterm/source-control-azure-devops/server/AzureDevOpsPullRequestCli") {}
 
-function statusArgs(state: PullRequestListState) {
+function statusArgs(state: PullRequestListState): ReadonlyArray<string> {
   switch (state) {
     case "open":
       return ["--status", "active"];
@@ -251,7 +251,7 @@ function statusArgs(state: PullRequestListState) {
 function involvementArgs(input: {
   readonly involvement: PullRequestInvolvement;
   readonly viewer: string;
-}) {
+}): ReadonlyArray<string> {
   switch (input.involvement) {
     case "authored":
       return ["--creator", input.viewer];
@@ -262,7 +262,10 @@ function involvementArgs(input: {
   }
 }
 
-function actionArgs(action: PullRequestAction, mergeMethod: PullRequestMergeMethod | undefined) {
+function actionArgs(
+  action: PullRequestAction,
+  mergeMethod: PullRequestMergeMethod | undefined,
+): ReadonlyArray<string> {
   switch (action) {
     case "merge":
       return ["--status", "completed", "--squash", mergeMethod === "squash" ? "true" : "false"];
@@ -293,7 +296,7 @@ function actionArgs(action: PullRequestAction, mergeMethod: PullRequestMergeMeth
   }
 }
 
-function isReviewerName(value: string) {
+function isReviewerName(value: string): boolean {
   const name = value.trim();
   return name.length > 0 && !name.startsWith("-");
 }
@@ -324,7 +327,7 @@ export const make = Effect.gen(function* () {
     readonly queryParameters?: ReadonlyArray<string>;
     readonly maxOutputBytes?: number;
     readonly decode: (raw: string) => Result.Result<A, unknown>;
-  }) =>
+  }): Effect.Effect<A, AzureDevOpsPullRequestCliError> =>
     executeJson({
       cwd: input.cwd,
       ...(input.maxOutputBytes === undefined ? {} : { maxOutputBytes: input.maxOutputBytes }),
@@ -362,7 +365,7 @@ export const make = Effect.gen(function* () {
 
   const toItemPath = (path: string) => (path.startsWith("/") ? path : `/${path}`);
 
-  const repositoryRoute = (location: AzureDevOpsRepositoryLocation) => [
+  const repositoryRoute = (location: AzureDevOpsRepositoryLocation): ReadonlyArray<string> => [
     `project=${location.project}`,
     `repositoryId=${location.repository}`,
   ];
@@ -370,9 +373,12 @@ export const make = Effect.gen(function* () {
   const pullRequestRoute = (input: {
     readonly location: AzureDevOpsRepositoryLocation;
     readonly number: number;
-  }) => [...repositoryRoute(input.location), `pullRequestId=${input.number}`];
+  }): ReadonlyArray<string> => [
+    ...repositoryRoute(input.location),
+    `pullRequestId=${input.number}`,
+  ];
 
-  const listPullRequestPage: (input: {
+  const listPullRequestPage = (input: {
     readonly cwd: string;
     readonly repository: string;
     readonly state: PullRequestListState;
@@ -383,25 +389,14 @@ export const make = Effect.gen(function* () {
     readonly skip: number;
     readonly cursorAdvance: number;
     readonly items: ReadonlyArray<AzureDevOpsPullRequest>;
-  }) => Effect.Effect<
+  }): Effect.Effect<
     {
       readonly items: ReadonlyArray<AzureDevOpsPullRequest>;
       readonly truncated: boolean;
       readonly cursorAdvance: number;
     },
     AzureDevOpsPullRequestCliError
-  > = (input: {
-    readonly cwd: string;
-    readonly repository: string;
-    readonly state: PullRequestListState;
-    readonly involvement: PullRequestInvolvement;
-    readonly viewer: string;
-    readonly author?: string | undefined;
-    readonly limit: number;
-    readonly skip: number;
-    readonly cursorAdvance: number;
-    readonly items: ReadonlyArray<AzureDevOpsPullRequest>;
-  }) => {
+  > => {
     const remaining = input.limit - input.items.length;
     const top = remaining + 1;
     return executeJson({
@@ -477,7 +472,7 @@ export const make = Effect.gen(function* () {
   return AzureDevOpsPullRequestCli.of({
     getViewer: Effect.fn("AzureDevOpsPullRequestCli.getViewer")(function (input) {
       return executeJson({ cwd: input.cwd, args: ["account", "show", "--query", "user"] }).pipe(
-        Effect.flatMap((result) => {
+        Effect.flatMap((result): Effect.Effect<string, AzureDevOpsPullRequestCliError> => {
           const decoded = decodeViewerJson(`{"user":${result.stdout.trim() || "null"}}`);
           if (!Result.isSuccess(decoded)) {
             return Effect.fail(
@@ -487,17 +482,11 @@ export const make = Effect.gen(function* () {
                 operation: "getViewer",
                 cause: decoded.failure,
               }),
-            ) satisfies Effect.Effect<string, AzureDevOpsPullRequestCliError> as Effect.Effect<
-              string,
-              AzureDevOpsPullRequestCliError
-            >;
+            );
           }
-          return (decoded.success === null
+          return decoded.success === null
             ? Effect.fail(new AzureDevOpsViewerUnavailableError({ command: "az", cwd: input.cwd }))
-            : Effect.succeed(decoded.success)) satisfies Effect.Effect<
-            string,
-            AzureDevOpsPullRequestCliError
-          > as Effect.Effect<string, AzureDevOpsPullRequestCliError>;
+            : Effect.succeed(decoded.success);
         }),
         Effect.catchIf(
           (error) => error._tag !== "AzureDevOpsCliUnavailableError",
@@ -517,7 +506,7 @@ export const make = Effect.gen(function* () {
                 "1",
               ],
             }).pipe(
-              Effect.flatMap((result) => {
+              Effect.flatMap((result): Effect.Effect<string, AzureDevOpsPullRequestCliError> => {
                 const decoded = decodePullRequestListJson(result.stdout.trim() || "[]");
                 const login = Result.isSuccess(decoded)
                   ? decoded.success.items[0]?.author?.login
@@ -553,34 +542,30 @@ export const make = Effect.gen(function* () {
         cwd: input.cwd,
         args: ["repos", "pr", "show", ...detectArgs, "--id", String(input.number)],
       }).pipe(
-        Effect.flatMap((result) => {
-          const decoded = decodePullRequestJson(result.stdout.trim());
-          if (!Result.isSuccess(decoded)) {
-            return Effect.fail(
-              new AzureDevOpsPullRequestReadError({
-                command: "az",
-                cwd: input.cwd,
-                operation: "getPullRequest",
-                cause: decoded.failure,
-              }),
-            ) satisfies Effect.Effect<
-              AzureDevOpsPullRequest,
-              AzureDevOpsPullRequestCliError
-            > as Effect.Effect<AzureDevOpsPullRequest, AzureDevOpsPullRequestCliError>;
-          }
-          return (decoded.success === null
-            ? Effect.fail(
-                new AzureDevOpsPullRequestIncompleteError({
+        Effect.flatMap(
+          (result): Effect.Effect<AzureDevOpsPullRequest, AzureDevOpsPullRequestCliError> => {
+            const decoded = decodePullRequestJson(result.stdout.trim());
+            if (!Result.isSuccess(decoded)) {
+              return Effect.fail(
+                new AzureDevOpsPullRequestReadError({
                   command: "az",
                   cwd: input.cwd,
-                  number: input.number,
+                  operation: "getPullRequest",
+                  cause: decoded.failure,
                 }),
-              )
-            : Effect.succeed(decoded.success)) satisfies Effect.Effect<
-            AzureDevOpsPullRequest,
-            AzureDevOpsPullRequestCliError
-          > as Effect.Effect<AzureDevOpsPullRequest, AzureDevOpsPullRequestCliError>;
-        }),
+              );
+            }
+            return decoded.success === null
+              ? Effect.fail(
+                  new AzureDevOpsPullRequestIncompleteError({
+                    command: "az",
+                    cwd: input.cwd,
+                    number: input.number,
+                  }),
+                )
+              : Effect.succeed(decoded.success);
+          },
+        ),
       );
     }),
 
@@ -653,13 +638,10 @@ export const make = Effect.gen(function* () {
             maxOutputBytes: CHANGE_ENTRIES_MAX_OUTPUT_BYTES,
             decode: decodeIterationChangesJson,
           });
-        const from: (
+        const from = (
           skip: number,
           collected: ReadonlyArray<AzureDevOpsChangeEntry>,
-        ) => Effect.Effect<AzureDevOpsIterationChanges, AzureDevOpsPullRequestCliError> = (
-          skip: number,
-          collected: ReadonlyArray<AzureDevOpsChangeEntry>,
-        ) =>
+        ): Effect.Effect<AzureDevOpsIterationChanges, AzureDevOpsPullRequestCliError> =>
           page(skip).pipe(
             Effect.flatMap((answer) => {
               const changes = [...collected, ...answer.changes];

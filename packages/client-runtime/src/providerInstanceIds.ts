@@ -1,4 +1,4 @@
-function slugifyLabel(value: string) {
+function slugifyLabel(value: string): string {
   return value
     .trim()
     .toLowerCase()
@@ -7,7 +7,7 @@ function slugifyLabel(value: string) {
     .slice(0, 48);
 }
 
-export function deriveInstanceId(driver: string, label: string) {
+export function deriveInstanceId(driver: string, label: string): string {
   const slug = slugifyLabel(label);
   return slug ? `${driver}_${slug}` : "";
 }
@@ -16,7 +16,7 @@ export function deriveAvailableInstanceId(
   derive: (label: string) => string,
   label: string,
   existing: ReadonlySet<string>,
-) {
+): string {
   const base = derive(label);
   if (!base || !existing.has(base)) return base;
 

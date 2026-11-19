@@ -42,7 +42,7 @@ const DATABASE_MIGRATIONS: ReadonlyArray<DatabaseMigration> = [
   },
 ];
 
-async function migrateDatabase(database: SQLiteDatabase) {
+async function migrateDatabase(database: SQLiteDatabase): Promise<void> {
   await database.withExclusiveTransactionAsync(async (transaction) => {
     const schema = await transaction.getFirstAsync<{ readonly user_version: number }>(
       "PRAGMA user_version",
@@ -125,7 +125,7 @@ export class MobileDatabaseError extends Schema.TaggedError<MobileDatabaseError>
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Mobile database operation failed: ${this.operation}.`;
   }
 }
@@ -328,7 +328,7 @@ const makeAvailable = Effect.gen(function* () {
     }).pipe(
       Effect.flatMap(Schema.decodeUnknownEffect(ClientCacheSummaryRows)),
       Effect.mapError(databaseError("inspect-caches")),
-      Effect.map((rows) =>
+      Effect.map((rows): ReadonlyArray<ClientCacheSummaryRow> =>
         rows.map((row) => ({
           environmentId: row.environmentId as EnvironmentId,
           kind: row.kind,
@@ -364,7 +364,7 @@ const makeAvailable = Effect.gen(function* () {
   });
 });
 
-function makeUnavailable(error: MobileDatabaseError) {
+function makeUnavailable(error: MobileDatabaseError): MobileDatabase["Service"] {
   const fail = Effect.fail(error);
   return MobileDatabase.of({
     loadCache: () => fail,

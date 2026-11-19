@@ -36,7 +36,7 @@ export class ElectronUpdaterCheckForUpdatesError extends Schema.TaggedError<Elec
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Electron updater failed to check for updates on channel ${this.channel ?? "default"}.`;
   }
 }
@@ -48,7 +48,7 @@ export class ElectronUpdaterDownloadUpdateError extends Schema.TaggedError<Elect
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Electron updater failed to download the update on channel ${this.channel ?? "default"}.`;
   }
 }
@@ -62,7 +62,7 @@ export class ElectronUpdaterQuitAndInstallError extends Schema.TaggedError<Elect
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Electron updater failed to quit and install the update on channel ${this.channel ?? "default"} (silent: ${this.isSilent}, force run after: ${this.isForceRunAfter}).`;
   }
 }

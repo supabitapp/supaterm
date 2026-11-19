@@ -81,7 +81,7 @@ export const ResolvedKeybindingFromConfig = KeybindingRule.pipe(
   ),
 );
 
-function keybindingRuleIdentity(rule: KeybindingRule) {
+function keybindingRuleIdentity(rule: KeybindingRule): string {
   const shortcut = parseKeybindingShortcut(rule.key);
   const key = (shortcut && encodeShortcut(shortcut)) ?? rule.key;
   if (rule.when === undefined) return JSON.stringify([rule.command, key, null]);
@@ -89,11 +89,11 @@ function keybindingRuleIdentity(rule: KeybindingRule) {
   return JSON.stringify([rule.command, key, whenAst ? encodeWhenAst(whenAst) : rule.when]);
 }
 
-function isSameKeybindingRule(left: KeybindingRule, right: KeybindingRule) {
+function isSameKeybindingRule(left: KeybindingRule, right: KeybindingRule): boolean {
   return keybindingRuleIdentity(left) === keybindingRuleIdentity(right);
 }
 
-function keybindingShortcutContext(rule: KeybindingRule) {
+function keybindingShortcutContext(rule: KeybindingRule): string | null {
   const parsed = parseKeybindingShortcut(rule.key);
   if (!parsed) return null;
   const encoded = encodeShortcut(parsed);
@@ -101,7 +101,7 @@ function keybindingShortcutContext(rule: KeybindingRule) {
   return `${encoded}\u0000${rule.when ?? ""}`;
 }
 
-function hasSameShortcutContext(left: KeybindingRule, right: KeybindingRule) {
+function hasSameShortcutContext(left: KeybindingRule, right: KeybindingRule): boolean {
   const leftContext = keybindingShortcutContext(left);
   const rightContext = keybindingShortcutContext(right);
   if (!leftContext || !rightContext) return false;
@@ -153,44 +153,42 @@ function moveSavedDefault(rules: readonly KeybindingRule[], move: SavedDefaultMo
   return rules.map((rule) => (rule === previous ? { ...rule, key: move.to } : rule));
 }
 
-function keybindingRuleFromInput(input: ServerRemoveKeybindingInput) {
+function keybindingRuleFromInput(input: ServerRemoveKeybindingInput): KeybindingRule {
   return input.when === undefined
     ? { key: input.key, command: input.command }
     : { key: input.key, command: input.command, when: input.when };
 }
 
-function replaceTargetFromUpsertInput(input: ServerUpsertKeybindingInput) {
+function replaceTargetFromUpsertInput(input: ServerUpsertKeybindingInput): KeybindingRule | null {
   if (!input.replace) return null;
   return input.replace.when === undefined
     ? { key: input.replace.key, command: input.replace.command }
     : { key: input.replace.key, command: input.replace.command, when: input.replace.when };
 }
 
-function encodeShortcut(shortcut: KeybindingShortcut): string | null;
-function encodeShortcut(shortcut: KeybindingShortcut) {
+function encodeShortcut(shortcut: KeybindingShortcut): string | null {
   const modifiers: string[] = [];
   if (shortcut.modKey) modifiers.push("mod");
   if (shortcut.metaKey) modifiers.push("meta");
   if (shortcut.ctrlKey) modifiers.push("ctrl");
   if (shortcut.altKey) modifiers.push("alt");
   if (shortcut.shiftKey) modifiers.push("shift");
-  if (!shortcut.key) return null satisfies string | null;
-  if (shortcut.key !== "+" && shortcut.key.includes("+")) return null satisfies string | null;
+  if (!shortcut.key) return null;
+  if (shortcut.key !== "+" && shortcut.key.includes("+")) return null;
   const key = shortcut.key === " " ? "space" : shortcut.key;
-  return [...modifiers, key].join("+") satisfies string | null;
+  return [...modifiers, key].join("+");
 }
 
-function encodeWhenAst(node: KeybindingWhenNode): string;
-function encodeWhenAst(node: KeybindingWhenNode) {
+function encodeWhenAst(node: KeybindingWhenNode): string {
   switch (node.type) {
     case "identifier":
-      return node.name satisfies string;
+      return node.name;
     case "not":
-      return `!(${encodeWhenAst(node.node)})` satisfies string;
+      return `!(${encodeWhenAst(node.node)})`;
     case "and":
-      return `(${encodeWhenAst(node.left)} && ${encodeWhenAst(node.right)})` satisfies string;
+      return `(${encodeWhenAst(node.left)} && ${encodeWhenAst(node.right)})`;
     case "or":
-      return `(${encodeWhenAst(node.left)} || ${encodeWhenAst(node.right)})` satisfies string;
+      return `(${encodeWhenAst(node.left)} || ${encodeWhenAst(node.right)})`;
   }
 }
 
@@ -218,24 +216,24 @@ export interface KeybindingsChangeEvent {
   readonly issues: readonly ServerConfigIssue[];
 }
 
-function trimIssueMessage(message: string) {
+function trimIssueMessage(message: string): string {
   const trimmed = message.trim();
   return trimmed.length > 0 ? trimmed : "Invalid keybindings configuration.";
 }
 
-function malformedConfigIssue(detail: string) {
+function malformedConfigIssue(detail: string): ServerConfigIssue {
   return {
     kind: "keybindings.malformed-config",
     message: trimIssueMessage(detail),
-  } satisfies ServerConfigIssue;
+  };
 }
 
-function invalidEntryIssue(index: number, detail: string) {
+function invalidEntryIssue(index: number, detail: string): ServerConfigIssue {
   return {
     kind: "keybindings.invalid-entry",
     index,
     message: trimIssueMessage(detail),
-  } satisfies ServerConfigIssue;
+  };
 }
 
 export class Keybindings extends Context.Service<
@@ -343,7 +341,10 @@ const make = Effect.gen(function* () {
     ),
   );
 
-  const loadWritableCustomKeybindingsConfig = Effect.fn(function* () {
+  const loadWritableCustomKeybindingsConfig = Effect.fn(function* (): Effect.fn.Return<
+    ReadonlyArray<{ readonly value: unknown; readonly rule: KeybindingRule | null }>,
+    KeybindingsConfigError
+  > {
     if (!(yield* readConfigExists)) {
       return [];
     }
@@ -372,13 +373,13 @@ const make = Effect.gen(function* () {
     });
   });
 
-  const loadRuntimeCustomKeybindingsConfig: () => Effect.Effect<
+  const loadRuntimeCustomKeybindingsConfig = Effect.fn(function* (): Effect.fn.Return<
     {
       readonly keybindings: readonly KeybindingRule[];
       readonly issues: readonly ServerConfigIssue[];
     },
     KeybindingsConfigError
-  > = Effect.fn(function* () {
+  > {
     if (!(yield* readConfigExists)) {
       return { keybindings: [], issues: [] };
     }

@@ -15,7 +15,7 @@ interface ReviewDiffHighlightRange {
 
 const REVIEW_MAX_WORD_ALT_LINE_LENGTH = 1_000;
 
-function cleanLineEnding(value: string) {
+function cleanLineEnding(value: string): string {
   return value.endsWith("\n") ? value.slice(0, -1) : value;
 }
 
@@ -25,7 +25,7 @@ function pushOrJoinSpan(input: {
   readonly enableJoin: boolean;
   readonly isNeutral?: boolean;
   readonly isLastOperation?: boolean;
-}) {
+}): void {
   const { operation, spans, enableJoin, isNeutral = false, isLastOperation = false } = input;
   const lastSpan = spans.at(-1);
 
@@ -46,7 +46,9 @@ function pushOrJoinSpan(input: {
   spans.push([isNeutral ? 0 : 1, operation.value]);
 }
 
-function spansToRanges(spans: ReadonlyArray<readonly [0 | 1, string]>) {
+function spansToRanges(
+  spans: ReadonlyArray<readonly [0 | 1, string]>,
+): ReadonlyArray<ReviewDiffHighlightRange> {
   const ranges: ReviewDiffHighlightRange[] = [];
   let offset = 0;
 
@@ -61,7 +63,9 @@ function spansToRanges(spans: ReadonlyArray<readonly [0 | 1, string]>) {
   return ranges;
 }
 
-function mergeNearbyRanges(ranges: ReadonlyArray<ReviewDiffHighlightRange>) {
+function mergeNearbyRanges(
+  ranges: ReadonlyArray<ReviewDiffHighlightRange>,
+): ReadonlyArray<ReviewDiffHighlightRange> {
   if (ranges.length <= 1) {
     return ranges;
   }
@@ -85,7 +89,7 @@ function appendTokenSegment(
   source: ReviewHighlightedToken,
   content: string,
   diffHighlight: boolean,
-) {
+): void {
   if (content.length === 0) {
     return;
   }
@@ -112,7 +116,10 @@ function appendTokenSegment(
 export function computeWordAltDiffRanges(input: {
   readonly deletionLine: string;
   readonly additionLine: string;
-}) {
+}): {
+  readonly deletion: ReadonlyArray<ReviewDiffHighlightRange>;
+  readonly addition: ReadonlyArray<ReviewDiffHighlightRange>;
+} {
   const deletionLine = cleanLineEnding(input.deletionLine);
   const additionLine = cleanLineEnding(input.additionLine);
 
@@ -182,7 +189,7 @@ export function computeWordAltDiffRanges(input: {
 export function applyDiffRangesToTokens(
   tokens: ReadonlyArray<ReviewHighlightedToken>,
   ranges: ReadonlyArray<ReviewDiffHighlightRange>,
-) {
+): ReadonlyArray<ReviewHighlightedToken> {
   if (tokens.length === 0 || ranges.length === 0) {
     return tokens;
   }

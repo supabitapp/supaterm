@@ -548,7 +548,7 @@ const layerTest = (
     ),
   );
 
-const enabledSettings = (overrides: Partial<ClientSettings> = {}) => ({
+const enabledSettings = (overrides: Partial<ClientSettings> = {}): ClientSettings => ({
   ...DEFAULT_CLIENT_SETTINGS,
   snapShotEnabled: true,
   ...overrides,

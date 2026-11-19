@@ -115,7 +115,7 @@ function toPersistenceSqlOrDecodeError(
   decodeOperation: string,
   correlation?: PersistenceErrorCorrelation,
 ) {
-  return (cause: unknown) =>
+  return (cause: unknown): ProviderSessionRuntimeRepositoryError =>
     Schema.isSchemaError(cause)
       ? PersistenceDecodeError.fromSchemaError(decodeOperation, cause, correlation)
       : new PersistenceSqlError({

@@ -41,7 +41,7 @@ const harness = vi.hoisted(() => {
   };
 });
 
-function useSnapshot() {
+function useSnapshot(): Snapshot {
   return useSyncExternalStore(harness.subscribe, () => harness.state.snapshot!);
 }
 

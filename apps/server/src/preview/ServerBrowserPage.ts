@@ -12,6 +12,7 @@ import {
   type PreviewAutomationPressInput,
   type PreviewAutomationScrollInput,
   type PreviewAutomationSelectInput,
+  type PreviewAutomationSelectResult,
   type PreviewAutomationSnapshot,
   type PreviewAutomationSnapshotMetadata,
   type PreviewAutomationSnapshotStage,
@@ -44,7 +45,10 @@ export class ServerBrowserOperationError extends Error {
   }
 }
 
-export const toOperationError = (cause: unknown, timeoutMs?: number) => {
+export const toOperationError = (
+  cause: unknown,
+  timeoutMs?: number,
+): ServerBrowserOperationError => {
   if (cause instanceof BrowserControlInterrupted)
     return new ServerBrowserOperationError(
       "PreviewAutomationControlInterruptedError",
@@ -111,7 +115,7 @@ const refsFor = (page: Page) => {
 const targetLocator = (
   page: Page,
   input: { readonly locator?: string | undefined; readonly selector?: string | undefined },
-) => {
+): Locator | null => {
   const selector = input.locator ?? input.selector;
   if (selector === undefined) return null;
   const engines = selector.replace(
@@ -305,7 +309,7 @@ const openReaders = async (page: Page, cdp: CDPSession) => {
       }),
     ),
   );
-  const ownerOf: (frame: Frame) => CDPSession | null = (frame: Frame) => {
+  const ownerOf = (frame: Frame): CDPSession | null => {
     const owner = owners.get(frame);
     if (owner !== undefined) return owner;
     const parent = frame.parentFrame();
@@ -315,7 +319,7 @@ const openReaders = async (page: Page, cdp: CDPSession) => {
     const owned = frames.filter((each) => ownerOf(each) === session);
     const open = async () => {
       const { frameTree } = await session.send("Page.getFrameTree");
-      const ids: (node: typeof frameTree) => Array<string> = (node: typeof frameTree) => [
+      const ids = (node: typeof frameTree): Array<string> => [
         node.frame.id,
         ...(node.childFrames ?? []).flatMap(ids),
       ];
@@ -745,7 +749,7 @@ export const click = async (
   page: Page,
   input: PreviewAutomationClickInput,
   pointer: PointerReporter = noPointer,
-) => {
+): Promise<{ readonly x: number; readonly y: number }> => {
   const deadline = Date.now() + (input.timeoutMs ?? DEFAULT_TIMEOUT_MS);
   const remaining = () => Math.max(1, deadline - Date.now());
   const locator = targetLocator(page, input);
@@ -922,7 +926,10 @@ export const hover = async (
   await locator.hover({ timeout: remaining() });
 };
 
-export const select = async (page: Page, input: PreviewAutomationSelectInput) => {
+export const select = async (
+  page: Page,
+  input: PreviewAutomationSelectInput,
+): Promise<PreviewAutomationSelectResult> => {
   const locator = targetLocator(page, input)!;
   const timeout = input.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const options = await locator.evaluate(

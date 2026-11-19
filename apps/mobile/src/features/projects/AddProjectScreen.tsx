@@ -126,25 +126,25 @@ const environmentOptionOrder = Order.mapInput(
   (environment: EnvironmentOption) => ({ label: environment.label }),
 );
 
-function platformFromOs(os: string | null | undefined) {
+function platformFromOs(os: string | null | undefined): string {
   if (os === "windows") return "Win32";
   if (os === "darwin") return "MacIntel";
   if (os === "linux") return "Linux";
   return "";
 }
 
-function errorMessage(error: unknown) {
+function errorMessage(error: unknown): string {
   return error instanceof Error && error.message.trim().length > 0
     ? error.message
     : "An error occurred.";
 }
 
-function stringParam(value: string | string[] | undefined) {
+function stringParam(value: string | string[] | undefined): string | null {
   if (Array.isArray(value)) return value[0] ?? null;
   return value ?? null;
 }
 
-function sourceFromParam(value: string | string[] | undefined) {
+function sourceFromParam(value: string | string[] | undefined): AddProjectRemoteSource {
   return parseAddProjectRemoteSource(stringParam(value));
 }
 
@@ -373,7 +373,7 @@ function useBrowsePathInput(
     [browseNavigation],
   );
 
-  const resolveHomePath = async (path: string) => {
+  const resolveHomePath = async (path: string): Promise<string> => {
     if (
       !/^~(?:[\\/]|$)/.test(path) ||
       !environment ||
@@ -394,12 +394,14 @@ function useBrowsePathInput(
   return { isBrowseNavigating, pathInput, setPathInput, navigateToBrowsePath, resolveHomePath };
 }
 
-function useEnvironmentOptions(selectedEnvironmentId: EnvironmentId | null = null) {
+function useEnvironmentOptions(
+  selectedEnvironmentId: EnvironmentId | null = null,
+): ReadonlyArray<EnvironmentOption> {
   const serverConfigByEnvironmentId = useServerConfigs();
   const { savedConnectionsById } = useSavedRemoteConnections();
   const { connectedEnvironments } = useRemoteConnectionStatus();
 
-  return (() => {
+  return ((): ReadonlyArray<EnvironmentOption> => {
     const runtimeByEnvironmentId = new Map(
       connectedEnvironments.map((environment) => [environment.environmentId, environment] as const),
     );
@@ -430,7 +432,11 @@ function useEnvironmentOptions(selectedEnvironmentId: EnvironmentId | null = nul
   })();
 }
 
-function useSelectedEnvironment(requestedEnvironmentId: EnvironmentId | null) {
+function useSelectedEnvironment(requestedEnvironmentId: EnvironmentId | null): {
+  readonly environmentOptions: ReadonlyArray<EnvironmentOption>;
+  readonly selectedEnvironment: EnvironmentOption | null;
+  readonly setSelectedEnvironmentId: (environmentId: EnvironmentId) => void;
+} {
   const [selectedEnvironmentId, setSelectedEnvironmentId] = useState(requestedEnvironmentId);
   const [previousRequest, setPreviousRequest] = useState(requestedEnvironmentId);
   if (previousRequest !== requestedEnvironmentId) {
@@ -715,7 +721,11 @@ function useOpenNewTaskDraft() {
   };
 }
 
-async function draftWithPrompt(environmentId: EnvironmentId, projectId: ProjectId, prompt: string) {
+async function draftWithPrompt(
+  environmentId: EnvironmentId,
+  projectId: ProjectId,
+  prompt: string,
+): Promise<string> {
   await waitForComposerDraftsLoaded();
   const draftId = createNewTaskDraft({ environmentId, projectId });
   setComposerDraftText(draftId, prompt);
@@ -733,7 +743,7 @@ function useOpenExistingProject(environment: EnvironmentOption | null) {
     path: string,
     originRoute: ReturnType<typeof getActiveRoute>,
     clone?: { readonly remoteUrl: string; readonly prompt: string | null },
-  ) => {
+  ): Promise<boolean> => {
     if (!environment) return false;
     const existing = findExistingAddProject({
       projects,
@@ -842,7 +852,9 @@ function useCreateProject(environment: EnvironmentOption | null) {
   };
 }
 
-function useEnvironmentFromParam(environmentIdParam: string | string[] | undefined) {
+function useEnvironmentFromParam(
+  environmentIdParam: string | string[] | undefined,
+): EnvironmentOption | null {
   const environmentOptions = useEnvironmentOptions();
   const environmentId = stringParam(environmentIdParam) as EnvironmentId | null;
   return resolveAddProjectEnvironment(environmentOptions, environmentId);

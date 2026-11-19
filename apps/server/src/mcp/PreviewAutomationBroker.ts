@@ -128,7 +128,7 @@ const removeConnectionFromState = (
   current: BrokerState,
   clientId: string,
   queue: ClientConnection["queue"],
-) => {
+): { readonly state: BrokerState; readonly disconnected: ReadonlyArray<PendingRequest> } => {
   const clients = new Map(current.clients);
   const assignments = new Map(current.assignments);
   const pending = new Map(current.pending);
@@ -148,61 +148,54 @@ const removeConnectionFromState = (
   };
 };
 
-const selectorDiagnosticsFromInput = (input: unknown) => {
-  if (typeof input !== "object" || input === null)
-    return {} satisfies Pick<
-      PreviewAutomationRequestErrorContext,
-      "selectorKind" | "selectorLength"
-    >;
+const selectorDiagnosticsFromInput = (
+  input: unknown,
+): Pick<PreviewAutomationRequestErrorContext, "selectorKind" | "selectorLength"> => {
+  if (typeof input !== "object" || input === null) return {};
   if ("locator" in input && typeof input.locator === "string") {
-    return { selectorKind: "locator", selectorLength: input.locator.length } satisfies Pick<
-      PreviewAutomationRequestErrorContext,
-      "selectorKind" | "selectorLength"
-    >;
+    return { selectorKind: "locator", selectorLength: input.locator.length };
   }
   if ("selector" in input && typeof input.selector === "string") {
-    return { selectorKind: "selector", selectorLength: input.selector.length } satisfies Pick<
-      PreviewAutomationRequestErrorContext,
-      "selectorKind" | "selectorLength"
-    >;
+    return { selectorKind: "selector", selectorLength: input.selector.length };
   }
-  return {} satisfies Pick<PreviewAutomationRequestErrorContext, "selectorKind" | "selectorLength">;
+  return {};
 };
 
-const hostAssignmentKey = (scope: McpInvocationContext.McpThreadInvocationScope) =>
+const hostAssignmentKey = (scope: McpInvocationContext.McpThreadInvocationScope): string =>
   `${scope.environmentId}\u0000${scope.thread.providerSessionId}\u0000${scope.thread.threadId}`;
 
 const isPreviewTabId = Schema.is(PreviewTabId);
 const decodeControlReason = Schema.decodeUnknownOption(PreviewAutomationControlReason);
 
-const readResultTabId = (result: unknown) => {
+const readResultTabId = (result: unknown): PreviewTabId | null | undefined => {
   if (typeof result !== "object" || result === null || !("tabId" in result)) return undefined;
   const tabId = result.tabId;
   return tabId === null || isPreviewTabId(tabId) ? tabId : undefined;
 };
 
-const supportsOperation = (connection: ClientConnection, operation: PreviewAutomationOperation) =>
-  connection.supportedOperations.has(operation);
+const supportsOperation = (
+  connection: ClientConnection,
+  operation: PreviewAutomationOperation,
+): boolean => connection.supportedOperations.has(operation);
 
 type RemoteDetailKind = "null" | "array" | "object" | "string" | "number" | "boolean";
 
-function remoteDetailKind(detail: unknown): RemoteDetailKind;
-function remoteDetailKind(detail: unknown) {
-  if (detail === null) return "null" satisfies RemoteDetailKind;
-  if (Array.isArray(detail)) return "array" satisfies RemoteDetailKind;
+function remoteDetailKind(detail: unknown): RemoteDetailKind {
+  if (detail === null) return "null";
+  if (Array.isArray(detail)) return "array";
   switch (typeof detail) {
     case "string":
-      return "string" satisfies RemoteDetailKind;
+      return "string";
     case "number":
-      return "number" satisfies RemoteDetailKind;
+      return "number";
     case "boolean":
-      return "boolean" satisfies RemoteDetailKind;
+      return "boolean";
     default:
-      return "object" satisfies RemoteDetailKind;
+      return "object";
   }
 }
 
-const readRemoteTimeoutMs: (detail: unknown) => number | undefined = (detail: unknown) => {
+const readRemoteTimeoutMs = (detail: unknown): number | undefined => {
   if (typeof detail !== "object" || detail === null || !("timeoutMs" in detail)) return undefined;
   const timeoutMs = detail.timeoutMs;
   return typeof timeoutMs === "number" && Number.isInteger(timeoutMs) && timeoutMs > 0
@@ -210,7 +203,7 @@ const readRemoteTimeoutMs: (detail: unknown) => number | undefined = (detail: un
     : undefined;
 };
 
-const readRemoteReason: (detail: unknown) => string | undefined = (detail: unknown) =>
+const readRemoteReason = (detail: unknown): string | undefined =>
   typeof detail === "object" &&
   detail !== null &&
   "reason" in detail &&
@@ -221,13 +214,10 @@ const readRemoteReason: (detail: unknown) => string | undefined = (detail: unkno
 const MAX_REASON_CHARS = 500;
 const decodeTimeoutDetail = Schema.decodeUnknownOption(PreviewAutomationTimeoutDetail);
 
-const classifyResponseError: (
+const classifyResponseError = (
   context: PreviewAutomationRequestErrorContext,
   error: NonNullable<PreviewAutomationResponse["error"]>,
-) => PreviewAutomationError = (
-  context: PreviewAutomationRequestErrorContext,
-  error: NonNullable<PreviewAutomationResponse["error"]>,
-) => {
+): PreviewAutomationError => {
   const remoteDiagnostics = {
     remoteTag: error._tag,
     remoteMessageLength: error.message.length,
@@ -524,7 +514,7 @@ export const make = Effect.gen(function* PreviewAutomationBrokerMake() {
 
   const invoke = Effect.fn("PreviewAutomationBroker.invoke")(function* <A = unknown>(
     input: Parameters<PreviewAutomationBroker["Service"]["invoke"]>[0],
-  ) {
+  ): Effect.fn.Return<A, PreviewAutomationError> {
     const deferred = yield* Deferred.make<unknown, PreviewAutomationError>();
     const route = yield* SynchronizedRef.modify(state, (current) => {
       const assignments = new Map(

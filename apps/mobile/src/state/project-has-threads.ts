@@ -39,7 +39,7 @@ const NO_PROJECT_HAS_THREADS = Atom.make(false).pipe(
 
 export function useProjectHasThreads(
   project: { readonly environmentId: EnvironmentId; readonly id: ProjectId } | null,
-) {
+): boolean {
   return useAtomValue(
     project === null
       ? NO_PROJECT_HAS_THREADS

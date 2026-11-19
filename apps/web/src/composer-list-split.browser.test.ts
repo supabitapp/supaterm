@@ -13,7 +13,7 @@ import {
 import { buildDocJson, buildTiptapContent } from "./composer-rich-text-doc";
 import { serializeEditorDoc } from "./composer-rich-text-map";
 
-function makeEditor(value: string) {
+function makeEditor(value: string): Editor & Disposable {
   const editor = new Editor({
     extensions: [
       StarterKit.configure({

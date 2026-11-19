@@ -71,23 +71,15 @@ export function useProjectScriptSettings(
     "action shortcut removal",
   );
 
-  function persist(
-    transform: (current: readonly ProjectScript[]) => readonly ProjectScript[] | null,
-    scriptId?: string,
-    keybinding?: string | null,
-  ): Promise<AtomCommandResult<void, unknown>>;
   async function persist(
     transform: (current: readonly ProjectScript[]) => readonly ProjectScript[] | null,
     scriptId?: string,
     keybinding?: string | null,
-  ) {
+  ): Promise<AtomCommandResult<void, unknown>> {
     if (savingRef.current || targets.length === 0) {
       const message = "No available machine, or another action change is saving.";
       toastManager.add({ type: "error", title: "Actions not saved", description: message });
-      return AsyncResult.failure(Cause.fail(new Error(message))) satisfies AtomCommandResult<
-        void,
-        unknown
-      >;
+      return AsyncResult.failure(Cause.fail(new Error(message)));
     }
     if (
       targets.some(
@@ -103,26 +95,21 @@ export function useProjectScriptSettings(
             }),
           ),
         ),
-      ) satisfies AtomCommandResult<void, unknown>;
+      );
     }
     savingRef.current = true;
     setSaving(true);
     return writeTargets(transform, scriptId, keybinding).finally(() => {
       savingRef.current = false;
       setSaving(false);
-    }) satisfies AtomCommandResult<void, unknown>;
+    });
   }
 
-  function writeTargets(
-    transform: (current: readonly ProjectScript[]) => readonly ProjectScript[] | null,
-    scriptId: string | undefined,
-    keybinding: string | null | undefined,
-  ): Promise<AtomCommandResult<void, unknown>>;
   async function writeTargets(
     transform: (current: readonly ProjectScript[]) => readonly ProjectScript[] | null,
     scriptId: string | undefined,
     keybinding: string | null | undefined,
-  ) {
+  ): Promise<AtomCommandResult<void, unknown>> {
     for (const { environmentId, settings, keybindings, project } of targets) {
       const current = project
         ? resolveProjectScripts(settings, project)
@@ -149,8 +136,7 @@ export function useProjectScriptSettings(
             : { defaultProjectScripts: nextScripts ?? [] },
         },
       });
-      if (result._tag === "Failure")
-        return reportScriptFailure(result) satisfies AtomCommandResult<void, unknown>;
+      if (result._tag === "Failure") return reportScriptFailure(result);
       const changedIds = scriptId
         ? [scriptId]
         : current
@@ -190,11 +176,10 @@ export function useProjectScriptSettings(
           : previous && !retainedElsewhere
             ? await removeKeybinding({ environmentId, input: previous })
             : null;
-        if (bindingResult?._tag === "Failure")
-          return reportScriptFailure(bindingResult) satisfies AtomCommandResult<void, unknown>;
+        if (bindingResult?._tag === "Failure") return reportScriptFailure(bindingResult);
       }
     }
-    return AsyncResult.success(undefined) satisfies AtomCommandResult<void, unknown>;
+    return AsyncResult.success(undefined);
   }
 
   function submit(scriptId: string | null, input: NewProjectScriptInput) {

@@ -11,16 +11,15 @@ const decodePullRequestPayload = Schema.decodeUnknownOption(PullRequestDragPaylo
 
 export const encodePullRequestDragPayload = Schema.encodeSync(PullRequestDragPayload);
 
-export function composerMentionFromTreePath(treePath: string): string | null;
-export function composerMentionFromTreePath(treePath: string) {
+export function composerMentionFromTreePath(treePath: string): string | null {
   const relativePath = treePath.replace(/\/+$/, "");
   if (relativePath.length === 0) {
-    return null satisfies string | null;
+    return null;
   }
-  return serializeComposerFileLink(relativePath) satisfies string | null;
+  return serializeComposerFileLink(relativePath);
 }
 
-export function dataTransferHasComposerMention(types: ReadonlyArray<string>) {
+export function dataTransferHasComposerMention(types: ReadonlyArray<string>): boolean {
   return (
     types.includes(COMPOSER_MENTION_DRAG_TYPE) || types.includes(COMPOSER_PULL_REQUEST_DRAG_TYPE)
   );
@@ -55,9 +54,8 @@ interface ComposerMentionDragHandlers {
 
 export function makeComposerMentionDragHandlers(
   host: ComposerMentionDropHost,
-): ComposerMentionDragHandlers;
-export function makeComposerMentionDragHandlers(host: ComposerMentionDropHost) {
-  const claim: (event: ComposerMentionDragEvent) => boolean = (event: ComposerMentionDragEvent) => {
+): ComposerMentionDragHandlers {
+  const claim = (event: ComposerMentionDragEvent): boolean => {
     if (!dataTransferHasComposerMention(event.dataTransfer.types)) {
       return false;
     }
@@ -101,5 +99,5 @@ export function makeComposerMentionDragHandlers(host: ComposerMentionDropHost) {
         host.onInsertRejected();
       }
     },
-  } satisfies ComposerMentionDragHandlers;
+  };
 }

@@ -5,7 +5,7 @@ import { KeybindingsConfigWarning } from "./KeybindingsConfigWarning";
 import { createKeybindingsUpdateToastController } from "./KeybindingsUpdateToast.logic";
 import { stackedThreadToast, toastManager } from "./ui/toast";
 
-export function startKeybindingsUpdateToasts() {
+export function startKeybindingsUpdateToasts(): () => void {
   const controller = createKeybindingsUpdateToastController({});
   return subscribeAtomChanges(primaryServerConfigEventAtom, (event) => {
     const decision = controller.handle(event);

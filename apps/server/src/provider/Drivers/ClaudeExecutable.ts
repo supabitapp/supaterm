@@ -9,7 +9,7 @@ import * as Effect from "effect/Effect";
 
 const WINDOWS_SHIM_EXTENSIONS: ReadonlySet<string> = new Set([".cmd", ".bat", ".ps1"]);
 
-export const isWindowsClaudeLauncherShimPath = (filePath: string) =>
+export const isWindowsClaudeLauncherShimPath = (filePath: string): boolean =>
   WINDOWS_SHIM_EXTENSIONS.has(NodePath.win32.extname(filePath).toLowerCase());
 
 const PACKAGE_ENTRY_CANDIDATES = [
@@ -20,7 +20,7 @@ const PACKAGE_ENTRY_CANDIDATES = [
 
 export type ExecutableFileCheck = (filePath: string) => boolean;
 
-function isExistingFile(filePath: string) {
+function isExistingFile(filePath: string): boolean {
   try {
     return NodeFS.statSync(filePath).isFile();
   } catch {
@@ -37,7 +37,7 @@ export const ClaudeExecutableFileCheck = Context.Reference<ExecutableFileCheck>(
 
 /** On Windows the SDK skips shell and PATH/PATHEXT lookup: bare names and .cmd shims fail. */
 export const resolveClaudeSdkExecutablePath = Effect.fn("resolveClaudeSdkExecutablePath")(
-  function* (binaryPath: string, environment: NodeJS.ProcessEnv) {
+  function* (binaryPath: string, environment: NodeJS.ProcessEnv): Effect.fn.Return<string> {
     const platform = yield* HostProcess.Platform;
     if (platform !== "win32") {
       return binaryPath;

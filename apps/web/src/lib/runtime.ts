@@ -40,7 +40,7 @@ export const runPrimaryHttp = <A, E>(
   effect: Effect.Effect<A, E, PrimaryEnvironmentHttpClient.PrimaryEnvironmentHttpClient>,
 ) => primaryHttpRunner(effect);
 
-export function __setPrimaryHttpRunnerForTests(runner?: PrimaryHttpEffectRunner) {
+export function __setPrimaryHttpRunnerForTests(runner?: PrimaryHttpEffectRunner): void {
   primaryHttpRunner = runner ?? livePrimaryHttpRunner;
 }
 

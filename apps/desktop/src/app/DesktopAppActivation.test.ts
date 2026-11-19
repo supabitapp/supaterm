@@ -35,14 +35,14 @@ function makeTarget(stateDir: string, platform: NodeJS.Platform, userId: number 
   });
 }
 
-function request(requestId: string, platform: NodeJS.Platform) {
+function request(requestId: string, platform: NodeJS.Platform): DesktopAppActivationRequest {
   return {
     version: 1,
     requestId,
     type: "open-workspace",
     workspaceRoot: NodePath.join(NodeOS.tmpdir(), "project"),
     platform: platform === "win32" ? "win32" : platform === "darwin" ? "darwin" : "linux",
-  } satisfies DesktopAppActivationRequest;
+  };
 }
 
 function startOkServer(target: ReturnType<typeof makeTarget>, userId: number | undefined) {

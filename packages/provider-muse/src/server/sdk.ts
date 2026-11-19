@@ -54,8 +54,9 @@ export interface MuseSdkHostOptions {
   readonly startupTimeoutMs?: number;
 }
 
-export function makeMuseEnvironment(environment?: NodeJS.ProcessEnv): NodeJS.ProcessEnv;
-export function makeMuseEnvironment(environment: NodeJS.ProcessEnv = process.env) {
+export function makeMuseEnvironment(
+  environment: NodeJS.ProcessEnv = process.env,
+): NodeJS.ProcessEnv {
   return {
     ...Object.fromEntries(
       Object.keys(environment)
@@ -63,10 +64,10 @@ export function makeMuseEnvironment(environment: NodeJS.ProcessEnv = process.env
         .map((key) => [key, environment[key]]),
     ),
     MUSE_NO_AUTO_UPDATE: "1",
-  } satisfies NodeJS.ProcessEnv;
+  };
 }
 
-export function museVerbatimPath(path: string) {
+export function museVerbatimPath(path: string): string {
   if (path.startsWith("\\\\?\\")) return path;
   return path.startsWith("\\\\") ? `\\\\?\\UNC\\${path.slice(2)}` : `\\\\?\\${path}`;
 }
@@ -110,7 +111,7 @@ function windowsEnvironmentValue(environment: NodeJS.ProcessEnv, name: string) {
 export const museLaunch = Effect.fn("museLaunch")(function* (
   binaryPath: string,
   environment?: NodeJS.ProcessEnv,
-) {
+): Effect.fn.Return<MuseLaunch> {
   if ((yield* HostProcess.Platform) !== "win32") return { command: binaryPath, args: [] };
   const env = environment ?? (yield* HostProcess.Environment);
   const resolveExecutable = yield* SpawnExecutableResolution;
@@ -158,14 +159,10 @@ export function museInitializeParams(readOnly = false) {
   };
 }
 
-export function createMuseSdkHost(
-  options: MuseSdkHostOptions,
-  spawn?: typeof spawnMspConnection,
-): Promise<MuseSdkHost>;
 export async function createMuseSdkHost(
   options: MuseSdkHostOptions,
   spawn: typeof spawnMspConnection = spawnMspConnection,
-) {
+): Promise<MuseSdkHost> {
   options.signal?.throwIfAborted();
   const launch = options.launch ?? { command: options.binaryPath, args: [] };
   const handshake = spawn({
@@ -212,7 +209,7 @@ export async function createMuseSdkHost(
       exited: host.exited,
       stderrTail: () => handshake.child.stderrTail,
       close,
-    } satisfies MuseSdkHost;
+    };
   } catch (error) {
     await close();
     throw error;

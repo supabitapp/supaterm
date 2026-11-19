@@ -46,7 +46,7 @@ const LARGE_DEV_DATABASE_BYTES = 500 * 1024 * 1024;
  * Loopback and the wildcards qualify; a specific interface (e.g. a LAN IP) does
  * not — the OS binds only that address and the proxy target goes dark.
  */
-export function isProxiableBindHost(host: string) {
+export function isProxiableBindHost(host: string): boolean {
   const normalized = host.trim();
   return (
     normalized === "" ||
@@ -60,7 +60,7 @@ export function isProxiableBindHost(host: string) {
   );
 }
 
-function sharedBackendTargetHost(host: string | undefined) {
+function sharedBackendTargetHost(host: string | undefined): string {
   const normalized = host?.trim() ?? "";
   if (normalized === "::1" || normalized === "[::1]") return "[::1]";
   if (normalized === "localhost") return "localhost";
@@ -105,11 +105,11 @@ type PortAvailabilityCheck<R = never> = (
 
 const DEV_RUNNER_MODES = Object.keys(MODE_ARGS) as Array<DevMode>;
 
-export function getDevRunnerModeArgs(mode: DevMode) {
+export function getDevRunnerModeArgs(mode: DevMode): ReadonlyArray<string> {
   return MODE_ARGS[mode];
 }
 
-export function isBrowserAllowedPort(port: number) {
+export function isBrowserAllowedPort(port: number): boolean {
   return !FETCH_BAD_PORTS.has(port);
 }
 
@@ -120,7 +120,7 @@ export class DevRunnerConfigurationError extends Schema.TaggedError<DevRunnerCon
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Failed to read dev-runner configuration: ${this.configKeys.join(", ")}.`;
   }
 }
@@ -133,7 +133,7 @@ export class DevRunnerInvalidPortOffsetError extends Schema.TaggedError<DevRunne
     minimum: Schema.Number,
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `${this.configKey} must be at least ${this.minimum}; received ${this.portOffset}.`;
   }
 }
@@ -149,7 +149,7 @@ export class DevRunnerPortExhaustedError extends Schema.TaggedError<DevRunnerPor
     maximumPort: Schema.Number,
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `No required dev ports were available from offset ${this.startOffset} through maximum port ${this.maximumPort}.`;
   }
 }
@@ -165,7 +165,7 @@ export class DevRunnerProcessError extends Schema.TaggedError<DevRunnerProcessEr
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Dev-runner process operation "${this.operation}" failed for mode "${this.mode}".`;
   }
 }
@@ -180,7 +180,7 @@ export class DevRunnerProcessExitError extends Schema.TaggedError<DevRunnerProce
     exitCode: Schema.Number,
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Dev-runner process exited with code ${this.exitCode} in mode "${this.mode}".`;
   }
 }
@@ -192,7 +192,7 @@ export class DevRunnerHostNotProxiableError extends Schema.TaggedError<DevRunner
     host: Schema.String,
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `--host ${this.host} cannot be combined with ${this.mode}: single-origin browser dev proxies the backend at localhost, and a backend bound only to ${this.host} leaves localhost unanswered, so every proxied request fails. Use a wildcard (0.0.0.0 or ::) to serve that interface and loopback together, or --share for remote access.`;
   }
 }
@@ -203,22 +203,22 @@ export class DevRunnerBuiltNeedsShareError extends Schema.TaggedError<DevRunnerB
     mode: Schema.Literals(["dev", "dev:server", "dev:web", "dev:desktop"]),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `--built only works with \`dev --share\` (got ${this.mode}${this.mode === "dev" ? " without --share" : ""}): the backend serves the built client on the tailnet URL.`;
   }
 }
 
-const optionalStringConfig = (name: string) =>
+const optionalStringConfig = (name: string): Config.Config<string | undefined> =>
   Config.String(name).pipe(
     Config.option,
     Config.map((value) => Option.getOrUndefined(value)),
   );
-const optionalBooleanConfig = (name: string) =>
+const optionalBooleanConfig = (name: string): Config.Config<boolean | undefined> =>
   Config.Boolean(name).pipe(
     Config.option,
     Config.map((value) => Option.getOrUndefined(value)),
   );
-const optionalIntegerConfig = (name: string) =>
+const optionalIntegerConfig = (name: string): Config.Config<number | undefined> =>
   Config.Int(name).pipe(
     Config.option,
     Config.map((value) => Option.getOrUndefined(value)),
@@ -232,7 +232,10 @@ export function resolveOffset(config: {
   readonly portOffset: number | undefined;
   readonly devInstance: string | undefined;
   readonly worktreePath?: string | undefined;
-}) {
+}): Effect.Effect<
+  { readonly offset: number; readonly source: string },
+  DevRunnerInvalidPortOffsetError
+> {
   if (config.portOffset !== undefined) {
     if (config.portOffset < 0) {
       return Effect.fail(
@@ -273,7 +276,7 @@ export function resolveOffset(config: {
 
 const resolveBaseDir = Effect.fn("dev-runner.resolveBaseDir")(function* (
   baseDir: string | undefined,
-) {
+): Effect.fn.Return<string, never, Path.Path> {
   const path = yield* Path.Path;
   const configured = baseDir?.trim();
 
@@ -316,7 +319,7 @@ export const createDevRunnerEnv = Effect.fn("dev-runner.createDevRunnerEnv")(fun
   host,
   port,
   devUrl,
-}: CreateDevRunnerEnvInput) {
+}: CreateDevRunnerEnvInput): Effect.fn.Return<NodeJS.ProcessEnv, never, Path.Path> {
   const serverPort = port ?? BASE_SERVER_PORT + serverOffset;
   const webPort = BASE_WEB_PORT + webOffset;
   const configuredBaseDir = supatermHome?.trim() || undefined;
@@ -403,7 +406,10 @@ export const createDevRunnerEnv = Effect.fn("dev-runner.createDevRunnerEnv")(fun
   return output;
 });
 
-function portPairForOffset(offset: number) {
+function portPairForOffset(offset: number): {
+  readonly serverPort: number;
+  readonly webPort: number;
+} {
   return {
     serverPort: BASE_SERVER_PORT + offset,
     webPort: BASE_WEB_PORT + offset,
@@ -415,7 +421,7 @@ export const checkPortAvailabilityOnHosts = Effect.fn("dev-runner.checkPortAvail
     port: number,
     hosts: ReadonlyArray<string>,
     canListenOnHost: (port: number, host: string) => Effect.Effect<boolean, never, R>,
-  ) {
+  ): Effect.fn.Return<boolean, never, R> {
     for (const host of hosts) {
       if (!(yield* canListenOnHost(port, host))) {
         return false;
@@ -426,19 +432,17 @@ export const checkPortAvailabilityOnHosts = Effect.fn("dev-runner.checkPortAvail
   },
 );
 
-export function devPortProbeHosts(configuredHost: string | undefined): ReadonlyArray<string>;
-export function devPortProbeHosts(configuredHost: string | undefined) {
+export function devPortProbeHosts(configuredHost: string | undefined): ReadonlyArray<string> {
   const host = configuredHost?.trim();
   if (!host || DEV_PORT_PROBE_HOSTS.includes(host as (typeof DEV_PORT_PROBE_HOSTS)[number])) {
-    return DEV_PORT_PROBE_HOSTS satisfies ReadonlyArray<string>;
+    return DEV_PORT_PROBE_HOSTS;
   }
-  return [...DEV_PORT_PROBE_HOSTS, host] satisfies ReadonlyArray<string>;
+  return [...DEV_PORT_PROBE_HOSTS, host];
 }
 
-const makeDefaultCheckPortAvailability: (
-  configuredHost: string | undefined,
-) => PortAvailabilityCheck<NetService.NetService> =
-  (configuredHost: string | undefined) => (port, role) =>
+const makeDefaultCheckPortAvailability =
+  (configuredHost: string | undefined): PortAvailabilityCheck<NetService.NetService> =>
+  (port, role) =>
     Effect.gen(function* () {
       const net = yield* NetService.NetService;
       const hosts = role === "web" ? DEV_PORT_PROBE_HOSTS : devPortProbeHosts(configuredHost);
@@ -463,7 +467,7 @@ export const findFirstAvailableOffset = Effect.fn("dev-runner.findFirstAvailable
   requireServerPort,
   requireWebPort,
   checkPortAvailability,
-}: FindFirstAvailableOffsetInput<R>) {
+}: FindFirstAvailableOffsetInput<R>): Effect.fn.Return<number, DevRunnerPortExhaustedError, R> {
   const checkPort = (checkPortAvailability ??
     defaultCheckPortAvailability) as PortAvailabilityCheck<R>;
 
@@ -528,7 +532,11 @@ export const resolveModePortOffsets = Effect.fn("dev-runner.resolveModePortOffse
   hasExplicitServerPort,
   hasExplicitDevUrl,
   checkPortAvailability,
-}: ResolveModePortOffsetsInput<R>) {
+}: ResolveModePortOffsetsInput<R>): Effect.fn.Return<
+  { readonly serverOffset: number; readonly webOffset: number },
+  DevRunnerPortExhaustedError,
+  R
+> {
   const checkPort = (checkPortAvailability ??
     defaultCheckPortAvailability) as PortAvailabilityCheck<R>;
 

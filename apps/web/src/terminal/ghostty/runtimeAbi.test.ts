@@ -6,7 +6,7 @@ import pinnedVersion from "../../../../../native/libghostty-vt/VERSION?raw";
 
 type WasmFunction = (...args: number[]) => number;
 
-function decodeWasmDataUrl(dataUrl: string) {
+function decodeWasmDataUrl(dataUrl: string): Uint8Array {
   const encoded = dataUrl.split(",", 2)[1];
   if (!encoded) throw new Error("The vendored Ghostty WASM data URL is invalid");
   return Uint8Array.from(atob(encoded), (character) => character.charCodeAt(0));

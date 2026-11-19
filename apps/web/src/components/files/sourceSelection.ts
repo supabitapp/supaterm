@@ -79,7 +79,7 @@ export class SourceSelection {
     return low;
   }
 
-  #mounted(root: ShadowRoot) {
+  #mounted(root: ShadowRoot): Mounted | undefined {
     const rows = root.querySelectorAll<HTMLElement>("[data-line]");
     const first = rows[0];
     const last = rows[rows.length - 1];
@@ -121,7 +121,7 @@ export class SourceSelection {
     return { inRow: false, offset };
   }
 
-  #pointAt(offset: number, mounted: Mounted) {
+  #pointAt(offset: number, mounted: Mounted): Point {
     const clamped = Math.max(mounted.start, Math.min(offset, mounted.end));
     const line = this.#lineAt(clamped);
     const row = mounted.rows[line - mounted.firstLine];

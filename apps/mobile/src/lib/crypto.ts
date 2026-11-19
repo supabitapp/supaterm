@@ -5,7 +5,7 @@ import * as Hex from "effect/encoding/Hex";
 import * as Layer from "effect/Layer";
 import * as ExpoCrypto from "expo-crypto";
 
-function toExpoDigestAlgorithm(algorithm: Digest.Algorithm) {
+function toExpoDigestAlgorithm(algorithm: Digest.Algorithm): ExpoCrypto.CryptoDigestAlgorithm {
   switch (algorithm.name) {
     case "MD5":
       return ExpoCrypto.CryptoDigestAlgorithm.MD5;

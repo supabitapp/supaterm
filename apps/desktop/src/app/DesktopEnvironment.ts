@@ -1,4 +1,10 @@
-import type { DesktopAppBranding, DesktopRuntimeInfo } from "@supaterm/contracts";
+import type {
+  DesktopAppBranding,
+  DesktopAppStageLabel,
+  DesktopRuntimeArch,
+  DesktopRuntimeInfo,
+} from "@supaterm/contracts";
+import * as Config from "effect/Config";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -83,7 +89,7 @@ const APP_BASE_NAME = "Supaterm";
 function resolveDesktopAppStageLabel(input: {
   readonly isDevelopment: boolean;
   readonly appVersion: string;
-}) {
+}): DesktopAppStageLabel {
   if (input.isDevelopment) {
     return "Dev";
   }
@@ -94,16 +100,16 @@ function resolveDesktopAppStageLabel(input: {
 export function resolveDesktopAppBranding(input: {
   readonly isDevelopment: boolean;
   readonly appVersion: string;
-}) {
+}): DesktopAppBranding {
   const stageLabel = resolveDesktopAppStageLabel(input);
   return {
     baseName: APP_BASE_NAME,
     stageLabel,
     displayName: APP_BASE_NAME,
-  } satisfies DesktopAppBranding;
+  };
 }
 
-function normalizeDesktopArch(arch: string) {
+function normalizeDesktopArch(arch: string): DesktopRuntimeArch {
   if (arch === "arm64") return "arm64";
   if (arch === "x64") return "x64";
   return "other";
@@ -113,7 +119,7 @@ function resolveDesktopRuntimeInfo(input: {
   readonly platform: NodeJS.Platform;
   readonly processArch: string;
   readonly runningUnderArm64Translation: boolean;
-}) {
+}): DesktopRuntimeInfo {
   const appArch = normalizeDesktopArch(input.processArch);
 
   if (input.platform !== "darwin") {
@@ -121,7 +127,7 @@ function resolveDesktopRuntimeInfo(input: {
       hostArch: appArch,
       appArch,
       runningUnderArm64Translation: false,
-    } satisfies DesktopRuntimeInfo;
+    };
   }
 
   const hostArch = appArch === "arm64" || input.runningUnderArm64Translation ? "arm64" : appArch;
@@ -130,10 +136,12 @@ function resolveDesktopRuntimeInfo(input: {
     hostArch,
     appArch,
     runningUnderArm64Translation: input.runningUnderArm64Translation,
-  } satisfies DesktopRuntimeInfo;
+  };
 }
 
-const make = Effect.fn("desktop.environment.make")(function* (input: MakeDesktopEnvironmentInput) {
+const make = Effect.fn("desktop.environment.make")(function* (
+  input: MakeDesktopEnvironmentInput,
+): Effect.fn.Return<DesktopEnvironment["Service"], Config.ConfigError, Path.Path> {
   const path = yield* Path.Path;
   const config = yield* DesktopConfig.DesktopConfig;
   const homeDirectory = input.homeDirectory;

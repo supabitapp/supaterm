@@ -42,7 +42,7 @@ function makeProjection(input: {
   readonly providerThread: OrchestrationV2ProviderThread;
   readonly providerTurnId: ProviderTurnId;
   readonly attemptId: RunAttemptId;
-}) {
+}): OrchestrationV2ThreadProjection {
   const runId = RunId.make("run:restart-session");
   const nodeId = NodeId.make("node:restart-session");
   return {
@@ -120,7 +120,7 @@ function makeProjection(input: {
     contextTransfers: [],
     visibleTurnItems: [],
     updatedAt: input.now,
-  } satisfies OrchestrationV2ThreadProjection;
+  };
 }
 
 it.effect(

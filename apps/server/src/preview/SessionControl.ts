@@ -45,7 +45,7 @@ export class SessionControl {
     return this.epoch;
   }
 
-  private enqueue<A>(run: () => Promise<A>) {
+  private enqueue<A>(run: () => Promise<A>): Promise<A> {
     this.latestHuman = null;
     const result = this.tail.then(run);
     this.tail = result.then(
@@ -142,7 +142,7 @@ export class SessionControl {
     input: A,
     run: (input: A) => Promise<void>,
     merge: (waiting: A, next: A) => A = (_waiting, next) => next,
-  ) {
+  ): Promise<void> {
     if (this.closed || this.owner !== viewerId) return this.human(viewerId, () => run(input));
     const latest = this.latestHuman;
     if (latest?.entry.viewerId === viewerId && latest.entry.key === key) {

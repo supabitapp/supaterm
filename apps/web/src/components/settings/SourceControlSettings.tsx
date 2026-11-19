@@ -83,11 +83,11 @@ type BackgroundActivityOverridePatch = Partial<{
     | undefined;
 }>;
 
-function durationToSeconds(duration: Duration.Duration) {
+function durationToSeconds(duration: Duration.Duration): number {
   return Math.round(Duration.toMillis(duration) / 1_000);
 }
 
-function normalizeFetchIntervalSeconds(value: number | null) {
+function normalizeFetchIntervalSeconds(value: number | null): number {
   if (value === null || !Number.isFinite(value)) {
     return 0;
   }
@@ -117,7 +117,7 @@ function backgroundActivityOverrideSettings(
   };
 }
 
-function optionLabel(value: Option.Option<string>) {
+function optionLabel(value: Option.Option<string>): string | null {
   return Option.getOrNull(value);
 }
 
@@ -127,23 +127,17 @@ function isProviderDiscoveryItem(
   return "auth" in item;
 }
 
-function authPresentation(auth: SourceControlProviderAuth) {
+function authPresentation(auth: SourceControlProviderAuth): {
+  readonly label: string;
+  readonly badge: "secondary" | null;
+} {
   if (auth.status === "authenticated") {
-    return { label: "Authenticated", badge: null } satisfies {
-      readonly label: string;
-      readonly badge: "secondary" | null;
-    };
+    return { label: "Authenticated", badge: null };
   }
   if (auth.status === "unauthenticated") {
-    return { label: "Not authenticated", badge: "secondary" } satisfies {
-      readonly label: string;
-      readonly badge: "secondary" | null;
-    };
+    return { label: "Not authenticated", badge: "secondary" };
   }
-  return { label: "Status unknown", badge: null } satisfies {
-    readonly label: string;
-    readonly badge: "secondary" | null;
-  };
+  return { label: "Status unknown", badge: null };
 }
 
 function RedactedAccount(props: { readonly account: string | null }) {
@@ -157,7 +151,7 @@ function RedactedAccount(props: { readonly account: string | null }) {
   );
 }
 
-function itemStatusDot(item: VcsDiscoveryItem | SourceControlProviderDiscoveryItem) {
+function itemStatusDot(item: VcsDiscoveryItem | SourceControlProviderDiscoveryItem): string {
   if (isProviderDiscoveryItem(item)) {
     return item.status === "available" && item.auth.status === "authenticated"
       ? "bg-success"

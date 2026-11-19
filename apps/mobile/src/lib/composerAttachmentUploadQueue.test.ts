@@ -16,7 +16,7 @@ import {
 } from "./composerAttachmentUploadQueue";
 
 const environmentId = EnvironmentId.make("environment-1");
-function request(id: string, environment = environmentId) {
+function request(id: string, environment = environmentId): ComposerAttachmentUploadRequest {
   return {
     environmentId: environment,
     attachment: {
@@ -27,7 +27,7 @@ function request(id: string, environment = environmentId) {
       sizeBytes: 42,
       fileUri: `file:///documents/${id}.pdf`,
     },
-  } satisfies ComposerAttachmentUploadRequest;
+  };
 }
 
 describe("draft upload scope and offline submission", () => {

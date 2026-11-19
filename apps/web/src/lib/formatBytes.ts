@@ -1,8 +1,8 @@
-function formatScaled(value: number) {
+function formatScaled(value: number): string {
   return value.toFixed(value >= 100 ? 0 : value >= 10 ? 1 : 2);
 }
 
-export function formatBytes(value: number) {
+export function formatBytes(value: number): string {
   if (Math.round(value) < 1_024) return `${Math.round(value)} B`;
   const units = ["KB", "MB", "GB", "TB"] as const;
   let next = value / 1_024;

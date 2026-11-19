@@ -68,7 +68,7 @@ const thread: PullRequestTestThread = {
   latestUserMessageAt: "2026-08-20T00:00:00.000Z",
 };
 
-function prResult(pr: GitRunStackedActionResult["pr"]) {
+function prResult(pr: GitRunStackedActionResult["pr"]): Pick<GitRunStackedActionResult, "pr"> {
   return { pr };
 }
 

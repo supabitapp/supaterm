@@ -41,7 +41,10 @@ const layerEnvironmentAuth = (overrides?: Partial<ServerConfig.ServerConfig["Ser
     Layer.provide(layerServerConfig(overrides)),
   );
 
-const makeCookieRequest = (cookieName: string, sessionToken: string) =>
+const makeCookieRequest = (
+  cookieName: string,
+  sessionToken: string,
+): Parameters<EnvironmentAuth.EnvironmentAuth["Service"]["authenticateHttpRequest"]>[0] =>
   ({
     cookies: {
       [cookieName]: sessionToken,
@@ -51,7 +54,9 @@ const makeCookieRequest = (cookieName: string, sessionToken: string) =>
     EnvironmentAuth.EnvironmentAuth["Service"]["authenticateHttpRequest"]
   >[0];
 
-const makeBearerRequest = (token: string) =>
+const makeBearerRequest = (
+  token: string,
+): Parameters<EnvironmentAuth.EnvironmentAuth["Service"]["authenticateHttpRequest"]>[0] =>
   ({
     cookies: {},
     headers: {

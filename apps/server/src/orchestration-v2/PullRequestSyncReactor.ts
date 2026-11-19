@@ -81,7 +81,7 @@ const LISTS_CHANGE_REQUESTS =
   /\b(?:gh\s+(?:pr\s+(?:list|status)|search\s+prs|api)|glab\s+(?:mr\s+list|api))\b/u;
 const URL_LINE = /^[ \t]*(https?:\/\/\S+)[ \t]*$/gmu;
 
-function shellScript(input: string) {
+function shellScript(input: string): string {
   const [, wrapped] = SHELL_WRAPPER.exec(input) ?? [];
   return wrapped === undefined
     ? input
@@ -92,7 +92,7 @@ function shellScript(input: string) {
       ).join("");
 }
 
-function shellSegments(script: string) {
+function shellSegments(script: string): ReadonlyArray<string> {
   const segments: Array<string> = [];
   let current = "";
   let quote: string | null = null;
@@ -180,7 +180,7 @@ const pauseKeyOf = (entry: LinkEntry) => {
   return `${projectId}\0${host}`;
 };
 
-function siblingChangeRequestUrl(url: string, number: number) {
+function siblingChangeRequestUrl(url: string, number: number): string | null {
   if (!Number.isSafeInteger(number) || number < 1) return null;
   const parsed = sourceControlDefinitions.parseChangeRequestUrl(url);
   if (parsed === null) return null;
@@ -193,7 +193,7 @@ function siblingChangeRequestUrl(url: string, number: number) {
   });
 }
 
-function snapshotFieldsOf(summary: PullRequestSummary) {
+function snapshotFieldsOf(summary: PullRequestSummary): SnapshotFields {
   return {
     state: summary.state,
     title: summary.title,
@@ -218,7 +218,7 @@ function withKnownMergeability(
   previous: ThreadPullRequestSnapshot | null,
   fields: SnapshotFields,
   provider: PullRequestSummary["provider"],
-) {
+): SnapshotFields {
   if (
     provider !== "github" ||
     fields.state !== "open" ||
@@ -230,7 +230,7 @@ function withKnownMergeability(
   return known === undefined || known === "unknown" ? fields : { ...fields, mergeability: known };
 }
 
-function avatarIdentity(avatarUrl: string | null | undefined) {
+function avatarIdentity(avatarUrl: string | null | undefined): string | null {
   if (avatarUrl === null || avatarUrl === undefined) return null;
   const url = URL.parse(avatarUrl);
   if (url === null || (url.hostname !== "ghe.com" && !url.hostname.endsWith(".ghe.com"))) {
@@ -240,7 +240,7 @@ function avatarIdentity(avatarUrl: string | null | undefined) {
   return url.href;
 }
 
-function snapshotFieldsEqual(left: SnapshotFields, right: SnapshotFields) {
+function snapshotFieldsEqual(left: SnapshotFields, right: SnapshotFields): boolean {
   return (
     left.state === right.state &&
     left.title === right.title &&
@@ -262,7 +262,10 @@ function snapshotFieldsEqual(left: SnapshotFields, right: SnapshotFields) {
   );
 }
 
-function stacksEqual(left: ThreadPullRequestStack | null, right: ThreadPullRequestStack | null) {
+function stacksEqual(
+  left: ThreadPullRequestStack | null,
+  right: ThreadPullRequestStack | null,
+): boolean {
   if (left === null || right === null) return left === right;
   return (
     left.kind === right.kind &&
@@ -282,24 +285,24 @@ function stacksEqual(left: ThreadPullRequestStack | null, right: ThreadPullReque
   );
 }
 
-function nativeStackKeyOf(link: ThreadPullRequestLink, stack: ThreadPullRequestStack) {
+function nativeStackKeyOf(link: ThreadPullRequestLink, stack: ThreadPullRequestStack): string {
   const key = normalizeThreadPullRequestKey(link);
   return `${key.host}/${key.repository}#stack:${stack.id}`;
 }
 
-function sameLayerNumbers(left: ThreadPullRequestStack, right: ThreadPullRequestStack) {
+function sameLayerNumbers(left: ThreadPullRequestStack, right: ThreadPullRequestStack): boolean {
   return (
     left.layers.length === right.layers.length &&
     left.layers.every((layer, index) => layer.number === right.layers[index]!.number)
   );
 }
 
-function skipReason(cause: Cause.Cause<unknown>) {
+function skipReason(cause: Cause.Cause<unknown>): string {
   const error = Cause.squash(cause);
   return error instanceof Error ? error.message : String(error);
 }
 
-function rateLimitRetryAt(cause: Cause.Cause<unknown>) {
+function rateLimitRetryAt(cause: Cause.Cause<unknown>): number | undefined {
   let error: unknown = Cause.squash(cause);
   while (error instanceof Error) {
     if (isPullRequestProviderError(error) && error.reason === "rate-limited") return error.retryAt;
@@ -308,7 +311,7 @@ function rateLimitRetryAt(cause: Cause.Cause<unknown>) {
   return undefined;
 }
 
-function isOpen(thread: ProjectionStore.ProjectionThreadPullRequests) {
+function isOpen(thread: ProjectionStore.ProjectionThreadPullRequests): boolean {
   return thread.doneOverride !== "done" && thread.doneAt === null;
 }
 
@@ -344,7 +347,7 @@ export const make = Effect.gen(function* () {
   const missing = new Set<string>();
   const pausedUntil = new Map<string, number>();
 
-  const isDue = (key: string, entries: ReadonlyArray<LinkEntry>, nowMs: number) => {
+  const isDue = (key: string, entries: ReadonlyArray<LinkEntry>, nowMs: number): boolean => {
     if ((failedReads.get(key)?.retryAtMs ?? 0) > nowMs) return false;
     if (requested.has(key)) return true;
     const active = entries.filter((entry) => isOpen(entry.thread));
@@ -373,7 +376,7 @@ export const make = Effect.gen(function* () {
 
   const logSkipped =
     (message: string, fields: Record<string, unknown>) =>
-    <E>(cause: Cause.Cause<E>) =>
+    <E>(cause: Cause.Cause<E>): Effect.Effect<void, E> =>
       Cause.hasInterruptsOnly(cause) ? Effect.failCause(cause) : Effect.logWarning(message, fields);
 
   const sweep = Effect.fn("PullRequestSyncReactor.sweep")(function* (scope: "all" | "requested") {

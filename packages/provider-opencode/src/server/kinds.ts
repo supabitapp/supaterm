@@ -1,8 +1,16 @@
-import { ProviderDriverKind } from "@supaterm/contracts";
+import { ProviderDriverKind, type ProviderRequestKind } from "@supaterm/contracts";
 
 export const OPENCODE_PROVIDER = ProviderDriverKind.make("opencode");
 
-export function openCodePermissionRequestKind(permission: string, toolName?: string) {
+type OpenCodePermissionRequestKind = Extract<
+  ProviderRequestKind,
+  "command" | "file-read" | "file-change"
+>;
+
+export function openCodePermissionRequestKind(
+  permission: string,
+  toolName?: string,
+): OpenCodePermissionRequestKind {
   const normalized = permission.toLowerCase();
   const normalizedTool = toolName?.toLowerCase() ?? "";
   if (

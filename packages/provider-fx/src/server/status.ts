@@ -43,7 +43,7 @@ const fxModels = (
   settings: FxSettings,
   defaultModel?: string,
   listed: ReadonlyArray<string> = [],
-) =>
+): ReadonlyArray<ServerProviderModel> =>
   providerModelsFromSettings(
     [
       {
@@ -70,20 +70,21 @@ const snapshot = (
   probe: ProviderProbeResult,
   defaultModel?: string,
   listed?: ReadonlyArray<string>,
-) =>
-  ({
-    ...buildServerProvider({
-      driver: FX_DRIVER_KIND,
-      presentation: FX_PRESENTATION,
-      enabled: settings.enabled,
-      checkedAt,
-      models: fxModels(settings, defaultModel, listed),
-      probe,
-    }),
-    supportsTextGeneration: false,
-  }) satisfies ServerProviderDraft;
+): ServerProviderDraft => ({
+  ...buildServerProvider({
+    driver: FX_DRIVER_KIND,
+    presentation: FX_PRESENTATION,
+    enabled: settings.enabled,
+    checkedAt,
+    models: fxModels(settings, defaultModel, listed),
+    probe,
+  }),
+  supportsTextGeneration: false,
+});
 
-export const buildInitialFxProviderSnapshot = (settings: FxSettings) =>
+export const buildInitialFxProviderSnapshot = (
+  settings: FxSettings,
+): Effect.Effect<ServerProviderDraft> =>
   Effect.map(DateTime.now, (now) =>
     snapshot(settings, DateTime.formatIso(now), {
       installed: settings.enabled,
@@ -94,7 +95,7 @@ export const buildInitialFxProviderSnapshot = (settings: FxSettings) =>
         ? "Checking fx CLI availability..."
         : "fx is disabled in Supaterm settings.",
     }),
-  ) satisfies Effect.Effect<ServerProviderDraft>;
+  );
 
 const runFxCli = Effect.fn("runFxCli")(function* (
   settings: FxSettings,
@@ -124,26 +125,22 @@ const decodeFxModels = Schema.decodeUnknownOption(FxModels);
 
 const VERSION_PROBE_TIMEOUT_MS = 10_000;
 
-function fxAuth(auth: string | undefined) {
+function fxAuth(auth: string | undefined): ServerProviderAuth {
   const method = nonEmptyTrimmed(auth);
-  if (method === undefined) return { status: "unknown" } satisfies ServerProviderAuth;
-  return (
-    method === "missing"
-      ? { status: "unauthenticated" }
-      : { status: "authenticated", label: method }
-  ) satisfies ServerProviderAuth;
+  if (method === undefined) return { status: "unknown" };
+  return method === "missing"
+    ? { status: "unauthenticated" }
+    : { status: "authenticated", label: method };
 }
 
 /**
  * Reads `fx --version`, `fx status --json` (login and default model) and
  * `fx models --json`. None of them opens an ACP session, which fx would save.
  */
-export const checkFxProviderStatus: (
+export const checkFxProviderStatus = Effect.fn("checkFxProviderStatus")(function* (
   settings: FxSettings,
   environment: NodeJS.ProcessEnv,
-) => Effect.Effect<ServerProviderDraft, never, ChildProcessSpawner.ChildProcessSpawner> = Effect.fn(
-  "checkFxProviderStatus",
-)(function* (settings: FxSettings, environment: NodeJS.ProcessEnv) {
+): Effect.fn.Return<ServerProviderDraft, never, ChildProcessSpawner.ChildProcessSpawner> {
   const checkedAt = DateTime.formatIso(yield* DateTime.now);
   if (!settings.enabled) {
     return snapshot(settings, checkedAt, {

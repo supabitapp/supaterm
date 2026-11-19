@@ -7,7 +7,9 @@ import * as ThreadHistoryController from "./threadHistoryController.ts";
 const ENV = "env-history" as EnvironmentId;
 const THREAD = "thread-history" as ThreadId;
 
-function handler(tag: string) {
+function handler(
+  tag: string,
+): ThreadHistoryController.ThreadHistoryHandler & { readonly tag: string; readonly calls: number } {
   const state = { tag, calls: 0 };
   return {
     get tag() {

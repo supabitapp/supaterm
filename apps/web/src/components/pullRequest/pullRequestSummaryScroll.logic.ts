@@ -5,7 +5,7 @@ export function sectionCollapseAnchorScrollTop(input: {
   readonly viewportTop: number;
   readonly sectionTop: number;
   readonly headingTop: number;
-}) {
+}): number | null {
   const sectionHasScrolledPastViewport = input.sectionTop < input.viewportTop;
   const headingIsPinned = input.headingTop <= input.viewportTop + STICKY_EDGE_TOLERANCE_PX;
   if (!sectionHasScrolledPastViewport || !headingIsPinned) return null;

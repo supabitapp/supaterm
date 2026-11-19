@@ -67,10 +67,7 @@ function ReviewHeader(
   const { toggleAuxiliaryPane } = useAdaptiveWorkspaceLayout();
   const { panes } = useWorkspacePaneState();
   const presentation = useReviewHeaderPresentation(props);
-  const sectionAction: (section: ReviewSectionItem | null, title: string) => AppBarMenuItem = (
-    section: ReviewSectionItem | null,
-    title: string,
-  ) => ({
+  const sectionAction = (section: ReviewSectionItem | null, title: string): AppBarMenuItem => ({
     id: section ? `section:${section.id}` : `unavailable:${title}`,
     title,
     disabled: section === null,

@@ -1,4 +1,5 @@
 import {
+  type CustomModelSetting,
   MODEL_SLUG_ALIASES_BY_PROVIDER,
   ModelCapabilities,
   type ModelSelection,
@@ -30,7 +31,7 @@ export interface SelectableModelOption {
 
 export function createModelCapabilities(input: {
   optionDescriptors: ReadonlyArray<ProviderOptionDescriptor>;
-}) {
+}): ModelCapabilities {
   return {
     optionDescriptors: input.optionDescriptors.map(cloneDescriptor),
   };
@@ -39,7 +40,7 @@ export function createModelCapabilities(input: {
 export function filterCustomModelCapabilities(
   driverKind: ProviderDriverKind | null,
   capabilities: ModelCapabilities | null | undefined,
-) {
+): ModelCapabilities | null {
   if (
     driverKind !== "claudeAgent" ||
     !capabilities?.optionDescriptors?.some((descriptor) => descriptor.id === "fastMode")
@@ -57,7 +58,7 @@ export function filterCustomModelCapabilities(
 function getRawSelectionValueById(
   selections: ReadonlyArray<ProviderOptionSelection> | null | undefined,
   id: string,
-) {
+): string | boolean | undefined {
   const selection = selections?.find((candidate) => candidate.id === id);
   return selection?.value;
 }
@@ -65,14 +66,14 @@ function getRawSelectionValueById(
 function getProviderOptionSelectionValue(
   selections: ReadonlyArray<ProviderOptionSelection> | null | undefined,
   id: string,
-) {
+): string | boolean | undefined {
   return getRawSelectionValueById(selections, id);
 }
 
 function getProviderOptionStringSelectionValue(
   selections: ReadonlyArray<ProviderOptionSelection> | null | undefined,
   id: string,
-) {
+): string | undefined {
   const value = getProviderOptionSelectionValue(selections, id);
   return typeof value === "string" ? value : undefined;
 }
@@ -80,7 +81,7 @@ function getProviderOptionStringSelectionValue(
 function getProviderOptionBooleanSelectionValue(
   selections: ReadonlyArray<ProviderOptionSelection> | null | undefined,
   id: string,
-) {
+): boolean | undefined {
   const value = getProviderOptionSelectionValue(selections, id);
   return typeof value === "boolean" ? value : undefined;
 }
@@ -88,28 +89,26 @@ function getProviderOptionBooleanSelectionValue(
 export function getModelSelectionStringOptionValue(
   modelSelection: ModelSelection | null | undefined,
   id: string,
-): string | undefined;
-export function getModelSelectionStringOptionValue(
-  modelSelection: ModelSelection | null | undefined,
-  id: string,
-) {
-  return getProviderOptionStringSelectionValue(modelSelection?.options, id) satisfies
-    | string
-    | undefined;
+): string | undefined {
+  return getProviderOptionStringSelectionValue(modelSelection?.options, id);
 }
 
 export function getModelSelectionBooleanOptionValue(
   modelSelection: ModelSelection | null | undefined,
   id: string,
-) {
+): boolean | undefined {
   return getProviderOptionBooleanSelectionValue(modelSelection?.options, id);
 }
 
-function canonicalModelSelectionOptions(modelSelection: ModelSelection) {
+function canonicalModelSelectionOptions(
+  modelSelection: ModelSelection,
+): ReadonlyArray<readonly [id: string, value: string | boolean]> {
   return copySorted(
     (modelSelection.options ?? []).map(
-      (selection) =>
-        [selection.id, selection.value] satisfies readonly [id: string, value: string | boolean],
+      (selection): readonly [id: string, value: string | boolean] => [
+        selection.id,
+        selection.value,
+      ],
     ),
     (
       [leftId, leftValue]: readonly [id: string, value: string | boolean],
@@ -121,24 +120,25 @@ function canonicalModelSelectionOptions(modelSelection: ModelSelection) {
   );
 }
 
-export function modelSelectionsEqual(left: ModelSelection, right: ModelSelection): boolean;
-export function modelSelectionsEqual(left: ModelSelection, right: ModelSelection) {
+export function modelSelectionsEqual(left: ModelSelection, right: ModelSelection): boolean {
   if (left.instanceId !== right.instanceId || left.model !== right.model) {
-    return false satisfies boolean;
+    return false;
   }
   const leftOptions = canonicalModelSelectionOptions(left);
   const rightOptions = canonicalModelSelectionOptions(right);
-  return (leftOptions.length === rightOptions.length &&
+  return (
+    leftOptions.length === rightOptions.length &&
     leftOptions.every(
       ([id, value], index) => id === rightOptions[index]?.[0] && value === rightOptions[index]?.[1],
-    )) satisfies boolean;
+    )
+  );
 }
 
 /**
  * Whether a composer's draft model pick is what the thread already runs. Web sends
  * `fastMode: false` for models with a fast toggle while mobile omits it, so off counts as unset.
  */
-export function draftModelPickMatchesThread(pick: ModelSelection, thread: ModelSelection) {
+export function draftModelPickMatchesThread(pick: ModelSelection, thread: ModelSelection): boolean {
   const withoutFastModeOff = (selection: ModelSelection) =>
     createModelSelection(
       selection.instanceId,
@@ -152,7 +152,7 @@ export function draftModelPickMatchesThread(pick: ModelSelection, thread: ModelS
 export function withImplicitFastModeDefault(
   caps: ModelCapabilities,
   modelOptions: ReadonlyArray<ProviderOptionSelection> | null | undefined,
-) {
+): ReadonlyArray<ProviderOptionSelection> | undefined {
   const hasExplicitFastMode = modelOptions?.some((selection) => selection.id === "fastMode");
   if (hasExplicitFastMode) {
     return modelOptions ?? undefined;
@@ -169,7 +169,7 @@ export function withImplicitFastModeDefault(
 function resolveDescriptorChoiceValue(
   descriptor: Extract<ProviderOptionDescriptor, { type: "select" }>,
   raw: string | null | undefined,
-) {
+): string | undefined {
   const trimmed = trimOrNull(raw);
   if (!trimmed) {
     return descriptor.currentValue ?? descriptor.options.find((option) => option.isDefault)?.id;
@@ -189,7 +189,7 @@ function resolveDescriptorChoiceValue(
   return descriptor.currentValue ?? descriptor.options.find((option) => option.isDefault)?.id;
 }
 
-function cloneDescriptor(descriptor: ProviderOptionDescriptor) {
+function cloneDescriptor(descriptor: ProviderOptionDescriptor): ProviderOptionDescriptor {
   return descriptor.type === "select"
     ? {
         ...descriptor,
@@ -201,14 +201,14 @@ function cloneDescriptor(descriptor: ProviderOptionDescriptor) {
     : { ...descriptor };
 }
 
-function cloneSelection(selection: ProviderOptionSelection) {
+function cloneSelection(selection: ProviderOptionSelection): ProviderOptionSelection {
   return { ...selection };
 }
 
 function withDescriptorCurrentValue(
   descriptor: ProviderOptionDescriptor,
   rawCurrentValue: string | boolean | undefined,
-) {
+): ProviderOptionDescriptor {
   if (descriptor.type === "boolean") {
     if (typeof rawCurrentValue === "boolean") {
       return {
@@ -234,7 +234,10 @@ function withDescriptorCurrentValue(
 
 export function withLegacyUltracodeEffort<
   Selections extends ReadonlyArray<ProviderOptionSelection> | null | undefined,
->(descriptors: ReadonlyArray<ProviderOptionDescriptor> | null | undefined, selections: Selections) {
+>(
+  descriptors: ReadonlyArray<ProviderOptionDescriptor> | null | undefined,
+  selections: Selections,
+): Selections | Array<ProviderOptionSelection> {
   if (
     getRawSelectionValueById(selections, "effort") !== "ultracode" ||
     !descriptors?.some(
@@ -258,11 +261,7 @@ export function withLegacyUltracodeEffort<
 export function getProviderOptionDescriptors(input: {
   caps: ModelCapabilities;
   selections?: ReadonlyArray<ProviderOptionSelection> | null | undefined;
-}): ReadonlyArray<ProviderOptionDescriptor>;
-export function getProviderOptionDescriptors(input: {
-  caps: ModelCapabilities;
-  selections?: ReadonlyArray<ProviderOptionSelection> | null | undefined;
-}) {
+}): ReadonlyArray<ProviderOptionDescriptor> {
   const { caps } = input;
   const baseDescriptors = (caps.optionDescriptors ?? []).map(cloneDescriptor);
   const selections = withLegacyUltracodeEffort(baseDescriptors, input.selections);
@@ -272,7 +271,7 @@ export function getProviderOptionDescriptors(input: {
       descriptor,
       getRawSelectionValueById(selections, descriptor.id) ?? descriptor.currentValue,
     ),
-  ) satisfies ReadonlyArray<ProviderOptionDescriptor>;
+  );
 }
 
 function getReportedOptionValue(
@@ -306,7 +305,7 @@ export function getProviderOptionCurrentValue(
   descriptor: ProviderOptionDescriptor | null | undefined,
   selection?: ModelSelection | null,
   reportedSelection?: ModelSelection | null,
-) {
+): string | boolean | undefined {
   if (!descriptor) {
     return undefined;
   }
@@ -327,7 +326,7 @@ export function getProviderOptionCurrentLabel(
   descriptor: ProviderOptionDescriptor | null | undefined,
   selection?: ModelSelection | null,
   reportedSelection?: ModelSelection | null,
-) {
+): string | undefined {
   if (!descriptor) {
     return undefined;
   }
@@ -351,7 +350,7 @@ export function getProviderOptionCurrentLabel(
 
 export function buildProviderOptionSelectionsFromDescriptors(
   descriptors: ReadonlyArray<ProviderOptionDescriptor> | null | undefined,
-) {
+): Array<ProviderOptionSelection> | undefined {
   if (!descriptors || descriptors.length === 0) {
     return undefined;
   }
@@ -371,7 +370,7 @@ export function buildProviderOptionSelectionsFromDescriptors(
 export function buildExplicitProviderOptionSelectionsFromDescriptors(
   descriptors: ReadonlyArray<ProviderOptionDescriptor> | null | undefined,
   selections: ReadonlyArray<ProviderOptionSelection> | null | undefined,
-) {
+): Array<ProviderOptionSelection> | undefined {
   if (!selections || selections.length === 0) {
     return undefined;
   }
@@ -384,19 +383,19 @@ export function buildExplicitProviderOptionSelectionsFromDescriptors(
   return normalized && normalized.length > 0 ? normalized : undefined;
 }
 
-export function isClaudeUltrathinkPrompt(text: string | null | undefined) {
+export function isClaudeUltrathinkPrompt(text: string | null | undefined): boolean {
   return typeof text === "string" && /\bultrathink\b/i.test(text);
 }
 
-export function codexModelFamily(slug: string) {
+export function codexModelFamily(slug: string): string {
   return slug.startsWith("openai.gpt-") ? slug.slice("openai.".length) : slug;
 }
 
-export function formatCodexModelName(name: string) {
+export function formatCodexModelName(name: string): string {
   return name.replace(/^gpt/i, "GPT").replace(/-([a-z])/g, (_, c) => "-" + c.toUpperCase());
 }
 
-export function formatModelSlugName(slug: string) {
+export function formatModelSlugName(slug: string): string {
   const separator = slug.lastIndexOf("/") + 1;
   const prefix = slug.slice(0, separator);
   const name = slug.slice(separator);
@@ -415,7 +414,7 @@ export function formatModelSlugName(slug: string) {
 export function normalizeModelSlug(
   model: string | null | undefined,
   provider: ProviderDriverKind = DEFAULT_PROVIDER_DRIVER_KIND,
-) {
+): string | null {
   const trimmed = normalizeCustomModelSlug(model);
   if (!trimmed) {
     return null;
@@ -429,13 +428,12 @@ export function normalizeModelSlug(
 }
 
 /** Custom model identifiers are provider-owned, so only trim them; never expand aliases. */
-export function normalizeCustomModelSlug(model: string | null | undefined): string | null;
-export function normalizeCustomModelSlug(model: string | null | undefined) {
+export function normalizeCustomModelSlug(model: string | null | undefined): string | null {
   if (typeof model !== "string") {
-    return null satisfies string | null;
+    return null;
   }
 
-  return (model.trim() || null) satisfies string | null;
+  return model.trim() || null;
 }
 
 export interface CustomModelDefinition {
@@ -446,7 +444,7 @@ export interface CustomModelDefinition {
 
 const decodeCustomModelCapabilities = Schema.decodeUnknownOption(ModelCapabilities);
 
-export function readCustomModelEntries(value: unknown) {
+export function readCustomModelEntries(value: unknown): CustomModelDefinition[] {
   if (!Array.isArray(value)) return [];
   const entries: CustomModelDefinition[] = [];
   const seen = new Set<string>();
@@ -478,7 +476,7 @@ export function readCustomModelEntries(value: unknown) {
   return entries;
 }
 
-export function toCustomModelSetting(entry: CustomModelDefinition) {
+export function toCustomModelSetting(entry: CustomModelDefinition): CustomModelSetting {
   const descriptors = entry.capabilities?.optionDescriptors ?? [];
   const name = entry.name !== entry.slug ? entry.name : undefined;
   if (!name && descriptors.length === 0) return entry.slug;
@@ -495,7 +493,7 @@ export function resolveSelectableModel(
   provider: ProviderDriverKind,
   value: string | null | undefined,
   options: ReadonlyArray<SelectableModelOption>,
-) {
+): string | null {
   if (typeof value !== "string") {
     return null;
   }
@@ -531,13 +529,15 @@ export function resolveSelectableModel(
   return resolved ? resolved.slug : null;
 }
 
-function trimOrNull<T extends string>(value: T | null | undefined) {
+function trimOrNull<T extends string>(value: T | null | undefined): T | null {
   if (typeof value !== "string") return null;
   const trimmed = value.trim() as T;
   return trimmed || null;
 }
 
-function cloneSelections(selections: ReadonlyArray<ProviderOptionSelection>) {
+function cloneSelections(
+  selections: ReadonlyArray<ProviderOptionSelection>,
+): Array<ProviderOptionSelection> {
   return selections.map(cloneSelection);
 }
 
@@ -545,18 +545,13 @@ export function createModelSelection(
   instanceId: ProviderInstanceId,
   model: string,
   options?: ReadonlyArray<ProviderOptionSelection> | null,
-): ModelSelection;
-export function createModelSelection(
-  instanceId: ProviderInstanceId,
-  model: string,
-  options?: ReadonlyArray<ProviderOptionSelection> | null,
-) {
+): ModelSelection {
   const selections = options ? cloneSelections(options) : [];
   const base: ModelSelection = {
     instanceId,
     model,
   };
-  return (selections.length > 0 ? { ...base, options: selections } : base) satisfies ModelSelection;
+  return selections.length > 0 ? { ...base, options: selections } : base;
 }
 
 /** A model picker's pick: re-picking the current model keeps its options, another model starts without any. */
@@ -564,7 +559,7 @@ export function pickModelSelection(
   current: ModelSelection | null | undefined,
   instanceId: ProviderInstanceId,
   model: string,
-) {
+): ModelSelection {
   return current?.instanceId === instanceId && current.model === model
     ? current
     : createModelSelection(instanceId, model);
@@ -573,7 +568,7 @@ export function pickModelSelection(
 export function resolvePromptInjectedEffort(
   caps: ModelCapabilities,
   rawEffort: string | null | undefined,
-) {
+): string | null {
   const trimmed = trimOrNull(rawEffort);
   if (!trimmed) return null;
   const descriptors = getProviderOptionDescriptors({ caps });
@@ -585,7 +580,10 @@ export function resolvePromptInjectedEffort(
   return null;
 }
 
-export function applyClaudePromptEffortPrefix(text: string, effort: string | null | undefined) {
+export function applyClaudePromptEffortPrefix(
+  text: string,
+  effort: string | null | undefined,
+): string {
   const trimmed = text.trim();
   if (!trimmed) {
     return trimmed;

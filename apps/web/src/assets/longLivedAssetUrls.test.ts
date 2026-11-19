@@ -15,7 +15,7 @@ const resource: AssetResource = {
 
 type MintResult = AsyncResult.AsyncResult<{ relativeUrl: string; expiresAt: number }>;
 
-const url = (relativeUrl: string, expiresAt: number) =>
+const url = (relativeUrl: string, expiresAt: number): MintResult =>
   AsyncResult.success({ relativeUrl, expiresAt });
 
 function setup(initial: MintResult) {

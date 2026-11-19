@@ -23,7 +23,7 @@ const DESKTOP_KEY_ALIASES: Readonly<Record<string, string>> = {
   minus: "-",
 };
 
-export function parseDesktopSnapShotShortcut(label: string) {
+export function parseDesktopSnapShotShortcut(label: string): KeybindingShortcut | null {
   const text = label.trim().replace(/^Press\s+/i, "");
   if (!text) return null;
   const gtk = text.match(/^((?:<[^<>]+>)+)([^<>]+)$/);
@@ -50,13 +50,13 @@ export function parseDesktopSnapShotShortcut(label: string) {
 export function formatSnapShotShortcutLabel(
   shortcut: SnapShotShortcut,
   platform = navigator.platform,
-) {
+): string {
   return isModifierPairShortcut(shortcut)
     ? snapShotModifierPairLabel(snapShotShortcutModifierPair(shortcut), isMacPlatform(platform))
     : formatShortcutLabel(shortcut, platform);
 }
 
-function modifierKeyLabel(modifier: SnapShotModifier, platform: string) {
+function modifierKeyLabel(modifier: SnapShotModifier, platform: string): string {
   if (modifier === "shift") return "⇧";
   if (isMacPlatform(platform)) {
     if (modifier === "meta") return "⌘";
@@ -70,7 +70,7 @@ function modifierKeyLabel(modifier: SnapShotModifier, platform: string) {
 export function snapShotShortcutKeyLabels(
   shortcut: SnapShotShortcut,
   platform = navigator.platform,
-) {
+): readonly string[] {
   if (isModifierPairShortcut(shortcut)) {
     const label = modifierKeyLabel(snapShotShortcutModifierPair(shortcut), platform);
     return [label, label];
@@ -95,7 +95,7 @@ export function sameSnapShotShortcut(
   left: SnapShotShortcut,
   right: SnapShotShortcut,
   platform = navigator.platform,
-) {
+): boolean {
   if (isModifierPairShortcut(left) || isModifierPairShortcut(right)) {
     return (
       isModifierPairShortcut(left) &&
@@ -110,7 +110,7 @@ export function snapShotKeybindingConflict<Command extends string>(
   shortcut: SnapShotShortcut,
   keybindings: ReadonlyArray<{ readonly command: Command; readonly shortcut: KeybindingShortcut }>,
   platform = navigator.platform,
-) {
+): Command | null {
   if (isModifierPairShortcut(shortcut)) return null;
   const key = shortcutConflictKey(shortcut, platform);
   return (

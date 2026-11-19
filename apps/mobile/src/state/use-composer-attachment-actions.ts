@@ -36,7 +36,7 @@ export function useComposerAttachmentActions(props: {
     signal: AbortSignal,
     attachments: ReadonlyArray<DraftComposerAttachment>,
     insertion: ComposerDraftInsertion,
-  ) => {
+  ): Promise<ComposerDraftAttachmentsAppend> => {
     if (signal.aborted) {
       await Promise.all(
         attachments.flatMap((item) =>

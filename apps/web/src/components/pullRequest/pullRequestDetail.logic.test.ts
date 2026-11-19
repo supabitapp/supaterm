@@ -6,6 +6,7 @@ import {
   type PullRequestComment,
   type PullRequestDetail,
   type PullRequestDetailView,
+  type PullRequestRef,
   type PullRequestReviewThread,
   type PullRequestState,
   type RepositoryIdentity,
@@ -81,22 +82,21 @@ describe("pull request checkout commands", () => {
     );
   });
 
-  const reference = (host?: string) => ({
+  const reference = (host?: string): PullRequestRef => ({
     projectId: ProjectId.make("project-1"),
     ...(host === undefined ? {} : { host }),
     repository: "acme/web",
     number: 42,
   });
-  const identity = (provider: string, canonicalKey: string) =>
-    ({
-      canonicalKey,
-      locator: {
-        source: "git-remote",
-        remoteName: "origin",
-        remoteUrl: "git@github.com:acme/web.git",
-      },
-      provider: SourceControlProviderKind.make(provider),
-    }) satisfies RepositoryIdentity;
+  const identity = (provider: string, canonicalKey: string): RepositoryIdentity => ({
+    canonicalKey,
+    locator: {
+      source: "git-remote",
+      remoteName: "origin",
+      remoteUrl: "git@github.com:acme/web.git",
+    },
+    provider: SourceControlProviderKind.make(provider),
+  });
 
   it("uses a matching enterprise identity and rejects an explicit host mismatch", () => {
     const enterprise = identity("github", "github.example.test/acme/web");
@@ -243,17 +243,21 @@ describe("stacked pull request classification", () => {
 
 describe("review verdicts", () => {
   it("keeps each reviewer's last word, whatever order the host returned them in", () => {
-    const review = (id: string, login: string, reviewState: string, createdAt: string) =>
-      ({
-        id,
-        kind: "review",
-        author: { login, name: null, avatarUrl: null },
-        body: "",
-        createdAt,
-        url: null,
-        path: null,
-        reviewState,
-      }) satisfies PullRequestComment;
+    const review = (
+      id: string,
+      login: string,
+      reviewState: string,
+      createdAt: string,
+    ): PullRequestComment => ({
+      id,
+      kind: "review",
+      author: { login, name: null, avatarUrl: null },
+      body: "",
+      createdAt,
+      url: null,
+      path: null,
+      reviewState,
+    });
 
     expect(
       latestPullRequestReviewOutcomes([
@@ -272,13 +276,12 @@ describe("review verdicts", () => {
     const commits = [
       { oid: "c0ffee", messageHeadline: "later work", committedDate: "2026-07-05T00:00:00Z" },
     ];
-    const review = (createdAt: string) =>
-      ({
-        ...TIMELINE_SOURCE.comments[0]!,
-        kind: "review",
-        reviewState: "APPROVED",
-        createdAt,
-      }) satisfies PullRequestComment;
+    const review = (createdAt: string): PullRequestComment => ({
+      ...TIMELINE_SOURCE.comments[0]!,
+      kind: "review",
+      reviewState: "APPROVED",
+      createdAt,
+    });
 
     expect(
       latestPullRequestReviewOutcomes([review("2026-07-01T00:00:00Z")], commits)[0]?.stale,
@@ -529,16 +532,15 @@ describe("pull request timeline", () => {
 
 describe("review thread conversations", () => {
   const bot = { login: "review[bot]", name: null, avatarUrl: null, isBot: true };
-  const comment = (id: string, day: number) =>
-    ({
-      ...TIMELINE_SOURCE.comments[0]!,
-      id,
-      kind: "review-comment",
-      body: `Current ${id}`,
-      createdAt: `2026-07-0${day}T12:00:00Z`,
-      url: `https://example.test/pull/1#${id}`,
-      path: "src/a.ts",
-    }) satisfies PullRequestComment;
+  const comment = (id: string, day: number): PullRequestComment => ({
+    ...TIMELINE_SOURCE.comments[0]!,
+    id,
+    kind: "review-comment",
+    body: `Current ${id}`,
+    createdAt: `2026-07-0${day}T12:00:00Z`,
+    url: `https://example.test/pull/1#${id}`,
+    path: "src/a.ts",
+  });
   const finding = { ...comment("finding", 2), author: bot };
   const reply = {
     ...comment("reply", 4),
@@ -701,7 +703,10 @@ describe("fix findings handoff", () => {
     commentsTruncated: false,
   };
 
-  function thread(body: string, overrides: Partial<PullRequestReviewThread> = {}) {
+  function thread(
+    body: string,
+    overrides: Partial<PullRequestReviewThread> = {},
+  ): PullRequestReviewThread {
     return {
       id: "t1",
       path: "apps/web/src/page.tsx",
@@ -719,7 +724,7 @@ describe("fix findings handoff", () => {
         },
       ],
       ...overrides,
-    } satisfies PullRequestReviewThread;
+    };
   }
 
   const failingCheck: PullRequestCheck = {
@@ -1146,17 +1151,16 @@ describe("asking about a change rather than working on it", () => {
 
 describe("adding a remark to the chat", () => {
   const pullRequest = { number: 42, url: "https://github.com/supabitapp/supaterm/pull/42" };
-  const remark = (id: string, body: string) =>
-    ({
-      id,
-      kind: "issue-comment",
-      author: { login: "octocat", name: null, avatarUrl: null },
-      body,
-      createdAt: "2026-07-03T00:00:00Z",
-      url: null,
-      path: null,
-      reviewState: null,
-    }) satisfies PullRequestComment;
+  const remark = (id: string, body: string): PullRequestComment => ({
+    id,
+    kind: "issue-comment",
+    author: { login: "octocat", name: null, avatarUrl: null },
+    body,
+    createdAt: "2026-07-03T00:00:00Z",
+    url: null,
+    path: null,
+    reviewState: null,
+  });
 
   it("reads as the remark's author rather than as the pull request itself", () => {
     const context = buildPullRequestCommentContext(pullRequest, {
@@ -1313,7 +1317,7 @@ describe("adding a remark to the chat", () => {
 });
 
 describe("a second handoff into the same composer", () => {
-  const chip = (id: string) => ({
+  const chip = (id: string): ReviewCommentContext => ({
     id,
     sectionId: "pull-request:42",
     sectionTitle: "PR #42",
@@ -1475,18 +1479,20 @@ describe("how the branch stands against its base", () => {
 });
 
 describe("pull request panel context beside a thread", () => {
-  const link = (number: number, overrides: Partial<ThreadPullRequestLink> = {}) =>
-    ({
-      host: "github.com",
-      repository: "supabitapp/supaterm",
-      number,
-      url: `https://github.com/supabitapp/supaterm/pull/${number}`,
-      source: "manual",
-      linkedAt: "2026-09-09T00:00:00Z",
-      snapshot: null,
-      stack: null,
-      ...overrides,
-    }) satisfies ThreadPullRequestLink;
+  const link = (
+    number: number,
+    overrides: Partial<ThreadPullRequestLink> = {},
+  ): ThreadPullRequestLink => ({
+    host: "github.com",
+    repository: "supabitapp/supaterm",
+    number,
+    url: `https://github.com/supabitapp/supaterm/pull/${number}`,
+    source: "manual",
+    linkedAt: "2026-09-09T00:00:00Z",
+    snapshot: null,
+    stack: null,
+    ...overrides,
+  });
   const surface = (
     number: number,
     overrides: Partial<Parameters<typeof pullRequestPanelContext>[1]> = {},
@@ -1646,7 +1652,7 @@ describe("when the source branch can be deleted", () => {
 });
 
 describe("the compact row's single action slot", () => {
-  const check = (status: PullRequestCheck["status"]) => ({
+  const check = (status: PullRequestCheck["status"]): PullRequestCheck => ({
     name: "ci",
     status,
     description: null,
@@ -1750,7 +1756,7 @@ describe("the compact row's single action slot", () => {
 });
 
 describe("pull request menu actions", () => {
-  const check = (status: PullRequestCheck["status"]) => ({
+  const check = (status: PullRequestCheck["status"]): PullRequestCheck => ({
     name: "ci",
     status,
     description: null,
@@ -1837,7 +1843,7 @@ describe("pull request menu actions", () => {
 
 describe("cached pull request detail", () => {
   const reference = { projectId: ProjectId.make("project-1"), repository: "acme/web", number: 7 };
-  const detail = (overrides: Partial<PullRequestDetail> = {}) =>
+  const detail = (overrides: Partial<PullRequestDetail> = {}): PullRequestDetail =>
     ({
       provider: SourceControlProviderKind.make("github"),
       capabilities: {

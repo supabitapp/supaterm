@@ -20,7 +20,7 @@ export type SettingsRouteName = Exclude<
 /** A page in the Settings tab's detail column. */
 export type SettingsPageName = Exclude<SettingsRouteName, "Settings">;
 
-export function isSettingsRoute(name: string) {
+export function isSettingsRoute(name: string): boolean {
   return name.startsWith("Settings") && !SETTINGS_MODAL_ROUTES.has(name);
 }
 
@@ -29,7 +29,7 @@ export function isSettingsRoute(name: string) {
  * page is a Settings page. A Settings page pushed without it, such as a usage account opened
  * from the Usage tab, stays a detail of the current tab.
  */
-export function settingsOpenIn(workspaceRoutes: readonly { readonly name: string }[]) {
+export function settingsOpenIn(workspaceRoutes: readonly { readonly name: string }[]): boolean {
   return (
     workspaceRoutes.some((route) => route.name === "Settings") &&
     isSettingsRoute(workspaceRoutes.at(-1)?.name ?? "")

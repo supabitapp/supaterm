@@ -14,7 +14,7 @@ import { GROK_BACKGROUND_SUBAGENT_PROMPT } from "./input.ts";
 function runAssistantTexts(
   projection: ReturnType<typeof projectionFor>,
   runId: string | undefined,
-) {
+): ReadonlyArray<string> {
   return projection.turnItems.flatMap((item) =>
     item.runId === runId && item.type === "assistant_message" ? [item.text.trim()] : [],
   );

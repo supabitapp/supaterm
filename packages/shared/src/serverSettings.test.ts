@@ -30,29 +30,28 @@ const decodeServerSettingsPatch = Schema.decodeUnknownSync(ServerSettingsPatch);
 const FOLDED_SERVER_SETTINGS = { ...DEFAULT_SERVER_SETTINGS, projectSettingsFolded: true };
 
 describe("resolveReviewGuideModelSelection", () => {
-  const snapshot = (instanceId: string, supportsReviewGuides: boolean) =>
-    ({
-      instanceId: ProviderInstanceId.make(instanceId),
-      driver: ProviderDriverKind.make("codex"),
-      enabled: true,
-      installed: true,
-      version: null,
-      status: "ready",
-      auth: { status: "authenticated" },
-      checkedAt: "2026-07-27T00:00:00.000Z",
-      supportsReviewGuides,
-      models: [
-        {
-          slug: "review-model",
-          name: "Review model",
-          isDefault: true,
-          isCustom: false,
-          capabilities: { optionDescriptors: [] },
-        },
-      ],
-      slashCommands: [],
-      skills: [],
-    }) satisfies ServerProvider;
+  const snapshot = (instanceId: string, supportsReviewGuides: boolean): ServerProvider => ({
+    instanceId: ProviderInstanceId.make(instanceId),
+    driver: ProviderDriverKind.make("codex"),
+    enabled: true,
+    installed: true,
+    version: null,
+    status: "ready",
+    auth: { status: "authenticated" },
+    checkedAt: "2026-07-27T00:00:00.000Z",
+    supportsReviewGuides,
+    models: [
+      {
+        slug: "review-model",
+        name: "Review model",
+        isDefault: true,
+        isCustom: false,
+        capabilities: { optionDescriptors: [] },
+      },
+    ],
+    slashCommands: [],
+    skills: [],
+  });
   it("skips incapable defaults and selects a compatible project-enabled provider", () => {
     const incapable = snapshot("writer", false);
     const capable = snapshot("reader", true);

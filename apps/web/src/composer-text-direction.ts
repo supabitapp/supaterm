@@ -14,7 +14,7 @@ interface ComposerTextDirections {
 const blockDirections = new WeakMap<ProseMirrorNode, TextDirection | null>();
 const docDirections = new WeakMap<ProseMirrorNode, ComposerTextDirections>();
 
-function proseText(block: ProseMirrorNode) {
+function proseText(block: ProseMirrorNode): string {
   let text = "";
   block.descendants((node) => {
     if (node.isText) {
@@ -26,7 +26,7 @@ function proseText(block: ProseMirrorNode) {
   return text;
 }
 
-function blockDirection(block: ProseMirrorNode) {
+function blockDirection(block: ProseMirrorNode): TextDirection | null {
   let direction = blockDirections.get(block);
   if (direction === undefined) {
     direction = textDirection(proseText(block)) ?? null;
@@ -41,7 +41,7 @@ function blockDirection(block: ProseMirrorNode) {
  * letters yet continues the one above, so a new line after Arabic starts on
  * the right. Code blocks stay left to right.
  */
-export function composerTextDirections(doc: ProseMirrorNode) {
+export function composerTextDirections(doc: ProseMirrorNode): ComposerTextDirections {
   const cached = docDirections.get(doc);
   if (cached) return cached;
   const blocks: Array<TextDirection | null> = [];
@@ -62,7 +62,7 @@ export function composerTextDirections(doc: ProseMirrorNode) {
   return directions;
 }
 
-export function caretLineDirection(state: EditorState) {
+export function caretLineDirection(state: EditorState): TextDirection | null {
   return composerTextDirections(state.doc).blocks[state.selection.$head.index(0)] ?? null;
 }
 
@@ -74,7 +74,7 @@ export const ComposerTextDirectionExtension = Extension.create({
         key: new PluginKey("composer-text-direction"),
         props: {
           decorations: (state) => composerTextDirections(state.doc).decorations,
-          attributes: (state) => {
+          attributes: (state): Record<string, string> => {
             const dir = caretLineDirection(state);
             return dir ? { dir } : {};
           },

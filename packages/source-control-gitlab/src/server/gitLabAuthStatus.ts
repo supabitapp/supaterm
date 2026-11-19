@@ -6,7 +6,7 @@ export interface GitLabAuthStatusHost {
   readonly account: string | null;
 }
 
-export function parseGitLabAuthStatusHosts(text: string) {
+export function parseGitLabAuthStatusHosts(text: string): ReadonlyArray<GitLabAuthStatusHost> {
   const hosts: GitLabAuthStatusHost[] = [];
   let currentHost: string | null = null;
   let currentLines: string[] = [];
@@ -41,6 +41,8 @@ export function parseGitLabAuthStatusHosts(text: string) {
   return hosts;
 }
 
-export function findAuthenticatedGitLabHost(hosts: ReadonlyArray<GitLabAuthStatusHost>) {
+export function findAuthenticatedGitLabHost(
+  hosts: ReadonlyArray<GitLabAuthStatusHost>,
+): GitLabAuthStatusHost | undefined {
   return hosts.find((host) => host.account !== null);
 }

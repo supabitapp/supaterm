@@ -60,7 +60,7 @@ export interface McpOAuthUrls {
   readonly resource: string;
 }
 
-export const requestUrls = (request: HttpServerRequest.HttpServerRequest) => {
+export const requestUrls = (request: HttpServerRequest.HttpServerRequest): McpOAuthUrls => {
   const origin = Option.match(requestUrl(request), {
     onNone: () => "http://localhost",
     onSome: (url) => url.origin,
@@ -68,30 +68,32 @@ export const requestUrls = (request: HttpServerRequest.HttpServerRequest) => {
   return { issuer: origin, resource: `${origin}/mcp` };
 };
 
-export const protectedResourceMetadata = (urls: McpOAuthUrls) =>
-  ({
-    resource: urls.resource,
-    authorization_servers: [urls.issuer],
-    scopes_supported: MCP_OAUTH_SCOPES,
-    bearer_methods_supported: ["header"],
-    resource_name: "Supaterm",
-  }) satisfies AuthMcpProtectedResourceMetadata;
+export const protectedResourceMetadata = (
+  urls: McpOAuthUrls,
+): AuthMcpProtectedResourceMetadata => ({
+  resource: urls.resource,
+  authorization_servers: [urls.issuer],
+  scopes_supported: MCP_OAUTH_SCOPES,
+  bearer_methods_supported: ["header"],
+  resource_name: "Supaterm",
+});
 
-export const authorizationServerMetadata = (urls: McpOAuthUrls) =>
-  ({
-    issuer: urls.issuer,
-    authorization_endpoint: `${urls.issuer}/oauth/mcp/authorize`,
-    token_endpoint: `${urls.issuer}/oauth/mcp/token`,
-    registration_endpoint: `${urls.issuer}/oauth/mcp/register`,
-    response_types_supported: ["code"],
-    grant_types_supported: ["authorization_code"],
-    code_challenge_methods_supported: ["S256"],
-    token_endpoint_auth_methods_supported: ["none"],
-    scopes_supported: MCP_OAUTH_SCOPES,
-    authorization_response_iss_parameter_supported: true,
-  }) satisfies AuthMcpAuthorizationServerMetadata;
+export const authorizationServerMetadata = (
+  urls: McpOAuthUrls,
+): AuthMcpAuthorizationServerMetadata => ({
+  issuer: urls.issuer,
+  authorization_endpoint: `${urls.issuer}/oauth/mcp/authorize`,
+  token_endpoint: `${urls.issuer}/oauth/mcp/token`,
+  registration_endpoint: `${urls.issuer}/oauth/mcp/register`,
+  response_types_supported: ["code"],
+  grant_types_supported: ["authorization_code"],
+  code_challenge_methods_supported: ["S256"],
+  token_endpoint_auth_methods_supported: ["none"],
+  scopes_supported: MCP_OAUTH_SCOPES,
+  authorization_response_iss_parameter_supported: true,
+});
 
-const parseRedirect = (value: string) => {
+const parseRedirect = (value: string): URL | undefined => {
   if (value.length > MAX_REDIRECT_URI_LENGTH || value.includes("#")) return undefined;
   try {
     const url = new URL(value);
@@ -105,7 +107,7 @@ const parseRedirect = (value: string) => {
 };
 
 /** Loopback redirects ignore port (RFC 8252 §7.3); HTTPS redirects match exactly. */
-export const redirectMatches = (registered: string, presented: string) => {
+export const redirectMatches = (registered: string, presented: string): boolean => {
   const left = parseRedirect(registered);
   const right = parseRedirect(presented);
   if (left === undefined || right === undefined) return false;
@@ -117,7 +119,7 @@ export const redirectMatches = (registered: string, presented: string) => {
   );
 };
 
-const sameResource = (urls: McpOAuthUrls, presented: string | undefined) => {
+const sameResource = (urls: McpOAuthUrls, presented: string | undefined): boolean => {
   if (presented === undefined) return true;
   if (presented.includes("#")) return false;
   try {
@@ -145,7 +147,7 @@ export class McpOAuthPageError extends Schema.TaggedError<McpOAuthPageError>()(
   "McpOAuthPageError",
   { description: Schema.String },
 ) {
-  override get message() {
+  override get message(): string {
     return this.description;
   }
 }
@@ -251,7 +253,9 @@ const make = Effect.gen(function* () {
     return sign("mcp-client-id", body).pipe(Effect.map((signature) => `${body}.${signature}`));
   };
 
-  const parseClientId = Effect.fnUntraced(function* (clientId: string) {
+  const parseClientId = Effect.fnUntraced(function* (
+    clientId: string,
+  ): Effect.fn.Return<McpOAuthClient | undefined> {
     const [body, signature, extra] = clientId.split(".");
     if (!body || !signature || extra !== undefined) return undefined;
     const verified = yield* signer.verify(`mcp-client-id.${body}`, signature);
@@ -544,7 +548,7 @@ export const layerMcpClientAuthenticator = Layer.effect(
           return environmentAuth.authenticateMcpClient(request).pipe(
             Effect.flatMap((client) =>
               Clock.currentTimeMillis.pipe(
-                Effect.map((issuedAt) => ({
+                Effect.map((issuedAt): McpInvocationContext.McpInvocationScope => ({
                   environmentId,
                   requestNamespace: `client:${client.sessionId}`,
                   thread: undefined,

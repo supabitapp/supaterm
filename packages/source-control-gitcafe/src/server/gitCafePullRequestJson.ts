@@ -14,6 +14,7 @@ import {
   type PullRequestReaction,
   type PullRequestReactionContent,
   type PullRequestReviewerCandidate,
+  type PullRequestReviewThread,
   type PullRequestViewerPermissions,
 } from "@supaterm/contracts";
 import type {
@@ -279,7 +280,10 @@ export const GitCafePeople = Schema.Struct({
   next: Schema.NullOr(Schema.String),
 });
 
-export function toPeople(people: typeof GitCafePeople.Type, host: string) {
+export function toPeople(
+  people: typeof GitCafePeople.Type,
+  host: string,
+): ReadonlyArray<PullRequestActor> {
   return people.items.map((person) => ({
     login: person.handle,
     name: person.displayName ?? null,
@@ -292,7 +296,7 @@ interface RepositoryOnHost {
   readonly host: string;
 }
 
-function toActor(actor: Actor, host: string) {
+function toActor(actor: Actor, host: string): PullRequestActor | null {
   if (actor.kind === "unavailable") return null;
   return {
     login: actor.kind === "local" ? actor.handle : actor.login,
@@ -308,12 +312,11 @@ function toActor(actor: Actor, host: string) {
 export function toReviewers(
   pull: Pick<GitCafePull, "reviewers">,
   host: string,
-): ReadonlyArray<PullRequestActor>;
-export function toReviewers(pull: Pick<GitCafePull, "reviewers">, host: string) {
+): ReadonlyArray<PullRequestActor> {
   return (pull.reviewers ?? []).flatMap(({ actor }) => {
     const reviewer = toActor(actor, host);
     return reviewer === null ? [] : [reviewer];
-  }) satisfies ReadonlyArray<PullRequestActor>;
+  });
 }
 
 export function toReviewerCandidates(
@@ -323,24 +326,16 @@ export function toReviewerCandidates(
     readonly authorActorId: string;
     readonly host: string;
   },
-): ReadonlyArray<PullRequestReviewerCandidate>;
-export function toReviewerCandidates(
-  candidates: typeof GitCafeActorEntries.Type,
-  input: {
-    readonly requested: ReadonlySet<string>;
-    readonly authorActorId: string;
-    readonly host: string;
-  },
-) {
+): ReadonlyArray<PullRequestReviewerCandidate> {
   return candidates.items.flatMap(({ id, actor }) => {
     const reviewer = id === input.authorActorId ? null : toActor(actor, input.host);
     return reviewer === null
       ? []
       : [{ ...reviewer, id, kind: "user" as const, isRequested: input.requested.has(id) }];
-  }) satisfies ReadonlyArray<PullRequestReviewerCandidate>;
+  });
 }
 
-function reviewerLogins(actor: Actor, host: string) {
+function reviewerLogins(actor: Actor, host: string): ReadonlyArray<string> {
   const reviewer = toActor(actor, host);
   if (reviewer === null) return [];
   return actor.kind === "github" && actor.linkedProfile
@@ -348,8 +343,10 @@ function reviewerLogins(actor: Actor, host: string) {
     : [reviewer.login];
 }
 
-export function toChangeRequest(pull: GitCafePull, target: RepositoryOnHost): ProviderChangeRequest;
-export function toChangeRequest(pull: GitCafePull, target: RepositoryOnHost) {
+export function toChangeRequest(
+  pull: GitCafePull,
+  target: RepositoryOnHost,
+): ProviderChangeRequest {
   return {
     number: pull.number,
     title: pull.title,
@@ -368,10 +365,10 @@ export function toChangeRequest(pull: GitCafePull, target: RepositoryOnHost) {
       reviewerLogins(actor, target.host),
     ),
     labels: (pull.labels ?? []).map(({ name, color }) => ({ name, color })),
-  } satisfies ProviderChangeRequest;
+  };
 }
 
-function isViewerAuthor(detail: GitCafePullDetail) {
+function isViewerAuthor(detail: GitCafePullDetail): boolean {
   const viewer = detail.viewerActorId;
   if (viewer == null) return false;
   const { author } = detail;
@@ -381,8 +378,7 @@ function isViewerAuthor(detail: GitCafePullDetail) {
   );
 }
 
-export function toViewerPermissions(detail: GitCafePullDetail): PullRequestViewerPermissions;
-export function toViewerPermissions(detail: GitCafePullDetail) {
+export function toViewerPermissions(detail: GitCafePullDetail): PullRequestViewerPermissions {
   const { comment, edit, review, merge, moderate } = detail.capabilities;
   const open = comment && (detail.lockedAt == null || moderate);
   return {
@@ -406,7 +402,7 @@ export function toViewerPermissions(detail: GitCafePullDetail) {
     labels: edit && detail.state === "open",
     editChangeRequest: edit,
     updateMethods: [],
-  } satisfies PullRequestViewerPermissions;
+  };
 }
 
 const REACTIONS: Readonly<Record<string, PullRequestReactionContent>> = {
@@ -431,9 +427,8 @@ export const REACTION_EMOJI: Readonly<Record<PullRequestReactionContent, string>
   eyes: "👀",
 };
 
-export function reactionContent(emoji: string): PullRequestReactionContent | undefined;
-export function reactionContent(emoji: string) {
-  return REACTIONS[emoji.replaceAll("\uFE0F", "")] satisfies PullRequestReactionContent | undefined;
+export function reactionContent(emoji: string): PullRequestReactionContent | undefined {
+  return REACTIONS[emoji.replaceAll("\uFE0F", "")];
 }
 
 function toReactions(data: typeof GitCafeReactions.Type, host: string) {
@@ -471,15 +466,7 @@ export function toActivity(input: {
   readonly reactions?: typeof GitCafeReactions.Type;
   readonly headOid?: string;
   readonly host: string;
-}): ProviderChangeRequestActivity;
-export function toActivity(input: {
-  readonly comments: typeof GitCafeComments.Type;
-  readonly reviews: typeof GitCafeReviews.Type;
-  readonly commits: typeof GitCafeCommits.Type;
-  readonly reactions?: typeof GitCafeReactions.Type;
-  readonly headOid?: string;
-  readonly host: string;
-}) {
+}): ProviderChangeRequestActivity {
   const { host } = input;
   const reactions = input.reactions === undefined ? undefined : toReactions(input.reactions, host);
   const remark = (comment: GitCafeComment) => ({
@@ -498,7 +485,7 @@ export function toActivity(input: {
       continue;
     groups.set(comment.threadId, [...(groups.get(comment.threadId) ?? []), comment]);
   }
-  const reviewThreads = [...groups.values()].map((group) => {
+  const reviewThreads = [...groups.values()].map((group): PullRequestReviewThread => {
     const first = group[0]!;
     const latest = group.at(-1)!;
     const root = group.find((comment) => comment.id === comment.threadId);
@@ -550,11 +537,10 @@ export function toActivity(input: {
       committedDate: DateTime.formatIso(DateTime.makeUnsafe(commit.time * 1_000)),
     })),
     ...(reactions === undefined ? {} : { reactions: reactions.reactions }),
-  } satisfies ProviderChangeRequestActivity;
+  };
 }
 
-export function toStack(stack: GitCafeStack, target: RepositoryOnHost): ProviderChangeRequestStack;
-export function toStack(stack: GitCafeStack, target: RepositoryOnHost) {
+export function toStack(stack: GitCafeStack, target: RepositoryOnHost): ProviderChangeRequestStack {
   return {
     id: stack.id,
     number: stack.number,
@@ -570,15 +556,14 @@ export function toStack(stack: GitCafeStack, target: RepositoryOnHost) {
         isDraft: member.draft,
         ...(member.headOid === undefined ? {} : { headSha: member.headOid }),
       })),
-  } satisfies ProviderChangeRequestStack;
+  };
 }
 
 function isEOFMarker(origin: string | undefined) {
   return origin === "=" || origin === ">" || origin === "<";
 }
 
-export function toDiff(diff: typeof GitCafeDiff.Type): ProviderDiffSlice;
-export function toDiff(diff: typeof GitCafeDiff.Type) {
+export function toDiff(diff: typeof GitCafeDiff.Type): ProviderDiffSlice {
   const chunks: Array<string> = [];
   const omittedFileStats: Array<{ path: string; additions: number; deletions: number }> = [];
   for (const file of diff.items) {
@@ -649,10 +634,10 @@ export function toDiff(diff: typeof GitCafeDiff.Type) {
     truncated: diff.truncated === true || omittedFileStats.length > 0,
     nextCursor: null,
     ...(omittedFileStats.length === 0 ? {} : { omittedFileStats }),
-  } satisfies ProviderDiffSlice;
+  };
 }
 
-function checkStatus(check: (typeof GitCafeChecks.Type.items)[number]) {
+function checkStatus(check: (typeof GitCafeChecks.Type.items)[number]): PullRequestCheck["status"] {
   if (check.status !== "completed") return "pending";
   switch (check.conclusion) {
     case "success":
@@ -672,7 +657,7 @@ function checkStatus(check: (typeof GitCafeChecks.Type.items)[number]) {
 
 type GitCafeCheck = (typeof GitCafeChecks.Type.items)[number];
 
-function runOrder(check: GitCafeCheck) {
+function runOrder(check: GitCafeCheck): bigint | null {
   return check.id != null && /^\d+$/u.test(check.id) ? BigInt(check.id) : null;
 }
 
@@ -682,8 +667,7 @@ function runOrder(check: GitCafeCheck) {
  * order cannot be told apart are all kept, so no failure is hidden. Two reporters may share a check
  * name, so a run only replaces runs from the same provider and GitHub app.
  */
-export function toChecks(checks: typeof GitCafeChecks.Type): ReadonlyArray<PullRequestCheck>;
-export function toChecks(checks: typeof GitCafeChecks.Type) {
+export function toChecks(checks: typeof GitCafeChecks.Type): ReadonlyArray<PullRequestCheck> {
   const kept: Array<GitCafeCheck> = [];
   const newestByKey = new Map<string, { index: number; order: bigint }>();
   for (const check of checks.items) {
@@ -709,17 +693,14 @@ export function toChecks(checks: typeof GitCafeChecks.Type) {
       description: check.summary,
       url: check.detailsUrl,
     })),
-  ) satisfies ReadonlyArray<PullRequestCheck>;
+  );
 }
 
 export function checksStateOf(
   checks: ReadonlyArray<PullRequestCheck>,
-): PullRequestChecksState | null;
-export function checksStateOf(checks: ReadonlyArray<PullRequestCheck>) {
+): PullRequestChecksState | null {
   const statuses = new Set(checks.map((check) => check.status));
-  if (statuses.has("failure") || statuses.has("cancelled"))
-    return "failing" satisfies PullRequestChecksState | null;
-  if (statuses.has("pending") || statuses.has("action-required"))
-    return "pending" satisfies PullRequestChecksState | null;
-  return (statuses.has("success") ? "passing" : null) satisfies PullRequestChecksState | null;
+  if (statuses.has("failure") || statuses.has("cancelled")) return "failing";
+  if (statuses.has("pending") || statuses.has("action-required")) return "pending";
+  return statuses.has("success") ? "passing" : null;
 }

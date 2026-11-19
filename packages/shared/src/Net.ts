@@ -90,10 +90,7 @@ export const make = ({
       });
     });
 
-  const hasListenerOnHost: (port: number, host: string) => Effect.Effect<boolean> = (
-    port: number,
-    host: string,
-  ) =>
+  const hasListenerOnHost = (port: number, host: string): Effect.Effect<boolean> =>
     Effect.callback<boolean>((resume) => {
       const socket = NodeNet.createConnection({ host, port });
       let settled = false;
@@ -124,7 +121,7 @@ export const make = ({
 
   const isPortAvailableOnLoopback = Effect.fn("Net.isPortAvailableOnLoopback")(function* (
     port: number,
-  ) {
+  ): Effect.fn.Return<boolean> {
     const hasListener = yield* Effect.zipWith(
       hasListenerOnHost(port, "127.0.0.1"),
       hasListenerOnHost(port, "::1"),
@@ -141,9 +138,7 @@ export const make = ({
     );
   });
 
-  const reserveLoopbackPort: (host?: string) => Effect.Effect<number, NetError> = (
-    host = "127.0.0.1",
-  ) =>
+  const reserveLoopbackPort = (host = "127.0.0.1"): Effect.Effect<number, NetError> =>
     Effect.callback<number, NetError>((resume) => {
       const probe = NodeNet.createServer();
       let settled = false;

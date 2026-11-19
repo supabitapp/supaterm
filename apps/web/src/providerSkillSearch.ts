@@ -10,7 +10,7 @@ import {
   scoreQueryMatch,
 } from "@supaterm/shared/searchRanking";
 
-export function scoreProviderSkill(skill: ServerProviderSkill, query: string) {
+export function scoreProviderSkill(skill: ServerProviderSkill, query: string): number | null {
   const normalizedName = skill.name.toLowerCase();
   const normalizedLabel = formatProviderSkillDisplayName(skill).toLowerCase();
   const normalizedShortDescription = skill.shortDescription?.toLowerCase() ?? "";
@@ -73,7 +73,7 @@ export function searchProviderSkills(
   skills: ReadonlyArray<ServerProviderSkill>,
   query: string,
   limit = Number.POSITIVE_INFINITY,
-) {
+): ServerProviderSkill[] {
   const enabledSkills = dedupeProviderSkillsByName(skills.filter(isProviderSkillUserInvocable));
   const normalizedQuery = normalizeSearchQuery(query, { trimLeadingPattern: /^\p{Sc}+/u });
 

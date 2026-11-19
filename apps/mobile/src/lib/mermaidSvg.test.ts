@@ -51,7 +51,7 @@ describe("native diagram styles", () => {
     let nativeText = "";
     parse(result.svg, (root) => {
       nativeDiagramStyles(root, palette);
-      const text: (node: typeof root) => string = (node: typeof root) =>
+      const text = (node: typeof root): string =>
         node.children.map((child) => (typeof child === "string" ? child : text(child))).join("");
       nativeText = text(root);
       return root;
@@ -64,7 +64,7 @@ describe("native diagram styles", () => {
     let normalized = "";
     const ast = parse(result.svg, (root) => {
       nativeDiagramStyles(root, palette);
-      const collect: (node: typeof root) => unknown = (node: typeof root) => ({
+      const collect = (node: typeof root): unknown => ({
         props: node.props,
         children: node.children.map((child) =>
           typeof child === "string" ? child : collect(child),

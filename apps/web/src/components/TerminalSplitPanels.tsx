@@ -15,7 +15,10 @@ import {
 
 const TERMINAL_SPLIT_MIN_SIZE = { horizontal: 48, vertical: 40 } as const;
 
-function mapLayoutKeys(layout: TerminalSplitLayout, mapKey: (key: string) => string) {
+function mapLayoutKeys(
+  layout: TerminalSplitLayout,
+  mapKey: (key: string) => string,
+): TerminalSplitLayout {
   return Object.fromEntries(Object.entries(layout).map(([key, size]) => [mapKey(key), size]));
 }
 

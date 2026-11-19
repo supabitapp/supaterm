@@ -33,7 +33,7 @@ export type ThreadFamilyRead = "pending" | "failed" | "settled";
 
 export function threadFamilyRead(
   result: AsyncResult.AsyncResult<OrchestrationV2ThreadFamily, unknown>,
-) {
+): ThreadFamilyRead {
   if (result.waiting) return "pending";
   if (AsyncResult.isFailure(result)) return "failed";
   return AsyncResult.isSuccess(result) ? "settled" : "pending";
@@ -48,7 +48,7 @@ export function threadFamilyRowsMissingFromShell(input: {
   readonly shellThreads: ReadonlyArray<OrchestrationV2ThreadShell>;
   readonly families: ReadonlyArray<OrchestrationV2ThreadFamily>;
   readonly removedAt: ReadonlyMap<ThreadId, number>;
-}) {
+}): ReadonlyArray<OrchestrationV2ThreadShell> {
   const present = new Set<ThreadId>(input.shellThreads.map((thread) => thread.id));
   const missing: OrchestrationV2ThreadShell[] = [];
   for (const family of input.families) {
@@ -137,7 +137,7 @@ export function createThreadFamilyAtoms<R, ER, E>(
   );
 
   const familyRowsAtom = Atom.family((key: string) =>
-    Atom.make((get) => {
+    Atom.make((get): ReadonlyArray<OrchestrationV2ThreadFamily> => {
       const family = selectEnvironmentQueryData(get(familyAtom(key)));
       return family === null ? EMPTY_READS : [family];
     }).pipe(Atom.withLabel(`environment-thread-family-rows:${key}`)),
@@ -148,7 +148,7 @@ export function createThreadFamilyAtoms<R, ER, E>(
     environmentId: EnvironmentId,
     key: string,
     rows: Atom.Atom<ReadonlyArray<OrchestrationV2ThreadFamily>>,
-  ) => {
+  ): (() => void) => {
     const atom = mountsAtom(environmentId);
     const mounts = registry.get(atom);
     const entry = mounts.get(key);
@@ -173,7 +173,7 @@ export function createThreadFamilyAtoms<R, ER, E>(
     registry: AtomRegistry.AtomRegistry,
     environmentId: EnvironmentId,
     threadId: ThreadId,
-  ) => {
+  ): (() => void) => {
     const key = familyKey(environmentId, threadId);
     const release = mountRows(registry, environmentId, `family:${key}`, familyRowsAtom(key));
     if (threadFamilyRead(registry.get(familyAtom(key))) === "failed") {
@@ -189,7 +189,7 @@ export function createThreadFamilyAtoms<R, ER, E>(
       readonly families: ReadonlyArray<OrchestrationV2ThreadFamily>;
       readonly merged: OrchestrationV2ShellSnapshot;
     } | null = null;
-    return Atom.make((get) => {
+    return Atom.make((get): OrchestrationV2ShellSnapshot | null => {
       const state = shellStateValue(get(shellStateAtom(environmentId)));
       const snapshot = state === null ? null : Option.getOrNull(state.snapshot);
       const mounts = get(mountsAtom(environmentId));

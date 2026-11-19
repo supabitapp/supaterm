@@ -120,10 +120,10 @@ export function createDuoScene(asset: Group, textures: Record<DuoPanelId, Textur
       });
       content.position.copy(localBounds.getCenter(new Vector3())).negate();
     },
-    restFrames(panel: DuoPanelId) {
+    restFrames(panel: DuoPanelId): DuoRestFrame[] {
       root.updateWorldMatrix(true, true);
       inverse.copy(root.matrixWorld).invert();
-      const frame = (meshes: Mesh[], face: DuoRestFrame["face"]) => {
+      const frame = (meshes: Mesh[], face: DuoRestFrame["face"]): DuoRestFrame => {
         const bounds = new Box3();
         const normal = new Vector3();
         const up = new Vector3();
@@ -159,19 +159,18 @@ export function createDuoScene(asset: Group, textures: Record<DuoPanelId, Textur
       );
       return new Quaternion().setFromRotationMatrix(relative.extractRotation(relative));
     },
-    hingeLeafAt(x: number, y: number, camera: PerspectiveCamera) {
-      if (!Number.isFinite(x) || !Number.isFinite(y))
-        return null satisfies DuoHingeLeaf | null as DuoHingeLeaf | null;
+    hingeLeafAt(x: number, y: number, camera: PerspectiveCamera): DuoHingeLeaf | null {
+      if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
       root.updateMatrixWorld(true);
       camera.updateMatrixWorld(true);
       ray.setFromCamera(new Vector2(x * 2 - 1, 1 - y * 2), camera);
       let object = ray.intersectObject(root, true)[0]?.object;
       while (object) {
-        if (object === left) return "left" satisfies DuoHingeLeaf | null as DuoHingeLeaf | null;
-        if (object === right) return "right" satisfies DuoHingeLeaf | null as DuoHingeLeaf | null;
+        if (object === left) return "left";
+        if (object === right) return "right";
         object = object.parent ?? undefined;
       }
-      return null satisfies DuoHingeLeaf | null as DuoHingeLeaf | null;
+      return null;
     },
     cancelInput() {
       captured = null;

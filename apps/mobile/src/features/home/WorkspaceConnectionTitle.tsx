@@ -6,11 +6,14 @@ import { useAndroidControlSizing } from "../../components/ui/useAndroidControlSi
 import { useWorkspaceState } from "../../state/workspace";
 import { useReducedMotionPreference } from "../../lib/useReducedMotionPreference";
 import { useConnectionStatusVisibility } from "../../connection/useConnectionStatusVisibility";
-import { workspaceConnectionStatusPresentation } from "./workspace-connection-status";
+import {
+  workspaceConnectionStatusPresentation,
+  type WorkspaceConnectionStatusPresentation,
+} from "./workspace-connection-status";
 
 const FADE_IN_MS = 250;
 
-function useDelayedConnectionStatus() {
+function useDelayedConnectionStatus(): WorkspaceConnectionStatusPresentation | null {
   const { state } = useWorkspaceState();
   const presentation = workspaceConnectionStatusPresentation(state);
   const visible = useConnectionStatusVisibility(

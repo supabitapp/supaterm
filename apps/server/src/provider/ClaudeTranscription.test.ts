@@ -40,17 +40,15 @@ const wavBytes = (samples: number) => {
   return file;
 };
 
-const message = (type: string, data?: string) =>
-  ({
-    _tag: "Message",
-    data: JSON.stringify(data === undefined ? { type } : { type, data }),
-  }) satisfies VoiceStreamEvent;
+const message = (type: string, data?: string): VoiceStreamEvent => ({
+  _tag: "Message",
+  data: JSON.stringify(data === undefined ? { type } : { type, data }),
+});
 
-const closeStreamSent = (audioMs = 1_000) =>
-  ({
-    _tag: "CloseStreamSent",
-    audioMs,
-  }) satisfies VoiceStreamEvent;
+const closeStreamSent = (audioMs = 1_000): VoiceStreamEvent => ({
+  _tag: "CloseStreamSent",
+  audioMs,
+});
 
 const session = () =>
   Effect.gen(function* () {

@@ -114,7 +114,7 @@ function showcaseSlideLayout(input: Omit<ShowcaseSlideInput, "slide" | "appearan
   };
 }
 
-function slideHtml(input: ShowcaseSlideInput, fonts: { sans: string; mono: string }) {
+function slideHtml(input: ShowcaseSlideInput, fonts: { sans: string; mono: string }): string {
   const { width, height, slide } = input;
   const colors = CANVAS[input.appearance];
   const layout = showcaseSlideLayout(input);
@@ -151,7 +151,7 @@ h1 em{font-style:normal;color:${colors.accent}}
 
 const execFile = NodeUtil.promisify(NodeChildProcess.execFile);
 
-export async function launchShowcaseBrowser() {
+export async function launchShowcaseBrowser(): Promise<Browser> {
   const require = NodeModule.createRequire(import.meta.url);
   const cli = NodePath.join(
     NodePath.dirname(require.resolve("playwright-core/package.json")),
@@ -163,7 +163,10 @@ export async function launchShowcaseBrowser() {
 
 let fontsPromise: Promise<{ sans: string; mono: string }> | undefined;
 
-export async function renderShowcaseSlide(browser: Browser, input: ShowcaseSlideInput) {
+export async function renderShowcaseSlide(
+  browser: Browser,
+  input: ShowcaseSlideInput,
+): Promise<Buffer> {
   fontsPromise ??= Promise.all([
     NodeFSP.readFile(NodePath.join(FONT_DIRECTORY, "dm-sans-latin.woff2")),
     NodeFSP.readFile(NodePath.join(FONT_DIRECTORY, "jetbrains-mono-latin.woff2")),

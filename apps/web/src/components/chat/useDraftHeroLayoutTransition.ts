@@ -2,7 +2,7 @@ import { useLayoutEffect, useRef } from "react";
 import { EASE_DRAWER } from "../../lib/motion";
 import { DRAFT_HERO_TRANSITION_ANIMATION_ID } from "./draftHeroTransition";
 
-function measureComposerSurface(anchor: HTMLElement | null) {
+function measureComposerSurface(anchor: HTMLElement | null): DOMRect | null {
   const surface = anchor?.querySelector('[data-chat-composer-main-surface="true"]') ?? anchor;
   return surface?.getBoundingClientRect() ?? null;
 }

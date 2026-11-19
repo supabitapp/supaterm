@@ -13,7 +13,7 @@ export interface FakeCliOptions {
 }
 
 /** Returns a POSIX shell launcher or Windows .cmd shim; shebang files are not executable on Windows. */
-export function writeFakeCli(options: FakeCliOptions) {
+export function writeFakeCli(options: FakeCliOptions): string {
   NodeFS.mkdirSync(options.directory, { recursive: true });
   const stubPath = NodePath.join(options.directory, `${options.name}-stub.mjs`);
   const envPath = NodePath.join(options.directory, `${options.name}-env.json`);
@@ -53,7 +53,7 @@ export function writeFakeCli(options: FakeCliOptions) {
 export function execScriptSource(options: {
   readonly scriptPath: string;
   readonly expectedArgs?: ReadonlyArray<string>;
-}) {
+}): string {
   return [
     'import { pathToFileURL } from "node:url";',
     "const args = process.argv.slice(2);",

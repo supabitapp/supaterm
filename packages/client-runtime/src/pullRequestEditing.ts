@@ -9,12 +9,12 @@ type EditingSubject = Pick<
   "author" | "capabilities" | "viewer" | "viewerPermissions"
 >;
 
-function sameLogin(one: string | null | undefined, other: string | null | undefined) {
+function sameLogin(one: string | null | undefined, other: string | null | undefined): boolean {
   if (one == null || other == null) return false;
   return one.trim().toLowerCase() === other.trim().toLowerCase();
 }
 
-export function canEditPullRequestChangeRequest(detail: EditingSubject) {
+export function canEditPullRequestChangeRequest(detail: EditingSubject): boolean {
   if (detail.capabilities.edit?.changeRequest !== true) return false;
   if (detail.viewerPermissions.editChangeRequest !== undefined) {
     return detail.viewerPermissions.editChangeRequest;
@@ -30,7 +30,7 @@ export function canEditPullRequestMaintainerEdits(
     PullRequestDetail,
     "state" | "capabilities" | "viewerPermissions" | "maintainerCanModify"
   >,
-) {
+): boolean {
   return (
     detail.state === "open" &&
     detail.capabilities.edit?.maintainerEdits === true &&
@@ -51,7 +51,12 @@ export interface MaintainerEditsChoice {
  */
 export function maintainerEditsChoiceInForce<
   Choice extends { readonly key: string; readonly observedAt: number | undefined },
->(choice: Choice | null, key: string, observedAt: number | undefined, saving: boolean) {
+>(
+  choice: Choice | null,
+  key: string,
+  observedAt: number | undefined,
+  saving: boolean,
+): Choice | null {
   if (choice === null || choice.key !== key) return null;
   if (saving) return choice.observedAt === observedAt ? choice : { ...choice, observedAt };
   return observedAt !== undefined && choice.observedAt === observedAt ? choice : null;
@@ -72,7 +77,7 @@ export function descriptionDraftInForce(
   draft: DescriptionDraft | null,
   key: string,
   observedAt: number | undefined,
-) {
+): DescriptionDraft | null {
   return maintainerEditsChoiceInForce(draft, key, observedAt, (draft?.saves ?? 0) > 0);
 }
 
@@ -80,13 +85,17 @@ export function startDescriptionSave(
   draft: DescriptionDraft | null,
   detail: { readonly url: string; readonly observedAt?: number | undefined },
   body: string,
-) {
+): DescriptionDraft {
   const saves = draft?.key === detail.url ? draft.saves : 0;
   return { key: detail.url, observedAt: detail.observedAt, body, saves: saves + 1 };
 }
 
 /** Each save writes the whole body, so a failure only loses `body` when no later save is running. */
-export function settleDescriptionSave(draft: DescriptionDraft | null, key: string, saved: boolean) {
+export function settleDescriptionSave(
+  draft: DescriptionDraft | null,
+  key: string,
+  saved: boolean,
+): DescriptionDraft | null {
   if (draft === null || draft.key !== key || draft.saves === 0) return draft;
   const saves = draft.saves - 1;
   return { ...draft, saves, body: saved || saves > 0 ? draft.body : null };
@@ -96,21 +105,16 @@ export function settleDescriptionSave(draft: DescriptionDraft | null, key: strin
 export function canEditPullRequestComment(
   detail: EditingSubject,
   comment: Pick<PullRequestComment, "author" | "canEdit" | "kind">,
-): boolean;
-export function canEditPullRequestComment(
-  detail: EditingSubject,
-  comment: Pick<PullRequestComment, "author" | "canEdit" | "kind">,
-) {
-  if (detail.capabilities.edit?.comment !== true) return false satisfies boolean;
-  if (comment.kind !== "issue-comment" && comment.kind !== "review-comment")
-    return false satisfies boolean;
-  if (comment.canEdit !== undefined) return comment.canEdit satisfies boolean;
-  return sameLogin(detail.viewer, comment.author?.login) satisfies boolean;
+): boolean {
+  if (detail.capabilities.edit?.comment !== true) return false;
+  if (comment.kind !== "issue-comment" && comment.kind !== "review-comment") return false;
+  if (comment.canEdit !== undefined) return comment.canEdit;
+  return sameLogin(detail.viewer, comment.author?.login);
 }
 
 export function canResolvePullRequestThread(
   detail: Pick<PullRequestDetail, "viewerPermissions">,
   thread: Pick<PullRequestReviewThread, "canResolve">,
-) {
+): boolean {
   return detail.viewerPermissions.resolve && thread.canResolve !== false;
 }

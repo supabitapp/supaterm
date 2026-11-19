@@ -22,7 +22,7 @@ export interface WidgetTheme {
 export function createWidgetTheme(
   mode: MobileThemeMode,
   palettes: Readonly<Record<"light" | "dark", MobileThemeVariables>>,
-) {
+): WidgetTheme {
   const palette = (variables: MobileThemeVariables) => ({
     background: variables["--color-card"],
     foreground: variables["--color-foreground"],

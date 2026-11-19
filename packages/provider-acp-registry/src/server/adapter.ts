@@ -138,7 +138,13 @@ function makeAcpRegistryRuntime(
   options: AcpRegistryAdapterV2Options,
   catalog: AcpRegistrySupport.AcpRegistryCatalog["Service"],
 ) {
-  return (input: AcpAdapterV2RuntimeInput) =>
+  return (
+    input: AcpAdapterV2RuntimeInput,
+  ): Effect.Effect<
+    AcpSessionRuntime.AcpSessionRuntime["Service"],
+    EffectAcpErrors.AcpError,
+    ChildProcessSpawner.ChildProcessSpawner | SecureRandom.SecureRandom | Scope.Scope
+  > =>
     Effect.gen(function* () {
       const { processEnvironment, ...runtimeInput } = input;
       const resolved = yield* catalog
@@ -369,7 +375,7 @@ export const AcpRegistryAdapterV2Driver: ProviderAdapterDriver<
 > = {
   driverKind: ACP_REGISTRY_PROVIDER,
   configSchema: AcpRegistrySettings,
-  defaultConfig: () => DEFAULT_ACP_REGISTRY_SETTINGS,
+  defaultConfig: (): AcpRegistrySettings => DEFAULT_ACP_REGISTRY_SETTINGS,
   create: Effect.fn("AcpRegistryAdapterV2Driver.create")(
     function* (input: ProviderAdapterDriverCreateInput<AcpRegistrySettings>) {
       const hostEnvironment = yield* HostProcess.Environment;

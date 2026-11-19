@@ -76,7 +76,7 @@ const COMPOSER_CONTEXT_MOTION_DURATION_MS = 180;
 const CONTEXT_STRIP_CLASS = "gap-1 text-xs font-normal text-muted-foreground/70";
 const COMPOSER_CONTEXT_LABEL_SELECTOR = "[data-composer-label]";
 
-function labelTextWidth(label: HTMLElement, range: Range) {
+function labelTextWidth(label: HTMLElement, range: Range): number {
   const walker = document.createTreeWalker(label, NodeFilter.SHOW_TEXT);
   let width = 0;
   for (let node = walker.nextNode(); node; node = walker.nextNode()) {
@@ -123,7 +123,10 @@ function animateLabelWidths(
   }
 }
 
-function useLabelsOverflow() {
+function useLabelsOverflow(): readonly [
+  attach: (element: HTMLDivElement | null) => (() => void) | undefined,
+  overflows: boolean,
+] {
   const [overflows, setOverflows] = useState(false);
 
   const attach = (current: HTMLDivElement | null) => {
@@ -139,7 +142,7 @@ function useLabelsOverflow() {
         stripWidth -
         (Number.parseFloat(stripStyle.paddingInlineStart) || 0) -
         (Number.parseFloat(stripStyle.paddingInlineEnd) || 0);
-      const contentWidth = (parent: Element) => {
+      const contentWidth = (parent: Element): number => {
         const gap = Number.parseFloat(getComputedStyle(parent).columnGap) || 0;
         let width = 0;
         let counted = 0;

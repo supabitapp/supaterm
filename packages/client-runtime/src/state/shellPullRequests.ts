@@ -21,7 +21,7 @@ const decodeThreadLinks = Schema.decodeUnknownEffect(
 
 const LINKS_PER_BATCH = 400;
 
-export function detachPullRequests(snapshot: unknown) {
+export function detachPullRequests(snapshot: unknown): ReadonlyArray<unknown> {
   if (!Predicate.isObject(snapshot)) return [];
   const rows: unknown = snapshot.threads;
   if (!Array.isArray(rows)) return [];
@@ -36,7 +36,7 @@ export function detachPullRequests(snapshot: unknown) {
 export function deferPullRequests<S extends OrchestrationV2ShellSnapshot>(
   snapshot: S,
   rawLinks: ReadonlyArray<unknown>,
-) {
+): S & Required<Pick<DeferredShellSnapshot, "loadPullRequests">> {
   const threadIds = snapshot.threads.map((thread) => thread.id);
 
   const loadPullRequests = Effect.gen(function* () {

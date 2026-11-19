@@ -558,7 +558,11 @@ describe("resolveListedAncestorThreadRef", () => {
     environmentId: environment,
     threadId,
   });
-  const listed = (id: string, environment = environmentId, overrides?: Partial<Thread>) => ({
+  const listed = (
+    id: string,
+    environment = environmentId,
+    overrides?: Partial<Thread>,
+  ): Thread => ({
     id: ThreadId.make(id),
     environmentId: environment,
     lineage: { rootThreadId: ThreadId.make(id), parentThreadId: null, relationshipToParent: null },

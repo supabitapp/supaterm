@@ -19,7 +19,7 @@ const decodeResponse = Schema.decodeUnknownEffect(Schema.fromJsonString(Protocol
 });
 
 /** Codex's auth.command protocol is a bare token on stdout, never a CLI diagnostic. */
-export async function runManagedChatGptTokenCli(args: ReadonlyArray<string>) {
+export async function runManagedChatGptTokenCli(args: ReadonlyArray<string>): Promise<void> {
   const program = Effect.gen(function* () {
     const [endpoint, instanceId, environmentId, profileKey] = yield* decodeArguments(args);
     const socket = yield* Effect.acquireRelease(

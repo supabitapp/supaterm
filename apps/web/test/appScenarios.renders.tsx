@@ -180,7 +180,7 @@ const goToThread = (router: AppRouter, threadId: ThreadId) => async () => {
   await expect.element(lastAnswer(threadId)).toBeVisible();
 };
 
-async function measure(action: () => Promise<void>) {
+async function measure(action: () => Promise<void>): Promise<RenderReport> {
   await quiet();
   startCounting();
   await action();

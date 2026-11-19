@@ -57,7 +57,7 @@ const decodeServerSettings = Schema.decodeUnknownEffect(ServerSettings);
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
 
-const foldProviderInstanceEnabledFlags = (settings: ServerSettings) => {
+const foldProviderInstanceEnabledFlags = (settings: ServerSettings): ServerSettings => {
   let changed = false;
   const providerInstances: Record<string, ProviderInstanceConfig> = {};
   for (const [instanceId, instance] of Object.entries(settings.providerInstances)) {
@@ -94,7 +94,9 @@ const foldProviderInstanceEnabledFlags = (settings: ServerSettings) => {
   };
 };
 
-const normalizeServerSettings = (settings: ServerSettings) =>
+const normalizeServerSettings = (
+  settings: ServerSettings,
+): Effect.Effect<ServerSettings, ServerSettingsError> =>
   encodeServerSettings(settings).pipe(
     Effect.flatMap(decodeServerSettings),
     Effect.map(foldProviderInstanceEnabledFlags),
@@ -119,7 +121,7 @@ export function redactServerSettingsForClient(settings: ServerSettings) {
 export function applyProviderInstanceMutation(
   settings: ServerSettings,
   mutation: ProviderInstanceMutation,
-) {
+): ServerSettings {
   const providerInstances = { ...settings.providerInstances };
   if (mutation.operation === "upsert" || mutation.operation === "create") {
     providerInstances[mutation.instanceId] = mutation.instance;
@@ -133,7 +135,7 @@ function ensureProviderInstanceMutationAllowed(
   settings: ServerSettings,
   mutation: ProviderInstanceMutation,
   settingsPath: string,
-) {
+): Effect.Effect<void, ServerSettingsError> {
   if (
     mutation.operation === "create" &&
     Object.hasOwn(settings.providerInstances, mutation.instanceId)
@@ -195,7 +197,7 @@ const makeTest = Effect.fn("serverSettings.makeTest")(function* (
 
   const updateTestSettings = (
     update: (current: ServerSettings) => Effect.Effect<ServerSettings, ServerSettingsError>,
-  ) =>
+  ): Effect.Effect<ServerSettings, ServerSettingsError> =>
     writeSemaphore.withPermits(1)(
       Ref.get(currentSettingsRef).pipe(
         Effect.flatMap(update),
@@ -242,18 +244,21 @@ const decodePersistedServerSettingsMetadataJsonExit = Schema.decodeUnknownExit(
 
 const ACP_REGISTRY_DRIVER = ProviderDriverKind.make("acpRegistry");
 
-function selectionSupportsTextGeneration(settings: ServerSettings, selection: ModelSelection) {
+function selectionSupportsTextGeneration(
+  settings: ServerSettings,
+  selection: ModelSelection,
+): boolean {
   return settings.providerInstances[selection.instanceId]?.driver !== ACP_REGISTRY_DRIVER;
 }
 
-function resolveTextGenerationProvider(settings: ServerSettings) {
+function resolveTextGenerationProvider(settings: ServerSettings): ServerSettings {
   return isModelSelectionProviderEnabled(settings, settings.textGenerationModelSelection) &&
     selectionSupportsTextGeneration(settings, settings.textGenerationModelSelection)
     ? settings
     : fallbackTextGenerationProvider(settings);
 }
 
-function fallbackTextGenerationProvider(settings: ServerSettings) {
+function fallbackTextGenerationProvider(settings: ServerSettings): ServerSettings {
   const fallback = fallbackTextGenerationModelSelection(
     settings.providerInstances,
     (instanceId, driver) =>
@@ -276,7 +281,7 @@ const ATOMIC_SETTINGS_KEYS: ReadonlySet<string> = new Set([
   "pullRequestMergeMethod",
 ]);
 
-function stripDefaultServerSettings(current: unknown, defaults: unknown) {
+function stripDefaultServerSettings(current: unknown, defaults: unknown): unknown | undefined {
   if (Array.isArray(current) || Array.isArray(defaults)) {
     return Equal.equals(current, defaults) ? undefined : current;
   }
@@ -328,7 +333,7 @@ interface LegacyProjectSettingsRow {
 function foldLegacyProjectSettings(
   settings: ServerSettings,
   rows: ReadonlyArray<LegacyProjectSettingsRow>,
-) {
+): ServerSettings {
   if (settings.projectSettingsFolded) return settings;
   if (rows.length === 0) return settings;
   const entries: Record<string, ProjectSettingsOverrides> = {
@@ -536,7 +541,7 @@ const make = Effect.gen(function* () {
   );
 
   const materializeSettingsSecrets = Effect.fn("serverSettings.materializeSettingsSecrets")(
-    function* (settings: ServerSettings) {
+    function* (settings: ServerSettings): Effect.fn.Return<ServerSettings, ServerSettingsError> {
       const storedSecrets = new Map<string, string>();
       const pending = new Map<string, SettingsSecret>();
       mapSettingsSecrets(settings, (secret) => {
@@ -775,7 +780,7 @@ const make = Effect.gen(function* () {
 
   const updateAndPersistSettings = (
     update: (current: ServerSettings) => Effect.Effect<ServerSettings, ServerSettingsError>,
-  ) =>
+  ): Effect.Effect<ServerSettings, ServerSettingsError> =>
     writeSemaphore.withPermits(1)(
       Effect.gen(function* () {
         const { settings: current, parseFailure } = yield* reloadSettings;

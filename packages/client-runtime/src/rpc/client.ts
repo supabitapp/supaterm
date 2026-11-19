@@ -232,7 +232,13 @@ export const requestGuarded = Effect.fnUntraced(function* <TTag extends Environm
 export function runStreamGuarded<TTag extends EnvironmentStreamCommandRpcTag>(
   tag: TTag,
   input: EnvironmentRpcInput<TTag>,
-) {
+): Stream.Stream<
+  EnvironmentRpcStreamValue<TTag>,
+  | EnvironmentRpcStreamFailure<TTag>
+  | EnvironmentRpcUnavailableError
+  | EnvironmentAuthorizationError,
+  EnvironmentSupervisor.EnvironmentSupervisor
+> {
   return Stream.unwrap(
     currentSession().pipe(Effect.map((session) => runStreamInSession(session, tag, input))),
   );
@@ -242,7 +248,11 @@ export function runStreamInSession<TTag extends EnvironmentStreamCommandRpcTag>(
   session: RpcSession,
   tag: TTag,
   input: EnvironmentRpcInput<TTag>,
-) {
+): Stream.Stream<
+  EnvironmentRpcStreamValue<TTag>,
+  EnvironmentRpcStreamFailure<TTag> | EnvironmentAuthorizationError,
+  EnvironmentSupervisor.EnvironmentSupervisor
+> {
   const method = session.client[tag] as (
     input: EnvironmentRpcInput<TTag>,
   ) => Stream.Stream<EnvironmentRpcStreamValue<TTag>, EnvironmentRpcStreamFailure<TTag>>;
@@ -273,7 +283,11 @@ function subscribeDynamicMapped<TTag extends EnvironmentSubscriptionRpcTag, A>(
     stream: Stream.Stream<EnvironmentRpcStreamValue<TTag>, EnvironmentRpcStreamFailure<TTag>>,
   ) => Stream.Stream<A, EnvironmentRpcStreamFailure<TTag>>,
   options?: SubscriptionOptions<TTag>,
-) {
+): Stream.Stream<
+  A,
+  EnvironmentRpcStreamFailure<TTag>,
+  EnvironmentSupervisor.EnvironmentSupervisor
+> {
   return Stream.unwrap(
     Effect.gen(function* () {
       const supervisor = yield* EnvironmentSupervisor.EnvironmentSupervisor;
@@ -305,10 +319,7 @@ function subscribeDynamicMapped<TTag extends EnvironmentSubscriptionRpcTag, A>(
               >;
               let expectedFailureRetries = 0;
               let streamFailureRetries = 0;
-              const subscribeToSession: () => Stream.Stream<
-                A,
-                EnvironmentRpcStreamFailure<TTag>
-              > = () =>
+              const subscribeToSession = (): Stream.Stream<A, EnvironmentRpcStreamFailure<TTag>> =>
                 Stream.suspend(() =>
                   Stream.unwrap(
                     Effect.gen(function* () {
@@ -433,28 +444,19 @@ function subscribeDynamicMapped<TTag extends EnvironmentSubscriptionRpcTag, A>(
     Stream.withSpan("EnvironmentRpc.subscribe", {
       attributes: { "rpc.method": tag },
     }),
-  ) satisfies Stream.Stream<
-    A,
-    EnvironmentRpcStreamFailure<TTag>,
-    EnvironmentSupervisor.EnvironmentSupervisor
-  >;
+  );
 }
 
 export function subscribeDynamic<TTag extends EnvironmentSubscriptionRpcTag>(
   tag: TTag,
   makeInput: (session: RpcSession) => Effect.Effect<EnvironmentRpcInput<TTag>>,
   options?: SubscriptionOptions<TTag>,
-) {
-  return subscribeDynamicMapped(
-    tag,
-    makeInput,
-    (_session, stream) => stream,
-    options,
-  ) satisfies Stream.Stream<
-    EnvironmentRpcStreamValue<TTag>,
-    EnvironmentRpcStreamFailure<TTag>,
-    EnvironmentSupervisor.EnvironmentSupervisor
-  >;
+): Stream.Stream<
+  EnvironmentRpcStreamValue<TTag>,
+  EnvironmentRpcStreamFailure<TTag>,
+  EnvironmentSupervisor.EnvironmentSupervisor
+> {
+  return subscribeDynamicMapped(tag, makeInput, (_session, stream) => stream, options);
 }
 
 /** Tags each value before `switchMap` can buffer it across a session change. */
@@ -462,29 +464,29 @@ export function subscribeDynamicWithSession<TTag extends EnvironmentSubscription
   tag: TTag,
   makeInput: (session: RpcSession) => Effect.Effect<EnvironmentRpcInput<TTag>>,
   options?: SubscriptionOptions<TTag>,
-) {
+): Stream.Stream<
+  readonly [session: RpcSession, value: EnvironmentRpcStreamValue<TTag>],
+  EnvironmentRpcStreamFailure<TTag>,
+  EnvironmentSupervisor.EnvironmentSupervisor
+> {
   return subscribeDynamicMapped(
     tag,
     makeInput,
     (session, stream) => stream.pipe(Stream.map((value) => [session, value] as const)),
     options,
-  ) satisfies Stream.Stream<
-    readonly [session: RpcSession, value: EnvironmentRpcStreamValue<TTag>],
-    EnvironmentRpcStreamFailure<TTag>,
-    EnvironmentSupervisor.EnvironmentSupervisor
-  >;
+  );
 }
 
 export function subscribe<TTag extends EnvironmentSubscriptionRpcTag>(
   tag: TTag,
   input: EnvironmentRpcInput<TTag>,
   options?: SubscriptionOptions<TTag>,
-) {
-  return subscribeDynamic(tag, () => Effect.succeed(input), options) satisfies Stream.Stream<
-    EnvironmentRpcStreamValue<TTag>,
-    EnvironmentRpcStreamFailure<TTag>,
-    EnvironmentSupervisor.EnvironmentSupervisor
-  >;
+): Stream.Stream<
+  EnvironmentRpcStreamValue<TTag>,
+  EnvironmentRpcStreamFailure<TTag>,
+  EnvironmentSupervisor.EnvironmentSupervisor
+> {
+  return subscribeDynamic(tag, () => Effect.succeed(input), options);
 }
 
 export const subscribeVcsBranch = (

@@ -28,10 +28,12 @@ const ReplayTestLayer = OrchestrationEventStore.layer.pipe(
   Layer.provideMerge(SqlitePersistence.layerMemory),
 );
 
-const resumeShellFixture = (id: string, overrides: Partial<OrchestrationV2ThreadShell> = {}) =>
-  ({ ...liveThreadShell(ThreadId.make(id)), ...overrides }) satisfies OrchestrationV2ThreadShell;
+const resumeShellFixture = (
+  id: string,
+  overrides: Partial<OrchestrationV2ThreadShell> = {},
+): OrchestrationV2ThreadShell => ({ ...liveThreadShell(ThreadId.make(id)), ...overrides });
 
-const resumeProjectFixture = (id: string) => ({
+const resumeProjectFixture = (id: string): OrchestrationProjectShell => ({
   id: ProjectId.make(id),
   title: id,
   workspaceRoot: `/tmp/${id}`,

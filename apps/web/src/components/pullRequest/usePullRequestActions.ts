@@ -50,7 +50,7 @@ export function usePullRequestDefaultMergeMethod(
   );
 }
 
-const actionSuccessLabels = (term: string) => ({
+const actionSuccessLabels = (term: string): Record<PullRequestAction, string> => ({
   merge: "Merge requested",
   ready: "Marked ready for review",
   draft: "Converted to draft",
@@ -64,7 +64,7 @@ const actionSuccessLabels = (term: string) => ({
   "approve-workflows": "Workflows approved",
 });
 
-const actionFailureLabels = (term: string) => ({
+const actionFailureLabels = (term: string): Record<PullRequestAction, string> => ({
   merge: `Could not merge this ${term}`,
   ready: "Could not mark this ready for review",
   draft: "Could not convert this to a draft",
@@ -78,7 +78,7 @@ const actionFailureLabels = (term: string) => ({
   "approve-workflows": "Could not approve workflows",
 });
 
-const actionFailureHints = (term: string) => ({
+const actionFailureHints = (term: string): Record<PullRequestAction, string> => ({
   merge:
     "The host refused the merge. Check that you have write access, that the checks it requires have passed, and that the branch is not conflicting.",
   ready: "The host refused it. Check that you have write access to this repository.",
@@ -262,16 +262,16 @@ export function usePullRequestHandoffs({
     projectRef: ReturnType<typeof scopeProjectRef>,
     task: PullRequestThreadTask | null,
     opened?: { draftId: DraftId },
-  ) => {
+  ): Promise<{ draftId: DraftId } | null> => {
     const session =
       opened ??
       (await newThread(projectRef).then(
         (result) => result,
         () => null,
       ));
-    if (session === null) return null satisfies { draftId: DraftId } | null;
+    if (session === null) return null;
     if (task !== null) writeHandoffToComposer(session.draftId, task);
-    return session satisfies { draftId: DraftId } | null;
+    return session;
   };
 
   const startAsk = async (kind: string, task: PullRequestThreadTask) => {

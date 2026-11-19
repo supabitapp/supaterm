@@ -19,12 +19,11 @@ import {
   resolvePromptLinkModelSelection,
 } from "./promptLinks.ts";
 
-const identity = (canonicalKey: string, origin?: string) =>
-  ({
-    canonicalKey,
-    locator: { source: "git-remote", remoteName: "origin", remoteUrl: `https://${canonicalKey}` },
-    ...(origin ? { origin: { canonicalKey: origin } } : {}),
-  }) satisfies RepositoryIdentity;
+const identity = (canonicalKey: string, origin?: string): RepositoryIdentity => ({
+  canonicalKey,
+  locator: { source: "git-remote", remoteName: "origin", remoteUrl: `https://${canonicalKey}` },
+  ...(origin ? { origin: { canonicalKey: origin } } : {}),
+});
 
 describe("findPromptLinkProjects", () => {
   it("keeps exact matches in order and never a fork of the repository", () => {
@@ -95,7 +94,10 @@ describe("pickPromptLinkPullRequestThread", () => {
   it("takes the first open thread in order once every earlier lookup has answered", () => {
     const laptop = EnvironmentId.make("laptop");
     const server = EnvironmentId.make("server");
-    const linked = (id: string, archivedAt: string | null = null) => ({
+    const linked = (
+      id: string,
+      archivedAt: string | null = null,
+    ): PullRequestLinkedThreadsResult => ({
       threads: [{ id: ThreadId.make(id), projectId: ProjectId.make("p"), title: id, archivedAt }],
     });
     const none: PullRequestLinkedThreadsResult = { threads: [] };

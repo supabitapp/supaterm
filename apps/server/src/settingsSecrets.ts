@@ -57,7 +57,7 @@ type SecretValue = Pick<SettingsSecret, "value" | "redacted">;
 export function mapSettingsSecrets(
   settings: ServerSettings,
   map: (secret: SettingsSecret) => SecretValue,
-) {
+): ServerSettings {
   const mapFields = (
     fields: Readonly<Record<string, unknown>>,
     secretFields: ReadonlyArray<string>,

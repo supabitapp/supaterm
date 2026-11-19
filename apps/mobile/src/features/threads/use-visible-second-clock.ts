@@ -11,7 +11,7 @@ const subscribeNever = () => () => undefined;
  * Retained routes stay mounted when hidden, so an ungated tick would keep
  * re-rendering them. Every visible label shares one module-level tick.
  */
-export function useVisibleSecondClock(enabled: boolean) {
+export function useVisibleSecondClock(enabled: boolean): number {
   const focused = useIsFocused();
   const inSidebar = usePaneRole() === "sidebar";
   const appActive = useAppActive();

@@ -11,8 +11,11 @@ const PART_PREFIX = "\u001e";
 const PART_RECEIVED_FRAME = '{"_tag":"Pong"}';
 
 /** Splits on the UTF-8 size the frame has on the wire, never inside a surrogate pair. */
-export function splitSocketFrame(frame: string, partBytes = SOCKET_FRAME_PART_BYTES) {
-  if (frame.length * 3 <= partBytes) return [frame] satisfies Arr.NonEmptyReadonlyArray<string>;
+export function splitSocketFrame(
+  frame: string,
+  partBytes = SOCKET_FRAME_PART_BYTES,
+): Arr.NonEmptyReadonlyArray<string> {
+  if (frame.length * 3 <= partBytes) return [frame];
   const parts: Array<string> = [];
   let start = 0;
   let bytes = PART_PREFIX.length;
@@ -28,15 +31,13 @@ export function splitSocketFrame(frame: string, partBytes = SOCKET_FRAME_PART_BY
     bytes += size;
     index += pair ? 2 : 1;
   }
-  return Arr.append(parts, frame.slice(start)) satisfies Arr.NonEmptyReadonlyArray<string>;
+  return Arr.append(parts, frame.slice(start));
 }
 
 /** Server side: sends string frames longer than one part as consecutive parts. */
-export function splitLargeSocketFrames(socket: Socket.Socket): Socket.Socket;
-export function splitLargeSocketFrames(socket: Socket.Socket) {
-  const split: (chunk: string | Uint8Array) => Arr.NonEmptyReadonlyArray<string | Uint8Array> = (
-    chunk: string | Uint8Array,
-  ) => (typeof chunk === "string" ? splitSocketFrame(chunk) : [chunk]);
+export function splitLargeSocketFrames(socket: Socket.Socket): Socket.Socket {
+  const split = (chunk: string | Uint8Array): Arr.NonEmptyReadonlyArray<string | Uint8Array> =>
+    typeof chunk === "string" ? splitSocketFrame(chunk) : [chunk];
   return Socket.make({
     reader: socket.reader,
     writer: Effect.map(socket.writer, (writer) => ({
@@ -44,11 +45,11 @@ export function splitLargeSocketFrames(socket: Socket.Socket) {
         typeof chunk === "string" ? writer.writeAll(splitSocketFrame(chunk)) : writer.write(chunk),
       writeAll: (chunks) => writer.writeAll(Arr.flatMap(chunks, split)),
     })),
-  }) satisfies Socket.Socket;
+  });
 }
 
 /** Client side: joins parts back into whole frames. */
-export function joinSocketFrameParts(socket: Socket.Socket) {
+export function joinSocketFrameParts(socket: Socket.Socket): Socket.Socket {
   return Socket.make({
     reader: Effect.map(socket.reader, (reader) => {
       let pending = "";

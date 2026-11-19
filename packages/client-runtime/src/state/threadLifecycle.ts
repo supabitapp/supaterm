@@ -49,7 +49,10 @@ export function createOptimisticThreadLifecycle(
   );
 
   const pendingThreadIdsAtom = Atom.family((environmentId: EnvironmentId) =>
-    Atom.make((get) => new Set(get(pendingAtom(environmentId)).map((update) => update.threadId))),
+    Atom.make(
+      (get): ReadonlySet<ThreadId> =>
+        new Set(get(pendingAtom(environmentId)).map((update) => update.threadId)),
+    ),
   );
 
   function wrap<Input extends { readonly threadId: ThreadId }, E>(
@@ -64,20 +67,7 @@ export function createOptimisticThreadLifecycle(
       now: DateTime.Utc,
       accepted: boolean,
     ) => OrchestrationV2ThreadShell,
-  ): typeof command;
-  function wrap<Input extends { readonly threadId: ThreadId }, E>(
-    command: AtomCommand<
-      { readonly environmentId: EnvironmentId; readonly input: Input },
-      { readonly sequence: number },
-      E
-    >,
-    apply: (
-      thread: OrchestrationV2ThreadShell,
-      input: Input,
-      now: DateTime.Utc,
-      accepted: boolean,
-    ) => OrchestrationV2ThreadShell,
-  ) {
+  ): typeof command {
     return {
       label: command.label,
       run: async (registry, target) => {
@@ -112,7 +102,7 @@ export function createOptimisticThreadLifecycle(
           if (!confirmed) remove();
         }
       },
-    } satisfies typeof command;
+    };
   }
 
   return { snapshotAtom, pendingThreadIdsAtom, wrap };

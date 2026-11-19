@@ -85,7 +85,7 @@ export function assertToolCallReadOnlyOnRequestGrokOutput(
   );
 }
 
-function writtenContent(item: OrchestrationV2TurnItem) {
+function writtenContent(item: OrchestrationV2TurnItem): string | undefined {
   switch (item.type) {
     case "command_execution":
       return item.input;

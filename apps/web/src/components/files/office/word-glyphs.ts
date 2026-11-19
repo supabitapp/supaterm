@@ -13,7 +13,7 @@ import type {
 export function withWholeMissingGlyphs(
   page: DisplayPage,
   measure: OffscreenCanvasRenderingContext2D,
-) {
+): DisplayPage {
   const regions = [
     page.primitives,
     page.header?.primitives,

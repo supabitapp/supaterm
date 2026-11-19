@@ -37,7 +37,7 @@ export const WINDOWS_MODIFIER_PAIR_VIRTUAL_KEYS: Record<
 export function snapShotShortcutRegistrationFailureMessage(
   shortcut: SnapShotShortcut,
   platform: NodeJS.Platform,
-) {
+): string {
   return isModifierPairShortcut(shortcut)
     ? `${snapShotModifierPairLabel(
         snapShotShortcutModifierPair(shortcut),
@@ -62,7 +62,7 @@ const COMMON_MOD_ACTIONS: Readonly<Record<string, string>> = {
   z: "Undo",
 };
 
-export function snapShotShortcutSystemConflict(shortcut: SnapShotKeyChord) {
+export function snapShotShortcutSystemConflict(shortcut: SnapShotKeyChord): string | null {
   const modifierCount = [
     shortcut.modKey,
     shortcut.metaKey,
@@ -89,7 +89,7 @@ export function snapShotShortcutSystemConflict(shortcut: SnapShotKeyChord) {
   return null;
 }
 
-export function accessibleWindowText(root: AccessibilityTreeNode, maxChars: number) {
+export function accessibleWindowText(root: AccessibilityTreeNode, maxChars: number): string {
   const seen = new Set<string>();
   const stack = [root];
   let text = "";
@@ -145,16 +145,19 @@ type MutableAccessibilityNode = Omit<SnapShotAccessibilityNode, "children"> & {
 
 type CapturedImageSize = { readonly width: number; readonly height: number };
 
-function safeProperty<T>(read: () => T): T | undefined;
-function safeProperty<T>(read: () => T) {
+function safeProperty<T>(read: () => T): T | undefined {
   try {
-    return read() satisfies T | undefined;
+    return read();
   } catch {
-    return undefined satisfies T | undefined;
+    return undefined;
   }
 }
 
-export function boundedSnapShotString(value: unknown, maxChars: number, onTruncated?: () => void) {
+export function boundedSnapShotString(
+  value: unknown,
+  maxChars: number,
+  onTruncated?: () => void,
+): string | undefined {
   if (typeof value !== "string") return undefined;
   const candidate = value.replaceAll("\0", "").trim();
   if (!candidate) return undefined;
@@ -168,7 +171,7 @@ function capturedImageBounds(
   bounds: WindowBounds | null | undefined,
   sourceBounds: WindowBounds,
   imageSize: CapturedImageSize,
-) {
+): SnapShotAccessibilityNode["bounds"] {
   if (
     bounds === null ||
     bounds === undefined ||
@@ -205,16 +208,7 @@ function accessibilityNode(
   isRoot: boolean,
   locationsReliable: boolean,
   onTruncated: () => void,
-): MutableAccessibilityNode;
-function accessibilityNode(
-  element: AccessibilityElement,
-  elementBounds: WindowBounds | null | undefined,
-  sourceBounds: WindowBounds,
-  imageSize: CapturedImageSize,
-  isRoot: boolean,
-  locationsReliable: boolean,
-  onTruncated: () => void,
-) {
+): MutableAccessibilityNode {
   const name = boundedSnapShotString(
     safeProperty(() => element.name),
     1_000,
@@ -267,10 +261,10 @@ function accessibilityNode(
     ...(Object.keys(state).length > 0 ? { state } : {}),
     ...(actions.length > 0 ? { actions } : {}),
     children: [],
-  } satisfies MutableAccessibilityNode;
+  };
 }
 
-function isAnonymousGroup(node: SnapShotAccessibilityNode) {
+function isAnonymousGroup(node: SnapShotAccessibilityNode): boolean {
   return (
     node.role === "group" &&
     node.name === undefined &&
@@ -285,12 +279,7 @@ function compactAccessibilityNodes(
   node: SnapShotAccessibilityNode,
   isRoot: boolean,
   descendantLocationsReliable: boolean,
-): Array<MutableAccessibilityNode>;
-function compactAccessibilityNodes(
-  node: SnapShotAccessibilityNode,
-  isRoot: boolean,
-  descendantLocationsReliable: boolean,
-) {
+): Array<MutableAccessibilityNode> {
   const children = node.children.flatMap((child) =>
     compactAccessibilityNodes(child, false, descendantLocationsReliable),
   );
@@ -300,16 +289,19 @@ function compactAccessibilityNodes(
     children,
   };
   if (!isRoot && isAnonymousGroup(compacted)) {
-    if (children.length === 0) return [] satisfies Array<MutableAccessibilityNode>;
-    if (children.length === 1) return children satisfies Array<MutableAccessibilityNode>;
+    if (children.length === 0) return [];
+    if (children.length === 1) return children;
   }
-  return [compacted] satisfies Array<MutableAccessibilityNode>;
+  return [compacted];
 }
 
 export function compactAccessibilityTree(
   root: SnapShotAccessibilityNode,
   options: { readonly descendantLocationsReliable?: boolean } = {},
-) {
+): {
+  readonly root: SnapShotAccessibilityNode;
+  readonly truncated: boolean;
+} {
   const compactedRoot = compactAccessibilityNodes(
     root,
     true,
@@ -319,7 +311,10 @@ export function compactAccessibilityTree(
   let serializedChars = 256;
   let truncated = false;
 
-  const visit = (node: SnapShotAccessibilityNode, required: boolean) => {
+  const visit = (
+    node: SnapShotAccessibilityNode,
+    required: boolean,
+  ): MutableAccessibilityNode | undefined => {
     const copy: MutableAccessibilityNode = { ...node, children: [] };
     const nodeChars = JSON.stringify(copy).length + 1;
     if (
@@ -359,7 +354,7 @@ export async function accessibleWindowElementTree(
   sourceBounds: WindowBounds,
   imageSize: CapturedImageSize,
   options: AccessibleWindowElementTreeOptions = {},
-) {
+): Promise<{ readonly root: SnapShotAccessibilityNode; readonly truncated: boolean } | undefined> {
   if (typeof element.children !== "function") return undefined;
   let nodes = 0;
   let truncated = false;
@@ -372,13 +367,10 @@ export async function accessibleWindowElementTree(
     options.locationsReliable !== false &&
     (options.verifyDescendantLocations !== true || descendantLocationVaries);
 
-  const visit: (
+  const visit = async (
     current: AccessibilityElement,
     required: boolean,
-  ) => Promise<MutableAccessibilityNode | undefined> = async (
-    current: AccessibilityElement,
-    required: boolean,
-  ) => {
+  ): Promise<MutableAccessibilityNode | undefined> => {
     if (!shouldContinue()) {
       truncated = true;
       return undefined;
@@ -470,7 +462,7 @@ export function findAccessibleWindow<
   },
   matchMode: "screen-bounds" | "wayland" = "screen-bounds",
   options: { readonly allowUntitledUniqueBounds?: boolean } = {},
-) {
+): T | undefined {
   const normalizeTitle = (value: string) => {
     const title = value.trim();
     return matchMode === "wayland" ? title.replace(/^[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏](?:\s+|$)/u, "") : title;
@@ -522,7 +514,7 @@ function findBrowserTitleMatch<T extends { readonly name?: string | null }>(
   captured: { readonly platform?: NodeJS.Platform; readonly bundleId?: string | undefined },
   matchMode: "screen-bounds" | "wayland",
   matchesBounds: (window: T) => boolean,
-) {
+): T | undefined {
   if (captured.platform !== "darwin" || matchMode !== "screen-bounds") return undefined;
   const browserName = /^com\.google\.Chrome(?:\.(?:beta|dev|canary))?$/.test(
     captured.bundleId ?? "",
@@ -556,7 +548,7 @@ const ELECTRON_KEY_NAMES: Readonly<Record<string, string>> = {
   escape: "Esc",
 };
 
-export function sameSnapShotShortcut(left: SnapShotShortcut, right: SnapShotShortcut) {
+export function sameSnapShotShortcut(left: SnapShotShortcut, right: SnapShotShortcut): boolean {
   if (isModifierPairShortcut(left) || isModifierPairShortcut(right)) {
     return (
       isModifierPairShortcut(left) &&
@@ -567,7 +559,7 @@ export function sameSnapShotShortcut(left: SnapShotShortcut, right: SnapShotShor
   return toElectronAccelerator(left) === toElectronAccelerator(right);
 }
 
-export function toElectronAccelerator(shortcut: SnapShotKeyChord) {
+export function toElectronAccelerator(shortcut: SnapShotKeyChord): string {
   const parts: string[] = [];
   if (shortcut.modKey) parts.push("CommandOrControl");
   if (shortcut.metaKey) parts.push("Super");
@@ -578,7 +570,10 @@ export function toElectronAccelerator(shortcut: SnapShotKeyChord) {
   return parts.join("+");
 }
 
-export function isWaylandSession(platform: NodeJS.Platform, environment: NodeJS.ProcessEnv) {
+export function isWaylandSession(
+  platform: NodeJS.Platform,
+  environment: NodeJS.ProcessEnv,
+): boolean {
   if (platform !== "linux") return false;
   if (
     environment.XDG_SESSION_TYPE?.toLowerCase() === "wayland" ||

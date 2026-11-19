@@ -11,7 +11,7 @@ import {
 
 const mountHost = () => subscribeConfirmDialogHost(() => {});
 
-function requireConfirmation(confirmation: Promise<boolean> | undefined) {
+function requireConfirmation(confirmation: Promise<boolean> | undefined): Promise<boolean> {
   if (!confirmation) {
     throw new Error("Expected a registered confirmation host.");
   }

@@ -12,7 +12,7 @@ export function resolveComposerDispatchMode(input: {
   readonly activeTurnDefault?: ActiveTurnComposerAction;
   /** False while the active turn cannot take steering input, such as an explicit /compact. */
   readonly canSteer?: boolean;
-}) {
+}): ComposerDispatchMode {
   if (!input.running) return "auto";
   if (input.canSteer === false) return "queue";
   const defaultAction = input.activeTurnDefault ?? "steer";
@@ -30,20 +30,11 @@ export function outboxDispatchMode(input: {
   readonly dispatchMode: ComposerDispatchMode;
   readonly setupRunning: boolean;
   readonly deferredSteering: boolean;
-}): ComposerDispatchMode;
-export function outboxDispatchMode(input: {
-  readonly dispatchMode: ComposerDispatchMode;
-  readonly setupRunning: boolean;
-  readonly deferredSteering: boolean;
-}) {
+}): ComposerDispatchMode {
   if (input.setupRunning) {
-    return (
-      input.deferredSteering && input.dispatchMode === "steer" ? "steer" : "queue"
-    ) satisfies ComposerDispatchMode;
+    return input.deferredSteering && input.dispatchMode === "steer" ? "steer" : "queue";
   }
-  return (
-    input.dispatchMode === "steer" ? "auto" : input.dispatchMode
-  ) satisfies ComposerDispatchMode;
+  return input.dispatchMode === "steer" ? "auto" : input.dispatchMode;
 }
 
 export function compactionBlocksSteering(input: {
@@ -58,7 +49,7 @@ export function compactionBlocksSteering(input: {
         readonly attachments?: ReadonlyArray<unknown>;
       }>
     | undefined;
-}) {
+}): boolean {
   if (input.compactCommandIsActive) return true;
   if (!input.compactionRunning) return false;
   if (!input.steersDuringCompaction) return true;
@@ -70,7 +61,9 @@ export function compactionBlocksSteering(input: {
   );
 }
 
-export function alternateComposerDispatchAction(activeTurnDefault?: ActiveTurnComposerAction) {
+export function alternateComposerDispatchAction(
+  activeTurnDefault?: ActiveTurnComposerAction,
+): ActiveTurnComposerAction {
   return resolveComposerDispatchMode({
     running: true,
     alternateModifier: true,
@@ -86,7 +79,7 @@ export function composerRunsDraftLocally(input: {
   readonly usageLimits: boolean;
   readonly codexFeedback: boolean;
   readonly freshSession: boolean;
-}) {
+}): boolean {
   if (input.sideChat && parseSideChatCommand(input.text) !== null) return true;
   if (!input.holdsOnlyText) return false;
   return (

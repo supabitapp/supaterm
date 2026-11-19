@@ -31,7 +31,9 @@ const archiveUrl = "https://registry.test/example-agent.bin";
 const decodeAcpRegistrySettings = Schema.decodeSync(AcpRegistrySettings);
 const encodeUnknownJson = Schema.encodeUnknownSync(Schema.fromJsonString(Schema.Unknown));
 
-function makeAgent(distribution: AcpRegistrySupport.AcpRegistryAgent["distribution"]) {
+function makeAgent(
+  distribution: AcpRegistrySupport.AcpRegistryAgent["distribution"],
+): AcpRegistrySupport.AcpRegistryAgent {
   return {
     id: "example-agent",
     name: "Example Agent",
@@ -41,11 +43,11 @@ function makeAgent(distribution: AcpRegistrySupport.AcpRegistryAgent["distributi
   };
 }
 
-function makeRegistry(agent: AcpRegistrySupport.AcpRegistryAgent) {
+function makeRegistry(agent: AcpRegistrySupport.AcpRegistryAgent): string {
   return JSON.stringify({ version: "1.0.0", agents: [agent] });
 }
 
-function settings(input: Partial<AcpRegistrySettings> = {}) {
+function settings(input: Partial<AcpRegistrySettings> = {}): AcpRegistrySettings {
   return decodeAcpRegistrySettings({
     agentId: "example-agent",
     ...input,

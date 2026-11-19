@@ -33,15 +33,12 @@ export function decideProviderSessionTransition(input: {
   readonly current: ProviderSessionTransitionState | null;
   readonly target: ProviderSessionTransitionTarget;
   readonly selectionTransition?: ProviderSelectionTransitionPlan;
-}) {
+}): ProviderSessionTransition {
   if (!input.target.available) {
-    return {
-      type: "reject",
-      reason: "The target provider instance is unavailable.",
-    } satisfies ProviderSessionTransition;
+    return { type: "reject", reason: "The target provider instance is unavailable." };
   }
   if (input.current === null) {
-    return { type: "create_with_handoff" } satisfies ProviderSessionTransition;
+    return { type: "create_with_handoff" };
   }
 
   const current = input.current;
@@ -50,7 +47,7 @@ export function decideProviderSessionTransition(input: {
     current.continuationIdentity.driverKind === target.continuationIdentity.driverKind &&
     current.continuationIdentity.continuationKey === target.continuationIdentity.continuationKey;
   if (!continuationCompatible || current.driver !== target.driver) {
-    return { type: "create_with_handoff" } satisfies ProviderSessionTransition;
+    return { type: "create_with_handoff" };
   }
 
   const instanceChanged = current.modelSelection.instanceId !== target.modelSelection.instanceId;
@@ -60,34 +57,31 @@ export function decideProviderSessionTransition(input: {
   if (selectionChanged && !instanceChanged) {
     switch (input.selectionTransition?.type) {
       case "create_with_handoff":
-        return { type: "create_with_handoff" } satisfies ProviderSessionTransition;
+        return { type: "create_with_handoff" };
       case "reject":
-        return {
-          type: "reject",
-          reason: input.selectionTransition.reason,
-        } satisfies ProviderSessionTransition;
+        return { type: "reject", reason: input.selectionTransition.reason };
       case undefined:
         return {
           type: "reject",
           reason: "The provider adapter did not classify the selection change.",
-        } satisfies ProviderSessionTransition;
+        };
       case "apply_on_next_turn":
       case "restart_session":
         break;
     }
   }
   if (instanceChanged || runtimeChanged || workspaceChanged) {
-    return { type: "restart_and_resume" } satisfies ProviderSessionTransition;
+    return { type: "restart_and_resume" };
   }
 
   if (selectionChanged) {
     switch (input.selectionTransition?.type) {
       case "apply_on_next_turn":
-        return { type: "switch_model_in_session" } satisfies ProviderSessionTransition;
+        return { type: "switch_model_in_session" };
       case "restart_session":
-        return { type: "restart_and_resume" } satisfies ProviderSessionTransition;
+        return { type: "restart_and_resume" };
     }
   }
 
-  return { type: "reuse" } satisfies ProviderSessionTransition;
+  return { type: "reuse" };
 }

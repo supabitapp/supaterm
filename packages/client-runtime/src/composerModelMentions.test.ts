@@ -1,7 +1,11 @@
 import { ProviderDriverKind, ProviderInstanceId } from "@supaterm/contracts";
 import { describe, expect, it } from "vite-plus/test";
 
-import { isMentionableProvider, matchComposerModelItems } from "./composerModelMentions.ts";
+import {
+  isMentionableProvider,
+  matchComposerModelItems,
+  type ComposerModelCandidate,
+} from "./composerModelMentions.ts";
 
 function candidate(
   instanceId: string,
@@ -10,7 +14,7 @@ function candidate(
   model: string,
   name: string,
   subProvider?: string,
-) {
+): ComposerModelCandidate {
   return {
     instanceId: ProviderInstanceId.make(instanceId),
     driver: ProviderDriverKind.make(driver),
@@ -28,7 +32,7 @@ const candidates = [
   candidate("opencode", "opencode", "OpenCode", "anthropic/claude-opus-4-5", "Opus", "Anthropic"),
 ];
 
-function match(query: string) {
+function match(query: string): string[] {
   return matchComposerModelItems(candidates, query).map((item) => item.id);
 }
 

@@ -21,23 +21,22 @@ const PINNED_RUNTIME_ENTRY = /^(.*)\/runtime\/versions\/[^/]+\/supaterm$/;
 export type CliRunner = "npx" | "pnpm dlx" | "bunx";
 
 /** Detection is best-effort; callers must fail closed to a plain `supaterm` command. */
-export function detectCliRunner(entryPath: string): CliRunner | null;
-export function detectCliRunner(entryPath: string) {
+export function detectCliRunner(entryPath: string): CliRunner | null {
   const path = entryPath.replaceAll("\\", "/");
   if (path.includes("/_npx/")) {
-    return "npx" satisfies CliRunner | null;
+    return "npx";
   }
   if (
     path.includes("/pnpm/dlx/") ||
     path.includes("/.pnpm/dlx/") ||
     path.includes("/pnpm-cache/dlx/")
   ) {
-    return "pnpm dlx" satisfies CliRunner | null;
+    return "pnpm dlx";
   }
   if (path.includes("/.bun/install/cache/") || path.includes("/bunx-")) {
-    return "bunx" satisfies CliRunner | null;
+    return "bunx";
   }
-  return null satisfies CliRunner | null;
+  return null;
 }
 
 const InstallManifest = Schema.Struct({
@@ -127,7 +126,7 @@ export const resolveServerInstallation = Effect.gen(function* () {
   return { kind: "npm-global", prefix } satisfies ServerInstallation;
 }).pipe(Effect.orElseSucceed(() => null));
 
-function suggestedPackageSpec(version: string) {
+function suggestedPackageSpec(version: string): string {
   const channel = /^[^-+]+-(nightly|preview)\./.exec(version)?.[1];
   return channel === undefined ? "supaterm" : `supaterm@${channel}`;
 }
@@ -136,17 +135,12 @@ function formatCliCommand(input: {
   readonly subcommand: string;
   readonly entryPath: string;
   readonly version: string;
-}): string;
-function formatCliCommand(input: {
-  readonly subcommand: string;
-  readonly entryPath: string;
-  readonly version: string;
-}) {
+}): string {
   const runner = detectCliRunner(input.entryPath);
   if (runner === null) {
-    return `supaterm ${input.subcommand}` satisfies string;
+    return `supaterm ${input.subcommand}`;
   }
-  return `${runner} ${suggestedPackageSpec(input.version)} ${input.subcommand}` satisfies string;
+  return `${runner} ${suggestedPackageSpec(input.version)} ${input.subcommand}`;
 }
 
 export const resolveCliCommand = (subcommand: string) =>

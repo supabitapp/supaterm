@@ -51,7 +51,7 @@ class TestIntersectionObserver {
   }
 }
 
-const diagram = (text: string) => ({
+const diagram = (text: string): Diagram => ({
   svg: `<svg xmlns="http://www.w3.org/2000/svg"><text>${text}</text></svg>`,
   width: 100,
   height: 100,

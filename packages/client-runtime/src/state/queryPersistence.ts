@@ -23,7 +23,7 @@ export interface QueryPersistence<A> {
   readonly save: (environmentId: EnvironmentId, key: string, value: A) => Effect.Effect<void>;
 }
 
-export function persistQuery<A, I>(schema: Schema.Codec<A, I>) {
+export function persistQuery<A, I>(schema: Schema.Codec<A, I>): QueryPersistence<A> {
   const codec = Schema.fromJsonString(Schema.toCodecJson(schema));
   return {
     load: Effect.fn("queryPersistence.load")(function* (environmentId, key) {

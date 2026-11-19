@@ -1,10 +1,12 @@
 import {
   DEFAULT_SERVER_SETTINGS,
   type EnvironmentId,
+  type EnvironmentTheme,
   type ServerConfig,
   type ServerConfigStreamEvent,
   type ServerLifecycleWelcomePayload,
   type ServerProvider,
+  type ServerSettings,
 } from "@supaterm/contracts";
 import {
   AVAILABLE_CONNECTION_STATE,
@@ -53,10 +55,10 @@ const EMPTY_PRIMARY_SERVER_STATE: PrimaryServerState = {
   welcome: null,
 };
 
-const primaryServerStateAtom = Atom.make((get) => {
+const primaryServerStateAtom = Atom.make((get): PrimaryServerState => {
   const environmentId = get(primaryEnvironmentIdAtom);
   if (environmentId === null) {
-    return EMPTY_PRIMARY_SERVER_STATE satisfies PrimaryServerState as PrimaryServerState;
+    return EMPTY_PRIMARY_SERVER_STATE;
   }
 
   const target = { environmentId, input: {} };
@@ -70,29 +72,28 @@ const primaryServerStateAtom = Atom.make((get) => {
     config: get(serverEnvironment.configValueAtom(environmentId)),
     latestEvent: configProjection?.latestEvent ?? null,
     welcome,
-  } satisfies PrimaryServerState as PrimaryServerState;
+  };
 }).pipe(Atom.withLabel("web-primary-server-state"));
 
 export const primaryServerConfigAtom = Atom.make(
-  (get) => get(primaryServerStateAtom).config satisfies ServerConfig | null,
+  (get): ServerConfig | null => get(primaryServerStateAtom).config,
 ).pipe(Atom.withLabel("web-primary-server-config"));
 
 export const primaryServerConfigEventAtom = Atom.make(
-  (get) =>
-    get(primaryServerStateAtom)
-      .latestEvent satisfies ServerConfigStreamEvent | null as ServerConfigStreamEvent | null,
+  (get): ServerConfigStreamEvent | null => get(primaryServerStateAtom).latestEvent,
 ).pipe(Atom.withLabel("web-primary-server-config-event"));
 
 export const primaryServerWelcomeAtom = Atom.make(
-  (get) => get(primaryServerStateAtom).welcome,
+  (get): ServerLifecycleWelcomePayload | null => get(primaryServerStateAtom).welcome,
 ).pipe(Atom.withLabel("web-primary-server-welcome"));
 
 export const primaryServerSettingsAtom = Atom.make(
-  (get) => get(primaryServerConfigAtom)?.settings ?? DEFAULT_SERVER_SETTINGS,
+  (get): ServerSettings => get(primaryServerConfigAtom)?.settings ?? DEFAULT_SERVER_SETTINGS,
 ).pipe(Atom.withLabel("web-primary-server-settings"));
 
 export const primaryServerProvidersAtom = Atom.make(
-  (get) => get(primaryServerConfigAtom)?.providers ?? EMPTY_SERVER_PROVIDERS,
+  (get): ReadonlyArray<ServerProvider> =>
+    get(primaryServerConfigAtom)?.providers ?? EMPTY_SERVER_PROVIDERS,
 ).pipe(Atom.withLabel("web-primary-server-providers"));
 
 export function createShortcutKeybindingsAtom(input: {
@@ -109,7 +110,9 @@ export function createShortcutKeybindingsAtom(input: {
     const environments = [...get(input.environmentsAtom).values()];
     return environments.find(isConnectedWithConfig)?.serverConfig?.keybindings ?? null;
   });
-  return Atom.make((get) => mergeWithDefaultKeybindings(get(customAtom) ?? []));
+  return Atom.make((get): ServerConfig["keybindings"] =>
+    mergeWithDefaultKeybindings(get(customAtom) ?? []),
+  );
 }
 
 const environmentConnectionsAtom = Atom.make((get) => {
@@ -139,11 +142,9 @@ export const primaryServerKeybindingsAtom = createShortcutKeybindingsAtom({
   environmentsAtom: environmentConnectionsAtom,
 }).pipe(Atom.withLabel("web-primary-server-keybindings"));
 
-const themeServerConfigAtom = Atom.make((get) => {
+const themeServerConfigAtom = Atom.make((get): ServerConfig | null => {
   const environmentId = get(themeEnvironmentIdAtom);
-  return (
-    environmentId === null ? null : get(serverEnvironment.configValueAtom(environmentId))
-  ) satisfies ServerConfig | null;
+  return environmentId === null ? null : get(serverEnvironment.configValueAtom(environmentId));
 }).pipe(Atom.withLabel("web-theme-server-config"));
 
 /**
@@ -151,15 +152,16 @@ const themeServerConfigAtom = Atom.make((get) => {
  * snapshots never carry themes.
  */
 export const themeServerEnvironmentThemesAtom = Atom.make(
-  (get) => get(themeServerConfigAtom)?.environmentThemes ?? null,
+  (get): ReadonlyArray<EnvironmentTheme> | null =>
+    get(themeServerConfigAtom)?.environmentThemes ?? null,
 ).pipe(Atom.withLabel("web-theme-server-environment-themes"));
 
 export const themeServerSettingsAtom = Atom.make(
-  (get) => get(themeServerConfigAtom)?.settings ?? DEFAULT_SERVER_SETTINGS,
+  (get): ServerSettings => get(themeServerConfigAtom)?.settings ?? DEFAULT_SERVER_SETTINGS,
 ).pipe(Atom.withLabel("web-theme-server-settings"));
 
 export const providersIgnoringCheckedAtAtom = Atom.family((environmentId: EnvironmentId) =>
-  Atom.make((get) =>
+  Atom.make((get): ReadonlyArray<ServerProvider> =>
     reuseProvidersIgnoringCheckedAt(
       Option.getOrNull(get.self<ReadonlyArray<ServerProvider>>()),
       get(serverEnvironment.providersValueAtom(environmentId)) ?? EMPTY_SERVER_PROVIDERS,

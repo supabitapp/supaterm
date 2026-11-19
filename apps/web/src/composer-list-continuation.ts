@@ -18,7 +18,7 @@ interface ParsedListMarker {
   contentColumn: number;
 }
 
-function parseListMarker(line: string) {
+function parseListMarker(line: string): ParsedListMarker | null {
   const indent = line.match(/^[ \t]*/)?.[0] ?? "";
   const rest = line.slice(indent.length);
   const ordered = rest.match(/^(\d+)([.)])((?:[ \t]+)|\s*$)/);
@@ -34,7 +34,7 @@ function parseListMarker(line: string) {
       },
       markerEnd: indent.length + ordered[0].length,
       contentColumn: contentColumn(indent, ordered[1].length + 1, space),
-    } satisfies ParsedListMarker | null;
+    };
   }
   const task = rest.match(/^-(\s)\[[ xX]\]((?:[ \t]+)|\s*$)/);
   if (task && task[1] !== undefined) {
@@ -42,7 +42,7 @@ function parseListMarker(line: string) {
       marker: { kind: "task", indent, space: task[2] ?? "" },
       markerEnd: indent.length + task[0].length,
       contentColumn: contentColumn(indent, 1, task[1]),
-    } satisfies ParsedListMarker | null;
+    };
   }
   const bullet = rest.match(/^([-*+])((?:[ \t]+)|\s*$)/);
   if (bullet && bullet[1] !== undefined) {
@@ -51,18 +51,18 @@ function parseListMarker(line: string) {
       marker: { kind: "bullet", indent, bullet: bullet[1], space },
       markerEnd: indent.length + bullet[0].length,
       contentColumn: contentColumn(indent, 1, space),
-    } satisfies ParsedListMarker | null;
+    };
   }
-  return null satisfies ParsedListMarker | null;
+  return null;
 }
 
-function contentColumn(indent: string, markerWidth: number, padding: string) {
+function contentColumn(indent: string, markerWidth: number, padding: string): number {
   const markerEnd = indentWidth(indent) + markerWidth;
   const space = indentWidth(padding, markerEnd);
   return markerEnd + (space >= 1 && space <= 4 ? space : 1);
 }
 
-export function nextOrderedMarkerText(marker: string) {
+export function nextOrderedMarkerText(marker: string): string {
   const numberText = marker.slice(0, -1);
   const delimiter = marker.slice(-1);
   const number = Number.parseInt(numberText, 10);
@@ -72,7 +72,7 @@ export function nextOrderedMarkerText(marker: string) {
   return `${next}${delimiter}`;
 }
 
-function nextMarkerText(marker: ListMarker) {
+function nextMarkerText(marker: ListMarker): string {
   if (marker.kind === "ordered") {
     return `${marker.indent}${nextOrderedMarkerText(`${marker.numberText}${marker.delimiter}`)} `;
   }
@@ -82,7 +82,7 @@ function nextMarkerText(marker: ListMarker) {
   return `${marker.indent}${marker.bullet} `;
 }
 
-function indentWidth(line: string, fromColumn = 0) {
+function indentWidth(line: string, fromColumn = 0): number {
   let column = fromColumn;
   for (const char of line) {
     if (char === " ") column += 1;
@@ -97,7 +97,7 @@ function renumberFollowingItems(
   afterLineEnd: number,
   marker: Extract<ListMarker, { kind: "ordered" }>,
   tokens: ReturnType<typeof inlineTokenRanges>,
-) {
+): { end: number; text: string } | null {
   const baseWidth = indentWidth(marker.indent);
   const parts: string[] = [];
   let expected = Number.parseInt(marker.numberText, 10) + 2;
@@ -139,7 +139,7 @@ function renumberFollowingItems(
   return parts.length === 0 ? null : { end: copiedUntil, text: parts.join("") };
 }
 
-function inlineTokenRanges(value: string) {
+function inlineTokenRanges(value: string): Array<{ start: number; end: number }> {
   const ranges: Array<{ start: number; end: number }> = [];
   let offset = 0;
   for (const segment of splitPromptIntoComposerSegments(value)) {
@@ -150,11 +150,14 @@ function inlineTokenRanges(value: string) {
   return ranges;
 }
 
-function isInsideInlineToken(tokens: ReturnType<typeof inlineTokenRanges>, cursor: number) {
+function isInsideInlineToken(
+  tokens: ReturnType<typeof inlineTokenRanges>,
+  cursor: number,
+): boolean {
   return tokens.some((range) => cursor > range.start && cursor < range.end);
 }
 
-function currentLine(value: string, cursor: number) {
+function currentLine(value: string, cursor: number): { start: number; end: number; text: string } {
   const start = value.lastIndexOf("\n", cursor - 1) + 1;
   const endIndex = value.indexOf("\n", cursor);
   const end = endIndex === -1 ? value.length : endIndex;
@@ -165,7 +168,7 @@ function* listMarkersAbove(
   value: string,
   lineStart: number,
   tokens: ReturnType<typeof inlineTokenRanges>,
-) {
+): Generator<ParsedListMarker> {
   let tokenIndex = tokens.length - 1;
   while (lineStart > 0) {
     const lineEnd = lineStart - 1;
@@ -186,15 +189,18 @@ function parentMarker(
   lineStart: number,
   marker: ListMarker,
   tokens: ReturnType<typeof inlineTokenRanges>,
-) {
+): ListMarker | null {
   const width = indentWidth(marker.indent);
   for (const above of listMarkersAbove(value, lineStart, tokens)) {
-    if (indentWidth(above.marker.indent) < width) return above.marker satisfies ListMarker | null;
+    if (indentWidth(above.marker.indent) < width) return above.marker;
   }
-  return null satisfies ListMarker | null;
+  return null;
 }
 
-function nestedNumber(marker: ListMarker, previousChild: ListMarker | undefined) {
+function nestedNumber(
+  marker: ListMarker,
+  previousChild: ListMarker | undefined,
+): { replacedLength: number; text: string } {
   if (marker.kind !== "ordered") return { replacedLength: 0, text: "" };
   const continues =
     previousChild?.kind === "ordered" && previousChild.delimiter === marker.delimiter;
@@ -206,7 +212,7 @@ function nestedNumber(marker: ListMarker, previousChild: ListMarker | undefined)
   };
 }
 
-export function listContinuationForEnter(value: string, cursor: number) {
+export function listContinuationForEnter(value: string, cursor: number): ComposerListEdit | null {
   if (!Number.isInteger(cursor) || cursor < 0 || cursor > value.length) return null;
   const line = currentLine(value, cursor);
   const parsed = parseListMarker(line.text);
@@ -253,7 +259,11 @@ export function listContinuationForEnter(value: string, cursor: number) {
  * Tab on a list item line: indent by two spaces. Ranged selections, non-list
  * lines, and carets inside an inline chip fall through.
  */
-export function listIndentForTab(value: string, start: number, end: number) {
+export function listIndentForTab(
+  value: string,
+  start: number,
+  end: number,
+): ComposerListEdit | null {
   if (!Number.isInteger(start) || start !== end || start < 0 || start > value.length) return null;
   const line = currentLine(value, start);
   const parsed = parseListMarker(line.text);
@@ -290,7 +300,11 @@ export function listIndentForTab(value: string, start: number, end: number) {
   return { start: line.start, end: line.start, replacement: "  ", cursorAfter: start + 2 };
 }
 
-export function listOutdentForTab(value: string, start: number, end: number) {
+export function listOutdentForTab(
+  value: string,
+  start: number,
+  end: number,
+): ComposerListEdit | null {
   if (!Number.isInteger(start) || start !== end || start < 0 || start > value.length) return null;
   const line = currentLine(value, start);
   const parsed = parseListMarker(line.text);

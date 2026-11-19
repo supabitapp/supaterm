@@ -16,23 +16,28 @@ export type FileCommentLineAnnotation = LineAnnotation<FileCommentAnnotationGrou
 
 let fileCommentSequence = 0;
 
-export function nextFileCommentId() {
+export function nextFileCommentId(): string {
   fileCommentSequence += 1;
   return `file-comment-${Date.now()}-${fileCommentSequence}`;
 }
 
-export function normalizeFileCommentRange(range: SelectedLineRange) {
+export function normalizeFileCommentRange(range: SelectedLineRange): {
+  startLine: number;
+  endLine: number;
+} {
   return {
     startLine: Math.min(range.start, range.end),
     endLine: Math.max(range.start, range.end),
   };
 }
 
-export function formatFileCommentRange(startLine: number, endLine: number) {
+export function formatFileCommentRange(startLine: number, endLine: number): string {
   return startLine === endLine ? `L${startLine}` : `L${startLine} to L${endLine}`;
 }
 
-export function remapFileCommentAnnotations(annotations: ReadonlyArray<FileCommentLineAnnotation>) {
+export function remapFileCommentAnnotations(
+  annotations: ReadonlyArray<FileCommentLineAnnotation>,
+): FileCommentLineAnnotation[] {
   return annotations.map((annotation) => ({
     ...annotation,
     metadata: {
@@ -52,6 +57,6 @@ export function remapFileCommentAnnotations(annotations: ReadonlyArray<FileComme
 export function promptFileCommentEntries(
   entries: ReadonlyArray<FileCommentAnnotationEntry>,
   promptCommentIds: ReadonlySet<string>,
-) {
+): FileCommentAnnotationEntry[] {
   return entries.filter((entry) => entry.kind === "draft" || promptCommentIds.has(entry.id));
 }

@@ -17,11 +17,13 @@ import * as Exit from "effect/Exit";
 import * as Option from "effect/Option";
 import * as Result from "effect/Result";
 import * as Schema from "effect/Schema";
+import * as HttpClient from "effect/http/HttpClient";
 import * as ChildProcess from "effect/process/ChildProcess";
 import * as ChildProcessSpawner from "effect/process/ChildProcessSpawner";
 import { createModelCapabilities } from "@supaterm/shared/model";
 import { resolveSpawnCommand } from "@supaterm/shared/shell";
 
+import * as ProviderLatestVersions from "@supaterm/provider-core/server/ProviderLatestVersions";
 import {
   AUTH_PROBE_TIMEOUT_MS,
   buildServerProvider,
@@ -70,11 +72,9 @@ const GROK_BUILT_IN_MODELS: ReadonlyArray<ServerProviderModel> = [
   },
 ];
 
-export const buildInitialGrokProviderSnapshot: (
-  grokSettings: GrokSettings,
-) => Effect.Effect<ServerProviderDraft> = Effect.fn(
+export const buildInitialGrokProviderSnapshot = Effect.fn(
   "GrokProviderStatus.buildInitialGrokProviderSnapshot",
-)(function* (grokSettings: GrokSettings) {
+)(function* (grokSettings: GrokSettings): Effect.fn.Return<ServerProviderDraft> {
   const checkedAt = yield* Effect.map(DateTime.now, DateTime.formatIso);
   const models = grokModelsFromSettings(grokSettings.customModels);
 
@@ -112,11 +112,11 @@ export const buildInitialGrokProviderSnapshot: (
 function grokModelsFromSettings(
   customModels: ReadonlyArray<CustomModelSetting> | undefined,
   builtInModels: ReadonlyArray<ServerProviderModel> = GROK_BUILT_IN_MODELS,
-) {
+): ReadonlyArray<ServerProviderModel> {
   return providerModelsFromSettings(builtInModels, customModels ?? [], EMPTY_CAPABILITIES);
 }
 
-function nonEmptyString(value: unknown) {
+function nonEmptyString(value: unknown): string | undefined {
   return typeof value === "string" ? value.trim() || undefined : undefined;
 }
 
@@ -134,19 +134,10 @@ export function grokReasoningOptionsFromModel(model: EffectAcpSchema.ModelInfo):
     isDefault?: boolean;
   }>;
   readonly currentValue: string | undefined;
-};
-export function grokReasoningOptionsFromModel(model: EffectAcpSchema.ModelInfo) {
+} {
   const meta = model._meta;
   if (!meta || meta.supportsReasoningEffort === false) {
-    return { options: [], currentValue: undefined } satisfies {
-      readonly options: ReadonlyArray<{
-        value: string;
-        label: string;
-        description?: string;
-        isDefault?: boolean;
-      }>;
-      readonly currentValue: string | undefined;
-    };
+    return { options: [], currentValue: undefined };
   }
 
   const currentEffort = nonEmptyString(meta.reasoningEffort);
@@ -204,18 +195,10 @@ export function grokReasoningOptionsFromModel(model: EffectAcpSchema.ModelInfo) 
       ...(value === selectedDefault ? { isDefault: true } : {}),
     })),
     currentValue: currentValue ?? selectedDefault,
-  } satisfies {
-    readonly options: ReadonlyArray<{
-      value: string;
-      label: string;
-      description?: string;
-      isDefault?: boolean;
-    }>;
-    readonly currentValue: string | undefined;
   };
 }
 
-export function buildGrokModelCapabilities(model: EffectAcpSchema.ModelInfo) {
+export function buildGrokModelCapabilities(model: EffectAcpSchema.ModelInfo): ModelCapabilities {
   const reasoning = grokReasoningOptionsFromModel(model);
   return reasoning.options.length > 0
     ? createModelCapabilities({
@@ -239,13 +222,13 @@ export function buildGrokModelCapabilities(model: EffectAcpSchema.ModelInfo) {
 
 function buildGrokModelsFromSessionModelState(
   modelState: EffectAcpSchema.SessionModelState | null | undefined,
-) {
+): ReadonlyArray<ServerProviderModel> {
   if (!modelState || modelState.availableModels.length === 0) {
     return [];
   }
   const currentModelId = modelState.currentModelId.trim();
   const seen = new Set<string>();
-  return modelState.availableModels.flatMap((model) => {
+  return modelState.availableModels.flatMap((model): ServerProviderModel[] => {
     const slug = resolveGrokAcpBaseModelId(model.modelId);
     if (!slug || seen.has(slug)) {
       return [];
@@ -269,7 +252,7 @@ export interface GrokModelsCliOutput {
 }
 
 /** Exit status is always 0; only output text indicates login state. */
-export function parseGrokModelsCliOutput(output: string) {
+export function parseGrokModelsCliOutput(output: string): GrokModelsCliOutput {
   const authenticated = /you are logged in/i.test(output)
     ? true
     : /not authenticated|not logged in/i.test(output)
@@ -299,7 +282,7 @@ export function parseGrokModelsCliOutput(output: string) {
   return { authenticated, models };
 }
 
-function displayNameFromGrokModelSlug(slug: string) {
+function displayNameFromGrokModelSlug(slug: string): string {
   return slug
     .split(/[-_]/g)
     .map((part) => (part.toLowerCase() === "grok" ? "Grok" : part))
@@ -360,7 +343,9 @@ const decodeAvailableCommand = Schema.decodeUnknownOption(
   }),
 );
 
-export function grokSlashCommandsFromInitialize(initialized: EffectAcpSchema.InitializeResponse) {
+export function grokSlashCommandsFromInitialize(
+  initialized: EffectAcpSchema.InitializeResponse,
+): ReadonlyArray<ServerProviderSlashCommand> {
   const commands = decodeAvailableCommands(initialized._meta?.availableCommands);
   const byName = new Map<string, ServerProviderSlashCommand>([
     [COMPACT_SLASH_COMMAND.name, COMPACT_SLASH_COMMAND],
@@ -399,19 +384,15 @@ const discoverGrokMetadataViaAcpInitialize = Effect.fn(
   };
 }, Effect.scoped);
 
-export const checkGrokProviderStatus: (
-  grokSettings: GrokSettings,
-  environment?: NodeJS.ProcessEnv,
-  cwd?: string,
-) => Effect.Effect<
-  ServerProviderDraft,
-  never,
-  ChildProcessSpawner.ChildProcessSpawner | SecureRandom.SecureRandom
-> = Effect.fn("checkGrokProviderStatus")(function* (
+export const checkGrokProviderStatus = Effect.fn("checkGrokProviderStatus")(function* (
   grokSettings: GrokSettings,
   environment: NodeJS.ProcessEnv = process.env,
   cwd?: string,
-) {
+): Effect.fn.Return<
+  ServerProviderDraft,
+  never,
+  ChildProcessSpawner.ChildProcessSpawner | SecureRandom.SecureRandom
+> {
   const checkedAt = DateTime.formatIso(yield* DateTime.now);
   const fallbackModels = grokModelsFromSettings(grokSettings.customModels);
 
@@ -592,7 +573,11 @@ export const enrichGrokSnapshot = (input: {
   readonly maintenanceCapabilities: ProviderMaintenanceCapabilities;
   readonly enableProviderUpdateChecks?: boolean;
   readonly publishSnapshot: (snapshot: ServerProvider) => Effect.Effect<void>;
-}) => {
+}): Effect.Effect<
+  void,
+  never,
+  HttpClient.HttpClient | ProviderLatestVersions.ProviderLatestVersions
+> => {
   const { snapshot, publishSnapshot } = input;
 
   return enrichProviderSnapshotWithVersionAdvisory(snapshot, input.maintenanceCapabilities, {

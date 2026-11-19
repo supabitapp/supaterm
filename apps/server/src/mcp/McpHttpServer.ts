@@ -138,7 +138,9 @@ type McpAuthMiddleware = (
   HttpServerRequest.HttpServerRequest
 >;
 
-const normalizeMcpHttpResponse = (response: HttpServerResponse.HttpServerResponse) => {
+const normalizeMcpHttpResponse = (
+  response: HttpServerResponse.HttpServerResponse,
+): HttpServerResponse.HttpServerResponse => {
   const bodyIsEmpty =
     response.body._tag === "Empty" ||
     (response.body._tag === "Uint8Array" && response.body.contentLength === 0) ||
@@ -220,7 +222,7 @@ const cutText = (text: string, max: number) => {
   return `${text.slice(0, last >= 0xd800 && last <= 0xdbff ? max - 1 : max)}…`;
 };
 
-const cutEntryStrings = <A>(entry: A) =>
+const cutEntryStrings = <A>(entry: A): A =>
   typeof entry === "object" && entry !== null
     ? (Object.fromEntries(
         Object.entries(entry).map(([key, value]) => [
@@ -377,14 +379,14 @@ export class PreviewScreenshotSaveError extends Schema.TaggedError<PreviewScreen
   "PreviewScreenshotSaveError",
   { screenshotPath: Schema.String, cause: Schema.Defect() },
 ) {
-  override get message() {
+  override get message(): string {
     return `Could not save preview screenshot to ${this.screenshotPath}.`;
   }
 }
 
 const MAX_SCREENSHOT_SITE_SLUG_LENGTH = 40;
 
-const screenshotSiteSlug = (rawUrl: string) => {
+const screenshotSiteSlug = (rawUrl: string): string => {
   try {
     const slug = new URL(rawUrl).hostname
       .toLowerCase()
@@ -440,7 +442,7 @@ const advertisedArgumentsOnly = (tool: Tool.Any) => {
 
 const decodeAsAdvertised = <Tools extends Record<string, Tool.Any>>(
   toolkit: Toolkit.Toolkit<Tools>,
-) =>
+): Toolkit.Toolkit<Tools> =>
   Toolkit.make(
     ...Object.values(toolkit.tools).map((tool) =>
       tool.setParameters(

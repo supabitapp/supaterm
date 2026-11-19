@@ -33,7 +33,7 @@ const COPILOT_LOST_SESSION_MARKERS = [
   "session lock unavailable during is_session_generation_current: acquisition timed out",
 ];
 
-export function isCopilotLostSessionError(error: unknown) {
+export function isCopilotLostSessionError(error: unknown): boolean {
   if (!isAcpRequestError(error) || error.method !== "session/prompt" || error.code !== -32603) {
     return false;
   }
@@ -51,7 +51,7 @@ const CopilotSessionEvent = Schema.Struct({
   data: Schema.optionalKey(Schema.Record(Schema.String, Schema.Unknown)),
 });
 
-function record(value: unknown) {
+function record(value: unknown): Record<string, unknown> | undefined {
   return typeof value === "object" && value !== null && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : undefined;
@@ -139,7 +139,9 @@ export function makeCopilotSubagentRouting() {
       }
     });
 
-  const normalizeSessionUpdate = (notification: AcpSchema.SessionNotification) => {
+  const normalizeSessionUpdate = (
+    notification: AcpSchema.SessionNotification,
+  ): AcpSchema.SessionNotification => {
     const update = notification.update;
     const current = sessions.get(notification.sessionId);
     if (current === undefined) return notification;
@@ -175,10 +177,11 @@ export function makeCopilotSubagentRouting() {
   return { registerExtensions, normalizeSessionUpdate };
 }
 
-export function extractCopilotSubagentUpdate(tool: AcpToolCallState) {
+export function extractCopilotSubagentUpdate(
+  tool: AcpToolCallState,
+): AcpAdapterV2SubagentUpdate | undefined {
   const input = record(tool.data.rawInput);
-  if (typeof input?.agent_type !== "string" || typeof input.prompt !== "string")
-    return undefined satisfies AcpAdapterV2SubagentUpdate | undefined;
+  if (typeof input?.agent_type !== "string" || typeof input.prompt !== "string") return undefined;
   const output = record(tool.data.rawOutput)?.content;
   const background = input.mode === "background";
   const status =
@@ -195,5 +198,5 @@ export function extractCopilotSubagentUpdate(tool: AcpToolCallState) {
     model: typeof input.model === "string" ? input.model : null,
     status,
     result: status !== "running" && typeof output === "string" ? output : null,
-  } satisfies AcpAdapterV2SubagentUpdate | undefined;
+  };
 }

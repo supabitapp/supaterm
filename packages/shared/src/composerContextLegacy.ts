@@ -43,7 +43,7 @@ interface ParsedEntry {
   body: string;
 }
 
-function parseEntries(block: string) {
+function parseEntries(block: string): ParsedEntry[] | null {
   const entries: ParsedEntry[] = [];
   let current: { header: string; bodyLines: string[] } | null = null;
   const commit = () => {
@@ -66,7 +66,7 @@ function parseEntries(block: string) {
   return entries;
 }
 
-function inlineTerminalLabel(record: TerminalContextRecord) {
+function inlineTerminalLabel(record: TerminalContextRecord): string {
   const slug = record.terminalLabel.trim().toLowerCase().replace(/\s+/g, "-");
   const range =
     record.lineStart === record.lineEnd
@@ -75,15 +75,15 @@ function inlineTerminalLabel(record: TerminalContextRecord) {
   return `@${slug}:${range}`;
 }
 
-function legacyId(kind: string, index: number) {
+function legacyId(kind: string, index: number): ComposerContextId {
   return `legacy_${kind}_${index}` as ComposerContextId;
 }
 
-function terminalRecord(entry: ParsedEntry, index: number) {
+function terminalRecord(entry: ParsedEntry, index: number): TerminalContextRecord | null {
   const header = /^(.*?) (?:line (\d+)|lines (\d+)-(\d+))$/.exec(entry.header);
-  if (!header) return null satisfies TerminalContextRecord | null;
+  if (!header) return null;
   const terminalLabel = header[1]!.trim();
-  if (!terminalLabel) return null satisfies TerminalContextRecord | null;
+  if (!terminalLabel) return null;
   const lineStart = Number(header[2] ?? header[3]);
   const lineEnd = Number(header[2] ?? header[4]);
   const text = entry.body
@@ -100,10 +100,10 @@ function terminalRecord(entry: ParsedEntry, index: number) {
     lineStart,
     lineEnd,
     text,
-  } satisfies TerminalContextRecord | null;
+  };
 }
 
-function parseSource(location: string) {
+function parseSource(location: string): ElementContextRecord["source"] {
   const match = /^(.*?)(?::(\d+))?(?::(\d+))?$/.exec(location);
   if (!match || !match[1]) return null;
   return {
@@ -114,9 +114,9 @@ function parseSource(location: string) {
   };
 }
 
-function elementRecord(entry: ParsedEntry, index: number) {
+function elementRecord(entry: ParsedEntry, index: number): ElementContextRecord | null {
   const header = /^<([^>]+)>/.exec(entry.header);
-  if (!header) return null satisfies ElementContextRecord | null;
+  if (!header) return null;
   const inner = header[1]!;
   const fields: Record<string, string> = {};
   const sections: Record<string, string[]> = {};
@@ -151,10 +151,10 @@ function elementRecord(entry: ParsedEntry, index: number) {
     componentName: /[A-Z]/.test(inner) ? inner : null,
     source: fields.source ? parseSource(fields.source) : null,
     styles: (sections.styles ?? []).join("\n").trimEnd(),
-  } satisfies ElementContextRecord | null;
+  };
 }
 
-function previewRecord(body: string, index: number) {
+function previewRecord(body: string, index: number): PreviewAnnotationContextRecord | null {
   const lines = body.split("\n");
   const FIELD_PREFIXES = ["Preview annotation:", "Id: ", "Page: ", "Comment: ", "Targets: "];
   const BLOCK_DELIMITER =
@@ -184,10 +184,10 @@ function previewRecord(body: string, index: number) {
   const elements: NonNullable<PreviewAnnotationContextRecord["elements"]>[number][] = [];
   for (const match of body.matchAll(/<element_context>\n([\s\S]*?)\n<\/element_context>/g)) {
     const entries = parseEntries(match[1] ?? "");
-    if (entries === null) return null satisfies PreviewAnnotationContextRecord | null;
+    if (entries === null) return null;
     for (const entry of entries) {
       const record = elementRecord(entry, elements.length + 1);
-      if (record === null) return null satisfies PreviewAnnotationContextRecord | null;
+      if (record === null) return null;
       const {
         version: _version,
         contextId: _contextId,
@@ -210,10 +210,10 @@ function previewRecord(body: string, index: number) {
     targetSummary: read("Targets: "),
     styleChanges,
     ...(elements.length > 0 ? { elements } : {}),
-  } satisfies PreviewAnnotationContextRecord | null;
+  };
 }
 
-function unescapeAttribute(value: string) {
+function unescapeAttribute(value: string): string {
   return value
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
@@ -221,7 +221,11 @@ function unescapeAttribute(value: string) {
     .replace(/&amp;/g, "&");
 }
 
-function reviewRecord(rawAttributes: string, rawBody: string, index: number) {
+function reviewRecord(
+  rawAttributes: string,
+  rawBody: string,
+  index: number,
+): ReviewCommentContextRecord | null {
   const attributes: Record<string, string> = {};
   for (const match of rawAttributes.matchAll(REVIEW_ATTRIBUTE)) {
     attributes[match[1]!] = unescapeAttribute(match[2] ?? "");
@@ -231,7 +235,7 @@ function reviewRecord(rawAttributes: string, rawBody: string, index: number) {
   const startIndex = attributes.startIndex;
   const endIndex = attributes.endIndex;
   if (!filePath || !sectionId || !/^\d+$/.test(startIndex ?? "") || !/^\d+$/.test(endIndex ?? "")) {
-    return null satisfies ReviewCommentContextRecord | null;
+    return null;
   }
   const fences = Array.from(rawBody.matchAll(REVIEW_FENCE));
   const fence = fences.at(-1);
@@ -251,10 +255,13 @@ function reviewRecord(rawAttributes: string, rawBody: string, index: number) {
     text: rawBody.slice(0, fence?.index ?? rawBody.length).trim(),
     diff: fence?.[3] ?? "",
     fenceLanguage: fence?.[2]?.trim() || "diff",
-  } satisfies ReviewCommentContextRecord | null;
+  };
 }
 
-function stripTrailing(text: string, pattern: RegExp) {
+function stripTrailing(
+  text: string,
+  pattern: RegExp,
+): { text: string; match: RegExpExecArray } | null {
   const match = pattern.exec(text);
   if (!match) return null;
   return { text: text.slice(0, match.index).replace(/\n+$/, ""), match };
@@ -263,7 +270,7 @@ function stripTrailing(text: string, pattern: RegExp) {
 function replaceReviewBlocks(
   text: string,
   replace: (whole: string, attributes: string, body: string) => string,
-) {
+): string {
   const parts: string[] = [];
   const openings = new RegExp(REVIEW_OR_CONTEXT_BLOCK);
   let consumed = 0;
@@ -297,8 +304,8 @@ function replaceReviewBlocks(
   return parts.join("");
 }
 
-export function upgradeLegacyContextMessage(text: string) {
-  if (!LEGACY_MARKERS.test(text)) return { text, records: [] } satisfies UpgradedLegacyContext;
+export function upgradeLegacyContextMessage(text: string): UpgradedLegacyContext {
+  if (!LEGACY_MARKERS.test(text)) return { text, records: [] };
 
   const terminalEntries: ParsedEntry[] = [];
   const elementEntries: ParsedEntry[] = [];
@@ -343,7 +350,7 @@ export function upgradeLegacyContextMessage(text: string) {
     if (element) {
       const entries = parseEntries(element.match[1] ?? "");
       if (!entries?.length || entries.some((entry) => elementRecord(entry, 1) === null))
-        return { text, records: [] } satisfies UpgradedLegacyContext;
+        return { text, records: [] };
       rest = element.text;
       elementEntries.unshift(...entries);
       continue;
@@ -352,7 +359,7 @@ export function upgradeLegacyContextMessage(text: string) {
     if (terminal) {
       const entries = parseEntries(terminal.match[1] ?? "");
       if (!entries?.length || entries.some((entry) => terminalRecord(entry, 1) === null))
-        return { text, records: [] } satisfies UpgradedLegacyContext;
+        return { text, records: [] };
       rest = terminal.text;
       terminalEntries.unshift(...entries);
       continue;
@@ -371,7 +378,7 @@ export function upgradeLegacyContextMessage(text: string) {
   const previews: PreviewAnnotationContextRecord[] = [];
   for (const [index, previewBody] of previewBodies.entries()) {
     const record = previewRecord(previewBody, index + 1);
-    if (record === null) return { text, records: [] } satisfies UpgradedLegacyContext;
+    if (record === null) return { text, records: [] };
     previews.push(record);
   }
   const appendedReviews = trailingReviewTokens.map((index) => reviews[index]!);
@@ -420,10 +427,9 @@ export function upgradeLegacyContextMessage(text: string) {
         : appended.join(" ");
 
   const records = [...terminals, ...elements, ...previews, ...reviews];
-  if (!isLegacyContextRecords(records))
-    return { text, records: [] } satisfies UpgradedLegacyContext;
+  if (!isLegacyContextRecords(records)) return { text, records: [] };
   return {
     text: upgradedText,
     records,
-  } satisfies UpgradedLegacyContext;
+  };
 }

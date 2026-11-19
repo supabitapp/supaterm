@@ -3,7 +3,7 @@ import * as Effect from "effect/Effect";
 import { Atom } from "effect/reactivity";
 
 import { resolveHighlightLanguage } from "../../lib/highlightLanguage";
-import { highlightCode, type HighlightScheme } from "../../lib/highlights";
+import { highlightCode, type HighlightedLines, type HighlightScheme } from "../../lib/highlights";
 
 const SOURCE_HIGHLIGHT_IDLE_TTL_MS = 5 * 60_000;
 
@@ -22,7 +22,7 @@ class SourceHighlightError extends Data.TaggedError("SourceHighlightError")<{
 const sourceHighlightFamily = Atom.family((request: SourceHighlightCacheKey) =>
   Atom.make(
     Effect.try({
-      try: () =>
+      try: (): HighlightedLines =>
         highlightCode(
           request.contents,
           resolveHighlightLanguage({ path: request.path }),

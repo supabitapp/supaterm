@@ -56,12 +56,12 @@ const VIRTUALIZATION_MARKERS = [
   "virtual machine",
 ];
 
-function normalize(value: string | null | undefined) {
+function normalize(value: string | null | undefined): string | null {
   const trimmed = value?.trim();
   return trimmed && trimmed.length > 0 ? trimmed : null;
 }
 
-function machineKindFromAppleProductName(name: string) {
+function machineKindFromAppleProductName(name: string): EnvironmentMachineKind | null {
   const normalized = name.trim().toLowerCase().replaceAll(/\s+/g, "");
   if (normalized.startsWith("macmini")) return "mac-mini";
   if (normalized.startsWith("macstudio")) return "mac-studio";
@@ -74,7 +74,7 @@ function machineKindFromDmi(input: {
   readonly chassisType: string | null;
   readonly sysVendor: string | null;
   readonly productName: string | null;
-}) {
+}): EnvironmentMachineKind | null {
   const productName = input.productName ?? "";
   const vendorAndProduct = `${input.sysVendor ?? ""} ${productName}`.toLowerCase();
   if (VIRTUALIZATION_MARKERS.some((marker) => vendorAndProduct.includes(marker))) {

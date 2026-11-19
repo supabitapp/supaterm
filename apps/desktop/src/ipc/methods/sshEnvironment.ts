@@ -48,7 +48,7 @@ const isEnvironmentOperationForbiddenError = Schema.is(EnvironmentOperationForbi
 const isEnvironmentRequestInvalidError = Schema.is(EnvironmentRequestInvalidError);
 const isEnvironmentScopeRequiredError = Schema.is(EnvironmentScopeRequiredError);
 
-function readSshHttpStatus(cause: DesktopSshEnvironmentRequestCause) {
+function readSshHttpStatus(cause: DesktopSshEnvironmentRequestCause): number | null {
   if (
     cause instanceof RemoteEnvironmentAuthUndeclaredStatusError ||
     cause instanceof SshHttpBridgeError
@@ -91,7 +91,7 @@ const withLoopbackSshApi =
     operation: DesktopSshEnvironmentRequestOperation,
     use: (httpBaseUrl: string) => Effect.Effect<A, RemoteEnvironmentAuthError, R>,
   ) =>
-  (httpBaseUrl: string) =>
+  (httpBaseUrl: string): Effect.Effect<A, DesktopSshEnvironmentRequestError, R> =>
     resolveLoopbackSshHttpBaseUrl(httpBaseUrl).pipe(
       Effect.flatMap(use),
       Effect.mapError(

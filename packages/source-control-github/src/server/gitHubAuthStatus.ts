@@ -35,12 +35,12 @@ export interface GitHubAuthStatus {
 
 const ENVIRONMENT_TOKEN_SOURCE = /^(?:GH|GITHUB)_(?:ENTERPRISE_)?TOKEN$/u;
 
-function nonEmptyString(value: string) {
+function nonEmptyString(value: string): string | null {
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : null;
 }
 
-export function parseGitHubAuthStatus(text: string) {
+export function parseGitHubAuthStatus(text: string): GitHubAuthStatus {
   return Option.match(decodeGitHubAuthStatusJson(text), {
     onNone: () => ({ parsed: false, accounts: [] }),
     onSome: (status) =>
@@ -70,7 +70,9 @@ export function parseGitHubAuthStatus(text: string) {
   });
 }
 
-export function findAuthenticatedGitHubAccount(accounts: ReadonlyArray<GitHubAuthStatusAccount>) {
+export function findAuthenticatedGitHubAccount(
+  accounts: ReadonlyArray<GitHubAuthStatusAccount>,
+): GitHubAuthStatusAccount | undefined {
   return (
     accounts.find((account) => account.authenticated && account.active) ??
     accounts.find((account) => account.authenticated)
@@ -81,7 +83,7 @@ export function effectiveGitHubAccount(
   host: string,
   accounts: ReadonlyArray<GitHubAuthStatusAccount>,
   settings: GitHubSettings,
-) {
+): GitHubAuthStatusAccount | undefined {
   const choice = settings.hosts[host];
   if (choice?.enabled === false) return undefined;
   const usable = accounts.filter((account) => account.host === host && account.authenticated);

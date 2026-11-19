@@ -2,7 +2,7 @@ import type { DesktopSnapShotState } from "@supaterm/contracts";
 
 export type CaptureSetupStep = "access" | "shortcut";
 
-export function captureSetupDesktopName(state: DesktopSnapShotState) {
+export function captureSetupDesktopName(state: DesktopSnapShotState): string | undefined {
   if (state.mode !== "portal") return undefined;
   const desktop = state.linuxDesktop ?? captureSetupBackend(state);
   switch (desktop) {
@@ -31,7 +31,7 @@ export function captureSetupBackend(state: DesktopSnapShotState) {
   return "picker";
 }
 
-export function captureSetupAccessReady(state: DesktopSnapShotState) {
+export function captureSetupAccessReady(state: DesktopSnapShotState): boolean {
   if (state.mode === "unavailable" || state.message) return false;
   if (captureSetupBackend(state) === "gnome")
     return state.gnomeExtension?.status === "enabled" && state.linuxBackend === "gnome-extension";
@@ -43,13 +43,13 @@ export function captureSetupAccessReady(state: DesktopSnapShotState) {
 export function captureSetupMacPermissionsReady(
   state: DesktopSnapShotState,
   includeAccessibility: boolean,
-) {
+): boolean {
   const permissions = state.macPermissions;
   if (!permissions) return true;
   return permissions.screenRecording && (!includeAccessibility || permissions.accessibility);
 }
 
-export function captureSetupCheckMessage(state: DesktopSnapShotState) {
+export function captureSetupCheckMessage(state: DesktopSnapShotState): string {
   const backend = captureSetupBackend(state);
   const gnome = backend === "gnome";
   if (
@@ -67,7 +67,7 @@ export function captureSetupCheckMessage(state: DesktopSnapShotState) {
     : "Not ready yet. Finish the step above.";
 }
 
-export function captureSetupShortcutReady(state: DesktopSnapShotState, unsaved: boolean) {
+export function captureSetupShortcutReady(state: DesktopSnapShotState, unsaved: boolean): boolean {
   if (unsaved || !captureSetupAccessReady(state)) return false;
   if (state.linuxBackend === "hyprland") return Boolean(state.shortcutActionRegistered);
   return state.linuxBackend === "niri"
@@ -78,7 +78,7 @@ export function captureSetupShortcutReady(state: DesktopSnapShotState, unsaved: 
 export function captureSetupInitialStep(
   state: DesktopSnapShotState,
   requested: CaptureSetupStep | "resume" = "resume",
-) {
+): CaptureSetupStep {
   if (!captureSetupAccessReady(state)) return "access";
   if (requested === "resume") {
     if (
@@ -91,6 +91,6 @@ export function captureSetupInitialStep(
   return requested;
 }
 
-export function captureSetupShouldDisableOnClose(wasEnabled: boolean, completed: boolean) {
+export function captureSetupShouldDisableOnClose(wasEnabled: boolean, completed: boolean): boolean {
   return !wasEnabled && !completed;
 }

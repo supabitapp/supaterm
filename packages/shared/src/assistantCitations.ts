@@ -23,20 +23,23 @@ const CITATION_LINK = new RegExp(
 );
 const decodeCitation = Schema.decodeUnknownOption(AssistantCitation);
 
-function encodePathPart(value: string) {
+function encodePathPart(value: string): string {
   return encodeURIComponent(value).replace(
     /[!'()*]/g,
     (character) => `%${character.charCodeAt(0).toString(16).toUpperCase()}`,
   );
 }
 
-export function withAssistantCitationComment(citation: AssistantCitation, comment: string) {
+export function withAssistantCitationComment(
+  citation: AssistantCitation,
+  comment: string,
+): AssistantCitation {
   const { comment: _previousComment, ...source } = citation;
   const trimmedComment = comment.trim();
   return trimmedComment ? { ...source, comment: trimmedComment } : source;
 }
 
-export function formatAssistantCitationHref(citation: AssistantCitation) {
+export function formatAssistantCitationHref(citation: AssistantCitation): string {
   const path = [citation.environmentId, citation.threadId, citation.messageId]
     .map(encodePathPart)
     .join("/");
@@ -51,7 +54,7 @@ export function formatAssistantCitationHref(citation: AssistantCitation) {
   return `${CITATION_HREF_PREFIX}${path}?${query}`;
 }
 
-export function parseAssistantCitationHref(href: string) {
+export function parseAssistantCitationHref(href: string): AssistantCitation | null {
   if (!href.startsWith(CITATION_HREF_PREFIX) || href.length > MAX_CITATION_HREF_LENGTH) {
     return null;
   }
@@ -99,7 +102,7 @@ export function parseAssistantCitationHref(href: string) {
   }
 }
 
-function citationPreview(text: string) {
+function citationPreview(text: string): string {
   const preview = text.replace(/\s+/g, " ");
   if (preview.length <= 64) return preview;
   let end = 64;
@@ -111,19 +114,19 @@ function citationPreview(text: string) {
   return `${preview.slice(0, end)}…`;
 }
 
-export function assistantCitationLabel(citation: AssistantCitation) {
+export function assistantCitationLabel(citation: AssistantCitation): string {
   return citationPreview(citation.comment?.trim() || citation.text);
 }
 
-export function assistantCitationExcerpt(citation: AssistantCitation) {
+export function assistantCitationExcerpt(citation: AssistantCitation): string {
   return citationPreview(citation.text);
 }
 
-export function assistantCitationSearchText(citation: AssistantCitation) {
+export function assistantCitationSearchText(citation: AssistantCitation): string {
   return assistantCitationExcerpt(citation) + (citation.comment?.trim() ?? "");
 }
 
-export function serializeAssistantCitation(citation: AssistantCitation) {
+export function serializeAssistantCitation(citation: AssistantCitation): string {
   return `[Assistant quote](${formatAssistantCitationHref(citation)})`;
 }
 
@@ -143,7 +146,7 @@ export function collectAssistantCitations(text: string) {
   return citations;
 }
 
-export function assistantCitationsToPlainText(prompt: string) {
+export function assistantCitationsToPlainText(prompt: string): string {
   return prompt.replace(CITATION_LINK, (source: string, href: string) => {
     const citation = parseAssistantCitationHref(href);
     if (!citation) return source;
@@ -153,7 +156,7 @@ export function assistantCitationsToPlainText(prompt: string) {
   });
 }
 
-export function expandAssistantCitationsForProvider(prompt: string) {
+export function expandAssistantCitationsForProvider(prompt: string): string {
   const matches = collectAssistantCitations(prompt);
   if (matches.length === 0) return prompt;
   const citations: { id: string; citation: AssistantCitation }[] = [];
@@ -181,7 +184,7 @@ export function expandAssistantCitationsForProvider(prompt: string) {
   return `${text}\n\n<assistant_citations>\n${description}\n${data}\n</assistant_citations>`;
 }
 
-function escapeMarkdownText(text: string) {
+function escapeMarkdownText(text: string): string {
   return text
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
@@ -189,8 +192,7 @@ function escapeMarkdownText(text: string) {
     .replace(/[\\`*_[\]{}()#+.!|~-]/g, "\\$&");
 }
 
-export function renderAssistantCitationsAsText(prompt: string): string;
-export function renderAssistantCitationsAsText(prompt: string) {
+export function renderAssistantCitationsAsText(prompt: string): string {
   const matches = collectAssistantCitations(prompt);
   let text = "";
   let cursor = 0;
@@ -205,5 +207,5 @@ export function renderAssistantCitationsAsText(prompt: string) {
     }
     cursor = match.end;
   }
-  return (text + prompt.slice(cursor)) satisfies string;
+  return text + prompt.slice(cursor);
 }

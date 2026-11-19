@@ -171,7 +171,7 @@ export interface NativeReviewDiffViewHandle {
   readonly scrollToTop: (animated?: boolean) => Promise<void>;
 }
 
-export function isNativeReviewDiffDrawEvent(payload: Readonly<Record<string, unknown>>) {
+export function isNativeReviewDiffDrawEvent(payload: Readonly<Record<string, unknown>>): boolean {
   return payload.message === "draw-metrics" || payload.message === "visible-range";
 }
 
@@ -209,9 +209,11 @@ export const NativeReviewDiffFrameSchedulerContext = createContext<NativeReviewD
 export function isPendingNativeViewRegistration(error: unknown): boolean;
 export function isPendingNativeViewRegistration(error: unknown) {
   if (!(error instanceof Error)) return false satisfies boolean;
-  return (error.message.includes(`Unable to find the '${NATIVE_REVIEW_DIFF_MODULE_NAME}' view`) ||
+  return (
+    error.message.includes(`Unable to find the '${NATIVE_REVIEW_DIFF_MODULE_NAME}' view`) ||
     (error.message.includes("Unable to find the class") &&
-      error.message.includes("SupatermReviewDiffView view with tag"))) satisfies boolean;
+      error.message.includes("SupatermReviewDiffView view with tag"))
+  );
 }
 
 function useNativeReviewDiffPayload(
@@ -251,13 +253,11 @@ function useNativeReviewDiffPayload(
       }
 
       void Promise.resolve()
-        .then(() => {
+        .then((): Promise<void | boolean> | undefined => {
           if (cancelled) return;
-          return (method === "setRowsJson"
+          return method === "setRowsJson"
             ? view.setRowsJson(payload, resetKey ?? "")
-            : view[method](payload)) satisfies Promise<void | boolean> | undefined as
-            | Promise<void | boolean>
-            | undefined;
+            : view[method](payload);
         })
         .then((accepted) => {
           if (cancelled) return;
@@ -428,7 +428,7 @@ function NativeReviewDiffContent(
   });
 }
 
-export function resolveNativeReviewDiffView() {
+export function resolveNativeReviewDiffView(): ComponentType<NativeReviewDiffViewProps> | null {
   if (cachedNativeReviewDiffRawView) {
     return NativeReviewDiffView;
   }

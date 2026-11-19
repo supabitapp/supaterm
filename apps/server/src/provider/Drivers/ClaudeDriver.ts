@@ -90,7 +90,7 @@ export const ClaudeDriver: ProviderDriver<ClaudeSettings, ClaudeDriverEnv, Path.
     supportsMultipleInstances: true,
   },
   configSchema: ClaudeSettings,
-  defaultConfig: () => decodeClaudeSettings({}),
+  defaultConfig: (): ClaudeSettings => decodeClaudeSettings({}),
   usage: claudeUsageReader,
   create: Effect.fn("ClaudeDriver.create")(function* ({
     instanceId,

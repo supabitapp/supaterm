@@ -6,7 +6,7 @@ import * as DateTime from "effect/DateTime";
 export function subagentCardElapsed(
   agents: ReadonlyArray<Pick<OrchestrationV2Subagent, "status" | "startedAt" | "completedAt">>,
   nowMs: number,
-) {
+): string | null {
   const starts = agents.flatMap((agent) =>
     agent.startedAt ? [DateTime.toEpochMillis(agent.startedAt)] : [],
   );

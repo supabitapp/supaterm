@@ -133,7 +133,7 @@ if (mode === "cursor-shell") {
 }
 `;
 
-function runProbe(mode: string) {
+function runProbe(mode: string): Promise<{ code: number | null; stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
     const child = NodeChildProcess.spawn(
       process.execPath,
@@ -161,7 +161,7 @@ function runProbe(mode: string) {
     child.on("exit", (code) => {
       resolve({ code, stdout, stderr });
     });
-  }) satisfies Promise<{ code: number | null; stdout: string; stderr: string }>;
+  });
 }
 
 const sdkDefaults = vi.hoisted(() => ({ useHttp1ForAgent: undefined as boolean | undefined }));

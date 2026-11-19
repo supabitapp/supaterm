@@ -61,7 +61,7 @@ import { clientPresentationMetadata } from "./clientMetadata";
 
 let nextObservedRpcRequestId = 0;
 
-function currentNetworkStatus() {
+function currentNetworkStatus(): "unknown" | "offline" | "online" {
   if (typeof navigator === "undefined") {
     return "unknown";
   }
@@ -266,7 +266,7 @@ const sshTargetKey = (target: DesktopSshEnvironmentTarget) =>
 function ensureSshEnvironmentForReconnect(
   bridge: DesktopBridge,
   target: DesktopSshEnvironmentTarget,
-) {
+): Promise<DesktopSshEnvironmentBootstrap> {
   const key = sshTargetKey(target);
   const pending = pendingSshReconnects.get(key);
   if (pending !== undefined) return pending;
@@ -465,18 +465,22 @@ const loadSecondaryConnectionRegistration = Effect.fn(
 const PLATFORM_POLL_INTERVAL = "3 seconds";
 const SECONDARY_BEARER_REFRESH_SKEW_MS = 5_000;
 
-function secondaryBearerExpiresAtEpochMs(issuedAtEpochMs: number, expiresInSeconds: number): number;
-function secondaryBearerExpiresAtEpochMs(issuedAtEpochMs: number, expiresInSeconds: number) {
-  return (issuedAtEpochMs + Math.max(0, expiresInSeconds * 1_000)) satisfies number;
+function secondaryBearerExpiresAtEpochMs(
+  issuedAtEpochMs: number,
+  expiresInSeconds: number,
+): number {
+  return issuedAtEpochMs + Math.max(0, expiresInSeconds * 1_000);
 }
 
-function secondaryBearerRefreshAtEpochMs(issuedAtEpochMs: number, expiresInSeconds: number): number;
-function secondaryBearerRefreshAtEpochMs(issuedAtEpochMs: number, expiresInSeconds: number) {
+function secondaryBearerRefreshAtEpochMs(
+  issuedAtEpochMs: number,
+  expiresInSeconds: number,
+): number {
   return Math.max(
     issuedAtEpochMs,
     secondaryBearerExpiresAtEpochMs(issuedAtEpochMs, expiresInSeconds) -
       SECONDARY_BEARER_REFRESH_SKEW_MS,
-  ) satisfies number;
+  );
 }
 
 interface CachedPlatformRegistration {
@@ -499,18 +503,18 @@ export type PrimaryEnvironmentTargetRead =
 
 function readPrimaryEnvironmentTargetResult(
   readTarget: () => PrimaryEnvironmentTarget | null = readPrimaryEnvironmentTarget,
-) {
+): PrimaryEnvironmentTargetRead {
   try {
-    return { _tag: "Success", target: readTarget() } satisfies PrimaryEnvironmentTargetRead;
+    return { _tag: "Success", target: readTarget() };
   } catch (cause) {
-    return { _tag: "Failure", cause } satisfies PrimaryEnvironmentTargetRead;
+    return { _tag: "Failure", cause };
   }
 }
 
 export function primaryRegistrationToRetainAfterTopologyRead(
   previous: ReadonlyMap<string, CachedPlatformRegistration>,
   topologyRead: PrimaryEnvironmentTargetRead,
-) {
+): CachedPlatformRegistration | undefined {
   return topologyRead._tag === "Failure" ? previous.get(PRIMARY_LOCAL_ENVIRONMENT_ID) : undefined;
 }
 
@@ -518,7 +522,7 @@ export function canReuseCachedPlatformRegistration(
   cached: CachedPlatformRegistration,
   signature: string,
   nowEpochMs: number,
-) {
+): boolean {
   return (
     cached.signature === signature &&
     (cached.refreshAtEpochMs === undefined || nowEpochMs < cached.refreshAtEpochMs)
@@ -529,7 +533,7 @@ export function canRetainCachedPlatformRegistrationAfterRefreshFailure(
   cached: CachedPlatformRegistration,
   signature: string,
   nowEpochMs: number,
-) {
+): boolean {
   return (
     cached.signature === signature &&
     cached.expiresAtEpochMs !== undefined &&
@@ -567,7 +571,7 @@ export function nextRejectedSecondaryBootstrap(
   previous: RejectedSecondaryBootstrap | undefined,
   signature: string,
   nowEpochMs: number,
-) {
+): RejectedSecondaryBootstrap {
   const delayMs =
     previous?.signature === signature
       ? Math.min(previous.delayMs * 2, REJECTED_BOOTSTRAP_RETRY_MAX_MS)
@@ -575,7 +579,7 @@ export function nextRejectedSecondaryBootstrap(
   return { signature, retryAtEpochMs: nowEpochMs + delayMs, delayMs };
 }
 
-export function isRejectedBootstrapCredentialError(error: ConnectionAttemptError) {
+export function isRejectedBootstrapCredentialError(error: ConnectionAttemptError): boolean {
   return error._tag === "ConnectionBlockedError" && error.reason === "authentication";
 }
 
@@ -583,20 +587,15 @@ export function secondaryRegistrationsToRetainAfterTopologyRead(
   previous: ReadonlyMap<string, CachedPlatformRegistration>,
   topologyRead: DesktopSecondaryBootstrapsRead,
   nowEpochMs: number,
-): ReadonlyMap<string, CachedPlatformRegistration>;
-export function secondaryRegistrationsToRetainAfterTopologyRead(
-  previous: ReadonlyMap<string, CachedPlatformRegistration>,
-  topologyRead: DesktopSecondaryBootstrapsRead,
-  nowEpochMs: number,
-) {
+): ReadonlyMap<string, CachedPlatformRegistration> {
   if (topologyRead._tag === "Success") {
-    return new Map() satisfies ReadonlyMap<string, CachedPlatformRegistration>;
+    return new Map();
   }
   return new Map(
     [...previous].filter(
       ([, cached]) => cached.expiresAtEpochMs !== undefined && nowEpochMs < cached.expiresAtEpochMs,
     ),
-  ) satisfies ReadonlyMap<string, CachedPlatformRegistration>;
+  );
 }
 
 const layerPlatformConnectionSource = Layer.effect(

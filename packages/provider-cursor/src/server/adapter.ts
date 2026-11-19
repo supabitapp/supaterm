@@ -184,7 +184,7 @@ export interface CursorRuntimeAgentPolicy {
 export function cursorRuntimeAgentPolicy(
   runtimePolicy: ProviderAdapter.ProviderAdapterV2RuntimePolicy,
   platform: NodeJS.Platform,
-) {
+): CursorRuntimeAgentPolicy {
   const sandboxPolicyType =
     typeof runtimePolicy.sandboxPolicy === "object" &&
     runtimePolicy.sandboxPolicy !== null &&
@@ -208,16 +208,18 @@ export function cursorRuntimeAgentPolicy(
 function cursorLoadsProjectLayer(
   runtimePolicy: ProviderAdapter.ProviderAdapterV2RuntimePolicy,
   platform: NodeJS.Platform,
-) {
+): boolean {
   const policy = cursorRuntimeAgentPolicy(runtimePolicy, platform);
   return (
     runtimePolicy.runtimeMode === "full-access" && !policy.autoReview && !policy.sandboxEnabled
   );
 }
 
-export function cursorMcpServers(session: McpProviderSession.McpProviderSessionConfig | undefined) {
+export function cursorMcpServers(
+  session: McpProviderSession.McpProviderSessionConfig | undefined,
+): Record<string, McpServerConfig> | undefined {
   if (session === undefined) {
-    return undefined satisfies Record<string, McpServerConfig> | undefined;
+    return undefined;
   }
   return {
     supaterm: {
@@ -227,7 +229,7 @@ export function cursorMcpServers(session: McpProviderSession.McpProviderSessionC
         Authorization: session.authorizationHeader,
       },
     },
-  } satisfies Record<string, McpServerConfig> | undefined;
+  };
 }
 
 function providerSession(input: {
@@ -236,7 +238,7 @@ function providerSession(input: {
   readonly cwd: string | null;
   readonly model: string;
   readonly now: DateTime.Utc;
-}) {
+}): OrchestrationV2ProviderSession {
   return {
     id: input.providerSessionId,
     driver: CursorAgentSdk.CURSOR_PROVIDER,
@@ -248,7 +250,7 @@ function providerSession(input: {
     createdAt: input.now,
     updatedAt: input.now,
     lastError: null,
-  } satisfies OrchestrationV2ProviderSession;
+  };
 }
 
 function makeProviderThread(input: {
@@ -261,7 +263,7 @@ function makeProviderThread(input: {
   readonly ownerNodeId?: OrchestrationV2ProviderThread["ownerNodeId"];
   readonly forkedFrom?: OrchestrationV2ProviderThread["forkedFrom"];
   readonly now: DateTime.Utc;
-}) {
+}): OrchestrationV2ProviderThread {
   return {
     id: input.idAllocator.derive.providerThread({
       driver: CursorAgentSdk.CURSOR_PROVIDER,
@@ -286,10 +288,10 @@ function makeProviderThread(input: {
     forkedFrom: input.forkedFrom ?? null,
     createdAt: input.now,
     updatedAt: input.now,
-  } satisfies OrchestrationV2ProviderThread;
+  };
 }
 
-function nativeThreadId(providerThread: OrchestrationV2ProviderThread) {
+function nativeThreadId(providerThread: OrchestrationV2ProviderThread): string {
   const id = providerThread.nativeThreadRef?.nativeId;
   if (id === null || id === undefined) {
     throw new ProviderAdapter.ProviderAdapterProtocolError({
@@ -316,7 +318,7 @@ export function makeCursorAgentOptions(input: {
   readonly threadId: ThreadId;
   readonly mcpSession: McpProviderSession.McpProviderSessionConfig | undefined;
   readonly platform: NodeJS.Platform;
-}) {
+}): AgentOptions {
   const policy = cursorRuntimeAgentPolicy(input.runtimePolicy, input.platform);
   const mcpServers = cursorMcpServers(input.mcpSession);
   return {
@@ -336,7 +338,7 @@ export function makeCursorAgentOptions(input: {
       enableAgentRetries: true,
     },
     ...(mcpServers === undefined ? {} : { mcpServers }),
-  } satisfies AgentOptions;
+  };
 }
 
 class CursorModelUnavailableError extends Schema.TaggedError<CursorModelUnavailableError>()(
@@ -346,7 +348,7 @@ class CursorModelUnavailableError extends Schema.TaggedError<CursorModelUnavaila
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Cursor cannot run the model "${this.model}". Cursor only runs models from your Cursor account. Choose one of those, or use OpenCode for OpenRouter and other API-key models.`;
   }
 }
@@ -358,7 +360,7 @@ const classifyCursorModelRejection =
       ? new CursorModelUnavailableError({ model: modelSelection.model, cause: error.cause })
       : error;
 
-function stableJson(value: unknown) {
+function stableJson(value: unknown): string {
   try {
     return JSON.stringify(value, null, 2);
   } catch {
@@ -366,13 +368,13 @@ function stableJson(value: unknown) {
   }
 }
 
-function unknownRecord(value: unknown) {
+function unknownRecord(value: unknown): Record<string, unknown> | undefined {
   return typeof value === "object" && value !== null && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : undefined;
 }
 
-function nestedString(value: unknown, keys: ReadonlyArray<string>) {
+function nestedString(value: unknown, keys: ReadonlyArray<string>): string | undefined {
   let current: unknown = value;
   for (const key of keys) {
     current = unknownRecord(current)?.[key];
@@ -380,7 +382,7 @@ function nestedString(value: unknown, keys: ReadonlyArray<string>) {
   return typeof current === "string" ? current : undefined;
 }
 
-function cursorToolFailed(toolCall: ToolCall) {
+function cursorToolFailed(toolCall: ToolCall): boolean {
   if (toolCall.result?.status === "error") {
     return true;
   }
@@ -392,11 +394,10 @@ function cursorToolFailed(toolCall: ToolCall) {
     : false;
 }
 
-function cursorToolOutput(toolCall: ToolCall): unknown;
-function cursorToolOutput(toolCall: ToolCall) {
+function cursorToolOutput(toolCall: ToolCall): unknown {
   const result = toolCall.result;
   if (result === undefined) {
-    return undefined satisfies unknown;
+    return undefined;
   }
   if (toolCall.type === "mcp" && toolCall.result?.status === "success") {
     return {
@@ -407,12 +408,12 @@ function cursorToolOutput(toolCall: ToolCall) {
           ? []
           : [{ type: "image", mimeType: part.image.mimeType, data: part.image.data }]),
       ]),
-    } satisfies unknown;
+    };
   }
-  return (result.status === "success" ? result.value : result.error) satisfies unknown;
+  return result.status === "success" ? result.value : result.error;
 }
 
-function cursorToolOutputText(toolCall: ToolCall) {
+function cursorToolOutputText(toolCall: ToolCall): string {
   if (toolCall.type === "shell" && toolCall.result?.status === "success") {
     return [toolCall.result.value.stdout, toolCall.result.value.stderr]
       .filter((part) => part.length > 0)
@@ -430,7 +431,7 @@ function cursorToolOutputText(toolCall: ToolCall) {
   return typeof output === "string" ? output : stableJson(output);
 }
 
-function cursorToolName(toolCall: ToolCall) {
+function cursorToolName(toolCall: ToolCall): string {
   if (toolCall.type !== "mcp") {
     return toolCall.type;
   }
@@ -439,7 +440,7 @@ function cursorToolName(toolCall: ToolCall) {
   return `mcp__${provider}__${tool}`;
 }
 
-function cursorToolFileName(toolCall: ToolCall) {
+function cursorToolFileName(toolCall: ToolCall): string {
   switch (toolCall.type) {
     case "write":
     case "delete":
@@ -454,7 +455,7 @@ function cursorToolFileName(toolCall: ToolCall) {
   }
 }
 
-function cursorToolSearchPattern(toolCall: ToolCall) {
+function cursorToolSearchPattern(toolCall: ToolCall): string | undefined {
   switch (toolCall.type) {
     case "glob":
       return toolCall.args.globPattern;
@@ -479,12 +480,11 @@ type CursorLsDirectoryNode = Extract<
 function cursorLsSearchResults(
   node: CursorLsDirectoryNode,
   path: Path.Path,
-): ReadonlyArray<{ readonly fileName: string }>;
-function cursorLsSearchResults(node: CursorLsDirectoryNode, path: Path.Path) {
+): ReadonlyArray<{ readonly fileName: string }> {
   return [
     ...node.childrenFiles.map((file) => ({ fileName: path.join(node.absPath, file.name) })),
     ...node.childrenDirs.flatMap((child) => cursorLsSearchResults(child, path)),
-  ] satisfies ReadonlyArray<{ readonly fileName: string }>;
+  ];
 }
 
 function cursorToolSearchResults(
@@ -495,24 +495,13 @@ function cursorToolSearchResults(
   readonly line?: number;
   readonly column?: number;
   readonly preview?: string;
-}>;
-function cursorToolSearchResults(toolCall: ToolCall, path: Path.Path) {
+}> {
   if (toolCall.result?.status !== "success") {
-    return [] satisfies ReadonlyArray<{
-      readonly fileName: string;
-      readonly line?: number;
-      readonly column?: number;
-      readonly preview?: string;
-    }>;
+    return [];
   }
   switch (toolCall.type) {
     case "glob":
-      return toolCall.result.value.files.map((fileName) => ({ fileName })) satisfies ReadonlyArray<{
-        readonly fileName: string;
-        readonly line?: number;
-        readonly column?: number;
-        readonly preview?: string;
-      }>;
+      return toolCall.result.value.files.map((fileName) => ({ fileName }));
     case "grep":
       return Object.values(toolCall.result.value.workspaceResults ?? {}).flatMap((result) => {
         if (result.type === "files") {
@@ -529,22 +518,9 @@ function cursorToolSearchResults(toolCall: ToolCall, path: Path.Path) {
           ...(entry.lineNumber === undefined ? {} : { line: entry.lineNumber }),
           preview: entry.line,
         }));
-      }) satisfies ReadonlyArray<{
-        readonly fileName: string;
-        readonly line?: number;
-        readonly column?: number;
-        readonly preview?: string;
-      }>;
+      });
     case "ls":
-      return cursorLsSearchResults(
-        toolCall.result.value.directoryTreeRoot,
-        path,
-      ) satisfies ReadonlyArray<{
-        readonly fileName: string;
-        readonly line?: number;
-        readonly column?: number;
-        readonly preview?: string;
-      }>;
+      return cursorLsSearchResults(toolCall.result.value.directoryTreeRoot, path);
     case "readLints":
       return toolCall.result.value.fileDiagnostics.flatMap((file) =>
         file.diagnostics.map((diagnostic) => {
@@ -563,35 +539,22 @@ function cursorToolSearchResults(toolCall: ToolCall, path: Path.Path) {
             preview: diagnostic.message,
           };
         }),
-      ) satisfies ReadonlyArray<{
-        readonly fileName: string;
-        readonly line?: number;
-        readonly column?: number;
-        readonly preview?: string;
-      }>;
+      );
     case "semSearch":
       return [
         {
           fileName: "semantic-search",
           preview: toolCall.result.value.results,
         },
-      ] satisfies ReadonlyArray<{
-        readonly fileName: string;
-        readonly line?: number;
-        readonly column?: number;
-        readonly preview?: string;
-      }>;
+      ];
     default:
-      return [] satisfies ReadonlyArray<{
-        readonly fileName: string;
-        readonly line?: number;
-        readonly column?: number;
-        readonly preview?: string;
-      }>;
+      return [];
   }
 }
 
-function cursorTodoSteps(toolCall: Extract<ToolCall, { readonly type: "updateTodos" }>) {
+function cursorTodoSteps(
+  toolCall: Extract<ToolCall, { readonly type: "updateTodos" }>,
+): ReadonlyArray<OrchestrationV2PlanStep> {
   const todos =
     toolCall.result?.status === "success" ? toolCall.result.value.todos : toolCall.args.todos;
   return todos
@@ -605,10 +568,10 @@ function cursorTodoSteps(toolCall: Extract<ToolCall, { readonly type: "updateTod
           : todo.status === "completed"
             ? "completed"
             : "pending",
-    })) satisfies ReadonlyArray<OrchestrationV2PlanStep>;
+    }));
 }
 
-function assistantTextsFromConversationSteps(steps: ReadonlyArray<unknown>) {
+function assistantTextsFromConversationSteps(steps: ReadonlyArray<unknown>): ReadonlyArray<string> {
   return steps.flatMap((step) => {
     const record = unknownRecord(step);
     if (record?.type === "assistantMessage") {
@@ -623,34 +586,28 @@ function assistantTextsFromConversationSteps(steps: ReadonlyArray<unknown>) {
 function nestedToolResult<Value = Record<string, unknown>>(
   rawResult: unknown,
   mapSuccess: (success: Record<string, unknown>) => Value = (success) => success as Value,
-) {
+):
+  | { readonly status: "success"; readonly value: Value }
+  | { readonly status: "error"; readonly error: unknown }
+  | undefined {
   const result = unknownRecord(rawResult);
   if (result === undefined) {
-    return undefined satisfies
-      | { readonly status: "success"; readonly value: Value }
-      | { readonly status: "error"; readonly error: unknown }
-      | undefined;
+    return undefined;
   }
   const success = unknownRecord(result.success);
   if (success !== undefined) {
     return {
       status: "success",
       value: mapSuccess(success),
-    } satisfies
-      | { readonly status: "success"; readonly value: Value }
-      | { readonly status: "error"; readonly error: unknown }
-      | undefined;
+    };
   }
   return {
     status: "error",
     error: result.error ?? result.permissionDenied ?? result,
-  } satisfies
-    | { readonly status: "success"; readonly value: Value }
-    | { readonly status: "error"; readonly error: unknown }
-    | undefined;
+  };
 }
 
-function nestedGrepWorkspaceResults(success: Record<string, unknown>) {
+function nestedGrepWorkspaceResults(success: Record<string, unknown>): Record<string, unknown> {
   const workspaces = unknownRecord(success.workspaceResults);
   if (workspaces === undefined) {
     return {};
@@ -701,13 +658,11 @@ function nestedGrepWorkspaceResults(success: Record<string, unknown>) {
   );
 }
 
-function nestedArray(value: unknown): ReadonlyArray<unknown>;
-function nestedArray(value: unknown) {
-  return (Array.isArray(value) ? value : []) satisfies ReadonlyArray<unknown>;
+function nestedArray(value: unknown): ReadonlyArray<unknown> {
+  return Array.isArray(value) ? value : [];
 }
 
-function nestedLsDirectory(rawNode: unknown): CursorLsDirectoryNode;
-function nestedLsDirectory(rawNode: unknown) {
+function nestedLsDirectory(rawNode: unknown): CursorLsDirectoryNode {
   const node = unknownRecord(rawNode);
   return {
     absPath: typeof node?.absPath === "string" ? node.absPath : "",
@@ -723,10 +678,12 @@ function nestedLsDirectory(rawNode: unknown) {
       ),
     ),
     numFiles: typeof node?.numFiles === "number" ? node.numFiles : 0,
-  } satisfies CursorLsDirectoryNode;
+  };
 }
 
-export function nestedToolCallFromEnvelope(envelope: Record<string, unknown>) {
+export function nestedToolCallFromEnvelope(
+  envelope: Record<string, unknown>,
+): { readonly callId: string; readonly toolCall: ToolCall } | undefined {
   const callId = typeof envelope.toolCallId === "string" ? envelope.toolCallId : undefined;
   const wrapperEntry = Object.entries(envelope).find(([key]) => key.endsWith("ToolCall"));
   if (wrapperEntry === undefined) {
@@ -903,7 +860,9 @@ export function nestedToolCallFromEnvelope(envelope: Record<string, unknown>) {
   }
 }
 
-function toolCallsFromConversationSteps(steps: ReadonlyArray<unknown>) {
+function toolCallsFromConversationSteps(
+  steps: ReadonlyArray<unknown>,
+): ReadonlyArray<{ readonly callId: string; readonly toolCall: ToolCall }> {
   return steps.flatMap((step) => {
     const record = unknownRecord(step);
     if (record?.type === "toolCall") {
@@ -923,7 +882,7 @@ function toolCallsFromConversationSteps(steps: ReadonlyArray<unknown>) {
   });
 }
 
-function textFromAgentMessage(message: AgentMessage) {
+function textFromAgentMessage(message: AgentMessage): string {
   const value = message.message;
   if (typeof value === "string") {
     return value;
@@ -1021,7 +980,10 @@ interface ActiveCursorTurn {
 
 type CursorTurnUsage = NonNullable<Extract<InteractionUpdate, { type: "turn-ended" }>["usage"]>;
 
-const addCursorTurnUsage = (total: CursorTurnUsage | undefined, usage: CursorTurnUsage) => {
+const addCursorTurnUsage = (
+  total: CursorTurnUsage | undefined,
+  usage: CursorTurnUsage,
+): CursorTurnUsage => {
   if (total === undefined) return usage;
   const reasoningTokens =
     total.reasoningTokens === undefined && usage.reasoningTokens === undefined
@@ -1132,7 +1094,7 @@ export const makeCursorAdapterV2 = Effect.fn("makeCursorAdapterV2")(function* (
           return planId;
         });
 
-        const parentTarget = (context: ActiveCursorTurn) => ({
+        const parentTarget = (context: ActiveCursorTurn): CursorProjectionTarget => ({
           threadId: context.input.threadId,
           runId: context.input.runId,
           rootNodeId: context.input.rootNodeId,
@@ -1141,7 +1103,7 @@ export const makeCursorAdapterV2 = Effect.fn("makeCursorAdapterV2")(function* (
           providerTurnId: context.providerTurnId,
         });
 
-        const childProjectionTarget = (subagent: ActiveCursorSubagent) => ({
+        const childProjectionTarget = (subagent: ActiveCursorSubagent): CursorProjectionTarget => ({
           threadId: subagent.childThreadId,
           runId: null,
           rootNodeId: subagent.childRootNodeId,
@@ -2224,7 +2186,7 @@ export const makeCursorAdapterV2 = Effect.fn("makeCursorAdapterV2")(function* (
           }
         });
 
-        const shellOutputText = (event: Record<string, unknown>) => {
+        const shellOutputText = (event: Record<string, unknown>): string => {
           if (event.case !== "stdout" && event.case !== "stderr") return "";
           const value = event.value;
           if (typeof value !== "object" || value === null || !("data" in value)) return "";
@@ -2338,39 +2300,38 @@ export const makeCursorAdapterV2 = Effect.fn("makeCursorAdapterV2")(function* (
           readonly status: OrchestrationV2ProviderTurn["status"];
           readonly completedAt: DateTime.Utc | null;
           readonly tokenUsage?: OrchestrationV2ProviderTurn["tokenUsage"];
-        }) =>
-          ({
-            id: input.context.providerTurnId,
-            providerThreadId: input.context.input.providerThread.id,
-            nodeId: input.context.input.rootNodeId,
-            runAttemptId: input.context.input.attemptId,
-            nativeTurnRef: {
-              driver: CursorAgentSdk.CURSOR_PROVIDER,
-              nativeId: input.context.run.runId,
-              strength: "strong",
-            },
-            ordinal: input.context.input.providerTurnOrdinal,
-            status: input.status,
-            startedAt: input.context.startedAt,
-            completedAt: input.completedAt,
-            ...(input.tokenUsage === undefined ? {} : { tokenUsage: input.tokenUsage }),
-            ...(input.completedAt === null || input.context.usage === undefined
-              ? {}
-              : {
-                  turnTokenUsage: {
-                    usageScope: "main_agent",
-                    usageStatus: input.status === "completed" ? "complete" : "partial",
-                    inputTokens: input.context.usage.inputTokens,
-                    cachedInputTokens: input.context.usage.cacheReadTokens,
-                    cacheCreationTokens: input.context.usage.cacheWriteTokens,
-                    outputTokens: input.context.usage.outputTokens,
-                    ...(input.context.usage.reasoningTokens === undefined
-                      ? {}
-                      : { reasoningTokens: input.context.usage.reasoningTokens }),
-                    hasSubagents: input.context.subagents.size > 0,
-                  },
-                }),
-          }) satisfies OrchestrationV2ProviderTurn;
+        }): OrchestrationV2ProviderTurn => ({
+          id: input.context.providerTurnId,
+          providerThreadId: input.context.input.providerThread.id,
+          nodeId: input.context.input.rootNodeId,
+          runAttemptId: input.context.input.attemptId,
+          nativeTurnRef: {
+            driver: CursorAgentSdk.CURSOR_PROVIDER,
+            nativeId: input.context.run.runId,
+            strength: "strong",
+          },
+          ordinal: input.context.input.providerTurnOrdinal,
+          status: input.status,
+          startedAt: input.context.startedAt,
+          completedAt: input.completedAt,
+          ...(input.tokenUsage === undefined ? {} : { tokenUsage: input.tokenUsage }),
+          ...(input.completedAt === null || input.context.usage === undefined
+            ? {}
+            : {
+                turnTokenUsage: {
+                  usageScope: "main_agent",
+                  usageStatus: input.status === "completed" ? "complete" : "partial",
+                  inputTokens: input.context.usage.inputTokens,
+                  cachedInputTokens: input.context.usage.cacheReadTokens,
+                  cacheCreationTokens: input.context.usage.cacheWriteTokens,
+                  outputTokens: input.context.usage.outputTokens,
+                  ...(input.context.usage.reasoningTokens === undefined
+                    ? {}
+                    : { reasoningTokens: input.context.usage.reasoningTokens }),
+                  hasSubagents: input.context.subagents.size > 0,
+                },
+              }),
+        });
 
         const finalizeTurn = Effect.fnUntraced(function* (input: {
           readonly context: ActiveCursorTurn;
@@ -2493,7 +2454,13 @@ export const makeCursorAdapterV2 = Effect.fn("makeCursorAdapterV2")(function* (
           result.status === "error" &&
           result.error?.message === CURSOR_RESUME_NO_PROGRESS_MESSAGE;
 
-        const terminalStatus = (context: ActiveCursorTurn, result: RunResult) => {
+        const terminalStatus = (
+          context: ActiveCursorTurn,
+          result: RunResult,
+        ): Extract<
+          OrchestrationV2ProviderTurn["status"],
+          "completed" | "interrupted" | "failed" | "cancelled"
+        > => {
           if (context.interrupted) {
             return "interrupted";
           }

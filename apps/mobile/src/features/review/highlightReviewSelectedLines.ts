@@ -7,7 +7,7 @@ import { applyDiffRangesToTokens, computeWordAltDiffRanges } from "./reviewWordD
 function applyWordAltDiffHighlightsToSelectedLines(input: {
   readonly lines: ReadonlyArray<ReviewRenderableLineRow>;
   readonly tokenMap: Record<string, ReadonlyArray<ReviewHighlightedToken>>;
-}) {
+}): Record<string, ReadonlyArray<ReviewHighlightedToken>> {
   const additionLineByTokenIndex = new Map<number, ReviewRenderableLineRow>();
   const deletionLineByTokenIndex = new Map<number, ReviewRenderableLineRow>();
 
@@ -82,7 +82,7 @@ export function highlightReviewSelectedLines(input: {
   readonly filePath: string;
   readonly lines: ReadonlyArray<ReviewRenderableLineRow>;
   readonly theme: HighlightScheme;
-}) {
+}): Record<string, ReadonlyArray<ReviewHighlightedToken>> {
   if (input.lines.length === 0) {
     return {};
   }

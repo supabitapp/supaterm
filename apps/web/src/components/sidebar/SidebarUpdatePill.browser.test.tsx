@@ -45,7 +45,7 @@ vi.mock("./useUpdateEverything", () => ({
   }),
 }));
 
-function nightlyUpdate(releaseNotes: DesktopUpdateState["releaseNotes"]) {
+function nightlyUpdate(releaseNotes: DesktopUpdateState["releaseNotes"]): DesktopUpdateState {
   return {
     enabled: true,
     status: "available",
@@ -63,7 +63,7 @@ function nightlyUpdate(releaseNotes: DesktopUpdateState["releaseNotes"]) {
     message: null,
     errorContext: null,
     canRetry: false,
-  } satisfies DesktopUpdateState;
+  };
 }
 
 const RELEASE_NOTES: DesktopUpdateState["releaseNotes"] = [

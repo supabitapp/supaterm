@@ -7,7 +7,7 @@ import { serializeCodeBlockToMarkdown } from "../../markdown-clipboard";
 
 let mathLoad: Promise<MathResolver | null> | null = null;
 
-function loadMath() {
+function loadMath(): Promise<MathResolver | null> {
   mathLoad ??= import("katex").then(
     ({ default: katex }) => {
       const typeset = new Map<string, ReturnType<MathResolver>>();
@@ -106,7 +106,7 @@ const KATEX_MATHML_ATTRIBUTES = new Set([
 
 let purifier: ReturnType<typeof DOMPurify> | null = null;
 
-function sanitizeDiagramSvg(svg: string) {
+function sanitizeDiagramSvg(svg: string): Node {
   purifier ??= DOMPurify(window);
   return purifier.sanitize(svg, {
     FORBID_ATTR: ["href", "xlink:href", "src", "srcset"],
@@ -116,7 +116,7 @@ function sanitizeDiagramSvg(svg: string) {
   });
 }
 
-function sanitizeMathDiagramSvg(svg: string) {
+function sanitizeMathDiagramSvg(svg: string): Node {
   purifier ??= DOMPurify(window);
   return purifier.sanitize(svg, {
     ADD_TAGS: ["foreignObject", ...KATEX_MATHML_TAGS],
@@ -145,7 +145,7 @@ const PELE_COLOR_VARIABLES = [
 
 let expandedImageUrl: string | null = null;
 
-function diagramImageUrl(svg: SVGSVGElement) {
+function diagramImageUrl(svg: SVGSVGElement): string {
   const element = svg.cloneNode(true) as SVGSVGElement;
   const computed = getComputedStyle(svg);
   for (const name of PELE_COLOR_VARIABLES) {

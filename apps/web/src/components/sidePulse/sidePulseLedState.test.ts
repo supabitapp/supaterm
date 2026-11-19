@@ -12,7 +12,7 @@ const LATER = "2026-03-10T13:00:00.000Z";
 const connected = EnvironmentId.make("environment-test");
 const offline = EnvironmentId.make("environment-offline");
 
-function thread(id: string, overrides: ThreadFixtureOverrides = {}) {
+function thread(id: string, overrides: ThreadFixtureOverrides = {}): EnvironmentThreadShell {
   return makeThreadFixture({ id: ThreadId.make(id), title: id, ...overrides });
 }
 

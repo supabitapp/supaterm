@@ -53,7 +53,7 @@ export function labelsShowTransport(inputs: ReadonlyArray<MicrophoneInput>) {
   return inputs.some((input) => BLUETOOTH.test(input.label) || BUILT_IN.test(input.label));
 }
 
-function systemDefault(inputs: ReadonlyArray<MicrophoneInput>) {
+function systemDefault(inputs: ReadonlyArray<MicrophoneInput>): MicrophoneInput | null {
   const first = inputs[0];
   if (!first) return null;
   if (!ALIAS_IDS.has(first.deviceId)) return first;
@@ -71,7 +71,7 @@ function systemDefault(inputs: ReadonlyArray<MicrophoneInput>) {
 export function resolveMicrophone(
   inputs: ReadonlyArray<MicrophoneInput>,
   preference: MicrophonePreference,
-) {
+): MicrophoneRoute {
   const { chosen } = preference;
   if (labelsHidden(inputs)) {
     return {
@@ -102,20 +102,20 @@ export function resolveMicrophone(
   return { deviceId: null, input: fallback, chosenMissing, passedOver: null };
 }
 
-export async function listMicrophoneInputs() {
+export async function listMicrophoneInputs(): Promise<ReadonlyArray<MicrophoneInput>> {
   const devices = await navigator.mediaDevices.enumerateDevices();
   return devices
     .filter((device) => device.kind === "audioinput")
     .map(({ deviceId, label }) => ({ deviceId, label }));
 }
 
-function errorName(error: unknown) {
+function errorName(error: unknown): string {
   return error instanceof Object && "name" in error && typeof error.name === "string"
     ? error.name
     : "";
 }
 
-function openInput(deviceId: string | null) {
+function openInput(deviceId: string | null): Promise<MediaStream> {
   return navigator.mediaDevices.getUserMedia({
     audio:
       deviceId === null ? VOICE_PROCESSING : { ...VOICE_PROCESSING, deviceId: { exact: deviceId } },
@@ -125,7 +125,7 @@ function openInput(deviceId: string | null) {
 async function openResolved(
   inputs: ReadonlyArray<MicrophoneInput>,
   preference: MicrophonePreference,
-) {
+): Promise<MediaStream> {
   const { deviceId } = resolveMicrophone(inputs, preference);
   try {
     return await openInput(deviceId);
@@ -136,14 +136,14 @@ async function openResolved(
   }
 }
 
-async function restartLinuxAudioService(error: unknown) {
+async function restartLinuxAudioService(error: unknown): Promise<boolean> {
   if (!LOST_AUDIO_SERVICE_ERRORS.has(errorName(error))) return false;
   const desktop = window.desktopBridge;
   if (desktop?.getClientPlatform() !== "linux") return false;
   return (await desktop.restartAudioService?.().catch(() => false)) === true;
 }
 
-export async function openMicrophone(preference: MicrophonePreference) {
+export async function openMicrophone(preference: MicrophonePreference): Promise<MediaStream> {
   try {
     return await openPreferredMicrophone(preference);
   } catch (error) {
@@ -152,7 +152,7 @@ export async function openMicrophone(preference: MicrophonePreference) {
   }
 }
 
-async function openPreferredMicrophone(preference: MicrophonePreference) {
+async function openPreferredMicrophone(preference: MicrophonePreference): Promise<MediaStream> {
   const inputs = await listMicrophoneInputs();
   const stream = await openResolved(inputs, preference);
   if (!labelsHidden(inputs)) return stream;

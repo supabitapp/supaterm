@@ -1,9 +1,8 @@
-export function isWebUrl(url: string): boolean;
-export function isWebUrl(url: string) {
+export function isWebUrl(url: string): boolean {
   try {
     const { protocol } = new URL(url);
-    return (protocol === "http:" || protocol === "https:") satisfies boolean;
+    return protocol === "http:" || protocol === "https:";
   } catch {
-    return false satisfies boolean;
+    return false;
   }
 }

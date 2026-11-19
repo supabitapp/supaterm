@@ -13,7 +13,7 @@ export function makeNoPullRequestRechecks() {
     select: (
       nowMs: number,
       branches: ReadonlyArray<{ readonly key: string; readonly activityAtMs: number }>,
-    ) => {
+    ): ReadonlySet<string> => {
       const selected = new Set<string>();
       const due: Array<{ key: string; activityAtMs: number; readAtMs: number }> = [];
       for (const branch of branches) {
@@ -40,10 +40,10 @@ export function makeNoPullRequestRechecks() {
       }
       return selected;
     },
-    record: (key: string, nowMs: number, found: boolean) => {
+    record: (key: string, nowMs: number, found: boolean): void => {
       reads.set(key, { readAtMs: nowMs, found });
     },
-    retain: (keys: { readonly has: (key: string) => boolean }) => {
+    retain: (keys: { readonly has: (key: string) => boolean }): void => {
       for (const key of reads.keys()) {
         if (!keys.has(key)) reads.delete(key);
       }

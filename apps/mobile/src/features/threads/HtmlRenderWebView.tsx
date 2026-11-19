@@ -56,7 +56,7 @@ type Overflow = { readonly x: boolean; readonly y: boolean };
 
 const NO_OVERFLOW: Overflow = { x: false, y: false };
 
-function readOverflowMessage(data: string) {
+function readOverflowMessage(data: string): Overflow | null {
   try {
     const message: unknown = JSON.parse(data);
     return typeof message === "object" &&

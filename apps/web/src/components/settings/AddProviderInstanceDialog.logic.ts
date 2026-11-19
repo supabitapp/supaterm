@@ -24,7 +24,7 @@ const EMPTY_PROVIDER_IDENTITY_DRAFT: ProviderIdentityDraft = {
 export function getProviderIdentityDraft(
   drafts: Readonly<Record<string, ProviderIdentityDraft>>,
   driver: string,
-) {
+): ProviderIdentityDraft {
   return drafts[driver] ?? EMPTY_PROVIDER_IDENTITY_DRAFT;
 }
 
@@ -32,7 +32,7 @@ export function updateProviderIdentityDraft(
   drafts: Readonly<Record<string, ProviderIdentityDraft>>,
   driver: string,
   update: Partial<ProviderIdentityDraft>,
-) {
+): Record<string, ProviderIdentityDraft> {
   return {
     ...drafts,
     [driver]: { ...getProviderIdentityDraft(drafts, driver), ...update },
@@ -42,7 +42,7 @@ export function updateProviderIdentityDraft(
 export function isConfiguredAcpRegistryAgent(
   instances: Readonly<Record<string, { readonly driver: string; readonly config?: unknown }>>,
   agentId: string,
-) {
+): boolean {
   return Object.values(instances).some((instance) => {
     if (
       instance.driver !== "acpRegistry" ||
@@ -68,7 +68,7 @@ export function resolveWizardNavigation(
       readonly error: string | null;
     };
   },
-) {
+): WizardNavigation {
   const lastStep = Math.max(0, stepCount - 1);
   const targetStep = Math.max(0, Math.min(lastStep, requestedStep));
   const identityStep = validation.identityStep ?? IDENTITY_STEP;
@@ -79,7 +79,7 @@ export function resolveWizardNavigation(
       kind: "blocked",
       step: Math.min(prerequisite.step, lastStep),
       error: prerequisite.error,
-    } satisfies WizardNavigation;
+    };
   }
 
   const movesForwardPastIdentity = currentStep <= identityStep && targetStep > identityStep;
@@ -89,10 +89,10 @@ export function resolveWizardNavigation(
       kind: "blocked",
       step: Math.min(identityStep, lastStep),
       error: validation.instanceIdError,
-    } satisfies WizardNavigation;
+    };
   }
 
-  return { kind: "navigate", step: targetStep } satisfies WizardNavigation;
+  return { kind: "navigate", step: targetStep };
 }
 
 export function resolveAcpRegistryWizardNavigation(
@@ -102,10 +102,10 @@ export function resolveAcpRegistryWizardNavigation(
     readonly instanceIdError: string | null;
     readonly selectionError: string | null;
   },
-) {
+): WizardNavigation {
   return resolveWizardNavigation(currentStep, requestedStep, ACP_REGISTRY_WIZARD_STEPS.length, {
     instanceIdError: validation.instanceIdError,
     identityStep: ACP_REGISTRY_IDENTITY_STEP,
     prerequisite: { step: 0, error: validation.selectionError },
-  }) satisfies WizardNavigation;
+  });
 }

@@ -15,7 +15,7 @@ export async function runClaudeHistoryWorker(
   method: string | undefined,
   sessionId: string | undefined,
   rawOptions: string | undefined,
-) {
+): Promise<void> {
   const options = decodeHistoryOptions(rawOptions ?? "{}");
   if (!sessionId) throw new Error("Claude history session id is required.");
   const result =

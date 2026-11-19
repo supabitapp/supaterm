@@ -8,7 +8,7 @@ import {
 } from "./ThreadStatusIndicators";
 import { newestPullRequestSummary } from "../state/pullRequests";
 
-function status(overrides: Partial<VcsStatusResult> = {}) {
+function status(overrides: Partial<VcsStatusResult> = {}): VcsStatusResult {
   return {
     isRepo: true,
     hasPrimaryRemote: true,
@@ -28,10 +28,10 @@ function status(overrides: Partial<VcsStatusResult> = {}) {
       state: "open",
     },
     ...overrides,
-  } satisfies VcsStatusResult;
+  };
 }
 
-function mergedFeaturePr() {
+function mergedFeaturePr(): NonNullable<VcsStatusResult["pr"]> {
   return {
     number: 42,
     title: "Feature PR",
@@ -39,10 +39,13 @@ function mergedFeaturePr() {
     baseRef: "main",
     headRef: "feature/current",
     state: "merged",
-  } satisfies NonNullable<VcsStatusResult["pr"]>;
+  };
 }
 
-function pullRequestSummary(state: PullRequestSummary["state"], updatedAt: string) {
+function pullRequestSummary(
+  state: PullRequestSummary["state"],
+  updatedAt: string,
+): PullRequestSummary {
   return {
     provider: SourceControlProviderKind.make("github"),
     projectId: ProjectId.make("project-1"),

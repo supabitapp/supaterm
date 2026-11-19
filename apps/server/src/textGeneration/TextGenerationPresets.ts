@@ -20,9 +20,8 @@ export const repositoryConventionsTextGenerationPolicy: TextGenerationPolicy = {
 
 export const customTextGenerationPolicy = (
   overrides: Omit<Partial<TextGenerationPolicy>, "kind">,
-) =>
-  ({
-    kind: "custom",
-    inferRepositoryConventions: false,
-    ...overrides,
-  }) satisfies TextGenerationPolicy;
+): TextGenerationPolicy => ({
+  kind: "custom",
+  inferRepositoryConventions: false,
+  ...overrides,
+});

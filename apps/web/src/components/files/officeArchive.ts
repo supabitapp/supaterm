@@ -943,7 +943,7 @@ async function wordExpansion(
   documents: string[],
 ) {
   type Cost = { bytes: number; markup: number; media: number; images: Set<string> };
-  const empty = () => ({ bytes: 0, markup: 0, media: 0, images: new Set() }) satisfies Cost;
+  const empty = (): Cost => ({ bytes: 0, markup: 0, media: 0, images: new Set() });
   const nodes = new Map<string, { xml: string; path: string }>();
   const optional = new Set<string>();
   const noteParts = new Map<string, string>();
@@ -985,7 +985,7 @@ async function wordExpansion(
   const used = new Set<string>();
   const memo = new Map<string, Cost>();
   let expandedXmlBytes = 0;
-  const scan = (xml: string, path: string, chain: Set<string>, pages = 1, expand = true) => {
+  const scan = (xml: string, path: string, chain: Set<string>, pages = 1, expand = true): Cost => {
     const cost = empty();
     const refs = new Map<string, number>();
     const headers = new Set<string>();
@@ -1010,7 +1010,7 @@ async function wordExpansion(
     });
     parser.write(xml).close();
     for (const header of headers) refs.set(header, pages);
-    if (!expand) return cost satisfies Cost;
+    if (!expand) return cost;
     for (const [key, copies] of refs) {
       const node = nodes.get(key);
       if (!node) continue;
@@ -1037,7 +1037,7 @@ async function wordExpansion(
       cost.media += expanded.media * copies;
       for (const image of expanded.images) cost.images.add(image);
     }
-    return cost satisfies Cost;
+    return cost;
   };
   const costs = new Map<string, Cost>();
   let bytes = 0;

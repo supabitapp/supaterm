@@ -7,7 +7,7 @@ export const DESKTOP_BOOTSTRAP_TOKEN_WINDOW_MS = 12 * 60 * 60 * 1000;
 
 const utf8 = (value: string) => new TextEncoder().encode(value);
 
-function windowIndex(nowMs: number) {
+function windowIndex(nowMs: number): number {
   return Math.floor(nowMs / DESKTOP_BOOTSTRAP_TOKEN_WINDOW_MS);
 }
 

@@ -59,7 +59,7 @@ export class NativeTelemetrySpawnFailed extends Schema.TaggedError<NativeTelemet
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Failed to start resource monitor '${this.path}'.`;
   }
 }
@@ -70,7 +70,7 @@ export class NativeTelemetryHandshakeTimedOut extends Schema.TaggedError<NativeT
     timeoutMs: Schema.Number,
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Resource monitor handshake timed out after ${this.timeoutMs}ms.`;
   }
 }
@@ -82,7 +82,7 @@ class NativeTelemetryRequestTimedOut extends Schema.TaggedError<NativeTelemetryR
     timeoutMs: Schema.Number,
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Resource monitor '${this.operation}' request timed out after ${this.timeoutMs}ms.`;
   }
 }
@@ -94,7 +94,7 @@ export class NativeTelemetryProtocolMismatch extends Schema.TaggedError<NativeTe
     receivedVersion: Schema.Number,
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Resource monitor protocol ${this.receivedVersion} is incompatible with expected protocol ${this.expectedVersion}.`;
   }
 }
@@ -105,7 +105,7 @@ export class NativeTelemetryDecodeFailed extends Schema.TaggedError<NativeTeleme
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return "Failed to decode resource monitor output.";
   }
 }
@@ -117,7 +117,7 @@ export class NativeTelemetryCommandFailed extends Schema.TaggedError<NativeTelem
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Resource monitor command '${this.operation}' failed.`;
   }
 }
@@ -128,7 +128,7 @@ export class NativeTelemetryExited extends Schema.TaggedError<NativeTelemetryExi
     exitCode: Schema.Number,
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Resource monitor exited with code ${this.exitCode}.`;
   }
 }
@@ -137,7 +137,7 @@ class NativeTelemetryStreamClosed extends Schema.TaggedError<NativeTelemetryStre
   "NativeTelemetryStreamClosed",
   {},
 ) {
-  override get message() {
+  override get message(): string {
     return "Resource monitor event stream closed unexpectedly.";
   }
 }
@@ -148,7 +148,7 @@ export class NativeTelemetryUnavailable extends Schema.TaggedError<NativeTelemet
     reason: Schema.String,
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Resource monitor is unavailable: ${this.reason}`;
   }
 }
@@ -243,7 +243,7 @@ const initialState: ClientState = {
   restartCount: 0,
 };
 
-function toHealth(state: ClientState, sampleIntervalMs: number) {
+function toHealth(state: ClientState, sampleIntervalMs: number): NativeTelemetryClientHealth {
   return {
     status: state.status,
     hello: state.hello,
@@ -254,11 +254,14 @@ function toHealth(state: ClientState, sampleIntervalMs: number) {
   };
 }
 
-function isThermallyConstrained(snapshot: HostPowerSnapshot) {
+function isThermallyConstrained(snapshot: HostPowerSnapshot): boolean {
   return snapshot.thermalState === "serious" || snapshot.thermalState === "critical";
 }
 
-function resolveNativeSampleIntervalMs(snapshot: HostPowerSnapshot, liveSubscriberCount: number) {
+function resolveNativeSampleIntervalMs(
+  snapshot: HostPowerSnapshot,
+  liveSubscriberCount: number,
+): number {
   if (liveSubscriberCount === 0) return IDLE_SAMPLE_INTERVAL_MS;
   if (snapshot.stale || snapshot.source === "unknown") return SAMPLE_INTERVAL_MS;
   if (
@@ -278,7 +281,7 @@ export const commitCollectionControlUpdate = Effect.fnUntraced(function* <E, R>(
   appliedState: Ref.Ref<CollectionControl>,
   update: (current: CollectionControl) => CollectionControl,
   apply: (previous: CollectionControl, next: CollectionControl) => Effect.Effect<void, E, R>,
-) {
+): Effect.fn.Return<readonly [CollectionControl, CollectionControl], E, R> {
   const [previousDesired, next] = yield* Ref.modify(desiredState, (previous) => {
     const next = update(previous);
     return [[previous, next] as const, next];
@@ -319,33 +322,38 @@ const isProtocolMismatch = Schema.is(NativeTelemetryProtocolMismatch);
 const isDecodeFailed = Schema.is(NativeTelemetryDecodeFailed);
 const isCommandFailed = Schema.is(NativeTelemetryCommandFailed);
 
-export function eventVersion(value: unknown): number | undefined;
-export function eventVersion(value: unknown) {
-  if (typeof value !== "object" || value === null) return undefined satisfies number | undefined;
+export function eventVersion(value: unknown): number | undefined {
+  if (typeof value !== "object" || value === null) return undefined;
   const version = Reflect.get(value, "version");
-  return (typeof version === "number" ? version : undefined) satisfies number | undefined;
+  return typeof version === "number" ? version : undefined;
 }
 
-function restartDelay(attempt: number) {
+function restartDelay(attempt: number): Duration.Duration {
   return Duration.min(Duration.times(INITIAL_RESTART_DELAY, 2 ** attempt), MAX_RESTART_DELAY);
 }
 
-function retainRecentNativeTelemetryFailures(failures: ReadonlyArray<number>, now: number) {
+function retainRecentNativeTelemetryFailures(
+  failures: ReadonlyArray<number>,
+  now: number,
+): ReadonlyArray<number> {
   return failures.filter((failedAt) => now - failedAt <= FAILURE_WINDOW_MS);
 }
 
-function errorMessage(error: NativeTelemetryClientError) {
+function errorMessage(error: NativeTelemetryClientError): string {
   return error.message;
 }
 
-function canRequestNativeTelemetryRetry(status: ResourceTelemetrySourceStatus, hasHandle: boolean) {
+function canRequestNativeTelemetryRetry(
+  status: ResourceTelemetrySourceStatus,
+  hasHandle: boolean,
+): boolean {
   return status !== "healthy" && status !== "starting" && !hasHandle;
 }
 
 function canCommandNativeTelemetrySidecar(
   status: ResourceTelemetrySourceStatus,
   hasHandle: boolean,
-) {
+): boolean {
   return hasHandle && (status === "healthy" || status === "degraded");
 }
 
@@ -415,13 +423,10 @@ export const make = Effect.fn("resourceTelemetry.nativeTelemetryClient.make")(fu
     });
   });
 
-  const writeCommand: (
+  const writeCommand = (
     handle: ChildProcessSpawner.ChildProcessHandle,
     command: ResourceMonitorCommand,
-  ) => Effect.Effect<void, NativeTelemetryClientError> = (
-    handle: ChildProcessSpawner.ChildProcessHandle,
-    command: ResourceMonitorCommand,
-  ) =>
+  ): Effect.Effect<void, NativeTelemetryClientError> =>
     commandMutex.withPermits(1)(
       encodeMonitorCommand(command).pipe(
         Effect.map((encoded) => `${encoded}\n`),
@@ -445,15 +450,11 @@ export const make = Effect.fn("resourceTelemetry.nativeTelemetryClient.make")(fu
       ),
     );
 
-  const processEvent: (
+  const processEvent = (
     event: ResourceMonitorEvent,
     helloDeferred: Deferred.Deferred<ResourceMonitorHelloEvent>,
     generation: number,
-  ) => Effect.Effect<void, NativeTelemetryClientError> = (
-    event: ResourceMonitorEvent,
-    helloDeferred: Deferred.Deferred<ResourceMonitorHelloEvent>,
-    generation: number,
-  ) => {
+  ): Effect.Effect<void, NativeTelemetryClientError> => {
     switch (event.type) {
       case "hello":
         return Ref.update(state, (current) => ({
@@ -596,32 +597,27 @@ export const make = Effect.fn("resourceTelemetry.nativeTelemetryClient.make")(fu
       const helloDeferred = yield* Deferred.make<ResourceMonitorHelloEvent>();
       const eventFiber = yield* handle.stdout.pipe(
         Stream.pipeThroughChannel(Ndjson.decode({ ignoreEmptyLines: true })),
-        Stream.mapEffect((value) => {
-          const version = eventVersion(value);
-          if (version !== undefined && version !== RESOURCE_MONITOR_PROTOCOL_VERSION) {
-            return Effect.fail(
-              new NativeTelemetryProtocolMismatch({
-                expectedVersion: RESOURCE_MONITOR_PROTOCOL_VERSION,
-                receivedVersion: version,
-              }),
-            ) satisfies Effect.Effect<
-              ResourceMonitorEvent,
-              NativeTelemetryProtocolMismatch | NativeTelemetryDecodeFailed
-            > as Effect.Effect<
-              ResourceMonitorEvent,
-              NativeTelemetryProtocolMismatch | NativeTelemetryDecodeFailed
-            >;
-          }
-          return decodeMonitorEvent(value).pipe(
-            Effect.mapError((cause) => new NativeTelemetryDecodeFailed({ cause })),
-          ) satisfies Effect.Effect<
+        Stream.mapEffect(
+          (
+            value,
+          ): Effect.Effect<
             ResourceMonitorEvent,
             NativeTelemetryProtocolMismatch | NativeTelemetryDecodeFailed
-          > as Effect.Effect<
-            ResourceMonitorEvent,
-            NativeTelemetryProtocolMismatch | NativeTelemetryDecodeFailed
-          >;
-        }),
+          > => {
+            const version = eventVersion(value);
+            if (version !== undefined && version !== RESOURCE_MONITOR_PROTOCOL_VERSION) {
+              return Effect.fail(
+                new NativeTelemetryProtocolMismatch({
+                  expectedVersion: RESOURCE_MONITOR_PROTOCOL_VERSION,
+                  receivedVersion: version,
+                }),
+              );
+            }
+            return decodeMonitorEvent(value).pipe(
+              Effect.mapError((cause) => new NativeTelemetryDecodeFailed({ cause })),
+            );
+          },
+        ),
         Stream.runForEach((event) => processEvent(event, helloDeferred, generation)),
         Effect.mapError((cause) =>
           isProtocolMismatch(cause) || isDecodeFailed(cause) || isCommandFailed(cause)
@@ -1060,7 +1056,9 @@ export const make = Effect.fn("resourceTelemetry.nativeTelemetryClient.make")(fu
 
 export const layer = Layer.effect(NativeTelemetryClient, make());
 
-export const layerTest = (overrides: Partial<NativeTelemetryClient["Service"]> = {}) => {
+export const layerTest = (
+  overrides: Partial<NativeTelemetryClient["Service"]> = {},
+): Layer.Layer<NativeTelemetryClient> => {
   const health =
     overrides.health ??
     Effect.succeed({

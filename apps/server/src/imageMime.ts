@@ -30,7 +30,7 @@ export const SAFE_IMAGE_FILE_EXTENSIONS = new Set([
   ".webp",
 ]);
 
-function isBase64Char(code: number) {
+function isBase64Char(code: number): boolean {
   return (
     (code >= 0x61 && code <= 0x7a) ||
     (code >= 0x41 && code <= 0x5a) ||
@@ -41,11 +41,13 @@ function isBase64Char(code: number) {
   );
 }
 
-function isBase64Whitespace(code: number) {
+function isBase64Whitespace(code: number): boolean {
   return code === 0x09 || code === 0x0a || code === 0x0c || code === 0x0d || code === 0x20;
 }
 
-export function parseBase64DataUrl(dataUrl: string) {
+export function parseBase64DataUrl(
+  dataUrl: string,
+): { readonly mimeType: string; readonly base64: string } | null {
   const trimmed = dataUrl.trim();
   if (trimmed.slice(0, 5).toLowerCase() !== "data:") return null;
 
@@ -103,7 +105,7 @@ export function parseBase64DataUrl(dataUrl: string) {
   return { mimeType, base64 };
 }
 
-export function inferImageExtension(input: { mimeType: string; fileName?: string }) {
+export function inferImageExtension(input: { mimeType: string; fileName?: string }): string {
   const key = input.mimeType.toLowerCase();
   const fromMime = Object.hasOwn(IMAGE_EXTENSION_BY_MIME_TYPE, key)
     ? IMAGE_EXTENSION_BY_MIME_TYPE[key]

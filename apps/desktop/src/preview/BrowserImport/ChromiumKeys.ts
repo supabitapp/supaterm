@@ -30,7 +30,7 @@ export class ChromiumKeyError extends Schema.TaggedError<ChromiumKeyError>()("Ch
   reason: ChromiumKeyFailure,
   cause: Schema.optional(Schema.Defect()),
 }) {
-  override get message() {
+  override get message(): string {
     return `Could not obtain the Chromium cookie key: ${this.reason}.`;
   }
 }

@@ -16,7 +16,7 @@ export type AddProjectTarget = Pick<EnvironmentOption, "environmentId" | "label"
 export function useAddProjectTargets(
   project: EnvironmentProject | null,
   projectEnvironments: readonly Pick<EnvironmentOption, "environmentId">[] | undefined,
-) {
+): readonly AddProjectTarget[] {
   const { environments } = useEnvironments();
   const canClone = useEnvironmentsWithScope(environments, AuthSourceControlWriteScope);
   if (!project?.repositoryIdentity?.locator.remoteUrl) return [];

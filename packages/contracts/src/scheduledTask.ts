@@ -50,7 +50,7 @@ const ISO_WITH_OFFSET =
 const YEAR_0000 = Date.parse("0000-01-01T00:00:00Z");
 const YEAR_10000 = Date.parse("+010000-01-01T00:00:00Z");
 
-function isIsoWithOffset(value: string) {
+function isIsoWithOffset(value: string): boolean {
   const match = ISO_WITH_OFFSET.exec(value);
   const time = Date.parse(value);
   if (!match || !(time >= YEAR_0000 && time < YEAR_10000)) return false;
@@ -87,7 +87,9 @@ export const ScheduledTaskThreadMode = Schema.Literals(["new_thread", "continue"
 export type ScheduledTaskThreadMode = typeof ScheduledTaskThreadMode.Type;
 
 /** Servers before thread modes omit it; their bound tasks continue the conversation. */
-export function scheduledTaskThreadMode(task: Pick<ScheduledTask, "threadId" | "threadMode">) {
+export function scheduledTaskThreadMode(
+  task: Pick<ScheduledTask, "threadId" | "threadMode">,
+): ScheduledTaskThreadMode {
   return task.threadMode ?? (task.threadId === null ? "new_thread" : "continue");
 }
 

@@ -10,7 +10,7 @@ import type { ScopedThreadRef } from "@supaterm/contracts";
  * Opens a thread in a new pane beside the focused one, or focuses it if it is already on screen.
  * False when there is no room, so the caller can open it in place instead.
  */
-export function openThreadBeside(target: ThreadRouteTarget, edge: PaneEdge) {
+export function openThreadBeside(target: ThreadRouteTarget, edge: PaneEdge): boolean {
   const { layout, split } = useChatPaneStore.getState();
   const workspace = workspaceSize();
   if (!layout || !workspace) return false;
@@ -27,7 +27,7 @@ export function openThreadBeside(target: ThreadRouteTarget, edge: PaneEdge) {
 export function openSideChatBeside(
   target: ThreadRouteTarget,
   pair: { readonly parentRef: ScopedThreadRef; readonly sideChat: ThreadRouteTarget },
-) {
+): boolean {
   const store = useChatPaneStore.getState();
   const tied = {
     parent: { kind: "server", threadRef: pair.parentRef },
@@ -50,14 +50,14 @@ export function focusPaneShowingThread(threadRef: ScopedThreadRef) {
 let mountedWorkspaces = 0;
 
 /** The chat workspace follows focus into the URL; elsewhere, such as Settings, callers navigate. */
-export function trackChatPaneWorkspaceMount() {
+export function trackChatPaneWorkspaceMount(): () => void {
   mountedWorkspaces += 1;
   return () => {
     mountedWorkspaces -= 1;
   };
 }
 
-export function isChatPaneWorkspaceMounted() {
+export function isChatPaneWorkspaceMounted(): boolean {
   return mountedWorkspaces > 0;
 }
 
@@ -72,13 +72,13 @@ function focusFocusedPaneComposer() {
   if (layout) requestAnimationFrame(() => focusPaneComposer(layout.focusedPaneId));
 }
 
-export function focusPaneIndexFromKeyboard(index: number) {
+export function focusPaneIndexFromKeyboard(index: number): boolean {
   if (!useChatPaneStore.getState().focusIndex(index)) return false;
   focusFocusedPaneComposer();
   return true;
 }
 
-export function focusAdjacentPaneFromKeyboard(offset: 1 | -1) {
+export function focusAdjacentPaneFromKeyboard(offset: 1 | -1): boolean {
   const { layout, focusAdjacent } = useChatPaneStore.getState();
   if (!layout || layout.cells.length < 2) return false;
   focusAdjacent(offset);

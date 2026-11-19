@@ -50,7 +50,7 @@ function ExpandedMediaFailure({ children }: { children: ReactNode }) {
   );
 }
 
-function itemMimeType(item: ExpandedImageItem) {
+function itemMimeType(item: ExpandedImageItem): string | undefined {
   if (item.mimeType) return item.mimeType;
   const reference = item.actionsSource?.reference;
   const fileName = reference && mediaReferenceFileName(reference);
@@ -307,22 +307,22 @@ const expandedImagePreviewAtom = Atom.make<ExpandedImagePreviewState>(null).pipe
   Atom.withLabel("chat:expanded-image-preview"),
 );
 
-function ownedSrc(state: ExpandedImagePreviewState) {
+function ownedSrc(state: ExpandedImagePreviewState): string | null {
   const item = state?.preview.images[state.preview.index];
   return item?.ownsSrc === true ? item.src : null;
 }
 
-function setExpandedImagePreview(next: ExpandedImagePreviewState) {
+function setExpandedImagePreview(next: ExpandedImagePreviewState): void {
   const previous = ownedSrc(appAtomRegistry.get(expandedImagePreviewAtom));
   appAtomRegistry.set(expandedImagePreviewAtom, next);
   if (previous !== null && previous !== ownedSrc(next)) URL.revokeObjectURL(previous);
 }
 
-export function openExpandedImagePreview(threadKey: string, preview: ExpandedImagePreview) {
+export function openExpandedImagePreview(threadKey: string, preview: ExpandedImagePreview): void {
   setExpandedImagePreview({ threadKey, preview });
 }
 
-function closeExpandedImagePreview() {
+function closeExpandedImagePreview(): void {
   setExpandedImagePreview(null);
 }
 

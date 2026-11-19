@@ -10,7 +10,7 @@ import { useAndroidControlSizing } from "./ui/useAndroidControlSizing";
 
 const BRAND_MAX_FONT_SCALE = 1.4;
 
-export function brandTitleOffset() {
+export function brandTitleOffset(): number {
   if (Platform.OS !== "ios") return 0;
   return Platform.isPad && !NATIVE_WORKSPACE_COLUMNS_SUPPORTED ? IPAD_HOME_TITLE_OFFSET : 0;
 }

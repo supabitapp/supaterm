@@ -23,7 +23,7 @@ const onSubmit = vi.spyOn({ submit: ((..._args) => submissions.shift()!) as Subm
 const onClose = vi.fn();
 const onDelete = vi.fn();
 
-function request(name: string, error?: string) {
+function request(name: string, error?: string): ProjectScriptEditorRequest {
   return {
     scriptId: name,
     initial: { ...EMPTY_PROJECT_SCRIPT_INPUT, name, command: `run-${name}` },

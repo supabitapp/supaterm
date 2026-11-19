@@ -10,11 +10,11 @@ export interface ProjectFilePickerMatch {
   readonly pathMatchIndices: ReadonlyArray<number>;
 }
 
-function fileName(path: string) {
+function fileName(path: string): string {
   return path.slice(path.lastIndexOf("/") + 1);
 }
 
-function findMatchIndices(value: string, query: string) {
+function findMatchIndices(value: string, query: string): number[] | null {
   if (!query) return [];
 
   const normalizedValue = value.toLowerCase();
@@ -36,7 +36,7 @@ export function getProjectFilePickerMatches(
   entries: ReadonlyArray<ProjectEntry>,
   rawQuery: string,
   limit = PROJECT_FILE_PICKER_RESULT_LIMIT,
-) {
+): ProjectFilePickerMatch[] {
   if (limit <= 0) return [];
 
   const query = normalizeSearchQuery(rawQuery, {

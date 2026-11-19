@@ -3,6 +3,7 @@ import * as NodeFSP from "node:fs/promises";
 import * as NodePath from "node:path";
 import * as NodeSqlite from "node:sqlite";
 
+import type { OrchestrationV2ProviderFailure } from "@supaterm/contracts";
 import { makeProviderFailure } from "@supaterm/provider-core/server/failure";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
@@ -56,18 +57,20 @@ const lastStepIndex = (database: NodeSqlite.DatabaseSync) => {
   return typeof index === "number" ? index : -1;
 };
 
-const lastStepAfter = (index: number) => (database: NodeSqlite.DatabaseSync) => {
-  const row = database
-    .prepare(
-      `SELECT step_type AS type, substr(step_payload, 1, ?) AS payload
+const lastStepAfter =
+  (index: number) =>
+  (database: NodeSqlite.DatabaseSync): LastStep | undefined => {
+    const row = database
+      .prepare(
+        `SELECT step_type AS type, substr(step_payload, 1, ?) AS payload
          FROM steps WHERE idx > ? ORDER BY idx DESC LIMIT 1`,
-    )
-    .get(MAX_ERROR_PAYLOAD_BYTES, index);
-  if (typeof row?.type !== "number") return undefined;
-  return { type: row.type, payload: row.payload instanceof Uint8Array ? row.payload : null };
-};
+      )
+      .get(MAX_ERROR_PAYLOAD_BYTES, index);
+    if (typeof row?.type !== "number") return undefined;
+    return { type: row.type, payload: row.payload instanceof Uint8Array ? row.payload : null };
+  };
 
-function resetAtFrom(text: string, now: DateTime.Utc) {
+function resetAtFrom(text: string, now: DateTime.Utc): string | undefined {
   const timestamp = RESET_TIMESTAMP.exec(text)?.[1];
   if (timestamp !== undefined && Option.isSome(DateTime.make(timestamp))) return timestamp;
   const delay = RESET_DELAY.exec(text)?.[1] ?? RETRY_DELAY.exec(text)?.[1];
@@ -83,7 +86,7 @@ function turnFailure(
   stopReason: EffectAcpSchema.StopReason,
   step: LastStep | undefined,
   now: DateTime.Utc,
-) {
+): OrchestrationV2ProviderFailure | undefined {
   const errorText =
     step?.type === ERROR_STEP_TYPE
       ? new TextDecoder().decode(step.payload ?? new Uint8Array())

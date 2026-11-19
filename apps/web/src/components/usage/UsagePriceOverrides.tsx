@@ -39,9 +39,13 @@ import {
   type UsagePriceDraft,
   type UsagePriceField,
 } from "./usagePriceTable";
-import { writeUsagePrices, type UsagePriceWriteResult } from "./usagePriceTargets";
+import {
+  writeUsagePrices,
+  type UsagePriceTarget,
+  type UsagePriceWriteResult,
+} from "./usagePriceTargets";
 
-const priceTargetsAtom = Atom.make((get) =>
+const priceTargetsAtom = Atom.make((get): readonly UsagePriceTarget[] =>
   [...get(environmentPresentations.presentationsAtom)].map(([environmentId, environment]) => {
     const settings = get(serverEnvironment.settingsValueAtom(environmentId));
     const session = get(environmentSession.sessionStateAtom(environmentId));

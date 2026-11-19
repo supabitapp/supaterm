@@ -4,11 +4,11 @@ import type {
   PullRequestReviewGuideStop,
 } from "@supaterm/contracts";
 
-export function stepTourPosition(current: number, delta: 1 | -1, stopCount: number) {
+export function stepTourPosition(current: number, delta: 1 | -1, stopCount: number): number {
   return Math.max(Math.min(current + delta, stopCount - 1), 0);
 }
 
-export function stopFilePaths(stop: PullRequestReviewGuideStop) {
+export function stopFilePaths(stop: PullRequestReviewGuideStop): ReadonlyArray<string> {
   return [
     ...new Set([
       ...stop.excerpts.map((excerpt) => excerpt.path),
@@ -17,13 +17,13 @@ export function stopFilePaths(stop: PullRequestReviewGuideStop) {
   ];
 }
 
-export function stopSubline(stop: PullRequestReviewGuideStop) {
+export function stopSubline(stop: PullRequestReviewGuideStop): string {
   const count = stopFilePaths(stop).length;
   if (count === 0) return "Context, no code";
   return count === 1 ? "1 file" : `${count} files`;
 }
 
-function noteMarker(index: number) {
+function noteMarker(index: number): string {
   return index < 26 ? String.fromCharCode(65 + index) : String(index + 1);
 }
 
@@ -37,7 +37,7 @@ export interface DiffRow {
   readonly hunk: number;
 }
 
-export function fileDiffRows(file: FileDiffMetadata) {
+export function fileDiffRows(file: FileDiffMetadata): ReadonlyArray<DiffRow> {
   const rows: DiffRow[] = [];
   file.hunks.forEach((hunk, hunkIndex) => {
     let oldAt = hunk.deletionStart;
@@ -91,7 +91,7 @@ export function fileDiffRows(file: FileDiffMetadata) {
 export function excerptRows(
   rows: ReadonlyArray<DiffRow>,
   excerpt: Pick<PullRequestReviewGuideExcerpt, "side" | "start" | "end">,
-) {
+): ReadonlyArray<DiffRow> {
   const lineOf = (row: DiffRow) => (excerpt.side === "new" ? row.newLine : row.oldLine);
   const inRange = (row: DiffRow) => {
     const line = lineOf(row);
@@ -120,7 +120,11 @@ export function excerptRows(
 
 const ROW_PREFIX = { context: " ", addition: "+", deletion: "-" } as const;
 
-export function rowsToPatch(path: string, previousPath: string, rows: ReadonlyArray<DiffRow>) {
+export function rowsToPatch(
+  path: string,
+  previousPath: string,
+  rows: ReadonlyArray<DiffRow>,
+): string {
   if (rows.length === 0) return "";
   const lines = [
     `diff --git a/${previousPath} b/${path}`,
@@ -151,7 +155,10 @@ export function rowsToPatch(path: string, previousPath: string, rows: ReadonlyAr
  * The renderer fills the code around a hunk from both files and needs them to agree
  * outside it, which the real old file does not wherever another hunk changed lines.
  */
-export function excerptExpansionOldContents(newContents: string, rows: ReadonlyArray<DiffRow>) {
+export function excerptExpansionOldContents(
+  newContents: string,
+  rows: ReadonlyArray<DiffRow>,
+): string | null {
   const head = rows[0];
   if (head === undefined || rows.some((row) => row.hunk !== head.hunk)) return null;
   const newLines = newContents.match(/[^\n]*\n|[^\n]+$/g) ?? [];

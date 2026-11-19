@@ -38,7 +38,7 @@ export function waitForDisclosureSettle(
     readonly element: Element | null | undefined;
   } | null,
   onSettled: () => void,
-) {
+): () => void {
   const startedAt = performance.now();
   let frames = 0;
   let previousSize: number | undefined;

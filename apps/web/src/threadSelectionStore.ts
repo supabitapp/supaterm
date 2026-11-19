@@ -21,7 +21,7 @@ export function getThreadKeysToDeselectAfterDelete(
   selectedThreadKeys: readonly string[],
   deletedThreadKeys: ReadonlySet<string>,
   hasThread: (threadKey: string) => boolean,
-) {
+): string[] {
   return selectedThreadKeys.filter((key) => deletedThreadKeys.has(key) || !hasThread(key));
 }
 

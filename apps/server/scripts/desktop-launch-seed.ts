@@ -38,7 +38,7 @@ const threadEvents = (input: {
   readonly id: string;
   readonly title: string;
   readonly messages: ReadonlyArray<{ readonly role: "user" | "assistant"; readonly text: string }>;
-}) => {
+}): ReadonlyArray<OrchestrationV2DomainEvent> => {
   const threadId = ThreadId.make(input.id);
   const updatedAt = input.messages.length > 1 ? ANSWERED_AT : CREATED_AT;
   return [
@@ -74,68 +74,70 @@ const threadEvents = (input: {
         deletedAt: null,
       },
     },
-    ...input.messages.flatMap(({ role, text }, index) => {
-      const at = index === 0 ? CREATED_AT : ANSWERED_AT;
-      const messageId = MessageId.make(`${input.id}:message:${index}`);
-      const item = {
-        id: TurnItemId.make(`${input.id}:turn-item:${index}`),
-        threadId,
-        runId: null,
-        nodeId: null,
-        providerThreadId: null,
-        providerTurnId: null,
-        nativeItemRef: null,
-        parentItemId: null,
-        ordinal: index + 1,
-        status: "completed",
-        title: null,
-        startedAt: at,
-        completedAt: at,
-        updatedAt: at,
-        messageId,
-        text,
-        attachments: [],
-      } as const;
-      return [
-        {
-          id: EventId.make(`${input.id}:message:${index}`),
-          type: "message.updated",
+    ...input.messages.flatMap(
+      ({ role, text }, index): ReadonlyArray<OrchestrationV2DomainEvent> => {
+        const at = index === 0 ? CREATED_AT : ANSWERED_AT;
+        const messageId = MessageId.make(`${input.id}:message:${index}`);
+        const item = {
+          id: TurnItemId.make(`${input.id}:turn-item:${index}`),
           threadId,
-          occurredAt: at,
-          payload: {
-            createdBy: role === "user" ? "user" : "agent",
-            creationSource: "server",
-            id: messageId,
+          runId: null,
+          nodeId: null,
+          providerThreadId: null,
+          providerTurnId: null,
+          nativeItemRef: null,
+          parentItemId: null,
+          ordinal: index + 1,
+          status: "completed",
+          title: null,
+          startedAt: at,
+          completedAt: at,
+          updatedAt: at,
+          messageId,
+          text,
+          attachments: [],
+        } as const;
+        return [
+          {
+            id: EventId.make(`${input.id}:message:${index}`),
+            type: "message.updated",
             threadId,
-            runId: null,
-            nodeId: null,
-            role,
-            text,
-            attachments: [],
-            streaming: false,
-            createdAt: at,
-            updatedAt: at,
+            occurredAt: at,
+            payload: {
+              createdBy: role === "user" ? "user" : "agent",
+              creationSource: "server",
+              id: messageId,
+              threadId,
+              runId: null,
+              nodeId: null,
+              role,
+              text,
+              attachments: [],
+              streaming: false,
+              createdAt: at,
+              updatedAt: at,
+            },
           },
-        },
-        {
-          id: EventId.make(`${input.id}:turn-item:${index}`),
-          type: "turn-item.updated",
-          threadId,
-          occurredAt: at,
-          payload:
-            role === "user"
-              ? {
-                  ...item,
-                  createdBy: "user",
-                  creationSource: "server",
-                  type: "user_message",
-                  inputIntent: "turn_start",
-                }
-              : { ...item, type: "assistant_message", streaming: false },
-        },
-      ] satisfies ReadonlyArray<OrchestrationV2DomainEvent>;
-    }),
-  ] satisfies ReadonlyArray<OrchestrationV2DomainEvent>;
+          {
+            id: EventId.make(`${input.id}:turn-item:${index}`),
+            type: "turn-item.updated",
+            threadId,
+            occurredAt: at,
+            payload:
+              role === "user"
+                ? {
+                    ...item,
+                    createdBy: "user",
+                    creationSource: "server",
+                    type: "user_message",
+                    inputIntent: "turn_start",
+                  }
+                : { ...item, type: "assistant_message", streaming: false },
+          },
+        ];
+      },
+    ),
+  ];
 };
 
 const seed = Effect.gen(function* () {

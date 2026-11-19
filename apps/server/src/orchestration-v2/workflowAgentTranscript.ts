@@ -37,7 +37,7 @@ export const WorkflowAgentTranscriptReadObserver = Context.Reference<
   defaultValue: () => () => Effect.void,
 });
 
-function parseWorkflowAgentTranscriptLines(contents: string) {
+function parseWorkflowAgentTranscriptLines(contents: string): ReadonlyArray<unknown> {
   return contents.split("\n").flatMap((line) => {
     if (line.trim().length === 0) return [];
     const entry = Option.getOrUndefined(decodeJsonLine(line));

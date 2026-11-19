@@ -1,11 +1,17 @@
-import type { NativeReviewDiffRow } from "../diffs/nativeReviewDiffSurface";
+import type {
+  NativeReviewDiffRow,
+  NativeReviewDiffStyle,
+  NativeReviewDiffToken,
+} from "../diffs/nativeReviewDiffSurface";
 import type { ResolvedMobileCodeSurface } from "../../lib/appearancePreferences";
 import { MOBILE_CODE_SURFACE, MOBILE_TYPOGRAPHY } from "../../lib/typography";
 import type { HighlightedLines } from "../../lib/highlights";
 
 export const NATIVE_SOURCE_CONTENT_WIDTH = 32_000;
 
-export function createNativeSourceStyle(codeSurface: ResolvedMobileCodeSurface) {
+export function createNativeSourceStyle(
+  codeSurface: ResolvedMobileCodeSurface,
+): NativeReviewDiffStyle {
   return {
     rowHeight: codeSurface.rowHeight,
     contentWidth: NATIVE_SOURCE_CONTENT_WIDTH,
@@ -26,15 +32,17 @@ export function createNativeSourceStyle(codeSurface: ResolvedMobileCodeSurface) 
 
 const SOURCE_FILE_ID = "source-file";
 
-function expandTabs(value: string) {
+function expandTabs(value: string): string {
   return value.replace(/\t/g, "    ");
 }
 
-export function nativeSourceRowId(index: number) {
+export function nativeSourceRowId(index: number): string {
   return `source-line:${index}`;
 }
 
-export function buildNativeSourceRows(lines: ReadonlyArray<string>) {
+export function buildNativeSourceRows(
+  lines: ReadonlyArray<string>,
+): ReadonlyArray<NativeReviewDiffRow> {
   return lines.map((line, index) => ({
     kind: "line",
     id: nativeSourceRowId(index),
@@ -42,10 +50,12 @@ export function buildNativeSourceRows(lines: ReadonlyArray<string>) {
     content: expandTabs(line),
     change: "context",
     newLineNumber: index + 1,
-  })) satisfies ReadonlyArray<NativeReviewDiffRow>;
+  }));
 }
 
-export function buildNativeSourceTokens(tokenLines: HighlightedLines | null) {
+export function buildNativeSourceTokens(
+  tokenLines: HighlightedLines | null,
+): Readonly<Record<string, ReadonlyArray<NativeReviewDiffToken>>> {
   if (tokenLines === null) {
     return {};
   }

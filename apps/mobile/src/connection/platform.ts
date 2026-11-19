@@ -16,7 +16,7 @@ import { mobileApplicationStateWakeup } from "./app-state-wakeups";
 import * as EnvironmentOwnedDataCleanup from "./environment-owned-data-cleanup";
 import * as ConnectionStorage from "./storage";
 
-function networkStatus(state: Network.NetworkState) {
+function networkStatus(state: Network.NetworkState): "unknown" | "offline" | "online" {
   if (state.isConnected === false) {
     return "offline";
   }

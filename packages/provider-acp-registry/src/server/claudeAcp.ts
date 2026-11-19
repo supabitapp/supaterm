@@ -22,7 +22,7 @@ const decodeAsyncResponse = Schema.decodeUnknownOption(
   }),
 );
 
-export function isClaudeProvisionalSubagentTool(tool: AcpToolCallState) {
+export function isClaudeProvisionalSubagentTool(tool: AcpToolCallState): boolean {
   return (
     (tool.data.name === "Agent" || tool.data.name === "Task") &&
     tool.status !== "failed" &&
@@ -31,7 +31,9 @@ export function isClaudeProvisionalSubagentTool(tool: AcpToolCallState) {
   );
 }
 
-export function extractClaudeSubagentUpdate(tool: AcpToolCallState) {
+export function extractClaudeSubagentUpdate(
+  tool: AcpToolCallState,
+): AcpAdapterV2SubagentUpdate | undefined {
   if (tool.data.name !== "Agent" && tool.data.name !== "Task") return;
   const input = decodeAgentInput(tool.data.rawInput);
   if (Option.isNone(input)) return;
@@ -52,7 +54,7 @@ export function extractClaudeSubagentUpdate(tool: AcpToolCallState) {
           ? "completed"
           : "running",
     result: null,
-  } satisfies AcpAdapterV2SubagentUpdate | undefined;
+  };
 }
 
 const decodeChildState = Schema.decodeUnknownOption(
@@ -75,7 +77,9 @@ const decodeDelegation = Schema.decodeUnknownOption(
   }),
 );
 
-export function extractClaudeSubagentSessionEvent(notification: AcpSchema.SessionNotification) {
+export function extractClaudeSubagentSessionEvent(
+  notification: AcpSchema.SessionNotification,
+): AcpSubagentSessionEvent | undefined {
   const update = notification.update;
   if (update.sessionUpdate !== "_supaterm_unknown") return;
   if (update.originalSessionUpdate === "subagent_update") {
@@ -96,7 +100,7 @@ export function extractClaudeSubagentSessionEvent(notification: AcpSchema.Sessio
               ? "cancelled"
               : "completed",
       result: state.error?.message ?? unfinishedMessage ?? null,
-    } satisfies AcpSubagentSessionEvent | undefined;
+    };
   }
   if (update.originalSessionUpdate === "session_message") {
     const delegation = decodeDelegation(update.raw);
@@ -109,6 +113,6 @@ export function extractClaudeSubagentSessionEvent(notification: AcpSchema.Sessio
       prompt: delegation.value.content
         .flatMap((block) => (block.type === "text" && block.text !== undefined ? [block.text] : []))
         .join("\n"),
-    } satisfies AcpSubagentSessionEvent | undefined;
+    };
   }
 }

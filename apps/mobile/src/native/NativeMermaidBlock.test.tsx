@@ -57,7 +57,7 @@ const textStyle: NativeMarkdownTextStyle = {
   boldFontFamily: "sans-serif",
 };
 
-const diagram = (text: string) => ({
+const diagram = (text: string): Diagram => ({
   svg: text,
   width: 100,
   height: 100,

@@ -5,12 +5,14 @@ import { useChatPaneStore } from "../../chatPanes/store";
 
 const retainers: Array<(shownThreadKeys: ReadonlySet<string>) => void> = [];
 
-export function registerThreadOverlay(retain: (shownThreadKeys: ReadonlySet<string>) => void) {
+export function registerThreadOverlay(
+  retain: (shownThreadKeys: ReadonlySet<string>) => void,
+): void {
   retainers.push(retain);
 }
 
 /** Chat overlays and find belong to the thread they were opened in, so a thread off screen drops them. */
-export function startThreadOverlayRetention(router: AnyRouter) {
+export function startThreadOverlayRetention(router: AnyRouter): () => void {
   const retain = () => {
     const shown = readShownThreadKeys(router);
     for (const retainOverlays of retainers) retainOverlays(shown);

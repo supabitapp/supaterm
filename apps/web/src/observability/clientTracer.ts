@@ -8,11 +8,11 @@ export const serviceInstanceId = randomUUID();
 
 let delegate: Tracer.Tracer | null = null;
 
-export function setDelegate(next: Tracer.Tracer | null) {
+export function setDelegate(next: Tracer.Tracer | null): void {
   delegate = next;
 }
 
-export function hasDelegate() {
+export function hasDelegate(): boolean {
   return delegate !== null;
 }
 

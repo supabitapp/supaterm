@@ -67,11 +67,11 @@ export const ALL_CHECKOUTS_VALUE = "all";
 export function environmentAxisValue(
   search: SettingsScopeSearch,
   resolvedEnvironmentId?: string | null,
-) {
+): string {
   return search.machine ?? resolvedEnvironmentId ?? ALL_ENVIRONMENTS_VALUE;
 }
 
-export function projectAxisValue(search: SettingsScopeSearch) {
+export function projectAxisValue(search: SettingsScopeSearch): string {
   return search.project ?? ALL_PROJECTS_VALUE;
 }
 
@@ -86,14 +86,17 @@ export function projectScopeMenuGroups(
   );
 }
 
-export function selectEnvironmentAxis(search: SettingsScopeSearch, value: string) {
+export function selectEnvironmentAxis(
+  search: SettingsScopeSearch,
+  value: string,
+): SettingsScopeSearch {
   const next: SettingsScopeSearch = {};
   if (search.project) next.project = search.project;
   if (value !== ALL_ENVIRONMENTS_VALUE) next.machine = value;
   return next;
 }
 
-export function selectProjectAxis(search: SettingsScopeSearch, value: string) {
+export function selectProjectAxis(search: SettingsScopeSearch, value: string): SettingsScopeSearch {
   const next: SettingsScopeSearch = {};
   if (value !== ALL_PROJECTS_VALUE) next.project = value;
   if (search.machine) next.machine = search.machine;
@@ -104,7 +107,7 @@ export function selectProjectAxis(search: SettingsScopeSearch, value: string) {
 export function settingsScopeCheckoutChoices(
   group: SidebarProjectSnapshot,
   search: Pick<SettingsScopeSearch, "machine" | "checkout">,
-) {
+): readonly ScopeCheckout[] {
   const selected = group.memberProjects.find(
     (member) => member.physicalProjectKey === search.checkout,
   );
@@ -119,7 +122,10 @@ export function settingsScopeCheckoutChoices(
     : [];
 }
 
-export function selectCheckoutAxis(search: SettingsScopeSearch, checkout: ScopeCheckout | null) {
+export function selectCheckoutAxis(
+  search: SettingsScopeSearch,
+  checkout: ScopeCheckout | null,
+): SettingsScopeSearch {
   const { checkout: _previous, ...rest } = search;
   return checkout
     ? { ...rest, machine: checkout.environmentId, checkout: checkout.physicalProjectKey }
@@ -145,7 +151,7 @@ export function selectSingleEnvironmentScope(
     readonly connection: Pick<EnvironmentPresentation["connection"], "phase">;
   }[],
   primaryEnvironmentId: string | null,
-) {
+): SettingsScopeSearch {
   if (search.machine || scope.kind === "unavailable") return search;
   const selectedIds = new Set(scope.environmentIds);
   const candidates = environments.filter((environment) =>

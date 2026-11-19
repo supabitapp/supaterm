@@ -127,7 +127,9 @@ const writeGeneratedFiles = Effect.fn("writeGeneratedFiles")(function* (
   yield* fs.writeFileString(metaOutputPath, metaOutput);
 });
 
-function collectSchemaEntries(chunk: string) {
+function collectSchemaEntries(
+  chunk: string,
+): ReadonlyArray<{ readonly name: string; readonly code: string }> {
   const lines = chunk
     .split("\n")
     .map((line) => line.trim())
@@ -169,11 +171,7 @@ const DATA_KEYWORDS = new Set(["const", "default", "enum", "examples"]);
 function mapSubschemas(
   value: { readonly [key: string]: Schema.Json },
   transform: (schema: Schema.Json) => Schema.Json,
-): Record<string, Schema.Json>;
-function mapSubschemas(
-  value: { readonly [key: string]: Schema.Json },
-  transform: (schema: Schema.Json) => Schema.Json,
-) {
+): Record<string, Schema.Json> {
   return Object.fromEntries(
     Object.entries(value).map(([key, child]) => {
       if (DATA_KEYWORDS.has(key)) return [key, child];
@@ -192,16 +190,15 @@ function mapSubschemas(
       }
       return [key, isJsonArray(child) ? child.map(transform) : transform(child)];
     }),
-  ) satisfies Record<string, Schema.Json>;
+  );
 }
 
-function normalizeSchemaKeywords(value: Schema.Json): Schema.Json;
-function normalizeSchemaKeywords(value: Schema.Json) {
+function normalizeSchemaKeywords(value: Schema.Json): Schema.Json {
   if (isJsonArray(value)) {
-    return value.map(normalizeSchemaKeywords) satisfies Schema.Json;
+    return value.map(normalizeSchemaKeywords);
   }
   if (value === null || typeof value !== "object") {
-    return value satisfies Schema.Json;
+    return value;
   }
 
   const normalizedObject = mapSubschemas(value, normalizeSchemaKeywords);
@@ -295,17 +292,17 @@ function normalizeSchemaKeywords(value: Schema.Json) {
   const typeValue = normalizedObject.type;
 
   if (!isJsonArray(typeValue)) {
-    return normalizedObject satisfies Schema.Json;
+    return normalizedObject;
   }
 
   const normalizedTypes = typeValue.filter((entry): entry is string => typeof entry === "string");
   if (normalizedTypes.length !== typeValue.length || !normalizedTypes.includes("null")) {
-    return normalizedObject satisfies Schema.Json;
+    return normalizedObject;
   }
 
   const nonNullTypes = normalizedTypes.filter((entry) => entry !== "null");
   if (nonNullTypes.length !== 1) {
-    return normalizedObject satisfies Schema.Json;
+    return normalizedObject;
   }
   const nonNullType = nonNullTypes[0]!;
 
@@ -324,30 +321,22 @@ function normalizeSchemaKeywords(value: Schema.Json) {
       },
       { type: "null" },
     ],
-  } satisfies Schema.Json;
+  };
 }
 
-const isAnnotationKeyword: (key: string) => boolean = (key: string) =>
+const isAnnotationKeyword = (key: string): boolean =>
   ["description", "title", "$comment", "default", "examples", "discriminator"].includes(key) ||
   key.startsWith("x-");
 
 function flattenCompositions(
   value: Schema.Json,
   definitions: Readonly<Record<string, Schema.Json>>,
-): Schema.Json;
-function flattenCompositions(
-  value: Schema.Json,
-  definitions: Readonly<Record<string, Schema.Json>>,
-) {
-  if (isJsonArray(value))
-    return value.map((child) => flattenCompositions(child, definitions)) satisfies Schema.Json;
-  if (value === null || typeof value !== "object") return value satisfies Schema.Json;
+): Schema.Json {
+  if (isJsonArray(value)) return value.map((child) => flattenCompositions(child, definitions));
+  if (value === null || typeof value !== "object") return value;
   const normalized = mapSubschemas(value, (child) => flattenCompositions(child, definitions));
   const { allOf, anyOf, ...base } = normalized;
-  const merge: (left: Schema.Json, right: Schema.Json) => Schema.Json = (
-    left: Schema.Json,
-    right: Schema.Json,
-  ) => {
+  const merge = (left: Schema.Json, right: Schema.Json): Schema.Json => {
     if (
       left === null ||
       typeof left !== "object" ||
@@ -404,15 +393,15 @@ function flattenCompositions(
   let combined: Schema.Json = base;
   if (isJsonArray(allOf)) for (const part of allOf) combined = merge(combined, part);
   if (isJsonArray(anyOf) && !isJsonArray(allOf) && Object.keys(base).every(isAnnotationKeyword)) {
-    return { ...base, anyOf } satisfies Schema.Json;
+    return { ...base, anyOf };
   }
-  return (isJsonArray(anyOf) ? merge(combined, { anyOf }) : combined) satisfies Schema.Json;
+  return isJsonArray(anyOf) ? merge(combined, { anyOf }) : combined;
 }
 
 function generateSchemaOutput(
   upstreamSchema: { readonly $defs: Readonly<Record<string, Schema.Json>> },
   release: string,
-) {
+): { readonly output: string; readonly count: number } {
   const normalizedDefinitions = Object.fromEntries(
     Object.entries(upstreamSchema.$defs).map(([name, schema]) => [
       name,

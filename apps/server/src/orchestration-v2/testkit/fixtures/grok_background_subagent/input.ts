@@ -6,7 +6,7 @@ export const GROK_BACKGROUND_SUBAGENT_PROMPT =
 const GROK_SUBAGENT_WAKE_LABEL =
   "notification:session/update:agent_message_chunk:subagent-completed-00000000-0000-4000-8000-000000000002";
 
-export function grokBackgroundSubagentInput() {
+export function grokBackgroundSubagentInput(): OrchestratorFixtureInput {
   return {
     steps: [
       { type: "message", text: GROK_BACKGROUND_SUBAGENT_PROMPT },
@@ -14,5 +14,5 @@ export function grokBackgroundSubagentInput() {
       { type: "release_replay_gate", label: GROK_SUBAGENT_WAKE_LABEL },
       { type: "finish_held_run", targetRunIndex: 2, status: "completed" },
     ],
-  } satisfies OrchestratorFixtureInput;
+  };
 }

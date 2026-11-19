@@ -83,7 +83,7 @@ const FRAME_DELAY_MS = 250;
 const MAX_RECORDED_DELAY_MS = 2_000;
 const WORDS_PER_CHUNK = 3;
 
-function isReplayedFrame(frame: LogicalFrame) {
+function isReplayedFrame(frame: LogicalFrame): boolean {
   if (frame.kind === "request") return REPLAYED_REQUESTS.has(frame.method);
   if (frame.kind !== "notification" || frame.method !== "session/update") return false;
   const update = (frame.params as { update?: { sessionUpdate?: unknown } } | undefined)?.update;
@@ -91,7 +91,7 @@ function isReplayedFrame(frame: LogicalFrame) {
 }
 
 /** Splits a recorded transcript into the turns that follow each `session/prompt`. */
-export function parseReplayTurns(ndjson: string) {
+export function parseReplayTurns(ndjson: string): ReadonlyArray<ReplayTurn> {
   const turns: Array<{ frames: Array<ReplayTurn["frames"][number]>; stopReason: string }> = [];
   let turn: (typeof turns)[number] | undefined;
   for (const line of ndjson.split("\n")) {
@@ -123,7 +123,7 @@ export function parseReplayTurns(ndjson: string) {
 }
 
 /** Splits streamed text into small chunks so the client sees real deltas. */
-export function streamChunks(text: string) {
+export function streamChunks(text: string): ReadonlyArray<string> {
   const words = text.match(/\S+\s*|\s+/g) ?? [];
   const chunks: Array<string> = [];
   for (let index = 0; index < words.length; index += WORDS_PER_CHUNK) {
@@ -135,15 +135,10 @@ export function streamChunks(text: string) {
 function materialize(
   value: unknown,
   live: { readonly sessionId: string; readonly workspace: string; readonly turnKey: string },
-): unknown;
-function materialize(
-  value: unknown,
-  live: { readonly sessionId: string; readonly workspace: string; readonly turnKey: string },
-) {
-  if (typeof value === "string")
-    return value.replaceAll("<workspace>", live.workspace) satisfies unknown;
-  if (Array.isArray(value)) return value.map((entry) => materialize(entry, live)) satisfies unknown;
-  if (typeof value !== "object" || value === null) return value satisfies unknown;
+): unknown {
+  if (typeof value === "string") return value.replaceAll("<workspace>", live.workspace);
+  if (Array.isArray(value)) return value.map((entry) => materialize(entry, live));
+  if (typeof value !== "object" || value === null) return value;
   return Object.fromEntries(
     Object.entries(value).map(([key, entry]) => [
       key,
@@ -153,10 +148,10 @@ function materialize(
           ? `${live.turnKey}-${String(entry)}`
           : materialize(entry, live),
     ]),
-  ) satisfies unknown;
+  );
 }
 
-function permissionRejectedToolCallId(request: LogicalFrame, answer: unknown) {
+function permissionRejectedToolCallId(request: LogicalFrame, answer: unknown): string | undefined {
   if (request.method !== "session/request_permission") return undefined;
   const params = request.params as {
     toolCall?: { toolCallId?: string };
@@ -169,7 +164,7 @@ function permissionRejectedToolCallId(request: LogicalFrame, answer: unknown) {
   return rejected ? params.toolCall?.toolCallId : undefined;
 }
 
-function runAgent() {
+function runAgent(): void {
   const turnsByScenario = new Map<string, ReadonlyArray<ReplayTurn>>();
   const loadTurns = (scenarioId: string) => {
     const cached = turnsByScenario.get(scenarioId);
@@ -207,7 +202,11 @@ function runAgent() {
       signal,
     );
 
-  const playTurn = async (sessionId: string, turn: ReplayTurn, signal: AbortSignal) => {
+  const playTurn = async (
+    sessionId: string,
+    turn: ReplayTurn,
+    signal: AbortSignal,
+  ): Promise<"cancelled" | undefined> => {
     const session = sessions.get(sessionId)!;
     const live = { sessionId, workspace: session.cwd, turnKey: NodeCrypto.randomUUID() };
     for (const recorded of turn.frames) {
@@ -260,7 +259,7 @@ function runAgent() {
     }
   };
 
-  const handleRequest = async (message: JsonRpcMessage) => {
+  const handleRequest = async (message: JsonRpcMessage): Promise<unknown> => {
     const params = message.params ?? {};
     switch (message.method) {
       case "initialize":

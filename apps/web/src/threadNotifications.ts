@@ -24,7 +24,7 @@ const TAG_HASH_OFFSET_BASIS = 0xcbf29ce484222325n;
 const TAG_HASH_PRIME = 0x100000001b3n;
 const TAG_HASH_MASK = 0xffffffffffffffffn;
 
-export function threadNotificationTag(environmentId: EnvironmentId, threadId: ThreadId) {
+export function threadNotificationTag(environmentId: EnvironmentId, threadId: ThreadId): string {
   const key = `${environmentId}:${threadId}`;
   let hash = TAG_HASH_OFFSET_BASIS;
   for (let index = 0; index < key.length; index += 1) {

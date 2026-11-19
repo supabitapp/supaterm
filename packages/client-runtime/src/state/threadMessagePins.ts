@@ -24,24 +24,21 @@ interface MessagePinTarget {
 function optimisticPin(
   result: AsyncResult.AsyncResult<EnvironmentThreadState, unknown>,
   itemId: TurnItemId,
-): ThreadPinnedMessage | null;
-function optimisticPin(
-  result: AsyncResult.AsyncResult<EnvironmentThreadState, unknown>,
-  itemId: TurnItemId,
-) {
+): ThreadPinnedMessage | null {
   const projection = AsyncResult.value(result).pipe(
     Option.flatMap((state) => state.data),
     Option.getOrNull,
   );
   const row = projection?.visibleTurnItems.find((visible) => visible.sourceItemId === itemId);
-  return (
-    row !== undefined && isPinnableMessageItem(row.item)
-      ? pinnedMessageOf(row.item, row.sourceThreadId)
-      : null
-  ) satisfies ThreadPinnedMessage | null;
+  return row !== undefined && isPinnableMessageItem(row.item)
+    ? pinnedMessageOf(row.item, row.sourceThreadId)
+    : null;
 }
 
-function withPendingPins(state: EnvironmentThreadState, pending: ReadonlyArray<PendingMessagePin>) {
+function withPendingPins(
+  state: EnvironmentThreadState,
+  pending: ReadonlyArray<PendingMessagePin>,
+): EnvironmentThreadState {
   if (Option.isNone(state.data)) return state;
   const projection = state.data.value;
   const current = projection.thread.pinnedMessages ?? [];
@@ -85,11 +82,7 @@ export function createOptimisticMessagePins<E>(
   function wrap<W extends MessagePinTarget, A extends { readonly sequence: number }, CommandError>(
     command: AtomCommand<W, A, CommandError>,
     pinned: boolean,
-  ): AtomCommand<W, A, CommandError>;
-  function wrap<W extends MessagePinTarget, A extends { readonly sequence: number }, CommandError>(
-    command: AtomCommand<W, A, CommandError>,
-    pinned: boolean,
-  ) {
+  ): AtomCommand<W, A, CommandError> {
     return {
       label: command.label,
       run: async (registry, target) => {
@@ -129,7 +122,7 @@ export function createOptimisticMessagePins<E>(
           if (!confirmed) remove();
         }
       },
-    } satisfies AtomCommand<W, A, CommandError>;
+    };
   }
 
   return {

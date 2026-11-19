@@ -11,7 +11,7 @@ import {
   decodeViewerJson,
 } from "./bitbucketPullRequestJson.ts";
 
-function pullRequest(overrides: Record<string, unknown> = {}) {
+function pullRequest(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
     id: 897,
     title: "Add trustabl-pipe",
@@ -32,11 +32,11 @@ function pullRequest(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function page(values: ReadonlyArray<unknown>, extra: Record<string, unknown> = {}) {
+function page(values: ReadonlyArray<unknown>, extra: Record<string, unknown> = {}): string {
   return JSON.stringify({ pagelen: 50, page: 1, size: values.length, values, ...extra });
 }
 
-function expectSuccess<A>(result: Result.Result<A, unknown>) {
+function expectSuccess<A>(result: Result.Result<A, unknown>): A {
   expect(Result.isSuccess(result)).toBe(true);
   if (!Result.isSuccess(result)) throw new Error("expected a successful decode");
   return result.success;

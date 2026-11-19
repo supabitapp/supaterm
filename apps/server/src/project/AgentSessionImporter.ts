@@ -55,7 +55,7 @@ class AgentSessionUnresumableSessionError extends Schema.TaggedError<AgentSessio
     providerSessionId: Schema.String,
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Session '${this.providerSessionId}' from '${this.source}' cannot be resumed.`;
   }
 }
@@ -68,7 +68,7 @@ class AgentSessionThreadProjectConflictError extends Schema.TaggedError<AgentSes
     actualProjectId: ProjectId,
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Imported thread '${this.threadId}' belongs to project '${this.actualProjectId}', not '${this.expectedProjectId}'.`;
   }
 }
@@ -77,7 +77,7 @@ class AgentSessionThreadModifiedError extends Schema.TaggedError<AgentSessionThr
   "AgentSessionThreadModifiedError",
   { threadId: ThreadId },
 ) {
-  override get message() {
+  override get message(): string {
     return `Imported thread '${this.threadId}' already contains non-imported activity.`;
   }
 }
@@ -92,11 +92,11 @@ const NATIVE_HISTORY_READ_TIMEOUT = "2 minutes";
 export function isNativeHistoryPending(input: {
   readonly historyOrigin: OrchestrationV2AppThread["historyOrigin"];
   readonly hasRun: boolean;
-}) {
+}): boolean {
   return input.historyOrigin !== "v1_import" && !input.hasRun;
 }
 
-function dateTime(value: string) {
+function dateTime(value: string): DateTime.Utc {
   return DateTime.makeUnsafe(value);
 }
 
@@ -108,7 +108,7 @@ function messageEvents(input: {
   readonly threadId: ThreadId;
   readonly index: number;
   readonly message: HistoryMessage;
-}) {
+}): ReadonlyArray<OrchestrationV2DomainEvent> {
   const ordinal = input.index + 1;
   const suffix = String(input.index).padStart(6, "0");
   const messageId = MessageId.make(`${input.threadId}:${suffix}`);
@@ -132,18 +132,17 @@ function messageEvents(input: {
     completedAt: at,
     updatedAt: at,
   };
-  const turnItemEvent = (payload: OrchestrationV2TurnItem) =>
-    ({
-      id: EventId.make(turnItemId),
-      type: "turn-item.updated",
-      threadId: input.threadId,
-      occurredAt: at,
-      payload,
-    }) satisfies OrchestrationV2DomainEvent;
+  const turnItemEvent = (payload: OrchestrationV2TurnItem): OrchestrationV2DomainEvent => ({
+    id: EventId.make(turnItemId),
+    type: "turn-item.updated",
+    threadId: input.threadId,
+    occurredAt: at,
+    payload,
+  });
   if (input.message.role === "reasoning") {
     return [
       turnItemEvent({ ...common, type: "reasoning", text: input.message.text, streaming: false }),
-    ] satisfies ReadonlyArray<OrchestrationV2DomainEvent>;
+    ];
   }
   const message: OrchestrationV2ConversationMessage = {
     createdBy: input.message.role === "user" ? "user" : "agent",
@@ -187,7 +186,7 @@ function messageEvents(input: {
       payload: message,
     },
     turnItemEvent(turnItem),
-  ] satisfies ReadonlyArray<OrchestrationV2DomainEvent>;
+  ];
 }
 
 const make = Effect.gen(function* () {

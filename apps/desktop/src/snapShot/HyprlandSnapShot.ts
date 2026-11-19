@@ -17,7 +17,7 @@ export function hyprlandCaptureExecutable(paths: HyprlandCapturePaths) {
   return NodePath.join(paths.dataHome, "supaterm", "hyprland-capture", HYPRLAND_CAPTURE_EXECUTABLE);
 }
 
-function hyprlandCaptureBinding(appId: string, lua: boolean) {
+function hyprlandCaptureBinding(appId: string, lua: boolean): string {
   if (!/^[A-Za-z0-9_.-]+$/.test(appId)) throw new Error("Invalid capture application ID.");
   const action = `${appId}:${HYPRLAND_CAPTURE_ACTION}`;
   return lua
@@ -74,9 +74,9 @@ function run(
         else resolve(stdout);
       },
     );
-  }) satisfies Promise<string>;
+  });
 }
-async function regularFile(path: string) {
+async function regularFile(path: string): Promise<Buffer | undefined> {
   const stat = await NodeFSP.lstat(path).catch((error: NodeJS.ErrnoException) => {
     if (error.code !== "ENOENT") throw error;
     return undefined;
@@ -97,15 +97,14 @@ export class HyprlandCaptureSetup {
     this.paths = paths;
     this.native = native;
   }
-  state(): Promise<DesktopCaptureHelperState>;
-  async state() {
+  async state(): Promise<DesktopCaptureHelperState> {
     try {
       const installed = await regularFile(hyprlandCaptureExecutable(this.paths));
       if (!installed)
         return {
           status: "not-installed",
           message: "Install the bundled helper to capture the window you're using.",
-        } satisfies DesktopCaptureHelperState;
+        };
       const bundle = await regularFile(this.paths.bundle);
       if (!bundle)
         throw new Error(
@@ -115,7 +114,7 @@ export class HyprlandCaptureSetup {
         return {
           status: "update-required",
           message: "Update the bundled capture helper to continue.",
-        } satisfies DesktopCaptureHelperState;
+        };
       return {
         status: "ready",
         message:
@@ -128,7 +127,7 @@ export class HyprlandCaptureSetup {
       return {
         status: "error",
         message: error instanceof Error ? error.message : "Couldn't check Hyprland capture access.",
-      } satisfies DesktopCaptureHelperState;
+      };
     }
   }
   async perform(action: "install-hyprland-helper" | "remove-hyprland-helper") {
@@ -251,7 +250,7 @@ export async function captureHyprlandWindow(
           activation.abort();
         },
       },
-    } satisfies LinuxWindowSnapshot;
+    };
   } finally {
     if (!retained) await cleanup();
   }

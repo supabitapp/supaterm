@@ -9,7 +9,7 @@ import {
   type SlidePrimitive,
 } from "@betteroffice/pptx";
 import { slideFonts } from "./slide-fonts";
-import type { SlideMethods, SlidePainted } from "./slide-protocol";
+import type { SlideMethods, SlidePainted, SlideSummary } from "./slide-protocol";
 import { maxImageSide, type VectorBitmap, type VectorRequest } from "./vector-pictures";
 import { deckText } from "./slide-text";
 import { officeImageBitmap } from "./image-bitmap";
@@ -64,7 +64,7 @@ serveWorker<SlideMethods>({
       height: snapshot.heightEmu / emuPerPixel,
     };
 
-    return snapshot.slides.map((slide, index) => ({
+    return snapshot.slides.map((slide, index): SlideSummary => ({
       ...size,
       hidden: text.hidden[index] ?? false,
       notes: slide.notes?.trim() || undefined,
@@ -112,17 +112,16 @@ function createDeck(
     return laid;
   };
 
-  const decode = async (asset: string) => {
+  const decode = async (asset: string): Promise<Picture> => {
     const blob = presentationImageBlob(handle.mediaBytes(asset));
 
-    if (needsElementDecode(blob))
-      return { kind: "vector", blob, bitmap: undefined, failed: false } satisfies Picture;
+    if (needsElementDecode(blob)) return { kind: "vector", blob, bitmap: undefined, failed: false };
 
     const source = await officeImageBitmap(blob).catch(() => undefined);
 
-    if (!source) return { kind: "missing" } satisfies Picture;
+    if (!source) return { kind: "missing" };
     const size = { width: source.width, height: source.height };
-    return { kind: "bitmap", bitmap: await bounded(source), size } satisfies Picture;
+    return { kind: "bitmap", bitmap: await bounded(source), size };
   };
 
   const picture = (asset: string) => {
@@ -130,14 +129,14 @@ function createDeck(
 
     if (cached) return cached;
 
-    const decoded = decode(asset).catch(() => ({ kind: "missing" }) satisfies Picture);
+    const decoded = decode(asset).catch((): Picture => ({ kind: "missing" }));
 
     pictures.set(asset, decoded);
 
     return decoded;
   };
 
-  const tileScale = async (primitive: SlidePrimitive) => {
+  const tileScale = async (primitive: SlidePrimitive): Promise<SlidePrimitive> => {
     if (primitive.kind === "table" || primitive.kind === "chart") {
       const primitives: SlidePrimitive[] = [];
       for (const child of primitive.primitives) primitives.push(await tileScale(child));
@@ -157,12 +156,12 @@ function createDeck(
   };
 
   return {
-    paint: async (index: number, density: number, signal: AbortSignal) => {
+    paint: async (index: number, density: number, signal: AbortSignal): Promise<SlidePainted> => {
       const laid = await frame(index);
 
-      if (!laid) return { kind: "failed" } satisfies SlidePainted;
+      if (!laid) return { kind: "failed" };
 
-      if (signal.aborted) return { kind: "cancelled" } satisfies SlidePainted;
+      if (signal.aborted) return { kind: "cancelled" };
 
       const scale = Math.min(
         density,
@@ -180,7 +179,7 @@ function createDeck(
 
       const context = canvas.getContext("2d");
 
-      if (!context) return { kind: "failed" } satisfies SlidePainted;
+      if (!context) return { kind: "failed" };
 
       context.reset();
 
@@ -231,19 +230,19 @@ function createDeck(
 
       if (!shadowed) await new Promise((resolve) => setTimeout(resolve));
 
-      if (signal.aborted) return { kind: "cancelled" } satisfies SlidePainted;
+      if (signal.aborted) return { kind: "cancelled" };
 
       const done = shadowed || (await attempt(withoutShadows(scaled)));
 
-      if (!done) return { kind: "failed" } satisfies SlidePainted;
+      if (!done) return { kind: "failed" };
 
-      if (signal.aborted) return { kind: "cancelled" } satisfies SlidePainted;
+      if (signal.aborted) return { kind: "cancelled" };
 
       return {
         kind: "painted",
         bitmap: canvas.transferToImageBitmap(),
         vectors: [...wanted.values()],
-      } satisfies SlidePainted;
+      };
     },
 
     trim: () => {
@@ -286,7 +285,7 @@ function createDeck(
 function vectorSizes(primitives: readonly SlidePrimitive[], scale: number) {
   const sizes = new Map<string, Size | undefined>();
 
-  const visit = (primitive: SlidePrimitive) => {
+  const visit = (primitive: SlidePrimitive): void => {
     if (primitive.kind === "table" || primitive.kind === "chart")
       return primitive.primitives.forEach(visit);
 
@@ -333,9 +332,8 @@ function fraction(value: number | undefined) {
   return value === undefined || !Number.isFinite(value) ? 0 : Math.min(Math.max(value, 0), 1);
 }
 
-function withoutShadows(frame: SlideDisplayList): SlideDisplayList;
-function withoutShadows(frame: SlideDisplayList) {
-  const strip: (primitive: SlidePrimitive) => SlidePrimitive = (primitive: SlidePrimitive) => {
+function withoutShadows(frame: SlideDisplayList): SlideDisplayList {
+  const strip = (primitive: SlidePrimitive): SlidePrimitive => {
     if (primitive.kind === "shape" || primitive.kind === "image") {
       const { shadow: _shadow, ...rest } = primitive;
       return rest;
@@ -352,7 +350,7 @@ function withoutShadows(frame: SlideDisplayList) {
     return primitive;
   };
 
-  return { ...frame, primitives: frame.primitives.map(strip) } satisfies SlideDisplayList;
+  return { ...frame, primitives: frame.primitives.map(strip) };
 }
 
 async function bounded(source: ImageBitmap) {

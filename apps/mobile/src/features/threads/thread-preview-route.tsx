@@ -65,16 +65,8 @@ function createThreadPreviewNavigator<
   const ParamList extends ParamListBase,
   const TypeBag extends NavigatorTypeBagBase = ThreadPreviewTypeBag<ParamList>,
   const Config extends StaticConfig<TypeBag> = StaticConfig<TypeBag>,
->(config?: Config): TypedNavigator<TypeBag, Config>;
-function createThreadPreviewNavigator<
-  const ParamList extends ParamListBase,
-  const TypeBag extends NavigatorTypeBagBase = ThreadPreviewTypeBag<ParamList>,
-  const Config extends StaticConfig<TypeBag> = StaticConfig<TypeBag>,
->(config?: Config) {
-  return createNavigatorFactory(ThreadPreviewNavigator)(config) satisfies TypedNavigator<
-    TypeBag,
-    Config
-  >;
+>(config?: Config): TypedNavigator<TypeBag, Config> {
+  return createNavigatorFactory(ThreadPreviewNavigator)(config);
 }
 
 type ThreadPreviewParams = { readonly environmentId: string; readonly threadId: string };

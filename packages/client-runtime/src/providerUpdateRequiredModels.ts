@@ -6,7 +6,7 @@ const RUNTIME_NAMES: Partial<Record<string, string>> = {
   codex: "the Codex CLI",
 };
 
-function formatModelList(names: ReadonlyArray<string>) {
+function formatModelList(names: ReadonlyArray<string>): string {
   if (names.length <= 2) return names.join(" and ");
   return `${names.slice(0, -1).join(", ")}, and ${names[names.length - 1]}`;
 }
@@ -14,7 +14,7 @@ function formatModelList(names: ReadonlyArray<string>) {
 export function formatProviderUpdateRequiredNotice(
   provider: Pick<ServerProvider, "driver" | "updateRequiredModels">,
   searchQuery = "",
-) {
+): string | null {
   const query = searchQuery.trim().toLocaleLowerCase();
   const models = (provider.updateRequiredModels ?? []).filter(
     (model) =>

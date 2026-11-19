@@ -66,6 +66,6 @@ export function createVcsStatusRevalidationAtomFamily<R>(input: {
     }).pipe(Atom.withLabel(`vcs-status-revalidation:${key}`));
   });
   const idle = Atom.make<void>(undefined).pipe(Atom.withLabel("vcs-status-revalidation:idle"));
-  return (target: VcsStatusRevalidationTarget | null) =>
+  return (target: VcsStatusRevalidationTarget | null): Atom.Atom<void> =>
     target === null ? idle : family({ environmentId: target.environmentId, cwd: target.cwd });
 }

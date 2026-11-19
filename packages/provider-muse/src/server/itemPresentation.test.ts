@@ -3,7 +3,7 @@ import { describe, expect, it } from "@effect/vitest";
 import type { MuseItem } from "./protocol.ts";
 import { museItemStatus, museToolPresentation } from "./itemPresentation.ts";
 
-const item = (fields: Partial<MuseItem>) => ({
+const item = (fields: Partial<MuseItem>): MuseItem => ({
   itemId: "native-item",
   kind: "toolCall",
   status: "completed",

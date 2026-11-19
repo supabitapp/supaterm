@@ -16,7 +16,7 @@ import { useAtomCommand } from "~/state/use-atom-command";
 
 import { previewBridge } from "./previewBridge";
 
-function originOf(url: string) {
+function originOf(url: string): string | null {
   try {
     return new URL(url).origin;
   } catch {
@@ -46,7 +46,7 @@ export function usePreviewBridge(input: {
   tabId: string;
   runtimeTabId: string;
   serverDriven?: boolean;
-}) {
+}): void {
   const { threadRef, tabId, runtimeTabId, serverDriven = false } = input;
   const clearBrowserPointer = useBrowserPointerStore((state) => state.clear);
   const reportStatus = useAtomCommand(previewEnvironment.reportStatus, "preview status report");
@@ -59,7 +59,7 @@ export function usePreviewBridge(input: {
   const lastDesktopNavStatus = useRef<DesktopPreviewTabState["navStatus"] | null>(null);
   const captureActivity = useRef<ReturnType<typeof createCaptureActivity> | null>(null);
   const handleStateChange = useEffectEvent(
-    (changedTabId: string, state: DesktopPreviewTabState) => {
+    (changedTabId: string, state: DesktopPreviewTabState): void => {
       if (changedTabId !== runtimeTabId) return;
       if (shouldClearBrowserPointer(lastDesktopNavStatus.current, state.navStatus)) {
         clearBrowserPointer(runtimeTabId);
@@ -111,17 +111,19 @@ export function usePreviewBridge(input: {
 function shouldClearBrowserPointer(
   previous: DesktopPreviewTabState["navStatus"] | null,
   current: DesktopPreviewTabState["navStatus"],
-) {
+): boolean {
   if (!previous) return false;
   if (current.kind === "Loading" && previous.kind !== "Loading") return true;
   if (current.kind === "Idle" || previous.kind === "Idle") return false;
   return current.url !== previous.url;
 }
 
-function projectDesktopNavStatus(status: DesktopPreviewTabState["navStatus"]) {
+function projectDesktopNavStatus(
+  status: DesktopPreviewTabState["navStatus"],
+): PreviewSessionSnapshot["navStatus"] {
   switch (status.kind) {
     case "Idle":
-      return { _tag: "Idle" } satisfies PreviewSessionSnapshot["navStatus"];
+      return { _tag: "Idle" };
     case "LoadFailed":
       return {
         _tag: "LoadFailed",
@@ -129,17 +131,13 @@ function projectDesktopNavStatus(status: DesktopPreviewTabState["navStatus"]) {
         title: status.title,
         code: status.code,
         description: status.description,
-      } satisfies PreviewSessionSnapshot["navStatus"];
+      };
     default:
-      return {
-        _tag: status.kind,
-        url: status.url,
-        title: status.title,
-      } satisfies PreviewSessionSnapshot["navStatus"];
+      return { _tag: status.kind, url: status.url, title: status.title };
   }
 }
 
-export function projectDesktopState(state: DesktopPreviewTabState) {
+export function projectDesktopState(state: DesktopPreviewTabState): DesktopPreviewOverlay {
   const navOrigin = state.navStatus.kind === "Idle" ? null : originOf(state.navStatus.url);
   return {
     hasWebContents: state.webContentsId !== null,
@@ -154,7 +152,7 @@ export function projectDesktopState(state: DesktopPreviewTabState) {
     audible: state.audible,
     controller: state.controller,
     favicon: state.favicon && originOf(state.favicon.pageUrl) === navOrigin ? state.favicon : null,
-  } satisfies DesktopPreviewOverlay;
+  };
 }
 
 export function buildReportInput(args: {
@@ -164,29 +162,22 @@ export function buildReportInput(args: {
   readonly lastReportedUrl: string | null;
   readonly lastReportedKind: DesktopPreviewTabState["navStatus"]["kind"] | null;
   readonly lastReportedTitle: string | null;
-}) {
+}): {
+  readonly input: PreviewReportStatusInput;
+  readonly lastReportedUrl: string;
+  readonly lastReportedKind: DesktopPreviewTabState["navStatus"]["kind"];
+  readonly lastReportedTitle: string;
+} | null {
   const { threadId, tabId, state, lastReportedUrl, lastReportedKind, lastReportedTitle } = args;
   const status = state.navStatus;
-  if (status.kind === "Idle")
-    return null satisfies {
-      readonly input: PreviewReportStatusInput;
-      readonly lastReportedUrl: string;
-      readonly lastReportedKind: DesktopPreviewTabState["navStatus"]["kind"];
-      readonly lastReportedTitle: string;
-    } | null;
+  if (status.kind === "Idle") return null;
 
   const sameAsLast =
     status.kind !== "LoadFailed" &&
     status.kind === lastReportedKind &&
     status.url === lastReportedUrl &&
     status.title === lastReportedTitle;
-  if (sameAsLast)
-    return null satisfies {
-      readonly input: PreviewReportStatusInput;
-      readonly lastReportedUrl: string;
-      readonly lastReportedKind: DesktopPreviewTabState["navStatus"]["kind"];
-      readonly lastReportedTitle: string;
-    } | null;
+  if (sameAsLast) return null;
 
   const base = {
     threadId,
@@ -202,10 +193,5 @@ export function buildReportInput(args: {
     lastReportedUrl: status.url,
     lastReportedKind: status.kind,
     lastReportedTitle: status.title,
-  } satisfies {
-    readonly input: PreviewReportStatusInput;
-    readonly lastReportedUrl: string;
-    readonly lastReportedKind: DesktopPreviewTabState["navStatus"]["kind"];
-    readonly lastReportedTitle: string;
-  } | null;
+  };
 }

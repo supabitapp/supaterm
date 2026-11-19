@@ -143,7 +143,7 @@ it.effect("coalesces a slow shell subscriber by identity and location in sequenc
   }),
 );
 
-function shellFixture(overrides: Partial<OrchestrationV2ThreadShell>) {
+function shellFixture(overrides: Partial<OrchestrationV2ThreadShell>): OrchestrationV2ThreadShell {
   return { id: "thread-a", archivedAt: null, ...overrides } as OrchestrationV2ThreadShell;
 }
 
@@ -620,54 +620,51 @@ describe("dedupeShellEnrichment", () => {
 
 describe("skipUnchangedThreadShells", () => {
   const at = (ms: number) => DateTime.makeUnsafe(Date.parse("2026-10-01T00:00:00.000Z") + ms);
-  const shell = (id: string, overrides: Partial<OrchestrationV2ThreadShell> = {}) =>
-    ({
-      id: ThreadId.make(id),
-      projectId: ProjectId.make("project-a"),
-      title: "Thread",
-      providerInstanceId: ProviderInstanceId.make("codex"),
-      modelSelection: { instanceId: ProviderInstanceId.make("codex"), model: "gpt-5.4" },
-      runtimeMode: "full-access",
-      interactionMode: "default",
-      worktreePath: null,
-      activeProviderThreadId: null,
-      lineage: {
-        rootThreadId: ThreadId.make(id),
-        parentThreadId: null,
-        relationshipToParent: null,
-      },
-      forkedFrom: null,
-      createdBy: "user",
-      creationSource: "web",
-      activeRunId: null,
-      latestVisibleMessage: null,
-      hasActionableProposedPlan: false,
-      itemCount: 1,
-      visibleItemCount: 1,
-      branch: null,
-      status: "running",
-      pendingRuntimeRequest: null,
-      pendingBackgroundTasks: [],
-      latestRunId: null,
-      latestUserMessageAt: null,
-      createdAt: at(0),
-      updatedAt: at(0),
-      archivedAt: null,
-      doneOverride: null,
-      doneAt: null,
-      deletedAt: null,
-      ...overrides,
-    }) satisfies OrchestrationV2ThreadShell;
+  const shell = (
+    id: string,
+    overrides: Partial<OrchestrationV2ThreadShell> = {},
+  ): OrchestrationV2ThreadShell => ({
+    id: ThreadId.make(id),
+    projectId: ProjectId.make("project-a"),
+    title: "Thread",
+    providerInstanceId: ProviderInstanceId.make("codex"),
+    modelSelection: { instanceId: ProviderInstanceId.make("codex"), model: "gpt-5.4" },
+    runtimeMode: "full-access",
+    interactionMode: "default",
+    worktreePath: null,
+    activeProviderThreadId: null,
+    lineage: { rootThreadId: ThreadId.make(id), parentThreadId: null, relationshipToParent: null },
+    forkedFrom: null,
+    createdBy: "user",
+    creationSource: "web",
+    activeRunId: null,
+    latestVisibleMessage: null,
+    hasActionableProposedPlan: false,
+    itemCount: 1,
+    visibleItemCount: 1,
+    branch: null,
+    status: "running",
+    pendingRuntimeRequest: null,
+    pendingBackgroundTasks: [],
+    latestRunId: null,
+    latestUserMessageAt: null,
+    createdAt: at(0),
+    updatedAt: at(0),
+    archivedAt: null,
+    doneOverride: null,
+    doneAt: null,
+    deletedAt: null,
+    ...overrides,
+  });
   type Step =
     | { readonly advanceMs: number }
     | Exclude<OrchestrationV2ShellStreamItem, { readonly kind: "snapshot" | "synchronized" }>;
-  const updated = (sequence: number, thread: OrchestrationV2ThreadShell) =>
-    ({
-      kind: "thread.updated",
-      sequence,
-      location: "active",
-      thread,
-    }) satisfies Step;
+  const updated = (sequence: number, thread: OrchestrationV2ThreadShell): Step => ({
+    kind: "thread.updated",
+    sequence,
+    location: "active",
+    thread,
+  });
   const run = (steps: ReadonlyArray<Step>) =>
     Stream.fromIterable(steps).pipe(
       Stream.mapEffect((step) =>

@@ -43,7 +43,9 @@ export type GitActionRequestInput = Pick<
   "action" | "commitMessage" | "featureBranch" | "filePaths"
 >;
 
-export function changeRequestTerminologyFor(gitStatus: VcsStatusResult | null) {
+export function changeRequestTerminologyFor(
+  gitStatus: VcsStatusResult | null,
+): ChangeRequestTerminology {
   return sourceControlClients.get(gitStatus?.sourceControlProvider?.kind).changeRequest;
 }
 
@@ -51,8 +53,8 @@ export function buildMenuItems(
   gitStatus: VcsStatusResult | null,
   isBusy: boolean,
   hasOriginRemote = true,
-) {
-  if (!gitStatus) return [] satisfies GitActionMenuItem[];
+): GitActionMenuItem[] {
+  if (!gitStatus) return [];
   const terminology = changeRequestTerminologyFor(gitStatus);
 
   const hasBranch = gitStatus.refName !== null;
@@ -110,7 +112,7 @@ export function buildMenuItems(
           kind: "open_dialog",
           dialogAction: "create_pr",
         },
-  ] satisfies GitActionMenuItem[];
+  ];
 }
 
 export function resolveQuickAction(
@@ -118,14 +120,9 @@ export function resolveQuickAction(
   isBusy: boolean,
   isDefaultBranch = false,
   hasOriginRemote = true,
-) {
+): GitQuickAction {
   if (isBusy) {
-    return {
-      label: "Commit",
-      disabled: true,
-      kind: "show_hint",
-      hint: "Git action in progress.",
-    } satisfies GitQuickAction;
+    return { label: "Commit", disabled: true, kind: "show_hint", hint: "Git action in progress." };
   }
 
   if (!gitStatus) {
@@ -134,7 +131,7 @@ export function resolveQuickAction(
       disabled: true,
       kind: "show_hint",
       hint: "Git status is unavailable.",
-    } satisfies GitQuickAction;
+    };
   }
 
   const hasBranch = gitStatus.refName !== null;
@@ -151,64 +148,46 @@ export function resolveQuickAction(
       disabled: true,
       kind: "show_hint",
       hint: `Create and checkout a branch before pushing or opening ${terminology.shortLabelWithArticle}.`,
-    } satisfies GitQuickAction;
+    };
   }
 
   if (hasChanges) {
     if (isBehind || (!gitStatus.hasUpstream && !hasOriginRemote)) {
-      return {
-        label: "Commit",
-        disabled: false,
-        kind: "run_action",
-        action: "commit",
-      } satisfies GitQuickAction;
+      return { label: "Commit", disabled: false, kind: "run_action", action: "commit" };
     }
     if (hasOpenPr || isDefaultBranch) {
-      return {
-        label: "Commit & push",
-        disabled: false,
-        kind: "run_action",
-        action: "commit_push",
-      } satisfies GitQuickAction;
+      return { label: "Commit & push", disabled: false, kind: "run_action", action: "commit_push" };
     }
     return {
       label: `Commit, push & ${terminology.shortLabel}`,
       disabled: false,
       kind: "run_action",
       action: "commit_push_pr",
-    } satisfies GitQuickAction;
+    };
   }
 
   if (!gitStatus.hasUpstream) {
     if (!hasOriginRemote) {
       if (hasOpenPr && !isAhead) {
-        return {
-          label: `View ${terminology.shortLabel}`,
-          disabled: false,
-          kind: "open_pr",
-        } satisfies GitQuickAction;
+        return { label: `View ${terminology.shortLabel}`, disabled: false, kind: "open_pr" };
       }
       return {
         label: "Push",
         disabled: true,
         kind: "show_hint",
         hint: `Add an "origin" remote before pushing or creating ${terminology.shortLabelWithArticle}.`,
-      } satisfies GitQuickAction;
+      };
     }
     if (!isAhead) {
       if (hasOpenPr) {
-        return {
-          label: `View ${terminology.shortLabel}`,
-          disabled: false,
-          kind: "open_pr",
-        } satisfies GitQuickAction;
+        return { label: `View ${terminology.shortLabel}`, disabled: false, kind: "open_pr" };
       }
       return {
         label: "Push",
         disabled: true,
         kind: "show_hint",
         hint: "No local commits to push.",
-      } satisfies GitQuickAction;
+      };
     }
     if (hasOpenPr || isDefaultBranch) {
       return {
@@ -216,14 +195,14 @@ export function resolveQuickAction(
         disabled: false,
         kind: "run_action",
         action: isDefaultBranch ? "commit_push" : "push",
-      } satisfies GitQuickAction;
+      };
     }
     return {
       label: `Push & create ${terminology.shortLabel}`,
       disabled: false,
       kind: "run_action",
       action: "create_pr",
-    } satisfies GitQuickAction;
+    };
   }
 
   if (isDiverged) {
@@ -232,7 +211,7 @@ export function resolveQuickAction(
       disabled: true,
       kind: "show_hint",
       hint: "Branch has diverged from upstream. Rebase/merge first.",
-    } satisfies GitQuickAction;
+    };
   }
 
   if (isBehind) {
@@ -240,7 +219,7 @@ export function resolveQuickAction(
       label: "Pull",
       disabled: false,
       kind: "run_pull",
-    } satisfies GitQuickAction;
+    };
   }
 
   if (isAhead) {
@@ -250,22 +229,18 @@ export function resolveQuickAction(
         disabled: false,
         kind: "run_action",
         action: isDefaultBranch ? "commit_push" : "push",
-      } satisfies GitQuickAction;
+      };
     }
     return {
       label: `Push & create ${terminology.shortLabel}`,
       disabled: false,
       kind: "run_action",
       action: "create_pr",
-    } satisfies GitQuickAction;
+    };
   }
 
   if (hasOpenPr && gitStatus.hasUpstream) {
-    return {
-      label: `View ${terminology.shortLabel}`,
-      disabled: false,
-      kind: "open_pr",
-    } satisfies GitQuickAction;
+    return { label: `View ${terminology.shortLabel}`, disabled: false, kind: "open_pr" };
   }
 
   return {
@@ -273,7 +248,7 @@ export function resolveQuickAction(
     disabled: true,
     kind: "show_hint",
     hint: "Branch is up to date. No action needed.",
-  } satisfies GitQuickAction;
+  };
 }
 
 export function getGitActionDisabledReason(input: {
@@ -281,7 +256,7 @@ export function getGitActionDisabledReason(input: {
   gitStatus: VcsStatusResult | null;
   isBusy: boolean;
   hasOriginRemote: boolean;
-}) {
+}): string | null {
   const { item, gitStatus, isBusy, hasOriginRemote } = input;
   if (!item.disabled) return null;
   if (isBusy) return "Git action in progress.";
@@ -341,7 +316,7 @@ export function getGitActionDisabledReason(input: {
 export function requiresDefaultBranchConfirmation(
   action: GitStackedAction,
   isDefaultBranch: boolean,
-) {
+): boolean {
   if (!isDefaultBranch) return false;
   return (
     action === "push" ||
@@ -356,7 +331,7 @@ export function resolveDefaultBranchActionDialogCopy(input: {
   branchName: string;
   includesCommit: boolean;
   terminology: ChangeRequestTerminology;
-}) {
+}): DefaultBranchActionDialogCopy {
   const branchLabel = input.branchName;
   const { shortLabel, shortLabelWithArticle } = input.terminology;
   const suffix = ` on "${branchLabel}". You can continue on this branch or create a feature branch and run the same action there.`;

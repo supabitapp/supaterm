@@ -14,7 +14,7 @@ import { environmentServerConfigsAtom } from "../../state/server";
 import { readEnvironmentScope } from "../../state/session";
 
 /** A No project thread that already has its own folder, on a server that can promote it. */
-export function canTurnThreadIntoProject(thread: EnvironmentThreadShell) {
+export function canTurnThreadIntoProject(thread: EnvironmentThreadShell): boolean {
   if (thread.worktreePath === null) return false;
   const config = appAtomRegistry.get(environmentServerConfigsAtom).get(thread.environmentId);
   if (config?.environment.capabilities.threadProjectFromScratch !== true) return false;
@@ -27,7 +27,7 @@ export function canTurnThreadIntoProject(thread: EnvironmentThreadShell) {
   return project?.isScratch === true;
 }
 
-export async function turnThreadIntoProject(thread: EnvironmentThreadShell) {
+export async function turnThreadIntoProject(thread: EnvironmentThreadShell): Promise<void> {
   const title = "Could not turn thread into a project";
   if (!readEnvironmentScope(thread.environmentId, AuthOrchestrationOperateScope)) {
     Dialog.alert(title, "This connection cannot change threads.");

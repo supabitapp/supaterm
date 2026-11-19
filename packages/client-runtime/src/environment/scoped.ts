@@ -8,29 +8,34 @@ import {
   type ScopedThreadRef,
 } from "@supaterm/contracts";
 
-export function scopeProjectRef(environmentId: EnvironmentIdType, projectId: ProjectIdType) {
+export function scopeProjectRef(
+  environmentId: EnvironmentIdType,
+  projectId: ProjectIdType,
+): ScopedProjectRef {
   return { environmentId, projectId };
 }
 
-export function scopeThreadRef(environmentId: EnvironmentIdType, threadId: ThreadId) {
+export function scopeThreadRef(
+  environmentId: EnvironmentIdType,
+  threadId: ThreadId,
+): ScopedThreadRef {
   return { environmentId, threadId };
 }
 
-function scopedRefKey(ref: ScopedProjectRef | ScopedThreadRef) {
+function scopedRefKey(ref: ScopedProjectRef | ScopedThreadRef): string {
   const localId = "projectId" in ref ? ref.projectId : ref.threadId;
   return `${ref.environmentId}:${localId}`;
 }
 
-export function scopedProjectKey(ref: ScopedProjectRef) {
+export function scopedProjectKey(ref: ScopedProjectRef): string {
   return scopedRefKey(ref);
 }
 
-export function scopedThreadKey(ref: ScopedThreadRef): string;
-export function scopedThreadKey(ref: ScopedThreadRef) {
-  return scopedRefKey(ref) satisfies string;
+export function scopedThreadKey(ref: ScopedThreadRef): string {
+  return scopedRefKey(ref);
 }
 
-function parseScopedKey(key: string) {
+function parseScopedKey(key: string): { environmentId: EnvironmentIdType; localId: string } | null {
   const separatorIndex = key.indexOf(":");
   if (separatorIndex <= 0 || separatorIndex >= key.length - 1) {
     return null;
@@ -41,7 +46,7 @@ function parseScopedKey(key: string) {
   };
 }
 
-export function parseScopedProjectKey(key: string) {
+export function parseScopedProjectKey(key: string): ScopedProjectRef | null {
   const parsed = parseScopedKey(key);
   if (!parsed) {
     return null;
@@ -52,7 +57,7 @@ export function parseScopedProjectKey(key: string) {
   };
 }
 
-export function parseScopedThreadKey(key: string) {
+export function parseScopedThreadKey(key: string): ScopedThreadRef | null {
   const parsed = parseScopedKey(key);
   if (!parsed) {
     return null;

@@ -63,18 +63,7 @@ export function createPhoneViewer(options: {
   readonly model?: DeviceModelSource | null;
   readonly accessory?: DeviceAccessorySource | null;
   readonly foldAngle?: number | null;
-}): PhoneViewer;
-export function createPhoneViewer(options: {
-  readonly canvas: HTMLCanvasElement;
-  readonly source: HTMLCanvasElement;
-  readonly onUnavailable: () => void;
-  readonly onModelError?: (cause: unknown) => void;
-  readonly onFramingAspect?: (aspect: number) => void;
-  readonly profile?: DeviceShapeProfile;
-  readonly model?: DeviceModelSource | null;
-  readonly accessory?: DeviceAccessorySource | null;
-  readonly foldAngle?: number | null;
-}) {
+}): PhoneViewer {
   const renderer = new WebGLRenderer({
     canvas: options.canvas,
     alpha: true,
@@ -442,5 +431,5 @@ export function createPhoneViewer(options: {
       renderer.dispose();
       renderer.forceContextLoss();
     },
-  } satisfies PhoneViewer;
+  };
 }

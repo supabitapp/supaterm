@@ -13,7 +13,7 @@ import { composerContextEditorTokens } from "./composerContext";
 import { contextChipIconUri } from "./contextChipIconSource";
 import type { MobileThemeVariables } from "./mobileTheme";
 
-function basename(path: string) {
+function basename(path: string): string {
   const separator = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"));
   return separator >= 0 ? path.slice(separator + 1) : path;
 }
@@ -24,7 +24,7 @@ function chipLabel(
   token: ComposerEditorToken,
   available: boolean,
   skillLabels: ReadonlyMap<string, string>,
-) {
+): string {
   switch (token.type) {
     case "skill":
       return skillLabels.get(token.value) ?? token.value;

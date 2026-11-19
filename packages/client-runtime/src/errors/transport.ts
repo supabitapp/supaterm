@@ -17,22 +17,19 @@ const TRANSPORT_ERROR_PATTERNS = [
   /\bping timeout\b/i,
 ] as const;
 
-export function isTransportConnectionErrorMessage(message: string | null | undefined): boolean;
-export function isTransportConnectionErrorMessage(message: string | null | undefined) {
+export function isTransportConnectionErrorMessage(message: string | null | undefined): boolean {
   if (typeof message !== "string") {
-    return false satisfies boolean;
+    return false;
   }
 
   const normalizedMessage = message.trim();
   if (normalizedMessage.length === 0) {
-    return false satisfies boolean;
+    return false;
   }
 
-  return TRANSPORT_ERROR_PATTERNS.some((pattern) =>
-    pattern.test(normalizedMessage),
-  ) satisfies boolean;
+  return TRANSPORT_ERROR_PATTERNS.some((pattern) => pattern.test(normalizedMessage));
 }
 
-export function sanitizeThreadErrorMessage(message: string | null | undefined) {
+export function sanitizeThreadErrorMessage(message: string | null | undefined): string | null {
   return isTransportConnectionErrorMessage(message) ? null : (message ?? null);
 }

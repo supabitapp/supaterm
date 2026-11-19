@@ -21,7 +21,7 @@ function machine(
   serverVersion: string,
   selfUpdate: ServerSelfUpdateCapability | undefined,
   overrides: Partial<UpdateEverythingMachine> = {},
-) {
+): UpdateEverythingMachine {
   return {
     environmentId: EnvironmentId.make(id),
     label: id,
@@ -46,7 +46,7 @@ function machine(
     canMaintain: true,
     updateState: { status: "idle" },
     ...overrides,
-  } satisfies UpdateEverythingMachine;
+  };
 }
 
 describe("collectServerUpdateTargets", () => {
@@ -110,18 +110,17 @@ describe("collectChannelSwitchTargets", () => {
     base: UpdateEverythingMachine,
     databaseMigration: number | undefined,
     os: "linux" | "darwin" = "linux",
-  ) =>
-    ({
-      ...base,
-      serverConfig: {
-        ...base.serverConfig!,
-        environment: {
-          ...base.serverConfig!.environment,
-          platform: { os, arch: "x64" },
-          ...(databaseMigration === undefined ? {} : { databaseMigration }),
-        },
+  ): UpdateEverythingMachine => ({
+    ...base,
+    serverConfig: {
+      ...base.serverConfig!,
+      environment: {
+        ...base.serverConfig!.environment,
+        platform: { os, arch: "x64" },
+        ...(databaseMigration === undefined ? {} : { databaseMigration }),
       },
-    }) satisfies UpdateEverythingMachine;
+    },
+  });
 
   it("moves nightly hosts to stable only when stable knows their database", () => {
     const stable = { channel: "latest" as const, version: "0.1.3", databaseMigration: 69 };

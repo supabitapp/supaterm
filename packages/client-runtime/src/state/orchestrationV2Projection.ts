@@ -31,11 +31,15 @@ const arrayReplacements = new WeakMap<
 export function getProjectionArrayReplacementIndex(
   previous: ReadonlyArray<unknown>,
   next: ReadonlyArray<unknown>,
-) {
+): number | undefined {
   return arrayReplacements.get(previous)?.get(next);
 }
 
-function replaceProjectionArrayItem<T>(items: ReadonlyArray<T>, index: number, item: T) {
+function replaceProjectionArrayItem<T>(
+  items: ReadonlyArray<T>,
+  index: number,
+  item: T,
+): ReadonlyArray<T> {
   const next = items.slice();
   next[index] = item;
   let replacements = arrayReplacements.get(items);
@@ -47,7 +51,10 @@ function replaceProjectionArrayItem<T>(items: ReadonlyArray<T>, index: number, i
   return next;
 }
 
-function upsertEntity<T extends { readonly id: unknown }>(items: ReadonlyArray<T>, item: T) {
+function upsertEntity<T extends { readonly id: unknown }>(
+  items: ReadonlyArray<T>,
+  item: T,
+): ReadonlyArray<T> {
   const index = items.findIndex((candidate) => candidate.id === item.id);
   if (index === -1) return [...items, item];
   const next = [...items];
@@ -55,33 +62,34 @@ function upsertEntity<T extends { readonly id: unknown }>(items: ReadonlyArray<T
   return next;
 }
 
-function latestBodies(projection: OrchestrationV2ThreadProjection): DedupedBodySource;
-function latestBodies(projection: OrchestrationV2ThreadProjection) {
+function latestBodies(projection: OrchestrationV2ThreadProjection): DedupedBodySource {
   return {
     messageText: (id) => projection.messages.findLast((message) => message.id === id)?.text,
     checkpointFiles: (id) =>
       projection.checkpoints.findLast((checkpoint) => checkpoint.id === id)?.files,
     subagent: (id) => projection.subagents.findLast((subagent) => subagent.id === id),
-  } satisfies DedupedBodySource;
+  };
 }
 
 function removeVisibleItem(
   rows: OrchestrationV2ThreadProjection["visibleTurnItems"],
   sourceItemId: OrchestrationV2TurnItem["id"],
-) {
+): OrchestrationV2ThreadProjection["visibleTurnItems"] {
   const index = rows.findIndex((row) => row.sourceItemId === sourceItemId);
   if (index === -1) return rows;
   return renumberVisibleItems([...rows.slice(0, index), ...rows.slice(index + 1)]);
 }
 
-function renumberVisibleItems(rows: OrchestrationV2ThreadProjection["visibleTurnItems"]) {
+function renumberVisibleItems(
+  rows: OrchestrationV2ThreadProjection["visibleTurnItems"],
+): OrchestrationV2ThreadProjection["visibleTurnItems"] {
   return rows.map((row, position) => (row.position === position ? row : { ...row, position }));
 }
 
 function shouldShowLocalTurnItem(
   projection: OrchestrationV2ThreadProjection,
   item: OrchestrationV2TurnItem,
-) {
+): boolean {
   return isOrchestrationV2TurnItemVisible({
     item,
     runs: projection.runs,
@@ -90,7 +98,9 @@ function shouldShowLocalTurnItem(
   });
 }
 
-function activeVisibleTurnItems(projection: OrchestrationV2ThreadProjection) {
+function activeVisibleTurnItems(
+  projection: OrchestrationV2ThreadProjection,
+): OrchestrationV2ThreadProjection["visibleTurnItems"] {
   const rows = projection.visibleTurnItems;
   const isVisible = createOrchestrationV2TurnItemVisibility({
     runs: projection.runs,
@@ -110,7 +120,9 @@ function activeVisibleTurnItems(projection: OrchestrationV2ThreadProjection) {
   return next === null ? rows : renumberVisibleItems(next);
 }
 
-function oldestLocalTurnOrdinal(rows: OrchestrationV2ThreadProjection["visibleTurnItems"]) {
+function oldestLocalTurnOrdinal(
+  rows: OrchestrationV2ThreadProjection["visibleTurnItems"],
+): number | null {
   let oldest: number | null = null;
   for (const row of rows) {
     if (row.visibility !== "local") continue;
@@ -125,7 +137,7 @@ function shouldDropMissingPartialTurnItem(
   projection: OrchestrationV2ThreadProjection,
   item: OrchestrationV2TurnItem,
   latestLocalTurnOrdinal: number | null | undefined,
-) {
+): boolean {
   if (projection.visibleTurnItems.some((row) => row.sourceItemId === item.id)) {
     return false;
   }
@@ -156,7 +168,7 @@ function isBelowPartialWindow(
   projection: OrchestrationV2ThreadProjection,
   item: OrchestrationV2TurnItem,
   latestLocalTurnOrdinal: number | null | undefined,
-) {
+): boolean {
   if (
     latestLocalTurnOrdinal !== null &&
     latestLocalTurnOrdinal !== undefined &&
@@ -173,7 +185,7 @@ function upsertVisibleTurnItem(
   item: OrchestrationV2TurnItem,
   partialTimeline: boolean,
   latestLocalTurnOrdinal: number | null | undefined,
-) {
+): OrchestrationV2ThreadProjection["visibleTurnItems"] {
   const rows = projection.visibleTurnItems;
   let index = rows.length - 1;
   while (index >= 0 && rows[index]!.sourceItemId !== item.id) index -= 1;
@@ -232,7 +244,7 @@ function upsertVisibleTurnItem(
 function restoreQueuedUserItems(
   projection: OrchestrationV2ThreadProjection,
   runId: OrchestrationV2Run["id"],
-) {
+): OrchestrationV2ThreadProjection["visibleTurnItems"] {
   let visibleTurnItems = projection.visibleTurnItems;
   for (const item of projection.turnItems) {
     if (item.runId !== runId || item.type !== "user_message" || item.inputIntent !== "queued_turn")
@@ -252,7 +264,7 @@ export function applyOrchestrationV2ProjectionEvent(
   projection: OrchestrationV2ThreadProjection | null,
   event: OrchestrationV2DomainEvent,
   options?: ApplyOrchestrationV2ProjectionEventOptions,
-) {
+): OrchestrationV2ThreadProjection | null {
   if (projection === null || event.threadId !== projection.thread.id) return projection;
 
   const partialTimeline = options?.partialTimeline === true;

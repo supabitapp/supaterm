@@ -12,7 +12,7 @@ export class LRUCache<T> {
     private readonly maxMemoryBytes: number,
   ) {}
 
-  get(key: string) {
+  get(key: string): T | null {
     const entry = this.cache.get(key);
     if (!entry) {
       return null;
@@ -22,7 +22,7 @@ export class LRUCache<T> {
     return entry.value;
   }
 
-  set(key: string, value: T, approximateSize: number) {
+  set(key: string, value: T, approximateSize: number): void {
     if (approximateSize > this.maxMemoryBytes) {
       return;
     }
@@ -38,17 +38,17 @@ export class LRUCache<T> {
     this.totalSize += approximateSize;
   }
 
-  clear() {
+  clear(): void {
     this.cache.clear();
     this.totalSize = 0;
   }
 
-  private promote(key: string, entry: CacheEntry<T>) {
+  private promote(key: string, entry: CacheEntry<T>): void {
     this.cache.delete(key);
     this.cache.set(key, entry);
   }
 
-  private evictIfNeeded(incomingSize: number) {
+  private evictIfNeeded(incomingSize: number): void {
     while (
       (this.cache.size >= this.maxEntries || this.totalSize + incomingSize > this.maxMemoryBytes) &&
       this.cache.size > 0

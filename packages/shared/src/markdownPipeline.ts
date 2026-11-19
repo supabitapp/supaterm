@@ -38,11 +38,10 @@ type MarkdownImageHastNode = {
   children?: MarkdownImageHastNode[];
 };
 
-function meaningfulHastChildren(node: MarkdownImageHastNode): MarkdownImageHastNode[];
-function meaningfulHastChildren(node: MarkdownImageHastNode) {
+function meaningfulHastChildren(node: MarkdownImageHastNode): MarkdownImageHastNode[] {
   return (node.children ?? []).filter(
     (child) => !(child.type === "text" && (child as { value?: string }).value?.trim() === ""),
-  ) satisfies MarkdownImageHastNode[];
+  );
 }
 
 const STANDALONE_IMAGE_BLOCKS = new Set([
@@ -56,19 +55,16 @@ const STANDALONE_IMAGE_BLOCKS = new Set([
   "blockquote",
 ]);
 
-function soleImageDescendant(node: MarkdownImageHastNode): MarkdownImageHastNode | undefined;
-function soleImageDescendant(node: MarkdownImageHastNode) {
+function soleImageDescendant(node: MarkdownImageHastNode): MarkdownImageHastNode | undefined {
   const children = meaningfulHastChildren(node);
-  if (children.length !== 1) return undefined satisfies MarkdownImageHastNode | undefined;
+  if (children.length !== 1) return undefined;
   const only = children[0];
-  if (only?.type !== "element") return undefined satisfies MarkdownImageHastNode | undefined;
-  if (only.tagName === "img") return only satisfies MarkdownImageHastNode | undefined;
+  if (only?.type !== "element") return undefined;
+  if (only.tagName === "img") return only;
 
-  return (
-    only.tagName === "a" || only.tagName === "strong" || only.tagName === "em"
-      ? soleImageDescendant(only)
-      : undefined
-  ) satisfies MarkdownImageHastNode | undefined;
+  return only.tagName === "a" || only.tagName === "strong" || only.tagName === "em"
+    ? soleImageDescendant(only)
+    : undefined;
 }
 
 function markStandaloneImages(node: MarkdownImageHastNode) {
@@ -277,9 +273,8 @@ interface HtmlScope {
   readonly heading: boolean;
 }
 
-function needsHtmlParser(node: MarkdownImageHastNode, scope: HtmlScope): boolean;
-function needsHtmlParser(node: MarkdownImageHastNode, scope: HtmlScope) {
-  if (node.type === "raw") return true satisfies boolean;
+function needsHtmlParser(node: MarkdownImageHastNode, scope: HtmlScope): boolean {
+  if (node.type === "raw") return true;
   let inner = scope;
   if (node.type === "element" && node.tagName) {
     const { tagName } = node;
@@ -289,7 +284,7 @@ function needsHtmlParser(node: MarkdownImageHastNode, scope: HtmlScope) {
       (scope.paragraph && CLOSES_PARAGRAPH.has(tagName)) ||
       (heading && scope.heading)
     ) {
-      return true satisfies boolean;
+      return true;
     }
     inner = {
       anchor: scope.anchor || tagName === "a",
@@ -314,7 +309,7 @@ function needsHtmlParser(node: MarkdownImageHastNode, scope: HtmlScope) {
     }
     delete (node as { data?: unknown }).data;
   }
-  return (node.children ?? []).some((child) => needsHtmlParser(child, inner)) satisfies boolean;
+  return (node.children ?? []).some((child) => needsHtmlParser(child, inner));
 }
 
 const TOP_SCOPE: HtmlScope = { anchor: false, paragraph: false, heading: false };
@@ -336,9 +331,7 @@ export const CHAT_MARKDOWN_REHYPE_PLUGINS: PluggableList = [
   [rehypeSanitize, CHAT_MARKDOWN_SANITIZE_SCHEMA],
 ];
 
-const isImageNode: (node: PhrasingContent | undefined) => boolean = (
-  node: PhrasingContent | undefined,
-) =>
+const isImageNode = (node: PhrasingContent | undefined): boolean =>
   node?.type === "image" ||
   node?.type === "imageReference" ||
   ((node?.type === "link" || node?.type === "linkReference") &&
@@ -360,7 +353,7 @@ function breakLinesAroundImages(paragraph: Paragraph) {
     isImageNode(children[index]) &&
     endsLine(children[index - 1]) &&
     startsLine(children[index + 1]);
-  paragraph.children = children.flatMap((child, index) => {
+  paragraph.children = children.flatMap((child, index): PhrasingContent[] => {
     if (child.type !== "text") return [child];
     const afterImage = ownsLine(index - 1);
     const beforeImage = ownsLine(index + 1);
@@ -399,9 +392,8 @@ type MarkdownAstNode = {
   children?: MarkdownAstNode[];
 };
 
-function remarkKeepAutolinkSuffixes(): Transformer<Root>;
-function remarkKeepAutolinkSuffixes() {
-  return ((tree, file) => {
+function remarkKeepAutolinkSuffixes(): Transformer<Root> {
+  return (tree, file) => {
     const source = String(file);
     const visit = (node: Root | RootContent) => {
       if (!("children" in node) || node.type === "link" || node.type === "linkReference") return;
@@ -443,12 +435,12 @@ function remarkKeepAutolinkSuffixes() {
       }
     };
     visit(tree);
-  }) satisfies Transformer<Root>;
+  };
 }
 
 const SCRIPT_PUNCTUATION = /(?=[　-〿＀-￯،؛؟۔])[\p{P}\p{S}]/u;
 
-function scriptPunctuationIndex(link: Link) {
+function scriptPunctuationIndex(link: Link): number {
   const label = link.children.length === 1 ? link.children[0] : undefined;
   if (label?.type !== "text" || !/^https?:\/\//i.test(link.url)) return -1;
   if (link.url !== label.value && link.url !== `http://${label.value}`) return -1;
@@ -456,7 +448,7 @@ function scriptPunctuationIndex(link: Link) {
   return index > 0 && SCRIPT_PUNCTUATION.test(label.value.charAt(index)) ? index : -1;
 }
 
-function isBareLink(link: Link, source: string) {
+function isBareLink(link: Link, source: string): boolean {
   const start = link.position?.start.offset;
   const end = link.position?.end.offset;
   const label = link.children[0];
@@ -469,29 +461,24 @@ function isBareLink(link: Link, source: string) {
   );
 }
 
-function scriptPunctuationOffsets(node: RootContent, source: string): number[];
-function scriptPunctuationOffsets(node: RootContent, source: string) {
+function scriptPunctuationOffsets(node: RootContent, source: string): number[] {
   if (node.type === "link") {
     const index = scriptPunctuationIndex(node);
     const start = node.position?.start.offset;
-    return (
-      index > 0 && start !== undefined && isBareLink(node, source) ? [start + index] : []
-    ) satisfies number[];
+    return index > 0 && start !== undefined && isBareLink(node, source) ? [start + index] : [];
   }
-  return (
-    "children" in node && node.type !== "linkReference"
-      ? (node.children as RootContent[]).flatMap((child) => scriptPunctuationOffsets(child, source))
-      : []
-  ) satisfies number[];
+  return "children" in node && node.type !== "linkReference"
+    ? (node.children as RootContent[]).flatMap((child) => scriptPunctuationOffsets(child, source))
+    : [];
 }
 
-const hasReference = (node: RootContent) =>
+const hasReference = (node: RootContent): boolean =>
   node.type === "linkReference" ||
   node.type === "imageReference" ||
   node.type === "footnoteReference" ||
   ("children" in node && (node.children as RootContent[]).some(hasReference));
 
-function countBelow(sorted: readonly number[], value: number) {
+function countBelow(sorted: readonly number[], value: number): number {
   let low = 0;
   let high = sorted.length;
   while (low < high) {
@@ -507,17 +494,10 @@ function reparseAtScriptPunctuation(
   block: Paragraph | Heading | TableCell,
   source: string,
   offsets: number[],
-): boolean;
-function reparseAtScriptPunctuation(
-  processor: Processor,
-  block: Paragraph | Heading | TableCell,
-  source: string,
-  offsets: number[],
-) {
+): boolean {
   const from = block.children[0]?.position?.start;
   const to = block.children.at(-1)?.position?.end;
-  if (from?.offset === undefined || to?.offset === undefined || hasReference(block))
-    return false satisfies boolean;
+  if (from?.offset === undefined || to?.offset === undefined || hasReference(block)) return false;
   const base = from.offset;
   const text = source.slice(base, to.offset);
   if (
@@ -526,7 +506,7 @@ function reparseAtScriptPunctuation(
     (/[\r\n] /.test(text) && text.includes("`")) ||
     (block.type === "tableCell" && text.includes("\\|"))
   ) {
-    return false satisfies boolean;
+    return false;
   }
   const marks = offsets.map((offset) => offset - base);
   for (let attempt = 0; attempt < 16; attempt++) {
@@ -537,7 +517,7 @@ function reparseAtScriptPunctuation(
       .map((start, index) => text.slice(start, marks[index] ?? text.length))
       .join("\t");
     const [paragraph, ...rest] = (processor.parse(marked) as Root).children;
-    if (paragraph?.type !== "paragraph" || rest.length > 0) return false satisfies boolean;
+    if (paragraph?.type !== "paragraph" || rest.length > 0) return false;
     const more = scriptPunctuationOffsets(paragraph, marked);
     if (more.length > 0) {
       marks.push(...more.map(unmarked));
@@ -546,7 +526,7 @@ function reparseAtScriptPunctuation(
 
     let tabCount = 0;
     const moved = new Set<object>();
-    const restore = (node: RootContent) => {
+    const restore = (node: RootContent): boolean => {
       for (const point of node.position ? [node.position.start, node.position.end] : []) {
         const offset = point.offset;
         if (offset === undefined || moved.has(point)) continue;
@@ -573,11 +553,11 @@ function reparseAtScriptPunctuation(
       ) as typeof node.children;
       return true;
     };
-    if (!restore(paragraph) || tabCount !== tabs.length) return false satisfies boolean;
+    if (!restore(paragraph) || tabCount !== tabs.length) return false;
     block.children = paragraph.children;
-    return true satisfies boolean;
+    return true;
   }
-  return false satisfies boolean;
+  return false;
 }
 
 function splitAtScriptPunctuation(node: RootContent, source: string) {
@@ -612,9 +592,8 @@ function splitAtScriptPunctuation(node: RootContent, source: string) {
   }
 }
 
-function remarkEndAutolinksAtScriptPunctuation(this: Processor): Transformer<Root>;
-function remarkEndAutolinksAtScriptPunctuation(this: Processor) {
-  return ((tree, file) => {
+function remarkEndAutolinksAtScriptPunctuation(this: Processor): Transformer<Root> {
+  return (tree, file) => {
     const source = String(file);
     if (!SCRIPT_PUNCTUATION.test(source)) return;
     const visit = (node: RootContent) => {
@@ -627,16 +606,15 @@ function remarkEndAutolinksAtScriptPunctuation(this: Processor) {
       }
     };
     tree.children.forEach(visit);
-  }) satisfies Transformer<Root>;
+  };
 }
 
-function remarkLinkAbsoluteFilePaths(): Transformer<Root>;
-function remarkLinkAbsoluteFilePaths() {
-  return ((tree) => {
+function remarkLinkAbsoluteFilePaths(): Transformer<Root> {
+  return (tree) => {
     let rawAnchorDepth = 0;
     const visit = (node: Root | RootContent) => {
       if (!("children" in node) || node.type === "link" || node.type === "linkReference") return;
-      node.children = node.children.flatMap((child) => {
+      node.children = node.children.flatMap((child): typeof node.children => {
         if (child.type === "html") {
           for (const [tag] of child.value.matchAll(RAW_HTML_TAG_PATTERN)) {
             if (/^<a[\s/>]/i.test(tag)) rawAnchorDepth += 1;
@@ -661,7 +639,7 @@ function remarkLinkAbsoluteFilePaths() {
       });
     };
     visit(tree);
-  }) satisfies Transformer<Root>;
+  };
 }
 
 function remarkPreserveCodeMeta() {
@@ -710,7 +688,7 @@ function remarkNormalizeLinksAndTagInlineCode() {
   };
 }
 
-export function shouldPreserveAssistantLineBreaks(text: string) {
+export function shouldPreserveAssistantLineBreaks(text: string): boolean {
   return /^★ Insight(?:\s|─)/mu.test(text);
 }
 
@@ -798,7 +776,7 @@ const linkDestinationProcessor = unified().use(remarkParse).use(remarkKeepWindow
 const ANGLE_DESTINATION_CONTENT = /^(?:[^\\<>]|\\.)*$/;
 
 /** Reads a destination from `extractMarkdownLinkHrefs` as the renderer's parser does. */
-export function decodeMarkdownLinkEscapes(href: string) {
+export function decodeMarkdownLinkEscapes(href: string): string {
   if (href.includes("&")) {
     const destination = ANGLE_DESTINATION_CONTENT.test(href) ? `<${href}>` : href;
     const paragraph = linkDestinationProcessor.parse(`[](${destination})`).children[0];

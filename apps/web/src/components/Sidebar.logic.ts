@@ -56,7 +56,7 @@ export function shouldNavigateAfterThreadPark(input: {
   readonly action: "mark-done" | "snooze";
   readonly now: string;
   readonly thread: (ThreadSnoozeShell & Pick<SidebarThreadSummary, "doneOverride">) | null;
-}) {
+}): boolean {
   return (
     input.threadKey === input.currentThreadKey &&
     input.thread !== null &&
@@ -73,11 +73,11 @@ export function resolveSidebarRowAccessibility(input: {
   readonly statusLabel: string | null;
   readonly projectDisplayName: string | null;
   readonly isActive: boolean;
-}) {
+}): { readonly label: string; readonly current: "page" | undefined } {
   return {
     label: [input.title, input.statusLabel, input.projectDisplayName].filter(Boolean).join(", "),
     current: input.isActive ? "page" : undefined,
-  } satisfies { readonly label: string; readonly current: "page" | undefined };
+  };
 }
 
 const SIDEBAR_ROW_SUBSCRIPTION_OVERSCAN_PX = 160;
@@ -85,8 +85,7 @@ const SIDEBAR_ROW_SUBSCRIPTION_OVERSCAN_PX = 160;
 export function useSidebarRowSubscriptionLease(isActive: boolean): {
   readonly leaseLiveStatus: boolean;
   readonly rowRef: (row: HTMLElement | null) => (() => void) | undefined;
-};
-export function useSidebarRowSubscriptionLease(isActive: boolean) {
+} {
   const [isNearViewport, setIsNearViewport] = React.useState(isActive);
   if (isActive && !isNearViewport) setIsNearViewport(true);
   const canObserve = typeof IntersectionObserver !== "undefined";
@@ -100,9 +99,6 @@ export function useSidebarRowSubscriptionLease(isActive: boolean) {
         rootMargin: `${SIDEBAR_ROW_SUBSCRIPTION_OVERSCAN_PX}px 0px`,
       });
     },
-  } satisfies {
-    readonly leaseLiveStatus: boolean;
-    readonly rowRef: (row: HTMLElement | null) => (() => void) | undefined;
   };
 }
 
@@ -136,7 +132,7 @@ export function setFileDragActive(setActive: (active: boolean) => void, active: 
  */
 export function useSnoozeWakeClock(
   threads: ReadonlyArray<{ readonly snoozedUntil?: string | null | undefined }>,
-) {
+): number {
   const [clockMs, setClockMs] = React.useState(() => Date.now());
   const wakeTimes: number[] = [];
   let nextWakeAt: number | null = null;
@@ -160,11 +156,11 @@ export function useSnoozeWakeClock(
 
 export function withoutRemovedCheckout<
   T extends { readonly branch: string | null; readonly worktreePath: string | null },
->(thread: T, gitStatus: { readonly isRepo?: boolean | undefined } | null) {
+>(thread: T, gitStatus: { readonly isRepo?: boolean | undefined } | null): T {
   return gitStatus?.isRepo === false ? { ...thread, branch: null, worktreePath: null } : thread;
 }
 
-export function useRetainedValue<T>(key: string | null, value: T | null) {
+export function useRetainedValue<T>(key: string | null, value: T | null): T | null {
   const [retained, setRetained] = React.useState<{
     readonly key: string;
     readonly value: T;
@@ -187,7 +183,7 @@ export function resolveSidebarThreadSection(input: {
   readonly snoozed: boolean;
   readonly done: boolean;
   readonly pinned: boolean;
-}) {
+}): SidebarSection {
   if (input.snoozed) return "snoozed";
   if (input.done) return "done";
   if (input.pinned) return "pinned";
@@ -206,9 +202,8 @@ export type SidebarListMarker =
   | "snoozed-header"
   | "done-header";
 
-export function sidebarMarkerId(marker: SidebarListMarker): string;
-export function sidebarMarkerId(marker: SidebarListMarker) {
-  return `${SIDEBAR_MARKER_PREFIX}${marker}` satisfies string;
+export function sidebarMarkerId(marker: SidebarListMarker): string {
+  return `${SIDEBAR_MARKER_PREFIX}${marker}`;
 }
 
 export type SidebarListItem =
@@ -225,17 +220,16 @@ export type SidebarListItem =
 
 const SIDEBAR_GROUP_PREFIX = "sidebar-group:";
 
-export function sidebarListItemId(item: SidebarListItem): string;
-export function sidebarListItemId(item: SidebarListItem) {
-  if (item.kind === "marker") return sidebarMarkerId(item.marker) satisfies string;
-  return (item.kind === "group" ? `${SIDEBAR_GROUP_PREFIX}${item.key}` : item.key) satisfies string;
+export function sidebarListItemId(item: SidebarListItem): string {
+  if (item.kind === "marker") return sidebarMarkerId(item.marker);
+  return item.kind === "group" ? `${SIDEBAR_GROUP_PREFIX}${item.key}` : item.key;
 }
 
-export function isSidebarGroupId(id: string) {
+export function isSidebarGroupId(id: string): boolean {
   return id.startsWith(SIDEBAR_GROUP_PREFIX);
 }
 
-function sectionAtSidebarSlot(items: readonly SidebarListItem[], index: number) {
+function sectionAtSidebarSlot(items: readonly SidebarListItem[], index: number): SidebarSection {
   let section: SidebarSection = "pinned";
   for (let i = 0; i < index && i < items.length; i += 1) {
     const item = items[i]!;
@@ -261,21 +255,14 @@ export function resolveSidebarDropTarget(
   items: readonly SidebarListItem[],
   activeKey: string,
   overId: string,
-): SidebarDropTarget | null;
-export function resolveSidebarDropTarget(
-  items: readonly SidebarListItem[],
-  activeKey: string,
-  overId: string,
-) {
+): SidebarDropTarget | null {
   const activeIndex = items.findIndex((item) => sidebarListItemId(item) === activeKey);
   const overIndex = items.findIndex((item) => sidebarListItemId(item) === overId);
-  if (activeIndex === -1 || overIndex === -1 || items[activeIndex]?.kind !== "thread")
-    return null satisfies SidebarDropTarget | null;
+  if (activeIndex === -1 || overIndex === -1 || items[activeIndex]?.kind !== "thread") return null;
   const moved = items.filter((_, index) => index !== activeIndex);
   moved.splice(overIndex, 0, items[activeIndex]!);
   const section = sectionAtSidebarSlot(moved, overIndex);
-  if (section === "working" || section === "snoozed")
-    return null satisfies SidebarDropTarget | null;
+  if (section === "working" || section === "snoozed") return null;
   const pinnedOrder: string[] = [];
   const activeOrder: string[] = [];
   let currentSection: SidebarSection = "pinned";
@@ -293,7 +280,7 @@ export function resolveSidebarDropTarget(
       else activeOrder.push(item.key);
     }
   }
-  return { section, pinnedOrder, activeOrder } satisfies SidebarDropTarget | null;
+  return { section, pinnedOrder, activeOrder };
 }
 
 type SidebarThreadDropPlan =
@@ -321,7 +308,10 @@ export type SidebarSweepAction = "mark-done" | "reopen" | "unsnooze";
 
 export type SidebarDropVerb = "pin" | "unpin" | "mark-done" | "reopen" | "wake";
 
-export function resolveSidebarDropVerb(from: SidebarSection, to: SidebarSection | null) {
+export function resolveSidebarDropVerb(
+  from: SidebarSection,
+  to: SidebarSection | null,
+): SidebarDropVerb | null {
   if (to === null || to === from || to === "working" || to === "snoozed") return null;
   if (to === "pinned") return "pin";
   if (to === "done") return "mark-done";
@@ -335,14 +325,14 @@ export function resolveSidebarSweepKeys(
   originKey: string,
   targetKey: string,
   canApply: (key: string) => boolean,
-) {
+): string[] {
   const origin = orderedKeys.indexOf(originKey);
   const target = orderedKeys.indexOf(targetKey);
   if (origin === -1 || target === -1) return [];
   return orderedKeys.slice(Math.min(origin, target), Math.max(origin, target) + 1).filter(canApply);
 }
 
-export function sidebarThreadKeyAtY(list: HTMLElement, y: number) {
+export function sidebarThreadKeyAtY(list: HTMLElement, y: number): string | null {
   const viewport = list.closest('[data-slot="scroll-area-viewport"]')?.getBoundingClientRect();
   const visibleY = viewport ? Math.min(Math.max(y, viewport.top), viewport.bottom - 1) : y;
   let key: string | null = null;
@@ -386,19 +376,7 @@ export function planSidebarThreadDrop(input: {
   readonly pinnedOrder: readonly string[];
   readonly pinnedKeysById: ReadonlyMap<string, string | null | undefined>;
   readonly reorderableKeys?: ReadonlySet<string>;
-}): SidebarThreadDropPlan;
-export function planSidebarThreadDrop(input: {
-  readonly activeKey: string;
-  readonly activeSection: SidebarSection;
-  /** Snoozed threads can retain pinning and completion beneath the shelf. */
-  readonly activePinned?: boolean;
-  readonly activeDone?: boolean;
-  readonly supportsMarkDone?: boolean;
-  readonly target: SidebarDropTarget;
-  readonly pinnedOrder: readonly string[];
-  readonly pinnedKeysById: ReadonlyMap<string, string | null | undefined>;
-  readonly reorderableKeys?: ReadonlySet<string>;
-}) {
+}): SidebarThreadDropPlan {
   const {
     activeKey,
     activeSection,
@@ -409,9 +387,9 @@ export function planSidebarThreadDrop(input: {
     pinnedKeysById,
     reorderableKeys,
   } = input;
-  if (activeSection === "working") return { kind: "none" } satisfies SidebarThreadDropPlan;
+  if (activeSection === "working") return { kind: "none" };
   if (input.supportsMarkDone === false && (target.section === "done" || activeDone)) {
-    return { kind: "none" } satisfies SidebarThreadDropPlan;
+    return { kind: "none" };
   }
   const arrange = (
     order: readonly string[],
@@ -436,20 +414,16 @@ export function planSidebarThreadDrop(input: {
   };
   switch (target.section) {
     case "active":
-      return (
-        activeSection === "active"
-          ? { kind: "none" }
-          : {
-              kind: "move-active",
-              unpin: activePinned,
-              reopen: activeDone,
-              unsnooze: activeSection === "snoozed",
-            }
-      ) satisfies SidebarThreadDropPlan;
+      return activeSection === "active"
+        ? { kind: "none" }
+        : {
+            kind: "move-active",
+            unpin: activePinned,
+            reopen: activeDone,
+            unsnooze: activeSection === "snoozed",
+          };
     case "done":
-      return (
-        activeSection === "done" ? { kind: "none" } : { kind: "mark-done" }
-      ) satisfies SidebarThreadDropPlan;
+      return activeSection === "done" ? { kind: "none" } : { kind: "mark-done" };
     case "pinned": {
       const order = target.pinnedOrder;
       if (
@@ -457,16 +431,14 @@ export function planSidebarThreadDrop(input: {
         order.length === pinnedOrder.length &&
         order.every((key, index) => key === pinnedOrder[index])
       ) {
-        return { kind: "none" } satisfies SidebarThreadDropPlan;
+        return { kind: "none" };
       }
       const assignments = arrange(order, pinnedKeysById, reorderableKeys);
-      if (assignments === null) return { kind: "none" } satisfies SidebarThreadDropPlan;
+      if (assignments === null) return { kind: "none" };
       if (activeSection === "pinned") {
-        return (
-          assignments.length === 0
-            ? { kind: "none" }
-            : { kind: "reorder-pinned", order, assignments }
-        ) satisfies SidebarThreadDropPlan;
+        return assignments.length === 0
+          ? { kind: "none" }
+          : { kind: "reorder-pinned", order, assignments };
       }
       return {
         kind: "pin",
@@ -475,7 +447,7 @@ export function planSidebarThreadDrop(input: {
         extraAssignments: activePinned
           ? assignments
           : assignments.filter((assignment) => assignment.id !== activeKey),
-      } satisfies SidebarThreadDropPlan;
+      };
     }
   }
 }
@@ -492,7 +464,7 @@ export function applySidebarThreadDrop<
     | "doneOverride"
     | "reopenedAt"
   >,
->(thread: T, section: "pinned" | "active" | "done", now: string, orderKey?: string) {
+>(thread: T, section: "pinned" | "active" | "done", now: string, orderKey?: string): T {
   const wasDone = thread.doneOverride === "done";
   const awake = { ...thread, snoozedAt: null, snoozedUntil: null };
   if (section === "done") {
@@ -543,7 +515,7 @@ type LogicalSidebarProject = SidebarProject & {
 
 type ThreadTraversalDirection = "previous" | "next";
 
-export function isSidebarHiddenThread(thread: Pick<SidebarThreadSummary, "lineage">) {
+export function isSidebarHiddenThread(thread: Pick<SidebarThreadSummary, "lineage">): boolean {
   return !isListedThreadLineage(thread.lineage);
 }
 
@@ -552,7 +524,7 @@ export function filterSidebarV2VisibleThreads<
     environmentId: string;
     projectId: string;
   },
->(threads: readonly T[], scopedProjectKeys: ReadonlySet<string> | null) {
+>(threads: readonly T[], scopedProjectKeys: ReadonlySet<string> | null): T[] {
   return threads.filter(
     (thread) =>
       thread.archivedAt === null &&
@@ -565,27 +537,26 @@ export function filterSidebarV2VisibleThreads<
 export function buildBulkTitleRegenerationContextMenuItem(input: {
   supportedCount: number;
   actionableCount: number;
-}) {
-  if (input.supportedCount === 0) return null satisfies ContextMenuItem<"regenerate-title"> | null;
+}): ContextMenuItem<"regenerate-title"> | null {
+  if (input.supportedCount === 0) return null;
   if (input.actionableCount === 0) {
     return {
       id: "regenerate-title",
       label: `Regenerating… (${input.supportedCount})`,
       disabled: true,
-    } satisfies ContextMenuItem<"regenerate-title"> | null;
+    };
   }
   return {
     id: "regenerate-title",
     label: `Regenerate titles (${input.actionableCount})`,
-  } satisfies ContextMenuItem<"regenerate-title"> | null;
+  };
 }
 
-export function buildBulkUnpinContextMenuItem(input: { pinnedCount: number }) {
-  if (input.pinnedCount === 0) return null satisfies ContextMenuItem<"unpin"> | null;
-  return {
-    id: "unpin",
-    label: `Unpin (${input.pinnedCount})`,
-  } satisfies ContextMenuItem<"unpin"> | null;
+export function buildBulkUnpinContextMenuItem(input: {
+  pinnedCount: number;
+}): ContextMenuItem<"unpin"> | null {
+  if (input.pinnedCount === 0) return null;
+  return { id: "unpin", label: `Unpin (${input.pinnedCount})` };
 }
 
 export interface ThreadStatusPill {
@@ -630,8 +601,7 @@ export function threadShortcutContext(routeThreadRef: ScopedThreadRef | null) {
   };
 }
 
-function createModifierHoldStore(delayMs: number): ClockStore<boolean>;
-function createModifierHoldStore(delayMs: number) {
+function createModifierHoldStore(delayMs: number): ClockStore<boolean> {
   const listeners = new Set<() => void>();
   let held = false;
   let stopDeadline = () => {};
@@ -667,12 +637,12 @@ function createModifierHoldStore(delayMs: number) {
       };
     },
     getSnapshot: () => held,
-  } satisfies ClockStore<boolean>;
+  };
 }
 
 const threadJumpModifierHold = createModifierHoldStore(THREAD_JUMP_HINT_SHOW_DELAY_MS);
 
-function subscribeToThreadJumpHintInputs(listener: () => void) {
+function subscribeToThreadJumpHintInputs(listener: () => void): () => void {
   const unsubscribeHold = threadJumpModifierHold.subscribe(listener);
   const unsubscribeFocus = subscribeToTerminalFocusChanges(listener);
   const unsubscribeTerminals = useTerminalUiStateStore.subscribe(listener);
@@ -695,7 +665,7 @@ function subscribeToThreadJumpHintInputs(listener: () => void) {
 export function useThreadJumpHintsVisible(
   keybindings: ResolvedKeybindingsConfig,
   routeThreadRef: ScopedThreadRef | null,
-) {
+): boolean {
   return React.useSyncExternalStore(
     subscribeToThreadJumpHintInputs,
     () =>
@@ -707,7 +677,7 @@ export function useThreadJumpHintsVisible(
   );
 }
 
-export function hasUnseenCompletion(thread: ThreadStatusInput) {
+export function hasUnseenCompletion(thread: ThreadStatusInput): boolean {
   if (!thread.latestRun?.completedAt) return false;
   if (thread.latestRun.status === "interrupted" || thread.latestRun.status === "cancelled") {
     return false;
@@ -721,18 +691,16 @@ export function hasUnseenCompletion(thread: ThreadStatusInput) {
   return completedAt > lastVisitedAt;
 }
 
-export function isTrailingDoubleClick(detail: number) {
+export function isTrailingDoubleClick(detail: number): boolean {
   return detail > 1;
 }
 
-function nodeClosest(node: object | null, selector: string): unknown;
-function nodeClosest(node: object | null, selector: string) {
-  if (node === null || !("closest" in node) || typeof node.closest !== "function")
-    return null satisfies unknown;
-  return node.closest(selector) satisfies unknown;
+function nodeClosest(node: object | null, selector: string): unknown {
+  if (node === null || !("closest" in node) || typeof node.closest !== "function") return null;
+  return node.closest(selector);
 }
 
-export function isSidebarNestedLinkClick(target: EventTarget | null) {
+export function isSidebarNestedLinkClick(target: EventTarget | null): boolean {
   if (target == null || typeof target !== "object") return false;
   if (nodeClosest(target, "a[href]") !== null) return true;
   const parent =
@@ -748,7 +716,7 @@ export function orderItemsByPreferredIds<TItem, TId>(input: {
   items: readonly TItem[];
   preferredIds: readonly TId[];
   getId: (item: TItem) => TId;
-}) {
+}): TItem[] {
   const { getId, items, preferredIds } = input;
   if (preferredIds.length === 0) {
     return [...items];
@@ -782,7 +750,7 @@ export function resolveAdjacentThreadId<T>(input: {
   threadIds: readonly T[];
   currentThreadId: T | null;
   direction: ThreadTraversalDirection;
-}) {
+}): T | null {
   const { currentThreadId, direction, threadIds } = input;
 
   if (threadIds.length === 0) {
@@ -813,7 +781,7 @@ export function shouldRecedeSidebarThread(input: {
   isWoke: boolean;
   isActive: boolean;
   isSelected: boolean;
-}) {
+}): boolean {
   if (input.isActive || input.isSelected || input.status === "input") return false;
   if (input.status === "preparing" || input.status === "working" || input.status === "waiting") {
     return true;
@@ -827,16 +795,15 @@ export function shouldRecedeSidebarThread(input: {
 /** The shared row status, with worktree setup told apart from other work on web. */
 export function resolveSidebarThreadStatus(
   thread: Parameters<typeof resolveThreadRowStatus>[0],
-): SidebarThreadStatus;
-export function resolveSidebarThreadStatus(thread: Parameters<typeof resolveThreadRowStatus>[0]) {
+): SidebarThreadStatus {
   const status = resolveThreadRowStatus(thread);
-  return (
-    status === "working" && thread.runtime?.status === "preparing" ? "preparing" : status
-  ) satisfies SidebarThreadStatus;
+  return status === "working" && thread.runtime?.status === "preparing" ? "preparing" : status;
 }
 
 /** Sidebar row status: a failure the user has already opened settles to ready, like Done. */
-export function resolveSidebarRowStatus(thread: Parameters<typeof resolveThreadRowShownStatus>[0]) {
+export function resolveSidebarRowStatus(
+  thread: Parameters<typeof resolveThreadRowShownStatus>[0],
+): SidebarThreadStatus {
   const status = resolveThreadRowShownStatus(thread);
   return status === "working" && thread.runtime?.status === "preparing" ? "preparing" : status;
 }
@@ -844,7 +811,7 @@ export function resolveSidebarRowStatus(thread: Parameters<typeof resolveThreadR
 /** What the window title says the open thread is doing, in the words its announcer uses. */
 export function resolveWindowTitleThreadStatus(
   thread: Parameters<typeof resolveThreadRowStatus>[0],
-) {
+): string | null {
   switch (resolveSidebarThreadStatus(thread)) {
     case "approval":
       return THREAD_STATUS_TEXT.approval;
@@ -876,7 +843,7 @@ export function resolveSidebarV2TopStatus(input: {
   readonly status: SidebarThreadStatus;
   readonly isUnread: boolean;
   readonly isWoke: boolean;
-}) {
+}): SidebarV2TopStatusKind | null {
   if (!input.environmentConnected) return "connecting";
   if (input.status === "preparing" || input.status === "working") {
     return "working";
@@ -899,11 +866,13 @@ export function resolveSidebarV2TopStatus(input: {
   return input.isUnread ? "ready" : null;
 }
 
-export function shouldShowSidebarV2Duration(status: SidebarThreadStatus) {
+export function shouldShowSidebarV2Duration(status: SidebarThreadStatus): boolean {
   return status === "preparing" || status === "working" || status === "waiting";
 }
 
-export function firstValidTimestampMs(...candidates: ReadonlyArray<string | null | undefined>) {
+export function firstValidTimestampMs(
+  ...candidates: ReadonlyArray<string | null | undefined>
+): number {
   for (const candidate of candidates) {
     if (candidate == null) continue;
     const parsed = Date.parse(candidate);
@@ -923,7 +892,7 @@ export { sortPinnedThreadsByOrderKey as sortPinnedThreadsForSidebar } from "@sup
 export function pullRequestMatchesSearchQuery(
   pullRequest: Parameters<typeof threadPullRequestSearchTerms>[0],
   query: string,
-) {
+): boolean {
   const normalizedQuery = normalizeSearchText(query);
   if (normalizedQuery.length === 0) return false;
   const haystack = normalizeSearchText(threadPullRequestSearchTerms(pullRequest).join(" "));
@@ -933,7 +902,7 @@ export function pullRequestMatchesSearchQuery(
 export function resolveThreadStatusPill(input: {
   thread: ThreadStatusInput;
   environmentConnected?: boolean;
-}) {
+}): ThreadStatusPill | null {
   const { thread } = input;
 
   if (input.environmentConnected === false) {
@@ -942,7 +911,7 @@ export function resolveThreadStatusPill(input: {
       colorClass: "text-secondary-label",
       dotClass: "bg-secondary-label",
       pulse: false,
-    } satisfies ThreadStatusPill | null;
+    };
   }
 
   if (thread.hasPendingApprovals || thread.pendingSubagentRequest === "approval") {
@@ -951,7 +920,7 @@ export function resolveThreadStatusPill(input: {
       colorClass: "text-amber-600 dark:text-amber-300/90",
       dotClass: "bg-amber-500 dark:bg-amber-300/90",
       pulse: false,
-    } satisfies ThreadStatusPill | null;
+    };
   }
 
   if (thread.hasPendingUserInput || thread.pendingSubagentRequest === "user_input") {
@@ -960,7 +929,7 @@ export function resolveThreadStatusPill(input: {
       colorClass: "text-indigo-600 dark:text-indigo-300/90",
       dotClass: "bg-indigo-500 dark:bg-indigo-300/90",
       pulse: false,
-    } satisfies ThreadStatusPill | null;
+    };
   }
 
   if (
@@ -972,7 +941,7 @@ export function resolveThreadStatusPill(input: {
       colorClass: "text-sky-600 dark:text-sky-300/80",
       dotClass: "bg-sky-500 dark:bg-sky-300/80",
       pulse: true,
-    } satisfies ThreadStatusPill | null;
+    };
   }
 
   if (isOrchestrationV2RunNotYetRunning(thread.runtime?.status)) {
@@ -981,7 +950,7 @@ export function resolveThreadStatusPill(input: {
       colorClass: "text-sky-600 dark:text-sky-300/80",
       dotClass: "bg-sky-500 dark:bg-sky-300/80",
       pulse: true,
-    } satisfies ThreadStatusPill | null;
+    };
   }
 
   if (
@@ -993,7 +962,7 @@ export function resolveThreadStatusPill(input: {
       colorClass: "text-sky-600 dark:text-sky-300/80",
       dotClass: "bg-sky-500 dark:bg-sky-300/80",
       pulse: false,
-    } satisfies ThreadStatusPill | null;
+    };
   }
 
   if (hasUnseenRunFailure(thread)) {
@@ -1002,7 +971,7 @@ export function resolveThreadStatusPill(input: {
       colorClass: "text-red-600 dark:text-red-300/90",
       dotClass: "bg-red-500 dark:bg-red-300/90",
       pulse: false,
-    } satisfies ThreadStatusPill | null;
+    };
   }
 
   if (hasUnseenCompletion(thread)) {
@@ -1011,10 +980,10 @@ export function resolveThreadStatusPill(input: {
       colorClass: "text-emerald-600 dark:text-emerald-300/90",
       dotClass: "bg-emerald-500 dark:bg-emerald-300/90",
       pulse: false,
-    } satisfies ThreadStatusPill | null;
+    };
   }
 
-  return null satisfies ThreadStatusPill | null;
+  return null;
 }
 
 export function getFallbackThreadIdAfterDelete<
@@ -1030,7 +999,7 @@ export function getFallbackThreadIdAfterDelete<
   sortOrder: SidebarThreadSortOrder;
   now: string;
   deletedThreadIds?: ReadonlySet<T["id"]>;
-}) {
+}): T["id"] | null {
   const { deletedThreadId, deletedThreadIds, sortOrder, now, threads } = input;
   const deletedThread = threads.find((thread) => thread.id === deletedThreadId);
   if (!deletedThread) {
@@ -1056,7 +1025,7 @@ function getProjectSortTimestamp(
   project: SidebarProject,
   projectThreads: readonly ThreadSortInput[],
   sortOrder: Exclude<SidebarProjectSortOrder, "manual">,
-) {
+): number {
   if (projectThreads.length > 0) {
     return projectThreads.reduce(
       (latest, thread) => Math.max(latest, getThreadSortTimestamp(thread, sortOrder)),
@@ -1075,7 +1044,7 @@ function sortProjectsByActivity<TProject extends SidebarProject>(
   sortOrder: SidebarProjectSortOrder,
   getProjectThreads: (project: TProject) => readonly ThreadSortInput[],
   compareTies: (left: TProject, right: TProject) => number,
-) {
+): TProject[] {
   if (sortOrder === "manual") {
     return [...projects];
   }
@@ -1096,7 +1065,11 @@ function sortProjectsByActivity<TProject extends SidebarProject>(
 export function sortLogicalProjectsForSidebar<
   TProject extends LogicalSidebarProject,
   TThread extends ScopedSidebarThread,
->(projects: readonly TProject[], threads: readonly TThread[], sortOrder: SidebarProjectSortOrder) {
+>(
+  projects: readonly TProject[],
+  threads: readonly TThread[],
+  sortOrder: SidebarProjectSortOrder,
+): TProject[] {
   const groupKeyByProjectRef = new Map(
     projects.flatMap((project) =>
       project.memberProjectRefs.map(
@@ -1130,7 +1103,11 @@ export function sortLogicalProjectsForSidebar<
 export function sortSidebarV2ProjectGroups<
   TProject extends LogicalSidebarProject,
   TThread extends ScopedSidebarThread & Pick<SidebarThreadSummary, "lineage">,
->(projects: readonly TProject[], threads: readonly TThread[], sortOrder: SidebarProjectSortOrder) {
+>(
+  projects: readonly TProject[],
+  threads: readonly TThread[],
+  sortOrder: SidebarProjectSortOrder,
+): TProject[] {
   return sortLogicalProjectsForSidebar(
     projects,
     filterSidebarV2VisibleThreads(threads, null),
@@ -1141,7 +1118,11 @@ export function sortSidebarV2ProjectGroups<
 export function sortScopedProjectsForSidebar<
   TProject extends ScopedSidebarProject,
   TThread extends ScopedSidebarThread,
->(projects: readonly TProject[], threads: readonly TThread[], sortOrder: SidebarProjectSortOrder) {
+>(
+  projects: readonly TProject[],
+  threads: readonly TThread[],
+  sortOrder: SidebarProjectSortOrder,
+): TProject[] {
   const scopedKey = (environmentId: string, projectId: string) =>
     `${environmentId}\u0000${projectId}`;
   const threadsByProject = new Map<string, TThread[]>();

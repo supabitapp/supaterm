@@ -6,7 +6,7 @@ import { ColorHueSlider, ColorSaturationValuePlane } from "../ui/color-picker";
 import { Input } from "../ui/input";
 import { Popover, PopoverPopup, PopoverTrigger } from "../ui/popover";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
-export function getThemeRoleLabel(role: ThemeColorRole) {
+export function getThemeRoleLabel(role: ThemeColorRole): string {
   const labels: Partial<Record<ThemeColorRole, string>> = {
     canvas: "Background",
     toolbar: "Toolbar background",
@@ -28,13 +28,13 @@ export function getThemeRoleLabel(role: ThemeColorRole) {
   return role.replace(/([A-Z])/g, " $1").replace(/^./, (character) => character.toUpperCase());
 }
 
-function themePickerAlphaSuffix(value: string) {
+function themePickerAlphaSuffix(value: string): string {
   const normalized = themeColorToHex(value) ?? "";
   const alpha = normalized.length === 9 ? normalized.slice(7) : "";
   return alpha === "ff" ? "" : alpha;
 }
 
-function normalizeThemePickerColor(value: string) {
+function normalizeThemePickerColor(value: string): string {
   return (themeColorToHex(value) ?? "#000000").slice(0, 7);
 }
 
@@ -43,7 +43,7 @@ function themeHexToRgb(hex: string) {
   return [numeric >> 16, (numeric >> 8) & 255, numeric & 255] as const;
 }
 
-function themeRgbToHex(value: string) {
+function themeRgbToHex(value: string): string | null {
   const normalized = value
     .trim()
     .replace(/^rgb\(\s*/i, "")

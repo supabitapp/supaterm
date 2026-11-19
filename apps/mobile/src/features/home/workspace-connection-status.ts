@@ -10,7 +10,7 @@ export interface WorkspaceConnectionStatusPresentation {
 
 const OFFLINE_LABEL = "You are offline";
 
-function shellSyncLabel(shell: WorkspaceShellStatus) {
+function shellSyncLabel(shell: WorkspaceShellStatus): string | null {
   switch (shell) {
     case "loading":
       return "Loading threads...";
@@ -22,7 +22,7 @@ function shellSyncLabel(shell: WorkspaceShellStatus) {
   }
 }
 
-function workspaceConnectionStatusLabel(phase: WorkspacePhase) {
+function workspaceConnectionStatusLabel(phase: WorkspacePhase): string | null {
   switch (phase.type) {
     case "loading-catalog":
     case "no-environments":
@@ -45,7 +45,9 @@ function workspaceConnectionStatusLabel(phase: WorkspacePhase) {
   }
 }
 
-export function workspaceConnectionStatusPresentation(state: WorkspaceState) {
+export function workspaceConnectionStatusPresentation(
+  state: WorkspaceState,
+): WorkspaceConnectionStatusPresentation | null {
   const label = workspaceConnectionStatusLabel(state.phase);
   return label === null ? null : { label };
 }

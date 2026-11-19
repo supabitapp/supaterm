@@ -9,9 +9,9 @@ export interface CollectedUint8StreamText {
   readonly invalidUtf8: boolean;
 }
 
-export const decodeUtf8: (
+export const decodeUtf8 = (
   bytes: Uint8Array,
-) => Pick<CollectedUint8StreamText, "text" | "invalidUtf8"> = (bytes: Uint8Array) => ({
+): Pick<CollectedUint8StreamText, "text" | "invalidUtf8"> => ({
   text: Buffer.from(bytes).toString("utf8"),
   invalidUtf8: !NodeBuffer.isUtf8(bytes),
 });
@@ -26,20 +26,20 @@ export const collectUint8StreamText = <E>(input: {
   readonly stream: Stream.Stream<Uint8Array, E>;
   readonly maxBytes?: number | undefined;
   readonly truncatedMarker?: string | null | undefined;
-}) => {
+}): Effect.Effect<CollectedUint8StreamText, E> => {
   const maxBytes = input.maxBytes ?? Number.POSITIVE_INFINITY;
   const truncatedMarker = input.truncatedMarker ?? "";
 
   return input.stream.pipe(
     Stream.runFold(
-      () => ({
+      (): CollectState => ({
         chunks: [],
         bytes: 0,
         truncated: false,
       }),
-      (state, chunk) => {
+      (state, chunk): CollectState => {
         if (state.truncated) {
-          return state satisfies CollectState as CollectState;
+          return state;
         }
 
         const remainingBytes = maxBytes - state.bytes;
@@ -47,7 +47,7 @@ export const collectUint8StreamText = <E>(input: {
           return {
             ...state,
             truncated: true,
-          } satisfies CollectState as CollectState;
+          };
         }
 
         const nextChunk =
@@ -60,10 +60,10 @@ export const collectUint8StreamText = <E>(input: {
           chunks: state.chunks,
           bytes,
           truncated,
-        } satisfies CollectState as CollectState;
+        };
       },
     ),
-    Effect.map((state) => {
+    Effect.map((state): CollectedUint8StreamText => {
       const decoded = decodeUtf8(Buffer.concat(state.chunks, state.bytes));
       return {
         text:

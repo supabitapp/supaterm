@@ -29,7 +29,7 @@ beforeEach(() => {
   };
 });
 
-function snapshot(input: Partial<ThreadPullRequestSnapshot> = {}) {
+function snapshot(input: Partial<ThreadPullRequestSnapshot> = {}): ThreadPullRequestSnapshot {
   return {
     state: "open",
     title: "Change",
@@ -39,10 +39,13 @@ function snapshot(input: Partial<ThreadPullRequestSnapshot> = {}) {
     updatedAt: "2026-01-01T00:00:00.000Z",
     syncedAt: "2026-01-01T00:00:00.000Z",
     ...input,
-  } satisfies ThreadPullRequestSnapshot;
+  };
 }
 
-function link(number: number, input: Partial<Omit<ThreadPullRequestLink, "number">> = {}) {
+function link(
+  number: number,
+  input: Partial<Omit<ThreadPullRequestLink, "number">> = {},
+): ThreadPullRequestLink {
   return {
     host: "github.com",
     repository: "supabitapp/supaterm",
@@ -53,7 +56,7 @@ function link(number: number, input: Partial<Omit<ThreadPullRequestLink, "number
     snapshot: null,
     stack: null,
     ...input,
-  } satisfies ThreadPullRequestLink;
+  };
 }
 
 describe("threadPullRequestKeysEqual", () => {

@@ -15,24 +15,19 @@ export function phoneWheelNavigation(input: {
   readonly ctrlKey: boolean;
   readonly width: number;
   readonly height: number;
-}) {
+}): PhoneNavigation | null {
   const { deltaX, deltaY, deltaMode, ctrlKey, width, height } = input;
   if (![deltaX, deltaY, width, height].every(Number.isFinite) || width <= 0 || height <= 0)
-    return null satisfies PhoneNavigation | null;
-  if (deltaMode !== 0 && deltaMode !== 1 && deltaMode !== 2)
-    return null satisfies PhoneNavigation | null;
+    return null;
+  if (deltaMode !== 0 && deltaMode !== 1 && deltaMode !== 2) return null;
   const unit = deltaMode === 1 ? 16 : deltaMode === 2 ? height : 1;
   const clamp = (value: number, limit: number) => Math.min(limit, Math.max(-limit, value));
-  if (ctrlKey)
-    return {
-      type: "zoom",
-      delta: clamp(-deltaY * unit * 0.01, 1),
-    } satisfies PhoneNavigation | null;
+  if (ctrlKey) return { type: "zoom", delta: clamp(-deltaY * unit * 0.01, 1) };
   return {
     type: "orbit",
     x: clamp((-deltaX * unit) / width, 0.25),
     y: clamp((-deltaY * unit) / height, 0.25),
-  } satisfies PhoneNavigation | null;
+  };
 }
 
 export function createPhoneInteraction(options: {

@@ -3,7 +3,7 @@ import * as NodeModule from "node:module";
 import ts from "typescript-legacy";
 
 /** Node single-executable imports resolve only builtins; use createRequire for file-backed external packages. */
-export function findEsmImportsOfExternalPackages(source: string) {
+export function findEsmImportsOfExternalPackages(source: string): ReadonlyArray<string> {
   const specifiers = new Set<string>();
   const module = ts.createSourceFile(
     "bundle.mjs",
@@ -12,7 +12,7 @@ export function findEsmImportsOfExternalPackages(source: string) {
     false,
     ts.ScriptKind.JS,
   );
-  const visit = (node: ts.Node) => {
+  const visit = (node: ts.Node): void => {
     const dynamic =
       ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword;
     const specifierNode =

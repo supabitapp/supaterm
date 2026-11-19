@@ -183,7 +183,7 @@ const documentPickedImage = {
   fileUri: "file:///documents/photo.png",
 } as const satisfies DraftComposerAttachment;
 
-function removeCallsFor(attachmentId: string) {
+function removeCallsFor(attachmentId: string): number {
   return mocks.runAtomCommand.mock.calls.filter(
     ([, command, target]) =>
       command === mocks.removeUpload &&

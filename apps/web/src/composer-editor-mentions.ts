@@ -33,11 +33,11 @@ export type ComposerPromptSegment =
       source: string;
     };
 
-function rangeIncludesIndex(start: number, end: number, index: number) {
+function rangeIncludesIndex(start: number, end: number, index: number): boolean {
   return start <= index && index < end;
 }
 
-function pushTextSegment(segments: ComposerPromptSegment[], text: string) {
+function pushTextSegment(segments: ComposerPromptSegment[], text: string): void {
   if (!text) return;
   const last = segments[segments.length - 1];
   if (last && last.type === "text") {
@@ -50,7 +50,7 @@ function pushTextSegment(segments: ComposerPromptSegment[], text: string) {
 function forEachPromptTextSlice(
   prompt: string,
   visitor: (text: string, promptOffset: number) => boolean | void,
-) {
+): boolean {
   return prompt.length > 0 && visitor(prompt, 0) === true;
 }
 
@@ -60,7 +60,7 @@ function forEachMentionMatch(
     match: Extract<ComposerInlineToken, { type: "mention" }>,
     promptOffset: number,
   ) => boolean | void,
-) {
+): boolean {
   return forEachPromptTextSlice(prompt, (text, promptOffset) => {
     for (const match of collectComposerPromptInlineTokens(text)) {
       if (match.type !== "mention") {
@@ -78,7 +78,7 @@ export function collectComposerPromptInlineTokens(text: string) {
   return withComposerLinkTokens(text, collectComposerInlineTokens(text));
 }
 
-function splitPromptTextIntoComposerSegments(text: string) {
+function splitPromptTextIntoComposerSegments(text: string): ComposerPromptSegment[] {
   const segments: ComposerPromptSegment[] = [];
   if (!text) {
     return segments;
@@ -125,7 +125,11 @@ function splitPromptTextIntoComposerSegments(text: string) {
   return segments;
 }
 
-export function selectionTouchesMentionBoundary(prompt: string, start: number, end: number) {
+export function selectionTouchesMentionBoundary(
+  prompt: string,
+  start: number,
+  end: number,
+): boolean {
   if (!prompt || start >= end) {
     return false;
   }
@@ -155,6 +159,6 @@ export function selectionTouchesMentionBoundary(prompt: string, start: number, e
   });
 }
 
-export function splitPromptIntoComposerSegments(prompt: string) {
+export function splitPromptIntoComposerSegments(prompt: string): ComposerPromptSegment[] {
   return splitPromptTextIntoComposerSegments(prompt);
 }

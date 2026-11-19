@@ -53,7 +53,7 @@ function streamingPlanArtifact(
   fixture: ReturnType<typeof makeStreamingWorkTimelineFixture>,
   markdown: string,
   status: "active" | "superseded",
-) {
+): OrchestrationV2PlanArtifact {
   return {
     id: PlanId.make("live-plan"),
     threadId: fixture.threadId,
@@ -62,7 +62,7 @@ function streamingPlanArtifact(
     kind: "proposed_plan",
     markdown,
     status,
-  } satisfies OrchestrationV2PlanArtifact;
+  };
 }
 
 describe("V2 session presentation", () => {
@@ -97,7 +97,7 @@ describe("V2 session presentation", () => {
     const runtimeWithStatus = (
       status: ThreadRuntimeSummary["status"],
       activeRunId: RunId | null = null,
-    ) => ({
+    ): ThreadRuntimeSummary => ({
       status,
       activeRunId,
       providerInstanceId: ProviderInstanceId.make("claude-default"),
@@ -283,7 +283,7 @@ describe("V2 session presentation", () => {
         updatedAt: "2026-06-20T00:00:02.000Z",
       },
     ];
-    const timelineEntries: TimelineEntry[] = messages.map((message) => ({
+    const timelineEntries: TimelineEntry[] = messages.map((message): TimelineEntry => ({
       id: message.id,
       kind: "message",
       createdAt: message.createdAt,
@@ -312,7 +312,7 @@ describe("V2 session presentation", () => {
 
   describe("revert targets after a rewind", () => {
     const runId = (ordinal: number) => RunId.make(`run-${ordinal}`);
-    const turn = (ordinal: number) =>
+    const turn = (ordinal: number): TimelineEntry[] =>
       (["user", "assistant"] as const).map((role) => {
         const id = MessageId.make(`${role}-${ordinal}`);
         const createdAt = `2026-06-20T00:00:0${ordinal}.000Z`;
@@ -331,7 +331,7 @@ describe("V2 session presentation", () => {
             updatedAt: createdAt,
           },
         };
-      }) satisfies TimelineEntry[];
+      });
     const checkpoint = (ordinal: number, status: "ready" | "missing" | "stale" = "ready") => ({
       runId: runId(ordinal),
       checkpointTurnCount: ordinal,
@@ -806,7 +806,7 @@ describe("V2 session presentation", () => {
       readonly role: "user" | "assistant";
       readonly createdAt: string;
       readonly ordinal: number;
-    }) => {
+    }): OrchestrationV2TurnItem => {
       const timestamp = DateTime.makeUnsafe(input.createdAt);
       const common = {
         id: TurnItemId.make(`item-${input.id}`),
@@ -826,18 +826,16 @@ describe("V2 session presentation", () => {
         messageId: MessageId.make(input.id),
         text: input.id,
       };
-      return (
-        input.role === "user"
-          ? {
-              ...common,
-              type: "user_message",
-              inputIntent: "turn_start",
-              attachments: [],
-              createdBy: "user",
-              creationSource: "web",
-            }
-          : { ...common, type: "assistant_message", streaming: false }
-      ) satisfies OrchestrationV2TurnItem;
+      return input.role === "user"
+        ? {
+            ...common,
+            type: "user_message",
+            inputIntent: "turn_start",
+            attachments: [],
+            createdBy: "user",
+            creationSource: "web",
+          }
+        : { ...common, type: "assistant_message", streaming: false };
     };
     const canonicalItems = [
       messageItem({ id: "old-user", role: "user", createdAt: "2026-08-29T00:00:01Z", ordinal: 1 }),
@@ -867,7 +865,7 @@ describe("V2 session presentation", () => {
       sourceItemId: item.id,
       item,
     }));
-    const feedback = (id: string, role: "user" | "assistant") => ({
+    const feedback = (id: string, role: "user" | "assistant"): ChatMessage => ({
       id: MessageId.make(id),
       role,
       text: id,
@@ -1019,24 +1017,23 @@ describe("V2 session presentation", () => {
       id: OrchestrationV2ExecutionNode["id"],
       rootNodeId: OrchestrationV2ExecutionNode["rootNodeId"],
       parentNodeId: OrchestrationV2ExecutionNode["parentNodeId"],
-    ) =>
-      ({
-        id,
-        threadId,
-        runId,
-        parentNodeId,
-        rootNodeId,
-        kind: id === rootNodeId ? "root_turn" : "assistant_message",
-        status: "running",
-        countsForRun: true,
-        providerThreadId,
-        providerTurnId: null,
-        nativeItemRef: null,
-        runtimeRequestId: null,
-        checkpointScopeId: null,
-        startedAt: now,
-        completedAt: null,
-      }) satisfies OrchestrationV2ExecutionNode;
+    ): OrchestrationV2ExecutionNode => ({
+      id,
+      threadId,
+      runId,
+      parentNodeId,
+      rootNodeId,
+      kind: id === rootNodeId ? "root_turn" : "assistant_message",
+      status: "running",
+      countsForRun: true,
+      providerThreadId,
+      providerTurnId: null,
+      nativeItemRef: null,
+      runtimeRequestId: null,
+      checkpointScopeId: null,
+      startedAt: now,
+      completedAt: null,
+    });
     const nodes = [
       node(supersededRootNodeId, supersededRootNodeId, null),
       node(supersededChildNodeId, supersededRootNodeId, supersededRootNodeId),
@@ -1048,27 +1045,26 @@ describe("V2 session presentation", () => {
       nodeId: NodeId,
       text: string,
       ordinal: number,
-    ) =>
-      ({
-        id: TurnItemId.make(id),
-        threadId,
-        runId,
-        nodeId,
-        providerThreadId,
-        providerTurnId: null,
-        nativeItemRef: null,
-        parentItemId: null,
-        ordinal,
-        status: "running",
-        title: null,
-        startedAt: now,
-        completedAt: null,
-        updatedAt: now,
-        type: "assistant_message",
-        messageId: MessageId.make(messageId),
-        text,
-        streaming: true,
-      }) satisfies OrchestrationV2TurnItem;
+    ): OrchestrationV2TurnItem => ({
+      id: TurnItemId.make(id),
+      threadId,
+      runId,
+      nodeId,
+      providerThreadId,
+      providerTurnId: null,
+      nativeItemRef: null,
+      parentItemId: null,
+      ordinal,
+      status: "running",
+      title: null,
+      startedAt: now,
+      completedAt: null,
+      updatedAt: now,
+      type: "assistant_message",
+      messageId: MessageId.make(messageId),
+      text,
+      streaming: true,
+    });
     const items = [
       assistantItem(
         "item-superseded",
@@ -1316,14 +1312,13 @@ describe("native provider presentation in the v2 timeline", () => {
     completedAt: timestamp,
     updatedAt: timestamp,
   };
-  const visible = (item: OrchestrationV2TurnItem) =>
-    ({
-      position: 0,
-      visibility: "local",
-      sourceThreadId: item.threadId,
-      sourceItemId: item.id,
-      item,
-    }) satisfies OrchestrationV2ProjectedTurnItem;
+  const visible = (item: OrchestrationV2TurnItem): OrchestrationV2ProjectedTurnItem => ({
+    position: 0,
+    visibility: "local",
+    sourceThreadId: item.threadId,
+    sourceItemId: item.id,
+    item,
+  });
 
   it("keeps async answers in the question row, including incrementally appended replies", () => {
     const requestId = RuntimeRequestId.make("question");
@@ -1376,27 +1371,28 @@ describe("native provider presentation in the v2 timeline", () => {
     const requestId = RuntimeRequestId.make("late-question");
     const inRun = (item: OrchestrationV2TurnItem, runId: string, ordinal: number) =>
       visible({ ...item, runId: RunId.make(runId), ordinal });
-    const userMessage = (id: string, text: string) =>
-      ({
-        ...base,
-        id: TurnItemId.make(id),
-        type: "user_message",
-        messageId: MessageId.make(id),
-        inputIntent: "queued_turn",
-        text,
-        createdBy: "user",
-        creationSource: "web",
-        attachments: [],
-      }) satisfies Extract<OrchestrationV2TurnItem, { type: "user_message" }>;
-    const assistantMessage = (id: string, text: string) =>
-      ({
-        ...base,
-        id: TurnItemId.make(id),
-        type: "assistant_message",
-        messageId: MessageId.make(id),
-        text,
-        streaming: false,
-      }) satisfies OrchestrationV2TurnItem;
+    const userMessage = (
+      id: string,
+      text: string,
+    ): Extract<OrchestrationV2TurnItem, { type: "user_message" }> => ({
+      ...base,
+      id: TurnItemId.make(id),
+      type: "user_message",
+      messageId: MessageId.make(id),
+      inputIntent: "queued_turn",
+      text,
+      createdBy: "user",
+      creationSource: "web",
+      attachments: [],
+    });
+    const assistantMessage = (id: string, text: string): OrchestrationV2TurnItem => ({
+      ...base,
+      id: TurnItemId.make(id),
+      type: "assistant_message",
+      messageId: MessageId.make(id),
+      text,
+      streaming: false,
+    });
     const question = inRun(
       {
         ...base,
@@ -1527,30 +1523,30 @@ describe("HTML renders in the timeline", () => {
     completedAt: at(second),
     updatedAt: at(second),
   });
-  const visible = (item: OrchestrationV2TurnItem) =>
-    ({
-      position: item.ordinal,
-      visibility: "local",
-      sourceThreadId: item.threadId,
-      sourceItemId: item.id,
-      item,
-    }) satisfies OrchestrationV2ProjectedTurnItem;
+  const visible = (item: OrchestrationV2TurnItem): OrchestrationV2ProjectedTurnItem => ({
+    position: item.ordinal,
+    visibility: "local",
+    sourceThreadId: item.threadId,
+    sourceItemId: item.id,
+    item,
+  });
   const htmlRender = { attachmentId: "render-thread-chart.html", title: "Chart", height: 420 };
-  const renderCall = (status: OrchestrationV2TurnItem["status"], output?: unknown) =>
-    ({
-      ...base("render", 2),
-      status,
-      type: "dynamic_tool",
-      toolName: "mcp__supaterm__html_render",
-      input: { title: "Chart", height: 420 },
-      ...(output === undefined ? {} : { output }),
-    }) satisfies OrchestrationV2TurnItem;
-  const command = (id: string, second: number) =>
-    ({
-      ...base(id, second),
-      type: "command_execution",
-      input: "vp test run",
-    }) satisfies OrchestrationV2TurnItem;
+  const renderCall = (
+    status: OrchestrationV2TurnItem["status"],
+    output?: unknown,
+  ): OrchestrationV2TurnItem => ({
+    ...base("render", 2),
+    status,
+    type: "dynamic_tool",
+    toolName: "mcp__supaterm__html_render",
+    input: { title: "Chart", height: 420 },
+    ...(output === undefined ? {} : { output }),
+  });
+  const command = (id: string, second: number): OrchestrationV2TurnItem => ({
+    ...base(id, second),
+    type: "command_execution",
+    input: "vp test run",
+  });
   const turn = (render: OrchestrationV2TurnItem) => {
     const items: OrchestrationV2TurnItem[] = [
       {
@@ -1616,15 +1612,17 @@ describe("HTML renders in the timeline", () => {
 
   it("shows a sent message in place through the turn fold, and only once sent", () => {
     const sentMessage = "Draft reply:\n\n> Thanks, Thursday works.";
-    const send = (status: OrchestrationV2TurnItem["status"], output?: unknown) =>
-      ({
-        ...base("render", 2),
-        status,
-        type: "dynamic_tool",
-        toolName: "mcp__supaterm__send_to_user",
-        input: { message: sentMessage },
-        ...(output === undefined ? {} : { output }),
-      }) satisfies OrchestrationV2TurnItem;
+    const send = (
+      status: OrchestrationV2TurnItem["status"],
+      output?: unknown,
+    ): OrchestrationV2TurnItem => ({
+      ...base("render", 2),
+      status,
+      type: "dynamic_tool",
+      toolName: "mcp__supaterm__send_to_user",
+      input: { message: sentMessage },
+      ...(output === undefined ? {} : { output }),
+    });
     const entries = turn(send("completed", { structuredContent: { sentMessage }, content: [] }));
     expect(entries.find((entry) => entry.kind === "sent-message")).toMatchObject({
       id: "render",

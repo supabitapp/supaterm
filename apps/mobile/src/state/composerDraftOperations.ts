@@ -5,7 +5,10 @@ const operationsByDraftKey = new Map<string, Set<AbortController>>();
  * here. Whoever discards that draft or moves the composer off it aborts the
  * work, so a late result never lands in a draft the user has left.
  */
-export function startComposerDraftOperation(draftKey: string) {
+export function startComposerDraftOperation(draftKey: string): {
+  readonly signal: AbortSignal;
+  readonly finish: () => void;
+} {
   const controller = new AbortController();
   const operations = operationsByDraftKey.get(draftKey) ?? new Set();
   operations.add(controller);
@@ -21,14 +24,14 @@ export function startComposerDraftOperation(draftKey: string) {
   };
 }
 
-export function abortComposerDraftOperations(draftKey: string) {
+export function abortComposerDraftOperations(draftKey: string): void {
   const operations = operationsByDraftKey.get(draftKey);
   if (!operations) return;
   operationsByDraftKey.delete(draftKey);
   for (const controller of operations) controller.abort();
 }
 
-export function abortComposerDraftOperationsWhere(matches: (draftKey: string) => boolean) {
+export function abortComposerDraftOperationsWhere(matches: (draftKey: string) => boolean): void {
   for (const draftKey of operationsByDraftKey.keys()) {
     if (matches(draftKey)) abortComposerDraftOperations(draftKey);
   }

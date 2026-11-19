@@ -25,12 +25,12 @@ export interface ArchivedThreadGroup {
   readonly threads: ReadonlyArray<EnvironmentThreadShell>;
 }
 
-function archiveTimestamp(thread: EnvironmentThreadShell) {
+function archiveTimestamp(thread: EnvironmentThreadShell): number {
   const timestamp = Date.parse(thread.archivedAt ?? thread.updatedAt);
   return Number.isNaN(timestamp) ? 0 : timestamp;
 }
 
-function matchesQuery(value: string | null, query: string) {
+function matchesQuery(value: string | null, query: string): boolean {
   return value?.toLocaleLowerCase().includes(query) ?? false;
 }
 
@@ -40,7 +40,7 @@ export function buildArchivedThreadGroups(input: {
   readonly environmentId: EnvironmentId | null;
   readonly searchQuery: string;
   readonly sortOrder: ArchivedThreadSortOrder;
-}) {
+}): ReadonlyArray<ArchivedThreadGroup> {
   const query = input.searchQuery.trim().toLocaleLowerCase();
   const foldedQuery = foldSearchQuery(input.searchQuery);
   const groups: ArchivedThreadGroup[] = [];

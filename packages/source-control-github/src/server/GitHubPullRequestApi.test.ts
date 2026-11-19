@@ -205,7 +205,7 @@ function output(
   invalidUtf8 = false,
   headers: Readonly<Record<string, string>> = {},
   status = 200,
-) {
+): GitHubRest.GitHubRestResponse {
   return { status, headers, body, truncated, invalidUtf8 };
 }
 
@@ -237,7 +237,7 @@ function rows(
   count: number,
   firstNumber: number,
   overrides: (number: number) => Readonly<Record<string, unknown>> = () => ({}),
-) {
+): ReadonlyArray<Record<string, unknown>> {
   return Array.from({ length: count }, (_, index) => {
     const number = firstNumber + index;
     const { reviewRequests, checks, ...rest } = overrides(number) as {
@@ -278,7 +278,7 @@ function pullRequests(
   count: number,
   firstNumber: number,
   overrides?: (number: number) => Readonly<Record<string, unknown>>,
-) {
+): string {
   return encodeJson({
     data: {
       search: { pageInfo: lastPage, nodes: rows(count, firstNumber, overrides) },
@@ -290,7 +290,7 @@ function listedPullRequests(
   count: number,
   firstNumber: number,
   overrides?: (number: number) => Readonly<Record<string, unknown>>,
-) {
+): string {
   return encodeJson({
     data: {
       repository: {
@@ -306,7 +306,7 @@ function listedPullRequests(
 const emptySearch = () => output(pullRequests(0, 1));
 const emptyList = () => output(listedPullRequests(0, 1));
 
-function pullRequestFiles(count: number, firstIndex: number) {
+function pullRequestFiles(count: number, firstIndex: number): string {
   return encodeJson(
     Array.from({ length: count }, (_, index) => ({
       filename: `src/file${firstIndex + index}.ts`,
@@ -355,7 +355,7 @@ function reviewThreadsPage(
   nodes: ReadonlyArray<Record<string, unknown>>,
   endCursor: string | null,
   requestedReviewers: ReadonlyArray<Record<string, unknown>> = [],
-) {
+): string {
   return encodeJson({
     data: {
       viewer: { login: "viewer" },
@@ -389,7 +389,7 @@ function threadCommentsPage(
   endCursor: string | null,
   totalCount: number,
   pullRequestId = "PR_7",
-) {
+): string {
   return encodeJson({
     data: {
       viewer: { login: "viewer" },
@@ -415,23 +415,23 @@ function callAt(index: number) {
   return call[0];
 }
 
-function varsAt(index: number) {
+function varsAt(index: number): Readonly<Record<string, unknown>> {
   const call = callAt(index);
   assert.strictEqual(call.kind, "graphql");
   return call.kind === "graphql" ? (call.variables ?? {}) : {};
 }
 
-function queryAt(index: number) {
+function queryAt(index: number): string {
   const call = callAt(index);
   return call.kind === "graphql" ? call.query : "";
 }
 
-function pathAt(index: number) {
+function pathAt(index: number): string {
   const call = callAt(index);
   return call.kind === "rest" ? call.path : "";
 }
 
-function searchOfCall(index: number) {
+function searchOfCall(index: number): string | undefined {
   const q = callAt(index).kind === "graphql" ? varsAt(index)["q"] : undefined;
   return typeof q === "string" ? q : undefined;
 }
@@ -473,7 +473,7 @@ function searchPage(nodes: ReadonlyArray<unknown>, hasNextPage = false) {
 
 const searchQueryOfCall = searchOfCall;
 
-function matches(call: ApiCall, needle: string) {
+function matches(call: ApiCall, needle: string): boolean {
   return call.kind === "graphql"
     ? call.operationName === needle || call.query.includes(needle)
     : call.path.includes(needle);

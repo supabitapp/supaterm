@@ -44,7 +44,7 @@ type StyledRange = TextRange & {
   markers: { at: number; closing: boolean; text: string }[];
 };
 
-function collectStyledRanges(doc: ProseMirrorNode) {
+function collectStyledRanges(doc: ProseMirrorNode): StyledRange[] {
   const ranges: StyledRange[] = [];
   const map = serializeEditorDoc(doc);
   let range: StyledRange | null = null;
@@ -85,7 +85,7 @@ function collectStyledRanges(doc: ProseMirrorNode) {
   return ranges;
 }
 
-function revealsFaithfully(doc: ProseMirrorNode, range: StyledRange) {
+function revealsFaithfully(doc: ProseMirrorNode, range: StyledRange): boolean {
   if (range.escapedOpener) return false;
   const adjacent = withAdjacentDelimiters(doc, range);
   if (adjacent.from !== range.from || adjacent.to !== range.to) return false;
@@ -117,13 +117,13 @@ function revealsFaithfully(doc: ProseMirrorNode, range: StyledRange) {
   return inlineMarkdownUnitMarks(text).every((marks, index) => sameMarks(marks, expected[index]!));
 }
 
-function touches(selection: Selection, { from, to }: TextRange) {
+function touches(selection: Selection, { from, to }: TextRange): boolean {
   return selection.empty
     ? selection.from >= from && selection.from <= to
     : selection.from < to && selection.to > from;
 }
 
-function sourceRegions(doc: ProseMirrorNode, type: MarkType) {
+function sourceRegions(doc: ProseMirrorNode, type: MarkType): TextRange[] {
   const regions: TextRange[] = [];
   doc.descendants((node, pos) => {
     if (!node.isTextblock) return true;
@@ -144,7 +144,7 @@ function sourceRegions(doc: ProseMirrorNode, type: MarkType) {
   return regions;
 }
 
-function withAdjacentDelimiters(doc: ProseMirrorNode, region: TextRange) {
+function withAdjacentDelimiters(doc: ProseMirrorNode, region: TextRange): TextRange {
   const before = doc.resolve(region.from).nodeBefore;
   const after = doc.resolve(region.to).nodeAfter;
   let from = region.from;
@@ -167,7 +167,7 @@ function withAdjacentDelimiters(doc: ProseMirrorNode, region: TextRange) {
   return { from, to };
 }
 
-function sameMarks(left: RichTextMark[] | null, right: RichTextMark[] | null) {
+function sameMarks(left: RichTextMark[] | null, right: RichTextMark[] | null): boolean {
   if (left === null || right === null) return left === right;
   return left.length === right.length && left.every((mark) => right.includes(mark));
 }
@@ -175,7 +175,7 @@ function sameMarks(left: RichTextMark[] | null, right: RichTextMark[] | null) {
 function forEachUnitRun(
   units: ReadonlyArray<RichTextMark[] | null>,
   visit: (start: number, end: number, marks: RichTextMark[] | null) => void,
-) {
+): void {
   let start = 0;
   while (start < units.length) {
     let end = start + 1;
@@ -190,7 +190,7 @@ function regionUnits(doc: ProseMirrorNode, { from, to }: TextRange) {
   return { text, units: inlineMarkdownUnitMarks(text) };
 }
 
-function collapseRegion(tr: Transaction, region: TextRange, type: MarkType) {
+function collapseRegion(tr: Transaction, region: TextRange, type: MarkType): void {
   const { schema } = tr.doc.type;
   const { units } = regionUnits(tr.doc, region);
   tr.removeMark(region.from, region.to, type);
@@ -210,7 +210,7 @@ function collapseRegion(tr: Transaction, region: TextRange, type: MarkType) {
 function collapseMarkdownSource(
   tr: Transaction,
   keep: (region: TextRange) => boolean = () => false,
-) {
+): TextRange[] {
   const type = tr.doc.type.schema.marks[MARKDOWN_SOURCE_MARK];
   if (!type) return [];
   const regions: TextRange[] = [];
@@ -248,7 +248,7 @@ export const collapseShownMarkdownSource: Command = ({ tr }) => {
   return true;
 };
 
-function mapRange(mapping: Mapping, { from, to }: TextRange) {
+function mapRange(mapping: Mapping, { from, to }: TextRange): TextRange {
   return { from: mapping.map(from, 1), to: mapping.map(to, -1) };
 }
 
@@ -292,7 +292,7 @@ function revealStyledText(tr: Transaction, type: MarkType, typed: boolean, takes
   return revealed.map(({ range, step }) => mapRange(tr.mapping.slice(step), range));
 }
 
-function normalizeMarkdownSource(state: EditorState, typed: boolean) {
+function normalizeMarkdownSource(state: EditorState, typed: boolean): Transaction | null {
   const type = state.schema.marks[MARKDOWN_SOURCE_MARK];
   if (!type) return null;
   const tr = state.tr;
@@ -301,7 +301,7 @@ function normalizeMarkdownSource(state: EditorState, typed: boolean) {
   return tr.docChanged ? tr : null;
 }
 
-function normalizeDetached(state: EditorState, revealed: TextRange[]) {
+function normalizeDetached(state: EditorState, revealed: TextRange[]): Transaction | null {
   const type = state.schema.marks[MARKDOWN_SOURCE_MARK];
   if (!type) return null;
   const tr = state.tr;
@@ -316,7 +316,7 @@ function normalizeDetached(state: EditorState, revealed: TextRange[]) {
   return tr.setMeta(markdownSourceKey, shown).setMeta("addToHistory", false);
 }
 
-function collapseRevealed(state: EditorState, revealed: TextRange[]) {
+function collapseRevealed(state: EditorState, revealed: TextRange[]): Transaction {
   const tr = state.tr;
   const type = state.schema.marks[MARKDOWN_SOURCE_MARK];
   if (type) {
@@ -327,7 +327,7 @@ function collapseRevealed(state: EditorState, revealed: TextRange[]) {
   return tr.setMeta(markdownSourceKey, []).setMeta("addToHistory", false);
 }
 
-function rebaseEdit(tr: Transaction, collapse: Transaction, edit: Transaction) {
+function rebaseEdit(tr: Transaction, collapse: Transaction, edit: Transaction): Transaction {
   for (let index = collapse.steps.length - 1; index >= 0; index--) {
     tr.step(collapse.steps[index]!.invert(collapse.docs[index]!));
   }
@@ -350,7 +350,11 @@ const replayPlugin = new Plugin({
   },
 });
 
-function previewDecorations(doc: ProseMirrorNode, type: MarkType, hidden: Selection | null) {
+function previewDecorations(
+  doc: ProseMirrorNode,
+  type: MarkType,
+  hidden: Selection | null,
+): DecorationSet {
   const decorations: Decoration[] = [];
   for (const region of sourceRegions(doc, type)) {
     const hide = hidden !== null && !touches(hidden, region);
@@ -398,7 +402,7 @@ type MarkdownSourceState = {
 
 const markdownSourceKey = new PluginKey<MarkdownSourceState>("composer-markdown-source");
 
-function markdownSourcePlugin(type: MarkType) {
+function markdownSourcePlugin(type: MarkType): Plugin<MarkdownSourceState> {
   let view: EditorView | null = null;
   return new Plugin<MarkdownSourceState>({
     key: markdownSourceKey,

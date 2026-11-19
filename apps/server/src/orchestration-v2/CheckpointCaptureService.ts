@@ -249,7 +249,7 @@ function makeCheckpointTurnItem(input: {
   readonly providerThread: OrchestrationV2ProviderThread;
   readonly checkpoint: OrchestrationV2Checkpoint;
   readonly completedAt: DateTime.Utc;
-}) {
+}): OrchestrationV2TurnItem {
   return {
     id: input.idAllocator.derive.turnItemFromProviderItem({
       driver: input.providerThread.driver,
@@ -272,5 +272,5 @@ function makeCheckpointTurnItem(input: {
     checkpointId: input.checkpoint.id,
     scopeId: input.checkpoint.scopeId,
     files: input.checkpoint.files,
-  } satisfies OrchestrationV2TurnItem;
+  };
 }

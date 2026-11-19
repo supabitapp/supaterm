@@ -30,7 +30,9 @@ import {
 const isMessageContext = Schema.is(OrchestrationMessageContext);
 const decodeMessageContext = Schema.decodeUnknownOption(OrchestrationMessageContext);
 
-export function composerContextSendBlockReason(context?: OrchestrationMessageContext) {
+export function composerContextSendBlockReason(
+  context?: OrchestrationMessageContext,
+): string | null {
   if (!context) return null;
   if (context.records.length > COMPOSER_CONTEXT_MAX_RECORDS) {
     return `Remove context items until there are at most ${COMPOSER_CONTEXT_MAX_RECORDS}.`;
@@ -57,7 +59,10 @@ export interface ComposerDocumentAttachment {
   readonly sizeBytes: number;
 }
 
-export function composerDocumentAttachment(source: string, context?: OrchestrationMessageContext) {
+export function composerDocumentAttachment(
+  source: string,
+  context?: OrchestrationMessageContext,
+): ComposerDocumentAttachment | null {
   const reference = collectComposerContextReferences(source)[0];
   const record = reference
     ? context?.records.find((entry) => entry.contextId === reference.contextId)
@@ -65,7 +70,9 @@ export function composerDocumentAttachment(source: string, context?: Orchestrati
   return composerDocumentAttachmentRecord(record);
 }
 
-export function composerDocumentAttachmentRecord(record: ComposerContextRecord | undefined) {
+export function composerDocumentAttachmentRecord(
+  record: ComposerContextRecord | undefined,
+): ComposerDocumentAttachment | null {
   if (!record || "payload" in record || record.kind !== "file") return null;
   if (videoMimeType(record) !== null) return null;
   const kind = filePreviewKind(record, { richDocuments: false });
@@ -94,7 +101,7 @@ export function pullRequestComposerContext(
   pullRequest: PullRequestContextMetadata,
   id: string,
   filePath?: string,
-) {
+): ReviewCommentContextRecord {
   const metadata = {
     ...pullRequest,
     title: pullRequest.title.slice(0, 2048),
@@ -125,7 +132,7 @@ export function pullRequestComposerContext(
     ),
     diff: "",
     pullRequest: metadata,
-  } satisfies ReviewCommentContextRecord;
+  };
 }
 
 export function composerSkillLabels(
@@ -175,8 +182,8 @@ export function uploadedComposerContext(
   context: OrchestrationMessageContext | undefined,
   drafts: readonly { readonly id: string }[],
   uploaded: readonly { readonly id?: string }[],
-) {
-  if (!context) return undefined satisfies OrchestrationMessageContext | undefined;
+): OrchestrationMessageContext | undefined {
+  if (!context) return undefined;
   const ids = new Map(drafts.map((draft, index) => [draft.id, uploaded[index]?.id]));
   return {
     version: 1,
@@ -185,7 +192,7 @@ export function uploadedComposerContext(
         ? { ...record, attachmentId: ids.get(record.attachmentId) ?? record.attachmentId }
         : record,
     ),
-  } satisfies OrchestrationMessageContext | undefined;
+  };
 }
 
 /** Imports with fresh identities so a pasted record cannot overwrite an existing snapshot. */
@@ -229,7 +236,7 @@ export function reidentifyComposerContext(
 export function serializeComposerMessageForServer(
   composerText: string,
   context: OrchestrationMessageContext | undefined,
-) {
+): { text: string; context?: OrchestrationMessageContext } {
   const text = isImageReferencesOnly(composerText)
     ? ATTACHMENT_ONLY_BOOTSTRAP_PROMPT
     : composerText;

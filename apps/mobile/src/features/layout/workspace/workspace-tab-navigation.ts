@@ -29,7 +29,7 @@ const REMEMBERED_SETTINGS_PAGES: ReadonlySet<string> = new Set(
   SETTINGS_PAGE_TARGETS.filter((page) => page !== "SettingsProjectOverview"),
 );
 
-export function rememberedSettingsPage(selections: WorkspaceSelections) {
+export function rememberedSettingsPage(selections: WorkspaceSelections): SettingsPageTarget {
   return selections.settings && REMEMBERED_SETTINGS_PAGES.has(selections.settings)
     ? (selections.settings as SettingsPageTarget)
     : DEFAULT_SETTINGS_PAGE;
@@ -46,7 +46,9 @@ function stringParam(params: object | undefined, key: string) {
   return typeof value === "string" ? value : undefined;
 }
 
-function pullRequestSelection(params: object | undefined) {
+function pullRequestSelection(
+  params: object | undefined,
+): Omit<PullRequestSelection, "key"> | undefined {
   const value = params as Record<string, unknown> | undefined;
   if (
     typeof value?.environmentId !== "string" ||
@@ -82,7 +84,10 @@ function samePullRequest(
  * The page each tab shows in a root route chain: the newest chat, the newest pull request, and
  * the Settings page directly above the Settings route. Returns `previous` when nothing changed.
  */
-export function workspaceSelectionsIn(routes: readonly RouteLike[], previous: WorkspaceSelections) {
+export function workspaceSelectionsIn(
+  routes: readonly RouteLike[],
+  previous: WorkspaceSelections,
+): WorkspaceSelections {
   let next = previous;
   const thread = routes.findLast((route) => route.name === "Thread");
   const environmentId = stringParam(thread?.params, "environmentId");
@@ -131,13 +136,13 @@ function identityOf({ key: _key, ...identity }: PullRequestSelection) {
 
 let routeKeys = 0;
 
-function keyed<Route extends RouteLike>(route: Route) {
+function keyed<Route extends RouteLike>(route: Route): Route & { readonly key: string } {
   if (route.key !== undefined) return route as Route & { readonly key: string };
   routeKeys += 1;
   return { ...route, key: `${route.name}-workspace-${routeKeys}` };
 }
 
-function keyedPage<Route extends RouteLike>(route: Route) {
+function keyedPage<Route extends RouteLike>(route: Route): Route & { readonly key: string } {
   return route.key === undefined
     ? { ...route, key: `${route.name}-workspace-page` }
     : (route as Route & { readonly key: string });
@@ -149,7 +154,7 @@ function detailRoute(
   selections: WorkspaceSelections,
   check: WorkspaceSelectionCheck,
   seedPullRequest?: (identity: Omit<PullRequestSelection, "key">) => object,
-) {
+): RouteLike | undefined {
   if (tab === "threads") {
     const draft = selections.threadsDraft;
     if (draft) {

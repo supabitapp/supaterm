@@ -23,7 +23,9 @@ export function subagentGroupSummary(
   };
 }
 
-export function summarizeSubagentStatuses(statuses: ReadonlyArray<OrchestrationV2TurnItemStatus>) {
+export function summarizeSubagentStatuses(
+  statuses: ReadonlyArray<OrchestrationV2TurnItemStatus>,
+): string {
   const counts = { working: 0, done: 0, failed: 0, stopped: 0, idle: 0 };
   for (const status of statuses) {
     if (status === "pending" || status === "running" || status === "waiting") counts.working += 1;
@@ -38,7 +40,7 @@ export function summarizeSubagentStatuses(statuses: ReadonlyArray<OrchestrationV
     .join(" · ");
 }
 
-export function formatSubagentDisplayTitle(title: string) {
+export function formatSubagentDisplayTitle(title: string): string {
   const displayTitle = title.replace(/^Subagent:\s*/i, "");
   const path = /^\/root\/(?:[^/]+\/)*([^/]+)\/?$/u.exec(displayTitle);
   if (path === null) return displayTitle;
@@ -115,7 +117,7 @@ export function subagentDetailPreview(input: {
   readonly status: OrchestrationV2TurnItemStatus;
   readonly result?: string | null | undefined;
   readonly progress?: string | null | undefined;
-}) {
+}): string | null {
   const terminal = isTerminalSubagentStatus(input.status);
   const preferred = terminal ? input.result : input.progress;
   const fallback = terminal ? input.progress : input.result;
@@ -145,7 +147,7 @@ export function subagentDetailPreview(input: {
   return compact || null;
 }
 
-export function subagentCardDetail(detail: string | null | undefined) {
+export function subagentCardDetail(detail: string | null | undefined): string | null {
   if (!detail || /^Child task ended with status\b/i.test(detail)) return null;
   return (
     detail

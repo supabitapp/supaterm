@@ -46,7 +46,9 @@ const CODEX_DRIVER = ProviderDriverKind.make("codex");
 const CLAUDE_AGENT_DRIVER = ProviderDriverKind.make("claudeAgent");
 const CURSOR_DRIVER = ProviderDriverKind.make("cursor");
 
-function toSelections(options: Record<string, string | boolean | undefined> | undefined) {
+function toSelections(
+  options: Record<string, string | boolean | undefined> | undefined,
+): ReadonlyArray<ProviderOptionSelection> {
   const result: Array<ProviderOptionSelection> = [];
   if (!options) return result;
   for (const [id, value] of Object.entries(options)) {
@@ -89,7 +91,7 @@ import {
   copiedComposerAttachmentFile,
   rememberCopiedComposerAttachments,
 } from "./lib/copiedComposerAttachments";
-import { formatTerminalContextReference } from "./lib/terminalContext";
+import { formatTerminalContextReference, type TerminalContextDraft } from "./lib/terminalContext";
 import { createDeferredStorage } from "./lib/storage";
 
 function makeImage(input: {
@@ -99,7 +101,7 @@ function makeImage(input: {
   mimeType?: string;
   sizeBytes?: number;
   lastModified?: number;
-}) {
+}): ComposerImageAttachment {
   const name = input.name ?? "image.png";
   const mimeType = input.mimeType ?? "image/png";
   const sizeBytes = input.sizeBytes ?? 4;
@@ -116,10 +118,10 @@ function makeImage(input: {
     sizeBytes: file.size,
     previewUrl: input.previewUrl,
     file,
-  } satisfies ComposerImageAttachment;
+  };
 }
 
-function makeFile(id: string) {
+function makeFile(id: string): ComposerFileAttachment {
   const file = new File(["report"], "report.pdf", { type: "application/pdf" });
   return {
     type: "file",
@@ -128,7 +130,7 @@ function makeFile(id: string) {
     mimeType: file.type,
     sizeBytes: file.size,
     file,
-  } satisfies ComposerFileAttachment;
+  };
 }
 
 function makeTerminalContext(input: {
@@ -138,7 +140,7 @@ function makeTerminalContext(input: {
   terminalLabel?: string;
   lineStart?: number;
   lineEnd?: number;
-}) {
+}): TerminalContextDraft {
   return {
     id: input.id,
     threadId: ThreadId.make("thread-dedupe"),
@@ -168,7 +170,7 @@ function modelSelection(
   provider: ProviderDriverKind,
   model: string,
   options?: Record<string, string | boolean | undefined>,
-) {
+): ModelSelection {
   return createModelSelection(defaultInstanceIdForDriver(provider), model, toSelections(options));
 }
 
@@ -179,7 +181,7 @@ const LEGACY_TEST_ENVIRONMENT_ID = EnvironmentId.make("__legacy__");
 function threadKeyFor(
   threadId: ThreadId,
   environmentId: EnvironmentId = LEGACY_TEST_ENVIRONMENT_ID,
-) {
+): string {
   if (environmentId === LEGACY_TEST_ENVIRONMENT_ID) {
     return threadId;
   }
@@ -1367,7 +1369,7 @@ function modelReconciliationHarness(
   });
   const pendingThreadIdsAtom = Atom.map(
     inFlightPickAtom,
-    (pick) => new Set(pick ? [threadId] : []),
+    (pick): ReadonlySet<ThreadId> => new Set(pick ? [threadId] : []),
   );
   const shells = createEnvironmentThreadShellAtoms({
     catalogValueAtom,

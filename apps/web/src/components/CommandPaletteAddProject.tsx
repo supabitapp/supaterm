@@ -16,7 +16,10 @@ import { MiddleTruncate } from "./ui/middle-truncate";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "./ui/select";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
 
-export function remoteProjectSourceIcon(source: AddProjectRemoteSource, className: string) {
+export function remoteProjectSourceIcon(
+  source: AddProjectRemoteSource,
+  className: string,
+): ReactNode {
   if (source === "url") return <LinkIcon className={className} />;
   const Icon = sourceControlIcon(sourceControlClients.get(source));
   return <Icon className={className} />;
@@ -25,7 +28,7 @@ export function remoteProjectSourceIcon(source: AddProjectRemoteSource, classNam
 export function sourceControlHostIcon(
   definition: NewProjectPublishTarget["definition"],
   className: string,
-) {
+): ReactNode {
   const Icon = sourceControlIcon(definition);
   return <Icon className={className} />;
 }

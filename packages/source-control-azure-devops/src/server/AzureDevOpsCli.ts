@@ -9,6 +9,7 @@ import {
   TrimmedNonEmptyString,
   type SourceControlRepositoryVisibility,
   type VcsError,
+  type VcsProcessExitFailureKind,
 } from "@supaterm/contracts";
 
 import * as SourceControlHost from "@supaterm/source-control-core/server/SourceControlHost";
@@ -36,11 +37,11 @@ export class AzureDevOpsCliUnavailableError extends Schema.TaggedError<AzureDevO
   "AzureDevOpsCliUnavailableError",
   azureDevOpsCommandErrorFields,
 ) {
-  get detail() {
+  get detail(): string {
     return "Azure CLI (`az`) with the Azure DevOps extension is required but not available on PATH.";
   }
 
-  override get message() {
+  override get message(): string {
     return `Azure DevOps CLI failed in ${this.operation}: ${this.detail}`;
   }
 }
@@ -49,11 +50,11 @@ export class AzureDevOpsCliAuthenticationError extends Schema.TaggedError<AzureD
   "AzureDevOpsCliAuthenticationError",
   azureDevOpsCommandErrorFields,
 ) {
-  get detail() {
+  get detail(): string {
     return "Azure DevOps CLI is not authenticated. Run `az devops login` and retry.";
   }
 
-  override get message() {
+  override get message(): string {
     return `Azure DevOps CLI failed in ${this.operation}: ${this.detail}`;
   }
 }
@@ -62,11 +63,11 @@ export class AzureDevOpsCliRateLimitError extends Schema.TaggedError<AzureDevOps
   "AzureDevOpsCliRateLimitError",
   azureDevOpsCommandErrorFields,
 ) {
-  get detail() {
+  get detail(): string {
     return "Azure DevOps API rate limit exceeded.";
   }
 
-  override get message() {
+  override get message(): string {
     return `Azure DevOps CLI failed in ${this.operation}: ${this.detail}`;
   }
 }
@@ -75,11 +76,11 @@ export class AzureDevOpsPullRequestNotFoundError extends Schema.TaggedError<Azur
   "AzureDevOpsPullRequestNotFoundError",
   azureDevOpsCommandErrorFields,
 ) {
-  get detail() {
+  get detail(): string {
     return "Pull request not found. Check the PR number or URL and try again.";
   }
 
-  override get message() {
+  override get message(): string {
     return `Azure DevOps CLI failed in ${this.operation}: ${this.detail}`;
   }
 }
@@ -88,11 +89,11 @@ export class AzureDevOpsCommandFailedError extends Schema.TaggedError<AzureDevOp
   "AzureDevOpsCommandFailedError",
   azureDevOpsCommandErrorFields,
 ) {
-  get detail() {
+  get detail(): string {
     return "Azure DevOps CLI command failed.";
   }
 
-  override get message() {
+  override get message(): string {
     return `Azure DevOps CLI failed in ${this.operation}: ${this.detail}`;
   }
 
@@ -104,7 +105,7 @@ export class AzureDevOpsCommandFailedError extends Schema.TaggedError<AzureDevOp
       readonly argumentCount: number;
     },
     cause: VcsError,
-  ) {
+  ): AzureDevOpsCliError {
     const fields = { ...context, cause };
 
     if (
@@ -147,11 +148,11 @@ export class AzureDevOpsPullRequestListDecodeError extends Schema.TaggedError<Az
     ...azureDevOpsDecodeErrorFields,
   },
 ) {
-  get detail() {
+  get detail(): string {
     return "Azure DevOps CLI returned invalid PR list JSON.";
   }
 
-  override get message() {
+  override get message(): string {
     return `Azure DevOps CLI failed in ${this.operation}: ${this.detail}`;
   }
 }
@@ -163,11 +164,11 @@ export class AzureDevOpsPullRequestDecodeError extends Schema.TaggedError<AzureD
     ...azureDevOpsDecodeErrorFields,
   },
 ) {
-  get detail() {
+  get detail(): string {
     return "Azure DevOps CLI returned invalid pull request JSON.";
   }
 
-  override get message() {
+  override get message(): string {
     return `Azure DevOps CLI failed in ${this.operation}: ${this.detail}`;
   }
 }
@@ -185,11 +186,11 @@ export class AzureDevOpsRepositoryDecodeError extends Schema.TaggedError<AzureDe
     ...azureDevOpsDecodeErrorFields,
   },
 ) {
-  get detail() {
+  get detail(): string {
     return "Azure DevOps CLI returned invalid repository JSON.";
   }
 
-  override get message() {
+  override get message(): string {
     return `Azure DevOps CLI failed in ${this.operation}: ${this.detail}`;
   }
 }
@@ -271,13 +272,13 @@ export class AzureDevOpsCli extends Context.Service<
   }
 >()("@supaterm/source-control-azure-devops/server/AzureDevOpsCli") {}
 
-function normalizeChangeRequestId(reference: string) {
+function normalizeChangeRequestId(reference: string): string {
   const trimmed = reference.trim().replace(/^#/, "");
   const urlMatch = /(?:pullrequest|pull-request|pull|_pulls?)\/(\d+)(?:\D.*)?$/i.exec(trimmed);
   return urlMatch?.[1] ?? trimmed;
 }
 
-function toAzureStatus(state: "open" | "closed" | "merged" | "all") {
+function toAzureStatus(state: "open" | "closed" | "merged" | "all"): string {
   switch (state) {
     case "open":
       return "active";
@@ -303,14 +304,14 @@ const RawAzureDevOpsRepositorySchema = Schema.Struct({
   defaultBranch: Schema.optional(Schema.NullOr(Schema.String)),
 });
 
-function normalizeDefaultBranch(value: string | null | undefined) {
+function normalizeDefaultBranch(value: string | null | undefined): string | null {
   const trimmed = value?.trim().replace(/^refs\/heads\//, "") ?? "";
   return trimmed.length > 0 ? trimmed : null;
 }
 
 function normalizeRepositoryCloneUrls(
   raw: Schema.Schema.Type<typeof RawAzureDevOpsRepositorySchema>,
-) {
+): AzureDevOpsRepositoryCloneUrls {
   const projectName = raw.project?.name.trim();
   return {
     nameWithOwner: projectName ? `${projectName}/${raw.name}` : raw.name,
@@ -319,7 +320,10 @@ function normalizeRepositoryCloneUrls(
   };
 }
 
-function parseRepositorySpecifier(repository: string) {
+function parseRepositorySpecifier(repository: string): {
+  readonly project: string | null;
+  readonly name: string;
+} {
   const parts: Array<string> = [];
   for (const part of repository.split("/")) {
     const trimmed = part.trim();
@@ -338,7 +342,7 @@ function decodeAzureDevOpsJson<S extends Schema.Top>(
   schema: S,
   operation: typeof AzureDevOpsRepositoryDecodeOperation.Type,
   cwd: string,
-) {
+): Effect.Effect<S["Type"], AzureDevOpsRepositoryDecodeError, S["DecodingServices"]> {
   return Schema.decodeEffect(Schema.fromJsonString(schema))(raw).pipe(
     Effect.mapError(
       (cause) =>
@@ -433,7 +437,10 @@ const detectsScope = (args: ReadonlyArray<string>) => {
 };
 
 /** Replaces `--detect true` with the scope of an Azure remote. */
-export function scopeAzureCliArgs(args: ReadonlyArray<string>, remoteUrl: string) {
+export function scopeAzureCliArgs(
+  args: ReadonlyArray<string>,
+  remoteUrl: string,
+): ReadonlyArray<string> {
   const scope = detectsScope(args) ? scopeFromRemoteUrl(remoteUrl) : null;
   if (!scope) return args;
   const scoped = [...args, "--organization", scope.organization];
@@ -451,7 +458,7 @@ export function scopeAzureCliArgs(args: ReadonlyArray<string>, remoteUrl: string
   return scoped;
 }
 
-const classifyAzFailure = (stderr: string) => {
+const classifyAzFailure = (stderr: string): VcsProcessExitFailureKind | null => {
   const normalized = stderr.toLowerCase();
   if (normalized.includes("az devops login") || /please run '?az login'?/.test(normalized)) {
     return "authentication";

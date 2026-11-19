@@ -66,13 +66,11 @@ import {
 const NOW_MS = Date.parse("2026-06-10T12:00:00.000Z");
 const DAY_MS = 24 * 60 * 60 * 1_000;
 
-function at(offsetMs: number): DateTime.Utc;
-function at(offsetMs: number) {
-  return DateTime.makeUnsafe(NOW_MS + offsetMs) satisfies DateTime.Utc;
+function at(offsetMs: number): DateTime.Utc {
+  return DateTime.makeUnsafe(NOW_MS + offsetMs);
 }
 
-function shell(overrides?: Partial<OrchestrationV2ThreadShell>): OrchestrationV2ThreadShell;
-function shell(overrides: Partial<OrchestrationV2ThreadShell> = {}) {
+function shell(overrides: Partial<OrchestrationV2ThreadShell> = {}): OrchestrationV2ThreadShell {
   return {
     id: ThreadId.make("thread-1"),
     projectId: ProjectId.make("project-1"),
@@ -118,7 +116,7 @@ function shell(overrides: Partial<OrchestrationV2ThreadShell> = {}) {
     snoozedAt: null,
     pinnedAt: null,
     ...overrides,
-  } satisfies OrchestrationV2ThreadShell;
+  };
 }
 
 describe("V2 storage cleanup eligibility", () => {
@@ -2556,26 +2554,28 @@ describe("storage cleanup reports and local file policies", () => {
             yield* Deferred.await(processed);
             yield* fixture.service.drain;
           });
-          const sessionUpdated = (status: "ready" | "error" | "stopped", text: string) =>
-            ({
-              id: EventId.make(`event:session:${status}:${text}`),
-              type: "provider-session.updated",
-              threadId: ThreadId.make("thread-1"),
-              occurredAt: at(0),
-              payload: {
-                id: ProviderSessionId.make("session-1"),
-                driver: ProviderDriverKind.make("pi"),
-                providerInstanceId: ProviderInstanceId.make("pi"),
-                status,
-                cwd: fixture.worktree,
-                model: null,
-                capabilities: CodexProviderCapabilitiesV2,
-                extensionStatuses: text === "" ? [] : [{ key: "watch", text }],
-                createdAt: at(-DAY_MS),
-                updatedAt: at(0),
-                lastError: status === "error" ? "Rate limited" : null,
-              },
-            }) satisfies OrchestrationV2DomainEvent;
+          const sessionUpdated = (
+            status: "ready" | "error" | "stopped",
+            text: string,
+          ): OrchestrationV2DomainEvent => ({
+            id: EventId.make(`event:session:${status}:${text}`),
+            type: "provider-session.updated",
+            threadId: ThreadId.make("thread-1"),
+            occurredAt: at(0),
+            payload: {
+              id: ProviderSessionId.make("session-1"),
+              driver: ProviderDriverKind.make("pi"),
+              providerInstanceId: ProviderInstanceId.make("pi"),
+              status,
+              cwd: fixture.worktree,
+              model: null,
+              capabilities: CodexProviderCapabilitiesV2,
+              extensionStatuses: text === "" ? [] : [{ key: "watch", text }],
+              createdAt: at(-DAY_MS),
+              updatedAt: at(0),
+              lastError: status === "error" ? "Rate limited" : null,
+            },
+          });
           yield* publish(sessionUpdated("ready", "Watching"));
           expect(fixture.snapshotReads()).toBe(startupReads);
           expect(fixture.sessionLiveChecks()).toBe(0);

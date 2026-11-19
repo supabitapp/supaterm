@@ -379,7 +379,7 @@ interface ListCursor extends ProviderListCursor {
 const LIST_CURSOR_PATTERN =
   /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2}))\|(\d{1,9})\|(\d{1,9}(?:,\d{1,9})*)?(?:\|([\w.:~+-]{1,128}))?$/;
 
-function parseListCursor(raw: string) {
+function parseListCursor(raw: string): ListCursor | null {
   const match = LIST_CURSOR_PATTERN.exec(raw);
   if (match === null) return null;
   const seenAt = match[3];
@@ -391,7 +391,7 @@ function parseListCursor(raw: string) {
   };
 }
 
-function listCursorKey(host: string, repository: string) {
+function listCursorKey(host: string, repository: string): string {
   return `${host} ${repository.toLowerCase()}`;
 }
 
@@ -401,7 +401,7 @@ function nextListCursor(
   delivered: ReadonlyArray<ProviderChangeRequest>,
   cursorAdvance = delivered.length,
   resumeAfter?: string,
-) {
+): string | null {
   if (fetched.length === 0) return null;
   const oldest = fetched.reduce((left, right) => (right.updatedAt < left.updatedAt ? right : left));
   return listCursorAt(previous, oldest.updatedAt, fetched, cursorAdvance, resumeAfter);
@@ -413,7 +413,7 @@ function listCursorAt(
   fetched: ReadonlyArray<ProviderChangeRequest>,
   deliveredCount: number,
   resumeAfter?: string,
-) {
+): string {
   const seenAt = new Set([
     ...(previous?.updatedBefore === boundary ? previous.seenAt : []),
     ...fetched.flatMap((item) => (item.updatedAt === boundary ? [item.number] : [])),
@@ -422,9 +422,8 @@ function listCursorAt(
   return resumeAfter === undefined ? cursor : `${cursor}|${resumeAfter}`;
 }
 
-function isProviderUnusable(error: PullRequestProviderError): boolean;
-function isProviderUnusable(error: PullRequestProviderError) {
-  return (error.reason === "missing-tool" || error.reason === "unauthenticated") satisfies boolean;
+function isProviderUnusable(error: PullRequestProviderError): boolean {
+  return error.reason === "missing-tool" || error.reason === "unauthenticated";
 }
 
 type UnavailableRequirementOf = (
@@ -434,28 +433,24 @@ type UnavailableRequirementOf = (
 function unavailableRequirement(
   requirementOf: UnavailableRequirementOf,
   error: PullRequestProviderError,
-): string | undefined;
-function unavailableRequirement(
-  requirementOf: UnavailableRequirementOf,
-  error: PullRequestProviderError,
-) {
+): string | undefined {
   const requirement = requirementOf(error.provider);
-  if (requirement === undefined) return undefined satisfies string | undefined;
-  return (
-    error.reason === "missing-tool" ? requirement.missing : requirement.unauthenticated
-  ) satisfies string | undefined;
+  if (requirement === undefined) return undefined;
+  return error.reason === "missing-tool" ? requirement.missing : requirement.unauthenticated;
 }
 
-function providerDetail(requirementOf: UnavailableRequirementOf, error: PullRequestProviderError) {
+function providerDetail(
+  requirementOf: UnavailableRequirementOf,
+  error: PullRequestProviderError,
+): string {
   if (!isProviderUnusable(error)) return error.detail;
   return unavailableRequirement(requirementOf, error) ?? error.detail;
 }
 
 function toPullRequestErrorWith(
   requirementOf: UnavailableRequirementOf,
-): (operation: string) => (error: PullRequestProviderError) => PullRequestError;
-function toPullRequestErrorWith(requirementOf: UnavailableRequirementOf) {
-  return ((operation) => (error) => {
+): (operation: string) => (error: PullRequestProviderError) => PullRequestError {
+  return (operation) => (error) => {
     if (isProviderUnusable(error)) {
       const requirement = unavailableRequirement(requirementOf, error);
       return new PullRequestUnavailableError({
@@ -471,7 +466,7 @@ function toPullRequestErrorWith(requirementOf: UnavailableRequirementOf) {
       ...(error.reason === "not-found" ? { reason: "not-found" as const } : {}),
       cause: error,
     });
-  }) satisfies (operation: string) => (error: PullRequestProviderError) => PullRequestError;
+  };
 }
 
 function withRateLimitBackoff(
@@ -479,7 +474,7 @@ function withRateLimitBackoff(
   host: string,
   limits: SourceControlRateLimit.SourceControlRateLimit["Service"],
   options?: { readonly viewerAllowsPause: boolean },
-) {
+): PullRequestProviderApi {
   const key = { provider: api.kind, host };
   const protect = <A>(
     operation: string,
@@ -675,7 +670,7 @@ function rankFilterOptions<A>(
     readonly textsOf: (item: A) => ReadonlyArray<string | null>;
     readonly hostOrder?: boolean;
   },
-) {
+): { readonly items: ReadonlyArray<A>; readonly truncated: boolean } {
   const query = input.query?.trim().toLowerCase() ?? "";
   const unique = new Map<string, A>();
   for (const page of pages) {
@@ -713,7 +708,7 @@ function rankFilterOptions<A>(
 const remoteHostKey = (recognized: SourceControlProviderInfo, remoteUrl: string) =>
   `${recognized.baseUrl}\n${isSshRemoteUrl(remoteUrl) ? "ssh" : "web"}`;
 
-function httpRemoteHost(remoteUrl: string) {
+function httpRemoteHost(remoteUrl: string): string | null {
   try {
     const remote = new URL(remoteUrl);
     return remote.protocol === "http:" || remote.protocol === "https:"
@@ -835,7 +830,7 @@ export const make = Effect.gen(function* () {
                     }) ?? Effect.succeed(null),
                 ),
                 Effect.orElseSucceed(() => null),
-                Effect.map((host) => ({ kind: found.context.provider.kind, host })),
+                Effect.map((host): RemoteHost => ({ kind: found.context.provider.kind, host })),
               ),
         ),
         Effect.orElseSucceed(() => null),
@@ -866,7 +861,7 @@ export const make = Effect.gen(function* () {
 
   const listWorkspaceProjects = (
     filter: Pick<PullRequestListInput, "projectId" | "projectIds" | "host"> & {},
-  ) =>
+  ): Effect.Effect<WorkspaceProjects, PullRequestError> =>
     Effect.flatMap(sharedProjectReads, (shared) => {
       if (shared === null || !shared.open) return readWorkspaceProjects(filter);
       const key = JSON.stringify([filter.projectId, filter.projectIds, filter.host]);
@@ -894,7 +889,7 @@ export const make = Effect.gen(function* () {
 
   const readWorkspaceProjects = (
     filter: Pick<PullRequestListInput, "projectId" | "projectIds" | "host">,
-  ) =>
+  ): Effect.Effect<WorkspaceProjects, PullRequestError> =>
     (filter.projectId === undefined
       ? projects.listShells(
           filter.projectIds === undefined ? undefined : { projectIds: filter.projectIds },
@@ -996,13 +991,11 @@ export const make = Effect.gen(function* () {
       }),
     );
 
-  const requireProject: (
+  const requireProject = (
     ref: Pick<PullRequestRef, "projectId" | "host" | "repository">,
-  ) => Effect.Effect<SupportedProject, PullRequestError> = (
-    ref: Pick<PullRequestRef, "projectId" | "host" | "repository">,
-  ) =>
+  ): Effect.Effect<SupportedProject, PullRequestError> =>
     listWorkspaceProjects({ projectId: ref.projectId }).pipe(
-      Effect.flatMap(({ supported }) => {
+      Effect.flatMap(({ supported }): Effect.Effect<SupportedProject, PullRequestError> => {
         const own = supported[0];
         const repository = ref.repository.trim();
         const host = ref.host?.trim().toLowerCase();
@@ -1146,7 +1139,9 @@ export const make = Effect.gen(function* () {
       })
       .pipe(Effect.mapError(toPullRequestError(operation)));
 
-  const decodeCursors = (cursors: PullRequestListInput["cursors"]) => {
+  const decodeCursors = (
+    cursors: PullRequestListInput["cursors"],
+  ): Effect.Effect<ReadonlyMap<string, ListCursor> | null, PullRequestError> => {
     if (cursors === undefined) return Effect.succeed(null);
     const decoded = new Map<string, ListCursor>();
     for (const [key, raw] of Object.entries(cursors)) {
@@ -1172,7 +1167,7 @@ export const make = Effect.gen(function* () {
   };
   const viewersByHost = new Map<string, { readonly at: number; readonly result: ResolvedViewer }>();
   const viewerFlights = yield* Cache.makeWith(
-    (key: string) => {
+    (key: string): Effect.Effect<ResolvedViewer> => {
       const [host, kind, roots] = JSON.parse(key) as [
         string,
         SourceControlProviderKind,
@@ -1218,7 +1213,7 @@ export const make = Effect.gen(function* () {
     Effect.forEach(
       [...new Set(projects.map(({ host }) => host))],
       (host) =>
-        Effect.flatMap(Clock.currentTimeMillis, (now) => {
+        Effect.flatMap(Clock.currentTimeMillis, (now): Effect.Effect<ResolvedViewer> => {
           const held = viewersByHost.get(host);
           if (held !== undefined && now - held.at <= Duration.toMillis(VIEWER_CACHE_TTL)) {
             return Effect.succeed(held.result);
@@ -1255,7 +1250,7 @@ export const make = Effect.gen(function* () {
     item: ProviderChangeRequest,
     filters: PullRequestListFilters | undefined,
     viewer: string,
-  ) => {
+  ): boolean => {
     if (filters === undefined) return true;
     const labels = new Set(item.labels.map((label) => label.name.trim().toLowerCase()));
     const holds = (label: string) => labels.has(label.trim().toLowerCase());
@@ -1282,7 +1277,7 @@ export const make = Effect.gen(function* () {
     readonly item: ProviderChangeRequest;
     readonly viewer: string;
     readonly observedAt: number;
-  }) => {
+  }): PullRequestListEntry => {
     const viewer = input.viewer.toLowerCase();
     return {
       ...(input.item.stack === undefined ? {} : { stack: input.item.stack }),
@@ -1409,9 +1404,13 @@ export const make = Effect.gen(function* () {
     }
 
     const limit = input.limit ?? DEFAULT_REPOSITORY_LIST_LIMIT;
-    const cursorOf = (project: SupportedProject) => continuation?.get(project.cursorKey);
+    const cursorOf = (project: SupportedProject): ListCursor | undefined =>
+      continuation?.get(project.cursorKey);
 
-    const readSlice = (project: SupportedProject, cursor: ListCursor | undefined) => {
+    const readSlice = (
+      project: SupportedProject,
+      cursor: ListCursor | undefined,
+    ): Effect.Effect<RepositoryBatch> => {
       {
         const viewer = viewers[project.host]!;
         const key = project.cursorKey;
@@ -1440,7 +1439,7 @@ export const make = Effect.gen(function* () {
           })
           .pipe(
             observeRead,
-            Effect.map(({ value: page, observedAt }) => {
+            Effect.map(({ value: page, observedAt }): RepositoryBatch => {
               const items =
                 cursor === undefined
                   ? page.items
@@ -1468,7 +1467,7 @@ export const make = Effect.gen(function* () {
                     : null,
               };
             }),
-            Effect.catch((error) =>
+            Effect.catch((error): Effect.Effect<RepositoryBatch> =>
               Effect.succeed({
                 key,
                 entries: [],
@@ -1490,11 +1489,8 @@ export const make = Effect.gen(function* () {
       }
     };
 
-    const readRepository = (project: SupportedProject) => {
-      const fill: (batch: RepositoryBatch, reads: number) => Effect.Effect<RepositoryBatch> = (
-        batch: RepositoryBatch,
-        reads: number,
-      ) => {
+    const readRepository = (project: SupportedProject): Effect.Effect<RepositoryBatch> => {
+      const fill = (batch: RepositoryBatch, reads: number): Effect.Effect<RepositoryBatch> => {
         const cursor = batch.nextCursor === null ? null : parseListCursor(batch.nextCursor);
         if (
           input.filters === undefined ||
@@ -1512,18 +1508,17 @@ export const make = Effect.gen(function* () {
           ),
         );
       };
-      return readSlice(project, cursorOf(project)).pipe(
-        Effect.flatMap((batch) => fill(batch, 1)),
-      ) satisfies Effect.Effect<RepositoryBatch>;
+      return readSlice(project, cursorOf(project)).pipe(Effect.flatMap((batch) => fill(batch, 1)));
     };
 
-    const readTogether = (chunk: ReadonlyArray<SupportedProject>) => {
+    const readTogether = (
+      chunk: ReadonlyArray<SupportedProject>,
+    ): Effect.Effect<ReadonlyArray<RepositoryBatch>> => {
       const first = chunk[0]!;
       const readAcross = first.api.listChangeRequestsAcross;
       const separately = () =>
         Effect.forEach(chunk, readRepository, { concurrency: REPOSITORY_CONCURRENCY });
-      if (readAcross === undefined)
-        return separately() satisfies Effect.Effect<ReadonlyArray<RepositoryBatch>>;
+      if (readAcross === undefined) return separately();
       const viewer = viewers[first.host]!;
       const cursor = cursorOf(first);
       return readAcross({
@@ -1571,11 +1566,10 @@ export const make = Effect.gen(function* () {
           );
           return Effect.forEach(
             chunk,
-            (project) => {
+            (project): Effect.Effect<RepositoryBatch> => {
               const key = project.repository.trim().toLowerCase();
               const fetched = rows.get(key) ?? [];
-              if (fetched.length === 0 && unresolved.has(key))
-                return readRepository(project) satisfies Effect.Effect<RepositoryBatch>;
+              if (fetched.length === 0 && unresolved.has(key)) return readRepository(project);
               const cursorHere = cursorOf(project);
               const items =
                 cursorHere === undefined
@@ -1596,13 +1590,13 @@ export const make = Effect.gen(function* () {
                   page.truncated && boundary !== null
                     ? listCursorAt(cursorHere, boundary, fetched, items.length)
                     : null,
-              }) satisfies Effect.Effect<RepositoryBatch>;
+              });
             },
             { concurrency: REPOSITORY_CONCURRENCY },
           );
         }),
         Effect.catch(separately),
-      ) satisfies Effect.Effect<ReadonlyArray<RepositoryBatch>>;
+      );
     };
 
     const together = new Map<string, Array<SupportedProject>>();
@@ -1667,7 +1661,7 @@ export const make = Effect.gen(function* () {
     };
   });
 
-  const viewerOf = (project: SupportedProject) =>
+  const viewerOf = (project: SupportedProject): Effect.Effect<string | null> =>
     routingCredential.pipe(
       Effect.flatMap((credential) =>
         credential !== null
@@ -1760,7 +1754,7 @@ export const make = Effect.gen(function* () {
     changeRequest: ProviderChangeRequestSummary | ProviderChangeRequestDetail,
     observedAt: number,
     reply = false,
-  ) => ({
+  ): PullRequestSummary => ({
     provider: project.api.kind,
     projectId: project.project.id,
     repository: project.repository,
@@ -1842,7 +1836,7 @@ export const make = Effect.gen(function* () {
           includeDetails: options?.includeDetails !== false,
         }).pipe(
           Effect.mapError(toPullRequestError("stack")),
-          Effect.map((stack) =>
+          Effect.map((stack): PullRequestStack | null =>
             stack === null
               ? null
               : {
@@ -1879,7 +1873,7 @@ export const make = Effect.gen(function* () {
           ],
           { concurrency: 2 },
         ).pipe(
-          Effect.map(([{ value: changeRequest, observedAt }, viewer]) => ({
+          Effect.map(([{ value: changeRequest, observedAt }, viewer]): PullRequestDetail => ({
             provider: project.api.kind,
             capabilities: project.api.capabilities,
             projectId: project.project.id,
@@ -1941,9 +1935,7 @@ export const make = Effect.gen(function* () {
       ),
     );
 
-  const previewFields: (value: PullRequestPreview) => PullRequestPreview = (
-    value: PullRequestPreview,
-  ) => ({
+  const previewFields = (value: PullRequestPreview): PullRequestPreview => ({
     projectId: value.projectId,
     repository: value.repository,
     number: value.number,
@@ -1987,7 +1979,7 @@ export const make = Effect.gen(function* () {
           })
           .pipe(
             Effect.mapError(toPullRequestError("activity")),
-            Effect.map((activity) => ({
+            Effect.map((activity): PullRequestActivity => ({
               ...(activity.author === undefined ? {} : { author: activity.author }),
               ...(activity.reviewers === undefined ? {} : { reviewers: activity.reviewers }),
               comments: activity.comments,
@@ -2009,25 +2001,27 @@ export const make = Effect.gen(function* () {
 
   const threadComments: PullRequestService["Service"]["threadComments"] = (input) =>
     requireProject(input).pipe(
-      Effect.flatMap((project) => {
-        const read = project.api.getReviewThreadComments;
-        if (read === undefined) {
-          return Effect.fail(
-            new PullRequestOperationError({
-              operation: "threadComments",
-              detail: "This host does not page review thread comments.",
-            }),
-          );
-        }
-        return read({
-          cwd: project.project.workspaceRoot,
-          repository: project.repository,
-          host: project.host,
-          number: input.number,
-          threadId: input.threadId,
-          cursor: input.cursor,
-        }).pipe(Effect.mapError(toPullRequestError("threadComments")));
-      }),
+      Effect.flatMap(
+        (project): Effect.Effect<PullRequestThreadCommentsResult, PullRequestError> => {
+          const read = project.api.getReviewThreadComments;
+          if (read === undefined) {
+            return Effect.fail(
+              new PullRequestOperationError({
+                operation: "threadComments",
+                detail: "This host does not page review thread comments.",
+              }),
+            );
+          }
+          return read({
+            cwd: project.project.workspaceRoot,
+            repository: project.repository,
+            host: project.host,
+            number: input.number,
+            threadId: input.threadId,
+            cursor: input.cursor,
+          }).pipe(Effect.mapError(toPullRequestError("threadComments")));
+        },
+      ),
     );
 
   const diffUncached: PullRequestService["Service"]["diff"] = (input) =>
@@ -2089,7 +2083,10 @@ export const make = Effect.gen(function* () {
   const scope = yield* Effect.scope;
   const runFork = Effect.runForkWith(context);
 
-  const requiredViewerOf = (project: SupportedProject, operation: string) =>
+  const requiredViewerOf = (
+    project: SupportedProject,
+    operation: string,
+  ): Effect.Effect<string | null, PullRequestError> =>
     resolveViewers([project], new Map(), { allowPaused: true }).pipe(
       Effect.flatMap(([resolved]) => {
         const error = resolved?.error ?? null;
@@ -2119,9 +2116,11 @@ export const make = Effect.gen(function* () {
     readonly repository: string;
     readonly summary: PullRequestSummary | undefined;
   };
-  const runAction = (input: PullRequestActionInput) =>
+  const runAction = (
+    input: PullRequestActionInput,
+  ): Effect.Effect<ActionOutcome, PullRequestError> =>
     requireProject(input).pipe(
-      Effect.flatMap((project) => {
+      Effect.flatMap((project): Effect.Effect<ActionOutcome, PullRequestError> => {
         if (input.action === "delete-branch" && project.api.capabilities.deleteBranch !== true) {
           return Effect.fail(
             new PullRequestOperationError({
@@ -2180,7 +2179,7 @@ export const make = Effect.gen(function* () {
           "runAction",
           input.action === "update-branch",
         ).pipe(
-          Effect.flatMap((viewer) => {
+          Effect.flatMap((viewer): Effect.Effect<ActionOutcome, PullRequestError> => {
             const stackRebase = input.stackNumber !== undefined && input.action === "update-branch";
             if (
               stackRebase
@@ -2291,7 +2290,7 @@ export const make = Effect.gen(function* () {
         )
       : requireProject(input)
     ).pipe(
-      Effect.flatMap((project) => {
+      Effect.flatMap((project): Effect.Effect<void, PullRequestError> => {
         if (!project.api.capabilities.comment) {
           return Effect.fail(
             new PullRequestOperationError({
@@ -2301,7 +2300,7 @@ export const make = Effect.gen(function* () {
           );
         }
         return viewerPermissionsOf(project, input, "comment").pipe(
-          Effect.flatMap((viewer) => {
+          Effect.flatMap((viewer): Effect.Effect<void, PullRequestError> => {
             if (!viewer.comment) {
               return Effect.fail(
                 new PullRequestOperationError({
@@ -2327,7 +2326,7 @@ export const make = Effect.gen(function* () {
 
   const update: PullRequestService["Service"]["update"] = (input) =>
     requireProject(input).pipe(
-      Effect.flatMap((project) => {
+      Effect.flatMap((project): Effect.Effect<void, PullRequestError> => {
         const rewrite = project.api.updateChangeRequest;
         if (project.api.capabilities.edit?.changeRequest !== true || rewrite === undefined) {
           return Effect.fail(
@@ -2384,7 +2383,7 @@ export const make = Effect.gen(function* () {
         )
       : requireProject(input)
     ).pipe(
-      Effect.flatMap((project) => {
+      Effect.flatMap((project): Effect.Effect<void, PullRequestError> => {
         const rewrite = project.api.updateComment;
         if (project.api.capabilities.edit?.comment !== true || rewrite === undefined) {
           return Effect.fail(
@@ -2408,7 +2407,7 @@ export const make = Effect.gen(function* () {
 
   const submitReview: PullRequestService["Service"]["submitReview"] = (input) =>
     requireProject(input).pipe(
-      Effect.flatMap((project) => {
+      Effect.flatMap((project): Effect.Effect<void, PullRequestError> => {
         const review = project.api.capabilities.review;
         const refuse = (detail: string) =>
           Effect.fail(new PullRequestOperationError({ operation: "submitReview", detail }));
@@ -2426,7 +2425,7 @@ export const make = Effect.gen(function* () {
           return refuse("A review needs a summary or at least one comment.");
         }
         return viewerPermissionsOf(project, input, "submitReview").pipe(
-          Effect.flatMap((viewer) => {
+          Effect.flatMap((viewer): Effect.Effect<void, PullRequestError> => {
             if (!viewer.verdicts.includes(input.verdict)) {
               return refuse(
                 `You need write access on this repository to ${
@@ -2465,7 +2464,7 @@ export const make = Effect.gen(function* () {
         )
       : requireProject(input)
     ).pipe(
-      Effect.flatMap((project) => {
+      Effect.flatMap((project): Effect.Effect<void, PullRequestError> => {
         if (!project.api.capabilities.review.reply) {
           return Effect.fail(
             new PullRequestOperationError({
@@ -2475,7 +2474,7 @@ export const make = Effect.gen(function* () {
           );
         }
         return viewerPermissionsOf(project, input, "replyToThread").pipe(
-          Effect.flatMap((viewer) => {
+          Effect.flatMap((viewer): Effect.Effect<void, PullRequestError> => {
             if (!viewer.comment) {
               return Effect.fail(
                 new PullRequestOperationError({
@@ -2502,7 +2501,7 @@ export const make = Effect.gen(function* () {
 
   const setThreadResolution: PullRequestService["Service"]["setThreadResolution"] = (input) =>
     requireProject(input).pipe(
-      Effect.flatMap((project) => {
+      Effect.flatMap((project): Effect.Effect<void, PullRequestError> => {
         if (!project.api.capabilities.review.resolve) {
           return Effect.fail(
             new PullRequestOperationError({
@@ -2512,7 +2511,7 @@ export const make = Effect.gen(function* () {
           );
         }
         return viewerPermissionsOf(project, input, "setThreadResolution").pipe(
-          Effect.flatMap((viewer) => {
+          Effect.flatMap((viewer): Effect.Effect<void, PullRequestError> => {
             if (!viewer.resolve) {
               return Effect.fail(
                 new PullRequestOperationError({
@@ -2539,7 +2538,7 @@ export const make = Effect.gen(function* () {
 
   const setReaction: PullRequestService["Service"]["setReaction"] = (input) =>
     requireProject(input).pipe(
-      Effect.flatMap((project) => {
+      Effect.flatMap((project): Effect.Effect<void, PullRequestError> => {
         if (project.api.capabilities.reactions !== true) {
           return Effect.fail(
             new PullRequestOperationError({
@@ -2564,41 +2563,44 @@ export const make = Effect.gen(function* () {
 
   const reviewerCandidates: PullRequestService["Service"]["reviewerCandidates"] = (input) =>
     requireProject(input).pipe(
-      Effect.flatMap((project) => {
-        if (!project.api.capabilities.reviewers.listCandidates) {
-          return Effect.fail(
-            new PullRequestOperationError({
-              operation: "reviewerCandidates",
-              detail: "This host cannot say who may review a change request.",
-            }),
+      Effect.flatMap(
+        (project): Effect.Effect<PullRequestReviewerCandidateList, PullRequestError> => {
+          if (!project.api.capabilities.reviewers.listCandidates) {
+            return Effect.fail(
+              new PullRequestOperationError({
+                operation: "reviewerCandidates",
+                detail: "This host cannot say who may review a change request.",
+              }),
+            );
+          }
+          return viewerPermissionsOf(project, input, "reviewerCandidates").pipe(
+            Effect.flatMap(
+              (viewer): Effect.Effect<PullRequestReviewerCandidateList, PullRequestError> =>
+                viewer.requestReviewers
+                  ? project.api
+                      .listReviewerCandidates({
+                        cwd: project.project.workspaceRoot,
+                        repository: project.repository,
+                        host: project.host,
+                        number: input.number,
+                        query: input.query,
+                      })
+                      .pipe(Effect.mapError(toPullRequestError("reviewerCandidates")))
+                  : Effect.fail(
+                      new PullRequestOperationError({
+                        operation: "reviewerCandidates",
+                        detail: REVIEWER_REQUEST_REFUSAL,
+                      }),
+                    ),
+            ),
           );
-        }
-        return viewerPermissionsOf(project, input, "reviewerCandidates").pipe(
-          Effect.flatMap((viewer) =>
-            viewer.requestReviewers
-              ? project.api
-                  .listReviewerCandidates({
-                    cwd: project.project.workspaceRoot,
-                    repository: project.repository,
-                    host: project.host,
-                    number: input.number,
-                    query: input.query,
-                  })
-                  .pipe(Effect.mapError(toPullRequestError("reviewerCandidates")))
-              : Effect.fail(
-                  new PullRequestOperationError({
-                    operation: "reviewerCandidates",
-                    detail: REVIEWER_REQUEST_REFUSAL,
-                  }),
-                ),
-          ),
-        );
-      }),
+        },
+      ),
     );
 
   const requestReviewers: PullRequestService["Service"]["requestReviewers"] = (input) =>
     requireProject(input).pipe(
-      Effect.flatMap((project) => {
+      Effect.flatMap((project): Effect.Effect<void, PullRequestError> => {
         if (!project.api.capabilities.reviewers.request) {
           return Effect.fail(
             new PullRequestOperationError({
@@ -2608,7 +2610,7 @@ export const make = Effect.gen(function* () {
           );
         }
         return viewerPermissionsOf(project, input, "requestReviewers").pipe(
-          Effect.flatMap((viewer) => {
+          Effect.flatMap((viewer): Effect.Effect<void, PullRequestError> => {
             if (!viewer.requestReviewers) {
               return Effect.fail(
                 new PullRequestOperationError({
@@ -2652,7 +2654,7 @@ export const make = Effect.gen(function* () {
     ) =>
       Effect.forEach(
         repositories,
-        (project) => {
+        (project): Effect.Effect<ReadonlyArray<ProviderFilterOptionPage<A>>> => {
           const page = read(project);
           return page === undefined
             ? Effect.succeed([])
@@ -2699,7 +2701,7 @@ export const make = Effect.gen(function* () {
 
   const labelCandidates: PullRequestService["Service"]["labelCandidates"] = (input) =>
     requireProject(input).pipe(
-      Effect.flatMap((project) => {
+      Effect.flatMap((project): Effect.Effect<PullRequestLabelCandidateList, PullRequestError> => {
         const list = project.api.listLabelCandidates;
         if (project.api.capabilities.labels !== true || list === undefined) {
           return Effect.fail(
@@ -2710,20 +2712,21 @@ export const make = Effect.gen(function* () {
           );
         }
         return viewerPermissionsOf(project, input, "labelCandidates").pipe(
-          Effect.flatMap((viewer) =>
-            viewer.labels === false
-              ? Effect.fail(
-                  new PullRequestOperationError({
-                    operation: "labelCandidates",
-                    detail: LABEL_CHANGE_REFUSAL,
-                  }),
-                )
-              : list({
-                  cwd: project.project.workspaceRoot,
-                  repository: project.repository,
-                  host: project.host,
-                  number: input.number,
-                }).pipe(Effect.mapError(toPullRequestError("labelCandidates"))),
+          Effect.flatMap(
+            (viewer): Effect.Effect<PullRequestLabelCandidateList, PullRequestError> =>
+              viewer.labels === false
+                ? Effect.fail(
+                    new PullRequestOperationError({
+                      operation: "labelCandidates",
+                      detail: LABEL_CHANGE_REFUSAL,
+                    }),
+                  )
+                : list({
+                    cwd: project.project.workspaceRoot,
+                    repository: project.repository,
+                    host: project.host,
+                    number: input.number,
+                  }).pipe(Effect.mapError(toPullRequestError("labelCandidates"))),
           ),
         );
       }),
@@ -2731,7 +2734,7 @@ export const make = Effect.gen(function* () {
 
   const setLabels: PullRequestService["Service"]["setLabels"] = (input) =>
     requireProject(input).pipe(
-      Effect.flatMap((project) => {
+      Effect.flatMap((project): Effect.Effect<void, PullRequestError> => {
         const change = project.api.setLabels;
         if (project.api.capabilities.labels !== true || change === undefined) {
           return Effect.fail(
@@ -2742,7 +2745,7 @@ export const make = Effect.gen(function* () {
           );
         }
         return viewerPermissionsOf(project, input, "setLabels").pipe(
-          Effect.flatMap((viewer) =>
+          Effect.flatMap((viewer): Effect.Effect<void, PullRequestError> =>
             viewer.labels === false
               ? Effect.fail(
                   new PullRequestOperationError({
@@ -2811,7 +2814,7 @@ export const make = Effect.gen(function* () {
           })),
         }).pipe(
           Effect.map((read) =>
-            read.flatMap((stat) => {
+            read.flatMap((stat): ReadonlyArray<PullRequestDiffStat> => {
               const project = projectsByRepository.get(
                 `${stat.repository.toLowerCase()} ${stat.number}`,
               );
@@ -2828,7 +2831,7 @@ export const make = Effect.gen(function* () {
                   ];
             }),
           ),
-          Effect.orElseSucceed(() => []),
+          Effect.orElseSucceed((): ReadonlyArray<PullRequestDiffStat> => []),
         );
       },
       { concurrency: REPOSITORY_CONCURRENCY },
@@ -2968,7 +2971,7 @@ export const make = Effect.gen(function* () {
       ref.expectedAccountId ?? null,
       ref[credentialNamespace] ?? null,
     ]);
-  const refOfCacheKey = (key: string) => {
+  const refOfCacheKey = (key: string): PullRequestRef => {
     const [, projectId, host, repository, number, expectedAccountId, fingerprint] = JSON.parse(
       key,
     ) as [number, string, string | null, string, number, string | null, string | null];
@@ -3020,15 +3023,11 @@ export const make = Effect.gen(function* () {
       `${everyFileRevisionEpoch}:${fileRevisionEpochs.get(refScope(ref)) ?? 0}`,
   });
 
-  const filtersOfKey: (
+  const filtersOfKey = (
     slots: ReadonlyArray<
       string | ReadonlyArray<string> | ReadonlyArray<ReadonlyArray<string>> | null
     >,
-  ) => PullRequestListFilters = (
-    slots: ReadonlyArray<
-      string | ReadonlyArray<string> | ReadonlyArray<ReadonlyArray<string>> | null
-    >,
-  ) => {
+  ): PullRequestListFilters => {
     const [draft, review, checks, author, labels, excludedLabels] = slots;
     return {
       ...(typeof draft === "string" ? { draft: draft as "only" | "hide" } : {}),
@@ -3302,7 +3301,7 @@ export const make = Effect.gen(function* () {
   const summaryFromDetail = (
     detail: PullRequestDetail,
     previous: PullRequestSummary | undefined,
-  ) => ({
+  ): PullRequestSummary => ({
     ...previous,
     provider: detail.provider,
     projectId: detail.projectId,
@@ -3705,10 +3704,10 @@ export const make = Effect.gen(function* () {
     (revision) => revision + 1,
   );
 
-  const invalidatedByMutation: <I extends PullRequestRef>(
-    method: (input: I) => Effect.Effect<void, PullRequestError>,
-  ) => (input: I) => Effect.Effect<void, PullRequestError> =
-    <I extends PullRequestRef>(method: (input: I) => Effect.Effect<void, PullRequestError>) =>
+  const invalidatedByMutation =
+    <I extends PullRequestRef>(
+      method: (input: I) => Effect.Effect<void, PullRequestError>,
+    ): ((input: I) => Effect.Effect<void, PullRequestError>) =>
     (input) =>
       Effect.gen(function* () {
         const ref = yield* canonicalRef(input);
@@ -3841,9 +3840,7 @@ export const make = Effect.gen(function* () {
   })();
   const changesFile = (input: PullRequestDiffFileContentsInput) => {
     const wanted = diffFiles.fileKey(input.oldPath, input.newPath);
-    const walk: (cursor: string | undefined) => Effect.Effect<boolean, PullRequestError> = (
-      cursor: string | undefined,
-    ) =>
+    const walk = (cursor: string | undefined): Effect.Effect<boolean, PullRequestError> =>
       diffFiles
         .read({
           ...input,

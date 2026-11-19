@@ -545,8 +545,7 @@ export function NewTaskDraftScreen(props: {
     locked: isComposerInteractionLocked,
   });
 
-  function handleStart(): Promise<import("@supaterm/contracts").MessageId | null>;
-  async function handleStart() {
+  async function handleStart(): Promise<import("@supaterm/contracts").MessageId | null> {
     const selectedProject = flow.selectedProject;
     const draftKey = flow.draftKey;
     if (
@@ -557,17 +556,16 @@ export function NewTaskDraftScreen(props: {
       isImportingShare ||
       isComposerInteractionLocked
     ) {
-      return null satisfies import("@supaterm/contracts").MessageId | null;
+      return null;
     }
     if (
       environmentConnected &&
       !readEnvironmentScope(selectedProject.environmentId, AuthOrchestrationOperateScope)
     ) {
-      return null satisfies import("@supaterm/contracts").MessageId | null;
+      return null;
     }
     const draft = getComposerDraftSnapshot(draftKey);
-    if (appAtomRegistry.get(composerContextImportsAtom)[draftKey])
-      return null satisfies import("@supaterm/contracts").MessageId | null;
+    if (appAtomRegistry.get(composerContextImportsAtom)[draftKey]) return null;
     const modelSelection =
       resolveSelectableModelSelection(
         selectedEnvironmentServerConfig,
@@ -582,7 +580,7 @@ export function NewTaskDraftScreen(props: {
       (initialMessageText.length === 0 && draft.attachments.length === 0) ||
       flow.submitting
     ) {
-      return null satisfies import("@supaterm/contracts").MessageId | null;
+      return null;
     }
     if (
       environmentConnected &&
@@ -598,20 +596,20 @@ export function NewTaskDraftScreen(props: {
         selectedProject.id,
       );
       Dialog.alert(title, detail);
-      return null satisfies import("@supaterm/contracts").MessageId | null;
+      return null;
     }
     if (draft.attachments.length > PROVIDER_SEND_TURN_MAX_ATTACHMENTS) {
       Dialog.alert(
         "Too many attachments",
         `Remove attachments until there are at most ${PROVIDER_SEND_TURN_MAX_ATTACHMENTS}.`,
       );
-      return null satisfies import("@supaterm/contracts").MessageId | null;
+      return null;
     }
 
     const contextBlockReason = composerContextSendBlockReason(draft.context);
     if (contextBlockReason) {
       Dialog.alert("Too much context", contextBlockReason);
-      return null satisfies import("@supaterm/contracts").MessageId | null;
+      return null;
     }
     const strandedThread = threadContextsOutsideEnvironment({
       text: draft.text,
@@ -627,7 +625,7 @@ export function NewTaskDraftScreen(props: {
         "Attached thread unavailable",
         `"${strandedThread.title}" is on another machine. Switch back to ${owner} or remove it from the draft.`,
       );
-      return null satisfies import("@supaterm/contracts").MessageId | null;
+      return null;
     }
 
     const editingPendingTask = flow.editingPendingTask;
@@ -645,7 +643,7 @@ export function NewTaskDraftScreen(props: {
       useDefaultBranch: true,
     });
     if (!message) {
-      return null satisfies import("@supaterm/contracts").MessageId | null;
+      return null;
     }
     flow.setSubmitting(true);
     const queued = await settlePromise(() => enqueueThreadOutboxMessage(message));
@@ -656,7 +654,7 @@ export function NewTaskDraftScreen(props: {
         "Could not queue task",
         error instanceof Error ? error.message : "The task could not be saved to the outbox.",
       );
-      return null satisfies import("@supaterm/contracts").MessageId | null;
+      return null;
     }
     promptInputRef.current?.blur();
     navigation.dispatch(
@@ -676,7 +674,7 @@ export function NewTaskDraftScreen(props: {
       });
     }
     scheduleUnusedComposerAttachmentCleanup(draftSnapshot.attachments);
-    return message.messageId satisfies import("@supaterm/contracts").MessageId | null;
+    return message.messageId;
   }
 
   if (!selectedProject) return null;

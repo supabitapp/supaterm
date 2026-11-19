@@ -101,6 +101,7 @@ type TurnStartParams = CodexSchema.ClientRequestParamsByMethod["turn/start"] & {
 type TurnStartInput = TurnStartParams["input"];
 type TurnStartResponse = CodexSchema.ClientRequestResponsesByMethod["turn/start"];
 type SandboxPolicy = NonNullable<TurnStartParams["sandboxPolicy"]>;
+type ApprovalPolicy = NonNullable<TurnStartParams["approvalPolicy"]>;
 
 interface ReplayRun {
   readonly name: string;
@@ -168,18 +169,18 @@ interface Recorder {
   readonly flush: () => Effect.Effect<void, PlatformError.PlatformError>;
 }
 
-function readArgValue(name: string) {
+function readArgValue(name: string): string | undefined {
   const args = process.argv.slice(2);
   const index = args.indexOf(name);
   return index >= 0 ? args[index + 1] : undefined;
 }
 
-function readArgValues(name: string) {
+function readArgValues(name: string): ReadonlyArray<string> {
   const args = process.argv.slice(2);
   return args.flatMap((arg, index) => (arg === name && args[index + 1] ? [args[index + 1]!] : []));
 }
 
-function defaultTranscriptUrl(scenario: ReplayScenario) {
+function defaultTranscriptUrl(scenario: ReplayScenario): URL {
   return new URL(
     `../src/orchestration-v2/testkit/fixtures/${scenario.name}/codex_transcript.ndjson`,
     import.meta.url,
@@ -190,7 +191,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
-function parseScenarios() {
+function parseScenarios(): ReadonlyArray<ScenarioName> {
   const rawValues = [
     ...readArgValues("--scenario"),
     ...(process.env.SUPATERMX_REPLAY_SCENARIOS ? [process.env.SUPATERMX_REPLAY_SCENARIOS] : []),
@@ -227,7 +228,7 @@ function parseScenarios() {
   return [...new Set(expandedNames)] as ReadonlyArray<ScenarioName>;
 }
 
-function classifyJsonRpcPayload(payload: unknown) {
+function classifyJsonRpcPayload(payload: unknown): string {
   if (!isRecord(payload)) {
     return "unknown";
   }
@@ -246,22 +247,22 @@ function classifyJsonRpcPayload(payload: unknown) {
   return "unknown";
 }
 
-function protocolMethod(payload: unknown) {
+function protocolMethod(payload: unknown): string | undefined {
   return isRecord(payload) && typeof payload.method === "string" ? payload.method : undefined;
 }
 
-function protocolId(payload: unknown) {
+function protocolId(payload: unknown): string | number | undefined {
   if (!isRecord(payload)) {
     return undefined;
   }
   return typeof payload.id === "string" || typeof payload.id === "number" ? payload.id : undefined;
 }
 
-function protocolResult(payload: unknown) {
+function protocolResult(payload: unknown): unknown {
   return isRecord(payload) && "result" in payload ? payload.result : undefined;
 }
 
-function inferCodexVersion(payload: unknown) {
+function inferCodexVersion(payload: unknown): string | undefined {
   const result = protocolResult(payload);
   if (!isRecord(result)) {
     return undefined;
@@ -278,37 +279,37 @@ function inferCodexVersion(payload: unknown) {
   return isRecord(thread) && typeof thread.cliVersion === "string" ? thread.cliVersion : undefined;
 }
 
-function turnInput(prompt: string) {
-  return [{ type: "text", text: prompt }] satisfies TurnStartInput;
+function turnInput(prompt: string): TurnStartInput {
+  return [{ type: "text", text: prompt }];
 }
 
-function getTurnId(response: TurnStartResponse) {
+function getTurnId(response: TurnStartResponse): string {
   return response.turn.id;
 }
 
-function readOnlyFullAccessSandbox() {
+function readOnlyFullAccessSandbox(): SandboxPolicy {
   return {
     networkAccess: false,
     type: "readOnly",
-  } satisfies SandboxPolicy;
+  };
 }
 
-function readOnlyRestrictedSandbox() {
+function readOnlyRestrictedSandbox(): SandboxPolicy {
   return {
     networkAccess: false,
     type: "readOnly",
-  } satisfies SandboxPolicy;
+  };
 }
 
-function workspaceWriteSandbox() {
+function workspaceWriteSandbox(): SandboxPolicy {
   return {
     networkAccess: false,
     type: "workspaceWrite",
     writableRoots: [],
-  } satisfies SandboxPolicy;
+  };
 }
 
-function granularApprovalPolicy() {
+function granularApprovalPolicy(): ApprovalPolicy {
   return {
     granular: {
       mcp_elicitations: true,
@@ -320,11 +321,11 @@ function granularApprovalPolicy() {
   };
 }
 
-function scenarioModel(scenario: ReplayScenario) {
+function scenarioModel(scenario: ReplayScenario): string {
   return CODEX_REPLAY_MODEL_OVERRIDE ?? scenario.model ?? CODEX_REPLAY_DEFAULT_MODEL;
 }
 
-function planCollaborationMode(model: string) {
+function planCollaborationMode(model: string): CodexSchema.V2TurnStartParams__CollaborationMode {
   return {
     mode: "plan",
     settings: {
@@ -332,10 +333,10 @@ function planCollaborationMode(model: string) {
       model,
       reasoning_effort: "medium",
     },
-  } satisfies CodexSchema.V2TurnStartParams__CollaborationMode;
+  };
 }
 
-function scenarios() {
+function scenarios(): ReadonlyArray<ReplayScenario> {
   return [
     {
       name: "simple",
@@ -944,7 +945,7 @@ function scenarios() {
         },
       ],
     },
-  ] satisfies ReadonlyArray<ReplayScenario>;
+  ];
 }
 
 function recorderThreadConfigMetadata(scenario: ReplayScenario) {
@@ -960,7 +961,7 @@ const makeRecorder = Effect.fn("record-codex-app-server-replay-fixture.makeRecor
   readonly outPath: string;
   readonly scenario: ReplayScenario;
   readonly checkout: string;
-}) {
+}): Effect.fn.Return<Recorder, PlatformError.PlatformError, FileSystem.FileSystem> {
   const fs = yield* FileSystem.FileSystem;
   let version = "unknown";
   const records: Array<Record<string, unknown>> = [];

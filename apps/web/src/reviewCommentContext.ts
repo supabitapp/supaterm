@@ -49,7 +49,7 @@ interface DiffReviewLine {
   readonly content: string;
 }
 
-export function formatReviewCommentFence(language: string, contents: string) {
+export function formatReviewCommentFence(language: string, contents: string): string {
   const longestBacktickRun = Math.max(
     0,
     ...Array.from(contents.matchAll(/`+/g), (match) => match[0].length),
@@ -65,7 +65,7 @@ export function buildFileReviewComment(input: {
   endLine: number;
   text: string;
   contents: string;
-}) {
+}): ReviewCommentContext {
   const startLine = Math.max(1, Math.min(input.startLine, input.endLine));
   const endLine = Math.max(startLine, Math.max(input.startLine, input.endLine));
   const selectedLines = input.contents.split("\n").slice(startLine - 1, endLine);
@@ -83,7 +83,7 @@ export function buildFileReviewComment(input: {
   };
 }
 
-export function inferReviewCommentFenceLanguage(filePath: string) {
+export function inferReviewCommentFenceLanguage(filePath: string): string {
   const normalizedPath = filePath.replaceAll("\\", "/");
   const fileName = normalizedPath.slice(normalizedPath.lastIndexOf("/") + 1).toLowerCase();
   const extensionIndex = fileName.lastIndexOf(".");
@@ -96,7 +96,7 @@ export function inferReviewCommentFenceLanguage(filePath: string) {
   return "text";
 }
 
-function stripTrailingNewline(value: string) {
+function stripTrailingNewline(value: string): string {
   return value.endsWith("\n") ? value.slice(0, -1) : value;
 }
 
@@ -104,7 +104,7 @@ function buildDiffReviewLines(
   fileDiff: FileDiffMetadata,
   includeExpandedContext: boolean,
   slice?: { readonly startIndex: number; readonly endIndex: number },
-) {
+): ReadonlyArray<DiffReviewLine> {
   const rows: DiffReviewLine[] = [];
   let rowIndex = 0;
   let oldContextStart = 1;
@@ -204,33 +204,26 @@ function buildDiffReviewLines(
   return rows;
 }
 
-function getDiffReviewSelectionPoint(line: DiffReviewLine) {
+function getDiffReviewSelectionPoint(
+  line: DiffReviewLine,
+): { lineNumber: number; side: SelectionSide } | null {
   if (line.change === "delete" && line.oldLineNumber !== null) {
-    return { lineNumber: line.oldLineNumber, side: "deletions" } satisfies {
-      lineNumber: number;
-      side: SelectionSide;
-    } | null;
+    return { lineNumber: line.oldLineNumber, side: "deletions" };
   }
   if (line.newLineNumber !== null) {
-    return { lineNumber: line.newLineNumber, side: "additions" } satisfies {
-      lineNumber: number;
-      side: SelectionSide;
-    } | null;
+    return { lineNumber: line.newLineNumber, side: "additions" };
   }
   if (line.oldLineNumber !== null) {
-    return { lineNumber: line.oldLineNumber, side: "deletions" } satisfies {
-      lineNumber: number;
-      side: SelectionSide;
-    } | null;
+    return { lineNumber: line.oldLineNumber, side: "deletions" };
   }
-  return null satisfies { lineNumber: number; side: SelectionSide } | null;
+  return null;
 }
 
 export function restoreDiffReviewCommentRange(
   fileDiff: FileDiffMetadata,
   comment: ReviewCommentContext,
-) {
-  if (comment.selection) return comment.selection satisfies SelectedLineRange | null;
+): SelectedLineRange | null {
+  if (comment.selection) return comment.selection;
 
   const includeExpandedContext = !fileDiff.isPartial;
   const startLine = buildDiffReviewLines(fileDiff, includeExpandedContext, {
@@ -244,16 +237,16 @@ export function restoreDiffReviewCommentRange(
           startIndex: comment.endIndex,
           endIndex: comment.endIndex,
         })[0];
-  if (!startLine || !endLine) return null satisfies SelectedLineRange | null;
+  if (!startLine || !endLine) return null;
   const start = getDiffReviewSelectionPoint(startLine);
   const end = getDiffReviewSelectionPoint(endLine);
-  if (!start || !end) return null satisfies SelectedLineRange | null;
+  if (!start || !end) return null;
   return {
     start: start.lineNumber,
     side: start.side,
     end: end.lineNumber,
     endSide: end.side,
-  } satisfies SelectedLineRange | null;
+  };
 }
 
 function findDiffReviewLineIndex(
@@ -261,7 +254,7 @@ function findDiffReviewLineIndex(
   lineNumber: number,
   side: SelectionSide | undefined,
   includeExpandedContext = !fileDiff.isPartial,
-) {
+): number {
   const findOnSide = (selectedSide: "left" | "right") => {
     let rowIndex = 0;
     let oldContextStart = 1;
@@ -344,48 +337,42 @@ export function resolveDiffReviewPosition(
   fileDiff: FileDiffMetadata,
   lineNumber: number,
   side: SelectionSide | undefined,
-) {
+): PullRequestReviewPosition | null {
   const lineIndex = findDiffReviewLineIndex(fileDiff, lineNumber, side);
-  if (lineIndex < 0) return null satisfies PullRequestReviewPosition | null;
+  if (lineIndex < 0) return null;
   const line = buildDiffReviewLines(fileDiff, !fileDiff.isPartial, {
     startIndex: lineIndex,
     endIndex: lineIndex,
   })[0];
-  if (line === undefined) return null satisfies PullRequestReviewPosition | null;
+  if (line === undefined) return null;
 
   if (
     (side === "additions" && line.newLineNumber !== lineNumber) ||
     (side === "deletions" && line.oldLineNumber !== lineNumber)
   ) {
-    return null satisfies PullRequestReviewPosition | null;
+    return null;
   }
 
   switch (line.change) {
     case "add":
-      return (
-        line.newLineNumber === null ? null : { kind: "added", newLine: line.newLineNumber }
-      ) satisfies PullRequestReviewPosition | null;
+      return line.newLineNumber === null ? null : { kind: "added", newLine: line.newLineNumber };
     case "delete":
-      return (
-        line.oldLineNumber === null ? null : { kind: "deleted", oldLine: line.oldLineNumber }
-      ) satisfies PullRequestReviewPosition | null;
+      return line.oldLineNumber === null ? null : { kind: "deleted", oldLine: line.oldLineNumber };
     case "context":
-      return (
-        line.oldLineNumber === null ||
+      return line.oldLineNumber === null ||
         line.newLineNumber === null ||
         !isLineInFileDiff(fileDiff, "right", line.newLineNumber)
-          ? null
-          : {
-              kind: "context",
-              oldLine: line.oldLineNumber,
-              newLine: line.newLineNumber,
-              side: side === "deletions" ? "left" : "right",
-            }
-      ) satisfies PullRequestReviewPosition | null;
+        ? null
+        : {
+            kind: "context",
+            oldLine: line.oldLineNumber,
+            newLine: line.newLineNumber,
+            side: side === "deletions" ? "left" : "right",
+          };
   }
 }
 
-function reviewHunkIndex(fileDiff: FileDiffMetadata, position: PullRequestReviewPosition) {
+function reviewHunkIndex(fileDiff: FileDiffMetadata, position: PullRequestReviewPosition): number {
   const [side, line] =
     position.kind === "deleted"
       ? (["left", position.oldLine] as const)
@@ -406,43 +393,29 @@ export function resolveDiffReviewAnchor(
   fileDiff: FileDiffMetadata,
   range: SelectedLineRange,
   ranged: boolean,
-) {
+): {
+  readonly position: PullRequestReviewPosition;
+  readonly startPosition?: PullRequestReviewPosition;
+} | null {
   const endSide = range.endSide ?? range.side;
   const last = resolveDiffReviewPosition(fileDiff, range.end, endSide);
-  if (last === null)
-    return null satisfies {
-      readonly position: PullRequestReviewPosition;
-      readonly startPosition?: PullRequestReviewPosition;
-    } | null;
+  if (last === null) return null;
   const first = ranged ? resolveDiffReviewPosition(fileDiff, range.start, range.side) : null;
-  if (first === null)
-    return { position: last } satisfies {
-      readonly position: PullRequestReviewPosition;
-      readonly startPosition?: PullRequestReviewPosition;
-    } | null;
+  if (first === null) return { position: last };
   const startIndex = findDiffReviewLineIndex(fileDiff, range.start, range.side);
   const endIndex = findDiffReviewLineIndex(fileDiff, range.end, endSide);
-  if (startIndex === endIndex)
-    return { position: last } satisfies {
-      readonly position: PullRequestReviewPosition;
-      readonly startPosition?: PullRequestReviewPosition;
-    } | null;
+  if (startIndex === endIndex) return { position: last };
   const [start, end] = startIndex < endIndex ? [first, last] : [last, first];
   const hunk = reviewHunkIndex(fileDiff, end);
-  return (
-    hunk >= 0 && reviewHunkIndex(fileDiff, start) === hunk
-      ? { position: end, startPosition: start }
-      : { position: last }
-  ) satisfies {
-    readonly position: PullRequestReviewPosition;
-    readonly startPosition?: PullRequestReviewPosition;
-  } | null;
+  return hunk >= 0 && reviewHunkIndex(fileDiff, start) === hunk
+    ? { position: end, startPosition: start }
+    : { position: last };
 }
 
 function getDiffRange(
   lines: ReadonlyArray<DiffReviewLine>,
   key: "oldLineNumber" | "newLineNumber",
-) {
+): { start: number; count: number } {
   const numberedLines = lines.filter((line) => line[key] !== null);
   return {
     start: numberedLines[0]?.[key] ?? 0,
@@ -450,13 +423,13 @@ function getDiffRange(
   };
 }
 
-function getDiffChangeMarker(change: DiffReviewLine["change"]) {
+function getDiffChangeMarker(change: DiffReviewLine["change"]): string {
   if (change === "add") return "+";
   if (change === "delete") return "-";
   return " ";
 }
 
-function formatDiffReviewRangeLabel(lines: ReadonlyArray<DiffReviewLine>) {
+function formatDiffReviewRangeLabel(lines: ReadonlyArray<DiffReviewLine>): string {
   const firstLine = lines[0];
   const lastLine = lines.at(-1);
   if (!firstLine || !lastLine) return "line";
@@ -476,7 +449,7 @@ function formatDiffReviewRangeLabel(lines: ReadonlyArray<DiffReviewLine>) {
     : `${marker}${firstNumber} to ${marker}${lastNumber}`;
 }
 
-export function diffReviewSelectionId(fileKey: string, range: SelectedLineRange) {
+export function diffReviewSelectionId(fileKey: string, range: SelectedLineRange): string {
   return `${fileKey}:${range.side ?? "additions"}:${range.start}:${range.endSide ?? range.side ?? "additions"}:${range.end}`;
 }
 
@@ -488,7 +461,7 @@ export function buildDiffReviewComment(input: {
   fileDiff: FileDiffMetadata;
   range: SelectedLineRange;
   text: string;
-}) {
+}): ReviewCommentContext | null {
   const includeExpandedContext = !input.fileDiff.isPartial;
   const startIndex = findDiffReviewLineIndex(
     input.fileDiff,
@@ -536,7 +509,7 @@ export function buildDiffReviewComment(input: {
   };
 }
 
-export function buildReviewCommentRenderablePatch(comment: ReviewCommentContext) {
+export function buildReviewCommentRenderablePatch(comment: ReviewCommentContext): string {
   if ((comment.fenceLanguage ?? "diff") !== "diff") {
     return "";
   }

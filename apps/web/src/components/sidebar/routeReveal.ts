@@ -14,7 +14,7 @@ export function pendingSidebarRouteReveal(
   reveal: SidebarRouteReveal,
   routeKey: string | null,
   inPlace = false,
-) {
+): string | null {
   if (routeKey === null) return null;
   if (reveal.observedKey !== routeKey) {
     reveal.observedKey = routeKey;
@@ -24,7 +24,7 @@ export function pendingSidebarRouteReveal(
   return reveal.pendingKey;
 }
 
-export function completeSidebarRouteReveal(reveal: SidebarRouteReveal) {
+export function completeSidebarRouteReveal(reveal: SidebarRouteReveal): void {
   reveal.pendingKey = null;
 }
 
@@ -35,7 +35,7 @@ export function useActiveRowReveal(
 ) {
   const mountRevealOwed = useRef(true);
   pendingSidebarRouteReveal(reveal, routeKey, inPlace);
-  const revealRow = (row: HTMLElement | null, rowKey: string) => {
+  const revealRow = (row: HTMLElement | null, rowKey: string): (() => void) | undefined => {
     if (row === null) return undefined;
     if (reveal.pendingKey !== rowKey && !mountRevealOwed.current) return undefined;
     if (row.getClientRects().length === 0) {
@@ -64,7 +64,7 @@ export function resolveSidebarRouteReveal<T extends RevealableThread>(input: {
   readonly routeKeyInPlace: boolean;
   readonly scopedProjectKeys: ReadonlySet<string> | null;
   readonly findThread: (key: string) => T | undefined;
-}) {
+}): { readonly pendingKey: string | null; readonly widensScope: boolean } {
   const { reveal, routeKey, scopedProjectKeys, findThread } = input;
   const pendingKey = pendingSidebarRouteReveal(reveal, routeKey, input.routeKeyInPlace);
   const thread = pendingKey === null ? undefined : findThread(pendingKey);

@@ -7,6 +7,7 @@ import {
   normalizeLinuxPasswordStorePreference,
   resolveLinuxPasswordStoreSwitch,
   type LinuxPasswordStoreSwitch,
+  type LinuxPasswordStorePreference,
 } from "../linuxSecretStorage.ts";
 import {
   resolveDesktopBaseDir,
@@ -29,10 +30,10 @@ export interface EarlyLinuxElectronOptions {
   readonly passwordStore: LinuxPasswordStoreSwitch | null;
 }
 
-export const resolveLinuxDesktopEntryName = (isDevelopment: boolean) =>
+export const resolveLinuxDesktopEntryName = (isDevelopment: boolean): string =>
   isDevelopment ? "com.supaterm.desktop.Development.desktop" : "com.supaterm.desktop.desktop";
 
-const trimNonEmpty = (value: string | undefined) => {
+const trimNonEmpty = (value: string | undefined): string | null => {
   const trimmed = value?.trim();
   return trimmed && trimmed.length > 0 ? trimmed : null;
 };
@@ -44,14 +45,14 @@ const EarlyDesktopSettingsJson = fromLenientJson(
 );
 const decodeEarlyDesktopSettingsJson = Schema.decodeSync(EarlyDesktopSettingsJson);
 
-const isDevelopmentEnvironment = (env: NodeJS.ProcessEnv) =>
+const isDevelopmentEnvironment = (env: NodeJS.ProcessEnv): boolean =>
   trimNonEmpty(env.VITE_DEV_SERVER_URL) !== null;
 
 function resolveEarlyDesktopSettingsPath(input: {
   readonly env: NodeJS.ProcessEnv;
   readonly homeDirectory: string;
   readonly joinPath: JoinPath;
-}) {
+}): string {
   const supatermHome = Option.fromUndefinedOr(input.env.SUPATERM_HOME);
   const baseDir = resolveDesktopBaseDir({
     homeDirectory: input.homeDirectory,
@@ -67,7 +68,9 @@ function resolveEarlyDesktopSettingsPath(input: {
   return input.joinPath(stateDir, "desktop-settings.json");
 }
 
-export function resolveEarlyLinuxPasswordStorePreference(input: EarlyDesktopSettingsInput) {
+export function resolveEarlyLinuxPasswordStorePreference(
+  input: EarlyDesktopSettingsInput,
+): LinuxPasswordStorePreference {
   const settingsPath = resolveEarlyDesktopSettingsPath(input);
   try {
     const parsed = decodeEarlyDesktopSettingsJson(input.readFileString(settingsPath));
@@ -79,10 +82,10 @@ export function resolveEarlyLinuxPasswordStorePreference(input: EarlyDesktopSett
 
 const WAYLAND_COLOR_MANAGER_FEATURE = "WaylandWpColorManagerV1";
 
-const featureListNames = (value: string | null) =>
+const featureListNames = (value: string | null): ReadonlyArray<string> =>
   (value ?? "").split(",").flatMap((entry) => entry.trim().match(/^\*?([^<:]+)/)?.[1] ?? []);
 
-const isHyprlandSession = (env: NodeJS.ProcessEnv) =>
+const isHyprlandSession = (env: NodeJS.ProcessEnv): boolean =>
   (trimNonEmpty(env.XDG_CURRENT_DESKTOP) ?? trimNonEmpty(env.XDG_SESSION_DESKTOP) ?? "")
     .split(":")
     .some((name) => name.trim().toLowerCase() === "hyprland");
@@ -105,7 +108,7 @@ const AFFECTED_HYPRLAND_RELEASE_COMMITS: ReadonlyMap<string, string> = new Map([
   ["0.50.1", "4e242d086e20b32951fdc0ebcbfb4d41b5be8dcc"],
 ]);
 
-const hasBrokenColorManager = (readHyprctlVersionJson: () => string) => {
+const hasBrokenColorManager = (readHyprctlVersionJson: () => string): boolean => {
   try {
     const { version, tag, commit, dirty } = decodeHyprctlVersionJson(readHyprctlVersionJson());
     return (
@@ -122,7 +125,7 @@ export function resolveLinuxDisableFeaturesSwitch(input: {
   readonly enableFeatures: string | null;
   readonly disableFeatures: string | null;
   readonly readHyprctlVersionJson: () => string;
-}) {
+}): string | null {
   if (input.ozonePlatform !== "wayland" || !isHyprlandSession(input.env)) return null;
   if (featureListNames(input.enableFeatures).includes(WAYLAND_COLOR_MANAGER_FEATURE)) return null;
   if (featureListNames(input.disableFeatures).includes(WAYLAND_COLOR_MANAGER_FEATURE)) return null;
@@ -132,7 +135,9 @@ export function resolveLinuxDisableFeaturesSwitch(input: {
     : `${input.disableFeatures},${WAYLAND_COLOR_MANAGER_FEATURE}`;
 }
 
-export function resolveEarlyLinuxElectronOptions(input: EarlyLinuxElectronOptionsInput) {
+export function resolveEarlyLinuxElectronOptions(
+  input: EarlyLinuxElectronOptionsInput,
+): EarlyLinuxElectronOptions {
   const preference = resolveEarlyLinuxPasswordStorePreference(input);
   const isDevelopment = isDevelopmentEnvironment(input.env);
   return {
@@ -155,7 +160,7 @@ export function restoreEarlyLinuxDeviceScaleFactor(
     };
     readonly writeFileString: (path: string, value: string) => void;
   },
-) {
+): void {
   const path = input.joinPath(
     resolveEarlyDesktopSettingsPath(input),
     "..",

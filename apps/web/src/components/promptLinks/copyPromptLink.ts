@@ -30,7 +30,7 @@ export function promptLinkFor(
     readonly provider: string | null;
     readonly model: string | null;
   },
-) {
+): string | null {
   const trimmed = isAttachmentOnlyBootstrapPrompt(prompt)
     ? ""
     : replaceComposerContextReferences(prompt, (reference) => reference.label).trim();
@@ -40,7 +40,7 @@ export function promptLinkFor(
 
 export function promptLinkRepositoryOf(
   project: Pick<EnvironmentProject, "repositoryIdentity"> | undefined,
-) {
+): PromptLinkRepository | null {
   const identity = project?.repositoryIdentity;
   if (identity == null) return null;
   const key = repositoryGroupingKeyOf(identity);
@@ -56,7 +56,7 @@ export function composerPromptLink(input: {
   readonly threadModelSelection: ModelSelection | null;
   readonly threadStarted: boolean;
   readonly withContext: boolean;
-}) {
+}): string | null {
   const draft = useComposerDraftStore.getState().getComposerDraft(input.target);
   if (!draft) return null;
   if (!input.withContext) return promptLinkFor(draft.prompt);
@@ -75,7 +75,7 @@ export function composerPromptLink(input: {
   });
 }
 
-export async function copyPromptLink(link: string) {
+export async function copyPromptLink(link: string): Promise<void> {
   try {
     await writeTextToClipboard(link);
   } catch (error) {

@@ -28,7 +28,7 @@ const REPOSITORY_PAGE_PATH = /^\/([^/]+\/[^/]+)\/src\/[^/]/u;
 
 const KIND = SourceControlProviderKind.make("bitbucket");
 
-function isBitbucketHost(hostname: string) {
+function isBitbucketHost(hostname: string): boolean {
   const host = hostname.toLowerCase();
   return (
     host === "bitbucket.org" ||

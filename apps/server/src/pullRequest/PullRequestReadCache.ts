@@ -48,17 +48,17 @@ class Read extends Persistable.Class<{
   }),
   error: Schema.Union([PullRequestOperationError, PullRequestUnavailableError]),
 }) {
-  matchesRevision(revision: string | undefined) {
+  matchesRevision(revision: string | undefined): boolean {
     const stored = revision?.split(":") ?? [];
     return this.revision
       .split(":")
       .every((value, index) => value === "" || value === stored[index]);
   }
 
-  [Equal.symbol](that: unknown) {
+  [Equal.symbol](that: unknown): boolean {
     return that instanceof Read && that.key === this.key && that.revision === this.revision;
   }
-  [Hash.symbol]() {
+  [Hash.symbol](): number {
     return Hash.string(`${this.key}:${this.revision}`);
   }
 }

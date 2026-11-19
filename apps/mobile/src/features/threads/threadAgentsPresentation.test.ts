@@ -133,7 +133,7 @@ const agent = (
   phaseIndex: number | undefined,
   state: WorkflowAgent["state"],
   overrides: Partial<WorkflowAgent> = {},
-) => ({
+): WorkflowAgent => ({
   index,
   label: `agent ${index}`,
   state,

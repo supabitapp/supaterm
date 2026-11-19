@@ -63,7 +63,7 @@ import { PullRequestThreadLinks } from "./PullRequestThreadLinks";
 function deleteBranchHint(
   detail: Pick<PullRequestDetail, "headBranch" | "headRepositoryNameWithOwner" | "repository">,
   { connected, armed }: { readonly connected: boolean; readonly armed: boolean },
-) {
+): string {
   if (!connected) return "Reconnect to delete this branch";
   if (armed) return "Local branches and worktrees are not changed";
   return `${detail.headBranch} in ${detail.headRepositoryNameWithOwner ?? detail.repository}`;

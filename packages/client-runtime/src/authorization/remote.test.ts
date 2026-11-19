@@ -34,7 +34,7 @@ const recordedFetch = (...responses: ReadonlyArray<Response>) => {
 const provideRemoteHttp = (fetchFn: typeof fetch) =>
   Effect.provide(RpcHttp.layerRemoteHttpClient(fetchFn));
 
-const expectFetchCall: (
+const expectFetchCall = (
   calls: ReadonlyArray<FetchCall>,
   index: number,
   expected: {
@@ -43,16 +43,7 @@ const expectFetchCall: (
     readonly headers?: Record<string, string>;
     readonly body?: string;
   },
-) => void = (
-  calls: ReadonlyArray<FetchCall>,
-  index: number,
-  expected: {
-    readonly url: string;
-    readonly method: string;
-    readonly headers?: Record<string, string>;
-    readonly body?: string;
-  },
-) => {
+): void => {
   const call = calls[index - 1];
   expect(call).toBeDefined();
   if (!call) {

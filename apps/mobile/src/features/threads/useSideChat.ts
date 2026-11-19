@@ -44,7 +44,7 @@ const NOT_PENDING_ATOM = Atom.make(false).pipe(Atom.withLabel("side-chat:worktre
 export function useSideChatDisabledReason(
   environmentId: EnvironmentId | null,
   parent: EnvironmentThreadShell | null,
-) {
+): string | null {
   const serverConfig = useEnvironmentServerConfig(environmentId);
   const canOperate = useEnvironmentScope(environmentId, AuthOrchestrationOperateScope);
   const worktreePending = useAtomValue(
@@ -81,7 +81,7 @@ export async function startSideChat(input: {
   readonly parentThreadId: ThreadId;
   readonly targetThreadId: ThreadId;
   readonly text: string;
-}) {
+}): Promise<"opened" | "queued" | null> {
   const readThread = (ref: ScopedThreadRef) =>
     appAtomRegistry.get(environmentThreadShells.threadShellAtom(ref));
   const targetRef = scopeThreadRef(input.environmentId, input.targetThreadId);
@@ -172,7 +172,7 @@ export function useSideChat(
     pushDraft(parent, { sideChatId: ThreadId.make(uuidv4()), prompt: "" });
   };
 
-  const send = async (prompt: string) => {
+  const send = async (prompt: string): Promise<boolean> => {
     if (parent === null || disabledReason !== null || pendingRef.current) return false;
     const text = prompt.trim();
     const sideChatId = ThreadId.make(uuidv4());

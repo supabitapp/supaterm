@@ -8,7 +8,7 @@ import {
 } from "../../providerInstances";
 import { ProviderInstanceIcon } from "./ProviderInstanceIcon";
 
-export function threadRelationshipStatusLabel(status: string | null) {
+export function threadRelationshipStatusLabel(status: string | null): string {
   switch (status) {
     case "preparing":
     case "starting":

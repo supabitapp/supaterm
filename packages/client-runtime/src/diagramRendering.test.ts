@@ -1,6 +1,6 @@
 import { DIAGRAM_LIMITS, diagramOptions, type Diagram } from "@supaterm/mermaid/diagram";
 
-const diagram = (text: string) => ({
+const diagram = (text: string): Diagram => ({
   svg: `<svg >${text}</svg>`,
   width: 100,
   height: 100,

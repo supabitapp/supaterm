@@ -48,7 +48,7 @@ const isWindowChanged = Schema.is(WindowChanged);
 const isWindowClosed = Schema.is(WindowClosed);
 const isScreenshotCaptured = Schema.is(ScreenshotCaptured);
 
-export function niriSocketPath(env = process.env) {
+export function niriSocketPath(env = process.env): string | undefined {
   if (env.FLATPAK_ID || env.SNAP) return undefined;
   if (!env.XDG_CURRENT_DESKTOP?.split(":").some((name) => name.toLowerCase() === "niri"))
     return undefined;
@@ -88,8 +88,8 @@ class NiriConnection {
     this.socket.on("close", () => this.close(new Error("Niri disconnected.")));
   }
 
-  waitFor<T>(select: (value: unknown) => T | undefined) {
-    if (this.failure) return Promise.reject(this.failure) satisfies Promise<T>;
+  waitFor<T>(select: (value: unknown) => T | undefined): Promise<T> {
+    if (this.failure) return Promise.reject(this.failure);
     return new Promise((resolve, reject) => {
       const finish = () => {
         clearTimeout(timer);
@@ -114,7 +114,7 @@ class NiriConnection {
       const timer = setTimeout(() => fail(new Error("Niri snapshot timed out.")), TIMEOUT_MS);
       this.listeners.add(listener);
       this.failures.add(fail);
-    }) satisfies Promise<T>;
+    });
   }
 
   send(request: unknown) {
@@ -129,29 +129,27 @@ class NiriConnection {
   }
 }
 
-function request(path: string, message: unknown): Promise<unknown>;
-async function request(path: string, message: unknown) {
+async function request(path: string, message: unknown): Promise<unknown> {
   const connection = new NiriConnection(path);
   try {
     const reply = connection.waitFor((value) => ({ value: decodeReply(value) }));
     connection.send(message);
     const { value } = await reply;
     if ("Err" in value) throw new Error(`Niri: ${value.Err}`);
-    return value.Ok satisfies unknown;
+    return value.Ok;
   } finally {
     connection.close();
   }
 }
 
-export async function checkNiriCaptureSupport(path: string) {
+export async function checkNiriCaptureSupport(path: string): Promise<void> {
   const version = decodeVersion(await request(path, "Version")).Version;
   const match = /^(?:niri )?(\d+)\.(\d+)/.exec(version);
   if (!match || Number(match[1]) < 25 || (Number(match[1]) === 25 && Number(match[2]) < 11))
     throw new Error("SnapShots require Niri 25.11 or newer.");
 }
 
-function activateNiriWindow(path: string, title: string, signal: AbortSignal): Promise<void>;
-async function activateNiriWindow(path: string, title: string, signal: AbortSignal) {
+async function activateNiriWindow(path: string, title: string, signal: AbortSignal): Promise<void> {
   signal.throwIfAborted();
   const connection = new NiriConnection(path);
   const abort = () => connection.close(new Error("Niri activation cancelled."));
@@ -185,8 +183,7 @@ async function activateNiriWindow(path: string, title: string, signal: AbortSign
   }
 }
 
-export function captureNiriWindow(path: string): Promise<LinuxWindowSnapshot>;
-export async function captureNiriWindow(path: string) {
+export async function captureNiriWindow(path: string): Promise<LinuxWindowSnapshot> {
   const directory = await NodeFSP.mkdtemp(NodePath.join(NodeOS.tmpdir(), "supaterm-niri-capture-"));
   const imagePath = NodePath.join(directory, "capture.png");
   const events = new NiriConnection(path);
@@ -248,7 +245,7 @@ export async function captureNiriWindow(path: string) {
         complete: async () => feedback.abort(),
         close: () => feedback.abort(),
       },
-    } satisfies LinuxWindowSnapshot;
+    };
   } finally {
     events.close();
     await NodeFSP.rm(directory, { recursive: true, force: true });

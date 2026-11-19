@@ -174,8 +174,7 @@ function timelineListStateFor(identity: string): {
   readonly identity: string;
   readonly rememberedPosition: RememberedTimelinePosition | undefined;
   readonly workGroupViewState: WorkGroupViewState;
-};
-function timelineListStateFor(identity: string) {
+} {
   const rememberedPosition = readTimelinePosition(identity);
   return {
     identity,
@@ -184,10 +183,6 @@ function timelineListStateFor(identity: string) {
       scrollPositions: new Map(),
       expandedEntries: new Set(),
     },
-  } satisfies {
-    readonly identity: string;
-    readonly rememberedPosition: RememberedTimelinePosition | undefined;
-    readonly workGroupViewState: WorkGroupViewState;
   };
 }
 
@@ -1692,7 +1687,7 @@ function useSelectedTimelineRowIds(viewport: HTMLElement | null) {
 function timelineRowSpanIndices(
   rows: ReadonlyArray<MessagesTimelineRow>,
   rowIds: ReadonlyArray<string>,
-) {
+): number[] {
   if (rowIds.length === 0) return [];
   const selected = new Set(rowIds);
   const first = rows.findIndex((row) => selected.has(row.id));

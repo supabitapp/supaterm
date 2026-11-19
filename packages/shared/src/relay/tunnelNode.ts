@@ -3,6 +3,7 @@ import * as NodeNet from "node:net";
 import * as NodeStream from "node:stream";
 import { after } from "./timer.ts";
 import { HttpHostGuard } from "./httpHostGuard.ts";
+import type { LoopbackRelay } from "./loopbackPool.ts";
 import type { TunnelStream } from "./tunnel.ts";
 import { createTunnelConnector, type TunnelConnectorOptions } from "./tunnel.ts";
 

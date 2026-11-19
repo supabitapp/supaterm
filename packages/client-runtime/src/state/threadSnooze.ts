@@ -39,7 +39,10 @@ interface QueuedThreadShell {
  */
 export const QUEUED_TURN_START_GRACE_MS = 2 * 60 * 1_000;
 
-export function hasQueuedTurnStart(shell: QueuedThreadShell, options: { readonly now: string }) {
+export function hasQueuedTurnStart(
+  shell: QueuedThreadShell,
+  options: { readonly now: string },
+): boolean {
   if (
     shell.runtime?.status === "preparing" ||
     shell.runtime?.status === "queued" ||
@@ -71,7 +74,7 @@ export interface ThreadSnoozeShell extends QueuedThreadShell {
   readonly pendingSubagentRequest?: PendingSubagentRequest | null;
 }
 
-function pendingQuestionAt(shell: ThreadSnoozeShell) {
+function pendingQuestionAt(shell: ThreadSnoozeShell): string | null {
   const request = shell.source?.pendingRuntimeRequest;
   return (
     shell.pendingUserInputAt ??
@@ -79,7 +82,7 @@ function pendingQuestionAt(shell: ThreadSnoozeShell) {
   );
 }
 
-export function threadRaisedHandWhileSnoozed(shell: ThreadSnoozeShell) {
+export function threadRaisedHandWhileSnoozed(shell: ThreadSnoozeShell): boolean {
   const request = shell.source?.pendingRuntimeRequest;
   if (shell.hasPendingApprovals || (request != null && request.kind !== "user_input")) return true;
   const questionAt = pendingQuestionAt(shell);
@@ -100,7 +103,7 @@ export function threadRaisedHandWhileSnoozed(shell: ThreadSnoozeShell) {
   );
 }
 
-function failureEdgeAt(shell: ThreadSnoozeShell) {
+function failureEdgeAt(shell: ThreadSnoozeShell): string | null | undefined {
   const runtime = shell.runtime ?? shell.session ?? null;
   if (runtime?.status !== "error" && runtime?.status !== "failed") return undefined;
   const latestRun = shell.latestRun ?? shell.latestTurn ?? null;
@@ -129,7 +132,7 @@ export function canSnooze(
     | "source"
   >,
   options: { readonly now: string },
-) {
+): boolean {
   if (shell.hasPendingApprovals) return false;
   const request = shell.source?.pendingRuntimeRequest;
   if (request != null && request.kind !== "user_input") return false;
@@ -138,7 +141,10 @@ export function canSnooze(
   return true;
 }
 
-export function effectiveSnoozed(shell: ThreadSnoozeShell, options: { readonly now: string }) {
+export function effectiveSnoozed(
+  shell: ThreadSnoozeShell,
+  options: { readonly now: string },
+): boolean {
   if (shell.snoozedUntil == null) return false;
   const wakeAtMs = Date.parse(shell.snoozedUntil);
   if (Number.isNaN(wakeAtMs)) return false;
@@ -146,7 +152,10 @@ export function effectiveSnoozed(shell: ThreadSnoozeShell, options: { readonly n
   return !threadRaisedHandWhileSnoozed(shell);
 }
 
-export function threadWokeAt(shell: ThreadSnoozeShell, options: { readonly now: string }) {
+export function threadWokeAt(
+  shell: ThreadSnoozeShell,
+  options: { readonly now: string },
+): string | null {
   if (shell.snoozedUntil == null) return null;
   const wakeAtMs = Date.parse(shell.snoozedUntil);
   if (Number.isNaN(wakeAtMs)) return null;
@@ -194,37 +203,40 @@ export interface SnoozePresetOptions {
   readonly formatTime?: (date: Date) => string;
 }
 
-function snoozeTimeOfDayLabel(date: Date) {
+function snoozeTimeOfDayLabel(date: Date): string {
   return date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
 }
 
-function addSnoozeDays(base: Date, days: number) {
+function addSnoozeDays(base: Date, days: number): Date {
   const next = DateTime.toDate(DateTime.makeUnsafe(base));
   next.setDate(next.getDate() + days);
   return next;
 }
 
-function pluralize(count: number, unit: string) {
+function pluralize(count: number, unit: string): string {
   return `${count} ${unit}${count === 1 ? "" : "s"}`;
 }
 
-function formatSnoozeDuration(minutes: number) {
+function formatSnoozeDuration(minutes: number): string {
   if (minutes % (24 * 60) === 0) return pluralize(minutes / (24 * 60), "day");
   if (minutes % 60 === 0) return pluralize(minutes / 60, "hour");
   return pluralize(minutes, "minute");
 }
 
-function capitalize(word: string) {
+function capitalize(word: string): string {
   return word[0]!.toUpperCase() + word.slice(1);
 }
 
-function snoozePresetDaysAhead(setting: Extract<SnoozePresetSetting, { kind: "at" }>, now: Date) {
+function snoozePresetDaysAhead(
+  setting: Extract<SnoozePresetSetting, { kind: "at" }>,
+  now: Date,
+): number {
   if (setting.day === "today") return 0;
   if (setting.day === "tomorrow") return 1;
   return (WEEKDAY_INDEX[setting.day] - now.getDay() + 7) % 7 || 7;
 }
 
-function snoozePresetLabel(setting: SnoozePresetSetting, daysAhead: number) {
+function snoozePresetLabel(setting: SnoozePresetSetting, daysAhead: number): string {
   if (setting.kind === "after") return `In ${formatSnoozeDuration(setting.minutes)}`;
   if (daysAhead === 0) {
     const hour = Number(setting.time.slice(0, 2));
@@ -235,7 +247,7 @@ function snoozePresetLabel(setting: SnoozePresetSetting, daysAhead: number) {
   return daysAhead === 7 ? `Next ${capitalize(setting.day)}` : capitalize(setting.day);
 }
 
-export function snoozePresetId(setting: SnoozePresetSetting) {
+export function snoozePresetId(setting: SnoozePresetSetting): string {
   return setting.kind === "after"
     ? `after:${setting.minutes}`
     : `at:${setting.day}:${setting.time}`;
@@ -245,7 +257,7 @@ export function resolveSnoozePreset(
   setting: SnoozePresetSetting,
   now: Date,
   formatTime: (date: Date) => string = snoozeTimeOfDayLabel,
-) {
+): SnoozePreset | null {
   let wake: Date;
   let daysAhead = 0;
   if (setting.kind === "after") {
@@ -271,7 +283,10 @@ export function resolveSnoozePreset(
 }
 
 /** The snooze menu: soonest first, one row per wake minute. */
-export function resolveSnoozePresets(now: Date, options: SnoozePresetOptions = {}) {
+export function resolveSnoozePresets(
+  now: Date,
+  options: SnoozePresetOptions = {},
+): ReadonlyArray<SnoozePreset> {
   const wakeMinute = (preset: SnoozePreset) => Math.floor(Date.parse(preset.snoozedUntil) / 60_000);
   const seen = new Set<number>();
   return (options.presets ?? DEFAULT_SNOOZE_PRESETS)
@@ -294,7 +309,7 @@ export function pickSnoozePreset(input: {
   readonly now: Date;
   readonly presets?: ReadonlyArray<SnoozePresetSetting>;
   readonly formatTime?: (date: Date) => string;
-}) {
+}): SnoozePreset | undefined {
   const original = input.shown.find((preset) => preset.id === input.id);
   const ahead =
     original && Date.parse(original.snoozedUntil) > input.now.getTime() ? original : undefined;
@@ -304,7 +319,7 @@ export function pickSnoozePreset(input: {
   return (setting && resolveSnoozePreset(setting, input.now, input.formatTime)) ?? ahead;
 }
 
-export function snoozeWakeLabel(snoozedUntil: string, options: { readonly now: string }) {
+export function snoozeWakeLabel(snoozedUntil: string, options: { readonly now: string }): string {
   const wakeMs = Date.parse(snoozedUntil);
   const nowMs = Date.parse(options.now);
   if (Number.isNaN(wakeMs) || Number.isNaN(nowMs)) return "now";
@@ -323,7 +338,7 @@ export type CustomSnoozeInput =
       readonly unit: "minutes" | "hours" | "days";
     };
 
-export function resolveCustomSnooze(input: CustomSnoozeInput, now: Date) {
+export function resolveCustomSnooze(input: CustomSnoozeInput, now: Date): string | null {
   let wake: Date;
   if (input.mode === "duration") {
     const amount = Number(input.amount);
@@ -340,11 +355,11 @@ export function resolveCustomSnooze(input: CustomSnoozeInput, now: Date) {
     : null;
 }
 
-export function localSnoozeDate(date: Date) {
+export function localSnoozeDate(date: Date): string {
   return `${String(date.getFullYear()).padStart(4, "0")}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
-export function localSnoozeTime(date: Date) {
+export function localSnoozeTime(date: Date): string {
   return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
 }
 
@@ -357,7 +372,7 @@ export function isThreadWokeUnseen(input: {
   readonly done: boolean;
   readonly lastVisitedAt: string | null | undefined;
   readonly latestRunCompletedAt: string | null;
-}) {
+}): boolean {
   if (input.wokeAt === null || input.done) return false;
   const wokeAtMs = Date.parse(input.wokeAt);
   if (Number.isNaN(wokeAtMs)) return false;
@@ -375,7 +390,7 @@ export function hasUnseenRunFailure(
   thread: Pick<EnvironmentThreadShell, "latestRun"> & {
     readonly lastVisitedAt?: string | null | undefined;
   },
-) {
+): boolean {
   const run = thread.latestRun;
   if (run?.status !== "failed") return false;
   if (!thread.lastVisitedAt) return true;

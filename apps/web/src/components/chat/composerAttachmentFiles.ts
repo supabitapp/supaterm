@@ -14,6 +14,8 @@ import { isVideoAttachment, videoMimeType } from "../../types";
 import { isSvgAttachment } from "@supaterm/shared/image";
 import { isWorkspaceImagePreviewPath } from "@supaterm/shared/mediaPreview";
 
+type ComposerAttachmentFileKind = "image" | "file" | "unsupported-image";
+
 interface FileAttachmentCapabilityState {
   readonly attachmentUploadsCapabilityKnown: boolean;
   readonly supportsAttachmentUploads: boolean;
@@ -28,7 +30,7 @@ const IMAGE_MIME_TYPE_BY_EXTENSION: Readonly<Record<string, string>> = {
   webp: "image/webp",
 };
 
-function inferImageMimeTypeFromName(name: string) {
+function inferImageMimeTypeFromName(name: string): string | null {
   const dotIndex = name.lastIndexOf(".");
   if (dotIndex <= 0) {
     return null;
@@ -36,7 +38,7 @@ function inferImageMimeTypeFromName(name: string) {
   return IMAGE_MIME_TYPE_BY_EXTENSION[name.slice(dotIndex + 1).toLowerCase()] ?? null;
 }
 
-function inferImageMimeTypeForUnknownFile(file: Pick<File, "name" | "type">) {
+function inferImageMimeTypeForUnknownFile(file: Pick<File, "name" | "type">): string | null {
   const mimeType = file.type.toLowerCase();
   if (mimeType !== "" && mimeType !== "application/octet-stream") {
     return null;
@@ -44,7 +46,7 @@ function inferImageMimeTypeForUnknownFile(file: Pick<File, "name" | "type">) {
   return inferImageMimeTypeFromName(file.name);
 }
 
-export function normalizeComposerImageFileMimeType(file: File) {
+export function normalizeComposerImageFileMimeType(file: File): File {
   const inferredMimeType = inferImageMimeTypeForUnknownFile(file);
   if (!inferredMimeType) {
     return file;
@@ -57,14 +59,14 @@ export function normalizeComposerImageFileMimeType(file: File) {
 
 function composerImageSignature(
   image: Pick<ComposerImageAttachment, "mimeType" | "sizeBytes" | "name">,
-) {
+): string {
   return `${image.mimeType}\u0000${image.sizeBytes}\u0000${image.name}`;
 }
 
 const composerImageFingerprints = new WeakMap<File, string>();
 let unreadComposerImageCount = 0;
 
-function composerImageFingerprint(file: File) {
+function composerImageFingerprint(file: File): string {
   let fingerprint = composerImageFingerprints.get(file);
   if (fingerprint === undefined) {
     fingerprint = `unread:${unreadComposerImageCount++}`;
@@ -74,7 +76,7 @@ function composerImageFingerprint(file: File) {
 }
 
 /** Records the bytes behind an image file, so a draft drops it only as a byte-for-byte repeat. */
-export function rememberComposerImageBytes(file: File, bytes: Uint8Array) {
+export function rememberComposerImageBytes(file: File, bytes: Uint8Array): void {
   let first = 0xdeadbeef;
   let second = 0x41c6ce57;
   for (let index = 0; index < bytes.length; index++) {
@@ -89,7 +91,7 @@ export function rememberComposerImageBytes(file: File, bytes: Uint8Array) {
   composerImageFingerprints.set(file, `${second >>> 0}:${first >>> 0}`);
 }
 
-export async function readComposerImageBytes(file: File) {
+export async function readComposerImageBytes(file: File): Promise<void> {
   const bytes = await file.arrayBuffer().catch(() => null);
   if (bytes) rememberComposerImageBytes(file, new Uint8Array(bytes));
 }
@@ -100,14 +102,14 @@ export async function readComposerImageBytes(file: File) {
  */
 export function composerImageDedupKey(
   image: Pick<ComposerImageAttachment, "mimeType" | "sizeBytes" | "name" | "file">,
-) {
+): string {
   return `${composerImageSignature(image)}\u0000${composerImageFingerprint(image.file)}`;
 }
 
 const composerImageSourceKeys = new WeakMap<File, string>();
 
 /** A pasted image's name, type and size: a guess, before its bytes are read, that the draft has it. */
-export function composerImageSourceKey(file: File) {
+export function composerImageSourceKey(file: File): string {
   return (
     composerImageSourceKeys.get(file) ??
     composerImageSignature({
@@ -118,11 +120,11 @@ export function composerImageSourceKey(file: File) {
   );
 }
 
-export function rememberComposerImageSource(source: File, prepared: File) {
+export function rememberComposerImageSource(source: File, prepared: File): void {
   if (prepared !== source) composerImageSourceKeys.set(prepared, composerImageSourceKey(source));
 }
 
-function isDngFile(file: Pick<File, "name" | "type">) {
+function isDngFile(file: Pick<File, "name" | "type">): boolean {
   const mimeType = file.type.split(";", 1)[0]?.trim().toLowerCase();
   return (
     file.name.toLowerCase().endsWith(".dng") ||
@@ -132,7 +134,7 @@ function isDngFile(file: Pick<File, "name" | "type">) {
   );
 }
 
-export function composerFileAttachmentMimeType(file: Pick<File, "name" | "type">) {
+export function composerFileAttachmentMimeType(file: Pick<File, "name" | "type">): string {
   if (isDngFile(file)) return "image/x-adobe-dng";
   if (isSvgAttachment({ name: file.name, mimeType: file.type })) return "image/svg+xml";
   return (
@@ -141,7 +143,9 @@ export function composerFileAttachmentMimeType(file: Pick<File, "name" | "type">
   );
 }
 
-export function classifyComposerAttachmentFile(file: Pick<File, "name" | "type">) {
+export function classifyComposerAttachmentFile(
+  file: Pick<File, "name" | "type">,
+): ComposerAttachmentFileKind {
   if (isSvgAttachment({ name: file.name, mimeType: file.type })) return "file";
   if (isDngFile(file)) return "file";
   if (isHeicImageFile(file)) {
@@ -160,7 +164,7 @@ export function classifyComposerAttachmentFile(file: Pick<File, "name" | "type">
 export function isPreviewableComposerVideo(
   file: ComposerFileAttachment,
   environmentId: EnvironmentId,
-) {
+): boolean {
   return (
     isVideoAttachment(file) &&
     (file.file !== null ||
@@ -172,13 +176,13 @@ export function composerOtherFilesForPresentation(
   files: ReadonlyArray<ComposerFileAttachment>,
   environmentId: EnvironmentId,
   inlineFileIds: ReadonlySet<string>,
-) {
+): ComposerFileAttachment[] {
   return files.filter(
     (file) => !isPreviewableComposerVideo(file, environmentId) && !inlineFileIds.has(file.id),
   );
 }
 
-export function fileAttachmentStagingLimit(input: FileAttachmentCapabilityState) {
+export function fileAttachmentStagingLimit(input: FileAttachmentCapabilityState): number | null {
   if (!input.attachmentUploadsCapabilityKnown) {
     return PROVIDER_SEND_TURN_MAX_FILE_BYTES;
   }
@@ -192,7 +196,7 @@ export function fileAttachmentCapabilityBlockReason(
   input: FileAttachmentCapabilityState & {
     readonly files: ReadonlyArray<{ readonly name: string; readonly sizeBytes: number }>;
   },
-) {
+): string | null {
   if (input.files.length === 0) {
     return null;
   }
@@ -213,7 +217,7 @@ export function fileAttachmentCapabilityBlockReason(
 /** Release only unpersisted uploads; hydrated files still need their server copies. */
 export function attachmentsToReleaseOnUploadCapabilityLoss(
   attachments: ReadonlyArray<ComposerImageAttachment | ComposerFileAttachment>,
-) {
+): Array<ComposerImageAttachment | ComposerFileAttachment> {
   return attachments.filter(
     (attachment) => !(attachment.type === "file" && attachment.uploadedAttachmentId !== undefined),
   );
@@ -222,7 +226,7 @@ export function attachmentsToReleaseOnUploadCapabilityLoss(
 export function shouldHandleComposerAttachmentPaste(input: {
   readonly files: ReadonlyArray<File>;
   readonly plainText: string;
-}) {
+}): boolean {
   if (
     input.files.some((file) => {
       if (isDngFile(file)) return true;

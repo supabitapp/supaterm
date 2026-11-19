@@ -720,15 +720,11 @@ describe("RpcSessionFactory", () => {
           payload: { themes: [] },
         },
       ];
-      const settingsEvents = Array.from(
-        { length: 65 },
-        () =>
-          ({
-            version: 1,
-            type: "settingsUpdated",
-            payload: { settings: DEFAULT_SERVER_SETTINGS },
-          }) satisfies ServerConfigStreamEventType,
-      );
+      const settingsEvents = Array.from({ length: 65 }, (): ServerConfigStreamEventType => ({
+        version: 1,
+        type: "settingsUpdated",
+        payload: { settings: DEFAULT_SERVER_SETTINGS },
+      }));
       const { models: _models, slashCommands: _commands, skills: _skills, ...status } = PROVIDER;
       const providerEvent: ServerConfigStreamEventType = {
         version: 1,

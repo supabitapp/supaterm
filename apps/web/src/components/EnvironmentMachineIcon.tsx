@@ -81,7 +81,7 @@ export const ENVIRONMENT_MACHINE_KIND_LABELS: Record<EnvironmentMachineKind, str
   "mac-studio": "Mac Studio",
 };
 
-export function environmentMachineIcon(kind: EnvironmentMachineKind) {
+export function environmentMachineIcon(kind: EnvironmentMachineKind): FunctionComponent<IconProps> {
   return ICON_BY_KIND[kind];
 }
 

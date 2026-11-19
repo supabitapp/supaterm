@@ -3,7 +3,11 @@ export interface FabScrollState {
   readonly expanded: boolean;
 }
 
-export function updateFabScroll(state: FabScrollState, offset: number, maxOffset: number) {
+export function updateFabScroll(
+  state: FabScrollState,
+  offset: number,
+  maxOffset: number,
+): FabScrollState {
   const y = Math.max(0, Math.min(offset, Math.max(0, maxOffset)));
   if (y <= 8) return { anchor: y, expanded: true };
   const anchor = state.expanded ? Math.min(state.anchor, y) : Math.max(state.anchor, y);

@@ -262,11 +262,10 @@ interface MicrophoneList {
   readonly askForAccess: () => void;
 }
 
-function listingOf(inputs: ReadonlyArray<MicrophoneInput>) {
-  if (inputs.length === 0) return { kind: "none" } satisfies MicrophoneListing;
-  if (labelsHidden(inputs))
-    return { kind: "labelsHidden", accessDenied: false } satisfies MicrophoneListing;
-  return { kind: "listed", inputs } satisfies MicrophoneListing;
+function listingOf(inputs: ReadonlyArray<MicrophoneInput>): MicrophoneListing {
+  if (inputs.length === 0) return { kind: "none" };
+  if (labelsHidden(inputs)) return { kind: "labelsHidden", accessDenied: false };
+  return { kind: "listed", inputs };
 }
 
 function refreshListing(
@@ -275,13 +274,13 @@ function refreshListing(
 ) {
   const request = ++latest.current;
   void listMicrophoneInputs()
-    .then(listingOf, () => ({ kind: "failed" }) satisfies MicrophoneListing)
+    .then(listingOf, (): MicrophoneListing => ({ kind: "failed" }))
     .then((next) => {
       if (request === latest.current) setListing(next);
     });
 }
 
-function useMicrophoneList() {
+function useMicrophoneList(): MicrophoneList {
   const supported =
     window.isSecureContext && typeof navigator.mediaDevices?.enumerateDevices === "function";
   const [listing, setListing] = useState<MicrophoneListing>({
@@ -454,7 +453,7 @@ function VoiceAvoidBluetoothSettingRow(props: { readonly microphones: Microphone
 
 const DICTIONARY_WORD_MAX_LENGTH = 50;
 
-function parseHeardAs(value: string) {
+function parseHeardAs(value: string): ReadonlyArray<string> {
   const aliases = value
     .split(",")
     .map((alias) => alias.trim().slice(0, DICTIONARY_WORD_MAX_LENGTH))

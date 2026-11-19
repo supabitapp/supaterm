@@ -11,7 +11,7 @@ const COMMAND_CODE_ENTRY_POINTS = [
  * bridge on Windows, where it spawns MCP commands through cmd.exe and an unquoted Supaterm
  * executable path splits at a space.
  */
-export function prefersHttpMcpTransport(settings: AcpRegistrySettings) {
+export function prefersHttpMcpTransport(settings: AcpRegistrySettings): boolean {
   if (settings.source !== "local") {
     return false;
   }

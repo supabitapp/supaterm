@@ -6,7 +6,7 @@ import {
   type WindowsForegroundApi,
 } from "./WindowsForeground.ts";
 
-function nativeHandle(value: bigint, bytes = 8) {
+function nativeHandle(value: bigint, bytes = 8): Buffer {
   const handle = Buffer.alloc(bytes);
   if (bytes === 8) handle.writeBigUInt64LE(value);
   else handle.writeUInt32LE(Number(value));

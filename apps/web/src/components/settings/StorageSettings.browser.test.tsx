@@ -129,7 +129,7 @@ vi.mock(import("../ui/toast"), async (original) => {
 import { clickOnFakeClock } from "~/test/inlineConfirm";
 import { StorageCleanupSections } from "./StorageSettings";
 
-function setup() {
+function setup(): Disposable {
   const timers = fakeTimers({ now: 0 });
   resetState();
   return timers;

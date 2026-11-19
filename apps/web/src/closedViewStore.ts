@@ -32,7 +32,7 @@ interface ClosedViewStoreState {
   remove: (id: string) => void;
 }
 
-const sameTarget = (entry: ClosedViewEntry, view: ClosedView) => {
+const sameTarget = (entry: ClosedViewEntry, view: ClosedView): boolean => {
   if (
     entry.kind !== view.kind ||
     scopedThreadKey(entry.threadRef) !== scopedThreadKey(view.threadRef)

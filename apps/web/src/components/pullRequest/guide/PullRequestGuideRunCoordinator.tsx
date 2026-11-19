@@ -18,12 +18,15 @@ import { useGuideRunStore, type GuideRunWatch } from "./guideRunStore";
 const RUN_POLL_MS = 5_000;
 const UNSEEN_RUN_MS = 60_000;
 
-function isGuideShown(runKey: string) {
+function isGuideShown(runKey: string): boolean {
   return document.querySelector(`[data-guide-shown="${CSS.escape(runKey)}"]`) !== null;
 }
 
 /** Polls every watched guide run and announces each one when it settles. App-lifetime. */
-export function startGuideRunNotifications(registry: AtomRegistry.AtomRegistry, router: AnyRouter) {
+export function startGuideRunNotifications(
+  registry: AtomRegistry.AtomRegistry,
+  router: AnyRouter,
+): () => void {
   const running = new Map<string, () => void>();
   const sync = (watches: Readonly<Record<string, GuideRunWatch>>) => {
     for (const [key, stop] of running) {
@@ -54,13 +57,7 @@ function watchGuideRun(
   router: AnyRouter,
   runKey: string,
   watch: GuideRunWatch,
-): () => void;
-function watchGuideRun(
-  registry: AtomRegistry.AtomRegistry,
-  router: AnyRouter,
-  runKey: string,
-  watch: GuideRunWatch,
-) {
+): () => void {
   const atom = pullRequestEnvironment.reviewGuide({
     environmentId: watch.environmentId,
     input: watch.reference,
@@ -167,8 +164,8 @@ function watchGuideRun(
   );
   subscribing = false;
   const timer = setInterval(() => registry.refresh(atom), RUN_POLL_MS);
-  return (() => {
+  return () => {
     clearInterval(timer);
     unsubscribe();
-  }) satisfies () => void;
+  };
 }

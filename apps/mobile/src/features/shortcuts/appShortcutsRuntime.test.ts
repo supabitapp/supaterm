@@ -18,7 +18,7 @@ vi.mock("./appShortcuts", async () => {
 import type { RecentThreadShortcut } from "../../persistence/imperative";
 import { createRecentThreadShortcuts } from "./appShortcutsRuntime";
 
-const thread = (threadId: string, title = threadId) => ({
+const thread = (threadId: string, title = threadId): RecentThreadShortcut => ({
   environmentId: "env",
   threadId,
   title,

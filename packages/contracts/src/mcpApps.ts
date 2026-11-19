@@ -75,7 +75,7 @@ export class McpAppRequestError extends Schema.TaggedError<McpAppRequestError>()
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message() {
+  override get message(): string {
     switch (this.reason) {
       case "not-an-app":
         return "This tool call has no MCP app.";

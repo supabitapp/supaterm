@@ -4,7 +4,10 @@ export type {
   ProviderMaintenanceCapabilities,
   ProviderMaintenanceCommandAction,
 } from "@supaterm/provider-core/server/maintenance";
-import type { ProviderMaintenanceCapabilities } from "@supaterm/provider-core/server/maintenance";
+import type {
+  ProviderMaintenanceCapabilities,
+  ProviderMaintenanceCommandAction,
+} from "@supaterm/provider-core/server/maintenance";
 import {
   ProviderDriverKind,
   type ServerProvider,
@@ -41,7 +44,7 @@ const PROVIDER_UPDATE_ACTION_TOAST_MESSAGE = "Install the update now or review p
 
 const MAINTENANCE_CAPABILITIES_CACHE_TTL = Duration.hours(1);
 
-const compactEnv = (input: Record<string, Option.Option<string>>) =>
+const compactEnv = (input: Record<string, Option.Option<string>>): NodeJS.ProcessEnv =>
   Object.fromEntries(
     Object.entries(input).flatMap(([key, value]) =>
       Option.match(value, {
@@ -105,11 +108,11 @@ const NpmLatestVersionResponse = Schema.Struct({
   version: Schema.optional(Schema.String),
 });
 
-function nonEmptyString(value: unknown) {
+function nonEmptyString(value: unknown): string | null {
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
 }
 
-function quoteShellWord(word: string, platform: NodeJS.Platform) {
+function quoteShellWord(word: string, platform: NodeJS.Platform): string {
   const safeWord = platform === "win32" ? /^[\w./:\\@=-]+$/ : /^[\w./:@=-]+$/;
   if (safeWord.test(word)) return word;
   return platform === "win32"
@@ -117,7 +120,7 @@ function quoteShellWord(word: string, platform: NodeJS.Platform) {
     : `'${word.replaceAll("'", "'\\''")}'`;
 }
 
-function quoteUpdateExecutable(executable: string, platform: NodeJS.Platform) {
+function quoteUpdateExecutable(executable: string, platform: NodeJS.Platform): string {
   const quoted = quoteShellWord(executable, platform);
   return platform === "win32" && quoted !== executable ? `& ${quoted}` : quoted;
 }
@@ -133,7 +136,7 @@ export function makeProviderMaintenanceCapabilities(input: {
   readonly env?: NodeJS.ProcessEnv;
   readonly latestVersion?: string | null;
   readonly lookupLatestVersion?: Effect.Effect<string | null>;
-}) {
+}): ProviderMaintenanceCapabilities {
   const platform = input.platform ?? HostProcess.Platform.defaultValue();
   const update =
     input.updateExecutable === null || input.updateLockKey === null
@@ -162,7 +165,7 @@ export function makeProviderMaintenanceCapabilities(input: {
 export function makeTargetedProviderUpdateAction(
   capabilities: ProviderMaintenanceCapabilities,
   version: string,
-) {
+): ProviderMaintenanceCommandAction | null {
   if (!/^\d+\.\d+\.\d+$/.test(version)) return null;
   const update = capabilities.update;
   const packageName = capabilities.packageName;
@@ -192,7 +195,7 @@ export function makeTargetedProviderUpdateAction(
 export function resolveLatestProviderUpdateAction(
   capabilities: ProviderMaintenanceCapabilities,
   latestVersion: string | null,
-) {
+): ProviderMaintenanceCommandAction | null {
   const update = capabilities.update;
   if (update?.lockKey !== "pnpm-global" || latestVersion === null) return update;
   return makeTargetedProviderUpdateAction(capabilities, latestVersion) ?? update;
@@ -204,14 +207,7 @@ export function makeManualOnlyProviderMaintenanceCapabilities(input: {
   readonly installPath?: string;
   readonly lookupLatestVersion?: Effect.Effect<string | null>;
   readonly manualCommand?: string;
-}): ProviderMaintenanceCapabilities;
-export function makeManualOnlyProviderMaintenanceCapabilities(input: {
-  readonly provider: ProviderDriverKind;
-  readonly packageName: string | null;
-  readonly installPath?: string;
-  readonly lookupLatestVersion?: Effect.Effect<string | null>;
-  readonly manualCommand?: string;
-}) {
+}): ProviderMaintenanceCapabilities {
   return {
     ...makeProviderMaintenanceCapabilities({
       provider: input.provider,
@@ -225,29 +221,28 @@ export function makeManualOnlyProviderMaintenanceCapabilities(input: {
     }),
     ...(input.installPath ? { installPath: input.installPath } : {}),
     ...(input.manualCommand ? { manualCommand: input.manualCommand } : {}),
-  } satisfies ProviderMaintenanceCapabilities;
+  };
 }
 
-export function normalizeCommandPath(commandPath: string): string;
-export function normalizeCommandPath(commandPath: string) {
-  return commandPath.replaceAll("\\", "/").toLowerCase() satisfies string;
+export function normalizeCommandPath(commandPath: string): string {
+  return commandPath.replaceAll("\\", "/").toLowerCase();
 }
 
-function isVitePlusGlobalCommandPath(commandPath: string) {
+function isVitePlusGlobalCommandPath(commandPath: string): boolean {
   return /\/(?:\.vite-plus|\.local\/share\/vite-plus|appdata\/local\/vite-plus)\/bin\//.test(
     normalizeCommandPath(commandPath),
   );
 }
 
-function isBunGlobalCommandPath(commandPath: string) {
+function isBunGlobalCommandPath(commandPath: string): boolean {
   return normalizeCommandPath(commandPath).includes("/.bun/bin/");
 }
 
-function isYarnGlobalCommandPath(commandPath: string) {
+function isYarnGlobalCommandPath(commandPath: string): boolean {
   return /\/yarn\/(?:data\/)?global\/node_modules\//.test(normalizeCommandPath(commandPath));
 }
 
-function isMiseCommandPath(commandPath: string) {
+function isMiseCommandPath(commandPath: string): boolean {
   const normalized = normalizeCommandPath(commandPath);
   return (
     (normalized.includes("/mise/installs/") && !normalized.includes("/mise/installs/node/")) ||
@@ -256,19 +251,19 @@ function isMiseCommandPath(commandPath: string) {
   );
 }
 
-function isMiseExecutablePath(commandPath: string) {
+function isMiseExecutablePath(commandPath: string): boolean {
   return /(?:^|\/)mise(?:\.exe)?$/.test(normalizeCommandPath(commandPath));
 }
 
 /** The Nix store is read-only, so no updater can replace a CLI that lives there. */
-export function isNixStoreCommandPath(commandPath: string) {
+export function isNixStoreCommandPath(commandPath: string): boolean {
   return normalizeCommandPath(commandPath).startsWith("/nix/store/");
 }
 
 const winGetClaudeCommandPath =
   /^[a-z]:\/(?:users\/[^/]+\/appdata\/local\/microsoft|program files(?: \(x86\))?)\/winget\/(?:links|packages\/anthropic\.claudecode_[^/]+)\/claude\.exe$/;
 
-function isWinGetClaudeCommandPath(commandPath: string) {
+function isWinGetClaudeCommandPath(commandPath: string): boolean {
   return winGetClaudeCommandPath.test(normalizeCommandPath(commandPath));
 }
 
@@ -276,7 +271,7 @@ const CHOCOLATEY_CLAUDE_PACKAGE_ID = "claude-code";
 
 const chocolateyClaudeCommandPath = /\/chocolatey\/(?:bin|lib\/claude-code\/tools)\/claude\.exe$/;
 
-function isChocolateyClaudeCommandPath(commandPath: string, env: NodeJS.ProcessEnv) {
+function isChocolateyClaudeCommandPath(commandPath: string, env: NodeJS.ProcessEnv): boolean {
   const normalized = normalizeCommandPath(commandPath);
   if (chocolateyClaudeCommandPath.test(normalized)) return true;
   const root = nonEmptyString(env.ChocolateyInstall);
@@ -289,7 +284,7 @@ function isChocolateyClaudeCommandPath(commandPath: string, env: NodeJS.ProcessE
 }
 
 /** `choco search --exact --limit-output` prints `<id>|<version>` for a match and nothing otherwise. */
-export function parseChocolateyLatestVersion(output: string, packageId: string) {
+export function parseChocolateyLatestVersion(output: string, packageId: string): string | null {
   for (const line of output.split(/\r?\n/)) {
     const [id, version] = line.trim().split("|", 2);
     if (id?.toLowerCase() === packageId.toLowerCase()) return nonEmptyString(version);
@@ -297,7 +292,7 @@ export function parseChocolateyLatestVersion(output: string, packageId: string) 
   return null;
 }
 
-function isPnpmGlobalCommandPath(commandPath: string) {
+function isPnpmGlobalCommandPath(commandPath: string): boolean {
   const normalized = normalizeCommandPath(commandPath);
   return (
     normalized.includes("/.local/share/pnpm/") ||
@@ -308,7 +303,10 @@ function isPnpmGlobalCommandPath(commandPath: string) {
   );
 }
 
-export function npmGlobalPrefixFromCommandPath(realCommandPath: string, packageName: string) {
+export function npmGlobalPrefixFromCommandPath(
+  realCommandPath: string,
+  packageName: string,
+): string | null {
   const slashPath = realCommandPath.replaceAll("\\", "/");
   const normalized = slashPath.toLowerCase();
   const packageSegment = `/lib/node_modules/${packageName.toLowerCase()}/`;
@@ -331,16 +329,18 @@ export interface HomebrewOwnership {
   readonly prefix: string;
 }
 
-export function homebrewOwnershipFromCommandPath(realCommandPath: string) {
+export function homebrewOwnershipFromCommandPath(
+  realCommandPath: string,
+): HomebrewOwnership | null {
   const match = HOMEBREW_KEG_PATTERN.exec(realCommandPath.replaceAll("\\", "/"));
   if (!match) {
-    return null satisfies HomebrewOwnership | null;
+    return null;
   }
   return {
     kind: match[2]!.toLowerCase() === "cellar" ? "formula" : "cask",
     name: match[3]!,
     prefix: match[1]!,
-  } satisfies HomebrewOwnership | null;
+  };
 }
 
 const HomebrewInfoResponse = Schema.Struct({
@@ -357,7 +357,10 @@ const HomebrewInfoResponse = Schema.Struct({
 const decodeHomebrewInfo = Schema.decodeUnknownOption(Schema.fromJsonString(HomebrewInfoResponse));
 
 /** Cask versions may carry a build suffix after a comma (`1.2.3,456`). */
-export function parseHomebrewLatestVersion(infoJson: string, ownership: HomebrewOwnership) {
+export function parseHomebrewLatestVersion(
+  infoJson: string,
+  ownership: HomebrewOwnership,
+): string | null {
   const decoded = decodeHomebrewInfo(infoJson);
   if (Option.isNone(decoded)) {
     return null;
@@ -486,7 +489,7 @@ const resolveNpmGlobalLatestVersion = Effect.fn("resolveNpmGlobalLatestVersion")
   return nonEmptyString(listedEntries?.dependencies?.[packageName]?.version);
 });
 
-function parseNpmPackVersion(stdout: string, packageName: string) {
+function parseNpmPackVersion(stdout: string, packageName: string): string | null {
   const prefix = `${packageName.replace(/^@/, "").replace("/", "-")}-`;
   const filename = stdout.trim();
   if (!filename.startsWith(prefix) || !filename.endsWith(".tgz")) return null;
@@ -524,7 +527,7 @@ const resolveVitePlusInstallableLatestVersion = Effect.fn(
   return packed ? parseNpmPackVersion(packed, packageName) : null;
 });
 
-function parseBunOutdatedLatestVersion(output: string, packageName: string) {
+function parseBunOutdatedLatestVersion(output: string, packageName: string): string | null {
   for (const line of output.split("\n")) {
     const cells = line.split("|").map((cell) => cell.trim());
     if (cells.length === 6 && cells[1] === packageName) {
@@ -561,7 +564,10 @@ const decodeMiseInstalls = Schema.decodeUnknownOption(
   Schema.fromJsonString(Schema.Record(Schema.String, Schema.Array(MiseInstall))),
 );
 
-function miseToolInstalls(listing: string, miseTool: string) {
+function miseToolInstalls(
+  listing: string,
+  miseTool: string,
+): ReadonlyArray<typeof MiseInstall.Type> {
   const installs = decodeMiseToolInstalls(listing);
   if (Option.isSome(installs)) return installs.value;
   const byTool = Option.getOrUndefined(decodeMiseInstalls(listing));
@@ -1081,30 +1087,26 @@ const resolveNpmGlobalPrefix = Effect.fn("resolveNpmGlobalPrefix")(function* (
 
 export function makePackageManagedProviderMaintenanceResolver(
   definition: PackageManagedProviderMaintenanceDefinition,
-): ProviderMaintenanceCapabilitiesResolver;
-export function makePackageManagedProviderMaintenanceResolver(
-  definition: PackageManagedProviderMaintenanceDefinition,
-) {
+): ProviderMaintenanceCapabilitiesResolver {
   return {
     resolve: (context) => resolvePackageManagedProviderMaintenance(definition, context),
-  } satisfies ProviderMaintenanceCapabilitiesResolver;
+  };
 }
 
 function makeManualProviderMaintenanceCapabilities(
   provider: ProviderDriverKind,
-): ProviderMaintenanceCapabilities;
-function makeManualProviderMaintenanceCapabilities(provider: ProviderDriverKind) {
+): ProviderMaintenanceCapabilities {
   return makeManualOnlyProviderMaintenanceCapabilities({
     provider,
     packageName: null,
-  }) satisfies ProviderMaintenanceCapabilities;
+  });
 }
 
 const decodeNpmViewVersion = Schema.decodeUnknownOption(
   Schema.fromJsonString(Schema.Union([Schema.String, Schema.Tuple([Schema.String])])),
 );
 
-function environmentCacheKey(env: NodeJS.ProcessEnv) {
+function environmentCacheKey(env: NodeJS.ProcessEnv): string {
   return NodeCrypto.createHash("sha256")
     .update(
       JSON.stringify(Object.entries(env).toSorted(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))),
@@ -1214,7 +1216,7 @@ export const makeCachedProviderMaintenanceResolution = Effect.fn(
     options?.fresh ? Cache.invalidate(cache, undefined).pipe(Effect.andThen(cached)) : cached;
 });
 
-function manualUpdateMessage(latestVersion: string, installPath: string | undefined) {
+function manualUpdateMessage(latestVersion: string, installPath: string | undefined): string {
   return installPath
     ? `Version ${latestVersion} is out. Supaterm runs ${installPath}; update it with the app or tool that installed it.`
     : `Version ${latestVersion} is out. Update it with the app or tool that installed it.`;
@@ -1224,18 +1226,12 @@ function deriveVersionAdvisory(input: {
   readonly currentVersion: string | null;
   readonly latestVersion: string | null;
   readonly capabilities: ProviderMaintenanceCapabilities;
-}) {
+}): Pick<ServerProviderVersionAdvisory, "status" | "message"> {
   if (!input.currentVersion) {
-    return { status: "unknown", message: null } satisfies Pick<
-      ServerProviderVersionAdvisory,
-      "status" | "message"
-    >;
+    return { status: "unknown", message: null };
   }
   if (!input.latestVersion) {
-    return { status: "unknown", message: null } satisfies Pick<
-      ServerProviderVersionAdvisory,
-      "status" | "message"
-    >;
+    return { status: "unknown", message: null };
   }
   if (
     (input.capabilities.compareVersions ?? compareSemverVersions)(
@@ -1249,12 +1245,9 @@ function deriveVersionAdvisory(input: {
         input.capabilities.update === null
           ? manualUpdateMessage(input.latestVersion, input.capabilities.installPath)
           : PROVIDER_UPDATE_ACTION_TOAST_MESSAGE,
-    } satisfies Pick<ServerProviderVersionAdvisory, "status" | "message">;
+    };
   }
-  return { status: "current", message: null } satisfies Pick<
-    ServerProviderVersionAdvisory,
-    "status" | "message"
-  >;
+  return { status: "current", message: null };
 }
 
 export function createProviderVersionAdvisory(input: {
@@ -1263,14 +1256,7 @@ export function createProviderVersionAdvisory(input: {
   readonly latestVersion?: string | null;
   readonly checkedAt?: string | null;
   readonly maintenanceCapabilities?: ProviderMaintenanceCapabilities;
-}): ServerProviderVersionAdvisory;
-export function createProviderVersionAdvisory(input: {
-  readonly driver: ProviderDriverKind;
-  readonly currentVersion: string | null;
-  readonly latestVersion?: string | null;
-  readonly checkedAt?: string | null;
-  readonly maintenanceCapabilities?: ProviderMaintenanceCapabilities;
-}) {
+}): ServerProviderVersionAdvisory {
   const capabilities =
     input.maintenanceCapabilities ?? makeManualProviderMaintenanceCapabilities(input.driver);
   const latestVersion = input.latestVersion ?? null;
@@ -1292,7 +1278,7 @@ export function createProviderVersionAdvisory(input: {
     canInstallVersion: makeTargetedProviderUpdateAction(capabilities, "0.0.0") !== null,
     checkedAt: input.checkedAt ?? null,
     message: advisory.message,
-  } satisfies ServerProviderVersionAdvisory;
+  };
 }
 
 const fetchNpmLatestVersion = Effect.fn("fetchNpmLatestVersion")(function* (packageName: string) {
@@ -1319,7 +1305,9 @@ function installerLatestVersionKey(capabilities: ProviderMaintenanceCapabilities
     : capabilities.packageName && `npm-registry\0${capabilities.packageName}`;
 }
 
-export function latestProviderVersionCacheKeys(capabilities: ProviderMaintenanceCapabilities) {
+export function latestProviderVersionCacheKeys(
+  capabilities: ProviderMaintenanceCapabilities,
+): ReadonlyArray<string> {
   return [capabilities.packageName, installerLatestVersionKey(capabilities)].filter(
     (key) => key !== null,
   );

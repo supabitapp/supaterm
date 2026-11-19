@@ -183,7 +183,7 @@ const codeToGhosttyKey = new Map<string, number>(
   ghosttyKeyboardCodes.map((code, index) => [code, index]),
 );
 
-export function ghosttyKeyForCode(code: string) {
+export function ghosttyKeyForCode(code: string): number {
   return codeToGhosttyKey.get(code) ?? 0;
 }
 
@@ -205,7 +205,7 @@ const NUMPAD_NAVIGATION_KEYS = new Map<string, number>(
   ).map(([key, code]) => [key, ghosttyKeyForCode(code)]),
 );
 
-export function ghosttyKeyForEvent(event: Pick<KeyboardEvent, "code" | "key">) {
+export function ghosttyKeyForEvent(event: Pick<KeyboardEvent, "code" | "key">): number {
   return (
     (event.code.startsWith("Numpad") && NUMPAD_NAVIGATION_KEYS.get(event.key)) ||
     ghosttyKeyForCode(event.code) ||
@@ -219,7 +219,7 @@ export interface GhosttyKeyboardLayoutMap {
 
 let keyboardLayoutMapPromise: Promise<GhosttyKeyboardLayoutMap | undefined> | undefined;
 
-export function loadGhosttyKeyboardLayoutMap() {
+export function loadGhosttyKeyboardLayoutMap(): Promise<GhosttyKeyboardLayoutMap | undefined> {
   if (keyboardLayoutMapPromise) return keyboardLayoutMapPromise;
   const browserNavigator = globalThis.navigator as
     | (Navigator & {
@@ -237,7 +237,7 @@ export function loadGhosttyKeyboardLayoutMap() {
 export function ghosttyConsumedMods(
   event: Pick<KeyboardEvent, "altKey" | "ctrlKey" | "key" | "metaKey" | "shiftKey">,
   platform = navigator.platform,
-) {
+): number {
   if (event.ctrlKey || event.metaKey || [...event.key].length !== 1) return 0;
   if (event.altKey && !isMacPlatform(platform)) return 0;
   return (event.shiftKey ? 1 : 0) | (event.altKey ? 1 << 2 : 0);
@@ -246,7 +246,7 @@ export function ghosttyConsumedMods(
 export function ghosttyUnshiftedCodepoint(
   event: Pick<KeyboardEvent, "code" | "key" | "shiftKey">,
   layoutMap?: GhosttyKeyboardLayoutMap,
-) {
+): number {
   if ([...event.key].length !== 1) return 0;
   const layoutCharacter = layoutMap?.get(event.code);
   if (layoutCharacter && [...layoutCharacter].length === 1) {

@@ -13,31 +13,20 @@ function fakeKeyboard(keymap: string, options: { readonly chunkBytes?: number } 
   const bytes = new TextEncoder().encode(keymap);
   const requests: Array<Request> = [];
   const request = (method: string, params?: unknown) =>
-    Effect.suspend(() => {
+    Effect.suspend((): Effect.Effect<unknown, CodexMicroRpcError> => {
       requests.push({ method, params });
       if (method === "fs.list") {
         return Effect.succeed([
           { name: "smart_actions.json", size: 2, checksum: "other" },
           { name: "keymap.json", size: bytes.length, checksum: `sum-${keymap.length}` },
-        ]) satisfies Effect.Effect<unknown, CodexMicroRpcError> as Effect.Effect<
-          unknown,
-          CodexMicroRpcError
-        >;
+        ]);
       }
       if (method !== "fs.readbin") {
-        return Effect.fail(
-          new CodexMicroRpcError({ method, code: -32601 }),
-        ) satisfies Effect.Effect<unknown, CodexMicroRpcError> as Effect.Effect<
-          unknown,
-          CodexMicroRpcError
-        >;
+        return Effect.fail(new CodexMicroRpcError({ method, code: -32601 }));
       }
       const { offset, len } = params as { offset: number; len: number };
       const data = bytes.subarray(offset, offset + Math.min(len, options.chunkBytes ?? len));
-      return Effect.succeed({ data: Buffer.from(data).toString("base64") }) satisfies Effect.Effect<
-        unknown,
-        CodexMicroRpcError
-      > as Effect.Effect<unknown, CodexMicroRpcError>;
+      return Effect.succeed({ data: Buffer.from(data).toString("base64") });
     });
   return { request, requests };
 }

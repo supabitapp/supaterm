@@ -29,7 +29,7 @@ export function androidWorkspaceTabNavigationState(
 }
 
 /** Settings stays selected while one of its pages is the topmost workspace route. */
-export function androidWorkspaceSettingsOpen(state: NavigationState) {
+export function androidWorkspaceSettingsOpen(state: NavigationState): boolean {
   return settingsOpenIn(
     state.routes
       .slice(0, state.index + 1)

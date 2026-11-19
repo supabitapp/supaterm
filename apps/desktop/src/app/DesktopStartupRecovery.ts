@@ -40,26 +40,26 @@ type StartupRecoveryAction = (typeof STARTUP_RECOVERY_ACTIONS)[number];
 export function resolveStartupRecoveryOffer(
   update: DesktopUpdateState,
   lastStartedVersion: string | null,
-) {
+): StartupRecoveryOffer {
   if (update.status === "downloading" && update.availableVersion !== null) {
     return {
       _tag: "Downloading",
       version: update.availableVersion,
       percent: update.downloadPercent,
-    } satisfies StartupRecoveryOffer;
+    };
   }
   const updateVersion =
     update.downloadedVersion ?? (update.status === "available" ? update.availableVersion : null);
   if (updateVersion !== null && updateVersion !== update.notAppliedVersion) {
-    return { _tag: "Update", version: updateVersion } satisfies StartupRecoveryOffer;
+    return { _tag: "Update", version: updateVersion };
   }
   if (update.enabled && (update.status === "idle" || update.status === "checking")) {
-    return { _tag: "Checking" } satisfies StartupRecoveryOffer;
+    return { _tag: "Checking" };
   }
   if (lastStartedVersion !== null && lastStartedVersion !== update.currentVersion) {
-    return { _tag: "Reinstall", version: lastStartedVersion } satisfies StartupRecoveryOffer;
+    return { _tag: "Reinstall", version: lastStartedVersion };
   }
-  return { _tag: "Releases" } satisfies StartupRecoveryOffer;
+  return { _tag: "Releases" };
 }
 
 const escapeHtml = (value: string) =>
@@ -72,7 +72,7 @@ const escapeHtml = (value: string) =>
 const actionLink = (action: StartupRecoveryAction, label: string, primary = false) =>
   `<a class="button${primary ? " primary" : ""}" href="${ACTION_ORIGIN}/${action}">${escapeHtml(label)}</a>`;
 
-function describeOffer(offer: StartupRecoveryOffer) {
+function describeOffer(offer: StartupRecoveryOffer): { text: string; action: string } {
   switch (offer._tag) {
     case "Checking":
       return { text: "Checking for a newer version…", action: "" };
@@ -104,7 +104,7 @@ function buildStartupRecoveryHtml(input: {
   readonly failure: BackendStartupFailure;
   readonly offer: StartupRecoveryOffer;
   readonly logDir: string;
-}) {
+}): string {
   const offer = describeOffer(input.offer);
   const output = input.failure.output.trim();
   return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'"><title>Supaterm could not start</title><style>

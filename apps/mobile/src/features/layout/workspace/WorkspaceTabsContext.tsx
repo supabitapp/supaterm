@@ -46,7 +46,7 @@ type MobilePreferencesResult = Atom.Type<typeof mobilePreferencesAtom>;
 function resolveWorkspaceTabsSelection(
   state: WorkspaceTabsState,
   preferences: MobilePreferencesResult,
-) {
+): WorkspaceTabsState {
   const saved = AsyncResult.isSuccess(preferences) ? preferences.value : undefined;
   const order = resolveWorkspaceTabOrder(saved?.navigationTabOrder);
   const hidden = navigationCustomizationAvailable()

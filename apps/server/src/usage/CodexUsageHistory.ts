@@ -14,7 +14,7 @@ export class CodexUsageHistoryReadError extends Schema.TaggedError<CodexUsageHis
   "CodexUsageHistoryReadError",
   { requestedTurnCount: Schema.Number, cause: Schema.Defect() },
 ) {
-  override get message() {
+  override get message(): string {
     return "Could not read historical Codex usage tiers.";
   }
 }

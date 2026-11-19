@@ -13,7 +13,7 @@ export function insertAttachmentReferencesForDraft(input: {
   liveAttachmentTargetKey: string;
   references: ReadonlyArray<ComposerContextReference>;
   insertReferences: () => boolean;
-}) {
+}): boolean {
   if (composerTargetKey(input.target) !== input.liveAttachmentTargetKey) {
     const store = useComposerDraftStore.getState();
     const prompt = store.getComposerDraft(input.target)?.prompt ?? "";

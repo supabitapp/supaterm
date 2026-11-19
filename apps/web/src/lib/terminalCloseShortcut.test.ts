@@ -30,7 +30,9 @@ type KeyboardEventOverrides = Partial<
   >
 >;
 
-function keyboardEvent(overrides: KeyboardEventOverrides = {}) {
+function keyboardEvent(
+  overrides: KeyboardEventOverrides = {},
+): TerminalCloseShortcutEvent & { readonly defaultPrevented: boolean } {
   let defaultPrevented = false;
   return {
     key: "w",

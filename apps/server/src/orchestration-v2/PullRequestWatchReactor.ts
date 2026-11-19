@@ -64,7 +64,7 @@ const providerFailureReason = (cause: Cause.Cause<PullRequestService.PullRequest
 
 const logFailure =
   (message: string, fields: Record<string, unknown>) =>
-  <E>(cause: Cause.Cause<E>) =>
+  <E>(cause: Cause.Cause<E>): Effect.Effect<void> =>
     Cause.hasInterruptsOnly(cause)
       ? Effect.interrupt
       : Effect.logWarning(message, { ...fields, cause });
@@ -89,6 +89,11 @@ interface LastRead {
   readonly watches: ReadonlySet<string>;
   readonly status: string | null;
   readonly remarks: string | null;
+}
+
+interface ReadPlan {
+  readonly detail: boolean;
+  readonly activity: boolean;
 }
 
 interface Wake {
@@ -154,7 +159,7 @@ function planRead(
   last: LastRead | undefined,
   fingerprint: ProviderChangeRequestWatchFingerprint | null,
   now: number,
-) {
+): ReadPlan {
   if (last === undefined || group.targets.some((target) => !last.watches.has(watchKey(target)))) {
     return { detail: true, activity: true };
   }
@@ -189,7 +194,7 @@ function planRead(
 const checksPendingBeforeOf = ({ watch }: WatchTarget) =>
   watch.checksPending === undefined ? {} : { checksPendingBefore: watch.checksPending };
 
-function watchesEqual(left: ThreadPullRequestWatch, right: ThreadPullRequestWatch) {
+function watchesEqual(left: ThreadPullRequestWatch, right: ThreadPullRequestWatch): boolean {
   return (
     left.startedAt === right.startedAt &&
     left.headSha === right.headSha &&
@@ -228,7 +233,7 @@ export const make = Effect.gen(function* () {
   const bootedAt = yield* Clock.currentTimeMillis;
   const lives = new Map<string, WatchLife>();
 
-  const lifeOf = (target: WatchTarget) => {
+  const lifeOf = (target: WatchTarget): WatchLife => {
     const existing = lives.get(lifeKey(target));
     if (existing !== undefined) return existing;
     const startedAt = Date.parse(target.watch.startedAt);
@@ -514,7 +519,7 @@ export const make = Effect.gen(function* () {
       reason: "closed",
     });
 
-  const endsWithoutRead = ({ thread, link }: WatchTarget) =>
+  const endsWithoutRead = ({ thread, link }: WatchTarget): WatchEndReason | undefined =>
     link.snapshot?.state === "merged"
       ? "merged"
       : thread.doneOverride === "done" || thread.doneAt !== null
@@ -548,17 +553,15 @@ export const make = Effect.gen(function* () {
   const fingerprintOf = (group: WatchGroup) =>
     pullRequests.watchFingerprint(referenceOf(group)).pipe(
       Effect.catchCause(
-        (cause) =>
-          (Cause.hasInterruptsOnly(cause)
+        (cause): Effect.Effect<ProviderChangeRequestWatchFingerprint | null | "paused"> =>
+          Cause.hasInterruptsOnly(cause)
             ? Effect.interrupt
             : providerFailureReason(cause) === "rate-limited"
               ? Effect.succeed("paused")
               : Effect.logDebug("pull request watch fingerprint failed", {
                   pullRequest: group.key,
                   cause,
-                }).pipe(Effect.as(null))) satisfies Effect.Effect<
-            ProviderChangeRequestWatchFingerprint | null | "paused"
-          >,
+                }).pipe(Effect.as(null)),
       ),
     );
 
@@ -737,7 +740,7 @@ export const make = Effect.gen(function* () {
       const key = `${target.thread.projectId} ${threadPullRequestKeyOf(target.link)}`;
       byPullRequest.set(key, [...(byPullRequest.get(key) ?? []), target]);
     }
-    const groups = [...byPullRequest].map(([key, members]) => ({
+    const groups = [...byPullRequest].map(([key, members]): WatchGroup => ({
       key,
       targets: members,
       fingerprint: [...new Set(members.map(snapshotFingerprint))].toSorted().join("\n"),

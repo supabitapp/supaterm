@@ -135,7 +135,7 @@ export const deriveServerPaths = Effect.fn(function* (
   baseDir: ServerConfig["Service"]["baseDir"],
   devUrl: ServerConfig["Service"]["devUrl"],
   options: DeriveServerPathsOptions = {},
-) {
+): Effect.fn.Return<ServerDerivedPaths, never, Path.Path> {
   const { join } = yield* Path.Path;
   const stateDir = join(
     baseDir,

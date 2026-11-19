@@ -100,7 +100,7 @@ export function sessionPermissionsUnavailableMessage(input: {
   readonly failed: boolean;
   /** The environment answered that this session is not signed in; retrying will not change that. */
   readonly rejected: boolean;
-}) {
+}): string {
   if (!input.connected) return "Connect to this environment to view this session’s permissions.";
   if (input.rejected)
     return "This environment did not accept your session. Reconnect to try again.";

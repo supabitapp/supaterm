@@ -73,14 +73,17 @@ export const listLinkedPullRequestThreads = Effect.fn("listLinkedPullRequestThre
   ),
 );
 
-function linkedKeys(thread: OrchestrationV2AppThread) {
+function linkedKeys(thread: OrchestrationV2AppThread): ReadonlyArray<string> {
   if (thread.deletedAt !== null || thread.lineage.sideChat === true) return [];
   return visibleThreadPullRequests(thread.pullRequests ?? [])
     .map(threadPullRequestKeyOf)
     .toSorted();
 }
 
-function linkedThreadsView(thread: OrchestrationV2AppThread, keys: ReadonlyArray<string>) {
+function linkedThreadsView(
+  thread: OrchestrationV2AppThread,
+  keys: ReadonlyArray<string>,
+): string | null {
   if (keys.length === 0) return null;
   const done = thread.doneAt !== null || thread.doneOverride === "done";
   return JSON.stringify([keys, thread.title, thread.projectId, thread.archivedAt !== null, done]);
@@ -95,7 +98,7 @@ function linkedThreadsView(thread: OrchestrationV2AppThread, keys: ReadonlyArray
 export function makeLinkedThreadsChangeDetector() {
   const views = new Map<ThreadId, string | null>();
   const activeAt = new Map<ThreadId, number>();
-  const active = (threadId: ThreadId, at: DateTime.Utc) => {
+  const active = (threadId: ThreadId, at: DateTime.Utc): boolean => {
     const previous = activeAt.get(threadId);
     if (previous === undefined) return false;
     const millis = DateTime.toEpochMillis(at);
@@ -103,7 +106,7 @@ export function makeLinkedThreadsChangeDetector() {
     activeAt.set(threadId, millis);
     return true;
   };
-  return (event: OrchestrationV2DomainEvent) => {
+  return (event: OrchestrationV2DomainEvent): "changed" | "reordered" | null => {
     if (!event.type.startsWith("thread.")) {
       if (!views.has(event.threadId)) return "reordered";
       return active(event.threadId, event.occurredAt) ? "reordered" : null;

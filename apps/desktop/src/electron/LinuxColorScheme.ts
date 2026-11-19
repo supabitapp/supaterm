@@ -9,7 +9,7 @@ const KEY = "color-scheme";
 
 export type LinuxColorScheme = "dark" | "light" | null;
 
-function decodeColorScheme(value: unknown) {
+function decodeColorScheme(value: unknown): LinuxColorScheme {
   let scheme = value;
   while (scheme instanceof Variant) scheme = scheme.value;
   return scheme === 1 ? "dark" : scheme === 0 || scheme === 2 ? "light" : null;

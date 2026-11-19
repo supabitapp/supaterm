@@ -96,21 +96,11 @@ function pairingServer(options?: {
   readonly failSession?: boolean;
   readonly acceptedTokens?: ReadonlyArray<string>;
   readonly grantScopes?: ReadonlyArray<AuthEnvironmentScope>;
-}): Server;
-function pairingServer(options?: {
-  readonly environmentId?: string;
-  readonly protocolVersion?: number;
-  readonly selfUpdate?: boolean;
-  readonly failDescriptor?: boolean;
-  readonly failExchange?: boolean;
-  readonly failSession?: boolean;
-  readonly acceptedTokens?: ReadonlyArray<string>;
-  readonly grantScopes?: ReadonlyArray<AuthEnvironmentScope>;
-}) {
+}): Server {
   const grantScopes = options?.grantScopes ?? AuthStandardClientScopes;
   let sessionScopes: ReadonlyArray<string> = [];
   let exchanged = false;
-  return ((path, init) => {
+  return (path, init) => {
     if (path === "/.well-known/supaterm/environment") {
       if (options?.failDescriptor === true) {
         return Response.json({ message: "descriptor unavailable" }, { status: 503 });
@@ -182,14 +172,11 @@ function pairingServer(options?: {
       });
     }
     return Response.json({ message: "not found" }, { status: 404 });
-  }) satisfies Server;
+  };
 }
 
-function bearerToken(init: RequestInit): string | undefined;
-function bearerToken(init: RequestInit) {
-  return new Headers(init.headers).get("authorization")?.replace(/^Bearer /, "") satisfies
-    | string
-    | undefined;
+function bearerToken(init: RequestInit): string | undefined {
+  return new Headers(init.headers).get("authorization")?.replace(/^Bearer /, "");
 }
 
 const REMOTE = "https://remote.example.test";
@@ -229,12 +216,9 @@ function savedRoute(httpBaseUrl: string, connectionId: string, learned?: true) {
 function savedEnvironment(
   first: ConnectionRoute,
   ...rest: ReadonlyArray<ConnectionRoute>
-): ReadonlyMap<EnvironmentId, ConnectionCatalogEntry>;
-function savedEnvironment(first: ConnectionRoute, ...rest: ReadonlyArray<ConnectionRoute>) {
+): ReadonlyMap<EnvironmentId, ConnectionCatalogEntry> {
   const base = { target: first.target, profile: first.profile, enabled: true };
-  return new Map([
-    [SAVED_ENVIRONMENT_ID, entryWithRoutes(base, [first, ...rest])],
-  ]) satisfies ReadonlyMap<EnvironmentId, ConnectionCatalogEntry>;
+  return new Map([[SAVED_ENVIRONMENT_ID, entryWithRoutes(base, [first, ...rest])]]);
 }
 
 const PAIRED_OVER_TAILNET = savedEnvironment(

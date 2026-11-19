@@ -273,21 +273,20 @@ type Subscription =
 function subscriptionStream(
   client: MeasuredWsClient,
   subscription: Subscription,
-): Stream.Stream<StreamItem, unknown>;
-function subscriptionStream(client: MeasuredWsClient, subscription: Subscription) {
+): Stream.Stream<StreamItem, unknown> {
   if ("thread" in subscription) {
     const { thread, ...resume } = subscription;
     return client.client[ORCHESTRATION_V2_WS_METHODS.subscribeThread]({
       ...CLIENT_THREAD_SUBSCRIPTION,
       ...resume,
       threadId: thread,
-    }) satisfies Stream.Stream<StreamItem, unknown>;
+    });
   }
   const { shell: _, ...resume } = subscription;
   return client.client[ORCHESTRATION_V2_WS_METHODS.subscribeShell]({
     ...CLIENT_SHELL_SUBSCRIPTION,
     ...resume,
-  }) satisfies Stream.Stream<StreamItem, unknown>;
+  });
 }
 const subscribe = Effect.fn("transfer.subscribe")(function* (
   client: MeasuredWsClient,

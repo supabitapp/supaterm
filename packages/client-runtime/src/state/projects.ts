@@ -9,11 +9,11 @@ import {
 
 export { normalizeProjectPathForComparison };
 
-export const isWindowsPlatform = (platform: string) => {
+export const isWindowsPlatform = (platform: string): boolean => {
   return /^win(dows)?/i.test(platform);
 };
 
-function getAbsolutePathKind(value: string) {
+function getAbsolutePathKind(value: string): "unix" | "windows" | null {
   if (isWindowsDrivePath(value) || isUncPath(value)) {
     return "windows";
   }
@@ -23,78 +23,61 @@ function getAbsolutePathKind(value: string) {
   return null;
 }
 
-function preferredPathSeparator(value: string) {
+function preferredPathSeparator(value: string): "/" | "\\" {
   const absolutePathKind = getAbsolutePathKind(value);
   if (absolutePathKind === "windows") return "\\";
   if (absolutePathKind === "unix") return "/";
   return value.includes("\\") ? "\\" : "/";
 }
 
-export function hasTrailingPathSeparator(value: string) {
+export function hasTrailingPathSeparator(value: string): boolean {
   return (getAbsolutePathKind(value) === "unix" ? /\/$/ : /[\\/]$/).test(value);
 }
 
 export { isExplicitRelativePath as isExplicitRelativeProjectPath };
 
-function splitPathSegments(value: string, separator: "/" | "\\") {
+function splitPathSegments(value: string, separator: "/" | "\\"): string[] {
   return value.split(separator === "/" ? /\/+/ : /[\\/]+/).filter(Boolean);
 }
 
-function getLastPathSeparatorIndex(value: string) {
+function getLastPathSeparatorIndex(value: string): number {
   if (getAbsolutePathKind(value) === "unix") {
     return value.lastIndexOf("/");
   }
   return Math.max(value.lastIndexOf("/"), value.lastIndexOf("\\"));
 }
 
-function splitAbsolutePath(value: string) {
+function splitAbsolutePath(value: string): {
+  root: string;
+  separator: "/" | "\\";
+  segments: string[];
+} | null {
   if (isWindowsDrivePath(value)) {
     const root = `${value.slice(0, 2)}\\`;
     const segments = splitPathSegments(value.slice(root.length), "\\");
-    return { root, separator: "\\", segments } satisfies {
-      root: string;
-      separator: "/" | "\\";
-      segments: string[];
-    } | null;
+    return { root, separator: "\\", segments };
   }
   if (isUncPath(value)) {
     const segments = splitPathSegments(value, "\\");
     const [server, share, ...rest] = segments;
-    if (!server || !share)
-      return null satisfies {
-        root: string;
-        separator: "/" | "\\";
-        segments: string[];
-      } | null;
+    if (!server || !share) return null;
     return {
       root: `\\\\${server}\\${share}\\`,
       separator: "\\",
       segments: rest,
-    } satisfies {
-      root: string;
-      separator: "/" | "\\";
-      segments: string[];
-    } | null;
+    };
   }
   if (value.startsWith("/")) {
     return {
       root: "/",
       separator: "/",
       segments: splitPathSegments(value.slice(1), "/"),
-    } satisfies {
-      root: string;
-      separator: "/" | "\\";
-      segments: string[];
-    } | null;
+    };
   }
-  return null satisfies {
-    root: string;
-    separator: "/" | "\\";
-    segments: string[];
-  } | null;
+  return null;
 }
 
-export function isFilesystemBrowseQuery(value: string, platform = "") {
+export function isFilesystemBrowseQuery(value: string, platform = ""): boolean {
   const allowWindowsPaths = isWindowsPlatform(platform);
   return (
     value.startsWith("./") ||
@@ -107,11 +90,11 @@ export function isFilesystemBrowseQuery(value: string, platform = "") {
   );
 }
 
-export function isUnsupportedWindowsProjectPath(value: string, platform: string) {
+export function isUnsupportedWindowsProjectPath(value: string, platform: string): boolean {
   return isWindowsAbsolutePath(value) && !isWindowsPlatform(platform);
 }
 
-export function resolveProjectPathForDispatch(value: string, cwd?: string | null) {
+export function resolveProjectPathForDispatch(value: string, cwd?: string | null): string {
   const trimmedValue = value.trim();
   if (!isExplicitRelativePath(trimmedValue) || !cwd) {
     return normalizeProjectPathForDispatch(trimmedValue);
@@ -141,7 +124,7 @@ export function resolveProjectPathForDispatch(value: string, cwd?: string | null
 export function findProjectByPath<T extends { workspaceRoot?: string; cwd?: string }>(
   projects: ReadonlyArray<T>,
   candidatePath: string,
-) {
+): T | undefined {
   const normalizedCandidate = normalizeProjectPathForComparison(candidatePath);
   if (normalizedCandidate.length === 0) {
     return undefined;
@@ -155,7 +138,7 @@ export function findProjectByPath<T extends { workspaceRoot?: string; cwd?: stri
 export function isScratchProject(
   project: { readonly workspaceRoot: string; readonly isScratch?: true },
   scratchWorkspaceRoot: string | null | undefined,
-) {
+): boolean {
   return (
     project.isScratch === true ||
     (scratchWorkspaceRoot != null &&
@@ -163,7 +146,7 @@ export function isScratchProject(
   );
 }
 
-export function inferProjectTitleFromPath(value: string) {
+export function inferProjectTitleFromPath(value: string): string {
   const normalized = normalizeProjectPathForDispatch(value);
   const absolutePath = splitAbsolutePath(normalized);
   if (absolutePath) {
@@ -173,17 +156,17 @@ export function inferProjectTitleFromPath(value: string) {
   return segments.findLast(Boolean) ?? normalized;
 }
 
-export function appendBrowsePathSegment(currentPath: string, segment: string) {
+export function appendBrowsePathSegment(currentPath: string, segment: string): string {
   const separator = preferredPathSeparator(currentPath);
   return `${getBrowseDirectoryPath(currentPath)}${segment}${separator}`;
 }
 
-export function getBrowseLeafPathSegment(currentPath: string) {
+export function getBrowseLeafPathSegment(currentPath: string): string {
   const lastSeparatorIndex = getLastPathSeparatorIndex(currentPath);
   return currentPath.slice(lastSeparatorIndex + 1);
 }
 
-export function getBrowseDirectoryPath(currentPath: string) {
+export function getBrowseDirectoryPath(currentPath: string): string {
   if (hasTrailingPathSeparator(currentPath)) {
     return currentPath;
   }
@@ -191,7 +174,7 @@ export function getBrowseDirectoryPath(currentPath: string) {
   return lastSeparatorIndex < 0 ? currentPath : currentPath.slice(0, lastSeparatorIndex + 1);
 }
 
-export function ensureBrowseDirectoryPath(currentPath: string) {
+export function ensureBrowseDirectoryPath(currentPath: string): string {
   const trimmed = currentPath.trim();
   if (trimmed.length === 0 || hasTrailingPathSeparator(trimmed)) {
     return trimmed;
@@ -199,7 +182,7 @@ export function ensureBrowseDirectoryPath(currentPath: string) {
   return `${trimmed}${preferredPathSeparator(trimmed)}`;
 }
 
-export function getBrowseParentPath(currentPath: string) {
+export function getBrowseParentPath(currentPath: string): string | null {
   const trimmed = normalizeProjectPathForDispatch(currentPath);
   const absolutePath = splitAbsolutePath(trimmed);
   if (absolutePath) {
@@ -218,7 +201,7 @@ export function getBrowseParentPath(currentPath: string) {
   return trimmed.slice(0, lastSeparatorIndex + 1);
 }
 
-export function canNavigateUp(currentPath: string) {
+export function canNavigateUp(currentPath: string): boolean {
   return hasTrailingPathSeparator(currentPath) && getBrowseParentPath(currentPath) !== null;
 }
 

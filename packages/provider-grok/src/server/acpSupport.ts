@@ -6,8 +6,11 @@ import {
   type RuntimeMode,
 } from "@supaterm/contracts";
 import type { GrokSettings } from "../settings.ts";
+import * as SecureRandom from "effect/crypto/SecureRandom";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
+import * as Scope from "effect/Scope";
+import * as ChildProcessSpawner from "effect/process/ChildProcessSpawner";
 import * as EffectAcpErrors from "effect-acp/errors";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 import { normalizeModelSlug } from "@supaterm/shared/model";
@@ -39,7 +42,7 @@ export const GROK_SUPPORTED_RUNTIME_MODES = [
   "full-access",
 ] as const satisfies ReadonlyArray<RuntimeMode>;
 
-export function grokAcpSpawnArgs(runtimeMode?: RuntimeMode) {
+export function grokAcpSpawnArgs(runtimeMode?: RuntimeMode): ReadonlyArray<string> {
   switch (runtimeMode) {
     case undefined:
       return ["agent", "stdio"];
@@ -57,7 +60,7 @@ function buildGrokAcpSpawnInput(
   cwd: string,
   environment?: NodeJS.ProcessEnv,
   runtimeMode?: RuntimeMode,
-) {
+): AcpSessionRuntime.AcpSpawnInput {
   return {
     command: grokSettings?.binaryPath || "grok",
     args: [...grokAcpSpawnArgs(runtimeMode)],
@@ -69,13 +72,18 @@ function buildGrokAcpSpawnInput(
   };
 }
 
-function resolveGrokAuthMethodId(environment: NodeJS.ProcessEnv | undefined) {
+function resolveGrokAuthMethodId(environment: NodeJS.ProcessEnv | undefined): string {
   return environment?.[GROK_API_KEY_ENV]?.trim()
     ? GROK_AUTH_METHOD_API_KEY
     : GROK_AUTH_METHOD_CACHED_TOKEN;
 }
 
-function grokAcpRuntimeProcessOwnership(processGroupPlatform: NodeJS.Platform) {
+function grokAcpRuntimeProcessOwnership(
+  processGroupPlatform: NodeJS.Platform,
+): Pick<
+  AcpSessionRuntime.AcpSessionRuntimeOptions,
+  "ownDescendantProcessGroups" | "ownDetachedProcessGroup" | "processGroupPlatform"
+> {
   return {
     ownDescendantProcessGroups: processGroupPlatform === "linux",
     ownDetachedProcessGroup: true,
@@ -89,7 +97,9 @@ export const GROK_ACP_INITIALIZE_META = { clientType: "extension" } as const;
 
 const GROK_ALLOW_EDITS_SESSION_OPTION_ID = "allow-edits-session";
 
-export function grokApprovalOptions(request: EffectAcpSchema.RequestPermissionRequest) {
+export function grokApprovalOptions(
+  request: EffectAcpSchema.RequestPermissionRequest,
+): ReadonlyArray<ProviderApprovalOption> {
   const has = (kind: EffectAcpSchema.PermissionOption["kind"], optionId?: string) =>
     request.options.some(
       (option) =>
@@ -102,12 +112,16 @@ export function grokApprovalOptions(request: EffectAcpSchema.RequestPermissionRe
       ? [{ decision: "acceptForSession", label: "Allow all edits this session" } as const]
       : []),
     ...(has("allow_once") ? [{ decision: "accept", label: "Approve" } as const] : []),
-  ] satisfies ReadonlyArray<ProviderApprovalOption>;
+  ];
 }
 
 export const makeGrokAcpRuntime = Effect.fn("GrokAcpSupport.makeGrokAcpRuntime")(function* (
   input: GrokAcpRuntimeInput,
-) {
+): Effect.fn.Return<
+  AcpSessionRuntime.AcpSessionRuntime["Service"],
+  EffectAcpErrors.AcpError,
+  ChildProcessSpawner.ChildProcessSpawner | SecureRandom.SecureRandom | Scope.Scope
+> {
   const processGroupPlatform = yield* HostProcess.Platform.pipe(Effect.provide(NodeServices.layer));
   const acpContext = yield* Layer.build(
     AcpSessionRuntime.layer({
@@ -133,7 +147,7 @@ export const makeGrokAcpRuntime = Effect.fn("GrokAcpSupport.makeGrokAcpRuntime")
 
 export const GROK_DEFAULT_MODEL_SLUG = "grok-build";
 
-export function resolveGrokAcpBaseModelId(model: string | null | undefined) {
+export function resolveGrokAcpBaseModelId(model: string | null | undefined): string {
   const trimmed = model?.trim();
   const base = trimmed && trimmed.length > 0 ? trimmed : GROK_DEFAULT_MODEL_SLUG;
   return normalizeModelSlug(base, GROK_DRIVER_KIND) ?? GROK_DEFAULT_MODEL_SLUG;
@@ -141,11 +155,11 @@ export function resolveGrokAcpBaseModelId(model: string | null | undefined) {
 
 const GROK_REASONING_EFFORT_TOKEN = /^[a-z0-9][a-z0-9._-]{0,31}$/i;
 
-export function isValidGrokReasoningEffortToken(value: string) {
+export function isValidGrokReasoningEffortToken(value: string): boolean {
   return GROK_REASONING_EFFORT_TOKEN.test(value);
 }
 
-function normalizeGrokReasoningEffort(value: string | undefined) {
+function normalizeGrokReasoningEffort(value: string | undefined): string | undefined {
   const effort = value?.trim();
   return effort && isValidGrokReasoningEffortToken(effort) ? effort : undefined;
 }
@@ -155,7 +169,7 @@ export function currentGrokModelIdFromSessionSetup(
     | EffectAcpSchema.LoadSessionResponse
     | EffectAcpSchema.NewSessionResponse
     | EffectAcpSchema.ResumeSessionResponse,
-) {
+): string | undefined {
   return sessionSetupResult.models?.currentModelId?.trim() || undefined;
 }
 
@@ -164,7 +178,7 @@ export function currentGrokReasoningEffortFromSessionSetup(
     | EffectAcpSchema.LoadSessionResponse
     | EffectAcpSchema.NewSessionResponse
     | EffectAcpSchema.ResumeSessionResponse,
-) {
+): string | undefined {
   const modelState = sessionSetupResult.models;
   if (!modelState) {
     return undefined;
@@ -189,15 +203,7 @@ export function applyGrokAcpModelSelection<E>(input: {
   readonly requestedModelId: string | undefined;
   readonly requestedReasoningEffort?: string | undefined;
   readonly mapError: (cause: EffectAcpErrors.AcpError) => E;
-}): Effect.Effect<string | undefined, E>;
-export function applyGrokAcpModelSelection<E>(input: {
-  readonly runtime: Pick<AcpSessionRuntime.AcpSessionRuntime["Service"], "setSessionModel">;
-  readonly currentModelId: string | undefined;
-  readonly currentReasoningEffort?: string | undefined;
-  readonly requestedModelId: string | undefined;
-  readonly requestedReasoningEffort?: string | undefined;
-  readonly mapError: (cause: EffectAcpErrors.AcpError) => E;
-}) {
+}): Effect.Effect<string | undefined, E> {
   const requestedModelId =
     input.requestedModelId === GROK_DEFAULT_MODEL_SLUG ? undefined : input.requestedModelId;
   const modelChanged = requestedModelId !== undefined && requestedModelId !== input.currentModelId;
@@ -209,14 +215,11 @@ export function applyGrokAcpModelSelection<E>(input: {
     reasoningProvided && reasoningEffort !== input.currentReasoningEffort;
   const targetModelId = requestedModelId ?? input.currentModelId;
   if ((!modelChanged && !reasoningEffortChanged) || targetModelId === undefined) {
-    return Effect.succeed(input.currentModelId) satisfies Effect.Effect<string | undefined, E>;
+    return Effect.succeed(input.currentModelId);
   }
   const reasoningMeta =
     reasoningProvided && reasoningEffort !== undefined ? { reasoningEffort } : undefined;
   return input.runtime
     .setSessionModel(targetModelId, reasoningMeta)
-    .pipe(Effect.mapError(input.mapError), Effect.as(targetModelId)) satisfies Effect.Effect<
-    string | undefined,
-    E
-  >;
+    .pipe(Effect.mapError(input.mapError), Effect.as(targetModelId));
 }

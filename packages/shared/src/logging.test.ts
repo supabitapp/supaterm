@@ -12,13 +12,13 @@ import { RotatingFileSink, makeAsyncRotatingFileSink } from "./logging.ts";
 
 const tempDirectories: string[] = [];
 
-const makeTempDirectory = () => {
+const makeTempDirectory = (): string => {
   const directory = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "supaterm-logging-"));
   tempDirectories.push(directory);
   return directory;
 };
 
-const captureError = (run: () => unknown) => {
+const captureError = (run: () => unknown): unknown => {
   try {
     run();
   } catch (cause) {

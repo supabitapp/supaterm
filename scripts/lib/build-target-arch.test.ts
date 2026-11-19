@@ -6,7 +6,7 @@ import * as HostProcess from "@supaterm/shared/HostProcess";
 
 import { getDefaultBuildArch } from "./build-target-arch.ts";
 
-const compactEnv = (env: Readonly<Record<string, string | undefined>>) =>
+const compactEnv = (env: Readonly<Record<string, string | undefined>>): Record<string, string> =>
   Object.fromEntries(
     Object.entries(env).filter((entry): entry is [string, string] => entry[1] !== undefined),
   );

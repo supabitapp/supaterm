@@ -43,7 +43,7 @@ function applyNotificationBadge(
   native: NotificationBadgeNative,
   platform: NodeJS.Platform,
   { count, image }: typeof NotificationBadge.Type,
-) {
+): void {
   try {
     if (native.hasFocusedWindow()) count = 0;
     if (platform === "win32") {

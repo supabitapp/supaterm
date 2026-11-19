@@ -44,7 +44,7 @@ export class ChromiumCookieReadError extends Schema.TaggedError<ChromiumCookieRe
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Could not read Chromium cookies at ${this.cookieDatabasePath}: ${this.reason}.`;
   }
 }
@@ -71,7 +71,7 @@ const decodeSchemaVersion = Schema.decodeUnknownEffect(
   Schema.Tuple([Schema.Struct({ value: SchemaVersion })]),
 );
 
-const sameSiteFromColumn: (value: number) => ImportedCookie["sameSite"] = (value: number) => {
+const sameSiteFromColumn = (value: number): ImportedCookie["sameSite"] => {
   if (value === 0) return "no_restriction";
   if (value === 1) return "lax";
   if (value === 2) return "strict";
@@ -79,12 +79,16 @@ const sameSiteFromColumn: (value: number) => ImportedCookie["sameSite"] = (value
 };
 
 const WEBKIT_EPOCH_OFFSET_SECONDS = 11_644_473_600;
-const toUnixSeconds: (webkitSeconds: number) => number | undefined = (webkitSeconds: number) => {
+const toUnixSeconds = (webkitSeconds: number): number | undefined => {
   if (webkitSeconds <= 0) return undefined;
   return webkitSeconds - WEBKIT_EPOCH_OFFSET_SECONDS;
 };
 
-const stripDomainBinding = (plaintext: Buffer, domain: string, schemaVersion: number) => {
+const stripDomainBinding = (
+  plaintext: Buffer,
+  domain: string,
+  schemaVersion: number,
+): Buffer | null => {
   if (schemaVersion < 24) return plaintext;
   const domainHash = NodeCrypto.createHash("sha256").update(domain).digest();
   return plaintext.length >= 32 && plaintext.subarray(0, 32).equals(domainHash)
@@ -92,7 +96,12 @@ const stripDomainBinding = (plaintext: Buffer, domain: string, schemaVersion: nu
     : null;
 };
 
-const decryptCbc = (payload: Buffer, key: Buffer, domain: string, schemaVersion: number) => {
+const decryptCbc = (
+  payload: Buffer,
+  key: Buffer,
+  domain: string,
+  schemaVersion: number,
+): string | null => {
   try {
     const decipher = NodeCrypto.createDecipheriv("aes-128-cbc", key, AES_CBC_IV);
     decipher.setAutoPadding(true);
@@ -103,7 +112,12 @@ const decryptCbc = (payload: Buffer, key: Buffer, domain: string, schemaVersion:
   }
 };
 
-const decryptGcm = (payload: Buffer, key: Buffer, domain: string, schemaVersion: number) => {
+const decryptGcm = (
+  payload: Buffer,
+  key: Buffer,
+  domain: string,
+  schemaVersion: number,
+): string | null => {
   if (payload.length < AES_GCM_NONCE_LENGTH + AES_GCM_TAG_LENGTH) return null;
   try {
     const nonce = payload.subarray(0, AES_GCM_NONCE_LENGTH);
@@ -122,49 +136,38 @@ export function decryptChromiumValue(
   encrypted: Uint8Array,
   keys: ChromiumKeyMaterial,
   domain: string,
-  schemaVersion?: number,
-  platform?: NodeJS.Platform,
-): string | null;
-export function decryptChromiumValue(
-  encrypted: Uint8Array,
-  keys: ChromiumKeyMaterial,
-  domain: string,
   schemaVersion = 23,
   platform: NodeJS.Platform = "linux",
-) {
+): string | null {
   const buffer = Buffer.from(encrypted);
-  if (buffer.length === 0) return "" satisfies string | null;
+  if (buffer.length === 0) return "";
   const prefix = buffer.subarray(0, 3).toString("latin1");
   const payload = buffer.subarray(3);
 
   if (platform === "win32") {
-    return (
-      prefix === "v10" && keys.gcmV10
-        ? decryptGcm(payload, keys.gcmV10, domain, schemaVersion)
-        : null
-    ) satisfies string | null;
+    return prefix === "v10" && keys.gcmV10
+      ? decryptGcm(payload, keys.gcmV10, domain, schemaVersion)
+      : null;
   }
 
   if (prefix === "v10") {
-    if (!keys.cbcV10) return null satisfies string | null;
-    return (decryptCbc(payload, keys.cbcV10, domain, schemaVersion) ??
-      (keys.cbcEmpty ? decryptCbc(payload, keys.cbcEmpty, domain, schemaVersion) : null)) satisfies
-      | string
-      | null;
+    if (!keys.cbcV10) return null;
+    return (
+      decryptCbc(payload, keys.cbcV10, domain, schemaVersion) ??
+      (keys.cbcEmpty ? decryptCbc(payload, keys.cbcEmpty, domain, schemaVersion) : null)
+    );
   }
   if (prefix === "v11") {
-    if (!keys.cbcV11) return null satisfies string | null;
-    return (decryptCbc(payload, keys.cbcV11, domain, schemaVersion) ??
-      (keys.cbcEmpty ? decryptCbc(payload, keys.cbcEmpty, domain, schemaVersion) : null)) satisfies
-      | string
-      | null;
+    if (!keys.cbcV11) return null;
+    return (
+      decryptCbc(payload, keys.cbcV11, domain, schemaVersion) ??
+      (keys.cbcEmpty ? decryptCbc(payload, keys.cbcEmpty, domain, schemaVersion) : null)
+    );
   }
   if (platform === "darwin" || platform === "linux") {
-    return (stripDomainBinding(buffer, domain, schemaVersion)?.toString("utf8") ?? null) satisfies
-      | string
-      | null;
+    return stripDomainBinding(buffer, domain, schemaVersion)?.toString("utf8") ?? null;
   }
-  return null satisfies string | null;
+  return null;
 }
 
 export const readChromiumCookieDatabase = Effect.fn("ChromiumCookies.readChromiumCookieDatabase")(
@@ -255,13 +258,13 @@ export interface ChromiumCookieSource {
   readonly platform: NodeJS.Platform;
 }
 
-export const readChromiumCookies: (
+export const readChromiumCookies = Effect.fn("ChromiumCookies.readChromiumCookies")(function* (
   source: ChromiumCookieSource,
-) => Effect.Effect<
+): Effect.fn.Return<
   CookieReadResult,
   ChromiumCookieReadError,
   FileSystem.FileSystem | Path.Path | Scope.Scope | ChildProcessSpawner.ChildProcessSpawner
-> = Effect.fn("ChromiumCookies.readChromiumCookies")(function* (source: ChromiumCookieSource) {
+> {
   const keys = yield* (
     source.platform === "win32" && source.windowsLocalStatePath
       ? readWindowsKey(source.windowsLocalStatePath).pipe(Effect.map((gcmV10) => ({ gcmV10 })))

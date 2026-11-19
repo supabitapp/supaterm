@@ -6,7 +6,7 @@ const ENV = "/usr/bin/env";
 let chdirSupport: Promise<boolean> | undefined;
 
 /** Whether `/usr/bin/env` takes `-C` (GNU coreutils 8.28 and later; BusyBox does not). */
-export const supportsEnvChdir = () =>
+export const supportsEnvChdir = (): Promise<boolean> =>
   (chdirSupport ??= new Promise((resolve) =>
     NodeChildProcess.execFile(ENV, ["-C", "/", "--", "/bin/sh", "-c", ":"], (error) =>
       resolve(error === null),
@@ -22,7 +22,7 @@ export function envTrampoline<Arg>(
   command: string,
   args: ReadonlyArray<Arg>,
   cwd: string | undefined,
-) {
+): { readonly command: string; readonly args: Array<Arg | string> } | undefined {
   if (command === "" || command === "-" || command.includes("=")) return undefined;
   return {
     command: ENV,

@@ -57,7 +57,7 @@ function listen() {
 }
 
 /** One animation loop for every bolt computer on the page, asleep while the tab is hidden. */
-export function subscribe(tick: Tick) {
+export function subscribe(tick: Tick): () => void {
   listen();
   ticks.add(tick);
   start();
@@ -67,7 +67,7 @@ export function subscribe(tick: Tick) {
   };
 }
 
-export function onPointerMove(move: () => void) {
+export function onPointerMove(move: () => void): () => void {
   listen();
   moves.add(move);
   return () => {

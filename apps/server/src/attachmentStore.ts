@@ -30,7 +30,7 @@ export const PENDING_ATTACHMENT_THREAD_SEGMENT = "pending";
 const PENDING_ATTACHMENT_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 const PARTIAL_UPLOAD_MAX_AGE_MS = 60 * 60 * 1000;
 
-export function toSafeThreadAttachmentSegment(threadId: string) {
+export function toSafeThreadAttachmentSegment(threadId: string): string | null {
   const segment = threadId
     .trim()
     .toLowerCase()
@@ -45,7 +45,7 @@ export function toSafeThreadAttachmentSegment(threadId: string) {
   return segment === PENDING_ATTACHMENT_THREAD_SEGMENT ? "_pending" : segment;
 }
 
-export function attachmentFileExtension(fileName: string) {
+export function attachmentFileExtension(fileName: string): string {
   const extension = NodePath.extname(fileName).toLowerCase();
   if (extension === ".part" || !/^\.[a-z0-9]{1,10}$/.test(extension)) {
     return ".bin";
@@ -53,7 +53,7 @@ export function attachmentFileExtension(fileName: string) {
   return extension;
 }
 
-function attachmentIdExtensionSuffix(extension: string | undefined) {
+function attachmentIdExtensionSuffix(extension: string | undefined): string {
   if (!extension) {
     return "";
   }
@@ -63,12 +63,11 @@ function attachmentIdExtensionSuffix(extension: string | undefined) {
     : "-bin";
 }
 
-export function createPendingAttachmentId(extension?: string): string;
-export function createPendingAttachmentId(extension?: string) {
-  return `${PENDING_ATTACHMENT_THREAD_SEGMENT}-${NodeCrypto.randomUUID()}${attachmentIdExtensionSuffix(extension)}` satisfies string;
+export function createPendingAttachmentId(extension?: string): string {
+  return `${PENDING_ATTACHMENT_THREAD_SEGMENT}-${NodeCrypto.randomUUID()}${attachmentIdExtensionSuffix(extension)}`;
 }
 
-export function parseAttachmentUuid(attachmentId: string) {
+export function parseAttachmentUuid(attachmentId: string): string | null {
   const normalizedId = normalizeAttachmentRelativePath(attachmentId);
   if (!normalizedId || normalizedId.includes("/") || normalizedId.includes(".")) {
     return null;
@@ -76,7 +75,7 @@ export function parseAttachmentUuid(attachmentId: string) {
   return normalizedId.match(ATTACHMENT_ID_PATTERN)?.[2]?.toLowerCase() ?? null;
 }
 
-export function parseAttachmentFileExtension(attachmentId: string) {
+export function parseAttachmentFileExtension(attachmentId: string): string | null {
   const normalizedId = normalizeAttachmentRelativePath(attachmentId);
   if (!normalizedId || normalizedId.includes("/") || normalizedId.includes(".")) {
     return null;
@@ -84,7 +83,7 @@ export function parseAttachmentFileExtension(attachmentId: string) {
   return normalizedId.match(ATTACHMENT_ID_PATTERN)?.[3]?.toLowerCase() ?? null;
 }
 
-export function createAttachmentId(threadId: string, extension?: string) {
+export function createAttachmentId(threadId: string, extension?: string): string | null {
   const threadSegment = toSafeThreadAttachmentSegment(threadId);
   if (!threadSegment) {
     return null;
@@ -92,7 +91,10 @@ export function createAttachmentId(threadId: string, extension?: string) {
   return `${threadSegment}-${NodeCrypto.randomUUID()}${attachmentIdExtensionSuffix(extension)}`;
 }
 
-export function createDeterministicAttachmentId(threadId: string, stableKey: string) {
+export function createDeterministicAttachmentId(
+  threadId: string,
+  stableKey: string,
+): string | null {
   const threadSegment = toSafeThreadAttachmentSegment(threadId);
   if (!threadSegment) return null;
   const hash = NodeCrypto.createHash("sha256")
@@ -109,12 +111,16 @@ export function createDeterministicAttachmentId(threadId: string, stableKey: str
  * earlier image's id and file. Clients cache attachment images by id, which
  * relies on ids never changing bytes.
  */
-export function chatAttachmentStableKey(messageId: string, index: number, bytes: Uint8Array) {
+export function chatAttachmentStableKey(
+  messageId: string,
+  index: number,
+  bytes: Uint8Array,
+): string {
   const digest = NodeCrypto.createHash("sha256").update(bytes).digest("hex");
   return `${messageId}:${index}:${digest}`;
 }
 
-export function parseThreadSegmentFromAttachmentId(attachmentId: string) {
+export function parseThreadSegmentFromAttachmentId(attachmentId: string): string | null {
   const normalizedId = normalizeAttachmentRelativePath(attachmentId);
   if (!normalizedId || normalizedId.includes("/") || normalizedId.includes(".")) {
     return null;
@@ -144,7 +150,7 @@ export function threadHtmlRenderAttachmentIds(
   });
 }
 
-export function attachmentRelativePath(attachment: ChatAttachment) {
+export function attachmentRelativePath(attachment: ChatAttachment): string | null {
   switch (attachment.type) {
     case "image": {
       const extension = inferImageExtension({
@@ -163,25 +169,21 @@ export function attachmentRelativePath(attachment: ChatAttachment) {
 export function resolveAttachmentPath(input: {
   readonly attachmentsDir: string;
   readonly attachment: ChatAttachment;
-}): string | null;
-export function resolveAttachmentPath(input: {
-  readonly attachmentsDir: string;
-  readonly attachment: ChatAttachment;
-}) {
+}): string | null {
   const relativePath = attachmentRelativePath(input.attachment);
   if (!relativePath) {
-    return null satisfies string | null;
+    return null;
   }
   return resolveAttachmentRelativePath({
     attachmentsDir: input.attachmentsDir,
     relativePath,
-  }) satisfies string | null;
+  });
 }
 
 export function resolveAttachmentPathById(input: {
   readonly attachmentsDir: string;
   readonly attachmentId: string;
-}) {
+}): string | null {
   const normalizedId = normalizeAttachmentRelativePath(input.attachmentId);
   if (!normalizedId || normalizedId.includes("/") || normalizedId.includes(".")) {
     return null;
@@ -219,21 +221,18 @@ export function planAttachmentClaim(input: {
   readonly attachmentsDir: string;
   readonly threadId: string;
   readonly attachmentId: string;
-}) {
+}): AttachmentClaimPlan {
   const uuid = parseAttachmentUuid(input.attachmentId);
   const requestedSegment = parseThreadSegmentFromAttachmentId(input.attachmentId);
   if (!uuid || !requestedSegment) {
-    return { ok: false, reason: "invalid attachment id" } satisfies AttachmentClaimPlan;
+    return { ok: false, reason: "invalid attachment id" };
   }
 
   if (!toSafeThreadAttachmentSegment(input.threadId)) {
-    return { ok: false, reason: "invalid thread id" } satisfies AttachmentClaimPlan;
+    return { ok: false, reason: "invalid thread id" };
   }
   if (requestedSegment !== PENDING_ATTACHMENT_THREAD_SEGMENT) {
-    return {
-      ok: false,
-      reason: "attachment must be a pending upload",
-    } satisfies AttachmentClaimPlan;
+    return { ok: false, reason: "attachment must be a pending upload" };
   }
 
   const currentPath = resolveAttachmentPathById({
@@ -241,15 +240,12 @@ export function planAttachmentClaim(input: {
     attachmentId: input.attachmentId,
   });
   if (!currentPath) {
-    return {
-      ok: false,
-      reason: "attachment not found (removed or expired)",
-    } satisfies AttachmentClaimPlan;
+    return { ok: false, reason: "attachment not found (removed or expired)" };
   }
   const fileExtension = parseAttachmentFileExtension(input.attachmentId) ?? undefined;
   const finalId = createAttachmentId(input.threadId, fileExtension);
   if (!finalId) {
-    return { ok: false, reason: "failed to create attachment id" } satisfies AttachmentClaimPlan;
+    return { ok: false, reason: "failed to create attachment id" };
   }
 
   const expectedFinalPath = resolveAttachmentRelativePath({
@@ -257,20 +253,20 @@ export function planAttachmentClaim(input: {
     relativePath: `${finalId}${NodePath.extname(currentPath)}`,
   });
   if (!expectedFinalPath) {
-    return { ok: false, reason: "failed to resolve attachment path" } satisfies AttachmentClaimPlan;
+    return { ok: false, reason: "failed to resolve attachment path" };
   }
   return {
     ok: true,
     finalId,
     currentPath,
     finalPath: expectedFinalPath,
-  } satisfies AttachmentClaimPlan;
+  };
 }
 
 export function sweepStalePendingAttachments(input: {
   readonly attachmentsDir: string;
   readonly nowMs: number;
-}) {
+}): { readonly deleted: number } {
   let entries: string[];
   try {
     entries = NodeFS.readdirSync(input.attachmentsDir);
@@ -314,7 +310,7 @@ export function sweepStalePendingAttachments(input: {
   return { deleted };
 }
 
-function parseAttachmentIdFromRelativePath(relativePath: string) {
+function parseAttachmentIdFromRelativePath(relativePath: string): string | null {
   const normalized = normalizeAttachmentRelativePath(relativePath);
   if (!normalized || normalized.includes("/")) {
     return null;

@@ -14,7 +14,7 @@ import {
 function makeMenuSession(input: {
   readonly terminalId: string;
   readonly status: TerminalMenuSession["status"];
-}) {
+}): TerminalMenuSession {
   return {
     terminalId: input.terminalId,
     cwd: null,

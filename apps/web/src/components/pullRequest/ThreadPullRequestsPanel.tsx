@@ -363,7 +363,7 @@ function LinkRowImpl({
 
 const LinkRow = memo(LinkRowImpl);
 
-function latestSyncedAt(links: ReadonlyArray<ThreadPullRequestLink>) {
+function latestSyncedAt(links: ReadonlyArray<ThreadPullRequestLink>): string | null {
   let latest: string | null = null;
   for (const link of links) {
     const at = link.snapshot?.syncedAt;

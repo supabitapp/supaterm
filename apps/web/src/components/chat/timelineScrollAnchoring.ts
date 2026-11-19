@@ -12,7 +12,7 @@ export function observeTimelineRun(
     readonly queued: boolean;
     readonly messageId: MessageId | null;
   },
-) {
+): { observation: TimelineRunObservation; anchorMessageId: MessageId | null } {
   const observation = {
     threadKey: input.threadKey,
     hydrated: input.hydrated,
@@ -46,7 +46,7 @@ interface TimelineListMeasurementState {
   readonly sizeAtIndex: (index: number) => number | undefined;
 }
 
-function getRowBottom(state: TimelineListMeasurementState, index: number) {
+function getRowBottom(state: TimelineListMeasurementState, index: number): number | null {
   const top = state.positionAtIndex(index);
   const height = state.sizeAtIndex(index);
   if (
@@ -69,7 +69,7 @@ function getRowBottom(state: TimelineListMeasurementState, index: number) {
 export function timelineContentOverflowsViewport(
   state: TimelineListMeasurementState | undefined,
   input: { readonly composerInset: number; readonly anchorOffset: number },
-) {
+): boolean {
   if (!state || !state.data || state.data.length === 0) {
     return false;
   }
@@ -103,7 +103,7 @@ export function resolveDisclosureRevealScrollDelta({
   readonly viewportBottom: number;
   readonly composerOverlayHeight: number;
   readonly anchorOffset: number;
-}) {
+}): number {
   const hiddenBelow = rowBottom - (viewportBottom - composerOverlayHeight);
   if (!(hiddenBelow > 0)) return 0;
   const roomAbove = rowTop - (viewportTop + anchorOffset);

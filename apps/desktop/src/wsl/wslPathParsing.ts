@@ -10,7 +10,7 @@ export interface WslConfig {
 
 const DISTRO_NAME_PATTERN = /^(?!\.{1,2}$)[\w.-](?:[\w .-]*[\w.-])?$/;
 
-export function parseWslDistroList(stdout: Buffer) {
+export function parseWslDistroList(stdout: Buffer): readonly WslDistro[] {
   const hasUtf16Bom = stdout.length >= 2 && stdout[0] === 0xff && stdout[1] === 0xfe;
   const likelyUtf16Le =
     hasUtf16Bom ||
@@ -36,14 +36,14 @@ export function parseWslDistroList(stdout: Buffer) {
   return distros;
 }
 
-export function extractDistroFromUncPath(windowsPath: string) {
+export function extractDistroFromUncPath(windowsPath: string): string | null {
   const match = /^\\\\(?:wsl\.localhost|wsl\$)\\([^\\]+)/i.exec(windowsPath);
   if (!match) return null;
   const candidate = match[1]!;
   return DISTRO_NAME_PATTERN.test(candidate) ? candidate : null;
 }
 
-export function wslUncPathToLinuxPath(windowsPath: string) {
+export function wslUncPathToLinuxPath(windowsPath: string): string | null {
   const match = /^\\\\(?:wsl\.localhost|wsl\$)\\([^\\]+)(?:\\(.*))?$/i.exec(windowsPath.trim());
   if (!match) return null;
 
@@ -56,7 +56,7 @@ export function wslUncPathToLinuxPath(windowsPath: string) {
   return `/${rest.split("\\").filter(Boolean).join("/")}`;
 }
 
-function resolveWslHomeUncPath(config: WslConfig, distros: readonly WslDistro[]) {
+function resolveWslHomeUncPath(config: WslConfig, distros: readonly WslDistro[]): string | null {
   const distroName = config.distro ?? distros.find((distro) => distro.isDefault)?.name ?? null;
   return distroName ? `\\\\wsl.localhost\\${distroName}\\home` : null;
 }
@@ -66,7 +66,7 @@ export function resolveWslPickFolderDefaultPath(
   config: WslConfig,
   distros: readonly WslDistro[],
   userHome: string | null = null,
-) {
+): string | null {
   const homePath = resolveWslHomeUncPath(config, distros);
   if (typeof rawOptions !== "object" || rawOptions === null) {
     return homePath;
@@ -112,6 +112,6 @@ export function resolveWslPickFolderDefaultPath(
   return homePath;
 }
 
-export function isValidDistroName(value: string) {
+export function isValidDistroName(value: string): boolean {
   return DISTRO_NAME_PATTERN.test(value);
 }

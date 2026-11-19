@@ -32,7 +32,7 @@ const cacheCodec = Schema.fromJsonString(
 const encodeCache = Schema.encodeSync(cacheCodec);
 const decodeCache = Schema.decodeUnknownEffect(cacheCodec);
 
-function envOutput(values: Readonly<Record<string, string>>) {
+function envOutput(values: Readonly<Record<string, string>>): string {
   return Object.entries(values)
     .flatMap(([name, value]) => [
       `__SUPATERM_ENV_${name}_START__`,
@@ -42,7 +42,7 @@ function envOutput(values: Readonly<Record<string, string>>) {
     .join("\n");
 }
 
-function makeProcess(output: string, exitCode = 0) {
+function makeProcess(output: string, exitCode = 0): ChildProcessSpawner.ChildProcessHandle {
   const stdout = output.length === 0 ? Stream.empty : Stream.make(textEncoder.encode(output));
   return ChildProcessSpawner.makeHandle({
     pid: ChildProcessSpawner.ProcessId(123),
@@ -59,7 +59,10 @@ function makeProcess(output: string, exitCode = 0) {
   });
 }
 
-function makeSlowProcess(output: string, delay: Duration.Input) {
+function makeSlowProcess(
+  output: string,
+  delay: Duration.Input,
+): ChildProcessSpawner.ChildProcessHandle {
   const stdout = Stream.fromEffect(Effect.as(Effect.sleep(delay), textEncoder.encode(output)));
   return ChildProcessSpawner.makeHandle({
     pid: ChildProcessSpawner.ProcessId(125),
@@ -76,7 +79,7 @@ function makeSlowProcess(output: string, delay: Duration.Input) {
   });
 }
 
-function makeHungProcess() {
+function makeHungProcess(): ChildProcessSpawner.ChildProcessHandle {
   return ChildProcessSpawner.makeHandle({
     pid: ChildProcessSpawner.ProcessId(124),
     stdout: Stream.never,
@@ -92,7 +95,10 @@ function makeHungProcess() {
   });
 }
 
-function withProcessEnv<A, E, R>(env: NodeJS.ProcessEnv, effect: Effect.Effect<A, E, R>) {
+function withProcessEnv<A, E, R>(
+  env: NodeJS.ProcessEnv,
+  effect: Effect.Effect<A, E, R>,
+): Effect.Effect<A, E, R> {
   return Effect.acquireUseRelease(
     Effect.sync(() => {
       const previous = process.env;

@@ -168,7 +168,7 @@ function toActor(raw: Schema.Schema.Type<typeof RawIdentitySchema> | null | unde
     : { login, name: trimmed(raw?.displayName), avatarUrl: trimmed(raw?.imageUrl) };
 }
 
-function toState(raw: Schema.Schema.Type<typeof RawPullRequestSchema>) {
+function toState(raw: Schema.Schema.Type<typeof RawPullRequestSchema>): PullRequestState {
   switch (raw.status?.trim().toLowerCase()) {
     case "completed":
       return "merged";
@@ -179,7 +179,7 @@ function toState(raw: Schema.Schema.Type<typeof RawPullRequestSchema>) {
   }
 }
 
-function toMergeability(value: string | null | undefined) {
+function toMergeability(value: string | null | undefined): PullRequestMergeability {
   switch (value?.trim().toLowerCase()) {
     case "succeeded":
       return "mergeable";
@@ -192,14 +192,18 @@ function toMergeability(value: string | null | undefined) {
   }
 }
 
-function toLocation(raw: Schema.Schema.Type<typeof RawPullRequestSchema>) {
+function toLocation(
+  raw: Schema.Schema.Type<typeof RawPullRequestSchema>,
+): AzureDevOpsRepositoryLocation | null {
   const project = trimmed(raw.repository?.project?.name);
   const repository = trimmed(raw.repository?.name);
   if (project === null || repository === null) return null;
   return { project, repository };
 }
 
-function toAutoMergeMethod(raw: Schema.Schema.Type<typeof RawPullRequestSchema>) {
+function toAutoMergeMethod(
+  raw: Schema.Schema.Type<typeof RawPullRequestSchema>,
+): PullRequestMergeMethod | undefined {
   if (raw.autoCompleteSetBy == null) return undefined;
   switch (raw.completionOptions?.mergeStrategy?.trim().toLowerCase()) {
     case "squash":
@@ -214,7 +218,9 @@ function toAutoMergeMethod(raw: Schema.Schema.Type<typeof RawPullRequestSchema>)
   }
 }
 
-function toPullRequest(raw: Schema.Schema.Type<typeof RawPullRequestSchema>) {
+function toPullRequest(
+  raw: Schema.Schema.Type<typeof RawPullRequestSchema>,
+): AzureDevOpsPullRequest | null {
   const autoMergeMethod = toAutoMergeMethod(raw);
   const reviewers = (raw.reviewers ?? []).flatMap((reviewer) => {
     const actor = toActor(reviewer);
@@ -233,8 +239,7 @@ function toPullRequest(raw: Schema.Schema.Type<typeof RawPullRequestSchema>) {
   );
   const headBranch = trimmed(normalizeRefName(raw.sourceRefName));
   const baseBranch = trimmed(normalizeRefName(raw.targetRefName));
-  if (url === null || headBranch === null || baseBranch === null)
-    return null satisfies AzureDevOpsPullRequest | null;
+  if (url === null || headBranch === null || baseBranch === null) return null;
   return {
     number: raw.pullRequestId,
     title: raw.title,
@@ -254,7 +259,7 @@ function toPullRequest(raw: Schema.Schema.Type<typeof RawPullRequestSchema>) {
     location: toLocation(raw),
     autoMergeEnabled: (raw.autoCompleteSetBy ?? null) !== null,
     ...(autoMergeMethod === undefined ? {} : { autoMergeMethod }),
-  } satisfies AzureDevOpsPullRequest | null;
+  };
 }
 
 const decodeUnknownList = decodeJsonResult(Schema.Array(Schema.Unknown));
@@ -276,14 +281,10 @@ export interface AzureDevOpsPullRequestBatch {
 
 export function decodePullRequestListJson(
   raw: string,
-): Result.Result<AzureDevOpsPullRequestBatch, DecodeFailure>;
-export function decodePullRequestListJson(raw: string) {
+): Result.Result<AzureDevOpsPullRequestBatch, DecodeFailure> {
   const decoded = decodeUnknownList(raw);
   if (!Result.isSuccess(decoded)) {
-    return Result.fail(decoded.failure) satisfies Result.Result<
-      AzureDevOpsPullRequestBatch,
-      DecodeFailure
-    >;
+    return Result.fail(decoded.failure);
   }
   const items: AzureDevOpsPullRequest[] = [];
   const rawIndexes: number[] = [];
@@ -296,37 +297,29 @@ export function decodePullRequestListJson(raw: string) {
       rawIndexes.push(rawIndex);
     }
   }
-  return Result.succeed({
-    items,
-    rawIndexes,
-    rawCount: decoded.success.length,
-  }) satisfies Result.Result<AzureDevOpsPullRequestBatch, DecodeFailure>;
+  return Result.succeed({ items, rawIndexes, rawCount: decoded.success.length });
 }
 
 /** Null means Azure returned insufficient data. */
 export function decodePullRequestJson(
   raw: string,
-): Result.Result<AzureDevOpsPullRequest | null, DecodeFailure>;
-export function decodePullRequestJson(raw: string) {
+): Result.Result<AzureDevOpsPullRequest | null, DecodeFailure> {
   const decoded = decodePullRequest(raw);
-  return (
-    Result.isSuccess(decoded)
-      ? Result.succeed(toPullRequest(decoded.success))
-      : Result.fail(decoded.failure)
-  ) satisfies Result.Result<AzureDevOpsPullRequest | null, DecodeFailure>;
+  return Result.isSuccess(decoded)
+    ? Result.succeed(toPullRequest(decoded.success))
+    : Result.fail(decoded.failure);
 }
 
-export function decodeViewerJson(raw: string): Result.Result<string | null, DecodeFailure>;
-export function decodeViewerJson(raw: string) {
+export function decodeViewerJson(raw: string): Result.Result<string | null, DecodeFailure> {
   const decoded = decodeViewer(raw);
-  return (
-    Result.isSuccess(decoded)
-      ? Result.succeed(trimmed(decoded.success.user?.name))
-      : Result.fail(decoded.failure)
-  ) satisfies Result.Result<string | null, DecodeFailure>;
+  return Result.isSuccess(decoded)
+    ? Result.succeed(trimmed(decoded.success.user?.name))
+    : Result.fail(decoded.failure);
 }
 
-export function decodeThreadsJson(raw: string) {
+export function decodeThreadsJson(
+  raw: string,
+): Result.Result<ReadonlyArray<PullRequestComment>, DecodeFailure> {
   const decoded = decodeThreadPage(raw);
   if (!Result.isSuccess(decoded)) {
     return Result.fail(decoded.failure);
@@ -371,33 +364,34 @@ const BUILD_POLICY_TYPE = "0609b952-1397-4640-95ec-e00a01b2c241";
 const STATUS_POLICY_TYPE = "cbdc66da-9728-4af8-aada-9a5a32e4a226";
 const CHECK_POLICY_TYPES = new Set([BUILD_POLICY_TYPE, STATUS_POLICY_TYPE]);
 
-function toPolicyCheckProgress(raw: RawPolicyEvaluation) {
+function toPolicyCheckProgress(
+  raw: RawPolicyEvaluation,
+): Pick<PullRequestCheck, "status" | "description"> {
   const settled = (status: PullRequestCheck["status"]) => ({ status, description: null });
   switch (raw.status.trim().toLowerCase()) {
     case "approved":
-      return settled("success") satisfies Pick<PullRequestCheck, "status" | "description">;
+      return settled("success");
     case "rejected":
     case "broken":
-      return settled("failure") satisfies Pick<PullRequestCheck, "status" | "description">;
+      return settled("failure");
     case "running":
-      return settled("pending") satisfies Pick<PullRequestCheck, "status" | "description">;
+      return settled("pending");
     case "notapplicable":
-      return settled("skipped") satisfies Pick<PullRequestCheck, "status" | "description">;
+      return settled("skipped");
     case "queued":
       break;
     default:
-      return settled("pending") satisfies Pick<PullRequestCheck, "status" | "description">;
+      return settled("pending");
   }
   const expired = raw.context?.isExpired === true;
-  if (!expired && raw.configuration.settings?.manualQueueOnly !== true)
-    return settled("pending") satisfies Pick<PullRequestCheck, "status" | "description">;
+  if (!expired && raw.configuration.settings?.manualQueueOnly !== true) return settled("pending");
   return {
     status: raw.configuration.isBlocking === true ? "action-required" : "skipped",
     description: expired ? "Expired. Queue it again on Azure DevOps." : "Queue it on Azure DevOps.",
-  } satisfies Pick<PullRequestCheck, "status" | "description">;
+  };
 }
 
-function toPolicyCheckUrl(raw: RawPolicyEvaluation) {
+function toPolicyCheckUrl(raw: RawPolicyEvaluation): string | null {
   const buildId = raw.context?.buildId;
   const [projectUrl, rest] = (raw.configuration.url ?? "").split("/_apis/", 2);
   return buildId == null || rest === undefined
@@ -405,17 +399,17 @@ function toPolicyCheckUrl(raw: RawPolicyEvaluation) {
     : `${projectUrl}/_build/results?buildId=${buildId}`;
 }
 
-function toPolicyCheck(raw: RawPolicyEvaluation, isDraft: boolean) {
+function toPolicyCheck(raw: RawPolicyEvaluation, isDraft: boolean): PullRequestCheck | null {
   const { configuration, context } = raw;
   if (
     !CHECK_POLICY_TYPES.has(configuration.type.id.toLowerCase()) ||
     configuration.isEnabled === false ||
     configuration.isDeleted === true
   ) {
-    return null satisfies PullRequestCheck | null;
+    return null;
   }
   if (isDraft && raw.status.trim().toLowerCase() === "queued" && context?.buildId == null) {
-    return null satisfies PullRequestCheck | null;
+    return null;
   }
   return {
     name:
@@ -428,7 +422,7 @@ function toPolicyCheck(raw: RawPolicyEvaluation, isDraft: boolean) {
     ...toPolicyCheckProgress(raw),
     url: toPolicyCheckUrl(raw),
     required: configuration.isBlocking === true,
-  } satisfies PullRequestCheck | null;
+  };
 }
 
 export interface AzureDevOpsPolicyCheckPage {
@@ -438,20 +432,19 @@ export interface AzureDevOpsPolicyCheckPage {
 }
 
 /** Unlike the tolerant decoders above, one bad row fails the page: a lost required check reads as passed. */
-export function decodePolicyChecksJson(raw: string, input: { readonly isDraft: boolean }) {
+export function decodePolicyChecksJson(
+  raw: string,
+  input: { readonly isDraft: boolean },
+): Result.Result<AzureDevOpsPolicyCheckPage, DecodeFailure> {
   const decoded = decodePolicyEvaluations(raw);
-  if (!Result.isSuccess(decoded))
-    return Result.fail(decoded.failure) satisfies Result.Result<
-      AzureDevOpsPolicyCheckPage,
-      DecodeFailure
-    >;
+  if (!Result.isSuccess(decoded)) return Result.fail(decoded.failure);
   return Result.succeed({
     checks: decoded.success.flatMap((evaluation) => {
       const check = toPolicyCheck(evaluation, input.isDraft);
       return check === null ? [] : [check];
     }),
     rawCount: decoded.success.length,
-  }) satisfies Result.Result<AzureDevOpsPolicyCheckPage, DecodeFailure>;
+  });
 }
 
 const RawIterationSchema = Schema.Struct({
@@ -525,13 +518,16 @@ const decodeChangePage = decodeJsonResult(RawChangePageSchema);
 const decodeChangeEntry = Schema.decodeUnknownExit(RawChangeEntrySchema);
 const decodeItemContent = decodeJsonResult(RawItemContentSchema);
 
-function toRepositoryPath(value: string | null | undefined) {
+function toRepositoryPath(value: string | null | undefined): string | null {
   if (value === undefined || value === null) return null;
   const path = value.replace(/^\/+/, "");
   return path.length === 0 ? null : path;
 }
 
-function toChangeKind(raw: string | null | undefined, renamed: boolean) {
+function toChangeKind(
+  raw: string | null | undefined,
+  renamed: boolean,
+): AzureDevOpsChangeEntry["changeKind"] {
   const parts = new Set(
     (raw ?? "")
       .toLowerCase()
@@ -545,7 +541,9 @@ function toChangeKind(raw: string | null | undefined, renamed: boolean) {
   return "change";
 }
 
-export function decodeIterationsJson(raw: string) {
+export function decodeIterationsJson(
+  raw: string,
+): Result.Result<ReadonlyArray<AzureDevOpsIteration>, DecodeFailure> {
   const decoded = decodeIterationPage(raw);
   if (!Result.isSuccess(decoded)) return Result.fail(decoded.failure);
   const iterations: AzureDevOpsIteration[] = [];
@@ -561,7 +559,9 @@ export function decodeIterationsJson(raw: string) {
   return Result.succeed(iterations.toSorted((left, right) => left.id - right.id));
 }
 
-export function decodeIterationChangesJson(raw: string) {
+export function decodeIterationChangesJson(
+  raw: string,
+): Result.Result<AzureDevOpsChangePage, DecodeFailure> {
   const decoded = decodeChangePage(raw);
   if (!Result.isSuccess(decoded)) return Result.fail(decoded.failure);
   const changes: AzureDevOpsChangeEntry[] = [];
@@ -593,7 +593,9 @@ export function decodeIterationChangesJson(raw: string) {
 }
 
 /** Azure returns an empty body for absent files. Binary status comes from its metadata. */
-export function decodeItemContentJson(raw: string) {
+export function decodeItemContentJson(
+  raw: string,
+): Result.Result<AzureDevOpsItemContent, DecodeFailure> {
   const decoded = decodeItemContent(raw);
   return Result.isSuccess(decoded)
     ? Result.succeed({

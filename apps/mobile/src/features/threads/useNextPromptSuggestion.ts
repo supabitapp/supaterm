@@ -18,7 +18,7 @@ export function useNextPromptSuggestion(input: {
   readonly connected: boolean;
   readonly enabled: boolean;
   readonly latestRun: EnvironmentThreadShell["latestRun"];
-}) {
+}): string | null {
   const { environmentId, threadId, connected, enabled, latestRun } = input;
   const canSuggest = useAtomValue(
     orchestrationEnvironment.suggestNextPrompt.permissionAtom(environmentId),

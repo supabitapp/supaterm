@@ -53,7 +53,7 @@ const TWINKLE: Timeline = [
   [4, 1450],
 ];
 
-function pulses(color: string, durationMs: number, timeline: Timeline) {
+function pulses(color: string, durationMs: number, timeline: Timeline): string {
   return timeline
     .map(([led, delayMs]) => `${led}:${color} ${durationMs}ms pulse ${delayMs}ms`)
     .join("; ");
@@ -106,7 +106,7 @@ const toLinear = (channel: number) =>
 const fromLinear = (channel: number) =>
   channel <= 0.0031308 ? 12.92 * channel : 1.055 * channel ** (1 / 2.4) - 0.055;
 
-function oklabToLinearRgb(lightness: number, a: number, b: number) {
+function oklabToLinearRgb(lightness: number, a: number, b: number): ReadonlyArray<number> {
   const l = (lightness + 0.3963377774 * a + 0.2158037573 * b) ** 3;
   const m = (lightness - 0.1055613458 * a - 0.0638541728 * b) ** 3;
   const s = (lightness - 0.0894841775 * a - 1.291485548 * b) ** 3;
@@ -117,7 +117,7 @@ function oklabToLinearRgb(lightness: number, a: number, b: number) {
   ];
 }
 
-function brighterTone(hex: string) {
+function brighterTone(hex: string): string {
   const [red, green, blue] = [1, 3, 5].map((offset) =>
     toLinear(Number.parseInt(hex.slice(offset, offset + 2), 16) / 255),
   ) as [number, number, number];
@@ -146,22 +146,25 @@ function brighterTone(hex: string) {
 }
 
 /** The color a light's single-color effects use: the user's pick, or the light's own. */
-export function sidePulseLightColor(light: SidePulseLedState, settings: SidePulseSettings) {
+export function sidePulseLightColor(light: SidePulseLedState, settings: SidePulseSettings): string {
   return settings.colors[light] ?? LIGHTS[light].color;
 }
 
 /** Rainbow and Spectrum bring their own colors. */
-export function sidePulseEffectUsesColor(effect: SidePulseEffect) {
+export function sidePulseEffectUsesColor(effect: SidePulseEffect): boolean {
   return !MULTICOLOR_EFFECTS.has(effect);
 }
 
 /** Long enough to recognize an effect: 3 s, or one full loop of a slower one. */
-export function sidePulsePreviewMs(effect: SidePulseEffect) {
+export function sidePulsePreviewMs(effect: SidePulseEffect): number {
   return Math.max(PREVIEW_MIN_MS, EFFECTS[effect].cycleMs);
 }
 
 /** The LEDS.LED program for a state, or the fade to off when nothing reports state. */
-export function sidePulseProgram(ledState: SidePulseLedState | null, settings: SidePulseSettings) {
+export function sidePulseProgram(
+  ledState: SidePulseLedState | null,
+  settings: SidePulseSettings,
+): string {
   if (ledState === null) return SIDE_PULSE_OFF_PROGRAM;
   const color = sidePulseLightColor(ledState, settings);
   const bright =

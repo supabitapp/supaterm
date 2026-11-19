@@ -6,7 +6,7 @@ import { useComposerDraftStore } from "../composerDraftStore";
 import { resolveThreadRouteTarget, type ThreadRouteTarget } from "../threadRoutes";
 import { useChatPaneStore } from "./store";
 
-function shownThreadKey(target: ThreadRouteTarget | null) {
+function shownThreadKey(target: ThreadRouteTarget | null): string | null {
   if (target?.kind === "server") return scopedThreadKey(target.threadRef);
   if (target?.kind !== "draft") return null;
   const draftSession = useComposerDraftStore.getState().getDraftSession(target.draftId);
@@ -20,7 +20,7 @@ function shownThreadKey(target: ThreadRouteTarget | null) {
  * outlives pages without panes, so its threads count only on a thread route or
  * under Settings and Usage, which render over the workspace.
  */
-export function readShownThreadKeys(router: AnyRouter) {
+export function readShownThreadKeys(router: AnyRouter): ReadonlySet<string> {
   const routeTarget = resolveThreadRouteTarget(router.state.matches.at(-1)?.params ?? {});
   const panesShown = routeTarget !== null || isAppModalPage(router.state.location.pathname);
   const paneCells = panesShown ? (useChatPaneStore.getState().layout?.cells ?? []) : [];

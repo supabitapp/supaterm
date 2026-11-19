@@ -20,28 +20,22 @@ export async function prepareQueuedThreadCreation<E>(
     readonly environmentId: QueuedThreadMessage["environmentId"];
     readonly input: VcsListRefsInput;
   }) => Promise<AtomCommandResult<VcsListRefsResult, E>>,
-) {
+): Promise<
+  AtomCommandResult<
+    { readonly message: QueuedThreadMessage; readonly creation: QueuedThreadCreation } | null,
+    E | Error
+  >
+> {
   const canUpdate = () => !appAtomRegistry.get(editingQueuedMessageIdsAtom)[message.messageId];
   if (!(await confirmThreadOutboxMessageQueued(message)) || !canUpdate()) {
-    return AsyncResult.success(null) satisfies AtomCommandResult<
-      { readonly message: QueuedThreadMessage; readonly creation: QueuedThreadCreation } | null,
-      E | Error
-    >;
+    return AsyncResult.success(null);
   }
   const creation = message.creation;
   if (!creation) {
-    return AsyncResult.failure(
-      Cause.fail(new Error("The queued task has no workspace.")),
-    ) satisfies AtomCommandResult<
-      { readonly message: QueuedThreadMessage; readonly creation: QueuedThreadCreation } | null,
-      E | Error
-    >;
+    return AsyncResult.failure(Cause.fail(new Error("The queued task has no workspace.")));
   }
   if (creation.workspaceMode !== "worktree" || creation.branch || !creation.useDefaultBranch) {
-    return AsyncResult.success({ message, creation }) satisfies AtomCommandResult<
-      { readonly message: QueuedThreadMessage; readonly creation: QueuedThreadCreation } | null,
-      E | Error
-    >;
+    return AsyncResult.success({ message, creation });
   }
   const revision = threadOutboxRevision(message.messageId);
   const result = await fetchRefs({
@@ -53,16 +47,10 @@ export async function prepareQueuedThreadCreation<E>(
     threadOutboxRevision(message.messageId) !== revision ||
     !(await confirmThreadOutboxMessageQueued(message))
   ) {
-    return AsyncResult.success(null) satisfies AtomCommandResult<
-      { readonly message: QueuedThreadMessage; readonly creation: QueuedThreadCreation } | null,
-      E | Error
-    >;
+    return AsyncResult.success(null);
   }
   if (AsyncResult.isFailure(result)) {
-    return AsyncResult.failure(result.cause) satisfies AtomCommandResult<
-      { readonly message: QueuedThreadMessage; readonly creation: QueuedThreadCreation } | null,
-      E | Error
-    >;
+    return AsyncResult.failure(result.cause);
   }
   const branch = resolveDefaultWorktreeBaseBranch(result.value.refs);
   if (!result.value.isRepo || !branch) {
@@ -74,25 +62,13 @@ export async function prepareQueuedThreadCreation<E>(
             : "This project is not a Git repository. Choose Current checkout to start the task.",
         ),
       ),
-    ) satisfies AtomCommandResult<
-      { readonly message: QueuedThreadMessage; readonly creation: QueuedThreadCreation } | null,
-      E | Error
-    >;
+    );
   }
   const { useDefaultBranch: _, ...workspace } = creation;
   const resolvedCreation = { ...workspace, branch };
   const resolvedMessage = { ...message, creation: resolvedCreation };
   if (!(await updateThreadOutboxMessage(resolvedMessage, revision, canUpdate))) {
-    return AsyncResult.success(null) satisfies AtomCommandResult<
-      { readonly message: QueuedThreadMessage; readonly creation: QueuedThreadCreation } | null,
-      E | Error
-    >;
+    return AsyncResult.success(null);
   }
-  return AsyncResult.success({
-    message: resolvedMessage,
-    creation: resolvedCreation,
-  }) satisfies AtomCommandResult<
-    { readonly message: QueuedThreadMessage; readonly creation: QueuedThreadCreation } | null,
-    E | Error
-  >;
+  return AsyncResult.success({ message: resolvedMessage, creation: resolvedCreation });
 }

@@ -8,7 +8,7 @@ import {
   wslUncPathToLinuxPath,
 } from "./wslPathParsing.ts";
 
-function makeUtf16LeBuffer(text: string) {
+function makeUtf16LeBuffer(text: string): Buffer {
   return Buffer.from("﻿" + text, "utf16le");
 }
 

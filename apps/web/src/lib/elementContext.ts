@@ -1,4 +1,8 @@
-import type { PickedElementPayload, PickedElementStackFrame } from "@supaterm/contracts";
+import type {
+  PickedElementPayload,
+  PickedElementStackFrame,
+  PreviewAnnotationPayload,
+} from "@supaterm/contracts";
 
 const ELEMENT_CONTEXT_HTML_PREVIEW_LIMIT = 4000;
 const ELEMENT_CONTEXT_STYLES_LIMIT = 4000;
@@ -14,17 +18,19 @@ export interface ElementContextSelection {
   styles: string;
 }
 
-function truncateString(value: string, limit: number) {
+function truncateString(value: string, limit: number): string {
   if (value.length <= limit) return value;
   return `${value.slice(0, Math.max(0, limit - 1))}…`;
 }
 
-function normalizeText(value: string) {
+function normalizeText(value: string): string {
   return value.replace(/\r\n/g, "\n").replace(/^\n+|\n+$/g, "");
 }
 
 /** Clamps string fields to keep large outerHTML payloads within localStorage limits. */
-export function normalizeElementContextSelection(raw: PickedElementPayload) {
+export function normalizeElementContextSelection(
+  raw: PickedElementPayload,
+): ElementContextSelection | null {
   const pageUrl = raw.pageUrl.trim();
   const tagName = raw.tagName.trim().toLowerCase();
   if (pageUrl.length === 0 || tagName.length === 0) {
@@ -54,7 +60,7 @@ export function elementContextToPreviewAnnotation(
   element: ElementContextSelection,
   id: string,
   pickedAt: string,
-) {
+): PreviewAnnotationPayload {
   return {
     id,
     pageUrl: element.pageUrl,

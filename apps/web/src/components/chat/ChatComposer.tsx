@@ -50,6 +50,7 @@ import {
   extendReplacementRangeForTrailingSpace,
   replaceTextRange,
   serializeComposerFileLink,
+  type ComposerTrigger,
 } from "@supaterm/shared/composerTrigger";
 import { type FolderDropTarget, folderDropTarget, resolveDroppedFolderPath } from "./folderDrop";
 import { splitTransferredFiles } from "./workspaceFileDrop";
@@ -324,7 +325,7 @@ import type { ReviewCommentContext } from "../../reviewCommentContext";
 
 const COMPOSER_TASKS_EXPANDED_KEY = "supaterm:composer:tasks-expanded";
 
-function consumePasteAsTextShortcut(deadline: { current: number }) {
+function consumePasteAsTextShortcut(deadline: { current: number }): boolean {
   const armed = Date.now() <= deadline.current;
   deadline.current = 0;
   return armed;
@@ -1422,7 +1423,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   const setComposerDraftReferenceContexts = useComposerDraftStore(
     (store) => store.setReferenceContexts,
   );
-  const buildContextClipboardFragment = (contextIds: ReadonlyArray<string>) => {
+  const buildContextClipboardFragment = (contextIds: ReadonlyArray<string>): string | null => {
     const wanted = new Set(contextIds);
     const copiedFiles = new Map<string, File>();
     for (const annotation of composerPreviewAnnotations) {
@@ -1892,7 +1893,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         insertedSpaces: ComposerCitationCommentRequest["insertedSpaces"];
       };
     },
-  ) => {
+  ): boolean => {
     if (
       activePendingUserInput &&
       activePendingProgress?.activeQuestion?.allowCustomAnswer === false
@@ -2004,7 +2005,12 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     holdToTalkTarget: composerFormRef,
   });
 
-  const readComposerSnapshot = () => {
+  const readComposerSnapshot = (): {
+    value: string;
+    cursor: number;
+    expandedCursor: number;
+    contextIds: string[];
+  } => {
     const editorSnapshot = composerEditorRef.current?.readSnapshot();
     if (editorSnapshot) {
       return editorSnapshot;
@@ -2022,7 +2028,10 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   };
   const readComposerSnapshotStable = useStableCallback(readComposerSnapshot);
 
-  const resolveActiveComposerTrigger = () => {
+  const resolveActiveComposerTrigger = (): {
+    snapshot: { value: string; cursor: number; expandedCursor: number };
+    trigger: ComposerTrigger | null;
+  } => {
     const snapshot = readComposerSnapshot();
     return {
       snapshot,
@@ -2228,7 +2237,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     event?: { preventDefault: () => void },
     dispatchMode?: ComposerDispatchMode,
     submissionIntent?: ComposerSubmissionIntent,
-  ) => {
+  ): Promise<void> | null => {
     if (voice.state.phase === "recording") {
       event?.preventDefault();
       void voice.send({ dispatchMode, intent: submissionIntent });
@@ -2834,7 +2843,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       citationComment?: { sourceAnchor: AssistantCitationSourceAnchor | undefined };
       clipboardData?: DataTransfer;
     },
-  ) => {
+  ): boolean => {
     if (
       text.length === 0 ||
       activePendingIsResponding ||
@@ -2876,7 +2885,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     references: ReadonlyArray<ComposerContextReference>,
     selection?: { start: number; end: number },
     pendingInsertion?: ComposerAttachmentInsertion,
-  ) => {
+  ): boolean => {
     if (references.length === 0) return false;
     if (questionAttachmentTarget) return false;
     return insertAttachmentReferencesForDraft({
@@ -3047,7 +3056,9 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     event.stopPropagation();
   };
   const onComposerPasteStable = useStableCallback(onComposerPaste);
-  const insertContextReferencesAtCaret = (references: ReadonlyArray<ComposerContextReference>) =>
+  const insertContextReferencesAtCaret = (
+    references: ReadonlyArray<ComposerContextReference>,
+  ): boolean =>
     insertComposerText(`${references.map(formatInlineContextReference).join(" ")} `, "cursor", {
       ensureLeadingBoundary: true,
     });

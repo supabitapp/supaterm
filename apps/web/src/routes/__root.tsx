@@ -252,7 +252,7 @@ function CopyErrorButton({ report }: { report: string }) {
   );
 }
 
-function errorMessage(error: unknown) {
+function errorMessage(error: unknown): string {
   if (error instanceof Error && error.message.trim().length > 0) {
     return error.message;
   }
@@ -264,7 +264,7 @@ function errorMessage(error: unknown) {
   return "An unexpected router error occurred.";
 }
 
-function errorDetails(error: unknown) {
+function errorDetails(error: unknown): string {
   if (error instanceof Error) {
     return error.stack ?? error.message;
   }
@@ -282,7 +282,7 @@ function errorDetails(error: unknown) {
 
 const MAX_ERROR_CAUSE_DEPTH = 5;
 
-function errorReport(error: unknown, pathname: string) {
+function errorReport(error: unknown, pathname: string): string {
   const lines = [
     `${APP_DISPLAY_NAME} ${APP_VERSION}`,
     `Path: ${pathname}`,

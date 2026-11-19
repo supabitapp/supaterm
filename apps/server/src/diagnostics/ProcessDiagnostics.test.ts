@@ -18,7 +18,9 @@ import * as ProcessDiagnostics from "./ProcessDiagnostics.ts";
 const SERVER_PID = process.pid;
 const CHILD_PID = SERVER_PID + 1;
 
-function makeNativeSnapshot(processes: ResourceMonitorSnapshotEvent["processes"]) {
+function makeNativeSnapshot(
+  processes: ResourceMonitorSnapshotEvent["processes"],
+): ResourceMonitorSnapshotEvent {
   return {
     version: 3,
     type: "snapshot",
@@ -29,7 +31,7 @@ function makeNativeSnapshot(processes: ResourceMonitorSnapshotEvent["processes"]
     retainedProcessCount: processes.length,
     inaccessibleProcessCount: 0,
     processes,
-  } satisfies ResourceMonitorSnapshotEvent;
+  };
 }
 
 function layerTelemetryFor(

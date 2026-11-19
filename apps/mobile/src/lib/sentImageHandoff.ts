@@ -13,15 +13,19 @@ function remember(key: string, image: SentImageHandoff) {
   if (images.size > MAX_ENTRIES) images.delete(images.keys().next().value!);
 }
 
-export function rememberDraftImage(attachmentId: string, image: SentImageHandoff) {
+export function rememberDraftImage(attachmentId: string, image: SentImageHandoff): void {
   remember(`draft:${attachmentId}`, image);
 }
 
-export function rememberSentImage(messageId: string, index: number, image: SentImageHandoff) {
+export function rememberSentImage(messageId: string, index: number, image: SentImageHandoff): void {
   remember(`message:${messageId}:${index}`, image);
 }
 
-export function sentImageHandoff(messageId: string, index: number, draftAttachmentId?: string) {
+export function sentImageHandoff(
+  messageId: string,
+  index: number,
+  draftAttachmentId?: string,
+): SentImageHandoff | undefined {
   return (
     images.get(`message:${messageId}:${index}`) ??
     (draftAttachmentId === undefined ? undefined : images.get(`draft:${draftAttachmentId}`))

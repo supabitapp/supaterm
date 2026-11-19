@@ -87,7 +87,7 @@ export const WORKTREE_SETUP_STAGE_ORDER: ReadonlyArray<WorktreeSetupStageId> = [
   "agent",
 ];
 
-export function worktreeSetupStageLabel(id: WorktreeSetupStageId) {
+export function worktreeSetupStageLabel(id: WorktreeSetupStageId): string {
   switch (id) {
     case "fetch":
       return "Fetch base branch";

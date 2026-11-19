@@ -23,7 +23,7 @@ const EMPTY_SESSION_STATE_ATOM = Atom.make(AsyncResult.initial<AuthSessionState>
 export function sessionHasScope(
   result: AsyncResult.AsyncResult<AuthSessionState, unknown>,
   scope: AuthEnvironmentScope,
-) {
+): boolean {
   const session = AsyncResult.getOrElse(result, () => null);
   return result._tag !== "Failure" && session !== null && sessionGrantsScope(session, scope);
 }
@@ -37,21 +37,17 @@ function sessionStateAtomFor(environmentId: EnvironmentId | null) {
 export function useEnvironmentScope(
   environmentId: EnvironmentId | null,
   scope: AuthEnvironmentScope,
-): boolean;
-export function useEnvironmentScope(
-  environmentId: EnvironmentId | null,
-  scope: AuthEnvironmentScope,
-) {
+): boolean {
   return useAtomValue(sessionStateAtomFor(environmentId), (result) =>
     sessionHasScope(result, scope),
-  ) satisfies boolean;
+  );
 }
 
 /** Unlike `!useEnvironmentScope`, stays false until the host has answered without the scope. */
 export function useEnvironmentScopeDenied(
   environmentId: EnvironmentId | null,
   scope: AuthEnvironmentScope,
-) {
+): boolean {
   return useAtomValue(sessionStateAtomFor(environmentId), (result) =>
     sessionDeniesScope(result, scope),
   );
@@ -60,7 +56,7 @@ export function useEnvironmentScopeDenied(
 export function useEnvironmentsWithScope(
   environments: ReadonlyArray<{ readonly environmentId: EnvironmentId }>,
   scope: AuthEnvironmentScope,
-) {
+): ReadonlySet<EnvironmentId> {
   const permittedEnvironments = useMemo(
     () =>
       Atom.make((get) => {
@@ -77,7 +73,10 @@ export function useEnvironmentsWithScope(
   return useAtomValue(permittedEnvironments);
 }
 
-export function readEnvironmentScope(environmentId: EnvironmentId, scope: AuthEnvironmentScope) {
+export function readEnvironmentScope(
+  environmentId: EnvironmentId,
+  scope: AuthEnvironmentScope,
+): boolean {
   const result = appAtomRegistry.get(environmentSession.sessionStateAtom(environmentId));
   return sessionHasScope(result, scope);
 }

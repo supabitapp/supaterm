@@ -69,7 +69,7 @@ const STALE_URL_MS = 5 * 60_000;
 
 const objectUrlLeases = new Map<Blob, { readonly url: string; users: number }>();
 
-function leaseObjectUrl(blob: Blob, onChange: () => void) {
+function leaseObjectUrl(blob: Blob, onChange: () => void): () => void {
   let lease = objectUrlLeases.get(blob);
   if (!lease) {
     lease = { url: URL.createObjectURL(blob), users: 0 };
@@ -86,7 +86,7 @@ function leaseObjectUrl(blob: Blob, onChange: () => void) {
   };
 }
 
-function readObjectUrl(blob: Blob | null | undefined) {
+function readObjectUrl(blob: Blob | null | undefined): string | null {
   return blob ? (objectUrlLeases.get(blob)?.url ?? null) : null;
 }
 
@@ -123,7 +123,10 @@ export function ReadOnlySourcePreview(props: { name: string; text: string; wordW
   );
 }
 
-function renderedToggleLabel(mode: "markdown" | "mermaid" | "html" | "table", rendered: boolean) {
+function renderedToggleLabel(
+  mode: "markdown" | "mermaid" | "html" | "table",
+  rendered: boolean,
+): string {
   if (mode === "mermaid") return rendered ? "Show Mermaid source" : "Show rendered diagram";
   if (mode === "markdown") return rendered ? "Show markdown source" : "Show rendered markdown";
   if (mode === "table") return rendered ? "Show source" : "Show table";

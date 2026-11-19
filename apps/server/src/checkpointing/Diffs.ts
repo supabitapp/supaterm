@@ -5,7 +5,7 @@ export interface TurnDiffFileSummary {
   readonly deletions: number;
 }
 
-export function parseTurnDiffFilesFromNumstat(numstat: string) {
+export function parseTurnDiffFilesFromNumstat(numstat: string): ReadonlyArray<TurnDiffFileSummary> {
   const records = numstat.split("\0");
   const files: TurnDiffFileSummary[] = [];
 
@@ -34,7 +34,10 @@ export function parseTurnDiffFilesFromNumstat(numstat: string) {
   return files.toSorted((left, right) => left.path.localeCompare(right.path));
 }
 
-export function isGitImport(file: TurnDiffFileSummary, authoredPaths: ReadonlySet<string> | null) {
+export function isGitImport(
+  file: TurnDiffFileSummary,
+  authoredPaths: ReadonlySet<string> | null,
+): boolean {
   return (
     authoredPaths !== null &&
     !authoredPaths.has(file.path) &&

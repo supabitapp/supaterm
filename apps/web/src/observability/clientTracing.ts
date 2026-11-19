@@ -24,7 +24,7 @@ interface NavigatorUserAgentData {
   readonly brands: ReadonlyArray<{ readonly brand: string; readonly version: string }>;
 }
 
-const browserResourceAttributes = () => {
+const browserResourceAttributes = (): Record<string, unknown> => {
   if (typeof navigator === "undefined") return {};
   const userAgentData = (navigator as Navigator & { userAgentData?: NavigatorUserAgentData })
     .userAgentData;
@@ -70,7 +70,7 @@ let activeScope: Scope.Closeable | null = null;
 let activeConfigKey: string | null = null;
 let pendingConfiguration = Promise.resolve();
 
-export function configureClientTracing() {
+export function configureClientTracing(): Promise<void> {
   if (activeConfigKey !== null) {
     return pendingConfiguration;
   }
@@ -78,7 +78,7 @@ export function configureClientTracing() {
   return pendingConfiguration;
 }
 
-async function applyClientTracingConfig() {
+async function applyClientTracingConfig(): Promise<void> {
   const otlpTracesUrl = resolvePrimaryEnvironmentHttpUrl("/api/observability/v1/traces");
   const exportIntervalMs = DEFAULT_EXPORT_INTERVAL_MS;
   const nextConfigKey = `${otlpTracesUrl}|${exportIntervalMs}`;
@@ -135,7 +135,7 @@ async function applyClientTracingConfig() {
 async function disposeTracerRuntime(
   runtime: ManagedRuntime.ManagedRuntime<never, never> | null,
   scope: Scope.Closeable | null,
-) {
+): Promise<void> {
   if (runtime === null || scope === null) {
     return;
   }

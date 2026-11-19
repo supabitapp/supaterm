@@ -366,7 +366,7 @@ const THREAD_FEED_DISCLOSURE_ENTER_TRANSITION = FadeIn.duration(MOTION_ENTER_DUR
   .reduceMotion(ReduceMotion.Never);
 
 const FRESH_ENTRY_WINDOW_MS = 3_000;
-function isFreshTimestamp(input: string) {
+function isFreshTimestamp(input: string): boolean {
   const timestamp = Date.parse(input);
   return Number.isFinite(timestamp) && Date.now() - timestamp < FRESH_ENTRY_WINDOW_MS;
 }
@@ -428,7 +428,10 @@ export interface ThreadFeedProps {
   readonly annotationDraftKey?: string | undefined;
 }
 
-async function waitForThreadShell(environmentId: EnvironmentId, threadId: ThreadId) {
+async function waitForThreadShell(
+  environmentId: EnvironmentId,
+  threadId: ThreadId,
+): Promise<boolean> {
   const atom = environmentThreadShells.threadShellAtom(scopeThreadRef(environmentId, threadId));
   return waitForThreadShellReady({
     read: () => appAtomRegistry.get(atom) !== null,
@@ -451,7 +454,7 @@ interface MessagePinToggle {
 function pinToggleOf(
   pins: ThreadFeedPins | undefined,
   projectedItem: OrchestrationV2ProjectedTurnItem | undefined,
-) {
+): MessagePinToggle | null {
   const onToggle = pins?.onToggle;
   if (!pins || !onToggle || !projectedItem) return null;
   const pinned = pins.itemIds.has(projectedItem.sourceItemId);
@@ -778,7 +781,7 @@ function isFileAttachment(attachment: ChatAttachment): attachment is ChatFileAtt
   return attachment.type === "file";
 }
 
-function isMediaAttachment(attachment: ChatAttachment) {
+function isMediaAttachment(attachment: ChatAttachment): boolean {
   return (
     isImageAttachment(attachment) ||
     (isFileAttachment(attachment) && videoMimeType(attachment) !== null)
@@ -1507,7 +1510,7 @@ function MarkdownDetailsFold(props: {
   );
 }
 
-function useMarkdownStyles() {
+function useMarkdownStyles(): MarkdownStyleSets {
   const { appearance } = useAppearancePreferences();
   const nativeMarkdownTypography = resolveNativeMarkdownTypography(appearance.baseFontSize);
   const theme = useUniwindTheme();
@@ -3080,7 +3083,7 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
     path: string,
     signal: AbortSignal,
     reply: MarkdownLinkReply | undefined,
-  ) => {
+  ): Promise<string> => {
     const relativePath = resolveWorkspaceRelativeFilePath(props.workspaceRoot, path);
     if (
       !props.workspaceRoot ||

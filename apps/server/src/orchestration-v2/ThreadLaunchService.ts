@@ -153,7 +153,7 @@ export class ThreadLaunchError extends Schema.TaggedError<ThreadLaunchError>()(
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Thread launch ${this.commandId} failed during ${this.operation}.`;
   }
 }
@@ -168,8 +168,8 @@ export class ThreadLaunchBaseRefError extends Schema.TaggedError<ThreadLaunchBas
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message() {
-    return `Base ref "${this.baseRef}" does not resolve to a commit in project "${this.projectTitle}" (${this.workspaceRoot}).` satisfies string as string;
+  override get message(): string {
+    return `Base ref "${this.baseRef}" does not resolve to a commit in project "${this.projectTitle}" (${this.workspaceRoot}).`;
   }
 }
 
@@ -181,8 +181,8 @@ export class ThreadLaunchBranchExistsError extends Schema.TaggedError<ThreadLaun
     branch: Schema.String,
   },
 ) {
-  override get message() {
-    return `Branch "${this.branch}" already exists in project "${this.projectTitle}".` satisfies string as string;
+  override get message(): string {
+    return `Branch "${this.branch}" already exists in project "${this.projectTitle}".`;
   }
 }
 
@@ -195,8 +195,8 @@ export class ThreadLaunchBranchConflictError extends Schema.TaggedError<ThreadLa
     conflictingBranch: Schema.String,
   },
 ) {
-  override get message() {
-    return `Branch "${this.branch}" cannot be created in project "${this.projectTitle}": branch "${this.conflictingBranch}" exists.` satisfies string as string;
+  override get message(): string {
+    return `Branch "${this.branch}" cannot be created in project "${this.projectTitle}": branch "${this.conflictingBranch}" exists.`;
   }
 }
 
@@ -208,8 +208,8 @@ export class ThreadLaunchNotRepositoryError extends Schema.TaggedError<ThreadLau
     workspaceRoot: Schema.String,
   },
 ) {
-  override get message() {
-    return `Project "${this.projectTitle}" (${this.workspaceRoot}) is not a Git repository.` satisfies string as string;
+  override get message(): string {
+    return `Project "${this.projectTitle}" (${this.workspaceRoot}) is not a Git repository.`;
   }
 }
 
@@ -253,7 +253,7 @@ export class ThreadLaunchService extends Context.Service<
 
 const isThreadLaunchError = Schema.is(ThreadLaunchError);
 
-function failureDetail(error: unknown) {
+function failureDetail(error: unknown): string {
   if (isThreadLaunchError(error)) {
     const cause = error.cause;
     const detail = cause instanceof Error ? cause.message : String(cause);
@@ -397,7 +397,9 @@ const make = Effect.gen(function* () {
               .hasCommit({ cwd, refName: baseRef === "-" ? "@{-1}" : baseRef })
               .pipe(Effect.orElseSucceed(() => true)),
         branch !== undefined
-          ? git.listLocalBranchNames(cwd).pipe(Effect.orElseSucceed(() => []))
+          ? git
+              .listLocalBranchNames(cwd)
+              .pipe(Effect.orElseSucceed((): ReadonlyArray<string> => []))
           : Effect.succeed<ReadonlyArray<string>>([]),
       ],
       { concurrency: "unbounded" },

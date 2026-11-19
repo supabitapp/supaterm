@@ -7,7 +7,7 @@ type ThreadStartMarkers = Pick<
   "latestRun" | "latestUserMessageAt" | "runtime"
 >;
 
-function threadShellHasStarted(thread: ThreadStartMarkers | null | undefined) {
+function threadShellHasStarted(thread: ThreadStartMarkers | null | undefined): boolean {
   return Boolean(
     thread &&
     (thread.latestRun !== null || thread.latestUserMessageAt !== null || thread.runtime !== null),
@@ -17,7 +17,7 @@ function threadShellHasStarted(thread: ThreadStartMarkers | null | undefined) {
 export function threadAllowsProviderSwitch(input: {
   readonly thread: ThreadStartMarkers | null | undefined;
   readonly projection: ThreadStructure | null | undefined;
-}) {
+}): boolean {
   return input.projection != null
     ? threadSupportsProviderHandoff(input.projection)
     : !threadShellHasStarted(input.thread);

@@ -19,16 +19,13 @@ const hosts = [
   { id: "0dc4f37b-5e0a-4f4c-9a51-0c6b8e8a1f2d", label: "oliverMac" },
   { id: "mini-1", label: "Mac mini" },
   { id: "mini-2", label: "Mac mini" },
-].map(
-  (host) =>
-    ({
-      ...host,
-      kind: host.id === "local" ? "local" : "ssh",
-      platforms: [],
-      hubInstalled: true,
-      agentDeviceInstalled: true,
-    }) satisfies DeviceHostSummary,
-);
+].map((host): DeviceHostSummary => ({
+  ...host,
+  kind: host.id === "local" ? "local" : "ssh",
+  platforms: [],
+  hubInstalled: true,
+  agentDeviceInstalled: true,
+}));
 
 describe("device tool helpers", () => {
   it.effect("resolves a host by exact id or case-insensitive label", () =>

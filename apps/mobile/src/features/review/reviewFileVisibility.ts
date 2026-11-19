@@ -3,7 +3,9 @@ import { useCallback, useMemo } from "react";
 import { updateReviewExpandedFileIds, updateReviewViewedFileIds } from "./reviewState";
 import type { ReviewRenderableFile } from "./reviewModel";
 
-function getReviewFileExpansionKeys(files: ReadonlyArray<ReviewRenderableFile>) {
+function getReviewFileExpansionKeys(
+  files: ReadonlyArray<ReviewRenderableFile>,
+): ReadonlyArray<string> {
   const seen = new Map<string, number>();
   return files.map((file) => {
     const occurrence = seen.get(file.path) ?? 0;
@@ -15,14 +17,14 @@ function getReviewFileExpansionKeys(files: ReadonlyArray<ReviewRenderableFile>) 
 function getExpandedReviewFileKeys(
   keys: ReadonlyArray<string>,
   storedKeys: ReadonlyArray<string> | undefined,
-) {
+): ReadonlyArray<string> {
   return storedKeys === undefined ? keys : keys.filter((key) => storedKeys.includes(key));
 }
 
 function getValidReviewFileIds(
   files: ReadonlyArray<ReviewRenderableFile>,
   fileIds: ReadonlyArray<string> | undefined,
-) {
+): ReadonlyArray<string> {
   if (fileIds === undefined) {
     return files.map((file) => file.id);
   }
@@ -34,7 +36,7 @@ function getValidReviewFileIds(
 function getValidExplicitReviewFileIds(
   files: ReadonlyArray<ReviewRenderableFile>,
   fileIds: ReadonlyArray<string> | undefined,
-) {
+): ReadonlyArray<string> {
   if (fileIds === undefined) {
     return [];
   }
@@ -42,11 +44,11 @@ function getValidExplicitReviewFileIds(
   return getValidReviewFileIds(files, fileIds);
 }
 
-function toggleReviewFileId(fileIds: ReadonlyArray<string>, fileId: string) {
+function toggleReviewFileId(fileIds: ReadonlyArray<string>, fileId: string): ReadonlyArray<string> {
   return fileIds.includes(fileId) ? fileIds.filter((id) => id !== fileId) : [...fileIds, fileId];
 }
 
-function removeReviewFileId(fileIds: ReadonlyArray<string>, fileId: string) {
+function removeReviewFileId(fileIds: ReadonlyArray<string>, fileId: string): ReadonlyArray<string> {
   return fileIds.includes(fileId) ? fileIds.filter((id) => id !== fileId) : fileIds;
 }
 

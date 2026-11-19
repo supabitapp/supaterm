@@ -24,14 +24,19 @@ interface ProjectContentSearchDialogProps {
 
 const VISIBLE_MATCH_WINDOW = 100;
 
-function splitPath(path: string) {
+interface MatchGroup {
+  readonly path: string;
+  readonly matches: ReadonlyArray<ProjectContentMatch & { readonly resultIndex: number }>;
+}
+
+function splitPath(path: string): { readonly name: string; readonly directory: string } {
   const separator = path.lastIndexOf("/");
   return separator === -1
     ? { name: path, directory: "" }
     : { name: path.slice(separator + 1), directory: path.slice(0, separator) };
 }
 
-function groupMatches(matches: ReadonlyArray<ProjectContentMatch>) {
+function groupMatches(matches: ReadonlyArray<ProjectContentMatch>): MatchGroup[] {
   const groups = new Map<string, Array<ProjectContentMatch & { readonly resultIndex: number }>>();
   matches.forEach((match, resultIndex) => {
     const group = groups.get(match.path);

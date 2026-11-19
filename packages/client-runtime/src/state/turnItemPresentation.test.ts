@@ -14,7 +14,7 @@ import {
   workspacePreparationRetryRunIds,
 } from "./turnItemPresentation.ts";
 
-function command(input: string) {
+function command(input: string): OrchestrationV2TurnItem {
   const now = DateTime.makeUnsafe("2026-08-03T00:00:00.000Z");
   return {
     id: TurnItemId.make("item-command"),
@@ -35,13 +35,13 @@ function command(input: string) {
     input,
     output: "Workspace preparation completed.",
     exitCode: 0,
-  } satisfies OrchestrationV2TurnItem;
+  };
 }
 
 function preparationFailure(
   status: OrchestrationV2TurnItem["status"],
   code: string | null = ORCHESTRATION_V2_WORKSPACE_PREPARATION_FAILURE_CODE,
-) {
+): OrchestrationV2TurnItem {
   const {
     input: _input,
     output: _output,
@@ -55,11 +55,14 @@ function preparationFailure(
     title: "Workspace preparation failed",
     type: "error",
     failure: { class: "validation_error", message: "fetch failed", code, retryable: false },
-  } satisfies OrchestrationV2TurnItem;
+  };
 }
 
 const worktree = { type: "worktree", baseRef: "main" } as const;
-function run(status: OrchestrationV2Run["status"], workspacePreparation?: typeof worktree) {
+function run(
+  status: OrchestrationV2Run["status"],
+  workspacePreparation?: typeof worktree,
+): Pick<OrchestrationV2Run, "id" | "status" | "workspacePreparation"> {
   return {
     id: RunId.make("run-1"),
     status,

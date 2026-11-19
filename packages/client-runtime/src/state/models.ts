@@ -115,11 +115,13 @@ export interface ThreadRuntimeSummary {
 /** The runtime summary a thread's structure determines; see ThreadStructure. */
 export type ThreadStructureRuntime = Omit<ThreadRuntimeSummary, "updatedAt">;
 
-export function threadRuntimeIsUnsettled(runtime: ThreadStructureRuntime | null | undefined) {
+export function threadRuntimeIsUnsettled(
+  runtime: ThreadStructureRuntime | null | undefined,
+): boolean {
   return isOrchestrationV2RunUnsettled(runtime?.status);
 }
 
-export function threadRuntimeCanArchive(runtime: ThreadRuntimeSummary | null | undefined) {
+export function threadRuntimeCanArchive(runtime: ThreadRuntimeSummary | null | undefined): boolean {
   if (runtime?.status === "queued") return runtime.activeRunId === null;
   return !isOrchestrationV2RunInterruptible(runtime?.status);
 }
@@ -186,15 +188,15 @@ export interface EnvironmentThreadShell {
   readonly source: OrchestrationV2ThreadShell;
 }
 
-function iso(value: DateTime.Utc) {
+function iso(value: DateTime.Utc): string {
   return DateTime.formatIso(value);
 }
 
-function nullableIso(value: DateTime.Utc | null) {
+function nullableIso(value: DateTime.Utc | null): string | null {
   return value === null ? null : iso(value);
 }
 
-function shellRuntime(thread: OrchestrationV2ThreadShell) {
+function shellRuntime(thread: OrchestrationV2ThreadShell): ThreadRuntimeSummary | null {
   const parkAtIdle =
     backgroundWorkHoldsCompletion(thread.pendingBackgroundTasks ?? []) &&
     thread.status !== "failed";
@@ -219,7 +221,10 @@ function shellRuntime(thread: OrchestrationV2ThreadShell) {
   };
 }
 
-export function scopeProject(environmentId: EnvironmentId, project: OrchestrationProjectShell) {
+export function scopeProject(
+  environmentId: EnvironmentId,
+  project: OrchestrationProjectShell,
+): EnvironmentProject {
   return { ...project, environmentId };
 }
 
@@ -228,13 +233,8 @@ export type PendingSubagentRequest = "approval" | "user_input";
 export function presentThreadShell(
   environmentId: EnvironmentId,
   thread: OrchestrationV2ThreadShell,
-  pendingSubagentRequest?: PendingSubagentRequest | null,
-): EnvironmentThreadShell;
-export function presentThreadShell(
-  environmentId: EnvironmentId,
-  thread: OrchestrationV2ThreadShell,
   pendingSubagentRequest: PendingSubagentRequest | null = null,
-) {
+): EnvironmentThreadShell {
   const updatedAt = iso(thread.updatedAt);
   const latestRun =
     thread.latestRunId === null
@@ -323,10 +323,13 @@ export function presentThreadShell(
           },
     deletedAt: nullableIso(thread.deletedAt),
     source: thread,
-  } satisfies EnvironmentThreadShell;
+  };
 }
 
-export function scopeThreadShell(environmentId: EnvironmentId, thread: OrchestrationV2ThreadShell) {
+export function scopeThreadShell(
+  environmentId: EnvironmentId,
+  thread: OrchestrationV2ThreadShell,
+): EnvironmentThreadShell {
   return presentThreadShell(environmentId, thread);
 }
 
@@ -334,7 +337,7 @@ const THREAD_PROVIDER_STACK_LIMIT = 3;
 
 export function resolveThreadProviderStack(
   thread: Pick<EnvironmentThreadShell, "providerInstanceHistory" | "modelSelection" | "runtime">,
-) {
+): ReadonlyArray<ProviderInstanceId> {
   const current = thread.runtime?.providerInstanceId ?? thread.modelSelection.instanceId;
   const previous = thread.providerInstanceHistory.filter((instanceId) => instanceId !== current);
   return [...previous.slice(-(THREAD_PROVIDER_STACK_LIMIT - 1)), current];
@@ -351,7 +354,7 @@ export function resolveThreadWorkingStartedAt(input: {
     "runId" | "startedAt" | "requestedAt" | "completedAt"
   > | null;
   readonly runtime: Pick<ThreadRuntimeSummary, "activeRunId" | "activityStartedAt"> | null;
-}) {
+}): string | null {
   const valid = (value: string | null | undefined) =>
     value != null && Number.isFinite(Date.parse(value)) ? value : null;
   if (input.runtime?.activityStartedAt !== undefined) return valid(input.runtime.activityStartedAt);

@@ -267,7 +267,10 @@ export const SUPATERM_DARK_THEME_COLORS: ThemeColors = {
   terminalScrollbarHover: "oklch(0.418014 0.015129 275.764)",
 };
 
-export function getThemeColorsForAppearance(theme: ThemeDefinition, appearance: ThemeAppearance) {
+export function getThemeColorsForAppearance(
+  theme: ThemeDefinition,
+  appearance: ThemeAppearance,
+): ThemeColors | null {
   if (theme.appearance === appearance) return theme.colors;
   return theme.variants?.[appearance] ?? null;
 }

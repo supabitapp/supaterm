@@ -22,7 +22,7 @@ type Attempt = Pick<OrchestrationV2RunAttempt, "id" | "runId">;
 
 const MAX_LABEL_LENGTH = 160;
 
-function compactLabel(value: unknown, maxLength = MAX_LABEL_LENGTH) {
+function compactLabel(value: unknown, maxLength = MAX_LABEL_LENGTH): string | undefined {
   if (typeof value !== "string") return undefined;
   const text = value.replaceAll(/\s+/g, " ").trim();
   if (text.length === 0) return undefined;
@@ -32,14 +32,17 @@ function compactLabel(value: unknown, maxLength = MAX_LABEL_LENGTH) {
   return `${text.slice(0, end)}…`;
 }
 
-function labelWithId(name: unknown, fallback: string, suffix: string) {
+function labelWithId(name: unknown, fallback: string, suffix: string): string {
   const budget = MAX_LABEL_LENGTH - suffix.length;
   if (budget < 2) return compactLabel(`${fallback}${suffix}`) ?? fallback;
   return `${compactLabel(name, budget) ?? compactLabel(fallback, budget)}${suffix}`;
 }
 
 /** resumeId overrides the item id for native resume, such as Codex's child provider-thread id. */
-export function cancelledTurnItemWork(item: OrchestrationV2TurnItem, resumeId?: string) {
+export function cancelledTurnItemWork(
+  item: OrchestrationV2TurnItem,
+  resumeId?: string,
+): Work | undefined {
   switch (item.type) {
     case "subagent": {
       const nativeId =
@@ -52,7 +55,7 @@ export function cancelledTurnItemWork(item: OrchestrationV2TurnItem, resumeId?: 
           nativeId === undefined ? "" : ` (id ${nativeId})`,
         ),
         id: item.id,
-      } satisfies Work | undefined;
+      };
     }
     case "command_execution":
       return {
@@ -60,7 +63,7 @@ export function cancelledTurnItemWork(item: OrchestrationV2TurnItem, resumeId?: 
         label: compactLabel(item.input) ?? compactLabel(item.title) ?? "background command",
         id: item.id,
         ...(item.completionWake === "always" ? { awaited: true as const } : {}),
-      } satisfies Work | undefined;
+      };
     case "dynamic_tool": {
       const monitor =
         item.input !== null &&
@@ -70,10 +73,10 @@ export function cancelledTurnItemWork(item: OrchestrationV2TurnItem, resumeId?: 
         kind: monitor ? "monitor" : "task",
         label: compactLabel(item.title) ?? compactLabel(item.toolName) ?? "background tool",
         id: item.id,
-      } satisfies Work | undefined;
+      };
     }
     default:
-      return undefined satisfies Work | undefined;
+      return undefined;
   }
 }
 
@@ -81,14 +84,14 @@ export function cancelledTurnItemWork(item: OrchestrationV2TurnItem, resumeId?: 
 export function awaitingProviderThreadId(
   item: OrchestrationV2TurnItem,
   runs: ReadonlyArray<Pick<OrchestrationV2Run, "id" | "providerThreadId">>,
-) {
+): OrchestrationV2Run["providerThreadId"] | undefined {
   const runProviderThreadId = runs.find((run) => run.id === item.runId)?.providerThreadId;
   return item.type === "subagent" && item.origin === "provider_native"
     ? (runProviderThreadId ?? item.providerThreadId)
     : (item.providerThreadId ?? runProviderThreadId);
 }
 
-function restartWorkKind(task: OrchestrationV2PendingBackgroundTask) {
+function restartWorkKind(task: OrchestrationV2PendingBackgroundTask): Work["kind"] {
   switch (task.kind) {
     case "command":
       return "shell";
@@ -104,13 +107,13 @@ function restartWorkKind(task: OrchestrationV2PendingBackgroundTask) {
   }
 }
 
-export function cancelledRosterTaskWork(task: OrchestrationV2PendingBackgroundTask) {
+export function cancelledRosterTaskWork(task: OrchestrationV2PendingBackgroundTask): Work {
   if (task.parentTaskId !== undefined) {
     return {
       kind: "subagent",
       label: labelWithId(task.description, "background task", ` (subagent ${task.parentTaskId})`),
       id: task.parentTaskId,
-    } satisfies Work;
+    };
   }
   const kind = restartWorkKind(task);
   const description = compactLabel(task.description);
@@ -122,13 +125,13 @@ export function cancelledRosterTaskWork(task: OrchestrationV2PendingBackgroundTa
       ) ?? "background task",
     id: task.taskId,
     ...(task.awaited === true ? { awaited: true as const } : {}),
-  } satisfies Work;
+  };
 }
 
 const MAX_NOTE_ENTRIES = 10;
 
 /** Bounds entries and labels to protect the context budget. */
-export function restartCancelledBackgroundWorkNote(work: ReadonlyArray<Work>) {
+export function restartCancelledBackgroundWorkNote(work: ReadonlyArray<Work>): string {
   const omitted = work.length - MAX_NOTE_ENTRIES;
   return [
     "Note: the Supaterm server restarted, and this background work was cancelled before it finished. It will not report back on its own, so resume or restart what you still need and wait for its result:",
@@ -145,7 +148,7 @@ type ProviderTurnState = Pick<
 export function isRestartNoteSource(
   source: Pick<OrchestrationV2Run, "status" | "activeAttemptId" | "restartCancelledBackgroundWork">,
   providerTurns: ReadonlyArray<Pick<ProviderTurnState, "runAttemptId" | "status">>,
-) {
+): boolean {
   return (
     (source.status === "completed" ||
       source.status === "waiting" ||
@@ -162,35 +165,30 @@ export function isRestartNoteSource(
  * waits on it. Most are dev servers and their watchdogs, so their note waits for the next
  * user message.
  */
-export function isAwaitedWork(work: Pick<Work, "kind" | "awaited">) {
+export function isAwaitedWork(work: Pick<Work, "kind" | "awaited">): boolean {
   return work.awaited === true || (work.kind !== "shell" && work.kind !== "monitor");
 }
 
 export function runOutcome(
   run: Pick<OrchestrationV2Run, "status" | "restartCancelledBackgroundWork">,
-): OrchestrationV2Run["status"];
-export function runOutcome(
-  run: Pick<OrchestrationV2Run, "status" | "restartCancelledBackgroundWork">,
-) {
-  return (
-    (run.status === "completed" || run.status === "cancelled") &&
+): OrchestrationV2Run["status"] {
+  return (run.status === "completed" || run.status === "cancelled") &&
     (run.restartCancelledBackgroundWork ?? []).some(isAwaitedWork)
-      ? "interrupted"
-      : run.status
-  ) satisfies OrchestrationV2Run["status"];
+    ? "interrupted"
+    : run.status;
 }
 
 /** Unstarted runs have no lost work to continue, except prepared continuations carrying a source run. */
 export function neverStarted(
   run: Pick<OrchestrationV2Run, "startedAt" | "restartContinuationOfRunId">,
-) {
+): boolean {
   return run.startedAt === null && run.restartContinuationOfRunId === undefined;
 }
 
 /** Restart-cancelled unstarted runs supersede nothing; user-stopped unstarted runs do. */
 export function cancelledBeforeStart(
   run: Pick<OrchestrationV2Run, "status" | "startedAt" | "restartContinuationOfRunId">,
-) {
+): boolean {
   return run.status === "cancelled" && neverStarted(run);
 }
 
@@ -203,16 +201,7 @@ export function delegatedTaskRuns(
     >;
   },
   taskId: NodeId,
-): ReadonlyArray<OrchestrationV2Run>;
-export function delegatedTaskRuns(
-  projection: {
-    readonly runs: ReadonlyArray<OrchestrationV2Run>;
-    readonly messages: ReadonlyArray<
-      Pick<OrchestrationV2ConversationMessage, "runId" | "delegatedCompletion">
-    >;
-  },
-  taskId: NodeId,
-) {
+): ReadonlyArray<OrchestrationV2Run> {
   const owned = new Set(
     projection.runs.filter((run) => run.delegatedTaskId === taskId).map((run) => run.id),
   );
@@ -234,9 +223,7 @@ export function delegatedTaskRuns(
       grew = true;
     }
   }
-  return projection.runs.filter((run) =>
-    owned.has(run.id),
-  ) satisfies ReadonlyArray<OrchestrationV2Run>;
+  return projection.runs.filter((run) => owned.has(run.id));
 }
 
 /**
@@ -253,7 +240,7 @@ export function delegatedTaskAwaitsWork(
       Pick<OrchestrationV2ProviderThread, "pendingBackgroundTasks">
     >;
   },
-) {
+): boolean {
   const runIds = new Set<string | null>(runs.map((run) => run.id));
   return (
     child.subagents.some((task) => runIds.has(task.runId) && subagentHoldsCompletion(task)) ||
@@ -270,8 +257,7 @@ export function delegatedTaskAwaitsWork(
 /** A follow-up task's latest run, passing over queued work it no longer waits on, as the original task does. */
 export function delegatedTaskResultRun(
   runs: ReadonlyArray<OrchestrationV2Run>,
-): OrchestrationV2Run | undefined;
-export function delegatedTaskResultRun(runs: ReadonlyArray<OrchestrationV2Run>) {
+): OrchestrationV2Run | undefined {
   const taskRuns = runs.toSorted((a, b) => b.ordinal - a.ordinal);
   const awaited = taskRuns.filter(
     (run) => !cancelledBeforeStart(run) && !(run.status === "queued" && run.queueHeld === true),
@@ -279,17 +265,14 @@ export function delegatedTaskResultRun(runs: ReadonlyArray<OrchestrationV2Run>) 
   const executing = awaited.find((run) =>
     ["preparing", "starting", "running", "waiting"].includes(run.status),
   );
-  return (executing ??
-    awaited.find((run) => run.status === "queued") ??
-    awaited[0] ??
-    taskRuns[0]) satisfies OrchestrationV2Run | undefined;
+  return executing ?? awaited.find((run) => run.status === "queued") ?? awaited[0] ?? taskRuns[0];
 }
 
 /** The provider never accepted this continuation's prompt, so starting it again repeats nothing. */
 export function continuationFailedBeforePrompt(
   run: Pick<OrchestrationV2Run, "status" | "activeAttemptId" | "restartContinuationOfRunId">,
   providerTurns: ReadonlyArray<Pick<ProviderTurnState, "runAttemptId">>,
-) {
+): boolean {
   return (
     run.status === "failed" &&
     run.restartContinuationOfRunId !== undefined &&
@@ -307,7 +290,7 @@ export function continuationStartRetryDelayMs(
     readonly providerTurns: ReadonlyArray<Pick<ProviderTurnState, "runAttemptId">>;
     readonly turnItems: Parameters<typeof latestRootProviderFailure>[1];
   },
-) {
+): number | undefined {
   if (!continuationFailedBeforePrompt(run, projection.providerTurns)) return;
   const failureClass = latestRootProviderFailure(run, projection.turnItems)?.class;
   if (
@@ -331,7 +314,7 @@ export function continuationStartRetryDelayMs(
 export function isRestartContinuationSource(
   source: Pick<OrchestrationV2Run, "status" | "activeAttemptId" | "restartCancelledBackgroundWork">,
   providerTurns: ReadonlyArray<Pick<ProviderTurnState, "runAttemptId" | "status">>,
-) {
+): boolean {
   return isRestartNoteSource(source, providerTurns)
     ? (source.restartCancelledBackgroundWork ?? []).some(isAwaitedWork)
     : source.status === "cancelled";
@@ -343,7 +326,7 @@ export function restartContinuationNote(
   runs: ReadonlyArray<OrchestrationV2Run>,
   providerTurns: ReadonlyArray<Pick<ProviderTurnState, "runAttemptId" | "status">>,
   attempts: ReadonlyArray<Attempt>,
-) {
+): { readonly work: ReadonlyArray<Work>; readonly settled: boolean } {
   const completedAttempts = new Set(
     providerTurns.flatMap((turn) => (turn.status === "completed" ? [turn.runAttemptId] : [])),
   );
@@ -372,7 +355,7 @@ export function isRestartNoteContinuation(
   runs: ReadonlyArray<OrchestrationV2Run>,
   providerTurns: ReadonlyArray<Pick<ProviderTurnState, "runAttemptId" | "status">>,
   attempts: ReadonlyArray<Attempt>,
-) {
+): boolean {
   const source =
     run.restartContinuationOfRunId === undefined
       ? undefined
@@ -400,7 +383,7 @@ export function pendingRestartCancelledBackgroundWork(input: {
   >;
 
   readonly attempts: ReadonlyArray<Attempt>;
-}) {
+}): ReadonlyArray<Work> {
   const isCompaction = (run: typeof input.run) => input.compactionMessageIds.has(run.userMessageId);
   if (
     input.run.providerThreadId === null ||
@@ -452,7 +435,7 @@ export function pendingRestartCancelledBackgroundWork(input: {
 export function mergeRestartCancelledBackgroundWork(
   current: ReadonlyArray<Work>,
   added: ReadonlyArray<Work>,
-) {
+): ReadonlyArray<Work> {
   const identity = (entry: Work) => entry.id ?? `${entry.kind}\u0000${entry.label}`;
   const seen = new Set(current.map(identity));
   const merged = [...current];

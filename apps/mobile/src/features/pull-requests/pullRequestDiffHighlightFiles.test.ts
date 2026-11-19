@@ -46,7 +46,7 @@ const target = {
   },
 };
 
-function file(id: string, path: string, previousPath: string | null) {
+function file(id: string, path: string, previousPath: string | null): ReviewRenderableFile {
   return {
     id,
     path,
@@ -59,7 +59,7 @@ function file(id: string, path: string, previousPath: string | null) {
     additionLines: [],
     deletionLines: [],
     rows: [],
-  } satisfies ReviewRenderableFile;
+  };
 }
 
 function setup() {

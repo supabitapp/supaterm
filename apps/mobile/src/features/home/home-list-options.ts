@@ -22,7 +22,7 @@ export interface ResolvedHomeListOptions extends HomeListOptions {
   readonly hideOfflineEnvironments: boolean;
 }
 
-function defaultHomeListOptions(filters?: ThreadListFilters) {
+function defaultHomeListOptions(filters?: ThreadListFilters): HomeListOptions {
   return {
     selectedEnvironmentId: filters?.environmentId ?? null,
     selectedProjectKey: filters?.projectKey ?? null,

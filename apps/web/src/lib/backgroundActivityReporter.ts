@@ -37,7 +37,7 @@ interface RetainedScope {
 const retainedScopes = new Map<string, RetainedScope>();
 const retainedScopeListeners = new Set<() => void>();
 
-function notifyRetainedScopesChanged() {
+function notifyRetainedScopesChanged(): void {
   for (const listener of retainedScopeListeners) {
     try {
       listener();
@@ -45,7 +45,7 @@ function notifyRetainedScopesChanged() {
   }
 }
 
-function stableScopeKey(environmentId: EnvironmentId, scope: BackgroundScope) {
+function stableScopeKey(environmentId: EnvironmentId, scope: BackgroundScope): string {
   switch (scope.type) {
     case "server-config":
     case "diagnostics":
@@ -60,7 +60,7 @@ function stableScopeKey(environmentId: EnvironmentId, scope: BackgroundScope) {
   }
 }
 
-function getClientId() {
+function getClientId(): string {
   try {
     const existing = window.localStorage.getItem(CLIENT_ID_STORAGE_KEY);
     if (existing) return existing;
@@ -72,11 +72,11 @@ function getClientId() {
   }
 }
 
-function resolveClientKind() {
+function resolveClientKind(): ClientActivityReportInput["clientKind"] {
   return window.desktopBridge ? "desktop-renderer" : "web";
 }
 
-function wasRecentlyInteracted(lastInteractionAtMs: number, observedAtMs: number) {
+function wasRecentlyInteracted(lastInteractionAtMs: number, observedAtMs: number): boolean {
   return (
     lastInteractionAtMs <= observedAtMs &&
     observedAtMs - lastInteractionAtMs <= RECENT_INTERACTION_WINDOW_MS
@@ -87,7 +87,7 @@ function createActivityReport(
   environmentId: EnvironmentId,
   lastInteractionAtMs: number,
   observedAtMs: number,
-) {
+): ClientActivityReportInput {
   const scopes = [...BASELINE_SCOPES];
   for (const entry of retainedScopes.values()) {
     if (entry.environmentId === environmentId) {
@@ -105,24 +105,24 @@ function createActivityReport(
     scopes,
     ttlMs: LEASE_TTL_MS,
     observedAt: DateTime.makeUnsafe(observedAtMs),
-  } satisfies ClientActivityReportInput;
+  };
 }
 
-function scopeForSubscription(observation: EnvironmentRpcSubscriptionObservation) {
+function scopeForSubscription(
+  observation: EnvironmentRpcSubscriptionObservation,
+): BackgroundScope | null {
   if (observation.method === WS_METHODS.subscribeResourceTelemetry) {
-    return { type: "diagnostics" } satisfies BackgroundScope | null;
+    return { type: "diagnostics" };
   }
   if (observation.method !== WS_METHODS.subscribeVcsStatus) {
-    return null satisfies BackgroundScope | null;
+    return null;
   }
   const input = observation.input as { readonly cwd?: unknown; readonly includeRemote?: unknown };
-  if (input.includeRemote === false) return null satisfies BackgroundScope | null;
-  return (
-    typeof input.cwd === "string" ? { type: "vcs-status", cwd: input.cwd } : null
-  ) satisfies BackgroundScope | null;
+  if (input.includeRemote === false) return null;
+  return typeof input.cwd === "string" ? { type: "vcs-status", cwd: input.cwd } : null;
 }
 
-function retainBackgroundScope(environmentId: EnvironmentId, scope: BackgroundScope) {
+function retainBackgroundScope(environmentId: EnvironmentId, scope: BackgroundScope): () => void {
   const key = stableScopeKey(environmentId, scope);
   const existing = retainedScopes.get(key);
   if (existing) {
@@ -145,7 +145,7 @@ function retainBackgroundScope(environmentId: EnvironmentId, scope: BackgroundSc
 
 export function observeBackgroundActivitySubscription(
   observation: EnvironmentRpcSubscriptionObservation,
-) {
+): Effect.Effect<Effect.Effect<void>> {
   const scope = scopeForSubscription(observation);
   if (scope === null) {
     return Effect.succeed(Effect.void);
@@ -156,7 +156,9 @@ export function observeBackgroundActivitySubscription(
   });
 }
 
-export function retainedBackgroundScopes(environmentId: EnvironmentId) {
+export function retainedBackgroundScopes(
+  environmentId: EnvironmentId,
+): ReadonlyArray<BackgroundScope> {
   return Array.from(retainedScopes.values(), (entry) =>
     entry.environmentId === environmentId ? entry.scope : null,
   ).filter((scope): scope is BackgroundScope => scope !== null);

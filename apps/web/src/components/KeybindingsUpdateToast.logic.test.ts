@@ -3,7 +3,7 @@ import type { ServerConfigStreamEvent } from "@supaterm/contracts";
 
 import { createKeybindingsUpdateToastController } from "./KeybindingsUpdateToast.logic";
 
-function keybindingsUpdated(issueMessages: ReadonlyArray<string>) {
+function keybindingsUpdated(issueMessages: ReadonlyArray<string>): ServerConfigStreamEvent {
   return {
     version: 1,
     type: "keybindingsUpdated",
@@ -15,7 +15,7 @@ function keybindingsUpdated(issueMessages: ReadonlyArray<string>) {
         index,
       })),
     },
-  } satisfies ServerConfigStreamEvent;
+  };
 }
 
 describe("keybindings update toast", () => {

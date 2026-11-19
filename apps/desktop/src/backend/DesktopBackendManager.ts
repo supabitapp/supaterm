@@ -51,6 +51,10 @@ const STARTUP_FAILURE_OUTPUT_CHARS = 4_000;
 const { logWarning: logBackendProcessWarning } =
   DesktopObservability.makeComponentLogger("desktop-backend-process");
 
+type BackendProcessLayerServices = ChildProcessSpawner.ChildProcessSpawner | HttpClient.HttpClient;
+
+type BackendProcessRunRequirements = BackendProcessLayerServices | Scope.Scope;
+
 export type BackendProcessOutputStream = "stdout" | "stderr";
 
 export interface BackendProcessContext {
@@ -82,6 +86,11 @@ export interface PreflightFailure {
   readonly retryLimit?: number;
 }
 
+interface BackendProcessExit {
+  readonly code: Option.Option<number>;
+  readonly reason: string;
+}
+
 const backendProcessContextSchema = {
   executablePath: Schema.String,
   entryPath: Schema.String,
@@ -98,7 +107,7 @@ export class BackendReadinessTimeoutError extends Schema.TaggedError<BackendRead
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Timed out after ${this.timeoutMs}ms waiting for desktop backend readiness at ${this.readinessUrl.href}.`;
   }
 }
@@ -110,7 +119,7 @@ export class BackendProcessBootstrapEncodeError extends Schema.TaggedError<Backe
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Failed to encode the desktop backend bootstrap payload for ${this.entryPath}.`;
   }
 }
@@ -122,7 +131,7 @@ export class BackendProcessSpawnError extends Schema.TaggedError<BackendProcessS
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Failed to spawn desktop backend entry ${this.entryPath} with ${this.executablePath}.`;
   }
 }
@@ -136,7 +145,7 @@ export class BackendProcessOutputReadError extends Schema.TaggedError<BackendPro
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Failed to read ${this.streamName} from desktop backend process ${this.pid}.`;
   }
 }
@@ -151,7 +160,7 @@ export class BackendProcessOutputHandlingError extends Schema.TaggedError<Backen
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Failed to handle ${this.chunkByteLength} bytes from ${this.streamName} of desktop backend process ${this.pid}.`;
   }
 }
@@ -168,7 +177,7 @@ export class BackendProcessExitStatusError extends Schema.TaggedError<BackendPro
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Failed to read the exit status of desktop backend process ${this.pid}.`;
   }
 }
@@ -276,17 +285,17 @@ const initialState: BackendManagerState = {
   nextRunId: 1,
 };
 
-const activePid = (active: Option.Option<ActiveBackendRun>) =>
+const activePid = (active: Option.Option<ActiveBackendRun>): Option.Option<number> =>
   Option.flatMap(active, (run) => run.pid);
 
 const withActiveRun =
   (runId: number, f: (run: ActiveBackendRun) => ActiveBackendRun) =>
-  (state: BackendManagerState) => ({
+  (state: BackendManagerState): BackendManagerState => ({
     ...state,
     active: Option.map(state.active, (run) => (run.id === runId ? f(run) : run)),
   });
 
-const calculateRestartDelay = (attempt: number) =>
+const calculateRestartDelay = (attempt: number): Duration.Duration =>
   Duration.min(Duration.times(INITIAL_RESTART_DELAY, 2 ** attempt), MAX_RESTART_DELAY);
 
 const closeRun = (
@@ -332,7 +341,7 @@ const READINESS_POLLER_STAGGER = Duration.millis(250);
 
 const waitForHttpReady = (
   options: BackendProcessContext & { readonly timeout: Duration.Duration },
-) => {
+): Effect.Effect<void, BackendReadinessTimeoutError, HttpClient.HttpClient> => {
   const poll = pollHttpReady(options);
   if (LOOPBACK_HOSTNAMES.has(options.httpBaseUrl.hostname)) return poll;
   return Effect.raceAll(
@@ -344,7 +353,7 @@ const waitForHttpReady = (
 
 const pollHttpReady = (
   options: BackendProcessContext & { readonly timeout: Duration.Duration },
-) => {
+): Effect.Effect<void, BackendReadinessTimeoutError, HttpClient.HttpClient> => {
   const readinessUrl = new URL(BACKEND_READINESS_PATH, options.httpBaseUrl);
   return waitForHttpReadyShared({
     baseUrl: options.httpBaseUrl.href,
@@ -374,7 +383,7 @@ function drainBackendOutput(
     chunk: Uint8Array,
   ) => Effect.Effect<void, Error>,
   onOutputFailure: (error: BackendProcessOutputError) => Effect.Effect<void>,
-) {
+): Effect.Effect<void> {
   return stream.pipe(
     Stream.mapError(
       (cause) =>
@@ -411,7 +420,7 @@ const decodeDesktopTelemetryControlLine = Schema.decodeUnknownEffect(
 
 export const runBackendProcess = Effect.fn("runBackendProcess")(function* (
   options: RunBackendProcessOptions,
-) {
+): Effect.fn.Return<BackendProcessExit, BackendProcessError, BackendProcessRunRequirements> {
   const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
   const bootstrapJson = yield* encodeBootstrapJson(options.bootstrap).pipe(
     Effect.mapError(
@@ -635,9 +644,9 @@ export const runBackendProcess = Effect.fn("runBackendProcess")(function* (
   return exit.value;
 });
 
-export const makeBackendInstance: (
+export const makeBackendInstance = Effect.fn("makeBackendInstance")(function* (
   spec: BackendInstanceSpec,
-) => Effect.Effect<
+): Effect.fn.Return<
   DesktopBackendInstance,
   never,
   | FileSystem.FileSystem
@@ -648,7 +657,7 @@ export const makeBackendInstance: (
   | DesktopBrowserHost.DesktopBrowserHost
   | DesktopWslEnvironment.DesktopWslEnvironment
   | Scope.Scope
-> = Effect.fn("makeBackendInstance")(function* (spec: BackendInstanceSpec) {
+> {
   const parentScope = yield* Scope.Scope;
   const fileSystem = yield* FileSystem.FileSystem;
   const backendOutputLogFactory = yield* DesktopObservability.DesktopBackendOutputLogFactory;
@@ -675,7 +684,7 @@ export const makeBackendInstance: (
     SubscriptionRef.update(state, withActiveRun(runId, f));
 
   const snapshot = SubscriptionRef.get(state).pipe(
-    Effect.map((current) => ({
+    Effect.map((current): DesktopBackendSnapshot => ({
       desiredRunning: current.desiredRunning,
       ready: current.ready,
       activePid: activePid(current.active),
@@ -834,79 +843,54 @@ export const makeBackendInstance: (
           yield* mutex.withPermits(1)(
             Effect.gen(function* () {
               const { isCurrentRun, nextState, pid, exitObserved, stopRequested, wasReady } =
-                yield* SubscriptionRef.modify(state, (latest) => {
-                  const currentRun = Option.getOrUndefined(latest.active);
-                  if (currentRun?.id !== runId) {
+                yield* SubscriptionRef.modify(
+                  state,
+                  (
+                    latest,
+                  ): readonly [
+                    {
+                      readonly isCurrentRun: boolean;
+                      readonly nextState: BackendManagerState;
+                      readonly pid: Option.Option<number>;
+                      readonly exitObserved: boolean;
+                      readonly stopRequested: boolean;
+                      readonly wasReady: boolean;
+                    },
+                    BackendManagerState,
+                  ] => {
+                    const currentRun = Option.getOrUndefined(latest.active);
+                    if (currentRun?.id !== runId) {
+                      return [
+                        {
+                          isCurrentRun: false,
+                          nextState: latest,
+                          pid: Option.none<number>(),
+                          exitObserved: false,
+                          stopRequested: false,
+                          wasReady: false,
+                        },
+                        latest,
+                      ] as const;
+                    }
+
+                    const next = {
+                      ...latest,
+                      active: Option.none<ActiveBackendRun>(),
+                      ready: false,
+                    };
                     return [
                       {
-                        isCurrentRun: false,
-                        nextState: latest,
-                        pid: Option.none<number>(),
-                        exitObserved: false,
-                        stopRequested: false,
-                        wasReady: false,
+                        isCurrentRun: true,
+                        nextState: next,
+                        pid: currentRun.pid,
+                        exitObserved: currentRun.exitObserved,
+                        stopRequested: currentRun.stopRequested,
+                        wasReady: latest.ready,
                       },
-                      latest,
-                    ] as const satisfies readonly [
-                      {
-                        readonly isCurrentRun: boolean;
-                        readonly nextState: BackendManagerState;
-                        readonly pid: Option.Option<number>;
-                        readonly exitObserved: boolean;
-                        readonly stopRequested: boolean;
-                        readonly wasReady: boolean;
-                      },
-                      BackendManagerState,
-                    ] as readonly [
-                      {
-                        readonly isCurrentRun: boolean;
-                        readonly nextState: BackendManagerState;
-                        readonly pid: Option.Option<number>;
-                        readonly exitObserved: boolean;
-                        readonly stopRequested: boolean;
-                        readonly wasReady: boolean;
-                      },
-                      BackendManagerState,
-                    ];
-                  }
-
-                  const next = {
-                    ...latest,
-                    active: Option.none<ActiveBackendRun>(),
-                    ready: false,
-                  };
-                  return [
-                    {
-                      isCurrentRun: true,
-                      nextState: next,
-                      pid: currentRun.pid,
-                      exitObserved: currentRun.exitObserved,
-                      stopRequested: currentRun.stopRequested,
-                      wasReady: latest.ready,
-                    },
-                    next,
-                  ] as const satisfies readonly [
-                    {
-                      readonly isCurrentRun: boolean;
-                      readonly nextState: BackendManagerState;
-                      readonly pid: Option.Option<number>;
-                      readonly exitObserved: boolean;
-                      readonly stopRequested: boolean;
-                      readonly wasReady: boolean;
-                    },
-                    BackendManagerState,
-                  ] as readonly [
-                    {
-                      readonly isCurrentRun: boolean;
-                      readonly nextState: BackendManagerState;
-                      readonly pid: Option.Option<number>;
-                      readonly exitObserved: boolean;
-                      readonly stopRequested: boolean;
-                      readonly wasReady: boolean;
-                    },
-                    BackendManagerState,
-                  ];
-                });
+                      next,
+                    ] as const;
+                  },
+                );
 
               if (isCurrentRun) {
                 yield* desktopTelemetryPublisher.removeControlSource(spec.id);
@@ -1139,31 +1123,42 @@ export const makeBackendInstance: (
       onSome: Effect.fnUntraced(function* (run) {
         yield* closeRun(run, parentScope, options);
         const cleanup = yield* mutex.withPermits(1)(
-          SubscriptionRef.modify(state, (latest) => {
-            const current = Option.getOrUndefined(latest.active);
-            if (current?.id !== run.id) {
+          SubscriptionRef.modify(
+            state,
+            (
+              latest,
+            ): readonly [
+              {
+                readonly needsCleanup: boolean;
+                readonly shouldStart: boolean;
+              },
+              BackendManagerState,
+            ] => {
+              const current = Option.getOrUndefined(latest.active);
+              if (current?.id !== run.id) {
+                return [
+                  {
+                    needsCleanup: false,
+                    shouldStart:
+                      latest.desiredRunning &&
+                      Option.isNone(latest.active) &&
+                      Option.isNone(latest.restartFiber),
+                  },
+                  latest,
+                ];
+              }
               return [
                 {
-                  needsCleanup: false,
-                  shouldStart:
-                    latest.desiredRunning &&
-                    Option.isNone(latest.active) &&
-                    Option.isNone(latest.restartFiber),
+                  needsCleanup: true,
+                  shouldStart: latest.desiredRunning,
                 },
-                latest,
+                {
+                  ...latest,
+                  active: Option.none<ActiveBackendRun>(),
+                },
               ];
-            }
-            return [
-              {
-                needsCleanup: true,
-                shouldStart: latest.desiredRunning,
-              },
-              {
-                ...latest,
-                active: Option.none<ActiveBackendRun>(),
-              },
-            ];
-          }),
+            },
+          ),
         );
         if (cleanup.needsCleanup) {
           yield* desktopTelemetryPublisher.removeControlSource(spec.id);

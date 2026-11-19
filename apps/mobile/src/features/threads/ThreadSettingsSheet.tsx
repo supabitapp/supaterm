@@ -738,7 +738,9 @@ function ThreadSettingsProviderListHeader(props: {
   );
 }
 
-function buildThreadSettingsCatalogItems(session: ThreadSettingsSessionValue) {
+function buildThreadSettingsCatalogItems(
+  session: ThreadSettingsSessionValue,
+): ReadonlyArray<ThreadSettingsCatalogItem> {
   const { isApplied, isDisplayed } = session;
   return session.providerGroups.flatMap((group) => {
     if (

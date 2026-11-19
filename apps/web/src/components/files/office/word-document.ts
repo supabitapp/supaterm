@@ -23,7 +23,7 @@ import { loadFace, sheetFace, wordFonts } from "./fonts";
 import { maxImageSide, type VectorBitmap } from "./vector-pictures";
 import { withWholeMissingGlyphs } from "./word-glyphs";
 import { createBitmapImageResolver } from "./word-images";
-import { layerFont, type WordSpan } from "./word-protocol";
+import { layerFont, type WordPageSize, type WordSpan } from "./word-protocol";
 import { pageText, positionTarget, type TextMeasure } from "./word-text";
 
 const FontRequirements = Schema.fromJsonString(
@@ -360,15 +360,14 @@ function pictureSizes(page: DisplayPage, density: number) {
   return sizes;
 }
 
-export function pageSize(page: DisplayPage) {
+export function pageSize(page: DisplayPage): WordPageSize {
   return { width: page.width, height: page.height, background: page.background };
 }
 
-function layerMeasure(): TextMeasure | undefined;
-function layerMeasure() {
+function layerMeasure(): TextMeasure | undefined {
   const context = new OffscreenCanvas(1, 1).getContext("2d");
 
-  if (!context) return undefined satisfies TextMeasure | undefined;
+  if (!context) return undefined;
 
   const size = 100;
 
@@ -380,5 +379,5 @@ function layerMeasure() {
     width: (text) => context.measureText(text).width / size,
     ascent: metrics.fontBoundingBoxAscent / size,
     descent: metrics.fontBoundingBoxDescent / size,
-  } satisfies TextMeasure | undefined;
+  };
 }

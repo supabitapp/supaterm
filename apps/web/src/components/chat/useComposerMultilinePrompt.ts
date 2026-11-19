@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { observeResize } from "../../lib/observeResize";
 
-function measureComposerMultilinePrompt(body: HTMLElement) {
+function measureComposerMultilinePrompt(body: HTMLElement): boolean | null {
   const editor = body.querySelector<HTMLElement>('[data-testid="composer-editor"]');
   if (!editor || editor.clientWidth === 0) return null;
 
@@ -19,7 +19,10 @@ function measureComposerMultilinePrompt(body: HTMLElement) {
 }
 
 /** Whether the prompt wraps, and the ref callback that measures it on the composer body. */
-export function useComposerMultilinePrompt() {
+export function useComposerMultilinePrompt(): readonly [
+  boolean,
+  (body: HTMLElement | null) => (() => void) | undefined,
+] {
   const [isMultiline, setIsMultiline] = useState(false);
   const observeBody = (body: HTMLElement | null) => {
     if (!body) return;

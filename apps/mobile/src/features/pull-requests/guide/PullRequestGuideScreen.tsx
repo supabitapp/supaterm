@@ -308,7 +308,7 @@ export function PullRequestGuideStopScreen({ route }: StaticScreenProps<GuideSto
     </View>
   );
 }
-function diffFilesByPath(patchText: string) {
+function diffFilesByPath(patchText: string): Map<string, FileDiffMetadata> {
   const files = new Map<string, FileDiffMetadata>();
   try {
     for (const patch of parsePatchFiles(patchText)) {

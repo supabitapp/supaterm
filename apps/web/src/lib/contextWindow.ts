@@ -10,7 +10,7 @@ import type {
 } from "@supaterm/contracts";
 import * as DateTime from "effect/DateTime";
 
-function asFiniteNumber(value: unknown) {
+function asFiniteNumber(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
@@ -35,7 +35,7 @@ export function latestProviderTurnTokenUsage(
   turns: ReadonlyArray<Pick<OrchestrationV2ProviderTurn, "providerThreadId" | "tokenUsage">>,
   projection?: Pick<ThreadStructure, "thread" | "contextTransfers"> | null,
   providerThread?: Pick<OrchestrationV2ProviderThread, "id" | "contextUsage"> | null,
-) {
+): OrchestrationV2ProviderTurnTokenUsage | null {
   let latest: OrchestrationV2ProviderTurnTokenUsage | null = null;
   for (const { providerThreadId, tokenUsage } of turns) {
     if (tokenUsage === undefined) continue;
@@ -66,7 +66,7 @@ export function deriveLatestContextWindowSnapshot(
   }>,
   liveUsage?: OrchestrationV2ProviderTurnTokenUsage | null,
   providerThread?: Pick<OrchestrationV2ProviderThread, "id" | "contextUsage" | "updatedAt"> | null,
-) {
+): ContextWindowSnapshot | null {
   if (liveUsage != null) {
     const usedTokens = Math.max(0, liveUsage.usedTokens);
     const maxTokens = liveUsage.maxTokens ?? null;
@@ -187,7 +187,7 @@ export function deriveLatestContextWindowSnapshot(
   return null;
 }
 
-export function formatContextWindowPercentage(value: number | null) {
+export function formatContextWindowPercentage(value: number | null): string | null {
   if (value === null || !Number.isFinite(value)) {
     return null;
   }
@@ -197,7 +197,7 @@ export function formatContextWindowPercentage(value: number | null) {
   return `${Math.round(value)}%`;
 }
 
-export function formatContextWindowTokens(value: number | null) {
+export function formatContextWindowTokens(value: number | null): string {
   if (value === null || !Number.isFinite(value)) {
     return "0";
   }

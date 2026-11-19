@@ -6,10 +6,10 @@ import * as Semaphore from "effect/Semaphore";
 
 const leases = new Map<string, { semaphore: Semaphore.Semaphore; users: number }>();
 
-export const withWorkspaceLease: <A, E, R>(
+export const withWorkspaceLease = <A, E, R>(
   cwd: string,
   effect: Effect.Effect<A, E, R>,
-) => Effect.Effect<A, E, R> = <A, E, R>(cwd: string, effect: Effect.Effect<A, E, R>) =>
+): Effect.Effect<A, E, R> =>
   Effect.suspend(() => {
     const lease = leases.get(cwd) ?? { semaphore: Semaphore.makeUnsafe(1), users: 0 };
     leases.set(cwd, lease);
@@ -44,10 +44,7 @@ const conflicts = (path: Path.Path, a: Reservation, b: Reservation) =>
   (a.kind === "restore" || b.kind === "restore") &&
   (contains(path, a.cwd, b.cwd) || contains(path, b.cwd, a.cwd));
 
-const reserve: (path: Path.Path, reservation: Reservation) => Effect.Effect<void> = (
-  path: Path.Path,
-  reservation: Reservation,
-) =>
+const reserve = (path: Path.Path, reservation: Reservation): Effect.Effect<void> =>
   Effect.suspend(() => {
     for (const held of reservations) {
       if (conflicts(path, held, reservation)) {
@@ -66,11 +63,11 @@ const release = (reservation: Reservation) =>
     Deferred.doneUnsafe(released, Effect.void);
   });
 
-const canonicalize: (
+const canonicalize = (
   fileSystem: FileSystem.FileSystem,
   path: Path.Path,
   target: string,
-) => Effect.Effect<string> = (fileSystem: FileSystem.FileSystem, path: Path.Path, target: string) =>
+): Effect.Effect<string> =>
   fileSystem.realPath(target).pipe(
     Effect.catchReason("PlatformError", "NotFound", () => {
       const parent = path.dirname(target);
@@ -90,7 +87,7 @@ const withReservation =
     path: Path.Path,
     cwd: string,
     effect: Effect.Effect<A, E, R>,
-  ) =>
+  ): Effect.Effect<A, E, R> =>
     canonicalize(fileSystem, path, cwd).pipe(
       Effect.flatMap((canonical) => {
         const reservation: Reservation = { cwd: canonical, kind };
@@ -99,7 +96,7 @@ const withReservation =
           Effect.ensuring(release(reservation)),
         );
       }),
-    ) satisfies Effect.Effect<A, E, R> as Effect.Effect<A, E, R>;
+    );
 
 /** Exclusive over every overlapping workspace while checkpoint files are restored. */
 export const withCheckpointRestoreReservation = withReservation("restore");

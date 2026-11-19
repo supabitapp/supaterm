@@ -4,7 +4,7 @@ import type * as ModelCatalog from "@supaterm/provider-core/server/ModelCatalog"
 
 import { applyCodexModelCatalog } from "./codexModelCatalog.ts";
 
-const model = (overrides: Partial<ServerProviderModel>) => ({
+const model = (overrides: Partial<ServerProviderModel>): ServerProviderModel => ({
   slug: "gpt-test",
   name: "GPT Test",
   isCustom: false,
@@ -12,15 +12,16 @@ const model = (overrides: Partial<ServerProviderModel>) => ({
   ...overrides,
 });
 
-const entry = (overrides: Partial<ModelCatalog.ProviderCatalogModel> & { readonly slug: string }) =>
-  ({
-    name: overrides.slug,
-    status: "current",
-    capabilities: null,
-    adapter: undefined,
-    profileAdapter: undefined,
-    ...overrides,
-  }) satisfies ModelCatalog.ProviderCatalogModel;
+const entry = (
+  overrides: Partial<ModelCatalog.ProviderCatalogModel> & { readonly slug: string },
+): ModelCatalog.ProviderCatalogModel => ({
+  name: overrides.slug,
+  status: "current",
+  capabilities: null,
+  adapter: undefined,
+  profileAdapter: undefined,
+  ...overrides,
+});
 
 const catalog: ModelCatalog.ProviderCatalog = {
   defaultChatModel: undefined,

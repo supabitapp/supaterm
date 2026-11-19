@@ -163,12 +163,11 @@ it.effect("sends replies ahead of stale frames and only the newest frame after a
   Effect.gen(function* () {
     const output = yield* Queue.make<ServerBrowser.ServerBrowserViewerOutput>();
     const released: number[] = [];
-    const frame = (id: number) =>
-      ({
-        _tag: "frame",
-        data: new Uint8Array([id]),
-        ack: Effect.sync(() => void released.push(id)),
-      }) satisfies ServerBrowser.ServerBrowserViewerOutput;
+    const frame = (id: number): ServerBrowser.ServerBrowserViewerOutput => ({
+      _tag: "frame",
+      data: new Uint8Array([id]),
+      ack: Effect.sync(() => void released.push(id)),
+    });
     const browser = ServerBrowser.ServerBrowser.of({
       clearProfile: () => Effect.void,
       profileReporter: Effect.succeed(() => Effect.void),

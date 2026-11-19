@@ -95,12 +95,7 @@ function shareMetadataRead<A, R>(
   pending: PendingMetadata<A>,
   key: string,
   probe: Effect.Effect<A, never, R>,
-): Effect.Effect<A, never, R | EnvironmentSupervisor.EnvironmentSupervisor>;
-function shareMetadataRead<A, R>(
-  pending: PendingMetadata<A>,
-  key: string,
-  probe: Effect.Effect<A, never, R>,
-) {
+): Effect.Effect<A, never, R | EnvironmentSupervisor.EnvironmentSupervisor> {
   return Effect.uninterruptibleMask((restore) =>
     Effect.gen(function* () {
       const supervisor = yield* EnvironmentSupervisor.EnvironmentSupervisor;
@@ -126,10 +121,10 @@ function shareMetadataRead<A, R>(
         ),
       );
     }),
-  ) satisfies Effect.Effect<A, never, R | EnvironmentSupervisor.EnvironmentSupervisor>;
+  );
 }
 
-function isLocal(entry: ConnectionCatalogEntry) {
+function isLocal(entry: ConnectionCatalogEntry): boolean {
   const url =
     entry.target._tag === "PrimaryConnectionTarget"
       ? entry.target.httpBaseUrl
@@ -144,7 +139,7 @@ function isLocal(entry: ConnectionCatalogEntry) {
   }
 }
 
-function rejectedBeforeDispatch(error: unknown) {
+function rejectedBeforeDispatch(error: unknown): boolean {
   return (
     typeof error === "object" &&
     error !== null &&
@@ -194,7 +189,7 @@ const routingAllowed = Effect.fn("PullRequestRouting.allowed")(function* (
   return true;
 });
 
-function matchesReference(reference: PullRequestRef, filter: PullRequestRef) {
+function matchesReference(reference: PullRequestRef, filter: PullRequestRef): boolean {
   return (
     reference.projectId === filter.projectId &&
     reference.repository.toLowerCase() === filter.repository.toLowerCase() &&
@@ -361,7 +356,7 @@ export function createPullRequestRouter() {
       ...remote.map((entry) => entry.id),
       ...(reads.has(tag) ? [origin.target.environmentId] : []),
     ];
-    const run = (id: EnvironmentId) =>
+    const run = (id: EnvironmentId): ReturnType<typeof request<T>> =>
       (id === origin.target.environmentId
         ? guardedSource
         : registry.run(id, request(tag, routedInput))
@@ -395,7 +390,7 @@ export function createPullRequestRouter() {
             : error,
         ),
       );
-    const visit: (index: number) => ReturnType<typeof request<T>> = (index: number) => {
+    const visit = (index: number): ReturnType<typeof request<T>> => {
       const id = candidates[index];
       if (id === undefined) return guardedSource;
       return Effect.gen(function* () {

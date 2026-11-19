@@ -39,7 +39,7 @@ export class DirectEndpoints extends Context.Service<
   }
 >()("supaterm/environment/DirectEndpoints") {}
 
-const isAdvertisableAddress = (address: string) =>
+const isAdvertisableAddress = (address: string): boolean =>
   NodeNet.isIPv4(address) &&
   !address.startsWith("127.") &&
   !address.startsWith("169.254.") &&
@@ -50,10 +50,13 @@ const VIRTUAL_INTERFACE =
 
 const LINUX_CONTAINER_INTERFACE = /^(ve-|vb-|vz-)/;
 
-const isVirtualInterface = (name: string, platform: NodeJS.Platform) =>
+const isVirtualInterface = (name: string, platform: NodeJS.Platform): boolean =>
   VIRTUAL_INTERFACE.test(name) || (platform === "linux" && LINUX_CONTAINER_INTERFACE.test(name));
 
-const isTailscaleInterface = (name: string, entries: ReadonlyArray<NodeOS.NetworkInterfaceInfo>) =>
+const isTailscaleInterface = (
+  name: string,
+  entries: ReadonlyArray<NodeOS.NetworkInterfaceInfo>,
+): boolean =>
   /^tailscale/i.test(name) ||
   entries.some((entry) => entry.family === "IPv6" && isTailnetHost(entry.address));
 
@@ -64,14 +67,8 @@ export function resolveBoundEndpoints(input: {
   readonly host: string | undefined;
   readonly port: number;
   readonly interfaces: NetworkInterfacesMap;
-}): ReadonlyArray<ServerDirectEndpoint>;
-export function resolveBoundEndpoints(input: {
-  readonly platform: NodeJS.Platform;
-  readonly host: string | undefined;
-  readonly port: number;
-  readonly interfaces: NetworkInterfacesMap;
-}) {
-  if (isLoopbackHost(input.host)) return [] satisfies ReadonlyArray<ServerDirectEndpoint>;
+}): ReadonlyArray<ServerDirectEndpoint> {
+  if (isLoopbackHost(input.host)) return [];
   const tailscaleAddresses = new Set(
     Object.entries(input.interfaces).flatMap(([name, entries = []]) =>
       isTailscaleInterface(name, entries) ? entries.map((entry) => entry.address) : [],
@@ -97,7 +94,7 @@ export function resolveBoundEndpoints(input: {
   return [...new Set(addresses)].map((address) => ({
     kind: tailscaleAddresses.has(address) ? "tailnet" : "lan",
     httpBaseUrl: `http://${formatHostForUrl(address)}:${input.port}/`,
-  })) satisfies ReadonlyArray<ServerDirectEndpoint>;
+  }));
 }
 
 /** @public */

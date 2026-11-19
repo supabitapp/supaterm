@@ -498,8 +498,7 @@ const TARGET = new PrimaryConnectionTarget({
   wsBaseUrl: "wss://environment.example.test",
 });
 
-function session(client: WsRpcProtocolClient): RpcSession;
-function session(client: WsRpcProtocolClient) {
+function session(client: WsRpcProtocolClient): RpcSession {
   return {
     client: {
       ...client,
@@ -514,7 +513,7 @@ function session(client: WsRpcProtocolClient) {
     probe: Effect.void,
     inboundFrames: Effect.succeed(0),
     closed: Effect.never,
-  } satisfies RpcSession;
+  };
 }
 
 const makeTestRuntime = Effect.fn("makeTestRuntime")(function* (

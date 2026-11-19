@@ -53,7 +53,7 @@ export function activeComposerDraftKey(
   threadKey: string,
   requestedKey: string,
   edit: QueuedRunEdit | null,
-) {
+): string {
   if (requestedKey === threadKey) return threadKey;
   return edit !== null && queuedEditDraftKey(threadKey, edit.runId) === requestedKey
     ? requestedKey
@@ -61,19 +61,19 @@ export function activeComposerDraftKey(
 }
 
 /** The draft the composer is on now, for a key it held before a prompt opened. */
-export function currentComposerDraftKey(draftKey: string) {
+export function currentComposerDraftKey(draftKey: string): string {
   const threadKey = queuedEditThreadKey(draftKey);
   return threadKey === null
     ? draftKey
     : activeComposerDraftKey(threadKey, draftKey, getQueuedRunEdit(threadKey));
 }
 
-export function useQueuedRunEdit(threadKey: string | null) {
+export function useQueuedRunEdit(threadKey: string | null): QueuedRunEdit | null {
   const edits = useAtomValue(queuedRunEdits.atom);
   return threadKey === null ? null : (edits[threadKey] ?? null);
 }
 
-function exitQueuedRunEdit(threadKey: string, edit: QueuedRunEdit) {
+function exitQueuedRunEdit(threadKey: string, edit: QueuedRunEdit): void {
   const editDraftKey = queuedEditDraftKey(threadKey, edit.runId);
   const editDraft = getComposerDraftSnapshot(editDraftKey);
   const threadDraft = getComposerDraftSnapshot(threadKey);
@@ -108,7 +108,11 @@ function exitQueuedRunEdit(threadKey: string, edit: QueuedRunEdit) {
 }
 
 /** `runs` is the thread's runs; the edit ends when its run leaves the queue. */
-export function beginQueuedRunEdit(threadKey: string, edit: QueuedRunEdit, runs: QueuedRunsAtom) {
+export function beginQueuedRunEdit(
+  threadKey: string,
+  edit: QueuedRunEdit,
+  runs: QueuedRunsAtom,
+): void {
   const previous = getQueuedRunEdit(threadKey);
   if (previous !== null && previous.runId !== edit.runId) {
     clearComposerDraft(queuedEditDraftKey(threadKey, previous.runId));
@@ -126,7 +130,7 @@ export function beginQueuedRunEdit(threadKey: string, edit: QueuedRunEdit, runs:
   );
 }
 
-export function removeQueuedRunEditAttachment(threadKey: string, attachmentId: string) {
+export function removeQueuedRunEditAttachment(threadKey: string, attachmentId: string): void {
   queuedRunEdits.update(threadKey, (edit) => ({
     ...edit,
     removedExistingAttachment: true,
@@ -139,7 +143,7 @@ export function removeQueuedRunEditAttachment(threadKey: string, attachmentId: s
 export function endQueuedRunEdit(
   threadKey: string,
   options?: { readonly deferAttachmentCleanup?: boolean },
-) {
+): void {
   const edit = getQueuedRunEdit(threadKey);
   if (edit === null) return;
   clearComposerDraft(queuedEditDraftKey(threadKey, edit.runId), options);
@@ -158,18 +162,17 @@ export function resolveQueuedEditPayload(input: {
   readonly draftContext: OrchestrationMessageContext | undefined;
   readonly draftAttachments: ReadonlyArray<{ readonly id: string }>;
   readonly uploaded: ReadonlyArray<ChatAttachment | UploadChatAttachment>;
-}) {
+}): {
+  readonly attachments: ReadonlyArray<ChatAttachment | UploadChatAttachment>;
+  readonly context: OrchestrationMessageContext | undefined;
+} {
   const attachments = [...input.edit.existingAttachments, ...input.uploaded];
   const rebound = uploadedComposerContext(
     input.draftContext,
     input.draftAttachments,
     input.uploaded,
   );
-  if (rebound === undefined)
-    return { attachments, context: undefined } satisfies {
-      readonly attachments: ReadonlyArray<ChatAttachment | UploadChatAttachment>;
-      readonly context: OrchestrationMessageContext | undefined;
-    };
+  if (rebound === undefined) return { attachments, context: undefined };
   const liveIds = new Set(
     attachments.flatMap((attachment) =>
       "id" in attachment && attachment.id ? [attachment.id] : [],
@@ -181,8 +184,5 @@ export function resolveQueuedEditPayload(input: {
   return {
     attachments,
     context: records.length > 0 ? { version: 1, records } : undefined,
-  } satisfies {
-    readonly attachments: ReadonlyArray<ChatAttachment | UploadChatAttachment>;
-    readonly context: OrchestrationMessageContext | undefined;
   };
 }

@@ -61,7 +61,7 @@ import { ThemeWireframe } from "./ThemeWireframe";
 
 const DEFAULT_THEME_VALUE = "__default";
 
-function downloadThemeFile(filename: string, contents: string) {
+function downloadThemeFile(filename: string, contents: string): void {
   const url = URL.createObjectURL(new Blob([contents], { type: "application/json" }));
   const anchor = document.createElement("a");
   anchor.href = url;

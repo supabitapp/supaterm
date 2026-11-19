@@ -20,7 +20,7 @@ export class DesktopApplicationMenuActionError extends Schema.TaggedError<Deskto
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Desktop menu action "${this.action}" failed.`;
   }
 }
@@ -41,7 +41,9 @@ const { logInfo: logUpdaterInfo } = makeComponentLogger("desktop-updater");
 
 const { logError: logMenuError } = makeComponentLogger("desktop-menu");
 
-const dispatchMenuAction = Effect.fn("desktop.menu.dispatchMenuAction")(function* (action: string) {
+const dispatchMenuAction = Effect.fn("desktop.menu.dispatchMenuAction")(function* (
+  action: string,
+): Effect.fn.Return<void, DesktopWindow.DesktopWindowError, DesktopWindow.DesktopWindow> {
   const desktopWindow = yield* DesktopWindow.DesktopWindow;
   yield* desktopWindow.dispatchMenuAction(action, {
     reveal: action !== "paste-as-text",
@@ -50,14 +52,14 @@ const dispatchMenuAction = Effect.fn("desktop.menu.dispatchMenuAction")(function
 
 const zoomMainWindow = Effect.fn("desktop.menu.zoomMainWindow")(function* (
   direction: DesktopWindow.MainWindowZoomDirection,
-) {
+): Effect.fn.Return<void, never, DesktopWindow.DesktopWindow> {
   const desktopWindow = yield* DesktopWindow.DesktopWindow;
   yield* desktopWindow.zoomMain(direction);
 });
 
 const runMainContentsCommand = Effect.fn("desktop.menu.runMainContentsCommand")(function* (
   command: DesktopWindow.MainWindowContentsCommand,
-) {
+): Effect.fn.Return<void, never, DesktopWindow.DesktopWindow> {
   const desktopWindow = yield* DesktopWindow.DesktopWindow;
   yield* desktopWindow.runMainContentsCommand(command);
 });

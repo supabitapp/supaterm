@@ -52,7 +52,7 @@ function withEnvironmentControls(
   saved: Readonly<Record<string, PullRequestListControls>> | undefined,
   environment: string,
   controls: PullRequestListControls,
-) {
+): Record<string, PullRequestListControls> {
   return {
     ...saved,
     [environment]: controls,

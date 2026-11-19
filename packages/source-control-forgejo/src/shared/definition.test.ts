@@ -6,13 +6,15 @@ import { definition } from "./definition.ts";
 
 const parse = (url: string) => definition.parseChangeRequestUrl(new URL(url))!;
 
-const identity = (remoteUrl: string, fields: Partial<ChangeRequestProjectIdentity> = {}) =>
-  ({
-    canonicalKey: "forge.example/git/team/repo",
-    displayName: "git/team/repo",
-    locator: { source: "git-remote", remoteName: "origin", remoteUrl },
-    ...fields,
-  }) satisfies ChangeRequestProjectIdentity;
+const identity = (
+  remoteUrl: string,
+  fields: Partial<ChangeRequestProjectIdentity> = {},
+): ChangeRequestProjectIdentity => ({
+  canonicalKey: "forge.example/git/team/repo",
+  displayName: "git/team/repo",
+  locator: { source: "git-remote", remoteName: "origin", remoteUrl },
+  ...fields,
+});
 
 const onHost = (project: ChangeRequestProjectIdentity, link: ReturnType<typeof parse>) =>
   definition.isChangeRequestInRepository(project, link) ||

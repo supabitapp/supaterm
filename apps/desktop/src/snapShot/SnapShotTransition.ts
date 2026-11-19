@@ -26,7 +26,10 @@ export type SnapShotAnimationDestination = {
   readonly details?: SnapShotAnimationDetails | undefined;
 };
 
-function snapShotAnimationDurationMs(source: Electron.Rectangle, target: Electron.Rectangle) {
+function snapShotAnimationDurationMs(
+  source: Electron.Rectangle,
+  target: Electron.Rectangle,
+): number {
   const distance = Math.hypot(
     source.x + source.width / 2 - target.x - target.width / 2,
     source.y + source.height / 2 - target.y - target.height / 2,
@@ -61,7 +64,9 @@ type SnapShotTransitionOptions = {
     | undefined;
 };
 
-function snapShotAnimationOverlayBounds(displays: ReadonlyArray<Pick<Electron.Display, "bounds">>) {
+function snapShotAnimationOverlayBounds(
+  displays: ReadonlyArray<Pick<Electron.Display, "bounds">>,
+): Electron.Rectangle {
   const firstDisplay = displays[0];
   const first = firstDisplay?.bounds ?? { x: 0, y: 0, width: 1, height: 1 };
   let left = first.x;
@@ -82,7 +87,7 @@ export function snapShotAnimationDisplayBounds(
   displays: ReadonlyArray<Pick<Electron.Display, "bounds">>,
   source: Electron.Rectangle,
   destination: Electron.Rectangle,
-) {
+): Array<Electron.Rectangle> {
   const flight = snapShotAnimationOverlayBounds([{ bounds: source }, { bounds: destination }]);
   return displays.flatMap((display) => {
     const bounds = display.bounds;
@@ -98,7 +103,7 @@ export function snapShotAnimationDisplayBounds(
 function createWindow(
   bounds: Electron.Rectangle,
   alwaysOnTopLevel: SnapShotTransitionOptions["alwaysOnTopLevel"],
-) {
+): Electron.BrowserWindow {
   const window = new Electron.BrowserWindow({
     ...bounds,
     alwaysOnTop: true,
@@ -127,7 +132,7 @@ function transitionHtml(
   sourceBounds: Electron.Rectangle,
   overlayBounds: Electron.Rectangle,
   flash: boolean,
-) {
+): string {
   const source = {
     x: sourceBounds.x - overlayBounds.x,
     y: sourceBounds.y - overlayBounds.y,
@@ -202,7 +207,7 @@ export class SnapShotTransition {
   private readonly alwaysOnTopLevel: SnapShotTransitionOptions["alwaysOnTopLevel"];
   private readonly showWindow: (window: Electron.BaseWindow) => void;
 
-  get isAnimating() {
+  get isAnimating(): boolean {
     return this.active?.flight !== undefined && !this.active.landed;
   }
 
@@ -219,7 +224,7 @@ export class SnapShotTransition {
     snapshotDataUrl: string,
     flash: boolean,
     destinationWindowBounds?: Electron.Rectangle,
-  ) {
+  ): Promise<void> {
     this.dispose();
     const sourceDisplay = Electron.screen.getDisplayMatching(source);
     const requestedBounds = this.boundOverlayToCaptureDisplays
@@ -260,7 +265,7 @@ export class SnapShotTransition {
     active: ActiveTransition,
     requestedBounds: ReadonlyArray<Electron.Rectangle>,
     flash: boolean,
-  ) {
+  ): Promise<void> {
     const overlays: ActiveTransition["overlays"] = [];
     try {
       for (const bounds of requestedBounds) {
@@ -331,7 +336,7 @@ export class SnapShotTransition {
     }
   }
 
-  animateTo(id: string, destination: SnapShotAnimationDestination) {
+  animateTo(id: string, destination: SnapShotAnimationDestination): void {
     const active = this.active;
     if (!active || active.id !== id) return;
     if (destination.details) active.details = destination.details;
@@ -353,7 +358,10 @@ export class SnapShotTransition {
     });
   }
 
-  private async runFlight(active: ActiveTransition, destination: SnapShotAnimationDestination) {
+  private async runFlight(
+    active: ActiveTransition,
+    destination: SnapShotAnimationDestination,
+  ): Promise<void> {
     if (this.active !== active) return;
     if (this.boundOverlayToCaptureDisplays) {
       const missingBounds = snapShotAnimationDisplayBounds(
@@ -414,24 +422,24 @@ export class SnapShotTransition {
     );
   }
 
-  async waitForLanding(id: string) {
+  async waitForLanding(id: string): Promise<void> {
     const active = this.active;
     if (!active || active.id !== id) return;
     await active.flight?.catch(() => undefined);
   }
 
-  async complete(id: string) {
+  async complete(id: string): Promise<void> {
     const active = this.active;
     if (!active || active.id !== id) return;
     await this.waitForLanding(id);
     if (this.active === active) this.dispose();
   }
 
-  dismiss(id: string) {
+  dismiss(id: string): void {
     if (this.active?.id === id) this.dispose();
   }
 
-  dispose() {
+  dispose(): void {
     const active = this.active;
     this.active = undefined;
     if (!active) return;

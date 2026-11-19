@@ -76,7 +76,7 @@ export function createMarkdownRenderer({
     }
   };
 
-  const render: (text: string) => ReactElement = (text: string) => {
+  const render = (text: string): ReactElement => {
     const key = keyPrefix + text;
     const cached = rendered.get(key);
     if (cached !== undefined) {

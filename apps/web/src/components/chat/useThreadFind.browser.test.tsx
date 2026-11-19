@@ -116,7 +116,7 @@ function setup() {
 }
 
 describe("V2 find state", () => {
-  function messageResult(index: number, snapshotSequence = 9) {
+  function messageResult(index: number, snapshotSequence = 9): OrchestrationV2SearchThreadResult {
     return {
       snapshotSequence,
       totalMatches: 10,

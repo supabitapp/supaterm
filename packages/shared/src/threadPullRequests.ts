@@ -1,11 +1,13 @@
 import type { ThreadLinkedPullRequest, ThreadPullRequestLink } from "@supaterm/contracts";
 
 /** Tombstones prevent sync from re-adding hidden members. */
-export function visibleThreadPullRequests(links: ReadonlyArray<ThreadPullRequestLink>) {
+export function visibleThreadPullRequests(
+  links: ReadonlyArray<ThreadPullRequestLink>,
+): ReadonlyArray<ThreadPullRequestLink> {
   return links.filter((link) => link.source !== "stack-dismissed");
 }
 
-export function threadPullRequestUpdatedAtMs(link: ThreadPullRequestLink) {
+export function threadPullRequestUpdatedAtMs(link: ThreadPullRequestLink): number {
   const value = link.snapshot?.updatedAt ?? link.linkedAt;
   const ms = Date.parse(value);
   return Number.isNaN(ms) ? 0 : ms;
@@ -24,11 +26,11 @@ const SEARCHED_PULL_REQUEST_TITLES = 3;
 export function threadSearchPullRequests(thread: {
   readonly pullRequests?: ReadonlyArray<ThreadPullRequestLink> | undefined;
   readonly branchPullRequest?: ThreadLinkedPullRequest | null | undefined;
-}) {
+}): ThreadSearchPullRequest[] {
   const entry = (
     link: Pick<ThreadLinkedPullRequest, "number" | "repository" | "url">,
     title: string | null,
-  ) => ({
+  ): ThreadSearchPullRequest => ({
     number: link.number,
     title,
     references: [`${link.repository}#${link.number}`, link.url],
@@ -47,7 +49,7 @@ export function threadSearchPullRequests(thread: {
 export function threadPullRequestSearchTerms(thread: {
   readonly pullRequests?: ReadonlyArray<ThreadPullRequestLink> | undefined;
   readonly branchPullRequest?: ThreadLinkedPullRequest | null | undefined;
-}) {
+}): string[] {
   return threadSearchPullRequests(thread).flatMap((pullRequest) => [
     `#${pullRequest.number}`,
     ...pullRequest.references,

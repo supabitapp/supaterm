@@ -1,9 +1,6 @@
 export * from "@supaterm/shared/advertisedEndpoint";
 
-export const environmentEndpointUrl: (httpBaseUrl: string, pathname: string) => string = (
-  httpBaseUrl: string,
-  pathname: string,
-) => {
+export const environmentEndpointUrl = (httpBaseUrl: string, pathname: string): string => {
   const url = new URL(httpBaseUrl);
   url.pathname = pathname;
   url.search = "";

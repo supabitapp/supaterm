@@ -22,18 +22,17 @@ import * as EasDeviceHost from "./EasDeviceHost.ts";
 
 const APP_ID = "d763fcb8-d37c-41ea-a773-b54a0ab4a454";
 
-const config = (overrides: Partial<EasDeviceHostConfig> = {}) =>
-  ({
-    kind: "eas",
-    id: "eas",
-    label: "Expo Simulators",
-    appId: APP_ID,
-    accessToken: "expo-token",
-    maxSessionMinutes: 25,
-    idleMinutes: 5,
-    maxConcurrentSessions: 2,
-    ...overrides,
-  }) satisfies EasDeviceHostConfig;
+const config = (overrides: Partial<EasDeviceHostConfig> = {}): EasDeviceHostConfig => ({
+  kind: "eas",
+  id: "eas",
+  label: "Expo Simulators",
+  appId: APP_ID,
+  accessToken: "expo-token",
+  maxSessionMinutes: 25,
+  idleMinutes: 5,
+  maxConcurrentSessions: 2,
+  ...overrides,
+});
 
 interface Gate {
   readonly requested: Deferred.Deferred<void>;

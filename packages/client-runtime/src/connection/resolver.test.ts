@@ -14,6 +14,7 @@ import * as ClientCapabilities from "../platform/capabilities.ts";
 import * as RemoteEnvironmentAuthorization from "../authorization/service.ts";
 import {
   BearerConnectionCredential,
+  type ConnectionCatalogEntry,
   SshConnectionProfile,
   type ConnectionCredential,
   type ConnectionProfile,
@@ -44,7 +45,7 @@ const SSH_TARGET: DesktopSshEnvironmentTarget = {
 function catalogEntry(
   target: ConnectionTarget,
   profile: Option.Option<ConnectionProfile> = Option.none(),
-) {
+): ConnectionCatalogEntry {
   return { target, profile, enabled: true };
 }
 

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vite-plus/test";
 
 import {
   BROWSER_FAVICON_MAX_ENTRIES,
+  type BrowserFaviconEntry,
   evictExcessFavicons,
   faviconKey,
   faviconStorageLocation,
@@ -11,7 +12,7 @@ import {
 
 const PNG = "data:image/png;base64,AAAA";
 
-function entry(capturedAt = 0) {
+function entry(capturedAt = 0): BrowserFaviconEntry {
   return { dataUrl: PNG, capturedAt };
 }
 

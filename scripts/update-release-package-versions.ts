@@ -22,7 +22,7 @@ export class ReleasePackageManifestError extends Schema.TaggedError<ReleasePacka
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Failed to ${this.operation} release package manifest '${this.filePath}'.`;
   }
 }
@@ -31,7 +31,7 @@ export class ReleaseGitHubOutputConfigurationError extends Schema.TaggedError<Re
   "ReleaseGitHubOutputConfigurationError",
   { cause: Schema.Defect() },
 ) {
-  override get message() {
+  override get message(): string {
     return "Failed to resolve GITHUB_OUTPUT for release package version output.";
   }
 }
@@ -43,7 +43,7 @@ export class ReleaseGitHubOutputWriteError extends Schema.TaggedError<ReleaseGit
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Failed to append release package version output to '${this.filePath}'.`;
   }
 }

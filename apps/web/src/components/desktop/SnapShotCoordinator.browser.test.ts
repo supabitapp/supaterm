@@ -84,7 +84,7 @@ const storage = vi.hoisted(() => {
 const environmentId = EnvironmentId.make("snap-shot-environment");
 const projectRef = scopeProjectRef(environmentId, ProjectId.make("snap-shot-project"));
 
-function setup() {
+function setup(): Disposable {
   storage.clear();
   vi.stubGlobal("localStorage", storage);
   useComposerDraftStore.setState({

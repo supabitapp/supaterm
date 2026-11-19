@@ -16,7 +16,10 @@ import * as Settings from "../serverSettings.ts";
 
 const RELEASE_GRACE = Duration.seconds(60);
 
-function inhibitorCommand(platform: NodeJS.Platform, serverPid: number) {
+function inhibitorCommand(
+  platform: NodeJS.Platform,
+  serverPid: number,
+): { readonly command: string; readonly args: ReadonlyArray<string> } | undefined {
   switch (platform) {
     case "darwin":
       return { command: "caffeinate", args: ["-i", "-w", String(serverPid)] };

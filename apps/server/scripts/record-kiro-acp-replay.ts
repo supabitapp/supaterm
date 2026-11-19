@@ -57,7 +57,7 @@ type WireMessage =
   | { readonly direction: "incoming" | "outgoing"; readonly message: JsonRpcMessage }
   | { readonly direction: "respawn" };
 
-function readArgValues(name: string) {
+function readArgValues(name: string): ReadonlyArray<string> {
   const args = process.argv.slice(2);
   return args.flatMap((arg, index) => (arg === name && args[index + 1] ? [args[index + 1]!] : []));
 }
@@ -66,14 +66,13 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function mapStrings(value: unknown, map: (text: string) => string): unknown;
-function mapStrings(value: unknown, map: (text: string) => string) {
-  if (typeof value === "string") return map(value) satisfies unknown;
-  if (Array.isArray(value)) return value.map((entry) => mapStrings(entry, map)) satisfies unknown;
-  if (!isRecord(value)) return value satisfies unknown;
+function mapStrings(value: unknown, map: (text: string) => string): unknown {
+  if (typeof value === "string") return map(value);
+  if (Array.isArray(value)) return value.map((entry) => mapStrings(entry, map));
+  if (!isRecord(value)) return value;
   return Object.fromEntries(
     Object.entries(value).map(([key, entry]) => [key, mapStrings(entry, map)]),
-  ) satisfies unknown;
+  );
 }
 
 function makeWireTee() {
@@ -123,13 +122,16 @@ function makeWireTee() {
   return { wire, attachRuntime, kiroHasPendingWork };
 }
 
-function frameLabel(kind: string, method: string, params: unknown) {
+function frameLabel(kind: string, method: string, params: unknown): string {
   const update = isRecord(params) && isRecord(params.update) ? params.update : undefined;
   const updateType = typeof update?.sessionUpdate === "string" ? `:${update.sessionUpdate}` : "";
   return `${kind}:${method}${updateType}`;
 }
 
-function wireToEntries(wire: ReadonlyArray<WireMessage>) {
+function wireToEntries(wire: ReadonlyArray<WireMessage>): {
+  readonly entries: Array<ProviderReplayEntry>;
+  readonly droppedFrames: number;
+} {
   const entries: Array<ProviderReplayEntry> = [];
   const supatermRequests = new Map<string, string>();
   const agentRequests = new Map<string, string>();
@@ -244,7 +246,7 @@ function normalizeOutboundFrame(frame: Record<string, unknown>, runtimeInstructi
   }
 }
 
-function normalizeInboundFrame(frame: Record<string, unknown>) {
+function normalizeInboundFrame(frame: Record<string, unknown>): Record<string, unknown> {
   const params = isRecord(frame.params) ? frame.params : undefined;
   const update = isRecord(params?.update) ? params.update : undefined;
   if (
@@ -289,7 +291,7 @@ function normalizeInboundFrame(frame: Record<string, unknown>) {
 
 const OTHER_UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/giu;
 
-function collectSessionIds(entries: ReadonlyArray<ProviderReplayEntry>) {
+function collectSessionIds(entries: ReadonlyArray<ProviderReplayEntry>): ReadonlyArray<string> {
   const ids: Array<string> = [];
   const add = (value: unknown) => {
     if (typeof value === "string" && value.length > 0 && !ids.includes(value)) ids.push(value);
@@ -311,14 +313,7 @@ function normalizeEntries(input: {
   readonly home: string;
   readonly user: string;
   readonly runtimeInstructions: string;
-}): Array<ProviderReplayEntry>;
-function normalizeEntries(input: {
-  readonly entries: ReadonlyArray<ProviderReplayEntry>;
-  readonly workspace: string;
-  readonly home: string;
-  readonly user: string;
-  readonly runtimeInstructions: string;
-}) {
+}): Array<ProviderReplayEntry> {
   const sessionIds = collectSessionIds(input.entries);
   const replacements: Array<readonly [string, string]> = [
     ...sessionIds.map(
@@ -367,7 +362,7 @@ function normalizeEntries(input: {
       ...(entry.label === undefined ? {} : { label: replaceAll(entry.label) }),
       frame: mapStrings(frame, replaceAll),
     };
-  }) satisfies Array<ProviderReplayEntry>;
+  });
 }
 
 const KIRO_RECORDING_SETTINGS = Schema.decodeSync(KiroSettings)({
@@ -431,17 +426,14 @@ const recordScenario = Effect.fn("recordKiroScenario")(function* (fixtureName: s
           ...adapter,
           openSession: (input) =>
             adapter.openSession(input).pipe(
-              Effect.map(
-                (session) =>
-                  ({
-                    ...session,
-                    startTurn: (turnInput) => onWallClock(session.startTurn(turnInput)),
-                    steerTurn: (turnInput) => onWallClock(session.steerTurn(turnInput)),
-                    interruptTurn: (turnInput) => onWallClock(session.interruptTurn(turnInput)),
-                    respondToRuntimeRequest: (turnInput) =>
-                      onWallClock(session.respondToRuntimeRequest(turnInput)),
-                  }) satisfies ProviderAdapter.ProviderAdapterV2SessionRuntime as ProviderAdapter.ProviderAdapterV2SessionRuntime,
-              ),
+              Effect.map((session): ProviderAdapter.ProviderAdapterV2SessionRuntime => ({
+                ...session,
+                startTurn: (turnInput) => onWallClock(session.startTurn(turnInput)),
+                steerTurn: (turnInput) => onWallClock(session.steerTurn(turnInput)),
+                interruptTurn: (turnInput) => onWallClock(session.interruptTurn(turnInput)),
+                respondToRuntimeRequest: (turnInput) =>
+                  onWallClock(session.respondToRuntimeRequest(turnInput)),
+              })),
               onWallClock,
             ),
         },

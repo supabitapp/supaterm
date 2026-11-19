@@ -18,8 +18,8 @@ export class BrowserSetupStepError extends Schema.TaggedError<BrowserSetupStepEr
   "BrowserSetupStepError",
   { step: Schema.String, detail: Schema.String },
 ) {
-  override get message() {
-    return `Could not ${this.step}: ${this.detail}` satisfies string as string;
+  override get message(): string {
+    return `Could not ${this.step}: ${this.detail}`;
   }
 }
 

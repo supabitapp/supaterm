@@ -10,7 +10,7 @@ export function shouldCollapseComposerForScrollKey(input: {
   scrollHeight: number;
   clientHeight: number;
   isAtLogicalEnd: boolean;
-}) {
+}): boolean {
   switch (input.key) {
     case "PageUp":
     case "Home":
@@ -23,7 +23,7 @@ export function shouldCollapseComposerForScrollKey(input: {
   }
 }
 
-export function createComposerScrollGestureState() {
+export function createComposerScrollGestureState(): ComposerScrollGestureState {
   return {
     accumulatedDeltaPx: 0,
     collapseSuppressed: false,
@@ -31,7 +31,7 @@ export function createComposerScrollGestureState() {
   };
 }
 
-export function resetComposerScrollGesture(state: ComposerScrollGestureState) {
+export function resetComposerScrollGesture(state: ComposerScrollGestureState): void {
   state.accumulatedDeltaPx = 0;
   state.collapseSuppressed = false;
   state.lastEventAt = Number.NEGATIVE_INFINITY;
@@ -41,7 +41,7 @@ export function suppressActiveComposerScrollGesture(
   state: ComposerScrollGestureState,
   now: number,
   gestureResetMs: number,
-) {
+): void {
   if (now - state.lastEventAt <= gestureResetMs) {
     state.collapseSuppressed = true;
   }
@@ -57,7 +57,7 @@ export function recordComposerScrollGestureEvent(
     canScrollInGestureDirection: boolean;
     atLogicalEnd: boolean;
   },
-) {
+): boolean {
   state.lastEventAt = input.now;
   if (
     state.collapseSuppressed ||

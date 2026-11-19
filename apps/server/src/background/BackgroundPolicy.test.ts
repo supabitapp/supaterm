@@ -30,7 +30,7 @@ const nominalHostPower: HostPowerSnapshot = {
   updatedAt: TEST_NOW,
 };
 
-function makeReport(overrides: Partial<ClientActivityReportInput> = {}) {
+function makeReport(overrides: Partial<ClientActivityReportInput> = {}): ClientActivityReportInput {
   return {
     clientId: "client-1",
     clientKind: "web",
@@ -41,7 +41,7 @@ function makeReport(overrides: Partial<ClientActivityReportInput> = {}) {
     ttlMs: 45_000,
     observedAt: TEST_NOW,
     ...overrides,
-  } satisfies ClientActivityReportInput;
+  };
 }
 
 function layerFor(

@@ -37,7 +37,7 @@ const encoder = new TextEncoder();
 const strictDecoder = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
 const lenientDecoder = new TextDecoder("utf-8", { ignoreBOM: true });
 
-function decodeSkillFile(bytes: Uint8Array) {
+function decodeSkillFile(bytes: Uint8Array): string {
   const lines: Array<string> = [];
   for (let start = 0; ;) {
     const newline = bytes.indexOf(0x0a, start);
@@ -52,7 +52,7 @@ function decodeSkillFile(bytes: Uint8Array) {
   }
 }
 
-function concatBytes(chunks: Iterable<Uint8Array>) {
+function concatBytes(chunks: Iterable<Uint8Array>): Uint8Array {
   const parts = [...chunks];
   const bytes = new Uint8Array(parts.reduce((total, part) => total + part.length, 0));
   let offset = 0;
@@ -62,7 +62,7 @@ function concatBytes(chunks: Iterable<Uint8Array>) {
   }
   return bytes;
 }
-function compareUtf8(left: string, right: string) {
+function compareUtf8(left: string, right: string): number {
   const a = encoder.encode(left);
   const b = encoder.encode(right);
   for (let index = 0; index < Math.min(a.length, b.length); index++) {
@@ -75,14 +75,17 @@ const trimSpaceTab = (value: string) => value.replace(/^[ \t]+|[ \t]+$/g, "");
 
 const hasControlByte = (value: string) => [...value].some((char) => char < " " || char === "\x7f");
 
-function recognizedValue(raw: string) {
+function recognizedValue(raw: string): string | undefined {
   if (raw.startsWith("|") || raw.startsWith(">")) return undefined;
   const quoted = /^['"]/.test(raw) || /['"]$/.test(raw);
   if (!quoted) return raw;
   return raw.length >= 2 && raw[0] === raw.at(-1) ? raw.slice(1, -1) : undefined;
 }
 
-function parseSkillMetadata(contents: string, folderName: string) {
+function parseSkillMetadata(
+  contents: string,
+  folderName: string,
+): { readonly name: string; readonly description?: string } | undefined {
   const opening = /^---(\r?\n|$)/.exec(contents);
   if (opening === null) {
     return validSkillName(folderName) ? { name: folderName } : undefined;
@@ -154,7 +157,7 @@ function parseSkillMetadata(contents: string, folderName: string) {
   return { name, ...(description ? { description } : {}) };
 }
 
-function decodeBlockDescription(lines: ReadonlyArray<string | undefined>, style: string) {
+function decodeBlockDescription(lines: ReadonlyArray<string | undefined>, style: string): string {
   const lastLine = lines.findLastIndex((line) => line !== undefined);
   let text = "";
   for (let index = 0; index <= lastLine; index++) {
@@ -167,7 +170,7 @@ function decodeBlockDescription(lines: ReadonlyArray<string | undefined>, style:
   return text.trim();
 }
 
-function validSkillName(name: string) {
+function validSkillName(name: string): boolean {
   return (
     name.length > 0 &&
     encoder.encode(name).length <= MAX_NAME_BYTES &&
@@ -213,7 +216,7 @@ function skillRoots(path: Path.Path, cwd: string, home: string) {
 const skipUnreadable = <A, R>(
   path: string,
   effect: Effect.Effect<A, PlatformError.PlatformError, R>,
-) =>
+): Effect.Effect<A | undefined, never, R> =>
   effect.pipe(
     Effect.catchTags({
       PlatformError: (error) =>
@@ -230,7 +233,11 @@ const discoverSkillsInRoot = Effect.fn("discoverFxSkillsInRoot")(function* (inpu
   readonly directory: string;
   readonly scope: string;
   readonly followsLinks: boolean;
-}) {
+}): Effect.fn.Return<
+  ReadonlyArray<{ readonly skill: ServerProviderSkill; readonly folder: string }>,
+  never,
+  FileSystem.FileSystem | Path.Path
+> {
   const fileSystem = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const isLink = (target: string) =>
@@ -289,7 +296,7 @@ const discoverSkillsInRoot = Effect.fn("discoverFxSkillsInRoot")(function* (inpu
 export const discoverFxSkills = Effect.fn("discoverFxSkills")(function* (input: {
   readonly cwd: string;
   readonly environment: NodeJS.ProcessEnv;
-}) {
+}): Effect.fn.Return<ReadonlyArray<ServerProviderSkill>, never, FileSystem.FileSystem | Path.Path> {
   const configuredHome = input.environment.HOME?.trim();
   if (!configuredHome) return [];
   const fileSystem = yield* FileSystem.FileSystem;

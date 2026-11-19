@@ -61,7 +61,7 @@ export class ProjectNotFoundError extends Schema.TaggedError<ProjectNotFoundErro
   "ProjectNotFoundError",
   { projectId: ProjectId },
 ) {
-  override get message() {
+  override get message(): string {
     return `Project ${this.projectId} was not found.`;
   }
 }
@@ -74,7 +74,7 @@ export class ProjectConflictError extends Schema.TaggedError<ProjectConflictErro
     conflictingProjectId: ProjectId,
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Workspace ${this.workspaceRoot} already belongs to project ${this.conflictingProjectId}.`;
   }
 }
@@ -83,7 +83,7 @@ export class ProjectNotEmptyError extends Schema.TaggedError<ProjectNotEmptyErro
   "ProjectNotEmptyError",
   { projectId: ProjectId },
 ) {
-  override get message() {
+  override get message(): string {
     return `Project ${this.projectId} is not empty.`;
   }
 }
@@ -93,7 +93,7 @@ export class ProjectInvalidError extends Schema.TaggedError<ProjectInvalidError>
   "ProjectInvalidError",
   { projectId: ProjectId, detail: Schema.String },
 ) {
-  override get message() {
+  override get message(): string {
     return this.detail;
   }
 }
@@ -114,8 +114,8 @@ export class ProjectOperationError extends Schema.TaggedError<ProjectOperationEr
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
-    return `Project operation '${this.operation}' failed${this.projectId === undefined ? "" : ` for ${this.projectId}`}.` satisfies string as string;
+  override get message(): string {
+    return `Project operation '${this.operation}' failed${this.projectId === undefined ? "" : ` for ${this.projectId}`}.`;
   }
 }
 
@@ -181,7 +181,7 @@ export const make = Effect.gen(function* () {
   const toProject = (
     row: ProjectStore.ProjectRow,
     enrichment: ProjectEnrichmentService.ProjectEnrichment | null,
-  ) => ({
+  ): Project => ({
     id: row.projectId,
     title: row.title,
     workspaceRoot: row.workspaceRoot,

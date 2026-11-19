@@ -50,13 +50,13 @@ export async function resolveMarkdownMediaPreview(input: {
     environmentId: EnvironmentId;
     input: { resource: AssetResource };
   }) => Promise<AtomCommandResult<AssetCreateUrlResult, unknown>>;
-}) {
+}): Promise<ExpandedImagePreview | null> {
   const media = resolveMediaSource(input.source, {
     threadId: input.threadRef?.threadId,
     workspaceRoot: input.cwd,
     resolvedFilePath: input.resolvedFilePath,
   });
-  if (media === null) return null satisfies ExpandedImagePreview | null;
+  if (media === null) return null;
   const { kind, name, reference } = media;
   const relativePath = reference?.kind === "file" ? reference.relativePath : undefined;
 
@@ -101,13 +101,13 @@ export async function resolveMarkdownMediaPreview(input: {
       },
     ],
     index: 0,
-  } satisfies ExpandedImagePreview | null;
+  };
 }
 
 export function buildAttachmentVideoAsset(
   environmentId: EnvironmentId,
   attachment: Pick<ChatFileAttachment, "id" | "name" | "mimeType">,
-) {
+): NonNullable<MediaActionSource["asset"]> {
   return {
     environmentId,
     resource: {
@@ -122,14 +122,14 @@ export function buildAttachmentVideoAsset(
 export function buildAttachmentVideoPreview(
   environmentId: EnvironmentId,
   attachment: ChatFileAttachment,
-) {
-  if (!isVideoAttachment(attachment)) return null satisfies ExpandedImagePreview | null;
+): ExpandedImagePreview | null {
+  if (!isVideoAttachment(attachment)) return null;
   const src = attachment.previewUrl ?? null;
   const asset =
     attachment.downloadable === false
       ? undefined
       : buildAttachmentVideoAsset(environmentId, attachment);
-  if (src === null && asset === undefined) return null satisfies ExpandedImagePreview | null;
+  if (src === null && asset === undefined) return null;
   return {
     images: [
       {
@@ -145,16 +145,16 @@ export function buildAttachmentVideoPreview(
       },
     ],
     index: 0,
-  } satisfies ExpandedImagePreview | null;
+  };
 }
 
-export function expandedImageKey(preview: ExpandedImagePreview) {
+export function expandedImageKey(preview: ExpandedImagePreview): string {
   const item = preview.images[preview.index];
   const asset = item?.actionsSource?.asset;
   return `${item?.src ?? (asset ? JSON.stringify([asset.environmentId, asset.resource]) : "image")}:${preview.index}`;
 }
 
-export function attachVideoThumbnail(video: HTMLVideoElement, file: File) {
+export function attachVideoThumbnail(video: HTMLVideoElement, file: File): () => void {
   const url = URL.createObjectURL(file);
   video.src = url;
   return () => URL.revokeObjectURL(url);
@@ -164,7 +164,7 @@ export function buildExpandedImagePreview(
   images: ReadonlyArray<ChatImageAttachment | ComposerFileAttachment>,
   selectedImageId: string,
   onCopySnapshot?: (id: string) => Promise<void>,
-) {
+): ExpandedImagePreview | null {
   const selected = images.find((image) => image.id === selectedImageId);
   if (selected?.type === "file" && selected.file && isVideoAttachment(selected)) {
     return {
@@ -177,7 +177,7 @@ export function buildExpandedImagePreview(
         },
       ],
       index: 0,
-    } satisfies ExpandedImagePreview | null;
+    };
   }
   const previewableImages = images.flatMap((image) =>
     image.type === "image" && image.previewUrl
@@ -193,11 +193,11 @@ export function buildExpandedImagePreview(
       : [],
   );
   if (previewableImages.length === 0) {
-    return null satisfies ExpandedImagePreview | null;
+    return null;
   }
   const selectedIndex = previewableImages.findIndex((image) => image.id === selectedImageId);
   if (selectedIndex < 0) {
-    return null satisfies ExpandedImagePreview | null;
+    return null;
   }
   return {
     images: previewableImages.map((image) => ({
@@ -212,5 +212,5 @@ export function buildExpandedImagePreview(
         : {}),
     })),
     index: selectedIndex,
-  } satisfies ExpandedImagePreview | null;
+  };
 }

@@ -42,7 +42,7 @@ const externalClick = {
   ctrlKey: false,
 };
 
-const projectsSettled: () => Promise<void> = () =>
+const projectsSettled = (): Promise<void> =>
   Effect.runPromise(
     AtomRegistry.toStream(appAtomRegistry, allReachableShellsLiveAtom).pipe(
       Stream.filter((settled) => settled),
@@ -54,24 +54,22 @@ const projectsSettled: () => Promise<void> = () =>
 function threadShowingBrowser(
   routeParams: Record<string, string | undefined>,
   fileEnvironmentId: EnvironmentId | null,
-) {
+): ScopedThreadRef | null {
   const target = resolveThreadRouteTarget(routeParams);
-  if (target === null) return null satisfies ScopedThreadRef | null;
+  if (target === null) return null;
   let threadRef = target.kind === "server" ? target.threadRef : null;
   if (target.kind === "draft") {
     const session = useComposerDraftStore.getState().getDraftSession(target.draftId);
-    if (!session || session.promotedTo) return null satisfies ScopedThreadRef | null;
+    if (!session || session.promotedTo) return null;
     threadRef = scopeThreadRef(session.environmentId, session.threadId);
   }
-  if (threadRef === null || !isPreviewAvailableFor(threadRef.environmentId))
-    return null satisfies ScopedThreadRef | null;
-  if (fileEnvironmentId !== null && threadRef.environmentId !== fileEnvironmentId)
-    return null satisfies ScopedThreadRef | null;
+  if (threadRef === null || !isPreviewAvailableFor(threadRef.environmentId)) return null;
+  if (fileEnvironmentId !== null && threadRef.environmentId !== fileEnvironmentId) return null;
   const surface = selectActiveRightPanelSurface(
     useRightPanelStore.getState().byThreadKey,
     threadRef,
   );
-  return (surface?.kind === "preview" ? threadRef : null) satisfies ScopedThreadRef | null;
+  return surface?.kind === "preview" ? threadRef : null;
 }
 
 export function DesktopWebLinkCoordinator() {
@@ -136,7 +134,7 @@ export function DesktopWebLinkCoordinator() {
     });
   };
 
-  const startThread = async (url: string) => {
+  const startThread = async (url: string): Promise<ScopedThreadRef | null> => {
     const environmentId = scratchEnvironmentId(primaryEnvironment?.environmentId ?? null);
     if (environmentId === null) {
       reportFailure(url);

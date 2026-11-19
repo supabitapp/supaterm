@@ -5,9 +5,9 @@ import {
 
 let cachedManifest: ThirdPartyLicenseManifest | undefined;
 
-export function getMobileThirdPartyLicenses() {
-  if (cachedManifest) return cachedManifest satisfies ThirdPartyLicenseManifest;
+export function getMobileThirdPartyLicenses(): ThirdPartyLicenseManifest {
+  if (cachedManifest) return cachedManifest;
   const generatedManifest: unknown = require("@supaterm/mobile-third-party-licenses");
   cachedManifest = decodeThirdPartyLicenseManifest(generatedManifest);
-  return cachedManifest satisfies ThirdPartyLicenseManifest;
+  return cachedManifest;
 }

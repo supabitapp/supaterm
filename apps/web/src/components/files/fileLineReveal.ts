@@ -13,7 +13,7 @@ interface CenteredFileLineScrollInput {
   readonly renderedLine?: LineGeometry;
 }
 
-export function resolveCenteredFileLineScrollTop(input: CenteredFileLineScrollInput) {
+export function resolveCenteredFileLineScrollTop(input: CenteredFileLineScrollInput): number {
   const lineTop =
     input.renderedLine === undefined
       ? input.fileTop + input.estimatedLine.top

@@ -21,7 +21,7 @@ export function pullRequestAgentThreadActions(
   threads: PullRequestLinkedThreadsResult["threads"],
   task: PullRequestAgentTask,
   canAsk: boolean,
-) {
+): MenuAction[] {
   const active: MenuAction[] = [];
   const done: MenuAction[] = [];
   for (const thread of threads) {
@@ -48,7 +48,7 @@ export function pullRequestAgentThreadActions(
 export function pullRequestAgentPrompt(
   task: PullRequestAgentTask,
   terminology: ChangeRequestTerminology,
-) {
+): string {
   const { shortLabel, singular } = terminology;
   switch (task) {
     case "ask":
@@ -100,7 +100,7 @@ export function appendPullRequestAgentPrompt(
   task: PullRequestAgentTask,
   terminology: ChangeRequestTerminology,
   previousPrompt?: string,
-) {
+): string {
   const prompt = pullRequestAgentPrompt(task, terminology);
   const kept = !previousPrompt
     ? text

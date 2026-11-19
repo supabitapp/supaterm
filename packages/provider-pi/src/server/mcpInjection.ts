@@ -82,7 +82,7 @@ export type PiLaunchArgsResolution =
   | { readonly ok: true; readonly args: ReadonlyArray<string> }
   | { readonly ok: false; readonly message: string };
 
-function reservedPiArgument(arg: string) {
+function reservedPiArgument(arg: string): string | undefined {
   for (const reserved of RESERVED_PI_LAUNCH_ARGUMENTS) {
     if (arg === reserved || (reserved.startsWith("--") && arg.startsWith(`${reserved}=`))) {
       return reserved;
@@ -91,7 +91,7 @@ function reservedPiArgument(arg: string) {
   return undefined;
 }
 
-function normalizePiBuiltInEqualsArguments(args: ReadonlyArray<string>) {
+function normalizePiBuiltInEqualsArguments(args: ReadonlyArray<string>): ReadonlyArray<string> {
   return args.flatMap((arg) => {
     const equalsIndex = arg.indexOf("=");
     if (equalsIndex <= 0) return [arg];
@@ -100,8 +100,7 @@ function normalizePiBuiltInEqualsArguments(args: ReadonlyArray<string>) {
   });
 }
 
-export function resolvePiLaunchArgs(launchArgs: string): PiLaunchArgsResolution;
-export function resolvePiLaunchArgs(launchArgs: string) {
+export function resolvePiLaunchArgs(launchArgs: string): PiLaunchArgsResolution {
   const args = normalizePiBuiltInEqualsArguments(tokenizeCliArgs(launchArgs));
   let hasProvider = false;
   let hasModel = false;
@@ -113,21 +112,18 @@ export function resolvePiLaunchArgs(launchArgs: string) {
       return {
         ok: false,
         message: `Pi launch argument '${reserved}' is controlled by Supaterm and cannot be overridden.`,
-      } satisfies PiLaunchArgsResolution;
+      };
     }
     if (arg === "--") {
       return {
         ok: false,
         message: "Pi launch arguments cannot include positional prompts.",
-      } satisfies PiLaunchArgsResolution;
+      };
     }
     if (PI_ARGUMENTS_WITH_VALUES.has(arg)) {
       const value = args[index + 1];
       if (value === undefined) {
-        return {
-          ok: false,
-          message: `Pi launch argument '${arg}' requires a value.`,
-        } satisfies PiLaunchArgsResolution;
+        return { ok: false, message: `Pi launch argument '${arg}' requires a value.` };
       }
       if (arg === "--provider") hasProvider = true;
       if (arg === "--model") hasModel = true;
@@ -148,34 +144,28 @@ export function resolvePiLaunchArgs(launchArgs: string) {
       continue;
     }
     if (arg.startsWith("-")) {
-      return {
-        ok: false,
-        message: `Pi launch argument '${arg}' is not supported by Supaterm.`,
-      } satisfies PiLaunchArgsResolution;
+      return { ok: false, message: `Pi launch argument '${arg}' is not supported by Supaterm.` };
     }
     return {
       ok: false,
       message: `Pi launch arguments cannot include positional prompt '${arg}'.`,
-    } satisfies PiLaunchArgsResolution;
+    };
   }
   if (hasProvider && !hasModel) {
-    return {
-      ok: false,
-      message: "Pi launch argument '--provider' requires '--model'.",
-    } satisfies PiLaunchArgsResolution;
+    return { ok: false, message: "Pi launch argument '--provider' requires '--model'." };
   }
-  return { ok: true, args } satisfies PiLaunchArgsResolution;
+  return { ok: true, args };
 }
 
-function bearerTokenFromAuthorizationHeader(header: string) {
+function bearerTokenFromAuthorizationHeader(header: string): string {
   return header.startsWith("Bearer ") ? header.slice("Bearer ".length) : header;
 }
 
-function normalizedPiPath(value: string) {
+function normalizedPiPath(value: string): string {
   return value.replace(/\\/g, "/").replace(/\/+$/, "");
 }
 
-function hasExplicitExtension(args: ReadonlyArray<string>, extensionPath: string) {
+function hasExplicitExtension(args: ReadonlyArray<string>, extensionPath: string): boolean {
   const wanted = normalizedPiPath(extensionPath);
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
@@ -187,7 +177,7 @@ function hasExplicitExtension(args: ReadonlyArray<string>, extensionPath: string
   return false;
 }
 
-function withoutExplicitExtensions(args: ReadonlyArray<string>) {
+function withoutExplicitExtensions(args: ReadonlyArray<string>): ReadonlyArray<string> {
   const filtered: string[] = [];
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
@@ -202,7 +192,7 @@ function withoutExplicitExtensions(args: ReadonlyArray<string>) {
   return filtered;
 }
 
-function withoutToolSelectionArgs(args: ReadonlyArray<string>) {
+function withoutToolSelectionArgs(args: ReadonlyArray<string>): ReadonlyArray<string> {
   const filtered: string[] = [];
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
@@ -228,7 +218,7 @@ function withoutToolSelectionArgs(args: ReadonlyArray<string>) {
   return filtered;
 }
 
-function piSupatermMcpExtensionDestPath(cacheDir: string) {
+function piSupatermMcpExtensionDestPath(cacheDir: string): string {
   return `${cacheDir.replace(/\\/g, "/")}/${PI_SUPATERM_MCP_EXTENSION_FILENAME}`;
 }
 
@@ -263,7 +253,10 @@ export function buildPiRpcLaunch(input: {
   readonly disableExtensions?: boolean;
   readonly disableTools?: boolean;
   readonly runtimeMode?: "approval-required" | "auto-accept-edits" | "auto" | "full-access";
-}) {
+}): {
+  readonly args: ReadonlyArray<string>;
+  readonly env: NodeJS.ProcessEnv;
+} {
   const hasSupatermExtension =
     input.disableExtensions !== true && input.extensionPath !== undefined;
   const hasSupatermMcp = hasSupatermExtension && input.mcpSession !== undefined;

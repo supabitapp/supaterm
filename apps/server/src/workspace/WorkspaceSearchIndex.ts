@@ -36,7 +36,7 @@ import { PROJECT_FAVICON_EXTENSIONS, isProjectFaviconPath } from "@supaterm/shar
 import { scoreSubsequenceMatch } from "@supaterm/shared/searchRanking";
 
 import * as VcsProcess from "../vcs/VcsProcess.ts";
-import { type IgnoreFile, parseIgnoreFile } from "./IgnorePatterns.ts";
+import { type IgnoreDecision, type IgnoreFile, parseIgnoreFile } from "./IgnorePatterns.ts";
 
 const requireForFff = NodeModule.createRequire(import.meta.url);
 const { FileFinder } = requireForFff("@ff-labs/fff-node") as typeof import("@ff-labs/fff-node");
@@ -69,7 +69,7 @@ export class WorkspaceSearchIndexCreateFailed extends Schema.TaggedError<Workspa
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Failed to create the workspace search index for '${this.cwd}'.`;
   }
 }
@@ -81,7 +81,7 @@ export class WorkspaceSearchIndexScanTimedOut extends Schema.TaggedError<Workspa
     timeout: Schema.String,
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Workspace search index for '${this.cwd}' did not finish scanning within ${this.timeout}`;
   }
 }
@@ -96,7 +96,7 @@ export class WorkspaceSearchIndexSearchFailed extends Schema.TaggedError<Workspa
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Workspace search failed for '${this.cwd}'.`;
   }
 }
@@ -109,7 +109,7 @@ export class WorkspaceSearchIndexRefreshFailed extends Schema.TaggedError<Worksp
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Failed to refresh the workspace search index for '${this.cwd}'.`;
   }
 }
@@ -121,7 +121,7 @@ export class WorkspaceSearchIndexDestroyFailed extends Schema.TaggedError<Worksp
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Failed to destroy the workspace search index for '${this.cwd}'.`;
   }
 }
@@ -146,20 +146,20 @@ export class WorkspaceSearchIndex extends Context.Service<
   }
 >()("supaterm/workspace/WorkspaceSearchIndex") {}
 
-function toPosixPath(input: string, hostIsWindows: boolean) {
+function toPosixPath(input: string, hostIsWindows: boolean): string {
   return hostIsWindows ? input.replaceAll("\\", "/") : input;
 }
 
-function trimDirectorySeparator(input: string) {
+function trimDirectorySeparator(input: string): string {
   return input.endsWith("/") ? input.slice(0, -1) : input;
 }
 
-function parentPathOf(input: string) {
+function parentPathOf(input: string): string | undefined {
   const separatorIndex = input.lastIndexOf("/");
   return separatorIndex === -1 ? undefined : input.slice(0, separatorIndex);
 }
 
-function toProjectEntry(item: MixedItem, hostIsWindows: boolean) {
+function toProjectEntry(item: MixedItem, hostIsWindows: boolean): ProjectEntry | null {
   const normalizedPath = trimDirectorySeparator(toPosixPath(item.item.relativePath, hostIsWindows));
   if (!normalizedPath) {
     return null;
@@ -171,21 +171,17 @@ function toProjectEntry(item: MixedItem, hostIsWindows: boolean) {
   };
 }
 
-function toFileEntry(item: FileItem, hostIsWindows: boolean) {
+function toFileEntry(item: FileItem, hostIsWindows: boolean): ProjectEntry | null {
   const normalizedPath = trimDirectorySeparator(toPosixPath(item.relativePath, hostIsWindows));
-  return (
-    normalizedPath ? { path: normalizedPath, kind: "file" } : null
-  ) satisfies ProjectEntry | null;
+  return normalizedPath ? { path: normalizedPath, kind: "file" } : null;
 }
 
-function toDirectoryEntry(item: DirItem, hostIsWindows: boolean) {
+function toDirectoryEntry(item: DirItem, hostIsWindows: boolean): ProjectEntry | null {
   const normalizedPath = trimDirectorySeparator(toPosixPath(item.relativePath, hostIsWindows));
-  return (
-    normalizedPath ? { path: normalizedPath, kind: "directory" } : null
-  ) satisfies ProjectEntry | null;
+  return normalizedPath ? { path: normalizedPath, kind: "directory" } : null;
 }
 
-function isLoneFuzzyPath(query: string) {
+function isLoneFuzzyPath(query: string): boolean {
   const trimmed = query.trim();
   return (
     !/\s/u.test(trimmed) &&
@@ -200,7 +196,7 @@ function mapFileSearchResult(
   limit: number,
   hostIsWindows: boolean,
   imageOnly = false,
-) {
+): ProjectSearchEntriesResult {
   const entries = result.items.flatMap((item) => {
     const entry = toFileEntry(item, hostIsWindows);
     return entry && (!imageOnly || isProjectFaviconPath(entry.path)) ? [entry] : [];
@@ -208,14 +204,14 @@ function mapFileSearchResult(
   return {
     entries: entries.slice(0, limit),
     truncated: entries.length > limit || result.totalMatched > result.items.length,
-  } satisfies ProjectSearchEntriesResult;
+  };
 }
 
 function mapDirectorySearchResult(
   result: SearchPage<DirItem>,
   limit: number,
   hostIsWindows: boolean,
-) {
+): ProjectSearchEntriesResult {
   const entries = result.items.flatMap((item) => {
     const entry = toDirectoryEntry(item, hostIsWindows);
     return entry ? [entry] : [];
@@ -224,14 +220,14 @@ function mapDirectorySearchResult(
   return {
     entries: entries.slice(0, limit),
     truncated: result.totalMatched - rootDirectoryCount > limit,
-  } satisfies ProjectSearchEntriesResult;
+  };
 }
 
 function mapMixedSearchResult(
   result: SearchPage<MixedItem>,
   limit: number,
   hostIsWindows: boolean,
-) {
+): { readonly entries: ProjectEntry[]; readonly truncated: boolean } {
   const entries: ProjectEntry[] = [];
   for (const item of result.items) {
     const entry = toProjectEntry(item, hostIsWindows);
@@ -256,12 +252,12 @@ function mapMixedSearchResult(
 
 const WORD_CHARACTER = /[\p{Letter}\p{Mark}\p{Number}_]/u;
 
-function codePointAt(line: string, index: number) {
+function codePointAt(line: string, index: number): string | undefined {
   const codePoint = line.codePointAt(index);
   return codePoint === undefined ? undefined : String.fromCodePoint(codePoint);
 }
 
-function codePointBefore(line: string, index: number) {
+function codePointBefore(line: string, index: number): string | undefined {
   if (index <= 0) return undefined;
   const previousCodeUnit = line.charCodeAt(index - 1);
   const previousIndex =
@@ -269,7 +265,10 @@ function codePointBefore(line: string, index: number) {
   return codePointAt(line, previousIndex);
 }
 
-function buildContentSearchQuery(input: Omit<ProjectSearchContentsInput, "cwd">) {
+function buildContentSearchQuery(input: Omit<ProjectSearchContentsInput, "cwd">): {
+  readonly searchQuery: string;
+  readonly regexMode: boolean;
+} {
   if (input.caseSensitive) {
     return { searchQuery: input.query, regexMode: input.useRegex };
   }
@@ -278,7 +277,10 @@ function buildContentSearchQuery(input: Omit<ProjectSearchContentsInput, "cwd">)
     : { searchQuery: input.query.toLowerCase(), regexMode: false };
 }
 
-function mapContentMatchRanges(line: string, byteRanges: ReadonlyArray<readonly [number, number]>) {
+function mapContentMatchRanges(
+  line: string,
+  byteRanges: ReadonlyArray<readonly [number, number]>,
+): Array<{ readonly start: number; readonly end: number }> {
   const lineBytes = Buffer.from(line);
   const toStringIndex = (byteOffset: number) => lineBytes.subarray(0, byteOffset).toString().length;
   return byteRanges.map(([startByte, endByte]) => ({
@@ -287,14 +289,14 @@ function mapContentMatchRanges(line: string, byteRanges: ReadonlyArray<readonly 
   }));
 }
 
-function escapeRegExp(input: string) {
+function escapeRegExp(input: string): string {
   return input.replace(/[\\^$.*+?()[\]{}|/]/g, "\\$&");
 }
 
 function locateRegexMatches(
   line: string,
   matches: { readonly column: number; readonly texts: ReadonlyArray<string> } | undefined,
-) {
+): Array<readonly [number, number]> {
   if (!matches) return [];
   const lineBytes = Buffer.from(line);
   const ranges: Array<readonly [number, number]> = [];
@@ -308,7 +310,11 @@ function locateRegexMatches(
   return ranges;
 }
 
-function parseGitGrepRecords(stdout: string, fieldCount: number, truncated: boolean) {
+function parseGitGrepRecords(
+  stdout: string,
+  fieldCount: number,
+  truncated: boolean,
+): Array<Array<string>> {
   const lines = stdout.split("\n");
   if (truncated || lines.at(-1) === "") lines.pop();
   const records: Array<Array<string>> = [];
@@ -320,7 +326,10 @@ function parseGitGrepRecords(stdout: string, fieldCount: number, truncated: bool
   return records;
 }
 
-function isWholeWordRange(line: string, range: { readonly start: number; readonly end: number }) {
+function isWholeWordRange(
+  line: string,
+  range: { readonly start: number; readonly end: number },
+): boolean {
   if (range.end <= range.start) return false;
   const isWord = (character: string | undefined) =>
     character !== undefined && WORD_CHARACTER.test(character);
@@ -335,7 +344,7 @@ function isWholeWordRange(line: string, range: { readonly start: number; readonl
   return leftIsBoundary && rightIsBoundary;
 }
 
-function withDirectoryAncestors(entries: ReadonlyArray<ProjectEntry>) {
+function withDirectoryAncestors(entries: ReadonlyArray<ProjectEntry>): ProjectEntry[] {
   const entryByPath = new Map(entries.map((entry) => [entry.path, entry]));
   for (const entry of entries) {
     let parentPath = parentPathOf(entry.path);
@@ -411,7 +420,7 @@ const isWithin = (entryPath: string, directory: string) =>
 function decideByIgnoreFiles(
   entry: ProjectEntry,
   ignoreFiles: ReadonlyArray<{ readonly directory: string; readonly file: IgnoreFile }>,
-) {
+): IgnoreDecision | undefined {
   for (const { directory, file } of ignoreFiles) {
     if (!isWithin(entry.path, directory) || entry.path === directory) continue;
     const relative = directory ? entry.path.slice(directory.length + 1) : entry.path;
@@ -427,7 +436,7 @@ function mergeSymlinkMatches(
   symlinks: ReadonlyArray<ProjectEntry>,
   query: string,
   limit: number,
-) {
+): ProjectSearchEntriesResult {
   if (linkPaths.size === 0) return indexed;
   const symlinkByPath = new Map(symlinks.map((entry) => [entry.path, entry]));
   const score = (entry: ProjectEntry) =>
@@ -495,7 +504,7 @@ const listGitIgnoredPaths = Effect.fn("WorkspaceSearchIndex.listGitIgnoredPaths"
   );
 });
 
-function mixedItemPath(item: MixedItem) {
+function mixedItemPath(item: MixedItem): string {
   return item.item.relativePath;
 }
 
@@ -503,7 +512,7 @@ function isIgnoredPath(
   ignoredPaths: ReadonlySet<string>,
   relativePath: string,
   hostIsWindows: boolean,
-) {
+): boolean {
   if (ignoredPaths.size === 0) return false;
   let candidate: string | undefined = trimDirectorySeparator(
     toPosixPath(relativePath, hostIsWindows),
@@ -551,7 +560,7 @@ const waitForIndexReady = Effect.fn("WorkspaceSearchIndex.waitForIndexReady")(fu
   cwd: string,
   finder: FileFinderType,
   onFailure: (input: { readonly reason: string; readonly cause?: unknown }) => E,
-) {
+): Effect.fn.Return<void, E | WorkspaceSearchIndexScanTimedOut> {
   const result = yield* Effect.tryPromise({
     try: () => finder.waitForIndexReady(WORKSPACE_INDEX_SCAN_TIMEOUT_MS),
     catch: (cause) =>
@@ -707,7 +716,7 @@ export const make = Effect.fn("WorkspaceSearchIndex.make")(function* (
 
   const searchContentsWithGit = Effect.fn("WorkspaceSearchIndex.searchContentsWithGit")(function* (
     input: Omit<ProjectSearchContentsInput, "cwd">,
-  ) {
+  ): Effect.fn.Return<Option.Option<ProjectSearchContentsResult>> {
     const options = {
       ignoreCase: !input.caseSensitive,
       maxMatchesPerFile: CONTENT_SEARCH_MAX_MATCHES_PER_FILE,
@@ -808,7 +817,7 @@ export const make = Effect.fn("WorkspaceSearchIndex.make")(function* (
     pageSize: number,
     operation: "directorySearch" | "fileSearch" | "grep" | "mixedSearch",
     execute: () => Promise<Result<A>>,
-  ) {
+  ): Effect.fn.Return<A, WorkspaceSearchIndexSearchFailed> {
     const result = yield* Effect.tryPromise({
       try: execute,
       catch: (cause) =>
@@ -1040,7 +1049,7 @@ export const make = Effect.fn("WorkspaceSearchIndex.make")(function* (
     operation: "directorySearch" | "fileSearch" | "mixedSearch",
     execute: (pageSize: number) => Promise<Result<SearchPage<I> & Metadata>>,
     pathOf: (item: I) => string,
-  ) {
+  ): Effect.fn.Return<SearchPage<I> & Metadata, WorkspaceSearchIndexSearchFailed> {
     let size = pageSize;
     while (true) {
       const fetchSize = size;
@@ -1286,7 +1295,10 @@ export type WorkspaceSearchIndexVariant = (typeof WORKSPACE_SEARCH_INDEX_VARIANT
 export const workspaceSearchIndexKey = (cwd: string, variant: WorkspaceSearchIndexVariant) =>
   `${variant}\n${cwd}`;
 
-function parseWorkspaceSearchIndexKey(key: string) {
+function parseWorkspaceSearchIndexKey(key: string): {
+  readonly cwd: string;
+  readonly variant: WorkspaceSearchIndexVariant;
+} {
   const separatorIndex = key.indexOf("\n");
   return {
     variant: key.slice(0, separatorIndex) as WorkspaceSearchIndexVariant,

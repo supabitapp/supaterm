@@ -24,7 +24,9 @@ const request = {
   platform: "linux",
 } as const;
 
-function dependencies(overrides: Partial<DesktopAppActivationDependencies> = {}) {
+function dependencies(
+  overrides: Partial<DesktopAppActivationDependencies> = {},
+): DesktopAppActivationDependencies {
   return {
     getTarget: () => ({ environmentId, platform: "linux" }),
     findProject: () => ({
@@ -36,7 +38,7 @@ function dependencies(overrides: Partial<DesktopAppActivationDependencies> = {})
     waitForProject: vi.fn(async () => undefined),
     openThread: vi.fn(async () => ({ threadId })),
     ...overrides,
-  } satisfies DesktopAppActivationDependencies;
+  };
 }
 
 describe("desktop app activation", () => {

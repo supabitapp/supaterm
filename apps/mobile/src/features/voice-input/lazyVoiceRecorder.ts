@@ -50,12 +50,7 @@ export function createLazyVoiceRecorder<TStatus, TRecorderState>(input: {
   readonly create: () => NativeVoiceRecorder<TStatus, TRecorderState>;
   readonly onStatus: (status: TStatus) => void;
   readonly selectInput?: (inputs: ReadonlyArray<VoiceRecordingInput>) => VoiceRecordingInput | null;
-}): LazyVoiceRecorder<TRecorderState>;
-export function createLazyVoiceRecorder<TStatus, TRecorderState>(input: {
-  readonly create: () => NativeVoiceRecorder<TStatus, TRecorderState>;
-  readonly onStatus: (status: TStatus) => void;
-  readonly selectInput?: (inputs: ReadonlyArray<VoiceRecordingInput>) => VoiceRecordingInput | null;
-}) {
+}): LazyVoiceRecorder<TRecorderState> {
   let recorder: NativeVoiceRecorder<TStatus, TRecorderState> | null = null;
   let subscription: Subscription | null = null;
   const frameListeners = new Set<(pcm: Uint8Array) => void>();
@@ -64,7 +59,7 @@ export function createLazyVoiceRecorder<TStatus, TRecorderState>(input: {
   let retiredUri: string | null = null;
   let pending: Promise<unknown> = Promise.resolve();
 
-  const track = <T>(promise: Promise<T>) => {
+  const track = <T>(promise: Promise<T>): Promise<T> => {
     pending = Promise.allSettled([pending, promise]).then(() => undefined);
     return promise;
   };
@@ -136,5 +131,5 @@ export function createLazyVoiceRecorder<TStatus, TRecorderState>(input: {
         released.release();
       });
     },
-  } satisfies LazyVoiceRecorder<TRecorderState>;
+  };
 }

@@ -22,7 +22,13 @@ export class TestProviderHostSettings extends Context.Service<
   { readonly set: (settings: ServerSettings) => Effect.Effect<void> }
 >()("@supaterm/provider-testing/TestProviderHost/TestProviderHostSettings") {}
 
-export const layer = (options: TestProviderHostOptions = {}) =>
+export const layer = (
+  options: TestProviderHostOptions = {},
+): Layer.Layer<
+  ProviderHost.ProviderHost | TestProviderHostSettings,
+  never,
+  FileSystem.FileSystem | Path.Path
+> =>
   Layer.effectContext(
     Effect.gen(function* () {
       const fileSystem = yield* FileSystem.FileSystem;

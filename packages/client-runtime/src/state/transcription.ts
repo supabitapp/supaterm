@@ -60,7 +60,7 @@ const providerName = (provider: ServerProvider) => provider.displayName ?? provi
 export function resolveVoiceTranscriptionSource(config: {
   readonly providers: ReadonlyArray<ServerProvider>;
   readonly settings: { readonly transcriptionProviderInstanceId: ProviderInstanceId | null };
-}) {
+}): VoiceTranscriptionSource {
   const chosen = config.settings.transcriptionProviderInstanceId;
   const provider =
     chosen === null
@@ -74,21 +74,21 @@ export function resolveVoiceTranscriptionSource(config: {
         chosen === null
           ? "No provider on this environment can transcribe voice input."
           : "The voice transcription provider isn't set up on this environment.",
-    } satisfies VoiceTranscriptionSource;
+    };
   }
   if (!provider.enabled) {
     return {
       status: "unavailable",
       provider,
       message: `${providerName(provider)} is turned off on this environment.`,
-    } satisfies VoiceTranscriptionSource;
+    };
   }
   if (!provider.transcription) {
     return {
       status: "unavailable",
       provider,
       message: `${providerName(provider)} can't transcribe voice input.`,
-    } satisfies VoiceTranscriptionSource;
+    };
   }
   if (provider.transcription.status !== "ready") {
     return {
@@ -97,9 +97,9 @@ export function resolveVoiceTranscriptionSource(config: {
       message: new TranscriptionError({
         reason: provider.transcription.reason ?? "unsupportedLogin",
       }).message,
-    } satisfies VoiceTranscriptionSource;
+    };
   }
-  return { status: "ready", provider } satisfies VoiceTranscriptionSource;
+  return { status: "ready", provider };
 }
 
 /** Transcription refused the recording, or the upload never reached the server. */
@@ -126,7 +126,7 @@ const decodeError = Schema.decodeUnknownOption(TranscriptionError);
 
 export type VoiceUploadResponse = { readonly status: number; readonly body: unknown };
 
-function refusal(error: TranscriptionError) {
+function refusal(error: TranscriptionError): VoiceUploadError {
   return new VoiceUploadError(
     error.reason,
     error.retryAfterMs === undefined
@@ -136,7 +136,7 @@ function refusal(error: TranscriptionError) {
   );
 }
 
-function uploadFailure(response: VoiceUploadResponse) {
+function uploadFailure(response: VoiceUploadResponse): VoiceUploadError {
   const error = Option.getOrUndefined(decodeError(response.body));
   return error
     ? refusal(error)
@@ -152,7 +152,9 @@ const unreachable = (cause: unknown) =>
     cause,
   });
 
-async function prepareUpload(prepare: () => Promise<TranscriptionPrepareUploadResult>) {
+async function prepareUpload(
+  prepare: () => Promise<TranscriptionPrepareUploadResult>,
+): Promise<TranscriptionPrepareUploadResult> {
   try {
     return await prepare();
   } catch (error) {
@@ -182,7 +184,7 @@ export async function uploadVoiceRecording(input: {
   readonly cancel: (uploadId: string) => Promise<unknown>;
   readonly signal?: AbortSignal;
   readonly streamed?: boolean;
-}) {
+}): Promise<TranscriptionUploadResult> {
   const signal = input.signal ?? new AbortController().signal;
   const attempts = input.streamed ? 3 : 2;
   for (let attempt = 0; ; attempt++) {
@@ -223,17 +225,7 @@ export function createServerVoiceTranscriber(input: {
     signal: AbortSignal,
     dictation: VoiceRecordingHandOff | undefined,
   ) => Promise<TranscriptionUploadResult>;
-}): VoiceTranscriber;
-export function createServerVoiceTranscriber(input: {
-  readonly locale: string;
-  /** Starts streaming the recording, or null when the environment can't take it. */
-  readonly startLive?: (() => StartedLiveDictation | null) | undefined;
-  readonly transcribe: (
-    uri: string,
-    signal: AbortSignal,
-    dictation: VoiceRecordingHandOff | undefined,
-  ) => Promise<TranscriptionUploadResult>;
-}) {
+}): VoiceTranscriber {
   return {
     prepare: async ({ signal }) => {
       const started = input.startLive?.() ?? null;
@@ -278,5 +270,5 @@ export function createServerVoiceTranscriber(input: {
         },
       };
     },
-  } satisfies VoiceTranscriber;
+  };
 }

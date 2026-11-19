@@ -36,7 +36,7 @@ interface ProviderSetupSectionProps {
   readonly onEnable: () => void;
 }
 
-export function readAntigravityAuthMethod(config: unknown) {
+export function readAntigravityAuthMethod(config: unknown): AntigravityAuthMethod {
   const value =
     config !== null && typeof config === "object" && "authMethod" in config
       ? config.authMethod
@@ -151,7 +151,10 @@ function ProviderSetupActions({
                   ? `${Math.ceil(installation.totalBytes / 1_000_000)} MB download.`
                   : "Not installed.";
 
-  async function runCommand<A, E>(label: string, request: () => Promise<AtomCommandResult<A, E>>) {
+  async function runCommand<A, E>(
+    label: string,
+    request: () => Promise<AtomCommandResult<A, E>>,
+  ): Promise<boolean> {
     if (pendingRef.current) return false;
     pendingRef.current = true;
     setPendingLabel(label);

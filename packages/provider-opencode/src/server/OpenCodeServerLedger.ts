@@ -58,7 +58,7 @@ interface ObservedProcess {
 const DARWIN_PS_LINE =
   /^\s*(\d+)\s+(\d+)\s+(\S+)\s+(\w{3} \w{3} +\d{1,2} \d{2}:\d{2}:\d{2} \d{4})\s+(.*)$/;
 
-const parseDarwinPs = (output: string) =>
+const parseDarwinPs = (output: string): ReadonlyArray<ObservedProcess> =>
   output.split("\n").flatMap((line) => {
     const match = DARWIN_PS_LINE.exec(line);
     if (match === null) return [];
@@ -138,7 +138,7 @@ export const make = Effect.fn("OpenCodeServerLedger.make")(function* (input: {
       )
       .pipe(Effect.timeout("5 seconds"), Effect.map(parseDarwinPs));
 
-  const observe = (pid: number) => {
+  const observe = (pid: number): Effect.Effect<ObservedProcess | undefined> => {
     if (platform === "linux") return observeLinux(pid).pipe(Effect.orElseSucceed(() => undefined));
     if (platform === "darwin") {
       return psDarwin(["-p", String(pid)]).pipe(
@@ -150,7 +150,7 @@ export const make = Effect.fn("OpenCodeServerLedger.make")(function* (input: {
     return Effect.succeed(undefined);
   };
 
-  const observeGroup = (pgid: number) => {
+  const observeGroup = (pgid: number): Effect.Effect<ReadonlyArray<ObservedProcess>> => {
     if (platform === "linux") {
       return fs.readDirectory("/proc").pipe(
         Effect.flatMap((names) =>

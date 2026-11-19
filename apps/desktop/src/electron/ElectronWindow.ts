@@ -115,7 +115,7 @@ export class ElectronWindowCreateError extends Schema.TaggedError<ElectronWindow
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     const title = this.options.title === null ? "" : ` "${this.options.title}"`;
     const dimensions =
       this.options.width === null || this.options.height === null
@@ -135,7 +135,7 @@ export class ElectronWindowOperationError extends Schema.TaggedError<ElectronWin
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     const window = this.windowId === null ? "" : ` for window ${this.windowId}`;
     const channel = this.channel === null ? "" : ` on channel ${JSON.stringify(this.channel)}`;
     return `Electron window operation ${JSON.stringify(this.operation)} failed${window}${channel} on ${this.platform}.`;

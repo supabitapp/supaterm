@@ -22,7 +22,7 @@ export interface PendingTerminalLaunch {
 
 const pendingTerminalLaunches = new Map<string, PendingTerminalLaunch>();
 
-function pendingTerminalLaunchKey(input: PendingTerminalLaunchTarget) {
+function pendingTerminalLaunchKey(input: PendingTerminalLaunchTarget): string {
   return `${input.environmentId}:${input.threadId}:${input.terminalId}`;
 }
 
@@ -39,7 +39,9 @@ export function stagePendingTerminalLaunch(input: {
   });
 }
 
-export function takePendingTerminalLaunch(target: PendingTerminalLaunchTarget) {
+export function takePendingTerminalLaunch(
+  target: PendingTerminalLaunchTarget,
+): PendingTerminalLaunch | null {
   const key = pendingTerminalLaunchKey(target);
   const launch = pendingTerminalLaunches.get(key) ?? null;
   if (launch) {
@@ -52,7 +54,7 @@ export function takePendingTerminalLaunch(target: PendingTerminalLaunchTarget) {
 export function resolvePreferredThreadWorktreePath(input: {
   readonly threadShellWorktreePath: string | null;
   readonly threadDetailWorktreePath: string | null;
-}) {
+}): string | null {
   return input.threadDetailWorktreePath ?? input.threadShellWorktreePath ?? null;
 }
 
@@ -62,7 +64,10 @@ export function resolveTerminalOpenLocation(input: {
   readonly workspaceRoot: string;
   readonly threadShellWorktreePath: string | null;
   readonly threadDetailWorktreePath: string | null;
-}) {
+}): {
+  readonly cwd: string;
+  readonly worktreePath: string | null;
+} {
   const sessionLocation = input.terminalLocation ?? input.activeSessionLocation;
 
   if (sessionLocation !== null) {

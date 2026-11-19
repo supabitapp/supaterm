@@ -127,7 +127,7 @@ async function setup() {
           }}
         />,
       ),
-    click() {
+    click(): Promise<void> {
       screen!.container.querySelector("button")!.click();
       return pendingClick!;
     },

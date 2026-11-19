@@ -4,8 +4,7 @@ import {
   type ThreadHistoryControls,
 } from "./threadHistoryPrefetch.ts";
 
-function history(overrides?: Partial<ThreadHistoryControls>): ThreadHistoryControls;
-function history(overrides: Partial<ThreadHistoryControls> = {}) {
+function history(overrides: Partial<ThreadHistoryControls> = {}): ThreadHistoryControls {
   return {
     historyCursor: "page-1",
     hasMoreHistory: true,
@@ -13,7 +12,7 @@ function history(overrides: Partial<ThreadHistoryControls> = {}) {
     error: null,
     onLoadEarlier: vi.fn(),
     ...overrides,
-  } satisfies ThreadHistoryControls;
+  };
 }
 
 describe("thread history prefetch", () => {

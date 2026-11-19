@@ -23,7 +23,7 @@ export function createPermissionPoller<Id extends string>(
   let snapshot: PermissionSnapshot<Id> = { status: initialStatus, error: null };
   return {
     getSnapshot: () => snapshot,
-    subscribe(onChange: () => void) {
+    subscribe(onChange: () => void): () => void {
       let disposed = false;
       let checking = false;
       const publish = (next: PermissionSnapshot<Id>) => {

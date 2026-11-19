@@ -13,8 +13,7 @@ export interface DeferredStorage<TValue> {
   flush: () => void;
 }
 
-export function createMemoryStorage(): StateStorage;
-export function createMemoryStorage() {
+export function createMemoryStorage(): StateStorage {
   const store = new Map<string, string>();
   return {
     getItem: (name) => store.get(name) ?? null,
@@ -24,7 +23,7 @@ export function createMemoryStorage() {
     removeItem: (name) => {
       store.delete(name);
     },
-  } satisfies StateStorage;
+  };
 }
 
 function isStateStorage(
@@ -39,20 +38,15 @@ function isStateStorage(
   );
 }
 
-export function resolveStorage(storage: Partial<StateStorage> | null | undefined) {
+export function resolveStorage(storage: Partial<StateStorage> | null | undefined): StateStorage {
   return isStateStorage(storage) ? storage : createMemoryStorage();
 }
 
 export function createDeferredStorage<TValue>(
   baseStorage: Partial<StateStorage> | null | undefined,
   serialize: (value: TValue) => string,
-  debounceMs?: number,
-): DeferredStorage<TValue>;
-export function createDeferredStorage<TValue>(
-  baseStorage: Partial<StateStorage> | null | undefined,
-  serialize: (value: TValue) => string,
   debounceMs: number = 300,
-) {
+): DeferredStorage<TValue> {
   const resolvedStorage = resolveStorage(baseStorage);
   const debouncedSetItem = new Debouncer(
     (name: string, value: TValue) => {
@@ -74,5 +68,5 @@ export function createDeferredStorage<TValue>(
     flush: () => {
       debouncedSetItem.flush();
     },
-  } satisfies DeferredStorage<TValue>;
+  };
 }

@@ -107,7 +107,7 @@ function LocalSettingsRouteScreen() {
   return <SettingsList connections={[environmentsRow(Object.keys(savedConnectionsById).length)]} />;
 }
 
-function environmentsRow(count: number) {
+function environmentsRow(count: number): SettingsListRow {
   return {
     id: "SettingsEnvironments",
     icon: "desktopcomputer",
@@ -115,7 +115,7 @@ function environmentsRow(count: number) {
     value: `${count}`,
     valuePosition: "trailing",
     target: "SettingsEnvironments",
-  } satisfies SettingsListRow;
+  };
 }
 
 function SettingsList(props: { readonly connections: readonly SettingsListRow[] }) {
@@ -167,8 +167,7 @@ function SettingsList(props: { readonly connections: readonly SettingsListRow[] 
   );
 }
 
-function useSettingsIndexSections(): SettingsListSection[];
-function useSettingsIndexSections() {
+function useSettingsIndexSections(): SettingsListSection[] {
   const { selectedTargets, projectGroups, selectedProjectKey } = useSettingsEnvironmentFilter();
   const noServerTargets = selectedTargets.length === 0;
   const selectedProject = projectGroups.find((group) => group.key === selectedProjectKey);
@@ -191,7 +190,7 @@ function useSettingsIndexSections() {
     icon: SettingsListRow["icon"],
     label: string,
     extra?: Pick<SettingsListRow, "disabled" | "value">,
-  ) => ({ id: target, icon, label, target, ...extra });
+  ): SettingsListRow => ({ id: target, icon, label, target, ...extra });
   const serverPage = (target: SettingsPageTarget, icon: SettingsListRow["icon"], label: string) =>
     page(target, icon, label, { disabled: noServerTargets });
   return [
@@ -235,11 +234,10 @@ function useSettingsIndexSections() {
         page("SettingsArchive", "archivebox", "Archive"),
       ],
     },
-  ] satisfies SettingsListSection[];
+  ];
 }
 
-function useOverflowRows(): SettingsListRow[];
-function useOverflowRows() {
+function useOverflowRows(): SettingsListRow[] {
   const order = useNavigationTabOrder();
   const hidden = useHiddenNavigationTabs();
   const { layout } = useAdaptiveWorkspaceLayout();
@@ -251,5 +249,5 @@ function useOverflowRows() {
     icon: NAVIGATION_TAB_ICONS[tab],
     label: WORKSPACE_TAB_LABELS[tab],
     onPress: () => selectTab(tab),
-  })) satisfies SettingsListRow[];
+  }));
 }

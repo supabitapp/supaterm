@@ -28,7 +28,7 @@ function entry(environmentId: EnvironmentId, label = environmentId as string) {
     profile: Option.none(),
   };
 }
-function config(cwd = "/workspace") {
+function config(cwd = "/workspace"): ServerConfig {
   return {
     cwd,
     environment: { capabilities: {}, platform: { machine: "desktop" } },
@@ -386,7 +386,7 @@ describe("presentations with providers", () => {
   it("leaves out disabled connections until they are re-enabled", () => {
     const h = harness();
     const atom = h.full.presentationsWithProvidersAtom;
-    const withSecond = (enabled: boolean) => ({
+    const withSecond = (enabled: boolean): EnvironmentCatalogState => ({
       isReady: true,
       entries: new Map([
         [FIRST, entry(FIRST)],

@@ -15,7 +15,7 @@ import {
 import { render } from "../../../test/render";
 import { CollapsedComposerPromptPreview } from "./CollapsedComposerPromptPreview";
 
-function quote(text: string, comment?: string) {
+function quote(text: string, comment?: string): string {
   return serializeAssistantCitation({
     version: 1,
     environmentId: EnvironmentId.make("environment:test"),

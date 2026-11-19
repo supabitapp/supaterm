@@ -43,6 +43,7 @@ import {
   type ThreadPullRequestWatch,
   type OrchestrationV2AppThread,
   type OrchestrationV2ContextHandoff,
+  type OrchestrationV2ContextSourcePoint,
   type OrchestrationV2ContextTransfer,
   type OrchestrationV2ContextTransferResolution,
   type OrchestrationV2ConversationMessage,
@@ -207,8 +208,8 @@ export class OrchestratorDispatchError extends Schema.TaggedError<OrchestratorDi
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message() {
-    return `Failed to dispatch orchestration command ${this.commandType} (${this.commandId}).` satisfies string as string;
+  override get message(): string {
+    return `Failed to dispatch orchestration command ${this.commandType} (${this.commandId}).`;
   }
 }
 
@@ -216,8 +217,8 @@ export class OrchestratorThreadAlreadyExistsError extends Schema.TaggedError<Orc
   "OrchestratorThreadAlreadyExistsError",
   { commandId: CommandId, threadId: ThreadId },
 ) {
-  override get message() {
-    return `Thread ${this.threadId} already exists. Use a new thread id.` satisfies string as string;
+  override get message(): string {
+    return `Thread ${this.threadId} already exists. Use a new thread id.`;
   }
 }
 
@@ -225,8 +226,8 @@ export class OrchestratorCommandRejectedError extends Schema.TaggedError<Orchest
   "OrchestratorCommandRejectedError",
   { commandId: CommandId, commandType: Schema.String, cause: Schema.optional(Schema.Defect()) },
 ) {
-  override get message() {
-    return `Orchestration command ${this.commandType} (${this.commandId}) was rejected before commit.` satisfies string as string;
+  override get message(): string {
+    return `Orchestration command ${this.commandType} (${this.commandId}) was rejected before commit.`;
   }
 }
 
@@ -237,8 +238,8 @@ export class OrchestratorProjectionError extends Schema.TaggedError<Orchestrator
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message() {
-    return `Failed to load orchestration projection for thread ${this.threadId}.` satisfies string as string;
+  override get message(): string {
+    return `Failed to load orchestration projection for thread ${this.threadId}.`;
   }
 }
 
@@ -250,8 +251,8 @@ export class OrchestratorDomainEventStreamError extends Schema.TaggedError<Orche
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message() {
-    return "Failed while streaming orchestration domain events." satisfies string as string;
+  override get message(): string {
+    return "Failed while streaming orchestration domain events.";
   }
 }
 
@@ -263,8 +264,8 @@ export class OrchestratorProviderAdapterError extends Schema.TaggedError<Orchest
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message() {
-    return `Provider adapter failed while dispatching orchestration command ${this.commandId}.` satisfies string as string;
+  override get message(): string {
+    return `Provider adapter failed while dispatching orchestration command ${this.commandId}.`;
   }
 }
 
@@ -272,8 +273,8 @@ export class OrchestratorSubagentThreadReadOnlyError extends Schema.TaggedError<
   "OrchestratorSubagentThreadReadOnlyError",
   { commandId: CommandId, threadId: ThreadId },
 ) {
-  override get message() {
-    return "This subagent is run by its provider and cannot take messages. Message the parent thread instead." satisfies string as string;
+  override get message(): string {
+    return "This subagent is run by its provider and cannot take messages. Message the parent thread instead.";
   }
 }
 
@@ -287,8 +288,8 @@ export class OrchestratorThreadAboveModeLimitError extends Schema.TaggedError<Or
     interactionMode: ProviderInteractionMode,
   },
 ) {
-  override get message() {
-    return `Thread ${this.threadId} now runs in ${this.runtimeMode}/${this.interactionMode} mode, above what this caller may change.` satisfies string as string;
+  override get message(): string {
+    return `Thread ${this.threadId} now runs in ${this.runtimeMode}/${this.interactionMode} mode, above what this caller may change.`;
   }
 }
 
@@ -296,8 +297,8 @@ export class OrchestratorProviderSelectionBusyError extends Schema.TaggedError<O
   "OrchestratorProviderSelectionBusyError",
   { commandId: CommandId, threadId: ThreadId },
 ) {
-  override get message() {
-    return `Thread ${this.threadId} has an active turn. Wait for it to finish, then retry the provider selection change.` satisfies string as string;
+  override get message(): string {
+    return `Thread ${this.threadId} has an active turn. Wait for it to finish, then retry the provider selection change.`;
   }
 }
 
@@ -309,8 +310,8 @@ export class OrchestratorCommandPreviouslyRejectedError extends Schema.TaggedErr
     detail: Schema.String,
   },
 ) {
-  override get message() {
-    return `Command ${this.commandId} was previously rejected: ${this.detail}` satisfies string as string;
+  override get message(): string {
+    return `Command ${this.commandId} was previously rejected: ${this.detail}`;
   }
 }
 
@@ -323,8 +324,8 @@ export class OrchestratorCommandIdConflictError extends Schema.TaggedError<Orche
     commandThreadId: ThreadId,
   },
 ) {
-  override get message() {
-    return `Command ${this.commandId} was already handled for thread ${this.receiptThreadId} and cannot be replayed for ${this.commandThreadId}.` satisfies string as string;
+  override get message(): string {
+    return `Command ${this.commandId} was already handled for thread ${this.receiptThreadId} and cannot be replayed for ${this.commandThreadId}.`;
   }
 }
 
@@ -512,7 +513,7 @@ export class OrchestratorV2 extends Context.Service<OrchestratorV2, Orchestrator
   "supaterm/orchestration-v2/Orchestrator/OrchestratorV2",
 ) {}
 
-function nextRunOrdinal(projection: Pick<OrchestrationV2ThreadProjection, "runs">) {
+function nextRunOrdinal(projection: Pick<OrchestrationV2ThreadProjection, "runs">): number {
   return projection.runs.reduce((max, run) => Math.max(max, run.ordinal), 0) + 1;
 }
 
@@ -527,7 +528,7 @@ function wakeWorkStartedAt(
     readonly restartContinuationOfRunId?: RunId | undefined;
   },
   delivery: "immediate" | "automatic-queue" | "explicit-queue" = "immediate",
-) {
+): Pick<OrchestrationV2Run, "workStartedAt"> {
   if (
     trigger.notification === undefined &&
     trigger.delegatedCompletion === undefined &&
@@ -555,14 +556,16 @@ function wakeWorkStartedAt(
   return continuedWorkStartedAt(previous);
 }
 
-function continuedWorkStartedAt(run: OrchestrationV2Run | undefined) {
+function continuedWorkStartedAt(
+  run: OrchestrationV2Run | undefined,
+): Pick<OrchestrationV2Run, "workStartedAt"> {
   return run === undefined ? {} : { workStartedAt: orchestrationV2RunWorkStartedAt(run) };
 }
 
 function runSteeredByMessage(
   projection: Pick<OrchestrationV2ThreadProjection, "messages" | "runs">,
   messageId: MessageId,
-) {
+): OrchestrationV2Run | undefined {
   const message = projection.messages.find((candidate) => candidate.id === messageId);
   const run = projection.runs.find((candidate) => candidate.id === message?.runId);
   return run?.userMessageId === messageId ? undefined : run;
@@ -574,14 +577,14 @@ const threadPullRequestLinksEqual = Schema.toEquivalence(Schema.NullOr(ThreadLin
 export function threadHasUnfinishedWork(records: {
   readonly runs: ReadonlyArray<Pick<OrchestrationV2Run, "status">>;
   readonly runtimeRequests: ReadonlyArray<{ readonly status: string }>;
-}) {
+}): boolean {
   return (
     records.runs.some((run) => isOrchestrationV2RunUnsettled(run.status)) ||
     records.runtimeRequests.some((request) => request.status === "pending")
   );
 }
 
-function commandThreadId(command: OrchestrationV2ServerCommand) {
+function commandThreadId(command: OrchestrationV2ServerCommand): ThreadId {
   switch (command.type) {
     case "thread.create":
     case "thread.archive":
@@ -673,19 +676,19 @@ function pendingThreadTitleGenerationEffect(
   kind:
     | { readonly type: "initial"; readonly messageId: MessageId }
     | { readonly type: "regenerate" },
-) {
+): PendingOrchestrationEffectV2 {
   return {
     id: `effect:${commandId}:thread-title.generate`,
     commandId,
     threadId,
     request: { type: "thread-title.generate", kind },
-  } satisfies PendingOrchestrationEffectV2;
+  };
 }
 
 function hasTitleSetBeforeFirstMessage(
   thread: OrchestrationV2AppThread,
   titleSeed: string | undefined,
-) {
+): boolean {
   const title = thread.title.trim();
   return (
     thread.forkedFrom === null &&
@@ -701,7 +704,7 @@ function delegatedTasksStopEffect(command: {
   readonly commandId: CommandId;
   readonly threadId: ThreadId;
   readonly reason?: string | undefined;
-}) {
+}): PendingOrchestrationEffectV2 {
   return {
     id: `effect:${command.commandId}:delegated-tasks.stop`,
     commandId: command.commandId,
@@ -710,7 +713,7 @@ function delegatedTasksStopEffect(command: {
       type: "delegated-tasks.stop",
       ...(command.reason === undefined ? {} : { reason: command.reason }),
     },
-  } satisfies PendingOrchestrationEffectV2;
+  };
 }
 
 const WORKSPACE_PREPARATION_INPUT = "Preparing workspace";
@@ -724,43 +727,41 @@ function withoutPreparationResult(
   return rest;
 }
 
-function cancelledAppOwnedTask(task: OrchestrationV2Subagent, now: DateTime.Utc) {
+function cancelledAppOwnedTask(
+  task: OrchestrationV2Subagent,
+  now: DateTime.Utc,
+): OrchestrationV2Subagent {
   return {
     ...task,
     status: "cancelled",
     completedAt: now,
     updatedAt: now,
     completionDelivery: { state: "disposed", observedByRunId: null },
-  } satisfies OrchestrationV2Subagent;
+  };
 }
 
 function metadataUpdateContinuation(
   command: Extract<OrchestrationV2Command, { readonly type: "thread.metadata.update" }>,
-) {
-  return (
-    command.continuation === undefined
-      ? undefined
-      : {
-          type: "message.dispatch",
-          commandId: command.commandId,
-          threadId: command.threadId,
-          messageId: command.continuation.messageId,
-          text: command.continuation.text,
-          attachments: [],
-          dispatchMode: { type: "queue_after_active" },
-          createdBy: "agent",
-          creationSource: "mcp",
-        }
-  ) satisfies Extract<OrchestrationV2Command, { readonly type: "message.dispatch" }> | undefined;
+): Extract<OrchestrationV2Command, { readonly type: "message.dispatch" }> | undefined {
+  return command.continuation === undefined
+    ? undefined
+    : {
+        type: "message.dispatch",
+        commandId: command.commandId,
+        threadId: command.threadId,
+        messageId: command.continuation.messageId,
+        text: command.continuation.text,
+        attachments: [],
+        dispatchMode: { type: "queue_after_active" },
+        createdBy: "agent",
+        creationSource: "mcp",
+      };
 }
 
 function threadCreateInitialMessage(
   command: Extract<OrchestrationV2Command, { readonly type: "thread.create" }>,
-) {
-  if (command.initialMessage === undefined)
-    return undefined satisfies
-      | Extract<OrchestrationV2Command, { readonly type: "message.dispatch" }>
-      | undefined;
+): Extract<OrchestrationV2Command, { readonly type: "message.dispatch" }> | undefined {
+  if (command.initialMessage === undefined) return undefined;
   const { workspaceStrategy, ...message } = command.initialMessage;
   return {
     ...message,
@@ -774,12 +775,12 @@ function threadCreateInitialMessage(
         : { type: "defer_start", workspaceStrategy },
     createdBy: command.createdBy,
     creationSource: command.creationSource,
-  } satisfies Extract<OrchestrationV2Command, { readonly type: "message.dispatch" }> | undefined;
+  };
 }
 
 function mayStartSubagentFollowup(
   command: Extract<OrchestrationV2Command, { readonly type: "message.dispatch" }>,
-) {
+): boolean {
   if (command.scheduledTaskId !== undefined || command.restartContinuationOfRunId !== undefined)
     return false;
   if (command.notification !== undefined)
@@ -794,7 +795,7 @@ function mayStartSubagentFollowup(
   );
 }
 
-function isInterruptibleRun(run: OrchestrationV2Run) {
+function isInterruptibleRun(run: OrchestrationV2Run): boolean {
   return isOrchestrationV2RunInterruptible(run.status);
 }
 
@@ -804,7 +805,7 @@ function syncedPullRequestWatch(
     readonly watch: ThreadPullRequestWatch | null;
     readonly checksPendingBefore?: boolean | undefined;
   },
-) {
+): ThreadPullRequestWatch | undefined {
   if (command.watch === null) return undefined;
   if (command.checksPendingBefore === undefined || existing?.checksPending !== undefined) {
     return command.watch;
@@ -812,13 +813,16 @@ function syncedPullRequestWatch(
   return withoutChecksAnswer(command.watch);
 }
 
-const withoutChecksAnswer = ({ checksPending: _answer, ...watch }: ThreadPullRequestWatch) => watch;
+const withoutChecksAnswer = ({
+  checksPending: _answer,
+  ...watch
+}: ThreadPullRequestWatch): ThreadPullRequestWatch => watch;
 
 function legacyPullRequestLink(
   thread: OrchestrationV2AppThread,
   linked: ThreadLinkedPullRequest,
   now: DateTime.Utc,
-) {
+): ThreadPullRequestLink {
   const key = legacyThreadPullRequestKey(linked);
   const existing = threadPullRequestsOf(thread).find((link) =>
     threadPullRequestKeysEqual(link, key),
@@ -845,7 +849,7 @@ const DELEGATED_RESULT_INLINE_BYTES = 16_000;
 function delegatedCompletionWakeDetail(
   taskIds: ReadonlyArray<string>,
   tasks: ReadonlyArray<OrchestrationV2Subagent>,
-) {
+): string {
   let remainingBytes = DELEGATED_RESULT_INLINE_BYTES;
   return taskIds
     .map((taskId) => {
@@ -864,7 +868,7 @@ function delegatedCompletionWakeDetail(
     .join("\n\n");
 }
 
-function isTerminalDelegatedTaskStatus(status: OrchestrationV2Subagent["status"]) {
+function isTerminalDelegatedTaskStatus(status: OrchestrationV2Subagent["status"]): boolean {
   return (
     status === "completed" ||
     status === "failed" ||
@@ -873,7 +877,9 @@ function isTerminalDelegatedTaskStatus(status: OrchestrationV2Subagent["status"]
   );
 }
 
-function delegatedTaskTerminalStatus(status: OrchestrationV2Run["status"]) {
+function delegatedTaskTerminalStatus(
+  status: OrchestrationV2Run["status"],
+): OrchestrationV2Subagent["status"] | null {
   switch (status) {
     case "completed":
     case "failed":
@@ -893,7 +899,7 @@ function delegatedTaskTerminalStatus(status: OrchestrationV2Run["status"]) {
 
 function worktreeSetupPending(
   projection: Pick<OrchestrationV2ThreadProjection, "thread" | "runs">,
-) {
+): boolean {
   return (
     projection.thread.worktreePath === null &&
     projection.runs.some(
@@ -904,7 +910,9 @@ function worktreeSetupPending(
   );
 }
 
-function nextQueuedRun(projection: Pick<OrchestrationV2ThreadProjection, "runs" | "messages">) {
+function nextQueuedRun(
+  projection: Pick<OrchestrationV2ThreadProjection, "runs" | "messages">,
+): OrchestrationV2Run | undefined {
   return queuedRunsInDeliveryOrder(projection).find((run) => run.queueHeld !== true);
 }
 
@@ -919,7 +927,7 @@ function followsCurrentConversation(
         | "followsThreadSelection"
       >
     | undefined,
-) {
+): boolean {
   return (
     message?.delegatedCompletion !== undefined ||
     message?.followsThreadSelection === true ||
@@ -930,7 +938,7 @@ function followsCurrentConversation(
 function queuedRunModelSelection(
   projection: Pick<OrchestrationV2ThreadProjection, "thread" | "messages">,
   run: OrchestrationV2Run,
-) {
+): ModelSelection {
   const message = projection.messages.find((candidate) => candidate.id === run.userMessageId);
   return followsCurrentConversation(message)
     ? projection.thread.modelSelection
@@ -939,7 +947,7 @@ function queuedRunModelSelection(
 
 function queueTailModelSelection(
   projection: Pick<OrchestrationV2ThreadProjection, "thread" | "runs" | "messages">,
-) {
+): ModelSelection {
   return (
     queuedRunsInDeliveryOrder(projection).findLast(
       (run) =>
@@ -954,7 +962,7 @@ function usageLimitHoldsQueue(
   projection: Pick<OrchestrationV2ThreadProjection, "runs" | "turnItems" | "providerSessions">,
   providerInstanceId: ModelSelection["instanceId"],
   now?: DateTime.Utc,
-) {
+): boolean {
   let latestSession: OrchestrationV2ThreadProjection["providerSessions"][number] | undefined;
   for (const session of projection.providerSessions) {
     if (
@@ -980,7 +988,7 @@ function usageLimitHoldsQueue(
 function pullRequestSnapshotEndsWatch(
   snapshot: ThreadPullRequestLink["snapshot"],
   watchStartedAt: ThreadPullRequestWatch["startedAt"],
-) {
+): boolean {
   return (
     snapshot?.state === "merged" ||
     (snapshot?.state === "closed" &&
@@ -995,7 +1003,9 @@ type MonitorPullRequestStamp = NonNullable<
   Extract<OrchestrationV2Notification["source"], { readonly kind: "monitor" }>["pullRequest"]
 >;
 
-function monitorPullRequestStamps(source: OrchestrationV2Notification["source"] | undefined) {
+function monitorPullRequestStamps(
+  source: OrchestrationV2Notification["source"] | undefined,
+): ReadonlyArray<MonitorPullRequestStamp> {
   if (source?.kind !== "monitor" || source.pullRequest === undefined) return [];
   return [source.pullRequest, ...(source.otherPullRequests ?? [])];
 }
@@ -1003,7 +1013,7 @@ function monitorPullRequestStamps(source: OrchestrationV2Notification["source"] 
 function isStalePullRequestWatchStamp(
   projection: Pick<OrchestrationV2ThreadProjection, "thread" | "messages">,
   stamp: MonitorPullRequestStamp,
-) {
+): boolean {
   const link = threadPullRequestsOf(projection.thread).find(
     (candidate) =>
       candidate.source !== "stack-dismissed" && threadPullRequestKeysEqual(candidate, stamp),
@@ -1038,7 +1048,7 @@ function isStalePullRequestWatchStamp(
 function isStalePullRequestWatchWake(
   projection: Pick<OrchestrationV2ThreadProjection, "thread" | "messages">,
   run: OrchestrationV2Run,
-) {
+): boolean {
   const stamps = monitorPullRequestStamps(
     projection.messages.find((message) => message.id === run.userMessageId)?.notification?.source,
   );
@@ -1050,18 +1060,15 @@ function isStalePullRequestWatchWake(
 function currentPullRequestWatchWake(
   projection: Pick<OrchestrationV2ThreadProjection, "thread" | "messages">,
   run: OrchestrationV2Run,
-) {
+): OrchestrationV2ConversationMessage | undefined {
   const message = projection.messages.find((candidate) => candidate.id === run.userMessageId);
   const stamps = monitorPullRequestStamps(message?.notification?.source);
-  if (message === undefined || stamps.length < 2)
-    return undefined satisfies OrchestrationV2ConversationMessage | undefined;
+  if (message === undefined || stamps.length < 2) return undefined;
   const current = stamps.filter((stamp) => !isStalePullRequestWatchStamp(projection, stamp));
   const [first, ...rest] = current;
-  if (first === undefined || rest.length === stamps.length - 1)
-    return undefined satisfies OrchestrationV2ConversationMessage | undefined;
+  if (first === undefined || rest.length === stamps.length - 1) return undefined;
   const sections = current.flatMap(({ section }) => (section === undefined ? [] : [section]));
-  if (sections.length !== current.length)
-    return undefined satisfies OrchestrationV2ConversationMessage | undefined;
+  if (sections.length !== current.length) return undefined;
   const wake = combinePullRequestWatchWakes(
     sections.map(({ text, outcome, summary }) => ({
       text,
@@ -1079,7 +1086,7 @@ function currentPullRequestWatchWake(
         ...(rest.length === 0 ? {} : { otherPullRequests: rest }),
       },
     },
-  } satisfies OrchestrationV2ConversationMessage | undefined;
+  };
 }
 
 function withoutSection({ section: _, ...stamp }: MonitorPullRequestStamp) {
@@ -1090,7 +1097,7 @@ function queuedRunCancellationEvents(
   projection: Pick<OrchestrationV2ThreadProjection, "nodes" | "attempts">,
   run: OrchestrationV2Run,
   now: DateTime.Utc,
-) {
+): ReadonlyArray<Omit<OrchestrationV2DomainEvent, "id">> {
   const rootNode = projection.nodes.find((node) => node.id === run.rootNodeId);
   const attempt = projection.attempts.find((candidate) => candidate.id === run.activeAttemptId);
   const events: Array<Omit<OrchestrationV2DomainEvent, "id">> = [
@@ -1129,7 +1136,9 @@ function queuedRunCancellationEvents(
   return events;
 }
 
-function latestStableRun(projection: Pick<OrchestrationV2ThreadProjection, "runs">) {
+function latestStableRun(
+  projection: Pick<OrchestrationV2ThreadProjection, "runs">,
+): OrchestrationV2Run | null {
   return (
     projection.runs
       .filter((run) => run.status === "completed" && run.checkpointId !== null)
@@ -1143,7 +1152,7 @@ function runForSourcePoint(
     OrchestrationV2Command,
     { readonly type: "thread.fork" | "thread.merge_back" }
   >["sourcePoint"],
-) {
+): OrchestrationV2Run | null {
   switch (sourcePoint.type) {
     case "latest_stable":
       return latestStableRun(projection);
@@ -1163,7 +1172,7 @@ function runForSourcePoint(
 function providerThreadForRun(
   projection: Pick<OrchestrationV2ThreadProjection, "providerThreads">,
   run: OrchestrationV2Run,
-) {
+): OrchestrationV2ProviderThread | undefined {
   return run.providerThreadId === null
     ? undefined
     : projection.providerThreads.find((candidate) => candidate.id === run.providerThreadId);
@@ -1172,7 +1181,7 @@ function providerThreadForRun(
 function providerTurnForRun(
   projection: Pick<OrchestrationV2ThreadProjection, "providerTurns" | "attempts">,
   run: OrchestrationV2Run,
-) {
+): OrchestrationV2ProviderTurn | undefined {
   if (run.activeAttemptId === null) {
     return undefined;
   }
@@ -1192,7 +1201,7 @@ function contextSourcePointForRun(
     "thread" | "providerThreads" | "providerTurns" | "attempts"
   >,
   run: OrchestrationV2Run,
-) {
+): OrchestrationV2ContextSourcePoint {
   const providerThread = providerThreadForRun(projection, run);
   const providerTurn = providerTurnForRun(projection, run);
   return {
@@ -1210,7 +1219,7 @@ function contextSourcePointForRun(
 
 function pendingForkTransferForThread(
   projection: Pick<OrchestrationV2ThreadProjection, "contextTransfers" | "thread">,
-) {
+): OrchestrationV2ContextTransfer | undefined {
   return projection.contextTransfers.find(
     (transfer) =>
       transfer.type === "fork" &&
@@ -1221,7 +1230,7 @@ function pendingForkTransferForThread(
 
 function pendingMergeBackTransfersForThread(
   projection: Pick<OrchestrationV2ThreadProjection, "contextTransfers" | "thread">,
-) {
+): ReadonlyArray<OrchestrationV2ContextTransfer> {
   return projection.contextTransfers.filter(
     (transfer) =>
       transfer.type === "merge_back" &&
@@ -1230,7 +1239,9 @@ function pendingMergeBackTransfersForThread(
   );
 }
 
-function latestContextTransfer(transfers: ReadonlyArray<OrchestrationV2ContextTransfer>) {
+function latestContextTransfer(
+  transfers: ReadonlyArray<OrchestrationV2ContextTransfer>,
+): OrchestrationV2ContextTransfer | undefined {
   return transfers.reduce<OrchestrationV2ContextTransfer | undefined>((latest, transfer) => {
     if (latest === undefined) {
       return transfer;
@@ -1246,7 +1257,7 @@ export function shouldPrepareLegacyImportHandoff(input: {
   readonly hasCompletedRun: boolean;
   readonly historyOrigin: OrchestrationV2AppThread["historyOrigin"];
   readonly legacyImportItemCount: number;
-}) {
+}): boolean {
   return (
     input.historyOrigin === "v1_import" &&
     !input.hasNativeHistory &&
@@ -1258,7 +1269,7 @@ export function shouldPrepareLegacyImportHandoff(input: {
 function appendContextHandoffId(
   handoffIds: OrchestrationV2ProviderThread["handoffIds"],
   handoffId: OrchestrationV2ContextHandoff["id"] | null,
-) {
+): OrchestrationV2ProviderThread["handoffIds"] {
   return handoffId === null ? handoffIds : Array.from(new Set([...handoffIds, handoffId]));
 }
 
@@ -1267,7 +1278,7 @@ function conversationProviderThread(
     OrchestrationV2ThreadProjection,
     "thread" | "providerThreads" | "runs" | "turnItems"
   >,
-) {
+): OrchestrationV2ProviderThread | undefined {
   const startedByScheduledFreshRun = (providerThread: OrchestrationV2ProviderThread) =>
     projection.runs.some(
       (run) =>
@@ -1301,7 +1312,7 @@ function dispatchProviderThread(
   >,
   message: Pick<OrchestrationV2ConversationMessage, "notification" | "delegatedCompletion">,
   freshContext: boolean,
-) {
+): OrchestrationV2ProviderThread | undefined {
   return freshContext ||
     message.notification !== undefined ||
     message.delegatedCompletion !== undefined
@@ -1314,7 +1325,7 @@ function dispatchProviderThread(
 function providerThreadPredatesBoundary(
   providerThread: Pick<OrchestrationV2ProviderThread, "firstRunOrdinal">,
   boundary: number,
-) {
+): boolean {
   return (
     boundary > 0 &&
     (providerThread.firstRunOrdinal === null || providerThread.firstRunOrdinal < boundary)
@@ -1324,7 +1335,7 @@ function providerThreadPredatesBoundary(
 function sessionsReleasedByFreshContext(
   projection: Pick<OrchestrationV2ThreadProjection, "providerSessions">,
   activeProviderThread: OrchestrationV2ProviderThread | undefined,
-) {
+): ReadonlyArray<OrchestrationV2ProviderSession> {
   const sessionId = activeProviderThread?.providerSessionId ?? null;
   return projection.providerSessions.filter(
     (session) =>
@@ -1337,7 +1348,9 @@ function sessionsReleasedByFreshContext(
 
 const FRESH_CONTEXT_DETACH_REASON = "Started a fresh session.";
 
-function uniqueSessions(sessions: ReadonlyArray<OrchestrationV2ProviderSession>) {
+function uniqueSessions(
+  sessions: ReadonlyArray<OrchestrationV2ProviderSession>,
+): ReadonlyArray<OrchestrationV2ProviderSession> {
   return Array.from(new Map(sessions.map((session) => [session.id, session])).values());
 }
 
@@ -1347,7 +1360,7 @@ function rootProviderThreadsForProvider(
     "providerThreads" | "thread" | "runs" | "turnItems"
   >,
   providerInstanceId: ModelSelection["instanceId"],
-) {
+): ReadonlyArray<OrchestrationV2ProviderThread> {
   const boundary = contextBoundaryOrdinal(projection);
   return projection.providerThreads
     .filter(
@@ -1364,7 +1377,7 @@ function rootProviderThreadsForProvider(
     );
 }
 
-function isHandoffSourceRun(run: OrchestrationV2Run) {
+function isHandoffSourceRun(run: OrchestrationV2Run): boolean {
   return (
     run.status === "completed" ||
     run.status === "failed" ||
@@ -1376,7 +1389,7 @@ function isHandoffSourceRun(run: OrchestrationV2Run) {
 function lastDeliveredRunForProviderThread(
   projection: Pick<OrchestrationV2ThreadProjection, "runs" | "providerTurns">,
   providerThreadId: OrchestrationV2ProviderThread["id"],
-) {
+): OrchestrationV2Run | undefined {
   return projection.runs.findLast(
     (run) =>
       isHandoffSourceRun(run) &&
@@ -1394,7 +1407,7 @@ type DyingNativeSubagent = {
   >;
 };
 
-const nativeSubagentRef = (subagent: OrchestrationV2Subagent) => ({
+const nativeSubagentRef = (subagent: OrchestrationV2Subagent): DyingNativeSubagent["subagent"] => ({
   subagentId: subagent.id,
   origin: subagent.origin,
   childThreadId: subagent.childThreadId,
@@ -1481,7 +1494,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
 
   const mapDispatchError =
     (command: Pick<OrchestrationV2ServerCommand, "commandId" | "type">) =>
-    <A, E, R>(effect: Effect.Effect<A, E, R>) =>
+    <A, E, R>(effect: Effect.Effect<A, E, R>): Effect.Effect<A, OrchestratorDispatchError, R> =>
       effect.pipe(
         Effect.mapError(
           (cause) =>
@@ -1607,7 +1620,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
         },
       )
       .pipe(
-        Effect.map((records) => ({
+        Effect.map((records): OrchestrationV2ThreadProjection => ({
           ...records,
           checkpoints: [],
           plans: [],
@@ -1767,7 +1780,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
     },
     threadProviderInstanceId: ProviderInstanceId,
     occurredAt: DateTime.Utc,
-  ) => [
+  ): ReadonlyArray<Omit<OrchestrationV2DomainEvent, "id">> => [
     ...(plan.parentRun === undefined
       ? []
       : [
@@ -13792,7 +13805,18 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
   const dispatchOnce = Effect.fn("orchestrationV2.dispatch.once")(function* (
     command: OrchestrationV2ServerCommand,
     sideChatIds: ReadonlyArray<ThreadId>,
-  ) {
+  ): Effect.fn.Return<
+    {
+      readonly events: ReadonlyArray<OrchestrationV2DomainEvent>;
+      readonly effects: ReadonlyArray<PendingOrchestrationEffectV2>;
+      readonly cancelUnsettledEffects?: {
+        readonly effectTypes: ReadonlyArray<OrchestrationEffectRequestV2["type"]>;
+        readonly reason: string;
+      };
+      readonly updateDelegatedCompletionOnlyRunId?: RunId;
+    },
+    OrchestratorV2Error
+  > {
     yield* Effect.annotateCurrentSpan({
       "orchestration_v2.command_id": command.commandId,
       "orchestration_v2.command_type": command.type,
@@ -14189,7 +14213,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
     }
     const storedEvents = yield* eventSink.readByCommandId({ commandId: command.commandId }).pipe(
       Stream.runCollect,
-      Effect.map((events) => Array.from(events)),
+      Effect.map((events): ReadonlyArray<OrchestrationV2StoredEvent> => Array.from(events)),
       Effect.mapError(
         (cause) =>
           new OrchestratorDispatchError({
@@ -14218,7 +14242,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
     command: OrchestrationV2ServerCommand,
     sideChatIds: ReadonlyArray<ThreadId> = [],
     cancelledTask?: OrchestrationV2Subagent,
-  ) {
+  ): Effect.fn.Return<OrchestratorV2DispatchResult, OrchestratorV2Error> {
     yield* Effect.annotateCurrentSpan({
       "orchestration_v2.command_id": command.commandId,
       "orchestration_v2.command_type": command.type,

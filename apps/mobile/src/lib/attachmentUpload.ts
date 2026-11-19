@@ -41,7 +41,7 @@ export function withUploadedMobileAttachmentReferences(input: {
   readonly environmentId: EnvironmentId;
   readonly attachments: ReadonlyArray<DraftComposerAttachment>;
   readonly uploadedAttachments: ReadonlyArray<UploadedMobileAttachment>;
-}) {
+}): ReadonlyArray<DraftComposerAttachment> {
   return input.attachments.map((attachment, index) => {
     const uploaded = input.uploadedAttachments[index];
     const uploadedAs = isComposerImageAttachment(attachment) ? "image" : attachment.type;
@@ -65,8 +65,8 @@ export function withUploadedMobileAttachmentReferences(input: {
 export async function releasePendingAttachmentUploads(
   environmentId: EnvironmentId,
   attachmentIds: ReadonlyArray<string>,
-) {
-  const deleteOnce = async (attachmentId: string) => {
+): Promise<void> {
+  const deleteOnce = async (attachmentId: string): Promise<boolean> => {
     if (!readEnvironmentScope(environmentId, AuthOrchestrationOperateScope)) {
       throw new Error("This connection cannot delete pending attachments.");
     }
@@ -98,7 +98,7 @@ export async function releasePendingAttachmentUploads(
 async function releaseCreatedUploadsQuietly(
   environmentId: EnvironmentId,
   attachmentIds: ReadonlyArray<string>,
-) {
+): Promise<void> {
   try {
     await releasePendingAttachmentUploads(environmentId, attachmentIds);
   } catch (error) {
@@ -117,12 +117,14 @@ export type PrepareTurnAttachmentsResult =
   | PreparedTurnAttachments
   | { readonly status: "abandoned" };
 
-function composerAttachmentWireMimeType(attachment: DraftComposerAttachment) {
+function composerAttachmentWireMimeType(attachment: DraftComposerAttachment): string {
   if (!isComposerImageAttachment(attachment)) return attachment.mimeType;
   return supportedImageWireMimeType(attachment);
 }
 
-function supportedImageWireMimeType(attachment: DraftComposerAttachment) {
+function supportedImageWireMimeType(
+  attachment: DraftComposerAttachment,
+): (typeof PROVIDER_SEND_TURN_SUPPORTED_IMAGE_MIME_TYPES)[number] {
   const inferred = imageMimeType(attachment);
   const mimeType = PROVIDER_SEND_TURN_SUPPORTED_IMAGE_MIME_TYPES.find(
     (type) => type === attachment.mimeType.toLowerCase() || type === inferred,
@@ -131,22 +133,23 @@ function supportedImageWireMimeType(attachment: DraftComposerAttachment) {
   return mimeType;
 }
 
-function uploadedReference(attachment: DraftComposerAttachment, id: string) {
+function uploadedReference(
+  attachment: DraftComposerAttachment,
+  id: string,
+): ChatImageAttachment | ChatFileAttachment {
   const fields = {
     id,
     name: attachment.name,
     mimeType: composerAttachmentWireMimeType(attachment),
     sizeBytes: attachment.sizeBytes,
   };
-  return (
-    isComposerImageAttachment(attachment)
-      ? { type: "image", ...fields }
-      : {
-          type: "file",
-          ...fields,
-          ...(attachment.source ? { source: attachment.source } : {}),
-        }
-  ) satisfies ChatImageAttachment | ChatFileAttachment;
+  return isComposerImageAttachment(attachment)
+    ? { type: "image", ...fields }
+    : {
+        type: "file",
+        ...fields,
+        ...(attachment.source ? { source: attachment.source } : {}),
+      };
 }
 
 function attachmentUploadInput(attachment: DraftComposerAttachment) {
@@ -156,20 +159,13 @@ function attachmentUploadInput(attachment: DraftComposerAttachment) {
     : { type: "file" as const, ...fields, mimeType: attachment.mimeType };
 }
 
-function uploadFileBytes(
-  environmentId: EnvironmentId,
-  attachment: DraftComposerAttachment,
-  url: string,
-  signal: AbortSignal,
-  onProgress?: (progress: number) => void,
-): Promise<void>;
 async function uploadFileBytes(
   environmentId: EnvironmentId,
   attachment: DraftComposerAttachment,
   url: string,
   signal: AbortSignal,
   onProgress?: (progress: number) => void,
-) {
+): Promise<void> {
   const { File, Paths, UploadType } = await loadExpoFileSystem();
   if (signal.aborted) throw new Error("Upload cancelled.");
   if (!readEnvironmentScope(environmentId, AuthOrchestrationOperateScope)) {
@@ -213,7 +209,7 @@ async function uploadFileBytes(
   }
 }
 
-function requireUploadAccess(environmentId: EnvironmentId) {
+function requireUploadAccess(environmentId: EnvironmentId): void {
   if (!readEnvironmentScope(environmentId, AuthOrchestrationOperateScope)) {
     throw new Error("This connection cannot upload attachments.");
   }

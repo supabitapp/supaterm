@@ -10,12 +10,12 @@ export interface ScaledTextRole {
 }
 
 /** Avoid CSS-variable subscriptions so palette-only setTheme calls remain native-only. */
-export function useScaledTextRole(role: keyof typeof MOBILE_TYPOGRAPHY) {
+export function useScaledTextRole(role: keyof typeof MOBILE_TYPOGRAPHY): ScaledTextRole {
   const { appearance } = useAppearancePreferences();
   return resolveScaledTextRole(role, appearance.baseFontSize);
 }
 
-export function useComposerTextRole() {
+export function useComposerTextRole(): ScaledTextRole {
   const body = useScaledTextRole("body");
   const { fontScale } = useWindowDimensions();
   return resolveComposerTextRole(body, fontScale, Platform.OS);

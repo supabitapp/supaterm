@@ -59,12 +59,12 @@ export interface BrowserSurfaceLease {
 export function resolveBrowserSurfacePanelRect(
   byTabId: Readonly<Record<string, BrowserSurfacePresentation>>,
   tabId: string,
-) {
+): BrowserSurfaceRect | null {
   const current = byTabId[tabId];
   return current?.rect ?? null;
 }
 
-const rectEquals = (left: BrowserSurfaceRect | null, right: BrowserSurfaceRect) =>
+const rectEquals = (left: BrowserSurfaceRect | null, right: BrowserSurfaceRect): boolean =>
   left !== null &&
   left.x === right.x &&
   left.y === right.y &&
@@ -204,14 +204,13 @@ export const useBrowserSurfaceStore = create<BrowserSurfaceStoreState>()((set) =
     }),
 }));
 
-export const acquireBrowserSurfaceActivity = (tabId: string) =>
+export const acquireBrowserSurfaceActivity = (tabId: string): (() => void) =>
   useBrowserSurfaceStore.getState().acquireActivity(tabId);
 
 export function acquireBrowserSurface(
   tabId: string,
-  fitSourceContent?: boolean,
-): BrowserSurfaceLease;
-export function acquireBrowserSurface(tabId: string, fitSourceContent = false) {
+  fitSourceContent = false,
+): BrowserSurfaceLease {
   const owner = Symbol(`browser-surface:${tabId}`);
   let released = false;
   useBrowserSurfaceStore.getState().claim(tabId, owner, fitSourceContent);
@@ -228,5 +227,5 @@ export function acquireBrowserSurface(tabId: string, fitSourceContent = false) {
       released = true;
       useBrowserSurfaceStore.getState().release(tabId, owner);
     },
-  } satisfies BrowserSurfaceLease;
+  };
 }

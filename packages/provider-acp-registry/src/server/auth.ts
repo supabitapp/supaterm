@@ -29,7 +29,7 @@ const isAcpRequestError = Schema.is(EffectAcpErrors.AcpRequestError);
 
 const MAX_ERROR_MESSAGE_LENGTH = 500;
 
-export const formatFailureDetail = (detail: string, cause?: unknown) => {
+export const formatFailureDetail = (detail: string, cause?: unknown): string => {
   const unwrapped = Cause.isCause(cause) ? Cause.squash(cause) : cause;
   if (isAcpRequestError(unwrapped)) {
     let message = unwrapped.errorMessage.trim();

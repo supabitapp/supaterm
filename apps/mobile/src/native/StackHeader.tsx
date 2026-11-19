@@ -35,12 +35,14 @@ export type AppNativeStackNavigationOptions = Omit<
   readonly unstable_headerMinimizationBehavior?: unknown;
 };
 
-function useNativeStackNavigation() {
+function useNativeStackNavigation(): NativeStackNavigationProp<ParamListBase> | null {
   const navigation = use(NavigationContext);
   return navigation ? (navigation as NativeStackNavigationProp<ParamListBase>) : null;
 }
 
-function normalizeScreenOptions(options: AppNativeStackNavigationOptions | undefined) {
+function normalizeScreenOptions(
+  options: AppNativeStackNavigationOptions | undefined,
+): NativeStackNavigationOptions | undefined {
   if (!options) {
     return options;
   }
@@ -59,64 +61,62 @@ function normalizeScreenOptions(options: AppNativeStackNavigationOptions | undef
   return normalized as NativeStackNavigationOptions;
 }
 
-function isReactObject(value: object): boolean;
-function isReactObject(value: object) {
-  return ("$$typeof" in value) satisfies boolean;
+function isReactObject(value: object): boolean {
+  return "$$typeof" in value;
 }
 
 const identityIds = new WeakMap<object, number>();
 let nextIdentityId = 0;
 
-function identitySignature(value: unknown): string;
-function identitySignature(value: unknown) {
+function identitySignature(value: unknown): string {
   if (value === null || (typeof value !== "object" && typeof value !== "function")) {
-    return String(value) satisfies string;
+    return String(value);
   }
   let id = identityIds.get(value);
   if (id === undefined) {
     id = nextIdentityId++;
     identityIds.set(value, id);
   }
-  return `identity:${id}` satisfies string;
+  return `identity:${id}`;
 }
 
-function optionsSignature(value: unknown, seen = new WeakSet<object>()) {
-  if (value === null) return "null" satisfies string as string;
+function optionsSignature(value: unknown, seen = new WeakSet<object>()): string {
+  if (value === null) return "null";
   switch (typeof value) {
     case "boolean":
     case "number":
     case "string":
-      return JSON.stringify(value) satisfies string as string;
+      return JSON.stringify(value);
     case "undefined":
-      return "undefined" satisfies string as string;
+      return "undefined";
     case "function":
-      return `function:${Function.prototype.toString.call(value)}` satisfies string as string;
+      return `function:${Function.prototype.toString.call(value)}`;
     case "symbol":
-      return `symbol:${String(value)}` satisfies string as string;
+      return `symbol:${String(value)}`;
     case "bigint":
-      return `bigint:${String(value)}` satisfies string as string;
+      return `bigint:${String(value)}`;
     case "object": {
       const object = value as object;
       if (isValidElement(object)) {
-        return `element:${identitySignature(object.type)}:${String(object.key)}:${optionsSignature(object.props, seen)}` satisfies string as string;
+        return `element:${identitySignature(object.type)}:${String(object.key)}:${optionsSignature(object.props, seen)}`;
       }
-      if (isReactObject(object)) return identitySignature(object) satisfies string as string;
-      if (seen.has(object)) return "[circular]" satisfies string as string;
+      if (isReactObject(object)) return identitySignature(object);
+      if (seen.has(object)) return "[circular]";
       seen.add(object);
       if (Array.isArray(value)) {
-        return `[${value.map((entry) => optionsSignature(entry, seen)).join(",")}]` satisfies string as string;
+        return `[${value.map((entry) => optionsSignature(entry, seen)).join(",")}]`;
       }
-      if ("current" in object) return "[ref]" satisfies string as string;
+      if ("current" in object) return "[ref]";
       return `{${Object.keys(value as Record<string, unknown>)
         .sort()
         .map(
           (key) =>
             `${JSON.stringify(key)}:${optionsSignature((value as Record<string, unknown>)[key], seen)}`,
         )
-        .join(",")}}` satisfies string as string;
+        .join(",")}}`;
     }
   }
-  return String(value) satisfies string as string;
+  return String(value);
 }
 
 function stabilizeOptionFunctions(
@@ -125,7 +125,7 @@ function stabilizeOptionFunctions(
   latestFunctions: Map<string, (...args: unknown[]) => unknown>,
   wrappers: Map<string, (...args: unknown[]) => unknown>,
   seen = new WeakSet<object>(),
-) {
+): unknown {
   if (typeof value === "function") {
     latestFunctions.set(path, value as (...args: unknown[]) => unknown);
     let wrapper = wrappers.get(path);
@@ -135,27 +135,26 @@ function stabilizeOptionFunctions(
       };
       wrappers.set(path, wrapper);
     }
-    return wrapper satisfies unknown as unknown;
+    return wrapper;
   }
   if (Array.isArray(value)) {
-    if (seen.has(value)) return value satisfies unknown as unknown;
+    if (seen.has(value)) return value;
     seen.add(value);
     return value.map((entry, index) =>
       stabilizeOptionFunctions(entry, `${path}[${index}]`, latestFunctions, wrappers, seen),
-    ) satisfies unknown as unknown;
+    );
   }
   if (value !== null && typeof value === "object") {
-    if (seen.has(value) || "current" in value || isReactObject(value))
-      return value satisfies unknown as unknown;
+    if (seen.has(value) || "current" in value || isReactObject(value)) return value;
     seen.add(value);
     return Object.fromEntries(
       Object.entries(value as Record<string, unknown>).map(([key, entry]) => [
         key,
         stabilizeOptionFunctions(entry, `${path}.${key}`, latestFunctions, wrappers, seen),
       ]),
-    ) satisfies unknown as unknown;
+    );
   }
-  return value satisfies unknown as unknown;
+  return value;
 }
 
 /**

@@ -274,34 +274,26 @@ export interface ThreadFeedLatestRun {
 
 const WORK_LOG_LABEL_MAX_LENGTH = 200;
 
-function compactWorkEntryText(value: string) {
+function compactWorkEntryText(value: string): string {
   return truncate(value.replace(/\s+/gu, " "), WORK_LOG_LABEL_MAX_LENGTH);
 }
 
-export function workEntryRowLabel(entry: WorkLogPresentationEntry, expanded = false) {
+export function workEntryRowLabel(entry: WorkLogPresentationEntry, expanded = false): string {
   return workEntryRowDisplay(entry, expanded).text;
 }
 
 /** `path` marks file labels, which the row cuts in the middle so the file name stays visible. */
-export function workEntryRowDisplay(entry: WorkLogPresentationEntry, expanded = false) {
-  if (entry.itemType === "fork")
-    return { text: entry.label } satisfies { readonly text: string; readonly path?: true };
+export function workEntryRowDisplay(
+  entry: WorkLogPresentationEntry,
+  expanded = false,
+): { readonly text: string; readonly path?: true } {
+  if (entry.itemType === "fork") return { text: entry.label };
   if (expanded && entry.itemType === "reasoning")
-    return { text: entry.toolLifecycleStatus === "inProgress" ? "Thinking" : "Thought" } satisfies {
-      readonly text: string;
-      readonly path?: true;
-    };
+    return { text: entry.toolLifecycleStatus === "inProgress" ? "Thinking" : "Thought" };
   const presentation = resolveWorkEntryToolPresentation(entry);
-  if (presentation)
-    return { text: presentation.displayName } satisfies {
-      readonly text: string;
-      readonly path?: true;
-    };
+  if (presentation) return { text: presentation.displayName };
   if (entry.command?.trim())
-    return { text: compactWorkEntryText(commandDisplayText(entry.command)) } satisfies {
-      readonly text: string;
-      readonly path?: true;
-    };
+    return { text: compactWorkEntryText(commandDisplayText(entry.command)) };
   const action = toolGroupAction(entry);
   const isToolRead = action === "read" && entry.itemType === "dynamic_tool";
   if (action === "code-search" || action === "search") {
@@ -313,8 +305,7 @@ export function workEntryRowDisplay(entry: WorkLogPresentationEntry, expanded = 
         : undefined;
     const searchLabel =
       entry.itemType === "file_search" ? entry.label : formatSearchToolLabel(toolData);
-    if (searchLabel)
-      return { text: searchLabel } satisfies { readonly text: string; readonly path?: true };
+    if (searchLabel) return { text: searchLabel };
   }
   if (isToolRead) {
     const [firstPath] = entry.changedFiles ?? collectToolFilePaths(entry.toolData);
@@ -322,10 +313,9 @@ export function workEntryRowDisplay(entry: WorkLogPresentationEntry, expanded = 
       return {
         text: formatReadToolLabel(firstPath, Math.max(0, (entry.changedFiles?.length ?? 1) - 1)),
         path: true,
-      } satisfies { readonly text: string; readonly path?: true };
+      };
     }
-    if (!expanded)
-      return { text: "Read file" } satisfies { readonly text: string; readonly path?: true };
+    if (!expanded) return { text: "Read file" };
   }
   const textPreview =
     entry.command ??
@@ -338,19 +328,14 @@ export function workEntryRowDisplay(entry: WorkLogPresentationEntry, expanded = 
       : `${entry.changedFiles[0]!} +${entry.changedFiles.length - 1} more`
     : null;
   if (textPreview == null && changedFilesPreview !== null) {
-    return { text: changedFilesPreview, path: true } satisfies {
-      readonly text: string;
-      readonly path?: true;
-    };
+    return { text: changedFilesPreview, path: true };
   }
   if (expanded) {
     return {
       text: textPreview?.trim() ? truncate(textPreview, WORK_LOG_LABEL_MAX_LENGTH) : entry.label,
-    } satisfies { readonly text: string; readonly path?: true };
+    };
   }
-  return {
-    text: textPreview ? compactWorkEntryText(textPreview) || entry.label : entry.label,
-  } satisfies { readonly text: string; readonly path?: true };
+  return { text: textPreview ? compactWorkEntryText(textPreview) || entry.label : entry.label };
 }
 
 type ThreadFeedActivityGroup = Extract<ThreadFeedEntry, { readonly type: "activity-group" }>;
@@ -386,7 +371,7 @@ const runFoldRowsCache = new WeakMap<
 >();
 let cachedThinkingRow: Extract<ThreadFeedEntry, { readonly type: "thinking" }> | null = null;
 
-export function isContextCompactionActivityGroup(entry: ThreadFeedActivityGroup) {
+export function isContextCompactionActivityGroup(entry: ThreadFeedActivityGroup): boolean {
   return (
     entry.activities.length === 1 && entry.activities[0]?.projectedItem.item.type === "compaction"
   );
@@ -413,36 +398,36 @@ export function threadFeedCompactionTitles(feed: ReadonlyArray<ThreadFeedEntry>)
   return titlesByEntryId;
 }
 
-function isResumeCompactionAnswerGroup(entry: ThreadFeedActivityGroup) {
+function isResumeCompactionAnswerGroup(entry: ThreadFeedActivityGroup): boolean {
   return entry.activities.every((activity) => {
     const answer = activity.workEntry.questionAnswer;
     return answer !== undefined && claudeResumeCompactionAge(answer) !== null;
   });
 }
 
-export function isContextHandoffActivityGroup(entry: ThreadFeedActivityGroup) {
+export function isContextHandoffActivityGroup(entry: ThreadFeedActivityGroup): boolean {
   return (
     entry.activities.length === 1 && entry.activities[0]?.projectedItem.item.type === "handoff"
   );
 }
 
-export function isSecretRequestActivityGroup(entry: ThreadFeedActivityGroup) {
+export function isSecretRequestActivityGroup(entry: ThreadFeedActivityGroup): boolean {
   return (
     entry.activities.length === 1 &&
     entry.activities[0]?.projectedItem.item.type === "secret_request"
   );
 }
 
-function isUserInputActivityGroup(entry: ThreadFeedActivityGroup) {
+function isUserInputActivityGroup(entry: ThreadFeedActivityGroup): boolean {
   return entry.activities.some((activity) => activity.workEntry.questionAnswer !== undefined);
 }
 
-function capitalizePhrase(value: string) {
+function capitalizePhrase(value: string): string {
   const trimmed = value.trim();
   return trimmed.length === 0 ? value : `${trimmed.charAt(0).toUpperCase()}${trimmed.slice(1)}`;
 }
 
-function memoizeValue<T>(build: () => T) {
+function memoizeValue<T>(build: () => T): () => T {
   let value: T;
   let initialized = false;
   return () => {
@@ -454,7 +439,7 @@ function memoizeValue<T>(build: () => T) {
   };
 }
 
-function itemIsToolLike(item: OrchestrationV2TurnItem) {
+function itemIsToolLike(item: OrchestrationV2TurnItem): boolean {
   return (
     item.type === "reasoning" ||
     item.type === "command_execution" ||
@@ -468,7 +453,7 @@ function itemIsToolLike(item: OrchestrationV2TurnItem) {
   );
 }
 
-function itemIsProminent(item: OrchestrationV2TurnItem) {
+function itemIsProminent(item: OrchestrationV2TurnItem): boolean {
   return (
     item.type === "fork" ||
     item.type === "thread_created" ||
@@ -478,7 +463,7 @@ function itemIsProminent(item: OrchestrationV2TurnItem) {
   );
 }
 
-function itemStatus(item: OrchestrationV2TurnItem) {
+function itemStatus(item: OrchestrationV2TurnItem): ThreadFeedActivity["status"] {
   if (item.type === "notification") return item.outcome === "failed" ? "failure" : null;
   if (item.type === "error") {
     if (item.status === "failed")
@@ -490,7 +475,7 @@ function itemStatus(item: OrchestrationV2TurnItem) {
   return item.status === "completed" ? "success" : "neutral";
 }
 
-function itemLifecycleStatus(item: OrchestrationV2TurnItem) {
+function itemLifecycleStatus(item: OrchestrationV2TurnItem): WorkLogToolLifecycleStatus {
   switch (item.status) {
     case "pending":
     case "running":
@@ -508,7 +493,7 @@ function itemLifecycleStatus(item: OrchestrationV2TurnItem) {
   }
 }
 
-function itemWorkLogTone(item: OrchestrationV2TurnItem) {
+function itemWorkLogTone(item: OrchestrationV2TurnItem): WorkLogPresentationEntry["tone"] {
   if (item.type === "error") return "info";
   if (item.type === "reasoning") return "thinking";
   switch (item.type) {
@@ -524,7 +509,7 @@ function itemWorkLogTone(item: OrchestrationV2TurnItem) {
   }
 }
 
-function itemIcon(item: OrchestrationV2TurnItem) {
+function itemIcon(item: OrchestrationV2TurnItem): ThreadFeedActivity["icon"] {
   if (item.type === "notification") {
     const source = item.source;
     switch (source.kind) {
@@ -599,21 +584,20 @@ function itemIcon(item: OrchestrationV2TurnItem) {
   }
 }
 
-function itemToolPresentation(item: OrchestrationV2TurnItem) {
+function itemToolPresentation(item: OrchestrationV2TurnItem): SupatermMcpToolPresentation | null {
   if (item.type !== "dynamic_tool") {
-    return null satisfies SupatermMcpToolPresentation | null;
+    return null;
   }
-  return (resolveSupatermMcpToolPresentation(item.toolName, item.input) ??
-    resolveSupatermMcpToolPresentation(
-      item.title,
-      item.input,
-    )) satisfies SupatermMcpToolPresentation | null;
+  return (
+    resolveSupatermMcpToolPresentation(item.toolName, item.input) ??
+    resolveSupatermMcpToolPresentation(item.title, item.input)
+  );
 }
 
 function itemSummary(
   item: OrchestrationV2TurnItem,
   toolPresentation: SupatermMcpToolPresentation | null = null,
-) {
+): string {
   if (item.type === "notification") return item.summary;
   if (item.type === "system_notice") return item.message;
   if (item.type === "compaction") return contextCompactionLabel(item);
@@ -681,7 +665,7 @@ function itemSummary(
   }
 }
 
-function itemPreview(item: OrchestrationV2TurnItem) {
+function itemPreview(item: OrchestrationV2TurnItem): string | null {
   switch (item.type) {
     case "reasoning":
       return item.text || null;
@@ -736,7 +720,7 @@ function toWorkLogEntry(
   createdAt: string,
   summary: string,
   detail: string | null,
-) {
+): WorkLogPresentationEntry {
   const title = item.title?.trim() || null;
   const common = {
     ...extractToolActivityPresentation(item),
@@ -754,10 +738,7 @@ function toWorkLogEntry(
 
   switch (item.type) {
     case "reasoning":
-      return {
-        ...common,
-        ...(item.text ? { detail: item.text } : {}),
-      } satisfies WorkLogPresentationEntry;
+      return { ...common, ...(item.text ? { detail: item.text } : {}) };
     case "command_execution":
       return {
         ...common,
@@ -765,7 +746,7 @@ function toWorkLogEntry(
         rawCommand: item.input,
         toolTitle: title ?? "Command",
         toolData: item,
-      } satisfies WorkLogPresentationEntry;
+      };
     case "file_change":
       return {
         ...common,
@@ -774,53 +755,45 @@ function toWorkLogEntry(
           : [item.fileName],
         toolTitle: title ?? "File change",
         toolData: item,
-      } satisfies WorkLogPresentationEntry;
+      };
     case "file_search":
       return {
         ...common,
         ...(item.pattern ? { detail: item.pattern } : {}),
         toolTitle: title ?? "File search",
         toolData: item,
-      } satisfies WorkLogPresentationEntry;
+      };
     case "web_search":
       return {
         ...common,
         ...(item.patterns?.length ? { detail: item.patterns.join(", ") } : {}),
         toolTitle: title ?? "Web search",
         toolData: item,
-      } satisfies WorkLogPresentationEntry;
+      };
     case "checkpoint":
-      return {
-        ...common,
-        changedFiles: item.files.map((file) => file.path),
-        toolData: item,
-      } satisfies WorkLogPresentationEntry;
+      return { ...common, changedFiles: item.files.map((file) => file.path), toolData: item };
     case "approval_request":
       return {
         ...common,
         ...(item.prompt ? { detail: item.prompt } : {}),
         requestKind: item.requestKind,
         toolData: item,
-      } satisfies WorkLogPresentationEntry;
+      };
     case "dynamic_tool":
       return {
         ...common,
         toolTitle: title ?? item.toolName ?? "Tool",
         toolData: { input: item.input, output: item.output },
-      } satisfies WorkLogPresentationEntry;
+      };
     default:
-      return {
-        ...common,
-        ...(detail ? { detail } : {}),
-        toolData: item,
-      } satisfies WorkLogPresentationEntry;
+      return { ...common, ...(detail ? { detail } : {}), toolData: item };
   }
 }
 
 export function formatItemFullDetail(
   row: OrchestrationV2ProjectedTurnItem,
   item: OrchestrationV2TurnItem,
-) {
+): string {
   return JSON.stringify(
     {
       visibility: row.visibility,
@@ -833,7 +806,10 @@ export function formatItemFullDetail(
   );
 }
 
-function toFeedActivity(row: OrchestrationV2ProjectedTurnItem, attemptId: RunAttemptId | null) {
+function toFeedActivity(
+  row: OrchestrationV2ProjectedTurnItem,
+  attemptId: RunAttemptId | null,
+): ThreadFeedActivity {
   const item = row.item;
   const toolPresentation = itemToolPresentation(item);
   const summary = itemSummary(item, toolPresentation);
@@ -891,10 +867,10 @@ function toFeedActivity(row: OrchestrationV2ProjectedTurnItem, attemptId: RunAtt
     lifecycleStatus: itemLifecycleStatus(item),
     workEntry,
     projectedItem: row,
-  } satisfies ThreadFeedActivity;
+  };
 }
 
-function singleToolCallLabel(activity: ThreadFeedActivity, expanded: boolean) {
+function singleToolCallLabel(activity: ThreadFeedActivity, expanded: boolean): string {
   if (activity.workEntry.itemType === "reasoning")
     return expanded
       ? "Thought"
@@ -905,7 +881,7 @@ function singleToolCallLabel(activity: ThreadFeedActivity, expanded: boolean) {
   return command ? truncate(command, WORK_LOG_LABEL_MAX_LENGTH) : activity.summary;
 }
 
-function isEmptyMessage(entry: RawThreadFeedEntry) {
+function isEmptyMessage(entry: RawThreadFeedEntry): boolean {
   return (
     entry.type === "message" &&
     entry.message.text.trim().length === 0 &&
@@ -917,7 +893,7 @@ function groupAdjacentActivities(
   entries: ReadonlyArray<RawThreadFeedEntry>,
   childrenByRun: ReadonlyMap<RunId, ReadonlySet<string>>,
   onRestart?: (entryIndex: number, groupedLength: number) => void,
-) {
+): ThreadFeedEntry[] {
   const grouped: ThreadFeedEntry[] = [];
   let firstActivityEntry: Extract<RawThreadFeedEntry, { readonly type: "activity" }> | null = null;
   let openGroupActivities: ThreadFeedActivity[] = [];
@@ -1005,19 +981,19 @@ function groupAdjacentActivities(
   return grouped;
 }
 
-function computeElapsedMs(startIso: string, endIso: string) {
+function computeElapsedMs(startIso: string, endIso: string): number | null {
   const start = Date.parse(startIso);
   const end = Date.parse(endIso);
   return Number.isFinite(start) && Number.isFinite(end) ? Math.max(0, end - start) : null;
 }
 
-function maxIsoTimestamp(left: string | null, right: string | null) {
+function maxIsoTimestamp(left: string | null, right: string | null): string | null {
   if (left === null) return right;
   if (right === null) return left;
   return Date.parse(right) > Date.parse(left) ? right : left;
 }
 
-function inProgressRunId(latestRun: ThreadFeedLatestRun | null) {
+function inProgressRunId(latestRun: ThreadFeedLatestRun | null): RunId | null {
   return threadFeedRunIsInProgress(latestRun) ? latestRun.runId : null;
 }
 
@@ -1031,7 +1007,7 @@ export function threadFeedRunIsInProgress(
 export function threadFeedActivityIsVisible(
   activity: Pick<ThreadFeedActivity, "prominent" | "status" | "toolLike"> &
     Partial<Pick<ThreadFeedActivity, "lifecycleStatus">>,
-) {
+): boolean {
   return (
     activity.prominent ||
     activity.lifecycleStatus === "stopped" ||
@@ -1081,7 +1057,7 @@ export function messageFoldRunId(
   feed: ReadonlyArray<ThreadFeedEntry>,
   entryId: string,
   presented: ReadonlyArray<{ readonly type: string; readonly runId?: RunId | null }>,
-) {
+): RunId | null {
   let runlessKey: RunId | null = null;
   const lastSteerIdByRunId = new Map<RunId, string>();
   for (const entry of feed) {
@@ -1105,18 +1081,18 @@ export function messageFoldRunId(
   return null;
 }
 
-function isSteerMessage(message: ThreadFeedMessage) {
+function isSteerMessage(message: ThreadFeedMessage): boolean {
   return (
     message.role === "user" &&
     (message.inputIntent === "steer" || message.inputIntent === "promoted_queued_to_steer")
   );
 }
 
-function steerFoldRunId(runId: RunId, steerEntryId: string) {
+function steerFoldRunId(runId: RunId, steerEntryId: string): RunId {
   return RunId.make(`${runId}:steer:${steerEntryId}`);
 }
 
-function feedEntryFoldRunId(entry: ThreadFeedEntry, runlessKey: RunId | null) {
+function feedEntryFoldRunId(entry: ThreadFeedEntry, runlessKey: RunId | null): RunId | null {
   if (entry.type === "message") {
     return entry.message.role === "assistant" ? (entry.message.runId ?? runlessKey) : null;
   }
@@ -1128,7 +1104,7 @@ function feedEntryFoldRunId(entry: ThreadFeedEntry, runlessKey: RunId | null) {
     : null;
 }
 
-function finalAnswerIds(feed: ReadonlyArray<ThreadFeedEntry>) {
+function finalAnswerIds(feed: ReadonlyArray<ThreadFeedEntry>): ReadonlySet<MessageId> {
   const ids = new Set<MessageId>();
   for (const entry of feed) {
     if (
@@ -1148,7 +1124,7 @@ function deriveThreadFeedRunFolds(
   latestRun: ThreadFeedLatestRun | null,
   runlessWorkActive: boolean,
   feedFailedRunIds: ReadonlySet<RunId>,
-) {
+): ReadonlyMap<string, ThreadFeedRunFold> {
   const terminalAssistantMessageIdByRun = new Map<RunId, string>();
   const retainedAnswerIds = finalAnswerIds(feed);
   const interruptedRunIds = new Set<RunId>();
@@ -1413,7 +1389,7 @@ function latestRunsEqual(left: ThreadFeedLatestRun | null, right: ThreadFeedLate
   );
 }
 
-function staysOutOfFold(entry: ThreadFeedEntry) {
+function staysOutOfFold(entry: ThreadFeedEntry): boolean {
   return (
     entry.type === "html-render" ||
     entry.type === "sent-message" ||
@@ -1430,11 +1406,11 @@ function staysOutOfFold(entry: ThreadFeedEntry) {
   );
 }
 
-function feedEntryRunId(entry: ThreadFeedEntry) {
+function feedEntryRunId(entry: ThreadFeedEntry): RunId | null {
   return entry.type === "message" ? (entry.message.runId ?? null) : entry.runId;
 }
 
-function isUserMessageEntry(entry: ThreadFeedEntry | undefined) {
+function isUserMessageEntry(entry: ThreadFeedEntry | undefined): boolean {
   return entry?.type === "message" && entry.message.role === "user";
 }
 
@@ -1446,7 +1422,7 @@ function presentationRestart(
   expandedWorkGroupIds: ReadonlySet<string>,
   activeWorkStartedAt: string | null,
   runlessWorkActive: boolean,
-) {
+): { readonly entry: number; readonly rowsLength: number; readonly index: number } | null {
   if (
     previous === null ||
     !latestRunsEqual(previous.latestRun, latestRun) ||
@@ -1478,7 +1454,7 @@ export function deriveThreadFeedPresentation(
   activeWorkStartedAt: string | null = null,
   runlessWorkActive = false,
   cache?: ThreadFeedCache,
-) {
+): ThreadFeedEntry[] {
   const previous = cache?.presentation ?? null;
   const restart = presentationRestart(
     previous,
@@ -1785,7 +1761,7 @@ function presentWorkLogRow(row: ThreadFeedEntry, next: ThreadFeedEntry | undefin
 
 const presentedWorkLogRows = new WeakMap<ThreadFeedEntry, ThreadFeedEntry>();
 
-function isWorkLogFeedRow(row: ThreadFeedEntry | undefined) {
+function isWorkLogFeedRow(row: ThreadFeedEntry | undefined): boolean {
   return (
     row !== undefined &&
     (row.type === "work-toggle" ||
@@ -1804,7 +1780,7 @@ function isWorkLogFeedRow(row: ThreadFeedEntry | undefined) {
 
 export const LIVE_ACTIVITY_ROW_ID = "live-activity-row";
 
-function runningSubagentsAtRunTail(feed: ReadonlyArray<ThreadFeedEntry>, runId: RunId) {
+function runningSubagentsAtRunTail(feed: ReadonlyArray<ThreadFeedEntry>, runId: RunId): number {
   let running = 0;
   for (let index = feed.length - 1; index >= 0; index -= 1) {
     const entry = feed[index]!;
@@ -1867,7 +1843,7 @@ function appendPresentedFeedEntry(
   activeRunId: RunId | null,
   isWorking: boolean,
   activeTail: boolean,
-) {
+): void {
   if (entry.type !== "activity-group") {
     result.push(entry);
     return;
@@ -1909,7 +1885,7 @@ function appendActivityGroupRows(
   activeRunId: RunId | null,
   isWorking: boolean,
   activeTail: boolean,
-) {
+): void {
   const groupAnchorIdByActivityId = new Map<string, string>();
   let groupAnchorId: string | null = null;
   for (const activity of entry.activities) {
@@ -1984,7 +1960,7 @@ function appendToolGroupRows(
   activeRunId: RunId | null,
   isWorking: boolean,
   activeTail: boolean,
-) {
+): void {
   const expanded = expandedWorkGroupIds.has(groupId);
   const latestActiveActivity = activities.findLast(
     (activity) =>
@@ -2098,7 +2074,7 @@ function appendToolGroupRows(
   });
 }
 
-function liveToolActivitySummary(activity: ThreadFeedActivity, presentTense: boolean) {
+function liveToolActivitySummary(activity: ThreadFeedActivity, presentTense: boolean): string {
   const status = liveActivityToolStatus(activity.lifecycleStatus, presentTense);
   if (activity.workEntry.itemType === "reasoning") {
     return compactWorkEntryText(
@@ -2150,11 +2126,11 @@ export interface ThreadFeedCache {
   presentation: ThreadFeedPresentationBuild | null;
 }
 
-export function createThreadFeedCache() {
+export function createThreadFeedCache(): ThreadFeedCache {
   return { feedBuild: null, presentation: null };
 }
 
-function setsEqual<T>(left: ReadonlySet<T>, right: ReadonlySet<T>) {
+function setsEqual<T>(left: ReadonlySet<T>, right: ReadonlySet<T>): boolean {
   if (left.size !== right.size) return false;
   for (const value of left) if (!right.has(value)) return false;
   return true;
@@ -2163,7 +2139,7 @@ function setsEqual<T>(left: ReadonlySet<T>, right: ReadonlySet<T>) {
 function checkpointSummariesEqual(
   left: ReadonlyArray<ThreadCheckpointSummary> | undefined,
   right: ReadonlyArray<ThreadCheckpointSummary> | undefined,
-) {
+): boolean {
   if (left === right) return true;
   if (left === undefined || right === undefined || left.length !== right.length) return false;
   return left.every((summary, index) => {
@@ -2182,7 +2158,7 @@ function checkpointSummariesEqual(
   });
 }
 
-function mapsEqual<K, V>(left: ReadonlyMap<K, V>, right: ReadonlyMap<K, V>) {
+function mapsEqual<K, V>(left: ReadonlyMap<K, V>, right: ReadonlyMap<K, V>): boolean {
   if (left.size !== right.size) return false;
   for (const [key, value] of left) {
     if (!right.has(key) || right.get(key) !== value) return false;
@@ -2193,7 +2169,7 @@ function mapsEqual<K, V>(left: ReadonlyMap<K, V>, right: ReadonlyMap<K, V>) {
 function setMapsEqual<K, V>(
   left: ReadonlyMap<K, ReadonlySet<V>>,
   right: ReadonlyMap<K, ReadonlySet<V>>,
-) {
+): boolean {
   if (left.size !== right.size) return false;
   for (const [key, values] of left) {
     const other = right.get(key);
@@ -2202,7 +2178,7 @@ function setMapsEqual<K, V>(
   return true;
 }
 
-function firstChangedIndex<T>(previous: ReadonlyArray<T>, next: ReadonlyArray<T>) {
+function firstChangedIndex<T>(previous: ReadonlyArray<T>, next: ReadonlyArray<T>): number {
   const limit = Math.min(previous.length, next.length);
   let index = 0;
   while (index < limit && previous[index] === next[index]) index += 1;
@@ -2218,13 +2194,13 @@ export function buildThreadFeed(
     readonly checkpointSummaries?: ReadonlyArray<ThreadCheckpointSummary>;
     readonly cache?: ThreadFeedCache;
   },
-) {
+): ThreadFeedEntry[] {
   const anchoredMessages = options?.anchoredMessages ?? [];
   const attemptByRootNodeId = new Map(
     (options?.attempts ?? []).map((attempt) => [attempt.rootNodeId, attempt] as const),
   );
   const nodeById = new Map((options?.nodes ?? []).map((node) => [node.id, node] as const));
-  const resolveAttemptId = (item: OrchestrationV2TurnItem) => {
+  const resolveAttemptId = (item: OrchestrationV2TurnItem): RunAttemptId | null => {
     if (item.nodeId === null || item.runId === null) return null;
     let nodeId: OrchestrationV2ExecutionNode["id"] | null = item.nodeId;
     const visited = new Set<OrchestrationV2ExecutionNode["id"]>();
@@ -2419,7 +2395,7 @@ export function buildThreadFeed(
     ...foldedAnswerRunIdByMessageId.keys(),
     ...entries.flatMap((entry) => (entry.type === "message" ? [entry.id] : [])),
   ]);
-  const appendLocalMessage = (message: LocalThreadMessage) => {
+  const appendLocalMessage = (message: LocalThreadMessage): RawThreadFeedEntry => {
     const cached = localMessageEntriesCache.get(message);
     if (cached) return cached;
     const entry: Extract<RawThreadFeedEntry, { readonly type: "message" }> = {

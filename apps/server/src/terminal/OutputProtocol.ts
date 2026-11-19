@@ -62,8 +62,7 @@ interface Window {
 
 export function withOutputWindow(
   protocol: RpcServer.Protocol["Service"],
-): RpcServer.Protocol["Service"];
-export function withOutputWindow(protocol: RpcServer.Protocol["Service"]) {
+): RpcServer.Protocol["Service"] {
   const clients = new Map<number, Map<string, Window>>();
   let receive: Parameters<RpcServer.Protocol["Service"]["run"]>[0];
   const windowFor = (clientId: number, requestId: string) => clients.get(clientId)?.get(requestId);
@@ -126,7 +125,7 @@ export function withOutputWindow(protocol: RpcServer.Protocol["Service"]) {
         }
         return send;
       }),
-  } satisfies RpcServer.Protocol["Service"];
+  };
 }
 
 const MAX_QUEUED_OUTPUT = 8 * 1024 * 1024;
@@ -142,7 +141,7 @@ export function terminalOutputStream<A extends TerminalEvent | TerminalAttachStr
   subscribe: Subscribe<A, E>,
   resync?: Subscribe<A, E>,
   maxQueued = MAX_QUEUED_OUTPUT,
-) {
+): Stream.Stream<A, E> {
   return Stream.unwrap(
     Effect.gen(function* () {
       const clock = yield* Clock.Clock;
@@ -205,7 +204,7 @@ export function terminalOutputStream<A extends TerminalEvent | TerminalAttachStr
         if (event.type !== "output") lifecycle -= 1;
         return event;
       };
-      const takeBatch = () => {
+      const takeBatch = (): Arr.NonEmptyReadonlyArray<A> => {
         let bytes = sizes[head]!;
         const batch: [A, ...A[]] = [take()];
         while (head < pending.length && bytes + sizes[head]! <= MAX_PENDING_BYTES) {

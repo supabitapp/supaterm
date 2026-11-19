@@ -22,7 +22,9 @@ interface ClosePreviewSessionInput<E> {
   readonly threadRef: ScopedThreadRef;
 }
 
-export async function closePreviewSession<E>(input: ClosePreviewSessionInput<E>) {
+export async function closePreviewSession<E>(
+  input: ClosePreviewSessionInput<E>,
+): Promise<AtomCommandResult<void, E>> {
   const keepMounted = rendersServerTabNatively(
     input.threadRef.environmentId,
     appAtomRegistry.get(primaryEnvironmentIdAtom),

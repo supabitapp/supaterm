@@ -76,11 +76,11 @@ export class DesktopTelemetryPublisher extends Context.Service<
   }
 >()("@supaterm/desktop/telemetry/DesktopTelemetryPublisher") {}
 
-function booleanState(value: boolean) {
+function booleanState(value: boolean): HostPowerSnapshot["onBattery"] {
   return value ? "true" : "false";
 }
 
-function idleState(value: ElectronPowerMonitor.ElectronIdleState) {
+function idleState(value: ElectronPowerMonitor.ElectronIdleState): HostPowerSnapshot["idle"] {
   switch (value) {
     case "active":
       return "false";
@@ -92,30 +92,30 @@ function idleState(value: ElectronPowerMonitor.ElectronIdleState) {
   }
 }
 
-function updatePowerState(state: PowerState, event: PowerEvent) {
+function updatePowerState(state: PowerState, event: PowerEvent): PowerState {
   switch (event.type) {
     case "locked":
       return {
         ...state,
         locked: booleanState(event.value),
         lockedEventPending: true,
-      } satisfies PowerState;
+      };
     case "suspended":
       return {
         ...state,
         suspended: event.value,
         suspendedEventPending: event.value,
-      } satisfies PowerState;
+      };
     case "onBattery":
       return {
         ...state,
         onBattery: booleanState(event.value),
         onBatteryEventPending: true,
-      } satisfies PowerState;
+      };
     case "thermal":
-      return { ...state, thermalState: event.value } satisfies PowerState;
+      return { ...state, thermalState: event.value };
     case "speedLimit":
-      return { ...state, speedLimitPercent: Option.some(event.value) } satisfies PowerState;
+      return { ...state, speedLimitPercent: Option.some(event.value) };
   }
 }
 
@@ -123,7 +123,7 @@ function sampleInterval(
   power: PowerState,
   diagnosticsDemand: boolean,
   hostPowerIntervals: HostPowerIntervals,
-) {
+): Duration.Duration {
   if (!diagnosticsDemand) {
     return power.suspended || power.locked === "true" || power.idle === "true"
       ? hostPowerIntervals.idle
@@ -176,7 +176,7 @@ export const make = Effect.fn("desktop.telemetryPublisher.make")(function* () {
   const updateCommitQueue = yield* Queue.unbounded<DesktopTelemetryCommitDesktopUpdate>();
   const updateCancellationQueue = yield* Queue.unbounded<DesktopTelemetryCancelDesktopUpdate>();
 
-  const offer = (event: PowerEvent) => {
+  const offer = (event: PowerEvent): void => {
     Queue.offerUnsafe(powerEvents, event);
   };
   yield* Effect.all(

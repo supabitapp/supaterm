@@ -39,7 +39,7 @@ const subscribe = (listener: () => void) => {
 const serverPictureInPictureKey = (threadId: string, tabId: string) =>
   JSON.stringify([threadId, tabId]);
 
-function supportsServerPictureInPicture() {
+function supportsServerPictureInPicture(): boolean {
   if (typeof document === "undefined") return false;
   if (typeof HTMLCanvasElement.prototype.captureStream !== "function") return false;
   const video = HTMLVideoElement.prototype as HTMLVideoElement & WebKitVideo;
@@ -49,7 +49,7 @@ function supportsServerPictureInPicture() {
   );
 }
 
-function useServerPictureInPictureKey() {
+function useServerPictureInPictureKey(): string | null {
   return useSyncExternalStore(
     subscribe,
     () => active?.key ?? null,
@@ -57,7 +57,7 @@ function useServerPictureInPictureKey() {
   );
 }
 
-export function closeServerPictureInPicture() {
+export function closeServerPictureInPicture(): void {
   const current = active;
   active = null;
   current?.stop();
@@ -213,7 +213,7 @@ export function useServerPictureInPicture(input: {
   readonly tabId: string | null;
   readonly pdfUrl: string | null;
   readonly surfaceRef: RefObject<{ readonly canvas: () => HTMLCanvasElement | null } | null>;
-}) {
+}): { readonly open: boolean; readonly available: boolean; readonly toggle: () => void } {
   const { threadRef, tabId, pdfUrl, surfaceRef } = input;
   const activeKey = useServerPictureInPictureKey();
   const open = tabId !== null && activeKey === serverPictureInPictureKey(threadRef.threadId, tabId);

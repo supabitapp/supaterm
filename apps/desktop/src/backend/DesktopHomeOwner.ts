@@ -21,7 +21,7 @@ export type HomeOwner = typeof HomeOwnerRuntimeState.Type;
 
 const decodeHomeOwner = Schema.decodeUnknownOption(Schema.fromJsonString(HomeOwnerRuntimeState));
 
-const isProcessAlive = (pid: number) => {
+const isProcessAlive = (pid: number): boolean => {
   if (!Number.isInteger(pid) || pid <= 0) return false;
   try {
     process.kill(pid, 0);
@@ -81,7 +81,7 @@ export const readLiveHomeOwner = Effect.fn("DesktopHomeOwner.readLiveHomeOwner")
   );
 });
 
-export const homeOwnedMessage = (owner: Option.Option<HomeOwner>) =>
+export const homeOwnedMessage = (owner: Option.Option<HomeOwner>): string =>
   Option.match(owner, {
     onNone: () =>
       "Another Supaterm server, such as the background service, is using this data directory, or an older background service is set up for it. Stop that server or try `supaterm update`. If the older launcher cannot update, run `supaterm service uninstall` and optionally reinstall with `supaterm service install` from a current CLI. Use `npx supaterm@latest` if `supaterm` is missing or outdated, and pass `--base-dir` with the service's Supaterm home to each command. Then reopen Supaterm. You can also set a separate SUPATERM_HOME and pair with the running server.",

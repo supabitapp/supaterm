@@ -9,30 +9,29 @@ import {
   visibleResourceTelemetryProcesses,
 } from "./ResourceTelemetryDiagnostics.logic";
 
-const process = (pid: number, ppid: number, depth: number) =>
-  ({
-    identity: { pid, startTimeMs: pid * 1_000 },
-    ppid,
-    childPids: [],
-    depth,
-    name: `process-${pid}`,
-    command: `process-${pid}`,
-    status: "Running",
-    category: pid === 1 ? "server" : "server-child",
-    cpuPercent: 0,
-    cpuTimeMs: 0,
-    residentBytes: 0,
-    peakResidentBytes: 0,
-    virtualBytes: 0,
-    ioReadBytes: 0,
-    ioWriteBytes: 0,
-    ioReadBytesPerSecond: 0,
-    ioWriteBytesPerSecond: 0,
-    ioSemantics: "storage",
-    runTimeMs: 0,
-    firstSeenAt: DateTime.makeUnsafe(0),
-    lastSeenAt: DateTime.makeUnsafe(0),
-  }) satisfies ResourceTelemetryProcess;
+const process = (pid: number, ppid: number, depth: number): ResourceTelemetryProcess => ({
+  identity: { pid, startTimeMs: pid * 1_000 },
+  ppid,
+  childPids: [],
+  depth,
+  name: `process-${pid}`,
+  command: `process-${pid}`,
+  status: "Running",
+  category: pid === 1 ? "server" : "server-child",
+  cpuPercent: 0,
+  cpuTimeMs: 0,
+  residentBytes: 0,
+  peakResidentBytes: 0,
+  virtualBytes: 0,
+  ioReadBytes: 0,
+  ioWriteBytes: 0,
+  ioReadBytesPerSecond: 0,
+  ioWriteBytesPerSecond: 0,
+  ioSemantics: "storage",
+  runTimeMs: 0,
+  firstSeenAt: DateTime.makeUnsafe(0),
+  lastSeenAt: DateTime.makeUnsafe(0),
+});
 
 describe("visibleResourceTelemetryProcesses", () => {
   it("hides descendants by parentage even when rows are not depth-first", () => {

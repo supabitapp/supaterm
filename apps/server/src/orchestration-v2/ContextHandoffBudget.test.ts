@@ -54,11 +54,11 @@ const providerThread: OrchestrationV2ProviderThread = {
   createdAt: now,
   updatedAt: now,
 };
-const message: (
+const message = (
   id: string,
   role: "user" | "assistant",
   text: string,
-) => OrchestrationV2HistoricalMessage = (id: string, role: "user" | "assistant", text: string) => ({
+): OrchestrationV2HistoricalMessage => ({
   itemId: TurnItemId.make(id),
   role,
   text,

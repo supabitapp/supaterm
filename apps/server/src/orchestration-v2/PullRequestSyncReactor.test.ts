@@ -61,7 +61,7 @@ type ChecksReopenCommand = Extract<
 
 const testCrypto = SecureRandom.make((size) => new Uint8Array(size).fill(1));
 
-function makeProject(id: ProjectId = PROJECT_ID) {
+function makeProject(id: ProjectId = PROJECT_ID): OrchestrationProjectShell {
   return {
     id,
     title: `Project ${id}`,
@@ -73,7 +73,10 @@ function makeProject(id: ProjectId = PROJECT_ID) {
   };
 }
 
-function makeThread(id: string, overrides: Partial<PullRequestTestThread> = {}) {
+function makeThread(
+  id: string,
+  overrides: Partial<PullRequestTestThread> = {},
+): PullRequestTestThread {
   return {
     id: ThreadId.make(id),
     projectId: PROJECT_ID,
@@ -94,14 +97,14 @@ function makeThread(id: string, overrides: Partial<PullRequestTestThread> = {}) 
     doneAt: null,
     latestUserMessageAt: "2026-08-20T00:00:00.000Z",
     ...overrides,
-  } satisfies PullRequestTestThread;
+  };
 }
 
 function makeLink(
   number: number,
   snapshot: Partial<ThreadPullRequestSnapshot> | null = null,
   overrides: Partial<ThreadPullRequestLink> = {},
-) {
+): ThreadPullRequestLink {
   return {
     host: "github.com",
     repository: "owner/repository",
@@ -124,7 +127,7 @@ function makeLink(
           },
     stack: null,
     ...overrides,
-  } satisfies ThreadPullRequestLink;
+  };
 }
 
 interface TestShellSnapshot {
@@ -134,7 +137,10 @@ interface TestShellSnapshot {
   readonly updatedAt: string;
 }
 
-function makeSnapshot(threads: ReadonlyArray<PullRequestTestThread>, snapshotSequence = 1) {
+function makeSnapshot(
+  threads: ReadonlyArray<PullRequestTestThread>,
+  snapshotSequence = 1,
+): TestShellSnapshot {
   return {
     snapshotSequence,
     projects: [makeProject()],
@@ -143,7 +149,10 @@ function makeSnapshot(threads: ReadonlyArray<PullRequestTestThread>, snapshotSeq
   };
 }
 
-function makeSummary(input: PullRequestRef, overrides: Partial<PullRequestSummary> = {}) {
+function makeSummary(
+  input: PullRequestRef,
+  overrides: Partial<PullRequestSummary> = {},
+): PullRequestSummary {
   return {
     provider: SourceControlProviderKind.make("github"),
     projectId: input.projectId,
@@ -156,7 +165,7 @@ function makeSummary(input: PullRequestRef, overrides: Partial<PullRequestSummar
     baseBranch: "main",
     updatedAt: "2026-08-27T00:00:00.000Z",
     ...overrides,
-  } satisfies PullRequestSummary;
+  };
 }
 
 const missingSummary = Effect.fail(
@@ -335,7 +344,10 @@ const gitLabCliFailure = new PullRequestOperationError({
   detail: "GitLab CLI command failed",
 });
 
-function runUpdated(threadId: ThreadId, status: OrchestrationV2Run["status"]) {
+function runUpdated(
+  threadId: ThreadId,
+  status: OrchestrationV2Run["status"],
+): OrchestrationV2DomainEvent {
   const runId = RunId.make(`run:${threadId}:1`);
   const at = DateTime.makeUnsafe(NOW);
   return {
@@ -361,10 +373,15 @@ function runUpdated(threadId: ThreadId, status: OrchestrationV2Run["status"]) {
       checkpointId: null,
       contextHandoffId: null,
     },
-  } satisfies OrchestrationV2DomainEvent;
+  };
 }
 
-function commandRan(threadId: ThreadId, input: string, output?: string, name = "command") {
+function commandRan(
+  threadId: ThreadId,
+  input: string,
+  output?: string,
+  name = "command",
+): OrchestrationV2DomainEvent {
   const runId = RunId.make(`run:${threadId}:1`);
   const at = DateTime.makeUnsafe(NOW);
   return {
@@ -392,10 +409,13 @@ function commandRan(threadId: ThreadId, input: string, output?: string, name = "
       input,
       ...(output === undefined ? {} : { output }),
     },
-  } satisfies OrchestrationV2DomainEvent;
+  };
 }
 
-function applySync(snapshot: TestShellSnapshot, commands: ReadonlyArray<SyncCommand>) {
+function applySync(
+  snapshot: TestShellSnapshot,
+  commands: ReadonlyArray<SyncCommand>,
+): TestShellSnapshot {
   return {
     ...snapshot,
     snapshotSequence: snapshot.snapshotSequence + 1,
@@ -423,7 +443,7 @@ function makeGrowingStack() {
   let layers = [stackLayer(18), stackLayer(20)];
   const entries = new Map<number, { readonly layers: typeof layers; expiresAt: number }>();
   const invalidated: Array<number> = [];
-  const stackOf = (stackLayers: typeof layers) => ({
+  const stackOf = (stackLayers: typeof layers): PullRequestStack => ({
     id: "stack-80",
     number: 80,
     url: "https://github.com/owner/repository/stack/80",

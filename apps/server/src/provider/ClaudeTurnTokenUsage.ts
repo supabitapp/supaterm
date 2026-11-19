@@ -1,7 +1,7 @@
 import type { SDKResultMessage } from "@anthropic-ai/claude-agent-sdk";
 import type { RuntimeTurnState, TurnTokenUsage } from "@supaterm/contracts";
 
-function finiteNonNegativeInteger(value: unknown) {
+function finiteNonNegativeInteger(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) && value >= 0
     ? Math.round(value)
     : undefined;
@@ -14,7 +14,7 @@ const BILLED_USAGE_FIELDS = [
   "output_tokens",
 ] as const;
 
-function addKnownCount(finalCount: unknown, earlierCounts: ReadonlyArray<unknown>) {
+function addKnownCount(finalCount: unknown, earlierCounts: ReadonlyArray<unknown>): unknown {
   let total: number | undefined;
   for (const count of [finalCount, ...earlierCounts]) {
     const known = finiteNonNegativeInteger(count);
@@ -26,7 +26,7 @@ function addKnownCount(finalCount: unknown, earlierCounts: ReadonlyArray<unknown
 function withEarlierSegmentUsage(
   usage: Record<string, unknown>,
   earlierSegmentUsage: ReadonlyArray<unknown>,
-) {
+): Record<string, unknown> {
   if (earlierSegmentUsage.length === 0) return usage;
   const segments = earlierSegmentUsage.map((segment) => (segment ?? {}) as Record<string, unknown>);
   const total = { ...usage };
@@ -51,18 +51,16 @@ function withEarlierSegmentUsage(
 }
 
 /** The window each model in the SDK's `modelUsage` is measured against, as Claude Code resolved it. */
-export function claudeReportedContextWindows(modelUsage: unknown): ReadonlyMap<string, number>;
-export function claudeReportedContextWindows(modelUsage: unknown) {
+export function claudeReportedContextWindows(modelUsage: unknown): ReadonlyMap<string, number> {
   const windows = new Map<string, number>();
-  if (typeof modelUsage !== "object" || modelUsage === null)
-    return windows satisfies ReadonlyMap<string, number>;
+  if (typeof modelUsage !== "object" || modelUsage === null) return windows;
   for (const [model, entry] of Object.entries(modelUsage as Record<string, unknown>)) {
     const window = finiteNonNegativeInteger(
       (entry as Record<string, unknown> | null)?.contextWindow,
     );
     if (window !== undefined && window > 0) windows.set(model, window);
   }
-  return windows satisfies ReadonlyMap<string, number>;
+  return windows;
 }
 
 export function normalizeClaudeTurnTokenUsage(
@@ -70,7 +68,7 @@ export function normalizeClaudeTurnTokenUsage(
   hasSubagents: boolean,
   terminalStatus: RuntimeTurnState,
   earlierSegmentUsage: ReadonlyArray<unknown> = [],
-) {
+): TurnTokenUsage {
   const finalUsage = result?.usage as Record<string, unknown> | undefined;
   const usage = withEarlierSegmentUsage(finalUsage ?? {}, earlierSegmentUsage);
   const uncachedInputTokens = finiteNonNegativeInteger(usage.input_tokens);
@@ -105,7 +103,7 @@ export function normalizeClaudeTurnTokenUsage(
       usageStatus: "unavailable",
       usageScope: "main_agent",
       hasSubagents,
-    } satisfies TurnTokenUsage;
+    };
   }
 
   const commonUsage = {
@@ -134,12 +132,12 @@ export function normalizeClaudeTurnTokenUsage(
       usageStatus: "complete",
       inputTokens,
       outputTokens: rawOutputTokens,
-    } satisfies TurnTokenUsage;
+    };
   }
   return {
     ...commonUsage,
     usageStatus: "partial",
     ...(inputTokens !== undefined ? { inputTokens } : {}),
     ...(rawOutputTokens !== undefined ? { outputTokens: rawOutputTokens } : {}),
-  } satisfies TurnTokenUsage;
+  };
 }

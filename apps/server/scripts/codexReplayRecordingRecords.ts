@@ -13,53 +13,45 @@ interface CodexReplayRecordingMachine {
   readonly checkout: string;
 }
 
-function withWorkspacePlaceholder(value: unknown, workspace: string): unknown;
-function withWorkspacePlaceholder(value: unknown, workspace: string) {
+function withWorkspacePlaceholder(value: unknown, workspace: string): unknown {
   if (value === workspace) {
-    return REPLAY_WORKSPACE_PLACEHOLDER satisfies unknown;
+    return REPLAY_WORKSPACE_PLACEHOLDER;
   }
   if (Array.isArray(value)) {
-    return value.map((entry) => withWorkspacePlaceholder(entry, workspace)) satisfies unknown;
+    return value.map((entry) => withWorkspacePlaceholder(entry, workspace));
   }
   if (typeof value !== "object" || value === null) {
-    return value satisfies unknown;
+    return value;
   }
   return Object.fromEntries(
     Object.entries(value).map(([key, entry]) => [key, withWorkspacePlaceholder(entry, workspace)]),
-  ) satisfies unknown;
+  );
 }
 
 function withoutMachineIdentity(
   value: unknown,
   machine: CodexReplayRecordingMachine,
   key?: string,
-): unknown;
-function withoutMachineIdentity(
-  value: unknown,
-  machine: CodexReplayRecordingMachine,
-  key?: string,
-) {
+): unknown {
   if (typeof value === "string") {
     const replacement = key === undefined ? undefined : REPLAY_VALUES_BY_KEY[key];
-    if (replacement !== undefined) return replacement satisfies unknown;
-    return (
-      value === machine.hostname
-        ? REPLAY_HOSTNAME
-        : value.replaceAll(machine.checkout, REPLAY_CHECKOUT).replaceAll(machine.home, REPLAY_HOME)
-    ) satisfies unknown;
+    if (replacement !== undefined) return replacement;
+    return value === machine.hostname
+      ? REPLAY_HOSTNAME
+      : value.replaceAll(machine.checkout, REPLAY_CHECKOUT).replaceAll(machine.home, REPLAY_HOME);
   }
   if (Array.isArray(value)) {
-    return value.map((entry) => withoutMachineIdentity(entry, machine)) satisfies unknown;
+    return value.map((entry) => withoutMachineIdentity(entry, machine));
   }
   if (typeof value !== "object" || value === null) {
-    return value satisfies unknown;
+    return value;
   }
   return Object.fromEntries(
     Object.entries(value).map(([entryKey, entry]) => [
       entryKey,
       withoutMachineIdentity(entry, machine, entryKey),
     ]),
-  ) satisfies unknown;
+  );
 }
 
 export function codexReplayRecordingOutputRecords(
@@ -68,14 +60,7 @@ export function codexReplayRecordingOutputRecords(
     readonly workspace: string;
     readonly machine?: CodexReplayRecordingMachine;
   },
-): ReadonlyArray<Record<string, unknown>>;
-export function codexReplayRecordingOutputRecords(
-  records: ReadonlyArray<Record<string, unknown>>,
-  options: {
-    readonly workspace: string;
-    readonly machine?: CodexReplayRecordingMachine;
-  },
-) {
+): ReadonlyArray<Record<string, unknown>> {
   return records.map((record) => {
     const named =
       record.type === "expect_outbound"
@@ -84,5 +69,5 @@ export function codexReplayRecordingOutputRecords(
     return options.machine === undefined || !("frame" in named)
       ? named
       : { ...named, frame: withoutMachineIdentity(named.frame, options.machine) };
-  }) satisfies ReadonlyArray<Record<string, unknown>>;
+  });
 }

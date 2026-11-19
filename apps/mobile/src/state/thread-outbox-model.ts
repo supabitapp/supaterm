@@ -155,7 +155,7 @@ export function resolveQueuedThreadSettings(
       readonly models: ReadonlyArray<Pick<ServerProviderModel, "slug" | "capabilities">>;
     }
   > = [],
-) {
+): ThreadSettingsSnapshot {
   const modelSelection = withImplicitFastModeSelection(
     message.modelSelection ?? thread.modelSelection,
     providers,
@@ -173,7 +173,7 @@ export function resolveQueuedThreadSettings(
   };
 }
 
-export function modelSelectionsEqual(left: ModelSelectionType, right: ModelSelectionType) {
+export function modelSelectionsEqual(left: ModelSelectionType, right: ModelSelectionType): boolean {
   return (
     left.instanceId === right.instanceId &&
     left.model === right.model &&
@@ -181,19 +181,21 @@ export function modelSelectionsEqual(left: ModelSelectionType, right: ModelSelec
   );
 }
 
-export function encodeQueuedThreadMessage(message: QueuedThreadMessage) {
+export function encodeQueuedThreadMessage(message: QueuedThreadMessage): unknown {
   return encodeStoredQueuedThreadMessage({
     schemaVersion: THREAD_OUTBOX_SCHEMA_VERSION,
     ...message,
   });
 }
 
-export function decodeQueuedThreadMessage(value: unknown) {
+export function decodeQueuedThreadMessage(value: unknown): QueuedThreadMessage {
   const { schemaVersion: _, ...message } = decodeStoredQueuedThreadMessage(value);
   return message;
 }
 
-export function groupQueuedThreadMessages(messages: ReadonlyArray<QueuedThreadMessage>) {
+export function groupQueuedThreadMessages(
+  messages: ReadonlyArray<QueuedThreadMessage>,
+): Record<string, ReadonlyArray<QueuedThreadMessage>> {
   return groupThreadOutboxMessages(messages, (message) => message);
 }
 
@@ -206,13 +208,13 @@ export const flattenQueuedThreadMessages = flattenThreadOutboxMessages<QueuedThr
 export function hasQueuedFollowUps(
   queues: Readonly<Record<string, ReadonlyArray<QueuedThreadMessage>>>,
   creation: QueuedThreadMessage,
-) {
+): boolean {
   return (queues[`${creation.environmentId}:${creation.threadId}`] ?? []).some(
     (message) => message.creation === undefined,
   );
 }
 
-export function isQueuedThreadCreationSendable(message: QueuedThreadMessage) {
+export function isQueuedThreadCreationSendable(message: QueuedThreadMessage): boolean {
   if (!message.creation) {
     return false;
   }
@@ -232,7 +234,7 @@ export function voiceThreadMessage(
   draft: Omit<QueuedThreadMessage, "voice">,
   voice: Omit<QueuedVoiceRecording, "streamedUploadId">,
   handOff: VoiceRecordingHandOff | undefined,
-) {
+): QueuedThreadMessage {
   if (!handOff) return { ...draft, voice };
   const commandId = CommandId.make(handOff.uploadId);
   return {
@@ -261,41 +263,30 @@ export function resolveVoiceDeliveryStep(
   message: QueuedThreadMessage,
   outcome: { readonly result: TranscriptionUploadResult } | { readonly error: unknown },
   nextCommandId: () => CommandId,
-) {
-  const hold = (failure: string, transcript?: string) => {
+): VoiceDeliveryStep {
+  const hold = (failure: string, transcript?: string): VoiceDeliveryStep => {
     if (transcript === undefined) {
-      return {
-        step: "hold",
-        message: { ...message, commandId: nextCommandId(), failure },
-      } satisfies VoiceDeliveryStep;
+      return { step: "hold", message: { ...message, commandId: nextCommandId(), failure } };
     }
     const { voice: _, ...text } = message;
     return {
       step: "hold",
       message: { ...text, text: transcript, commandId: nextCommandId(), failure },
-    } satisfies VoiceDeliveryStep;
+    };
   };
   if ("error" in outcome) {
     const { error } = outcome;
     if (error instanceof VoiceUploadError) {
-      return (
-        error.retryable ? { step: "retry" } : hold(error.message)
-      ) satisfies VoiceDeliveryStep;
+      return error.retryable ? { step: "retry" } : hold(error.message);
     }
-    return (
-      shouldRetryThreadOutboxDelivery(error)
-        ? { step: "retry" }
-        : hold(error instanceof Error ? error.message : "The recording couldn't be sent.")
-    ) satisfies VoiceDeliveryStep;
+    return shouldRetryThreadOutboxDelivery(error)
+      ? { step: "retry" }
+      : hold(error instanceof Error ? error.message : "The recording couldn't be sent.");
   }
   const { text, submission } = outcome.result;
-  if (submission?.status === "sent")
-    return { step: "delivered", transcript: text } satisfies VoiceDeliveryStep;
+  if (submission?.status === "sent") return { step: "delivered", transcript: text };
   if (submission?.status === "noSpeech" || text.trim().length === 0) {
-    return hold("No speech was detected.") satisfies VoiceDeliveryStep;
+    return hold("No speech was detected.");
   }
-  return hold(
-    "Transcribed, but the message couldn't be sent. Edit it or try again.",
-    text,
-  ) satisfies VoiceDeliveryStep;
+  return hold("Transcribed, but the message couldn't be sent. Edit it or try again.", text);
 }

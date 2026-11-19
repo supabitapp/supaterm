@@ -18,7 +18,7 @@ export const devAutoConnectAttemptAtom = Atom.make<DevAutoConnectAttempt | null>
 );
 
 /** Production builds ignore a link's pairing URL so it never prefills an attacker-chosen host and token. */
-export function linkedPairingUrl(pairingUrl: string | undefined) {
+export function linkedPairingUrl(pairingUrl: string | undefined): string {
   return __DEV__ ? (pairingUrl?.trim() ?? "") : "";
 }
 
@@ -31,7 +31,7 @@ export function autoConnectReport(
   attempt: DevAutoConnectAttempt | null,
   routePairingUrl: string,
   dismissed: boolean,
-) {
+): { readonly connecting: boolean; readonly error: string | null } {
   if (attempt === null || routePairingUrl.length === 0 || attempt.pairingUrl !== routePairingUrl) {
     return { connecting: false, error: null };
   }
@@ -41,7 +41,7 @@ export function autoConnectReport(
 
 const PAIRING_FORM_ROUTES = ["ConnectionsNew", "SettingsEnvironmentNew"];
 
-function isAutoConnectFlag(value: unknown) {
+function isAutoConnectFlag(value: unknown): boolean {
   return value === "1" || value === "true";
 }
 
@@ -74,13 +74,12 @@ async function connect(pairingUrl: string) {
  */
 export function withoutPairingTarget(
   state: PartialState<NavigationState> | undefined,
-): PartialState<NavigationState> | undefined;
-export function withoutPairingTarget(state: PartialState<NavigationState> | undefined) {
+): PartialState<NavigationState> | undefined {
   return updateLinkedRoute(state, PAIRING_FORM_ROUTES, (route) => {
     if (route.params === undefined || !("routeFor" in route.params)) return route;
     const { routeFor: _routeFor, ...params } = route.params as { readonly routeFor?: unknown };
     return { ...route, params };
-  }) satisfies PartialState<NavigationState> | undefined;
+  });
 }
 
 /**
@@ -90,11 +89,10 @@ export function withoutPairingTarget(state: PartialState<NavigationState> | unde
  */
 export function startDevAutoConnect(
   state: PartialState<NavigationState> | undefined,
-): PartialState<NavigationState> | undefined;
-export function startDevAutoConnect(state: PartialState<NavigationState> | undefined) {
-  if (!__DEV__) return state satisfies PartialState<NavigationState> | undefined;
+): PartialState<NavigationState> | undefined {
+  if (!__DEV__) return state;
   const route = findLinkedRoute(state, PAIRING_FORM_ROUTES);
-  if (route === undefined) return state satisfies PartialState<NavigationState> | undefined;
+  if (route === undefined) return state;
   const params = (route.params ?? {}) as {
     readonly autoConnect?: unknown;
     readonly pairingUrl?: unknown;
@@ -105,7 +103,7 @@ export function startDevAutoConnect(state: PartialState<NavigationState> | undef
   } else {
     appAtomRegistry.set(devAutoConnectAttemptAtom, null);
   }
-  return state satisfies PartialState<NavigationState> | undefined;
+  return state;
 }
 
 /**

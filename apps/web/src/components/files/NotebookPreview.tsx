@@ -10,22 +10,17 @@ import { FileSurfaceNotice } from "./fileSurfaceChrome";
 import type { OfficeWorkerResult } from "./officePreviewProtocol";
 
 function inertNotebookMarkdown() {
-  function clean(nodes: RootContent[]): RootContent[];
-  function clean(nodes: RootContent[]) {
-    return nodes.flatMap((node) => {
-      if (node.type === "html" || node.type === "definition")
-        return [] satisfies RootContent[] as RootContent[];
+  function clean(nodes: RootContent[]): RootContent[] {
+    return nodes.flatMap((node): RootContent[] => {
+      if (node.type === "html" || node.type === "definition") return [];
       if (node.type === "image" || node.type === "imageReference")
-        return [{ type: "text", value: node.alt ?? "" }] satisfies RootContent[] as RootContent[];
-      if (node.type === "link" || node.type === "linkReference")
-        return clean(node.children) satisfies RootContent[] as RootContent[];
-      if (node.type === "inlineCode")
-        return [{ type: "text", value: node.value }] satisfies RootContent[] as RootContent[];
-      if (node.type === "code" && node.lang === "mermaid")
-        return [{ ...node, lang: "text" }] satisfies RootContent[] as RootContent[];
+        return [{ type: "text", value: node.alt ?? "" }];
+      if (node.type === "link" || node.type === "linkReference") return clean(node.children);
+      if (node.type === "inlineCode") return [{ type: "text", value: node.value }];
+      if (node.type === "code" && node.lang === "mermaid") return [{ ...node, lang: "text" }];
       if ("children" in node) node.children = clean(node.children) as typeof node.children;
-      return [node] satisfies RootContent[] as RootContent[];
-    }) satisfies RootContent[];
+      return [node];
+    });
   }
   return (tree: Root) => {
     tree.children = clean(tree.children) as Root["children"];

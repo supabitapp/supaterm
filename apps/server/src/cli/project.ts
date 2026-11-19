@@ -63,7 +63,7 @@ export class ProjectCommandIdGenerationError extends Schema.TaggedError<ProjectC
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return "Failed to generate a project command identifier.";
   }
 }
@@ -77,8 +77,8 @@ export class ProjectLiveServerDeclaredResponseError extends Schema.TaggedError<P
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
-    return `Server request failed (${this.code}, trace ${this.traceId}).` satisfies string as string;
+  override get message(): string {
+    return `Server request failed (${this.code}, trace ${this.traceId}).`;
   }
 }
 
@@ -90,8 +90,8 @@ export class ProjectLiveServerUndeclaredStatusError extends Schema.TaggedError<P
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
-    return `Server request failed with undeclared status ${this.status}.` satisfies string as string;
+  override get message(): string {
+    return `Server request failed with undeclared status ${this.status}.`;
   }
 }
 
@@ -102,8 +102,8 @@ export class ProjectLiveServerRequestError extends Schema.TaggedError<ProjectLiv
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
-    return "Failed to call the running server." satisfies string as string;
+  override get message(): string {
+    return "Failed to call the running server.";
   }
 }
 
@@ -114,7 +114,7 @@ export class ProjectTitleEmptyError extends Schema.TaggedError<ProjectTitleEmpty
     title: Schema.String,
   },
 ) {
-  override get message() {
+  override get message(): string {
     return "Project title cannot be empty.";
   }
 }
@@ -126,7 +126,7 @@ export class ProjectIdentifierEmptyError extends Schema.TaggedError<ProjectIdent
     identifier: Schema.String,
   },
 ) {
-  override get message() {
+  override get message(): string {
     return "Project identifier cannot be empty.";
   }
 }
@@ -141,7 +141,7 @@ export class ProjectNotFoundError extends Schema.TaggedError<ProjectNotFoundErro
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `No active project found for '${this.identifier}'.`;
   }
 }
@@ -154,7 +154,7 @@ export class ProjectAlreadyExistsError extends Schema.TaggedError<ProjectAlready
     workspaceRoot: Schema.String,
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `An active project already exists for '${this.workspaceRoot}'.`;
   }
 }
@@ -167,8 +167,8 @@ export class ProjectHasThreadsError extends Schema.TaggedError<ProjectHasThreads
     title: Schema.String,
   },
 ) {
-  override get message() {
-    return `Project '${this.title}' still has threads. Re-run with --force to remove it and delete all of its threads.` satisfies string as string;
+  override get message(): string {
+    return `Project '${this.title}' still has threads. Re-run with --force to remove it and delete all of its threads.`;
   }
 }
 
@@ -187,7 +187,7 @@ export type ProjectCommandError = typeof ProjectCommandError.Type;
 
 const isProjectNotEmptyError = Schema.is(ProjectService.ProjectNotEmptyError);
 
-function projectCommandErrorFromLiveServerRequest(cause: unknown) {
+function projectCommandErrorFromLiveServerRequest(cause: unknown): ProjectCommandError {
   if (isEnvironmentHttpCommonError(cause)) {
     return new ProjectLiveServerDeclaredResponseError({
       operation: "callLiveServer",

@@ -56,7 +56,7 @@ export class WorkspaceFileSystemOperationError extends Schema.TaggedError<Worksp
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Workspace file operation '${this.operation}' failed at '${this.operationPath}' for resolved path '${this.resolvedPath}' (requested as '${this.relativePath}' in '${this.workspaceRoot}').`;
   }
 }
@@ -70,7 +70,7 @@ export class WorkspaceFilePathEscapeError extends Schema.TaggedError<WorkspaceFi
     resolvedPath: Schema.String,
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Workspace file '${this.relativePath}' resolves outside workspace root '${this.workspaceRoot}': ${this.resolvedPath}`;
   }
 }
@@ -83,7 +83,7 @@ export class WorkspacePathNotFileError extends Schema.TaggedError<WorkspacePathN
     resolvedPath: Schema.String,
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Workspace path '${this.relativePath}' in '${this.workspaceRoot}' is not a file: ${this.resolvedPath}`;
   }
 }
@@ -96,7 +96,7 @@ export class WorkspaceBinaryFileError extends Schema.TaggedError<WorkspaceBinary
     resolvedPath: Schema.String,
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Workspace file '${this.relativePath}' in '${this.workspaceRoot}' is binary and cannot be previewed as text.`;
   }
 }

@@ -26,7 +26,7 @@ const rates: RateTable = new Map([
   ],
 ]);
 
-function record(overrides: Partial<UsageRecord> = {}) {
+function record(overrides: Partial<UsageRecord> = {}): UsageRecord {
   return {
     provider: "claude",
     timestampMs: Date.parse("2026-08-07T04:05:13.944Z"),
@@ -43,7 +43,7 @@ function record(overrides: Partial<UsageRecord> = {}) {
     speed: "standard",
     dedupeKey: null,
     ...overrides,
-  } satisfies UsageRecord;
+  };
 }
 
 function aggregate(

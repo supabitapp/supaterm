@@ -16,7 +16,7 @@ export function loadRepoEnv({
 }: {
   readonly baseEnv?: Environment;
   readonly repoRoot?: string;
-} = {}) {
+} = {}): Record<string, string | undefined> {
   return {
     ...readEnvFile(NodePath.join(repoRoot, ".env")),
     ...readEnvFile(NodePath.join(repoRoot, ".env.local")),
@@ -24,6 +24,6 @@ export function loadRepoEnv({
   };
 }
 
-function readEnvFile(path: string) {
+function readEnvFile(path: string): Record<string, string | undefined> {
   return NodeFS.existsSync(path) ? NodeUtil.parseEnv(NodeFS.readFileSync(path, "utf8")) : {};
 }

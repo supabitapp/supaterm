@@ -14,7 +14,7 @@ export class CaptureSetupRequiredError extends Error {
 export const NIRI_CAPTURE_PATH = "/com/supaterm/SnapShot";
 export const NIRI_CAPTURE_INTERFACE = "com.supaterm.SnapShot";
 
-function isDesktopSession(env: NodeJS.ProcessEnv, desktop: string) {
+function isDesktopSession(env: NodeJS.ProcessEnv, desktop: string): boolean {
   return (
     !env.FLATPAK_ID &&
     !env.SNAP &&
@@ -22,20 +22,19 @@ function isDesktopSession(env: NodeJS.ProcessEnv, desktop: string) {
   );
 }
 
-export function isGnomeCaptureSession(env: NodeJS.ProcessEnv): boolean;
-export function isGnomeCaptureSession(env: NodeJS.ProcessEnv) {
-  return isDesktopSession(env, "gnome") satisfies boolean;
+export function isGnomeCaptureSession(env: NodeJS.ProcessEnv): boolean {
+  return isDesktopSession(env, "gnome");
 }
 
-export function isKdeCaptureSession(env = process.env) {
+export function isKdeCaptureSession(env = process.env): boolean {
   return isDesktopSession(env, "kde");
 }
 
-export function isHyprlandCaptureSession(env = process.env) {
+export function isHyprlandCaptureSession(env = process.env): boolean {
   return isDesktopSession(env, "hyprland");
 }
 
-export function niriCaptureBinding(appId: string) {
+export function niriCaptureBinding(appId: string): string {
   return `Ctrl+Shift+2 repeat=false { spawn "gdbus" "call" "--session" "--dest" "${appId}.SnapShot" "--object-path" "${NIRI_CAPTURE_PATH}" "--method" "${NIRI_CAPTURE_INTERFACE}.Capture"; }`;
 }
 
@@ -94,7 +93,7 @@ const KEY_NAMES: Readonly<Record<string, string>> = {
   "~": "asciitilde",
 };
 
-export function portalShortcutTrigger(shortcut: SnapShotKeyChord) {
+export function portalShortcutTrigger(shortcut: SnapShotKeyChord): string {
   const key = shortcut.key.toLowerCase();
   const keysym =
     KEY_NAMES[key] ??
@@ -115,7 +114,7 @@ export function portalShortcutTrigger(shortcut: SnapShotKeyChord) {
 const PNG_HEADER = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
 const MAX_PNG_BYTES = 32 * 1024 * 1024;
 
-export function resizeLinuxCapture(png: Buffer) {
+export function resizeLinuxCapture(png: Buffer): Buffer {
   if (png.length > MAX_PNG_BYTES || !png.subarray(0, 8).equals(PNG_HEADER)) {
     throw new Error("Invalid or oversized window screenshot.");
   }
@@ -134,7 +133,7 @@ export function resizeLinuxCapture(png: Buffer) {
     : png;
 }
 
-export async function readPortalPng(uri: string) {
+export async function readPortalPng(uri: string): Promise<Buffer> {
   const file = await NodeFSP.open(NodeURL.fileURLToPath(uri), "r");
   try {
     const stat = await file.stat();

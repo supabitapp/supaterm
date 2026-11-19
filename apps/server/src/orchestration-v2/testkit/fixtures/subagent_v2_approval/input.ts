@@ -7,7 +7,7 @@ export const SUBAGENT_V2_APPROVAL_POLICY = {
   sandboxPolicy: { type: "readOnly" },
 } as const;
 
-export function subagentV2ApprovalInput() {
+export function subagentV2ApprovalInput(): OrchestratorFixtureInput {
   return {
     steps: [
       { type: "message", text: SUBAGENT_V2_APPROVAL_PROMPT },
@@ -16,5 +16,5 @@ export function subagentV2ApprovalInput() {
         shellSnapshotKeyWhilePending: SUBAGENT_APPROVAL_PENDING_SHELL_KEY,
       },
     ],
-  } satisfies OrchestratorFixtureInput;
+  };
 }

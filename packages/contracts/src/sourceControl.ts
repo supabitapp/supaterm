@@ -177,7 +177,7 @@ export class SourceControlProviderError extends Schema.TaggedError<SourceControl
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Source control provider ${this.provider} failed in ${this.operation}: ${this.detail}`;
   }
 }
@@ -191,7 +191,7 @@ export class SourceControlRepositoryError extends Schema.TaggedError<SourceContr
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Source control repository operation ${this.operation} failed for ${this.provider}: ${this.detail}`;
   }
 }

@@ -50,7 +50,7 @@ export function replaceCatalogValue<A>(
   values: ReadonlyArray<A>,
   key: (value: A) => string,
   next: A,
-) {
+): ReadonlyArray<A> {
   const nextKey = key(next);
   return [...values.filter((value) => key(value) !== nextKey), next];
 }
@@ -59,7 +59,7 @@ export function removeCatalogValue<A>(
   values: ReadonlyArray<A>,
   key: (value: A) => string,
   removedKey: string,
-) {
+): ReadonlyArray<A> {
   return values.filter((value) => key(value) !== removedKey);
 }
 
@@ -67,7 +67,7 @@ export function setPlatformLabelInCatalog(
   document: ConnectionCatalogDocument,
   environmentId: EnvironmentId,
   label: string | null,
-) {
+): ConnectionCatalogDocument {
   const labels = document.platformLabels;
   return {
     ...document,
@@ -78,7 +78,7 @@ export function setPlatformLabelInCatalog(
   };
 }
 
-function connectionIdOf(target: ConnectionTarget) {
+function connectionIdOf(target: ConnectionTarget): string | null {
   switch (target._tag) {
     case "PrimaryConnectionTarget":
       return null;
@@ -88,14 +88,14 @@ function connectionIdOf(target: ConnectionTarget) {
   }
 }
 
-function routeKey(target: ConnectionTarget) {
+function routeKey(target: ConnectionTarget): string {
   return connectionIdOf(target) ?? target._tag;
 }
 
 function removeRouteMetadata(
   document: ConnectionCatalogDocument,
   removed: ReadonlyArray<ConnectionTarget>,
-) {
+): ConnectionCatalogDocument {
   const connectionIds = new Set(removed.flatMap((target) => connectionIdOf(target) ?? []));
   return {
     ...document,
@@ -104,7 +104,10 @@ function removeRouteMetadata(
   };
 }
 
-function catalogRoutes(document: ConnectionCatalogDocument, environmentId: EnvironmentId) {
+function catalogRoutes(
+  document: ConnectionCatalogDocument,
+  environmentId: EnvironmentId,
+): ReadonlyArray<PersistedConnectionTarget> {
   return document.targets.filter((target) => target.environmentId === environmentId);
 }
 
@@ -113,7 +116,7 @@ export function setRoutesInCatalog(
   environmentId: EnvironmentId,
   routes: ReadonlyArray<PersistedConnectionTarget>,
   profiles: ReadonlyArray<ConnectionProfile> = [],
-) {
+): ConnectionCatalogDocument {
   const kept = new Set(routes.map(routeKey));
   const dropped = catalogRoutes(document, environmentId).filter(
     (target) => !kept.has(routeKey(target)),
@@ -141,7 +144,7 @@ export function registerConnectionInCatalog(
   document: ConnectionCatalogDocument,
   registration: ConnectionRegistration,
   routes: ReadonlyArray<PersistedConnectionTarget> = [registration.target],
-) {
+): ConnectionCatalogDocument {
   const hadExisting = document.targets.some(
     (target) => target.environmentId === registration.target.environmentId,
   );
@@ -177,7 +180,7 @@ export function registerConnectionInCatalog(
 export function removeConnectionFromCatalog(
   document: ConnectionCatalogDocument,
   environmentOrTarget: EnvironmentId | ConnectionTarget,
-) {
+): ConnectionCatalogDocument {
   const environmentId =
     typeof environmentOrTarget === "string"
       ? environmentOrTarget
@@ -205,7 +208,7 @@ export function setConnectionEnabledInCatalog(
   document: ConnectionCatalogDocument,
   environmentId: EnvironmentId,
   enabled: boolean,
-) {
+): ConnectionCatalogDocument {
   const registered = document.targets.some((target) => target.environmentId === environmentId);
   const without = removeCatalogValue(
     document.disabledEnvironmentIds,

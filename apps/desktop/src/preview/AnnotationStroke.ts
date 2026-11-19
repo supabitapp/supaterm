@@ -1,4 +1,4 @@
-import type { PreviewAnnotationPoint } from "@supaterm/contracts";
+import type { PreviewAnnotationPoint, PreviewAnnotationRect } from "@supaterm/contracts";
 
 export const STROKE_SEGMENTS_PER_PATH = 100;
 
@@ -12,7 +12,7 @@ export interface StrokeGeometry {
   openSegments: number;
 }
 
-export function startStroke(point: PreviewAnnotationPoint) {
+export function startStroke(point: PreviewAnnotationPoint): StrokeGeometry {
   return {
     points: [point],
     minX: point.x,
@@ -24,7 +24,10 @@ export function startStroke(point: PreviewAnnotationPoint) {
   };
 }
 
-export function addStrokePoint(geometry: StrokeGeometry, point: PreviewAnnotationPoint) {
+export function addStrokePoint(
+  geometry: StrokeGeometry,
+  point: PreviewAnnotationPoint,
+): string | null {
   const previous = geometry.points[geometry.points.length - 1]!;
   let closedPath: string | null = null;
   if (geometry.points.length > 1) {
@@ -46,12 +49,12 @@ export function addStrokePoint(geometry: StrokeGeometry, point: PreviewAnnotatio
   return closedPath;
 }
 
-export function openStrokePath(geometry: StrokeGeometry) {
+export function openStrokePath(geometry: StrokeGeometry): string {
   const last = geometry.points[geometry.points.length - 1]!;
   return `${geometry.openPath} L ${last.x} ${last.y}`;
 }
 
-export function strokeBounds(geometry: StrokeGeometry, width: number) {
+export function strokeBounds(geometry: StrokeGeometry, width: number): PreviewAnnotationRect {
   const padding = width + 3;
   const left = geometry.minX - padding;
   const top = geometry.minY - padding;

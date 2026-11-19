@@ -171,18 +171,20 @@ export interface AtomCommandScheduler {
   ) => Promise<AtomCommandResult<A, E>>;
 }
 
-async function settleAtomCommandResult<A, E>(execute: () => Promise<AtomCommandResult<A, E>>) {
+async function settleAtomCommandResult<A, E>(
+  execute: () => Promise<AtomCommandResult<A, E>>,
+): Promise<AtomCommandResult<A, E>> {
   try {
-    return (await execute()) satisfies AtomCommandResult<A, E>;
+    return await execute();
   } catch (defect) {
-    return AsyncResult.failure(Cause.die(defect)) satisfies AtomCommandResult<A, E>;
+    return AsyncResult.failure(Cause.die(defect));
   }
 }
 
-export function createAtomCommandScheduler() {
+export function createAtomCommandScheduler(): AtomCommandScheduler {
   const registryStates = new WeakMap<AtomRegistry.AtomRegistry, AtomCommandSchedulerState>();
 
-  const stateFor = (registry: AtomRegistry.AtomRegistry) => {
+  const stateFor = (registry: AtomRegistry.AtomRegistry): AtomCommandSchedulerState => {
     const existing = registryStates.get(registry);
     if (existing !== undefined) {
       return existing;
@@ -202,7 +204,7 @@ export function createAtomCommandScheduler() {
       concurrency: AtomCommandConcurrency<W>,
       input: W,
       execute: () => Promise<AtomCommandResult<A, E>>,
-    ) => {
+    ): Promise<AtomCommandResult<A, E>> => {
       if (concurrency.mode === "parallel") {
         return execute();
       }
@@ -307,7 +309,7 @@ export const scheduleAtomCommandEffect = Effect.fnUntraced(function* <W, A, E, R
   concurrency: AtomCommandConcurrency<W>,
   input: W,
   effect: Effect.Effect<A, E, R>,
-) {
+): Effect.fn.Return<A, E, R> {
   const context = yield* Effect.context<R>();
   const result = yield* Effect.promise((signal) =>
     scheduler.schedule<W, A, E>(registry, concurrency, input, async () => {
@@ -326,58 +328,49 @@ export async function runAtomCommand<W, A, E>(
   input: W,
   options: AtomCommandOptions = {},
   reporter: AtomCommandReporter = console,
-) {
+): Promise<AtomCommandResult<A, E>> {
   const result = await settleAtomCommandResult(() => command.run(registry, input));
   reportAtomCommandResult(result, { ...options, label: options.label ?? command.label }, reporter);
-  return result satisfies AtomCommandResult<A, E>;
+  return result;
 }
 
 export function mapAtomCommandResult<A, E, B>(
   result: AtomCommandResult<A, E>,
   map: (value: A) => B,
-): AtomCommandResult<B, E>;
-export function mapAtomCommandResult<A, E, B>(
-  result: AtomCommandResult<A, E>,
-  map: (value: A) => B,
-) {
-  return (
-    result._tag === "Success"
-      ? AsyncResult.success(map(result.value))
-      : AsyncResult.failure(result.cause)
-  ) satisfies AtomCommandResult<B, E>;
+): AtomCommandResult<B, E> {
+  return result._tag === "Success"
+    ? AsyncResult.success(map(result.value))
+    : AsyncResult.failure(result.cause);
 }
 
-export function isAtomCommandInterrupted(result: AtomCommandResult<unknown, unknown>): boolean;
-export function isAtomCommandInterrupted(result: AtomCommandResult<unknown, unknown>) {
-  return (result._tag === "Failure" && Cause.hasInterruptsOnly(result.cause)) satisfies boolean;
+export function isAtomCommandInterrupted(result: AtomCommandResult<unknown, unknown>): boolean {
+  return result._tag === "Failure" && Cause.hasInterruptsOnly(result.cause);
 }
 
-export function squashAtomCommandFailure(result: { readonly cause: Cause.Cause<unknown> }): unknown;
-export function squashAtomCommandFailure(result: { readonly cause: Cause.Cause<unknown> }) {
-  return Cause.squash(result.cause) satisfies unknown;
+export function squashAtomCommandFailure(result: {
+  readonly cause: Cause.Cause<unknown>;
+}): unknown {
+  return Cause.squash(result.cause);
 }
 
-export async function settleAsyncResult<A, E>(execute: () => Promise<Exit.Exit<A, E>>) {
+export async function settleAsyncResult<A, E>(
+  execute: () => Promise<Exit.Exit<A, E>>,
+): Promise<SettledAsyncResult<A, E>> {
   try {
-    return AsyncResult.fromExit(await execute()) satisfies SettledAsyncResult<A, E>;
+    return AsyncResult.fromExit(await execute());
   } catch (defect) {
-    return AsyncResult.failure(Cause.die(defect)) satisfies SettledAsyncResult<A, E>;
+    return AsyncResult.failure(Cause.die(defect));
   }
 }
 
-function executeAtomCommand<A, E>(
-  execute: () => Promise<Exit.Exit<A, E>>,
-  options?: AtomCommandOptions,
-  reporter?: AtomCommandReporter,
-): Promise<AtomCommandResult<A, E>>;
 async function executeAtomCommand<A, E>(
   execute: () => Promise<Exit.Exit<A, E>>,
   options: AtomCommandOptions = {},
   reporter: AtomCommandReporter = console,
-) {
+): Promise<AtomCommandResult<A, E>> {
   const result = await settleAsyncResult(execute);
   reportAtomCommandResult(result, options, reporter);
-  return result satisfies AtomCommandResult<A, E>;
+  return result;
 }
 
 export interface AtomQueryOptions extends AtomCommandOptions {
@@ -390,18 +383,12 @@ export interface AtomQueryOptions extends AtomCommandOptions {
   readonly signal?: AbortSignal;
 }
 
-export function executeAtomQuery<A, E>(
-  registry: AtomRegistry.AtomRegistry,
-  atom: Atom.Atom<AsyncResult.AsyncResult<A, E>>,
-  options?: AtomQueryOptions,
-  reporter?: AtomCommandReporter,
-): Promise<AtomCommandResult<A, E>>;
 export async function executeAtomQuery<A, E>(
   registry: AtomRegistry.AtomRegistry,
   atom: Atom.Atom<AsyncResult.AsyncResult<A, E>>,
   options: AtomQueryOptions = {},
   reporter: AtomCommandReporter = console,
-) {
+): Promise<AtomCommandResult<A, E>> {
   const query = Effect.scoped(
     Effect.gen(function* () {
       yield* AtomRegistry.mount(registry, atom);
@@ -422,7 +409,7 @@ export async function executeAtomQuery<A, E>(
     () => Effect.runPromiseExit(query, { signal: options.signal }),
     options,
     reporter,
-  ) satisfies AtomCommandResult<A, E>;
+  );
 }
 
 export function createRuntimeCommand<R, ER, W, A, E>(
@@ -433,7 +420,7 @@ export function createRuntimeCommand<R, ER, W, A, E>(
     readonly scheduler?: AtomCommandScheduler;
     readonly concurrency?: AtomCommandConcurrency<W>;
   },
-) {
+): AtomCommand<W, A, E | ER> {
   const scheduler = options.scheduler ?? createAtomCommandScheduler();
   const concurrency = options.concurrency ?? { mode: "parallel" as const };
   return {
@@ -447,14 +434,14 @@ export function createRuntimeCommand<R, ER, W, A, E>(
           return executeAtomQuery(registry, atom, { reportDefect: false, reportFailure: false });
         }),
       ),
-  } satisfies AtomCommand<W, A, E | ER>;
+  };
 }
 
 export function reportAtomCommandResult(
   result: AtomCommandResult<unknown, unknown>,
   options: AtomCommandOptions = {},
   reporter: AtomCommandReporter = console,
-) {
+): void {
   if (AsyncResult.isSuccess(result) || Cause.hasInterruptsOnly(result.cause)) {
     return;
   }
@@ -469,32 +456,31 @@ export function reportAtomCommandResult(
   }
 }
 
-export async function settlePromise<A>(execute: () => Promise<A>) {
+export async function settlePromise<A>(
+  execute: () => Promise<A>,
+): Promise<AtomCommandResult<A, never>> {
   try {
-    return AsyncResult.success(await execute()) satisfies AtomCommandResult<A, never>;
+    return AsyncResult.success(await execute());
   } catch (defect) {
-    return AsyncResult.failure(Cause.die(defect)) satisfies AtomCommandResult<A, never>;
+    return AsyncResult.failure(Cause.die(defect));
   }
 }
 
 /** Where a query's answer is persisted, so an action's reply can be saved where a read would be. */
-export const queryPersistenceKey: (label: string, input: unknown) => string = (
-  label: string,
-  input: unknown,
-) => JSON.stringify([label, input]);
+export const queryPersistenceKey = (label: string, input: unknown): string =>
+  JSON.stringify([label, input]);
 
 function environmentRpcKey<Input>(target: {
   readonly environmentId: EnvironmentIdType;
   readonly input: Input;
-}): string;
-function environmentRpcKey<Input>(target: {
-  readonly environmentId: EnvironmentIdType;
-  readonly input: Input;
-}) {
-  return JSON.stringify([target.environmentId, target.input]) satisfies string;
+}): string {
+  return JSON.stringify([target.environmentId, target.input]);
 }
 
-function parseEnvironmentRpcKey<Input>(key: string) {
+function parseEnvironmentRpcKey<Input>(key: string): {
+  readonly environmentId: EnvironmentIdType;
+  readonly input: Input;
+} {
   const decoded = JSON.parse(key) as [EnvironmentIdType, Input];
   return {
     environmentId: EnvironmentId.make(decoded[0]),
@@ -509,24 +495,15 @@ function runInEnvironment<A, E, R>(
   A,
   E | EnvironmentRegistry.EnvironmentNotRegisteredError,
   EnvironmentRegistry.EnvironmentRegistry | Exclude<R, EnvironmentSupervisor.EnvironmentSupervisor>
->;
-function runInEnvironment<A, E, R>(
-  environmentId: EnvironmentIdType,
-  effect: Effect.Effect<A, E, R>,
-) {
+> {
   return EnvironmentRegistry.EnvironmentRegistry.pipe(
     Effect.flatMap((registry) => registry.run(environmentId, effect)),
-  ) satisfies Effect.Effect<
-    A,
-    E | EnvironmentRegistry.EnvironmentNotRegisteredError,
-    | EnvironmentRegistry.EnvironmentRegistry
-    | Exclude<R, EnvironmentSupervisor.EnvironmentSupervisor>
-  >;
+  );
 }
 
 const refreshOnSignalWhileRead =
   <V>(signal: Atom.Atom<unknown>, isFinal: (value: V) => boolean) =>
-  <A extends V>(self: Atom.Atom<A>) => {
+  <A extends V>(self: Atom.Atom<A>): Atom.Atom<A> => {
     const readUnder = new WeakMap<AtomRegistry.AtomRegistry, unknown>();
     return Atom.transform(
       self,
@@ -545,7 +522,7 @@ const refreshOnSignalWhileRead =
 
 const refreshEveryUntilFinal =
   <V>(intervalMs: number, isFinal: (value: V) => boolean) =>
-  <A extends V>(self: Atom.Atom<A>) =>
+  <A extends V>(self: Atom.Atom<A>): Atom.Atom<A> =>
     Atom.transform(
       self,
       (get) => {
@@ -571,7 +548,9 @@ const isStale = (result: AsyncResult.AsyncResult<unknown, unknown>, staleTimeMs:
 
 const revalidateOnMount =
   (staleTimeMs: number) =>
-  <A, E>(self: Atom.Atom<AsyncResult.AsyncResult<A, E>>) =>
+  <A, E>(
+    self: Atom.Atom<AsyncResult.AsyncResult<A, E>>,
+  ): Atom.Atom<AsyncResult.AsyncResult<A, E>> =>
     Atom.transform(
       self,
       (get) => {
@@ -595,7 +574,7 @@ const revalidateOnMount =
  * timestamp, `waiting` on and off), while equal data keeps its identity, so a
  * reader of only this skips the refetches that changed nothing.
  */
-export const selectEnvironmentQueryData = <A, E>(result: AsyncResult.AsyncResult<A, E>) =>
+export const selectEnvironmentQueryData = <A, E>(result: AsyncResult.AsyncResult<A, E>): A | null =>
   AsyncResult.getOrElse(result, () => null);
 
 type EnvironmentConnection = readonly [
@@ -658,23 +637,25 @@ const sessionGenerationAtomsByRuntime = new WeakMap<
 export function environmentSessionGenerationAtom<R, ER>(
   runtime: Atom.AtomRuntime<EnvironmentRegistry.EnvironmentRegistry | R, ER>,
   environmentId: EnvironmentIdType,
-) {
+): Atom.Atom<number> {
   let family = sessionGenerationAtomsByRuntime.get(runtime);
   if (family === undefined) {
     const connectionAtom = environmentConnectionAtoms(runtime);
     const sessionsSeen = Atom.family((id: EnvironmentIdType) =>
-      Atom.make((get) => {
-        const previous = Option.getOrElse(
-          get.self<{ readonly session: RpcSession.RpcSession | null; readonly count: number }>(),
-          () => ({ session: null, count: 0 }),
-        );
-        const connection = AsyncResult.getOrElse(get(connectionAtom(id)), () => null);
-        if (connection === null || connection[0].phase !== "connected") return previous;
-        const session = Option.getOrNull(connection[1]);
-        return session === null || session === previous.session
-          ? previous
-          : { session, count: previous.count + 1 };
-      }),
+      Atom.make(
+        (get): { readonly session: RpcSession.RpcSession | null; readonly count: number } => {
+          const previous = Option.getOrElse(
+            get.self<{ readonly session: RpcSession.RpcSession | null; readonly count: number }>(),
+            () => ({ session: null, count: 0 }),
+          );
+          const connection = AsyncResult.getOrElse(get(connectionAtom(id)), () => null);
+          if (connection === null || connection[0].phase !== "connected") return previous;
+          const session = Option.getOrNull(connection[1]);
+          return session === null || session === previous.session
+            ? previous
+            : { session, count: previous.count + 1 };
+        },
+      ),
     );
     family = Atom.family((id: EnvironmentIdType) =>
       Atom.make((get) => get(sessionsSeen(id)).count).pipe(
@@ -700,19 +681,7 @@ export function createEnvironmentQueryAtomFamily<R, ER, Input, A, E>(
 ): (target: {
   readonly environmentId: EnvironmentIdType;
   readonly input: Input;
-}) => Atom.Atom<AsyncResult.AsyncResult<A, E | ER | Error>>;
-export function createEnvironmentQueryAtomFamily<R, ER, Input, A, E>(
-  runtime: Atom.AtomRuntime<EnvironmentRegistry.EnvironmentRegistry | R, ER>,
-  options: EnvironmentQueryAtomOptions<
-    Input,
-    A,
-    E,
-    | EnvironmentSupervisor.EnvironmentSupervisor
-    | EnvironmentRegistry.EnvironmentRegistry
-    | AtomRegistry.AtomRegistry
-    | R
-  >,
-) {
+}) => Atom.Atom<AsyncResult.AsyncResult<A, E | ER | Error>> {
   const connectionAtom = environmentConnectionAtoms(runtime);
   const membersByCache = new WeakMap<Atom.Atom<unknown>, Atom.Atom<unknown>>();
   const family = Atom.family((key: string) => {
@@ -730,7 +699,7 @@ export function createEnvironmentQueryAtomFamily<R, ER, Input, A, E>(
           get(connectionAtom(target.environmentId)),
           () => null,
         );
-        const share: (value: A) => A = (value: A) =>
+        const share = (value: A): A =>
           reuseUnchanged(
             Option.getOrUndefined(
               Option.flatMap(get.self<AsyncResult.AsyncResult<A, unknown>>(), AsyncResult.value),
@@ -741,7 +710,7 @@ export function createEnvironmentQueryAtomFamily<R, ER, Input, A, E>(
           Effect.sync(() => get.setSelf(AsyncResult.success(share(value), { waiting: true }))).pipe(
             Effect.andThen(Effect.promise(() => Promise.resolve())),
           );
-        const execute: () => Effect.Effect<
+        const execute = (): Effect.Effect<
           A,
           | E
           | ConnectionAttemptError
@@ -750,7 +719,7 @@ export function createEnvironmentQueryAtomFamily<R, ER, Input, A, E>(
           | EnvironmentRegistry.EnvironmentRegistry
           | AtomRegistry.AtomRegistry
           | Exclude<R, EnvironmentSupervisor.EnvironmentSupervisor>
-        > = () => {
+        > => {
           if (connection === null) return Effect.never;
           const [connectionState, session] = connection;
           switch (connectionState.phase) {
@@ -850,10 +819,7 @@ export function createEnvironmentQueryAtomFamily<R, ER, Input, A, E>(
     membersByCache.set(cache, member);
     return member;
   });
-  return ((target) => family(environmentRpcKey(target))) satisfies (target: {
-    readonly environmentId: EnvironmentIdType;
-    readonly input: Input;
-  }) => Atom.Atom<AsyncResult.AsyncResult<A, E | ER | Error>>;
+  return (target) => family(environmentRpcKey(target));
 }
 
 export function createEnvironmentSubscriptionAtomFamily<R, ER, Input, A, E>(

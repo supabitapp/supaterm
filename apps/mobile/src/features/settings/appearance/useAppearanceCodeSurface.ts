@@ -1,11 +1,19 @@
 import { useMemo } from "react";
 
-import { resolveMobileCodeSurface } from "../../../lib/appearancePreferences";
+import {
+  resolveMobileCodeSurface,
+  type ResolvedMobileCodeSurface,
+} from "../../../lib/appearancePreferences";
 import { createNativeReviewDiffStyle } from "../../review/nativeReviewDiffAdapter";
 import { createNativeSourceStyle } from "../../files/nativeSourceFileAdapter";
 import { useAppearancePreferences } from "./AppearancePreferencesProvider";
 
-export function useAppearanceCodeSurface() {
+export function useAppearanceCodeSurface(): {
+  readonly codeSurface: ResolvedMobileCodeSurface;
+  readonly codeWordBreak: boolean;
+  readonly nativeSourceStyle: ReturnType<typeof createNativeSourceStyle>;
+  readonly nativeReviewDiffStyle: ReturnType<typeof createNativeReviewDiffStyle>;
+} {
   const { appearance } = useAppearancePreferences();
   const codeSurface = useMemo(
     () => resolveMobileCodeSurface(appearance.codeFontSize),

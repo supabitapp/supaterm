@@ -47,12 +47,11 @@ const Entry = Schema.Struct({
 });
 const decodeEntry = Schema.decodeUnknownOption(Entry);
 
-function parseRecord(parsed: unknown) {
+function parseRecord(parsed: unknown): readonly UsageRecord[] {
   const decoded = decodeEntry(parsed);
-  if (Option.isNone(decoded)) return [] satisfies readonly UsageRecord[];
+  if (Option.isNone(decoded)) return [];
   const entry = decoded.value;
-  if (!Number.isSafeInteger(entry.recorded_at) || entry.recorded_at < 0)
-    return [] satisfies readonly UsageRecord[];
+  if (!Number.isSafeInteger(entry.recorded_at) || entry.recorded_at < 0) return [];
   const { event } = entry.payload;
   const { usage } = event;
   const input = tokenCount(usage.input_tokens);
@@ -72,7 +71,7 @@ function parseRecord(parsed: unknown) {
     outputTokens,
     reasoningTokens: Math.min(outputTokens, tokenCount(usage.reasoning_tokens)),
   };
-  if (totalTokens(totals) === 0) return [] satisfies readonly UsageRecord[];
+  if (totalTokens(totals) === 0) return [];
   return [
     {
       provider: "muse",
@@ -84,7 +83,7 @@ function parseRecord(parsed: unknown) {
       speed: "standard",
       dedupeKey: JSON.stringify(["muse", entry.payload.source_run_record_id ?? entry.id]),
     },
-  ] satisfies readonly UsageRecord[];
+  ];
 }
 
 export const museUsageFormat: TranscriptUsageFormat<unknown> = {

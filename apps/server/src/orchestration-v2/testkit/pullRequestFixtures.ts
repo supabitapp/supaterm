@@ -30,7 +30,7 @@ export interface PullRequestTestThread {
   readonly doneAt: string | null;
 }
 
-export function v2PullRequestThread(thread: PullRequestTestThread) {
+export function v2PullRequestThread(thread: PullRequestTestThread): OrchestrationV2ThreadShell {
   return {
     id: thread.id,
     projectId: thread.projectId,
@@ -70,5 +70,5 @@ export function v2PullRequestThread(thread: PullRequestTestThread) {
     doneOverride: thread.doneOverride,
     doneAt: thread.doneAt ? DateTime.makeUnsafe(thread.doneAt) : null,
     deletedAt: null,
-  } satisfies OrchestrationV2ThreadShell;
+  };
 }

@@ -12,13 +12,13 @@ import {
   TURN_INTERRUPT_MID_TOOL_PROMPT,
 } from "../shared.ts";
 
-function protocolMethod(frame: unknown) {
+function protocolMethod(frame: unknown): string | undefined {
   return typeof frame === "object" && frame !== null && "method" in frame
     ? (frame as { readonly method?: string }).method
     : undefined;
 }
 
-function isCommandExecutionStartedFrame(frame: unknown) {
+function isCommandExecutionStartedFrame(frame: unknown): boolean {
   if (protocolMethod(frame) !== "item/started") {
     return false;
   }
@@ -38,7 +38,7 @@ function isCommandExecutionStartedFrame(frame: unknown) {
   );
 }
 
-function frameParams(frame: unknown) {
+function frameParams(frame: unknown): Record<string, unknown> | undefined {
   if (typeof frame !== "object" || frame === null || !("params" in frame)) {
     return undefined;
   }

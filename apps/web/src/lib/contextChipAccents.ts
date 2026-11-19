@@ -25,6 +25,6 @@ export const CONTEXT_CHIP_ACCENTS = {
 
 export type ContextChipAccentKind = keyof typeof CONTEXT_CHIP_ACCENTS;
 
-export function contextChipColorVariable(kind: ContextChipAccentKind) {
+export function contextChipColorVariable(kind: ContextChipAccentKind): string {
   return `--context-chip-${kind}`;
 }

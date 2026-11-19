@@ -17,7 +17,10 @@ import { createAttachmentId } from "../attachmentStore.ts";
 
 const encoder = new TextEncoder();
 
-function readMcpAppDocument(contents: ReadonlyArray<unknown>, uri: string) {
+function readMcpAppDocument(
+  contents: ReadonlyArray<unknown>,
+  uri: string,
+): { readonly html: string | null; readonly meta: unknown } | undefined {
   for (const content of contents) {
     if (!Predicate.isObject(content)) continue;
     if (content.uri !== undefined && content.uri !== uri) continue;

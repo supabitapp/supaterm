@@ -2,7 +2,7 @@ import { SourceControlProviderKind } from "@supaterm/contracts";
 import * as Schema from "effect/Schema";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
-import { SourceControlProviderError } from "@supaterm/contracts";
+import { SourceControlProviderError, type ChangeRequest } from "@supaterm/contracts";
 import {
   parseGitRemoteHost,
   unknownRemoteProvider as unknownHostProvider,
@@ -30,7 +30,7 @@ const decodeLinkSubject = Schema.decodeUnknownEffect(
   ),
 );
 
-function toChangeRequest(summary: GitLabCli.GitLabMergeRequestSummary) {
+function toChangeRequest(summary: GitLabCli.GitLabMergeRequestSummary): ChangeRequest {
   return {
     provider: SourceControlProviderKind.make("gitlab"),
     number: summary.number,

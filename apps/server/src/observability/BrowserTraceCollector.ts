@@ -11,7 +11,7 @@ export class BrowserTraceCollector extends Context.Service<
 >()("supaterm/observability/BrowserTraceCollector") {}
 
 /** @public */
-export const make = (sink: TraceSink) =>
+export const make = (sink: TraceSink): BrowserTraceCollector["Service"] =>
   BrowserTraceCollector.of({
     record: Effect.fn("BrowserTraceCollector.record")(function (records) {
       return Effect.sync(() => {

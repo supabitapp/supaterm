@@ -127,7 +127,7 @@ async function readArchiveBody(
   return bytes.buffer;
 }
 
-async function openArchive(bytes: ArrayBuffer) {
+async function openArchive(bytes: ArrayBuffer): Promise<ZipArchive> {
   let files: Awaited<ReturnType<typeof boundedZip>>;
   try {
     files = await boundedZip(bytes);
@@ -138,7 +138,7 @@ async function openArchive(bytes: ArrayBuffer) {
       retry: false,
     });
   }
-  const entries = [...files].map(([path, file]) => {
+  const entries = [...files].map(([path, file]): ZipEntry => {
     const name = path.split("/").findLast(Boolean) ?? path;
     const dot = name.lastIndexOf(".");
     return {
@@ -622,9 +622,8 @@ function ZipEntryView(props: {
     if (tooBig) return;
     const controller = new AbortController();
     let release: (() => void) | undefined;
-    void (async () => {
-      if (isText)
-        return { status: "text", ...decodeFilePreviewText(entry.bytes) } satisfies EntryContent;
+    void (async (): Promise<EntryContent> => {
+      if (isText) return { status: "text", ...decodeFilePreviewText(entry.bytes) };
       const file = await writeGeneratedAttachmentFile({
         bytes: entry.bytes,
         attachment: { name: entry.name, mimeType },
@@ -634,7 +633,7 @@ function ZipEntryView(props: {
         controller.signal.throwIfAborted();
       }
       release = file.dispose;
-      return { status: "file", uri: file.uri } satisfies EntryContent;
+      return { status: "file", uri: file.uri };
     })()
       .then((value) => {
         if (!controller.signal.aborted) setContent(value);

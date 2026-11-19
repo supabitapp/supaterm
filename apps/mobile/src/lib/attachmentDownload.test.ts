@@ -47,19 +47,19 @@ vi.mock("expo-file-system", () => {
       this.uri = parts.map((part) => (typeof part === "string" ? part : part.uri)).join("/");
     }
 
-    get name() {
+    get name(): string {
       return this.uri.split("/").at(-1)!;
     }
 
-    get exists() {
+    get exists(): boolean {
       return mocks.directories.has(this.uri);
     }
 
-    create() {
+    create(): void {
       mocks.directories.add(this.uri);
     }
 
-    list() {
+    list(): Directory[] {
       const prefix = `${this.uri}/`;
       return [...mocks.directories].flatMap((uri) =>
         uri.startsWith(prefix) && !uri.slice(prefix.length).includes("/")
@@ -68,7 +68,7 @@ vi.mock("expo-file-system", () => {
       );
     }
 
-    delete() {
+    delete(): void {
       mocks.deleted(this.uri);
       mocks.directories.delete(this.uri);
     }

@@ -32,7 +32,7 @@ export interface FileContextMenuTarget {
   readonly repositoryRoot?: string | undefined;
 }
 
-export function resolveFileContextMenuAbsolutePath(target: FileContextMenuTarget) {
+export function resolveFileContextMenuAbsolutePath(target: FileContextMenuTarget): string | null {
   const workspaceFilePath = resolveDiffPathForWorkspace({
     filePath: target.filePath,
     workspaceRoot: target.workspaceRoot,
@@ -58,7 +58,7 @@ export interface FileContextMenuCapabilities {
 function buildFileContextMenuItems(input: {
   readonly hasAbsolutePath: boolean;
   readonly capabilities: FileContextMenuCapabilities;
-}) {
+}): readonly ContextMenuItem<FileContextMenuAction>[] {
   if (!input.hasAbsolutePath) return [];
   const items: ContextMenuItem<FileContextMenuAction>[] = [];
   if (input.capabilities.canOpenDefault) {
@@ -103,7 +103,10 @@ export function useFileContextMenu(environmentId: EnvironmentId | null) {
     editorIds: availableEditors,
   };
 
-  const activate = async (action: FileContextMenuAction, target: FileContextMenuTarget) => {
+  const activate = async (
+    action: FileContextMenuAction,
+    target: FileContextMenuTarget,
+  ): Promise<void> => {
     const absolutePath = resolveFileContextMenuAbsolutePath(target);
     if (absolutePath === null || environmentId === null) return;
 
@@ -131,7 +134,10 @@ export function useFileContextMenu(environmentId: EnvironmentId | null) {
     });
   };
 
-  const show = async (target: FileContextMenuTarget, position?: { x: number; y: number }) => {
+  const show = async (
+    target: FileContextMenuTarget,
+    position?: { x: number; y: number },
+  ): Promise<void> => {
     const api = readLocalApi();
     const items = buildFileContextMenuItems({
       hasAbsolutePath: resolveFileContextMenuAbsolutePath(target) !== null,

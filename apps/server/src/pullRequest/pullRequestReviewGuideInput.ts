@@ -1,8 +1,9 @@
 import type { PullRequestActivity, PullRequestDetail } from "@supaterm/contracts";
+import type { ReviewGuideGenerationInput } from "@supaterm/provider-core/server/textGeneration";
 
 const SETTLED_REMARK_CHARS = 200;
 
-function oneLine(text: string) {
+function oneLine(text: string): string {
   const flat = text
     .replace(/<!--[\s\S]*?-->/g, "")
     .replace(/\s+/g, " ")
@@ -10,7 +11,7 @@ function oneLine(text: string) {
   return flat.length > SETTLED_REMARK_CHARS ? `${flat.slice(0, SETTLED_REMARK_CHARS)}…` : flat;
 }
 
-function settledReviewSummary(activity: PullRequestActivity) {
+function settledReviewSummary(activity: PullRequestActivity): string {
   return activity.reviewThreads
     .filter((thread) => thread.isResolved || thread.isOutdated)
     .flatMap((thread) => {
@@ -27,7 +28,7 @@ export function reviewGuideInputFromPullRequest(
   detail: PullRequestDetail,
   activity: PullRequestActivity,
   baseCommit: string,
-) {
+): Omit<ReviewGuideGenerationInput, "cwd" | "modelSelection"> {
   return {
     number: detail.number,
     title: detail.title,

@@ -6,7 +6,7 @@ import type { PreviewManagerError } from "./Manager.ts";
 export function normalizeCaptureFailure(
   error: PreviewManagerError,
   stage: PreviewCaptureFailure["stage"],
-) {
+): PreviewCaptureFailure {
   let reason: PreviewCaptureFailure["reason"] = "capture-failed";
   switch (error._tag) {
     case "PreviewTabNotFoundError":

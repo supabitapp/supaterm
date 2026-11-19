@@ -9,16 +9,12 @@ export interface ComposerShortcutAvailability {
   readonly branchPicker: boolean;
 }
 
-const openControl: (
-  composerRef: ComposerHandleRef,
-  control: Parameters<ChatComposerHandle["openControl"]>[0],
-  available?: boolean,
-) => ChatShortcutHandler =
+const openControl =
   (
     composerRef: ComposerHandleRef,
     control: Parameters<ChatComposerHandle["openControl"]>[0],
     available = true,
-  ) =>
+  ): ChatShortcutHandler =>
   ({ repeat }) => {
     if (!available) return false;
     if (!repeat) composerRef.current?.openControl(control);
@@ -29,12 +25,7 @@ export function composerShortcutCommands(
   composerRef: ComposerHandleRef,
   branchToolbarRef: { readonly current: BranchToolbarHandle | null },
   availability: ComposerShortcutAvailability,
-): ChatShortcutCommands;
-export function composerShortcutCommands(
-  composerRef: ComposerHandleRef,
-  branchToolbarRef: { readonly current: BranchToolbarHandle | null },
-  availability: ComposerShortcutAvailability,
-) {
+): ChatShortcutCommands {
   return {
     "modelPicker.toggle": ({ repeat }) => {
       if (!repeat) composerRef.current?.toggleModelPicker();
@@ -60,5 +51,5 @@ export function composerShortcutCommands(
     "composer.previousWorktree": ({ repeat }) => {
       if (!repeat) branchToolbarRef.current?.usePreviousWorktree();
     },
-  } satisfies ChatShortcutCommands satisfies ChatShortcutCommands;
+  } satisfies ChatShortcutCommands;
 }

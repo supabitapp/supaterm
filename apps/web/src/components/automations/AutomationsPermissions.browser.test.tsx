@@ -222,7 +222,7 @@ const environment = (environmentId: EnvironmentId, label: string) => ({
   },
 });
 
-const task = (projectId: ProjectId) =>
+const task = (projectId: ProjectId): ScheduledTask =>
   ({
     id: taskId,
     title: "Read only automation",

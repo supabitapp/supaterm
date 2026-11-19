@@ -1,4 +1,6 @@
-function readInjectedDesktopAppBranding() {
+import type { DesktopAppBranding } from "@supaterm/contracts";
+
+function readInjectedDesktopAppBranding(): DesktopAppBranding | null {
   if (typeof window === "undefined") {
     return null;
   }
@@ -27,7 +29,7 @@ export function resolveWindowTitle(input: {
   /** The screen reader title: status, then thread, then project, since a screen reader reads from the start. */
   readonly screenReader?: { readonly threadStatus: string | null };
   readonly desktop: boolean;
-}) {
+}): string {
   const threadTitle = input.threadTitle?.trim() ?? "";
   const status = input.screenReader?.threadStatus;
   if (threadTitle === "") {

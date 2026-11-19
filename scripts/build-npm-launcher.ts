@@ -24,7 +24,7 @@ export class NpmLauncherCommandFailedError extends Schema.TaggedError<NpmLaunche
   "NpmLauncherCommandFailedError",
   { command: Schema.String, exitCode: Schema.Int },
 ) {
-  override get message() {
+  override get message(): string {
     return `${this.command} exited with code ${this.exitCode}.`;
   }
 }

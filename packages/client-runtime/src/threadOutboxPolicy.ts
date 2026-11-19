@@ -6,24 +6,23 @@ import {
 import type { EnvironmentShellStatus } from "./state/shell.ts";
 import type { ThreadFamilyRead } from "./state/threadFamilies.ts";
 
-export function threadOutboxRetryDelayMs(attempt: number) {
+export function threadOutboxRetryDelayMs(attempt: number): number {
   return Math.min(1_000 * 2 ** Math.max(0, attempt - 1), 16_000);
 }
 
-export function shouldRetryThreadOutboxDelivery(error: unknown): boolean;
-export function shouldRetryThreadOutboxDelivery(error: unknown) {
+export function shouldRetryThreadOutboxDelivery(error: unknown): boolean {
   if (typeof error === "object" && error !== null && "_tag" in error) {
     switch (error._tag) {
       case "OrchestrationDispatchCommandError":
       case "EnvironmentAuthorizationError":
-        return false satisfies boolean;
+        return false;
       case "ConnectionTransientError":
       case "RpcClientError":
       case "EnvironmentRpcUnavailableError":
       case "EnvironmentNotRegisteredError":
-        return true satisfies boolean;
+        return true;
       case "AttachmentUploadError":
-        return ("cause" in error && shouldRetryThreadOutboxDelivery(error.cause)) satisfies boolean;
+        return "cause" in error && shouldRetryThreadOutboxDelivery(error.cause);
     }
   }
   const message =
@@ -35,7 +34,7 @@ export function shouldRetryThreadOutboxDelivery(error: unknown) {
       : typeof error === "string"
         ? error
         : null;
-  return isTransportConnectionErrorMessage(message) satisfies boolean;
+  return isTransportConnectionErrorMessage(message);
 }
 
 export type ThreadOutboxDeliveryAction = "wait" | "remove" | "send";
@@ -52,7 +51,7 @@ export function resolveThreadOutboxDeliveryAction(input: {
    * only a settled family read without the row is.
    */
   readonly familyRead?: ThreadFamilyRead;
-}) {
+}): ThreadOutboxDeliveryAction {
   if (input.isCreation) {
     if (input.threadExists) {
       return "remove";
@@ -86,35 +85,27 @@ export function resolveThreadOutboxDispatchStep(input: {
   readonly fileAttachments: ReadonlyArray<{ readonly name: string; readonly sizeBytes: number }>;
   /** Null while the environment's server config has not synced yet. */
   readonly serverConfig: { readonly maxFileUploadBytes: number | undefined } | null;
-}) {
+}): ThreadOutboxDispatchStep {
   if (input.deliveryAction !== "send") {
-    return { step: input.deliveryAction } satisfies ThreadOutboxDispatchStep;
+    return { step: input.deliveryAction };
   }
   if (input.serverConfig === null) {
-    return { step: "retry" } satisfies ThreadOutboxDispatchStep;
+    return { step: "retry" };
   }
   if (input.fileAttachments.length === 0) {
-    return { step: "send" } satisfies ThreadOutboxDispatchStep;
+    return { step: "send" };
   }
   const maxBytes = input.serverConfig.maxFileUploadBytes;
   if (maxBytes === undefined) {
-    return {
-      step: "restore",
-      reason: "This server does not support file attachments.",
-    } satisfies ThreadOutboxDispatchStep;
+    return { step: "restore", reason: "This server does not support file attachments." };
   }
   const effectiveMaxBytes = clampFileAttachmentUploadBytes(maxBytes);
   const oversized = input.fileAttachments.find(
     (attachment) => attachment.sizeBytes > effectiveMaxBytes,
   );
-  return (
-    oversized
-      ? {
-          step: "restore",
-          reason: fileAttachmentTooLargeMessage(oversized.name, effectiveMaxBytes),
-        }
-      : { step: "send" }
-  ) satisfies ThreadOutboxDispatchStep;
+  return oversized
+    ? { step: "restore", reason: fileAttachmentTooLargeMessage(oversized.name, effectiveMaxBytes) }
+    : { step: "send" };
 }
 
 export type ThreadOutboxCommandStage = "settings-sync" | "branch-resolution" | "start-turn";
@@ -124,7 +115,7 @@ export function resolveThreadOutboxFailureAction(input: {
   readonly stage: ThreadOutboxCommandStage;
   readonly error: unknown;
   readonly interrupted: boolean;
-}) {
+}): ThreadOutboxFailureAction {
   if (
     input.stage === "settings-sync" ||
     input.interrupted ||

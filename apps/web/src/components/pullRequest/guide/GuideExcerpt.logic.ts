@@ -10,21 +10,15 @@ export function excerptLoader(
   file: FileDiffMetadata,
   sliceRows: ReadonlyArray<DiffRow>,
   loadDiffFiles: FileDiffContentsLoader,
-): FileDiffContentsLoader | null;
-export function excerptLoader(
-  excerpt: PullRequestReviewGuideExcerpt,
-  file: FileDiffMetadata,
-  sliceRows: ReadonlyArray<DiffRow>,
-  loadDiffFiles: FileDiffContentsLoader,
-) {
+): FileDiffContentsLoader | null {
   if (
     file.type === "new" ||
     file.type === "deleted" ||
     sliceRows.some((row) => row.hunk !== sliceRows[0]?.hunk)
   ) {
-    return null satisfies FileDiffContentsLoader | null;
+    return null;
   }
-  return (async () => {
+  return async () => {
     const loaded = await loadDiffFiles(file);
     const oldContents = excerptExpansionOldContents(loaded.newFile.contents, sliceRows);
     if (oldContents === null) return loaded;
@@ -36,5 +30,5 @@ export function excerptLoader(
         cacheKey: `${loaded.newFile.cacheKey ?? loaded.newFile.name}:excerpt:${excerpt.side}:${excerpt.start}-${excerpt.end}`,
       },
     };
-  }) satisfies FileDiffContentsLoader | null;
+  };
 }

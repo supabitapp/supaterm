@@ -96,9 +96,9 @@ const decodeServerSettings = Schema.decodeSync(ServerSettings);
 const encodeServerSettings = Schema.encodeSync(ServerSettings);
 const encodedDefaultServerSettings = encodeServerSettings(DEFAULT_SERVER_SETTINGS);
 
-const disabledDefaultSlots: (
+const disabledDefaultSlots = (
   ...drivers: ReadonlyArray<string>
-) => ContractServerSettings["providerInstances"] = (...drivers: ReadonlyArray<string>) =>
+): ContractServerSettings["providerInstances"] =>
   Object.fromEntries(
     drivers.map((driver) => [
       ProviderInstanceId.make(driver),
@@ -240,7 +240,7 @@ const makeWorkspaceRescanHarness = Effect.gen(function* () {
     ),
   ).pipe(Scope.provide(scope));
   const registry = yield* ProviderRegistry.ProviderRegistry.pipe(Effect.provide(services));
-  const snapshot = (name: string) => ({
+  const snapshot = (name: string): ProviderWorkspaceSnapshot => ({
     ...provider,
     skills: [{ name, path: `/workspace/${name}/SKILL.md`, enabled: true }],
   });
@@ -387,7 +387,9 @@ const codexModelCapabilities = createModelCapabilities({
   ],
 }) satisfies NonNullable<ServerProvider["models"][number]["capabilities"]>;
 
-function makeCodexProbeSnapshot(input: Partial<CodexAppServerProviderSnapshot> = {}) {
+function makeCodexProbeSnapshot(
+  input: Partial<CodexAppServerProviderSnapshot> = {},
+): CodexAppServerProviderSnapshot {
   return {
     version: "1.0.0",
     account: {
@@ -408,7 +410,7 @@ function makeCodexProbeSnapshot(input: Partial<CodexAppServerProviderSnapshot> =
     ],
     skills: [],
     ...input,
-  } satisfies CodexAppServerProviderSnapshot;
+  };
 }
 
 function makeMutableServerSettingsService(
@@ -2453,7 +2455,7 @@ it.layer(
         const env: NodeJS.ProcessEnv = { PATH: "C:\\Windows" };
         return Effect.gen(function* () {
           const driver = ProviderDriverKind.make("codex");
-          const makeInstance = (id: string, installed: boolean) => {
+          const makeInstance = (id: string, installed: boolean): ProviderInstance => {
             const instanceId = ProviderInstanceId.make(id);
             const provider = {
               instanceId,
@@ -3103,7 +3105,7 @@ it.layer(
         const driver = ProviderDriverKind.make("codex");
         const instanceId = ProviderInstanceId.make("codex");
         const refreshedVersions = yield* Ref.make<ReadonlyArray<string>>([]);
-        const makeInstance = (version: string) => {
+        const makeInstance = (version: string): ProviderInstance => {
           const provider = {
             instanceId,
             driver,
@@ -4320,7 +4322,9 @@ it.layer(
       const registry = yield* ProviderInstanceRegistry.ProviderInstanceRegistry.pipe(
         Effect.provide(services),
       );
-      return (yield* registry.listUnavailable).map((provider) => provider.instanceId);
+      return (yield* registry.listUnavailable).map(
+        (provider): string | undefined => provider.instanceId,
+      );
     });
 
     it.effect("applies a settings change saved while the provider registry starts", () =>

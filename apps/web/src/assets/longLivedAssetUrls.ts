@@ -39,7 +39,9 @@ export function makeLongLivedAssetUrlFamily(
       query,
       (get) => {
         let minting = false;
-        const settle = (value: AsyncResult.AsyncResult<AssetCreateUrlResult, unknown>) => {
+        const settle = (
+          value: AsyncResult.AsyncResult<AssetCreateUrlResult, unknown>,
+        ): AsyncResult.AsyncResult<AssetCreateUrlResult, unknown> => {
           if (value._tag !== "Success") return value;
           const lasts = value.value.expiresAt - now() > options.minLifeMs;
           if (value.waiting) return lasts ? value : AsyncResult.initial(true);
@@ -63,7 +65,10 @@ const longLivedAssetUrl = makeLongLivedAssetUrlFamily(assetEnvironment.createUrl
 });
 
 /** Pass a null environment once the URL is adopted, so later mints do not re-render. */
-export function useLongLivedAssetUrl(environmentId: EnvironmentId | null, resource: AssetResource) {
+export function useLongLivedAssetUrl(
+  environmentId: EnvironmentId | null,
+  resource: AssetResource,
+): AssetUrlState {
   const blocked = blockedAssetUrlState(resource, useFilesystemReadAccess(environmentId));
   const preparedConnection = usePreparedConnection(environmentId);
   const result = useAtomValue(
@@ -71,9 +76,9 @@ export function useLongLivedAssetUrl(environmentId: EnvironmentId | null, resour
       ? EMPTY_ASSET_URL_ATOM
       : longLivedAssetUrl({ environmentId, input: { resource } }),
   );
-  if (blocked !== null) return blocked satisfies AssetUrlState;
+  if (blocked !== null) return blocked;
   return assetUrlStateFromResult(
     result,
     preparedConnection._tag === "Some" ? preparedConnection.value.httpBaseUrl : null,
-  ) satisfies AssetUrlState;
+  );
 }

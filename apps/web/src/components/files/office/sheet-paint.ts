@@ -134,7 +134,7 @@ export function shiftGrid(
   frozen: { readonly rows: number; readonly cols: number },
   panes: { readonly width: number; readonly height: number },
   shift: { readonly x: number; readonly y: number },
-) {
+): GridMeta {
   if (shift.x === 0 && shift.y === 0) return grid;
 
   const axis = (

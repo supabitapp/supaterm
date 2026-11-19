@@ -50,26 +50,25 @@ describe("linked pull requests", () => {
     repository: string,
     number: number,
     overrides: Partial<ThreadPullRequestLink> = {},
-  ) =>
-    ({
-      host: "github.com",
-      repository,
-      number,
-      url: `https://github.com/${repository}/pull/${number}`,
-      source: "agent",
-      linkedAt: "2026-01-01T00:00:00.000Z",
-      snapshot: {
-        state: "open",
-        title: `${repository} ${number}`,
-        headBranch: "feature",
-        baseBranch: "main",
-        isDraft: false,
-        updatedAt: "2026-01-02T00:00:00.000Z",
-        syncedAt: "2026-01-02T00:00:00.000Z",
-      },
-      stack: null,
-      ...overrides,
-    }) satisfies ThreadPullRequestLink;
+  ): ThreadPullRequestLink => ({
+    host: "github.com",
+    repository,
+    number,
+    url: `https://github.com/${repository}/pull/${number}`,
+    source: "agent",
+    linkedAt: "2026-01-01T00:00:00.000Z",
+    snapshot: {
+      state: "open",
+      title: `${repository} ${number}`,
+      headBranch: "feature",
+      baseBranch: "main",
+      isDraft: false,
+      updatedAt: "2026-01-02T00:00:00.000Z",
+      syncedAt: "2026-01-02T00:00:00.000Z",
+    },
+    stack: null,
+    ...overrides,
+  });
 
   it("offers a linked pull request from another repository above the project's own", () => {
     const result = filterComposerPullRequestMatches({

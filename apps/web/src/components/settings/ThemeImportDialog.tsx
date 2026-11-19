@@ -28,12 +28,12 @@ const MAX_THEME_FILE_BYTES = 256 * 1024;
 
 const MAX_HIGHLIGHTED_JSON_LENGTH = 20_000;
 
-function describeOversizedThemeFile(bytes: number) {
+function describeOversizedThemeFile(bytes: number): string | null {
   if (bytes <= MAX_THEME_FILE_BYTES) return null;
   return `That file is ${formatBytes(bytes)}. Theme files are only a few KB, so this one was not read (limit ${formatBytes(MAX_THEME_FILE_BYTES)}).`;
 }
 
-function escapeJsonHtml(value: string) {
+function escapeJsonHtml(value: string): string {
   return value.replace(
     /[&<>"']/g,
     (character) =>
@@ -47,7 +47,7 @@ function escapeJsonHtml(value: string) {
   );
 }
 
-function highlightJson(value: string) {
+function highlightJson(value: string): string {
   const tokenPattern =
     /"(?:\\.|[^"\\])*"|-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?|true|false|null/g;
   let highlighted = "";
@@ -125,7 +125,7 @@ function ThemeJsonEditor({
 
 type ImportableThemeFile = { name: string; size: number; text: () => Promise<string> };
 
-function versionedCopy(theme: ThemeDefinition, preferredName?: string | null) {
+function versionedCopy(theme: ThemeDefinition, preferredName?: string | null): ThemeDefinition {
   if (preferredName && preferredName.toLowerCase() !== theme.label.toLowerCase()) {
     const candidate = parseThemeFile({
       version: THEME_FILE_VERSION,

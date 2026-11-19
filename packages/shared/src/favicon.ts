@@ -1,6 +1,6 @@
 import { isPublicFaviconHost } from "./hostClassification.ts";
 
-function faviconUrlForPage(rawUrl: string | null | undefined, _size = 32) {
+function faviconUrlForPage(rawUrl: string | null | undefined, _size = 32): string | null {
   if (!rawUrl || rawUrl.length > 4096) return null;
   try {
     const pageUrl = new URL(rawUrl);
@@ -20,7 +20,10 @@ const THEMED_FAVICON_BY_HOSTNAME: Readonly<
   },
 };
 
-function themedFaviconUrlForPage(rawUrl: string | null | undefined, appearance: "light" | "dark") {
+function themedFaviconUrlForPage(
+  rawUrl: string | null | undefined,
+  appearance: "light" | "dark",
+): string | null {
   if (!rawUrl || rawUrl.length > 4096) return null;
   try {
     const pageUrl = new URL(rawUrl);
@@ -31,7 +34,7 @@ function themedFaviconUrlForPage(rawUrl: string | null | undefined, appearance: 
   }
 }
 
-function explicitFaviconUrl(rawUrl: string | null | undefined) {
+function explicitFaviconUrl(rawUrl: string | null | undefined): string | null {
   if (!rawUrl || rawUrl.length > 4096) return null;
   try {
     const url = new URL(rawUrl);
@@ -51,7 +54,7 @@ export function toolActivityFaviconUrl(
   },
   appearance: "light" | "dark",
   size = 32,
-) {
+): string | null {
   if (appearance === "dark") {
     return (
       explicitFaviconUrl(icon.faviconUrlDark) ??
@@ -67,7 +70,7 @@ export function toolActivityFaviconUrl(
   );
 }
 
-export function faviconUrlForOrigin(rawUrl: string | null | undefined, size = 32) {
+export function faviconUrlForOrigin(rawUrl: string | null | undefined, size = 32): string | null {
   if (!rawUrl) return null;
   try {
     const url = new URL(rawUrl);

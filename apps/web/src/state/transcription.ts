@@ -8,6 +8,7 @@ import {
 import {
   createTranscriptionEnvironmentAtoms,
   resolveVoiceTranscriptionSource,
+  type StartedLiveDictation,
   uploadVoiceRecording,
   type VoiceTranscriptionSource,
 } from "@supaterm/client-runtime/state/transcription";
@@ -81,7 +82,7 @@ export function startLiveVoiceDictation(input: {
   readonly environmentId: EnvironmentId;
   readonly request: Omit<TranscriptionPrepareStreamInput, "uploadId">;
   readonly subscribe: (push: (pcm: Uint8Array) => void) => () => void;
-}) {
+}): StartedLiveDictation {
   const { environmentId } = input;
   const uploadId = randomUUID();
   const live = new LiveDictation({
@@ -101,7 +102,7 @@ export function startLiveVoiceDictation(input: {
 }
 
 /** Read when recording starts, so a dictation keeps the choice its environment allowed then. */
-export function environmentStreamsDictation(environmentId: EnvironmentId) {
+export function environmentStreamsDictation(environmentId: EnvironmentId): boolean {
   return (
     appAtomRegistry.get(environmentServerConfigsAtom).get(environmentId)?.transcriptionStreams ===
     true
@@ -109,9 +110,9 @@ export function environmentStreamsDictation(environmentId: EnvironmentId) {
 }
 
 /** Null while the environment has never been reached, so recording can still queue offline. */
-export function useVoiceTranscriptionSource(environmentId: EnvironmentId) {
+export function useVoiceTranscriptionSource(
+  environmentId: EnvironmentId,
+): VoiceTranscriptionSource | null {
   const config = useAtomValue(environmentServerConfigsAtom).get(environmentId);
-  return (
-    config ? resolveVoiceTranscriptionSource(config) : null
-  ) satisfies VoiceTranscriptionSource | null;
+  return config ? resolveVoiceTranscriptionSource(config) : null;
 }

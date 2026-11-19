@@ -13,7 +13,7 @@ import {
 
 const run = RunId.make("run-1");
 
-function frame(card: string | null, shell: string | null) {
+function frame(card: string | null, shell: string | null): ThreadActivityInput {
   return {
     approvalRequestId: null,
     userInputRequestId: card,
@@ -21,7 +21,7 @@ function frame(card: string | null, shell: string | null) {
     shellPendingUserInput: shell !== null,
     working: true,
     run: { runId: run, status: "running" },
-  } satisfies ThreadActivityInput;
+  };
 }
 
 const idle: ThreadActivityInput = { ...frame(null, null), working: false, run: null };
@@ -31,7 +31,7 @@ const done: ThreadActivityInput = {
   run: { runId: run, status: "completed" },
 };
 
-function announcements(frames: ReadonlyArray<ThreadActivityInput>) {
+function announcements(frames: ReadonlyArray<ThreadActivityInput>): ReadonlyArray<string | null> {
   let activity: ThreadActivityMemory | null = null;
   let memory: ThreadAnnouncementMemory | null = null;
   return frames.map((input) => {

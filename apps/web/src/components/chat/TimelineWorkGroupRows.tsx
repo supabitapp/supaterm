@@ -122,7 +122,9 @@ const compactWorkEntryHeight = 24;
 
 const closingWorkEntryRoomMs = 300;
 
-function useWorkGroupViewedImages(groupedEntries: ReadonlyArray<TimelineWorkEntry>) {
+function useWorkGroupViewedImages(
+  groupedEntries: ReadonlyArray<TimelineWorkEntry>,
+): ReadonlyArray<WorkGroupViewedImage> {
   const { threadRef, workspaceRoot, activeThreadEnvironmentId } = use(TimelineRowCtx);
   const viewed = threadRef
     ? workEntriesViewedImagePaths(groupedEntries).flatMap((path) => {
@@ -158,7 +160,7 @@ function useWorkGroupViewedImages(groupedEntries: ReadonlyArray<TimelineWorkEntr
         }),
       },
     };
-  }) satisfies ReadonlyArray<WorkGroupViewedImage>;
+  });
 }
 
 function ExpandedWorkGroupEntries({

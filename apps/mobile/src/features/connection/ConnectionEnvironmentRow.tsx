@@ -31,7 +31,7 @@ import { environmentStatusText } from "./environmentStatusText";
 
 const SHOWCASE_ENABLED = process.env.EXPO_PUBLIC_SHOWCASE === "1";
 
-function connectionStatusLabel(environment: ConnectedEnvironmentSummary) {
+function connectionStatusLabel(environment: ConnectedEnvironmentSummary): string | null {
   if (!environment.isEnabled && environment.connectionState !== "unsupported") {
     return "Off";
   }

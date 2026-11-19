@@ -137,7 +137,7 @@ export function appendReviewCommentToDraft(input: {
   readonly threadId: ThreadId;
   readonly text: string;
   readonly attachments?: ReadonlyArray<DraftComposerImageAttachment>;
-}) {
+}): void {
   const threadKey = scopedThreadKey(input.environmentId, input.threadId);
   const upgraded = upgradeLegacyContextMessage(input.text);
   if (
@@ -166,7 +166,7 @@ export function appendReviewCommentToDraft(input: {
 function activeComposerDraftKey(thread: {
   readonly environmentId: EnvironmentId;
   readonly id: ThreadId;
-}) {
+}): string {
   const threadKey = scopedThreadKey(thread.environmentId, thread.id);
   const edit = getQueuedRunEdit(threadKey);
   return edit === null ? threadKey : queuedEditDraftKey(threadKey, edit.runId);
@@ -544,7 +544,7 @@ export function useThreadComposerState() {
     recordingUri: string,
     language: string,
     handOff: VoiceRecordingHandOff | undefined,
-  ) => {
+  ): Promise<MessageId | null> => {
     const thread = selectedThreadShell;
     if (!thread) return null;
     const threadKey = scopedThreadKey(thread.environmentId, thread.id);

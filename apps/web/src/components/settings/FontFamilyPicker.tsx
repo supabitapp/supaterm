@@ -23,7 +23,7 @@ import { stackedThreadToast, toastManager } from "../ui/toast";
 
 const DEFAULT_FONT_VALUE = "__default__";
 
-function supportsFontEnumeration() {
+function supportsFontEnumeration(): boolean {
   return (
     typeof window !== "undefined" &&
     typeof (window as { queryLocalFonts?: unknown }).queryLocalFonts === "function"
@@ -40,20 +40,20 @@ let enumerationState: FontEnumerationState = supportsFontEnumeration()
   : { status: "unavailable" };
 const enumerationListeners = new Set<() => void>();
 
-function subscribeToEnumeration(listener: () => void) {
+function subscribeToEnumeration(listener: () => void): () => void {
   probeAlreadyGrantedPermission();
   enumerationListeners.add(listener);
   return () => enumerationListeners.delete(listener);
 }
 
-function readEnumerationState() {
+function readEnumerationState(): FontEnumerationState {
   return enumerationState;
 }
 
 let enumerationLoad: Promise<void> | null = null;
 
 /** Query installed fonts; call from a user gesture (the permission prompt needs one). */
-export function discoverInstalledFonts() {
+export function discoverInstalledFonts(): void {
   if (enumerationState.status !== "unknown" || enumerationLoad !== null) return;
   enumerationLoad = queryInstalledFontFamilies().then((result) => {
     enumerationState =
@@ -67,7 +67,7 @@ export function discoverInstalledFonts() {
 
 let grantedProbeStarted = false;
 
-function probeAlreadyGrantedPermission() {
+function probeAlreadyGrantedPermission(): void {
   if (grantedProbeStarted || enumerationState.status !== "unknown") return;
   grantedProbeStarted = true;
   const permissions = typeof navigator !== "undefined" ? navigator.permissions : undefined;
@@ -80,7 +80,7 @@ function probeAlreadyGrantedPermission() {
   );
 }
 
-export function useFontEnumeration() {
+export function useFontEnumeration(): FontEnumerationState {
   return useSyncExternalStore(subscribeToEnumeration, readEnumerationState);
 }
 

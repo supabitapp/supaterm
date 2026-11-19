@@ -28,10 +28,9 @@ export function useOpenLink(threadRef: ScopedThreadRef | null | undefined): (
     };
     readonly threadRef?: ScopedThreadRef | undefined;
   },
-) => Promise<void>;
-export function useOpenLink(threadRef: ScopedThreadRef | null | undefined) {
+) => Promise<void> {
   const openPreview = useAtomCommand(previewEnvironment.open, { reportFailure: false });
-  return (async (url, options = {}) => {
+  return async (url, options = {}) => {
     const targetThreadRef = options.threadRef ?? threadRef;
     const target = resolveLinkTarget({
       url,
@@ -53,15 +52,5 @@ export function useOpenLink(threadRef: ScopedThreadRef | null | undefined) {
     const api = readLocalApi();
     if (!api) throw new Error("Link opening is unavailable.");
     await api.shell.openExternal(url);
-  }) satisfies (
-    url: string,
-    options?: {
-      readonly event?: {
-        readonly metaKey: boolean;
-        readonly ctrlKey: boolean;
-        readonly button?: number | undefined;
-      };
-      readonly threadRef?: ScopedThreadRef | undefined;
-    },
-  ) => Promise<void>;
+  };
 }

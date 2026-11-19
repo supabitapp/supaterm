@@ -54,8 +54,7 @@ export interface CodexMicroKeycap {
   readonly defaultAction: CodexMicroAction | null;
 }
 
-const command = (id: KeybindingCommand) =>
-  ({ type: "command", command: id }) satisfies CodexMicroAction;
+const command = (id: KeybindingCommand): CodexMicroAction => ({ type: "command", command: id });
 
 export const CODEX_MICRO_KEYCAPS: ReadonlyArray<CodexMicroKeycap> = [
   {
@@ -247,23 +246,27 @@ export const CODEX_MICRO_KEYCAPS: ReadonlyArray<CodexMicroKeycap> = [
 
 const KEYCAPS_BY_ID = new Map(CODEX_MICRO_KEYCAPS.map((keycap) => [keycap.id, keycap]));
 
-export function codexMicroKeycap(id: CodexMicroKeycapId) {
+export function codexMicroKeycap(id: CodexMicroKeycapId): CodexMicroKeycap {
   return KEYCAPS_BY_ID.get(id) ?? CODEX_MICRO_KEYCAPS[0]!;
 }
 
-export function codexMicroKeycapsForSlot(slot: CodexMicroActionSlot) {
+export function codexMicroKeycapsForSlot(
+  slot: CodexMicroActionSlot,
+): ReadonlyArray<CodexMicroKeycap> {
   const size = slot === "ACT10_ACT11" ? "double" : "single";
   return CODEX_MICRO_KEYCAPS.filter((keycap) => keycap.size === size);
 }
 
 /** The physical keys that are in use: one wide microphone key, or its two switches. */
-export function codexMicroVisibleSlots(layout: Pick<CodexMicroLayout, "separateMicrophoneKeys">) {
+export function codexMicroVisibleSlots(
+  layout: Pick<CodexMicroLayout, "separateMicrophoneKeys">,
+): ReadonlyArray<CodexMicroActionSlot> {
   return CODEX_MICRO_ACTION_SLOTS.filter((slot) =>
     layout.separateMicrophoneKeys ? slot !== "ACT10_ACT11" : slot !== "ACT10" && slot !== "ACT11",
   );
 }
 
-export function resolveCodexMicroSlotAction(slot: CodexMicroKeySlot) {
+export function resolveCodexMicroSlotAction(slot: CodexMicroKeySlot): CodexMicroAction | null {
   return slot.action === undefined ? codexMicroKeycap(slot.keycapId).defaultAction : slot.action;
 }
 
@@ -291,12 +294,10 @@ export const CODEX_MICRO_ENCODER_PRESETS = {
 export function resolveCodexMicroEncoderAction(
   layout: Pick<CodexMicroLayout, "encoder" | "encoderMode">,
   input: CodexMicroEncoderInput,
-) {
-  return (
-    layout.encoderMode === "custom"
-      ? layout.encoder[input]
-      : CODEX_MICRO_ENCODER_PRESETS[layout.encoderMode][input]
-  ) satisfies CodexMicroAction | null;
+): CodexMicroAction | null {
+  return layout.encoderMode === "custom"
+    ? layout.encoder[input]
+    : CODEX_MICRO_ENCODER_PRESETS[layout.encoderMode][input];
 }
 
 /**
@@ -307,7 +308,7 @@ export function codexMicroKeycapHolder(
   layout: CodexMicroLayout,
   target: CodexMicroActionSlot,
   keycapId: CodexMicroKeycapId,
-) {
+): CodexMicroActionSlot | null {
   return (
     codexMicroVisibleSlots(layout).find(
       (slot) => slot !== target && layout.slots[slot].keycapId === keycapId,
@@ -319,7 +320,7 @@ export function assignCodexMicroKeycap(
   layout: CodexMicroLayout,
   target: CodexMicroActionSlot,
   next: CodexMicroKeySlot,
-) {
+): CodexMicroLayout {
   const holder = codexMicroKeycapHolder(layout, target, next.keycapId);
   const slots = { ...layout.slots, [target]: next };
   if (holder !== null) slots[holder] = { keycapId: layout.slots[target].keycapId };
@@ -336,11 +337,10 @@ export interface CodexMicroCommandGroup {
   readonly options: ReadonlyArray<CodexMicroCommandOption>;
 }
 
-const option = (id: KeybindingCommand, label: string) =>
-  ({
-    action: command(id),
-    label,
-  }) satisfies CodexMicroCommandOption;
+const option = (id: KeybindingCommand, label: string): CodexMicroCommandOption => ({
+  action: command(id),
+  label,
+});
 
 export const CODEX_MICRO_COMMAND_GROUPS: ReadonlyArray<CodexMicroCommandGroup> = [
   {
@@ -405,7 +405,7 @@ export const CODEX_MICRO_COMMAND_GROUPS: ReadonlyArray<CodexMicroCommandGroup> =
   },
 ];
 
-export function codexMicroActionValue(action: CodexMicroAction) {
+export function codexMicroActionValue(action: CodexMicroAction): string {
   switch (action.type) {
     case "command":
       return `command:${action.command}`;
@@ -423,7 +423,7 @@ export const CODEX_MICRO_COMMAND_OPTIONS: ReadonlyMap<string, CodexMicroCommandO
   ),
 );
 
-export function codexMicroActionLabel(action: CodexMicroAction | null) {
+export function codexMicroActionLabel(action: CodexMicroAction | null): string {
   if (action === null) return "Unassigned";
   switch (action.type) {
     case "command":

@@ -26,7 +26,7 @@ function run(
   ordinal: number,
   providerThreadId: ProviderThreadId,
   extra: Partial<OrchestrationV2Run> = {},
-) {
+): OrchestrationV2Run {
   return {
     id: RunId.make(`run:${ordinal}`),
     ordinal,

@@ -16,7 +16,7 @@ function thread(
   key: string,
   title: string,
   state: Partial<Omit<BackgroundThreadSnapshot, "key" | "title">> = {},
-) {
+): BackgroundThreadSnapshot {
   return {
     key,
     title,
@@ -27,7 +27,7 @@ function thread(
     activeRunId: null,
     snoozed: false,
     ...state,
-  } satisfies BackgroundThreadSnapshot;
+  };
 }
 const login = (state?: Partial<BackgroundThreadSnapshot>) =>
   thread("env:login", "Fix login redirect", state);

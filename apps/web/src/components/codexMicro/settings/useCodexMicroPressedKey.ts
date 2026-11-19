@@ -6,7 +6,7 @@ import { codexMicroPressedKey, type CodexMicroKeyId } from "./CodexMicroSettings
 const PRESS_FEEDBACK_MS = 150;
 
 /** The key the keyboard reported pressed within the last moment; presses before mount are ignored. */
-export function useCodexMicroPressedKey(separateMicrophoneKeys: boolean) {
+export function useCodexMicroPressedKey(separateMicrophoneKeys: boolean): CodexMicroKeyId | null {
   const pressed = useCodexMicroPressedInput();
   const [seen, setSeen] = useState(pressed);
   const [flash, setFlash] = useState<{ readonly key: CodexMicroKeyId; readonly at: number } | null>(

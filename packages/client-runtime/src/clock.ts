@@ -13,8 +13,7 @@ export interface ClockStore<A> {
 
 const MAX_TIMEOUT_MS = 2_147_483_647;
 
-function makeTickStore<A>(read: () => A, periodMs: number): ClockStore<A>;
-function makeTickStore<A>(read: () => A, periodMs: number) {
+function makeTickStore<A>(read: () => A, periodMs: number): ClockStore<A> {
   let value = read();
   let timer: ReturnType<typeof setTimeout> | undefined;
   const listeners = new Set<() => void>();
@@ -53,7 +52,7 @@ function makeTickStore<A>(read: () => A, periodMs: number) {
       if (timer === undefined) value = read();
       return value;
     },
-  } satisfies ClockStore<A>;
+  };
 }
 
 /** Epoch ms floored to the second, advancing on each wall-clock second. */
@@ -82,7 +81,7 @@ export function recordServerClock(
     readonly requestedAtMs: number;
     readonly receivedAtMs: number;
   },
-) {
+): void {
   const { serverTimeMs, requestedAtMs, receivedAtMs } = sample;
   if (serverTimeMs === undefined || !Number.isFinite(serverTimeMs)) {
     serverClockOffsets.delete(environmentId);
@@ -99,7 +98,7 @@ export function recordServerClock(
 }
 
 /** Converts client epoch milliseconds to the environment's clock. */
-export function toServerClock(environmentId: EnvironmentId, clientMs: number) {
+export function toServerClock(environmentId: EnvironmentId, clientMs: number): number {
   return clientMs + (serverClockOffsets.get(environmentId) ?? 0);
 }
 
@@ -144,7 +143,7 @@ function armDeadline(entry: DeadlineEntry, deadlineMs: number) {
 }
 
 /** The epoch-ms deadline `delayMs` from now, for `deadlineStore`. */
-export function deadlineAfter(delayMs: number) {
+export function deadlineAfter(delayMs: number): number {
   return Date.now() + delayMs;
 }
 
@@ -154,7 +153,7 @@ export function deadlineAfter(delayMs: number) {
  * Deadlines register only while subscribed, so renders React discards leak nothing.
  * A non-finite deadline never passes.
  */
-export function deadlineStore(deadlineMs: number | null) {
+export function deadlineStore(deadlineMs: number | null): DeadlineStore {
   if (deadlineMs === null || !Number.isFinite(deadlineMs)) return neverPassed;
   const existing = deadlines.get(deadlineMs);
   if (existing !== undefined) return existing.store;

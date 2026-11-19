@@ -53,8 +53,8 @@ export function planThreadUndo(
     readonly snoozedUntil?: string | null;
     readonly doneOverride?: string | null;
   } | null,
-) {
-  if (action === "snooze") return [{ action: "unsnooze" }] satisfies ThreadUndoPlan;
+): ThreadUndoPlan {
+  if (action === "snooze") return [{ action: "unsnooze" }];
   const pin: ThreadUndoStep = {
     action: "pin",
     ...(thread?.pinOrderKey != null ? { orderKey: thread.pinOrderKey } : {}),
@@ -63,9 +63,9 @@ export function planThreadUndo(
     thread?.snoozedUntil != null
       ? [{ action: "snooze" as const, snoozedUntil: thread.snoozedUntil }]
       : [];
-  if (action === "unpin") return [pin, ...snooze] satisfies ThreadUndoPlan;
+  if (action === "unpin") return [pin, ...snooze];
   if (thread?.doneOverride === "done" && thread.snoozedUntil != null) {
-    return [{ action: "snooze", snoozedUntil: thread.snoozedUntil }] satisfies ThreadUndoPlan;
+    return [{ action: "snooze", snoozedUntil: thread.snoozedUntil }];
   }
   const placement: ThreadUndoStep[] =
     thread?.pinnedAt != null
@@ -77,7 +77,7 @@ export function planThreadUndo(
     thread == null
       ? { action: "reopen" }
       : { action: "reopen", restoreReopenedAt: thread.reopenedAt ?? null };
-  return [reopen, ...placement, ...snooze] satisfies ThreadUndoPlan;
+  return [reopen, ...placement, ...snooze];
 }
 
 /** Resolves to undefined when every step was an expired snooze, leaving nothing to restore. */
@@ -85,7 +85,7 @@ export async function executeThreadUndo<Result>(
   plan: ThreadUndoPlan,
   execute: (step: ThreadUndoStep) => Promise<Result>,
   succeeded: (result: Result) => boolean,
-) {
+): Promise<Result | undefined> {
   let result: Result | undefined;
   for (const step of plan) {
     if (result !== undefined && !succeeded(result)) return result;

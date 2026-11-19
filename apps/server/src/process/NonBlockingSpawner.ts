@@ -143,11 +143,9 @@ const make = Effect.fn("NonBlockingSpawner.make")(function* (accessPath: AccessP
     return ChildProcess.make(trampoline.command, trampoline.args, options);
   });
 
-  const prepare: (
+  const prepare = (
     command: ChildProcess.Command,
-  ) => Effect.Effect<ChildProcess.Command, PlatformError.PlatformError> = (
-    command: ChildProcess.Command,
-  ) =>
+  ): Effect.Effect<ChildProcess.Command, PlatformError.PlatformError> =>
     command._tag === "StandardCommand"
       ? prepareStandard(command)
       : Effect.map(Effect.all([prepare(command.left), prepare(command.right)]), ([left, right]) =>

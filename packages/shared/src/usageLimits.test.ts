@@ -38,7 +38,7 @@ const window = {
   resetsAt: "2026-09-03T14:00:00.000Z",
 } as const;
 
-function provider(overrides: Partial<ServerProvider>) {
+function provider(overrides: Partial<ServerProvider>): ServerProvider {
   return {
     instanceId: ProviderInstanceId.make("codex"),
     driver: ProviderDriverKind.make("codex"),
@@ -52,7 +52,7 @@ function provider(overrides: Partial<ServerProvider>) {
     slashCommands: [],
     skills: [],
     ...overrides,
-  } satisfies ServerProvider;
+  };
 }
 
 describe("new thread model fallback", () => {
@@ -755,7 +755,7 @@ describe("pooled account columns", () => {
     label: "Weekly",
     windowDurationMins: 7 * 24 * 60,
   } as const;
-  const account = (key: string, windows: LimitAccount["limits"]["windows"]) => ({
+  const account = (key: string, windows: LimitAccount["limits"]["windows"]): LimitAccount => ({
     key,
     driver: ProviderDriverKind.make("claudeAgent"),
     displayName: key,

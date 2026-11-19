@@ -14,7 +14,10 @@ export async function prepareLocalTrackSwitch(
     readonly version: string;
     readonly reinstall: boolean;
   },
-) {
+): Promise<
+  | { readonly ok: true; readonly local: DesktopUpdateState | null }
+  | { readonly ok: false; readonly message: string }
+> {
   let local: DesktopUpdateState;
   try {
     local = await bridge.setUpdateChannel(
@@ -25,23 +28,16 @@ export async function prepareLocalTrackSwitch(
     return {
       ok: false,
       message: error instanceof Error ? error.message : "The update track did not change.",
-    } satisfies
-      | { readonly ok: true; readonly local: DesktopUpdateState | null }
-      | { readonly ok: false; readonly message: string };
+    };
   }
-  if (!input.reinstall)
-    return { ok: true, local: null } satisfies
-      | { readonly ok: true; readonly local: DesktopUpdateState | null }
-      | { readonly ok: false; readonly message: string };
+  if (!input.reinstall) return { ok: true, local: null };
   const found = local.downloadedVersion ?? local.availableVersion;
   if (
     (local.status === "available" || local.status === "downloaded") &&
     found !== null &&
     acceptsTrackSwitchRelease(found, input.channel, input.version)
   ) {
-    return { ok: true, local } satisfies
-      | { readonly ok: true; readonly local: DesktopUpdateState | null }
-      | { readonly ok: false; readonly message: string };
+    return { ok: true, local };
   }
   return {
     ok: false,
@@ -49,9 +45,7 @@ export async function prepareLocalTrackSwitch(
       found !== null
         ? `This app found ${found}, which is older than ${input.version}. Try again in a few minutes.`
         : (local.message ?? `This app found no build of ${input.version} to install.`),
-  } satisfies
-    | { readonly ok: true; readonly local: DesktopUpdateState | null }
-    | { readonly ok: false; readonly message: string };
+  };
 }
 
 /** When no machine moves, confirming only saves the track; when that track is already saved too,
@@ -64,7 +58,7 @@ export function nothingToMove(input: {
   readonly crossesLocal: boolean;
   readonly rows: ReadonlyArray<{ readonly skipped: string | null }>;
   readonly hasTargets: boolean;
-}) {
+}): { readonly note: string | null; readonly disabledReason: string | null } {
   if (input.switchesLocal || input.rows.some((row) => row.skipped === null)) {
     return { note: null, disabledReason: null };
   }

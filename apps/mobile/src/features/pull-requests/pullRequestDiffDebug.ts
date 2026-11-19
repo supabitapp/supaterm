@@ -9,7 +9,7 @@ import {
 export function pullRequestDiffInitialPosition(
   targetFileId: string | undefined,
   focusIndex: number,
-) {
+): Pick<NativeReviewDiffViewProps, "initialRowIndex" | "initialFileId"> {
   return {
     initialRowIndex: focusIndex >= 0 ? Math.max(0, focusIndex - 3) : -1,
     initialFileId: focusIndex >= 0 ? "" : (targetFileId ?? ""),

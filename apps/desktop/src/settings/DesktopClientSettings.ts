@@ -25,7 +25,7 @@ export class DesktopClientSettingsReadError extends Schema.TaggedError<DesktopCl
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Desktop client settings read failed during ${this.operation} at ${this.path}.`;
   }
 }
@@ -47,7 +47,7 @@ export class DesktopClientSettingsWriteError extends Schema.TaggedError<DesktopC
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Desktop client settings write failed during ${this.operation} at ${this.path}.`;
   }
 }
@@ -62,7 +62,10 @@ export class DesktopClientSettings extends Context.Service<
   }
 >()("@supaterm/desktop/settings/DesktopClientSettings") {}
 
-const readClientSettings = (fileSystem: FileSystem.FileSystem, settingsPath: string) =>
+const readClientSettings = (
+  fileSystem: FileSystem.FileSystem,
+  settingsPath: string,
+): Effect.Effect<Option.Option<ClientSettings>, DesktopClientSettingsReadError> =>
   fileSystem.readFileString(settingsPath).pipe(
     Effect.asSome,
     Effect.catchTags({
@@ -114,7 +117,7 @@ const writeClientSettings = Effect.fnUntraced(function* (input: {
   readonly settingsPath: string;
   readonly settings: ClientSettings;
   readonly suffix: string;
-}) {
+}): Effect.fn.Return<void, DesktopClientSettingsWriteError> {
   const targetPath = yield* resolveSymlinkTarget(input.settingsPath).pipe(
     Effect.provideService(FileSystem.FileSystem, input.fileSystem),
     Effect.provideService(Path.Path, input.path),

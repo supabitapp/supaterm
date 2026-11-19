@@ -22,13 +22,18 @@ interface MarkdownParser {
   parse(markdown: string): unknown;
 }
 
+interface RecoveredMarkdown {
+  readonly blocks: MarkdownAstNode[];
+  readonly source: string;
+}
+
 const INLINE_PARSE_PREFIX = "supaterm-markdown-inline-prefix:";
 
 function isSameLineOverIndentedCode(
   node: MarkdownAstNode,
   parent: MarkdownAstNode | undefined,
   markdown: string,
-) {
+): boolean {
   if (
     node.type !== "code" ||
     parent?.type !== "listItem" ||
@@ -53,7 +58,7 @@ function isSameLineOverIndentedCode(
   return sourceCharacter !== "`" && sourceCharacter !== "~";
 }
 
-function parseRecoveredMarkdown(value: string, parser: MarkdownParser) {
+function parseRecoveredMarkdown(value: string, parser: MarkdownParser): RecoveredMarkdown {
   const source = `${INLINE_PARSE_PREFIX}${value}`;
   const document = parser.parse(source) as MarkdownAstNode;
   const blocks = document.children;
@@ -84,7 +89,7 @@ function parseRecoveredMarkdown(value: string, parser: MarkdownParser) {
   };
 }
 
-function blocksFromIndentedCode(node: MarkdownAstNode, parser: MarkdownParser) {
+function blocksFromIndentedCode(node: MarkdownAstNode, parser: MarkdownParser): RecoveredMarkdown {
   const value = typeof node.value === "string" ? node.value.trim() : "";
   const recovered = parseRecoveredMarkdown(value, parser);
   if (keepsOrderedListNumbers(parser)) {

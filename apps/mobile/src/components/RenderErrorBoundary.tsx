@@ -23,7 +23,7 @@ export interface RenderFailureProps {
   readonly retry: () => void;
 }
 
-function errorDetails(error: unknown, componentStack?: string) {
+function errorDetails(error: unknown, componentStack?: string): string {
   let description: string;
   try {
     description = error instanceof Error ? (error.stack ?? error.message) : String(error);
@@ -46,7 +46,7 @@ export class RenderErrorBoundary extends Component<
   static getDerivedStateFromProps(
     { resetKeys }: RenderErrorBoundaryProps,
     state: RenderErrorBoundaryState,
-  ) {
+  ): Partial<RenderErrorBoundaryState> | null {
     if (
       resetKeys?.length !== state.resetKeys?.length ||
       resetKeys?.some((key, index) => !Object.is(key, state.resetKeys?.[index]))
@@ -56,7 +56,7 @@ export class RenderErrorBoundary extends Component<
     return null;
   }
 
-  static getDerivedStateFromError(error: unknown) {
+  static getDerivedStateFromError(error: unknown): Partial<RenderErrorBoundaryState> {
     return { failed: true, error };
   }
 

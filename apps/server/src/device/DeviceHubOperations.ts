@@ -87,7 +87,7 @@ interface DeviceDiscovery {
 
 const listIosSimulators = Effect.fn("DeviceHubOperations.listIosSimulators")(function* (
   run: DeviceHostReady["run"],
-) {
+): Effect.fn.Return<DeviceDiscovery> {
   const result = yield* run("xcrun", ["simctl", "list", "devices", "available", "--json"]);
   if (result.code !== 0) {
     return {
@@ -121,7 +121,7 @@ const listIosSimulators = Effect.fn("DeviceHubOperations.listIosSimulators")(fun
 
 const listAndroidAvds = Effect.fn("DeviceHubOperations.listAndroidAvds")(function* (
   run: DeviceHostReady["run"],
-) {
+): Effect.fn.Return<DeviceDiscovery> {
   const result = yield* run("emulator", ["-list-avds"]);
   if (result.code !== 0) {
     return {
@@ -149,19 +149,13 @@ const discoveryKey = (device: HostDevice) =>
   `${device.platform}:${device.platform === "ios" ? device.id : device.name}`;
 
 /** Device operations for a host that runs expo-device-hub at `origin`. */
-export const makeDeviceHubOperations: (options: {
+export const makeDeviceHubOperations = (options: {
   readonly hostId: DeviceHostId;
   readonly origin: string;
   readonly http: HttpClient.HttpClient;
   readonly run: DeviceHostReady["run"];
   readonly platforms: Effect.Effect<ReadonlyArray<DevicePlatformAvailability>>;
-}) => DeviceOperations = (options: {
-  readonly hostId: DeviceHostId;
-  readonly origin: string;
-  readonly http: HttpClient.HttpClient;
-  readonly run: DeviceHostReady["run"];
-  readonly platforms: Effect.Effect<ReadonlyArray<DevicePlatformAvailability>>;
-}) => {
+}): DeviceOperations => {
   const { hostId, origin, run } = options;
   const httpClient = options.http.pipe(HttpClient.withScope);
 

@@ -33,7 +33,7 @@ export const makeAcpNativeLoggerFactory = Effect.fn("makeAcpNativeLoggerFactory"
     readonly nativeEventLogger: ProviderEventLoggers.EventNdjsonLogger | undefined;
     readonly provider: ProviderDriverKind;
     readonly threadId: ThreadId;
-  }) => {
+  }): Pick<AcpSessionRuntime.AcpSessionRuntimeOptions, "requestLogger" | "protocolLogging"> => {
     const writeNativeAcpLog = Effect.fn("AcpNativeLogging.writeNativeAcpLog")(
       function* (logInput: { readonly kind: "request"; readonly payload: unknown }) {
         if (!input.nativeEventLogger) return;

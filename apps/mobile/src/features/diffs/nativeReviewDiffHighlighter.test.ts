@@ -46,21 +46,21 @@ const TYPESCRIPT_FILE: NativeReviewDiffFile = {
 
 function makeLine(
   input: Pick<NativeReviewDiffRow, "id" | "content" | "change" | "oldLineNumber" | "newLineNumber">,
-) {
+): NativeReviewDiffRow {
   return {
     kind: "line",
     fileId: TYPESCRIPT_FILE.id,
     ...input,
-  } satisfies NativeReviewDiffRow;
+  };
 }
 
-function makeHunk(id: string) {
+function makeHunk(id: string): NativeReviewDiffRow {
   return {
     kind: "hunk",
     id,
     fileId: TYPESCRIPT_FILE.id,
     text: "@@",
-  } satisfies NativeReviewDiffRow;
+  };
 }
 
 function highlight(

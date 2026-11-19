@@ -14,6 +14,7 @@ import {
   AuthTerminalOperateScope,
   AuthTerminalReadScope,
   type DesktopBridge,
+  type DesktopSshEnvironmentTarget,
   type DesktopUpdateState,
   type DesktopWslState,
   type EnvironmentId,
@@ -71,7 +72,7 @@ export function togglePairingScopeSelection(
   current: ReadonlyArray<AuthGrantScope>,
   scope: AuthGrantScope,
   checked: boolean,
-) {
+): ReadonlyArray<AuthGrantScope> {
   const without = (scopes: ReadonlyArray<AuthGrantScope>) =>
     scopes.filter((currentScope) => currentScope !== scope);
   if (!checked) {
@@ -87,7 +88,7 @@ export function togglePairingScopeSelection(
 
 export function canRevokeOtherClients(
   clientSessions: ReadonlyArray<{ readonly current: boolean }> | null,
-) {
+): boolean {
   return clientSessions === null || clientSessions.some((session) => !session.current);
 }
 
@@ -98,7 +99,7 @@ type WslEnableBridge = Pick<DesktopBridge, "setWslBackendEnabled" | "setWslDistr
  * loopback endpoints stay copyable from the endpoint menu but are never
  * offered as QR targets.
  */
-export function isQrShareableEndpoint(endpoint: AdvertisedEndpoint) {
+export function isQrShareableEndpoint(endpoint: AdvertisedEndpoint): boolean {
   return endpoint.status !== "unavailable" && endpoint.reachability !== "loopback";
 }
 
@@ -129,7 +130,7 @@ export function resolveTailscaleServeBaseUrl(
   endpoint: Pick<AdvertisedEndpoint, "httpBaseUrl"> | null,
   port: number,
   isPortValid: boolean,
-) {
+): string | null {
   if (!endpoint) return null;
   if (!isPortValid) return endpoint.httpBaseUrl;
   try {
@@ -144,7 +145,7 @@ export function resolveTailscaleServeBaseUrl(
 export function isWslSettingsRowVisible(input: {
   readonly state: DesktopWslState | null;
   readonly error: string | null;
-}) {
+}): boolean {
   const { state, error } = input;
   return state ? state.available || state.enabled || state.wslOnly : error !== null;
 }
@@ -154,7 +155,7 @@ export function isWslSettingsRowVisible(input: {
  * Pending states follow the sidebar update control's action so the two never disagree, and a
  * recheck keeps a downloaded update's label. `state` is null outside the desktop app.
  */
-export function resolveLocalVersionStatusLabel(state: DesktopUpdateState | null) {
+export function resolveLocalVersionStatusLabel(state: DesktopUpdateState | null): string {
   if (!state) return "Up to date";
   if (state.status === "downloading") {
     return state.availableVersion
@@ -192,7 +193,7 @@ export function selectQrEndpointOption<T extends QrEndpointOption>(
   options: ReadonlyArray<T>,
   selectedId: string | null,
   defaultPreferenceKey: string | null,
-) {
+): T | null {
   return (
     (selectedId !== null ? options.find((option) => option.id === selectedId) : undefined) ??
     (defaultPreferenceKey !== null
@@ -209,7 +210,7 @@ export async function applyWslEnableSelection(input: {
   readonly mode: "both" | "wsl-only";
   readonly nextDistro: string | null;
   readonly persistedDistro: string | null;
-}) {
+}): Promise<DesktopWslState> {
   const { bridge, mode, nextDistro, persistedDistro } = input;
 
   await bridge.setWslOnly(mode === "wsl-only");
@@ -224,7 +225,7 @@ const accessTimestampFormatter = new Intl.DateTimeFormat(undefined, {
   timeStyle: "short",
 });
 
-export function formatAccessTimestamp(value: string) {
+export function formatAccessTimestamp(value: string): string {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) {
     return value;
@@ -236,7 +237,7 @@ export function parseManualDesktopSshTarget(input: {
   readonly host: string;
   readonly username: string;
   readonly port: string;
-}) {
+}): DesktopSshEnvironmentTarget {
   const rawHost = input.host.trim();
   if (rawHost.length === 0) {
     throw new Error("SSH host or alias is required.");
@@ -290,7 +291,7 @@ export function parseManualDesktopSshTarget(input: {
   };
 }
 
-export function formatDesktopSshConnectionError(error: unknown) {
+export function formatDesktopSshConnectionError(error: unknown): string {
   const fallback = "Failed to connect SSH host.";
   const rawMessage = error instanceof Error ? error.message : fallback;
   const withoutIpcPrefix = rawMessage.replace(
@@ -310,7 +311,7 @@ export function sortDesktopPairingLinks(links: ReadonlyArray<ServerPairingLinkRe
 export function summarizeAuthorizedClients(
   sessions: ReadonlyArray<ServerClientSessionRecord>,
   links: ReadonlyArray<ServerPairingLinkRecord>,
-) {
+): string {
   const parts = [
     `${sessions.length} ${sessions.length === 1 ? "client" : "clients"}`,
     links.length > 0
@@ -332,7 +333,7 @@ export function sortDesktopClientSessions(sessions: ReadonlyArray<ServerClientSe
   });
 }
 
-export function toDesktopPairingLinkRecord(pairingLink: AuthPairingLink) {
+export function toDesktopPairingLinkRecord(pairingLink: AuthPairingLink): ServerPairingLinkRecord {
   return {
     ...pairingLink,
     scopes: pairingLink.scopes,
@@ -341,7 +342,9 @@ export function toDesktopPairingLinkRecord(pairingLink: AuthPairingLink) {
   };
 }
 
-export function toDesktopClientSessionRecord(clientSession: AuthClientSession) {
+export function toDesktopClientSessionRecord(
+  clientSession: AuthClientSession,
+): ServerClientSessionRecord {
   return {
     ...clientSession,
     scopes: clientSession.scopes,
@@ -357,7 +360,7 @@ export function toDesktopClientSessionRecord(clientSession: AuthClientSession) {
 export function selectPairingEndpoint(
   endpoints: ReadonlyArray<AdvertisedEndpoint>,
   defaultEndpointKey?: string | null,
-) {
+): AdvertisedEndpoint | null {
   const availableEndpoints = endpoints.filter((endpoint) => endpoint.status !== "unavailable");
   if (defaultEndpointKey) {
     const selectedEndpoint = availableEndpoints.find(
@@ -379,16 +382,16 @@ export function selectPairingEndpoint(
 export function isServerNetworkAccessible(input: {
   readonly authPolicy: ServerAuthPolicy | null;
   readonly directEndpoints: ReadonlyArray<ServerDirectEndpoint> | undefined;
-}) {
+}): boolean {
   if (input.authPolicy === "remote-reachable") return true;
   return input.authPolicy === "loopback-browser" && (input.directEndpoints?.length ?? 0) > 0;
 }
 
-export function isTailscaleHttpsEndpoint(endpoint: AdvertisedEndpoint) {
+export function isTailscaleHttpsEndpoint(endpoint: AdvertisedEndpoint): boolean {
   return endpoint.id.startsWith("tailscale-magicdns:");
 }
 
-export function endpointDefaultPreferenceKey(endpoint: AdvertisedEndpoint) {
+export function endpointDefaultPreferenceKey(endpoint: AdvertisedEndpoint): string {
   if (endpoint.id.startsWith("desktop-loopback:")) {
     return "desktop-core:loopback:http";
   }
@@ -414,7 +417,7 @@ export function resolveAdvertisedEndpointPairingUrl(
   endpoint: AdvertisedEndpoint,
   credential: string,
   hints: PairingRouteHints,
-) {
+): string {
   if (endpoint.compatibility.hostedHttpsApp === "compatible") {
     return (
       resolveHostedPairingUrl(endpoint.httpBaseUrl, credential, hints) ??
@@ -424,12 +427,15 @@ export function resolveAdvertisedEndpointPairingUrl(
   return resolveDesktopPairingUrl(endpoint.httpBaseUrl, credential, hints);
 }
 
-export function resolveCurrentOriginPairingUrl(credential: string, hints: PairingRouteHints) {
+export function resolveCurrentOriginPairingUrl(
+  credential: string,
+  hints: PairingRouteHints,
+): string {
   const url = new URL("/pair", window.location.href);
   return setPairingTokenOnUrl(url, credential, hints).toString();
 }
 
-export function isHostedAppPairingUrl(value: string) {
+export function isHostedAppPairingUrl(value: string): boolean {
   try {
     const url = new URL(value);
     return url.pathname === "/pair" && url.searchParams.has("host");
@@ -438,7 +444,7 @@ export function isHostedAppPairingUrl(value: string) {
   }
 }
 
-export function endpointShareHint(endpoint: AdvertisedEndpoint, url: string) {
+export function endpointShareHint(endpoint: AdvertisedEndpoint, url: string): string {
   if (isHostedAppPairingUrl(url)) {
     return "Opens the hosted app, no install needed";
   }
@@ -462,7 +468,7 @@ export function resolveAccessEnvironmentId(input: {
     readonly connected: boolean;
   }>;
   readonly selected: EnvironmentId | null;
-}) {
+}): EnvironmentId | null {
   const isListed = (environmentId: EnvironmentId | null) =>
     input.environments.some((environment) => environment.environmentId === environmentId);
   if (isListed(input.selected)) return input.selected;

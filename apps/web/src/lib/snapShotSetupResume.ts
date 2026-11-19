@@ -1,7 +1,7 @@
 const STORAGE_KEY = "supaterm:snap-shot-setup-resume:v1";
 let startupChecked = false;
 
-export function readSnapShotSetupResume() {
+export function readSnapShotSetupResume(): { wasEnabled: boolean } | null {
   try {
     const value = window.localStorage.getItem(STORAGE_KEY);
     if (value === "enabled" || value === "disabled") return { wasEnabled: value === "enabled" };
@@ -9,19 +9,19 @@ export function readSnapShotSetupResume() {
   return null;
 }
 
-export function saveSnapShotSetupResume(wasEnabled: boolean) {
+export function saveSnapShotSetupResume(wasEnabled: boolean): void {
   try {
     window.localStorage.setItem(STORAGE_KEY, wasEnabled ? "enabled" : "disabled");
   } catch {}
 }
 
-export function clearSnapShotSetupResume() {
+export function clearSnapShotSetupResume(): void {
   try {
     window.localStorage.removeItem(STORAGE_KEY);
   } catch {}
 }
 
-export function shouldResumeSnapShotSetupOnStartup() {
+export function shouldResumeSnapShotSetupOnStartup(): boolean {
   if (startupChecked) return false;
   startupChecked = true;
   return readSnapShotSetupResume() !== null;

@@ -1,6 +1,6 @@
 const foldCharacters = (text: string) => text.replace(/ς/g, "σ").replace(/[‘’]/g, "'");
 
-function foldThreadSearchCase(text: string) {
+function foldThreadSearchCase(text: string): string {
   const lowered = foldCharacters(text.toLowerCase());
   if (lowered.length === text.length) return lowered;
 
@@ -12,7 +12,7 @@ function foldThreadSearchCase(text: string) {
   return folded;
 }
 
-function scanThreadSearchOccurrences(text: string, query: string, offsets?: number[]) {
+function scanThreadSearchOccurrences(text: string, query: string, offsets?: number[]): number {
   if (text.length === 0 || query.length === 0) return 0;
 
   const foldedText = foldThreadSearchCase(text);
@@ -30,11 +30,11 @@ function scanThreadSearchOccurrences(text: string, query: string, offsets?: numb
   return count;
 }
 
-export function countThreadSearchOccurrences(text: string, query: string) {
+export function countThreadSearchOccurrences(text: string, query: string): number {
   return scanThreadSearchOccurrences(text, query);
 }
 
-export function findThreadSearchOccurrences(text: string, query: string) {
+export function findThreadSearchOccurrences(text: string, query: string): number[] {
   const offsets: number[] = [];
   scanThreadSearchOccurrences(text, query, offsets);
   return offsets;

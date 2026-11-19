@@ -59,7 +59,7 @@ const ICONS: Readonly<Record<string, IconNode>> = {
   trash: Trash,
 };
 
-function createIconElement(name: string, tone: "neutral" | "destructive") {
+function createIconElement(name: string, tone: "neutral" | "destructive"): SVGSVGElement | null {
   const node = ICONS[name];
   if (!node || typeof document.createElementNS !== "function") {
     return null;
@@ -122,11 +122,11 @@ function isNodeWithinMenuStack(target: EventTarget | null, menuStack: readonly H
 
 let activeContextMenuDismiss: ((restoreFocus?: boolean) => void) | null = null;
 
-export function isContextMenuOpen() {
+export function isContextMenuOpen(): boolean {
   return activeContextMenuDismiss !== null;
 }
 
-export function dismissContextMenu(restoreFocus = true) {
+export function dismissContextMenu(restoreFocus = true): void {
   activeContextMenuDismiss?.(restoreFocus);
   activeContextMenuDismiss = null;
 }
@@ -134,7 +134,7 @@ export function dismissContextMenu(restoreFocus = true) {
 export function showContextMenuFallback<T extends string>(
   items: readonly ContextMenuItem<T>[],
   position?: { x: number; y: number },
-) {
+): Promise<T | null> {
   dismissContextMenu();
   return new Promise<T | null>((resolve) => {
     let focusedElement = document.activeElement;

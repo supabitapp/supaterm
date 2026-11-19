@@ -54,11 +54,11 @@ const GIT_ENV = {
   GIT_COMMITTER_EMAIL: "dev@orbit.example",
 };
 
-function git(cwd: string, ...args: ReadonlyArray<string>) {
+function git(cwd: string, ...args: ReadonlyArray<string>): string {
   return NodeChildProcess.execFileSync("git", args, { cwd, env: GIT_ENV, encoding: "utf8" }).trim();
 }
 
-async function writeFiles(root: string, files: Readonly<Record<string, string>>) {
+async function writeFiles(root: string, files: Readonly<Record<string, string>>): Promise<void> {
   for (const [path, content] of Object.entries(files)) {
     const target = NodePath.join(root, path);
     await NodeFSP.mkdir(NodePath.dirname(target), { recursive: true });
@@ -66,14 +66,14 @@ async function writeFiles(root: string, files: Readonly<Record<string, string>>)
   }
 }
 
-function run(command: string, args: ReadonlyArray<string>, env = NodeProcess.env) {
+function run(command: string, args: ReadonlyArray<string>, env = NodeProcess.env): Promise<void> {
   return new Promise((resolve, reject) => {
     const child = NodeChildProcess.spawn(command, args, { cwd: REPO_ROOT, env, stdio: "inherit" });
     child.once("error", reject);
     child.once("exit", (code) =>
       code === 0 ? resolve() : reject(new Error(`${command} ${args.join(" ")} exited ${code}`)),
     );
-  }) satisfies Promise<void>;
+  });
 }
 
 interface CheckpointFile {
@@ -93,12 +93,12 @@ interface Workspace {
   }>;
 }
 
-function checkpointRef(scopeId: string, ordinal: number) {
+function checkpointRef(scopeId: string, ordinal: number): string {
   const scopeKey = NodeCrypto.createHash("sha256").update(scopeId).digest("hex").slice(0, 32);
   return `${CHECKPOINT_REFS_PREFIX}/${Buffer.from(scopeKey).toString("base64url")}/ordinal/${ordinal}`;
 }
 
-async function createWorkspace(root: string) {
+async function createWorkspace(root: string): Promise<Workspace> {
   const projectRoots = new Map<string, string>();
   for (const project of SCENE_PROJECTS) {
     const projectRoot = NodePath.join(root, "repos", project.title);
@@ -170,7 +170,7 @@ function runIdsFor(threadId: string, ordinal: number) {
   return { runId, nodeId: `node:run:${encodeURIComponent(runId)}:root` };
 }
 
-function encodePayload(schema: Schema.Codec<unknown, unknown>, payload: object) {
+function encodePayload(schema: Schema.Codec<unknown, unknown>, payload: object): string {
   try {
     Schema.decodeSync(schema)(payload);
   } catch (error) {
@@ -182,7 +182,7 @@ function encodePayload(schema: Schema.Codec<unknown, unknown>, payload: object) 
   return JSON.stringify(payload);
 }
 
-function seed(db: NodeSqlite.DatabaseSync, workspace: Workspace) {
+function seed(db: NodeSqlite.DatabaseSync, workspace: Workspace): void {
   const insert = (table: string, row: Row) => {
     const columns = Object.keys(row);
     db.prepare(
@@ -706,8 +706,8 @@ function pullRequestLink(title: string, branch: string, pullRequest: ScenePullRe
   };
 }
 
-async function reservePort() {
-  return (await new Promise((resolve, reject) => {
+async function reservePort(): Promise<number> {
+  return await new Promise((resolve, reject) => {
     const server = NodeNet.createServer();
     server.once("error", reject);
     server.listen(0, "127.0.0.1", () => {
@@ -715,10 +715,14 @@ async function reservePort() {
       if (!address || typeof address === "string") return reject(new Error("No port available."));
       server.close(() => resolve(address.port));
     });
-  })) satisfies number;
+  });
 }
 
-function waitForOutput(child: NodeChildProcess.ChildProcess, label: string, pattern: RegExp) {
+function waitForOutput(
+  child: NodeChildProcess.ChildProcess,
+  label: string,
+  pattern: RegExp,
+): Promise<RegExpExecArray> {
   return new Promise((resolve, reject) => {
     let output = "";
     const timeout = setTimeout(
@@ -736,7 +740,7 @@ function waitForOutput(child: NodeChildProcess.ChildProcess, label: string, patt
       clearTimeout(timeout);
       reject(new Error(`${label} exited with ${code} before it was ready.`));
     });
-  }) satisfies Promise<RegExpExecArray>;
+  });
 }
 
 function startServer(
@@ -746,8 +750,7 @@ function startServer(
 ): {
   readonly server: NodeChildProcess.ChildProcess;
   readonly pairingUrl: Promise<string>;
-};
-function startServer(root: string, home: string, port: number) {
+} {
   const env = { ...NodeProcess.env };
   delete env.VITE_DEV_SERVER_URL;
   const server = NodeChildProcess.spawn(
@@ -770,13 +773,10 @@ function startServer(root: string, home: string, port: number) {
   const pairingUrl = waitForOutput(server, "Server", /Pairing URL: (\S+)/).then(
     (match) => match[1]!,
   );
-  return { server, pairingUrl } satisfies {
-    readonly server: NodeChildProcess.ChildProcess;
-    readonly pairingUrl: Promise<string>;
-  };
+  return { server, pairingUrl };
 }
 
-function buildWebClient() {
+function buildWebClient(): Promise<void> {
   return run("vp", ["run", "--filter", "@supaterm/web", "build"], {
     ...NodeProcess.env,
     VITE_HTTP_URL: "",
@@ -784,10 +784,10 @@ function buildWebClient() {
     VITE_HOSTED_APP_CHANNEL: "",
     VITE_DEV_SERVER_URL: "",
     SUPATERM_WEB_SOURCEMAP: "0",
-  }) satisfies Promise<void>;
+  });
 }
 
-async function stopServer(server: NodeChildProcess.ChildProcess) {
+async function stopServer(server: NodeChildProcess.ChildProcess): Promise<void> {
   if (server.exitCode !== null || server.signalCode !== null) return;
   const exited = new Promise((resolve) => server.once("exit", resolve));
   server.kill("SIGTERM");
@@ -795,7 +795,7 @@ async function stopServer(server: NodeChildProcess.ChildProcess) {
   if (server.exitCode === null && server.signalCode === null) server.kill("SIGKILL");
 }
 
-function issuePairingCredential(home: string) {
+function issuePairingCredential(home: string): string {
   const output = NodeChildProcess.execFileSync(
     NodeProcess.execPath,
     [SERVER_BIN, "auth", "pairing", "create", "--base-dir", home, "--json"],
@@ -809,16 +809,16 @@ function issuePairingCredential(home: string) {
   return parsed.credential;
 }
 
-function installChromium() {
+function installChromium(): Promise<void> {
   const require = NodeModule.createRequire(import.meta.url);
   const cli = NodePath.join(
     NodePath.dirname(require.resolve("playwright-core/package.json")),
     "cli.js",
   );
-  return run(NodeProcess.execPath, [cli, "install", "chromium"]) satisfies Promise<void>;
+  return run(NodeProcess.execPath, [cli, "install", "chromium"]);
 }
 
-async function capture(page: Page, pairingUrl: string, environmentId: string) {
+async function capture(page: Page, pairingUrl: string, environmentId: string): Promise<Buffer> {
   const origin = new URL(pairingUrl).origin;
   await page.goto(pairingUrl);
   await page.waitForURL((url) => !url.pathname.startsWith("/pair"));
@@ -860,7 +860,7 @@ async function capture(page: Page, pairingUrl: string, environmentId: string) {
   return await page.screenshot({ type: "png" });
 }
 
-async function main() {
+async function main(): Promise<void> {
   const { values } = NodeUtil.parseArgs({
     options: {
       "skip-build": { type: "boolean", default: false },

@@ -4,7 +4,7 @@ import {
   type OrchestratorFixtureInput,
 } from "../shared.ts";
 
-export function messageSteeringInput() {
+export function messageSteeringInput(): OrchestratorFixtureInput {
   return {
     steps: [
       { type: "message", text: MESSAGE_STEERING_INITIAL_PROMPT },
@@ -14,11 +14,10 @@ export function messageSteeringInput() {
         targetRunIndex: 1,
       },
     ],
-  } satisfies OrchestratorFixtureInput;
+  };
 }
 
-export function messageRestartInput(): OrchestratorFixtureInput;
-export function messageRestartInput() {
+export function messageRestartInput(): OrchestratorFixtureInput {
   return {
     steps: [
       { type: "message", text: MESSAGE_STEERING_INITIAL_PROMPT },
@@ -28,5 +27,5 @@ export function messageRestartInput() {
         targetRunIndex: 1,
       },
     ],
-  } satisfies OrchestratorFixtureInput;
+  };
 }

@@ -104,8 +104,7 @@ const noMaterializedPreview = Atom.make(AsyncResult.initial<string | null>()).pi
   Atom.withLabel("composer-image-preview:none"),
 );
 
-function useComposerImagePreviewUri(attachment: DraftComposerImageAttachment): string | null;
-function useComposerImagePreviewUri(attachment: DraftComposerImageAttachment) {
+function useComposerImagePreviewUri(attachment: DraftComposerImageAttachment): string | null {
   const { fileUri, previewUri } = attachment;
   const inlinePreview = fileUri === undefined && previewUri.startsWith("data:");
   const materialized = useAtomValue(
@@ -115,17 +114,17 @@ function useComposerImagePreviewUri(attachment: DraftComposerImageAttachment) {
   );
   if (fileUri !== undefined) {
     const owned = resolveOwnedComposerAttachmentFileUri(fileUri, Paths.document.uri);
-    if (owned !== null) return owned satisfies string | null;
-    return (previewUri.startsWith("data:") ? fileUri : previewUri) satisfies string | null;
+    if (owned !== null) return owned;
+    return previewUri.startsWith("data:") ? fileUri : previewUri;
   }
   if (inlinePreview) {
-    if (!AsyncResult.isSuccess(materialized)) return null satisfies string | null;
-    return (materialized.value ??
-      (previewUri.length <= INLINE_PREVIEW_FALLBACK_MAX_CHARS ? previewUri : null)) satisfies
-      | string
-      | null;
+    if (!AsyncResult.isSuccess(materialized)) return null;
+    return (
+      materialized.value ??
+      (previewUri.length <= INLINE_PREVIEW_FALLBACK_MAX_CHARS ? previewUri : null)
+    );
   }
-  return previewUri satisfies string | null;
+  return previewUri;
 }
 
 function ComposerImageAttachment(

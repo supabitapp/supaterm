@@ -40,7 +40,7 @@ export interface ChatThreadActionContext {
 export function resolveNewDraftStartFromOrigin(input: {
   envMode: DraftThreadEnvMode;
   newWorktreesStartFromOrigin: boolean;
-}) {
+}): boolean {
   return input.envMode === "worktree" && input.newWorktreesStartFromOrigin;
 }
 
@@ -49,7 +49,7 @@ export function resolveNewThreadModelSelectionOverride(input: {
   readonly carrySelection: ModelSelection | null;
   readonly carrySourceDraftId: string | null;
   readonly destinationDraftId: string;
-}) {
+}): ModelSelection | null {
   return (
     input.projectDefaultSelection ??
     (input.carrySourceDraftId === input.destinationDraftId ? null : input.carrySelection)
@@ -58,7 +58,7 @@ export function resolveNewThreadModelSelectionOverride(input: {
 
 export function hasExplicitComposerModelSelection(
   draft: ComposerModelSelectionState | null | undefined,
-) {
+): boolean {
   const activeProvider = draft?.activeProvider;
   return (
     draft?.modelSelectionExplicit === true &&
@@ -70,7 +70,7 @@ export function hasExplicitComposerModelSelection(
 
 export function threadHasStarted(
   thread: Pick<EnvironmentThreadShell, "latestRun" | "itemCount" | "runtime"> | null | undefined,
-) {
+): boolean {
   return Boolean(thread && (thread.latestRun !== null || thread.itemCount > 0 || thread.runtime));
 }
 
@@ -82,11 +82,13 @@ export function threadHasStarted(
 export function draftModelSelectionApplies(
   draft: Pick<ComposerThreadDraftState, "modelSelectionExplicit"> | null | undefined,
   threadStarted: boolean,
-) {
+): boolean {
   return !threadStarted || draft?.modelSelectionExplicit === true;
 }
 
-export function resolveThreadActionProjectRef(context: ChatThreadActionContext) {
+export function resolveThreadActionProjectRef(
+  context: ChatThreadActionContext,
+): ScopedProjectRef | null {
   if (context.activeThread) {
     return scopeProjectRef(context.activeThread.environmentId, context.activeThread.projectId);
   }
@@ -99,7 +101,9 @@ export function resolveThreadActionProjectRef(context: ChatThreadActionContext) 
   return context.defaultProjectRef;
 }
 
-export async function startNewThreadFromContext(context: ChatThreadActionContext) {
+export async function startNewThreadFromContext(
+  context: ChatThreadActionContext,
+): Promise<boolean> {
   const projectRef = resolveThreadActionProjectRef(context);
   if (!projectRef) {
     return false;

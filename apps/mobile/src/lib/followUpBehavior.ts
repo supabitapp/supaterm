@@ -13,7 +13,7 @@ export function outboxFollowUpDispatchMode(input: {
   readonly followUpAction: ComposerDispatchMode;
   readonly setupRunning: boolean;
   readonly deferredSteering: boolean;
-}) {
+}): ComposerDispatchMode | null {
   if (!input.setupRunning && input.followUpAction === "auto") return null;
   return outboxDispatchMode({
     dispatchMode: input.followUpAction,

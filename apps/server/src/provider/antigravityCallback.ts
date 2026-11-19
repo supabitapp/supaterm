@@ -61,7 +61,10 @@ export const validateAntigravityCallbackUrl = Effect.fn("validateAntigravityCall
   },
 );
 
-export const forwardAntigravityCallback = (instanceId: ProviderInstanceId, callback: URL) =>
+export const forwardAntigravityCallback = (
+  instanceId: ProviderInstanceId,
+  callback: URL,
+): Effect.Effect<void, ProviderSetupError> =>
   Effect.callback<void, ProviderSetupError>((resume) => {
     const failed = () =>
       new ProviderSetupError({

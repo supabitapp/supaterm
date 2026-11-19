@@ -5,19 +5,19 @@ import type { DiffThemeName } from "../../lib/diffRendering";
 
 const CODE_FENCE_LANGUAGE_REGEX = /(?:^|\s)language-([^\s]+)/;
 
-export function extractFenceLanguage(className: string | undefined) {
+export function extractFenceLanguage(className: string | undefined): string {
   const match = className?.match(CODE_FENCE_LANGUAGE_REGEX);
   return highlighterLanguageOf(match?.[1] ?? "text");
 }
 
-export function highlighterLanguageOf(language: string) {
+export function highlighterLanguageOf(language: string): string {
   return language === "gitignore" ? "ini" : language;
 }
 
 const FENCE_TITLE_ATTR_REGEX = /(?:^|\s)(?:title|file(?:name)?)=(?:"([^"]+)"|'([^']+)'|(\S+))/i;
 const FENCE_FILENAME_TOKEN_REGEX = /^[\w@][\w@./-]*\.[A-Za-z0-9]+$/;
 
-export function extractFenceTitle(meta: string | undefined) {
+export function extractFenceTitle(meta: string | undefined): string | null {
   if (!meta) return null;
   const attrMatch = FENCE_TITLE_ATTR_REGEX.exec(meta);
   const attrTitle = attrMatch?.[1] ?? attrMatch?.[2] ?? attrMatch?.[3];
@@ -25,7 +25,7 @@ export function extractFenceTitle(meta: string | undefined) {
   return meta.split(/\s+/).find((candidate) => FENCE_FILENAME_TOKEN_REGEX.test(candidate)) ?? null;
 }
 
-export function extractPreCodeMeta(node: unknown) {
+export function extractPreCodeMeta(node: unknown): string | undefined {
   const children = (
     node as
       | {
@@ -47,7 +47,7 @@ export function isClosedCodeFence(
   node: ReactMarkdownExtraProps["node"],
   text: string,
   code: string,
-) {
+): boolean {
   const start = node?.position?.start.offset;
   const end = node?.position?.end.offset;
   if (start === undefined || end === undefined) return false;
@@ -63,27 +63,25 @@ export function isClosedCodeFence(
   );
 }
 
-export function nodeToPlainText(node: ReactNode): string;
-export function nodeToPlainText(node: ReactNode) {
+export function nodeToPlainText(node: ReactNode): string {
   if (typeof node === "string" || typeof node === "number") {
-    return String(node) satisfies string;
+    return String(node);
   }
   if (Array.isArray(node)) {
-    return node.map((child) => nodeToPlainText(child)).join("") satisfies string;
+    return node.map((child) => nodeToPlainText(child)).join("");
   }
   if (isValidElement<{ children?: ReactNode }>(node)) {
-    return nodeToPlainText(node.props.children) satisfies string;
+    return nodeToPlainText(node.props.children);
   }
-  return "" satisfies string;
+  return "";
 }
 
 export function extractCodeBlock(
   children: ReactNode,
-): { className: string | undefined; code: string } | null;
-export function extractCodeBlock(children: ReactNode) {
+): { className: string | undefined; code: string } | null {
   const childNodes = Children.toArray(children);
   if (childNodes.length !== 1) {
-    return null satisfies { className: string | undefined; code: string } | null;
+    return null;
   }
 
   const onlyChild = childNodes[0];
@@ -92,23 +90,27 @@ export function extractCodeBlock(children: ReactNode) {
       onlyChild,
     )
   ) {
-    return null satisfies { className: string | undefined; code: string } | null;
+    return null;
   }
   if (onlyChild.type !== "code" && onlyChild.props.node?.tagName !== "code") {
-    return null satisfies { className: string | undefined; code: string } | null;
+    return null;
   }
 
   return {
     className: onlyChild.props.className,
     code: nodeToPlainText(onlyChild.props.children),
-  } satisfies { className: string | undefined; code: string } | null;
+  };
 }
 
-export function createHighlightCacheKey(code: string, language: string, themeName: DiffThemeName) {
+export function createHighlightCacheKey(
+  code: string,
+  language: string,
+  themeName: DiffThemeName,
+): string {
   return `${language.length}:${language}:${themeName}:${code}`;
 }
 
 /** Approximate UTF-16 bytes for a cache entry, counting its key, which holds the code. */
-export function estimateHighlightedSize(html: string, cacheKey: string) {
+export function estimateHighlightedSize(html: string, cacheKey: string): number {
   return (cacheKey.length + html.length) * 2;
 }

@@ -10,7 +10,7 @@ export function cachedViewport(frame: SheetViewport, viewport: SheetViewport) {
   };
 }
 
-export function bufferedViewport(viewport: SheetViewport) {
+export function bufferedViewport(viewport: SheetViewport): SheetViewport {
   const marginX = Math.min(128, viewport.width / 4);
   const marginY = Math.min(256, viewport.height / 3);
   const x = Math.max(0, viewport.x - marginX);

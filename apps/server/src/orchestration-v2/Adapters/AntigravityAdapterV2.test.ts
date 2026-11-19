@@ -59,7 +59,7 @@ const flavor = makeAntigravityAcpAdapterFlavor({
 function permissionRequest(
   toolCallId: string,
   options: ReadonlyArray<EffectAcpSchema.PermissionOption>,
-) {
+): EffectAcpSchema.RequestPermissionRequest {
   return {
     sessionId: "session-1",
     options,
@@ -310,7 +310,7 @@ describe("AntigravityAdapterV2 client file system", () => {
             },
           }).pipe(
             Effect.provideService(SecureRandom.SecureRandom, crypto),
-            Effect.map((runtime) => ({
+            Effect.map((runtime): RuntimeService => ({
               ...runtime,
               handleReadTextFile: (handler) =>
                 Effect.sync(() => {
@@ -463,7 +463,7 @@ describe("AntigravityAdapterV2 workspace changes", () => {
             },
           }).pipe(
             Effect.provideService(SecureRandom.SecureRandom, crypto),
-            Effect.map((runtime) => ({
+            Effect.map((runtime): RuntimeService => ({
               ...runtime,
               prompt: (request) =>
                 Deferred.succeed(promptReceived, request).pipe(
@@ -633,7 +633,7 @@ describe("AntigravityAdapterV2 html_render pages", () => {
             },
           }).pipe(
             Effect.provideService(SecureRandom.SecureRandom, crypto),
-            Effect.map((runtime) => ({
+            Effect.map((runtime): RuntimeService => ({
               ...runtime,
               handleSessionUpdate: (handler) =>
                 Effect.sync(() => {
@@ -917,7 +917,7 @@ describe("AntigravityAdapterV2 subagent reads", () => {
               },
             }).pipe(
               Effect.provideService(SecureRandom.SecureRandom, random),
-              Effect.map((runtime) => ({
+              Effect.map((runtime): RuntimeService => ({
                 ...runtime,
                 handleSessionUpdate: (handler) =>
                   Effect.sync(() => {
@@ -1118,7 +1118,7 @@ describe("AntigravityAdapterV2 session system prompt", () => {
               },
             }).pipe(
               Effect.provideService(SecureRandom.SecureRandom, crypto),
-              Effect.map((runtime) => ({
+              Effect.map((runtime): RuntimeService => ({
                 ...runtime,
                 prompt: (request) =>
                   Deferred.succeed(promptReceived, request).pipe(

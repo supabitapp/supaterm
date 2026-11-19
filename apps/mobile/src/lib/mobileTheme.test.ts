@@ -29,7 +29,7 @@ import {
   themeColorToNativeColor,
 } from "./mobileTheme";
 
-function relativeLuminance(hex: string) {
+function relativeLuminance(hex: string): number {
   const channels = themeColorToNativeColor(hex)
     .slice(1)
     .match(/.{2}/g)!
@@ -38,7 +38,7 @@ function relativeLuminance(hex: string) {
   return 0.2126 * channels[0]! + 0.7152 * channels[1]! + 0.0722 * channels[2]!;
 }
 
-function contrastRatio(first: string, second: string) {
+function contrastRatio(first: string, second: string): number {
   const firstLuminance = relativeLuminance(first);
   const secondLuminance = relativeLuminance(second);
   return (
@@ -47,7 +47,7 @@ function contrastRatio(first: string, second: string) {
   );
 }
 
-function compositeOver(overlay: string, background: string) {
+function compositeOver(overlay: string, background: string): string {
   const overlayMatch = /^rgba\((\d+), (\d+), (\d+), ([\d.]+)\)$/.exec(overlay)!;
   const backgroundChannels = background
     .slice(1)

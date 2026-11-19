@@ -11,11 +11,11 @@ export interface SafeErrorLogAttributes {
   readonly stack?: string;
 }
 
-function readSafeLabel(value: unknown) {
+function readSafeLabel(value: unknown): string | undefined {
   return typeof value === "string" && SAFE_ERROR_LABEL.test(value) ? value : undefined;
 }
 
-function sanitizeStackUrl(value: string) {
+function sanitizeStackUrl(value: string): string {
   try {
     const url = new URL(value);
     const position = /(?::\d+){1,2}$/.exec(url.hash || url.search)?.[0] ?? "";
@@ -29,11 +29,11 @@ function sanitizeStackUrl(value: string) {
   }
 }
 
-function sanitizeStackFrame(frame: string) {
+function sanitizeStackFrame(frame: string): string {
   return frame.replace(/(?:https?|file):\/\/[^\s)]+/g, sanitizeStackUrl);
 }
 
-function readSafeStack(error: Error) {
+function readSafeStack(error: Error): string | undefined {
   try {
     const frames = error.stack
       ?.split(/\r?\n/)
@@ -46,7 +46,7 @@ function readSafeStack(error: Error) {
   }
 }
 
-function readErrorTag(error: unknown) {
+function readErrorTag(error: unknown): string | undefined {
   try {
     if (typeof error !== "object" || error === null) {
       return undefined;
@@ -57,7 +57,7 @@ function readErrorTag(error: unknown) {
   }
 }
 
-function readTraceId(error: unknown) {
+function readTraceId(error: unknown): string | undefined {
   try {
     const seen = new Set<object>();
     let current: unknown = error;
@@ -77,7 +77,7 @@ function readTraceId(error: unknown) {
   }
 }
 
-export function safeErrorLogAttributes(error: unknown) {
+export function safeErrorLogAttributes(error: unknown): SafeErrorLogAttributes {
   const errorTag = readErrorTag(error);
   const traceId = readTraceId(error);
 
@@ -90,7 +90,7 @@ export function safeErrorLogAttributes(error: unknown) {
       ...(errorTag !== undefined ? { errorTag } : {}),
       ...(traceId !== undefined ? { traceId } : {}),
       ...(stack !== undefined ? { stack } : {}),
-    } satisfies SafeErrorLogAttributes;
+    };
   }
 
   return {
@@ -104,5 +104,5 @@ export function safeErrorLogAttributes(error: unknown) {
             : "primitive",
     ...(errorTag !== undefined ? { errorTag } : {}),
     ...(traceId !== undefined ? { traceId } : {}),
-  } satisfies SafeErrorLogAttributes;
+  };
 }

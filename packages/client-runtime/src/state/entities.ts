@@ -13,7 +13,7 @@ export class InvalidScopedProjectKeyError extends Schema.TaggedError<InvalidScop
     key: Schema.String,
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Invalid scoped project atom key: ${JSON.stringify(this.key)}.`;
   }
 }
@@ -24,7 +24,7 @@ export class InvalidScopedThreadKeyError extends Schema.TaggedError<InvalidScope
     key: Schema.String,
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Invalid scoped thread atom key: ${JSON.stringify(this.key)}.`;
   }
 }
@@ -36,7 +36,7 @@ export class InvalidScopedProjectRefCollectionKeyError extends Schema.TaggedErro
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Invalid scoped project reference collection atom key: ${JSON.stringify(this.key)}.`;
   }
 }
@@ -45,20 +45,19 @@ const decodeProjectRefCollectionKey = Schema.decodeUnknownSync(
   Schema.Array(Schema.Tuple([Schema.String, Schema.String])),
 );
 
-export function projectKey(ref: ScopedProjectRef) {
+export function projectKey(ref: ScopedProjectRef): string {
   return `${ref.environmentId}\u0000${ref.projectId}`;
 }
 
-export function threadKey(ref: ScopedThreadRef): string;
-export function threadKey(ref: ScopedThreadRef) {
-  return `${ref.environmentId}\u0000${ref.threadId}` satisfies string;
+export function threadKey(ref: ScopedThreadRef): string {
+  return `${ref.environmentId}\u0000${ref.threadId}`;
 }
 
-export function projectRefCollectionKey(refs: ReadonlyArray<ScopedProjectRef>) {
+export function projectRefCollectionKey(refs: ReadonlyArray<ScopedProjectRef>): string {
   return JSON.stringify(refs.map((ref) => [ref.environmentId, ref.projectId]));
 }
 
-export function parseProjectKey(key: string) {
+export function parseProjectKey(key: string): ScopedProjectRef {
   const separator = key.indexOf("\u0000");
   if (separator < 0) {
     throw new InvalidScopedProjectKeyError({ key });
@@ -69,7 +68,7 @@ export function parseProjectKey(key: string) {
   };
 }
 
-export function parseProjectRefCollectionKey(key: string) {
+export function parseProjectRefCollectionKey(key: string): ReadonlyArray<ScopedProjectRef> {
   let entries: ReadonlyArray<readonly [string, string]>;
   try {
     entries = decodeProjectRefCollectionKey(JSON.parse(key));
@@ -82,7 +81,7 @@ export function parseProjectRefCollectionKey(key: string) {
   }));
 }
 
-export function parseThreadKey(key: string) {
+export function parseThreadKey(key: string): ScopedThreadRef {
   const separator = key.indexOf("\u0000");
   if (separator < 0) {
     throw new InvalidScopedThreadKeyError({ key });
@@ -96,7 +95,7 @@ export function parseThreadKey(key: string) {
 export function projectRefsEqual(
   left: ReadonlyArray<ScopedProjectRef>,
   right: ReadonlyArray<ScopedProjectRef>,
-) {
+): boolean {
   return (
     left.length === right.length &&
     left.every(
@@ -110,7 +109,7 @@ export function projectRefsEqual(
 export function threadRefsEqual(
   left: ReadonlyArray<ScopedThreadRef>,
   right: ReadonlyArray<ScopedThreadRef>,
-) {
+): boolean {
   return (
     left.length === right.length &&
     left.every(
@@ -121,6 +120,6 @@ export function threadRefsEqual(
   );
 }
 
-export function arrayElementsEqual<A>(left: ReadonlyArray<A>, right: ReadonlyArray<A>) {
+export function arrayElementsEqual<A>(left: ReadonlyArray<A>, right: ReadonlyArray<A>): boolean {
   return left.length === right.length && left.every((value, index) => value === right[index]);
 }

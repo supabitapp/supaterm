@@ -14,7 +14,7 @@ export interface HostAccountGroup {
 export function groupHostAccounts(
   accounts: ReadonlyArray<DiscoveredAccount>,
   additionalHosts: readonly string[] = [],
-) {
+): ReadonlyArray<HostAccountGroup> {
   const hosts = [...new Set([...accounts.map((entry) => entry.host), ...additionalHosts])];
   return hosts.map((host) => {
     const entries = accounts.filter((entry) => entry.host === host);
@@ -35,7 +35,7 @@ export function nextHostAccountChoices(
   current: HostCredentialSettings["hosts"],
   host: string,
   change: { readonly enabled?: boolean; readonly account?: string | null },
-) {
+): HostCredentialSettings["hosts"] {
   const previous = current[host];
   const enabled = change.enabled ?? previous?.enabled ?? true;
   const account = change.account === undefined ? previous?.account : (change.account ?? undefined);

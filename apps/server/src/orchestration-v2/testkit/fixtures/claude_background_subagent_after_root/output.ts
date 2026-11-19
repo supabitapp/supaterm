@@ -22,13 +22,13 @@ const SUBAGENT_PROGRESS = [
   "Running Sleep 3 seconds then echo SUB_DONE_2",
 ];
 
-function assistantTexts(projection: OrchestrationV2ThreadProjection) {
+function assistantTexts(projection: OrchestrationV2ThreadProjection): ReadonlyArray<string> {
   return projection.turnItems.flatMap((item) =>
     item.type === "assistant_message" ? [item.text.trim()] : [],
   );
 }
 
-function commandTexts(projection: OrchestrationV2ThreadProjection) {
+function commandTexts(projection: OrchestrationV2ThreadProjection): ReadonlyArray<string> {
   return projection.turnItems.flatMap((item) =>
     item.type === "command_execution" ? [JSON.stringify(item.input)] : [],
   );

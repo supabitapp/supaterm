@@ -13,7 +13,7 @@ vi.mock("../../state/server", () => ({ primaryServerProvidersAtom: {} }));
 
 const checkedAt = "2026-10-19T03:00:00.000Z";
 
-function provider(status: "running" | "succeeded" | "failed") {
+function provider(status: "running" | "succeeded" | "failed"): ServerProvider {
   return {
     instanceId: ProviderInstanceId.make("claude"),
     driver: ProviderDriverKind.make("claudeAgent"),
@@ -33,7 +33,7 @@ function provider(status: "running" | "succeeded" | "failed") {
       message: status === "failed" ? "Update failed." : "Provider updated.",
       output: null,
     },
-  } satisfies ServerProvider;
+  };
 }
 
 function setup(providers: ServerProvider[]) {

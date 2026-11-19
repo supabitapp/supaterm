@@ -51,16 +51,16 @@ const Entry = Schema.Union([
 ]);
 const decodeEntry = Schema.decodeUnknownOption(Entry);
 
-function parseRecord(parsed: unknown, state: typeof PiScanState.Type) {
+function parseRecord(parsed: unknown, state: typeof PiScanState.Type): readonly UsageRecord[] {
   const decoded = decodeEntry(parsed);
-  if (Option.isNone(decoded)) return [] satisfies readonly UsageRecord[];
+  if (Option.isNone(decoded)) return [];
   const entry = decoded.value;
   if (entry.type === "session") {
     state.sessionId = entry.id;
-    return [] satisfies readonly UsageRecord[];
+    return [];
   }
   const timestampMs = parseTimestampMs(entry.timestamp);
-  if (timestampMs === null) return [] satisfies readonly UsageRecord[];
+  if (timestampMs === null) return [];
   const source = entry.type === "message" ? entry.message : entry;
   const usage = source.usage;
   const rateModel =
@@ -81,8 +81,7 @@ function parseRecord(parsed: unknown, state: typeof PiScanState.Type) {
   const cost = usage.cost?.total;
   const reportedCostUsd =
     typeof cost === "number" && Number.isFinite(cost) && cost > 0 ? cost : null;
-  if (totalTokens(totals) === 0 && reportedCostUsd === null)
-    return [] satisfies readonly UsageRecord[];
+  if (totalTokens(totals) === 0 && reportedCostUsd === null) return [];
   return [
     {
       provider: "pi",
@@ -95,7 +94,7 @@ function parseRecord(parsed: unknown, state: typeof PiScanState.Type) {
       speed: "standard",
       dedupeKey: JSON.stringify(["pi", entry.id, entry.timestamp, model]),
     },
-  ] satisfies readonly UsageRecord[];
+  ];
 }
 
 export const piUsageFormat: TranscriptUsageFormat<typeof PiScanState.Type> = {
@@ -144,7 +143,7 @@ export const piUsageReader: ProviderUsageReader<PiSettings, Path.Path> = {
   }),
 };
 
-function piLaunchSessionDir(launchArgs: string) {
+function piLaunchSessionDir(launchArgs: string): string | undefined {
   const resolved = resolvePiLaunchArgs(launchArgs);
   if (!resolved.ok) return undefined;
   let sessionDir: string | undefined;
@@ -162,7 +161,7 @@ export function piHome(
   environment: NodeJS.ProcessEnv,
   hostHome: string,
   platform: NodeJS.Platform,
-) {
+): string {
   return (platform === "win32" ? environment.USERPROFILE : environment.HOME) || hostHome;
 }
 
@@ -171,7 +170,7 @@ export function resolvePiSessionsDir(
   environment: NodeJS.ProcessEnv,
   home: string,
   path: Path.Path,
-) {
+): string {
   const sessionDir = environment.PI_CODING_AGENT_SESSION_DIR?.trim();
   if (sessionDir) return path.resolve(expandHomePath(sessionDir, home));
   const agentDir = environment.PI_CODING_AGENT_DIR?.trim();

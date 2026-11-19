@@ -1,4 +1,6 @@
-function elementOuterWidth(element: HTMLElement) {
+import type { RestingComposerControlsMeasurement } from "../composerFooterLayout";
+
+function elementOuterWidth(element: HTMLElement): number {
   const width = element.getBoundingClientRect().width;
   if (width === 0) return 0;
   const style = getComputedStyle(element);
@@ -9,7 +11,7 @@ function elementOuterWidth(element: HTMLElement) {
   );
 }
 
-function elementInlineMarginWidth(element: HTMLElement) {
+function elementInlineMarginWidth(element: HTMLElement): number {
   const style = getComputedStyle(element);
   return (
     (Number.parseFloat(style.marginInlineStart) || 0) +
@@ -17,7 +19,7 @@ function elementInlineMarginWidth(element: HTMLElement) {
   );
 }
 
-function providerModelPickerNaturalWidth(picker: HTMLElement) {
+function providerModelPickerNaturalWidth(picker: HTMLElement): number {
   const renderedWidth = picker.getBoundingClientRect().width;
   if (renderedWidth === 0) return 0;
   const style = getComputedStyle(picker);
@@ -42,12 +44,12 @@ function providerModelPickerNaturalWidth(picker: HTMLElement) {
   return naturalWidth + elementInlineMarginWidth(picker);
 }
 
-function providerModelPickerMinimumWidth(picker: HTMLElement) {
+function providerModelPickerMinimumWidth(picker: HTMLElement): number {
   const minWidth = Number.parseFloat(getComputedStyle(picker).minWidth) || 0;
   return minWidth + elementInlineMarginWidth(picker);
 }
 
-function controlBlockWidths(block: HTMLElement) {
+function controlBlockWidths(block: HTMLElement): { natural: number; iconOnly: number } {
   const compact = block.dataset.composerBlockIconOnly === "true";
   let natural = elementOuterWidth(block);
   let iconOnly = natural;
@@ -71,7 +73,9 @@ function controlBlockWidths(block: HTMLElement) {
 }
 
 /** Measure independently of controls hidden by the previous render. */
-export function measureRestingComposerControls(controls: HTMLElement) {
+export function measureRestingComposerControls(
+  controls: HTMLElement,
+): RestingComposerControlsMeasurement | null {
   const gap = Number.parseFloat(getComputedStyle(controls).columnGap) || 0;
   const picker = controls.querySelector<HTMLElement>("[data-chat-provider-model-picker]");
   const leadingControl =

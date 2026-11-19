@@ -17,15 +17,11 @@ import {
   type AssignableProject,
 } from "./pullRequestProjectAssignment.logic";
 
-const project: (
+const project = (
   id: string,
   environmentId: string,
   canonicalKey?: string,
-) => AssignableProject & { workspaceRoot: string } = (
-  id: string,
-  environmentId: string,
-  canonicalKey?: string,
-) => ({
+): AssignableProject & { workspaceRoot: string } => ({
   id: id as ProjectId,
   environmentId: environmentId as EnvironmentId,
   repositoryIdentity: canonicalKey === undefined ? null : { canonicalKey },
@@ -43,7 +39,7 @@ const hostAvailability = (hosts: ReadonlyMap<string, boolean>) => ({
   projectHosts: new Map<ProjectId, { host: string; observedAt: number }>(),
 });
 
-const provider = (host: string, configured: boolean) => ({
+const provider = (host: string, configured: boolean): PullRequestProviderSummary => ({
   host,
   kind: "bitbucket" as PullRequestProviderSummary["kind"],
   searchesOnHost: false,

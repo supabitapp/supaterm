@@ -12,6 +12,8 @@ import {
   isQueuedCreationSending,
   pendingDraftTask,
   type HeldNewTaskDraft,
+  type PendingNewTask,
+  type ThreadOutboxSendGate,
 } from "./pending-new-tasks-model";
 import { pendingThreadCreationOutcomesAtom, withLaunchingThreads } from "./pending-thread-creation";
 import { flattenQueuedThreadMessages } from "./thread-outbox-model";
@@ -35,7 +37,7 @@ const heldNewTaskDraftAtom = Atom.make<HeldNewTaskDraft | null>(null).pipe(
   Atom.withLabel("mobile:held-new-task-draft"),
 );
 
-export function holdNewTaskDraft(draftKey: string) {
+export function holdNewTaskDraft(draftKey: string): () => void {
   const draft = appAtomRegistry.get(newTaskComposerDraftsAtom)[draftKey];
   const held: HeldNewTaskDraft = {
     draftKey,
@@ -62,7 +64,7 @@ const pendingDraftTasksAtom = Atom.make((get) =>
   Atom.withLabel("mobile:pending-draft-tasks"),
 );
 
-const threadOutboxSendGateAtom = Atom.make((get) => {
+const threadOutboxSendGateAtom = Atom.make((get): ThreadOutboxSendGate => {
   const connected = get(workspaceConnections.environmentsAtom).flatMap((environment) =>
     environment.connectionState === "connected" ? [environment.environmentId] : [],
   );
@@ -81,7 +83,7 @@ const threadOutboxSendGateAtom = Atom.make((get) => {
   };
 }).pipe(Atom.withLabel("mobile:pending-new-tasks:send-gate"));
 
-export function usePendingNewTasks() {
+export function usePendingNewTasks(): ReadonlyArray<PendingNewTask> {
   const queuedMessagesByThreadKey = useThreadOutboxMessages();
   const draftTasks = useAtomValue(pendingDraftTasksAtom);
   const sendGate = useAtomValue(threadOutboxSendGateAtom);
@@ -92,7 +94,9 @@ export function usePendingNewTasks() {
 }
 
 /** The list's threads, with creations the outbox is sending placed as working. */
-export function useLaunchingThreads(threads: ReadonlyArray<EnvironmentThreadShell>) {
+export function useLaunchingThreads(
+  threads: ReadonlyArray<EnvironmentThreadShell>,
+): ReadonlyArray<EnvironmentThreadShell> {
   const queuedMessagesByThreadKey = useThreadOutboxMessages();
   const outcomes = useAtomValue(pendingThreadCreationOutcomesAtom);
   const sendGate = useAtomValue(threadOutboxSendGateAtom);

@@ -31,7 +31,7 @@ class PcmCaptureProcessor extends AudioWorkletProcessor {
     };
   }
 
-  process(inputs: ReadonlyArray<ReadonlyArray<Float32Array>>) {
+  process(inputs: ReadonlyArray<ReadonlyArray<Float32Array>>): boolean {
     const channels = inputs[0];
     if (!this.capturing || channels === undefined || channels.length === 0) return true;
     const first = channels[0]!;
@@ -48,7 +48,7 @@ class PcmCaptureProcessor extends AudioWorkletProcessor {
     return true;
   }
 
-  private post() {
+  private post(): void {
     if (this.filled === 0) return;
     const frame = this.frame.slice(0, this.filled);
     this.port.postMessage(frame, [frame.buffer]);

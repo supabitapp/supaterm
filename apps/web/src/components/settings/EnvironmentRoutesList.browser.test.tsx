@@ -25,7 +25,7 @@ import { EnvironmentRoutesList } from "./EnvironmentRoutesList";
 
 const ENVIRONMENT_ID = EnvironmentId.make("environment-1");
 
-function direct(id: string, httpBaseUrl: string) {
+function direct(id: string, httpBaseUrl: string): ConnectionRoute {
   return {
     target: new BearerConnectionTarget({
       environmentId: ENVIRONMENT_ID,

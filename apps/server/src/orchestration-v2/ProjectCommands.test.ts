@@ -13,7 +13,7 @@ import type { ProjectRow } from "./ProjectStore.ts";
 const now = DateTime.makeUnsafe("2026-01-01T00:00:00.000Z");
 const projectId = ProjectId.make("project-scripts");
 
-const row = (overrides: Partial<ProjectRow> = {}) => ({
+const row = (overrides: Partial<ProjectRow> = {}): ProjectRow => ({
   projectId,
   title: "Scripts",
   workspaceRoot: "/tmp/scripts",
@@ -32,14 +32,13 @@ const row = (overrides: Partial<ProjectRow> = {}) => ({
   ...overrides,
 });
 
-const script = (id: string) =>
-  ({
-    id,
-    name: "Install dependencies",
-    command: "vp i",
-    icon: "configure",
-    runOnWorktreeCreate: false,
-  }) satisfies ProjectScript;
+const script = (id: string): ProjectScript => ({
+  id,
+  name: "Install dependencies",
+  command: "vp i",
+  icon: "configure",
+  runOnWorktreeCreate: false,
+});
 
 const plan = (command: ProjectCommand, state: Partial<ProjectCommandState> = {}) =>
   planProjectCommand({

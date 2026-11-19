@@ -975,32 +975,28 @@ const stopEarlierBackgroundWork = ({
                 pendingBackgroundTasks: backgroundTasks,
               },
             },
-            ...failedRun.events.flatMap((event) => {
+            ...failedRun.events.flatMap((event): Array<OrchestrationV2DomainEvent> => {
               switch (event.type) {
                 case "provider-turn.updated":
-                  return [] satisfies Array<OrchestrationV2DomainEvent> as Array<OrchestrationV2DomainEvent>;
+                  return [];
                 case "run.created":
-                  return [
-                    { ...event, payload: { ...event.payload, status: "failed" } },
-                  ] satisfies Array<OrchestrationV2DomainEvent> as Array<OrchestrationV2DomainEvent>;
+                  return [{ ...event, payload: { ...event.payload, status: "failed" } }];
                 case "node.updated":
                   return [
                     {
                       ...event,
                       payload: { ...event.payload, status: "failed", providerTurnId: null },
                     },
-                  ] satisfies Array<OrchestrationV2DomainEvent> as Array<OrchestrationV2DomainEvent>;
+                  ];
                 case "run-attempt.created":
                   return [
                     {
                       ...event,
                       payload: { ...event.payload, status: "failed", providerTurnId: null },
                     },
-                  ] satisfies Array<OrchestrationV2DomainEvent> as Array<OrchestrationV2DomainEvent>;
+                  ];
                 default:
-                  return [
-                    event,
-                  ] satisfies Array<OrchestrationV2DomainEvent> as Array<OrchestrationV2DomainEvent>;
+                  return [event];
               }
             }),
           ],

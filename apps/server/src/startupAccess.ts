@@ -20,7 +20,7 @@ export interface HeadlessServeAccessInfo {
 
 type NetworkInterfacesMap = ReturnType<typeof NodeOS.networkInterfaces>;
 
-export const isLoopbackHost: (host: string | undefined) => boolean = (host: string | undefined) => {
+export const isLoopbackHost = (host: string | undefined): boolean => {
   if (!host || host.length === 0) {
     return true;
   }
@@ -34,22 +34,22 @@ export const isLoopbackHost: (host: string | undefined) => boolean = (host: stri
   );
 };
 
-export const loopbackUrlHostForAddress = (address: NetAddress.InetAddress) =>
+export const loopbackUrlHostForAddress = (address: NetAddress.InetAddress): string =>
   NetAddress.isUnspecified(address.address)
     ? "127.0.0.1"
     : NetAddress.formatUrlHostString(NetAddress.formatIp(address.address));
 
-const normalizeHost = (host: string) =>
+const normalizeHost = (host: string): string =>
   host.startsWith("[") && host.endsWith("]") ? host.slice(1, -1) : host;
 
-const isIpv4Family = (family: string | number) => family === "IPv4" || family === 4;
+const isIpv4Family = (family: string | number): boolean => family === "IPv4" || family === 4;
 
-const isIpv6Family = (family: string | number) => family === "IPv6" || family === 6;
+const isIpv6Family = (family: string | number): boolean => family === "IPv6" || family === 6;
 
 const resolveHeadlessConnectionHost = (
   host: string | undefined,
   interfaces: NetworkInterfacesMap = NodeOS.networkInterfaces(),
-) => {
+): string => {
   if (!host) {
     return "localhost";
   }
@@ -76,12 +76,12 @@ export const resolveHeadlessConnectionString = (
   host: string | undefined,
   port: number,
   interfaces: NetworkInterfacesMap = NodeOS.networkInterfaces(),
-) => {
+): string => {
   const connectionHost = resolveHeadlessConnectionHost(host, interfaces);
   return `http://${formatHostForUrl(connectionHost)}:${port}`;
 };
 
-const resolveListeningPort = (address: unknown, fallbackPort: number) => {
+const resolveListeningPort = (address: unknown, fallbackPort: number): number => {
   if (
     typeof address === "object" &&
     address !== null &&
@@ -93,10 +93,10 @@ const resolveListeningPort = (address: unknown, fallbackPort: number) => {
   return fallbackPort;
 };
 
-export const renderTerminalQrCode = (value: string, margin = 2) => {
+export const renderTerminalQrCode = (value: string, margin = 2): string => {
   const qrCode = QrCode.encodeText(value, QrCode.Ecc.MEDIUM);
   const rows: Array<string> = [];
-  const isDark = (x: number, y: number) =>
+  const isDark = (x: number, y: number): boolean =>
     x >= 0 && x < qrCode.size && y >= 0 && y < qrCode.size && qrCode.getModule(x, y);
 
   for (let y = -margin; y < qrCode.size + margin; y += 2) {
@@ -115,7 +115,7 @@ export const renderTerminalQrCode = (value: string, margin = 2) => {
   return rows.join("\n");
 };
 
-export const formatHeadlessServeOutput = (accessInfo: HeadlessServeAccessInfo) =>
+export const formatHeadlessServeOutput = (accessInfo: HeadlessServeAccessInfo): string =>
   [
     "Supaterm server is ready.",
     `Connection string: ${accessInfo.connectionString}`,

@@ -27,7 +27,7 @@ const WSL_UNC_PREFIXES = ["\\\\wsl.localhost\\", "\\\\wsl$\\"] as const;
 const WSL_DISTRO_NAME_PATTERN = /^[A-Za-z0-9._-]+$/;
 const WSL_DEFAULT_BACKEND_ID = "wsl:default";
 
-export function parseWslUncPath(input: string) {
+export function parseWslUncPath(input: string): WslUncPath | null {
   const normalized = input.trim().replaceAll("/", "\\");
   const prefix = WSL_UNC_PREFIXES.find((candidate) =>
     normalized.toLowerCase().startsWith(candidate.toLowerCase()),
@@ -52,7 +52,7 @@ export function parseWslUncPath(input: string) {
 export function resolveWslProjectSelection<TEnvironmentId extends string>(
   input: string,
   candidates: ReadonlyArray<WslEnvironmentCandidate<TEnvironmentId>>,
-) {
+): WslProjectSelection<TEnvironmentId> | null {
   const parsed = parseWslUncPath(input);
   if (!parsed) {
     return null;
@@ -74,7 +74,14 @@ export function resolveWslProjectSelection<TEnvironmentId extends string>(
   return exact ? { ...parsed, environmentId: exact.environmentId } : null;
 }
 
-function resolveConfiguredWslBackend(configuration: WslEnvironmentConfiguration | null) {
+interface ConfiguredWslBackend {
+  readonly backendId: string;
+  readonly runningDistro: string | null;
+}
+
+function resolveConfiguredWslBackend(
+  configuration: WslEnvironmentConfiguration | null,
+): ConfiguredWslBackend | null {
   if (!configuration) {
     return null;
   }
@@ -100,7 +107,7 @@ export function resolveProjectPickerTarget<TEnvironmentId extends string>(input:
   readonly primaryEnvironmentId: TEnvironmentId | null;
   readonly desktopInstanceId: string | null;
   readonly wslConfiguration: WslEnvironmentConfiguration | null;
-}) {
+}): string | null {
   if (input.desktopInstanceId !== null) {
     return input.desktopInstanceId;
   }
@@ -122,7 +129,7 @@ export function applyWslEnvironmentConfiguration<TEnvironmentId extends string>(
   primaryEnvironmentId: TEnvironmentId | null,
   configuration: WslEnvironmentConfiguration | null,
   primaryRunningDistro: string | null = null,
-) {
+): ReadonlyArray<WslEnvironmentCandidate<TEnvironmentId>> {
   if (!configuration) {
     return candidates;
   }

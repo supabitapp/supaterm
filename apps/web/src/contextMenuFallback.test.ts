@@ -34,10 +34,8 @@ class FakeElement {
 
   constructor(readonly tagName: string) {}
 
-  get isConnected() {
-    return (this.parent
-      ? this.parent.isConnected
-      : this.tagName === "body") satisfies boolean as boolean;
+  get isConnected(): boolean {
+    return this.parent ? this.parent.isConnected : this.tagName === "body";
   }
 
   appendChild(child: FakeElement) {
@@ -102,7 +100,7 @@ class FakeElement {
     return `${this.textValue}${this.children.map((child) => child.textContent).join("")}`;
   }
 
-  querySelectorAll(tagName: string) {
+  querySelectorAll(tagName: string): FakeElement[] {
     const matches: FakeElement[] = [];
     if (this.tagName === tagName) {
       matches.push(this);
@@ -177,7 +175,7 @@ class FakeDocument {
   }
 }
 
-function findButton(label: string) {
+function findButton(label: string): FakeElement | undefined {
   return (document as unknown as FakeDocument)
     .querySelectorAll("button")
     .find((button) => button.textContent.includes(label));

@@ -70,7 +70,10 @@ export interface PreviewBrowserRelease {
   readonly sha256: string;
 }
 
-const previewBrowserRelease = (platform: NodeJS.Platform, arch: NodeJS.Architecture) => {
+const previewBrowserRelease = (
+  platform: NodeJS.Platform,
+  arch: NodeJS.Architecture,
+): PreviewBrowserRelease | null => {
   const chrome = chromePlatform(platform, arch);
   return chrome === null
     ? null
@@ -88,7 +91,7 @@ export class PreviewBrowserInstallError extends Schema.TaggedError<PreviewBrowse
   "PreviewBrowserInstallError",
   { detail: Schema.String, cause: Schema.optional(Schema.Defect()) },
 ) {
-  override get message() {
+  override get message(): string {
     return `Supaterm could not install its headless browser: ${this.detail} Try again.`;
   }
 }
@@ -98,7 +101,7 @@ export class PreviewBrowserInstallingError extends Schema.TaggedError<PreviewBro
   "PreviewBrowserInstallingError",
   { downloadedBytes: Schema.Number, totalBytes: Schema.Number, unpacking: Schema.Boolean },
 ) {
-  override get message() {
+  override get message(): string {
     const progress = this.unpacking
       ? "unpacking"
       : `${megabytes(this.downloadedBytes)} of ${megabytes(this.totalBytes)} MB downloaded`;
@@ -110,7 +113,7 @@ export class PreviewBrowserUnsupportedError extends Schema.TaggedError<PreviewBr
   "PreviewBrowserUnsupportedError",
   { platform: Schema.String, arch: Schema.String },
 ) {
-  override get message() {
+  override get message(): string {
     return `Supaterm's headless browser is not available on ${this.platform}-${this.arch}: Chrome for Testing has no headless shell for it.`;
   }
 }

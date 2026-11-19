@@ -29,7 +29,7 @@ vi.mock("react-native", () => ({
   },
 }));
 
-function makeUpdateClient(overrides: Partial<AppUpdateClient> = {}) {
+function makeUpdateClient(overrides: Partial<AppUpdateClient> = {}): AppUpdateClient {
   return {
     isEnabled: true,
     checkForUpdateAsync: vi.fn(async () => ({
@@ -45,7 +45,11 @@ function makeUpdateClient(overrides: Partial<AppUpdateClient> = {}) {
   };
 }
 
-function makeUpdateEnvironment(overrides: Partial<AppUpdateEnvironment> = {}) {
+function makeUpdateEnvironment(overrides: Partial<AppUpdateEnvironment> = {}): {
+  readonly backgroundCallbacks: Array<() => void>;
+  readonly environment: AppUpdateEnvironment;
+  readonly foregroundStayCallbacks: Array<() => void>;
+} {
   const backgroundCallbacks: Array<() => void> = [];
   const foregroundStayCallbacks: Array<() => void> = [];
   return {
@@ -66,7 +70,7 @@ function makeUpdateEnvironment(overrides: Partial<AppUpdateEnvironment> = {}) {
   };
 }
 
-function makeAvailableUpdateClient(overrides: Partial<AppUpdateClient> = {}) {
+function makeAvailableUpdateClient(overrides: Partial<AppUpdateClient> = {}): AppUpdateClient {
   return makeUpdateClient({
     checkForUpdateAsync: vi.fn(async () => ({
       isAvailable: true,

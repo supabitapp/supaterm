@@ -20,54 +20,53 @@ import {
   withClaudeCodeModelRoutes,
 } from "./ClaudeModelCatalog.ts";
 
-const manifest = () =>
-  ({
-    version: 1,
-    currentModels: {},
-    providers: {
-      claudeAgent: {
-        profiles: {
-          synthetic: {
-            capabilities: {
-              optionDescriptors: [
-                {
-                  id: "effort",
-                  label: "Reasoning",
-                  type: "select",
-                  options: [{ id: "extreme", label: "Extreme", isDefault: true }],
-                },
-                {
-                  id: "contextWindow",
-                  label: "Context Window",
-                  type: "select",
-                  options: [
-                    { id: "large", label: "Large", isDefault: true },
-                    { id: "small", label: "Small" },
-                  ],
-                },
-              ],
-            },
-            adapter: {
-              claudeCode: {
-                effortMap: { extreme: "high" },
-                modelSuffixes: { contextWindow: { large: "[large]" } },
+const manifest = (): ModelManifestData => ({
+  version: 1,
+  currentModels: {},
+  providers: {
+    claudeAgent: {
+      profiles: {
+        synthetic: {
+          capabilities: {
+            optionDescriptors: [
+              {
+                id: "effort",
+                label: "Reasoning",
+                type: "select",
+                options: [{ id: "extreme", label: "Extreme", isDefault: true }],
               },
+              {
+                id: "contextWindow",
+                label: "Context Window",
+                type: "select",
+                options: [
+                  { id: "large", label: "Large", isDefault: true },
+                  { id: "small", label: "Small" },
+                ],
+              },
+            ],
+          },
+          adapter: {
+            claudeCode: {
+              effortMap: { extreme: "high" },
+              modelSuffixes: { contextWindow: { large: "[large]" } },
             },
           },
         },
-        models: [
-          {
-            slug: "claude-synthetic-next",
-            name: "Claude Synthetic Next",
-            aliases: ["synthetic"],
-            status: "current",
-            profile: "synthetic",
-            adapter: { claudeCode: { minVersion: "3.2.0" } },
-          },
-        ],
       },
+      models: [
+        {
+          slug: "claude-synthetic-next",
+          name: "Claude Synthetic Next",
+          aliases: ["synthetic"],
+          status: "current",
+          profile: "synthetic",
+          adapter: { claudeCode: { minVersion: "3.2.0" } },
+        },
+      ],
     },
-  }) satisfies ModelManifestData;
+  },
+});
 
 const CLAUDE = ProviderDriverKind.make("claudeAgent");
 

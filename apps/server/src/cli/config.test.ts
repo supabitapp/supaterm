@@ -48,19 +48,20 @@ const minimalDesktopFlags = (baseDir: string) => ({
 const encodeDesktopBootstrap = Schema.encodeEffect(Schema.fromJsonString(DesktopBackendBootstrap));
 const encodeUnknownJson = Schema.encodeEffect(Schema.fromJsonString(Schema.Unknown));
 
-const makeDesktopBootstrap = (overrides: Partial<DesktopBackendBootstrapValue> = {}) =>
-  ({
-    mode: "desktop",
-    noBrowser: true,
-    port: 4888,
-    supatermHome: "/tmp/supaterm-bootstrap-home",
-    host: "127.0.0.1",
-    desktopBootstrapToken: "desktop-bootstrap-token",
-    desktopBootstrapSecret: "desktop-secret",
-    tailscaleServeEnabled: false,
-    tailscaleServePort: 443,
-    ...overrides,
-  }) satisfies DesktopBackendBootstrapValue;
+const makeDesktopBootstrap = (
+  overrides: Partial<DesktopBackendBootstrapValue> = {},
+): DesktopBackendBootstrapValue => ({
+  mode: "desktop",
+  noBrowser: true,
+  port: 4888,
+  supatermHome: "/tmp/supaterm-bootstrap-home",
+  host: "127.0.0.1",
+  desktopBootstrapToken: "desktop-bootstrap-token",
+  desktopBootstrapSecret: "desktop-secret",
+  tailscaleServeEnabled: false,
+  tailscaleServePort: 443,
+  ...overrides,
+});
 
 const liveProcess = Effect.acquireRelease(
   Effect.promise(async () => {

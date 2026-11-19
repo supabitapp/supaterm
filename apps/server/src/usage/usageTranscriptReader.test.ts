@@ -27,7 +27,7 @@ afterEach(async () => {
   await NodeFSP.rm(dir, { recursive: true, force: true });
 });
 
-function claudeLine(id: number, outputTokens: number) {
+function claudeLine(id: number, outputTokens: number): string {
   return `${JSON.stringify({
     type: "assistant",
     timestamp: "2026-08-01T10:00:00Z",
@@ -41,7 +41,7 @@ function claudeLine(id: number, outputTokens: number) {
   })}\n`;
 }
 
-function codexMetaLine() {
+function codexMetaLine(): string {
   return `${JSON.stringify({
     type: "session_meta",
     timestamp: "2026-08-01T10:00:00Z",
@@ -49,7 +49,7 @@ function codexMetaLine() {
   })}\n`;
 }
 
-function codexModelLine(model: string) {
+function codexModelLine(model: string): string {
   return `${JSON.stringify({
     type: "turn_context",
     timestamp: "2026-08-01T10:00:01Z",
@@ -57,7 +57,7 @@ function codexModelLine(model: string) {
   })}\n`;
 }
 
-function codexTierLine(serviceTier: string) {
+function codexTierLine(serviceTier: string): string {
   return `${JSON.stringify({
     type: "event_msg",
     timestamp: "2026-08-01T10:00:01Z",
@@ -65,7 +65,7 @@ function codexTierLine(serviceTier: string) {
   })}\n`;
 }
 
-function codexUsageLine(outputTokens: number, secondsOffset: number) {
+function codexUsageLine(outputTokens: number, secondsOffset: number): string {
   return `${JSON.stringify({
     type: "event_msg",
     timestamp: `2026-08-01T10:00:${String(secondsOffset).padStart(2, "0")}Z`,
@@ -106,7 +106,7 @@ describe("compressed transcripts", () => {
       await NodeFSP.writeFile(NodePath.join(nested, "a.jsonl"), "");
       await NodeFSP.writeFile(NodePath.join(nested, "..", "b.jsonl"), "");
     }
-    const inOrder = async (folder: string) => {
+    const inOrder = async (folder: string): Promise<string[]> => {
       const paths: string[] = [];
       for (const entry of await NodeFSP.readdir(folder, { withFileTypes: true })) {
         const child = NodePath.join(folder, entry.name);

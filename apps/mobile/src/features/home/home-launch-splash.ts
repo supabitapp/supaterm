@@ -48,7 +48,7 @@ export const holdLaunchSplashForHomeRows = homeRows.hold;
 export const settleLaunchSplashHomeRows = homeRows.markDone;
 export const launchSplashHomeRowsPending = homeRows.pending;
 
-export function useLaunchSplashHomeRowsPending() {
+export function useLaunchSplashHomeRowsPending(): boolean {
   return useSyncExternalStore(homeRows.subscribe, homeRows.pending);
 }
 
@@ -61,7 +61,7 @@ export function splashCanHide(input: {
   readonly shellCachesRead: boolean;
   readonly homeRowsPending: boolean;
   readonly waitEnded: boolean;
-}) {
+}): boolean {
   if (!input.preferencesReady) return false;
   return input.waitEnded || (input.shellCachesRead && !input.homeRowsPending);
 }

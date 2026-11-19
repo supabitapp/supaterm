@@ -1,6 +1,6 @@
 import { isWindowsAbsolutePath } from "@supaterm/shared/path";
 
-export function formatFilePathForClipboard(path: string, hostPath = path) {
+export function formatFilePathForClipboard(path: string, hostPath = path): string {
   return isWindowsAbsolutePath(hostPath) ? path.replaceAll("/", "\\") : path;
 }
 

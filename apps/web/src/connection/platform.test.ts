@@ -73,7 +73,7 @@ function makeBridge(
     readonly serverVersion?: string;
     readonly pairingFailure?: Error;
   },
-) {
+): DesktopBridge {
   return {
     getClientPlatform: () => "linux",
     getLocalEnvironmentEnabled: () => true,

@@ -115,13 +115,10 @@ describe("loadLocalAttachmentPreview", () => {
 });
 
 describe("localAttachmentPreviewAtom", () => {
-  const settled: (
+  const settled = (
     registry: AtomRegistry.AtomRegistry,
     target: typeof attachment,
-  ) => { state: Promise<LocalAttachmentPreviewState>; unsubscribe: () => void } = (
-    registry: AtomRegistry.AtomRegistry,
-    target: typeof attachment,
-  ) => {
+  ): { state: Promise<LocalAttachmentPreviewState>; unsubscribe: () => void } => {
     const atom = localAttachmentPreviewAtom(target);
     const { promise, resolve } = Promise.withResolvers<LocalAttachmentPreviewState>();
     const onChange = (result: AsyncResult.AsyncResult<unknown, unknown>) => {

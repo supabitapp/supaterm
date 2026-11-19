@@ -87,8 +87,7 @@ const provider: ServerProvider = {
 
 function session(
   scopes: NonNullable<AuthSessionState["scopes"]>,
-): AsyncResult.AsyncResult<AuthSessionState>;
-function session(scopes: NonNullable<AuthSessionState["scopes"]>) {
+): AsyncResult.AsyncResult<AuthSessionState> {
   return AsyncResult.success<AuthSessionState>({
     authenticated: true,
     scopes,
@@ -98,7 +97,7 @@ function session(scopes: NonNullable<AuthSessionState["scopes"]>) {
       sessionMethods: ["bearer-access-token"],
       sessionCookieName: "supaterm_session",
     },
-  }) satisfies AsyncResult.AsyncResult<AuthSessionState>;
+  });
 }
 
 function setup() {

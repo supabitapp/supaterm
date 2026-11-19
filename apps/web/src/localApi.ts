@@ -12,8 +12,7 @@ import { readBrowserClientSettings, writeBrowserClientSettings } from "./clientP
 
 let cachedApi: LocalApi | undefined;
 
-export function createLocalApi(): LocalApi;
-export function createLocalApi() {
+export function createLocalApi(): LocalApi {
   return {
     dialogs: {
       pickFolder: async (options) => {
@@ -52,7 +51,7 @@ export function createLocalApi() {
         items: readonly ContextMenuItem<T>[],
         position?: { x: number; y: number },
         source?: ContextMenuSource,
-      ) => {
+      ): Promise<T | null> => {
         if (window.desktopBridge) {
           return window.desktopBridge.showContextMenu(items, position, source) as Promise<T | null>;
         }
@@ -78,19 +77,18 @@ export function createLocalApi() {
         writeBrowserClientSettings(settings);
       },
     },
-  } satisfies LocalApi;
+  };
 }
 
-export function readLocalApi(): LocalApi | undefined;
-export function readLocalApi() {
-  if (typeof window === "undefined") return undefined satisfies LocalApi | undefined;
-  if (cachedApi) return cachedApi satisfies LocalApi | undefined;
+export function readLocalApi(): LocalApi | undefined {
+  if (typeof window === "undefined") return undefined;
+  if (cachedApi) return cachedApi;
 
   cachedApi = createLocalApi();
-  return cachedApi satisfies LocalApi | undefined;
+  return cachedApi;
 }
 
-export function ensureLocalApi() {
+export function ensureLocalApi(): LocalApi {
   const api = readLocalApi();
   if (!api) {
     throw new Error("Local API not found");

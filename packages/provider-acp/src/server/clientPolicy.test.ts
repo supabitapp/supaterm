@@ -18,7 +18,7 @@ import {
 function permissionRequest(
   kind: NonNullable<EffectAcpSchema.RequestPermissionRequest["toolCall"]["kind"]>,
   locations?: ReadonlyArray<EffectAcpSchema.ToolCallLocation>,
-) {
+): EffectAcpSchema.RequestPermissionRequest {
   return {
     options: [],
     sessionId: "permission-session",

@@ -5,7 +5,7 @@ import { writeComposerContextClipboard } from "./composerContextClipboard";
 import { tryCopyTextWithHaptic } from "./copyTextWithHaptic";
 
 /** Resolves false, after logging why, when the clipboard write fails. */
-export async function copyThreadReference(target: ThreadReferenceCopyTarget) {
+export async function copyThreadReference(target: ThreadReferenceCopyTarget): Promise<boolean> {
   if (!target.fragment)
     return tryCopyTextWithHaptic(target.value, { target: target.clipboardTarget });
   try {

@@ -8,7 +8,9 @@ export const BUILD_MIGRATION_HEAD = Math.max(...migrationManifest.map(([id]) => 
 
 /** Migrations the database records, read-only. A missing or new database records none; one that
  * exists but cannot be read is null, since its history is unknown. */
-export function recordedMigrations(databasePath: string) {
+export function recordedMigrations(
+  databasePath: string,
+): ReadonlyArray<{ readonly id: number; readonly name: string }> | null {
   let db: NodeSqlite.DatabaseSync;
   try {
     db = new NodeSqlite.DatabaseSync(databasePath, { readOnly: true });
@@ -37,7 +39,7 @@ export function recordedMigrations(databasePath: string) {
 
 /** Highest migration the database holds once this build's startup migrations have run. A newer
  * build may have recorded more than this build knows. Undefined when the database is unreadable. */
-export function databaseMigrationHead(databasePath: string) {
+export function databaseMigrationHead(databasePath: string): number | undefined {
   const recorded = recordedMigrations(databasePath);
   return recorded === null
     ? undefined

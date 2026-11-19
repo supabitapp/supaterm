@@ -2,7 +2,7 @@ import { type CliReleaseChannel, cliReleaseChannelOf } from "./cliRelease.ts";
 
 export type ReleaseChannel = "dev" | CliReleaseChannel;
 
-export const releaseChannelOf = (version: string) =>
+export const releaseChannelOf = (version: string): ReleaseChannel =>
   /-pr\.\d+\.\d+$/.test(version) ? "preview" : cliReleaseChannelOf(version);
 
 export const releaseResourceAttributes = (

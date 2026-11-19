@@ -13,12 +13,7 @@ export interface PayloadSigner<E = never> {
 
 const utf8 = (value: string) => new TextEncoder().encode(value);
 
-const fromKey: <E>(mac: Mac.Mac["Service"], key: Effect.Effect<Mac.Key, E>) => PayloadSigner<E> = <
-  E,
->(
-  mac: Mac.Mac["Service"],
-  key: Effect.Effect<Mac.Key, E>,
-) => ({
+const fromKey = <E>(mac: Mac.Mac["Service"], key: Effect.Effect<Mac.Key, E>): PayloadSigner<E> => ({
   sign: (payload) =>
     key.pipe(
       Effect.flatMap((loaded) => mac.sign(loaded, utf8(payload)).pipe(Effect.orDie)),

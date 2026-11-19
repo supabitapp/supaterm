@@ -9,7 +9,7 @@ export const WORKSPACE_BASENAME_LOOKUP_LIMIT = 25;
 
 let latestLookupSequence = 0;
 
-export function claimWorkspaceBasenameLookup() {
+export function claimWorkspaceBasenameLookup(): () => boolean {
   latestLookupSequence += 1;
   const claimed = latestLookupSequence;
   return () => claimed === latestLookupSequence;
@@ -20,12 +20,12 @@ export interface WorkspaceEntryCandidate {
   readonly kind: "file" | "directory";
 }
 
-function basenameOfPath(path: string) {
+function basenameOfPath(path: string): string {
   const separatorIndex = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"));
   return separatorIndex >= 0 ? path.slice(separatorIndex + 1) : path;
 }
 
-export function needsWorkspaceBasenameLookup(relativePath: string) {
+export function needsWorkspaceBasenameLookup(relativePath: string): boolean {
   const trimmed = relativePath.trim();
   return (
     trimmed !== "." &&
@@ -39,7 +39,7 @@ export function needsWorkspaceBasenameLookup(relativePath: string) {
 export function pickWorkspaceBasenameMatch(
   basename: string,
   entries: ReadonlyArray<WorkspaceEntryCandidate>,
-) {
+): string | null {
   const target = basename.trim();
   if (!target) return null;
   const files = entries.filter((entry) => entry.kind === "file");
@@ -52,7 +52,7 @@ export function pickWorkspaceBasenameMatch(
   return foldedMatches.length === 1 ? (foldedMatches[0]?.path ?? null) : null;
 }
 
-function stripRepeatedWorkspacePrefix(relativePath: string, cwd: string) {
+function stripRepeatedWorkspacePrefix(relativePath: string, cwd: string): string | null {
   if (isAbsolutePath(relativePath)) return null;
   const pathSegments = relativePath.split(/[\\/]+/);
   const cwdSegments = cwd.split(/[\\/]+/).filter(Boolean);
@@ -72,7 +72,7 @@ function stripRepeatedWorkspacePrefix(relativePath: string, cwd: string) {
  * The project search query that may find a chat file link's real file, or null when the link
  * names its file exactly. Agents often cite paths relative to a package (`cloud/http.ts`).
  */
-export function workspaceLinkLookupQuery(relativePath: string, cwd: string) {
+export function workspaceLinkLookupQuery(relativePath: string, cwd: string): string | null {
   const trimmed = relativePath.trim();
   if (isAbsolutePath(trimmed) || /^(?:\.{1,2}|~)[\\/]/.test(trimmed) || /[\\/]$/.test(trimmed)) {
     return null;
@@ -86,7 +86,7 @@ export function pickWorkspaceLinkMatch(
   relativePath: string,
   cwd: string,
   entries: ReadonlyArray<WorkspaceEntryCandidate>,
-) {
+): string | null {
   const trimmed = relativePath.trim();
   if (needsWorkspaceBasenameLookup(trimmed)) return pickWorkspaceBasenameMatch(trimmed, entries);
   const stripped = stripRepeatedWorkspacePrefix(trimmed, cwd);
@@ -107,7 +107,7 @@ function pickStrippedWorkspaceMatch(
   strippedPath: string,
   cwd: string,
   entries: ReadonlyArray<WorkspaceEntryCandidate>,
-) {
+): string | null {
   const caseInsensitive = isWindowsAbsolutePath(cwd);
   const key = (path: string) => {
     const normalized = path.replaceAll("\\", "/");
@@ -127,7 +127,7 @@ export function pickProjectLinkMatch(
     readonly root: string;
     readonly entries: ReadonlyArray<WorkspaceEntryCandidate>;
   }>,
-) {
+): string | null {
   const matches = searches.flatMap(({ root, entries }) => {
     const match = pickWorkspaceLinkMatch(relativePath, root, entries);
     return match === null ? [] : [resolveWorkspaceFilePath(match, root)];
@@ -148,7 +148,7 @@ export async function findAgentDirectoryMatch(
     readonly root: string;
     readonly entries: ReadonlyArray<WorkspaceEntryCandidate>;
   }>,
-) {
+): Promise<string | null> {
   for (const directory of directories.slice(0, AGENT_DIRECTORY_SEARCH_LIMIT)) {
     const match = pickProjectLinkMatch(relativePath, [await searchRoot(directory)]);
     if (match !== null) return match;
@@ -160,7 +160,7 @@ const SHELL_TOKEN = /(?<![^\s;&|()])#[^\n]*|"[^"]*"|'[^']*'|[;&|()\n]|[ \t]+|[^\
 const SHELL_NAME = /(?:^|\/)(?:ba|z|da)?sh$/;
 const CD_OPTION = /^-[LPe@]*$|^--$/;
 
-function cdOperands(script: string) {
+function cdOperands(script: string): Array<string> {
   const operands: Array<string> = [];
   let words: Array<string> = [];
   let wordOpen = false;
@@ -192,7 +192,7 @@ function cdOperands(script: string) {
   return operands;
 }
 
-function literalDirectory(operand: string) {
+function literalDirectory(operand: string): string | null {
   const path = /^["']/.test(operand) ? operand.slice(1, -1) : operand;
   if (!isAbsolutePath(path) || /[$`*?[\]{}"']/.test(path)) return null;
   return path.includes("\\") && !isWindowsAbsolutePath(path) ? null : path;
@@ -213,7 +213,7 @@ export function agentWorkingDirectories(
     TimelineItemSource & { readonly item: { readonly type: string; readonly input?: unknown } }
   >,
   reply: TimelineItemSource,
-) {
+): ReadonlyArray<string> {
   const directories = new Set<string>();
   const replyIndex = items.findIndex(
     (row) => row.sourceThreadId === reply.sourceThreadId && row.sourceItemId === reply.sourceItemId,

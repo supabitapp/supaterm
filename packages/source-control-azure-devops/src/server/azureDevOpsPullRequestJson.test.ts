@@ -14,7 +14,7 @@ import {
 const REST_URL =
   "https://dev.azure.com/acme/_apis/git/repositories/6f9c9b7f-0000-0000-0000-000000000000/pullRequests/42";
 
-function pullRequest(overrides: Record<string, unknown> = {}) {
+function pullRequest(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
     pullRequestId: 42,
     title: "Add the change requests page",
@@ -32,7 +32,7 @@ function pullRequest(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function expectSuccess<A>(result: Result.Result<A, unknown>) {
+function expectSuccess<A>(result: Result.Result<A, unknown>): A {
   expect(Result.isSuccess(result)).toBe(true);
   if (!Result.isSuccess(result)) throw new Error("expected a successful decode");
   return result.success;

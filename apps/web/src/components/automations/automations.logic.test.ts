@@ -38,7 +38,7 @@ const environments = [
   { environmentId: serverId, label: "Server" },
 ];
 
-function member(id: string, environmentId: EnvironmentId) {
+function member(id: string, environmentId: EnvironmentId): SidebarProjectGroupMember {
   return {
     id: ProjectId.make(id),
     environmentId,
@@ -60,7 +60,10 @@ const second = member("second", laptopId);
 const third = member("third", serverId);
 const other = member("other", serverId);
 
-function group(projectKey: string, members: readonly SidebarProjectGroupMember[]) {
+function group(
+  projectKey: string,
+  members: readonly SidebarProjectGroupMember[],
+): SidebarProjectSnapshot {
   return {
     ...members[0]!,
     projectKey,
@@ -77,7 +80,7 @@ function group(projectKey: string, members: readonly SidebarProjectGroupMember[]
     remoteEnvironmentLabels: [],
     pinned: false,
     archived: false,
-  } satisfies SidebarProjectSnapshot;
+  };
 }
 
 const sameIdElsewhere = member("first", serverId);

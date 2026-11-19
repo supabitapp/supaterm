@@ -6,7 +6,7 @@ const thumbnails = new Map<string, VideoThumbnail>();
 const MAX_CACHED_THUMBNAILS = 32;
 let pending: Promise<unknown> = Promise.resolve();
 
-export function cachedVideoThumbnail(key: string) {
+export function cachedVideoThumbnail(key: string): VideoThumbnail | null {
   return thumbnails.get(key) ?? null;
 }
 
@@ -51,7 +51,7 @@ export function loadVideoThumbnail(
     signal: AbortSignal,
   ) => Promise<Pick<AttachmentPreviewFile, "uri" | "dispose"> | null>,
   signal: AbortSignal,
-) {
+): Promise<VideoThumbnail | null> {
   if (signal.aborted) return Promise.resolve(null);
   const cached = cachedVideoThumbnail(key);
   if (cached) return Promise.resolve(cached);

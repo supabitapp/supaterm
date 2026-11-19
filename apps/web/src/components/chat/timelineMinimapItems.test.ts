@@ -6,7 +6,12 @@ import type { TimelineEntry } from "../../session-logic";
 import { deriveMessagesTimelineRows } from "./MessagesTimeline.logic";
 import { deriveTimelineMinimapItems, resolveTimelineMinimapPreview } from "./timelineMinimapItems";
 
-function messageEntry(id: string, role: "user" | "assistant", text: string, createdAt: string) {
+function messageEntry(
+  id: string,
+  role: "user" | "assistant",
+  text: string,
+  createdAt: string,
+): TimelineEntry {
   return {
     id: `${id}-entry`,
     kind: "message",
@@ -20,7 +25,7 @@ function messageEntry(id: string, role: "user" | "assistant", text: string, crea
       updatedAt: createdAt,
       streaming: false,
     },
-  } satisfies TimelineEntry;
+  };
 }
 
 describe("deriveTimelineMinimapItems", () => {

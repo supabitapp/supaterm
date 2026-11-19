@@ -19,7 +19,7 @@ import {
 const UpdateManifestPlatform = Schema.Literals(["mac", "win"]);
 export type UpdateManifestPlatform = typeof UpdateManifestPlatform.Type;
 
-function getPlatformLabel(platform: UpdateManifestPlatform) {
+function getPlatformLabel(platform: UpdateManifestPlatform): string {
   return platform === "mac" ? "macOS" : "Windows";
 }
 
@@ -27,7 +27,7 @@ export function parsePlatformUpdateManifest(
   platform: UpdateManifestPlatform,
   raw: string,
   sourcePath: string,
-) {
+): UpdateManifest {
   return parseUpdateManifest(raw, sourcePath, getPlatformLabel(platform));
 }
 
@@ -35,14 +35,14 @@ export function mergePlatformUpdateManifests(
   platform: UpdateManifestPlatform,
   primary: UpdateManifest,
   secondary: UpdateManifest,
-) {
+): UpdateManifest {
   return mergeUpdateManifests(primary, secondary, getPlatformLabel(platform));
 }
 
 export function serializePlatformUpdateManifest(
   platform: UpdateManifestPlatform,
   manifest: UpdateManifest,
-) {
+): string {
   return serializeUpdateManifest(manifest, {
     platformLabel: getPlatformLabel(platform),
   });

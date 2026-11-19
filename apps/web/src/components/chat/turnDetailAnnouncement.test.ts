@@ -23,7 +23,7 @@ function message(
   id: string,
   role: "user" | "assistant",
   fields: Partial<Extract<TimelineEntry, { kind: "message" }>["message"]> = {},
-) {
+): TimelineEntry {
   return {
     kind: "message",
     id,
@@ -38,16 +38,16 @@ function message(
       updatedAt: at,
       ...fields,
     },
-  } satisfies TimelineEntry;
+  };
 }
 
-function work(id: string, fields: Partial<WorkLogEntry> = {}) {
+function work(id: string, fields: Partial<WorkLogEntry> = {}): TimelineEntry {
   return {
     kind: "work",
     id,
     createdAt: at,
     entry: { id, createdAt: at, runId: run, label: id, tone: "tool", ...fields },
-  } satisfies TimelineEntry;
+  };
 }
 
 const prompt = message("prompt", "user");
@@ -66,7 +66,7 @@ const inAttempt = (
   id: string,
   status: TimelineAttempt["status"],
   completed?: string,
-) => ({
+): TimelineEntry => ({
   ...entry,
   attempt: {
     id: RunAttemptId.make(id),
@@ -249,7 +249,7 @@ describe("turnDetail", () => {
 });
 
 type Frame = Pick<TurnDetailSnapshot, "status" | "activity" | "messages">;
-const said = (id: string, finished = true, fresh = false) => ({
+const said = (id: string, finished = true, fresh = false): TurnMessage => ({
   id,
   text: id,
   finished,
@@ -259,7 +259,7 @@ const frame = (
   activity: string | null,
   messages: ReadonlyArray<TurnMessage> = [],
   status: TurnDetailSnapshot["status"] = "working",
-) => ({ status, activity, messages });
+): Frame => ({ status, activity, messages });
 
 function speak(level: ScreenReaderAnnouncements, frames: ReadonlyArray<Frame>) {
   let memory: TurnDetailMemory | null = null;

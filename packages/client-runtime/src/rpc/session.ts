@@ -116,17 +116,13 @@ interface BufferedServerConfigEvent {
 
 function serverConfigReplayEvents(
   state: ServerConfigReplayState,
-): ReadonlyArray<ServerConfigStreamEvent>;
-function serverConfigReplayEvents(state: ServerConfigReplayState) {
+): ReadonlyArray<ServerConfigStreamEvent> {
   const snapshot = {
     version: 1 as const,
     type: "snapshot" as const,
     config: withoutEnvironmentThemes(state.projection.config),
   };
-  return [
-    snapshot,
-    ...(state.themesEvent === undefined ? [] : [state.themesEvent]),
-  ] satisfies ReadonlyArray<ServerConfigStreamEvent>;
+  return [snapshot, ...(state.themesEvent === undefined ? [] : [state.themesEvent])];
 }
 
 const PING_TIMEOUT_SECONDS = Duration.toSeconds(PING_TIMEOUT);
@@ -134,11 +130,7 @@ const PING_TIMEOUT_SECONDS = Duration.toSeconds(PING_TIMEOUT);
 function mapSessionRpcError(
   error: InitialConfigError | ProbeError | ServerConfigSubscriptionError,
   via: "relay" | "direct",
-): ConnectionAttemptError;
-function mapSessionRpcError(
-  error: InitialConfigError | ProbeError | ServerConfigSubscriptionError,
-  via: "relay" | "direct",
-) {
+): ConnectionAttemptError {
   switch (error._tag) {
     case "EnvironmentAuthorizationError":
       return new ConnectionBlockedError({
@@ -146,7 +138,7 @@ function mapSessionRpcError(
         detail: error.message,
         hop: "server",
         via,
-      }) satisfies ConnectionAttemptError;
+      });
     case "KeybindingsConfigParseError":
     case "ServerSettingsError":
       return new ConnectionTransientErrorClass({
@@ -154,13 +146,13 @@ function mapSessionRpcError(
         detail: error.message,
         hop: "server",
         via,
-      }) satisfies ConnectionAttemptError;
+      });
     case "RpcClientError":
       return new ConnectionTransientErrorClass({
         reason: "transport",
         detail: error.message,
         ...socketFailureLocation(via),
-      }) satisfies ConnectionAttemptError;
+      });
   }
 }
 
@@ -387,7 +379,7 @@ export const make = Effect.fn("RpcSessionFactory.make")(function* (
     );
     const serverConfigEvents = serverConfigReplay.pipe(
       Stream.mapAccum(
-        () => undefined,
+        (): number | undefined => undefined,
         (revision, buffered) => [
           buffered.revision,
           revision !== undefined && buffered.revision === revision + 1

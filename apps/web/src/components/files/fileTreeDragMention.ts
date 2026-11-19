@@ -24,7 +24,7 @@ export interface FileTreeDragMentionController {
   handleDragEnd(deselect: (treePath: string) => void): void;
 }
 
-const itemPathOf: (node: unknown) => string | null = (node: unknown) => {
+const itemPathOf = (node: unknown): string | null => {
   if (typeof node !== "object" || node === null) {
     return null;
   }
@@ -34,8 +34,7 @@ const itemPathOf: (node: unknown) => string | null = (node: unknown) => {
 
 export function createFileTreeDragMentionController(
   host: FileTreeDragMentionHost,
-): FileTreeDragMentionController;
-export function createFileTreeDragMentionController(host: FileTreeDragMentionHost) {
+): FileTreeDragMentionController {
   let selection: ReadonlyArray<string> = [];
   let draggedPaths: ReadonlyArray<string> = [];
   return {
@@ -81,5 +80,5 @@ export function createFileTreeDragMentionController(host: FileTreeDragMentionHos
       }
       draggedPaths = [];
     },
-  } satisfies FileTreeDragMentionController;
+  };
 }

@@ -22,14 +22,13 @@ export function nextListOpening(
   current: TimelineListOpening,
   listMounted: boolean,
   identity: string,
-) {
-  if (!listMounted)
-    return (current.mounted ? { mounted: false } : current) satisfies TimelineListOpening;
-  if (!current.mounted) return { mounted: true, identity } satisfies TimelineListOpening;
+): TimelineListOpening {
+  if (!listMounted) return current.mounted ? { mounted: false } : current;
+  if (!current.mounted) return { mounted: true, identity };
   if (current.identity !== null && current.identity !== identity) {
-    return { mounted: true, identity: null } satisfies TimelineListOpening;
+    return { mounted: true, identity: null };
   }
-  return current satisfies TimelineListOpening;
+  return current;
 }
 
 export type TimelineScrollDirection = "up" | "down";
@@ -72,22 +71,14 @@ const SCROLLBAR_HIT_PX = 16;
  */
 export function attachTimelineViewport(
   scrollNode: HTMLElement,
-  options?: {
-    /** Split panes each own a viewport; keys typed outside every list belong to the focused one. */
-    readonly isInputOwner?: () => boolean;
-    readonly onFrameResize?: (frame: HTMLIFrameElement) => void;
-  },
-): TimelineViewport & {
-  readonly dispose: () => void;
-};
-export function attachTimelineViewport(
-  scrollNode: HTMLElement,
   options: {
     /** Split panes each own a viewport; keys typed outside every list belong to the focused one. */
     readonly isInputOwner?: () => boolean;
     readonly onFrameResize?: (frame: HTMLIFrameElement) => void;
   } = {},
-) {
+): TimelineViewport & {
+  readonly dispose: () => void;
+} {
   const listeners = new Set<(navigation: TimelineNavigation) => void>();
   const followReleasedListeners = new Set<() => void>();
   let programmaticHolds = 0;
@@ -210,8 +201,6 @@ export function attachTimelineViewport(
       scrollNode.removeEventListener("pointerdown", handlePointerDown);
       unregisterKeyDown();
     },
-  } satisfies TimelineViewport & {
-    readonly dispose: () => void;
   };
 }
 
@@ -224,7 +213,7 @@ export function attachTimelineViewport(
 export function navigationReleasesFollow(
   navigation: TimelineNavigation,
   viewport: { readonly contentScrollsUp: () => boolean; readonly awayFromEnd: () => boolean },
-) {
+): boolean {
   switch (navigation.source) {
     case "wheel":
       return navigation.direction === "up" && viewport.contentScrollsUp();
@@ -259,25 +248,22 @@ export type TimelineFollowEvent =
 
 export const FOLLOWING: TimelineFollow = { mode: "following" };
 
-export function initialTimelineFollow(followEnd: boolean) {
-  return (followEnd ? FOLLOWING : { mode: "released", atEnd: false }) satisfies TimelineFollow;
+export function initialTimelineFollow(followEnd: boolean): TimelineFollow {
+  return followEnd ? FOLLOWING : { mode: "released", atEnd: false };
 }
 
-export function transitionTimelineFollow(state: TimelineFollow, event: TimelineFollowEvent) {
+export function transitionTimelineFollow(
+  state: TimelineFollow,
+  event: TimelineFollowEvent,
+): TimelineFollow {
   switch (event.type) {
     case "navigated":
-      return (
-        state.mode === "released" ? state : { mode: "released", atEnd: true }
-      ) satisfies TimelineFollow;
+      return state.mode === "released" ? state : { mode: "released", atEnd: true };
     case "followEnd":
-      return FOLLOWING satisfies TimelineFollow;
+      return FOLLOWING;
     case "reachedEnd":
-      return (
-        state.mode === "released" && !state.atEnd ? FOLLOWING : state
-      ) satisfies TimelineFollow;
+      return state.mode === "released" && !state.atEnd ? FOLLOWING : state;
     case "leftEnd":
-      return (
-        state.mode === "released" && state.atEnd ? { mode: "released", atEnd: false } : state
-      ) satisfies TimelineFollow;
+      return state.mode === "released" && state.atEnd ? { mode: "released", atEnd: false } : state;
   }
 }

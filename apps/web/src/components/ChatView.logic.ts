@@ -108,7 +108,7 @@ export const ENVIRONMENT_RECONNECT_WARNING_GRACE_MS = 2_000;
 export function shouldRenderPreviewMiniPlayer(
   source: PreviewMiniPlayerSource | null,
   renderedRightPanelSurface: RightPanelSurface | null,
-) {
+): boolean {
   if (source === null) return false;
   if (source.kind === "browser") {
     return !(
@@ -126,7 +126,7 @@ export function shouldRenderPreviewMiniPlayer(
 export function shouldOpenProactivePullRequest(
   previousTargetKey: string | null | undefined,
   targetKey: string | null,
-) {
+): boolean {
   return targetKey !== null && targetKey !== previousTargetKey;
 }
 
@@ -141,7 +141,7 @@ interface ProactivePanelObservation {
 export function observeProactivePanelUserChoice(
   previous: ProactivePanelObservation | null,
   input: { threadKey: string; runningTurnId: RunId | null; userActionRevision: number },
-) {
+): ProactivePanelObservation {
   const sameThread = previous?.threadKey === input.threadKey;
   const newTurn =
     sameThread && input.runningTurnId !== null && input.runningTurnId !== previous.userActionTurnId;
@@ -159,7 +159,7 @@ export function shouldRetargetThreadPullRequestPanel(
   previous: ThreadLinkedPullRequest | null,
   current: ThreadLinkedPullRequest | null,
   surface: RightPanelSurface | null,
-) {
+): boolean {
   if (previous === null || current === null || surface?.kind !== "pull-request") return false;
   const previousRepository = previous.repository.toLowerCase();
   return (
@@ -177,7 +177,7 @@ export function shouldOpenProactiveTurnDiff(input: {
   runningTurnId: RunId | null;
   settledTurnId: RunId | null;
   turnCompleted: boolean;
-}) {
+}): boolean {
   return (
     input.runningTurnId === null &&
     input.turnCompleted &&
@@ -190,7 +190,7 @@ export function shouldOpenProactiveTurnDiff(input: {
 export function resolveProactiveTurnDiffAction(input: {
   checkpoint: Pick<TurnDiffSummary, "status" | "files" | "filesTotal"> | undefined;
   isGitRepo: boolean | undefined;
-}) {
+}): "defer" | "ignore" | "open" {
   if (input.checkpoint === undefined || input.checkpoint.status === "missing") return "defer";
   if (input.isGitRepo === undefined) return "defer";
   if (
@@ -207,7 +207,7 @@ export function resolveProactiveTurnDiffAction(input: {
 export function codexArtifactTemplatePromptToAppend(
   currentDraft: string,
   template: CodexArtifactTemplate,
-) {
+): string | null {
   return appendCodexArtifactTemplateUsePrompt(currentDraft, template) === currentDraft
     ? null
     : codexArtifactTemplateUsePrompt(template);
@@ -219,7 +219,7 @@ export function shouldDockDraftHeroForSubmission(input: {
   isDraftHeroState: boolean;
   activeThreadKey: string | null;
   submissionIntent: ComposerSubmissionIntent;
-}) {
+}): boolean {
   return (
     input.submissionIntent === "foreground" &&
     input.isDraftHeroState &&
@@ -232,7 +232,7 @@ export function shouldReleaseTimelineAnchorForToolActivity(input: {
   liveFollowEnabled: boolean;
   runningTurnId: RunId | null;
   timelineEntries: ReadonlyArray<TimelineEntry>;
-}) {
+}): boolean {
   if (input.anchorMessageId === null || !input.liveFollowEnabled || input.runningTurnId === null) {
     return false;
   }
@@ -277,7 +277,7 @@ export function resolveDraftHeroState(input: {
   isWorking: boolean;
   draftHeroDockRequested: boolean;
   hasWorktreeSetupCard?: boolean;
-}) {
+}): boolean {
   if (input.hasWorktreeSetupCard) {
     return false;
   }
@@ -304,7 +304,7 @@ const MAX_REMEMBERED_THREAD_TIMELINES = 16;
 let rememberedThreadTimelines = new Map<string, HeldThreadTimeline<readonly unknown[]>>();
 let rememberedThreadTimelineOrder: string[] = [];
 
-function rememberThreadTimelineEntries(held: HeldThreadTimeline<readonly unknown[]>) {
+function rememberThreadTimelineEntries(held: HeldThreadTimeline<readonly unknown[]>): void {
   if (held.threadKey === null) {
     return;
   }
@@ -323,7 +323,7 @@ function rememberThreadTimelineEntries(held: HeldThreadTimeline<readonly unknown
 
 export function rememberReadyThreadTimeline<T extends readonly unknown[]>(
   held: HeldThreadTimeline<T>,
-) {
+): void {
   if (held.threadKey === null || held.entries.length === 0) {
     return;
   }
@@ -332,14 +332,14 @@ export function rememberReadyThreadTimeline<T extends readonly unknown[]>(
 
 export function peekRememberedThreadTimeline<T extends readonly unknown[]>(
   threadKey: string | null,
-) {
+): T | null {
   if (threadKey === null) {
     return null;
   }
   return (rememberedThreadTimelines.get(threadKey)?.entries as T | undefined) ?? null;
 }
 
-export function resetHeldThreadTimeline() {
+export function resetHeldThreadTimeline(): void {
   rememberedThreadTimelines = new Map();
   rememberedThreadTimelineOrder = [];
 }
@@ -349,7 +349,7 @@ export function resolveThreadSwitchTimeline<T extends readonly unknown[]>(input:
   activeThreadKey: string | null;
   nextEntries: T;
   rememberedForActive?: T | null;
-}) {
+}): T {
   if (input.nextEntries.length > 0) {
     return input.nextEntries;
   }
@@ -366,7 +366,7 @@ export function resolveThreadSwitchTimeline<T extends readonly unknown[]>(input:
 export function startNewThreadForProject(
   projectRef: ScopedProjectRef | null,
   handleNewThread: (projectRef: ScopedProjectRef) => Promise<unknown>,
-) {
+): boolean {
   if (projectRef === null) return false;
   void handleNewThread(projectRef);
 
@@ -378,7 +378,11 @@ export function resolveThreadMetadataUpdateForNextTurn(input: {
   nextModelSelection?: ModelSelection;
   currentBranch: string | null;
   nextBranch?: string;
-}) {
+}): {
+  modelSelection?: ModelSelection;
+  branch?: string;
+  worktreePath?: null;
+} | null {
   const nextModelSelection = input.nextModelSelection;
   const modelSelectionChanged =
     nextModelSelection !== undefined &&
@@ -400,12 +404,7 @@ export function buildLocalDraftThread(
   threadId: ThreadId,
   draftThread: DraftThreadState,
   fallbackModelSelection: ModelSelection,
-): Thread;
-export function buildLocalDraftThread(
-  threadId: ThreadId,
-  draftThread: DraftThreadState,
-  fallbackModelSelection: ModelSelection,
-) {
+): Thread {
   const timestamp = DateTime.makeUnsafe(draftThread.createdAt);
   return presentThreadShell(draftThread.environmentId, {
     id: threadId,
@@ -437,7 +436,7 @@ export function buildLocalDraftThread(
     doneOverride: null,
     doneAt: null,
     deletedAt: null,
-  }) satisfies Thread;
+  });
 }
 
 export function resolveComposerProviderSelection(input: {
@@ -496,7 +495,7 @@ export function getAntigravitySendBlockReason(
     | null
     | undefined,
   model: string,
-) {
+): string | null {
   if (provider?.driver !== "antigravity") return null;
   if (!provider.installed) {
     return "Install Antigravity in provider settings before sending.";
@@ -526,7 +525,7 @@ export function reconcileMountedTerminalThreadIds(input: {
   activeThreadId: string | null;
   activeThreadTerminalOpen: boolean;
   maxHiddenThreadCount?: number;
-}) {
+}): string[] {
   const openThreadIdSet = new Set(input.openThreadIds);
   const hiddenThreadIds = input.currentThreadIds.filter(
     (threadId) => threadId !== input.activeThreadId && openThreadIdSet.has(threadId),
@@ -555,7 +554,7 @@ export function resolveTerminalWorktreePath(input: {
   launchContext: { readonly worktreePath: string | null } | null;
   summary: { readonly worktreePath: string | null } | null;
   threadWorktreePath: string | null;
-}) {
+}): string | null {
   if (input.launchContext !== null) return input.launchContext.worktreePath;
   if (input.summary !== null) return input.summary.worktreePath;
   return input.threadWorktreePath;
@@ -569,7 +568,7 @@ export async function resolveFileAttachmentUrl(input: {
     environmentId: EnvironmentId;
     input: AssetCreateUrlInput;
   }) => Promise<AtomCommandResult<AssetCreateUrlResult, unknown>>;
-}) {
+}): Promise<string> {
   const { attachment } = input;
   const result = await input.createAssetUrl({
     environmentId: input.environmentId,
@@ -629,7 +628,7 @@ export async function prepareRevertedMessageAttachments(input: {
 
 export function timelineHasEphemeralPreviewUrls(
   entries: ReadonlyArray<Pick<TimelineEntry, "kind"> & { message?: ChatMessage }>,
-) {
+): boolean {
   return entries.some(
     (entry) =>
       entry.kind === "message" &&
@@ -638,7 +637,7 @@ export function timelineHasEphemeralPreviewUrls(
   );
 }
 
-function collectUserMessageBlobPreviewUrls(message: ChatMessage) {
+function collectUserMessageBlobPreviewUrls(message: ChatMessage): string[] {
   if (message.role !== "user" || !message.attachments) {
     return [];
   }
@@ -658,7 +657,7 @@ export function shouldRequireWorktreeBaseBranch(input: {
   activeThreadBranch: string | null;
   refsSettled: boolean;
   environmentUnavailable: boolean;
-}) {
+}): boolean {
   return (
     input.shouldCreateWorktree &&
     !input.activeThreadBranch &&
@@ -672,7 +671,12 @@ export function deriveComposerSendState(options: {
   imageCount: number;
   terminalContexts: ReadonlyArray<TerminalContextDraft>;
   elementContextCount?: number;
-}) {
+}): {
+  trimmedPrompt: string;
+  sendableTerminalContexts: TerminalContextDraft[];
+  expiredTerminalContextCount: number;
+  hasSendableContent: boolean;
+} {
   const trimmedPrompt = stripInlineContextReferences(options.prompt).trim();
   const sendableTerminalContexts = filterTerminalContextsWithText(options.terminalContexts);
   const expiredTerminalContextCount =
@@ -696,7 +700,7 @@ export function isComposerDraftEmpty(draft: {
   attachmentCount: number;
   terminalContextCount: number;
   elementContextCount: number;
-}) {
+}): boolean {
   return (
     draft.prompt.trim().length === 0 &&
     draft.attachmentCount === 0 &&
@@ -708,7 +712,7 @@ export function isComposerDraftEmpty(draft: {
 export function buildExpiredTerminalContextToastCopy(
   expiredTerminalContextCount: number,
   variant: "omitted" | "empty",
-) {
+): { title: string; description: string } {
   const count = Math.max(1, Math.floor(expiredTerminalContextCount));
   const noun = count === 1 ? "Expired terminal context" : "Expired terminal contexts";
   const pronoun = count === 1 ? "it" : "them";
@@ -727,7 +731,7 @@ export function buildExpiredTerminalContextToastCopy(
 export function branchMismatchKey(
   threadId: string | null,
   mismatch: { threadBranch: string; currentBranch: string } | null,
-) {
+): string | null {
   if (!threadId || !mismatch) {
     return null;
   }
@@ -739,7 +743,7 @@ export function shouldShowBranchMismatchBanner(input: {
   isDismissed: boolean;
   composerHasContent: boolean;
   wasShownForCurrentMismatch: boolean;
-}) {
+}): boolean {
   if (!input.hasMismatch || input.isDismissed) {
     return false;
   }
@@ -748,25 +752,32 @@ export function shouldShowBranchMismatchBanner(input: {
 
 const sessionDismissedBranchMismatchKeys = new Set<string>();
 
-export function dismissBranchMismatchForSession(key: string) {
+export function dismissBranchMismatchForSession(key: string): void {
   sessionDismissedBranchMismatchKeys.add(key);
 }
 
-export function isBranchMismatchDismissedForSession(key: string | null) {
+export function isBranchMismatchDismissedForSession(key: string | null): boolean {
   return key !== null && sessionDismissedBranchMismatchKeys.has(key);
 }
 
 const sessionCheckoutIsRepo = new Map<string, boolean>();
 
-function checkoutIsRepoKey(environmentId: EnvironmentId, cwd: string) {
+function checkoutIsRepoKey(environmentId: EnvironmentId, cwd: string): string {
   return JSON.stringify([environmentId, cwd]);
 }
 
-export function rememberCheckoutIsRepo(environmentId: EnvironmentId, cwd: string, isRepo: boolean) {
+export function rememberCheckoutIsRepo(
+  environmentId: EnvironmentId,
+  cwd: string,
+  isRepo: boolean,
+): void {
   sessionCheckoutIsRepo.set(checkoutIsRepoKey(environmentId, cwd), isRepo);
 }
 
-export function recallCheckoutIsRepo(environmentId: EnvironmentId, cwd: string | null) {
+export function recallCheckoutIsRepo(
+  environmentId: EnvironmentId,
+  cwd: string | null,
+): boolean | undefined {
   return cwd === null
     ? undefined
     : sessionCheckoutIsRepo.get(checkoutIsRepoKey(environmentId, cwd));
@@ -778,7 +789,7 @@ export function deriveLockedProvider(input: {
   threadProvider: string | null;
   providers: ReadonlyArray<Pick<ServerProvider, "instanceId" | "driver">>;
   supportsProviderSwitchingViaHandoff?: boolean;
-}) {
+}): ProviderDriverKind | null {
   if (input.supportsProviderSwitchingViaHandoff || !threadHasStarted(input.thread)) {
     return null;
   }
@@ -805,7 +816,7 @@ export function getStartedThreadModelChangeBlockReason(input: {
   currentModelSelection: ModelSelection;
   currentProviderInstanceId?: ModelSelection["instanceId"] | null | undefined;
   nextModelSelection: ModelSelection;
-}) {
+}): { title: string; description: string } | null {
   if (!input.hasStartedSession) {
     return null;
   }
@@ -912,7 +923,7 @@ export async function waitForRevertedMessage(
  */
 export function deriveCommittedServerUserMessageIds(
   visibleTurnItems: ReadonlyArray<ThreadStructureRow>,
-) {
+): ReadonlySet<ChatMessage["id"]> {
   return new Set(
     visibleTurnItems.flatMap((row) =>
       row.item.type === "user_message" ? [row.item.messageId] : [],
@@ -928,7 +939,7 @@ export function hasCompactableConversation(input: {
   readonly visibleTurnItems: ReadonlyArray<ThreadStructureRow>;
   readonly hasMoreHistory: boolean;
   readonly latestUserMessageAt: string | null;
-}) {
+}): boolean {
   return (
     input.visibleTurnItems.some(
       ({ item }) =>
@@ -944,7 +955,7 @@ export function shouldRefocusComposerOnWindowFocus(
     | (Pick<Element, "tagName" | "closest" | "getAttribute"> & { isContentEditable?: boolean })
     | null,
   selection: Pick<Selection, "isCollapsed"> | null,
-) {
+): boolean {
   if (selection !== null && !selection.isCollapsed) return false;
   if (activeElement === null || activeElement.tagName === "BODY") return true;
   if (
@@ -982,7 +993,10 @@ export function mergeDirectPreviewAnnotation(input: {
         readonly image: ComposerImageAttachment | null;
       }
     | undefined;
-}) {
+}): {
+  readonly images: ReadonlyArray<ComposerImageAttachment>;
+  readonly previewAnnotations: ReadonlyArray<PreviewAnnotationPayload>;
+} {
   const { direct } = input;
   if (!direct) return { images: input.images, previewAnnotations: input.previewAnnotations };
   const imageAlreadyAttached =
@@ -1015,17 +1029,10 @@ export function formatOutgoingPrompt(params: {
   models: ReadonlyArray<ServerProvider["models"][number]>;
   effort: string | null;
   text: string;
-}): string;
-export function formatOutgoingPrompt(params: {
-  provider: ProviderDriverKind;
-  model: string | null;
-  models: ReadonlyArray<ServerProvider["models"][number]>;
-  effort: string | null;
-  text: string;
-}) {
+}): string {
   const caps = getProviderModelCapabilities(params.models, params.model, params.provider);
   const promptEffort = resolvePromptInjectedEffort(caps, params.effort);
-  return applyClaudePromptEffortPrefix(params.text, promptEffort) satisfies string;
+  return applyClaudePromptEffortPrefix(params.text, promptEffort);
 }
 
 export type LocalThreadErrorEntry = {
@@ -1033,13 +1040,13 @@ export type LocalThreadErrorEntry = {
   readonly at: number;
 };
 
-export function chatActionErrorMessage(error: unknown) {
+export function chatActionErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "An error occurred.";
 }
 
 export function releaseChatTimelineAnchor<T extends { readonly messageId: MessageId | null }>(
   current: T,
-) {
+): T {
   return current.messageId === null ? current : { ...current, messageId: null };
 }
 
@@ -1092,7 +1099,7 @@ export function makeModelDisabledReason(
     "nextModelSelection"
   > | null,
 ) {
-  return (instanceId: ProviderInstanceId, model: string) => {
+  return (instanceId: ProviderInstanceId, model: string): string | null => {
     if (!context) return null;
     const reason = getStartedThreadModelChangeBlockReason({
       ...context,
@@ -1107,16 +1114,13 @@ export function deriveTimelineWorking(input: {
   readonly phase: SessionPhase;
   readonly isCompacting: boolean;
   readonly runlessWorkStartedAt: string | null;
-}): boolean;
-export function deriveTimelineWorking(input: {
-  readonly phase: SessionPhase;
-  readonly isCompacting: boolean;
-  readonly runlessWorkStartedAt: string | null;
-}) {
-  return (input.phase === "connecting" ||
+}): boolean {
+  return (
+    input.phase === "connecting" ||
     input.phase === "running" ||
     input.isCompacting ||
-    input.runlessWorkStartedAt !== null) satisfies boolean;
+    input.runlessWorkStartedAt !== null
+  );
 }
 
 /**
@@ -1366,6 +1370,6 @@ export function isThreadEnvironmentLocked(input: {
   readonly messageCount: number;
   readonly hasRuntime: boolean;
   readonly activeProviderThreadId: ProviderThreadId | null;
-}) {
+}): boolean {
   return input.messageCount > 0 || input.hasRuntime || input.activeProviderThreadId !== null;
 }

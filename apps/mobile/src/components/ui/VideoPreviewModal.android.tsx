@@ -32,7 +32,7 @@ interface PlaybackState {
   readonly actionsSource: MediaActionsSource | undefined;
 }
 
-function useMediaPlayback(source: MediaVideoPreviewSource) {
+function useMediaPlayback(source: MediaVideoPreviewSource): PlaybackState {
   const environmentId = "environmentId" in source ? source.environmentId : null;
   const resource = "resource" in source ? source.resource : null;
   const connection = usePreparedConnection(environmentId);
@@ -57,7 +57,7 @@ function useMediaPlayback(source: MediaVideoPreviewSource) {
   };
 }
 
-function useLocalPlayback(source: LocalVideoPreviewSource) {
+function useLocalPlayback(source: LocalVideoPreviewSource): PlaybackState {
   const { attachment } = source;
   const preview = useLocalAttachmentPreview(attachment);
   const { uri } = preview;

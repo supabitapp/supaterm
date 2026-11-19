@@ -8,7 +8,7 @@ export function canUseMarkdownFileShellActions(
   environmentId: EnvironmentId | null,
   remoteOpenMode: RemoteOpenMode,
   isRemoteOpenResolved: boolean,
-) {
+): boolean {
   return environmentId !== null && isRemoteOpenResolved && remoteOpenMode === "local-exec";
 }
 
@@ -17,7 +17,7 @@ export function hasMarkdownFilePrimaryAction(input: {
   canOpenInBrowser: boolean;
   canOpenInPanel: boolean;
   canOpenMedia?: boolean;
-}) {
+}): boolean {
   return (
     input.canOpenInEditor ||
     input.canOpenInBrowser ||
@@ -49,6 +49,6 @@ export function shouldUseMarkdownFileBrowserPrimaryAction(input: {
   canOpenInEditor: boolean;
   canOpenInBrowser: boolean;
   canOpenInPanel: boolean;
-}) {
+}): boolean {
   return input.canOpenInBrowser && !input.canOpenInEditor && !input.canOpenInPanel;
 }

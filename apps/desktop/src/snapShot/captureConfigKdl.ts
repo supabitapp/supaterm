@@ -12,7 +12,7 @@ export type KdlNode = {
   close: number | undefined;
 };
 
-export function readKdlNodes(source: string) {
+export function readKdlNodes(source: string): KdlNode[] {
   const tokens: Token[] = [];
   let offset = 0;
   const invalid = () =>
@@ -94,7 +94,7 @@ export function readKdlNodes(source: string) {
   let cursor = 0;
   const is = (token: Token | undefined, value: string) =>
     token && !token.quoted && token.value === value;
-  const nodes = (nested: boolean) => {
+  const nodes = (nested: boolean): KdlNode[] => {
     const result: KdlNode[] = [];
     while (cursor < tokens.length) {
       if (is(tokens[cursor], "\n") || is(tokens[cursor], ";")) {

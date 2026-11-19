@@ -35,7 +35,7 @@ export function startMacModifierPairShortcutProcess(
   modifier: SnapShotModifier,
   onTrigger: () => void,
   onFailure: (error: Error) => void,
-) {
+): Promise<() => void> {
   const [left, right] = MAC_MODIFIER_PAIR_DEVICE_MASKS[modifier];
   const poller = NodeChildProcess.spawn(
     "/usr/bin/osascript",
@@ -87,5 +87,5 @@ export function startMacModifierPairShortcutProcess(
     poller.once("exit", (code) => {
       fail(new Error(`Snapshot shortcut helper exited with code ${code}`));
     });
-  }) satisfies Promise<() => void>;
+  });
 }

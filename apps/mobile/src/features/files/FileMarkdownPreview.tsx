@@ -30,9 +30,13 @@ import { useAppearancePreferences } from "../settings/appearance/AppearancePrefe
 import {
   SelectableMarkdownText,
   type MarkdownImageRenderer,
+  type NativeMarkdownTextStyle,
 } from "../../native/SelectableMarkdownText";
 import { fileRoutePathSegments, resolveWorkspaceFilePath } from "./filePath";
-export function useMarkdownPreviewStyles() {
+interface MarkdownPreviewStyles {
+  readonly nativeTextStyle: NativeMarkdownTextStyle;
+}
+export function useMarkdownPreviewStyles(): MarkdownPreviewStyles {
   const { appearance } = useAppearancePreferences();
   const nativeMarkdownTypography = resolveNativeMarkdownTypography(appearance.baseFontSize);
   const theme = useUniwindTheme();

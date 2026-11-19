@@ -13,7 +13,7 @@ import { initialCodexScanState, parseCodexLine } from "../provider/Drivers/codex
 
 const parse = (parts: Iterable<string>) => JSON.parse([...parts].join(""));
 
-function record(overrides: Partial<UsageRecord> = {}) {
+function record(overrides: Partial<UsageRecord> = {}): UsageRecord {
   return {
     provider: "claude",
     timestampMs: 1_786_000_000_000,
@@ -30,10 +30,10 @@ function record(overrides: Partial<UsageRecord> = {}) {
     speed: "standard",
     dedupeKey: "msg_1:",
     ...overrides,
-  } satisfies UsageRecord;
+  };
 }
 
-function position(overrides: Partial<CachedFile["position"]> = {}) {
+function position(overrides: Partial<CachedFile["position"]> = {}): CachedFile["position"] {
   return {
     resumeOffset: 120,
     guardLength: 64,
@@ -43,7 +43,7 @@ function position(overrides: Partial<CachedFile["position"]> = {}) {
   };
 }
 
-function cacheWith(entries: readonly [string, number, readonly UsageRecord[]][]) {
+function cacheWith(entries: readonly [string, number, readonly UsageRecord[]][]): ScanCache {
   const cache: ScanCache = new Map();
   for (const [path, mtimeMs, records] of entries) {
     cache.set(path, {
@@ -257,18 +257,17 @@ describe("scan cache round trip", () => {
   );
 
   it("re-parses a v14 Codex entry that skipped records and restarts a clean one when it grows", () => {
-    const codex = (malformedRecords: number) =>
-      ({
-        size: 10,
-        mtimeMs: 100,
-        provider: "codex",
-        records: [record({ provider: "codex", model: "gpt-6-astra", dedupeKey: null })],
-        tailRecords: [],
-        malformedRecords,
-        position: position({
-          state: { ...initialCodexScanState(), model: "gpt-6-astra", sessionId: "session-a" },
-        }),
-      }) satisfies CachedFile;
+    const codex = (malformedRecords: number): CachedFile => ({
+      size: 10,
+      mtimeMs: 100,
+      provider: "codex",
+      records: [record({ provider: "codex", model: "gpt-6-astra", dedupeKey: null })],
+      tailRecords: [],
+      malformedRecords,
+      position: position({
+        state: { ...initialCodexScanState(), model: "gpt-6-astra", sessionId: "session-a" },
+      }),
+    });
     const original: ScanCache = new Map([
       ["/skipped-codex.jsonl", codex(1)],
       ["/clean-codex.jsonl", codex(0)],

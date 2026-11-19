@@ -67,7 +67,7 @@ export interface HomeListFilterMenuInput {
   readonly onHideOfflineEnvironmentsChange: (hide: boolean) => void;
 }
 
-export function buildHomeListFilterMenu(props: HomeListFilterMenuInput) {
+export function buildHomeListFilterMenu(props: HomeListFilterMenuInput): HomeListFilterMenu {
   const items: Array<HomeListFilterMenuAction | HomeListFilterMenuSubmenu> = [];
 
   items.push({
@@ -142,8 +142,7 @@ export function buildHomeListFilterMenu(props: HomeListFilterMenuInput) {
 }
 
 /** The thread list options as an `AppBar` menu, for the workspace list header. */
-export function buildHomeListFilterMenuItems(props: HomeListFilterMenuInput): AppBarMenuItem[];
-export function buildHomeListFilterMenuItems(props: HomeListFilterMenuInput) {
+export function buildHomeListFilterMenuItems(props: HomeListFilterMenuInput): AppBarMenuItem[] {
   return buildHomeListFilterMenu(props).items.map((item, index) =>
     item.type === "submenu"
       ? {
@@ -164,5 +163,5 @@ export function buildHomeListFilterMenuItems(props: HomeListFilterMenuInput) {
           selected: item.state === "on",
           onPress: item.onPress,
         },
-  ) satisfies AppBarMenuItem[];
+  );
 }

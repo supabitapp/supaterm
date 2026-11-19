@@ -44,7 +44,7 @@ export class RepositoryIdentityResolver extends Context.Service<
   }
 >()("supaterm/project/RepositoryIdentityResolver") {}
 
-function isLocalRemoteUrl(url: string) {
+function isLocalRemoteUrl(url: string): boolean {
   if (/^file:/i.test(url)) return true;
   if (/^[a-z][a-z0-9+.-]*:\/\//i.test(url)) return false;
   if (/^[a-z]:[\\/]/i.test(url)) return true;
@@ -54,7 +54,9 @@ function isLocalRemoteUrl(url: string) {
   return colonIndex === -1 || (slashIndex !== -1 && slashIndex < colonIndex);
 }
 
-function pickPrimaryRemote(remotes: ReadonlyMap<string, string>) {
+function pickPrimaryRemote(
+  remotes: ReadonlyMap<string, string>,
+): { readonly remoteName: string; readonly remoteUrl: string } | null {
   for (const preferredRemoteName of ["upstream", "origin"] as const) {
     const remoteUrl = remotes.get(preferredRemoteName);
     if (remoteUrl) {
@@ -67,7 +69,7 @@ function pickPrimaryRemote(remotes: ReadonlyMap<string, string>) {
   return remoteName && remoteUrl ? { remoteName, remoteUrl } : null;
 }
 
-function repositoryPathOf(canonicalKey: string, remoteUrl: string) {
+function repositoryPathOf(canonicalKey: string, remoteUrl: string): string {
   const canonicalPath = canonicalKey.split("/").slice(1).join("/");
   const displayPath = repositoryPathFromRemoteUrl(remoteUrl);
   if (displayPath === null) return canonicalPath;
@@ -78,7 +80,10 @@ function repositoryPathOf(canonicalKey: string, remoteUrl: string) {
   );
 }
 
-function buildRepositoryOrigin(originUrl: string | undefined, canonicalKey: string) {
+function buildRepositoryOrigin(
+  originUrl: string | undefined,
+  canonicalKey: string,
+): RepositoryIdentity["origin"] {
   if (!originUrl) return undefined;
   const originKey = sourceControlDefinitions.repositoryKeyFromRemote(originUrl);
   if (originKey === canonicalKey) return undefined;
@@ -91,7 +96,7 @@ function buildRepositoryIdentity(input: {
   readonly remoteUrl: string;
   readonly originUrl: string | undefined;
   readonly rootPath: string;
-}) {
+}): RepositoryIdentity {
   const canonicalKey = sourceControlDefinitions.repositoryKeyFromRemote(input.remoteUrl);
   const sourceControlProvider = sourceControlDefinitions.recognizeRemote(input.remoteUrl);
   const repositoryPath = repositoryPathOf(canonicalKey, input.remoteUrl);
@@ -113,7 +118,7 @@ function buildRepositoryIdentity(input: {
     ...(owner ? { owner } : {}),
     ...(repositoryName ? { name: repositoryName } : {}),
     ...(origin ? { origin } : {}),
-  } satisfies RepositoryIdentity;
+  };
 }
 
 class RepositoryIdentityCacheKey extends Data.Class<{
@@ -121,7 +126,7 @@ class RepositoryIdentityCacheKey extends Data.Class<{
   readonly isBare: boolean;
 }> {}
 
-const gitEnv = (platform: NodeJS.Platform) => ({
+const gitEnv = (platform: NodeJS.Platform): NodeJS.ProcessEnv => ({
   ...unsetInheritedRepositoryEnv(process.env, platform),
   ...explicitBareRepositoryEnv(process.env, platform),
 });
@@ -236,11 +241,11 @@ const readGhBaseRemote = Effect.fn("RepositoryIdentityResolver.readGhBaseRemote"
   return remoteName && remoteUrl ? { remoteName, remoteUrl } : null;
 });
 
-const resolveRepositoryIdentityFromCacheKey: (
-  cacheKey: RepositoryIdentityCacheKey,
-) => Effect.Effect<RepositoryIdentity | null, never, ProcessRunner.ProcessRunner> = Effect.fn(
+const resolveRepositoryIdentityFromCacheKey = Effect.fn(
   "RepositoryIdentityResolver.resolveFromCacheKey",
-)(function* (cacheKey: RepositoryIdentityCacheKey) {
+)(function* (
+  cacheKey: RepositoryIdentityCacheKey,
+): Effect.fn.Return<RepositoryIdentity | null, never, ProcessRunner.ProcessRunner> {
   const processRunner = yield* ProcessRunner.ProcessRunner;
   const env = gitEnv(yield* HostProcess.Platform);
   const remoteResult = yield* processRunner

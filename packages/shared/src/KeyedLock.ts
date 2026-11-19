@@ -1,6 +1,7 @@
 import * as Effect from "effect/Effect";
 import * as FiberSet from "effect/FiberSet";
 import * as Ref from "effect/Ref";
+import type * as Scope from "effect/Scope";
 import * as Semaphore from "effect/Semaphore";
 
 export interface KeyedLock<Key> {
@@ -16,7 +17,7 @@ interface LockEntry {
 /**
  * Not reentrant: taking a key while already holding it deadlocks.
  */
-export const makeUnsafe: <Key>() => KeyedLock<Key> = <Key>() => {
+export const makeUnsafe = <Key>(): KeyedLock<Key> => {
   const locks = Ref.makeUnsafe<ReadonlyMap<Key, LockEntry>>(new Map());
 
   const acquire = (key: Key) =>
@@ -54,7 +55,9 @@ export const makeUnsafe: <Key>() => KeyedLock<Key> = <Key>() => {
   } satisfies KeyedLock<Key>;
 };
 
-export const make = Effect.fn("KeyedLock.make")(<Key>() => Effect.sync(makeUnsafe<Key>));
+export const make = Effect.fn("KeyedLock.make")(<Key>(): Effect.Effect<KeyedLock<Key>> =>
+  Effect.sync(makeUnsafe<Key>),
+);
 
 export interface KeyedRunner<Key> {
   /** Forks `effect` to run once every effect passed earlier for `key` has finished. */
@@ -69,7 +72,11 @@ export interface KeyedRunner<Key> {
  * later effects. The forked fiber starts immediately, so it queues on the key's FIFO semaphore
  * before `run` returns; that keeps each key's effects in `run` order.
  */
-export const makeRunner = Effect.fn("KeyedLock.makeRunner")(function* <Key>() {
+export const makeRunner = Effect.fn("KeyedLock.makeRunner")(function* <Key>(): Effect.fn.Return<
+  KeyedRunner<Key>,
+  never,
+  Scope.Scope
+> {
   const lock = yield* make<Key>();
   const fibers = yield* FiberSet.make<void, never>();
   return {

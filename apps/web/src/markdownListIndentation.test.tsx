@@ -5,7 +5,7 @@ import { describe, expect, it } from "vite-plus/test";
 
 import { remarkNormalizeListItemIndentation } from "@supaterm/shared/markdownListIndentation";
 
-function renderMarkdown(markdown: string) {
+function renderMarkdown(markdown: string): string {
   return renderToStaticMarkup(
     <ReactMarkdown remarkPlugins={[remarkGfm, remarkNormalizeListItemIndentation]}>
       {markdown}

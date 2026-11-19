@@ -102,7 +102,7 @@ export class DeviceEasAccountError extends Schema.TaggedError<DeviceEasAccountEr
   "DeviceEasAccountError",
   { reason: Schema.String },
 ) {
-  override get message() {
+  override get message(): string {
     return this.reason;
   }
 }
@@ -445,7 +445,7 @@ export class DeviceHostUnavailableError extends Schema.TaggedError<DeviceHostUna
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `${this.hostLabel ?? `Device host ${this.hostId}`} is unavailable: ${this.reason}`;
   }
 }
@@ -458,7 +458,7 @@ export class DevicePlatformUnavailableError extends Schema.TaggedError<DevicePla
     reason: Schema.String,
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `${this.platform} devices are unavailable on host ${this.hostId}: ${this.reason}`;
   }
 }
@@ -470,7 +470,7 @@ export class DeviceNotFoundError extends Schema.TaggedError<DeviceNotFoundError>
     deviceId: DeviceId,
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Device ${this.deviceId} was not found on host ${this.hostId}.`;
   }
 }
@@ -482,7 +482,7 @@ export class DeviceBootError extends Schema.TaggedError<DeviceBootError>()("Devi
   diagnostics: Schema.optional(Schema.String.check(Schema.isMaxLength(2_000))),
   cause: Schema.Defect(),
 }) {
-  override get message() {
+  override get message(): string {
     const explanation = {
       disk_space: "There is not enough free disk space on its device host.",
       timeout: "The device did not become ready in time.",
@@ -511,7 +511,7 @@ export class DeviceOperationError extends Schema.TaggedError<DeviceOperationErro
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     const explanation = {
       command_failed: `The device command failed${this.exitCode === undefined ? "" : ` (exit code ${this.exitCode})`}.`,
       request_failed: "Could not communicate with device support. Try refreshing devices.",
@@ -521,7 +521,7 @@ export class DeviceOperationError extends Schema.TaggedError<DeviceOperationErro
       package_manager_missing:
         "Device support needs npm, which is not on the Supaterm server's PATH. Install npm (it comes with Node.js from nodejs.org), restart Supaterm, then retry.",
     }[this.reason];
-    return `Device ${this.operation} failed: ${explanation}` satisfies string as string;
+    return `Device ${this.operation} failed: ${explanation}`;
   }
 }
 
@@ -533,7 +533,7 @@ export class DeviceActionUnavailableError extends Schema.TaggedError<DeviceActio
     reason: Schema.Literals(["unsupported", "helper_missing"]),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return this.reason === "helper_missing"
       ? `Device ${this.operation} requires a helper missing from this install. Set up device support again.`
       : `Device ${this.operation} is not supported on ${this.platform}.`;
@@ -629,7 +629,7 @@ export class DeviceToolUnavailableError extends Schema.TaggedError<DeviceToolUna
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return this.reason;
   }
 }

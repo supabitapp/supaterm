@@ -3,8 +3,10 @@ import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import {
   isSecretSetting,
+  type ProviderSettingsFormAnnotation,
   type ProviderSettingsFormControl,
   type ProviderSettingsFormOption,
+  type ProviderSettingsFormSchemaAnnotation,
 } from "@supaterm/contracts";
 import { PlusIcon, XIcon } from "@supaterm/icons";
 
@@ -39,7 +41,7 @@ export interface ProviderSettingsFieldModel {
   readonly options?: ReadonlyArray<ProviderSettingsFormOption> | undefined;
 }
 
-function titleizeFieldKey(key: string) {
+function titleizeFieldKey(key: string): string {
   return key
     .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
     .replace(/[-_]+/g, " ")
@@ -55,7 +57,7 @@ function readFieldAnnotations(
 function readFieldAnnotationString(
   fieldSchema: ProviderClientDefinition["settingsSchema"]["fields"][string],
   key: "title" | "description",
-) {
+): string | undefined {
   const annotations = readFieldAnnotations(fieldSchema);
   const value = annotations?.[key];
   return typeof value === "string" ? value : undefined;
@@ -63,18 +65,20 @@ function readFieldAnnotationString(
 
 function readProviderSettingsFormAnnotation(
   fieldSchema: ProviderClientDefinition["settingsSchema"]["fields"][string],
-) {
+): ProviderSettingsFormAnnotation {
   const annotation = readFieldAnnotations(fieldSchema)?.providerSettingsForm;
   return annotation ?? {};
 }
 
-function readProviderSettingsFormSchemaAnnotation(definition: SettingsFormDefinition) {
+function readProviderSettingsFormSchemaAnnotation(
+  definition: SettingsFormDefinition,
+): ProviderSettingsFormSchemaAnnotation {
   return Schema.resolveAnnotations(definition.settingsSchema)?.providerSettingsFormSchema ?? {};
 }
 
 function readFieldBooleanDefault(
   fieldSchema: ProviderClientDefinition["settingsSchema"]["fields"][string],
-) {
+): boolean | undefined {
   const decodeDefault = Schema.decodeUnknownOption(fieldSchema as Schema.Decoder<unknown>);
   const decoded = decodeDefault(undefined);
   return Option.isSome(decoded) && typeof decoded.value === "boolean" ? decoded.value : undefined;
@@ -82,15 +86,15 @@ function readFieldBooleanDefault(
 
 function fieldAcceptsString(
   fieldSchema: ProviderClientDefinition["settingsSchema"]["fields"][string],
-): (value: string) => boolean;
-function fieldAcceptsString(
-  fieldSchema: ProviderClientDefinition["settingsSchema"]["fields"][string],
-) {
+): (value: string) => boolean {
   const decode = Schema.decodeUnknownOption(fieldSchema as Schema.Decoder<unknown>);
-  return ((value) => Option.isSome(decode(value))) satisfies (value: string) => boolean;
+  return (value) => Option.isSome(decode(value));
 }
 
-export function deriveProviderSettingsFields(definition: SettingsFormDefinition, value?: unknown) {
+export function deriveProviderSettingsFields(
+  definition: SettingsFormDefinition,
+  value?: unknown,
+): ReadonlyArray<ProviderSettingsFieldModel> {
   const isLocalAcp =
     definition.driverKind === "acpRegistry" &&
     readProviderConfigString(value, "source") === "local";
@@ -160,7 +164,10 @@ export interface RowsDraft<V, R> {
   readonly lastPublished: V | undefined;
 }
 
-export function seedRowsDraft<V, R>(value: V, toRows: (value: V) => ReadonlyArray<R>) {
+export function seedRowsDraft<V, R>(
+  value: V,
+  toRows: (value: V) => ReadonlyArray<R>,
+): RowsDraft<V, R> {
   return { rows: toRows(value), seen: value, lastPublished: undefined };
 }
 
@@ -170,21 +177,10 @@ export function reconcileRowsDraft<V, R>(
   incoming: V,
   equal: (left: V, right: V) => boolean,
   toRows: (value: V) => ReadonlyArray<R>,
-): RowsDraft<V, R>;
-export function reconcileRowsDraft<V, R>(
-  draft: RowsDraft<V, R>,
-  incoming: V,
-  equal: (left: V, right: V) => boolean,
-  toRows: (value: V) => ReadonlyArray<R>,
-) {
-  if (draft.seen === incoming || equal(draft.seen, incoming))
-    return draft satisfies RowsDraft<V, R>;
+): RowsDraft<V, R> {
+  if (draft.seen === incoming || equal(draft.seen, incoming)) return draft;
   const echo = draft.lastPublished !== undefined && equal(draft.lastPublished, incoming);
-  return {
-    rows: echo ? draft.rows : toRows(incoming),
-    seen: incoming,
-    lastPublished: undefined,
-  } satisfies RowsDraft<V, R>;
+  return { rows: echo ? draft.rows : toRows(incoming), seen: incoming, lastPublished: undefined };
 }
 
 const makeCommandArgumentDraftRow = (value: string) => ({
@@ -280,13 +276,13 @@ function ProviderCommandArguments({
   );
 }
 
-function readProviderConfigString(config: unknown, key: string) {
+function readProviderConfigString(config: unknown, key: string): string {
   if (config === null || typeof config !== "object") return "";
   const value = (config as Record<string, unknown>)[key];
   return typeof value === "string" ? value : "";
 }
 
-function readProviderConfigBoolean(config: unknown, key: string, defaultValue = false) {
+function readProviderConfigBoolean(config: unknown, key: string, defaultValue = false): boolean {
   if (config === null || typeof config !== "object") return defaultValue;
   const value = (config as Record<string, unknown>)[key];
   return typeof value === "boolean" ? value : defaultValue;
@@ -296,7 +292,7 @@ export function nextProviderConfigWithFieldValue(
   config: unknown,
   field: ProviderSettingsFieldModel,
   value: string | boolean,
-) {
+): Record<string, unknown> | undefined {
   const base: Record<string, unknown> =
     config !== null && typeof config === "object" ? { ...(config as Record<string, unknown>) } : {};
 

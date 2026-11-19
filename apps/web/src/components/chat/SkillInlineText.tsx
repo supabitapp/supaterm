@@ -46,12 +46,7 @@ export function renderSkillInlineMarkdownChildren(
   children: ReactNode,
   skills: ReadonlyArray<ServerProviderSkill>,
   threadRef: ScopedThreadRef | undefined,
-): ReactNode;
-export function renderSkillInlineMarkdownChildren(
-  children: ReactNode,
-  skills: ReadonlyArray<ServerProviderSkill>,
-  threadRef: ScopedThreadRef | undefined,
-) {
+): ReactNode {
   return Children.map(children, (child) => {
     if (typeof child === "string") {
       return <SkillInlineText text={child} skills={skills} threadRef={threadRef} />;
@@ -71,7 +66,7 @@ export function renderSkillInlineMarkdownChildren(
       undefined,
       renderSkillInlineMarkdownChildren(child.props.children, skills, threadRef),
     );
-  }) satisfies ReactNode;
+  });
 }
 
 export function skillPopoverDescription(

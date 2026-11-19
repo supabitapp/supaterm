@@ -30,7 +30,7 @@ const defaultGroupingSettings = {
   sidebarProjectGroupingOverrides: {},
 };
 
-function makeProject(overrides: Partial<Project> = {}) {
+function makeProject(overrides: Partial<Project> = {}): Project {
   return {
     id: ProjectId.make("project-1"),
     environmentId: primaryEnvironmentId,

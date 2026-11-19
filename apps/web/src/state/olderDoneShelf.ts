@@ -104,7 +104,7 @@ export function useOlderDoneShelfGrowth(
 export function readUnloadedThreadCount(
   members: ReadonlyArray<{ readonly environmentId: EnvironmentId; readonly id: ProjectId }>,
   threads: ReadonlyArray<EnvironmentThreadShell>,
-) {
+): number {
   return unloadedOlderDoneCount({
     olderDone: (environmentId) =>
       appAtomRegistry.get(olderDoneThreads.olderDoneAtom(environmentId)),

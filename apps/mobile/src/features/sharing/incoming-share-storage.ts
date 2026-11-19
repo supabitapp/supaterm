@@ -14,12 +14,12 @@ export class IncomingShareStorageError extends Schema.TaggedError<IncomingShareS
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Incoming share storage operation ${this.operation} failed for ${this.shareId ?? "unknown"}.`;
   }
 }
 
-function fileName(shareId: string) {
+function fileName(shareId: string): string {
   return `${encodeURIComponent(shareId)}.json`;
 }
 
@@ -49,7 +49,9 @@ async function readSavedDraft(file: File) {
   }
 }
 
-export async function loadIncomingShareDrafts(options?: { readonly strict?: boolean }) {
+export async function loadIncomingShareDrafts(options?: {
+  readonly strict?: boolean;
+}): Promise<ReadonlyArray<IncomingShareDraft>> {
   try {
     const { File } = await loadExpoFileSystem();
     const drafts: IncomingShareDraft[] = [];
@@ -79,7 +81,7 @@ export async function loadIncomingShareDrafts(options?: { readonly strict?: bool
   }
 }
 
-export async function writeIncomingShareDraft(draft: IncomingShareDraft) {
+export async function writeIncomingShareDraft(draft: IncomingShareDraft): Promise<void> {
   try {
     const file = await getFile(draft.id);
     const backup = await getFile(draft.id, ".bak");
@@ -99,7 +101,7 @@ export async function writeIncomingShareDraft(draft: IncomingShareDraft) {
   }
 }
 
-export async function removeIncomingShareDraft(shareId: string) {
+export async function removeIncomingShareDraft(shareId: string): Promise<void> {
   try {
     for (const suffix of [".tmp", ".bak", ""]) {
       const file = await getFile(shareId, suffix);

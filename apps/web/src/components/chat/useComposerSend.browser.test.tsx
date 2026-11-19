@@ -99,7 +99,9 @@ const composer: Pick<
   validateProviderInput: () => true,
 };
 
-function sendInput(onRespondToApproval: ComposerSendInput["onRespondToApproval"]) {
+function sendInput(
+  onRespondToApproval: ComposerSendInput["onRespondToApproval"],
+): ComposerSendInput {
   return {
     environmentId,
     routeThreadKey,
@@ -170,7 +172,7 @@ function sendInput(onRespondToApproval: ComposerSendInput["onRespondToApproval"]
     handleNewThreadInActiveProject: () => {},
     sideChatDisabledReason: null,
     sideChatDraftParentRef: null,
-  } satisfies ComposerSendInput;
+  };
 }
 
 async function sendOverApproval(decline: "Success" | "Failure") {

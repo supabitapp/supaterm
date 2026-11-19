@@ -1,4 +1,5 @@
 import type {
+  PullRequestActor,
   PullRequestCapabilities,
   PullRequestComment,
   PullRequestDetail,
@@ -18,11 +19,11 @@ import {
 
 type Subject = Pick<PullRequestDetail, "author" | "capabilities" | "viewer" | "viewerPermissions">;
 
-function actor(login: string) {
+function actor(login: string): PullRequestActor {
   return { login, name: null, avatarUrl: null };
 }
 
-function capabilities(edit?: PullRequestCapabilities["edit"]) {
+function capabilities(edit?: PullRequestCapabilities["edit"]): PullRequestCapabilities {
   return {
     diff: true,
     comment: true,
@@ -36,7 +37,9 @@ function capabilities(edit?: PullRequestCapabilities["edit"]) {
   };
 }
 
-function permissions(overrides: Partial<PullRequestViewerPermissions> = {}) {
+function permissions(
+  overrides: Partial<PullRequestViewerPermissions> = {},
+): PullRequestViewerPermissions {
   return {
     actions: [],
     comment: true,
@@ -47,7 +50,7 @@ function permissions(overrides: Partial<PullRequestViewerPermissions> = {}) {
   };
 }
 
-function subject(overrides: Partial<Subject> = {}) {
+function subject(overrides: Partial<Subject> = {}): Subject {
   return {
     author: actor("octocat"),
     capabilities: capabilities({ changeRequest: true, comment: true }),
@@ -57,7 +60,7 @@ function subject(overrides: Partial<Subject> = {}) {
   };
 }
 
-function comment(overrides: Partial<PullRequestComment> = {}) {
+function comment(overrides: Partial<PullRequestComment> = {}): PullRequestComment {
   return {
     id: "c1",
     kind: "issue-comment",
@@ -68,7 +71,7 @@ function comment(overrides: Partial<PullRequestComment> = {}) {
     path: null,
     reviewState: null,
     ...overrides,
-  } satisfies PullRequestComment;
+  };
 }
 
 describe("canEditPullRequestChangeRequest", () => {

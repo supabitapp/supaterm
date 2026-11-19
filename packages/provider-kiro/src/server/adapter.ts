@@ -31,6 +31,7 @@ import type { AcpToolCallState } from "@supaterm/provider-acp/server/runtimeMode
 import { makeAcpNativeLoggerFactory } from "@supaterm/provider-acp/server/nativeLogging";
 import {
   ProviderAdapterDriverCreateError,
+  type ProviderAdapterDriver,
   type ProviderAdapterDriverCreateInput,
 } from "@supaterm/provider-core/server/adapterDriver";
 import { makeProviderFailure } from "@supaterm/provider-core/server/failure";
@@ -290,10 +291,8 @@ const applyKiroAgent = Effect.fn("KiroAdapterV2.applyKiroAgent")(function* (
   return true;
 });
 
-const applyKiroModelSelection: (
-  defaultModel: Effect.Effect<string>,
-) => NonNullable<AcpAdapterV2Flavor["applyModelSelection"]> =
-  (defaultModel: Effect.Effect<string>) =>
+const applyKiroModelSelection =
+  (defaultModel: Effect.Effect<string>): NonNullable<AcpAdapterV2Flavor["applyModelSelection"]> =>
   ({ runtime, modelSelection }) =>
     applyKiroAgent(runtime, modelSelection).pipe(
       Effect.flatMap((agentSwitched) =>
@@ -304,7 +303,7 @@ const applyKiroModelSelection: (
 
 function selectValues(
   option: Extract<EffectAcpSchema.SessionConfigOption, { readonly type: "select" }>,
-) {
+): ReadonlyArray<string> {
   return option.options.flatMap((entry) =>
     "value" in entry ? [entry.value] : entry.options.map((choice) => choice.value),
   );
@@ -312,7 +311,7 @@ function selectValues(
 
 const isAcpRequestError = Schema.is(EffectAcpErrors.AcpRequestError);
 
-function isKiroPromptActivity(update: EffectAcpSchema.SessionUpdate) {
+function isKiroPromptActivity(update: EffectAcpSchema.SessionUpdate): boolean {
   switch (update.sessionUpdate) {
     case "agent_message_chunk":
     case "agent_message":
@@ -340,7 +339,7 @@ const KIRO_CLOUD_CONFIG_TOOL_ID = "fetch_cloud_config";
 
 function makeKiroCloudConfigFilter() {
   const running = new Set<string>();
-  return (notification: EffectAcpSchema.SessionNotification) => {
+  return (notification: EffectAcpSchema.SessionNotification): boolean => {
     const { update } = notification;
     if (
       update.sessionUpdate !== "tool_call" &&
@@ -367,7 +366,7 @@ const decodeKiroSteeringInfo = Schema.decodeUnknownOption(
   Schema.Struct({ kiro: Schema.Struct({ kind: Schema.String }) }),
 );
 
-function steeringNotePrefixLength(text: string) {
+function steeringNotePrefixLength(text: string): number {
   for (let length = Math.min(text.length, KIRO_STEERING_NOTE.length - 1); length > 0; length -= 1) {
     if (KIRO_STEERING_NOTE.startsWith(text.slice(-length))) return length;
   }
@@ -376,7 +375,9 @@ function steeringNotePrefixLength(text: string) {
 
 function makeKiroSteeringNoteFilter() {
   const sessions = new Map<string, { held: string; inNote: boolean }>();
-  return (notification: EffectAcpSchema.SessionNotification) => {
+  return (
+    notification: EffectAcpSchema.SessionNotification,
+  ): EffectAcpSchema.SessionNotification => {
     const { update } = notification;
     if (update.sessionUpdate === "session_info_update") {
       const kind = Option.getOrUndefined(decodeKiroSteeringInfo(update._meta))?.kiro.kind;
@@ -432,7 +433,9 @@ const decodeKiroSubagentInput = Schema.decodeUnknownOption(
   Schema.Struct({ name: Schema.String, prompt: Schema.String }),
 );
 
-function normalizeKiroSessionUpdate(notification: EffectAcpSchema.SessionNotification) {
+function normalizeKiroSessionUpdate(
+  notification: EffectAcpSchema.SessionNotification,
+): EffectAcpSchema.SessionNotification {
   const { update } = notification;
   const subtask = decodeKiroAgentSubtask("_meta" in update ? update._meta : undefined);
   return Option.isSome(subtask) && subtask.value.kiro.kind !== "agent-subtask"
@@ -440,10 +443,9 @@ function normalizeKiroSessionUpdate(notification: EffectAcpSchema.SessionNotific
     : notification;
 }
 
-function extractKiroSubagentUpdate(tool: AcpToolCallState) {
+function extractKiroSubagentUpdate(tool: AcpToolCallState): AcpAdapterV2SubagentUpdate | undefined {
   const subtask = decodeKiroAgentSubtask(tool.data.meta);
-  if (Option.isNone(subtask) || subtask.value.kiro.kind !== "agent-subtask")
-    return undefined satisfies AcpAdapterV2SubagentUpdate | undefined;
+  if (Option.isNone(subtask) || subtask.value.kiro.kind !== "agent-subtask") return undefined;
   const input = decodeKiroSubagentInput(tool.data.rawInput);
   const status =
     tool.status === "failed" ? "failed" : tool.status === "completed" ? "completed" : "running";
@@ -455,7 +457,7 @@ function extractKiroSubagentUpdate(tool: AcpToolCallState) {
     model: null,
     status,
     result: typeof tool.data.rawOutput === "string" ? tool.data.rawOutput : null,
-  } satisfies AcpAdapterV2SubagentUpdate | undefined;
+  };
 }
 
 function kiroPromptFailure(cause: unknown) {
@@ -466,7 +468,7 @@ function kiroPromptFailure(cause: unknown) {
   });
 }
 
-function makeKiroAcpAdapterFlavor(options: KiroAdapterV2Options) {
+function makeKiroAcpAdapterFlavor(options: KiroAdapterV2Options): AcpAdapterV2Flavor {
   const makeRuntime =
     options.makeRuntime ??
     ((input: AcpAdapterV2RuntimeInput) => {
@@ -504,7 +506,7 @@ function makeKiroAcpAdapterFlavor(options: KiroAdapterV2Options) {
     steering: kiroSteering,
     forkFromTurn: kiroForkFromTurn,
     ...(options.assertComplete === undefined ? {} : { assertComplete: options.assertComplete }),
-  } satisfies AcpAdapterV2Flavor;
+  };
 }
 
 export const makeKiroAdapterV2 = Effect.fn("makeKiroAdapterV2")(function* (
@@ -530,10 +532,12 @@ export type KiroAdapterV2DriverEnv =
   | ProviderHost.ProviderHost;
 
 /** `defaultModel` reads Kiro's id for "Kiro default" from the provider snapshot. */
-export const makeKiroAdapterV2Driver = (defaultModel: Effect.Effect<string>) => ({
+export const makeKiroAdapterV2Driver = (
+  defaultModel: Effect.Effect<string>,
+): ProviderAdapterDriver<KiroSettings, KiroAdapterV2DriverEnv> => ({
   driverKind: KIRO_PROVIDER,
   configSchema: KiroSettings,
-  defaultConfig: () => DEFAULT_KIRO_SETTINGS,
+  defaultConfig: (): KiroSettings => DEFAULT_KIRO_SETTINGS,
   create: Effect.fn("KiroAdapterV2Driver.create")(
     function* (input: ProviderAdapterDriverCreateInput<KiroSettings>) {
       const hostEnvironment = yield* HostProcess.Environment;

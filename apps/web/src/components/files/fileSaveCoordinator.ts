@@ -23,7 +23,7 @@ export class FileSaveCoordinator<A = unknown, E = unknown> {
 
   constructor(private readonly options: FileSaveCoordinatorOptions<A, E>) {}
 
-  change(contents: string) {
+  change(contents: string): void {
     if (this.disposed) return;
     this.latestContents = contents;
     this.latestRevision += 1;
@@ -33,24 +33,24 @@ export class FileSaveCoordinator<A = unknown, E = unknown> {
   }
 
   /** The newest contents not yet written, which is the last write this coordinator will make. */
-  get unconfirmedContents() {
+  get unconfirmedContents(): string | null {
     return this.latestRevision === this.confirmedRevision ? null : this.latestContents;
   }
 
   /** Writes the newest draft now instead of after the debounce, then any draft queued behind it. */
-  flush() {
+  flush(): void {
     this.clearTimer();
     this.flushing = true;
     void this.persistLatest();
   }
 
-  dispose() {
+  dispose(): void {
     this.disposed = true;
     this.clearTimer();
     if (this.latestRevision > 0) void this.persistLatest();
   }
 
-  private schedule(delay: number) {
+  private schedule(delay: number): void {
     this.clearTimer();
     this.timer = setTimeout(() => {
       this.timer = null;
@@ -58,13 +58,13 @@ export class FileSaveCoordinator<A = unknown, E = unknown> {
     }, delay);
   }
 
-  private clearTimer() {
+  private clearTimer(): void {
     if (this.timer === null) return;
     clearTimeout(this.timer);
     this.timer = null;
   }
 
-  private async persistLatest() {
+  private async persistLatest(): Promise<void> {
     if (this.saving) return;
     if (this.latestRevision === this.confirmedRevision || this.options.canPersist?.() === false) {
       this.settle();
@@ -100,7 +100,7 @@ export class FileSaveCoordinator<A = unknown, E = unknown> {
     }
   }
 
-  private settle() {
+  private settle(): void {
     this.flushing = false;
     this.options.onSettled?.();
   }

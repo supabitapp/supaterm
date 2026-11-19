@@ -21,7 +21,9 @@ export type ThreadDetailsVisibility = Readonly<Record<ThreadDetailsItemId, boole
 type ThreadDetailsItem = (typeof THREAD_DETAILS_ITEMS)[number];
 type ThreadDetailsItemSettings = Pick<ClientSettings, "threadDetailsItems">;
 
-export function resolveThreadDetailsVisibility(settings: ThreadDetailsItemSettings) {
+export function resolveThreadDetailsVisibility(
+  settings: ThreadDetailsItemSettings,
+): ThreadDetailsVisibility {
   return Object.fromEntries(
     THREAD_DETAILS_ITEMS.map((item) => [
       item.id,
@@ -34,7 +36,9 @@ export function resolveThreadDetailsVisibility(settings: ThreadDetailsItemSettin
  * A side chat works in its parent's checkout, so its card leaves out the environment, branch,
  * worktree, and env-mode controls that would change that checkout.
  */
-export function withoutParentCheckoutItems(visibility: ThreadDetailsVisibility) {
+export function withoutParentCheckoutItems(
+  visibility: ThreadDetailsVisibility,
+): ThreadDetailsVisibility {
   return { ...visibility, environment: false, branch: false };
 }
 
@@ -43,7 +47,7 @@ export function setThreadDetailsItem(
   settings: ThreadDetailsItemSettings,
   item: ThreadDetailsItem,
   visible: boolean,
-) {
+): ClientSettings["threadDetailsItems"] {
   const { [item.id]: _previous, ...rest } = settings.threadDetailsItems;
   return visible === item.defaultVisible ? rest : { ...rest, [item.id]: visible };
 }

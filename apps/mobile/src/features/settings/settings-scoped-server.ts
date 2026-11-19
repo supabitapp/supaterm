@@ -25,7 +25,7 @@ export interface ScopedMobileSettingsTarget {
 export function resolveMobileSettingsTargets(
   environments: readonly SettingsTarget[],
   members: readonly { readonly environmentId: EnvironmentId; readonly id: ProjectId }[] | null,
-) {
+): readonly ScopedMobileSettingsTarget[] {
   if (members === null) {
     return environments.map((environment) => ({
       environment,
@@ -92,7 +92,7 @@ export function planMobileScopedSettingsPatch(
 export function uniformMobileSetting<K extends keyof ServerSettings>(
   targets: readonly Pick<ScopedMobileSettingsTarget, "settings">[],
   key: K,
-) {
+): ServerSettings[K] | null {
   const reference = targets[0];
   if (!reference) return null;
   const value = reference.settings[key];

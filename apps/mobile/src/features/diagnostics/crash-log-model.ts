@@ -18,8 +18,7 @@ const UNHANDLED_PREFIX = "Unhandled JS Exception: ";
 
 export function parseStartupCrashRecords(
   entries: ReadonlyArray<UpdatesLogEntryLike>,
-): ReadonlyArray<StartupCrashRecord>;
-export function parseStartupCrashRecords(entries: ReadonlyArray<UpdatesLogEntryLike>) {
+): ReadonlyArray<StartupCrashRecord> {
   const records: StartupCrashRecord[] = [];
   for (const entry of entries) {
     if (entry.code !== "JSRuntimeError" || !entry.message.startsWith(FATAL_PREFIX)) continue;
@@ -37,12 +36,10 @@ export function parseStartupCrashRecords(entries: ReadonlyArray<UpdatesLogEntryL
       .map(compactFrame);
     records.push({ timestamp: entry.timestamp, description, frames, detail: body.trim() });
   }
-  return records.sort(
-    (left, right) => right.timestamp - left.timestamp,
-  ) satisfies ReadonlyArray<StartupCrashRecord>;
+  return records.sort((left, right) => right.timestamp - left.timestamp);
 }
 
-function compactFrame(line: string) {
+function compactFrame(line: string): string {
   const match = /^at (.+?) \((.*)\)$/.exec(line);
   if (!match) return line.slice("at ".length);
   const [, name = "", location = ""] = match;
@@ -53,7 +50,7 @@ function compactFrame(line: string) {
 export function formatStartupCrashReport(
   records: ReadonlyArray<StartupCrashRecord>,
   app: { readonly version: string; readonly build: string },
-) {
+): string {
   const header = `Supaterm ${app.version} (${app.build})`;
   if (records.length === 0) return `${header}\nNo startup crashes recorded.`;
   return [

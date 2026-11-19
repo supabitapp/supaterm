@@ -16,14 +16,16 @@ export interface EnvironmentQueryView<A> {
   readonly refresh: () => void;
 }
 
-function formatError(cause: Cause.Cause<unknown>) {
+function formatError(cause: Cause.Cause<unknown>): string {
   const error = Cause.squash(cause);
   return error instanceof Error && error.message.trim().length > 0
     ? error.message
     : "The environment request failed.";
 }
 
-export function useEnvironmentQuery<A, E>(atom: Atom.Atom<AsyncResult.AsyncResult<A, E>> | null) {
+export function useEnvironmentQuery<A, E>(
+  atom: Atom.Atom<AsyncResult.AsyncResult<A, E>> | null,
+): EnvironmentQueryView<A> {
   const selectedAtom = atom ?? EMPTY_ASYNC_RESULT_ATOM;
   const result = useAtomValue(selectedAtom);
   const refresh = useAtomRefresh(selectedAtom);

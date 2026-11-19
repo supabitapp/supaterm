@@ -43,11 +43,9 @@ const fixture = vi.hoisted(() => ({
   surfaceOptions: [] as GhosttyTerminalSurfaceOptions[],
   reportedSize: null as { cols: number; rows: number } | null,
   resizeCommand: {},
-  runWrite: () => Promise.resolve({ _tag: "Success" }) satisfies Promise<{ _tag: "Success" }>,
-  runResize: (_input: unknown) =>
-    Promise.resolve(AsyncResult.success(undefined)) satisfies Promise<
-      AsyncResult.AsyncResult<unknown, unknown>
-    > as Promise<AsyncResult.AsyncResult<unknown, unknown>>,
+  runWrite: (): Promise<{ _tag: "Success" }> => Promise.resolve({ _tag: "Success" }),
+  runResize: (_input: unknown): Promise<AsyncResult.AsyncResult<unknown, unknown>> =>
+    Promise.resolve(AsyncResult.success(undefined)),
   metadata: new Map<
     string,
     Atom.Writable<AsyncResult.AsyncResult<FilesystemEntryMetadata | null>>

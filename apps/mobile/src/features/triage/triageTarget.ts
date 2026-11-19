@@ -6,6 +6,6 @@ export function pickTriageEnvironment<Id extends string>(input: {
   readonly onScreen: Id | null;
   readonly connected: ReadonlyArray<Id>;
   readonly supportsTriage: (environmentId: Id) => boolean;
-}) {
+}): Id | null {
   return input.onScreen ?? input.connected.find(input.supportsTriage) ?? null;
 }

@@ -1,4 +1,6 @@
-export function providerColors(scheme: "light" | "dark") {
+import type { UsageProviderKind } from "@supaterm/contracts";
+
+export function providerColors(scheme: "light" | "dark"): Record<UsageProviderKind, string> {
   return {
     claude: "#d97757",
     codex: scheme === "dark" ? "#e6e6e6" : "#3c3c43",

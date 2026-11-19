@@ -235,17 +235,16 @@ it("leaves description checkboxes read-only without the right to edit it", async
   );
 });
 
-const comment = (id: string, body: string) =>
-  ({
-    id,
-    kind: "issue-comment",
-    author: detail.author,
-    body,
-    createdAt: "2026-09-01T00:00:00Z",
-    url: null,
-    path: null,
-    reviewState: null,
-  }) satisfies PullRequestComment;
+const comment = (id: string, body: string): PullRequestComment => ({
+  id,
+  kind: "issue-comment",
+  author: detail.author,
+  body,
+  createdAt: "2026-09-01T00:00:00Z",
+  url: null,
+  path: null,
+  reviewState: null,
+});
 
 it("keeps a comment draft through a failed save when another comment's edit is clicked", async () => {
   setup();

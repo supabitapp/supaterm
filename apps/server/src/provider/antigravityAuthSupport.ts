@@ -102,50 +102,41 @@ const ANTIGRAVITY_PERSONAL_AUTH: AntigravityAuthConfig = {
   gcpLocation: "",
 };
 
-export function antigravityAuthUsesBrowser(authMethod: AntigravityAuthMethod): boolean;
-export function antigravityAuthUsesBrowser(authMethod: AntigravityAuthMethod) {
-  return (authMethod === "oauth-personal" || authMethod === "oauth-business") satisfies boolean;
+export function antigravityAuthUsesBrowser(authMethod: AntigravityAuthMethod): boolean {
+  return authMethod === "oauth-personal" || authMethod === "oauth-business";
 }
 
-export function antigravityAuthLabel(authMethod: AntigravityAuthMethod): string;
-export function antigravityAuthLabel(authMethod: AntigravityAuthMethod) {
+export function antigravityAuthLabel(authMethod: AntigravityAuthMethod): string {
   switch (authMethod) {
     case "oauth-personal":
-      return "Google account" satisfies string;
+      return "Google account";
     case "oauth-business":
-      return "Gemini Enterprise" satisfies string;
+      return "Gemini Enterprise";
     case "gemini-api-key":
-      return "Gemini API key" satisfies string;
+      return "Gemini API key";
     case "agent-platform":
-      return "Agent Platform" satisfies string;
+      return "Agent Platform";
   }
 }
 
-export function antigravityAuthConfigIssue(auth: AntigravityAuthConfig): string | null;
-export function antigravityAuthConfigIssue(auth: AntigravityAuthConfig) {
+export function antigravityAuthConfigIssue(auth: AntigravityAuthConfig): string | null {
   switch (auth.authMethod) {
     case "oauth-personal":
-      return null satisfies string | null;
+      return null;
     case "oauth-business":
-      return (
-        auth.gcpProject && auth.gcpLocation
-          ? null
-          : "Gemini Enterprise needs a GCP project and location in the Antigravity provider settings."
-      ) satisfies string | null;
+      return auth.gcpProject && auth.gcpLocation
+        ? null
+        : "Gemini Enterprise needs a GCP project and location in the Antigravity provider settings.";
     case "gemini-api-key":
-      return (
-        auth.apiKey ? null : "Enter a Gemini API key in the Antigravity provider settings."
-      ) satisfies string | null;
+      return auth.apiKey ? null : "Enter a Gemini API key in the Antigravity provider settings.";
     case "agent-platform":
-      return (
-        auth.apiKey || (auth.gcpProject && auth.gcpLocation)
-          ? null
-          : "Agent Platform needs an API key, or a GCP project and location, in the Antigravity provider settings."
-      ) satisfies string | null;
+      return auth.apiKey || (auth.gcpProject && auth.gcpLocation)
+        ? null
+        : "Agent Platform needs an API key, or a GCP project and location, in the Antigravity provider settings.";
   }
 }
 
-function antigravityProfileSettings(auth: AntigravityAuthConfig) {
+function antigravityProfileSettings(auth: AntigravityAuthConfig): string {
   const gcp = {
     ...(auth.gcpProject ? { project: auth.gcpProject } : {}),
     ...(auth.gcpLocation ? { location: auth.gcpLocation } : {}),
@@ -166,11 +157,11 @@ function authSupportError(detail: string) {
   return new AcpErrors.AcpTransportError({ detail, cause: undefined });
 }
 
-export function isAntigravitySignInRequiredError(error: unknown): boolean;
-export function isAntigravitySignInRequiredError(error: unknown) {
-  return ((isAcpRequestError(error) && error.code === -32000) ||
-    (isAcpTransportError(error) &&
-      error.detail === ANTIGRAVITY_SIGN_IN_REQUIRED_MESSAGE)) satisfies boolean;
+export function isAntigravitySignInRequiredError(error: unknown): boolean {
+  return (
+    (isAcpRequestError(error) && error.code === -32000) ||
+    (isAcpTransportError(error) && error.detail === ANTIGRAVITY_SIGN_IN_REQUIRED_MESSAGE)
+  );
 }
 
 export interface AntigravityInstanceDirectories {
@@ -192,7 +183,7 @@ export const resolveAntigravityInstanceDirectories = Effect.fn(
   } satisfies AntigravityInstanceDirectories;
 });
 
-function quoteBrowserArgument(value: string) {
+function quoteBrowserArgument(value: string): string {
   return `'${value.replaceAll("'", `'"'"'`)}'`;
 }
 
@@ -236,7 +227,7 @@ const linkAntigravityUserSkills = Effect.fn("linkAntigravityUserSkills")(functio
   readonly profileDirectory: string;
   readonly userHome: string;
   readonly platform: NodeJS.Platform;
-}) {
+}): Effect.fn.Return<void, never, FileSystem.FileSystem | Path.Path> {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const links = antigravityUserSkillDirectories(path, input.profileDirectory);
@@ -255,7 +246,7 @@ const linkAntigravityUserSkills = Effect.fn("linkAntigravityUserSkills")(functio
         return;
       }
       const existing = yield* fs.readLink(link).pipe(
-        Effect.map((value) => path.resolve(path.dirname(link), value)),
+        Effect.map((value): string | undefined => path.resolve(path.dirname(link), value)),
         Effect.catchReason("PlatformError", "NotFound", () => Effect.undefined),
         Effect.catch((error) =>
           Effect.tryPromise(() => NodeFSP.rmdir(link)).pipe(
@@ -442,18 +433,7 @@ export function buildAntigravityAcpSpawnInput(input: {
   readonly baseEnv?: NodeJS.ProcessEnv;
   readonly auth?: AntigravityAuthConfig;
   readonly runtimeTempDirectory?: string;
-}): AcpSessionRuntime.AcpSpawnInput;
-export function buildAntigravityAcpSpawnInput(input: {
-  readonly installation: {
-    readonly executablePath: string;
-    readonly harnessPath: string | null;
-  };
-  readonly profile: AntigravityProfile;
-  readonly cwd: string;
-  readonly baseEnv?: NodeJS.ProcessEnv;
-  readonly auth?: AntigravityAuthConfig;
-  readonly runtimeTempDirectory?: string;
-}) {
+}): AcpSessionRuntime.AcpSpawnInput {
   return {
     command: input.installation.executablePath,
     args:
@@ -475,11 +455,13 @@ export function buildAntigravityAcpSpawnInput(input: {
         : { ANTIGRAVITY_HARNESS_PATH: input.installation.harnessPath }),
     },
     extendEnv: false,
-  } satisfies AcpSessionRuntime.AcpSpawnInput;
+  };
 }
 
 export const parseAntigravityAuthorizationUrl = Effect.fn("parseAntigravityAuthorizationUrl")(
-  function* (authorizationUrl: string) {
+  function* (
+    authorizationUrl: string,
+  ): Effect.fn.Return<AntigravityAuthorizationUrl, AcpErrors.AcpError> {
     const invalidUrl = () =>
       authSupportError("Antigravity returned an invalid Google sign-in URL.");
     if (authorizationUrl.length > maxAuthorizationUrlLength || /\s/.test(authorizationUrl)) {
@@ -535,7 +517,9 @@ export function makeAntigravityStdoutTransform(
     return [];
   });
 
-  return (stdout: ChildProcessSpawner.ChildProcessHandle["stdout"]) =>
+  return (
+    stdout: ChildProcessSpawner.ChildProcessHandle["stdout"],
+  ): Stream.Stream<Uint8Array, PlatformError.PlatformError | AcpErrors.AcpError> =>
     Stream.suspend(() => {
       let pending: Uint8Array[] = [];
       let pendingBytes = 0;
@@ -574,10 +558,7 @@ export function makeAntigravityStdoutTransform(
         Stream.mapEffect(handleLine),
         Stream.flatMap(Stream.fromIterable),
       );
-    }) satisfies Stream.Stream<
-      Uint8Array,
-      PlatformError.PlatformError | AcpErrors.AcpError
-    > as Stream.Stream<Uint8Array, PlatformError.PlatformError | AcpErrors.AcpError>;
+    });
 }
 
 export function makeAntigravityStderrHandler(

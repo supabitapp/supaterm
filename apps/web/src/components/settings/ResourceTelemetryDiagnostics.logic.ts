@@ -1,13 +1,13 @@
 import type { ResourceTelemetryProcess, ResourceTelemetrySourceStatus } from "@supaterm/contracts";
 
-export function processIdentityKey(process: Pick<ResourceTelemetryProcess, "identity">) {
+export function processIdentityKey(process: Pick<ResourceTelemetryProcess, "identity">): string {
   return `${process.identity.pid}:${process.identity.startTimeMs}`;
 }
 
 export function visibleResourceTelemetryProcesses(
   processes: ReadonlyArray<ResourceTelemetryProcess>,
   collapsed: ReadonlySet<string>,
-) {
+): ReadonlyArray<ResourceTelemetryProcess> {
   const childrenByParent = new Map<number, ResourceTelemetryProcess[]>();
   for (const process of processes) {
     const children = childrenByParent.get(process.ppid) ?? [];
@@ -16,7 +16,7 @@ export function visibleResourceTelemetryProcesses(
   }
 
   const hidden = new Set<string>();
-  const hideDescendants = (pid: number) => {
+  const hideDescendants = (pid: number): void => {
     for (const child of childrenByParent.get(pid) ?? []) {
       if (child.depth === 0) continue;
       const key = processIdentityKey(child);
@@ -36,7 +36,7 @@ export function visibleResourceTelemetryProcesses(
 export function shouldShowResourceMonitorRetry(input: {
   readonly nativeStatus: ResourceTelemetrySourceStatus | null;
   readonly error: string | null;
-}) {
+}): boolean {
   return (
     (input.nativeStatus === null && input.error !== null) ||
     input.nativeStatus === "degraded" ||
@@ -49,18 +49,18 @@ export function resourceHistoryBarHeight(input: {
   readonly value: number;
   readonly max: number;
   readonly minimumVisiblePercent: number;
-}) {
+}): number {
   if (input.value <= 0) return 0;
   return Math.max(input.minimumVisiblePercent, (input.value / Math.max(1, input.max)) * 100);
 }
 
 export function resourceHistoryCpuScaleMax(
   buckets: ReadonlyArray<{ readonly avgCpuPercent: number }>,
-) {
+): number {
   return Math.max(1, ...buckets.map((bucket) => bucket.avgCpuPercent));
 }
 
-export function formatCpuTime(seconds: number) {
+export function formatCpuTime(seconds: number): string {
   const format = (value: number) => value.toFixed(value >= 10 ? 1 : 2).replace(/\.0+$/, "");
   const shortSeconds = format(seconds);
   if (Number(shortSeconds) < 60) return `${shortSeconds}s`;
@@ -69,7 +69,7 @@ export function formatCpuTime(seconds: number) {
   return `${(seconds / 3_600).toFixed(2).replace(/\.0+$/, "")}h`;
 }
 
-export function formatSamplingStatus(intervalMs: number) {
+export function formatSamplingStatus(intervalMs: number): string {
   if (intervalMs <= 0) return "Sampling on demand";
   if (intervalMs < 1_000) return `Sampling every ${Math.round(intervalMs)} ms`;
   const seconds = intervalMs / 1_000;

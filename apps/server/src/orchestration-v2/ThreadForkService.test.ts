@@ -33,8 +33,7 @@ const snoozedAt = DateTime.makeUnsafe("2026-07-24T09:05:00.000Z");
 const snoozedUntil = DateTime.makeUnsafe("2026-07-25T09:00:00.000Z");
 const forkCreatedAt = DateTime.makeUnsafe("2026-07-24T09:10:00.000Z");
 
-function makeSourceThread(): OrchestrationV2AppThread;
-function makeSourceThread() {
+function makeSourceThread(): OrchestrationV2AppThread {
   return {
     createdBy: "user",
     creationSource: "web",
@@ -63,11 +62,10 @@ function makeSourceThread() {
     snoozedUntil,
     snoozedAt,
     deletedAt: null,
-  } satisfies OrchestrationV2AppThread;
+  };
 }
 
-function makeSourceRun(status: OrchestrationV2Run["status"]): OrchestrationV2Run;
-function makeSourceRun(status: OrchestrationV2Run["status"]) {
+function makeSourceRun(status: OrchestrationV2Run["status"]): OrchestrationV2Run {
   return {
     id: sourceRunId,
     threadId: sourceThreadId,
@@ -85,14 +83,13 @@ function makeSourceRun(status: OrchestrationV2Run["status"]) {
     completedAt: snoozedAt,
     checkpointId: null,
     contextHandoffId: null,
-  } satisfies OrchestrationV2Run;
+  };
 }
 
 function makeSourceProjection(
   sourceRun: OrchestrationV2Run,
   thread: OrchestrationV2AppThread,
-): OrchestrationV2ThreadProjection;
-function makeSourceProjection(sourceRun: OrchestrationV2Run, thread: OrchestrationV2AppThread) {
+): OrchestrationV2ThreadProjection {
   return {
     thread,
     runs: [sourceRun],
@@ -112,7 +109,7 @@ function makeSourceProjection(sourceRun: OrchestrationV2Run, thread: Orchestrati
     contextTransfers: [],
     visibleTurnItems: [],
     updatedAt: snoozedAt,
-  } satisfies OrchestrationV2ThreadProjection;
+  };
 }
 
 const planFork = (

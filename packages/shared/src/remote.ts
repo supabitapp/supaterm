@@ -24,14 +24,14 @@ const PAIRING_APP_LINK_PARAM = "pairingUrl";
 const APP_LINK_PROTOCOL = /^supaterm(?:-[a-z]+)?:$/;
 const SUPPORTED_REMOTE_BACKEND_PROTOCOLS = new Set(["http:", "https:", "ws:", "wss:"]);
 
-const readHashParams = (url: URL) =>
+const readHashParams = (url: URL): URLSearchParams =>
   new URLSearchParams(url.hash.startsWith("#") ? url.hash.slice(1) : url.hash);
 
 export class RemoteBackendUrlMissingError extends Schema.TaggedError<RemoteBackendUrlMissingError>()(
   "RemoteBackendUrlMissingError",
   {},
 ) {
-  override get message() {
+  override get message(): string {
     return "Enter a backend URL.";
   }
 }
@@ -43,7 +43,7 @@ export class RemotePairingUrlInvalidError extends Schema.TaggedError<RemotePairi
     protocol: Schema.optional(Schema.String),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return "Pairing URL is invalid.";
   }
 }
@@ -56,7 +56,7 @@ export class RemoteBackendUrlInvalidError extends Schema.TaggedError<RemoteBacke
     protocol: Schema.optional(Schema.String),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return "Backend URL is invalid.";
   }
 }
@@ -65,7 +65,7 @@ export class RemotePairingTokenMissingError extends Schema.TaggedError<RemotePai
   "RemotePairingTokenMissingError",
   { host: Schema.String },
 ) {
-  override get message() {
+  override get message(): string {
     return "Pairing URL is missing its token.";
   }
 }
@@ -74,7 +74,7 @@ export class RemotePairingCodeMissingError extends Schema.TaggedError<RemotePair
   "RemotePairingCodeMissingError",
   { host: Schema.String },
 ) {
-  override get message() {
+  override get message(): string {
     return "Enter a pairing code.";
   }
 }
@@ -88,13 +88,13 @@ export const RemotePairingTargetError = Schema.Union([
 ]);
 export type RemotePairingTargetError = typeof RemotePairingTargetError.Type;
 
-const hasSupportedRemoteBackendProtocol = (url: URL) =>
+const hasSupportedRemoteBackendProtocol = (url: URL): boolean =>
   SUPPORTED_REMOTE_BACKEND_PROTOCOLS.has(url.protocol);
 
 const normalizeRemoteBaseUrl = (
   rawValue: string,
   source: RemoteBackendUrlInvalidError["source"],
-) => {
+): URL => {
   const trimmed = rawValue.trim();
   if (!trimmed) {
     throw new RemoteBackendUrlMissingError();
@@ -134,7 +134,7 @@ export interface PairingRouteHints {
   readonly relayUrl?: string | undefined;
 }
 
-export const readPairingEnvironmentId = (url: URL) => {
+export const readPairingEnvironmentId = (url: URL): EnvironmentId | undefined => {
   const values = readHashParams(url).getAll(PAIRING_ENV_PARAM);
   if (values.length === 0) return undefined;
   if (values.length !== 1) throw new RemotePairingUrlInvalidError({});
@@ -143,7 +143,7 @@ export const readPairingEnvironmentId = (url: URL) => {
   return decoded.value;
 };
 
-const pairingRouteOrigin = (value: string) => {
+const pairingRouteOrigin = (value: string): string | null => {
   try {
     const url = new URL(value);
     if (url.username || url.password || url.search || url.hash || url.pathname !== "/") return null;
@@ -165,7 +165,7 @@ const pairingRouteOrigin = (value: string) => {
   }
 };
 
-const readPairingRelayUrl = (url: URL) => {
+const readPairingRelayUrl = (url: URL): string | undefined => {
   const values = readHashParams(url).getAll(PAIRING_RELAY_PARAM);
   if (values.length === 0) return undefined;
   const relayUrl = values.length === 1 ? normalizeRelayServerUrl(values[0]!) : null;
@@ -173,7 +173,7 @@ const readPairingRelayUrl = (url: URL) => {
   return relayUrl;
 };
 
-const readPairingRouteHints = (url: URL) => {
+const readPairingRouteHints = (url: URL): PairingRouteHints => {
   const relayUrl = readPairingRelayUrl(url);
   const environmentId = readPairingEnvironmentId(url);
   if (environmentId === undefined) return { relayUrl };
@@ -189,7 +189,7 @@ const readPairingRouteHints = (url: URL) => {
   return { environmentId, routes, relayUrl };
 };
 
-const pairingRoutePriority = (origin: string) => {
+const pairingRoutePriority = (origin: string): number => {
   if (origin.startsWith("https:")) return 0;
   return isTailnetHost(new URL(origin).hostname) ? 1 : 2;
 };
@@ -200,12 +200,12 @@ export interface HostedPairingRequest {
   readonly label: string;
 }
 
-export const getPairingTokenFromUrl = (url: URL) => {
+export const getPairingTokenFromUrl = (url: URL): string | null => {
   const hashToken = readHashParams(url).get(PAIRING_TOKEN_PARAM)?.trim() ?? "";
   return hashToken.length > 0 ? hashToken : null;
 };
 
-export const stripPairingTokenFromUrl = (url: URL) => {
+export const stripPairingTokenFromUrl = (url: URL): URL => {
   const next = new URL(url.toString());
   const hashParams = readHashParams(next);
   if (
@@ -226,7 +226,7 @@ export const setPairingTokenOnUrl = (
   url: URL,
   credential: string,
   hints: PairingRouteHints = {},
-) => {
+): URL => {
   const next = new URL(url.toString());
   next.hash = new URLSearchParams([[PAIRING_TOKEN_PARAM, credential]]).toString();
   const mainOrigin = new URL(next.searchParams.get(HOSTED_PAIRING_HOST_PARAM) ?? next.href).origin;
@@ -260,17 +260,17 @@ export const setPairingTokenOnUrl = (
   return next;
 };
 
-export const buildPairingUrl: (
+export const buildPairingUrl = (
   baseUrl: string,
   credential: string,
-  hints?: PairingRouteHints,
-) => string = (baseUrl: string, credential: string, hints: PairingRouteHints = {}) => {
+  hints: PairingRouteHints = {},
+): string => {
   const url = new URL(baseUrl);
   url.pathname = "/pair";
   return setPairingTokenOnUrl(url, credential, hints).toString();
 };
 
-export const readHostedPairingRequest = (url: URL) => {
+export const readHostedPairingRequest = (url: URL): HostedPairingRequest | null => {
   const host = url.searchParams.get(HOSTED_PAIRING_HOST_PARAM)?.trim() ?? "";
   const token = getPairingTokenFromUrl(url)?.trim() ?? "";
   const label = url.searchParams.get(HOSTED_PAIRING_LABEL_PARAM)?.trim() ?? "";
@@ -287,11 +287,11 @@ export const readHostedPairingRequest = (url: URL) => {
 };
 
 /** Wraps a pairing URL in the `supaterm://pair` link that desktop opens and mobile scans. */
-export const buildPairingAppLink: (pairingUrl: string) => string = (pairingUrl: string) =>
+export const buildPairingAppLink = (pairingUrl: string): string =>
   `supaterm://pair?${new URLSearchParams([[PAIRING_APP_LINK_PARAM, pairingUrl]])}`;
 
 /** Reads the pairing URL from a `supaterm://pair` link on any app channel scheme. */
-export const readPairingAppLink = (value: string) => {
+export const readPairingAppLink = (value: string): string | null => {
   const url = parseUrl(value);
   if (!url) return null;
   if (!APP_LINK_PROTOCOL.test(url.protocol) || url.host !== "pair") return null;
@@ -299,15 +299,11 @@ export const readPairingAppLink = (value: string) => {
   return url.searchParams.get(PAIRING_APP_LINK_PARAM)?.trim() || null;
 };
 
-export const resolveRemotePairingTarget: (input: {
+export const resolveRemotePairingTarget = (input: {
   readonly pairingUrl?: string;
   readonly host?: string;
   readonly pairingCode?: string;
-}) => ResolvedRemotePairingTarget = (input: {
-  readonly pairingUrl?: string;
-  readonly host?: string;
-  readonly pairingCode?: string;
-}) => {
+}): ResolvedRemotePairingTarget => {
   const pairingUrl = input.pairingUrl?.trim() ?? "";
   if (pairingUrl.length > 0) {
     let url: URL;

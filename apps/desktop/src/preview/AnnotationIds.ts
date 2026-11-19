@@ -1,11 +1,10 @@
-export function createAnnotationIdSource(): (prefix: string) => string;
-export function createAnnotationIdSource() {
+export function createAnnotationIdSource(): (prefix: string) => string {
   const pageLoad = Array.from(crypto.getRandomValues(new Uint32Array(2)), (part) =>
     part.toString(36),
   ).join("");
   let sequence = 0;
-  return ((prefix) => {
+  return (prefix) => {
     sequence += 1;
     return `${prefix}_${pageLoad}_${sequence.toString(36)}`;
-  }) satisfies (prefix: string) => string;
+  };
 }

@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import {
   STANDARD_THEME_PREVIEW_COLORS as SHARED_STANDARD_THEME_PREVIEW_COLORS,
   THEME_PREVIEW_RENDER_SPECS,
@@ -63,11 +64,14 @@ export const STANDARD_THEME_CARDS: ReadonlyArray<ThemeCardDefinition> = [
   },
 ];
 
-export function previewColorsOf(card: ThemeCardDefinition, mode: ThemeAppearance) {
+export function previewColorsOf(
+  card: ThemeCardDefinition,
+  mode: ThemeAppearance,
+): ThemeCardPreviewColors | null {
   return card.previews.find((preview) => preview.mode === mode)?.colors ?? null;
 }
 
-export function getThemeCardDefinition(theme: ThemeDefinition) {
+export function getThemeCardDefinition(theme: ThemeDefinition): ThemeCardDefinition {
   return {
     id: theme.id,
     label: theme.label,
@@ -89,7 +93,10 @@ export function getThemeCardDefinition(theme: ThemeDefinition) {
   };
 }
 
-function getThemePreviewStyle(colors: ThemeCardPreviewColors, mode: ThemeAppearance) {
+function getThemePreviewStyle(
+  colors: ThemeCardPreviewColors,
+  mode: ThemeAppearance,
+): CSSProperties {
   const spec = THEME_PREVIEW_RENDER_SPECS[mode];
   const modeBase = `color-mix(in oklab, ${colors.canvas} ${spec.baseWeight * 100}%, ${spec.baseTarget})`;
   const accentPosition = `${spec.accent.center[0] * 100}% ${spec.accent.center[1] * 100}%`;
@@ -103,7 +110,7 @@ function getThemePreviewStyle(colors: ThemeCardPreviewColors, mode: ThemeAppeara
   };
 }
 
-function themePreviewEdgeShadow(mode: ThemeAppearance) {
+function themePreviewEdgeShadow(mode: ThemeAppearance): string {
   return mode === "dark"
     ? "inset 0 0 0 1px rgb(255 255 255 / 0.14), 0 1px 2px rgb(0 0 0 / 0.18)"
     : "inset 0 0 0 1px rgb(0 0 0 / 0.10), 0 1px 2px rgb(0 0 0 / 0.08)";

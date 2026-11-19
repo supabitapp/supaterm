@@ -7,7 +7,7 @@ import {
 
 const DESKTOP_LOCAL_CONNECTION_ID_PREFIX = "local:";
 
-export function desktopLocalConnectionId(backendId: string) {
+export function desktopLocalConnectionId(backendId: string): string {
   return `${DESKTOP_LOCAL_CONNECTION_ID_PREFIX}${backendId}`;
 }
 
@@ -20,7 +20,7 @@ export function isDesktopLocalConnectionTarget(
   );
 }
 
-export function desktopLocalBackendId(target: ConnectionTarget) {
+export function desktopLocalBackendId(target: ConnectionTarget): string | null {
   return isDesktopLocalConnectionTarget(target)
     ? target.connectionId.slice(DESKTOP_LOCAL_CONNECTION_ID_PREFIX.length)
     : null;
@@ -47,14 +47,14 @@ export interface DesktopSecondaryBootstrapsReader {
  */
 export function createDesktopSecondaryBootstrapsReader(
   resolveBridge: () => Pick<DesktopBridge, "getLocalEnvironmentBootstraps"> | undefined,
-) {
+): DesktopSecondaryBootstrapsReader {
   let snapshot: ReadonlyArray<DesktopEnvironmentBootstrap> = [];
 
-  const readResult = () => {
+  const readResult = (): DesktopSecondaryBootstrapsRead => {
     const bridge = resolveBridge();
     if (bridge === undefined) {
       if (snapshot.length > 0) snapshot = [];
-      return { _tag: "Success", bootstraps: snapshot } satisfies DesktopSecondaryBootstrapsRead;
+      return { _tag: "Success", bootstraps: snapshot };
     }
     try {
       const next = bridge
@@ -77,9 +77,9 @@ export function createDesktopSecondaryBootstrapsReader(
       ) {
         snapshot = next;
       }
-      return { _tag: "Success", bootstraps: snapshot } satisfies DesktopSecondaryBootstrapsRead;
+      return { _tag: "Success", bootstraps: snapshot };
     } catch (cause) {
-      return { _tag: "Failure", cause } satisfies DesktopSecondaryBootstrapsRead;
+      return { _tag: "Failure", cause };
     }
   };
 
@@ -89,17 +89,17 @@ export function createDesktopSecondaryBootstrapsReader(
       const result = readResult();
       return result._tag === "Success" ? result.bootstraps : snapshot;
     },
-  } satisfies DesktopSecondaryBootstrapsReader;
+  };
 }
 
 const desktopSecondaryBootstrapsReader = createDesktopSecondaryBootstrapsReader(
   () => window.desktopBridge,
 );
 
-export function readDesktopSecondaryBootstrapsResult() {
-  return desktopSecondaryBootstrapsReader.readResult() satisfies DesktopSecondaryBootstrapsRead;
+export function readDesktopSecondaryBootstrapsResult(): DesktopSecondaryBootstrapsRead {
+  return desktopSecondaryBootstrapsReader.readResult();
 }
 
-export function readDesktopSecondaryBootstraps() {
-  return desktopSecondaryBootstrapsReader.readSnapshot() satisfies ReadonlyArray<DesktopEnvironmentBootstrap>;
+export function readDesktopSecondaryBootstraps(): ReadonlyArray<DesktopEnvironmentBootstrap> {
+  return desktopSecondaryBootstrapsReader.readSnapshot();
 }

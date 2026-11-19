@@ -906,7 +906,7 @@ export const makeCodexInstallation = Effect.fn("makeCodexInstallation")(function
     if (yield* fs.exists(managedDirectory)) {
       const entries = yield* fs
         .readDirectory(managedDirectory)
-        .pipe(Effect.orElseSucceed(() => []));
+        .pipe(Effect.orElseSucceed((): ReadonlyArray<string> => []));
       const now = yield* Clock.currentTimeMillis;
       for (const entry of entries) {
         if (!entry.startsWith(".install-") && !entry.startsWith(".active-")) continue;

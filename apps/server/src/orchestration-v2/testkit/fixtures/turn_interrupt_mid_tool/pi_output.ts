@@ -12,11 +12,8 @@ import {
   TURN_INTERRUPT_MID_TOOL_PROMPT,
 } from "../shared.ts";
 
-function frameType(frame: unknown): unknown;
-function frameType(frame: unknown) {
-  return (
-    typeof frame === "object" && frame !== null ? Reflect.get(frame, "type") : undefined
-  ) satisfies unknown;
+function frameType(frame: unknown): unknown {
+  return typeof frame === "object" && frame !== null ? Reflect.get(frame, "type") : undefined;
 }
 
 export function assertTurnInterruptMidToolPiOutput(

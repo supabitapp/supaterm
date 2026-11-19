@@ -67,7 +67,7 @@ export const signUploadToken = Effect.fn("AttachmentUpload.signToken")(function*
   return `${encodedPayload}.${signature}`;
 });
 
-function decodePayload(encodedPayload: string) {
+function decodePayload(encodedPayload: string): string | null {
   try {
     return base64UrlDecodeUtf8(encodedPayload);
   } catch {

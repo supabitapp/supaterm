@@ -13,6 +13,7 @@ import {
   TrimmedNonEmptyString,
   type SourceControlRepositoryVisibility,
   type VcsError,
+  type VcsProcessExitFailureKind,
 } from "@supaterm/contracts";
 
 import * as SourceControlHost from "@supaterm/source-control-core/server/SourceControlHost";
@@ -45,11 +46,11 @@ export class GitLabCliUnavailableError extends Schema.TaggedError<GitLabCliUnava
   "GitLabCliUnavailableError",
   gitLabCliExecutionErrorContext,
 ) {
-  get detail() {
+  get detail(): string {
     return "GitLab CLI (`glab`) is required but not available on PATH.";
   }
 
-  override get message() {
+  override get message(): string {
     return `GitLab CLI failed in ${this.operation}: ${this.detail}`;
   }
 }
@@ -58,11 +59,11 @@ export class GitLabCliAuthenticationError extends Schema.TaggedError<GitLabCliAu
   "GitLabCliAuthenticationError",
   gitLabCliExecutionErrorContext,
 ) {
-  get detail() {
+  get detail(): string {
     return "GitLab CLI is not authenticated. Run `glab auth login` and retry.";
   }
 
-  override get message() {
+  override get message(): string {
     return `GitLab CLI failed in ${this.operation}: ${this.detail}`;
   }
 }
@@ -71,11 +72,11 @@ export class GitLabCliRateLimitError extends Schema.TaggedError<GitLabCliRateLim
   "GitLabCliRateLimitError",
   gitLabCliExecutionErrorContext,
 ) {
-  get detail() {
+  get detail(): string {
     return "GitLab API rate limit exceeded.";
   }
 
-  override get message() {
+  override get message(): string {
     return `GitLab CLI failed in ${this.operation}: ${this.detail}`;
   }
 }
@@ -87,11 +88,11 @@ export class GitLabMergeRequestNotFoundError extends Schema.TaggedError<GitLabMe
     reference: Schema.String,
   },
 ) {
-  get detail() {
+  get detail(): string {
     return `Merge request ${this.reference} was not found. Check the MR number or URL and try again.`;
   }
 
-  override get message() {
+  override get message(): string {
     return `GitLab CLI failed in ${this.operation}: ${this.detail}`;
   }
 
@@ -103,7 +104,7 @@ export class GitLabMergeRequestNotFoundError extends Schema.TaggedError<GitLabMe
       readonly reference: string;
     },
     error: VcsError,
-  ) {
+  ): GitLabCliError {
     if (error._tag === "VcsProcessExitError" && error.failureKind === "not-found") {
       return new GitLabMergeRequestNotFoundError({ ...context, cause: error });
     }
@@ -123,11 +124,11 @@ export class GitLabCliCommandError extends Schema.TaggedError<GitLabCliCommandEr
   "GitLabCliCommandError",
   gitLabCliExecutionErrorContext,
 ) {
-  get detail() {
+  get detail(): string {
     return "GitLab CLI command failed.";
   }
 
-  override get message() {
+  override get message(): string {
     return `GitLab CLI failed in ${this.operation}: ${this.detail}`;
   }
 
@@ -138,7 +139,7 @@ export class GitLabCliCommandError extends Schema.TaggedError<GitLabCliCommandEr
       readonly cwd: string;
     },
     error: VcsError,
-  ) {
+  ): GitLabCliError {
     return Match.valueTags(error, {
       VcsProcessSpawnError: (cause) => new GitLabCliUnavailableError({ ...context, cause }),
       VcsProcessExitError: (cause) => {
@@ -172,11 +173,11 @@ export class GitLabMergeRequestListDecodeError extends Schema.TaggedError<GitLab
     operation: Schema.Literal("listMergeRequests"),
   },
 ) {
-  get detail() {
+  get detail(): string {
     return "GitLab CLI returned invalid MR list JSON.";
   }
 
-  override get message() {
+  override get message(): string {
     return `GitLab CLI failed in ${this.operation}: ${this.detail}`;
   }
 }
@@ -189,11 +190,11 @@ export class GitLabMergeRequestDecodeError extends Schema.TaggedError<GitLabMerg
     reference: Schema.String,
   },
 ) {
-  get detail() {
+  get detail(): string {
     return "GitLab CLI returned invalid merge request JSON.";
   }
 
-  override get message() {
+  override get message(): string {
     return `GitLab CLI failed in ${this.operation}: ${this.detail}`;
   }
 }
@@ -211,11 +212,11 @@ export class GitLabRepositoryDecodeError extends Schema.TaggedError<GitLabReposi
     repository: Schema.optional(Schema.String),
   },
 ) {
-  get detail() {
+  get detail(): string {
     return "GitLab CLI returned invalid repository JSON.";
   }
 
-  override get message() {
+  override get message(): string {
     return `GitLab CLI failed in ${this.operation}: ${this.detail}`;
   }
 }
@@ -228,11 +229,11 @@ export class GitLabNamespaceDecodeError extends Schema.TaggedError<GitLabNamespa
     namespacePath: Schema.String,
   },
 ) {
-  get detail() {
+  get detail(): string {
     return "GitLab CLI returned invalid namespace JSON.";
   }
 
-  override get message() {
+  override get message(): string {
     return `GitLab CLI failed in ${this.operation}: ${this.detail}`;
   }
 }
@@ -246,11 +247,11 @@ export class GitLabMergeRequestBodyReadError extends Schema.TaggedError<GitLabMe
     cause: Schema.Defect(),
   },
 ) {
-  get detail() {
+  get detail(): string {
     return "The merge request description could not be read.";
   }
 
-  override get message() {
+  override get message(): string {
     return `GitLab CLI failed in ${this.operation}: ${this.detail}`;
   }
 }
@@ -380,7 +381,7 @@ const decodeGitLabNamespace = Schema.decodeEffect(Schema.fromJsonString(RawGitLa
 
 function normalizeRepositoryCloneUrls(
   raw: Schema.Schema.Type<typeof RawGitLabRepositoryCloneUrlsSchema>,
-) {
+): GitLabRepositoryCloneUrls {
   return {
     nameWithOwner: raw.path_with_namespace,
     url: raw.web_url,
@@ -388,7 +389,7 @@ function normalizeRepositoryCloneUrls(
   };
 }
 
-function stateArgs(state: "open" | "closed" | "merged" | "all") {
+function stateArgs(state: "open" | "closed" | "merged" | "all"): ReadonlyArray<string> {
   switch (state) {
     case "open":
       return [];
@@ -401,7 +402,7 @@ function stateArgs(state: "open" | "closed" | "merged" | "all") {
   }
 }
 
-function normalizeHeadSelector(headSelector: string) {
+function normalizeHeadSelector(headSelector: string): string {
   const trimmed = headSelector.trim();
   const ownerBranch = /^[^:]+:(.+)$/.exec(trimmed);
   return ownerBranch?.[1]?.trim() || trimmed;
@@ -410,7 +411,7 @@ function normalizeHeadSelector(headSelector: string) {
 function sourceRefName(input: {
   readonly headSelector: string;
   readonly source?: SourceControlProvider.SourceControlRefSelector;
-}) {
+}): string {
   return input.source?.refName ?? normalizeHeadSelector(input.headSelector);
 }
 
@@ -418,12 +419,15 @@ function toSummaryWithOptionalUpdatedAt(
   record: GitLabMergeRequestSummary & {
     readonly updatedAt: Option.Option<DateTime.Utc>;
   },
-) {
+): GitLabMergeRequestSummary {
   const { updatedAt, ...summary } = record;
   return Option.isSome(updatedAt) ? { ...summary, updatedAt } : summary;
 }
 
-function parseRepositoryPath(repository: string) {
+function parseRepositoryPath(repository: string): {
+  readonly namespacePath: string | null;
+  readonly projectPath: string;
+} {
   const parts: Array<string> = [];
   for (const part of repository.split("/")) {
     const trimmed = part.trim();
@@ -436,7 +440,10 @@ function parseRepositoryPath(repository: string) {
   return { namespacePath, projectPath };
 }
 
-function parseRepositoryLookup(repository: string) {
+function parseRepositoryLookup(repository: string): {
+  readonly host: string | null;
+  readonly projectPath: string;
+} {
   const trimmed = repository.trim();
   if (!/^https?:\/\//i.test(trimmed)) return { host: null, projectPath: repository };
   try {
@@ -453,7 +460,7 @@ function parseRepositoryLookup(repository: string) {
   }
 }
 
-const classifyGlabFailure = (stderr: string) => {
+const classifyGlabFailure = (stderr: string): VcsProcessExitFailureKind | null => {
   const normalized = stderr.toLowerCase();
   if (normalized.includes("glab auth login") || normalized.includes("invalid_grant")) {
     return "authentication";

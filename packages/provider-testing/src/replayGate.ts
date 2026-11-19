@@ -21,7 +21,7 @@ interface GateState {
   readonly resolve: () => void;
 }
 
-export function makeProviderReplayGate(labels: ReadonlyArray<string>) {
+export function makeProviderReplayGate(labels: ReadonlyArray<string>): ProviderReplayGate {
   const states = new Map<string, GateState>();
   for (const label of labels) {
     if (states.has(label)) {
@@ -110,5 +110,5 @@ export function makeProviderReplayGate(labels: ReadonlyArray<string>) {
         state.resolve();
       }
     },
-  } satisfies ProviderReplayGate;
+  };
 }

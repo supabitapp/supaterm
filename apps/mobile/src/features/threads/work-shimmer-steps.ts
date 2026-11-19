@@ -3,7 +3,7 @@ export const SHIMMER_PAUSE_MS = 1_450;
 export const SHIMMER_STEPS = 12;
 const SHIMMER_STEP_MS = SHIMMER_SWEEP_MS / SHIMMER_STEPS;
 
-export function startShimmerSteps(progress: { setValue(value: number): void }) {
+export function startShimmerSteps(progress: { setValue(value: number): void }): () => void {
   let step = 0;
   let timer: ReturnType<typeof setTimeout>;
   const advance = () => {

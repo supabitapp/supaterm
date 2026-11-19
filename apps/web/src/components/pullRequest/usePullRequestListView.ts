@@ -130,10 +130,12 @@ export function usePullRequestScope(
       UNREACHABLE_PHASES.has(environment.connection.phase) ? [environment.environmentId] : [],
     ),
   );
-  const queriesFor: (availability?: PullRequestHostAvailability) => ReadonlyArray<{
+  const queriesFor = (
+    availability?: PullRequestHostAvailability,
+  ): ReadonlyArray<{
     readonly environmentId: EnvironmentId;
     readonly projectIds?: ReadonlyArray<ProjectId>;
-  }> = (availability?: PullRequestHostAvailability) => {
+  }> => {
     const plain = queryEnvironmentIds.map((environmentId) => ({ environmentId }));
     if (!projectsKnown || scopedProjectId !== undefined) return plain;
     return pullRequestProjectQueries(projects, queryEnvironmentIds, availability, unreachable);

@@ -357,7 +357,7 @@ function ExcerptDiff({
   );
 }
 
-function previousPathOf(file: FileDiffMetadata, path: string) {
+function previousPathOf(file: FileDiffMetadata, path: string): string | null {
   const previous = resolveFileDiffPreviousPath(file);
   return previous === path ? null : previous;
 }

@@ -13,7 +13,7 @@ export function useSettingTextDrafts<Field extends TextSetting>(
   onChange: (patch: ServerSettingsPatch) => void,
 ) {
   const drafts = useRef<Partial<Record<Field, { text: string; over: string | null }>>>({});
-  const take = (field: Field) => {
+  const take = (field: Field): ServerSettingsPatch => {
     const draft = drafts.current[field];
     delete drafts.current[field];
     const savedValue = saved[field];

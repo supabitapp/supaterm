@@ -79,7 +79,7 @@ export function compileLikeMetro(
   });
 }
 
-function compilerBailouts(file: string) {
+function compilerBailouts(file: string): string[] {
   const events: CompilerEvent[] = [];
   compileLikeMetro(file, events, {});
   return events.flatMap((event) =>

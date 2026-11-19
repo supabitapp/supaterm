@@ -70,7 +70,7 @@ export function AssistantCitationChip({
   useEffect(() => {
     if (!commentOpen) draftCommentRef.current = null;
   }, [commentOpen]);
-  const settleDraftOnClose = (reason: string) => {
+  const settleDraftOnClose = (reason: string): boolean => {
     const dismissal = resolveAssistantCitationCommentDismissal({
       reason,
       draft: draftCommentRef.current,

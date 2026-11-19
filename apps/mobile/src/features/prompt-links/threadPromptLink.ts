@@ -21,7 +21,7 @@ const THREAD_LINK_KEYS = ["prompt"];
 
 type PendingThreadLink = { readonly ref: ScopedThreadRef; readonly prompt: LinkedPrompt };
 
-function firstString(value: unknown) {
+function firstString(value: unknown): string | null {
   const first = Array.isArray(value) ? value[0] : value;
   return typeof first === "string" && first.length > 0 ? first : null;
 }
@@ -38,15 +38,13 @@ let stopWaitingForDetail: (() => void) | null = null;
  */
 export function takeThreadPromptLink(
   state: PartialState<NavigationState> | undefined,
-): PartialState<NavigationState> | undefined;
-export function takeThreadPromptLink(state: PartialState<NavigationState> | undefined) {
-  if (!state) return state satisfies PartialState<NavigationState> | undefined;
+): PartialState<NavigationState> | undefined {
+  if (!state) return state;
   const index = state.routes.findIndex((route) => route.name === "Thread");
   const route = state.routes[index];
   const params = route?.params as Readonly<Record<string, unknown>> | undefined;
   const search = promptLinkSearchFromParams(params, THREAD_LINK_KEYS);
-  if (!route || !params || search === null)
-    return state satisfies PartialState<NavigationState> | undefined;
+  if (!route || !params || search === null) return state;
   dropPendingLink();
   const { prompt: _prompt, ...rest } = params;
   const routes = state.routes.slice();
@@ -55,12 +53,11 @@ export function takeThreadPromptLink(state: PartialState<NavigationState> | unde
 
   const environmentId = firstString(params.environmentId);
   const threadId = firstString(params.threadId);
-  if (environmentId === null || threadId === null)
-    return nextState satisfies PartialState<NavigationState> | undefined;
+  if (environmentId === null || threadId === null) return nextState;
   const parsed = parseThreadLinkPrompt(search);
   if (!parsed.ok) {
     Dialog.alert("Could not open link", parsed.error);
-    return nextState satisfies PartialState<NavigationState> | undefined;
+    return nextState;
   }
   if (parsed.value !== null) {
     pendingLink = {
@@ -68,11 +65,11 @@ export function takeThreadPromptLink(state: PartialState<NavigationState> | unde
       prompt: parsed.value,
     };
   }
-  return nextState satisfies PartialState<NavigationState> | undefined;
+  return nextState;
 }
 
 /** Wired to the navigation container's state changes. */
-export function resolvePendingThreadPromptLink(state: NavigationState | undefined) {
+export function resolvePendingThreadPromptLink(state: NavigationState | undefined): void {
   if (pendingLink === null) return;
   const { ref } = pendingLink;
   const shellAtom = environmentThreadShells.threadShellAtom(ref);
@@ -113,11 +110,11 @@ export function resolvePendingThreadPromptLink(state: NavigationState | undefine
 
 function detailLoaded(
   result: AsyncResult.AsyncResult<{ readonly data: Option.Option<unknown> }, unknown>,
-) {
+): boolean {
   return Option.isSome(Option.flatMap(AsyncResult.value(result), (state) => state.data));
 }
 
-function dropPendingLink() {
+function dropPendingLink(): void {
   pendingLink = null;
   stopWaitingForShell?.();
   stopWaitingForShell = null;

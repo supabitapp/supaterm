@@ -24,7 +24,7 @@ export class SafariCookieReadError extends Schema.TaggedError<SafariCookieReadEr
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return this.cookieDatabasePath === undefined
       ? `Could not read Safari cookies: ${this.reason}.`
       : `Could not read Safari cookies at ${this.cookieDatabasePath}: ${this.reason}.`;
@@ -33,12 +33,12 @@ export class SafariCookieReadError extends Schema.TaggedError<SafariCookieReadEr
 
 const isSafariCookieReadError = Schema.is(SafariCookieReadError);
 
-function readCString(buffer: Buffer, start: number) {
+function readCString(buffer: Buffer, start: number): string {
   const end = buffer.indexOf(0, start);
   return buffer.toString("utf8", start, end === -1 ? buffer.length : end);
 }
 
-export function parseBinaryCookies(buffer: Buffer) {
+export function parseBinaryCookies(buffer: Buffer): ReadonlyArray<ImportedCookie> {
   if (buffer.length < 8 || buffer.toString("latin1", 0, 4) !== "cook") {
     throw new SafariCookieReadError({ reason: "readFailed" });
   }
@@ -134,7 +134,7 @@ export function parseBinaryCookies(buffer: Buffer) {
   return cookies;
 }
 
-export const isPermissionDenied = (error: PlatformError.PlatformError) => {
+export const isPermissionDenied = (error: PlatformError.PlatformError): boolean => {
   const code = (error.reason as { cause?: { code?: unknown } }).cause?.code;
   return code === "EPERM";
 };

@@ -12,13 +12,13 @@ import {
   TURN_INTERRUPT_MID_TOOL_PROMPT,
 } from "../shared.ts";
 
-function frameType(frame: unknown) {
+function frameType(frame: unknown): string | undefined {
   return typeof frame === "object" && frame !== null && "type" in frame
     ? (frame as { readonly type?: string }).type
     : undefined;
 }
 
-function assistantHasToolUse(frame: unknown) {
+function assistantHasToolUse(frame: unknown): boolean {
   if (frameType(frame) !== "assistant") {
     return false;
   }

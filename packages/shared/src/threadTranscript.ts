@@ -4,7 +4,7 @@ import * as DateTime from "effect/DateTime";
 export function threadTranscriptHeader(
   environmentId: EnvironmentId,
   transcript: Pick<OrchestrationV2ThreadTranscript, "title" | "threadId" | "updatedAt">,
-) {
+): string {
   return `${JSON.stringify({
     title: transcript.title,
     environmentId,

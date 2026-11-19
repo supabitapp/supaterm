@@ -136,7 +136,7 @@ const settingsOverrides = vi.hoisted(() => ({ mathRenderingEnabled: false }));
 vi.mock(import("../hooks/useSettings"), async (original) => {
   const actual = await original();
   type Settings = ReturnType<typeof actual.getClientSettings>;
-  function useClientSettings<T = Settings>(select?: (settings: Settings) => T) {
+  function useClientSettings<T = Settings>(select?: (settings: Settings) => T): T {
     const settings = { ...actual.getClientSettings(), ...settingsOverrides };
     return select ? select(settings) : (settings as T);
   }
@@ -695,7 +695,7 @@ describe("ChatMarkdown streaming", () => {
     setup();
     let editedText: string | undefined;
     let rerender: (next: ReactElement) => Promise<void> = async () => {};
-    const message = (text: string) => (
+    const message = (text: string): ReactElement => (
       <ChatMarkdown
         cwd="/tmp/project"
         text={text}

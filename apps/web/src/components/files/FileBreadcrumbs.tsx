@@ -44,7 +44,7 @@ interface FileBreadcrumbsProps {
   readonly workspaceMutationId: string | null;
 }
 
-function pathLabel(path: string, projectName: string) {
+function pathLabel(path: string, projectName: string): string {
   return path.slice(path.lastIndexOf("/") + 1) || projectName;
 }
 

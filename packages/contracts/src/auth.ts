@@ -91,7 +91,10 @@ export interface SessionGrantInput {
   readonly scopes?: ReadonlyArray<AuthEnvironmentScope> | undefined;
 }
 
-export function sessionGrantsScope(session: SessionGrantInput, scope: AuthEnvironmentScope) {
+export function sessionGrantsScope(
+  session: SessionGrantInput,
+  scope: AuthEnvironmentScope,
+): boolean {
   return session.authenticated && (session.scopes ?? []).includes(scope);
 }
 
@@ -222,11 +225,13 @@ const MCP_APPROVAL_CODE_PATTERN = new RegExp(
 );
 
 /** A pairing code that approves one agent sign-in at `access`, such as `AUTO-Q8RZ3NWD5KTC`. */
-export const mcpApprovalCode = (access: AuthMcpClientAccess, token: string) =>
+export const mcpApprovalCode = (access: AuthMcpClientAccess, token: string): string =>
   `${MCP_APPROVAL_CODE_PREFIXES[access]}-${token}`;
 
 /** The level a code approves and the code as issued, or undefined for any other code. */
-export function parseMcpApprovalCode(code: string) {
+export function parseMcpApprovalCode(
+  code: string,
+): { readonly access: AuthMcpClientAccess; readonly code: string } | undefined {
   const match = MCP_APPROVAL_CODE_PATTERN.exec(code.trim());
   if (match === null) return undefined;
   const prefix = match[1]!.toUpperCase();
@@ -433,7 +438,7 @@ export class AuthMcpRegistrationError extends Schema.Error<AuthMcpRegistrationEr
   },
   { httpApiStatus: 400 },
 ) {
-  override get message() {
+  override get message(): string {
     return this.error_description;
   }
 }
@@ -530,7 +535,7 @@ export class AuthMcpTokenError extends Schema.Error<AuthMcpTokenError>("AuthMcpT
   },
   { httpApiStatus: 400 },
 ) {
-  override get message() {
+  override get message(): string {
     return this.error_description;
   }
 }

@@ -189,15 +189,14 @@ import { AddProjectSourceRoute } from "./AddProjectSourceRoute";
 function findAction(
   node: ReactNode,
   label: string,
-  includeDisabled?: boolean,
-): (() => unknown) | null;
-function findAction(node: ReactNode, label: string, includeDisabled = false) {
+  includeDisabled = false,
+): (() => unknown) | null {
   if (Array.isArray(node)) {
     for (const child of node) {
       const action = findAction(child, label, includeDisabled);
-      if (action) return action satisfies (() => unknown) | null;
+      if (action) return action;
     }
-    return null satisfies (() => unknown) | null;
+    return null;
   }
   if (
     !isValidElement<{
@@ -208,14 +207,12 @@ function findAction(node: ReactNode, label: string, includeDisabled = false) {
       children?: ReactNode;
     }>(node)
   ) {
-    return null satisfies (() => unknown) | null;
+    return null;
   }
   if ((node.props.label ?? node.props.title) === label) {
-    return (
-      node.props.disabled && !includeDisabled ? null : (node.props.onPress ?? null)
-    ) satisfies (() => unknown) | null;
+    return node.props.disabled && !includeDisabled ? null : (node.props.onPress ?? null);
   }
-  return findAction(node.props.children, label, includeDisabled) satisfies (() => unknown) | null;
+  return findAction(node.props.children, label, includeDisabled);
 }
 
 const mountedRoots: ReturnType<typeof createRoot>[] = [];
@@ -602,7 +599,7 @@ describe("local project navigation", () => {
       screen = AddProjectNewScreen({ environmentId: "environment" });
       return null;
     }
-    function enterName(node: ReactNode) {
+    function enterName(node: ReactNode): boolean {
       if (Array.isArray(node)) return node.some(enterName);
       if (
         !isValidElement<{

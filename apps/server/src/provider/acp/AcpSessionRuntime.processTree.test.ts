@@ -18,7 +18,7 @@ const identity = (
   sid: number,
   startTime = String(pid),
   state = "S",
-) => ({
+): AcpSessionRuntime.AcpPosixProcessIdentity => ({
   executable: `/proc/${pid}/exe`,
   pgid,
   pid,

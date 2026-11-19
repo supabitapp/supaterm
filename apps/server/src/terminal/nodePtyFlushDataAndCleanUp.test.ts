@@ -22,7 +22,7 @@ interface FakeAgent {
   _cleanUpProcess: () => void;
 }
 
-const makeAgent = () => {
+const makeAgent = (): FakeAgent => {
   const agent: FakeAgent = {
     _useConptyDll: false,
     _inSocket: { readable: true },

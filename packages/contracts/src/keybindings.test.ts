@@ -4,7 +4,10 @@ import * as Effect from "effect/Effect";
 
 import { ResolvedKeybindingsConfig } from "./keybindings.ts";
 
-const decode = <S extends Schema.Top>(schema: S, input: unknown) =>
+const decode = <S extends Schema.Top>(
+  schema: S,
+  input: unknown,
+): Effect.Effect<Schema.Schema.Type<S>, Schema.SchemaError, never> =>
   Schema.decodeUnknownEffect(schema as never)(input) as Effect.Effect<
     Schema.Schema.Type<S>,
     Schema.SchemaError,

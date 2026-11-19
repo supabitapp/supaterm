@@ -25,7 +25,7 @@ const CONTEXT_LINK = new RegExp(
   "g",
 );
 
-function fnv1a64(value: string) {
+function fnv1a64(value: string): string {
   let forward = 0x811c9dc5;
   let reverse = 0x9dc5811c;
   for (let index = 0; index < value.length; index += 1) {
@@ -37,7 +37,7 @@ function fnv1a64(value: string) {
   return `${forward.toString(16).padStart(8, "0")}${reverse.toString(16).padStart(8, "0")}`;
 }
 
-export function toComposerContextId(producerId: string) {
+export function toComposerContextId(producerId: string): ComposerContextId {
   if (CONTEXT_ID_PATTERN.test(producerId)) return producerId as ComposerContextId;
   const slug = producerId
     .replace(/[^a-z0-9_-]+/gi, "-")
@@ -46,7 +46,10 @@ export function toComposerContextId(producerId: string) {
   return `${slug || "ctx"}-${fnv1a64(producerId)}` as ComposerContextId;
 }
 
-export function toKindScopedComposerContextId(kind: ComposerContextKind, producerId: string) {
+export function toKindScopedComposerContextId(
+  kind: ComposerContextKind,
+  producerId: string,
+): ComposerContextId {
   const prefix = `${kind}_`;
   return toComposerContextId(`${prefix}${producerId}`);
 }
@@ -55,7 +58,9 @@ export function formatComposerContextHref(kind: ComposerContextKind, contextId: 
   return `${COMPOSER_CONTEXT_HREF_PREFIX}${kind}/${contextId}`;
 }
 
-export function parseComposerContextHref(href: string) {
+export function parseComposerContextHref(
+  href: string,
+): { kind: ComposerContextKind; contextId: ComposerContextId } | null {
   if (!href.startsWith(COMPOSER_CONTEXT_HREF_PREFIX)) return null;
   const rest = href.slice(COMPOSER_CONTEXT_HREF_PREFIX.length);
   const parts = rest.split("/");
@@ -65,7 +70,7 @@ export function parseComposerContextHref(href: string) {
   return { kind, contextId: contextId as ComposerContextId };
 }
 
-export function sanitizeComposerContextLabel(label: string, kind: ComposerContextKind) {
+export function sanitizeComposerContextLabel(label: string, kind: ComposerContextKind): string {
   const normalized = label
     .replace(/[[\]\\\r\n]/g, " ")
     .replace(/\s+/g, " ")
@@ -79,7 +84,7 @@ export function sanitizeComposerContextLabel(label: string, kind: ComposerContex
 }
 
 /** One record per thread, so re-attaching a renamed thread reuses its chip. */
-export function threadContextRecord(ref: ScopedThreadRef, title: string) {
+export function threadContextRecord(ref: ScopedThreadRef, title: string): ThreadContextRecord {
   const label = sanitizeComposerContextLabel(title, "thread");
   return {
     version: 1,
@@ -89,7 +94,7 @@ export function threadContextRecord(ref: ScopedThreadRef, title: string) {
     environmentId: ref.environmentId,
     threadId: ref.threadId,
     title: label,
-  } satisfies ThreadContextRecord;
+  };
 }
 
 /** One record per provider instance and model, so naming a model again reuses its chip. */
@@ -99,7 +104,7 @@ export function modelContextRecord(input: {
   model: string;
   name: string;
   providerName: string;
-}) {
+}): ModelContextRecord {
   return {
     version: 1,
     kind: "model",
@@ -109,15 +114,15 @@ export function modelContextRecord(input: {
     driver: input.driver,
     model: input.model,
     providerName: sanitizeComposerContextLabel(input.providerName, "provider"),
-  } satisfies ModelContextRecord;
+  };
 }
 
-function modelDelegateTarget(record: ModelContextRecord) {
+function modelDelegateTarget(record: ModelContextRecord): string {
   return JSON.stringify({ providerInstanceId: record.instanceId, model: record.model });
 }
 
 /** A model chip as plain text, for prompts that carry no context envelope. */
-export function formatModelContextText(record: ModelContextRecord) {
+export function formatModelContextText(record: ModelContextRecord): string {
   return `${record.label} (delegate_task target ${modelDelegateTarget(record)})`;
 }
 
@@ -125,7 +130,7 @@ export function formatComposerContextReference(reference: {
   kind: ComposerContextKind;
   contextId: ComposerContextId;
   label: string;
-}) {
+}): string {
   const label = sanitizeComposerContextLabel(reference.label, reference.kind);
   const href = formatComposerContextHref(reference.kind, reference.contextId);
   return `${reference.kind === "image" ? "!" : ""}[${label}](${href})`;
@@ -141,7 +146,9 @@ export interface ComposerContextReferenceOccurrence {
   end: number;
 }
 
-export function collectComposerContextReferences(text: string) {
+export function collectComposerContextReferences(
+  text: string,
+): ComposerContextReferenceOccurrence[] {
   const occurrences: ComposerContextReferenceOccurrence[] = [];
   if (!text.includes("](supaterm-context:")) return occurrences;
   for (const match of text.matchAll(CONTEXT_LINK)) {
@@ -163,17 +170,20 @@ export const ATTACHMENT_ONLY_BOOTSTRAP_PROMPT =
   "[User attached one or more files without additional text. Respond using the conversation context and the attached files.]";
 
 /** Claude's ultrathink effort sends the prompt as `Ultrathink:\n<prompt>`. */
-export function isAttachmentOnlyBootstrapPrompt(text: string) {
+export function isAttachmentOnlyBootstrapPrompt(text: string): boolean {
   return text.replace(/^Ultrathink:\s*/i, "") === ATTACHMENT_ONLY_BOOTSTRAP_PROMPT;
 }
 
-export function stripAttachmentOnlyBootstrapPrompt(text: string) {
+export function stripAttachmentOnlyBootstrapPrompt(text: string): string {
   return isAttachmentOnlyBootstrapPrompt(text)
     ? text.slice(0, -ATTACHMENT_ONLY_BOOTSTRAP_PROMPT.length).trimEnd()
     : text;
 }
 
-export function restoreAttachmentOnlyBootstrapPrompt(text: string, hasAttachments: boolean) {
+export function restoreAttachmentOnlyBootstrapPrompt(
+  text: string,
+  hasAttachments: boolean,
+): string {
   if (!hasAttachments) return text;
   const trimmed = text.trim();
   if (trimmed.length === 0) return ATTACHMENT_ONLY_BOOTSTRAP_PROMPT;
@@ -182,7 +192,7 @@ export function restoreAttachmentOnlyBootstrapPrompt(text: string, hasAttachment
     : text;
 }
 
-export function isImageReferencesOnly(text: string) {
+export function isImageReferencesOnly(text: string): boolean {
   const references = collectComposerContextReferences(text);
   return (
     references.length > 0 &&
@@ -194,7 +204,7 @@ export function isImageReferencesOnly(text: string) {
 export function replaceComposerContextReferences(
   text: string,
   replace: (occurrence: ComposerContextReferenceOccurrence) => string,
-) {
+): string {
   let result = "";
   let cursor = 0;
   for (const occurrence of collectComposerContextReferences(text)) {
@@ -207,7 +217,7 @@ export function replaceComposerContextReferences(
 const CONTEXT_ENVELOPE_TAG = "supaterm_context";
 const CONTEXT_ENTRY_TAG = "context";
 
-function kindDisplayName(kind: ComposerContextKind) {
+function kindDisplayName(kind: ComposerContextKind): string {
   const spaced = kind.replace(/-/g, " ");
   return spaced.charAt(0).toUpperCase() + spaced.slice(1);
 }
@@ -216,7 +226,7 @@ function formatComposerContextProviderMarker(
   kind: ComposerContextKind,
   label: string,
   contextId: ComposerContextId,
-) {
+): string {
   const cleanLabel = label
     .replace(/[\r\n;\]]/g, " ")
     .replace(/\s+/g, " ")
@@ -224,14 +234,14 @@ function formatComposerContextProviderMarker(
   return `[${kindDisplayName(kind)}: ${escapeComposerContextPayloadText(cleanLabel)}; ref=${contextId}]`;
 }
 
-function escapeComposerContextPayloadText(text: string) {
+function escapeComposerContextPayloadText(text: string): string {
   return text.replace(
     new RegExp(String.raw`<(?=/?(?:${CONTEXT_ENVELOPE_TAG}|${CONTEXT_ENTRY_TAG})\b)`, "gi"),
     "&lt;",
   );
 }
 
-function escapeAttribute(value: string) {
+function escapeAttribute(value: string): string {
   return value
     .replace(/&/g, "&amp;")
     .replace(/"/g, "&quot;")
@@ -239,7 +249,7 @@ function escapeAttribute(value: string) {
     .replace(/>/g, "&gt;");
 }
 
-function indent(text: string) {
+function indent(text: string): string {
   return text
     .split("\n")
     .map((line) => `  ${line}`)
@@ -250,13 +260,13 @@ function formatSourceLocation(source: {
   fileName: string | null;
   lineNumber: number | null;
   columnNumber: number | null;
-}) {
+}): string | null {
   if (!source.fileName) return null;
   if (source.lineNumber == null) return source.fileName;
   return `${source.fileName}:${source.lineNumber}${source.columnNumber != null ? `:${source.columnNumber}` : ""}`;
 }
 
-function formatElementDetails(element: ElementContextDetails) {
+function formatElementDetails(element: ElementContextDetails): string[] {
   const lines = [`url: ${element.pageUrl}`, `tag: ${element.tagName}`];
   if (element.pageTitle) lines.push(`title: ${element.pageTitle}`);
   if (element.selector) lines.push(`selector: ${element.selector}`);
@@ -268,7 +278,7 @@ function formatElementDetails(element: ElementContextDetails) {
   return lines;
 }
 
-function formatComposerContextProviderPayload(record: KnownComposerContextRecord) {
+function formatComposerContextProviderPayload(record: KnownComposerContextRecord): string {
   switch (record.kind) {
     case "image":
     case "file":
@@ -345,7 +355,7 @@ function formatEnvelopeEntry(
   kind: ComposerContextKind,
   contextId: ComposerContextId,
   record: ComposerContextRecord | undefined,
-) {
+): string {
   const open = `<${CONTEXT_ENTRY_TAG} kind="${escapeAttribute(kind)}" id="${escapeAttribute(contextId)}"`;
   if (!record) return `${open} unavailable="true"/>`;
   const body =
@@ -358,7 +368,7 @@ function formatEnvelopeEntry(
 export function projectComposerContextForProvider(input: {
   text: string;
   records: ReadonlyArray<ComposerContextRecord>;
-}) {
+}): string {
   const occurrences = collectComposerContextReferences(input.text);
   if (occurrences.length === 0) return expandAssistantCitationsForProvider(input.text);
   const recordsById = new Map<ComposerContextId, ComposerContextRecord | undefined>();
@@ -399,7 +409,7 @@ const MARKER_ENVELOPE_PREFIX = `\n\n<${CONTEXT_ENVELOPE_TAG} version="1">\n<${CO
  * Readable form of a single-reference `projectComposerContextForProvider` output, as question
  * answers store it. Only an envelope right after its own marker is removed; typed XML stays.
  */
-export function composerContextProviderTextForDisplay(text: string) {
+export function composerContextProviderTextForDisplay(text: string): string {
   let result = "";
   let cursor = 0;
   for (const match of text.matchAll(PROVIDER_MARKER)) {
@@ -422,7 +432,7 @@ export function threadContextsOutsideEnvironment(input: {
   text: string;
   records: ReadonlyArray<ComposerContextRecord>;
   environmentId: EnvironmentId;
-}) {
+}): ThreadContextRecord[] {
   const referenced = new Set(
     collectComposerContextReferences(input.text).map((occurrence) => occurrence.contextId),
   );
@@ -439,7 +449,7 @@ export function remapComposerContextAttachments(
   context: import("@supaterm/contracts").OrchestrationMessageContext | undefined,
   before: ReadonlyArray<{ readonly id?: string | undefined }>,
   after: ReadonlyArray<{ readonly id: string }>,
-) {
+): import("@supaterm/contracts").OrchestrationMessageContext | undefined {
   if (context === undefined) return undefined;
   const ids = new Map(
     before.flatMap((attachment, index) => {

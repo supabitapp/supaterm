@@ -85,7 +85,7 @@ function claudeLine(
   outputTokens: number,
   model = "claude-fable-5",
   sessionId = "session-1",
-) {
+): string {
   return `${JSON.stringify({
     type: "assistant",
     timestamp: "2026-08-01T10:00:00Z",
@@ -99,7 +99,7 @@ function claudeLine(
   })}\n`;
 }
 
-function claudeCopy(usage: Readonly<Record<string, number>>) {
+function claudeCopy(usage: Readonly<Record<string, number>>): string {
   return `${JSON.stringify({
     type: "assistant",
     timestamp: "2026-08-01T10:00:00Z",
@@ -305,7 +305,7 @@ function makeFakeCursor() {
       const occurrences = new Map<string, number>();
       const records = state.events
         .filter(({ timestampMs }) => timestampMs >= sinceMs && timestampMs <= untilMs)
-        .map(({ timestampMs, outputTokens }) => {
+        .map(({ timestampMs, outputTokens }): UsageRecord => {
           const key = `${timestampMs}:${outputTokens}`;
           const occurrence = occurrences.get(key) ?? 0;
           occurrences.set(key, occurrence + 1);
@@ -324,7 +324,7 @@ function makeFakeCursor() {
             reportedCostUsd: null,
             speed: "standard",
             dedupeKey: `cursor-account:${accountKey}:${key}:${occurrence}`,
-          } satisfies UsageRecord;
+          };
         });
       return { accountKey, records, missing: false, error: null };
     });

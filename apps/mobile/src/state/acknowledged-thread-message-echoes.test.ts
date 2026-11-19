@@ -19,7 +19,7 @@ const message: QueuedThreadMessage = {
   createdAt: "2026-10-04T19:00:00.000Z",
 };
 
-function echoedThread(environmentId = message.environmentId) {
+function echoedThread(environmentId = message.environmentId): EnvironmentThread {
   return {
     environmentId,
     projection: {
@@ -41,7 +41,7 @@ function echoedThread(environmentId = message.environmentId) {
         },
       ],
     },
-  } satisfies EnvironmentThread;
+  };
 }
 
 describe("acknowledged message echoes", () => {

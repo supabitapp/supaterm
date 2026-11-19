@@ -198,9 +198,7 @@ function GitOverviewSheetContent(props: GitOverviewSheetProps) {
     }
   };
 
-  const rowStatusDetail: (item: (typeof menuItems)[number]) => string | undefined = (
-    item: (typeof menuItems)[number],
-  ) => {
+  const rowStatusDetail = (item: (typeof menuItems)[number]): string | undefined => {
     const status = gitStatus.data;
     if (status == null) {
       return undefined;

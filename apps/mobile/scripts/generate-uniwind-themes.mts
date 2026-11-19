@@ -26,7 +26,7 @@ const GENERATED_DEFAULT_VARIABLES_PATH = NodePath.resolve(
 type TailwindColorFamily = keyof typeof tailwindColors;
 type TailwindColorShade = 50 | 100 | 200 | 300 | 400 | 500 | 600 | 700 | 800 | 900 | 950;
 
-const color = (family: TailwindColorFamily, shade?: TailwindColorShade, opacity = 1) => {
+const color = (family: TailwindColorFamily, shade?: TailwindColorShade, opacity = 1): string => {
   const familyColors = tailwindColors[family];
   const value =
     typeof familyColors === "string"
@@ -214,12 +214,13 @@ export const renderDefaultThemeVariablesJSON = () =>
     2,
   )}\n`;
 
-export const getGeneratedUniwindThemeOutputs = () =>
-  [
-    [GENERATED_CSS_PATH, renderUniwindThemesCSS()],
-    [GENERATED_NAMES_PATH, `${JSON.stringify(customThemeNames, null, 2)}\n`],
-    [GENERATED_DEFAULT_VARIABLES_PATH, renderDefaultThemeVariablesJSON()],
-  ] satisfies ReadonlyArray<readonly [filename: string, contents: string]>;
+export const getGeneratedUniwindThemeOutputs = (): ReadonlyArray<
+  readonly [filename: string, contents: string]
+> => [
+  [GENERATED_CSS_PATH, renderUniwindThemesCSS()],
+  [GENERATED_NAMES_PATH, `${JSON.stringify(customThemeNames, null, 2)}\n`],
+  [GENERATED_DEFAULT_VARIABLES_PATH, renderDefaultThemeVariablesJSON()],
+];
 
 const writeFileAtomically = (filename: string, contents: string) => {
   const current = NodeFS.existsSync(filename) ? NodeFS.readFileSync(filename, "utf8") : null;

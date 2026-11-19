@@ -228,7 +228,7 @@ function queuedMessage(input: {
   readonly messageId: string;
   readonly text: string;
   readonly fileUri?: string;
-}) {
+}): QueuedThreadMessage {
   return {
     environmentId: EnvironmentId.make("environment-1"),
     threadId: ThreadId.make("thread-1"),
@@ -248,10 +248,13 @@ function queuedMessage(input: {
         ]
       : [],
     createdAt: "2026-08-24T12:00:00.000Z",
-  } satisfies QueuedThreadMessage;
+  };
 }
 
-function withReusedFileUpload(message: QueuedThreadMessage, attachmentId: string) {
+function withReusedFileUpload(
+  message: QueuedThreadMessage,
+  attachmentId: string,
+): QueuedThreadMessage {
   return {
     ...message,
     attachments: message.attachments.map((attachment) =>
@@ -266,7 +269,7 @@ function withReusedFileUpload(message: QueuedThreadMessage, attachmentId: string
   };
 }
 
-function remainingMessages() {
+function remainingMessages(): ReadonlyArray<QueuedThreadMessage> {
   return Object.values(appAtomRegistry.get(harness.manager.queuedMessagesByThreadKeyAtom)).flat();
 }
 
@@ -317,20 +320,19 @@ describe("queued worktree branch resolution", () => {
       { name: "main", current: false, isDefault: true, isRemote: false, worktreePath: null },
     ],
   };
-  const task = () =>
-    ({
-      ...queuedMessage({ messageId: "message-default-base", text: "Create a new feature" }),
-      modelSelection: { instanceId: ProviderInstanceId.make("codex"), model: "gpt-5.4" },
-      creation: {
-        projectId: ProjectId.make("project-1"),
-        projectCwd: "/repo",
-        workspaceMode: "worktree",
-        branch: null,
-        worktreePath: null,
-        useDefaultBranch: true,
-        startFromOrigin: true,
-      },
-    }) satisfies QueuedThreadMessage;
+  const task = (): QueuedThreadMessage => ({
+    ...queuedMessage({ messageId: "message-default-base", text: "Create a new feature" }),
+    modelSelection: { instanceId: ProviderInstanceId.make("codex"), model: "gpt-5.4" },
+    creation: {
+      projectId: ProjectId.make("project-1"),
+      projectCwd: "/repo",
+      workspaceMode: "worktree",
+      branch: null,
+      worktreePath: null,
+      useDefaultBranch: true,
+      startFromOrigin: true,
+    },
+  });
 
   it("persists a concrete base before delivery and reuses it on retry", async () => {
     const message = task();
@@ -1287,12 +1289,11 @@ describe("thread outbox recovery rollback", () => {
 
 describe("queued voice message delivery", () => {
   const modelSelection = { instanceId: ProviderInstanceId.make("claudeAgent"), model: "opus" };
-  const voiceMessage = () =>
-    ({
-      ...queuedMessage({ messageId: "voice-1", text: "" }),
-      dispatchMode: "queue",
-      voice: { durationMs: 3_000, sizeBytes: 96_044, language: "en-US" },
-    }) satisfies QueuedThreadMessage;
+  const voiceMessage = (): QueuedThreadMessage => ({
+    ...queuedMessage({ messageId: "voice-1", text: "" }),
+    dispatchMode: "queue",
+    voice: { durationMs: 3_000, sizeBytes: 96_044, language: "en-US" },
+  });
   const enqueue = async (message: QueuedThreadMessage) => {
     await harness.manager.enqueue(message);
     return message;

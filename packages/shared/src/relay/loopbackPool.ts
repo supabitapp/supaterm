@@ -84,7 +84,7 @@ export function createLoopbackRelayPool(input: {
     relayUrl: string,
     directUrls?: ReadonlyArray<string>,
     signal?: AbortSignal,
-  ) => {
+  ): Promise<string> => {
     const identity = canonical(address);
     signal?.throwIfAborted();
     if (disposed) throw new Error("Relay gateway is closed");

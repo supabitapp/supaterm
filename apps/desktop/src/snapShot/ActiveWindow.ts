@@ -117,7 +117,7 @@ function runMacLookup(execFile: MacLookupExecFile) {
         else resolve(stdout);
       },
     );
-  }) satisfies Promise<string>;
+  });
 }
 
 async function macActiveWindow(execFile: MacLookupExecFile) {
@@ -150,7 +150,7 @@ async function macActiveWindow(execFile: MacLookupExecFile) {
       );
     });
   });
-  if (!window) return undefined satisfies ActiveWindow | undefined;
+  if (!window) return undefined;
   return {
     platform: "macos",
     id: window.id,
@@ -162,15 +162,15 @@ async function macActiveWindow(execFile: MacLookupExecFile) {
       path: lookup.owner.path,
       ...(lookup.owner.bundleId ? { bundleId: lookup.owner.bundleId } : {}),
     },
-  } satisfies ActiveWindow | undefined;
+  };
 }
 
-async function windowsActiveWindow() {
+async function windowsActiveWindow(): Promise<ActiveWindow | undefined> {
   const api = await loadWindowsForegroundApi();
   const handle = api.getForegroundWindow();
-  if (handle === 0n) return undefined satisfies ActiveWindow | undefined;
+  if (handle === 0n) return undefined;
   const bounds = api.getWindowRect(handle);
-  if (!bounds) return undefined satisfies ActiveWindow | undefined;
+  if (!bounds) return undefined;
   const { processId } = api.getWindowThreadAndProcessId(handle);
   const path = processId === 0 ? "" : api.getProcessImagePath(processId);
   const name = path.split(/[\\/]/).pop() ?? "";
@@ -180,7 +180,7 @@ async function windowsActiveWindow() {
     title: api.getWindowText(handle),
     bounds,
     owner: { name, processId, path },
-  } satisfies ActiveWindow | undefined;
+  };
 }
 
 export function activeWindow(

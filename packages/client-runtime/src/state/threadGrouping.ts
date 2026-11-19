@@ -36,7 +36,7 @@ type GroupableThread = Pick<
   | "latestRun"
 >;
 
-export function resolveThreadActivityAt(thread: GroupableThread) {
+export function resolveThreadActivityAt(thread: GroupableThread): number {
   return Math.max(
     ...[
       thread.createdAt,
@@ -53,7 +53,7 @@ export function resolveThreadActivityAt(thread: GroupableThread) {
 export function groupInboxThreadsByProject<T extends GroupableThread>(input: {
   readonly threads: readonly T[];
   readonly projects: readonly ThreadGroupingProject[];
-}) {
+}): ThreadDisplayGroup<T>[] {
   const ordered = input.threads
     .map((thread) => ({ thread, activityAt: resolveThreadActivityAt(thread) }))
     .sort(
@@ -94,7 +94,7 @@ export function collapseThreadGroups<T>(
   groups: readonly ThreadDisplayGroup<T>[],
   collapsedKeys: ReadonlySet<string>,
   keepVisible: (thread: T) => boolean,
-) {
+): CollapsibleThreadDisplayGroup<T>[] {
   return groups.map((group) => {
     const collapsed = collapsedKeys.has(group.key);
     return {
@@ -106,7 +106,10 @@ export function collapseThreadGroups<T>(
   });
 }
 
-export function toggleCollapsedThreadGroup(collapsedKeys: readonly string[], key: string) {
+export function toggleCollapsedThreadGroup(
+  collapsedKeys: readonly string[],
+  key: string,
+): string[] {
   return collapsedKeys.includes(key)
     ? collapsedKeys.filter((candidate) => candidate !== key)
     : [...collapsedKeys, key];

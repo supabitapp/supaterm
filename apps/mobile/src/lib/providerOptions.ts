@@ -15,7 +15,7 @@ import {
 export function resolveProviderOptionDescriptors(input: {
   readonly capabilities: ModelCapabilities | null | undefined;
   readonly selections: ReadonlyArray<ProviderOptionSelection> | null | undefined;
-}) {
+}): ReadonlyArray<ProviderOptionDescriptor> {
   if (!input.capabilities) {
     return [];
   }
@@ -42,7 +42,7 @@ export function withImplicitFastModeSelection(
     readonly instanceId: ProviderInstanceId;
     readonly models: ReadonlyArray<Pick<ServerProviderModel, "slug" | "capabilities">>;
   }>,
-) {
+): ModelSelection {
   const capabilities = providers
     .find((provider) => provider.instanceId === selection.instanceId)
     ?.models.find((model) => model.slug === selection.model)?.capabilities;
@@ -55,7 +55,7 @@ export function withImplicitFastModeSelection(
 export function applyProviderOptionSelection(
   descriptors: ReadonlyArray<ProviderOptionDescriptor>,
   change: ProviderOptionSelection,
-) {
+): ReadonlyArray<ProviderOptionSelection> | null {
   const descriptor = descriptors.find((candidate) => candidate.id === change.id);
   if (!descriptor) {
     return null;

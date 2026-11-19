@@ -24,12 +24,12 @@ export interface ReviewGuideChange {
 
 const HUNK_HEADER = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/;
 
-const hunkRange = (start: string, count: string | undefined) => {
+const hunkRange = (start: string, count: string | undefined): LineRange | null => {
   const lines = count === undefined ? 1 : Number(count);
   return lines === 0 ? null : { start: Number(start), end: Number(start) + lines - 1 };
 };
 
-function headerPath(line: string, prefix: string) {
+function headerPath(line: string, prefix: string): string | null {
   const rest = line.slice(4);
   const tab = rest.indexOf("\t");
   const token = tab === -1 ? rest : rest.slice(0, tab);
@@ -37,7 +37,7 @@ function headerPath(line: string, prefix: string) {
   return path.startsWith(prefix) ? path.slice(prefix.length) : null;
 }
 
-export function parseReviewGuideChange(nameOnly: string, patch: string) {
+export function parseReviewGuideChange(nameOnly: string, patch: string): ReviewGuideChange {
   const hunks = new Map<string, FileHunks>();
   let oldPath: string | null = null;
   let current: FileHunks | null = null;
@@ -67,7 +67,10 @@ export function parseReviewGuideChange(nameOnly: string, patch: string) {
   return { files: nameOnly.split("\0").filter((path) => path !== ""), hunks };
 }
 
-function clampExcerpt(excerpt: PullRequestReviewGuideExcerpt, change: ReviewGuideChange) {
+function clampExcerpt(
+  excerpt: PullRequestReviewGuideExcerpt,
+  change: ReviewGuideChange,
+): PullRequestReviewGuideExcerpt | null {
   const start = Math.min(excerpt.start, excerpt.end);
   const end = Math.max(excerpt.start, excerpt.end);
   const overlapping = (change.hunks.get(excerpt.path)?.[excerpt.side] ?? []).filter(
@@ -79,7 +82,9 @@ function clampExcerpt(excerpt: PullRequestReviewGuideExcerpt, change: ReviewGuid
   return { ...excerpt, start: Math.max(start, first.start), end: Math.min(end, last.end) };
 }
 
-function mergeExcerpts(excerpts: ReadonlyArray<PullRequestReviewGuideExcerpt>) {
+function mergeExcerpts(
+  excerpts: ReadonlyArray<PullRequestReviewGuideExcerpt>,
+): Array<PullRequestReviewGuideExcerpt> {
   let merged: Array<PullRequestReviewGuideExcerpt> = [];
   for (const excerpt of excerpts) {
     const touches = (other: PullRequestReviewGuideExcerpt) =>
@@ -114,7 +119,7 @@ const nonEmpty = (value: string) => value.trim() !== "";
 export function normalizeReviewGuide(
   guide: ReviewGuideGenerationResult,
   change: ReviewGuideChange,
-) {
+): ReviewGuideGenerationResult {
   const changed = new Set(change.files);
   const inChange = (path: string) => changed.has(path);
 

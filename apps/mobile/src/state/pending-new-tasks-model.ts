@@ -41,11 +41,11 @@ export interface PendingDraftTask {
   readonly draft: ComposerDraft;
 }
 
-export function composerDraftHasUserContent(draft: ComposerDraft) {
+export function composerDraftHasUserContent(draft: ComposerDraft): boolean {
   return draft.text.trim().length > 0 || draft.attachments.length > 0;
 }
 
-function draftTitle(draft: ComposerDraft) {
+function draftTitle(draft: ComposerDraft): string {
   if (draft.text.trim().length > 0) {
     return deriveThreadTitleFromPrompt(draft.text);
   }
@@ -53,9 +53,9 @@ function draftTitle(draft: ComposerDraft) {
   return count === 1 ? "1 attachment" : `${count} attachments`;
 }
 
-export function pendingDraftTask(draftKey: string, draft: ComposerDraft) {
+export function pendingDraftTask(draftKey: string, draft: ComposerDraft): PendingDraftTask | null {
   if (!isNewTaskDraftKey(draftKey) || !draft.project || !composerDraftHasUserContent(draft)) {
-    return null satisfies PendingDraftTask | null;
+    return null;
   }
   return {
     kind: "draft",
@@ -68,7 +68,7 @@ export function pendingDraftTask(draftKey: string, draft: ComposerDraft) {
     createdAt: draft.project.createdAt,
     draftKey,
     draft,
-  } satisfies PendingDraftTask | null;
+  };
 }
 
 /** A project's new-task defaults, as useNewTaskProjectDefaults resolves them. */
@@ -85,7 +85,7 @@ export interface PendingDraftProjectDefaults {
 export function pendingDraftBranchNeedsRefs(
   draft: ComposerDraft,
   defaults: PendingDraftProjectDefaults,
-) {
+): boolean {
   const selection = defaults.canChooseWorkspace ? draft.workspaceSelection : undefined;
   return selection === undefined ? defaults.defaultMode === "worktree" : selection.branch === null;
 }
@@ -97,7 +97,7 @@ export function resolvePendingDraftBranch(input: {
   readonly isGitRepo: boolean;
   readonly branches: Parameters<typeof resolveNewTaskDraftWorkspace>[0]["branches"];
   readonly projectCwd: string | null;
-}) {
+}): string | null {
   return resolveNewTaskDraftWorkspace({
     selection: input.draft.workspaceSelection,
     canChooseWorkspace: input.defaults.canChooseWorkspace,
@@ -109,11 +109,13 @@ export function resolvePendingDraftBranch(input: {
   }).branch;
 }
 
-function newestFirst(left: PendingNewTask, right: PendingNewTask) {
+function newestFirst(left: PendingNewTask, right: PendingNewTask): number {
   return right.createdAt.localeCompare(left.createdAt) || left.key.localeCompare(right.key);
 }
 
-export function buildPendingDraftTasks(drafts: Readonly<Record<string, ComposerDraft>>) {
+export function buildPendingDraftTasks(
+  drafts: Readonly<Record<string, ComposerDraft>>,
+): ReadonlyArray<PendingDraftTask> {
   const tasks: PendingDraftTask[] = [];
   for (const [draftKey, draft] of Object.entries(drafts)) {
     const task = pendingDraftTask(draftKey, draft);
@@ -130,7 +132,10 @@ export interface ThreadOutboxSendGate {
 }
 
 /** The outbox drain's gate for a creation: sendable, connected, shell live, operate granted, not backing off. */
-export function isQueuedCreationSending(message: QueuedThreadMessage, gate: ThreadOutboxSendGate) {
+export function isQueuedCreationSending(
+  message: QueuedThreadMessage,
+  gate: ThreadOutboxSendGate,
+): boolean {
   const environmentId = message.environmentId;
   return (
     isQueuedThreadCreationSendable(message) &&
@@ -149,7 +154,7 @@ export function isQueuedCreationSending(message: QueuedThreadMessage, gate: Thre
 export function buildPendingQueuedTasks(
   queuedMessages: ReadonlyArray<QueuedThreadMessage>,
   sendGate: ThreadOutboxSendGate,
-) {
+): ReadonlyArray<PendingQueuedTask> {
   const tasks: PendingQueuedTask[] = [];
   for (const message of queuedMessages) {
     if (!message.creation || isQueuedCreationSending(message, sendGate)) {
@@ -180,7 +185,7 @@ export interface HeldNewTaskDraft {
 export function applyHeldNewTaskDraft(
   drafts: Readonly<Record<string, ComposerDraft>>,
   held: HeldNewTaskDraft | null,
-) {
+): Readonly<Record<string, ComposerDraft>> {
   if (held === null) return drafts;
   const live = drafts[held.draftKey];
   if (live === undefined) return drafts;

@@ -15,7 +15,10 @@ const EMPTY_SHORTCUT_MODIFIER_STATE: ShortcutModifierState = {
   shiftKey: false,
 };
 
-function areShortcutModifierStatesEqual(left: ShortcutModifierState, right: ShortcutModifierState) {
+function areShortcutModifierStatesEqual(
+  left: ShortcutModifierState,
+  right: ShortcutModifierState,
+): boolean {
   return (
     left.metaKey === right.metaKey &&
     left.ctrlKey === right.ctrlKey &&
@@ -82,12 +85,12 @@ function createShortcutModifierStore(ignoreEditable: boolean) {
 export const shortcutModifierStore = createShortcutModifierStore(false);
 const editableIgnoringShortcutModifierStore = createShortcutModifierStore(true);
 
-export function useShortcutModifierState(ignoreEditable = false) {
+export function useShortcutModifierState(ignoreEditable = false): ShortcutModifierState {
   const store = ignoreEditable ? editableIgnoringShortcutModifierStore : shortcutModifierStore;
   return useSyncExternalStore(store.subscribe, store.getSnapshot);
 }
 
-function normalizeModifierKey(key: string) {
+function normalizeModifierKey(key: string): keyof ShortcutModifierState | null {
   switch (key) {
     case "Meta":
     case "OS":
@@ -108,7 +111,7 @@ function normalizeModifierKey(key: string) {
 export function shortcutModifierStateAfterKeyboardEvent(
   currentState: ShortcutModifierState,
   event: KeyboardEvent,
-) {
+): ShortcutModifierState {
   const normalizedModifierKey = normalizeModifierKey(event.key);
   let nextState: ShortcutModifierState;
   if (normalizedModifierKey) {

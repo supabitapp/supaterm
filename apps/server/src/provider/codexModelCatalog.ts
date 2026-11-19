@@ -1,3 +1,4 @@
+import type { ServerProviderUpdateRequiredModel } from "@supaterm/contracts";
 import * as ModelCatalog from "@supaterm/provider-core/server/ModelCatalog";
 import type { ServerProviderDraft } from "@supaterm/provider-core/server/snapshotProbe";
 import { codexModelFamily } from "@supaterm/shared/model";
@@ -16,7 +17,7 @@ const decodeCodexModelAdapter = Schema.decodeUnknownOption(CodexModelAdapter);
 function codexUpdateRequiredModels(
   catalog: ModelCatalog.ProviderCatalog | undefined,
   draft: ServerProviderDraft,
-) {
+): ReadonlyArray<ServerProviderUpdateRequiredModel> {
   const version = draft.version?.replace(/^v/, "");
   if (!catalog || !version || parseSemver(version) === null) return [];
   const discovered = new Set(draft.models.map((model) => codexModelFamily(model.slug)));
@@ -40,14 +41,10 @@ function codexUpdateRequiredModels(
 export function applyCodexModelCatalog(
   draft: ServerProviderDraft,
   catalog: ModelCatalog.ProviderCatalog | undefined,
-): ServerProviderDraft;
-export function applyCodexModelCatalog(
-  draft: ServerProviderDraft,
-  catalog: ModelCatalog.ProviderCatalog | undefined,
-) {
+): ServerProviderDraft {
   const updateRequiredModels = codexUpdateRequiredModels(catalog, draft);
   return {
     ...ModelCatalog.applyModelCatalog(draft, catalog, CODEX_MATCHING),
     ...(updateRequiredModels.length > 0 ? { updateRequiredModels } : {}),
-  } satisfies ServerProviderDraft;
+  };
 }

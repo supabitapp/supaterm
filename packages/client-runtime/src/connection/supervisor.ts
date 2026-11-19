@@ -85,7 +85,7 @@ function mergeRefusedRoutes(
   known: ReadonlyArray<string>,
   refused: ReadonlyArray<string>,
   keep: (routeId: string) => boolean,
-) {
+): ReadonlyArray<string> {
   const next = [...new Set([...known, ...refused])].filter(keep);
   return next.length === known.length && next.every((id, index) => id === known[index])
     ? known
@@ -116,13 +116,12 @@ type EstablishmentEvent =
 
 function exitUnlessInterrupted<A, E, R>(
   effect: Effect.Effect<A, E, R>,
-): Effect.Effect<Exit.Exit<A, E>, never, R>;
-function exitUnlessInterrupted<A, E, R>(effect: Effect.Effect<A, E, R>) {
+): Effect.Effect<Exit.Exit<A, E>, never, R> {
   return Effect.matchCauseEffect(effect, {
     onFailure: (cause) =>
       Cause.hasInterrupts(cause) ? Effect.interrupt : Effect.succeed(Exit.failCause(cause)),
     onSuccess: (value) => Effect.succeed(Exit.succeed(value)),
-  }) satisfies Effect.Effect<Exit.Exit<A, E>, never, R>;
+  });
 }
 
 export interface EnvironmentSupervisorOptions {
@@ -136,7 +135,7 @@ export interface EnvironmentSupervisorOptions {
   ) => Effect.Effect<Option.Option<ConnectionCatalogEntry>>;
 }
 
-export function retryDelayMs(failureCount: number, random: number) {
+export function retryDelayMs(failureCount: number, random: number): number {
   const ceiling = Math.min(RETRY_MAX_DELAY_MS, RETRY_BASE_DELAY_MS * 2 ** (failureCount + 1));
   return Math.round(ceiling / 2 + (ceiling / 2) * random);
 }
@@ -146,7 +145,7 @@ interface SilentRoute {
   readonly until: bigint;
 }
 
-function backOffSilentRoute(previous: SilentRoute | undefined, now: bigint) {
+function backOffSilentRoute(previous: SilentRoute | undefined, now: bigint): SilentRoute {
   const failures = (previous?.failures ?? 0) + 1;
   const delayMs = Math.min(
     SILENT_ROUTE_BACKOFF_MAX_MS,
@@ -163,8 +162,7 @@ function annotateTarget(target: ConnectionTarget) {
   });
 }
 
-function availableState(intent: SupervisorIntent, generation: number): SupervisorConnectionState;
-function availableState(intent: SupervisorIntent, generation: number) {
+function availableState(intent: SupervisorIntent, generation: number): SupervisorConnectionState {
   return {
     desired: false,
     network: intent.network,
@@ -175,7 +173,7 @@ function availableState(intent: SupervisorIntent, generation: number) {
     lastFailure: null,
     retryAt: null,
     refusedRouteIds: NO_REFUSED_ROUTES,
-  } satisfies SupervisorConnectionState;
+  };
 }
 
 function offlineState(
@@ -183,13 +181,7 @@ function offlineState(
   generation: number,
   attempt: number,
   lastFailure: ConnectionAttemptError | null,
-): SupervisorConnectionState;
-function offlineState(
-  intent: SupervisorIntent,
-  generation: number,
-  attempt: number,
-  lastFailure: ConnectionAttemptError | null,
-) {
+): SupervisorConnectionState {
   return {
     desired: true,
     network: intent.network,
@@ -200,7 +192,7 @@ function offlineState(
     lastFailure,
     retryAt: null,
     refusedRouteIds: NO_REFUSED_ROUTES,
-  } satisfies SupervisorConnectionState;
+  };
 }
 
 function connectingState(
@@ -208,15 +200,8 @@ function connectingState(
   generation: number,
   attempt: number,
   lastFailure: ConnectionAttemptError | null,
-  stage?: SupervisorConnectionState["stage"],
-): SupervisorConnectionState;
-function connectingState(
-  intent: SupervisorIntent,
-  generation: number,
-  attempt: number,
-  lastFailure: ConnectionAttemptError | null,
   stage: SupervisorConnectionState["stage"] = "preparing",
-) {
+): SupervisorConnectionState {
   return {
     desired: true,
     network: intent.network,
@@ -227,7 +212,7 @@ function connectingState(
     lastFailure,
     retryAt: null,
     refusedRouteIds: NO_REFUSED_ROUTES,
-  } satisfies SupervisorConnectionState;
+  };
 }
 
 function failureFromExit<A>(
@@ -235,9 +220,9 @@ function failureFromExit<A>(
   exit: Exit.Exit<A, ConnectionAttemptError>,
   established: boolean,
   stable: boolean,
-) {
+): AttemptOutcome {
   if (Exit.isSuccess(exit) || Cause.hasInterruptsOnly(exit.cause)) {
-    return { _tag: "Interrupted", established, stable, resetRetry: false } satisfies AttemptOutcome;
+    return { _tag: "Interrupted", established, stable, resetRetry: false };
   }
   const typedFailure = exit.cause.reasons.find(Cause.isFailReason);
   if (typedFailure) {
@@ -246,7 +231,7 @@ function failureFromExit<A>(
       established,
       stable,
       error: typedFailure.error,
-    } satisfies AttemptOutcome;
+    };
   }
   return {
     _tag: "Failure",
@@ -256,7 +241,7 @@ function failureFromExit<A>(
       reason: "transport",
       detail: `${target.label} connection failed unexpectedly.`,
     }),
-  } satisfies AttemptOutcome;
+  };
 }
 
 export class EnvironmentSupervisor extends Context.Service<
@@ -272,20 +257,17 @@ export class EnvironmentSupervisor extends Context.Service<
   }
 >()("@supaterm/client-runtime/connection/supervisor/EnvironmentSupervisor") {}
 
-export const make: (
+export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
   entry: ConnectionCatalogEntry,
   options?: EnvironmentSupervisorOptions,
-) => Effect.Effect<
+): Effect.fn.Return<
   EnvironmentSupervisor["Service"],
   never,
   | Connectivity.Connectivity
   | ConnectionDriver.ConnectionDriver
   | Scope.Scope
   | ConnectionWakeups.ConnectionWakeups
-> = Effect.fn("EnvironmentSupervisor.make")(function* (
-  entry: ConnectionCatalogEntry,
-  options?: EnvironmentSupervisorOptions,
-) {
+> {
   const target = entry.target;
   const setupTimeoutDetail = `${target.label} did not respond during connection setup.`;
   yield* annotateTarget(target);
@@ -293,7 +275,7 @@ export const make: (
   const connectivity = yield* Connectivity.Connectivity;
   const driver = yield* ConnectionDriver.ConnectionDriver;
   const wakeups = yield* ConnectionWakeups.ConnectionWakeups;
-  const targetNetwork = (network: NetworkStatus) =>
+  const targetNetwork = (network: NetworkStatus): NetworkStatus =>
     network === "offline" && target._tag === "PrimaryConnectionTarget" ? "unknown" : network;
   const initialIntent: SupervisorIntent = {
     desired: options?.initiallyDesired ?? false,
@@ -610,7 +592,10 @@ export const make: (
   const racesReplacementOnResume = (routeKind: ConnectionRouteKind | undefined) =>
     routeKind === "lan" || routeKind === "tailnet" || routeKind === "vpn" || routeKind === "public";
 
-  const probeTimeoutFor = (next: SupervisorSignal, routeKind: ConnectionRouteKind | undefined) => {
+  const probeTimeoutFor = (
+    next: SupervisorSignal,
+    routeKind: ConnectionRouteKind | undefined,
+  ): Duration.Input | undefined => {
     switch (next._tag) {
       case "RetryRequested":
         return QUICK_CONNECTION_PROBE_TIMEOUT;
@@ -912,22 +897,16 @@ export const make: (
       exitUnlessInterrupted(
         establishConnection(attempt, generation, lastFailure, synchronizedRoutes, routeOpen),
       ).pipe(
-        Effect.map(
-          (exit) =>
-            ({
-              _tag: "Completed",
-              exit,
-            }) satisfies EstablishmentEvent,
-        ),
+        Effect.map((exit): EstablishmentEvent => ({
+          _tag: "Completed",
+          exit,
+        })),
       ),
       waitForEstablishmentInterrupt(ignoreOffline).pipe(
-        Effect.map(
-          (resetRetry) =>
-            ({
-              _tag: "Interrupted",
-              resetRetry,
-            }) satisfies EstablishmentEvent,
-        ),
+        Effect.map((resetRetry): EstablishmentEvent => ({
+          _tag: "Interrupted",
+          resetRetry,
+        })),
       ),
       Effect.gen(function* () {
         const setup = Duration.toNanosUnsafe(

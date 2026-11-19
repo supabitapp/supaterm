@@ -97,17 +97,11 @@ export const V2TurnStartParams = CodexSchema.V2TurnStartParams.pipe(
   }),
 );
 
-export const make: (
-  stdio: Stdio.Stdio,
-  options?: CodexAppServerClientOptions,
-  terminationError?: Effect.Effect<CodexError.CodexAppServerError>,
-) => Effect.Effect<CodexAppServerClient["Service"], never, Scope.Scope> = Effect.fn(
-  "effect-codex-app-server/CodexAppServerClient.make",
-)(function* (
+export const make = Effect.fn("effect-codex-app-server/CodexAppServerClient.make")(function* (
   stdio: Stdio.Stdio,
   options: CodexAppServerClientOptions = {},
   terminationError?: Effect.Effect<CodexError.CodexAppServerError>,
-) {
+): Effect.fn.Return<CodexAppServerClient["Service"], never, Scope.Scope> {
   const requestHandlers = new Map<string, ServerRequestHandler>();
   const termination = yield* Deferred.make<never, CodexError.CodexAppServerError>();
   const notificationHandlers = new Map<string, Array<ServerNotificationHandler>>();
@@ -118,40 +112,47 @@ export const make: (
     | ((method: string, params: unknown) => Effect.Effect<void, CodexError.CodexAppServerError>)
     | undefined;
 
-  const getServerRequestParamSchema = <M extends CodexRpc.ServerRequestMethod>(method: M) =>
-    CodexRpc.SERVER_REQUEST_PARAMS[method] as never;
-
-  const getServerRequestResponseSchema = <M extends CodexRpc.ServerRequestMethod>(method: M) =>
-    CodexRpc.SERVER_REQUEST_RESPONSES[method] as never;
-
-  const getClientRequestParamSchema: <M extends CodexRpc.ClientRequestMethod>(
+  const getServerRequestParamSchema = <M extends CodexRpc.ServerRequestMethod>(
     method: M,
-  ) =>
+  ):
+    | Schema.Codec<CodexRpc.ServerRequestParamsByMethod[M], CodexRpc.ServerRequestParamsByMethod[M]>
+    | undefined => CodexRpc.SERVER_REQUEST_PARAMS[method] as never;
+
+  const getServerRequestResponseSchema = <M extends CodexRpc.ServerRequestMethod>(
+    method: M,
+  ):
+    | Schema.Codec<
+        CodexRpc.ServerRequestResponsesByMethod[M],
+        CodexRpc.ServerRequestResponsesByMethod[M]
+      >
+    | undefined => CodexRpc.SERVER_REQUEST_RESPONSES[method] as never;
+
+  const getClientRequestParamSchema = <M extends CodexRpc.ClientRequestMethod>(
+    method: M,
+  ):
     | Schema.Codec<CodexRpc.ClientRequestParamsByMethod[M], CodexRpc.ClientRequestParamsByMethod[M]>
-    | undefined = <M extends CodexRpc.ClientRequestMethod>(method: M) =>
+    | undefined =>
     method === "turn/start"
       ? (V2TurnStartParams as never)
       : (CodexRpc.CLIENT_REQUEST_PARAMS[method] as never);
 
-  const getClientRequestResponseSchema: <M extends CodexRpc.ClientRequestMethod>(
+  const getClientRequestResponseSchema = <M extends CodexRpc.ClientRequestMethod>(
     method: M,
-  ) =>
+  ):
     | Schema.Codec<
         CodexRpc.ClientRequestResponsesByMethod[M],
         CodexRpc.ClientRequestResponsesByMethod[M]
       >
-    | undefined = <M extends CodexRpc.ClientRequestMethod>(method: M) =>
-    CodexRpc.CLIENT_REQUEST_RESPONSES[method] as never;
+    | undefined => CodexRpc.CLIENT_REQUEST_RESPONSES[method] as never;
 
-  const getClientNotificationParamSchema: <M extends CodexRpc.ClientNotificationMethod>(
+  const getClientNotificationParamSchema = <M extends CodexRpc.ClientNotificationMethod>(
     method: M,
-  ) =>
+  ):
     | Schema.Codec<
         CodexRpc.ClientNotificationParamsByMethod[M],
         CodexRpc.ClientNotificationParamsByMethod[M]
       >
-    | undefined = <M extends CodexRpc.ClientNotificationMethod>(method: M) =>
-    CodexRpc.CLIENT_NOTIFICATION_PARAMS[method] as never;
+    | undefined => CodexRpc.CLIENT_NOTIFICATION_PARAMS[method] as never;
 
   const warnedDecodeFailures = new Set<string>();
   const warnUndecodableNotification = (error: CodexError.CodexAppServerProtocolParseError) => {
@@ -173,7 +174,9 @@ export const make: (
     );
   };
 
-  const dispatchNotification = (notification: CodexProtocol.CodexAppServerIncomingNotification) => {
+  const dispatchNotification = (
+    notification: CodexProtocol.CodexAppServerIncomingNotification,
+  ): Effect.Effect<void, never> => {
     const schema =
       notification.method in CodexRpc.SERVER_NOTIFICATION_PARAMS
         ? CodexRpc.SERVER_NOTIFICATION_PARAMS[
@@ -197,7 +200,9 @@ export const make: (
       : Effect.void;
   };
 
-  const dispatchRequest = (request: CodexProtocol.CodexAppServerIncomingRequest) => {
+  const dispatchRequest = (
+    request: CodexProtocol.CodexAppServerIncomingRequest,
+  ): Effect.Effect<unknown, CodexError.CodexAppServerError> => {
     if (request.method in CodexRpc.SERVER_REQUEST_PARAMS) {
       const method = request.method as CodexRpc.ServerRequestMethod;
       const payloadSchema = getServerRequestParamSchema(method);
@@ -226,27 +231,19 @@ export const make: (
     onTermination: (error) => Deferred.fail(termination, error).pipe(Effect.asVoid),
   });
 
-  const request: <M extends CodexRpc.ClientRequestMethod>(
+  const request = <M extends CodexRpc.ClientRequestMethod>(
     method: M,
     payload: CodexRpc.ClientRequestParamsByMethod[M],
-  ) => Effect.Effect<CodexRpc.ClientRequestResponsesByMethod[M], CodexError.CodexAppServerError> = <
-    M extends CodexRpc.ClientRequestMethod,
-  >(
-    method: M,
-    payload: CodexRpc.ClientRequestParamsByMethod[M],
-  ) =>
+  ): Effect.Effect<CodexRpc.ClientRequestResponsesByMethod[M], CodexError.CodexAppServerError> =>
     encodeOptionalPayload(method, getClientRequestParamSchema(method), payload).pipe(
       Effect.flatMap((encoded) => transport.request(method, encoded)),
       Effect.flatMap(
-        (raw) =>
-          decodeOptionalPayload(
-            method,
-            getClientRequestResponseSchema(method),
-            raw,
-          ) satisfies Effect.Effect<
-            CodexRpc.ClientRequestResponsesByMethod[M],
-            CodexError.CodexAppServerError
-          >,
+        (
+          raw,
+        ): Effect.Effect<
+          CodexRpc.ClientRequestResponsesByMethod[M],
+          CodexError.CodexAppServerError
+        > => decodeOptionalPayload(method, getClientRequestResponseSchema(method), raw),
       ),
     );
 
@@ -306,7 +303,8 @@ export const make: (
 export const layerChildProcess = (
   handle: ChildProcessSpawner.ChildProcessHandle,
   options: CodexAppServerClientOptions = {},
-) => Layer.effect(CodexAppServerClient, makeChildProcessClient(handle, options));
+): Layer.Layer<CodexAppServerClient> =>
+  Layer.effect(CodexAppServerClient, makeChildProcessClient(handle, options));
 
 const makeChildProcessClient = Effect.fn(
   "effect-codex-app-server/CodexAppServerClient.makeChildProcessClient",

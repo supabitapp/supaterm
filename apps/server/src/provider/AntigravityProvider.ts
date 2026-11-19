@@ -5,6 +5,8 @@ import {
   type AntigravitySettings,
   type ProviderSetupError,
   type ServerProvider,
+  type ServerProviderModel,
+  type ServerProviderSlashCommand,
   type ServerProviderUsageLimits,
 } from "@supaterm/contracts";
 import { createModelCapabilities } from "@supaterm/shared/model";
@@ -69,7 +71,7 @@ function thinkingCapabilities(config: ThinkingConfig | null | undefined, observe
 export function buildAntigravityModelsFromSession(
   setup: SessionSetupResult,
   thinkingLevels: AntigravityThinkingLevels = new Map(),
-) {
+): ReadonlyArray<ServerProviderModel> {
   const config = setup.configOptions?.find(
     (option) => option.id === "model" || option.category === "model",
   );
@@ -87,7 +89,7 @@ export function buildAntigravityModelsFromSession(
   const currentThinking = antigravityThinkingConfig(setup.configOptions);
   const seen = new Set<string>();
   const names = new Set<string>();
-  return entries.flatMap((entry) => {
+  return entries.flatMap((entry): ServerProviderModel[] => {
     if (!entry.value.trim() || seen.has(entry.value)) return [];
     seen.add(entry.value);
     const baseName = entry.name.trim() ? entry.name : entry.value;
@@ -112,9 +114,11 @@ export function buildAntigravityModelsFromSession(
   });
 }
 
-function nativeCommands(commands: ReadonlyArray<EffectAcpSchema.AvailableCommand>) {
+function nativeCommands(
+  commands: ReadonlyArray<EffectAcpSchema.AvailableCommand>,
+): ReadonlyArray<ServerProviderSlashCommand> {
   const seen = new Set<string>();
-  return commands.flatMap((command) => {
+  return commands.flatMap((command): ServerProviderSlashCommand[] => {
     if (!command.name.trim() || seen.has(command.name)) return [];
     seen.add(command.name);
     const description = command.description.trim();
@@ -129,7 +133,7 @@ function nativeCommands(commands: ReadonlyArray<EffectAcpSchema.AvailableCommand
   });
 }
 
-function isMissingInstallation(error: EffectAcpErrors.AcpError | ProviderSetupError) {
+function isMissingInstallation(error: EffectAcpErrors.AcpError | ProviderSetupError): boolean {
   if (error._tag === "AcpSpawnError") {
     return (
       isCommandMissingCause(error.cause) ||

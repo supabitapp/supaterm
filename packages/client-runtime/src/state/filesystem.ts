@@ -127,7 +127,7 @@ export function filterFilesystemBrowseEntries(
 export function getFilesystemBrowseTabCompletion(
   visibleEntries: ReadonlyArray<FilesystemBrowseEntry>,
   filterQuery: string,
-) {
+): { readonly name: string; readonly isComplete: boolean } | null {
   const lowerQuery = filterQuery.toLowerCase();
   const lowerNormalizedQuery = filterQuery.normalize("NFC").toLowerCase();
   const prefixEntries = visibleEntries.filter(
@@ -178,7 +178,7 @@ export function createBrowseNavigationCoordinator() {
 
 export function canPreloadBrowsePath(
   connectionPhase: EnvironmentConnectionPhase | null | undefined,
-) {
+): boolean {
   return connectionPhase === "connected";
 }
 

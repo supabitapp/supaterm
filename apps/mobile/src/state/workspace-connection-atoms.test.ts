@@ -15,7 +15,7 @@ import { projectWorkspaceState } from "./workspaceModel";
 import { projectEnvironmentConnectionSummary as projectWorkspaceEnvironment } from "@supaterm/client-runtime/state/presentation";
 
 const ID = EnvironmentId.make("environment-1");
-function presentation() {
+function presentation(): EnvironmentPresentation {
   return {
     entry: {
       target: new PrimaryConnectionTarget({
@@ -30,7 +30,7 @@ function presentation() {
     connection: { phase: "connected", error: null, traceId: null },
     serverConfig: null,
     refusedRouteIds: [],
-  } satisfies EnvironmentPresentation;
+  };
 }
 function harness() {
   const source = Atom.make<EnvironmentPresentation | null>(presentation());

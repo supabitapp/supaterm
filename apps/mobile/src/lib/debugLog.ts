@@ -9,13 +9,13 @@ export interface DebugLogger {
   readonly log: (event: string, data?: Record<string, unknown>) => void;
 }
 
-function globalValue(name: string) {
+function globalValue(name: string): unknown {
   return typeof globalThis === "undefined"
     ? undefined
     : (globalThis as Record<string, unknown>)[name];
 }
 
-export function createDebugLogger(namespace: string) {
+export function createDebugLogger(namespace: string): DebugLogger {
   const isEnabled = () => {
     const filter = globalValue("__SUPATERM_DEBUG__");
     return filter === true || (Array.isArray(filter) && filter.includes(namespace));

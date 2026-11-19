@@ -24,7 +24,7 @@ export class DesktopLinuxUrlHandlerRegistrationError extends Schema.TaggedError<
     cause: Schema.optionalKey(Schema.Defect()),
   },
 ) {
-  override get message() {
+  override get message(): string {
     const exitCode = this.exitCode === undefined ? "" : `, xdg-mime exit code ${this.exitCode}`;
     return `Failed to register the ${this.scheme}:// URL handler (step: ${this.step}${exitCode}).`;
   }
@@ -40,7 +40,7 @@ export class DesktopLinuxUrlHandlerCacheRefreshError extends Schema.TaggedError<
     cause: Schema.optionalKey(Schema.Defect()),
   },
 ) {
-  override get message() {
+  override get message(): string {
     const exitCode =
       this.exitCode === undefined ? "" : `, update-desktop-database exit code ${this.exitCode}`;
     return `Failed to refresh the desktop MIME cache at ${this.applicationsDir}${exitCode}.`;
@@ -49,14 +49,14 @@ export class DesktopLinuxUrlHandlerCacheRefreshError extends Schema.TaggedError<
 
 const isCacheRefreshError = Schema.is(DesktopLinuxUrlHandlerCacheRefreshError);
 
-const escapeDesktopEntryString = (value: string) =>
+const escapeDesktopEntryString = (value: string): string =>
   value
     .replaceAll("\\", "\\\\")
     .replaceAll("\n", "\\n")
     .replaceAll("\r", "\\r")
     .replaceAll("\t", "\\t");
 
-export function escapeDesktopEntryExecArgument(value: string) {
+export function escapeDesktopEntryExecArgument(value: string): string {
   const quoted = value
     .replaceAll("\\", () => "\\\\")
     .replaceAll("`", () => "\\`")
@@ -66,7 +66,7 @@ export function escapeDesktopEntryExecArgument(value: string) {
   return escapeDesktopEntryString(`"${quoted}"`);
 }
 
-const escapeUrlHandlerExecTarget = (value: string) =>
+const escapeUrlHandlerExecTarget = (value: string): string =>
   /[ \t\n"'\\><~|&;$*?#()`]/.test(value)
     ? escapeDesktopEntryExecArgument(value)
     : escapeDesktopEntryString(value.replaceAll("%", "%%"));
@@ -76,13 +76,7 @@ export function renderUrlHandlerDesktopEntry(input: {
   readonly execTarget: string;
   readonly scheme: string;
   readonly iconPath?: string;
-}): string;
-export function renderUrlHandlerDesktopEntry(input: {
-  readonly displayName: string;
-  readonly execTarget: string;
-  readonly scheme: string;
-  readonly iconPath?: string;
-}) {
+}): string {
   return [
     "[Desktop Entry]",
     "Type=Application",
@@ -94,10 +88,10 @@ export function renderUrlHandlerDesktopEntry(input: {
     "StartupNotify=false",
     `MimeType=x-scheme-handler/${input.scheme};`,
     "",
-  ].join("\n") satisfies string;
+  ].join("\n");
 }
 
-function parseUrlHandlerExecTarget(entry: string) {
+function parseUrlHandlerExecTarget(entry: string): string | null {
   const exec = /^Exec=(.*) %U$/mu.exec(entry)?.[1];
   if (exec === undefined) return null;
   const unescaped = exec.replace(/\\([\\nrt])/gu, (_, char: string) =>
@@ -114,7 +108,7 @@ const APPIMAGE_NAME_VERSION = /\d+\.\d+\.\d+/u;
 export function replacedVersionedAppImagePath(input: {
   readonly previousEntry: string;
   readonly appImagePath: string;
-}) {
+}): string | null {
   const previous = parseUrlHandlerExecTarget(input.previousEntry);
   if (previous === null) return null;
   const previousName = previous.slice(previous.lastIndexOf("/") + 1);
@@ -129,12 +123,12 @@ export function replacedVersionedAppImagePath(input: {
 
 const LINUX_THEME_ICON_SIZE = "256x256";
 
-function linuxThemeIconNames(desktopEntryName: string) {
+function linuxThemeIconNames(desktopEntryName: string): readonly string[] {
   const appId = desktopEntryName.replace(/\.desktop$/u, "");
   return [...new Set([appId.toLowerCase(), appId])];
 }
 
-const sameBytes = (left: Uint8Array, right: Uint8Array) =>
+const sameBytes = (left: Uint8Array, right: Uint8Array): boolean =>
   left.length === right.length && left.every((byte, index) => byte === right[index]);
 
 export class DesktopLinuxUrlHandler extends Context.Service<

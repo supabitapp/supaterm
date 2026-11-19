@@ -70,7 +70,7 @@ export function contextUsageForHandoff(input: {
   readonly reuseTelemetry: boolean;
   readonly previousUsage: ThreadTokenUsageSnapshot | null | undefined;
   readonly knownModelWindow?: number | undefined;
-}) {
+}): ThreadTokenUsageSnapshot | null {
   if (!input.sameNativeThread || input.previousUsage == null) return null;
   if (input.sameSelection) return input.previousUsage;
   const reportedMax =
@@ -84,14 +84,14 @@ export function contextUsageForHandoff(input: {
   };
 }
 
-export function attachmentTokenAllowance(attachments: ReadonlyArray<ChatAttachment>) {
+export function attachmentTokenAllowance(attachments: ReadonlyArray<ChatAttachment>): number {
   return attachments.reduce(
     (sum, attachment) => sum + (attachment.type === "image" ? 8_192 : 4_096),
     0,
   );
 }
 
-export function estimateTextTokens(text: string) {
+export function estimateTextTokens(text: string): number {
   return Math.ceil(Buffer.byteLength(text) / 4);
 }
 
@@ -102,7 +102,7 @@ export function handoffBudget(input: {
   readonly providerThread: OrchestrationV2ProviderThread;
   readonly nativeContextEstimate: number;
   readonly modelContextWindow?: number | undefined;
-}) {
+}): number {
   const usage = input.providerThread.contextUsage;
   const window = Math.min(
     input.modelContextWindow ?? usage?.maxTokens ?? 128_000,
@@ -119,7 +119,9 @@ export function handoffBudget(input: {
   );
 }
 
-export function historicalMessage(item: OrchestrationV2TurnItem) {
+export function historicalMessage(
+  item: OrchestrationV2TurnItem,
+): OrchestrationV2HistoricalMessage | null {
   let text: string;
   switch (item.type) {
     case "user_message":
@@ -146,7 +148,7 @@ export function historicalMessage(item: OrchestrationV2TurnItem) {
       text = item.markdown;
       break;
     default:
-      return null satisfies OrchestrationV2HistoricalMessage | null;
+      return null;
   }
   return {
     role: item.type === "user_message" ? "user" : "assistant",
@@ -157,10 +159,10 @@ export function historicalMessage(item: OrchestrationV2TurnItem) {
     providerThreadId: item.providerThreadId,
     status: item.status,
     kind: item.type,
-  } satisfies OrchestrationV2HistoricalMessage | null;
+  };
 }
 
-function renderHistoricalMessage(message: OrchestrationV2HistoricalMessage) {
+function renderHistoricalMessage(message: OrchestrationV2HistoricalMessage): string {
   return `[Historical ${message.role}; ${message.kind}; thread=${message.threadId}; run=${message.runId ?? "imported"}; item=${message.itemId}; provider-thread=${message.providerThreadId ?? "none"}; status=${message.status}${message.runStatus === undefined ? "" : `; run-status=${message.runStatus}`}]\n${message.text}`;
 }
 
@@ -186,7 +188,7 @@ export function historyResponseItems(
 export function renderHistory(
   messages: ReadonlyArray<OrchestrationV2HistoricalMessage>,
   context: string,
-) {
+): string {
   return [context, ...messages.map(renderHistoricalMessage)].join("\n\n");
 }
 
@@ -195,7 +197,7 @@ const jsonByteLength = (value: unknown) => Buffer.byteLength(JSON.stringify(valu
 export function historyCost(
   messages: ReadonlyArray<OrchestrationV2HistoricalMessage>,
   context: string,
-) {
+): number {
   return (
     Math.max(
       jsonByteLength(historyResponseItems(messages, context)),
@@ -264,7 +266,7 @@ export function handoffCoverage(input: {
   readonly threadId: string;
   readonly coveredRunOrdinals: OrchestrationV2ContextHandoff["coveredRunOrdinals"];
   readonly items: ReadonlyArray<OrchestrationV2TurnItem>;
-}) {
+}): string {
   return [
     `Provider context handoff. Thread: ${input.threadId}. Covered app runs: ${input.coveredRunOrdinals.from}-${input.coveredRunOrdinals.to}.`,
     `Source item range: ${input.items.at(0)?.id ?? "none"} through ${input.items.at(-1)?.id ?? "none"}.`,

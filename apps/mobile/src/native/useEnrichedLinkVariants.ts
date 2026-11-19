@@ -25,14 +25,13 @@ import { formatProviderSkillDisplayName } from "@supaterm/shared/inlineSkills";
 
 function chipCustomization(
   chip: ReturnType<typeof enrichedContextLinkPresentation>,
-): MarkdownLinkCustomization | undefined;
-function chipCustomization(chip: ReturnType<typeof enrichedContextLinkPresentation>) {
-  if (!chip) return undefined satisfies MarkdownLinkCustomization | undefined;
+): MarkdownLinkCustomization | undefined {
+  if (!chip) return undefined;
   return {
     label: chip.label,
     icon: contextChipIconSource(chip.icon),
     chip: { accent: chip.accent, tintsIcon: chip.icon.kind === "chip" },
-  } satisfies MarkdownLinkCustomization | undefined;
+  };
 }
 
 export function enrichedContextLinkCustomization(
@@ -49,7 +48,7 @@ export function enrichedThreadLinkCustomization(href: string) {
 export function withChipIcon(
   customization: MarkdownLinkCustomization | undefined,
   iconUri: string | undefined,
-) {
+): MarkdownLinkCustomization | undefined {
   return iconUri && customization?.chip
     ? {
         ...customization,
@@ -66,43 +65,35 @@ function presentation(
     SelectableMarkdownTextProps,
     "linkCustomization" | "repositoryIdentity" | "skills" | "textStyle"
   >,
-): MarkdownLinkCustomization | undefined;
-function presentation(
-  url: string,
-  bare: boolean,
-  props: Pick<
-    SelectableMarkdownTextProps,
-    "linkCustomization" | "repositoryIdentity" | "skills" | "textStyle"
-  >,
-) {
+): MarkdownLinkCustomization | undefined {
   const custom = props.linkCustomization?.(url);
-  if (custom) return custom satisfies MarkdownLinkCustomization | undefined;
+  if (custom) return custom;
   const context = enrichedContextLinkCustomization(url);
-  if (context) return context satisfies MarkdownLinkCustomization | undefined;
+  if (context) return context;
   const skill = enrichedSkillReference(url, props.skills);
   if (skill)
     return {
       label: formatProviderSkillDisplayName(skill),
       icon: CONTEXT_CHIP_ICON_SOURCES.skill,
       chip: { accent: contextChipPresentation("skill").accent, tintsIcon: true },
-    } satisfies MarkdownLinkCustomization | undefined;
+    };
   const link = resolveMarkdownLinkPresentation(url);
   if (link.kind === "file")
     return {
       label: link.label,
       icon: markdownFileIconSource(link.icon),
       chip: { accent: contextChipPresentation("mention").accent, tintsIcon: false },
-    } satisfies MarkdownLinkCustomization | undefined;
-  if (link.kind !== "external") return undefined satisfies MarkdownLinkCustomization | undefined;
+    };
+  if (link.kind !== "external") return undefined;
   const icon = markdownLinkIcon(link.host);
   const label = bare ? changeRequestReferenceLabel(url, props.repositoryIdentity) : null;
-  if (!icon && !label) return undefined satisfies MarkdownLinkCustomization | undefined;
+  if (!icon && !label) return undefined;
   return {
     color: props.textStyle.linkColor,
     ...(label ? { label } : {}),
     ...(icon ? { icon: icon.source } : {}),
     ...(icon?.tints ? { iconTintColor: props.textStyle.linkColor } : {}),
-  } satisfies MarkdownLinkCustomization | undefined;
+  };
 }
 
 export function useEnrichedLinkVariants(

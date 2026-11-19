@@ -30,10 +30,7 @@ export interface ThreadCheckpointSummary {
 
 export function deriveThreadCheckpointSummaries(
   projection: Pick<OrchestrationV2ThreadProjection, "checkpoints" | "messages">,
-): ReadonlyArray<ThreadCheckpointSummary>;
-export function deriveThreadCheckpointSummaries(
-  projection: Pick<OrchestrationV2ThreadProjection, "checkpoints" | "messages">,
-) {
+): ReadonlyArray<ThreadCheckpointSummary> {
   let assistantMessageIdsByRun: Map<RunId, MessageId | null | undefined> | undefined;
   let nextMessageIndex = -1;
   return projection.checkpoints.flatMap((checkpoint) => {
@@ -75,12 +72,12 @@ export function deriveThreadCheckpointSummaries(
         completedAt: DateTime.formatIso(checkpoint.capturedAt),
       },
     ];
-  }) satisfies ReadonlyArray<ThreadCheckpointSummary>;
+  });
 }
 
 export function checkpointFileTotals(
   checkpoint: Pick<ThreadCheckpointSummary, "files" | "filesTotal">,
-) {
+): OrchestrationV2CheckpointFileTotals {
   if (checkpoint.filesTotal !== undefined) return checkpoint.filesTotal;
   let additions = 0;
   let deletions = 0;

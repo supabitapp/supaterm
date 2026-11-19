@@ -12,7 +12,7 @@ type SlashSearchItem = Extract<
   { type: "slash-command" | "provider-slash-command" | "skill" }
 >;
 
-function scoreSlashCommandItem(item: SlashSearchItem, query: string) {
+function scoreSlashCommandItem(item: SlashSearchItem, query: string): number | null {
   if (item.type === "skill") {
     if (query === "skill") {
       return 0;
@@ -57,7 +57,10 @@ function scoreSlashCommandItem(item: SlashSearchItem, query: string) {
   return Math.min(...scores);
 }
 
-export function searchSlashCommandItems(items: ReadonlyArray<SlashSearchItem>, query: string) {
+export function searchSlashCommandItems(
+  items: ReadonlyArray<SlashSearchItem>,
+  query: string,
+): SlashSearchItem[] {
   const normalizedQuery = normalizeSearchQuery(query, { trimLeadingPattern: /^\/+/ });
   if (!normalizedQuery) {
     return [...items];

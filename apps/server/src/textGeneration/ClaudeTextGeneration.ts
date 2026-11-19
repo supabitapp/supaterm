@@ -73,7 +73,7 @@ const ClaudeErrorResult = Schema.Struct({
 const isClaudeErrorResult = Schema.is(ClaudeErrorResult);
 const decodeJsonOption = Schema.decodeUnknownOption(Schema.fromJsonString(Schema.Unknown));
 
-function claudeErrorResult(stdout: string) {
+function claudeErrorResult(stdout: string): string | undefined {
   const output = Option.getOrUndefined(decodeJsonOption(stdout));
   const messages: ReadonlyArray<unknown> = Array.isArray(output) ? output : [output];
   return messages
@@ -109,7 +109,10 @@ export const makeClaudeTextGeneration = Effect.fn("makeClaudeTextGeneration")(fu
     Effect.map((catalog) => scopeClaudeModelCatalog(catalog, claudeSettings.customModels)),
   );
 
-  const readStreamAsString = <E>(operation: string, stream: Stream.Stream<Uint8Array, E>) =>
+  const readStreamAsString = <E>(
+    operation: string,
+    stream: Stream.Stream<Uint8Array, E>,
+  ): Effect.Effect<string, TextGenerationError> =>
     stream.pipe(
       Stream.decodeText(),
       Stream.runFold(
@@ -125,7 +128,7 @@ export const makeClaudeTextGeneration = Effect.fn("makeClaudeTextGeneration")(fu
     operation: TextGenerationOperations.Operation,
     value: unknown,
     detail: string,
-  ) =>
+  ): Effect.Effect<string, TextGenerationError> =>
     encodeJsonString(value).pipe(
       Effect.mapError(
         (cause) =>
@@ -137,232 +140,225 @@ export const makeClaudeTextGeneration = Effect.fn("makeClaudeTextGeneration")(fu
       ),
     );
 
-  const runClaudeJson: <S extends Schema.Top>(
-    arg0: TextGenerationOperations.Request<S>,
-  ) => Effect.Effect<S["Type"], TextGenerationError, S["DecodingServices"] | Scope.Scope> =
-    Effect.fn("runClaudeJson")(function* <S extends Schema.Top>({
-      operation,
-      cwd,
-      prompt,
-      outputSchema: outputSchemaJson,
-      modelSelection,
-      investigate,
-    }: TextGenerationOperations.Request<S>) {
-      const workingDirectory =
-        operation === "generateThreadTitle"
-          ? yield* fileSystem
-              .makeTempDirectoryScoped({ prefix: "supaterm-claude-title-" })
-              .pipe(
-                Effect.mapError((cause) =>
-                  normalizeCliError("claude", operation, cause, "Failed to create title directory"),
-                ),
-              )
-          : cwd;
-      const catalog = yield* routeModelCatalog(yield* scopedModelCatalog, workingDirectory);
-      const resolvedModelSelection = {
-        ...modelSelection,
-        model: resolveClaudeModelSlug(catalog, modelSelection.model),
-      };
-      const jsonSchemaStr = yield* encodeJsonForOperation(
-        operation,
-        toJsonSchemaObject(outputSchemaJson),
-        "Failed to encode structured output schema.",
-      );
-      const caps = getClaudeCatalogModelCapabilities(catalog, resolvedModelSelection.model);
-      const descriptors = getProviderOptionDescriptors({
-        caps,
-        selections: resolvedModelSelection.options,
-      });
-      const findDescriptor = (id: string) => descriptors.find((descriptor) => descriptor.id === id);
-      const rawEffortSelection = getModelSelectionStringOptionValue(
-        resolvedModelSelection,
-        "effort",
-      );
-      const resolvedEffort = resolveClaudeCatalogEffort(
-        catalog,
-        resolvedModelSelection.model,
-        rawEffortSelection,
-      );
-      const cliEffort = normalizeClaudeCatalogEffort(
-        catalog,
-        resolvedEffort,
-        resolvedModelSelection.model,
-      );
-      const ultracode = findDescriptor("ultracode")?.currentValue;
-      const thinkingDescriptor = findDescriptor("thinking");
-      const fastModeDescriptor = findDescriptor("fastMode");
-      const thinking =
-        thinkingDescriptor?.type === "boolean"
-          ? getModelSelectionBooleanOptionValue(resolvedModelSelection, "thinking")
-          : undefined;
-      const fastMode =
-        !(yield* fastModeBlocked) &&
-        fastModeDescriptor?.type === "boolean" &&
-        fastModeDescriptor.currentValue === true;
-      const launchArgSettings = yield* readClaudeLaunchArgSettings({
-        settings: claudeSettings,
-        cwd,
-        fileSystem,
-        path,
-      }).pipe(
-        Effect.mapError(
-          (cause) => new TextGenerationError({ operation, detail: cause.message, cause }),
-        ),
-      );
-      const settings = {
-        ...launchArgSettings,
-        disableAllHooks: true,
-        ...(typeof thinking === "boolean" ? { alwaysThinkingEnabled: thinking } : {}),
-        fastMode,
-        ...(typeof ultracode === "boolean" ? { ultracode } : {}),
-      };
-      const settingsJson = yield* encodeJsonForOperation(
-        operation,
-        settings,
-        "Failed to encode Claude CLI settings.",
-      );
-
-      const runClaudeCommand = Effect.fn("runClaudeJson.runClaudeCommand")(function* (
-        noSessionPersistence: boolean,
-      ) {
-        const managedMcpConfig = yield* hasClaudeManagedMcpConfig();
-        const spawnCommand = yield* resolveSpawnCommand(
-          claudeSettings.binaryPath || "claude",
-          [
-            "-p",
-            "--output-format",
-            "json",
-            "--json-schema",
-            jsonSchemaStr,
-            "--model",
-            resolveClaudeCatalogApiModelId(catalog, resolvedModelSelection),
-            ...(cliEffort ? ["--effort", cliEffort] : []),
-            "--settings",
-            settingsJson,
-            ...(investigate
-              ? [
-                  "--tools",
-                  CLAUDE_INVESTIGATION_TOOLS,
-                  "--allowedTools",
-                  CLAUDE_INVESTIGATION_ALLOWED,
-                  "--disallowedTools",
-                  CLAUDE_INVESTIGATION_DENIED,
-                ]
-              : ["--tools", ""]),
-            ...(investigate ? ["--setting-sources", "user"] : []),
-            "--disable-slash-commands",
-            ...(noSessionPersistence ? [NO_SESSION_PERSISTENCE] : []),
-            ...(managedMcpConfig ? [] : ["--strict-mcp-config"]),
-            "--permission-mode",
-            "dontAsk",
-          ],
-          { env: claudeEnvironment },
-        );
-        const command = ChildProcess.make(spawnCommand.command, spawnCommand.args, {
-          env: claudeEnvironment,
-          cwd: workingDirectory,
-          shell: spawnCommand.shell,
-          stdin: {
-            stream: Stream.encodeText(Stream.make(prompt)),
-          },
-          forceKillAfter: "1 second",
-        });
-
-        const child = yield* commandSpawner
-          .spawn(command)
-          .pipe(
-            Effect.mapError((cause) =>
-              normalizeCliError("claude", operation, cause, "Failed to spawn Claude CLI process"),
-            ),
-          );
-
-        const [stdout, stderr, exitCode] = yield* Effect.all(
-          [
-            readStreamAsString(operation, child.stdout),
-            readStreamAsString(operation, child.stderr),
-            child.exitCode.pipe(
+  const runClaudeJson = Effect.fn("runClaudeJson")(function* <S extends Schema.Top>({
+    operation,
+    cwd,
+    prompt,
+    outputSchema: outputSchemaJson,
+    modelSelection,
+    investigate,
+  }: TextGenerationOperations.Request<S>): Effect.fn.Return<
+    S["Type"],
+    TextGenerationError,
+    S["DecodingServices"] | Scope.Scope
+  > {
+    const workingDirectory =
+      operation === "generateThreadTitle"
+        ? yield* fileSystem
+            .makeTempDirectoryScoped({ prefix: "supaterm-claude-title-" })
+            .pipe(
               Effect.mapError((cause) =>
-                normalizeCliError(
-                  "claude",
-                  operation,
-                  cause,
-                  "Failed to read Claude CLI exit code",
-                ),
+                normalizeCliError("claude", operation, cause, "Failed to create title directory"),
               ),
-            ),
-          ],
-          { concurrency: "unbounded" },
-        );
+            )
+        : cwd;
+    const catalog = yield* routeModelCatalog(yield* scopedModelCatalog, workingDirectory);
+    const resolvedModelSelection = {
+      ...modelSelection,
+      model: resolveClaudeModelSlug(catalog, modelSelection.model),
+    };
+    const jsonSchemaStr = yield* encodeJsonForOperation(
+      operation,
+      toJsonSchemaObject(outputSchemaJson),
+      "Failed to encode structured output schema.",
+    );
+    const caps = getClaudeCatalogModelCapabilities(catalog, resolvedModelSelection.model);
+    const descriptors = getProviderOptionDescriptors({
+      caps,
+      selections: resolvedModelSelection.options,
+    });
+    const findDescriptor = (id: string) => descriptors.find((descriptor) => descriptor.id === id);
+    const rawEffortSelection = getModelSelectionStringOptionValue(resolvedModelSelection, "effort");
+    const resolvedEffort = resolveClaudeCatalogEffort(
+      catalog,
+      resolvedModelSelection.model,
+      rawEffortSelection,
+    );
+    const cliEffort = normalizeClaudeCatalogEffort(
+      catalog,
+      resolvedEffort,
+      resolvedModelSelection.model,
+    );
+    const ultracode = findDescriptor("ultracode")?.currentValue;
+    const thinkingDescriptor = findDescriptor("thinking");
+    const fastModeDescriptor = findDescriptor("fastMode");
+    const thinking =
+      thinkingDescriptor?.type === "boolean"
+        ? getModelSelectionBooleanOptionValue(resolvedModelSelection, "thinking")
+        : undefined;
+    const fastMode =
+      !(yield* fastModeBlocked) &&
+      fastModeDescriptor?.type === "boolean" &&
+      fastModeDescriptor.currentValue === true;
+    const launchArgSettings = yield* readClaudeLaunchArgSettings({
+      settings: claudeSettings,
+      cwd,
+      fileSystem,
+      path,
+    }).pipe(
+      Effect.mapError(
+        (cause) => new TextGenerationError({ operation, detail: cause.message, cause }),
+      ),
+    );
+    const settings = {
+      ...launchArgSettings,
+      disableAllHooks: true,
+      ...(typeof thinking === "boolean" ? { alwaysThinkingEnabled: thinking } : {}),
+      fastMode,
+      ...(typeof ultracode === "boolean" ? { ultracode } : {}),
+    };
+    const settingsJson = yield* encodeJsonForOperation(
+      operation,
+      settings,
+      "Failed to encode Claude CLI settings.",
+    );
 
-        return { stdout, stderr, exitCode };
+    const runClaudeCommand = Effect.fn("runClaudeJson.runClaudeCommand")(function* (
+      noSessionPersistence: boolean,
+    ) {
+      const managedMcpConfig = yield* hasClaudeManagedMcpConfig();
+      const spawnCommand = yield* resolveSpawnCommand(
+        claudeSettings.binaryPath || "claude",
+        [
+          "-p",
+          "--output-format",
+          "json",
+          "--json-schema",
+          jsonSchemaStr,
+          "--model",
+          resolveClaudeCatalogApiModelId(catalog, resolvedModelSelection),
+          ...(cliEffort ? ["--effort", cliEffort] : []),
+          "--settings",
+          settingsJson,
+          ...(investigate
+            ? [
+                "--tools",
+                CLAUDE_INVESTIGATION_TOOLS,
+                "--allowedTools",
+                CLAUDE_INVESTIGATION_ALLOWED,
+                "--disallowedTools",
+                CLAUDE_INVESTIGATION_DENIED,
+              ]
+            : ["--tools", ""]),
+          ...(investigate ? ["--setting-sources", "user"] : []),
+          "--disable-slash-commands",
+          ...(noSessionPersistence ? [NO_SESSION_PERSISTENCE] : []),
+          ...(managedMcpConfig ? [] : ["--strict-mcp-config"]),
+          "--permission-mode",
+          "dontAsk",
+        ],
+        { env: claudeEnvironment },
+      );
+      const command = ChildProcess.make(spawnCommand.command, spawnCommand.args, {
+        env: claudeEnvironment,
+        cwd: workingDirectory,
+        shell: spawnCommand.shell,
+        stdin: {
+          stream: Stream.encodeText(Stream.make(prompt)),
+        },
+        forceKillAfter: "1 second",
       });
 
-      const rawStdout = yield* runClaudeCommand(true).pipe(
-        Effect.filterOrElse(
-          (result) =>
-            result.exitCode === 0 || !result.stderr.includes(NO_SESSION_PERSISTENCE_REJECTED),
-          () => runClaudeCommand(false),
-        ),
-        Effect.flatMap(({ stdout, stderr, exitCode }) => {
-          if (exitCode === 0) return Effect.succeed(stdout);
-          const stderrDetail = stderr.trim();
-          const stdoutDetail = stdout.trim();
-          const detail =
-            claudeErrorResult(stdoutDetail) ??
-            (stderrDetail.length > 0 ? stderrDetail : stdoutDetail);
-          return Effect.fail(
+      const child = yield* commandSpawner
+        .spawn(command)
+        .pipe(
+          Effect.mapError((cause) =>
+            normalizeCliError("claude", operation, cause, "Failed to spawn Claude CLI process"),
+          ),
+        );
+
+      const [stdout, stderr, exitCode] = yield* Effect.all(
+        [
+          readStreamAsString(operation, child.stdout),
+          readStreamAsString(operation, child.stderr),
+          child.exitCode.pipe(
+            Effect.mapError((cause) =>
+              normalizeCliError("claude", operation, cause, "Failed to read Claude CLI exit code"),
+            ),
+          ),
+        ],
+        { concurrency: "unbounded" },
+      );
+
+      return { stdout, stderr, exitCode };
+    });
+
+    const rawStdout = yield* runClaudeCommand(true).pipe(
+      Effect.filterOrElse(
+        (result) =>
+          result.exitCode === 0 || !result.stderr.includes(NO_SESSION_PERSISTENCE_REJECTED),
+        () => runClaudeCommand(false),
+      ),
+      Effect.flatMap(({ stdout, stderr, exitCode }) => {
+        if (exitCode === 0) return Effect.succeed(stdout);
+        const stderrDetail = stderr.trim();
+        const stdoutDetail = stdout.trim();
+        const detail =
+          claudeErrorResult(stdoutDetail) ??
+          (stderrDetail.length > 0 ? stderrDetail : stdoutDetail);
+        return Effect.fail(
+          new TextGenerationError({
+            operation,
+            detail:
+              detail.length > 0
+                ? `Claude CLI command failed: ${detail}`
+                : `Claude CLI command failed with code ${exitCode}.`,
+          }),
+        );
+      }),
+      Effect.scoped,
+      Effect.timeoutOption(investigate?.timeoutMs ?? CLAUDE_TIMEOUT_MS),
+      Effect.flatMap(
+        Option.match({
+          onNone: () =>
+            Effect.fail(
+              new TextGenerationError({ operation, detail: "Claude CLI request timed out." }),
+            ),
+          onSome: (value) => Effect.succeed(value),
+        }),
+      ),
+    );
+
+    const output = yield* decodeClaudeOutput(rawStdout).pipe(
+      Effect.catchTags({
+        SchemaError: (cause) =>
+          Effect.fail(
             new TextGenerationError({
               operation,
-              detail:
-                detail.length > 0
-                  ? `Claude CLI command failed: ${detail}`
-                  : `Claude CLI command failed with code ${exitCode}.`,
+              detail: "Claude CLI returned unexpected output format.",
+              cause,
             }),
-          );
-        }),
-        Effect.scoped,
-        Effect.timeoutOption(investigate?.timeoutMs ?? CLAUDE_TIMEOUT_MS),
-        Effect.flatMap(
-          Option.match({
-            onNone: () =>
-              Effect.fail(
-                new TextGenerationError({ operation, detail: "Claude CLI request timed out." }),
-              ),
-            onSome: (value) => Effect.succeed(value),
-          }),
-        ),
-      );
+          ),
+      }),
+    );
+    const envelope = isClaudeOutputEnvelope(output)
+      ? output
+      : output.findLast((message) => message.type === "result");
 
-      const output = yield* decodeClaudeOutput(rawStdout).pipe(
-        Effect.catchTags({
-          SchemaError: (cause) =>
-            Effect.fail(
-              new TextGenerationError({
-                operation,
-                detail: "Claude CLI returned unexpected output format.",
-                cause,
-              }),
-            ),
-        }),
-      );
-      const envelope = isClaudeOutputEnvelope(output)
-        ? output
-        : output.findLast((message) => message.type === "result");
-
-      const decodeOutput = Schema.decodeEffect(outputSchemaJson);
-      return yield* decodeOutput(envelope?.structured_output).pipe(
-        Effect.catchTags({
-          SchemaError: (cause) =>
-            Effect.fail(
-              new TextGenerationError({
-                operation,
-                detail: "Claude returned invalid structured output.",
-                cause,
-              }),
-            ),
-        }),
-      );
-    });
+    const decodeOutput = Schema.decodeEffect(outputSchemaJson);
+    return yield* decodeOutput(envelope?.structured_output).pipe(
+      Effect.catchTags({
+        SchemaError: (cause) =>
+          Effect.fail(
+            new TextGenerationError({
+              operation,
+              detail: "Claude returned invalid structured output.",
+              cause,
+            }),
+          ),
+      }),
+    );
+  });
 
   return TextGenerationOperations.fromRunner(
     "ClaudeTextGeneration",

@@ -40,7 +40,7 @@ export interface ThreadAnnouncementMemory {
   readonly idleRunId: RunId | null;
 }
 
-export function runOutcomeText(status: OrchestrationV2RunStatus | null) {
+export function runOutcomeText(status: OrchestrationV2RunStatus | null): string | null {
   switch (status) {
     case "completed":
       return THREAD_STATUS_TEXT.done;
@@ -79,7 +79,7 @@ export function isDetailBehindShell(detailRun: RunState | null, shellRun: RunSta
 export function announcedRun(
   activityRun: (RunState & { readonly startedAt: string | null }) | null,
   runs: ReadonlyArray<OrchestrationV2Run>,
-) {
+): RunState | null {
   if (activityRun?.status !== "cancelled" || activityRun.startedAt !== null) return activityRun;
   const run = latestExecutedRun(runs);
   return run === null ? null : { runId: run.id, status: run.status };
@@ -93,7 +93,7 @@ export function announcedRun(
 export function nextThreadAnnouncement(
   previous: ThreadAnnouncementMemory | null,
   next: ThreadActivitySnapshot,
-) {
+): { readonly memory: ThreadAnnouncementMemory; readonly announcement: string | null } {
   const idle = next.status === "idle";
   const idleRunId =
     idle && !isOrchestrationV2RunNotYetRunning(next.runStatus)
@@ -113,7 +113,7 @@ export function nextThreadAnnouncement(
         idleRunId,
       },
       announcement: null,
-    } satisfies { readonly memory: ThreadAnnouncementMemory; readonly announcement: string | null };
+    };
   }
   const memory = { ...previous, snapshot: next, idleRunId };
   const { turnRunId } = previous;
@@ -136,45 +136,26 @@ export function nextThreadAnnouncement(
           : turnStarted
             ? THREAD_STATUS_TEXT.working
             : null;
-    return { memory: { ...memory, turnRunId: nextTurnRunId }, announcement } satisfies {
-      readonly memory: ThreadAnnouncementMemory;
-      readonly announcement: string | null;
-    };
+    return { memory: { ...memory, turnRunId: nextTurnRunId }, announcement };
   }
 
   const outcome = runOutcomeText(next.runStatus);
   if (turnRunId === null) {
     const settledRunId = outcome === null ? previous.settledRunId : next.runId;
-    return { memory: { ...memory, settledRunId }, announcement: null } satisfies {
-      readonly memory: ThreadAnnouncementMemory;
-      readonly announcement: string | null;
-    };
+    return { memory: { ...memory, settledRunId }, announcement: null };
   }
   if (next.runStatus === "rolled_back") {
-    return {
-      memory: { ...memory, turnRunId: null, settledRunId: next.runId },
-      announcement: null,
-    } satisfies { readonly memory: ThreadAnnouncementMemory; readonly announcement: string | null };
+    return { memory: { ...memory, turnRunId: null, settledRunId: next.runId }, announcement: null };
   }
-  if (outcome === null)
-    return { memory, announcement: null } satisfies {
-      readonly memory: ThreadAnnouncementMemory;
-      readonly announcement: string | null;
-    };
+  if (outcome === null) return { memory, announcement: null };
   if (next.runId === previous.settledRunId) {
-    return { memory: { ...memory, turnRunId: null }, announcement: null } satisfies {
-      readonly memory: ThreadAnnouncementMemory;
-      readonly announcement: string | null;
-    };
+    return { memory: { ...memory, turnRunId: null }, announcement: null };
   }
   if (turnRunId === "unknown" && next.runId === previous.idleRunId) {
-    return { memory: { ...memory, settledRunId: next.runId }, announcement: null } satisfies {
-      readonly memory: ThreadAnnouncementMemory;
-      readonly announcement: string | null;
-    };
+    return { memory: { ...memory, settledRunId: next.runId }, announcement: null };
   }
   return {
     memory: { ...memory, turnRunId: null, settledRunId: next.runId },
     announcement: outcome,
-  } satisfies { readonly memory: ThreadAnnouncementMemory; readonly announcement: string | null };
+  };
 }

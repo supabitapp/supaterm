@@ -15,16 +15,15 @@ import {
   RemoteEnvironmentAuthUndeclaredStatusError,
 } from "../rpc/http.ts";
 
-const backoff = (lastFailure: ConnectionAttemptError) =>
-  ({
-    ...AVAILABLE_CONNECTION_STATE,
-    desired: true,
-    network: "online",
-    phase: "backoff",
-    attempt: 3,
-    lastFailure,
-    retryAt: Date.UTC(2026, 9, 19, 12, 0, 30),
-  }) satisfies SupervisorConnectionState;
+const backoff = (lastFailure: ConnectionAttemptError): SupervisorConnectionState => ({
+  ...AVAILABLE_CONNECTION_STATE,
+  desired: true,
+  network: "online",
+  phase: "backoff",
+  attempt: 3,
+  lastFailure,
+  retryAt: Date.UTC(2026, 9, 19, 12, 0, 30),
+});
 
 const relayFailure = (failure: RelayTunnelFailure) =>
   mapRemoteEnvironmentError(

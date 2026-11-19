@@ -19,8 +19,7 @@ const WRITTEN_NUMBER = /[ \t]*(\d{1,9})[.)]/y;
  * would render as 3 and 4. An item whose written number breaks the sequence keeps it. `source` is
  * the text the node's offsets point into.
  */
-export function keepOrderedListNumbers(node: MarkdownListNode, source: string): void;
-export function keepOrderedListNumbers(node: MarkdownListNode, source: string) {
+export function keepOrderedListNumbers(node: MarkdownListNode, source: string): void {
   if (!node.children) return;
   if (node.type === "list" && node.ordered) {
     let expected = node.start ?? 1;
@@ -47,20 +46,19 @@ const enabledProcessors = new WeakSet<object>();
  * Opts a processor in. User messages use it so the sent bubble shows the numbers the composer
  * showed and the agent received; agent replies and files keep CommonMark numbering.
  */
-export function remarkEnableOrderedListNumbers(this: object) {
+export function remarkEnableOrderedListNumbers(this: object): undefined {
   // oxlint-disable-next-line no-this-in-exported-function -- unified binds the processor when installing plugins.
   enabledProcessors.add(this);
 }
 
-export function keepsOrderedListNumbers(processor: object) {
+export function keepsOrderedListNumbers(processor: object): boolean {
   return enabledProcessors.has(processor);
 }
 
 /** Sits before list recovery so offsets still point into the file. */
-export function remarkKeepOrderedListNumbers(this: object): Transformer<Root>;
-export function remarkKeepOrderedListNumbers(this: object) {
-  return ((tree, file) => {
+export function remarkKeepOrderedListNumbers(this: object): Transformer<Root> {
+  return (tree, file) => {
     // oxlint-disable-next-line no-this-in-exported-function -- unified binds the processor when installing plugins.
     if (enabledProcessors.has(this)) keepOrderedListNumbers(tree, String(file));
-  }) satisfies Transformer<Root>;
+  };
 }

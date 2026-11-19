@@ -42,7 +42,9 @@ const threadId = ThreadId.make("thread-worktree-test");
 const projectId = ProjectId.make("project-worktree-test");
 const workspaceRoot = "/repo/project";
 
-const makeScope = (capabilities: ReadonlySet<McpInvocationContext.McpCapability>) => ({
+const makeScope = (
+  capabilities: ReadonlySet<McpInvocationContext.McpCapability>,
+): McpInvocationContext.McpInvocationScope => ({
   environmentId,
   requestNamespace: "provider-session-worktree-test",
   thread: {
@@ -62,7 +64,7 @@ interface ThreadFixture {
   readonly deletedAt?: string | null;
 }
 
-const makeProjection = (overrides: ThreadFixture = {}) =>
+const makeProjection = (overrides: ThreadFixture = {}): OrchestrationV2ThreadProjection =>
   ({
     thread: {
       id: threadId,
@@ -344,7 +346,7 @@ const makeHarness = (options: HarnessOptions = {}) => {
   };
 };
 
-const expectTypedFailure = (exit: Exit.Exit<unknown, unknown>, expected: object) => {
+const expectTypedFailure = (exit: Exit.Exit<unknown, unknown>, expected: object): void => {
   if (!Exit.isFailure(exit)) {
     expect.fail(`Expected a failure exit, got: ${JSON.stringify(exit)}`);
   }

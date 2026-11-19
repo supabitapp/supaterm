@@ -5,7 +5,9 @@ import type {
   EnvironmentProject,
   EnvironmentThread,
   EnvironmentThreadShell,
+  EnvironmentThreadStructure,
   ThreadStructure,
+  ThreadStructureVisibleTurnItem,
 } from "@supaterm/client-runtime/state/shell";
 import {
   EMPTY_THREAD_HISTORY_META,
@@ -94,11 +96,13 @@ const threadRepositoryIdentityAtom = Atom.family((key: string) =>
   }).pipe(Atom.withLabel(`web-thread-repository-identity:${key}`)),
 );
 
-export function useThreadRefs(enabled = true) {
+export function useThreadRefs(enabled = true): ReadonlyArray<ScopedThreadRef> {
   return useAtomValue(enabled ? environmentThreadShells.threadRefsAtom : EMPTY_THREAD_REFS_ATOM);
 }
 
-export function useEnvironmentThreadRefs(environmentId: EnvironmentId | null) {
+export function useEnvironmentThreadRefs(
+  environmentId: EnvironmentId | null,
+): ReadonlyArray<ScopedThreadRef> {
   return useAtomValue(
     environmentId === null
       ? EMPTY_THREAD_REFS_ATOM
@@ -106,7 +110,7 @@ export function useEnvironmentThreadRefs(environmentId: EnvironmentId | null) {
   );
 }
 
-export function useProjects() {
+export function useProjects(): ReadonlyArray<EnvironmentProject> {
   return useAtomValue(environmentProjects.projectsAtom);
 }
 
@@ -115,38 +119,40 @@ export function useServerConfigs() {
   return useAtomValue(environmentPresentations.serverConfigsAtom);
 }
 
-export function useThreadShells(enabled = true) {
+export function useThreadShells(enabled = true): ReadonlyArray<EnvironmentThreadShell> {
   return useAtomValue(
     enabled ? environmentThreadShells.threadShellsAtom : EMPTY_THREAD_SHELLS_ATOM,
   );
 }
 
-export function useSidebarThreadShells() {
+export function useSidebarThreadShells(): ReadonlyArray<EnvironmentThreadShell> {
   return useAtomValue(sidebarThreadShells.threadShellsAtom);
 }
 
 /** Sidebar shells held through streaming ticks; see quietThreadShellAtom. */
-export function useQuietSidebarThreadShells() {
+export function useQuietSidebarThreadShells(): ReadonlyArray<EnvironmentThreadShell> {
   return useAtomValue(sidebarThreadShells.quietThreadShellsAtom);
 }
 
-export function useAllEnvironmentShellsBootstrapped() {
+export function useAllEnvironmentShellsBootstrapped(): boolean {
   return useAtomValue(allEnvironmentShellsBootstrappedAtom);
 }
 
-export function useAllEnvironmentProjectSnapshotsReady() {
+export function useAllEnvironmentProjectSnapshotsReady(): boolean {
   return useAtomValue(allEnvironmentProjectSnapshotsReadyAtom);
 }
 
-export function useThreadShellsForProjectRefs(refs: ReadonlyArray<ScopedProjectRef>) {
+export function useThreadShellsForProjectRefs(
+  refs: ReadonlyArray<ScopedProjectRef>,
+): ReadonlyArray<EnvironmentThreadShell> {
   return useAtomValue(environmentThreadShells.threadShellsForProjectRefsAtom(refs));
 }
 
-export function useProject(ref: ScopedProjectRef | null) {
+export function useProject(ref: ScopedProjectRef | null): EnvironmentProject | null {
   return useAtomValue(ref === null ? EMPTY_PROJECT_ATOM : environmentProjects.projectAtom(ref));
 }
 
-export function useThreadShell(ref: ScopedThreadRef | null) {
+export function useThreadShell(ref: ScopedThreadRef | null): EnvironmentThreadShell | null {
   return useAtomValue(
     ref === null ? EMPTY_THREAD_SHELL_ATOM : environmentThreadShells.threadShellAtom(ref),
   );
@@ -173,7 +179,7 @@ const subagentChildTitlesAtomFamily = Atom.family((key: string) => {
 });
 
 /** The child threads a loaded thread's subagents name, which the shell can leave out once idle. */
-export function useSubagentChildTitles(ref: ScopedThreadRef | null) {
+export function useSubagentChildTitles(ref: ScopedThreadRef | null): ReadonlyMap<ThreadId, string> {
   return useAtomValue(
     ref === null ? EMPTY_CHILD_TITLES_ATOM : subagentChildTitlesAtomFamily(threadKey(ref)),
   );
@@ -186,7 +192,7 @@ const shellOmitsThreadsAtom = Atom.family((environmentId: EnvironmentId) =>
 );
 
 /** Whether this environment's shell leaves out idle subagents and older done threads. */
-export function useShellOmitsThreads(environmentId: EnvironmentId) {
+export function useShellOmitsThreads(environmentId: EnvironmentId): boolean {
   return useAtomValue(shellOmitsThreadsAtom(environmentId));
 }
 
@@ -197,17 +203,17 @@ const threadLinkMetadataAtom = Atom.family((environmentId: EnvironmentId) =>
 );
 
 /** Whether this environment answers thread link lookups, which tell a deleted thread from an unloaded one. */
-export function useThreadLinkMetadataSupported(environmentId: EnvironmentId) {
+export function useThreadLinkMetadataSupported(environmentId: EnvironmentId): boolean {
   return useAtomValue(threadLinkMetadataAtom(environmentId));
 }
 
 /** Includes threads still being created from a pending send. */
-export function useSidebarThreadShell(ref: ScopedThreadRef) {
+export function useSidebarThreadShell(ref: ScopedThreadRef): EnvironmentThreadShell | null {
   return useAtomValue(sidebarThreadShells.threadShellAtom(ref));
 }
 
 /** The shell without its streaming timestamps; see quietThreadShellAtom. */
-export function useQuietThreadShell(ref: ScopedThreadRef | null) {
+export function useQuietThreadShell(ref: ScopedThreadRef | null): EnvironmentThreadShell | null {
   return useAtomValue(
     ref === null ? EMPTY_THREAD_SHELL_ATOM : environmentThreadShells.quietThreadShellAtom(ref),
   );
@@ -225,50 +231,54 @@ export function useSideChats(ref: ScopedThreadRef | null) {
   );
 }
 
-export function readSideChats(ref: ScopedThreadRef) {
+export function readSideChats(ref: ScopedThreadRef): ReadonlyArray<EnvironmentThreadShell> {
   return appAtomRegistry.get(environmentThreadShells.sideChatsAtom(ref));
 }
 
-export function useThreadRepositoryIdentity(ref: ScopedThreadRef | null) {
+export function useThreadRepositoryIdentity(
+  ref: ScopedThreadRef | null,
+): RepositoryIdentity | null {
   return useAtomValue(
     ref === null ? EMPTY_REPOSITORY_IDENTITY_ATOM : threadRepositoryIdentityAtom(threadKey(ref)),
   );
 }
 
-export function useThreadProjection(ref: ScopedThreadRef | null) {
+export function useThreadProjection(ref: ScopedThreadRef | null): EnvironmentThread | null {
   return useAtomValue(
     ref === null ? EMPTY_THREAD_PROJECTION_ATOM : environmentThreadDetails.threadAtom(ref),
   );
 }
 
 /** The thread's structure, held through streamed assistant and reasoning text; see ThreadStructure. */
-export function useQuietThreadProjection(ref: ScopedThreadRef | null) {
+export function useQuietThreadProjection(
+  ref: ScopedThreadRef | null,
+): EnvironmentThreadStructure | null {
   return useAtomValue(
     ref === null ? EMPTY_THREAD_PROJECTION_ATOM : environmentThreadDetails.quietThreadAtom(ref),
   );
 }
 
 /** The detail's live visit mark, which the thread structure leaves out. */
-export function useThreadLastVisitedAt(ref: ScopedThreadRef | null) {
+export function useThreadLastVisitedAt(ref: ScopedThreadRef | null): DateTime.Utc | null {
   return useAtomValue(
     ref === null ? EMPTY_LAST_VISITED_AT_ATOM : environmentThreadDetails.lastVisitedAtAtom(ref),
   );
 }
 
 /** The detail's live `updatedAt`, which the thread structure leaves out. */
-export function useThreadUpdatedAt(ref: ScopedThreadRef | null) {
+export function useThreadUpdatedAt(ref: ScopedThreadRef | null): DateTime.Utc | null {
   return useAtomValue(
     ref === null ? EMPTY_UPDATED_AT_ATOM : environmentThreadDetails.updatedAtAtom(ref),
   );
 }
 
-export function useThreadStatus(ref: ScopedThreadRef | null) {
+export function useThreadStatus(ref: ScopedThreadRef | null): EnvironmentThreadStatus {
   return useAtomValue(
     ref === null ? EMPTY_THREAD_STATUS_ATOM : environmentThreadDetails.statusAtom(ref),
   );
 }
 
-export function useThreadHistory(ref: ScopedThreadRef | null) {
+export function useThreadHistory(ref: ScopedThreadRef | null): ThreadHistoryMeta {
   return useAtomValue(
     ref === null ? EMPTY_THREAD_HISTORY_ATOM : environmentThreadDetails.historyAtom(ref),
   );
@@ -280,11 +290,13 @@ export function resolveThreadDetailRef(
     shellExists: boolean;
     waitForShell: boolean;
   },
-) {
+): ScopedThreadRef | null {
   return ref !== null && (!options.waitForShell || options.shellExists) ? ref : null;
 }
 
-export function useThreadVisibleTurnItems(ref: ScopedThreadRef | null) {
+export function useThreadVisibleTurnItems(
+  ref: ScopedThreadRef | null,
+): ReadonlyArray<OrchestrationV2ProjectedTurnItem> {
   return useAtomValue(
     ref === null
       ? EMPTY_VISIBLE_TURN_ITEMS_ATOM
@@ -293,7 +305,9 @@ export function useThreadVisibleTurnItems(ref: ScopedThreadRef | null) {
 }
 
 /** Visible turn items held through streamed assistant text; see useAssistantMessageText. */
-export function useTimelineVisibleTurnItems(ref: ScopedThreadRef | null) {
+export function useTimelineVisibleTurnItems(
+  ref: ScopedThreadRef | null,
+): ReadonlyArray<OrchestrationV2ProjectedTurnItem> {
   return useAtomValue(
     ref === null
       ? EMPTY_VISIBLE_TURN_ITEMS_ATOM
@@ -302,7 +316,10 @@ export function useTimelineVisibleTurnItems(ref: ScopedThreadRef | null) {
 }
 
 /** One assistant message's live text, or null when the thread does not hold the item. */
-export function useAssistantMessageText(ref: ScopedThreadRef | null, itemId: string | undefined) {
+export function useAssistantMessageText(
+  ref: ScopedThreadRef | null,
+  itemId: string | undefined,
+): string | null {
   return useAtomValue(
     ref === null || itemId === undefined
       ? EMPTY_ASSISTANT_MESSAGE_TEXT_ATOM
@@ -311,7 +328,9 @@ export function useAssistantMessageText(ref: ScopedThreadRef | null, itemId: str
 }
 
 /** Visible turn items without their streamed text; see ThreadStructure. */
-export function useQuietThreadVisibleTurnItems(ref: ScopedThreadRef | null) {
+export function useQuietThreadVisibleTurnItems(
+  ref: ScopedThreadRef | null,
+): ReadonlyArray<ThreadStructureVisibleTurnItem> {
   return useAtomValue(
     ref === null
       ? EMPTY_VISIBLE_TURN_ITEMS_ATOM
@@ -319,7 +338,9 @@ export function useQuietThreadVisibleTurnItems(ref: ScopedThreadRef | null) {
   );
 }
 
-export function useThreadCheckpointSummaries(ref: ScopedThreadRef | null) {
+export function useThreadCheckpointSummaries(
+  ref: ScopedThreadRef | null,
+): ReadonlyArray<ThreadCheckpointSummary> {
   return useAtomValue(
     ref === null
       ? EMPTY_CHECKPOINT_SUMMARIES_ATOM
@@ -327,24 +348,27 @@ export function useThreadCheckpointSummaries(ref: ScopedThreadRef | null) {
   );
 }
 
-export function readProject(ref: ScopedProjectRef) {
+export function readProject(ref: ScopedProjectRef): EnvironmentProject | null {
   return appAtomRegistry.get(environmentProjects.projectAtom(ref));
 }
 
 export function subscribeProject(
   ref: ScopedProjectRef,
   listener: (project: EnvironmentProject | null) => void,
-) {
+): () => void {
   return appAtomRegistry.subscribe(environmentProjects.projectAtom(ref), listener);
 }
 
-export function readProjects() {
+export function readProjects(): ReadonlyArray<EnvironmentProject> {
   return appAtomRegistry.get(environmentProjects.projectsAtom);
 }
 
-export function waitForProject(ref: ScopedProjectRef, timeoutMs = 10_000) {
+export function waitForProject(
+  ref: ScopedProjectRef,
+  timeoutMs = 10_000,
+): Promise<EnvironmentProject> {
   const current = readProject(ref);
-  if (current !== null) return Promise.resolve(current) satisfies Promise<EnvironmentProject>;
+  if (current !== null) return Promise.resolve(current);
 
   return new Promise((resolve, reject) => {
     let unsubscribe: (() => void) | null = null;
@@ -360,11 +384,11 @@ export function waitForProject(ref: ScopedProjectRef, timeoutMs = 10_000) {
     };
     unsubscribe = appAtomRegistry.subscribe(environmentProjects.projectAtom(ref), finish);
     finish(readProject(ref));
-  }) satisfies Promise<EnvironmentProject>;
+  });
 }
 
 /** Waits for removal from the live store; delete replies arrive before the shell stream. */
-export function waitForProjectRemoval(ref: ScopedProjectRef, timeoutMs = 5_000) {
+export function waitForProjectRemoval(ref: ScopedProjectRef, timeoutMs = 5_000): Promise<boolean> {
   return waitForAtomValue({
     registry: appAtomRegistry,
     atom: environmentProjects.projectAtom(ref),
@@ -381,11 +405,11 @@ export function readThreadTurnItems(ref: ScopedThreadRef) {
   );
 }
 
-export function readThreadShell(ref: ScopedThreadRef) {
+export function readThreadShell(ref: ScopedThreadRef): EnvironmentThreadShell | null {
   return appAtomRegistry.get(environmentThreadShells.threadShellAtom(ref));
 }
 
-export function waitForThreadShell(ref: ScopedThreadRef, timeoutMs = 5_000) {
+export function waitForThreadShell(ref: ScopedThreadRef, timeoutMs = 5_000): Promise<boolean> {
   return waitForAtomValue({
     registry: appAtomRegistry,
     atom: environmentThreadShells.threadShellAtom(ref),
@@ -401,7 +425,10 @@ const sidebarThreadNavigationStateAtom = Atom.family((ref: ScopedThreadRef) =>
   }),
 );
 
-export async function waitForSidebarThreadShell(ref: ScopedThreadRef, signal: AbortSignal) {
+export async function waitForSidebarThreadShell(
+  ref: ScopedThreadRef,
+  signal: AbortSignal,
+): Promise<boolean> {
   const atom = sidebarThreadNavigationStateAtom(ref);
   const resolved = await waitForAtomValue({
     registry: appAtomRegistry,
@@ -414,24 +441,28 @@ export async function waitForSidebarThreadShell(ref: ScopedThreadRef, signal: Ab
 
 /** Whether the environment can host preview tabs in its own browser (`runtime: "server"`),
     so clients without Electron can still use the Browser panel. */
-export function useEnvironmentSupportsServerBrowser(environmentId: EnvironmentId | null) {
+export function useEnvironmentSupportsServerBrowser(environmentId: EnvironmentId | null): boolean {
   const configs = useServerConfigs();
   return environmentId !== null && configs.has(environmentId);
 }
 
-export function readEnvironmentSupportsServerBrowser(environmentId: EnvironmentId) {
+export function readEnvironmentSupportsServerBrowser(environmentId: EnvironmentId): boolean {
   return appAtomRegistry.get(environmentServerConfigsAtom).has(environmentId);
 }
 
-export function readEnvironmentThreadRefs(environmentId: EnvironmentId) {
+export function readEnvironmentThreadRefs(
+  environmentId: EnvironmentId,
+): ReadonlyArray<ScopedThreadRef> {
   return appAtomRegistry.get(environmentThreadShells.environmentThreadRefsAtom(environmentId));
 }
 
-export function readThreadShells() {
+export function readThreadShells(): ReadonlyArray<EnvironmentThreadShell> {
   return appAtomRegistry.get(environmentThreadShells.threadShellsAtom);
 }
 
-function shellParentThreadId(thread: Pick<OrchestrationV2ThreadShell, "forkedFrom" | "lineage">) {
+function shellParentThreadId(
+  thread: Pick<OrchestrationV2ThreadShell, "forkedFrom" | "lineage">,
+): ThreadId | null {
   return thread.forkedFrom?.type === "run"
     ? thread.forkedFrom.threadId
     : thread.lineage.parentThreadId;
@@ -442,7 +473,7 @@ export function selectThreadRelationshipShells(
   threadId: ThreadId,
   projection: Pick<ThreadStructure, "thread" | "subagents" | "contextTransfers"> | null,
   threads: ReadonlyArray<OrchestrationV2ThreadShell>,
-) {
+): ReadonlyArray<OrchestrationV2ThreadShell> {
   const named = new Set<string>([threadId]);
   if (projection !== null) {
     const parentThreadId = shellParentThreadId(projection.thread);
@@ -489,7 +520,9 @@ const relationshipShellsAtomFamily = Atom.family((key: string) => {
   }).pipe(Atom.withLabel(`web-thread-relationship-shells:${key}`));
 });
 
-export function useThreadRelationshipShells(ref: ScopedThreadRef) {
+export function useThreadRelationshipShells(
+  ref: ScopedThreadRef,
+): ReadonlyArray<OrchestrationV2ThreadShell> {
   return useAtomValue(relationshipShellsAtomFamily(threadKey(ref)));
 }
 

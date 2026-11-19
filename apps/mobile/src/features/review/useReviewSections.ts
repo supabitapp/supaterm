@@ -19,6 +19,7 @@ import {
   getReviewSectionIdForCheckpoint,
   resolveReviewSelectedSectionId,
   reviewTurnDiffsBySectionId,
+  type ReviewSectionItem,
 } from "./reviewModel";
 import { setReviewSelectedSectionId, type ReviewCacheForThread } from "./reviewState";
 
@@ -105,7 +106,7 @@ export function useReviewSections(input: {
     ignoreWhitespace: false,
   });
 
-  const reviewSections = cachedSections.map((section) => {
+  const reviewSections = cachedSections.map((section): ReviewSectionItem => {
     if (section.kind === "turn") {
       return section.id === activeSectionId
         ? {

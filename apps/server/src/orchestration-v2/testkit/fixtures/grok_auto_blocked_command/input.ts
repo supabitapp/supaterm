@@ -12,7 +12,7 @@ export const GROK_AUTO_BLOCKED_COMMAND_PROMPT = [
   "The second path does not exist. Do not run anything else, then reply exactly: permission test done",
 ].join("\n");
 
-export function grokAutoBlockedCommandInput() {
+export function grokAutoBlockedCommandInput(): OrchestratorFixtureInput {
   return {
     runtimeMode: "auto",
     steps: [
@@ -22,5 +22,5 @@ export function grokAutoBlockedCommandInput() {
         shellSnapshotKeyWhilePending: GROK_AUTO_PENDING_SHELL_KEY,
       },
     ],
-  } satisfies OrchestratorFixtureInput;
+  };
 }

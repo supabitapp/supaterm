@@ -44,7 +44,7 @@ const providerInstanceId = ProviderInstanceId.make("codex");
 const providerDriver = ProviderDriverKind.make("codex");
 const modelSelection = { instanceId: providerInstanceId, model: "gpt-5.4" };
 
-function makeThread(threadId: ThreadId, now: DateTime.Utc) {
+function makeThread(threadId: ThreadId, now: DateTime.Utc): OrchestrationV2AppThread {
   return {
     id: threadId,
     projectId: ProjectId.make(`project:${threadId}`),
@@ -67,7 +67,7 @@ function makeThread(threadId: ThreadId, now: DateTime.Utc) {
     doneAt: null,
     lastVisitedAt: null,
     deletedAt: null,
-  } satisfies OrchestrationV2AppThread;
+  };
 }
 
 function threadCreated(thread: OrchestrationV2AppThread, now: DateTime.Utc) {
@@ -94,7 +94,7 @@ function itemEvent(
   spec: (typeof itemSpecs)[number],
   revision: number,
   eventId = `event:turn-item-compaction:${spec.key}:${revision}`,
-) {
+): OrchestrationV2DomainEvent {
   const id = TurnItemId.make(`turn-item:compaction:${spec.key}`);
   const growing = `${spec.key}:${revision}:` + "x".repeat((revision + 1) * 192);
   const completed = revision === 69;
@@ -143,15 +143,14 @@ function itemEvent(
     threadId,
     occurredAt: now,
     payload,
-  } satisfies OrchestrationV2DomainEvent as OrchestrationV2DomainEvent;
+  };
 }
 
 function subagentEvents(
   threadId: ThreadId,
   now: DateTime.Utc,
   revision: number,
-): ReadonlyArray<OrchestrationV2DomainEvent>;
-function subagentEvents(threadId: ThreadId, now: DateTime.Utc, revision: number) {
+): ReadonlyArray<OrchestrationV2DomainEvent> {
   const id = NodeId.make("subagent:turn-item-compaction");
   const prompt = revision === 0 ? "Review prompt A. ".repeat(40) : "Review prompt B. ".repeat(40);
   const progress = `Review progress ${revision}`;
@@ -219,7 +218,7 @@ function subagentEvents(threadId: ThreadId, now: DateTime.Utc, revision: number)
         result: null,
       },
     },
-  ] satisfies ReadonlyArray<OrchestrationV2DomainEvent> satisfies ReadonlyArray<OrchestrationV2DomainEvent>;
+  ] satisfies ReadonlyArray<OrchestrationV2DomainEvent>;
 }
 
 it.effect(

@@ -24,7 +24,11 @@ import {
   previewThreadRefsAtom,
   type ThreadPreviewState,
 } from "../../previewStateStore";
-import { selectDeviceDismissed, useRightPanelStore } from "../../rightPanelStore";
+import {
+  type PanelOpenOrigin,
+  selectDeviceDismissed,
+  useRightPanelStore,
+} from "../../rightPanelStore";
 import { RIGHT_PANEL_INLINE_LAYOUT_MEDIA_QUERY } from "../../rightPanelLayout";
 import { appAtomRegistry } from "../../rpc/atomRegistry";
 import { deviceEnvironment } from "../../state/device";
@@ -36,10 +40,10 @@ interface RevealOptions {
   readonly sheetLayout: boolean;
 }
 
-const panelOrigin = (options: RevealOptions, force: boolean) =>
+const panelOrigin = (options: RevealOptions, force: boolean): PanelOpenOrigin =>
   force || (options.openTarget === "panel" && !options.sheetLayout) ? "agent" : "agent-quiet";
 
-const hasBrowserTab = (threadRef: ScopedThreadRef, tabId: string) =>
+const hasBrowserTab = (threadRef: ScopedThreadRef, tabId: string): boolean =>
   useRightPanelStore
     .getState()
     .byThreadKey[scopedThreadKey(threadRef)]?.surfaces.some(
@@ -55,7 +59,7 @@ export function revealServerTabs(
   threadRef: ScopedThreadRef,
   sessions: ReadonlyArray<PreviewSessionSnapshot>,
   options: RevealOptions,
-) {
+): void {
   if (!readEnvironmentSupportsServerBrowser(threadRef.environmentId)) return;
   for (const session of sessions) {
     if (options.openTarget === "floating" && !hasBrowserTab(threadRef, session.tabId)) {
@@ -71,7 +75,7 @@ export function revealServerTabs(
  * preview sessions. Server-hosted sessions are only complete once the first
  * list has loaded; before that, a missing session is not a closed one.
  */
-export function followPreviewSessions(threadRef: ScopedThreadRef, state: ThreadPreviewState) {
+export function followPreviewSessions(threadRef: ScopedThreadRef, state: ThreadPreviewState): void {
   if (readEnvironmentSupportsServerBrowser(threadRef.environmentId) && !state.listLoaded) return;
   const sessions = Object.values(state.sessions);
   useRightPanelStore.getState().reconcileBrowserSurfaces(
@@ -88,7 +92,10 @@ export function followPreviewSessions(threadRef: ScopedThreadRef, state: ThreadP
   if (source?.kind === "browser" && !state.sessions[source.tabId]) miniPlayer.close(threadRef);
 }
 
-function freshlyRevealedServerTabs(previous: ThreadPreviewState, next: ThreadPreviewState) {
+function freshlyRevealedServerTabs(
+  previous: ThreadPreviewState,
+  next: ThreadPreviewState,
+): ReadonlyArray<PreviewSessionSnapshot> {
   if (!previous.listLoaded || previous.sessions === next.sessions) return [];
   return Object.values(next.sessions).filter((session) => {
     if (session.runtime !== "server" || session.reveal !== true) return false;
@@ -99,12 +106,12 @@ function freshlyRevealedServerTabs(previous: ThreadPreviewState, next: ThreadPre
   });
 }
 
-const currentRevealOptions = () => ({
+const currentRevealOptions = (): RevealOptions => ({
   openTarget: getClientSettings().browserAgentOpenTarget,
   sheetLayout: window.matchMedia(RIGHT_PANEL_INLINE_LAYOUT_MEDIA_QUERY).matches,
 });
 
-function followThread(threadKey: string, threadRef: ScopedThreadRef) {
+function followThread(threadKey: string, threadRef: ScopedThreadRef): () => void {
   const atom = previewStateAtom(threadKey);
   let previous = appAtomRegistry.get(atom);
   return appAtomRegistry.subscribe(atom, (next) => {
@@ -127,7 +134,7 @@ function hasLiveSession(
   state: DeviceServiceState,
   threadId: ThreadId,
   target: { readonly hostId: string; readonly deviceId: string },
-) {
+): boolean {
   return state.sessions.some(
     (session) =>
       session.threadId === threadId &&
@@ -146,7 +153,7 @@ export function applyDeviceSnapshot(
   environmentId: EnvironmentId,
   state: DeviceServiceState,
   options: RevealOptions,
-) {
+): void {
   const deviceFor = (session: DeviceServiceState["sessions"][number]) =>
     state.devices.find((entry) => entry.hostId === session.hostId && entry.id === session.deviceId);
 
@@ -193,16 +200,16 @@ export function floatDeviceSurface(
   threadRef: ScopedThreadRef,
   source: Extract<PreviewMiniPlayerSource, { kind: "device" }>,
   state: DeviceServiceState | null,
-) {
+): void {
   if (state !== null && !hasLiveSession(state, threadRef.threadId, source)) return;
   usePreviewMiniPlayerStore.getState().open(threadRef, source);
 }
 
-export function resetDeviceSessionBaselinesForTests() {
+export function resetDeviceSessionBaselinesForTests(): void {
   deviceSessionBaselines.clear();
 }
 
-function watchEnvironmentDevices(environmentId: EnvironmentId) {
+function watchEnvironmentDevices(environmentId: EnvironmentId): () => void {
   return appAtomRegistry.subscribe(
     deviceEnvironment.state({ environmentId, input: {} }),
     (result) => {
@@ -219,7 +226,7 @@ function watchEnvironmentDevices(environmentId: EnvironmentId) {
  * device sessions for the life of the page, not just the open thread's: an
  * agent in a background thread can open either.
  */
-export function startAgentOpenedPreviews() {
+export function startAgentOpenedPreviews(): () => void {
   const followed = new Map<string, () => void>();
   const followNewThreads = (refs: ReadonlyMap<string, ScopedThreadRef>) => {
     for (const [threadKey, threadRef] of refs) {

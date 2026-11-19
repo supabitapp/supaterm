@@ -2006,9 +2006,9 @@ it.effect.each([
             },
           }
         : CodexProviderCapabilitiesV2;
-      const liveAdapter: (
+      const liveAdapter = (
         instanceId: ProviderInstanceId,
-      ) => ProviderAdapter.ProviderAdapterV2["Service"] = (instanceId: ProviderInstanceId) => ({
+      ): ProviderAdapter.ProviderAdapterV2["Service"] => ({
         ...adapter,
         instanceId,
         getCapabilities: () => Effect.succeed(adapterCapabilities),

@@ -3,7 +3,7 @@ import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
 import * as Layer from "effect/Layer";
-import type { PullRequestCheckStatus } from "@supaterm/contracts";
+import type { PullRequestCheck, PullRequestCheckStatus } from "@supaterm/contracts";
 
 import * as AzureDevOpsPullRequestCli from "./AzureDevOpsPullRequestCli.ts";
 import {
@@ -43,13 +43,16 @@ const PULL_REQUEST = {
   autoMergeEnabled: false,
 };
 
-function change(path: string, changeKind: AzureDevOpsChangeEntry["changeKind"] = "change") {
+function change(
+  path: string,
+  changeKind: AzureDevOpsChangeEntry["changeKind"] = "change",
+): AzureDevOpsChangeEntry {
   return { path, oldPath: path, changeKind, objectId: "8f80", originalObjectId: "0ca4" };
 }
 
 const NO_BLOBS = { readBlobs: () => Effect.succeed(new Map()) };
 
-function side(prefix: string, lines: number, width: number) {
+function side(prefix: string, lines: number, width: number): string {
   const pad = "z".repeat(width);
   return `${Array.from({ length: lines }, (_, line) => `${prefix} ${line} ${pad}`).join("\n")}\n`;
 }
@@ -119,7 +122,7 @@ const readSlice = (input: {
     return { slice, reads, peakInFlight };
   });
 
-function patchedPaths(patch: string) {
+function patchedPaths(patch: string): ReadonlyArray<string> {
   return [...patch.matchAll(/^diff --git a\/(?<path>\S+) b\//gmu)].map(
     (match) => match.groups?.path ?? "",
   );
@@ -242,7 +245,7 @@ describe("policy checks", () => {
     host: "dev.azure.com",
     number: 7,
   };
-  const check = (status: PullRequestCheckStatus) => ({
+  const check = (status: PullRequestCheckStatus): PullRequestCheck => ({
     name: "PR validation",
     status,
     description: null,

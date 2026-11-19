@@ -17,7 +17,7 @@ const CHECKOUT_COMMAND = /^az\s+repos\s+pr\s+checkout\s+(.+)$/i;
 const CHANGE_REQUEST_REFERENCE =
   /^https:\/\/(?:dev\.azure\.com\/[^/\s]+\/[^/\s]+|[^/\s]+\.visualstudio\.com\/(?:DefaultCollection\/)?[^/\s]+)\/_git\/[^/\s]+\/pullrequest\/(\d+)(?:[/?#].*)?$/i;
 
-function isAzureHostname(hostname: string) {
+function isAzureHostname(hostname: string): boolean {
   return (
     hostname === "dev.azure.com" ||
     hostname.endsWith(".dev.azure.com") ||
@@ -25,7 +25,7 @@ function isAzureHostname(hostname: string) {
   );
 }
 
-function repositoryKeyFromRemote(key: string) {
+function repositoryKeyFromRemote(key: string): string | null {
   const match =
     /^(ssh\.dev\.azure\.com|vs-ssh\.visualstudio\.com)\/v3\/([^/]+)\/([^/]+)\/([^/]+)$/u.exec(key);
   if (match === null) {
@@ -37,7 +37,7 @@ function repositoryKeyFromRemote(key: string) {
     : `${organization}.visualstudio.com/${project}/_git/${repository}`;
 }
 
-function canonicalRepositoryKey(key: string) {
+function canonicalRepositoryKey(key: string): string | null {
   const canonical = key
     .replace(
       /^(?:ssh\.dev\.azure\.com|vs-ssh\.visualstudio\.com)\/v3\/([^/]+)\/([^/]+)\/([^/]+)$/u,
@@ -50,7 +50,7 @@ function canonicalRepositoryKey(key: string) {
   return canonical.startsWith("dev.azure.com/") ? canonical : null;
 }
 
-function decodeUrlPathSegment(segment: string) {
+function decodeUrlPathSegment(segment: string): string {
   try {
     return decodeURIComponent(segment);
   } catch {
@@ -58,7 +58,7 @@ function decodeUrlPathSegment(segment: string) {
   }
 }
 
-function checkoutCommandId(args: string) {
+function checkoutCommandId(args: string): string | null {
   const parts = args.trim().split(/\s+/).filter(Boolean);
   for (const [index, part] of parts.entries()) {
     if (part === "--id" || part === "-i") return parts[index + 1] ?? null;

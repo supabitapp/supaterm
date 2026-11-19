@@ -130,11 +130,11 @@ const INLINE_EDITOR_HEIGHT = 36;
 const COLLAPSED_EDITOR_DEFAULT_INSET = 6;
 const LOWERCASE_MIDLINE_EM = 0.562;
 
-function lowercaseMidline(text: ScaledTextRole) {
+function lowercaseMidline(text: ScaledTextRole): number {
   return text.lineHeight - LOWERCASE_MIDLINE_EM * text.fontSize;
 }
 
-function collapsedEditorInset(text: ScaledTextRole) {
+function collapsedEditorInset(text: ScaledTextRole): number {
   const shift = lowercaseMidline(text) - lowercaseMidline(MOBILE_TYPOGRAPHY.body);
   return Math.max(0, Math.round(COLLAPSED_EDITOR_DEFAULT_INSET - shift));
 }

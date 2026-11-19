@@ -3,23 +3,20 @@ import type { NativeReviewDiffRow } from "../diffs/nativeReviewDiffSurface";
 import type { NativeReviewDiffData } from "../review/nativeReviewDiffAdapter";
 import type { PendingReviewComment } from "./pullRequestReviewDrafts";
 
-export function reviewPosition(row: NativeReviewDiffRow) {
-  if (row.kind !== "line") return null satisfies PullRequestReviewPosition | null;
+export function reviewPosition(row: NativeReviewDiffRow): PullRequestReviewPosition | null {
+  if (row.kind !== "line") return null;
   if (row.change === "add" && row.newLineNumber)
-    return { kind: "added", newLine: row.newLineNumber } satisfies PullRequestReviewPosition | null;
+    return { kind: "added", newLine: row.newLineNumber };
   if (row.change === "delete" && row.oldLineNumber)
-    return {
-      kind: "deleted",
-      oldLine: row.oldLineNumber,
-    } satisfies PullRequestReviewPosition | null;
+    return { kind: "deleted", oldLine: row.oldLineNumber };
   if (row.oldLineNumber && row.newLineNumber)
     return {
       kind: "context",
       oldLine: row.oldLineNumber,
       newLine: row.newLineNumber,
       side: "right",
-    } satisfies PullRequestReviewPosition | null;
-  return null satisfies PullRequestReviewPosition | null;
+    };
+  return null;
 }
 export function reviewPositionLabel(position: PullRequestReviewPosition) {
   const oldSide =
@@ -36,14 +33,8 @@ export function annotatePullRequestDiff(
   threads: readonly PullRequestReviewThread[],
   drafts: readonly PendingReviewComment[],
   headSha: string | undefined,
-): NativeReviewDiffData;
-export function annotatePullRequestDiff(
-  data: NativeReviewDiffData,
-  threads: readonly PullRequestReviewThread[],
-  drafts: readonly PendingReviewComment[],
-  headSha: string | undefined,
-) {
-  if (threads.length === 0 && drafts.length === 0) return data satisfies NativeReviewDiffData;
+): NativeReviewDiffData {
+  if (threads.length === 0 && drafts.length === 0) return data;
   const anchors = new Map<string, NativeReviewDiffRow[]>();
   const firstByPath = new Map<string, NativeReviewDiffRow>();
   const lines = new Map<string, NativeReviewDiffRow>();
@@ -108,13 +99,9 @@ export function annotatePullRequestDiff(
       String(line),
     );
   }
-  return {
-    ...data,
-    rows: data.rows.flatMap((row) => [row, ...(anchors.get(row.id) ?? [])]),
-  } satisfies NativeReviewDiffData;
+  return { ...data, rows: data.rows.flatMap((row) => [row, ...(anchors.get(row.id) ?? [])]) };
 }
 
-export function formatCommentCount(count: number): string;
-export function formatCommentCount(count: number) {
-  return `${count.toLocaleString()} ${count === 1 ? "comment" : "comments"}` satisfies string;
+export function formatCommentCount(count: number): string {
+  return `${count.toLocaleString()} ${count === 1 ? "comment" : "comments"}`;
 }

@@ -14,7 +14,7 @@ export type UsagePagePreferences = typeof UsagePagePreferencesSchema.Type;
 
 const DEFAULT_PREFERENCES: UsagePagePreferences = { metric: "limits", windowDays: 30 };
 
-export function readUsagePagePreferences() {
+export function readUsagePagePreferences(): UsagePagePreferences {
   try {
     return getLocalStorageItem(STORAGE_KEY, UsagePagePreferencesSchema) ?? DEFAULT_PREFERENCES;
   } catch (error) {
@@ -23,7 +23,7 @@ export function readUsagePagePreferences() {
   }
 }
 
-export function saveUsagePagePreferences(preferences: UsagePagePreferences) {
+export function saveUsagePagePreferences(preferences: UsagePagePreferences): void {
   try {
     setLocalStorageItem(STORAGE_KEY, preferences, UsagePagePreferencesSchema);
   } catch (error) {

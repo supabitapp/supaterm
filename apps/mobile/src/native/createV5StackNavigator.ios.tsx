@@ -362,12 +362,6 @@ export function createV5StackNavigator<
   const NavigatorID extends string | undefined = string | undefined,
   const TypeBag extends NavigatorTypeBagBase = V5TypeBag<ParamList, NavigatorID>,
   const Config extends StaticConfig<TypeBag> = StaticConfig<TypeBag>,
->(config?: Config): TypedNavigator<TypeBag, Config>;
-export function createV5StackNavigator<
-  const ParamList extends ParamListBase,
-  const NavigatorID extends string | undefined = string | undefined,
-  const TypeBag extends NavigatorTypeBagBase = V5TypeBag<ParamList, NavigatorID>,
-  const Config extends StaticConfig<TypeBag> = StaticConfig<TypeBag>,
->(config?: Config) {
-  return createNavigatorFactory(V5StackNavigator)(config) satisfies TypedNavigator<TypeBag, Config>;
+>(config?: Config): TypedNavigator<TypeBag, Config> {
+  return createNavigatorFactory(V5StackNavigator)(config);
 }

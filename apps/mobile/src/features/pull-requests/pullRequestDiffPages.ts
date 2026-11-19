@@ -26,9 +26,9 @@ export function getCachedPullRequestDiffPages(
   pages: readonly PullRequestDiffPage[],
   scope: string,
   terminology: ChangeRequestTerminology,
-) {
+): ReviewParsedDiff {
   const first = pages[0];
-  if (!first) return { kind: "empty" } satisfies ReviewParsedDiff;
+  if (!first) return { kind: "empty" };
   const key = JSON.stringify([scope, terminology.singular, first.cursor]);
   let snapshots = parsedSnapshots.get(first.result);
   if (!snapshots) {
@@ -43,11 +43,11 @@ export function getCachedPullRequestDiffPages(
       return cached?.cursor === page.cursor && cached.result === page.result;
     })
   )
-    return previous.parsed satisfies ReviewParsedDiff;
+    return previous.parsed;
   const cache = previous?.cache ?? new WeakMap<PullRequestDiffResult, ReviewParsedDiff>();
   const parsed = combinePullRequestDiffPages(pages, cache, scope, terminology);
   snapshots.set(key, { pages, cache, parsed });
-  return parsed satisfies ReviewParsedDiff;
+  return parsed;
 }
 
 /** A changed page invalidates later cursors, which belong to the previous patch. */
@@ -55,7 +55,7 @@ export function retainPullRequestDiffPage(
   pages: readonly PullRequestDiffPage[],
   cursor: string | null,
   result: PullRequestDiffResult,
-) {
+): readonly PullRequestDiffPage[] {
   const index = pages.findIndex((page) => page.cursor === cursor);
   if (index === -1) return [...pages, { cursor, result }];
   const previous = pages[index]?.result;
@@ -77,7 +77,7 @@ export function combinePullRequestDiffPages(
   cache: WeakMap<PullRequestDiffResult, ReviewParsedDiff>,
   scope: string,
   terminology: ChangeRequestTerminology,
-) {
+): ReviewParsedDiff {
   const parsed = pages.map((page) => {
     const cached = cache.get(page.result);
     if (cached) return cached;
@@ -107,7 +107,7 @@ export function combinePullRequestDiffPages(
     return value;
   });
   const files = parsed.flatMap((page) => (page.kind === "files" ? page.files : []));
-  if (files.length === 0) return (parsed[0] ?? { kind: "empty" }) satisfies ReviewParsedDiff;
+  if (files.length === 0) return parsed[0] ?? { kind: "empty" };
   return {
     kind: "files",
     files,
@@ -119,7 +119,7 @@ export function combinePullRequestDiffPages(
       parsed.some((page) => page.kind === "raw" || (page.kind === "files" && page.notice !== null))
         ? `Some file contents are unavailable. Open the ${terminology.singular} on its provider to see the full changes.`
         : null,
-  } satisfies ReviewParsedDiff;
+  };
 }
 
 export type WithheldFileLoad =
@@ -137,7 +137,7 @@ function parseWithheldFile(result: PullRequestDiffResult, scope: string) {
   return file;
 }
 
-function withheldFileNotice(load: WithheldFileLoad | undefined, canLoad: boolean) {
+function withheldFileNotice(load: WithheldFileLoad | undefined, canLoad: boolean): string {
   if (load === undefined) {
     return canLoad
       ? "Diff too large to display. Tap to load it."
@@ -157,28 +157,27 @@ export function withWithheldFiles(
   loads: ReadonlyMap<string, WithheldFileLoad>,
   canLoad: boolean,
   scope: string,
-) {
-  if (parsed.kind !== "files" || !parsed.files.some((file) => file.withheld))
-    return parsed satisfies ReviewParsedDiff;
-  const files = parsed.files.map((file) => {
-    if (!file.withheld) return file satisfies ReviewRenderableFile;
+): ReviewParsedDiff {
+  if (parsed.kind !== "files" || !parsed.files.some((file) => file.withheld)) return parsed;
+  const files = parsed.files.map((file): ReviewRenderableFile => {
+    if (!file.withheld) return file;
     const load = loads.get(file.path);
     const loaded =
       load?.status === "loaded"
         ? parseWithheldFile(load.result, `${scope}:withheld:${file.path}`)
         : null;
-    if (loaded !== null) return { ...loaded, id: file.id } satisfies ReviewRenderableFile;
+    if (loaded !== null) return { ...loaded, id: file.id };
     return {
       ...file,
       notice: withheldFileNotice(load, canLoad),
       noticeTone: "warning",
       noticeActionable: canLoad && (load === undefined || load.status === "error"),
-    } satisfies ReviewRenderableFile;
+    };
   });
   return {
     ...parsed,
     files,
     additions: files.reduce((total, file) => total + file.additions, 0),
     deletions: files.reduce((total, file) => total + file.deletions, 0),
-  } satisfies ReviewParsedDiff;
+  };
 }

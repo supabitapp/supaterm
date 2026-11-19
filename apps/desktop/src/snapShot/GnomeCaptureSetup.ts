@@ -131,8 +131,7 @@ export class GnomeCaptureSetup {
     }
   }
 
-  state(): Promise<DesktopCaptureExtensionState>;
-  async state() {
+  async state(): Promise<DesktopCaptureExtensionState> {
     try {
       const [properties, info, bundled, installed] = await Promise.all([
         this.call({
@@ -171,53 +170,53 @@ export class GnomeCaptureSetup {
         return {
           status: "unsupported",
           message: `The bundled extension supports GNOME ${bundled["shell-version"].join(", ")}. This session runs GNOME ${major}.`,
-        } satisfies DesktopCaptureExtensionState;
+        };
       if (!info.state && !installed)
         return {
           status: "not-installed",
           message:
             "Install the bundled extension to capture the active window without a picker. No download or administrator password is needed.",
-        } satisfies DesktopCaptureExtensionState;
+        };
       if (installed && (!info.state || (info.version && installed.version > info.version.value)))
         return {
           status: "restart-required",
           message:
             "Installed. Save your work, sign out of GNOME and sign back in, then return here to enable the extension. Restarting Supaterm alone is not enough.",
-        } satisfies DesktopCaptureExtensionState;
+        };
       if ((installed?.version ?? info.version?.value ?? 0) < bundled.version)
         return {
           status: "update-required",
           message:
             "A newer extension is bundled with this app. Install it, then sign out and back in to load the update.",
-        } satisfies DesktopCaptureExtensionState;
+        };
       if (!properties.UserExtensionsEnabled.value)
         return {
           status: "extensions-disabled",
           message:
             "GNOME has disabled user extensions. Turn on Extensions in the GNOME Extensions app, then check again. Supaterm will not enable your other extensions for you.",
-        } satisfies DesktopCaptureExtensionState;
+        };
       if (info.state?.value === 1)
         return {
           status: "enabled",
           message: "The Supaterm extension is running. Active-window snapshots are available.",
-        } satisfies DesktopCaptureExtensionState;
+        };
       if (info.state?.value === 3 || info.state?.value === 4)
         return {
           status: "error",
           message:
             info.error?.value ||
             "GNOME could not load the extension. Check GNOME Extensions for details, or sign out and back in.",
-        } satisfies DesktopCaptureExtensionState;
+        };
       return {
         status: "disabled",
         message:
           "Enable the Supaterm extension to allow active-window snapshots. You can disable it here at any time.",
-      } satisfies DesktopCaptureExtensionState;
+      };
     } catch (error) {
       return {
         status: "error",
         message: error instanceof Error ? error.message : "Could not check GNOME extension setup.",
-      } satisfies DesktopCaptureExtensionState;
+      };
     }
   }
 

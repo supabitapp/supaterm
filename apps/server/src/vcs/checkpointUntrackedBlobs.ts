@@ -382,7 +382,7 @@ export const make = (
       );
       if (/\0filter\./.test(config)) return;
       const sameConfig = before !== undefined && config === before.config;
-      const admitted = candidates.flatMap((blob, index) => {
+      const admitted = candidates.flatMap((blob, index): UntrackedBlob[] => {
         const value = attributes[index];
         return sameConfig &&
           value !== undefined &&

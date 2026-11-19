@@ -78,7 +78,7 @@ import * as LocalDeviceHost from "./LocalDeviceHost.ts";
 
 export const DEVICE_HUB_ROUTE_PREFIX = "/api/device-hub";
 
-const sshProbeFailureMessage = (error: DeviceHost.DeviceHostError) => {
+const sshProbeFailureMessage = (error: DeviceHost.DeviceHostError): string => {
   if (SshDeviceHost.isSshConnectError(error.cause)) return error.cause.message;
   const windows = SshDeviceHost.isSshWindowsHostError(error.cause) ? error.cause : null;
   const cause = windows ? windows.cause : error.cause;
@@ -104,7 +104,7 @@ const sshProbeFailureMessage = (error: DeviceHost.DeviceHostError) => {
 
 const isToolchainInstallError = Schema.is(DeviceToolchainInstallError);
 
-const actionableHostFailure = (error: DeviceHost.DeviceHostError) => {
+const actionableHostFailure = (error: DeviceHost.DeviceHostError): string | undefined => {
   if (error.step === "probe") return sshProbeFailureMessage(error);
   if (isToolchainInstallError(error.cause) && error.cause.reason === "npm_not_found")
     return error.cause.message;
@@ -132,7 +132,7 @@ export class DeviceHostAmbiguousError extends Schema.TaggedError<DeviceHostAmbig
   "DeviceHostAmbiguousError",
   { deviceId: DeviceId, hosts: Schema.Array(DeviceHostName) },
 ) {
-  override get message() {
+  override get message(): string {
     return `Device ${this.deviceId} is on more than one host: ${this.hosts.map(hostName).join(", ")}.`;
   }
 }
@@ -141,7 +141,7 @@ export class DeviceOnOtherHostError extends Schema.TaggedError<DeviceOnOtherHost
   "DeviceOnOtherHostError",
   { deviceId: DeviceId, host: DeviceHostName, hosts: Schema.Array(DeviceHostName) },
 ) {
-  override get message() {
+  override get message(): string {
     return `Device ${this.deviceId} is not on ${hostName(this.host)}. It is on ${this.hosts.map(hostName).join(", ")}.`;
   }
 }
@@ -537,7 +537,7 @@ export const makeWithHosts = Effect.fn("DeviceService.makeWithHosts")(function* 
     const { devices, detail, androidDiscoveryIncomplete, incompletePlatforms } =
       yield* ready.devices.list;
     return {
-      devices: devices.map((device) => ({ ...device, hostId: ready.hostId })),
+      devices: devices.map((device): DeviceSummary => ({ ...device, hostId: ready.hostId })),
       detail,
       androidDiscoveryIncomplete,
       incompletePlatforms: incompletePlatforms ?? [],
@@ -720,7 +720,11 @@ export const makeWithHosts = Effect.fn("DeviceService.makeWithHosts")(function* 
     },
   );
 
-  const findDevice = (state: DeviceServiceState, hostId: DeviceHostId, deviceId: DeviceId) =>
+  const findDevice = (
+    state: DeviceServiceState,
+    hostId: DeviceHostId,
+    deviceId: DeviceId,
+  ): DeviceSummary | undefined =>
     state.devices.find((device) => device.hostId === hostId && device.id === deviceId);
 
   const ensurePlatform = Effect.fn("DeviceService.ensurePlatform")(function* (
@@ -1012,7 +1016,7 @@ export const makeWithHosts = Effect.fn("DeviceService.makeWithHosts")(function* 
     state: DeviceServiceState,
     input: { readonly hostId?: DeviceHostId | undefined; readonly deviceId: DeviceId },
     matches: ReadonlyArray<T>,
-  ) => {
+  ): Effect.Effect<Option.Option<T>, DeviceHostAmbiguousError | DeviceOnOtherHostError> => {
     const named = (id: DeviceHostId) => ({
       id,
       label: state.hosts.find((host) => host.id === id)?.label,
@@ -1467,7 +1471,7 @@ export const make = Effect.gen(function* () {
   const configuredHosts = (value: {
     readonly deviceHosts: ReadonlyArray<SshDeviceHostConfig>;
     readonly easDeviceHosts: ReadonlyArray<EasDeviceHostConfig>;
-  }) => [
+  }): ReadonlyArray<DeviceHostConfig> => [
     ...value.deviceHosts,
     ...value.easDeviceHosts.filter((host) => !value.deviceHosts.some((ssh) => ssh.id === host.id)),
   ];
@@ -1517,7 +1521,7 @@ export const make = Effect.gen(function* () {
 
 export const layer = Layer.effect(DeviceService, make).pipe(Layer.provide(LocalDeviceHost.layer));
 
-export const stateStream = (service: DeviceService["Service"]) =>
+export const stateStream = (service: DeviceService["Service"]): Stream.Stream<DeviceServiceState> =>
   Stream.unwrap(
     Effect.gen(function* () {
       const subscription = yield* service.subscribe;

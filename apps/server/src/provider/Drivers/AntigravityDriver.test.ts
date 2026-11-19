@@ -52,7 +52,7 @@ const blockedCredentialKeys = new Set([
   "GOOGLE_GENAI_USE_VERTEXAI",
 ]);
 
-function shellQuote(value: string) {
+function shellQuote(value: string): string {
   return `'${value.replaceAll("'", `'"'"'`)}'`;
 }
 

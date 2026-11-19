@@ -31,8 +31,8 @@ export class TranscribeUsageError extends Schema.TaggedError<TranscribeUsageErro
   { detail: Schema.String },
 ) {
   override readonly [Runtime.errorReported] = false;
-  override get message() {
-    return this.detail satisfies string as string;
+  override get message(): string {
+    return this.detail;
   }
 }
 

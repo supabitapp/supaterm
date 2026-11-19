@@ -18,6 +18,7 @@ import {
   filePreviewSourceIdentifier,
 } from "../../lib/filePreviewGallery";
 import { FilePreviewGallery } from "./FilePreviewGallery";
+import type { MediaActionsSource } from "../../lib/mediaActionsSource";
 import type {
   FilePreviewItem,
   FilePreviewModalProps,
@@ -42,7 +43,7 @@ class PreviewResolutionError extends Error {
 
 const isAssetNotFoundError = Schema.is(AssetWorkspaceAssetNotFoundError);
 
-function remotePreviewFailureMessage(error: unknown) {
+function remotePreviewFailureMessage(error: unknown): string {
   if (!isAssetNotFoundError(error)) {
     return "Reconnect to this environment and try again. The file may have been moved or deleted.";
   }
@@ -55,16 +56,15 @@ interface ResolvedPreviewUri {
   readonly dispose?: () => void;
 }
 
-function resolvePreviewUri(
+async function resolvePreviewUri(
   item: FilePreviewItem,
   signal: AbortSignal,
-): Promise<ResolvedPreviewUri | null>;
-async function resolvePreviewUri(item: FilePreviewItem, signal: AbortSignal) {
-  if ("uri" in item) return { uri: item.uri } satisfies ResolvedPreviewUri | null;
+): Promise<ResolvedPreviewUri | null> {
+  if ("uri" in item) return { uri: item.uri };
   if ("attachment" in item) {
     return loadLocalAttachmentPreview(item.attachment, signal).catch((error: unknown) => {
       throw new PreviewResolutionError(error, "Attach the file again and retry.");
-    }) satisfies ResolvedPreviewUri | null;
+    });
   }
   const url = await refreshAssetUrl(item.environmentId, item.resource, signal)
     .then((value) => {
@@ -74,10 +74,10 @@ async function resolvePreviewUri(item: FilePreviewItem, signal: AbortSignal) {
     .catch((error: unknown) => {
       throw new PreviewResolutionError(error, remotePreviewFailureMessage(error));
     });
-  return { uri: url + (item.srcFragment ?? "") } satisfies ResolvedPreviewUri | null;
+  return { uri: url + (item.srcFragment ?? "") };
 }
 
-function pdfActionsSource(item: FilePreviewItem) {
+function pdfActionsSource(item: FilePreviewItem): MediaActionsSource {
   const metadata = {
     name: filePreviewName(item),
     mimeType: item.mimeType ?? "application/pdf",

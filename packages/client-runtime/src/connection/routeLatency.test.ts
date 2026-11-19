@@ -231,8 +231,7 @@ describe("route latency", () => {
 });
 
 const relayEndpoint = `https://${"11".repeat(16)}.${"22".repeat(16)}.relay.supaterm.alt/`;
-function relayRoute(relayUrl?: string): ConnectionRoute;
-function relayRoute(relayUrl?: string) {
+function relayRoute(relayUrl?: string): ConnectionRoute {
   return {
     ...directRoute,
     profile: Option.some(
@@ -245,7 +244,7 @@ function relayRoute(relayUrl?: string) {
         ...(relayUrl === undefined ? {} : { relayUrl }),
       }),
     ),
-  } satisfies ConnectionRoute;
+  };
 }
 const checkRoute = (route: ConnectionRoute) =>
   Effect.gen(function* () {

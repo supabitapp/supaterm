@@ -42,52 +42,42 @@ export interface EnvironmentPresentation {
   readonly refusedRouteIds: ReadonlyArray<string>;
 }
 
-export function isEnvironmentConnected(environment: EnvironmentPresentation | null) {
+export function isEnvironmentConnected(environment: EnvironmentPresentation | null): boolean {
   return environment?.connection.phase === "connected";
 }
 
-export function presentConnectionState(state: SupervisorConnectionState) {
+export function presentConnectionState(
+  state: SupervisorConnectionState,
+): EnvironmentConnectionPresentation {
   switch (state.phase) {
     case "available":
-      return {
-        phase: "available",
-        error: null,
-        traceId: null,
-      } satisfies EnvironmentConnectionPresentation;
+      return { phase: "available", error: null, traceId: null };
     case "offline":
-      return {
-        phase: "offline",
-        error: null,
-        traceId: null,
-      } satisfies EnvironmentConnectionPresentation;
+      return { phase: "offline", error: null, traceId: null };
     case "connecting":
       return {
         phase: state.attempt <= 1 && state.lastFailure === null ? "connecting" : "reconnecting",
         error: state.lastFailure?.message ?? null,
         traceId: state.lastFailure?.traceId ?? null,
-      } satisfies EnvironmentConnectionPresentation;
+      };
     case "connected":
-      return {
-        phase: "connected",
-        error: null,
-        traceId: null,
-      } satisfies EnvironmentConnectionPresentation;
+      return { phase: "connected", error: null, traceId: null };
     case "backoff":
       return {
         phase: "reconnecting",
         error: state.lastFailure?.message ?? null,
         traceId: state.lastFailure?.traceId ?? null,
-      } satisfies EnvironmentConnectionPresentation;
+      };
     case "blocked":
       return {
         phase: state.lastFailure?.reason === "unsupported" ? "unsupported" : "error",
         error: state.lastFailure?.message ?? null,
         traceId: state.lastFailure?.traceId ?? null,
-      } satisfies EnvironmentConnectionPresentation;
+      };
   }
 }
 
-export function connectionStatusText(connection: EnvironmentConnectionPresentation) {
+export function connectionStatusText(connection: EnvironmentConnectionPresentation): string {
   switch (connection.phase) {
     case "available":
       return "Available";
@@ -110,7 +100,7 @@ export function connectionStatusText(connection: EnvironmentConnectionPresentati
   }
 }
 
-export function connectionStatusTitle(connection: EnvironmentConnectionPresentation) {
+export function connectionStatusTitle(connection: EnvironmentConnectionPresentation): string {
   if (connection.phase === "reconnecting" && connection.error) {
     return "Failed to connect. Reconnecting...";
   }
@@ -120,7 +110,7 @@ export function connectionStatusTitle(connection: EnvironmentConnectionPresentat
 export function environmentMcpUrl(input: {
   readonly entry: ConnectionCatalogEntry;
   readonly connectedTarget?: ConnectionTarget | null | undefined;
-}) {
+}): string | null {
   const connectedRouteId = input.connectedTarget ? connectionRouteId(input.connectedTarget) : null;
   const routes = connectionRoutes(input.entry);
   const connectedRoute = routes.find(
@@ -134,7 +124,7 @@ export function environmentMcpUrl(input: {
   return null;
 }
 
-function mcpUrlFromBase(httpBaseUrl: string) {
+function mcpUrlFromBase(httpBaseUrl: string): string | null {
   let url: URL;
   try {
     url = new URL(httpBaseUrl);
@@ -147,7 +137,7 @@ function mcpUrlFromBase(httpBaseUrl: string) {
   return url.toString();
 }
 
-export function connectionCatalogDisplayUrl(entry: ConnectionCatalogEntry) {
+export function connectionCatalogDisplayUrl(entry: ConnectionCatalogEntry): string | null {
   switch (entry.target._tag) {
     case "PrimaryConnectionTarget":
       return entry.target.httpBaseUrl;
@@ -162,7 +152,7 @@ export function connectionCatalogDisplayUrl(entry: ConnectionCatalogEntry) {
   }
 }
 
-export function connectionAddressLabel(url: string) {
+export function connectionAddressLabel(url: string): string {
   const name = relayName(url);
   return name === null ? url : `Relay · ${name}`;
 }
@@ -171,7 +161,7 @@ export function environmentConnectionAddress(input: {
   readonly entry: ConnectionCatalogEntry;
   readonly connectionState: EnvironmentConnectionPhase;
   readonly connectedTarget?: ConnectionTarget | null;
-}) {
+}): string | null {
   if (input.entry.enabled && input.connectionState === "connected" && input.connectedTarget) {
     const activeId = connectionRouteId(input.connectedTarget);
     const route = connectionRoutes(input.entry).find(

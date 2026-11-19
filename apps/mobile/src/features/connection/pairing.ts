@@ -3,7 +3,7 @@ import * as Schema from "effect/Schema";
 
 const MOBILE_PAIRING_URL_PARAM = "pairingUrl";
 
-function isIpLiteral(host: string) {
+function isIpLiteral(host: string): boolean {
   try {
     const hostname = new URL(`http://${host}`).hostname.replace(/^\[|\]$/g, "");
     if (hostname.includes(":")) return true;
@@ -22,12 +22,12 @@ export class PairingQrPayloadEmptyError extends Schema.TaggedError<PairingQrPayl
   "PairingQrPayloadEmptyError",
   {},
 ) {
-  override get message() {
+  override get message(): string {
     return "Scanned QR code did not contain a pairing URL.";
   }
 }
 
-export function buildPairingUrl(host: string, code: string) {
+export function buildPairingUrl(host: string, code: string): string {
   const h = host.trim();
   const c = code.trim();
   if (!h) return "";
@@ -42,7 +42,7 @@ export function buildPairingUrl(host: string, code: string) {
   }
 }
 
-export function parsePairingUrl(url: string) {
+export function parsePairingUrl(url: string): { host: string; code: string } {
   const trimmed = url.trim();
   if (!trimmed) return { host: "", code: "" };
 
@@ -70,14 +70,14 @@ export function parsePairingUrl(url: string) {
   }
 }
 
-export function pairingUrlForFields(host: string, code: string, originalUrl: string) {
+export function pairingUrlForFields(host: string, code: string, originalUrl: string): string {
   const original = parsePairingUrl(originalUrl);
   return originalUrl && original.host === host.trim() && original.code === code.trim()
     ? originalUrl
     : buildPairingUrl(host, code);
 }
 
-export function extractPairingUrlFromQrPayload(payload: string) {
+export function extractPairingUrlFromQrPayload(payload: string): string {
   const trimmed = payload.trim();
   if (!trimmed) {
     throw new PairingQrPayloadEmptyError({});

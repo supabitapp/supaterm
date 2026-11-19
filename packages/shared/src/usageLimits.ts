@@ -120,7 +120,7 @@ export const CHATGPT_WORKSPACE_USAGE_LIMIT_CODE =
 export const CHATGPT_WORKSPACE_ADMIN_REQUEST =
   "I've reached the limit for using my ChatGPT plan in Supaterm. Could you increase our workspace's usage limits so I can continue?\n\nGo to admin.openai.com → Workspace → Usage limits. Thank you!";
 
-export function usesChatGptSharing(provider: ServerProvider | null | undefined) {
+export function usesChatGptSharing(provider: ServerProvider | null | undefined): boolean {
   return provider?.auth.status === "authenticated" && provider.auth.subscriptionSharing === true;
 }
 
@@ -150,14 +150,14 @@ export function cursorUsageWindowDetails(id: string, pool: LimitPool) {
     : details;
 }
 
-function cursorUsageWindowRank(id: string) {
+function cursorUsageWindowRank(id: string): number {
   const rank = CURSOR_USAGE_WINDOWS.findIndex((window) => window.id === id);
   return rank < 0 ? CURSOR_USAGE_WINDOWS.length : rank;
 }
 
 type ProviderWithLimits = ServerProvider & { readonly usageLimits: ServerProviderUsageLimits };
 
-function providersWithLimits(providers: readonly ServerProvider[]) {
+function providersWithLimits(providers: readonly ServerProvider[]): readonly ProviderWithLimits[] {
   return providers.filter(hasUsageLimits);
 }
 
@@ -206,7 +206,7 @@ export function collectExternalUsageLinks(presentations: LimitPresentations) {
   return [...links.values()];
 }
 
-function accountKey(provider: ServerProvider) {
+function accountKey(provider: ServerProvider): string | null {
   const normalizedEmail = provider.auth.email?.trim().toLowerCase();
   if (normalizedEmail) return `${provider.driver}:${normalizedEmail}`;
   const fingerprint = provider.usageLimits?.credentialFingerprint;
@@ -222,7 +222,7 @@ function accountKeyResolver(providers: Iterable<ServerProvider>) {
       workspaces.set(key, (workspaces.get(key) ?? new Set()).add(workspaceId));
     }
   }
-  return (provider: ServerProvider) => {
+  return (provider: ServerProvider): string | null => {
     const key = accountKey(provider);
     if (!key) return null;
     if (provider.auth.workspaceId) return `${key}:${provider.auth.workspaceId}`;
@@ -250,7 +250,7 @@ export interface LimitAccount {
   readonly limits: ServerProviderUsageLimits;
 }
 
-export function collectLimitAccounts(presentations: LimitPresentations) {
+export function collectLimitAccounts(presentations: LimitPresentations): readonly LimitAccount[] {
   const accounts = new Map<string, LimitAccount>();
   const creditSources = new Map<string, LimitAccount>();
   const planSources = new Map<string, LimitAccount>();
@@ -326,7 +326,7 @@ export function collectLimitAccounts(presentations: LimitPresentations) {
   return [...accounts.values()];
 }
 
-export function collectLimitNotices(presentations: LimitPresentations) {
+export function collectLimitNotices(presentations: LimitPresentations): readonly string[] {
   const label = (environmentLabel: string, subject: string) =>
     presentations.size > 1 ? `${environmentLabel} · ${subject}` : subject;
   const notices = new Set<string>();
@@ -372,7 +372,7 @@ export interface LimitPool {
   readonly windows: readonly LimitPoolWindow[];
 }
 
-function hasDuplicateCursorTotal(pool: LimitPool) {
+function hasDuplicateCursorTotal(pool: LimitPool): boolean {
   if (pool.windows.length !== 2) return false;
   const total = pool.windows.find((window) => window.id === "totalPercentUsed");
   const auto = pool.windows.find((window) => window.id === "autoPercentUsed");
@@ -419,7 +419,10 @@ const WINDOW_KIND_ORDER: Record<ServerProviderUsageWindow["kind"], number> = {
   other: 3,
 };
 
-export function collectLimitPools(accounts: readonly LimitAccount[], now: number) {
+export function collectLimitPools(
+  accounts: readonly LimitAccount[],
+  now: number,
+): readonly LimitPool[] {
   const byDriver = new Map<ServerProvider["driver"], LimitAccount[]>();
   for (const account of accounts) {
     const list = byDriver.get(account.driver);
@@ -446,10 +449,10 @@ export function collectLimitPools(accounts: readonly LimitAccount[], now: number
         left.key.localeCompare(right.key),
     );
     return { driver, accounts: sorted, windows: poolWindows(sorted, now) };
-  }) satisfies readonly LimitPool[];
+  });
 }
 
-function accountSortName(account: LimitAccount) {
+function accountSortName(account: LimitAccount): string {
   return (account.displayName ?? account.email ?? account.key).toLowerCase();
 }
 
@@ -471,7 +474,7 @@ function planCapacity(account: LimitAccount, kind: ServerProviderUsageWindow["ki
   return undefined;
 }
 
-function poolKey(driver: ServerProvider["driver"], window: ServerProviderUsageWindow) {
+function poolKey(driver: ServerProvider["driver"], window: ServerProviderUsageWindow): string {
   return driver === "codex" ? window.kind : `${window.kind}:${window.id}`;
 }
 
@@ -518,7 +521,7 @@ function poolMember(account: LimitAccount, reported: ServerProviderUsageWindow, 
   };
 }
 
-function poolWindows(accounts: readonly LimitAccount[], now: number) {
+function poolWindows(accounts: readonly LimitAccount[], now: number): readonly LimitPoolWindow[] {
   const byKey = new Map<string, LimitPoolMember[]>();
   for (const account of accounts) {
     for (const reported of account.limits.windows) {
@@ -533,7 +536,7 @@ function poolWindows(accounts: readonly LimitAccount[], now: number) {
       else byKey.set(key, [member]);
     }
   }
-  const pools = [...byKey].map(([key, members]) => {
+  const pools = [...byKey].map(([key, members]): LimitPoolWindow => {
     const memberByAccount = new Map(members.map((member) => [member.account.key, member]));
     const first = members[0]!.window;
     const id = members[0]!.account.driver === "codex" ? key : first.id;
@@ -585,14 +588,12 @@ function poolWindows(accounts: readonly LimitAccount[], now: number) {
       remainingPercent: Math.round(100 - usedPercent),
       pace: meanElapsed === null ? null : paceOfShares(timedUsed, meanElapsed),
       resets,
-    } satisfies LimitPoolWindow;
+    };
   });
-  return pools.sort(
-    (left, right) => WINDOW_KIND_ORDER[left.kind] - WINDOW_KIND_ORDER[right.kind],
-  ) satisfies readonly LimitPoolWindow[];
+  return pools.sort((left, right) => WINDOW_KIND_ORDER[left.kind] - WINDOW_KIND_ORDER[right.kind]);
 }
 
-export function limitsNotice(limits: ServerProviderUsageLimits) {
+export function limitsNotice(limits: ServerProviderUsageLimits): string | null {
   if (limits.unavailable?.reason === "unsupported") {
     return limits.unavailable.message ?? "This account has no subscription limits.";
   }
@@ -603,17 +604,17 @@ export function limitsNotice(limits: ServerProviderUsageLimits) {
 }
 
 /** Quota left in the window, 0..100. The Limits views show what remains, as Codex does. */
-export function remainingPercent(window: ServerProviderUsageWindow) {
+export function remainingPercent(window: ServerProviderUsageWindow): number {
   return Math.round(100 - Math.max(0, Math.min(100, window.usedPercent)));
 }
 
-function resetMillis(window: ServerProviderUsageWindow) {
+function resetMillis(window: ServerProviderUsageWindow): number | null {
   if (window.resetsAt === undefined) return null;
   const at = Date.parse(window.resetsAt);
   return Number.isFinite(at) ? at : null;
 }
 
-export function elapsedShare(window: ServerProviderUsageWindow, now: number) {
+export function elapsedShare(window: ServerProviderUsageWindow, now: number): number | null {
   const resetsAt = resetMillis(window);
   if (resetsAt === null || window.windowDurationMins === undefined) return null;
   const length = window.windowDurationMins * MINUTE;
@@ -621,26 +622,29 @@ export function elapsedShare(window: ServerProviderUsageWindow, now: number) {
   return Math.max(0, Math.min(1, (length - (resetsAt - now)) / length));
 }
 
-export function paceRemainingPercent(window: ServerProviderUsageWindow, now: number) {
+export function paceRemainingPercent(
+  window: ServerProviderUsageWindow,
+  now: number,
+): number | null {
   const elapsed = elapsedShare(window, now);
   return elapsed === null ? null : Math.round((1 - elapsed) * 100);
 }
 
 export type LimitPace = "ahead" | "on" | "under";
 
-export function paceOf(window: ServerProviderUsageWindow, now: number) {
+export function paceOf(window: ServerProviderUsageWindow, now: number): LimitPace | null {
   const elapsed = elapsedShare(window, now);
   return elapsed === null ? null : paceOfShares(window.usedPercent, elapsed);
 }
 
-function paceOfShares(usedPercent: number, elapsed: number) {
+function paceOfShares(usedPercent: number, elapsed: number): LimitPace {
   const gap = usedPercent - elapsed * 100;
   if (gap > 5) return "ahead";
   if (gap < -5) return "under";
   return "on";
 }
 
-export function formatDuration(ms: number) {
+export function formatDuration(ms: number): string {
   const remaining = Math.max(0, ms);
   const days = Math.floor(remaining / DAY);
   const hours = Math.floor((remaining % DAY) / HOUR);
@@ -665,7 +669,7 @@ export function resetCreditChoices(
   input: ProviderConsumeResetCreditInput,
   now: number,
   compact = false,
-) {
+): ReadonlyArray<ResetCreditChoice> {
   const expiresIn = (at: string | undefined) => (at ? formatDuration(Date.parse(at) - now) : null);
   if (credits.options) {
     return credits.options.map((option) => {
@@ -700,7 +704,7 @@ export function resetCreditChoices(
   ];
 }
 
-export function formatResetsIn(window: ServerProviderUsageWindow, now: number) {
+export function formatResetsIn(window: ServerProviderUsageWindow, now: number): string | null {
   const resetsAt = resetMillis(window);
   if (resetsAt === null) return null;
   if (resetsAt <= now) return "resets now";
@@ -710,7 +714,7 @@ export function formatResetsIn(window: ServerProviderUsageWindow, now: number) {
 
 const HEADLINE_WINDOW_KINDS = ["session", "weekly", "monthly"] as const;
 
-function headlineWindowLabel(window: ServerProviderUsageWindow) {
+function headlineWindowLabel(window: ServerProviderUsageWindow): string {
   if (window.kind === "weekly") return "Week";
   if (window.kind === "monthly") return "Month";
   const mins = window.windowDurationMins;
@@ -736,19 +740,19 @@ export const USAGE_LIMITS_COMMAND = {
   description: "Show this provider's usage limits",
 } satisfies ServerProviderSlashCommand;
 
-export function isUsageLimitsCommand(prompt: string) {
+export function isUsageLimitsCommand(prompt: string): boolean {
   return prompt.trim().toLowerCase() === "/usage-limits";
 }
 
 export function hasProviderUsageLimits(
   driver: ServerProvider["driver"],
   providers: readonly ServerProvider[],
-) {
+): boolean {
   return providersWithLimits(providers).some((provider) => provider.driver === driver);
 }
 
 /** Advertise on workspace catalogs too, which replace the global command list. */
-export function withUsageLimitsCommands(providers: readonly ServerProvider[]) {
+export function withUsageLimitsCommands(providers: readonly ServerProvider[]): ServerProvider[] {
   const supportedDrivers = new Set(
     providersWithLimits(providers).map((provider) => provider.driver),
   );
@@ -777,7 +781,7 @@ export function collectProviderUsageLimits(
   instanceId: ProviderInstanceId,
   providers: readonly ServerProvider[],
   now: number,
-) {
+): UsageLimitsReport | null {
   const selected = providers.find((provider) => provider.instanceId === instanceId);
   if (!selected || !hasProviderUsageLimits(selected.driver, providers)) return null;
   const resolveKey = accountKeyResolver(providers.filter((provider) => provider.enabled));

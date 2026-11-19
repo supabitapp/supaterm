@@ -27,7 +27,7 @@ let registrationVersion = 0;
 export function useHardwareKeyboardCommand(
   command: HardwareKeyboardCommand | ReadonlyArray<HardwareKeyboardCommand>,
   handler: CommandHandler,
-) {
+): void {
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- registers the handler in the module-level hardware keyboard command registry
   useEffect(() => {
     const commands = typeof command === "string" ? [command] : command;
@@ -50,20 +50,20 @@ export function useHardwareKeyboardCommand(
   }, [command, handler]);
 }
 
-export function getRegisteredHardwareKeyboardCommands() {
+export function getRegisteredHardwareKeyboardCommands(): ReadonlySet<HardwareKeyboardCommand> {
   return new Set(handlers.keys());
 }
 
-export function getHardwareKeyboardCommandRegistrationVersion() {
+export function getHardwareKeyboardCommandRegistrationVersion(): number {
   return registrationVersion;
 }
 
-export function subscribeToHardwareKeyboardCommandRegistrations(listener: () => void) {
+export function subscribeToHardwareKeyboardCommandRegistrations(listener: () => void): () => void {
   registrationListeners.add(listener);
   return () => registrationListeners.delete(listener);
 }
 
-export function dispatchHardwareKeyboardCommand(command: HardwareKeyboardCommand) {
+export function dispatchHardwareKeyboardCommand(command: HardwareKeyboardCommand): boolean {
   const commandHandlers = handlers.get(command);
   if (!commandHandlers) return false;
   const handlersInRegistrationOrder = Array.from(commandHandlers);
@@ -75,7 +75,10 @@ export function dispatchHardwareKeyboardCommand(command: HardwareKeyboardCommand
   return false;
 }
 
-export function parseActiveThreadPath(pathname: string) {
+export function parseActiveThreadPath(pathname: string): {
+  readonly environmentId: EnvironmentId;
+  readonly threadId: ThreadId;
+} | null {
   const match = /^\/threads\/([^/]+)\/([^/]+)(?:\/|$)/.exec(pathname);
   if (!match?.[1] || !match[2]) return null;
   try {
@@ -91,14 +94,8 @@ export function parseActiveThreadPath(pathname: string) {
 export function nextEnvironmentId<T extends { readonly environmentId: string }>(
   environments: ReadonlyArray<T>,
   currentId: string | null,
-): T["environmentId"] | null;
-export function nextEnvironmentId<T extends { readonly environmentId: string }>(
-  environments: ReadonlyArray<T>,
-  currentId: string | null,
-) {
-  if (environments.length < 2) return null satisfies T["environmentId"] | null;
+): T["environmentId"] | null {
+  if (environments.length < 2) return null;
   const index = environments.findIndex((environment) => environment.environmentId === currentId);
-  return (environments[(index + 1) % environments.length]?.environmentId ?? null) satisfies
-    | T["environmentId"]
-    | null;
+  return environments[(index + 1) % environments.length]?.environmentId ?? null;
 }

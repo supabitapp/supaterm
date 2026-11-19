@@ -50,7 +50,7 @@ beforeEach(() => {
   );
 });
 
-function makeFile(sizeBytes: number, type = "image/png") {
+function makeFile(sizeBytes: number, type = "image/png"): File {
   return new File([new Uint8Array(sizeBytes).fill(7)], "shot.png", { type });
 }
 
@@ -60,7 +60,7 @@ function makeHeicFile(options?: {
   width?: number;
   height?: number;
   lastModified?: number;
-}) {
+}): File {
   const encoder = new TextEncoder();
   const makeBox = (name: string, ...contents: Uint8Array[]) => {
     const bytes = new Uint8Array(8 + contents.reduce((size, content) => size + content.length, 0));

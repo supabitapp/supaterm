@@ -121,18 +121,15 @@ const transcribeBody = (wav: Uint8Array, language: string | undefined, uuid: str
 };
 
 /** Status from the provider check. Credentials are only checked for presence, never read. */
-export const codexTranscriptionStatus = (auth: ServerProvider["auth"], authFileExists: boolean) => {
-  if (auth.status === "unauthenticated")
-    return { status: "unavailable", reason: "signedOut" } satisfies
-      | ServerProviderTranscription
-      | undefined;
-  if (auth.status !== "authenticated")
-    return undefined satisfies ServerProviderTranscription | undefined;
-  return (
-    auth.type === "chatgpt" && authFileExists
-      ? { status: "ready" }
-      : { status: "unavailable", reason: "unsupportedLogin" }
-  ) satisfies ServerProviderTranscription | undefined;
+export const codexTranscriptionStatus = (
+  auth: ServerProvider["auth"],
+  authFileExists: boolean,
+): ServerProviderTranscription | undefined => {
+  if (auth.status === "unauthenticated") return { status: "unavailable", reason: "signedOut" };
+  if (auth.status !== "authenticated") return undefined;
+  return auth.type === "chatgpt" && authFileExists
+    ? { status: "ready" }
+    : { status: "unavailable", reason: "unsupportedLogin" };
 };
 
 export const makeCodexTranscription = Effect.fn("makeCodexTranscription")(function* (input: {

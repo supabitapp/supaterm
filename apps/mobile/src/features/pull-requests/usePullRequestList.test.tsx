@@ -23,7 +23,7 @@ vi.mock("../../connection/catalog", async () => {
 vi.mock("../../state/pull-requests", async () => {
   const { AsyncResult, Atom } = await import("effect/reactivity");
   const Effect = await import("effect/Effect");
-  const page = (nextCursors: PullRequestListResult["nextCursors"]) => ({
+  const page = (nextCursors: PullRequestListResult["nextCursors"]): PullRequestListResult => ({
     entries: [],
     nextCursors,
     truncated: false,

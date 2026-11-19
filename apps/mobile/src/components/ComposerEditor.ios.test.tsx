@@ -73,7 +73,7 @@ function NativeView({ ref, ...props }: NativeProps) {
   return null;
 }
 
-function pend(value: string) {
+function pend(value: string): NativeEvent {
   native.eventCount += 1;
   native.text = value;
   return {

@@ -85,7 +85,7 @@ const colour = (value: string | null, fallback: string) =>
   value !== null && HEX.test(value) ? `#${value.toLowerCase()}` : fallback;
 
 /** Settings from a studio URL's query, defaulting anything missing or malformed. */
-export function settingsFromSearch(search: string) {
+export function settingsFromSearch(search: string): BoltComputerSettings {
   const query = new URLSearchParams(search);
   const state = query.get("state");
   const speed = Number(query.get("speed"));
@@ -103,7 +103,7 @@ export function settingsFromSearch(search: string) {
 }
 
 /** The query that reproduces `settings`, naming only what differs from the defaults. */
-export function searchFromSettings(settings: BoltComputerSettings) {
+export function searchFromSettings(settings: BoltComputerSettings): string {
   const query = new URLSearchParams();
   if (settings.state !== DEFAULT_SETTINGS.state) query.set("state", settings.state);
   if (settings.shell !== DEFAULT_SETTINGS.shell) query.set("shell", settings.shell.slice(1));
@@ -122,7 +122,11 @@ export function searchFromSettings(settings: BoltComputerSettings) {
 
 const isDefault = (settings: BoltComputerSettings) => searchFromSettings(settings) === "";
 
-function withSetting(settings: BoltComputerSettings, key: ControlKey, raw: string) {
+function withSetting(
+  settings: BoltComputerSettings,
+  key: ControlKey,
+  raw: string,
+): BoltComputerSettings {
   switch (key) {
     case "state":
       return isState(raw) ? { ...settings, state: raw } : settings;
@@ -175,7 +179,7 @@ export function startStudio(root: HTMLElement) {
   if (!stage) return;
   let settings = settingsFromSearch(location.search);
   const computer = mountBoltComputer(stage, settings);
-  const thumbSettings = (state: BoltComputerState) => ({
+  const thumbSettings = (state: BoltComputerState): BoltComputerSettings => ({
     ...settings,
     state,
     paused: true,

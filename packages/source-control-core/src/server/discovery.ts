@@ -83,7 +83,7 @@ type SourceControlCliRemoteRefinementSpec = SourceControlCliDiscoverySpec & {
 const DEFAULT_PROBE_TIMEOUT_MS = 5_000;
 const API_PROBE_TIMEOUT = "3 seconds";
 
-function probeTimeoutMs(spec: SourceControlCliDiscoverySpec) {
+function probeTimeoutMs(spec: SourceControlCliDiscoverySpec): number {
   return spec.probeTimeoutMs ?? DEFAULT_PROBE_TIMEOUT_MS;
 }
 
@@ -97,7 +97,7 @@ interface DiscoveryProbeResult {
   readonly detail: Option.Option<string>;
 }
 
-export function firstNonEmptyLine(text: string) {
+export function firstNonEmptyLine(text: string): Option.Option<string> {
   const line = NodeUtil.stripVTControlCharacters(text)
     .split(/\r?\n/)
     .map((entry) => entry.trim())
@@ -105,24 +105,24 @@ export function firstNonEmptyLine(text: string) {
   return line === undefined ? Option.none() : Option.some(line);
 }
 
-export function detailFromCause(cause: unknown) {
+export function detailFromCause(cause: unknown): Option.Option<string> {
   if (cause instanceof Error && cause.message.trim().length > 0) {
     return Option.some(cause.message.trim());
   }
   return Option.none();
 }
 
-function authAccount(account: string | undefined) {
+function authAccount(account: string | undefined): Option.Option<string> {
   const trimmed = account?.trim();
   return trimmed === undefined || trimmed.length === 0 ? Option.none() : Option.some(trimmed);
 }
 
-function authHost(host: string | undefined) {
+function authHost(host: string | undefined): Option.Option<string> {
   const trimmed = host?.trim();
   return trimmed === undefined || trimmed.length === 0 ? Option.none() : Option.some(trimmed);
 }
 
-function authDetail(detail: string | undefined) {
+function authDetail(detail: string | undefined): Option.Option<string> {
   const trimmed = detail?.trim();
   return trimmed === undefined || trimmed.length === 0 ? Option.none() : Option.some(trimmed);
 }
@@ -132,7 +132,7 @@ export function providerAuth(input: {
   readonly account?: string | undefined;
   readonly host?: string | undefined;
   readonly detail?: string | undefined;
-}) {
+}): SourceControlProviderAuth {
   return {
     status: input.status,
     account: authAccount(input.account),
@@ -141,11 +141,11 @@ export function providerAuth(input: {
   };
 }
 
-function unknownAuth(detail?: string) {
+function unknownAuth(detail?: string): SourceControlProviderAuth {
   return providerAuth({ status: "unknown", detail });
 }
 
-export function combinedAuthOutput(input: SourceControlAuthProbeInput) {
+export function combinedAuthOutput(input: SourceControlAuthProbeInput): string {
   const parts: string[] = [];
   for (const entry of [input.stdout, input.stderr]) {
     if (entry.trim().length > 0) {
@@ -155,7 +155,7 @@ export function combinedAuthOutput(input: SourceControlAuthProbeInput) {
   return parts.join("\n");
 }
 
-function sanitizedAuthLines(text: string) {
+function sanitizedAuthLines(text: string): ReadonlyArray<string> {
   const lines: string[] = [];
   for (const entry of text.split(/\r?\n/)) {
     const line = entry.trim();
@@ -166,17 +166,17 @@ function sanitizedAuthLines(text: string) {
   return lines;
 }
 
-export function firstSafeAuthLine(text: string) {
+export function firstSafeAuthLine(text: string): string | undefined {
   return sanitizedAuthLines(text)[0];
 }
 
-export function parseCliHost(text: string) {
+export function parseCliHost(text: string): string | undefined {
   return sanitizedAuthLines(text)
     .map((line) => line.replace(/^[^a-z0-9]+/iu, ""))
     .find((line) => /^[a-z0-9][a-z0-9.-]*(?::\d+)?$/iu.test(line));
 }
 
-export function matchFirst(text: string, patterns: ReadonlyArray<RegExp>) {
+export function matchFirst(text: string, patterns: ReadonlyArray<RegExp>): string | undefined {
   for (const pattern of patterns) {
     const match = pattern.exec(text);
     const value = match?.[1]?.trim();
@@ -198,7 +198,7 @@ function probeCli(input: {
   readonly spec: SourceControlCliDiscoverySpec;
   readonly process: SourceControlHost.SourceControlHost["Service"]["process"];
   readonly cwd: string;
-}) {
+}): Effect.Effect<DiscoveryProbeResult> {
   return input.process
     .run({
       operation: "source-control.discovery.probe",
@@ -244,7 +244,7 @@ export function probeSourceControlProvider(input: {
   readonly spec: SourceControlProviderDiscoverySpec;
   readonly process: SourceControlHost.SourceControlHost["Service"]["process"];
   readonly cwd: string;
-}) {
+}): Effect.Effect<SourceControlProviderDiscoveryItem> {
   if (input.spec.type === "managed-cli") return input.spec.probe(input.cwd);
   if (input.spec.type === "api") {
     return input.spec.probeAuth.pipe(
@@ -326,7 +326,7 @@ export function probeSourceControlProvider(input: {
 const isVcsProcessSpawnError = Schema.is(VcsProcessSpawnError);
 
 /** The spawner checks cwd first, so ChildProcess NotFound identifies the executable. */
-export function isMissingExecutable(error: unknown) {
+export function isMissingExecutable(error: unknown): boolean {
   return (
     isVcsProcessSpawnError(error) &&
     PlatformError.isPlatformError(error.cause) &&
@@ -361,7 +361,7 @@ const unavailableInstallHint = Effect.fn("discovery.unavailableInstallHint")(fun
 function probeFailureHint(
   probe: { readonly executable: string; readonly versionArgs: ReadonlyArray<string> },
   cause: unknown,
-) {
+): string {
   const command = `\`${[probe.executable, ...probe.versionArgs].join(" ")}\``;
   const outcome = isVcsProcessTimeoutError(cause)
     ? `timed out after ${cause.timeoutMs}ms`
@@ -400,7 +400,7 @@ function refineWithSpec(input: {
   readonly process: SourceControlHost.SourceControlHost["Service"]["process"];
   readonly cwd: string;
   readonly context: SourceControlProvider.SourceControlProviderContext;
-}) {
+}): Effect.Effect<SourceControlProviderInfo | null, Cause.YieldableError> {
   const { spec, context } = input;
   if (spec.type === "managed-cli") {
     return spec.refineUnknownRemote({ cwd: input.cwd, context });
@@ -435,7 +435,7 @@ export const refineUnknownRemoteProvider = Effect.fn("refineUnknownRemoteProvide
     readonly process: SourceControlHost.SourceControlHost["Service"]["process"];
     readonly cwd: string;
     readonly context: SourceControlProvider.SourceControlProviderContext;
-  }) {
+  }): Effect.fn.Return<UnknownRemoteVerdict> {
     const results = yield* Effect.forEach(input.specs, (spec) =>
       refineWithSpec({ ...input, spec }).pipe(Effect.result),
     );

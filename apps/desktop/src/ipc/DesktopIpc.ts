@@ -40,7 +40,7 @@ export class DesktopIpcRegistrationError extends Schema.TaggedError<DesktopIpcRe
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Failed to register the ${this.handlerKind} IPC handler for ${this.channel}.`;
   }
 }
@@ -53,7 +53,7 @@ export class DesktopIpcUnregistrationError extends Schema.TaggedError<DesktopIpc
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Failed to unregister the ${this.handlerKind} IPC handler for ${this.channel}.`;
   }
 }
@@ -62,7 +62,7 @@ export class DesktopIpcUntrustedSenderError extends Schema.TaggedError<DesktopIp
   "DesktopIpcUntrustedSenderError",
   { channel: Schema.String },
 ) {
-  override get message() {
+  override get message(): string {
     return `Rejected ${this.channel} from a sender that is not the app window.`;
   }
 }
@@ -95,7 +95,10 @@ export class DesktopIpc extends Context.Service<
   }
 >()("@supaterm/desktop/ipc/DesktopIpc") {}
 
-export const make = (ipcMain: DesktopIpcMain, isTrustedSender: DesktopIpcSenderGuard) =>
+export const make = (
+  ipcMain: DesktopIpcMain,
+  isTrustedSender: DesktopIpcSenderGuard,
+): DesktopIpc["Service"] =>
   DesktopIpc.of({
     handle: Effect.fn("desktop.ipc.registerInvoke")(function* <E, R>({
       channel,
@@ -225,7 +228,7 @@ export interface DesktopIpcMethodRegistration<
   readonly handler: (input: Payload, event?: DesktopIpcInvokeEvent) => Effect.Effect<Result, E, R>;
 }
 
-export const makeIpcMethod: <
+export const makeIpcMethod = <
   Payload,
   EncodedPayload,
   Result,
@@ -249,34 +252,10 @@ export const makeIpcMethod: <
     ResultDecodingServices,
     ResultEncodingServices
   >,
-) => DesktopIpcMethod<
+): DesktopIpcMethod<
   E | Schema.SchemaError,
   R | PayloadDecodingServices | ResultEncodingServices
-> = <
-  Payload,
-  EncodedPayload,
-  Result,
-  EncodedResult,
-  E,
-  R,
-  PayloadDecodingServices = never,
-  PayloadEncodingServices = never,
-  ResultDecodingServices = never,
-  ResultEncodingServices = never,
->(
-  method: DesktopIpcMethodRegistration<
-    Payload,
-    EncodedPayload,
-    Result,
-    EncodedResult,
-    E,
-    R,
-    PayloadDecodingServices,
-    PayloadEncodingServices,
-    ResultDecodingServices,
-    ResultEncodingServices
-  >,
-) => {
+> => {
   const decode = Schema.decodeUnknownEffect(method.payload);
   const encode = Schema.encodeUnknownEffect(method.result);
 
@@ -325,7 +304,7 @@ export const makeSyncIpcMethod = <
     ResultDecodingServices,
     ResultEncodingServices
   >,
-) => {
+): DesktopSyncIpcMethod<E | Schema.SchemaError, R | ResultEncodingServices> => {
   const encode = Schema.encodeUnknownEffect(method.result);
 
   return {

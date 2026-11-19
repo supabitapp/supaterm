@@ -3,7 +3,7 @@ import type { OrchestratorFixtureInput } from "../shared.ts";
 export const MUSE_PERMISSION_APPROVED_FILE = "muse-approved.txt";
 export const MUSE_PERMISSION_DECLINED_FILE = "muse-declined.txt";
 
-export function musePermissionInput() {
+export function musePermissionInput(): OrchestratorFixtureInput {
   return {
     runtimeMode: "approval-required",
     steps: [
@@ -18,5 +18,5 @@ export function musePermissionInput() {
       },
       { type: "approve_next_runtime_request", decision: "decline" },
     ],
-  } satisfies OrchestratorFixtureInput;
+  };
 }

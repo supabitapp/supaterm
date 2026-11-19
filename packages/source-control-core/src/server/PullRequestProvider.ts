@@ -67,7 +67,7 @@ export class PullRequestProviderError extends Schema.TaggedError<PullRequestProv
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `${this.provider} failed in ${this.operation}: ${this.detail}`;
   }
 }

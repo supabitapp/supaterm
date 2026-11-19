@@ -12,7 +12,9 @@ export function threadWorkRowNeedsMeasurement(
   return Object.hasOwn(expandedRows, rowId);
 }
 
-export function resolveThreadFeedFixedItemSize(entryType: ThreadFeedEntry["type"]) {
+export function resolveThreadFeedFixedItemSize(
+  entryType: ThreadFeedEntry["type"],
+): number | undefined {
   switch (entryType) {
     case "run-fold":
       return TURN_FOLD_HEIGHT;

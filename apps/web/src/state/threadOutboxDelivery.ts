@@ -98,7 +98,7 @@ export function createBrowserThreadOutbox<Payload>(options: {
     return renderSnapshot;
   }
 
-  async function mutation<A>(result: Promise<A>) {
+  async function mutation<A>(result: Promise<A>): Promise<A> {
     try {
       return await result;
     } catch (error) {
@@ -214,21 +214,15 @@ export function createBrowserThreadOutbox<Payload>(options: {
     }));
   }
 
-  function editWithFollowing(
-    id: string,
-    payload: Payload,
-    scope: string,
-    retarget: (payload: Payload) => Payload,
-  ): Promise<boolean>;
   async function editWithFollowing(
     id: string,
     payload: Payload,
     scope: string,
     retarget: (payload: Payload) => Payload,
-  ) {
+  ): Promise<boolean> {
     await load();
     const head = getEntries().find((entry) => entry.id === id);
-    if (!head) return false satisfies boolean;
+    if (!head) return false;
     const moved = await options.storage.withLock(head.scope, async () => {
       await reload();
       if (getEntries().find((entry) => entry.id === id)?.scope !== head.scope) return "moved";
@@ -237,9 +231,7 @@ export function createBrowserThreadOutbox<Payload>(options: {
         await mutate(entry.id, (live) => ({ ...live, scope, payload: retarget(live.payload) }));
       return true;
     });
-    return (
-      moved === "moved" ? editWithFollowing(id, payload, scope, retarget) : (moved ?? false)
-    ) satisfies boolean;
+    return moved === "moved" ? editWithFollowing(id, payload, scope, retarget) : (moved ?? false);
   }
 
   function cancelWithFollowing(id: string) {
@@ -262,7 +254,7 @@ export function createBrowserThreadOutbox<Payload>(options: {
     return mutate(id, () => null);
   }
 
-  async function deliverScope(scope: string) {
+  async function deliverScope(scope: string): Promise<number | null> {
     const locked = await options.storage.withLock(scope, async () => {
       await reload();
       const candidate = getEntries()
@@ -335,7 +327,7 @@ export function createBrowserThreadOutbox<Payload>(options: {
       : (locked?.next ?? null);
   }
 
-  function drain() {
+  function drain(): Promise<number | null> {
     if (drainPromise) return drainPromise;
     drainPromise = (async () => {
       await load();

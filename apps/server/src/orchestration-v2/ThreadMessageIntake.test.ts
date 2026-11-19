@@ -64,43 +64,42 @@ const answeredRespondEvents = (input: {
   readonly threadId: ThreadId;
   readonly requestId: string;
   readonly attachmentsByQuestionId: UserInputAttachments;
-}) =>
-  [
-    {
-      sequence: 1,
-      commandId: null,
-      event: {
-        id: EventId.make("evt-recorded-answer"),
-        type: "turn-item.updated",
+}): OrchestrationV2StoredEvent[] => [
+  {
+    sequence: 1,
+    commandId: null,
+    event: {
+      id: EventId.make("evt-recorded-answer"),
+      type: "turn-item.updated",
+      threadId: input.threadId,
+      occurredAt: NOW,
+      payload: {
+        id: TurnItemId.make("item-recorded-answer"),
+        type: "user_input_request",
         threadId: input.threadId,
-        occurredAt: NOW,
-        payload: {
-          id: TurnItemId.make("item-recorded-answer"),
-          type: "user_input_request",
-          threadId: input.threadId,
-          runId: null,
-          nodeId: null,
-          providerThreadId: null,
-          providerTurnId: null,
-          nativeItemRef: null,
-          parentItemId: null,
-          ordinal: 1,
-          status: "completed",
-          title: null,
-          startedAt: null,
-          completedAt: NOW,
-          updatedAt: NOW,
-          requestId: RuntimeRequestId.make(input.requestId),
-          questions: [],
-          questionAnswer: {
-            requestId: input.requestId,
-            answers: {},
-            attachmentsByQuestionId: input.attachmentsByQuestionId,
-          },
+        runId: null,
+        nodeId: null,
+        providerThreadId: null,
+        providerTurnId: null,
+        nativeItemRef: null,
+        parentItemId: null,
+        ordinal: 1,
+        status: "completed",
+        title: null,
+        startedAt: null,
+        completedAt: NOW,
+        updatedAt: NOW,
+        requestId: RuntimeRequestId.make(input.requestId),
+        questions: [],
+        questionAnswer: {
+          requestId: input.requestId,
+          answers: {},
+          attachmentsByQuestionId: input.attachmentsByQuestionId,
         },
       },
     },
-  ] satisfies OrchestrationV2StoredEvent[];
+  },
+];
 
 it.effect("claims question uploads and passes readable paths through the V2 request command", () =>
   Effect.gen(function* () {

@@ -28,7 +28,7 @@ export class MacInstallerCommandFailedError extends Schema.TaggedError<MacInstal
   "MacInstallerCommandFailedError",
   { command: Schema.String, exitCode: Schema.Int },
 ) {
-  override get message() {
+  override get message(): string {
     return `${this.command} exited with code ${this.exitCode}.`;
   }
 }

@@ -147,7 +147,7 @@ interface ThreadInspectorSelection {
 
 const EMPTY_PINNED_MESSAGES: ReadonlyArray<ThreadPinnedMessage> = [];
 
-function firstRouteParam(value: string | string[] | undefined) {
+function firstRouteParam(value: string | string[] | undefined): string | null {
   const first = Array.isArray(value) ? value[0] : value;
   return first === undefined || first.trim().length === 0 ? null : first;
 }
@@ -1034,26 +1034,24 @@ function ThreadRouteContent(
       }),
     );
   };
-  const creationState = (() => {
+  const creationState = ((): ThreadDetailScreenProps["creationState"] => {
     if (selectedThreadCreation === null) {
-      return (
-        awaitingBootstrapTurn
-          ? { kind: "preparing", preparingWorktree: true, serverOwned: true }
-          : null
-      ) satisfies ThreadDetailScreenProps["creationState"];
+      return awaitingBootstrapTurn
+        ? { kind: "preparing", preparingWorktree: true, serverOwned: true }
+        : null;
     }
     if (selectedThreadCreation.outcome?.kind === "failed") {
       return {
         kind: "failed",
         reason: selectedThreadCreation.outcome.reason,
         onEditTask: handleEditFailedCreation,
-      } satisfies ThreadDetailScreenProps["creationState"];
+      };
     }
     return {
       kind: "preparing",
       preparingWorktree: selectedThreadCreation.message.creation?.workspaceMode === "worktree",
       serverOwned: false,
-    } satisfies ThreadDetailScreenProps["creationState"];
+    };
   })();
   const contentPresentation =
     creationState !== null

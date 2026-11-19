@@ -5,12 +5,12 @@ export type PendingReviewComment = PullRequestReviewCommentDraft & { readonly id
 
 let pendingCommentSequence = 0;
 
-export function nextPendingReviewCommentId() {
+export function nextPendingReviewCommentId(): string {
   pendingCommentSequence += 1;
   return `pending-review-comment-${pendingCommentSequence}`;
 }
 
-export function pullRequestReviewKey(reference: PullRequestRef) {
+export function pullRequestReviewKey(reference: PullRequestRef): string {
   return JSON.stringify([
     reference.projectId,
     reference.host?.toLowerCase() ?? null,
@@ -68,7 +68,9 @@ export const usePullRequestReviewStore = create<PullRequestReviewStoreState>()((
     }),
 }));
 
-export function usePendingReviewComments(reference: PullRequestRef) {
+export function usePendingReviewComments(
+  reference: PullRequestRef,
+): ReadonlyArray<PendingReviewComment> {
   return usePullRequestReviewStore(
     (store) => store.drafts[pullRequestReviewKey(reference)] ?? EMPTY,
   );

@@ -43,7 +43,7 @@ const TYPED_TEXT = "fix the flaky tests!";
 type TimelineProps = ComponentProps<typeof MessagesTimeline>;
 type Entry = TimelineProps["timelineEntries"][number];
 
-function message(id: string, role: "user" | "assistant", text: string, streaming = false) {
+function message(id: string, role: "user" | "assistant", text: string, streaming = false): Entry {
   return {
     id: `entry-${id}`,
     kind: "message",
@@ -60,7 +60,7 @@ function message(id: string, role: "user" | "assistant", text: string, streaming
   } as Entry;
 }
 
-function history(thread: string) {
+function history(thread: string): Entry[] {
   return Array.from({ length: HISTORY_TURNS }, (_, turn) => [
     message(`${thread}-user-${turn}`, "user", `${thread}: question ${turn} about the sidebar`),
     message(
@@ -133,7 +133,7 @@ async function quiet() {
   );
 }
 
-function onGuestPage() {
+function onGuestPage(): Disposable {
   const previous = `${window.location.pathname}${window.location.search}`;
   window.history.replaceState(window.history.state, "", "/guest?share=render-scenarios");
   return {

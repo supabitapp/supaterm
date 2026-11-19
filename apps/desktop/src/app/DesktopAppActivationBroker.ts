@@ -16,14 +16,18 @@ interface PendingActivation {
 
 type RendererSender = (request: DesktopAppActivationRequest) => void;
 
-function failure(requestId: string, code: DesktopAppActivationFailure["code"], message: string) {
+function failure(
+  requestId: string,
+  code: DesktopAppActivationFailure["code"],
+  message: string,
+): DesktopAppActivationFailure {
   return {
     version: DESKTOP_APP_ACTIVATION_PROTOCOL_VERSION,
     requestId,
     ok: false,
     code,
     message,
-  } satisfies DesktopAppActivationFailure;
+  };
 }
 
 export class DesktopAppActivationBroker {
@@ -36,11 +40,11 @@ export class DesktopAppActivationBroker {
     this.#activate = input.activate;
   }
 
-  request(request: DesktopAppActivationRequest) {
+  request(request: DesktopAppActivationRequest): Promise<DesktopAppActivationResponse> {
     if (this.#closed) {
       return Promise.resolve(
         failure(request.requestId, "renderer-unavailable", "Supaterm is shutting down."),
-      ) satisfies Promise<DesktopAppActivationResponse>;
+      );
     }
     if (this.#pending !== null) {
       return Promise.resolve(
@@ -49,7 +53,7 @@ export class DesktopAppActivationBroker {
           "request-busy",
           "The desktop app is handling another command. Try again after it finishes.",
         ),
-      ) satisfies Promise<DesktopAppActivationResponse>;
+      );
     }
 
     const response = new Promise<DesktopAppActivationResponse>((resolve) => {
@@ -74,15 +78,15 @@ export class DesktopAppActivationBroker {
 
     this.#activate();
     this.#flush();
-    return response satisfies Promise<DesktopAppActivationResponse>;
+    return response;
   }
 
-  registerRenderer(send: RendererSender) {
+  registerRenderer(send: RendererSender): void {
     this.#renderer = send;
     this.#flush();
   }
 
-  clearRenderer() {
+  clearRenderer(): void {
     this.#renderer = null;
     const pending = this.#pending;
     if (pending?.dispatched) {
@@ -96,17 +100,17 @@ export class DesktopAppActivationBroker {
     }
   }
 
-  complete(response: DesktopAppActivationResponse) {
+  complete(response: DesktopAppActivationResponse): void {
     this.#settle(response);
   }
 
-  cancel(requestId: string) {
+  cancel(requestId: string): void {
     this.#settle(
       failure(requestId, "renderer-unavailable", "The command closed before Supaterm was ready."),
     );
   }
 
-  close() {
+  close(): void {
     this.#closed = true;
     this.#renderer = null;
     const pending = this.#pending;
@@ -121,7 +125,7 @@ export class DesktopAppActivationBroker {
     }
   }
 
-  #flush() {
+  #flush(): void {
     const renderer = this.#renderer;
     if (renderer === null) return;
     const pending = this.#pending;
@@ -135,7 +139,7 @@ export class DesktopAppActivationBroker {
     }
   }
 
-  #settle(response: DesktopAppActivationResponse) {
+  #settle(response: DesktopAppActivationResponse): void {
     const pending = this.#pending;
     if (pending === null || pending.request.requestId !== response.requestId) return;
     clearTimeout(pending.timeout);

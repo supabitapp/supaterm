@@ -15,8 +15,7 @@ export interface TerminalPasteSession {
   readonly paste: (input: TerminalPasteInput) => Promise<void>;
 }
 
-export function createTerminalPasteSession(): TerminalPasteSession;
-export function createTerminalPasteSession() {
+export function createTerminalPasteSession(): TerminalPasteSession {
   let liveTarget: object | null = null;
   let latestRequest = 0;
   let writeTail: Promise<void> = Promise.resolve();
@@ -65,5 +64,5 @@ export function createTerminalPasteSession() {
       );
       await queuedWrite;
     },
-  } satisfies TerminalPasteSession;
+  };
 }

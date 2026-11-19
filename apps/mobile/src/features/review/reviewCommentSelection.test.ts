@@ -19,7 +19,7 @@ import {
 } from "./reviewCommentSelection";
 import { setReviewSelectedSectionId } from "./reviewState";
 
-function makeTarget() {
+function makeTarget(): ReviewCommentTarget {
   return {
     sectionId: "section-1",
     sectionTitle: "Working tree",
@@ -50,7 +50,7 @@ function makeTarget() {
         comparison: null,
       },
     ],
-  } satisfies ReviewCommentTarget;
+  };
 }
 
 describe("review comment serialization", () => {

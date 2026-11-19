@@ -30,7 +30,7 @@ export async function sendApprovalFeedback(
   approval: ThreadPendingApproval,
   feedback: string,
   respond: ApprovalResponder,
-) {
+): Promise<boolean> {
   if (!approval.supportsFeedback || approval.responseCapability !== "live" || !feedback.trim())
     return false;
   return (await respond(approval.requestId, "decline", feedback.trim()))?._tag === "Success";
@@ -40,7 +40,7 @@ export async function sendApprovalFeedback(
 export async function declinePendingApprovals(
   approvals: ReadonlyArray<ThreadPendingApproval>,
   respond: ApprovalResponder,
-) {
+): Promise<boolean> {
   for (const approval of approvals) {
     if (approval.responseCapability !== "live") continue;
     if ((await respond(approval.requestId, "decline"))?._tag !== "Success") return false;
@@ -87,7 +87,7 @@ export function seedUserInputDraftAnswers<Draft extends { readonly customAnswer?
     Pick<OrchestrationV2UserInputQuestion, "id" | "allowCustomAnswer" | "initialAnswer">
   >,
   drafts: Record<string, Draft>,
-) {
+): Record<string, Draft | { customAnswer: string }> {
   const seeds = questions.flatMap((question) =>
     question.initialAnswer === undefined ||
     question.allowCustomAnswer === false ||
@@ -103,7 +103,7 @@ export function userInputDraftKey(
   environmentId: string,
   threadId: string | null,
   requestId: string | undefined,
-) {
+): string {
   return JSON.stringify([environmentId, threadId, requestId]);
 }
 
@@ -116,7 +116,7 @@ export function pruneResolvedUserInputDrafts<T>(
   environmentId: string,
   threadId: string,
   pendingRequestIds: ReadonlyArray<string>,
-) {
+): Record<string, T> {
   const threadPrefix = JSON.stringify([environmentId, threadId]).slice(0, -1);
   const pendingKeys = new Set(
     pendingRequestIds.map((requestId) => userInputDraftKey(environmentId, threadId, requestId)),
@@ -137,7 +137,7 @@ export function resolvedQuestionDraftKeys(
   keys: Iterable<string>,
   threadPrefix: string,
   pendingRequestIds: ReadonlyArray<string>,
-) {
+): string[] {
   const pendingPrefixes = pendingRequestIds.map(
     (requestId) =>
       `${threadPrefix}${encodeURIComponent(`${JSON.stringify([requestId]).slice(0, -1)},`)}`,
@@ -166,12 +166,14 @@ const threadRequestsResolvedListeners = new Set<(event: ThreadRequestsResolved) 
  * when its synchronized projection first lands and whenever a request leaves
  * pending, wherever the resolution came from (another device, interrupt, turn end).
  */
-export function onThreadRequestsResolved(listener: (event: ThreadRequestsResolved) => void) {
+export function onThreadRequestsResolved(
+  listener: (event: ThreadRequestsResolved) => void,
+): () => void {
   threadRequestsResolvedListeners.add(listener);
   return () => threadRequestsResolvedListeners.delete(listener);
 }
 
-function notifyThreadRequestsResolved(event: ThreadRequestsResolved) {
+function notifyThreadRequestsResolved(event: ThreadRequestsResolved): void {
   for (const listener of threadRequestsResolvedListeners) {
     try {
       listener(event);
@@ -219,7 +221,7 @@ export function makeThreadRequestsResolvedAnnouncer(
 
 export function derivePendingThreadRequests(
   projection: Pick<ThreadStructure, "runtimeRequests" | "turnItems">,
-) {
+): PendingThreadRequests {
   const approvals: ThreadPendingApproval[] = [];
   const userInputs: ThreadPendingUserInput[] = [];
 
@@ -287,7 +289,7 @@ export function createQuestionHistoryProjector<
   let previousResult: Rows | undefined;
   let byId = new Map<RuntimeRequestId, Requests[number]>();
   const cache = new WeakMap<Row, { request: Requests[number]; row: Row }>();
-  const projectRow = (row: Row) => {
+  const projectRow = (row: Row): Row => {
     const item = row.item;
     if (item.type !== "user_input_request" || item.questionAnswer) return row;
     const request = byId.get(item.requestId);
@@ -313,7 +315,7 @@ export function createQuestionHistoryProjector<
     cache.set(row, { request, row: next });
     return next;
   };
-  const projectRows = (rows: Rows) => {
+  const projectRows = (rows: Rows): Rows => {
     let result: Row[] | undefined;
     for (const [index, row] of rows.entries()) {
       const next = projectRow(row);
@@ -322,7 +324,10 @@ export function createQuestionHistoryProjector<
     }
     return result ?? rows;
   };
-  return (projection: { readonly visibleTurnItems: Rows; readonly runtimeRequests: Requests }) => {
+  return (projection: {
+    readonly visibleTurnItems: Rows;
+    readonly runtimeRequests: Requests;
+  }): Rows => {
     const { visibleTurnItems: rows, runtimeRequests: requests } = projection;
     const sameRequests = requests === previousRequests;
     if (rows === previousRows && sameRequests && previousResult) return previousResult;

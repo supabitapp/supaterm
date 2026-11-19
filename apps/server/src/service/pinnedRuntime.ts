@@ -38,11 +38,14 @@ export interface PinnedRuntimePaths {
   readonly sentinelPath: string;
 }
 
-export function pinnedRuntimeCommand(paths: PinnedRuntimePaths) {
+export function pinnedRuntimeCommand(paths: PinnedRuntimePaths): {
+  readonly command: string;
+  readonly args: ReadonlyArray<string>;
+} {
   return { command: paths.entryPath, args: [] };
 }
 
-export function pinnedRuntimeVersionsDir(path: Path.Path, baseDir: string) {
+export function pinnedRuntimeVersionsDir(path: Path.Path, baseDir: string): string {
   return path.join(baseDir, PINNED_RUNTIME_DIR, "versions");
 }
 
@@ -51,7 +54,7 @@ export function pinnedRuntimePaths(
   baseDir: string,
   version: string,
   platform: NodeJS.Platform,
-) {
+): PinnedRuntimePaths {
   const versionDir = path.join(pinnedRuntimeVersionsDir(path, baseDir), version);
   return {
     versionDir,
@@ -72,7 +75,7 @@ export class PinnedRuntimeInstallError extends Schema.TaggedError<PinnedRuntimeI
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return this.exitCode === undefined
       ? `Pinned runtime install failed while ${this.step}.`
       : `Pinned runtime install failed while ${this.step} (exit code ${this.exitCode}).`;
@@ -86,7 +89,7 @@ export class PinnedRuntimePreflightBlockedError extends Schema.TaggedError<Pinne
     reason: Schema.String,
   },
 ) {
-  override get message() {
+  override get message(): string {
     return this.reason;
   }
 }
@@ -120,7 +123,7 @@ const DOWNLOAD_RETRY = { times: 3, schedule: Schedule.exponential("2 seconds") }
 
 const isTransientDownloadFailure = (
   error: HttpClientError.HttpClientError | Cause.TimeoutError,
-) => {
+): boolean => {
   if (error._tag === "TimeoutError") return false;
   if (error.reason._tag === "DecodeError") return true;
   const status = error.response?.status;
@@ -389,7 +392,11 @@ const PINNED_RUNTIME_LAUNCHERS_FILE = "launchers";
 const launcherRecords = (launchers: ReadonlyArray<string>) =>
   `\n${launchers.map((launcher) => `${launcher}\n`).join("")}`;
 
-export function launcherOwnsVersionsDir(path: Path.Path, versionsDir: string, candidate: string) {
+export function launcherOwnsVersionsDir(
+  path: Path.Path,
+  versionsDir: string,
+  candidate: string,
+): boolean {
   const relative = path.relative(versionsDir, path.resolve(candidate));
   return relative.length > 0 && !relative.startsWith("..") && !path.isAbsolute(relative);
 }
@@ -442,7 +449,11 @@ export const recordPinnedRuntimeLauncher = Effect.fn("cloud.pinned_runtime.recor
 );
 
 /** Whether `candidate` is a version's own executable, `<versionsDir>/<version>/supaterm[.exe]`. */
-export function isVersionExecutable(path: Path.Path, versionsDir: string, candidate: string) {
+export function isVersionExecutable(
+  path: Path.Path,
+  versionsDir: string,
+  candidate: string,
+): boolean {
   const relative = path.relative(versionsDir, path.resolve(candidate));
   return !path.isAbsolute(relative) && /^(?!\.\.)[^\\/]+[\\/]supaterm(?:\.exe)?$/i.test(relative);
 }

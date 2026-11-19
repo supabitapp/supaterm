@@ -9,7 +9,7 @@ class CatalogDependencyResolutionError extends Schema.TaggedError<CatalogDepende
     catalogKey: Schema.String,
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Unable to resolve '${this.catalogSpec}' for ${this.workspacePackage} dependency '${this.dependencyName}'. Expected key '${this.catalogKey}' in root workspace catalog.`;
   }
 }
@@ -18,7 +18,7 @@ export function resolveCatalogDependencies(
   dependencies: Record<string, string>,
   catalog: Record<string, string>,
   workspacePackage: string,
-) {
+): Record<string, string> {
   return Object.fromEntries(
     Object.entries(dependencies).map(([name, spec]) => {
       if (typeof spec !== "string" || !spec.startsWith("catalog:")) {

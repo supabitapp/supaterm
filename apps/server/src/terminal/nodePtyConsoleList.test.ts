@@ -16,7 +16,9 @@ const originalFork = childProcess.fork;
 
 const SHELL_PID = 4242;
 
-function getConsoleProcessList(driveHelper: (helper: NodeEvents.EventEmitter) => void) {
+function getConsoleProcessList(
+  driveHelper: (helper: NodeEvents.EventEmitter) => void,
+): Promise<number[]> {
   const helper = Object.assign(new NodeEvents.EventEmitter(), { kill: () => true });
   childProcess.fork = (() => {
     queueMicrotask(() => driveHelper(helper));

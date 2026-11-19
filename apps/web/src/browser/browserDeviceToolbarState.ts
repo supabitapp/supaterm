@@ -5,7 +5,7 @@ export async function commitViewportAndAspectRatio(
   aspectRatio: number | null,
   onChange: (setting: PreviewViewportSetting) => Promise<void>,
   onAspectRatioChange: (aspectRatio: number | null) => void,
-) {
+): Promise<void> {
   await onChange(setting);
   onAspectRatioChange(aspectRatio);
 }

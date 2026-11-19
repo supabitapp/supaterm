@@ -19,7 +19,7 @@ export function limitRecoveryCommand(
   autoResume: boolean,
   nowMs: number,
   snooze = false,
-) {
+): OrchestrationV2Command | null {
   if (
     thread.status !== "failed" ||
     thread.lastErrorClass !== "usage_limit" ||
@@ -29,19 +29,18 @@ export function limitRecoveryCommand(
     thread.doneOverride === "done" ||
     thread.pendingRuntimeRequest !== null
   )
-    return null satisfies OrchestrationV2Command | null;
+    return null;
   const resetMs = Date.parse(thread.usageLimitResetAt);
   if (
     !Number.isFinite(resetMs) ||
     resetMs <= DateTime.toEpochMillis(thread.latestRunCompletedAt ?? thread.updatedAt)
   )
-    return null satisfies OrchestrationV2Command | null;
+    return null;
   const identity = `${thread.id}:${thread.latestRunId}:${resetMs}`;
   const recovery = thread.limitRecovery;
   if (recovery?.runId !== thread.latestRunId || recovery.resetAt !== thread.usageLimitResetAt) {
-    if (nowMs - resetMs > MAX_OVERDUE_ARM_MS) return null satisfies OrchestrationV2Command | null;
-    if (!autoResume && (!snooze || resetMs <= nowMs))
-      return null satisfies OrchestrationV2Command | null;
+    if (nowMs - resetMs > MAX_OVERDUE_ARM_MS) return null;
+    if (!autoResume && (!snooze || resetMs <= nowMs)) return null;
     return {
       type: "thread.metadata.update",
       commandId: CommandId.make(`limit-arm:${identity}`),
@@ -52,14 +51,14 @@ export function limitRecoveryCommand(
         autoResume,
         snooze: snooze && resetMs > nowMs,
       },
-    } satisfies OrchestrationV2Command | null;
+    };
   }
   if (
     !recovery.autoResume ||
     resetMs > nowMs ||
     (thread.snoozedUntil != null && DateTime.toEpochMillis(thread.snoozedUntil) > nowMs)
   )
-    return null satisfies OrchestrationV2Command | null;
+    return null;
   const deliveryIdentity = `${identity}:${recovery.requestId ?? "legacy"}`;
   return {
     type: "message.dispatch",
@@ -75,7 +74,7 @@ export function limitRecoveryCommand(
     dispatchMode: { type: "start_immediately" },
     createdBy: "agent",
     creationSource: "server",
-  } satisfies OrchestrationV2Command | null;
+  };
 }
 
 const affectsLimitRecovery = (event: OrchestrationV2DomainEvent) =>

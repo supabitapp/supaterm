@@ -20,25 +20,21 @@ export type MarkdownImageSource =
   | { readonly _tag: "WorkspaceFile"; readonly path: string; readonly relative?: true }
   | { readonly _tag: "Blocked" };
 
-export function markdownImageSourceFragment(source: string): string;
-export function markdownImageSourceFragment(source: string) {
-  return splitMarkdownLinkSearchAndHash(normalizeMarkdownLinkDestination(source))
-    .hash satisfies string;
+export function markdownImageSourceFragment(source: string): string {
+  return splitMarkdownLinkSearchAndHash(normalizeMarkdownLinkDestination(source)).hash;
 }
 
-function joinWorkspacePath(workspaceRoot: string, relativePath: string) {
+function joinWorkspacePath(workspaceRoot: string, relativePath: string): string {
   const separator = isWindowsAbsolutePath(workspaceRoot) ? "\\" : "/";
   const root = workspaceRoot.replace(/[\\/]+$/, "");
   const path = relativePath.replace(/[\\/]/g, separator).replace(/^[\\/]+/, "");
   return `${root}${separator}${path}`;
 }
 
-function hostFileSource(path: string, projectRoot: string | null | undefined) {
-  return (
-    isNetworkPath(path) && workspaceRelativeFilePath(path, projectRoot) === null
-      ? { _tag: "Blocked" }
-      : { _tag: "WorkspaceFile", path }
-  ) satisfies MarkdownImageSource;
+function hostFileSource(path: string, projectRoot: string | null | undefined): MarkdownImageSource {
+  return isNetworkPath(path) && workspaceRelativeFilePath(path, projectRoot) === null
+    ? { _tag: "Blocked" }
+    : { _tag: "WorkspaceFile", path };
 }
 
 /**
@@ -48,51 +44,39 @@ function hostFileSource(path: string, projectRoot: string | null | undefined) {
 export function classifyMarkdownImageSource(
   value: string | null | undefined,
   workspaceRoot?: string | null,
-  projectRoot?: string | null | undefined,
-): MarkdownImageSource;
-export function classifyMarkdownImageSource(
-  value: string | null | undefined,
-  workspaceRoot?: string | null,
   projectRoot: string | null | undefined = workspaceRoot,
-) {
-  if (value === null || value === undefined)
-    return { _tag: "Blocked" } satisfies MarkdownImageSource;
+): MarkdownImageSource {
+  if (value === null || value === undefined) return { _tag: "Blocked" };
 
   const source = normalizeMarkdownLinkDestination(value);
   if (source.length === 0 || source.startsWith("#") || source.startsWith("?")) {
-    return { _tag: "Blocked" } satisfies MarkdownImageSource;
+    return { _tag: "Blocked" };
   }
   if (DIRECT_IMAGE_SOURCE_PATTERN.test(source)) {
-    return { _tag: "Direct", uri: source } satisfies MarkdownImageSource;
+    return { _tag: "Direct", uri: source };
   }
 
   if (/^file:/i.test(source)) {
     const target = parseFileUrlHref(source);
-    return (
-      target === null
-        ? { _tag: "Blocked" }
-        : hostFileSource(
-            stripSlashPrefixedWindowsDrive(safeDecodeURIComponent(target.path)),
-            projectRoot,
-          )
-    ) satisfies MarkdownImageSource;
+    return target === null
+      ? { _tag: "Blocked" }
+      : hostFileSource(
+          stripSlashPrefixedWindowsDrive(safeDecodeURIComponent(target.path)),
+          projectRoot,
+        );
   }
 
   const path = stripSlashPrefixedWindowsDrive(
     safeDecodeURIComponent(splitMarkdownLinkSearchAndHash(source).path),
   );
-  if (path.length === 0) return { _tag: "Blocked" } satisfies MarkdownImageSource;
+  if (path.length === 0) return { _tag: "Blocked" };
   if (path.startsWith("/") || isWindowsAbsolutePath(path)) {
-    return hostFileSource(path, projectRoot) satisfies MarkdownImageSource;
+    return hostFileSource(path, projectRoot);
   }
   if (URI_SCHEME_PATTERN.test(path) || path.startsWith("~/") || path.startsWith("~\\")) {
-    return { _tag: "Blocked" } satisfies MarkdownImageSource;
+    return { _tag: "Blocked" };
   }
-  if (!workspaceRoot) return { _tag: "Blocked" } satisfies MarkdownImageSource;
+  if (!workspaceRoot) return { _tag: "Blocked" };
 
-  return {
-    _tag: "WorkspaceFile",
-    path: joinWorkspacePath(workspaceRoot, path),
-    relative: true,
-  } satisfies MarkdownImageSource;
+  return { _tag: "WorkspaceFile", path: joinWorkspacePath(workspaceRoot, path), relative: true };
 }

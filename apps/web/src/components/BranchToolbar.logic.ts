@@ -26,7 +26,7 @@ export type EnvMode = typeof EnvMode.Type;
 
 const GENERIC_LOCAL_ENVIRONMENT_LABELS = new Set(["local", "local environment"]);
 
-function normalizeDisplayLabel(value: string | null | undefined) {
+function normalizeDisplayLabel(value: string | null | undefined): string | null {
   const trimmed = value?.trim();
   return trimmed && trimmed.length > 0 ? trimmed : null;
 }
@@ -36,7 +36,7 @@ export function resolveEnvironmentOptionLabel(input: {
   environmentId: EnvironmentId;
   runtimeLabel?: string | null;
   savedLabel?: string | null;
-}) {
+}): string {
   const runtimeLabel = normalizeDisplayLabel(input.runtimeLabel);
   const savedLabel = normalizeDisplayLabel(input.savedLabel);
 
@@ -54,7 +54,7 @@ export function resolveEnvironmentOptionLabel(input: {
 export function shouldShowEnvironmentIndicator(input: {
   activeEnvironment: Pick<EnvironmentOption, "isPrimary"> | null;
   canPickEnvironment: boolean;
-}) {
+}): boolean {
   if (input.canPickEnvironment) return true;
   return input.activeEnvironment !== null && !input.activeEnvironment.isPrimary;
 }
@@ -65,7 +65,7 @@ export function shouldShowComposerContextStrip(input: {
   persistInActiveThreads: boolean;
   hasActiveProject: boolean;
   hostsRestingComposerControls: boolean;
-}) {
+}): boolean {
   if (input.showProjectPicker) return true;
   return (
     input.hasActiveProject && input.persistInActiveThreads && input.hostsRestingComposerControls
@@ -78,13 +78,13 @@ export function resolveContextStripLabelsCompact(input: {
   compact: boolean;
   neededWidth: number;
   availableWidth: number;
-}) {
+}): boolean {
   return input.compact
     ? input.neededWidth > input.availableWidth - CONTEXT_STRIP_COMPACT_EXPAND_HYSTERESIS_PX
     : input.neededWidth > input.availableWidth;
 }
 
-export function resolveEnvModeLabel(mode: EnvMode) {
+export function resolveEnvModeLabel(mode: EnvMode): string {
   return mode === "worktree" ? "New worktree" : "Current checkout";
 }
 
@@ -94,14 +94,14 @@ export const WORKTREE_SUBMODULES_LABELS: Record<WorktreeSubmodules, string> = {
   none: "Skip",
 };
 
-export function resolveCurrentWorkspaceLabel(activeWorktreePath: string | null) {
+export function resolveCurrentWorkspaceLabel(activeWorktreePath: string | null): string {
   return activeWorktreePath ? "Current worktree" : resolveEnvModeLabel("local");
 }
 
 export function resolveLockedWorkspaceLabel(
   activeWorktreePath: string | null,
   effectiveEnvMode: EnvMode,
-) {
+): string {
   if (activeWorktreePath) return resolveWorkspaceDisplayName(activeWorktreePath) ?? "Worktree";
   return effectiveEnvMode === "worktree" ? resolveEnvModeLabel("worktree") : "Local checkout";
 }
@@ -119,7 +119,7 @@ export function resolvePreviousWorktreeSeed(input: {
     archivedAt?: string | null;
   }>;
   currentWorktreePath: string | null;
-}) {
+}): PreviousWorktreeSeed | null {
   let latest: { branch: string | null; worktreePath: string; updatedAt: number } | null = null;
   for (const thread of input.threads) {
     if (
@@ -144,7 +144,7 @@ export function resolvePreviousWorktreeSeed(input: {
   return latest === null ? null : { branch: latest.branch, worktreePath: latest.worktreePath };
 }
 
-export function resolvePreviousWorktreeLabel(seed: PreviousWorktreeSeed) {
+export function resolvePreviousWorktreeLabel(seed: PreviousWorktreeSeed): string {
   return seed.branch ? `Previous worktree (${seed.branch})` : "Previous worktree";
 }
 
@@ -153,7 +153,7 @@ export function resolveEffectiveEnvMode(input: {
   hasServerThread: boolean;
   draftThreadEnvMode: EnvMode | undefined;
   preparingWorktree?: boolean;
-}) {
+}): EnvMode {
   const { activeWorktreePath, hasServerThread, draftThreadEnvMode, preparingWorktree } = input;
   if (!hasServerThread) {
     if (activeWorktreePath) {
@@ -168,7 +168,7 @@ export function resolveDraftEnvModeAfterBranchChange(input: {
   nextWorktreePath: string | null;
   currentWorktreePath: string | null;
   effectiveEnvMode: EnvMode;
-}) {
+}): EnvMode {
   const { nextWorktreePath, currentWorktreePath, effectiveEnvMode } = input;
   if (nextWorktreePath) {
     return "worktree";
@@ -187,7 +187,7 @@ export function resolveWorktreeBaseBranch(input: {
   selectedBranch: string | null;
   refs: ReadonlyArray<Pick<VcsRef, "name" | "isDefault" | "current">>;
   refsLoading: boolean;
-}) {
+}): string | null {
   if (input.selectedBranch) return input.selectedBranch;
   if (input.refsLoading) return null;
   const { refs } = input;
@@ -199,7 +199,7 @@ export function resolveBranchToolbarValue(input: {
   activeWorktreePath: string | null;
   activeThreadBranch: string | null;
   currentGitBranch: string | null;
-}) {
+}): string | null {
   const { envMode, activeWorktreePath, activeThreadBranch, currentGitBranch } = input;
   if (envMode === "worktree" && !activeWorktreePath) {
     return activeThreadBranch;
@@ -228,7 +228,7 @@ export function isBranchHoldCurrent(
     readonly environmentId: EnvironmentId;
     readonly cwd: string | null;
   },
-) {
+): boolean {
   return (
     hold.environmentId === current.environmentId &&
     hold.checkouts.some(
@@ -243,7 +243,7 @@ export function resolveBranchTriggerLabel(input: {
   resolvedActiveBranch: string | null;
   resolvedActiveBranchIsRemote: boolean | null;
   startFromOrigin: boolean;
-}) {
+}): string {
   const {
     activeWorktreePath,
     effectiveEnvMode,
@@ -265,7 +265,7 @@ export function resolveBranchTriggerLabel(input: {
 export function resolveBranchToolbarPrBranch(input: {
   activeThreadBranch: string | null;
   resolvedActiveBranch: string | null;
-}) {
+}): string | null {
   return input.activeThreadBranch === input.resolvedActiveBranch ? input.activeThreadBranch : null;
 }
 
@@ -274,7 +274,7 @@ export function resolveLocalCheckoutBranchMismatch(input: {
   activeWorktreePath: string | null;
   activeThreadBranch: string | null;
   currentGitBranch: string | null;
-}) {
+}): { threadBranch: string; currentBranch: string } | null {
   const { effectiveEnvMode, activeWorktreePath, activeThreadBranch, currentGitBranch } = input;
   if (effectiveEnvMode !== "local" || activeWorktreePath !== null) {
     return null;
@@ -292,7 +292,7 @@ export function resolveLocalCheckoutBranchMismatch(input: {
 export function resolveConfirmedSelectedRef(
   listedRef: VcsRef,
   freshRead: { readonly refs: ReadonlyArray<VcsRef> } | null,
-) {
+): VcsRef {
   const checkedOut =
     freshRead?.refs.some((ref) => ref.name === listedRef.name && !ref.isRemote && ref.current) ??
     false;
@@ -304,7 +304,12 @@ export function resolveBranchSelectionTarget(input: {
   activeProjectCheckoutRoot?: string | undefined;
   activeWorktreePath: string | null;
   refName: Pick<VcsRef, "isDefault" | "worktreePath">;
-}) {
+}): {
+  checkoutCwd: string;
+  nextWorktreePath: string | null;
+  reuseExistingWorktree: boolean;
+  staysInActiveCheckout: boolean;
+} {
   const { activeProjectCwd, activeWorktreePath, refName } = input;
 
   if (refName.worktreePath) {
@@ -336,7 +341,7 @@ export function isWorktreeChangeBlocked(input: {
   runtime: ThreadStructureRuntime | null;
   currentWorktreePath: string | null;
   nextWorktreePath: string | null;
-}) {
+}): boolean {
   return (
     input.nextWorktreePath !== input.currentWorktreePath &&
     deriveCanInterruptRunningThread(true, input.runtime)
@@ -348,7 +353,7 @@ export function shouldIncludeBranchPickerItem(input: {
   normalizedQuery: string;
   createBranchItemValue: string | null;
   checkoutPullRequestItemValue: string | null;
-}) {
+}): boolean {
   const { itemValue, normalizedQuery, createBranchItemValue, checkoutPullRequestItemValue } = input;
 
   if (normalizedQuery.length === 0) {
@@ -376,7 +381,7 @@ export function shouldIncludeBranchPickerItem(input: {
   );
 }
 
-export function resolveWorkspaceDisplayName(path: string | null) {
+export function resolveWorkspaceDisplayName(path: string | null): string | null {
   if (!path) return null;
   const normalizedPath = path.replace(/[\\/]+$/, "");
   if (normalizedPath.length === 0) return path;

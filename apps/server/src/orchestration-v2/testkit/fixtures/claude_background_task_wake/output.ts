@@ -20,7 +20,10 @@ import {
 const BACKGROUND_TASK_ID = "bdqirlcyw";
 const WAKE_SUMMARY = 'Background command "Background sleep test" completed (exit code 0)';
 
-function runAssistantTexts(projection: OrchestrationV2ThreadProjection, runId: string | undefined) {
+function runAssistantTexts(
+  projection: OrchestrationV2ThreadProjection,
+  runId: string | undefined,
+): ReadonlyArray<string> {
   return projection.turnItems.flatMap((item) =>
     item.runId === runId && item.type === "assistant_message" ? [item.text.trim()] : [],
   );

@@ -152,7 +152,7 @@ function hostRefusal() {
   });
 }
 
-function preparedFor(target: ConnectionTarget) {
+function preparedFor(target: ConnectionTarget): PreparedConnection {
   return { ...PREPARED_CONNECTION, target };
 }
 
@@ -289,7 +289,7 @@ const makeHarness = Effect.fn("TestConnectionHarness.make")(function* (options?:
                 check !== "answered",
               () =>
                 Clock.monotonicTimeNanos.pipe(
-                  Effect.map((now) => ({
+                  Effect.map((now): ConnectionDriver.RoutePreflight => ({
                     route,
                     prepared: { ...PREPARED_CONNECTION, target: route.target },
                     expiresAtNanos: now + 10_000_000_000n,
@@ -2489,7 +2489,9 @@ describe("EnvironmentSupervisor", () => {
       const checkRoute = (route: ConnectionRoute) =>
         route.target === LAN_TARGET
           ? Ref.get(lanReachable).pipe(
-              Effect.map((reachable) => (reachable ? "answered" : "silent")),
+              Effect.map((reachable): ConnectionDriver.RouteCheck =>
+                reachable ? "answered" : "silent",
+              ),
             )
           : Effect.succeed<ConnectionDriver.RouteCheck>("unchecked");
       const harness = yield* makeHarness({
@@ -2568,7 +2570,9 @@ describe("EnvironmentSupervisor", () => {
       const checkRoute = (route: ConnectionRoute) =>
         route.target === LAN_TARGET
           ? Ref.get(lanReachable).pipe(
-              Effect.map((reachable) => (reachable ? "answered" : "silent")),
+              Effect.map((reachable): ConnectionDriver.RouteCheck =>
+                reachable ? "answered" : "silent",
+              ),
             )
           : Effect.succeed<ConnectionDriver.RouteCheck>(
               route.target === loopbackTarget ? "answered" : "unchecked",

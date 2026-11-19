@@ -42,19 +42,19 @@ const presentationFields = { toolIcon: Schema.optional(ToolActivityIcon) };
 
 const PreviewActionResult = Schema.Struct(presentationFields);
 
-const browserTool = <T extends Tool.Any>(tool: T) =>
+const browserTool = <T extends Tool.Any>(tool: T): T =>
   tool
     .annotate(Tool.OpenWorld, true)
     .annotate(Tool.Destructive, true)
     .annotate(McpSchema.EnabledWhen, McpInvocationContext.hiddenFromOutsideClients) as T;
 
-const safeBrowserTool = <T extends Tool.Any>(tool: T) =>
+const safeBrowserTool = <T extends Tool.Any>(tool: T): T =>
   tool
     .annotate(Tool.OpenWorld, true)
     .annotate(Tool.Destructive, false)
     .annotate(McpSchema.EnabledWhen, McpInvocationContext.hiddenFromOutsideClients) as T;
 
-const readonlyBrowserTool = <T extends Tool.Any>(tool: T) =>
+const readonlyBrowserTool = <T extends Tool.Any>(tool: T): T =>
   safeBrowserTool(tool).annotate(Tool.Readonly, true).annotate(Tool.Idempotent, true) as T;
 
 const PreviewStatusTool = Tool.make("preview_status", {

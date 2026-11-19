@@ -43,7 +43,7 @@ export class GitHubCliMissingError extends Schema.TaggedError<GitHubCliMissingEr
   "GitHubCliMissingError",
   { host: Schema.String },
 ) {
-  override get message() {
+  override get message(): string {
     return `No GitHub credential for ${this.host}: set GH_TOKEN, or install the GitHub CLI and run \`gh auth login\`.`;
   }
 }
@@ -52,7 +52,7 @@ export class GitHubNotSignedInError extends Schema.TaggedError<GitHubNotSignedIn
   "GitHubNotSignedInError",
   { host: Schema.String, account: Schema.optional(Schema.String) },
 ) {
-  override get message() {
+  override get message(): string {
     return this.account === undefined
       ? `No GitHub credential for ${this.host}: run \`gh auth login --hostname ${this.host}\`.`
       : `No GitHub credential for ${this.account} on ${this.host}: run \`gh auth login --hostname ${this.host}\` for that account or pick another in Settings → Source Control.`;
@@ -63,7 +63,7 @@ export class GitHubHostDisabledError extends Schema.TaggedError<GitHubHostDisabl
   "GitHubHostDisabledError",
   { host: Schema.String },
 ) {
-  override get message() {
+  override get message(): string {
     return `GitHub host ${this.host} is turned off in Settings → Source Control.`;
   }
 }
@@ -72,7 +72,7 @@ export class GitHubCliFailedError extends Schema.TaggedError<GitHubCliFailedErro
   "GitHubCliFailedError",
   { host: Schema.String, cause: Schema.Defect() },
 ) {
-  override get message() {
+  override get message(): string {
     return `The GitHub CLI could not hand over a credential for ${this.host}. Check \`gh auth status\` on the server.`;
   }
 }
@@ -98,16 +98,19 @@ const HOSTNAME =
   /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*(?::\d{1,5})?$/;
 
 /** API URLs are built from the host text, so anything but a bare hostname could redirect a token. */
-export function isGitHubHost(host: string) {
+export function isGitHubHost(host: string): boolean {
   return HOSTNAME.test(host);
 }
 
-function isGitHubDotCom(host: string) {
+function isGitHubDotCom(host: string): boolean {
   return host === "github.com" || host.endsWith(".ghe.com");
 }
 
 /** Restrict GH_ENTERPRISE_TOKEN to GH_HOST to prevent remote URLs from leaking it. */
-export function environmentToken(host: string, env: Readonly<Record<string, string | undefined>>) {
+export function environmentToken(
+  host: string,
+  env: Readonly<Record<string, string | undefined>>,
+): string | null {
   if (!isGitHubHost(host)) return null;
   const names = isGitHubDotCom(host)
     ? ["GH_TOKEN", "GITHUB_TOKEN"]

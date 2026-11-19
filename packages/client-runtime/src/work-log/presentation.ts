@@ -31,7 +31,7 @@ import {
 
 export type WorkLogToolLifecycleStatus = RuntimeItemStatus | "stopped" | "idle";
 
-export function toolItemForDisplay(item: OrchestrationV2TurnItem) {
+export function toolItemForDisplay(item: OrchestrationV2TurnItem): OrchestrationV2TurnItem {
   switch (item.type) {
     case "command_execution":
     case "dynamic_tool": {
@@ -54,7 +54,9 @@ type CompactionLabelItem = Pick<
   "status" | "beforeTokenCount" | "afterTokenCount"
 >;
 
-export function contextCompactionTokenCounts(item: CompactionLabelItem) {
+export function contextCompactionTokenCounts(
+  item: CompactionLabelItem,
+): { readonly before: string; readonly after: string } | null {
   if (
     item.status === "running" ||
     item.beforeTokenCount === undefined ||
@@ -65,7 +67,7 @@ export function contextCompactionTokenCounts(item: CompactionLabelItem) {
   return { before: formatTokens(item.beforeTokenCount), after: formatTokens(item.afterTokenCount) };
 }
 
-export function contextCompactionLabel(item: CompactionLabelItem) {
+export function contextCompactionLabel(item: CompactionLabelItem): string {
   if (item.status === "failed") return "Context compaction failed";
   if (item.status === "cancelled" || item.status === "interrupted")
     return "Context compaction stopped";
@@ -124,13 +126,13 @@ export type ToolGroupSummaryKind =
   | "tone-tool"
   | "mixed";
 
-export function normalizeCompactToolLabel(value: string) {
+export function normalizeCompactToolLabel(value: string): string {
   return value.replace(/\s+(?:complete|completed)\s*$/i, "").trim();
 }
 
 function workEntryToolName(
   entry: Pick<WorkLogPresentationEntry, "label" | "toolTitle" | "toolData" | "structuredPayload">,
-) {
+): string | undefined {
   const item = entry.structuredPayload;
   if (item?.type === "dynamic_tool" && item.toolName) return item.toolName;
   const data = asRecord(entry.toolData);
@@ -143,7 +145,7 @@ function workEntryToolName(
 
 function workEntryToolInput(
   entry: Pick<WorkLogPresentationEntry, "toolData" | "structuredPayload">,
-) {
+): unknown {
   const item = entry.structuredPayload;
   const data = asRecord(entry.toolData);
   return item?.type === "dynamic_tool"
@@ -153,7 +155,7 @@ function workEntryToolInput(
 
 function workEntryToolOutput(
   entry: Pick<WorkLogPresentationEntry, "toolData" | "structuredPayload">,
-) {
+): unknown {
   const item = entry.structuredPayload;
   const data = asRecord(entry.toolData);
   return item?.type === "dynamic_tool"
@@ -241,13 +243,13 @@ export function resolveWorkEntryToolPresentation(
   );
 }
 
-function asRecord(value: unknown) {
+function asRecord(value: unknown): Record<string, unknown> | null {
   return value !== null && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : null;
 }
 
-function workLogEntryIsToolLike(entry: WorkLogPresentationEntry) {
+function workLogEntryIsToolLike(entry: WorkLogPresentationEntry): boolean {
   if (entry.tone === "tool" || entry.tone === "thinking" || entry.tone === "error") return true;
   if (entry.command !== undefined && entry.command.trim().length > 0) return true;
   if (entry.requestKind !== undefined) return true;
@@ -257,7 +259,7 @@ function workLogEntryIsToolLike(entry: WorkLogPresentationEntry) {
 function workEntryIndicatesToolFailureFromOutput(
   entry: WorkLogPresentationEntry,
   includeCommand: boolean,
-) {
+): boolean {
   if (
     entry.tone === "error" ||
     entry.toolLifecycleStatus === "failed" ||
@@ -300,18 +302,18 @@ function checksFor(entry: WorkLogPresentationEntry) {
   return checks;
 }
 
-export function workEntryIndicatesToolFailure(entry: WorkLogPresentationEntry) {
+export function workEntryIndicatesToolFailure(entry: WorkLogPresentationEntry): boolean {
   return (checksFor(entry).failure ??= workEntryIndicatesToolFailureFromOutput(entry, true));
 }
 
-export function workEntryDisplayIndicatesToolFailure(entry: WorkLogPresentationEntry) {
+export function workEntryDisplayIndicatesToolFailure(entry: WorkLogPresentationEntry): boolean {
   return (checksFor(entry).displayFailure ??= workEntryIndicatesToolFailureFromOutput(
     entry,
     false,
   ));
 }
 
-function workLogEntryIsLocalCodeSearch(entry: WorkLogPresentationEntry) {
+function workLogEntryIsLocalCodeSearch(entry: WorkLogPresentationEntry): boolean {
   return (
     entry.itemType === "file_search" ||
     (entry.itemType === "web_search" &&
@@ -319,11 +321,11 @@ function workLogEntryIsLocalCodeSearch(entry: WorkLogPresentationEntry) {
   );
 }
 
-export function toolGroupAction(entry: WorkLogPresentationEntry) {
+export function toolGroupAction(entry: WorkLogPresentationEntry): ToolGroupAction {
   return (checksFor(entry).action ??= computeToolGroupAction(entry));
 }
 
-function computeToolGroupAction(entry: WorkLogPresentationEntry) {
+function computeToolGroupAction(entry: WorkLogPresentationEntry): ToolGroupAction {
   if (entry.itemType === "thread_created") return "thread-create";
   const presentation = resolveWorkEntryToolPresentation(entry);
   if (presentation?.action !== undefined) return presentation.action;
@@ -371,7 +373,7 @@ function computeToolGroupAction(entry: WorkLogPresentationEntry) {
   return workLogEntryIsToolLike(entry) ? "other" : "update";
 }
 
-export function workEntryViewedImagePath(entry: WorkLogPresentationEntry) {
+export function workEntryViewedImagePath(entry: WorkLogPresentationEntry): string | null {
   const viewedImagePath = entry.viewedImagePath?.trim();
   if (
     viewedImagePath !== undefined &&
@@ -390,7 +392,9 @@ export function workEntryViewedImagePath(entry: WorkLogPresentationEntry) {
 }
 
 /** Distinct images the agent opened across a tool group, in viewing order. */
-export function workEntriesViewedImagePaths(entries: ReadonlyArray<WorkLogPresentationEntry>) {
+export function workEntriesViewedImagePaths(
+  entries: ReadonlyArray<WorkLogPresentationEntry>,
+): string[] {
   return [...new Set(entries.flatMap((entry) => workEntryViewedImagePath(entry) ?? []))];
 }
 
@@ -406,16 +410,9 @@ export function resolveViewedImageAsset(
     readonly threadId: ThreadId;
     readonly workspaceRoot?: string | null | undefined;
   },
-): ViewedImageAsset | null;
-export function resolveViewedImageAsset(
-  source: string,
-  input: {
-    readonly threadId: ThreadId;
-    readonly workspaceRoot?: string | null | undefined;
-  },
-) {
+): ViewedImageAsset | null {
   const imageSource = classifyMarkdownImageSource(source, input.workspaceRoot ?? ".");
-  if (imageSource._tag !== "WorkspaceFile") return null satisfies ViewedImageAsset | null;
+  if (imageSource._tag !== "WorkspaceFile") return null;
   const resolvedFilePath =
     input.workspaceRoot == null && imageSource.path.startsWith("./")
       ? imageSource.path.slice(2)
@@ -426,19 +423,14 @@ export function resolveViewedImageAsset(
     workspaceRoot: input.workspaceRoot,
     resolvedFilePath,
   });
-  if (media === null || media.access !== "environment")
-    return null satisfies ViewedImageAsset | null;
-  return {
-    resource: media.resource,
-    alt: media.name,
-    srcFragment: media.srcFragment,
-  } satisfies ViewedImageAsset | null;
+  if (media === null || media.access !== "environment") return null;
+  return { resource: media.resource, alt: media.name, srcFragment: media.srcFragment };
 }
 
 function toolGroupActionCount(
   action: ToolGroupAction,
   entries: ReadonlyArray<WorkLogPresentationEntry>,
-) {
+): number {
   if (action !== "edit") return entries.length;
   const changedFiles = new Set<string>();
   let editsWithoutFileDetails = 0;
@@ -452,7 +444,7 @@ function toolGroupActionCount(
   return changedFiles.size + editsWithoutFileDetails;
 }
 
-function toolGroupActionLabel(action: ToolGroupAction, count: number) {
+function toolGroupActionLabel(action: ToolGroupAction, count: number): string {
   const n = count.toLocaleString();
   switch (action) {
     case "link-pr":
@@ -490,7 +482,7 @@ function toolGroupActionLabel(action: ToolGroupAction, count: number) {
   }
 }
 
-function supatermToolSummaryCall(entry: WorkLogPresentationEntry) {
+function supatermToolSummaryCall(entry: WorkLogPresentationEntry): SupatermToolSummaryCall {
   return {
     input: workEntryToolInput(entry),
     output: workEntryToolOutput(entry),
@@ -502,10 +494,10 @@ function supatermToolSummaryCall(entry: WorkLogPresentationEntry) {
         : entry.toolLifecycleStatus === "completed"
           ? "completed"
           : "unfinished",
-  } satisfies SupatermToolSummaryCall;
+  };
 }
 
-function summaryActionPriority(action: ToolGroupAction | SupatermMcpToolSummaryAction) {
+function summaryActionPriority(action: ToolGroupAction | SupatermMcpToolSummaryAction): number {
   switch (action) {
     case "command":
     case "edit":
@@ -549,7 +541,10 @@ function summaryActionPriority(action: ToolGroupAction | SupatermMcpToolSummaryA
   }
 }
 
-export function summarizeToolGroup(entries: ReadonlyArray<WorkLogPresentationEntry>) {
+export function summarizeToolGroup(entries: ReadonlyArray<WorkLogPresentationEntry>): {
+  summary: string;
+  hasFailure: boolean;
+} {
   const toolEntries = entries.filter((entry) => entry.itemType !== "reasoning");
   if (entries.length > 0 && toolEntries.length === 0) {
     return {
@@ -637,7 +632,9 @@ export function summarizeToolGroup(entries: ReadonlyArray<WorkLogPresentationEnt
   return { summary, hasFailure: summaries.some((group) => group.failedCount > 0) };
 }
 
-export function toolGroupSummaryKind(entries: ReadonlyArray<WorkLogPresentationEntry>) {
+export function toolGroupSummaryKind(
+  entries: ReadonlyArray<WorkLogPresentationEntry>,
+): ToolGroupSummaryKind {
   const toolEntries = entries.filter((entry) => entry.itemType !== "reasoning");
   if (entries.length > 0 && toolEntries.length === 0) return "reasoning";
   entries = toolEntries;
@@ -651,7 +648,7 @@ export function toolGroupSummaryKind(entries: ReadonlyArray<WorkLogPresentationE
   const action = actions.values().next().value!;
   if (action !== "other") return action;
   const fallbackKinds = new Set(
-    entries.map((entry) => {
+    entries.map((entry): ToolGroupSummaryKind => {
       if (entry.itemType === "dynamic_tool") return "dynamic-tool";
       if (entry.itemType === "subagent") return "agent-tool";
       if (entry.tone === "thinking") return "agent-tool";
@@ -662,7 +659,7 @@ export function toolGroupSummaryKind(entries: ReadonlyArray<WorkLogPresentationE
   return fallbackKinds.size === 1 ? fallbackKinds.values().next().value! : "mixed";
 }
 
-export function liveThoughtLine(markdown: string) {
+export function liveThoughtLine(markdown: string): string {
   const heading = /^\s*\*\*([^*\r\n]+)\*\*[ \t]*\r?(?:\n|$)/.exec(markdown)?.[1];
   const text = (heading ?? markdown)
     .replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1")

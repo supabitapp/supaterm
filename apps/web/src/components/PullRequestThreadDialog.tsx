@@ -52,7 +52,7 @@ interface PullRequestThreadDialogProps {
   }) => Promise<void> | void;
 }
 
-function pullRequestStatusTone(state: string | undefined) {
+function pullRequestStatusTone(state: string | undefined): string {
   switch (state) {
     case "merged":
       return "text-violet-600 dark:text-violet-300/90";

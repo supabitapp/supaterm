@@ -56,7 +56,7 @@ const LINE_STATS_MAX_FILES = DIFF_FILES_BATCH * 4;
 const MAX_CHANGE_PAGES = 20;
 const LINE_STATS_CACHE_SIZE = 256;
 
-const chunk = <A>(items: ReadonlyArray<A>, size: number) =>
+const chunk = <A>(items: ReadonlyArray<A>, size: number): Array<ReadonlyArray<A>> =>
   Array.from({ length: Math.ceil(items.length / size) }, (_, index) =>
     items.slice(index * size, (index + 1) * size),
   );
@@ -178,26 +178,23 @@ function stackHeadsCurrent(
   stack: Json.GitCafeStack,
   input: { readonly number: number; readonly merge: boolean },
   expected: ReadonlyArray<PullRequestStackHead>,
-): boolean;
-function stackHeadsCurrent(
-  stack: Json.GitCafeStack,
-  input: { readonly number: number; readonly merge: boolean },
-  expected: ReadonlyArray<PullRequestStackHead>,
-) {
+): boolean {
   const members = stack.members.toSorted((a, b) => a.position - b.position);
   const index = members.findIndex((member) => member.pullRequestNumber === input.number);
-  if (index === -1) return false satisfies boolean;
+  if (index === -1) return false;
   const moved = (input.merge ? members.slice(0, index + 1) : members).filter(
     (member) => member.state !== "merged",
   );
-  return (moved.length === expected.length &&
+  return (
+    moved.length === expected.length &&
     moved.every(
       (member) =>
         member.headOid !== undefined &&
         expected.some(
           (head) => head.number === member.pullRequestNumber && head.headSha === member.headOid,
         ),
-    )) satisfies boolean;
+    )
+  );
 }
 
 const POSITION = /^(.+)~(\d+)$/u;
@@ -238,13 +235,10 @@ export const make = Effect.gen(function* () {
       ...(cause === undefined ? {} : { cause }),
     });
 
-  const repositoryPath: (
+  const repositoryPath = (
     operation: string,
     input: ProviderRepositoryRef,
-  ) => Effect.Effect<string, PullRequestProviderError> = (
-    operation: string,
-    input: ProviderRepositoryRef,
-  ) =>
+  ): Effect.Effect<string, PullRequestProviderError> =>
     GitCafeHosts.isGitCafeHost(input.host) &&
     GitCafeHosts.gitCafeRepositoryPath(input.repository) === input.repository
       ? Effect.succeed(`/repos/${input.repository}`)

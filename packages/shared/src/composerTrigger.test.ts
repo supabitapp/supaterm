@@ -16,14 +16,13 @@ interface MarkdownNode {
   readonly children?: ReadonlyArray<MarkdownNode>;
 }
 
-function parsedLinkLabel(markdown: string): string | undefined;
-function parsedLinkLabel(markdown: string) {
-  const textOf: (node: MarkdownNode) => string = (node: MarkdownNode) =>
+function parsedLinkLabel(markdown: string): string | undefined {
+  const textOf = (node: MarkdownNode): string =>
     node.value ?? (node.children ?? []).map(textOf).join("");
-  const find: (node: MarkdownNode) => MarkdownNode | undefined = (node: MarkdownNode) =>
+  const find = (node: MarkdownNode): MarkdownNode | undefined =>
     node.type === "link" ? node : node.children?.map(find).find(Boolean);
   const link = find(unified().use(remarkParse).parse(markdown) as MarkdownNode);
-  return (link && textOf(link)) satisfies string | undefined;
+  return link && textOf(link);
 }
 
 describe("detectComposerTrigger", () => {

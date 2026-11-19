@@ -37,7 +37,7 @@ export function useSideChatBlockedReason(input: {
   /** The server thread, or null while the thread is a draft on this client. */
   readonly thread: Pick<EnvironmentThreadShell, "id" | "lineage" | "deletedAt"> | null;
   readonly sideChatDraft?: boolean;
-}) {
+}): string | null {
   const { environmentId, thread } = input;
   const serverConfig = useServerConfigs().get(environmentId ?? ("" as EnvironmentId)) ?? null;
   const canOperate = useEnvironmentScope(environmentId, AuthOrchestrationOperateScope);

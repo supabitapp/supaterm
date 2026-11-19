@@ -2,7 +2,7 @@ import { describe, expect, it } from "vite-plus/test";
 
 import { extractIcnsPng } from "./icns.ts";
 
-function pngHeader(size: number) {
+function pngHeader(size: number): Uint8Array {
   const png = new Uint8Array(24);
   png.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52]);
   new DataView(png.buffer).setUint32(16, size);
@@ -10,7 +10,7 @@ function pngHeader(size: number) {
   return png;
 }
 
-function icns(...entries: ReadonlyArray<readonly [type: string, data: Uint8Array]>) {
+function icns(...entries: ReadonlyArray<readonly [type: string, data: Uint8Array]>): Uint8Array {
   const length = 8 + entries.reduce((total, [, data]) => total + 8 + data.length, 0);
   const bytes = new Uint8Array(length);
   const view = new DataView(bytes.buffer);

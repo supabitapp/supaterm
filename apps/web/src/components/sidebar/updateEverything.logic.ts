@@ -38,7 +38,7 @@ export function collectRestartingMachines(
   machines: ReadonlyArray<UpdateEverythingMachine>,
   servers: ReadonlyArray<Pick<ServerUpdateTarget, "environmentId">>,
   installsLocal: boolean,
-) {
+): RestartingMachine[] {
   const updated = new Set(servers.map((server) => server.environmentId));
   return machines.flatMap((machine) => {
     const config = machine.serverConfig;
@@ -69,7 +69,7 @@ export interface SkippedMachine {
 export function collectServerUpdateTargets(
   machines: ReadonlyArray<UpdateEverythingMachine>,
   targetVersion: string,
-) {
+): { readonly targets: ServerUpdateTarget[]; readonly skipped: SkippedMachine[] } {
   const targets: ServerUpdateTarget[] = [];
   const skipped: SkippedMachine[] = [];
   for (const machine of machines) {
@@ -115,7 +115,7 @@ export function collectServerUpdateTargets(
   return { targets, skipped };
 }
 
-function unavailableReason(machine: UpdateEverythingMachine) {
+function unavailableReason(machine: UpdateEverythingMachine): string | null {
   if (machine.serverConfig === null || !machine.connected) return "not connected";
   if (!machine.canMaintain) return "no permission";
   if (machine.updateState.status === "running") return "already updating";
@@ -139,7 +139,7 @@ function channelSwitchBlockReason(
   fromVersion: string,
   release: ChannelSwitchRelease,
   currentMigration: number | undefined,
-) {
+): string | null {
   if (!crossesTrack(fromVersion, release)) return null;
   const from = channelSwitchLabel(desktopUpdateChannelOf(fromVersion));
   if (currentMigration === undefined) {
@@ -166,7 +166,7 @@ export function localSwitchBlockReason(
   }>,
   backendCount: number,
   localEnvironmentEnabled: boolean,
-) {
+): string | null {
   if (!localEnvironmentEnabled || !crossesTrack(appVersion, release)) return null;
   if (
     hosted.length === 0 ||
@@ -187,7 +187,7 @@ export function localSwitchBlockReason(
 export function collectChannelSwitchTargets(
   machines: ReadonlyArray<UpdateEverythingMachine>,
   release: ChannelSwitchRelease,
-) {
+): { readonly targets: ServerUpdateTarget[]; readonly skipped: SkippedMachine[] } {
   const targets: ServerUpdateTarget[] = [];
   const skipped: SkippedMachine[] = [];
   for (const machine of machines) {
@@ -195,7 +195,10 @@ export function collectChannelSwitchTargets(
     if (machine.hostedByThisApp) continue;
     const skip = (reason: string) =>
       skipped.push({ environmentId: machine.environmentId, label: machine.label, reason });
-    const target = (selfUpdate: ServerSelfUpdateCapability, targetVersion: string) => ({
+    const target = (
+      selfUpdate: ServerSelfUpdateCapability,
+      targetVersion: string,
+    ): ServerUpdateTarget => ({
       environmentId: machine.environmentId,
       serverLabel: machine.label,
       selfUpdate,
@@ -261,7 +264,7 @@ export function collectChannelSwitchTargets(
 export function awaitsTrackSwitch(
   machine: Pick<UpdateEverythingMachine, "serverConfig" | "hostedByThisApp">,
   channel: DesktopUpdateChannel,
-) {
+): boolean {
   const config = machine.serverConfig;
   return (
     !machine.hostedByThisApp &&
@@ -271,14 +274,14 @@ export function awaitsTrackSwitch(
   );
 }
 
-function isOnTrack(version: string, channel: DesktopUpdateChannel) {
+function isOnTrack(version: string, channel: DesktopUpdateChannel): boolean {
   return cliReleaseChannelOf(version) !== "preview" && desktopUpdateChannelOf(version) === channel;
 }
 
 function trackSwitchMove(
   config: NonNullable<UpdateEverythingMachine["serverConfig"]>,
   sameTrack: boolean,
-) {
+): { readonly selfUpdate: ServerSelfUpdateCapability } | { readonly skip: string } {
   if (cliReleaseChannelOf(config.environment.serverVersion) === "preview") {
     return { skip: "runs a preview build" };
   }
@@ -308,7 +311,11 @@ export interface UpdateEverythingSteps<Providers, Servers> {
  * only that install. */
 export async function runUpdateEverything<Providers, Servers>(
   steps: UpdateEverythingSteps<Providers, Servers>,
-) {
+): Promise<{
+  readonly localReady: boolean;
+  readonly providers: Providers;
+  readonly servers: Servers;
+}> {
   const staged = new Map(
     Array.from(steps.stageServers?.() ?? [], ([id, stage]) => [id, stage.catch(() => undefined)]),
   );
@@ -354,7 +361,7 @@ export function resolveUpdateRunMachineStatus(
   machine: UpdateRunMachine,
   phase: UpdateEverythingRun["phase"],
   serverState: ServerUpdateState,
-) {
+): UpdateRunMachineStatus {
   if (machine.result !== null) return machine.result;
   if (machine.handedOffVersion !== null) return "restarting";
   if (phase === "providers" && machine.updatesProviders) return "providers";
@@ -364,11 +371,11 @@ export function resolveUpdateRunMachineStatus(
   return "waiting";
 }
 
-export function isServerUpdateHandedOff(state: ServerUpdateState) {
+export function isServerUpdateHandedOff(state: ServerUpdateState): boolean {
   return state.status === "running" && state.stage === "resuming";
 }
 
-export function closeFinishedUpdateRun(run: UpdateEverythingRun) {
+export function closeFinishedUpdateRun(run: UpdateEverythingRun): UpdateEverythingRun | null {
   return run.phase === "servers" &&
     run.localVersion === null &&
     run.machines.every((machine) => machine.result === "done")
@@ -378,7 +385,7 @@ export function closeFinishedUpdateRun(run: UpdateEverythingRun) {
 
 const UPDATE_SLOW_AFTER_MS = 3 * 60 * 1000;
 
-export function formatUpdateElapsed(ms: number) {
+export function formatUpdateElapsed(ms: number): string {
   const minutes = Math.floor(ms / 60_000);
   if (minutes < 1) return "<1m";
   if (minutes < 60) return `${minutes}m`;
@@ -409,17 +416,13 @@ export function describeUpdateCapsule(
   machines: ReadonlyArray<UpdateRunMachineView>,
   local: UpdateRunLocalState,
   now: number,
-) {
+): UpdateCapsuleView {
   if (run.phase === "countdown" && run.restartAt !== null) {
     const seconds = Math.max(0, Math.ceil((run.restartAt - now) / 1000));
-    return {
-      tone: "default",
-      label: `Restart in ${seconds}s`,
-      action: "later",
-    } satisfies UpdateCapsuleView;
+    return { tone: "default", label: `Restart in ${seconds}s`, action: "later" };
   }
   if (run.phase === "installing") {
-    return { tone: "default", label: "Restarting…", action: null } satisfies UpdateCapsuleView;
+    return { tone: "default", label: "Restarting…", action: null };
   }
   const active = machines.filter(({ status }) => isActive(status) && status !== "waiting");
   const slowest = active.toSorted((a, b) => a.machine.startedAt - b.machine.startedAt)[0];
@@ -432,22 +435,18 @@ export function describeUpdateCapsule(
         elapsed: formatUpdateElapsed(now - slowest.machine.startedAt),
       },
       action: null,
-    } satisfies UpdateCapsuleView;
+    };
   }
   const done = machines.filter(({ status }) => status === "done").length;
   if (machines.some(({ status }) => isActive(status))) {
-    return {
-      tone: "default",
-      label: `${done} of ${machines.length} updated`,
-      action: null,
-    } satisfies UpdateCapsuleView;
+    return { tone: "default", label: `${done} of ${machines.length} updated`, action: null };
   }
   if (local?.status === "downloading") {
     return {
       tone: "default",
       label: `Downloading${local.percent === null ? "" : ` ${Math.floor(local.percent)}%`}`,
       action: null,
-    } satisfies UpdateCapsuleView;
+    };
   }
   const failed = machines.filter(({ status }) => status === "failed");
   if (failed.length > 0) {
@@ -458,13 +457,9 @@ export function describeUpdateCapsule(
         !run.trackSwitch && failed.some(({ machine }) => machine.server !== null)
           ? "retry"
           : "dismiss",
-    } satisfies UpdateCapsuleView;
+    };
   }
-  return {
-    tone: "default",
-    label: `${done} of ${machines.length} updated`,
-    action: null,
-  } satisfies UpdateCapsuleView;
+  return { tone: "default", label: `${done} of ${machines.length} updated`, action: null };
 }
 
 export const RUN_STATUS_LABELS: Record<UpdateRunMachineStatus, string> = {
@@ -495,7 +490,7 @@ export function collectUpdateEverythingResult(input: {
     | { readonly status: "interrupted" | "updated" }
     | { readonly status: "failed"; readonly line: string }
   >;
-}) {
+}): UpdateEverythingResult {
   return {
     localVersion: input.localVersion,
     updatedServers: input.servers.filter(({ outcome }) => outcome.status === "updated").length,
@@ -511,7 +506,14 @@ export function collectUpdateEverythingResult(input: {
   };
 }
 
-export function getUpdateEverythingToastView(result: UpdateEverythingResult, appVersion: string) {
+export function getUpdateEverythingToastView(
+  result: UpdateEverythingResult,
+  appVersion: string,
+): {
+  readonly type: "success" | "error";
+  readonly title: string;
+  readonly description?: string;
+} | null {
   const parts = [
     result.localVersion !== null && result.localVersion === appVersion ? "this app" : null,
     countLabel(result.updatedServers, "server"),
@@ -524,31 +526,18 @@ export function getUpdateEverythingToastView(result: UpdateEverythingResult, app
           `${joinList(result.restarting)} ${result.restarting.length === 1 ? "is" : "are"} still restarting.`,
         ];
   if (result.failures.length === 0) {
-    if (parts.length === 0)
-      return null satisfies {
-        readonly type: "success" | "error";
-        readonly title: string;
-        readonly description?: string;
-      } | null;
+    if (parts.length === 0) return null;
     return {
       type: "success",
       title: `Updated ${joinList(parts)}`,
       ...(restarting.length === 0 ? {} : { description: restarting.join("\n") }),
-    } satisfies {
-      readonly type: "success" | "error";
-      readonly title: string;
-      readonly description?: string;
-    } | null;
+    };
   }
   return {
     type: "error",
     title: parts.length === 0 ? "Update failed" : `Updated ${joinList(parts)}`,
     description: [...result.failures, ...restarting].join("\n"),
-  } satisfies {
-    readonly type: "success" | "error";
-    readonly title: string;
-    readonly description?: string;
-  } | null;
+  };
 }
 
 export interface UpdateEverythingPlan {
@@ -577,17 +566,22 @@ export interface UpdateEverythingRow {
   readonly providers: ReadonlyArray<string>;
 }
 
-function countLabel(count: number, noun: string) {
+function countLabel(count: number, noun: string): string | null {
   return count === 0 ? null : `${count} ${noun}${count === 1 ? "" : "s"}`;
 }
 
-function joinList(parts: ReadonlyArray<string>) {
+function joinList(parts: ReadonlyArray<string>): string {
   if (parts.length <= 2) return parts.join(" and ");
   return `${parts.slice(0, -1).join(", ")}, and ${parts.at(-1)}`;
 }
 
 /** One row per machine: this app's machines first, then servers, provider-only, and skipped. */
-export function describeUpdateEverything(plan: UpdateEverythingPlan) {
+export function describeUpdateEverything(plan: UpdateEverythingPlan): {
+  readonly summary: string;
+  readonly version: string | null;
+  readonly providerCount: number;
+  readonly rows: ReadonlyArray<UpdateEverythingRow>;
+} {
   const providerCount = plan.providerMachines.reduce(
     (count, machine) => count + machine.providers.length,
     0,

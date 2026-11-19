@@ -56,12 +56,12 @@ const STDERR_EXCERPT_MAX_CHARS = 512;
 const ERROR_LINE_PATTERN = /^(?:[a-z]*error|fatal)(?: ?\[[^\]]+\])?:\s*\S/i;
 const EXIT_SUMMARY_PATTERN = /\b(?:exit status|exit code|exited with code)\s+\d+\.?$/i;
 
-export const appendStderrTail = (current: string, chunk: string) => {
+export const appendStderrTail = (current: string, chunk: string): string => {
   const next = `${current}${chunk}`;
   return next.length <= STDERR_TAIL_MAX_CHARS ? next : next.slice(-STDERR_TAIL_MAX_CHARS);
 };
 
-export const stderrExcerpt = (tail: string) => {
+export const stderrExcerpt = (tail: string): string | undefined => {
   const lines = NodeUtil.stripVTControlCharacters(tail)
     .split(/\r?\n/)
     .map((line) => line.trim().replace(/\s+/g, " "))
@@ -110,7 +110,7 @@ type ChildProcessTerminationHandle = Pick<
 export const makeTerminationError = (
   handle: ChildProcessTerminationHandle,
   stderrTail: Effect.Effect<string>,
-) =>
+): Effect.Effect<CodexError.CodexAppServerError> =>
   Effect.matchEffect(handle.exitCode, {
     onFailure: (cause) =>
       Effect.succeed(

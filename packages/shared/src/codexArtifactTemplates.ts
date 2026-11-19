@@ -54,7 +54,7 @@ function isCodexArtifactTemplateGalleryKind(
   return CODEX_ARTIFACT_TEMPLATE_GALLERY_KINDS.some((kind) => kind === value);
 }
 
-function isAbsoluteSkillDirectory(value: string) {
+function isAbsoluteSkillDirectory(value: string): boolean {
   return (
     (value.startsWith("/") && !value.startsWith("//")) ||
     WINDOWS_DRIVE_PATH_REGEX.test(value) ||
@@ -64,7 +64,7 @@ function isAbsoluteSkillDirectory(value: string) {
 
 export function resolveCodexArtifactTemplate(
   attributes: CodexArtifactTemplateAttributes | null | undefined,
-) {
+): CodexArtifactTemplate | null {
   const artifactKind = attributes?.artifact_kind;
   const displayNameValue = attributes?.display_name;
   const displayName = typeof displayNameValue === "string" ? displayNameValue.trim() : undefined;
@@ -106,18 +106,18 @@ const USE_PROMPT_BY_KIND: Record<CodexArtifactTemplateKind, (skill: string) => s
   slack: (skill) => `Draft a Slack message using this ${skill} about…`,
 };
 
-export function codexArtifactTemplateUsePrompt(template: CodexArtifactTemplate) {
+export function codexArtifactTemplateUsePrompt(template: CodexArtifactTemplate): string {
   return USE_PROMPT_BY_KIND[template.artifactKind](`$${template.skillName}`);
 }
 
-export function codexArtifactTemplatePresentationLabel(kind: CodexArtifactTemplateKind) {
+export function codexArtifactTemplatePresentationLabel(kind: CodexArtifactTemplateKind): string {
   return CODEX_ARTIFACT_TEMPLATE_LABEL_BY_KIND[kind];
 }
 
 export function appendCodexArtifactTemplateUsePrompt(
   draft: string,
   template: CodexArtifactTemplate,
-) {
+): string {
   const prompt = codexArtifactTemplateUsePrompt(template);
   const trimmedDraft = draft.trimEnd();
   const promptStart = trimmedDraft.length - prompt.length;

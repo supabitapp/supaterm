@@ -26,7 +26,10 @@ import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
 import { Popover, PopoverCreateHandle, PopoverPopup, PopoverTrigger } from "../ui/popover";
 import { SidebarMenuItem } from "../ui/sidebar";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
-import { DesktopUpdateStatusIcon } from "./DesktopUpdateStatusIcon";
+import {
+  DesktopUpdateStatusIcon,
+  type DesktopUpdateStatusIconState,
+} from "./DesktopUpdateStatusIcon";
 import { SidebarUpdateReleaseNotes } from "./SidebarUpdateReleaseNotes";
 import { SidebarUpdateCapsule } from "./SidebarUpdateCapsule";
 import { UpdateEverythingDialog } from "./UpdateEverythingDialog";
@@ -43,14 +46,16 @@ type SidebarUpdatePopoverChangeDetails = Parameters<
 >[1];
 type SidebarUpdatePopoverHandle = ReturnType<typeof PopoverCreateHandle>;
 
-export function shouldUseSidebarUpdateReleaseNotesPopover(state: DesktopUpdateState | null) {
+export function shouldUseSidebarUpdateReleaseNotesPopover(
+  state: DesktopUpdateState | null,
+): boolean {
   return (state?.releaseNotes.length ?? 0) > 0;
 }
 
 function handleSidebarUpdateReleaseNotesPopoverOpenChange(
   _open: boolean,
   details: Pick<SidebarUpdatePopoverChangeDetails, "reason" | "cancel">,
-) {
+): void {
   if (details.reason === "trigger-press") details.cancel();
 }
 
@@ -58,7 +63,7 @@ function openSidebarUpdateReleaseNotesPopoverOnForwardTab(
   event: { readonly key: string; readonly shiftKey: boolean },
   handle: Pick<SidebarUpdatePopoverHandle, "open">,
   triggerId: string,
-) {
+): void {
   if (event.key !== "Tab" || event.shiftKey) return;
   flushSync(() => handle.open(triggerId));
 }
@@ -73,7 +78,7 @@ function resolveSidebarUpdateIconStatus({
   readonly showsEverything: boolean;
   readonly run: UpdateEverythingRun | null;
   readonly isDownloading: boolean;
-}) {
+}): DesktopUpdateStatusIconState | null {
   if (isDownloading) return "downloading";
   if (run !== null) {
     return run.localVersion !== null && action === "install" ? "downloaded" : "everything";
@@ -114,7 +119,7 @@ export async function downloadLocalUpdate(
     notifyDownloaded,
     reportError = toastUpdateError,
   }: { readonly notifyDownloaded: boolean; readonly reportError?: ReportLocalUpdateError },
-) {
+): Promise<boolean> {
   try {
     const result = await bridge.downloadUpdate();
     if (result.completed && notifyDownloaded) {
@@ -138,7 +143,7 @@ export async function installLocalUpdate(
   bridge: DesktopBridge,
   reportError: ReportLocalUpdateError = toastUpdateError,
   expectedVersion: string | null = null,
-) {
+): Promise<boolean> {
   try {
     await desktopUpdateRestart.install(bridge, expectedVersion ?? undefined);
     return true;

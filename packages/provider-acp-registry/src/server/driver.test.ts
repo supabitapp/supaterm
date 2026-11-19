@@ -55,7 +55,9 @@ const noSessionManagement = {
   canConfigureProviders: false,
 } as const;
 
-function catalogWithInspection(inspection: AcpRegistrySupport.AcpRegistryInspection) {
+function catalogWithInspection(
+  inspection: AcpRegistrySupport.AcpRegistryInspection,
+): AcpRegistrySupport.AcpRegistryCatalog["Service"] {
   return {
     search: () => Effect.die("unused search"),
     prepare: () => Effect.die("unused prepare"),
@@ -72,15 +74,7 @@ function providerWithModels(
     readonly description: string | null;
   }>,
   currentModelId: string | null,
-): ReturnType<typeof buildCheckedAcpRegistrySnapshot>;
-function providerWithModels(
-  models: ReadonlyArray<{
-    readonly id: string;
-    readonly name: string;
-    readonly description: string | null;
-  }>,
-  currentModelId: string | null,
-) {
+): ReturnType<typeof buildCheckedAcpRegistrySnapshot> {
   return buildCheckedAcpRegistrySnapshot({
     ...identity,
     settings: decodeSettings({ agentId: "test-agent" }),
@@ -105,7 +99,7 @@ function providerWithModels(
       slashCommands: [],
       skills: [],
     },
-  }) satisfies ReturnType<typeof buildCheckedAcpRegistrySnapshot>;
+  });
 }
 
 describe("acpRegistrySnapshotReadiness", () => {

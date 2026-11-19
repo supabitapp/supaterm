@@ -11,7 +11,7 @@ export function holdLinkedNodeInView(
   node: HTMLElement,
   scroller: HTMLElement,
   offset: () => number,
-) {
+): () => void {
   const controller = new AbortController();
   const stop = () => {
     unobserve();

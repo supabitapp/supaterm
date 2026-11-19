@@ -114,25 +114,25 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function shortHash(value: string) {
+function shortHash(value: string): string {
   return [...sha256(new TextEncoder().encode(value))]
     .slice(0, 6)
     .map((byte) => byte.toString(16).padStart(2, "0"))
     .join("");
 }
 
-function openVsxThemeId(extensionId: string, source: string) {
+function openVsxThemeId(extensionId: string, source: string): string {
   return `ovx-theme-${shortHash(`${extensionId}:${source}`)}`;
 }
 
-function openVsxCollectionId(extensionId: string) {
+function openVsxCollectionId(extensionId: string): string {
   const normalized = `open-vsx:${extensionId.toLowerCase()}`;
   return /^[a-z0-9][a-z0-9.:-]{0,127}$/.test(normalized)
     ? normalized
     : `open-vsx:${shortHash(extensionId)}`;
 }
 
-function trustedOpenVsxUrl(value: unknown) {
+function trustedOpenVsxUrl(value: unknown): string | null {
   if (typeof value !== "string") return null;
   try {
     const url = new URL(value);
@@ -144,7 +144,7 @@ function trustedOpenVsxUrl(value: unknown) {
   }
 }
 
-function publicSourceUrl(value: unknown) {
+function publicSourceUrl(value: unknown): string | null {
   const rawValue =
     typeof value === "string"
       ? value
@@ -160,21 +160,21 @@ function publicSourceUrl(value: unknown) {
   }
 }
 
-function themeContributions(manifest: Record<string, unknown>) {
+function themeContributions(manifest: Record<string, unknown>): ThemeContribution[] {
   const contributes = isRecord(manifest.contributes) ? manifest.contributes : null;
   return Array.isArray(contributes?.themes)
     ? (contributes.themes.filter(isRecord) as ThemeContribution[])
     : [];
 }
 
-function manifestLicenseMatches(manifest: Record<string, unknown>, license: string) {
+function manifestLicenseMatches(manifest: Record<string, unknown>, license: string): boolean {
   return (
     typeof manifest.license === "string" &&
     manifest.license.trim().toLowerCase() === license.toLowerCase()
   );
 }
 
-function extensionFromDetail(value: unknown) {
+function extensionFromDetail(value: unknown): OpenVsxThemeExtension | null {
   if (!isRecord(value) || !isRecord(value.files)) {
     throw new Error("Open VSX returned malformed theme details.");
   }
@@ -218,7 +218,7 @@ function extensionFromDetail(value: unknown) {
 async function withSearchTimeout<T>(
   operation: (signal: AbortSignal) => Promise<T>,
   parentSignal?: AbortSignal,
-) {
+): Promise<T> {
   const controller = new AbortController();
   const abort = () => controller.abort();
   if (parentSignal?.aborted) abort();
@@ -240,7 +240,7 @@ async function withSearchTimeout<T>(
 export async function searchOpenVsxThemes(
   query: string,
   { signal, sortBy = "downloadCount" }: OpenVsxThemeSearchOptions = {},
-) {
+): Promise<OpenVsxThemeExtension[]> {
   const searchText = query.trim();
   if (!searchText) return [];
   const url = new URL(OPEN_VSX_SEARCH_URL);
@@ -266,11 +266,11 @@ export async function searchOpenVsxThemes(
   if (!isRecord(value) || !Array.isArray(value.extensions)) {
     throw new Error("Open VSX returned an unreadable search response.");
   }
-  const identities = value.extensions.flatMap((candidate) => {
-    if (!isRecord(candidate)) return [] satisfies Array<[string, string]>;
+  const identities = value.extensions.flatMap((candidate): Array<[string, string]> => {
+    if (!isRecord(candidate)) return [];
     const namespace = typeof candidate.namespace === "string" ? candidate.namespace : "";
     const name = typeof candidate.name === "string" ? candidate.name : "";
-    return (namespace && name ? [[namespace, name]] : []) satisfies Array<[string, string]>;
+    return namespace && name ? [[namespace, name]] : [];
   });
   const details = await Promise.allSettled(
     identities.slice(0, 16).map(([namespace, name]) =>
@@ -323,16 +323,14 @@ export async function searchOpenVsxThemes(
   return completedDetails.flatMap((result) => (result.value ? [result.value] : [])).slice(0, 8);
 }
 
-function parseJsoncObject(source: string, description: string): Record<string, unknown>;
-function parseJsoncObject(source: string, description: string) {
+function parseJsoncObject(source: string, description: string): Record<string, unknown> {
   const errors: ParseError[] = [];
   const value: unknown = parse(source, errors, { allowTrailingComma: true });
   if (errors.length > 0 || !isRecord(value)) throw new Error(`${description} is not valid JSON.`);
-  return value satisfies Record<string, unknown>;
+  return value;
 }
 
-function sanitizeThemeObject(value: Record<string, unknown>): Record<string, unknown>;
-function sanitizeThemeObject(value: Record<string, unknown>) {
+function sanitizeThemeObject(value: Record<string, unknown>): Record<string, unknown> {
   const colors: Record<string, string> = {};
   if (isRecord(value.colors)) {
     for (const [key, color] of Object.entries(value.colors)) {
@@ -348,10 +346,10 @@ function sanitizeThemeObject(value: Record<string, unknown>) {
   return {
     ...(typeof value.include === "string" ? { include: value.include } : {}),
     colors,
-  } satisfies Record<string, unknown>;
+  };
 }
 
-function normalizePackagePath(path: string, relativeTo = "extension/") {
+function normalizePackagePath(path: string, relativeTo = "extension/"): string {
   if (
     path.length > MAX_PACKAGE_PATH_LENGTH ||
     path.includes("\0") ||
@@ -376,7 +374,7 @@ function normalizePackagePath(path: string, relativeTo = "extension/") {
   return segments.join("/");
 }
 
-function contributionType(uiTheme: unknown) {
+function contributionType(uiTheme: unknown): string | null {
   if (uiTheme === "vs") return "light";
   if (uiTheme === "vs-dark") return "dark";
   if (uiTheme === "hc-black" || uiTheme === "hc-light") return uiTheme;
@@ -393,7 +391,7 @@ type InspectableZipObject = JSZip.JSZipObject & {
   internalStream?: (type: "uint8array") => JSZip.JSZipStreamHelper<Uint8Array>;
 };
 
-function inspectZipDirectory(bytes: Uint8Array) {
+function inspectZipDirectory(bytes: Uint8Array): Uint8Array {
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   const minimumOffset = Math.max(0, bytes.byteLength - 65_557);
   let endOffset = bytes.byteLength - 22;
@@ -456,7 +454,7 @@ function inspectZipDirectory(bytes: Uint8Array) {
   return withoutComment;
 }
 
-function inspectZip(zip: JSZip) {
+function inspectZip(zip: JSZip): void {
   const entries = Object.values(zip.files) as InspectableZipObject[];
   if (entries.length > MAX_ZIP_ENTRIES)
     throw new Error("That extension package has too many files.");
@@ -466,13 +464,12 @@ function inspectZip(zip: JSZip) {
   }
 }
 
-function readZipText(
+async function readZipText(
   zip: JSZip,
   path: string,
   description: string,
   signal?: AbortSignal,
-): Promise<string>;
-async function readZipText(zip: JSZip, path: string, description: string, signal?: AbortSignal) {
+): Promise<string> {
   signal?.throwIfAborted();
   const file = zip.file(path) as InspectableZipObject | null;
   if (!file) throw new Error(`${description} is missing from the extension package.`);
@@ -529,17 +526,9 @@ async function readZipText(zip: JSZip, path: string, description: string, signal
         resolve(new TextDecoder().decode(bytes));
       })
       .resume();
-  }) satisfies string;
+  });
 }
 
-function loadThemeObject(
-  zip: JSZip,
-  path: string,
-  cache: Map<string, Record<string, unknown>>,
-  budget: { files: number },
-  ancestors?: ReadonlySet<string>,
-  signal?: AbortSignal,
-): Promise<Record<string, unknown>>;
 async function loadThemeObject(
   zip: JSZip,
   path: string,
@@ -547,12 +536,12 @@ async function loadThemeObject(
   budget: { files: number },
   ancestors: ReadonlySet<string> = new Set(),
   signal?: AbortSignal,
-) {
+): Promise<Record<string, unknown>> {
   signal?.throwIfAborted();
   if (ancestors.size >= MAX_INCLUDE_DEPTH) throw new Error("Theme includes are nested too deeply.");
   if (ancestors.has(path)) throw new Error("Theme includes contain a cycle.");
   const cached = cache.get(path);
-  if (cached) return cached satisfies Record<string, unknown>;
+  if (cached) return cached;
   budget.files += 1;
   if (budget.files > MAX_RESOLVED_THEME_FILES) {
     throw new Error("That extension references too many theme files.");
@@ -563,7 +552,7 @@ async function loadThemeObject(
   );
   if (typeof value.include !== "string") {
     cache.set(path, value);
-    return value satisfies Record<string, unknown>;
+    return value;
   }
 
   const includePath = normalizePackagePath(value.include, path);
@@ -579,10 +568,14 @@ async function loadThemeObject(
     },
   };
   cache.set(path, resolved);
-  return resolved satisfies Record<string, unknown>;
+  return resolved;
 }
 
-async function readCappedResponse(response: Response, limit: number, tooLargeMessage: string) {
+async function readCappedResponse(
+  response: Response,
+  limit: number,
+  tooLargeMessage: string,
+): Promise<Uint8Array> {
   const contentLength = response.headers.get("content-length");
   if (contentLength && Number(contentLength) > limit) throw new Error(tooLargeMessage);
   if (!response.body) {
@@ -618,7 +611,7 @@ async function readCappedResponse(response: Response, limit: number, tooLargeMes
   return result;
 }
 
-async function fetchPackage(url: string, signal?: AbortSignal) {
+async function fetchPackage(url: string, signal?: AbortSignal): Promise<Uint8Array> {
   const response = await fetch(url, signal ? { signal } : {});
   if (!response.ok) throw new Error("That Open VSX theme could not be downloaded.");
   return readCappedResponse(
@@ -628,14 +621,10 @@ async function fetchPackage(url: string, signal?: AbortSignal) {
   );
 }
 
-export function importOpenVsxThemeExtension(
-  extension: OpenVsxThemeExtension,
-  signal?: AbortSignal,
-): Promise<ReadonlyArray<ThemeDefinition>>;
 export async function importOpenVsxThemeExtension(
   extension: OpenVsxThemeExtension,
   signal?: AbortSignal,
-) {
+): Promise<ReadonlyArray<ThemeDefinition>> {
   const manifestResponse = await fetch(extension.manifestUrl, signal ? { signal } : {});
   if (!manifestResponse.ok) throw new Error("That Open VSX extension has no readable manifest.");
   const manifestBytes = await readCappedResponse(
@@ -783,5 +772,5 @@ export async function importOpenVsxThemeExtension(
     id: extension.collectionId,
     label: extension.name.slice(0, 48),
   };
-  return themes.map((theme) => ({ ...theme, collection })) satisfies ReadonlyArray<ThemeDefinition>;
+  return themes.map((theme) => ({ ...theme, collection }));
 }

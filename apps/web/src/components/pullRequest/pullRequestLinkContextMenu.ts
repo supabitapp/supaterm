@@ -11,7 +11,7 @@ import { toastManager } from "../ui/toast";
 
 export type PullRequestLinkContextMenuAction = "copy-link" | "open-external" | "show-linked";
 
-export const openOnHostLabel = (host: SourceControlDefinition, number?: number) => {
+export const openOnHostLabel = (host: SourceControlDefinition, number?: number): string => {
   const verb = number === undefined ? "Open" : `Open #${number}`;
   return host === UNKNOWN_SOURCE_CONTROL_CLIENT ? `${verb} on host` : `${verb} on ${host.label}`;
 };
@@ -24,7 +24,7 @@ function pullRequestLinkContextMenuItems({
   readonly host: SourceControlDefinition;
   readonly number: number | undefined;
   readonly showLinked: boolean;
-}) {
+}): readonly ContextMenuItem<PullRequestLinkContextMenuAction>[] {
   const items: ContextMenuItem<PullRequestLinkContextMenuAction>[] = [
     {
       id: "copy-link",
@@ -52,7 +52,7 @@ export async function showPullRequestLinkContextMenu({
   /** Names the pull request in the labels, for triggers that do not show which one they mean. */
   readonly number?: number | undefined;
   readonly onShowLinked?: (() => void) | undefined;
-}) {
+}): Promise<void> {
   const api = readLocalApi();
   if (!api) return;
   const items = pullRequestLinkContextMenuItems({

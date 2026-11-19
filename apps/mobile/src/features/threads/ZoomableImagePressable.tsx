@@ -13,7 +13,7 @@ type Size = { readonly width: number; readonly height: number };
 
 const FIT: Zoom = { scale: 1, x: 0, y: 0 };
 
-function clampZoom(zoom: Zoom, size: Size) {
+function clampZoom(zoom: Zoom, size: Size): Zoom {
   "worklet";
   const scale = Math.min(Math.max(zoom.scale, 1), MAX_INLINE_ZOOM);
   const maxX = ((scale - 1) * size.width) / 2;

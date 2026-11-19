@@ -28,7 +28,7 @@ export function kdeCapturePaths(paths: KdeCapturePaths) {
   };
 }
 
-function kdeCaptureDesktopEntry(executable: string) {
+function kdeCaptureDesktopEntry(executable: string): string {
   return [
     "[Desktop Entry]",
     "Type=Application",
@@ -88,10 +88,10 @@ function run(
           );
       },
     );
-  }) satisfies Promise<string>;
+  });
 }
 
-async function regularFile(path: string) {
+async function regularFile(path: string): Promise<Buffer | undefined> {
   const stat = await NodeFSP.lstat(path).catch((error: NodeJS.ErrnoException) => {
     if (error.code !== "ENOENT") throw error;
     return undefined;
@@ -112,8 +112,7 @@ export class KdeCaptureSetup {
     this.native = native;
   }
 
-  state(): Promise<DesktopCaptureHelperState>;
-  async state() {
+  async state(): Promise<DesktopCaptureHelperState> {
     try {
       const { executable, desktop } = kdeCapturePaths(this.paths);
       const [installed, entry] = await Promise.all([regularFile(executable), regularFile(desktop)]);
@@ -122,13 +121,13 @@ export class KdeCaptureSetup {
           status: "not-installed",
           message:
             "Install the bundled helper to capture the window you're using without a picker.",
-        } satisfies DesktopCaptureHelperState;
+        };
       const bundle = await regularFile(this.paths.bundle);
       if (!bundle)
         return {
           status: "error",
           message: "The capture helper is missing from this build. Update or reinstall Supaterm.",
-        } satisfies DesktopCaptureHelperState;
+        };
       if (!installed.equals(bundle) || entry.toString() !== kdeCaptureDesktopEntry(executable))
         return {
           status: "update-required",
@@ -139,12 +138,12 @@ export class KdeCaptureSetup {
         status: "ready",
         message: "KDE capture access is ready. Next, choose your shortcut.",
         feedbackAvailable: capabilities.feedbackAvailable ?? false,
-      } satisfies DesktopCaptureHelperState;
+      };
     } catch (error) {
       return {
         status: "error",
         message: error instanceof Error ? error.message : "Couldn't check KDE capture access.",
-      } satisfies DesktopCaptureHelperState;
+      };
     }
   }
 
@@ -292,7 +291,7 @@ export async function captureKdeWindow(
         },
         close,
       },
-    } satisfies LinuxWindowSnapshot;
+    };
   } finally {
     if (!retained) await cleanup();
   }

@@ -59,7 +59,9 @@ const keyCodeFor = (key: string) => {
 };
 
 /** Electron derives text from keyCode, so typed text needs separate char events. */
-export const toKeyboardInputEvents = (params: Record<string, unknown>) => {
+export const toKeyboardInputEvents = (
+  params: Record<string, unknown>,
+): Array<Electron.KeyboardInputEvent> => {
   const bits = typeof params["modifiers"] === "number" ? params["modifiers"] : 0;
   const modifiers = MODIFIER_BITS.flatMap(([bit, name]) => (bits & bit ? [name] : []));
   const text = typeof params["text"] === "string" ? params["text"] : "";
@@ -157,19 +159,13 @@ const sendPointerCommand = async (
 };
 
 /** Sends one command to the guest's page, keeping reloads and input inside it. */
-export const sendPageCommand: (
+export const sendPageCommand = async (
   webContents: Electron.WebContents,
   debuggee: Electron.Debugger,
   method: string,
   params: Record<string, unknown>,
   sessionId?: string,
-) => Promise<unknown> = async (
-  webContents: Electron.WebContents,
-  debuggee: Electron.Debugger,
-  method: string,
-  params: Record<string, unknown>,
-  sessionId?: string,
-) => {
+): Promise<unknown> => {
   if (method === "Input.dispatchMouseEvent" || method === "Input.dispatchTouchEvent") {
     return sendPointerCommand(webContents, debuggee, method, params, sessionId);
   }

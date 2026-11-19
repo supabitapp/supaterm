@@ -6,7 +6,7 @@ import { selectThreadTerminalUiState, useTerminalUiStateStore } from "../termina
 
 export type TerminalFocusOwner = "drawer" | "right-panel";
 
-export function getTerminalFocusOwner() {
+export function getTerminalFocusOwner(): TerminalFocusOwner | null {
   const activeElement = document.activeElement;
   if (!(activeElement instanceof HTMLElement)) return null;
   if (!activeElement.isConnected) return null;
@@ -15,11 +15,11 @@ export function getTerminalFocusOwner() {
   return null;
 }
 
-export function isTerminalFocused() {
+export function isTerminalFocused(): boolean {
   return getTerminalFocusOwner() !== null;
 }
 
-export function subscribeToTerminalFocusChanges(listener: () => void) {
+export function subscribeToTerminalFocusChanges(listener: () => void): () => void {
   window.addEventListener("focusin", listener, true);
   window.addEventListener("focusout", listener, true);
   return () => {
@@ -43,11 +43,11 @@ let enteredThreadKey: string | null = null;
 const lastEnteredThreadByRoot = new WeakMap<HTMLElement, string>();
 let navigationRequestThreadKey: string | null = null;
 
-function isPending(threadKey: string, terminalId: string) {
+function isPending(threadKey: string, terminalId: string): boolean {
   return pendingFocus?.threadKey === threadKey && pendingFocus.terminalId === terminalId;
 }
 
-function focusMountedTarget(threadKey: string, terminalId: string) {
+function focusMountedTarget(threadKey: string, terminalId: string): boolean {
   for (const target of focusTargets) {
     if (
       target.terminalId === terminalId &&
@@ -65,7 +65,7 @@ function focusMountedTarget(threadKey: string, terminalId: string) {
  * Opening, creating or switching to a terminal usually mounts or shows its
  * viewport after the handler returns, so the request waits for the viewport.
  */
-export function focusTerminal(threadRef: ScopedThreadRef, terminalId: string) {
+export function focusTerminal(threadRef: ScopedThreadRef, terminalId: string): void {
   const threadKey = scopedThreadKey(threadRef);
   pendingFocus = focusMountedTarget(threadKey, terminalId) ? null : { threadKey, terminalId };
 }
@@ -74,7 +74,7 @@ export function focusTerminal(threadRef: ScopedThreadRef, terminalId: string) {
  * Focuses the drawer terminal the store now marks active, after an open, close
  * or switch. A thread whose drawer ended up closed drops its waiting request.
  */
-export function focusActiveDrawerTerminal(threadRef: ScopedThreadRef) {
+export function focusActiveDrawerTerminal(threadRef: ScopedThreadRef): void {
   const { terminalOpen, activeTerminalId } = selectThreadTerminalUiState(
     useTerminalUiStateStore.getState().terminalUiStateByThreadKey,
     threadRef,
@@ -84,7 +84,7 @@ export function focusActiveDrawerTerminal(threadRef: ScopedThreadRef) {
 }
 
 /** Focuses the active terminal of the right panel when it shows a terminal surface. */
-export function focusActivePanelTerminal(threadRef: ScopedThreadRef) {
+export function focusActivePanelTerminal(threadRef: ScopedThreadRef): void {
   const { isOpen, activeSurfaceId, surfaces } = selectThreadRightPanelState(
     useRightPanelStore.getState().byThreadKey,
     threadRef,
@@ -100,7 +100,7 @@ export function focusActivePanelTerminal(threadRef: ScopedThreadRef) {
 export function focusPanelTerminalAfterClose(
   threadRef: ScopedThreadRef,
   previousActiveSurfaceId: string | null,
-) {
+): void {
   const { activeSurfaceId } = selectThreadRightPanelState(
     useRightPanelStore.getState().byThreadKey,
     threadRef,
@@ -113,7 +113,7 @@ export function focusPanelTerminalAfterClose(
  * sidebar terminal reveal). When it does, that thread's entry keeps this request
  * instead of focusing the drawer.
  */
-export function focusTerminalOnNavigation(threadRef: ScopedThreadRef, terminalId: string) {
+export function focusTerminalOnNavigation(threadRef: ScopedThreadRef, terminalId: string): void {
   const threadKey = scopedThreadKey(threadRef);
   navigationRequestThreadKey = threadKey === enteredThreadKey ? null : threadKey;
   focusTerminal(threadRef, terminalId);
@@ -128,7 +128,7 @@ export function restoreFocusOnThreadEnter(
     /** False for a split pane that does not own input: it only remembers focus. */
     readonly restoresFocus?: boolean;
   },
-) {
+): () => void {
   const threadKey = scopedThreadKey(threadRef);
   const restoresFocus = content.restoresFocus ?? true;
   const requestedByHandler =
@@ -189,7 +189,7 @@ export function restoreFocusOnThreadEnter(
   };
 }
 
-function cancelTerminalFocus(threadRef: ScopedThreadRef) {
+function cancelTerminalFocus(threadRef: ScopedThreadRef): void {
   if (pendingFocus?.threadKey === scopedThreadKey(threadRef)) pendingFocus = null;
 }
 
@@ -198,14 +198,14 @@ function cancelTerminalFocus(threadRef: ScopedThreadRef) {
  * shown (a viewport kept mounted while hidden has `display: none`) or when the
  * operate grant arrives. Neither ever invents a request.
  */
-export function consumePendingTerminalFocus(threadRef: ScopedThreadRef, terminalId: string) {
+export function consumePendingTerminalFocus(threadRef: ScopedThreadRef, terminalId: string): void {
   const threadKey = scopedThreadKey(threadRef);
   if (isPending(threadKey, terminalId) && focusMountedTarget(threadKey, terminalId)) {
     pendingFocus = null;
   }
 }
 
-export function registerTerminalFocusTarget(target: TerminalFocusTarget) {
+export function registerTerminalFocusTarget(target: TerminalFocusTarget): () => void {
   focusTargets.add(target);
   if (isPending(scopedThreadKey(target.threadRef), target.terminalId) && target.focus()) {
     pendingFocus = null;
@@ -224,7 +224,7 @@ export function focusTerminalViewport(input: {
   readonly surface: { focus(): void } | null;
   readonly canOperate: boolean;
   readonly visible: boolean;
-}) {
+}): boolean {
   if (!input.canOperate || !input.visible) return false;
   input.mount.focus({ preventScroll: true });
   input.surface?.focus();

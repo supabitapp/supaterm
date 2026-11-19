@@ -254,7 +254,7 @@ export function HostedPairingRouteSurface() {
   );
 }
 
-function errorMessageFromUnknown(error: unknown) {
+function errorMessageFromUnknown(error: unknown): string {
   if (error instanceof Error && error.message.trim().length > 0) {
     return error.message;
   }
@@ -266,7 +266,7 @@ function errorMessageFromUnknown(error: unknown) {
   return "Authentication failed.";
 }
 
-function describeAuthGate(bootstrapMethods: ReadonlyArray<string>) {
+function describeAuthGate(bootstrapMethods: ReadonlyArray<string>): string {
   if (bootstrapMethods.includes("desktop-bootstrap")) {
     return "This environment expects a trusted pairing credential before the app can connect.";
   }
@@ -274,7 +274,7 @@ function describeAuthGate(bootstrapMethods: ReadonlyArray<string>) {
   return "Enter a pairing token to start a session with this environment.";
 }
 
-function describeSupportedMethods(bootstrapMethods: ReadonlyArray<string>) {
+function describeSupportedMethods(bootstrapMethods: ReadonlyArray<string>): string {
   if (
     bootstrapMethods.includes("desktop-bootstrap") &&
     bootstrapMethods.includes("one-time-token")

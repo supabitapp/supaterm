@@ -16,7 +16,10 @@ export interface SupatermProjectFileState {
   scripts: ReadonlyArray<SupatermProjectFileScript>;
 }
 
-export function useSupatermProjectFileState(environmentId: EnvironmentId, cwd: string | null) {
+export function useSupatermProjectFileState(
+  environmentId: EnvironmentId,
+  cwd: string | null,
+): SupatermProjectFileState {
   const query = useProjectFileQuery(
     environmentId,
     cwd ?? "",
@@ -39,6 +42,9 @@ export function useSupatermProjectFileState(environmentId: EnvironmentId, cwd: s
   return { status: "valid", file, scripts: file.scripts ?? NO_SCRIPTS } as const;
 }
 
-export function useSupatermProjectFileScripts(environmentId: EnvironmentId, cwd: string | null) {
+export function useSupatermProjectFileScripts(
+  environmentId: EnvironmentId,
+  cwd: string | null,
+): ReadonlyArray<SupatermProjectFileScript> {
   return useSupatermProjectFileState(environmentId, cwd).scripts;
 }

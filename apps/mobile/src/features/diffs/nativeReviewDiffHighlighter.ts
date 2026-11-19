@@ -39,7 +39,7 @@ function isHighlightableLineRow(row: NativeReviewDiffRow): row is NativeReviewDi
 function hasConsecutiveLineNumbers(
   previous: number | null | undefined,
   next: number | null | undefined,
-) {
+): boolean {
   return typeof previous === "number" && typeof next === "number" && next === previous + 1;
 }
 
@@ -49,7 +49,7 @@ const tokenCacheKeys = new WeakMap<object, object>();
 const tokenCache = new Map<object, { language: string; tokens: TokenizedCode }>();
 let tokenCacheBytes = 0;
 
-function getTokenCacheKey(context: object) {
+function getTokenCacheKey(context: object): object {
   let key = tokenCacheKeys.get(context);
   if (!key) {
     key = {};
@@ -58,7 +58,11 @@ function getTokenCacheKey(context: object) {
   return key;
 }
 
-function getCachedTokens(cacheKey: object, contents: string | (() => string), language: string) {
+function getCachedTokens(
+  cacheKey: object,
+  contents: string | (() => string),
+  language: string,
+): TokenizedCode {
   const cached = tokenCache.get(cacheKey);
   if (cached) {
     tokenCache.delete(cacheKey);
@@ -131,13 +135,12 @@ function matchesSourceSide(
   return matches;
 }
 
-function createFullSourceContext(contents: string): FullSourceContext;
-function createFullSourceContext(contents: string) {
+function createFullSourceContext(contents: string): FullSourceContext {
   return {
     contents,
     comparisonLines: contents.split("\n"),
     validation: new WeakMap(),
-  } satisfies FullSourceContext;
+  };
 }
 
 function getFullSourceContexts(source: NativeReviewDiffSource) {
@@ -203,7 +206,7 @@ function getSourceSegments(rows: ReadonlyArray<NativeReviewDiffRow>) {
   return segmentsByRowId;
 }
 
-function displaySide(row: NativeReviewDiffLineRow) {
+function displaySide(row: NativeReviewDiffLineRow): DiffSide {
   return row.change === "delete" ? "old" : "new";
 }
 
@@ -219,13 +222,20 @@ function clampRowIndex(index: number, rows: ReadonlyArray<NativeReviewDiffRow>) 
   return Math.min(rows.length - 1, Math.max(0, Math.floor(index)));
 }
 
-function makePlainTokenFallback(row: NativeReviewDiffLineRow) {
+function makePlainTokenFallback(
+  row: NativeReviewDiffLineRow,
+): ReadonlyArray<NativeReviewDiffToken> {
   return [{ content: row.content || " ", color: null, fontStyle: null }];
 }
 
 export async function highlightNativeReviewDiffVisibleRows(
   input: HighlightNativeReviewDiffVisibleRowsInput,
-) {
+): Promise<{
+  readonly tokensByRowId: Record<string, ReadonlyArray<NativeReviewDiffToken>>;
+  readonly retryableRowIds: ReadonlyArray<string>;
+  readonly rowCount: number;
+  readonly durationMs: number;
+}> {
   const request = diffHighlightTraceId(input);
   traceDiffHighlight("highlight-start", {
     request,

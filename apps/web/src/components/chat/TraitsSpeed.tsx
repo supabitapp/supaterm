@@ -5,15 +5,17 @@ import { UltrafastIcon } from "../Icons";
 import { cn } from "~/lib/utils";
 import { ComposerControlIcon, type ComposerControlSize } from "./ComposerControl";
 
-export function getTraitsSpeedDisplay(descriptor: ProviderOptionDescriptor) {
+export function getTraitsSpeedDisplay(
+  descriptor: ProviderOptionDescriptor,
+): { label: string; speedIcon: "fast" | "ultrafast" | null } | null {
   if (descriptor.id === "fastMode" && descriptor.type === "boolean") {
     return {
       label: descriptor.currentValue === true ? "Fast" : "Normal",
       speedIcon: descriptor.currentValue === true ? "fast" : null,
-    } satisfies { label: string; speedIcon: "fast" | "ultrafast" | null } | null;
+    };
   }
   if (descriptor.id !== "serviceTier" || descriptor.type !== "select") {
-    return null satisfies { label: string; speedIcon: "fast" | "ultrafast" | null } | null;
+    return null;
   }
   const currentValue = getProviderOptionCurrentValue(descriptor);
   const fastTier = descriptor.options.find(({ label }) => label === "Fast");
@@ -31,9 +33,9 @@ export function getTraitsSpeedDisplay(descriptor: ProviderOptionDescriptor) {
           : fastTier && currentValue === fastTier.id
             ? "fast"
             : null,
-    } satisfies { label: string; speedIcon: "fast" | "ultrafast" | null } | null;
+    };
   }
-  return null satisfies { label: string; speedIcon: "fast" | "ultrafast" | null } | null;
+  return null;
 }
 
 export function TraitsSpeedIcon({

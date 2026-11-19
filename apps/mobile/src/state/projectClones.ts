@@ -15,7 +15,7 @@ const EMPTY_CLONE_ATOM = Atom.make<ProjectCloneState>(null).pipe(
 );
 
 const environmentProjectClonesAtom = Atom.family((environmentId: EnvironmentId) =>
-  Atom.make((get) => {
+  Atom.make((get): ReadonlyArray<ProjectCloneSnapshot> | "pending" => {
     const config = get(serverEnvironment.configValueAtom(environmentId));
     if (config == null) return EMPTY_CLONES;
     const result = get(sourceControlEnvironment.projectClones({ environmentId, input: {} }));
@@ -25,7 +25,7 @@ const environmentProjectClonesAtom = Atom.family((environmentId: EnvironmentId) 
 );
 
 export const environmentProjectCloneListAtom = Atom.family((environmentId: EnvironmentId) =>
-  Atom.make((get) => {
+  Atom.make((get): ReadonlyArray<ProjectCloneSnapshot> => {
     const clones = get(environmentProjectClonesAtom(environmentId));
     return clones === "pending" ? EMPTY_CLONES : clones;
   }).pipe(Atom.withLabel(`mobile-project-clone-list:${environmentId}`)),
@@ -33,7 +33,7 @@ export const environmentProjectCloneListAtom = Atom.family((environmentId: Envir
 
 const projectCloneAtom = Atom.family((key: string) => {
   const ref = parseScopedProjectKey(key);
-  return Atom.make((get) => {
+  return Atom.make((get): ProjectCloneState => {
     if (ref === null) return null;
     const clones = get(environmentProjectClonesAtom(ref.environmentId));
     if (clones === "pending") return "pending";
@@ -41,9 +41,6 @@ const projectCloneAtom = Atom.family((key: string) => {
   }).pipe(Atom.withLabel(`mobile-project-clone:${key}`));
 });
 
-export function useProjectClone(ref: ScopedProjectRef | null): ProjectCloneState;
-export function useProjectClone(ref: ScopedProjectRef | null) {
-  return useAtomValue(
-    ref === null ? EMPTY_CLONE_ATOM : projectCloneAtom(scopedProjectKey(ref)),
-  ) satisfies ProjectCloneState;
+export function useProjectClone(ref: ScopedProjectRef | null): ProjectCloneState {
+  return useAtomValue(ref === null ? EMPTY_CLONE_ATOM : projectCloneAtom(scopedProjectKey(ref)));
 }

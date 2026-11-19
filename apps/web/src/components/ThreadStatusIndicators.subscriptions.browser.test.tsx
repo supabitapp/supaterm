@@ -127,25 +127,24 @@ import {
   resolveThreadPullRequestBadge,
 } from "./ThreadStatusIndicators";
 
-const linkedPullRequest = (number: number, state: "open" | "merged") =>
-  ({
-    host: "github.com",
-    repository: "example/repo",
-    number,
-    url: `https://github.com/example/repo/pull/${number}`,
-    source: "manual",
-    linkedAt: "2026-09-04T00:00:00.000Z",
-    snapshot: {
-      state,
-      title: `Linked PR ${number}`,
-      headBranch: `feature/${number}`,
-      baseBranch: "main",
-      isDraft: false,
-      updatedAt: "2026-09-04T00:00:00.000Z",
-      syncedAt: "2026-09-04T00:00:00.000Z",
-    },
-    stack: null,
-  }) satisfies ThreadPullRequestLink;
+const linkedPullRequest = (number: number, state: "open" | "merged"): ThreadPullRequestLink => ({
+  host: "github.com",
+  repository: "example/repo",
+  number,
+  url: `https://github.com/example/repo/pull/${number}`,
+  source: "manual",
+  linkedAt: "2026-09-04T00:00:00.000Z",
+  snapshot: {
+    state,
+    title: `Linked PR ${number}`,
+    headBranch: `feature/${number}`,
+    baseBranch: "main",
+    isDraft: false,
+    updatedAt: "2026-09-04T00:00:00.000Z",
+    syncedAt: "2026-09-04T00:00:00.000Z",
+  },
+  stack: null,
+});
 
 it("right-clicking the PR badge opens the pull request's menu instead of the row's", async () => {
   state.showContextMenu.reset(async () => "show-linked");

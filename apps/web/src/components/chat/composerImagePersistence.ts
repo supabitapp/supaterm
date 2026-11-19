@@ -29,7 +29,5 @@ export async function serializeComposerImages(
       }
     }),
   );
-  return staged.filter(
-    (attachment) => attachment !== undefined,
-  ) satisfies PersistedComposerImageAttachment[];
+  return staged.filter((attachment) => attachment !== undefined);
 }

@@ -27,18 +27,18 @@ const AGENT_STATES: Record<string, OrchestrationV2WorkflowAgent["state"] | undef
   error: "failed",
 };
 
-function count(value: unknown) {
+function count(value: unknown): number | undefined {
   return typeof value === "number" && Number.isSafeInteger(value) && value >= 0 ? value : undefined;
 }
 
-function timestamp(value: unknown) {
+function timestamp(value: unknown): number | undefined {
   const milliseconds = count(value);
   return milliseconds !== undefined && milliseconds <= 8_640_000_000_000_000
     ? milliseconds
     : undefined;
 }
 
-function clip(value: string | undefined) {
+function clip(value: string | undefined): string | undefined {
   if (value === undefined || value.length <= WORKFLOW_TEXT_MAX_LENGTH) return value;
   const last = value.charCodeAt(WORKFLOW_TEXT_MAX_LENGTH - 1);
   const end =
@@ -47,28 +47,28 @@ function clip(value: string | undefined) {
   return clipped.length === 0 ? undefined : clipped;
 }
 
-function preview(value: unknown) {
+function preview(value: unknown): string | undefined {
   return typeof value === "string" && value.length > 0 ? clip(value) : undefined;
 }
 
-function filePath(value: unknown) {
+function filePath(value: unknown): string | undefined {
   const candidate = text(value);
   return candidate !== undefined && candidate.length <= WORKFLOW_PATH_MAX_LENGTH
     ? candidate
     : undefined;
 }
 
-function optional<T>(key: string, value: T | undefined) {
+function optional<T>(key: string, value: T | undefined): Record<string, T> {
   return value === undefined ? {} : ({ [key]: value } as Record<string, T>);
 }
 
-function parsePhase(entry: unknown) {
+function parsePhase(entry: unknown): OrchestrationV2WorkflowPhase | null {
   const index = count(field(entry, "index"));
   const title = clip(text(field(entry, "title")));
   return index === undefined || title === undefined ? null : { index, title };
 }
 
-function parseAgent(entry: unknown) {
+function parseAgent(entry: unknown): OrchestrationV2WorkflowAgent | null {
   const index = count(field(entry, "index"));
   const label = clip(text(field(entry, "label")));
   if (index === undefined || label === undefined) return null;
@@ -106,7 +106,9 @@ function parseAgent(entry: unknown) {
 }
 
 /** The background-launch ACK is the only frame carrying the run's filesystem handles. */
-export function parseClaudeWorkflowRunHandles(toolUseResult: unknown) {
+export function parseClaudeWorkflowRunHandles(
+  toolUseResult: unknown,
+): OrchestrationV2WorkflowRunHandles | undefined {
   if (text(field(toolUseResult, "taskType")) !== CLAUDE_WORKFLOW_TASK_TYPE) return undefined;
   const handles = {
     ...optional("runId", clip(text(field(toolUseResult, "runId")))),
@@ -116,7 +118,10 @@ export function parseClaudeWorkflowRunHandles(toolUseResult: unknown) {
   return Object.keys(handles).length === 0 ? undefined : handles;
 }
 
-function parseClaudeWorkflowProgress(message: unknown) {
+function parseClaudeWorkflowProgress(message: unknown): {
+  readonly phases: ReadonlyArray<OrchestrationV2WorkflowPhase>;
+  readonly agents: ReadonlyArray<OrchestrationV2WorkflowAgent>;
+} | null {
   if (!hasClaudeWorkflowSnapshot(message)) return null;
   const phases: OrchestrationV2WorkflowPhase[] = [];
   const agents: OrchestrationV2WorkflowAgent[] = [];
@@ -139,13 +144,7 @@ export function mergeClaudeWorkflowProgress(input: {
   readonly name?: string | undefined;
   readonly runHandles?: OrchestrationV2WorkflowRunHandles | undefined;
   readonly message: unknown;
-}): OrchestrationV2SubagentWorkflow | undefined;
-export function mergeClaudeWorkflowProgress(input: {
-  readonly previous: OrchestrationV2SubagentWorkflow | undefined;
-  readonly name?: string | undefined;
-  readonly runHandles?: OrchestrationV2WorkflowRunHandles | undefined;
-  readonly message: unknown;
-}) {
+}): OrchestrationV2SubagentWorkflow | undefined {
   const { previous } = input;
   const snapshot = parseClaudeWorkflowProgress(input.message);
   if (
@@ -154,7 +153,7 @@ export function mergeClaudeWorkflowProgress(input: {
     input.runHandles === undefined &&
     snapshot === null
   ) {
-    return undefined satisfies OrchestrationV2SubagentWorkflow | undefined;
+    return undefined;
   }
   const reported = field(input.message, "usage");
   const phasesByIndex = new Map(
@@ -205,5 +204,5 @@ export function mergeClaudeWorkflowProgress(input: {
     ...optional("totalTokens", count(field(reported, "total_tokens")) ?? previous?.totalTokens),
     ...optional("toolCalls", count(field(reported, "tool_uses")) ?? previous?.toolCalls),
     ...optional("durationMs", count(field(reported, "duration_ms")) ?? previous?.durationMs),
-  } satisfies OrchestrationV2SubagentWorkflow | undefined;
+  };
 }

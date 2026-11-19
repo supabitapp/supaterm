@@ -15,8 +15,6 @@ const desktopLocalBootstrapsAtom = Atom.make((get) => {
   return readDesktopSecondaryBootstraps();
 }).pipe(Atom.withLabel("desktop-local-bootstraps"));
 
-export function useDesktopLocalBootstraps() {
-  return useAtomValue(
-    desktopLocalBootstrapsAtom,
-  ) satisfies ReadonlyArray<DesktopEnvironmentBootstrap>;
+export function useDesktopLocalBootstraps(): ReadonlyArray<DesktopEnvironmentBootstrap> {
+  return useAtomValue(desktopLocalBootstrapsAtom);
 }

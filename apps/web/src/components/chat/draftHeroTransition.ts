@@ -14,7 +14,7 @@ type ComposerViewTransitionDocument = Document & {
   startViewTransition?: (update: () => void | Promise<void>) => ComposerViewTransition;
 };
 
-export async function waitForDraftHeroTransition() {
+export async function waitForDraftHeroTransition(): Promise<void> {
   const mobileComposerTransition = activeMobileComposerTransition;
   if (typeof document === "undefined" || typeof document.getAnimations !== "function") {
     await mobileComposerTransition;
@@ -38,7 +38,7 @@ export async function waitForDraftHeroTransition() {
 export function runMobileComposerTransition(
   update: () => void,
   options: { active: boolean; durationMs: number },
-) {
+): Promise<void> | undefined {
   if (typeof document === "undefined" || typeof window === "undefined") {
     runInlineUpdate(update);
     return;

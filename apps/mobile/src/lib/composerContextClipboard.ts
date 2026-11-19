@@ -42,7 +42,7 @@ export interface NativeContextClipboard {
   readonly html: string;
 }
 
-function checkAborted(signal: AbortSignal) {
+function checkAborted(signal: AbortSignal): void {
   if (signal.aborted) throw new Error("Context import cancelled");
 }
 
@@ -54,7 +54,7 @@ const nativeClipboard = () =>
 export function writeComposerContextClipboard(
   text: string,
   fragment: ComposerContextClipboardFragment,
-) {
+): Promise<void> {
   const encoded = encodeComposerContextFragment(fragment);
   if (!encoded)
     return Promise.reject(
@@ -128,16 +128,11 @@ export async function importComposerContextClipboard(
   }
 }
 
-function importAttachment(
-  record: Extract<ComposerContextRecord, { attachmentId: string }>,
-  environmentId: EnvironmentId,
-  signal: AbortSignal,
-): Promise<DraftComposerAttachment>;
 async function importAttachment(
   record: Extract<ComposerContextRecord, { attachmentId: string }>,
   environmentId: EnvironmentId,
   signal: AbortSignal,
-) {
+): Promise<DraftComposerAttachment> {
   await waitForComposerDraftsLoaded();
   checkAborted(signal);
   const local = findLocalComposerClipboardAttachment(
@@ -154,7 +149,7 @@ async function importAttachment(
         id: uuidv4(),
         uploadedAttachmentId: undefined,
         uploadEnvironmentId: undefined,
-      } satisfies DraftComposerAttachment;
+      };
     if (local.fileUri) {
       const preview = await loadLocalAttachmentPreview(
         { ...local, fileUri: local.fileUri },
@@ -162,11 +157,7 @@ async function importAttachment(
       );
       if (!preview) throw new Error("Context import cancelled");
       try {
-        return (await persistImportedAttachment(
-          record,
-          preview.uri,
-          signal,
-        )) satisfies DraftComposerAttachment;
+        return await persistImportedAttachment(record, preview.uri, signal);
       } finally {
         preview.dispose();
       }
@@ -197,26 +188,17 @@ async function importAttachment(
   });
   if (!temporary) throw new Error("Attachment import cancelled");
   try {
-    return (await persistImportedAttachment(
-      record,
-      temporary.uri,
-      signal,
-    )) satisfies DraftComposerAttachment;
+    return await persistImportedAttachment(record, temporary.uri, signal);
   } finally {
     temporary.dispose();
   }
 }
 
-function persistImportedAttachment(
-  record: Extract<ComposerContextRecord, { attachmentId: string }>,
-  uri: string,
-  signal: AbortSignal,
-): Promise<DraftComposerAttachment>;
 async function persistImportedAttachment(
   record: Extract<ComposerContextRecord, { attachmentId: string }>,
   uri: string,
   signal: AbortSignal,
-) {
+): Promise<DraftComposerAttachment> {
   const fileUri = await persistComposerAttachmentFile(
     uri,
     record.name,
@@ -236,14 +218,12 @@ async function persistImportedAttachment(
     mimeType: record.mimeType,
     sizeBytes: new File(fileUri).size,
   };
-  return (
-    record.kind === "image"
-      ? {
-          ...common,
-          type: "image",
-          previewUri: fileUri,
-          ...(record.source ? { source: record.source } : {}),
-        }
-      : { ...common, type: "file" }
-  ) satisfies DraftComposerAttachment;
+  return record.kind === "image"
+    ? {
+        ...common,
+        type: "image",
+        previewUri: fileUri,
+        ...(record.source ? { source: record.source } : {}),
+      }
+    : { ...common, type: "file" };
 }

@@ -29,34 +29,33 @@ const forkId = ThreadId.make("thread-fork");
 const unrelatedId = ThreadId.make("thread-unrelated");
 
 const deepForkId = (depth: number) => ThreadId.make(`thread-deep-${depth}`);
-const deepParent = (id: ThreadId) => {
+const deepParent = (id: ThreadId): ThreadId | null => {
   const match = /^thread-deep-(\d+)$/.exec(id);
   if (match === null) return null;
   const depth = Number(match[1]);
   return depth === 1 ? threadId : deepForkId(depth - 1);
 };
 
-const appItem = (output: unknown) =>
-  ({
-    id: itemId,
-    threadId,
-    runId: null,
-    nodeId: null,
-    providerThreadId,
-    providerTurnId: null,
-    nativeItemRef: null,
-    parentItemId: null,
-    ordinal: 0,
-    status: "completed",
-    title: null,
-    startedAt: null,
-    completedAt: null,
-    updatedAt: DateTime.makeUnsafe(0),
-    type: "dynamic_tool",
-    toolName: "weather.get_weather",
-    input: {},
-    output,
-  }) satisfies OrchestrationV2TurnItem;
+const appItem = (output: unknown): OrchestrationV2TurnItem => ({
+  id: itemId,
+  threadId,
+  runId: null,
+  nodeId: null,
+  providerThreadId,
+  providerTurnId: null,
+  nativeItemRef: null,
+  parentItemId: null,
+  ordinal: 0,
+  status: "completed",
+  title: null,
+  startedAt: null,
+  completedAt: null,
+  updatedAt: DateTime.makeUnsafe(0),
+  type: "dynamic_tool",
+  toolName: "weather.get_weather",
+  input: {},
+  output,
+});
 
 const app = {
   attachmentId: "thread-app-00000000-0000-0000-0000-000000000000-html",

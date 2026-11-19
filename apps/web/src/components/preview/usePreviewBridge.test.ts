@@ -11,7 +11,7 @@ const favicon = {
   capturedAt: 1,
 };
 
-function state(navStatus: DesktopPreviewTabState["navStatus"]) {
+function state(navStatus: DesktopPreviewTabState["navStatus"]): DesktopPreviewTabState {
   return {
     tabId: "tab-1",
     webContentsId: 1,
@@ -27,7 +27,7 @@ function state(navStatus: DesktopPreviewTabState["navStatus"]) {
     capturing: false,
     favicon,
     updatedAt: "2026-08-09T00:00:00.000Z",
-  } satisfies DesktopPreviewTabState;
+  };
 }
 
 describe("buildReportInput", () => {

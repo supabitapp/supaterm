@@ -47,7 +47,7 @@ function scheduleFrame() {
   }, FRAME_MS);
 }
 
-function onFrame(listener: (now: number) => void) {
+function onFrame(listener: (now: number) => void): () => void {
   frameListeners.add(listener);
   if (frameTimer === undefined) scheduleFrame();
   return () => {
@@ -55,7 +55,7 @@ function onFrame(listener: (now: number) => void) {
   };
 }
 
-function hexToRgb(hex: string) {
+function hexToRgb(hex: string): ReadonlyArray<number> {
   return [1, 3, 5].map((offset) => Number.parseInt(hex.slice(offset, offset + 2), 16));
 }
 

@@ -174,7 +174,7 @@ export function resolveMultipleModelTargets(input: {
   readonly providerInstanceEntries: ReadonlyArray<ProviderInstanceEntry>;
   readonly messageText: string;
   readonly interactionMode: ProviderInteractionMode;
-}) {
+}): Array<MultipleModelTarget | { readonly error: string }> {
   const { messageText } = input;
   return input.selections.map((selection) => {
     const provider = input.providerInstanceEntries.find(

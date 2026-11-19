@@ -4,11 +4,11 @@ import {
   type OrchestratorFixtureInput,
 } from "../shared.ts";
 
-export function openCode2ResumeAfterRestartInput() {
+export function openCode2ResumeAfterRestartInput(): OrchestratorFixtureInput {
   return {
     steps: [
       { type: "message", text: OPENCODE2_RESTART_PROMPT },
       { type: "message", text: OPENCODE2_RESTART_RECALL_PROMPT },
     ],
-  } satisfies OrchestratorFixtureInput;
+  };
 }

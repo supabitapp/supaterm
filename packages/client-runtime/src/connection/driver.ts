@@ -297,15 +297,11 @@ const selectAndConnect = Effect.fnUntraced(function* <R>(
   );
 });
 
-export const preflightRoute: <R>(
+export const preflightRoute = <R>(
   route: ConnectionRoute,
   check: Effect.Effect<RouteCheck, never, R>,
   prepare: Effect.Effect<PreparedConnection, ConnectionAttemptError>,
-) => Effect.Effect<RoutePreflight, never, R> = <R>(
-  route: ConnectionRoute,
-  check: Effect.Effect<RouteCheck, never, R>,
-  prepare: Effect.Effect<PreparedConnection, ConnectionAttemptError>,
-) =>
+): Effect.Effect<RoutePreflight, never, R> =>
   check.pipe(
     Effect.filterOrElse(
       (check): check is Exclude<RouteCheck, "answered"> => check !== "answered",
@@ -350,17 +346,16 @@ export const make = Effect.gen(function* () {
           ),
         ),
       ),
-      Effect.map(
-        (descriptor) =>
-          (Option.exists(descriptor, (value) => value.environmentId === environmentId)
-            ? "answered"
-            : "silent") satisfies RouteCheck as RouteCheck,
+      Effect.map((descriptor): RouteCheck =>
+        Option.exists(descriptor, (value) => value.environmentId === environmentId)
+          ? "answered"
+          : "silent",
       ),
       Effect.timeoutOrElse({
         duration: timeoutMs,
         orElse: () => Effect.succeed<RouteCheck>("silent"),
       }),
-      Effect.orElseSucceed(() => "silent" satisfies RouteCheck),
+      Effect.orElseSucceed((): RouteCheck => "silent"),
       Effect.provideService(FetchHttpClient.RequestInit, { cache: "no-store" }),
       Effect.provideService(HttpClient.HttpClient, httpClient),
     );

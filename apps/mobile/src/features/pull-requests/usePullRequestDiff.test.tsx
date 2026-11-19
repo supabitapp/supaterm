@@ -24,7 +24,7 @@ import { usePullRequestDiff, usePullRequestDiffEntry } from "./usePullRequestDif
 import * as reviewModel from "../review/reviewModel";
 import { getCachedNativeReviewDiffData } from "../review/nativeReviewDiffAdapter";
 
-function patch(path: string, nextCursor: string | null = null) {
+function patch(path: string, nextCursor: string | null = null): PullRequestDiffResult {
   return {
     patch: `diff --git a/${path} b/${path}\n--- a/${path}\n+++ b/${path}\n@@ -1 +1 @@\n-old\n+new\n`,
     truncated: false,

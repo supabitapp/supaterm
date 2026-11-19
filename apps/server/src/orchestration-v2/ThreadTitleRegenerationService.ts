@@ -59,7 +59,7 @@ const MAX_FAILURE_MESSAGE_LENGTH = 300;
 const isTextGenerationError = Schema.is(TextGenerationError);
 const isProjectionStoreThreadNotFoundError = Schema.is(ProjectionStoreThreadNotFoundError);
 
-function failureMessage(cause: Cause.Cause<unknown>) {
+function failureMessage(cause: Cause.Cause<unknown>): string {
   const error = Cause.squash(cause);
   const lines = isTextGenerationError(error)
     ? error.detail

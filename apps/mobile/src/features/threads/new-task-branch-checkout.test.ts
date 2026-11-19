@@ -10,7 +10,7 @@ import {
   makeNewTaskBranchCheckouts,
 } from "./new-task-branch-checkout";
 
-function request(flowKey: string, branch: string) {
+function request(flowKey: string, branch: string): BranchCheckoutRequest {
   return {
     flowKey,
     routeKey: flowKey,
@@ -39,7 +39,7 @@ function setup() {
   return { checkouts, runs, holds, onFailure };
 }
 
-const success = (name: string) =>
+const success = (name: string): BranchCheckoutResult =>
   AsyncResult.success({ name, current: true, isDefault: false, worktreePath: null });
 const failure: BranchCheckoutResult = AsyncResult.failure(Cause.fail(new Error("dirty tree")));
 

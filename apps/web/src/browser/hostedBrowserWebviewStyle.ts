@@ -26,7 +26,7 @@ export function resolveHostedBrowserWebviewWrapperStyle(input: {
   readonly zIndex?: number;
   readonly rect: BrowserSurfaceRect | null;
   readonly hiddenSize: HostedBrowserWebviewSize;
-}) {
+}): HostedBrowserWebviewWrapperStyle {
   const {
     active,
     cornerRadius = 0,
@@ -45,7 +45,7 @@ export function resolveHostedBrowserWebviewWrapperStyle(input: {
       zIndex,
       pointerEvents: "auto",
       ...(cornerRadius > 0 ? { borderRadius: cornerRadius } : {}),
-    } satisfies HostedBrowserWebviewWrapperStyle;
+    };
   }
 
   if (renderingActive) {
@@ -57,7 +57,7 @@ export function resolveHostedBrowserWebviewWrapperStyle(input: {
       zIndex: -1,
       pointerEvents: "none",
       visibility: "visible",
-    } satisfies HostedBrowserWebviewWrapperStyle;
+    };
   }
 
   return {
@@ -68,5 +68,5 @@ export function resolveHostedBrowserWebviewWrapperStyle(input: {
     zIndex: -1,
     pointerEvents: "none",
     visibility: keepPaintableWhenInactive ? "visible" : "hidden",
-  } satisfies HostedBrowserWebviewWrapperStyle;
+  };
 }

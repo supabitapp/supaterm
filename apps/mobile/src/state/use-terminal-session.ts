@@ -29,7 +29,7 @@ export function useAttachedTerminalSession(input: {
   readonly environmentId: EnvironmentId | null;
   readonly terminal: TerminalAttachInput | null;
   readonly materializeBuffer?: boolean;
-}) {
+}): LegacyTerminalSessionState {
   const canRead = useEnvironmentScope(input.environmentId, AuthTerminalReadScope);
   const canOperate = useEnvironmentScope(input.environmentId, AuthTerminalOperateScope);
   const attach = useEnvironmentQuery(
@@ -74,14 +74,7 @@ export function useAttachedTerminalSession(input: {
       buffer,
     };
     return attach.error === null ? state : { ...state, error: attach.error, status: "error" };
-  }, [
-    attach.data,
-    attach.error,
-    buffer,
-    input.environmentId,
-    input.terminal,
-    metadata.data,
-  ]) satisfies LegacyTerminalSessionState;
+  }, [attach.data, attach.error, buffer, input.environmentId, input.terminal, metadata.data]);
 }
 
 export function useKnownTerminalSessions(input: {
@@ -97,9 +90,9 @@ export function useKnownTerminalSessions(input: {
           input: null,
         }),
   );
-  const sessions = useMemo(() => {
+  const sessions = useMemo((): ReadonlyArray<KnownTerminalSession> | null => {
     if (input.environmentId === null || metadata.data === null || metadata.error !== null) {
-      return null satisfies ReadonlyArray<KnownTerminalSession> | null as ReadonlyArray<KnownTerminalSession> | null;
+      return null;
     }
     return metadata.data
       .filter((summary) => input.threadId === null || summary.threadId === input.threadId)
@@ -115,7 +108,7 @@ export function useKnownTerminalSessions(input: {
         left.target.terminalId.localeCompare(right.target.terminalId, undefined, {
           numeric: true,
         }),
-      ) satisfies ReadonlyArray<KnownTerminalSession> | null as ReadonlyArray<KnownTerminalSession> | null;
+      );
   }, [input.environmentId, input.threadId, metadata.data, metadata.error]);
   return { sessions, isPending: metadata.isPending, error: metadata.error };
 }

@@ -28,19 +28,13 @@ import * as GitHubProviderDiscovery from "./GitHubProviderDiscovery.ts";
 
 const encodeJson = Schema.encodeSync(Schema.fromJsonString(Schema.Unknown));
 
-const processResult: (
+const processResult = (
   stdout: string,
   options?: {
     readonly stderr?: string;
     readonly exitCode?: ChildProcessSpawner.ExitCode;
   },
-) => SourceControlHost.SourceControlProcessOutput = (
-  stdout: string,
-  options?: {
-    readonly stderr?: string;
-    readonly exitCode?: ChildProcessSpawner.ExitCode;
-  },
-) => ({
+): SourceControlHost.SourceControlProcessOutput => ({
   exitCode: options?.exitCode ?? ChildProcessSpawner.ExitCode(0),
   stdout,
   stderr: options?.stderr ?? "",
@@ -48,7 +42,10 @@ const processResult: (
   stderrTruncated: false,
 });
 
-const processOutput = (stdout: string, exitCode = 0) => ({
+const processOutput = (
+  stdout: string,
+  exitCode = 0,
+): SourceControlHost.SourceControlProcessOutput => ({
   exitCode: ChildProcessSpawner.ExitCode(exitCode),
   stdout,
   stderr: "",
@@ -61,10 +58,7 @@ const remotesOutput = (...entries: ReadonlyArray<readonly [string, string]>) =>
     .flatMap(([name, url]) => [`${name}\t${url} (fetch)`, `${name}\t${url} (push)`])
     .join("\n");
 
-const restResponse: (body: unknown, status?: number) => GitHubRest.GitHubRestResponse = (
-  body: unknown,
-  status = 200,
-) => ({
+const restResponse = (body: unknown, status = 200): GitHubRest.GitHubRestResponse => ({
   status,
   headers: {},
   body: body === undefined ? "" : encodeJson(body),

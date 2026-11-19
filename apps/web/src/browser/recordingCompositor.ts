@@ -136,7 +136,7 @@ class RecordingDecorations {
     }
   }
 
-  nextRedraw(now: number) {
+  nextRedraw(now: number): number | null {
     if (
       this.ring?.releasedAt !== null &&
       this.ring?.releasedAt !== undefined &&

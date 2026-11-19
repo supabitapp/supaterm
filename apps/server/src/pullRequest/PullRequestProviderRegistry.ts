@@ -16,13 +16,12 @@ export class PullRequestProviderRegistry extends Context.Service<
 
 export function fromProviders(
   providers: ReadonlyArray<PullRequestProviderApi>,
-): PullRequestProviderRegistry["Service"];
-export function fromProviders(providers: ReadonlyArray<PullRequestProviderApi>) {
+): PullRequestProviderRegistry["Service"] {
   const byKind = new Map(providers.map((provider) => [provider.kind, provider]));
   return {
     get: (kind) => byKind.get(kind) ?? null,
     kinds: providers.map((provider) => provider.kind),
-  } satisfies PullRequestProviderRegistry["Service"];
+  };
 }
 
 /** @public */

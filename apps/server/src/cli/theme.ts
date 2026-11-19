@@ -36,8 +36,8 @@ export class ThemeFileUnreadableError extends Schema.TaggedError<ThemeFileUnread
   "ThemeFileUnreadableError",
   { filePath: Schema.String, cause: Schema.optional(Schema.Defect()) },
 ) {
-  override get message() {
-    return `Could not read ${this.filePath}.` satisfies string as string;
+  override get message(): string {
+    return `Could not read ${this.filePath}.`;
   }
 }
 
@@ -45,8 +45,8 @@ export class ThemeFileInvalidError extends Schema.TaggedError<ThemeFileInvalidEr
   "ThemeFileInvalidError",
   { filePath: Schema.String, cause: Schema.Defect() },
 ) {
-  override get message() {
-    return `${this.filePath} is not a valid theme file. Use a theme exported from Supaterm, or a seeded file with name, appearance, canvas, and accent.` satisfies string as string;
+  override get message(): string {
+    return `${this.filePath} is not a valid theme file. Use a theme exported from Supaterm, or a seeded file with name, appearance, canvas, and accent.`;
   }
 }
 
@@ -54,8 +54,8 @@ export class ThemeFileTooLargeError extends Schema.TaggedError<ThemeFileTooLarge
   "ThemeFileTooLargeError",
   { filePath: Schema.String, limit: Schema.Number },
 ) {
-  override get message() {
-    return `${this.filePath} is larger than ${this.limit} bytes, which is more than a theme can publish.` satisfies string as string;
+  override get message(): string {
+    return `${this.filePath} is larger than ${this.limit} bytes, which is more than a theme can publish.`;
   }
 }
 
@@ -63,8 +63,8 @@ export class ThemeFileColorlessError extends Schema.TaggedError<ThemeFileColorle
   "ThemeFileColorlessError",
   { filePath: Schema.String },
 ) {
-  override get message() {
-    return `${this.filePath} has no colors to publish.` satisfies string as string;
+  override get message(): string {
+    return `${this.filePath} has no colors to publish.`;
   }
 }
 
@@ -72,8 +72,8 @@ export class ThemePublishError extends Schema.TaggedError<ThemePublishError>()(
   "ThemePublishError",
   { themesDir: Schema.String, cause: Schema.Defect() },
 ) {
-  override get message() {
-    return `Could not publish the theme into ${this.themesDir}.` satisfies string as string;
+  override get message(): string {
+    return `Could not publish the theme into ${this.themesDir}.`;
   }
 }
 
@@ -84,8 +84,8 @@ export class ThemeIdUnknownError extends Schema.TaggedError<ThemeIdUnknownError>
   "ThemeIdUnknownError",
   { themeId: Schema.String, known: Schema.Array(Schema.String) },
 ) {
-  override get message() {
-    return `No theme named "${this.themeId}". Available: ${this.known.join(", ")}. Publish one by passing a theme file instead of an id.` satisfies string as string;
+  override get message(): string {
+    return `No theme named "${this.themeId}". Available: ${this.known.join(", ")}. Publish one by passing a theme file instead of an id.`;
   }
 }
 
@@ -93,8 +93,8 @@ export class ThemeIdInvalidError extends Schema.TaggedError<ThemeIdInvalidError>
   "ThemeIdInvalidError",
   { themeId: Schema.String },
 ) {
-  override get message() {
-    return `"${this.themeId}" ${INVALID_THEME_ID_REASON}.` satisfies string as string;
+  override get message(): string {
+    return `"${this.themeId}" ${INVALID_THEME_ID_REASON}.`;
   }
 }
 
@@ -102,8 +102,8 @@ export class ThemeFileIdInvalidError extends Schema.TaggedError<ThemeFileIdInval
   "ThemeFileIdInvalidError",
   { themeId: Schema.String, filePath: Schema.String },
 ) {
-  override get message() {
-    return `"${this.themeId}" ${INVALID_THEME_ID_REASON}. Pass one with --id.` satisfies string as string;
+  override get message(): string {
+    return `"${this.themeId}" ${INVALID_THEME_ID_REASON}. Pass one with --id.`;
   }
 }
 
@@ -111,8 +111,8 @@ export class ThemeTargetMissingError extends Schema.TaggedError<ThemeTargetMissi
   "ThemeTargetMissingError",
   {},
 ) {
-  override get message() {
-    return "Provide a theme id or file, or run `supaterm theme clear` to remove the theme." satisfies string as string;
+  override get message(): string {
+    return "Provide a theme id or file, or run `supaterm theme clear` to remove the theme.";
   }
 }
 

@@ -21,7 +21,7 @@ export class UnknownWorkspaceError extends Schema.TaggedError<UnknownWorkspaceEr
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `'${this.cwd}' is not a registered project, a managed worktree, or a thread's worktree.`;
   }
 }
@@ -111,7 +111,7 @@ export const make = Effect.gen(function* () {
           listed = yield* git.listWorktreePaths(project.workspaceRoot).pipe(
             Effect.flatMap((paths) => Effect.forEach(paths, resolveRoot)),
             Effect.map((paths) => paths.filter((listedPath) => listedPath !== null)),
-            Effect.orElseSucceed(() => []),
+            Effect.orElseSucceed((): ReadonlyArray<string> => []),
           );
           projectWorktrees.set(projectId, listed);
         }

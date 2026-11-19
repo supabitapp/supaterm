@@ -1,4 +1,8 @@
-import type { ProviderApprovalOption, ProviderUserInputAnswers } from "@supaterm/contracts";
+import type {
+  ProviderApprovalOption,
+  ProviderUserInputAnswers,
+  UserInputQuestion,
+} from "@supaterm/contracts";
 import { isWorkspaceImagePreviewPath } from "@supaterm/shared/filePreview";
 import * as Option from "effect/Option";
 import * as Predicate from "effect/Predicate";
@@ -43,7 +47,9 @@ const decodeToolCallContent = Schema.decodeUnknownOption(AcpWireSchema.ToolCallC
 const isJsonRecord = Schema.is(Schema.Record(Schema.String, Schema.Json));
 
 /** Native questions share the permission method, but their choices are not approvals. */
-export function isAntigravityUserInputRequest(request: EffectAcpSchema.RequestPermissionRequest) {
+export function isAntigravityUserInputRequest(
+  request: EffectAcpSchema.RequestPermissionRequest,
+): boolean {
   return request.toolCall.toolCallId.startsWith("interaction_");
 }
 
@@ -56,7 +62,7 @@ const decodeSecurityWarning = Schema.decodeUnknownOption(
   }),
 );
 
-function antigravitySecurityWarning(option: EffectAcpSchema.PermissionOption) {
+function antigravitySecurityWarning(option: EffectAcpSchema.PermissionOption): string | undefined {
   const meta = option._meta;
   if (!Predicate.isObject(meta)) return undefined;
   const warning = Option.getOrUndefined(decodeSecurityWarning(meta[SECURITY_WARNING_META_KEY]));
@@ -67,7 +73,9 @@ function antigravitySecurityWarning(option: EffectAcpSchema.PermissionOption) {
     : text;
 }
 
-export function antigravityApprovalOptions(request: EffectAcpSchema.RequestPermissionRequest) {
+export function antigravityApprovalOptions(
+  request: EffectAcpSchema.RequestPermissionRequest,
+): ReadonlyArray<ProviderApprovalOption> {
   if (isAntigravityUserInputRequest(request)) return [];
   const options: ProviderApprovalOption[] = [];
   const optionWithKind = (kind: EffectAcpSchema.PermissionOption["kind"]) =>
@@ -92,11 +100,11 @@ export function antigravityApprovalOptions(request: EffectAcpSchema.RequestPermi
   return options;
 }
 
-function copyBoundedText(text: string) {
+function copyBoundedText(text: string): string {
   return Buffer.from(text, "utf16le").toString("utf16le");
 }
 
-function questionLabel(option: EffectAcpSchema.PermissionOption) {
+function questionLabel(option: EffectAcpSchema.PermissionOption): string {
   const label = option.name.trim() || option.optionId;
   return label.length > QUESTION_LABEL_LIMIT
     ? copyBoundedText(`${label.slice(0, QUESTION_LABEL_LIMIT - 3)}...`)
@@ -105,7 +113,7 @@ function questionLabel(option: EffectAcpSchema.PermissionOption) {
 
 export function extractAntigravityUserInputQuestion(
   request: EffectAcpSchema.RequestPermissionRequest,
-) {
+): UserInputQuestion | undefined {
   if (!isAntigravityUserInputRequest(request) || request.options.length === 0) {
     return undefined;
   }
@@ -137,7 +145,7 @@ export function extractAntigravityUserInputQuestion(
 export function makeAntigravityUserInputResponse(
   request: EffectAcpSchema.RequestPermissionRequest,
   answers: ProviderUserInputAnswers,
-) {
+): EffectAcpSchema.RequestPermissionResponse | undefined {
   if (extractAntigravityUserInputQuestion(request) === undefined) {
     return undefined;
   }
@@ -155,7 +163,7 @@ export function makeAntigravityUserInputResponse(
   return option ? { outcome: { outcome: "selected", optionId: option.optionId } } : undefined;
 }
 
-function boundText(text: string, limit = TOOL_TEXT_LIMIT) {
+function boundText(text: string, limit = TOOL_TEXT_LIMIT): string {
   return text.length <= limit
     ? text
     : copyBoundedText(`${TOOL_TEXT_TRUNCATED}${text.slice(-limit)}`);
@@ -172,7 +180,7 @@ interface ToolPayloadBudget {
   text: number;
 }
 
-function sanitizeToolValue(value: unknown, budget: ToolPayloadBudget, depth: number) {
+function sanitizeToolValue(value: unknown, budget: ToolPayloadBudget, depth: number): unknown {
   if (depth > 12 || budget.nodes-- <= 0) {
     return undefined;
   }
@@ -215,7 +223,7 @@ function sanitizeToolValue(value: unknown, budget: ToolPayloadBudget, depth: num
   return Object.fromEntries(entries);
 }
 
-export function sanitizeAntigravityToolPayload(payload: unknown) {
+export function sanitizeAntigravityToolPayload(payload: unknown): unknown {
   return sanitizeToolValue(payload, { nodes: 512, text: 64_000 }, 0);
 }
 
@@ -228,7 +236,7 @@ function antigravityClientReadPath(update: {
   readonly title?: string | null;
   readonly locations?: ReadonlyArray<{ readonly path: string }> | null;
   readonly rawInput?: unknown;
-}) {
+}): string | undefined {
   if (!update.title || !ANTIGRAVITY_CLIENT_READ_TITLES.has(update.title)) return undefined;
   const target =
     update.locations?.[0]?.path ??
@@ -262,7 +270,9 @@ export function makeAntigravityReadRepair() {
       earlyOutcomes.push({ path, outcome });
       return undefined;
     },
-    repair: (notification: EffectAcpSchema.SessionNotification) => {
+    repair: (
+      notification: EffectAcpSchema.SessionNotification,
+    ): EffectAcpSchema.SessionNotification => {
       const update = notification.update;
       if (update.sessionUpdate !== "tool_call" && update.sessionUpdate !== "tool_call_update") {
         return notification;
@@ -294,13 +304,10 @@ export function makeAntigravityReadRepair() {
 
 export function normalizeAntigravitySessionUpdate(
   notification: EffectAcpSchema.SessionNotification,
-): EffectAcpSchema.SessionNotification;
-export function normalizeAntigravitySessionUpdate(
-  notification: EffectAcpSchema.SessionNotification,
-) {
+): EffectAcpSchema.SessionNotification {
   const update = notification.update;
   if (update.sessionUpdate !== "tool_call" && update.sessionUpdate !== "tool_call_update") {
-    return notification satisfies EffectAcpSchema.SessionNotification;
+    return notification;
   }
   const contentBudget = { nodes: 512, text: 32_000 };
   const content = update.content?.flatMap((entry) => {
@@ -324,10 +331,10 @@ export function normalizeAntigravitySessionUpdate(
       ...(update.content !== undefined ? { content: content ?? [] } : {}),
       ...(update._meta !== undefined ? { _meta: isJsonRecord(meta) ? meta : null } : {}),
     },
-  } satisfies EffectAcpSchema.SessionNotification;
+  };
 }
 
-function localImagePath(imagePath: string | undefined) {
+function localImagePath(imagePath: string | undefined): string | undefined {
   if (!imagePath || imagePath.length > TOOL_TEXT_LIMIT) {
     return undefined;
   }
@@ -348,7 +355,7 @@ function localImagePath(imagePath: string | undefined) {
   return /^[a-z][a-z\d+.-]*:/i.test(path) && !/^[a-z]:[\\/]/i.test(path) ? undefined : path;
 }
 
-function hasTruncatedText(value: unknown) {
+function hasTruncatedText(value: unknown): boolean {
   if (typeof value === "string") return value.startsWith(TOOL_TEXT_TRUNCATED);
   return Predicate.isObject(value) && Object.values(value).some(hasTruncatedText);
 }
@@ -393,7 +400,7 @@ function withAntigravityEditPatches(
 export function normalizeAntigravityToolCall(
   toolCall: AcpToolCallState,
   readPreEditFile = readAntigravityPreEditFile,
-) {
+): AcpToolCallState {
   const input = Option.getOrUndefined(decodeNativeToolFields(toolCall.data.rawInput));
   const output = Option.getOrUndefined(decodeNativeToolFields(toolCall.data.rawOutput));
   const nativeCommand =
@@ -469,7 +476,7 @@ const ANTIGRAVITY_SUBAGENT_TITLES = new Set([
 export function classifyAntigravitySubagentToolCall(
   toolCall: AcpToolCallState,
   rawPayload?: unknown,
-) {
+): "subagent" | "mcp" | undefined {
   if (
     (toolCall.kind !== undefined && toolCall.kind !== "other") ||
     toolCall.title === undefined ||
@@ -481,7 +488,7 @@ export function classifyAntigravitySubagentToolCall(
   return Predicate.isObject(meta) && meta.is_mcp_tool_call === true ? "mcp" : "subagent";
 }
 
-export function antigravitySubagentOutput(toolCall: AcpToolCallState) {
+export function antigravitySubagentOutput(toolCall: AcpToolCallState): string | undefined {
   const output = toolCall.data.rawOutput;
   return typeof output === "string" && output.trim() ? boundText(output.trim()) : undefined;
 }

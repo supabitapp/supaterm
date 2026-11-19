@@ -56,7 +56,7 @@ export class AgentSessionImportProjectNotFoundError extends Schema.TaggedError<A
   "AgentSessionImportProjectNotFoundError",
   { projectId: ProjectId },
 ) {
-  override get message() {
+  override get message(): string {
     return `Project '${this.projectId}' does not exist.`;
   }
 }
@@ -65,7 +65,7 @@ export class AgentSessionImportProjectChangedError extends Schema.TaggedError<Ag
   "AgentSessionImportProjectChangedError",
   { projectId: ProjectId },
 ) {
-  override get message() {
+  override get message(): string {
     return `Project '${this.projectId}' changed directories. Scan for projects again before importing history.`;
   }
 }
@@ -83,7 +83,7 @@ export class AgentSessionScanError extends Schema.TaggedError<AgentSessionScanEr
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Failed to scan agent sessions during ${this.operation}.`;
   }
 }

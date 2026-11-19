@@ -78,7 +78,7 @@ export function settlePendingScopedWrites(
   target: Pick<PendingScopedWrite, "save" | "environmentId">,
   readSettings: (environmentId: EnvironmentId) => ServerSettings | undefined,
   saved?: ServerSettings,
-) {
+): readonly PendingScopedWrite[] {
   return writes.flatMap((write) => {
     const current = readSettings(write.environmentId);
     if (write.save !== target.save || write.environmentId !== target.environmentId) {
@@ -92,7 +92,7 @@ export function settlePendingScopedWrites(
 export function applyPendingScopedWrites<T extends ScopedSettingsEnvironment>(
   environments: readonly T[],
   writes: readonly PendingScopedWrite[],
-) {
+): readonly T[] {
   if (writes.length === 0) return environments;
   return environments.map((environment) => {
     const config = environment.serverConfig;
@@ -140,7 +140,7 @@ export function resolveScopedSettingsTargets(
   scope: ResolvedSettingsScope,
   connectedEnvironments: readonly ScopedSettingsEnvironment[],
   projectFiles?: ReadonlyMap<string, SupatermProjectFile | null>,
-) {
+): readonly ScopedSettingsTarget[] {
   const byId = new Map(
     connectedEnvironments.map((environment) => [environment.environmentId, environment]),
   );
@@ -182,7 +182,7 @@ export function resolveScopedSettingsTargets(
 export function scopedSettingsAreMixed(
   targets: readonly Pick<ScopedSettingsTarget, "settings">[],
   keys: readonly (keyof ServerSettings)[],
-) {
+): boolean {
   const first = targets[0];
   return (
     first !== undefined &&
@@ -197,7 +197,7 @@ export type ScopedSettingSource = ProjectSettingSource | "mixed";
 export function scopedSettingsSource(
   targets: readonly Pick<ScopedSettingsTarget, "sources">[],
   keys: readonly (keyof ServerSettings)[],
-) {
+): ScopedSettingSource {
   const scoped = keys.filter(isProjectScopedSettingKey);
   if (scoped.length === 0 || targets.length === 0) return "environment";
   const sources = new Set(targets.flatMap((target) => scoped.map((key) => target.sources[key])));
@@ -226,7 +226,7 @@ function projectOverrideWrites(
     projectId: ProjectId,
   ) => ProjectSettingsOverrides | null,
   removals: readonly ProjectScopedServerSettingKey[] = [],
-) {
+): ScopedServerWrite[] {
   const byId = new Map(environments.map((environment) => [environment.environmentId, environment]));
   const writes = new Map<EnvironmentId, ScopedServerWrite>();
   for (const member of scope.members) {
@@ -418,7 +418,7 @@ export interface ProjectOverrideEntry {
 export function listProjectOverrides(
   environments: readonly ScopedSettingsEnvironment[],
   keys: readonly (keyof ServerSettings)[],
-) {
+): readonly ProjectOverrideEntry[] {
   const scoped = keys.filter(isProjectScopedSettingKey);
   if (scoped.length === 0) return [];
   return environments.flatMap((environment) => {
@@ -470,21 +470,20 @@ export function planProjectOverridesClear(
   };
 }
 
-function writeWasDropped(value: unknown, before: unknown, saved: unknown): boolean;
-function writeWasDropped(value: unknown, before: unknown, saved: unknown) {
-  if (value === null) return (before != null && Equal.equals(saved, before)) satisfies boolean;
+function writeWasDropped(value: unknown, before: unknown, saved: unknown): boolean {
+  if (value === null) return before != null && Equal.equals(saved, before);
   if (isPlainObject(value) && !Array.isArray(before) && !Array.isArray(saved)) {
     const field = (source: unknown, key: string) =>
       isPlainObject(source) ? source[key] : undefined;
     return Object.entries(value).some(([key, next]) =>
       writeWasDropped(next, field(before, key), field(saved, key)),
-    ) satisfies boolean;
+    );
   }
   const unchanged =
     typeof value === "string" && typeof before === "string"
       ? value.trim() === before
       : Equal.equals(value, before);
-  return (!unchanged && Equal.equals(saved, before)) satisfies boolean;
+  return !unchanged && Equal.equals(saved, before);
 }
 
 function droppedSettingKeys(write: ScopedServerWrite, saved: ServerSettings | undefined) {

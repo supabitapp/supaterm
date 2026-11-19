@@ -9,7 +9,10 @@ const CANDIDATE = /[#!@]|\bGL-\d|\[issue:|\b[a-f\d]{7,40}\b/iu;
 const SHORT_SHA_LENGTH = 7;
 const ROUTE = { "#": "issues", "!": "merge_requests" } as const;
 
-export function gitLabReferenceAutolinks(text: string, repositoryUrl: string) {
+export function gitLabReferenceAutolinks(
+  text: string,
+  repositoryUrl: string,
+): ReadonlyArray<ReferenceAutolink> {
   if (!CANDIDATE.test(text)) return [];
   let url: URL;
   try {

@@ -1,4 +1,8 @@
-import type { ProviderConsumeResetCreditOutcome } from "@supaterm/contracts";
+import type {
+  ProviderConsumeResetCreditOutcome,
+  ServerProviderResetCreditOption,
+  ServerProviderResetCredits,
+} from "@supaterm/contracts";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
@@ -77,7 +81,7 @@ class ClaudeResetCreditError extends Schema.TaggedError<ClaudeResetCreditError>(
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return RESET_CREDIT_FAILURES[this.reason];
   }
 }
@@ -110,7 +114,7 @@ const RESET_KINDS = {
 } as const;
 type ResetKind = keyof typeof RESET_KINDS;
 
-const grantKind = (grant: typeof Grant.Type) => {
+const grantKind = (grant: typeof Grant.Type): ResetKind => {
   if (grant.gives_back_weekly) return "fable";
   if (grant.type === "session" || grant.type === "weekly" || grant.type === "full") {
     return grant.type;
@@ -121,7 +125,10 @@ const grantKind = (grant: typeof Grant.Type) => {
   return session && !other ? "session" : other && !session ? "weekly" : "full";
 };
 
-export function claudeResetCreditsToContract(block: unknown, nowMs: number) {
+export function claudeResetCreditsToContract(
+  block: unknown,
+  nowMs: number,
+): ServerProviderResetCredits | undefined {
   const parsed = decodeCedarEmber(block);
   if (Option.isNone(parsed) || !parsed.value.eligible) return undefined;
   const live = (parsed.value.grants ?? [])
@@ -143,20 +150,22 @@ export function claudeResetCreditsToContract(block: unknown, nowMs: number) {
     const kind = grantKind(grant);
     byKind.set(kind, [...(byKind.get(kind) ?? []), grant]);
   }
-  const options = (Object.keys(RESET_KINDS) as Array<ResetKind>).flatMap((kind) => {
-    const grants = byKind.get(kind);
-    const target = grants?.[0];
-    if (!grants || !target) return [];
-    const optionExpiresAt = expiresAt(target);
-    return [
-      {
-        creditId: target.id,
-        ...RESET_KINDS[kind],
-        availableCount: grants.reduce((sum, grant) => sum + grant.resets_left, 0),
-        ...(optionExpiresAt ? { expiresAt: optionExpiresAt } : {}),
-      },
-    ];
-  });
+  const options = (Object.keys(RESET_KINDS) as Array<ResetKind>).flatMap(
+    (kind): Array<ServerProviderResetCreditOption> => {
+      const grants = byKind.get(kind);
+      const target = grants?.[0];
+      if (!grants || !target) return [];
+      const optionExpiresAt = expiresAt(target);
+      return [
+        {
+          creditId: target.id,
+          ...RESET_KINDS[kind],
+          availableCount: grants.reduce((sum, grant) => sum + grant.resets_left, 0),
+          ...(optionExpiresAt ? { expiresAt: optionExpiresAt } : {}),
+        },
+      ];
+    },
+  );
   const nextExpiresAt = expiresAt(next);
   return {
     availableCount: next ? live.reduce((sum, grant) => sum + grant.resets_left, 0) : 0,

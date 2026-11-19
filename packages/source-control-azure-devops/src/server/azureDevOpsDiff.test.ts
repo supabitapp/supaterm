@@ -9,7 +9,7 @@ import {
 } from "./azureDevOpsDiff.ts";
 import type { AzureDevOpsChangeEntry } from "./azureDevOpsPullRequestJson.ts";
 
-function change(overrides: Partial<AzureDevOpsChangeEntry> = {}) {
+function change(overrides: Partial<AzureDevOpsChangeEntry> = {}): AzureDevOpsChangeEntry {
   return {
     path: "README.md",
     oldPath: "README.md",
@@ -17,7 +17,7 @@ function change(overrides: Partial<AzureDevOpsChangeEntry> = {}) {
     objectId: "8f80",
     originalObjectId: "0ca4",
     ...overrides,
-  } satisfies AzureDevOpsChangeEntry;
+  };
 }
 
 function texts(oldContents: string, newContents: string, binary = false) {

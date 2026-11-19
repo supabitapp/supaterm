@@ -31,7 +31,9 @@ const PROVIDER_UPDATE_PILL_PROGRESS_STYLES = {
   error: "bg-destructive/14",
 } as const;
 
-function latestProviderCheckedAt(providers: ReadonlyArray<Pick<ServerProvider, "checkedAt">>) {
+function latestProviderCheckedAt(
+  providers: ReadonlyArray<Pick<ServerProvider, "checkedAt">>,
+): string | undefined {
   return providers.reduce<string | undefined>(
     (latest, provider) =>
       latest === undefined || provider.checkedAt > latest ? provider.checkedAt : latest,

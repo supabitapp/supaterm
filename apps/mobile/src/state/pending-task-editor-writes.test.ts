@@ -52,7 +52,7 @@ import {
   type ComposerDraft,
 } from "./use-composer-drafts";
 
-function queuedMessage(messageId: string, text: string) {
+function queuedMessage(messageId: string, text: string): QueuedThreadMessage {
   return {
     environmentId: EnvironmentId.make("environment-1"),
     threadId: ThreadId.make("thread-1"),
@@ -64,19 +64,19 @@ function queuedMessage(messageId: string, text: string) {
   };
 }
 
-function draft(text: string) {
+function draft(text: string): ComposerDraft {
   return {
     text,
     attachments: [],
     runtimeMode: "full-access",
-  } satisfies ComposerDraft;
+  };
 }
 
-function setDraft(draftKey: string, value: ComposerDraft) {
+function setDraft(draftKey: string, value: ComposerDraft): void {
   appAtomRegistry.set(composerDraftsAtom, { [draftKey]: value });
 }
 
-function queuedMessageText(messageId: QueuedThreadMessage["messageId"]) {
+function queuedMessageText(messageId: QueuedThreadMessage["messageId"]): string | null {
   const messages = Object.values(
     appAtomRegistry.get(harness.manager.queuedMessagesByThreadKeyAtom),
   ).flat();

@@ -15,7 +15,7 @@ export function validateClaudeReplayRecordingSelection(input: {
   readonly selectedQueryMode: ClaudeRecordingQueryMode;
   readonly configuredPromptCount: number;
   readonly selectedPromptCount: number;
-}) {
+}): void {
   if (input.selectedQueryMode !== input.configuredQueryMode) {
     throw new Error(
       `Claude replay fixture '${input.scenario}' uses query mode '${input.configuredQueryMode}', not '${input.selectedQueryMode}'. Select a scenario configured for the requested query mode.`,

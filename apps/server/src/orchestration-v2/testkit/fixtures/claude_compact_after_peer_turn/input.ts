@@ -3,7 +3,7 @@ import type { OrchestratorFixtureInput } from "../shared.ts";
 export const CLAUDE_COMPACT_FIRST_PROMPT = "Reply with exactly: compact probe first turn";
 const CLAUDE_COMPACT_LAST_FRAME_LABEL = "command_lifecycle:compact-completed";
 
-export function claudeCompactAfterPeerTurnInput() {
+export function claudeCompactAfterPeerTurnInput(): OrchestratorFixtureInput {
   return {
     steps: [
       { type: "message", text: CLAUDE_COMPACT_FIRST_PROMPT },
@@ -11,14 +11,14 @@ export function claudeCompactAfterPeerTurnInput() {
       { type: "await_run_status", targetRunIndex: 3, status: "completed" },
       { type: "release_replay_gate", label: CLAUDE_COMPACT_LAST_FRAME_LABEL },
     ],
-  } satisfies OrchestratorFixtureInput;
+  };
 }
 
-export function claudeCompactAfterPeerTurnNoEchoInput() {
+export function claudeCompactAfterPeerTurnNoEchoInput(): OrchestratorFixtureInput {
   return {
     steps: [
       { type: "message", text: CLAUDE_COMPACT_FIRST_PROMPT },
       { type: "message", text: "/compact" },
     ],
-  } satisfies OrchestratorFixtureInput;
+  };
 }

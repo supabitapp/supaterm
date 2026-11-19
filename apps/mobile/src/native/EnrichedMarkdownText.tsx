@@ -40,7 +40,7 @@ function enrichedStyle(
   style: SelectableMarkdownTextProps["textStyle"],
   dark: boolean,
   fontScale: number,
-) {
+): MarkdownStyle {
   const block = {
     marginTop: 4,
     marginBottom: 12,
@@ -160,7 +160,7 @@ function enrichedStyle(
       borderColor: style.mutedColor,
       checkedStrikethrough: false,
     },
-  } satisfies MarkdownStyle;
+  };
 }
 
 const NO_PARSED_LINKS: {

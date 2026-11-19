@@ -1,6 +1,6 @@
 import { PLAN_QUESTIONS_PROMPT, type OrchestratorFixtureInput } from "../shared.ts";
 
-export function planQuestionsInput() {
+export function planQuestionsInput(): OrchestratorFixtureInput {
   return {
     interactionMode: "plan",
     steps: [
@@ -14,5 +14,5 @@ export function planQuestionsInput() {
         },
       },
     ],
-  } satisfies OrchestratorFixtureInput;
+  };
 }

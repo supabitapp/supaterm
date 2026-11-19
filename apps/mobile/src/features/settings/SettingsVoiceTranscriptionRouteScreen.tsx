@@ -22,7 +22,7 @@ import { useSettingsEnvironmentFilter, type SettingsTarget } from "./settings-en
 import { resolveMobileSettingsTargets } from "./settings-scoped-server";
 import { useSettingsWriter } from "./useSettingsWriter";
 
-function providerStatus(provider: ServerProvider) {
+function providerStatus(provider: ServerProvider): string | null {
   if (!provider.enabled) return "Turned off on this environment.";
   if (provider.transcription?.status !== "ready") {
     return new TranscriptionError({

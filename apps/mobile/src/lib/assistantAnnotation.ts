@@ -22,11 +22,10 @@ export function assistantCitationFromSelection(
     readonly messageId: MessageId;
   },
   selection: MarkdownTextSelection,
-) {
+): AssistantCitation | "empty" | "too-long" {
   const text = selection.text.replace(INLINE_ATTACHMENT, "").trim();
-  if (text.length === 0) return "empty" satisfies AssistantCitation | "empty" | "too-long";
-  if (text.length > ASSISTANT_CITATION_MAX_TEXT_LENGTH)
-    return "too-long" satisfies AssistantCitation | "empty" | "too-long";
+  if (text.length === 0) return "empty";
+  if (text.length > ASSISTANT_CITATION_MAX_TEXT_LENGTH) return "too-long";
   const start = Math.max(0, Math.trunc(selection.start));
   return {
     version: 1,
@@ -36,10 +35,10 @@ export function assistantCitationFromSelection(
     end: start + text.replace(/\s+/g, " ").length,
     prefix: "",
     suffix: "",
-  } satisfies AssistantCitation | "empty" | "too-long";
+  };
 }
 
-export function assistantCitationFromToken(source: string) {
+export function assistantCitationFromToken(source: string): AssistantCitation | null {
   const match = collectAssistantCitations(source)[0];
   return match?.source === source ? match.citation : null;
 }

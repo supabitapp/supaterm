@@ -9,7 +9,7 @@ export class CopyTextClipboardWriteError extends Schema.TaggedError<CopyTextClip
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Failed to copy ${this.target} to the clipboard.`;
   }
 }
@@ -22,7 +22,7 @@ export class CopyTextHapticFeedbackError extends Schema.TaggedError<CopyTextHapt
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Failed to trigger ${this.feedback} haptic feedback after copying ${this.target}.`;
   }
 }

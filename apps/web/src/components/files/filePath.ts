@@ -11,7 +11,7 @@ export interface FileBreadcrumbChild extends ProjectEntry {
   label: string;
 }
 
-export function fileBreadcrumbs(projectName: string, relativePath: string) {
+export function fileBreadcrumbs(projectName: string, relativePath: string): FileBreadcrumb[] {
   const hostPath = isHostPath(relativePath);
   const windowsPath = isWindowsAbsolutePath(relativePath);
   const separator = windowsPath ? "\\" : "/";
@@ -31,37 +31,40 @@ export function fileBreadcrumbs(projectName: string, relativePath: string) {
 }
 
 /** Use the crumb's path spelling so trailing or repeated separators still match. */
-export function breadcrumbPathOf(relativePath: string) {
+export function breadcrumbPathOf(relativePath: string): string {
   return fileBreadcrumbs("", relativePath).at(-1)?.path ?? relativePath;
 }
 
 /** UNC servers are not listable directories; their shares are. */
-export function isListableHostFolder(path: string) {
+export function isListableHostFolder(path: string): boolean {
   return isHostPath(path) && !/^\\\\[^\\/]+$/.test(path);
 }
 
-function trailCrumbIndex(trail: string, path: string) {
+function trailCrumbIndex(trail: string, path: string): number {
   const crumbPath = breadcrumbPathOf(path);
   return fileBreadcrumbs("", trail).findIndex((crumb) => crumb.path === crumbPath);
 }
 
 /** Retain descendant crumbs when navigating up; other navigation resets the trail to path. */
-export function retainedBreadcrumbTrail(trail: string | undefined, path: string) {
+export function retainedBreadcrumbTrail(trail: string | undefined, path: string): string {
   return trail !== undefined && trailCrumbIndex(trail, path) >= 0 ? trail : path;
 }
 
-export function trailChildOf(folder: string, trail: string) {
+export function trailChildOf(folder: string, trail: string): string | null {
   const index = trailCrumbIndex(trail, folder);
   return index < 0 ? null : (fileBreadcrumbs("", trail)[index + 1]?.label ?? null);
 }
 
-export function joinHostPath(folder: string, relativePath: string) {
+export function joinHostPath(folder: string, relativePath: string): string {
   const separator = isWindowsAbsolutePath(folder) ? "\\" : "/";
   const base = folder.endsWith(separator) ? folder : `${folder}${separator}`;
   return base + relativePath.split("/").join(separator);
 }
 
-export function fileBreadcrumbChildren(entries: readonly ProjectEntry[], directoryPath: string) {
+export function fileBreadcrumbChildren(
+  entries: readonly ProjectEntry[],
+  directoryPath: string,
+): FileBreadcrumbChild[] {
   let collator: Intl.Collator | undefined;
   const prefix = directoryPath ? `${directoryPath}/` : "";
   return entries
@@ -81,7 +84,7 @@ export function fileBreadcrumbChildren(entries: readonly ProjectEntry[], directo
     });
 }
 
-export function fileBreadcrumbParent(directoryPath: string) {
+export function fileBreadcrumbParent(directoryPath: string): string | null {
   if (!directoryPath) return null;
   const separatorIndex = directoryPath.lastIndexOf("/");
   return separatorIndex === -1 ? "" : directoryPath.slice(0, separatorIndex);

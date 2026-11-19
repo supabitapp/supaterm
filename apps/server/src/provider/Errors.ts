@@ -7,7 +7,7 @@ export class ProviderInstanceNotFoundError extends Schema.TaggedError<ProviderIn
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `No provider instance bound to id '${this.instanceId}'`;
   }
 }
@@ -21,7 +21,7 @@ export class ProviderWorkspaceMissingError extends Schema.TaggedError<ProviderWo
     cwd: Schema.String,
   },
 ) {
-  override get message() {
-    return `This thread's workspace folder no longer exists or is not a directory: ${this.cwd}. Restore the folder at this path before retrying.` satisfies string as string;
+  override get message(): string {
+    return `This thread's workspace folder no longer exists or is not a directory: ${this.cwd}. Restore the folder at this path before retrying.`;
   }
 }

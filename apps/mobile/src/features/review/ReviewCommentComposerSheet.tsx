@@ -102,7 +102,7 @@ export function ReviewCommentComposerSheet(props: ReviewCommentComposerSheetProp
     })();
   });
 
-  async function handlePickImages() {
+  async function handlePickImages(): Promise<void> {
     const result = await pickComposerImages({ existingCount: attachments.length });
     if (result.images.length > 0) {
       setAttachments((current) => [...current, ...result.images]);

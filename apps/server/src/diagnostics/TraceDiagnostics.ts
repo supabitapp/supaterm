@@ -39,8 +39,8 @@ export class TraceFileReadError extends Schema.TaggedError<TraceFileReadError>()
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
-    return `Failed to read local trace file '${this.traceFilePath}'.` satisfies string as string;
+  override get message(): string {
+    return `Failed to read local trace file '${this.traceFilePath}'.`;
   }
 }
 
@@ -62,7 +62,10 @@ const DEFAULT_SLOW_SPAN_THRESHOLD_MS = 1_000;
 const TOP_LIMIT = 10;
 const RECENT_LIMIT = 20;
 
-export function toRotatedTracePaths(traceFilePath: string, maxFiles: number) {
+export function toRotatedTracePaths(
+  traceFilePath: string,
+  maxFiles: number,
+): ReadonlyArray<string> {
   const backupCount = Math.max(0, Math.floor(maxFiles));
   const backups = Array.from(
     { length: backupCount },
@@ -75,15 +78,15 @@ function isRecordObject(value: unknown): value is Readonly<Record<string, unknow
   return typeof value === "object" && value !== null;
 }
 
-function toStringValue(value: unknown) {
+function toStringValue(value: unknown): string | null {
   return typeof value === "string" && value.trim().length > 0 ? value : null;
 }
 
-function toNumberValue(value: unknown) {
+function toNumberValue(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
-function unixNanoToDateTime(value: unknown) {
+function unixNanoToDateTime(value: unknown): DateTime.Utc | null {
   const text = toStringValue(value);
   if (!text) return null;
   try {
@@ -94,12 +97,12 @@ function unixNanoToDateTime(value: unknown) {
   }
 }
 
-function readExitTag(exit: unknown) {
+function readExitTag(exit: unknown): string | null {
   if (!isRecordObject(exit) || !("_tag" in exit)) return null;
   return toStringValue(exit._tag);
 }
 
-function readExitCause(exit: unknown) {
+function readExitCause(exit: unknown): string {
   if (!isRecordObject(exit) || !("cause" in exit)) return "Failure";
   return toStringValue(exit.cause)?.trim() ?? "Failure";
 }
@@ -108,7 +111,7 @@ function isTraceEvent(value: unknown): value is TraceEventLike {
   return typeof value === "object" && value !== null;
 }
 
-function readEventAttributes(event: TraceEventLike) {
+function readEventAttributes(event: TraceEventLike): Readonly<Record<string, unknown>> {
   return typeof event.attributes === "object" && event.attributes !== null
     ? (event.attributes as Readonly<Record<string, unknown>>)
     : {};
@@ -121,7 +124,7 @@ function makeEmptyDiagnostics(input: {
   readonly slowSpanThresholdMs: number;
   readonly error?: TraceDiagnosticsErrorSummary;
   readonly partialFailure?: boolean;
-}) {
+}): ServerTraceDiagnosticsResult {
   return {
     traceFilePath: input.traceFilePath,
     scannedFilePaths: [...input.scannedFilePaths],
@@ -145,7 +148,7 @@ function makeEmptyDiagnostics(input: {
   };
 }
 
-function isNotFoundError(error: PlatformError.PlatformError) {
+function isNotFoundError(error: PlatformError.PlatformError): boolean {
   return error.reason._tag === "NotFound";
 }
 
@@ -154,7 +157,7 @@ function insertBounded<A>(
   item: A,
   limit: number,
   order: (left: A, right: A) => number,
-) {
+): void {
   if (items.length >= limit && order(item, items[items.length - 1]!) >= 0) {
     return;
   }
@@ -323,7 +326,7 @@ export function makeTraceDiagnosticsAggregator(
     readonly readAt: DateTime.Utc;
     readonly error?: TraceDiagnosticsErrorSummary;
     readonly partialFailure?: boolean;
-  }) => {
+  }): ServerTraceDiagnosticsResult => {
     const topSpansByCount: ServerTraceDiagnosticsSpanSummary[] = [...spansByName.entries()]
       .map(([name, span]) => ({
         name,
@@ -375,7 +378,7 @@ export function streamTraceFileLines(
   fileSystem: FileSystem.FileSystem,
   path: string,
   onLine: (line: string) => void,
-) {
+): Effect.Effect<boolean, TraceFileReadError> {
   return fileSystem.stream(path).pipe(
     Stream.decodeText,
     Stream.splitLines,
@@ -463,7 +466,7 @@ export const layer = Layer.effect(TraceDiagnostics, make);
 
 export const readTraceDiagnostics = Effect.fn("TraceDiagnostics.readTraceDiagnostics")(function* (
   options: TraceDiagnosticsOptions,
-) {
+): Effect.fn.Return<ServerTraceDiagnosticsResult, never, TraceDiagnostics> {
   const diagnostics = yield* TraceDiagnostics;
   return yield* diagnostics.read(options);
 });

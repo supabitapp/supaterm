@@ -40,7 +40,7 @@ const WRITING_STYLE_LABELS: Record<string, string> = {
 function explainedKey(
   keys: readonly (keyof ServerSettings)[],
   values: { readonly [K in keyof ServerSettings]?: unknown },
-) {
+): keyof ServerSettings | undefined {
   return (
     keys.find(
       (key) =>
@@ -56,7 +56,7 @@ const BACKGROUND_ACTIVITY_PROFILE_LABELS: Record<string, string> = {
   custom: "Advanced",
 };
 
-function formatValue(key: keyof ServerSettings, value: unknown) {
+function formatValue(key: keyof ServerSettings, value: unknown): string {
   if (value === null || value === undefined) {
     return key === "pullRequestMergeMethod"
       ? "Last selected"
@@ -116,7 +116,7 @@ export function settingInheritanceLayers(
   target: ScopedSettingsTarget,
   environmentSettings: ServerSettings,
   key: keyof ServerSettings,
-) {
+): readonly InheritanceLayer[] {
   const environmentValue = environmentSettings[key];
   const source = isProjectScopedSettingKey(key) ? target.sources[key] : "environment";
   const environmentSet = !Equal.equals(environmentValue, DEFAULT_SERVER_SETTINGS[key]);

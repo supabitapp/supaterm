@@ -107,7 +107,7 @@ const RECORDING_NAMES = Struct.keys(RECORDINGS);
 
 const encodeUnknownJsonString = Schema.encodeSync(Schema.fromJsonString(Schema.Unknown));
 
-function encodeTranscriptNdjson(transcript: CursorAgentSdkReplayTranscript) {
+function encodeTranscriptNdjson(transcript: CursorAgentSdkReplayTranscript): string {
   const { entries, ...metadata } = transcript;
   return [
     encodeUnknownJsonString({ type: "transcript_start", ...metadata }),

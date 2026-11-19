@@ -15,7 +15,7 @@ export async function importComposerThreadAttachment(input: {
   readonly isActive: () => boolean;
   readonly attach: (file: File) => Promise<boolean>;
   readonly onLimitReached: () => void;
-}) {
+}): Promise<void> {
   if (input.countReservedAttachments() >= PROVIDER_SEND_TURN_MAX_ATTACHMENTS) {
     input.onLimitReached();
     return;

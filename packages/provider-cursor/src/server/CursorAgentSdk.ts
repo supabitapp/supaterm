@@ -35,12 +35,12 @@ export class CursorAgentSdkRunnerError extends Schema.TaggedError<CursorAgentSdk
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Cursor Agent SDK ${this.method} failed.`;
   }
 }
 
-export function cursorSdkFailureMessage(error: CursorAgentSdkRunnerError) {
+export function cursorSdkFailureMessage(error: CursorAgentSdkRunnerError): string {
   const reason = sdkErrorReason(error.cause);
   return reason === undefined
     ? error.message
@@ -50,7 +50,7 @@ export function cursorSdkFailureMessage(error: CursorAgentSdkRunnerError) {
 const CURSOR_USAGE_LIMIT_CODE =
   /^(?:resource_exhausted|rate_limited(?:_changeable)?|\w*_usage_limit|\w*_rate_limit(?:_exceeded)?)$/i;
 
-export function isCursorUsageLimitError(cause: unknown) {
+export function isCursorUsageLimitError(cause: unknown): boolean {
   const error = isCursorAgentSdkRunnerError(cause) ? cause.cause : cause;
   if (typeof error !== "object" || error === null) return false;
   const code = Reflect.get(error, "code");
@@ -63,7 +63,7 @@ export function isCursorUsageLimitError(cause: unknown) {
 
 const GENERIC_SDK_ERROR_CODES = new Set(["", "error", "unknown"]);
 
-function sdkErrorReason(cause: unknown) {
+function sdkErrorReason(cause: unknown): string | undefined {
   if (!(cause instanceof Error)) return undefined;
   const message = cause.message.trim();
   if (message.length === 0) return undefined;
@@ -281,17 +281,17 @@ export type CursorAgentSdkProtocolLogger = (
   event: CursorAgentSdkProtocolLogEvent,
 ) => Effect.Effect<void>;
 
-function runnerError(cause: unknown, method: string) {
+function runnerError(cause: unknown, method: string): CursorAgentSdkRunnerError {
   return isCursorAgentSdkRunnerError(cause)
     ? cause
     : new CursorAgentSdkRunnerError({ method, cause });
 }
 
-function isActiveRunConflict(cause: unknown) {
+function isActiveRunConflict(cause: unknown): boolean {
   return cause instanceof Error && /already has active run/i.test(cause.message);
 }
 
-export function isCursorCancellationError(cause: unknown) {
+export function isCursorCancellationError(cause: unknown): boolean {
   let current = cause;
   const seen = new Set<object>();
 
@@ -306,7 +306,7 @@ export function isCursorCancellationError(cause: unknown) {
   return false;
 }
 
-export function loggedCursorAgentOptions(options: AgentOptions) {
+export function loggedCursorAgentOptions(options: AgentOptions): CursorAgentSdkLoggedAgentOptions {
   return {
     ...(options.model === undefined ? {} : { model: options.model }),
     ...(options.name === undefined ? {} : { hasName: true }),
@@ -335,7 +335,9 @@ export function loggedCursorAgentOptions(options: AgentOptions) {
   };
 }
 
-export function loggedCursorSendOptions(options: Omit<SendOptions, "onDelta"> | undefined) {
+export function loggedCursorSendOptions(
+  options: Omit<SendOptions, "onDelta"> | undefined,
+): CursorAgentSdkLoggedSendOptions {
   if (options === undefined) {
     return {};
   }
@@ -361,17 +363,12 @@ function makeCursorAgentSdkProtocolLogger(input: {
   readonly nativeEventLogger: ProviderEventLoggers.EventNdjsonLogger | undefined;
   readonly threadId: ThreadId;
   readonly providerSessionId: OrchestrationV2ProviderSession["id"];
-}): CursorAgentSdkProtocolLogger | undefined;
-function makeCursorAgentSdkProtocolLogger(input: {
-  readonly nativeEventLogger: ProviderEventLoggers.EventNdjsonLogger | undefined;
-  readonly threadId: ThreadId;
-  readonly providerSessionId: OrchestrationV2ProviderSession["id"];
-}) {
+}): CursorAgentSdkProtocolLogger | undefined {
   if (input.nativeEventLogger === undefined) {
-    return undefined satisfies CursorAgentSdkProtocolLogger | undefined;
+    return undefined;
   }
   const nativeEventLogger = input.nativeEventLogger;
-  return ((event) =>
+  return (event) =>
     nativeEventLogger
       .write(
         {
@@ -383,7 +380,7 @@ function makeCursorAgentSdkProtocolLogger(input: {
         },
         input.threadId,
       )
-      .pipe(Effect.ignore)) satisfies CursorAgentSdkProtocolLogger | undefined;
+      .pipe(Effect.ignore);
 }
 
 interface CursorShellStreamOutput {
@@ -534,7 +531,7 @@ export const makeCursorAgentSdkRunner = Effect.fn("makeCursorAgentSdkRunner")(fu
           let callbackFailure: { readonly cause: unknown } | undefined;
           let callbackChain = Promise.resolve();
           let runId = "";
-          const dispatchUpdate = (update: InteractionUpdate) => {
+          const dispatchUpdate = (update: InteractionUpdate): Promise<void> => {
             callbackChain = callbackChain
               .then(() => {
                 if (callbackFailure !== undefined) {

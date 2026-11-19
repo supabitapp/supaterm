@@ -40,15 +40,15 @@ const generatePassword = Effect.gen(function* () {
 });
 
 /** OPENCODE_PASSWORD overrides OPENCODE_SERVER_PASSWORD; drop the inherited 1.x variable. */
-export const serverEnvironment: (
+export const serverEnvironment = (
   environment: NodeJS.ProcessEnv,
   password: Redacted.Redacted,
-) => NodeJS.ProcessEnv = (environment: NodeJS.ProcessEnv, password: Redacted.Redacted) => {
+): NodeJS.ProcessEnv => {
   const { OPENCODE_SERVER_PASSWORD: _inherited, ...rest } = environment;
   return { ...rest, OPENCODE_PASSWORD: Redacted.value(password) };
 };
 
-export const httpFailureOf = (cause: unknown) => {
+export const httpFailureOf = (cause: unknown): HttpClientError.HttpClientError | undefined => {
   if (HttpClientError.isHttpClientError(cause)) return cause;
   if (
     P.isTagged(cause, "ClientError") &&

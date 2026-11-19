@@ -526,7 +526,7 @@ const nowFreshness = Effect.fn("GitVcsDriver.nowFreshness")(function* () {
   };
 });
 
-function chunkPathsForGitCheckIgnore(relativePaths: ReadonlyArray<string>) {
+function chunkPathsForGitCheckIgnore(relativePaths: ReadonlyArray<string>): string[][] {
   const chunks: string[][] = [];
   let chunk: string[] = [];
   let chunkBytes = 0;
@@ -1031,7 +1031,7 @@ export const makeVcsDriverShape = Effect.fn("makeGitVcsDriverShape")(function* (
       ],
       allowNonZeroExit: true,
     }).pipe(
-      Effect.map((result) => {
+      Effect.map((result): string => {
         const [fromLine = "", startLine = ""] = result.stdout.trimEnd().split("\n");
         const [start = "", , startedFrom] = startLine.split(" ");
         return result.exitCode === 0 && startedFrom === fromLine.split(" ")[0]
@@ -1827,7 +1827,7 @@ export const makeVcsDriverShape = Effect.fn("makeGitVcsDriverShape")(function* (
               outputMode: "error",
             });
             return rules.stdout.split("\0").filter((entry) => entry.length > 0);
-          }).pipe(Effect.orElseSucceed(() => []));
+          }).pipe(Effect.orElseSucceed((): string[] => []));
           if (manual.length > 0) {
             yield* execute({
               operation,

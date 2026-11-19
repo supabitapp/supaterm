@@ -19,14 +19,14 @@ const suffix = ".relay.supaterm.alt";
 const legacySuffix = ".relay.supaterm.invalid";
 const legacyRelayHost = /([0-9a-f]{32}\.[0-9a-f]{32})\.relay\.supaterm\.invalid(?![\w.-])/g;
 const encoder = new TextEncoder();
-export const encodeBase64 = (data: Uint8Array) => {
+export const encodeBase64 = (data: Uint8Array): string => {
   let value = "";
   for (let i = 0; i < data.length; i += 8192) {
     value += String.fromCharCode(...data.subarray(i, i + 8192));
   }
   return btoa(value).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "");
 };
-export const decodeBase64 = (value: string) => {
+export const decodeBase64 = (value: string): Uint8Array<ArrayBuffer> => {
   if (!/^[A-Za-z0-9_-]*$/.test(value)) throw new Error("Invalid relay encoding");
   return Uint8Array.from(atob(value.replaceAll("-", "+").replaceAll("_", "/")), (c) =>
     c.charCodeAt(0),
@@ -38,7 +38,7 @@ export const relayHttpBaseUrl = (publicKey: Uint8Array) => {
   const hex = bytesToHex(publicKey);
   return `https://${hex.slice(0, 32)}.${hex.slice(32)}${suffix}/`;
 };
-export const parseRelayAddress = (input: string) => {
+export const parseRelayAddress = (input: string): Uint8Array | null => {
   let url: URL;
   try {
     url = new URL(input);
@@ -54,11 +54,12 @@ export const parseRelayAddress = (input: string) => {
   if (!/^[0-9a-f]{32}\.[0-9a-f]{32}$/.test(key)) throw new Error("Invalid relay identity");
   return hexToBytes(key.replace(".", ""));
 };
-export const canonicalRelayAddress = (input: string) => {
+export const canonicalRelayAddress = (input: string): string | null => {
   const publicKey = parseRelayAddress(input);
   return publicKey === null ? null : new URL(relayHttpBaseUrl(publicKey)).origin;
 };
-export const upgradeRelayAddresses = (text: string) => text.replace(legacyRelayHost, `$1${suffix}`);
+export const upgradeRelayAddresses = (text: string): string =>
+  text.replace(legacyRelayHost, `$1${suffix}`);
 export const signRelayChallenge = (secret: Uint8Array, nonce: string) =>
   encodeBase64(
     ed25519.sign(

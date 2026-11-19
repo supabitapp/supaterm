@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { useTheme } from "~/hooks/useTheme";
 import { observeResize } from "~/lib/observeResize";
 
-export function sanitizeDocumentHtml(source: string) {
+export function sanitizeDocumentHtml(source: string): string {
   const fragment = DOMPurify.sanitize(source, {
     RETURN_DOM_FRAGMENT: true,
     ALLOWED_TAGS: [

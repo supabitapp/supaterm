@@ -4,11 +4,11 @@ export const GROK_PROMPT_ERROR_PROMPT = "Respond with exactly: grok prompt error
 export const GROK_PROMPT_ERROR_FOLLOW_UP =
   "Respond with exactly: grok prompt error fixture recovered";
 
-export function grokPromptErrorInput() {
+export function grokPromptErrorInput(): OrchestratorFixtureInput {
   return {
     steps: [
       { type: "message", text: GROK_PROMPT_ERROR_PROMPT },
       { type: "message", text: GROK_PROMPT_ERROR_FOLLOW_UP },
     ],
-  } satisfies OrchestratorFixtureInput;
+  };
 }

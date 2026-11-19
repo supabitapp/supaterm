@@ -242,8 +242,7 @@ export const PreviewForwardedShortcut = Schema.Struct({
 export type PreviewForwardedShortcut = typeof PreviewForwardedShortcut.Type;
 
 const KeybindingWhenNodeRef = Schema.suspend(
-  () =>
-    KeybindingWhenNode satisfies Schema.Codec<KeybindingWhenNode> as Schema.Codec<KeybindingWhenNode>,
+  (): Schema.Codec<KeybindingWhenNode> => KeybindingWhenNode,
 );
 export const KeybindingWhenNode = Schema.Union([
   Schema.Struct({
@@ -292,7 +291,7 @@ export class KeybindingsConfigError extends Schema.TaggedError<KeybindingsConfig
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Unable to parse keybindings config at ${this.configPath}: ${this.detail}`;
   }
 }

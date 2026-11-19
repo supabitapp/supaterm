@@ -5,7 +5,9 @@ export type MetricAttributeValue = string;
 export type MetricAttributes = Readonly<Record<string, MetricAttributeValue>>;
 export type ObservabilityOutcome = "success" | "failure" | "interrupt";
 
-export function compactMetricAttributes(attributes: Readonly<Record<string, unknown>>) {
+export function compactMetricAttributes(
+  attributes: Readonly<Record<string, unknown>>,
+): MetricAttributes {
   return Object.fromEntries(
     Object.entries(attributes).flatMap(([key, value]) => {
       if (value === undefined || value === null) {
@@ -22,14 +24,14 @@ export function compactMetricAttributes(attributes: Readonly<Record<string, unkn
   );
 }
 
-export function outcomeFromExit(exit: Exit.Exit<unknown, unknown>) {
+export function outcomeFromExit(exit: Exit.Exit<unknown, unknown>): ObservabilityOutcome {
   if (Exit.isSuccess(exit)) {
     return "success";
   }
   return Cause.hasInterruptsOnly(exit.cause) ? "interrupt" : "failure";
 }
 
-export function normalizeModelMetricLabel(model: string | null | undefined) {
+export function normalizeModelMetricLabel(model: string | null | undefined): string | undefined {
   const normalized = model?.trim().toLowerCase();
   if (!normalized) {
     return undefined;

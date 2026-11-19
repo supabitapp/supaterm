@@ -152,14 +152,14 @@ export const PROVIDER_WORKSPACE_SNAPSHOT_TTL_MS = 5 * 60_000;
 export function isProviderWorkspaceSnapshotCurrent(
   snapshot: Pick<ServerProviderWorkspaceSnapshot, "checkedAt">,
   nowMs: number,
-) {
+): boolean {
   return nowMs - Date.parse(snapshot.checkedAt) < PROVIDER_WORKSPACE_SNAPSHOT_TTL_MS;
 }
 
 /** A pending snapshot keeps what it found before and is rescanned before its TTL. */
 export function isProviderWorkspaceSnapshotPending(
   snapshot: Pick<ServerProviderWorkspaceSnapshot, "slashCommandsPending" | "modelsPending">,
-) {
+): boolean {
   return snapshot.slashCommandsPending === true || snapshot.modelsPending === true;
 }
 
@@ -321,11 +321,7 @@ const sameJson = (left: unknown, right: unknown) =>
 export function serverProviderDeltas(
   previous: ReadonlyArray<ServerProvider>,
   next: ReadonlyArray<ServerProvider>,
-): ServerProviderDelta[];
-export function serverProviderDeltas(
-  previous: ReadonlyArray<ServerProvider>,
-  next: ReadonlyArray<ServerProvider>,
-) {
+): ServerProviderDelta[] {
   const held = new Map(previous.map((provider) => [provider.instanceId, provider]));
   return next.map((provider) => {
     const base = held.get(provider.instanceId);
@@ -337,14 +333,14 @@ export function serverProviderDeltas(
       ...(sameJson(base.slashCommands, slashCommands) ? {} : { slashCommands }),
       ...(sameJson(base.skills, skills) ? {} : { skills }),
     };
-  }) satisfies ServerProviderDelta[];
+  });
 }
 
 /** Rebuilds the provider list `serverProviderDeltas` was made from. */
 export function applyServerProviderDeltas(
   previous: ReadonlyArray<ServerProvider>,
   deltas: ReadonlyArray<ServerProviderDelta>,
-) {
+): ServerProvider[] {
   const held = new Map(previous.map((provider) => [provider.instanceId, provider]));
   return deltas.flatMap((delta) => {
     const base = held.get(delta.instanceId);
@@ -358,7 +354,7 @@ export function applyServerProviderDeltas(
 export const ServerProviders = ForwardCompatibleArray(ServerProvider);
 export type ServerProviders = typeof ServerProviders.Type;
 
-export const isProviderAvailable = (snapshot: ServerProvider) =>
+export const isProviderAvailable = (snapshot: ServerProvider): boolean =>
   snapshot.availability !== "unavailable";
 
 /**
@@ -366,10 +362,10 @@ export const isProviderAvailable = (snapshot: ServerProvider) =>
  * producers, which all support application text generation, keep working
  * without resending the field.
  */
-export const isProviderTextGenerationCapable = (snapshot: ServerProvider) =>
+export const isProviderTextGenerationCapable = (snapshot: ServerProvider): boolean =>
   snapshot.supportsTextGeneration !== false;
 
-export const isProviderReviewGuideCapable = (snapshot: ServerProvider) =>
+export const isProviderReviewGuideCapable = (snapshot: ServerProvider): boolean =>
   isProviderTextGenerationCapable(snapshot) && snapshot.supportsReviewGuides === true;
 export const OtlpEndpointSource = Schema.Literals(["environment", "bootstrap", "settings"]);
 export type OtlpEndpointSource = typeof OtlpEndpointSource.Type;
@@ -430,7 +426,7 @@ export class ServerPrepareTriageError extends Schema.TaggedError<ServerPrepareTr
   "ServerPrepareTriageError",
   { cause: Schema.optional(Schema.Defect()) },
 ) {
-  override get message() {
+  override get message(): string {
     return "Could not write the triage session files.";
   }
 }
@@ -673,7 +669,7 @@ export const EnvironmentTheme = Schema.Struct({
 });
 export type EnvironmentTheme = typeof EnvironmentTheme.Type;
 
-export function environmentThemeFileHasColors(file: EnvironmentThemeFile) {
+export function environmentThemeFileHasColors(file: EnvironmentThemeFile): boolean {
   return (
     (file.canvas !== undefined && file.accent !== undefined) ||
     (file.colors !== undefined && Object.keys(file.colors).length > 0)
@@ -799,16 +795,8 @@ export function resolveEnvironmentMachineKind(
     readonly environment: Pick<ExecutionEnvironmentDescriptor, "platform">;
     readonly settings?: Pick<ServerSettings, "environmentIcon">;
   } | null,
-): EnvironmentMachineKind;
-export function resolveEnvironmentMachineKind(
-  config: {
-    readonly environment: Pick<ExecutionEnvironmentDescriptor, "platform">;
-    readonly settings?: Pick<ServerSettings, "environmentIcon">;
-  } | null,
-) {
-  return (config?.settings?.environmentIcon ??
-    config?.environment.platform.machine ??
-    "server") satisfies EnvironmentMachineKind;
+): EnvironmentMachineKind {
+  return config?.settings?.environmentIcon ?? config?.environment.platform.machine ?? "server";
 }
 
 const ServerUpsertKeybindingReplaceTarget = Schema.Struct({
@@ -1038,7 +1026,7 @@ export class ServerProviderUpdateError extends Schema.TaggedError<ServerProvider
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Provider update failed for ${this.provider}: ${this.reason}`;
   }
 }
@@ -1061,7 +1049,7 @@ export class ServerNpmReleaseError extends Schema.TaggedError<ServerNpmReleaseEr
   "ServerNpmReleaseError",
   { reason: Schema.String },
 ) {
-  override get message() {
+  override get message(): string {
     return `Could not check the configured npm registry: ${this.reason}`;
   }
 }
@@ -1114,7 +1102,7 @@ export class ServerSelfUpdateError extends Schema.TaggedError<ServerSelfUpdateEr
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Server update failed: ${this.reason}`;
   }
 }

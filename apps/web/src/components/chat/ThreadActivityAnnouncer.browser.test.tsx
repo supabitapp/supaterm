@@ -9,37 +9,35 @@ import { ThreadActivityAnnouncer } from "./ThreadActivityAnnouncer";
 const run = RunId.make("run-1");
 const at = "2026-01-01T00:00:00.000Z";
 
-const message = (id: string, role: "user" | "assistant", streaming = false) =>
-  ({
-    kind: "message",
-    id,
+const message = (id: string, role: "user" | "assistant", streaming = false): TimelineEntry => ({
+  kind: "message",
+  id,
+  createdAt: at,
+  message: {
+    id: MessageId.make(id),
+    role,
+    text: id,
+    runId: role === "assistant" ? run : null,
+    streaming,
     createdAt: at,
-    message: {
-      id: MessageId.make(id),
-      role,
-      text: id,
-      runId: role === "assistant" ? run : null,
-      streaming,
-      createdAt: at,
-      updatedAt: at,
-    },
-  }) satisfies TimelineEntry;
-const command = (program: string) =>
-  ({
-    kind: "work",
+    updatedAt: at,
+  },
+});
+const command = (program: string): TimelineEntry => ({
+  kind: "work",
+  id: program,
+  createdAt: at,
+  entry: {
     id: program,
     createdAt: at,
-    entry: {
-      id: program,
-      createdAt: at,
-      runId: run,
-      label: program,
-      tone: "tool",
-      itemType: "command_execution",
-      command: program,
-      toolLifecycleStatus: "inProgress",
-    },
-  }) satisfies TimelineEntry;
+    runId: run,
+    label: program,
+    tone: "tool",
+    itemType: "command_execution",
+    command: program,
+    toolLifecycleStatus: "inProgress",
+  },
+});
 const prompt = message("prompt", "user");
 
 const announcer = (props: Partial<ComponentProps<typeof ThreadActivityAnnouncer>>) => (

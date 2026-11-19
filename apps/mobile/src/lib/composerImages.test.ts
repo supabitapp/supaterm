@@ -51,28 +51,28 @@ vi.mock("expo-file-system", () => ({
       this.parentDirectory = { uri: this.uri.slice(0, -(this.name.length + 1)) };
     }
 
-    get exists() {
+    get exists(): boolean {
       return files.has(this.uri) && files.get(this.uri)?.deleted === false;
     }
 
-    get type() {
+    get type(): string {
       return files.get(this.uri)?.mimeType ?? "";
     }
 
-    get size() {
+    get size(): number | null {
       const entry = files.get(this.uri);
       return entry && !entry.deleted
         ? Math.floor((entry.base64.replace(/=+$/, "").length * 3) / 4)
         : null;
     }
 
-    async copy(destination: { readonly uri: string }) {
+    async copy(destination: { readonly uri: string }): Promise<void> {
       const entry = files.get(this.uri);
       if (!entry) throw new Error("missing file");
       files.set(destination.uri, { ...entry });
     }
 
-    async base64() {
+    async base64(): Promise<string> {
       const entry = files.get(this.uri);
       if (!entry || entry.deleted) {
         throw new Error("missing file");
@@ -80,22 +80,22 @@ vi.mock("expo-file-system", () => ({
       return entry.base64;
     }
 
-    delete() {
+    delete(): void {
       const entry = files.get(this.uri);
       if (entry) {
         entry.deleted = true;
       }
     }
 
-    create() {
+    create(): void {
       files.set(this.uri, { base64: "", deleted: false });
     }
 
-    write(text: string) {
+    write(text: string): void {
       files.set(this.uri, { base64: "", deleted: false, text });
     }
 
-    moveSync(destination: { readonly uri: string }) {
+    moveSync(destination: { readonly uri: string }): void {
       const entry = files.get(this.uri);
       if (!entry) throw new Error("missing staged file");
       files.set(destination.uri, entry);
@@ -109,7 +109,7 @@ vi.mock("expo-file-system", () => ({
       this.uri = `${parent}/${name}`;
     }
 
-    create() {}
+    create(): void {}
   },
   FileMode: { ReadOnly: "r", WriteOnly: "w" },
   Paths: { document: "file:///documents" },
@@ -121,7 +121,7 @@ vi.mock("./uuid", () => ({
 
 import { convertPastedImagesToAttachments, persistComposerAttachmentFile } from "./composerImages";
 
-function oversizedPng() {
+function oversizedPng(): string {
   const png = Buffer.alloc(PROVIDER_SEND_TURN_MAX_IMAGE_BYTES + 1);
   Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).copy(png);
   png.write("IHDR", 12);

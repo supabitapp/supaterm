@@ -5,7 +5,7 @@ import { Keyboard } from "react-native";
 import { mediaVideoThumbnailKey, type VideoPreviewSource } from "./videoPreviewSource";
 
 /** Identity of a video preview: a different file is a new presentation. */
-export function videoPreviewKey(source: VideoPreviewSource) {
+export function videoPreviewKey(source: VideoPreviewSource): string {
   return source.type === "local"
     ? `local:${source.attachment.id}:${source.attachment.fileUri}`
     : mediaVideoThumbnailKey(source);
@@ -17,7 +17,10 @@ export function videoPreviewKey(source: VideoPreviewSource) {
  * focus, so navigating away never leaves a native viewer or modal behind.
  * `presentationKey` is the presented source's identity, or null when closed.
  */
-export function usePreviewPresentation(presentationKey: string | null, onRequestClose: () => void) {
+export function usePreviewPresentation(
+  presentationKey: string | null,
+  onRequestClose: () => void,
+): void {
   const navigation = useNavigation();
   const close = useEffectEvent(onRequestClose);
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- closes the preview when its navigation route blurs; the open state belongs to the caller

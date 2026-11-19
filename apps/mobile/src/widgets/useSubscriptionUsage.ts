@@ -31,7 +31,7 @@ const refreshableEnvironmentsAtom = Atom.make((get) =>
  * on resume, on every connection change, and on a fixed interval while active.
  * Each environment is refreshed at most once per interval.
  */
-export function installSubscriptionUsageRefresh() {
+export function installSubscriptionUsageRefresh(): () => void {
   const refresh = createWidgetRefresher((environmentId: EnvironmentId) =>
     runAtomCommand(
       appAtomRegistry,

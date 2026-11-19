@@ -31,7 +31,7 @@ function resolveTailscaleIpAdvertisedEndpoints(input: {
   readonly port: number;
   readonly networkInterfaces: NetworkInterfaces;
   readonly status: TailscaleStatus | null;
-}) {
+}): readonly AdvertisedEndpoint[] {
   const seen = new Set<string>();
   const endpoints: AdvertisedEndpoint[] = [];
 
@@ -83,13 +83,7 @@ const probeServesThisBackend = (localHttpUrl: string) => (baseUrl: string) =>
     Effect.orElseSucceed(() => false),
   );
 
-const resolveTailscaleMagicDnsAdvertisedEndpoint: (input: {
-  readonly dnsName: string | null;
-  readonly localHttpUrl: string;
-  readonly serveEnabled: boolean;
-  readonly servePort?: number;
-  readonly probe?: (baseUrl: string) => Effect.Effect<boolean, never, HttpClient.HttpClient>;
-}) => Effect.Effect<Option.Option<AdvertisedEndpoint>, never, HttpClient.HttpClient> = Effect.fn(
+const resolveTailscaleMagicDnsAdvertisedEndpoint = Effect.fn(
   "resolveTailscaleMagicDnsAdvertisedEndpoint",
 )(function* (input: {
   readonly dnsName: string | null;
@@ -97,7 +91,7 @@ const resolveTailscaleMagicDnsAdvertisedEndpoint: (input: {
   readonly serveEnabled: boolean;
   readonly servePort?: number;
   readonly probe?: (baseUrl: string) => Effect.Effect<boolean, never, HttpClient.HttpClient>;
-}) {
+}): Effect.fn.Return<Option.Option<AdvertisedEndpoint>, never, HttpClient.HttpClient> {
   if (!input.dnsName) {
     return Option.none();
   }
@@ -126,53 +120,44 @@ const resolveTailscaleMagicDnsAdvertisedEndpoint: (input: {
   );
 });
 
-export const resolveTailscaleAdvertisedEndpoints: (input: {
-  readonly port: number;
-  readonly serveEnabled?: boolean;
-  readonly servePort?: number;
-  readonly networkInterfaces: NetworkInterfaces;
-  readonly statusJson?: string | null;
-  readonly readStatus?: Effect.Effect<
-    TailscaleStatus | null,
+export const resolveTailscaleAdvertisedEndpoints = Effect.fn("resolveTailscaleAdvertisedEndpoints")(
+  function* (input: {
+    readonly port: number;
+    readonly serveEnabled?: boolean;
+    readonly servePort?: number;
+    readonly networkInterfaces: NetworkInterfaces;
+    readonly statusJson?: string | null;
+    readonly readStatus?: Effect.Effect<
+      TailscaleStatus | null,
+      never,
+      ChildProcessSpawner.ChildProcessSpawner
+    >;
+    readonly probe?: (baseUrl: string) => Effect.Effect<boolean, never, HttpClient.HttpClient>;
+  }): Effect.fn.Return<
+    readonly AdvertisedEndpoint[],
     never,
-    ChildProcessSpawner.ChildProcessSpawner
-  >;
-  readonly probe?: (baseUrl: string) => Effect.Effect<boolean, never, HttpClient.HttpClient>;
-}) => Effect.Effect<
-  readonly AdvertisedEndpoint[],
-  never,
-  ChildProcessSpawner.ChildProcessSpawner | HttpClient.HttpClient
-> = Effect.fn("resolveTailscaleAdvertisedEndpoints")(function* (input: {
-  readonly port: number;
-  readonly serveEnabled?: boolean;
-  readonly servePort?: number;
-  readonly networkInterfaces: NetworkInterfaces;
-  readonly statusJson?: string | null;
-  readonly readStatus?: Effect.Effect<
-    TailscaleStatus | null,
-    never,
-    ChildProcessSpawner.ChildProcessSpawner
-  >;
-  readonly probe?: (baseUrl: string) => Effect.Effect<boolean, never, HttpClient.HttpClient>;
-}) {
-  const readStatus = input.readStatus ?? readTailscaleStatus.pipe(Effect.orElseSucceed(() => null));
-  const status =
-    input.statusJson === undefined
-      ? yield* readStatus
-      : input.statusJson
-        ? yield* parseTailscaleStatus(input.statusJson).pipe(Effect.orElseSucceed(() => null))
-        : null;
-  const ipEndpoints = resolveTailscaleIpAdvertisedEndpoints({ ...input, status });
-  const magicDnsEndpoint = yield* resolveTailscaleMagicDnsAdvertisedEndpoint({
-    dnsName: status?.magicDnsName ?? null,
-    localHttpUrl: `http://127.0.0.1:${input.port}`,
-    serveEnabled: input.serveEnabled === true,
-    ...(input.servePort === undefined ? {} : { servePort: input.servePort }),
-    ...(input.probe === undefined ? {} : { probe: input.probe }),
-  });
+    ChildProcessSpawner.ChildProcessSpawner | HttpClient.HttpClient
+  > {
+    const readStatus =
+      input.readStatus ?? readTailscaleStatus.pipe(Effect.orElseSucceed(() => null));
+    const status =
+      input.statusJson === undefined
+        ? yield* readStatus
+        : input.statusJson
+          ? yield* parseTailscaleStatus(input.statusJson).pipe(Effect.orElseSucceed(() => null))
+          : null;
+    const ipEndpoints = resolveTailscaleIpAdvertisedEndpoints({ ...input, status });
+    const magicDnsEndpoint = yield* resolveTailscaleMagicDnsAdvertisedEndpoint({
+      dnsName: status?.magicDnsName ?? null,
+      localHttpUrl: `http://127.0.0.1:${input.port}`,
+      serveEnabled: input.serveEnabled === true,
+      ...(input.servePort === undefined ? {} : { servePort: input.servePort }),
+      ...(input.probe === undefined ? {} : { probe: input.probe }),
+    });
 
-  return Option.match(magicDnsEndpoint, {
-    onNone: () => ipEndpoints,
-    onSome: (endpoint) => [...ipEndpoints, endpoint],
-  });
-});
+    return Option.match(magicDnsEndpoint, {
+      onNone: () => ipEndpoints,
+      onSome: (endpoint) => [...ipEndpoints, endpoint],
+    });
+  },
+);

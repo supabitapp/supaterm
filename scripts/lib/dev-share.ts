@@ -10,6 +10,7 @@ import {
 } from "@supaterm/tailscale";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
+import type { ChildProcessSpawner } from "effect/process";
 
 const DIAGNOSTIC_EXPLANATIONS: Record<TailscaleStderrDiagnostic, string | undefined> = {
   "no-existing-handler": "no mapping existed for that port",
@@ -19,7 +20,9 @@ const DIAGNOSTIC_EXPLANATIONS: Record<TailscaleStderrDiagnostic, string | undefi
   unknown: undefined,
 };
 
-const explainCommandFailure = (error: TailscaleCommandError | TailscaleServeHttpsDisabledError) =>
+const explainCommandFailure = (
+  error: TailscaleCommandError | TailscaleServeHttpsDisabledError,
+): string | undefined =>
   error._tag === "TailscaleServeHttpsDisabledError"
     ? "HTTPS is not enabled on this tailnet — enable HTTPS certificates at https://login.tailscale.com/admin/dns"
     : error._tag === "TailscaleCommandExitError" && error.stderrDiagnostic !== undefined
@@ -30,11 +33,11 @@ export class TailscaleUnavailableError extends Schema.TaggedError<TailscaleUnava
   "TailscaleUnavailableError",
   { cause: Schema.Defect() },
 ) {
-  override get message() {
+  override get message(): string {
     return "could not talk to tailscale";
   }
 
-  get hint() {
+  get hint(): string {
     return "Is Tailscale installed and tailscaled running? Try `tailscale status` — or drop --share and open the printed localhost URL.";
   }
 }
@@ -43,11 +46,11 @@ export class TailnetNameMissingError extends Schema.TaggedError<TailnetNameMissi
   "TailnetNameMissingError",
   {},
 ) {
-  override get message() {
+  override get message(): string {
     return "this machine has no tailnet DNS name";
   }
 
-  get hint() {
+  get hint(): string {
     return "Run `tailscale up` and make sure MagicDNS is enabled.";
   }
 }
@@ -61,7 +64,7 @@ export class DevServeFailedError extends Schema.TaggedError<DevServeFailedError>
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message() {
+  override get message(): string {
     const port = String(this.webPort);
     const base =
       this.stage === "read-existing"
@@ -72,7 +75,7 @@ export class DevServeFailedError extends Schema.TaggedError<DevServeFailedError>
     return this.explanation ? `${base}: ${this.explanation}` : base;
   }
 
-  get hint() {
+  get hint(): undefined {
     return undefined;
   }
 }
@@ -81,11 +84,11 @@ export class DevServePortTakenError extends Schema.TaggedError<DevServePortTaken
   "DevServePortTakenError",
   { webPort: Schema.Number },
 ) {
-  override get message() {
+  override get message(): string {
     return `tailnet port ${String(this.webPort)} already serves another running server, so it was left alone`;
   }
 
-  get hint() {
+  get hint(): string {
     return `Pick another port with SUPATERM_PORT_OFFSET, or remove that mapping with \`tailscale serve --https=${String(this.webPort)} off\` if nothing needs it.`;
   }
 }
@@ -97,7 +100,17 @@ export type DevShareError =
   | DevServePortTakenError;
 
 /** Finalizer cleanup must be uninterruptible or cancellation can leave stale mappings. */
-export const unshareDevServer = (webPort: number) =>
+export const unshareDevServer = (
+  webPort: number,
+): Effect.Effect<
+  {
+    readonly cleared: boolean;
+    readonly explanation?: string | undefined;
+    readonly cause?: TailscaleCommandError | undefined;
+  },
+  never,
+  ChildProcessSpawner.ChildProcessSpawner
+> =>
   disableTailscaleServe({ servePort: webPort }).pipe(
     Effect.as({ cleared: true } as const),
     Effect.catch((error: TailscaleCommandError) =>

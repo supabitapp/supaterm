@@ -36,7 +36,7 @@ const hashSuffix = (directory: string) =>
   `-${NodeCrypto.createHash("sha256").update(directory.normalize("NFC")).digest("hex").slice(0, 8)}`;
 
 /** The Keychain item the CLI stores its login in, for the environment it runs with. */
-export function claudeKeychainService(environment: NodeJS.ProcessEnv) {
+export function claudeKeychainService(environment: NodeJS.ProcessEnv): string {
   const secureStorageDir = environment.CLAUDE_SECURESTORAGE_CONFIG_DIR;
   const configDir = environment.CLAUDE_CONFIG_DIR;
   const suffix =
@@ -50,7 +50,10 @@ export function claudeKeychainService(environment: NodeJS.ProcessEnv) {
   return `Claude Code-credentials${suffix}`;
 }
 
-export function claudeKeychainAccount(environment: NodeJS.ProcessEnv, username: string | null) {
+export function claudeKeychainAccount(
+  environment: NodeJS.ProcessEnv,
+  username: string | null,
+): string {
   const account = environment.USER || username || "";
   return ACCOUNT_PATTERN.test(account) ? account : "claude-code-user";
 }
@@ -60,36 +63,35 @@ type KeychainRead =
   | { readonly _tag: "Missing" }
   | { readonly _tag: "NoAnswer" };
 
-const readKeychain: (
+const readKeychain = Effect.fnUntraced(function* (
   environment: NodeJS.ProcessEnv,
-) => Effect.Effect<KeychainRead, TranscriptionError, ChildProcessSpawner.ChildProcessSpawner> =
-  Effect.fnUntraced(function* (environment: NodeJS.ProcessEnv) {
-    if ((yield* HostProcess.Platform) !== "darwin") return { _tag: "Missing" };
-    const account = claudeKeychainAccount(environment, yield* HostProcess.Username);
-    const result = yield* spawnAndCollect(
-      SECURITY,
-      ChildProcess.make(SECURITY, [
-        "find-generic-password",
-        "-a",
-        account,
-        "-w",
-        "-s",
-        claudeKeychainService(environment),
-      ]),
-    ).pipe(Effect.scoped, Effect.timeoutOption(SECURITY_TIMEOUT), Effect.result);
-    if (Result.isFailure(result)) return { _tag: "Missing" };
-    if (Option.isNone(result.success)) return { _tag: "NoAnswer" };
-    const { code, stdout } = result.success.value;
-    if (code === 0) return { _tag: "Found", stored: stdout };
-    if (code === KEYCHAIN_LOCKED)
-      return yield* new TranscriptionError({ reason: "credentialsLocked" });
-    if (code !== KEYCHAIN_ITEM_NOT_FOUND) {
-      yield* Effect.logWarning("Reading the Claude login from the Keychain failed.", {
-        exitCode: code,
-      });
-    }
-    return { _tag: "Missing" };
-  });
+): Effect.fn.Return<KeychainRead, TranscriptionError, ChildProcessSpawner.ChildProcessSpawner> {
+  if ((yield* HostProcess.Platform) !== "darwin") return { _tag: "Missing" };
+  const account = claudeKeychainAccount(environment, yield* HostProcess.Username);
+  const result = yield* spawnAndCollect(
+    SECURITY,
+    ChildProcess.make(SECURITY, [
+      "find-generic-password",
+      "-a",
+      account,
+      "-w",
+      "-s",
+      claudeKeychainService(environment),
+    ]),
+  ).pipe(Effect.scoped, Effect.timeoutOption(SECURITY_TIMEOUT), Effect.result);
+  if (Result.isFailure(result)) return { _tag: "Missing" };
+  if (Option.isNone(result.success)) return { _tag: "NoAnswer" };
+  const { code, stdout } = result.success.value;
+  if (code === 0) return { _tag: "Found", stored: stdout };
+  if (code === KEYCHAIN_LOCKED)
+    return yield* new TranscriptionError({ reason: "credentialsLocked" });
+  if (code !== KEYCHAIN_ITEM_NOT_FOUND) {
+    yield* Effect.logWarning("Reading the Claude login from the Keychain failed.", {
+      exitCode: code,
+    });
+  }
+  return { _tag: "Missing" };
+});
 
 /**
  * Reads the subscription login the way the Claude CLI does: its token

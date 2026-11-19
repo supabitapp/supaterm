@@ -17,7 +17,7 @@ const evaluatePullRequestWatch = (
 
 const STARTED = "2026-10-02T12:00:00.000Z";
 
-const watch = (overrides: Partial<ThreadPullRequestWatch> = {}) => ({
+const watch = (overrides: Partial<ThreadPullRequestWatch> = {}): ThreadPullRequestWatch => ({
   startedAt: STARTED,
   headSha: null,
   failedChecks: [],
@@ -32,7 +32,7 @@ const watch = (overrides: Partial<ThreadPullRequestWatch> = {}) => ({
 
 const run = (id: number) => `https://github.com/o/r/actions/runs/${id}`;
 
-const check = (name: string, status: PullRequestCheck["status"]) => ({
+const check = (name: string, status: PullRequestCheck["status"]): PullRequestCheck => ({
   name,
   status,
   description: null,
@@ -41,7 +41,7 @@ const check = (name: string, status: PullRequestCheck["status"]) => ({
 
 type Detail = Parameters<typeof evaluatePullRequestWatch>[1];
 
-const capabilities = (checksAlwaysReport: boolean) => ({
+const capabilities = (checksAlwaysReport: boolean): Detail["capabilities"] => ({
   diff: true,
   comment: true,
   actions: [],
@@ -52,28 +52,30 @@ const capabilities = (checksAlwaysReport: boolean) => ({
   checksAlwaysReport,
 });
 
-const detail = (overrides: Partial<Detail> = {}) =>
-  ({
-    capabilities: capabilities(true),
-    headSha: "aaaaaaaaaa",
-    checks: [check("lint", "success"), check("test", "pending")],
-    mergeability: "mergeable",
-    viewer: "agent-user",
-    author: { login: "agent-user", name: null, avatarUrl: null },
-    ...overrides,
-  }) satisfies Detail;
+const detail = (overrides: Partial<Detail> = {}): Detail => ({
+  capabilities: capabilities(true),
+  headSha: "aaaaaaaaaa",
+  checks: [check("lint", "success"), check("test", "pending")],
+  mergeability: "mergeable",
+  viewer: "agent-user",
+  author: { login: "agent-user", name: null, avatarUrl: null },
+  ...overrides,
+});
 
-const remark = (login: string, createdAt: string, body = "Please rename this.") =>
-  ({
-    id: `${login}-${createdAt}`,
-    kind: "review-comment",
-    author: { login, name: null, avatarUrl: null },
-    body,
-    createdAt,
-    url: `https://github.com/o/r/pull/1#${login}`,
-    path: "src/index.ts",
-    reviewState: null,
-  }) satisfies PullRequestComment;
+const remark = (
+  login: string,
+  createdAt: string,
+  body = "Please rename this.",
+): PullRequestComment => ({
+  id: `${login}-${createdAt}`,
+  kind: "review-comment",
+  author: { login, name: null, avatarUrl: null },
+  body,
+  createdAt,
+  url: `https://github.com/o/r/pull/1#${login}`,
+  path: "src/index.ts",
+  reviewState: null,
+});
 
 const noRemarks: ReadonlyArray<PullRequestComment> = [];
 
@@ -1018,7 +1020,10 @@ describe("evaluatePullRequestWatch", () => {
     assert.equal(pushed.next.wakes, 1);
   });
 
-  const anHourLater = (first: ThreadPullRequestWatch, read: Detail) => {
+  const anHourLater = (
+    first: ThreadPullRequestWatch,
+    read: Detail,
+  ): ReadonlyArray<ReadonlyArray<string>> => {
     const kinds: Array<ReadonlyArray<string>> = [];
     let current = first;
     for (let minute = 0; minute <= 60; minute += 10) {

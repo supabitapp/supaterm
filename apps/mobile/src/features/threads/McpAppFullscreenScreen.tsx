@@ -27,7 +27,7 @@ function useConversationThreadId(
   environmentId: EnvironmentId,
   threadId: ThreadId,
   requested: string | undefined,
-) {
+): ThreadId {
   const shells = useThreadShells();
   return requested !== undefined && descendsFrom(shells, environmentId, requested, threadId)
     ? ThreadId.make(requested)
@@ -39,7 +39,7 @@ function descendsFrom(
   environmentId: EnvironmentId,
   threadId: string,
   ancestorId: ThreadId,
-) {
+): boolean {
   const parents = new Map(
     shells.flatMap((shell) =>
       shell.environmentId === environmentId && shell.lineage.relationshipToParent === "fork"

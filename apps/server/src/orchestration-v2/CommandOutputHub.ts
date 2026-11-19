@@ -62,21 +62,15 @@ export class CommandOutputHub extends Context.Service<CommandOutputHub, CommandO
 
 const isCommandOutputError = Schema.is(OrchestrationV2CommandOutputError);
 
-function commandKey(target: CommandOutputTarget): string;
-function commandKey(target: CommandOutputTarget) {
-  return `${target.threadId}\u0000${target.itemId}` satisfies string;
+function commandKey(target: CommandOutputTarget): string {
+  return `${target.threadId}\u0000${target.itemId}`;
 }
 
 function persistedCommandOutput(output: string | undefined): {
   readonly text: string;
   readonly truncated: boolean;
-};
-function persistedCommandOutput(output: string | undefined) {
-  if (output === undefined)
-    return { text: "", truncated: false } satisfies {
-      readonly text: string;
-      readonly truncated: boolean;
-    };
+} {
+  if (output === undefined) return { text: "", truncated: false };
   let source = output;
   if (output.length > MAX_FINAL_SOURCE_CHARS) {
     source = output.slice(output.length - MAX_FINAL_SOURCE_CHARS);
@@ -87,9 +81,6 @@ function persistedCommandOutput(output: string | undefined) {
   return {
     text: normalized.text,
     truncated: normalized.truncated || source.length !== output.length,
-  } satisfies {
-    readonly text: string;
-    readonly truncated: boolean;
   };
 }
 
@@ -99,7 +90,7 @@ function setBounded<V>(
   value: V,
   max: number,
   onEvict?: (key: string) => void,
-) {
+): void {
   map.delete(key);
   map.set(key, value);
   if (map.size <= max) return;
@@ -226,10 +217,10 @@ export const make = Effect.gen(function* () {
 
         let lastFrameAt: number | undefined;
         let throttle = COMMAND_OUTPUT_FRAME_INTERVAL_MS;
-        const nextFrame: () => Effect.Effect<
+        const nextFrame = Effect.gen(function* (): Effect.fn.Return<
           OrchestrationV2CommandOutputFrame,
           OrchestrationV2CommandOutputError
-        > = Effect.gen(function* () {
+        > {
           yield* Queue.take(wake);
           if (lost !== undefined) {
             return yield* new OrchestrationV2CommandOutputError({

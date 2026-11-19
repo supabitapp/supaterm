@@ -46,7 +46,7 @@ export function readInstanceCustomModels(
   settings: UnifiedSettings,
   instanceId: ProviderInstanceId,
   driverKind: ProviderDriverKind,
-) {
+): ReadonlyArray<CustomModelDefinition> {
   if (driverKind === "antigravity") return [];
   const instance = settings.providerInstances?.[instanceId];
   const config = instance?.config;
@@ -78,7 +78,7 @@ function appendUnavailableDynamicModelSelection(
   provider: ProviderDriverKind,
   selectedModel: string | null | undefined,
   hiddenModels: ReadonlyArray<string>,
-) {
+): AppModelOption[] {
   if (!hasRuntimeModelCatalog(provider)) return options;
   const slug = normalizeCustomModelSlug(selectedModel);
   if (!slug) return options;
@@ -91,7 +91,10 @@ function appendUnavailableDynamicModelSelection(
   return [...options, { slug, name: slug, isCustom: false, isUnavailable: true }];
 }
 
-function toAppModelOption(model: ServerProvider["models"][number], driverKind: ProviderDriverKind) {
+function toAppModelOption(
+  model: ServerProvider["models"][number],
+  driverKind: ProviderDriverKind,
+): AppModelOption {
   const option: AppModelOption = {
     slug: model.slug,
     name: model.name,
@@ -107,7 +110,10 @@ function toAppModelOption(model: ServerProvider["models"][number], driverKind: P
   return option;
 }
 
-function readInstanceModelPreferences(settings: UnifiedSettings, instanceId: ProviderInstanceId) {
+function readInstanceModelPreferences(
+  settings: UnifiedSettings,
+  instanceId: ProviderInstanceId,
+): { readonly hiddenModels: ReadonlyArray<string>; readonly modelOrder: ReadonlyArray<string> } {
   return (
     settings.providerModelPreferences?.[instanceId] ?? {
       hiddenModels: [],
@@ -122,7 +128,7 @@ function applyInstanceModelPreferences(
     readonly hiddenModels: ReadonlyArray<string>;
     readonly modelOrder: ReadonlyArray<string>;
   },
-) {
+): AppModelOption[] {
   const hiddenModels = new Set(preferences.hiddenModels);
   return sortModelsForProviderInstance(
     options.filter((option) => option.isCustom || !hiddenModels.has(option.slug)),
@@ -133,7 +139,7 @@ function applyInstanceModelPreferences(
 function normalizeCustomModelEntries(
   models: ReadonlyArray<CustomModelDefinition>,
   builtInModelSlugs: ReadonlySet<string>,
-) {
+): CustomModelDefinition[] {
   const normalizedModels: CustomModelDefinition[] = [];
   const seen = new Set<string>();
 
@@ -158,7 +164,7 @@ function getAppModelOptions(
   providers: ReadonlyArray<ServerProvider>,
   provider: ProviderDriverKind,
   selectedModel?: string | null,
-) {
+): AppModelOption[] {
   const rawModels = getProviderModels(providers, provider);
   const options: AppModelOption[] = rawModels
     .filter((model) => !model.isCustom)
@@ -201,7 +207,7 @@ export function getAppModelOptionsForInstance(
   settings: UnifiedSettings,
   entry: ProviderInstanceEntry,
   selectedModel?: string | null,
-) {
+): AppModelOption[] {
   const options: AppModelOption[] = entry.models
     .filter((model) => !model.isCustom)
     .map((model) => toAppModelOption(model, entry.driverKind));
@@ -243,7 +249,7 @@ export function resolveAppModelSelection(
   settings: UnifiedSettings,
   providers: ReadonlyArray<ServerProvider>,
   selectedModel: string | null | undefined,
-) {
+): string {
   const resolvedProvider = resolveSelectableProvider(providers, provider);
   const options = getAppModelOptions(settings, providers, resolvedProvider, selectedModel);
   return (
@@ -258,7 +264,7 @@ export function resolveAppModelSelectionForInstance(
   providers: ReadonlyArray<ServerProvider>,
   selectedModel: string | null | undefined,
   resolutionOptions?: { readonly preserveUnavailableSelection?: boolean },
-) {
+): string | null {
   const entry = deriveProviderInstanceEntries(providers).find(
     (candidate) => candidate.instanceId === instanceId,
   );
@@ -291,7 +297,7 @@ export function resolveEffectiveDefaultModelSelection(
   settings: UnifiedSettings,
   providers: ReadonlyArray<ServerProvider>,
   selection: ModelSelection,
-) {
+): ModelSelection {
   const model = resolveAppModelSelectionForInstance(
     selection.instanceId,
     settings,
@@ -309,7 +315,7 @@ export function defaultModelSelectionsAreMixed(
     settings: ServerSettings;
     providers: ReadonlyArray<ServerProvider>;
   }>,
-) {
+): boolean {
   const selections = targets.map(({ projectId, settings, providers }) => {
     const stored = settings.defaultModelSelection;
     const selection =
@@ -335,7 +341,7 @@ export function getCustomModelOptionsByInstance(
   providers: ReadonlyArray<ServerProvider>,
   selectedInstanceId?: ProviderInstanceId | null,
   selectedModel?: string | null,
-) {
+): ReadonlyMap<ProviderInstanceId, ReadonlyArray<ModelEsque>> {
   const out = new Map<ProviderInstanceId, ReadonlyArray<ModelEsque>>();
   for (const entry of deriveProviderInstanceEntries(providers)) {
     out.set(
@@ -354,7 +360,7 @@ function getTextGenerationModelOptionsForInstance(
   settings: UnifiedSettings,
   entry: ProviderInstanceEntry,
   selectedModel?: string | null,
-) {
+): AppModelOption[] {
   const unsupported = new Set(
     entry.models
       .filter((model) => model.supportsTextGeneration === false)
@@ -370,7 +376,7 @@ export function getTextGenerationModelOptionsByInstance(
   providers: ReadonlyArray<ServerProvider>,
   selectedInstanceId?: ProviderInstanceId | null,
   selectedModel?: string | null,
-) {
+): ReadonlyMap<ProviderInstanceId, ReadonlyArray<ModelEsque>> {
   return new Map(
     deriveProviderInstanceEntries(
       providers.filter((provider) => provider.supportsTextGeneration !== false),
@@ -388,7 +394,7 @@ export function getTextGenerationModelOptionsByInstance(
 export function resolveAppModelSelectionState(
   settings: UnifiedSettings,
   providers: ReadonlyArray<ServerProvider>,
-) {
+): ModelSelection {
   const selection = settings.textGenerationModelSelection ?? {
     instanceId: DEFAULT_TEXT_GENERATION_INSTANCE_ID,
     model: DEFAULT_TEXT_GENERATION_MODEL,

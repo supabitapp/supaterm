@@ -13,21 +13,23 @@ import { hydrateCachedProvider, isCachedProviderCorrelated } from "./providerSta
 const emptyCapabilities = createModelCapabilities({ optionDescriptors: [] });
 const CODEX_DRIVER = ProviderDriverKind.make("codex");
 
-const makeProvider = (provider: ProviderDriverKind, overrides?: Partial<ServerProvider>) =>
-  ({
-    instanceId: defaultInstanceIdForDriver(provider),
-    driver: provider,
-    enabled: true,
-    installed: true,
-    version: "1.0.0",
-    status: "ready",
-    auth: { status: "authenticated" },
-    checkedAt: "2026-04-11T00:00:00.000Z",
-    models: [],
-    slashCommands: [],
-    skills: [],
-    ...overrides,
-  }) satisfies ServerProvider;
+const makeProvider = (
+  provider: ProviderDriverKind,
+  overrides?: Partial<ServerProvider>,
+): ServerProvider => ({
+  instanceId: defaultInstanceIdForDriver(provider),
+  driver: provider,
+  enabled: true,
+  installed: true,
+  version: "1.0.0",
+  status: "ready",
+  auth: { status: "authenticated" },
+  checkedAt: "2026-04-11T00:00:00.000Z",
+  models: [],
+  slashCommands: [],
+  skills: [],
+  ...overrides,
+});
 
 it.layer(NodeServices.layer)("providerStatusCache", (it) => {
   it("hydrates cached provider status while preserving current settings-derived models", () => {

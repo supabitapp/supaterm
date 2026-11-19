@@ -25,7 +25,7 @@ export function makeQueuedRunsAtom(input: {
   readonly snapshot: Atom.Atom<{ readonly threads: ReadonlyArray<ShellThreadPresence> } | null>;
   readonly detailStatus: Atom.Atom<string>;
   readonly runs: Atom.Atom<ReadonlyArray<QueuedRunStatus> | null>;
-}) {
+}): QueuedRunsAtom {
   return Atom.make((get) => {
     const shellThread = get(input.snapshot)?.threads.find(
       (candidate) => candidate.id === input.threadId,
@@ -36,7 +36,7 @@ export function makeQueuedRunsAtom(input: {
   });
 }
 
-function runLeftQueue(runs: ReadonlyArray<QueuedRunStatus> | null, runId: RunId) {
+function runLeftQueue(runs: ReadonlyArray<QueuedRunStatus> | null, runId: RunId): boolean {
   if (runs === null) return false;
   return !runs.some((run) => run.id === runId && run.status === "queued");
 }
@@ -50,7 +50,7 @@ function runLeftQueue(runs: ReadonlyArray<QueuedRunStatus> | null, runId: RunId)
 export function resolveQueuedEditExit(input: {
   readonly editChanged: boolean;
   readonly threadDraftEmpty: boolean;
-}) {
+}): "kept" | "discarded" | "clean" {
   if (!input.editChanged) return "clean";
   return input.threadDraftEmpty ? "kept" : "discarded";
 }
@@ -60,7 +60,9 @@ export function resolveQueuedEditExit(input: {
  * can. An open question takes the composer over for its answer, so an edit
  * begun then would happen out of sight and could be sent before it is seen.
  */
-export function queuedRunEditBlockedReason(input: { readonly openQuestionCount: number }) {
+export function queuedRunEditBlockedReason(input: {
+  readonly openQuestionCount: number;
+}): string | null {
   return input.openQuestionCount > 0 ? "Answer the question to edit queued messages" : null;
 }
 
@@ -102,7 +104,7 @@ export function makeQueuedRunEditStore<E extends { readonly runId: RunId }>(opti
     registry.set(savingAtom, next);
   };
 
-  const get = (threadKey: string | null) =>
+  const get = (threadKey: string | null): E | null =>
     threadKey === null ? null : (registry.get(atom)[threadKey] ?? null);
 
   const write = (threadKey: string, edit: E | null) => {
@@ -170,14 +172,13 @@ export function makeQueuedRunEditStore<E extends { readonly runId: RunId }>(opti
       stopWatch(threadKey);
       write(threadKey, null);
     },
-    startSave(threadKey: string) {
+    startSave(threadKey: string): FinishQueuedRunEditSave | null {
       const watch = watches.get(threadKey);
-      if (watch === undefined || threadKey in registry.get(savingAtom))
-        return null satisfies FinishQueuedRunEditSave | null as FinishQueuedRunEditSave | null;
+      if (watch === undefined || threadKey in registry.get(savingAtom)) return null;
       setSaving(threadKey, true);
       unsubscribe(watch);
       let settled = false;
-      return ((succeeded) => {
+      return (succeeded) => {
         if (!settled) {
           settled = true;
           setSaving(threadKey, false);
@@ -190,7 +191,7 @@ export function makeQueuedRunEditStore<E extends { readonly runId: RunId }>(opti
         }
         subscribe(threadKey, watch);
         return watches.get(threadKey) === watch;
-      }) satisfies FinishQueuedRunEditSave | null as FinishQueuedRunEditSave | null;
+      };
     },
   };
 }

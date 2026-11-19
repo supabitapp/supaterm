@@ -16,28 +16,25 @@ export type WizardTargetSelection =
 export function initialTargetSelection(
   canCreateProfile: boolean,
   targetProfiles: ReadonlyArray<WizardTargetProfile>,
-) {
-  if (canCreateProfile) return { kind: "new" } satisfies WizardTargetSelection;
+): WizardTargetSelection {
+  if (canCreateProfile) return { kind: "new" };
   const first = targetProfiles[0];
-  return (
-    first ? { kind: "existing", profileId: first.id } : { kind: "new" }
-  ) satisfies WizardTargetSelection;
+  return first ? { kind: "existing", profileId: first.id } : { kind: "new" };
 }
 
 export function resolveWizardTarget(
   selection: WizardTargetSelection,
   newProfileId: string,
   targetProfiles: ReadonlyArray<WizardTargetProfile>,
-) {
-  if (selection.kind === "new")
-    return { kind: "new", profileId: newProfileId } satisfies WizardTarget | undefined;
+): WizardTarget | undefined {
+  if (selection.kind === "new") return { kind: "new", profileId: newProfileId };
   const profile = targetProfiles.find((candidate) => candidate.id === selection.profileId);
-  if (profile === undefined) return undefined satisfies WizardTarget | undefined;
+  if (profile === undefined) return undefined;
   return {
     kind: "existing",
     profileId: selection.profileId,
     name: profile.name,
-  } satisfies WizardTarget | undefined;
+  };
 }
 
 export type ImportOutcome =
@@ -69,23 +66,21 @@ export type WizardStep =
     }
   | { readonly step: "blocked"; readonly reason: BrowserImportFailureReason };
 
-export function canCloseWizard(step: WizardStep) {
+export function canCloseWizard(step: WizardStep): boolean {
   return step.step !== "importing";
 }
 
-export function initialWizardStep(source: BrowserImportSource) {
-  if (source.unavailable === "browserRunning") return { step: "quit" } satisfies WizardStep;
+export function initialWizardStep(source: BrowserImportSource): WizardStep {
+  if (source.unavailable === "browserRunning") return { step: "quit" };
   if (source.unavailable === "needsFullDiskAccess") {
-    return { step: "fullDiskAccess", resume: "configure" } satisfies WizardStep;
+    return { step: "fullDiskAccess", resume: "configure" };
   }
-  if (source.unavailable !== undefined)
-    return { step: "blocked", reason: source.unavailable } satisfies WizardStep;
-  if (source.profiles.length === 0)
-    return { step: "blocked", reason: "unknownSourceProfile" } satisfies WizardStep;
-  return { step: "configure" } satisfies WizardStep;
+  if (source.unavailable !== undefined) return { step: "blocked", reason: source.unavailable };
+  if (source.profiles.length === 0) return { step: "blocked", reason: "unknownSourceProfile" };
+  return { step: "configure" };
 }
 
-export function outcomeToStep(outcome: ImportOutcome) {
+export function outcomeToStep(outcome: ImportOutcome): WizardStep {
   if (outcome.kind === "imported") {
     return {
       step: "done",
@@ -93,37 +88,36 @@ export function outcomeToStep(outcome: ImportOutcome) {
       skipped: outcome.skipped,
       skippedDomains: outcome.skippedDomains,
       targetName: outcome.targetName,
-    } satisfies WizardStep;
+    };
   }
-  if (outcome.reason === "browserRunning") return { step: "quit" } satisfies WizardStep;
+  if (outcome.reason === "browserRunning") return { step: "quit" };
   if (outcome.reason === "needsFullDiskAccess") {
-    return { step: "fullDiskAccess", resume: "import", checked: true } satisfies WizardStep;
+    return { step: "fullDiskAccess", resume: "import", checked: true };
   }
-  return { step: "blocked", reason: outcome.reason } satisfies WizardStep;
+  return { step: "blocked", reason: outcome.reason };
 }
 
-export function refreshedSourceStep(source: BrowserImportSource | undefined) {
-  if (source === undefined)
-    return { step: "blocked", reason: "unknownSource" } satisfies WizardStep;
-  return initialWizardStep(source) satisfies WizardStep;
+export function refreshedSourceStep(source: BrowserImportSource | undefined): WizardStep {
+  if (source === undefined) return { step: "blocked", reason: "unknownSource" };
+  return initialWizardStep(source);
 }
 
-export function fullDiskAccessRecheckStep(source: BrowserImportSource | undefined) {
+export function fullDiskAccessRecheckStep(source: BrowserImportSource | undefined): WizardStep {
   const next = refreshedSourceStep(source);
-  return (next.step === "fullDiskAccess" ? { ...next, checked: true } : next) satisfies WizardStep;
+  return next.step === "fullDiskAccess" ? { ...next, checked: true } : next;
 }
 
 export function refreshedSourceProfileDirectory(
   currentDirectory: string,
   source: BrowserImportSource,
-) {
+): string {
   if (source.profiles.some((profile) => profile.directory === currentDirectory)) {
     return currentDirectory;
   }
   return source.profiles[0]?.directory ?? "";
 }
 
-export function isRetryableReason(reason: BrowserImportFailureReason) {
+export function isRetryableReason(reason: BrowserImportFailureReason): boolean {
   switch (reason) {
     case "needsKeychainApproval":
     case "keychainItemMissing":
@@ -137,7 +131,7 @@ export function isRetryableReason(reason: BrowserImportFailureReason) {
   }
 }
 
-export function formatSkippedDomains(domains: ReadonlyArray<string>) {
+export function formatSkippedDomains(domains: ReadonlyArray<string>): string {
   if (domains.length === 0) return "";
   if (domains.length === 1) return domains[0]!;
   if (domains.length <= 3) return `${domains.slice(0, -1).join(", ")} and ${domains.at(-1)}`;

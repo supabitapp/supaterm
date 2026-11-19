@@ -21,7 +21,7 @@ function preloadKey(input: {
   readonly cwd: string;
   readonly environmentId: EnvironmentId;
   readonly relativePath: string;
-}) {
+}): string {
   return JSON.stringify([input.environmentId, input.cwd, input.relativePath]);
 }
 
@@ -30,7 +30,7 @@ export function preloadWorkspaceFileContents(input: {
   readonly environmentId: EnvironmentId;
   readonly relativePath: string;
   readonly theme: HighlightScheme;
-}) {
+}): void {
   if (
     !readEnvironmentScope(input.environmentId, AuthFilesystemReadScope) ||
     isWorkspaceBrowserPreviewPath(input.relativePath) ||

@@ -13,7 +13,7 @@ const decodeClaudeBashResult = Schema.decodeUnknownOption(
   ),
 );
 
-function storesRawClaudeBashResult(item: CommandExecutionItem) {
+function storesRawClaudeBashResult(item: CommandExecutionItem): boolean {
   return (
     item.nativeItemRef?.driver === "claudeAgent" &&
     DateTime.isLessThan(item.startedAt ?? item.updatedAt, CLAUDE_RAW_BASH_RESULT_CUTOFF)
@@ -21,17 +21,13 @@ function storesRawClaudeBashResult(item: CommandExecutionItem) {
 }
 
 /** The output a command row shows: the stored bytes, except early Claude rows' raw Bash envelopes. */
-export function commandItemOutput(item: CommandExecutionItem): string | undefined;
-export function commandItemOutput(item: CommandExecutionItem) {
+export function commandItemOutput(item: CommandExecutionItem): string | undefined {
   const output = item.output;
-  if (output === undefined || !storesRawClaudeBashResult(item))
-    return output satisfies string | undefined;
-  if (!output.trimStart().startsWith('{"stdout"')) return output satisfies string | undefined;
+  if (output === undefined || !storesRawClaudeBashResult(item)) return output;
+  if (!output.trimStart().startsWith('{"stdout"')) return output;
   const parsed = decodeClaudeBashResult(output);
-  if (Option.isNone(parsed)) return output satisfies string | undefined;
+  if (Option.isNone(parsed)) return output;
   const out = parsed.value.stdout.trim().length > 0 ? parsed.value.stdout : "";
   const err = parsed.value.stderr.trim().length > 0 ? parsed.value.stderr : "";
-  return (
-    out.length > 0 && err.length > 0 && !out.endsWith("\n") ? `${out}\n${err}` : out + err
-  ) satisfies string | undefined;
+  return out.length > 0 && err.length > 0 && !out.endsWith("\n") ? `${out}\n${err}` : out + err;
 }

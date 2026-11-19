@@ -42,7 +42,10 @@ import {
 
 const now = DateTime.makeUnsafe("2026-07-28T10:00:00.000Z");
 
-function request(id: string, status: OrchestrationV2RuntimeRequest["status"]) {
+function request(
+  id: string,
+  status: OrchestrationV2RuntimeRequest["status"],
+): OrchestrationV2RuntimeRequest {
   return {
     id: RuntimeRequestId.make(id),
     nodeId: NodeId.make(`node-${id}`),
@@ -53,7 +56,7 @@ function request(id: string, status: OrchestrationV2RuntimeRequest["status"]) {
     responseCapability: { type: "not_resumable", reason: "Session ended." },
     createdAt: now,
     resolvedAt: status === "pending" ? null : now,
-  } satisfies OrchestrationV2RuntimeRequest;
+  };
 }
 
 function run(id: string, ordinal: number, status: OrchestrationV2RunStatus) {
@@ -556,24 +559,26 @@ describe("presentRunStop", () => {
 
 describe("deriveRunlessWorkStartedAt", () => {
   const later = DateTime.makeUnsafe("2026-07-28T10:05:00.000Z");
-  const rootTurn = (status: OrchestrationV2ExecutionNode["status"], startedAt = now) =>
-    ({
-      id: NodeId.make("child-root"),
-      threadId: v2Projection.thread.id,
-      runId: null,
-      parentNodeId: null,
-      rootNodeId: NodeId.make("child-root"),
-      kind: "root_turn",
-      status,
-      countsForRun: false,
-      providerThreadId: null,
-      providerTurnId: null,
-      nativeItemRef: null,
-      runtimeRequestId: null,
-      checkpointScopeId: null,
-      startedAt,
-      completedAt: null,
-    }) satisfies OrchestrationV2ExecutionNode;
+  const rootTurn = (
+    status: OrchestrationV2ExecutionNode["status"],
+    startedAt = now,
+  ): OrchestrationV2ExecutionNode => ({
+    id: NodeId.make("child-root"),
+    threadId: v2Projection.thread.id,
+    runId: null,
+    parentNodeId: null,
+    rootNodeId: NodeId.make("child-root"),
+    kind: "root_turn",
+    status,
+    countsForRun: false,
+    providerThreadId: null,
+    providerTurnId: null,
+    nativeItemRef: null,
+    runtimeRequestId: null,
+    checkpointScopeId: null,
+    startedAt,
+    completedAt: null,
+  });
 
   const nativeChild = {
     ...v2Projection,

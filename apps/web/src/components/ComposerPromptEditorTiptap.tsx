@@ -261,7 +261,7 @@ const SURROUND_CLOSE: Record<string, string> = {
   _: "_",
 };
 
-function resolvedThemeFromDocument() {
+function resolvedThemeFromDocument(): "light" | "dark" {
   return document.documentElement.classList.contains("dark") ? "dark" : "light";
 }
 
@@ -358,7 +358,10 @@ const ComposerSkillExtension = Node.create({
   },
 });
 
-function composerSkillMeta(skills: ReadonlyArray<ServerProviderSkill>, name: string) {
+function composerSkillMeta(
+  skills: ReadonlyArray<ServerProviderSkill>,
+  name: string,
+): SkillMeta | null {
   const skill = skills.find(
     (candidate) => candidate.name === name && isProviderSkillUserInvocable(candidate),
   );
@@ -430,7 +433,7 @@ function ComposerCitationNodeView({ node, editor, getPos }: NodeViewProps) {
     return typeof pos === "number" ? pos : null;
   };
 
-  const onSaveComment = (comment: string) => {
+  const onSaveComment = (comment: string): boolean => {
     if (!editor.isEditable) return false;
     const pos = nodePos();
     if (pos === null) return false;
@@ -566,7 +569,7 @@ function ComposerContextReferenceNodeView({ node }: NodeViewProps) {
   );
 }
 
-function listMarkerInputRule(find: RegExp, listType: "bulletList" | "orderedList") {
+function listMarkerInputRule(find: RegExp, listType: "bulletList" | "orderedList"): InputRule {
   return new InputRule({
     find,
     handler: ({ state, range, match, chain }) => {
@@ -608,7 +611,7 @@ const bulletToTaskInputRule = new InputRule({
   },
 });
 
-function taskInputRule(type: NodeType) {
+function taskInputRule(type: NodeType): InputRule {
   const rule = wrappingInputRule({
     find: /^- \[([ xX])\] $/,
     type,
@@ -621,7 +624,7 @@ function taskInputRule(type: NodeType) {
   });
 }
 
-function hasAncestor($pos: ResolvedPos, name: string) {
+function hasAncestor($pos: ResolvedPos, name: string): boolean {
   for (let depth = $pos.depth; depth > 0; depth -= 1) {
     if ($pos.node(depth).type.name === name) return true;
   }
@@ -680,7 +683,7 @@ const headingInputRule = new InputRule({
   },
 });
 
-function isInCodeBlock(view: EditorView) {
+function isInCodeBlock(view: EditorView): boolean {
   return view.state.selection.$from.parent.type.spec.code === true;
 }
 
@@ -705,7 +708,7 @@ const ComposerChipSelectionExtension = Extension.create({
   },
 });
 
-function chipSelectionDecorations({ doc, selection }: EditorState) {
+function chipSelectionDecorations({ doc, selection }: EditorState): DecorationSet {
   if (selection.empty) return DecorationSet.empty;
   const decorations: Decoration[] = [];
   doc.nodesBetween(selection.from, selection.to, (node, pos) => {
@@ -725,7 +728,7 @@ const SILENT_SELECTION_META = "composerSilentSelection";
 function replaceSkillChips(
   editor: TiptapEditor,
   replacements: ReturnType<typeof skillChipReplacements>,
-) {
+): void {
   const transaction = editor.state.tr.setMeta("addToHistory", false);
   for (const { from, to, node } of replacements) transaction.replaceWith(from, to, node);
   editor.view.dispatch(transaction);
@@ -1855,7 +1858,7 @@ function insertMarkdownParagraphs(
   skillLabelFor: (name: string) => SkillMeta | null,
   options: { styling: boolean; blocks?: boolean; literalText?: boolean; literalLength?: number },
   insertContent: (content: JSONContent[] | JSONContent) => void,
-) {
+): void {
   const blocks = buildTiptapContent(value, skillLabelFor, options);
   if (blocks.length === 1 && blocks[0]?.type === "paragraph") {
     const inline = (blocks[0]?.content ?? []) as JSONContent[];
@@ -1866,7 +1869,7 @@ function insertMarkdownParagraphs(
   insertContent(blocks as JSONContent[]);
 }
 
-function selectMarkdownOffset(editor: TiptapEditor, source: string, offset: number) {
+function selectMarkdownOffset(editor: TiptapEditor, source: string, offset: number): void {
   for (let pass = 0; pass < 2; pass += 1) {
     const map = serializeEditorDoc(editor.state.doc);
     const pos = flatToPm(
@@ -1879,11 +1882,11 @@ function selectMarkdownOffset(editor: TiptapEditor, source: string, offset: numb
   }
 }
 
-function scrollTiptapCaretIntoView(editor: TiptapEditor) {
+function scrollTiptapCaretIntoView(editor: TiptapEditor): void {
   editor.view.dispatch(editor.state.tr.scrollIntoView());
 }
 
-function revealCaretInEditor(editor: TiptapEditor) {
+function revealCaretInEditor(editor: TiptapEditor): void {
   const scroller = editor.view.dom;
   const caret = editor.view.coordsAtPos(editor.state.selection.head);
   const box = scroller.getBoundingClientRect();
@@ -1894,7 +1897,7 @@ function revealCaretInEditor(editor: TiptapEditor) {
   else if (caret.top < top) scroller.scrollTop -= top - caret.top;
 }
 
-function caretLineRect(range: Range, edge: "start" | "end") {
+function caretLineRect(range: Range, edge: "start" | "end"): DOMRect | null {
   const collapsedRects = Array.from(range.getClientRects()).filter((rect) => rect.height > 0);
   const collapsedRect = edge === "start" ? collapsedRects.at(-1) : collapsedRects[0];
   if (collapsedRect) return collapsedRect;

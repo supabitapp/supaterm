@@ -20,7 +20,7 @@ import {
 export function selectThreadModel(
   ref: { readonly environmentId: EnvironmentId; readonly threadId: ThreadId },
   value: ModelSelection,
-) {
+): void {
   const threadKey = scopedThreadKey(ref.environmentId, ref.threadId);
   const modelSelection = { ...value };
   updateComposerDraftSettings(threadKey, { modelSelection });

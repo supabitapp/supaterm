@@ -25,16 +25,15 @@ import { appAtomRegistry } from "./rpc/atomRegistry";
 const environmentId = "env-1" as EnvironmentId;
 const ref = scopeThreadRef(environmentId, ThreadId.make("thread-1"));
 
-const makeSnapshot = (overrides: Partial<PreviewSessionSnapshot> = {}) =>
-  ({
-    threadId: "thread-1",
-    tabId: "tab_a",
-    navStatus: { _tag: "Loading", url: "http://localhost:5173/", title: "" },
-    canGoBack: false,
-    canGoForward: false,
-    updatedAt: "2026-01-01T00:00:00.000Z",
-    ...overrides,
-  }) satisfies PreviewSessionSnapshot;
+const makeSnapshot = (overrides: Partial<PreviewSessionSnapshot> = {}): PreviewSessionSnapshot => ({
+  threadId: "thread-1",
+  tabId: "tab_a",
+  navStatus: { _tag: "Loading", url: "http://localhost:5173/", title: "" },
+  canGoBack: false,
+  canGoForward: false,
+  updatedAt: "2026-01-01T00:00:00.000Z",
+  ...overrides,
+});
 
 type PreviewEventDraft = PreviewEvent extends infer Event
   ? Event extends { readonly revision: number }
@@ -44,7 +43,7 @@ type PreviewEventDraft = PreviewEvent extends infer Event
 
 const serverEpoch = "server-a";
 let nextServerRevision = 0;
-const applyPreviewServerEvent = (eventRef: typeof ref, event: PreviewEventDraft) => {
+const applyPreviewServerEvent = (eventRef: typeof ref, event: PreviewEventDraft): void => {
   nextServerRevision += 1;
   applyPreviewServerEventImpl(eventRef, {
     ...event,

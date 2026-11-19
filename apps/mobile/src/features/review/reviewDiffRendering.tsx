@@ -11,18 +11,18 @@ export const REVIEW_MONO_FONT_FAMILY = CODE_FONT_FAMILY;
 
 const REVIEW_DIFF_LINE_HEIGHT = MOBILE_CODE_SURFACE.rowHeight;
 
-export function renderVisibleWhitespace(value: string) {
+export function renderVisibleWhitespace(value: string): string {
   const expandedTabs = value.replace(/\t/g, "    ");
   return expandedTabs.replace(/^( +)/, (leading) => leading.replaceAll(" ", "\u00A0"));
 }
 
-export function changeTone(change: ReviewRenderableLineRow["change"]) {
+export function changeTone(change: ReviewRenderableLineRow["change"]): string {
   if (change === "add") return "bg-emerald-500/10";
   if (change === "delete") return "bg-rose-500/10";
   return "bg-card";
 }
 
-function changeBarTone(change: ReviewRenderableLineRow["change"]) {
+function changeBarTone(change: ReviewRenderableLineRow["change"]): string {
   if (change === "add") return "bg-emerald-400";
   if (change === "delete") return "bg-rose-400";
   return "bg-border/50";
@@ -37,7 +37,7 @@ function withTokenOffsets(tokens: ReadonlyArray<ReviewHighlightedToken>) {
   });
 }
 
-function diffHighlightColor(change: ReviewRenderableLineRow["change"]) {
+function diffHighlightColor(change: ReviewRenderableLineRow["change"]): string | undefined {
   if (change === "add") return "rgba(16, 185, 129, 0.24)";
   if (change === "delete") return "rgba(244, 63, 94, 0.24)";
   return undefined;

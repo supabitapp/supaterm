@@ -10,7 +10,7 @@ function needsConsoleStdin(input: {
   readonly env: NodeJS.ProcessEnv;
   readonly stdinMissing: boolean;
   readonly stdoutIsConsole: boolean;
-}) {
+}): boolean {
   return (
     input.platform === "win32" &&
     input.env.SUPATERM_DESKTOP_CLI_LAUNCHER === "1" &&
@@ -89,4 +89,4 @@ export function attachConsoleStdin(io = nodeConsoleIo()) {
 
 let consoleStdinFd: number | undefined;
 
-export const interactiveStdin = () => consoleStdinFd ?? "inherit";
+export const interactiveStdin = (): number | "inherit" => consoleStdinFd ?? "inherit";

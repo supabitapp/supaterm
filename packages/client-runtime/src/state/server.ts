@@ -106,7 +106,7 @@ export class ServerUpdateResumeTimeoutError extends Schema.TaggedError<ServerUpd
     targetVersion: Schema.String,
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Could not confirm that the server resumed on supaterm@${this.targetVersion}. Reconnect to check the update outcome.`;
   }
 }
@@ -117,7 +117,7 @@ export class ServerUpdateProgressIncompleteError extends Schema.TaggedError<Serv
     targetVersion: Schema.String,
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `The supaterm@${this.targetVersion} update ended before the server accepted the restart.`;
   }
 }
@@ -130,7 +130,7 @@ export class ServerUpdateTerminalError extends Schema.TaggedError<ServerUpdateTe
     reason: Schema.optional(Schema.String),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return this.reason ?? `The supaterm@${this.targetVersion} update ${this.status}.`;
   }
 }
@@ -141,7 +141,7 @@ const SERVER_UPDATE_ACCEPTING_READY_TIMEOUT = Duration.seconds(5);
 export function matchesServerUpdateReadyEvent(
   result: ServerSelfUpdateResult,
   event: ServerLifecycleStreamReadyEvent,
-) {
+): boolean {
   return result.updateId === undefined
     ? event.payload.environment.serverVersion === result.targetVersion
     : event.payload.updateOutcome?.id === result.updateId;
@@ -156,7 +156,7 @@ export function matchesServerUpdateResumeEvent(
   result: ServerSelfUpdateResult,
   event: ServerLifecycleStreamReadyEvent,
   acceptedAt?: string,
-) {
+): boolean {
   return (
     (result.method === "desktop-app" && result.desktopUpdateToken !== undefined) ||
     matchesServerUpdateReadyEvent(result, event) ||
@@ -167,7 +167,7 @@ export function matchesServerUpdateResumeEvent(
 export function validateServerUpdateReadyEvent(
   result: ServerSelfUpdateResult,
   event: ServerLifecycleStreamReadyEvent,
-) {
+): Effect.Effect<void, ServerUpdateTerminalError> {
   if (result.updateId === undefined) return Effect.void;
   const reported = event.payload.updateOutcome;
   const outcome = reported?.id === result.updateId ? reported : undefined;
@@ -206,7 +206,7 @@ export function nudgeReconnectDuringUpdateRestart(input: {
   >;
   readonly retryNow: Effect.Effect<void>;
   readonly interval?: Duration.Duration;
-}) {
+}): Effect.Effect<void> {
   return input.stateChanges.pipe(
     Stream.filter(
       (state) =>
@@ -223,7 +223,7 @@ export function nudgeReconnectDuringUpdateRestart(input: {
 
 export function waitForNextEnvironmentReconnect<E>(
   stateChanges: Stream.Stream<{ readonly phase: string }, E>,
-) {
+): Effect.Effect<void, E> {
   return stateChanges.pipe(
     Stream.dropWhile((state) => state.phase === "connected"),
     Stream.filter((state) => state.phase === "connected"),
@@ -267,7 +267,7 @@ export const waitForDesktopUpdateTarget = Effect.fn("waitForDesktopUpdateTarget"
   targetVersion: string,
   nextReady: Effect.Effect<ServerLifecycleStreamReadyEvent, EReady>,
   retryCommit: Effect.Effect<void, ECommit>,
-) {
+): Effect.fn.Return<ServerLifecycleStreamReadyEvent, EReady | ECommit | ServerUpdateTerminalError> {
   const maxCommitAttempts = 3;
   for (let attempt = 1; attempt <= maxCommitAttempts; attempt += 1) {
     const ready = yield* nextReady;
@@ -290,9 +290,8 @@ export function serverUpdateStateForProgressEvent(
   fromVersion: string,
   targetVersion: string,
   event: ServerSelfUpdateProgressEvent,
-) {
-  if (event.type === "complete" && event.result.upToDate)
-    return IDLE_SERVER_UPDATE_STATE satisfies ServerUpdateState;
+): ServerUpdateState {
+  if (event.type === "complete" && event.result.upToDate) return IDLE_SERVER_UPDATE_STATE;
   return {
     status: "running",
     stage:
@@ -303,13 +302,13 @@ export function serverUpdateStateForProgressEvent(
           : "resuming",
     fromVersion,
     targetVersion,
-  } satisfies ServerUpdateState;
+  };
 }
 
 export function serverUpdateStateForServerVersion(
   state: ServerUpdateState,
   serverVersion: string | null,
-) {
+): ServerUpdateState {
   return state.status === "idle" ||
     state.status === "running" ||
     serverVersion === null ||
@@ -318,12 +317,11 @@ export function serverUpdateStateForServerVersion(
     : IDLE_SERVER_UPDATE_STATE;
 }
 
-export function serverUpdateFailureMessage(error: unknown): string;
-export function serverUpdateFailureMessage(error: unknown) {
-  return (error instanceof Error ? error.message : "Server update failed.") satisfies string;
+export function serverUpdateFailureMessage(error: unknown): string {
+  return error instanceof Error ? error.message : "Server update failed.";
 }
 
-function isRpcSocketError(error: unknown) {
+function isRpcSocketError(error: unknown): boolean {
   if (!isRpcClientError(error)) {
     return false;
   }
@@ -337,7 +335,7 @@ function isRpcSocketError(error: unknown) {
   }
 }
 
-export function isLegacyUpdateHandoffLoss(cause: Cause.Cause<unknown>) {
+export function isLegacyUpdateHandoffLoss(cause: Cause.Cause<unknown>): boolean {
   if (Cause.hasInterruptsOnly(cause)) {
     return true;
   }
@@ -352,7 +350,7 @@ export function resolveServerUpdateProgressResult<E>(
   terminal: Option.Option<ServerSelfUpdateResult>,
   streamExit: Exit.Exit<void, E>,
   accepted?: ServerSelfUpdateResult,
-) {
+): Effect.Effect<ServerSelfUpdateResult, E | ServerUpdateProgressIncompleteError> {
   if (
     Option.isSome(terminal) &&
     (Exit.isSuccess(streamExit) || isLegacyUpdateHandoffLoss(streamExit.cause))
@@ -368,12 +366,11 @@ export function resolveServerUpdateProgressResult<E>(
   return Effect.fail(new ServerUpdateProgressIncompleteError({ targetVersion }));
 }
 
-const cachedConfigSnapshotEvent = (config: ServerConfig) =>
-  ({
-    version: 1,
-    type: "snapshot",
-    config,
-  }) satisfies ServerConfigStreamEvent;
+const cachedConfigSnapshotEvent = (config: ServerConfig): ServerConfigStreamEvent => ({
+  version: 1,
+  type: "snapshot",
+  config,
+});
 
 export interface ServerConfigSubscriptionOptions {
   readonly environmentThemes?: boolean;
@@ -395,11 +392,7 @@ export interface FetchedMachineCatalog {
 function withFetchedMachineCatalogs(
   projection: ServerConfigProjection,
   catalogs: ReadonlyArray<FetchedMachineCatalog>,
-): ServerConfigProjection;
-function withFetchedMachineCatalogs(
-  projection: ServerConfigProjection,
-  catalogs: ReadonlyArray<FetchedMachineCatalog>,
-) {
+): ServerConfigProjection {
   let changed = false;
   const providers = projection.config.providers.map((provider) => {
     const catalog = catalogs.find((entry) => entry.instanceId === provider.instanceId);
@@ -418,45 +411,41 @@ function withFetchedMachineCatalogs(
       loadedCatalogDigest: catalog.digest,
     };
   });
-  return (
-    changed ? { ...projection, config: { ...projection.config, providers } } : projection
-  ) satisfies ServerConfigProjection;
+  return changed ? { ...projection, config: { ...projection.config, providers } } : projection;
 }
 
-function sameCacheValue(previous: unknown, next: unknown): boolean;
-function sameCacheValue(previous: unknown, next: unknown) {
-  if (previous === next) return true satisfies boolean;
+function sameCacheValue(previous: unknown, next: unknown): boolean {
+  if (previous === next) return true;
   if (
     previous === null ||
     next === null ||
     typeof previous !== "object" ||
     typeof next !== "object"
   ) {
-    return false satisfies boolean;
+    return false;
   }
   if (Array.isArray(previous) || Array.isArray(next)) {
     if (!Array.isArray(previous) || !Array.isArray(next) || previous.length !== next.length) {
-      return false satisfies boolean;
+      return false;
     }
     for (let index = 0; index < previous.length; index += 1) {
-      if (!sameCacheValue(previous[index], next[index])) return false satisfies boolean;
+      if (!sameCacheValue(previous[index], next[index])) return false;
     }
-    return true satisfies boolean;
+    return true;
   }
   if (
     Object.getPrototypeOf(previous) !== Object.prototype ||
     Object.getPrototypeOf(next) !== Object.prototype
   ) {
-    return false satisfies boolean;
+    return false;
   }
   const before = previous as Record<string, unknown>;
   const after = next as Record<string, unknown>;
-  return (Object.keys(before).every((key) =>
-    sameCacheValue(before[key], Object.hasOwn(after, key) ? after[key] : undefined),
-  ) &&
-    Object.keys(after).every(
-      (key) => Object.hasOwn(before, key) || after[key] === undefined,
-    )) satisfies boolean;
+  return (
+    Object.keys(before).every((key) =>
+      sameCacheValue(before[key], Object.hasOwn(after, key) ? after[key] : undefined),
+    ) && Object.keys(after).every((key) => Object.hasOwn(before, key) || after[key] === undefined)
+  );
 }
 
 export const makeEnvironmentServerConfigState = Effect.fn("EnvironmentServerConfigState.make")(
@@ -550,28 +539,22 @@ export const makeEnvironmentServerConfigState = Effect.fn("EnvironmentServerConf
       ...(subscription.providerCatalogDigests === true ? { providerCatalogDigests: true } : {}),
       ...(subscription.providerStatusDeltas === true ? { providerStatusDeltas: true } : {}),
     }).pipe(
-      Stream.map(
-        (event) =>
-          ((current) => {
-            const next = applyServerConfigProjection(current, event);
-            return fetchedCatalogs.length === 0
-              ? next
-              : Option.map(next, (projection) =>
-                  withFetchedMachineCatalogs(projection, fetchedCatalogs),
-                );
-          }) satisfies Update,
-      ),
+      Stream.map((event): Update => (current) => {
+        const next = applyServerConfigProjection(current, event);
+        return fetchedCatalogs.length === 0
+          ? next
+          : Option.map(next, (projection) =>
+              withFetchedMachineCatalogs(projection, fetchedCatalogs),
+            );
+      }),
     );
     const catalogUpdates = machineCatalogs.pipe(
-      Stream.map(
-        (catalogs) =>
-          ((current) => {
-            fetchedCatalogs = catalogs;
-            return Option.map(current, (projection) =>
-              withFetchedMachineCatalogs(projection, catalogs),
-            );
-          }) satisfies Update as Update,
-      ),
+      Stream.map((catalogs): Update => (current) => {
+        fetchedCatalogs = catalogs;
+        return Option.map(current, (projection) =>
+          withFetchedMachineCatalogs(projection, catalogs),
+        );
+      }),
     );
 
     yield* Stream.merge(configUpdates, catalogUpdates).pipe(
@@ -625,7 +608,7 @@ export function applyServerWelcomeEvent(
     readonly type: "welcome" | "ready";
     readonly payload: unknown;
   },
-) {
+): EnvironmentServerWelcomeState {
   return event.type === "welcome" && current.currentSession === session
     ? {
         ...current,
@@ -641,7 +624,9 @@ export interface EnvironmentServerWelcomeState {
   readonly welcome: ServerLifecycleWelcomePayload | null;
 }
 
-export function resolveServerWelcomeState(state: EnvironmentServerWelcomeState) {
+export function resolveServerWelcomeState(
+  state: EnvironmentServerWelcomeState,
+): ServerLifecycleWelcomePayload | null {
   return state.currentSession === state.welcomeSession ? state.welcome : null;
 }
 
@@ -734,7 +719,7 @@ function serverWelcomeStateChanges(environmentId: EnvironmentId) {
 export function resolveServerConfigValue(
   projection: ServerConfigProjection | null,
   initialConfig: ServerConfig | null,
-) {
+): ServerConfig | null {
   if (
     projection?.source === "live" &&
     (initialConfig === null ||
@@ -772,7 +757,7 @@ const MAX_FETCHED_WORKSPACE_SNAPSHOTS = 32;
 export function withFetchedWorkspaceSnapshots(
   config: ServerConfig,
   fetched: ReadonlyArray<FetchedWorkspaceSnapshot>,
-) {
+): ServerConfig {
   if (fetched.length === 0) return config;
   return {
     ...config,
@@ -794,7 +779,7 @@ export function recordFetchedWorkspaceSnapshot(
   input: { readonly instanceId: ProviderInstanceId; readonly cwd: string; readonly fresh: boolean },
   providers: ServerConfig["providers"],
   configProvider: ServerProviderEntry | undefined,
-) {
+): ReadonlyArray<FetchedWorkspaceSnapshot> {
   const basis = snapshotBasis(configProvider);
   const snapshot = providers
     .find((provider) => provider.instanceId === input.instanceId)
@@ -889,7 +874,7 @@ export function createServerEnvironmentAtoms<R, E>(
       return emptyConfigAtom;
     }
     let previousProviders: ServerConfig["providers"] | undefined;
-    return Atom.make((get) => {
+    return Atom.make((get): ServerConfig | null => {
       const projection = AsyncResult.getOrElse(
         get(configProjection({ environmentId, input: {} })),
         () => null,
@@ -898,14 +883,14 @@ export function createServerEnvironmentAtoms<R, E>(
         projection,
         get(options.initialConfigValueAtom(environmentId)),
       );
-      if (config === null) return null satisfies ServerConfig | null;
+      if (config === null) return null;
       const merged = withFetchedWorkspaceSnapshots(
         config,
         get(fetchedWorkspaceSnapshotsAtom(environmentId)),
       );
-      if (merged === config) return config satisfies ServerConfig | null;
+      if (merged === config) return config;
       previousProviders = reuseUnchanged(previousProviders, merged.providers);
-      return { ...merged, providers: previousProviders } satisfies ServerConfig | null;
+      return { ...merged, providers: previousProviders };
     }).pipe(Atom.withLabel(`environment-data:server:config:${environmentId}`));
   });
   const updateStateValueAtom = Atom.family((environmentId: EnvironmentId) =>

@@ -20,7 +20,7 @@ interface NavigatorWithWindowControlsOverlay extends Navigator {
   readonly windowControlsOverlay?: WindowControlsOverlayLike;
 }
 
-function getWindowControlsOverlay() {
+function getWindowControlsOverlay(): WindowControlsOverlayLike | null {
   if (typeof navigator === "undefined") {
     return null;
   }
@@ -28,12 +28,12 @@ function getWindowControlsOverlay() {
   return (navigator as NavigatorWithWindowControlsOverlay).windowControlsOverlay ?? null;
 }
 
-export function windowControlsOverlayHeight() {
+export function windowControlsOverlayHeight(): number {
   const overlay = getWindowControlsOverlay();
   return overlay?.visible ? overlay.getTitlebarAreaRect().height : 0;
 }
 
-export function onWindowControlsOverlayGeometryChange(listener: () => void) {
+export function onWindowControlsOverlayGeometryChange(listener: () => void): () => void {
   const overlay = getWindowControlsOverlay();
   if (!overlay) {
     return () => {};
@@ -45,7 +45,7 @@ export function onWindowControlsOverlayGeometryChange(listener: () => void) {
   };
 }
 
-export function syncDocumentWindowControlsOverlayClass() {
+export function syncDocumentWindowControlsOverlayClass(): () => void {
   if (typeof document === "undefined") {
     return () => {};
   }
@@ -59,33 +59,33 @@ export function syncDocumentWindowControlsOverlayClass() {
   return onWindowControlsOverlayGeometryChange(update);
 }
 
-function subscribeTitlebarArea(listener: () => void) {
+function subscribeTitlebarArea(listener: () => void): () => void {
   const overlay = getWindowControlsOverlay();
   overlay?.addEventListener("geometrychange", listener);
   return () => overlay?.removeEventListener("geometrychange", listener);
 }
 
-function getNativeTitlebarHeight() {
+function getNativeTitlebarHeight(): number {
   if (isElectron && isMacPlatform(navigator.platform)) return MACOS_TITLEBAR_HEIGHT;
   const overlay = getWindowControlsOverlay();
   return overlay?.visible ? overlay.getTitlebarAreaRect().bottom : 0;
 }
 
-export function useNativeTitlebarHeight() {
+export function useNativeTitlebarHeight(): number {
   return useSyncExternalStore(subscribeTitlebarArea, getNativeTitlebarHeight, () => 0);
 }
 
-function getElectronPlatformClassNames(platform: string) {
-  return (
-    isWindowsPlatform(platform)
-      ? [ELECTRON_CLASS_NAME, ELECTRON_WINDOWS_CLASS_NAME]
-      : [ELECTRON_CLASS_NAME]
-  ) satisfies
-    | readonly [typeof ELECTRON_CLASS_NAME]
-    | readonly [typeof ELECTRON_CLASS_NAME, typeof ELECTRON_WINDOWS_CLASS_NAME];
+function getElectronPlatformClassNames(
+  platform: string,
+):
+  | readonly [typeof ELECTRON_CLASS_NAME]
+  | readonly [typeof ELECTRON_CLASS_NAME, typeof ELECTRON_WINDOWS_CLASS_NAME] {
+  return isWindowsPlatform(platform)
+    ? [ELECTRON_CLASS_NAME, ELECTRON_WINDOWS_CLASS_NAME]
+    : [ELECTRON_CLASS_NAME];
 }
 
-export function syncDocumentElectronPlatformClasses(platform: string) {
+export function syncDocumentElectronPlatformClasses(platform: string): () => void {
   if (typeof document === "undefined") {
     return () => {};
   }

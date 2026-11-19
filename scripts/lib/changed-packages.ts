@@ -52,7 +52,7 @@ interface PackageManifest {
   readonly peerDependencies?: Record<string, string>;
 }
 
-export function readWorkspace(root = ROOT) {
+export function readWorkspace(root = ROOT): Array<WorkspacePackage> {
   const patterns: Array<string> = [];
   let inPackages = false;
   for (const line of NodeFS.readFileSync(NodePath.join(root, "pnpm-workspace.yaml"), "utf8").split(
@@ -92,7 +92,10 @@ export function readWorkspace(root = ROOT) {
   return packages;
 }
 
-function ownersOf(file: string, packages: ReadonlyArray<WorkspacePackage>) {
+function ownersOf(
+  file: string,
+  packages: ReadonlyArray<WorkspacePackage>,
+): ReadonlyArray<string> | null {
   if (INERT.some((pattern) => pattern.test(file))) return [];
   if (NodePath.posix.basename(file) === "package.json") return null;
   if (AFFECTS_EVERYTHING.some((pattern) => pattern.test(file))) return null;
@@ -109,7 +112,7 @@ function ownersOf(file: string, packages: ReadonlyArray<WorkspacePackage>) {
 export function affectedPackages(
   files: ReadonlyArray<string>,
   packages: ReadonlyArray<WorkspacePackage>,
-) {
+): { readonly affected: Array<string>; readonly everything: boolean } {
   let affected = new Set<string>();
   let everything = false;
 

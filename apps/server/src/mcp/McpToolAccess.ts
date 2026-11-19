@@ -215,15 +215,8 @@ export const either = <P, A, E, R, A2, E2, R2>(
   first: Declaration<(params: P) => Effect.Effect<A, E, R>>,
   second: Declaration<(params: P) => Effect.Effect<A2, E2, R2>>,
 ) =>
-  declare(
-    (params: P) =>
-      (useFirst(params)
-        ? checkedHandler(first)(params)
-        : checkedHandler(second)(params)) satisfies Effect.Effect<
-        A | A2,
-        E | E2,
-        R | R2
-      > as Effect.Effect<A | A2, E | E2, R | R2>,
+  declare((params: P): Effect.Effect<A | A2, E | E2, R | R2> =>
+    useFirst(params) ? checkedHandler(first)(params) : checkedHandler(second)(params),
   );
 
 const escalationDenied = (refusal: DispatchModeRefusal) =>
@@ -311,9 +304,8 @@ export class HandlersLayer<Tools extends Record<string, Tool.Any>, EX = never, R
   }
 }
 
-const checkedHandlers: <Handlers>(declarations: Declarations<Handlers>) => Handlers = <Handlers>(
-  declarations: Declarations<Handlers>,
-) => Struct.map(declarations, checkedHandler);
+const checkedHandlers = <Handlers>(declarations: Declarations<Handlers>): Handlers =>
+  Struct.map(declarations, checkedHandler);
 
 const hiddenFromOutsideClientsWhenThreadBound = Effect.fn(
   "McpToolAccess.hiddenFromOutsideClientsWhenThreadBound",
@@ -337,17 +329,10 @@ const hiddenFromOutsideClientsWhenThreadBound = Effect.fn(
   return checked;
 });
 
-export const toLayer: <Tools extends Record<string, Tool.Any>, EX = never, RX = never>(
+export const toLayer = <Tools extends Record<string, Tool.Any>, EX = never, RX = never>(
   toolkit: Toolkit.Toolkit<Tools>,
   build: Handlers<Tools> | Effect.Effect<Handlers<Tools>, EX, RX>,
-) => HandlersLayer<Tools, EX, Exclude<RX, Scope.Scope>> = <
-  Tools extends Record<string, Tool.Any>,
-  EX = never,
-  RX = never,
->(
-  toolkit: Toolkit.Toolkit<Tools>,
-  build: Handlers<Tools> | Effect.Effect<Handlers<Tools>, EX, RX>,
-) => {
+): HandlersLayer<Tools, EX, Exclude<RX, Scope.Scope>> => {
   const withDeclarations = (declarations: Handlers<Tools>) =>
     hiddenFromOutsideClientsWhenThreadBound(toolkit, declarations, checkedHandlers(declarations));
   return handlersLayer(

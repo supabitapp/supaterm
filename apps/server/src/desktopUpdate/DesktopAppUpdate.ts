@@ -21,7 +21,9 @@ import * as DesktopTelemetryReceiver from "../resourceTelemetry/DesktopTelemetry
 const DESKTOP_UPDATE_TIMEOUT = Duration.minutes(20);
 const DESKTOP_INSTALL_TIMEOUT = Duration.minutes(2);
 
-function desktopUpdateProgressStage(state: DesktopUpdateState) {
+function desktopUpdateProgressStage(
+  state: DesktopUpdateState,
+): ServerSelfUpdateProgressStage | null {
   switch (state.status) {
     case "checking":
     case "available":
@@ -72,7 +74,9 @@ export const make = Effect.fn("desktopUpdate.desktopAppUpdate.make")(function* (
     ) => Effect.Effect<void, ServerSelfUpdateError>,
   ) {
     const lastStage = yield* Ref.make<ServerSelfUpdateProgressStage | null>(null);
-    const emitStage = (stage: ServerSelfUpdateProgressStage | null) =>
+    const emitStage = (
+      stage: ServerSelfUpdateProgressStage | null,
+    ): Effect.Effect<void, ServerSelfUpdateError> =>
       stage === null
         ? Effect.void
         : Ref.get(lastStage).pipe(
@@ -85,12 +89,13 @@ export const make = Effect.fn("desktopUpdate.desktopAppUpdate.make")(function* (
 
     const terminal = yield* changes.pipe(
       Stream.filter((report) => report.requestId === requestId),
-      Stream.mapEffect((report) =>
-        report.outcome === undefined
-          ? emitStage(desktopUpdateProgressStage(report.state)).pipe(
-              Effect.as(Option.none<DesktopUpdateStatusReport>()),
-            )
-          : Effect.succeedSome(report),
+      Stream.mapEffect(
+        (report): Effect.Effect<Option.Option<DesktopUpdateStatusReport>, ServerSelfUpdateError> =>
+          report.outcome === undefined
+            ? emitStage(desktopUpdateProgressStage(report.state)).pipe(
+                Effect.as(Option.none<DesktopUpdateStatusReport>()),
+              )
+            : Effect.succeedSome(report),
       ),
       Stream.filterMap(
         Option.match({

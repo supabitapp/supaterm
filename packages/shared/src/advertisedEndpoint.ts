@@ -22,7 +22,7 @@ export interface CreateAdvertisedEndpointInput {
   readonly description?: string;
 }
 
-export function normalizeHttpBaseUrl(rawValue: string) {
+export function normalizeHttpBaseUrl(rawValue: string): string {
   const url = new URL(rawValue);
   if (url.protocol === "ws:") {
     url.protocol = "http:";
@@ -40,17 +40,16 @@ export function normalizeHttpBaseUrl(rawValue: string) {
   return upgradeRelayAddresses(url.toString());
 }
 
-export function deriveWsBaseUrl(httpBaseUrl: string): string;
-export function deriveWsBaseUrl(httpBaseUrl: string) {
+export function deriveWsBaseUrl(httpBaseUrl: string): string {
   const url = new URL(normalizeHttpBaseUrl(httpBaseUrl));
   url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
-  return url.toString() satisfies string;
+  return url.toString();
 }
 
 function classifyHostedHttpsCompatibility(
   httpBaseUrl: string,
   fallback: AdvertisedEndpointHostedHttpsCompatibility = "unknown",
-) {
+): AdvertisedEndpointHostedHttpsCompatibility {
   const url = new URL(normalizeHttpBaseUrl(httpBaseUrl));
   if (url.protocol === "http:") {
     return "mixed-content-blocked";
@@ -58,7 +57,7 @@ function classifyHostedHttpsCompatibility(
   return fallback === "mixed-content-blocked" ? "unknown" : fallback;
 }
 
-export function createAdvertisedEndpoint(input: CreateAdvertisedEndpointInput) {
+export function createAdvertisedEndpoint(input: CreateAdvertisedEndpointInput): AdvertisedEndpoint {
   const httpBaseUrl = normalizeHttpBaseUrl(input.httpBaseUrl);
   return {
     id: input.id,
@@ -76,5 +75,5 @@ export function createAdvertisedEndpoint(input: CreateAdvertisedEndpointInput) {
     status: input.status ?? "available",
     ...(input.isDefault === undefined ? {} : { isDefault: input.isDefault }),
     ...(input.description === undefined ? {} : { description: input.description }),
-  } satisfies AdvertisedEndpoint;
+  };
 }

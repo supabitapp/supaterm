@@ -27,20 +27,19 @@ const threadId = "thread-1";
 const terminalId = "setup-setup";
 const event = { threadId, terminalId, sequence: 1, createdAt: "2026-01-01T00:00:00.000Z" };
 
-const openSnapshot = (history: string) =>
-  ({
-    threadId,
-    terminalId,
-    cwd: "/repo/.supaterm/worktrees/feature",
-    worktreePath: null,
-    status: "running",
-    pid: 123,
-    history,
-    exitCode: null,
-    exitSignal: null,
-    label: "zsh",
-    updatedAt: "2026-01-01T00:00:00.000Z",
-  }) satisfies TerminalSessionSnapshot;
+const openSnapshot = (history: string): TerminalSessionSnapshot => ({
+  threadId,
+  terminalId,
+  cwd: "/repo/.supaterm/worktrees/feature",
+  worktreePath: null,
+  status: "running",
+  pid: 123,
+  history,
+  exitCode: null,
+  exitSignal: null,
+  label: "zsh",
+  updatedAt: "2026-01-01T00:00:00.000Z",
+});
 
 const makeHarness = Effect.fn(function* (options: {
   readonly command?: string;

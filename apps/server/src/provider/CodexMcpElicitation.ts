@@ -60,7 +60,9 @@ type McpElicitationPersistenceDecision = Extract<
   "acceptForSession" | "acceptAlways"
 >;
 
-function mcpElicitationPersistenceDecision(value: string) {
+function mcpElicitationPersistenceDecision(
+  value: string,
+): McpElicitationPersistenceDecision | null {
   const normalized = value.toLowerCase();
   if (normalized.includes("session")) return "acceptForSession";
   if (
@@ -96,7 +98,10 @@ function mcpElicitationFieldOptions(field: typeof McpElicitationFormField.Type) 
   }));
 }
 
-function isMcpElicitationPersistenceField(key: string, field: typeof McpElicitationFormField.Type) {
+function isMcpElicitationPersistenceField(
+  key: string,
+  field: typeof McpElicitationFormField.Type,
+): boolean {
   return (
     mcpElicitationPersistenceDecision(key) !== null ||
     key.toLowerCase() === "persist" ||
@@ -107,10 +112,7 @@ function isMcpElicitationPersistenceField(key: string, field: typeof McpElicitat
 
 export function describeMcpElicitation(
   payload: EffectCodexSchema.McpServerElicitationRequestParams,
-): { readonly appName: string; readonly options: ReadonlyArray<ProviderApprovalOption> };
-export function describeMcpElicitation(
-  payload: EffectCodexSchema.McpServerElicitationRequestParams,
-) {
+): { readonly appName: string; readonly options: ReadonlyArray<ProviderApprovalOption> } {
   const metadata = isMcpElicitationMetadata(payload._meta) ? payload._meta : undefined;
   const appName =
     metadata?.app_name ??
@@ -170,23 +172,19 @@ export function describeMcpElicitation(
         : []),
       { decision: "accept", label: "Approve" },
     ],
-  } satisfies { readonly appName: string; readonly options: ReadonlyArray<ProviderApprovalOption> };
+  };
 }
 
 export function toMcpElicitationResponse(
   payload: McpElicitationResponseInput,
   decision: ProviderApprovalDecision,
-): EffectCodexSchema.McpServerElicitationRequestResponse;
-export function toMcpElicitationResponse(
-  payload: McpElicitationResponseInput,
-  decision: ProviderApprovalDecision,
-) {
+): EffectCodexSchema.McpServerElicitationRequestResponse {
   if (decision === "decline" || decision === "cancel") {
-    return { action: decision } satisfies EffectCodexSchema.McpServerElicitationRequestResponse;
+    return { action: decision };
   }
 
   if (payload.mode === "url") {
-    return { action: "cancel" } satisfies EffectCodexSchema.McpServerElicitationRequestResponse;
+    return { action: "cancel" };
   }
 
   const persist =
@@ -217,12 +215,12 @@ export function toMcpElicitationResponse(
   }
 
   if (form?.required?.some((key) => !Object.hasOwn(content, key))) {
-    return { action: "cancel" } satisfies EffectCodexSchema.McpServerElicitationRequestResponse;
+    return { action: "cancel" };
   }
 
   return {
     action: "accept",
     ...(persist ? { _meta: { persist } } : {}),
     ...(form ? { content } : {}),
-  } satisfies EffectCodexSchema.McpServerElicitationRequestResponse;
+  };
 }

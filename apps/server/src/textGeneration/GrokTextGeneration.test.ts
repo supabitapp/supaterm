@@ -28,7 +28,7 @@ const layerGrokTextGenerationTest = ServerConfig.ServerConfig.layerTest(process.
   prefix: "supaterm-grok-text-generation-test-",
 }).pipe(Layer.provideMerge(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer)));
 
-function makeAcpGrokWrapper(dir: string, env: Record<string, string>) {
+function makeAcpGrokWrapper(dir: string, env: Record<string, string>): string {
   return writeFakeCli({
     directory: NodePath.join(dir, "bin"),
     name: "grok",
@@ -58,7 +58,11 @@ function withFakeAcpGrok<A, E, R>(
   }).pipe(Effect.scoped);
 }
 
-function readJsonRpcRequests(filePath: string) {
+function readJsonRpcRequests(filePath: string): ReadonlyArray<{
+  readonly id?: unknown;
+  readonly method?: string;
+  readonly params?: Record<string, unknown>;
+}> {
   return NodeFS.readFileSync(filePath, "utf8")
     .trim()
     .split("\n")

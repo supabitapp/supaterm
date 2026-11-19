@@ -35,7 +35,7 @@ export class DesktopBackendObservabilitySettingsReadError extends Schema.TaggedE
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Failed to read persisted backend observability settings at ${this.settingsPath}.`;
   }
 }
@@ -113,15 +113,15 @@ const WSL_FORWARDED_ENV_NAMES = [
 
 const WSL_SERVER_SYSTEM_PATH = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin";
 
-const nodeBinDirOf = (nodePath: string) => {
+const nodeBinDirOf = (nodePath: string): string => {
   const lastSlash = nodePath.lastIndexOf("/");
   return lastSlash > 0 ? nodePath.slice(0, lastSlash) : "/usr/bin";
 };
 
-const backendChildEnvPatch = () =>
+const backendChildEnvPatch = (): Record<string, string | undefined> =>
   Object.fromEntries(DESKTOP_BACKEND_ENV_NAMES.map((name) => [name, undefined]));
 
-const getWslEnvEntryName = (entry: string) => {
+const getWslEnvEntryName = (entry: string): string => {
   const slashIndex = entry.indexOf("/");
   return slashIndex === -1 ? entry : entry.slice(0, slashIndex);
 };
@@ -129,7 +129,7 @@ const getWslEnvEntryName = (entry: string) => {
 const mergeWslEnv = (
   existingWslEnv: string | undefined,
   forwardedEnvNames: ReadonlyArray<string>,
-) => {
+): string | undefined => {
   const existing = existingWslEnv?.trim() ?? "";
 
   const seenNames = new Set(
@@ -158,7 +158,7 @@ const logBackendObservabilitySettingsReadFailure = (
   );
 };
 
-function resourceMonitorBinaryName(platform: NodeJS.Platform) {
+function resourceMonitorBinaryName(platform: NodeJS.Platform): string {
   return platform === "win32" ? "supaterm-resource-monitor.exe" : "supaterm-resource-monitor";
 }
 
@@ -262,12 +262,39 @@ const readOrCreateHostScope = Effect.gen(function* () {
   return scope;
 });
 
+type WslPreflightRuntime =
+  | {
+      readonly kind: "executable";
+      readonly entryPath: string;
+    }
+  | {
+      readonly kind: "node-script";
+      readonly nodePath: string;
+      readonly linuxEntryPath: string;
+    };
+
+interface WslPreflightSuccess {
+  readonly _tag: "Ready";
+  readonly runningDistro: string;
+  readonly windowsEntryPath: string;
+  readonly runtime: WslPreflightRuntime;
+  readonly resolvedPath: string;
+  readonly runtimeId?: string;
+}
+
+interface WslPreflightFailure {
+  readonly _tag: "Failed";
+  readonly reason: string;
+  readonly fatal: boolean;
+  readonly retryLimit?: number;
+}
+
 const WSL_TRANSIENT_PREFLIGHT_RETRY_LIMIT = 12;
 const WSL_RUNTIME_ARCHIVE_NAME = "wsl-runtime.tar.gz";
 const WSL_RUNTIME_ARCHIVE_HASH_NAME = `${WSL_RUNTIME_ARCHIVE_NAME}.sha256`;
 const SHA256_HEX_PATTERN = /^[0-9a-f]{64}$/i;
 
-const parseWslRuntimeArchiveHash: (value: string) => string | null = (value: string) => {
+const parseWslRuntimeArchiveHash = (value: string): string | null => {
   const trimmed = value.trim();
   return SHA256_HEX_PATTERN.test(trimmed) ? trimmed.toLowerCase() : null;
 };
@@ -281,7 +308,14 @@ const runWslPreflight = Effect.fn("desktop.backendConfiguration.wslPreflight")(f
   readonly distro: string | null;
   readonly runtimeArchive: DesktopWslEnvironment.WslRuntimeArchive | null;
   readonly allowBuild: boolean;
-}) {
+}): Effect.fn.Return<
+  WslPreflightSuccess | WslPreflightFailure,
+  never,
+  | DesktopEnvironment.DesktopEnvironment
+  | DesktopWslEnvironment.DesktopWslEnvironment
+  | DesktopWslServerTree.DesktopWslServerTree
+  | FileSystem.FileSystem
+> {
   const environment = yield* DesktopEnvironment.DesktopEnvironment;
   const wslEnv = yield* DesktopWslEnvironment.DesktopWslEnvironment;
   const wslServerTree = yield* DesktopWslServerTree.DesktopWslServerTree;
@@ -436,7 +470,7 @@ const runWslPreflight = Effect.fn("desktop.backendConfiguration.wslPreflight")(f
   } as const;
 });
 
-const isLocalHostIpv4 = (ip: string) => {
+const isLocalHostIpv4 = (ip: string): boolean => {
   const interfaces = NodeOS.networkInterfaces();
   for (const list of Object.values(interfaces)) {
     if (!list) continue;
@@ -471,7 +505,11 @@ const resolvePrimaryStartConfig = Effect.fn("desktop.backendConfiguration.resolv
       readonly shellEnvironmentPrepared: boolean;
       readonly desktopAppUpdate: boolean;
     },
-  ) {
+  ): Effect.fn.Return<
+    DesktopBackendManager.DesktopBackendStartConfig,
+    never,
+    DesktopEnvironment.DesktopEnvironment | DesktopServerExposure.DesktopServerExposure
+  > {
     const environment = yield* DesktopEnvironment.DesktopEnvironment;
     const serverExposure = yield* DesktopServerExposure.DesktopServerExposure;
     const backendExposure = yield* serverExposure.backendConfig;
@@ -526,24 +564,19 @@ const resolvePrimaryStartConfig = Effect.fn("desktop.backendConfiguration.resolv
   },
 );
 
-const resolveWslStartConfig: (
+const resolveWslStartConfig = Effect.fn("desktop.backendConfiguration.resolveWsl")(function* (
   input: SharedBootstrapInput & {
     readonly port: number;
     readonly distro: string | null;
   },
-) => Effect.Effect<
+): Effect.fn.Return<
   DesktopBackendManager.DesktopBackendStartConfig,
   never,
   | DesktopEnvironment.DesktopEnvironment
   | DesktopWslEnvironment.DesktopWslEnvironment
   | DesktopWslServerTree.DesktopWslServerTree
   | FileSystem.FileSystem
-> = Effect.fn("desktop.backendConfiguration.resolveWsl")(function* (
-  input: SharedBootstrapInput & {
-    readonly port: number;
-    readonly distro: string | null;
-  },
-) {
+> {
   const environment = yield* DesktopEnvironment.DesktopEnvironment;
   const wslEnvironment = yield* DesktopWslEnvironment.DesktopWslEnvironment;
   const fileSystem = yield* FileSystem.FileSystem;

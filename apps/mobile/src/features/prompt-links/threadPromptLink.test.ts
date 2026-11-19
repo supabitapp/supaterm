@@ -1,4 +1,4 @@
-import type { NavigationState } from "@react-navigation/native";
+import type { NavigationState, PartialState } from "@react-navigation/native";
 import * as Option from "effect/Option";
 import { AsyncResult, Atom } from "effect/reactivity";
 import { describe, expect, it, vi } from "vite-plus/test";
@@ -62,11 +62,11 @@ const loadedDetail = AsyncResult.success({ data: Option.some({}) });
 
 const threadParams = { environmentId: "env-1", threadId: "thread-1" };
 
-function linkedState(prompt = "Fix the bug") {
+function linkedState(prompt = "Fix the bug"): PartialState<NavigationState> {
   return { routes: [{ name: "Thread", params: { ...threadParams, prompt } }] };
 }
 
-function stack(routes: NavigationState["routes"]) {
+function stack(routes: NavigationState["routes"]): NavigationState {
   return {
     key: "root",
     index: routes.length - 1,
@@ -74,7 +74,7 @@ function stack(routes: NavigationState["routes"]) {
     routes,
     stale: false,
     type: "stack",
-  } satisfies NavigationState;
+  };
 }
 
 const threadRoute = stack([{ key: "thread", name: "Thread", params: threadParams }]);

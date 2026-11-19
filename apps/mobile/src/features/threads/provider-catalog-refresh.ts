@@ -15,7 +15,7 @@ export function createProviderCatalogRefreshRunner<Result>(
 ) {
   let pending: Promise<Result> | null = null;
 
-  return (environmentId: EnvironmentId) => {
+  return (environmentId: EnvironmentId): Promise<Result> => {
     if (pending) return pending;
     pending = refreshProviders({ environmentId, input: { refreshModels: true } }).finally(() => {
       pending = null;
@@ -24,7 +24,9 @@ export function createProviderCatalogRefreshRunner<Result>(
   };
 }
 
-export function providerCatalogRefreshError(result: AtomCommandResult<unknown, unknown>) {
+export function providerCatalogRefreshError(
+  result: AtomCommandResult<unknown, unknown>,
+): string | null {
   if (result._tag !== "Failure" || isAtomCommandInterrupted(result)) return null;
   const error = squashAtomCommandFailure(result);
   return error instanceof Error ? error.message : "Provider discovery failed.";

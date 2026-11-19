@@ -24,12 +24,11 @@ import {
 const encodeUnknownJson = Schema.encodeUnknownSync(Schema.fromJsonString(Schema.Unknown));
 const decodeUnknownJson = Schema.decodeUnknownSync(Schema.fromJsonString(Schema.Unknown));
 
-function ownedLogPath(basePath: string, segment: string): string;
-function ownedLogPath(basePath: string, segment: string) {
+function ownedLogPath(basePath: string, segment: string): string {
   const basename = NodePath.basename(basePath);
   const extension = NodePath.extname(basename);
   const stem = extension.length > 0 ? basename.slice(0, -extension.length) : basename;
-  return NodePath.join(NodePath.dirname(basePath), `${stem}.${segment}.log`) satisfies string;
+  return NodePath.join(NodePath.dirname(basePath), `${stem}.${segment}.log`);
 }
 
 function parseLogLine(line: string) {

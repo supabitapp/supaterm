@@ -47,7 +47,10 @@ import { AddCodexAccountDialog } from "./AddCodexAccountDialog";
 
 const environmentId = EnvironmentId.make("local");
 
-function codexProvider(instanceId: ProviderInstanceId, auth: ServerProvider["auth"]) {
+function codexProvider(
+  instanceId: ProviderInstanceId,
+  auth: ServerProvider["auth"],
+): ServerProvider {
   return {
     instanceId,
     driver: ProviderDriverKind.make("codex"),
@@ -61,10 +64,10 @@ function codexProvider(instanceId: ProviderInstanceId, auth: ServerProvider["aut
     skills: [],
     slashCommands: [],
     setup: { canAuthenticate: true, canInstall: false },
-  } satisfies ServerProvider;
+  };
 }
 
-function createdInstanceId() {
+function createdInstanceId(): ProviderInstanceId {
   const [call] = setup.update.mock.calls as unknown as [
     [{ input: { patch: { providerInstances: Record<string, unknown> } } }],
   ];

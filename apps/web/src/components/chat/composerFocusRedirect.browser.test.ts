@@ -2,7 +2,7 @@ import { describe, expect, it } from "vite-plus/test";
 
 import { shouldTypeToFocusComposer } from "./composerFocusRedirect";
 
-function typeOn(target: Element, key: string) {
+function typeOn(target: Element, key: string): boolean {
   let redirected = false;
   const listener = (event: KeyboardEvent) => {
     redirected = shouldTypeToFocusComposer(event);
@@ -13,7 +13,7 @@ function typeOn(target: Element, key: string) {
   return redirected;
 }
 
-function attach(element: Element) {
+function attach(element: Element): Disposable {
   document.body.append(element);
   return { [Symbol.dispose]: () => element.remove() };
 }

@@ -300,49 +300,51 @@ const openClaudeReplaySession = Effect.fn("openClaudeReplaySession")(function* (
   );
   const providerThread = yield* runtime.ensureThread({ threadId, modelSelection, runtimePolicy });
   const now = yield* DateTime.now;
-  const turnInput = (ordinal: number, options: { readonly continuation?: boolean } = {}) =>
-    ({
-      appThread: {
-        createdBy: "user",
-        creationSource: "web",
-        id: threadId,
-        projectId: ProjectId.make(`project-claude-lifecycle`),
-        title: "Claude Agent",
-        providerInstanceId: instanceId,
-        modelSelection,
-        runtimeMode,
-        interactionMode: "default",
-        branch: null,
-        worktreePath: null,
-        activeProviderThreadId: providerThread.id,
-        lineage: { parentThreadId: null, relationshipToParent: null, rootThreadId: threadId },
-        forkedFrom: null,
-        createdAt: now,
-        updatedAt: now,
-        archivedAt: null,
-        doneOverride: null,
-        doneAt: null,
-        lastVisitedAt: null,
-        deletedAt: null,
-      },
-      threadId,
-      runId: RunId.make(`run-claude-lifecycle-${ordinal}`),
-      runOrdinal: ordinal,
-      providerTurnOrdinal: ordinal,
-      attemptId: RunAttemptId.make(`attempt-claude-lifecycle-${ordinal}`),
-      rootNodeId: NodeId.make(`node-claude-lifecycle-${ordinal}`),
-      providerThread,
-      message: {
-        ...(options.continuation === true
-          ? { createdBy: "agent" as const, creationSource: "provider" as const }
-          : { createdBy: "user" as const, creationSource: "web" as const }),
-        messageId: MessageId.make(`message-claude-lifecycle-${ordinal}`),
-        text: "test prompt",
-        attachments: [],
-      },
+  const turnInput = (
+    ordinal: number,
+    options: { readonly continuation?: boolean } = {},
+  ): ProviderAdapter.ProviderAdapterV2TurnInput => ({
+    appThread: {
+      createdBy: "user",
+      creationSource: "web",
+      id: threadId,
+      projectId: ProjectId.make(`project-claude-lifecycle`),
+      title: "Claude Agent",
+      providerInstanceId: instanceId,
       modelSelection,
-      runtimePolicy,
-    }) satisfies ProviderAdapter.ProviderAdapterV2TurnInput;
+      runtimeMode,
+      interactionMode: "default",
+      branch: null,
+      worktreePath: null,
+      activeProviderThreadId: providerThread.id,
+      lineage: { parentThreadId: null, relationshipToParent: null, rootThreadId: threadId },
+      forkedFrom: null,
+      createdAt: now,
+      updatedAt: now,
+      archivedAt: null,
+      doneOverride: null,
+      doneAt: null,
+      lastVisitedAt: null,
+      deletedAt: null,
+    },
+    threadId,
+    runId: RunId.make(`run-claude-lifecycle-${ordinal}`),
+    runOrdinal: ordinal,
+    providerTurnOrdinal: ordinal,
+    attemptId: RunAttemptId.make(`attempt-claude-lifecycle-${ordinal}`),
+    rootNodeId: NodeId.make(`node-claude-lifecycle-${ordinal}`),
+    providerThread,
+    message: {
+      ...(options.continuation === true
+        ? { createdBy: "agent" as const, creationSource: "provider" as const }
+        : { createdBy: "user" as const, creationSource: "web" as const }),
+      messageId: MessageId.make(`message-claude-lifecycle-${ordinal}`),
+      text: "test prompt",
+      attachments: [],
+    },
+    modelSelection,
+    runtimePolicy,
+  });
   const until = (predicate: (event: ProviderAdapter.ProviderAdapterV2Event) => boolean) =>
     Effect.gen(function* () {
       const seen: Array<ProviderAdapter.ProviderAdapterV2Event> = [];
@@ -462,11 +464,11 @@ describe("AcpRegistryAdapterV2", () => {
 
   describe("the agent's own pickers", () => {
     type Frame = Record<string, unknown>;
-    const outbound = (method: string, params: unknown = "<any>") => ({
+    const outbound = (method: string, params: unknown = "<any>"): Frame => ({
       type: "expect_outbound",
       frame: { kind: "request", method, params },
     });
-    const answer = (method: string, result: unknown) => ({
+    const answer = (method: string, result: unknown): Frame => ({
       type: "emit_inbound",
       frame: { kind: "response", method, result },
     });
@@ -692,7 +694,7 @@ describe("AcpRegistryAdapterV2", () => {
         ? [{ group: "models", name: "Models", options: [{ value: "default", name: "Default" }] }]
         : [{ value: "auto", name: "Auto" }],
     });
-    const configOptionUpdate = (configOptions: ReadonlyArray<unknown>) => ({
+    const configOptionUpdate = (configOptions: ReadonlyArray<unknown>): Frame => ({
       type: "emit_inbound",
       frame: {
         kind: "notification",
@@ -703,12 +705,12 @@ describe("AcpRegistryAdapterV2", () => {
         },
       },
     });
-    const prompt = (...updates: ReadonlyArray<Frame>) => [
+    const prompt = (...updates: ReadonlyArray<Frame>): ReadonlyArray<Frame> => [
       outbound("session/prompt"),
       ...updates,
       answer("session/prompt", { stopReason: "end_turn" }),
     ];
-    const setModel = (modelId: string) => [
+    const setModel = (modelId: string): ReadonlyArray<Frame> => [
       outbound("session/set_model", { sessionId: "agent-session", modelId }),
       answer("session/set_model", {}),
     ];

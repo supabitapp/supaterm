@@ -126,23 +126,20 @@ export type PlatformConnectionRegistration = typeof PlatformConnectionRegistrati
 
 export function connectionRegistrationCatalogEntry(
   registration: ConnectionRegistration | PrimaryConnectionRegistration,
-): ConnectionCatalogEntry;
-export function connectionRegistrationCatalogEntry(
-  registration: ConnectionRegistration | PrimaryConnectionRegistration,
-) {
+): ConnectionCatalogEntry {
   switch (registration._tag) {
     case "PrimaryConnectionRegistration":
       return {
         target: registration.target,
         profile: Option.none(),
         enabled: true,
-      } satisfies ConnectionCatalogEntry;
+      };
     case "BearerConnectionRegistration":
     case "SshConnectionRegistration":
       return {
         target: registration.target,
         profile: Option.some(registration.profile),
         enabled: true,
-      } satisfies ConnectionCatalogEntry;
+      };
   }
 }

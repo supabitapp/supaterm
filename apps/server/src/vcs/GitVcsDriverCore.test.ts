@@ -20,9 +20,11 @@ import * as Fiber from "effect/Fiber";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Path from "effect/Path";
+import * as PlatformError from "effect/PlatformError";
 import * as Queue from "effect/Queue";
 import * as Ref from "effect/Ref";
 import * as Result from "effect/Result";
+import * as Scope from "effect/Scope";
 import * as Schema from "effect/Schema";
 import * as Sink from "effect/Sink";
 import * as Stream from "effect/Stream";
@@ -268,13 +270,19 @@ describe("Git output collection", () => {
   );
 });
 
-const makeTmpDir = (prefix = "git-vcs-driver-test-") =>
+const makeTmpDir = (
+  prefix = "git-vcs-driver-test-",
+): Effect.Effect<string, PlatformError.PlatformError, FileSystem.FileSystem | Scope.Scope> =>
   Effect.gen(function* () {
     const fileSystem = yield* FileSystem.FileSystem;
     return yield* fileSystem.makeTempDirectoryScoped({ prefix });
   });
 
-const writeTextFile = (cwd: string, relativePath: string, contents: string) =>
+const writeTextFile = (
+  cwd: string,
+  relativePath: string,
+  contents: string,
+): Effect.Effect<void, PlatformError.PlatformError, FileSystem.FileSystem | Path.Path> =>
   Effect.gen(function* () {
     const fileSystem = yield* FileSystem.FileSystem;
     const pathService = yield* Path.Path;
@@ -286,19 +294,22 @@ const writeTextFile = (cwd: string, relativePath: string, contents: string) =>
 const makeReviewDiffFileContentsInput = (
   cwd: string,
   overrides: Partial<Omit<ReviewDiffFileContentsInput, "cwd">> = {},
-) =>
-  ({
-    cwd,
-    sourceKind: "working-tree",
-    changeType: "change",
-    baseRef: "HEAD",
-    headRef: null,
-    oldPath: "README.md",
-    newPath: "README.md",
-    ...overrides,
-  }) satisfies ReviewDiffFileContentsInput;
+): ReviewDiffFileContentsInput => ({
+  cwd,
+  sourceKind: "working-tree",
+  changeType: "change",
+  baseRef: "HEAD",
+  headRef: null,
+  oldPath: "README.md",
+  newPath: "README.md",
+  ...overrides,
+});
 
-const git = (cwd: string, args: ReadonlyArray<string>, env?: NodeJS.ProcessEnv) =>
+const git = (
+  cwd: string,
+  args: ReadonlyArray<string>,
+  env?: NodeJS.ProcessEnv,
+): Effect.Effect<string, GitCommandError, GitVcsDriver.GitVcsDriver> =>
   Effect.gen(function* () {
     const driver = yield* GitVcsDriver.GitVcsDriver;
     const result = yield* driver.execute({
@@ -316,7 +327,14 @@ const [, gitMajor, gitMinor] =
   [];
 const gitHasReftable = Number(gitMajor) > 2 || (Number(gitMajor) === 2 && Number(gitMinor) >= 45);
 
-const initRepoWithCommit = (cwd: string, initArgs: ReadonlyArray<string> = []) =>
+const initRepoWithCommit = (
+  cwd: string,
+  initArgs: ReadonlyArray<string> = [],
+): Effect.Effect<
+  { readonly initialBranch: string },
+  GitCommandError | PlatformError.PlatformError,
+  GitVcsDriver.GitVcsDriver | FileSystem.FileSystem | Path.Path
+> =>
   Effect.gen(function* () {
     const driver = yield* GitVcsDriver.GitVcsDriver;
     yield* initArgs.length === 0

@@ -5,7 +5,7 @@ import {
   unicodePunctuation,
   unicodeWhitespace,
 } from "micromark-util-character";
-import type { Construct, Tokenizer } from "micromark-util-types";
+import type { Construct, Extension, Tokenizer } from "micromark-util-types";
 import remarkParse from "remark-parse";
 import { unified, type Processor } from "unified";
 
@@ -66,13 +66,13 @@ export type CodexArtifactTemplateMarkdownSegment =
       readonly template: CodexArtifactTemplate;
     };
 
-function asConstruct(value: Construct | Construct[] | undefined, label: string) {
+function asConstruct(value: Construct | Construct[] | undefined, label: string): Construct {
   const construct = Array.isArray(value) ? value[0] : value;
   if (!construct) throw new Error(`Missing ${label} directive construct`);
   return construct;
 }
 
-function directiveNameEnds(code: number | null) {
+function directiveNameEnds(code: number | null): boolean {
   return (
     code === null ||
     markdownLineEnding(code) ||
@@ -81,7 +81,7 @@ function directiveNameEnds(code: number | null) {
   );
 }
 
-function directiveNameGate(markerCount: number, name: string) {
+function directiveNameGate(markerCount: number, name: string): Construct {
   const tokenize: Tokenizer = (effects, ok, nok) => {
     let markerIndex = 0;
     let nameIndex = 0;
@@ -112,18 +112,17 @@ function directiveNameGate(markerCount: number, name: string) {
   return { partial: true, tokenize };
 }
 
-function restrictedDirective(construct: Construct, markerCount: number, name: string): Construct;
-function restrictedDirective(construct: Construct, markerCount: number, name: string) {
+function restrictedDirective(construct: Construct, markerCount: number, name: string): Construct {
   const gate = directiveNameGate(markerCount, name);
   return {
     ...construct,
     tokenize(effects, ok, nok) {
       return effects.check(gate, construct.tokenize.call(this, effects, ok, nok), nok);
     },
-  } satisfies Construct;
+  };
 }
 
-function codexDirectiveSyntax() {
+function codexDirectiveSyntax(): Extension {
   const genericSyntax = directive();
   const textDirective = asConstruct(genericSyntax.text?.[COLON], CODEX_FILE_CITATION_NAME);
   const flowDirectives = genericSyntax.flow?.[COLON];
@@ -149,18 +148,17 @@ function codexDirectiveSyntax() {
 const CODEX_DIRECTIVE_SYNTAX = codexDirectiveSyntax();
 const CODEX_DIRECTIVE_FROM_MARKDOWN = directiveFromMarkdown();
 
-function sourceForNode(node: MarkdownAstNode, source: string) {
+function sourceForNode(node: MarkdownAstNode, source: string): string {
   const start = node.position?.start.offset;
   const end = node.position?.end.offset;
   return start === undefined || end === undefined ? "" : source.slice(start, end);
 }
 
-function textContent(node: MarkdownAstNode): string;
-function textContent(node: MarkdownAstNode) {
-  return (node.value ?? (node.children ?? []).map(textContent).join("")) satisfies string;
+function textContent(node: MarkdownAstNode): string {
+  return node.value ?? (node.children ?? []).map(textContent).join("");
 }
 
-function sourceForDirective(node: MarkdownAstNode, source: string, marker: ":" | "::") {
+function sourceForDirective(node: MarkdownAstNode, source: string, marker: ":" | "::"): string {
   const prefix = `${marker}${node.name ?? ""}`;
   const slicedSource = sourceForNode(node, source);
   if (slicedSource.startsWith(prefix)) return slicedSource;
@@ -172,7 +170,7 @@ function sourceForDirective(node: MarkdownAstNode, source: string, marker: ":" |
   return `${prefix}${label}${attributes.length === 0 ? "" : `{${attributes.join(" ")}}`}`;
 }
 
-function restoreTextDirective(node: MarkdownAstNode, source: string) {
+function restoreTextDirective(node: MarkdownAstNode, source: string): void {
   node.type = "text";
   node.value = sourceForDirective(node, source, ":");
   delete node.name;
@@ -182,7 +180,7 @@ function restoreTextDirective(node: MarkdownAstNode, source: string) {
   delete node.children;
 }
 
-function restoreLeafDirective(node: MarkdownAstNode, source: string) {
+function restoreLeafDirective(node: MarkdownAstNode, source: string): void {
   const value = sourceForDirective(node, source, "::");
   node.type = "paragraph";
   node.children = [
@@ -195,7 +193,7 @@ function restoreLeafDirective(node: MarkdownAstNode, source: string) {
   delete node.data;
 }
 
-function renderFileCitation(node: MarkdownAstNode, source: string, insideLink: boolean) {
+function renderFileCitation(node: MarkdownAstNode, source: string, insideLink: boolean): void {
   const citation = resolveCodexFileCitationLink(node.attributes);
   if (!citation || insideLink) {
     restoreTextDirective(node, source);
@@ -211,7 +209,7 @@ function renderFileCitation(node: MarkdownAstNode, source: string, insideLink: b
   delete node.value;
 }
 
-function renderFollowUp(node: MarkdownAstNode, source: string) {
+function renderFollowUp(node: MarkdownAstNode, source: string): void {
   if (!node.attributes?.prompt?.trim() || !textContent(node).trim()) {
     restoreTextDirective(node, source);
     return;
@@ -222,7 +220,7 @@ function renderFollowUp(node: MarkdownAstNode, source: string) {
   delete node.attributes;
 }
 
-function renderArtifactTemplate(node: MarkdownAstNode, source: string) {
+function renderArtifactTemplate(node: MarkdownAstNode, source: string): void {
   const template = resolveCodexArtifactTemplate(node.attributes);
   if (!template) {
     restoreLeafDirective(node, source);
@@ -249,7 +247,7 @@ function renderArtifactTemplate(node: MarkdownAstNode, source: string) {
   delete node.url;
 }
 
-function transformCodexDirectives(node: MarkdownAstNode, source: string, insideLink = false) {
+function transformCodexDirectives(node: MarkdownAstNode, source: string, insideLink = false): void {
   if (node.type === "textDirective" && node.name === CODEX_FILE_CITATION_NAME) {
     renderFileCitation(node, source, insideLink);
     return;
@@ -284,7 +282,7 @@ export const remarkCodexDirectives = attachCodexDirectives;
 
 const directiveParser = unified().use(remarkParse).use(remarkCodexDirectives).freeze();
 
-function parseCodexMarkdown(markdown: string) {
+function parseCodexMarkdown(markdown: string): MarkdownAstNode {
   return directiveParser.runSync(directiveParser.parse(markdown), {
     value: markdown,
   }) as MarkdownAstNode;
@@ -298,7 +296,7 @@ interface DirectiveMatch {
   readonly labelRange?: readonly [start: number, end: number];
 }
 
-function collectDirectiveMatches(node: MarkdownAstNode, matches: DirectiveMatch[]) {
+function collectDirectiveMatches(node: MarkdownAstNode, matches: DirectiveMatch[]): void {
   const start = node.position?.start.offset;
   const end = node.position?.end.offset;
   if (start !== undefined && end !== undefined) {
@@ -323,7 +321,7 @@ function collectDirectiveMatches(node: MarkdownAstNode, matches: DirectiveMatch[
 function renderDirectiveMatches(
   markdown: string,
   replacementFor: (match: DirectiveMatch) => string | undefined,
-) {
+): string {
   const matches: DirectiveMatch[] = [];
   collectDirectiveMatches(parseCodexMarkdown(markdown), matches);
   let rendered = markdown;
@@ -338,7 +336,7 @@ function renderDirectiveMatches(
   return rendered;
 }
 
-export function renderCodexInlineDirectivesAsMarkdown(markdown: string) {
+export function renderCodexInlineDirectivesAsMarkdown(markdown: string): string {
   if (
     !markdown.includes(`:${CODEX_FILE_CITATION_NAME}`) &&
     !markdown.includes(`:${CODEX_FOLLOW_UP_NAME}`)
@@ -349,7 +347,7 @@ export function renderCodexInlineDirectivesAsMarkdown(markdown: string) {
   return renderDirectiveMatches(markdown, (match) => match.markdown);
 }
 
-export function renderCodexDirectivesForCopy(markdown: string) {
+export function renderCodexDirectivesForCopy(markdown: string): string {
   if (
     !markdown.includes(`:${CODEX_FILE_CITATION_NAME}`) &&
     !markdown.includes(`:${CODEX_FOLLOW_UP_NAME}`) &&
@@ -365,11 +363,11 @@ export function renderCodexDirectivesForCopy(markdown: string) {
   });
 }
 
-export function splitCodexArtifactTemplateMarkdown(markdown: string) {
+export function splitCodexArtifactTemplateMarkdown(
+  markdown: string,
+): ReadonlyArray<CodexArtifactTemplateMarkdownSegment> {
   if (!markdown.includes(`::${CODEX_ARTIFACT_TEMPLATE_NAME}`)) {
-    return [
-      { kind: "markdown", markdown, sourceOffset: 0 },
-    ] satisfies ReadonlyArray<CodexArtifactTemplateMarkdownSegment>;
+    return [{ kind: "markdown", markdown, sourceOffset: 0 }];
   }
 
   const matches: DirectiveMatch[] = [];
@@ -381,9 +379,7 @@ export function splitCodexArtifactTemplateMarkdown(markdown: string) {
     )
     .sort((left, right) => left.start - right.start);
   if (templates.length === 0) {
-    return [
-      { kind: "markdown", markdown, sourceOffset: 0 },
-    ] satisfies ReadonlyArray<CodexArtifactTemplateMarkdownSegment>;
+    return [{ kind: "markdown", markdown, sourceOffset: 0 }];
   }
 
   const segments: CodexArtifactTemplateMarkdownSegment[] = [];
@@ -406,12 +402,12 @@ export function splitCodexArtifactTemplateMarkdown(markdown: string) {
   if (cursor < markdown.length) {
     segments.push({ kind: "markdown", markdown: markdown.slice(cursor), sourceOffset: cursor });
   }
-  return segments satisfies ReadonlyArray<CodexArtifactTemplateMarkdownSegment>;
+  return segments;
 }
 
 export function artifactTemplateFromHastProperties(
   properties: Readonly<Record<string, unknown>> | null | undefined,
-) {
+): CodexArtifactTemplate | null {
   if (properties?.dataCodexArtifactTemplate !== "true") return null;
   const stringProperty = (name: string) => {
     const value = properties[name];

@@ -19,7 +19,7 @@ export type VoiceRecordingCheck =
 const ascii = (bytes: Uint8Array, offset: number) =>
   String.fromCharCode(...bytes.subarray(offset, offset + 4));
 
-function pcmDataBytes(header: Uint8Array, sizeBytes: number) {
+function pcmDataBytes(header: Uint8Array, sizeBytes: number): number | null {
   if (header.byteLength < 12 || ascii(header, 0) !== "RIFF" || ascii(header, 8) !== "WAVE") {
     return null;
   }
@@ -48,21 +48,19 @@ function pcmDataBytes(header: Uint8Array, sizeBytes: number) {
 }
 
 /** Checks a recording against what environments transcribe before any of it is uploaded. */
-export function checkVoiceRecordingWav(header: Uint8Array, sizeBytes: number) {
-  if (sizeBytes > TRANSCRIPTION_MAX_AUDIO_BYTES)
-    return { ok: false, reason: "audioTooLong" } satisfies VoiceRecordingCheck;
+export function checkVoiceRecordingWav(header: Uint8Array, sizeBytes: number): VoiceRecordingCheck {
+  if (sizeBytes > TRANSCRIPTION_MAX_AUDIO_BYTES) return { ok: false, reason: "audioTooLong" };
   const dataBytes = pcmDataBytes(header, sizeBytes);
-  if (dataBytes === null)
-    return { ok: false, reason: "invalidAudio" } satisfies VoiceRecordingCheck;
+  if (dataBytes === null) return { ok: false, reason: "invalidAudio" };
   const durationMs = Math.round((dataBytes / (SAMPLE_RATE * BYTES_PER_SAMPLE)) * 1000);
-  if (durationMs < TRANSCRIPTION_MIN_DURATION_MS)
-    return { ok: false, reason: "audioTooShort" } satisfies VoiceRecordingCheck;
-  if (durationMs > TRANSCRIPTION_MAX_SECONDS * 1000)
-    return { ok: false, reason: "audioTooLong" } satisfies VoiceRecordingCheck;
-  return { ok: true, durationMs, sizeBytes } satisfies VoiceRecordingCheck;
+  if (durationMs < TRANSCRIPTION_MIN_DURATION_MS) return { ok: false, reason: "audioTooShort" };
+  if (durationMs > TRANSCRIPTION_MAX_SECONDS * 1000) return { ok: false, reason: "audioTooLong" };
+  return { ok: true, durationMs, sizeBytes };
 }
 
-export async function readVoiceRecording(uri: string) {
+export async function readVoiceRecording(
+  uri: string,
+): Promise<{ readonly durationMs: number; readonly sizeBytes: number }> {
   const { File, FileMode } = await loadExpoFileSystem();
   const file = new File(uri);
   const sizeBytes = file.size;
@@ -81,8 +79,5 @@ export async function readVoiceRecording(uri: string) {
       false,
     );
   }
-  return { durationMs: check.durationMs, sizeBytes: check.sizeBytes } satisfies {
-    readonly durationMs: number;
-    readonly sizeBytes: number;
-  };
+  return { durationMs: check.durationMs, sizeBytes: check.sizeBytes };
 }

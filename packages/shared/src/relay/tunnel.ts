@@ -66,7 +66,7 @@ export function createTunnelSession(input: {
   readonly initiator: boolean;
   readonly onStream?: (stream: TunnelStream) => void;
   readonly onClose?: (error?: Error) => void;
-}) {
+}): TunnelSession {
   const streams = new Map<number, StreamState>();
   const control: Uint8Array[] = [];
   const ready: StreamState[] = [];
@@ -210,7 +210,7 @@ export function createTunnelSession(input: {
     }
   }
 
-  const createStream = (id: number) => {
+  const createStream = (id: number): StreamState => {
     const state: StreamState = {
       stream: {
         id,
@@ -425,7 +425,7 @@ export function createTunnelSession(input: {
 
 export type TunnelVia = "relay" | "direct";
 
-export function directTunnelUrls(urls: Iterable<string>, relayUrl?: string) {
+export function directTunnelUrls(urls: Iterable<string>, relayUrl?: string): string[] {
   const selected = new Set<string>();
   for (const raw of urls) {
     if (selected.size >= MAX_DIRECT_TUNNEL_URLS) break;
@@ -459,7 +459,7 @@ function dialCandidate(
   signal: AbortSignal,
   claim: () => boolean,
   onClose?: (error?: Error) => void,
-) {
+): Promise<TunnelSession> {
   return new Promise((resolve, reject) => {
     const handshake = createClientHandshake(identity, options.randomBytes, 2);
     let session: TunnelSession | undefined;
@@ -529,17 +529,16 @@ function dialCandidate(
         fail(error instanceof Error ? error : new Error("Relay handshake failed"));
       }
     });
-  }) satisfies Promise<TunnelSession>;
+  });
 }
 
 function connectTunnel(
   address: string,
   options: TunnelClientOptions,
   onClose?: (error?: Error) => void,
-) {
+): Promise<EstablishedTunnel> {
   const identity = parseRelayAddress(address);
-  if (!identity)
-    return Promise.reject(new Error("Not a relay address")) satisfies Promise<EstablishedTunnel>;
+  if (!identity) return Promise.reject(new Error("Not a relay address"));
   const relayUrl = options.relayUrl ?? DEFAULT_PUBLIC_RELAY_URL;
   const relayTimeoutMs = options.handshakeTimeoutMs ?? 15_000;
   const candidates: Array<{
@@ -580,7 +579,7 @@ function connectTunnel(
         },
       );
     });
-  }) satisfies Promise<EstablishedTunnel>;
+  });
 }
 
 export interface TunnelConnectorOptions extends TunnelClientOptions {
@@ -618,10 +617,10 @@ export function createTunnelConnector(address: string, options: TunnelConnectorO
     return current;
   };
   return {
-    async session() {
+    async session(): Promise<TunnelSession> {
       return (await establish()).session;
     },
-    async open() {
+    async open(): Promise<TunnelStream> {
       return (await establish()).session.open();
     },
     close() {

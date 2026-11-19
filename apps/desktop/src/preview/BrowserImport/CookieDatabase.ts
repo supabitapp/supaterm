@@ -24,15 +24,11 @@ export interface CookieReadResult {
   readonly undecryptableHosts: ReadonlyArray<string>;
 }
 
-export const cookieScope: (
+export const cookieScope = (
   host: string,
   path: string,
   secure: boolean,
-) => { readonly url: string; readonly domain: string | undefined } = (
-  host: string,
-  path: string,
-  secure: boolean,
-) => {
+): { readonly url: string; readonly domain: string | undefined } => {
   const isDomainCookie = host.startsWith(".");
   const unwrappedHost = bareHost(host);
   const authority =
@@ -45,8 +41,7 @@ export const cookieScope: (
   };
 };
 
-export const bareHost: (host: string) => string = (host: string) =>
-  host.startsWith(".") ? host.slice(1) : host;
+export const bareHost = (host: string): string => (host.startsWith(".") ? host.slice(1) : host);
 
 /** Copy before reading to avoid live WAL writes and never open the source browser database for writing. */
 export const snapshotCookieDatabase = Effect.fn("CookieDatabase.snapshotCookieDatabase")(function* (

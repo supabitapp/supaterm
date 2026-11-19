@@ -33,7 +33,9 @@ type ToolItemBase = Omit<
   "type" | "toolName" | "input" | "output"
 >;
 
-function openCodeToolProjectionKind(toolName: string) {
+function openCodeToolProjectionKind(
+  toolName: string,
+): "command_execution" | "file_change" | "file_search" | "web_search" | "dynamic_tool" {
   if (toolName.startsWith("mcp__") || resolveSupatermMcpToolId(toolName) !== null)
     return "dynamic_tool";
   const normalized = toolName.toLowerCase();
@@ -63,7 +65,7 @@ function openCodeToolProjectionKind(toolName: string) {
   return "dynamic_tool";
 }
 
-function recordString(input: unknown, ...keys: ReadonlyArray<string>) {
+function recordString(input: unknown, ...keys: ReadonlyArray<string>): string | undefined {
   if (typeof input !== "object" || input === null) return undefined;
   for (const key of keys) {
     const value = (input as Record<string, unknown>)[key];
@@ -80,7 +82,7 @@ function recordText(input: Record<string, unknown>, ...keys: ReadonlyArray<strin
   return undefined;
 }
 
-function recordNumber(input: unknown, ...keys: ReadonlyArray<string>) {
+function recordNumber(input: unknown, ...keys: ReadonlyArray<string>): number | undefined {
   if (typeof input !== "object" || input === null) return undefined;
   for (const key of keys) {
     const value = (input as Record<string, unknown>)[key];
@@ -89,7 +91,7 @@ function recordNumber(input: unknown, ...keys: ReadonlyArray<string>) {
   return undefined;
 }
 
-function stableJson(value: unknown) {
+function stableJson(value: unknown): string {
   if (typeof value === "string") return value;
   try {
     return JSON.stringify(value, null, 2);
@@ -98,7 +100,7 @@ function stableJson(value: unknown) {
   }
 }
 
-function nativeReadOutput(output: string) {
+function nativeReadOutput(output: string): string {
   const header = /^<path>[^\r\n]+<\/path>\r?\n<type>(directory|file)<\/type>\r?\n/.exec(output);
   if (header === null) return output;
   const body = output.slice(header[0].length);
@@ -110,7 +112,7 @@ function nativeReadOutput(output: string) {
 }
 
 /** OpenCode's shell tool succeeds when the command exits non-zero. */
-export function openCodeCommandFailed(toolName: string, completedMetadata: unknown) {
+export function openCodeCommandFailed(toolName: string, completedMetadata: unknown): boolean {
   const exitCode = recordNumber(completedMetadata, "exit", "exitCode");
   return (
     openCodeToolProjectionKind(toolName) === "command_execution" &&
@@ -120,7 +122,10 @@ export function openCodeCommandFailed(toolName: string, completedMetadata: unkno
 }
 
 /** Code Mode reports nested calls with their input but no result, so pages are found by input. */
-export function openCodeCodeModeHtmlRenders(completedMetadata: unknown, mcpServerName: string) {
+export function openCodeCodeModeHtmlRenders(
+  completedMetadata: unknown,
+  mcpServerName: string,
+): ReadonlyArray<{ readonly index: number; readonly input: Record<string, unknown> }> {
   if (typeof completedMetadata !== "object" || completedMetadata === null) return [];
   const toolCalls = (completedMetadata as Record<string, unknown>)["toolCalls"];
   if (!Array.isArray(toolCalls)) return [];
@@ -145,7 +150,7 @@ export function openCodeToolTurnItem(
     readonly completedMetadata: unknown;
     readonly files?: ReadonlyArray<{ readonly uri: string; readonly mime: string }> | undefined;
   },
-) {
+): OrchestrationV2TurnItem {
   const { input, output } = tool;
   switch (openCodeToolProjectionKind(tool.name)) {
     case "command_execution": {
@@ -156,7 +161,7 @@ export function openCodeToolTurnItem(
         input: recordString(input, "command", "cmd") ?? stableJson(input),
         ...(output === undefined ? {} : { output }),
         ...(exitCode === undefined ? {} : { exitCode }),
-      } satisfies OrchestrationV2TurnItem;
+      };
     }
     case "file_change": {
       const oldStr = recordText(input, "oldString", "oldText");
@@ -171,7 +176,7 @@ export function openCodeToolTurnItem(
         ...(oldStr === undefined ? {} : { oldStr }),
         ...(newStr === undefined ? {} : { newStr }),
         ...(diffStr === undefined ? {} : { diffStr }),
-      } satisfies OrchestrationV2TurnItem;
+      };
     }
     case "file_search": {
       const pattern = recordString(input, "pattern", "query", "path", "filePath");
@@ -190,7 +195,7 @@ export function openCodeToolTurnItem(
                 { fileName: searchRoot, preview: output.slice(0, SEARCH_PREVIEW_MAX_CHARS) },
               ],
             }),
-      } satisfies OrchestrationV2TurnItem;
+      };
     }
     case "web_search": {
       const pattern = recordString(input, "query", "url", "pattern");
@@ -209,7 +214,7 @@ export function openCodeToolTurnItem(
                 },
               ],
             }),
-      } satisfies OrchestrationV2TurnItem;
+      };
     }
     case "dynamic_tool": {
       const readPath = recordString(input, "filePath", "path", "file");
@@ -227,7 +232,7 @@ export function openCodeToolTurnItem(
         ...(cleanedOutput === undefined && !tool.files?.length
           ? {}
           : { output: openCodeToolOutput(cleanedOutput, tool.files) }),
-      } satisfies OrchestrationV2TurnItem;
+      };
     }
   }
 }

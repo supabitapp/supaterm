@@ -5,7 +5,7 @@ export function buildCollapsedProposedPlanPreviewMarkdown(
   options?: {
     maxLines?: number;
   },
-) {
+): string {
   const maxLines = options?.maxLines ?? 8;
   const lines = stripDisplayedPlanMarkdown(planMarkdown)
     .trimEnd()
@@ -42,7 +42,7 @@ export function buildCollapsedProposedPlanPreviewMarkdown(
   return previewLines.join("\n");
 }
 
-function sanitizePlanFileSegment(input: string) {
+function sanitizePlanFileSegment(input: string): string {
   const sanitized = input
     .toLowerCase()
     .replace(/[`'".,!?()[\]{}]+/g, "")
@@ -53,16 +53,16 @@ function sanitizePlanFileSegment(input: string) {
 
 export const PLAN_IMPLEMENTATION_PROMPT_PREFIX = "PLEASE IMPLEMENT THIS PLAN:\n";
 
-export function buildProposedPlanMarkdownFilename(planMarkdown: string) {
+export function buildProposedPlanMarkdownFilename(planMarkdown: string): string {
   const title = proposedPlanTitle(planMarkdown);
   return `${sanitizePlanFileSegment(title ?? "plan")}.md`;
 }
 
-export function normalizePlanMarkdownForExport(planMarkdown: string) {
+export function normalizePlanMarkdownForExport(planMarkdown: string): string {
   return `${planMarkdown.trimEnd()}\n`;
 }
 
-export function downloadPlanAsTextFile(filename: string, contents: string) {
+export function downloadPlanAsTextFile(filename: string, contents: string): void {
   const blob = new Blob([contents], { type: "text/markdown;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");

@@ -12,32 +12,26 @@ export function resolveAntigravityUserHome(
   platform: NodeJS.Platform,
   environment: NodeJS.ProcessEnv,
   home: string,
-): string;
-export function resolveAntigravityUserHome(
-  platform: NodeJS.Platform,
-  environment: NodeJS.ProcessEnv,
-  home: string,
-) {
+): string {
   if (platform === "win32") {
-    if (environment.USERPROFILE) return environment.USERPROFILE satisfies string;
+    if (environment.USERPROFILE) return environment.USERPROFILE;
     if (environment.HOMEDRIVE && environment.HOMEPATH) {
-      return `${environment.HOMEDRIVE}${environment.HOMEPATH}` satisfies string;
+      return `${environment.HOMEDRIVE}${environment.HOMEPATH}`;
     }
-    return home satisfies string;
+    return home;
   }
-  return (environment.HOME || home) satisfies string;
+  return environment.HOME || home;
 }
 
 /** Link private GEMINI_HOME skills to ~/.gemini; ~/.agents/skills is ignored because .agents/skills is project-only. */
 export function antigravityUserSkillDirectories(
   path: Path.Path,
   geminiHome: string,
-): readonly [configSkills: string, cliSkills: string];
-export function antigravityUserSkillDirectories(path: Path.Path, geminiHome: string) {
+): readonly [configSkills: string, cliSkills: string] {
   return [
     path.join(geminiHome, "config", "skills"),
     path.join(geminiHome, "antigravity-cli", "skills"),
-  ] satisfies readonly [configSkills: string, cliSkills: string];
+  ];
 }
 
 const MAX_SKILL_BYTES = 1_000_000;
@@ -59,7 +53,7 @@ export class AntigravitySkillsProbeError extends Schema.TaggedError<AntigravityS
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return this.reason === "scan-budget-exhausted"
       ? `Antigravity skill discovery exceeded its scan limit at '${this.path}'.`
       : `Antigravity could not read skills at '${this.path}'.`;
@@ -164,17 +158,14 @@ const readSkillFrontmatter = Effect.fn("readAntigravitySkill")(function* (
 });
 
 /** Keep read errors typed so workspace snapshots cannot cache partial results. */
-export const discoverAntigravitySkills: (input: {
+export const discoverAntigravitySkills = Effect.fn("discoverAntigravitySkills")(function* (input: {
   readonly cwd: string;
   readonly userHome: string;
-}) => Effect.Effect<
+}): Effect.fn.Return<
   ReadonlyArray<ServerProviderSkill>,
   AntigravitySkillsProbeError,
   FileSystem.FileSystem | Path.Path
-> = Effect.fn("discoverAntigravitySkills")(function* (input: {
-  readonly cwd: string;
-  readonly userHome: string;
-}) {
+> {
   const fileSystem = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const [configSkills, cliSkills] = antigravityUserSkillDirectories(
@@ -194,13 +185,11 @@ export const discoverAntigravitySkills: (input: {
   };
   const skillsByName = new Map<string, ServerProviderSkill>();
 
-  const scanDirectory: (
+  const scanDirectory = Effect.fn("scanAntigravitySkillDirectory")(function* (
     directory: string,
     scope: string,
     scanChildren: boolean,
-  ) => Effect.Effect<void, AntigravitySkillsProbeError, FileSystem.FileSystem> = Effect.fn(
-    "scanAntigravitySkillDirectory",
-  )(function* (directory: string, scope: string, scanChildren: boolean) {
+  ): Effect.fn.Return<void, AntigravitySkillsProbeError, FileSystem.FileSystem> {
     const info = yield* readIfPresent(fileSystem.stat(directory), directory);
     if (info?.type !== "Directory") return;
     const entries = yield* readIfPresent(fileSystem.readDirectory(directory), directory);

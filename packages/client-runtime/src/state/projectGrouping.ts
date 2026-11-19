@@ -20,14 +20,14 @@ export interface ProjectGroupingSettings {
 
 export type ProjectGroupingMode = SidebarProjectGroupingMode;
 
-export function selectProjectGroupingSettings(settings: ClientSettings) {
+export function selectProjectGroupingSettings(settings: ClientSettings): ProjectGroupingSettings {
   return {
     sidebarProjectGroupingMode: settings.sidebarProjectGroupingMode,
     sidebarProjectGroupingOverrides: settings.sidebarProjectGroupingOverrides,
   };
 }
 
-function uniqueNonEmptyValues(values: ReadonlyArray<string | null | undefined>) {
+function uniqueNonEmptyValues(values: ReadonlyArray<string | null | undefined>): string[] {
   const seen = new Set<string>();
   const unique: string[] = [];
   for (const value of values) {
@@ -43,7 +43,7 @@ function uniqueNonEmptyValues(values: ReadonlyArray<string | null | undefined>) 
 
 function deriveRepositoryRelativeProjectPath(
   project: Pick<EnvironmentProject, "workspaceRoot" | "repositoryIdentity">,
-) {
+): string | null {
   const rootPath = project.repositoryIdentity?.rootPath?.trim();
   if (!rootPath) {
     return null;
@@ -68,32 +68,32 @@ function deriveRepositoryRelativeProjectPath(
   return normalizedProjectPath.slice(rootPrefix.length).replaceAll("\\", "/");
 }
 
-function derivePhysicalProjectKeyFromPath(environmentId: string, cwd: string) {
+function derivePhysicalProjectKeyFromPath(environmentId: string, cwd: string): string {
   return `${environmentId}:${normalizeProjectPathForComparison(cwd)}`;
 }
 
 export function derivePhysicalProjectKey(
   project: Pick<EnvironmentProject, "environmentId" | "workspaceRoot">,
-) {
+): string {
   return derivePhysicalProjectKeyFromPath(project.environmentId, project.workspaceRoot);
 }
 
 function deriveProjectGroupingOverrideKey(
   project: Pick<EnvironmentProject, "environmentId" | "workspaceRoot">,
-) {
+): string {
   return derivePhysicalProjectKey(project);
 }
 
 export function getProjectOrderKey(
   project: Pick<EnvironmentProject, "environmentId" | "workspaceRoot">,
-) {
+): string {
   return derivePhysicalProjectKey(project);
 }
 
 function resolveProjectGroupingMode(
   project: Pick<EnvironmentProject, "environmentId" | "workspaceRoot">,
   settings: ProjectGroupingSettings,
-) {
+): SidebarProjectGroupingMode {
   return (
     settings.sidebarProjectGroupingOverrides?.[deriveProjectGroupingOverrideKey(project)] ??
     settings.sidebarProjectGroupingMode
@@ -103,7 +103,7 @@ function resolveProjectGroupingMode(
 function deriveRepositoryScopedKey(
   project: Pick<EnvironmentProject, "workspaceRoot" | "repositoryIdentity">,
   groupingMode: SidebarProjectGroupingMode,
-) {
+): string | null {
   const canonicalKey = project.repositoryIdentity
     ? repositoryGroupingKeyOf(project.repositoryIdentity)
     : null;
@@ -134,7 +134,7 @@ function deriveLogicalProjectKey(
     readonly groupingMode?: SidebarProjectGroupingMode;
     readonly groupScratchProjects?: boolean;
   },
-) {
+): string {
   if (options?.groupScratchProjects && project.isScratch) return SCRATCH_PROJECT_SCOPE_KEY;
   const groupingMode = options?.groupingMode ?? "repository";
   if (groupingMode === "separate") {
@@ -155,7 +155,7 @@ export function deriveLogicalProjectKeyFromSettings(
   >,
   settings: ProjectGroupingSettings,
   options?: { readonly groupScratchProjects?: boolean },
-) {
+): string {
   return deriveLogicalProjectKey(project, {
     groupingMode: resolveProjectGroupingMode(project, settings),
     groupScratchProjects: options?.groupScratchProjects ?? false,
@@ -174,7 +174,7 @@ export function resolveScratchProjectScopeKey(
     sidebarProjectGroupingMode: "repository",
     sidebarProjectGroupingOverrides: {},
   },
-) {
+): string | null {
   if (key === null || key === SCRATCH_PROJECT_SCOPE_KEY) return key;
   if (
     projects.some(
@@ -203,7 +203,7 @@ export function deriveProjectGroupLabel(input: {
   readonly members: ReadonlyArray<
     Pick<EnvironmentProject, "title" | "hasCustomTitle" | "repositoryIdentity">
   >;
-}) {
+}): string {
   const sharedTitles = uniqueNonEmptyValues(input.members.map((member) => member.title));
   const sharedDisplayNames = uniqueNonEmptyValues(
     input.members.map((member) =>
@@ -263,12 +263,12 @@ export interface ProjectGroup<TProject extends EnvironmentProject = EnvironmentP
 /** The groups a project picker offers: archived groups left out, pinned ones first. */
 export function pickableProjectGroups<
   TGroup extends { readonly pinned: boolean; readonly archived: boolean },
->(groups: ReadonlyArray<TGroup>) {
+>(groups: ReadonlyArray<TGroup>): TGroup[] {
   const open = groups.filter((group) => !group.archived);
   return [...open.filter((group) => group.pinned), ...open.filter((group) => !group.pinned)];
 }
 
-function projectFreshnessTime(project: EnvironmentProject) {
+function projectFreshnessTime(project: EnvironmentProject): number {
   const updatedAtTime = Date.parse(project.updatedAt);
   if (Number.isFinite(updatedAtTime)) {
     return updatedAtTime;
@@ -280,7 +280,7 @@ function projectFreshnessTime(project: EnvironmentProject) {
 function shouldReplacePhysicalProjectWinner<TProject extends EnvironmentProject>(
   existing: TProject,
   candidate: TProject,
-) {
+): boolean {
   const freshnessDelta = projectFreshnessTime(candidate) - projectFreshnessTime(existing);
   return freshnessDelta > 0 || (freshnessDelta === 0 && candidate.id > existing.id);
 }
@@ -288,7 +288,7 @@ function shouldReplacePhysicalProjectWinner<TProject extends EnvironmentProject>
 function selectProjectIdentitySource<TProject extends EnvironmentProject>(
   projects: ReadonlyArray<TProject>,
   winner: TProject,
-) {
+): TProject {
   if (winner.repositoryIdentity !== null) {
     return winner;
   }
@@ -313,7 +313,7 @@ export function buildProjectGroups<TProject extends EnvironmentProject>(input: {
   readonly settings: ProjectGroupingSettings;
   readonly preferredEnvironmentId?: EnvironmentId | null;
   readonly groupScratchProjects?: boolean;
-}) {
+}): ReadonlyArray<ProjectGroup<TProject>> {
   const projectsByPhysicalKey = new Map<string, TProject[]>();
   for (const project of input.projects) {
     const physicalProjectKey = derivePhysicalProjectKey(project);
@@ -403,7 +403,7 @@ export function sortProjectsByGroupOrder<
     readonly pinned: boolean;
     readonly archived: boolean;
   }>,
-) {
+): TProject[] {
   const rankByProject = new Map<string, number>();
   pickableProjectGroups(groups).forEach((group, rank) => {
     for (const ref of group.memberProjectRefs) {

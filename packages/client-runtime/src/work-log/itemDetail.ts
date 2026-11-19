@@ -14,7 +14,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function isSummarizedValue(value: unknown) {
+function isSummarizedValue(value: unknown): boolean {
   return isRecord(value) && value.truncated === true && typeof value.summary === "string";
 }
 
@@ -22,31 +22,27 @@ function textFromBlocks(
   value: unknown,
   depth: number,
   imageBlocks: ReadonlyArray<unknown>,
-): string | null;
-function textFromBlocks(value: unknown, depth: number, imageBlocks: ReadonlyArray<unknown>) {
-  if (depth > MAX_TEXT_BLOCK_DEPTH) return null satisfies string | null;
-  if (typeof value === "string") return value satisfies string | null;
+): string | null {
+  if (depth > MAX_TEXT_BLOCK_DEPTH) return null;
+  if (typeof value === "string") return value;
   if (Array.isArray(value)) {
     const parts = value.map((block) => textFromBlocks(block, depth + 1, imageBlocks));
-    return (
-      parts.every((part) => part !== null) ? parts.filter((part) => part !== "").join("\n") : null
-    ) satisfies string | null;
+    return parts.every((part) => part !== null)
+      ? parts.filter((part) => part !== "").join("\n")
+      : null;
   }
-  if (!isRecord(value)) return null satisfies string | null;
-  if (value.type === "text" && typeof value.text === "string")
-    return value.text satisfies string | null;
-  if (value.type === "image")
-    return (imageBlocks.includes(value) ? "" : "[image]") satisfies string | null;
-  if (value.type === "resource_link" && typeof value.uri === "string")
-    return value.uri satisfies string | null;
+  if (!isRecord(value)) return null;
+  if (value.type === "text" && typeof value.text === "string") return value.text;
+  if (value.type === "image") return imageBlocks.includes(value) ? "" : "[image]";
+  if (value.type === "resource_link" && typeof value.uri === "string") return value.uri;
   if (value.type === "resource" && isRecord(value.resource)) {
     const resource = value.resource;
-    if (typeof resource.text === "string") return resource.text satisfies string | null;
-    if (typeof resource.uri === "string") return resource.uri satisfies string | null;
+    if (typeof resource.text === "string") return resource.text;
+    if (typeof resource.uri === "string") return resource.uri;
   }
   const keys = Object.keys(value).filter((key) => key !== "isError" && key !== "is_error");
   if (keys.length === 1 && keys[0] === "content")
-    return textFromBlocks(value.content, depth + 1, imageBlocks) satisfies string | null;
+    return textFromBlocks(value.content, depth + 1, imageBlocks);
   if (keys.length === 2 && keys.includes("content") && keys.includes("structuredContent")) {
     const text = textFromBlocks(value.content, depth + 1, imageBlocks);
     const images = Array.isArray(value.content)
@@ -55,23 +51,22 @@ function textFromBlocks(value: unknown, depth: number, imageBlocks: ReadonlyArra
     const structured = formatJsonValue(value.structuredContent);
     if (structured !== null && (images.length > 0 || !text?.trim())) {
       const markers = textFromBlocks(images, depth + 1, imageBlocks);
-      return [structured, markers].filter(Boolean).join("\n") satisfies string | null;
+      return [structured, markers].filter(Boolean).join("\n");
     }
-    return (text?.trim() ? text : null) satisfies string | null;
+    return text?.trim() ? text : null;
   }
-  return null satisfies string | null;
+  return null;
 }
 
-function parseJson(text: string): unknown;
-function parseJson(text: string) {
+function parseJson(text: string): unknown {
   try {
-    return JSON.parse(text) satisfies unknown;
+    return JSON.parse(text);
   } catch {
-    return undefined satisfies unknown;
+    return undefined;
   }
 }
 
-export function isJsonToolText(text: string) {
+export function isJsonToolText(text: string): boolean {
   if (parseJson(text) !== undefined) return true;
   const documents = text.trim().split(/\n\s*\n/);
   return documents.length > 1 && documents.every((document) => parseJson(document) !== undefined);
@@ -79,7 +74,7 @@ export function isJsonToolText(text: string) {
 
 const JSON_STRING_OR_NUMBER = /"(?:[^"\\]|\\.)*"|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?/g;
 
-function hasLossyJsonNumber(json: string) {
+function hasLossyJsonNumber(json: string): boolean {
   for (const [token] of json.matchAll(JSON_STRING_OR_NUMBER)) {
     if (token.startsWith('"')) continue;
     const value = Number(token);
@@ -90,7 +85,7 @@ function hasLossyJsonNumber(json: string) {
   return false;
 }
 
-function prettyJsonText(text: string) {
+function prettyJsonText(text: string): string {
   const trimmed = text.trim();
   if (!/^[[{]/.test(trimmed)) return text;
   const whole = parseJson(trimmed);
@@ -105,25 +100,24 @@ function prettyJsonText(text: string) {
   return documents.map((document) => JSON.stringify(document, null, 2)).join("\n\n");
 }
 
-function formatJsonValue(value: unknown): string | null;
-function formatJsonValue(value: unknown) {
-  if (value === undefined || value === null) return null satisfies string | null;
-  if (typeof value === "string" && !value.trim()) return null satisfies string | null;
+function formatJsonValue(value: unknown): string | null {
+  if (value === undefined || value === null) return null;
+  if (typeof value === "string" && !value.trim()) return null;
   let json: string | undefined;
   try {
     json = JSON.stringify(value, null, 2);
   } catch {
-    return String(value) satisfies string | null;
+    return String(value);
   }
-  if (json === undefined || json === "{}" || json === "[]") return null satisfies string | null;
-  return json satisfies string | null;
+  if (json === undefined || json === "{}" || json === "[]") return null;
+  return json;
 }
 
 function formatToolValue(
   value: unknown,
   hasImagePreview = false,
   previewedImageBlocks = toolOutputImageBlocks(value),
-) {
+): string | null {
   if (value === undefined || value === null) return null;
   if (hasImagePreview && isRecord(value) && value.type === "image") return null;
   const text = textFromBlocks(value, 0, previewedImageBlocks);
@@ -134,42 +128,36 @@ function formatToolValue(
 export function toolCallLines(input: {
   readonly command?: string | undefined;
   readonly args?: unknown;
-}) {
+}): {
+  readonly command: string | null;
+  readonly args: ReadonlyArray<readonly [string, string]> | null;
+  readonly argsText: string | null;
+} {
   if (input.command !== undefined) {
     const command = input.command.trim();
-    return { command: command || null, args: null, argsText: null } satisfies {
-      readonly command: string | null;
-      readonly args: ReadonlyArray<readonly [string, string]> | null;
-      readonly argsText: string | null;
-    };
+    return { command: command || null, args: null, argsText: null };
   }
   const args = input.args;
   if (isRecord(args) && !isSummarizedValue(args)) {
-    const entries = Object.entries(args).flatMap(([key, value]) => {
-      if (value === undefined) return [] satisfies Array<readonly [string, string]>;
-      return [
-        [
-          key,
-          typeof value === "string" && value !== ""
-            ? value
-            : (JSON.stringify(value) ?? String(value)),
-        ],
-      ] satisfies Array<readonly [string, string]>;
-    });
-    return { command: null, args: entries.length > 0 ? entries : null, argsText: null } satisfies {
-      readonly command: string | null;
-      readonly args: ReadonlyArray<readonly [string, string]> | null;
-      readonly argsText: string | null;
-    };
+    const entries = Object.entries(args).flatMap(
+      ([key, value]): Array<readonly [string, string]> => {
+        if (value === undefined) return [];
+        return [
+          [
+            key,
+            typeof value === "string" && value !== ""
+              ? value
+              : (JSON.stringify(value) ?? String(value)),
+          ],
+        ];
+      },
+    );
+    return { command: null, args: entries.length > 0 ? entries : null, argsText: null };
   }
-  return { command: null, args: null, argsText: formatToolValue(args) } satisfies {
-    readonly command: string | null;
-    readonly args: ReadonlyArray<readonly [string, string]> | null;
-    readonly argsText: string | null;
-  };
+  return { command: null, args: null, argsText: formatToolValue(args) };
 }
 
-function toolCallHasLines(lines: ReturnType<typeof toolCallLines>) {
+function toolCallHasLines(lines: ReturnType<typeof toolCallLines>): boolean {
   return lines.command !== null || lines.args !== null || lines.argsText !== null;
 }
 
@@ -184,11 +172,11 @@ const LIVE_TURN_ITEM_STATUSES: ReadonlySet<OrchestrationV2TurnItem["status"]> = 
  * A running item keeps one key, so an open row fetches once while it streams and
  * again when it finishes, not on every update.
  */
-export function turnItemDetailRevision(item: OrchestrationV2TurnItem) {
+export function turnItemDetailRevision(item: OrchestrationV2TurnItem): string {
   return LIVE_TURN_ITEM_STATUSES.has(item.status) ? "live" : DateTime.formatIso(item.updatedAt);
 }
 
-export function turnItemNeedsDetailFetch(item: OrchestrationV2TurnItem) {
+export function turnItemNeedsDetailFetch(item: OrchestrationV2TurnItem): boolean {
   switch (item.type) {
     case "command_execution":
       return item.outputOmitted === true;
@@ -201,7 +189,7 @@ export function turnItemNeedsDetailFetch(item: OrchestrationV2TurnItem) {
 
 function dynamicToolOutputText(
   item: Extract<OrchestrationV2TurnItem, { readonly type: "dynamic_tool" }>,
-) {
+): string | null {
   const output = item.output;
   if (!isRecord(output) || !(MCP_APP_OUTPUT_KEY in output) || !("result" in output)) {
     return formatToolValue(output, item.viewedImagePath !== undefined);
@@ -210,7 +198,7 @@ function dynamicToolOutputText(
   return formatToolValue(isRecord(result) ? mcpToolResultOutput(result) : result, false, []);
 }
 
-export function turnItemOutputText(item: OrchestrationV2TurnItem) {
+export function turnItemOutputText(item: OrchestrationV2TurnItem): string | null {
   switch (item.type) {
     case "command_execution": {
       const output = commandItemOutput(item);
@@ -250,20 +238,19 @@ export function turnItemOutputText(item: OrchestrationV2TurnItem) {
   }
 }
 
-export function turnItemOutputImages(item: OrchestrationV2TurnItem) {
-  if (item.type !== "dynamic_tool" || item.outputOmitted === true)
-    return [] satisfies ReadonlyArray<
-      Extract<AssetResource, { readonly _tag: "tool-output-image" }>
-    >;
+export function turnItemOutputImages(
+  item: OrchestrationV2TurnItem,
+): ReadonlyArray<Extract<AssetResource, { readonly _tag: "tool-output-image" }>> {
+  if (item.type !== "dynamic_tool" || item.outputOmitted === true) return [];
   return toolOutputImages(item.output).map((_, index) => ({
     _tag: "tool-output-image",
     threadId: item.threadId,
     itemId: item.id,
     index,
-  })) satisfies ReadonlyArray<Extract<AssetResource, { readonly _tag: "tool-output-image" }>>;
+  }));
 }
 
-export function turnItemHasDetail(item: OrchestrationV2TurnItem) {
+export function turnItemHasDetail(item: OrchestrationV2TurnItem): boolean {
   switch (item.type) {
     case "reasoning":
       return item.text.trim().length > 0;

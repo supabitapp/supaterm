@@ -44,7 +44,7 @@ interface TrackedToast {
   readonly phase: ProjectCloneSnapshot["phase"];
 }
 
-function renderKey(clone: ProjectCloneSnapshot) {
+function renderKey(clone: ProjectCloneSnapshot): string {
   return `${clone.phase}:${clone.stage}:${clone.percent ?? ""}:${clone.detail ?? ""}:${clone.stalled === true}:${clone.error ?? ""}`;
 }
 

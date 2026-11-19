@@ -138,7 +138,7 @@ export const GrokDriver: ProviderDriver<GrokSettings, GrokDriverEnv, Path.Path> 
     supportsMultipleInstances: true,
   },
   configSchema: GrokSettings,
-  defaultConfig: () => decodeGrokSettings({}),
+  defaultConfig: (): GrokSettings => decodeGrokSettings({}),
   usage: grokUsageReader,
   create: Effect.fn("GrokDriver.create")(function* ({
     instanceId,

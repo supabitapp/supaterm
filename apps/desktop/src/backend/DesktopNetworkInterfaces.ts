@@ -27,7 +27,7 @@ export class DesktopNetworkInterfacesReadError extends Schema.TaggedError<Deskto
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Failed to read desktop network interfaces on ${this.platform}.`;
   }
 }

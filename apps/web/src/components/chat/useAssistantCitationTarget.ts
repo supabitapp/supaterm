@@ -45,7 +45,7 @@ export function useAssistantCitationTarget({
     current = request ? createCitationNavigation(request) : null;
     setNavigation(current);
   }
-  function createCitationNavigation(next: AssistantCitationRequest) {
+  function createCitationNavigation(next: AssistantCitationRequest): CitationNavigation {
     let done = false;
     const activationRef: AssistantCitationTarget["activationRef"] = {
       current: { scrolled: false, dismissed: false },

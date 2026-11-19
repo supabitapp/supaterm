@@ -36,7 +36,7 @@ const reportTargetsAtom = Atom.make((get) => {
  * again when its server config changes (a restarted server has forgotten them), when it becomes
  * operable, and when the profile settings change.
  */
-export function startBrowserProfileReporting() {
+export function startBrowserProfileReporting(): () => void {
   const reported: ReportedProfiles = new Map();
   const report = () => {
     if (!getClientSettingsHydratedSnapshot()) return;
@@ -81,7 +81,7 @@ export function takeDueProfileReports(
   reported: ReportedProfiles,
   targets: ReadonlyMap<EnvironmentId, EnvironmentServerConfig>,
   input: ProfileReport,
-) {
+): EnvironmentId[] {
   for (const environmentId of reported.keys()) {
     if (!targets.has(environmentId)) reported.delete(environmentId);
   }
@@ -95,7 +95,7 @@ export function takeDueProfileReports(
   return due;
 }
 
-function sameReportInput(left: ProfileReport, right: ProfileReport) {
+function sameReportInput(left: ProfileReport, right: ProfileReport): boolean {
   return (
     left.profiles === right.profiles &&
     left.defaultProfileId === right.defaultProfileId &&

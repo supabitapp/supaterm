@@ -74,26 +74,25 @@ const TraceRecordLine = Schema.Struct({
 
 const decodeTraceRecordLine = Schema.decodeUnknownSync(Schema.fromJsonString(TraceRecordLine));
 
-const makeRecord = (name: string, suffix = "") =>
-  ({
-    type: "effect-span",
-    name,
-    traceId: `trace-${name}-${suffix}`,
-    spanId: `span-${name}-${suffix}`,
-    sampled: true,
-    kind: "internal",
-    startTimeUnixNano: "1",
-    endTimeUnixNano: "2",
-    durationMs: 1,
-    attributes: {
-      payload: suffix,
-    },
-    events: [],
-    links: [],
-    exit: {
-      _tag: "Success",
-    },
-  }) satisfies TraceRecord;
+const makeRecord = (name: string, suffix = ""): TraceRecord => ({
+  type: "effect-span",
+  name,
+  traceId: `trace-${name}-${suffix}`,
+  spanId: `span-${name}-${suffix}`,
+  sampled: true,
+  kind: "internal",
+  startTimeUnixNano: "1",
+  endTimeUnixNano: "2",
+  durationMs: 1,
+  attributes: {
+    payload: suffix,
+  },
+  events: [],
+  links: [],
+  exit: {
+    _tag: "Success",
+  },
+});
 
 const readTraceRecords = Effect.fn("readTraceRecords")(function* (tracePath: string) {
   const fileSystem = yield* FileSystem.FileSystem;

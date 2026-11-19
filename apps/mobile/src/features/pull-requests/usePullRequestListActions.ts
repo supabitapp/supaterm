@@ -9,6 +9,7 @@ import type { EnvironmentId, PullRequestAction } from "@supaterm/contracts";
 import { Atom, AsyncResult } from "effect/reactivity";
 import { use, useRef, useState } from "react";
 import { Linking } from "react-native";
+import type { MenuProps } from "../../components/ui/Menu.types";
 import { composerPullRequests } from "../../state/pull-requests";
 import { useAtomCommand } from "../../state/use-atom-command";
 import {
@@ -158,7 +159,7 @@ export function usePullRequestListActions(
       },
     ]);
   };
-  const actions = (entry: EnvironmentPullRequestListEntry) => {
+  const actions = (entry: EnvironmentPullRequestListEntry): MenuProps["actions"] => {
     const terminology = sourceControlClients.get(entry.provider).changeRequest;
     return [
       {

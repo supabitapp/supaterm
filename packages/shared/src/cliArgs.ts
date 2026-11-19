@@ -9,7 +9,7 @@ export interface ParseCliArgsOptions {
   readonly valueFlags?: readonly string[];
 }
 
-export function tokenizeCliArgs(args?: string) {
+export function tokenizeCliArgs(args?: string): ReadonlyArray<string> {
   const input = args;
   if (!input) return [];
 
@@ -66,7 +66,10 @@ export function tokenizeCliArgs(args?: string) {
   return tokens;
 }
 
-export function parseCliArgs(args: string | readonly string[], options?: ParseCliArgsOptions) {
+export function parseCliArgs(
+  args: string | readonly string[],
+  options?: ParseCliArgsOptions,
+): ParsedCliArgs {
   const tokens = typeof args === "string" ? tokenizeCliArgs(args) : Array.from(args);
   const booleanSet = options?.booleanFlags ? new Set(options.booleanFlags) : undefined;
   const valueSet = options?.valueFlags ? new Set(options.valueFlags) : undefined;

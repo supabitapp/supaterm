@@ -26,7 +26,7 @@ export const pendingThreadCreationOutcomesAtom = Atom.make<
   Readonly<Record<string, PendingThreadCreationOutcome>>
 >({}).pipe(Atom.keepAlive, Atom.withLabel("mobile:pending-thread-creation:outcomes"));
 
-export function recordPendingThreadCreationOutcome(outcome: PendingThreadCreationOutcome) {
+export function recordPendingThreadCreationOutcome(outcome: PendingThreadCreationOutcome): void {
   const key = scopedThreadKey(outcome.message.environmentId, outcome.message.threadId);
   appAtomRegistry.set(pendingThreadCreationOutcomesAtom, {
     ...appAtomRegistry.get(pendingThreadCreationOutcomesAtom),
@@ -34,7 +34,7 @@ export function recordPendingThreadCreationOutcome(outcome: PendingThreadCreatio
   });
 }
 
-export function clearPendingThreadCreationOutcome(threadKey: string) {
+export function clearPendingThreadCreationOutcome(threadKey: string): void {
   const current = appAtomRegistry.get(pendingThreadCreationOutcomesAtom);
   if (!current[threadKey]) {
     return;
@@ -48,7 +48,7 @@ export function clearPendingThreadCreationOutcome(threadKey: string) {
 export function withLaunchingThreads(input: {
   readonly threads: ReadonlyArray<EnvironmentThreadShell>;
   readonly launches: ReadonlyArray<QueuedThreadMessage>;
-}) {
+}): ReadonlyArray<EnvironmentThreadShell> {
   if (input.launches.length === 0) return input.threads;
   const launchByKey = new Map<string, QueuedThreadMessage>();
   for (const message of input.launches) {
@@ -71,7 +71,9 @@ export function withLaunchingThreads(input: {
 }
 
 /** Adapt the native queue format to the shared pending-thread presentation. */
-export function pendingThreadCreationShell(message: QueuedThreadMessage) {
+export function pendingThreadCreationShell(
+  message: QueuedThreadMessage,
+): EnvironmentThreadShell | null {
   const creation = message.creation;
   if (!creation || !message.modelSelection) return null;
   return buildPendingThreadShell({

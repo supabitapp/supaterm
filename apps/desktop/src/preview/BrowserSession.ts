@@ -47,7 +47,7 @@ const NEVER_EXTERNAL_PROTOCOLS: ReadonlySet<string> = new Set([
   "view-source:",
 ]);
 
-const externalProtocolPromptUrl = (rawUrl: string | undefined) => {
+const externalProtocolPromptUrl = (rawUrl: string | undefined): string | null => {
   if (!rawUrl) return null;
   try {
     const url = new URL(rawUrl);
@@ -61,10 +61,10 @@ const TEAMS_URL_PATTERNS = ["https://teams.cloud.microsoft/*", "https://teams.mi
 
 const MAX_PROMPT_URL_LENGTH = 300;
 
-const truncateForPrompt = (text: string) =>
+const truncateForPrompt = (text: string): string =>
   text.length > MAX_PROMPT_URL_LENGTH ? `${text.slice(0, MAX_PROMPT_URL_LENGTH)}…` : text;
 
-const permissionOrigin = (rawUrl: string | undefined) => {
+const permissionOrigin = (rawUrl: string | undefined): string | null => {
   if (!rawUrl) return null;
   try {
     const { origin } = new URL(rawUrl);
@@ -80,7 +80,7 @@ const OVERRIDABLE_CERTIFICATE_ERRORS: ReadonlyMap<string, string> = new Map([
   ["net::ERR_CERT_DATE_INVALID", "This certificate has expired or is not valid yet."],
 ]);
 
-const certificateOrigin = (rawUrl: string) => {
+const certificateOrigin = (rawUrl: string): string | null => {
   try {
     const url = new URL(rawUrl);
     return url.protocol === "https:" || url.protocol === "wss:" ? `https://${url.host}` : null;
@@ -99,17 +99,17 @@ const CertificateApprovalsJson = Schema.fromJsonString(Schema.Array(CertificateA
 const decodeCertificateApprovals = Schema.decodeEffect(CertificateApprovalsJson);
 const encodeCertificateApprovals = Schema.encodeEffect(CertificateApprovalsJson);
 
-const certificateApprovalKey = ({ origin, fingerprint, error }: CertificateApproval) =>
+const certificateApprovalKey = ({ origin, fingerprint, error }: CertificateApproval): string =>
   JSON.stringify([origin, fingerprint, error]);
 
 const CERTIFICATE_APPROVALS_FILE = "supaterm-certificate-approvals.json";
 
-const promptCertificateName = (name: string) => {
+const promptCertificateName = (name: string): string => {
   const flat = name.replace(/\s+/g, " ").trim();
   return flat.length > 120 ? `${flat.slice(0, 120)}…` : flat;
 };
 
-const promptCertificateDate = (seconds: number) =>
+const promptCertificateDate = (seconds: number): string =>
   DateTime.formatIsoDateUtc(DateTime.makeUnsafe(seconds * 1000));
 
 interface CertificateTrust {
@@ -125,7 +125,7 @@ export class BrowserSessionPartitionDerivationError extends Schema.TaggedError<B
     cause: Schema.instanceOf(PlatformError.PlatformError),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Failed to derive a desktop preview browser partition for scope ${this.scope}.`;
   }
 }
@@ -138,7 +138,7 @@ export class BrowserSessionCreationError extends Schema.TaggedError<BrowserSessi
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Failed to create a desktop preview browser session for scope ${this.scope} (partition ${this.partition}).`;
   }
 }
@@ -150,7 +150,7 @@ export class BrowserSessionStorageClearError extends Schema.TaggedError<BrowserS
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Failed to clear desktop preview browser storage for partition ${this.partition}.`;
   }
 }
@@ -162,7 +162,7 @@ export class BrowserSessionCacheClearError extends Schema.TaggedError<BrowserSes
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Failed to clear the desktop preview browser cache for partition ${this.partition}.`;
   }
 }
@@ -212,12 +212,12 @@ export class BrowserSession extends Context.Service<
 const selectSessions = (
   sessions: ReadonlyMap<string, Session>,
   partitions: ReadonlyArray<string> | undefined,
-) =>
+): ReadonlyArray<readonly [string, Session]> =>
   [...sessions.entries()].filter(
     ([partition]) => partitions === undefined || partitions.includes(partition),
   );
 
-const encodeScopeForDigest = (scope: string) =>
+const encodeScopeForDigest = (scope: string): Uint8Array =>
   new TextEncoder().encode(
     scope
       .replace(/\\/g, "\\\\")
@@ -261,7 +261,7 @@ export const makeWith = Effect.fn("BrowserSession.make")(function* (native: Brow
       readonly detail?: string;
     },
     callback: (answer: boolean | undefined) => void,
-  ) => {
+  ): void => {
     if (permissionPromptOpen) {
       callback(undefined);
       return;
@@ -286,7 +286,7 @@ export const makeWith = Effect.fn("BrowserSession.make")(function* (native: Brow
           previewHostWindow(native, requester),
         )
         .pipe(
-          Effect.map(({ response }) => response === 0),
+          Effect.map(({ response }): boolean | undefined => response === 0),
           Effect.orElseSucceed(() => undefined),
           Effect.flatMap(settle),
           Effect.onInterrupt(() => settle(undefined)),
@@ -297,7 +297,7 @@ export const makeWith = Effect.fn("BrowserSession.make")(function* (native: Brow
     requester: WebContents | null,
     rawUrl: string | undefined,
     callback: (granted: boolean) => void,
-  ) => {
+  ): void => {
     const url = externalProtocolPromptUrl(rawUrl);
     if (url === null) {
       callback(false);
@@ -388,7 +388,7 @@ export const makeWith = Effect.fn("BrowserSession.make")(function* (native: Brow
     certificate: Certificate,
     reason: string,
     callback: (trusted: boolean) => void,
-  ) => {
+  ): void => {
     const key = certificateApprovalKey(approval);
     if (certificatePrompt !== null) {
       if (certificatePrompt.trust === trust && certificatePrompt.key === key) {
@@ -555,7 +555,7 @@ export const makeWith = Effect.fn("BrowserSession.make")(function* (native: Brow
             requester: WebContents,
             rawUrl: string | undefined,
             callback: (granted: boolean) => void,
-          ) => {
+          ): void => {
             const origin = permissionOrigin(rawUrl);
             if (origin === null) {
               callback(false);

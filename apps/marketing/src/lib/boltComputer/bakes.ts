@@ -42,7 +42,7 @@ export function context2d(canvas: HTMLCanvasElement) {
   return ctx;
 }
 
-function tilt(nx: number, ny: number, nz: number, gloss = 0.35, power = 14) {
+function tilt(nx: number, ny: number, nz: number, gloss = 0.35, power = 14): number {
   const l = Math.hypot(nx, ny, nz);
   const [x, y, z] = [nx / l, ny / l, nz / l];
   const diffuse = (x * KEY[0] + y * KEY[1] + z * KEY[2] - KEY[2]) * 0.95;
@@ -52,15 +52,15 @@ function tilt(nx: number, ny: number, nz: number, gloss = 0.35, power = 14) {
 
 type Distance = (u: number, v: number) => number;
 
-function grad(fn: Distance, u: number, v: number) {
+function grad(fn: Distance, u: number, v: number): readonly [number, number] {
   const e = 0.0015;
   const gx = fn(u + e, v) - fn(u - e, v);
   const gy = fn(u, v + e) - fn(u, v - e);
   const l = Math.hypot(gx, gy) || 1;
-  return [gx / l, gy / l] satisfies readonly [number, number];
+  return [gx / l, gy / l];
 }
 
-function rollInto(fn: Distance, u: number, v: number, d: number, width: number) {
+function rollInto(fn: Distance, u: number, v: number, d: number, width: number): number {
   const [gx, gy] = grad(fn, u, v);
   const s = 1 - d / width;
   const th = s * s * 1.25;
@@ -91,7 +91,7 @@ function bakeRelief(unit: number, fn: (u: number, v: number, grain: number) => n
   return canvas;
 }
 
-function screw(u: number, v: number, cx: number, cy: number, angle: number) {
+function screw(u: number, v: number, cx: number, cy: number, angle: number): number | null {
   const rs = 0.013;
   const dx = u - cx;
   const dy = v - cy;
@@ -261,14 +261,14 @@ export function grainPattern(ctx: CanvasRenderingContext2D) {
 const GROOVE_ALBEDO: V3 = [44, 48, 34];
 const RIDGES = [-0.008, 0, 0.008];
 
-const lit = (albedo: V3, light: number) => {
+const lit = (albedo: V3, light: number): V3 => {
   const tone = light > 0 ? 255 : 0;
   const k = Math.min(1, Math.abs(light));
   return [
     albedo[0] + (tone - albedo[0]) * k,
     albedo[1] + (tone - albedo[1]) * k,
     albedo[2] + (tone - albedo[2]) * k,
-  ] satisfies V3;
+  ];
 };
 
 interface Paint {
@@ -276,21 +276,21 @@ interface Paint {
   readonly cover: number;
 }
 
-const paint = (color: V3, d: number, px: number) => ({
+const paint = (color: V3, d: number, px: number): Paint => ({
   color,
   cover: Math.min(1, Math.max(0, 0.5 - d / px)),
 });
 
-function over(top: Paint | null, under: Paint | null) {
-  if (!top || top.cover === 0) return under satisfies Paint | null;
-  if (!under || under.cover === 0) return top satisfies Paint | null;
+function over(top: Paint | null, under: Paint | null): Paint | null {
+  if (!top || top.cover === 0) return under;
+  if (!under || under.cover === 0) return top;
   const cover = top.cover + under.cover * (1 - top.cover);
   const mixed = (c: number) =>
     (top.color[c] * top.cover + under.color[c] * under.cover * (1 - top.cover)) / cover;
-  return { color: [mixed(0), mixed(1), mixed(2)], cover } satisfies Paint | null;
+  return { color: [mixed(0), mixed(1), mixed(2)], cover };
 }
 
-function handleLight(u: number, v: number, inside: number) {
+function handleLight(u: number, v: number, inside: number): number {
   const bevel = 0.007;
   let [nx, ny, nz] = [0, 0, 1];
   if (inside < bevel) {
@@ -367,8 +367,7 @@ export interface Bakes {
   readonly glass: HTMLCanvasElement;
 }
 
-export function bakeTextures(unit: number): Bakes;
-export function bakeTextures(unit: number) {
+export function bakeTextures(unit: number): Bakes {
   const fronts = new Map<boolean, HTMLCanvasElement>();
   return {
     front: (controls) => {
@@ -378,5 +377,5 @@ export function bakeTextures(unit: number) {
     },
     back: bakeBack(unit),
     glass: bakeGlass(SCREEN.hx * 2 * unit, SCREEN.hy * 2 * unit),
-  } satisfies Bakes;
+  };
 }

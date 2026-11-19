@@ -50,7 +50,7 @@ export function markdownMathRanges(source: string, tree?: Root) {
   return ranges;
 }
 
-function mayContainMath(text: string) {
+function mayContainMath(text: string): boolean {
   return (
     mayContainDollarMath(text) ||
     text.includes("\\(") ||
@@ -59,7 +59,7 @@ function mayContainMath(text: string) {
   );
 }
 
-function mayContainDollarMath(text: string) {
+function mayContainDollarMath(text: string): boolean {
   let opened = false;
   for (let index = 0; index < text.length; index += 1) {
     const char = text[index];
@@ -73,7 +73,7 @@ function mayContainDollarMath(text: string) {
   return false;
 }
 
-export function mathKind(className: string | undefined) {
+export function mathKind(className: string | undefined): "inline" | "display" | null {
   if (!className?.includes("language-math")) return null;
   if (className.includes("math-display")) return "display";
   return className.includes("math-inline") ? "inline" : null;

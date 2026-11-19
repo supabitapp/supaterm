@@ -3,7 +3,7 @@
  * A `%` at a line start or after whitespace stays a comment. Skips escapes and
  * `\verb` like KaTeX's lexer, in one linear pass.
  */
-export function escapeLiteralPercents(tex: string) {
+export function escapeLiteralPercents(tex: string): string {
   let repaired = "";
   let copied = 0;
   let index = 0;

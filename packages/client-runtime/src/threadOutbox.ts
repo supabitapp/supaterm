@@ -26,7 +26,7 @@ export function groupThreadOutboxMessages<Message extends { readonly createdAt: 
   identify: (message: Message) => ThreadOutboxMessageIdentity,
   compare: (left: Message, right: Message) => number = (left, right) =>
     left.createdAt.localeCompare(right.createdAt),
-) {
+): Record<string, ReadonlyArray<Message>> {
   const deduplicated = new Map<MessageId, Message>();
   for (const message of messages) deduplicated.set(identify(message).messageId, message);
   const grouped: Record<string, Array<Message>> = {};
@@ -40,7 +40,7 @@ export function groupThreadOutboxMessages<Message extends { readonly createdAt: 
 
 export function flattenThreadOutboxMessages<Message>(
   queues: Record<string, ReadonlyArray<Message>>,
-) {
+): ReadonlyArray<Message> {
   return Object.values(queues).flat();
 }
 
@@ -61,7 +61,7 @@ export class ThreadOutboxManagerError extends Schema.TaggedError<ThreadOutboxMan
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Thread outbox operation ${this.operation} failed for environment ${this.environmentId ?? "unknown"}, thread ${this.threadId ?? "unknown"}, message ${this.messageId ?? "unknown"}.`;
   }
 }
@@ -109,11 +109,11 @@ export function createThreadOutboxManager<Message extends { readonly createdAt: 
   let loadPromise: Promise<boolean> | null = null;
   let mutationQueue: Promise<void> = Promise.resolve();
   const revisions = new Map<MessageId, number>();
-  const bumpRevision = (messageId: MessageId) => {
+  const bumpRevision = (messageId: MessageId): void => {
     revisions.set(messageId, (revisions.get(messageId) ?? 0) + 1);
   };
 
-  const serialize = <A>(mutation: () => Promise<A>) => {
+  const serialize = <A>(mutation: () => Promise<A>): Promise<A> => {
     const result = mutationQueue.then(mutation, mutation);
     mutationQueue = result.then(
       () => undefined,
@@ -122,13 +122,13 @@ export function createThreadOutboxManager<Message extends { readonly createdAt: 
     return result;
   };
 
-  const currentMessages = () => options.registry.get(messagesAtom);
+  const currentMessages = (): ReadonlyArray<Message> => options.registry.get(messagesAtom);
 
-  const setMessages = (messages: ReadonlyArray<Message>) => {
+  const setMessages = (messages: ReadonlyArray<Message>): void => {
     options.registry.set(queuedMessagesByThreadKeyAtom, groupMessages(messages));
   };
 
-  const load = () => {
+  const load = (): Promise<boolean> => {
     if (loadPromise !== null) {
       return loadPromise;
     }
@@ -154,7 +154,7 @@ export function createThreadOutboxManager<Message extends { readonly createdAt: 
     return loadPromise;
   };
 
-  const enqueue = (message: Message) => {
+  const enqueue = (message: Message): Promise<void> => {
     bumpRevision(identify(message).messageId);
     setMessages([
       ...currentMessages().filter(
@@ -181,7 +181,7 @@ export function createThreadOutboxManager<Message extends { readonly createdAt: 
     });
   };
 
-  const enqueueMany = (messages: ReadonlyArray<Message>) =>
+  const enqueueMany = (messages: ReadonlyArray<Message>): Promise<void> =>
     serialize(async () => {
       if (!options.storage.writeMany) {
         throw new Error("This storage adapter does not support atomic outbox batches.");
@@ -195,7 +195,7 @@ export function createThreadOutboxManager<Message extends { readonly createdAt: 
       setMessages([...currentMessages(), ...messages]);
     });
 
-  const reload = () =>
+  const reload = (): Promise<void> =>
     serialize(async () => {
       const result = await options.storage.load();
       if (result.errors.length > 0) {
@@ -227,12 +227,16 @@ export function createThreadOutboxManager<Message extends { readonly createdAt: 
       setMessages(reconciled);
     });
 
-  const confirmQueued = (message: Message) =>
+  const confirmQueued = (message: Message): Promise<boolean> =>
     serialize(async () => currentMessages().some((candidate) => candidate === message));
 
-  const update = (message: Message, expectedRevision?: number, canUpdate?: () => boolean) =>
+  const update = (
+    message: Message,
+    expectedRevision?: number,
+    canUpdate?: () => boolean,
+  ): Promise<boolean> =>
     serialize(async () => {
-      const staleOrMissing = () =>
+      const staleOrMissing = (): boolean =>
         !currentMessages().some(
           (candidate) => identify(candidate).messageId === identify(message).messageId,
         ) ||
@@ -278,7 +282,10 @@ export function createThreadOutboxManager<Message extends { readonly createdAt: 
       return true;
     });
 
-  const amend = (messageId: MessageId, change: (message: Message) => Message | null) =>
+  const amend = (
+    messageId: MessageId,
+    change: (message: Message) => Message | null,
+  ): Promise<boolean> =>
     serialize(async () => {
       const current = currentMessages().find(
         (candidate) => identify(candidate).messageId === messageId,
@@ -315,9 +322,13 @@ export function createThreadOutboxManager<Message extends { readonly createdAt: 
       return true;
     });
 
-  const remove = (message: Message, expectedRevision?: number, canRemove?: () => boolean) =>
+  const remove = (
+    message: Message,
+    expectedRevision?: number,
+    canRemove?: () => boolean,
+  ): Promise<Message | null> =>
     serialize(async () => {
-      const removalCanceled = () =>
+      const removalCanceled = (): boolean =>
         (expectedRevision !== undefined &&
           (revisions.get(identify(message).messageId) ?? 0) !== expectedRevision) ||
         canRemove?.() === false;
@@ -355,7 +366,7 @@ export function createThreadOutboxManager<Message extends { readonly createdAt: 
       return removed;
     });
 
-  const clearEnvironment = (environmentId: EnvironmentId) => {
+  const clearEnvironment = (environmentId: EnvironmentId): Promise<ReadonlyArray<Message>> => {
     const revisionsAtRequest = new Map(revisions);
     return serialize(async () => {
       const persisted = await options.storage
@@ -455,7 +466,7 @@ export function createThreadOutboxManager<Message extends { readonly createdAt: 
     getSnapshot: currentMessages,
     subscribe: (listener: () => void) => options.registry.subscribe(messagesAtom, listener),
     confirmQueued,
-    revisionOf: (messageId: MessageId) => revisions.get(messageId) ?? 0,
+    revisionOf: (messageId: MessageId): number => revisions.get(messageId) ?? 0,
     update,
     amend,
     remove,

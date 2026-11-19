@@ -3,7 +3,7 @@ export function threadDragGapOffset(
   sourceOffset: number,
   sourceHeight: number,
   insertionOffset: number,
-) {
+): number {
   if (rowOffset === sourceOffset) return 0;
   if (insertionOffset <= sourceOffset) {
     return rowOffset >= insertionOffset && rowOffset < sourceOffset ? sourceHeight : 0;

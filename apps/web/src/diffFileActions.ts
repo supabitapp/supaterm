@@ -17,7 +17,10 @@ interface OpenDiffFilePrimaryActionInput {
   readonly openInEditor: (targetPath: string) => void;
 }
 
-function normalizedRelativePathSegments(filePath: string, windowsRoot: boolean) {
+function normalizedRelativePathSegments(
+  filePath: string,
+  windowsRoot: boolean,
+): ReadonlyArray<string> | null {
   if (filePath.startsWith("/") || isWindowsAbsolutePath(filePath) || /^[a-zA-Z]:/.test(filePath)) {
     return null;
   }
@@ -34,7 +37,7 @@ function normalizedRelativePathSegments(filePath: string, windowsRoot: boolean) 
 function repositoryRelativeWorkspaceSegments(
   workspaceRoot: string | undefined,
   repositoryRoot: string | undefined,
-) {
+): ReadonlyArray<string> | null {
   if (!workspaceRoot || !repositoryRoot) return null;
 
   const normalizedWorkspaceRoot = normalizeProjectPathForComparison(workspaceRoot);
@@ -54,7 +57,7 @@ export function resolveDiffPathForWorkspace(input: {
   readonly filePath: string;
   readonly workspaceRoot: string | undefined;
   readonly repositoryRoot: string | undefined;
-}) {
+}): string | null {
   const windowsRoot = [input.workspaceRoot, input.repositoryRoot].some(
     (root) => root !== undefined && isWindowsAbsolutePath(root),
   );
@@ -96,7 +99,7 @@ export function openDiffFilePrimaryAction({
   activeCwd,
   repositoryRoot,
   openInEditor,
-}: OpenDiffFilePrimaryActionInput) {
+}: OpenDiffFilePrimaryActionInput): void {
   const workspaceFilePath = resolveDiffPathForWorkspace({
     filePath,
     workspaceRoot: activeCwd,

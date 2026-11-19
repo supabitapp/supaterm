@@ -7,7 +7,7 @@ import { LATEST_DATE_MS, type MuseSubscriptionUsage } from "./protocol.ts";
 const isoMillis = (ms: number) => DateTime.formatIso(DateTime.makeUnsafe(ms));
 
 /** Muse's account-wide report as Limits windows, with its tier as the plan. */
-export function museUsageToLimits(usage: MuseSubscriptionUsage) {
+export function museUsageToLimits(usage: MuseSubscriptionUsage): ProviderUsageLimitsReport {
   const tier = usage.tier.trim();
   return {
     checkedAt: isoMillis(usage.observedAtMs),
@@ -30,10 +30,10 @@ export function museUsageToLimits(usage: MuseSubscriptionUsage) {
       },
     ],
     ...(tier ? { authLabel: tier } : {}),
-  } satisfies ProviderUsageLimitsReport;
+  };
 }
 
-export function isMuseUsageLimitFailure(message: string | undefined) {
+export function isMuseUsageLimitFailure(message: string | undefined): boolean {
   return message !== undefined && /\b429\b/.test(message) && /quota|usage limit/i.test(message);
 }
 
@@ -47,7 +47,7 @@ export function museUsageLimitResetAt(
     readonly quota?: { readonly resetsAtMs: number } | undefined;
     readonly message?: string | undefined;
   },
-) {
+): string | null {
   const named = refusal?.message?.match(NAMED_RESET)?.[1];
   const resets = [
     ...[usage?.window, usage?.weekly].map((window) =>

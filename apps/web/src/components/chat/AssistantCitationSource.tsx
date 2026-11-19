@@ -25,7 +25,7 @@ export function observeAssistantCitationCommentSource({
   anchor: AssistantCitationSourceAnchor;
   citation: AssistantCitation;
   onUnavailable: () => void;
-}) {
+}): () => void {
   const { source, range, viewport } = anchor;
   const registry = typeof CSS !== "undefined" ? CSS.highlights : undefined;
   let highlight: Highlight | null = null;
@@ -50,7 +50,7 @@ export function observeAssistantCitationCommentSource({
     dispose();
     onUnavailable();
   };
-  const validate = (sourceChanged: boolean) => {
+  const validate = (sourceChanged: boolean): boolean => {
     if (!source.isConnected || !viewport.contains(source)) {
       unavailable();
       return false;

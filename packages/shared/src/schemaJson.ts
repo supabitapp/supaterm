@@ -47,7 +47,7 @@ const prettyJsonString = SchemaGetter.parseJson<string>().pipe(
 export const fromLenientJson = <S extends Schema.Top>(schema: S) =>
   Schema.String.pipe(Schema.decodeTo(schema, fromLenientJsonString));
 
-export function extractJsonObject(raw: string) {
+export function extractJsonObject(raw: string): string {
   const trimmed = raw.trim();
   if (trimmed.length === 0) {
     return trimmed;

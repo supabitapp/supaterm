@@ -99,7 +99,7 @@ const makeHarness = Effect.fnUntraced(function* () {
   return { driver, prepares, prepared, checks, requested, connections };
 });
 
-function preparedRoute(result: ConnectionDriver.RoutePreflight) {
+function preparedRoute(result: ConnectionDriver.RoutePreflight): ConnectionDriver.PreparedRoute {
   if (typeof result === "string") throw new Error(`Expected a prepared route, got ${result}.`);
   return result;
 }

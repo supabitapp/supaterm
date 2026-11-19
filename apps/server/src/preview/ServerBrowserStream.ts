@@ -43,7 +43,7 @@ type Frame = Extract<ServerBrowser.ServerBrowserViewerOutput, { readonly _tag: "
 const isAck = (message: unknown) =>
   typeof message === "object" && message !== null && "type" in message && message.type === "ack";
 
-const parseMessage: (chunk: Uint8Array | string) => unknown = (chunk: Uint8Array | string) => {
+const parseMessage = (chunk: Uint8Array | string): unknown => {
   try {
     return JSON.parse(typeof chunk === "string" ? chunk : textDecoder.decode(chunk));
   } catch {
@@ -199,12 +199,12 @@ const makeHandler = Effect.fnUntraced(function* (browser: ServerBrowser.ServerBr
   );
 });
 
-const hostSetup = (cause: unknown) =>
-  (isSandboxError(cause)
+const hostSetup = (cause: unknown): PreviewStreamHostSetup | undefined =>
+  isSandboxError(cause)
     ? { need: "sandbox", command: cause.setupCommand }
     : isLibrariesError(cause)
       ? { need: "libraries", command: cause.setupCommand }
-      : undefined) satisfies PreviewStreamHostSetup | undefined;
+      : undefined;
 const isSandboxError = Schema.is(PreviewBrowserHost.PreviewBrowserSandboxError);
 const isLibrariesError = Schema.is(PreviewBrowserHost.PreviewBrowserLibrariesError);
 const encodeHostSetup = Schema.encodeSync(Schema.fromJsonString(PreviewStreamHostSetup));

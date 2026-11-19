@@ -42,7 +42,7 @@ export function invalidateVcsRefs(
   registry: AtomRegistry.AtomRegistry,
   target: VcsRefsInvalidationTarget,
   persistedCacheReadable?: boolean,
-) {
+): void {
   registry.update(vcsRefsCacheStateAtom(target), (state) => ({
     revision: state.revision + 1,
     persistedCacheReadable: persistedCacheReadable ?? state.persistedCacheReadable,
@@ -52,7 +52,7 @@ export function invalidateVcsRefs(
 export function withVcsRefsPersistenceLock<A, E, R>(
   environmentId: EnvironmentId,
   effect: Effect.Effect<A, E, R>,
-) {
+): Effect.Effect<A, E, R> {
   return persistenceLock.withPermit(environmentId)(effect);
 }
 

@@ -68,7 +68,10 @@ const oneIteration = {
   ],
 };
 
-function pullRequestRows(count: number, firstNumber: number) {
+function pullRequestRows(
+  count: number,
+  firstNumber: number,
+): ReadonlyArray<Record<string, unknown>> {
   return Array.from({ length: count }, (_, index) => ({
     pullRequestId: firstNumber + index,
     title: `Pull request ${firstNumber + index}`,
@@ -81,7 +84,7 @@ function pullRequestRows(count: number, firstNumber: number) {
   }));
 }
 
-function pullRequests(count: number, firstNumber: number) {
+function pullRequests(count: number, firstNumber: number): string {
   return JSON.stringify(pullRequestRows(count, firstNumber));
 }
 
@@ -91,7 +94,7 @@ function streamedZip(
     readonly data: Uint8Array;
     readonly stored?: true;
   }>,
-) {
+): Buffer {
   const parts: Buffer[] = [];
   const directory: Buffer[] = [];
   let offset = 0;
@@ -136,7 +139,7 @@ function argsOfCall(index: number) {
   return call[0].args;
 }
 
-function changeEntries(count: number) {
+function changeEntries(count: number): ReadonlyArray<Record<string, unknown>> {
   const commit = "c".repeat(40);
   return Array.from({ length: count }, (_, index) => {
     const path = `/apps/server/src/generated/module-${index}/persisted-projection-${index}.ts`;

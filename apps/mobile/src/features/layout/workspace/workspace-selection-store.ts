@@ -46,7 +46,7 @@ function save() {
     .catch(() => undefined);
 }
 
-function withoutRouteKeys(saved: WorkspaceSelections | undefined) {
+function withoutRouteKeys(saved: WorkspaceSelections | undefined): WorkspaceSelections {
   const omitKey = <Selection extends { readonly key?: string }>({ key: _, ...rest }: Selection) =>
     rest;
   const { threads, pullRequests, settingsKey: _, threadsDraft: _draft, ...rest } = saved ?? {};
@@ -133,7 +133,7 @@ export function settingsLinkPage() {
  * chat beside the list instead of an empty detail column; a compact window opens on the list.
  * It waits for the first layout metrics as long as the workspace itself does.
  */
-export async function launchWorkspaceURL() {
+export async function launchWorkspaceURL(): Promise<string | null> {
   if (!REMEMBERS) return null;
   const metrics = firstNativeLayoutMetrics(NATIVE_METRICS_TIMEOUT_MS);
   await hydrateWorkspaceSelections();

@@ -49,7 +49,7 @@ export const FilesystemBrowseFailure = Schema.Literals([
 ]);
 export type FilesystemBrowseFailure = typeof FilesystemBrowseFailure.Type;
 
-function decodedFilesystemBrowseErrorMessage(props: object) {
+function decodedFilesystemBrowseErrorMessage(props: object): string | undefined {
   if (!("message" in props)) return undefined;
   return typeof props.message === "string" ? props.message : undefined;
 }

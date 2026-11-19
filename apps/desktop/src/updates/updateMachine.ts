@@ -5,11 +5,13 @@ import type {
   DesktopUpdateState,
 } from "@supaterm/contracts";
 
-function nextStatusAfterDownloadFailure(currentState: DesktopUpdateState) {
+function nextStatusAfterDownloadFailure(
+  currentState: DesktopUpdateState,
+): DesktopUpdateState["status"] {
   return currentState.availableVersion ? "available" : "error";
 }
 
-function getCanRetryAfterDownloadFailure(currentState: DesktopUpdateState) {
+function getCanRetryAfterDownloadFailure(currentState: DesktopUpdateState): boolean {
   return currentState.availableVersion !== null;
 }
 
@@ -17,7 +19,7 @@ export function createInitialDesktopUpdateState(
   currentVersion: string,
   runtimeInfo: DesktopRuntimeInfo,
   channel: DesktopUpdateChannel,
-) {
+): DesktopUpdateState {
   return {
     enabled: false,
     status: "disabled",
@@ -35,10 +37,13 @@ export function createInitialDesktopUpdateState(
     message: null,
     errorContext: null,
     canRetry: false,
-  } satisfies DesktopUpdateState;
+  };
 }
 
-export function reduceDesktopUpdateStateOnCheckStart(state: DesktopUpdateState, checkedAt: string) {
+export function reduceDesktopUpdateStateOnCheckStart(
+  state: DesktopUpdateState,
+  checkedAt: string,
+): DesktopUpdateState {
   const hasDownloadedUpdate = state.downloadedVersion !== null;
   return {
     ...state,
@@ -50,14 +55,14 @@ export function reduceDesktopUpdateStateOnCheckStart(state: DesktopUpdateState, 
     downloadPercent: hasDownloadedUpdate ? 100 : null,
     errorContext: null,
     canRetry: false,
-  } satisfies DesktopUpdateState;
+  };
 }
 
 export function reduceDesktopUpdateStateOnCheckFailure(
   state: DesktopUpdateState,
   message: string,
   checkedAt: string,
-) {
+): DesktopUpdateState {
   if (state.downloadedVersion !== null) {
     return {
       ...state,
@@ -67,7 +72,7 @@ export function reduceDesktopUpdateStateOnCheckFailure(
       downloadPercent: 100,
       errorContext: null,
       canRetry: true,
-    } satisfies DesktopUpdateState;
+    };
   }
 
   return {
@@ -78,7 +83,7 @@ export function reduceDesktopUpdateStateOnCheckFailure(
     downloadPercent: null,
     errorContext: "check",
     canRetry: true,
-  } satisfies DesktopUpdateState;
+  };
 }
 
 export function reduceDesktopUpdateStateOnUpdateAvailable(
@@ -87,7 +92,7 @@ export function reduceDesktopUpdateStateOnUpdateAvailable(
   checkedAt: string,
   releaseNotes: ReadonlyArray<DesktopUpdateReleaseNote> = [],
   omittedReleaseCount = 0,
-) {
+): DesktopUpdateState {
   const isDownloadedVersion = state.downloadedVersion === version;
   const preserveReleaseNotes = isDownloadedVersion && releaseNotes.length === 0;
   return {
@@ -102,10 +107,13 @@ export function reduceDesktopUpdateStateOnUpdateAvailable(
     message: null,
     errorContext: null,
     canRetry: isDownloadedVersion,
-  } satisfies DesktopUpdateState;
+  };
 }
 
-export function reduceDesktopUpdateStateOnNoUpdate(state: DesktopUpdateState, checkedAt: string) {
+export function reduceDesktopUpdateStateOnNoUpdate(
+  state: DesktopUpdateState,
+  checkedAt: string,
+): DesktopUpdateState {
   if (state.downloadedVersion !== null) {
     return {
       ...state,
@@ -116,7 +124,7 @@ export function reduceDesktopUpdateStateOnNoUpdate(state: DesktopUpdateState, ch
       message: null,
       errorContext: null,
       canRetry: true,
-    } satisfies DesktopUpdateState;
+    };
   }
 
   return {
@@ -131,10 +139,12 @@ export function reduceDesktopUpdateStateOnNoUpdate(state: DesktopUpdateState, ch
     message: null,
     errorContext: null,
     canRetry: false,
-  } satisfies DesktopUpdateState;
+  };
 }
 
-export function reduceDesktopUpdateStateOnDownloadStart(state: DesktopUpdateState) {
+export function reduceDesktopUpdateStateOnDownloadStart(
+  state: DesktopUpdateState,
+): DesktopUpdateState {
   return {
     ...state,
     status: "downloading",
@@ -142,13 +152,13 @@ export function reduceDesktopUpdateStateOnDownloadStart(state: DesktopUpdateStat
     message: null,
     errorContext: null,
     canRetry: false,
-  } satisfies DesktopUpdateState;
+  };
 }
 
 export function reduceDesktopUpdateStateOnDownloadFailure(
   state: DesktopUpdateState,
   message: string,
-) {
+): DesktopUpdateState {
   return {
     ...state,
     status: nextStatusAfterDownloadFailure(state),
@@ -156,13 +166,13 @@ export function reduceDesktopUpdateStateOnDownloadFailure(
     downloadPercent: null,
     errorContext: "download",
     canRetry: getCanRetryAfterDownloadFailure(state),
-  } satisfies DesktopUpdateState;
+  };
 }
 
 export function reduceDesktopUpdateStateOnDownloadProgress(
   state: DesktopUpdateState,
   percent: number,
-) {
+): DesktopUpdateState {
   return {
     ...state,
     status: "downloading",
@@ -170,13 +180,13 @@ export function reduceDesktopUpdateStateOnDownloadProgress(
     message: null,
     errorContext: null,
     canRetry: false,
-  } satisfies DesktopUpdateState;
+  };
 }
 
 export function reduceDesktopUpdateStateOnDownloadComplete(
   state: DesktopUpdateState,
   version: string,
-) {
+): DesktopUpdateState {
   return {
     ...state,
     status: "downloaded",
@@ -186,24 +196,20 @@ export function reduceDesktopUpdateStateOnDownloadComplete(
     message: null,
     errorContext: null,
     canRetry: true,
-  } satisfies DesktopUpdateState;
+  };
 }
 
 export function reduceDesktopUpdateStateOnInstallFailure(
   state: DesktopUpdateState,
   message: string,
-): DesktopUpdateState;
-export function reduceDesktopUpdateStateOnInstallFailure(
-  state: DesktopUpdateState,
-  message: string,
-) {
+): DesktopUpdateState {
   return {
     ...state,
     status: "downloaded",
     message,
     errorContext: "install",
     canRetry: true,
-  } satisfies DesktopUpdateState;
+  };
 }
 
 export interface DesktopUpdateInstallRecord {
@@ -214,7 +220,7 @@ export interface DesktopUpdateInstallRecord {
 export function resolveNotAppliedInstallVersion(
   record: DesktopUpdateInstallRecord,
   appVersion: string,
-) {
+): string | null {
   return record.fromVersion === appVersion && record.targetVersion !== appVersion
     ? record.targetVersion
     : null;

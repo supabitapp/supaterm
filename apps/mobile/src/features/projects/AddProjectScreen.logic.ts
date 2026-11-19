@@ -9,7 +9,7 @@ const isFilesystemBrowseError = Schema.is(FilesystemBrowseError);
 export function isMissingCloneParentBrowseFailure(input: {
   readonly cloning: boolean;
   readonly failure: unknown;
-}) {
+}): boolean {
   return (
     input.cloning &&
     isFilesystemBrowseError(input.failure) &&
@@ -23,7 +23,7 @@ export function resolveAddProjectEnvironment<
     readonly environmentId: EnvironmentId;
     readonly connectionState: EnvironmentConnectionPhase;
   },
->(environmentOptions: ReadonlyArray<T>, requestedEnvironmentId: EnvironmentId | null) {
+>(environmentOptions: ReadonlyArray<T>, requestedEnvironmentId: EnvironmentId | null): T | null {
   if (requestedEnvironmentId !== null) {
     return (
       environmentOptions.find(
@@ -55,7 +55,7 @@ export function addProjectPathFor(
   paths: AddProjectPaths,
   environmentId: EnvironmentId | null,
   hostDefault: string,
-) {
+): string {
   return environmentId === null ? paths.last : (paths.byHost.get(environmentId) ?? hostDefault);
 }
 
@@ -63,7 +63,7 @@ export function withAddProjectPath(
   paths: AddProjectPaths,
   environmentId: EnvironmentId | null,
   path: string,
-) {
+): AddProjectPaths {
   const byHost = new Map(paths.byHost);
   if (environmentId !== null) byHost.set(environmentId, path);
   return { byHost, last: path };

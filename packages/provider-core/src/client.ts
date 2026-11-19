@@ -53,7 +53,7 @@ export interface ProviderClientDefinition {
 
 export function defineProviderClient<const Definition extends ProviderClientDefinition>(
   definition: Definition,
-) {
+): Definition {
   return definition;
 }
 
@@ -67,8 +67,7 @@ export interface ProviderClientRegistry {
 
 export function makeProviderClientRegistry(
   definitions: ReadonlyArray<ProviderClientDefinition>,
-): ProviderClientRegistry;
-export function makeProviderClientRegistry(definitions: ReadonlyArray<ProviderClientDefinition>) {
+): ProviderClientRegistry {
   const byDriverKind = new Map<ProviderDriverKind, ProviderClientDefinition>();
   for (const definition of definitions) {
     if (byDriverKind.has(definition.driverKind)) {
@@ -79,5 +78,5 @@ export function makeProviderClientRegistry(definitions: ReadonlyArray<ProviderCl
   return {
     definitions,
     get: (driverKind) => (driverKind === undefined ? undefined : byDriverKind.get(driverKind)),
-  } satisfies ProviderClientRegistry;
+  };
 }

@@ -17,7 +17,10 @@ export const INITIAL_WEBVIEW_CRASH_RECOVERY_STATE: WebviewCrashRecoveryState = {
   windowStartedAt: null,
 };
 
-export function planWebviewCrashRecovery(state: WebviewCrashRecoveryState, now: number) {
+export function planWebviewCrashRecovery(
+  state: WebviewCrashRecoveryState,
+  now: number,
+): WebviewCrashRecoveryPlan | null {
   const startsNewWindow =
     state.windowStartedAt === null ||
     now - state.windowStartedAt >= WEBVIEW_CRASH_RECOVERY_WINDOW_MS;

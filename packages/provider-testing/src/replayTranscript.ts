@@ -17,7 +17,7 @@ export class ProviderReplayNdjsonLineParseError extends Schema.TaggedError<Provi
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Failed to parse provider replay NDJSON line ${this.lineNumber}.`;
   }
 }
@@ -26,7 +26,7 @@ export class ProviderReplayNdjsonMissingHeaderError extends Schema.TaggedError<P
   "ProviderReplayNdjsonMissingHeaderError",
   {},
 ) {
-  override get message() {
+  override get message(): string {
     return "Provider replay NDJSON requires a transcript_start header or fallback transcript metadata.";
   }
 }
@@ -35,7 +35,7 @@ export class ProviderReplayNdjsonEmptyError extends Schema.TaggedError<ProviderR
   "ProviderReplayNdjsonEmptyError",
   {},
 ) {
-  override get message() {
+  override get message(): string {
     return "Provider replay NDJSON did not contain any records.";
   }
 }
@@ -51,35 +51,28 @@ export type ProviderReplayTranscriptMetadata = Omit<ProviderReplayTranscript, "e
 
 const REPLAY_TRANSCRIPT_WORKSPACE_PLACEHOLDER = "<workspace>";
 
-function materializeWorkspacePlaceholder(value: unknown, workspace: string): unknown;
-function materializeWorkspacePlaceholder(value: unknown, workspace: string) {
+function materializeWorkspacePlaceholder(value: unknown, workspace: string): unknown {
   if (value === REPLAY_TRANSCRIPT_WORKSPACE_PLACEHOLDER) {
-    return workspace satisfies unknown;
+    return workspace;
   }
   if (Array.isArray(value)) {
-    return value.map((entry) =>
-      materializeWorkspacePlaceholder(entry, workspace),
-    ) satisfies unknown;
+    return value.map((entry) => materializeWorkspacePlaceholder(entry, workspace));
   }
   if (typeof value !== "object" || value === null) {
-    return value satisfies unknown;
+    return value;
   }
   return Object.fromEntries(
     Object.entries(value).map(([key, entry]) => [
       key,
       materializeWorkspacePlaceholder(entry, workspace),
     ]),
-  ) satisfies unknown;
+  );
 }
 
 export function materializeReplayTranscriptWorkspace(
   transcript: ProviderReplayTranscript,
   workspace: string,
-): ProviderReplayTranscript;
-export function materializeReplayTranscriptWorkspace(
-  transcript: ProviderReplayTranscript,
-  workspace: string,
-) {
+): ProviderReplayTranscript {
   return {
     ...transcript,
     entries: transcript.entries.map((entry) =>
@@ -90,7 +83,7 @@ export function materializeReplayTranscriptWorkspace(
           }
         : entry,
     ),
-  } satisfies ProviderReplayTranscript;
+  };
 }
 
 const decodeReplayRecord = Schema.decodeUnknownSync(
@@ -98,7 +91,10 @@ const decodeReplayRecord = Schema.decodeUnknownSync(
 );
 const decodeTranscript = Schema.decodeUnknownSync(ProviderReplayTranscript);
 
-function parseReplayRecord(line: string, lineNumber: number) {
+function parseReplayRecord(
+  line: string,
+  lineNumber: number,
+): Effect.Effect<ProviderReplayNdjsonRecord, ProviderReplayNdjsonLineParseError> {
   return Effect.try({
     try: () => decodeReplayRecord(line),
     catch: (cause) =>
@@ -110,7 +106,9 @@ function parseReplayRecord(line: string, lineNumber: number) {
   });
 }
 
-function metadataFromHeader(header: ProviderReplayTranscriptHeader) {
+function metadataFromHeader(
+  header: ProviderReplayTranscriptHeader,
+): ProviderReplayTranscriptMetadata {
   const { type: _type, ...metadata } = header;
   return metadata;
 }
@@ -118,7 +116,7 @@ function metadataFromHeader(header: ProviderReplayTranscriptHeader) {
 export function decodeProviderReplayNdjson(
   input: string,
   fallbackMetadata?: ProviderReplayTranscriptMetadata,
-) {
+): Effect.Effect<ProviderReplayTranscript, ProviderReplayNdjsonParseError> {
   return Effect.gen(function* () {
     const lines = input
       .split(/\r?\n/u)

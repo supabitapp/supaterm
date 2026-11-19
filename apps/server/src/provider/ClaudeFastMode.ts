@@ -75,11 +75,7 @@ export const makeClaudeFastModeAvailability = Effect.fn("makeClaudeFastModeAvail
 export function filterClaudeFastModeModels(
   models: ReadonlyArray<ServerProviderModel>,
   blocked: boolean,
-): ReadonlyArray<ServerProviderModel>;
-export function filterClaudeFastModeModels(
-  models: ReadonlyArray<ServerProviderModel>,
-  blocked: boolean,
-) {
+): ReadonlyArray<ServerProviderModel> {
   return models.map((model) => {
     if (model.isCustom) {
       const capabilities = filterCustomModelCapabilities(
@@ -99,5 +95,5 @@ export function filterClaudeFastModeModels(
         optionDescriptors: descriptors.filter((descriptor) => descriptor.id !== "fastMode"),
       },
     };
-  }) satisfies ReadonlyArray<ServerProviderModel>;
+  });
 }

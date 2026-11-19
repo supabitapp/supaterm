@@ -20,7 +20,7 @@ export class SupatermProjectFileLoadError extends Schema.TaggedError<SupatermPro
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Failed to ${this.operation} ${SUPATERM_PROJECT_FILE_NAME} at ${this.filePath}.`;
   }
 }

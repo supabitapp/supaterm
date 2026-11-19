@@ -101,7 +101,7 @@ const LANGUAGE_EXTENSION_ALIASES: Record<string, string> = {
   yaml: "yml",
 };
 
-export function basenameOfPath(pathValue: string) {
+export function basenameOfPath(pathValue: string): string {
   const slashIndex = pathValue.lastIndexOf("/");
   return slashIndex === -1 ? pathValue : pathValue.slice(slashIndex + 1);
 }
@@ -110,7 +110,7 @@ const LANGUAGE_FILE_NAMES: Record<string, string> = {
   dockerfile: "Dockerfile",
 };
 
-export function syntheticFileNameForLanguageId(languageId: string) {
+export function syntheticFileNameForLanguageId(languageId: string): string {
   const normalized = languageId.toLowerCase();
   return (
     LANGUAGE_FILE_NAMES[normalized] ??
@@ -122,7 +122,7 @@ export function resolvePierreIconForEntry(
   pathValue: string,
   kind: "file" | "directory",
   mimeType?: string,
-) {
+): PierreIconResolution | null {
   if (kind === "directory") return null;
   const icon = completeIconResolver.resolveIcon("file-tree-icon-file", pathValue);
   if (icon?.name === "file-tree-builtin-image" && icon.token === undefined)
@@ -148,11 +148,11 @@ export function documentChipKindForFileName(fileName: string) {
   return icon ? DOCUMENT_CHIP_KINDS[icon.name] : undefined;
 }
 
-export function hasSpecificPierreIconForFileName(fileName: string) {
+export function hasSpecificPierreIconForFileName(fileName: string): boolean {
   return resolvePierreIconForEntry(fileName, "file")?.token !== "default";
 }
 
-export function ensurePierreIconSprite() {
+export function ensurePierreIconSprite(): void {
   if (
     typeof document === "undefined" ||
     !document.body ||

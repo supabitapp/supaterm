@@ -21,7 +21,7 @@ export interface ThreadActivityMemory {
 export function nextThreadActivitySnapshot(
   previous: ThreadActivityMemory | null,
   input: ThreadActivityInput,
-) {
+): ThreadActivityMemory {
   const { approvalRequestId, userInputRequestId, shellRequestId } = input;
   const cardRequestId = approvalRequestId ?? userInputRequestId;
   const seen = previous?.cardRequestIds ?? new Set<string>();
@@ -46,5 +46,5 @@ export function nextThreadActivitySnapshot(
     },
     cardRequestIds:
       cardRequestId === null || seen.has(cardRequestId) ? seen : new Set([...seen, cardRequestId]),
-  } satisfies ThreadActivityMemory;
+  };
 }

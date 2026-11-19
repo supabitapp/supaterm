@@ -111,7 +111,7 @@ export class IconExportFileSystemError extends Schema.TaggedError<IconExportFile
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Icon export file-system operation '${this.operation}' failed for ${this.path}.`;
   }
 }
@@ -125,7 +125,7 @@ export class IconExportProcessError extends Schema.TaggedError<IconExportProcess
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Icon export process operation '${this.operation}' failed for ${this.command}.`;
   }
 }
@@ -142,7 +142,7 @@ export class IconExportCommandFailedError extends Schema.TaggedError<IconExportC
     stderr: Schema.optional(Schema.String),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `${this.command} failed to export ${this.sourcePath} at ${this.size}x${this.size}.`;
   }
 }
@@ -156,7 +156,7 @@ export class IconExportToolResolutionError extends Schema.TaggedError<IconExport
     version: Schema.optional(Schema.String),
   },
 ) {
-  override get message() {
+  override get message(): string {
     switch (this.reason) {
       case "configured-invalid":
         return `ICON_COMPOSER_TOOL does not point to Icon Composer's export-capable ictool: ${this.toolPath}`;
@@ -174,7 +174,7 @@ export class IconExportSourceMissingError extends Schema.TaggedError<IconExportS
     sourcePath: Schema.String,
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Missing Icon Composer source project: ${this.sourcePath}`;
   }
 }
@@ -186,7 +186,7 @@ class IconExportXcodeError extends Schema.TaggedError<IconExportXcodeError>()(
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `${XCODE_REQUIREMENT} is required to export layered icons. Select full Xcode with DEVELOPER_DIR or xcode-select.${this.details ? `\n${this.details}` : ""}`;
   }
 }
@@ -202,7 +202,7 @@ export class IconExportRenditionError extends Schema.TaggedError<IconExportRendi
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message() {
+  override get message(): string {
     const actual =
       this.actualWidth === undefined || this.actualHeight === undefined
         ? "an invalid PNG"
@@ -218,7 +218,7 @@ export class IconExportEncodingError extends Schema.TaggedError<IconExportEncodi
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Failed to encode ICO renditions for the ${this.variant} icon.`;
   }
 }
@@ -229,7 +229,7 @@ export class IconExportAssetsStaleError extends Schema.TaggedError<IconExportAss
     paths: Schema.Array(Schema.String),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Generated icon assets are stale:\n${this.paths.map((path) => `- ${path}`).join("\n")}`;
   }
 }

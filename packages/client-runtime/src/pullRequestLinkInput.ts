@@ -5,11 +5,10 @@ import { sourceControlClients, type ChangeRequestTerminology } from "./sourceCon
 
 const PULL_REQUEST_NUMBER_PATTERN = /^#?(\d+)$/;
 
-export function parsePullRequestReference(input: string): string | null;
-export function parsePullRequestReference(input: string) {
+export function parsePullRequestReference(input: string): string | null {
   const trimmed = input.trim();
   if (trimmed.length === 0) {
-    return null satisfies string | null;
+    return null;
   }
 
   const normalizedInput =
@@ -17,7 +16,7 @@ export function parsePullRequestReference(input: string) {
       .map((definition) => definition.checkoutCommandArgument(trimmed))
       .find((argument) => argument !== null) ?? trimmed;
   if (normalizedInput.length === 0) {
-    return null satisfies string | null;
+    return null;
   }
 
   if (
@@ -25,15 +24,15 @@ export function parsePullRequestReference(input: string) {
       definition.isChangeRequestReference(normalizedInput),
     )
   ) {
-    return normalizedInput satisfies string | null;
+    return normalizedInput;
   }
 
   const numberMatch = PULL_REQUEST_NUMBER_PATTERN.exec(normalizedInput);
   if (numberMatch?.[1]) {
-    return numberMatch[1] satisfies string | null;
+    return numberMatch[1];
   }
 
-  return null satisfies string | null;
+  return null;
 }
 
 /** The thread project's repository, so a bare number resolves to one of its pull requests. */
@@ -76,7 +75,7 @@ export function resolveLinkPullRequestInput(input: {
     readonly webUrl: (number: number) => string | null;
   } | null;
   readonly hasProject: (reference: ResolvedLink) => boolean;
-}) {
+}): { link: ResolvedLink } | { error: string } | null {
   const parsed =
     sourceControlClients.parseChangeRequestUrl(input.reference.trim()) !== null
       ? input.reference.trim()

@@ -30,11 +30,20 @@ const bootScript = (() => {
   return match[1];
 })();
 
+type BootResult = {
+  isDark: boolean;
+  themeId: string | undefined;
+  themeSelected: string | undefined;
+  backgroundColor: string;
+  bootVariables: Record<string, string>;
+  metaContent: string | null;
+};
+
 function runBootScript(options: {
   storage?: Record<string, string>;
   storageThrows?: boolean;
   prefersDark: boolean;
-}) {
+}): BootResult {
   const classes = new Set<string>();
   const bootVariables: Record<string, string> = {};
   const meta = {
@@ -68,7 +77,7 @@ function runBootScript(options: {
   };
   const fakeWindow = {
     localStorage: {
-      getItem: (key: string) => {
+      getItem: (key: string): string | null => {
         if (options.storageThrows) throw new Error("storage blocked");
         return options.storage?.[key] ?? null;
       },
@@ -96,8 +105,7 @@ function runBootScript(options: {
 function runtimeResolvedAppearance(
   storage: Record<string, string>,
   prefersDark: boolean,
-): "light" | "dark";
-function runtimeResolvedAppearance(storage: Record<string, string>, prefersDark: boolean) {
+): "light" | "dark" {
   vi.stubGlobal("window", {
     localStorage: { getItem: (key: string) => storage[key] ?? null },
     matchMedia: () => ({ matches: prefersDark }),
@@ -114,12 +122,7 @@ function runtimeResolvedAppearance(storage: Record<string, string>, prefersDark:
           ? "system"
           : null;
     const followSystem = appearanceMode === "system";
-    return resolveThemeAppearance(
-      theme,
-      prefersDark,
-      followSystem,
-      appearanceMode ?? undefined,
-    ) satisfies "light" | "dark";
+    return resolveThemeAppearance(theme, prefersDark, followSystem, appearanceMode ?? undefined);
   } finally {
     vi.unstubAllGlobals();
     invalidateCustomThemes();

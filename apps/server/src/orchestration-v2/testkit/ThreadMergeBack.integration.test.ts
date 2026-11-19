@@ -114,7 +114,7 @@ const PROVIDERS: ReadonlyArray<ProviderVariant> = [
   },
 ];
 
-function transcriptPath(scenario: string, driver: ProviderDriverKind) {
+function transcriptPath(scenario: string, driver: ProviderDriverKind): string {
   const fileName = driver === "codex" ? "codex_transcript.ndjson" : "claude_transcript.ndjson";
   return `${import.meta.dirname}/fixtures/${scenario}/${fileName}`;
 }
@@ -127,7 +127,7 @@ function readTranscript(scenario: string, driver: ProviderDriverKind) {
   });
 }
 
-function compactExpectedText(text: string, maxLength = 240) {
+function compactExpectedText(text: string, maxLength = 240): string {
   const compacted = text.replace(/\s+/gu, " ").trim();
   return compacted.length <= maxLength ? compacted : `${compacted.slice(0, maxLength - 3)}...`;
 }
@@ -137,7 +137,7 @@ function forkDeltaSummary(input: {
   readonly targetThreadId: ThreadId;
   readonly forkUserText: string;
   readonly forkAssistantText: string;
-}) {
+}): string {
   return [
     "Merge-back context from forked conversation.",
     `Source thread: ${input.sourceThreadId}`,
@@ -151,7 +151,7 @@ function forkDeltaSummary(input: {
   ].join("\n");
 }
 
-function providerMessage(summary: string, userText: string) {
+function providerMessage(summary: string, userText: string): string {
   return [
     "Context handoff (merge_back / fork_delta_summary):",
     summary,
@@ -161,26 +161,25 @@ function providerMessage(summary: string, userText: string) {
   ].join("\n");
 }
 
-function replaceExactString(value: unknown, from: string, to: string): unknown;
-function replaceExactString(value: unknown, from: string, to: string) {
+function replaceExactString(value: unknown, from: string, to: string): unknown {
   if (value === from) {
-    return to satisfies unknown;
+    return to;
   }
   if (Array.isArray(value)) {
-    return value.map((entry) => replaceExactString(entry, from, to)) satisfies unknown;
+    return value.map((entry) => replaceExactString(entry, from, to));
   }
   if (typeof value !== "object" || value === null) {
-    return value satisfies unknown;
+    return value;
   }
   return Object.fromEntries(
     Object.entries(value).map(([key, entry]) => [key, replaceExactString(entry, from, to)]),
-  ) satisfies unknown;
+  );
 }
 
 function parameterizeHandoffs(
   transcript: ProviderReplayTranscript,
   replacements: ReadonlyArray<readonly [recorded: string, generated: string]>,
-) {
+): ProviderReplayTranscript {
   return replacements.reduce(
     (current, [recorded, generated]) =>
       replaceExactString(current, recorded, generated) as ProviderReplayTranscript,
@@ -188,7 +187,7 @@ function parameterizeHandoffs(
   );
 }
 
-function nativeSourceThreadId(transcript: ProviderReplayTranscript) {
+function nativeSourceThreadId(transcript: ProviderReplayTranscript): string {
   if (transcript.provider === "claudeAgent") {
     const value = transcript.metadata?.nativeSessionId;
     if (typeof value !== "string") {
@@ -211,7 +210,7 @@ function nativeSourceThreadId(transcript: ProviderReplayTranscript) {
   throw new Error(`${transcript.scenario} is missing the source native thread id.`);
 }
 
-function visibleConversationText(projection: OrchestrationV2ThreadProjection) {
+function visibleConversationText(projection: OrchestrationV2ThreadProjection): string {
   return projection.visibleTurnItems
     .flatMap(({ item }) =>
       item.type === "user_message" || item.type === "assistant_message" ? [item.text] : [],
@@ -219,7 +218,7 @@ function visibleConversationText(projection: OrchestrationV2ThreadProjection) {
     .join("\n");
 }
 
-function normalizePipeSpacing(text: string) {
+function normalizePipeSpacing(text: string): string {
   return text.replace(/\s*\|\s*/gu, "|");
 }
 
@@ -228,7 +227,7 @@ function makeCreateCommand(input: {
   readonly threadId: ThreadId;
   readonly projectId: ProjectId;
   readonly modelSelection: ModelSelection;
-}) {
+}): OrchestrationV2Command {
   return {
     type: "thread.create",
     createdBy: "user",
@@ -242,7 +241,7 @@ function makeCreateCommand(input: {
     interactionMode: "default",
     branch: null,
     worktreePath: null,
-  } satisfies OrchestrationV2Command;
+  };
 }
 
 describe("orchestration V2 merge-back provider replay", () => {

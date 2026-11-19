@@ -16,7 +16,7 @@ import { pullRequestTarget, type PullRequestParams } from "./usePullRequestDiff"
 export function usePullRequestLiveChecks(
   params: PullRequestParams,
   detail: PullRequestDetail | null,
-) {
+): PullRequestDetail | null {
   const target = pullRequestTarget(params);
   const connected = usePullRequestConnected(target.environmentId);
   const checks = useEnvironmentQuery(detail !== null ? composerPullRequests.checks(target) : null);

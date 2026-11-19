@@ -34,13 +34,15 @@ const NO_SHELL_SNAPSHOT_ATOM = Atom.make(false).pipe(
   Atom.withLabel("web-environment-shell-has-snapshot:none"),
 );
 
-export function useEnvironmentShellStatus(environmentId: EnvironmentId | null) {
+export function useEnvironmentShellStatus(
+  environmentId: EnvironmentId | null,
+): EnvironmentShellStatus | null {
   return useAtomValue(
     environmentId === null ? NO_SHELL_STATUS_ATOM : environmentShell.statusAtom(environmentId),
   );
 }
 
-export function useEnvironmentShellHasSnapshot(environmentId: EnvironmentId | null) {
+export function useEnvironmentShellHasSnapshot(environmentId: EnvironmentId | null): boolean {
   return useAtomValue(
     environmentId === null
       ? NO_SHELL_SNAPSHOT_ATOM
@@ -88,7 +90,10 @@ export const allEnvironmentShellsBootstrappedAtom = Atom.make((get) => {
   return true;
 }).pipe(Atom.withLabel("web-all-environment-shells-bootstrapped"));
 
-function catalogIsComplete(catalog: EnvironmentCatalogState, requiresPrimaryEnvironment: boolean) {
+function catalogIsComplete(
+  catalog: EnvironmentCatalogState,
+  requiresPrimaryEnvironment: boolean,
+): boolean {
   if (!catalog.isReady || catalog.entries.size === 0) return false;
   return (
     !requiresPrimaryEnvironment ||
@@ -122,7 +127,7 @@ export const allEnvironmentProjectSnapshotsReadyAtom =
   });
 
 /** Hosted clients and desktops with the local environment disabled never discover a primary. */
-export function expectsPrimaryEnvironment() {
+export function expectsPrimaryEnvironment(): boolean {
   return !isHostedStaticApp() && !isLocalEnvironmentDisabled();
 }
 

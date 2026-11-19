@@ -77,22 +77,21 @@ let stopWaitingForShells: (() => void) | null = null;
  */
 export function takeNewTaskPromptLink(
   state: PartialState<NavigationState> | undefined,
-): PartialState<NavigationState> | undefined;
-export function takeNewTaskPromptLink(state: PartialState<NavigationState> | undefined) {
+): PartialState<NavigationState> | undefined {
   const route = findLinkedRoute(state, NEW_TASK_ROUTES);
   const search = promptLinkSearchFromParams(
     route?.params as Readonly<Record<string, unknown>> | undefined,
   );
-  if (search === null) return state satisfies PartialState<NavigationState> | undefined;
+  if (search === null) return state;
   pendingLink = search;
   return updateLinkedRoute(state, NEW_TASK_ROUTES, (linked) => ({
     ...linked,
     params: withoutPromptLinkParams(linked.params),
-  })) satisfies PartialState<NavigationState> | undefined;
+  }));
 }
 
 /** Wired to the navigation container's state changes. */
-export function resolvePendingNewTaskPromptLink(state: NavigationState | undefined) {
+export function resolvePendingNewTaskPromptLink(state: NavigationState | undefined): void {
   if (pendingLink === null) return;
   const step = stepPendingPromptLink(pendingLink, {
     screenOnStack: findStackRoute(state, NEW_TASK_ROUTE)?.focused === true,
@@ -108,13 +107,13 @@ export function resolvePendingNewTaskPromptLink(state: NavigationState | undefin
   }
 }
 
-function dropPendingLink() {
+function dropPendingLink(): void {
   pendingLink = null;
   stopWaitingForShells?.();
   stopWaitingForShells = null;
 }
 
-function dispatchFromNewTask(action: StackActionType) {
+function dispatchFromNewTask(action: StackActionType): void {
   const root = rootNavigationRef.getRootState();
   const screen = findStackRoute(root, NEW_TASK_ROUTE);
   const target = screen?.navigatorKey ?? root?.key;
@@ -137,7 +136,7 @@ function writeDraft(
   environmentId: EnvironmentId,
   request: LinkedDraftRequest,
   projectId: EnvironmentProject["id"],
-) {
+): boolean {
   if (request.prompt) setComposerDraftText(draftKey, request.prompt.text);
   if (request.provider === null) return false;
   const config = appAtomRegistry.get(environmentServerConfigsAtom).get(environmentId);

@@ -24,11 +24,11 @@ import { vi } from "vite-plus/test";
 
 import * as SqliteClient from "./nodeSqliteClient.ts";
 
-const startedWorkers = vi.hoisted(() => []);
+const startedWorkers = vi.hoisted((): Array<NodeWorkerThreads.Worker> => []);
 const workerExits = vi.hoisted(() => new WeakMap<NodeWorkerThreads.Worker, Promise<void>>());
 const silentWorkers = vi.hoisted(() => ({ on: false, readyOnTerminate: false }));
 const failingWorkers = vi.hoisted(() => ({ message: undefined as string | undefined }));
-const checkpointWorkers = vi.hoisted(() => []);
+const checkpointWorkers = vi.hoisted((): Array<NodeWorkerThreads.Worker> => []);
 
 vi.mock("node:worker_threads", async (importOriginal) => {
   const actual = await importOriginal<typeof NodeWorkerThreads>();

@@ -5,7 +5,7 @@ import type { ThreadShell } from "./types";
 export function getOrphanedWorktreePathForThread(
   threads: ReadonlyArray<Pick<ThreadShell, "id" | "worktreePath">>,
   threadId: ThreadShell["id"],
-) {
+): string | null {
   const targetThread = threads.find((thread) => thread.id === threadId);
   if (!targetThread) {
     return null;
@@ -27,7 +27,7 @@ export function getOrphanedWorktreePathForThread(
   return isShared ? null : targetWorktreePath;
 }
 
-export function formatWorktreePathForDisplay(worktreePath: string) {
+export function formatWorktreePathForDisplay(worktreePath: string): string {
   const trimmed = worktreePath.trim();
   if (!trimmed) {
     return worktreePath;

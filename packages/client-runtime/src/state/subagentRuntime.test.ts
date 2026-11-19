@@ -22,7 +22,7 @@ const at = (iso: string) => DateTime.makeUnsafe(iso);
 
 type ProjectedSubagent = Parameters<typeof projectedSubagentsToRuntime>[0][number];
 
-function subagent(overrides: Partial<ProjectedSubagent> = {}) {
+function subagent(overrides: Partial<ProjectedSubagent> = {}): ProjectedSubagent {
   return {
     id: "coordinator",
     title: "probe",
@@ -34,18 +34,19 @@ function subagent(overrides: Partial<ProjectedSubagent> = {}) {
     completedAt: null,
     updatedAt: at("2026-08-01T10:00:05.000Z"),
     ...overrides,
-  } satisfies ProjectedSubagent;
+  };
 }
 
-const member = (overrides: Partial<OrchestrationV2SubagentWorkflow["agents"][number]> = {}) =>
-  ({
-    index: 1,
-    label: "alpha:one",
-    state: "running",
-    phaseIndex: 1,
-    phaseTitle: "Alpha",
-    ...overrides,
-  }) satisfies OrchestrationV2SubagentWorkflow["agents"][number];
+const member = (
+  overrides: Partial<OrchestrationV2SubagentWorkflow["agents"][number]> = {},
+): OrchestrationV2SubagentWorkflow["agents"][number] => ({
+  index: 1,
+  label: "alpha:one",
+  state: "running",
+  phaseIndex: 1,
+  phaseTitle: "Alpha",
+  ...overrides,
+});
 
 const groupsOf = (subagents: ReadonlyArray<ProjectedSubagent>) =>
   deriveWorkflowGroups(projectedSubagentsToRuntime(subagents));

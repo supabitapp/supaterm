@@ -2,11 +2,11 @@ class PendingDraftWork {
   private readonly counts = new Map<string, number>();
   private readonly settledWaiters = new Map<string, Array<() => void>>();
 
-  begin(draftKey: string) {
+  begin(draftKey: string): void {
     this.counts.set(draftKey, (this.counts.get(draftKey) ?? 0) + 1);
   }
 
-  end(draftKey: string) {
+  end(draftKey: string): void {
     const remaining = (this.counts.get(draftKey) ?? 0) - 1;
     if (remaining > 0) {
       this.counts.set(draftKey, remaining);
@@ -25,7 +25,7 @@ class PendingDraftWork {
     });
   }
 
-  has(draftKey: string) {
+  has(draftKey: string): boolean {
     return (this.counts.get(draftKey) ?? 0) > 0;
   }
 }

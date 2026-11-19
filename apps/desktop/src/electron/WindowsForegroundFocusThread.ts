@@ -33,7 +33,7 @@ type FocusResult = {
   readonly focused: boolean;
 };
 
-const unavailableThread = () => ({
+const unavailableThread = (): WindowsForegroundFocusThread => ({
   prepare: async () => false,
   focus: async () => false,
   close: () => undefined,
@@ -87,7 +87,7 @@ export function startWindowsForegroundFocusThread(
       finish(request.requestId, false);
     }
   };
-  const start = () => {
+  const start = (): boolean => {
     if (closed) return false;
     let nextWorker: WindowsForegroundFocusWorker;
     try {
@@ -120,7 +120,7 @@ export function startWindowsForegroundFocusThread(
     return true;
   };
 
-  if (!start()) return unavailableThread() satisfies WindowsForegroundFocusThread;
+  if (!start()) return unavailableThread();
 
   const restart = (timedOutWorker: WindowsForegroundFocusWorker | undefined) => {
     if (!timedOutWorker || worker !== timedOutWorker) return;
@@ -160,5 +160,5 @@ export function startWindowsForegroundFocusThread(
       for (const requestId of pending.keys()) finish(requestId, false);
       if (activeWorker) void activeWorker.terminate();
     },
-  } satisfies WindowsForegroundFocusThread;
+  };
 }

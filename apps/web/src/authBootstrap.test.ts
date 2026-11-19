@@ -41,26 +41,24 @@ const DESKTOP_AUTH = {
 } as const;
 
 const SESSION_EXPIRES_AT = DateTime.makeUnsafe("2026-04-05T00:00:00.000Z");
-const unauthenticatedSession = (auth: AuthSessionState["auth"]) => ({
+const unauthenticatedSession = (auth: AuthSessionState["auth"]): AuthSessionState => ({
   authenticated: false,
   auth,
 });
 
-const authenticatedSession = (auth: AuthSessionState["auth"]) =>
-  ({
-    authenticated: true,
-    auth,
-    sessionMethod: "browser-session-cookie",
-    expiresAt: SESSION_EXPIRES_AT,
-  }) satisfies AuthSessionState;
+const authenticatedSession = (auth: AuthSessionState["auth"]): AuthSessionState => ({
+  authenticated: true,
+  auth,
+  sessionMethod: "browser-session-cookie",
+  expiresAt: SESSION_EXPIRES_AT,
+});
 
-const browserSession = (scopes: AuthBrowserSessionResult["scopes"]) =>
-  ({
-    authenticated: true,
-    scopes,
-    sessionMethod: "browser-session-cookie",
-    expiresAt: SESSION_EXPIRES_AT,
-  }) satisfies AuthBrowserSessionResult;
+const browserSession = (scopes: AuthBrowserSessionResult["scopes"]): AuthBrowserSessionResult => ({
+  authenticated: true,
+  scopes,
+  sessionMethod: "browser-session-cookie",
+  expiresAt: SESSION_EXPIRES_AT,
+});
 
 function installTestBrowser(url: string) {
   const testWindow: TestWindow = {

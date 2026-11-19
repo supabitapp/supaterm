@@ -10,7 +10,7 @@ export class LocalStorageOperationError extends Schema.TaggedError<LocalStorageO
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Failed to ${this.operation} local storage item ${this.storageKey}.`;
   }
 }
@@ -29,7 +29,8 @@ const fallbackStorage: Storage = (() => {
   };
 })();
 
-const getStorage = () => (typeof window !== "undefined" ? window.localStorage : fallbackStorage);
+const getStorage = (): Storage =>
+  typeof window !== "undefined" ? window.localStorage : fallbackStorage;
 
 const read = (key: string) => {
   try {
@@ -55,7 +56,7 @@ const encode = <T, E>(key: string, schema: Schema.Codec<T, E>, value: T) => {
   }
 };
 
-export const getLocalStorageItem = <T, E>(key: string, schema: Schema.Codec<T, E>) => {
+export const getLocalStorageItem = <T, E>(key: string, schema: Schema.Codec<T, E>): T | null => {
   const item = read(key);
   return item === null ? null : decode(key, schema, item);
 };
@@ -96,7 +97,7 @@ function dispatchLocalStorageChange(key: string) {
   }
 }
 
-function readSerializedValue(key: string) {
+function readSerializedValue(key: string): string | null {
   try {
     return read(key);
   } catch (error) {
@@ -110,7 +111,7 @@ function decodeOrInitial<T, E>(
   schema: Schema.Codec<T, E>,
   serializedValue: string | null,
   initialValue: T,
-) {
+): T {
   if (serializedValue === null) {
     return initialValue;
   }
@@ -126,12 +127,12 @@ export function readLocalStorageValue<T, E>(
   key: string,
   initialValue: T,
   schema: Schema.Codec<T, E>,
-) {
+): T {
   return decodeOrInitial(key, schema, readSerializedValue(key), initialValue);
 }
 
 /** Fires on writes from this tab and from other tabs. */
-export function subscribeLocalStorageKey(key: string, onChange: () => void) {
+export function subscribeLocalStorageKey(key: string, onChange: () => void): () => void {
   const handleStorageChange = (event: StorageEvent) => {
     if (event.key === key) {
       onChange();
@@ -156,7 +157,7 @@ export function writeLocalStorageValue<T, E>(
   value: T | ((val: T) => T),
   initialValue: T,
   schema: Schema.Codec<T, E>,
-) {
+): void {
   try {
     let valueToStore: T;
     if (typeof value === "function") {
@@ -189,7 +190,11 @@ export function writeLocalStorageValue<T, E>(
   }
 }
 
-export function useLocalStorage<T, E>(key: string, initialValue: T, schema: Schema.Codec<T, E>) {
+export function useLocalStorage<T, E>(
+  key: string,
+  initialValue: T,
+  schema: Schema.Codec<T, E>,
+): [T, (value: T | ((val: T) => T)) => void] {
   const getSnapshot = () => readSerializedValue(key);
 
   const subscribe = (onStoreChange: () => void) => subscribeLocalStorageKey(key, onStoreChange);
@@ -201,5 +206,5 @@ export function useLocalStorage<T, E>(key: string, initialValue: T, schema: Sche
     writeLocalStorageValue(key, value, initialValue, schema);
   };
 
-  return [storedValue, setValue] satisfies [T, (value: T | ((val: T) => T)) => void];
+  return [storedValue, setValue];
 }

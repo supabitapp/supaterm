@@ -7,13 +7,19 @@ import {
 } from "@supaterm/contracts";
 import type { FxSettings } from "../settings.ts";
 import { getModelSelectionStringOptionValue } from "@supaterm/shared/model";
+import type * as SecureRandom from "effect/crypto/SecureRandom";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
+import type * as Scope from "effect/Scope";
+import type * as ChildProcessSpawner from "effect/process/ChildProcessSpawner";
 import * as EffectAcpErrors from "effect-acp/errors";
 
 import * as AcpSessionRuntime from "@supaterm/provider-acp/server/AcpSessionRuntime";
 import { collectSessionConfigOptionValues } from "@supaterm/provider-acp/server/runtimeModel";
-import { acpPermissionDisposition } from "@supaterm/provider-acp/server/clientPolicy";
+import {
+  acpPermissionDisposition,
+  type AcpPermissionDisposition,
+} from "@supaterm/provider-acp/server/clientPolicy";
 import type * as ProviderAdapter from "@supaterm/provider-core/server/ProviderAdapter";
 
 export const FX_DRIVER_KIND = ProviderDriverKind.make("fx");
@@ -58,7 +64,9 @@ export const FX_SESSION_META = { fx: { profileMcpServers: true } };
  * approval or sandbox policy must not launch automatic review, which would
  * perform writes the policy meant to confine.
  */
-export function fxSessionModeForPolicy(policy: ProviderAdapter.ProviderAdapterV2RuntimePolicy) {
+export function fxSessionModeForPolicy(
+  policy: ProviderAdapter.ProviderAdapterV2RuntimePolicy,
+): "ask" | "auto" {
   return policy.runtimeMode === "auto" &&
     policy.approvalPolicy === undefined &&
     policy.sandboxPolicy === undefined
@@ -70,13 +78,13 @@ export function fxSessionModeForPolicy(policy: ProviderAdapter.ProviderAdapterV2
 export function fxPermissionDisposition(
   policy: ProviderAdapter.ProviderAdapterV2RuntimePolicy,
   request: EffectAcpSchema.RequestPermissionRequest,
-) {
+): AcpPermissionDisposition {
   return fxSessionModeForPolicy(policy) === "auto"
     ? "ask"
     : acpPermissionDisposition({ ...policy, runtimeMode: "approval-required" }, request);
 }
 
-function fxModeId(requested: string, advertised: ReadonlyArray<string>) {
+function fxModeId(requested: string, advertised: ReadonlyArray<string>): string | undefined {
   const candidates =
     requested === "ask"
       ? ["ask"]
@@ -94,8 +102,7 @@ function fxModeId(requested: string, advertised: ReadonlyArray<string>) {
  */
 export function withFxSessionMode(
   runtime: AcpSessionRuntime.AcpSessionRuntime["Service"],
-): AcpSessionRuntime.AcpSessionRuntime["Service"];
-export function withFxSessionMode(runtime: AcpSessionRuntime.AcpSessionRuntime["Service"]) {
+): AcpSessionRuntime.AcpSessionRuntime["Service"] {
   let pendingSessionId: string | undefined;
   const activated = <E, R>(
     effect: Effect.Effect<AcpSessionRuntime.AcpSessionRuntimeStartResult, E, R>,
@@ -142,7 +149,7 @@ export function withFxSessionMode(runtime: AcpSessionRuntime.AcpSessionRuntime["
       pendingSessionId = undefined;
       return {};
     }),
-  } satisfies AcpSessionRuntime.AcpSessionRuntime["Service"];
+  };
 }
 
 /**
@@ -155,7 +162,7 @@ export const applyFxModelSelection = Effect.fn("applyFxModelSelection")(function
   runtime: AcpSessionRuntime.AcpSessionRuntime["Service"],
   modelSelection: ModelSelection,
   defaultModel: Effect.Effect<string | undefined> | undefined,
-) {
+): Effect.fn.Return<string | undefined, EffectAcpErrors.AcpError> {
   const option = (yield* runtime.getConfigOptions).find(
     (entry) => entry.id === FX_MODEL_CONFIG_ID && entry.type === "select",
   );
@@ -178,7 +185,7 @@ export const applyFxModelSelection = Effect.fn("applyFxModelSelection")(function
 export const applyFxEffortDefault = Effect.fn("applyFxEffortDefault")(function* (
   runtime: AcpSessionRuntime.AcpSessionRuntime["Service"],
   modelSelection: ModelSelection,
-) {
+): Effect.fn.Return<void, EffectAcpErrors.AcpError> {
   if (getModelSelectionStringOptionValue(modelSelection, FX_EFFORT_CONFIG_ID)) return;
   const option = (yield* runtime.getConfigOptions).find(
     (entry) => entry.id === FX_EFFORT_CONFIG_ID && entry.type === "select",
@@ -199,7 +206,13 @@ interface FxAcpRuntimeInput extends Omit<
   readonly environment?: NodeJS.ProcessEnv;
 }
 
-export const makeFxAcpRuntime = Effect.fn("makeFxAcpRuntime")(function* (input: FxAcpRuntimeInput) {
+export const makeFxAcpRuntime = Effect.fn("makeFxAcpRuntime")(function* (
+  input: FxAcpRuntimeInput,
+): Effect.fn.Return<
+  AcpSessionRuntime.AcpSessionRuntime["Service"],
+  EffectAcpErrors.AcpError,
+  ChildProcessSpawner.ChildProcessSpawner | SecureRandom.SecureRandom | Scope.Scope
+> {
   const { fxSettings, environment, ...runtimeOptions } = input;
   const context = yield* Layer.build(
     AcpSessionRuntime.layer({

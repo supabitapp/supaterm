@@ -11,7 +11,7 @@ export const withChatGptSessionLock = <A, E, R>(
   key: string,
   instanceId: ProviderInstanceId,
   task: Effect.Effect<A, E, R>,
-) => {
+): Effect.Effect<A, E | ProviderSetupError, R> => {
   if (!directory) return task;
   const failure = () =>
     new ProviderSetupError({

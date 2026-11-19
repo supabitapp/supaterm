@@ -16,7 +16,7 @@ export class CheckpointDiffResultInvalidError extends Schema.TaggedError<Checkpo
     threadId: ThreadId,
   },
 ) {
-  override get message() {
+  override get message(): string {
     const result =
       this.operation === "CheckpointDiffQuery.getTurnDiff" ? "turn diff" : "full thread diff";
     return `Checkpoint invariant violation in ${this.operation}: Computed ${result} result does not satisfy contract schema.`;
@@ -30,7 +30,7 @@ export class CheckpointThreadNotFoundError extends Schema.TaggedError<Checkpoint
     threadId: ThreadId,
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Checkpoint invariant violation in ${this.operation}: Thread '${this.threadId}' not found.`;
   }
 }
@@ -42,7 +42,7 @@ export class CheckpointWorkspacePathMissingError extends Schema.TaggedError<Chec
     threadId: ThreadId,
   },
 ) {
-  override get message() {
+  override get message(): string {
     const diff =
       this.operation === "CheckpointDiffQuery.getTurnDiff" ? "turn diff" : "full thread diff";
     return `Checkpoint invariant violation in ${this.operation}: Workspace path missing for thread '${this.threadId}' when computing ${diff}.`;
@@ -58,7 +58,7 @@ export class CheckpointTurnRangeUnavailableError extends Schema.TaggedError<Chec
     availableTurnCount: NonNegativeInt,
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Checkpoint unavailable for thread ${this.threadId} turn ${this.requestedTurnCount}: Turn diff range exceeds current turn count: requested ${this.requestedTurnCount}, current ${this.availableTurnCount}.`;
   }
 }
@@ -72,7 +72,7 @@ export class CheckpointRefUnavailableError extends Schema.TaggedError<Checkpoint
     checkpoint: Schema.Literals(["from", "to"]),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Checkpoint unavailable for thread ${this.threadId} turn ${this.turnCount}: Checkpoint ref is unavailable for turn ${this.turnCount}.`;
   }
 }

@@ -27,7 +27,7 @@ export function resolvePendingHandoff(
   projection: ThreadStructure | null | undefined,
   selection: ModelSelection | null | undefined,
   providers: ReadonlyArray<ServerProvider>,
-) {
+): HandoffEndpoints | null {
   if (!projection?.visibleTurnItems.length) return null;
   const from = projection.runs.findLast(
     (run) =>
@@ -75,7 +75,7 @@ function latestRunModelBefore(
   runs: ReadonlyArray<HandoffTimelineRun>,
   instanceId: ProviderInstanceId,
   beforeOrdinal: number | undefined,
-) {
+): string | undefined {
   let latest: HandoffTimelineRun | undefined;
   for (const run of runs) {
     if (run.providerInstanceId !== instanceId) continue;
@@ -98,7 +98,7 @@ export interface ModelSwitchChange {
 export function resolveModelSwitchChange(
   { from, to }: OrchestrationV2ModelSwitch,
   providers: ReadonlyArray<ServerProvider>,
-) {
+): ModelSwitchChange | null {
   const modelsOf = (selection: ModelSelection) =>
     providers.find((provider) => provider.instanceId === selection.instanceId)?.models;
   const fromEffort = resolveEffort(from, modelsOf(from));
@@ -114,7 +114,7 @@ export function resolveModelSwitchChange(
 function resolveEffort(
   selection: ModelSelection,
   models: ReadonlyArray<ServerProviderModel> | undefined,
-) {
+): { readonly value: string; readonly label: string } | undefined {
   const model = models?.find((candidate) => candidate.slug === selection.model);
   if (model === undefined) {
     const value = [...REASONING_EFFORT_OPTION_IDS, "thinking"]

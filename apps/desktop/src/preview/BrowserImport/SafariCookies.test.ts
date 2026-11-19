@@ -24,7 +24,7 @@ interface FixtureCookie {
   readonly expiry: number;
 }
 
-function encodeCookie(cookie: FixtureCookie) {
+function encodeCookie(cookie: FixtureCookie): Buffer {
   const strings = [cookie.domain, cookie.name, cookie.path, cookie.value];
   const headerSize = 56;
   const offsets: number[] = [];
@@ -54,7 +54,7 @@ function encodeCookie(cookie: FixtureCookie) {
   return buffer;
 }
 
-function encodeBinaryCookies(cookies: ReadonlyArray<FixtureCookie>) {
+function encodeBinaryCookies(cookies: ReadonlyArray<FixtureCookie>): Buffer {
   const encoded = cookies.map(encodeCookie);
   const headerSize = 12 + encoded.length * 4;
   const offsets: number[] = [];
@@ -244,7 +244,7 @@ describe("safariAccessDenied", () => {
 });
 
 describe("isPermissionDenied", () => {
-  const platformError = (reasonTag: string, code: string) =>
+  const platformError = (reasonTag: string, code: string): PlatformError.PlatformError =>
     ({ _tag: "PlatformError", reason: { _tag: reasonTag, cause: { code } } }) as never;
 
   it("does not send an ordinary EACCES failure to the Full Disk Access grant", () => {

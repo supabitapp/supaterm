@@ -36,7 +36,7 @@ export class SshWindowsHostError extends Schema.TaggedError<SshWindowsHostError>
   "SshWindowsHostError",
   { cause: Schema.Defect() },
 ) {
-  override get message() {
+  override get message(): string {
     return "Connected over SSH, but this host runs Windows, and SSH device hosts currently need macOS or Linux. To use this machine's devices, run Supaterm on it and connect to that environment.";
   }
 }
@@ -50,7 +50,7 @@ export class SshConnectError extends Schema.TaggedError<SshConnectError>()("SshC
   detail: Schema.String,
   cause: Schema.Defect(),
 }) {
-  override get message() {
+  override get message(): string {
     const here = "the machine running this Supaterm server";
     const detail = this.detail.replace(/\.$/u, "");
     switch (this.reason) {
@@ -131,7 +131,7 @@ const SSH_CONNECT_FAILURES: ReadonlyArray<readonly [SshConnectError["reason"], R
 const explainSshConnectFailure = (
   config: SshDeviceHostConfig,
   error: DeviceHost.DeviceHostError,
-) => {
+): DeviceHost.DeviceHostError => {
   const cause = error.cause;
   if (!(cause instanceof SshCommandError) || cause.exitCode !== 255) return error;
   const lines = cause.stderr.split(/\r?\n/u).map((line) => line.trim());
@@ -334,10 +334,10 @@ export const make = Effect.fn("SshDeviceHost.make")(function* (
       Effect.map((platforms) => platforms.find((candidate) => candidate.platform === platform)!),
     );
 
-  const connectOnce: () => Effect.Effect<
+  const connectOnce = Effect.fn("SshDeviceHost.connectOnce")(function* (): Effect.fn.Return<
     DeviceHost.DeviceHostReady & { agentDevice?: DeviceHost.DeviceHostAgentReady["agentDevice"] },
     DeviceHost.DeviceHostError
-  > = Effect.fn("SshDeviceHost.connectOnce")(function* () {
+  > {
     activated = true;
     const result = yield* provide(bootstrap(config, owner, wantsAgent ? "agent-start" : "start"));
     yield* onStatus("starting");

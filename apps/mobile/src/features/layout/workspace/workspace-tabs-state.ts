@@ -34,22 +34,18 @@ export interface WorkspaceTabsState {
   readonly tabs: Readonly<Record<WorkspaceSearchTab, WorkspaceTabState>>;
 }
 
-function emptyTab() {
-  return {
-    query: "",
-    searchMode: "resting",
-    scrollOffset: 0,
-    searchEntryOffset: 0,
-  } satisfies WorkspaceTabState;
+function emptyTab(): WorkspaceTabState {
+  return { query: "", searchMode: "resting", scrollOffset: 0, searchEntryOffset: 0 };
 }
 
 /** The list a workspace page belongs to. */
-export function workspaceTabOf(routeName: string | undefined) {
+export function workspaceTabOf(routeName: string | undefined): WorkspaceTab {
   return routeName === "PullRequest" ? "pullRequests" : "threads";
 }
 
-export function initialWorkspaceTabsState(selectedTab?: WorkspaceTab): WorkspaceTabsState;
-export function initialWorkspaceTabsState(selectedTab: WorkspaceTab = "threads") {
+export function initialWorkspaceTabsState(
+  selectedTab: WorkspaceTab = "threads",
+): WorkspaceTabsState {
   return {
     selectedTab,
     selectionRevision: 0,
@@ -59,7 +55,7 @@ export function initialWorkspaceTabsState(selectedTab: WorkspaceTab = "threads")
       usage: emptyTab(),
       settings: emptyTab(),
     },
-  } satisfies WorkspaceTabsState;
+  };
 }
 
 export type WorkspaceTabsAction =
@@ -73,21 +69,17 @@ export type WorkspaceTabsAction =
 export function workspaceTabsReducer(
   state: WorkspaceTabsState,
   action: WorkspaceTabsAction,
-): WorkspaceTabsState;
-export function workspaceTabsReducer(state: WorkspaceTabsState, action: WorkspaceTabsAction) {
+): WorkspaceTabsState {
   if (action.type === "select")
-    return (
-      action.tab === state.selectedTab
-        ? state
-        : {
-            ...state,
-            selectedTab: action.tab,
-            selectionRevision: state.selectionRevision + 1,
-          }
-    ) satisfies WorkspaceTabsState;
+    return action.tab === state.selectedTab
+      ? state
+      : {
+          ...state,
+          selectedTab: action.tab,
+          selectionRevision: state.selectionRevision + 1,
+        };
   const tab = action.tab ?? state.selectedTab;
-  if (tab !== "threads" && tab !== "pullRequests" && tab !== "settings")
-    return state satisfies WorkspaceTabsState;
+  if (tab !== "threads" && tab !== "pullRequests" && tab !== "settings") return state;
   const current = state.tabs[tab];
   let next: WorkspaceTabState;
   switch (action.type) {
@@ -103,7 +95,7 @@ export function workspaceTabsReducer(state: WorkspaceTabsState, action: Workspac
       next = { ...current, query: action.query };
       break;
     case "expand":
-      if (current.searchMode === "resting") return state satisfies WorkspaceTabsState;
+      if (current.searchMode === "resting") return state;
       next = { ...current, searchMode: "expanded" };
       break;
     case "cancel":
@@ -115,11 +107,11 @@ export function workspaceTabsReducer(state: WorkspaceTabsState, action: Workspac
       };
       break;
     case "scroll":
-      if (current.scrollOffset === action.offset) return state satisfies WorkspaceTabsState;
+      if (current.scrollOffset === action.offset) return state;
       next = { ...current, scrollOffset: action.offset };
       break;
   }
-  return { ...state, tabs: { ...state.tabs, [tab]: next } } satisfies WorkspaceTabsState;
+  return { ...state, tabs: { ...state.tabs, [tab]: next } };
 }
 
 /**

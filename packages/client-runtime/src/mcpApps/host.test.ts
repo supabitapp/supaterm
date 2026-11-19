@@ -13,15 +13,14 @@ const app = {
 const context = (
   theme: "light" | "dark" = "dark",
   displayMode: "inline" | "fullscreen" = "inline",
-) =>
-  ({
-    theme,
-    styles: { variables: { "--color-background-primary": theme === "dark" ? "#000" : "#fff" } },
-    displayMode,
-    availableDisplayModes: ["inline", "fullscreen"],
-    containerDimensions: { width: 600, maxHeight: 2000 },
-    platform: "web",
-  }) satisfies McpAppHostContext;
+): McpAppHostContext => ({
+  theme,
+  styles: { variables: { "--color-background-primary": theme === "dark" ? "#000" : "#fff" } },
+  displayMode,
+  availableDisplayModes: ["inline", "fullscreen"],
+  containerDimensions: { width: 600, maxHeight: 2000 },
+  platform: "web",
+});
 
 const flush = () => new Promise<void>((resolve) => queueMicrotask(resolve)).then(() => undefined);
 

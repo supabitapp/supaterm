@@ -177,7 +177,7 @@ function requestVcsStatusRefresh(
   refresh: RefreshVcsStatus,
   environmentId: ScopedThreadRef["environmentId"] | null,
   cwd: string | null,
-) {
+): void {
   if (environmentId === null || cwd === null) {
     return;
   }
@@ -204,7 +204,7 @@ function publishProviderOption(provider: SourceControlProviderKind) {
 function getPublishProviderReadiness(input: {
   provider: SourceControlProviderKind;
   sourceControlProviders: ReadonlyArray<SourceControlProviderDiscoveryItem>;
-}) {
+}): { readonly ready: boolean; readonly hint: string | null } {
   const discovered = input.sourceControlProviders.find(
     (provider) => provider.kind === input.provider,
   );

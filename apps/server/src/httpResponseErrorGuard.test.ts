@@ -11,7 +11,7 @@ const servers: NodeHttp.Server[] = [];
 const requests: NodeHttp.ClientRequest[] = [];
 const sockets: NodeNet.Socket[] = [];
 
-function listen(server: NodeHttp.Server) {
+function listen(server: NodeHttp.Server): Promise<number> {
   servers.push(server);
   server.on("connection", (socket) => sockets.push(socket));
   return new Promise((resolve, reject) => {
@@ -19,10 +19,14 @@ function listen(server: NodeHttp.Server) {
     server.listen(0, "127.0.0.1", () => {
       resolve((server.address() as NodeNet.AddressInfo).port);
     });
-  }) satisfies Promise<number>;
+  });
 }
 
-function fetchResponse(port: number, path: string, upgrade = false) {
+function fetchResponse(
+  port: number,
+  path: string,
+  upgrade = false,
+): Promise<NodeHttp.IncomingMessage> {
   return new Promise((resolve, reject) => {
     const request = NodeHttp.get(
       {
@@ -51,14 +55,11 @@ function fetchResponse(port: number, path: string, upgrade = false) {
       socket.destroy();
       resolve(response);
     });
-  }) satisfies Promise<NodeHttp.IncomingMessage>;
+  });
 }
 
-function fetchStatus(port: number, path: string): Promise<number>;
-function fetchStatus(port: number, path: string) {
-  return fetchResponse(port, path).then(
-    (response) => response.statusCode ?? 0,
-  ) satisfies Promise<number>;
+function fetchStatus(port: number, path: string): Promise<number> {
+  return fetchResponse(port, path).then((response) => response.statusCode ?? 0);
 }
 
 afterEach(async () => {

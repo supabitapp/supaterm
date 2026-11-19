@@ -10,6 +10,7 @@ import {
   resolveHandoffEndpoints,
   resolveModelSwitchChange,
   resolvePendingHandoff,
+  type HandoffTimelineRun,
 } from "./handoff.ts";
 
 const from = ProviderInstanceId.make("codex_personal");
@@ -19,7 +20,12 @@ const item = {
   fromProviderInstanceIds: [from],
   toProviderInstanceId: to,
 };
-const run = (id: string, ordinal: number, instanceId: ProviderInstanceId, model: string) => ({
+const run = (
+  id: string,
+  ordinal: number,
+  instanceId: ProviderInstanceId,
+  model: string,
+): HandoffTimelineRun => ({
   id: RunId.make(id),
   ordinal,
   providerInstanceId: instanceId,

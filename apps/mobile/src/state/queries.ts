@@ -90,7 +90,7 @@ export interface ComposerPathSearchTarget {
   readonly query: string | null;
 }
 
-export function useDebouncedValue<A>(value: A, delayMs: number) {
+export function useDebouncedValue<A>(value: A, delayMs: number): A {
   const [debounced, setDebounced] = useState(value);
 
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- timer that publishes the value after the delay and clears on change
@@ -216,7 +216,12 @@ export function useThreadSearch(
   environmentIds: ReadonlyArray<EnvironmentId>,
   query: string,
   scope: ThreadSearchScope = {},
-) {
+): {
+  readonly matches: ReadonlyArray<EnvironmentThreadSearchMatch>;
+  /** The query `matches` are for, which lags the typed one while a search runs. */
+  readonly query: string;
+  readonly isPending: boolean;
+} {
   const normalizedQuery = query.trim().slice(0, THREAD_SEARCH_QUERY_MAX_LENGTH).trim();
   const debouncedQuery = useDebouncedValue(normalizedQuery, THREAD_SEARCH_DEBOUNCE_MS);
   const anyOlderDone = useAtomValue(anyOlderDoneAtom(JSON.stringify(environmentIds)));

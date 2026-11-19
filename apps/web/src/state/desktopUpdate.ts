@@ -18,12 +18,12 @@ export class DesktopUpdateStateReadError extends Schema.TaggedError<DesktopUpdat
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Failed to read the initial desktop update state after ${this.attemptCount} attempts.`;
   }
 }
 
-function getDesktopUpdateBridge() {
+function getDesktopUpdateBridge(): DesktopUpdateBridge | undefined {
   return typeof window === "undefined" ? undefined : window.desktopBridge;
 }
 
@@ -81,6 +81,6 @@ export function createDesktopUpdateStateAtom(getBridge: () => DesktopUpdateBridg
 
 export const desktopUpdateStateAtom = createDesktopUpdateStateAtom(getDesktopUpdateBridge);
 
-export function useDesktopUpdateState() {
+export function useDesktopUpdateState(): DesktopUpdateState | null {
   return AsyncResult.getOrElse(useAtomValue(desktopUpdateStateAtom), () => null);
 }

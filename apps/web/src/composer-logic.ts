@@ -65,7 +65,7 @@ export function composerSubmissionIntentForKey(input: {
   isRunning?: boolean;
   sendShortcut?: ClientSettings["sendShortcut"];
   prompt?: string;
-}) {
+}): ComposerSubmissionIntent | null {
   const { event } = input;
   if (event.isComposing || event.keyCode === 229 || event.repeat) return null;
   if (input.isSoftwareKeyboardOpen && event.key === "Enter" && !event.metaKey && !event.ctrlKey)
@@ -113,7 +113,7 @@ export function composerSendShortcutLabels(input: {
   sendShortcut: ClientSettings["sendShortcut"];
   hasMultilinePrompt: boolean;
   isSoftwareKeyboardOpen: boolean;
-}) {
+}): Partial<Record<ComposerSendAction, string>> {
   const { keybindings, platform, isDraftThread, isRunning } = input;
   const labels: Partial<Record<ComposerSendAction, string>> = {};
   const useMetaForMod = isMacPlatform(platform);
@@ -167,7 +167,7 @@ export function composerSendShortcutLabels(input: {
   return labels;
 }
 
-function clampCursor(text: string, cursor: number) {
+function clampCursor(text: string, cursor: number): number {
   if (!Number.isFinite(cursor)) return text.length;
   return Math.max(0, Math.min(text.length, Math.floor(cursor)));
 }
@@ -176,7 +176,7 @@ export function expandCollapsedComposerCursor(
   text: string,
   cursorInput: number,
   literalText = false,
-) {
+): number {
   if (literalText) return clampCursor(text, cursorInput);
   const collapsedCursor = clampCursor(text, cursorInput);
   const segments = splitPromptIntoComposerSegments(text);
@@ -222,7 +222,7 @@ export function expandCollapsedComposerCursor(
   return expandedCursor;
 }
 
-function collapsedSegmentLength(segment: ComposerPromptSegment) {
+function collapsedSegmentLength(segment: ComposerPromptSegment): number {
   if (segment.type === "text") {
     return segment.text.length;
   }
@@ -232,7 +232,7 @@ function collapsedSegmentLength(segment: ComposerPromptSegment) {
 function clampCollapsedComposerCursorForSegments(
   segments: ReadonlyArray<ComposerPromptSegment>,
   cursorInput: number,
-) {
+): number {
   const collapsedLength = segments.reduce(
     (total, segment) => total + collapsedSegmentLength(segment),
     0,
@@ -247,7 +247,7 @@ export function clampCollapsedComposerCursor(
   text: string,
   cursorInput: number,
   literalText = false,
-) {
+): number {
   if (literalText) return clampCursor(text, cursorInput);
   return clampCollapsedComposerCursorForSegments(
     splitPromptIntoComposerSegments(text),
@@ -259,7 +259,7 @@ export function collapseExpandedComposerCursor(
   text: string,
   cursorInput: number,
   literalText = false,
-) {
+): number {
   if (literalText) return clampCursor(text, cursorInput);
   const expandedCursor = clampCursor(text, cursorInput);
   const segments = splitPromptIntoComposerSegments(text);
@@ -311,21 +311,28 @@ export function collapseExpandedComposerCursor(
   return collapsedCursor;
 }
 
-export function pastedPathQueryLength(lineBefore: string, pasted: string, pathQueryActive = true) {
+export function pastedPathQueryLength(
+  lineBefore: string,
+  pasted: string,
+  pathQueryActive = true,
+): number {
   if (!pathQueryActive) return 0;
   if (detectComposerTrigger(lineBefore, lineBefore.length)?.kind !== "path") return 0;
   return /^\S*/.exec(pasted)![0].length;
 }
 
-export function composerStateAtPromptEnd(text: string, literalText = false) {
+export function composerStateAtPromptEnd(
+  text: string,
+  literalText = false,
+): {
+  cursor: number;
+  trigger: ComposerTrigger | null;
+} {
   const cursor = collapseExpandedComposerCursor(text, text.length, literalText);
   return {
     cursor,
     trigger: literalText
       ? null
       : detectComposerTrigger(text, expandCollapsedComposerCursor(text, cursor)),
-  } satisfies {
-    cursor: number;
-    trigger: ComposerTrigger | null;
   };
 }

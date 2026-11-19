@@ -24,7 +24,10 @@ const AGENT_A_TASK_ID = "a1a715b7d0bdfefea";
 const AGENT_B_TASK_ID = "af44d5c14aa3ce867";
 const AGENT_A_OBSERVED_MODEL = "claude-haiku-4-5";
 
-function assistantTexts(projection: OrchestrationV2ThreadProjection, runId?: string) {
+function assistantTexts(
+  projection: OrchestrationV2ThreadProjection,
+  runId?: string,
+): ReadonlyArray<string> {
   return projection.turnItems.flatMap((item) =>
     item.type === "assistant_message" && (runId === undefined || item.runId === runId)
       ? [item.text.trim()]
@@ -32,7 +35,7 @@ function assistantTexts(projection: OrchestrationV2ThreadProjection, runId?: str
   );
 }
 
-function conversation(projection: OrchestrationV2ThreadProjection) {
+function conversation(projection: OrchestrationV2ThreadProjection): ReadonlyArray<string> {
   return projection.turnItems
     .toSorted((left, right) => left.ordinal - right.ordinal)
     .flatMap((item) =>
@@ -44,14 +47,11 @@ function conversation(projection: OrchestrationV2ThreadProjection) {
     );
 }
 
-function frameField(frame: unknown, key: string): unknown;
-function frameField(frame: unknown, key: string) {
-  return (
-    typeof frame === "object" && frame !== null ? Reflect.get(frame, key) : undefined
-  ) satisfies unknown;
+function frameField(frame: unknown, key: string): unknown {
+  return typeof frame === "object" && frame !== null ? Reflect.get(frame, key) : undefined;
 }
 
-function sendMessageToolUseIds(transcript: ProviderReplayTranscript) {
+function sendMessageToolUseIds(transcript: ProviderReplayTranscript): ReadonlyArray<string> {
   return transcript.entries.flatMap((entry) => {
     const content = frameField(
       frameField(entry.type === "emit_inbound" ? entry.frame : undefined, "message"),

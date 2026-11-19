@@ -19,7 +19,7 @@ interface UploadRequest {
 const environmentId = EnvironmentId.make("environment-1");
 const uploadKey = (environment: EnvironmentId, id: string) => `${environment}:${id}`;
 
-function request(id: string, environment = environmentId) {
+function request(id: string, environment = environmentId): UploadRequest {
   return { environmentId: environment, attachment: { id, fileUri: `file:///documents/${id}.pdf` } };
 }
 

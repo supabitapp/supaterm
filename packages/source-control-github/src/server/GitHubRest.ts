@@ -72,7 +72,7 @@ const decodeRestErrors = Schema.decodeUnknownOption(
   ),
 );
 
-function restErrorMessages(body: string) {
+function restErrorMessages(body: string): ReadonlyArray<string> | undefined {
   return Option.match(decodeRestErrors(body), {
     onNone: () => undefined,
     onSome: (decoded) => {
@@ -94,37 +94,18 @@ function restErrorMessages(body: string) {
 function classify(input: {
   readonly answer: GitHubRestResponse;
   readonly acceptNotModified: boolean;
-}) {
+}): GitHubRequestPolicy.GitHubAnswer<GitHubRestResponse> {
   const { status, headers, body } = input.answer;
   const meta = { status, headers };
   if (GitHubRequestPolicy.isRateLimited({ status, headers, body })) {
-    return {
-      _tag: "RateLimited",
-      ...meta,
-    } satisfies GitHubRequestPolicy.GitHubAnswer<GitHubRestResponse>;
+    return { _tag: "RateLimited", ...meta };
   }
-  if (status === 401)
-    return {
-      _tag: "Unauthorized",
-      ...meta,
-    } satisfies GitHubRequestPolicy.GitHubAnswer<GitHubRestResponse>;
-  if (status === 404)
-    return {
-      _tag: "NotFound",
-      ...meta,
-    } satisfies GitHubRequestPolicy.GitHubAnswer<GitHubRestResponse>;
+  if (status === 401) return { _tag: "Unauthorized", ...meta };
+  if (status === 404) return { _tag: "NotFound", ...meta };
   if ((status >= 200 && status < 300) || (status === 304 && input.acceptNotModified)) {
-    return {
-      _tag: "Ok",
-      value: input.answer,
-      ...meta,
-    } satisfies GitHubRequestPolicy.GitHubAnswer<GitHubRestResponse>;
+    return { _tag: "Ok", value: input.answer, ...meta };
   }
-  return {
-    _tag: "Failed",
-    messages: restErrorMessages(body),
-    ...meta,
-  } satisfies GitHubRequestPolicy.GitHubAnswer<GitHubRestResponse>;
+  return { _tag: "Failed", messages: restErrorMessages(body), ...meta };
 }
 
 /** @public */

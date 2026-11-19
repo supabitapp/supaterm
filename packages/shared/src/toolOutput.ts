@@ -56,33 +56,32 @@ interface CompactToolOutput {
   sentMessage?: string;
 }
 
-function readResult(value: unknown, budget: ResultReadBudget, depth?: number): ResultEnvelope;
-function readResult(value: unknown, budget: ResultReadBudget, depth = 0) {
+function readResult(value: unknown, budget: ResultReadBudget, depth = 0): ResultEnvelope {
   if (depth > MAX_ENVELOPE_DEPTH || budget.remainingNodes-- <= 0) {
     budget.exceeded = true;
-    return { failed: false } satisfies ResultEnvelope;
+    return { failed: false };
   }
   if (typeof value === "string") {
     if (value.length > budget.remainingBytes) {
       budget.exceeded = true;
-      return { failed: false } satisfies ResultEnvelope;
+      return { failed: false };
     }
     const bytes = encoder.encode(value).byteLength;
     if (bytes > budget.remainingBytes) {
       budget.exceeded = true;
-      return { failed: false } satisfies ResultEnvelope;
+      return { failed: false };
     }
     budget.remainingBytes -= bytes;
     try {
-      return readResult(JSON.parse(value), budget, depth + 1) satisfies ResultEnvelope;
+      return readResult(JSON.parse(value), budget, depth + 1);
     } catch {
-      return { failed: false } satisfies ResultEnvelope;
+      return { failed: false };
     }
   }
   if (Array.isArray(value)) {
     if (value.length > MAX_CONTENT_BLOCKS) {
       budget.exceeded = true;
-      return { failed: false } satisfies ResultEnvelope;
+      return { failed: false };
     }
     let data: ResultEnvelope["data"];
     let failed = false;
@@ -97,9 +96,9 @@ function readResult(value: unknown, budget: ResultReadBudget, depth = 0) {
       failed ||= result.failed;
       if (budget.exceeded) break;
     }
-    return { ...(data === undefined ? {} : { data }), failed } satisfies ResultEnvelope;
+    return { ...(data === undefined ? {} : { data }), failed };
   }
-  if (!Predicate.isObject(value)) return { failed: false } satisfies ResultEnvelope;
+  if (!Predicate.isObject(value)) return { failed: false };
   const failed =
     value.isError === true ||
     value.is_error === true ||
@@ -108,19 +107,19 @@ function readResult(value: unknown, budget: ResultReadBudget, depth = 0) {
   const content = value.structuredContent ?? value.content;
   if (content !== undefined) {
     const nested = readResult(content, budget, depth + 1);
-    return { ...nested, failed: failed || nested.failed } satisfies ResultEnvelope;
+    return { ...nested, failed: failed || nested.failed };
   }
-  return { data: value, failed } satisfies ResultEnvelope;
+  return { data: value, failed };
 }
 
-function boundedId(value: unknown) {
+function boundedId(value: unknown): string | undefined {
   if (typeof value !== "string" || value.length > MAX_ID_LENGTH || value.trim() === "") {
     return undefined;
   }
   return Array.from(value).join("");
 }
 
-export function compactDynamicToolOutput(value: unknown) {
+export function compactDynamicToolOutput(value: unknown): CompactToolOutput | undefined {
   const budget: ResultReadBudget = {
     remainingBytes: MAX_PARSED_BYTES,
     remainingNodes: MAX_ENVELOPE_NODES,
@@ -205,7 +204,7 @@ const OPENCODE_CODE_MODE_TOOL_NAME = "execute";
 export function htmlRenderFromToolItem(item: {
   readonly toolName: string | null | undefined;
   readonly output?: unknown;
-}) {
+}): HtmlRenderReference | undefined {
   if (
     item.toolName !== OPENCODE_CODE_MODE_TOOL_NAME &&
     resolveSupatermMcpToolId(item.toolName) !== HTML_RENDER_TOOL_NAME
@@ -220,7 +219,7 @@ export function htmlRenderFromToolItem(item: {
 export function sentMessageFromToolItem(item: {
   readonly toolName: string | null | undefined;
   readonly output?: unknown;
-}) {
+}): string | undefined {
   if (
     item.toolName !== OPENCODE_CODE_MODE_TOOL_NAME &&
     resolveSupatermMcpToolId(item.toolName) !== SEND_TO_USER_TOOL_NAME
@@ -235,7 +234,7 @@ export function sentMessageFromToolItem(item: {
 export function previewRecordingIdFromToolItem(item: {
   readonly toolName: string | null | undefined;
   readonly output?: unknown;
-}) {
+}): string | undefined {
   if (resolveSupatermMcpToolId(item.toolName) !== "preview_recording_stop") return undefined;
   const budget: ResultReadBudget = {
     remainingBytes: MAX_PARSED_BYTES,
@@ -249,7 +248,7 @@ export function previewRecordingIdFromToolItem(item: {
 export function mcpAppFromToolItem(item: {
   readonly toolName: string | null | undefined;
   readonly output?: unknown;
-}) {
+}): McpAppReference | undefined {
   const app = compactDynamicToolOutput(item.output)?.[MCP_APP_OUTPUT_KEY];
   return app !== undefined &&
     (item.toolName === `${app.server}.${app.tool}` ||
@@ -262,7 +261,7 @@ const FAILURE_HINT =
   /enoent|no such|no files found|not found|commandnotfound|not recognized|cannot (?:find path|be found)|exit/i;
 
 /** Some providers report completion even when command output describes a failure. */
-export function toolOutputIndicatesFailure(text: string) {
+export function toolOutputIndicatesFailure(text: string): boolean {
   return (
     FAILURE_HINT.test(text) &&
     (/file not found|no files found|enoent|no such file|commandnotfoundexception|command not found|is not recognized as the name of a cmdlet|a parameter cannot be found that matches parameter name/i.test(
@@ -284,28 +283,23 @@ export interface ToolOutputImage {
  * Only raster types are recognized, so the server never serves an agent's SVG
  * or HTML inline.
  */
-export function readToolOutputImage(block: unknown): ToolOutputImage | null;
-export function readToolOutputImage(block: unknown) {
-  if (!Predicate.isObject(block) || block.type !== "image")
-    return null satisfies ToolOutputImage | null;
+export function readToolOutputImage(block: unknown): ToolOutputImage | null {
+  if (!Predicate.isObject(block) || block.type !== "image") return null;
   const source = Predicate.isObject(block.source) ? block.source : undefined;
-  if (source !== undefined && source.type !== "base64")
-    return null satisfies ToolOutputImage | null;
+  if (source !== undefined && source.type !== "base64") return null;
   const mimeType = source === undefined ? block.mimeType : source.media_type;
   const data = source === undefined ? block.data : source.data;
   if (typeof mimeType !== "string" || !isProviderSendTurnSupportedImageMimeType(mimeType)) {
-    return null satisfies ToolOutputImage | null;
+    return null;
   }
   const image = { mimeType: mimeType.toLowerCase() };
-  return (typeof data === "string" ? { ...image, data } : image) satisfies ToolOutputImage | null;
+  return typeof data === "string" ? { ...image, data } : image;
 }
 
-function outputBlocks(value: unknown): ReadonlyArray<unknown>;
-function outputBlocks(value: unknown) {
-  if (Array.isArray(value)) return value satisfies ReadonlyArray<unknown>;
-  if (Predicate.isObject(value) && Array.isArray(value.content))
-    return value.content satisfies ReadonlyArray<unknown>;
-  return [value] satisfies ReadonlyArray<unknown>;
+function outputBlocks(value: unknown): ReadonlyArray<unknown> {
+  if (Array.isArray(value)) return value;
+  if (Predicate.isObject(value) && Array.isArray(value.content)) return value.content;
+  return [value];
 }
 
 export const MAX_TOOL_OUTPUT_IMAGES = 8;
@@ -313,7 +307,7 @@ export const MAX_TOOL_OUTPUT_IMAGES = 8;
 export const MAX_TOOL_OUTPUT_IMAGE_BASE64_LENGTH =
   Math.ceil(PROVIDER_SEND_TURN_MAX_IMAGE_BYTES / 3) * 4;
 
-export function toolOutputImageBlocks(value: unknown) {
+export function toolOutputImageBlocks(value: unknown): ReadonlyArray<unknown> {
   const blocks: unknown[] = [];
   for (const block of outputBlocks(value)) {
     if (readToolOutputImage(block) === null) continue;
@@ -327,14 +321,14 @@ export function toolOutputImageBlocks(value: unknown) {
  * The order is the `tool-output-image` asset index, so servers and clients
  * agree on it.
  */
-export function toolOutputImages(value: unknown) {
+export function toolOutputImages(value: unknown): ReadonlyArray<ToolOutputImage> {
   return toolOutputImageBlocks(value).flatMap((block) => readToolOutputImage(block) ?? []);
 }
 
 export function mcpToolResultOutput(result: {
   readonly content?: unknown;
   readonly structuredContent?: unknown;
-}) {
+}): unknown {
   const structuredContent =
     (Array.isArray(result.structuredContent) || Predicate.isObject(result.structuredContent)) &&
     Object.keys(result.structuredContent).length === 0
@@ -346,15 +340,14 @@ export function mcpToolResultOutput(result: {
   return structuredContent ?? result.content;
 }
 
-export function omitToolOutputImageData(value: unknown): unknown;
-export function omitToolOutputImageData(value: unknown) {
+export function omitToolOutputImageData(value: unknown): unknown {
   const omit = (block: unknown) => {
     const image = readToolOutputImage(block);
     return image?.data === undefined ? block : { type: "image", mimeType: image.mimeType };
   };
-  if (Array.isArray(value)) return value.map(omit) satisfies unknown;
+  if (Array.isArray(value)) return value.map(omit);
   if (Predicate.isObject(value) && Array.isArray(value.content)) {
-    return { ...value, content: value.content.map(omit) } satisfies unknown;
+    return { ...value, content: value.content.map(omit) };
   }
-  return omit(value) satisfies unknown;
+  return omit(value);
 }

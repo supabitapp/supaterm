@@ -68,7 +68,7 @@ class CommandFailedError extends Schema.TaggedError<CommandFailedError>()("Comma
   stdout: Schema.String,
   stderr: Schema.String,
 }) {
-  override get message() {
+  override get message(): string {
     return `${this.command} exited with code ${this.exitCode}: ${this.stderr.trim()}`;
   }
 }
@@ -121,7 +121,7 @@ const pullRequestNumber = (subject: string) => {
  * Reads `git log --first-parent --format=%s%x1f%an%x1f%b%x1e`. A merge commit's subject only names
  * the branch, so it becomes the PR title from its body with the number appended, like a squash.
  */
-export function parseReleaseCommits(log: string) {
+export function parseReleaseCommits(log: string): ReadonlyArray<ReleaseCommit> {
   return log.split("\x1e").flatMap((record) => {
     const [subject = "", authorName = "", body = ""] = record.replace(/^\n/, "").split("\x1f");
     if (subject === "") return [];
@@ -133,12 +133,12 @@ export function parseReleaseCommits(log: string) {
 }
 
 /** Drops a commit only when every scope is mobile, so `fix(web,mobile)` stays. */
-export function isReleaseNoteCommit(commit: ReleaseCommit) {
+export function isReleaseNoteCommit(commit: ReleaseCommit): boolean {
   const scopes = COMMIT_SCOPES.exec(commit.subject)?.[1]?.split(",");
   return !scopes?.every((scope) => MOBILE_SCOPES.has(scope.trim().toLowerCase()));
 }
 
-function trimPullRequestBody(body: string, limit = PULL_REQUEST_BODY_LIMIT) {
+function trimPullRequestBody(body: string, limit = PULL_REQUEST_BODY_LIMIT): string {
   const [prose = ""] = body.split(/\n#+\s*(?:Verification|Council|Test|Testing|Screenshots)\b/i);
   const text = prose
     .split("\n")
@@ -152,7 +152,7 @@ function trimPullRequestBody(body: string, limit = PULL_REQUEST_BODY_LIMIT) {
 function buildSummaryInput(
   commits: ReadonlyArray<ReleaseCommit>,
   pullRequests: ReadonlyMap<number, PullRequest>,
-) {
+): string {
   return commits
     .flatMap(({ subject }) => {
       const number = pullRequestNumber(subject);
@@ -169,7 +169,7 @@ function buildSummaryInput(
 export function countContributors(
   commits: ReadonlyArray<ReleaseCommit>,
   pullRequests: ReadonlyMap<number, PullRequest>,
-) {
+): number {
   const people = new Set<string>();
   const prAuthorNames = new Set<string>();
   const directAuthors: string[] = [];
@@ -191,12 +191,12 @@ export function countContributors(
   return people.size;
 }
 
-function buildReleaseHeader(version: string, changes: number, contributors: number) {
+function buildReleaseHeader(version: string, changes: number, contributors: number): string {
   const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? "" : "s"}`;
   return `**v${version.replace(/^v/, "")}** · ${plural(changes, "change")} from ${plural(contributors, "contributor")}`;
 }
 
-function assembleReleaseNotes(header: string, summary: string, fullChangelog: string) {
+function assembleReleaseNotes(header: string, summary: string, fullChangelog: string): string {
   return `${header}\n\n${summary.trim()}\n\n<details>\n<summary>Full changelog</summary>\n\n${fullChangelog.trim()}\n\n</details>\n`;
 }
 
@@ -290,7 +290,7 @@ const readFullChangelog = Effect.fn("generateReleaseNotes.readFullChangelog")(fu
   return (yield* decodeJson(GeneratedNotes)(response)).body;
 });
 
-export function summaryText(response: typeof SummaryResponse.Type) {
+export function summaryText(response: typeof SummaryResponse.Type): Option.Option<string> {
   if (response.stop_reason !== "end_turn") return Option.none();
   const text = response.content
     .flatMap((block) => (block.type === "text" && block.text ? [block.text] : []))

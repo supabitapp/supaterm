@@ -101,7 +101,7 @@ export const signWithJsign = Effect.fn("signWithJsign")(function* (file: string)
   );
 });
 
-export default function sign(configuration: { readonly path: string }) {
+export default function sign(configuration: { readonly path: string }): Promise<void> {
   return signWithJsign(configuration.path).pipe(
     Effect.scoped,
     Effect.provide(NodeServices.layer),

@@ -20,7 +20,9 @@ const pendingWrites = new Map<
 >();
 
 /** Captures the editor revision and predecessor save; the promise survives clearing its map entry. */
-export function capturePendingTaskEditorWriteBaseline(messageId: QueuedThreadMessage["messageId"]) {
+export function capturePendingTaskEditorWriteBaseline(
+  messageId: QueuedThreadMessage["messageId"],
+): Promise<number> {
   const capturedRevision = threadOutboxRevision(messageId);
   const predecessor = pendingWrites.get(messageId);
   if (!predecessor) {
@@ -36,28 +38,30 @@ export function flushPendingTaskEditorWrite(input: {
   readonly message: QueuedThreadMessage;
   readonly baseline: Promise<number>;
   readonly draftKey: string;
-}) {
+}): Promise<boolean> {
   const { message } = input;
   const draftSnapshot = getComposerDraftSnapshot(input.draftKey);
-  const write = input.baseline.then(async (expectedRevision) => {
-    try {
-      const updated = await updateThreadOutboxMessage(message, expectedRevision);
-      return {
-        status: "complete",
-        updated,
-        nextRevision: expectedRevision + (updated ? 1 : 0),
-      } satisfies PendingTaskEditorWriteResult;
-    } catch (error) {
-      return {
-        status: "failed",
-        error,
-        nextRevision: expectedRevision,
-      } satisfies PendingTaskEditorWriteResult;
-    }
-  });
+  const write = input.baseline.then(
+    async (expectedRevision): Promise<PendingTaskEditorWriteResult> => {
+      try {
+        const updated = await updateThreadOutboxMessage(message, expectedRevision);
+        return {
+          status: "complete",
+          updated,
+          nextRevision: expectedRevision + (updated ? 1 : 0),
+        };
+      } catch (error) {
+        return {
+          status: "failed",
+          error,
+          nextRevision: expectedRevision,
+        };
+      }
+    },
+  );
 
   pendingWrites.set(message.messageId, write);
-  const removeWrite = () => {
+  const removeWrite = (): void => {
     if (pendingWrites.get(message.messageId) === write) {
       pendingWrites.delete(message.messageId);
     }
@@ -72,5 +76,5 @@ export function flushPendingTaskEditorWrite(input: {
       result.updated &&
       sameComposerDraftState(draftSnapshot, getComposerDraftSnapshot(input.draftKey))
     );
-  }) satisfies Promise<boolean>;
+  });
 }

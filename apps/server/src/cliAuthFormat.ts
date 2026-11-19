@@ -9,7 +9,7 @@ function serializeOptionalFields(values: ReadonlyArray<string | null | undefined
   return values.filter((value): value is string => typeof value === "string" && value.length > 0);
 }
 
-function formatClientMetadata(metadata: AuthClientMetadata) {
+function formatClientMetadata(metadata: AuthClientMetadata): string {
   const details = serializeOptionalFields([
     metadata.label,
     metadata.deviceType !== "unknown" ? metadata.deviceType : undefined,
@@ -20,7 +20,7 @@ function formatClientMetadata(metadata: AuthClientMetadata) {
   return details.length > 0 ? details.join(" | ") : "unlabeled client";
 }
 
-function toIsoString(value: DateTime.DateTime | DateTime.Utc) {
+function toIsoString(value: DateTime.DateTime | DateTime.Utc): string {
   return DateTime.formatIso(DateTime.toUtc(value));
 }
 
@@ -30,7 +30,7 @@ export function formatIssuedPairingCredential(
     readonly json?: boolean;
     readonly baseUrl?: string;
   },
-) {
+): string {
   const pairUrl =
     options?.baseUrl != null && options.baseUrl.length > 0
       ? (() => {
@@ -71,7 +71,7 @@ export function formatPairingCredentialList(
   options?: {
     readonly json?: boolean;
   },
-) {
+): string {
   if (options?.json) {
     return `${JSON.stringify(
       credentials.map((credential) => ({
@@ -110,7 +110,7 @@ export function formatIssuedSession(
     readonly json?: boolean;
     readonly tokenOnly?: boolean;
   },
-) {
+): string {
   if (options?.tokenOnly) {
     return `${session.token}${newline}`;
   }
@@ -148,7 +148,7 @@ export function formatSessionList(
   options?: {
     readonly json?: boolean;
   },
-) {
+): string {
   if (options?.json) {
     return `${JSON.stringify(
       sessions.map((session) => ({

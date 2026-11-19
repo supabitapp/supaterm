@@ -72,7 +72,7 @@ interface Utf8Chunk {
   readonly byteLength: number;
 }
 
-function splitStringByUtf8Bytes(data: string, maxBytes: number) {
+function splitStringByUtf8Bytes(data: string, maxBytes: number): ReadonlyArray<Utf8Chunk> {
   if (data.length === 0) return [];
 
   const encoded = textEncoder.encode(data);
@@ -105,7 +105,11 @@ function splitOutputChunks(
   data: string,
   firstOffset: number,
   maxChunkBytes = DEFAULT_TERMINAL_CHUNK_BYTES,
-) {
+): {
+  readonly chunks: ReadonlyArray<TerminalOutputChunk>;
+  readonly nextOffset: number;
+  readonly byteLength: number;
+} {
   const split = splitStringByUtf8Bytes(data, maxChunkBytes);
   let byteLength = 0;
   let nextOffset = firstOffset;
@@ -148,7 +152,10 @@ function compactRetainedChunks(chunks: ReadonlyArray<TerminalOutputChunk>) {
   return compacted;
 }
 
-function trimOutputChunkStart(chunk: TerminalOutputChunk, bytesToDrop: number) {
+function trimOutputChunkStart(
+  chunk: TerminalOutputChunk,
+  bytesToDrop: number,
+): TerminalOutputChunk {
   let offset = 0;
   let droppedBytes = 0;
   while (droppedBytes < bytesToDrop && offset < chunk.data.length) {
@@ -164,7 +171,11 @@ function trimOutputChunkStart(chunk: TerminalOutputChunk, bytesToDrop: number) {
   };
 }
 
-function appendOutput(current: TerminalOutputState, data: string, maxBufferBytes: number) {
+function appendOutput(
+  current: TerminalOutputState,
+  data: string,
+  maxBufferBytes: number,
+): TerminalOutputState {
   if (data.length === 0) return current;
   if (maxBufferBytes <= 0) {
     return {
@@ -235,7 +246,11 @@ function appendOutput(current: TerminalOutputState, data: string, maxBufferBytes
   };
 }
 
-function resetOutput(current: TerminalOutputState, data: string, maxBufferBytes: number) {
+function resetOutput(
+  current: TerminalOutputState,
+  data: string,
+  maxBufferBytes: number,
+): TerminalOutputState {
   const retained = retainedTerminalHistory(data, maxBufferBytes);
   const reset = splitOutputChunks(
     retained,
@@ -256,7 +271,7 @@ function resetOutput(current: TerminalOutputState, data: string, maxBufferBytes:
 const CLEAR_TERMINAL_TEXT = "\u001b[H\u001b[2J\u001b[3J";
 
 /** Earlier output stays retained so a replay from the start restores those modes. */
-function clearOutput(current: TerminalOutputState, maxBufferBytes: number) {
+function clearOutput(current: TerminalOutputState, maxBufferBytes: number): TerminalOutputState {
   const cleared = appendOutput(
     current,
     CLEAR_TERMINAL_TEXT,
@@ -268,13 +283,13 @@ function clearOutput(current: TerminalOutputState, maxBufferBytes: number) {
 }
 
 /** Everything a fresh emulator replays: retained output from outside any control sequence. */
-export function terminalOutputReplay(output: TerminalOutputState) {
+export function terminalOutputReplay(output: TerminalOutputState): string {
   const text = output.chunks.map((chunk) => chunk.data).join("");
   return text.slice(terminalSequenceEnd(output.sequenceState, text));
 }
 
 /** The output as plain text, for surfaces that do not interpret escape sequences. */
-export function terminalOutputText(output: TerminalOutputState) {
+export function terminalOutputText(output: TerminalOutputState): string {
   const text = output.chunks.map((chunk) => chunk.data).join("");
   const firstOffset = output.chunks[0]?.startOffset ?? output.nextOffset;
   return text.slice(
@@ -285,7 +300,7 @@ export function terminalOutputText(output: TerminalOutputState) {
 export function readTerminalOutputUpdate(
   output: TerminalOutputState,
   cursor: TerminalOutputCursor,
-) {
+): TerminalOutputUpdate {
   const position = {
     generation: output.generation,
     resetVersion: output.resetVersion,
@@ -306,7 +321,7 @@ export function readTerminalOutputUpdate(
         ...position,
         sequenceState: terminalSequenceStateAfter(output.sequenceState, text, 0, start),
       },
-    } satisfies TerminalOutputUpdate;
+    };
   }
 
   let firstUnread = output.chunks.length;
@@ -325,13 +340,9 @@ export function readTerminalOutputUpdate(
     sequenceState: terminalSequenceStateAfter(cursor.sequenceState, text, 0, start),
   };
   if (start === text.length) {
-    return { type: "none", cursor: nextCursor } satisfies TerminalOutputUpdate;
+    return { type: "none", cursor: nextCursor };
   }
-  return {
-    type: "append",
-    data: text.slice(start),
-    cursor: nextCursor,
-  } satisfies TerminalOutputUpdate;
+  return { type: "append", data: text.slice(start), cursor: nextCursor };
 }
 
 export { appendOutput, clearOutput, resetOutput };

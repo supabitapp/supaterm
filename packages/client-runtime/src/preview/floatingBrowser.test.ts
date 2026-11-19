@@ -17,7 +17,7 @@ const failed: PreviewNavStatus = {
   description: "ERR_CONNECTION_REFUSED",
 };
 
-function visibilityDuring(statuses: ReadonlyArray<PreviewNavStatus | null>) {
+function visibilityDuring(statuses: ReadonlyArray<PreviewNavStatus | null>): boolean[] {
   let visible = false;
   return statuses.map((status) => {
     visible = shouldShowFloatingBrowser(status, visible);

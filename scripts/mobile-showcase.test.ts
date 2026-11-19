@@ -121,7 +121,7 @@ it("rejects captures with an unsupported theme appearance", () => {
   assert.throws(() => planShowcaseCaptures(config, options), /No captures match/u);
 });
 
-function rgbaPng(width: number, height: number) {
+function rgbaPng(width: number, height: number): Buffer {
   const png = new PNG({ width, height });
   png.data.fill(255);
   return PNG.sync.write(png);

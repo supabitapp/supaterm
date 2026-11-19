@@ -115,7 +115,7 @@ describe("ignoreMacosTypeOfServiceEinval", () => {
   it("swallows only an Error with code EINVAL on macOS", () => {
     let error: unknown = errnoError("EINVAL");
     const prototype = {
-      setTypeOfService(this: NodeNet.Socket, _typeOfService: number) {
+      setTypeOfService(this: NodeNet.Socket, _typeOfService: number): NodeNet.Socket {
         throw error;
       },
     };

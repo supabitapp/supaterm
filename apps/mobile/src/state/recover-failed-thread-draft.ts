@@ -9,7 +9,7 @@ import {
   mergeComposerDraftContent,
 } from "./use-composer-drafts";
 
-export async function recoverFailedThreadDraft(message: QueuedThreadMessage) {
+export async function recoverFailedThreadDraft(message: QueuedThreadMessage): Promise<void> {
   const sourceKey = scopedThreadKey(message.environmentId, message.threadId);
   const targetKey = restoredNewTaskDraftKey(message.messageId);
   const source = getComposerDraftSnapshot(sourceKey);

@@ -199,29 +199,19 @@ function SidePulseLightRow({
   );
 }
 
-function connectionSummary(enabled: boolean, state: SidePulseDeviceState | null) {
-  if (!enabled)
-    return { label: "Off", description: DEFAULT_DESCRIPTION, tone: "muted" } satisfies {
-      readonly label: string | null;
-      readonly description: string;
-      readonly tone: Tone;
-    };
+function connectionSummary(
+  enabled: boolean,
+  state: SidePulseDeviceState | null,
+): { readonly label: string | null; readonly description: string; readonly tone: Tone } {
+  if (!enabled) return { label: "Off", description: DEFAULT_DESCRIPTION, tone: "muted" };
   if (state === null || !state.enabled) {
-    return { label: null, description: DEFAULT_DESCRIPTION, tone: "muted" } satisfies {
-      readonly label: string | null;
-      readonly description: string;
-      readonly tone: Tone;
-    };
+    return { label: null, description: DEFAULT_DESCRIPTION, tone: "muted" };
   }
   if (state.devices.length === 0) {
     return {
       label: "Not detected",
       description: "Insert SidePulse Pro in the SD card slot.",
       tone: "muted",
-    } satisfies {
-      readonly label: string | null;
-      readonly description: string;
-      readonly tone: Tone;
     };
   }
   const errors = new Set(state.devices.map((device) => device.error));
@@ -232,10 +222,6 @@ function connectionSummary(enabled: boolean, state: SidePulseDeviceState | null)
         ? "Allow Supaterm to use removable volumes in System Settings > Privacy & Security > Files & Folders."
         : "Supaterm can't open the SidePulse volume. Make sure your user can read and write it.",
       tone: "error",
-    } satisfies {
-      readonly label: string | null;
-      readonly description: string;
-      readonly tone: Tone;
     };
   }
   if (errors.has("read-only")) {
@@ -243,10 +229,6 @@ function connectionSummary(enabled: boolean, state: SidePulseDeviceState | null)
       label: "Can't write",
       description: "This computer doesn't allow writing to the SidePulse volume.",
       tone: "error",
-    } satisfies {
-      readonly label: string | null;
-      readonly description: string;
-      readonly tone: Tone;
     };
   }
   if (errors.has("write-failed")) {
@@ -254,17 +236,9 @@ function connectionSummary(enabled: boolean, state: SidePulseDeviceState | null)
       label: "Write failed",
       description: "Supaterm couldn't update the LEDs. It keeps trying.",
       tone: "error",
-    } satisfies {
-      readonly label: string | null;
-      readonly description: string;
-      readonly tone: Tone;
     };
   }
-  return { label: "Connected", description: DEFAULT_DESCRIPTION, tone: "success" } satisfies {
-    readonly label: string | null;
-    readonly description: string;
-    readonly tone: Tone;
-  };
+  return { label: "Connected", description: DEFAULT_DESCRIPTION, tone: "success" };
 }
 
 const EJECT_GUARD_DESCRIPTION =

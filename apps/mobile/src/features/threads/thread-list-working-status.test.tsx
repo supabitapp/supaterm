@@ -54,9 +54,8 @@ async function mount(start: string | null, label = "Working") {
 }
 
 function text() {
-  const collect: (node: ReactTestInstance | string) => string = (
-    node: ReactTestInstance | string,
-  ) => (typeof node === "string" ? node : node.children.map(collect).join(""));
+  const collect = (node: ReactTestInstance | string): string =>
+    typeof node === "string" ? node : node.children.map(collect).join("");
   return renderer ? collect(renderer.root.findByType("span")) : undefined;
 }
 

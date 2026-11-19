@@ -9,7 +9,7 @@ import type { PendingThreadTurn } from "./threadOutbox";
 
 const presentedCreations = new WeakMap<PendingThreadTurn, WebPendingThreadCreation | null>();
 
-export function pendingThreadCreation(entry: PendingThreadTurn) {
+export function pendingThreadCreation(entry: PendingThreadTurn): WebPendingThreadCreation | null {
   const cached = presentedCreations.get(entry);
   if (cached !== undefined) return cached;
   const presented = presentPendingThreadCreation(entry);
@@ -55,9 +55,11 @@ export type WebPendingThreadCreation = NonNullable<ReturnType<typeof presentPend
 const undeliveredShells = new WeakMap<PendingThreadTurn, OrchestrationV2ThreadShell | null>();
 
 /** Once delivered, the startTurn overlay and then the server's shell own the row instead. */
-export function undeliveredCreationShell(entry: PendingThreadTurn) {
+export function undeliveredCreationShell(
+  entry: PendingThreadTurn,
+): OrchestrationV2ThreadShell | null {
   const cached = undeliveredShells.get(entry);
-  if (cached !== undefined) return cached satisfies OrchestrationV2ThreadShell | null;
+  if (cached !== undefined) return cached;
   const creation = entry.payload.input.bootstrap?.createThread;
   const shell =
     creation === undefined || entry.status !== "pending"
@@ -68,5 +70,5 @@ export function undeliveredCreationShell(entry: PendingThreadTurn) {
           DateTime.makeUnsafe(entry.createdAt),
         );
   undeliveredShells.set(entry, shell);
-  return shell satisfies OrchestrationV2ThreadShell | null;
+  return shell;
 }

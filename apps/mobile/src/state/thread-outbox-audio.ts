@@ -30,7 +30,7 @@ export async function enqueueVoiceThreadOutboxMessage(
   draft: Omit<QueuedThreadMessage, "voice">,
   language: string,
   handOff: VoiceRecordingHandOff | undefined,
-) {
+): Promise<void> {
   const recording = await readVoiceRecording(recordingUri);
   const message = voiceThreadMessage(draft, { ...recording, language }, handOff);
   const { File } = await loadExpoFileSystem();
@@ -46,7 +46,7 @@ export async function enqueueVoiceThreadOutboxMessage(
 }
 
 /** Deletes recordings that no queued voice message owns any more. */
-export async function releaseUnusedQueuedVoiceRecordings() {
+export async function releaseUnusedQueuedVoiceRecordings(): Promise<void> {
   if (!(await threadOutboxManager.load())) return;
   const { File } = await loadExpoFileSystem();
   const directory = await audioDirectory();

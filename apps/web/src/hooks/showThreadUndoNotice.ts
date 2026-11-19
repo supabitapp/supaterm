@@ -41,7 +41,7 @@ function countLabel(action: UndoOptions["action"], count: number) {
   return `${count} ${noun}${count === 1 ? "" : "s"}`;
 }
 
-export function threadUndoNoticeSummary(notice: Pick<UndoNotice, "action" | "count">) {
+export function threadUndoNoticeSummary(notice: Pick<UndoNotice, "action" | "count">): string {
   const counted = countLabel(notice.action, notice.count);
   return notice.action === "Done" ? `Marked ${counted} as Done` : `${notice.action} ${counted}`;
 }
@@ -126,7 +126,7 @@ function refreshNotice() {
 
 ThreadUndo.subscribe(refreshNotice);
 
-export function undoLatestThreadAction() {
+export function undoLatestThreadAction(): boolean {
   const notice = useThreadUndoNotice.getState().notice;
   if (!notice) return false;
   void notice.undo();
@@ -134,7 +134,7 @@ export function undoLatestThreadAction() {
 }
 
 /** Whether mod+z should undo the notice's actions even while a text field is focused. */
-export function threadUndoClaimsShortcut() {
+export function threadUndoClaimsShortcut(): boolean {
   return shortcutClaimed && useThreadUndoNotice.getState().notice !== null;
 }
 

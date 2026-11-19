@@ -6,7 +6,7 @@ export type AcpOperation =
   | { readonly type: "savingProvider"; readonly providerId: string }
   | { readonly type: "loggingOut" };
 
-function blocks(running: AcpOperation, next: AcpOperation) {
+function blocks(running: AcpOperation, next: AcpOperation): boolean {
   switch (next.type) {
     case "listing":
     case "loggingOut":

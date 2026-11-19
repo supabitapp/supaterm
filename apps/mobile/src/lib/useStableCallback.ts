@@ -3,7 +3,7 @@ import { useInsertionEffect, useRef, useState } from "react";
 /** Call only from handlers and effects; render sees the previous commit's fn. */
 export function useStableCallback<Args extends ReadonlyArray<unknown>, Result>(
   fn: (...args: Args) => Result,
-) {
+): (...args: Args) => Result {
   const latest = useRef(fn);
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- updates the ref during commit, before any layout effect can call the stable callback
   useInsertionEffect(() => {

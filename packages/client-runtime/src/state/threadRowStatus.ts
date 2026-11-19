@@ -24,7 +24,7 @@ type ThreadRowStatusInput = Pick<
   | "blockedOnThreadWait"
 >;
 
-export function resolveThreadRowStatus(thread: ThreadRowStatusInput) {
+export function resolveThreadRowStatus(thread: ThreadRowStatusInput): ThreadRowStatus {
   if (thread.hasPendingApprovals || thread.pendingSubagentRequest === "approval") {
     return "approval";
   }
@@ -52,7 +52,7 @@ export function resolveThreadRowShownStatus(
     Pick<EnvironmentThreadShell, "latestRun"> & {
       readonly lastVisitedAt?: string | null | undefined;
     },
-) {
+): ThreadRowStatus {
   const status = resolveThreadRowStatus(thread);
   if (status !== "failed" || thread.latestRun?.status !== "failed") return status;
   return hasUnseenRunFailure(thread) ? status : "ready";

@@ -13,12 +13,9 @@ export function resolveAssistantCitationCommentDismissal({
   reason: string;
   draft: string | null;
   savedComment: string | undefined;
-}) {
-  if (reason === "escape-key" || draft === null)
-    return { kind: "close" } satisfies AssistantCitationCommentDismissal;
-  if (draft.trim() === (savedComment ?? "").trim())
-    return { kind: "close" } satisfies AssistantCitationCommentDismissal;
-  if (draft.length > ASSISTANT_CITATION_MAX_COMMENT_LENGTH)
-    return { kind: "keep-open" } satisfies AssistantCitationCommentDismissal;
-  return { kind: "commit", comment: draft } satisfies AssistantCitationCommentDismissal;
+}): AssistantCitationCommentDismissal {
+  if (reason === "escape-key" || draft === null) return { kind: "close" };
+  if (draft.trim() === (savedComment ?? "").trim()) return { kind: "close" };
+  if (draft.length > ASSISTANT_CITATION_MAX_COMMENT_LENGTH) return { kind: "keep-open" };
+  return { kind: "commit", comment: draft };
 }

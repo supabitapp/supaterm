@@ -49,11 +49,11 @@ export interface DonePullRequest {
 const DAY_MS = 24 * 60 * 60 * 1_000;
 const QUEUED_TURN_START_GRACE_MS = 2 * 60 * 1_000;
 
-function toMillis(value: DateTime.Utc | null | undefined) {
+function toMillis(value: DateTime.Utc | null | undefined): number | null {
   return value == null ? null : DateTime.toEpochMillis(value);
 }
 
-function latestMillis(values: ReadonlyArray<number | null>) {
+function latestMillis(values: ReadonlyArray<number | null>): number | null {
   let latest: number | null = null;
   for (const value of values) {
     if (value === null) continue;
@@ -62,7 +62,7 @@ function latestMillis(values: ReadonlyArray<number | null>) {
   return latest;
 }
 
-function threadActivityAtMs(thread: ProjectionStore.ProjectionDoneCandidate) {
+function threadActivityAtMs(thread: ProjectionStore.ProjectionDoneCandidate): number {
   return (
     latestMillis([
       toMillis(thread.latestUserMessageAt),
@@ -78,7 +78,7 @@ function pullRequestMatchesProject(
   project: {
     readonly repositoryIdentity?: { readonly canonicalKey: string } | null | undefined;
   },
-) {
+): boolean {
   return (
     pullRequest.repositoryKey !== null &&
     project.repositoryIdentity != null &&
@@ -91,14 +91,16 @@ type DonePullRequestLink = NonNullable<
   ProjectionStore.ProjectionDoneCandidate["pullRequests"]
 >[number];
 
-function linkTerminalAtMs(link: DonePullRequestLink) {
+function linkTerminalAtMs(link: DonePullRequestLink): number {
   const snapshot = link.snapshot;
   const value = snapshot?.state === "merged" ? snapshot.mergedAt : snapshot?.closedAt;
   const timestamp = Date.parse(value ?? "");
   return Number.isNaN(timestamp) ? Number.NEGATIVE_INFINITY : timestamp;
 }
 
-function donePullRequestLinks(links: ReadonlyArray<DonePullRequestLink>) {
+function donePullRequestLinks(
+  links: ReadonlyArray<DonePullRequestLink>,
+): ReadonlyArray<DonePullRequestLink> {
   return visibleThreadPullRequests(links).filter((link) => {
     if (link.snapshot === null || link.snapshot.state === "open") return true;
     const linkedAtMs = Date.parse(link.linkedAt);
@@ -121,7 +123,7 @@ export function threadHasQueuedTurnStart(
     | "status"
   >,
   nowMs: number,
-) {
+): boolean {
   const messageAtMs = toMillis(thread.latestUserMessageAt);
   if (messageAtMs === null || thread.status === "failed") return false;
   const age = nowMs - messageAtMs;
@@ -141,7 +143,7 @@ function pullRequestMarksDone(
   >,
   pullRequest: DonePullRequest,
   autoMarkDoneOnMerge: boolean,
-) {
+): boolean {
   if (pullRequest.state !== "closed" && (pullRequest.state !== "merged" || !autoMarkDoneOnMerge)) {
     return false;
   }
@@ -160,7 +162,7 @@ function pullRequestMarksDone(
 export function isAutoMarkDoneCandidate(
   thread: Omit<ProjectionStore.ProjectionDoneCandidate, "latestUserAuthoredMessageAt">,
   nowMs: number,
-) {
+): boolean {
   if (thread.archivedAt !== null || thread.doneOverride !== null) return false;
   if (thread.pinnedAt != null || thread.autoMarkDoneDisabledAt != null) return false;
   if (thread.pendingRuntimeRequest !== null) return false;
@@ -179,7 +181,7 @@ export function isSnoozed(
     "snoozedUntil" | "snoozedAt" | "latestRunCompletedAt" | "status" | "pendingRuntimeRequest"
   >,
   nowMs: number,
-) {
+): boolean {
   const snoozedUntilMs = toMillis(thread.snoozedUntil);
   if (snoozedUntilMs === null || snoozedUntilMs <= nowMs) return false;
   const snoozedAtMs = toMillis(thread.snoozedAt);
@@ -206,7 +208,7 @@ export function resolveAutoMarkDoneAt(input: {
   readonly autoMarkDoneAfterDays: number | null;
   readonly autoMarkDoneOnMerge: boolean;
   readonly autoMarkDoneKeepPullRequests?: boolean;
-}) {
+}): DateTime.Utc | null {
   const { thread } = input;
   let pullRequest = input.pullRequest;
   const links = donePullRequestLinks(thread.pullRequests ?? []);
@@ -260,7 +262,7 @@ export class ThreadDoneServiceV2 extends Context.Service<
   }
 >()("supaterm/orchestration-v2/ThreadDoneService/ThreadDoneServiceV2") {}
 
-function autoMarkDoneConfigured(settings: import("@supaterm/contracts").ServerSettings) {
+function autoMarkDoneConfigured(settings: import("@supaterm/contracts").ServerSettings): boolean {
   if (settings.sidebarAutoMarkDoneOnMerge || settings.sidebarAutoMarkDoneAfterDays !== null) {
     return true;
   }
@@ -272,7 +274,9 @@ function autoMarkDoneConfigured(settings: import("@supaterm/contracts").ServerSe
   );
 }
 
-export function autoMarkDoneSettingsKey(settings: import("@supaterm/contracts").ServerSettings) {
+export function autoMarkDoneSettingsKey(
+  settings: import("@supaterm/contracts").ServerSettings,
+): string {
   return JSON.stringify([
     settings.sidebarAutoMarkDoneOnMerge,
     settings.sidebarAutoMarkDoneAfterDays,
@@ -636,9 +640,9 @@ export const make = Effect.gen(function* () {
   const threadSweeps = yield* FiberSet.make<void>();
   const threadSweepSlots = yield* Semaphore.make(8);
   const threadSweepStates = new Map<ThreadId, "queued" | "running" | "rerun">();
-  const sweepThread: (
+  const sweepThread = (
     threadId: ThreadId,
-  ) => Effect.Effect<void, Effect.Error<ReturnType<typeof runSweep>>> = (threadId: ThreadId) =>
+  ): Effect.Effect<void, Effect.Error<ReturnType<typeof runSweep>>> =>
     Effect.sync(() => threadSweepStates.set(threadId, "running")).pipe(
       Effect.andThen(runSweep(null, threadId)),
       threadSweepSlots.withPermits(1),

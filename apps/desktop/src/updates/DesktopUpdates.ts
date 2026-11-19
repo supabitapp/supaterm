@@ -103,7 +103,7 @@ export class DesktopUpdateActionInProgressError extends Schema.TaggedError<Deskt
     requestedChannel: DesktopUpdateChannelSchema,
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Cannot change the desktop update channel to ${this.requestedChannel} while an update ${this.action} action is in progress.`;
   }
 }
@@ -115,7 +115,7 @@ export class DesktopUpdateChannelPersistenceError extends Schema.TaggedError<Des
     cause: Schema.instanceOf(DesktopAppSettings.DesktopSettingsWriteError),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Failed to persist the ${this.channel} desktop update channel.`;
   }
 }
@@ -127,7 +127,7 @@ export class DesktopUpdatePollerError extends Schema.TaggedError<DesktopUpdatePo
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Desktop update ${this.poller} poller failed.`;
   }
 }
@@ -139,7 +139,7 @@ export class DesktopUpdateEventHandlingError extends Schema.TaggedError<DesktopU
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Failed to handle desktop update ${this.event} event.`;
   }
 }
@@ -151,7 +151,7 @@ export class DesktopUpdaterReportedError extends Schema.TaggedError<DesktopUpdat
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Desktop updater ${this.operation} operation reported an error.`;
   }
 }
@@ -163,7 +163,7 @@ export class DesktopUpdateUnexpectedActionError extends Schema.TaggedError<Deskt
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Desktop update ${this.action} action failed unexpectedly.`;
   }
 }
@@ -215,7 +215,7 @@ const {
   logError: logUpdaterError,
 } = DesktopObservability.makeComponentLogger("desktop-updater");
 
-function redactMessage(message: string) {
+function redactMessage(message: string): string {
   return (message.split(/[\r\n]/, 1)[0] ?? "")
     .replace(/\b(?:https?|file):\/\/[^\s"'<>]+/gi, "[redacted URL]")
     .replace(/\b(?:Bearer|Basic)\s+[^\s,;]+/gi, "[redacted credential]")
@@ -230,9 +230,8 @@ function redactMessage(message: string) {
     .slice(0, 512);
 }
 
-function summarizeCause(cause: unknown, depth: number): string;
-function summarizeCause(cause: unknown, depth: number) {
-  if (depth >= 3) return "[truncated cause]" satisfies string;
+function summarizeCause(cause: unknown, depth: number): string {
+  if (depth >= 3) return "[truncated cause]";
   if (Cause.isCause(cause)) {
     return cause.reasons
       .slice(0, 3)
@@ -243,10 +242,10 @@ function summarizeCause(cause: unknown, depth: number) {
             ? summarizeCause(reason.defect, depth + 1)
             : "Interrupted",
       )
-      .join("; ") satisfies string;
+      .join("; ");
   }
-  if (typeof cause === "string") return redactMessage(cause) satisfies string;
-  if (typeof cause !== "object" || cause === null) return errorTag(cause) satisfies string;
+  if (typeof cause === "string") return redactMessage(cause);
+  if (typeof cause !== "object" || cause === null) return errorTag(cause);
 
   const error = cause as {
     readonly message?: unknown;
@@ -260,19 +259,18 @@ function summarizeCause(cause: unknown, depth: number) {
   const message = typeof error.message === "string" ? `: ${redactMessage(error.message)}` : "";
   const nested =
     error.cause === undefined ? "" : `; caused by ${summarizeCause(error.cause, depth + 1)}`;
-  return `${errorTag(cause)}${code}${message}${nested}` satisfies string;
+  return `${errorTag(cause)}${code}${message}${nested}`;
 }
 
-export function describeUpdateErrorCause(cause: unknown): string;
-export function describeUpdateErrorCause(cause: unknown) {
+export function describeUpdateErrorCause(cause: unknown): string {
   try {
-    return summarizeCause(cause, 0).slice(0, 1024) satisfies string;
+    return summarizeCause(cause, 0).slice(0, 1024);
   } catch {
-    return "UnknownError" satisfies string;
+    return "UnknownError";
   }
 }
 
-function parseAppUpdateYml(raw: string) {
+function parseAppUpdateYml(raw: string): Effect.Effect<Option.Option<AppUpdateYmlConfig>> {
   const entries: Record<string, string> = {};
   for (const line of raw.split("\n")) {
     const match = line.match(/^(\w+):\s*(.+)$/);
@@ -291,25 +289,28 @@ function createBaseUpdateState(
   channel: DesktopUpdateChannel,
   disabledReason: Option.Option<string>,
   environment: DesktopEnvironment.DesktopEnvironment["Service"],
-) {
+): DesktopUpdateState {
   const enabled = Option.isNone(disabledReason);
   return {
     ...createInitialDesktopUpdateState(environment.appVersion, environment.runtimeInfo, channel),
     enabled,
     status: enabled ? "idle" : "disabled",
     message: Option.getOrNull(disabledReason),
-  } satisfies DesktopUpdateState;
+  };
 }
 
-function getCanRetryFromState(state: DesktopUpdateState) {
+function getCanRetryFromState(state: DesktopUpdateState): boolean {
   return state.availableVersion !== null || state.downloadedVersion !== null;
 }
 
-function isOffered(state: DesktopUpdateState) {
+function isOffered(state: DesktopUpdateState): boolean {
   return state.status === "available" || state.status === "downloaded";
 }
 
-function shouldBroadcastDownloadProgress(currentState: DesktopUpdateState, nextPercent: number) {
+function shouldBroadcastDownloadProgress(
+  currentState: DesktopUpdateState,
+  nextPercent: number,
+): boolean {
   if (currentState.status !== "downloading") {
     return true;
   }
@@ -332,7 +333,7 @@ function getAutoUpdateDisabledReason(args: {
   isDebPackage: boolean;
   disabledByEnv: boolean;
   hasUpdateFeedConfig: boolean;
-}) {
+}): string | null {
   if (!args.hasUpdateFeedConfig) {
     return "Automatic updates are not available because no update feed is configured.";
   }
@@ -348,7 +349,7 @@ function getAutoUpdateDisabledReason(args: {
   return null;
 }
 
-function isArm64HostRunningIntelBuild(runtimeInfo: DesktopRuntimeInfo) {
+function isArm64HostRunningIntelBuild(runtimeInfo: DesktopRuntimeInfo): boolean {
   return runtimeInfo.hostArch === "arm64" && runtimeInfo.appArch === "x64";
 }
 
@@ -400,16 +401,16 @@ export const make = Effect.gen(function* () {
     Effect.flatMap((state) => electronWindow.sendAll(IpcChannels.UPDATE_STATE_CHANNEL, state)),
   );
 
-  const setState = (state: DesktopUpdateState) =>
+  const setState = (state: DesktopUpdateState): Effect.Effect<void> =>
     stateMutex
       .withPermits(1)(
         Ref.set(updateStateRef, state).pipe(Effect.andThen(PubSub.publish(stateChanges, state))),
       )
       .pipe(Effect.andThen(emitState));
 
-  const updateState: (
+  const updateState = (
     f: (state: DesktopUpdateState) => DesktopUpdateState,
-  ) => Effect.Effect<DesktopUpdateState> = (f: (state: DesktopUpdateState) => DesktopUpdateState) =>
+  ): Effect.Effect<DesktopUpdateState> =>
     Ref.get(updateStateRef).pipe(
       Effect.flatMap((state) => {
         const nextState = f(state);
@@ -458,7 +459,7 @@ export const make = Effect.gen(function* () {
 
   const activeUpdateAction = Ref.get(activeUpdateActionRef);
 
-  const tryStartUpdateAction = (action: UpdateAction) =>
+  const tryStartUpdateAction = (action: UpdateAction): Effect.Effect<boolean> =>
     Ref.modify(activeUpdateActionRef, (activeAction) =>
       Option.isSome(activeAction) ? [false, activeAction] : [true, Option.some(action)],
     );
@@ -469,9 +470,7 @@ export const make = Effect.gen(function* () {
       : [Option.none<UpdateAction>(), Option.some<UpdateAction>("channel")],
   );
 
-  const finishUpdateAction: (action: UpdateAction) => Effect.Effect<void> = (
-    action: UpdateAction,
-  ) =>
+  const finishUpdateAction = (action: UpdateAction): Effect.Effect<void> =>
     Ref.modify(activeUpdateActionRef, (activeAction) => {
       const finished = Option.isSome(activeAction) && activeAction.value === action;
       return [finished, finished ? Option.none() : activeAction] as const;

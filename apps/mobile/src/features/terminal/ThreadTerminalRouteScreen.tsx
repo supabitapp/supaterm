@@ -85,6 +85,7 @@ import {
 import {
   hostPlatformFromOs,
   resolveModifiedTerminalInput,
+  type HostPlatform,
   type PendingModifier,
 } from "./terminalInput";
 import { createTerminalPasteSession } from "./terminalPaste";
@@ -185,7 +186,7 @@ class TerminalClipboardReadError extends Schema.TaggedError<TerminalClipboardRea
   "TerminalClipboardReadError",
   { terminalId: Schema.String, cause: Schema.Defect() },
 ) {
-  override get message() {
+  override get message(): string {
     return `Failed to read the clipboard for a paste into terminal ${this.terminalId}.`;
   }
 }
@@ -200,12 +201,12 @@ type TerminalToolbarAction =
       readonly modifier: PendingModifier;
     };
 
-function firstRouteParam(value: string | string[] | undefined) {
+function firstRouteParam(value: string | string[] | undefined): string | null {
   const first = Array.isArray(value) ? value[0] : value;
   return first === undefined || first.trim().length === 0 ? null : first;
 }
 
-function inferHostPlatform(environmentLabel: string | null) {
+function inferHostPlatform(environmentLabel: string | null): HostPlatform {
   const value = environmentLabel?.toLowerCase() ?? "";
   if (
     value.includes("mac") ||
@@ -226,7 +227,9 @@ function inferHostPlatform(environmentLabel: string | null) {
   return "unknown";
 }
 
-function pickRunningTerminalSessionForBootstrap(sessions: ReadonlyArray<KnownTerminalSession>) {
+function pickRunningTerminalSessionForBootstrap(
+  sessions: ReadonlyArray<KnownTerminalSession>,
+): KnownTerminalSession | null {
   const running = sessions.filter(
     (session) => session.state.status === "running" || session.state.status === "starting",
   );
@@ -331,10 +334,8 @@ export function ThreadTerminalRouteScreen(props: ThreadTerminalRouteScreenProps)
 function readLiveTerminalSessions(
   environmentId: EnvironmentId,
   threadId: ThreadId,
-): ReadonlyArray<TerminalMenuSession>;
-function readLiveTerminalSessions(environmentId: EnvironmentId, threadId: ThreadId) {
-  if (!readEnvironmentScope(environmentId, AuthTerminalReadScope))
-    return [] satisfies ReadonlyArray<TerminalMenuSession>;
+): ReadonlyArray<TerminalMenuSession> {
+  if (!readEnvironmentScope(environmentId, AuthTerminalReadScope)) return [];
   const result = appAtomRegistry.get(terminalEnvironment.metadata({ environmentId, input: null }));
   const summaries = AsyncResult.getOrElse(result, () => []);
   return summaries
@@ -346,7 +347,7 @@ function readLiveTerminalSessions(environmentId: EnvironmentId, threadId: Thread
       hasRunningSubprocess: summary.hasRunningSubprocess,
       displayLabel: resolveTerminalSessionLabel(summary.terminalId, summary),
       updatedAt: summary.updatedAt,
-    })) satisfies ReadonlyArray<TerminalMenuSession>;
+    }));
 }
 
 function ThreadTerminal(props: {
@@ -592,7 +593,7 @@ function ThreadTerminal(props: {
     },
   });
 
-  const writeInput = async (data: string) => {
+  const writeInput = async (data: string): Promise<boolean> => {
     if (
       !isRunning ||
       !readEnvironmentScope(selectedThread.environmentId, AuthTerminalOperateScope)

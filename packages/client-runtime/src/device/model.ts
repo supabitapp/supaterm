@@ -15,7 +15,7 @@ export interface DeviceAccessorySource {
 
 export type DeviceAssetSource = DeviceModelSource | DeviceAccessorySource;
 
-export function resolveDeviceModelId(platform: DevicePlatform, name: string) {
+export function resolveDeviceModelId(platform: DevicePlatform, name: string): DeviceModelId | null {
   if (platform !== "ios") return null;
   if (/^iPhone Duo$/i.test(name)) return "iphone-duo";
   if (/^iPhone 18 Pro Max$/i.test(name)) return "iphone-18-pro-max";

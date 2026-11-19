@@ -94,9 +94,7 @@ const makeFakeMuse = Effect.fnUntraced(function* (idPrefix = "native") {
     string,
     Array<Promise<Record<string, unknown>> | Record<string, unknown> | Error>
   >();
-  const respond: (call: NativeCall) => Promise<Record<string, unknown>> = async (
-    call: NativeCall,
-  ) => {
+  const respond = async (call: NativeCall): Promise<Record<string, unknown>> => {
     calls.push(call);
     Queue.offerUnsafe(requests, call);
     if (["session/start", "session/resume", "session/read"].includes(call.method)) {
@@ -278,15 +276,11 @@ const preallocatedProviderThread = Effect.fnUntraced(function* () {
   } satisfies OrchestrationV2ProviderThread;
 });
 
-const turnInput: (
-  providerThread: OrchestrationV2ProviderThread,
-  runOrdinal?: number,
-  policy?: typeof runtimePolicy,
-) => Effect.Effect<ProviderAdapter.ProviderAdapterV2TurnInput> = Effect.fnUntraced(function* (
+const turnInput = Effect.fnUntraced(function* (
   providerThread: OrchestrationV2ProviderThread,
   runOrdinal = 1,
   policy = runtimePolicy,
-) {
+): Effect.fn.Return<ProviderAdapter.ProviderAdapterV2TurnInput> {
   const now = yield* DateTime.now;
   const threadId = providerThread.appThreadId ?? THREAD_ID;
   const selection = modelSelection(providerThread.providerInstanceId);

@@ -27,7 +27,7 @@ import {
 } from "../terminal/terminalMenu";
 import { projectScriptMenuLabel } from "@supaterm/shared/projectScripts";
 
-function truncateMiddle(value: string, maxLength: number) {
+function truncateMiddle(value: string, maxLength: number): string {
   if (value.length <= maxLength) {
     return value;
   }
@@ -37,11 +37,11 @@ function truncateMiddle(value: string, maxLength: number) {
   return `${value.slice(0, headLength)}…${value.slice(value.length - tailLength)}`;
 }
 
-function compactMenuBranchLabel(branch: string) {
+function compactMenuBranchLabel(branch: string): string {
   return truncateMiddle(branch, 24);
 }
 
-function compactMenuStatus(gitStatus: VcsStatusResult | null) {
+function compactMenuStatus(gitStatus: VcsStatusResult | null): string {
   if (!gitStatus) {
     return "Checking status";
   }
@@ -248,8 +248,8 @@ function useThreadGitControlModel(props: ThreadGitMenuProps) {
   };
 }
 
-export function threadTerminalMenu(props: ThreadGitControlsProps) {
-  if (!props.canOpenTerminal) return null satisfies AppBarMenu | null;
+export function threadTerminalMenu(props: ThreadGitControlsProps): AppBarMenu | null {
+  if (!props.canOpenTerminal) return null;
   return {
     title: "Terminal",
     icon: "terminal",
@@ -298,11 +298,11 @@ export function threadTerminalMenu(props: ThreadGitControlsProps) {
         onPress: props.onOpenNewTerminal,
       },
     ],
-  } satisfies AppBarMenu | null;
+  };
 }
 
 /** The thread's git menu, shared by the thread bar and Review. */
-export function useThreadGitMenuDefinition(props: ThreadGitMenuProps) {
+export function useThreadGitMenuDefinition(props: ThreadGitMenuProps): AppBarMenu | null {
   const model = useThreadGitControlModel(props);
   return {
     title: "Git controls",
@@ -361,5 +361,5 @@ export function useThreadGitMenuDefinition(props: ThreadGitMenuProps) {
         onPress: model.openGitInspector,
       },
     ],
-  } satisfies AppBarMenu | null;
+  };
 }

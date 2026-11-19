@@ -1,5 +1,6 @@
 import { useAtomValue } from "@effect/atom-react";
 import {
+  type ArchivedSnapshotEntry,
   createArchivedThreadSnapshotsAtomFamily,
   makeArchivedThreadsEnvironmentKey,
 } from "@supaterm/client-runtime/state/threads";
@@ -21,11 +22,16 @@ const archivedSnapshotsAtom = createArchivedThreadSnapshotsAtomFamily({
   labelPrefix: "mobile:archived-thread-snapshots",
 });
 
-export function refreshArchivedThreadsForEnvironment(environmentId: EnvironmentId) {
+export function refreshArchivedThreadsForEnvironment(environmentId: EnvironmentId): void {
   appAtomRegistry.refresh(archivedSnapshotAtom(environmentId));
 }
 
-export function useArchivedThreadSnapshots(environmentIds: ReadonlyArray<EnvironmentId>) {
+export function useArchivedThreadSnapshots(environmentIds: ReadonlyArray<EnvironmentId>): {
+  readonly snapshots: ReadonlyArray<ArchivedSnapshotEntry>;
+  readonly error: string | null;
+  readonly isLoading: boolean;
+  readonly refresh: () => void;
+} {
   const environmentKey = useMemo(
     () => makeArchivedThreadsEnvironmentKey(environmentIds),
     [environmentIds],

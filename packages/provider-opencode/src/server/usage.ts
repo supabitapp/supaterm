@@ -16,17 +16,17 @@ import * as SqlClient from "effect/sql/SqlClient";
 
 import type { OpenCodeSettings } from "../settings.ts";
 
-function object(value: unknown) {
+function object(value: unknown): Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : {};
 }
 
-function tokens(value: unknown) {
+function tokens(value: unknown): number {
   return typeof value === "number" && Number.isFinite(value) && value > 0 ? Math.trunc(value) : 0;
 }
 
-function text(value: unknown) {
+function text(value: unknown): string {
   return typeof value === "string" ? value : "";
 }
 
@@ -40,24 +40,22 @@ function parseOpenCodeMessage(
     readonly sessionId?: string;
     readonly timestampMs?: number;
   } = {},
-) {
+): UsageRecord | null {
   let parsed: unknown;
   try {
     parsed = JSON.parse(source);
   } catch {
-    return null satisfies UsageRecord | null;
+    return null;
   }
   const message = object(parsed);
-  if (message.role !== undefined && message.role !== "assistant")
-    return null satisfies UsageRecord | null;
+  if (message.role !== undefined && message.role !== "assistant") return null;
   const usage = object(message.tokens);
   const cache = object(usage.cache);
   const modelReference = object(message.model);
   const model = text(modelReference.id) || text(modelReference.modelID) || text(message.modelID);
   const providerId = text(modelReference.providerID) || text(message.providerID);
   const timestampMs = object(message.time).created ?? fallback.timestampMs;
-  if (!model || typeof timestampMs !== "number" || !Number.isFinite(timestampMs))
-    return null satisfies UsageRecord | null;
+  if (!model || typeof timestampMs !== "number" || !Number.isFinite(timestampMs)) return null;
   const reasoningTokens = tokens(usage.reasoning);
   const totals = {
     uncachedInputTokens: tokens(usage.input),
@@ -66,7 +64,7 @@ function parseOpenCodeMessage(
     outputTokens: tokens(usage.output) + reasoningTokens,
     reasoningTokens,
   };
-  if (totalTokens(totals) === 0) return null satisfies UsageRecord | null;
+  if (totalTokens(totals) === 0) return null;
   const id = fallback.id || text(message.id);
   const cost = message.cost;
   const prefix = LITELLM_PREFIXES.get(providerId);
@@ -84,7 +82,7 @@ function parseOpenCodeMessage(
         : null,
     speed: "standard",
     dedupeKey: id ? `opencode:${id}` : null,
-  } satisfies UsageRecord | null;
+  };
 }
 
 export interface OpenCodeUsageReadResult {
@@ -126,7 +124,7 @@ export const readOpenCodeUsage = Effect.fn("readOpenCodeUsage")(function* (
   root: string,
   sinceMs: number,
   retentionCutoffMs = sinceMs,
-) {
+): Effect.fn.Return<OpenCodeUsageReadResult, never, FileSystem.FileSystem | Path.Path> {
   const fileSystem = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const files: { path: string; records: UsageRecord[] }[] = [];

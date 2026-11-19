@@ -23,7 +23,7 @@ import {
 export function resolveEnvironmentIconPickerLock(input: {
   readonly serverConfig: Pick<ServerConfig, "environment"> | null;
   readonly operateAccess: "granted" | "denied" | "pending";
-}) {
+}): string | null {
   if (input.serverConfig === null) {
     return "Connect to this environment to change its icon.";
   }

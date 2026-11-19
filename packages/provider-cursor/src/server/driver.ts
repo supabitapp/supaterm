@@ -70,7 +70,7 @@ export const CursorDriver: ProviderDriver<
     supportsMultipleInstances: true,
   },
   configSchema: CursorSettings,
-  defaultConfig: () => decodeCursorSettings({}),
+  defaultConfig: (): CursorSettings => decodeCursorSettings({}),
   usage: {
     kind: "scan",
     provider: "cursor",

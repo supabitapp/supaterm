@@ -64,11 +64,8 @@ async function submit() {
   );
 }
 
-function storedViews(): ReadonlyArray<PullRequestSavedView>;
-function storedViews() {
-  return JSON.parse(
-    localStorage.getItem(PULL_REQUEST_SAVED_VIEWS_KEY) ?? "[]",
-  ) satisfies ReadonlyArray<PullRequestSavedView>;
+function storedViews(): ReadonlyArray<PullRequestSavedView> {
+  return JSON.parse(localStorage.getItem(PULL_REQUEST_SAVED_VIEWS_KEY) ?? "[]");
 }
 
 describe("PullRequestSavedViewsMenu", () => {

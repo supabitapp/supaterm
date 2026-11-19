@@ -19,7 +19,7 @@ export function resolveDefaultModelSettingsPresentation(input: {
   readonly providers: ReadonlyArray<ServerProvider>;
   readonly settings: UnifiedSettings;
   readonly projectId: ProjectId | null;
-}) {
+}): DefaultModelSettingsPresentation {
   const saved = input.settings.defaultModelSelection;
   if (saved === null) {
     const automatic = resolveProjectDefaultProviderModelSelection(
@@ -50,7 +50,7 @@ export function resolveDefaultModelSettingsPresentation(input: {
   };
 }
 
-function providerNote(entry: ProviderInstanceEntry | undefined) {
+function providerNote(entry: ProviderInstanceEntry | undefined): string {
   if (!entry) return "This provider is not available on this environment.";
   if (!entry.enabled) return `${entry.displayName} is turned off.`;
   return `${entry.displayName} is unavailable.`;

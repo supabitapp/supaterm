@@ -119,8 +119,7 @@ const denied: Pick<AuthSessionState, "authenticated" | "scopes"> = {
   scopes: [],
 };
 
-function hostSource(_tag?: "workspace-file" | "media-file"): MediaActionSource;
-function hostSource(_tag: "workspace-file" | "media-file" = "media-file") {
+function hostSource(_tag: "workspace-file" | "media-file" = "media-file"): MediaActionSource {
   return {
     kind: "image",
     name: "image.png",
@@ -128,11 +127,11 @@ function hostSource(_tag: "workspace-file" | "media-file" = "media-file") {
     asset: { environmentId, resource: { _tag, threadId, path: "/repo/image.png" } },
     reference: { kind: "file", path: "/repo/image.png", relativePath: "image.png" },
     onOpenFile: state.openFile,
-  } satisfies MediaActionSource;
+  };
 }
 
 function openMenu(source: MediaActionSource) {
-  const find: (node: ReactNode) => ((event: unknown) => void) | undefined = (node: ReactNode) => {
+  const find = (node: ReactNode): ((event: unknown) => void) | undefined => {
     if (Array.isArray(node)) return node.map(find).find((handler) => handler !== undefined);
     if (!isValidElement<{ children?: ReactNode; onContextMenu?: (event: unknown) => void }>(node))
       return undefined;

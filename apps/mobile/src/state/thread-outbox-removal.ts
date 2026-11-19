@@ -13,7 +13,9 @@ import {
   waitForComposerDraftsLoaded,
 } from "./use-composer-drafts";
 
-async function cleanUpRemovedMessages(removedMessages: ReadonlyArray<QueuedThreadMessage>) {
+async function cleanUpRemovedMessages(
+  removedMessages: ReadonlyArray<QueuedThreadMessage>,
+): Promise<void> {
   if (removedMessages.some((message) => message.voice !== undefined)) {
     void releaseUnusedQueuedVoiceRecordings().catch((error: unknown) => {
       console.warn("[thread-outbox] failed to delete removed voice recordings", error);
@@ -64,7 +66,7 @@ export async function removeThreadOutboxMessage(
   message: QueuedThreadMessage,
   expectedRevision?: number,
   canRemove?: () => boolean,
-) {
+): Promise<boolean> {
   const removed = await threadOutboxManager.remove(message, expectedRevision, canRemove);
   if (removed === null) {
     return false;
@@ -77,30 +79,25 @@ export async function removeThreadOutboxMessage(
  * Deletes a pending task together with the follow-ups queued behind it. The
  * task goes first: until then it heads their queue, so none can be sent.
  */
-export function removePendingThreadCreation(
-  creation: QueuedThreadMessage,
-  canRemove: () => boolean,
-): Promise<boolean>;
 export async function removePendingThreadCreation(
   creation: QueuedThreadMessage,
   canRemove: () => boolean,
-) {
+): Promise<boolean> {
   const queue =
     appAtomRegistry.get(threadOutboxManager.queuedMessagesByThreadKeyAtom)[
       scopedThreadKey(creation.environmentId, creation.threadId)
     ] ?? [];
-  if (!(await removeThreadOutboxMessage(creation, undefined, canRemove)))
-    return false satisfies boolean;
+  if (!(await removeThreadOutboxMessage(creation, undefined, canRemove))) return false;
   for (const message of queue) {
     if (message.creation !== undefined) continue;
     await removeThreadOutboxMessage(message).catch((error: unknown) => {
       console.warn("[thread-outbox] failed to remove a deleted task's follow-up", error);
     });
   }
-  return true satisfies boolean;
+  return true;
 }
 
-export async function clearThreadOutboxEnvironment(environmentId: EnvironmentId) {
+export async function clearThreadOutboxEnvironment(environmentId: EnvironmentId): Promise<void> {
   const removed = await threadOutboxManager.clearEnvironment(environmentId);
   await cleanUpRemovedMessages(removed);
 }

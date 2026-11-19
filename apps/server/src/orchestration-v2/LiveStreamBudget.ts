@@ -25,7 +25,7 @@ export interface RetainedLiveItem<A> {
 
 const serializedSizes = new WeakMap<object, number>();
 
-function serializedSize(value: object) {
+function serializedSize(value: object): number {
   const cached = serializedSizes.get(value);
   if (cached !== undefined) {
     return cached;

@@ -20,7 +20,7 @@ export function isPinnableMessageItem(item: OrchestrationV2TurnItem): item is Pi
   return item.type === "user_message" || item.type === "assistant_message";
 }
 
-function pinnedMessagePreview(text: string) {
+function pinnedMessagePreview(text: string): string {
   if (isAttachmentOnlyBootstrapPrompt(text)) return "";
   const plain = replaceComposerContextReferences(text, (reference) => reference.label);
   for (const line of plain.split("\n")) {
@@ -40,7 +40,10 @@ function pinnedMessagePreview(text: string) {
   return "";
 }
 
-export function pinnedMessageOf(item: PinnableMessageItem, sourceThreadId: ThreadId) {
+export function pinnedMessageOf(
+  item: PinnableMessageItem,
+  sourceThreadId: ThreadId,
+): ThreadPinnedMessage {
   return {
     itemId: item.id,
     messageId: item.messageId,
@@ -48,13 +51,13 @@ export function pinnedMessageOf(item: PinnableMessageItem, sourceThreadId: Threa
     role: item.type === "user_message" ? "user" : "assistant",
     preview: pinnedMessagePreview(item.text),
     sentAt: DateTime.formatIso(item.startedAt ?? item.updatedAt),
-  } satisfies ThreadPinnedMessage;
+  };
 }
 
 export function withPinnedMessage(
   pins: ReadonlyArray<ThreadPinnedMessage>,
   pin: ThreadPinnedMessage,
-) {
+): ReadonlyArray<ThreadPinnedMessage> {
   return [...pins.filter((existing) => existing.itemId !== pin.itemId), pin].sort((left, right) =>
     left.sentAt.localeCompare(right.sentAt),
   );

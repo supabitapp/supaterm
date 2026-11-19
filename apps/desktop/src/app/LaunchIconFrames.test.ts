@@ -5,11 +5,10 @@ import { makeLaunchIconFrames } from "./LaunchIconFrames.ts";
 import { LAUNCH_ICON_LEDS } from "./LaunchIconLeds.generated.ts";
 
 const SIZE = 256;
-const ledCenter = (column: number, row: number) =>
-  [
-    LAUNCH_ICON_LEDS.x + column * LAUNCH_ICON_LEDS.pitchX,
-    LAUNCH_ICON_LEDS.y + row * LAUNCH_ICON_LEDS.pitchY,
-  ] satisfies readonly [number, number];
+const ledCenter = (column: number, row: number): readonly [number, number] => [
+  LAUNCH_ICON_LEDS.x + column * LAUNCH_ICON_LEDS.pitchX,
+  LAUNCH_ICON_LEDS.y + row * LAUNCH_ICON_LEDS.pitchY,
+];
 const OFF = [14, 14, 14, 255] as const;
 const YELLOW = [110, 240, 250, 255] as const;
 const GREY = [200, 200, 200, 255] as const;

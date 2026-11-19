@@ -45,12 +45,11 @@ function Viewer(props: FilePreviewViewerProps) {
 }
 
 const environmentId = EnvironmentId.make("environment");
-const image = (url: string) =>
-  ({
-    kind: "image",
-    environmentId,
-    resource: { _tag: SOURCE_CONTROL_MEDIA_ASSET, cwd: "/repo", url },
-  }) satisfies FilePreviewItem;
+const image = (url: string): FilePreviewItem => ({
+  kind: "image",
+  environmentId,
+  resource: { _tag: SOURCE_CONTROL_MEDIA_ASSET, cwd: "/repo", url },
+});
 
 async function openGallery(
   selected: FilePreviewItem,

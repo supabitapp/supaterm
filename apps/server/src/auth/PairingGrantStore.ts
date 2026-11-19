@@ -40,7 +40,7 @@ export class UnknownBootstrapCredentialError extends Schema.TaggedError<UnknownB
   "UnknownBootstrapCredentialError",
   {},
 ) {
-  override get message() {
+  override get message(): string {
     return "Unknown bootstrap credential.";
   }
 }
@@ -49,7 +49,7 @@ export class ExpiredBootstrapCredentialError extends Schema.TaggedError<ExpiredB
   "ExpiredBootstrapCredentialError",
   {},
 ) {
-  override get message() {
+  override get message(): string {
     return "Bootstrap credential expired.";
   }
 }
@@ -58,7 +58,7 @@ export class UnavailableBootstrapCredentialError extends Schema.TaggedError<Unav
   "UnavailableBootstrapCredentialError",
   {},
 ) {
-  override get message() {
+  override get message(): string {
     return "Bootstrap credential is no longer available.";
   }
 }
@@ -67,7 +67,7 @@ export class BootstrapCredentialScopeNotGrantedError extends Schema.TaggedError<
   "BootstrapCredentialScopeNotGrantedError",
   {},
 ) {
-  override get message() {
+  override get message(): string {
     return "The requested authentication scope was not granted.";
   }
 }
@@ -85,7 +85,7 @@ export class ActivePairingLinksLoadError extends Schema.TaggedError<ActivePairin
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return "Failed to load active pairing links.";
   }
 }
@@ -97,7 +97,7 @@ export class PairingLinkRevokeError extends Schema.TaggedError<PairingLinkRevoke
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Failed to revoke pairing link '${this.pairingLinkId}'.`;
   }
 }
@@ -111,7 +111,7 @@ export class PairingCredentialIssueError extends Schema.TaggedError<PairingCrede
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Failed to issue pairing credential '${this.pairingLinkId}' for '${this.subject}'.`;
   }
 }
@@ -123,7 +123,7 @@ export class PairingCredentialRandomGenerationError extends Schema.TaggedError<P
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Failed to generate pairing credential data during '${this.operation}'.`;
   }
 }
@@ -134,7 +134,7 @@ export class BootstrapCredentialConsumeError extends Schema.TaggedError<Bootstra
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return "Failed to consume bootstrap credential.";
   }
 }
@@ -145,7 +145,7 @@ export class BootstrapCredentialConsumeAvailableError extends Schema.TaggedError
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return "Failed to atomically consume an available bootstrap credential.";
   }
 }
@@ -156,7 +156,7 @@ export class BootstrapCredentialLookupError extends Schema.TaggedError<Bootstrap
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return "Failed to look up bootstrap credential state.";
   }
 }

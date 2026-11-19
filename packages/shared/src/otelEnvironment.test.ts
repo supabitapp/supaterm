@@ -177,9 +177,7 @@ describe("OtelEnvironment", () => {
     );
 
     const ENDPOINT = { OTEL_EXPORTER_OTLP_ENDPOINT: "https://collector:4318" };
-    const exportOf: (signal: OtelEnvironment.OtelSignal) => unknown = (
-      signal: OtelEnvironment.OtelSignal,
-    ) =>
+    const exportOf = (signal: OtelEnvironment.OtelSignal): unknown =>
       OtelEnvironment.OtelSignal.$match(signal, {
         Export: ({ protocol, headers }) => ({ protocol, headers }),
         Off: () => "Off",

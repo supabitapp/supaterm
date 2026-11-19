@@ -71,22 +71,19 @@ export const layer: Layer.Layer<
           prepared,
           threadId,
         }).pipe(
-          Effect.map(
-            (bounded) =>
-              ({
-                _tag: "present",
-                snapshot: {
-                  snapshotSequence: bounded.snapshotSequence,
-                  projection: bounded.projection,
-                  latestLocalTurnOrdinal: bounded.latestLocalTurnOrdinal,
-                },
-                history: {
-                  historyCursor: bounded.historyCursor,
-                  hasMoreHistory: bounded.hasMoreHistory,
-                  latestLocalTurnOrdinal: bounded.latestLocalTurnOrdinal,
-                },
-              }) satisfies ThreadSnapshotLoader.ThreadSnapshotLoadResult as ThreadSnapshotLoader.ThreadSnapshotLoadResult,
-          ),
+          Effect.map((bounded): ThreadSnapshotLoader.ThreadSnapshotLoadResult => ({
+            _tag: "present",
+            snapshot: {
+              snapshotSequence: bounded.snapshotSequence,
+              projection: bounded.projection,
+              latestLocalTurnOrdinal: bounded.latestLocalTurnOrdinal,
+            },
+            history: {
+              historyCursor: bounded.historyCursor,
+              hasMoreHistory: bounded.hasMoreHistory,
+              latestLocalTurnOrdinal: bounded.latestLocalTurnOrdinal,
+            },
+          })),
           Effect.provideService(HttpClient.HttpClient, httpClient),
           Effect.catchTags({
             EnvironmentResourceNotFoundError: () =>

@@ -15,6 +15,7 @@ import {
   OrchestratorMcpFailure,
   type OrchestratorMcpCapabilitiesInput,
   type OrchestratorMcpCapabilitiesResult,
+  type OrchestratorMcpModelOption,
   type OrchestratorMcpCreateThreadsInput,
   type OrchestratorMcpCreateThreadsResult,
   type OrchestratorMcpCreatedThread,
@@ -27,6 +28,7 @@ import {
   type OrchestratorMcpDeleteScheduledTaskResult,
   type OrchestratorMcpListScheduledTasksResult,
   type OrchestratorMcpRuntimeMode,
+  type OrchestratorMcpScheduledTask,
   type OrchestratorMcpScheduleTaskInput,
   type OrchestratorMcpScheduleTaskResult,
   type OrchestratorMcpTarget,
@@ -35,6 +37,7 @@ import {
   type OrchestratorMcpUpdateScheduledTaskInput,
   type OrchestratorMcpListScheduledTasksInput,
   type ProjectId,
+  type OrchestratorMcpThreadDetail,
   type OrchestratorMcpThreadInterruptInput,
   type OrchestratorMcpThreadInterruptResult,
   type OrchestratorMcpThreadListInput,
@@ -42,6 +45,7 @@ import {
   type OrchestratorMcpThreadListResult,
   type OrchestratorMcpThreadReadInput,
   type OrchestratorMcpThreadReadResult,
+  type OrchestratorMcpThreadRun,
   type OrchestratorMcpThreadSendInput,
   type OrchestratorMcpThreadSendResult,
   type OrchestratorMcpThreadTimelineItem,
@@ -231,9 +235,8 @@ export class OrchestratorMcpService extends Context.Service<
 
 const isThreadManagementError = Schema.is(ThreadManagementService.ThreadManagementError);
 
-function failure(code: OrchestratorMcpFailure["code"], message: string): OrchestratorMcpFailure;
-function failure(code: OrchestratorMcpFailure["code"], message: string) {
-  return new OrchestratorMcpFailure({ code, message }) satisfies OrchestratorMcpFailure;
+function failure(code: OrchestratorMcpFailure["code"], message: string): OrchestratorMcpFailure {
+  return new OrchestratorMcpFailure({ code, message });
 }
 
 /**
@@ -289,47 +292,41 @@ export const threadNotFound = Effect.fn("OrchestratorMcpService.threadNotFound")
   );
 });
 
-function threadManagementFailure(error: unknown): OrchestratorMcpFailure;
-function threadManagementFailure(error: unknown) {
-  if (!isThreadManagementError(error))
-    return failure("orchestration_error", errorMessage(error)) satisfies OrchestratorMcpFailure;
+function threadManagementFailure(error: unknown): OrchestratorMcpFailure {
+  if (!isThreadManagementError(error)) return failure("orchestration_error", errorMessage(error));
   switch (error._tag) {
     case "ThreadManagementThreadNotFoundError":
-      return failure("thread_not_found", error.message) satisfies OrchestratorMcpFailure;
+      return failure("thread_not_found", error.message);
     case "ThreadManagementRunNotFoundError":
-      return failure("run_not_found", error.message) satisfies OrchestratorMcpFailure;
+      return failure("run_not_found", error.message);
     case "ThreadManagementThreadArchivedError":
     case "ThreadManagementWorktreeRestoreError":
-      return failure("thread_not_sendable", error.message) satisfies OrchestratorMcpFailure;
+      return failure("thread_not_sendable", error.message);
     case "ThreadManagementNoSteerableRunError":
       return failure(
         "thread_not_sendable",
         `${error.message} Send with mode: "auto" or "queue" to start a new turn there.`,
-      ) satisfies OrchestratorMcpFailure;
+      );
     case "ThreadManagementThreadNotInterruptibleError":
-      return failure("thread_not_interruptible", error.message) satisfies OrchestratorMcpFailure;
+      return failure("thread_not_interruptible", error.message);
     case "ThreadManagementProjectionLoadError":
     case "ThreadManagementProjectThreadsListError":
     case "ThreadManagementDurableRunProjectionError":
-      return failure("orchestration_error", error.message) satisfies OrchestratorMcpFailure;
+      return failure("orchestration_error", error.message);
     case "ThreadManagementProviderInstanceDisabledError":
-      return failure("invalid_request", error.message) satisfies OrchestratorMcpFailure;
+      return failure("invalid_request", error.message);
   }
 }
 
-function agentStopReason(reason: string | undefined): string;
-function agentStopReason(reason: string | undefined) {
-  return (
-    reason === undefined ? "Stopped by an agent" : `Stopped by an agent: ${reason}`
-  ) satisfies string;
+function agentStopReason(reason: string | undefined): string {
+  return reason === undefined ? "Stopped by an agent" : `Stopped by an agent: ${reason}`;
 }
 
-function errorMessage(error: unknown): string;
-function errorMessage(error: unknown) {
-  return (error instanceof Error ? error.message : String(error)) satisfies string;
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
-function scheduledTaskSummary(task: ScheduledTask) {
+function scheduledTaskSummary(task: ScheduledTask): OrchestratorMcpScheduledTask {
   return {
     scheduledTaskId: task.id,
     title: task.title,
@@ -409,7 +406,7 @@ function advertisedModelsHint(models: ReadonlyArray<ServerProviderModel>, reques
   }.`;
 }
 
-function capabilityModelOption(descriptor: ProviderOptionDescriptor) {
+function capabilityModelOption(descriptor: ProviderOptionDescriptor): OrchestratorMcpModelOption {
   const defaultValue = getProviderOptionCurrentValue(descriptor);
   return {
     id: descriptor.id,
@@ -449,7 +446,7 @@ export const requireAdvertisedModel = (provider: ServerProvider, model: string) 
 function providerConstraints(
   provider: ServerProvider | undefined,
   supportsOrchestrationV2: boolean,
-) {
+): ReadonlyArray<string> {
   const constraints: Array<string> = [];
   if (!supportsOrchestrationV2) {
     constraints.push("No V2 provider adapter is registered.");
@@ -477,7 +474,7 @@ function providerConstraints(
 function knownOptions(
   options: ReadonlyArray<ProviderOptionSelection> | undefined,
   descriptors: ReadonlyArray<ProviderOptionDescriptor> | undefined,
-) {
+): ReadonlyArray<ProviderOptionSelection> | undefined {
   if (options === undefined || descriptors === undefined) return options;
   return options.filter((option) => descriptors.some((descriptor) => descriptor.id === option.id));
 }
@@ -486,7 +483,7 @@ function invalidOptionSelections(
   selections: ReadonlyArray<ProviderOptionSelection>,
   descriptors: ReadonlyArray<ProviderOptionDescriptor> | undefined,
   driver: ProviderDriverKind,
-) {
+): ReadonlyArray<string> {
   const problems: Array<string> = [];
   const seen = new Set<string>();
   for (const selection of selections) {
@@ -522,7 +519,7 @@ function invalidOptionSelections(
 
 function taskStatusForRun(
   run: Pick<OrchestrationV2Run, "status" | "restartCancelledBackgroundWork"> | undefined,
-) {
+): OrchestratorMcpDelegateTaskResult["status"] {
   switch (run === undefined ? undefined : runOutcome(run)) {
     case "queued":
       return "queued";
@@ -549,7 +546,7 @@ function taskStatusForRun(
 function delegatedTaskRun(
   childProjection: Pick<OrchestrationV2ThreadProjection, "runs" | "contextTransfers">,
   task: OrchestrationV2Subagent,
-) {
+): OrchestrationV2Run | undefined {
   const taskRun = childProjection.runs.find((run) => run.delegatedTaskId === task.id);
   if (taskRun !== undefined) return taskRun;
   const spawnTransfer = childProjection.contextTransfers.find(
@@ -566,7 +563,7 @@ function delegatedTaskRun(
 function hasPendingChildRuns(
   childProjection: Pick<OrchestrationV2ThreadProjection, "runs">,
   delegatedRun: OrchestrationV2Run | undefined,
-) {
+): boolean {
   return childProjection.runs.some(
     (run) =>
       !isOrchestrationV2RunSettled(run.status) &&
@@ -586,7 +583,7 @@ function isTerminalTaskStatus(
   );
 }
 
-function endsTaskWait(result: OrchestratorMcpDelegateTaskResult) {
+function endsTaskWait(result: OrchestratorMcpDelegateTaskResult): boolean {
   return (
     result.hasPendingQuestion ||
     result.pendingApproval !== null ||
@@ -635,7 +632,7 @@ function pendingTaskApproval(
 function directChildTaskIds(
   target: Pick<OrchestrationV2ThreadProjection, "thread" | "runs">,
   returnedRunIds: ReadonlySet<RunId | null>,
-) {
+): ReadonlyArray<NodeId> {
   const ids = new Set<NodeId>();
   if (target.thread.forkedFrom?.type === "node") ids.add(target.thread.forkedFrom.nodeId);
   for (const run of target.runs) {
@@ -650,7 +647,7 @@ function directAppOwnedChildTasks(
   parent: Pick<OrchestrationV2ThreadProjection, "thread" | "subagents">,
   target: Pick<OrchestrationV2ThreadProjection, "thread" | "runs">,
   returnedRunIds: ReadonlySet<RunId | null>,
-) {
+): ReadonlyArray<OrchestrationV2Subagent> {
   if (
     target.thread.lineage.parentThreadId !== parent.thread.id ||
     target.thread.lineage.relationshipToParent !== "subagent"
@@ -712,7 +709,7 @@ function pageIncludesTerminalTaskResult(input: {
     OrchestrationV2ThreadProjection,
     "thread" | "runs" | "contextTransfers" | "messages" | "turnItems" | "providerTurns"
   >;
-}) {
+}): boolean {
   const transfer = taskResultTransfer(input.parentThreadId, input.target, input.task);
   if (transfer === undefined) return false;
   const run =
@@ -739,7 +736,7 @@ function latestTerminalResultRun(
   projection: Pick<OrchestrationV2ThreadProjection, "messages" | "runs">,
   delegatedRun: OrchestrationV2Run | undefined,
   awaitingContinuationRun: OrchestrationV2Run | undefined,
-) {
+): OrchestrationV2Run | undefined {
   const monitorRunIds = new Set(
     projection.messages
       .filter((message) => message.notification?.source.kind === "monitor")
@@ -783,7 +780,7 @@ function canExposeTaskRunResult(run: OrchestrationV2Run | undefined): run is Orc
   );
 }
 
-function runtimeModeRank(mode: RuntimeMode) {
+function runtimeModeRank(mode: RuntimeMode): number {
   switch (mode) {
     case "approval-required":
       return 0;
@@ -796,7 +793,7 @@ function runtimeModeRank(mode: RuntimeMode) {
   }
 }
 
-function interactionModeRank(mode: ProviderInteractionMode) {
+function interactionModeRank(mode: ProviderInteractionMode): number {
   return mode === "plan" ? 0 : 1;
 }
 
@@ -804,12 +801,7 @@ export function resolveRuntimeMode(
   parentMode: RuntimeMode,
   requested: OrchestratorMcpRuntimeMode | undefined,
   target?: Pick<ResolvedTarget, "modelSelection" | "supportedRuntimeModes">,
-): Effect.Effect<RuntimeMode, OrchestratorMcpFailure>;
-export function resolveRuntimeMode(
-  parentMode: RuntimeMode,
-  requested: OrchestratorMcpRuntimeMode | undefined,
-  target?: Pick<ResolvedTarget, "modelSelection" | "supportedRuntimeModes">,
-) {
+): Effect.Effect<RuntimeMode, OrchestratorMcpFailure> {
   const inherited = requested === undefined || requested === "inherit";
   const resolved = inherited ? parentMode : requested;
   if (runtimeModeRank(resolved) > runtimeModeRank(parentMode)) {
@@ -818,11 +810,11 @@ export function resolveRuntimeMode(
         "runtime_mode_escalation_denied",
         `Child runtime mode ${resolved} is broader than parent mode ${parentMode}.`,
       ),
-    ) satisfies Effect.Effect<RuntimeMode, OrchestratorMcpFailure>;
+    );
   }
   const supported = target?.supportedRuntimeModes;
   if (supported === undefined || supported.length === 0 || supported.includes(resolved)) {
-    return Effect.succeed(resolved) satisfies Effect.Effect<RuntimeMode, OrchestratorMcpFailure>;
+    return Effect.succeed(resolved);
   }
   if (!inherited) {
     return Effect.fail(
@@ -830,35 +822,29 @@ export function resolveRuntimeMode(
         "invalid_request",
         `Provider ${target?.modelSelection.instanceId} does not offer runtime mode ${resolved}, so it would run as approval-required. Use one of: ${supported.join(", ")}.`,
       ),
-    ) satisfies Effect.Effect<RuntimeMode, OrchestratorMcpFailure>;
+    );
   }
   return Effect.succeed(
     supported
       .filter((mode) => runtimeModeRank(mode) <= runtimeModeRank(resolved))
       .toSorted((left, right) => runtimeModeRank(right) - runtimeModeRank(left))[0] ??
       "approval-required",
-  ) satisfies Effect.Effect<RuntimeMode, OrchestratorMcpFailure>;
+  );
 }
 
 export function resolveInteractionMode(
   parentMode: ProviderInteractionMode,
   requested: OrchestratorMcpInteractionMode | undefined,
-): Effect.Effect<ProviderInteractionMode, OrchestratorMcpFailure>;
-export function resolveInteractionMode(
-  parentMode: ProviderInteractionMode,
-  requested: OrchestratorMcpInteractionMode | undefined,
-) {
+): Effect.Effect<ProviderInteractionMode, OrchestratorMcpFailure> {
   const resolved = requested === undefined || requested === "inherit" ? parentMode : requested;
-  return (
-    interactionModeRank(resolved) > interactionModeRank(parentMode)
-      ? Effect.fail(
-          failure(
-            "interaction_mode_escalation_denied",
-            `Child interaction mode ${resolved} is broader than parent mode ${parentMode}.`,
-          ),
-        )
-      : Effect.succeed(resolved)
-  ) satisfies Effect.Effect<ProviderInteractionMode, OrchestratorMcpFailure>;
+  return interactionModeRank(resolved) > interactionModeRank(parentMode)
+    ? Effect.fail(
+        failure(
+          "interaction_mode_escalation_denied",
+          `Child interaction mode ${resolved} is broader than parent mode ${parentMode}.`,
+        ),
+      )
+    : Effect.succeed(resolved);
 }
 
 export const assertTargetWithinLimits = (
@@ -876,7 +862,7 @@ export const assertTargetWithinLimits = (
     ),
   );
 
-function stablePart(value: string) {
+function stablePart(value: string): string {
   return encodeURIComponent(value);
 }
 
@@ -885,13 +871,7 @@ function stableCommandId(input: {
   readonly requestKey: string;
   readonly operation: string;
   readonly index?: number;
-}): CommandId;
-function stableCommandId(input: {
-  readonly scope: McpInvocationScope;
-  readonly requestKey: string;
-  readonly operation: string;
-  readonly index?: number;
-}) {
+}): CommandId {
   return CommandId.make(
     [
       "command",
@@ -901,14 +881,14 @@ function stableCommandId(input: {
       stablePart(input.requestKey),
       ...(input.index === undefined ? [] : [String(input.index)]),
     ].join(":"),
-  ) satisfies CommandId;
+  );
 }
 
 function stableThreadId(input: {
   readonly scope: McpInvocationScope;
   readonly requestKey: string;
   readonly index: number;
-}) {
+}): ThreadId {
   return ThreadId.make(
     [
       "thread",
@@ -924,7 +904,7 @@ function stableMessageId(input: {
   readonly scope: McpInvocationScope;
   readonly requestKey: string;
   readonly index: number;
-}) {
+}): MessageId {
   return MessageId.make(
     [
       "message",
@@ -940,7 +920,7 @@ function stableOperationMessageId(input: {
   readonly scope: McpInvocationScope;
   readonly requestKey: string;
   readonly operation: string;
-}) {
+}): MessageId {
   return MessageId.make(
     [
       "message",
@@ -957,7 +937,7 @@ function threadTitle(input: {
   readonly prompt: string | undefined;
   readonly title: string | undefined;
   readonly index: number;
-}) {
+}): string {
   const detail = input.title?.trim() || input.prompt?.trim();
   if (!detail) return placeholderThreadTitle(input.parentTitle, input.index);
   if (detail.length <= 80) return detail;
@@ -970,13 +950,15 @@ function threadTitle(input: {
   return `${detail.slice(0, end)}...`;
 }
 
-function taskPrompt(input: OrchestratorMcpDelegateTaskInput) {
+function taskPrompt(input: OrchestratorMcpDelegateTaskInput): string {
   return input.role === undefined || input.role === "general"
     ? input.task
     : `Act as the ${input.role} sub-agent for this task.\n\n${input.task}`;
 }
 
-function threadDone(thread: Pick<OrchestrationV2ThreadShell, "doneOverride" | "doneAt">) {
+function threadDone(
+  thread: Pick<OrchestrationV2ThreadShell, "doneOverride" | "doneAt">,
+): Pick<OrchestratorMcpThreadListItem, "done" | "doneAt"> {
   const done = thread.doneOverride === "done";
   return {
     done,
@@ -984,7 +966,10 @@ function threadDone(thread: Pick<OrchestrationV2ThreadShell, "doneOverride" | "d
   };
 }
 
-function threadSnooze(thread: Parameters<typeof isSnoozed>[0], nowMs: number) {
+function threadSnooze(
+  thread: Parameters<typeof isSnoozed>[0],
+  nowMs: number,
+): Pick<OrchestratorMcpThreadListItem, "snoozed" | "snoozedUntil"> {
   const snoozed = isSnoozed(thread, nowMs);
   return {
     snoozed,
@@ -995,7 +980,7 @@ function threadSnooze(thread: Parameters<typeof isSnoozed>[0], nowMs: number) {
 
 function threadBackgroundWork(
   thread: Pick<OrchestrationV2ThreadShell, "blockedOnThreadWait" | "pendingBackgroundTasks">,
-) {
+): Required<Pick<OrchestratorMcpThreadListItem, "blockedOnThreadWait" | "pendingBackgroundTasks">> {
   return {
     blockedOnThreadWait: thread.blockedOnThreadWait === true,
     pendingBackgroundTasks: (thread.pendingBackgroundTasks ?? []).map((task) => ({
@@ -1013,7 +998,10 @@ function threadBackgroundWork(
 function threadPullRequests(
   links: OrchestrationV2ThreadShell["pullRequests"],
   includeLinks = true,
-) {
+): Pick<
+  OrchestratorMcpThreadListItem,
+  "pullRequests" | "pullRequestCount" | "openPullRequestCount"
+> {
   const visible = visibleThreadPullRequests(links ?? []);
   if (!includeLinks) return { pullRequestCount: visible.length };
   const open = visible.filter(
@@ -1060,7 +1048,7 @@ function listItemFromShell(
   scope: McpInvocationScope,
   shell: OrchestrationV2ThreadShell,
   nowMs: number,
-) {
+): OrchestratorMcpThreadListItem {
   return {
     threadId: shell.id,
     projectId: shell.projectId,
@@ -1096,7 +1084,7 @@ function threadDetail(
   shell: OrchestrationV2ThreadShell,
   nowMs: number,
   firstPage: boolean,
-) {
+): OrchestratorMcpThreadDetail {
   const latest = latestUnheldRun(projection.runs);
   const active = ThreadManagementService.latestActiveRun(projection);
   return {
@@ -1154,7 +1142,7 @@ function threadDetail(
 function runExecutedModel(
   projection: Pick<OrchestrationV2ThreadProjection, "providerTurns">,
   run: Pick<OrchestrationV2Run, "activeAttemptId"> | undefined,
-) {
+): string | null {
   return run === undefined
     ? null
     : (latestProviderTurnForAttempt(projection.providerTurns, run.activeAttemptId)?.model ?? null);
@@ -1163,7 +1151,7 @@ function runExecutedModel(
 function threadRun(
   projection: Pick<OrchestrationV2ThreadProjection, "providerTurns">,
   run: OrchestrationV2Run,
-) {
+): OrchestratorMcpThreadRun {
   return {
     runId: run.id,
     ordinal: run.ordinal,
@@ -1177,7 +1165,7 @@ function threadRun(
   };
 }
 
-function jsonText(value: unknown) {
+function jsonText(value: unknown): string {
   try {
     return JSON.stringify(value, null, 2);
   } catch {
@@ -1185,7 +1173,7 @@ function jsonText(value: unknown) {
   }
 }
 
-function turnItemText(item: OrchestrationV2TurnItem) {
+function turnItemText(item: OrchestrationV2TurnItem): string | null {
   switch (item.type) {
     case "notification":
       return [item.summary, item.detail].filter((part) => part !== undefined).join("\n");
@@ -1248,7 +1236,7 @@ function turnItemText(item: OrchestrationV2TurnItem) {
   }
 }
 
-function textPageEnd(text: string | null, offset: number, maxChars: number) {
+function textPageEnd(text: string | null, offset: number, maxChars: number): number {
   const end = offset + maxChars;
   if (text === null || end >= text.length) return end;
   const last = text.charCodeAt(end - 1);
@@ -1261,7 +1249,7 @@ function timelineItem(input: {
   readonly maxChars: number;
   readonly textOffset?: number;
   readonly messagesByThreadId: ReadonlyMap<ThreadId, OrchestrationV2ThreadProjection["messages"]>;
-}) {
+}): OrchestratorMcpThreadTimelineItem {
   const text = turnItemText(input.row.item);
   const offset = input.textOffset ?? 0;
   const end = textPageEnd(text, offset, input.maxChars);
@@ -1299,7 +1287,7 @@ function timelineItem(input: {
 
 const jsonBytes = (value: unknown) => Buffer.byteLength(JSON.stringify(value), "utf8");
 
-function longestFitting(low: number, high: number, fits: (length: number) => boolean) {
+function longestFitting(low: number, high: number, fits: (length: number) => boolean): number {
   let best = low - 1;
   while (low <= high) {
     const mid = Math.floor((low + high) / 2);
@@ -1313,7 +1301,10 @@ function longestFitting(low: number, high: number, fits: (length: number) => boo
   return best;
 }
 
-function timelineItemWithin(input: Parameters<typeof timelineItem>[0], maxBytes: number) {
+function timelineItemWithin(
+  input: Parameters<typeof timelineItem>[0],
+  maxBytes: number,
+): OrchestratorMcpThreadTimelineItem {
   const longestText = (title: string | null) => {
     const withText = (maxChars: number) => ({ ...timelineItem({ ...input, maxChars }), title });
     const chars = longestFitting(2, input.maxChars - 1, (n) => jsonBytes(withText(n)) <= maxBytes);
@@ -1336,7 +1327,7 @@ function timelineItemsWithinBudget(
   envelope: Omit<OrchestratorMcpThreadReadResult, "items">,
   inputs: ReadonlyArray<Parameters<typeof timelineItem>[0]>,
   newestFirst: boolean,
-) {
+): { readonly items: Array<OrchestratorMcpThreadTimelineItem>; readonly start: number } {
   const budget = Math.max(
     THREAD_READ_RESULT_MAX_BYTES - jsonBytes({ ...envelope, items: [] }),
     THREAD_READ_RESULT_MAX_BYTES / 2,
@@ -1644,7 +1635,7 @@ const make = Effect.gen(function* () {
     readonly target: OrchestratorMcpTarget | undefined;
     readonly providers: ReadonlyArray<ServerProvider>;
     readonly skipProjectEnablementFilter?: boolean;
-  }) {
+  }): Effect.fn.Return<ResolvedTarget, OrchestratorMcpFailure> {
     const requestedInstanceId = input.target?.providerInstanceId;
     const requestedDriver = input.target?.driverKind;
     const orchestrationCapableInstanceIds = yield* loadOrchestrationCapableInstanceIds();
@@ -1774,9 +1765,8 @@ const make = Effect.gen(function* () {
     };
   });
 
-  const requestKey: (clientRequestId: string | undefined) => Effect.Effect<string> = (
-    clientRequestId: string | undefined,
-  ) => (clientRequestId === undefined ? random.uuidV4() : Effect.succeed(clientRequestId));
+  const requestKey = (clientRequestId: string | undefined): Effect.Effect<string> =>
+    clientRequestId === undefined ? random.uuidV4() : Effect.succeed(clientRequestId);
 
   const readTask = Effect.fn("OrchestratorMcpService.readTask")(function* (
     scope: McpThreadInvocationScope,
@@ -1784,7 +1774,7 @@ const make = Effect.gen(function* () {
     waitTimedOut = false,
     acknowledgeTerminal = false,
     acknowledgementOperation = "task-status-acknowledge",
-  ) {
+  ): Effect.fn.Return<OrchestratorMcpDelegateTaskResult, OrchestratorMcpFailure> {
     yield* requireCapability(scope);
     const task = (yield* loadTasks(scope.thread.threadId, [taskId])).find(
       (candidate) =>
@@ -2113,7 +2103,7 @@ const make = Effect.gen(function* () {
       readonly runtimeMode: RuntimeMode;
       readonly interactionMode: ProviderInteractionMode;
     },
-  ) {
+  ): Effect.fn.Return<ScheduledTask, OrchestratorMcpFailure> {
     const { tasks } = yield* scheduledTasks
       .list()
       .pipe(
@@ -2726,25 +2716,26 @@ const make = Effect.gen(function* () {
       const key = yield* requestKey(input.clientRequestId);
       const parentProjection = yield* loadThreadRecords(scope.thread.threadId, []);
 
-      const assertStoppable: (threadId: ThreadId) => Effect.Effect<void, OrchestratorMcpFailure> =
-        Effect.fn("OrchestratorMcpService.assertStoppable")(function* (threadId: ThreadId) {
-          const shell = yield* threadManagement
-            .getThreadShell(threadId)
-            .pipe(Effect.mapError(threadManagementFailure));
-          if (shell !== null && shell.deletedAt === null) {
-            yield* resolveRuntimeMode(parentProjection.thread.runtimeMode, shell.runtimeMode);
-            yield* resolveInteractionMode(
-              parentProjection.thread.interactionMode,
-              shell.interactionMode,
-            );
-          }
-          const childThreadIds = yield* threadManagement
-            .listAppOwnedChildThreadIds(threadId)
-            .pipe(Effect.mapError(threadManagementFailure));
-          for (const childThreadId of childThreadIds) {
-            yield* assertStoppable(childThreadId);
-          }
-        });
+      const assertStoppable = Effect.fn("OrchestratorMcpService.assertStoppable")(function* (
+        threadId: ThreadId,
+      ): Effect.fn.Return<void, OrchestratorMcpFailure> {
+        const shell = yield* threadManagement
+          .getThreadShell(threadId)
+          .pipe(Effect.mapError(threadManagementFailure));
+        if (shell !== null && shell.deletedAt === null) {
+          yield* resolveRuntimeMode(parentProjection.thread.runtimeMode, shell.runtimeMode);
+          yield* resolveInteractionMode(
+            parentProjection.thread.interactionMode,
+            shell.interactionMode,
+          );
+        }
+        const childThreadIds = yield* threadManagement
+          .listAppOwnedChildThreadIds(threadId)
+          .pipe(Effect.mapError(threadManagementFailure));
+        for (const childThreadId of childThreadIds) {
+          yield* assertStoppable(childThreadId);
+        }
+      });
       yield* assertStoppable(current.childThreadId);
       const parentTask = (yield* loadTasks(scope.thread.threadId, [input.taskId])).find(
         (task) => task.id === input.taskId && task.origin === "app_owned",

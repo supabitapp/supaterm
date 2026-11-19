@@ -19,7 +19,7 @@ const SQLITE_RECOVERY_MESSAGES: Readonly<Record<number, string>> = {
   26: "The Supaterm server could not read its database file (SQLITE_NOTADB). Preserve the server data directory and check the configured database path and server logs before restoring a database backup.",
 };
 
-function databaseErrorMessage(value: unknown) {
+function databaseErrorMessage(value: unknown): string | undefined {
   if (!SqlError.isSqlError(value)) return undefined;
 
   let cause: unknown = value.cause;
@@ -37,7 +37,7 @@ function databaseErrorMessage(value: unknown) {
   return "The Supaterm server could not complete this database request. Retry once; if it still fails, check the server logs for the database error.";
 }
 
-export function userFacingDatabaseErrorMessage(cause: unknown) {
+export function userFacingDatabaseErrorMessage(cause: unknown): string | undefined {
   const seen = new Set<unknown>();
   let value = cause;
   while (Predicate.isObject(value) && !seen.has(value)) {
@@ -67,7 +67,7 @@ const CAPABILITY_REJECTION_MESSAGES: Record<string, (provider: string) => string
     `${p} cannot confirm when its runs finish reliably enough for this.`,
 };
 
-function providerDisplayName(instanceId: string) {
+function providerDisplayName(instanceId: string): string {
   const known = PROVIDER_DISPLAY_NAMES[instanceId as ProviderDriverKind];
   if (known !== undefined) return known;
   const trimmed = instanceId.replace(/Agent$/i, "").trim();
@@ -75,7 +75,7 @@ function providerDisplayName(instanceId: string) {
   return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
 }
 
-function policyRejectionMessage(value: unknown) {
+function policyRejectionMessage(value: unknown): string | undefined {
   if (!Predicate.isObject(value) || typeof value.providerInstanceId !== "string") return undefined;
   const provider = providerDisplayName(value.providerInstanceId);
   if (value._tag === "CommandPolicyCapabilityUnsupportedError") {
@@ -85,11 +85,11 @@ function policyRejectionMessage(value: unknown) {
   return undefined;
 }
 
-function textValue(value: unknown) {
+function textValue(value: unknown): string | undefined {
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
 }
 
-function messageFrom(value: unknown) {
+function messageFrom(value: unknown): string | undefined {
   if (typeof value === "string") {
     return textValue(value);
   }
@@ -106,29 +106,26 @@ function messageFrom(value: unknown) {
   return textValue(value.detail) ?? textValue(value.message);
 }
 
-function isGenericErrorMessage(message: string) {
+function isGenericErrorMessage(message: string): boolean {
   return GENERIC_ERROR_PREFIXES.some((prefix) => message.startsWith(prefix));
 }
 
-function collectErrorMessages(value: unknown, seen: Set<unknown>): ReadonlyArray<string>;
-function collectErrorMessages(value: unknown, seen: Set<unknown>) {
+function collectErrorMessages(value: unknown, seen: Set<unknown>): ReadonlyArray<string> {
   if (value === undefined || value === null || seen.has(value)) {
-    return [] satisfies ReadonlyArray<string>;
+    return [];
   }
   seen.add(value);
 
   if (Array.isArray(value)) {
-    return value.flatMap((item) =>
-      collectErrorMessages(item, seen),
-    ) satisfies ReadonlyArray<string>;
+    return value.flatMap((item) => collectErrorMessages(item, seen));
   }
 
   const databaseMessage = databaseErrorMessage(value);
-  if (databaseMessage !== undefined) return [databaseMessage] satisfies ReadonlyArray<string>;
+  if (databaseMessage !== undefined) return [databaseMessage];
 
   const message = messageFrom(value);
   if (!Predicate.isObject(value)) {
-    return (message === undefined ? [] : [message]) satisfies ReadonlyArray<string>;
+    return message === undefined ? [] : [message];
   }
 
   const nested = [
@@ -137,14 +134,13 @@ function collectErrorMessages(value: unknown, seen: Set<unknown>) {
     ...collectErrorMessages(value.errors, seen),
   ];
 
-  return (message === undefined ? nested : [message, ...nested]) satisfies ReadonlyArray<string>;
+  return message === undefined ? nested : [message, ...nested];
 }
 
-export function userFacingDispatchErrorMessage(cause: unknown): string | undefined;
-export function userFacingDispatchErrorMessage(cause: unknown) {
+export function userFacingDispatchErrorMessage(cause: unknown): string | undefined {
   const messages = collectErrorMessages(cause, new Set()).filter(
     (message, index, allMessages) =>
       !isGenericErrorMessage(message) && allMessages.indexOf(message) === index,
   );
-  return messages.at(-1) satisfies string | undefined;
+  return messages.at(-1);
 }

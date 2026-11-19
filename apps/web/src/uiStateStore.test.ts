@@ -9,7 +9,7 @@ import {
   type UiState,
 } from "./uiStateStore";
 
-function makeUiState(overrides: Partial<UiState> = {}) {
+function makeUiState(overrides: Partial<UiState> = {}): UiState {
   return {
     projectOrder: [],
     sidebarProjectScopeKeys: [],
@@ -17,7 +17,7 @@ function makeUiState(overrides: Partial<UiState> = {}) {
     defaultAdvertisedEndpointKey: null,
     pullRequestMergeMethod: "merge",
     ...overrides,
-  } satisfies UiState;
+  };
 }
 
 describe("uiStateStore pure functions", () => {
@@ -68,8 +68,7 @@ describe("parsePersistedState", () => {
   });
 });
 
-function createLocalStorageStub(): Storage;
-function createLocalStorageStub() {
+function createLocalStorageStub(): Storage {
   const store = new Map<string, string>();
   return {
     clear: () => {
@@ -86,7 +85,7 @@ function createLocalStorageStub() {
     setItem: (key, value) => {
       store.set(key, value);
     },
-  } satisfies Storage;
+  };
 }
 
 describe("uiStateStore persistence", () => {

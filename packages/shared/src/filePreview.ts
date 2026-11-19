@@ -38,7 +38,7 @@ export type FilePreviewKind =
 export function filePreviewKind(
   file: { readonly name: string; readonly mimeType?: string },
   options?: { readonly richDocuments?: boolean },
-) {
+): FilePreviewKind {
   const mime = file.mimeType?.split(";", 1)[0]?.trim().toLowerCase() ?? "";
   const name = file.name.toLowerCase();
   const extension = name.slice(name.lastIndexOf("."));
@@ -104,7 +104,10 @@ const BINARY_MIME_TYPES = new Map([
   [".db", "application/vnd.sqlite3"],
 ]);
 
-export function binaryPreviewKind(file: { readonly name: string; readonly mimeType?: string }) {
+export function binaryPreviewKind(file: {
+  readonly name: string;
+  readonly mimeType?: string;
+}): "archive" | "sqlite" | null {
   const mime = file.mimeType?.split(";", 1)[0]?.trim().toLowerCase() ?? "";
   if (["application/vnd.sqlite3", "application/x-sqlite3", "application/x-sqlite"].includes(mime))
     return "sqlite";
@@ -143,7 +146,10 @@ const OFFICE_MIME_TYPES = {
 
 export type OfficePreviewKind = keyof typeof OFFICE_MIME_TYPES;
 
-export function officePreviewKind(file: { readonly name: string; readonly mimeType?: string }) {
+export function officePreviewKind(file: {
+  readonly name: string;
+  readonly mimeType?: string;
+}): OfficePreviewKind | null {
   const mime = file.mimeType?.split(";", 1)[0]?.trim().toLowerCase() ?? "";
   if (mime === "text/rtf") return "rtf";
   for (const kind of Object.keys(OFFICE_MIME_TYPES) as OfficePreviewKind[]) {
@@ -190,11 +196,11 @@ const FONT_MIME_TYPE_BY_EXTENSION = new Map([
   [".woff2", "font/woff2"],
 ]);
 
-export function isWorkspaceFontPreviewPath(path: string) {
+export function isWorkspaceFontPreviewPath(path: string): boolean {
   return /\.(ttf|otf|woff2?)$/i.test(path);
 }
 
-export function hostPreviewMimeTypeFromExtension(extension: string) {
+export function hostPreviewMimeTypeFromExtension(extension: string): string | null {
   if (!/^\.[a-z0-9-]+$/i.test(extension)) return null;
   return (
     mediaMimeTypeFromExtension(extension) ??
@@ -209,21 +215,21 @@ export function hostPreviewMimeTypeFromExtension(extension: string) {
   );
 }
 
-function hasPreviewExtension(path: string, extensions: ReadonlyArray<string>) {
+function hasPreviewExtension(path: string, extensions: ReadonlyArray<string>): boolean {
   const literalPath = path.toLowerCase();
   return extensions.some((extension) => literalPath.endsWith(extension));
 }
 
-export function isWorkspaceBrowserPreviewPath(path: string) {
+export function isWorkspaceBrowserPreviewPath(path: string): boolean {
   return hasPreviewExtension(path, WORKSPACE_BROWSER_PREVIEW_EXTENSIONS);
 }
 
 /** File viewers receive literal filesystem paths, not Markdown URLs. */
-export function isWorkspaceVideoPreviewPath(path: string) {
+export function isWorkspaceVideoPreviewPath(path: string): boolean {
   return videoMimeType({ name: path, mimeType: "" }) !== null;
 }
 
-export function isWorkspacePreviewEntryPath(path: string) {
+export function isWorkspacePreviewEntryPath(path: string): boolean {
   return (
     isWorkspaceBrowserPreviewPath(path) ||
     isWorkspaceImagePreviewPath(path) ||

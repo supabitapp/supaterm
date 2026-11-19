@@ -25,7 +25,7 @@ export function useScopedModelDisabledReason(
   const { targets } = useSettingsScope();
   const { environments } = useEnvironments();
   const providersByEnvironment = useEnvironmentProviders();
-  return (instanceId: ProviderInstanceId, model: string) => {
+  return (instanceId: ProviderInstanceId, model: string): string | null => {
     const sourceEntry = entries.find((entry) => entry.instanceId === instanceId);
     for (const candidate of targets) {
       const environment = environments.find(

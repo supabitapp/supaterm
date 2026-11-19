@@ -14,15 +14,14 @@ const NodeRuntimeFeature = Schema.Literals([
   "Antigravity sign-in",
 ]);
 
-export const nodeRuntimeUnavailableMessage: (feature: typeof NodeRuntimeFeature.Type) => string = (
-  feature: typeof NodeRuntimeFeature.Type,
-) => `${feature} requires Node.js. Install Node.js and make sure node is on PATH, then retry.`;
+export const nodeRuntimeUnavailableMessage = (feature: typeof NodeRuntimeFeature.Type): string =>
+  `${feature} requires Node.js. Install Node.js and make sure node is on PATH, then retry.`;
 
 export class NodeRuntimeUnavailableError extends Schema.TaggedError<NodeRuntimeUnavailableError>()(
   "NodeRuntimeUnavailableError",
   { feature: NodeRuntimeFeature, cause: Schema.optional(Schema.Defect()) },
 ) {
-  override get message() {
+  override get message(): string {
     return nodeRuntimeUnavailableMessage(this.feature);
   }
 }
@@ -46,7 +45,10 @@ export const resolveSelfInvocation = Effect.fn("nodeRuntime.resolveSelfInvocatio
   } satisfies SelfInvocation;
 });
 
-export const selfInvocationArgs = (invocation: SelfInvocation, args: ReadonlyArray<string>) =>
+export const selfInvocationArgs = (
+  invocation: SelfInvocation,
+  args: ReadonlyArray<string>,
+): ReadonlyArray<string> =>
   invocation.entrypoint === undefined ? args : [invocation.entrypoint, ...args];
 
 export const resolveNodeExecutable = Effect.fn("nodeRuntime.resolveNodeExecutable")(function* (

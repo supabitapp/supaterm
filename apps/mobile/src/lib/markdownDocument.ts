@@ -23,7 +23,7 @@ interface MarkdownEdit {
   readonly content: string;
 }
 
-function applyMarkdownEdits(markdown: string, edits: MarkdownEdit[]) {
+function applyMarkdownEdits(markdown: string, edits: MarkdownEdit[]): string {
   if (edits.length === 0) return markdown;
   const parts: string[] = [];
   let offset = 0;
@@ -35,14 +35,14 @@ function applyMarkdownEdits(markdown: string, edits: MarkdownEdit[]) {
   return parts.join("");
 }
 
-function decodeCodePoint(codePoint: number, entity: string) {
+function decodeCodePoint(codePoint: number, entity: string): string {
   if (!Number.isInteger(codePoint) || codePoint < 0 || codePoint > 0x10ffff) {
     return entity;
   }
   return String.fromCodePoint(codePoint);
 }
 
-export function decodeHtmlEntities(value: string) {
+export function decodeHtmlEntities(value: string): string {
   return value.replace(
     /&(?:#(\d+)|#x([0-9a-f]+)|amp|apos|gt|lt|nbsp|quot);/gi,
     (entity, decimal: string | undefined, hexadecimal: string | undefined) => {
@@ -74,7 +74,7 @@ export function decodeHtmlEntities(value: string) {
 
 const HTML_TAG = /<!--[\s\S]*?-->|<\/?[a-z](?:[^>"']|"[^"]*"|'[^']*')*>/gi;
 
-function attribute(tag: string, name: string) {
+function attribute(tag: string, name: string): string | null {
   const attributes = /([\w:-]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/g;
   for (const match of tag.matchAll(attributes)) {
     if (match[1]?.toLowerCase() === name) {
@@ -84,7 +84,7 @@ function attribute(tag: string, name: string) {
   return null;
 }
 
-function markdownDestination(url: string) {
+function markdownDestination(url: string): string {
   return `<${url.replace(/&/g, "\\&").replace(/</g, "%3C").replace(/>/g, "%3E").replace(/\|/g, "%7C").replace(/\n/g, "")}>`;
 }
 
@@ -93,7 +93,7 @@ const ANCHOR_TAG = /^<\/?a[\s/>]/i;
 /** Replacements for the anchor tags still ahead, and how many emitted links are open. */
 type AnchorState = { readonly pending: string[]; open: number };
 
-function escapeLinkLabel(text: string) {
+function escapeLinkLabel(text: string): string {
   return text
     .replace(/(`+)[\s\S]*?\1|\\*[[\]]/g, (match) =>
       match.startsWith("`") || match.length % 2 === 0
@@ -103,14 +103,14 @@ function escapeLinkLabel(text: string) {
     .replace(/\\+$/, (slashes) => (slashes.length % 2 ? `${slashes}\\` : slashes));
 }
 
-function bangBefore(text: string, index: number) {
+function bangBefore(text: string, index: number): boolean {
   if (text[index - 1] !== "!") return false;
   let backslashes = 0;
   while (text[index - 2 - backslashes] === "\\") backslashes += 1;
   return backslashes % 2 === 0;
 }
 
-function anchorMarkdown(tags: readonly string[]) {
+function anchorMarkdown(tags: readonly string[]): AnchorState {
   const replacements = tags.map(() => "");
   const open: Array<{ index: number; href: string | undefined }> = [];
   tags.forEach((tag, index) => {
@@ -127,7 +127,7 @@ function anchorMarkdown(tags: readonly string[]) {
   return { pending: replacements, open: 0 };
 }
 
-export function markdownHtmlTags(content: string) {
+export function markdownHtmlTags(content: string): RegExpExecArray[] {
   const codeRanges: Array<{ start: number; end: number }> = [];
   const tags = [...content.matchAll(HTML_TAG)];
   let tagIndex = 0;
@@ -184,7 +184,7 @@ export function markdownHtmlTags(content: string) {
 export function markdownHtmlContent(
   content: string,
   options: { readonly anchors?: AnchorState; readonly inTableCell?: boolean } = {},
-) {
+): string {
   const tags = markdownHtmlTags(content);
   const anchors =
     options.anchors ??
@@ -211,7 +211,7 @@ function htmlTagMarkdown(
   tag: string,
   anchors: AnchorState,
   options: { readonly inTableCell?: boolean },
-) {
+): string {
   if (tag.startsWith("<!--")) return "";
   if (ANCHOR_TAG.test(tag)) {
     const replacement = anchors.pending.shift() ?? "";
@@ -234,7 +234,7 @@ function htmlTagMarkdown(
   return "";
 }
 
-export function markdownWithHtml(markdown: string) {
+export function markdownWithHtml(markdown: string): string {
   if (!/<(?:!--|\/?[a-z])/i.test(markdown)) return markdown;
   const edits: Array<{ start: number; end: number; content: string }> = [];
   const visit = (node: MarkdownNode, inTableCell: boolean, inLink: boolean) => {
@@ -280,7 +280,7 @@ export function markdownWithHtml(markdown: string) {
 }
 
 /** Reference definitions as authored, one line each, so a Windows destination keeps its backslashes. */
-export function markdownReferenceDefinitions(markdown: string) {
+export function markdownReferenceDefinitions(markdown: string): string[] {
   if (!markdown.includes("]:")) return [];
   const flattened = markdownWithHtml(markdown);
   const definitions: string[] = [];
@@ -306,7 +306,7 @@ export function markdownReferenceDefinitions(markdown: string) {
 export function withReferenceDefinitions(
   fragment: string,
   replyDefinitions: ReadonlyArray<string>,
-) {
+): string {
   if (replyDefinitions.length === 0 || !fragment.includes("[")) return fragment;
   const definitions = new Set([...markdownReferenceDefinitions(fragment), ...replyDefinitions]);
   return `${[...definitions].join("\n")}\n\n${fragment}`;
@@ -314,25 +314,19 @@ export function withReferenceDefinitions(
 
 const INLINE_CODE_SPAN = /(?<!`)`+([^`\r\n]+)`+/g;
 
-function isInlineCodeFileLink(code: string, fileLink: RegExp) {
+function isInlineCodeFileLink(code: string, fileLink: RegExp): boolean {
   return fileLink.test(code) || (/\s/.test(code) && inlineCodeFilePathCandidate(code) !== null);
 }
 
-export function markdownWithInlineFileLinks(markdown: string, fileLink: RegExp): string;
-export function markdownWithInlineFileLinks(markdown: string, fileLink: RegExp) {
-  return transformNativeMarkdown(markdown, fileLink, false) satisfies string;
+export function markdownWithInlineFileLinks(markdown: string, fileLink: RegExp): string {
+  return transformNativeMarkdown(markdown, fileLink, false);
 }
 
 function transformNativeMarkdown(
   markdown: string,
   fileLink: RegExp | undefined,
   tableBreaks: boolean,
-): string;
-function transformNativeMarkdown(
-  markdown: string,
-  fileLink: RegExp | undefined,
-  tableBreaks: boolean,
-) {
+): string {
   const breakTables = tableBreaks && mayHaveTableUnderText(markdown);
   let linkFiles = false;
   if (fileLink) {
@@ -344,7 +338,7 @@ function transformNativeMarkdown(
     }
   }
   const linkProseFiles = fileLink !== undefined && absoluteFilePathMatches(markdown).length > 0;
-  if (!linkFiles && !linkProseFiles && !breakTables) return markdown satisfies string;
+  if (!linkFiles && !linkProseFiles && !breakTables) return markdown;
   const edits: MarkdownEdit[] = [];
   const fileEdits: MarkdownEdit[] = [];
   let rewritesPipe = false;
@@ -414,11 +408,11 @@ function transformNativeMarkdown(
   };
   visit(parser.parse(markdown));
   if (breakTables && rewritesPipe)
-    return markdownWithTableBreaks(applyMarkdownEdits(markdown, fileEdits)) satisfies string;
-  return applyMarkdownEdits(markdown, edits) satisfies string;
+    return markdownWithTableBreaks(applyMarkdownEdits(markdown, fileEdits));
+  return applyMarkdownEdits(markdown, edits);
 }
 
-function isTableDelimiterRow(line: string) {
+function isTableDelimiterRow(line: string): boolean {
   if (!line.includes("-")) return false;
   const row = line.replace(/^[ \t>]+/, "").trim();
   return row
@@ -427,7 +421,7 @@ function isTableDelimiterRow(line: string) {
     .every((cell) => /^:?-+:?$/.test(cell.trim()));
 }
 
-function mayHaveTableUnderText(markdown: string) {
+function mayHaveTableUnderText(markdown: string): boolean {
   if (!markdown.includes("|")) return false;
   const lines = markdown.split(/\r\n|\r|\n/);
   for (let index = 2; index < lines.length; index += 1) {
@@ -441,38 +435,32 @@ function mayHaveTableUnderText(markdown: string) {
  * on a paragraph's first line, so a table right under a line of text renders as one
  * run-on paragraph. Insert the blank line md4c needs before each such table.
  */
-export function markdownWithTableBreaks(markdown: string): string;
-export function markdownWithTableBreaks(markdown: string) {
-  return transformNativeMarkdown(markdown, undefined, true) satisfies string;
+export function markdownWithTableBreaks(markdown: string): string {
+  return transformNativeMarkdown(markdown, undefined, true);
 }
 
-export function markdownForNativeParsing(markdown: string) {
+export function markdownForNativeParsing(markdown: string): string {
   return markdownWithAuthoredWindowsPaths(markdownWithHtml(markdown));
 }
 
-export function parseMarkdownDocument(markdown: string) {
+export function parseMarkdownDocument(markdown: string): Root {
   return parser.parse(markdownForNativeParsing(markdown));
 }
 
 /** For Markdown already normalized by `markdownForNativeParsing`, whose offsets must match. */
-export function parseNormalizedMarkdown(markdown: string) {
+export function parseNormalizedMarkdown(markdown: string): Root {
   return parser.parse(markdown);
 }
 
-export function markdownForNativeRendering(markdown: string, fileLink: RegExp): string;
-export function markdownForNativeRendering(markdown: string, fileLink: RegExp) {
-  return transformNativeMarkdown(
-    markdownForNativeParsing(markdown),
-    fileLink,
-    true,
-  ) satisfies string;
+export function markdownForNativeRendering(markdown: string, fileLink: RegExp): string {
+  return transformNativeMarkdown(markdownForNativeParsing(markdown), fileLink, true);
 }
 
 /** Native media slots only cover standalone images; nested file embeds must become links. */
 export function markdownWithFileEmbeds(
   markdown: string,
   label: (href: string, standalone: boolean) => string | null,
-) {
+): { markdown: string; fileHrefs: ReadonlySet<string> } {
   const fileHrefs = new Set<string>();
   if (!markdown.includes("![")) return { markdown, fileHrefs };
   const root = parser.parse(markdown);

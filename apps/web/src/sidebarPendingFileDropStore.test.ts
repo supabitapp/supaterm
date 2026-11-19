@@ -3,20 +3,27 @@ import { beforeEach, describe, expect, it } from "vite-plus/test";
 import { scopeThreadRef } from "@supaterm/client-runtime/environment";
 import { type EnvironmentId, ThreadId } from "@supaterm/contracts";
 
-import { useSidebarPendingFileDropStore } from "./sidebarPendingFileDropStore";
+import {
+  useSidebarPendingFileDropStore,
+  type SidebarPendingFileDrop,
+} from "./sidebarPendingFileDropStore";
 
-function makeFiles(...names: string[]) {
+function makeFiles(...names: string[]): File[] {
   return names.map((name) => new File(["x"], name));
 }
 
-function makeEntry(environmentId: string, threadId: string, files: File[]) {
+function makeEntry(
+  environmentId: string,
+  threadId: string,
+  files: File[],
+): Omit<SidebarPendingFileDrop, "id"> {
   return {
     threadRef: scopeThreadRef(environmentId as EnvironmentId, ThreadId.make(threadId)),
     files,
   };
 }
 
-function fileNames(files: File[]) {
+function fileNames(files: File[]): string[] {
   return files.map((file) => file.name);
 }
 

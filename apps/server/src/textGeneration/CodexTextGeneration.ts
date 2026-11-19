@@ -49,7 +49,7 @@ const CodexMcpServers = Schema.fromJsonString(
 );
 const decodeCodexMcpServers = Schema.decodeEffect(CodexMcpServers);
 
-const codexMcpServersOff = (names: ReadonlyArray<string>) =>
+const codexMcpServersOff = (names: ReadonlyArray<string>): string | null =>
   names.length === 0
     ? null
     : `mcp_servers={${names.map((name) => `${JSON.stringify(name)}={enabled=false}`).join(",")}}`;
@@ -76,7 +76,10 @@ export const makeCodexTextGeneration = Effect.fn("makeCodexTextGeneration")(func
   const serverConfig = yield* Effect.service(ServerConfig.ServerConfig);
   const resolvedEnvironment = environment ?? process.env;
 
-  const readStreamAsString = <E>(operation: string, stream: Stream.Stream<Uint8Array, E>) =>
+  const readStreamAsString = <E>(
+    operation: string,
+    stream: Stream.Stream<Uint8Array, E>,
+  ): Effect.Effect<string, TextGenerationError> =>
     stream.pipe(
       Stream.decodeText(),
       Stream.runFold(
@@ -88,10 +91,14 @@ export const makeCodexTextGeneration = Effect.fn("makeCodexTextGeneration")(func
       ),
     );
 
-  const removeTempFileDir = (filePath: string) =>
+  const removeTempFileDir = (filePath: string): Effect.Effect<void, never> =>
     fileSystem.remove(path.dirname(filePath), { recursive: true }).pipe(Effect.ignore);
 
-  const writeTempFile = (operation: string, prefix: string, content: string) =>
+  const writeTempFile = (
+    operation: string,
+    prefix: string,
+    content: string,
+  ): Effect.Effect<string, TextGenerationError> =>
     fileSystem
       .makeTempFile({
         prefix: `supaterm-${prefix}-${process.pid}-`,
@@ -112,7 +119,10 @@ export const makeCodexTextGeneration = Effect.fn("makeCodexTextGeneration")(func
         ),
       );
 
-  const encodeJsonForOperation = (operation: TextGenerationOperations.Operation, value: unknown) =>
+  const encodeJsonForOperation = (
+    operation: TextGenerationOperations.Operation,
+    value: unknown,
+  ): Effect.Effect<string, TextGenerationError> =>
     encodeJsonString(value).pipe(
       Effect.mapError(
         (cause) =>
@@ -208,7 +218,7 @@ export const makeCodexTextGeneration = Effect.fn("makeCodexTextGeneration")(func
         onSome: (names) => Effect.succeed(names),
       }),
     ),
-    Effect.orElseSucceed(() => []),
+    Effect.orElseSucceed((): ReadonlyArray<string> => []),
   );
 
   const runCodexJson = Effect.fn("runCodexJson")(function* <S extends Schema.Top>({
@@ -219,7 +229,11 @@ export const makeCodexTextGeneration = Effect.fn("makeCodexTextGeneration")(func
     modelSelection,
     attachments,
     investigate,
-  }: TextGenerationOperations.Request<S>) {
+  }: TextGenerationOperations.Request<S>): Effect.fn.Return<
+    S["Type"],
+    TextGenerationError,
+    S["DecodingServices"]
+  > {
     const imagePaths = yield* materializeImageAttachments(attachments);
     const schemaJson = yield* encodeJsonForOperation(
       operation,

@@ -8,7 +8,10 @@ import { SourceControlProviderKind, type PullRequestReaction } from "@supaterm/c
 import * as GitHubRequestPolicy from "./GitHubRequestPolicy.ts";
 import * as SourceControlRateLimit from "@supaterm/source-control-core/server/SourceControlRateLimit";
 import * as GitHubPullRequestApi from "./GitHubPullRequestApi.ts";
-import type { GitHubPullRequestCore } from "./gitHubPullRequestJson.ts";
+import type {
+  GitHubPullRequestCore,
+  GitHubPullRequestSearchItem,
+} from "./gitHubPullRequestJson.ts";
 import { gitHubViewerPermissions, loginAvatarUrl, make } from "./GitHubPullRequestProvider.ts";
 import type { GitHubReviewThreadComments } from "./gitHubPullRequestJson.ts";
 
@@ -941,7 +944,7 @@ describe("loginAvatarUrl", () => {
 });
 
 describe("listChangeRequestsAcross", () => {
-  const searched = (repository: string) => ({
+  const searched = (repository: string): GitHubPullRequestSearchItem => ({
     repository,
     number: 1,
     title: "Change",

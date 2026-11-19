@@ -27,7 +27,11 @@ import {
   scopedSettingsSource,
 } from "./scopedSettings";
 import { useClearProjectOverrides, useClearScopedSettings } from "./useScopedSettings";
-import { SettingInheritance, type SettingInheritanceState } from "./SettingInheritance";
+import {
+  SettingInheritance,
+  type SettingInheritanceState,
+  type SettingOverridingProject,
+} from "./SettingInheritance";
 
 const EMPTY_SETTING_KEYS: readonly (keyof ServerSettings)[] = [];
 
@@ -67,7 +71,7 @@ function SettingsSearchTargetProvider({
 
 let pendingTargetScroll: AbortController | undefined;
 
-function scrollAndFocusSettingsTarget(target: HTMLElement, highlight = true) {
+function scrollAndFocusSettingsTarget(target: HTMLElement, highlight = true): void {
   pendingTargetScroll?.abort();
   const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const markedScrollTarget =
@@ -143,7 +147,7 @@ function scrollAndFocusSettingsTarget(target: HTMLElement, highlight = true) {
   });
 }
 
-export function useSettingsSearchTargetId() {
+export function useSettingsSearchTargetId(): string | null {
   return useContext(SettingsSearchTargetContext).targetId;
 }
 
@@ -268,7 +272,7 @@ export function SettingsUnavailableGroup({
 function projectOverrides(
   context: ReturnType<typeof useOptionalSettingsScope>,
   scopedKeys: ReadonlyArray<keyof ServerSettings>,
-) {
+): SettingOverridingProject[] {
   if (context === null || scopedKeys.length === 0) return [];
   return listProjectOverrides(context.connectedEnvironments, scopedKeys).flatMap((entry) => {
     const group = context.groups.find((candidate) =>
@@ -611,7 +615,7 @@ export function SettingsPageContainer({
 export function scrollToSettingsTarget(
   targetId: string,
   { highlight = true }: { readonly highlight?: boolean } = {},
-) {
+): boolean {
   const target = document.getElementById(targetId);
   if (!target) return false;
   scrollAndFocusSettingsTarget(target, highlight);

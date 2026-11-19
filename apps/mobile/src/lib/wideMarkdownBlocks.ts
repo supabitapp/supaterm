@@ -9,7 +9,7 @@ export interface WideMarkdownBlockOptions {
   readonly includeBlockquotes?: boolean;
 }
 
-function stripBlockquotePrefixes(line: string) {
+function stripBlockquotePrefixes(line: string): string {
   let content = line;
   while (BLOCKQUOTE_PREFIX.test(content)) {
     content = content.replace(BLOCKQUOTE_PREFIX, "");
@@ -17,7 +17,7 @@ function stripBlockquotePrefixes(line: string) {
   return content;
 }
 
-function hasIndentedCodeBlock(text: string) {
+function hasIndentedCodeBlock(text: string): boolean {
   return text.split("\n").some((rawLine) => {
     const line = stripBlockquotePrefixes(rawLine);
     let column = 0;
@@ -38,11 +38,11 @@ function hasIndentedCodeBlock(text: string) {
   });
 }
 
-function hasBlockquote(text: string) {
+function hasBlockquote(text: string): boolean {
   return text.split("\n").some((line) => BLOCKQUOTE_PREFIX.test(line));
 }
 
-function hasOrderedListItem(text: string) {
+function hasOrderedListItem(text: string): boolean {
   let previousNonEmptyLine: string | null = null;
 
   for (const rawLine of text.split("\n")) {
@@ -70,7 +70,7 @@ function hasOrderedListItem(text: string) {
   return false;
 }
 
-function isTableDelimiterRow(line: string) {
+function isTableDelimiterRow(line: string): boolean {
   const trimmed = line.trim();
   if (!trimmed.includes("|") || !trimmed.includes("-")) {
     return false;
@@ -78,7 +78,10 @@ function isTableDelimiterRow(line: string) {
   return /^[|\-: \t]+$/.test(trimmed);
 }
 
-export function hasWideMarkdownBlock(text: string, options: WideMarkdownBlockOptions = {}) {
+export function hasWideMarkdownBlock(
+  text: string,
+  options: WideMarkdownBlockOptions = {},
+): boolean {
   if (FENCED_CODE_BLOCK.test(text)) {
     return true;
   }

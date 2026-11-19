@@ -11,7 +11,7 @@ import { formatWorkspaceRelativePath } from "../../filePathDisplay";
 
 export function toolGroupSummaryIconName(
   kind: Extract<TimelineRow, { kind: "work-toggle" }>["summaryKind"],
-) {
+): WorkEntryIconName {
   switch (kind) {
     case "pull-request":
     case "link-pr":
@@ -52,44 +52,37 @@ export function toolGroupSummaryIconName(
   }
 }
 
-export function workToneIcon(tone: TimelineWorkEntry["tone"]) {
+export function workToneIcon(tone: TimelineWorkEntry["tone"]): {
+  iconName: WorkEntryIconName;
+  className: string;
+} {
   if (tone === "error") {
     return {
       iconName: "circle-alert",
       className: "text-foreground/92",
-    } satisfies {
-      iconName: WorkEntryIconName;
-      className: string;
     };
   }
   if (tone === "thinking") {
     return {
       iconName: "brain",
       className: "text-icon-muted",
-    } satisfies {
-      iconName: WorkEntryIconName;
-      className: string;
     };
   }
   if (tone === "info") {
     return {
       iconName: "check",
       className: "text-muted-foreground",
-    } satisfies {
-      iconName: WorkEntryIconName;
-      className: string;
     };
   }
   return {
     iconName: "zap",
     className: "text-foreground/92",
-  } satisfies {
-    iconName: WorkEntryIconName;
-    className: string;
   };
 }
 
-export function workEntryRawCommand(workEntry: Pick<TimelineWorkEntry, "command" | "rawCommand">) {
+export function workEntryRawCommand(
+  workEntry: Pick<TimelineWorkEntry, "command" | "rawCommand">,
+): string | null {
   const rawCommand = workEntry.rawCommand?.trim();
   if (!rawCommand || !workEntry.command) {
     return null;
@@ -102,7 +95,7 @@ export function buildToolCallExpandedBody(
   workspaceRoot: string | undefined,
   visibleLabel: string,
   viewedImagePath: string | null,
-) {
+): string | null {
   const blocks: string[] = [];
   const seen = new Set<string>([visibleLabel.trim()]);
   const addBlock = (value: string | null | undefined) => {
@@ -153,58 +146,55 @@ export function buildToolCallExpandedBody(
   return blocks.length > 0 ? blocks.join("\n\n") : null;
 }
 
-export function workEntryIconName(workEntry: TimelineWorkEntry) {
+export function workEntryIconName(workEntry: TimelineWorkEntry): WorkEntryIconName {
   if (workEntry.structuredPayload?.type === "notification") {
-    if (workEntry.structuredPayload.outcome === "failed")
-      return "circle-alert" satisfies WorkEntryIconName;
+    if (workEntry.structuredPayload.outcome === "failed") return "circle-alert";
     const source = workEntry.structuredPayload.source;
     switch (source.kind) {
       case "subagent":
       case "delegated_task":
-        return "bot" satisfies WorkEntryIconName;
+        return "bot";
       case "command":
-        return "terminal" satisfies WorkEntryIconName;
+        return "terminal";
       case "monitor":
-        return "eye" satisfies WorkEntryIconName;
+        return "eye";
       case "background_task":
-        return "zap" satisfies WorkEntryIconName;
+        return "zap";
       case "system":
-        return "supaterm" satisfies WorkEntryIconName;
+        return "supaterm";
       default:
         source satisfies never;
-        return "zap" satisfies WorkEntryIconName;
+        return "zap";
     }
   }
   if (workEntry.itemType === "system_notice") {
-    return (
-      workEntry.structuredPayload?.type === "system_notice" &&
+    return workEntry.structuredPayload?.type === "system_notice" &&
       workEntry.structuredPayload.level === "info"
-        ? "zap"
-        : "circle-alert"
-    ) satisfies WorkEntryIconName;
+      ? "zap"
+      : "circle-alert";
   }
   if (workEntry.itemType === "user_input_request" || workEntry.itemType === "approval_request") {
-    return "message-circle" satisfies WorkEntryIconName;
+    return "message-circle";
   }
-  if (workEntry.toolSurface) return workEntry.toolSurface satisfies WorkEntryIconName;
+  if (workEntry.toolSurface) return workEntry.toolSurface;
   if (
     workEntry.structuredPayload?.type === "dynamic_tool" &&
     isJavaScriptReplTool(workEntry.structuredPayload.toolName)
   )
-    return "code" satisfies WorkEntryIconName;
+    return "code";
   const toolPresentation = resolveWorkEntryToolPresentation(workEntry);
-  if (toolPresentation) return toolPresentation.icon satisfies WorkEntryIconName;
+  if (toolPresentation) return toolPresentation.icon;
   const action = toolGroupAction(workEntry);
-  if (action !== "other") return toolGroupSummaryIconName(action) satisfies WorkEntryIconName;
+  if (action !== "other") return toolGroupSummaryIconName(action);
 
   switch (workEntry.itemType) {
     case "dynamic_tool":
-      return "wrench" satisfies WorkEntryIconName;
+      return "wrench";
     case "subagent":
-      return "bot" satisfies WorkEntryIconName;
+      return "bot";
   }
 
-  return workToneIcon(workEntry.tone).iconName satisfies WorkEntryIconName;
+  return workToneIcon(workEntry.tone).iconName;
 }
 
 export const THOUGHT_PREVIEW_SOURCE_MAX_LENGTH = 8_192;

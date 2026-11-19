@@ -38,7 +38,7 @@ export function matchesAutomationScope(
   scope: ResolvedSettingsScope,
   environmentId: EnvironmentId,
   projectId: ProjectId,
-) {
+): boolean {
   if (scope.kind === "unavailable" || !scope.environmentIds.includes(environmentId)) return false;
   if (scope.kind === "project") {
     return scope.group.memberProjectRefs.some(
@@ -64,7 +64,7 @@ export interface AutomationsSearch {
   readonly taskId?: ScheduledTaskId;
 }
 
-export function validateAutomationsSearch(raw: Record<string, unknown>) {
+export function validateAutomationsSearch(raw: Record<string, unknown>): AutomationsSearch {
   return {
     ...automationsScopeSearch(validateSettingsScopeSearch(raw)),
     ...(typeof raw.environmentId === "string" && raw.environmentId.trim()
@@ -77,7 +77,7 @@ export function validateAutomationsSearch(raw: Record<string, unknown>) {
 }
 
 /** The page's scope, without a task link. */
-export function automationsScopeSearch(search: SettingsScopeSearch) {
+export function automationsScopeSearch(search: SettingsScopeSearch): AutomationsSearch {
   return {
     ...(search.project === undefined ? {} : { project: search.project }),
     ...(search.machine === undefined ? {} : { machine: search.machine }),
@@ -99,7 +99,7 @@ export function scheduleLabel(
   schedule: ScheduledTaskSchedule,
   timeZone?: string,
   runAt?: string | null,
-) {
+): string {
   const summary = scheduleSummary(schedule, timeZone, runAt);
   return schedule.type === "fixed_time" && scheduleTimeZoneLabel(timeZone, runAt) === undefined
     ? `${summary} (environment time)`
@@ -110,7 +110,7 @@ export function scheduleSummary(
   schedule: ScheduledTaskSchedule,
   timeZone?: string,
   runAt?: string | null,
-) {
+): string {
   if (schedule.type === "once") return `Once, ${ONCE_FORMATTER.format(new Date(schedule.runAt))}`;
   if (schedule.type === "interval") {
     const minutes = schedule.everyMs / 60_000;
@@ -132,7 +132,7 @@ export function scheduleSummary(
 }
 
 /** "in 5m" for upcoming instants, "5m ago" for past ones. */
-export function relativeLabel(value: string, now: number) {
+export function relativeLabel(value: string, now: number): string {
   const diffMs = Date.parse(value) - now;
   if (!(diffMs > 0)) return formatRelativeTimeLabel(value, now);
   const minutes = Math.ceil(diffMs / 60_000);
@@ -143,7 +143,10 @@ export function relativeLabel(value: string, now: number) {
   return `in ${Math.round(hours / 24)}d`;
 }
 
-export function nextRunLabel(task: Pick<ScheduledTask, "enabled" | "nextRunAt">, now: number) {
+export function nextRunLabel(
+  task: Pick<ScheduledTask, "enabled" | "nextRunAt">,
+  now: number,
+): string {
   if (!task.enabled) return "Paused";
   return task.nextRunAt ? `Next run ${relativeLabel(task.nextRunAt, now)}` : "Not scheduled";
 }
@@ -155,7 +158,7 @@ export function nextRunLabel(task: Pick<ScheduledTask, "enabled" | "nextRunAt">,
 export function lastRunLabel(
   task: Pick<ScheduledTask, "lastRunStatus" | "lastRunAt">,
   now: number,
-) {
+): string | null {
   switch (task.lastRunStatus) {
     case "never":
       return null;
@@ -202,7 +205,7 @@ export interface DraftState {
 }
 
 /** Formats a date as a `datetime-local` input value in the browser's time zone. */
-export function toDateTimeLocalValue(date: Date) {
+export function toDateTimeLocalValue(date: Date): string {
   const pad = (value: number) => String(value).padStart(2, "0");
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
@@ -221,12 +224,12 @@ export function scheduleDraftErrors(draft: DraftState) {
   return [];
 }
 
-export function scheduleFromDraft(draft: DraftState) {
-  if (scheduleDraftErrors(draft).length > 0) return null satisfies ScheduledTaskSchedule | null;
+export function scheduleFromDraft(draft: DraftState): ScheduledTaskSchedule | null {
+  if (scheduleDraftErrors(draft).length > 0) return null;
   if (draft.scheduleMode === "once") {
     const saved = draft.savedRunAt ? new Date(draft.savedRunAt) : null;
     if (saved !== null && toDateTimeLocalValue(saved) === draft.runAt)
-      return { type: "once", runAt: draft.savedRunAt } satisfies ScheduledTaskSchedule | null;
+      return { type: "once", runAt: draft.savedRunAt };
     const withSavedOffset =
       saved === null
         ? null
@@ -237,21 +240,21 @@ export function scheduleFromDraft(draft: DraftState) {
         withSavedOffset !== null && toDateTimeLocalValue(withSavedOffset) === draft.runAt
           ? withSavedOffset.toISOString()
           : new Date(draft.runAt).toISOString(),
-    } satisfies ScheduledTaskSchedule | null;
+    };
   }
   if (draft.scheduleMode === "interval") {
     const everyMs = Math.round(Number(draft.intervalMinutes) * 60_000);
-    return { type: "interval", everyMs } satisfies ScheduledTaskSchedule | null;
+    return { type: "interval", everyMs };
   }
   const selectedEveryDay = draft.weekdays.size === 0 || draft.weekdays.size === 7;
   return {
     type: "fixed_time",
     timeOfDay: draft.timeOfDay,
     ...(selectedEveryDay ? {} : { weekdays: [...draft.weekdays].toSorted() }),
-  } satisfies ScheduledTaskSchedule | null;
+  };
 }
 
-export function taskToDraft(task: ScheduledTask) {
+export function taskToDraft(task: ScheduledTask): DraftState {
   const schedule = task.schedule;
   const weekdays =
     schedule.type === "fixed_time" && schedule.weekdays && schedule.weekdays.length > 0
@@ -286,13 +289,13 @@ export function taskToDraft(task: ScheduledTask) {
     runtimeMode: task.runtimeMode,
     interactionMode: task.interactionMode,
     baseModelSelection: task.modelSelection,
-  } satisfies DraftState;
+  };
 }
 
 export function moveDraftToThread(
   draft: DraftState,
   thread: { readonly id: ThreadId; readonly projectId: ProjectId },
-) {
+): DraftState {
   return {
     ...draft,
     threadId: thread.id,
@@ -302,7 +305,7 @@ export function moveDraftToThread(
 }
 
 /** Leaves the thread but keeps the mode. Matches MCP: new threads stay out of the shared checkout. */
-export function unbindDraftFromThread(draft: DraftState) {
+export function unbindDraftFromThread(draft: DraftState): DraftState {
   if (!draft.threadId) return draft;
   return {
     ...draft,
@@ -313,7 +316,7 @@ export function unbindDraftFromThread(draft: DraftState) {
   };
 }
 
-export function changeDraftProject(draft: DraftState, projectId: string) {
+export function changeDraftProject(draft: DraftState, projectId: string): DraftState {
   if (projectId === draft.projectId) return draft;
   return { ...unbindDraftFromThread(draft), projectId };
 }
@@ -327,7 +330,7 @@ export function scheduledTaskDestinationThreads(
     readonly currentThreadId: ThreadId | null;
     readonly query: string;
   },
-) {
+): ReadonlyArray<EnvironmentThreadShell> {
   const search = target.query.trim().toLocaleLowerCase();
   return threads
     .filter(
@@ -346,7 +349,7 @@ export function scheduledTaskDefaultModel(
   settings: ServerSettings,
   project: (LegacyProjectSettingsFields & { readonly id: ProjectId }) | null,
   entries: readonly ProviderInstanceEntry[],
-) {
+): ModelSelection | null {
   const available = entries.filter(
     (entry) =>
       entry.enabled &&
@@ -386,7 +389,7 @@ export function defaultAutomationProjectId<
     readonly pinnedAt?: string | null | undefined;
     readonly archivedAt?: string | null | undefined;
   },
->(scopedProjects: ReadonlyArray<TProject>, scope: ResolvedSettingsScope) {
+>(scopedProjects: ReadonlyArray<TProject>, scope: ResolvedSettingsScope): ProjectId | "" {
   const open = scopedProjects.filter((project) => project.archivedAt == null);
   const scopedToProject = scope.kind === "project" || scope.kind === "checkout";
   return (

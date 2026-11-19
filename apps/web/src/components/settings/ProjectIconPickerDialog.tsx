@@ -36,12 +36,12 @@ type PickerMode = "icon" | "emoji" | "monogram";
 
 const isMonogramText = Schema.is(ProjectMonogramText);
 
-function initialMode(current: ProjectIconOverride | null) {
+function initialMode(current: ProjectIconOverride | null): PickerMode {
   if (current?.kind === "emoji" || current?.kind === "monogram") return current.kind;
   return "icon";
 }
 
-function initialIconName(current: ProjectIconOverride | null) {
+function initialIconName(current: ProjectIconOverride | null): string {
   return current && isProjectSymbolIcon(current)
     ? resolveProjectIcon(current).name
     : DEFAULT_PROJECT_ICON.name;
@@ -51,14 +51,14 @@ function symbolIconToSave(
   current: ProjectIconOverride | null,
   iconName: string,
   color: ProjectIconColor,
-) {
+): ProjectIconOverride {
   if (current && isProjectSymbolIcon(current) && iconName === initialIconName(current)) {
-    return { ...current, color } satisfies ProjectIconOverride;
+    return { ...current, color };
   }
-  return { kind: "icon", name: iconName, color } satisfies ProjectIconOverride;
+  return { kind: "icon", name: iconName, color };
 }
 
-function iconLabel(name: string) {
+function iconLabel(name: string): string {
   return name
     .split("-")
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))

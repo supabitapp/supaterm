@@ -31,7 +31,7 @@ export const failedToolIconClassName = "text-tool-error-icon/40";
 export function toolIconAcceptsTint(
   toolIcon: ToolActivityIcon | undefined,
   fallbackName: WorkEntryIconName | undefined,
-) {
+): boolean {
   return toolIcon === undefined && fallbackName !== "supaterm";
 }
 

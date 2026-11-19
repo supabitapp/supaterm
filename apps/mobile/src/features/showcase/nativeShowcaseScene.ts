@@ -1,6 +1,6 @@
 import { requireOptionalNativeModule } from "expo";
 
-import { MOBILE_THEME_IDS } from "../../lib/mobileTheme";
+import { MOBILE_THEME_IDS, type MobileThemeId } from "../../lib/mobileTheme";
 
 const SHOWCASE_SCENES = ["threads", "thread", "terminal", "review", "environments"] as const;
 export type ShowcaseScene = (typeof SHOWCASE_SCENES)[number];
@@ -18,11 +18,11 @@ interface NativeShowcaseControls {
   readonly markShowcaseReady?: (scene: ShowcaseScene) => void;
 }
 
-function nativeShowcaseControls() {
+function nativeShowcaseControls(): NativeShowcaseControls | null {
   return requireOptionalNativeModule<NativeShowcaseControls>("SupatermNativeControls");
 }
 
-export function getNativeShowcasePairingUrls() {
+export function getNativeShowcasePairingUrls(): ReadonlyArray<string> {
   try {
     let raw = nativeShowcaseControls()?.getShowcasePairingUrl?.()?.trim();
     if (!raw) return [];
@@ -48,7 +48,7 @@ export function getNativeShowcasePairingUrls() {
   }
 }
 
-export function getNativeShowcaseScene() {
+export function getNativeShowcaseScene(): ShowcaseScene | null {
   try {
     const scene = nativeShowcaseControls()?.getShowcaseScene?.()?.trim();
     return SHOWCASE_SCENES.find((candidate) => candidate === scene) ?? null;
@@ -57,7 +57,7 @@ export function getNativeShowcaseScene() {
   }
 }
 
-export function getNativeShowcaseTheme() {
+export function getNativeShowcaseTheme(): MobileThemeId | null {
   try {
     const theme = nativeShowcaseControls()?.getShowcaseTheme?.()?.trim();
     return MOBILE_THEME_IDS.find((candidate) => candidate === theme) ?? null;
@@ -66,13 +66,13 @@ export function getNativeShowcaseTheme() {
   }
 }
 
-export function prepareNativeShowcaseCapture() {
+export function prepareNativeShowcaseCapture(): void {
   try {
     nativeShowcaseControls()?.prepareShowcaseCapture?.();
   } catch {}
 }
 
-export function getNativeShowcaseOrientation() {
+export function getNativeShowcaseOrientation(): ShowcaseOrientation | null {
   try {
     const orientation = nativeShowcaseControls()?.getShowcaseOrientation?.()?.trim();
     return orientation === "portrait" || orientation === "landscape" ? orientation : null;
@@ -81,7 +81,9 @@ export function getNativeShowcaseOrientation() {
   }
 }
 
-export async function applyNativeShowcaseOrientation(orientation: ShowcaseOrientation) {
+export async function applyNativeShowcaseOrientation(
+  orientation: ShowcaseOrientation,
+): Promise<boolean> {
   const controls = nativeShowcaseControls();
   if (!controls?.applyShowcaseOrientation || !controls.getInterfaceOrientation) {
     return true;
@@ -95,7 +97,7 @@ export async function applyNativeShowcaseOrientation(orientation: ShowcaseOrient
   }
 }
 
-export function markNativeShowcaseReady(scene: ShowcaseScene) {
+export function markNativeShowcaseReady(scene: ShowcaseScene): void {
   try {
     nativeShowcaseControls()?.markShowcaseReady?.(scene);
   } catch {}

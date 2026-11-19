@@ -120,7 +120,9 @@ export class ProviderRegistry extends Context.Service<
   }
 >()("supaterm/provider/ProviderRegistry") {}
 
-const loadProviders = (providerSources: ReadonlyArray<ProviderSnapshotSource>) =>
+const loadProviders = (
+  providerSources: ReadonlyArray<ProviderSnapshotSource>,
+): Effect.Effect<ReadonlyArray<ServerProvider>> =>
   Effect.forEach(
     providerSources,
     (providerSource) =>
@@ -138,12 +140,12 @@ const makeManualProviderMaintenanceCapabilities = (provider: ProviderDriverKind)
     packageName: null,
   });
 
-const hasModelCapabilities = (model: ServerProvider["models"][number]) =>
+const hasModelCapabilities = (model: ServerProvider["models"][number]): boolean =>
   (model.capabilities?.optionDescriptors?.length ?? 0) > 0;
 
 const MAX_WORKSPACE_SNAPSHOTS_PER_PROVIDER = 16;
 
-function dropProviderWorkspaceSnapshot(provider: ServerProvider, cwd: string) {
+function dropProviderWorkspaceSnapshot(provider: ServerProvider, cwd: string): ServerProvider {
   return provider.workspaceSnapshots?.some((snapshot) => snapshot.cwd === cwd)
     ? {
         ...provider,
@@ -156,7 +158,7 @@ export function upsertProviderWorkspaceSnapshot(
   provider: ServerProvider,
   cwd: string,
   scopedSnapshot: ProviderWorkspaceSnapshot,
-) {
+): ServerProvider {
   const previousSnapshot = provider.workspaceSnapshots?.find((snapshot) => snapshot.cwd === cwd);
   const optionDescriptors = scopedSnapshot.optionDescriptors ?? previousSnapshot?.optionDescriptors;
   const models = scopedSnapshot.workspaceModelsPending
@@ -183,7 +185,7 @@ export function upsertProviderWorkspaceSnapshot(
   };
 }
 
-const shouldRetainMissingProviderModels = (provider: ServerProvider) => {
+const shouldRetainMissingProviderModels = (provider: ServerProvider): boolean => {
   if (provider.driver === ProviderDriverKind.make("pi")) {
     return !(
       provider.installed &&
@@ -232,7 +234,7 @@ const shouldRetainMissingProviderModels = (provider: ServerProvider) => {
   return isPendingAntigravityAuthentication || isPendingInitialProbe || isIncompleteInstalledProbe;
 };
 
-const shouldRetainMissingOpenCodeMetadata = (provider: ServerProvider) =>
+const shouldRetainMissingOpenCodeMetadata = (provider: ServerProvider): boolean =>
   provider.driver === ProviderDriverKind.make("opencode") &&
   shouldRetainMissingProviderModels(provider);
 
@@ -240,7 +242,7 @@ const mergeProviderModels = (
   provider: ServerProvider,
   previousModels: ReadonlyArray<ServerProvider["models"][number]>,
   nextModels: ReadonlyArray<ServerProvider["models"][number]>,
-) => {
+): ReadonlyArray<ServerProvider["models"][number]> => {
   const shouldRetainMissingModels = shouldRetainMissingProviderModels(provider);
 
   const updateRequiredSlugs = new Set(provider.updateRequiredModels?.map((model) => model.slug));
@@ -277,7 +279,7 @@ const mergeProviderModels = (
 const carrySavedAntigravityAccount = (
   previousProvider: ServerProvider,
   nextProvider: ServerProvider,
-) => {
+): Pick<ServerProvider, "auth" | "status"> | undefined => {
   const antigravity = ProviderDriverKind.make("antigravity");
   if (
     nextProvider.driver !== antigravity ||
@@ -299,7 +301,7 @@ const carrySavedAntigravityAccount = (
 export const mergeProviderSnapshot = (
   previousProvider: ServerProvider | undefined,
   nextProvider: ServerProvider,
-) => {
+): ServerProvider => {
   if (!previousProvider) {
     return nextProvider;
   }
@@ -340,9 +342,12 @@ export const mergeProviderSnapshot = (
 const haveProvidersChanged = (
   previousProviders: ReadonlyArray<ServerProvider>,
   nextProviders: ReadonlyArray<ServerProvider>,
-) => !Equal.equals(previousProviders, nextProviders);
+): boolean => !Equal.equals(previousProviders, nextProviders);
 
-const correlateSnapshotWithSource = (source: ProviderSnapshotSource, snapshot: ServerProvider) => {
+const correlateSnapshotWithSource = (
+  source: ProviderSnapshotSource,
+  snapshot: ServerProvider,
+): Effect.Effect<ServerProvider> => {
   if (snapshot.instanceId !== source.instanceId) {
     return Effect.die(
       new Error(
@@ -363,11 +368,11 @@ const correlateSnapshotWithSource = (source: ProviderSnapshotSource, snapshot: S
   });
 };
 
-const snapshotInstanceKey = (provider: ServerProvider) => {
+const snapshotInstanceKey = (provider: ServerProvider): ProviderInstanceId => {
   return provider.instanceId;
 };
 
-const buildSnapshotSource = (instance: ProviderInstance) => ({
+const buildSnapshotSource = (instance: ProviderInstance): ProviderSnapshotSource => ({
   supportsReviewGuides: instance.textGeneration.supportsReviewGuides === true,
   instanceId: instance.instanceId,
   driverKind: instance.driverKind,
@@ -701,13 +706,21 @@ export const layer = Layer.effect(
 
     const refreshAll = Effect.fn("refreshAll")(function* () {
       yield* refreshHostPath;
-      const claimed = yield* Ref.modify(refreshAllInFlightRef, (inFlight) => {
-        if (Option.isSome(inFlight)) {
-          return [{ owner: false, completion: inFlight.value }, inFlight];
-        }
-        const completion = Deferred.makeUnsafe<ReadonlyArray<ServerProvider>>();
-        return [{ owner: true, completion }, Option.some(completion)];
-      });
+      const claimed = yield* Ref.modify(
+        refreshAllInFlightRef,
+        (
+          inFlight,
+        ): readonly [
+          { readonly owner: boolean; readonly completion: RefreshAllCompletion },
+          Option.Option<RefreshAllCompletion>,
+        ] => {
+          if (Option.isSome(inFlight)) {
+            return [{ owner: false, completion: inFlight.value }, inFlight];
+          }
+          const completion = Deferred.makeUnsafe<ReadonlyArray<ServerProvider>>();
+          return [{ owner: true, completion }, Option.some(completion)];
+        },
+      );
       if (claimed.owner) {
         yield* manifestService.current.pipe(
           Effect.flatMap(({ updatedAt }) =>

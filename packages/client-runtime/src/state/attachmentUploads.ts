@@ -16,7 +16,7 @@ export class AttachmentUploadError extends Schema.TaggedError<AttachmentUploadEr
 
 const isAttachmentUploadError = Schema.is(AttachmentUploadError);
 
-export function attachmentUploadError(cause: unknown) {
+export function attachmentUploadError(cause: unknown): AttachmentUploadError {
   if (isAttachmentUploadError(cause)) return cause;
   return new AttachmentUploadError({
     message: cause instanceof Error ? cause.message : "Upload failed. Tap to retry.",
@@ -36,10 +36,10 @@ class UploadKey<Request> implements Equal.Equal {
     this.id = id;
     this.request = request;
   }
-  [Equal.symbol](that: unknown) {
+  [Equal.symbol](that: unknown): boolean {
     return that instanceof UploadKey && that.id === this.id;
   }
-  [Hash.symbol]() {
+  [Hash.symbol](): number {
     return Hash.string(this.id);
   }
 }
@@ -149,7 +149,7 @@ export function createAttachmentUploadRegistry<Request>(options: {
   const keyOf = (request: Request) => new UploadKey(options.key(request), request);
 
   let disposed = false;
-  function hold(request: Request) {
+  function hold(request: Request): () => void {
     if (disposed) return () => {};
     const holder = Scope.makeUnsafe();
     Effect.runSync(Scope.provide(holder)(RcMap.get(uploads, keyOf(request))));
@@ -193,7 +193,7 @@ export function createAttachmentUploadRegistry<Request>(options: {
     sync,
     invalidate,
     restart,
-    upload(request: Request) {
+    upload(request: Request): Effect.Effect<string, AttachmentUploadError> {
       return Effect.suspend(() => {
         if (disposed) return Effect.fail(attachmentUploadError(new Error("Upload cancelled.")));
         const key = options.key(request);
@@ -204,10 +204,10 @@ export function createAttachmentUploadRegistry<Request>(options: {
     retry(key: string) {
       if (statuses[key]?.status === "failed") restart(key);
     },
-    current(key: string) {
+    current(key: string): Fiber.Fiber<string, AttachmentUploadError> | undefined {
       return running.get(key);
     },
-    status(key: string) {
+    status(key: string): AttachmentUploadStatus | undefined {
       return statuses[key];
     },
     async settled() {

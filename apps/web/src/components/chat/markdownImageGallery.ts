@@ -6,7 +6,10 @@ import { resolveProtocolRelativeMediaUrl } from "../media/mediaContent";
 
 export const markdownImageItems = new WeakMap<Element, ExpandedImageItem>();
 
-export function markdownImageGallery(element: Element, selected: ExpandedImageItem) {
+export function markdownImageGallery(
+  element: Element,
+  selected: ExpandedImageItem,
+): ExpandedImagePreview {
   const scope = element.closest("[data-image-gallery]") ?? element.closest(".chat-markdown");
   const images: ExpandedImageItem[] = [];
   let index = -1;
@@ -53,7 +56,7 @@ export function workGroupImageGallery(
   viewedImages: ReadonlyArray<{ readonly path: string; readonly item: ExpandedImageItem | null }>,
   clickedPath: string | null,
   preview: ExpandedImagePreview,
-) {
+): ExpandedImagePreview {
   const selected = preview.images[preview.index];
   if (preview.images.length !== 1 || !selected) return preview;
   const images: ExpandedImageItem[] = [];

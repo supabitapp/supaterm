@@ -18,7 +18,7 @@ export const rootNavigationRef = createNavigationContainerRef<ReactNavigation.Ro
  */
 export function attachRootNavigation(
   navigation: NavigationContainerRef<ReactNavigation.RootParamList> | null,
-) {
+): () => void {
   rootNavigationRef.current = navigation;
   return () => {
     if (rootNavigationRef.current === navigation) rootNavigationRef.current = null;
@@ -28,7 +28,7 @@ export function attachRootNavigation(
 const pendingUntilReady: Array<() => void> = [];
 
 /** Runs `navigate` now if the container is ready, otherwise once it becomes ready. */
-export function whenRootNavigationReady(navigate: () => void) {
+export function whenRootNavigationReady(navigate: () => void): void {
   if (rootNavigationRef.isReady()) {
     navigate();
     return;
@@ -37,7 +37,7 @@ export function whenRootNavigationReady(navigate: () => void) {
 }
 
 /** Wired to the container's `onReady`. */
-export function flushRootNavigationQueue() {
+export function flushRootNavigationQueue(): void {
   for (const navigate of pendingUntilReady.splice(0)) {
     try {
       navigate();
@@ -51,7 +51,7 @@ export function flushRootNavigationQueue() {
  * `useLinkTo` for app services that live outside the navigator: the same
  * leading-'/' guard, then the href's action dispatched at the root once ready.
  */
-export function linkToRootPath(href: string, toAction: (href: string) => NavigationAction) {
+export function linkToRootPath(href: string, toAction: (href: string) => NavigationAction): void {
   if (!href.startsWith("/")) throw new Error(`The href must start with '/' (${href}).`);
   whenRootNavigationReady(() => {
     rootNavigationRef.dispatch({

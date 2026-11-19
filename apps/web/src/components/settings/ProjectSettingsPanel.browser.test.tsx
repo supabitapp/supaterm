@@ -185,17 +185,16 @@ const environments = [primaryId, remoteId].map((environmentId) => ({
     environment: { platform: { machine: "server" }, capabilities: { projectOrganization: true } },
   },
 }));
-const session = (scopes: ReadonlyArray<AuthEnvironmentScope>) =>
-  ({
-    authenticated: true,
-    scopes,
-    auth: {
-      policy: "remote-reachable",
-      bootstrapMethods: ["one-time-token"],
-      sessionMethods: ["bearer-access-token"],
-      sessionCookieName: "supaterm_session",
-    },
-  }) satisfies AuthSessionState;
+const session = (scopes: ReadonlyArray<AuthEnvironmentScope>): AuthSessionState => ({
+  authenticated: true,
+  scopes,
+  auth: {
+    policy: "remote-reachable",
+    bootstrapMethods: ["one-time-token"],
+    sessionMethods: ["bearer-access-token"],
+    sessionCookieName: "supaterm_session",
+  },
+});
 const writable = () => AsyncResult.success(session([AuthOrchestrationOperateScope]));
 const missingProjectFile = Atom.make(AsyncResult.initial<never, never>());
 
@@ -544,14 +543,13 @@ describe("project identity reset", () => {
   const scratchIcon = { kind: "icon", name: "message-square-more", color: "gray" } as const;
   const resetButton = (screen: Screen, label: string) =>
     screen.container.querySelector<HTMLButtonElement>(`[aria-label="Reset ${label} to default"]`);
-  const asScratch = (project: Project) =>
-    ({
-      ...project,
-      isScratch: true,
-      title: "Notes",
-      workspaceRoot: "/supaterm/scratch",
-      projectIcon: { kind: "emoji", emoji: "📝" },
-    }) satisfies Project;
+  const asScratch = (project: Project): Project => ({
+    ...project,
+    isScratch: true,
+    title: "Notes",
+    workspaceRoot: "/supaterm/scratch",
+    projectIcon: { kind: "emoji", emoji: "📝" },
+  });
 
   it("restores a renamed scratch project's built-in name and icon", async () => {
     setup();

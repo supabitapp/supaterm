@@ -17,19 +17,13 @@ import { symlinksSupported } from "@supaterm/shared/testing/symlinks";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 const decodeCodexSettingsValue = Schema.decodeSync(CodexSettings);
 
-const decodeCodexSettings: (input: {
+const decodeCodexSettings = (input: {
   readonly enabled?: boolean;
   readonly homePath?: string;
   readonly shadowHomePath?: string;
   readonly customModels?: readonly string[];
   readonly binaryPath?: string;
-}) => CodexSettings = (input: {
-  readonly enabled?: boolean;
-  readonly homePath?: string;
-  readonly shadowHomePath?: string;
-  readonly customModels?: readonly string[];
-  readonly binaryPath?: string;
-}) => decodeCodexSettingsValue(input);
+}): CodexSettings => decodeCodexSettingsValue(input);
 
 const makeTempDir = Effect.fn("CodexHomeLayout.test.makeTempDir")(function* (prefix: string) {
   const fileSystem = yield* FileSystem.FileSystem;

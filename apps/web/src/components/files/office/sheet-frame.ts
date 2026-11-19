@@ -40,7 +40,7 @@ export function drawFrame(
   viewport: SheetViewport,
   frozen: { readonly rows: number; readonly cols: number },
   wider?: SheetViewport,
-) {
+): Frame | undefined {
   const around = wider && untruncated(workbook, wider);
 
   if (wider && around)
@@ -76,7 +76,7 @@ const gridline = (command: DisplayList["commands"][number]) =>
   command.op === "line" && command.color === "#d4d4d4" && command.width === 1 && !command.style;
 
 /** A frame without the gridlines the engine draws on every sheet, for a sheet whose view hides them. */
-export function withoutGridlines(frame: Frame) {
+export function withoutGridlines(frame: Frame): Frame {
   return {
     ...frame,
     tiles: frame.tiles.map((tile) => ({
@@ -93,7 +93,7 @@ export function withoutGridlines(frame: Frame) {
 export function chartFonts(
   frame: Frame,
   theme: { readonly major: string; readonly minor: string },
-) {
+): Frame {
   const family = (name: string) => {
     const resolved = name.startsWith("+mj-")
       ? theme.major
@@ -191,7 +191,7 @@ function tiled(
   panes: { readonly width: number; readonly height: number },
   grid: GridMeta,
   split: number,
-) {
+): Frame | undefined {
   const columns = segments(viewport.width, panes.width, split);
   const rows = segments(viewport.height, panes.height, split);
   const tiles: Tile[] = [];

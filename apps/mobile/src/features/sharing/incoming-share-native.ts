@@ -2,7 +2,7 @@ import type { SharePayload } from "expo-sharing";
 
 const IOS_APP_GROUP_UNAVAILABLE_ERROR_CODE = "ERR_FAILED_TO_RESOLVE_APP_GROUP_ID";
 
-function errorCode(error: unknown) {
+function errorCode(error: unknown): string | null {
   if (typeof error !== "object" || error === null || !("code" in error)) {
     return null;
   }
@@ -13,7 +13,7 @@ function errorCode(error: unknown) {
 export function createIncomingSharePayloadReader(input: {
   readonly platform: string;
   readonly readPayloads: () => ReadonlyArray<SharePayload>;
-}) {
+}): () => ReadonlyArray<SharePayload> {
   let isUnavailable = false;
 
   return () => {

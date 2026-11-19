@@ -67,7 +67,7 @@ export const listen: Effect.Effect<
   }>({ active: Option.none(), cancelledBeforeStart: [] });
   const preparedUpdateRef = yield* Ref.make(Option.none<PreparedUpdate>());
 
-  const publishReport: (
+  const publishReport = (
     state: DesktopUpdateState,
     terminal?: {
       readonly outcome: DesktopUpdateRemoteOutcome;
@@ -75,15 +75,7 @@ export const listen: Effect.Effect<
       readonly preparedRequestId?: string;
     },
     explicitRequestId?: string,
-  ) => Effect.Effect<void> = (
-    state: DesktopUpdateState,
-    terminal?: {
-      readonly outcome: DesktopUpdateRemoteOutcome;
-      readonly reason?: string;
-      readonly preparedRequestId?: string;
-    },
-    explicitRequestId?: string,
-  ) => {
+  ): Effect.Effect<void> => {
     const reason = normalizeRemoteUpdateReason(terminal?.reason);
     return Ref.get(activeRequestIdRef).pipe(
       Effect.flatMap((requestId) =>
@@ -149,7 +141,7 @@ export const listen: Effect.Effect<
     }),
   ).pipe(Effect.forkScoped);
 
-  const handleRequest = (request: DesktopTelemetryRequestDesktopUpdate) =>
+  const handleRequest = (request: DesktopTelemetryRequestDesktopUpdate): Effect.Effect<void> =>
     Effect.scoped(
       Effect.gen(function* () {
         const cancellation = yield* Deferred.make<void>();
@@ -270,94 +262,95 @@ export const listen: Effect.Effect<
           request.channel !== undefined &&
           request.targetVersion !== undefined &&
           desktopUpdateChannelOf(state.currentVersion) !== request.channel;
-        const step: (state: DesktopUpdateState) => Effect.Effect<boolean, never, Scope.Scope> =
-          Effect.fn("DesktopRemoteUpdates.step")(function* (state: DesktopUpdateState) {
-            const next = nextRemoteDesktopUpdateStep(state, attempts, disabledReason);
-            switch (next.action) {
-              case "wait":
+        const step = Effect.fn("DesktopRemoteUpdates.step")(function* (
+          state: DesktopUpdateState,
+        ): Effect.fn.Return<boolean, never, Scope.Scope> {
+          const next = nextRemoteDesktopUpdateStep(state, attempts, disabledReason);
+          switch (next.action) {
+            case "wait":
+              return false;
+            case "check":
+              attempts = { ...attempts, checks: attempts.checks + 1 };
+              yield* updates.check("remote-update", { allowDowngrade: crossing(state) }).pipe(
+                Effect.flatMap((result) => {
+                  if (result.checked) return Effect.void;
+                  attempts = { ...attempts, checks: attempts.checks - 1 };
+                  return retryLater(state);
+                }),
+                Effect.forkScoped,
+              );
+              return false;
+            case "download":
+              attempts = { ...attempts, downloads: attempts.downloads + 1 };
+              yield* updates.download.pipe(
+                Effect.flatMap((result) => {
+                  if (result.accepted) return Effect.void;
+                  attempts = { ...attempts, downloads: attempts.downloads - 1 };
+                  return retryLater(state);
+                }),
+                Effect.forkScoped,
+              );
+              return false;
+            case "install": {
+              if (yield* updates.isActionActive) {
+                yield* retryLater(state);
                 return false;
-              case "check":
-                attempts = { ...attempts, checks: attempts.checks + 1 };
-                yield* updates.check("remote-update", { allowDowngrade: crossing(state) }).pipe(
-                  Effect.flatMap((result) => {
-                    if (result.checked) return Effect.void;
-                    attempts = { ...attempts, checks: attempts.checks - 1 };
-                    return retryLater(state);
-                  }),
-                  Effect.forkScoped,
-                );
-                return false;
-              case "download":
-                attempts = { ...attempts, downloads: attempts.downloads + 1 };
-                yield* updates.download.pipe(
-                  Effect.flatMap((result) => {
-                    if (result.accepted) return Effect.void;
-                    attempts = { ...attempts, downloads: attempts.downloads - 1 };
-                    return retryLater(state);
-                  }),
-                  Effect.forkScoped,
-                );
-                return false;
-              case "install": {
-                if (yield* updates.isActionActive) {
-                  yield* retryLater(state);
-                  return false;
-                }
-                if (state.downloadedVersion === null) {
-                  yield* publishReport(
-                    state,
-                    {
-                      outcome: "failed",
-                      reason: "The desktop app lost the downloaded update.",
-                    },
-                    request.requestId,
-                  );
-                  return true;
-                }
-                yield* Ref.set(
-                  preparedUpdateRef,
-                  Option.some({
-                    requestId: request.requestId,
-                    channel: request.channel,
-                    targetVersion: request.targetVersion,
-                    downloadedVersion: state.downloadedVersion,
-                    status: "prepared",
-                    expiresAt:
-                      (yield* Clock.currentTimeMillis) + Duration.toMillis(PREPARED_UPDATE_TTL),
-                  }),
-                );
-                yield* publishReport(state, { outcome: "ready-to-install" }, request.requestId);
-                yield* logInfo("remote update prepared", { requestId: request.requestId });
-                return true;
               }
-              case "done": {
-                const done =
-                  request.targetVersion !== undefined &&
-                  next.outcome === "up-to-date" &&
-                  (crossing(state) ||
-                    compareSemverVersions(state.currentVersion, request.targetVersion) < 0)
-                    ? {
-                        outcome: "failed" as const,
-                        reason: `The desktop app found no build of ${request.targetVersion}.`,
-                      }
-                    : next;
+              if (state.downloadedVersion === null) {
                 yield* publishReport(
                   state,
                   {
-                    outcome: done.outcome,
-                    ...(done.reason === undefined ? {} : { reason: done.reason }),
+                    outcome: "failed",
+                    reason: "The desktop app lost the downloaded update.",
                   },
                   request.requestId,
                 );
-                yield* logInfo("remote update finished", {
-                  requestId: request.requestId,
-                  outcome: done.outcome,
-                  reason: done.reason ?? null,
-                });
                 return true;
               }
+              yield* Ref.set(
+                preparedUpdateRef,
+                Option.some({
+                  requestId: request.requestId,
+                  channel: request.channel,
+                  targetVersion: request.targetVersion,
+                  downloadedVersion: state.downloadedVersion,
+                  status: "prepared",
+                  expiresAt:
+                    (yield* Clock.currentTimeMillis) + Duration.toMillis(PREPARED_UPDATE_TTL),
+                }),
+              );
+              yield* publishReport(state, { outcome: "ready-to-install" }, request.requestId);
+              yield* logInfo("remote update prepared", { requestId: request.requestId });
+              return true;
             }
-          });
+            case "done": {
+              const done =
+                request.targetVersion !== undefined &&
+                next.outcome === "up-to-date" &&
+                (crossing(state) ||
+                  compareSemverVersions(state.currentVersion, request.targetVersion) < 0)
+                  ? {
+                      outcome: "failed" as const,
+                      reason: `The desktop app found no build of ${request.targetVersion}.`,
+                    }
+                  : next;
+              yield* publishReport(
+                state,
+                {
+                  outcome: done.outcome,
+                  ...(done.reason === undefined ? {} : { reason: done.reason }),
+                },
+                request.requestId,
+              );
+              yield* logInfo("remote update finished", {
+                requestId: request.requestId,
+                outcome: done.outcome,
+                reason: done.reason ?? null,
+              });
+              return true;
+            }
+          }
+        });
 
         yield* Effect.raceFirst(
           Effect.gen(function* () {
@@ -446,40 +439,28 @@ export const listen: Effect.Effect<
     Effect.gen(function* () {
       const current = yield* updates.getState;
       const now = yield* Clock.currentTimeMillis;
-      const claim = yield* Ref.modify(preparedUpdateRef, (prepared) => {
-        if (
-          Option.isNone(prepared) ||
-          prepared.value.requestId !== commit.requestId ||
-          (prepared.value.status === "prepared" && prepared.value.expiresAt <= now)
-        ) {
-          return [{ _tag: "invalid" as const }, prepared] as const satisfies readonly [
-            CommitClaim,
-            Option.Option<PreparedUpdate>,
-          ] as readonly [CommitClaim, Option.Option<PreparedUpdate>];
-        }
-        if (prepared.value.status === "failed") {
+      const claim = yield* Ref.modify(
+        preparedUpdateRef,
+        (prepared): readonly [CommitClaim, Option.Option<PreparedUpdate>] => {
+          if (
+            Option.isNone(prepared) ||
+            prepared.value.requestId !== commit.requestId ||
+            (prepared.value.status === "prepared" && prepared.value.expiresAt <= now)
+          ) {
+            return [{ _tag: "invalid" as const }, prepared] as const;
+          }
+          if (prepared.value.status === "failed") {
+            return [{ _tag: "failed" as const, prepared: prepared.value }, prepared] as const;
+          }
+          if (prepared.value.status === "committing") {
+            return [{ _tag: "committing" as const }, prepared] as const;
+          }
           return [
-            { _tag: "failed" as const, prepared: prepared.value },
-            prepared,
-          ] as const satisfies readonly [CommitClaim, Option.Option<PreparedUpdate>] as readonly [
-            CommitClaim,
-            Option.Option<PreparedUpdate>,
-          ];
-        }
-        if (prepared.value.status === "committing") {
-          return [{ _tag: "committing" as const }, prepared] as const satisfies readonly [
-            CommitClaim,
-            Option.Option<PreparedUpdate>,
-          ] as readonly [CommitClaim, Option.Option<PreparedUpdate>];
-        }
-        return [
-          { _tag: "claimed" as const, prepared: prepared.value },
-          Option.some({ ...prepared.value, status: "committing" as const }),
-        ] as const satisfies readonly [CommitClaim, Option.Option<PreparedUpdate>] as readonly [
-          CommitClaim,
-          Option.Option<PreparedUpdate>,
-        ];
-      });
+            { _tag: "claimed" as const, prepared: prepared.value },
+            Option.some({ ...prepared.value, status: "committing" as const }),
+          ] as const;
+        },
+      );
       if (claim._tag === "invalid") {
         yield* publishReport(
           yield* updates.getState,

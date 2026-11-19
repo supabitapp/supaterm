@@ -166,7 +166,7 @@ const readResponse = (response: NodeHttp.IncomingMessage) =>
     );
   });
 
-const send = (options: NodeHttp.RequestOptions) =>
+const send = (options: NodeHttp.RequestOptions): Promise<Reply> =>
   new Promise((resolve, reject) => {
     const request = NodeHttp.request(options, (response) => resolve(readResponse(response)));
     request.on("upgrade", (response, socket) => {
@@ -175,7 +175,7 @@ const send = (options: NodeHttp.RequestOptions) =>
     });
     request.on("error", reject);
     request.end();
-  }) satisfies Promise<Reply>;
+  });
 
 const tunneled = (tunnel: Tunnel, path: string, headers: NodeHttp.OutgoingHttpHeaders = {}) =>
   Effect.promise(async () => {

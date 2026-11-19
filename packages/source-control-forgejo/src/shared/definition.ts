@@ -28,7 +28,7 @@ const KIND = SourceControlProviderKind.make("forgejo");
 
 const changeRequestHeadRef = (number: number) => `refs/pull/${number}/head`;
 
-function resolvedWebUrl(identity: ChangeRequestHostIdentity) {
+function resolvedWebUrl(identity: ChangeRequestHostIdentity): URL | null {
   if (!identity?.webUrl) return null;
   try {
     const url = new URL(identity.webUrl);
@@ -38,7 +38,7 @@ function resolvedWebUrl(identity: ChangeRequestHostIdentity) {
   }
 }
 
-function changeRequestHost(identity: ChangeRequestHostIdentity) {
+function changeRequestHost(identity: ChangeRequestHostIdentity): string {
   const web = resolvedWebUrl(identity);
   if (web) return web.host.toLowerCase();
   try {

@@ -8,7 +8,7 @@ import type {
 export function canReactPullRequestComment(
   detail: Pick<PullRequestDetail, "provider" | "capabilities">,
   comment: Pick<PullRequestComment, "kind">,
-) {
+): boolean {
   return (
     detail.capabilities.reactions === true &&
     !(detail.provider === "gitcafe" && comment.kind === "review")
@@ -48,29 +48,29 @@ const REACTION_NAME: Record<PullRequestReactionContent, string> = {
   eyes: "eyes",
 };
 
-export function pullRequestReactionEmoji(content: PullRequestReactionContent) {
+export function pullRequestReactionEmoji(content: PullRequestReactionContent): string {
   return REACTION_EMOJI[content];
 }
 
-export function pullRequestReactionName(content: PullRequestReactionContent) {
+export function pullRequestReactionName(content: PullRequestReactionContent): string {
   return REACTION_NAME[content];
 }
 
 const NAMED_ACTOR_LIMIT = 3;
 
-function joinNames(parts: ReadonlyArray<string>) {
+function joinNames(parts: ReadonlyArray<string>): string {
   if (parts.length <= 1) return parts[0] ?? "";
   if (parts.length === 2) return `${parts[0]} and ${parts[1]}`;
   return `${parts.slice(0, -1).join(", ")}, and ${parts.at(-1)}`;
 }
 
-function countRemainder(count: number, named: boolean) {
+function countRemainder(count: number, named: boolean): string {
   if (named) return `${count} ${count === 1 ? "other" : "others"}`;
   return `${count} ${count === 1 ? "person" : "people"}`;
 }
 
 /** Hosts omit the viewer from actors; add You only if count has room, since viewer login is unavailable. */
-export function pullRequestReactionTooltip(reaction: PullRequestReaction) {
+export function pullRequestReactionTooltip(reaction: PullRequestReaction): string {
   const viewerHasRoom = reaction.actors.length < reaction.count;
   const names =
     reaction.viewerHasReacted && viewerHasRoom ? ["You", ...reaction.actors] : [...reaction.actors];
@@ -81,7 +81,9 @@ export function pullRequestReactionTooltip(reaction: PullRequestReaction) {
 }
 
 /** Changes whenever the host reports different reactions, so pending overlays can reset. */
-export function pullRequestReactionsSignature(reactions: ReadonlyArray<PullRequestReaction>) {
+export function pullRequestReactionsSignature(
+  reactions: ReadonlyArray<PullRequestReaction>,
+): string {
   return reactions
     .map((reaction) => `${reaction.content}:${reaction.count}:${reaction.viewerHasReacted ? 1 : 0}`)
     .join(" ");
@@ -95,7 +97,7 @@ export interface PendingPullRequestReaction {
 export function applyPendingPullRequestReactions(
   reactions: ReadonlyArray<PullRequestReaction>,
   pending: ReadonlyMap<PullRequestReactionContent, PendingPullRequestReaction>,
-) {
+): ReadonlyArray<PullRequestReaction> {
   if (pending.size === 0) return reactions;
   const byContent = new Map(reactions.map((reaction) => [reaction.content, reaction] as const));
   for (const [content, { reacted }] of pending) {

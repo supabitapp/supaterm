@@ -54,7 +54,10 @@ import { useComposerResume } from "./chat/useComposerResume";
 import { type TerminalLaunchContext, useChatTerminalActions } from "./chat/useChatTerminalActions";
 import { useDraftEnvironmentRouting } from "./chat/useDraftEnvironmentRouting";
 import { branchMismatchBannerItem, extensionStatusBannerItem } from "./chat/ThreadActivityBanners";
-import { useSystemComposerBanners } from "./chat/useSystemComposerBanners";
+import {
+  type EnvironmentUnavailableState,
+  useSystemComposerBanners,
+} from "./chat/useSystemComposerBanners";
 import { usePasteToFocusComposer } from "./chat/usePasteToFocusComposer";
 import { useDraftHeroLayoutTransition } from "./chat/useDraftHeroLayoutTransition";
 import { draftFanoutSelectionsAtom, draftSendState } from "./chat/chatViewSend";
@@ -182,7 +185,7 @@ import {
 import { resolveThreadWorkingStartedAt } from "@supaterm/client-runtime/state/models";
 import { type LegendListRef } from "@legendapp/list/react";
 import { useWorkspaceMutationRefresh } from "../hooks/useWorkspaceMutationRefresh";
-import { DEFAULT_INTERACTION_MODE } from "../types";
+import { DEFAULT_INTERACTION_MODE, type ChatMessage } from "../types";
 import { useTheme } from "../hooks/useTheme";
 import { copyThreadReference } from "../lib/copyThreadReference";
 import { subscribeSnapShotComposerFocus } from "../lib/desktopSnapShot";
@@ -610,7 +613,7 @@ export default function ChatView(props: ChatViewProps) {
   const pendingCreationAttachments = useThreadOutboxAttachments(
     pendingThreadCreation?.message.entry,
   );
-  const pendingCreationMessages = (() => {
+  const pendingCreationMessages = ((): ChatMessage[] => {
     const message = pendingThreadCreation?.message;
     if (!message || serverProjection?.messages.some((item) => item.id === message.messageId))
       return [];
@@ -644,11 +647,9 @@ export default function ChatView(props: ChatViewProps) {
   );
   const serverVisibleTurnItems = useQuietThreadVisibleTurnItems(routeThreadDetailRef);
   const serverThreadHistory = useThreadHistory(routeThreadDetailRef);
-  const threadHistoryControls = (() => {
+  const threadHistoryControls = ((): MessagesTimelineHistoryControls | undefined => {
     if (routeThreadDetailRef === null || !shouldShowLoadEarlierControl(serverThreadHistory)) {
-      return undefined satisfies MessagesTimelineHistoryControls | undefined as
-        | MessagesTimelineHistoryControls
-        | undefined;
+      return undefined;
     }
     return {
       historyCursor: serverThreadHistory.historyCursor,
@@ -664,9 +665,7 @@ export default function ChatView(props: ChatViewProps) {
           },
         });
       },
-    } satisfies MessagesTimelineHistoryControls | undefined as
-      | MessagesTimelineHistoryControls
-      | undefined;
+    };
   })();
   const committedServerMessageIds = deriveCommittedServerUserMessageIds(serverVisibleTurnItems);
   const settings = useEnvironmentSettings(environmentId);
@@ -1243,7 +1242,7 @@ export default function ChatView(props: ChatViewProps) {
   const activeEnvironmentUnavailable =
     activeEnvironment !== null && activeEnvironmentConnectionPhase !== "connected";
   const activeEnvironmentUnavailableLabel = activeEnvironment?.label ?? null;
-  const activeEnvironmentUnavailableState = (() => {
+  const activeEnvironmentUnavailableState = ((): EnvironmentUnavailableState | null => {
     if (!activeEnvironmentUnavailable || !activeEnvironmentUnavailableLabel || !activeEnvironment) {
       return null;
     }
@@ -2120,7 +2119,7 @@ export default function ChatView(props: ChatViewProps) {
     branch?: string;
     runtimeMode: RuntimeMode;
     interactionMode: ProviderInteractionMode;
-  }) => {
+  }): Promise<AtomCommandResult<void, unknown>> => {
     if (!serverThread) {
       return AsyncResult.success(undefined);
     }
@@ -2649,7 +2648,7 @@ export default function ChatView(props: ChatViewProps) {
           },
         })
       : null;
-  const composerBannerItems = (() => {
+  const composerBannerItems = ((): ComposerBannerStackItem[] => {
     const fallbackSelection = draftFallback?.selection;
     const defaultSelection =
       draftDefaultModelSelection ??
@@ -2720,7 +2719,7 @@ export default function ChatView(props: ChatViewProps) {
         ...freshSessionItems,
         ...systemComposerBannerItems,
         ...backgroundWorkItems,
-      ] satisfies ComposerBannerStackItem[];
+      ];
     }
     return [
       ...feedbackBannerItems,
@@ -2744,7 +2743,7 @@ export default function ChatView(props: ChatViewProps) {
           setBranchMismatchDismissTick((tick) => tick + 1);
         },
       }),
-    ] satisfies ComposerBannerStackItem[];
+    ];
   })();
 
   const [terminalLaunchContextInputs, setTerminalLaunchContextInputs] = useState({

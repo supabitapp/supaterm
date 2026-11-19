@@ -68,7 +68,7 @@ export interface ProjectCloneHooks {
 const DONE_RETENTION = "30 seconds";
 const STALL_AFTER = "20 seconds";
 
-function clampText(text: string, maxLength: number) {
+function clampText(text: string, maxLength: number): string {
   return text.length <= maxLength ? text : `${text.slice(0, maxLength - 1)}…`;
 }
 
@@ -101,7 +101,10 @@ export const make = Effect.gen(function* () {
   );
   const publish = list.pipe(Effect.flatMap((snapshots) => PubSub.publish(changes, snapshots)));
 
-  const modify = (projectId: ProjectId, mutate: (tracked: TrackedClone) => TrackedClone) =>
+  const modify = (
+    projectId: ProjectId,
+    mutate: (tracked: TrackedClone) => TrackedClone,
+  ): Effect.Effect<ProjectCloneSnapshot | null> =>
     Ref.modify(clones, (current) => {
       const existing = current.get(projectId);
       if (!existing) return [null, current] as const;
@@ -449,7 +452,7 @@ export const rejectCommandsDuringClone = Effect.fn("ProjectCloneTracker.rejectCo
       readonly projectId?: ProjectId;
       readonly bootstrap?: unknown;
     },
-  ) {
+  ): Effect.fn.Return<void, OrchestrationDispatchCommandError> {
     const projectId =
       command.type === "thread.create"
         ? (command.projectId ?? null)
@@ -468,13 +471,13 @@ export const rejectCommandsDuringClone = Effect.fn("ProjectCloneTracker.rejectCo
   },
 );
 
-function bootstrapProjectId(bootstrap: unknown) {
+function bootstrapProjectId(bootstrap: unknown): ProjectId | null {
   if (typeof bootstrap !== "object" || bootstrap === null) return null;
   const createThread = (bootstrap as { createThread?: { projectId?: ProjectId } }).createThread;
   return createThread?.projectId ?? null;
 }
 
-function describeCloneFailure(cause: Cause.Cause<unknown>) {
+function describeCloneFailure(cause: Cause.Cause<unknown>): string {
   const error = Cause.squash(cause);
   if (isSourceControlRepositoryError(error)) return error.detail;
   return error instanceof Error && error.message.trim().length > 0

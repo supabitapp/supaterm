@@ -47,11 +47,11 @@ export function useUpdateEverythingRun() {
 
 export function setUpdateEverythingRun(
   update: (run: UpdateEverythingRun | null) => UpdateEverythingRun | null,
-) {
+): void {
   appAtomRegistry.update(updateEverythingRunAtom, update);
 }
 
-function updateRunMachines(update: (machine: UpdateRunMachine) => UpdateRunMachine) {
+function updateRunMachines(update: (machine: UpdateRunMachine) => UpdateRunMachine): void {
   setUpdateEverythingRun(
     (run) => run && closeFinishedUpdateRun({ ...run, machines: run.machines.map(update) }),
   );
@@ -64,7 +64,7 @@ export function settleUpdateRunMachine(
     serverUpdated = false,
     providerFailure,
   }: { readonly serverUpdated?: boolean; readonly providerFailure?: string | null } = {},
-) {
+): void {
   updateRunMachines((machine) =>
     machine.environmentId === environmentId
       ? {
@@ -78,7 +78,7 @@ export function settleUpdateRunMachine(
   );
 }
 
-function runsVersion(config: ServerConfig | null, targetVersion: string) {
+function runsVersion(config: ServerConfig | null, targetVersion: string): boolean {
   return (
     config !== null &&
     resolveVersionMismatch(config.environment.serverVersion, targetVersion) === null
@@ -136,7 +136,7 @@ export function retryFailedUpdateRunServers(
   }
 }
 
-export function dismissSettledUpdateRunMachines() {
+export function dismissSettledUpdateRunMachines(): void {
   setUpdateEverythingRun(
     (run) =>
       run &&
@@ -150,7 +150,7 @@ export function dismissSettledUpdateRunMachines() {
 export function waitForServerUpdateHandoff(
   environmentId: EnvironmentId,
   finished: Promise<unknown>,
-) {
+): Promise<void> {
   return new Promise((resolve) => {
     let done = false;
     const finish = () => {
@@ -167,12 +167,12 @@ export function waitForServerUpdateHandoff(
       { immediate: true },
     );
     void finished.then(finish, finish);
-  }) satisfies Promise<void>;
+  });
 }
 
 let decideRestart: ((restart: boolean) => void) | null = null;
 
-export function waitForUpdateRestart(delayMs: number) {
+export function waitForUpdateRestart(delayMs: number): Promise<boolean> {
   return new Promise((resolve) => {
     const decide = (restart: boolean) => {
       clearTimeout(timer);
@@ -184,10 +184,10 @@ export function waitForUpdateRestart(delayMs: number) {
     setUpdateEverythingRun(
       (run) => run && { ...run, phase: "countdown", restartAt: Date.now() + delayMs },
     );
-  }) satisfies Promise<boolean>;
+  });
 }
 
-export function postponeUpdateRestart() {
+export function postponeUpdateRestart(): void {
   decideRestart?.(false);
 }
 
@@ -213,9 +213,9 @@ const SavedResult = Schema.Struct({
 });
 const decodeSavedResult = Schema.decodeUnknownOption(Schema.fromJsonString(SavedResult));
 
-export function saveUpdateEverythingResult(result: UpdateEverythingResult) {
+export function saveUpdateEverythingResult(result: UpdateEverythingResult): void {
   const run = appAtomRegistry.get(updateEverythingRunAtom);
-  const handedOff = (run?.machines ?? []).flatMap((machine) => {
+  const handedOff = (run?.machines ?? []).flatMap((machine): HandedOffServer[] => {
     if (machine.result !== null) return [];
     const state = appAtomRegistry.get(serverEnvironment.updateStateAtom(machine.environmentId));
     const targetVersion =
@@ -246,13 +246,13 @@ export function saveUpdateEverythingResult(result: UpdateEverythingResult) {
   } catch {}
 }
 
-export function clearSavedUpdateEverythingResult() {
+export function clearSavedUpdateEverythingResult(): void {
   try {
     window.localStorage.removeItem(SAVED_RESULT_KEY);
   } catch {}
 }
 
-function takeSavedUpdateEverythingResult() {
+function takeSavedUpdateEverythingResult(): typeof SavedResult.Type | null {
   try {
     const raw = window.localStorage.getItem(SAVED_RESULT_KEY);
     if (raw === null) return null;
@@ -268,7 +268,7 @@ function takeSavedUpdateEverythingResult() {
   }
 }
 
-export function showUpdateEverythingResult(result: UpdateEverythingResult) {
+export function showUpdateEverythingResult(result: UpdateEverythingResult): void {
   const view = getUpdateEverythingToastView(result, APP_VERSION);
   if (!view) return;
   toastManager.add(

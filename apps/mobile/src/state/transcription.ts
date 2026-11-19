@@ -9,10 +9,15 @@ import {
   createTranscriptionEnvironmentAtoms,
   uploadVoiceRecording,
   VoiceUploadError,
+  type StartedLiveDictation,
   type VoiceUploadResponse,
 } from "@supaterm/client-runtime/state/transcription";
 import { shouldRetryThreadOutboxDelivery } from "@supaterm/client-runtime/thread-outbox";
-import { LiveDictation, openLiveDictationSocket } from "@supaterm/client-runtime/voice-input";
+import {
+  LiveDictation,
+  openLiveDictationSocket,
+  type VoiceTranscriber,
+} from "@supaterm/client-runtime/voice-input";
 import {
   TranscriptionError,
   type EnvironmentId,
@@ -21,6 +26,7 @@ import {
   type TranscriptionPrepareStreamInput,
   type TranscriptionPrepareUploadInput,
   type TranscriptionPrepareUploadResult,
+  type TranscriptionUploadResult,
 } from "@supaterm/contracts";
 import * as Option from "effect/Option";
 
@@ -36,7 +42,7 @@ const transcriptionEnvironment = createTranscriptionEnvironmentAtoms(connectionA
 
 const UPLOAD_TIMEOUT_MS = 120_000;
 
-function disconnected(cause: unknown) {
+function disconnected(cause: unknown): VoiceUploadError {
   return new VoiceUploadError(
     "disconnected",
     "The recording couldn't reach the environment.",
@@ -48,14 +54,14 @@ function disconnected(cause: unknown) {
 async function prepareUpload(
   environmentId: EnvironmentId,
   request: TranscriptionPrepareUploadInput,
-) {
+): Promise<TranscriptionPrepareUploadResult> {
   const result = await runAtomCommand(
     appAtomRegistry,
     transcriptionEnvironment.prepareUpload,
     { environmentId, input: request },
     { reportFailure: false, reportDefect: false },
   );
-  if (result._tag === "Success") return result.value satisfies TranscriptionPrepareUploadResult;
+  if (result._tag === "Success") return result.value;
   if (isAtomCommandInterrupted(result)) throw disconnected(result.cause);
   const error = squashAtomCommandFailure(result);
   if (error instanceof TranscriptionError) {
@@ -72,7 +78,7 @@ async function prepareUpload(
   );
 }
 
-function environmentUrl(environmentId: EnvironmentId, relativeUrl: string) {
+function environmentUrl(environmentId: EnvironmentId, relativeUrl: string): string {
   const connection = appAtomRegistry.get(
     environmentSession.preparedConnectionValueAtom(environmentId),
   );
@@ -92,20 +98,13 @@ function cancelUpload(environmentId: EnvironmentId, uploadId: string) {
   );
 }
 
-function postRecording(
-  environmentId: EnvironmentId,
-  uri: string,
-  relativeUrl: string,
-  signal: AbortSignal,
-  withAudio: boolean,
-): Promise<VoiceUploadResponse>;
 async function postRecording(
   environmentId: EnvironmentId,
   uri: string,
   relativeUrl: string,
   signal: AbortSignal,
   withAudio: boolean,
-) {
+): Promise<VoiceUploadResponse> {
   const { File, UploadType } = await loadExpoFileSystem();
   const url = environmentUrl(environmentId, relativeUrl);
   const transfer = new AbortController();
@@ -128,7 +127,7 @@ async function postRecording(
     try {
       body = JSON.parse(response.body);
     } catch {}
-    return { status: response.status, body } satisfies VoiceUploadResponse;
+    return { status: response.status, body };
   } finally {
     clearTimeout(timeout);
     signal.removeEventListener("abort", abort);
@@ -143,7 +142,7 @@ export async function uploadEnvironmentVoiceRecording(input: {
   /** The environment already heard the recording under the upload's id. */
   readonly streamed?: boolean;
   readonly signal?: AbortSignal;
-}) {
+}): Promise<TranscriptionUploadResult> {
   const { environmentId, uri } = input;
   try {
     return await uploadVoiceRecording({
@@ -168,7 +167,10 @@ export async function uploadEnvironmentVoiceRecording(input: {
   }
 }
 
-async function streamUrl(environmentId: EnvironmentId, input: TranscriptionPrepareStreamInput) {
+async function streamUrl(
+  environmentId: EnvironmentId,
+  input: TranscriptionPrepareStreamInput,
+): Promise<string> {
   const result = await runAtomCommand(
     appAtomRegistry,
     transcriptionEnvironment.prepareStream,
@@ -183,7 +185,7 @@ function startLiveDictation(
   environmentId: EnvironmentId,
   request: Omit<TranscriptionPrepareStreamInput, "uploadId">,
   subscribe: (push: (pcm: Uint8Array) => void) => () => void,
-) {
+): StartedLiveDictation {
   const uploadId = uuidv4();
   const live = new LiveDictation({
     prepare: () => streamUrl(environmentId, { ...request, uploadId }),
@@ -203,7 +205,7 @@ export function createEnvironmentVoiceTranscriber(input: {
   readonly language: string;
   readonly context?: { readonly threadId?: ThreadId; readonly projectId?: ProjectId };
   readonly subscribeFrames: (push: (pcm: Uint8Array) => void) => () => void;
-}) {
+}): VoiceTranscriber {
   const { environmentId, language } = input;
   const context = input.context ? { context: input.context } : {};
   const streams =

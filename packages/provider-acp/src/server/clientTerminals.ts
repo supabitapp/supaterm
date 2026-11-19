@@ -35,7 +35,7 @@ interface OutputBufferState {
   readonly limit: number;
 }
 
-function trimOutputStart(state: OutputBufferState, bytes: number) {
+function trimOutputStart(state: OutputBufferState, bytes: number): void {
   let remaining = Math.min(bytes, state.bytes);
   while (remaining > 0) {
     const head = state.chunks[0]!;
@@ -52,14 +52,13 @@ function trimOutputStart(state: OutputBufferState, bytes: number) {
   }
 }
 
-function appendOutput(state: OutputBufferState, chunk: Uint8Array) {
+function appendOutput(state: OutputBufferState, chunk: Uint8Array): void {
   state.chunks.push(chunk);
   state.bytes += chunk.byteLength;
   if (state.bytes > state.limit) trimOutputStart(state, state.bytes - state.limit);
 }
 
-function readOutput(state: OutputBufferState): string;
-function readOutput(state: OutputBufferState) {
+function readOutput(state: OutputBufferState): string {
   let combined: Uint8Array = NodeBuffer.Buffer.concat(state.chunks, state.bytes);
   if (state.truncated) {
     let start = 0;
@@ -68,10 +67,10 @@ function readOutput(state: OutputBufferState) {
     }
     combined = combined.subarray(start);
   }
-  return NodeBuffer.Buffer.from(combined).toString("utf8") satisfies string;
+  return NodeBuffer.Buffer.from(combined).toString("utf8");
 }
 
-function terminalExitSignal(error: unknown) {
+function terminalExitSignal(error: unknown): string | null {
   const cause = error instanceof Error ? error.cause : undefined;
   const message =
     cause instanceof Error ? cause.message : error instanceof Error ? error.message : "";
@@ -147,18 +146,16 @@ function acpTerminalCommand(input: {
   });
 }
 
-export const makeAcpClientTerminals: (
+export const makeAcpClientTerminals = Effect.fn("makeAcpClientTerminals")(function* (
   options: AcpClientTerminalsOptions,
-) => Effect.Effect<AcpClientTerminals, never, ChildProcessSpawner.ChildProcessSpawner> = Effect.fn(
-  "makeAcpClientTerminals",
-)(function* (options: AcpClientTerminalsOptions) {
+): Effect.fn.Return<AcpClientTerminals, never, ChildProcessSpawner.ChildProcessSpawner> {
   const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
   const forceKillAfter = options.forceKillAfter ?? "5 seconds";
   const creationPermit = yield* Semaphore.make(1);
   const terminals = new Map<string, ManagedAcpTerminal>();
   let nextTerminalNumber = 1;
 
-  const enforceTotalOutputLimit = () => {
+  const enforceTotalOutputLimit = (): void => {
     let excess =
       Array.from(terminals.values()).reduce((total, terminal) => total + terminal.buffer.bytes, 0) -
       MAX_RETAINED_OUTPUT_BYTES;
@@ -171,7 +168,7 @@ export const makeAcpClientTerminals: (
     }
   };
 
-  const pruneReleasedSnapshots: () => void = () => {
+  const pruneReleasedSnapshots = (): void => {
     const released = Array.from(terminals.values()).filter((terminal) => terminal.released);
     let retainedBytes = released.reduce((total, terminal) => total + terminal.buffer.bytes, 0);
     while (released.length > MAX_RETAINED_TERMINALS || retainedBytes > MAX_RETAINED_OUTPUT_BYTES) {
@@ -182,15 +179,11 @@ export const makeAcpClientTerminals: (
     }
   };
 
-  const requireTerminal: (
+  const requireTerminal = (
     sessionId: string,
     terminalId: string,
     operation: string,
-  ) => Effect.Effect<ManagedAcpTerminal, EffectAcpErrors.AcpRequestError> = (
-    sessionId: string,
-    terminalId: string,
-    operation: string,
-  ) => {
+  ): Effect.Effect<ManagedAcpTerminal, EffectAcpErrors.AcpRequestError> => {
     const terminal = terminals.get(terminalId);
     if (terminal === undefined || terminal.sessionId !== sessionId || terminal.released) {
       return Effect.fail(
@@ -412,17 +405,17 @@ export const makeAcpClientTerminals: (
 export function resolveEmbeddedTerminalContent(
   notification: EffectAcpSchema.SessionNotification,
   readOutputSnapshot: AcpClientTerminals["readOutputSnapshot"],
-) {
+): EffectAcpSchema.SessionNotification {
   const update = notification.update;
   if (update.sessionUpdate !== "tool_call" && update.sessionUpdate !== "tool_call_update") {
-    return notification satisfies EffectAcpSchema.SessionNotification;
+    return notification;
   }
   const content = update.content;
   if (!content || !content.some((entry) => entry.type === "terminal")) {
-    return notification satisfies EffectAcpSchema.SessionNotification;
+    return notification;
   }
-  const mapped = content.map((entry) => {
-    if (entry.type !== "terminal") return entry satisfies EffectAcpSchema.ToolCallContent;
+  const mapped = content.map((entry): EffectAcpSchema.ToolCallContent => {
+    if (entry.type !== "terminal") return entry;
     const snapshot = readOutputSnapshot(notification.sessionId, entry.terminalId);
     return {
       type: "content",
@@ -430,10 +423,7 @@ export function resolveEmbeddedTerminalContent(
         type: "text",
         text: snapshot === undefined ? `[terminal ${entry.terminalId}]` : snapshot.output,
       },
-    } satisfies EffectAcpSchema.ToolCallContent;
+    };
   });
-  return {
-    ...notification,
-    update: { ...update, content: mapped },
-  } satisfies EffectAcpSchema.SessionNotification;
+  return { ...notification, update: { ...update, content: mapped } };
 }

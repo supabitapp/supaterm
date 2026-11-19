@@ -8,7 +8,7 @@ function collectUiRuntimeGarbage() {
   if (typeof gc === "function") gc();
 }
 
-export function installUiRuntimeMemoryWarningGc() {
+export function installUiRuntimeMemoryWarningGc(): () => void {
   const subscription = AppState.addEventListener("memoryWarning", () => {
     scheduleOnUI(collectUiRuntimeGarbage);
   });

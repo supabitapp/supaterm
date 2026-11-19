@@ -33,7 +33,7 @@ export class CodexMicroHidLoadError extends Schema.TaggedError<CodexMicroHidLoad
   "CodexMicroHidLoadError",
   { cause: Schema.Defect() },
 ) {
-  override get message() {
+  override get message(): string {
     return "The HID driver could not be loaded.";
   }
 }
@@ -42,7 +42,7 @@ export class CodexMicroDiscoveryError extends Schema.TaggedError<CodexMicroDisco
   "CodexMicroDiscoveryError",
   { cause: Schema.Defect() },
 ) {
-  override get message() {
+  override get message(): string {
     return "Could not list HID devices.";
   }
 }
@@ -51,7 +51,7 @@ export class CodexMicroConnectError extends Schema.TaggedError<CodexMicroConnect
   "CodexMicroConnectError",
   { cause: Schema.Defect() },
 ) {
-  override get message() {
+  override get message(): string {
     return "Could not open the keyboard.";
   }
 }
@@ -60,7 +60,7 @@ export class CodexMicroTimeoutError extends Schema.TaggedError<CodexMicroTimeout
   "CodexMicroTimeoutError",
   { method: Schema.String },
 ) {
-  override get message() {
+  override get message(): string {
     return `The keyboard did not answer ${this.method} in time.`;
   }
 }
@@ -69,7 +69,7 @@ export class CodexMicroWriteFailedError extends Schema.TaggedError<CodexMicroWri
   "CodexMicroWriteFailedError",
   { method: Schema.String, cause: Schema.Defect() },
 ) {
-  override get message() {
+  override get message(): string {
     return `Could not send ${this.method} to the keyboard.`;
   }
 }
@@ -78,7 +78,7 @@ export class CodexMicroHidUnavailableError extends Schema.TaggedError<CodexMicro
   "CodexMicroHidUnavailableError",
   { method: Schema.String, cause: Schema.Defect() },
 ) {
-  override get message() {
+  override get message(): string {
     return `The keyboard's HID interface became unavailable while sending ${this.method}.`;
   }
 }
@@ -87,7 +87,7 @@ export class CodexMicroDeviceDisconnectedError extends Schema.TaggedError<CodexM
   "CodexMicroDeviceDisconnectedError",
   {},
 ) {
-  override get message() {
+  override get message(): string {
     return "The keyboard disconnected.";
   }
 }
@@ -96,7 +96,7 @@ export class CodexMicroRpcError extends Schema.TaggedError<CodexMicroRpcError>()
   "CodexMicroRpcError",
   { method: Schema.String, code: Schema.Number },
 ) {
-  override get message() {
+  override get message(): string {
     return `The keyboard rejected ${this.method} with code ${this.code}.`;
   }
 }
@@ -105,7 +105,7 @@ export class CodexMicroInvalidResponseError extends Schema.TaggedError<CodexMicr
   "CodexMicroInvalidResponseError",
   { method: Schema.String },
 ) {
-  override get message() {
+  override get message(): string {
     return `The keyboard sent a malformed response to ${this.method}.`;
   }
 }
@@ -139,7 +139,9 @@ export interface CodexMicroDevice {
 
 const WORK_LOUDER_MANUFACTURER = /Work[ _]Louder/i;
 
-export function selectCodexMicroDevices(devices: ReadonlyArray<CodexMicroHidDeviceInfo>) {
+export function selectCodexMicroDevices(
+  devices: ReadonlyArray<CodexMicroHidDeviceInfo>,
+): ReadonlyArray<CodexMicroDevice> {
   const candidates = devices.flatMap((device) => {
     if (
       device.vendorId !== CODEX_MICRO_VENDOR_ID ||
@@ -202,13 +204,10 @@ const writeFailure = (method: string, cause: unknown) => {
 
 type ResponseBody = { readonly [key: string]: unknown };
 
-export const makeConnection: (
+export const makeConnection = Effect.fnUntraced(function* (
   handle: CodexMicroHidHandle,
   device: CodexMicroDevice,
-) => Effect.Effect<CodexMicroConnection, never, Scope.Scope> = Effect.fnUntraced(function* (
-  handle: CodexMicroHidHandle,
-  device: CodexMicroDevice,
-) {
+): Effect.fn.Return<CodexMicroConnection, never, Scope.Scope> {
   const scope = yield* Effect.scope;
   const decoder = new CodexMicroReportDecoder();
   const events = yield* Queue.unbounded<CodexMicroDeviceEvent>();

@@ -10,7 +10,7 @@ import {
   type PullRequest,
 } from "./generate-release-notes.ts";
 
-const pullRequest = (author: PullRequest["author"]) => ({
+const pullRequest = (author: PullRequest["author"]): PullRequest => ({
   body: "",
   additions: 1,
   deletions: 1,

@@ -15,7 +15,9 @@ const GROK_SKILLS_PROBE_TIMEOUT_MS = 4_000;
 const LEADING_SKILL_MENTION = new RegExp(`^\\s*${SKILL_MENTION_PATTERN.source}`, "u");
 
 /** A message opening with a mention, such as `deploy` and ` ship it` for `$deploy ship it`. */
-export function leadingGrokSkillMention(text: string) {
+export function leadingGrokSkillMention(
+  text: string,
+): { readonly name: string; readonly rest: string } | undefined {
   const match = LEADING_SKILL_MENTION.exec(text);
   if (match?.[2] === undefined) return undefined;
   return { name: match[2], rest: text.slice(match[0].length) };
@@ -30,14 +32,14 @@ class GrokSkillsProbeError extends Schema.TaggedError<GrokSkillsProbeError>()(
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message() {
+  override get message(): string {
     const location = this.cwd === undefined ? "" : ` for '${this.cwd}'`;
     const exitCode = this.exitCode === undefined ? "" : ` with exit code ${this.exitCode}`;
     return `\`grok inspect --json\` failed during ${this.stage}${location}${exitCode}.`;
   }
 }
 
-function decodeGrokInspectSkills(stdout: string) {
+function decodeGrokInspectSkills(stdout: string): ReadonlyArray<ServerProviderSkill> | undefined {
   let parsed: unknown;
   try {
     parsed = JSON.parse(stdout);

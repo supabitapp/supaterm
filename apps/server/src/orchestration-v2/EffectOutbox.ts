@@ -207,7 +207,7 @@ export class EffectOutboxError extends Schema.TaggedError<EffectOutboxError>()(
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Orchestration effect outbox ${this.operation} failed${this.effectId === undefined ? "" : ` for ${this.effectId}`}.`;
   }
 }
@@ -294,7 +294,7 @@ const decodeRequest = Schema.decodeUnknownEffect(
 
 const rowToEffect = (row: EffectRow) =>
   decodeRequest(row.payload_json).pipe(
-    Effect.map((request) => ({
+    Effect.map((request): OrchestrationEffectV2 => ({
       id: row.effect_id,
       commandId: CommandId.make(row.command_id),
       threadId: ThreadId.make(row.thread_id),

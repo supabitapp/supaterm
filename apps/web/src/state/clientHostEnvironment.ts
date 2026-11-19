@@ -10,7 +10,7 @@ export function isClientHostEnvironment(
   hostEnvironmentId: string | null,
   target: ConnectionTarget | null,
   isDesktopRenderer: boolean,
-) {
+): boolean {
   if (isDesktopRenderer && environmentId === hostEnvironmentId) return true;
   if (target?._tag !== "PrimaryConnectionTarget") return false;
   if (isDesktopRenderer) return true;

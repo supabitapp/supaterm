@@ -16,7 +16,7 @@ export const builtinFetchUsesHttp2 = (bundledUndiciVersion: string | undefined) 
  * Node's `--use-env-proxy` / `NODE_USE_ENV_PROXY` installs an
  * `EnvHttpProxyAgent` at startup; that choice is kept so proxies still apply.
  */
-export function installHttp1FetchDispatcher() {
+export function installHttp1FetchDispatcher(): void {
   const undici = requireUndici("undici") as typeof Undici;
   const usesEnvProxy = undici.getGlobalDispatcher().constructor.name === "EnvHttpProxyAgent";
   undici.setGlobalDispatcher(
@@ -34,7 +34,7 @@ export function installHttp1FetchDispatcher() {
  * stream with no listener, which Node turns into an uncaught exception that
  * exits the server (https://github.com/nodejs/undici/issues/5936).
  */
-export function keepOutboundFetchOnHttp1() {
+export function keepOutboundFetchOnHttp1(): void {
   if (builtinFetchUsesHttp2(process.versions.undici)) installHttp1FetchDispatcher();
 }
 
@@ -46,7 +46,7 @@ export function ignoreMacosTypeOfServiceEinval(
   // oxlint-disable-next-line supaterm/no-global-process-runtime -- Runs before ACP dispatch without loading the Effect graph.
   platform = process.platform,
   socketPrototype: TypeOfServiceSocket = NodeNet.Socket.prototype as TypeOfServiceSocket,
-) {
+): void {
   if (platform !== "darwin") return;
   const setTypeOfService = socketPrototype.setTypeOfService;
   if (typeof setTypeOfService !== "function") return;
@@ -60,7 +60,7 @@ export function ignoreMacosTypeOfServiceEinval(
   };
 }
 
-export function extendConnectionAttemptTimeout() {
+export function extendConnectionAttemptTimeout(): void {
   NodeNet.setDefaultAutoSelectFamilyAttemptTimeout(
     Math.max(NodeNet.getDefaultAutoSelectFamilyAttemptTimeout(), 1_000),
   );

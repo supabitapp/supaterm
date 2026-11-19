@@ -13,14 +13,14 @@ const target = (
   name: string,
   prices: UsagePriceTarget["prices"],
   aliases: UsagePriceTarget["aliases"] = {},
-) => ({
+): UsagePriceTarget => ({
   environmentId: EnvironmentId.make(name),
   label: name,
   prices,
   aliases,
   unavailable: null,
 });
-const draft = (values: UsagePriceDraft["values"]) => ({
+const draft = (values: UsagePriceDraft["values"]): UsagePriceDraft => ({
   id: "model:example",
   model: "example",
   isNew: false,
@@ -143,7 +143,7 @@ describe("price table edits", () => {
 });
 
 describe("model mapping validation", () => {
-  const mapping = (model: string, alias: string) => ({
+  const mapping = (model: string, alias: string): UsagePriceDraft => ({
     id: `model:${model}`,
     model,
     alias,

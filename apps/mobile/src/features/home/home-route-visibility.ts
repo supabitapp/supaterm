@@ -28,13 +28,11 @@ function subscribeHomeVisibility(onChange: () => void) {
 let onHomeCovered: (() => void) | null = null;
 
 /** Runs `action` once the page opening over Home covers it; Home starting to reappear first drops it. */
-export function runWhenHomeCovered(action: () => void): void;
-export function runWhenHomeCovered(action: () => void) {
+export function runWhenHomeCovered(action: () => void): void {
   onHomeCovered = action;
 }
 
-export function recordHomeTransitionStart(closing: boolean): void;
-export function recordHomeTransitionStart(closing: boolean) {
+export function recordHomeTransitionStart(closing: boolean): void {
   if (closing) return;
   onHomeCovered = null;
   setHomeVisible(true);
@@ -44,8 +42,7 @@ export function recordHomeTransitionStart(closing: boolean) {
  * Each iOS tab slot shows its own copy of the Home route, and the slot a tab switch leaves
  * disappears last. So a disappear hides Home only when another route has the focus.
  */
-export function recordHomeTransitionEnd(closing: boolean, homeFocused: boolean): void;
-export function recordHomeTransitionEnd(closing: boolean, homeFocused: boolean) {
+export function recordHomeTransitionEnd(closing: boolean, homeFocused: boolean): void {
   if (!closing || homeFocused) return;
   setHomeVisible(false);
   const action = onHomeCovered;
@@ -54,12 +51,11 @@ export function recordHomeTransitionEnd(closing: boolean, homeFocused: boolean) 
 }
 
 /** Popping a sheet or a deep-linked route above Home has no appear event. */
-export function recordHomeFocus(): void;
-export function recordHomeFocus() {
+export function recordHomeFocus(): void {
   setHomeVisible(true);
 }
 
-export function useHomeRouteVisible() {
+export function useHomeRouteVisible(): boolean {
   const navigation = useNavigation();
   const primaryColumn = useContext(NativePrimaryColumnContext);
   const tabActive = useContext(NativeWorkspaceTabActivityContext)?.active ?? true;
@@ -69,7 +65,7 @@ export function useHomeRouteVisible() {
   return visible ?? navigation.isFocused();
 }
 
-export function useAtomValueWhileVisible<A>(atom: Atom.Atom<A>, visible: boolean) {
+export function useAtomValueWhileVisible<A>(atom: Atom.Atom<A>, visible: boolean): A {
   const registry = useContext(RegistryContext);
   const held = useRef<{ readonly value: A } | null>(null);
   const subscribe = (onChange: () => void) =>

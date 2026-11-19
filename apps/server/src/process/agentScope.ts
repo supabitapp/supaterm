@@ -24,7 +24,7 @@ const AGENT_SLICE = "app-supaterm-agents.slice";
 const AGENTS_PARENT_SLICE = "app-supaterm.slice";
 const AGENTS_PARENT_PROPERTIES = ["CPUWeight=10", "IOWeight=10", "TasksMax=25%"];
 
-export function ownedAgentSlice(stateDir: string) {
+export function ownedAgentSlice(stateDir: string): string {
   const hash = NodeCrypto.createHash("sha256").update(stateDir).digest("hex").slice(0, 12);
   return `app-supaterm-agents-${hash}.slice`;
 }
@@ -47,7 +47,7 @@ export interface ScopeState {
 }
 
 /** Pipes can close before systemd records oom-kill; stopping, empty or OOM-counted scopes remain pending. */
-export function classifyScope(state: ScopeState) {
+export function classifyScope(state: ScopeState): "oom-killed" | "gone" | "running" | "stopping" {
   if (state.result === "oom-kill") return "oom-killed";
   if (
     state.loadState !== "loaded" ||
@@ -62,7 +62,7 @@ export function classifyScope(state: ScopeState) {
   return "running";
 }
 
-function parseKeyValues(text: string) {
+function parseKeyValues(text: string): Map<string, string> {
   const values = new Map<string, string>();
   for (const line of text.split("\n")) {
     const index = line.indexOf("=");
@@ -71,7 +71,7 @@ function parseKeyValues(text: string) {
   return values;
 }
 
-function parseCgroupCounter(text: string, key: string) {
+function parseCgroupCounter(text: string, key: string): number | undefined {
   const match = new RegExp(`^${key} (\\d+)$`, "m").exec(text);
   return match === null ? undefined : Number(match[1]);
 }

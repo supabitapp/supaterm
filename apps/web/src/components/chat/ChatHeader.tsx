@@ -66,22 +66,14 @@ interface ChatHeaderProps {
   trailing?: ReactNode;
 }
 
-function resolveRenameCommit(input: { readonly title: string; readonly originalTitle: string }) {
+function resolveRenameCommit(input: {
+  readonly title: string;
+  readonly originalTitle: string;
+}): { action: "commit"; title: string } | { action: "reject-empty" } | { action: "noop" } {
   const trimmed = input.title.trim();
-  if (trimmed.length === 0)
-    return { action: "reject-empty" } satisfies
-      | { action: "commit"; title: string }
-      | { action: "reject-empty" }
-      | { action: "noop" };
-  if (trimmed === input.originalTitle)
-    return { action: "noop" } satisfies
-      | { action: "commit"; title: string }
-      | { action: "reject-empty" }
-      | { action: "noop" };
-  return { action: "commit", title: trimmed } satisfies
-    | { action: "commit"; title: string }
-    | { action: "reject-empty" }
-    | { action: "noop" };
+  if (trimmed.length === 0) return { action: "reject-empty" };
+  if (trimmed === input.originalTitle) return { action: "noop" };
+  return { action: "commit", title: trimmed };
 }
 
 export const ChatHeader = memo(function ChatHeader({

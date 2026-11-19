@@ -14,7 +14,7 @@ describe("makeKeyedCoalescingWorker", () => {
 
       const worker = yield* makeKeyedCoalescingWorker<string, number, never, never>({
         merge: (_current, next) => next,
-        process: (key, value) =>
+        process: (key, value): Effect.Effect<void> =>
           Effect.gen(function* () {
             processed.push(`${key}:${value}`);
             if (key !== "busy") return;
@@ -24,7 +24,7 @@ describe("makeKeyedCoalescingWorker", () => {
               yield* Deferred.await(releaseBusy);
             }
             if (value < 4) yield* worker.enqueue(key, value + 1);
-          }) satisfies Effect.Effect<void> as Effect.Effect<void>,
+          }),
       });
 
       yield* worker.enqueue("busy", 1);

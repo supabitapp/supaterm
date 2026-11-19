@@ -45,7 +45,7 @@ class PromptQueue implements AsyncIterable<ReturnType<typeof makeClaudeUserMessa
   > = [];
   #closed = false;
 
-  offer(message: ReturnType<typeof makeClaudeUserMessage>) {
+  offer(message: ReturnType<typeof makeClaudeUserMessage>): void {
     const waiter = this.#waiters.shift();
     if (waiter !== undefined) {
       waiter({ done: false, value: message });
@@ -54,14 +54,14 @@ class PromptQueue implements AsyncIterable<ReturnType<typeof makeClaudeUserMessa
     this.#items.push(message);
   }
 
-  close() {
+  close(): void {
     this.#closed = true;
     for (const waiter of this.#waiters.splice(0)) {
       waiter({ done: true, value: undefined });
     }
   }
 
-  [Symbol.asyncIterator]() {
+  [Symbol.asyncIterator](): AsyncIterator<ReturnType<typeof makeClaudeUserMessage>> {
     return {
       next: () => {
         const value = this.#items.shift();
@@ -73,17 +73,17 @@ class PromptQueue implements AsyncIterable<ReturnType<typeof makeClaudeUserMessa
         }
         return new Promise((resolve) => this.#waiters.push(resolve));
       },
-    } satisfies AsyncIterator<ReturnType<typeof makeClaudeUserMessage>>;
+    };
   }
 }
 
-function readArgValue(name: string) {
+function readArgValue(name: string): string | undefined {
   const args = process.argv.slice(2);
   const index = args.indexOf(name);
   return index >= 0 ? args[index + 1] : undefined;
 }
 
-function dirname(filePath: string) {
+function dirname(filePath: string): string {
   const normalized = filePath.replace(/\/+$/u, "");
   const lastSlash = normalized.lastIndexOf("/");
   if (lastSlash < 0) {
@@ -95,27 +95,26 @@ function dirname(filePath: string) {
 function sanitizeValue(
   value: unknown,
   pathFragments: ReadonlyArray<readonly [string, string]>,
-): unknown;
-function sanitizeValue(value: unknown, pathFragments: ReadonlyArray<readonly [string, string]>) {
+): unknown {
   if (typeof value === "string") {
     return pathFragments.reduce(
       (sanitized, [actual, replacement]) =>
         actual.length === 0 ? sanitized : sanitized.split(actual).join(replacement),
       value,
-    ) satisfies unknown;
+    );
   }
   if (Array.isArray(value)) {
-    return value.map((entry) => sanitizeValue(entry, pathFragments)) satisfies unknown;
+    return value.map((entry) => sanitizeValue(entry, pathFragments));
   }
   if (typeof value === "object" && value !== null) {
     return Object.fromEntries(
       Object.entries(value).map(([key, entry]) => [key, sanitizeValue(entry, pathFragments)]),
-    ) satisfies unknown;
+    );
   }
-  return value satisfies unknown;
+  return value;
 }
 
-function stableOptions(options: ClaudeAgentSdkQueryOptions) {
+function stableOptions(options: ClaudeAgentSdkQueryOptions): ClaudeAgentSdkQueryOptions {
   const stable = {
     model: options.model,
     tools: options.tools,
@@ -139,7 +138,7 @@ function queryOptions(input: {
   readonly nativeThreadId: string;
   readonly resume: boolean;
   readonly resumeSessionAt?: string;
-}) {
+}): ClaudeAgentSdkQueryOptions {
   return {
     ...makeClaudeQueryOptions({
       modelSelection: MODEL_SELECTION,
@@ -161,7 +160,7 @@ async function recordTurn(input: {
   readonly prompt: string;
   readonly label: string;
   readonly pathFragments: ReadonlyArray<readonly [string, string]>;
-}) {
+}): Promise<SDKAssistantMessage["uuid"]> {
   const message = makeClaudeUserMessage({ text: input.prompt });
   input.entries.push({
     type: "expect_outbound",
@@ -197,7 +196,7 @@ async function recordTurn(input: {
 function encodeTranscript(input: {
   readonly entries: ReadonlyArray<ProviderReplayEntry>;
   readonly metadata: Record<string, unknown>;
-}) {
+}): string {
   return [
     JSON.stringify({
       type: "transcript_start",

@@ -28,15 +28,15 @@ export class ThreadMetadataMcpService extends Context.Service<
   }
 >()("supaterm/mcp/ThreadMetadataMcpService") {}
 
-function failure(code: OrchestratorMcpFailure["code"], message: string) {
+function failure(code: OrchestratorMcpFailure["code"], message: string): OrchestratorMcpFailure {
   return new OrchestratorMcpFailure({ code, message });
 }
 
-function errorMessage(error: unknown) {
+function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-function stablePart(value: string) {
+function stablePart(value: string): string {
   return encodeURIComponent(value);
 }
 
@@ -45,7 +45,7 @@ function commandId(input: {
   readonly threadId: ThreadId;
   readonly action: ThreadMetadataMcpAction;
   readonly requestKey: string;
-}) {
+}): CommandId {
   return CommandId.make(
     [
       "command",
@@ -63,7 +63,7 @@ function metadataCommand(input: {
   readonly commandId: CommandId;
   readonly threadId: ThreadId;
   readonly update: ThreadMetadataMcpUpdateInput;
-}) {
+}): Extract<OrchestrationV2Command, { readonly type: "thread.metadata.update" }> {
   switch (input.update.action) {
     case "rename":
       return {
@@ -71,14 +71,14 @@ function metadataCommand(input: {
         commandId: input.commandId,
         threadId: input.threadId,
         title: input.update.title!,
-      } satisfies Extract<OrchestrationV2Command, { readonly type: "thread.metadata.update" }>;
+      };
     case "regenerate_title":
       return {
         type: "thread.metadata.update",
         commandId: input.commandId,
         threadId: input.threadId,
         regenerateTitle: true,
-      } satisfies Extract<OrchestrationV2Command, { readonly type: "thread.metadata.update" }>;
+      };
   }
 }
 
@@ -90,7 +90,7 @@ function resultFromThread(input: {
     OrchestrationV2AppThread,
     "id" | "title" | "titleRegeneration" | "linkedPullRequest" | "updatedAt"
   >;
-}) {
+}): ThreadMetadataMcpUpdateResult {
   return {
     threadId: input.thread.id,
     action: input.action,

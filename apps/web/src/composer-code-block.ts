@@ -8,30 +8,32 @@ import { serializeSelection } from "~/composer-rich-text-map";
 
 const CODE_BLOCK_INDENT = "  ";
 
-function leadingWhitespace(line: string) {
+function leadingWhitespace(line: string): string {
   return /^[ \t]*/.exec(line)?.[0] ?? "";
 }
 
-function outdentLine(line: string) {
+function outdentLine(line: string): string {
   if (line.startsWith(CODE_BLOCK_INDENT)) return line.slice(CODE_BLOCK_INDENT.length);
   if (line.startsWith("\t")) return line.slice(1);
   if (line.startsWith(" ")) return line.slice(1);
   return line;
 }
 
-function indentLines(lines: ReadonlyArray<string>, direction: "in" | "out") {
+function indentLines(lines: ReadonlyArray<string>, direction: "in" | "out"): string[] {
   return lines.map((line) => {
     if (direction === "in") return line.length === 0 ? line : `${CODE_BLOCK_INDENT}${line}`;
     return outdentLine(line);
   });
 }
 
-export function selectionInOneCodeBlock(state: EditorState) {
+export function selectionInOneCodeBlock(state: EditorState): boolean {
   const { $from, $to } = state.selection;
   return $from.parent.type.spec.code === true && $from.sameParent($to);
 }
 
-function codeBlockRange(state: EditorState) {
+function codeBlockRange(
+  state: EditorState,
+): { readonly from: number; readonly to: number; readonly text: string } | null {
   const { $from, $to } = state.selection;
   const parent = $from.parent;
   if (parent.type.spec.code !== true) return null;
@@ -44,7 +46,7 @@ function codeBlockRange(state: EditorState) {
 export function indentedNewlineInCodeBlock(
   state: EditorState,
   dispatch?: (transaction: Transaction) => void,
-) {
+): boolean {
   const block = codeBlockRange(state);
   if (!block) return false;
 
@@ -65,7 +67,7 @@ export function indentedNewlineInCodeBlock(
   return true;
 }
 
-export function exitCodeBlockOnTrailingBlankLines(view: EditorView) {
+export function exitCodeBlockOnTrailingBlankLines(view: EditorView): boolean {
   const { $from, empty } = view.state.selection;
   if (!empty || $from.parent.type.spec.code !== true) return false;
   if ($from.parentOffset !== $from.parent.content.size) return false;
@@ -83,7 +85,7 @@ export function exitCodeBlockOnTrailingBlankLines(view: EditorView) {
 export function exitCodeBlockOnClosingFence(
   state: EditorState,
   dispatch?: (transaction: Transaction) => void,
-) {
+): boolean {
   const block = codeBlockRange(state);
   if (!block || !state.selection.empty) return false;
   const caret = state.selection.from - block.from;
@@ -120,7 +122,7 @@ export function indentCodeBlock(
   state: EditorState,
   direction: "in" | "out",
   dispatch?: (transaction: Transaction) => void,
-) {
+): boolean {
   const block = codeBlockRange(state);
   if (!block) return false;
 
@@ -165,7 +167,7 @@ export function indentCodeBlock(
 export function convertCodeFenceOnEnter(
   state: EditorState,
   dispatch?: (transaction: Transaction) => void,
-) {
+): boolean {
   const { $from, empty } = state.selection;
 
   if (!empty || $from.parent.type.name !== "paragraph" || $from.depth !== 1) return false;

@@ -15,29 +15,23 @@ type WorkingThreadInput = Pick<
   | "runtime"
 >;
 
-export function isThreadWorking(thread: WorkingThreadInput): boolean;
-export function isThreadWorking(thread: WorkingThreadInput) {
-  if (thread.hasPendingApprovals || thread.hasPendingUserInput) return false satisfies boolean;
-  if (thread.pendingSubagentRequest != null) return false satisfies boolean;
-  if (!threadRuntimeIsUnsettled(thread.runtime) && thread.runtime?.status !== "idle")
-    return false satisfies boolean;
+export function isThreadWorking(thread: WorkingThreadInput): boolean {
+  if (thread.hasPendingApprovals || thread.hasPendingUserInput) return false;
+  if (thread.pendingSubagentRequest != null) return false;
+  if (!threadRuntimeIsUnsettled(thread.runtime) && thread.runtime?.status !== "idle") return false;
   const run = thread.latestRun;
   const runSettled =
     run !== null &&
     !isOrchestrationV2RunUnsettled(run.status) &&
     thread.runtime?.activeRunId !== run.runId;
-  return !(
-    thread.interactionMode === "plan" &&
-    thread.hasActionableProposedPlan &&
-    runSettled
-  ) satisfies boolean;
+  return !(thread.interactionMode === "plan" && thread.hasActionableProposedPlan && runSettled);
 }
 
 /**
  * A thread its own client is launching reads as preparing until its first run lands.
  * The server commits the thread before its run, so the list would otherwise place it twice.
  */
-export function asLaunchingThread<T extends EnvironmentThreadShell>(thread: T) {
+export function asLaunchingThread<T extends EnvironmentThreadShell>(thread: T): T {
   if (thread.latestRun !== null || thread.runtime !== null) return thread;
   return {
     ...thread,
@@ -60,7 +54,7 @@ type InboxThreadInput = Pick<
 export function sortInboxThreadsByReturn<T extends InboxThreadInput>(
   threads: readonly T[],
   observedReturnAt?: (thread: T) => number | undefined,
-) {
+): T[] {
   const timestamps = new Map(
     threads.map((thread) => [
       thread,
@@ -81,7 +75,7 @@ type WorkingSortInput = Pick<
   "id" | "environmentId" | "createdAt" | "latestRun" | "latestUserAuthoredMessageAt"
 >;
 
-export function sortWorkingThreadsBySend<T extends WorkingSortInput>(threads: readonly T[]) {
+export function sortWorkingThreadsBySend<T extends WorkingSortInput>(threads: readonly T[]): T[] {
   const timestamps = new Map(
     threads.map((thread) => [
       thread,
@@ -101,7 +95,7 @@ export function sortWorkingThreadsBySend<T extends WorkingSortInput>(threads: re
 function sortNewestFirst<T extends Pick<EnvironmentThreadShell, "id" | "environmentId">>(
   threads: readonly T[],
   timestamps: ReadonlyMap<T, number>,
-) {
+): T[] {
   return [...threads].sort(
     (left, right) =>
       timestamps.get(right)! - timestamps.get(left)! ||
@@ -189,7 +183,10 @@ export function createInboxReturnTracker() {
       };
     },
     getSnapshot: () => version,
-    observe(threads: readonly TrackedInboxThread[]) {
+    observe(threads: readonly TrackedInboxThread[]): {
+      readonly isWorking: (thread: WorkingThreadInput & ThreadKeyInput) => boolean;
+      readonly returnedAt: (thread: ThreadKeyInput) => number | undefined;
+    } {
       const present = new Set<string>();
       const at = now();
       // @effect-diagnostics-next-line globalDate:off - Snooze checks compare wall-clock ISO times.
@@ -249,12 +246,6 @@ export function createInboxReturnTracker() {
       return {
         isWorking: (thread) => observedWorking.get(keyOf(thread)) ?? isThreadWorking(thread),
         returnedAt: (thread) => observedReturns.get(keyOf(thread)),
-      } satisfies {
-        readonly isWorking: (thread: WorkingThreadInput & ThreadKeyInput) => boolean;
-        readonly returnedAt: (thread: ThreadKeyInput) => number | undefined;
-      } as {
-        readonly isWorking: (thread: WorkingThreadInput & ThreadKeyInput) => boolean;
-        readonly returnedAt: (thread: ThreadKeyInput) => number | undefined;
       };
     },
     isWorking: (thread: WorkingThreadInput & ThreadKeyInput) =>

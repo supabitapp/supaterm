@@ -6,6 +6,6 @@ const LEADING_FRONTMATTER =
  * of showing a rule and a setext heading. Masked characters become spaces and
  * line breaks stay, so source offsets (task checkbox edits) stay valid.
  */
-export function maskMarkdownFrontmatter(markdown: string) {
+export function maskMarkdownFrontmatter(markdown: string): string {
   return markdown.replace(LEADING_FRONTMATTER, (block) => block.replace(/[^\r\n]/g, " "));
 }

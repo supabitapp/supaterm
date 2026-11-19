@@ -67,7 +67,7 @@ function collapseOdfWhitespace(paragraph: XmlNode) {
   if (tail && afterSpace) tail.node.children[tail.index] = tail.value.slice(0, -1);
 }
 
-function xml(source: string, extension: string) {
+function xml(source: string, extension: string): XmlNode {
   const odf = [".odt", ".ods", ".odp"].includes(extension);
   const root: XmlNode = { name: "root", attrs: {}, children: [] };
   const stack = [root];
@@ -119,15 +119,13 @@ function xml(source: string, extension: string) {
 
 const children = (node: XmlNode) =>
   node.children.filter((child): child is XmlNode => typeof child !== "string");
-function all(node: XmlNode, name: string | readonly string[]): Generator<XmlNode, void>;
-function* all(node: XmlNode, name: string | readonly string[]) {
+function* all(node: XmlNode, name: string | readonly string[]): Generator<XmlNode, void> {
   for (const child of children(node)) {
     if (typeof name === "string" ? child.name === name : name.includes(child.name)) yield child;
     else yield* all(child, name);
   }
 }
-function text(node: XmlNode): Generator<string, void>;
-function* text(node: XmlNode) {
+function* text(node: XmlNode): Generator<string, void> {
   if (HIDDEN.has(node.name)) return;
   if (["tab", "cell"].includes(node.name)) yield "\t";
   else if (["br", "line-break", "cr"].includes(node.name)) yield "\n";
@@ -141,8 +139,7 @@ function* text(node: XmlNode) {
       else yield* text(child);
     }
 }
-function xstringText(node: XmlNode): Generator<string, void>;
-function* xstringText(node: XmlNode) {
+function* xstringText(node: XmlNode): Generator<string, void> {
   if (HIDDEN.has(node.name)) return;
   if (node.name !== "t" && node.name !== "v") {
     for (const child of children(node)) yield* xstringText(child);
@@ -157,8 +154,7 @@ function* xstringText(node: XmlNode) {
         literal ? `_${literal}` : String.fromCharCode(Number.parseInt(hex!, 16)),
     );
 }
-function paragraphs(node: XmlNode): Generator<TextPart, void>;
-function* paragraphs(node: XmlNode) {
+function* paragraphs(node: XmlNode): Generator<TextPart, void> {
   if (HIDDEN.has(node.name)) return;
   for (const child of node.children) {
     if (typeof child === "string") yield child;
@@ -181,17 +177,17 @@ function* paragraphs(node: XmlNode) {
     }
   }
 }
-function* inCell(parts: Iterable<TextPart>) {
+function* inCell(parts: Iterable<TextPart>): Generator<TextPart, void> {
   yield CELL_START;
   yield* parts;
   yield CELL_END;
 }
-function repeatCount(value: string | undefined) {
+function repeatCount(value: string | undefined): number {
   if (value === undefined) return 1;
   if (!/^[0-9]+$/.test(value) || Number(value) < 1) throw new Error("Invalid repeat count");
   return Number(value);
 }
-function odfValue(cell: XmlNode) {
+function odfValue(cell: XmlNode): string {
   const type = cell.attrs["office:value-type"] ?? cell.attrs["value-type"];
   const attr = (name: string) => cell.attrs[`office:${name}`] ?? cell.attrs[name] ?? "";
   switch (type) {
@@ -213,16 +209,14 @@ function odfValue(cell: XmlNode) {
       return attr("value");
   }
 }
-function hasCellText(cell: XmlNode): boolean;
-function hasCellText(cell: XmlNode) {
-  if (odfValue(cell).trim() || cell.name === "noBreakHyphen") return true satisfies boolean;
-  if (HIDDEN.has(cell.name) || cell.spaceCount !== undefined) return false satisfies boolean;
+function hasCellText(cell: XmlNode): boolean {
+  if (odfValue(cell).trim() || cell.name === "noBreakHyphen") return true;
+  if (HIDDEN.has(cell.name) || cell.spaceCount !== undefined) return false;
   return cell.children.some((child) =>
     typeof child === "string" ? !!child.trim() : hasCellText(child),
-  ) satisfies boolean;
+  );
 }
-function table(node: XmlNode): Generator<TextPart, void>;
-function* table(node: XmlNode) {
+function* table(node: XmlNode): Generator<TextPart, void> {
   let rowCount = 0;
   for (const row of all(node, ["tr", "table-row"])) {
     const cells = children(row).filter((cell) =>
@@ -250,7 +244,7 @@ function* table(node: XmlNode) {
   }
 }
 
-async function archive(path: string) {
+async function archive(path: string): Promise<Map<string, string>> {
   const zip = await new Promise<Yauzl.ZipFile>((resolve, reject) =>
     Yauzl.open(
       path,
@@ -327,11 +321,11 @@ async function archive(path: string) {
   return files;
 }
 
-function* notebook(source: string) {
+function* notebook(source: string): Generator<string, void> {
   const book: unknown = JSON.parse(source);
   if (!book || typeof book !== "object" || !("cells" in book) || !Array.isArray(book.cells))
     throw new Error("Invalid notebook");
-  function* lines(value: unknown) {
+  function* lines(value: unknown): Generator<string, void> {
     if (typeof value === "string") yield value;
     else if (Array.isArray(value))
       for (const line of value) {
@@ -376,7 +370,7 @@ function* notebook(source: string) {
   }
 }
 
-function* rtf(source: string) {
+function* rtf(source: string): Generator<string, void> {
   if (!source.startsWith("{\\rtf")) throw new Error("Invalid RTF document");
   let state = { skip: false, uc: 1, decoder: new TextDecoder("windows-1252") };
   const stack: Array<typeof state> = [];
@@ -475,7 +469,7 @@ function* rtf(source: string) {
   }
 }
 
-async function* document(path: string, extension: string) {
+async function* document(path: string, extension: string): AsyncGenerator<TextPart, void> {
   if ((await NodeFSP.stat(path)).size > MAX_INPUT) throw new Truncation("Input byte limit");
   if (extension === ".ipynb") yield* notebook(await NodeFSP.readFile(path, "utf8"));
   else if (extension === ".rtf") yield* rtf((await NodeFSP.readFile(path)).toString("latin1"));
@@ -484,7 +478,7 @@ async function* document(path: string, extension: string) {
     const notes: string[] = [];
     const skip = (name: string) =>
       notes.push(`\n[Skipped document part: ${name} (missing or invalid XML).]\n`);
-    const read = (name: string) => {
+    const read = (name: string): XmlNode => {
       try {
         const data = files.get(name);
         if (!data) throw new Error("Missing document part");
@@ -681,7 +675,7 @@ async function* document(path: string, extension: string) {
   }
 }
 
-export async function extractDocumentText(path: string, extension: string) {
+export async function extractDocumentText(path: string, extension: string): Promise<string> {
   let result = "";
   let remaining = MAX_OUTPUT;
   let cellDepth = 0;

@@ -35,7 +35,7 @@ const isRemoteEditorUrl = (url: URL) =>
         url.pathname.startsWith("/ssh-remote+") &&
         url.pathname.length > "/ssh-remote+".length);
 
-export function parseSafeExternalUrl(rawUrl: unknown) {
+export function parseSafeExternalUrl(rawUrl: unknown): Option.Option<string> {
   if (typeof rawUrl !== "string") {
     return Option.none();
   }

@@ -48,33 +48,12 @@ export function resolveMarkdownMediaPreview(
   | { readonly kind: "image"; readonly source: FilePreviewSource }
   | { readonly kind: "pdf" | "audio" | "document" | "file"; readonly source: FilePreviewSource }
   | { readonly kind: "video"; readonly source: MediaVideoPreviewSource }
-  | null;
-export function resolveMarkdownMediaPreview(
-  href: string,
-  input: {
-    readonly environmentId: EnvironmentId;
-    readonly threadId: ThreadId | undefined;
-    readonly workspaceRoot: string | null | undefined;
-    /** Bounds network paths when `workspaceRoot` is a nested directory relative images resolve from. */
-    readonly projectRoot?: string | null | undefined;
-    readonly captured?: boolean;
-    readonly imageEmbed?: boolean;
-  },
-) {
-  if (parseMarkdownFileLink(href)?.line !== undefined)
-    return null satisfies
-      | { readonly kind: "image"; readonly source: FilePreviewSource }
-      | { readonly kind: "pdf" | "audio" | "document" | "file"; readonly source: FilePreviewSource }
-      | { readonly kind: "video"; readonly source: MediaVideoPreviewSource }
-      | null;
+  | null {
+  if (parseMarkdownFileLink(href)?.line !== undefined) return null;
   const projectRoot = input.projectRoot === undefined ? input.workspaceRoot : input.projectRoot;
   const classified = classifyMarkdownImageSource(href, input.workspaceRoot, projectRoot);
   if (classified._tag === "Direct" && /^data:(?!image\/|video\/)/i.test(classified.uri))
-    return null satisfies
-      | { readonly kind: "image"; readonly source: FilePreviewSource }
-      | { readonly kind: "pdf" | "audio" | "document" | "file"; readonly source: FilePreviewSource }
-      | { readonly kind: "video"; readonly source: MediaVideoPreviewSource }
-      | null;
+    return null;
   if (classified._tag !== "Blocked") {
     const path =
       classified._tag === "Direct" ? classified.uri : splitFilePathPosition(classified.path).path;
@@ -124,38 +103,15 @@ export function resolveMarkdownMediaPreview(
               mimeType: common.mimeType,
             },
           },
-        } satisfies
-          | { readonly kind: "image"; readonly source: FilePreviewSource }
-          | {
-              readonly kind: "pdf" | "audio" | "document" | "file";
-              readonly source: FilePreviewSource;
-            }
-          | { readonly kind: "video"; readonly source: MediaVideoPreviewSource }
-          | null;
+        };
       }
-      if (input.captured)
-        return null satisfies
-          | { readonly kind: "image"; readonly source: FilePreviewSource }
-          | {
-              readonly kind: "pdf" | "audio" | "document" | "file";
-              readonly source: FilePreviewSource;
-            }
-          | { readonly kind: "video"; readonly source: MediaVideoPreviewSource }
-          | null;
+      if (input.captured) return null;
       const resource = input.threadId
         ? { _tag: "media-file" as const, threadId: input.threadId, path }
         : projectRoot
           ? { _tag: "draft-workspace-file" as const, cwd: projectRoot, path }
           : null;
-      if (!resource)
-        return null satisfies
-          | { readonly kind: "image"; readonly source: FilePreviewSource }
-          | {
-              readonly kind: "pdf" | "audio" | "document" | "file";
-              readonly source: FilePreviewSource;
-            }
-          | { readonly kind: "video"; readonly source: MediaVideoPreviewSource }
-          | null;
+      if (!resource) return null;
       return {
         kind,
         source: {
@@ -172,29 +128,12 @@ export function resolveMarkdownMediaPreview(
             mimeType: common.mimeType,
           },
         },
-      } satisfies
-        | { readonly kind: "image"; readonly source: FilePreviewSource }
-        | {
-            readonly kind: "pdf" | "audio" | "document" | "file";
-            readonly source: FilePreviewSource;
-          }
-        | { readonly kind: "video"; readonly source: MediaVideoPreviewSource }
-        | null;
+      };
     }
   }
   const media = resolveMobileMarkdownMediaSource(href, input);
-  if (media === null || media.access === "unavailable")
-    return null satisfies
-      | { readonly kind: "image"; readonly source: FilePreviewSource }
-      | { readonly kind: "pdf" | "audio" | "document" | "file"; readonly source: FilePreviewSource }
-      | { readonly kind: "video"; readonly source: MediaVideoPreviewSource }
-      | null;
-  if (input.captured && media.access !== "direct")
-    return null satisfies
-      | { readonly kind: "image"; readonly source: FilePreviewSource }
-      | { readonly kind: "pdf" | "audio" | "document" | "file"; readonly source: FilePreviewSource }
-      | { readonly kind: "video"; readonly source: MediaVideoPreviewSource }
-      | null;
+  if (media === null || media.access === "unavailable") return null;
+  if (input.captured && media.access !== "direct") return null;
   const { kind, name, mimeType, reference, srcFragment } = media;
 
   const target =
@@ -216,40 +155,29 @@ export function resolveMarkdownMediaPreview(
           name,
           mimeType,
         };
-  return (
-    kind === "video"
-      ? { kind, source: { type: "media", name, mimeType, ...target, actionsSource } }
-      : { kind, source: { kind, name, ...target, actionsSource } }
-  ) satisfies
-    | { readonly kind: "image"; readonly source: FilePreviewSource }
-    | { readonly kind: "pdf" | "audio" | "document" | "file"; readonly source: FilePreviewSource }
-    | { readonly kind: "video"; readonly source: MediaVideoPreviewSource }
-    | null;
+  return kind === "video"
+    ? { kind, source: { type: "media", name, mimeType, ...target, actionsSource } }
+    : { kind, source: { kind, name, ...target, actionsSource } };
 }
 
 export function markdownFileEmbedLabel(
   href: string,
   input: Parameters<typeof resolveMarkdownMediaPreview>[1],
   standalone: boolean,
-): string | null;
-export function markdownFileEmbedLabel(
-  href: string,
-  input: Parameters<typeof resolveMarkdownMediaPreview>[1],
-  standalone: boolean,
-) {
+): string | null {
   const media = resolveMarkdownMediaPreview(href, { ...input, imageEmbed: true });
   if (media) {
     if (
       media.kind === "image" ||
       ((media.kind === "video" || media.kind === "audio") && standalone)
     )
-      return null satisfies string | null;
-    return (media.source.name ?? null) satisfies string | null;
+      return null;
+    return media.source.name ?? null;
   }
   const file = resolveMarkdownLinkPresentation(href);
   if (file.kind === "file" && file.line === undefined) {
     if (mediaMimeTypeFromExtension(file.path.slice(file.path.lastIndexOf("."))) !== null)
-      return null satisfies string | null;
+      return null;
   }
-  return (file.kind === "file" ? file.label : null) satisfies string | null;
+  return file.kind === "file" ? file.label : null;
 }

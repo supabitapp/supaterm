@@ -18,13 +18,15 @@ export interface ArchivedThreadSnapshotsState {
 const ARCHIVED_THREADS_ENVIRONMENT_KEY_SEPARATOR = "\u001f";
 const environmentIdOrder = Order.String as Order.Order<EnvironmentId>;
 
-export function makeArchivedThreadsEnvironmentKey(environmentIds: ReadonlyArray<EnvironmentId>) {
+export function makeArchivedThreadsEnvironmentKey(
+  environmentIds: ReadonlyArray<EnvironmentId>,
+): string {
   return pipe(environmentIds, Arr.sort(environmentIdOrder), (sortedEnvironmentIds) =>
     sortedEnvironmentIds.join(ARCHIVED_THREADS_ENVIRONMENT_KEY_SEPARATOR),
   );
 }
 
-function parseArchivedThreadsEnvironmentKey(key: string) {
+function parseArchivedThreadsEnvironmentKey(key: string): ReadonlyArray<EnvironmentId> {
   if (key.length === 0) {
     return [];
   }
@@ -41,7 +43,7 @@ export function createArchivedThreadSnapshotsAtomFamily<E>(options: {
   readonly labelPrefix: string;
 }) {
   return Atom.family((environmentKey: string) =>
-    Atom.make((get) => {
+    Atom.make((get): ArchivedThreadSnapshotsState => {
       const snapshots: ArchivedSnapshotEntry[] = [];
       let error: string | null = null;
       let isLoading = false;

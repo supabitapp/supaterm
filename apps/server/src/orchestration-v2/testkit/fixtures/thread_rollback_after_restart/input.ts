@@ -6,7 +6,7 @@ import {
 } from "../shared.ts";
 
 /** Exceed the 30-minute idle timeout to release the session as a restart would. */
-export function threadRollbackAfterRestartInput() {
+export function threadRollbackAfterRestartInput(): OrchestratorFixtureInput {
   return {
     steps: [
       { type: "message", text: THREAD_ROLLBACK_FIRST_PROMPT },
@@ -19,5 +19,5 @@ export function threadRollbackAfterRestartInput() {
       },
       { type: "message", text: THREAD_ROLLBACK_AFTER_PROMPT },
     ],
-  } satisfies OrchestratorFixtureInput;
+  };
 }

@@ -26,6 +26,7 @@ import type {
   CustomModelSetting,
   ServerProvider,
   ServerProviderState,
+  ModelCapabilities,
   ProviderOptionDescriptor,
   ServerProviderModel,
   ServerProviderSkill,
@@ -96,7 +97,7 @@ const CodexCyberAccessConfig = Schema.Struct({
 });
 const decodeCodexCyberAccessConfig = Schema.decodeUnknownOption(CodexCyberAccessConfig);
 
-function routesToNativeOpenai(config: unknown) {
+function routesToNativeOpenai(config: unknown): boolean {
   const decoded = decodeCodexRoutingConfig(config);
   if (Option.isNone(decoded)) return false;
   const routing = decoded.value;
@@ -117,7 +118,7 @@ function routesToNativeOpenai(config: unknown) {
 export const codexRoutesSpendNativeQuota = (
   account: CodexSchema.V2GetAccountResponse,
   config: unknown,
-) =>
+): boolean =>
   account.requiresOpenaiAuth && account.account?.type !== "apiKey" && routesToNativeOpenai(config);
 
 const CODEX_APP_SERVER_PROBE_FORCE_KILL_AFTER = "2 seconds" as const;
@@ -171,7 +172,7 @@ const CYBER_ACCESS_PROGRAM_LABELS: Readonly<Record<string, string>> = {
   daybreakRed: "Daybreak Red",
 };
 
-function reasoningEffortLabel(reasoningEffort: string) {
+function reasoningEffortLabel(reasoningEffort: string): string {
   return REASONING_EFFORT_LABELS[reasoningEffort] ?? reasoningEffort;
 }
 
@@ -187,7 +188,7 @@ function codexAccountAuthLabel(
   return usageLabel ?? codexPlanLabel(account.planType);
 }
 
-function codexPlanLabel(planType: string | null | undefined) {
+function codexPlanLabel(planType: string | null | undefined): string | undefined {
   switch (planType) {
     case "free":
       return "ChatGPT Free Subscription";
@@ -228,11 +229,13 @@ function codexAccountEmail(account: CodexSchema.V2GetAccountResponse["account"])
   return account.email;
 }
 
-export function codexDefaultReasoningEffortOverride(model: string) {
+export function codexDefaultReasoningEffortOverride(model: string): "medium" | undefined {
   return codexModelFamily(model) === "gpt-6-astra" ? "medium" : undefined;
 }
 
-export function mapCodexModelCapabilities(model: CodexSchema.V2ModelListResponse__Model) {
+export function mapCodexModelCapabilities(
+  model: CodexSchema.V2ModelListResponse__Model,
+): ModelCapabilities {
   const reasoningOptions = model.supportedReasoningEfforts.map(({ reasoningEffort }) =>
     reasoningEffort ===
     (codexDefaultReasoningEffortOverride(model.model) ?? model.defaultReasoningEffort)
@@ -320,7 +323,9 @@ export function mapCodexModelCapabilities(model: CodexSchema.V2ModelListResponse
   });
 }
 
-function parseCodexModelListResponse(response: CodexSchema.V2ModelListResponse) {
+function parseCodexModelListResponse(
+  response: CodexSchema.V2ModelListResponse,
+): ReadonlyArray<ServerProviderModel> {
   return response.data.map((model) => ({
     slug: model.model,
     name: formatCodexModelName(model.displayName),
@@ -332,13 +337,12 @@ function parseCodexModelListResponse(response: CodexSchema.V2ModelListResponse) 
 
 export function applyPreferredCodexDefaultModel(
   models: ReadonlyArray<ServerProviderModel>,
-): ReadonlyArray<ServerProviderModel>;
-export function applyPreferredCodexDefaultModel(models: ReadonlyArray<ServerProviderModel>) {
+): ReadonlyArray<ServerProviderModel> {
   const preferredSlug = PREFERRED_DEFAULT_CODEX_MODELS.flatMap((slug) =>
     models.filter((model) => !model.isCustom && codexModelFamily(model.slug) === slug),
   )[0]?.slug;
   if (!preferredSlug) {
-    return models satisfies ReadonlyArray<ServerProviderModel>;
+    return models;
   }
   return models.map((model) => {
     if (model.slug === preferredSlug) {
@@ -349,7 +353,7 @@ export function applyPreferredCodexDefaultModel(models: ReadonlyArray<ServerProv
     }
     const { isDefault: _isDefault, ...rest } = model;
     return rest;
-  }) satisfies ReadonlyArray<ServerProviderModel>;
+  });
 }
 
 function mapCodexOptionDescriptors(
@@ -358,7 +362,7 @@ function mapCodexOptionDescriptors(
     descriptors: ReadonlyArray<ProviderOptionDescriptor>,
     model: ServerProviderModel,
   ) => ReadonlyArray<ProviderOptionDescriptor>,
-) {
+): ReadonlyArray<ServerProviderModel> {
   return models.map((model) => {
     if (!model.capabilities?.optionDescriptors) return model;
     return {
@@ -375,7 +379,7 @@ function withConfiguredSelectDefault(
   models: ReadonlyArray<ServerProviderModel>,
   descriptorId: string,
   pick: (options: ReadonlyArray<{ readonly id: string }>) => string | undefined,
-) {
+): ReadonlyArray<ServerProviderModel> {
   return mapCodexOptionDescriptors(models, (descriptors) =>
     descriptors.map((descriptor) => {
       if (descriptor.id !== descriptorId || descriptor.type !== "select") return descriptor;
@@ -395,7 +399,7 @@ function withConfiguredSelectDefault(
 function applyConfiguredCodexServiceTier(
   models: ReadonlyArray<ServerProviderModel>,
   serviceTier: string | undefined,
-) {
+): ReadonlyArray<ServerProviderModel> {
   if (!serviceTier) return models;
   return withConfiguredSelectDefault(
     models,
@@ -414,9 +418,9 @@ function applyConfiguredCodexCyberAccess(
     CodexAppServerProviderSnapshot,
     "daybreakEnabled" | "cyberAccessProgramsUnavailable"
   >,
-) {
+): ReadonlyArray<ServerProviderModel> {
   const offered = mapCodexOptionDescriptors(models, (descriptors, model) =>
-    descriptors.flatMap((descriptor) => {
+    descriptors.flatMap((descriptor): ReadonlyArray<ProviderOptionDescriptor> => {
       if (descriptor.id !== "cyberAccessProgram" || descriptor.type !== "select") {
         return [descriptor];
       }
@@ -442,12 +446,15 @@ function applyConfiguredCodexCyberAccess(
 function appendCustomCodexModels(
   models: ReadonlyArray<ServerProviderModel>,
   customModels: ReadonlyArray<CustomModelSetting>,
-) {
+): ReadonlyArray<ServerProviderModel> {
   const fallbackCapabilities = models.find((model) => model.capabilities)?.capabilities ?? null;
   return providerModelsFromSettings(models, customModels, fallbackCapabilities);
 }
 
-function parseCodexSkillsListResponse(response: CodexSchema.V2SkillsListResponse, cwd: string) {
+function parseCodexSkillsListResponse(
+  response: CodexSchema.V2SkillsListResponse,
+  cwd: string,
+): ReadonlyArray<ServerProviderSkill> {
   const matchingEntry = response.data.find((entry) => entry.cwd === cwd);
   const skills = matchingEntry
     ? matchingEntry.skills
@@ -568,12 +575,14 @@ const requestCodexChatGptModels = Effect.fn("requestCodexChatGptModels")(functio
  * Ultrafast, and overwrites the shared `models_cache.json`. Naming the
  * originator at spawn closes that race.
  */
-export const codexAppServerEnvironment = (environment: NodeJS.ProcessEnv | undefined) => ({
+export const codexAppServerEnvironment = (
+  environment: NodeJS.ProcessEnv | undefined,
+): NodeJS.ProcessEnv => ({
   CODEX_INTERNAL_ORIGINATOR_OVERRIDE: CODEX_CLIENT_NAME,
   ...environment,
 });
 
-export function buildCodexInitializeParams() {
+export function buildCodexInitializeParams(): CodexSchema.V1InitializeParams {
   return {
     clientInfo: {
       name: CODEX_CLIENT_NAME,
@@ -666,7 +675,7 @@ const readCodexRateLimits = (
   deadlineMs: number,
 ) =>
   withCodexDiscoveryDeadline(client.request("account/rateLimits/read", null), deadlineMs).pipe(
-    Effect.map((response) =>
+    Effect.map((response): CodexRateLimitsProbe =>
       response
         ? {
             snapshot: response.rateLimits,
@@ -871,37 +880,19 @@ export const makeCodexSkillsProbe = Effect.fn("makeCodexSkillsProbe")(function* 
   });
 });
 
-const emptyCodexModelsFromSettings: (codexSettings: CodexSettings) => ServerProvider["models"] = (
+const emptyCodexModelsFromSettings = (codexSettings: CodexSettings): ServerProvider["models"] =>
+  appendCustomCodexModels([], codexSettings.customModels);
+
+const makePendingCodexProvider = Effect.fn("CodexProvider.makePendingCodexProvider")(function* (
   codexSettings: CodexSettings,
-) => appendCustomCodexModels([], codexSettings.customModels);
+): Effect.fn.Return<ServerProviderDraft> {
+  const checkedAt = yield* Effect.map(DateTime.now, DateTime.formatIso);
+  const models = emptyCodexModelsFromSettings(codexSettings);
 
-const makePendingCodexProvider: (
-  codexSettings: CodexSettings,
-) => Effect.Effect<ServerProviderDraft> = Effect.fn("CodexProvider.makePendingCodexProvider")(
-  function* (codexSettings: CodexSettings) {
-    const checkedAt = yield* Effect.map(DateTime.now, DateTime.formatIso);
-    const models = emptyCodexModelsFromSettings(codexSettings);
-
-    if (!codexSettings.enabled) {
-      return buildServerProvider({
-        presentation: CODEX_PRESENTATION,
-        enabled: false,
-        checkedAt,
-        models,
-        skills: [],
-        probe: {
-          installed: false,
-          version: null,
-          status: "warning",
-          auth: { status: "unknown" },
-          message: "Codex is disabled in Supaterm settings.",
-        },
-      });
-    }
-
+  if (!codexSettings.enabled) {
     return buildServerProvider({
       presentation: CODEX_PRESENTATION,
-      enabled: true,
+      enabled: false,
       checkedAt,
       models,
       skills: [],
@@ -910,18 +901,37 @@ const makePendingCodexProvider: (
         version: null,
         status: "warning",
         auth: { status: "unknown" },
-        message: "Codex provider status has not been checked in this session yet.",
+        message: "Codex is disabled in Supaterm settings.",
       },
     });
-  },
-);
+  }
+
+  return buildServerProvider({
+    presentation: CODEX_PRESENTATION,
+    enabled: true,
+    checkedAt,
+    models,
+    skills: [],
+    probe: {
+      installed: false,
+      version: null,
+      status: "warning",
+      auth: { status: "unknown" },
+      message: "Codex provider status has not been checked in this session yet.",
+    },
+  });
+});
 
 const quotePath = Schema.encodeSync(Schema.fromJsonString(Schema.String));
 
 function accountProbeStatus(
   { account, rateLimits }: CodexAppServerProviderSnapshot,
   codexHome: string | undefined,
-) {
+): {
+  readonly status: Exclude<ServerProviderState, "disabled">;
+  readonly auth: ServerProvider["auth"];
+  readonly message?: string;
+} {
   const authLabel = codexAccountAuthLabel(
     account.account,
     rateLimits && "snapshot" in rateLimits ? rateLimits.snapshot.planType : undefined,
@@ -938,11 +948,7 @@ function accountProbeStatus(
   } satisfies ServerProvider["auth"];
 
   if (account.account) {
-    return { status: "ready", auth } satisfies {
-      readonly status: Exclude<ServerProviderState, "disabled">;
-      readonly auth: ServerProvider["auth"];
-      readonly message?: string;
-    };
+    return { status: "ready", auth };
   }
 
   if (account.requiresOpenaiAuth) {
@@ -952,42 +958,13 @@ function accountProbeStatus(
       message: codexHome
         ? `Codex CLI is not authenticated. Run \`codex login\` with CODEX_HOME set to ${quotePath(codexHome)} and try again.`
         : "Codex CLI is not authenticated. Run `codex login` and try again.",
-    } satisfies {
-      readonly status: Exclude<ServerProviderState, "disabled">;
-      readonly auth: ServerProvider["auth"];
-      readonly message?: string;
     };
   }
 
-  return { status: "ready", auth } satisfies {
-    readonly status: Exclude<ServerProviderState, "disabled">;
-    readonly auth: ServerProvider["auth"];
-    readonly message?: string;
-  };
+  return { status: "ready", auth };
 }
 
-export const checkCodexProviderStatus: (
-  codexSettings: CodexSettings,
-  probe?: (input: {
-    readonly probeTimeoutMs: number;
-    readonly binaryPath: string;
-    readonly homePath?: string;
-    readonly launchArgs?: string;
-    readonly cwd: string;
-    readonly environment?: NodeJS.ProcessEnv;
-    readonly skipNativeUsage?: boolean;
-  }) => Effect.Effect<
-    CodexAppServerProviderSnapshot,
-    CodexErrors.CodexAppServerError,
-    ChildProcessSpawner.ChildProcessSpawner | FileSystem.FileSystem | Path.Path | Scope.Scope
-  >,
-  environment?: NodeJS.ProcessEnv,
-  managedAuth?: ServerProvider["auth"],
-) => Effect.Effect<
-  ServerProviderDraft,
-  ServerSettingsError,
-  ChildProcessSpawner.ChildProcessSpawner | FileSystem.FileSystem | Path.Path
-> = Effect.fn("checkCodexProviderStatus")(function* (
+export const checkCodexProviderStatus = Effect.fn("checkCodexProviderStatus")(function* (
   codexSettings: CodexSettings,
   probe: (input: {
     readonly probeTimeoutMs: number;
@@ -1004,7 +981,11 @@ export const checkCodexProviderStatus: (
   > = probeCodexAppServerProvider,
   environment?: NodeJS.ProcessEnv,
   managedAuth?: ServerProvider["auth"],
-) {
+): Effect.fn.Return<
+  ServerProviderDraft,
+  ServerSettingsError,
+  ChildProcessSpawner.ChildProcessSpawner | FileSystem.FileSystem | Path.Path
+> {
   const resolvedEnvironment = providerProbeEnvironment(environment ?? process.env);
   const checkedAt = DateTime.formatIso(yield* DateTime.now);
   const emptyModels = emptyCodexModelsFromSettings(codexSettings);

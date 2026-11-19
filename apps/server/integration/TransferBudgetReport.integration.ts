@@ -160,11 +160,11 @@ const STALE_TODO_BUDGET = {
   } satisfies StaleTodoRecordCounts,
 };
 
-function totalWireBytes(run: TransferBudgetRun) {
+function totalWireBytes(run: TransferBudgetRun): number {
   return run.threadSnapshot.wireBytes + run.measuredTurnWebSocket.wireBytes;
 }
 
-function serverEgressWireBytes(run: TransferBudgetRun) {
+function serverEgressWireBytes(run: TransferBudgetRun): number {
   return (
     run.measuredTurnWebSocket.wireBytes +
     run.measuredTurnShellWebSocket.wireBytes +
@@ -183,7 +183,7 @@ function observedTransfer(run: TransferBudgetRun) {
   };
 }
 
-export function formatTransferBudgetResult(runs: ReadonlyArray<TransferBudgetRun>) {
+export function formatTransferBudgetResult(runs: ReadonlyArray<TransferBudgetRun>): string {
   const providers = Object.fromEntries(
     runs.flatMap((run) => {
       const ceiling = TRANSFER_BUDGETS[run.provider];
@@ -209,7 +209,7 @@ export function formatTransferBudgetResult(runs: ReadonlyArray<TransferBudgetRun
   )}\n`;
 }
 
-function formatBytes(bytes: number) {
+function formatBytes(bytes: number): string {
   if (bytes < 1_024) return `${bytes} B`;
   if (bytes >= 1_024 * 1_024) {
     return `${(bytes / 1_024 / 1_024).toFixed(2)} MiB (${bytes.toLocaleString("en-US")} B)`;
@@ -224,7 +224,7 @@ function row(
   observed: number,
   maximum: number,
   format: (value: number) => string = formatBytes,
-) {
+): string {
   const status = observed <= maximum ? "PASS" : "FAIL";
   return `| ${provider} | ${phase} | ${metric} | ${format(observed)} | ${format(maximum)} | ${status} |`;
 }
@@ -235,7 +235,7 @@ function infoRow(
   metric: string,
   observed: number,
   format: (value: number) => string = formatBytes,
-) {
+): string {
   return `| ${provider} | ${phase} | ${metric} | ${format(observed)} | none | INFO |`;
 }
 
@@ -243,7 +243,7 @@ function webSocketRows(
   provider: ProviderDriverKind,
   phase: string,
   totals: WebSocketTransferTotals,
-) {
+): string[] {
   return [
     infoRow(provider, phase, "WebSocket wire", totals.wireBytes),
     infoRow(provider, phase, "WebSocket decoded", totals.decodedBytes),
@@ -263,7 +263,7 @@ function httpRows(
   phase: string,
   measured: TimelineHttpMeasurement,
   budget?: { readonly decodedBytes: number; readonly rows: number },
-) {
+): ScenarioRow[] {
   return [
     {
       phase,
@@ -280,14 +280,14 @@ function httpRows(
       maximum: budget?.decodedBytes,
     },
     { phase, metric: "rows", unit: "count", observed: measured.rows, maximum: budget?.rows },
-  ] satisfies ScenarioRow[];
+  ];
 }
 
 function socketRows(
   phase: string,
   { totals }: SocketOpenMeasurement,
   budget: { readonly decodedBytes: number; readonly messages: number },
-) {
+): ScenarioRow[] {
   return [
     {
       phase,
@@ -310,10 +310,10 @@ function socketRows(
       observed: totals.messages,
       maximum: budget.messages,
     },
-  ] satisfies ScenarioRow[];
+  ];
 }
 
-function scenarioRows(run: TransferBudgetRun) {
+function scenarioRows(run: TransferBudgetRun): ScenarioRow[] {
   return [
     ...socketRows("short turn resume", run.shortTurnResume, SOCKET_BUDGETS.shortTurnResume),
     ...httpRows(
@@ -357,21 +357,18 @@ function scenarioRows(run: TransferBudgetRun) {
     ...httpRows("stale shell reload", run.staleShellReload, FLEET_SHELL_BUDGET),
     ...socketRows("stale shell resume", run.staleShellResume, SOCKET_BUDGETS.staleShellResume),
     ...httpRows("stale todo list cold open", run.staleTodoColdOpen, STALE_TODO_BUDGET),
-    ...STALE_TODO_RECORD_KINDS.map(
-      (kind) =>
-        ({
-          phase: "stale todo list cold open",
-          metric: kind,
-          unit: "count",
-          observed: run.staleTodoColdOpen.records[kind],
-          maximum: STALE_TODO_BUDGET.records[kind],
-        }) satisfies ScenarioRow,
-    ),
-  ] satisfies ScenarioRow[];
+    ...STALE_TODO_RECORD_KINDS.map((kind): ScenarioRow => ({
+      phase: "stale todo list cold open",
+      metric: kind,
+      unit: "count",
+      observed: run.staleTodoColdOpen.records[kind],
+      maximum: STALE_TODO_BUDGET.records[kind],
+    })),
+  ];
 }
 
 /** The budgeted scenario figures, for the PR comment to compare with `main`. */
-export function formatTransferBudgetScenarios(runs: ReadonlyArray<TransferBudgetRun>) {
+export function formatTransferBudgetScenarios(runs: ReadonlyArray<TransferBudgetRun>): string {
   const providers = Object.fromEntries(
     runs.map((run) => [
       run.provider,
@@ -383,7 +380,7 @@ export function formatTransferBudgetScenarios(runs: ReadonlyArray<TransferBudget
   return `${JSON.stringify({ schemaVersion: 1, providers }, null, 2)}\n`;
 }
 
-export function transferBudgetViolations(runs: ReadonlyArray<TransferBudgetRun>) {
+export function transferBudgetViolations(runs: ReadonlyArray<TransferBudgetRun>): string[] {
   const violations: string[] = [];
   for (const run of runs) {
     const budget = TRANSFER_BUDGETS[run.provider];
@@ -422,7 +419,7 @@ export function transferBudgetViolations(runs: ReadonlyArray<TransferBudgetRun>)
   return violations;
 }
 
-export function formatTransferBudgetReport(runs: ReadonlyArray<TransferBudgetRun>) {
+export function formatTransferBudgetReport(runs: ReadonlyArray<TransferBudgetRun>): string {
   const lines = [
     "# Supaterm thread transfer budget",
     "",

@@ -17,7 +17,7 @@ export class Pcm16Resampler {
     this.ratio = inputRate / VOICE_SAMPLE_RATE;
   }
 
-  push(input: Float32Array, emit: (sample: number) => void) {
+  push(input: Float32Array, emit: (sample: number) => void): void {
     for (const value of input) {
       this.sum += value;
       this.count += 1;
@@ -36,7 +36,7 @@ export class Pcm16Resampler {
 }
 
 /** A WAV around little-endian 16 kHz mono 16-bit PCM, kept byte for byte. */
-export function wavFromPcm(chunks: ReadonlyArray<Uint8Array>) {
+export function wavFromPcm(chunks: ReadonlyArray<Uint8Array>): Blob {
   const dataBytes = chunks.reduce((total, chunk) => total + chunk.byteLength, 0);
   const header = new ArrayBuffer(44);
   const view = new DataView(header);

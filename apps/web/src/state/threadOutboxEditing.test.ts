@@ -58,7 +58,7 @@ const file: ComposerFileAttachment = {
   sizeBytes: 5,
   file: new File(["notes"], "notes.txt", { type: "text/plain" }),
 };
-function entry() {
+function entry(): PendingThreadTurn {
   const context = buildMessageContext({
     terminalContexts: [],
     reviewComments: [],
@@ -106,7 +106,7 @@ function entry() {
         },
       ],
     },
-  } satisfies PendingThreadTurn;
+  };
 }
 
 beforeEach(() => {

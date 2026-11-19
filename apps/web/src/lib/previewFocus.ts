@@ -1,4 +1,4 @@
-export function isPreviewFocused() {
+export function isPreviewFocused(): boolean {
   const activeElement = document.activeElement;
   if (!(activeElement instanceof HTMLElement)) return false;
   if (!activeElement.isConnected) return false;

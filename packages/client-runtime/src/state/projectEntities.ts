@@ -27,13 +27,14 @@ export function createEnvironmentProjectAtoms(input: {
   ) => Atom.Atom<Pick<ServerConfig, "scratchWorkspaceRoot"> | null>;
 }) {
   const environmentProjectsAtom = Atom.family((environmentId: EnvironmentId) =>
-    Atom.make((get) => get(input.snapshotAtom(environmentId))?.projects ?? EMPTY_PROJECTS).pipe(
-      Atom.withLabel(`environment-projects:${environmentId}`),
-    ),
+    Atom.make(
+      (get): ReadonlyArray<OrchestrationProjectShell> =>
+        get(input.snapshotAtom(environmentId))?.projects ?? EMPTY_PROJECTS,
+    ).pipe(Atom.withLabel(`environment-projects:${environmentId}`)),
   );
 
   const environmentProjectIndexAtom = Atom.family((environmentId: EnvironmentId) =>
-    Atom.make((get) => {
+    Atom.make((get): ReadonlyMap<ProjectId, OrchestrationProjectShell> => {
       const projects = get(environmentProjectsAtom(environmentId));
       if (projects.length === 0) {
         return EMPTY_PROJECT_INDEX;

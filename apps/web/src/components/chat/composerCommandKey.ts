@@ -153,7 +153,10 @@ export function composerCommandKeyHandler(input: {
     setComposerHighlightedItemId(null);
   };
 
-  const navigatePromptHistory = (direction: "backward" | "forward", event: KeyboardEvent) => {
+  const navigatePromptHistory = (
+    direction: "backward" | "forward",
+    event: KeyboardEvent,
+  ): boolean => {
     if (event.shiftKey || event.altKey || event.metaKey || event.ctrlKey || event.isComposing) {
       return false;
     }
@@ -202,7 +205,7 @@ export function composerCommandKeyHandler(input: {
   const applyListEdit = (
     event: KeyboardEvent,
     listEdit: (value: string, start: number, end: number) => ComposerListEdit | null,
-  ) => {
+  ): boolean => {
     if (isLiteralPendingAnswer || event.isComposing) return false;
     const selection = composerEditorRef.current?.readSelectionRange();
     const snapshot = readComposerSnapshot();

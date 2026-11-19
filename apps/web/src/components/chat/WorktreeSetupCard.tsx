@@ -35,7 +35,7 @@ interface WorktreeSetupCardProps {
   onOpenTerminal: (() => void) | null;
 }
 
-function elapsedMs(startedAt: string | null, endMs: number) {
+function elapsedMs(startedAt: string | null, endMs: number): number | null {
   if (!startedAt) return null;
   const start = Date.parse(startedAt);
   if (!Number.isFinite(start) || !Number.isFinite(endMs)) return null;
@@ -82,7 +82,7 @@ function StageIcon({ status }: { status: WorktreeSetupStage["status"] }) {
   }
 }
 
-function stageRowClassName(status: WorktreeSetupStage["status"]) {
+function stageRowClassName(status: WorktreeSetupStage["status"]): string {
   switch (status) {
     case "failed":
       return "text-destructive-foreground";
@@ -110,7 +110,7 @@ function ShimmerOverlay({ children }: { children: ReactNode }) {
   );
 }
 
-function headerLabel(snapshot: WorktreeSetupSnapshot) {
+function headerLabel(snapshot: WorktreeSetupSnapshot): string {
   switch (snapshot.phase) {
     case "running":
       return "Setting up worktree…";

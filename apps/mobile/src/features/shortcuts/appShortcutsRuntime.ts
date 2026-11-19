@@ -83,13 +83,13 @@ export function createRecentThreadShortcuts(dependencies: RecentThreadShortcutsD
   return {
     loaded,
     saved: () => saveQueue,
-    recordActiveThread(next: RecentThreadShortcut | null) {
+    recordActiveThread(next: RecentThreadShortcut | null): void {
       active = next;
       if (recents === null || next === null) return;
       const updated = withActive(recents);
       if (updated !== recents) commit(updated);
     },
-    retainEnvironments(next: ReadonlySet<string>) {
+    retainEnvironments(next: ReadonlySet<string>): void {
       savedEnvironmentIds = next;
       if (recents === null) return;
       const kept = recents.filter(isSaved);
@@ -103,7 +103,7 @@ const activeThreadRefAtom = Atom.make<ScopedThreadRef | null>(null).pipe(
   Atom.withLabel("mobile:app-shortcuts-active-thread-ref"),
 );
 
-const activeThreadShortcutAtom = Atom.make((get) => {
+const activeThreadShortcutAtom = Atom.make((get): RecentThreadShortcut | null => {
   const ref = get(activeThreadRefAtom);
   if (ref === null) return null;
   const title = get(environmentThreadShells.threadShellAtom(ref))?.title ?? "";
@@ -121,7 +121,7 @@ const activeThreadShortcutAtom = Atom.make((get) => {
 );
 
 /** Wired to the root navigation container's state changes. */
-export function recordAppShortcutNavigationState(state: NavigationState) {
+export function recordAppShortcutNavigationState(state: NavigationState): void {
   if (Platform.OS !== "android") return;
   const next = activeThreadRef(state);
   const current = appAtomRegistry.get(activeThreadRefAtom);
@@ -136,7 +136,7 @@ export function recordAppShortcutNavigationState(state: NavigationState) {
  * a cold-start shortcut arrives as the launch action, and pushing it over the
  * initial Home route makes back return home instead of exiting the app.
  */
-export function installAppShortcuts(navigate: (href: string) => void) {
+export function installAppShortcuts(navigate: (href: string) => void): () => void {
   const open = (action: QuickActions.Action) => {
     if (action.id === NEW_TASK_SHORTCUT_ID) {
       void readStartNewTaskDestination(uuidv4()).then((params) =>

@@ -68,7 +68,7 @@ export class DesktopShellEnvironmentCommandError extends Schema.TaggedError<Desk
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Desktop shell environment ${this.probe} probe (${this.executable}) failed.`;
   }
 }
@@ -80,7 +80,7 @@ export class DesktopShellEnvironmentCommandTimeoutError extends Schema.TaggedErr
     timeoutMs: Schema.Number,
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Desktop shell environment ${this.probe} probe (${this.executable}) timed out after ${this.timeoutMs}ms.`;
   }
 }
@@ -144,27 +144,24 @@ const RETRY_PROBE: ProbeBudget = {
 const DISCOVERY_RETRY_DELAY = Duration.seconds(30);
 const DISCOVERY_RETRIES = 10;
 
-const trimNonEmpty: (value: string | null | undefined) => Option.Option<string> = (
-  value: string | null | undefined,
-) =>
+const trimNonEmpty = (value: string | null | undefined): Option.Option<string> =>
   Option.fromNullishOr(value).pipe(
     Option.map((entry) => entry.trim()),
     Option.filter((entry) => entry.length > 0),
   );
 
-const nonEmptyPath: (value: string | null | undefined) => Option.Option<string> = (
-  value: string | null | undefined,
-) => Option.fromNullishOr(value).pipe(Option.filter((entry) => entry.length > 0));
+const nonEmptyPath = (value: string | null | undefined): Option.Option<string> =>
+  Option.fromNullishOr(value).pipe(Option.filter((entry) => entry.length > 0));
 
-const readEnvPath: (env: NodeJS.ProcessEnv) => Option.Option<string> = (env: NodeJS.ProcessEnv) =>
+const readEnvPath = (env: NodeJS.ProcessEnv): Option.Option<string> =>
   nonEmptyPath(env.PATH ?? env.Path ?? env.path);
 
-const normalizeRuntimeDir = (value: string) => value.replace(/\/+$/u, "");
+const normalizeRuntimeDir = (value: string): string => value.replace(/\/+$/u, "");
 
-const linuxRuntimeDirCandidates: (
+const linuxRuntimeDirCandidates = (
   env: NodeJS.ProcessEnv,
   uid: number | undefined,
-) => ReadonlyArray<string> = (env: NodeJS.ProcessEnv, uid: number | undefined) => {
+): ReadonlyArray<string> => {
   const candidates: string[] = [];
   const fromEnv = trimNonEmpty(env.XDG_RUNTIME_DIR);
   if (Option.isSome(fromEnv)) {
@@ -176,13 +173,10 @@ const linuxRuntimeDirCandidates: (
   return candidates.filter((candidate) => candidate.length > 0);
 };
 
-const mergePaths: (
+const mergePaths = (
   platform: NodeJS.Platform,
   values: ReadonlyArray<Option.Option<string>>,
-) => Option.Option<string> = (
-  platform: NodeJS.Platform,
-  values: ReadonlyArray<Option.Option<string>>,
-) =>
+): Option.Option<string> =>
   Option.fromNullishOr(
     values.reduce<string | undefined>(
       (merged, value) => mergePathValues(merged, Option.getOrUndefined(value), platform),
@@ -190,7 +184,7 @@ const mergePaths: (
     ),
   );
 
-const knownWindowsCliDirs = (env: NodeJS.ProcessEnv) => [
+const knownWindowsCliDirs = (env: NodeJS.ProcessEnv): ReadonlyArray<string> => [
   ...trimNonEmpty(env.APPDATA).pipe(
     Option.match({
       onNone: () => [],
@@ -214,7 +208,7 @@ const knownWindowsCliDirs = (env: NodeJS.ProcessEnv) => [
 const startMarker = (name: string) => `__SUPATERM_ENV_${name}_START__`;
 const endMarker = (name: string) => `__SUPATERM_ENV_${name}_END__`;
 
-const executableName = (command: string) => command.split(/[\\/]/u).at(-1) ?? command;
+const executableName = (command: string): string => command.split(/[\\/]/u).at(-1) ?? command;
 
 const logShellEnvironmentCommandError = (
   error: DesktopShellEnvironmentCommandError | DesktopShellEnvironmentCommandTimeoutError,
@@ -239,7 +233,7 @@ const captureWindowsEnvironmentCommand = (names: ReadonlyArray<string>) =>
     }),
   ].join("; ");
 
-const extractEnvironment = (output: string, names: ReadonlyArray<string>) => {
+const extractEnvironment = (output: string, names: ReadonlyArray<string>): EnvironmentPatch => {
   const environment: EnvironmentPatch = {};
 
   for (const name of names) {
@@ -270,7 +264,11 @@ const runCommandOutput = Effect.fn("desktop.shellEnvironment.runCommandOutput")(
   readonly timeout: Duration.Duration;
   readonly terminateGrace?: Duration.Duration;
   readonly shell?: boolean;
-}) {
+}): Effect.fn.Return<
+  string,
+  DesktopShellEnvironmentCommandTimeoutError,
+  ChildProcessSpawner.ChildProcessSpawner
+> {
   const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
   const fiber = yield* Effect.scoped(
     Effect.gen(function* () {
@@ -335,7 +333,7 @@ const runCommandOutput = Effect.fn("desktop.shellEnvironment.runCommandOutput")(
 
 const orEmptyOnTimeout = <R>(
   effect: Effect.Effect<string, DesktopShellEnvironmentCommandTimeoutError, R>,
-) =>
+): Effect.Effect<string, never, R> =>
   effect.pipe(
     Effect.catchTags({
       DesktopShellEnvironmentCommandTimeoutError: (error) =>
@@ -343,23 +341,17 @@ const orEmptyOnTimeout = <R>(
     }),
   );
 
-const readLoginShellEnvironment: (
+const readLoginShellEnvironment = (
   shell: string,
   names: ReadonlyArray<string>,
   env: NodeJS.ProcessEnv,
   timeout: Duration.Duration,
   terminateGrace: Duration.Duration,
-) => Effect.Effect<
+): Effect.Effect<
   EnvironmentPatch,
   DesktopShellEnvironmentCommandTimeoutError,
   ChildProcessSpawner.ChildProcessSpawner
-> = (
-  shell: string,
-  names: ReadonlyArray<string>,
-  env: NodeJS.ProcessEnv,
-  timeout: Duration.Duration,
-  terminateGrace: Duration.Duration,
-) =>
+> =>
   names.length === 0
     ? Effect.succeed({})
     : runCommandOutput({
@@ -386,7 +378,7 @@ const readWindowsEnvironment = Effect.fn("desktop.shellEnvironment.readWindowsEn
     options: WindowsProbeOptions,
     env: NodeJS.ProcessEnv,
     budget: ProbeBudget,
-  ) {
+  ): Effect.fn.Return<EnvironmentPatch, never, ChildProcessSpawner.ChildProcessSpawner> {
     if (names.length === 0) return {};
 
     const args = [
@@ -417,7 +409,9 @@ const readWindowsEnvironment = Effect.fn("desktop.shellEnvironment.readWindowsEn
 );
 
 const installWindowsEnvironment = Effect.fn("desktop.shellEnvironment.installWindowsEnvironment")(
-  function* (config: ShellEnvironmentConfig) {
+  function* (
+    config: ShellEnvironmentConfig,
+  ): Effect.fn.Return<boolean, never, ChildProcessSpawner.ChildProcessSpawner> {
     const [noProfile, profile] = yield* Effect.all(
       [
         readWindowsEnvironment(["PATH"], { loadProfile: false }, config.env, config.budget),
@@ -484,24 +478,6 @@ const installPosixEnvironment: (
         timeout,
         config.budget.terminateGrace,
       );
-    Object.assign(
-      shellEnvironment,
-      yield* read(config.budget.timeout).pipe(
-        Effect.catchTags({
-          DesktopShellEnvironmentCommandTimeoutError: (error) => {
-            const slowTimeout = waitedForSlowShell ? undefined : config.budget.slowTimeout;
-            waitedForSlowShell = true;
-            return logShellEnvironmentCommandError(error).pipe(
-              Effect.andThen(slowTimeout ? read(slowTimeout) : Effect.succeed({})),
-            );
-          },
-        }),
-        Effect.catchTags({
-          DesktopShellEnvironmentCommandTimeoutError: (error) =>
-            logShellEnvironmentCommandError(error).pipe(Effect.as({})),
-        }),
-      ),
-    );
     if (shellEnvironment.PATH) {
       answeredBy = shell;
       break;
@@ -610,13 +586,13 @@ interface ShellDiscovery {
   readonly fromUserShell: boolean;
 }
 
-const installShellEnvironment: (
+const installShellEnvironment = (
   config: ShellEnvironmentConfig,
-) => Effect.Effect<
+): Effect.Effect<
   ShellDiscovery,
   never,
   ChildProcessSpawner.ChildProcessSpawner | FileSystem.FileSystem
-> = (config: ShellEnvironmentConfig) => {
+> => {
   if (config.platform === "win32") {
     return installWindowsEnvironment(config).pipe(
       Effect.map((prepared) => ({ prepared, fromUserShell: prepared })),

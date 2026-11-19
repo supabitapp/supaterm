@@ -95,7 +95,7 @@ export const previewThreadRefsAtom = Atom.make<ReadonlyMap<string, ScopedThreadR
   new Map(),
 ).pipe(Atom.keepAlive, Atom.withLabel("preview:thread-refs"));
 
-function syncActivePreviewThread(threadKey: string, state: ThreadPreviewState) {
+function syncActivePreviewThread(threadKey: string, state: ThreadPreviewState): void {
   const active = Object.keys(state.sessions).length > 0;
   appAtomRegistry.update(activePreviewThreadKeysAtom, (current) => {
     if (current.keys.has(threadKey) === active) return current;
@@ -109,7 +109,7 @@ function syncActivePreviewThread(threadKey: string, state: ThreadPreviewState) {
 function updateThreadPreviewState(
   ref: ScopedThreadRef,
   update: (current: ThreadPreviewState) => ThreadPreviewState,
-) {
+): void {
   const threadKey = scopedThreadKey(ref);
   appAtomRegistry.update(previewThreadRefsAtom, (refs) =>
     refs.has(threadKey) ? refs : new Map(refs).set(threadKey, ref),
@@ -123,22 +123,27 @@ function updateThreadPreviewState(
   if (changed) syncActivePreviewThread(threadKey, nextState);
 }
 
-const dedupeRecentUrls = (existing: string[], url: string) => {
+const dedupeRecentUrls = (existing: string[], url: string): string[] => {
   const next = [url, ...existing.filter((entry) => entry !== url)];
   return next.slice(0, PREVIEW_RECENT_URL_LIMIT);
 };
 
-const rememberSnapshotUrl = (recentlySeenUrls: string[], snapshot: PreviewSessionSnapshot) =>
+const rememberSnapshotUrl = (
+  recentlySeenUrls: string[],
+  snapshot: PreviewSessionSnapshot,
+): string[] =>
   snapshot.navStatus._tag === "Idle"
     ? recentlySeenUrls
     : dedupeRecentUrls(recentlySeenUrls, snapshot.navStatus.url);
 
-const latestSnapshot = (sessions: Record<string, PreviewSessionSnapshot>) =>
+const latestSnapshot = (
+  sessions: Record<string, PreviewSessionSnapshot>,
+): PreviewSessionSnapshot | null =>
   Object.values(sessions)
     .toSorted((a, b) => a.updatedAt.localeCompare(b.updatedAt))
     .at(-1) ?? null;
 
-const removeSession = (current: ThreadPreviewState, tabId: string) => {
+const removeSession = (current: ThreadPreviewState, tabId: string): ThreadPreviewState => {
   if (!current.sessions[tabId]) return current;
   const { [tabId]: _closed, ...sessions } = current.sessions;
   const { [tabId]: _desktop, ...desktopByTabId } = current.desktopByTabId;
@@ -156,24 +161,24 @@ const removeSession = (current: ThreadPreviewState, tabId: string) => {
   };
 };
 
-export function useThreadPreviewState(ref: ScopedThreadRef | null | undefined) {
+export function useThreadPreviewState(ref: ScopedThreadRef | null | undefined): ThreadPreviewState {
   const atom = ref ? previewStateAtom(scopedThreadKey(ref)) : emptyPreviewStateAtom;
   return useAtomValue(atom);
 }
 
-export function useActivePreviewSessions() {
+export function useActivePreviewSessions(): Record<string, ThreadPreviewState> {
   return useAtomValue(activePreviewSessionsAtom);
 }
 
-export function readActivePreviewSessions() {
+export function readActivePreviewSessions(): Record<string, ThreadPreviewState> {
   return appAtomRegistry.get(activePreviewSessionsAtom);
 }
 
-export function readThreadPreviewState(ref: ScopedThreadRef) {
+export function readThreadPreviewState(ref: ScopedThreadRef): ThreadPreviewState {
   return appAtomRegistry.get(previewStateAtom(scopedThreadKey(ref)));
 }
 
-export function applyPreviewServerEvent(ref: ScopedThreadRef, event: PreviewEvent) {
+export function applyPreviewServerEvent(ref: ScopedThreadRef, event: PreviewEvent): void {
   updateThreadPreviewState(ref, (current) => {
     if (current.serverEpoch !== null && event.serverEpoch !== current.serverEpoch) return current;
     if (event.revision < current.serverRevision) return current;
@@ -245,7 +250,7 @@ export function applyPreviewServerEvent(ref: ScopedThreadRef, event: PreviewEven
 export function applyPreviewServerSnapshot(
   ref: ScopedThreadRef,
   snapshot: PreviewSessionSnapshot | null,
-) {
+): void {
   updateThreadPreviewState(ref, (current) => {
     if (!snapshot && current.snapshot === null) return current;
     if (!snapshot) {
@@ -280,7 +285,7 @@ export function applyPreviewServerSnapshot(
 export function updatePreviewServerSnapshot(
   ref: ScopedThreadRef,
   snapshot: PreviewSessionSnapshot,
-) {
+): void {
   updateThreadPreviewState(ref, (current) => {
     if (current.suppressedTabIds.has(snapshot.tabId)) return current;
     const existing = current.sessions[snapshot.tabId];
@@ -300,7 +305,10 @@ export function updatePreviewServerSnapshot(
   });
 }
 
-export function reconcilePreviewServerSessions(ref: ScopedThreadRef, result: PreviewListResult) {
+export function reconcilePreviewServerSessions(
+  ref: ScopedThreadRef,
+  result: PreviewListResult,
+): void {
   updateThreadPreviewState(ref, (current) => {
     const sameServer = current.serverEpoch === result.serverEpoch;
     if (sameServer && result.revision < current.serverRevision) {
@@ -365,7 +373,7 @@ export function reconcilePreviewServerSessions(ref: ScopedThreadRef, result: Pre
   });
 }
 
-function haveSameValues<T>(left: Record<string, T>, right: Record<string, T>) {
+function haveSameValues<T>(left: Record<string, T>, right: Record<string, T>): boolean {
   const keys = Object.keys(left);
   return keys.length === Object.keys(right).length && keys.every((key) => left[key] === right[key]);
 }
@@ -373,7 +381,7 @@ function haveSameValues<T>(left: Record<string, T>, right: Record<string, T>) {
 function sameDesktopNavStatus(
   previous: DesktopPreviewOverlay["navStatus"],
   next: DesktopPreviewOverlay["navStatus"],
-) {
+): boolean {
   if (previous._tag === "Idle" || next._tag === "Idle") return previous._tag === next._tag;
   return (
     previous._tag === next._tag &&
@@ -414,7 +422,7 @@ export function applyPreviewDesktopState(
   ref: ScopedThreadRef,
   tabId: string,
   overlay: DesktopPreviewOverlay | null,
-) {
+): void {
   updateThreadPreviewState(ref, (current) => {
     if (isPreviewStateEqual(current.desktopByTabId[tabId] ?? null, overlay)) {
       return current;
@@ -430,7 +438,7 @@ export function applyPreviewDesktopState(
   });
 }
 
-export function beginPreviewSessionClose(ref: ScopedThreadRef, tabId: string) {
+export function beginPreviewSessionClose(ref: ScopedThreadRef, tabId: string): void {
   updateThreadPreviewState(ref, (current) => {
     const suppressedTabIds = new Set(current.suppressedTabIds);
     suppressedTabIds.add(tabId);
@@ -445,7 +453,7 @@ export function cancelPreviewSessionClose(
   ref: ScopedThreadRef,
   snapshot: PreviewSessionSnapshot | null,
   tabId: string,
-) {
+): void {
   updateThreadPreviewState(ref, (current) => {
     if (!current.suppressedTabIds.has(tabId)) return current;
     const suppressedTabIds = new Set(current.suppressedTabIds);
@@ -469,7 +477,7 @@ export function cancelPreviewSessionClose(
   });
 }
 
-export function setActivePreviewTab(ref: ScopedThreadRef, tabId: string) {
+export function setActivePreviewTab(ref: ScopedThreadRef, tabId: string): void {
   updateThreadPreviewState(ref, (current) => {
     const snapshot = current.sessions[tabId];
     if (!snapshot || current.activeTabId === tabId) return current;
@@ -487,7 +495,7 @@ export function whenPreviewTabKnown(
   tabId: string,
   action: () => void,
   timeoutMs = 5_000,
-) {
+): () => void {
   const atom = previewStateAtom(scopedThreadKey(ref));
   if (appAtomRegistry.get(atom).sessions[tabId]) {
     action();
@@ -506,7 +514,7 @@ export function whenPreviewTabKnown(
   return stop;
 }
 
-export function rememberPreviewUrl(ref: ScopedThreadRef, url: string) {
+export function rememberPreviewUrl(ref: ScopedThreadRef, url: string): void {
   if (url.trim().length === 0) return;
   updateThreadPreviewState(ref, (current) => ({
     ...current,
@@ -514,18 +522,18 @@ export function rememberPreviewUrl(ref: ScopedThreadRef, url: string) {
   }));
 }
 
-export function isPreviewSupportedInRuntime() {
+export function isPreviewSupportedInRuntime(): boolean {
   if (typeof window === "undefined") return false;
   return Boolean(window.desktopBridge?.preview);
 }
 
-export function clearThreadPreviewState(ref: ScopedThreadRef) {
+export function clearThreadPreviewState(ref: ScopedThreadRef): void {
   updateThreadPreviewState(ref, (current) =>
     Object.keys(current.sessions).length === 0 ? current : EMPTY_THREAD_PREVIEW_STATE,
   );
 }
 
-export function resetPreviewStateForTests() {
+export function resetPreviewStateForTests(): void {
   for (const threadKey of appAtomRegistry.get(previewThreadRefsAtom).keys()) {
     appAtomRegistry.set(previewStateAtom(threadKey), EMPTY_THREAD_PREVIEW_STATE);
   }

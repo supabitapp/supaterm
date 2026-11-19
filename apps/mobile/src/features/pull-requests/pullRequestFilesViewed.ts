@@ -12,7 +12,10 @@ export interface ViewedState {
 }
 
 /** The pressed states the server's read has not caught up with yet. */
-export function viewedOverlay(presses: Readonly<Record<string, ViewedPress>>, reads: number) {
+export function viewedOverlay(
+  presses: Readonly<Record<string, ViewedPress>>,
+  reads: number,
+): Record<string, boolean> {
   const overlay: Record<string, boolean> = {};
   for (const [path, press] of Object.entries(presses))
     if (press.awaitingReadAfter === undefined || press.awaitingReadAfter === reads)

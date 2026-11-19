@@ -24,7 +24,7 @@ export const PROVIDER_STATUS_STYLES = {
 
 export type ProviderStatusKey = keyof typeof PROVIDER_STATUS_STYLES;
 
-function isAntigravitySignInUnchecked(provider: ServerProvider) {
+function isAntigravitySignInUnchecked(provider: ServerProvider): boolean {
   return (
     provider.driver === "antigravity" &&
     provider.installed &&
@@ -36,7 +36,7 @@ function isAntigravitySignInUnchecked(provider: ServerProvider) {
   );
 }
 
-export function getProviderStatusKey(provider: ServerProvider | undefined) {
+export function getProviderStatusKey(provider: ServerProvider | undefined): ProviderStatusKey {
   if (provider && !provider.enabled) return "disabled";
   if (provider && isAntigravitySignInUnchecked(provider)) return "neutral";
   return provider?.status ?? "warning";
@@ -121,7 +121,13 @@ export function getProviderVersionAdvisoryPresentation(
   advisory: ServerProviderVersionAdvisory | undefined,
   compatibility?: ServerProviderCompatibilityAdvisory | undefined,
   showCompatibility = true,
-) {
+): {
+  readonly title: string;
+  readonly detail: string;
+  readonly updateCommand: string | null;
+  readonly emphasis: "normal" | "strong";
+  readonly targetVersion: string | null;
+} | null {
   const latestIsIncompatible =
     compatibility?.latestVersionStatus === "broken" ||
     compatibility?.latestVersionStatus === "unsupported";
@@ -147,13 +153,7 @@ export function getProviderVersionAdvisoryPresentation(
           : (advisory?.updateCommand ?? null),
       emphasis: compatibility.status === "graceful" ? "normal" : "strong",
       targetVersion,
-    } satisfies {
-      readonly title: string;
-      readonly detail: string;
-      readonly updateCommand: string | null;
-      readonly emphasis: "normal" | "strong";
-      readonly targetVersion: string | null;
-    } | null;
+    };
   }
   if (
     !advisory ||
@@ -161,13 +161,7 @@ export function getProviderVersionAdvisoryPresentation(
     advisory.status === "unknown" ||
     latestIsIncompatible
   ) {
-    return null satisfies {
-      readonly title: string;
-      readonly detail: string;
-      readonly updateCommand: string | null;
-      readonly emphasis: "normal" | "strong";
-      readonly targetVersion: string | null;
-    } | null;
+    return null;
   }
 
   const label = "Update available";
@@ -184,11 +178,5 @@ export function getProviderVersionAdvisoryPresentation(
     updateCommand: advisory.updateCommand,
     emphasis: "normal" as const,
     targetVersion: null,
-  } satisfies {
-    readonly title: string;
-    readonly detail: string;
-    readonly updateCommand: string | null;
-    readonly emphasis: "normal" | "strong";
-    readonly targetVersion: string | null;
-  } | null;
+  };
 }

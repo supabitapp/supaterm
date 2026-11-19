@@ -97,7 +97,7 @@ describe.skipIf(HostProcess.Platform.defaultValue() !== "linux")("NonBlockingSpa
       const fileSystem = yield* FileSystem.FileSystem;
       const directory = yield* fileSystem.makeTempDirectoryScoped();
       const received: Array<ChildProcess.StandardCommand> = [];
-      const record = (command: ChildProcess.Command) => {
+      const record = (command: ChildProcess.Command): void => {
         if (command._tag === "StandardCommand") received.push(command);
         else [command.left, command.right].forEach(record);
       };

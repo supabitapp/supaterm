@@ -56,7 +56,7 @@ const modelSelection = {
   model: "claude-sonnet-4-6",
 };
 
-function frame(value: unknown) {
+function frame(value: unknown): SDKMessage {
   return value as SDKMessage;
 }
 

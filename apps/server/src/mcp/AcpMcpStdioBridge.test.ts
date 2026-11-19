@@ -38,9 +38,9 @@ function makeHarness(
 }
 
 function pendingFetch(started: Deferred.Deferred<AbortSignal | undefined>) {
-  return (_url: string, init?: RequestInit) => {
+  return (_url: string, init?: RequestInit): Promise<Response> => {
     Deferred.doneUnsafe(started, Effect.succeed(init?.signal ?? undefined));
-    return new Promise(() => {}) satisfies Promise<Response>;
+    return new Promise(() => {});
   };
 }
 

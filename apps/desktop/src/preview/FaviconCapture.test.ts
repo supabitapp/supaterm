@@ -26,7 +26,7 @@ function sourceGif(
     readonly width: number;
     readonly height: number;
   }> = [],
-) {
+): Buffer {
   const frames = [{ width: frameWidth, height: frameHeight }, ...additionalFrames];
   const buffer = Buffer.alloc(13 + frames.length * 12 + 1);
   buffer.write("GIF89a", 0, "ascii");
@@ -72,7 +72,7 @@ function sourceJpeg(
   width: number,
   height: number,
   orientations: number | ReadonlyArray<number> = [],
-) {
+): Buffer {
   const frame = Buffer.from([
     0xff,
     0xd8,
@@ -92,7 +92,7 @@ function sourceJpeg(
   return Buffer.concat([frame.subarray(0, 2), ...app1Segments, frame.subarray(2)]);
 }
 
-function sourceJpegApp1Segment(payload: Buffer) {
+function sourceJpegApp1Segment(payload: Buffer): Buffer {
   const app1 = Buffer.alloc(4 + payload.byteLength);
   app1[0] = 0xff;
   app1[1] = 0xe1;
@@ -108,7 +108,7 @@ function sourceJpegExifSegment(
     readonly magic?: number;
     readonly padding?: number;
   },
-) {
+): Buffer {
   const exif = Buffer.alloc(20 + orientations.length * 12);
   exif.write("Exif\0\0", 0, "binary");
   exif[5] = options?.padding ?? 0;
@@ -135,12 +135,12 @@ function sourceJpegWithApp1Segments(
   width: number,
   height: number,
   segments: ReadonlyArray<Buffer>,
-) {
+): Buffer {
   const frame = sourceJpeg(width, height);
   return Buffer.concat([frame.subarray(0, 2), ...segments, frame.subarray(2)]);
 }
 
-function sourceJpegExifWithOverlappingSubIfds(pointerCount: number, subIfdEntries: number) {
+function sourceJpegExifWithOverlappingSubIfds(pointerCount: number, subIfdEntries: number): Buffer {
   const rootIfdOffset = 14;
   const rootEntries = pointerCount + 1;
   const subIfdOffset = rootIfdOffset + 2 + rootEntries * 12 + 4;
@@ -165,7 +165,7 @@ function sourceJpegExifWithOverlappingSubIfds(pointerCount: number, subIfdEntrie
   return sourceJpegApp1Segment(exif);
 }
 
-function sourceWebp(width: number, height: number) {
+function sourceWebp(width: number, height: number): Buffer {
   const buffer = Buffer.alloc(30);
   buffer.write("RIFF", 0, "ascii");
   buffer.write("WEBP", 8, "ascii");
@@ -175,7 +175,7 @@ function sourceWebp(width: number, height: number) {
   return buffer;
 }
 
-function sourceIco(embedded: Buffer) {
+function sourceIco(embedded: Buffer): Buffer {
   const buffer = Buffer.alloc(22 + embedded.byteLength);
   buffer.writeUInt16LE(1, 2);
   buffer.writeUInt16LE(1, 4);
@@ -185,14 +185,14 @@ function sourceIco(embedded: Buffer) {
   return buffer;
 }
 
-function makeUnsafePng() {
+function makeUnsafePng(): Buffer {
   const buffer = Buffer.from(SOURCE_PNG);
   buffer.writeUInt32BE(4096, 16);
   buffer.writeUInt32BE(4096, 20);
   return buffer;
 }
 
-function makeUnsafeDib() {
+function makeUnsafeDib(): Buffer {
   const buffer = Buffer.alloc(40);
   buffer.writeUInt32LE(40, 0);
   buffer.writeInt32LE(4096, 4);

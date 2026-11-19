@@ -41,7 +41,7 @@ export const ReviewDraftDocument = Schema.Struct({
     }),
   ),
 });
-export function clearSubmittedReview(current: ReviewDraft, submitted: ReviewDraft) {
+export function clearSubmittedReview(current: ReviewDraft, submitted: ReviewDraft): ReviewDraft {
   return {
     ...current,
     summary: current.summary === submitted.summary ? "" : current.summary,

@@ -9,7 +9,7 @@ export function normalizeSearchQuery(
   options?: {
     trimLeadingPattern?: RegExp;
   },
-) {
+): string {
   const trimmed = input.trim();
   if (!trimmed) {
     return "";
@@ -23,7 +23,7 @@ export function scoreSubsequenceMatch(
   value: string,
   query: string,
   options?: { ignorePosition?: boolean },
-) {
+): number | null {
   if (!query) return 0;
 
   let queryIndex = 0;
@@ -58,11 +58,15 @@ export function scoreSubsequenceMatch(
   return null;
 }
 
-function lengthPenalty(value: string, query: string) {
+function lengthPenalty(value: string, query: string): number {
   return Math.min(64, Math.max(0, value.length - query.length));
 }
 
-function findBoundaryMatchIndex(value: string, query: string, boundaryMarkers: readonly string[]) {
+function findBoundaryMatchIndex(
+  value: string,
+  query: string,
+  boundaryMarkers: readonly string[],
+): number | null {
   let bestIndex: number | null = null;
 
   for (const marker of boundaryMarkers) {
@@ -91,7 +95,7 @@ export function scoreQueryMatch(input: {
   fuzzyBase?: number;
   boundaryMarkers?: readonly string[];
   ignorePosition?: boolean;
-}) {
+}): number | null {
   const { value, query } = input;
   const ignorePosition = input.ignorePosition === true;
   const penalty = ignorePosition ? 0 : lengthPenalty(value, query);
@@ -136,7 +140,10 @@ export function scoreQueryMatch(input: {
   return null;
 }
 
-function compareRankedSearchResults<T>(left: RankedSearchResult<T>, right: RankedSearchResult<T>) {
+function compareRankedSearchResults<T>(
+  left: RankedSearchResult<T>,
+  right: RankedSearchResult<T>,
+): number {
   const scoreDelta = left.score - right.score;
   if (scoreDelta !== 0) return scoreDelta;
   return left.tieBreaker.localeCompare(right.tieBreaker);
@@ -145,7 +152,7 @@ function compareRankedSearchResults<T>(left: RankedSearchResult<T>, right: Ranke
 function findInsertionIndex<T>(
   rankedEntries: RankedSearchResult<T>[],
   candidate: RankedSearchResult<T>,
-) {
+): number {
   let low = 0;
   let high = rankedEntries.length;
 
@@ -170,7 +177,7 @@ export function insertRankedSearchResult<T>(
   rankedEntries: RankedSearchResult<T>[],
   candidate: RankedSearchResult<T>,
   limit: number,
-) {
+): void {
   if (limit <= 0) {
     return;
   }

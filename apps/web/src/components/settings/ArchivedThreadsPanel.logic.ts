@@ -10,7 +10,7 @@ export function selectRow(
   key: string,
   orderedKeys: readonly string[],
   extend: boolean,
-) {
+): RowSelection {
   const anchorIndex = selection.anchor === null ? -1 : orderedKeys.indexOf(selection.anchor);
   const targetIndex = orderedKeys.indexOf(key);
   const keys = new Set(selection.keys);
@@ -28,7 +28,7 @@ export function setRowsSelected(
   selection: RowSelection,
   rowKeys: readonly string[],
   selected: boolean,
-) {
+): RowSelection {
   const keys = new Set(selection.keys);
   for (const key of rowKeys) {
     if (selected) keys.add(key);

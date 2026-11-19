@@ -25,33 +25,30 @@ export interface WorkspaceFocusTarget {
   restore?: boolean;
 }
 
-function workspaceArea(element: Element): HTMLElement | null;
-function workspaceArea(element: Element) {
+function workspaceArea(element: Element): HTMLElement | null {
   const area = element.closest<HTMLElement>(AREA_SELECTOR);
-  if (area) return area satisfies HTMLElement | null;
+  if (area) return area;
   const root = element.getRootNode();
-  return (
-    root instanceof ShadowRoot ? workspaceArea(root.host) : null
-  ) satisfies HTMLElement | null;
+  return root instanceof ShadowRoot ? workspaceArea(root.host) : null;
 }
 
-function areaPane(area: HTMLElement) {
+function areaPane(area: HTMLElement): HTMLElement | null {
   return area.closest<HTMLElement>(PANE_SELECTOR);
 }
 
-function areaKey(area: HTMLElement, name = area.dataset.workspaceArea!) {
+function areaKey(area: HTMLElement, name = area.dataset.workspaceArea!): string {
   const pane = areaPane(area)?.dataset.chatPane;
   return pane ? `${name}@${pane}` : name;
 }
 
-function pickArea(areas: ReadonlyArray<HTMLElement>, name: string) {
+function pickArea(areas: ReadonlyArray<HTMLElement>, name: string): HTMLElement | undefined {
   const named = areas.filter(
     (area) => area.dataset.workspaceArea === name || areaKey(area) === name,
   );
   return named.find((area) => areaPane(area)?.dataset.focused !== "false") ?? named[0];
 }
 
-function isWorkspaceElementVisible(element: HTMLElement) {
+function isWorkspaceElementVisible(element: HTMLElement): boolean {
   if (
     !element.isConnected ||
     element.closest(
@@ -379,7 +376,7 @@ export const getWorkspaceFocusRequestVersion = () => focusRequestVersion;
  * Starts workspace focus for the app: F6 area moves, focus requests, focus-loss recovery,
  * focus into a panel the user opens, and focus into the Pull requests page on entry.
  */
-export function startWorkspaceFocus(router: AnyRouter) {
+export function startWorkspaceFocus(router: AnyRouter): () => void {
   const active = createWorkspaceFocusController(document);
   controller = active;
   const stopPanels = useRightPanelStore.subscribe((state, previous) => {
@@ -405,9 +402,8 @@ export function startWorkspaceFocus(router: AnyRouter) {
 }
 
 /** Moves to the next or previous visible area. `fromArea` overrides the focused area. */
-export function moveWorkspaceFocus(direction: 1 | -1, fromArea?: string): boolean;
-export function moveWorkspaceFocus(direction: 1 | -1, fromArea?: string) {
-  return (controller?.move(direction, fromArea) ?? false) satisfies boolean;
+export function moveWorkspaceFocus(direction: 1 | -1, fromArea?: string): boolean {
+  return controller?.move(direction, fromArea) ?? false;
 }
 
 /** Explicit user actions request focus after React has committed the destination. */
@@ -426,7 +422,7 @@ export function queueWorkspaceFocusFromPalette(direction: 1 | -1) {
 }
 
 /** Runs at the palette's normal focus restoration milestone, after its focus trap closes. */
-export function restoreWorkspaceFocusFromPalette() {
+export function restoreWorkspaceFocusFromPalette(): boolean {
   if (pendingPaletteDirection === undefined) return false;
   const direction = pendingPaletteDirection;
   pendingPaletteDirection = undefined;

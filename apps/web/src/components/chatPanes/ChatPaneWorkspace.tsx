@@ -223,7 +223,7 @@ function trackOffset(tracks: PaneLayout["columns"], index: number) {
   return tracks.slice(0, index).reduce((sum, track) => sum + track.size, 0);
 }
 
-function paneChromeStyle(cell: PaneCell, layout: PaneLayout, split: boolean) {
+function paneChromeStyle(cell: PaneCell, layout: PaneLayout, split: boolean): CSSProperties {
   if (!split) return {};
   const top = cell.row === 0;
   const left = cell.column === 0;

@@ -1,5 +1,6 @@
 import {
   FileFinder,
+  type FileItem,
   type GrepCursor,
   type GrepOptions,
   type GrepResult,
@@ -37,7 +38,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-function fileItem(relativePath: string) {
+function fileItem(relativePath: string): FileItem {
   return {
     relativePath,
     fileName: relativePath.slice(relativePath.lastIndexOf("/") + 1),
@@ -87,10 +88,7 @@ it.live("image searches match the image subset of a file search without fetching
     const searchIndex = yield* WorkspaceSearchIndex.make(cwd);
     yield* searchIndex.search("", 200, undefined, true);
     const nativeResult = yield* Effect.promise(
-      () =>
-        fileSearch.mock.results[0]?.value satisfies ReturnType<
-          FileFinder["fileSearchAsync"]
-        > as ReturnType<FileFinder["fileSearchAsync"]>,
+      (): ReturnType<FileFinder["fileSearchAsync"]> => fileSearch.mock.results[0]?.value,
     );
     if (!nativeResult.ok) return yield* Effect.die(nativeResult.error);
     expect(nativeResult.value.items.length).toBeLessThanOrEqual(201);
@@ -231,7 +229,7 @@ it.effect("continues whole-word searches after a filtered grep page", () =>
         lineContent: string,
         matchRanges: Array<[number, number]>,
         cursor: GrepCursor | null,
-      ) => ({
+      ): GrepResult => ({
         items: [
           {
             relativePath: "src/words.ts",

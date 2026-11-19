@@ -11,12 +11,15 @@ export interface ComposerContextReference {
   label: string;
 }
 
-export function producerIdFromComposerContextId(kind: ComposerContextKind, contextId: string) {
+export function producerIdFromComposerContextId(
+  kind: ComposerContextKind,
+  contextId: string,
+): string {
   const prefix = `${kind}_`;
   return contextId.startsWith(prefix) ? contextId.slice(prefix.length) : contextId;
 }
 
-export function formatInlineContextReference(reference: ComposerContextReference) {
+export function formatInlineContextReference(reference: ComposerContextReference): string {
   return formatComposerContextReference({
     kind: reference.kind,
     contextId: reference.contextId as ComposerContextId,
@@ -24,18 +27,17 @@ export function formatInlineContextReference(reference: ComposerContextReference
   });
 }
 
-export function collectInlineContextIds(prompt: string): string[];
-export function collectInlineContextIds(prompt: string) {
+export function collectInlineContextIds(prompt: string): string[] {
   return Array.from(
     new Set(collectComposerContextReferences(prompt).map((occurrence) => occurrence.contextId)),
-  ) satisfies string[];
+  );
 }
 
-export function stripInlineContextReferences(prompt: string) {
+export function stripInlineContextReferences(prompt: string): string {
   return replaceComposerContextReferences(prompt, () => "");
 }
 
-function isBoundaryWhitespace(char: string | undefined) {
+function isBoundaryWhitespace(char: string | undefined): boolean {
   return char === undefined || char === " " || char === "\n" || char === "\t" || char === "\r";
 }
 
@@ -43,7 +45,7 @@ export function inlineContextReferenceReplacement(
   prompt: string,
   selection: { start: number; end: number },
   references: ReadonlyArray<ComposerContextReference>,
-) {
+): { start: number; end: number; text: string } {
   const start = Math.max(0, Math.min(prompt.length, Math.floor(selection.start)));
   const end = Math.max(start, Math.min(prompt.length, Math.floor(selection.end)));
   const needsLeadingSpace = !isBoundaryWhitespace(prompt[start - 1]);
@@ -58,7 +60,7 @@ export function insertInlineContextReference(
   prompt: string,
   cursorInput: number,
   reference: ComposerContextReference,
-) {
+): { prompt: string; cursor: number } {
   const edit = inlineContextReferenceReplacement(prompt, { start: cursorInput, end: cursorInput }, [
     reference,
   ]);
@@ -68,11 +70,17 @@ export function insertInlineContextReference(
   };
 }
 
-export function appendInlineContextReference(prompt: string, reference: ComposerContextReference) {
+export function appendInlineContextReference(
+  prompt: string,
+  reference: ComposerContextReference,
+): string {
   return insertInlineContextReference(prompt, prompt.length, reference).prompt;
 }
 
-export function removeInlineContextReference(prompt: string, contextId: string) {
+export function removeInlineContextReference(
+  prompt: string,
+  contextId: string,
+): { prompt: string; cursor: number } {
   const occurrences = collectComposerContextReferences(prompt).filter(
     (candidate) => candidate.contextId === contextId,
   );
@@ -96,11 +104,7 @@ export function removeInlineContextReference(prompt: string, contextId: string) 
 export function ensureInlineContextReferences(
   prompt: string,
   references: ReadonlyArray<ComposerContextReference>,
-): string;
-export function ensureInlineContextReferences(
-  prompt: string,
-  references: ReadonlyArray<ComposerContextReference>,
-) {
+): string {
   const referenced = new Set(collectInlineContextIds(prompt));
   let result = prompt;
   for (const reference of references) {
@@ -108,5 +112,5 @@ export function ensureInlineContextReferences(
     referenced.add(reference.contextId);
     result = appendInlineContextReference(result, reference);
   }
-  return result satisfies string;
+  return result;
 }

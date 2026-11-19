@@ -866,10 +866,7 @@ for (const { layout, pathNames, fallbackNames, expected } of [
   );
 }
 
-const withSystemBin: (path: Path.Path, systemBin: string) => Path.Path = (
-  path: Path.Path,
-  systemBin: string,
-) => ({
+const withSystemBin = (path: Path.Path, systemBin: string): Path.Path => ({
   ...path,
   join: (...parts) =>
     path.join(

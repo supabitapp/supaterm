@@ -207,7 +207,7 @@ export function McpAppFrame(props: {
 
   const attachFrame = (frame: HTMLIFrameElement) => {
     frameRef.current = frame;
-    const hostContext = () => {
+    const hostContext = (): McpAppHostContext => {
       const current = readLive();
       return {
         theme: current.theme.appearance,
@@ -233,7 +233,7 @@ export function McpAppFrame(props: {
         ...(current.toolDefinition === undefined
           ? {}
           : { toolInfo: { tool: current.toolDefinition } }),
-      } satisfies McpAppHostContext;
+      };
     };
 
     const ask = async (message: string) => {

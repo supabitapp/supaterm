@@ -72,7 +72,7 @@ export interface AgentSystemdScope {
 const quoteShell = (value: string) => `'${value.replaceAll("'", `'\\''`)}'`;
 
 /** An executable file for launchers that take a path, not a command line, such as Playwright. */
-export function agentScopeLauncherScript(launch: AgentScopeCommand) {
+export function agentScopeLauncherScript(launch: AgentScopeCommand): string {
   const command = [launch.command, ...launch.args].map(quoteShell).join(" ");
   return `#!/bin/sh\nexec ${command} "$@"\n`;
 }
@@ -82,7 +82,7 @@ export function agentScopeCommand(input: {
   readonly command: string;
   readonly args: ReadonlyArray<string>;
   readonly scope?: AgentSystemdScope | undefined;
-}) {
+}): AgentScopeCommand {
   const { command, args, scope } = input;
   if (scope === undefined) {
     return { command: "/bin/sh", args: ["-c", LAUNCH_SCRIPT, "supaterm-agent", command, ...args] };

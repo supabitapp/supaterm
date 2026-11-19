@@ -81,7 +81,7 @@ function makeProcess(options?: {
   readonly exitCode?: Effect.Effect<ChildProcessSpawner.ExitCode, PlatformError.PlatformError>;
   readonly kill?: ChildProcessSpawner.ChildProcessHandle["kill"];
   readonly getOutputFd?: ChildProcessSpawner.ChildProcessHandle["getOutputFd"];
-}) {
+}): ChildProcessSpawner.ChildProcessHandle {
   return ChildProcessSpawner.makeHandle({
     pid: ChildProcessSpawner.ProcessId(123),
     stdout: options?.stdout ?? Stream.empty,
@@ -97,7 +97,10 @@ function makeProcess(options?: {
   });
 }
 
-function responseForRequest(request: HttpClientRequest.HttpClientRequest, status: number) {
+function responseForRequest(
+  request: HttpClientRequest.HttpClientRequest,
+  status: number,
+): HttpClientResponse.HttpClientResponse {
   return HttpClientResponse.fromWeb(request, new Response(null, { status }));
 }
 

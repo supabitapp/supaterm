@@ -52,7 +52,7 @@ export class CodexAppServerReplayJsonParseError extends Schema.TaggedError<Codex
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Failed to parse outbound Codex app-server replay frame for scenario ${this.scenario}.`;
   }
 }
@@ -65,7 +65,7 @@ export class CodexAppServerReplayExhaustedError extends Schema.TaggedError<Codex
     actual: Schema.Unknown,
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Codex app-server replay transcript exhausted before outbound frame ${this.cursor} in scenario ${this.scenario}.`;
   }
 }
@@ -79,7 +79,7 @@ export class CodexAppServerReplayUnexpectedOutboundError extends Schema.TaggedEr
     actual: Schema.Unknown,
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Unexpected outbound Codex app-server frame at replay cursor ${this.cursor} in scenario ${this.scenario}.`;
   }
 }
@@ -94,7 +94,7 @@ export class CodexAppServerReplayFrameMismatchError extends Schema.TaggedError<C
     actual: Schema.Unknown,
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Outbound Codex app-server frame did not match replay cursor ${this.cursor} in scenario ${this.scenario}. Expected ${JSON.stringify(this.expected)}, received ${JSON.stringify(this.actual)}.`;
   }
 }
@@ -108,7 +108,7 @@ export class CodexAppServerReplayRuntimeExitError extends Schema.TaggedError<Cod
     error: Schema.optional(Schema.Unknown),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Codex app-server replay exited with status ${this.status} at cursor ${this.cursor} in scenario ${this.scenario}.`;
   }
 }
@@ -137,22 +137,21 @@ export interface CodexAppServerReplayDriver {
 
 const encoder = new TextEncoder();
 
-function stableStringify(value: unknown): string;
-function stableStringify(value: unknown) {
+function stableStringify(value: unknown): string {
   if (Array.isArray(value)) {
-    return `[${value.map(stableStringify).join(",")}]` satisfies string;
+    return `[${value.map(stableStringify).join(",")}]`;
   }
   if (typeof value === "object" && value !== null) {
     const record = value as Record<string, unknown>;
     return `{${Object.keys(record)
       .toSorted()
       .map((key) => `${JSON.stringify(key)}:${stableStringify(record[key])}`)
-      .join(",")}}` satisfies string;
+      .join(",")}}`;
   }
-  return JSON.stringify(value) satisfies string;
+  return JSON.stringify(value);
 }
 
-function normalizeContextHandoffText(value: string) {
+function normalizeContextHandoffText(value: string): string {
   if (!value.startsWith("Context handoff (")) {
     return value;
   }
@@ -165,16 +164,15 @@ function normalizeContextHandoffText(value: string) {
   return `${value.slice(0, headerEndIndex + 2)}<dynamic-summary>${value.slice(userMessageIndex)}`;
 }
 
-function normalizeReplayFrame(value: unknown): unknown;
-function normalizeReplayFrame(value: unknown) {
+function normalizeReplayFrame(value: unknown): unknown {
   if (typeof value === "string") {
-    return normalizeContextHandoffText(value) satisfies unknown;
+    return normalizeContextHandoffText(value);
   }
   if (typeof value !== "object" || value === null) {
-    return value satisfies unknown;
+    return value;
   }
   if (Array.isArray(value)) {
-    return value.map(normalizeReplayFrame) satisfies unknown;
+    return value.map(normalizeReplayFrame);
   }
 
   const record = value as Record<string, unknown>;
@@ -242,15 +240,15 @@ function normalizeReplayFrame(value: unknown) {
     normalized.params = params;
   }
 
-  return normalized satisfies unknown;
+  return normalized;
 }
 
-function recorderThreadConfigKeys(transcript: CodexAppServerReplayTranscript) {
+function recorderThreadConfigKeys(transcript: CodexAppServerReplayTranscript): ReadonlySet<string> {
   const keys = transcript.metadata?.recorderThreadConfigKeys;
   return new Set(Array.isArray(keys) ? keys.filter((key) => typeof key === "string") : []);
 }
 
-function normalizeThreadRequest(frame: unknown, ignoredConfigKeys: ReadonlySet<string>) {
+function normalizeThreadRequest(frame: unknown, ignoredConfigKeys: ReadonlySet<string>): unknown {
   if (typeof frame !== "object" || frame === null) return frame;
   const record = frame as Record<string, unknown>;
   if (
@@ -280,7 +278,7 @@ function sameFrame(
   left: unknown,
   right: unknown,
   ignoredConfigKeys: ReadonlySet<string> = new Set(),
-) {
+): boolean {
   const normalize = (frame: unknown) =>
     pipe(
       normalizeReplayFrame(frame),
@@ -290,13 +288,12 @@ function sameFrame(
   return normalize(left) === normalize(right);
 }
 
-function normalizeLegacyInboundFrame(value: unknown): unknown;
-function normalizeLegacyInboundFrame(value: unknown) {
+function normalizeLegacyInboundFrame(value: unknown): unknown {
   if (Array.isArray(value)) {
-    return value.map(normalizeLegacyInboundFrame) satisfies unknown;
+    return value.map(normalizeLegacyInboundFrame);
   }
   if (typeof value !== "object" || value === null) {
-    return value satisfies unknown;
+    return value;
   }
   const record = value as Record<string, unknown>;
   const normalized = Object.fromEntries(
@@ -347,21 +344,25 @@ function normalizeLegacyInboundFrame(value: unknown) {
     }
     normalized.params = params;
   }
-  return normalized satisfies unknown;
+  return normalized;
 }
 
-function encodeInboundFrame(frame: unknown) {
+function encodeInboundFrame(frame: unknown): Uint8Array {
   return encoder.encode(`${JSON.stringify(normalizeLegacyInboundFrame(frame))}\n`);
 }
 
-function replayTransportError(error: CodexAppServerReplayError) {
+function replayTransportError(
+  error: CodexAppServerReplayError,
+): CodexError.CodexAppServerTransportError {
   return new CodexError.CodexAppServerTransportError({
     operation: "read-input-stream",
     cause: error,
   });
 }
 
-export function layerReplay(transcript: CodexAppServerReplayTranscript) {
+export function layerReplay(
+  transcript: CodexAppServerReplayTranscript,
+): Layer.Layer<CodexClient.CodexAppServerClient, CodexAppServerReplayError> {
   return Layer.effect(CodexClient.CodexAppServerClient, makeReplayClient(transcript));
 }
 
@@ -378,7 +379,9 @@ export const makeReplayDriver = Effect.fn("effect-codex-app-server/replay.makeRe
   },
 );
 
-export function layerReplayWithDriver(driver: CodexAppServerReplayDriver) {
+export function layerReplayWithDriver(
+  driver: CodexAppServerReplayDriver,
+): Layer.Layer<CodexClient.CodexAppServerClient, CodexAppServerReplayError> {
   return Layer.effect(CodexClient.CodexAppServerClient, makeReplayClientWithState(driver));
 }
 

@@ -14,7 +14,7 @@ const defaultComponents = {
   }: {
     className?: string;
     orientation?: "left" | "right" | "up" | "down";
-  }) => {
+  }): React.ReactElement => {
     if (orientation === "left") {
       return (
         <ChevronLeftIcon
@@ -46,7 +46,7 @@ export function Calendar({
   components: userComponents,
   mode = "single",
   ...props
-}: React.ComponentProps<typeof DayPicker>) {
+}: React.ComponentProps<typeof DayPicker>): React.ReactElement {
   const defaultClassNames = {
     button_next: buttonClassNames,
     button_previous: buttonClassNames,

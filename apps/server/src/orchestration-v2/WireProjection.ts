@@ -30,7 +30,10 @@ const MAX_ON_DEMAND_BYTES = 256 * 1024;
 const TRUNCATION_MARKER = "\n… output truncated for transport";
 const TRUNCATION_MARKER_BYTES = Buffer.byteLength(TRUNCATION_MARKER, "utf8");
 
-function truncateDetail(value: string | undefined, maxBytes = MAX_DETAIL_STRING_BYTES) {
+function truncateDetail(
+  value: string | undefined,
+  maxBytes = MAX_DETAIL_STRING_BYTES,
+): string | undefined {
   if (
     value === undefined ||
     (value.length <= maxBytes && Buffer.byteLength(value, "utf8") <= maxBytes)
@@ -46,7 +49,7 @@ function truncateDetail(value: string | undefined, maxBytes = MAX_DETAIL_STRING_
 }
 
 /** Bound stored diffs to the client wire limit to avoid retaining invisible data in SQLite and heap. */
-export function boundFileChangeForStorage(item: OrchestrationV2TurnItem) {
+export function boundFileChangeForStorage(item: OrchestrationV2TurnItem): OrchestrationV2TurnItem {
   if (item.type !== "file_change") return item;
   const { diffStr, oldStr, newStr } = item;
   const bounded = {
@@ -60,7 +63,7 @@ export function boundFileChangeForStorage(item: OrchestrationV2TurnItem) {
     : bounded;
 }
 
-function summarizeDynamicValue(value: unknown) {
+function summarizeDynamicValue(value: unknown): unknown {
   let serialized: string;
   try {
     if (typeof value === "string" && value.length > MAX_DYNAMIC_VALUE_BYTES) {
@@ -103,7 +106,7 @@ type CheckpointFiles = Pick<OrchestrationV2Checkpoint, "files" | "filesTotal">;
 
 const cappedCheckpointFiles = new WeakMap<object, object>();
 
-function capCheckpointFiles<T extends CheckpointFiles>(value: T) {
+function capCheckpointFiles<T extends CheckpointFiles>(value: T): T {
   if (value.files.length <= MAX_WIRE_CHECKPOINT_FILES || value.filesTotal !== undefined) {
     return value;
   }
@@ -125,7 +128,9 @@ function capCheckpointFiles<T extends CheckpointFiles>(value: T) {
 }
 
 /** Idempotent; bounded snapshots that skip `projectThreadProjectionForWire` still need it. */
-export function capProjectionCheckpointFilesForWire(projection: OrchestrationV2ThreadProjection) {
+export function capProjectionCheckpointFilesForWire(
+  projection: OrchestrationV2ThreadProjection,
+): OrchestrationV2ThreadProjection {
   const checkpoints = projection.checkpoints.map(capCheckpointFiles);
   const turnItems = projection.turnItems.map(capCheckpointItemFiles);
   const visibleTurnItems = projection.visibleTurnItems.map((row) => {
@@ -141,18 +146,17 @@ export function capProjectionCheckpointFilesForWire(projection: OrchestrationV2T
     : { ...projection, checkpoints, turnItems, visibleTurnItems };
 }
 
-function capCheckpointItemFiles(item: OrchestrationV2TurnItem) {
+function capCheckpointItemFiles(item: OrchestrationV2TurnItem): OrchestrationV2TurnItem {
   return item.type === "checkpoint" ? capCheckpointFiles(item) : item;
 }
 
-export function projectTurnItemForWire(item: OrchestrationV2TurnItem): OrchestrationV2TurnItem;
-export function projectTurnItemForWire(item: OrchestrationV2TurnItem) {
+export function projectTurnItemForWire(item: OrchestrationV2TurnItem): OrchestrationV2TurnItem {
   switch (item.type) {
     case "checkpoint":
-      return capCheckpointFiles(item) satisfies OrchestrationV2TurnItem;
+      return capCheckpointFiles(item);
     case "handoff": {
       const { summary: _summary, ...projected } = item;
-      return projected satisfies OrchestrationV2TurnItem;
+      return projected;
     }
     case "command_execution": {
       const { output, ...projected } = item;
@@ -166,15 +170,13 @@ export function projectTurnItemForWire(item: OrchestrationV2TurnItem) {
         ...projected,
         ...(failed ? { outputIndicatesFailure: true } : {}),
         ...(output?.trim() ? { outputOmitted: true } : {}),
-      } satisfies OrchestrationV2TurnItem;
+      };
     }
     case "file_change": {
       const { diffStr, oldStr: _old, newStr: _new, ...projected } = item;
-      return (
-        item.status === "failed" && diffStr?.trim()
-          ? { ...projected, diffStr: truncateDetail(diffStr) }
-          : projected
-      ) satisfies OrchestrationV2TurnItem;
+      return item.status === "failed" && diffStr?.trim()
+        ? { ...projected, diffStr: truncateDetail(diffStr) }
+        : projected;
     }
     case "subagent":
       return {
@@ -182,7 +184,7 @@ export function projectTurnItemForWire(item: OrchestrationV2TurnItem) {
         prompt: truncateDetail(item.prompt) ?? "",
         progress: truncateDetail(item.progress),
         result: item.result === null ? null : (truncateDetail(item.result) ?? null),
-      } satisfies OrchestrationV2TurnItem;
+      };
     case "dynamic_tool": {
       const { output: rawOutput, ...projected } = item;
       const output = compactDynamicToolOutput(rawOutput);
@@ -193,21 +195,21 @@ export function projectTurnItemForWire(item: OrchestrationV2TurnItem) {
         ...(outputImageCount > 0 ? { outputImageCount } : {}),
         ...(output === undefined ? {} : { output }),
         ...(hasDynamicValue(rawOutput) ? { outputOmitted: true } : {}),
-      } satisfies OrchestrationV2TurnItem;
+      };
     }
     default:
-      return item satisfies OrchestrationV2TurnItem;
+      return item;
   }
 }
 
-function hasDynamicValue(value: unknown) {
+function hasDynamicValue(value: unknown): boolean {
   if (value === undefined || value === null) return false;
   if (typeof value === "string") return value.trim().length > 0;
   if (Array.isArray(value)) return value.length > 0;
   return typeof value !== "object" || Object.keys(value).length > 0;
 }
 
-function boundDynamicValue(value: unknown) {
+function boundDynamicValue(value: unknown): unknown {
   if (value === undefined) return value;
   if (typeof value === "string") return truncateDetail(value, MAX_ON_DEMAND_BYTES);
   let json: string;
@@ -221,7 +223,7 @@ function boundDynamicValue(value: unknown) {
     : truncateDetail(json, MAX_ON_DEMAND_BYTES);
 }
 
-function boundToolResult(output: unknown) {
+function boundToolResult(output: unknown): unknown {
   const omitted = omitToolOutputImageData(output);
   const bounded = boundDynamicValue(omitted);
   if (typeof bounded !== "string" || typeof omitted === "string") return bounded;
@@ -234,7 +236,7 @@ function boundToolResult(output: unknown) {
       ];
 }
 
-function boundToolOutput(output: unknown) {
+function boundToolOutput(output: unknown): unknown {
   if (typeof output !== "object" || output === null || !("result" in output)) {
     return boundToolResult(output);
   }
@@ -248,7 +250,7 @@ function boundToolOutput(output: unknown) {
   };
 }
 
-export function projectTurnItemForDetail(item: OrchestrationV2TurnItem) {
+export function projectTurnItemForDetail(item: OrchestrationV2TurnItem): OrchestrationV2TurnItem {
   switch (item.type) {
     case "command_execution":
       return {
@@ -292,13 +294,14 @@ export function projectTurnItemForDetail(item: OrchestrationV2TurnItem) {
 
 export function projectContextHandoffForWire(
   handoff: OrchestrationV2ContextHandoff,
-): OrchestrationV2ContextHandoff;
-export function projectContextHandoffForWire(handoff: OrchestrationV2ContextHandoff) {
+): OrchestrationV2ContextHandoff {
   const { history: _history, delivery: _delivery, ...projected } = handoff;
-  return { ...projected, summaryText: "" } satisfies OrchestrationV2ContextHandoff;
+  return { ...projected, summaryText: "" };
 }
 
-export function projectThreadProjectionForWire(projection: OrchestrationV2ThreadProjection) {
+export function projectThreadProjectionForWire(
+  projection: OrchestrationV2ThreadProjection,
+): OrchestrationV2ThreadProjection {
   const projectedById = new Map<string, OrchestrationV2TurnItem>();
   const project = (item: OrchestrationV2TurnItem) => {
     const key = `${item.threadId}:${item.id}`;
@@ -320,7 +323,9 @@ export function projectThreadProjectionForWire(projection: OrchestrationV2Thread
   };
 }
 
-export function projectDomainEventForWire(event: OrchestrationV2DomainEvent) {
+export function projectDomainEventForWire(
+  event: OrchestrationV2DomainEvent,
+): OrchestrationV2DomainEvent {
   return event.type === "turn-item.updated"
     ? { ...event, payload: projectTurnItemForWire(event.payload) }
     : event.type === "context-handoff.updated"
@@ -332,7 +337,9 @@ export function projectDomainEventForWire(event: OrchestrationV2DomainEvent) {
 
 const projectedStoredEvents = new WeakMap<OrchestrationV2StoredEvent, OrchestrationV2StoredEvent>();
 
-export function projectStoredEventForWire(stored: OrchestrationV2StoredEvent) {
+export function projectStoredEventForWire(
+  stored: OrchestrationV2StoredEvent,
+): OrchestrationV2StoredEvent {
   const cached = projectedStoredEvents.get(stored);
   if (cached !== undefined) return cached;
   const event = projectDomainEventForWire(stored.event);
@@ -347,7 +354,7 @@ type ThreadStreamEvent = Extract<OrchestrationV2ThreadStreamItem, { readonly kin
 const threadStreamEvents = new WeakMap<OrchestrationV2StoredEvent, ThreadStreamEvent>();
 
 /** For an event already projected for the wire; subscribers share the item and its cached size. */
-export function threadStreamEventItem(stored: OrchestrationV2StoredEvent) {
+export function threadStreamEventItem(stored: OrchestrationV2StoredEvent): ThreadStreamEvent {
   const cached = threadStreamEvents.get(stored);
   if (cached !== undefined) return cached;
   const item = { kind: "event" as const, sequence: stored.sequence, event: stored.event };
@@ -357,8 +364,7 @@ export function threadStreamEventItem(stored: OrchestrationV2StoredEvent) {
 
 const LIVE_DEDUPE_MEMORY = 32;
 
-function remember<K, V>(memory: Map<K, V>, key: K, value: V): void;
-function remember<K, V>(memory: Map<K, V>, key: K, value: V) {
+function remember<K, V>(memory: Map<K, V>, key: K, value: V): void {
   memory.delete(key);
   memory.set(key, value);
   if (memory.size > LIVE_DEDUPE_MEMORY) memory.delete(memory.keys().next().value as K);
@@ -372,8 +378,7 @@ function remember<K, V>(memory: Map<K, V>, key: K, value: V) {
  */
 export function makeLiveBodyDeduper(): (
   item: OrchestrationV2ThreadStreamItem,
-) => OrchestrationV2ThreadStreamItem;
-export function makeLiveBodyDeduper() {
+) => OrchestrationV2ThreadStreamItem {
   const messageText = new Map<MessageId, string>();
   const checkpointFiles = new Map<CheckpointId, OrchestrationV2Checkpoint["files"]>();
   const subagents = new Map<NodeId, Pick<OrchestrationV2Subagent, "prompt" | "result">>();
@@ -384,7 +389,7 @@ export function makeLiveBodyDeduper() {
   };
   const rememberSubagent = ({ id, prompt, result }: OrchestrationV2Subagent) =>
     remember(subagents, id, { prompt, result });
-  return ((item) => {
+  return (item) => {
     if (item.kind === "snapshot") {
       const { messages, checkpoints, subagents: records } = item.projection;
       for (const message of messages) remember(messageText, message.id, message.text);
@@ -414,5 +419,5 @@ export function makeLiveBodyDeduper() {
       default:
         return item;
     }
-  }) satisfies (item: OrchestrationV2ThreadStreamItem) => OrchestrationV2ThreadStreamItem;
+  };
 }

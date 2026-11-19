@@ -4,11 +4,13 @@ import * as NodePath from "node:path";
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { it } from "@effect/vitest";
-import { CheckpointRef, ThreadId } from "@supaterm/contracts";
+import { CheckpointRef, ThreadId, type VcsError } from "@supaterm/contracts";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
+import * as PlatformError from "effect/PlatformError";
+import * as Scope from "effect/Scope";
 import { describe, expect } from "vite-plus/test";
 
 import * as Base64Url from "effect/encoding/Base64Url";
@@ -18,7 +20,7 @@ import * as VcsDriverRegistry from "../vcs/VcsDriverRegistry.ts";
 import * as VcsProcess from "../vcs/VcsProcess.ts";
 import * as ServerConfig from "../config.ts";
 
-function checkpointRefForThreadTurn(threadId: ThreadId, turnCount: number) {
+function checkpointRefForThreadTurn(threadId: ThreadId, turnCount: number): CheckpointRef {
   return CheckpointRef.make(
     `refs/supaterm/checkpoints/${Base64Url.encode(threadId)}/turn/${turnCount}`,
   );
@@ -42,14 +44,19 @@ const layerTest = layerCheckpointStoreTest.pipe(
   Layer.provideMerge(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer)),
 );
 
-function makeTmpDir(prefix = "checkpoint-store-test-") {
+function makeTmpDir(
+  prefix = "checkpoint-store-test-",
+): Effect.Effect<string, PlatformError.PlatformError, FileSystem.FileSystem | Scope.Scope> {
   return Effect.gen(function* () {
     const fileSystem = yield* FileSystem.FileSystem;
     return yield* fileSystem.makeTempDirectoryScoped({ prefix });
   });
 }
 
-function writeTextFile(filePath: string, contents: string) {
+function writeTextFile(
+  filePath: string,
+  contents: string,
+): Effect.Effect<void, PlatformError.PlatformError, FileSystem.FileSystem> {
   return Effect.gen(function* () {
     const fileSystem = yield* FileSystem.FileSystem;
     yield* fileSystem.writeFileString(filePath, contents);
@@ -60,7 +67,7 @@ function git(
   cwd: string,
   args: ReadonlyArray<string>,
   options: { readonly committedAt?: string; readonly allowNonZeroExit?: boolean } = {},
-) {
+): Effect.Effect<string, VcsError, VcsProcess.VcsProcess> {
   return Effect.gen(function* () {
     const vcsProcess = yield* VcsProcess.VcsProcess;
     const result = yield* vcsProcess.run({
@@ -80,7 +87,13 @@ function git(
   });
 }
 
-function initRepoWithCommit(cwd: string) {
+function initRepoWithCommit(
+  cwd: string,
+): Effect.Effect<
+  void,
+  VcsError | PlatformError.PlatformError,
+  VcsProcess.VcsProcess | FileSystem.FileSystem
+> {
   return Effect.gen(function* () {
     yield* git(cwd, ["init"]);
     yield* git(cwd, ["config", "user.email", "test@test.com"]);
@@ -91,7 +104,7 @@ function initRepoWithCommit(cwd: string) {
   });
 }
 
-function buildLargeText(lineCount = 5_000) {
+function buildLargeText(lineCount = 5_000): string {
   return Array.from({ length: lineCount }, (_, index) => `line ${String(index).padStart(5, "0")}`)
     .join("\n")
     .concat("\n");

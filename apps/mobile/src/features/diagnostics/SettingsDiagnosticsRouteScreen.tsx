@@ -31,17 +31,14 @@ type CrashLogState =
 
 const crashLogAtom = Atom.make(
   Effect.tryPromise(() => Updates.readLogEntriesAsync(LOG_WINDOW_MS)).pipe(
-    Effect.map(
-      (entries) =>
-        ({
-          status: "ready",
-          records: parseStartupCrashRecords(entries),
-        }) satisfies CrashLogState,
-    ),
+    Effect.map((entries): CrashLogState => ({
+      status: "ready",
+      records: parseStartupCrashRecords(entries),
+    })),
     Effect.catch((error) =>
-      Effect.sync(() => {
+      Effect.sync((): CrashLogState => {
         console.warn("[diagnostics] could not read the expo-updates log", error);
-        return { status: "unavailable" } satisfies CrashLogState;
+        return { status: "unavailable" };
       }),
     ),
   ),
@@ -51,12 +48,9 @@ const UNAVAILABLE_CRASH_LOG_ATOM = Atom.make(
   AsyncResult.success<CrashLogState>({ status: "unavailable" }),
 );
 
-function useCrashLogState(): CrashLogState;
-function useCrashLogState() {
+function useCrashLogState(): CrashLogState {
   const result = useAtomValue(Updates.isEnabled ? crashLogAtom : UNAVAILABLE_CRASH_LOG_ATOM);
-  return (
-    AsyncResult.isSuccess(result) ? result.value : { status: "loading" }
-  ) satisfies CrashLogState;
+  return AsyncResult.isSuccess(result) ? result.value : { status: "loading" };
 }
 
 function appIdentity() {

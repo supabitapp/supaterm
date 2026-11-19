@@ -6,7 +6,7 @@ import { editingQueuedMessageIdsAtom } from "./use-thread-outbox";
 function withUploadedAttachments(
   message: QueuedThreadMessage,
   uploaded: ReadonlyArray<DraftComposerAttachment>,
-) {
+): QueuedThreadMessage | null {
   const uploadedById = new Map(uploaded.map((attachment) => [attachment.id, attachment] as const));
   let changed = false;
   const attachments = message.attachments.map((attachment) => {
@@ -36,7 +36,7 @@ function withUploadedAttachments(
 export async function recordQueuedAttachmentUploads(
   messageId: QueuedThreadMessage["messageId"],
   uploaded: ReadonlyArray<DraftComposerAttachment>,
-) {
+): Promise<QueuedThreadMessage | null> {
   await threadOutboxManager.amend(messageId, (current) =>
     appAtomRegistry.get(editingQueuedMessageIdsAtom)[messageId]
       ? null

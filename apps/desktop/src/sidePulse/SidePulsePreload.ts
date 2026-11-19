@@ -4,10 +4,8 @@ import { ipcRenderer } from "electron";
 import * as IpcChannels from "./SidePulseChannels.ts";
 
 /** SidePulse mounts as a removable volume, which Supaterm only looks for on macOS and Linux. */
-export function makeSidePulseBridge(platform: NodeJS.Platform): DesktopSidePulseBridge | undefined;
-export function makeSidePulseBridge(platform: NodeJS.Platform) {
-  if (platform !== "darwin" && platform !== "linux")
-    return undefined satisfies DesktopSidePulseBridge | undefined;
+export function makeSidePulseBridge(platform: NodeJS.Platform): DesktopSidePulseBridge | undefined {
+  if (platform !== "darwin" && platform !== "linux") return undefined;
   return {
     getState: () => ipcRenderer.invoke(IpcChannels.SIDE_PULSE_GET_STATE_CHANNEL),
     onStateChange: (listener) => {
@@ -24,5 +22,5 @@ export function makeSidePulseBridge(platform: NodeJS.Platform) {
     getEjectGuardStatus: () => ipcRenderer.invoke(IpcChannels.SIDE_PULSE_GET_EJECT_GUARD_CHANNEL),
     setEjectGuardInstalled: (installed) =>
       ipcRenderer.invoke(IpcChannels.SIDE_PULSE_SET_EJECT_GUARD_CHANNEL, installed),
-  } satisfies DesktopSidePulseBridge | undefined;
+  };
 }

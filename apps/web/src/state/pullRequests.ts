@@ -40,6 +40,7 @@ import { connectionAtomRuntime } from "../connection/runtime";
 import { appAtomRegistry } from "../rpc/atomRegistry";
 import {
   mergePullRequestLists,
+  type EnvironmentPullRequestStat,
   type MergedPullRequestList,
 } from "../components/pullRequest/pullRequestList.logic";
 import { writePullRequestDetailSnapshot } from "../components/pullRequest/pullRequestDetail.logic";
@@ -54,7 +55,7 @@ export interface ObservedPullRequestSummary {
   readonly observedAt: number;
 }
 
-function compareSummaries(current: PullRequestSummary, incoming: PullRequestSummary) {
+function compareSummaries(current: PullRequestSummary, incoming: PullRequestSummary): number {
   const merged = Number(incoming.state === "merged") - Number(current.state === "merged");
   if (merged !== 0) return merged;
   const updated = Date.parse(incoming.updatedAt) - Date.parse(current.updatedAt);
@@ -66,7 +67,7 @@ function compareSummaries(current: PullRequestSummary, incoming: PullRequestSumm
 export function newestPullRequestSummary(
   current: PullRequestSummary | null,
   observed: PullRequestSummary | null,
-) {
+): PullRequestSummary | null {
   if (current === null) return observed;
   if (observed === null) return current;
   return compareSummaries(current, observed) >= 0 ? observed : current;
@@ -79,7 +80,7 @@ export function newestDisplayedPullRequestSummary(
   shared: PullRequestSummary | null,
   reference: PullRequestRef,
   edits: ReadonlyArray<PullRequestPendingEdit>,
-) {
+): PullRequestSummary | null {
   return applyPullRequestSummaryEdits(
     reference,
     fromSnapshot
@@ -89,7 +90,7 @@ export function newestDisplayedPullRequestSummary(
   );
 }
 
-export function pullRequestListEntryToSummary(entry: PullRequestListEntry) {
+export function pullRequestListEntryToSummary(entry: PullRequestListEntry): PullRequestSummary {
   return {
     provider: entry.provider,
     projectId: entry.projectId,
@@ -110,7 +111,7 @@ export function pullRequestListEntryToSummary(entry: PullRequestListEntry) {
   };
 }
 
-function pullRequestSummaryKey(environmentId: EnvironmentId, reference: PullRequestRef) {
+function pullRequestSummaryKey(environmentId: EnvironmentId, reference: PullRequestRef): string {
   return JSON.stringify([
     environmentId,
     reference.projectId,
@@ -122,7 +123,7 @@ function pullRequestSummaryKey(environmentId: EnvironmentId, reference: PullRequ
 export function newestPullRequestObservation(
   current: ObservedPullRequestSummary | null,
   incoming: ObservedPullRequestSummary | null,
-) {
+): ObservedPullRequestSummary | null {
   if (current === null) return incoming;
   if (incoming === null) return current;
   let order = compareSummaries(current.summary, incoming.summary);
@@ -182,7 +183,7 @@ const pullRequestObservationsAtom = Atom.family((key: string) =>
 export function observePullRequestChecks(
   current: PullRequestObservations,
   incoming: ObservedPullRequestChecks,
-) {
+): PullRequestObservations {
   const previous = current.checks;
   const newer =
     previous === null ||
@@ -195,7 +196,7 @@ export function observePullRequestChecks(
 export function observePullRequestMetadata(
   current: PullRequestObservations,
   incoming: ObservedPullRequestSummary,
-) {
+): PullRequestObservations {
   const metadata = newestPullRequestObservation(current.metadata, incoming);
   const next = metadata === current.metadata ? current : { ...current, metadata };
   const { checksState } = incoming.summary;
@@ -208,7 +209,9 @@ export function observePullRequestMetadata(
       });
 }
 
-export function observedPullRequestSummary(observations: PullRequestObservations) {
+export function observedPullRequestSummary(
+  observations: PullRequestObservations,
+): PullRequestSummary | null {
   const { metadata, checks } = observations;
   if (metadata === null) return null;
   return checks === null
@@ -220,7 +223,7 @@ function recordObservation(
   registry: AtomRegistry.AtomRegistry,
   key: string,
   observe: (current: PullRequestObservations) => PullRequestObservations,
-) {
+): void {
   registry.modify(pullRequestObservationsAtom(key), (previous) => {
     const next = observe(previous);
     return next === previous ? [false, previous] : [true, next];
@@ -232,13 +235,13 @@ function observePullRequestSummary(
   key: string,
   summary: PullRequestSummary,
   observedAt: number,
-) {
+): void {
   recordObservation(registry, key, (current) =>
     observePullRequestMetadata(current, { summary, observedAt }),
   );
 }
 
-function snapshotStorage() {
+function snapshotStorage(): Storage | undefined {
   if (typeof window === "undefined") return undefined;
   try {
     return window.localStorage;
@@ -272,10 +275,10 @@ function readListScope(storage: ListAnswerStorage | undefined, key: string) {
   try {
     raw = storage?.getItem(key) ?? null;
   } catch {}
-  return Option.getOrElse(decodeListScope(raw), () => ({}));
+  return Option.getOrElse(decodeListScope(raw), (): Record<string, PullRequestListResult> => ({}));
 }
 
-function sweepLegacySnapshots(storage: ListAnswerStorage) {
+function sweepLegacySnapshots(storage: ListAnswerStorage): void {
   if (sweptStorages.has(storage)) return;
   sweptStorages.add(storage);
   const legacy: string[] = [];
@@ -296,12 +299,7 @@ export function rememberPullRequestListAnswer(
   storage: ListAnswerStorage | undefined,
   target: EnvironmentQueryTarget<PullRequestListInput>,
   answer: PullRequestListResult,
-): void;
-export function rememberPullRequestListAnswer(
-  storage: ListAnswerStorage | undefined,
-  target: EnvironmentQueryTarget<PullRequestListInput>,
-  answer: PullRequestListResult,
-) {
+): void {
   const { input } = target;
   if (storage === undefined || input.query !== undefined || input.cursors !== undefined) return;
   if (input.limit !== undefined && input.limit > LIST_ANSWER_MAX_ENTRIES) return;
@@ -345,11 +343,7 @@ export function rememberPullRequestListAnswer(
 export function restorePullRequestList(
   storage: ListAnswerStorage | undefined,
   targets: ReadonlyArray<EnvironmentQueryTarget<PullRequestListInput>>,
-): MergedPullRequestList | null;
-export function restorePullRequestList(
-  storage: ListAnswerStorage | undefined,
-  targets: ReadonlyArray<EnvironmentQueryTarget<PullRequestListInput>>,
-) {
+): MergedPullRequestList | null {
   const scopes = new Map<string, Record<string, PullRequestListResult>>();
   const answers: Array<readonly [EnvironmentId, PullRequestListResult]> = [];
   for (const target of targets) {
@@ -360,7 +354,7 @@ export function restorePullRequestList(
     if (answer !== undefined) answers.push([target.environmentId, answer]);
   }
   const merged = mergePullRequestLists(answers);
-  if (merged === null) return null satisfies MergedPullRequestList | null;
+  if (merged === null) return null;
   const seen = new Set<string>();
   const entries = merged.entries.filter((entry) => {
     const key = `${entry.host}:${entry.repository}#${entry.number}`;
@@ -368,12 +362,12 @@ export function restorePullRequestList(
     seen.add(key);
     return true;
   });
-  return { ...merged, entries } satisfies MergedPullRequestList | null;
+  return { ...merged, entries };
 }
 
 export function restoredPullRequestList(
   targets: ReadonlyArray<EnvironmentQueryTarget<PullRequestListInput>>,
-) {
+): MergedPullRequestList | null {
   return restorePullRequestList(snapshotStorage(), targets);
 }
 
@@ -492,7 +486,10 @@ export const linkedPullRequestDetailAtom = createLinkedPullRequestSummaryAtomFam
     ),
 );
 
-export function threadPullRequestLinkToSummary(link: ThreadPullRequestLink, projectId: ProjectId) {
+export function threadPullRequestLinkToSummary(
+  link: ThreadPullRequestLink,
+  projectId: ProjectId,
+): PullRequestSummary | null {
   const updatedAt = link.snapshot?.updatedAt;
   if (link.snapshot === null || updatedAt == null) return null;
   return {
@@ -511,7 +508,7 @@ export function threadPullRequestLinkToSummary(link: ThreadPullRequestLink, proj
 function savedPullRequestKey(
   environmentId: EnvironmentId,
   reference: Pick<PullRequestRef, "host" | "repository" | "number">,
-) {
+): string {
   return reference.host === undefined
     ? ""
     : `${environmentId}:${threadPullRequestKeyOf({ ...reference, host: reference.host })}`;
@@ -541,7 +538,7 @@ export function observedPullRequestTitle(
   registry: AtomRegistry.AtomRegistry,
   environmentId: EnvironmentId,
   reference: PullRequestRef,
-) {
+): string | null {
   return (
     registry.get(pullRequestObservationsAtom(pullRequestSummaryKey(environmentId, reference)))
       .metadata?.summary.title ?? null
@@ -552,7 +549,7 @@ export function observedPullRequestTitle(
 export function useSharedPullRequestSummary(
   environmentId: EnvironmentId | null,
   reference: PullRequestRef | null,
-) {
+): PullRequestSummary | null {
   const key =
     environmentId === null || reference === null
       ? "none"
@@ -600,7 +597,7 @@ const isFailedList = Schema.is(PullRequestOperationError);
 
 export function observeFailedPullRequestList(
   result: AsyncResult.Failure<PullRequestListResult, unknown>,
-) {
+): { readonly value: PullRequestListResult; readonly observedAt: number } | undefined {
   if (result.waiting) return undefined;
   const error = Option.getOrNull(Cause.findErrorOption(result.cause));
   if ((!isUnavailableList(error) && !isFailedList(error)) || error.listResult === undefined) {
@@ -624,7 +621,7 @@ function createMergedEnvironmentQuery<Input, A>(
   ) => { readonly value: A; readonly observedAt: number } | undefined,
 ) {
   const family = Atom.family((key: string) =>
-    Atom.make((get) => {
+    Atom.make((get): MergedEnvironmentQueryView<A> => {
       const targets = JSON.parse(key) as ReadonlyArray<EnvironmentQueryTarget<Input>>;
       const values: Array<readonly [EnvironmentId, A]> = [];
       const observations: Array<readonly [EnvironmentId, A, number]> = [];
@@ -711,13 +708,15 @@ const usePullRequestTurnRefreshQuery = createMergedEnvironmentQuery(
     pullRequestEnvironment.refreshes({ environmentId, input: {} }),
 );
 
-export function usePullRequestTurnRefreshes(environmentIds: ReadonlyArray<EnvironmentId>) {
+export function usePullRequestTurnRefreshes(
+  environmentIds: ReadonlyArray<EnvironmentId>,
+): ReadonlyArray<readonly [EnvironmentId, number]> {
   return usePullRequestTurnRefreshQuery(
     environmentIds.map((environmentId) => ({ environmentId, input: {} })),
   ).values;
 }
 
-export function usePullRequestTurnRefresh(environmentId: EnvironmentId) {
+export function usePullRequestTurnRefresh(environmentId: EnvironmentId): number | null {
   const result = useAtomValue(pullRequestEnvironment.refreshes({ environmentId, input: {} }));
   return AsyncResult.getOrElse(result, () => null);
 }
@@ -732,7 +731,7 @@ export interface MergedPullRequestListView {
 
 export function usePullRequestList(
   targets: ReadonlyArray<EnvironmentQueryTarget<PullRequestListInput>>,
-) {
+): MergedPullRequestListView {
   const query = usePullRequestListsQuery(targets);
   const data = mergePullRequestLists(query.values);
   return {
@@ -746,7 +745,7 @@ export function usePullRequestList(
 
 export function usePullRequestHostList(
   targets: ReadonlyArray<EnvironmentQueryTarget<PullRequestListInput>>,
-) {
+): MergedPullRequestListView {
   const query = usePullRequestHostListsQuery(targets);
   const data = mergePullRequestLists(query.values);
   return {
@@ -760,7 +759,13 @@ export function usePullRequestHostList(
 
 export function usePullRequestListStats(
   targets: ReadonlyArray<EnvironmentQueryTarget<PullRequestListStatsInput>>,
-) {
+): {
+  readonly stats: ReadonlyArray<EnvironmentPullRequestStat> | null;
+  readonly isPending: boolean;
+  readonly refresh: (
+    targets?: ReadonlyArray<EnvironmentQueryTarget<PullRequestListStatsInput>>,
+  ) => void;
+} {
   const query = usePullRequestStatsQuery(targets);
   const stats =
     query.values.length === 0

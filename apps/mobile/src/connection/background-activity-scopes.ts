@@ -11,7 +11,7 @@ interface RetainedScope {
 const retainedScopes = new Map<string, RetainedScope>();
 const listeners = new Set<() => void>();
 
-function notify() {
+function notify(): void {
   for (const listener of listeners) {
     try {
       listener();
@@ -19,7 +19,7 @@ function notify() {
   }
 }
 
-function stableScopeKey(environmentId: EnvironmentId, scope: BackgroundScope) {
+function stableScopeKey(environmentId: EnvironmentId, scope: BackgroundScope): string {
   switch (scope.type) {
     case "server-config":
     case "diagnostics":
@@ -34,21 +34,23 @@ function stableScopeKey(environmentId: EnvironmentId, scope: BackgroundScope) {
   }
 }
 
-function scopeForSubscription(observation: EnvironmentRpcSubscriptionObservation) {
+function scopeForSubscription(
+  observation: EnvironmentRpcSubscriptionObservation,
+): BackgroundScope | null {
   if (observation.method === WS_METHODS.subscribeResourceTelemetry) {
-    return { type: "diagnostics" } satisfies BackgroundScope | null;
+    return { type: "diagnostics" };
   }
   if (observation.method !== WS_METHODS.subscribeVcsStatus) {
-    return null satisfies BackgroundScope | null;
+    return null;
   }
   const input = observation.input as { readonly cwd?: unknown; readonly includeRemote?: unknown };
-  if (input.includeRemote === false) return null satisfies BackgroundScope | null;
-  return (
-    typeof input.cwd === "string" ? { type: "vcs-status", cwd: input.cwd } : null
-  ) satisfies BackgroundScope | null;
+  if (input.includeRemote === false) return null;
+  return typeof input.cwd === "string" ? { type: "vcs-status", cwd: input.cwd } : null;
 }
 
-export function retainedMobileBackgroundScopes(environmentId: EnvironmentId) {
+export function retainedMobileBackgroundScopes(
+  environmentId: EnvironmentId,
+): ReadonlyArray<BackgroundScope> {
   return Array.from(retainedScopes.values(), (entry) =>
     entry.environmentId === environmentId ? entry.scope : null,
   ).filter((scope): scope is BackgroundScope => scope !== null);
@@ -56,7 +58,7 @@ export function retainedMobileBackgroundScopes(environmentId: EnvironmentId) {
 
 export function observeMobileBackgroundActivitySubscription(
   observation: EnvironmentRpcSubscriptionObservation,
-) {
+): Effect.Effect<Effect.Effect<void>> {
   const scope = scopeForSubscription(observation);
   if (scope === null) return Effect.succeed(Effect.void);
   return Effect.sync(() => {
@@ -81,7 +83,7 @@ export function observeMobileBackgroundActivitySubscription(
   });
 }
 
-export function onRetainedMobileBackgroundScopesChange(listener: () => void) {
+export function onRetainedMobileBackgroundScopesChange(listener: () => void): () => void {
   listeners.add(listener);
   return () => {
     listeners.delete(listener);

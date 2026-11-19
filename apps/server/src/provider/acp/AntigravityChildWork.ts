@@ -4,6 +4,10 @@ import * as NodeFSP from "node:fs/promises";
 import * as NodeSqlite from "node:sqlite";
 import * as NodeURL from "node:url";
 
+import type {
+  OrchestrationV2NativeChildStep,
+  OrchestrationV2NativeChildWork,
+} from "@supaterm/contracts";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Predicate from "effect/Predicate";
@@ -45,7 +49,9 @@ const decodeLaunchInput = Schema.decodeUnknownOption(
 );
 
 /** `invoke_subagent` arguments, from the permission prompt or the persisted record. */
-export function antigravitySubagentLaunches(input: unknown) {
+export function antigravitySubagentLaunches(
+  input: unknown,
+): ReadonlyArray<AntigravityChildLaunch> | undefined {
   return Option.getOrUndefined(
     Option.map(decodeLaunchInput(input), (decoded) =>
       decoded.Subagents.map((entry) => ({ role: entry.Role, prompt: entry.Prompt })),
@@ -66,7 +72,7 @@ export function describeAntigravitySubagentLaunches(
       };
 }
 
-function protoFields(bytes: Uint8Array) {
+function protoFields(bytes: Uint8Array): ReadonlyArray<readonly [number, Uint8Array]> {
   const fields: Array<readonly [number, Uint8Array]> = [];
   let offset = 0;
   const varint = () => {
@@ -117,7 +123,7 @@ const NATIVE_ID = /^[A-Za-z0-9-]{1,64}$/;
 
 const safely =
   <A>(decode: (payload: Uint8Array) => A) =>
-  (payload: Uint8Array) => {
+  (payload: Uint8Array): A | undefined => {
     try {
       return decode(payload);
     } catch {
@@ -125,7 +131,7 @@ const safely =
     }
   };
 
-const decodeInvokeRecord = safely((payload) => {
+const decodeInvokeRecord = safely((payload): InvokeRecord | undefined => {
   const invoke = message(payload, STEP_INVOKE_SUBAGENT);
   if (invoke === undefined) return undefined;
   const children = messages(invoke, INVOKE_RESULTS).map((result) => ({
@@ -143,7 +149,7 @@ const decodeInvokeRecord = safely((payload) => {
   };
 });
 
-const plannerInvokeCallIds = safely((payload) => {
+const plannerInvokeCallIds = safely((payload): ReadonlyArray<string> => {
   const planner = message(payload, STEP_PLANNER_RESPONSE);
   if (planner === undefined) return [];
   return messages(planner, PLANNER_TOOL_CALLS).flatMap((call) => {
@@ -184,7 +190,7 @@ function findInvokeRecord(
     readonly launch: BatchLaunch;
     readonly siblings: ReadonlyArray<BatchLaunch & { readonly nativeTaskId: string }>;
   },
-) {
+): InvokeRecord | undefined {
   const plannerIdxOf = (nativeTaskId: string) => {
     const stepId = /^(.+):(\d+)$/.exec(nativeTaskId);
     return stepId === null ? undefined : stepId[1] === input.rootSessionId ? Number(stepId[2]) : -1;
@@ -302,7 +308,10 @@ const toolArguments = (args: unknown) =>
 const capText = (value: string, limit: number) =>
   value.length <= limit ? value : `${value.slice(0, limit)}…`;
 
-function transcriptSteps(contents: string, prompt: string) {
+function transcriptSteps(
+  contents: string,
+  prompt: string,
+): ReadonlyArray<OrchestrationV2NativeChildStep> {
   const launchPrompt = prompt.trim();
   return contents.split("\n").flatMap((line) =>
     Option.match(decodeTranscriptLine(line), {
@@ -383,7 +392,7 @@ class AntigravityChildWorkReadError extends Schema.TaggedError<AntigravityChildW
   "AntigravityChildWorkReadError",
   { cause: Schema.Defect() },
 ) {
-  override get message() {
+  override get message(): string {
     return "Could not read Antigravity subagent records.";
   }
 }
@@ -399,7 +408,7 @@ export const readAntigravityChildWork = Effect.fn("readAntigravityChildWork")(fu
 }) {
   if (!NATIVE_ID.test(input.rootSessionId)) return [];
   return yield* Effect.tryPromise({
-    try: async () => {
+    try: async (): Promise<ReadonlyArray<OrchestrationV2NativeChildWork>> => {
       const profileRoot = await antigravityProfileRoot(input.profileDirectory);
       const databasePath =
         profileRoot === undefined

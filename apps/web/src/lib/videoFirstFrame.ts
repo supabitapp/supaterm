@@ -3,7 +3,7 @@ export function prepareVideoFirstFrame(
     HTMLVideoElement,
     "autoplay" | "currentTime" | "duration" | "paused" | "played" | "seeking" | "src"
   >,
-) {
+): void {
   if (
     video.autoplay ||
     !video.paused ||

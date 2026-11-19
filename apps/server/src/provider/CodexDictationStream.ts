@@ -70,40 +70,35 @@ const dictationText = (state: DictationState) =>
     .join(" ");
 
 /** The session is over only once the server reports it closed; finals before that can still be revised. */
-export function stepDictation(state: DictationState, data: string) {
+export function stepDictation(state: DictationState, data: string): DictationStep {
   const frame = Option.getOrUndefined(decodeFrame(data));
   switch (frame?.type) {
     case "session.started":
-      return { _tag: "Continue", state: { ...state, started: true } } satisfies DictationStep;
+      return { _tag: "Continue", state: { ...state, started: true } };
     case "speech.started":
-      return { _tag: "Continue", state: { ...state, speaking: true } } satisfies DictationStep;
+      return { _tag: "Continue", state: { ...state, speaking: true } };
     case "speech.stopped":
-      return { _tag: "Continue", state: { ...state, speaking: false } } satisfies DictationStep;
+      return { _tag: "Continue", state: { ...state, speaking: false } };
     case "session.stop_requested":
-      return { _tag: "Continue", state: { ...state, stopRequested: true } } satisfies DictationStep;
+      return { _tag: "Continue", state: { ...state, stopRequested: true } };
     case "transcript.final": {
       const id = frame.utterance_id;
       const revision = frame.revision ?? 0;
       const current = id ? state.finals.get(id) : undefined;
-      if (!id || (current && current.revision > revision))
-        return { _tag: "Continue", state } satisfies DictationStep;
+      if (!id || (current && current.revision > revision)) return { _tag: "Continue", state };
       const finals = new Map(state.finals).set(id, { revision, text: frame.text ?? "" });
-      return { _tag: "Continue", state: { ...state, finals } } satisfies DictationStep;
+      return { _tag: "Continue", state: { ...state, finals } };
     }
     case "transcript.failed":
-      return { _tag: "Failed" } satisfies DictationStep;
+      return { _tag: "Failed" };
     case "session.error":
-      return (
-        frame.fatal ? { _tag: "Failed" } : { _tag: "Continue", state }
-      ) satisfies DictationStep;
+      return frame.fatal ? { _tag: "Failed" } : { _tag: "Continue", state };
     case "session.updated":
-      return (
-        frame.session?.status === "closed"
-          ? { _tag: "Done", text: dictationText(state) }
-          : { _tag: "Continue", state }
-      ) satisfies DictationStep;
+      return frame.session?.status === "closed"
+        ? { _tag: "Done", text: dictationText(state) }
+        : { _tag: "Continue", state };
     default:
-      return { _tag: "Continue", state } satisfies DictationStep;
+      return { _tag: "Continue", state };
   }
 }
 
@@ -112,7 +107,10 @@ export interface DictationLogin {
   readonly accountId: string;
 }
 
-function dictationUpgradeError(status: number | undefined, headers: NodeHttp.IncomingHttpHeaders) {
+function dictationUpgradeError(
+  status: number | undefined,
+  headers: NodeHttp.IncomingHttpHeaders,
+): TranscriptionError {
   if (headers["cf-mitigated"] !== undefined) return new TranscriptionError({ reason: "blocked" });
   if (status === 401) return new TranscriptionError({ reason: "signedOut" });
   if (status === 403 || status === 404 || status === 410) {
@@ -134,130 +132,118 @@ interface Session {
   readonly speaking: Effect.Effect<boolean>;
 }
 
-const openSession: (input: {
+const openSession = Effect.fnUntraced(function* (input: {
   readonly url: string;
   readonly headers: Record<string, string>;
   readonly language: string | undefined;
   readonly onStopRequested: Effect.Effect<void>;
-}) => Effect.Effect<Session, TranscriptionError, Scope.Scope> = Effect.fnUntraced(
-  function* (input: {
-    readonly url: string;
-    readonly headers: Record<string, string>;
-    readonly language: string | undefined;
-    readonly onStopRequested: Effect.Effect<void>;
-  }) {
-    const events = yield* Queue.unbounded<
-      { readonly _tag: "Message"; readonly data: string } | { readonly _tag: "Closed" }
-    >();
-    const socket = yield* Effect.acquireRelease(
-      Effect.callback<WebSocket, TranscriptionError>((resume) => {
-        const ws = new WebSocket(input.url, PROTOCOLS, {
-          headers: input.headers,
-          followRedirects: false,
-        });
-        ws.once("unexpected-response", (_request, response) => {
-          response.resume();
-          ws.terminate();
-          resume(Effect.fail(dictationUpgradeError(response.statusCode, response.headers)));
-        });
-        ws.once("error", (cause) =>
-          resume(Effect.fail(new TranscriptionError({ reason: "failed", cause }))),
-        );
-        ws.once("open", () => {
-          ws.removeAllListeners("error");
-          ws.on("error", () => Queue.offerUnsafe(events, { _tag: "Closed" }));
-          ws.on("message", (data, isBinary) => {
-            if (!isBinary) Queue.offerUnsafe(events, { _tag: "Message", data: data.toString() });
-          });
-          ws.on("close", () => Queue.offerUnsafe(events, { _tag: "Closed" }));
-          resume(Effect.succeed(ws));
-        });
-        return Effect.sync(() => ws.terminate());
-      }).pipe(
-        Effect.timeoutOrElse({
-          duration: CONNECT_TIMEOUT,
-          orElse: () => Effect.fail(new TranscriptionError({ reason: "failed" })),
-        }),
-      ),
-      (ws) => Effect.sync(() => ws.terminate()),
-    );
-    const send = (frame: unknown) =>
-      Effect.callback<void, TranscriptionError>((resume) => {
-        socket.send(encodeJson(frame), (cause) =>
-          resume(
-            cause ? Effect.fail(new TranscriptionError({ reason: "failed", cause })) : Effect.void,
-          ),
-        );
+}): Effect.fn.Return<Session, TranscriptionError, Scope.Scope> {
+  const events = yield* Queue.unbounded<
+    { readonly _tag: "Message"; readonly data: string } | { readonly _tag: "Closed" }
+  >();
+  const socket = yield* Effect.acquireRelease(
+    Effect.callback<WebSocket, TranscriptionError>((resume) => {
+      const ws = new WebSocket(input.url, PROTOCOLS, {
+        headers: input.headers,
+        followRedirects: false,
       });
-
-    const state = yield* Ref.make(initialDictationState);
-    const started = yield* Deferred.make<void, TranscriptionError>();
-    const done = yield* Deferred.make<string, TranscriptionError>();
-    yield* Effect.forkScoped(
-      Effect.gen(function* () {
-        while (true) {
-          const event = yield* Queue.take(events);
-          if (event._tag === "Closed") {
-            return yield* new TranscriptionError({ reason: "failed" });
-          }
-          const previous = yield* Ref.get(state);
-          const step = stepDictation(previous, event.data);
-          if (step._tag === "Failed") return yield* new TranscriptionError({ reason: "failed" });
-          if (step._tag === "Done") return step.text;
-          yield* Ref.set(state, step.state);
-          if (step.state.started) yield* Deferred.succeed(started, undefined);
-          if (step.state.stopRequested && !previous.stopRequested) yield* input.onStopRequested;
-        }
-      }).pipe(
-        Effect.exit,
-        Effect.flatMap((exit) =>
-          Effect.andThen(Deferred.done(started, Exit.asVoid(exit)), Deferred.done(done, exit)),
-        ),
-      ),
-    );
-
-    yield* send({
-      type: "session.start",
-      client_capabilities: ["server_stop_requested"],
-      config: {
-        ...(input.language === undefined ? {} : { language: input.language }),
-        input_audio_format: "pcm16",
-        sample_rate_hz: SAMPLE_RATE,
-        num_channels: 1,
-        max_buffer_size_bytes: 4_194_304,
-        max_utterance_duration_ms: 30_000,
-        session_ttl_ms: 300_000,
-        provider_mode: "streaming_sse",
-        transcript_delivery_mode: "segment",
-        vad: {
-          type: "server_vad",
-          threshold: 0.5,
-          prefix_padding_ms: 300,
-          silence_duration_ms: 500,
-        },
-      },
-    });
-    yield* Deferred.await(started).pipe(
+      ws.once("unexpected-response", (_request, response) => {
+        response.resume();
+        ws.terminate();
+        resume(Effect.fail(dictationUpgradeError(response.statusCode, response.headers)));
+      });
+      ws.once("error", (cause) =>
+        resume(Effect.fail(new TranscriptionError({ reason: "failed", cause }))),
+      );
+      ws.once("open", () => {
+        ws.removeAllListeners("error");
+        ws.on("error", () => Queue.offerUnsafe(events, { _tag: "Closed" }));
+        ws.on("message", (data, isBinary) => {
+          if (!isBinary) Queue.offerUnsafe(events, { _tag: "Message", data: data.toString() });
+        });
+        ws.on("close", () => Queue.offerUnsafe(events, { _tag: "Closed" }));
+        resume(Effect.succeed(ws));
+      });
+      return Effect.sync(() => ws.terminate());
+    }).pipe(
       Effect.timeoutOrElse({
         duration: CONNECT_TIMEOUT,
         orElse: () => Effect.fail(new TranscriptionError({ reason: "failed" })),
       }),
-    );
-
-    return {
-      send: (chunk) => send({ type: "audio.append", audio: Buffer.from(chunk).toString("base64") }),
-      close: (audioMs) =>
-        send({ type: "session.close" }).pipe(
-          Effect.andThen(Deferred.await(done)),
-          Effect.timeoutOrElse({
-            duration: Math.max(MIN_CLOSE_DEADLINE_MS, audioMs),
-            orElse: () => Effect.fail(new TranscriptionError({ reason: "failed" })),
-          }),
+    ),
+    (ws) => Effect.sync(() => ws.terminate()),
+  );
+  const send = (frame: unknown) =>
+    Effect.callback<void, TranscriptionError>((resume) => {
+      socket.send(encodeJson(frame), (cause) =>
+        resume(
+          cause ? Effect.fail(new TranscriptionError({ reason: "failed", cause })) : Effect.void,
         ),
-      speaking: Effect.map(Ref.get(state), (current) => current.speaking),
-    };
-  },
-);
+      );
+    });
+
+  const state = yield* Ref.make(initialDictationState);
+  const started = yield* Deferred.make<void, TranscriptionError>();
+  const done = yield* Deferred.make<string, TranscriptionError>();
+  yield* Effect.forkScoped(
+    Effect.gen(function* () {
+      while (true) {
+        const event = yield* Queue.take(events);
+        if (event._tag === "Closed") {
+          return yield* new TranscriptionError({ reason: "failed" });
+        }
+        const previous = yield* Ref.get(state);
+        const step = stepDictation(previous, event.data);
+        if (step._tag === "Failed") return yield* new TranscriptionError({ reason: "failed" });
+        if (step._tag === "Done") return step.text;
+        yield* Ref.set(state, step.state);
+        if (step.state.started) yield* Deferred.succeed(started, undefined);
+        if (step.state.stopRequested && !previous.stopRequested) yield* input.onStopRequested;
+      }
+    }).pipe(
+      Effect.exit,
+      Effect.flatMap((exit) =>
+        Effect.andThen(Deferred.done(started, Exit.asVoid(exit)), Deferred.done(done, exit)),
+      ),
+    ),
+  );
+
+  yield* send({
+    type: "session.start",
+    client_capabilities: ["server_stop_requested"],
+    config: {
+      ...(input.language === undefined ? {} : { language: input.language }),
+      input_audio_format: "pcm16",
+      sample_rate_hz: SAMPLE_RATE,
+      num_channels: 1,
+      max_buffer_size_bytes: 4_194_304,
+      max_utterance_duration_ms: 30_000,
+      session_ttl_ms: 300_000,
+      provider_mode: "streaming_sse",
+      transcript_delivery_mode: "segment",
+      vad: { type: "server_vad", threshold: 0.5, prefix_padding_ms: 300, silence_duration_ms: 500 },
+    },
+  });
+  yield* Deferred.await(started).pipe(
+    Effect.timeoutOrElse({
+      duration: CONNECT_TIMEOUT,
+      orElse: () => Effect.fail(new TranscriptionError({ reason: "failed" })),
+    }),
+  );
+
+  return {
+    send: (chunk) => send({ type: "audio.append", audio: Buffer.from(chunk).toString("base64") }),
+    close: (audioMs) =>
+      send({ type: "session.close" }).pipe(
+        Effect.andThen(Deferred.await(done)),
+        Effect.timeoutOrElse({
+          duration: Math.max(MIN_CLOSE_DEADLINE_MS, audioMs),
+          orElse: () => Effect.fail(new TranscriptionError({ reason: "failed" })),
+        }),
+      ),
+    speaking: Effect.map(Ref.get(state), (current) => current.speaking),
+  };
+});
 
 /**
  * Streams `audio` to Codex dictation, one vendor session after another. Opening the first

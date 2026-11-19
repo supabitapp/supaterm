@@ -65,13 +65,15 @@ const decodePullRequestListPreferences = Schema.decodeUnknownOption(
 const PULL_REQUEST_LIST_PREFERENCES_STORAGE_KEY = "supaterm.pullRequests.preferences";
 type PreferenceStorage = Pick<Storage, "getItem" | "setItem">;
 
-function resolvePreferenceStorage(storage: PreferenceStorage | undefined) {
+function resolvePreferenceStorage(
+  storage: PreferenceStorage | undefined,
+): PreferenceStorage | undefined {
   return storage ?? (typeof window === "undefined" ? undefined : window.localStorage);
 }
 
 export function pullRequestListPreferences(
   search: PullRequestListPreferences | Schema.Schema.Type<typeof PullRequestListPreferencesSchema>,
-) {
+): PullRequestListPreferences {
   return {
     involvement: search.involvement,
     state: search.state,
@@ -90,28 +92,25 @@ export function pullRequestListPreferences(
 
 export function readPullRequestListPreferences(
   storage?: PreferenceStorage,
-): PullRequestListPreferences;
-export function readPullRequestListPreferences(storage?: PreferenceStorage) {
+): PullRequestListPreferences {
   try {
     const raw = resolvePreferenceStorage(storage)?.getItem(
       PULL_REQUEST_LIST_PREFERENCES_STORAGE_KEY,
     );
-    if (!raw) return DEFAULT_PULL_REQUEST_LIST_PREFERENCES satisfies PullRequestListPreferences;
+    if (!raw) return DEFAULT_PULL_REQUEST_LIST_PREFERENCES;
     const decoded = decodePullRequestListPreferences(JSON.parse(raw));
-    return (
-      decoded._tag === "Some"
-        ? pullRequestListPreferences(decoded.value)
-        : DEFAULT_PULL_REQUEST_LIST_PREFERENCES
-    ) satisfies PullRequestListPreferences;
+    return decoded._tag === "Some"
+      ? pullRequestListPreferences(decoded.value)
+      : DEFAULT_PULL_REQUEST_LIST_PREFERENCES;
   } catch {
-    return DEFAULT_PULL_REQUEST_LIST_PREFERENCES satisfies PullRequestListPreferences;
+    return DEFAULT_PULL_REQUEST_LIST_PREFERENCES;
   }
 }
 
 export function writePullRequestListPreferences(
   preferences: PullRequestListPreferences,
   storage?: PreferenceStorage,
-) {
+): void {
   try {
     resolvePreferenceStorage(storage)?.setItem(
       PULL_REQUEST_LIST_PREFERENCES_STORAGE_KEY,

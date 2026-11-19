@@ -40,7 +40,7 @@ export function runtimeModeChoicesForSupportedModes(
 export function compatibleRuntimeModeForChoices(
   runtimeMode: RuntimeMode,
   choices: ReadonlyArray<{ readonly mode: RuntimeMode }>,
-) {
+): RuntimeMode {
   return choices.some((choice) => choice.mode === runtimeMode)
     ? runtimeMode
     : (choices[0]?.mode ?? runtimeMode);

@@ -113,7 +113,7 @@ class FakeMediaRecorder {
   static supportedTypes = new Set(["video/webm;codecs=vp9"]);
   static outputMimeType: string | undefined;
   static stopError: unknown;
-  static isTypeSupported(type: string) {
+  static isTypeSupported(type: string): boolean {
     return this.supportedTypes.has(type);
   }
 
@@ -131,17 +131,17 @@ class FakeMediaRecorder {
     FakeMediaRecorder.instances.push(this);
   }
 
-  addEventListener(type: string, listener: EventListenerOrEventListenerObject) {
+  addEventListener(type: string, listener: EventListenerOrEventListenerObject): void {
     const listeners = this.listeners.get(type) ?? new Set();
     listeners.add(listener);
     this.listeners.set(type, listeners);
   }
 
-  start() {
+  start(): void {
     this.state = "recording";
   }
 
-  stop() {
+  stop(): void {
     if (FakeMediaRecorder.stopError !== undefined) throw FakeMediaRecorder.stopError;
     this.state = "inactive";
     for (const listener of this.listeners.get("stop") ?? []) {

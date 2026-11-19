@@ -2,7 +2,7 @@ import type { ScopedThreadRef, ThreadId } from "@supaterm/contracts";
 
 /** Base UI updates omit undefined; clear actions with defined actionProps and empty children, treated as
  * invisible. */
-export function hasVisibleToastAction(actionProps: unknown) {
+export function hasVisibleToastAction(actionProps: unknown): boolean {
   if (actionProps == null || typeof actionProps !== "object") {
     return false;
   }
@@ -16,7 +16,7 @@ export function hasVisibleToastAction(actionProps: unknown) {
 export function shouldHideCollapsedToastContent(
   visibleToastIndex: number,
   visibleToastCount: number,
-) {
+): boolean {
   if (visibleToastCount <= 1) return false;
   return visibleToastIndex > 0;
 }
@@ -39,7 +39,10 @@ type VisibleToastLayoutItem<TToast extends object> = {
 
 export function buildVisibleToastLayout<TToast extends object>(
   visibleToasts: readonly (TToast & ToastWithLayoutProps)[],
-) {
+): {
+  frontmostHeight: number;
+  items: VisibleToastLayoutItem<TToast & ToastWithLayoutProps>[];
+} {
   let fullIndex = 0;
   let fullOffsetY = 0;
   let liveIndex = 0;
@@ -82,7 +85,7 @@ export function buildVisibleToastLayout<TToast extends object>(
   };
 }
 
-function normalizeToastHeight(height: number | null | undefined) {
+function normalizeToastHeight(height: number | null | undefined): number {
   return typeof height === "number" && Number.isFinite(height) && height > 0 ? height : 0;
 }
 
@@ -94,7 +97,7 @@ export function shouldRenderThreadScopedToast(
       }
     | undefined,
   visibleThreadRefs: ReadonlyArray<ScopedThreadRef>,
-) {
+): boolean {
   const threadRef = data?.threadRef;
   if (threadRef) {
     return visibleThreadRefs.some(

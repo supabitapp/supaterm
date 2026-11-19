@@ -16,7 +16,7 @@ export interface ThreadSortInput {
   }>;
 }
 
-export function toSortableTimestamp(iso: string | undefined) {
+export function toSortableTimestamp(iso: string | undefined): number | null {
   if (!iso) return null;
   const ms = Date.parse(iso);
   return Number.isFinite(ms) ? ms : null;
@@ -29,7 +29,7 @@ export type DoneThreadTimestampInput = Pick<
 
 /** The timestamp a done row sorts and labels by on every client: doneAt
     when stamped, otherwise the latest message or turn stamp, then updatedAt. */
-export function resolveDoneThreadTimestamp(thread: DoneThreadTimestampInput) {
+export function resolveDoneThreadTimestamp(thread: DoneThreadTimestampInput): string | null {
   if (thread.doneAt != null && toSortableTimestamp(thread.doneAt) !== null) {
     return thread.doneAt;
   }
@@ -38,7 +38,7 @@ export function resolveDoneThreadTimestamp(thread: DoneThreadTimestampInput) {
 
 export function resolveThreadActivityTimestamp(
   thread: Pick<EnvironmentThreadShell, "latestUserMessageAt" | "latestRun" | "updatedAt">,
-) {
+): string | null {
   let latest: string | null = null;
   let latestMs = Number.NEGATIVE_INFINITY;
   for (const candidate of [
@@ -62,7 +62,7 @@ export function resolveThreadActivityTimestamp(
     per comparison. Shared by web and mobile so both render the same order. */
 export function sortDoneThreads<T extends DoneThreadTimestampInput & { readonly id: string }>(
   threads: readonly T[],
-) {
+): T[] {
   return threads
     .map((thread) => {
       const timestamp = resolveDoneThreadTimestamp(thread);
@@ -76,7 +76,7 @@ export function sortDoneThreads<T extends DoneThreadTimestampInput & { readonly 
     .map(({ thread }) => thread);
 }
 
-function getFirstSortableTimestamp(...values: Array<string | null | undefined>) {
+function getFirstSortableTimestamp(...values: Array<string | null | undefined>): number | null {
   for (const value of values) {
     const timestamp = toSortableTimestamp(value ?? undefined);
     if (timestamp !== null) {
@@ -87,7 +87,7 @@ function getFirstSortableTimestamp(...values: Array<string | null | undefined>) 
   return null;
 }
 
-function getLatestUserMessageTimestamp(thread: ThreadSortInput) {
+function getLatestUserMessageTimestamp(thread: ThreadSortInput): number {
   if (thread.latestUserAuthoredMessageAt !== undefined) {
     return (
       getFirstSortableTimestamp(
@@ -127,7 +127,7 @@ function getLatestUserMessageTimestamp(thread: ThreadSortInput) {
 export function getThreadSortTimestamp(
   thread: ThreadSortInput,
   sortOrder: SidebarThreadSortOrder | Exclude<SidebarProjectSortOrder, "manual">,
-) {
+): number {
   if (sortOrder === "created_at") {
     return (
       getFirstSortableTimestamp(thread.createdAt, thread.updatedAt) ?? Number.NEGATIVE_INFINITY
@@ -139,7 +139,7 @@ export function getThreadSortTimestamp(
 function activeThreadAnchorTimestampMs(thread: {
   readonly createdAt: string;
   readonly reopenedAt?: string | null | undefined;
-}) {
+}): number {
   return Math.max(
     toSortableTimestamp(thread.createdAt) ?? 0,
     toSortableTimestamp(thread.reopenedAt ?? undefined) ?? 0,
@@ -149,7 +149,7 @@ function activeThreadAnchorTimestampMs(thread: {
 export function sortThreads<T extends { readonly id: string } & ThreadSortInput>(
   threads: readonly T[],
   sortOrder: SidebarThreadSortOrder,
-) {
+): T[] {
   if (threads.length < 2) return [...threads];
   return threads
     .map((thread) => ({ thread, timestamp: getThreadSortTimestamp(thread, sortOrder) }))
@@ -167,7 +167,7 @@ export function getLatestThreadForProject<
     readonly projectId: ProjectId;
     readonly archivedAt: string | null;
   } & ThreadSortInput,
->(threads: readonly T[], projectId: ProjectId, sortOrder: SidebarThreadSortOrder) {
+>(threads: readonly T[], projectId: ProjectId, sortOrder: SidebarThreadSortOrder): T | null {
   let latest: T | null = null;
   let latestTimestamp = Number.NEGATIVE_INFINITY;
   for (const thread of threads) {
@@ -190,21 +190,14 @@ export function planPinnedReorder(input: {
   /** Include retained keys from hidden rows; only orderedIds receive writes. */
   readonly keysById: ReadonlyMap<string, string | null | undefined>;
   readonly movedId: string;
-}): ReadonlyArray<{ readonly id: string; readonly orderKey: string }>;
-export function planPinnedReorder(input: {
-  readonly orderedIds: readonly string[];
-  /** Include retained keys from hidden rows; only orderedIds receive writes. */
-  readonly keysById: ReadonlyMap<string, string | null | undefined>;
-  readonly movedId: string;
-}) {
+}): ReadonlyArray<{ readonly id: string; readonly orderKey: string }> {
   const { orderedIds, keysById, movedId } = input;
   const visibleIds = new Set(orderedIds);
   const reservedKeys = new Set(
     [...keysById].flatMap(([id, key]) => (!visibleIds.has(id) && key != null ? [key] : [])),
   );
   const movedIndex = orderedIds.indexOf(movedId);
-  if (movedIndex === -1)
-    return [] satisfies ReadonlyArray<{ readonly id: string; readonly orderKey: string }>;
+  if (movedIndex === -1) return [];
   const beforeId = movedIndex > 0 ? orderedIds[movedIndex - 1] : null;
   const afterId = movedIndex < orderedIds.length - 1 ? orderedIds[movedIndex + 1] : null;
   const beforeKey = beforeId != null ? (keysById.get(beforeId) ?? null) : null;
@@ -214,11 +207,7 @@ export function planPinnedReorder(input: {
   if (beforeUsable && afterUsable) {
     let key = pinOrderKeyBetween(beforeKey, afterKey);
     while (key !== null && reservedKeys.has(key)) key = pinOrderKeyBetween(key, afterKey);
-    if (key !== null)
-      return [{ id: movedId, orderKey: key }] satisfies ReadonlyArray<{
-        readonly id: string;
-        readonly orderKey: string;
-      }>;
+    if (key !== null) return [{ id: movedId, orderKey: key }];
   }
   const keys = generateSpreadPinOrderKeys(orderedIds.length + reservedKeys.size)
     .filter((key) => !reservedKeys.has(key))
@@ -226,7 +215,7 @@ export function planPinnedReorder(input: {
   return orderedIds.flatMap((id, index) => {
     const key = keys[index]!;
     return keysById.get(id) === key ? [] : [{ id, orderKey: key }];
-  }) satisfies ReadonlyArray<{ readonly id: string; readonly orderKey: string }>;
+  });
 }
 
 export function sortPinnedThreadsByOrderKey<
@@ -239,7 +228,7 @@ export function sortPinnedThreadsByOrderKey<
         clients could render equal-key threads in stream-arrival order. */
     readonly environmentId?: string | undefined;
   },
->(threads: readonly T[]) {
+>(threads: readonly T[]): T[] {
   if (threads.length < 2) return [...threads];
   const keyed: T[] = [];
   const keyless: T[] = [];
@@ -272,7 +261,7 @@ export function sortActiveThreadsByOrderKey<
     readonly activeOrderKey?: string | null | undefined;
     readonly environmentId?: string | undefined;
   },
->(threads: readonly T[]) {
+>(threads: readonly T[]): T[] {
   if (threads.length < 2) return [...threads];
   const timestamps = new Map<T, number>();
   for (const thread of threads) {

@@ -32,16 +32,16 @@ interface MutableDirectoryNode {
 
 let sortCollator: Intl.Collator | undefined;
 
-function normalizePathSegments(pathValue: string) {
+function normalizePathSegments(pathValue: string): string[] {
   return pathValue.split("/").filter((segment) => segment.length > 0);
 }
 
-function compareByName(a: { name: string }, b: { name: string }) {
+function compareByName(a: { name: string }, b: { name: string }): number {
   sortCollator ??= new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
   return sortCollator.compare(a.name, b.name);
 }
 
-function readStat(file: TurnDiffFileChange) {
+function readStat(file: TurnDiffFileChange): TurnDiffStat | null {
   if (typeof file.additions !== "number" || typeof file.deletions !== "number") {
     return null;
   }
@@ -51,7 +51,7 @@ function readStat(file: TurnDiffFileChange) {
   };
 }
 
-function compactDirectoryNode(node: TurnDiffTreeDirectoryNode) {
+function compactDirectoryNode(node: TurnDiffTreeDirectoryNode): TurnDiffTreeDirectoryNode {
   let compactedNode = node;
 
   while (compactedNode.children.length === 1 && compactedNode.children[0]?.kind === "directory") {
@@ -68,7 +68,7 @@ function compactDirectoryNode(node: TurnDiffTreeDirectoryNode) {
   return compactedNode;
 }
 
-function toTreeNodes(directory: MutableDirectoryNode) {
+function toTreeNodes(directory: MutableDirectoryNode): TurnDiffTreeNode[] {
   const subdirectories: TurnDiffTreeDirectoryNode[] = Array.from(directory.directories.values())
     .toSorted(compareByName)
     .map<TurnDiffTreeDirectoryNode>((subdirectory) => ({
@@ -87,7 +87,7 @@ function toTreeNodes(directory: MutableDirectoryNode) {
   return [...subdirectories, ...files];
 }
 
-export function buildTurnDiffTree(files: ReadonlyArray<TurnDiffFileChange>) {
+export function buildTurnDiffTree(files: ReadonlyArray<TurnDiffFileChange>): TurnDiffTreeNode[] {
   const root: MutableDirectoryNode = {
     name: "",
     path: "",

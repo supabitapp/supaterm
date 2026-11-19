@@ -27,8 +27,8 @@ export class CliUninstallError extends Schema.TaggedError<CliUninstallError>()(
   "CliUninstallError",
   { reason: Schema.String },
 ) {
-  override get message() {
-    return this.reason satisfies string as string;
+  override get message(): string {
+    return this.reason;
   }
 }
 

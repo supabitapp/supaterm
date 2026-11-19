@@ -37,10 +37,8 @@ export interface ClaimedAttachments {
   readonly claimedPaths: ReadonlyArray<string>;
 }
 
-export function attachmentIsPendingUpload(attachment: ChatAttachment): boolean;
-export function attachmentIsPendingUpload(attachment: ChatAttachment) {
-  return (parseThreadSegmentFromAttachmentId(attachment.id) ===
-    PENDING_ATTACHMENT_THREAD_SEGMENT) satisfies boolean;
+export function attachmentIsPendingUpload(attachment: ChatAttachment): boolean {
+  return parseThreadSegmentFromAttachmentId(attachment.id) === PENDING_ATTACHMENT_THREAD_SEGMENT;
 }
 
 /** Remove partial claims only before dispatch, or after proving they were not accepted. */

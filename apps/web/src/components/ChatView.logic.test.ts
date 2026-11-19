@@ -73,7 +73,7 @@ const projectId = ProjectId.make("project-1");
 const threadId = ThreadId.make("thread-1");
 const now = "2026-03-29T00:00:00.000Z";
 
-function makeThread(overrides: Partial<Thread> = {}) {
+function makeThread(overrides: Partial<Thread> = {}): Thread {
   return makeThreadFixture({
     id: threadId,
     environmentId,
@@ -356,23 +356,22 @@ describe("hasCompactableConversation", () => {
     completedAt: at,
     updatedAt: at,
   });
-  const userMessage = (text: string) =>
-    ({
-      position: 0,
-      visibility: "local",
-      sourceThreadId: threadId,
-      sourceItemId: TurnItemId.make("turn-item:user"),
-      item: {
-        ...itemBase("turn-item:user", 1),
-        createdBy: "user",
-        creationSource: "web",
-        type: "user_message",
-        messageId: MessageId.make("message-user"),
-        inputIntent: "turn_start",
-        text,
-        attachments: [],
-      },
-    }) satisfies OrchestrationV2ProjectedTurnItem;
+  const userMessage = (text: string): OrchestrationV2ProjectedTurnItem => ({
+    position: 0,
+    visibility: "local",
+    sourceThreadId: threadId,
+    sourceItemId: TurnItemId.make("turn-item:user"),
+    item: {
+      ...itemBase("turn-item:user", 1),
+      createdBy: "user",
+      creationSource: "web",
+      type: "user_message",
+      messageId: MessageId.make("message-user"),
+      inputIntent: "turn_start",
+      text,
+      attachments: [],
+    },
+  });
   const assistantMessage: OrchestrationV2ProjectedTurnItem = {
     position: 1,
     visibility: "local",

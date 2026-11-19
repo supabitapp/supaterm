@@ -2,6 +2,7 @@ import type {
   DesktopHostTelemetrySnapshot,
   HostPowerSnapshot,
   ResourceMonitorSnapshotEvent,
+  ResourceTelemetryHealth,
   ResourceTelemetryHistoryInput,
   ResourceTelemetryRetryResult,
   ResourceTelemetrySnapshot,
@@ -43,7 +44,7 @@ export class ResourceTelemetryRefreshFailed extends Schema.TaggedError<ResourceT
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Resource telemetry operation '${this.operation}' failed.`;
   }
 }
@@ -84,7 +85,7 @@ interface LiveTelemetryState {
   readonly scope: Option.Option<Scope.Closeable>;
 }
 
-function unknownPower(updatedAt: DateTime.Utc) {
+function unknownPower(updatedAt: DateTime.Utc): HostPowerSnapshot {
   return {
     source: "unknown",
     idle: "unknown",
@@ -96,14 +97,14 @@ function unknownPower(updatedAt: DateTime.Utc) {
     thermalState: "unknown",
     stale: true,
     updatedAt,
-  } satisfies HostPowerSnapshot;
+  };
 }
 
 function buildHealth(input: {
   readonly native: NativeTelemetryClient.NativeTelemetryClientHealth;
   readonly desktop: DesktopTelemetryReceiver.DesktopTelemetryReceiverHealth;
   readonly nativeSnapshot: Option.Option<ResourceMonitorSnapshotEvent>;
-}) {
+}): ResourceTelemetryHealth {
   return {
     native: {
       status: input.native.status,
@@ -237,7 +238,7 @@ export const make = Effect.fn("resourceTelemetry.resourceTelemetry.make")(functi
     readonly desktopSnapshot?: DesktopHostTelemetrySnapshot;
     readonly updatePrevious: boolean;
     readonly publishWhenLive?: boolean;
-  }) =>
+  }): Effect.Effect<ResourceTelemetrySnapshot> =>
     mutex.withPermits(1)(
       Effect.gen(function* () {
         const current = yield* Ref.get(state);
@@ -466,7 +467,7 @@ export const make = Effect.fn("resourceTelemetry.resourceTelemetry.make")(functi
     refresh,
     retry: nativeClient.retry.pipe(
       Effect.zip(Ref.get(state)),
-      Effect.map(([accepted, current]) => ({
+      Effect.map(([accepted, current]): ResourceTelemetryRetryResult => ({
         accepted,
         snapshot: current.latest,
       })),

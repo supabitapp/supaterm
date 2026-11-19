@@ -55,7 +55,7 @@ export function getProviderClient(driver: string | null | undefined) {
 export function resolveModelShortName(
   model: { readonly name: string; readonly shortName?: string | undefined },
   driverKind: ProviderDriverKind | null | undefined,
-) {
+): string | undefined {
   if (model.shortName) return model.shortName;
   const families = driverKind ? providerClients.get(driverKind)?.modelFamilies : undefined;
   return modelShortName(model.name, families ?? []);

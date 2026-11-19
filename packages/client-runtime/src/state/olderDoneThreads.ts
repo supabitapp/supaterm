@@ -65,7 +65,9 @@ export interface OlderDoneShelfEnvironment {
  * Scopes in one order, so a shelf keyed on them keeps its pages when the caller's project order
  * changes. Loading a page can reorder the sidebar's projects, which would otherwise drop the page.
  */
-export function sortOlderDoneScopes(scopes: ReadonlyArray<OlderDoneScope>) {
+export function sortOlderDoneScopes(
+  scopes: ReadonlyArray<OlderDoneScope>,
+): ReadonlyArray<OlderDoneScope> {
   return scopes
     .map((scope) => ({
       environmentId: scope.environmentId,
@@ -84,7 +86,7 @@ export function olderDoneCountKey(
   threads: ReadonlyArray<OrchestrationV2ThreadShell>,
   beforeMs: number,
   removedAt: ReadonlyMap<ThreadId, number>,
-) {
+): string {
   let lastRemoval = 0;
   for (const sequence of removedAt.values()) lastRemoval = Math.max(lastRemoval, sequence);
   const rows: string[] = [];
@@ -101,7 +103,7 @@ export function olderDoneCountKey(
 function atOrAboveCursor(
   thread: Pick<OrchestrationV2ThreadShell, "id" | "doneAt">,
   cursor: OrchestrationV2OlderDoneCursor,
-) {
+): boolean {
   if (thread.doneAt === null) return true;
   const doneAt = DateTime.formatIso(thread.doneAt);
   return !(
@@ -116,7 +118,9 @@ function atOrAboveCursor(
  * rows not loaded yet, so the merged list is a correct prefix even while a page loads. A failed
  * environment holds no one back; its Retry rejoins it.
  */
-export function doneShelfFrontier(environments: ReadonlyArray<OlderDoneShelfEnvironment>) {
+export function doneShelfFrontier(
+  environments: ReadonlyArray<OlderDoneShelfEnvironment>,
+): OrchestrationV2OlderDoneCursor | null {
   let highest: OrchestrationV2OlderDoneCursor | null = null;
   for (const { older, pages } of environments) {
     if (older === null || pages.frontier === null || pages.status === "failed") continue;
@@ -142,7 +146,7 @@ export function doneShelfFrontier(environments: ReadonlyArray<OlderDoneShelfEnvi
 export function isListedDoneThread(
   thread: Pick<OrchestrationV2ThreadShell, "id" | "doneAt">,
   frontier: OrchestrationV2OlderDoneCursor | null,
-) {
+): boolean {
   return frontier === null || atOrAboveCursor(thread, frontier);
 }
 
@@ -158,7 +162,7 @@ export function unloadedOlderDoneCount(input: {
     readonly environmentId: EnvironmentId;
     readonly source: OlderDoneRow;
   }>;
-}) {
+}): number {
   let unloaded = 0;
   for (const scope of input.scopes) {
     const older = input.olderDone(scope.environmentId);
@@ -191,7 +195,7 @@ export function wantedOlderDonePages(input: {
   readonly environments: ReadonlyMap<EnvironmentId, OlderDoneShelfEnvironment>;
   readonly listedCount: number;
   readonly visibleCount: number;
-}) {
+}): ReadonlyMap<EnvironmentId, number> {
   if (input.listedCount >= input.visibleCount) return input.requested;
   const frontier = doneShelfFrontier([...input.environments.values()]);
   if (frontier === null) return input.requested;
@@ -268,7 +272,7 @@ export function createOlderDoneThreadAtoms<R, ER, E>(
     let fromSnapshot: OlderDone | null = null;
     let lastRead: OlderDone | null = null;
     let lastReadPage: OrchestrationV2OlderDoneThreadsPage | null = null;
-    return Atom.make((get) => {
+    return Atom.make((get): OlderDone | null => {
       const state = shellStateValue(get(shellStateAtom(environmentId)));
       const snapshot = state === null ? null : Option.getOrNull(state.snapshot);
       const cut = snapshot?.olderDone;
@@ -320,7 +324,7 @@ export function createOlderDoneThreadAtoms<R, ER, E>(
       number,
     ];
     let previous = NO_PAGES;
-    const keep = (next: OlderDonePages) => {
+    const keep = (next: OlderDonePages): OlderDonePages => {
       const same =
         next.status === previous.status &&
         next.frontier?.doneAt === previous.frontier?.doneAt &&
@@ -371,7 +375,7 @@ export function createOlderDoneThreadAtoms<R, ER, E>(
   );
 
   const searchGenerationAtom = Atom.family((environmentId: EnvironmentId) =>
-    Atom.make((get) => {
+    Atom.make((get): number | "waiting" | "none" => {
       const state = shellStateValue(get(shellStateAtom(environmentId)));
       if (state !== null && state.generation > 0) return state.generation;
       return state?.status === "synchronizing" ? "waiting" : "none";
@@ -404,7 +408,7 @@ export function createOlderDoneThreadAtoms<R, ER, E>(
   const shelfAtom = Atom.family((key: string) => {
     const entries = JSON.parse(key) as ReadonlyArray<readonly [string, string]>;
     let previous: ReadonlyMap<EnvironmentId, OlderDoneShelfEnvironment> = new Map();
-    return Atom.make((get) => {
+    return Atom.make((get): ReadonlyMap<EnvironmentId, OlderDoneShelfEnvironment> => {
       const shelf = new Map<EnvironmentId, OlderDoneShelfEnvironment>();
       let changed = previous.size !== entries.length;
       for (const [environmentId, pagesKey] of entries) {

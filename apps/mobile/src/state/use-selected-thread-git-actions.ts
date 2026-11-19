@@ -6,6 +6,7 @@ import {
   createVcsStatusRevalidationAtomFamily,
   type GitActionRequestInput,
   type VcsActionOperation,
+  type VcsRef,
 } from "@supaterm/client-runtime/state/vcs";
 import {
   AuthOrchestrationOperateScope,
@@ -35,12 +36,9 @@ import { showGitActionResult } from "./use-vcs-action-state";
 import { useThreadSelection } from "./use-thread-selection";
 import { useSelectedThreadWorktree } from "./use-selected-thread-worktree";
 
-function refreshFailureMessage(cause: Cause.Cause<unknown>): string;
-function refreshFailureMessage(cause: Cause.Cause<unknown>) {
+function refreshFailureMessage(cause: Cause.Cause<unknown>): string {
   const error = Cause.squash(cause);
-  return (
-    error instanceof Error ? error.message : "Failed to refresh git status."
-  ) satisfies string;
+  return error instanceof Error ? error.message : "Failed to refresh git status.";
 }
 
 const selectedThreadStatusRevalidation = createVcsStatusRevalidationAtomFamily({
@@ -163,7 +161,7 @@ export function useSelectedThreadGitActions() {
     ),
   );
 
-  const runSelectedThreadGitMutation: <T, E>(
+  const runSelectedThreadGitMutation = async <T, E>(
     operation: VcsActionOperation,
     label: string,
     execute: (input: {
@@ -172,16 +170,7 @@ export function useSelectedThreadGitActions() {
       readonly cwd: string;
     }) => Promise<AtomCommandResult<T, E>>,
     options?: { readonly managedExternally?: boolean; readonly changesThreadBranch?: boolean },
-  ) => Promise<T | null> = async <T, E>(
-    operation: VcsActionOperation,
-    label: string,
-    execute: (input: {
-      readonly thread: EnvironmentThreadShell;
-      readonly project: EnvironmentProject;
-      readonly cwd: string;
-    }) => Promise<AtomCommandResult<T, E>>,
-    options?: { readonly managedExternally?: boolean; readonly changesThreadBranch?: boolean },
-  ) => {
+  ): Promise<T | null> => {
     if (
       !selectedThread ||
       !selectedThreadProject ||
@@ -218,7 +207,7 @@ export function useSelectedThreadGitActions() {
     return result.value;
   };
 
-  const refreshSelectedThreadBranches = async () => {
+  const refreshSelectedThreadBranches = async (): Promise<ReadonlyArray<VcsRef> | null> => {
     if (branchTarget.environmentId === null || branchTarget.cwd === null) return null;
     const result = await readRefs({
       environmentId: branchTarget.environmentId,
@@ -237,21 +226,14 @@ export function useSelectedThreadGitActions() {
     );
   };
 
-  const syncSelectedThreadBranchState: (input: {
+  const syncSelectedThreadBranchState = async (input: {
     readonly thread: EnvironmentThreadShell;
     readonly cwd: string;
     readonly nextThreadState?: {
       readonly branch?: string | null;
       readonly worktreePath?: string | null;
     };
-  }) => Promise<AtomCommandResult<void, unknown>> = async (input: {
-    readonly thread: EnvironmentThreadShell;
-    readonly cwd: string;
-    readonly nextThreadState?: {
-      readonly branch?: string | null;
-      readonly worktreePath?: string | null;
-    };
-  }) => {
+  }): Promise<AtomCommandResult<void, unknown>> => {
     const updateResult = input.nextThreadState
       ? await updateThreadGitContext(input.thread, input.nextThreadState)
       : AsyncResult.success(undefined);
@@ -373,9 +355,9 @@ export function useSelectedThreadGitActions() {
     );
   };
 
-  const onRunSelectedThreadGitAction: (
+  const onRunSelectedThreadGitAction = async (
     input: GitActionRequestInput,
-  ) => Promise<GitRunStackedActionResult | null> = async (input: GitActionRequestInput) => {
+  ): Promise<GitRunStackedActionResult | null> => {
     const actionId = uuidv4();
     return await runSelectedThreadGitMutation(
       "run_change_request",

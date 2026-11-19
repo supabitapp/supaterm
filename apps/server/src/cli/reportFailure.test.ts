@@ -12,7 +12,7 @@ import { reportCliFailure } from "./reportFailure.ts";
 class RemoveFailedError extends Schema.TaggedError<RemoveFailedError>()("RemoveFailedError", {
   cause: Schema.Defect(),
 }) {
-  override get message() {
+  override get message(): string {
     return "Could not remove the project.";
   }
 }
@@ -26,7 +26,7 @@ class AlreadyRenderedError extends Schema.TaggedError<AlreadyRenderedError>()(
   {},
 ) {
   override readonly [Runtime.errorReported] = false;
-  override get message() {
+  override get message(): string {
     return "Shown by the CLI already.";
   }
 }

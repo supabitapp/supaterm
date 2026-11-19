@@ -31,11 +31,11 @@ export class ServerEnvironmentIdPersistenceError extends Schema.TaggedError<Serv
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  override get message() {
+  override get message(): string {
     if (this.operation === "initialize") {
-      return `Server environment ID file is missing or empty after initialization at '${this.environmentIdPath}'.` satisfies string as string;
+      return `Server environment ID file is missing or empty after initialization at '${this.environmentIdPath}'.`;
     }
-    return `Server environment ID ${this.operation} failed at '${this.environmentIdPath}'.` satisfies string as string;
+    return `Server environment ID ${this.operation} failed at '${this.environmentIdPath}'.`;
   }
 }
 
@@ -54,7 +54,7 @@ export class ServerEnvironmentIdentity extends Context.Service<
   }
 >()("supaterm/environment/ServerEnvironment/ServerEnvironmentIdentity") {}
 
-function platformOs(platform: NodeJS.Platform) {
+function platformOs(platform: NodeJS.Platform): ExecutionEnvironmentDescriptor["platform"]["os"] {
   switch (platform) {
     case "darwin":
       return "darwin";
@@ -67,7 +67,9 @@ function platformOs(platform: NodeJS.Platform) {
   }
 }
 
-function platformArch(architecture: NodeJS.Architecture) {
+function platformArch(
+  architecture: NodeJS.Architecture,
+): ExecutionEnvironmentDescriptor["platform"]["arch"] {
   switch (architecture) {
     case "arm64":
       return "arm64";

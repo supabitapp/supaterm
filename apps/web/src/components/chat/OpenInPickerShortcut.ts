@@ -18,7 +18,7 @@ export const OPEN_FAVORITE_EDITOR_ATTRIBUTE = "data-open-favorite-editor";
  * exactly what the button on screen would. A missing or disabled button leaves the command to
  * the chat's fallback below. Capture phase, so a focused terminal does not swallow the chord.
  */
-export function registerOpenFavoriteEditorCommand() {
+export function registerOpenFavoriteEditorCommand(): () => void {
   return registerCommands(
     {
       "editor.openFavorite": ({ repeat }) => {

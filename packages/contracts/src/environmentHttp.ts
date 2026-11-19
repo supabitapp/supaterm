@@ -125,7 +125,7 @@ export class EnvironmentRequestInvalidError extends Schema.TaggedError<Environme
     return HttpServerResponse.schemaJson(EnvironmentRequestInvalidError)(this, { status: 400 });
   }
 
-  override get message() {
+  override get message(): string {
     return `The environment rejected the request (${this.reason}).`;
   }
 }
@@ -143,8 +143,8 @@ export class EnvironmentAuthInvalidError extends Schema.TaggedError<EnvironmentA
     return HttpServerResponse.schemaJson(EnvironmentAuthInvalidError)(this, { status: 401 });
   }
 
-  override get message() {
-    return `The environment rejected this client's credentials (${this.reason}).` satisfies string as string;
+  override get message(): string {
+    return `The environment rejected this client's credentials (${this.reason}).`;
   }
 }
 
@@ -162,8 +162,8 @@ export class EnvironmentScopeRequiredError extends Schema.TaggedError<Environmen
     return HttpServerResponse.schemaJson(EnvironmentScopeRequiredError)(this, { status: 403 });
   }
 
-  override get message() {
-    return `This request needs the ${this.requiredPermission ?? this.requiredScope} scope, which this client does not have.` satisfies string as string;
+  override get message(): string {
+    return `This request needs the ${this.requiredPermission ?? this.requiredScope} scope, which this client does not have.`;
   }
 }
 
@@ -180,7 +180,7 @@ export class EnvironmentOperationForbiddenError extends Schema.TaggedError<Envir
     return HttpServerResponse.schemaJson(EnvironmentOperationForbiddenError)(this, { status: 403 });
   }
 
-  override get message() {
+  override get message(): string {
     return `The environment refused this operation (${this.reason}).`;
   }
 }
@@ -198,8 +198,8 @@ export class EnvironmentInternalError extends Schema.TaggedError<EnvironmentInte
     return HttpServerResponse.schemaJson(EnvironmentInternalError)(this, { status: 500 });
   }
 
-  override get message() {
-    return `The environment failed to answer this request (${this.reason}).` satisfies string as string;
+  override get message(): string {
+    return `The environment failed to answer this request (${this.reason}).`;
   }
 }
 
@@ -219,7 +219,7 @@ export class EnvironmentResourceNotFoundError extends Schema.TaggedError<Environ
     return HttpServerResponse.schemaJson(EnvironmentResourceNotFoundError)(this, { status: 404 });
   }
 
-  override get message() {
+  override get message(): string {
     return `The environment could not find what this request named (${this.reason}).`;
   }
 }

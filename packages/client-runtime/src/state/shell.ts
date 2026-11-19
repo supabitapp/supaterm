@@ -81,12 +81,11 @@ export const EMPTY_SHELL_STATE: EnvironmentShellState = {
 
 function shellStatusForSnapshot(
   snapshot: Option.Option<OrchestrationV2ShellSnapshot>,
-): EnvironmentShellStatus;
-function shellStatusForSnapshot(snapshot: Option.Option<OrchestrationV2ShellSnapshot>) {
-  return (Option.isSome(snapshot) ? "cached" : "empty") satisfies EnvironmentShellStatus;
+): EnvironmentShellStatus {
+  return Option.isSome(snapshot) ? "cached" : "empty";
 }
 
-function withoutDeferredPullRequests(value: DeferredShellSnapshot) {
+function withoutDeferredPullRequests(value: DeferredShellSnapshot): OrchestrationV2ShellSnapshot {
   if (value.loadPullRequests === undefined) return value;
   const { loadPullRequests: _deferred, ...snapshot } = value;
   return snapshot;
@@ -107,17 +106,19 @@ interface ShellSubscription extends ShellOmissions {
 function shellOmissions(flags: {
   readonly shellThreadFamilies?: boolean;
   readonly shellOlderDone?: boolean;
-}) {
+}): ShellOmissions {
   const omitIdleSubagents = flags.shellThreadFamilies === true;
   return { omitIdleSubagents, omitOlderDone: flags.shellOlderDone === true && omitIdleSubagents };
 }
 
-function descriptorShellOmissions(descriptor: ExecutionEnvironmentDescriptor | undefined) {
+function descriptorShellOmissions(
+  descriptor: ExecutionEnvironmentDescriptor | undefined,
+): ShellOmissions | null {
   if (descriptor?.capabilities.shellThreadFamilies === undefined) return null;
   return shellOmissions(descriptor.capabilities);
 }
 
-function sameOmissions(left: ShellOmissions, right: ShellOmissions) {
+function sameOmissions(left: ShellOmissions, right: ShellOmissions): boolean {
   return (
     left.omitIdleSubagents === right.omitIdleSubagents && left.omitOlderDone === right.omitOlderDone
   );
@@ -133,7 +134,7 @@ function originMayResume(
   return age >= 0 && age < SHELL_RESUME_MAX_SNAPSHOT_AGE_MS;
 }
 
-function sameConnection(left: PreparedConnection, right: PreparedConnection) {
+function sameConnection(left: PreparedConnection, right: PreparedConnection): boolean {
   const keys = Object.keys({ ...left, ...right }) as Array<keyof PreparedConnection>;
   return keys.every((key) => key === "httpAuthorization" || left[key] === right[key]);
 }
@@ -460,26 +461,29 @@ export const makeEnvironmentShellState = Effect.fn("EnvironmentShellState.make")
       arrivedRows: ReadonlySet<OrchestrationV2ThreadShell>,
       arrivedIds: ReadonlySet<ThreadId>,
     ) {
-      const filled = yield* SubscriptionRef.modify(state, (current) => {
-        if (Option.isNone(current.snapshot)) return [Option.none(), current];
-        const snapshot = current.snapshot.value;
-        let changed = false;
-        const threads = snapshot.threads.map((thread) => {
-          if (!arrivedRows.has(thread) || !arrivedIds.has(thread.id)) return thread;
-          const links = linksByThreadId.get(thread.id);
+      const filled = yield* SubscriptionRef.modify(
+        state,
+        (current): [Option.Option<OrchestrationV2ShellSnapshot>, EnvironmentShellState] => {
+          if (Option.isNone(current.snapshot)) return [Option.none(), current];
+          const snapshot = current.snapshot.value;
+          let changed = false;
+          const threads = snapshot.threads.map((thread) => {
+            if (!arrivedRows.has(thread) || !arrivedIds.has(thread.id)) return thread;
+            const links = linksByThreadId.get(thread.id);
 
-          if (sameThreadPullRequests(thread.pullRequests, links)) return thread;
-          changed = true;
-          if (links === undefined) {
-            const { pullRequests: _previous, ...row } = thread;
-            return row;
-          }
-          return { ...thread, pullRequests: links };
-        });
-        if (!changed) return [Option.none(), current];
-        const next = { ...snapshot, threads };
-        return [Option.some(next), { ...current, snapshot: Option.some(next) }];
-      });
+            if (sameThreadPullRequests(thread.pullRequests, links)) return thread;
+            changed = true;
+            if (links === undefined) {
+              const { pullRequests: _previous, ...row } = thread;
+              return row;
+            }
+            return { ...thread, pullRequests: links };
+          });
+          if (!changed) return [Option.none(), current];
+          const next = { ...snapshot, threads };
+          return [Option.some(next), { ...current, snapshot: Option.some(next) }];
+        },
+      );
 
       pendingLinkRows = new Set();
       const live = yield* Ref.get(latestLive);
@@ -722,7 +726,10 @@ const EMPTY_ENVIRONMENT_SHELL_SUMMARY: EnvironmentShellSummary = Object.freeze({
 
 const EMPTY_SERVER_CONFIGS: ReadonlyMap<EnvironmentId, ServerConfig> = new Map();
 
-function shellSummariesEqual(left: EnvironmentShellSummary, right: EnvironmentShellSummary) {
+function shellSummariesEqual(
+  left: EnvironmentShellSummary,
+  right: EnvironmentShellSummary,
+): boolean {
   return (
     left.hasSnapshot === right.hasSnapshot &&
     left.hasSynchronizingShell === right.hasSynchronizingShell &&
@@ -730,7 +737,7 @@ function shellSummariesEqual(left: EnvironmentShellSummary, right: EnvironmentSh
   );
 }
 
-function mapsEqual<K, V>(left: ReadonlyMap<K, V>, right: ReadonlyMap<K, V>) {
+function mapsEqual<K, V>(left: ReadonlyMap<K, V>, right: ReadonlyMap<K, V>): boolean {
   if (left.size !== right.size) {
     return false;
   }

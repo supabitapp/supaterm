@@ -48,8 +48,8 @@ export class ThreadUsageError extends Schema.TaggedError<ThreadUsageError>()("Th
   detail: Schema.String,
 }) {
   override readonly [Runtime.errorReported] = false;
-  override get message() {
-    return this.detail satisfies string as string;
+  override get message(): string {
+    return this.detail;
   }
 }
 
@@ -61,8 +61,8 @@ export class ThreadNeedsInputError extends Schema.TaggedError<ThreadNeedsInputEr
   override readonly [Runtime.errorReported] = false;
   override readonly [Runtime.errorExitCode] = 2;
 
-  override get message() {
-    return `Thread ${this.threadId} is waiting for an answer. Open it in Supaterm to respond.` satisfies string as string;
+  override get message(): string {
+    return `Thread ${this.threadId} is waiting for an answer. Open it in Supaterm to respond.`;
   }
 }
 
@@ -71,9 +71,9 @@ export class ThreadRunEndedError extends Schema.TaggedError<ThreadRunEndedError>
   { threadId: ThreadId, status: Schema.String, error: Schema.optional(Schema.String) },
 ) {
   override readonly [Runtime.errorReported] = false;
-  override get message() {
+  override get message(): string {
     const reason = this.error === undefined ? "." : `: ${this.error}`;
-    return `Thread ${this.threadId} stopped with status ${this.status}${reason}` satisfies string as string;
+    return `Thread ${this.threadId} stopped with status ${this.status}${reason}`;
   }
 }
 

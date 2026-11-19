@@ -16,7 +16,7 @@ export interface RenderReport {
 const COMPONENT_TAGS = new Set([0, 1, 11, 14, 15]);
 const PERFORMED_WORK = 1;
 
-function nameOf(fiber: Fiber) {
+function nameOf(fiber: Fiber): string | null {
   const type = fiber.type as {
     displayName?: string;
     name?: string;
@@ -44,7 +44,7 @@ interface CounterState {
   counts: Map<string, number>;
 }
 
-function visit(fiber: Fiber | null) {
+function visit(fiber: Fiber | null): number {
   let rendered = 0;
   for (let node = fiber; node; node = node.sibling) {
     const performed =
@@ -77,17 +77,17 @@ if (!("__REACT_DEVTOOLS_GLOBAL_HOOK__" in globalThis))
   });
 
 /** Every commit since load, counted or not, so a scenario can wait for the tree to go quiet. */
-export function commitsSoFar() {
+export function commitsSoFar(): number {
   return state.everCommitted;
 }
 
-export function startCounting() {
+export function startCounting(): void {
   state.commits = 0;
   state.counts = new Map();
   state.on = true;
 }
 
-export function stopCounting() {
+export function stopCounting(): RenderReport {
   state.on = false;
   const sorted = [...state.counts].sort(([a, x], [b, y]) => y - x || a.localeCompare(b));
   return {

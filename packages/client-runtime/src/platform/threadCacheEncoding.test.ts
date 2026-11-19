@@ -45,7 +45,7 @@ const notice = (index: number, threadId = v2ThreadId) => ({
   message: `Notice ${index}`,
 });
 
-function projectionWith(count: number) {
+function projectionWith(count: number): OrchestrationV2ThreadProjection {
   const inherited = Array.from({ length: 5 }, (_, index) => notice(index, otherThreadId));
   const turnItems = Array.from({ length: count }, (_, index) => notice(index));
   return {

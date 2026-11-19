@@ -231,12 +231,11 @@ const FILE_ICON_BY_EXTENSION: Readonly<Record<string, MarkdownFileIcon>> = {
 };
 
 /** Native link and media APIs have no document scheme to inherit from protocol-relative URLs. */
-export function normalizeNativeMarkdownUrl(value: string): string;
-export function normalizeNativeMarkdownUrl(value: string) {
-  return (value.startsWith("//") ? `https:${value}` : value) satisfies string;
+export function normalizeNativeMarkdownUrl(value: string): string {
+  return value.startsWith("//") ? `https:${value}` : value;
 }
 
-export function resolveMarkdownFileIcon(value: string) {
+export function resolveMarkdownFileIcon(value: string): MarkdownFileIcon {
   const basename = fileBasename(value).replace(POSITION_SUFFIX_PATTERN, "").toLowerCase();
   if (videoMimeType({ name: basename, mimeType: "" }) !== null) return "video";
   const exactIcon = FILE_ICON_BY_NAME[basename];
@@ -252,7 +251,7 @@ export function resolveMarkdownFileIcon(value: string) {
   return "default";
 }
 
-export function resolveMarkdownLinkPresentation(href: string) {
+export function resolveMarkdownLinkPresentation(href: string): MarkdownLinkPresentation {
   const normalized = normalizeMarkdownLinkDestination(href);
   try {
     const parsed = new URL(normalizeNativeMarkdownUrl(normalized));
@@ -261,7 +260,7 @@ export function resolveMarkdownLinkPresentation(href: string) {
         kind: "external",
         href: parsed.toString(),
         host: parsed.hostname,
-      } satisfies MarkdownLinkPresentation;
+      };
     }
   } catch {}
 
@@ -275,7 +274,7 @@ export function resolveMarkdownLinkPresentation(href: string) {
       path: target.path,
       ...(target.line ? { line: target.line } : {}),
       ...(target.column ? { column: target.column } : {}),
-    } satisfies MarkdownLinkPresentation;
+    };
   }
 
   return {
@@ -284,5 +283,5 @@ export function resolveMarkdownLinkPresentation(href: string) {
       /^(?:mailto|tel):/i.test(normalized) || parseThreadLinkHref(normalized) !== null
         ? normalized
         : null,
-  } satisfies MarkdownLinkPresentation;
+  };
 }

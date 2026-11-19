@@ -1,4 +1,8 @@
-import type { AuthClientPresentationMetadata } from "@supaterm/contracts";
+import type {
+  AuthClientMetadata,
+  AuthClientMetadataDeviceType,
+  AuthClientPresentationMetadata,
+} from "@supaterm/contracts";
 import type * as HttpServerRequest from "effect/http/HttpServerRequest";
 // @effect-diagnostics-next-line nodeBuiltinImport:off -- Effect's Digest is effectful; the cookie name stays a plain function.
 import * as NodeCrypto from "node:crypto";
@@ -21,7 +25,7 @@ export function resolveSessionCookieName(input: {
   readonly instanceKey: string;
   readonly environmentId: string;
   readonly development: boolean;
-}) {
+}): string {
   if (input.mode === "desktop") {
     return `${SESSION_COOKIE_NAME}_${input.port}`;
   }
@@ -42,7 +46,7 @@ export function resolveSessionCookieName(input: {
   return `${SESSION_COOKIE_NAME}_${input.port}_${instanceHash}`;
 }
 
-export function isRemoteReachableHost(host: string | undefined) {
+export function isRemoteReachableHost(host: string | undefined): boolean {
   if (host === "0.0.0.0" || host === "::" || host === "[::]") {
     return true;
   }
@@ -58,17 +62,17 @@ export function isRemoteReachableHost(host: string | undefined) {
   );
 }
 
-export function base64UrlEncode(input: string | Uint8Array) {
+export function base64UrlEncode(input: string | Uint8Array): string {
   return typeof input === "string"
     ? Base64Url.encode(new TextEncoder().encode(input))
     : Base64Url.encode(input);
 }
 
-export function base64UrlDecodeUtf8(input: string) {
+export function base64UrlDecodeUtf8(input: string): string {
   return Result.getOrThrow(Base64Url.decodeString(input));
 }
 
-export function timingSafeEqualBase64Url(left: string, right: string) {
+export function timingSafeEqualBase64Url(left: string, right: string): boolean {
   const leftBytes = Base64Url.decode(left);
   const rightBytes = Base64Url.decode(right);
   return (
@@ -78,7 +82,7 @@ export function timingSafeEqualBase64Url(left: string, right: string) {
   );
 }
 
-function normalizeNonEmptyString(value: string | null | undefined) {
+function normalizeNonEmptyString(value: string | null | undefined): string | undefined {
   if (typeof value !== "string") {
     return undefined;
   }
@@ -86,7 +90,7 @@ function normalizeNonEmptyString(value: string | null | undefined) {
   return trimmed.length > 0 ? trimmed : undefined;
 }
 
-function normalizeIpAddress(value: string | null | undefined) {
+function normalizeIpAddress(value: string | null | undefined): string | undefined {
   const normalized = normalizeNonEmptyString(value);
   if (!normalized) {
     return undefined;
@@ -94,7 +98,7 @@ function normalizeIpAddress(value: string | null | undefined) {
   return normalized.startsWith("::ffff:") ? normalized.slice("::ffff:".length) : normalized;
 }
 
-function inferDeviceType(userAgent: string | undefined) {
+function inferDeviceType(userAgent: string | undefined): AuthClientMetadataDeviceType {
   if (!userAgent) {
     return "unknown";
   }
@@ -112,7 +116,7 @@ function inferDeviceType(userAgent: string | undefined) {
   return "desktop";
 }
 
-function inferBrowser(userAgent: string | undefined) {
+function inferBrowser(userAgent: string | undefined): string | undefined {
   if (!userAgent) {
     return undefined;
   }
@@ -126,7 +130,7 @@ function inferBrowser(userAgent: string | undefined) {
   return undefined;
 }
 
-function inferOs(userAgent: string | undefined) {
+function inferOs(userAgent: string | undefined): string | undefined {
   if (!userAgent) {
     return undefined;
   }
@@ -139,7 +143,7 @@ function inferOs(userAgent: string | undefined) {
   return undefined;
 }
 
-function readRemoteAddressFromSource(source: unknown) {
+function readRemoteAddressFromSource(source: unknown): string | undefined {
   if (!source || typeof source !== "object") {
     return undefined;
   }
@@ -154,10 +158,10 @@ function readRemoteAddressFromSource(source: unknown) {
   return normalizeIpAddress(candidate.socket?.remoteAddress ?? candidate.remoteAddress);
 }
 
-const isLoopbackIpAddress = (address: string) =>
+const isLoopbackIpAddress = (address: string): boolean =>
   (NodeNet.isIPv4(address) && address.startsWith("127.")) || address === "::1";
 
-function resolveClientIpAddress(request: HttpServerRequest.HttpServerRequest) {
+function resolveClientIpAddress(request: HttpServerRequest.HttpServerRequest): string | undefined {
   const peer = readRemoteAddressFromSource(request.source);
   if (!peer || !isLoopbackIpAddress(peer)) {
     return peer;
@@ -169,7 +173,7 @@ function resolveClientIpAddress(request: HttpServerRequest.HttpServerRequest) {
 export function deriveAuthClientMetadata(input: {
   readonly request: HttpServerRequest.HttpServerRequest;
   readonly presented?: AuthClientPresentationMetadata;
-}) {
+}): AuthClientMetadata {
   const userAgent = normalizeNonEmptyString(input.request.headers["user-agent"]);
   const ipAddress = resolveClientIpAddress(input.request);
   const os = input.presented?.os ?? inferOs(userAgent);

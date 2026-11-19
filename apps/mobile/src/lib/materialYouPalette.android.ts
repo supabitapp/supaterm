@@ -1,8 +1,10 @@
 import { getMaterialColors, isDynamicColorAvailable } from "@expo/ui/jetpack-compose";
 
+import type { MaterialYouPalettes } from "./materialYouPalette";
+
 export const isSystemColorsAvailable = isDynamicColorAvailable;
 
-export function readSystemColorPalettes() {
+export function readSystemColorPalettes(): MaterialYouPalettes | null {
   if (!isDynamicColorAvailable) return null;
 
   return {

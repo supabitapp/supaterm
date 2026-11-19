@@ -10,7 +10,7 @@ import { View } from "react-native";
 
 import { AppText as Text } from "../../components/ui/AppText";
 
-function noticeTitle(phase: EnvironmentConnectionPhase, environmentLabel: string) {
+function noticeTitle(phase: EnvironmentConnectionPhase, environmentLabel: string): string {
   switch (phase) {
     case "offline":
       return "You are offline";
@@ -33,7 +33,7 @@ function noticeDetail(
   phase: EnvironmentConnectionPhase,
   resourceName: string,
   error: string | null,
-) {
+): string {
   if (error) {
     return phase === "reconnecting" ? `The app will keep retrying automatically. ${error}` : error;
   }

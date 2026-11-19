@@ -32,9 +32,8 @@ interface McpAppCommands {
 
 const MAX_DOWNLOAD_BYTES = 25 * 1024 * 1024;
 
-function commandValue<Value>(result: AtomCommandResult<Value, unknown>): Value;
-function commandValue<Value>(result: AtomCommandResult<Value, unknown>) {
-  if (result._tag === "Success") return result.value satisfies Value;
+function commandValue<Value>(result: AtomCommandResult<Value, unknown>): Value {
+  if (result._tag === "Success") return result.value;
   const error = squashAtomCommandFailure(result);
   throw new McpAppHostRefusal(
     error instanceof Error && error.message.trim() !== "" ? error.message : "Request failed.",
@@ -60,27 +59,7 @@ export function makeMcpAppRequests(options: {
     readonly mimeType: string;
     readonly bytes: Uint8Array;
   }) => void | Promise<void>;
-}): Pick<McpAppHostOptions, "callTool" | "readResource" | "updateModelContext" | "downloadFile">;
-export function makeMcpAppRequests(options: {
-  readonly target: () => {
-    readonly environmentId: EnvironmentId;
-    readonly threadId: ThreadId;
-    readonly conversationThreadId: ThreadId;
-    readonly itemId: TurnItemId;
-  };
-  readonly commands: () => McpAppCommands;
-  readonly confirmTool: (input: {
-    readonly name: string;
-    readonly title: string | undefined;
-    readonly arguments: Record<string, unknown>;
-  }) => Promise<boolean>;
-  readonly confirmDownload: (files: ReadonlyArray<McpAppDownload>) => Promise<boolean>;
-  readonly saveFile: (file: {
-    readonly name: string;
-    readonly mimeType: string;
-    readonly bytes: Uint8Array;
-  }) => void | Promise<void>;
-}) {
+}): Pick<McpAppHostOptions, "callTool" | "readResource" | "updateModelContext" | "downloadFile"> {
   const scope = () => {
     const { environmentId, threadId, itemId } = options.target();
     return { environmentId, input: { threadId, itemId } };
@@ -152,8 +131,5 @@ export function makeMcpAppRequests(options: {
         await options.saveFile({ name: file.name, mimeType, bytes });
       }
     },
-  } satisfies Pick<
-    McpAppHostOptions,
-    "callTool" | "readResource" | "updateModelContext" | "downloadFile"
-  >;
+  };
 }

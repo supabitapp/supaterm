@@ -15,7 +15,7 @@ function matchesTarget(
     readonly bounds: WindowsForegroundFocusTarget["bounds"] | null;
   },
   target: WindowsForegroundFocusTarget,
-) {
+): boolean {
   if ((element.name ?? "").trim() !== target.title.trim()) return false;
   if (!element.bounds) return false;
   return [target.bounds, target.contentBounds].some((bounds) =>
@@ -28,7 +28,7 @@ function matchesTarget(
 async function findTarget(
   App: (typeof import("@crowecawcaw/xa11y"))["App"],
   target: WindowsForegroundFocusTarget,
-) {
+): Promise<Element | undefined> {
   const children = await App.byPid(target.processId, { timeout: 0 })
     .then((app) => app.children())
     .catch(() => []);
@@ -40,7 +40,7 @@ const cachedElements = new Map<number, Element>();
 async function prepareTarget(
   App: (typeof import("@crowecawcaw/xa11y"))["App"],
   target: WindowsForegroundFocusTarget,
-) {
+): Promise<boolean> {
   const element = await findTarget(App, target);
   if (!element) {
     cachedElements.delete(target.windowId);
@@ -53,7 +53,7 @@ async function prepareTarget(
 async function focusTarget(
   App: (typeof import("@crowecawcaw/xa11y"))["App"],
   target: WindowsForegroundFocusTarget,
-) {
+): Promise<boolean> {
   let element = cachedElements.get(target.windowId);
   if (!element) {
     element = await findTarget(App, target);

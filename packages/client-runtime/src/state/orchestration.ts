@@ -276,7 +276,7 @@ export function nextPromptSuggestionRunId(input: {
     | null
     | undefined;
   readonly runs?: ReadonlyArray<OrchestrationV2Run>;
-}) {
+}): RunId | null {
   const { enabled, connected, canSuggest, latestRun, runs = [] } = input;
   if (!enabled || !connected || !canSuggest || !latestRun) return null;
   if (latestRun.status === "completed") return latestRun.runId;

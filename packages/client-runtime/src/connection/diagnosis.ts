@@ -35,27 +35,27 @@ interface Located {
   readonly cause: ConnectionFailureCause | "offline" | "outdated" | null;
 }
 
-function locate(input: ConnectionDiagnosisInput) {
+function locate(input: ConnectionDiagnosisInput): Located | null {
   const failure = input.state.lastFailure;
   if (input.state.network === "offline" || input.state.phase === "offline") {
-    return { hop: "device", cause: "offline" } satisfies Located | null;
+    return { hop: "device", cause: "offline" };
   }
   if (failure?._tag === "ConnectionBlockedError" && failure.serverUpdateRequired) {
-    return { hop: "server", cause: "outdated" } satisfies Located | null;
+    return { hop: "server", cause: "outdated" };
   }
   if (failure?.hop !== undefined) {
-    return { hop: failure.hop, cause: failure.failureCause ?? null } satisfies Located | null;
+    return { hop: failure.hop, cause: failure.failureCause ?? null };
   }
-  if (failure === null) return null satisfies Located | null;
+  if (failure === null) return null;
   const unreachable =
     failure.reason === "network" || failure.reason === "timeout" || failure.reason === "transport";
   return {
     hop: unreachable && (failure.via ?? input.via) === "relay" ? "tunnel" : "server",
     cause: null,
-  } satisfies Located | null;
+  };
 }
 
-function headline(host: string, located: Located, failure: ConnectionAttemptError | null) {
+function headline(host: string, located: Located, failure: ConnectionAttemptError | null): string {
   switch (located.cause) {
     case "offline":
       return "This device is offline";
@@ -86,7 +86,7 @@ function headline(host: string, located: Located, failure: ConnectionAttemptErro
   }
 }
 
-function steps(host: string, located: Located, failure: ConnectionAttemptError | null) {
+function steps(host: string, located: Located, failure: ConnectionAttemptError | null): string[] {
   const checkHost = `On ${host}, check Settings > Sharing & access.`;
   switch (located.cause) {
     case "offline":
@@ -134,7 +134,7 @@ const HOP_ORDER = {
   direct: ["device", "server"],
 } as const;
 
-function hopLabel(hop: ConnectionHop, host: string) {
+function hopLabel(hop: ConnectionHop, host: string): string {
   switch (hop) {
     case "device":
       return "This device";
@@ -147,9 +147,11 @@ function hopLabel(hop: ConnectionHop, host: string) {
   }
 }
 
-export function presentConnectionDiagnosis(input: ConnectionDiagnosisInput) {
+export function presentConnectionDiagnosis(
+  input: ConnectionDiagnosisInput,
+): ConnectionDiagnosis | null {
   const located = locate(input);
-  if (located === null) return null satisfies ConnectionDiagnosis | null;
+  if (located === null) return null;
   const host = input.hostLabel;
   const failure = input.state.lastFailure;
   const relayPath =
@@ -157,19 +159,16 @@ export function presentConnectionDiagnosis(input: ConnectionDiagnosisInput) {
   const order: ReadonlyArray<ConnectionHop> = HOP_ORDER[relayPath ? "relay" : "direct"];
   const failedIndex = order.indexOf(located.hop);
   const unlocatedRelayFailure = relayPath && located.hop === "tunnel" && located.cause === null;
-  const hops = order.map(
-    (hop, index) =>
-      ({
-        hop,
-        label: hopLabel(hop, host),
-        result:
-          index === failedIndex
-            ? "failed"
-            : index < failedIndex && !(unlocatedRelayFailure && hop === "relay")
-              ? "ok"
-              : "unchecked",
-      }) satisfies ConnectionDiagnosisHop,
-  );
+  const hops = order.map((hop, index): ConnectionDiagnosisHop => ({
+    hop,
+    label: hopLabel(hop, host),
+    result:
+      index === failedIndex
+        ? "failed"
+        : index < failedIndex && !(unlocatedRelayFailure && hop === "relay")
+          ? "ok"
+          : "unchecked",
+  }));
   const facts: Array<readonly [string, string]> = [];
   const add = (label: string, value: string | number | null | undefined) => {
     if (value !== null && value !== undefined && value !== "") facts.push([label, String(value)]);
@@ -193,12 +192,12 @@ export function presentConnectionDiagnosis(input: ConnectionDiagnosisInput) {
     hops,
     steps: steps(host, located, failure),
     facts,
-  } satisfies ConnectionDiagnosis | null;
+  };
 }
 
 const HOP_MARK = { ok: "ok", failed: "FAILED", unchecked: "not checked" } as const;
 
-export function connectionDiagnosisText(hostLabel: string, diagnosis: ConnectionDiagnosis) {
+export function connectionDiagnosisText(hostLabel: string, diagnosis: ConnectionDiagnosis): string {
   return [
     `Supaterm connection to ${hostLabel}: ${diagnosis.headline}`,
     "",

@@ -26,7 +26,7 @@ export const EMPTY_COMMAND_OUTPUT: CommandOutputView = {
 export function applyCommandOutputFrame(
   view: CommandOutputView,
   frame: OrchestrationV2CommandOutputFrame,
-) {
+): CommandOutputView {
   const base = frame.kind === "replace" ? EMPTY_TERMINAL_OUTPUT : view.output;
   return {
     output: appendTerminalOutput(
@@ -34,7 +34,7 @@ export function applyCommandOutputFrame(
       frame.text,
     ),
     running: frame.running,
-  } satisfies CommandOutputView;
+  };
 }
 
 /** A row with no output subscription, for hooks that subscribe only for command rows. */
@@ -47,7 +47,7 @@ export const NO_COMMAND_OUTPUT = Atom.make(AsyncResult.initial<CommandOutputView
  */
 export function commandOutputUnavailable(
   result: AsyncResult.AsyncResult<CommandOutputView, unknown>,
-) {
+): boolean {
   return (
     result._tag === "Failure" &&
     (AsyncResult.getOrElse(result, () => undefined)?.output.text ?? "") === ""

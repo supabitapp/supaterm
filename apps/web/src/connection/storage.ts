@@ -477,8 +477,7 @@ export interface CatalogBackend {
   readonly quarantine?: (raw: string) => Effect.Effect<void, ConnectionTransientError>;
 }
 
-export function makeCatalogBackend(database: DatabaseHandle): CatalogBackend;
-export function makeCatalogBackend(database: DatabaseHandle) {
+export function makeCatalogBackend(database: DatabaseHandle): CatalogBackend {
   const bridge = window.desktopBridge;
   if (bridge !== undefined) {
     return {
@@ -502,7 +501,7 @@ export function makeCatalogBackend(database: DatabaseHandle) {
                 ),
           ),
         ),
-    } satisfies CatalogBackend;
+    };
   }
 
   return {
@@ -512,7 +511,7 @@ export function makeCatalogBackend(database: DatabaseHandle) {
     write: (raw) => writeDatabaseValue(database, CATALOG_STORE_NAME, CATALOG_KEY, raw),
     quarantine: (raw) =>
       writeDatabaseValue(database, CATALOG_STORE_NAME, `${CATALOG_KEY}:corrupt:${Date.now()}`, raw),
-  } satisfies CatalogBackend;
+  };
 }
 
 interface CatalogStore {
@@ -595,7 +594,7 @@ const encodeStoredPullRequestRoutingPermission = Schema.encodeSync(
 export function makeBrowserPullRequestRoutingPermissions(
   browser: Pick<Window, "localStorage"> & EventTarget = window,
 ) {
-  const read = (key: string) => {
+  const read = (key: string): StoredPullRequestRoutingPermission | null => {
     try {
       const raw = browser.localStorage.getItem(key);
       const value: unknown = raw === null ? null : JSON.parse(raw);
@@ -607,7 +606,7 @@ export function makeBrowserPullRequestRoutingPermissions(
       return null;
     }
   };
-  const readAll = () => {
+  const readAll = (): ReadonlyArray<StoredPullRequestRoutingPermission> => {
     try {
       const values: StoredPullRequestRoutingPermission[] = [];
       const storage = browser.localStorage;

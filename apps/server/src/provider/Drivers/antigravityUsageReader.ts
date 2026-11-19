@@ -14,7 +14,7 @@ import * as SqlClient from "effect/sql/SqlClient";
 type FieldValue = number | bigint | Uint8Array;
 type Fields = Map<number, FieldValue[]>;
 
-function fields(bytes: Uint8Array) {
+function fields(bytes: Uint8Array): Fields {
   let offset = 0;
   const result: Fields = new Map();
   const varint = () => {
@@ -137,12 +137,12 @@ export const antigravityRateModel = (model: string) => {
         : base;
 };
 
-function withRateModel(record: UsageRecord) {
+function withRateModel(record: UsageRecord): UsageRecord {
   const rateModel = antigravityRateModel(record.model);
   return rateModel === record.model ? record : { ...record, rateModel };
 }
 
-function modelName(name: string) {
+function modelName(name: string): string {
   if (name) {
     const normalized = name
       .toLowerCase()
@@ -158,7 +158,7 @@ function modelName(name: string) {
   return "";
 }
 
-function isConcreteModel(model: string) {
+function isConcreteModel(model: string): boolean {
   return (
     /^(?:gemini-\d|claude-(?:sonnet|opus|haiku)-\d|gpt-)/.test(model) &&
     !/^gemini-3-flash-(?:agent(?:-[ab])?|[ab])$/.test(model)
@@ -177,7 +177,7 @@ interface Metadata {
   usages: Fields[];
 }
 
-function metadata(bytes: Uint8Array, step: boolean) {
+function metadata(bytes: Uint8Array, step: boolean): Metadata {
   const root = fields(bytes);
   if (!step && bytesAt(root, 1) === undefined) {
     throw new Error("Missing Antigravity generation metadata");
@@ -205,7 +205,7 @@ function metadata(bytes: Uint8Array, step: boolean) {
   };
 }
 
-function blob(value: unknown) {
+function blob(value: unknown): Uint8Array {
   if (!(value instanceof Uint8Array)) throw new Error("Invalid Antigravity metadata blob");
   return value;
 }
@@ -222,7 +222,7 @@ class AntigravityDatabaseDecodeError extends Schema.TaggedError<AntigravityDatab
   "AntigravityDatabaseDecodeError",
   { path: Schema.String, cause: Schema.optional(Schema.Defect()) },
 ) {
-  override get message() {
+  override get message(): string {
     return `Antigravity usage could not be decoded from ${this.path}.`;
   }
 }
@@ -330,7 +330,7 @@ function usageCandidates(
   steps: ReadonlyArray<{ idx: number; entry: Metadata }>,
   trajectoryTimestamp: number | null,
   fallbackTimestamp: number,
-) {
+): UsageCandidate[] {
   const records: UsageCandidate[] = [];
   const generationModels = new Map(generations.map(({ idx, entry }) => [idx, entry]));
   for (const [source, entries] of [
@@ -417,7 +417,7 @@ export const readAntigravityUsage = Effect.fn("readAntigravityUsage")(function* 
   const groups: Array<
     UsageCandidate & { parent: number; size: number; owner: number; fileIndex: number }
   > = [];
-  const find = (index: number) => {
+  const find = (index: number): number => {
     let root = index;
     while (groups[root]!.parent !== root) root = groups[root]!.parent;
     while (index !== root) {
@@ -427,7 +427,7 @@ export const readAntigravityUsage = Effect.fn("readAntigravityUsage")(function* 
     }
     return root;
   };
-  const merge = (left: number, right: number) => {
+  const merge = (left: number, right: number): number => {
     let a = find(left);
     let b = find(right);
     if (a === b) return a;
@@ -498,9 +498,10 @@ export const readAntigravityUsage = Effect.fn("readAntigravityUsage")(function* 
     cache?.set(canonical, { fingerprint, data });
     return data;
   });
-  const walk: (directory: string, root: string) => Effect.Effect<void> = Effect.fn(
-    "antigravityUsageReader.walk",
-  )(function* (directory: string, root: string) {
+  const walk = Effect.fn("antigravityUsageReader.walk")(function* (
+    directory: string,
+    root: string,
+  ): Effect.fn.Return<void> {
     const names = yield* fileSystem.readDirectory(directory).pipe(
       Effect.catchTags({
         PlatformError: (cause) => {

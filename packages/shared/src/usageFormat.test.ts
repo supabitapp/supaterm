@@ -12,7 +12,7 @@ import {
   usageSourceMessages,
 } from "./usageFormat.ts";
 
-function malformedSource(count: number, overrides: Partial<UsageSource> = {}) {
+function malformedSource(count: number, overrides: Partial<UsageSource> = {}): UsageSource {
   return {
     fingerprint: {
       hostId: "demo-host",
@@ -27,7 +27,7 @@ function malformedSource(count: number, overrides: Partial<UsageSource> = {}) {
     distinctSessions: 1,
     message: `${count} malformed or inconsistent usage record(s) were skipped; usage may be incomplete.`,
     ...overrides,
-  } satisfies UsageSource;
+  };
 }
 
 describe("usage source messages", () => {

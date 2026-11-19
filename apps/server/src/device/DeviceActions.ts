@@ -1,6 +1,7 @@
 import {
   type DeviceActionInput,
   type DeviceActionType,
+  type DeviceForegroundApp,
   DeviceOperationError,
   DeviceActionUnavailableError,
   type DeviceOrientation,
@@ -60,7 +61,7 @@ const IOS_TOGGLES = new Set([
 ]);
 const ANDROID_TOGGLES = new Set(["reduceMotion", "networkEnabled"]);
 
-const supportsAction = (platform: DevicePlatform, input: DeviceActionInput) => {
+const supportsAction = (platform: DevicePlatform, input: DeviceActionInput): boolean => {
   const actions = platform === "ios" ? IOS_ACTIONS : ANDROID_ACTIONS;
   if (!actions.has(input.type)) return false;
   if (input.type === "setToggle") {
@@ -94,7 +95,7 @@ const ANDROID_TEXT_SIZES: Record<DeviceTextSize, string> = {
   "extra-large": "1.3",
 };
 
-const textSizeFromIos = (category: string) => {
+const textSizeFromIos = (category: string): DeviceTextSize | undefined => {
   const entry = (Object.entries(IOS_TEXT_SIZES) as Array<[DeviceTextSize, string]>).find(
     ([, value]) => value === category,
   );
@@ -104,7 +105,7 @@ const textSizeFromIos = (category: string) => {
   return category.includes("extra") ? "large" : "default";
 };
 
-const textSizeFromAndroid = (scale: number) => {
+const textSizeFromAndroid = (scale: number): DeviceTextSize => {
   if (scale <= 0.9) return "small";
   if (scale >= 1.25) return "extra-large";
   if (scale >= 1.1) return "large";
@@ -454,14 +455,14 @@ export const readDeviceDetail = Effect.fn("DeviceActions.readDetail")(function* 
   ready: DeviceHostReady,
   platform: DevicePlatform,
   deviceId: string,
-) {
+): Effect.fn.Return<{ settings: DeviceSettings; foregroundApp: DeviceForegroundApp | null }> {
   return platform === "ios"
     ? yield* readIos(ready, deviceId)
     : yield* readAndroid(ready.run, deviceId);
 });
 
 const quiet = <A, E>(effect: Effect.Effect<A, E>) =>
-  effect.pipe(Effect.orElseSucceed(() => undefined));
+  effect.pipe(Effect.orElseSucceed((): A | undefined => undefined));
 
 const readIos = Effect.fn("DeviceActions.readIos")(function* (
   ready: DeviceHostReady,

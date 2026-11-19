@@ -42,7 +42,9 @@ const onSimpleEvent: ElectronPowerMonitor["Service"]["onSimpleEvent"] = (eventNa
 const onThermalStateChange: ElectronPowerMonitor["Service"]["onThermalStateChange"] = (
   listener,
 ) => {
-  const wrapped = (event: Electron.Event<Electron.PowerMonitorThermalStateChangeEventParams>) => {
+  const wrapped = (
+    event: Electron.Event<Electron.PowerMonitorThermalStateChangeEventParams>,
+  ): void => {
     listener(event.state);
   };
   return Effect.acquireRelease(
@@ -57,7 +59,9 @@ const onThermalStateChange: ElectronPowerMonitor["Service"]["onThermalStateChang
 };
 
 const onSpeedLimitChange: ElectronPowerMonitor["Service"]["onSpeedLimitChange"] = (listener) => {
-  const wrapped = (event: Electron.Event<Electron.PowerMonitorSpeedLimitChangeEventParams>) => {
+  const wrapped = (
+    event: Electron.Event<Electron.PowerMonitorSpeedLimitChangeEventParams>,
+  ): void => {
     listener(event.limit);
   };
   return Effect.acquireRelease(

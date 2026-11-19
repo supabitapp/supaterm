@@ -12,7 +12,7 @@ export class FirefoxCookieReadError extends Schema.TaggedError<FirefoxCookieRead
     cause: Schema.Defect(),
   },
 ) {
-  override get message() {
+  override get message(): string {
     return `Could not read Firefox cookies at ${this.cookieDatabasePath}.`;
   }
 }
@@ -24,7 +24,10 @@ const SAMESITE_STRICT = 2;
 const FIREFOX_RAW_SAMESITE_FIRST_SCHEMA = 10;
 const FIREFOX_RAW_SAMESITE_LAST_SCHEMA = 14;
 
-const sameSiteFromColumn = (value: number | null, rawValue: number | null) => {
+const sameSiteFromColumn = (
+  value: number | null,
+  rawValue: number | null,
+): ImportedCookie["sameSite"] => {
   if (value === null) return "unspecified";
   if (value === SAMESITE_LAX && rawValue === SAMESITE_NONE) return "unspecified";
   if (value === SAMESITE_NONE) return "no_restriction";
@@ -51,7 +54,7 @@ const FIREFOX_EXPIRY_MILLISECONDS_SCHEMA = 16;
 const UserVersionRow = Schema.Struct({ user_version: Schema.Number });
 const decodeUserVersion = Schema.decodeUnknownEffect(Schema.Array(UserVersionRow));
 
-const expiryToSeconds = (expiry: number, schemaVersion: number) => {
+const expiryToSeconds = (expiry: number, schemaVersion: number): number | undefined => {
   if (expiry <= 0) return undefined;
   return schemaVersion >= FIREFOX_EXPIRY_MILLISECONDS_SCHEMA ? Math.floor(expiry / 1000) : expiry;
 };

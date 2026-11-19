@@ -31,7 +31,7 @@ const local = { label: "Local", environmentId: EnvironmentId.make("local") };
 const remote = { label: "Remote", environmentId: EnvironmentId.make("remote") };
 const selected = [local, remote];
 
-function skillsStatus(installed: boolean) {
+function skillsStatus(installed: boolean): OrchestrationSkillsStatus {
   return {
     targets: [
       {
@@ -47,28 +47,32 @@ function skillsStatus(installed: boolean) {
       },
     ],
     unsupportedProviders: [],
-  } satisfies OrchestrationSkillsStatus;
+  };
 }
 
 const installedStatus = skillsStatus(true);
 
 function makeCommand(action: "Status" | "Install" | "Uninstall") {
-  return vi.fn(async ({ environmentId }: { environmentId: EnvironmentId }) => {
-    const key = String(environmentId);
-    testState.commandCalls.push({ action, environmentId: key });
-    if (testState.revokeDuringAction === action) {
-      testState.revokeDuringAction = null;
-      testState.permissions.delete(key);
-      return { _tag: "Failure", error: new Error("Permission revoked") } satisfies
-        | { _tag: "Success"; value: OrchestrationSkillsStatus }
-        | { _tag: "Failure"; error: Error };
-    }
-    const value = action === "Status" ? testState.statuses.get(key) : installedStatus;
-    if (value === undefined) throw new Error(`Missing status for ${key}`);
-    return { _tag: "Success", value: value as OrchestrationSkillsStatus } satisfies
-      | { _tag: "Success"; value: OrchestrationSkillsStatus }
-      | { _tag: "Failure"; error: Error };
-  });
+  return vi.fn(
+    async ({
+      environmentId,
+    }: {
+      environmentId: EnvironmentId;
+    }): Promise<
+      { _tag: "Success"; value: OrchestrationSkillsStatus } | { _tag: "Failure"; error: Error }
+    > => {
+      const key = String(environmentId);
+      testState.commandCalls.push({ action, environmentId: key });
+      if (testState.revokeDuringAction === action) {
+        testState.revokeDuringAction = null;
+        testState.permissions.delete(key);
+        return { _tag: "Failure", error: new Error("Permission revoked") };
+      }
+      const value = action === "Status" ? testState.statuses.get(key) : installedStatus;
+      if (value === undefined) throw new Error(`Missing status for ${key}`);
+      return { _tag: "Success", value: value as OrchestrationSkillsStatus };
+    },
+  );
 }
 
 let statusCommand: ReturnType<typeof makeCommand>;

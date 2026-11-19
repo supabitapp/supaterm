@@ -61,7 +61,7 @@ const resolveEnvironmentPortTarget = (
   environmentUrl: URL,
   requestedUrl?: string,
   sourceUrl?: URL,
-) => {
+): PreviewUrlResolution => {
   if (!isPrivateNetworkHost(environmentUrl.hostname)) {
     throw new Error(
       "This environment port needs the planned authenticated preview gateway; its server address is not directly private-network reachable.",
@@ -89,7 +89,7 @@ const resolveEnvironmentPortTarget = (
       ? "direct"
       : "direct-private-network",
     environmentId,
-  } satisfies PreviewUrlResolution;
+  };
 };
 
 const reachesEnvironmentLoopback = (

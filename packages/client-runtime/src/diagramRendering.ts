@@ -71,7 +71,11 @@ export function createDiagramRenderer(
   }
 
   return {
-    render(source: string, options: DiagramOptions = {}, math?: MathResolver) {
+    render(
+      source: string,
+      options: DiagramOptions = {},
+      math?: MathResolver,
+    ): Promise<Diagram | null> {
       if (!acceptsDiagramSource(source)) return Promise.resolve(null);
       const normalized = diagramOptions(options);
       const key = diagramKey(source, options, math);

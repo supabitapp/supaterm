@@ -1,13 +1,13 @@
 import type { ToolActivityIcon, ToolActivitySource } from "@supaterm/contracts";
 import { resolveSupatermMcpToolDefinition } from "@supaterm/shared/supatermMcpToolPresentation";
 
-export function normalizeMcpText(value: unknown, maxLength = 160) {
+export function normalizeMcpText(value: unknown, maxLength = 160): string | undefined {
   if (typeof value !== "string") return undefined;
   const text = value.trim().replace(/\s+/gu, " ");
   return text.length > 0 && text.length <= maxLength ? text : undefined;
 }
 
-export function normalizeMcpHttpUrl(value: unknown) {
+export function normalizeMcpHttpUrl(value: unknown): string | undefined {
   if (typeof value !== "string" || value.length > 4096) return undefined;
   try {
     const url = new URL(value);
@@ -27,28 +27,22 @@ export function mcpToolPresentation(input: {
   readonly iconUrl?: unknown;
   readonly iconUrlDark?: unknown;
   readonly source?: unknown;
-}) {
+}): {
+  readonly title?: string;
+  readonly toolIcon?: ToolActivityIcon;
+  readonly toolSource?: ToolActivitySource;
+} {
   const source =
     typeof input.source === "object" && input.source !== null ? input.source : undefined;
   const qualified =
     typeof input.toolName === "string" ? /^mcp__(.+?)__(.+)$/i.exec(input.toolName) : null;
   const server = normalizeMcpText(input.serverName ?? qualified?.[1] ?? input.serverDisplayName);
   const tool = normalizeMcpText(qualified?.[2] ?? input.toolName);
-  if (server && tool && resolveSupatermMcpToolDefinition(`${server}.${tool}`))
-    return {} satisfies {
-      readonly title?: string;
-      readonly toolIcon?: ToolActivityIcon;
-      readonly toolSource?: ToolActivitySource;
-    };
+  if (server && tool && resolveSupatermMcpToolDefinition(`${server}.${tool}`)) return {};
   const title =
     normalizeMcpText(input.title) ??
     (server && tool ? normalizeMcpText(tool.replace(/[_-]+/gu, " ")) : undefined);
-  if (!server)
-    return (title ? { title } : {}) satisfies {
-      readonly title?: string;
-      readonly toolIcon?: ToolActivityIcon;
-      readonly toolSource?: ToolActivitySource;
-    };
+  if (!server) return title ? { title } : {};
   const name =
     normalizeMcpText(input.serverDisplayName) ??
     normalizeMcpText(source && Reflect.get(source, "name")) ??
@@ -72,9 +66,5 @@ export function mcpToolPresentation(input: {
       kind: "integration",
       ...(icon ? { icon } : {}),
     },
-  } satisfies {
-    readonly title?: string;
-    readonly toolIcon?: ToolActivityIcon;
-    readonly toolSource?: ToolActivitySource;
   };
 }

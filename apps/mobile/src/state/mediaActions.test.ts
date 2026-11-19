@@ -103,7 +103,7 @@ const denied: Pick<AuthSessionState, "authenticated" | "scopes"> = {
   scopes: [],
 };
 
-function hostSource(_tag: "workspace-file" | "media-file" = "media-file") {
+function hostSource(_tag: "workspace-file" | "media-file" = "media-file"): MediaActionsSource {
   return {
     environmentId,
     threadId,
@@ -111,7 +111,7 @@ function hostSource(_tag: "workspace-file" | "media-file" = "media-file") {
     reference: { kind: "file", path: "/repo/image.png", relativePath: "image.png" },
     name: "image.png",
     mimeType: "image/png",
-  } satisfies MediaActionsSource;
+  };
 }
 
 beforeEach(() => {

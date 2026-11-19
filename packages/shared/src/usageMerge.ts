@@ -39,7 +39,7 @@ export interface ModelTotals {
 }
 
 /** When every record lacks rates, costUsd is unknown and must not be displayed as a dollar figure. */
-export function isModelCostUnknown(model: ModelTotals) {
+export function isModelCostUnknown(model: ModelTotals): boolean {
   return model.records > 0 && model.unpricedRecords >= model.records;
 }
 
@@ -108,22 +108,20 @@ export interface MergedUsage {
   readonly contractMismatches: readonly UsageContractMismatch[];
 }
 
-function fingerprintKey(fingerprint: UsageSourceFingerprint): string;
-function fingerprintKey(fingerprint: UsageSourceFingerprint) {
+function fingerprintKey(fingerprint: UsageSourceFingerprint): string {
   return [
     fingerprint.hostId,
     fingerprint.provider,
     fingerprint.resolvedHomePath,
     fingerprint.volumeId,
-  ].join(" ") satisfies string;
+  ].join(" ");
 }
 
 function sourceIdentity(
   environments: readonly EnvironmentUsage[],
-): (fingerprint: UsageSourceFingerprint) => string;
-function sourceIdentity(environments: readonly EnvironmentUsage[]) {
+): (fingerprint: UsageSourceFingerprint) => string {
   const parent = new Map<string, string>();
-  const find: (key: string) => string = (key: string) => {
+  const find = (key: string): string => {
     const next = parent.get(key);
     if (next === undefined || next === key) return key;
     const root = find(next);
@@ -138,12 +136,10 @@ function sourceIdentity(environments: readonly EnvironmentUsage[]) {
       if (legacy !== physical) parent.set(legacy, physical);
     }
   }
-  return ((fingerprint) => find(fingerprintKey(fingerprint))) satisfies (
-    fingerprint: UsageSourceFingerprint,
-  ) => string;
+  return (fingerprint) => find(fingerprintKey(fingerprint));
 }
 
-function bucketsForSource(summary: UsageSummary, source: UsageSource) {
+function bucketsForSource(summary: UsageSummary, source: UsageSource): readonly UsageBucket[] {
   const providerSources = summary.sources.filter(
     (entry) => entry.fingerprint.provider === source.fingerprint.provider,
   );
@@ -155,14 +151,19 @@ function bucketsForSource(summary: UsageSummary, source: UsageSource) {
   );
 }
 
-function bucketKey(bucket: UsageBucket) {
+function bucketKey(bucket: UsageBucket): string {
   return JSON.stringify([bucket.day, bucket.hourStart ?? null, bucket.provider, bucket.model]);
 }
 
 function claimSources(
   environments: readonly EnvironmentUsage[],
   sourceKey: (fingerprint: UsageSourceFingerprint) => string,
-) {
+): {
+  readonly ownerScanByFingerprint: ReadonlyMap<string, { readonly source: UsageSource }>;
+  readonly supplementalBucketsByEnvironment: ReadonlyMap<EnvironmentId, ReadonlySet<UsageBucket>>;
+  readonly sessionsByFingerprint: ReadonlyMap<string, number>;
+  readonly duplicates: readonly string[];
+} {
   const ownerScanByFingerprint = new Map<
     string,
     { environment: EnvironmentUsage; source: UsageSource }
@@ -244,7 +245,10 @@ function ownedContribution(
   supplementalBuckets: ReadonlySet<UsageBucket>,
   sessionsByFingerprint: ReadonlyMap<string, number>,
   sourceKey: (fingerprint: UsageSourceFingerprint) => string,
-) {
+): {
+  readonly buckets: readonly UsageBucket[];
+  readonly sessionsByProvider: ReadonlyMap<UsageProviderKind, number>;
+} {
   const ownedProviders = new Set<UsageProviderKind>();
   const ownedSources = new Set<string>();
   const sessionsByProvider = new Map<UsageProviderKind, number>();
@@ -274,7 +278,7 @@ function ownedContribution(
   };
 }
 
-function bucketTokens(bucket: UsageBucket) {
+function bucketTokens(bucket: UsageBucket): number {
   return (
     bucket.totals.uncachedInputTokens +
     bucket.totals.cachedInputTokens +
@@ -283,7 +287,7 @@ function bucketTokens(bucket: UsageBucket) {
   );
 }
 
-export function isCompatibleUsageContractVersion(version: number, expected: number) {
+export function isCompatibleUsageContractVersion(version: number, expected: number): boolean {
   return version >= USAGE_MERGE_COMPATIBLE_SINCE && version <= expected;
 }
 
@@ -317,7 +321,7 @@ const EMPTY_MERGED: MergedUsage = {
 export function mergeUsage(
   environments: readonly EnvironmentUsage[],
   expectedContractVersion: number,
-) {
+): MergedUsage {
   if (environments.length === 0) return EMPTY_MERGED;
 
   const current: EnvironmentUsage[] = [];

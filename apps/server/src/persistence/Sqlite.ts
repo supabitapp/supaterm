@@ -18,14 +18,14 @@ export class ServerOwnsDatabaseError extends Schema.TaggedError<ServerOwnsDataba
   "ServerOwnsDatabaseError",
   { stateDir: Schema.String },
 ) {
-  override get message() {
-    return `Another Supaterm process, usually a running server, owns ${this.stateDir}, and this CLI would change its database schema. Use the \`supaterm\` that matches the running server, or stop that server, then retry. The database was not changed.` satisfies string as string;
+  override get message(): string {
+    return `Another Supaterm process, usually a running server, owns ${this.stateDir}, and this CLI would change its database schema. Use the \`supaterm\` that matches the running server, or stop that server, then retry. The database was not changed.`;
   }
 }
 
 const DAMAGED_SQLITE_CODES = new Set([11, 26]);
 
-const isDamagedDatabase = (error: SqlError.SqlError) => {
+const isDamagedDatabase = (error: SqlError.SqlError): boolean => {
   const seen = new Set<unknown>();
   let cause: unknown = error.cause;
   while (Predicate.isObject(cause) && !seen.has(cause)) {

@@ -43,6 +43,24 @@ export interface SourceControlActionScope {
   readonly cwd: string | null;
 }
 
+interface SourceControlActionState<
+  TArgs extends ReadonlyArray<unknown>,
+  R extends AtomCommandResult<unknown, unknown>,
+> {
+  readonly isPending: boolean;
+  readonly isAllowed: boolean;
+  readonly error: unknown;
+  readonly run: (
+    ...args: TArgs
+  ) => Promise<
+    AtomCommandResult<
+      AtomCommandSuccess<R>,
+      AtomCommandFailure<R> | VcsActionUnavailableError | EnvironmentAuthorizationError
+    >
+  >;
+  readonly resetError: () => void;
+}
+
 const ACTION_OPERATION = {
   init: "init",
   pull: "pull",
@@ -61,7 +79,7 @@ function useAction<
   readonly action: (...args: TArgs) => Promise<R>;
   readonly onSuccess?: () => void;
   readonly managedExternally?: boolean;
-}) {
+}): SourceControlActionState<TArgs, R> {
   const { action, label, managedExternally, onSuccess, scope } = input;
   const isAllowed = useEnvironmentScope(scope.environmentId, AuthSourceControlWriteScope);
   const operation = ACTION_OPERATION[input.kind];
@@ -86,7 +104,9 @@ function useAction<
         ),
       );
     }
-    const execute = async () => {
+    const execute = async (): Promise<
+      AtomCommandResult<AtomCommandSuccess<R>, AtomCommandFailure<R>>
+    > => {
       const result = await action(...args);
       if (AsyncResult.isSuccess(result)) {
         onSuccess?.();
@@ -128,7 +148,7 @@ function resolveScope(scope: SourceControlActionScope) {
 export function useSourceControlActionRunning(
   scope: SourceControlActionScope,
   kinds: ReadonlyArray<SourceControlActionKind>,
-) {
+): boolean {
   const state = useAtomValue(vcsActionManager.stateAtom(scope));
   return (
     state.isRunning &&
@@ -344,10 +364,9 @@ export interface PullRequestResolutionTarget {
 
 export function readCachedPullRequestResolution(
   target: PullRequestResolutionTarget,
-): GitResolvePullRequestResult | null;
-export function readCachedPullRequestResolution(target: PullRequestResolutionTarget) {
+): GitResolvePullRequestResult | null {
   if (target.environmentId === null || target.cwd === null || target.reference === null) {
-    return null satisfies GitResolvePullRequestResult | null;
+    return null;
   }
   return AsyncResult.getOrElse(
     appAtomRegistry.get(
@@ -357,7 +376,7 @@ export function readCachedPullRequestResolution(target: PullRequestResolutionTar
       }),
     ),
     () => null,
-  ) satisfies GitResolvePullRequestResult | null;
+  );
 }
 
 export function usePullRequestResolutionState(target: PullRequestResolutionTarget) {

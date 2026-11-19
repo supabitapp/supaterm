@@ -58,7 +58,9 @@ const GitLabMergeRequestSchema = Schema.Struct({
   target_project: Schema.optional(Schema.NullOr(GitLabProjectReferenceSchema)),
 });
 
-function normalizeGitLabMergeRequestState(state: string | null | undefined) {
+function normalizeGitLabMergeRequestState(
+  state: string | null | undefined,
+): "open" | "closed" | "merged" {
   const normalized = state?.trim().toLowerCase();
   if (normalized === "merged") {
     return "merged";
@@ -71,7 +73,7 @@ function normalizeGitLabMergeRequestState(state: string | null | undefined) {
 
 function projectPathWithNamespace(
   project: Schema.Schema.Type<typeof GitLabProjectReferenceSchema> | null | undefined,
-) {
+): string | null {
   const explicit =
     trimOptionalString(project?.path_with_namespace) ??
     trimOptionalString(project?.pathWithNamespace);
@@ -86,14 +88,14 @@ function projectPathWithNamespace(
   return namespacePath;
 }
 
-function ownerLoginFromPathWithNamespace(pathWithNamespace: string | null) {
+function ownerLoginFromPathWithNamespace(pathWithNamespace: string | null): string | null {
   const [owner] = pathWithNamespace?.split("/") ?? [];
   return trimOptionalString(owner);
 }
 
 function normalizeGitLabMergeRequestRecord(
   raw: Schema.Schema.Type<typeof GitLabMergeRequestSchema>,
-) {
+): NormalizedGitLabMergeRequestRecord {
   const sourceProjectPath = projectPathWithNamespace(raw.source_project);
   const targetProjectPath = projectPathWithNamespace(raw.target_project);
   const isCrossRepository =
@@ -120,14 +122,19 @@ function normalizeGitLabMergeRequestRecord(
     ...(typeof isCrossRepository === "boolean" ? { isCrossRepository } : {}),
     ...(sourceProjectPath ? { headRepositoryNameWithOwner: sourceProjectPath } : {}),
     ...(headRepositoryOwnerLogin ? { headRepositoryOwnerLogin } : {}),
-  } satisfies NormalizedGitLabMergeRequestRecord;
+  };
 }
 
 const decodeGitLabMergeRequestList = decodeJsonResult(Schema.Array(Schema.Unknown));
 const decodeGitLabMergeRequest = decodeJsonResult(GitLabMergeRequestSchema);
 const decodeGitLabMergeRequestEntry = Schema.decodeUnknownExit(GitLabMergeRequestSchema);
 
-export function decodeGitLabMergeRequestListJson(raw: string) {
+export function decodeGitLabMergeRequestListJson(
+  raw: string,
+): Result.Result<
+  ReadonlyArray<NormalizedGitLabMergeRequestRecord>,
+  Cause.Cause<Schema.SchemaError>
+> {
   const result = decodeGitLabMergeRequestList(raw);
   if (Result.isSuccess(result)) {
     const mergeRequests: NormalizedGitLabMergeRequestRecord[] = [];
@@ -143,15 +150,12 @@ export function decodeGitLabMergeRequestListJson(raw: string) {
   return Result.fail(result.failure);
 }
 
-export function decodeGitLabMergeRequestJson(raw: string) {
+export function decodeGitLabMergeRequestJson(
+  raw: string,
+): Result.Result<NormalizedGitLabMergeRequestRecord, Cause.Cause<Schema.SchemaError>> {
   const result = decodeGitLabMergeRequest(raw);
   if (Result.isSuccess(result)) {
-    return Result.succeed(
-      normalizeGitLabMergeRequestRecord(result.success),
-    ) satisfies Result.Result<NormalizedGitLabMergeRequestRecord, Cause.Cause<Schema.SchemaError>>;
+    return Result.succeed(normalizeGitLabMergeRequestRecord(result.success));
   }
-  return Result.fail(result.failure) satisfies Result.Result<
-    NormalizedGitLabMergeRequestRecord,
-    Cause.Cause<Schema.SchemaError>
-  >;
+  return Result.fail(result.failure);
 }

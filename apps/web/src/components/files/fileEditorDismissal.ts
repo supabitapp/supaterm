@@ -11,7 +11,7 @@ function dismissFileEditorInteraction({
   root,
   editor,
   onDismiss,
-}: Pick<FileEditorDismissalOptions, "root" | "editor" | "onDismiss">) {
+}: Pick<FileEditorDismissalOptions, "root" | "editor" | "onDismiss">): void {
   onDismiss();
   editor.setSelections([]);
 
@@ -22,7 +22,7 @@ function dismissFileEditorInteraction({
   }
 }
 
-function isFileEditorFocused(root: HTMLElement) {
+function isFileEditorFocused(root: HTMLElement): boolean {
   const file = root.querySelector<HTMLElement>("diffs-container");
   return file?.shadowRoot?.activeElement?.hasAttribute("data-content") === true;
 }
@@ -32,7 +32,7 @@ export function installFileEditorDismissal({
   editor,
   isBlocked,
   onDismiss,
-}: FileEditorDismissalOptions) {
+}: FileEditorDismissalOptions): () => void {
   const handlePointerDown = (event: PointerEvent) => {
     if (isBlocked() || event.composedPath().includes(root)) return;
     dismissFileEditorInteraction({ root, editor, onDismiss });
