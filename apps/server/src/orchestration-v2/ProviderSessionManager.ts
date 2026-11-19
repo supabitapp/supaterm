@@ -265,6 +265,17 @@ export interface ProviderSessionManagerV2Shape {
     readonly providerSessionId: ProviderSessionId;
     readonly threadId: ThreadId;
   }) => Effect.Effect<ReadonlyArray<ThreadId>>;
+  /**
+   * Forgets that the thread has this provider thread loaded, so its next resume reaches the
+   * adapter. Leaves the attachment, idle unload and MCP credential alone, unlike detach.
+   */
+  readonly forgetLoadedProviderThread: (input: {
+    readonly providerSessionId: ProviderSessionId;
+    readonly threadId: ThreadId;
+    readonly providerThread: OrchestrationV2ProviderThread;
+    readonly modelSelection: ModelSelection;
+    readonly runtimePolicy: ProviderAdapter.ProviderAdapterV2RuntimePolicy;
+  }) => Effect.Effect<void>;
 }
 
 export class ProviderSessionManagerV2 extends Context.Service<
@@ -3467,6 +3478,22 @@ export const layerWithOptions = (
               ),
             ),
         ),
+        forgetLoadedProviderThread: (input) =>
+          Ref.update(sessions, (current) => {
+            const key = sessionKey(input.providerSessionId);
+            const entry = current.get(key);
+            // Only the matching load: a different key belongs to a later load of this thread.
+            if (
+              entry === undefined ||
+              entry.loadedProviderThreadsByThread.get(input.threadId)?.loadKey !==
+                providerThreadLoadKey({ ...input, runtime: entry.runtime })
+            ) {
+              return current;
+            }
+            const loadedProviderThreadsByThread = new Map(entry.loadedProviderThreadsByThread);
+            loadedProviderThreadsByThread.delete(input.threadId);
+            return new Map(current).set(key, { ...entry, loadedProviderThreadsByThread });
+          }),
       } satisfies ProviderSessionManagerV2Shape);
     }),
   );
