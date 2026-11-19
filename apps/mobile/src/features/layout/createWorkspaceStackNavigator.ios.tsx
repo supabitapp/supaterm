@@ -399,9 +399,14 @@ function WorkspaceColumns(
             )
       }
       onDisplayModeWillChange={({ nativeEvent }) => {
-        if (layout.variant !== "medium") return;
-        if (nativeEvent.nextDisplayMode === "oneOverSecondary") setPrimarySidebarVisible(true);
-        else if (nativeEvent.nextDisplayMode === "secondaryOnly") setPrimarySidebarVisible(false);
+        // The unfolded Duo's compose follows the sidebar, which its swipe can hide.
+        if (layout.variant !== "medium" && deviceType !== "duo-unfolded") return;
+        if (nativeEvent.nextDisplayMode === "secondaryOnly") setPrimarySidebarVisible(false);
+        else if (
+          nativeEvent.nextDisplayMode === "oneOverSecondary" ||
+          nativeEvent.nextDisplayMode === "oneBesideSecondary"
+        )
+          setPrimarySidebarVisible(true);
       }}
       displayModeButtonVisibility="never"
       presentsWithGesture

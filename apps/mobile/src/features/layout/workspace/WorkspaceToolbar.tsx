@@ -237,7 +237,7 @@ export function WorkspaceToolbar(props: {
       <Toolbar placement="bottom">
         {sidebarTabs === "toolbar" ? <WorkspaceTabToolbarButtons /> : null}
         {bottomSearch && searchVisible ? <Toolbar.SearchBarSlot /> : null}
-        {searchCompose ? (
+        {searchCompose && bottomSearch && searchVisible ? (
           <Toolbar.Button
             identifier="workspace-compose"
             accessibilityLabel="New chat"
