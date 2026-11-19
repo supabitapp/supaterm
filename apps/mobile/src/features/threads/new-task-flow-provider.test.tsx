@@ -78,6 +78,7 @@ vi.mock("../../state/entities", () => ({
   useEnvironmentServerConfig: (id: EnvironmentId | null) => configs.get(id!) ?? null,
   useServerConfigs: () => configs,
 }));
+vi.mock("../../state/peerLinks", () => ({ useLinkedEnvironments: () => new Map() }));
 vi.mock("../../state/projects", () => ({
   projectEnvironment: { openScratch: transport.openScratchCommand, readFile: () => null },
 }));

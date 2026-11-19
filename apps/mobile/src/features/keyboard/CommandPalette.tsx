@@ -9,9 +9,9 @@ import {
   type EnvironmentThreadSearchMatch,
   type ShownOrder,
 } from "@supaterm/client-runtime/state/thread-search";
+import { isShownUnderParent } from "@supaterm/client-runtime/state/threads";
 import {
   AuthOrchestrationOperateScope,
-  isListedThreadLineage,
   THREAD_JUMP_KEYBINDING_COMMANDS,
 } from "@supaterm/contracts";
 import { resolveThreadForkSource } from "@supaterm/client-runtime/state/thread-workflows";
@@ -50,6 +50,7 @@ import { useNativeLayoutMetrics } from "../../native/native-layout-metrics";
 import { SupatermKeyboardCommands } from "../../native/SupatermKeyboardCommands";
 import { useActiveNewTask } from "../../state/active-new-task";
 import {
+  useDelegatedUnderParent,
   useProjects,
   useServerConfigs,
   useThreadShell,
@@ -241,6 +242,7 @@ export function CommandPalette(props: {
   const runCommand = props.onCommand;
   const projects = useProjects();
   const threads = useThreadShells();
+  const delegatedUnderParent = useDelegatedUnderParent();
   const activeThreadRef = parseActiveThreadPath(props.pathname);
   const activeThread = useThreadShell(activeThreadRef);
   const projection = useThreadProjection({
@@ -469,7 +471,15 @@ export function CommandPalette(props: {
         }),
     }));
     const threadItems: CommandPaletteItem[] = threads
-      .filter((thread) => thread.archivedAt === null && isListedThreadLineage(thread.lineage))
+      .filter(
+        (thread) =>
+          thread.archivedAt === null &&
+          !isShownUnderParent(
+            { environmentId: thread.environmentId, threadId: thread.id },
+            thread.lineage,
+            delegatedUnderParent,
+          ),
+      )
       .map((thread) => {
         const project = projectByKey.get(scopedProjectKey(thread.environmentId, thread.projectId));
         const environment =
@@ -519,6 +529,7 @@ export function CommandPalette(props: {
     selectDetail,
     startTriage,
     threads,
+    delegatedUnderParent,
     triageEnvironmentId,
   ]);
   const rankedMessageKeys = useMemo(() => {

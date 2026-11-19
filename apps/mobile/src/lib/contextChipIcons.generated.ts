@@ -13,6 +13,7 @@ export const CONTEXT_CHIP_ICON_SOURCES = {
   "messages-square": require("../../assets/context-chip-icons/messages-square.png"),
   "mouse-pointer-click": require("../../assets/context-chip-icons/mouse-pointer-click.png"),
   quote: require("../../assets/context-chip-icons/quote.png"),
+  server: require("../../assets/context-chip-icons/server.png"),
   skill: require("../../assets/context-chip-icons/skill.png"),
   terminal: require("../../assets/context-chip-icons/terminal.png"),
 } as const satisfies Readonly<Record<string, ImageSourcePropType>>;

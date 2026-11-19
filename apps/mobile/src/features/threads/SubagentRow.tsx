@@ -33,14 +33,17 @@ type SubagentRowSubagent = Pick<
   | "status"
   | "progress"
   | "result"
+  | "remoteChild"
 >;
 
 export function SubagentRow(props: {
   readonly environmentId: EnvironmentId;
   readonly subagent: SubagentRowSubagent;
   readonly elapsed: ReactNode;
+  /** The task runs in a linked environment this app is connected to. */
+  readonly canOpenRemote?: boolean;
 }) {
-  const presentation = resolveSubagentRowPresentation(props.subagent);
+  const presentation = resolveSubagentRowPresentation(props.subagent, props.canOpenRemote);
   const detail = subagentCardDetail(presentation.detail);
   return (
     <View className="flex-row gap-3">
@@ -84,13 +87,19 @@ export function SubagentRow(props: {
 function SubagentMetadata(props: {
   readonly environmentId: EnvironmentId;
   readonly subagent: SubagentRowSubagent;
-  readonly presentation: Pick<SubagentRowPresentation, "statusLabel" | "tone">;
+  readonly presentation: Pick<SubagentRowPresentation, "statusLabel" | "tone" | "runsOn">;
 }) {
   const { environmentId, subagent, presentation } = props;
-  const providers = useEnvironmentServerConfig(environmentId)?.providers ?? [];
+  // A task in a linked environment runs a provider instance of that environment.
+  const providers =
+    useEnvironmentServerConfig(subagent.remoteChild?.environmentId ?? environmentId)?.providers ??
+    [];
   const provider = providers.find(
     (candidate) => candidate.instanceId === subagent.providerInstanceId,
   );
+  // A remote task's own driver is only a "remote" label.
+  const driver =
+    provider?.driver ?? (subagent.remoteChild === undefined ? subagent.driver : undefined);
   const parent = useThreadShell(scopeThreadRef(environmentId, subagent.threadId))?.source;
   const child = useThreadShell(
     subagent.childThreadId === null ? null : scopeThreadRef(environmentId, subagent.childThreadId),
@@ -122,6 +131,11 @@ function SubagentMetadata(props: {
       >
         {presentation.statusLabel}
       </Text>
+      {presentation.runsOn !== null ? (
+        <Text numberOfLines={1} className="shrink text-xs text-foreground-muted">
+          on {presentation.runsOn}
+        </Text>
+      ) : null}
       <Text
         accessibilityElementsHidden
         importantForAccessibility="no"
@@ -129,11 +143,11 @@ function SubagentMetadata(props: {
       >
         ·
       </Text>
-      <ProviderIcon
-        provider={provider?.driver ?? subagent.driver}
-        iconUrl={provider?.iconUrl}
-        size={12}
-      />
+      {driver === undefined ? (
+        <SymbolView name="robot" size={11} tintColorClassName="accent-icon-muted" />
+      ) : (
+        <ProviderIcon provider={driver} iconUrl={provider?.iconUrl} size={12} />
+      )}
       <Text
         // The provider icon is unlabeled, so spoken output always names the instance.
         accessibilityLabel={instance ? `${modelText}, ${instance.displayName}` : modelText}

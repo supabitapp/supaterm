@@ -390,7 +390,8 @@ my vps", or mention the machine with `@` in the composer. The agent shows a card
 in the thread where you pick the machine the same way and the access, then
 approve. An address the agent gives that this app does not know for one of your
 machines also needs a pasted code. Paste one only for an address you trust: the
-code is sent there.
+code is sent there. The mobile app links this way only; its Linked environments
+section lists the links and forgets them.
 
 - The access you pick is the most agents from this machine may do there. An
   agent also never gets more there than its own mode here.
