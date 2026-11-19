@@ -1,3 +1,5 @@
+// @effect-diagnostics-next-line nodeBuiltinImport:off - The relay tunnel hands sockets to the peer's own HTTP server.
+import type * as NodeHttp from "node:http";
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import {
@@ -34,7 +36,11 @@ import * as Sqlite from "../persistence/Sqlite.ts";
 import * as PeerLinks from "./PeerLinks.ts";
 import * as ServerSettings from "../serverSettings.ts";
 import * as PeerMcpClient from "./PeerMcpClient.ts";
+import * as DirectTunnel from "../relay/DirectTunnel.ts";
+import * as DirectTunnelHttp from "../relay/DirectTunnelHttp.ts";
 import * as RelayCompanion from "../relay/RelayCompanion.ts";
+import * as RelayIdentity from "../relay/RelayIdentity.ts";
+import * as RelayIngress from "../relay/RelayIngress.ts";
 
 class PeerTestApi extends HttpApi.make("environment")
   .add(EnvironmentHttpApi.groups.metadata)
@@ -66,6 +72,8 @@ export const descriptorOf = (
 export const servePeer = <E, R>(
   initial: ExecutionEnvironmentDescriptor,
   tools: Layer.Layer<never, E, R>,
+  /** The HTTP server it is served on, when it also answers through its relay tunnel. */
+  tunnelServer?: NodeHttp.Server,
 ) =>
   Effect.gen(function* () {
     const descriptor = yield* Ref.make(initial);
@@ -110,7 +118,19 @@ export const servePeer = <E, R>(
         }),
       { global: true },
     );
+    // Without a server to hand tunnel sockets to, the route is mounted but carries nothing.
+    const tunnelContext = yield* DirectTunnel.layer.pipe(
+      Layer.provideMerge(RelayIdentity.layer),
+      Layer.provide(
+        tunnelServer === undefined
+          ? Layer.succeed(RelayIngress.RelayIngress, { accept: (stream) => stream.reset() })
+          : RelayIngress.layerFromServer(tunnelServer),
+      ),
+      Layer.provide(Layer.succeedContext(authContext)),
+      Layer.build,
+    );
     const layerRoutes = Layer.mergeAll(
+      DirectTunnelHttp.layer,
       HttpApiBuilder.layer(PeerTestApi).pipe(
         Layer.provide(McpOAuthHttp.layer.pipe(Layer.provide(McpOAuth.layer))),
         Layer.provide(ServerHttp.layerServerEnvironmentHttpApi),
@@ -126,12 +146,14 @@ export const servePeer = <E, R>(
       ),
     ).pipe(
       Layer.provide(layerRecordBearers),
+      Layer.provide(RelayIngress.layerPathGuard),
       Layer.provide(layerEnvironment),
       Layer.provide(Layer.succeedContext(authContext)),
     );
     // Fresh, so the peer never shares a toolkit or MCP server with the
     // environment that links to it in the same test.
     yield* HttpRouter.serve(layerRoutes, { disableListenLog: true, disableLogger: true }).pipe(
+      Layer.provide(Layer.succeedContext(tunnelContext)),
       Layer.fresh,
       Layer.build,
     );
@@ -143,6 +165,11 @@ export const servePeer = <E, R>(
     const auth = Context.get(authContext, EnvironmentAuth.EnvironmentAuth);
     return {
       url,
+      /** Its relay address and where its tunnel is dialled. Only a `tunnelServer` carries requests. */
+      relay: {
+        address: (yield* Context.get(tunnelContext, RelayIdentity.RelayIdentity).get).address,
+        url: `ws://127.0.0.1:${address.port}`,
+      },
       auth,
       /** Its settings, as for turning its Linked environments beta off. */
       settings: Context.get(authContext, ServerSettings.ServerSettingsService),

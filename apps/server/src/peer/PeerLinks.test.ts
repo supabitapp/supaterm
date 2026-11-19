@@ -1,5 +1,7 @@
 // @effect-diagnostics-next-line nodeBuiltinImport:off - The HTTPS test server needs certificate bytes.
 import * as NodeFS from "node:fs";
+// @effect-diagnostics-next-line nodeBuiltinImport:off - The relay tunnel hands sockets to the peer's own HTTP server.
+import * as NodeHttp from "node:http";
 // @effect-diagnostics-next-line nodeBuiltinImport:off - A peer with a certificate this machine does not trust.
 import * as NodeHttps from "node:https";
 import { NodeHttpServer } from "@effect/platform-node";
@@ -81,8 +83,12 @@ const probeHandlers = McpToolAccess.toLayer(ProbeToolkit, {
   ),
 });
 
-const serveB = (descriptor: ExecutionEnvironmentDescriptor) =>
-  servePeer(descriptor, McpHttpServer.toolkitRegistration(ProbeToolkit, probeHandlers));
+const serveB = (descriptor: ExecutionEnvironmentDescriptor, tunnelServer?: NodeHttp.Server) =>
+  servePeer(
+    descriptor,
+    McpHttpServer.toolkitRegistration(ProbeToolkit, probeHandlers),
+    tunnelServer,
+  );
 
 /** Environment A, which links to B. */
 const makeA = (
@@ -160,6 +166,57 @@ it.effect("routes peer reads to readers and sees uncommitted link updates", () =
     expect(yield* links.list).toEqual([]);
   }),
 );
+
+it.effect("links, calls and forgets a peer through its relay tunnel", () => {
+  const server = NodeHttp.createServer();
+  return Effect.scoped(
+    Effect.gen(function* () {
+      const b = yield* serveB(box, server);
+      const a = yield* makeA(laptop);
+      const { relay } = b;
+      const pairing = yield* b.auth.issuePairingCredential();
+      const linked = yield* a.links.link({
+        url: relay.address,
+        relayUrl: relay.url,
+        pairingCode: pairing.credential,
+        access: "auto",
+        expectedEnvironmentId: box.environmentId,
+      });
+      // The stored route is the relay address, never the tunnel's loopback port.
+      expect(linked.urls).toEqual([new URL(relay.address).origin]);
+      expect(linked.relayUrl).toBe(relay.url);
+
+      const answered = yield* probe(a);
+      expect(answered).toEqual({ caller: "Supaterm · Laptop", modes: "auto/default" });
+      const resolved = yield* a.links.resolve(box.environmentId);
+      expect(resolved.address).toBe(linked.urls[0]);
+      expect(new URL(resolved.url).hostname).toBe("127.0.0.1");
+      expect((yield* a.links.list).map((link) => link.status)).toEqual(["reachable"]);
+
+      // Only the paths a link needs are served inside the tunnel.
+      const outside = yield* HttpClient.get(`${resolved.url}/oauth/mcp/authorize`).pipe(
+        Effect.provide(FetchHttpClient.layer),
+      );
+      expect(outside.status).toBe(404);
+
+      expect(yield* a.links.unlink(box.environmentId)).toBe(true);
+      // Forgetting the link closed its tunnel, so its loopback port answers nothing.
+      const closed = yield* HttpClient.get(`${resolved.url}/.well-known/supaterm/environment`).pipe(
+        Effect.provide(FetchHttpClient.layer),
+        Effect.flip,
+      );
+      expect(closed._tag).toBe("HttpClientError");
+    }),
+  ).pipe(
+    Effect.provide(
+      NodeHttpServer.layer(() => server, {
+        host: "127.0.0.1",
+        port: 0,
+        gracefulShutdownTimeout: 0,
+      }),
+    ),
+  );
+});
 
 it.effect("links with a pairing code, and the peer holds its agents to the limits they carry", () =>
   Effect.scoped(

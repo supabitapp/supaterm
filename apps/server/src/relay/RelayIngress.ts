@@ -33,11 +33,20 @@ const tunnelTransport = (request: HttpServerRequest.HttpServerRequest) =>
     ? request.source.socket.transport
     : undefined;
 
+// A linked environment signs in and calls tools here over the same tunnel a client uses.
+const PEER_LINK_PATHS = new Set([
+  "/mcp",
+  "/oauth/mcp/register",
+  "/oauth/mcp/decision",
+  "/oauth/mcp/token",
+]);
+
 export const isRelayPath = (pathname: string) =>
   pathname === "/ws" ||
   pathname.startsWith("/api/") ||
   pathname === "/oauth/token" ||
-  pathname === "/.well-known/supaterm/environment";
+  pathname === "/.well-known/supaterm/environment" ||
+  PEER_LINK_PATHS.has(pathname);
 
 // Browsers attach cookies by host, not port, so a cookie inside a tunnel can
 // belong to any other local server. Tunneled requests carry their own Bearer
