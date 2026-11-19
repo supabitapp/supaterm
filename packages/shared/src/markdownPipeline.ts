@@ -28,7 +28,11 @@ import {
   CODEX_ARTIFACT_TEMPLATE_HAST_PROPERTIES,
   remarkCodexDirectives,
 } from "./codexMarkdownDirectives.ts";
-import { absoluteFilePathMatches, isWindowsDrivePathHref } from "./markdownLinks.ts";
+import {
+  absoluteFilePathMatches,
+  isWindowsDrivePathHref,
+  normalizeMarkdownLinkDestination,
+} from "./markdownLinks.ts";
 import { isWindowsAbsolutePath } from "./path.ts";
 import { THREAD_LINK_PROTOCOL } from "./threadLinks.ts";
 
@@ -827,6 +831,37 @@ export function remarkAssistantInsights(this: Processor) {
       restorePosition(node);
     }
     tree.children = parsed.children;
+  };
+}
+
+export type ChatMarkdownImageProperties = {
+  readonly src?: unknown;
+  readonly dataLocalSrc?: unknown;
+  readonly dataDarkSrc?: unknown;
+  readonly dataLightSrc?: unknown;
+};
+
+/** Keep the authored path for file links and normalize Windows separators for classification. */
+export function chatMarkdownImageSource(
+  properties?: ChatMarkdownImageProperties,
+  theme?: "dark" | "light",
+) {
+  const themeSrc =
+    theme === undefined
+      ? undefined
+      : properties?.[theme === "dark" ? "dataDarkSrc" : "dataLightSrc"];
+  const localSrc = typeof themeSrc === "string" ? undefined : properties?.dataLocalSrc;
+  const source =
+    typeof themeSrc === "string"
+      ? themeSrc
+      : typeof localSrc === "string"
+        ? localSrc
+        : properties?.src;
+  if (typeof source !== "string") return null;
+  const authoredSrc = normalizeMarkdownLinkDestination(source);
+  return {
+    authoredSrc,
+    classifiedSrc: typeof localSrc === "string" ? authoredSrc.replaceAll("\\", "/") : authoredSrc,
   };
 }
 

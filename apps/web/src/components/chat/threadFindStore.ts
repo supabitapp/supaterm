@@ -10,10 +10,12 @@ import {
   messageSearchTokens,
 } from "@supaterm/shared/paletteSearch";
 import { create } from "zustand";
+import type { ThemeAppearance } from "~/themePalette";
 import type { ThreadFindPositionReader, ThreadFindStart } from "./threadFind";
 import { registerThreadOverlay } from "./threadOverlayRetention";
 
 export interface ThreadFindLocalSelection {
+  readonly theme: ThemeAppearance;
   readonly base: OrchestrationV2SearchThreadResult;
   readonly baseNavigationId: number;
   readonly activeIndex: number;
