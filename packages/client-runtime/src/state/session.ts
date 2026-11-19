@@ -365,6 +365,7 @@ function makeEnvironmentSessionAtoms<R, E>(
     sessionStateValueAtom,
     routeLatencyAtoms,
     relayRouteTransportAtom,
+    transportSessionAtom,
   };
 }
 

@@ -66,6 +66,8 @@ import { BugIcon as BugSource } from "@phosphor-icons/react/dist/csr/Bug";
 export const BugIcon = /* @__PURE__ */ withIconDefaults(BugSource);
 import { BuildingIcon as BuildingSource } from "@phosphor-icons/react/dist/csr/Building";
 export const BuildingIcon = /* @__PURE__ */ withIconDefaults(BuildingSource);
+import { PlugsConnectedIcon as CableSource } from "@phosphor-icons/react/dist/csr/PlugsConnected";
+export const CableIcon = /* @__PURE__ */ withIconDefaults(CableSource);
 import { CakeIcon as CakeSource } from "@phosphor-icons/react/dist/csr/Cake";
 export const CakeIcon = /* @__PURE__ */ withIconDefaults(CakeSource);
 import { CalendarIcon as CalendarSource } from "@phosphor-icons/react/dist/csr/Calendar";
