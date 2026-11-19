@@ -1,4 +1,5 @@
 import { environmentMcpUrl } from "@supaterm/client-runtime/connection";
+import { offersLinkedEnvironments } from "@supaterm/client-runtime/link-request";
 import {
   isAtomCommandInterrupted,
   squashAtomCommandFailure,
@@ -10,7 +11,9 @@ import { useState } from "react";
 import { useCopyToClipboard } from "~/hooks/useCopyToClipboard";
 import { useNowSecond } from "~/hooks/useNowSecond";
 import { authEnvironment } from "~/state/auth";
-import type { EnvironmentPresentation } from "~/state/environments";
+import { type EnvironmentPresentation, useEnvironmentIdentities } from "~/state/environments";
+import { peerLinkEnvironment } from "~/state/peerLinks";
+import { useEnvironmentQuery } from "~/state/query";
 import { usePreparedConnection } from "~/state/session";
 import { useAtomCommand } from "~/state/use-atom-command";
 import { AccessOption, accessConfig } from "../auth/ConnectAgentSurface";
@@ -127,6 +130,7 @@ export function UseInAnotherAppDialog({
             </RadioGroup>
           </div>
           {code ? <ApprovalCode code={code} access={access} /> : null}
+          <LinkedLine environment={environment} access={access} />
           {error ? <p className="text-xs text-destructive-foreground">{error}</p> : null}
         </DialogPanel>
         <DialogFooter variant="bare">
@@ -151,6 +155,35 @@ export function UseInAnotherAppDialog({
       </DialogPopup>
     </Dialog>
   );
+}
+
+const levelRank = (level: AuthMcpClientAccess) => AuthMcpClientAccess.literals.indexOf(level);
+
+/** Machines this environment links to, at the level a call forwarded there gets. */
+function LinkedLine({
+  environment,
+  access,
+}: {
+  readonly environment: EnvironmentPresentation;
+  readonly access: AuthMcpClientAccess;
+}) {
+  const offered = offersLinkedEnvironments(environment.serverConfig);
+  const links = useEnvironmentQuery(
+    offered
+      ? peerLinkEnvironment.list({ environmentId: environment.environmentId, input: {} })
+      : null,
+  ).data?.links;
+  const identities = useEnvironmentIdentities();
+  if (!offered || links === undefined || links.length === 0) return null;
+  const named = links.map((link) => {
+    const name =
+      identities.find((identity) => identity.environmentId === link.environmentId)?.label ??
+      link.label;
+    // A forwarded call keeps the lower of the app's level and the link's own.
+    const level = levelRank(link.access) < levelRank(access) ? link.access : access;
+    return `${name} · ${link.status === "expired" ? "Expired" : accessConfig[level].label}`;
+  });
+  return <p className="text-xs text-muted-foreground">Linked: {named.join(", ")}</p>;
 }
 
 function ApprovalCode({

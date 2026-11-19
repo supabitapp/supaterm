@@ -1,5 +1,6 @@
 import { formatProviderSkillDisplayName } from "@supaterm/shared/inlineSkills";
 import type { ComposerModelItem } from "@supaterm/client-runtime/composerModelMentions";
+import type { ComposerEnvironmentItem } from "@supaterm/client-runtime/composerThreadItems";
 import type { ComposerPathSearchTarget } from "@supaterm/client-runtime/state/threads";
 import {
   resolveProviderSkillSourceKind,
@@ -31,6 +32,7 @@ import { Command, CommandGroup, CommandItem, CommandList } from "../ui/command";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { PierreEntryIcon } from "./PierreEntryIcon";
 import { ProviderInstanceIcon } from "./ProviderInstanceIcon";
+import { EnvironmentMachineIcon } from "../EnvironmentMachineIcon";
 import { ComposerBanner } from "./ComposerBanner";
 import { resolvePullRequestState } from "../pullRequest/pullRequestPresentation";
 
@@ -81,7 +83,8 @@ export type ComposerCommandItem =
       label: string;
       description: string;
     }
-  | ComposerModelItem;
+  | ComposerModelItem
+  | ComposerEnvironmentItem;
 
 export const ComposerCommandMenu = memo(function ComposerCommandMenu(props: {
   listId: string;
@@ -217,6 +220,13 @@ const ComposerCommandMenuItem = memo(function ComposerCommandMenuItem(props: {
       ) : null}
       {props.item.type === "thread" ? (
         <MessagesSquareIcon aria-hidden="true" className="size-4 shrink-0 text-secondary-label" />
+      ) : null}
+      {props.item.type === "environment" ? (
+        <EnvironmentMachineIcon
+          aria-hidden
+          kind={props.item.machine}
+          className="size-4 shrink-0 text-secondary-label"
+        />
       ) : null}
       {props.item.type === "model" ? (
         <ProviderInstanceIcon

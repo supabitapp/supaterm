@@ -72,6 +72,7 @@ async function downloadAttachmentBlob(url: string): Promise<Blob | null> {
  */
 export function useComposerContextImport(input: {
   readonly environmentId: EnvironmentId;
+  readonly linkedEnvironments: ReadonlyMap<EnvironmentId, string>;
   readonly activeThread: ChatComposerProps["activeThread"];
   readonly activeThreadId: ChatComposerProps["activeThreadId"];
   readonly composerDraftTarget: ChatComposerProps["composerDraftTarget"];
@@ -89,6 +90,7 @@ export function useComposerContextImport(input: {
 }) {
   const {
     environmentId,
+    linkedEnvironments,
     activeThread,
     activeThreadId,
     composerDraftTarget,
@@ -331,7 +333,9 @@ export function useComposerContextImport(input: {
                     ? existing.record.id
                     : undefined,
                 })
-              : existing?.kind === "thread" || existing?.kind === "model"
+              : existing?.kind === "thread" ||
+                  existing?.kind === "model" ||
+                  existing?.kind === "environment"
                 ? existing.record
                 : existing
                   ? (uploadedContextRecordFromDraft(existing) ?? undefined)
@@ -386,8 +390,13 @@ export function useComposerContextImport(input: {
           break;
         }
         case "thread": {
-          // The agent can only read threads on its own server; a pasted foreign one is dropped.
-          if (record.environmentId !== environmentId) break;
+          // The agent reads threads on its own server and the machines it links to; a pasted
+          // thread from any other machine is dropped.
+          if (
+            record.environmentId !== environmentId &&
+            !linkedEnvironments.has(record.environmentId)
+          )
+            break;
           // Threads reuse their destination record by identity, reminting only on an ID collision.
           const references = getComposerDraft(referenceDraftTarget)?.referenceContexts ?? [];
           const attached = references.find(
@@ -407,7 +416,9 @@ export function useComposerContextImport(input: {
           rewritten.set(record.contextId, imported.contextId);
           break;
         }
-        case "model": {
+        // A model or a machine means the same one from any thread, so a pasted one is kept.
+        case "model":
+        case "environment": {
           addComposerDraftReferenceContexts(referenceDraftTarget, [record], {
             appendReference: false,
           });

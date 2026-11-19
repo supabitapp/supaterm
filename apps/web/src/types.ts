@@ -13,6 +13,7 @@ import type {
   ProviderInteractionMode,
   RunId,
   RuntimeMode,
+  OrchestrationV2LinkedSender,
   ScheduledTaskId,
   ThreadId,
 } from "@supaterm/contracts";
@@ -99,6 +100,7 @@ export interface ChatMessage {
   readonly creationSource?: OrchestrationV2CreationSource;
   readonly scheduledTaskId?: ScheduledTaskId;
   readonly senderThreadId?: ThreadId;
+  readonly linkedSender?: OrchestrationV2LinkedSender;
   readonly createdAt: string;
   readonly updatedAt: string;
   readonly inputIntent?: OrchestrationV2UserMessageInputIntent | undefined;

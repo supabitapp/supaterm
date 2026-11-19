@@ -183,21 +183,6 @@ function rolledUpRequestsByThread(
   return requests.size === 0 ? EMPTY_SUBAGENT_REQUESTS : requests;
 }
 
-const asPendingRequests = (
-  rolledUp: ReadonlyMap<ThreadId, RolledUpRequest>,
-): ReadonlyMap<ThreadId, PendingSubagentRequest> => {
-  const next = new Map<ThreadId, PendingSubagentRequest>();
-  for (const [threadId, request] of rolledUp) {
-    next.set(threadId, request === "user_only_input" ? "user_input" : request);
-  }
-  return next;
-};
-
-/** What one environment's own subagents and side chats ask, by the thread to flag. */
-export const pendingSubagentRequestsByThread = (
-  threads: ReadonlyArray<OrchestrationV2ThreadShell>,
-) => asPendingRequests(rolledUpRequestsByThread(threads));
-
 const sameRequests = (
   left: ReadonlyMap<ThreadId, RolledUpRequest>,
   right: ReadonlyMap<ThreadId, RolledUpRequest>,
@@ -387,7 +372,10 @@ export function createEnvironmentThreadShellAtoms(input: {
       const rolledUp =
         get(delegatedSubagentRequestsAtom).get(environmentId) ??
         get(localSubagentRequestsAtom(environmentId));
-      const next = asPendingRequests(rolledUp);
+      const next = new Map<ThreadId, PendingSubagentRequest>();
+      for (const [threadId, request] of rolledUp) {
+        next.set(threadId, request === "user_only_input" ? "user_input" : request);
+      }
       if (sameRequests(previous, next)) return previous;
       previous = next;
       return next;
@@ -717,6 +705,7 @@ export function createEnvironmentThreadShellAtoms(input: {
     quietThreadShellsAtom,
     navigationThreadShellsAtom,
     delegatedUnderParentAtom,
+    pendingSubagentRequestsAtom,
     threadShellsForProjectRefsAtom: (refs: ReadonlyArray<ScopedProjectRef>) =>
       threadShellsForProjectRefsAtomFamily(projectRefCollectionKey(refs)),
     threadShellAtom: (ref: ScopedThreadRef) => threadShellAtomFamily(threadKey(ref)),

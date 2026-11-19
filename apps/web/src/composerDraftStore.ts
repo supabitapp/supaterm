@@ -20,6 +20,7 @@ import {
   PastedTextAttachmentSource,
   type PreviewAnnotationPayload,
   RuntimeMode,
+  EnvironmentContextRecord,
   ModelContextRecord,
   ThreadContextRecord,
   type ServerProvider,
@@ -100,7 +101,12 @@ import { DraftId } from "./draftId";
 const isRuntimeMode = Schema.is(RuntimeMode);
 const isProviderDriverKind = Schema.is(ProviderDriverKind);
 const isReviewCommentContext = Schema.is(ReviewCommentContextSchema);
-const ReferenceContextRecordSchema = Schema.Union([ThreadContextRecord, ModelContextRecord]);
+const ReferenceContextRecordSchema = Schema.Union([
+  ThreadContextRecord,
+  EnvironmentContextRecord,
+  ModelContextRecord,
+  EnvironmentContextRecord,
+]);
 const isReferenceContextRecord = Schema.is(ReferenceContextRecordSchema);
 const isSnapShotSource = Schema.is(SnapShotSource);
 const isPreviewAnnotationPayload = Schema.is(PreviewAnnotationPayloadSchema);

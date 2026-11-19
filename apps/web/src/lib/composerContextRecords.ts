@@ -16,6 +16,7 @@ import type {
   ImageContextRecord,
   KnownComposerContextRecord,
   MessageId,
+  EnvironmentContextRecord,
   ModelContextRecord,
   OrchestrationMessageContext,
   PreviewAnnotationContextRecord,
@@ -165,7 +166,10 @@ export function previewAnnotationContextReference(
 }
 
 /** Records a draft keeps as sent, because they only point at something the agent can look up. */
-export type ReferenceContextRecord = ThreadContextRecord | ModelContextRecord;
+export type ReferenceContextRecord =
+  | ThreadContextRecord
+  | ModelContextRecord
+  | EnvironmentContextRecord;
 
 export function referenceContextReference(
   record: ReferenceContextRecord,

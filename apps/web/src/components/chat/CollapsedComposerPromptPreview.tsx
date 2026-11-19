@@ -9,6 +9,7 @@ import {
   ImageIcon,
   MessageCircleIcon,
   MessagesSquareIcon,
+  MonitorIcon,
   MousePointerClickIcon,
   QuoteIcon,
   TerminalIcon,
@@ -40,6 +41,7 @@ const CONTEXT_REFERENCE_ICONS: Record<
   "review-comment": () => <MessageCircleIcon />,
   thread: () => <MessagesSquareIcon />,
   model: () => <BotIcon />,
+  environment: () => <MonitorIcon />,
 };
 
 // Mirrors the editor's chip: only a draft record of the same kind resolves a reference.

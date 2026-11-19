@@ -32,6 +32,12 @@ export function useAvailableSettingsSearchItems() {
         environment.connection.phase === "connected" &&
         environment.serverConfig?.environment.capabilities.fastWorktreeCheckout === true,
     ) === true;
+  const hasPeerLinkHost =
+    environments.some(
+      (environment) =>
+        environment.connection.phase === "connected" &&
+        environment.serverConfig?.environment.capabilities.peerLinks === true,
+    ) === true;
   const hasThreadAutoMarkDone =
     getThreadAutoMarkDoneSearchAvailability(environments).eligibleEnvironmentIds.length > 0;
   const primaryEnvironmentId = usePrimaryEnvironmentId();
@@ -51,5 +57,6 @@ export function useAvailableSettingsSearchItems() {
     isWslSettingsRowVisible: wslSettingsRowVisible,
     hasThreadAutoMarkDone,
     hasFastWorktreeCheckoutEnvironment,
+    hasPeerLinkHost,
   });
 }

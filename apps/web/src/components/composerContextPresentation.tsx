@@ -2,6 +2,7 @@ import ChatMarkdown from "./ChatMarkdown";
 import { isSvgAttachment } from "@supaterm/shared/image";
 import { ReadOnlySourcePreview } from "./files/AttachmentFilePreview";
 import type {
+  EnvironmentContextRecord,
   ModelContextRecord,
   PreviewAnnotationPayload,
   ThreadContextRecord,
@@ -35,6 +36,7 @@ import {
 import type { TerminalContextDraft } from "~/lib/terminalContext";
 import type { ReviewCommentContext } from "~/reviewCommentContext";
 import { ComposerPendingTerminalContextChip } from "./chat/ComposerPendingTerminalContexts";
+import { EnvironmentContextChip } from "./EnvironmentContextChip";
 import { ModelContextChip } from "./ModelContextChip";
 import { ThreadContextChip } from "./ThreadContextChip";
 import {
@@ -66,7 +68,8 @@ export type ComposerDraftContextRecord =
   | { kind: "image"; record: ComposerImageAttachment; upload?: AttachmentUploadState | undefined }
   | { kind: "file"; record: ComposerFileAttachment; upload?: AttachmentUploadState | undefined }
   | { kind: "thread"; record: ThreadContextRecord }
-  | { kind: "model"; record: ModelContextRecord };
+  | { kind: "model"; record: ModelContextRecord }
+  | { kind: "environment"; record: EnvironmentContextRecord };
 
 export interface ComposerContextActions {
   environmentId: EnvironmentId | null;
@@ -141,7 +144,11 @@ export function composerContextRecordsFromDraft(input: {
   for (const record of input.referenceContexts ?? []) {
     records.set(
       record.contextId,
-      record.kind === "thread" ? { kind: "thread", record } : { kind: "model", record },
+      record.kind === "thread"
+        ? { kind: "thread", record }
+        : record.kind === "model"
+          ? { kind: "model", record }
+          : { kind: "environment", record },
     );
   }
   return records;
@@ -489,6 +496,16 @@ const composerContextPresentationRegistry = createContextPresentationRegistry<
       render: (entry, context) =>
         entry.kind === "model" ? (
           <ModelContextChip record={entry.record} />
+        ) : (
+          <UnresolvedContextChip label={context.label} />
+        ),
+    },
+    {
+      kind: "environment",
+      canRender: (entry) => entry.kind === "environment",
+      render: (entry, context) =>
+        entry.kind === "environment" ? (
+          <EnvironmentContextChip record={entry.record} />
         ) : (
           <UnresolvedContextChip label={context.label} />
         ),

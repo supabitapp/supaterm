@@ -138,6 +138,7 @@ vi.mock("../state/entities", () => ({
       (thread) => thread.environmentId === ref.environmentId && thread.id === ref.threadId,
     ) ?? null,
   readThreadShells: () => state.threads,
+  readDelegatedUnderParent: () => new Set<string>(),
   readEnvironmentThreadRefs: (environmentId: EnvironmentId) =>
     state.threads
       .filter((thread) => thread.environmentId === environmentId)

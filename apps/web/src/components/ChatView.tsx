@@ -283,10 +283,12 @@ import {
 } from "@supaterm/client-runtime/providerSkills";
 import { chatGitStatusAtom, NO_CHAT_GIT_STATUS_ATOM, vcsEnvironment } from "../state/vcs";
 import {
+  useEnvironment,
   useEnvironmentProviders,
   useEnvironments,
   usePrimaryEnvironment,
 } from "../state/environments";
+import { buildThreadRouteParams } from "../threadRoutes";
 import {
   resolveThreadDetailRef,
   useEnvironmentSupportsServerBrowser,
@@ -973,6 +975,15 @@ export default function ChatView(props: ChatViewProps) {
           messages: serverProjection.messages,
           parentSubagents: workflowOpeningParentProjection?.projection.subagents ?? null,
         });
+  // A linked environment's agent may have delegated this thread from there.
+  const delegatedFrom = activeThread?.delegatedFrom ?? null;
+  const delegatedFromEnvironment = useEnvironment(delegatedFrom?.environmentId ?? null);
+  const delegatedFromRef =
+    delegatedFrom === null
+      ? null
+      : scopeThreadRef(delegatedFrom.environmentId, delegatedFrom.threadId);
+  // The title it had at delegation, until this client sees the parent itself.
+  const delegatedFromThread = useQuietThreadShell(delegatedFromRef);
   const parentThreadLink =
     parentSubagentThreadRef !== null
       ? {
@@ -985,7 +996,26 @@ export default function ChatView(props: ChatViewProps) {
             title: sideChatParent?.title ?? "Parent thread",
             sideChat: true,
           }
-        : null;
+        : delegatedFrom !== null && delegatedFromRef !== null
+          ? {
+              threadId: delegatedFrom.threadId,
+              title: delegatedFromThread?.title ?? delegatedFrom.title,
+              remote: {
+                environmentLabel:
+                  delegatedFromEnvironment?.label ?? activeThread?.linkOrigin?.label ?? "",
+                // Only an environment this client is connected to can open the parent.
+                open:
+                  delegatedFromEnvironment === null
+                    ? null
+                    : () => {
+                        void navigate({
+                          to: "/$environmentId/$threadId",
+                          params: buildThreadRouteParams(delegatedFromRef),
+                        });
+                      },
+              },
+            }
+          : null;
   const threadError = isServerThread
     ? (localServerError ?? serverRuntime?.lastError ?? null)
     : localDraftError;
@@ -3505,6 +3535,7 @@ export default function ChatView(props: ChatViewProps) {
                   activeThreadId={activeThread.id}
                   isServerThread={isServerThread}
                   activeThreadTitle={activeThread.title}
+                  activeThreadLinkOrigin={activeThread.linkOrigin?.label ?? null}
                   activeProject={activeProject ?? null}
                   parentThreadLink={parentThreadLink}
                   onOpenThread={onOpenRelatedThreadStable}
@@ -3774,7 +3805,7 @@ export default function ChatView(props: ChatViewProps) {
                                   effortLabel={providerSubagentEffortLabel}
                                   status={providerSubagentStatus}
                                   onOpenParent={
-                                    parentThreadLink
+                                    parentThreadLink && !("remote" in parentThreadLink)
                                       ? () => onOpenRelatedThread(parentThreadLink.threadId)
                                       : null
                                   }

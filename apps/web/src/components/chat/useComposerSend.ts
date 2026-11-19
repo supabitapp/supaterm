@@ -60,6 +60,7 @@ import {
 } from "@supaterm/client-runtime/state/threads";
 import { readCanQueueComposerMessage } from "../../state/composerQueue";
 import { readEnvironmentScope } from "../../state/session";
+import { useLinkedEnvironments } from "../../state/peerLinks";
 import { releaseDraftAttachments } from "../../lib/attachmentUploadQueue";
 import { runMobileComposerTransition } from "./draftHeroTransition";
 import { scopeThreadRef, scopedThreadKey } from "@supaterm/client-runtime/environment";
@@ -250,6 +251,7 @@ export function useComposerSend(input: ComposerSendInput) {
     sideChatDisabledReason,
     sideChatDraftParentRef,
   } = input;
+  const linkedEnvironments = useLinkedEnvironments(environmentId);
   const openPaneThread = usePaneThreadNavigation();
   const clientSettingsHydrated = useClientSettingsHydrated();
   const uploadThreadFeedback = useOrchestrationCommand(threadEnvironment.uploadFeedback, {
@@ -494,6 +496,7 @@ export function useComposerSend(input: ComposerSendInput) {
       text: promptForSend,
       records: composerReferenceContexts,
       environmentId,
+      linkedEnvironments,
     })[0];
     if (strandedThread) {
       const owner =

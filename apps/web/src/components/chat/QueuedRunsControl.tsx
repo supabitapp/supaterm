@@ -25,12 +25,14 @@ import {
   PencilIcon,
   XIcon,
 } from "@supaterm/icons";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useId, useImperativeHandle, useRef, useState, type Ref } from "react";
 
 import { useAssetUrls } from "../../assets/assetUrls";
 import { threadEnvironment } from "../../state/threads";
 import { useQuietThreadProjection, useQuietThreadShell } from "../../state/entities";
+import { useEnvironment } from "../../state/environments";
+import { buildThreadRouteParams } from "../../threadRoutes";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { isImageAttachment, type ChatImageAttachment } from "../../types";
 
@@ -406,11 +408,17 @@ function QueuedRunSender(props: {
   readonly onOpenThread: (threadId: ThreadId) => void;
 }) {
   const { attribution, scheduledTaskId } = resolveUserMessagePresentation(props.message);
+  const navigate = useNavigate();
+  // A linked environment's agent sent it from a thread there.
+  const linkedSender = attribution === "agent" ? props.message.linkedSender : undefined;
   const senderThreadId = attribution === "agent" ? props.message.senderThreadId : undefined;
+  const senderRef =
+    linkedSender ??
+    (senderThreadId === undefined ? null : scopeThreadRef(props.environmentId, senderThreadId));
   const taskTitle = useScheduledTaskTitle(props.environmentId, scheduledTaskId);
-  const senderShell = useQuietThreadShell(
-    senderThreadId ? scopeThreadRef(props.environmentId, senderThreadId) : null,
-  );
+  const senderShell = useQuietThreadShell(senderRef);
+  // Only an environment this client is connected to can open the sender's thread there.
+  const linkedSenderEnvironment = useEnvironment(linkedSender?.environmentId ?? null);
   if (attribution === "supaterm") {
     return <span className={SENDER_CLASS_NAME}>Supaterm</span>;
   }
@@ -428,19 +436,32 @@ function QueuedRunSender(props: {
     );
   }
   if (attribution !== "agent") return null;
-  const label = senderShell?.title.trim() || "Agent";
+  const label = senderShell?.title.trim() || linkedSender?.title.trim() || "Agent";
+  const openSender =
+    senderRef === null
+      ? null
+      : linkedSender === undefined
+        ? () => props.onOpenThread(senderRef.threadId)
+        : linkedSenderEnvironment === null
+          ? null
+          : () => {
+              void navigate({
+                to: "/$environmentId/$threadId",
+                params: buildThreadRouteParams(senderRef),
+              });
+            };
   const content = (
     <>
       <MessagesSquareIcon aria-hidden className="size-3 shrink-0" />
       <span className="truncate">{label}</span>
     </>
   );
-  return senderThreadId ? (
+  return openSender !== null ? (
     <button
       type="button"
       aria-label={`Open thread ${label}`}
       className={cn(SENDER_CLASS_NAME, "rounded-sm hover:text-foreground")}
-      onClick={() => props.onOpenThread(senderThreadId)}
+      onClick={openSender}
     >
       {content}
     </button>
