@@ -1,9 +1,7 @@
-import * as Schema from "effect/Schema";
 import type { ProjectIdentity } from "@supaterm/shared/projectIdentity";
 import { ProjectMonogram } from "../ProjectMonogram";
 import {
   isProjectSymbolIcon,
-  ProjectMonogramText,
   type ProjectIconColor,
   type ProjectIconOverride,
 } from "@supaterm/contracts";
@@ -11,6 +9,7 @@ import { useState } from "react";
 import {
   filterProjectIcons,
   firstEmoji,
+  isValidProjectMonogram,
   PROJECT_EMOJIS,
   PROJECT_ICON_COLORS,
   projectIconColorClassName,
@@ -33,8 +32,6 @@ import { ScrollArea } from "../ui/scroll-area";
 import { Toggle, ToggleGroup } from "../ui/toggle-group";
 
 type PickerMode = "icon" | "emoji" | "monogram";
-
-const isMonogramText = Schema.is(ProjectMonogramText);
 
 function initialMode(current: ProjectIconOverride | null): PickerMode {
   if (current?.kind === "emoji" || current?.kind === "monogram") return current.kind;
@@ -121,7 +118,7 @@ function ProjectIconPickerBody({
   const icons = filterProjectIcons(query);
   const selectedColorClassName = projectIconColorClassName(color);
   const monogram = letters.normalize("NFKC").trim().toUpperCase();
-  const validMonogram = isMonogramText(monogram);
+  const validMonogram = isValidProjectMonogram(monogram);
   const save = () => {
     if (mode === "monogram" && !validMonogram) return;
     onSelect(
