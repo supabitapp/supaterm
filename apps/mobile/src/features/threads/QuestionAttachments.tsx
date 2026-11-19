@@ -276,7 +276,7 @@ export function QuestionAttachments(props: {
               onInputFocusChange?.(false);
             }}
             placeholder="Or type a custom answer"
-            className="pr-12"
+            className="min-h-[54px] pr-12"
           />
         </TextInputWrapper>
         {voice.isAvailable && !showsDictation ? (
