@@ -32,6 +32,7 @@ afterEach(async () => {
 async function setup(backendResponse?: string) {
   const requests: Array<{ authorization: string | undefined; body: unknown }> = [];
   const exchanges: Array<{
+    method: string | undefined;
     forwardedProto: string | string[] | undefined;
     subjectToken: string | null;
   }> = [];
@@ -40,11 +41,17 @@ async function setup(backendResponse?: string) {
     for await (const chunk of request) body += chunk.toString();
     if (request.url === "/oauth/token") {
       exchanges.push({
+        method: request.method,
         forwardedProto: request.headers["x-forwarded-proto"],
         subjectToken: new URLSearchParams(body).get("subject_token"),
       });
-      response.writeHead(200, { "Content-Type": "application/json" });
-      response.end(JSON.stringify({ access_token: "SESSION" }));
+      response.writeHead(request.method === "OPTIONS" ? 204 : 200, {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "https://app.example.test",
+      });
+      response.end(
+        request.method === "OPTIONS" ? undefined : JSON.stringify({ access_token: "SESSION" }),
+      );
       return;
     }
     requests.push({ authorization: request.headers.authorization, body: JSON.parse(body) });
@@ -83,9 +90,19 @@ async function setup(backendResponse?: string) {
         "Content-Type": "application/x-www-form-urlencoded",
         "X-Forwarded-Proto": "https",
       },
-      body: new URLSearchParams({ grant_type: "token-exchange", subject_token: subjectToken }),
+      body: new URLSearchParams({
+        grant_type: "urn:ietf:params:oauth:grant-type:token-exchange",
+        subject_token: subjectToken,
+        subject_token_type: "urn:supaterm:params:oauth:token-type:environment-bootstrap",
+        requested_token_type: "urn:ietf:params:oauth:token-type:access_token",
+      }),
     });
-  return { accessUrl, requests, exchanges, pair, exchange };
+  const checkCode = (code: string) =>
+    fetch(`${accessUrl}/review/code-check`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${code}` },
+    });
+  return { accessUrl, requests, exchanges, pair, exchange, checkCode };
 }
 
 describe("mobile review access", () => {
@@ -168,10 +185,25 @@ describe("mobile review access", () => {
     ]);
   });
 
-  it("forwards other pairing codes unchanged without creating a grant", async () => {
-    const { requests, exchanges, exchange } = await setup();
-    expect(await (await exchange("ordinary-code")).json()).toEqual({ access_token: "SESSION" });
+  it("forwards other pairing codes and preflights unchanged without creating a grant", async () => {
+    const { accessUrl, requests, exchanges, exchange } = await setup();
+    const response = await exchange("ordinary-code");
+    expect(response.headers.get("access-control-allow-origin")).toBe("https://app.example.test");
+    expect(await response.json()).toEqual({ access_token: "SESSION" });
+    const preflight = await fetch(`${accessUrl}/oauth/token`, { method: "OPTIONS" });
+    expect(preflight.status).toBe(204);
     expect(requests).toHaveLength(0);
-    expect(exchanges).toEqual([{ forwardedProto: "https", subjectToken: "ordinary-code" }]);
+    expect(exchanges).toEqual([
+      { method: "POST", forwardedProto: "https", subjectToken: "ordinary-code" },
+      { method: "OPTIONS", forwardedProto: undefined, subjectToken: null },
+    ]);
+  });
+
+  it("confirms the review code before a submission without exposing a grant", async () => {
+    const { checkCode } = await setup();
+    expect((await checkCode("ordinary-code")).status).toBe(401);
+    const response = await checkCode(reviewCode);
+    expect(response.status).toBe(204);
+    expect(await response.text()).toBe("");
   });
 });

@@ -27,6 +27,7 @@ const socket = new WebSocket(
 );
 const pending = new Map();
 const streams = new Map();
+const streamEnds = new Map();
 let requestNumber = 0;
 socket.addEventListener("message", (message) => {
   const decoded = JSON.parse(message.data);
@@ -37,6 +38,7 @@ socket.addEventListener("message", (message) => {
       socket.send(JSON.stringify({ _tag: "Ack", requestId: item.requestId }));
     }
     if (item._tag === "Exit") {
+      streamEnds.get(id)?.(new Error(`Thread subscription ended: ${JSON.stringify(item.exit)}`));
       const task = pending.get(id);
       if (task) {
         pending.delete(id);
@@ -50,6 +52,11 @@ socket.addEventListener("message", (message) => {
 await new Promise((resolve, reject) => {
   socket.addEventListener("open", resolve, { once: true });
   socket.addEventListener("error", reject, { once: true });
+});
+socket.addEventListener("close", () => {
+  const closed = new Error("The server closed the connection.");
+  for (const task of pending.values()) task.reject(closed);
+  for (const end of streamEnds.values()) end(closed);
 });
 
 function rpc(tag, payload) {
@@ -191,6 +198,11 @@ try {
       complete = resolve;
       fail = reject;
     });
+    const deadline = setTimeout(
+      () => fail(new Error(`Timed out seeding ${thread.project}: ${thread.title}`)),
+      10 * 60_000,
+    );
+    streamEnds.set(streamId, (error) => fail(error));
     streams.set(streamId, (item) => {
       if (item.kind !== "event" || item.event.type !== "run.updated") return;
       const status = item.event.payload.status;
@@ -219,9 +231,14 @@ try {
       createdBy: "user",
       creationSource: "mobile",
     });
-    await finished;
+    try {
+      await finished;
+    } finally {
+      clearTimeout(deadline);
+      streamEnds.delete(streamId);
+      streams.delete(streamId);
+    }
     socket.send(JSON.stringify({ _tag: "Interrupt", requestId: streamId }));
-    streams.delete(streamId);
     console.log("Completed:", thread.project, "-", thread.title);
   }
 } finally {

@@ -1,0 +1,4 @@
+Connect with the attached QR code
+1. Open Supaterm and tap Add environment.
+2. Tap Scan QR code and scan the attached QR code from another screen. It works any number of times, on any device.
+

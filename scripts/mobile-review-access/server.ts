@@ -33,6 +33,11 @@ function matchesDigest(value: string, digest: Buffer) {
   return value.length > 0 && NodeCrypto.timingSafeEqual(sha256(value), digest);
 }
 
+function bearer(request: NodeHttp.IncomingMessage) {
+  const authorization = request.headers.authorization ?? "";
+  return authorization.startsWith("Bearer ") ? authorization.slice(7) : "";
+}
+
 async function readBody(request: NodeHttp.IncomingMessage, limit: number) {
   const chunks: Buffer[] = [];
   let size = 0;
@@ -44,35 +49,49 @@ async function readBody(request: NodeHttp.IncomingMessage, limit: number) {
   return Buffer.concat(chunks).toString("utf8");
 }
 
+const HOP_BY_HOP_HEADERS = new Set([
+  "connection",
+  "content-length",
+  "keep-alive",
+  "proxy-connection",
+  "te",
+  "trailer",
+  "transfer-encoding",
+  "upgrade",
+]);
+
+function endToEndHeaders(headers: NodeHttp.IncomingHttpHeaders) {
+  return Object.fromEntries(
+    Object.entries(headers).filter(([name]) => !HOP_BY_HOP_HEADERS.has(name)),
+  );
+}
+
 function forward(
   request: NodeHttp.IncomingMessage,
   response: NodeHttp.ServerResponse,
   backendUrl: string,
   body: string,
 ) {
-  const headers: NodeHttp.OutgoingHttpHeaders = { "content-length": Buffer.byteLength(body) };
-  for (const name of [
-    "host",
-    "content-type",
-    "accept",
-    "user-agent",
-    "origin",
-    "x-forwarded-for",
-    "x-forwarded-proto",
-  ]) {
-    const value = request.headers[name];
-    if (value !== undefined) headers[name] = value;
-  }
   const upstream = NodeHttp.request(
     new URL(request.url ?? "/", backendUrl),
-    { method: request.method, headers, timeout: 10_000 },
+    {
+      method: request.method,
+      headers: { ...endToEndHeaders(request.headers), "content-length": Buffer.byteLength(body) },
+      timeout: 10_000,
+    },
     (backendResponse) => {
-      response.writeHead(backendResponse.statusCode ?? 502, {
-        "Content-Type": backendResponse.headers["content-type"] ?? "application/json",
-      });
+      response.writeHead(
+        backendResponse.statusCode ?? 502,
+        endToEndHeaders(backendResponse.headers),
+      );
+      backendResponse.on("aborted", () => response.destroy());
+      backendResponse.on("error", () => response.destroy());
       backendResponse.pipe(response);
     },
   );
+  response.on("close", () => {
+    if (!response.writableFinished) upstream.destroy();
+  });
   upstream.on("timeout", () => upstream.destroy());
   upstream.on("error", () => {
     if (response.headersSent) return response.destroy();
@@ -107,6 +126,8 @@ export async function createReviewAccessServer(config: ReviewAccessConfig) {
   const reviewCodeDigest = config.reviewCodeSha256
     ? Buffer.from(config.reviewCodeSha256, "hex")
     : undefined;
+  const matchesReviewCode = (code: string) =>
+    reviewCodeDigest !== undefined && matchesDigest(code, reviewCodeDigest);
   const issuePairingCredential = async () => {
     const grantResponse = await fetch(new URL("/api/auth/pairing-token", config.backendUrl), {
       method: "POST",
@@ -161,7 +182,7 @@ export async function createReviewAccessServer(config: ReviewAccessConfig) {
       response.end(script);
       return;
     }
-    if (request.method === "POST" && pathname === "/oauth/token") {
+    if (pathname === "/oauth/token") {
       try {
         const body = await readBody(request, 16_384);
         if (body === undefined) {
@@ -170,7 +191,7 @@ export async function createReviewAccessServer(config: ReviewAccessConfig) {
         }
         const form = new URLSearchParams(body);
         const subject = form.get("subject_token") ?? "";
-        if (!reviewCodeDigest || !matchesDigest(subject, reviewCodeDigest)) {
+        if (request.method !== "POST" || !matchesReviewCode(subject)) {
           forward(request, response, config.backendUrl, body);
           return;
         }
@@ -183,6 +204,22 @@ export async function createReviewAccessServer(config: ReviewAccessConfig) {
         forward(request, response, config.backendUrl, form.toString());
       } catch {
         respond(503, { error: "The review environment is unavailable. Please try again." });
+      }
+      return;
+    }
+    if (request.method === "POST" && pathname === "/review/code-check") {
+      if (!matchesReviewCode(bearer(request))) {
+        respond(401, { error: "The review code does not match this environment." });
+        return;
+      }
+      try {
+        if (!(await issuePairingCredential())) {
+          respond(503, { error: "The review environment is unavailable." });
+          return;
+        }
+        response.writeHead(204).end();
+      } catch {
+        respond(503, { error: "The review environment is unavailable." });
       }
       return;
     }
@@ -202,9 +239,7 @@ export async function createReviewAccessServer(config: ReviewAccessConfig) {
       respond(403, { error: "Create the connection link from the review access page." });
       return;
     }
-    const authorization = request.headers.authorization ?? "";
-    const invitation = authorization.startsWith("Bearer ") ? authorization.slice(7) : "";
-    if (!matchesDigest(invitation, digest)) {
+    if (!matchesDigest(bearer(request), digest)) {
       respond(401, { error: "Open the full review link from your invitation." });
       return;
     }

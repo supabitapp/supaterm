@@ -15,9 +15,18 @@ def store_api_key
   )
 end
 
-def review_notes
+def review_notes(qr_attached:)
+  qr_instructions = qr_attached ? File.read(File.expand_path("review-notes-qr.txt", __dir__)) : ""
   File.read(File.expand_path("review-notes.txt", __dir__))
-    .gsub("{{REVIEW_INVITE_URL}}", required_store_env("MOBILE_REVIEW_INVITE_URL"))
+    .sub("{{QR_INSTRUCTIONS}}", qr_instructions)
+    .sub("{{REVIEW_INVITE_URL}}", required_store_env("MOBILE_REVIEW_INVITE_URL"))
+end
+
+def attach_review_information(version)
+  detail = version.fetch_app_store_review_detail
+  detail.update(attributes: {"notes" => review_notes(qr_attached: true)})
+  Array(detail.app_store_review_attachments).each(&:delete!)
+  detail.upload_attachment(path: required_store_env("MOBILE_REVIEW_QR_PATH"))
 end
 
 platform :ios do
@@ -55,7 +64,7 @@ platform :ios do
       distribute_external: true, groups: [group.id], submit_beta_review: true,
       notify_external_testers: true, reject_build_waiting_for_review: false,
       expire_previous_builds: false,
-      beta_app_review_info: {notes: review_notes},
+      beta_app_review_info: {notes: review_notes(qr_attached: false)},
       changelog: ENV.fetch("MOBILE_RELEASE_NOTES", "Test the latest Supaterm conversations, code review, and remote connections.")
     )
   end
@@ -103,6 +112,7 @@ platform :ios do
       unless items.length == 1 && items.first.app_store_version&.id == existing.id
         UI.user_error!("The ready iOS submission contains other review items")
       end
+      attach_review_information(existing)
       submission.submit_for_review
       UI.success("Resumed review submission for #{version} (#{build_number})")
       next
@@ -116,7 +126,7 @@ platform :ios do
       screenshots_path: required_store_env("MOBILE_STORE_ASSETS"),
       metadata_path: File.expand_path("metadata", __dir__),
       release_notes: {"en-US" => ENV.fetch("MOBILE_RELEASE_NOTES", "This update includes the latest Supaterm app changes.")},
-      app_review_information: {notes: review_notes},
+      app_review_information: {notes: review_notes(qr_attached: true)},
       app_review_attachment_file: required_store_env("MOBILE_REVIEW_QR_PATH"),
       overwrite_screenshots: true,
       force: true,
