@@ -94,7 +94,7 @@ check(runner.uploads.first[:build_number] == "10" && runner.uploads.first[:submi
 check(runner.uploads.first[:automatic_release] == false, "iOS manual publishing changed")
 check(runner.uploads.first[:app_review_attachment_file] == "/tmp/review-qr.png", "iOS review QR was not attached")
 notes = runner.uploads.first[:app_review_information][:notes]
-check(notes.include?("review#invite=test") && notes.include?("attached QR code") && !notes.include?("{{"), "iOS review notes were not filled in")
+check(notes.include?("review#invite=test") && notes.include?("Scan QR code") && !notes.include?("{{"), "iOS review notes were not filled in")
 
 %w[WAITING_FOR_REVIEW IN_REVIEW READY_FOR_DISTRIBUTION].each do |state|
   $store_app.versions = [OpenStruct.new(app_version_state: state, get_build: $store_build)]
