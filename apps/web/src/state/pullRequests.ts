@@ -267,10 +267,6 @@ const sweptStorages = new WeakSet<ListAnswerStorage>();
 const listScopeKey = ({ projectIds: _projectIds, ...scope }: PullRequestListInput) =>
   `${LIST_SCOPE_KEY_PREFIX}${JSON.stringify(scope)}`;
 
-function readListScope(
-  storage: ListAnswerStorage | undefined,
-  key: string,
-): Record<string, PullRequestListResult>;
 function readListScope(storage: ListAnswerStorage | undefined, key: string) {
   let raw: string | null = null;
   try {

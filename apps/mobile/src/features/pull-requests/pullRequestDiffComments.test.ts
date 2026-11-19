@@ -25,13 +25,10 @@ const thread: PullRequestReviewThread = {
 };
 describe("PR comments in continuous native diffs", () => {
   it("returns unannotated data unchanged without reading or indexing rows", () => {
-    const readRows: () => NativeReviewDiffData["rows"] = () => {
-      throw new Error("Empty annotation must not read rows");
-    };
     const unannotated = {
       ...data,
       get rows() {
-        return readRows();
+        throw new Error("Empty annotation must not read rows");
       },
     };
     expect(annotatePullRequestDiff(unannotated, [], [], undefined)).toBe(unannotated);

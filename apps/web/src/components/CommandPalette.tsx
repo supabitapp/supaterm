@@ -293,7 +293,6 @@ const EMPTY_BROWSE_ENTRIES: FilesystemBrowseResult["entries"] = [];
 const ADD_PROJECT_ENTRY_GROUP = "add-project";
 const NEW_THREAD_IN_GROUP = "projects";
 
-function openIntentView(intent: CommandPaletteOpenIntent | null): CommandPaletteView | null;
 function openIntentView(intent: CommandPaletteOpenIntent | null) {
   switch (intent?.kind) {
     case "add-project":

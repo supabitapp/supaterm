@@ -1424,7 +1424,7 @@ function commandProgramNameInternal(
   command: string,
   depth: number,
   context: CommandProgramContext,
-  segmentsRemaining?: number,
+  segmentsRemaining?: typeof MAX_COMMAND_SEGMENTS,
 ): string | null;
 function commandProgramNameInternal(
   command: string,

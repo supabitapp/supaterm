@@ -6,7 +6,6 @@ import {
   workflowOpeningHeadline,
   workflowOpeningParentThreadId,
   type RuntimeSubagent,
-  type WorkflowOpening,
 } from "@supaterm/client-runtime/state/subagentRuntime";
 import type { EnvironmentId, ThreadId } from "@supaterm/contracts";
 import { useState } from "react";
@@ -22,10 +21,6 @@ import { useOpenLinkedThread } from "./useOpenLinkedThread";
 
 const FOLDED_SCRIPT_LINES = 10;
 
-export function useWorkflowOpening(
-  environmentId: EnvironmentId,
-  threadId: ThreadId,
-): WorkflowOpening | null;
 export function useWorkflowOpening(environmentId: EnvironmentId, threadId: ThreadId) {
   const threadAtom = environmentThreadDetails.threadAtom(scopeThreadRef(environmentId, threadId));
   const parentId = useAtomValue(threadAtom, (thread) =>

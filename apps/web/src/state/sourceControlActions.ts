@@ -51,35 +51,6 @@ const ACTION_OPERATION = {
   preparePullRequestThread: "prepare_pull_request_thread",
 } as const satisfies Record<SourceControlActionKind, VcsActionOperation>;
 
-interface SourceControlActionState<
-  TArgs extends ReadonlyArray<unknown>,
-  R extends AtomCommandResult<unknown, unknown>,
-> {
-  readonly isPending: boolean;
-  readonly isAllowed: boolean;
-  readonly error: unknown;
-  readonly run: (
-    ...args: TArgs
-  ) => Promise<
-    AtomCommandResult<
-      AtomCommandSuccess<R>,
-      AtomCommandFailure<R> | VcsActionUnavailableError | EnvironmentAuthorizationError
-    >
-  >;
-  readonly resetError: () => void;
-}
-
-function useAction<
-  TArgs extends ReadonlyArray<unknown>,
-  R extends AtomCommandResult<unknown, unknown>,
->(input: {
-  readonly kind: SourceControlActionKind;
-  readonly label: string;
-  readonly scope: SourceControlActionScope;
-  readonly action: (...args: TArgs) => Promise<R>;
-  readonly onSuccess?: () => void;
-  readonly managedExternally?: boolean;
-}): SourceControlActionState<TArgs, R>;
 function useAction<
   TArgs extends ReadonlyArray<unknown>,
   R extends AtomCommandResult<unknown, unknown>,

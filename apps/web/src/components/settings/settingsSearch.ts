@@ -1270,9 +1270,6 @@ export function searchableSetting(id: SettingsSearchItemId) {
   return { id: anchorId, title };
 }
 
-export function filterAvailableSettingsSearchItems(
-  availability: SettingsSearchAvailability,
-): ReadonlyArray<SettingsSearchItem>;
 export function filterAvailableSettingsSearchItems(availability: SettingsSearchAvailability) {
   const items: ReadonlyArray<SettingsSearchItem> = SETTINGS_SEARCH_ITEMS;
   return items.filter(
@@ -1287,9 +1284,6 @@ export function filterAvailableSettingsSearchItems(availability: SettingsSearchA
 }
 
 /** The settings that exist on this platform and app channel. */
-export function settingsForThisPlatform(
-  items: ReadonlyArray<SettingsSearchItem>,
-): ReadonlyArray<SettingsSearchItem>;
 export function settingsForThisPlatform(items: ReadonlyArray<SettingsSearchItem>) {
   const platform = typeof navigator === "undefined" ? "" : navigator.platform;
   return items.filter(

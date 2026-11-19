@@ -36,12 +36,12 @@ const crashLogAtom = Atom.make(
         ({
           status: "ready",
           records: parseStartupCrashRecords(entries),
-        }) satisfies CrashLogState as CrashLogState,
+        }) satisfies CrashLogState,
     ),
     Effect.catch((error) =>
       Effect.sync(() => {
         console.warn("[diagnostics] could not read the expo-updates log", error);
-        return { status: "unavailable" } satisfies CrashLogState as CrashLogState;
+        return { status: "unavailable" } satisfies CrashLogState;
       }),
     ),
   ),

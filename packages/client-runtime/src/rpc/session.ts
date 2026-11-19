@@ -387,7 +387,7 @@ export const make = Effect.fn("RpcSessionFactory.make")(function* (
     );
     const serverConfigEvents = serverConfigReplay.pipe(
       Stream.mapAccum(
-        () => undefined satisfies number | undefined as number | undefined,
+        () => undefined,
         (revision, buffered) => [
           buffered.revision,
           revision !== undefined && buffered.revision === revision + 1

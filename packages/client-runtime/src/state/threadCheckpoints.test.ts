@@ -14,10 +14,6 @@ import { describe, expect, it } from "vite-plus/test";
 
 import { deriveThreadCheckpointSummaries } from "./threadCheckpoints.ts";
 
-const mustNotRead: (message: string) => never = (message) => {
-  throw new Error(message);
-};
-
 function checkpoint(
   run: string,
   overrides?: Partial<OrchestrationV2Checkpoint>,
@@ -172,7 +168,7 @@ describe("deriveThreadCheckpointSummaries", () => {
       deriveThreadCheckpointSummaries({
         checkpoints,
         get messages() {
-          return mustNotRead("Ineligible checkpoints must not read message history");
+          throw new Error("Ineligible checkpoints must not read message history");
         },
       }),
     ).toEqual([]);
@@ -205,7 +201,7 @@ describe("deriveThreadCheckpointSummaries", () => {
     const history = Array.from({ length: 1_000 }, (_, index) => ({
       ...message(`old-${index}`, `old-${index}`),
       get runId() {
-        return mustNotRead("Tail checkpoints must not traverse older history");
+        throw new Error("Tail checkpoints must not traverse older history");
       },
     }));
     const summaries = deriveThreadCheckpointSummaries({
@@ -222,7 +218,7 @@ describe("deriveThreadCheckpointSummaries", () => {
     const unrelated = Array.from({ length: 1_000 }, (_, index) => ({
       ...message(`other-${index}`, `other-${index}`),
       get id() {
-        return mustNotRead("Unrequested runs must not be indexed");
+        throw new Error("Unrequested runs must not be indexed");
       },
     }));
     const summaries = deriveThreadCheckpointSummaries({
@@ -249,7 +245,7 @@ describe("deriveThreadCheckpointSummaries", () => {
             return entry.runId;
           },
           get text() {
-            return mustNotRead("Checkpoint summaries must not read message bodies");
+            throw new Error("Checkpoint summaries must not read message bodies");
           },
         }));
       const summaries = deriveThreadCheckpointSummaries({

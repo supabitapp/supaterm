@@ -108,7 +108,6 @@ function toChangeRequest(pullRequest: BitbucketPullRequest) {
   };
 }
 
-function toActionSummary(pullRequest: BitbucketPullRequest): ProviderChangeRequestSummary;
 function toActionSummary(pullRequest: BitbucketPullRequest) {
   return {
     number: pullRequest.number,

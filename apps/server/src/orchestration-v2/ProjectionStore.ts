@@ -6789,12 +6789,13 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
         ...(row.message_id === null ? {} : { messageId: MessageId.make(row.message_id) }),
       }));
     });
-    const localTimelineRow: (item: TimelineIndexItem) => TimelineIndexRow = (item) => ({
-      sourceThreadId: item.threadId,
-      sourceItemId: item.id,
-      visibility: "local",
-      item,
-    });
+    const localTimelineRow = (item: TimelineIndexItem) =>
+      ({
+        sourceThreadId: item.threadId,
+        sourceItemId: item.id,
+        visibility: "local",
+        item,
+      }) satisfies TimelineIndexRow;
 
     const openLocalTimeline = Effect.fn("ProjectionStore.openLocalTimeline")(function* (
       threadId: ThreadId,
@@ -7024,11 +7025,11 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
           from: number | null,
         ) {
           let position = from === null ? 0 : yield* local.visibleBefore(from);
-          return items.flatMap<IndexedTimelineRow>((item) => {
-            if (!local.isVisible(item)) return [];
+          return items.flatMap((item) => {
+            if (!local.isVisible(item)) return [] satisfies ReadonlyArray<IndexedTimelineRow>;
             const row = { ...localTimelineRow(item), position, canonicalPosition: position };
             position += 1;
-            return [row];
+            return [row] satisfies ReadonlyArray<IndexedTimelineRow>;
           });
         });
         const isCursorRow = (row: TimelineIndexRow) => row.sourceItemId === cursor.si;
@@ -7227,7 +7228,7 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
                   );
             const whole = Effect.gen(function* () {
               const index = full ?? (yield* readSnapshotTimelineIndex(threadId, withWork));
-              const indexed = index.visible.map<IndexedTimelineRow>((row, position) => ({
+              const indexed = index.visible.map((row, position) => ({
                 ...row,
                 position,
                 canonicalPosition: position,

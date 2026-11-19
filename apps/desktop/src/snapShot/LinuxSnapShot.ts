@@ -158,7 +158,6 @@ class LinuxCaptureConnection {
     return reply.body[0] as unknown;
   }
 
-  backend(appId: string): Promise<LinuxCaptureBackend>;
   async backend(appId: string) {
     if (isKdeCaptureSession()) {
       const kde = await this.properties(
@@ -393,11 +392,11 @@ export async function captureLinuxWindow(
   if (isHyprlandCaptureSession()) {
     if (!hyprlandPaths) throw new Error("Hyprland capture setup is unavailable in this build.");
     const { captureHyprlandWindow } = await import("./HyprlandSnapShot.ts");
-    return captureHyprlandWindow(hyprlandPaths, options);
+    return captureHyprlandWindow(hyprlandPaths, options) satisfies LinuxWindowSnapshot | undefined;
   }
   const { niriSocketPath, captureNiriWindow } = await import("./NiriSnapShot.ts");
   const niri = niriSocketPath();
-  if (niri) return captureNiriWindow(niri);
+  if (niri) return captureNiriWindow(niri) satisfies LinuxWindowSnapshot | undefined;
   const connection = new LinuxCaptureConnection();
   let retained = false;
   try {
@@ -405,17 +404,19 @@ export async function captureLinuxWindow(
       case "kde": {
         if (!kdePaths) throw new Error("KDE capture setup is unavailable in this build.");
         const { captureKdeWindow } = await import("./KdeSnapShot.ts");
-        return await captureKdeWindow(kdePaths, options);
+        return (await captureKdeWindow(kdePaths, options)) satisfies
+          | LinuxWindowSnapshot
+          | undefined;
       }
       case "screenshot-portal":
-        return await connection.capturePortal();
+        return (await connection.capturePortal()) satisfies LinuxWindowSnapshot | undefined;
       case "gnome-extension": {
         const snapshot = await connection.captureExtension(appId, options);
         retained = snapshot.feedback !== undefined;
-        return snapshot;
+        return snapshot satisfies LinuxWindowSnapshot | undefined;
       }
       case "picker":
-        return undefined;
+        return undefined satisfies LinuxWindowSnapshot | undefined;
     }
   } finally {
     if (!retained) connection.close();

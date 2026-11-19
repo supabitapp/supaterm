@@ -1,7 +1,6 @@
 import {
   DEFAULT_CLIENT_SETTINGS,
   type SidePulseDevice,
-  type SidePulseDeviceError,
   type SidePulseDeviceState,
   type SidePulseLedState,
   type SidePulseSettings,
@@ -59,7 +58,6 @@ function isPermissionDenied(error: PlatformError.PlatformError) {
   return error.reason._tag === "PermissionDenied" || PERMISSION_CODES.has(errorCode(error));
 }
 
-function writeError(error: PlatformError.PlatformError): SidePulseDeviceError;
 function writeError(error: PlatformError.PlatformError) {
   return isPermissionDenied(error) || errorCode(error) === "EROFS" ? "read-only" : "write-failed";
 }

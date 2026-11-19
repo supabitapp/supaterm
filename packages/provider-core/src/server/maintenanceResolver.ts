@@ -4,10 +4,7 @@ export type {
   ProviderMaintenanceCapabilities,
   ProviderMaintenanceCommandAction,
 } from "@supaterm/provider-core/server/maintenance";
-import type {
-  ProviderMaintenanceCapabilities,
-  ProviderMaintenanceCommandAction,
-} from "@supaterm/provider-core/server/maintenance";
+import type { ProviderMaintenanceCapabilities } from "@supaterm/provider-core/server/maintenance";
 import {
   ProviderDriverKind,
   type ServerProvider,
@@ -136,18 +133,6 @@ export function makeProviderMaintenanceCapabilities(input: {
   readonly env?: NodeJS.ProcessEnv;
   readonly latestVersion?: string | null;
   readonly lookupLatestVersion?: Effect.Effect<string | null>;
-}): ProviderMaintenanceCapabilities;
-export function makeProviderMaintenanceCapabilities(input: {
-  readonly provider: ProviderDriverKind;
-  readonly packageName: string | null;
-  readonly updateExecutable: string | null;
-  readonly updateArgs: ReadonlyArray<string>;
-  readonly updateLockKey: string | null;
-  readonly updateCommand?: string;
-  readonly platform?: NodeJS.Platform;
-  readonly env?: NodeJS.ProcessEnv;
-  readonly latestVersion?: string | null;
-  readonly lookupLatestVersion?: Effect.Effect<string | null>;
 }) {
   const platform = input.platform ?? HostProcess.Platform.defaultValue();
   const update =
@@ -174,10 +159,6 @@ export function makeProviderMaintenanceCapabilities(input: {
   };
 }
 
-export function makeTargetedProviderUpdateAction(
-  capabilities: ProviderMaintenanceCapabilities,
-  version: string,
-): ProviderMaintenanceCommandAction | null;
 export function makeTargetedProviderUpdateAction(
   capabilities: ProviderMaintenanceCapabilities,
   version: string,
@@ -208,10 +189,6 @@ export function makeTargetedProviderUpdateAction(
   return { ...update, args, command };
 }
 
-export function resolveLatestProviderUpdateAction(
-  capabilities: ProviderMaintenanceCapabilities,
-  latestVersion: string | null,
-): ProviderMaintenanceCommandAction | null;
 export function resolveLatestProviderUpdateAction(
   capabilities: ProviderMaintenanceCapabilities,
   latestVersion: string | null,

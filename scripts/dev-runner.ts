@@ -232,14 +232,6 @@ export function resolveOffset(config: {
   readonly portOffset: number | undefined;
   readonly devInstance: string | undefined;
   readonly worktreePath?: string | undefined;
-}): Effect.Effect<
-  { readonly offset: number; readonly source: string },
-  DevRunnerInvalidPortOffsetError
->;
-export function resolveOffset(config: {
-  readonly portOffset: number | undefined;
-  readonly devInstance: string | undefined;
-  readonly worktreePath?: string | undefined;
 }) {
   if (config.portOffset !== undefined) {
     if (config.portOffset < 0) {

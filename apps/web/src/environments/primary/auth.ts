@@ -397,7 +397,7 @@ export async function resolveInitialServerAuthGateState() {
     resolvedAuthenticatedGateState = null;
   } else {
     if (previousPromise) {
-      return previousPromise;
+      return previousPromise satisfies ServerAuthGateState;
     }
 
     if (resolvedAuthenticatedGateState?.status === "authenticated") {
@@ -425,7 +425,7 @@ export async function resolveInitialServerAuthGateState() {
       if (bootstrapPromise === nextPromise) {
         bootstrapPromise = null;
       }
-    });
+    }) satisfies ServerAuthGateState;
 }
 
 export function __resetServerAuthBootstrapForTests() {

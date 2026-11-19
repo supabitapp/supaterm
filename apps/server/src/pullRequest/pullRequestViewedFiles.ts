@@ -100,13 +100,7 @@ const makeFileRevisions = (dependencies: FileRevisionsDependencies) => {
     return paths.every((path) => held.asked.has(path)) ? held : null;
   };
 
-  const fileRevisionsOf: (
-    project: SupportedProject,
-    ref: PullRequestRef,
-    paths: ReadonlyArray<string>,
-    operation: string,
-    freshness?: "held" | "fresh",
-  ) => Effect.Effect<ReadonlyMap<string, string> | null, PullRequestError> = (
+  const fileRevisionsOf = (
     project: SupportedProject,
     ref: PullRequestRef,
     paths: ReadonlyArray<string>,

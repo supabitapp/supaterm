@@ -1517,10 +1517,7 @@ export const make = Effect.gen(function* () {
       ) satisfies Effect.Effect<RepositoryBatch>;
     };
 
-    function readTogether(
-      chunk: ReadonlyArray<SupportedProject>,
-    ): Effect.Effect<ReadonlyArray<RepositoryBatch>>;
-    function readTogether(chunk: ReadonlyArray<SupportedProject>) {
+    const readTogether = (chunk: ReadonlyArray<SupportedProject>) => {
       const first = chunk[0]!;
       const readAcross = first.api.listChangeRequestsAcross;
       const separately = () =>
@@ -1606,7 +1603,7 @@ export const make = Effect.gen(function* () {
         }),
         Effect.catch(separately),
       ) satisfies Effect.Effect<ReadonlyArray<RepositoryBatch>>;
-    }
+    };
 
     const together = new Map<string, Array<SupportedProject>>();
     const separate: Array<SupportedProject> = [];
@@ -2122,9 +2119,7 @@ export const make = Effect.gen(function* () {
     readonly repository: string;
     readonly summary: PullRequestSummary | undefined;
   };
-  const runAction: (
-    input: PullRequestActionInput,
-  ) => Effect.Effect<ActionOutcome, PullRequestError> = (input) =>
+  const runAction = (input: PullRequestActionInput) =>
     requireProject(input).pipe(
       Effect.flatMap((project) => {
         if (input.action === "delete-branch" && project.api.capabilities.deleteBranch !== true) {
@@ -3712,21 +3707,23 @@ export const make = Effect.gen(function* () {
 
   const invalidatedByMutation: <I extends PullRequestRef>(
     method: (input: I) => Effect.Effect<void, PullRequestError>,
-  ) => (input: I) => Effect.Effect<void, PullRequestError> = (method) => (input) =>
-    Effect.gen(function* () {
-      const ref = yield* canonicalRef(input);
-      yield* readCache.invalidate(refScope(ref)).pipe(
-        Effect.andThen(method(input)),
-        Effect.ensuring(readCache.invalidate(refScope(ref))),
-        Effect.tap(() =>
-          Effect.sync(() => {
-            bumpRefEpoch(ref);
-            listingsEpoch = ++epochCounter;
-          }),
-        ),
-      );
-      yield* SubscriptionRef.set(pullRequestRefreshes, listingsEpoch);
-    });
+  ) => (input: I) => Effect.Effect<void, PullRequestError> =
+    <I extends PullRequestRef>(method: (input: I) => Effect.Effect<void, PullRequestError>) =>
+    (input) =>
+      Effect.gen(function* () {
+        const ref = yield* canonicalRef(input);
+        yield* readCache.invalidate(refScope(ref)).pipe(
+          Effect.andThen(method(input)),
+          Effect.ensuring(readCache.invalidate(refScope(ref))),
+          Effect.tap(() =>
+            Effect.sync(() => {
+              bumpRefEpoch(ref);
+              listingsEpoch = ++epochCounter;
+            }),
+          ),
+        );
+        yield* SubscriptionRef.set(pullRequestRefreshes, listingsEpoch);
+      });
   const runActionAndInvalidate: PullRequestService["Service"]["runAction"] = Effect.fn(
     "PullRequestService.runActionAndInvalidate",
   )(function* (input) {

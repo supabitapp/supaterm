@@ -109,12 +109,7 @@ export function createShortcutKeybindingsAtom(input: {
     const environments = [...get(input.environmentsAtom).values()];
     return environments.find(isConnectedWithConfig)?.serverConfig?.keybindings ?? null;
   });
-  return Atom.make((get) => {
-    const keybindings: ServerConfig["keybindings"] = mergeWithDefaultKeybindings(
-      get(customAtom) ?? [],
-    );
-    return keybindings;
-  });
+  return Atom.make((get) => mergeWithDefaultKeybindings(get(customAtom) ?? []));
 }
 
 const environmentConnectionsAtom = Atom.make((get) => {

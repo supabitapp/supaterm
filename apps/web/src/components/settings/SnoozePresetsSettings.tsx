@@ -85,7 +85,6 @@ function splitMinutes(minutes: number) {
   return { amount: minutes, unit: "minutes" } satisfies { amount: number; unit: DurationUnit };
 }
 
-function nextCandidate(presets: ReadonlyArray<SnoozePresetSetting>): SnoozePresetSetting;
 function nextCandidate(presets: ReadonlyArray<SnoozePresetSetting>) {
   const used = new Set(presets.map(snoozePresetId));
   return (
@@ -112,11 +111,6 @@ interface KindMemory {
   readonly time: string;
 }
 
-function withWhen(
-  preset: SnoozePresetSetting,
-  when: string,
-  memory: KindMemory,
-): SnoozePresetSetting | null;
 function withWhen(preset: SnoozePresetSetting, when: string, memory: KindMemory) {
   if (when === "after") {
     return (

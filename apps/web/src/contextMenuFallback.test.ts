@@ -35,12 +35,9 @@ class FakeElement {
   constructor(readonly tagName: string) {}
 
   get isConnected() {
-    return this.connected();
-  }
-
-  private connected(): boolean;
-  private connected() {
-    return this.parent ? this.parent.isConnected : this.tagName === "body";
+    return (this.parent
+      ? this.parent.isConnected
+      : this.tagName === "body") satisfies boolean as boolean;
   }
 
   appendChild(child: FakeElement) {

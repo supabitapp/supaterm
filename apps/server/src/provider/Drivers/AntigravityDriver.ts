@@ -187,13 +187,7 @@ export const AntigravityDriver: ProviderDriver<
         Effect.map((catalog) => stampIdentity(ModelCatalog.applyModelCatalog(draft, catalog))),
       );
 
-    const makeRuntime: (
-      input: Omit<AntigravityAcpRuntimeInput, "spawn" | "childProcessSpawner">,
-    ) => Effect.Effect<
-      AcpSessionRuntime.AcpSessionRuntime["Service"],
-      AcpErrors.AcpError | ProviderSetupError,
-      Scope.Scope
-    > = Effect.fn("AntigravityDriver.makeRuntime")(function* (
+    const makeRuntime = Effect.fn("AntigravityDriver.makeRuntime")(function* (
       input: Omit<AntigravityAcpRuntimeInput, "spawn" | "childProcessSpawner">,
     ) {
       if (authConfigIssue !== null) {

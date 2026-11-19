@@ -476,9 +476,6 @@ export function parseSessionModeState(sessionResponse: AcpSessionSetupResponse) 
   };
 }
 
-function normalizePlanStepStatus(
-  raw: unknown,
-): "pending" | "inProgress" | "completed" | "cancelled";
 function normalizePlanStepStatus(raw: unknown) {
   switch (raw) {
     case "completed":
@@ -493,10 +490,6 @@ function normalizePlanStepStatus(raw: unknown) {
   }
 }
 
-function normalizeToolCallStatus(
-  raw: unknown,
-  fallback?: "pending" | "inProgress" | "completed" | "failed",
-): "pending" | "inProgress" | "completed" | "failed" | undefined;
 function normalizeToolCallStatus(
   raw: unknown,
   fallback?: "pending" | "inProgress" | "completed" | "failed",

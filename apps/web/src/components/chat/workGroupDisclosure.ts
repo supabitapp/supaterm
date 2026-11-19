@@ -13,9 +13,6 @@ export function workGroupIsExpanded(disclosure: WorkGroupDisclosure | undefined)
   return disclosure === "opening" || disclosure === "open";
 }
 
-export function restoredWorkGroupDisclosures(
-  expandedGroupIds: ReadonlySet<string> | undefined,
-): WorkGroupDisclosures;
 export function restoredWorkGroupDisclosures(expandedGroupIds: ReadonlySet<string> | undefined) {
   return new Map(
     Array.from(expandedGroupIds ?? [], (groupId) => [groupId, "open"]),

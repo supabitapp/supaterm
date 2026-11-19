@@ -25,12 +25,7 @@ export const resolveDeviceHubAccess: (input: {
     const httpBase = environmentEndpointUrl(input.prepared.httpBaseUrl, input.hubBasePath);
     const wsBase = httpBase.replace(/^http/, "ws");
     if (input.prepared.httpAuthorization === null) {
-      return {
-        httpBase,
-        wsBase,
-        query: {},
-        credentials: true,
-      } satisfies DeviceHubAccess as DeviceHubAccess;
+      return { httpBase, wsBase, query: {}, credentials: true };
     }
     const mintTicket = (use: AuthWebSocketTicketUse | undefined) =>
       executeAuthenticatedEnvironmentHttpRequest({
@@ -50,5 +45,5 @@ export const resolveDeviceHubAccess: (input: {
       wsBase,
       query: { wsTicket: Redacted.value(ticket.ticket) },
       credentials: false,
-    } satisfies DeviceHubAccess as DeviceHubAccess;
+    };
   });

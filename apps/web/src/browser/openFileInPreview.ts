@@ -191,5 +191,8 @@ export async function openFileInPreview<AssetError, PreviewError>(input: {
     url: assetUrl,
     assetRelativeUrl: assetResult.value.relativeUrl,
     openPreview: input.openPreview,
-  });
+  }) satisfies AtomCommandResult<
+    void,
+    AssetError | PreviewError | BrowserPreviewUnavailableError | BrowserSettingsReadError
+  >;
 }

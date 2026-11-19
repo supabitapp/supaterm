@@ -171,12 +171,11 @@ const imageProps = {
   const tabs = page.querySelectorAll<HTMLButtonElement>(".channel-toggle button");
   const cards = page.querySelectorAll<HTMLAnchorElement>("a[data-asset]");
 
-  function readChannel(): ReleaseChannel;
-  function readChannel() {
+  function readChannel(): ReleaseChannel {
     return new URLSearchParams(location.search).get("channel") === "nightly" ? "nightly" : "stable";
   }
 
-  function relativeAge(iso: string) {
+  function relativeAge(iso: string): string {
     const minutes = Math.max(1, Math.round((Date.now() - Date.parse(iso)) / 60_000));
     if (minutes < 60) return `${minutes} minutes ago`;
     const hours = Math.round(minutes / 60);

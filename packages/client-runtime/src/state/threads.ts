@@ -1133,13 +1133,10 @@ export function createEnvironmentThreadStateAtoms<R, E>(
   canLoadAtom?: (environmentId: EnvironmentIdType, threadId: ThreadIdType) => Atom.Atom<boolean>,
 ) {
   const resumeFamily = Atom.family((key: string) =>
-    Atom.make(
-      () =>
-        ({
-          snapshot: undefined,
-          owner: undefined,
-        }) satisfies ThreadResumeCache as ThreadResumeCache,
-    ).pipe(
+    Atom.make(() => ({
+      snapshot: undefined,
+      owner: undefined,
+    })).pipe(
       Atom.setIdleTTL(THREAD_SNAPSHOT_IDLE_TTL_MS),
       Atom.withLabel(`environment-thread-resume:${key}`),
     ),

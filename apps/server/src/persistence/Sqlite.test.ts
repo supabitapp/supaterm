@@ -33,7 +33,7 @@ import Migration0009 from "./Migrations/009_ScheduledTaskThreadMode.ts";
 import Migration0010 from "./Migrations/010_ProjectionMessageSearchText.ts";
 import * as SqlitePersistence from "./Sqlite.ts";
 
-const workerData = vi.hoisted<Array<unknown>>(() => []);
+const workerData = vi.hoisted(() => []);
 
 vi.mock("node:worker_threads", async (importOriginal) => {
   const actual = await importOriginal<typeof NodeWorkerThreads>();

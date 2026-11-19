@@ -1052,7 +1052,7 @@ export const make = Effect.gen(function* () {
       ...(input.timeoutMs === undefined ? {} : { timeoutMs: input.timeoutMs }),
     });
 
-  function listPage(input: {
+  const listPage: (input: {
     readonly cwd: string;
     readonly host?: string | undefined;
     readonly repository: string;
@@ -1066,8 +1066,7 @@ export const make = Effect.gen(function* () {
     readonly page: number;
     readonly collected: ReadonlyArray<GitLabMergeRequestListItem>;
     readonly cursorAdvance: number;
-  }): Effect.Effect<GitLabMergeRequestListBatch, GitLabPullRequestCliError>;
-  function listPage(input: {
+  }) => Effect.Effect<GitLabMergeRequestListBatch, GitLabPullRequestCliError> = (input: {
     readonly cwd: string;
     readonly host?: string | undefined;
     readonly repository: string;
@@ -1081,7 +1080,7 @@ export const make = Effect.gen(function* () {
     readonly page: number;
     readonly collected: ReadonlyArray<GitLabMergeRequestListItem>;
     readonly cursorAdvance: number;
-  }) {
+  }) => {
     const delivered = input.cursor?.delivered ?? 0;
     const perPage = Math.min(input.limit + 1, MAX_PAGE_SIZE);
     const firstPage = Math.floor(delivered / perPage) + 1;
@@ -1167,7 +1166,7 @@ export const make = Effect.gen(function* () {
         });
       }),
     );
-  }
+  };
 
   const diffPage = (input: {
     readonly cwd: string;

@@ -483,7 +483,7 @@ async function readZipText(zip: JSZip, path: string, description: string, signal
     throw new Error(`${description} is too large.`);
   }
 
-  return new Promise<string>((resolve, reject) => {
+  return new Promise((resolve, reject) => {
     const chunks: Uint8Array[] = [];
     let byteLength = 0;
     let settled = false;
@@ -529,7 +529,7 @@ async function readZipText(zip: JSZip, path: string, description: string, signal
         resolve(new TextDecoder().decode(bytes));
       })
       .resume();
-  });
+  }) satisfies string;
 }
 
 function loadThemeObject(

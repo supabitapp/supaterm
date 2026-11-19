@@ -6,7 +6,6 @@ import {
   scoreSearchTerms,
   scoreThreadSearch,
   type SearchMatchHint,
-  type SearchRange,
   type ThreadSearchSubject,
 } from "@supaterm/shared/paletteSearch";
 import { threadSearchSubject } from "@supaterm/client-runtime/state/thread-search";
@@ -518,21 +517,6 @@ export function buildThreadActionItems<TThread extends BuildThreadActionItemsThr
 
 type PaletteItem = CommandPaletteActionItem | CommandPaletteSubmenuItem;
 
-function rankPaletteItem(
-  item: PaletteItem,
-  normalizedQuery: string,
-  now: number,
-  options: { readonly typos: boolean },
-): {
-  readonly score: number;
-  readonly quality: number;
-  readonly groupQuality?: number;
-  readonly strong: boolean;
-  readonly ranges: ReadonlyArray<SearchRange>;
-  readonly explain?: () => SearchMatchHint | undefined;
-  readonly pickedAt?: number;
-  readonly pickedExactly?: boolean;
-} | null;
 function rankPaletteItem(
   item: PaletteItem,
   normalizedQuery: string,

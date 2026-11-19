@@ -4320,9 +4320,7 @@ it.layer(
       const registry = yield* ProviderInstanceRegistry.ProviderInstanceRegistry.pipe(
         Effect.provide(services),
       );
-      return (yield* registry.listUnavailable).map<string | undefined>(
-        (provider) => provider.instanceId,
-      );
+      return (yield* registry.listUnavailable).map((provider) => provider.instanceId);
     });
 
     it.effect("applies a settings change saved while the provider registry starts", () =>

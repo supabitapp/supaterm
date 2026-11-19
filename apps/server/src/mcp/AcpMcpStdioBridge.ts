@@ -80,10 +80,11 @@ export interface McpToolSession {
  * One initialized MCP session over Supaterm's HTTP endpoint, terminated when
  * the scope closes. Used by the ACP terminal fallback and `supaterm thread`.
  */
-export function mcpToolSession(
+export const mcpToolSession: (
   options: McpToolSessionOptions,
-): Effect.Effect<McpToolSession, AcpMcpBridgeError, Scope.Scope>;
-export function mcpToolSession(options: McpToolSessionOptions) {
+) => Effect.Effect<McpToolSession, AcpMcpBridgeError, Scope.Scope> = (
+  options: McpToolSessionOptions,
+) => {
   const fetchImplementation = options.fetchImplementation ?? fetch;
   let sessionId: string | null = null;
   let protocolVersion: string | null = null;
@@ -170,7 +171,7 @@ export function mcpToolSession(options: McpToolSessionOptions) {
         ),
     } satisfies McpToolSession;
   });
-}
+};
 
 /**
  * This is the terminal fallback for ACP agents that accept `mcpServers` in

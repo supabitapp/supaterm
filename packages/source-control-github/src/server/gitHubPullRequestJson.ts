@@ -1697,9 +1697,6 @@ const ReviewerRequestSchema = Schema.Struct({
 
 export function buildReviewerRequest(
   reviewers: ReadonlyArray<{ readonly id: string; readonly kind: PullRequestReviewerKind }>,
-): typeof ReviewerRequestSchema.Type;
-export function buildReviewerRequest(
-  reviewers: ReadonlyArray<{ readonly id: string; readonly kind: PullRequestReviewerKind }>,
 ) {
   return {
     reviewers: reviewers.flatMap((reviewer) => (reviewer.kind === "user" ? [reviewer.id] : [])),

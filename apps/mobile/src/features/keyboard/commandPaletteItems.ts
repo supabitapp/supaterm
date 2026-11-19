@@ -8,7 +8,6 @@ import {
   scoreThreadSearch,
   type SearchMatchHint,
   type SearchRange,
-  type SearchTermsMatch,
   type ThreadSearchSubject,
 } from "@supaterm/shared/paletteSearch";
 
@@ -63,10 +62,9 @@ export function filterCommandPaletteItems(
   const groups = rankSearchGroups(
     kinds.map((kind) => ({ group: kind, items: candidates.filter((item) => item.kind === kind) })),
     (item, options) => {
-      const match: (SearchTermsMatch & { explain?: () => SearchMatchHint | undefined }) | null =
-        item.threadSearch
-          ? scoreThreadSearch(normalizedQuery, item.threadSearch, now, options)
-          : scoreSearchTerms(normalizedQuery, [item.title, ...item.searchTerms], options);
+      const match = item.threadSearch
+        ? scoreThreadSearch(normalizedQuery, item.threadSearch, now, options)
+        : scoreSearchTerms(normalizedQuery, [item.title, ...item.searchTerms], options);
       return match && item.secondary ? { ...match, groupQuality: 0 } : match;
     },
   );

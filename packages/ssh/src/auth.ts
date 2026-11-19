@@ -98,43 +98,41 @@ if ($null -ne $env:SUPATERM_SSH_AUTH_SECRET) {\r
 exit 1\r
 `;
 
-const buildSshAskpassHelperDescriptor: (input: {
-  readonly directory: string;
-}) => Effect.Effect<SshAskpassHelperDescriptor, never, Path.Path> = Effect.fn(
-  "ssh/auth.buildSshAskpassHelperDescriptor",
-)(function* (input: { readonly directory: string }) {
-  const platform = yield* HostProcess.Platform;
-  const path = yield* Path.Path;
-  const directory = input.directory;
+const buildSshAskpassHelperDescriptor = Effect.fn("ssh/auth.buildSshAskpassHelperDescriptor")(
+  function* (input: { readonly directory: string }) {
+    const platform = yield* HostProcess.Platform;
+    const path = yield* Path.Path;
+    const directory = input.directory;
 
-  if (platform === "win32") {
-    const powershellPath = joinSshAskpassPath(directory, "ssh-askpass.ps1", platform);
+    if (platform === "win32") {
+      const powershellPath = joinSshAskpassPath(directory, "ssh-askpass.ps1", platform);
+      return {
+        launcherPath: joinSshAskpassPath(directory, "ssh-askpass.cmd", platform),
+        files: [
+          {
+            path: joinSshAskpassPath(directory, "ssh-askpass.cmd", platform),
+            contents: ASKPASS_WINDOWS_LAUNCHER_SCRIPT,
+          },
+          {
+            path: powershellPath,
+            contents: ASKPASS_WINDOWS_SCRIPT,
+          },
+        ],
+      };
+    }
+
     return {
-      launcherPath: joinSshAskpassPath(directory, "ssh-askpass.cmd", platform),
+      launcherPath: path.join(directory, "ssh-askpass.sh"),
       files: [
         {
-          path: joinSshAskpassPath(directory, "ssh-askpass.cmd", platform),
-          contents: ASKPASS_WINDOWS_LAUNCHER_SCRIPT,
-        },
-        {
-          path: powershellPath,
-          contents: ASKPASS_WINDOWS_SCRIPT,
+          path: path.join(directory, "ssh-askpass.sh"),
+          contents: ASKPASS_POSIX_SCRIPT,
+          mode: 0o700,
         },
       ],
     };
-  }
-
-  return {
-    launcherPath: path.join(directory, "ssh-askpass.sh"),
-    files: [
-      {
-        path: path.join(directory, "ssh-askpass.sh"),
-        contents: ASKPASS_POSIX_SCRIPT,
-        mode: 0o700,
-      },
-    ],
-  };
-});
+  },
+);
 
 const ensureSshAskpassHelpers: (input: {
   readonly directory: string;

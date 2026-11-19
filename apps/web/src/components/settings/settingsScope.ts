@@ -41,7 +41,6 @@ export type ResolvedSettingsScope = ScopeTargets &
   );
 
 /** Stale IDs remain visible to the resolver so a removed target reads as unavailable, not as "all". */
-export function validateSettingsScopeSearch(raw: Record<string, unknown>): SettingsScopeSearch;
 export function validateSettingsScopeSearch(raw: Record<string, unknown>) {
   const stringValue = (value: unknown) =>
     typeof value === "string" && value.trim().length > 0 ? value : undefined;
@@ -56,11 +55,6 @@ export function validateSettingsScopeSearch(raw: Record<string, unknown>) {
 }
 
 /** An unavailable selection never broadens a subsequent write. */
-export function resolveSettingsScope(
-  search: SettingsScopeSearch,
-  groups: readonly SidebarProjectSnapshot[],
-  environments: readonly Pick<EnvironmentPresentation, "environmentId" | "label">[],
-): ResolvedSettingsScope;
 export function resolveSettingsScope(
   search: SettingsScopeSearch,
   groups: readonly SidebarProjectSnapshot[],

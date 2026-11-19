@@ -134,9 +134,6 @@ function evictExcessProjects(byProjectKey: Record<string, BrowserHistoryEntry[]>
   return Object.fromEntries(kept.map((key) => [key, byProjectKey[key] ?? []]));
 }
 
-export function migratePersistedBrowserHistoryState(persistedState: unknown): {
-  byProjectKey: Record<string, BrowserHistoryEntry[]>;
-};
 export function migratePersistedBrowserHistoryState(persistedState: unknown) {
   if (!persistedState || typeof persistedState !== "object") return { byProjectKey: {} };
   const raw = (persistedState as { byProjectKey?: unknown }).byProjectKey;
@@ -203,11 +200,6 @@ interface BrowserHistoryStoreState {
   registerThreadProject: (ref: ScopedThreadRef, projectKey: string) => void;
 }
 
-function addPendingByThread<T>(
-  pendingByThreadKey: Record<string, T[]>,
-  threadKey: string,
-  item: T,
-): Record<string, T[]>;
 function addPendingByThread<T>(
   pendingByThreadKey: Record<string, T[]>,
   threadKey: string,
@@ -322,10 +314,6 @@ export const useBrowserHistoryStore = create<BrowserHistoryStoreState>()(
 export function mergeBrowserHistoryState(
   persistedState: unknown,
   currentState: BrowserHistoryStoreState,
-): BrowserHistoryStoreState;
-export function mergeBrowserHistoryState(
-  persistedState: unknown,
-  currentState: BrowserHistoryStoreState,
 ) {
   const migrated = migratePersistedBrowserHistoryState(persistedState);
   return {
@@ -336,10 +324,6 @@ export function mergeBrowserHistoryState(
   };
 }
 
-function migratePersistedThreadProjectKeys(
-  persistedState: unknown,
-  byProjectKey: Record<string, BrowserHistoryEntry[]>,
-): Record<string, string>;
 function migratePersistedThreadProjectKeys(
   persistedState: unknown,
   byProjectKey: Record<string, BrowserHistoryEntry[]>,

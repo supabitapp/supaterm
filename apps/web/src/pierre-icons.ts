@@ -122,11 +122,6 @@ export function resolvePierreIconForEntry(
   pathValue: string,
   kind: "file" | "directory",
   mimeType?: string,
-): PierreIconResolution | null;
-export function resolvePierreIconForEntry(
-  pathValue: string,
-  kind: "file" | "directory",
-  mimeType?: string,
 ) {
   if (kind === "directory") return null;
   const icon = completeIconResolver.resolveIcon("file-tree-icon-file", pathValue);

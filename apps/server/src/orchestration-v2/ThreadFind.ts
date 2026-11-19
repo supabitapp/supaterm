@@ -271,8 +271,8 @@ export const makeThreadFind = Effect.fn("makeThreadFind")(function* (
     acquire: Effect.all({
       text: makeTextCache(8192),
       largeText: makeTextCache(32),
-      scans: Effect.sync<CompletedScans>(() => new Map()),
-      rendered: Effect.sync<RenderedSnapshot>(() => ({ current: undefined })),
+      scans: Effect.sync(() => new Map() satisfies CompletedScans as CompletedScans),
+      rendered: Effect.sync(() => ({ current: undefined })),
     }),
     idleTimeToLive: "1 minute",
   });

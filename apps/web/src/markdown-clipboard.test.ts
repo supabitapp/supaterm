@@ -53,8 +53,7 @@ class FakeElement {
   }
 
   get textContent() {
-    const text: string = this.childNodes.map((child) => child.textContent).join("");
-    return text;
+    return this.childNodes.map((child) => child.textContent).join("") satisfies string as string;
   }
 
   get children() {

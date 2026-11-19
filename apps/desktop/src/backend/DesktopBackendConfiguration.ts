@@ -277,49 +277,11 @@ type FailedNodePtyResult = Extract<
   { readonly ok: false }
 >;
 
-type WslPreflightRuntime =
-  | {
-      readonly kind: "executable";
-      readonly entryPath: string;
-    }
-  | {
-      readonly kind: "node-script";
-      readonly nodePath: string;
-      readonly linuxEntryPath: string;
-    };
-
-interface WslPreflightSuccess {
-  readonly _tag: "Ready";
-  readonly runningDistro: string;
-  readonly windowsEntryPath: string;
-  readonly runtime: WslPreflightRuntime;
-  readonly resolvedPath: string;
-  readonly runtimeId?: string;
-}
-
-interface WslPreflightFailure {
-  readonly _tag: "Failed";
-  readonly reason: string;
-  readonly fatal: boolean;
-  readonly retryLimit?: number;
-}
-
-interface WslPreflightInput {
+const runWslPreflight = Effect.fn("desktop.backendConfiguration.wslPreflight")(function* (input: {
   readonly distro: string | null;
   readonly runtimeArchive: DesktopWslEnvironment.WslRuntimeArchive | null;
   readonly allowBuild: boolean;
-}
-
-const runWslPreflight: (
-  input: WslPreflightInput,
-) => Effect.Effect<
-  WslPreflightSuccess | WslPreflightFailure,
-  never,
-  | DesktopEnvironment.DesktopEnvironment
-  | DesktopWslEnvironment.DesktopWslEnvironment
-  | DesktopWslServerTree.DesktopWslServerTree
-  | FileSystem.FileSystem
-> = Effect.fn("desktop.backendConfiguration.wslPreflight")(function* (input: WslPreflightInput) {
+}) {
   const environment = yield* DesktopEnvironment.DesktopEnvironment;
   const wslEnv = yield* DesktopWslEnvironment.DesktopWslEnvironment;
   const wslServerTree = yield* DesktopWslServerTree.DesktopWslServerTree;

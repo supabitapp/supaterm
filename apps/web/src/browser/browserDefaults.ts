@@ -23,15 +23,13 @@ export interface BrowserDefaults {
   readonly profileId: string;
 }
 
-interface BrowserDefaultsSettings {
+const toBrowserDefaults = (settings: {
   readonly browserDefaultViewport: PreviewViewportSetting;
   readonly browserDefaultZoomFactor: PreviewZoomFactor;
   readonly browserDefaultAppearance: PreviewAppearancePreference;
   readonly browserProfiles: ReadonlyArray<BrowserProfile>;
   readonly browserDefaultProfileId: string;
-}
-
-const toBrowserDefaults: (settings: BrowserDefaultsSettings) => BrowserDefaults = (settings) => {
+}) => {
   const profiles = resolveBrowserProfiles(settings.browserProfiles);
   return {
     viewport: settings.browserDefaultViewport,

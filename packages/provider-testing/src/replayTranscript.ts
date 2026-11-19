@@ -118,10 +118,6 @@ function metadataFromHeader(header: ProviderReplayTranscriptHeader) {
 export function decodeProviderReplayNdjson(
   input: string,
   fallbackMetadata?: ProviderReplayTranscriptMetadata,
-): Effect.Effect<ProviderReplayTranscript, ProviderReplayNdjsonParseError>;
-export function decodeProviderReplayNdjson(
-  input: string,
-  fallbackMetadata?: ProviderReplayTranscriptMetadata,
 ) {
   return Effect.gen(function* () {
     const lines = input
