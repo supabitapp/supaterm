@@ -24,6 +24,7 @@ import { Tool, Toolkit } from "effect/ai";
 import {
   FetchHttpClient,
   HttpClient,
+  HttpClientRequest,
   HttpServer,
   HttpServerRequest,
   HttpServerResponse,
@@ -202,6 +203,47 @@ it.effect("links, calls and forgets a peer through its relay tunnel", () => {
       expect(yield* a.links.unlink(box.environmentId)).toBe(true);
       // Forgetting the link closed its tunnel, so its loopback port answers nothing.
       const closed = yield* HttpClient.get(`${resolved.url}/.well-known/supaterm/environment`).pipe(
+        Effect.provide(FetchHttpClient.layer),
+        Effect.flip,
+      );
+      expect(closed._tag).toBe("HttpClientError");
+    }),
+  ).pipe(
+    Effect.provide(
+      NodeHttpServer.layer(() => server, {
+        host: "127.0.0.1",
+        port: 0,
+        gracefulShutdownTimeout: 0,
+      }),
+    ),
+  );
+});
+
+it.effect("a link made again by another address closes the relay tunnel it no longer uses", () => {
+  const server = NodeHttp.createServer();
+  return Effect.scoped(
+    Effect.gen(function* () {
+      const b = yield* serveB(box, server);
+      const a = yield* makeA(laptop);
+      const { relay } = b;
+      yield* a.links.link({
+        url: relay.address,
+        relayUrl: relay.url,
+        pairingCode: (yield* b.auth.issuePairingCredential()).credential,
+        access: "auto",
+        expectedEnvironmentId: box.environmentId,
+      });
+      const tunnel = (yield* a.links.resolve(box.environmentId)).url;
+
+      // The user picks the machine again, and this app now knows another address for it.
+      const again = yield* a.links.link({
+        url: b.url,
+        pairingCode: (yield* b.auth.issuePairingCredential()).credential,
+        access: "auto",
+        expectedEnvironmentId: box.environmentId,
+      });
+      expect(again.urls).toEqual([b.url]);
+      const closed = yield* HttpClient.get(`${tunnel}/.well-known/supaterm/environment`).pipe(
         Effect.provide(FetchHttpClient.layer),
         Effect.flip,
       );
@@ -423,6 +465,45 @@ it.effect("never follows a peer's redirect with the pairing code", () =>
         .pipe(Effect.flip);
       expect(yield* Ref.get(received)).toEqual([]);
       expect(yield* a.links.list).toEqual([]);
+    }),
+  ).pipe(Effect.provide(NodeHttpServer.layerTest)),
+);
+
+it.effect("keeps a pairing code the peer quotes back out of the refusal it reports", () =>
+  Effect.scoped(
+    Effect.gen(function* () {
+      const b = yield* serveB(box);
+      const pairingCode = "QUOTED-PAIRING-CODE";
+      const fromB = (request: HttpServerRequest.HttpServerRequest) =>
+        Effect.gen(function* () {
+          const forwarded =
+            request.method === "POST"
+              ? HttpClientRequest.post(`${b.url}${request.url}`).pipe(
+                  HttpClientRequest.bodyText(yield* request.text, "application/json"),
+                )
+              : HttpClientRequest.get(`${b.url}${request.url}`);
+          const response = yield* HttpClient.execute(forwarded);
+          return HttpServerResponse.text(yield* response.text, {
+            status: response.status,
+            contentType: "application/json",
+          });
+        }).pipe(Effect.provide(FetchHttpClient.layer), Effect.orDie);
+      // Answers as B until the code arrives, then refuses with the code in its words.
+      const front = yield* serveRaw((request) =>
+        request.url.startsWith("/oauth/mcp/decision")
+          ? HttpServerResponse.json(
+              { _tag: "AuthMcpApprovalError", message: `No such code: ${pairingCode}.` },
+              { status: 400 },
+            ).pipe(Effect.orDie)
+          : fromB(request),
+      );
+      const a = yield* makeA(laptop);
+      const refused = yield* a.links
+        .link({ url: front, pairingCode, access: "auto" })
+        .pipe(Effect.flip);
+      expect(refused.reason).toBe("pairing_rejected");
+      expect(refused.message).toContain("No such code");
+      expect(refused.message).not.toContain(pairingCode);
     }),
   ).pipe(Effect.provide(NodeHttpServer.layerTest)),
 );

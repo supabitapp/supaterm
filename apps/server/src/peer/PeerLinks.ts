@@ -451,7 +451,7 @@ const make = Effect.gen(function* () {
           ),
         );
     },
-    (effect, origin) =>
+    (effect, origin, input) =>
       effect.pipe(
         // Endpoint errors are mapped above; what is left is the transport or an
         // answer this version cannot decode.
@@ -473,6 +473,16 @@ const make = Effect.gen(function* () {
               }),
             ),
         }),
+        // A refusal can quote what the peer was sent, and its words go on to the card and the
+        // agent, so the pairing code is taken out of them here.
+        Effect.mapError((error) =>
+          input.pairingCode.length > 0 && error.message.includes(input.pairingCode)
+            ? new PeerLinkError({
+                reason: error.reason,
+                message: error.message.replaceAll(input.pairingCode, "(the pairing code)"),
+              })
+            : error,
+        ),
       ),
   );
 
@@ -637,6 +647,13 @@ const make = Effect.gen(function* () {
     // behind; it is unused either way.
     if (Option.isSome(previous) && previous.value.secret_name !== secretName) {
       yield* secrets.remove(previous.value.secret_name).pipe(Effect.ignore);
+    }
+    // A relay address the link no longer names would keep its tunnel until a restart.
+    if (Option.isSome(previous)) {
+      yield* decodeUrls(previous.value.urls_json).pipe(
+        Effect.flatMap(releaseUnlinked),
+        Effect.ignore,
+      );
     }
     return linked;
   });

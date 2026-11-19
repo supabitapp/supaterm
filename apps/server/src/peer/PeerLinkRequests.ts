@@ -305,7 +305,18 @@ const make = Effect.gen(function* () {
       case "decline":
         return Effect.succeed({ linkStatus: "declined" });
       case "use-existing":
-        return usableLink(answer.environmentId).pipe(
+        return peerLinks.enabled.pipe(
+          // Turned off while the card waited: the agent must not be told to use the link.
+          Effect.flatMap((enabled) =>
+            enabled
+              ? usableLink(answer.environmentId)
+              : Effect.fail(
+                  new PeerLinkError({
+                    reason: "disabled",
+                    message: PeerLinks.LINKED_ENVIRONMENTS_OFF,
+                  }),
+                ),
+          ),
           Effect.flatMap(
             Option.match({
               onNone: () =>
