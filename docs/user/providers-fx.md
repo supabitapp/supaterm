@@ -43,14 +43,15 @@ fx threads load the MCP servers from fx's profile config, `~/.fx/mcp.json`, on t
 
 ## Permission modes
 
-fx offers two composer modes.
+| Mode            | Behavior                                                                            |
+| --------------- | ----------------------------------------------------------------------------------- |
+| **Supervised**  | fx asks before it changes files or runs commands. Read requests run without asking. |
+| **Auto**        | fx handles routine actions itself. Anything it still asks about reaches you.        |
+| **Full access** | fx runs every action without asking. Needs fx 0.0.14 or later.                      |
 
-| Mode           | Behavior                                                                            |
-| -------------- | ----------------------------------------------------------------------------------- |
-| **Supervised** | fx asks before it changes files or runs commands. Read requests run without asking. |
-| **Auto**       | fx handles routine actions itself. Anything it still asks about reaches you.        |
+Supaterm offers **Full access** only when the server's fx reports it. After you upgrade fx, refresh the provider in **Settings → Providers** to see it. On an older fx, or before the provider check finishes, a thread set to **Full access** runs in **Supervised**.
 
-Supaterm does not offer **Full access** or **Auto-accept edits** for fx. A thread already set to one of those runs in **Supervised**. Changing the permission mode restarts the connection and reloads the same fx session.
+Supaterm does not offer **Auto-accept edits** for fx. A thread already set to it runs in **Supervised**. Changing the permission mode restarts the connection and reloads the same fx session.
 
 On fx 0.0.14 and later, fx saves the mode Supaterm sets as its default permission mode. Supaterm sets it each time it opens an fx thread, so fx in the terminal then starts in that thread's mode.
 
@@ -65,7 +66,6 @@ fx doesn't pass on a sub-agent's permission requests, so a sub-agent that needs 
 ## Not supported yet
 
 - Plan mode.
-- **Full access**.
 - **Auto-accept edits**.
 - Commit messages, pull request text, branch names, and thread titles. Pick another provider for those.
 
