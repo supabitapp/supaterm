@@ -20,6 +20,11 @@ import { useWorkspaceTabs } from "./WorkspaceTabsContext";
 import { shouldRestoreNativeSearch } from "./workspace-tabs-state";
 import { useFloatingWorkspaceTabs, useSidebarWorkspaceTabs } from "./useSystemWorkspaceTabBar";
 import { WorkspaceTabToolbarButtons } from "./WorkspaceSectionToolbar";
+import { steadyNavigationThreadShellsAtom } from "../../../state/threads";
+import { useAtomValueWhileVisible } from "../../home/home-route-visibility";
+import { useThreadListFilter } from "../../home/useThreadListFilter";
+import { workspaceFilterToolbarMenu } from "./WorkspaceFilterToolbarMenu.ios";
+import { workspaceListFilterMenu } from "./WorkspaceListHeader.types";
 
 const SEARCH_LABELS = {
   threads: "Search threads",
@@ -54,6 +59,11 @@ export function WorkspaceToolbar(props: {
   const selectedTab = workspace.settingsOpen ? "settings" : workspace.state.selectedTab;
   const tab = workspace.state.tabs[selectedTab];
   const searchLabel = SEARCH_LABELS[selectedTab === "usage" ? "threads" : selectedTab];
+  // iPhone draws the thread filter from the list's own header actions.
+  const showsThreadFilter = deviceType !== "phone" && selectedTab === "threads";
+  const { filter: threadFilter } = useThreadListFilter(
+    useAtomValueWhileVisible(steadyNavigationThreadShellsAtom, showsThreadFilter && tabActive),
+  );
   const { isTabActive: isListTabActive } = workspace;
   // A retained tab slot stays mounted while another is shown.
   const isTabActive = (tab: typeof selectedTab) =>
@@ -215,6 +225,9 @@ export function WorkspaceToolbar(props: {
               onPress={focusSearch}
             />
           )}
+          {showsThreadFilter
+            ? workspaceFilterToolbarMenu(workspaceListFilterMenu(threadFilter))
+            : null}
         </Toolbar>
       )}
       <Toolbar placement="bottom">

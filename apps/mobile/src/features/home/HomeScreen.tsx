@@ -27,7 +27,6 @@ import {
   useRef,
   useState,
   type ComponentProps,
-  type ReactElement,
 } from "react";
 import {
   Platform,
@@ -154,7 +153,6 @@ interface HomeScreenProps {
   readonly onDeletePendingTask: (pendingTask: PendingNewTask) => void;
   readonly onNewThreadOnBranch: (thread: EnvironmentThreadShell) => void;
   readonly onNewThreadInProject: (project: EnvironmentProject) => void;
-  readonly listHeader: ReactElement | undefined;
 }
 
 // Rows run ~60dp (slim) to ~94dp (two-line card). The estimate seeds the recycler's initial
@@ -848,11 +846,7 @@ export function HomeScreen(props: HomeScreenProps) {
                 recycleItems
                 itemLayoutAnimation={listMotion.layout}
                 extraData={v2ExtraData}
-                // Lifted above the rows so an iOS filter menu's dismissal morph is not covered.
-                ListHeaderComponentStyle={{ zIndex: 1 }}
-                ListHeaderComponent={
-                  Platform.OS === "ios" ? props.listHeader : <HomeTopContentSpacer />
-                }
+                ListHeaderComponent={Platform.OS === "ios" ? undefined : <HomeTopContentSpacer />}
                 ListEmptyComponent={v2ListEmpty}
                 style={{ flex: 1 }}
                 automaticallyAdjustsScrollIndicatorInsets={Platform.OS === "ios"}
