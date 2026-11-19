@@ -282,7 +282,7 @@ patchedDependencies:
   react-native-svg@15.16.1: patches/react-native-svg@15.16.1.patch
   # Android: double-tap zoom no longer cancels itself, and taps near a link open it.
   react-native-pdf-jsi@6.1.0: patches/react-native-pdf-jsi@6.1.0.patch
-  # no-comments keeps Effect language-service and knip directives.
+  # no-comments keeps Effect language-service, knip, and gitleaks directives.
   "@interfere/landmines@0.1.1": patches/@interfere__landmines@0.1.1.patch
 
 peerDependencyRules:
