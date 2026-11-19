@@ -321,6 +321,8 @@ const make = Effect.gen(function* () {
         clientRequestId: `delegate:${parent.id}:${launch.key}`,
         // The thread there shows it is this thread's subagent, with a way back.
         delegatedFrom: { environmentId: hereId, threadId: parent.id, title: parent.title },
+        // Ended here already: only a thread it started before is named, to be stopped.
+        ...(task.result === null ? {} : { replayOnly: true }),
       },
       // The check above can pass just before the link is made again; this one cannot.
       { linkedAt: launch.linkedAt },

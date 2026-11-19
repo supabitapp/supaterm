@@ -140,6 +140,8 @@ interface BoxThread {
   readonly releaseStop: Deferred.Deferred<void>;
   /** Messages sent to the thread there after its launch, each starting a later run. */
   readonly sent: Ref.Ref<ReadonlyArray<string>>;
+  /** Runs before the box takes a launch; a defect here leaves it unstarted and unanswered. */
+  readonly beforeLaunch: Ref.Ref<Effect.Effect<void>>;
   /** Runs as the launch there is answered, before the laptop hears back. */
   readonly afterLaunch: Ref.Ref<Effect.Effect<void>>;
   /** Each Mark Done and Reopen the thread there took, in order. */
@@ -184,6 +186,7 @@ const makeBoxThread = Effect.gen(function* () {
     stopStarted: yield* Deferred.make<void>(),
     releaseStop: yield* Deferred.make<void>(),
     sent: yield* Ref.make<ReadonlyArray<string>>([]),
+    beforeLaunch: yield* Ref.make<Effect.Effect<void>>(Effect.void),
     afterLaunch: yield* Ref.make<Effect.Effect<void>>(Effect.void),
     organized: yield* Queue.unbounded<"mark_done" | "reopen">(),
     doneRefusal: yield* Ref.make<string | null>(null),
@@ -531,7 +534,8 @@ const boxToolkitLayer = (thread: BoxThread) => {
   });
   const layerBoxLaunches = Layer.mock(ThreadLaunch.ThreadLaunchService)({
     launch: (input) =>
-      Ref.get(thread.runless).pipe(
+      Effect.flatten(Ref.get(thread.beforeLaunch)).pipe(
+        Effect.andThen(Ref.get(thread.runless)),
         Effect.flatMap((runless) =>
           Ref.set(thread.launched, input.threadId!).pipe(
             Effect.andThen(Ref.set(thread.linkOrigin, input.linkOrigin ?? null)),
@@ -1630,6 +1634,49 @@ it.effect("a task cancelled before its launch is answered is stopped there once 
       yield* Deferred.await(thread.interruptedOnce);
       expect(yield* Ref.get(thread.interrupted)).toBe(1);
       expect(new Set(yield* Ref.get(started)).size).toBe(1);
+    }),
+  ).pipe(Effect.provide(NodeHttpServer.layerTest)),
+);
+
+it.effect("a task cancelled before the box took its launch starts nothing there", () =>
+  Effect.scoped(
+    Effect.gen(function* () {
+      const thread = yield* makeBoxThread;
+      const b = yield* serveBox(thread);
+      const offers = yield* SubscriptionRef.make<
+        ReadonlyArray<ProviderContinuationRequests.ProviderContinuationRequest>
+      >([]);
+      const database = yield* SqlitePersistence.layerMemory.pipe(Layer.build);
+      const resend = yield* Deferred.make<void>();
+      const a = yield* makeLaptop(database, offers, undefined, Deferred.await(resend));
+      yield* linkTo(a.links, b, "full-access");
+      yield* seedParent(a);
+      yield* Ref.set(thread.beforeLaunch, Effect.die("The box drops this launch."));
+
+      const delegated = yield* delegateToBox(a);
+      yield* a.call("task_cancel", { taskId: delegated.taskId });
+      expect((yield* taskResult(a, delegated.taskId))?.status).toBe("cancelled");
+
+      // The box answers again. The launch is asked after, not sent, so nothing starts there.
+      yield* Ref.set(thread.beforeLaunch, Effect.void);
+      yield* Deferred.succeed(resend, undefined);
+      yield* a.orchestrator
+        .streamStoredEventsFrom({
+          threadId: parentThreadId,
+          afterSequence: 0,
+          eventType: "subagent.updated",
+        })
+        .pipe(
+          Stream.filter(
+            (stored) =>
+              stored.event.type === "subagent.updated" &&
+              stored.event.payload.remoteLaunch?.abandoned === true,
+          ),
+          Stream.runHead,
+        );
+      expect(yield* Ref.get(thread.launched)).toBeNull();
+      expect(yield* Ref.get(thread.interrupted)).toBe(0);
+      expect(yield* openTasks(a)).toEqual([]);
     }),
   ).pipe(Effect.provide(NodeHttpServer.layerTest)),
 );

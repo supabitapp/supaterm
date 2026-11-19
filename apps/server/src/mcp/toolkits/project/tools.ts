@@ -158,6 +158,8 @@ const ThreadLaunchTool = Tool.make("supaterm_thread_launch", {
     clientRequestId: Schema.optional(OrchestratorMcpClientRequestId),
     /** Set by a linked environment launching its agent's delegated task here; ignored otherwise. */
     delegatedFrom: Schema.optional(OrchestrationV2DelegatedFrom),
+    /** Set by a linked environment asking which thread an earlier launch started; starts nothing. */
+    replayOnly: Schema.optional(Schema.Boolean),
   }),
   success: Schema.Struct({
     threadId: ThreadId,

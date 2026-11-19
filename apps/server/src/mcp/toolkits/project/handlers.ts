@@ -159,6 +159,11 @@ export const layer = McpToolAccess.toLayer(ProjectToolkit, {
         const launchedModel =
           launched === null || launched.deletedAt !== null ? undefined : launched.modelSelection;
         const replaying = launchedModel !== undefined;
+        if (input.replayOnly === true && !replaying)
+          return yield* new OrchestratorMcpFailure({
+            code: "thread_not_found",
+            message: "No thread was started for this request.",
+          });
         if (launched !== null && replaying && launched.projectId !== projectId)
           return yield* new OrchestratorMcpFailure({
             code: "invalid_request",
