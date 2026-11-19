@@ -42,7 +42,7 @@ const make = Effect.gen(function* () {
   const lock = yield* Semaphore.make(1);
   const runFork = Effect.runForkWith(yield* Effect.context<never>());
   let running:
-    | { readonly relayUrl: string; readonly generation: object; readonly stop: () => void }
+    | { readonly relayUrl: string; readonly generation: symbol; readonly stop: () => void }
     | undefined;
   let started = false;
   let disposed = false;
@@ -52,7 +52,7 @@ const make = Effect.gen(function* () {
     running = undefined;
     previous?.stop();
   };
-  const report = (state: TransportState, address: string, relayUrl: string, generation: object) => {
+  const report = (state: TransportState, address: string, relayUrl: string, generation: symbol) => {
     if (state === "stopped") return;
     runFork(
       Effect.gen(function* () {
@@ -82,7 +82,7 @@ const make = Effect.gen(function* () {
       if (!activate && Option.isNone(existing))
         return yield* SubscriptionRef.set(status, { state: "idle" });
       const { secret, address } = Option.isSome(existing) ? existing.value : yield* identity.get;
-      const generation = {};
+      const generation = Symbol("relay-generation");
       running = {
         relayUrl,
         generation,

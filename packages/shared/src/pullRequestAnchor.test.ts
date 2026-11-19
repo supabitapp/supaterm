@@ -117,7 +117,7 @@ it("keeps the commit scope of a PR diff permalink", () => {
 
 it("reads GitLab file and line anchors, letting a removed old line win", () => {
   const digest = "c".repeat(40);
-  const diff = (range: object | null, at = digest) => ({ kind: "diff", digest: at, range });
+  const diff = <Range>(range: Range, at = digest) => ({ kind: "diff", digest: at, range });
   const line = (start: number, side: "left" | "right") => ({
     start,
     side,

@@ -471,9 +471,8 @@ export const make = Effect.gen(function* () {
     // anything without a `.git` inside is someone else's. A missing destination is already
     // discarded; any other read failure (a file in its place, permissions) is not removed through.
     const entries = yield* fileSystem.readDirectory(normalized).pipe(
-      Effect.catchIf(
-        (cause) => cause.reason._tag === "NotFound",
-        () => Effect.succeed<ReadonlyArray<string>>([]),
+      Effect.catchReason("PlatformError", "NotFound", () =>
+        Effect.succeed<ReadonlyArray<string>>([]),
       ),
       Effect.mapError(
         (cause) =>

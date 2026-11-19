@@ -132,7 +132,7 @@ const logInSpanThrough = (
     return { requests, spans };
   });
 
-const printThroughConsole = (fields: object) =>
+const printThroughConsole = (fields: Readonly<Record<string, unknown>>) =>
   Effect.gen(function* () {
     const printed: Array<string> = [];
     const testConsole = {

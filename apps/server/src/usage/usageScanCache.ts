@@ -151,7 +151,10 @@ export function makeScanCacheWriter(): (
   extra: Readonly<Record<string, unknown>>,
 ) => Iterable<string> {
   const tables = makeInternTables();
-  function* encode(entries: readonly (readonly [string, CachedFile])[], extra: object) {
+  function* encode(
+    entries: readonly (readonly [string, CachedFile])[],
+    extra: Readonly<Record<string, unknown>>,
+  ) {
     yield '{"files":{';
     for (const [index, [path, entry]] of entries.entries()) {
       yield `${index === 0 ? "" : ","}${JSON.stringify(path)}:${JSON.stringify(serializeFile(entry, tables))}`;

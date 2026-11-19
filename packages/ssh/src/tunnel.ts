@@ -7,6 +7,7 @@ import type {
   DesktopSshEnvironmentTarget,
 } from "@supaterm/contracts";
 import { waitForHttpReady as waitForHttpReadyShared } from "@supaterm/shared/httpReadiness";
+import { field } from "@supaterm/shared/Struct";
 import { cliReleaseDownloadBaseUrl } from "@supaterm/shared/cliRelease";
 import * as KeyedLock from "@supaterm/shared/KeyedLock";
 import * as NetService from "@supaterm/shared/Net";
@@ -1340,25 +1341,18 @@ const waitForHttpReady = (input: {
     ...(input.intervalMs === undefined ? {} : { intervalMs: input.intervalMs }),
     probeTimeoutMs: input.probeTimeoutMs ?? SSH_TUNNEL_READY_PROBE_TIMEOUT_MS,
     makeError: ({ requestUrl, probeTimeoutMs, cause }) => {
-      if (typeof cause === "object" && cause !== null && "kind" in cause) {
-        const kind = (cause as { readonly kind?: unknown }).kind;
-        if (kind === "probe-timeout") {
-          return new SshReadinessError({
-            message: `Backend readiness probe exceeded ${probeTimeoutMs}ms at ${requestUrl}.`,
-            cause,
-          });
-        }
-        if (kind === "overall-timeout") {
-          const overall = cause as unknown as {
-            readonly baseUrl: string;
-            readonly timeoutMs: number;
-            readonly lastFailure: unknown;
-          };
-          return new SshReadinessError({
-            message: `Timed out waiting ${overall.timeoutMs}ms for backend readiness at ${overall.baseUrl}.`,
-            cause: overall.lastFailure,
-          });
-        }
+      const kind = field(cause, "kind");
+      if (kind === "probe-timeout") {
+        return new SshReadinessError({
+          message: `Backend readiness probe exceeded ${probeTimeoutMs}ms at ${requestUrl}.`,
+          cause,
+        });
+      }
+      if (kind === "overall-timeout") {
+        return new SshReadinessError({
+          message: `Timed out waiting ${field(cause, "timeoutMs")}ms for backend readiness at ${field(cause, "baseUrl")}.`,
+          cause: field(cause, "lastFailure"),
+        });
       }
       return new SshReadinessError({
         message: `Backend readiness probe failed at ${requestUrl}.`,

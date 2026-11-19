@@ -1,3 +1,4 @@
+import { field } from "@supaterm/shared/Struct";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { expect, it } from "@effect/vitest";
 import {
@@ -199,8 +200,7 @@ const makeImporter = Effect.fn(function* (
   const withTransaction: typeof sql.withTransaction = (effect) =>
     beforeTransaction.pipe(Effect.andThen(sql.withTransaction(effect)));
   const importSql = new Proxy(sql, {
-    get: (target, key, receiver) =>
-      key === "withTransaction" ? withTransaction : Reflect.get(target, key, receiver),
+    get: (target, key) => (key === "withTransaction" ? withTransaction : field(target, key)),
   });
   const sinkLayer = Layer.fresh(EventSink.layer).pipe(
     Layer.provide(

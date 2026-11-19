@@ -177,16 +177,8 @@ export const make = Effect.gen(function* () {
   const get: ServerSecretStore["Service"]["get"] = (name) =>
     fileSystem.readFile(resolveSecretPath(name)).pipe(
       Effect.map((bytes) => Option.some(Uint8Array.from(bytes))),
-      Effect.catch((cause) =>
-        cause.reason._tag === "NotFound"
-          ? Effect.succeedNone
-          : Effect.fail(
-              new SecretStoreReadError({
-                resource: `secret ${name}`,
-                cause,
-              }),
-            ),
-      ),
+      Effect.catchReason("PlatformError", "NotFound", () => Effect.succeedNone),
+      Effect.mapError((cause) => new SecretStoreReadError({ resource: `secret ${name}`, cause })),
       Effect.withSpan("ServerSecretStore.get"),
     );
 
@@ -322,16 +314,8 @@ export const make = Effect.gen(function* () {
 
   const remove: ServerSecretStore["Service"]["remove"] = (name) =>
     fileSystem.remove(resolveSecretPath(name)).pipe(
-      Effect.catch((cause) =>
-        cause.reason._tag === "NotFound"
-          ? Effect.void
-          : Effect.fail(
-              new SecretStoreRemoveError({
-                resource: `secret ${name}`,
-                cause,
-              }),
-            ),
-      ),
+      Effect.catchReason("PlatformError", "NotFound", () => Effect.void),
+      Effect.mapError((cause) => new SecretStoreRemoveError({ resource: `secret ${name}`, cause })),
       Effect.withSpan("ServerSecretStore.remove"),
     );
 

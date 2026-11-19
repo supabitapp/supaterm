@@ -1,3 +1,4 @@
+import { field } from "@supaterm/shared/Struct";
 import { pipe } from "effect/Function";
 import * as DocumentText from "../../provider/DocumentText.ts";
 import { revertCodexThread } from "../../provider/CodexThreadRevert.ts";
@@ -1405,7 +1406,7 @@ function isPersistentCodexDynamicTool(item: CodexDynamicToolItem): boolean {
   if (input === null || typeof input !== "object" || Array.isArray(input)) {
     return false;
   }
-  return Reflect.get(input, "persistent") === true;
+  return field(input, "persistent") === true;
 }
 
 type CodexRootTerminalEvent = Extract<
@@ -1663,7 +1664,7 @@ function readCodexProtocolPath(value: unknown, ...path: ReadonlyArray<string>): 
   let current = value;
   for (const key of path) {
     if (current === null || typeof current !== "object") return undefined;
-    current = Reflect.get(current, key);
+    current = field(current, key);
   }
   return current;
 }

@@ -5139,12 +5139,9 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
     const commonDir = yield* readGitCommonDir(cwd);
     if (commonDir === null) return;
     const registrations = path.join(commonDir, "worktrees");
-    const entries = yield* fileSystem.readDirectory(registrations).pipe(
-      Effect.catchIf(
-        (error) => error.reason._tag === "NotFound",
-        () => Effect.succeed([]),
-      ),
-    );
+    const entries = yield* fileSystem
+      .readDirectory(registrations)
+      .pipe(Effect.catchReason("PlatformError", "NotFound", () => Effect.succeed([])));
     for (const entry of entries) {
       const adminDir = path.join(registrations, entry);
       const locked = yield* fileSystem

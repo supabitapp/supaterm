@@ -7,7 +7,6 @@ import * as Scope from "effect/Scope";
 import { AppImageUpdater, autoUpdater } from "electron-updater";
 
 type AutoUpdater = typeof autoUpdater;
-type SpawnLog = (cmd: string, args?: Array<string>, ...rest: Array<unknown>) => Promise<boolean>;
 
 // Electron holds the AppImage runtime's keepalive pipe and some files without O_CLOEXEC; a
 // relaunched AppImage inherits them, so old runtimes and FUSE mounts never exit. bash (AppRun
@@ -17,8 +16,8 @@ const CLOSE_INHERITED_FDS_THEN_EXEC =
   'for fd in /proc/self/fd/*; do fd=${fd##*/}; case $fd in *[!0-9]*|[012]) ;; *) eval "exec $fd>&-" ;; esac; done; exec "$@"';
 
 const relaunchWithoutInheritedDescriptors = (updater: AppImageUpdater) => {
-  const spawnLog = (AppImageUpdater.prototype as unknown as { spawnLog: SpawnLog }).spawnLog;
-  (updater as unknown as { spawnLog: SpawnLog }).spawnLog = function (cmd, args = [], ...rest) {
+  const spawnLog = AppImageUpdater.prototype["spawnLog"];
+  updater["spawnLog"] = function (cmd, args = [], ...rest) {
     return spawnLog.call(
       this,
       "bash",
@@ -187,18 +186,17 @@ export const make = ElectronUpdater.of({
     });
   }),
   on: Effect.fn("ElectronUpdater.on")(function (eventName, listener) {
-    const eventTarget = autoUpdater as unknown as {
-      on: (eventName: string, listener: (...args: Array<unknown>) => void) => void;
-      removeListener: (eventName: string, listener: (...args: Array<unknown>) => void) => void;
+    const eventTarget = autoUpdater as {
+      on: (eventName: string, eventListener: typeof listener) => void;
+      removeListener: (eventName: string, eventListener: typeof listener) => void;
     };
-    const untypedListener = listener as unknown as (...args: Array<unknown>) => void;
     return Effect.acquireRelease(
       Effect.sync(() => {
-        eventTarget.on(eventName, untypedListener);
+        eventTarget.on(eventName, listener);
       }),
       () =>
         Effect.sync(() => {
-          eventTarget.removeListener(eventName, untypedListener);
+          eventTarget.removeListener(eventName, listener);
         }),
     ).pipe(Effect.asVoid);
   }),

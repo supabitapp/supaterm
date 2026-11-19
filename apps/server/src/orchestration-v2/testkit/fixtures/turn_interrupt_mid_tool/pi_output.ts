@@ -1,3 +1,4 @@
+import { field } from "@supaterm/shared/Struct";
 import { assert } from "@effect/vitest";
 import type { ProviderReplayTranscript } from "@supaterm/contracts";
 
@@ -13,7 +14,7 @@ import {
 } from "../shared.ts";
 
 function frameType(frame: unknown): unknown {
-  return typeof frame === "object" && frame !== null ? Reflect.get(frame, "type") : undefined;
+  return field(frame, "type");
 }
 
 export function assertTurnInterruptMidToolPiOutput(

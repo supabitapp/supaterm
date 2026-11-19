@@ -6,6 +6,7 @@ import * as Equal from "effect/Equal";
 import * as Exit from "effect/Exit";
 import * as Hash from "effect/Hash";
 import * as Effect from "effect/Effect";
+import * as Predicate from "effect/Predicate";
 import type {
   PullRequestActor,
   PullRequestCapabilities,
@@ -160,6 +161,11 @@ function withAvatar(
   const avatarUrl = avatarsByLogin.get(actor.login) ?? loginAvatarUrl(actor.login, host);
   return avatarUrl === null ? actor : { ...actor, avatarUrl };
 }
+
+const isRateLimitFailure = Predicate.some([
+  Predicate.isTagged("GitHubApiRateLimitError"),
+  Predicate.isTagged("SourceControlRateLimitPausedError"),
+]);
 
 const workflowRunIdOf = (url: string | null) =>
   url?.match(/\/actions\/runs\/(\d+)(?:\/|$)/)?.[1] ?? null;
@@ -436,14 +442,13 @@ export const make = Effect.gen(function* () {
           Effect.zip(
             pullRequest.state !== "open" || pullRequest.headSha == null
               ? Effect.succeed([] as ReadonlyArray<GitHubWorkflowRunApproval>)
-              : cli.listUnfinishedWorkflowRuns({ ...input, headSha: pullRequest.headSha }).pipe(
-                  Effect.catchIf(
-                    (error) =>
-                      error._tag !== "GitHubApiRateLimitError" &&
-                      error._tag !== "SourceControlRateLimitPausedError",
-                    () => Effect.succeed([] as ReadonlyArray<GitHubWorkflowRunApproval>),
+              : cli
+                  .listUnfinishedWorkflowRuns({ ...input, headSha: pullRequest.headSha })
+                  .pipe(
+                    Effect.catchIf(Predicate.not(isRateLimitFailure), () =>
+                      Effect.succeed([] as ReadonlyArray<GitHubWorkflowRunApproval>),
+                    ),
                   ),
-                ),
             { concurrent: true },
           ),
           Effect.map(([workflowApprovals, unfinishedRuns]) => ({
@@ -649,27 +654,23 @@ export const make = Effect.gen(function* () {
 
     getChangeRequestActivity: (input) => {
       const threadRead = cli.listReviewThreadComments(input).pipe(
-        Effect.catchIf(
-          (error) =>
-            error._tag !== "GitHubApiRateLimitError" &&
-            error._tag !== "SourceControlRateLimitPausedError",
-          () =>
-            Effect.succeed({
-              comments: [],
-              dismissalsByReviewId: new Map<string, string>(),
-              reactions: [],
-              reactionsById: new Map<string, ReadonlyArray<PullRequestReaction>>(),
-              editedAtById: new Map<string, string>(),
-              reviewThreads: [],
-              commentCount: 0,
-              truncated: true,
-              reviewThreadsTruncated: true,
-              reviewers: [],
-              avatarsByLogin: new Map<string, string>(),
-              botLogins: new Set<string>(),
-              commits: [],
-              viewer: { canUpdate: true, didAuthor: false },
-            }),
+        Effect.catchIf(Predicate.not(isRateLimitFailure), () =>
+          Effect.succeed({
+            comments: [],
+            dismissalsByReviewId: new Map<string, string>(),
+            reactions: [],
+            reactionsById: new Map<string, ReadonlyArray<PullRequestReaction>>(),
+            editedAtById: new Map<string, string>(),
+            reviewThreads: [],
+            commentCount: 0,
+            truncated: true,
+            reviewThreadsTruncated: true,
+            reviewers: [],
+            avatarsByLogin: new Map<string, string>(),
+            botLogins: new Set<string>(),
+            commits: [],
+            viewer: { canUpdate: true, didAuthor: false },
+          }),
         ),
       );
       return Effect.all([cli.getPullRequestActivity(input), threadRead], {
@@ -767,12 +768,7 @@ export const make = Effect.gen(function* () {
               pullRequest.state === "open" && pullRequest.comparison?.viewerCanUpdate === true,
           }),
         ),
-        Effect.catchIf(
-          (error) =>
-            error._tag !== "GitHubApiRateLimitError" &&
-            error._tag !== "SourceControlRateLimitPausedError",
-          () => lightAccess,
-        ),
+        Effect.catchIf(Predicate.not(isRateLimitFailure), () => lightAccess),
         Effect.mapError(fail("getViewerPermissions")),
       );
     },

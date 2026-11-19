@@ -371,7 +371,7 @@ function mountProjectFlow(screenName = "AddProjectLocal") {
   return {
     getState: () => current,
     back: () => apply(StackActions.pop()),
-    setParams: (params: object) => apply(CommonActions.setParams(params)),
+    setParams: <Params extends object>(params: Params) => apply(CommonActions.setParams(params)),
     push: (name: string) => apply(StackActions.push(name)),
   };
 }

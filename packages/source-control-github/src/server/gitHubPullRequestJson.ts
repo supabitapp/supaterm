@@ -3,6 +3,7 @@ import * as Cause from "effect/Cause";
 import * as Exit from "effect/Exit";
 import * as Result from "effect/Result";
 import * as Schema from "effect/Schema";
+import * as Predicate from "effect/Predicate";
 import { GraphQL } from "effect/graphql";
 import type {
   PullRequestStackMembership,
@@ -471,8 +472,8 @@ interface RequestedTeamFields {
  * A requested team as a reviewer row. It goes by `org/slug`, the handle GitHub mentions it by.
  * No GitHub login contains a slash, so a team never shares a row or a verdict with a user.
  */
-function toRequestedTeam(raw: object | null | undefined): PullRequestActor | null {
-  if (raw == null || !("combinedSlug" in raw)) return null;
+function toRequestedTeam(raw: unknown): PullRequestActor | null {
+  if (!Predicate.hasProperty(raw, "combinedSlug")) return null;
   const team = raw as RequestedTeamFields;
   const login = trimmed(team.combinedSlug);
   return login === null

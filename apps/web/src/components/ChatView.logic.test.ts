@@ -1418,7 +1418,7 @@ describe("deriveThreadPendingBackgroundTasks", () => {
     nativeItemRef: { nativeId },
     input,
   });
-  const projection = (overrides: object) =>
+  const projection = <Overrides>(overrides: Overrides) =>
     ({ ...base, ...overrides }) as unknown as ReturnType<typeof makeThreadProjectionFixture>;
 
   it.each(["queued", "preparing", "running"])(

@@ -1,3 +1,4 @@
+import { field } from "@supaterm/shared/Struct";
 import type {
   NodeId,
   OrchestrationV2ConversationMessage,
@@ -70,7 +71,7 @@ export function cancelledTurnItemWork(
       const monitor =
         item.input !== null &&
         typeof item.input === "object" &&
-        Reflect.get(item.input, "persistent") === true;
+        field(item.input, "persistent") === true;
       return {
         kind: monitor ? "monitor" : "task",
         label: compactLabel(item.title) ?? compactLabel(item.toolName) ?? "background tool",

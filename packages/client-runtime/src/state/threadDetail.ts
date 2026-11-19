@@ -168,7 +168,7 @@ const sameMessage = Schema.toEquivalence(OrchestrationV2ConversationMessage);
 function sameApartFromStripped<T extends object>(
   same: (left: T, right: T) => boolean,
   previous: T,
-  previousStructure: object,
+  previousStructure: Partial<T>,
   next: T,
 ): boolean {
   return (

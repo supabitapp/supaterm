@@ -61,7 +61,7 @@ function select(
   return apply(state, selectWorkspaceDetail(detail, sheet) as unknown as RouterAction);
 }
 
-function push(state: State, name: string, params?: object) {
+function push<Params extends object>(state: State, name: string, params?: Params) {
   return apply(state, StackActions.push(name, params));
 }
 

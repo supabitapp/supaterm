@@ -1,16 +1,17 @@
+import type { NativeStackNavigationOptions } from "@react-navigation/native-stack";
 import { createContext, useMemo, useState } from "react";
 
 /** Closes the inspector from its bar: hides the column, or dismisses the sheet. */
 export const InspectorCloseContext = createContext<(() => void) | null>(null);
 
-const NO_ROUTES: ReadonlyMap<string, object> = new Map();
+const NO_ROUTES: ReadonlyMap<string, NativeStackNavigationOptions> = new Map();
 
 /** The options a pane's AppBar sets. External so a write re-renders the bar, not the pane. */
 function createInspectorBarStore() {
-  let snapshot: object | undefined;
+  let snapshot: NativeStackNavigationOptions | undefined;
   const listeners = new Set<() => void>();
   return {
-    set(options: object) {
+    set(options: NativeStackNavigationOptions) {
       snapshot = { ...snapshot, ...options };
       for (const listener of listeners) listener();
     },
@@ -32,7 +33,7 @@ export function useInspectorBarSlot() {
   const slot = useMemo(
     () => ({
       byRoute: NO_ROUTES,
-      set: (_routeKey: string, options: object) => store.set(options),
+      set: (_routeKey: string, options: NativeStackNavigationOptions) => store.set(options),
     }),
     [store],
   );

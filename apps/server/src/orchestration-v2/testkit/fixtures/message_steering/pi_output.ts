@@ -1,3 +1,4 @@
+import { field } from "@supaterm/shared/Struct";
 import { assert } from "@effect/vitest";
 import type { ProviderReplayTranscript } from "@supaterm/contracts";
 
@@ -16,10 +17,6 @@ import {
   projectionFor,
 } from "../shared.ts";
 
-function frameField(frame: unknown, key: string): unknown {
-  return typeof frame === "object" && frame !== null ? Reflect.get(frame, key) : undefined;
-}
-
 /** Pi queues prompt streamingBehavior "steer" into the running turn without interruption or a second turn. */
 export function assertPiMessageSteeringOutput(
   result: OrchestratorV2ScenarioResult,
@@ -28,16 +25,16 @@ export function assertPiMessageSteeringOutput(
   const outbound = transcript.entries.flatMap((entry) =>
     entry.type === "expect_outbound" ? [entry.frame] : [],
   );
-  const prompts = outbound.filter((frame) => frameField(frame, "type") === "prompt");
+  const prompts = outbound.filter((frame) => field(frame, "type") === "prompt");
   assert.deepEqual(
-    prompts.map((frame) => [frameField(frame, "message"), frameField(frame, "streamingBehavior")]),
+    prompts.map((frame) => [field(frame, "message"), field(frame, "streamingBehavior")]),
     [
       [MESSAGE_STEERING_INITIAL_PROMPT, "steer"],
       [MESSAGE_STEERING_STEER_PROMPT, "steer"],
     ],
   );
   assert.isFalse(
-    outbound.some((frame) => frameField(frame, "type") === "abort"),
+    outbound.some((frame) => field(frame, "type") === "abort"),
     "steering must not abort the running Pi turn",
   );
 

@@ -242,10 +242,7 @@ const make = Effect.gen(function* () {
       if (Option.isNone(folder)) return folder;
       const claimed = yield* fileSystem.makeDirectory(folder.value).pipe(
         Effect.as(true),
-        Effect.catchIf(
-          (error) => error.reason._tag === "AlreadyExists",
-          () => Effect.succeed(false),
-        ),
+        Effect.catchReason("PlatformError", "AlreadyExists", () => Effect.succeed(false)),
         Effect.mapError((cause) => onError(folder.value, cause)),
       );
       if (claimed) return folder;

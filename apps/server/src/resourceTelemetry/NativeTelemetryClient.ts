@@ -1,3 +1,4 @@
+import { field } from "@supaterm/shared/Struct";
 import type {
   HostPowerSnapshot,
   ResourceMonitorCapabilities,
@@ -327,8 +328,7 @@ const isDecodeFailed = Schema.is(NativeTelemetryDecodeFailed);
 const isCommandFailed = Schema.is(NativeTelemetryCommandFailed);
 
 export function eventVersion(value: unknown): number | undefined {
-  if (typeof value !== "object" || value === null) return undefined;
-  const version = Reflect.get(value, "version");
+  const version = field(value, "version");
   return typeof version === "number" ? version : undefined;
 }
 

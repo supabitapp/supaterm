@@ -3,6 +3,7 @@ import { SourceControlProviderKind } from "@supaterm/contracts";
 import * as Cache from "effect/Cache";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
+import * as Predicate from "effect/Predicate";
 import * as Exit from "effect/Exit";
 import type {
   PullRequestActor,
@@ -144,15 +145,13 @@ export const make = Effect.gen(function* () {
     (key: string) => {
       const [cwd, host] = JSON.parse(key) as [string, string | undefined];
       // A host whose version read fails keeps failing it; remember REST rather than ask each poll.
-      return cli.supportsGraphqlList({ cwd, host }).pipe(
-        Effect.catchIf(
-          (cause) =>
-            cause._tag !== "GitLabCliUnavailableError" &&
-            cause._tag !== "GitLabCliAuthenticationError" &&
-            cause._tag !== "GitLabCliRateLimitError",
-          () => Effect.succeed(false),
-        ),
-      );
+      return cli
+        .supportsGraphqlList({ cwd, host })
+        .pipe(
+          Effect.catchIf(Predicate.not(GitLabPullRequestCli.isGitLabCliAccessFailure), () =>
+            Effect.succeed(false),
+          ),
+        );
     },
     {
       capacity: READ_CACHE_CAPACITY,

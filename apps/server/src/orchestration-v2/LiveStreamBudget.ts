@@ -26,7 +26,7 @@ export interface RetainedLiveItem<A> {
 // Immutable events are shared across subscribers; cache sizes without retaining events or serialized copies.
 const serializedSizes = new WeakMap<object, number>();
 
-function serializedSize(value: object): number {
+function serializedSize<A extends object>(value: A): number {
   const cached = serializedSizes.get(value);
   if (cached !== undefined) {
     return cached;
@@ -83,12 +83,12 @@ export const makeLiveStreamBudget = Effect.fn("makeLiveStreamBudget")(function* 
     return yield* failure;
   });
 
-  const retain = <A extends object>(value: A, payload: object = value) =>
+  const retain = <A extends object>(value: A) =>
     Effect.suspend(() => {
       if (failure) {
         return Effect.fail(failure);
       }
-      const serializedBytes = serializedSize(payload);
+      const serializedBytes = serializedSize(value);
       const nextItems = retained.size + 1;
       const nextSerializedBytes = retainedSerializedBytes + serializedBytes;
       if (nextItems > maxItems || nextSerializedBytes > maxSerializedBytes) {
@@ -103,7 +103,6 @@ export const makeLiveStreamBudget = Effect.fn("makeLiveStreamBudget")(function* 
   const replace = <A extends object>(
     previous: ReadonlyArray<RetainedLiveItem<unknown>>,
     values: ReadonlyArray<A>,
-    payload: (value: A) => object = (value) => value,
   ) =>
     Effect.suspend(() => {
       if (failure) {
@@ -111,7 +110,7 @@ export const makeLiveStreamBudget = Effect.fn("makeLiveStreamBudget")(function* 
       }
       const next = values.map((value) => ({
         value,
-        serializedBytes: serializedSize(payload(value)),
+        serializedBytes: serializedSize(value),
       }));
       let nextItems = retained.size + next.length;
       let nextSerializedBytes =

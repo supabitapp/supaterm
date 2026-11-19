@@ -1,3 +1,4 @@
+import { field } from "@supaterm/shared/Struct";
 import type {
   AgentMessage,
   AgentOptions,
@@ -54,10 +55,10 @@ const CURSOR_USAGE_LIMIT_CODE =
 export function isCursorUsageLimitError(cause: unknown): boolean {
   const error = isCursorAgentSdkRunnerError(cause) ? cause.cause : cause;
   if (typeof error !== "object" || error === null) return false;
-  const code = Reflect.get(error, "code");
+  const code = field(error, "code");
   return (
-    Reflect.get(error, "name") === "RateLimitError" ||
-    Reflect.get(error, "status") === 429 ||
+    field(error, "name") === "RateLimitError" ||
+    field(error, "status") === 429 ||
     (typeof code === "string" && CURSOR_USAGE_LIMIT_CODE.test(code))
   );
 }
@@ -68,8 +69,8 @@ function sdkErrorReason(cause: unknown): string | undefined {
   if (!(cause instanceof Error)) return undefined;
   const message = cause.message.trim();
   if (message.length === 0) return undefined;
-  const code = Reflect.get(cause, "code");
-  const status = Reflect.get(cause, "status");
+  const code = field(cause, "code");
+  const status = field(cause, "status");
   const details = [
     ...(typeof code === "string" && !GENERIC_SDK_ERROR_CODES.has(code) && !message.includes(code)
       ? [code]
@@ -298,11 +299,11 @@ export function isCursorCancellationError(cause: unknown): boolean {
   const seen = new Set<object>();
 
   while (typeof current === "object" && current !== null && !seen.has(current)) {
-    if (Reflect.get(current, "name") === "AbortError") {
+    if (field(current, "name") === "AbortError") {
       return true;
     }
     seen.add(current);
-    current = Reflect.get(current, "cause");
+    current = field(current, "cause");
   }
 
   return false;

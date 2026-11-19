@@ -4,6 +4,7 @@ import {
   ThreadId,
   type DesktopPreviewBridge,
 } from "@supaterm/contracts";
+import { field } from "@supaterm/shared/Struct";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 const {
@@ -161,7 +162,7 @@ describe("browser recording", () => {
       getTracks: () => [{ stop: vi.fn() }],
     });
     requestDisplayMediaCapture.mockImplementation((tabId: string) => {
-      const trigger = Reflect.get(globalThis, DESKTOP_PREVIEW_RECORDING_CAPTURE_TRIGGER);
+      const trigger = field(globalThis, DESKTOP_PREVIEW_RECORDING_CAPTURE_TRIGGER);
       if (typeof trigger !== "function" || trigger(tabId) !== true) {
         throw new Error(`No pending display-media capture for ${tabId}.`);
       }

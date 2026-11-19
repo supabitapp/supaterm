@@ -77,19 +77,18 @@ function addScopedListener<Args extends ReadonlyArray<unknown>>(
   options: { readonly prepend?: boolean } = {},
 ): Effect.Effect<void, never, Scope.Scope> {
   const eventTarget = target as {
-    on: (eventName: string, listener: (...args: Array<unknown>) => void) => unknown;
-    prependListener: (eventName: string, listener: (...args: Array<unknown>) => void) => unknown;
-    removeListener: (eventName: string, listener: (...args: Array<unknown>) => void) => unknown;
+    on: (eventName: string, listener: (...args: Args) => void) => unknown;
+    prependListener: (eventName: string, listener: (...args: Args) => void) => unknown;
+    removeListener: (eventName: string, listener: (...args: Args) => void) => unknown;
   };
-  const untypedListener = listener as unknown as (...args: Array<unknown>) => void;
   return Effect.acquireRelease(
     Effect.sync(() => {
-      if (options.prepend) eventTarget.prependListener(eventName, untypedListener);
-      else eventTarget.on(eventName, untypedListener);
+      if (options.prepend) eventTarget.prependListener(eventName, listener);
+      else eventTarget.on(eventName, listener);
     }),
     () =>
       Effect.sync(() => {
-        eventTarget.removeListener(eventName, untypedListener);
+        eventTarget.removeListener(eventName, listener);
       }),
   ).pipe(Effect.asVoid);
 }

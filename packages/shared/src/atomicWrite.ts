@@ -76,9 +76,8 @@ export const writeFileStringAtomically = (input: {
           id: `${Option.getOrUndefined(info.ino)}:${info.size}:${Option.getOrUndefined(info.mtime)?.getTime()}`,
           readOnly: (info.mode & 0o200) === 0,
         })),
-        Effect.catchIf(
-          (error) => error.reason._tag === "NotFound",
-          () => Effect.succeed({ id: "missing", readOnly: false }),
+        Effect.catchReason("PlatformError", "NotFound", () =>
+          Effect.succeed({ id: "missing", readOnly: false }),
         ),
         Effect.option,
       );

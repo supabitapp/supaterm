@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 // @effect-diagnostics nodeBuiltinImport:off
+import { field } from "@supaterm/shared/Struct";
 import * as NodeFS from "node:fs";
 
 import * as Effect from "effect/Effect";
@@ -1022,12 +1023,10 @@ const program = Effect.gen(function* () {
         for (const [method, params] of probes) {
           const outcome = yield* agent.raw.request(method, params).pipe(
             Effect.map((result) => ({ method, result })),
-            Effect.catch((error) =>
-              Effect.succeed({
-                method,
-                errorCode: error._tag === "AcpRequestError" ? error.code : error._tag,
-              }),
-            ),
+            Effect.catchTags({
+              AcpRequestError: (error) => Effect.succeed({ method, errorCode: error.code }),
+            }),
+            Effect.catch((error) => Effect.succeed({ method, errorCode: error._tag })),
           );
           NodeFS.appendFileSync(clientFsProbeLogPath, `${encodeJson(outcome)}\n`, "utf8");
         }
@@ -2036,8 +2035,7 @@ const program = Effect.gen(function* () {
   yield* agent.handleUnknownExtNotification((method, params) =>
     method === "_test/exit"
       ? Effect.sync(() => {
-          const code =
-            typeof params === "object" && params !== null ? Reflect.get(params, "code") : undefined;
+          const code = field(params, "code");
           process.exit(typeof code === "number" ? code : 19);
         })
       : Effect.void,

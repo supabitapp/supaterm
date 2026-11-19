@@ -1750,7 +1750,7 @@ it.effect("lists optional tools to a deferring client only after tool_search loa
               "application/json",
             ),
           });
-          const rpc = (method: string, params: object) =>
+          const rpc = (method: string, params: Readonly<Record<string, unknown>>) =>
             httpClient
               .post("/mcp", {
                 headers: {
@@ -1782,7 +1782,7 @@ it.effect("lists optional tools to a deferring client only after tool_search loa
                   .sort(),
               ),
             ),
-            call: (name: string, args: object) =>
+            call: (name: string, args: Readonly<Record<string, unknown>>) =>
               rpc("tools/call", { name, arguments: args }).pipe(
                 Effect.map((body) => (body as { result: { structuredContent?: unknown } }).result),
               ),

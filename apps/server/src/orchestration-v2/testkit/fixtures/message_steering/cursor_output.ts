@@ -1,3 +1,4 @@
+import { field } from "@supaterm/shared/Struct";
 import { assert } from "@effect/vitest";
 import type { ProviderReplayTranscript } from "@supaterm/contracts";
 
@@ -39,7 +40,7 @@ export function assertCursorMessageSteeringOutput(
       entry.type === "expect_outbound" &&
       typeof entry.frame === "object" &&
       entry.frame !== null &&
-      Reflect.get(entry.frame, "type") === "run.steer",
+      field(entry.frame, "type") === "run.steer",
   );
   assert.deepEqual(
     projection.attempts.map((attempt) => [attempt.reason, attempt.status]),

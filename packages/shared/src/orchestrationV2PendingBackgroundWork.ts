@@ -11,8 +11,8 @@ import {
   isOrchestrationV2WorkActive,
   isOrchestrationV2RunInterruptible,
 } from "@supaterm/contracts";
-import * as Predicate from "effect/Predicate";
 
+import { field } from "./Struct.ts";
 import { resolveSupatermMcpToolId } from "./supatermMcpToolPresentation.ts";
 
 const BACKGROUND_TURN_ITEM_TYPES = new Set<OrchestrationV2TurnItem["type"]>([
@@ -67,11 +67,7 @@ export function deriveBlockedOnThreadWait(input: {
     const tool = resolveSupatermMcpToolId(item.toolName);
     if (
       tool !== "supaterm_thread_wait" &&
-      !(
-        tool === "delegate_task" &&
-        Predicate.isObject(item.input) &&
-        Reflect.get(item.input, "mode") === "wait"
-      )
+      !(tool === "delegate_task" && field(item.input, "mode") === "wait")
     ) {
       return false;
     }
@@ -157,10 +153,7 @@ function isLatestRunSettledForBackgroundWait(
 }
 
 function isPersistentDynamicToolInput(input: unknown): boolean {
-  if (input === null || typeof input !== "object" || Array.isArray(input)) {
-    return false;
-  }
-  return Reflect.get(input, "persistent") === true;
+  return !Array.isArray(input) && field(input, "persistent") === true;
 }
 
 function descriptionFromTurnItem(item: PendingBackgroundWorkTurnItem): string | undefined {
@@ -172,7 +165,7 @@ function descriptionFromTurnItem(item: PendingBackgroundWorkTurnItem): string | 
     return command.length > 0 ? command : undefined;
   }
   if (item.type === "dynamic_tool") {
-    const toolName = Reflect.get(item, "toolName");
+    const toolName = field(item, "toolName");
     if (typeof toolName === "string" && toolName.trim().length > 0) {
       return toolName.trim();
     }

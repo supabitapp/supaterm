@@ -186,9 +186,8 @@ const capResponse = Effect.fn("gitHubGraphQlClient.capResponse")(function* (
     onSome: (target) => target.maxResponseBytes ?? DEFAULT_MAX_RESPONSE_BYTES,
   });
   const collected = yield* collectUint8StreamText({ stream: response.stream, maxBytes }).pipe(
-    Effect.catchIf(
-      (error) => error.reason._tag === "EmptyBodyError",
-      () => Effect.succeed({ text: "", truncated: false }),
+    Effect.catchReason("HttpClientError", "EmptyBodyError", () =>
+      Effect.succeed({ text: "", truncated: false }),
     ),
   );
   if (collected.truncated) {

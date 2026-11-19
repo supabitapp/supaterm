@@ -727,7 +727,7 @@ export function nestedToolCallFromEnvelope(
             totalLines: typeof value.totalLines === "number" ? value.totalLines : 0,
             fileSize: typeof value.fileSize === "number" ? value.fileSize : 0,
           })),
-        } as unknown as ToolCall,
+        } as ToolCall,
       };
     }
     case "globToolCall":
@@ -749,7 +749,7 @@ export function nestedToolCallFromEnvelope(
             clientTruncated: false,
             ripgrepTruncated: false,
           })),
-        } as unknown as ToolCall,
+        } as ToolCall,
       };
     case "grepToolCall":
       return {
@@ -770,7 +770,7 @@ export function nestedToolCallFromEnvelope(
           result: nestedToolResult(call.result, (value) => ({
             workspaceResults: nestedGrepWorkspaceResults(value),
           })),
-        } as unknown as ToolCall,
+        } as ToolCall,
       };
     case "shellToolCall": {
       const rawResult = unknownRecord(call.result);
@@ -793,7 +793,7 @@ export function nestedToolCallFromEnvelope(
             signal: typeof value.signal === "string" ? value.signal : "",
             executionTime: typeof value.executionTime === "number" ? value.executionTime : 0,
           })),
-        } as unknown as ToolCall,
+        } as ToolCall,
       };
     }
     case "lsToolCall":
@@ -805,7 +805,7 @@ export function nestedToolCallFromEnvelope(
           result: nestedToolResult(call.result, (value) => ({
             directoryTreeRoot: nestedLsDirectory(value.directoryTreeRoot),
           })),
-        } as unknown as ToolCall,
+        } as ToolCall,
       };
     case "readLintsToolCall":
       return {
@@ -839,7 +839,7 @@ export function nestedToolCallFromEnvelope(
             totalDiagnostics:
               typeof value.totalDiagnostics === "number" ? value.totalDiagnostics : 0,
           })),
-        } as unknown as ToolCall,
+        } as ToolCall,
       };
     case "mcpToolCall":
       return {
@@ -854,7 +854,7 @@ export function nestedToolCallFromEnvelope(
             }),
             isError: value.isError === true,
           })),
-        } as unknown as ToolCall,
+        } as ToolCall,
       };
     default: {
       const type = wrapperName.slice(0, -"ToolCall".length);
@@ -864,7 +864,7 @@ export function nestedToolCallFromEnvelope(
           type,
           args,
           result: nestedToolResult(call.result),
-        } as unknown as ToolCall,
+        } as ToolCall,
       };
     }
   }

@@ -96,12 +96,12 @@ export function createAttachmentUploadRegistry<Request>(options: {
   const running = new Map<string, Fiber.Fiber<string, AttachmentUploadError>>();
   // The entry that owns each key's status: an invalidated entry finishing or closing late must
   // not overwrite or clear the status of the entry that replaced it.
-  const owners = new Map<string, object>();
-  const setOwnStatus = (owner: object, key: string, status: AttachmentUploadStatus | undefined) => {
+  const owners = new Map<string, symbol>();
+  const setOwnStatus = (owner: symbol, key: string, status: AttachmentUploadStatus | undefined) => {
     if (owners.get(key) === owner) setStatus(key, status);
   };
 
-  const transfer = (key: UploadKey<Request>, owner: object) => {
+  const transfer = (key: UploadKey<Request>, owner: symbol) => {
     const request = key.request!;
     return Effect.suspend(() => {
       if (statuses[key.id]?.status !== "uploading") {
@@ -128,7 +128,7 @@ export function createAttachmentUploadRegistry<Request>(options: {
     Scope.provide(scope)(
       RcMap.make({
         lookup: Effect.fn("AttachmentUploads.lookup")(function* (key: UploadKey<Request>) {
-          const owner = {};
+          const owner = Symbol(key.id);
           owners.set(key.id, owner);
           setStatus(key.id, { status: "uploading", progress: 0 });
           yield* Effect.addFinalizer(() =>

@@ -1,3 +1,4 @@
+import { field } from "@supaterm/shared/Struct";
 import { assert } from "@effect/vitest";
 import type { ProviderReplayTranscript } from "@supaterm/contracts";
 
@@ -42,7 +43,7 @@ export function assertThreadRollbackToStoppedTurnOutput(
       entry.type === "expect_outbound" &&
       typeof entry.frame === "object" &&
       entry.frame !== null &&
-      Reflect.get(entry.frame, "method") === "thread/revert",
+      field(entry.frame, "method") === "thread/revert",
   );
   assert.isDefined(revert, "rollback must revert the Codex thread");
 

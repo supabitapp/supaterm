@@ -117,6 +117,11 @@ export interface NativeReviewDiffStyle {
   readonly emptyStateFontWeight?: string;
 }
 
+/** The native view fires these as synthetic events; the surface also reports its own. */
+export interface NativeReviewDiffDebugEvent {
+  readonly nativeEvent: Record<string, unknown>;
+}
+
 export interface NativeReviewDiffViewProps extends ViewProps {
   readonly contentInsetTop?: number;
   readonly contentInsetBottom?: number;
@@ -142,7 +147,7 @@ export interface NativeReviewDiffViewProps extends ViewProps {
   readonly refreshing?: boolean;
   readonly nativeViewRef?: Ref<NativeReviewDiffViewHandle>;
   readonly onPullToRefresh?: (event: NativeSyntheticEvent<Record<string, never>>) => void;
-  readonly onDebug?: (event: NativeSyntheticEvent<Record<string, unknown>>) => void;
+  readonly onDebug?: (event: NativeReviewDiffDebugEvent) => void;
   readonly onVisibleFileChange?: (
     event: NativeSyntheticEvent<{ readonly fileId?: string | null }>,
   ) => void;
@@ -313,7 +318,7 @@ function NativeReviewDiffView(props: NativeReviewDiffViewProps) {
         onAction: () => {
           props.onDebug?.({
             nativeEvent: { message: "surface-retry" },
-          } as unknown as NativeSyntheticEvent<Record<string, unknown>>);
+          });
           setFailedRowsJson(null);
         },
       }),
@@ -357,7 +362,7 @@ function NativeReviewDiffContent(
     reportedMountRef.current = true;
     onDebugRef.current?.({
       nativeEvent: { message: "surface-content-mounted" },
-    } as unknown as NativeSyntheticEvent<Record<string, unknown>>);
+    });
   }, []);
   const reportTokenDelivery = useCallback((json: string, message: string) => {
     const patch = JSON.parse(json) as { resetKey?: string; chunkIndex?: number };
@@ -368,7 +373,7 @@ function NativeReviewDiffContent(
         resetKey: patch.resetKey,
         chunkIndex: patch.chunkIndex,
       },
-    } as unknown as NativeSyntheticEvent<Record<string, unknown>>);
+    });
   }, []);
   const onTokensDelivered = useCallback(
     (json: string) => {

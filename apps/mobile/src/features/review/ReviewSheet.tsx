@@ -38,6 +38,7 @@ import { useSelectedThreadWorktree } from "../../state/use-selected-thread-workt
 import { useReviewCacheForThread } from "./reviewState";
 import {
   isNativeReviewDiffDrawEvent,
+  type NativeReviewDiffDebugEvent,
   type NativeReviewDiffViewHandle,
   resolveNativeReviewDiffView,
 } from "../diffs/nativeReviewDiffSurface";
@@ -448,7 +449,7 @@ export function ReviewSheet(props: ReviewSheetProps) {
       ? `${reviewCache.threadKey}:${selectedSection.id}:${nativeBridge.tokensResetKey}:${nativeBridge.themeId}`
       : null;
   const handleNativeBridgeDebug = nativeBridge.onDebug;
-  const handleNativeDebug = (event: NativeSyntheticEvent<Record<string, unknown>>) => {
+  const handleNativeDebug = (event: NativeReviewDiffDebugEvent) => {
     handleNativeBridgeDebug(event);
     if (
       showcaseReviewKey === null ||

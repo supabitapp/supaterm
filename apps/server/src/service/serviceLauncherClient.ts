@@ -187,9 +187,9 @@ export const repointLaunchers = Effect.fn("cloud.service_launcher_client.repoint
         Effect.gen(function* () {
           const linkTarget = yield* fs.readLink(launchedAs).pipe(
             Effect.asSome,
+            Effect.catchReason("PlatformError", "NotFound", () => Effect.succeedNone),
             Effect.catchIf(
               (error) =>
-                error.reason._tag === "NotFound" ||
                 (error.reason.cause as NodeJS.ErrnoException | undefined)?.code === "EINVAL",
               () => Effect.succeedNone,
             ),

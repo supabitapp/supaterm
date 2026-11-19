@@ -1,3 +1,4 @@
+import { field } from "@supaterm/shared/Struct";
 import { expect, it } from "@effect/vitest";
 import { describe, vi } from "vite-plus/test";
 import * as NodeHttpPlatform from "@effect/platform-node/NodeHttpPlatform";
@@ -486,7 +487,7 @@ it.layer(
                     return target.readAlloc(size);
                   };
                 }
-                return Reflect.get(target, key, target);
+                return field(target, key);
               },
             });
           }),

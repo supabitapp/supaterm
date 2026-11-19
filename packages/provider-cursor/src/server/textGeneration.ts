@@ -1,3 +1,4 @@
+import { field } from "@supaterm/shared/Struct";
 import * as FileSystem from "effect/FileSystem";
 
 import type { AgentOptions, RunResult } from "@cursor/sdk";
@@ -49,7 +50,7 @@ function cursorSandboxUnsupported(cause: unknown): boolean {
     if (current instanceof Error && current.message.includes("sandboxing is not supported")) {
       return true;
     }
-    current = Reflect.get(current, "cause");
+    current = field(current, "cause");
   }
   return false;
 }

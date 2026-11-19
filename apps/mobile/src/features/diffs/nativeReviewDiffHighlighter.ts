@@ -48,21 +48,21 @@ function hasConsecutiveLineNumbers(
 const MAX_TOKEN_CACHE_BYTES = 64 * 1024 * 1024;
 const MAX_TOKEN_CACHE_ENTRIES = 8;
 // LRU entries own only token data; source contexts and diff rows can collect independently.
-const tokenCacheKeys = new WeakMap<object, object>();
-const tokenCache = new Map<object, { language: string; tokens: TokenizedCode }>();
+const tokenCacheKeys = new WeakMap<WeakKey, symbol>();
+const tokenCache = new Map<symbol, { language: string; tokens: TokenizedCode }>();
 let tokenCacheBytes = 0;
 
-function getTokenCacheKey(context: object): object {
+function getTokenCacheKey(context: WeakKey): symbol {
   let key = tokenCacheKeys.get(context);
   if (!key) {
-    key = {};
+    key = Symbol("tokens");
     tokenCacheKeys.set(context, key);
   }
   return key;
 }
 
 function getCachedTokens(
-  cacheKey: object,
+  cacheKey: symbol,
   contents: string | (() => string),
   language: string,
 ): TokenizedCode {
@@ -302,7 +302,7 @@ export async function highlightNativeReviewDiffVisibleRows(
   const tokensByRowId: Record<string, ReadonlyArray<NativeReviewDiffToken>> = {};
   const retryableRowIds: string[] = [];
   const selectedRowIds = new Set(selectedRows.map((row) => row.id));
-  const tokenize = (context: object, contents: string | (() => string), language: string) => {
+  const tokenize = (context: WeakKey, contents: string | (() => string), language: string) => {
     const cacheKey = getTokenCacheKey(context);
     const cacheHit = tokenCache.get(cacheKey)?.language === language;
     const cached = getCachedTokens(cacheKey, contents, language);

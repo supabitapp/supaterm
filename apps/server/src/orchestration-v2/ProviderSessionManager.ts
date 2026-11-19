@@ -2829,7 +2829,12 @@ export const layerWithOptions = (
               if (cwd !== null) {
                 const workspaceIsDirectory = yield* fileSystem.stat(cwd).pipe(
                   Effect.map((stat) => stat.type === "Directory"),
-                  Effect.catch((error) => Effect.succeed(error.reason._tag !== "NotFound")),
+                  Effect.catchReason(
+                    "PlatformError",
+                    "NotFound",
+                    () => Effect.succeed(false),
+                    () => Effect.succeed(true),
+                  ),
                 );
                 if (!workspaceIsDirectory) {
                   return yield* new ProviderWorkspaceMissingError({

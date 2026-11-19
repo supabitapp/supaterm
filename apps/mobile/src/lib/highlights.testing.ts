@@ -11,7 +11,8 @@ interface LineRecordHighlighter {
  * compiled from. Return it from a mocked `NitroModules.createHybridObject`.
  */
 export function createWasmHighlightsModule() {
-  const highlighter = createHighlighter() as unknown as LineRecordHighlighter;
+  const highlighter = createHighlighter() as ReturnType<typeof createHighlighter> &
+    LineRecordHighlighter;
   return {
     tokenize(source: string, language: number): ArrayBuffer {
       const records = highlighter.tokenizeLineRecords(language, highlighter.writeInput(source));

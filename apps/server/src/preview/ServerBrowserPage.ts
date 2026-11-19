@@ -925,8 +925,8 @@ type FocusCandidate = {
 const focusTextTarget = (target: FocusCandidate | null) => {
   let element =
     target ??
-    (globalThis as unknown as { document: { activeElement: FocusCandidate | null } }).document
-      .activeElement;
+    (globalThis as typeof globalThis & { document: { activeElement: FocusCandidate | null } })
+      .document.activeElement;
   if (target === null) {
     while (element?.shadowRoot?.activeElement) element = element.shadowRoot.activeElement;
     // Focus inside a frame cannot be checked from here, and an editable frame would pass as contentEditable.
@@ -1030,11 +1030,10 @@ export const select = async (
   const options = await locator.evaluate(
     (element) =>
       element.tagName === "SELECT"
-        ? Array.from(
-            (element as unknown as { options: ArrayLike<{ value: string; label: string }> })
-              .options,
-            ({ value, label }) => ({ value, label: label.trim() }),
-          )
+        ? Array.from((element as HTMLSelectElement).options, ({ value, label }) => ({
+            value,
+            label: label.trim(),
+          }))
         : null,
     undefined,
     { timeout },

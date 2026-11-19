@@ -1,3 +1,4 @@
+import { field } from "@supaterm/shared/Struct";
 import { assert } from "@effect/vitest";
 import type { ProviderReplayTranscript } from "@supaterm/contracts";
 
@@ -20,10 +21,8 @@ function kiroRunningBeforeCancel(transcript: ProviderReplayTranscript): Set<stri
   return new Set(
     transcript.entries.slice(0, Math.max(cancelIndex, 0)).flatMap((entry) => {
       if (entry.type !== "emit_inbound") return [];
-      const update = Reflect.get(Object(Reflect.get(Object(entry.frame), "params")), "update");
-      return Reflect.get(Object(update), "status") === "in_progress"
-        ? [String(Reflect.get(Object(update), "toolCallId"))]
-        : [];
+      const update = field(field(entry.frame, "params"), "update");
+      return field(update, "status") === "in_progress" ? [String(field(update, "toolCallId"))] : [];
     }),
   );
 }

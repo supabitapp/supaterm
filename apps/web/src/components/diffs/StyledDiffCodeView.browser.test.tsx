@@ -162,7 +162,7 @@ describe("code-view worker lifecycle", () => {
         ...args
       ) {
         // The provider builds the pool without this option, so it is set before startup reads it.
-        const options: { workerInitializationTimeout?: number } = Reflect.get(this, "options");
+        const options: { workerInitializationTimeout?: number } = this["options"];
         options.workerInitializationTimeout = startupLimit;
         const pending = initialize.apply(this, args);
         testState.pools.set(this, pending);

@@ -5,7 +5,7 @@ process.once("disconnect", () => process.exit(0));
 
 async function capture() {
   const imported = await import("@crowecawcaw/xa11y");
-  const xa11y = (imported as unknown as { readonly default?: typeof imported }).default ?? imported;
+  const xa11y = imported.default ?? imported;
   process.send?.("ready");
   const request = await new Promise<RegionSnapShotRequest>((resolve) => {
     process.once("message", resolve);

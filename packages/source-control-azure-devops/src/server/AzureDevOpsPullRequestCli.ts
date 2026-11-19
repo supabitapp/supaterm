@@ -1,5 +1,6 @@
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
+import * as Predicate from "effect/Predicate";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Result from "effect/Result";
@@ -500,36 +501,34 @@ export const make = Effect.gen(function* () {
             : Effect.succeed(decoded.success);
         }),
         // `az account show` cannot identify PAT logins; the extension resolves `--creator me`.
-        Effect.catchIf(
-          (error) => error._tag !== "AzureDevOpsCliUnavailableError",
-          () =>
-            executeJson({
-              cwd: input.cwd,
-              args: [
-                "repos",
-                "pr",
-                "list",
-                ...detectArgs,
-                "--creator",
-                "me",
-                "--status",
-                "all",
-                "--top",
-                "1",
-              ],
-            }).pipe(
-              Effect.flatMap((result): Effect.Effect<string, AzureDevOpsPullRequestCliError> => {
-                const decoded = decodePullRequestListJson(result.stdout.trim() || "[]");
-                const login = Result.isSuccess(decoded)
-                  ? decoded.success.items[0]?.author?.login
-                  : undefined;
-                return login === undefined
-                  ? Effect.fail(
-                      new AzureDevOpsViewerUnavailableError({ command: "az", cwd: input.cwd }),
-                    )
-                  : Effect.succeed(login);
-              }),
-            ),
+        Effect.catchIf(Predicate.not(Predicate.isTagged("AzureDevOpsCliUnavailableError")), () =>
+          executeJson({
+            cwd: input.cwd,
+            args: [
+              "repos",
+              "pr",
+              "list",
+              ...detectArgs,
+              "--creator",
+              "me",
+              "--status",
+              "all",
+              "--top",
+              "1",
+            ],
+          }).pipe(
+            Effect.flatMap((result): Effect.Effect<string, AzureDevOpsPullRequestCliError> => {
+              const decoded = decodePullRequestListJson(result.stdout.trim() || "[]");
+              const login = Result.isSuccess(decoded)
+                ? decoded.success.items[0]?.author?.login
+                : undefined;
+              return login === undefined
+                ? Effect.fail(
+                    new AzureDevOpsViewerUnavailableError({ command: "az", cwd: input.cwd }),
+                  )
+                : Effect.succeed(login);
+            }),
+          ),
         ),
       );
     }),

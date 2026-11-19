@@ -255,7 +255,7 @@ describe("mcpAppFromToolItem", () => {
 
 describe("MCP App cookie bootstrap", () => {
   const vendor = `<script>document.cookie.split(";");document.cookie="analytics=1";document.root="rendered";</script>`;
-  const execute = (html: string, document: object) => {
+  const execute = <Document>(html: string, document: Document) => {
     for (const script of html.matchAll(/<script>([\s\S]*?)<\/script>/g)) {
       NodeVM.runInNewContext(script[1]!, { document });
     }
@@ -263,7 +263,7 @@ describe("MCP App cookie bootstrap", () => {
 
   it("lets cookie-reading startup code render in an opaque document without granting storage", () => {
     const blocked = new DOMException("Opaque origin", "SecurityError");
-    const prototype = Object.defineProperty({}, "cookie", {
+    const prototype: { readonly cookie?: string } = Object.defineProperty({}, "cookie", {
       get() {
         throw blocked;
       },
@@ -290,17 +290,17 @@ describe("MCP App cookie bootstrap", () => {
     document.cookie = "session=secret";
     expect(document.cookie).toBe("");
     expect(() => document.indexedDB).toThrow(blocked);
-    expect(() => Reflect.get(prototype, "cookie")).toThrow(blocked);
+    expect(() => prototype.cookie).toThrow(blocked);
   });
 
   it("leaves other cookie failures unchanged", () => {
     const failure = new TypeError("Unexpected cookie failure");
-    const document = Object.defineProperty({}, "cookie", {
+    const document: { readonly cookie?: string } = Object.defineProperty({}, "cookie", {
       get() {
         throw failure;
       },
     });
     expect(() => execute(injectMcpAppCookieBootstrap(vendor), document)).toThrow(failure);
-    expect(() => Reflect.get(document, "cookie")).toThrow(failure);
+    expect(() => document.cookie).toThrow(failure);
   });
 });

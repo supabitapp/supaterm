@@ -5,6 +5,7 @@ import {
   type GridMeta,
   type WorkbookHandle,
 } from "@betteroffice/xlsx";
+import { asWindowCanvasContext } from "./canvas-context";
 import { attempt } from "./sheet-cells";
 import { frozenSize } from "./sheet-paint";
 import type { SheetViewport } from "./sheet-protocol";
@@ -142,9 +143,7 @@ export function paintFrame(
 ) {
   const ratio = input.ratio;
   const origin = input.origin;
-  // SAFETY: the painter draws through the members a worker's 2D context shares with the window's. Only the window's
-  // context type is declared, and it has focus and attribute members the worker's lacks, hence the double cast.
-  const painter = context as unknown as CanvasRenderingContext2D;
+  const painter = asWindowCanvasContext(context);
   const tiled = frame.tiles.length > 1;
   const text = tiled ? new OffscreenCanvas(context.canvas.width, context.canvas.height) : undefined;
   const textContext = text?.getContext("2d");
@@ -175,7 +174,7 @@ export function paintFrame(
     frame.tiles.forEach((tile) => {
       textContext.reset();
       paintDisplayList(
-        textContext as unknown as CanvasRenderingContext2D,
+        asWindowCanvasContext(textContext),
         {
           ...tile.list,
           width: frame.viewport.width - tile.x,

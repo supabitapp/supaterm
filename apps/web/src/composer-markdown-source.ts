@@ -362,8 +362,7 @@ function rebaseEdit(tr: Transaction, collapse: Transaction, edit: Transaction): 
   if (edit.storedMarksSet) tr.setStoredMarks(edit.storedMarks);
   if (edit.scrolledIntoView) tr.scrollIntoView();
   // Metadata has no public accessor, and grouping, paste rules and composition read it.
-  type WithMeta = { meta: Record<string, unknown> };
-  Object.assign((tr as unknown as WithMeta).meta, (edit as unknown as WithMeta).meta);
+  Object.assign(tr["meta"], edit["meta"]);
   return tr;
 }
 

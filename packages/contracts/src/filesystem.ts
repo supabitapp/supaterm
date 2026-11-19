@@ -1,3 +1,4 @@
+import * as Predicate from "effect/Predicate";
 import * as Schema from "effect/Schema";
 import { NonNegativeInt, TrimmedNonEmptyString } from "./baseSchemas.ts";
 
@@ -51,9 +52,10 @@ export const FilesystemBrowseFailure = Schema.Literals([
 ]);
 export type FilesystemBrowseFailure = typeof FilesystemBrowseFailure.Type;
 
-function decodedFilesystemBrowseErrorMessage(props: object): string | undefined {
-  if (!("message" in props)) return undefined;
-  return typeof props.message === "string" ? props.message : undefined;
+function decodedFilesystemBrowseErrorMessage(props: unknown): string | undefined {
+  return Predicate.hasProperty(props, "message") && typeof props.message === "string"
+    ? props.message
+    : undefined;
 }
 
 export class FilesystemBrowseError extends Schema.TaggedError<FilesystemBrowseError>()(

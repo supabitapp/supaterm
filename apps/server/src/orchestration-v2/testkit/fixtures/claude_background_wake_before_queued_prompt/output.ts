@@ -1,3 +1,4 @@
+import { field } from "@supaterm/shared/Struct";
 import { assert } from "@effect/vitest";
 import type {
   OrchestrationV2ThreadProjection,
@@ -20,32 +21,26 @@ import { CLAUDE_BACKGROUND_WAKE_BEFORE_QUEUED_PROMPT_LAUNCH_PROMPT } from "./inp
 const STOP_WAKE_REPLY =
   "Agent B's kill is confirmed by the notification. No further action needed — the task is complete.";
 
-function frameField(frame: unknown, key: string): unknown {
-  return typeof frame === "object" && frame !== null ? Reflect.get(frame, key) : undefined;
-}
-
 // A CLI wake can precede the offered prompt's turn; only the latter echoes its uuid.
 function assertRecordedWakeBeforePrompt(transcript: ProviderReplayTranscript) {
   const resumeOfferIndex = transcript.entries.findIndex(
     (entry) => entry.type === "expect_outbound" && entry.label === "prompt.offer:3",
   );
   const resumeOffer = transcript.entries[resumeOfferIndex];
-  const resumeUuid = frameField(
-    frameField(resumeOffer?.type === "expect_outbound" ? resumeOffer.frame : undefined, "message"),
+  const resumeUuid = field(
+    field(resumeOffer?.type === "expect_outbound" ? resumeOffer.frame : undefined, "message"),
     "uuid",
   );
   assert.isString(resumeUuid, "the resume prompt must carry a uuid");
   const resultsAfterOffer = transcript.entries
     .slice(resumeOfferIndex + 1)
     .flatMap((entry) =>
-      entry.type === "emit_inbound" && frameField(entry.frame, "type") === "result"
-        ? [entry.frame]
-        : [],
+      entry.type === "emit_inbound" && field(entry.frame, "type") === "result" ? [entry.frame] : [],
     );
   const [wakeResult, promptResult] = resultsAfterOffer;
-  assert.equal(frameField(frameField(wakeResult, "origin"), "kind"), "task-notification");
-  assert.isUndefined(frameField(wakeResult, "user_message_uuid"));
-  assert.equal(frameField(promptResult, "user_message_uuid"), resumeUuid);
+  assert.equal(field(field(wakeResult, "origin"), "kind"), "task-notification");
+  assert.isUndefined(field(wakeResult, "user_message_uuid"));
+  assert.equal(field(promptResult, "user_message_uuid"), resumeUuid);
 }
 
 function repliesByMessage(projection: OrchestrationV2ThreadProjection) {

@@ -49,7 +49,7 @@ import JSZip from "jszip";
 import { boundedZip } from "@supaterm/client-runtime/zip/bounded-zip";
 import BinaryViewer from "./BinaryViewer";
 import { decodeImagePreview } from "./decodeImagePreview";
-import type { BinaryWorkerResult } from "./binaryPreviewProtocol";
+import type { BinaryWorkerRequest, BinaryWorkerResult } from "./binaryPreviewProtocol";
 import type { TextPreviewResult } from "./largeTextProtocol";
 
 // Real worker imports and WASM initialization can exceed waitFor's default second
@@ -122,7 +122,7 @@ describe("bounded binary previews", () => {
     const worker = new Worker(new URL("./binaryPreview.worker.ts", import.meta.url), {
       type: "module",
     });
-    const request = (input: object) =>
+    const request = (input: BinaryWorkerRequest) =>
       new Promise<BinaryWorkerResult>((resolve, reject) => {
         worker.addEventListener("message", (event) => resolve(event.data), { once: true });
         worker.addEventListener("error", reject, { once: true });

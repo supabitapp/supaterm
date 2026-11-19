@@ -29,7 +29,7 @@ import {
 
 const encoder = new TextEncoder();
 
-function assertCarriesNoSecret(error: object, secret: string): void {
+function assertCarriesNoSecret(error: unknown, secret: string): void {
   const seen = new WeakSet<object>();
 
   const walk = (value: unknown, path: string): void => {

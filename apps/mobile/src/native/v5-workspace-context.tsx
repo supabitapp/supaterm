@@ -1,3 +1,4 @@
+import type { NativeStackNavigationOptions } from "@react-navigation/native-stack";
 import { createContext } from "react";
 
 import type { InspectorContent } from "../features/layout/inspector-panes";
@@ -10,8 +11,8 @@ export const NativeWorkspaceModeContext = createContext(false);
  * another slot set, and switching tabs has nothing left to update.
  */
 export interface WorkspaceSlotOptions {
-  readonly byRoute: ReadonlyMap<string, object>;
-  readonly set: (routeKey: string, options: object) => void;
+  readonly byRoute: ReadonlyMap<string, NativeStackNavigationOptions>;
+  readonly set: (routeKey: string, options: NativeStackNavigationOptions) => void;
 }
 export const WorkspaceSlotOptionsContext = createContext<WorkspaceSlotOptions | null>(null);
 

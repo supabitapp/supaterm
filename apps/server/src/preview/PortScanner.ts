@@ -636,10 +636,7 @@ export const make = Effect.gen(function* PortDiscoveryMake() {
     const tables = yield* Effect.forEach(["/proc/net/tcp", "/proc/net/tcp6"], (path) =>
       fileSystem.readFileString(path).pipe(
         // Kernels without IPv6 omit tcp6; a denied table can hide listeners on a shared port.
-        Effect.catchIf(
-          (error) => error.reason._tag === "NotFound",
-          () => Effect.succeed(null),
-        ),
+        Effect.catchReason("PlatformError", "NotFound", () => Effect.succeed(null)),
         Effect.option,
       ),
     );

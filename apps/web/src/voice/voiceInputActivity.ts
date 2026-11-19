@@ -2,7 +2,7 @@ import type { VoiceInputPhase } from "@supaterm/client-runtime/voice-input";
 
 type VoiceInputActivity = "idle" | "recording" | "transcribing";
 
-const sessions = new Map<object, Exclude<VoiceInputActivity, "idle">>();
+const sessions = new Map<WeakKey, Exclude<VoiceInputActivity, "idle">>();
 const listeners = new Set<() => void>();
 let activity: VoiceInputActivity = "idle";
 
@@ -15,7 +15,7 @@ export function subscribeVoiceInputActivity(listener: () => void): () => void {
   return () => listeners.delete(listener);
 }
 
-export function publishVoiceInputActivity(owner: object, phase: VoiceInputPhase): void {
+export function publishVoiceInputActivity(owner: WeakKey, phase: VoiceInputPhase): void {
   if (phase === "recording" || phase === "transcribing") sessions.set(owner, phase);
   else sessions.delete(owner);
 

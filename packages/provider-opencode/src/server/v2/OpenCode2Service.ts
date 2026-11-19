@@ -109,6 +109,7 @@ export const replaceOutdatedService = Effect.fn("OpenCode2Service.replaceOutdate
           file,
           command: [command.command, ...command.args],
           // Supaterm Desktop's backend sets this; undefined overrides the inherited value at spawn.
+          // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- the client types env as strings only, but forwards undefined to spawn.
           env: { ...env, ELECTRON_RUN_AS_NODE: undefined } as unknown as Record<string, string>,
         }),
       ),

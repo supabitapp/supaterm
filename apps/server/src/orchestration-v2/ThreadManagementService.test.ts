@@ -305,7 +305,7 @@ it.effect("waitForThread follows a restart continuation instead of the cut run",
       restartContinuationOfRunId?: RunId;
     }> = [{ id: runId, status: "cancelled" }];
     let pending = true;
-    const stored = (sequence: number, event: object) =>
+    const stored = (sequence: number, event: Readonly<Record<string, unknown>>) =>
       ({ sequence, event: { threadId, ...event } }) as unknown as OrchestrationV2StoredEvent;
     const layerTest = ThreadManagementService.layer.pipe(
       Layer.provide(Layer.mock(ProviderSessionManager.ProviderSessionManagerV2)({})),
@@ -382,7 +382,7 @@ it.effect("waitForThread can wait past an ended run for the thread's delegated w
     // The run ended, but a task it delegated still runs and will wake the thread.
     let runs = [run(runId, 1, "completed", 1)];
     let subagents = [{ status: "running" }];
-    const stored = (sequence: number, event: object) =>
+    const stored = (sequence: number, event: Readonly<Record<string, unknown>>) =>
       ({ sequence, event: { threadId, ...event } }) as unknown as OrchestrationV2StoredEvent;
     const layerTest = ThreadManagementService.layer.pipe(
       Layer.provide(Layer.mock(ProviderSessionManager.ProviderSessionManagerV2)({})),

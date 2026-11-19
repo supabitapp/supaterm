@@ -1,3 +1,4 @@
+import * as Struct from "@supaterm/shared/Struct";
 import * as Path from "effect/Path";
 import * as Option from "effect/Option";
 import * as NodeURL from "node:url";
@@ -594,10 +595,7 @@ const textOf = (content: ReadonlyArray<{ readonly type: string; readonly text?: 
   content.flatMap((part) => (part.type === "text" && part.text ? [part.text] : [])).join("\n");
 
 const stringField = (record: unknown, key: string) => {
-  const value =
-    typeof record === "object" && record !== null && key in record
-      ? Reflect.get(record, key)
-      : undefined;
+  const value = Struct.field(record, key);
   return typeof value === "string" && value.trim().length > 0 ? value : undefined;
 };
 
@@ -4704,11 +4702,10 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
           if (goalCommand?.type === "pause" || goalCommand?.type === "clear") {
             // OpenCode rejects pausing or clearing a missing goal; Codex treats that as a no-op.
             yield* client.session.command({ sessionID, ...command }).pipe(
-              Effect.catchIf(
-                (error) =>
-                  error._tag === "CommandExecutionError" && error.message === "No goal is set.",
-                () => Effect.void,
-              ),
+              Effect.catchTags({
+                CommandExecutionError: (error) =>
+                  error.message === "No goal is set." ? Effect.void : Effect.fail(error),
+              }),
             );
             return yield* finishControl;
           }

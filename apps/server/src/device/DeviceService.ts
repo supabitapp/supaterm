@@ -612,11 +612,12 @@ export const makeWithHosts = Effect.fn("DeviceService.makeWithHosts")(function* 
           const ready = yield* readinessIfSupported(host.id);
           if (ready) yield* refresh(ready);
         }).pipe(
+          Effect.catchTags({
+            DeviceHostUnavailableError: (error) =>
+              setHostStatus(host.id, { status: "failed", detail: error.reason }),
+          }),
           Effect.catch((error) =>
-            setHostStatus(host.id, {
-              status: "failed",
-              detail: error._tag === "DeviceHostUnavailableError" ? error.reason : error.message,
-            }),
+            setHostStatus(host.id, { status: "failed", detail: error.message }),
           ),
         ),
       { concurrency: 4 },
@@ -665,12 +666,11 @@ export const makeWithHosts = Effect.fn("DeviceService.makeWithHosts")(function* 
           (yield* agentReadinessIfSupported(hostId)) ?? (yield* readinessIfSupported(hostId));
         if (ready) yield* refresh(ready);
       }).pipe(
-        Effect.catch((error) =>
-          setHostStatus(hostId, {
-            status: "failed",
-            detail: error._tag === "DeviceHostUnavailableError" ? error.reason : error.message,
-          }),
-        ),
+        Effect.catchTags({
+          DeviceHostUnavailableError: (error) =>
+            setHostStatus(hostId, { status: "failed", detail: error.reason }),
+        }),
+        Effect.catch((error) => setHostStatus(hostId, { status: "failed", detail: error.message })),
       );
       return (yield* SynchronizedRef.get(stateRef)).state;
     },

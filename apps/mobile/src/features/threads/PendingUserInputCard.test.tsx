@@ -69,7 +69,8 @@ vi.mock("../../native/useOpenPullRequest", () => ({
 }));
 vi.mock("@react-navigation/native", () => ({
   useNavigation: () => ({
-    navigate: (name: string, params?: object) => harness.navigate.push([name, params]),
+    navigate: <Params extends object>(name: string, params?: Params) =>
+      harness.navigate.push([name, params]),
   }),
 }));
 

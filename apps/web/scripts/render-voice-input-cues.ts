@@ -81,12 +81,14 @@ try {
         Object.defineProperty(navigator, "userActivation", { value: { hasBeenActive: true } });
         const contexts: OfflineAudioContext[] = [];
         // cuelume only renders into a running context; an offline one runs once rendering starts.
-        window.AudioContext = function RenderingContext() {
-          const context = new OfflineAudioContext(1, sampleRate * seconds, sampleRate);
-          Object.defineProperty(context, "state", { get: () => "running" });
-          contexts.push(context);
-          return context;
-        } as unknown as typeof AudioContext;
+        Object.defineProperty(window, "AudioContext", {
+          value: function RenderingContext() {
+            const context = new OfflineAudioContext(1, sampleRate * seconds, sampleRate);
+            Object.defineProperty(context, "state", { get: () => "running" });
+            contexts.push(context);
+            return context;
+          },
+        });
         const cuelume = await import(`${origin}/index.js`);
         cuelume.play(sound, options);
         const [context] = contexts;

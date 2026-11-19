@@ -31,9 +31,7 @@ import { readStoredCursorApiKey } from "./credentialStore.ts";
 
 const CURSOR_ACCOUNT_READ_ERROR = "Cursor account usage could not be read.";
 
-const decodeCacheFile = Schema.decodeUnknownEffect(
-  Schema.fromJsonString(Schema.Unknown as unknown as Schema.Codec<unknown>),
-);
+const decodeCacheFile = Schema.decodeUnknownEffect(Schema.fromJsonString(Schema.Unknown));
 
 export class CursorUsageAccounts extends Context.Service<
   CursorUsageAccounts,

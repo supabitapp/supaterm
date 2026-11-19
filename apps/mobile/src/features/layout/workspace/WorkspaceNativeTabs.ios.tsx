@@ -12,6 +12,7 @@ import {
   type ReactNode,
   type SetStateAction,
 } from "react";
+import type { NativeStackNavigationOptions } from "@react-navigation/native-stack";
 import { View, useWindowDimensions, type NativeSyntheticEvent } from "react-native";
 import {
   Tabs,
@@ -87,9 +88,11 @@ function RetainedWorkspaceTab(props: {
     isActive,
     headerOnly: content?.headerOnly === true,
   };
-  const [optionsByRoute, setOptionsByRoute] = useState<ReadonlyMap<string, object>>(new Map());
+  const [optionsByRoute, setOptionsByRoute] = useState<
+    ReadonlyMap<string, NativeStackNavigationOptions>
+  >(new Map());
   // Stable, so writers and the cleanups that depend on them don't re-run on every write.
-  const setRouteOptions = (routeKey: string, options: object) =>
+  const setRouteOptions = (routeKey: string, options: NativeStackNavigationOptions) =>
     setOptionsByRoute((current) =>
       new Map(current).set(routeKey, { ...current.get(routeKey), ...options }),
     );

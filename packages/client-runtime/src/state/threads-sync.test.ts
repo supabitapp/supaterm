@@ -1058,7 +1058,7 @@ describe("EnvironmentThreads", () => {
         expect((yield* SubscriptionRef.get(harness.threadState)).history.loading).toBe(false);
       }),
     );
-    const boundary = (fields: object, id = "boundary", ordinal = 2) => ({
+    const boundary = <Fields>(fields: Fields, id = "boundary", ordinal = 2) => ({
       ...command(id, "completed", 0, ordinal),
       ...fields,
     });

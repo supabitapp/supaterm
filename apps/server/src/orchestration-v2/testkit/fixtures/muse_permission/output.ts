@@ -1,3 +1,4 @@
+import { field } from "@supaterm/shared/Struct";
 import { assert } from "@effect/vitest";
 import type { ProviderReplayTranscript } from "@supaterm/contracts";
 
@@ -53,8 +54,8 @@ export function assertMusePermissionOutput(
     entry.type === "expect_outbound" &&
     typeof entry.frame === "object" &&
     entry.frame !== null &&
-    Reflect.get(entry.frame, "method") === "approval/decide"
-      ? [Reflect.get(Reflect.get(entry.frame, "params") as object, "choiceId")]
+    field(entry.frame, "method") === "approval/decide"
+      ? [field(field(entry.frame, "params"), "choiceId")]
       : [],
   );
   assert.deepEqual(decisions, ["allow_once", "abort"]);

@@ -168,7 +168,7 @@ const fastForwardOnlySettings = {
 };
 const fastForwardOnlyProvider = (
   writes: Array<{ path: string; body: unknown }>,
-  mergeSettings: object = fastForwardOnlySettings,
+  mergeSettings: Readonly<Record<string, unknown>> = fastForwardOnlySettings,
 ) =>
   ForgejoPullRequestProvider.make.pipe(
     Effect.provide(

@@ -28,7 +28,9 @@ interface AgentMessage {
  */
 async function talkToAgent(
   requests: ReadonlyArray<(sessionId: string) => object>,
-  permissionResult: object = { outcome: { outcome: "selected", optionId: "allow-once" } },
+  permissionResult: Readonly<Record<string, unknown>> = {
+    outcome: { outcome: "selected", optionId: "allow-once" },
+  },
 ) {
   const agent = NodeChildProcess.spawn(
     process.execPath,

@@ -16,23 +16,17 @@ interface IdleDeadlineLike {
 
 type IdleCallback = (deadline: IdleDeadlineLike) => void;
 
-function scheduleIdle(callback: IdleCallback): number {
-  if (typeof globalThis.requestIdleCallback === "function") {
-    return globalThis.requestIdleCallback(callback, { timeout: 2_000 });
+function scheduleIdle(callback: IdleCallback): () => void {
+  if (
+    typeof globalThis.requestIdleCallback === "function" &&
+    typeof globalThis.cancelIdleCallback === "function"
+  ) {
+    const handle = globalThis.requestIdleCallback(callback, { timeout: 2_000 });
+    return () => globalThis.cancelIdleCallback(handle);
   }
 
-  return setTimeout(
-    () => callback({ didTimeout: true, timeRemaining: () => 0 }),
-    100,
-  ) as unknown as number;
-}
-
-function cancelIdle(handle: number): void {
-  if (typeof globalThis.cancelIdleCallback === "function") {
-    globalThis.cancelIdleCallback(handle);
-    return;
-  }
-  clearTimeout(handle);
+  const timeout = setTimeout(() => callback({ didTimeout: true, timeRemaining: () => 0 }), 100);
+  return () => clearTimeout(timeout);
 }
 
 function prewarmReviewDiffSection(input: {
@@ -121,11 +115,11 @@ export function useReviewDiffPrewarming(input: {
     }
 
     let cancelled = false;
-    let idleHandle: number | null = null;
+    let cancelIdle: (() => void) | null = null;
     let nextSectionIndex = 0;
 
     const scheduleNext = () => {
-      idleHandle = scheduleIdle(() => {
+      cancelIdle = scheduleIdle(() => {
         if (cancelled) {
           return;
         }
@@ -146,9 +140,7 @@ export function useReviewDiffPrewarming(input: {
     scheduleNext();
     return () => {
       cancelled = true;
-      if (idleHandle !== null) {
-        cancelIdle(idleHandle);
-      }
+      cancelIdle?.();
     };
   }, [sections, selectedSectionId, threadKey]);
 }

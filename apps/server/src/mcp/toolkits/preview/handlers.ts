@@ -174,12 +174,7 @@ export const claimPreviewRecording = Effect.fn("PreviewToolkit.claimRecording")(
     yield* validateFile(currentPath);
     yield* fileSystem.rename(currentPath, finalPath);
   }).pipe(
-    Effect.catchIf(
-      (cause) =>
-        cause._tag !== "PreviewAutomationRecordingTransferError" &&
-        cause.reason._tag === "NotFound",
-      () => validateFile(finalPath),
-    ),
+    Effect.catchReason("PlatformError", "NotFound", () => validateFile(finalPath)),
     Effect.mapError((cause) => new PreviewAutomationRecordingTransferError({ threadId, cause })),
   );
   const { uploadedAttachmentId: _uploadedAttachmentId, ...recording } = artifact;

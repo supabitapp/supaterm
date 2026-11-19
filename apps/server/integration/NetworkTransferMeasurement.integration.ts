@@ -146,7 +146,7 @@ function makeWebSocketTransferRecorder(): WebSocketTransferRecorder {
         decodedBytes += bytes;
         messages += 1;
       });
-      return nextSocket as unknown as globalThis.WebSocket;
+      return nextSocket as NodeWebSocketWithTransport & globalThis.WebSocket;
     },
     totals: () => ({
       wireBytes: transport?.bytesRead ?? socket?._socket?.bytesRead ?? 0,

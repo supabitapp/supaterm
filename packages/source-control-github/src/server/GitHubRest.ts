@@ -151,9 +151,8 @@ export const make = Effect.gen(function* () {
             stream: response.stream,
             maxBytes: input.maxResponseBytes,
           }).pipe(
-            Effect.catchIf(
-              (error) => error.reason._tag === "EmptyBodyError",
-              () => Effect.succeed({ text: "", truncated: false, invalidUtf8: false }),
+            Effect.catchReason("HttpClientError", "EmptyBodyError", () =>
+              Effect.succeed({ text: "", truncated: false, invalidUtf8: false }),
             ),
           );
           const { status, headers: responseHeaders } = response;

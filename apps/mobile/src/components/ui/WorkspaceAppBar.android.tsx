@@ -46,7 +46,7 @@ export interface WorkspaceAppBarProps {
 }
 
 function createWorkspaceAppBarStore() {
-  let owner: object | null = null;
+  let owner: WeakKey | null = null;
   let content: WorkspaceAppBarProps | null = null;
   const listeners = new Set<() => void>();
   const emit = () => {
@@ -60,12 +60,12 @@ function createWorkspaceAppBarStore() {
       };
     },
     get: () => content,
-    set: (nextOwner: object, next: WorkspaceAppBarProps) => {
+    set: (nextOwner: WeakKey, next: WorkspaceAppBarProps) => {
       owner = nextOwner;
       content = next;
       emit();
     },
-    clear: (previousOwner: object) => {
+    clear: (previousOwner: WeakKey) => {
       if (owner !== previousOwner) return;
       owner = null;
       content = null;

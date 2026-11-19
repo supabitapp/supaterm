@@ -1,3 +1,4 @@
+import { field } from "@supaterm/shared/Struct";
 import { PullRequestProviderError } from "@supaterm/source-control-core/server/PullRequestProvider";
 import { SourceControlProviderKind } from "@supaterm/contracts";
 import { ATTACHMENT_ONLY_BOOTSTRAP_PROMPT } from "@supaterm/shared/composerContextReferences";
@@ -5740,7 +5741,7 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
       const capture = Logger.make(({ message }) => {
         const [text, fields] = Array.isArray(message) ? message : [message];
         if (text === "pull request watch ended") {
-          endReasons.push([Reflect.get(fields, "pullRequest"), Reflect.get(fields, "reason")]);
+          endReasons.push([field(fields, "pullRequest"), field(fields, "reason")]);
         }
       });
       const reactor = yield* PullRequestWatchReactor.make.pipe(

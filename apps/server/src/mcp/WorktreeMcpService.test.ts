@@ -346,7 +346,10 @@ const makeHarness = (options: HarnessOptions = {}) => {
   };
 };
 
-const expectTypedFailure = (exit: Exit.Exit<unknown, unknown>, expected: object): void => {
+const expectTypedFailure = (
+  exit: Exit.Exit<unknown, unknown>,
+  expected: Readonly<Record<string, unknown>>,
+): void => {
   if (!Exit.isFailure(exit)) {
     expect.fail(`Expected a failure exit, got: ${JSON.stringify(exit)}`);
   }

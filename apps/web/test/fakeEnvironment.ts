@@ -458,7 +458,7 @@ const client = new Proxy(handlers, {
 });
 
 const session: EnvironmentConnectionLease["session"] = {
-  client: client as unknown as WsRpcProtocolClient,
+  client: client as WsRpcProtocolClient,
   initialConfig: Effect.sync(serverConfig),
   configChanges: Stream.never,
   subscribeServerConfig,

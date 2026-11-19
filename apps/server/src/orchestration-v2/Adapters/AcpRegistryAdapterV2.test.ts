@@ -1,3 +1,4 @@
+import { field } from "@supaterm/shared/Struct";
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, describe, it } from "@effect/vitest";
@@ -1351,9 +1352,7 @@ describe("AcpRegistryAdapterV2", () => {
         });
         const sent = (method: string) => {
           const payload = requests.find((event) => event.method === method)?.payload;
-          return typeof payload === "object" && payload !== null
-            ? Reflect.get(payload, "mcpServers")
-            : undefined;
+          return field(payload, "mcpServers");
         };
         return { new: sent("session/new"), load: sent("session/load") };
       });
@@ -3332,7 +3331,7 @@ describe("AcpRegistryAdapterV2", () => {
         type: "expect_outbound",
         frame: { kind: "request", method, params },
       });
-      const respond = (method: string, response: object) => ({
+      const respond = (method: string, response: Readonly<Record<string, unknown>>) => ({
         type: "emit_inbound",
         frame: { kind: "response", method, ...response },
       });

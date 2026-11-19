@@ -22,7 +22,8 @@ import {
 } from "@supaterm/contracts";
 import type * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
-import * as Predicate from "effect/Predicate";
+
+export { field } from "@supaterm/shared/Struct";
 
 import type {
   OrchestratorV2ScenarioResult,
@@ -972,11 +973,6 @@ export function materializeFixtureInput(input: {
         forkThreadId === undefined ? [ids.threadId] : [ids.threadId, forkThreadId],
     };
   });
-}
-
-/** Reads `key` from a recorded frame or payload of unknown shape. */
-export function field(value: unknown, key: string): unknown {
-  return Predicate.hasProperty(value, key) ? value[key] : undefined;
 }
 
 export function projectionFor(

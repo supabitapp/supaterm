@@ -183,7 +183,7 @@ import * as SecretRequests from "./secrets/SecretRequests.ts";
 const snapshotConfig = (fields: Partial<ServerConfig>) =>
   ({ availableEditors: [], settings: {}, ...fields }) as unknown as ServerConfig;
 
-const settingsUpdated = (settings: object): ServerConfigStreamEvent => ({
+const settingsUpdated = (settings: Partial<ServerConfig["settings"]>): ServerConfigStreamEvent => ({
   version: 1,
   type: "settingsUpdated",
   payload: { settings: settings as ServerConfig["settings"] },

@@ -833,6 +833,12 @@ const layerMakeServer = Layer.unwrap(
                 );
                 return route;
               }
+              const warnServeFailed = (message: string, cause: unknown) =>
+                Effect.logWarning(message, {
+                  cause,
+                  localPort,
+                  servePort: config.tailscaleServePort,
+                }).pipe(Effect.as(null));
               return yield* ensureTailscaleServe({
                 localPort,
                 servePort: config.tailscaleServePort,
@@ -845,14 +851,17 @@ const layerMakeServer = Layer.unwrap(
                     servePort: config.tailscaleServePort,
                   }),
                 ),
-                Effect.catch((cause) =>
-                  Effect.logWarning(
-                    cause._tag === "TailscaleCommandExitError" &&
+                Effect.catchTags({
+                  TailscaleCommandExitError: (cause) =>
+                    warnServeFailed(
                       cause.stderrDiagnostic === "unsupported-target"
-                      ? `Tailscale Serve left off; this Tailscale install can only proxy to localhost, not ${localHost}. Bind --host 127.0.0.1 or 0.0.0.0 instead`
-                      : "Failed to configure Tailscale Serve",
-                    { cause, localPort, servePort: config.tailscaleServePort },
-                  ).pipe(Effect.as(null)),
+                        ? `Tailscale Serve left off; this Tailscale install can only proxy to localhost, not ${localHost}. Bind --host 127.0.0.1 or 0.0.0.0 instead`
+                        : "Failed to configure Tailscale Serve",
+                      cause,
+                    ),
+                }),
+                Effect.catch((cause) =>
+                  warnServeFailed("Failed to configure Tailscale Serve", cause),
                 ),
               );
             }).pipe(Effect.ensuring(Deferred.succeed(tailscaleSettled, undefined))),

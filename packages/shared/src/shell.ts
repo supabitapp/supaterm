@@ -588,7 +588,12 @@ const directoryMtime = (directory: string) =>
     Effect.map((info) =>
       info.type === "Directory" ? Option.getOrUndefined(info.mtime)?.getTime() : undefined,
     ),
-    Effect.catch((error) => Effect.succeed(error.reason._tag === "NotFound" ? null : undefined)),
+    Effect.catchReason(
+      "PlatformError",
+      "NotFound",
+      () => Effect.succeed(null),
+      () => Effect.undefined,
+    ),
   );
 
 // Dated before it is read, so an entry added in between changes the mtime seen

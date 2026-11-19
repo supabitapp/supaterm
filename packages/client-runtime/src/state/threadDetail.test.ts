@@ -633,9 +633,9 @@ it("only compares replaced entries in a streamed reducer delta", () => {
   let slotReads = 0;
   const countReads = <T>(items: ReadonlyArray<T>): ReadonlyArray<T> =>
     new Proxy(items, {
-      get(target, key, receiver) {
+      get(target, key) {
         if (typeof key === "string" && /^\d+$/.test(key)) slotReads++;
-        return Reflect.get(target, key, receiver);
+        return target[key as keyof typeof target];
       },
     });
   const items = Array.from({ length: size }, (_, index) => ({

@@ -2,6 +2,7 @@ import type { EnvironmentId } from "@supaterm/contracts";
 import { scopeThreadRef, scopedThreadKey } from "@supaterm/client-runtime/environment";
 import { backgroundWorkHoldsCompletion } from "@supaterm/shared/orchestrationV2PendingBackgroundWork";
 import { threadPullRequestSearchTerms } from "@supaterm/shared/threadPullRequests";
+import * as Predicate from "effect/Predicate";
 import * as React from "react";
 import { defaultAnimateLayoutChanges, type AnimateLayoutChanges } from "@dnd-kit/sortable";
 import {
@@ -722,8 +723,8 @@ export function isTrailingDoubleClick(detail: number): boolean {
   return detail > 1;
 }
 
-function nodeClosest(node: object | null, selector: string): unknown {
-  if (node === null || !("closest" in node) || typeof node.closest !== "function") return null;
+function nodeClosest(node: unknown, selector: string): unknown {
+  if (!Predicate.hasProperty(node, "closest") || typeof node.closest !== "function") return null;
   return node.closest(selector);
 }
 

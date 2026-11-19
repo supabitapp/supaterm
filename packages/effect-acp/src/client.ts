@@ -537,10 +537,10 @@ function normalizeV1SessionUpdate(
     update.name === null
   ) {
     const { name: _name, ...rest } = update;
-    return { ...notification, update: rest } as unknown as AcpSchema.SessionNotification;
+    return { ...notification, update: rest } as AcpSchema.SessionNotification;
   }
   if (notification.update.sessionUpdate !== "available_commands_update") {
-    return notification as unknown as AcpSchema.SessionNotification;
+    return notification as AcpSchema.SessionNotification;
   }
   return {
     ...notification,
@@ -715,7 +715,7 @@ function toNegotiatingInitializeRequest(
     ...toV2InitializeRequest(request),
     clientCapabilities: request.clientCapabilities ?? {},
     ...(request.clientInfo === undefined ? {} : { clientInfo: request.clientInfo }),
-  } as unknown as AcpSchemaV1.InitializeRequest | AcpSchemaV2.InitializeRequest;
+  } as AcpSchemaV1.InitializeRequest | AcpSchemaV2.InitializeRequest;
 }
 
 function isV2InitializeResponse(

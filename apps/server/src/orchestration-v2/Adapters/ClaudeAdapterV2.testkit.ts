@@ -1,3 +1,4 @@
+import { field } from "@supaterm/shared/Struct";
 import { ClaudeSettings } from "@supaterm/contracts";
 import {
   forkSession,
@@ -328,7 +329,7 @@ function isClaudeSdkReplayMessage(frame: unknown): frame is SDKMessage {
   if (typeof frame !== "object" || frame === null) {
     return false;
   }
-  const type = Reflect.get(frame, "type");
+  const type = field(frame, "type");
   return (
     type === "assistant" ||
     type === "user" ||
@@ -349,18 +350,17 @@ function sdkMessageFromReplayFrame(frame: unknown): SDKMessage {
 }
 
 function isClaudePermissionRequestFrame(frame: unknown): frame is ClaudePermissionRequestFrame {
-  const options =
-    typeof frame === "object" && frame !== null ? Reflect.get(frame, "options") : undefined;
+  const options = field(frame, "options");
   return (
     typeof frame === "object" &&
     frame !== null &&
-    Reflect.get(frame, "type") === "permission.request" &&
-    typeof Reflect.get(frame, "toolName") === "string" &&
-    typeof Reflect.get(frame, "input") === "object" &&
-    Reflect.get(frame, "input") !== null &&
+    field(frame, "type") === "permission.request" &&
+    typeof field(frame, "toolName") === "string" &&
+    typeof field(frame, "input") === "object" &&
+    field(frame, "input") !== null &&
     typeof options === "object" &&
     options !== null &&
-    typeof Reflect.get(options, "toolUseID") === "string"
+    typeof field(options, "toolUseID") === "string"
   );
 }
 
@@ -665,9 +665,9 @@ function makeReplayQueryRunner(
     if (promptUuidReplacements.size === 0 || typeof frame !== "object" || frame === null) {
       return frame;
     }
-    const uuid: unknown = Reflect.get(frame, "user_message_uuid");
-    const uuids: unknown = Reflect.get(frame, "user_message_uuids");
-    const commandUuid: unknown = Reflect.get(frame, "command_uuid");
+    const uuid: unknown = field(frame, "user_message_uuid");
+    const uuids: unknown = field(frame, "user_message_uuids");
+    const commandUuid: unknown = field(frame, "command_uuid");
     if (typeof uuid !== "string" && !Array.isArray(uuids) && typeof commandUuid !== "string") {
       return frame;
     }
@@ -685,23 +685,18 @@ function makeReplayQueryRunner(
     };
   };
   const promptOfferUuid = (frame: unknown): string | undefined => {
-    if (
-      typeof frame !== "object" ||
-      frame === null ||
-      Reflect.get(frame, "type") !== "prompt.offer"
-    ) {
+    if (typeof frame !== "object" || frame === null || field(frame, "type") !== "prompt.offer") {
       return undefined;
     }
-    const message: unknown = Reflect.get(frame, "message");
-    const uuid: unknown =
-      typeof message === "object" && message !== null ? Reflect.get(message, "uuid") : undefined;
+    const message: unknown = field(frame, "message");
+    const uuid: unknown = field(message, "uuid");
     return typeof uuid === "string" ? uuid : undefined;
   };
   const withoutPromptOfferUuid = (frame: unknown): unknown => {
     if (promptOfferUuid(frame) === undefined || typeof frame !== "object" || frame === null) {
       return frame;
     }
-    const message = Reflect.get(frame, "message") as Record<string, unknown>;
+    const message = field(frame, "message") as Record<string, unknown>;
     const { uuid: _uuid, ...rest } = message;
     return { ...frame, message: rest };
   };
@@ -757,7 +752,7 @@ function makeReplayQueryRunner(
 
   const assertNextReplyFrame = <Frame extends ClaudeSessionForkedFrame | ClaudeSubagentFoundFrame>(
     type: Frame["type"],
-    isValid: (frame: object) => boolean,
+    isValid: (frame: unknown) => boolean,
   ): Frame => {
     const entry = transcript.entries[cursor];
     if (entry === undefined) {
@@ -782,7 +777,7 @@ function makeReplayQueryRunner(
     if (
       typeof entry.frame !== "object" ||
       entry.frame === null ||
-      Reflect.get(entry.frame, "type") !== type ||
+      field(entry.frame, "type") !== type ||
       !isValid(entry.frame)
     ) {
       return fail(
@@ -863,7 +858,7 @@ function makeReplayQueryRunner(
       assertNextOutboundFrame(makeClaudeSessionForkFrame(input, transcript.scenario));
       return assertNextReplyFrame<ClaudeSessionForkedFrame>(
         "session.forked",
-        (frame) => typeof Reflect.get(frame, "sessionId") === "string",
+        (frame) => typeof field(frame, "sessionId") === "string",
       );
     },
     subagentLaunchToolUseId: (input) => {
@@ -873,7 +868,7 @@ function makeReplayQueryRunner(
         agentId: input.agentId,
       });
       return assertNextReplyFrame<ClaudeSubagentFoundFrame>("subagent.found", (frame) => {
-        const toolUseId = Reflect.get(frame, "toolUseId");
+        const toolUseId = field(frame, "toolUseId");
         return toolUseId === null || typeof toolUseId === "string";
       }).toolUseId;
     },
@@ -1443,14 +1438,12 @@ function isSystemInitFrame(message: SDKMessage | undefined): boolean {
 }
 
 function isTaskNotificationOriginResultFrame(frame: unknown): boolean {
-  if (typeof frame !== "object" || frame === null || Reflect.get(frame, "type") !== "result") {
+  if (typeof frame !== "object" || frame === null || field(frame, "type") !== "result") {
     return false;
   }
-  const origin: unknown = Reflect.get(frame, "origin");
+  const origin: unknown = field(frame, "origin");
   return (
-    typeof origin === "object" &&
-    origin !== null &&
-    Reflect.get(origin, "kind") === "task-notification"
+    typeof origin === "object" && origin !== null && field(origin, "kind") === "task-notification"
   );
 }
 

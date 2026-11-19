@@ -761,8 +761,11 @@ const selectUnusedRuntimes = Effect.fn("cloud.pinned_runtime.select_unused")(fun
     .readFileString(path.join(input.baseDir, PINNED_RUNTIME_DIR, SERVICE_STATE_FILE))
     .pipe(
       Effect.asSome,
-      Effect.catch((error) =>
-        Effect.succeed(error.reason._tag === "NotFound" ? Option.none<string>() : undefined),
+      Effect.catchReason(
+        "PlatformError",
+        "NotFound",
+        () => Effect.succeed(Option.none<string>()),
+        () => Effect.void,
       ),
     );
   // State this version cannot read may reference runtimes in ways it does not know.

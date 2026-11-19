@@ -119,7 +119,11 @@ describe("mobile slash commands", () => {
 });
 
 describe("composerModelCandidates", () => {
-  const provider = (instanceId: string, overrides: object, models: object[]) => ({
+  const provider = <Overrides extends object, Model extends object>(
+    instanceId: string,
+    overrides: Overrides,
+    models: Model[],
+  ) => ({
     instanceId,
     driver: instanceId,
     enabled: true,

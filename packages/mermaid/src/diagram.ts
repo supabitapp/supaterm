@@ -48,6 +48,15 @@ export function acceptsDiagramSource(source: string) {
   );
 }
 
+function isDiagramDimension(dimension: unknown): boolean {
+  return (
+    typeof dimension === "number" &&
+    Number.isFinite(dimension) &&
+    dimension > 0 &&
+    dimension <= DIAGRAM_LIMITS.dimension
+  );
+}
+
 export function isDiagram(value: unknown): value is Diagram {
   if (typeof value !== "object" || value === null) return false;
   if (
@@ -60,15 +69,11 @@ export function isDiagram(value: unknown): value is Diagram {
   )
     return false;
   return (
-    ["width", "height"].every((key) => {
-      const dimension = Reflect.get(value, key);
-      return (
-        typeof dimension === "number" &&
-        Number.isFinite(dimension) &&
-        dimension > 0 &&
-        dimension <= DIAGRAM_LIMITS.dimension
-      );
-    }) && (value.svg.match(/<[a-z]/g)?.length ?? 0) <= DIAGRAM_LIMITS.elements
+    "width" in value &&
+    isDiagramDimension(value.width) &&
+    "height" in value &&
+    isDiagramDimension(value.height) &&
+    (value.svg.match(/<[a-z]/g)?.length ?? 0) <= DIAGRAM_LIMITS.elements
   );
 }
 

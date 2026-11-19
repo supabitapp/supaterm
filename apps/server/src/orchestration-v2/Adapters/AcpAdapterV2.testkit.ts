@@ -1,3 +1,4 @@
+import { field } from "@supaterm/shared/Struct";
 import {
   MessageId,
   type ModelSelection,
@@ -111,8 +112,8 @@ function decodeReplayStatus(raw: string): ReplayStatus {
   if (
     typeof value !== "object" ||
     value === null ||
-    typeof Reflect.get(value, "cursor") !== "number" ||
-    typeof Reflect.get(value, "total") !== "number"
+    typeof field(value, "cursor") !== "number" ||
+    typeof field(value, "total") !== "number"
   ) {
     throw new Error("ACP replay status is malformed.");
   }

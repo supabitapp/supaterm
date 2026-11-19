@@ -1,3 +1,4 @@
+import { field } from "@supaterm/shared/Struct";
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, describe, it } from "@effect/vitest";
@@ -104,9 +105,7 @@ const readClaudeCancelledSubagentResumeTranscript = Effect.fn(
   );
   const frameField = (index: number, key: string): unknown => {
     const entry = recorded.entries[index];
-    return entry?.type === "emit_inbound" && typeof entry.frame === "object" && entry.frame !== null
-      ? Reflect.get(entry.frame, key)
-      : undefined;
+    return entry?.type === "emit_inbound" ? field(entry.frame, key) : undefined;
   };
   const indices = recorded.entries.map((_, index) => index);
   const firstSubagentFrame = indices.find(

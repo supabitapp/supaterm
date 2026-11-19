@@ -37,6 +37,9 @@ import {
 } from "./webviewCrashRecovery";
 import { focusPaneShowingThread } from "../chatPanes/actions";
 
+// Electron needs allowpopups at attachment. React drops boolean values for unknown attributes.
+const WEBVIEW_ATTACHMENT_ATTRIBUTES: Readonly<Record<string, string>> = { allowpopups: "true" };
+
 interface ElectronWebview extends HTMLElement {
   src: string;
   partition: string;
@@ -379,8 +382,7 @@ export function HostedBrowserWebview(props: {
           <webview
             key={webviewGeneration}
             ref={setWebviewRef}
-            // Electron needs allowpopups at attachment. React drops boolean values for unknown attributes.
-            {...({ allowpopups: "true" } as unknown as { readonly allowpopups?: boolean })}
+            {...WEBVIEW_ATTACHMENT_ATTRIBUTES}
             src={webviewGeneration === 0 ? initialSrc : recoverySrc}
             partition={config.partition}
             webpreferences={config.webPreferences}

@@ -208,10 +208,7 @@ export const make = Effect.fn("EasDeviceHost.make")(function* (config: EasDevice
 
   /** A missing ledger is empty; an unreadable one is an error, never an empty list. */
   const readLedger = fs.readFileString(ledgerPath).pipe(
-    Effect.catchIf(
-      (error) => error.reason._tag === "NotFound",
-      () => Effect.succeed("[]"),
-    ),
+    Effect.catchReason("PlatformError", "NotFound", () => Effect.succeed("[]")),
     Effect.flatMap(decodeLedger),
     Effect.mapError((cause) =>
       unavailable(

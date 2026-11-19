@@ -1,3 +1,4 @@
+import { field } from "@supaterm/shared/Struct";
 import { assert } from "@effect/vitest";
 import type { ProviderReplayTranscript } from "@supaterm/contracts";
 
@@ -8,10 +9,6 @@ import {
   projectionFor,
 } from "../shared.ts";
 import { PI_COMPACTION_MARKER } from "./input.ts";
-
-function field(value: unknown, key: string): unknown {
-  return typeof value === "object" && value !== null ? Reflect.get(value, key) : undefined;
-}
 
 export function assertPiCompactionOutput(
   result: OrchestratorV2ScenarioResult,

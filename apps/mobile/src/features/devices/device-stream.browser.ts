@@ -25,8 +25,9 @@ export function command(button: "home" | "back" | "appSwitcher" | "rotate") {
 
 export function start(configuration: DeviceStreamConfiguration) {
   stop();
-  // oxlint-disable-next-line unicorn/require-post-message-target-origin -- The native WebView bridge takes one string.
-  const post = (message: object) => window.ReactNativeWebView.postMessage(JSON.stringify(message));
+  const post = <Message>(message: Message) =>
+    // oxlint-disable-next-line unicorn/require-post-message-target-origin -- The native WebView bridge takes one string.
+    window.ReactNativeWebView.postMessage(JSON.stringify(message));
   const { colors, platform } = configuration;
   Object.assign(document.documentElement.style, { height: "100%", overflow: "hidden" });
   Object.assign(document.body.style, {

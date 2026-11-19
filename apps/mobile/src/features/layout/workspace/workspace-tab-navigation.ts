@@ -1,3 +1,4 @@
+import { field } from "@supaterm/shared/Struct";
 import type { WorkspaceSelections } from "../../../persistence/mobile-preferences";
 import {
   SETTINGS_PAGE_TARGETS,
@@ -43,13 +44,13 @@ export interface WorkspaceSelectionCheck {
   readonly pullRequest: (selection: PullRequestSelection) => boolean;
 }
 
-function stringParam(params: object | undefined, key: string) {
-  const value = (params as Record<string, unknown> | undefined)?.[key];
+function stringParam(params: RouteLike["params"], key: string) {
+  const value = field(params, key);
   return typeof value === "string" ? value : undefined;
 }
 
 function pullRequestSelection(
-  params: object | undefined,
+  params: RouteLike["params"],
 ): Omit<PullRequestSelection, "key"> | undefined {
   const value = params as Record<string, unknown> | undefined;
   if (

@@ -215,11 +215,11 @@ const TRACE_ATTRIBUTE_MAX_NODES = 10_000;
 
 interface NormalizeState {
   // Only the current ancestors, so a value repeated under two keys is not a cycle.
-  readonly seen: WeakSet<object>;
+  readonly seen: WeakSet<WeakKey>;
   remainingNodes: number;
 }
 
-function enterNode(value: object, state: NormalizeState): string | undefined {
+function enterNode(value: WeakKey, state: NormalizeState): string | undefined {
   if (state.seen.has(value)) {
     return "[Circular]";
   }

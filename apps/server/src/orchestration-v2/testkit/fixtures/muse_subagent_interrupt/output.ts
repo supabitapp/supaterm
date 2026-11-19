@@ -1,3 +1,4 @@
+import { field } from "@supaterm/shared/Struct";
 import { assert } from "@effect/vitest";
 import type { ProviderReplayTranscript } from "@supaterm/contracts";
 
@@ -20,9 +21,7 @@ export function assertMuseSubagentInterruptOutput(
   assert.isTrue(
     outbound.some(
       (frame) =>
-        typeof frame === "object" &&
-        frame !== null &&
-        Reflect.get(frame, "method") === "turn/interrupt",
+        typeof frame === "object" && frame !== null && field(frame, "method") === "turn/interrupt",
     ),
     "Stop must reach Muse as turn/interrupt",
   );

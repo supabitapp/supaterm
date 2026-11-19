@@ -1,5 +1,6 @@
 // @effect-diagnostics nodeBuiltinImport:off
 /** Native and canonical views share write state to avoid races on the same thread file. */
+import { field } from "@supaterm/shared/Struct";
 import * as NodeCrypto from "node:crypto";
 import * as NodeFS from "node:fs";
 import * as NodePath from "node:path";
@@ -184,24 +185,24 @@ export function shouldPersistProviderEvent(stream: EventNdjsonStream, event: unk
     return true;
   }
   try {
-    const type = Reflect.get(event, "type");
+    const type = field(event, "type");
     if (typeof type === "string" && transientCanonicalEventTypes.has(type)) {
       return false;
     }
     if (stream !== "native") return true;
 
-    const nested = Reflect.get(event, "event");
+    const nested = field(event, "event");
     const envelope = typeof nested === "object" && nested !== null ? nested : event;
     // Decoded frames preserve raw-frame information without duplicating every token delta.
-    if (Reflect.get(envelope, "stage") === "raw") return false;
-    const decodedPayload = Reflect.get(envelope, "payload");
+    if (field(envelope, "stage") === "raw") return false;
+    const decodedPayload = field(envelope, "payload");
     const nativeEvent =
-      Reflect.get(envelope, "stage") === "decoded" &&
+      field(envelope, "stage") === "decoded" &&
       typeof decodedPayload === "object" &&
       decodedPayload !== null
         ? decodedPayload
         : envelope;
-    const method = Reflect.get(nativeEvent, "method");
+    const method = field(nativeEvent, "method");
     if (
       typeof method === "string" &&
       (transientNativeMethods.has(method) ||
@@ -210,56 +211,56 @@ export function shouldPersistProviderEvent(stream: EventNdjsonStream, event: unk
       return false;
     }
 
-    const nativeType = Reflect.get(nativeEvent, "type");
-    if (nativeType === "system" && Reflect.get(nativeEvent, "subtype") === "thinking_tokens") {
+    const nativeType = field(nativeEvent, "type");
+    if (nativeType === "system" && field(nativeEvent, "subtype") === "thinking_tokens") {
       return false;
     }
     if (nativeType === "message.part.delta") return false;
     if (nativeType === "stream_event") {
-      const streamEvent = Reflect.get(nativeEvent, "event");
+      const streamEvent = field(nativeEvent, "event");
       if (
         typeof streamEvent === "object" &&
         streamEvent !== null &&
-        Reflect.get(streamEvent, "type") === "content_block_delta"
+        field(streamEvent, "type") === "content_block_delta"
       ) {
         return false;
       }
     }
 
     if (nativeType === "interaction.update") {
-      let update = Reflect.get(nativeEvent, "update");
+      let update = field(nativeEvent, "update");
       if (typeof update !== "object" || update === null) return true;
       // Subagent updates arrive wrapped; keep the wrapper when it carries a lifecycle record.
-      if (Reflect.get(update, "type") === "tool-call-delta") {
-        update = Reflect.get(update, "taskUpdate");
+      if (field(update, "type") === "tool-call-delta") {
+        update = field(update, "taskUpdate");
         if (typeof update !== "object" || update === null) return true;
       }
-      const updateType = Reflect.get(update, "type");
+      const updateType = field(update, "type");
       return typeof updateType !== "string" || !transientCursorUpdates.has(updateType);
     }
 
-    const payload = Reflect.get(nativeEvent, "payload");
+    const payload = field(nativeEvent, "payload");
     if (typeof payload !== "object" || payload === null) return true;
 
     if (method === "session/update") {
-      const update = Reflect.get(payload, "update");
+      const update = field(payload, "update");
       if (typeof update !== "object" || update === null) return true;
-      const updateType = Reflect.get(update, "sessionUpdate");
+      const updateType = field(update, "sessionUpdate");
       return typeof updateType !== "string" || !transientAcpUpdates.has(updateType);
     }
 
     if (nativeType === "message.part.updated") {
-      const properties = Reflect.get(payload, "properties");
+      const properties = field(payload, "properties");
       if (typeof properties !== "object" || properties === null) return true;
-      const part = Reflect.get(properties, "part");
+      const part = field(properties, "part");
       if (typeof part !== "object" || part === null) return true;
-      const partType = Reflect.get(part, "type");
+      const partType = field(part, "type");
       if (partType === "text" || partType === "reasoning") return false;
       if (partType === "tool") {
         // Running snapshots repeat growing output.
-        const state = Reflect.get(part, "state");
+        const state = field(part, "state");
         if (typeof state === "object" && state !== null) {
-          return Reflect.get(state, "status") !== "running";
+          return field(state, "status") !== "running";
         }
       }
       return true;
@@ -325,7 +326,7 @@ function summarizeProviderEvent(event: unknown): unknown {
     if (depth >= 6) return summary;
     for (const key of summaryFields) {
       if (remainingFields <= 0) break;
-      const nested = Reflect.get(value, key);
+      const nested = field(value, key);
       if (nested === undefined) continue;
       remainingFields -= 1;
       summary[key] = summarize(nested, depth + 1);
@@ -356,11 +357,7 @@ export function boundProviderEventForLogging(event: unknown): unknown {
       if (!Object.hasOwn(value, key)) continue;
       remainingFields -= 1;
       remainingCharacters -= key.length;
-      if (
-        remainingFields < 0 ||
-        remainingCharacters < 0 ||
-        !fits(Reflect.get(value, key), depth + 1)
-      )
+      if (remainingFields < 0 || remainingCharacters < 0 || !fits(field(value, key), depth + 1))
         return false;
     }
     ancestors.delete(value);

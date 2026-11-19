@@ -1673,10 +1673,7 @@ export const makeVcsDriverShape = Effect.fn("makeGitVcsDriverShape")(function* (
                           yield* fileSystem.chmod(destination, mode & 0o7777);
                         }),
                       ),
-                      Effect.catchIf(
-                        (cause) => cause.reason._tag === "AlreadyExists",
-                        () => Effect.void,
-                      ),
+                      Effect.catchReason("PlatformError", "AlreadyExists", () => Effect.void),
                       Effect.uninterruptible,
                     );
                   const names = yield* fileSystem.readDirectory(source);
@@ -1684,22 +1681,17 @@ export const makeVcsDriverShape = Effect.fn("makeGitVcsDriverShape")(function* (
                   const linkObject = Effect.fnUntraced(function* (name: string) {
                     const from = path.join(source, name);
                     const to = path.join(destination, name);
+                    // Git also falls back to rename without hardlinks; identical object names are interchangeable.
+                    const renameObject = Effect.gen(function* () {
+                      if (yield* fileSystem.exists(to)) return;
+                      yield* fileSystem.rename(from, to);
+                    });
                     yield* fileSystem.link(from, to).pipe(
-                      Effect.catchIf(
-                        (cause) =>
-                          cause.reason._tag === "PermissionDenied" ||
-                          cause.reason._tag === "Unknown",
-                        () =>
-                          Effect.gen(function* () {
-                            if (yield* fileSystem.exists(to)) return;
-                            // Git also falls back to rename without hardlinks; identical object names are interchangeable.
-                            yield* fileSystem.rename(from, to);
-                          }),
-                      ),
-                      Effect.catchIf(
-                        (cause) => cause.reason._tag === "AlreadyExists",
-                        () => Effect.void,
-                      ),
+                      Effect.catchReasons("PlatformError", {
+                        PermissionDenied: () => renameObject,
+                        Unknown: () => renameObject,
+                      }),
+                      Effect.catchReason("PlatformError", "AlreadyExists", () => Effect.void),
                     );
                   });
                   if (directory !== "pack") {

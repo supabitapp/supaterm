@@ -338,11 +338,8 @@ const TOP_SCOPE: HtmlScope = { anchor: false, paragraph: false, heading: false }
 
 /** rehype-raw reparses the whole tree through an HTML parser, which most trees can skip. */
 function rehypeRawWhenPresent(this: Processor) {
-  const transform = rehypeRaw.call(this) as unknown as (
-    tree: MarkdownImageHastNode,
-    file: unknown,
-  ) => unknown;
-  return (tree: MarkdownImageHastNode, file: unknown) =>
+  const transform = rehypeRaw.call(this);
+  return (...[tree, file]: Parameters<typeof transform>) =>
     needsHtmlParser(tree, TOP_SCOPE) ? transform(tree, file) : undefined;
 }
 

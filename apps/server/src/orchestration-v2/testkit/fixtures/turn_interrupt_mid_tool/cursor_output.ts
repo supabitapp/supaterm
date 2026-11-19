@@ -1,3 +1,4 @@
+import { field } from "@supaterm/shared/Struct";
 import { assert } from "@effect/vitest";
 import type { ProviderReplayTranscript } from "@supaterm/contracts";
 
@@ -14,7 +15,7 @@ import {
 
 function frameType(frame: unknown): string | undefined {
   return typeof frame === "object" && frame !== null
-    ? (Reflect.get(frame, "type") as string | undefined)
+    ? (field(frame, "type") as string | undefined)
     : undefined;
 }
 
@@ -22,9 +23,9 @@ function cursorUpdateType(frame: unknown): string | undefined {
   if (frameType(frame) !== "interaction.update") {
     return undefined;
   }
-  const update = Reflect.get(frame as object, "update");
+  const update = field(frame, "update");
   return typeof update === "object" && update !== null
-    ? (Reflect.get(update, "type") as string | undefined)
+    ? (field(update, "type") as string | undefined)
     : undefined;
 }
 

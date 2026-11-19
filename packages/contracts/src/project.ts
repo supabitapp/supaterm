@@ -1,3 +1,4 @@
+import * as Predicate from "effect/Predicate";
 import * as Schema from "effect/Schema";
 import * as SchemaTransformation from "effect/SchemaTransformation";
 import { RepositoryIdentity, ThreadEnvMode } from "./environment.ts";
@@ -340,9 +341,10 @@ type ProjectEntriesFailureContext = {
   readonly cause?: unknown;
 };
 
-function decodedProjectErrorMessage(props: object): string | undefined {
-  if (!("message" in props)) return undefined;
-  return typeof props.message === "string" ? props.message : undefined;
+function decodedProjectErrorMessage(props: unknown): string | undefined {
+  return Predicate.hasProperty(props, "message") && typeof props.message === "string"
+    ? props.message
+    : undefined;
 }
 
 export class ProjectSearchEntriesError extends Schema.TaggedError<ProjectSearchEntriesError>()(

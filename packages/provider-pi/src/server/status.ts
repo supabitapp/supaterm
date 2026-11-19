@@ -236,11 +236,12 @@ const discoverPiViaRpc = Effect.fn("PiProviderStatus.discoverPiViaRpc")(function
     cwd,
   ).pipe(
     // Pi exits before answering when launch args name a provider only an extension registers.
-    Effect.catchIf(
-      (error) =>
-        error._tag === "PiRpcError" && (error.operation === "read" || error.operation === "exit"),
-      () => Effect.succeed(new Set<string>()),
-    ),
+    Effect.catchTags({
+      PiRpcError: (error) =>
+        error.operation === "read" || error.operation === "exit"
+          ? Effect.succeed(new Set<string>())
+          : Effect.fail(error),
+    }),
     Effect.orElseSucceed(() => undefined),
     Effect.timeoutOrElse({
       duration: PI_TEXT_GENERATION_DISCOVERY_TIMEOUT_MS,
@@ -258,14 +259,19 @@ const discoverPiViaRpc = Effect.fn("PiProviderStatus.discoverPiViaRpc")(function
     // Pi's RPC mode reads stdin only after session_start, so a startup dialog (an MCP adapter asking
     // to approve a project server) can never be answered and Pi exits. Retry declining project trust
     // unless the user chose a trust mode, so trusted projects keep their project-local models.
-    Effect.catchIf(
-      (error) =>
-        error._tag === "PiRpcError" &&
+    Effect.catchTags({
+      PiRpcError: (error) =>
         (error.operation === "read" || error.operation === "exit") &&
-        !launchArgs.some((arg) => PI_PROJECT_TRUST_ARGUMENTS.has(arg)),
-      () =>
-        readPiInventory(piSettings, environment, [...launchArgs, "--no-approve"], timeoutMs, cwd),
-    ),
+        !launchArgs.some((arg) => PI_PROJECT_TRUST_ARGUMENTS.has(arg))
+          ? readPiInventory(
+              piSettings,
+              environment,
+              [...launchArgs, "--no-approve"],
+              timeoutMs,
+              cwd,
+            )
+          : Effect.fail(error),
+    }),
   );
   const discoveredModels = yield* Effect.fromResult(parseDiscoveredModels(modelsData, stateData));
   const { slashCommands, skills } = parsePiDiscoveredCommands(commandsData);

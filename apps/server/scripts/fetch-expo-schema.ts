@@ -38,7 +38,7 @@ const program = Effect.gen(function* () {
   );
   // Sorted so a refresh diffs by what Expo changed, not by its declaration order.
   const sdl = pipe(
-    buildClientSchema(response.data as unknown as IntrospectionQuery),
+    buildClientSchema(response.data as IntrospectionQuery),
     lexicographicSortSchema,
     printSchema,
   );

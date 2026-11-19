@@ -202,7 +202,7 @@ function devCompressionPlugin(): Plugin {
       server.middlewares.use(
         compression({
           brotli: { params: { [NodeZlib.constants.BROTLI_PARAM_QUALITY]: 5 } },
-        }) as unknown as Connect.NextHandleFunction,
+        }) as Connect.NextHandleFunction,
       );
     },
   };

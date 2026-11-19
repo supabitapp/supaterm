@@ -225,28 +225,23 @@ export const make = Effect.gen(function* () {
   const hostId =
     explicitHostId ||
     (yield* fileSystem.readFileString(hostIdPath).pipe(
-      Effect.catchIf(
-        (error) => error.reason._tag === "NotFound",
-        () =>
-          Effect.scoped(
-            Effect.gen(function* () {
-              yield* fileSystem.makeDirectory(config.baseDir, { recursive: true });
-              const tempDirectory = yield* fileSystem.makeTempDirectoryScoped({
-                directory: config.baseDir,
-                prefix: "usage-host-id.",
-              });
-              const tempFile = path.join(tempDirectory, "identity");
-              yield* fileSystem.writeFileString(tempFile, `${hostname}\n`);
-              // Publish complete contents without replacing another initializer's identity.
-              yield* fileSystem.link(tempFile, hostIdPath).pipe(
-                Effect.catchIf(
-                  (error) => error.reason._tag === "AlreadyExists",
-                  () => Effect.void,
-                ),
-              );
-              return yield* fileSystem.readFileString(hostIdPath);
-            }),
-          ),
+      Effect.catchReason("PlatformError", "NotFound", () =>
+        Effect.scoped(
+          Effect.gen(function* () {
+            yield* fileSystem.makeDirectory(config.baseDir, { recursive: true });
+            const tempDirectory = yield* fileSystem.makeTempDirectoryScoped({
+              directory: config.baseDir,
+              prefix: "usage-host-id.",
+            });
+            const tempFile = path.join(tempDirectory, "identity");
+            yield* fileSystem.writeFileString(tempFile, `${hostname}\n`);
+            // Publish complete contents without replacing another initializer's identity.
+            yield* fileSystem
+              .link(tempFile, hostIdPath)
+              .pipe(Effect.catchReason("PlatformError", "AlreadyExists", () => Effect.void));
+            return yield* fileSystem.readFileString(hostIdPath);
+          }),
+        ),
       ),
       Effect.map((value) => value.trim() || hostname),
       Effect.orElseSucceed(() => hostname),

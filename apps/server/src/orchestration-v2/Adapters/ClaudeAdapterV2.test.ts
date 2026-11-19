@@ -1,4 +1,5 @@
 // @effect-diagnostics nodeBuiltinImport:off -- workflow fixtures use files and the fake Claude CLI uses Node streams
+import { field } from "@supaterm/shared/Struct";
 import * as NodeEvents from "node:events";
 import * as NodeFS from "node:fs";
 import * as NodePath from "node:path";
@@ -3007,7 +3008,7 @@ describe("ClaudeAdapterV2 MCP credential channel", () => {
         servers: { supaterm: supatermMcpServer },
       });
       assert.deepInclude(
-        cli.controlRequests.find((request) => Reflect.get(request, "subtype") === "initialize"),
+        cli.controlRequests.find((request) => field(request, "subtype") === "initialize"),
         { title: "Existing Supaterm title" },
       );
       const spawned = JSON.stringify(cli.spawns);
@@ -3168,11 +3169,7 @@ describe("ClaudeAdapterV2 background wake turns", () => {
   const WAKE_RESULT_TEXT = "WAKE_DONE";
 
   function claudeSdkFrame(frame: unknown): SDKMessage {
-    if (
-      typeof frame !== "object" ||
-      frame === null ||
-      typeof Reflect.get(frame, "type") !== "string"
-    ) {
+    if (typeof frame !== "object" || frame === null || typeof field(frame, "type") !== "string") {
       throw new Error("Frame is not a Claude Agent SDK message.");
     }
     return frame as SDKMessage;
@@ -6599,7 +6596,7 @@ describe("ClaudeAdapterV2 background wake turns", () => {
         );
         yield* fileSystem.makeDirectory(path.join(repo, ".claude"));
         yield* fileSystem.makeDirectory(path.join(repo, "packages", "app"), { recursive: true });
-        const rootLocal = (settings: object) =>
+        const rootLocal = (settings: Readonly<Record<string, unknown>>) =>
           fileSystem.writeFileString(
             path.join(repo, ".claude", "settings.local.json"),
             JSON.stringify(settings),
@@ -17938,7 +17935,7 @@ describe("ClaudeAdapterV2 background wake turns", () => {
       const harness = yield* makeWakeHarness;
       const now = yield* DateTime.now;
       let sequence = 0;
-      const system = (frame: object) =>
+      const system = (frame: Readonly<Record<string, unknown>>) =>
         claudeSdkFrame({
           type: "system",
           ...frame,
@@ -23598,7 +23595,12 @@ describe("ClaudeAdapterV2 background wake turns", () => {
         );
         yield* launchWorkflow({ harness, snapshotUuid: "00000000-0000-4000-8000-000000001375" });
         const threadId = workflowMemberEvents(harness.events, 1)[0]?.subagent.childThreadId;
-        const errorLine = (uuid: string, toolUseId: string, output: string, denial?: object) =>
+        const errorLine = (
+          uuid: string,
+          toolUseId: string,
+          output: string,
+          denial?: Readonly<Record<string, unknown>>,
+        ) =>
           transcriptLine({
             type: "user",
             uuid,

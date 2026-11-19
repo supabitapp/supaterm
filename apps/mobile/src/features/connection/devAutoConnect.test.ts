@@ -37,7 +37,10 @@ const harness = vi.hoisted(() => ({
 vi.mock("@react-navigation/native", () => ({
   StackActions: { replace: vi.fn() },
   CommonActions: {
-    replaceParams: (params: object) => ({ type: "REPLACE_PARAMS", payload: { params } }),
+    replaceParams: <Params extends object>(params: Params) => ({
+      type: "REPLACE_PARAMS",
+      payload: { params },
+    }),
   },
 }));
 vi.mock("../../state/use-remote-environment-registry", () => ({
@@ -71,7 +74,7 @@ import {
 
 const PAIRING_URL = "http://192.168.1.10:3773/pair#token=abc";
 
-function settingsLink(params: object): PartialState<NavigationState> {
+function settingsLink<Params extends object>(params: Params): PartialState<NavigationState> {
   return {
     routes: [
       { name: "Home" },

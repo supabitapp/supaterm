@@ -465,7 +465,12 @@ describe("readOpenCodeUsage", () => {
       );
       const created = 1780000000000;
       const model = { id: "big-pickle", providerID: "opencode" };
-      const insert = (seq: number, id: string, type: string, data: object) =>
+      const insert = (
+        seq: number,
+        id: string,
+        type: string,
+        data: Readonly<Record<string, unknown>>,
+      ) =>
         db.unsafe("INSERT INTO session_message VALUES (?, ?, ?, ?, ?, ?)", [
           id,
           "session-1",

@@ -732,7 +732,12 @@ export const isSourceRunning = Effect.fn("BrowserImportSources.isSourceRunning")
     const lock = context.path.join(root, "SingletonLock");
     return yield* fileSystem.readLink(lock).pipe(
       Effect.flatMap((target) => chromiumSingletonLockIsHeld(target, currentHost, processIsAlive)),
-      Effect.catch((error) => Effect.succeed(error.reason._tag !== "NotFound")),
+      Effect.catchReason(
+        "PlatformError",
+        "NotFound",
+        () => Effect.succeed(false),
+        () => Effect.succeed(true),
+      ),
     );
   }
 

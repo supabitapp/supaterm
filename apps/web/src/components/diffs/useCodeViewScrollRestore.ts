@@ -53,7 +53,7 @@ export function createCodeViewScrollRestore() {
       }
       flush();
     },
-    onScroll(scrollTop: number, source: object) {
+    onScroll(scrollTop: number, source: Viewer) {
       if (source !== viewer || pending !== null || scopeKey === null) return;
       scrollTopByScopeKey.set(scopeKey, scrollTop);
     },

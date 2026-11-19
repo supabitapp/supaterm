@@ -38,8 +38,8 @@ const projectMocks = vi.hoisted(() => ({
 
 const atomHooks = vi.hoisted(() => ({
   registry: null as {
-    get(atom: object): unknown;
-    refresh(atom: object): void;
+    get(atom: Atom.Atom<unknown>): unknown;
+    refresh(atom: Atom.Atom<unknown>): void;
   } | null,
 }));
 
@@ -73,10 +73,10 @@ const reactHooks = vi.hoisted(() => {
 });
 
 vi.mock("@effect/atom-react", () => ({
-  useAtomRefresh: (atom: object) => () => {
+  useAtomRefresh: (atom: Atom.Atom<unknown>) => () => {
     atomHooks.registry?.refresh(atom);
   },
-  useAtomValue: (atom: object) => atomHooks.registry?.get(atom),
+  useAtomValue: (atom: Atom.Atom<unknown>) => atomHooks.registry?.get(atom),
 }));
 
 vi.mock("react", async (importOriginal) => {

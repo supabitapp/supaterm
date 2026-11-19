@@ -17,7 +17,9 @@ export function promptLinkSearchFromParams(
   return search.size > 0 ? search.toString() : null;
 }
 
-export function withoutPromptLinkParams(params: object | undefined): Record<string, unknown> {
+export function withoutPromptLinkParams<Params extends object>(
+  params: Params | undefined,
+): Record<string, unknown> {
   return Object.fromEntries(
     Object.entries(params ?? {}).filter(
       ([key]) => !(PROMPT_LINK_PARAM_KEYS as ReadonlyArray<string>).includes(key),

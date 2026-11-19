@@ -1,3 +1,4 @@
+import { field } from "@supaterm/shared/Struct";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 import type { InteractionUpdate, RunResult, SteerAckOutcome } from "@cursor/sdk";
 import * as NodeServices from "@effect/platform-node/NodeServices";
@@ -271,7 +272,7 @@ export function makeCursorAgentSdkReplayRunner(
       entry.type !== "emit_inbound" ||
       typeof entry.frame !== "object" ||
       entry.frame === null ||
-      Reflect.get(entry.frame, "type") !== type
+      field(entry.frame, "type") !== type
     ) {
       return fail(
         new CursorReplayFrameMismatchError({
@@ -307,13 +308,10 @@ export function makeCursorAgentSdkReplayRunner(
           );
         }
         if (entry.type === "expect_outbound") {
-          const type =
-            typeof entry.frame === "object" && entry.frame !== null
-              ? Reflect.get(entry.frame, "type")
-              : undefined;
+          const type = field(entry.frame, "type");
           if (
             (type !== "run.cancel" && type !== "run.steer") ||
-            Reflect.get(entry.frame as object, "runId") !== runId
+            field(entry.frame, "runId") !== runId
           ) {
             return yield* recordFailure(
               new CursorReplayFrameMismatchError({
@@ -344,7 +342,7 @@ export function makeCursorAgentSdkReplayRunner(
         if (
           typeof entry.frame !== "object" ||
           entry.frame === null ||
-          typeof Reflect.get(entry.frame, "type") !== "string"
+          typeof field(entry.frame, "type") !== "string"
         ) {
           return yield* recordFailure(
             new CursorReplayFrameMismatchError({
@@ -642,11 +640,8 @@ function serializeCursorRecordingError(cause: unknown): unknown {
     return cause;
   }
   return {
-    name: typeof Reflect.get(cause, "name") === "string" ? Reflect.get(cause, "name") : "Error",
-    message:
-      typeof Reflect.get(cause, "message") === "string"
-        ? Reflect.get(cause, "message")
-        : String(cause),
+    name: typeof field(cause, "name") === "string" ? field(cause, "name") : "Error",
+    message: typeof field(cause, "message") === "string" ? field(cause, "message") : String(cause),
   };
 }
 

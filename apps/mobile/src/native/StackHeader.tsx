@@ -65,7 +65,7 @@ function normalizeScreenOptions(
 // fields are React internals. In development an element's `_owner` is a fiber that
 // reaches the whole tree, including contexts that hold their default value outside
 // render, and React Navigation's NavigationStateContext default throws when read.
-function isReactObject(value: object): boolean {
+function isReactObject<Value extends object>(value: Value): boolean {
   return "$$typeof" in value;
 }
 

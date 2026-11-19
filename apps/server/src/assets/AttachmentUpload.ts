@@ -229,29 +229,29 @@ export const storeAttachmentUpload = Effect.fn("AttachmentUpload.store")(functio
     // Publishing without replacement keeps an upload and its cached text immutable.
     const published = yield* fileSystem.link(partPath, finalPath).pipe(
       Effect.map(() => true),
-      Effect.catch((error) => {
-        if (error.reason._tag === "AlreadyExists") return Effect.succeed(false);
-        return Effect.tryPromise({
-          try: () => NodeFSP.copyFile(partPath, finalPath, NodeFSP.constants.COPYFILE_EXCL),
-          catch: (cause) =>
-            PlatformError.systemError({
-              _tag:
-                cause instanceof Error && "code" in cause && cause.code === "EEXIST"
-                  ? "AlreadyExists"
-                  : "Unknown",
-              module: "FileSystem",
-              method: "copyFile",
-              pathOrDescriptor: finalPath,
-              cause,
-            }),
-        }).pipe(
-          Effect.as(true),
-          Effect.catchIf(
-            (error) => error.reason._tag === "AlreadyExists",
-            () => Effect.succeed(false),
+      Effect.catchReason(
+        "PlatformError",
+        "AlreadyExists",
+        () => Effect.succeed(false),
+        () =>
+          Effect.tryPromise({
+            try: () => NodeFSP.copyFile(partPath, finalPath, NodeFSP.constants.COPYFILE_EXCL),
+            catch: (cause) =>
+              PlatformError.systemError({
+                _tag:
+                  cause instanceof Error && "code" in cause && cause.code === "EEXIST"
+                    ? "AlreadyExists"
+                    : "Unknown",
+                module: "FileSystem",
+                method: "copyFile",
+                pathOrDescriptor: finalPath,
+                cause,
+              }),
+          }).pipe(
+            Effect.as(true),
+            Effect.catchReason("PlatformError", "AlreadyExists", () => Effect.succeed(false)),
           ),
-        );
-      }),
+      ),
     );
     if (!published) {
       if (Number((yield* fileSystem.stat(finalPath)).size) !== receivedBytes) {

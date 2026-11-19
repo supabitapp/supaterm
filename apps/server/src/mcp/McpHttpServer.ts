@@ -462,6 +462,7 @@ const advertisedArgumentsOnly = (tool: Tool.Any) => {
 const decodeAsAdvertised = <Tools extends Record<string, Tool.Any>>(
   toolkit: Toolkit.Toolkit<Tools>,
 ): Toolkit.Toolkit<Tools> =>
+  // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- setParameters swaps only the decoder; invariant Toolkit cannot say the Tools contract is unchanged.
   Toolkit.make(
     ...Object.values(toolkit.tools).map((tool) =>
       tool.setParameters(

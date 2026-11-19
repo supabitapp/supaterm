@@ -25,7 +25,7 @@ it.effect("protects unknown desktop visibility until an explicit hidden report a
     yield* Effect.gen(function* () {
       const channel = yield* DesktopBrowserChannel.DesktopBrowserChannel;
       const key = { threadId: "thread-1", tabId: "tab-1" };
-      const send = (event: object) =>
+      const send = (event: Readonly<Record<string, unknown>>) =>
         Queue.offer(input, new TextEncoder().encode(`${JSON.stringify(event)}\n`));
 
       expect(channel.isShown(key)).toBe(true);
@@ -74,7 +74,7 @@ it.live("closes a tab's relay connection when the desktop detaches the tab", () 
     yield* Effect.gen(function* () {
       const channel = yield* DesktopBrowserChannel.DesktopBrowserChannel;
       const key = { threadId: "thread-1", tabId: "tab-1" };
-      const send = (event: object) =>
+      const send = (event: Readonly<Record<string, unknown>>) =>
         Queue.offer(input, new TextEncoder().encode(`${JSON.stringify(event)}\n`));
 
       yield* send({ type: "attached", ...key });

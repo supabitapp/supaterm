@@ -23,12 +23,9 @@ export const clearStaleGpuCaches = Effect.fn("desktop.userData.clearStaleGpuCach
     const fs = yield* FileSystem.FileSystem;
     const path = yield* Path.Path;
     const markerPath = path.join(input.userDataPath, "gpu-cache-electron-version");
-    const cachedVersion = yield* fs.readFileString(markerPath).pipe(
-      Effect.catchIf(
-        (error) => error.reason._tag === "NotFound",
-        () => Effect.undefined,
-      ),
-    );
+    const cachedVersion = yield* fs
+      .readFileString(markerPath)
+      .pipe(Effect.catchReason("PlatformError", "NotFound", () => Effect.undefined));
     if (cachedVersion?.trim() === input.electronVersion) return;
     for (const name of GPU_CACHE_DIRECTORIES) {
       yield* fs.remove(path.join(input.userDataPath, name), { recursive: true, force: true });

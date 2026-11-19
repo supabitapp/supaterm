@@ -202,8 +202,11 @@ const projectIdsOf = Effect.fn("easProjectId.projectIdsOf")(function* (dir: stri
   for (const file of JSON_CONFIG_FILES) {
     const json = yield* fs.readFileString(path.join(dir, file)).pipe(
       Effect.asSome,
-      Effect.catch((error) =>
-        Effect.succeed(error.reason._tag === "NotFound" ? Option.none<string>() : null),
+      Effect.catchReason(
+        "PlatformError",
+        "NotFound",
+        () => Effect.succeed(Option.none<string>()),
+        () => Effect.succeed(null),
       ),
     );
     // A config that is there but cannot be read could name any project.

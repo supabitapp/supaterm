@@ -345,7 +345,7 @@ describe("threadHistoryPaging", () => {
   });
 
   it("counts runs that a notification started toward the 150-turn ceiling", () => {
-    const inRun = (index: number, run: number, item: object = {}) => {
+    const inRun = (index: number, run: number, item: Readonly<Record<string, unknown>> = {}) => {
       const row = makeRow(index);
       return {
         ...row,

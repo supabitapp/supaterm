@@ -223,8 +223,11 @@ export const makeAsyncRotatingFileSink = Effect.fnUntraced(function* (
   }).pipe(Effect.mapError(failure("prune")));
   const readSize = fs.stat(options.filePath).pipe(
     Effect.map((stat) => Number(stat.size)),
-    Effect.catch((cause) =>
-      cause.reason._tag === "NotFound" ? Effect.succeed(0) : Effect.fail(failure("read")(cause)),
+    Effect.catchReason(
+      "PlatformError",
+      "NotFound",
+      () => Effect.succeed(0),
+      (_reason, cause) => Effect.fail(failure("read")(cause)),
     ),
   );
   let currentSize = yield* readSize;

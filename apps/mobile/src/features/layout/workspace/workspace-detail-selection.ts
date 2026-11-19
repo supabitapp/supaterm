@@ -85,19 +85,26 @@ function workspaceDetailState<
   return { ...state, index: routes.length - 1, routes };
 }
 
+function isSelectWorkspaceDetailAction(
+  action: NavigationAction,
+): action is SelectWorkspaceDetailAction {
+  return action.type === SELECT_WORKSPACE_DETAIL;
+}
+
 /** Root stack router overrides that handle `selectWorkspaceDetail`. */
 export function workspaceDetailRouter<Action extends NavigationAction>(
   original: Router<StackNavigationState<ParamListBase>, Action>,
 ): Partial<Router<StackNavigationState<ParamListBase>, Action>> {
+  const anyActionRouter: Router<StackNavigationState<ParamListBase>, NavigationAction> = original;
   return {
     getStateForAction(state, action, options) {
-      if (action.type !== SELECT_WORKSPACE_DETAIL) {
+      if (!isSelectWorkspaceDetailAction(action)) {
         return original.getStateForAction(state, action, options);
       }
-      const { detail, sheet } = (action as unknown as SelectWorkspaceDetailAction).payload;
+      const { detail, sheet } = action.payload;
       const next = workspaceDetailState(state, detail, sheet, nativelyPoppingRoute);
       const reset = { type: "RESET", payload: { ...next, stale: false } };
-      return original.getStateForAction(state, reset as unknown as Action, options);
+      return anyActionRouter.getStateForAction(state, reset, options);
     },
   };
 }

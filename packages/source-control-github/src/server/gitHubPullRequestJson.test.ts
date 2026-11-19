@@ -1718,7 +1718,7 @@ describe("host-native stack decoding", () => {
 });
 
 const decodeWatchedResult = Schema.decodeUnknownSync(PullRequestWatchFingerprint.result);
-const decodeWatched = (pullRequest: object) =>
+const decodeWatched = (pullRequest: Readonly<Record<string, unknown>>) =>
   decodeWatchedResult({ repository: { pullRequest } }).repository!.pullRequest!;
 
 describe("repository references", () => {

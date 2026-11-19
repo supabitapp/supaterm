@@ -1,3 +1,4 @@
+import { field } from "@supaterm/shared/Struct";
 import { deriveProviderInstanceConfigMap } from "../provider/ProviderInstanceRegistryHydration.ts";
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import * as NodeServices from "@effect/platform-node/NodeServices";
@@ -1353,7 +1354,7 @@ it.layer(
                     return target.read(buffer.subarray(0, 5));
                   };
                 }
-                return Reflect.get(target, key, target);
+                return field(target, key);
               },
             });
           }),

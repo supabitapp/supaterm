@@ -1,3 +1,4 @@
+import { field } from "@supaterm/shared/Struct";
 import { assert } from "@effect/vitest";
 import type {
   OrchestrationV2ThreadProjection,
@@ -47,20 +48,16 @@ function conversation(projection: OrchestrationV2ThreadProjection): ReadonlyArra
     );
 }
 
-function frameField(frame: unknown, key: string): unknown {
-  return typeof frame === "object" && frame !== null ? Reflect.get(frame, key) : undefined;
-}
-
 function sendMessageToolUseIds(transcript: ProviderReplayTranscript): ReadonlyArray<string> {
   return transcript.entries.flatMap((entry) => {
-    const content = frameField(
-      frameField(entry.type === "emit_inbound" ? entry.frame : undefined, "message"),
+    const content = field(
+      field(entry.type === "emit_inbound" ? entry.frame : undefined, "message"),
       "content",
     );
     return Array.isArray(content)
       ? content.flatMap((part) =>
-          frameField(part, "type") === "tool_use" && frameField(part, "name") === "SendMessage"
-            ? [String(frameField(part, "id"))]
+          field(part, "type") === "tool_use" && field(part, "name") === "SendMessage"
+            ? [String(field(part, "id"))]
             : [],
         )
       : [];
@@ -71,9 +68,9 @@ function sendMessageToolUseIds(transcript: ProviderReplayTranscript): ReadonlyAr
 function assertRecordedResumeShape(transcript: ProviderReplayTranscript) {
   const agentAStarts = transcript.entries.flatMap((entry) =>
     entry.type === "emit_inbound" &&
-    frameField(entry.frame, "subtype") === "task_started" &&
-    frameField(entry.frame, "task_id") === AGENT_A_TASK_ID
-      ? [String(frameField(entry.frame, "tool_use_id"))]
+    field(entry.frame, "subtype") === "task_started" &&
+    field(entry.frame, "task_id") === AGENT_A_TASK_ID
+      ? [String(field(entry.frame, "tool_use_id"))]
       : [],
   );
   assert.lengthOf(agentAStarts, 2, "SendMessage must re-emit task_started for Agent A");

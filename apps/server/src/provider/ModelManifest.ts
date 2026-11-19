@@ -160,14 +160,10 @@ const ManifestCacheFile = Schema.Struct({
   manifest: ModelManifestSchema,
 });
 const decodeManifestCache = Schema.decodeUnknownEffect(
-  Schema.fromJsonString(
-    ManifestCacheFile as unknown as Schema.Codec<typeof ManifestCacheFile.Type>,
-  ),
+  Schema.fromJsonString(ManifestCacheFile as Schema.Codec<typeof ManifestCacheFile.Type>),
 );
 export const encodeManifestCache = Schema.encodeEffect(
-  Schema.fromJsonString(
-    ManifestCacheFile as unknown as Schema.Codec<typeof ManifestCacheFile.Type>,
-  ),
+  Schema.fromJsonString(ManifestCacheFile as Schema.Codec<typeof ManifestCacheFile.Type>),
 );
 
 export class ModelManifest extends Context.Service<

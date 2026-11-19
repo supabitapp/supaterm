@@ -1,4 +1,5 @@
 // @effect-diagnostics nodeBuiltinImport:off globalConsole:off -- The guard runs in Node's unhandled-rejection callback, outside an Effect runtime. stderr must match Node's default unhandled-rejection print.
+import { field } from "@supaterm/shared/Struct";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
@@ -20,9 +21,9 @@ function isCursorShellSpawnFailure(reason: unknown): boolean {
   if (typeof reason !== "object" || reason === null) {
     return false;
   }
-  const syscall = Reflect.get(reason, "syscall");
-  const code = Reflect.get(reason, "code");
-  const spawnargs = Reflect.get(reason, "spawnargs");
+  const syscall = field(reason, "syscall");
+  const code = field(reason, "code");
+  const spawnargs = field(reason, "spawnargs");
   if (typeof syscall !== "string" || !syscall.startsWith("spawn") || typeof code !== "string") {
     return false;
   }
@@ -51,7 +52,7 @@ function isCursorClosedStreamWrite(reason: unknown): boolean {
   return (
     reason.name === "ConnectError" &&
     reason.cause instanceof Error &&
-    Reflect.get(reason.cause, "code") === "ERR_STREAM_WRITE_AFTER_END"
+    field(reason.cause, "code") === "ERR_STREAM_WRITE_AFTER_END"
   );
 }
 

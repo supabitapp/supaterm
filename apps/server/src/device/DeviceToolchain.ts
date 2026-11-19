@@ -246,22 +246,16 @@ export const deviceToolVersions = Effect.fn("DeviceToolchain.versions")(function
   const path = yield* Path.Path;
   const inspect = Effect.fn("DeviceToolchain.inspect")(function* (spec: ToolSpec) {
     const directory = path.join(baseDir, "tools", spec.name);
-    const names = yield* fs.readDirectory(directory).pipe(
-      Effect.catchIf(
-        (error) => error.reason._tag === "NotFound",
-        () => Effect.succeed([]),
-      ),
-    );
+    const names = yield* fs
+      .readDirectory(directory)
+      .pipe(Effect.catchReason("PlatformError", "NotFound", () => Effect.succeed([])));
     const versions = yield* Effect.filter(names, (version) =>
       /^[0-9]+\.[0-9]+\.[0-9]+(?:-[a-zA-Z0-9.-]+)?$/.test(version)
         ? Effect.gen(function* () {
             const paths = toolPaths(path, baseDir, { ...spec, version });
-            const sentinel = yield* fs.readFileString(paths.sentinelPath).pipe(
-              Effect.catchIf(
-                (error) => error.reason._tag === "NotFound",
-                () => Effect.succeed(null),
-              ),
-            );
+            const sentinel = yield* fs
+              .readFileString(paths.sentinelPath)
+              .pipe(Effect.catchReason("PlatformError", "NotFound", () => Effect.succeed(null)));
             return sentinel?.trim() === version && (yield* fs.exists(paths.entryPath));
           })
         : Effect.succeed(false),

@@ -11,7 +11,7 @@ import * as Clock from "effect/Clock";
 import * as Digest from "effect/crypto/Digest";
 import * as SecureRandom from "effect/crypto/SecureRandom";
 import * as Signature from "effect/crypto/Signature";
-import * as JoseError from "effect/jose/JoseError";
+
 import * as Jwks from "effect/jose/Jwks";
 import * as Jwt from "effect/jose/Jwt";
 import * as Base64Url from "effect/encoding/Base64Url";
@@ -201,12 +201,7 @@ export const makeCodexChatGptAuth = Effect.fn("makeCodexChatGptAuth")(function* 
       const cached = keySet;
       return yield* cached === undefined || cached.expiresAt <= (yield* Clock.currentTimeMillis)
         ? fresh
-        : verifyWith(cached.keys).pipe(
-            Effect.catchIf(
-              (error) => JoseError.isJoseError(error) && error.reason._tag === "KeyNotFound",
-              () => fresh,
-            ),
-          );
+        : verifyWith(cached.keys).pipe(Effect.catchReason("JoseError", "KeyNotFound", () => fresh));
     },
     Effect.provideService(Signature.Signature, signature),
   );

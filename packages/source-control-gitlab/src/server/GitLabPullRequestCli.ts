@@ -8,6 +8,7 @@ import * as Context from "effect/Context";
 import * as Digest from "effect/crypto/Digest";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
+import * as Predicate from "effect/Predicate";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Result from "effect/Result";
@@ -100,6 +101,12 @@ import type {
   ProviderFileStats,
   ProviderListCursor,
 } from "@supaterm/source-control-core/server/PullRequestProvider";
+
+export const isGitLabCliAccessFailure = Predicate.some([
+  Predicate.isTagged("GitLabCliUnavailableError"),
+  Predicate.isTagged("GitLabCliAuthenticationError"),
+  Predicate.isTagged("GitLabCliRateLimitError"),
+]);
 
 export class GitLabMergeRequestReadError extends Schema.TaggedError<GitLabMergeRequestReadError>()(
   "GitLabMergeRequestReadError",
@@ -1436,7 +1443,7 @@ export const make = Effect.gen(function* () {
       readonly number: number;
     }) {
       const project = `projects/${projectPath(input.repository)}`;
-      const write = (path: string, body: object) =>
+      const write = (path: string, body: Readonly<Record<string, unknown>>) =>
         api({
           cwd: input.cwd,
           host: input.host,
@@ -2300,16 +2307,11 @@ export const make = Effect.gen(function* () {
       // GraphQL counts only filtered rows, so its `delivered` is no REST offset once resumed.
       if (input.cursor !== undefined) return graphql;
       return graphql.pipe(
-        Effect.catchIf(
-          (cause) =>
-            cause._tag !== "GitLabCliUnavailableError" &&
-            cause._tag !== "GitLabCliAuthenticationError" &&
-            cause._tag !== "GitLabCliRateLimitError",
-          (cause) =>
-            Effect.logWarning("GitLab GraphQL merge request list failed; reading REST instead", {
-              repository: input.repository,
-              reason: cause._tag,
-            }).pipe(Effect.andThen(rest)),
+        Effect.catchIf(Predicate.not(isGitLabCliAccessFailure), (cause) =>
+          Effect.logWarning("GitLab GraphQL merge request list failed; reading REST instead", {
+            repository: input.repository,
+            reason: cause._tag,
+          }).pipe(Effect.andThen(rest)),
         ),
       );
     }),
@@ -2707,17 +2709,12 @@ export const make = Effect.gen(function* () {
             projectReferences({ ...input, kind, params }).pipe(
               // A project with issues turned off answers 403 for issues; its merge requests still
               // complete. An unusable CLI or account still reaches the caller.
-              Effect.catchIf(
-                (cause) =>
-                  cause._tag !== "GitLabCliUnavailableError" &&
-                  cause._tag !== "GitLabCliAuthenticationError" &&
-                  cause._tag !== "GitLabCliRateLimitError",
-                (cause) =>
-                  Effect.logWarning("GitLab reference search failed", {
-                    repository: input.repository,
-                    kind,
-                    reason: cause._tag,
-                  }).pipe(Effect.as({ items: [], rawCount: 0 })),
+              Effect.catchIf(Predicate.not(isGitLabCliAccessFailure), (cause) =>
+                Effect.logWarning("GitLab reference search failed", {
+                  repository: input.repository,
+                  kind,
+                  reason: cause._tag,
+                }).pipe(Effect.as({ items: [], rawCount: 0 })),
               ),
             ),
           { concurrency: "unbounded" },

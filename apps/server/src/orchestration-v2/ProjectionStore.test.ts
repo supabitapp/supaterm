@@ -2553,7 +2553,7 @@ const messageOrdinalsReadThroughTheirIndex = Effect.gen(function* () {
         updatedAt: recordsAt(second),
       },
     });
-    const turnItem = (index: number, payload: object) => ({
+    const turnItem = (index: number, payload: Readonly<Record<string, unknown>>) => ({
       id: EventId.make(`event:item:${name}:${index}`),
       type: "turn-item.updated",
       threadId,

@@ -67,7 +67,7 @@ async function mountStartTriage() {
   return (id: EnvironmentId) => startTriage(id);
 }
 
-function showThread(params: object) {
+function showThread<Params extends object>(params: Params) {
   harness.rootState = { index: 0, routes: [{ key: "thread", name: "Thread", params }] };
 }
 

@@ -238,7 +238,7 @@ function bodiesEvents(at: DateTime.Utc): OrchestrationV2DomainEvent[] {
       occurredAt: at,
       ...rest,
     }) as OrchestrationV2DomainEvent;
-  const item = (key: string, ordinal: number, fields: object) =>
+  const item = (key: string, ordinal: number, fields: Readonly<Record<string, unknown>>) =>
     event(`${key}-item`, {
       type: "turn-item.updated",
       payload: {

@@ -864,9 +864,8 @@ type Rgb = readonly [number, number, number];
 
 function parseCssColor(color: string): Rgb | undefined {
   if (color.startsWith("#") && color.length === 7) {
-    return [1, 3, 5].map((offset) =>
-      Number.parseInt(color.slice(offset, offset + 2), 16),
-    ) as unknown as Rgb;
+    const channel = (offset: number) => Number.parseInt(color.slice(offset, offset + 2), 16);
+    return [channel(1), channel(3), channel(5)];
   }
   const match = /^rgb\((\d+),(\d+),(\d+)\)$/u.exec(color);
   return match === null ? undefined : [Number(match[1]), Number(match[2]), Number(match[3])];

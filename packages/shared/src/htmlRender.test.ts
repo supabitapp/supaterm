@@ -169,7 +169,7 @@ describe("readHtmlRenderImageRequest", () => {
       images: [{ src: "https://example.com/a.png", name: "A" }, { src: "blob:null/1" }, b, null],
       index: 2,
     };
-    const request = (overrides: object) =>
+    const request = (overrides: { readonly index?: number }) =>
       readHtmlRenderImageRequest({
         jsonrpc: "2.0",
         method: "supaterm/notifications/open-image",

@@ -1,4 +1,5 @@
 // @effect-diagnostics nodeBuiltinImport:off
+import { field } from "@supaterm/shared/Struct";
 import * as NodePath from "node:path";
 import * as NodeOS from "node:os";
 import * as NodeURL from "node:url";
@@ -43,7 +44,7 @@ const isOutgoing = (tag: string) => (event: EffectAcpProtocol.AcpProtocolLogEven
   event.stage === "decoded" &&
   typeof event.payload === "object" &&
   event.payload !== null &&
-  Reflect.get(event.payload, "tag") === tag;
+  field(event.payload, "tag") === tag;
 
 // The methods the mock agent read, in order, keeping only the given ones.
 const readReceived = (requestLogPath: string, methods: ReadonlyArray<string>) =>

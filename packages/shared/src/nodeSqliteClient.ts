@@ -812,14 +812,16 @@ const make = Effect.fn("makeWithDatabase")(function* (
     const statementFor = (sql: string, params: ReadonlyArray<unknown>) =>
       hasLargeBinding(params) ? prepare(sql) : Cache.get(prepareCache, sql);
 
-    const runStatement = (
+    const noRows = (): ReadonlyArray<never> => [];
+    const runStatement = <Changes>(
       statement: NodeSqlite.StatementSync,
       params: ReadonlyArray<unknown>,
-      mode: "rows" | "raw" | "values" = "rows",
+      mode: "rows" | "values",
+      onChanges: (changes: NodeSqlite.StatementResultingChanges) => Changes,
     ) =>
-      Effect.withFiber<ReadonlyArray<any>, SqlError>((fiber) => {
+      Effect.withFiber<ReadonlyArray<any> | Changes, SqlError>((fiber) => {
         let arrays = false;
-        let result: Exit.Exit<ReadonlyArray<unknown>, SqlError>;
+        let result: Exit.Exit<ReadonlyArray<unknown> | Changes, SqlError>;
         try {
           statement.setReadBigInts(Boolean(Context.get(fiber.context, Client.SafeIntegers)));
           if (hasRows(statement)) {
@@ -827,10 +829,7 @@ const make = Effect.fn("makeWithDatabase")(function* (
             if (arrays) statement.setReturnArrays(true);
             result = Exit.succeed(statement.all(...(params as any)));
           } else {
-            const value = statement.run(...(params as any));
-            result = Exit.succeed(
-              mode === "raw" ? (value as unknown as ReadonlyArray<unknown>) : [],
-            );
+            result = Exit.succeed(onChanges(statement.run(...(params as any))));
           }
         } catch (cause) {
           result = Exit.fail(
@@ -857,13 +856,17 @@ const make = Effect.fn("makeWithDatabase")(function* (
         return result;
       });
 
-    const run = (sql: string, params: ReadonlyArray<unknown>, raw = false) =>
+    const run = (sql: string, params: ReadonlyArray<unknown>) =>
       Effect.flatMap(statementFor(sql, params), (statement) =>
-        runStatement(statement, params, raw ? "raw" : "rows"),
+        runStatement(statement, params, "rows", noRows),
+      );
+    const runRaw = (sql: string, params: ReadonlyArray<unknown>) =>
+      Effect.flatMap(statementFor(sql, params), (statement) =>
+        runStatement(statement, params, "rows", (changes) => changes),
       );
     const runValues = (sql: string, params: ReadonlyArray<unknown>) =>
       Effect.flatMap(statementFor(sql, params), (statement) =>
-        runStatement(statement, params, "values"),
+        runStatement(statement, params, "values", noRows),
       );
 
     return identity<Connection>({
@@ -871,19 +874,19 @@ const make = Effect.fn("makeWithDatabase")(function* (
         return rowTransform ? Effect.map(run(sql, params), rowTransform) : run(sql, params);
       },
       executeRaw(sql, params) {
-        return run(sql, params, true);
+        return runRaw(sql, params);
       },
       executeValues(sql, params) {
         return runValues(sql, params);
       },
       executeValuesUnprepared(sql, params) {
         return Effect.flatMap(prepare(sql), (statement) =>
-          runStatement(statement, params ?? [], "values"),
+          runStatement(statement, params ?? [], "values", noRows),
         );
       },
       executeUnprepared(sql, params, rowTransform) {
         const effect = prepare(sql).pipe(
-          Effect.flatMap((statement) => runStatement(statement, params ?? [])),
+          Effect.flatMap((statement) => runStatement(statement, params ?? [], "rows", noRows)),
         );
         return rowTransform ? Effect.map(effect, rowTransform) : effect;
       },

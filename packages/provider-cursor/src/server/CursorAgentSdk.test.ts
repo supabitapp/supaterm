@@ -1,3 +1,4 @@
+import { field } from "@supaterm/shared/Struct";
 import type { ListRunsOptions } from "@cursor/sdk";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, describe, it } from "@effect/vitest";
@@ -138,7 +139,7 @@ const layerTest = CursorAgentSdk.layer.pipe(
             if (
               typeof event === "object" &&
               event !== null &&
-              Reflect.get(Reflect.get(event, "event"), "payload")?.type === "agent.close"
+              field(field(field(event, "event"), "payload"), "type") === "agent.close"
             ) {
               cursorSdkMock.closeExecutionOrder.push("protocol:agent.close");
             }
@@ -330,7 +331,7 @@ describe("CursorAgentSdkRunner", () => {
   it.effect("forwards the agent's own shell stream output as shell-output-delta", () =>
     Effect.gen(function* () {
       const publish = (conversationId: string, data: string) =>
-        (Reflect.get(globalThis, Symbol.for("@cursor/sdk.shellStreamOutput")) as Function)({
+        (field(globalThis, Symbol.for("@cursor/sdk.shellStreamOutput")) as Function)({
           conversationId,
           toolCallId: "tool-shell",
           event: { case: "stdout", value: { data } },

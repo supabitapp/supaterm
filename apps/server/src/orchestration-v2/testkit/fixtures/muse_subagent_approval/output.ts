@@ -1,3 +1,4 @@
+import { field } from "@supaterm/shared/Struct";
 import { assert } from "@effect/vitest";
 import type { ProviderReplayTranscript } from "@supaterm/contracts";
 
@@ -27,9 +28,7 @@ export function assertMuseSubagentApprovalOutput(
   assert.isTrue(
     outbound.some(
       (frame) =>
-        typeof frame === "object" &&
-        frame !== null &&
-        Reflect.get(frame, "method") === "approval/decide",
+        typeof frame === "object" && frame !== null && field(frame, "method") === "approval/decide",
     ),
     "the answer reaches Muse",
   );

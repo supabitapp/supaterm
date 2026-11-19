@@ -160,11 +160,8 @@ export const removeLinkedWorktree = Effect.fn("WorktreeRemoval.removeLinkedWorkt
   const lockFile = path.join(adminDir, "locked");
   const locked = yield* fileSystem.stat(lockFile).pipe(
     Effect.as(true),
-    Effect.catch((error) =>
-      error.reason._tag === "NotFound"
-        ? Effect.succeed(false)
-        : Effect.fail(refuse(`cannot inspect the lock of '${worktreePath}'`, error)),
-    ),
+    Effect.catchReason("PlatformError", "NotFound", () => Effect.succeed(false)),
+    Effect.mapError((error) => refuse(`cannot inspect the lock of '${worktreePath}'`, error)),
   );
   if (locked) {
     const reason = (yield* fileSystem.readFileString(lockFile).pipe(Effect.option)).pipe(

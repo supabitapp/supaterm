@@ -152,15 +152,17 @@ const readDocument = (
   DesktopConnectionCatalogStoreReadError | DesktopConnectionCatalogStoreDocumentDecodeError
 > =>
   fileSystem.readFileString(catalogPath).pipe(
-    Effect.catch((error) =>
-      error.reason._tag === "NotFound"
-        ? Effect.succeed<string | null>(null)
-        : Effect.fail(
-            new DesktopConnectionCatalogStoreReadError({
-              catalogPath,
-              cause: error,
-            }),
-          ),
+    Effect.catchReason(
+      "PlatformError",
+      "NotFound",
+      () => Effect.succeed<string | null>(null),
+      (_reason, error) =>
+        Effect.fail(
+          new DesktopConnectionCatalogStoreReadError({
+            catalogPath,
+            cause: error,
+          }),
+        ),
     ),
     Effect.flatMap((raw) =>
       raw === null

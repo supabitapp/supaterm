@@ -258,7 +258,11 @@ describe("search", () => {
 describe("codexMicroThreadChoices", () => {
   const environmentId = EnvironmentId.make("env");
   const projectId = ProjectId.make("project");
-  const thread = (id: string, updatedAt: string, overrides: object = {}) => ({
+  const thread = (
+    id: string,
+    updatedAt: string,
+    overrides: { readonly archivedAt?: string; readonly deletedAt?: string } = {},
+  ) => ({
     environmentId,
     id: ThreadId.make(id),
     projectId,

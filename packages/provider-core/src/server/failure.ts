@@ -197,8 +197,13 @@ function curatedCauseMessages(cause: unknown): {
 }
 
 // Only the structured status; stderr and the spawner cause can carry provider output.
-function processExitStatus(exited: object): string {
-  const { signal, code } = exited as Record<string, unknown>;
+function processExitStatus({
+  signal,
+  code,
+}: {
+  readonly signal?: string | undefined;
+  readonly code?: number | undefined;
+}): string {
   if (typeof signal === "string" && /^SIG[A-Z0-9]{1,16}$/u.test(signal)) {
     return ` after signal ${signal}`;
   }

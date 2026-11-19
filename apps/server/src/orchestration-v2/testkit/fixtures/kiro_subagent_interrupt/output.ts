@@ -1,3 +1,4 @@
+import { field } from "@supaterm/shared/Struct";
 import { assert } from "@effect/vitest";
 import type { ProviderReplayTranscript } from "@supaterm/contracts";
 
@@ -12,11 +13,11 @@ export function kiroFailedAfterCancel(transcript: ProviderReplayTranscript): Arr
   assert.isAtLeast(cancelIndex, 0, "Stop must reach Kiro as session/cancel");
   return transcript.entries.slice(cancelIndex).flatMap((entry) => {
     if (entry.type !== "emit_inbound") return [];
-    const params = Reflect.get(Object(entry.frame), "params");
-    const update = Reflect.get(Object(params), "update");
-    return Reflect.get(Object(update), "sessionUpdate") === "tool_call_update" &&
-      Reflect.get(Object(update), "status") === "failed"
-      ? [String(Reflect.get(Object(update), "toolCallId"))]
+    const params = field(entry.frame, "params");
+    const update = field(params, "update");
+    return field(update, "sessionUpdate") === "tool_call_update" &&
+      field(update, "status") === "failed"
+      ? [String(field(update, "toolCallId"))]
       : [];
   });
 }

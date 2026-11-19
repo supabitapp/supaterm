@@ -2,7 +2,11 @@ import type { ServerProvider } from "@supaterm/contracts";
 
 const CHECKED_AT_ONLY_KEYS = new Set(["usageLimits", "versionAdvisory"]);
 
-function sameIgnoringCheckedAt(previous: object, next: object, nested: boolean): boolean {
+function sameIgnoringCheckedAt<Value extends object>(
+  previous: Value,
+  next: Value,
+  nested: boolean,
+): boolean {
   const before = previous as Record<string, unknown>;
   const after = next as Record<string, unknown>;
   const keys = Object.keys(after);

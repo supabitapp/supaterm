@@ -169,7 +169,7 @@ it.effect("answers failed opens and drops a tab that sends malformed control mes
     const socket = new WebSocket(url, { origin });
     yield* Effect.addFinalizer(() => Effect.sync(() => socket.close()));
     yield* Effect.promise(() => NodeEvents.EventEmitter.once(socket, "open"));
-    const exchange = (request: object) => {
+    const exchange = (request: Readonly<Record<string, unknown>>) => {
       const reply = NodeEvents.EventEmitter.once(socket, "message");
       socket.send(JSON.stringify(request));
       return Effect.promise(() => reply).pipe(Effect.map(([data]) => JSON.parse(String(data))));

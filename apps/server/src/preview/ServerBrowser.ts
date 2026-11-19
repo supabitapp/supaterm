@@ -983,7 +983,7 @@ const make = Effect.gen(function* () {
     void (async () => {
       await page.exposeFunction(binding, unloaded.resolve);
       await page.evaluate((name) => {
-        const target = globalThis as unknown as {
+        const target = globalThis as typeof globalThis & {
           addEventListener: (type: string, listener: () => void) => void;
         } & Record<string, () => void>;
         target.addEventListener("pagehide", () => target[name]?.());
@@ -1541,7 +1541,8 @@ const make = Effect.gen(function* () {
       .element()
       .evaluate(
         (element) =>
-          element.ownerDocument === (globalThis as unknown as { document: unknown }).document,
+          element.ownerDocument ===
+          (globalThis as typeof globalThis & { document: unknown }).document,
       )
       .catch(() => false);
 
@@ -2281,7 +2282,7 @@ const make = Effect.gen(function* () {
         });
         await encoder.evaluate(
           ([data, width]) =>
-            (globalThis as unknown as EncoderWindow).__supatermRecorder.frame(data, width),
+            (globalThis as typeof globalThis & EncoderWindow).__supatermRecorder.frame(data, width),
           [firstFrame, tab.page.viewportSize()?.width ?? UNATTACHED_FILL_VIEWPORT.width] as const,
         );
         const opened = await tab.page.context().newCDPSession(tab.page);
@@ -2297,7 +2298,10 @@ const make = Effect.gen(function* () {
             const accepted = await encoder
               .evaluate(
                 ([data, width]) =>
-                  (globalThis as unknown as EncoderWindow).__supatermRecorder.frame(data, width),
+                  (globalThis as typeof globalThis & EncoderWindow).__supatermRecorder.frame(
+                    data,
+                    width,
+                  ),
                 next,
               )
               .catch(() => true);
@@ -2387,7 +2391,10 @@ const make = Effect.gen(function* () {
             await recording.encoder
               .evaluate(
                 ([data, width]) =>
-                  (globalThis as unknown as EncoderWindow).__supatermRecorder.frame(data, width),
+                  (globalThis as typeof globalThis & EncoderWindow).__supatermRecorder.frame(
+                    data,
+                    width,
+                  ),
                 [
                   finalFrame,
                   tab.page.viewportSize()?.width ?? UNATTACHED_FILL_VIEWPORT.width,
@@ -2397,7 +2404,7 @@ const make = Effect.gen(function* () {
           }
         }
         const { mimeType, count, bytes } = await recording.encoder.evaluate(() =>
-          (globalThis as unknown as EncoderWindow).__supatermRecorder.stop(),
+          (globalThis as typeof globalThis & EncoderWindow).__supatermRecorder.stop(),
         );
         // Checked before the transfer so an oversized video never lands in this process.
         if (bytes > PROVIDER_SEND_TURN_MAX_FILE_BYTES) {
@@ -2424,7 +2431,7 @@ const make = Effect.gen(function* () {
                 timeout: RECORDING_DOWNLOAD_TIMEOUT_MS,
               }),
               recording.encoder.evaluate(() =>
-                (globalThis as unknown as EncoderWindow).__supatermRecorder.download(),
+                (globalThis as typeof globalThis & EncoderWindow).__supatermRecorder.download(),
               ),
             ]);
             await download.saveAs(stagedPath);
@@ -2440,7 +2447,9 @@ const make = Effect.gen(function* () {
           for (let index = 0; index < count; index += 1) {
             const chunk = await recording.encoder.evaluate(
               (chunkIndex) =>
-                (globalThis as unknown as EncoderWindow).__supatermRecorder.chunk(chunkIndex),
+                (globalThis as typeof globalThis & EncoderWindow).__supatermRecorder.chunk(
+                  chunkIndex,
+                ),
               index,
             );
             chunks.push(Buffer.from(chunk, "base64"));
@@ -2485,7 +2494,11 @@ const make = Effect.gen(function* () {
         void encoder
           ?.evaluate(
             ([px, py, click]) =>
-              (globalThis as unknown as EncoderWindow).__supatermRecorder?.cursor(px, py, click),
+              (globalThis as typeof globalThis & EncoderWindow).__supatermRecorder?.cursor(
+                px,
+                py,
+                click,
+              ),
             [x, y, next === "click"] as const,
           )
           .catch(constVoid);

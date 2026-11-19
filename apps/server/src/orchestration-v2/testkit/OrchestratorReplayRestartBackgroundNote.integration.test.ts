@@ -1,3 +1,4 @@
+import { field } from "@supaterm/shared/Struct";
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, describe, it } from "@effect/vitest";
@@ -52,10 +53,7 @@ const readRestartTranscript = Effect.fn("readRestartTranscript")(function* (
 
   const queryOpen = recorded.entries[0];
   const openFrame = queryOpen?.type === "expect_outbound" ? queryOpen.frame : undefined;
-  const queryOptions: unknown =
-    typeof openFrame === "object" && openFrame !== null
-      ? Reflect.get(openFrame, "options")
-      : undefined;
+  const queryOptions: unknown = field(openFrame, "options");
   if (typeof queryOptions !== "object" || queryOptions === null) {
     throw new Error(`${SCENARIO} must open with a recorded query.open frame.`);
   }

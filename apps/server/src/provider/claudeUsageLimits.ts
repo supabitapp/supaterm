@@ -1,3 +1,4 @@
+import { field } from "@supaterm/shared/Struct";
 import type { SDKControlGetUsageResponse, SDKRateLimitInfo } from "@anthropic-ai/claude-agent-sdk";
 import type {
   ProviderUsageLimitsUpdate,
@@ -114,8 +115,10 @@ interface ModelScopedWindow {
   readonly resets_at: string | null;
 }
 
-function readModelScoped(rateLimits: object): ReadonlyArray<ModelScopedWindow> {
-  const raw = (rateLimits as { readonly model_scoped?: unknown }).model_scoped;
+function readModelScoped(
+  rateLimits: NonNullable<SDKControlGetUsageResponse["rate_limits"]>,
+): ReadonlyArray<ModelScopedWindow> {
+  const raw = field(rateLimits, "model_scoped");
   if (!Array.isArray(raw)) return [];
   return raw.filter(
     (entry): entry is ModelScopedWindow =>

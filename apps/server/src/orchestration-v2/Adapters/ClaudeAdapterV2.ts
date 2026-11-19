@@ -3503,9 +3503,9 @@ function isClaudeWebSearchOutput(output: unknown): output is WebSearchOutput {
   return (
     typeof output === "object" &&
     output !== null &&
-    typeof Reflect.get(output, "query") === "string" &&
-    Array.isArray(Reflect.get(output, "results")) &&
-    typeof Reflect.get(output, "durationSeconds") === "number"
+    typeof field(output, "query") === "string" &&
+    Array.isArray(field(output, "results")) &&
+    typeof field(output, "durationSeconds") === "number"
   );
 }
 
@@ -3623,7 +3623,7 @@ function claudeTaskTypeFromSdkMessage(message: SDKMessage): string | null {
   if (typeof message !== "object" || message === null) {
     return null;
   }
-  const taskType = Reflect.get(message, "task_type");
+  const taskType = field(message, "task_type");
   return typeof taskType === "string" ? taskType : null;
 }
 
@@ -3683,22 +3683,22 @@ function parseClaudeBackgroundTaskEntry(
   if (entry === null || typeof entry !== "object") {
     return null;
   }
-  const taskId = Reflect.get(entry, "task_id");
+  const taskId = field(entry, "task_id");
   if (typeof taskId !== "string" || taskId.length === 0) {
     return null;
   }
-  const rawTaskType = Reflect.get(entry, "task_type");
+  const rawTaskType = field(entry, "task_type");
   const taskType = typeof rawTaskType === "string" ? rawTaskType : null;
   if (!isClaudeOpaqueBackgroundTaskType(taskType)) {
     return null;
   }
-  const description = Reflect.get(entry, "description");
+  const description = field(entry, "description");
   return claudePendingBackgroundTask({
     taskId,
     taskType,
     startedByMonitor: monitorTasks.has(taskId),
     description: typeof description === "string" ? description : undefined,
-    parentTaskId: Reflect.get(entry, "parent_task_id"),
+    parentTaskId: field(entry, "parent_task_id"),
     toolUseId: toolUseIds.get(taskId),
   });
 }
@@ -3809,8 +3809,8 @@ function claudeFileChangeText(output: ClaudeNativeToolOutput): string {
 function claudeCommandOutputText(output: ClaudeNativeToolOutput): string {
   const value = claudeNativeToolOutputValue(output);
   if (typeof value === "object" && value !== null) {
-    const stdout = Reflect.get(value, "stdout");
-    const stderr = Reflect.get(value, "stderr");
+    const stdout = field(value, "stdout");
+    const stderr = field(value, "stderr");
     if (typeof stdout === "string" || typeof stderr === "string") {
       const out = typeof stdout === "string" && stdout.trim().length > 0 ? stdout : "";
       const err = typeof stderr === "string" && stderr.trim().length > 0 ? stderr : "";
@@ -4097,7 +4097,7 @@ function claudeToolPresentationsFromAssistantMessage(
   message: SDKMessage,
 ): ReadonlyMap<string, ClaudeToolPresentation> {
   const presentations = new Map<string, ClaudeToolPresentation>();
-  const meta = message.type === "assistant" ? Reflect.get(message, "tool_use_meta") : undefined;
+  const meta = message.type === "assistant" ? field(message, "tool_use_meta") : undefined;
   if (!Array.isArray(meta)) return presentations;
   const toolNames = new Map(
     claudeToolUseBlocksFromAssistantMessage(message).map((tool) => [
@@ -4107,15 +4107,15 @@ function claudeToolPresentationsFromAssistantMessage(
   );
   for (const entry of meta) {
     if (typeof entry !== "object" || entry === null) continue;
-    const id = normalizeMcpText(Reflect.get(entry, "id"), 512);
+    const id = normalizeMcpText(field(entry, "id"), 512);
     if (id === undefined) continue;
     presentations.set(
       id,
       mcpToolPresentation({
         toolName: toolNames.get(id),
-        title: Reflect.get(entry, "display_name"),
-        serverDisplayName: Reflect.get(entry, "server_display_name"),
-        iconUrl: Reflect.get(entry, "icon_url"),
+        title: field(entry, "display_name"),
+        serverDisplayName: field(entry, "server_display_name"),
+        iconUrl: field(entry, "icon_url"),
       }),
     );
   }
@@ -4486,12 +4486,12 @@ function isClaudePromptEchoGatedFrame(message: SDKMessage): boolean {
 
 function claudeFrameToolUseIds(message: SDKMessage): ReadonlyArray<string> {
   const ids: Array<string> = [];
-  const parent = Reflect.get(message, "parent_tool_use_id");
+  const parent = field(message, "parent_tool_use_id");
   if (typeof parent === "string") {
     ids.push(parent);
   }
   if (message.type === "system") {
-    const toolUseId = Reflect.get(message, "tool_use_id");
+    const toolUseId = field(message, "tool_use_id");
     if (typeof toolUseId === "string") {
       ids.push(toolUseId);
     }
@@ -4500,21 +4500,21 @@ function claudeFrameToolUseIds(message: SDKMessage): ReadonlyArray<string> {
 }
 
 function claudeEchoedPromptUuids(message: SDKMessage): ReadonlyArray<string> {
-  const uuids = Reflect.get(message, "user_message_uuids");
+  const uuids = field(message, "user_message_uuids");
   if (Array.isArray(uuids)) {
     return uuids.filter((uuid): uuid is string => typeof uuid === "string");
   }
-  const uuid = Reflect.get(message, "user_message_uuid");
+  const uuid = field(message, "user_message_uuid");
   return typeof uuid === "string" ? [uuid] : [];
 }
 
 function claudePromptLifecycle(
   message: SDKMessage,
 ): { readonly uuid: string; readonly state: string } | null {
-  const type: unknown = Reflect.get(message, "type");
+  const type: unknown = field(message, "type");
   if (type !== "command_lifecycle") return null;
-  const uuid: unknown = Reflect.get(message, "command_uuid");
-  const state: unknown = Reflect.get(message, "state");
+  const uuid: unknown = field(message, "command_uuid");
+  const state: unknown = field(message, "state");
   return typeof uuid === "string" && typeof state === "string" ? { uuid, state } : null;
 }
 
@@ -5159,12 +5159,8 @@ type PendingClaudeRuntimeRequest =
 export function claudeUserInputQuestions(
   input: unknown,
 ): ReadonlyArray<OrchestrationV2UserInputQuestion> {
-  const value =
-    typeof input === "object" && input !== null && Reflect.get(input, "type") === "record"
-      ? Reflect.get(input, "value")
-      : input;
-  const questions =
-    typeof value === "object" && value !== null ? Reflect.get(value, "questions") : undefined;
+  const value = field(input, "type") === "record" ? field(input, "value") : input;
+  const questions = field(value, "questions");
   if (!Array.isArray(questions)) return [];
   return questions.flatMap((value: unknown, index: number) => {
     if (typeof value !== "object" || value === null) return [];
@@ -5222,21 +5218,15 @@ export function claudeSdkUserInputAnswers(
 }
 
 function claudeTodoSteps(input: unknown): ReadonlyArray<OrchestrationV2PlanStep> {
-  const value =
-    typeof input === "object" && input !== null && Reflect.get(input, "type") === "record"
-      ? Reflect.get(input, "value")
-      : input;
-  const todos =
-    typeof value === "object" && value !== null ? Reflect.get(value, "todos") : undefined;
+  const value = field(input, "type") === "record" ? field(input, "value") : input;
+  const todos = field(value, "todos");
   if (!Array.isArray(todos)) return [];
   return todos.flatMap((todo, index) => {
     if (typeof todo !== "object" || todo === null) return [];
     const text =
-      typeof Reflect.get(todo, "content") === "string"
-        ? String(Reflect.get(todo, "content")).trim()
-        : "";
+      typeof field(todo, "content") === "string" ? String(field(todo, "content")).trim() : "";
     if (text.length === 0) return [];
-    const nativeStatus = Reflect.get(todo, "status");
+    const nativeStatus = field(todo, "status");
     return [
       {
         id: `todo-${index}`,
@@ -5254,25 +5244,21 @@ function claudeTodoSteps(input: unknown): ReadonlyArray<OrchestrationV2PlanStep>
 
 type ClaudeTaskList = ReadonlyMap<string, Omit<OrchestrationV2PlanStep, "id">>;
 
-function claudeTaskField(value: unknown, key: string): unknown {
-  return typeof value === "object" && value !== null ? Reflect.get(value, key) : undefined;
-}
-
 function claudeTaskString(value: unknown, key: string): string | undefined {
-  const field = claudeTaskField(value, key);
-  return typeof field === "string" && field.trim().length > 0 ? field.trim() : undefined;
+  const found = field(value, key);
+  return typeof found === "string" && found.trim().length > 0 ? found.trim() : undefined;
 }
 
 // A Claude Code mod can hold a tool call until the user acts in its terminal
 // pane. Supaterm cannot provide the requested pane interaction.
 // Passive panes never request focus and keep working.
 function claudeFocusRequestedPanePlugin(message: SDKMessage): string | null {
-  if (message.type !== "system" || claudeTaskField(message, "subtype") !== "ui_panes") return null;
+  if (message.type !== "system" || field(message, "subtype") !== "ui_panes") return null;
   const paneId = claudeTaskString(message, "focus_requested_id");
   if (paneId === undefined) return null;
-  const panes = claudeTaskField(message, "panes");
+  const panes = field(message, "panes");
   const pane = Array.isArray(panes)
-    ? panes.find((entry) => claudeTaskField(entry, "id") === paneId)
+    ? panes.find((entry) => field(entry, "id") === paneId)
     : undefined;
   return claudeTaskString(pane, "plugin") ?? paneId;
 }
@@ -5297,13 +5283,13 @@ function applyClaudeTaskTool(
   result: unknown,
 ): ClaudeTaskList | undefined {
   if (toolName === "TaskList") {
-    const listed = claudeTaskField(result, "tasks");
+    const listed = field(result, "tasks");
     if (!Array.isArray(listed)) return undefined;
     const next = new Map<string, Omit<OrchestrationV2PlanStep, "id">>();
     for (const task of listed) {
       const id = claudeTaskString(task, "id");
       const text = claudeTaskString(task, "subject");
-      const status = claudeTaskStatus(claudeTaskField(task, "status"));
+      const status = claudeTaskStatus(field(task, "status"));
       if (id !== undefined && text !== undefined && status !== undefined) {
         next.set(id, { text, status });
       }
@@ -5311,7 +5297,7 @@ function applyClaudeTaskTool(
     return next.size === 0 && tasks.size === 0 ? undefined : next;
   }
   if (toolName === "TaskCreate") {
-    const created = claudeTaskField(result, "task");
+    const created = field(result, "task");
     const fromText = claudeCreatedTaskFromText(result);
     const id = claudeTaskString(created, "id") ?? fromText?.id;
     const text =
@@ -5323,7 +5309,7 @@ function applyClaudeTaskTool(
   }
   if (
     toolName !== "TaskUpdate" ||
-    claudeTaskField(result, "success") === false ||
+    field(result, "success") === false ||
     (typeof result === "string" && !result.startsWith("Updated task #"))
   ) {
     return undefined;
@@ -5331,7 +5317,7 @@ function applyClaudeTaskTool(
   const id = claudeTaskString(input, "taskId") ?? claudeTaskString(result, "taskId");
   const task = id === undefined ? undefined : tasks.get(id);
   if (id === undefined || task === undefined) return undefined;
-  const nativeStatus = claudeTaskField(input, "status");
+  const nativeStatus = field(input, "status");
   if (nativeStatus === "deleted") {
     const next = new Map(tasks);
     next.delete(id);
@@ -5404,11 +5390,8 @@ function claudeTaskSteps(tasks: ClaudeTaskList): ReadonlyArray<OrchestrationV2Pl
 }
 
 function claudeProposedPlan(input: unknown): string | null {
-  const value =
-    typeof input === "object" && input !== null && Reflect.get(input, "type") === "record"
-      ? Reflect.get(input, "value")
-      : input;
-  const plan = typeof value === "object" && value !== null ? Reflect.get(value, "plan") : undefined;
+  const value = field(input, "type") === "record" ? field(input, "value") : input;
+  const plan = field(value, "plan");
   return typeof plan === "string" && plan.trim().length > 0 ? plan.trim() : null;
 }
 
@@ -5605,16 +5588,12 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
     const model = compileClaudeModelSelection(modelSelection).apiModelId.replace(/\[1m\]$/i, "");
     const windowFrom = (settings: unknown) => {
       if (typeof settings !== "object" || settings === null) return undefined;
-      const models = Reflect.get(settings, "modelSettings");
-      const modelSetting =
-        typeof models === "object" && models !== null ? Reflect.get(models, model) : undefined;
-      const modelWindow =
-        typeof modelSetting === "object" && modelSetting !== null
-          ? Reflect.get(modelSetting, "autoCompactWindow")
-          : undefined;
+      const models = field(settings, "modelSettings");
+      const modelSetting = field(models, model);
+      const modelWindow = field(modelSetting, "autoCompactWindow");
       return modelWindow === "auto"
         ? ""
-        : (validWindow(modelWindow) ?? validWindow(Reflect.get(settings, "autoCompactWindow")));
+        : (validWindow(modelWindow) ?? validWindow(field(settings, "autoCompactWindow")));
     };
     const launchWindow = windowFrom(launchArgSettings);
     if (launchWindow !== undefined) return launchWindow;
@@ -5954,10 +5933,7 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
           );
           if (returned.length === 0) return;
           const result = message.tool_use_result;
-          const scheduledFor =
-            returned.length === 1 && typeof result === "object" && result !== null
-              ? Reflect.get(result, "scheduledFor")
-              : undefined;
+          const scheduledFor = returned.length === 1 ? field(result, "scheduledFor") : undefined;
           // stop:true reports scheduledFor 0. A failed call also clears: losing the hold early
           // is recoverable, a hold that outlives its wakeup is not.
           possibleEarlyWakeNativeThreads.delete(nativeThreadId);
@@ -10119,17 +10095,14 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
           let rosterChanged = false;
 
           if (isClaudeBackgroundTasksChangedMessage(message)) {
-            const roster = Reflect.get(message, "tasks");
+            const roster = field(message, "tasks");
             if (!Array.isArray(roster)) {
               return false;
             }
             const nextTasks: OrchestrationV2PendingBackgroundTask[] = [];
             const listedTaskIds = new Set(
               roster.flatMap((entry) => {
-                const taskId =
-                  entry !== null && typeof entry === "object"
-                    ? Reflect.get(entry, "task_id")
-                    : undefined;
+                const taskId = field(entry, "task_id");
                 return typeof taskId === "string" ? [taskId] : [];
               }),
             );
@@ -10205,7 +10178,7 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
                 }),
                 description:
                   typeof message.description === "string" ? message.description : undefined,
-                parentTaskId: Reflect.get(message, "parent_task_id"),
+                parentTaskId: field(message, "parent_task_id"),
                 toolUseId,
               }),
             });
@@ -10507,7 +10480,7 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
             } else if (
               // Background tasks from earlier turns keep streaming while the root request hangs.
               // Only the root starts depth-1 tasks, so such a start (a forked skill) is this turn's.
-              Reflect.get(message, "parent_tool_use_id") == null &&
+              field(message, "parent_tool_use_id") == null &&
               !(
                 message.type === "system" &&
                 message.subtype.startsWith("task_") &&
@@ -11497,10 +11470,7 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
               // afterward the cache also records an unavailable store.
               const storedTaskList =
                 !taskLists.has(liveQuery.nativeThreadId) &&
-                !(
-                  toolCall.toolName === "TaskList" &&
-                  Array.isArray(claudeTaskField(outputValue, "tasks"))
-                )
+                !(toolCall.toolName === "TaskList" && Array.isArray(field(outputValue, "tasks")))
                   ? yield* readClaudeTaskList({
                       environment: adapterOptions.environment,
                       cwd: context.input.runtimePolicy.cwd,
@@ -12481,11 +12451,8 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
               const answers =
                 result.updatedInput === undefined
                   ? undefined
-                  : Reflect.get(result.updatedInput, "answers");
-              const selection =
-                typeof answers === "object" && answers !== null
-                  ? Reflect.get(answers, question)
-                  : undefined;
+                  : field(result.updatedInput, "answers");
+              const selection = field(answers, question);
               return {
                 behavior: "completed" as const,
                 result:

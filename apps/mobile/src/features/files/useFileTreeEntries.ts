@@ -91,8 +91,8 @@ function createRequests() {
 }
 
 function getRequests(
-  requestsByTarget: WeakMap<object, ReturnType<typeof createRequests>>,
-  target: object,
+  requestsByTarget: WeakMap<WeakKey, ReturnType<typeof createRequests>>,
+  target: WeakKey,
 ) {
   let requests = requestsByTarget.get(target);
   if (!requests) {
@@ -177,7 +177,7 @@ export function useFileTreeEntries(input: {
       return { ...current, workspaces: new Map(current.workspaces).set(workspaceKey, next) };
     });
   const { target } = directories;
-  const requestsByTarget = useRef(new WeakMap<object, ReturnType<typeof createRequests>>());
+  const requestsByTarget = useRef(new WeakMap<WeakKey, ReturnType<typeof createRequests>>());
   // Cancel the old target before consumers' passive effects start new directory loads.
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- loads the root and aborts the old target's directory requests before consumers start new loads
   useLayoutEffect(() => {

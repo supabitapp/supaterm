@@ -70,12 +70,10 @@ type RouteLike = { readonly name: string; readonly key?: string; readonly params
  * Home, so the tab always starts from its list and Back returns there. Routes already on screen
  * keep their keys, so reopening the open page doesn't rebuild it.
  */
-export function settingsNavigationState<State extends { readonly routes: readonly RouteLike[] }>(
-  state: State,
-  page: SettingsPageName | undefined,
-  params?: object,
-  key?: string,
-) {
+export function settingsNavigationState<
+  State extends { readonly routes: readonly RouteLike[] },
+  Params extends object,
+>(state: State, page: SettingsPageName | undefined, params?: Params, key?: string) {
   const home = state.routes.find((route) => route.name === "Home") ?? { name: "Home" };
   const list = state.routes.find((route) => route.name === "Settings") ?? { name: "Settings" };
   const current = page

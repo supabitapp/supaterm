@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from "react";
 import type { NativeSyntheticEvent } from "react-native";
 
+import type { NativeReviewDiffDebugEvent } from "../diffs/nativeReviewDiffSurface";
 import { createNativeReviewDiffTheme, type NativeReviewDiffData } from "./nativeReviewDiffAdapter";
 import { useAppearanceCodeSurface } from "../settings/appearance/useAppearanceCodeSurface";
 import { useAppearancePreferences } from "../settings/appearance/AppearancePreferencesProvider";
@@ -74,7 +75,7 @@ export function useNativeReviewDiffBridge(input: {
       enabled: canHighlight,
     });
 
-  const onDebug = (event: NativeSyntheticEvent<Record<string, unknown>>) => {
+  const onDebug = (event: NativeReviewDiffDebugEvent) => {
     const payload = event.nativeEvent;
     const message = payload.message;
     if (message === "surface-content-mounted") {

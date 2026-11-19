@@ -1,3 +1,4 @@
+import { field } from "@supaterm/shared/Struct";
 import { assert } from "@effect/vitest";
 import type { ProviderReplayTranscript } from "@supaterm/contracts";
 
@@ -22,9 +23,7 @@ export function assertMuseWorkflowOutput(
   const outbound = transcript.entries.flatMap((entry) =>
     entry.type === "expect_outbound" ? [entry.frame] : [],
   );
-  const methods = outbound.map((frame) =>
-    typeof frame === "object" && frame !== null ? Reflect.get(frame, "method") : undefined,
-  );
+  const methods = outbound.map((frame) => field(frame, "method"));
   assert.notInclude(methods, "turn/interrupt", "Muse's report turn must not be interrupted");
   assert.equal(methods.filter((method) => method === "turn/start").length, 1);
 
@@ -37,7 +36,7 @@ export function assertMuseWorkflowOutput(
   const finalSummary = transcript.entries
     .map((entry) =>
       entry.type === "emit_inbound"
-        ? Reflect.get(Reflect.get(Object(entry.frame).params ?? {}, "item") ?? {}, "finalSummary")
+        ? field(field(Object(entry.frame).params ?? {}, "item") ?? {}, "finalSummary")
         : undefined,
     )
     .findLast((summary) => typeof summary === "string");

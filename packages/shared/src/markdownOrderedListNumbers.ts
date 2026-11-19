@@ -40,23 +40,23 @@ export function keepOrderedListNumbers(node: MarkdownListNode, source: string): 
   for (const child of node.children) keepOrderedListNumbers(child, source);
 }
 
-const enabledProcessors = new WeakSet<object>();
+const enabledProcessors = new WeakSet<WeakKey>();
 
 /**
  * Opts a processor in. User messages use it so the sent bubble shows the numbers the composer
  * showed and the agent received; agent replies and files keep CommonMark numbering.
  */
-export function remarkEnableOrderedListNumbers(this: object): undefined {
+export function remarkEnableOrderedListNumbers(this: WeakKey): undefined {
   // oxlint-disable-next-line no-this-in-exported-function -- unified binds the processor when installing plugins.
   enabledProcessors.add(this);
 }
 
-export function keepsOrderedListNumbers(processor: object): boolean {
+export function keepsOrderedListNumbers(processor: WeakKey): boolean {
   return enabledProcessors.has(processor);
 }
 
 /** Sits before list recovery so offsets still point into the file. */
-export function remarkKeepOrderedListNumbers(this: object): Transformer<Root> {
+export function remarkKeepOrderedListNumbers(this: WeakKey): Transformer<Root> {
   return (tree, file) => {
     // oxlint-disable-next-line no-this-in-exported-function -- unified binds the processor when installing plugins.
     if (enabledProcessors.has(this)) keepOrderedListNumbers(tree, String(file));

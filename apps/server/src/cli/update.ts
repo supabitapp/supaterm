@@ -24,7 +24,6 @@ import {
   ensurePinnedRuntimeInstalled,
   findPosixLauncher,
   launcherOwnsVersionsDir,
-  PinnedRuntimeInstallError,
   pinnedRuntimePaths,
   PinnedRuntimePreflightBlockedError,
   pinnedRuntimeVersionsDir,
@@ -437,19 +436,16 @@ export const runUpdate = Effect.fn("cli.update.run")(function* (input: {
     Effect.catchTags({
       PinnedRuntimePreflightBlockedError: (error) =>
         Effect.fail(new CliUpdateError({ reason: error.reason })),
-    }),
-    Effect.catchIf(
-      (error): error is PinnedRuntimeInstallError =>
-        error._tag === "PinnedRuntimeInstallError" &&
+      PinnedRuntimeInstallError: (error) =>
         error.step.startsWith("downloading the Supaterm release checksums") &&
-        String(error.cause).includes("404"),
-      () =>
-        Effect.fail(
-          new CliUpdateError({
-            reason: `No release archive was published for supaterm@${targetVersion}.`,
-          }),
-        ),
-    ),
+        String(error.cause).includes("404")
+          ? Effect.fail(
+              new CliUpdateError({
+                reason: `No release archive was published for supaterm@${targetVersion}.`,
+              }),
+            )
+          : Effect.fail(error),
+    }),
   );
 
   const launchedAs = (yield* HostProcess.IsExecutable) ? yield* resolveLauncherPath : undefined;

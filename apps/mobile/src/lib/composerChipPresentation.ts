@@ -156,7 +156,9 @@ export function contextChipIcon(
     : { kind: "file", name: resolveMarkdownFileIcon(fileName) };
 }
 
-export function contextRecordFileName(record?: object): string {
+export function contextRecordFileName<ContextRecord extends object>(
+  record?: ContextRecord,
+): string {
   if (record && "path" in record && typeof record.path === "string") return record.path;
   if (record && "name" in record && typeof record.name === "string") return record.name;
   return "";

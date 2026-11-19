@@ -340,6 +340,9 @@ const isGitHubServerError = (error: unknown): boolean =>
 const isMissingPullRef = ({ path, type }: GraphQLClientError.GraphQLError): boolean =>
   type === "NOT_FOUND" && path?.join(".") === "repository.pullRequest.baseRef.compare";
 
+const isUndecodableReply = (error: unknown): boolean =>
+  isGraphQlClientError(error) && error.reason._tag === "DecodeError";
+
 const isRefusedRequestedReviewersOnly = (error: unknown): boolean =>
   isGraphQlClientError(error) &&
   error.reason._tag === "ResponseError" &&
@@ -1817,10 +1820,7 @@ export const make = Effect.gen(function* () {
   ) =>
     effect.pipe(
       Effect.map(toPullRequestActionSummary),
-      Effect.catchIf(
-        (error) => isGraphQlClientError(error) && error.reason._tag === "DecodeError",
-        () => Effect.void,
-      ),
+      Effect.catchIf(isUndecodableReply, () => Effect.void),
     );
 
   /**

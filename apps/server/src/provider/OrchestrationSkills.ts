@@ -8,6 +8,7 @@ import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Path from "effect/Path";
+import type * as PlatformError from "effect/PlatformError";
 import * as Semaphore from "effect/Semaphore";
 import * as ServerConfig from "../config.ts";
 import { writeFileStringAtomically } from "@supaterm/shared/atomicWrite";
@@ -27,15 +28,10 @@ export class OrchestrationSkills extends Context.Service<
   }
 >()("supaterm/provider/OrchestrationSkills") {}
 
-const notFound = <A, E extends { readonly reason: { readonly _tag: string } }, R>(
-  effect: Effect.Effect<A, E, R>,
-) =>
+const notFound = <A, R>(effect: Effect.Effect<A, PlatformError.PlatformError, R>) =>
   effect.pipe(
     Effect.asSome,
-    Effect.catchIf(
-      (error) => error.reason._tag === "NotFound",
-      () => Effect.succeedNone,
-    ),
+    Effect.catchReason("PlatformError", "NotFound", () => Effect.succeedNone),
   );
 
 const make = Effect.gen(function* () {

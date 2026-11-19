@@ -2771,13 +2771,18 @@ const make = Effect.gen(function* () {
           completionWake: "always",
         })
         .pipe(
+          Effect.catchTags({
+            OrchestratorCommandPreviouslyRejectedError: (error) =>
+              Effect.logWarning("orchestrator-mcp.delegate-task.wake-policy-failed", {
+                taskId,
+                outcome: "previously_rejected",
+                error,
+              }),
+          }),
           Effect.catch((error) =>
             Effect.logWarning("orchestrator-mcp.delegate-task.wake-policy-failed", {
               taskId,
-              outcome:
-                error._tag === "OrchestratorCommandPreviouslyRejectedError"
-                  ? "previously_rejected"
-                  : "dispatch_failed",
+              outcome: "dispatch_failed",
               error,
             }),
           ),

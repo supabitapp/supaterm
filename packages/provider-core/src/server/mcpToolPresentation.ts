@@ -1,3 +1,4 @@
+import { field } from "@supaterm/shared/Struct";
 import type { ToolActivityIcon, ToolActivitySource } from "@supaterm/contracts";
 import { resolveSupatermMcpToolDefinition } from "@supaterm/shared/supatermMcpToolPresentation";
 
@@ -45,15 +46,14 @@ export function mcpToolPresentation(input: {
   if (!server) return title ? { title } : {};
   const name =
     normalizeMcpText(input.serverDisplayName) ??
-    normalizeMcpText(source && Reflect.get(source, "name")) ??
+    normalizeMcpText(source && field(source, "name")) ??
     normalizeMcpText(server.replace(/[_-]+/gu, " ")) ??
     server;
   const logoUrl =
-    normalizeMcpHttpUrl(input.iconUrl) ??
-    normalizeMcpHttpUrl(source && Reflect.get(source, "logoUrl"));
+    normalizeMcpHttpUrl(input.iconUrl) ?? normalizeMcpHttpUrl(source && field(source, "logoUrl"));
   const logoUrlDark =
     normalizeMcpHttpUrl(input.iconUrlDark) ??
-    normalizeMcpHttpUrl(source && Reflect.get(source, "logoUrlDark"));
+    normalizeMcpHttpUrl(source && field(source, "logoUrlDark"));
   const icon = logoUrl
     ? { _tag: "themed-logo" as const, logoUrl, ...(logoUrlDark ? { logoUrlDark } : {}) }
     : undefined;

@@ -262,7 +262,7 @@ it.layer(NodeServices.layer)("EventNdjsonLogger", (it) => {
       const tempDir = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "supaterm-provider-log-"));
       const basePath = NodePath.join(tempDir, "events.log");
       const threadId = ThreadId.make("cursor-deltas");
-      const cursorUpdate = (update: object) => ({
+      const cursorUpdate = (update: Readonly<Record<string, unknown>>) => ({
         provider: "cursor",
         kind: "protocol",
         event: {

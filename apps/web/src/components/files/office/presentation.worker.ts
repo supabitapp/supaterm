@@ -9,6 +9,7 @@ import {
   type SlideDisplayList,
   type SlidePrimitive,
 } from "@betteroffice/pptx";
+import { asWindowCanvasContext } from "./canvas-context";
 import { slideFonts } from "./slide-fonts";
 import type { SlideMethods, SlidePainted, SlideSummary } from "./slide-protocol";
 import { maxImageSide, type VectorBitmap, type VectorRequest } from "./vector-pictures";
@@ -247,10 +248,8 @@ function createDeck(
       };
 
       const attempt = (list: SlideDisplayList) =>
-        // SAFETY: the painter draws through the members a worker's 2D context shares with the window's, and makes its
-        // scratch canvases with OffscreenCanvas wherever it exists, as it does in a worker. Only the window's context
-        // type is declared, and it has two focus and attribute members the worker's lacks, hence the double cast.
-        paintSlide(context as unknown as CanvasRenderingContext2D, list, scale, 1, options).then(
+        // The painter makes its scratch canvases with OffscreenCanvas wherever it exists, as it does in a worker.
+        paintSlide(asWindowCanvasContext(context), list, scale, 1, options).then(
           () => true,
           () => false,
         );

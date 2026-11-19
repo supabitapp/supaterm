@@ -108,11 +108,11 @@ export function makeHarness(options: UpdatesHarnessOptions = {}) {
     on: (eventName, listener) =>
       Effect.acquireRelease(
         Effect.sync(() => {
-          addListener(eventName, listener as unknown as (...args: readonly unknown[]) => void);
+          addListener(eventName, listener as (...args: readonly unknown[]) => void);
         }),
         () =>
           Effect.sync(() => {
-            removeListener(eventName, listener as unknown as (...args: readonly unknown[]) => void);
+            removeListener(eventName, listener as (...args: readonly unknown[]) => void);
           }),
       ).pipe(Effect.asVoid),
   } satisfies ElectronUpdater.ElectronUpdater["Service"]);

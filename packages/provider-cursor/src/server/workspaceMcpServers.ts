@@ -94,10 +94,7 @@ export const cursorWorkspaceMcpServers = Effect.fn("cursorWorkspaceMcpServers")(
         const value: unknown = parseJsonc(contents, errors, { allowTrailingComma: true });
         return errors.length === 0 ? value : null;
       }),
-      Effect.catchIf(
-        (error) => error.reason._tag === "NotFound",
-        () => Effect.void,
-      ),
+      Effect.catchReason("PlatformError", "NotFound", () => Effect.void),
     );
 
   const hostEnvironment = yield* HostProcess.Environment;
@@ -118,10 +115,7 @@ export const cursorWorkspaceMcpServers = Effect.fn("cursorWorkspaceMcpServers")(
       ),
     )
     .pipe(
-      Effect.catchIf(
-        (error) => error.reason._tag === "NotFound",
-        () => Effect.succeed("[]"),
-      ),
+      Effect.catchReason("PlatformError", "NotFound", () => Effect.succeed("[]")),
       Effect.flatMap(decodeDisabledServers),
       Effect.map((names) => new Set(names)),
     );

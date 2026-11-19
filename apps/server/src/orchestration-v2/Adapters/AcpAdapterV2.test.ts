@@ -1,3 +1,4 @@
+import { field } from "@supaterm/shared/Struct";
 import {
   extractCopilotSubagentUpdate,
   makeCopilotSubagentRouting,
@@ -692,7 +693,7 @@ function rawProtocolRequestParam(
   key: string,
 ): unknown {
   const params = rawProtocolRequest(event)?.params;
-  return typeof params === "object" && params !== null ? Reflect.get(params, key) : undefined;
+  return field(params, key);
 }
 
 function rawProtocolPromptTextBlocks(
@@ -703,9 +704,9 @@ function rawProtocolPromptTextBlocks(
   return prompt.flatMap((block) =>
     typeof block === "object" &&
     block !== null &&
-    Reflect.get(block, "type") === "text" &&
-    typeof Reflect.get(block, "text") === "string"
-      ? [{ type: "text" as const, text: Reflect.get(block, "text") as string }]
+    field(block, "type") === "text" &&
+    typeof field(block, "text") === "string"
+      ? [{ type: "text" as const, text: field(block, "text") as string }]
       : [],
   );
 }
@@ -4100,8 +4101,11 @@ describe("AcpAdapterV2", () => {
                   assert.isDefined(handler);
                   assert.isDefined(sessionEvent);
                   const sessionId = "mock-session-1";
-                  const raw = (type: string, data: object, agentId?: string) =>
-                    sessionEvent!({ sessionId, type, data, ...(agentId ? { agentId } : {}) });
+                  const raw = (
+                    type: string,
+                    data: Readonly<Record<string, unknown>>,
+                    agentId?: string,
+                  ) => sessionEvent!({ sessionId, type, data, ...(agentId ? { agentId } : {}) });
                   const update = (next: EffectAcpSchema.SessionUpdate) =>
                     handler!({ sessionId, update: next });
                   // Copilot sends each chunk's raw delta just before the chunk.
@@ -4400,10 +4404,7 @@ describe("AcpAdapterV2", () => {
       assert.deepEqual(
         initialize === undefined
           ? undefined
-          : Reflect.get(
-              Object(rawProtocolRequestParam(initialize, "clientCapabilities")),
-              "session",
-            ),
+          : field(rawProtocolRequestParam(initialize, "clientCapabilities"), "session"),
         { notices: {}, compaction: {} },
       );
       const title =

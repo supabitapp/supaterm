@@ -119,7 +119,7 @@ export const ForwardCompatibleArray = <Element extends Schema.Top>(element: Elem
         encode: (values) => values.filter((value) => value !== undefined),
       }),
     ),
-  ) as unknown as ForwardCompatibleArray<Element>;
+  ) as ForwardCompatibleArray<Element>;
 export type ForwardCompatibleArray<Element extends Schema.Top> = Schema.Codec<
   ReadonlyArray<Element["Type"]>,
   ReadonlyArray<Element["Encoded"]>,
@@ -160,10 +160,7 @@ export const ForwardCompatibleUnion = <
       encode: SchemaGetter.forbidden(() => `Unknown ${tag} values are never sent.`),
     }),
   );
-  return Schema.Union([...members, unknownMember]) as unknown as ForwardCompatibleUnion<
-    Members,
-    Tag
-  >;
+  return Schema.Union([...members, unknownMember]) as ForwardCompatibleUnion<Members, Tag>;
 };
 export type ForwardCompatibleUnion<
   Members extends ReadonlyArray<Schema.Top>,

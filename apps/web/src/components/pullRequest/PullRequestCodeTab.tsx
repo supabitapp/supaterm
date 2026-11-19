@@ -17,6 +17,8 @@ import {
 import type {
   CodeViewItem,
   DiffLineAnnotation,
+  File,
+  FileDiff,
   FileDiffMetadata,
   SelectedLineRange,
 } from "@pierre/diffs";
@@ -1190,12 +1192,17 @@ function PullRequestCodeTab({
     enableLineSelection: canSelectLines && draft === null && !withheldRefetching,
     onGutterUtilityClick: beginComment,
     onLineSelectionEnd: beginComment,
-    onPostRender: (fileContainer: HTMLElement, instance: object) => {
+    onPostRender: (
+      fileContainer: HTMLElement,
+      instance: File<ReviewAnnotationGroup> | FileDiff<ReviewAnnotationGroup>,
+    ) => {
       codeViewReveal.flush();
       // Containers are reused across files, so the flag is set or cleared on every render.
       fileContainer.toggleAttribute(
         "data-cut-lines",
-        "fileDiff" in instance && cutFiles.has(instance.fileDiff),
+        "fileDiff" in instance &&
+          instance.fileDiff !== undefined &&
+          cutFiles.has(instance.fileDiff),
       );
       if (withheldFiles.size > 0) markCutLineNotes(fileContainer);
     },

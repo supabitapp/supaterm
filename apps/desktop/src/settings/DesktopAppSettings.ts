@@ -389,10 +389,7 @@ function readSettings(
 
   return fileSystem.readFileString(settingsPath).pipe(
     Effect.asSome,
-    Effect.catchIf(
-      (cause) => cause.reason._tag === "NotFound",
-      () => Effect.succeed(Option.none<string>()),
-    ),
+    Effect.catchReason("PlatformError", "NotFound", () => Effect.succeed(Option.none<string>())),
     Effect.flatMap(
       Option.match({
         onNone: () => Effect.succeed(defaultSettings),

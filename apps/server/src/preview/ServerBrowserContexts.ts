@@ -17,7 +17,7 @@ const loadPlaywright = () =>
 const BADGE_STUB = `if (typeof WorkerNavigator === "function") for (const name of ["setAppBadge", "clearAppBadge"]) WorkerNavigator.prototype[name] = () => Promise.resolve();`;
 
 interface CdpSession {
-  send(method: string, params?: object): Promise<unknown>;
+  send(method: string, params?: Readonly<Record<string, unknown>>): Promise<unknown>;
   createChildSession(...args: ReadonlyArray<unknown>): CdpSession;
 }
 
@@ -25,7 +25,7 @@ interface CdpSession {
 // worker that calls navigator.setAppBadge. Playwright resumes each worker itself, so the stub
 // can only go in ahead of that resume through its in-process session; without it nothing is stubbed.
 const stubWorkerBadges = (client: Browser | BrowserContext) => {
-  const { _connection: connection } = client as unknown as {
+  const { _connection: connection } = client as {
     readonly _connection?: {
       readonly toImpl?: (
         client: unknown,

@@ -76,12 +76,13 @@ async function sendFilesToPage(
       endHandoff();
     }
     for (const asset of result.canceled ? [] : result.assets) {
-      // React Native's FormData uploads a file part from its URI.
-      files.push({
+      const part = {
         uri: asset.uri,
         name: asset.name,
         type: asset.mimeType ?? "application/octet-stream",
-      } as unknown as Blob & { readonly name: string });
+      };
+      // React Native's FormData uploads a file part from its URI.
+      files.push(part as typeof part & Blob);
     }
   }
   await uploadPreviewStreamFiles(chooser, files, {

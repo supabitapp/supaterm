@@ -65,7 +65,11 @@ const fakeSurface: object = new Proxy(
   },
   {
     get: (target, key) =>
-      key === "then" ? undefined : key in target ? Reflect.get(target, key) : () => undefined,
+      key === "then"
+        ? undefined
+        : key in target
+          ? target[key as keyof typeof target]
+          : () => undefined,
   },
 );
 vi.mock("~/terminal/ghostty/surface", () => ({
@@ -161,7 +165,7 @@ vi.mock("../state/session", () => ({
 }));
 vi.mock("../state/use-atom-command", () => ({
   useAtomCommand:
-    (command: object) => async (args: { input: { threadId: string; data?: string } }) => {
+    (command: unknown) => async (args: { input: { threadId: string; data?: string } }) => {
       if (command === fixture.resizeCommand) return fixture.runResize(args);
       if (args.input.data !== undefined) {
         fixture.writes.push({ threadId: args.input.threadId, data: args.input.data });
