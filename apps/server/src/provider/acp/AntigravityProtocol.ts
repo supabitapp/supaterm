@@ -46,6 +46,15 @@ const decodeSingleAnswer = Schema.decodeUnknownOption(
 const decodeToolCallContent = Schema.decodeUnknownOption(AcpWireSchema.ToolCallContent);
 const isJsonRecord = Schema.is(Schema.Record(Schema.String, Schema.Json));
 
+/**
+ * The agent goes on running a command after its prompt ends, and replies by itself when the
+ * command finishes. A daemon may never finish.
+ */
+export function antigravityCommandOutlivesPrompt(toolCall: AcpToolCallState): boolean {
+  const input = toolCall.data.rawInput;
+  return toolCall.kind === "execute" && !(Predicate.isObject(input) && input.IsDaemon === true);
+}
+
 /** Native questions share the permission method, but their choices are not approvals. */
 export function isAntigravityUserInputRequest(
   request: EffectAcpSchema.RequestPermissionRequest,
