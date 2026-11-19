@@ -346,6 +346,48 @@ describe("ssh tunnel scripts", () => {
     },
   );
 
+  it.each([
+    { installed: ARCHIVE.archiveVersion, status: 0, reuses: true },
+    { installed: ARCHIVE.archiveVersion, status: 1, reuses: false },
+    { installed: "9.9.9", status: 0, reuses: false },
+  ])(
+    "reuses a host supaterm only at exactly the requested version: installed $installed, status $status",
+    ({ installed, status, reuses }) => {
+      const root = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "supaterm-ssh-runner-"));
+      try {
+        const bin = NodePath.join(root, "bin");
+        NodeFS.mkdirSync(bin);
+        NodeFS.mkdirSync(NodePath.join(root, "home"));
+        // A host the release archive cannot run on, so only reuse can succeed.
+        NodeFS.writeFileSync(
+          NodePath.join(bin, "uname"),
+          `#!/bin/sh\ncase "$1" in -s) echo Darwin ;; -m) echo x86_64 ;; esac\n`,
+          { mode: 0o755 },
+        );
+        NodeFS.writeFileSync(
+          NodePath.join(bin, "supaterm"),
+          `#!/bin/sh\ncase "$1" in --version) echo "supaterm v${installed}"; exit ${status} ;; *) echo "host supaterm $*" ;; esac\n`,
+          { mode: 0o755 },
+        );
+        const runner = NodePath.join(root, "run-supaterm.sh");
+        NodeFS.writeFileSync(runner, SshTunnel.buildRemoteSupatermRunnerScript(ARCHIVE));
+        const result = NodeChildProcess.spawnSync("sh", [runner, "serve"], {
+          encoding: "utf8",
+          env: { HOME: NodePath.join(root, "home"), PATH: `${bin}:${process.env.PATH ?? ""}` },
+        });
+        if (reuses) {
+          assert.equal(result.status, 0);
+          assert.equal(result.stdout, "host supaterm serve\n");
+        } else {
+          assert.notEqual(result.status, 0);
+          assert.include(result.stderr, "has no Supaterm release archive.");
+        }
+      } finally {
+        NodeFS.rmSync(root, { recursive: true, force: true });
+      }
+    },
+  );
+
   // bsdtar and BusyBox tar gunzip internally, so only GNU tar needs gzip on PATH.
   const tarNeedsGzip = NodeChildProcess.spawnSync("tar", ["--version"], {
     encoding: "utf8",
@@ -461,15 +503,18 @@ describe("ssh tunnel scripts", () => {
           "if shopt -q login_shell; then export SUPATERM_SSH_LOGIN_ENV=loaded; fi\n",
         );
         const target = { alias: "login-test", hostname: "login-test", username: null, port: null };
-        let remoteCommand = "";
+        const remoteCommands: string[] = [];
         const capture = ChildProcessSpawner.make((command) =>
           Effect.sync(() => {
             const args = commandArgs(command);
-            remoteCommand = args.slice(args.indexOf(target.alias) + 1).join(" ");
-            return makeSuccessfulProcess('{"remotePort":3774}\n');
+            remoteCommands.push(args.slice(args.indexOf(target.alias) + 1).join(" "));
+            return makeSuccessfulProcess('{"remotePort":3774,"credential":"test"}\n');
           }),
         );
         yield* SshTunnel.launchOrReuseRemoteServer(target, undefined, ARCHIVE).pipe(
+          Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, capture),
+        );
+        yield* SshTunnel.issueRemotePairingToken(target, undefined, ARCHIVE).pipe(
           Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, capture),
         );
         yield* fs.writeFileString(
@@ -499,7 +544,9 @@ describe("ssh tunnel scripts", () => {
             break;
           }
         }
-        for (const { shell, outerShell, expected } of cases) {
+        for (const { shell, outerShell, expected, index, remoteCommand } of cases.flatMap((entry) =>
+          remoteCommands.map((remoteCommand, index) => ({ ...entry, remoteCommand, index })),
+        )) {
           const child = yield* spawner.spawn(
             ChildProcess.make(outerShell, ["-c", remoteCommand], {
               env: {
@@ -544,7 +591,11 @@ describe("ssh tunnel scripts", () => {
           assert.equal(Number(exitCode), 0, stderr);
           // First-run shell messages can precede the bootstrap response.
           const response = stdout.trim().split(/\r?\n/u).at(-1) ?? "";
-          assert.match(response, new RegExp(`^${expected}:[a-f0-9]{16}$`), shell || "unset SHELL");
+          assert.match(
+            response,
+            new RegExp(index === 0 ? `^${expected}:[a-f0-9]{16}$` : `^${expected}:$`),
+            shell || "unset SHELL",
+          );
         }
       }).pipe(Effect.provide(Layer.merge(NodeServices.layer, NodeCrypto.layer))),
   );
@@ -1117,8 +1168,9 @@ describe("ssh tunnel scripts", () => {
 
   it.live("concurrent launches on one remote home record the server that owns it", () =>
     // The second row's server never publishes server-runtime.json.
-    Effect.forEach([1_500, null], (publishDelayMs) =>
+    Effect.forEach([1_500, null, "wrapper"] as const, (variant) =>
       Effect.gen(function* () {
+        const publishDelayMs = variant === "wrapper" ? 0 : variant;
         const fs = yield* FileSystem.FileSystem;
         const path = yield* Path.Path;
         const home = yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-ssh-launch-" });
@@ -1137,6 +1189,12 @@ describe("ssh tunnel scripts", () => {
         );
         const serverScript = path.join(home, "fake-supaterm.cjs");
         yield* fs.writeFileString(serverScript, fakeSupatermServe(publishDelayMs));
+        const wrapperScript = path.join(home, "wrapper.cjs");
+        yield* fs.writeFileString(
+          wrapperScript,
+          `const child = require("node:child_process").spawn(process.execPath, [${JSON.stringify(serverScript)}, ...process.argv.slice(2)], { stdio: "inherit" });
+child.on("exit", (code) => process.exit(code ?? 1));`,
+        );
         // A launch that died holding the lock must not block or double-admit later ones.
         const launchLock = path.join(home, ".supaterm", "ssh-launch", ".launch.lock");
         yield* fs.makeDirectory(path.dirname(launchLock), { recursive: true });
@@ -1150,7 +1208,7 @@ describe("ssh tunnel scripts", () => {
           targets,
           (target) =>
             SshTunnel.launchOrReuseRemoteServer(target, undefined, {
-              nodeScriptPath: serverScript,
+              nodeScriptPath: variant === "wrapper" ? wrapperScript : serverScript,
             }),
           { concurrency: "unbounded" },
         ).pipe(Effect.provide(localRemoteShellLayer(home)));
