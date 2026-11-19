@@ -121,6 +121,12 @@ const knownRecords: Record<(typeof COMPOSER_CONTEXT_KINDS)[number], Record<strin
     model: "anthropic/claude-opus-4.5",
     providerName: "OpenCode Work",
   },
+  environment: {
+    ...base,
+    kind: "environment",
+    label: "vps",
+    environmentId: "environment-vps",
+  },
 };
 
 describe("ComposerContextRecord", () => {
