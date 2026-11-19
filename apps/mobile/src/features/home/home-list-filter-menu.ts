@@ -63,6 +63,7 @@ export interface HomeListFilterMenuInput {
   readonly selectedProjectKey: string | null;
   readonly onEnvironmentChange: (environmentId: EnvironmentId | null) => void;
   readonly onProjectChange: (projectKey: string | null) => void;
+  readonly onResetScope: () => void;
   readonly hideOfflineEnvironments: boolean;
   readonly onHideOfflineEnvironmentsChange: (hide: boolean) => void;
 }
@@ -139,10 +140,7 @@ export function buildHomeListFilterMenu(props: HomeListFilterMenuInput): HomeLis
     items.push({
       type: "action",
       title: "Reset filters",
-      onPress: () => {
-        props.onEnvironmentChange(null);
-        props.onProjectChange(null);
-      },
+      onPress: props.onResetScope,
     });
   }
 

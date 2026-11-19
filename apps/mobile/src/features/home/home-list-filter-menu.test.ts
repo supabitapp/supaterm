@@ -7,7 +7,7 @@ import { buildHomeListFilterMenu, homeListFilterEnvironments } from "./home-list
 describe("buildHomeListFilterMenu", () => {
   it("adds a project scope submenu that selects and clears the same scope as the chips", () => {
     const onProjectChange = vi.fn();
-    const onEnvironmentChange = vi.fn();
+    const onResetScope = vi.fn();
     const menu = buildHomeListFilterMenu({
       grouping: "status",
       onGroupingChange: vi.fn(),
@@ -18,8 +18,9 @@ describe("buildHomeListFilterMenu", () => {
       ],
       selectedEnvironmentId: null,
       selectedProjectKey: "environment-1:project-1",
-      onEnvironmentChange,
+      onEnvironmentChange: vi.fn(),
       onProjectChange,
+      onResetScope,
       hideOfflineEnvironments: false,
       onHideOfflineEnvironmentsChange: vi.fn(),
     });
@@ -51,8 +52,7 @@ describe("buildHomeListFilterMenu", () => {
     const reset = menu.items.at(-1);
     if (reset?.type !== "action") throw new Error("Expected reset action");
     reset.onPress();
-    expect(onEnvironmentChange).toHaveBeenCalledWith(null);
-    expect(onProjectChange).toHaveBeenNthCalledWith(3, null);
+    expect(onResetScope).toHaveBeenCalledOnce();
   });
 });
 

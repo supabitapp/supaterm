@@ -1,20 +1,25 @@
 import { useMemo } from "react";
 
-import type { EnvironmentThreadShell } from "@supaterm/client-runtime/state/shell";
 import { pickableProjectGroups } from "@supaterm/client-runtime/state/project-grouping";
 
 import { useProjects } from "../../state/entities";
+import { steadyNavigationThreadShellsAtom } from "../../state/threads";
+import { useLaunchingThreads } from "../../state/use-pending-new-tasks";
 import { useWorkspaceState } from "../../state/workspace";
 import type { WorkspaceListHeaderProps } from "../layout/workspace/WorkspaceListHeader.types";
 import { buildHomeListFilterMenuItems, homeListFilterEnvironments } from "./home-list-filter-menu";
 import { useHomeListOptions } from "./home-list-options";
+import { useAtomValueWhileVisible } from "./home-route-visibility";
 import {
   buildHomeProjectScopes,
   resolveHomeProjectFilterScope,
   sortHomeProjectScopes,
 } from "./homeThreadList";
 
-export function useThreadListFilter(threads: ReadonlyArray<EnvironmentThreadShell>) {
+export function useThreadListFilter(visible: boolean) {
+  const threads = useLaunchingThreads(
+    useAtomValueWhileVisible(steadyNavigationThreadShellsAtom, visible),
+  );
   const projects = useProjects();
   const { environments: workspaceEnvironments } = useWorkspaceState();
   const environments = homeListFilterEnvironments(workspaceEnvironments);
@@ -26,6 +31,7 @@ export function useThreadListFilter(threads: ReadonlyArray<EnvironmentThreadShel
     options: listOptions,
     setSelectedEnvironmentId,
     setSelectedProjectKey,
+    resetScope,
     setThreadGrouping,
     setHideOfflineEnvironments,
   } = useHomeListOptions(availableEnvironmentIds);
@@ -67,9 +73,10 @@ export function useThreadListFilter(threads: ReadonlyArray<EnvironmentThreadShel
       selectedProjectKey,
       onEnvironmentChange: setSelectedEnvironmentId,
       onProjectChange: setSelectedProjectKey,
+      onResetScope: resetScope,
       hideOfflineEnvironments: listOptions.hideOfflineEnvironments,
       onHideOfflineEnvironmentsChange: setHideOfflineEnvironments,
     }),
   };
-  return { listOptions, projects, environments, selectedProjectKey, filter };
+  return { threads, listOptions, projects, environments, selectedProjectKey, filter };
 }

@@ -8,8 +8,7 @@ import { Platform } from "react-native";
 
 import type { EnvironmentThreadShell } from "@supaterm/client-runtime/state/shell";
 
-import { steadyNavigationThreadShellsAtom } from "../../state/threads";
-import { useLaunchingThreads, usePendingNewTasks } from "../../state/use-pending-new-tasks";
+import { usePendingNewTasks } from "../../state/use-pending-new-tasks";
 import { useWorkspaceState } from "../../state/workspace";
 import { useSavedRemoteConnections } from "../../state/use-remote-environment-registry";
 import {
@@ -18,11 +17,7 @@ import {
 } from "../layout/AdaptiveWorkspaceLayout";
 import { AndroidHomeFabLayout } from "./AndroidHomeFab";
 import { HomeScreen } from "./HomeScreen";
-import {
-  runWhenHomeCovered,
-  useAtomValueWhileVisible,
-  useHomeRouteVisible,
-} from "./home-route-visibility";
+import { runWhenHomeCovered, useHomeRouteVisible } from "./home-route-visibility";
 import { useThreadListFilter } from "./useThreadListFilter";
 import { usePendingTaskListActions } from "./usePendingTaskListActions";
 import { useThreadListActions } from "./useThreadListActions";
@@ -40,9 +35,6 @@ export function HomeRouteScreen() {
   const selectDetail = useSelectWorkspaceDetail();
 
   const visible = useHomeRouteVisible();
-  const threads = useLaunchingThreads(
-    useAtomValueWhileVisible(steadyNavigationThreadShellsAtom, visible),
-  );
   const { state: catalogState } = useWorkspaceState();
   const { savedConnectionsById } = useSavedRemoteConnections();
   const navigation = useNavigation();
@@ -96,8 +88,8 @@ export function HomeRouteScreen() {
   const pendingTasks = usePendingNewTasks();
   const { openPendingTask, confirmDeletePendingTask } =
     usePendingTaskListActions(selectThreadRoute);
-  const { listOptions, projects, environments, selectedProjectKey, filter } =
-    useThreadListFilter(threads);
+  const { threads, listOptions, projects, environments, selectedProjectKey, filter } =
+    useThreadListFilter(visible);
   const selectedEnvironmentId = listOptions.selectedEnvironmentId;
 
   if (layout.usesSplitView && !nativePrimaryColumn) {
