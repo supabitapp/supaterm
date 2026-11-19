@@ -1,6 +1,10 @@
-import type { AppBarMenu } from "../../../components/ui/AppBar.types";
+import type { AppBarMenu, AppBarMenuItem } from "../../../components/ui/AppBar.types";
 import type { MenuProps } from "../../../components/ui/Menu.types";
-import { appBarMenuItemsFromActions } from "../../../components/ui/menuActionItems";
+import {
+  appBarMenuItemsFromActions,
+  findAppBarMenuItem,
+  menuActionsFromAppBarItems,
+} from "../../../components/ui/menuActionItems";
 
 export interface WorkspaceFilterMenu {
   readonly title: string;
@@ -20,5 +24,20 @@ export function workspaceFilterAppBarMenu(menu: WorkspaceFilterMenu): AppBarMenu
     items: appBarMenuItemsFromActions(menu.actions, (event) =>
       menu.onPressAction({ nativeEvent: { event } }),
     ),
+  };
+}
+
+export function workspaceFilterMenuFromAppBarItems(
+  menu: Omit<WorkspaceFilterMenu, "actions" | "onPressAction"> & {
+    readonly items: ReadonlyArray<AppBarMenuItem>;
+  },
+): WorkspaceFilterMenu {
+  return {
+    title: menu.title,
+    accessibilityLabel: menu.accessibilityLabel,
+    customized: menu.customized,
+    actions: menuActionsFromAppBarItems(menu.items),
+    onPressAction: ({ nativeEvent }) =>
+      findAppBarMenuItem(menu.items, nativeEvent.event)?.onPress(),
   };
 }

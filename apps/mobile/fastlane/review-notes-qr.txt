@@ -1,0 +1,2 @@
+The quickest way in: open Supaterm, tap Add environment, then Scan QR code, and scan the attached image from another screen. You can scan it as many times as you like.
+

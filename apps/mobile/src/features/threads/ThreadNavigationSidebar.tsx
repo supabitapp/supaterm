@@ -165,6 +165,7 @@ function ThreadNavigationSidebarPane(props: ThreadNavigationSidebarProps) {
     options,
     setSelectedEnvironmentId,
     setSelectedProjectKey,
+    resetScope,
     setThreadGrouping,
     setHideOfflineEnvironments,
   } = useHomeListOptions(availableEnvironmentIds);
@@ -582,6 +583,7 @@ function ThreadNavigationSidebarPane(props: ThreadNavigationSidebarProps) {
           selectedProjectKey,
           onEnvironmentChange: setSelectedEnvironmentId,
           onProjectChange: setSelectedProjectKey,
+          onResetScope: resetScope,
           hideOfflineEnvironments: options.hideOfflineEnvironments,
           onHideOfflineEnvironmentsChange: setHideOfflineEnvironments,
         }),

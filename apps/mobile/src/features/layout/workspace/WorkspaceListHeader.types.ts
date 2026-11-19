@@ -1,4 +1,5 @@
 import type { AppBarMenuItem } from "../../../components/ui/AppBar.types";
+import { workspaceFilterMenuFromAppBarItems } from "./workspace-filter-menu";
 
 /** The header of the workspace thread list, on Home and in the sidebar column. */
 export interface WorkspaceListHeaderProps {
@@ -33,4 +34,12 @@ export function workspaceListFilterIcon(customized: boolean) {
   return customized
     ? "line.3.horizontal.decrease.circle.fill"
     : "line.3.horizontal.decrease.circle";
+}
+
+export function workspaceListFilterMenu(filter: WorkspaceListHeaderProps["filter"]) {
+  return workspaceFilterMenuFromAppBarItems({
+    title: "Thread list options",
+    accessibilityLabel: "Filter threads",
+    ...filter,
+  });
 }

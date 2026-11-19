@@ -225,6 +225,40 @@ it("applies a custom header element rendered inside a navigation container", () 
   expect(renderedCustomLabel()).toBe("Reconnecting");
 });
 
+it("dispatches a retained keyed menu action to the same item after the menu reorders", () => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  root = createRoot(document.createElement("div"));
+  const onPress = vi.fn();
+  const render = (projects: ReadonlyArray<string>) =>
+    act(() =>
+      root!.render(
+        <NativeHeaderToolbar placement="right">
+          <NativeHeaderToolbar.Menu key="filter" title="Filter">
+            <NativeHeaderToolbar.Menu key="Project" title="Project">
+              {projects.map((project) => (
+                <NativeHeaderToolbar.MenuAction key={project} onPress={() => onPress(project)}>
+                  {project}
+                </NativeHeaderToolbar.MenuAction>
+              ))}
+            </NativeHeaderToolbar.Menu>
+          </NativeHeaderToolbar.Menu>
+        </NativeHeaderToolbar>,
+      ),
+    );
+
+  render(["beta", "alpha"]);
+  const menu = harness.renderedItems[0];
+  if (menu?.type !== "menu") throw new Error("Expected the native menu");
+  const submenu = menu.menu.items[0];
+  if (submenu?.type !== "submenu") throw new Error("Expected the project submenu");
+  const shownBeta = submenu.items[0];
+  if (shownBeta?.type !== "action") throw new Error("Expected the beta action");
+
+  render(["alpha", "beta"]);
+  shownBeta.onPress?.();
+  expect(onPress.mock.calls).toEqual([["beta"]]);
+});
+
 it("keeps committed handlers while a replacement render suspends", () => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   root = createRoot(document.createElement("div"));

@@ -20,6 +20,9 @@ import { useWorkspaceTabs } from "./WorkspaceTabsContext";
 import { shouldRestoreNativeSearch } from "./workspace-tabs-state";
 import { useFloatingWorkspaceTabs, useSidebarWorkspaceTabs } from "./useSystemWorkspaceTabBar";
 import { WorkspaceTabToolbarButtons } from "./WorkspaceSectionToolbar";
+import { useThreadListFilter } from "../../home/useThreadListFilter";
+import { workspaceFilterToolbarMenu } from "./WorkspaceFilterToolbarMenu.ios";
+import { workspaceListFilterMenu } from "./WorkspaceListHeader.types";
 
 const SEARCH_LABELS = {
   threads: "Search threads",
@@ -52,11 +55,16 @@ export function WorkspaceToolbar(props: {
   const selectedTab = workspace.settingsOpen ? "settings" : workspace.state.selectedTab;
   const tab = workspace.state.tabs[selectedTab];
   const searchLabel = SEARCH_LABELS[selectedTab === "usage" ? "threads" : selectedTab];
+  const showsThreadFilter = deviceType !== "phone" && selectedTab === "threads";
+
   const { isTabActive: isListTabActive } = workspace;
   const isTabActive = (tab: typeof selectedTab) =>
     tab === "settings" ? tabActive : isListTabActive(tab);
   const foldedSearch = deviceType === "duo-folded";
   const primaryColumn = use(NativePrimaryColumnContext);
+  const { filter: threadFilter } = useThreadListFilter(
+    showsThreadFilter && tabActive && primaryColumn?.presented !== false,
+  );
   const searchVisible = foldedSearch
     ? tab.searchMode !== "resting"
     : deviceType !== "duo-unfolded" || primaryColumn?.presented !== false;
@@ -200,6 +208,9 @@ export function WorkspaceToolbar(props: {
               onPress={focusSearch}
             />
           )}
+          {showsThreadFilter
+            ? workspaceFilterToolbarMenu(workspaceListFilterMenu(threadFilter))
+            : null}
         </Toolbar>
       )}
       <Toolbar placement="bottom">

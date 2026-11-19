@@ -417,4 +417,5 @@ jobs:
           MOBILE_VERSION: ${{ fromJSON(steps.build.outputs.matrix || '{}').include[0].version }}
           MOBILE_APPLICATION_ID: ${{ fromJSON(steps.build.outputs.matrix || '{}').include[0].identifier }}
           MOBILE_BUILD_NUMBER: ${{ fromJSON(steps.build.outputs.matrix || '{}').include[0].buildNumber }}
+          MOBILE_REVIEW_INVITE_URL: ${{ secrets.MOBILE_REVIEW_INVITE_URL }}
         run: bundle exec fastlane ios external_beta

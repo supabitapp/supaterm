@@ -61,7 +61,11 @@ function iconFromProp(icon: unknown): NativeStackHeaderIcon | undefined {
   return undefined;
 }
 
-type RegisterHandler = (handler: unknown) => () => void;
+type RegisterHandler = (handler: unknown, slot?: string) => () => void;
+
+function childSlot(scope: string, child: ReactElement, index: number) {
+  return `${scope}/${child.key ?? `#${index}`}`;
+}
 
 type ToolbarElementProps = Record<string, unknown> & { readonly children?: ReactNode };
 
@@ -76,6 +80,7 @@ function elementTypeName(element: ReactElement): string | undefined {
 function convertMenuAction(
   element: ReactElement<ToolbarElementProps>,
   register: RegisterHandler,
+  slot: string,
 ): NativeStackHeaderItemMenu["menu"]["items"][number] | null {
   const typeName = elementTypeName(element);
   if (typeName === "NativeHeaderToolbarMenuAction") {
@@ -86,7 +91,7 @@ function convertMenuAction(
       description: typeof element.props.subtitle === "string" ? element.props.subtitle : undefined,
       disabled: Boolean(element.props.disabled),
       icon: iconFromProp(element.props.icon),
-      onPress: register(element.props.onPress),
+      onPress: register(element.props.onPress, element.key === null ? undefined : slot),
       state: element.props.isOn === true ? "on" : undefined,
       destructive: Boolean(element.props.destructive),
       discoverabilityLabel:
@@ -105,7 +110,7 @@ function convertMenuAction(
           : labelFromChildren(element.props.children),
       icon: iconFromProp(element.props.icon),
       inline: Boolean(element.props.inline),
-      items: collectMenuItems(element.props.children, register),
+      items: collectMenuItems(element.props.children, register, slot),
     };
   }
 
@@ -115,18 +120,20 @@ function convertMenuAction(
 function collectMenuItems(
   children: ReactNode,
   register: RegisterHandler,
+  scope: string,
 ): NativeStackHeaderItemMenu["menu"]["items"] {
   const items: NativeStackHeaderItemMenu["menu"]["items"] = [];
-  Children.forEach(children, (child) => {
+  Children.forEach(children, (child, index) => {
     if (!isValidElement<ToolbarElementProps>(child)) {
       return;
     }
-    const item = convertMenuAction(child, register);
+    const slot = childSlot(scope, child, index);
+    const item = convertMenuAction(child, register, slot);
     if (item) {
       items.push(item);
       return;
     }
-    items.push(...collectMenuItems(child.props.children, register));
+    items.push(...collectMenuItems(child.props.children, register, slot));
   });
   return items;
 }
@@ -134,6 +141,7 @@ function collectMenuItems(
 function convertToolbarChild(
   child: ReactNode,
   register: RegisterHandler,
+  slot: string,
 ): NativeToolbarItem | null {
   if (!isValidElement<ToolbarElementProps>(child)) {
     return null;
@@ -186,7 +194,7 @@ function convertToolbarChild(
       icon: iconFromProp(child.props.icon),
       menu: {
         title: typeof child.props.title === "string" ? child.props.title : undefined,
-        items: collectMenuItems(child.props.children, register),
+        items: collectMenuItems(child.props.children, register, slot),
       },
       sharesBackground: !child.props.separateBackground,
       tintColor: child.props.tintColor as ColorValue | undefined,
@@ -211,8 +219,12 @@ function convertToolbarChild(
 
 function collectToolbarItems(children: ReactNode, register: RegisterHandler): NativeToolbarItem[] {
   const items: NativeToolbarItem[] = [];
-  Children.forEach(children, (child) => {
-    const item = convertToolbarChild(child, register);
+  Children.forEach(children, (child, index) => {
+    const item = convertToolbarChild(
+      child,
+      register,
+      isValidElement(child) ? childSlot("", child, index) : `/#${index}`,
+    );
     if (item) {
       if (item.type === "spacing") {
         (item as { index?: number }).index = items.length;
@@ -231,13 +243,13 @@ function NativeHeaderToolbarRoot(props: {
   const route = useRoute();
   const tabActivity = use(NativeWorkspaceTabActivityContext);
   const isTabActive = tabActivity?.isActive;
-  const committedHandlers = useRef<(() => void)[]>([]);
+  const committedHandlers = useRef(new Map<string, () => void>());
   const { items, handlers } = useMemo(() => {
-    const handlers: (() => void)[] = [];
-    const register: RegisterHandler = (handler) => {
-      const index = handlers.length;
-      handlers.push(typeof handler === "function" ? (handler as () => void) : () => undefined);
-      return () => committedHandlers.current[index]?.();
+    const handlers = new Map<string, () => void>();
+    const register: RegisterHandler = (handler, slot) => {
+      const key = slot ?? `#${handlers.size}`;
+      handlers.set(key, typeof handler === "function" ? (handler as () => void) : () => undefined);
+      return () => committedHandlers.current.get(key)?.();
     };
     return { items: collectToolbarItems(props.children, register), handlers };
   }, [props.children, committedHandlers]);
@@ -245,7 +257,7 @@ function NativeHeaderToolbarRoot(props: {
   useLayoutEffect(() => {
     committedHandlers.current = handlers;
     return () => {
-      committedHandlers.current = [];
+      committedHandlers.current = new Map();
     };
   }, [handlers, committedHandlers]);
   const headerItems = items.filter(

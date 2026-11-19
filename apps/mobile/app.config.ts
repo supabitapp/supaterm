@@ -238,7 +238,6 @@ const config: ExpoConfig = {
       NSLocalNetworkUsageDescription:
         "Allow Supaterm to connect to Supaterm servers on your local network or tailnet.",
       NSPhotoLibraryAddUsageDescription: "Allow Supaterm to save images to your photo library.",
-      UIBackgroundModes: ["audio"],
       ITSAppUsesNonExemptEncryption: false,
       ...(process.env.SUPATERM_SHOWCASE_CAPTURE_BUILD === "1"
         ? {

@@ -8,6 +8,7 @@ import { createWorkspaceListHeaderItems } from "./workspace-list-header-items";
 import { WorkspaceHeaderActions } from "./WorkspaceHeaderActions";
 import {
   workspaceListFilterIcon,
+  workspaceListFilterMenu,
   type WorkspaceListHeaderProps,
 } from "./WorkspaceListHeader.types";
 
@@ -15,7 +16,7 @@ export function WorkspaceListHeader(props: WorkspaceListHeaderProps) {
   return props.sidebar ? (
     <SidebarColumnHeader {...props} sidebar={props.sidebar} />
   ) : (
-    <WorkspaceHeaderActions />
+    <WorkspaceHeaderActions filterMenu={workspaceListFilterMenu(props.filter)} />
   );
 }
 

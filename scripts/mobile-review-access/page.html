@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Supaterm review access</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: system-ui, sans-serif;
+        color: #18202b;
+        background: #f5f6f8;
+      }
+      body {
+        margin: 0;
+        padding: 40px 20px;
+      }
+      main {
+        max-width: 560px;
+        margin: auto;
+      }
+      h1 {
+        font-size: 30px;
+        letter-spacing: -1px;
+        margin: 8px 0 12px;
+      }
+      h2 {
+        font-size: 19px;
+        margin-top: 0;
+      }
+      p,
+      li {
+        line-height: 1.6;
+      }
+      .eyebrow {
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        color: #637084;
+      }
+      .card {
+        background: white;
+        border: 1px solid #e1e5eb;
+        border-radius: 16px;
+        padding: 24px;
+        margin-top: 24px;
+      }
+      label {
+        display: block;
+        font-size: 14px;
+        font-weight: 600;
+        margin: 16px 0 8px;
+      }
+      textarea,
+      button,
+      .button {
+        font: inherit;
+        box-sizing: border-box;
+        width: 100%;
+        border-radius: 8px;
+      }
+      textarea {
+        border: 1px solid #bdc6d3;
+        padding: 12px;
+      }
+      textarea {
+        font-size: 13px;
+        resize: vertical;
+        min-height: 80px;
+      }
+      button,
+      .button {
+        cursor: pointer;
+        background: #18202b;
+        color: white;
+        border: 0;
+        padding: 13px;
+        font-weight: 600;
+        margin-top: 18px;
+      }
+      .button {
+        display: block;
+        text-align: center;
+        text-decoration: none;
+      }
+      button:disabled {
+        opacity: 0.6;
+        cursor: wait;
+      }
+      .secondary {
+        background: #e9edf3;
+        color: #18202b;
+      }
+      #status {
+        min-height: 24px;
+        font-size: 14px;
+        margin-bottom: 0;
+      }
+      #qr {
+        display: block;
+        width: 200px;
+        height: 200px;
+        margin: 24px auto;
+      }
+      .muted {
+        color: #637084;
+        font-size: 14px;
+      }
+      [hidden] {
+        display: none !important;
+      }
+      ol {
+        padding-left: 22px;
+      }
+    </style>
+    <script src="/review/page.js" defer></script>
+  </head>
+  <body>
+    <main>
+      <div class="eyebrow">Supaterm</div>
+      <h1>Your example environment</h1>
+      <p>Explore Supaterm with working projects and real agent conversations.</p>
+      <p id="status" role="status" aria-live="polite">Preparing your connection…</p>
+      <noscript>Enable JavaScript to prepare your connection link.</noscript>
+      <section id="connection" class="card" hidden>
+        <h2>Connect Supaterm</h2>
+        <ol>
+          <li>Copy the connection link below.</li>
+          <li>Open Supaterm and choose <strong>Add environment</strong>.</li>
+          <li>Paste the link into the <strong>Host</strong> field, then connect.</li>
+        </ol>
+        <label for="pairing">Connection link</label>
+        <textarea id="pairing" readonly></textarea>
+        <button id="copy" type="button">Copy connection link</button>
+        <a id="open" class="button secondary">Open in browser</a>
+        <img id="qr" alt="Scan this QR code using Supaterm's in-app scanner" />
+        <p id="expiry" class="muted"></p>
+        <p class="muted">
+          Each connection link works once. Open this page again for another device or a reinstall.
+          Your connected device will reconnect automatically.
+        </p>
+      </section>
+      <button id="create" type="button" class="secondary" disabled>
+        Get a new connection link
+      </button>
+      <section id="examples" class="card" hidden>
+        <h2>Try an example project</h2>
+        <p>Open <strong>Tidepool</strong>, create a thread, and send:</p>
+        <p>“Draw the tide curve on the forecast card using tidePath, then run the tests.”</p>
+        <p>
+          Watch the response, inspect the changed files, and open a terminal.
+          <strong>Pantry</strong> and <strong>Ledger</strong> have more finished conversations to
+          explore.
+        </p>
+      </section>
+    </main>
+  </body>
+</html>

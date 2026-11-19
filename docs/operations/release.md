@@ -116,53 +116,31 @@ To retry after fixing a store-side issue, dispatch the review workflow again wit
 The workflow selects the newest build attempt per platform from that source and skips a
 build that has already reached the review or production stage. It does not withdraw an active review.
 
-## Pull request macOS previews
+### App review environment
 
-PRs from trusted authors automatically publish a signed, notarized Apple Silicon DMG to the
-rolling `desktop-preview` prerelease when opened, reopened, or updated. This includes fork PRs.
-Apply `preview:mac` to request another build of the current commit. The trusted workflow consumes
-that label so it can be applied again; removing it does not disable automatic previews.
-The label does not bypass author trust. The build is split so the Developer ID certificate never
-shares a job with PR code:
+Apple reviews the app against a hosted example environment on `supacode-app-review.exe.xyz`, an exe.dev
+VM. Both iOS lanes write the reviewer instructions from
+[`review-notes.txt`](../../apps/mobile/fastlane/review-notes.txt), and the store lane attaches a QR code.
+Deliver deletes review attachments it is not given, so an attachment added by hand in App Store Connect
+does not survive the next submission. The repository secrets `MOBILE_REVIEW_INVITE_URL` (the
+[access page](../../scripts/mobile-review-access/server.ts) invitation) and `MOBILE_REVIEW_PAIRING_URL`
+(the URL the QR code encodes) fill them in, and the store lane stops if the VM rejects that QR code.
 
-- `.github/workflows/desktop-macos-preview.yml` runs on `pull_request` with no secrets and builds
-  only the JS bundle from the PR (the same `js-bundle` artifact `release.yml` produces).
-- `.github/workflows/desktop-macos-preview-publish.yml` runs on `workflow_run` from `main`. It
-  refuses unless the PR is open, its head is the built commit, and the author is a
-  bot, a collaborator, or listed in `.github/VOUCHED.td` (read from the default branch, so a PR cannot vouch
-  for itself). It then packages and signs the bundle through `release-desktop.yml` checked out at
-  `main`, so packaging, native helpers, and the Electron/desktop dependencies come from `main`, not
-  the PR. Only the version is read from the PR commit, as data. A PR that changes packaging must use
-  the `channel=preview` release train above instead.
+Pairing codes normally work once, so the access service swaps the QR code's fixed review code for a
+fresh one at `/oauth/token`. The VM keeps only SHA-256 digests of the review code and invitation in
+`/etc/supacode-review-access.env`. To rotate either, update the digest, restart
+`supacode-review-access`, and update the matching secret.
 
-Before handing the bundle to the signing runner, the trusted workflow validates its ZIP entries
-and accepts only regular files under `server/dist` and `desktop/dist-electron`, plus the directory
-entries that lead to those roots. The artifact cannot
-overwrite packaging code or installed dependencies. The bundle is copied into the app, never executed,
-on the signing runner. The
-`pull_request_target` cleanup job in the publish workflow removes the download when the PR closes and never checks out PR code.
-
-## `pull_request_target` policy
-
-GitHub blocks `pull_request_target` in public repositories unless an Actions event policy allows
-it. This repository's policy (`gh api repos/supabitapp/supaterm/actions/policies`, or
-`/settings/actions/rules` on GitHub) allows it only for `pr-vouch.yml`, `pr-size.yml`,
-`web-preview-publish.yml`, and `desktop-macos-preview-publish.yml`, none of which runs PR code. The
-policy also restricts those four workflows to the events it lists. Update it before adding a
-trigger to one of them or adding another `pull_request_target` workflow, or GitHub blocks those runs.
-Workflows that build PR code use `pull_request`, then `workflow_run` from `main` when they need
-credentials. Mobile Preview needs signing credentials in the build itself, so it runs only for
-branches in this repository.
-
-Mobile previews are opt-in to conserve Expo's upload allowance. Apply the
-`🚀 Mobile Continuous Deployment` label to start previews. Later pushes reuse a recorded build
-with a matching native fingerprint, compiling and uploading only when none exists. Remove the
-label to stop previews on future pushes; a build already running continues.
+[`update-environment.sh`](../../scripts/mobile-review-access/update-environment.sh) runs daily from
+`supacode-review-update.timer`. If a release cannot open the existing database, it archives the state
+under `/srv/supacode-review/old-*` and reseeds the examples; any failure restores the previous runtime,
+state, and admin token. The VM does not pull these scripts itself: after changing them, copy them to
+`/opt/supacode-review/bin` and the bundled `server.mjs` to `/opt/supacode-review/access`.
 
 ## Required release credentials
 
 Store `OP_SERVICE_ACCOUNT_TOKEN` in the GitHub `release` environment. Its read-only 1Password service
-account needs access to the `Supacode Next CI` vault. The environment must allow `main` for manual and
+account needs access to the `Supaterm` vault. The environment must allow `main` for manual and
 scheduled releases, plus release tags for tag-triggered runs. Preview branches need explicit access
 before dispatch. The fnox profiles in [`.github/fnox.toml`](../../.github/fnox.toml) resolve the Apple
 signing fields from `Supacode Next Apple Desktop Signing` and these fields from `Supacode Next GitHub Release App`:
@@ -182,7 +160,7 @@ The release workflow builds static assets while desktop jobs run and uploads the
 
 `app.supaterm.com` routes requests to the selected channel. Visiting `/__supaterm/channel?channel=latest` or `/__supaterm/channel?channel=nightly` saves the `supaterm_web_channel` cookie and redirects to the app root. Builds receive the release version through `APP_VERSION` and the channel through `VITE_HOSTED_APP_CHANNEL`.
 
-The `cloudflare` fnox profile reads `CLOUDFLARE_API_TOKEN` from the `Supacode Next Cloudflare Hosting` item in the `Supacode Next CI` vault. The token needs Workers Scripts edit access in the configured account, plus Workers Routes edit and Zone read access for `supaterm.com`. Deployment jobs use the `release` GitHub environment. Wrangler manages the custom domains and their certificates.
+The `cloudflare` fnox profile reads `CLOUDFLARE_API_TOKEN` from the `Supacode Next Cloudflare Hosting` item in the `Supaterm` vault. The token needs Workers Scripts edit access in the configured account, plus Workers Routes edit and Zone read access for `supaterm.com`. Deployment jobs use the `release` GitHub environment. Wrangler manages the custom domains and their certificates.
 
 Web previews deploy automatically for trusted authors when a PR opens, reopens, or receives new
 commits, including fork PRs. The trust policy is the same as for macOS previews: bots,
@@ -394,7 +372,7 @@ Windows artifacts; they do not prevent publication.
 
 ## 2) Apple signing + notarization setup (macOS)
 
-Required fields in the `Supacode Next Apple Desktop Signing` item in the `Supacode Next CI` vault:
+Required fields in the `Supacode Next Apple Desktop Signing` item in the `Supaterm` vault:
 
 - `CSC_LINK`
 - `CSC_KEY_PASSWORD`
@@ -467,7 +445,7 @@ Checklist:
 ## 5) Troubleshooting
 
 - macOS build unsigned when expected signed:
-  - Check the service account can read all Apple fields in `Supacode Next CI`.
+  - Check the service account can read all Apple fields in `Supaterm`.
 - Windows build unsigned when expected signed:
   - Check all Azure ATS and auth secrets are populated and non-empty.
 - Build fails with signing error:

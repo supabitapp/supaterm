@@ -36,6 +36,7 @@ export interface HomeListFilterMenuProject {
 
 type HomeListFilterMenuAction = {
   readonly type: "action";
+  readonly id: string;
   readonly title: string;
   readonly subtitle?: string;
   readonly state?: "on" | "off";
@@ -44,7 +45,6 @@ type HomeListFilterMenuAction = {
 
 export type HomeListFilterMenuSubmenu = {
   readonly type: "submenu";
-  readonly kind: "grouping" | "filter";
   readonly title: string;
   readonly items: HomeListFilterMenuAction[];
 };
@@ -63,6 +63,7 @@ export interface HomeListFilterMenuInput {
   readonly selectedProjectKey: string | null;
   readonly onEnvironmentChange: (environmentId: EnvironmentId | null) => void;
   readonly onProjectChange: (projectKey: string | null) => void;
+  readonly onResetScope: () => void;
   readonly hideOfflineEnvironments: boolean;
   readonly onHideOfflineEnvironmentsChange: (hide: boolean) => void;
 }
@@ -72,10 +73,10 @@ export function buildHomeListFilterMenu(props: HomeListFilterMenuInput): HomeLis
 
   items.push({
     type: "submenu",
-    kind: "grouping",
     title: "Grouping",
     items: THREAD_GROUPING_OPTIONS.map((option) => ({
       type: "action",
+      id: `grouping:${option.value}`,
       title: option.label,
       state: option.value === props.grouping ? "on" : "off",
       onPress: () => props.onGroupingChange(option.value),
@@ -84,11 +85,11 @@ export function buildHomeListFilterMenu(props: HomeListFilterMenuInput): HomeLis
 
   items.push({
     type: "submenu",
-    kind: "filter",
     title: "Environment",
     items: [
       {
         type: "action",
+        id: "environment:all",
         title: "All environments",
         subtitle: "Show threads from every environment",
         state: props.selectedEnvironmentId === null ? "on" : "off",
@@ -96,6 +97,7 @@ export function buildHomeListFilterMenu(props: HomeListFilterMenuInput): HomeLis
       },
       ...props.environments.map((environment) => ({
         type: "action" as const,
+        id: `environment:${environment.environmentId}`,
         title: environment.label,
         state:
           props.selectedEnvironmentId === environment.environmentId
@@ -105,6 +107,7 @@ export function buildHomeListFilterMenu(props: HomeListFilterMenuInput): HomeLis
       })),
       {
         type: "action",
+        id: "environment:hide-offline",
         title: "Hide offline environments",
         state: props.hideOfflineEnvironments ? "on" : "off",
         onPress: () => props.onHideOfflineEnvironmentsChange(!props.hideOfflineEnvironments),
@@ -115,11 +118,11 @@ export function buildHomeListFilterMenu(props: HomeListFilterMenuInput): HomeLis
   if (props.projects.length > 0) {
     items.push({
       type: "submenu",
-      kind: "filter",
       title: "Project",
       items: [
         {
           type: "action",
+          id: "project:all",
           title: "All projects",
           subtitle: "Show threads from every project",
           state: props.selectedProjectKey === null ? "on" : "off",
@@ -127,11 +130,21 @@ export function buildHomeListFilterMenu(props: HomeListFilterMenuInput): HomeLis
         },
         ...props.projects.map((project) => ({
           type: "action" as const,
+          id: `project:${project.key}`,
           title: project.label,
           state: props.selectedProjectKey === project.key ? ("on" as const) : ("off" as const),
           onPress: () => props.onProjectChange(project.key),
         })),
       ],
+    });
+  }
+
+  if (props.selectedEnvironmentId !== null || props.selectedProjectKey !== null) {
+    items.push({
+      type: "action",
+      id: "reset",
+      title: "Reset filters",
+      onPress: props.onResetScope,
     });
   }
 
@@ -143,13 +156,13 @@ export function buildHomeListFilterMenu(props: HomeListFilterMenuInput): HomeLis
 
 /** The thread list options as an `AppBar` menu, for the workspace list header. */
 export function buildHomeListFilterMenuItems(props: HomeListFilterMenuInput): AppBarMenuItem[] {
-  return buildHomeListFilterMenu(props).items.map((item, index) =>
+  return buildHomeListFilterMenu(props).items.map((item) =>
     item.type === "submenu"
       ? {
-          id: `${item.kind}:${index}`,
+          id: item.title,
           title: item.title,
-          items: item.items.map((action, actionIndex) => ({
-            id: `${item.kind}:${index}:${actionIndex}`,
+          items: item.items.map((action) => ({
+            id: action.id,
             title: action.title,
             subtitle: action.subtitle,
             selected: action.state === "on",
@@ -157,7 +170,7 @@ export function buildHomeListFilterMenuItems(props: HomeListFilterMenuInput): Ap
           })),
         }
       : {
-          id: `action:${index}`,
+          id: item.id,
           title: item.title,
           subtitle: item.subtitle,
           selected: item.state === "on",

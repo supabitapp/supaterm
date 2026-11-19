@@ -23,11 +23,6 @@ declare global {
   }
 }
 
-interface PresentationVideo extends HTMLVideoElement {
-  webkitSetPresentationMode?: (mode: "inline" | "picture-in-picture") => void;
-  webkitPresentationMode?: string;
-}
-
 type WheelInput = Extract<PreviewStreamInput, { type: "wheel" }>;
 type MouseInput = Extract<PreviewStreamInput, { type: "mouse" }>;
 const mouseButton = (button: number): MouseInput["button"] =>
@@ -48,7 +43,6 @@ const AGENT_CURSOR_SVG = `<svg width="20" height="20" viewBox="0 0 24 24" ${ICON
 interface Viewer {
   readonly stop: () => void;
   readonly command: (input: PreviewStreamInput) => void;
-  readonly togglePictureInPicture: () => void;
 }
 
 let activeViewer: Viewer | null = null;
@@ -60,10 +54,6 @@ export function stop() {
 
 export function command(input: PreviewStreamInput) {
   activeViewer?.command(input);
-}
-
-export function pictureInPicture() {
-  activeViewer?.togglePictureInPicture();
 }
 
 export function start(configuration: PreviewStreamConfiguration) {
@@ -140,7 +130,6 @@ export function start(configuration: PreviewStreamConfiguration) {
   };
   const painter = createPreviewFramePainter(canvas, () => {
     if (!streaming && !stopped) reportStatus("streaming");
-    sendPictureInPictureFrame();
   });
   const send = (message: PreviewStreamInput) => client?.send(message) ?? false;
   const clearInput = () => {
@@ -585,83 +574,6 @@ export function start(configuration: PreviewStreamConfiguration) {
     resetInput();
   }
 
-  const videoPrototype: PresentationVideo = HTMLVideoElement.prototype;
-  const pictureInPictureSupported =
-    interactive &&
-    typeof canvas.captureStream === "function" &&
-    typeof CanvasCaptureMediaStreamTrack === "function" &&
-    ((document.pictureInPictureEnabled === true &&
-      typeof videoPrototype.requestPictureInPicture === "function") ||
-      typeof videoPrototype.webkitSetPresentationMode === "function");
-  let video: PresentationVideo | null = null;
-  let track: CanvasCaptureMediaStreamTrack | null = null;
-  const pictureInPictureActive = () =>
-    video !== null &&
-    (document.pictureInPictureElement === video ||
-      video.webkitPresentationMode === "picture-in-picture");
-  const reportPictureInPicture = (detail?: string) =>
-    post({
-      type: "pictureInPicture",
-      supported: pictureInPictureSupported,
-      active: pictureInPictureActive(),
-      ...(detail ? { detail } : {}),
-    });
-  const sendPictureInPictureFrame = () => {
-    if (video && (video.readyState === HTMLMediaElement.HAVE_NOTHING || pictureInPictureActive())) {
-      track?.requestFrame();
-    }
-  };
-  if (pictureInPictureSupported) {
-    const stream = canvas.captureStream(0);
-    const [captured] = stream.getVideoTracks();
-    const element: PresentationVideo = document.createElement("video");
-    element.muted = true;
-    element.playsInline = true;
-    element.srcObject = stream;
-    for (const name of [
-      "enterpictureinpicture",
-      "leavepictureinpicture",
-      "webkitpresentationmodechanged",
-    ]) {
-      element.addEventListener(name, () => {
-        if (!pictureInPictureActive()) element.pause();
-        reportPictureInPicture();
-      });
-    }
-    container.prepend(element);
-    canvas.style.background = configuration.background;
-    video = element;
-    track = captured instanceof CanvasCaptureMediaStreamTrack ? captured : null;
-  }
-  const togglePictureInPicture = () => {
-    const element = video;
-    if (!element) return;
-    if (pictureInPictureActive()) {
-      if (document.pictureInPictureElement) void document.exitPictureInPicture().catch(() => {});
-      else element.webkitSetPresentationMode?.("inline");
-      return;
-    }
-    if (element.readyState === HTMLMediaElement.HAVE_NOTHING) {
-      reportPictureInPicture("The page has not shown yet. Try again in a moment.");
-      return;
-    }
-    track?.requestFrame();
-    canvas.getContext("2d")?.drawImage(canvas, 0, 0);
-    const fail = (error: unknown) => {
-      element.pause();
-      reportPictureInPicture(
-        error instanceof Error ? error.message : "Picture in picture is unavailable.",
-      );
-    };
-    if (document.pictureInPictureEnabled) {
-      const entering = element.requestPictureInPicture();
-      void Promise.all([entering, element.play()]).catch(fail);
-    } else {
-      element.webkitSetPresentationMode?.("picture-in-picture");
-      void element.play().catch(fail);
-    }
-  };
-
   activeViewer = {
     stop: () => {
       stopped = true;
@@ -675,15 +587,11 @@ export function start(configuration: PreviewStreamConfiguration) {
       painter.stop();
       client?.stop();
       client = null;
-      track?.stop();
-      if (video) video.srcObject = null;
     },
     command: (message) => {
       send(message);
     },
-    togglePictureInPicture,
   };
   window.addEventListener("pagehide", stop, { once: true });
   reportStatus("connecting");
-  if (interactive) reportPictureInPicture();
 }

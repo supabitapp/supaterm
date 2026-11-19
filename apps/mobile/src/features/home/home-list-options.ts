@@ -107,6 +107,9 @@ export function useHomeListOptions(availableEnvironmentIds: ReadonlySet<Environm
   const setSelectedProjectKey = (value: string | null) => {
     updateOptions({ selectedProjectKey: value });
   };
+  const resetScope = () => {
+    updateOptions({ selectedEnvironmentId: null, selectedProjectKey: null });
+  };
   const setProjectSortOrder = (value: HomeProjectSortOrder) => {
     updateOptions({ projectSortOrder: value });
   };
@@ -117,6 +120,7 @@ export function useHomeListOptions(availableEnvironmentIds: ReadonlySet<Environm
     options: resolvedOptions,
     setSelectedEnvironmentId,
     setSelectedProjectKey,
+    resetScope,
     setProjectSortOrder,
     setThreadGrouping,
     setHideOfflineEnvironments,

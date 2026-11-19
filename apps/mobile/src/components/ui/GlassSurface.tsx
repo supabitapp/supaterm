@@ -15,7 +15,7 @@ import { cn } from "../../lib/cn";
 import { useAppearancePreferences } from "../../features/settings/appearance/AppearancePreferencesProvider";
 import { GlassBackdrop } from "./GlassBackdrop";
 
-export const ThemedGlassView = withUniwind(GlassView, {
+const ThemedGlassView = withUniwind(GlassView, {
   style: { fromClassName: "className" },
   tintColor: { fromClassName: "tintColorClassName", styleProperty: "accentColor" },
 });

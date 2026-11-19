@@ -313,7 +313,7 @@ overrides:
 
 packageExtensionsChecksum: sha256-UoRxygENKhPfc+td23kkPtl2A3aMuUr0ktMujrVM+0w=
 
-pnpmfileChecksum: sha256-uE8bbaA71OHC+F6ZQAr3QqX6lPPE57JS2ZbxBtKHxmU=
+pnpmfileChecksum: sha256-iDys4w8+cT5EtU8PZ37B6pdvovEQUsxgATLvvQOMOEU=
 
 patchedDependencies:
   '@effect/platform-node-shared@4.1.2': 06952843c6f431ca83c78762fd18d23cda76883801049ee311feced2438ecf14

@@ -3,15 +3,12 @@ import { ThreadUndoNotice } from "./ThreadUndoNotice";
 import { use } from "react";
 import { NativePrimaryColumnContext } from "../../native/v5-workspace-context";
 import { useNavigation } from "@react-navigation/native";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Platform } from "react-native";
 
 import type { EnvironmentThreadShell } from "@supaterm/client-runtime/state/shell";
-import { pickableProjectGroups } from "@supaterm/client-runtime/state/project-grouping";
 
-import { useProjects } from "../../state/entities";
-import { steadyNavigationThreadShellsAtom } from "../../state/threads";
-import { useLaunchingThreads, usePendingNewTasks } from "../../state/use-pending-new-tasks";
+import { usePendingNewTasks } from "../../state/use-pending-new-tasks";
 import { useWorkspaceState } from "../../state/workspace";
 import { useSavedRemoteConnections } from "../../state/use-remote-environment-registry";
 import {
@@ -20,18 +17,8 @@ import {
 } from "../layout/AdaptiveWorkspaceLayout";
 import { AndroidHomeFabLayout } from "./AndroidHomeFab";
 import { HomeScreen } from "./HomeScreen";
-import { ThreadListFilters } from "./ThreadListFilters";
-import { useHomeListOptions } from "./home-list-options";
-import {
-  runWhenHomeCovered,
-  useAtomValueWhileVisible,
-  useHomeRouteVisible,
-} from "./home-route-visibility";
-import {
-  buildHomeProjectScopes,
-  resolveHomeProjectFilterScope,
-  sortHomeProjectScopes,
-} from "./homeThreadList";
+import { runWhenHomeCovered, useHomeRouteVisible } from "./home-route-visibility";
+import { useThreadListFilter } from "./useThreadListFilter";
 import { usePendingTaskListActions } from "./usePendingTaskListActions";
 import { useThreadListActions } from "./useThreadListActions";
 import { useWorkspaceTabs } from "../layout/workspace/WorkspaceTabsContext";
@@ -40,20 +27,15 @@ import { useSelectWorkspaceTab } from "../layout/workspace/useSelectWorkspaceTab
 import { useSelectWorkspaceDetail } from "../layout/workspace/useSelectWorkspaceDetail";
 import { WorkspaceListEmptyDetail } from "../layout/workspace/WorkspaceListEmptyDetail";
 import { WorkspaceListHeader } from "../layout/workspace/WorkspaceListHeader";
-import { buildHomeListFilterMenuItems, homeListFilterEnvironments } from "./home-list-filter-menu";
 
 export function HomeRouteScreen() {
   const nativePrimaryColumn = use(NativePrimaryColumnContext);
   const { layout, setPrimarySidebarSearchQuery, startNewTask } = useAdaptiveWorkspaceLayout();
   const { primarySidebarSearchQuery } = useWorkspacePaneState();
   const selectDetail = useSelectWorkspaceDetail();
-  const projects = useProjects();
 
   const visible = useHomeRouteVisible();
-  const threads = useLaunchingThreads(
-    useAtomValueWhileVisible(steadyNavigationThreadShellsAtom, visible),
-  );
-  const { environments: workspaceEnvironments, state: catalogState } = useWorkspaceState();
+  const { state: catalogState } = useWorkspaceState();
   const { savedConnectionsById } = useSavedRemoteConnections();
   const navigation = useNavigation();
   const selectTab = useSelectWorkspaceTab();
@@ -104,57 +86,9 @@ export function HomeRouteScreen() {
   const pendingTasks = usePendingNewTasks();
   const { openPendingTask, confirmDeletePendingTask } =
     usePendingTaskListActions(selectThreadRoute);
-  const environments = homeListFilterEnvironments(workspaceEnvironments);
-  const availableEnvironmentIds = useMemo(
-    () => new Set(environments.map((environment) => environment.environmentId)),
-    [environments],
-  );
-  const {
-    options: listOptions,
-    setSelectedEnvironmentId,
-    setSelectedProjectKey,
-    setThreadGrouping,
-    setHideOfflineEnvironments,
-  } = useHomeListOptions(availableEnvironmentIds);
+  const { threads, listOptions, projects, environments, selectedProjectKey, filter } =
+    useThreadListFilter(visible);
   const selectedEnvironmentId = listOptions.selectedEnvironmentId;
-  const projectScopes = useMemo(
-    () =>
-      buildHomeProjectScopes({
-        projects,
-        environmentId: selectedEnvironmentId,
-        projectGroupingMode: listOptions.projectGroupingMode,
-      }),
-    [listOptions.projectGroupingMode, projects, selectedEnvironmentId],
-  );
-  const projectFilterOptions = useMemo(
-    () =>
-      pickableProjectGroups(
-        sortHomeProjectScopes({
-          scopes: projectScopes,
-          threads,
-          pendingTasks: [],
-          projectSortOrder: "updated_at",
-        }),
-      ).map((scope) => ({
-        key: scope.key,
-        label: scope.title,
-      })),
-    [projectScopes, threads],
-  );
-  const selectedProjectKey =
-    resolveHomeProjectFilterScope(projectScopes, projects, listOptions)?.key ?? null;
-  const threadListFilters = {
-    grouping: listOptions.threadGrouping,
-    onGroupingChange: setThreadGrouping,
-    environments,
-    projects: projectFilterOptions,
-    selectedEnvironmentId,
-    selectedProjectKey,
-    onEnvironmentChange: setSelectedEnvironmentId,
-    onProjectChange: setSelectedProjectKey,
-    hideOfflineEnvironments: listOptions.hideOfflineEnvironments,
-    onHideOfflineEnvironmentsChange: setHideOfflineEnvironments,
-  };
 
   if (layout.usesSplitView && !nativePrimaryColumn) {
     return (
@@ -178,10 +112,7 @@ export function HomeRouteScreen() {
             placeholder: "Search",
             accessibilityLabel: "Search threads",
           }}
-          filter={{
-            customized: selectedEnvironmentId !== null || selectedProjectKey !== null,
-            items: buildHomeListFilterMenuItems(threadListFilters),
-          }}
+          filter={filter}
         />
 
         <HomeScreen
@@ -227,11 +158,6 @@ export function HomeRouteScreen() {
           selectedEnvironmentId={selectedEnvironmentId}
           selectedProjectKey={selectedProjectKey}
           threads={threads}
-          listHeader={
-            Platform.OS === "ios" && workspace ? (
-              <ThreadListFilters {...threadListFilters} />
-            ) : undefined
-          }
           visible={visible}
         />
         <ThreadUndoNotice visible={visible} />
