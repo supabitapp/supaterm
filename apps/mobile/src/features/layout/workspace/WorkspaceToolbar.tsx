@@ -43,7 +43,6 @@ export function WorkspaceToolbar(props: {
   const deviceType = useDeviceType();
   const sidebarTabs = useSidebarWorkspaceTabs();
   const floatingTabs = useFloatingWorkspaceTabs();
-  const searchCompose = useUnfoldedDuoCompose() === "sidebar" && activeNewTask === null;
   const duoSearch = NATIVE_LIQUID_GLASS_SUPPORTED && isDuoDevice(deviceType);
   const bottomSearch = duoSearch && sidebarTabs !== "picker";
   // On the Duo, compose belongs to the threads tab.
@@ -74,6 +73,9 @@ export function WorkspaceToolbar(props: {
   const { filter: threadFilter } = useThreadListFilter(
     showsThreadFilter && tabActive && primaryColumn?.presented !== false,
   );
+  const searchCompose =
+    useUnfoldedDuoCompose(primaryColumn?.presented === true) === "sidebar" &&
+    activeNewTask === null;
   // UIKit hosts integrated search outside the sidebar's sliding content.
   // Mount it after native appearance so it cannot precede the pane's reveal.
   const searchVisible = foldedSearch

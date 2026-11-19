@@ -229,7 +229,9 @@ function WorkspaceColumns(
   } = useAdaptiveWorkspaceLayout();
   const { panes, sidebarByOrientation } = useWorkspacePaneState();
   const deviceType = useDeviceType();
-  const duoCompose = useUnfoldedDuoCompose();
+  // UIKit's appearance events, not the preference, say whether a swipe or rotation hid the sidebar.
+  const [primaryPresented, setPrimaryPresented] = useState<boolean | null>(null);
+  const duoCompose = useUnfoldedDuoCompose(primaryPresented ?? panes.primarySidebarVisible);
   const inspectorWidth = nativeInspectorWidth;
   const resizeStartWidth = useRef(inspectorWidth);
   const settingsDetailIn = (detail: readonly Route[]) =>
@@ -399,14 +401,9 @@ function WorkspaceColumns(
             )
       }
       onDisplayModeWillChange={({ nativeEvent }) => {
-        // The unfolded Duo's compose follows the sidebar, which its swipe can hide.
-        if (layout.variant !== "medium" && deviceType !== "duo-unfolded") return;
-        if (nativeEvent.nextDisplayMode === "secondaryOnly") setPrimarySidebarVisible(false);
-        else if (
-          nativeEvent.nextDisplayMode === "oneOverSecondary" ||
-          nativeEvent.nextDisplayMode === "oneBesideSecondary"
-        )
-          setPrimarySidebarVisible(true);
+        if (layout.variant !== "medium") return;
+        if (nativeEvent.nextDisplayMode === "oneOverSecondary") setPrimarySidebarVisible(true);
+        else if (nativeEvent.nextDisplayMode === "secondaryOnly") setPrimarySidebarVisible(false);
       }}
       displayModeButtonVisibility="never"
       presentsWithGesture
@@ -442,7 +439,11 @@ function WorkspaceColumns(
             selectedThreadKey={selectedThreadKey}
             selectedPullRequestKey={selectedPullRequestKey}
             onDismiss={handleNativeDismiss}
-            onAppearance={followCollapsedSplit}
+            onAppearance={(type, key) => {
+              if (type === "didAppear") setPrimaryPresented(true);
+              else if (type === "willDisappear") setPrimaryPresented(false);
+              followCollapsedSplit(type, key);
+            }}
             navigation={props.navigation}
           />
         </Split.Stack>
