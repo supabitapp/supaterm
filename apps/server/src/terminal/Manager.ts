@@ -1936,6 +1936,7 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
 
   yield* fileSystem.makeDirectory(logsDir, { recursive: true }).pipe(Effect.orDie);
 
+  const managerId = NodeCrypto.randomUUID();
   const managerStateRef = yield* SynchronizedRef.make<TerminalManagerState>({
     sessions: new Map(),
     killFibers: new Map(),
@@ -3737,6 +3738,7 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
       yield* listener({
         type: "snapshot",
         terminals,
+        managerId,
       });
 
       for (const event of bufferedEvents) {
