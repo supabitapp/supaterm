@@ -57,6 +57,7 @@ import {
   clearComposerDraftContent,
   getComposerDraftSnapshot,
   setStickyNewTaskProject,
+  stickyNewTaskProjectAtom,
   updateComposerDraftSettings,
   scheduleUnusedComposerAttachmentCleanup,
 } from "../../state/use-composer-drafts";
@@ -93,6 +94,7 @@ import { incomingShareImports, useIncomingShare } from "../sharing/IncomingShare
 import { idleShareFlagAtom, idleShareImportPhaseAtom } from "./incomingShareImport";
 import { scopedProjectKey } from "../../lib/scopedEntities";
 import { appAtomRegistry } from "../../state/atom-registry";
+import { mobilePreferencesAtom } from "../../state/preferences";
 
 import { readEnvironmentScope, useEnvironmentScope } from "../../state/session";
 
@@ -467,6 +469,8 @@ export function NewTaskDraftScreen(props: {
       return;
     }
 
+    const preferences = appAtomRegistry.get(mobilePreferencesAtom);
+    const saved = AsyncResult.isSuccess(preferences) ? preferences.value : undefined;
     const selection = resolveDraftProjectSelection(
       selectedProjectKey,
       projects,
@@ -474,6 +478,8 @@ export function NewTaskDraftScreen(props: {
       {
         incomingShareId: props.incomingShareId,
         pickerClosed: initialPickerRef.current === "open" && focused,
+        useLastProject: saved?.useLastProjectForNewThreads,
+        lastProject: appAtomRegistry.get(stickyNewTaskProjectAtom) ?? undefined,
       },
     );
     if (selection.kind === "preserve") {
