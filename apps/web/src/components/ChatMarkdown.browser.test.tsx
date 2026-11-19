@@ -10,7 +10,7 @@ import { act, render } from "../../test/render";
 import "../index.css";
 
 import { filesystemEnvironment } from "../state/filesystem";
-import { useRightPanelStore } from "../rightPanelStore";
+import { selectActiveRightPanelSurface, useRightPanelStore } from "../rightPanelStore";
 import {
   CHAT_USER_MARKDOWN_REMARK_PLUGINS,
   remarkEnableOrderedListNumbers,
@@ -784,9 +784,7 @@ describe("ChatMarkdown workspace file opens", () => {
       resolvePending = resolve;
     });
     workspaceSearch.mockReturnValueOnce(pending);
-    using openFile = vi
-      .spyOn(useRightPanelStore.getState(), "openFile")
-      .mockImplementation(() => {});
+    using openFile = vi.spyOn(useRightPanelStore.getState(), "openFile");
     await using screen = await renderText(
       "[Notes](physics/notes/a.md) and [Other](/elsewhere/b.md:9)",
       {
@@ -805,6 +803,69 @@ describe("ChatMarkdown workspace file opens", () => {
 
     expect(openFile).toHaveBeenCalledExactlyOnceWith(threadRef, "/elsewhere/b.md", 9);
     expect(workspaceSearch).toHaveBeenCalledOnce();
+  });
+
+  it("keeps a file opened from the picker when an earlier link lookup finishes", async () => {
+    setup();
+    const panelRef = { ...threadRef, threadId: ThreadId.make("thread-own-panel") };
+    const result = AsyncResult.success({
+      entries: [{ path: "notes/cited-note.txt", kind: "file" }],
+      truncated: false,
+    });
+    let resolvePending!: (value: typeof result) => void;
+    const pending = new Promise<typeof result>((resolve) => {
+      resolvePending = resolve;
+    });
+    workspaceSearch.mockReturnValueOnce(pending);
+    await using screen = await renderText("[Cited](cited-note.txt)", {
+      cwd: "/repo",
+      threadRef: panelRef,
+    });
+    await act(async () => screen.container.querySelector("a")!.click());
+    expect(workspaceSearch).toHaveBeenCalledOnce();
+
+    useRightPanelStore.getState().openFile(panelRef, "picker-note.txt");
+    await act(async () => resolvePending(result));
+
+    expect(
+      selectActiveRightPanelSurface(useRightPanelStore.getState().byThreadKey, panelRef),
+    ).toMatchObject({ kind: "file", relativePath: "picker-note.txt" });
+  });
+
+  it("keeps a citation in its own panel when a link opens in another panel", async () => {
+    setup();
+    const cited = { ...threadRef, threadId: ThreadId.make("separate-panels-cited") };
+    const other = { ...threadRef, threadId: ThreadId.make("separate-panels-other") };
+    const result = AsyncResult.success({
+      entries: [{ path: "notes/cited-note.txt", kind: "file" }],
+      truncated: false,
+    });
+    let resolvePending!: (value: typeof result) => void;
+    const pending = new Promise<typeof result>((resolve) => {
+      resolvePending = resolve;
+    });
+    workspaceSearch.mockReturnValueOnce(pending);
+    await using screen = await render(
+      <>
+        <ChatMarkdown cwd="/repo" threadRef={cited} text="[Cited](cited-note.txt)" />
+        <ChatMarkdown cwd="/repo" threadRef={other} text="[Other](/elsewhere/other.md)" />
+      </>,
+    );
+    const [citedLink, otherLink] = screen.container.querySelectorAll("a");
+    await act(async () => citedLink!.click());
+    expect(workspaceSearch).toHaveBeenCalledOnce();
+    await act(async () => otherLink!.click());
+    await act(async () => resolvePending(result));
+
+    const { byThreadKey } = useRightPanelStore.getState();
+    expect(selectActiveRightPanelSurface(byThreadKey, cited)).toMatchObject({
+      kind: "file",
+      relativePath: "notes/cited-note.txt",
+    });
+    expect(selectActiveRightPanelSurface(byThreadKey, other)).toMatchObject({
+      kind: "file",
+      relativePath: "/elsewhere/other.md",
+    });
   });
 });
 
