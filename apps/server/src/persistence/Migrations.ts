@@ -34,6 +34,7 @@ import Migration0024 from "./Migrations/024_ActiveShellIndexIndexes.ts";
 import Migration0025 from "./Migrations/025_BackgroundRecoveryIndexes.ts";
 import Migration0026 from "./Migrations/026_TurnStartReadIndexes.ts";
 import Migration0027 from "./Migrations/027_DelegatedTaskReadIndexes.ts";
+import Migration0028 from "./Migrations/028_ThreadItemCounts.ts";
 
 /**
  * Add a schema change as a new entry with the next id. Never edit, renumber, or
@@ -68,6 +69,7 @@ const migrationEntries = [
   [25, "BackgroundRecoveryIndexes", Migration0025],
   [26, "TurnStartReadIndexes", Migration0026],
   [27, "DelegatedTaskReadIndexes", Migration0027],
+  [28, "ThreadItemCounts", Migration0028],
 ] as const;
 
 export const migrationManifest = migrationEntries.map(([id, name]) => [id, name] as const);
