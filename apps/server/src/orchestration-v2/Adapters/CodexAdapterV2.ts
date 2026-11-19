@@ -280,7 +280,7 @@ export const CodexProviderCapabilitiesV2 = {
     canForkThread: true,
     canForkFromTurn: true,
     canForkFromSubagentThread: true,
-    forkWhileSourceActive: "none",
+    forkWhileSourceActive: "stable",
     exposesNativeThreadId: true,
   },
   turns: {

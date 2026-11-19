@@ -120,6 +120,21 @@ export function isRunInProgress(run: OrchestrationV2Run): boolean {
   return isOrchestrationV2RunInProgress(run.status);
 }
 
+/**
+ * Providers that key forks on native turn ids can only fork a busy source from a turn with one;
+ * a synthetic or missing boundary would fork the live conversation, including the running turn.
+ */
+export function canForkBusySourceNatively(
+  capabilities: OrchestrationV2ProviderCapabilities,
+  hasNativeTurnBoundary: boolean,
+): boolean {
+  const mode = capabilities.threads.forkWhileSourceActive;
+  return (
+    mode === "live" ||
+    (mode === "stable" && (hasNativeTurnBoundary || !capabilities.turns.exposesNativeTurnId))
+  );
+}
+
 /** The run a follow-up to a finished child binds to: the latest active one, else the last that ran. */
 export function followUpOwnerRun(
   runs: ReadonlyArray<OrchestrationV2Run>,
@@ -224,6 +239,7 @@ export interface CommandPolicyV2Shape {
     input: CapabilityCheckInput & {
       readonly sameProvider: boolean;
       readonly hasStrongNativeSource: boolean;
+      readonly hasNativeTurnBoundary: boolean;
       readonly sourceRunStatus: OrchestrationV2Run["status"];
       readonly fromSpecificTurn: boolean;
       /** Later source runs are still active; see `threads.forkWhileSourceActive`. */
@@ -393,7 +409,8 @@ const decideForkExecution: CommandPolicyV2Shape["decideForkExecution"] = (input)
     (input.sourceRunStatus === "completed" || input.sourceRunStatus === "waiting") &&
     input.sameProvider &&
     input.hasStrongNativeSource &&
-    (!input.sourceBusy || input.capabilities.threads.forkWhileSourceActive !== "none") &&
+    (!input.sourceBusy ||
+      canForkBusySourceNatively(input.capabilities, input.hasNativeTurnBoundary)) &&
     input.capabilities.threads.canForkThread &&
     (!input.fromSpecificTurn || input.capabilities.threads.canForkFromTurn) &&
     input.capabilities.identity.nativeThreadIds === "strong";
