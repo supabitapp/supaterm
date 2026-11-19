@@ -59,13 +59,16 @@ export function WorkspaceToolbar(props: {
   const searchLabel = SEARCH_LABELS[selectedTab === "usage" ? "threads" : selectedTab];
   // iPhone draws the thread filter from the list's own header actions.
   const showsThreadFilter = deviceType !== "phone" && selectedTab === "threads";
-  const { filter: threadFilter } = useThreadListFilter(showsThreadFilter && tabActive);
+
   const { isTabActive: isListTabActive } = workspace;
   // A retained tab slot stays mounted while another is shown.
   const isTabActive = (tab: typeof selectedTab) =>
     tab === "settings" ? tabActive : isListTabActive(tab);
   const foldedSearch = deviceType === "duo-folded";
   const primaryColumn = use(NativePrimaryColumnContext);
+  const { filter: threadFilter } = useThreadListFilter(
+    showsThreadFilter && tabActive && primaryColumn?.presented !== false,
+  );
   // UIKit hosts integrated search outside the sidebar's sliding content.
   // Mount it after native appearance so it cannot precede the pane's reveal.
   const searchVisible = foldedSearch

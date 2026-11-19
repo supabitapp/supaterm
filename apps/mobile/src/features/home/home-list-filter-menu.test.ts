@@ -2,13 +2,17 @@ import type { EnvironmentId } from "@supaterm/contracts";
 import { describe, expect, it, vi } from "vite-plus/test";
 
 import type { WorkspaceEnvironment } from "../../state/workspaceModel";
-import { buildHomeListFilterMenu, homeListFilterEnvironments } from "./home-list-filter-menu";
+import {
+  buildHomeListFilterMenu,
+  buildHomeListFilterMenuItems,
+  homeListFilterEnvironments,
+} from "./home-list-filter-menu";
 
 describe("buildHomeListFilterMenu", () => {
   it("adds a project scope submenu that selects and clears the same scope as the chips", () => {
     const onProjectChange = vi.fn();
     const onResetScope = vi.fn();
-    const menu = buildHomeListFilterMenu({
+    const input = {
       grouping: "status",
       onGroupingChange: vi.fn(),
       environments: [],
@@ -23,7 +27,8 @@ describe("buildHomeListFilterMenu", () => {
       onResetScope,
       hideOfflineEnvironments: false,
       onHideOfflineEnvironmentsChange: vi.fn(),
-    });
+    } as const;
+    const menu = buildHomeListFilterMenu(input);
 
     const projectMenu = menu.items.find(
       (item) => item.type === "submenu" && item.title === "Project",
@@ -53,6 +58,16 @@ describe("buildHomeListFilterMenu", () => {
     if (reset?.type !== "action") throw new Error("Expected reset action");
     reset.onPress();
     expect(onResetScope).toHaveBeenCalledOnce();
+
+    // Native menus resolve a delayed tap by ID, so IDs must not follow position.
+    const projectItems = buildHomeListFilterMenuItems(input).find((item) => item.id === "Project");
+    expect(projectItems).toMatchObject({
+      items: [
+        { id: "project:all" },
+        { id: "project:environment-1:project-1" },
+        { id: "project:environment-1:project-2" },
+      ],
+    });
   });
 });
 
