@@ -21,9 +21,9 @@ Rules for writing tests, and for asking for them in review. AGENTS.md carries th
   - No per-test timeout argument or `retry`. The project timeout is the ceiling, and flaky tests are fixed, not retried.
   - No `performance.now()` or `Date.now()` deltas. Assert on events and counts, not elapsed time.
   - Browser tests assert through `expect.element` or `vi.waitFor`, never `requestAnimationFrame` or `transitionend`.
-  - `vi.mock` factories must not spread a real module that pulls in the syntax highlighter or the diff workers.
+  - Do not replace a dependency's behavior with `vi.mock` factories, `vi.fn(impl)`, `mockReturnValue`-style setters, or patched globals. Use the real implementation, or pass a hand-written fake through a seam (a parameter, React context, or Effect layer). Observation-only spies (`vi.fn()`, `vi.spyOn` that calls through) and fake timers are fine.
   - No skips. `.skip`, `.only` and `.todo` fail lint; gate platform-specific tests with `skipIf` or `runIf`.
-  - Lint enforces this: `supaterm/no-test-timeout-or-retry`, `supaterm/no-frame-waits-in-browser-tests`, `supaterm/no-wall-clock-in-tests`, `supaterm/no-real-time-wait-in-tests`, `supaterm/no-polling-loop-in-tests`, `landmines-testing/no-unsignaled-poll`, `vitest/no-disabled-tests`, `vitest/no-focused-tests`.
+  - Lint enforces this: `supaterm/no-test-timeout-or-retry`, `supaterm/no-frame-waits-in-browser-tests`, `supaterm/no-wall-clock-in-tests`, `supaterm/no-real-time-wait-in-tests`, `supaterm/no-polling-loop-in-tests`, `landmines-testing/no-unsignaled-poll`, `landmines-testing/no-test-doubles`, `landmines-testing/no-flake-masking`, `landmines-testing/no-fixed-sleep`, `vitest/no-disabled-tests`, `vitest/no-focused-tests`.
 
 ## Web browser tests
 
@@ -31,8 +31,8 @@ Rules for writing tests, and for asking for them in review. AGENTS.md carries th
   - Acquire what the test drives after mounting (fake timers it advances, spies it sets up after mounting) after the render, so it disposes before the unmount. Anything the first render reads comes before it.
   - A helper that renders and then waits or clicks puts the screen in an `AsyncDisposableStack` and `move()`s it out only on success, so a failed wait still unmounts.
   - `rerender` needs a fresh element on every call.
-  - No lifecycle hooks and no module-level mutable state. Shared mock state that `vi.mock` factories read is reset by a `setup()` call at the top of the test.
-  - `router` is on by default. Pass `router: false` only with a one-line comment saying why.
+  - No lifecycle hooks and no module-level mutable state. Shared fake state is reset by a `setup()` call at the top of the test.
+  - `router` is on by default. Pass `router: false` only when the component cannot render inside a router.
 
   ```tsx
   it("saves on Enter", async () => {

@@ -104,15 +104,15 @@ An empty database is a bad test. Seed your worktree's `.supaterm` with a copy of
   - No per-test timeout argument or `retry`. The project timeout is the ceiling, and flaky tests are fixed, not retried.
   - No `performance.now()` or `Date.now()` deltas. Assert on events and counts, not elapsed time.
   - Browser tests assert through `expect.element` or `vi.waitFor`, never `requestAnimationFrame` or `transitionend`.
-  - `vi.mock` factories must not spread a real module that pulls in the syntax highlighter or the diff workers.
+  - Do not replace a dependency's behavior with `vi.mock` factories, `vi.fn(impl)`, `mockReturnValue`-style setters, or patched globals. Use the real implementation, or pass a hand-written fake through a seam (a parameter, React context, or Effect layer). Observation-only spies (`vi.fn()`, `vi.spyOn` that calls through) and fake timers are fine.
   - No skips. `.skip`, `.only` and `.todo` fail lint; gate platform-specific tests with `skipIf` or `runIf`.
-  - Lint enforces this: `supaterm/no-test-timeout-or-retry`, `supaterm/no-frame-waits-in-browser-tests`, `supaterm/no-wall-clock-in-tests`, `supaterm/no-real-time-wait-in-tests`, `supaterm/no-polling-loop-in-tests`, `landmines-testing/no-unsignaled-poll`, `vitest/no-disabled-tests`, `vitest/no-focused-tests`.
+  - Lint enforces this: `supaterm/no-test-timeout-or-retry`, `supaterm/no-frame-waits-in-browser-tests`, `supaterm/no-wall-clock-in-tests`, `supaterm/no-real-time-wait-in-tests`, `supaterm/no-polling-loop-in-tests`, `landmines-testing/no-unsignaled-poll`, `landmines-testing/no-test-doubles`, `landmines-testing/no-flake-masking`, `landmines-testing/no-fixed-sleep`, `vitest/no-disabled-tests`, `vitest/no-focused-tests`.
 - Web browser tests are `*.browser.test.tsx` or `*.browser.test.ts` and render with `await using screen = await render(...)` from `apps/web/test/render.tsx`. `supaterm/require-disposable-render` errors on the old patterns.
   - Acquire what the test drives after mounting (fake timers it advances, spies it sets up after mounting) after the render, so it disposes before the unmount. Anything the first render reads comes before it.
   - A helper that renders and then waits or clicks puts the screen in an `AsyncDisposableStack` and `move()`s it out only on success, so a failed wait still unmounts.
   - `rerender` needs a fresh element on every call.
-  - No lifecycle hooks and no module-level mutable state. Shared mock state that `vi.mock` factories read is reset by a `setup()` call at the top of the test.
-  - `router` is on by default. Pass `router: false` only with a one-line comment saying why.
+  - No lifecycle hooks and no module-level mutable state. Shared fake state is reset by a `setup()` call at the top of the test.
+  - `router` is on by default. Pass `router: false` only when the component cannot render inside a router.
 
   ```tsx
   it("saves on Enter", async () => {
@@ -146,7 +146,7 @@ Most code changes do not need an internal documentation change. Agents can read 
 
 - `docs/internals/` is for architectural decisions and their reasons, constraints that span components, and implementation traps that are hard to discover from the source. Before adding a paragraph, ask what a maintainer would get wrong without it. If reading the relevant code answers the question, leave it out.
 - Do not document every feature, enumerate fields or methods, narrate control flow, maintain file catalogs, or append PR summaries. Types, tests, and code already record the implementation. The glossary defines shared vocabulary; it is not a feature index.
-- A local reason the code can't show goes in a short nearby code comment. Use an internal doc when the reasoning crosses boundaries or needs context the code cannot carry well. Link to the relevant source instead of copying it.
+- Prose code comments are not allowed. A reason the code can't show goes in the PR, or in an internal doc when the reasoning crosses boundaries. Link to the relevant source instead of copying it.
 - When a documented decision or constraint changes, rewrite or remove the affected text. Do not append another account of the new behavior. A new internal page needs a distinct, durable reason to exist.
 - `docs/user/` helps users accomplish tasks. Give each major feature a concise section explaining what it does, how to start, and anything unintuitive. A settings path is useful; descriptions of visible buttons, icons, layouts, animations, or every UI state are not. Before adding text, ask what task or decision it helps the user with.
 - Keep user docs in the shipped product's voice, without implementation details or contributor tooling. Update the relevant feature section when how to use it changes. A UI tweak does not need a documentation entry, and a new control does not need its own page.
@@ -187,7 +187,7 @@ Architecture and its constraints: `docs/internals/overview.md`. Glossary: `docs/
   Named `Effect.fn` creates a span; the unnamed form does not. Preserve existing span names and
   options, and pass combinators as additional function-builder arguments.
 - Inferred types over annotations. `any` is the enemy.
-- Default to no comment. Write one only for a constraint, an external quirk, or an invariant the code can't show, in one line where you can and four at most. Don't restate names or signatures, narrate steps, record history, or explain the fix you just made; the PR carries that. `supaterm/no-low-value-comments` enforces the length cap and the mechanical cases.
+- No prose comments. `landmines-style/no-comments` allows only tool directives (lint and type-checker suppressions, `@effect-diagnostics`, `/** @public */`, `gitleaks:allow`, `/* @__PURE__ */`, licence headers), single-line `// WARNING:` notes for dangerous recurring footguns, and TSDoc on exported API, which `supaterm/no-low-value-comments` keeps short. Express intent in names and types; the PR carries the rationale.
 - React effects are for synchronizing with something outside React. Derive in render and act in handlers instead of syncing state, but don't hide real lifecycle work in refs or stores to dodge one. The `supaterm/no-unreasoned-state-sync` lint rule reports every effect; one that stays states its reason with `// oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- <why>`.
 - Our users drive agents all day and notice a dropped frame, a lying spinner, and a stale label. No continuously repainting animations; they peg the GPU on high-refresh displays unless explicitly approved for some animations.
 - If a rule here fights the task in front of you, say so loudly and get a human sign-off before breaking it.

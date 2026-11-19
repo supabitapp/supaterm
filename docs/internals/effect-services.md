@@ -161,4 +161,4 @@ optional-service layer. Don't route around the layer with an imperative runtime.
 - Did you extend the domain's existing service before adding a new one?
 - Did you run knip? A new export with no importer fails it.
 - Does every directive you added that disables a lint, type-checker, or LSP diagnostic say why, in
-  a `-- reason` suffix or a comment above it?
+  a `-- reason` suffix?
