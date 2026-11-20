@@ -246,8 +246,9 @@ patchedDependencies:
   # native scroll event at the target finish a re-armed initial bootstrap on iOS.
   "@legendapp/list@3.7.3": patches/@legendapp__list@3.7.3.patch
   # Exports the dependency-light subpaths mobile and the web diff parser import, keeps measured
-  # wrapped-row heights above an edit (fileEditorVirtualization.test.ts), and stops the find bar
-  # reclaiming focus from the file.
+  # wrapped-row heights above an edit (fileEditorVirtualization.test.ts), stops the find bar
+  # reclaiming focus from the file, and keeps drag selections intact across virtualized scroll
+  # renders.
   "@pierre/diffs@1.6.1": patches/@pierre%2Fdiffs@1.6.1.patch
   "@react-native-menu/menu@2.0.0": patches/@react-native-menu__menu@2.0.0.patch
   "@react-navigation/native-stack@7.21.0": patches/@react-navigation%2Fnative-stack@7.21.0.patch
