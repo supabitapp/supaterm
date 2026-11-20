@@ -72,6 +72,7 @@ const probeThrough = Effect.fn(function* (http: HttpClient.HttpClient) {
                 address: "https://peer.example",
                 url: "https://peer.example",
                 token: "fixture",
+                capabilities: box.capabilities,
               }),
             recordOutcome: () => Effect.void,
             recordExpiry: () => Effect.void,
@@ -360,6 +361,7 @@ it.effect("renews a missing peer session once and reuses its replacement", () =>
                   address: "https://peer.example",
                   url: "https://peer.example",
                   token: "fixture",
+                  capabilities: box.capabilities,
                 }),
               recordOutcome: (_, outcome) => Effect.sync(() => outcomes.push(outcome.error)),
               recordExpiry: (_, expiresAt) =>

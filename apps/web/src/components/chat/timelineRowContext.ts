@@ -14,7 +14,7 @@ import type {
   WorktreeSetupSnapshot,
 } from "@supaterm/contracts";
 import type { WorkflowOpening } from "@supaterm/client-runtime/state/subagentRuntime";
-import { type MouseEvent, createContext, useEffect, useRef } from "react";
+import { type MouseEvent, type ReactNode, createContext, useEffect, useRef } from "react";
 import type { LegendListRef } from "@legendapp/list/react";
 import type { CodexArtifactTemplate } from "@supaterm/shared/codexArtifactTemplates";
 import type { ChatFileAttachment } from "../../types";
@@ -24,8 +24,16 @@ import type { TimestampFormat } from "@supaterm/contracts/settings";
 import type { HandoffTimelineRun } from "./V2LifecycleRow";
 import type { PinnableProjectedItem } from "./PinnedMessages";
 import type { HtmlRenderSelectionReport } from "./HtmlRenderFrame";
+import type { TurnItemDetailSource } from "../../state/queries";
 
 export interface TimelineRowSharedState {
+  /**
+   * Draws a published HTML visual. Unset, the row loads it from the environment; a linked
+   * environment's thread has no way to ask for it.
+   */
+  renderHtmlRender: ((row: Extract<TimelineRow, { kind: "html-render" }>) => ReactNode) | undefined;
+  /** Where expanded rows read an item's detail when not from the environment. */
+  turnItemSource: TurnItemDetailSource | undefined;
   citationRequest: AssistantCitationTarget | null;
   /** Absent hides "Reply", as in the guest view. */
   onReplyToResponse: ((response: ResponseContextRecord) => boolean) | undefined;

@@ -9,6 +9,7 @@ import {
   type PeerLink,
   type PeerLinkCreateInput,
   PeerLinkError,
+  type PeerLinkName,
   type PeerLinkSummary,
 } from "@supaterm/contracts";
 import * as NodeSqliteClient from "@supaterm/shared/nodeSqliteClient";
@@ -82,6 +83,8 @@ export interface ResolvedPeerLink {
   /** Where requests to that address go: itself, or this server's tunnel to a relay address. */
   readonly url: string;
   readonly token: string;
+  /** What the peer said it can do when it answered. */
+  readonly capabilities: ExecutionEnvironmentCapabilities;
 }
 
 /** One owner holds every link's relay tunnel, so a tunnel outlives the client that asked for the link. */
@@ -109,6 +112,8 @@ export class PeerLinks extends Context.Service<
   {
     readonly link: (input: PeerLinkCreateInput) => Effect.Effect<PeerLink, PeerLinkError>;
     readonly list: Effect.Effect<ReadonlyArray<PeerLinkSummary>, PeerLinkError>;
+    /** The unexpired links' names, from what is stored, without asking any peer. */
+    readonly names: Effect.Effect<ReadonlyArray<PeerLinkName>, PeerLinkError>;
     /** The stored link, without asking the peer whether it answers. */
     readonly get: (
       environmentId: EnvironmentId,
@@ -693,6 +698,16 @@ const make = Effect.gen(function* () {
     });
   });
 
+  const names: PeerLinks["Service"]["names"] = Effect.gen(function* () {
+    const links = yield* Effect.forEach(yield* readRows, toLink);
+    const now = yield* DateTime.now;
+    return links.flatMap((link) =>
+      DateTime.isGreaterThan(link.expiresAt, now)
+        ? [{ environmentId: link.environmentId, label: link.label }]
+        : [],
+    );
+  });
+
   const get: PeerLinks["Service"]["get"] = (environmentId) =>
     readRow(environmentId).pipe(
       Effect.flatMap(
@@ -784,6 +799,7 @@ const make = Effect.gen(function* () {
         address,
         url: yield* reach(address, link.relayUrl),
         token: new TextDecoder().decode(stored.value),
+        capabilities: peer.capabilities,
       };
     },
   );
@@ -815,6 +831,7 @@ const make = Effect.gen(function* () {
   return PeerLinks.of({
     link,
     list,
+    names,
     get,
     unlink,
     resolve,

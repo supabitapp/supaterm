@@ -69,9 +69,11 @@ export const descriptorOf = (
  * socket. The descriptor can be swapped, as when its address comes to answer
  * as another environment, and every bearer it receives is recorded.
  */
-export const servePeer = <E, R>(
+export const servePeer = <E, R, E2 = never, R2 = never>(
   initial: ExecutionEnvironmentDescriptor,
   tools: Layer.Layer<never, E, R>,
+  /** More of its HTTP routes, whose handlers get the same auth. */
+  routes: Layer.Layer<never, E2, R2> = Layer.empty,
   /** The HTTP server it is served on, when it also answers through its relay tunnel. */
   tunnelServer?: NodeHttp.Server,
 ) =>
@@ -148,6 +150,7 @@ export const servePeer = <E, R>(
         ),
         Layer.provide(McpOAuth.layerMcpClientAuthenticator),
       ),
+      routes,
     ).pipe(
       Layer.provide(layerRecordBearers),
       Layer.provide(RelayIngress.layerPathGuard),
@@ -158,6 +161,7 @@ export const servePeer = <E, R>(
     // environment that links to it in the same test.
     yield* HttpRouter.serve(layerRoutes, { disableListenLog: true, disableLogger: true }).pipe(
       Layer.provide(Layer.succeedContext(tunnelContext)),
+      Layer.provide(Layer.succeedContext(authContext)),
       Layer.fresh,
       Layer.build,
     );

@@ -24,8 +24,9 @@ const FOLLOW_SLACK_PX = 8;
 export function useCommandOutputStreaming(
   environmentId: EnvironmentId,
   projectedItem: OrchestrationV2ProjectedTurnItem,
+  enabled = true,
 ): boolean {
-  const isCommand = projectedItem.item.type === "command_execution";
+  const isCommand = enabled && projectedItem.item.type === "command_execution";
   // Shares the panel's subscription, and re-renders only when availability changes.
   const unavailable = useAtomValue(
     isCommand

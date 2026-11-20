@@ -1,3 +1,4 @@
+import { resolveLinkedThreadOpen } from "@supaterm/client-runtime/linked-thread";
 import {
   formatSubagentDisplayTitle,
   resolveSubagentMetadata,
@@ -33,23 +34,42 @@ export interface SubagentRowPresentation {
   readonly runsOn: string | null;
 }
 
+export interface SubagentThreadTarget {
+  readonly environmentId: EnvironmentId;
+  readonly threadId: ThreadId;
+  /** Set when the thread is read through the environment that links to it, not opened there. */
+  readonly linked?: { readonly viaEnvironmentId: EnvironmentId; readonly label: string };
+}
+
 /**
- * Where an agent's thread opens: here, or in the linked environment that runs
- * it. Null when there is no thread, or this app is not connected to that
- * environment.
+ * Where an agent's thread opens: here, in the linked environment when this app is connected there,
+ * or read-only through this environment's link (a saved environment opens in place once the link is
+ * gone). Null without a thread, or on an older server for a machine this app does not have.
  */
 export function subagentThreadTarget(
   subagent: Pick<OrchestrationV2Subagent, "childThreadId" | "remoteChild">,
   environmentId: EnvironmentId,
-  isKnownEnvironment: (environmentId: EnvironmentId) => boolean,
-): { readonly environmentId: EnvironmentId; readonly threadId: ThreadId } | null {
+  ownConnection: (environmentId: EnvironmentId) => { readonly connected: boolean } | undefined,
+  /** Whether `environmentId` still holds a link to the given environment; null on an older server. */
+  isLinked: ((environmentId: EnvironmentId) => boolean) | null,
+): SubagentThreadTarget | null {
   if (subagent.childThreadId !== null) {
     return { environmentId, threadId: subagent.childThreadId };
   }
   const remote = subagent.remoteChild;
-  return remote !== undefined && isKnownEnvironment(remote.environmentId)
-    ? { environmentId: remote.environmentId, threadId: remote.threadId }
-    : null;
+  if (remote === undefined) return null;
+  const target = { environmentId: remote.environmentId, threadId: remote.threadId };
+  const own = ownConnection(remote.environmentId);
+  if (isLinked === null) return own === undefined ? null : target;
+  const open = resolveLinkedThreadOpen({
+    environmentId: remote.environmentId,
+    viaEnvironmentId: environmentId,
+    own,
+    linked: isLinked(remote.environmentId),
+  });
+  return open === "direct"
+    ? target
+    : { ...target, linked: { viaEnvironmentId: environmentId, label: remote.label } };
 }
 
 function rowTitle(subagent: Pick<OrchestrationV2Subagent, "title" | "prompt">): string {

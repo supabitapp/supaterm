@@ -40,6 +40,11 @@ vi.mock(import("../../state/environments"), () => ({
   useEnvironment: (() => null) as never,
   useEnvironmentProviders: (() => new Map()) as never,
 }));
+vi.mock(import("../../state/peerLinks"), () => ({
+  peerLinkEnvironment: {} as never,
+  useLinkedThreadLabel: (() => undefined) as never,
+  useSupportsLinkedThreadReads: (() => false) as never,
+}));
 vi.mock(import("../../lib/archivedThreadsState"), () => ({
   useArchivedThreadSnapshots: (() => ({
     snapshots: [{ environmentId: "environment", snapshot: { threads: state.archivedThreads } }],

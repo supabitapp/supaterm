@@ -20,14 +20,15 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { SheetHeader } from "../../components/ui/SheetHeader";
 import { AppText as Text } from "../../components/ui/AppText";
-import { useEnvironments } from "../../state/environments";
 import { environmentThreadDetails } from "../../state/threads";
 import { SubagentRow } from "./SubagentRow";
-import { subagentThreadTarget } from "./threadAgentsPresentation";
 import { useVisibleSecondClock } from "./use-visible-second-clock";
 import { SubagentStopButton } from "./SubagentStopButton";
 import { ThreadWorkflowGroup } from "./ThreadWorkflowGroup";
 import { ScreenContent } from "../../components/ui/ScreenContent";
+import { subagentThreadTarget, type SubagentThreadTarget } from "./threadAgentsPresentation";
+import { linkedThreadRouteParams } from "./LinkedThreadSheet";
+import { useLinkedThreadReach } from "../../state/linkedThread";
 
 import { useOpenThreadInspector } from "./thread-inspector-navigation";
 
@@ -56,8 +57,14 @@ export function ThreadAgentsSheet({ route }: StaticScreenProps<AgentsTarget>) {
     [subagents],
   );
 
-  const openChildThread = (child: AgentsTarget) => {
+  const openChildThread = (child: SubagentThreadTarget, title: string | null = null) => {
     void Haptics.selectionAsync();
+    if (child.linked !== undefined) {
+      navigation.dispatch(
+        StackActions.replace("LinkedThread", linkedThreadRouteParams(child, child.linked, title)),
+      );
+      return;
+    }
     if (
       openInspector(target, {
         type: "thread",
@@ -129,12 +136,15 @@ function AgentRow(props: {
   readonly subagent: OrchestrationV2Subagent;
   readonly tickSeconds: boolean;
   readonly isLast: boolean;
-  readonly onOpen: (child: AgentsTarget) => void;
+  readonly onOpen: (child: SubagentThreadTarget, title: string | null) => void;
 }) {
   const { subagent } = props;
-  const { presentationById } = useEnvironments();
-  const target = subagentThreadTarget(subagent, props.environmentId, (id) =>
-    presentationById.has(id),
+  const reach = useLinkedThreadReach(props.environmentId, [subagent]);
+  const target = subagentThreadTarget(
+    subagent,
+    props.environmentId,
+    reach.ownConnection,
+    reach.isLinked,
   );
 
   const row = (
@@ -169,8 +179,12 @@ function AgentRow(props: {
     ) : (
       <Pressable
         accessibilityRole="link"
-        accessibilityHint="Opens this agent's thread"
-        onPress={() => props.onOpen(target)}
+        accessibilityHint={
+          target.linked === undefined
+            ? "Opens this agent's thread"
+            : `Opens a read-only view of this agent's thread on ${target.linked.label}`
+        }
+        onPress={() => props.onOpen(target, subagent.title)}
         className="min-w-0 flex-1 active:bg-subtle"
       >
         {row}

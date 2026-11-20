@@ -4,6 +4,7 @@ import {
   linkableMachines,
   linkedEnvironmentNames,
   machineLinkInput,
+  supportsLinkedThreadReads,
   supportsPeerLinks,
 } from "@supaterm/client-runtime/link-request";
 import { createPeerLinkEnvironmentAtoms } from "@supaterm/client-runtime/state/peerLinks";
@@ -32,12 +33,18 @@ export const supportsPeerLinksAtom = Atom.family((environmentId: EnvironmentId) 
   ).pipe(Atom.withLabel(`peer-links:offered:${environmentId}`)),
 );
 
+/** Whether a client of `environmentId` can read the threads on the machines it links to. */
+const supportsLinkedThreadReadsAtom = Atom.family((environmentId: EnvironmentId) =>
+  Atom.make((get) =>
+    supportsLinkedThreadReads(get(environmentPresentations.serverConfigsAtom).get(environmentId)),
+  ).pipe(Atom.withLabel(`peer-links:linked-thread-reads:${environmentId}`)),
+);
+
 const noPeerLinksAtom = Atom.make(false).pipe(Atom.withLabel("peer-links:offered:none"));
 
 /**
  * The machines `environmentId` links to, by name, while it offers links, and none otherwise.
- * Its agents can read threads there. Listing asks each linked machine whether it answers, so
- * every caller shares one briefly cached list.
+ * Its agents can read threads there, and so can a client allowed to read threads on it.
  */
 export function useLinkedEnvironments(
   environmentId: EnvironmentId | null,
@@ -45,16 +52,42 @@ export function useLinkedEnvironments(
   const offered = useAtomValue(
     environmentId === null ? noPeerLinksAtom : supportsPeerLinksAtom(environmentId),
   );
+  const namesLinks = useAtomValue(
+    environmentId === null ? noPeerLinksAtom : supportsLinkedThreadReadsAtom(environmentId),
+  );
   const identities = useEnvironmentIdentities();
-  const links = useEnvironmentQuery(
-    offered && environmentId !== null
-      ? peerLinkEnvironment.list({ environmentId, input: {} })
-      : null,
+  const queried = offered && environmentId !== null;
+  const names = useEnvironmentQuery(
+    queried && namesLinks ? peerLinkEnvironment.names({ environmentId, input: {} }) : null,
+  );
+  // An older server only lists its links, which takes access to read them.
+  const listed = useEnvironmentQuery(
+    queried && !namesLinks ? peerLinkEnvironment.list({ environmentId, input: {} }) : null,
   );
   return linkedEnvironmentNames({
-    links: offered ? (links.data?.links ?? []) : [],
+    links: offered ? (names.data?.links ?? listed.data?.links ?? []) : [],
     environments: identities,
   });
+}
+
+/** Whether a client can read threads on the machines `environmentId` links to, through it. */
+export function useSupportsLinkedThreadReads(environmentId: EnvironmentId | null): boolean {
+  return useAtomValue(
+    environmentId === null ? noPeerLinksAtom : supportsLinkedThreadReadsAtom(environmentId),
+  );
+}
+
+/**
+ * What `viaEnvironmentId` calls the machine `environmentId` it links to, while a client can read
+ * that machine's threads through it; undefined otherwise.
+ */
+export function useLinkedThreadLabel(
+  viaEnvironmentId: EnvironmentId | null,
+  environmentId: EnvironmentId | null,
+): string | undefined {
+  const reads = useSupportsLinkedThreadReads(viaEnvironmentId);
+  const links = useLinkedEnvironments(reads ? viaEnvironmentId : null);
+  return environmentId === null ? undefined : links.get(environmentId);
 }
 
 export function usePeerLinkHosts() {

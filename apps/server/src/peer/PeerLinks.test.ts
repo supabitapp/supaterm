@@ -88,6 +88,7 @@ const serveB = (descriptor: ExecutionEnvironmentDescriptor, tunnelServer?: NodeH
   servePeer(
     descriptor,
     McpHttpServer.toolkitRegistration(ProbeToolkit, probeHandlers),
+    Layer.empty,
     tunnelServer,
   );
 
@@ -674,6 +675,7 @@ it.effect("reads one stored link without asking the peer", () =>
       const stored = yield* a.links.get(box.environmentId);
       expect(Option.map(stored, (link) => link.label)).toEqual(Option.some("Box"));
       expect(Option.isNone(yield* a.links.get(laptop.environmentId))).toBe(true);
+      expect(yield* a.links.names).toEqual([{ environmentId: box.environmentId, label: "Box" }]);
       expect(yield* Ref.get(b.probes)).toBe(0);
 
       // An older answer that lands after a newer one never moves the expiry back.
@@ -775,6 +777,7 @@ it.effect("tells the agent to link again once the peer revokes the link or it ex
 
       yield* TestClock.adjust(Duration.days(31));
       expect((yield* a.links.list).map((link) => link.status)).toEqual(["expired"]);
+      expect(yield* a.links.names).toEqual([]);
       yield* Ref.set(b.bearers, []);
       const expired = yield* probe(a).pipe(Effect.flip);
       expect(expired.code).toBe("capability_denied");

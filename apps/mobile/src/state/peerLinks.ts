@@ -1,6 +1,7 @@
 import {
   linkableMachines,
   linkedEnvironmentNames,
+  supportsLinkedThreadReads,
   supportsPeerLinks,
 } from "@supaterm/client-runtime/link-request";
 import { createPeerLinkEnvironmentAtoms } from "@supaterm/client-runtime/state/peerLinks";
@@ -15,24 +16,38 @@ export const peerLinkEnvironment = createPeerLinkEnvironmentAtoms(connectionAtom
 
 /**
  * The machines `environmentId` links to, by name, while it offers links, and none otherwise.
- * Its agents can read threads there. Listing asks each linked machine whether it answers, so
- * every caller shares one briefly cached list.
+ * Its agents can read threads there, and so can a client allowed to read threads on it.
  */
 export function useLinkedEnvironments(
   environmentId: EnvironmentId | null,
 ): ReadonlyMap<EnvironmentId, string> {
   const { environments } = useEnvironments();
-  const offered = supportsPeerLinks(
-    environments.find((environment) => environment.environmentId === environmentId)?.serverConfig,
+  const config = environments.find(
+    (environment) => environment.environmentId === environmentId,
+  )?.serverConfig;
+  const offered = supportsPeerLinks(config);
+  const namesLinks = supportsLinkedThreadReads(config);
+  const queried = offered && environmentId !== null;
+  const names = useEnvironmentQuery(
+    queried && namesLinks ? peerLinkEnvironment.names({ environmentId, input: {} }) : null,
   );
-  const links = useEnvironmentQuery(
-    offered && environmentId !== null
-      ? peerLinkEnvironment.list({ environmentId, input: {} })
-      : null,
+  // An older server only lists its links, which takes access to read them.
+  const listed = useEnvironmentQuery(
+    queried && !namesLinks ? peerLinkEnvironment.list({ environmentId, input: {} }) : null,
   );
+  const links = names.data?.links ?? listed.data?.links;
   return useMemo(
-    () => linkedEnvironmentNames({ links: offered ? (links.data?.links ?? []) : [], environments }),
-    [environments, links.data, offered],
+    () => linkedEnvironmentNames({ links: offered ? (links ?? []) : [], environments }),
+    [environments, links, offered],
+  );
+}
+
+/** Whether this app can read threads on the machines `environmentId` links to, through it. */
+export function useSupportsLinkedThreadReads(environmentId: EnvironmentId | null): boolean {
+  const { presentationById } = useEnvironments();
+  return (
+    environmentId !== null &&
+    supportsLinkedThreadReads(presentationById.get(environmentId)?.serverConfig)
   );
 }
 

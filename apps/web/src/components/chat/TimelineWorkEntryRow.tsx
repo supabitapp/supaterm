@@ -674,6 +674,7 @@ function WorkEntryLogDetails({
               onInitialOutputReady={onInitialOutputReady}
               projectedItem={workEntry.projectedItem}
               environmentId={ctx.activeThreadEnvironmentId}
+              source={ctx.turnItemSource}
               cwd={ctx.markdownCwd}
               workspaceRoot={workspaceRoot}
               onOpenToolDiff={ctx.onOpenToolDiff}
@@ -689,6 +690,7 @@ function WorkEntryLogDetails({
                   onInitialOutputReady={onInitialOutputReady}
                   projectedItem={workEntry.projectedItem}
                   environmentId={ctx.activeThreadEnvironmentId}
+                  source={ctx.turnItemSource}
                   onImageExpand={expandImage}
                 />
               ) : null}

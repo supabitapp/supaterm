@@ -369,6 +369,9 @@ export function HtmlRenderTimelineRow({
   const { onAppFullscreenChange, onHtmlRenderSelection } = ctx;
   const onFullscreenChange = (fullscreen: boolean) => onAppFullscreenChange(row.id, fullscreen);
   const messageId = MessageId.make(row.id);
+  if (ctx.renderHtmlRender) {
+    return <div className="min-w-0 px-1">{ctx.renderHtmlRender(row)}</div>;
+  }
 
   return (
     <div className="min-w-0 px-1">

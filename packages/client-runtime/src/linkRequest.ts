@@ -6,6 +6,8 @@ import {
   type OrchestrationV2TurnItem,
   type PeerLinkCreateInput,
   type PeerLinkRequestAnswerInput,
+  type PeerLinkName,
+  type PeerLinkStatus,
   type PeerLinkSummary,
   resolveEnvironmentMachineKind,
   type ServerConfig,
@@ -28,11 +30,20 @@ export const supportsPeerLinks = (
   config?.environment.capabilities.peerLinks === true && config.settings.linkedEnvironmentsEnabled;
 
 /**
- * The machines an environment's agents can work on, by name: its links that have not
- * expired, named as this client names them, else as the link does.
+ * Whether a client of an environment can read the threads on the machines it links to, and list
+ * their names with thread read access alone (`peerLinks.names`).
+ */
+export const supportsLinkedThreadReads = (
+  config: Pick<ServerConfig, "environment"> | null | undefined,
+): boolean => config?.environment.capabilities.linkThreadStream === true;
+
+/**
+ * The machines an environment's agents can work on, by name: its unexpired links, named as this
+ * client names them, else as the link does. Names leave out expired links; an older server's list
+ * carries them with their status.
  */
 export function linkedEnvironmentNames(input: {
-  readonly links: ReadonlyArray<Pick<PeerLinkSummary, "environmentId" | "label" | "status">>;
+  readonly links: ReadonlyArray<PeerLinkName & { readonly status?: PeerLinkStatus }>;
   readonly environments: ReadonlyArray<{
     readonly environmentId: EnvironmentId;
     readonly label: string;
