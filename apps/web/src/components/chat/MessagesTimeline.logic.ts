@@ -1474,6 +1474,7 @@ function workShownAsFinalAnswerOnly(entry: TimelineEntry): boolean {
     work.questionAnswer !== undefined ||
     timelineEntryIsCompaction(entry) ||
     timelineEntryStartsResponse(entry) ||
+    work.itemType === "system_notice" ||
     work.tone === "error" ||
     work.sourceActivityKind === "runtime.error" ||
     (work.itemType === "error" && work.toolLifecycleStatus !== "completed")
@@ -1494,7 +1495,11 @@ function deriveInFlightSteerAnswerIds(entries: ReadonlyArray<TimelineEntry>): Re
     } else if (entry.kind === "message" && entry.message.role === "user") {
       awaitingReply = false;
     } else if (reply !== null && awaitingReply) {
-      candidate = reply.message.id;
+      const item = reply.projectedItem?.item;
+      const phase = item?.type === "assistant_message" ? item.phase : undefined;
+      if (!reply.message.streaming && phase !== "commentary" && phase !== "partial_answer") {
+        candidate = reply.message.id;
+      }
       awaitingReply = false;
     }
   }
@@ -1523,13 +1528,15 @@ function timelineRowEntries(
     | "timelineEntries"
     | "toolCallVisibility"
     | "revealedMessageId"
+    | "jumpMessageId"
     | "isWorking"
     | "latestRun"
     | "runningRunId"
   >,
 ) {
+  const entries = withoutSubagentDelegationRows(settleSupersededReasoning(input.timelineEntries));
+  const retainedReplyIds = retainedAssistantReplyEntryIds(entries);
   const visibility = input.toolCallVisibility ?? "showAll";
-  const entries = input.timelineEntries;
   let shown = entries;
   if (visibility === "zen") {
     const answering = input.isWorking && input.latestRun?.turnEnded !== true;
@@ -1539,15 +1546,16 @@ function timelineRowEntries(
     const answeringFrom = answering ? lastResponseBoundaryIndex(entries) + 1 : entries.length;
     const terminalIds = deriveTerminalAssistantMessageIds(entries);
     const steerAnswerIds = deriveInFlightSteerAnswerIds(entries);
-    const retainedReplyIds = retainedAssistantReplyEntryIds(entries);
     shown = entries.filter((entry, index) => {
       if (entry.kind !== "message") return workShownAsFinalAnswerOnly(entry);
       const { message } = entry;
       return (
         message.role !== "assistant" ||
         message.id === input.revealedMessageId ||
+        message.id === input.jumpMessageId ||
         steerAnswerIds.has(message.id) ||
-        retainedReplyIds.has(entry.id) ||
+        (retainedReplyIds.has(entry.id) &&
+          (index < answeringFrom || entry.attempt?.status === "superseded")) ||
         (terminalIds.has(message.id) &&
           index < answeringFrom &&
           (answeringRunId === null || message.runId !== answeringRunId))
@@ -1559,7 +1567,7 @@ function timelineRowEntries(
         entry.kind !== "work" || !workEntryHiddenByToolCallVisibility(entry.entry, visibility),
     );
   }
-  return withoutSubagentDelegationRows(settleSupersededReasoning(shown));
+  return { entries: shown, retainedReplyIds };
 }
 
 function deriveTimelineTurnFolds(
@@ -1574,7 +1582,7 @@ function deriveTimelineTurnFolds(
   >,
 ) {
   if (input.toolCallVisibility === "zen") return new Map<string, TurnFold>();
-  const timelineEntries = timelineRowEntries(input);
+  const { entries: timelineEntries, retainedReplyIds } = timelineRowEntries(input);
   const unsettledRunId = deriveUnsettledRunId(input.latestRun ?? null, input.runningRunId ?? null);
   const failedRunIds = failedTimelineRunIds(timelineEntries, input.latestRun ?? null);
   const activeVisualResponseRunIds = deriveActiveVisualResponseRunIds({
@@ -1589,7 +1597,7 @@ function deriveTimelineTurnFolds(
     unfoldedRunIds: new Set([...activeVisualResponseRunIds, ...failedRunIds]),
     runlessWorkActive: input.isWorking && input.runlessWorkActive === true,
     liveSubagentEntryIds: liveSubagentCardEntryIds(timelineEntries),
-    retainedAssistantReplyEntryIds: retainedAssistantReplyEntryIds(timelineEntries),
+    retainedAssistantReplyEntryIds: retainedReplyIds,
   });
 }
 
@@ -1615,8 +1623,11 @@ export function deriveMessagesTimelineRows(input: {
   awaitingApproval?: boolean;
   toolCallVisibility?: ToolCallVisibility;
   revealedMessageId?: MessageId | null;
+  jumpMessageId?: MessageId | null;
 }): MessagesTimelineRow[] {
-  const timelineEntries = timelineRowEntries(input);
+  const zen = input.toolCallVisibility === "zen";
+  const { entries: timelineEntries, retainedReplyIds: retainedAssistantReplyIds } =
+    timelineRowEntries(input);
   const embeddedResultRunIds = new Set<RunId>();
   for (const entry of timelineEntries) {
     if ((entry.kind === "html-render" || entry.kind === "mcp-app") && entry.runId !== null) {
@@ -1646,13 +1657,14 @@ export function deriveMessagesTimelineRows(input: {
   const failedRunIds = failedTimelineRunIds(timelineEntries, input.latestRun ?? null);
   const itemizedRunIds = itemizedFailedRunIds(timelineEntries, failedRunIds);
   const liveSubagentEntryIds = liveSubagentCardEntryIds(timelineEntries);
-  const retainedAssistantReplyIds = retainedAssistantReplyEntryIds(timelineEntries);
-  const supersededFoldsByAnchorEntryId = deriveSupersededAttemptFolds(
-    timelineEntries,
-    failedRunIds,
-    liveSubagentEntryIds,
-    retainedAssistantReplyIds,
-  );
+  const supersededFoldsByAnchorEntryId = zen
+    ? new Map<string, SupersededAttemptFold>()
+    : deriveSupersededAttemptFolds(
+        timelineEntries,
+        failedRunIds,
+        liveSubagentEntryIds,
+        retainedAssistantReplyIds,
+      );
   const supersededWorkItemIds = new Set(
     [...supersededFoldsByAnchorEntryId.values()].flatMap((fold) => fold.deferredWorkItemIds),
   );
@@ -1662,18 +1674,17 @@ export function deriveMessagesTimelineRows(input: {
     isWorking: input.isWorking,
   });
   const runlessWorkActive = input.isWorking && input.runlessWorkActive === true;
-  const foldsByAnchorEntryId =
-    input.toolCallVisibility === "zen"
-      ? new Map<string, TurnFold>()
-      : deriveTurnFolds({
-          timelineEntries: timelineEntries,
-          terminalAssistantMessageIds,
-          latestRun: input.latestRun ?? null,
-          unfoldedRunIds: new Set([...activeVisualResponseRunIds, ...failedRunIds]),
-          runlessWorkActive,
-          liveSubagentEntryIds,
-          retainedAssistantReplyEntryIds: retainedAssistantReplyIds,
-        });
+  const foldsByAnchorEntryId = zen
+    ? new Map<string, TurnFold>()
+    : deriveTurnFolds({
+        timelineEntries: timelineEntries,
+        terminalAssistantMessageIds,
+        latestRun: input.latestRun ?? null,
+        unfoldedRunIds: new Set([...activeVisualResponseRunIds, ...failedRunIds]),
+        runlessWorkActive,
+        liveSubagentEntryIds,
+        retainedAssistantReplyEntryIds: retainedAssistantReplyIds,
+      });
   const timelineEntryById = new Map(timelineEntries.map((entry) => [entry.id, entry]));
   const collapsedEntryIds = new Set<string>();
   const collapsedFoldMemberIds = new Set<string>();
@@ -1836,7 +1847,7 @@ export function deriveMessagesTimelineRows(input: {
     activeRunIsCompaction && !compactionRunFinished ? unsettledRunId : null;
   const endedRunId = input.latestRun?.turnEnded === true ? input.latestRun.runId : null;
   const zenAnswerLanded =
-    input.toolCallVisibility === "zen" &&
+    zen &&
     endedRunId !== null &&
     timelineEntries.findLastIndex((entry) => timelineEntryRunId(entry) === endedRunId) >=
       activeTurnHeaderIndex;

@@ -743,8 +743,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
   );
   const preferredToolCallVisibility = useClientSettings((settings) => settings.toolCallVisibility);
   const toolCallVisibility =
-    findActive && preferredToolCallVisibility === "zen" ? "hideAll" : preferredToolCallVisibility;
-  const revealedMessageId = citationRequest?.citation.messageId ?? messageJump?.messageId ?? null;
+    findOpen && preferredToolCallVisibility === "zen" ? "hideAll" : preferredToolCallVisibility;
   const foldLookupInput = {
     timelineEntries,
     latestRun,
@@ -842,7 +841,8 @@ const ConversationTimeline = memo(function ConversationTimeline({
     worktreeSetup,
     awaitingApproval: awaitingUser === "approval",
     toolCallVisibility,
-    revealedMessageId,
+    revealedMessageId: citationRequest?.citation.messageId ?? null,
+    jumpMessageId: messageJump?.messageId ?? null,
   });
   const rows = useExitingWorktreeSetupRow(useStableRows(rawRows, listIdentityKey), listIdentityKey);
   // Run status/timestamps churn on every stream event; the shared row context

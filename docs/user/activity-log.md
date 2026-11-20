@@ -27,9 +27,9 @@ it only if it fails. **Hide all** hides every call and shows **Thinking** while 
 **Zen** also hides the agent's in-between messages, so each turn shows your message
 and the agent's last reply, which appears when the turn ends. While the agent works, one line shows
 its latest step. If you steer while the agent is answering, the answer it finished before reading
-your steer stays too. On web and desktop, Find shows the in-between messages while it is open, and
-a citation or a pinned message shows the message it points to. Approvals, questions, and errors
-always show. The setting applies to this browser or device only.
+your steer stays too. On web and desktop, Find shows the in-between messages while it is open.
+Opening a pinned message or a citation shows the message it points to. Approvals, questions,
+errors, and notices always show. The setting applies to this browser or device only.
 
 ## Screen reader announcements
 
