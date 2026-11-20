@@ -47,6 +47,7 @@ export function UsageLimitRecoveryCard({
     Date.parse(thread.snoozedUntil) > Date.parse(resetAt)
       ? thread.snoozedUntil
       : resetAt;
+  const displayPassed = useDeadlinePassed(displayAt === null ? null : Date.parse(displayAt));
   const [copied, setCopied] = useState(false);
   const [actionPending, setActionPending] = useState(false);
   const code = thread.runtime?.lastErrorCode;
@@ -60,11 +61,17 @@ export function UsageLimitRecoveryCard({
     !runId
   )
     return null;
-  const resetText = displayAt
-    ? `${canSchedule && scheduled ? "Resumes" : "Resets"} ${new Date(displayAt).toLocaleString(
-        undefined,
-        { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" },
-      )}.`
+  const resumesUpcoming = canSchedule && scheduled && !displayPassed;
+  const shownAt = resumesUpcoming ? displayAt : resetAt;
+  const resetText = shownAt
+    ? `${resumesUpcoming ? "Resumes" : resetPassed ? "Reset" : "Resets"} ${new Date(
+        shownAt,
+      ).toLocaleString(undefined, {
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      })}.`
     : null;
   const snoozed =
     limitRecoveryOwnsSnooze({
@@ -179,7 +186,13 @@ export function UsageLimitRecoveryCard({
             {canSchedule ? (
               <>
                 <RecoveryAction
-                  label={scheduled ? "Cancel auto-resume" : "Resume at reset"}
+                  label={
+                    scheduled
+                      ? "Cancel auto-resume"
+                      : resetPassed
+                        ? "Resume now"
+                        : "Resume at reset"
+                  }
                   disabled={pending}
                   onPress={() => void toggle("resume")}
                 />

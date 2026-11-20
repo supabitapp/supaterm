@@ -16,7 +16,7 @@ import {
 import { useThreadOutboxAttachments } from "../state/threadOutboxEditing";
 import { ThreadFind, ThreadFindCanvas } from "./chat/ThreadFindProvider";
 import { closeThreadFind, openThreadFind, useThreadFindOpen } from "./chat/threadFindStore";
-import { usageLimitRecoveryBannerItem } from "./chat/UsageLimitRecoveryBanner";
+import { useUsageLimitRecoveryBannerItem } from "./chat/UsageLimitRecoveryBanner";
 import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
 import { resolveNewThreadModelSelection } from "@supaterm/shared/usageLimits";
 import { queuedRunEditBlockedReason } from "@supaterm/client-runtime/queued-run-edit";
@@ -2739,9 +2739,9 @@ export default function ChatView(props: ChatViewProps) {
     });
     return item ? [item] : [];
   });
-  const limitRecoveryBanner =
+  const limitRecoveryBanner = useUsageLimitRecoveryBannerItem(
     limitRecoveryRun !== null && activeThreadShell !== null
-      ? usageLimitRecoveryBannerItem({
+      ? {
           runId: limitRecoveryRun.runId,
           errorCode: serverRuntime?.lastErrorCode ?? null,
           resetAt: serverRuntime?.usageLimitResetAt ?? null,
@@ -2758,8 +2758,9 @@ export default function ChatView(props: ChatViewProps) {
             });
             if (result._tag === "Failure") throw squashAtomCommandFailure(result);
           },
-        })
-      : null;
+        }
+      : null,
+  );
   const composerBannerItems = ((): ComposerBannerStackItem[] => {
     const fallbackSelection = draftFallback?.selection;
     const defaultSelection =

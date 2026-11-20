@@ -31,37 +31,70 @@ type RecoveryProps = {
   snoozedUntil: string | null;
   recovery: OrchestrationV2LimitRecovery | null;
   timestampFormat: TimestampFormat;
+  resetPassed?: boolean;
+  displayPassed?: boolean;
   onChange: (recovery: OrchestrationV2LimitRecoveryUpdate) => Promise<void>;
 };
 
-export function usageLimitRecoveryBannerItem(props: RecoveryProps): ComposerBannerStackItem {
-  const {
-    runId,
-    errorCode,
-    resetAt,
-    stoppedAt,
-    done,
-    requestPending,
-    recovery,
-    snoozedUntil,
-    timestampFormat,
-  } = props;
+function parseEpochMs(isoDate: string | null): number | null {
+  if (isoDate === null) return null;
+  const parsed = Date.parse(isoDate);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function limitRecoveryScheduleState(
+  props: Pick<
+    RecoveryProps,
+    "runId" | "resetAt" | "stoppedAt" | "done" | "requestPending" | "recovery" | "snoozedUntil"
+  >,
+) {
   // The server refuses recovery changes while a request is pending.
   const canSchedule =
-    !done && !requestPending && resetAt !== null && Date.parse(resetAt) > Date.parse(stoppedAt);
+    !props.done &&
+    !props.requestPending &&
+    props.resetAt !== null &&
+    Date.parse(props.resetAt) > Date.parse(props.stoppedAt);
   const resumes =
-    canSchedule && recovery?.runId === runId && recovery.resetAt === resetAt && recovery.autoResume;
+    canSchedule &&
+    props.recovery?.runId === props.runId &&
+    props.recovery.resetAt === props.resetAt &&
+    props.recovery.autoResume;
+  const displayAt =
+    resumes &&
+    props.resetAt &&
+    props.snoozedUntil &&
+    Date.parse(props.snoozedUntil) > Date.parse(props.resetAt)
+      ? props.snoozedUntil
+      : props.resetAt;
+  return { canSchedule, resumes, displayAt };
+}
+
+export function useUsageLimitRecoveryBannerItem(
+  props: RecoveryProps | null,
+): ComposerBannerStackItem | null {
+  const displayAt = props === null ? null : limitRecoveryScheduleState(props).displayAt;
+  const resetPassed = useDeadlinePassed(props === null ? null : parseEpochMs(props.resetAt));
+  const displayPassed = useDeadlinePassed(parseEpochMs(displayAt));
+  if (props === null) return null;
+  return usageLimitRecoveryBannerItem({ ...props, resetPassed, displayPassed });
+}
+
+export function usageLimitRecoveryBannerItem(props: RecoveryProps): ComposerBannerStackItem {
+  const { runId, errorCode, resetAt, timestampFormat } = props;
+  const { canSchedule, resumes, displayAt } = limitRecoveryScheduleState(props);
+  const resetAtMs = parseEpochMs(resetAt);
+  const displayAtMs = parseEpochMs(displayAt);
+  const resetPassed = props.resetPassed ?? (resetAtMs !== null && resetAtMs <= Date.now());
+  const displayPassed = props.displayPassed ?? (displayAtMs !== null && displayAtMs <= Date.now());
   const workspaceLimit = errorCode === CHATGPT_WORKSPACE_USAGE_LIMIT_CODE;
   const chatGptLimit = workspaceLimit || errorCode === CHATGPT_USAGE_LIMIT_CODE;
   const recoveryActions = canSchedule ? (
     <RecoveryActions key={`${runId}:${resetAt}`} {...props} />
   ) : null;
-  const displayAt =
-    resumes && resetAt && snoozedUntil && Date.parse(snoozedUntil) > Date.parse(resetAt)
-      ? snoozedUntil
-      : resetAt;
-  const resetDescription = displayAt
-    ? `${resumes ? "Resumes" : "Resets"} ${formatUpcomingTimestamp(displayAt, timestampFormat)}`
+  const resumesUpcoming = resumes && !displayPassed;
+  const shownAt = resumesUpcoming ? displayAt : resetAt;
+  const resetDescription = shownAt
+    ? `${resumesUpcoming ? "Resumes" : resetPassed ? "Reset" : "Resets"} ${formatUpcomingTimestamp(shownAt, timestampFormat)}`
     : "Reset time unavailable; retry manually";
   if (!chatGptLimit) {
     return {
@@ -143,7 +176,13 @@ function RecoveryActions({ runId, resetAt, recovery, snoozedUntil, onChange }: R
   return (
     <span className="flex flex-wrap items-center gap-x-3 gap-y-1 px-1">
       <InlineButton touchTarget="padded" disabled={pending} onClick={() => void toggle("resume")}>
-        {pending ? "Saving..." : scheduled ? "Cancel auto-resume" : "Resume at reset"}
+        {pending
+          ? "Saving..."
+          : scheduled
+            ? "Cancel auto-resume"
+            : resetPassed
+              ? "Resume now"
+              : "Resume at reset"}
       </InlineButton>
       <InlineButton
         touchTarget="padded"
