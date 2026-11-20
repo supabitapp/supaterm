@@ -105,11 +105,12 @@ export function WelcomePairing({
                 <p className="pt-3 text-sm text-muted-foreground">
                   On the computer with your code:
                 </p>
-                <InstallSupatermCommands command="supaterm pair" className="mt-2" />
+                <InstallSupatermCommands command="supaterm pair --tailscale" className="mt-2" />
                 <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
                   Start Supaterm or run <code className="font-mono">supaterm serve</code> there
-                  before <code className="font-mono">supaterm pair</code>. On a tailnet, run{" "}
-                  <code className="font-mono">supaterm pair --tailscale</code> instead.
+                  first. A page on HTTPS, such as the hosted web app, needs the HTTPS address that{" "}
+                  <code className="font-mono">--tailscale</code> sets up. For other ways to pair,
+                  run <code className="font-mono">supaterm pair --help</code>.
                 </p>
               </CollapsiblePanel>
             </Collapsible>

@@ -12,9 +12,9 @@ The page sets up one computer. In a browser with no computer connected yet, such
 as the hosted web app, it first asks for a pairing link.
 [Install the CLI](./install.md#command-line) on the computer you want to use,
 start Supaterm or run `supaterm serve` there, then run `supaterm pair --tailscale`
-and paste the link. You can also run `supaterm serve --host <address>` and use
-`supaterm pair --no-relay` when the server is already reachable on your network.
-The page then sets up that computer. To add more computers later, use
+and paste the link. A browser on HTTPS, such as the hosted web app, needs the HTTPS
+address that `--tailscale` sets up; see [Hosted web app](./remote-access.md#hosted-web-app)
+for other ways to connect. The page then sets up that computer. To add more computers later, use
 **Settings → Environments**.
 
 If Supaterm cannot confirm the workspace during startup, it shows
