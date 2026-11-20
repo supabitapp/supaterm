@@ -151,6 +151,22 @@ export const resolveServiceLauncherMode = Effect.fn("cloud.service_launcher_clie
   },
 );
 
+/** Completes when the launcher asks this server to stop, which Windows cannot signal. */
+export const awaitServiceLauncherStop = Effect.fn("cloud.service_launcher_client.await_stop")(
+  function* (options?: { readonly currentVersion?: string }) {
+    const startup = yield* resolveStartup(options).pipe(Effect.option);
+    if (Option.isNone(startup) || !startup.value.managed) return yield* Effect.never;
+    const { host } = startup.value;
+    return yield* Effect.callback<void>((resume) => {
+      const onMessage = (...args: ReadonlyArray<unknown>) => {
+        if (decodeServiceLauncherParentMessage(args[0])?.type === "stop") resume(Effect.void);
+      };
+      host.on("message", onMessage);
+      return Effect.sync(() => host.off("message", onMessage));
+    });
+  },
+);
+
 export const repointLaunchers = Effect.fn("cloud.service_launcher_client.repoint_launchers")(
   function* (input: { readonly baseDir: string; readonly targetVersion: string }) {
     const fs = yield* FileSystem.FileSystem;

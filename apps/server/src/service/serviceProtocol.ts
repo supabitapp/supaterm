@@ -22,6 +22,8 @@ export const SERVICE_UNIT_ENV = "SUPATERM_BOOT_SERVICE_UNIT";
     it when it starts (whoever restarted the service), so while it exists the
     service is known to be behind its unit and status reports it that way. */
 export const SERVICE_RESTART_PENDING_FILE = ".restart-pending";
+/** Held by a Windows launcher while it runs: Task Scheduler tracks only the task's console host. */
+export const SERVICE_LAUNCHER_LOCK_FILE = "service-launcher.lock";
 /** Held by a launcher while it has, or is about to start, a server: an SSH launch waits for that
     server instead of starting its own. Released while the launcher idles. */
 export const SERVICE_SERVING_LOCK_FILE = "service-serving.lock";
@@ -35,6 +37,29 @@ const unquoteSystemdValue = (raw: string) =>
 const unescapeXmlText = (value: string) =>
   value.replaceAll("&lt;", "<").replaceAll("&gt;", ">").replaceAll("&amp;", "&");
 
+const unquoteWindowsArgument = (raw: string) =>
+  unescapeXmlText(raw).replace(/(\\+)$/, (slashes) => slashes.slice(slashes.length / 2));
+
+/** Whether Task Scheduler's copy of a task is disabled as a whole, not one of its triggers. */
+export const serviceTaskIsDisabled = (taskXml: string): boolean =>
+  /<Settings>[\s\S]*?<\/Settings>/.exec(taskXml)?.[0].includes("<Enabled>false</Enabled>") === true;
+
+/** schtasks reads undeclared XML in the ANSI code page, but UTF-16LE with a BOM as written. */
+export const encodeServiceTask = (taskXml: string): Uint8Array =>
+  Buffer.from(`\uFEFF${taskXml}`, "utf16le");
+
+/** A unit file's text: UTF-16LE task files have a BOM, other units (and older tasks) are UTF-8. */
+export const decodeServiceUnit = (bytes: Uint8Array): string =>
+  bytes[0] === 0xff && bytes[1] === 0xfe
+    ? Buffer.from(bytes.buffer, bytes.byteOffset + 2, bytes.byteLength - 2).toString("utf16le")
+    : Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength).toString("utf8");
+
+/** A task as Task Scheduler should hold it while its service must stay stopped. */
+export const disabledServiceTask = (taskXml: string): string =>
+  serviceTaskIsDisabled(taskXml)
+    ? taskXml
+    : taskXml.replace("  </Settings>", "    <Enabled>false</Enabled>\n  </Settings>");
+
 export function serviceUnitEnvironmentValueOf(
   contents: string,
   name: "SUPATERM_HOME" | "SUPATERM_INSTALL_BIN_DIR",
@@ -46,7 +71,10 @@ export function serviceUnitEnvironmentValueOf(
 }
 
 export function serviceUnitBaseDirOf(contents: string): string | undefined {
-  return serviceUnitEnvironmentValueOf(contents, "SUPATERM_HOME");
+  const unix = serviceUnitEnvironmentValueOf(contents, "SUPATERM_HOME");
+  if (unix !== undefined) return unix;
+  const task = /<Arguments>[^<]* "--base-dir" "([^"]*)"/.exec(contents)?.[1];
+  return task === undefined ? undefined : unquoteWindowsArgument(task);
 }
 
 /**
@@ -71,14 +99,16 @@ export function serviceUnitLogPathOf(contents: string): string | undefined {
   return plist === undefined ? undefined : unescapeXmlText(plist);
 }
 
-/** The executable an installed unit or plist starts: the launcher's runtime. */
+/** The executable an installed unit, plist, or task starts: the launcher's runtime. */
 export function serviceUnitProgramOf(contents: string): string | undefined {
   const systemd = /^ExecStart=("(?:\\.|[^"\\])*"|\S+)/m.exec(contents)?.[1];
   if (systemd !== undefined) return unquoteSystemdValue(systemd);
   const plist = /<key>ProgramArguments<\/key>\s*<array>\s*<string>([^<]*)<\/string>/.exec(
     contents,
   )?.[1];
-  return plist === undefined ? undefined : unescapeXmlText(plist);
+  if (plist !== undefined) return unescapeXmlText(plist);
+  const task = /<Arguments>--headless "([^"]*)"/.exec(contents)?.[1];
+  return task === undefined ? undefined : unquoteWindowsArgument(task);
 }
 
 export interface PendingServiceUpdate {
@@ -126,6 +156,10 @@ export type ServiceLauncherParentMessage =
   | {
       readonly type: "committed";
       readonly updateId: string;
+    }
+  | {
+      /** Shut down as on SIGTERM, which Windows cannot deliver. */
+      readonly type: "stop";
     };
 
 const SEMVER_NUMBER = "(?:0|[1-9]\\d*)";
@@ -342,6 +376,7 @@ export function decodeServiceLauncherParentMessage(
   if (value.type === "update-accepted" && typeof value.updateId === "string") {
     return { type: value.type, updateId: value.updateId };
   }
+  if (value.type === "stop") return { type: value.type };
   return value.type === "committed" && typeof value.updateId === "string"
     ? { type: value.type, updateId: value.updateId }
     : undefined;

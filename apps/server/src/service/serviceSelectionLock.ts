@@ -37,8 +37,13 @@ export async function acquireServiceSelectionLock(selectionPath: string): Promis
           removeEmptyLock();
         };
       } catch (error) {
-        if (!["EEXIST", "ENOTEMPTY"].includes((error as NodeJS.ErrnoException).code ?? ""))
-          throw error;
+        const code = (error as NodeJS.ErrnoException).code;
+        // Windows refuses a rename onto an existing directory with EPERM.
+        const held =
+          code === "EEXIST" ||
+          code === "ENOTEMPTY" ||
+          (code === "EPERM" && NodeFS.existsSync(lock));
+        if (!held) throw error;
       }
       let owners: string[];
       try {

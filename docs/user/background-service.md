@@ -1,7 +1,7 @@
 # Running Supaterm in the background
 
-On Linux and macOS, Supaterm can run as a service for your user so you do not need
-to keep a terminal open.
+On Linux, macOS, and Windows, Supaterm can run as a service for your user so you
+do not need to keep a terminal open.
 
 ## Manage the service
 
@@ -79,7 +79,12 @@ Mac logged in and awake for unattended remote access. Installing over SSH while
 nobody is logged in at the Mac's screen can fail at the final start step; the
 service is still installed and will start at the next login.
 
-Windows background services are not supported.
+Windows starts the service when you log in and stops it when you sign out. It
+runs without a window as the `supaterm-<domain>-<user name>` task in Task Scheduler, and Task
+Scheduler starts it again within a minute if it exits. Lock the screen instead
+of signing out, and keep the PC awake, for unattended remote access. Installing
+over SSH while nobody is signed in at the PC can fail at the final start step;
+the service is still installed and will start at the next sign-in.
 
 ## Keep the computer awake while agents work
 
@@ -134,7 +139,7 @@ administrator access, run `supaterm serve` in a terminal and keep that session o
 | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
 | `linger-unavailable`                    | Run `loginctl show-user "$(id -un)" --property=Linger` and check that systemd-logind is available.                             |
 | `user-manager-unavailable`              | Run `systemctl --user status` in a login session for the service user; check your distribution's systemd user-session support. |
-| `service-disabled` or `service-stopped` | Read the log and `systemctl --user status supaterm.service`, then use the repair command printed by Supaterm.                  |
+| `service-disabled` or `service-stopped` | Read the log and, on Linux, `systemctl --user status supaterm.service`, then use the repair command printed by Supaterm.       |
 | `restart-pending`                       | A newer version is installed but the service still runs the previous one. Run `supaterm service restart`.                      |
 
 On macOS, check **System Settings → General → Login Items** if the service no

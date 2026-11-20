@@ -14,7 +14,11 @@ import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
 import { vi } from "vite-plus/test";
 
-import { renderBootServicePlist, renderBootServiceUnit } from "./service/bootService.ts";
+import {
+  renderBootServicePlist,
+  renderBootServiceTask,
+  renderBootServiceUnit,
+} from "./service/bootService.ts";
 import {
   databaseBackupBlocker,
   Launcher,
@@ -24,12 +28,17 @@ import {
   readServiceState,
   serviceLauncherIsServing,
   stateDirOwned,
+  registerServiceTask,
+  serviceLauncherIsRunning,
+  serviceLauncherLockPath,
   writeServiceState,
 } from "./serviceLauncher.ts";
 import {
   compareExactServiceVersions,
   decodeServiceState,
   isExactServiceVersion,
+  decodeServiceUnit,
+  disabledServiceTask,
   SERVICE_ENV_FILE,
   SERVICE_LAUNCHER_PROTOCOL,
   SERVICE_RESTART_PENDING_FILE,
@@ -131,11 +140,11 @@ it("rejects contradictory service state", () => {
   );
 });
 
-const unitPlan = (root: string, version: string) => ({
+const unitPlan = (root: string, version: string, unitFile = "supaterm.service") => ({
   program: [`${root}/runtime/versions/${version}/supaterm`, "__service-launcher"],
   baseDir: root,
   logPath: `${root}/logs/boot-service.log`,
-  unitPath: `${root}/unit/supaterm.service`,
+  unitPath: `${root}/unit/${unitFile}`,
 });
 
 const writeFakeRuntime = (
@@ -171,9 +180,10 @@ const fakeServiceUnit = (
   root: string,
   version: string,
   render = renderBootServiceUnit,
+  unitFile?: string,
 ) =>
   Effect.gen(function* () {
-    const plan = unitPlan(root, version);
+    const plan = unitPlan(root, version, unitFile);
     yield* fs.makeDirectory(path.dirname(plan.unitPath), { recursive: true });
     const contents = render(plan);
     yield* fs.writeFileString(plan.unitPath, contents);
@@ -185,7 +195,7 @@ const fakeServiceUnit = (
       reload: async () => {
         unit.reloads += 1;
         if (unit.failReload) throw new Error("daemon-reload failed");
-        unit.loadedContents = await NodeFSP.readFile(unit.path, "utf8");
+        unit.loadedContents = decodeServiceUnit(await NodeFSP.readFile(unit.path));
       },
     };
     return unit;
@@ -548,6 +558,77 @@ setInterval(() => {}, 1_000);
 
       const { size } = yield* fs.stat(plan.logPath);
       expect(Number(size)).toBeLessThan(oversized);
+    }),
+  );
+
+  it.effect("registers its task again without enabling one the CLI disabled", () =>
+    Effect.gen(function* () {
+      const fs = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      const root = yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-service-launcher-task-" });
+      const unitPath = path.join(root, "supaterm-task.xml");
+      const unit = renderBootServiceTask(unitPlan(root, "1.1.0"), {
+        userId: "PC\\theo",
+        homeDir: "C:\\Users\\theo",
+        conhostPath: "conhost.exe",
+      });
+      yield* fs.writeFileString(unitPath, unit);
+      // Task Scheduler's copy: `supaterm doctor` disabled it to keep the service stopped.
+      let task = disabledServiceTask(unit.replace("1.1.0", "1.0.0"));
+      const schtasks = async (...args: ReadonlyArray<string>) => {
+        if (args[0] === "/Create") task = decodeServiceUnit(await NodeFSP.readFile(args[2] ?? ""));
+        return { stdout: task };
+      };
+
+      yield* Effect.promise(() => registerServiceTask(unitPath, "supaterm-PC-theo", schtasks));
+      assert.equal(task, disabledServiceTask(unit));
+      assert.deepEqual(yield* fs.readDirectory(root), ["supaterm-task.xml"]);
+
+      task = unit.replace("1.1.0", "1.0.0");
+      yield* Effect.promise(() => registerServiceTask(unitPath, "supaterm-PC-theo", schtasks));
+      assert.equal(task, unit);
+    }),
+  );
+
+  it.effect("finds its unit through the manager's environment, not service.env", () =>
+    Effect.gen(function* () {
+      const fs = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      const root = yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-service-launcher-unit-" });
+      const home = path.join(root, "home");
+      const unitPath = path.join(home, "Library", "LaunchAgents", "supaterm.plist");
+      const render = (version: string) =>
+        renderBootServicePlist(unitPlan(root, version), { homeDir: home, environmentPath: "" });
+      yield* fs.makeDirectory(path.dirname(unitPath), { recursive: true });
+      yield* fs.writeFileString(unitPath, render("1.0.0"));
+      // The server may run with another HOME; the launch agent still lives in the manager's.
+      yield* fs.writeFileString(path.join(root, SERVICE_ENV_FILE), "HOME=/elsewhere\n");
+      yield* writeFakeRuntime(
+        fs,
+        path,
+        path.join(root, "runtime", "versions", "1.1.0"),
+        "process.exit(0);\n",
+      );
+      yield* Effect.promise(() =>
+        writeServiceState(path.join(root, "runtime", "service-state.json"), {
+          protocol: SERVICE_LAUNCHER_PROTOCOL,
+          activeVersion: "1.1.0",
+          update: {
+            id: "update-1",
+            fromVersion: "1.0.0",
+            targetVersion: "1.1.0",
+            status: "committed",
+          },
+        }),
+      );
+      vi.stubEnv("HOME", home);
+      vi.stubEnv("SUPATERM_BOOT_SERVICE_UNIT", "supaterm.plist");
+
+      yield* Effect.promise(() =>
+        expect(runLauncher(root)).rejects.toThrow("Active child exited unexpectedly (0)."),
+      );
+
+      assert.equal(yield* fs.readFileString(unitPath), render("1.1.0"));
     }),
   );
 
@@ -1093,6 +1174,7 @@ process.exit(0);
     render = renderBootServiceUnit,
     missingUnit = false,
     legacyInstall = false,
+    unitFile?: string,
   ) =>
     Effect.gen(function* () {
       const fs = yield* FileSystem.FileSystem;
@@ -1103,7 +1185,7 @@ process.exit(0);
       const activatedPath = path.join(root, "activated");
       yield* fs.makeDirectory(path.dirname(databasePath), { recursive: true });
       yield* fs.writeFileString(databasePath, "before trial");
-      const unit = yield* fakeServiceUnit(fs, path, root, "1.0.0", render);
+      const unit = yield* fakeServiceUnit(fs, path, root, "1.0.0", render, unitFile);
       if (missingUnit) yield* fs.remove(unit.path);
       const childSource = `
 import assert from "node:assert/strict";
@@ -1173,12 +1255,12 @@ if (context.update?.status === "pending") {
       assert.equal(state.activeVersion, "1.1.0");
       assert.equal(state.update?.status, "committed");
       assert.equal(yield* fs.readFileString(activatedPath), state.update?.id);
-      const recover = () =>
+      const recover = (output?: number) =>
         Effect.gen(function* () {
           const fresh = new Launcher(
             root,
             yield* Effect.promise(() => readServiceState(statePath)),
-            { serviceUnit: unit },
+            { serviceUnit: unit, ...(output === undefined ? {} : { output }) },
           );
           const running = fresh.run();
           yield* Effect.promise(() => fresh.stop("SIGTERM"));
@@ -1202,13 +1284,29 @@ if (context.update?.status === "pending") {
           environmentPath: "/usr/bin:/custom/runtime/versions/1.0.0",
         }),
     },
+    {
+      name: "Task Scheduler",
+      legacyInstall: false,
+      unitFile: "supaterm-task.xml",
+      render: (plan: Parameters<typeof renderBootServiceTask>[0]) =>
+        renderBootServiceTask(
+          { ...plan, program: [`${plan.program[0]}.exe`, "__service-launcher"] },
+          { userId: "PC\\theo", homeDir: "C:\\Users\\theo", conhostPath: "conhost.exe" },
+        ),
+    },
   ])(
     "commits and repoints $name only after the trial reports prepared",
-    ({ render, legacyInstall }) =>
+    ({ render, legacyInstall, unitFile }) =>
       Effect.gen(function* () {
-        const { fs, root, unit } = yield* commitUpdate(render, false, legacyInstall);
-        const expected = render(unitPlan(root, "1.1.0"));
-        assert.equal(yield* fs.readFileString(unit.path), expected);
+        const { fs, root, unit } = yield* commitUpdate(render, false, legacyInstall, unitFile);
+        const expected = render(unitPlan(root, "1.1.0", unitFile));
+        const written = yield* fs.readFile(unit.path);
+        assert.equal(decodeServiceUnit(written), expected);
+        // schtasks reads undeclared UTF-8 in the ANSI code page; UTF-16LE with a BOM is read as is.
+        assert.equal(
+          written[0] === 0xff && written[1] === 0xfe,
+          unitFile?.endsWith(".xml") === true,
+        );
         assert.equal(unit.loadedContents, expected);
         assert.equal(unit.reloads, 1);
       }),
@@ -1225,7 +1323,14 @@ if (context.update?.status === "pending") {
         assert.equal(unit.loadedContents, original);
         yield* fs.writeFileString(unit.path, original);
         unit.failReload = true;
-        yield* recover();
+        // Task Scheduler cannot redirect output, so a Windows launcher reports into its log file.
+        const logPath = `${root}/boot-service.log`;
+        yield* Effect.acquireUseRelease(
+          Effect.sync(() => NodeFS.openSync(logPath, "a")),
+          (output) => recover(output),
+          (output) => Effect.sync(() => NodeFS.closeSync(output)),
+        );
+        assert.include(yield* fs.readFileString(logPath), "daemon-reload failed");
         assert.equal(yield* fs.readFileString(unit.path), expected);
         assert.equal(unit.reloads, 1);
         assert.equal(unit.loadedContents, original);
@@ -1676,6 +1781,103 @@ if (context.update?.status === "pending") {
       const backupDir = path.join(root, "runtime", "db-backup", "update-1");
       assert.isFalse(yield* fs.exists(backupDir));
       assert.isFalse(yield* fs.exists(`${backupDir}.staging`));
+    }),
+  );
+
+  it.effect("holds its lock while it serves and stops the server over IPC", () =>
+    Effect.gen(function* () {
+      const fs = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      const root = yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-service-control-" });
+      const statePath = path.join(root, "runtime", "service-state.json");
+      const databasePath = path.join(root, "userdata", "state.sqlite");
+      const reportPath = path.join(root, "stopped");
+      yield* fs.makeDirectory(path.dirname(databasePath), { recursive: true });
+      yield* fs.writeFileString(databasePath, "database");
+      const encoded = JSON.stringify({ databasePath, reportPath });
+      const childSource = `
+const fs = require("node:fs");
+const paths = ${encoded};
+process.on("message", (message) => {
+  if (message.type !== "stop") return;
+  fs.writeFileSync(paths.reportPath, "over IPC");
+  process.exit(0);
+});
+process.send({ type: "request-update", targetVersion: "1.1.0", dbPath: paths.databasePath });
+`;
+      for (const version of ["1.0.0", "1.1.0"]) {
+        yield* writeFakeRuntime(
+          fs,
+          path,
+          path.join(root, "runtime", "versions", version),
+          childSource,
+        );
+      }
+      yield* Effect.promise(() =>
+        writeServiceState(statePath, {
+          protocol: SERVICE_LAUNCHER_PROTOCOL,
+          activeVersion: "1.0.0",
+        }),
+      );
+      const lockPath = serviceLauncherLockPath(root);
+      const serving = Promise.withResolvers<void>();
+      const launcher = new Launcher(
+        root,
+        yield* Effect.promise(() => readServiceState(statePath)),
+        {
+          lockPath,
+          stopChildOverIpc: true,
+          // The update request proves the child is up; refusing it leaves the server running.
+          backupSpaceProbe: {
+            readFreeBytes: () => {
+              serving.resolve();
+              return Promise.resolve(0);
+            },
+            canClone: () => Promise.resolve(false),
+          },
+        },
+      );
+      const running = launcher.run();
+      yield* Effect.promise(() => Promise.race([serving.promise, running]));
+
+      assert.isTrue(yield* Effect.promise(() => serviceLauncherIsRunning(lockPath)));
+      // What losing the task's console does.
+      yield* Effect.promise(() => launcher.stop("SIGTERM"));
+      yield* Effect.promise(() => running);
+      assert.equal(yield* fs.readFileString(reportPath), "over IPC");
+      assert.isFalse(yield* Effect.promise(() => serviceLauncherIsRunning(lockPath)));
+    }),
+  );
+
+  it.effect("leaves a pending update alone when stopped while it starts up", () =>
+    Effect.gen(function* () {
+      const fs = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      const root = yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-service-startup-stop-" });
+      const statePath = path.join(root, "runtime", "service-state.json");
+      // Recovery would roll this back: the target runtime is missing.
+      const pending = {
+        protocol: SERVICE_LAUNCHER_PROTOCOL,
+        activeVersion: "1.0.0",
+        update: {
+          id: "update-1",
+          fromVersion: "1.0.0",
+          targetVersion: "1.1.0",
+          dbPath: path.join(root, "userdata", "state.sqlite"),
+          status: "pending",
+        },
+      } as const;
+      yield* Effect.promise(() => writeServiceState(statePath, pending));
+      const lockPath = serviceLauncherLockPath(root);
+      const launcher = new Launcher(root, pending, { lockPath });
+
+      const running = launcher.run();
+      yield* Effect.promise(() => launcher.stop("SIGTERM"));
+      yield* Effect.promise(() => running);
+
+      // The lock is released only once the launcher is done with the home.
+      assert.isFalse(yield* Effect.promise(() => serviceLauncherIsRunning(lockPath)));
+      assert.deepEqual(yield* Effect.promise(() => readServiceState(statePath)), pending);
     }),
   );
 
