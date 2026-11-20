@@ -65,7 +65,6 @@ export function composerCommandKeyHandler(input: {
   /** The predicted next prompt, offered only while it shows in the empty composer. */
   readonly promptSuggestion: { readonly text: string; readonly dismiss: () => void } | null;
   readonly composerEditorRef: RefObject<ComposerPromptEditorHandle | null>;
-  readonly composerMenuOpenRef: RefObject<boolean>;
   readonly composerMenuItemsRef: RefObject<ComposerCommandItem[]>;
   readonly activeComposerMenuItemRef: RefObject<ComposerCommandItem | null>;
   readonly setComposerDraftPrompt: (
@@ -121,7 +120,6 @@ export function composerCommandKeyHandler(input: {
     composerReviewComments,
     promptSuggestion,
     composerEditorRef,
-    composerMenuOpenRef,
     composerMenuItemsRef,
     activeComposerMenuItemRef,
     setComposerDraftPrompt,
@@ -244,7 +242,8 @@ export function composerCommandKeyHandler(input: {
     const { trigger } = resolveActiveComposerTrigger();
     const menuIsActive =
       !isLiteralPendingAnswer &&
-      (composerMenuOpenRef.current || (trigger !== null && trigger.kind !== "slash-skill"));
+      trigger !== null &&
+      (trigger.kind !== "slash-skill" || composerMenuItemsRef.current.length > 0);
     if (
       promptSuggestion !== null &&
       !menuIsActive &&
@@ -269,14 +268,17 @@ export function composerCommandKeyHandler(input: {
       if (event.isComposing || event.keyCode === 229) return false;
       if (menuIsActive) {
         dismissComposerTrigger(trigger);
-        composerMenuOpenRef.current = false;
         return true;
       }
       if (!isEditingQueuedMessage) return false;
       onCancelQueuedMessageEdit();
       return true;
     }
-    if (menuIsActive && (submissionIntent === null || submissionIntent === "foreground")) {
+    if (
+      menuIsActive &&
+      !event.shiftKey &&
+      (submissionIntent === null || submissionIntent === "foreground")
+    ) {
       const currentItems = composerMenuItemsRef.current;
       const selectedItem =
         activeComposerMenuItemRef.current ?? (key === "Tab" ? currentItems[0] : null);
