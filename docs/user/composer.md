@@ -365,8 +365,9 @@ the message is discarded, not returned to the composer.
 
 If you stop the agent or the server restarts, queued messages keep their order and are held.
 Press **Resume** in an empty composer to continue. For stopped runs and usage limits, Claude,
-Codex and OpenCode continue natively without a new prompt; other providers receive "Continue where
-you left off." If the original request never reached the provider, Resume sends that request again.
+Codex, Cursor and OpenCode continue natively without a new prompt; other providers receive "Continue
+where you left off." If the original request never reached the provider, or Cursor dropped it because
+you stopped before Cursor saved its first checkpoint, Resume sends that request again.
 
 Sending a new message also resumes the queue, unless it steers a turn that is already running. You
 can edit or remove held messages without starting them. **Send now** on a held row starts a turn
