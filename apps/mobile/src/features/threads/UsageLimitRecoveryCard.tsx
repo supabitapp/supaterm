@@ -11,7 +11,8 @@ import {
 } from "@supaterm/shared/usageLimits";
 import * as Clipboard from "expo-clipboard";
 import { useState } from "react";
-import { Linking, Pressable, View } from "react-native";
+import { Pressable, View } from "react-native";
+import { tryOpenExternalUrl } from "../../lib/openExternalUrl";
 import { ProviderIcon } from "../../components/ProviderIcon";
 import { AppText as Text } from "../../components/ui/AppText";
 import { useDeadlinePassed } from "../../lib/clock";
@@ -125,8 +126,11 @@ export function UsageLimitRecoveryCard({
         run: () => {
           setError(null);
           setActionPending(true);
-          void Linking.openURL(CHATGPT_USAGE_URL)
-            .catch(() => setError("Could not open ChatGPT. Go to chatgpt.com → Settings → Usage."))
+          void tryOpenExternalUrl(CHATGPT_USAGE_URL)
+            .then((opened) => {
+              if (!opened)
+                setError("Could not open ChatGPT. Go to chatgpt.com → Settings → Usage.");
+            })
             .finally(() => setActionPending(false));
         },
       };
