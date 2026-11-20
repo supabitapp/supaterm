@@ -428,21 +428,32 @@ export const layerOtlpTracesProxyRoute = HttpRouter.add(
   ),
 );
 
-const UNTRACED_REQUEST_PATHS: ReadonlySet<string> = new Set([OTLP_TRACES_PROXY_PATH]);
-
-// TracerDisabledWhen is one predicate for the whole server, and
-// HttpRouter.serve builds its routes privately, so it is provided to the served
-// layer, never merged into the routes.
-const layerUntracedRequests = Layer.succeed(HttpMiddleware.TracerDisabledWhen)((request) => {
+const requestPath = (request: HttpServerRequest.HttpServerRequest) => {
   const queryIndex = request.url.indexOf("?");
-  const path = queryIndex === -1 ? request.url : request.url.slice(0, queryIndex);
-  // Signed URLs carry bearer tokens in the path, so they never reach a trace.
+  return queryIndex === -1 ? request.url : request.url.slice(0, queryIndex);
+};
+
+// Signed URLs carry bearer tokens in the path, which URL param redaction cannot reach.
+const isSignedUrlRequest = (request: HttpServerRequest.HttpServerRequest) => {
+  const path = requestPath(request);
   return (
-    UNTRACED_REQUEST_PATHS.has(path) ||
     path.startsWith(`${ASSET_ROUTE_PREFIX}/`) ||
     path.startsWith(`${ATTACHMENT_UPLOAD_ROUTE_PREFIX}/`)
   );
-});
+};
+
+// HttpRouter.serve builds routes privately; provide the server-wide TracerDisabledWhen to the served layer.
+const layerUntracedRequests = Layer.succeed(HttpMiddleware.TracerDisabledWhen)(
+  (request) => requestPath(request) === OTLP_TRACES_PROXY_PATH || isSignedUrlRequest(request),
+);
+
+export const layerUnloggedSignedRequests = HttpRouter.middleware(
+  (httpEffect) =>
+    Effect.flatMap(HttpServerRequest.HttpServerRequest, (request) =>
+      isSignedUrlRequest(request) ? HttpMiddleware.withLoggerDisabled(httpEffect) : httpEffect,
+    ),
+  { global: true },
+);
 
 export const withUntracedRequests = Layer.provide(layerUntracedRequests);
 

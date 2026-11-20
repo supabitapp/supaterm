@@ -10,9 +10,11 @@ import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
+import * as Logger from "effect/Logger";
 import * as Path from "effect/Path";
 import * as PlatformError from "effect/PlatformError";
 import * as Queue from "effect/Queue";
+import * as References from "effect/References";
 import * as Tracer from "effect/Tracer";
 import { HttpClient, HttpClientRequest, HttpRouter, HttpServerResponse } from "effect/http";
 import { ASSET_ROUTE_PREFIX } from "./assets/AssetAccess.ts";
@@ -174,9 +176,10 @@ describe("browser API CORS", () => {
 });
 
 describe("untraced requests", () => {
-  it.effect("keeps signed asset and upload URLs out of HTTP server spans", () =>
+  it.effect("keeps signed URLs out of HTTP server spans and request logs", () =>
     Effect.gen(function* () {
       const serverSpans: Array<string> = [];
+      const loggedUrls: Array<unknown> = [];
       const layerTracer = Layer.succeed(
         Tracer.Tracer,
         Tracer.make({
@@ -185,6 +188,15 @@ describe("untraced requests", () => {
             return new Tracer.NativeSpan(options);
           },
         }),
+      );
+      const layerLogger = Logger.layer(
+        [
+          Logger.make(({ fiber }) => {
+            const url = fiber.getRef(References.CurrentLogAnnotations)["http.url"];
+            if (url !== undefined) loggedUrls.push(url);
+          }),
+        ],
+        { mergeWithExisting: false },
       );
       const layerRoutes = Layer.effectDiscard(
         Effect.gen(function* () {
@@ -197,17 +209,18 @@ describe("untraced requests", () => {
           );
           yield* router.add("GET", "/api/environment", HttpServerResponse.empty());
         }),
-      );
+      ).pipe(Layer.provide(ServerHttp.layerUnloggedSignedRequests));
       const services = yield* Layer.build(
-        HttpRouter.serve(layerRoutes, { disableListenLog: true, disableLogger: true }).pipe(
+        HttpRouter.serve(layerRoutes, { disableListenLog: true }).pipe(
           ServerHttp.withUntracedRequests,
           Layer.provideMerge(NodeHttpServer.layerTest),
           Layer.provide(layerTracer),
+          Layer.provide(layerLogger),
         ),
       );
       const client = Context.get(services, HttpClient.HttpClient);
 
-      // Each URL is a bearer credential: url.full and url.path would carry it.
+      // Each URL is a bearer credential: url.full, url.path and http.url would carry it.
       for (const request of [
         HttpClientRequest.get(`${ASSET_ROUTE_PREFIX}/payload.signature/image.png`),
         HttpClientRequest.get(`${ASSET_ROUTE_PREFIX}/payload.signature/image.png?v=1`),
@@ -218,9 +231,11 @@ describe("untraced requests", () => {
         expect((yield* client.execute(request)).status).toBe(204);
       }
       expect(serverSpans).toEqual([]);
+      expect(loggedUrls).toEqual([]);
 
       expect((yield* client.execute(HttpClientRequest.get("/api/environment"))).status).toBe(204);
       expect(serverSpans).toEqual(["GET"]);
+      expect(loggedUrls).toEqual(["/api/environment"]);
 
       for (const path of [
         `${ASSET_ROUTE_PREFIX}-other/file`,
@@ -229,6 +244,7 @@ describe("untraced requests", () => {
         expect((yield* client.execute(HttpClientRequest.get(path))).status).toBe(404);
       }
       expect(serverSpans).toEqual(["GET", "GET", "GET"]);
+      expect(loggedUrls).toHaveLength(3);
     }).pipe(Effect.provide(NodeServices.layer)),
   );
 
