@@ -120,17 +120,22 @@ export function supatermOrchestrationPrompt(input: {
   readonly hasDeviceTools: boolean;
   readonly orchestrationDelivered: boolean;
   readonly deviceInstructionsDelivered: boolean;
+  /** Guidance for this provider's own tools, sent until `providerInstructionsDelivered`. */
+  readonly providerInstructions?: string;
+  readonly providerInstructionsDelivered?: boolean;
 }): string {
   if (!input.hasSupatermMcp) return input.prompt;
-  if (!input.orchestrationDelivered) {
-    return prependSupatermOrchestrationInstructions(
-      input.prompt,
-      orchestrationInstructions(input.hasDeviceTools),
-    );
-  }
-  return input.hasDeviceTools && !input.deviceInstructionsDelivered
-    ? prependSupatermOrchestrationInstructions(input.prompt, SUPATERM_DEVICE_TOOL_INSTRUCTIONS)
-    : input.prompt;
+  const instructions = [
+    !input.orchestrationDelivered
+      ? orchestrationInstructions(input.hasDeviceTools)
+      : input.hasDeviceTools && !input.deviceInstructionsDelivered
+        ? SUPATERM_DEVICE_TOOL_INSTRUCTIONS
+        : undefined,
+    input.providerInstructionsDelivered === true ? undefined : input.providerInstructions,
+  ].flatMap((part) => (part === undefined ? [] : [part.trim()]));
+  return instructions.length === 0
+    ? input.prompt
+    : prependSupatermOrchestrationInstructions(input.prompt, instructions.join("\n\n"));
 }
 
 export function supatermOrchestrationSystemPrompt(
