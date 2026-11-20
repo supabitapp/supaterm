@@ -19,6 +19,7 @@ import { ComposerHandleContext, type ComposerHandleRef } from "../../composerHan
 import { __setClientSettingsForTests } from "../../hooks/useSettings";
 import { deriveProviderInstanceEntries } from "../../providerInstances";
 import { ProviderModelPicker } from "./ProviderModelPicker";
+import { TraitsMenuContent } from "./TraitsPicker";
 
 const environmentSettings = vi.hoisted(() => new Map<string, unknown>());
 vi.mock(import("~/state/server"), async (original) => {
@@ -71,6 +72,45 @@ it("names the full model for screen readers when the trigger shows its short nam
   const trigger = screen.container.querySelector<HTMLElement>("[data-chat-provider-model-picker]");
   await expect.element(trigger).toHaveTextContent("Opus 5.5");
   expect(trigger?.getAttribute("aria-label")).toBe("Claude Opus 5.5");
+});
+
+it("shows saved options as read-only details for an unavailable model", async () => {
+  const driver = ProviderDriverKind.make("opencode");
+  const instance = ProviderInstanceId.make("opencode");
+  await using screen = await render(
+    <ProviderModelPicker
+      environmentId={null}
+      activeInstanceId={instance}
+      model="missing"
+      lockedProvider={null}
+      instanceEntries={deriveProviderInstanceEntries([
+        { ...provider, driver, instanceId: instance, models: [] },
+      ])}
+      modelOptionsByInstance={new Map()}
+      triggerAriaLabel="Choose model"
+      modelSettings={{
+        summary: "",
+        details: "",
+        panel: (
+          <TraitsMenuContent
+            inline
+            provider={driver}
+            models={[]}
+            model="missing"
+            modelOptions={[{ id: "effort", value: "high" }]}
+            onModelOptionsChange={() => {}}
+          />
+        ),
+      }}
+      onInstanceModelChange={() => {}}
+    />,
+  );
+
+  await screen.getByRole("button", { name: "Choose model" }).click();
+  const options = page.getByRole("group", { name: "Model options" });
+  await expect.element(options.getByRole("term")).toHaveTextContent("Effort");
+  await expect.element(options.getByRole("definition")).toHaveTextContent("high");
+  await expect.element(options.getByRole("radio")).not.toBeInTheDocument();
 });
 
 it("keeps each registry image when adding a model from another ACP agent", async () => {

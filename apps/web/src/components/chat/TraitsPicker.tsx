@@ -457,8 +457,8 @@ export const TraitsMenuContent = memo(function TraitsMenuContentImpl({
 
   if (modelIsUnavailable) {
     return (
-      <>
-        {descriptors.map((descriptor, index) => {
+      <dl className="divide-y divide-border/70">
+        {descriptors.map((descriptor) => {
           const value = getProviderOptionCurrentLabel(
             descriptor,
             modelSelection,
@@ -467,17 +467,14 @@ export const TraitsMenuContent = memo(function TraitsMenuContentImpl({
           if (!value) return null;
           return (
             <div key={descriptor.id}>
-              {index > 0 ? <MenuDivider /> : null}
-              <MenuGroup>
-                <div className="px-2 pt-1.5 pb-1 font-medium text-muted-foreground text-xs">
-                  {descriptor.label}
-                </div>
-                <div className="px-2 pb-1.5 text-muted-foreground/80 text-xs">{value}</div>
-              </MenuGroup>
+              <dt className="px-2 pt-1.5 pb-1 font-medium text-muted-foreground text-xs">
+                {descriptor.label}
+              </dt>
+              <dd className="px-2 pb-1.5 text-muted-foreground/80 text-xs">{value}</dd>
             </div>
           );
         })}
-      </>
+      </dl>
     );
   }
 

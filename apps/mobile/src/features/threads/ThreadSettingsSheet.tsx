@@ -1210,6 +1210,7 @@ function ThreadSettingsOptionsScreen() {
           className="flex-1 bg-sheet"
           style={READABLE_WIDTH_STYLE}
           contentInsetAdjustmentBehavior="automatic"
+          keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
           <View className="mx-4 mt-2 overflow-hidden rounded-2xl">
