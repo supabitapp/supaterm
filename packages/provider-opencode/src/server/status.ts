@@ -1,5 +1,11 @@
 import { resolveProviderProbeTimeoutMs } from "@supaterm/provider-core/server/snapshotProbe";
 import {
+  brokenVersionDetail,
+  noCompatibilityPolicy,
+  type ProviderCompatibilityLookup,
+} from "@supaterm/provider-core/server/compatibility";
+import {
+  ProviderDriverKind,
   type ModelCapabilities,
   type ServerProviderModel,
   type ServerProviderSkill,
@@ -606,6 +612,7 @@ export const checkOpenCodeProviderStatus = Effect.fn("checkOpenCodeProviderStatu
     ReadonlyArray<OpenCode2Model>,
     OpenCodeRuntime.OpenCodeRuntimeError
   >,
+  compatibility: ProviderCompatibilityLookup = noCompatibilityPolicy,
 ): Effect.fn.Return<ServerProviderDraft> {
   const checkedAt = DateTime.formatIso(yield* DateTime.now);
   const customModels = openCodeSettings.customModels;
@@ -674,6 +681,26 @@ export const checkOpenCodeProviderStatus = Effect.fn("checkOpenCodeProviderStatu
         status: "error",
         auth: { status: "unknown" },
         message: OPENCODE_1_UNSUPPORTED_MESSAGE,
+      },
+    });
+  }
+  const broken = brokenVersionDetail({
+    name: "OpenCode",
+    version: probed.version,
+    advisory: yield* compatibility(ProviderDriverKind.make("opencode"), probed.version),
+  });
+  if (broken !== undefined) {
+    return buildServerProvider({
+      presentation: OPENCODE_2_PRESENTATION,
+      enabled: true,
+      checkedAt,
+      models: providerModelsFromSettings([], customModels, DEFAULT_OPENCODE_MODEL_CAPABILITIES),
+      probe: {
+        installed: true,
+        version: probed.version,
+        status: "error",
+        auth: { status: "unknown" },
+        message: broken,
       },
     });
   }

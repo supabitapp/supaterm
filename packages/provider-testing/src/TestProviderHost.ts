@@ -1,4 +1,8 @@
 import { DEFAULT_SERVER_SETTINGS, type ServerSettings } from "@supaterm/contracts";
+import {
+  noCompatibilityPolicy,
+  type ProviderCompatibilityLookup,
+} from "@supaterm/provider-core/server/compatibility";
 import * as ProviderHost from "@supaterm/provider-core/server/ProviderHost";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
@@ -15,6 +19,7 @@ export interface TestProviderHostOptions {
   readonly settings?: ServerSettings;
 
   readonly runBackgroundWork?: boolean;
+  readonly compatibility?: ProviderCompatibilityLookup;
 }
 
 export class TestProviderHostSettings extends Context.Service<
@@ -45,6 +50,7 @@ export const layer = (
       const settings = yield* Ref.make(options.settings ?? DEFAULT_SERVER_SETTINGS);
       const credentials = new Map<string, Uint8Array>();
       const host = ProviderHost.ProviderHost.of({
+        compatibility: options.compatibility ?? noCompatibilityPolicy,
         paths: {
           cwd: options.cwd ?? process.cwd(),
           baseDir,

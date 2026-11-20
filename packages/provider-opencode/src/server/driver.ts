@@ -456,6 +456,7 @@ export const OpenCodeDriver: ProviderDriver<
           effectiveConfig,
           runtimeProbe.refresh,
           loadOpenCode2Models,
+          host.compatibility,
         ).pipe(
           Effect.annotateLogs({ providerInstanceId: instanceId }),
           Effect.annotateSpans({ providerInstanceId: instanceId }),

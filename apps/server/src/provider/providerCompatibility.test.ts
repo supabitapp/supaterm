@@ -58,7 +58,8 @@ const provider: ServerProvider = {
 describe("provider compatibility", () => {
   it("keeps each release on the OpenCode policy it shipped with", () => {
     // Older builds fetch main's manifest: before 0.0.46 the V1 orchestrator cannot drive
-    // OpenCode 2, and before 26.10.13 OpenCode 1.x still runs with limited support.
+    // OpenCode 2, before 26.10.13 OpenCode 1.x still runs with limited support, and from
+    // 26.10.13 anything before 2.0.18 is refused.
     const opencode = ProviderDriverKind.make("opencode");
     for (const [supaterm, version, expected, recommended] of [
       ["0.0.45", "1.14.19", "supported", "1.14.19"],
@@ -67,8 +68,8 @@ describe("provider compatibility", () => {
       ["26.10.12", "1.18.32", "graceful", null],
       ["26.10.12", "2.0.17", "unsupported", null],
       ["26.10.12", "2.0.18", "supported", null],
-      ["26.10.13", "1.18.32", "unknown", null],
-      ["26.10.13", "2.0.17", "unsupported", null],
+      ["26.10.13", "1.18.32", "broken", null],
+      ["26.10.13", "2.0.17", "broken", null],
       ["26.10.13", "2.0.18", "supported", null],
     ] as const) {
       const advisory = resolveProviderCompatibility(
@@ -79,6 +80,22 @@ describe("provider compatibility", () => {
       );
       assert.strictEqual(advisory?.status, expected, `OpenCode ${version} on ${supaterm}`);
       assert.strictEqual(advisory?.recommendedVersion, recommended);
+    }
+    // The current policy rates a prerelease or build by its base version.
+    for (const [version, expected] of [
+      ["1.13.0-beta.1", "broken"],
+      ["1.13.0+abc123", "broken"],
+      ["2.1.0-rc.1", "supported"],
+    ] as const) {
+      assert.strictEqual(
+        resolveProviderCompatibility(
+          ModelManifest.BUNDLED_MODEL_MANIFEST.compatibility,
+          opencode,
+          version,
+        )?.status,
+        expected,
+        `OpenCode ${version}`,
+      );
     }
     assert.isUndefined(
       resolveProviderCompatibility(

@@ -696,6 +696,40 @@ describe("checkOpenCodeProviderStatus with configured server URL", () => {
     }),
   );
 
+  it.effect("refuses an OpenCode 2 server the compatibility policy rates broken", () =>
+    Effect.gen(function* () {
+      const settings = makeOpenCodeSettings({
+        serverUrl: "http://127.0.0.1:9999",
+        serverPassword: "secret-password",
+      });
+      const snapshot = yield* checkOpenCodeProviderStatus(
+        settings,
+        probeOpenCodeRuntime(settings).pipe(
+          Effect.provideService(
+            HttpClient.HttpClient,
+            replayOpenCodeServer(OPENCODE_2_RESPONSES, "secret-password"),
+          ),
+          Effect.provideService(OpenCodeRuntime.OpenCodeRuntime, OpenCodeRuntimeTestDouble),
+        ),
+        Effect.succeed([]),
+        () =>
+          Effect.succeed({
+            status: "broken" as const,
+            recommendedVersion: null,
+            recommendedRange: ">=2.0.19",
+            message:
+              "This provider version is known to be incompatible with this Supaterm release.",
+          }),
+      );
+
+      NodeAssert.equal(snapshot.status, "error");
+      NodeAssert.equal(
+        snapshot.message,
+        "OpenCode 2.0.18 does not work with this Supaterm release. Update OpenCode to >=2.0.19, then retry.",
+      );
+    }),
+  );
+
   it.effect("reports a rejected OpenCode 2 password as an auth error, not a version", () =>
     Effect.gen(function* () {
       const snapshot = yield* checkProvider(
