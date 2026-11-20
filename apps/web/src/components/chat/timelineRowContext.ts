@@ -9,6 +9,7 @@ import type {
   OrchestrationV2TurnItem,
   ThreadId,
   RunAttemptId,
+  ResponseContextRecord,
   TurnItemId,
   WorktreeSetupSnapshot,
 } from "@supaterm/contracts";
@@ -26,6 +27,8 @@ import type { HtmlRenderSelectionReport } from "./HtmlRenderFrame";
 
 export interface TimelineRowSharedState {
   citationRequest: AssistantCitationTarget | null;
+  /** Absent hides "Reply", as in the guest view. */
+  onReplyToResponse: ((response: ResponseContextRecord) => boolean) | undefined;
   listRef: React.RefObject<LegendListRef | null>;
   timestampFormat: TimestampFormat;
   routeThreadKey: string;

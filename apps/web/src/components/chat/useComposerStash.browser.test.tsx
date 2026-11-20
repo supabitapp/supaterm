@@ -54,6 +54,7 @@ it("keeps the draft when stashing while a pasted image is still compressing", as
       previewAnnotations: [],
       reviewComments: [],
       referenceContexts: [],
+      replyTo: null,
       modelSelectionByProvider: {},
       activeProvider: null,
       runtimeMode: null,

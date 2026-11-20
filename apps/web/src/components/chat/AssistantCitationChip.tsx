@@ -1,5 +1,5 @@
 import { scopeThreadRef } from "@supaterm/client-runtime/environment";
-import type { AssistantCitation } from "@supaterm/contracts";
+import type { AssistantCitation, ResponseContextRecord } from "@supaterm/contracts";
 import {
   assistantCitationExcerpt,
   assistantCitationLabel,
@@ -36,6 +36,65 @@ import { composerFloatingLayerProps } from "./composerEventScope";
 import { observeResize } from "~/lib/observeResize";
 import { textDirection } from "~/textDirection";
 
+function useCitationSourceLinkProps(citation: AssistantCitation) {
+  const navigate = useNavigate();
+  const sourceThread = useQuietThreadShell(
+    scopeThreadRef(citation.environmentId, citation.threadId),
+  );
+  return {
+    ...assistantCitationRoute(citation, sourceThread),
+    "data-markdown-copy": serializeAssistantCitation(citation),
+    onClick: (event: ReactMouseEvent<HTMLAnchorElement>) => {
+      if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+        return;
+      }
+      event.preventDefault();
+      void navigate(assistantCitationNavigation(citation, sourceThread));
+    },
+  };
+}
+
+export function ResponseReplyBarLink({ citation }: { citation: AssistantCitation }) {
+  const linkProps = useCitationSourceLinkProps(citation);
+  return (
+    <Link {...linkProps} className="text-inherit no-underline hover:text-foreground">
+      {assistantCitationLabel(citation)}
+    </Link>
+  );
+}
+
+export function ResponseReplyQuote({
+  record,
+  copyMarkdown,
+}: {
+  record: ResponseContextRecord;
+  copyMarkdown: string;
+}) {
+  const { citation } = record;
+  const linkProps = useCitationSourceLinkProps(citation);
+  const title = record.subagents?.map((subagent) => subagent.title).join(", ");
+  return (
+    <Link
+      {...linkProps}
+      data-markdown-copy={copyMarkdown}
+      data-citation-excerpt=""
+      // The response is findable in its own message; here it is clamped and mostly hidden.
+      data-thread-find-ignore
+      className="mb-1.5 flex w-fit max-w-full min-w-0 flex-col border-s-2 border-muted-foreground/40 ps-2 text-xs/5 text-muted-foreground no-underline transition-colors duration-150 hover:border-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
+      aria-label={`Go to the response this replies to: ${record.label}`}
+    >
+      {title ? (
+        <span className="truncate font-medium text-foreground/80" dir="auto">
+          {title}
+        </span>
+      ) : null}
+      <span className="line-clamp-2 wrap-break-word" dir={textDirection(citation.text)}>
+        {citation.text.replace(/\s+/g, " ")}
+      </span>
+    </Link>
+  );
+}
+
 export function AssistantCitationChip({
   citation,
   composer = false,
@@ -54,10 +113,7 @@ export function AssistantCitationChip({
     onRestoreFocus?: () => void;
   };
 }) {
-  const navigate = useNavigate();
-  const sourceThread = useQuietThreadShell(
-    scopeThreadRef(citation.environmentId, citation.threadId),
-  );
+  const sourceLinkProps = useCitationSourceLinkProps(citation);
   const commentInputRef = useRef<HTMLTextAreaElement>(null);
   const commentPopupRef = useRef<HTMLDivElement>(null);
   const draftCommentRef = useRef<string | null>(null);
@@ -116,17 +172,6 @@ export function AssistantCitationChip({
       }
     : undefined;
   const label = assistantCitationLabel(citation);
-  const sourceLinkProps = {
-    ...assistantCitationRoute(citation, sourceThread),
-    "data-markdown-copy": serializeAssistantCitation(citation),
-    onClick: (event: ReactMouseEvent<HTMLAnchorElement>) => {
-      if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
-        return;
-      }
-      event.preventDefault();
-      void navigate(assistantCitationNavigation(citation, sourceThread));
-    },
-  };
   const composerSourceLink = (
     <Link
       {...sourceLinkProps}

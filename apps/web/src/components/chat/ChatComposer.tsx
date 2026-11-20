@@ -29,6 +29,7 @@ import type {
   ResolvedKeybindingsConfig,
   RuntimeMode,
   RuntimeRequestId,
+  ResponseContextRecord,
   ScopedThreadRef,
   ServerProvider,
   ThreadId,
@@ -297,7 +298,8 @@ const COMPOSER_SCROLL_COLLAPSE_THRESHOLD_PX = 24;
 const COMPOSER_SCROLL_GESTURE_RESET_MS = 120;
 
 import { toastManager } from "../ui/toast";
-import { PlayIcon, ShieldIcon } from "@supaterm/icons";
+import { PlayIcon, ReplyIcon, ShieldIcon } from "@supaterm/icons";
+import { ResponseReplyBarLink } from "./AssistantCitationChip";
 import { NO_PROVIDER_MODEL_SELECTION } from "../../providerInstances";
 import { type AppModelOption, getAppModelOptionsForInstance } from "../../modelSelection";
 import type { UnifiedSettings } from "@supaterm/contracts/settings";
@@ -352,6 +354,7 @@ export interface ChatComposerHandle {
     citation: AssistantCitation,
     sourceAnchor: AssistantCitationSourceAnchor | undefined,
   ) => boolean;
+  replyToResponse: (response: ResponseContextRecord) => boolean;
   openModelPicker: () => void;
   stepReasoningEffort: (direction: 1 | -1) => void;
   /** Flips Fast mode and returns the new level, or null when the model has no speed option. */
@@ -386,6 +389,7 @@ export interface ChatComposerHandle {
     previewAnnotations: PreviewAnnotationPayload[];
     reviewComments: ReviewCommentContext[];
     referenceContexts: ReferenceContextRecord[];
+    replyTo: ResponseContextRecord | null;
     selectedPromptEffort: string | null;
     selectedModelSelection: ModelSelection;
     multipleModelSelections: ReadonlyArray<ModelSelection> | null;
@@ -785,6 +789,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   const composerPreviewAnnotations = composerDraft.previewAnnotations;
   const composerReviewComments = composerDraft.reviewComments;
   const composerReferenceContexts = attachmentDraft.referenceContexts;
+  const replyTo = composerDraft.replyTo;
   const {
     pendingSnapShotAnimations,
     pendingSnapShotIds,
@@ -900,6 +905,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     (store) => store.syncPersistedAttachments,
   );
   const getComposerDraft = useComposerDraftStore((store) => store.getComposerDraft);
+  const setComposerDraftReplyTo = useComposerDraftStore((store) => store.setReplyTo);
 
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- starts or releases server attachment uploads as upload capability, limits and draft attachments change
   useEffect(() => {
@@ -1348,7 +1354,8 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       composerSendState.sendableTerminalContexts.length === 0 &&
       composerPreviewAnnotations.length === 0 &&
       composerReviewComments.length === 0 &&
-      composerReferenceContexts.length === 0,
+      composerReferenceContexts.length === 0 &&
+      replyTo === null,
     sideChat: props.sideChatAvailable === true,
     usageLimits: props.onUsageLimitsCommand !== undefined,
     codexFeedback: selectedProvider === "codex" && multipleModelSelections === null,
@@ -2016,6 +2023,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       !isEditingQueuedMessage &&
       activePendingProgress === null &&
       pendingUserInputs.length === 0 &&
+      replyTo === null &&
       isComposerDraftEmpty({
         prompt,
         attachmentCount:
@@ -2525,7 +2533,25 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     expandMobileComposer: expandMobileComposerStable,
     submitComposer: submitComposerStable,
   });
-  const hasBannerItems = props.bannerItems.length > 0;
+  const bannerItems: readonly ComposerBannerStackItem[] = replyTo
+    ? [
+        ...props.bannerItems,
+        {
+          id: "reply-to",
+          variant: "default",
+          // It is part of the message, so another notice must not stack it out of sight.
+          alwaysVisible: true,
+          icon: <ReplyIcon />,
+          title: replyTo.subagents
+            ? `Replying to ${replyTo.subagents.map((subagent) => subagent.title).join(", ")}`
+            : "Replying to",
+          description: <ResponseReplyBarLink citation={replyTo.citation} />,
+          dismissLabel: "Cancel reply",
+          onDismiss: () => setComposerDraftReplyTo(composerDraftTarget, null),
+        },
+      ]
+    : props.bannerItems;
+  const hasBannerItems = bannerItems.length > 0;
   const hasBlockingComposerTopDrawer =
     activePendingApproval !== null || pendingUserInputs.length > 0;
   const canShowTasks =
@@ -2877,7 +2903,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   const bannerStackItems = [
     ...(activityStackItem ? [activityStackItem] : []),
     ...(voiceBannerItem ? [voiceBannerItem] : []),
-    ...props.bannerItems,
+    ...bannerItems,
   ];
 
   const insertComposerText = (
@@ -3397,6 +3423,13 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         "cursor",
         { ensureLeadingBoundary: true, citationComment: { sourceAnchor } },
       ),
+    replyToResponse: (response) => {
+      // An open question owns the composer, and its answer would not carry the reply.
+      if (pendingUserInputs.length > 0 || projectSelectionRequired) return false;
+      setComposerDraftReplyTo(composerDraftTarget, response);
+      focusComposer();
+      return true;
+    },
     openModelPicker: openModelPickerStable,
     stepReasoningEffort: (direction) => {
       if (
@@ -3565,6 +3598,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       previewAnnotations: composerPreviewAnnotations,
       reviewComments: composerReviewComments,
       referenceContexts: composerReferenceContexts,
+      replyTo,
       selectedPromptEffort,
       selectedModelSelection,
       multipleModelSelections:

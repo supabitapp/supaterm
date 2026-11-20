@@ -44,6 +44,7 @@ import {
   ProviderDriverKind,
   type ProviderInstanceId,
   type ProviderThreadId,
+  type ResponseContextRecord,
   type ServerProvider,
   type ScopedProjectRef,
   type ScopedThreadRef,
@@ -1298,6 +1299,8 @@ export interface ComposerSendContents {
   readonly previewAnnotations: ReadonlyArray<PreviewAnnotationPayload>;
   readonly reviewComments: ReadonlyArray<ReviewCommentContext>;
   readonly referenceContexts: ReadonlyArray<ReferenceContextRecord>;
+  /** The response the message replies to. `prompt` already leads with its reference. */
+  readonly replyTo: ResponseContextRecord | null;
 }
 
 /**
@@ -1316,6 +1319,7 @@ export function snapshotComposerSend(contents: ComposerSendContents) {
     previewAnnotations: [...contents.previewAnnotations],
     reviewComments: [...contents.reviewComments],
     referenceContexts: [...contents.referenceContexts],
+    replyTo: contents.replyTo,
     messageText: contents.terminalContexts
       .filter((context) => !terminalContexts.includes(context))
       .reduce(

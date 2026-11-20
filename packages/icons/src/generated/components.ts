@@ -464,6 +464,8 @@ import { ArrowUUpRightIcon as RedoSource } from "@phosphor-icons/react/dist/csr/
 export const RedoIcon = /* @__PURE__ */ withIconDefaults(RedoSource);
 import { ArrowsClockwiseIcon as RefreshCwSource } from "@phosphor-icons/react/dist/csr/ArrowsClockwise";
 export const RefreshCwIcon = /* @__PURE__ */ withIconDefaults(RefreshCwSource);
+import { ArrowBendUpLeftIcon as ReplySource } from "@phosphor-icons/react/dist/csr/ArrowBendUpLeft";
+export const ReplyIcon = /* @__PURE__ */ withIconDefaults(ReplySource);
 import { RocketIcon as RocketSource } from "@phosphor-icons/react/dist/csr/Rocket";
 export const RocketIcon = /* @__PURE__ */ withIconDefaults(RocketSource);
 import { ArrowCounterClockwiseIcon as RotateCcwSource } from "@phosphor-icons/react/dist/csr/ArrowCounterClockwise";

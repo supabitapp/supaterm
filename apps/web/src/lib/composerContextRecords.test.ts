@@ -4,6 +4,7 @@ import {
   MessageId,
   OrchestrationMessageContext,
   ThreadId,
+  TurnItemId,
   type PreviewAnnotationPayload,
 } from "@supaterm/contracts";
 import * as Schema from "effect/Schema";
@@ -24,13 +25,16 @@ import {
   previewAnnotationFromRecord,
   pullRequestContextKindLabel,
   resolveUserMessageContext,
+  responseContextRecord,
   reviewCommentContextLabel,
   selectedMessageContextFragment,
   reviewCommentContextRecord,
   terminalContextRecord,
   terminalContextReference,
+  takeReplyFromText,
   terminalContextDraftFromRecord,
   uploadedAttachmentContextRecord,
+  withReplyReference,
 } from "./composerContextRecords";
 
 const decodeMessageContext = Schema.decodeUnknownSync(OrchestrationMessageContext);
@@ -226,6 +230,47 @@ describe("composerContextRecords", () => {
       comment: `${"a".repeat(46)}😀 and make the button bigger`,
     });
     expect(record.label).toBe(`${"a".repeat(46)}…`);
+  });
+
+  it("sends a reply as one leading reference and takes it back out for editing", () => {
+    const replyTo = responseContextRecord({
+      citation: {
+        version: 1,
+        environmentId: EnvironmentId.make("environment-1"),
+        threadId: ThreadId.make("thread-1"),
+        messageId: MessageId.make("message-1"),
+        text: "Done. I added clamp next to sum.",
+        start: 0,
+        end: 32,
+        prefix: "",
+        suffix: "",
+      },
+      itemId: TurnItemId.make("item-1"),
+      subagents: [{ threadId: ThreadId.make("child-1"), title: "review pr 412" }],
+    });
+    const sent = withReplyReference("why there?", replyTo);
+
+    expect(sent).toMatch(
+      /^\[Done\. I added clamp next to sum\.\]\(supaterm-context:\/\/v1\/response\//,
+    );
+    expect(withReplyReference(sent, replyTo)).toBe(sent);
+    expect(withReplyReference("why there?", null)).toBe("why there?");
+    expect(
+      decodeMessageContext(
+        buildMessageContext({
+          terminalContexts: [],
+          reviewComments: [],
+          previewAnnotations: [],
+          replyTo,
+        }),
+      ).records,
+    ).toEqual([replyTo]);
+    expect(takeReplyFromText(sent, [replyTo])).toEqual({ text: "why there?", reply: replyTo });
+    const fenced = "```ts\nclamp(1, 0, 2);\n```\nwhy there?";
+    const sentFenced = withReplyReference(fenced, replyTo);
+    expect(sentFenced).toContain(")\n\n```ts\n");
+    expect(takeReplyFromText(sentFenced, [replyTo])).toEqual({ text: fenced, reply: replyTo });
+    expect(takeReplyFromText("why there?", [replyTo])).toEqual({ text: "why there?", reply: null });
   });
 
   it("restores multiple edits on one target without parsing display strings", () => {

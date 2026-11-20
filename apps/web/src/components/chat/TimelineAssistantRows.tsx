@@ -2,13 +2,18 @@ import { type TimelineRow, TimelineRowCtx, TimelineRowActivityCtx } from "./time
 import { MessageAuthorHeading, MESSAGE_HEADING_LEVEL } from "./TimelineRowParts";
 import { resolveAssistantMessageCopyState } from "./MessagesTimeline.logic";
 import { shouldPreserveAssistantLineBreaks } from "@supaterm/shared/markdownPipeline";
-import { MessageId, type RunId } from "@supaterm/contracts";
+import { MessageId, type RunId, type TurnItemId } from "@supaterm/contracts";
 import { canForkProjectedAssistantItem } from "@supaterm/client-runtime/state/thread-workflows";
 import { agentWorkingDirectories } from "@supaterm/client-runtime/workspace-basename-lookup";
 import { use, useState, memo } from "react";
 import type { ChatMessage, TurnDiffSummary } from "../../types";
 import ChatMarkdown from "../ChatMarkdown";
-import { GitForkIcon } from "@supaterm/icons";
+import { GitForkIcon, ReplyIcon } from "@supaterm/icons";
+import {
+  captureAssistantMessageOpening,
+  findAssistantCitationSource,
+} from "~/lib/assistantTextSelection";
+import { responseContextRecord } from "~/lib/composerContextRecords";
 import { Button } from "../ui/button";
 import { ProposedPlanCard } from "./ProposedPlanCard";
 import { HtmlRenderFrame } from "./HtmlRenderFrame";
@@ -17,6 +22,7 @@ import { checkpointFileTotals } from "@supaterm/client-runtime/state/thread-chec
 import { ChangedFilesCard } from "./ChangedFilesTree";
 import { useFileContextMenuHandler } from "../../fileContextMenu";
 import {
+  readResponseSubagents,
   readThreadTurnItems,
   useAssistantMessageText,
   useProject,
@@ -244,6 +250,9 @@ function AssistantMessageMeta({
       {projectedItem?.item.type === "assistant_message" ? (
         <AssistantForkButton projectedItem={projectedItem} />
       ) : null}
+      {!message.streaming && projectedItem ? (
+        <AssistantReplyButton message={message} itemId={projectedItem.sourceItemId} />
+      ) : null}
       {isPinnableProjectedItem(projectedItem) && !message.streaming ? (
         <MessagePinButton projectedItem={projectedItem} />
       ) : null}
@@ -258,6 +267,45 @@ function AssistantMessageMeta({
         </Tooltip>
       )}
     </div>
+  );
+}
+
+function AssistantReplyButton({ message, itemId }: { message: ChatMessage; itemId: TurnItemId }) {
+  const ctx = use(TimelineRowCtx);
+  const { threadRef, onReplyToResponse } = ctx;
+  if (!threadRef || !onReplyToResponse || !message.text.trim()) return null;
+
+  const reply = () => {
+    // The meta row can sit below trailing tool rows, so the message may be virtualized away.
+    const source = findAssistantCitationSource(document, { ...threadRef, messageId: message.id });
+    const opening = captureAssistantMessageOpening(source ?? null, message.text);
+    if (!opening) return;
+    onReplyToResponse(
+      responseContextRecord({
+        citation: { version: 1, ...threadRef, messageId: message.id, ...opening },
+        itemId,
+        subagents: readResponseSubagents(threadRef, itemId),
+      }),
+    );
+  };
+
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <Button
+            type="button"
+            size="xs"
+            variant="ghost"
+            onClick={reply}
+            aria-label="Reply to this response"
+          />
+        }
+      >
+        <ReplyIcon className="size-3" />
+      </TooltipTrigger>
+      <TooltipPopup side="top">Reply to this response</TooltipPopup>
+    </Tooltip>
   );
 }
 

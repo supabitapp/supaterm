@@ -92,6 +92,7 @@ const sendContext: ReturnType<ChatComposerHandle["getSendContext"]> = {
   previewAnnotations: [],
   reviewComments: [],
   referenceContexts: [],
+  replyTo: null,
   selectedPromptEffort: null,
   selectedModelSelection: editedModel,
   multipleModelSelections: null,

@@ -33,6 +33,7 @@ import ChatMarkdown, { type ChatMarkdownContextReference } from "../ChatMarkdown
 import { EnvironmentContextChip } from "../EnvironmentContextChip";
 import { ModelContextChip } from "../ModelContextChip";
 import { ThreadContextChip } from "../ThreadContextChip";
+import { ResponseReplyQuote } from "./AssistantCitationChip";
 import { MessageCircleIcon, MousePointerClickIcon, PaintbrushIcon } from "@supaterm/icons";
 import { buildExpandedImagePreview } from "./ExpandedImagePreview";
 import { WorkspaceEntryIcon, WorkspaceEntryTooltip } from "./WorkspaceEntryIcon";
@@ -343,6 +344,16 @@ const userMessageContextPresentationRegistry = createContextPresentationRegistry
       render: (record, context) =>
         record.kind === "model" ? (
           <ModelContextChip record={record} copyMarkdown={context.copyMarkdown} />
+        ) : (
+          <UnavailableUserMessageContextChip {...context} />
+        ),
+    },
+    {
+      kind: "response",
+      canRender: (record) => record.kind === "response",
+      render: (record, context) =>
+        record.kind === "response" ? (
+          <ResponseReplyQuote record={record} copyMarkdown={context.copyMarkdown} />
         ) : (
           <UnavailableUserMessageContextChip {...context} />
         ),
