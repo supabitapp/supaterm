@@ -24,6 +24,13 @@ authority.
 Browser cookies and bearer tokens adapt the same scoped session model. The OAuth
 token-exchange vocabulary gives these grants a familiar meaning.
 
+A [peer link](remote.md#peer-links)'s session renews on use: its bearer token
+is never reissued, so the session row alone holds its deadline and the token's
+own expiry is ignored. Authenticating a call from it moves the row 30 days out,
+at most once a day so a busy link does not write on every call. Only an
+unexpired, unrevoked row moves, so an idle link still ends after 30 days and a
+revoke is final. Other MCP clients keep the fixed 30 days their token carries.
+
 ### MCP clients are a separate audience
 
 Agents Supaterm did not launch sign in to `/mcp` through a narrow OAuth

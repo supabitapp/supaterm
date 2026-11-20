@@ -11,6 +11,7 @@ import {
   type ThreadId,
 } from "@supaterm/contracts";
 import * as Context from "effect/Context";
+import type * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
 import { formatThreadLink } from "@supaterm/shared/threadLinks";
@@ -42,6 +43,8 @@ export interface McpClientCaller {
    * session as `linkOrigin`, and it changes only that work (`linkOrigin.ts`).
    */
   readonly linked?: boolean | undefined;
+  /** When a peer link's session ends unless it is used again, answered as `Supaterm-Link-Expires-At`. */
+  readonly linkExpiresAt?: DateTime.Utc | undefined;
   /**
    * Narrower modes the client asked for on this request (`Supaterm-Mode-Limit`):
    * another environment passing on the limits of the agent it calls for.
@@ -60,6 +63,12 @@ export interface McpClientCaller {
  * `clientModeCeiling`), so a client gains nothing by sending a broad one.
  */
 export const MODE_LIMIT_HEADER = "supaterm-mode-limit";
+
+/**
+ * `Supaterm-Link-Expires-At: <ISO time>` answers a peer link's request with when its
+ * session now ends. Using a link renews it, so the linking side keeps this.
+ */
+export const LINK_EXPIRES_AT_HEADER = "supaterm-link-expires-at";
 
 /**
  * `Supaterm-Sender-Thread: <environmentId>/<threadId>/<title>`, each URI-encoded: the

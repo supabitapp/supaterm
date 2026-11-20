@@ -103,6 +103,11 @@ Unlinking on the linking side only forgets the token.
   when the link is forgotten. The peer's
   [`RelayIngress`](../../apps/server/src/relay/RelayIngress.ts) lets `/mcp` and
   the MCP OAuth endpoints through the tunnel for this and nothing else new.
+- **The receiving side owns a link's expiry.** It renews the session when the
+  link is used and answers each call with `Supaterm-Link-Expires-At`; the linking
+  side stores that and never extends a link on its own. A receiving side that
+  predates renewal sends no header, so the link keeps its original 30 days on
+  both sides.
 - **All callers on one side share the link's single session on the other**,
   so idempotency keys are hashed with the caller's namespace before they
   leave. Without that, two agents reusing a key would collide on the far side.
