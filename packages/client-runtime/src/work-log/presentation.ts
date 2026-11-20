@@ -224,6 +224,37 @@ export function liveActivityToolStatus(status: string | undefined, presentTense:
   return "completed";
 }
 
+export function genericCommandStatusLabel(status: ReturnType<typeof liveActivityToolStatus>) {
+  return status === "inProgress"
+    ? "Running command"
+    : status === "failed"
+      ? "Failed command"
+      : status === "declined"
+        ? "Declined command"
+        : status === "stopped"
+          ? "Stopped command"
+          : "Ran command";
+}
+
+const GENERIC_COMMAND_TITLES = new Set(["Ran command", "Run command", "Command"]);
+
+export function commandlessCommandLabel(
+  entry: Pick<
+    WorkLogPresentationEntry,
+    "itemType" | "command" | "toolTitle" | "label" | "structuredPayload"
+  >,
+  status: ReturnType<typeof liveActivityToolStatus>,
+): string | null {
+  if (entry.itemType !== "command_execution" || entry.command?.trim()) return null;
+  // The provider's own title, before a client substitutes its fallback.
+  const title = (
+    entry.structuredPayload ? entry.structuredPayload.title : entry.toolTitle || entry.label
+  )?.trim();
+  return !title || GENERIC_COMMAND_TITLES.has(normalizeCompactToolLabel(title))
+    ? genericCommandStatusLabel(status)
+    : null;
+}
+
 export function resolveWorkEntryToolPresentation(
   entry: Pick<
     WorkLogPresentationEntry,

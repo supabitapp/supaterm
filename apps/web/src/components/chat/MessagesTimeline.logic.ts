@@ -16,6 +16,7 @@ import {
 } from "@supaterm/client-runtime/work-log/command-label";
 import { THOUGHT_PREVIEW_SOURCE_MAX_LENGTH } from "./TimelineWorkEntryRow.logic";
 import {
+  commandlessCommandLabel,
   liveActivityToolStatus,
   normalizeCompactToolLabel,
   resolveWorkEntryToolPresentation,
@@ -159,6 +160,11 @@ export function workEntryDisplay(
   const toolPresentation = resolveWorkEntryToolPresentation(entry);
   if (toolPresentation) return { text: toolPresentation.displayName };
   if (entry.command?.trim()) return { text: commandDisplayText(entry.command) };
+  const commandless = commandlessCommandLabel(
+    entry,
+    liveActivityToolStatus(entry.toolLifecycleStatus, false),
+  );
+  if (commandless) return { text: commandless };
   const action = toolGroupAction(entry);
   if (action === "code-search" || action === "search") {
     const searchLabel =
@@ -281,7 +287,7 @@ export function liveWorkEntryLabel(
               : "Ran";
     return `${verb} ${commandProgramName(command) ?? "command"}`;
   }
-  return workEntryDisplayLabel(entry, workspaceRoot);
+  return commandlessCommandLabel(entry, status) ?? workEntryDisplayLabel(entry, workspaceRoot);
 }
 
 export function workEntryIsVisibleInGroup(

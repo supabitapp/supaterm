@@ -21,6 +21,7 @@ import {
   commandProgramName,
 } from "@supaterm/client-runtime/work-log/command-label";
 import {
+  commandlessCommandLabel,
   contextCompactionLabel,
   liveThoughtLine,
   toolItemForDisplay,
@@ -299,6 +300,11 @@ export function workEntryRowDisplay(
   if (presentation) return { text: presentation.displayName };
   if (entry.command?.trim())
     return { text: compactWorkEntryText(commandDisplayText(entry.command)) };
+  const commandless = commandlessCommandLabel(
+    entry,
+    liveActivityToolStatus(entry.toolLifecycleStatus, false),
+  );
+  if (commandless) return { text: commandless };
   const action = toolGroupAction(entry);
   const isToolRead = action === "read" && entry.itemType === "dynamic_tool";
   if (action === "code-search" || action === "search") {
@@ -2323,7 +2329,10 @@ function liveToolActivitySummary(activity: ThreadFeedActivity, presentTense: boo
               : "Ran";
     return `${verb} ${program ?? "command"}`;
   }
-  return compactWorkEntryText(activity.detail ?? activity.summary);
+  return (
+    commandlessCommandLabel(activity.workEntry, status) ??
+    compactWorkEntryText(activity.detail ?? activity.summary)
+  );
 }
 
 interface ThreadFeedBuild {
