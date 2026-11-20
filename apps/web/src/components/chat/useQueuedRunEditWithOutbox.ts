@@ -3,7 +3,7 @@ import { scopedThreadKey } from "@supaterm/client-runtime/environment";
 import { settlePromise, squashAtomCommandFailure } from "@supaterm/client-runtime/state/runtime";
 import { useState } from "react";
 import { useStableCallback } from "../../hooks/useStableCallback";
-import { buildMessageContext } from "../../lib/composerContextRecords";
+import { buildMessageContext, withReplyReference } from "../../lib/composerContextRecords";
 import type { PendingThreadTurn } from "../../state/threadOutbox";
 import {
   buildEditedThreadOutboxTurn,
@@ -64,7 +64,7 @@ export function useQueuedRunEditWithOutbox(input: Parameters<typeof useQueuedRun
       const addedAttachments = [...sendContext.images, ...sendContext.files];
       const payload = buildEditedThreadOutboxTurn({
         entry,
-        text: promptRef.current,
+        text: withReplyReference(promptRef.current, sendContext.replyTo),
         keptAttachmentIds,
         addedAttachments: captureOutboxAttachments(environmentId, addedAttachments),
         context: buildMessageContext({
@@ -72,6 +72,7 @@ export function useQueuedRunEditWithOutbox(input: Parameters<typeof useQueuedRun
           reviewComments: sendContext.reviewComments,
           previewAnnotations: sendContext.previewAnnotations,
           referenceContexts: sendContext.referenceContexts,
+          replyTo: sendContext.replyTo,
           attachments: addedAttachments.map((attachment) => ({
             attachment,
             attachmentId: attachment.id,
