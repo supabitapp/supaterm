@@ -26,17 +26,15 @@ export const Route = createFileRoute("/welcome")({
 function WelcomeRouteView() {
   const navigate = useNavigate();
   const hash = useLocation({ select: (location) => location.hash });
-  // A ChatGPT sign-in returns here with the computer it set up.
+  // A ChatGPT sign-in or a pairing on the page returns here with the computer to set up.
   const resumeEnvironmentId = hash.startsWith("agents:")
     ? Option.getOrUndefined(decodeEnvironmentId(hash.slice("agents:".length)))
     : undefined;
   const primaryEnvironmentId = usePrimaryEnvironmentId();
   const { environments, isReady } = useEnvironments();
-  const [pairedEnvironmentId, setPairedEnvironmentId] = useState<EnvironmentId | null>(null);
   const target = resolveWelcomeTarget({
     resumeEnvironmentId,
     primaryEnvironmentId,
-    pairedEnvironmentId,
     knownEnvironmentIds: environments.map((environment) => environment.environmentId),
     catalogReady: isReady,
   });
@@ -46,7 +44,15 @@ function WelcomeRouteView() {
   const openNewThread = useNewThreadHandler();
   if (target._tag === "loading") return null;
   if (!isWelcomeRoute || dismissed) return <NoProjectsHero />;
-  if (target._tag === "pair") return <WelcomePairing onPaired={setPairedEnvironmentId} />;
+  if (target._tag === "pair") {
+    return (
+      <WelcomePairing
+        onPaired={(environmentId) =>
+          void navigate({ to: "/welcome", hash: `agents:${environmentId}`, replace: true })
+        }
+      />
+    );
+  }
   return (
     <WelcomePage
       key={target.environmentId}

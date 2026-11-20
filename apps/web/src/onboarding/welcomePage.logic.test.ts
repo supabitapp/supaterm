@@ -230,16 +230,16 @@ describe("resolveWelcomeTarget", () => {
     resolveWelcomeTarget({
       resumeEnvironmentId: undefined,
       primaryEnvironmentId: null,
-      pairedEnvironmentId: null,
       knownEnvironmentIds: [],
       catalogReady: true,
       ...input,
     });
 
-  it("asks hosted web for a pairing link, then sets up the computer it paired", () => {
+  it("asks hosted web for a pairing link, then sets up the computer its link names", () => {
     expect(target({ catalogReady: false })).toEqual({ _tag: "loading" });
     expect(target({})).toEqual({ _tag: "pair" });
-    expect(target({ pairedEnvironmentId: paired, knownEnvironmentIds: [paired] })).toEqual({
+    // A reload keeps the link, so setup stays on the paired computer until it starts.
+    expect(target({ resumeEnvironmentId: paired, knownEnvironmentIds: [paired] })).toEqual({
       _tag: "setup",
       environmentId: paired,
     });
@@ -250,7 +250,7 @@ describe("resolveWelcomeTarget", () => {
     });
   });
 
-  it("returns to the computer a sign-in named only once the catalog has it", () => {
+  it("returns to the computer a link names only once the catalog has it", () => {
     const resumed = { resumeEnvironmentId: paired, primaryEnvironmentId: primary };
     expect(target({ ...resumed, catalogReady: false })).toEqual({ _tag: "loading" });
     expect(target({ ...resumed, knownEnvironmentIds: [primary, paired] })).toEqual({

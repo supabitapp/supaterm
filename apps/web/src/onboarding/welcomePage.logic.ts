@@ -162,26 +162,24 @@ export type WelcomeTarget =
   | { readonly _tag: "setup"; readonly environmentId: EnvironmentId };
 
 /**
- * The computer /welcome sets up: one a ChatGPT sign-in returned with, once the catalog has it,
- * else this computer, else one just paired on the page. Hosted web has no computer of its own,
- * so with none paired yet it asks for a pairing link first.
+ * The computer /welcome sets up: the one in `#agents:<id>`, left by a ChatGPT sign-in or a pairing
+ * on the page, once the catalog has it, else this computer. Hosted web has no computer of its own,
+ * so without one it asks for a pairing link first.
  */
 export function resolveWelcomeTarget(input: {
   readonly resumeEnvironmentId: EnvironmentId | undefined;
   readonly primaryEnvironmentId: EnvironmentId | null;
-  readonly pairedEnvironmentId: EnvironmentId | null;
   readonly knownEnvironmentIds: ReadonlyArray<EnvironmentId>;
   readonly catalogReady: boolean;
 }): WelcomeTarget {
-  const fallback = input.primaryEnvironmentId ?? input.pairedEnvironmentId;
-  if (!input.catalogReady && (input.resumeEnvironmentId !== undefined || fallback === null)) {
+  const { resumeEnvironmentId, primaryEnvironmentId } = input;
+  if (!input.catalogReady && (resumeEnvironmentId !== undefined || primaryEnvironmentId === null)) {
     return { _tag: "loading" };
   }
   const resumed =
-    input.resumeEnvironmentId !== undefined &&
-    input.knownEnvironmentIds.includes(input.resumeEnvironmentId)
-      ? input.resumeEnvironmentId
+    resumeEnvironmentId !== undefined && input.knownEnvironmentIds.includes(resumeEnvironmentId)
+      ? resumeEnvironmentId
       : null;
-  const environmentId = resumed ?? fallback;
+  const environmentId = resumed ?? primaryEnvironmentId;
   return environmentId === null ? { _tag: "pair" } : { _tag: "setup", environmentId };
 }
