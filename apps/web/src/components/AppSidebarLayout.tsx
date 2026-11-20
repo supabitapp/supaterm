@@ -232,10 +232,11 @@ function registerSidebarToggleCommand(router: AnyRouter, toggleSidebar: () => vo
 /** Keyboard and menu commands that live as long as the app shell. */
 function registerAppShellCommands(router: AnyRouter, shellElement: Element): () => void {
   // The provider mirrors the visibility it renders onto its wrapper, so the
-  // committed state is readable when a key arrives.
+  // committed state is readable when a key arrives. A page without the sidebar
+  // keeps that state, so the sidebar must be mounted too (on mobile, in a sheet).
   const readSidebarVisible = () =>
     shellElement.closest('[data-slot="sidebar-wrapper"]')?.getAttribute("data-sidebar-state") ===
-    "expanded";
+      "expanded" && document.querySelector("[data-app-sidebar]") !== null;
   const disposers = [
     registerThreadUndoCommands(router, readSidebarVisible),
     registerNavigationHistoryCommands(router),
@@ -250,14 +251,18 @@ function registerAppShellCommands(router: AnyRouter, shellElement: Element): () 
   };
 }
 
-function SidebarControl() {
+function SidebarControl({ showSidebar }: { readonly showSidebar: boolean }) {
   const router = useRouter();
   const { toggleSidebar } = useSidebar();
   const mobileSidebarSheetMounted = useMobileSidebarSheetMounted();
 
   const toggleSidebarFromCommand = useEffectEvent(() => toggleSidebar());
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- registers the sidebar toggle with the command dispatcher for the control's lifetime
-  useEffect(() => registerSidebarToggleCommand(router, () => toggleSidebarFromCommand()), [router]);
+  useEffect(() => {
+    // A hidden sidebar would still save the toggle, so the shortcut does nothing without one.
+    if (!showSidebar) return;
+    return registerSidebarToggleCommand(router, () => toggleSidebarFromCommand());
+  }, [router, showSidebar]);
 
   // The control lives as long as the shell, so it carries the shell's commands. Created
   // once so re-renders never re-register them.
@@ -275,12 +280,18 @@ function SidebarControl() {
       )}
       data-sidebar-control=""
     >
-      <MainSidebarToggle className="pointer-events-auto" />
+      {showSidebar ? <MainSidebarToggle className="pointer-events-auto" /> : null}
     </div>
   );
 }
 
-export function AppSidebarLayout({ children }: { children: ReactNode }) {
+export function AppSidebarLayout({
+  children,
+  showSidebar = true,
+}: {
+  children: ReactNode;
+  showSidebar?: boolean;
+}) {
   const sidebarArea = workspaceAreaProps("sidebar", 0, "Threads");
   const [sidebarRouteReveal] = useState<SidebarRouteReveal>(() => ({
     observedKey: null,
@@ -316,26 +327,28 @@ export function AppSidebarLayout({ children }: { children: ReactNode }) {
         storageKey="chat_thread_sidebar_open"
         style={sidebarProviderStyle}
       >
-        <Sidebar
-          side="left"
-          data-app-sidebar=""
-          {...sidebarArea}
-          role="navigation"
-          aria-label="Threads"
-          resizable={{
-            defaultWidth: THREAD_SIDEBAR_DEFAULT_WIDTH,
-            minWidth: sidebarMinimumWidth,
-            storageKey: THREAD_SIDEBAR_WIDTH_STORAGE_KEY,
-          }}
-          style={windowControlsInsetStyle}
-        >
-          <ThreadSidebar routeReveal={sidebarRouteReveal} />
-        </Sidebar>
+        {showSidebar ? (
+          <Sidebar
+            side="left"
+            data-app-sidebar=""
+            {...sidebarArea}
+            role="navigation"
+            aria-label="Threads"
+            resizable={{
+              defaultWidth: THREAD_SIDEBAR_DEFAULT_WIDTH,
+              minWidth: sidebarMinimumWidth,
+              storageKey: THREAD_SIDEBAR_WIDTH_STORAGE_KEY,
+            }}
+            style={windowControlsInsetStyle}
+          >
+            <ThreadSidebar routeReveal={sidebarRouteReveal} />
+          </Sidebar>
+        ) : null}
         <SidebarInsetPanel minWidth={THREAD_MAIN_CONTENT_MIN_WIDTH}>
-          <SidebarHeaderWidthProbe onWidthChange={setHeaderWidth} />
+          {showSidebar ? <SidebarHeaderWidthProbe onWidthChange={setHeaderWidth} /> : null}
           {children}
           <BackgroundThreadAnnouncer />
-          <SidebarControl />
+          <SidebarControl showSidebar={showSidebar} />
           {isElectron ? <HistorySwipeNavigation /> : null}
         </SidebarInsetPanel>
       </SidebarProvider>

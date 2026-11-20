@@ -66,6 +66,7 @@ export interface SettingsSearchItem {
   readonly environmentOnly?: boolean;
   readonly providerSettingsOnly?: boolean;
   readonly localBackendManagementOnly?: boolean;
+  readonly primaryEnvironmentOnly?: boolean;
   readonly wslAvailableOnly?: boolean;
   readonly fastWorktreeCheckoutOnly?: boolean;
   readonly peerLinksOnly?: boolean;
@@ -81,6 +82,7 @@ export interface SettingsSearchAvailability {
   readonly hasThreadAutoMarkDone: boolean;
   readonly hasFastWorktreeCheckoutEnvironment?: boolean;
   readonly hasPeerLinkHost?: boolean;
+  readonly hasPrimaryEnvironment?: boolean;
 }
 
 export const SETTINGS_SECTION_LABELS: Readonly<Record<SettingsPath, string>> = {
@@ -648,6 +650,13 @@ export const SETTINGS_SEARCH_ITEMS = [
     title: "Mobile app",
     to: "/settings/about",
     searchTerms: ["phone tablet iPhone iPad iOS TestFlight QR"],
+  },
+  {
+    id: "welcome-page",
+    title: "Welcome page",
+    to: "/settings/about",
+    primaryEnvironmentOnly: true,
+    searchTerms: ["onboarding setup first run getting started agents import projects"],
   },
   {
     id: "privacy-policy",
@@ -1305,6 +1314,7 @@ export function filterAvailableSettingsSearchItems(
       (!item.environmentOnly || availability.hasEnvironment) &&
       (!item.providerSettingsOnly || availability.hasProviderSettingsEnvironment) &&
       (!item.localBackendManagementOnly || availability.canManageLocalBackend) &&
+      (!item.primaryEnvironmentOnly || availability.hasPrimaryEnvironment === true) &&
       (!item.wslAvailableOnly || availability.isWslSettingsRowVisible) &&
       (!item.requiresThreadAutoMarkDone || availability.hasThreadAutoMarkDone) &&
       (!item.fastWorktreeCheckoutOnly ||
