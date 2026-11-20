@@ -1041,12 +1041,14 @@ export const make = Effect.gen(function* () {
     return yield* revokeSession(targetSessionId);
   });
 
-  const revokeOtherClientSessions: EnvironmentAuth["Service"]["revokeOtherClientSessions"] = (
-    currentSessionId,
-  ) =>
-    revokeOtherSessionsExcept(currentSessionId).pipe(
-      Effect.withSpan("EnvironmentAuth.revokeOtherClientSessions"),
-    );
+  const revokeOtherClientSessions: EnvironmentAuth["Service"]["revokeOtherClientSessions"] =
+    Effect.fn("EnvironmentAuth.revokeOtherClientSessions")(function* (currentSessionId) {
+      // "Revoke all others" promises every other way in is gone, so unspent codes go too.
+      yield* bootstrapCredentials
+        .revokeUnspent()
+        .pipe(Effect.mapError((cause) => new ServerAuthOtherSessionsRevocationError({ cause })));
+      return yield* revokeOtherSessionsExcept(currentSessionId);
+    });
 
   const issueStartupPairingUrl: EnvironmentAuth["Service"]["issueStartupPairingUrl"] = Effect.fn(
     "EnvironmentAuth.issueStartupPairingUrl",
