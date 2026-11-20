@@ -1,7 +1,9 @@
+import type { ScopedThreadRef } from "@supaterm/contracts";
 import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
 import { ArrowLeftIcon, ExternalLinkIcon } from "@supaterm/icons";
 import type { MouseEvent as ReactMouseEvent } from "react";
 
+import { useOpenLink } from "~/browser/useOpenLink";
 import { cn } from "~/lib/utils";
 import { readLocalApi } from "~/localApi";
 import { Button } from "../ui/button";
@@ -53,15 +55,18 @@ function BackButton({ onBack, focusable }: { onBack: () => void; focusable: bool
 
 function NumberLink({
   detail,
+  threadRef,
   toneClassName,
   openOnHostText,
   focusable,
 }: {
   detail: CrumbsPullRequest;
+  threadRef: ScopedThreadRef | null;
   toneClassName: string;
   openOnHostText: string;
   focusable: boolean;
 }) {
+  const openLink = useOpenLink(threadRef);
   return (
     <Tooltip>
       <TooltipTrigger
@@ -69,9 +74,9 @@ function NumberLink({
           <button
             type="button"
             {...(focusable ? {} : { tabIndex: -1 })}
-            onClick={() => void readLocalApi()?.shell.openExternal(detail.url)}
+            onClick={(event) => void openLink(detail.url, { event }).catch(console.error)}
             onAuxClick={(event) => {
-              if (event.button === 1) void readLocalApi()?.shell.openExternal(detail.url);
+              if (event.button === 1) void openLink(detail.url, { event }).catch(console.error);
             }}
             onContextMenu={(event) => openNumberContextMenu(event, detail)}
             className={cn(
@@ -96,6 +101,7 @@ function NumberLink({
  */
 export function PullRequestDetailCrumbs({
   detail,
+  threadRef,
   toneClassName,
   condensed,
   repositoryUrl,
@@ -103,6 +109,7 @@ export function PullRequestDetailCrumbs({
   onBack,
 }: {
   detail: CrumbsPullRequest | null;
+  threadRef: ScopedThreadRef | null;
   toneClassName: string | null;
   condensed: boolean;
   repositoryUrl: string | null;
@@ -150,6 +157,7 @@ export function PullRequestDetailCrumbs({
             </Tooltip>
             <NumberLink
               detail={detail}
+              threadRef={threadRef}
               toneClassName={toneClassName}
               openOnHostText={openOnHostText}
               focusable
@@ -173,6 +181,7 @@ export function PullRequestDetailCrumbs({
             {onBack ? <BackButton onBack={onBack} focusable={condensed} /> : null}
             <NumberLink
               detail={detail}
+              threadRef={threadRef}
               toneClassName={toneClassName}
               openOnHostText={openOnHostText}
               focusable={condensed}

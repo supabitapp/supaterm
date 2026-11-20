@@ -28,9 +28,9 @@ import {
 } from "@supaterm/icons";
 import { useId, useState } from "react";
 
+import { useOpenLink } from "~/browser/useOpenLink";
 import { useInlineConfirm } from "~/hooks/useInlineConfirm";
 import { shortcutLabelForCommand } from "~/keybindings";
-import { readLocalApi } from "~/localApi";
 import { pullRequestEnvironment } from "~/state/pullRequests";
 import { primaryServerKeybindingsAtom } from "~/state/server";
 import { InlineConfirmIcon, InlineConfirmLabel } from "../InlineConfirm";
@@ -167,6 +167,7 @@ export function PullRequestActionsMenu({
   reference,
   detail,
   terminology,
+  threadRef,
   linkThreadRef,
   onThreadPickerOpenChange,
   refreshing,
@@ -215,6 +216,7 @@ export function PullRequestActionsMenu({
     | "observedAt"
   >;
   terminology: ChangeRequestTerminology;
+  threadRef: ScopedThreadRef | null;
   linkThreadRef: ScopedThreadRef | null;
   onThreadPickerOpenChange: (open: boolean) => void;
   refreshing: boolean;
@@ -247,6 +249,7 @@ export function PullRequestActionsMenu({
   openOnHostText: string;
   copyReference: (value: string, label: string) => void;
 }) {
+  const openLink = useOpenLink(threadRef);
   const keybindings = useAtomValue(primaryServerKeybindingsAtom);
   const confirm = useInlineConfirm<"close" | "revert" | "delete-branch">();
   const actionPending = pendingAction !== null;
@@ -416,7 +419,7 @@ export function PullRequestActionsMenu({
             perform={perform}
           />
         ) : null}
-        <MenuItem onClick={() => void readLocalApi()?.shell.openExternal(detail.url)}>
+        <MenuItem onClick={(event) => void openLink(detail.url, { event }).catch(console.error)}>
           <ArrowUpRightIcon className="size-3.5" />
           {openOnHostText}
         </MenuItem>
