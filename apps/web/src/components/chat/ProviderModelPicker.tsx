@@ -421,7 +421,7 @@ export const ProviderModelPicker = memo(function ProviderModelPicker(props: {
               data-model-picker-settings
               aria-label="Model options"
               role="group"
-              className="max-h-40 min-w-0 overflow-y-auto overscroll-contain border-t border-border/70 sm:max-h-86.5 sm:w-44 sm:shrink-0 sm:border-s sm:border-t-0"
+              className="flex max-h-56 min-w-0 flex-col overflow-y-auto overscroll-contain border-t border-border/70 sm:max-h-86.5 sm:w-60 sm:shrink-0 sm:border-s sm:border-t-0"
             >
               {props.modelSettings.panel}
             </div>

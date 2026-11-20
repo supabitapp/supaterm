@@ -113,6 +113,80 @@ it("shows saved options as read-only details for an unavailable model", async ()
   await expect.element(options.getByRole("radio")).not.toBeInTheDocument();
 });
 
+it("keeps every speed tier in view below a long reasoning list", async () => {
+  const driver = ProviderDriverKind.make("codex");
+  const instance = ProviderInstanceId.make("codex");
+  const model = {
+    slug: "gpt-6-astra",
+    name: "GPT-6 Astra",
+    isCustom: false,
+    capabilities: {
+      optionDescriptors: [
+        {
+          id: "reasoningEffort",
+          label: "Reasoning",
+          type: "select" as const,
+          options: ["Low", "Medium", "High", "Extra High", "Max", "Ultra"].map((label) => ({
+            id: label,
+            label,
+          })),
+          currentValue: "Medium",
+        },
+        {
+          id: "serviceTier",
+          label: "Service Tier",
+          type: "select" as const,
+          options: [
+            { id: "default", label: "Standard", isDefault: true },
+            { id: "priority", label: "Fast", description: "2x speed, increased usage" },
+            { id: "ultrafast", label: "Ultrafast", description: "Even faster, more expensive" },
+          ],
+          currentValue: "default",
+        },
+      ],
+    },
+  };
+  const onModelOptionsChange = vi.fn();
+  await using screen = await render(
+    <ProviderModelPicker
+      environmentId={null}
+      activeInstanceId={instance}
+      model={model.slug}
+      lockedProvider={null}
+      instanceEntries={deriveProviderInstanceEntries([
+        { ...provider, driver, instanceId: instance, models: [model] },
+      ])}
+      modelOptionsByInstance={new Map([[instance, [model]]])}
+      triggerAriaLabel="Choose model"
+      modelSettings={{
+        summary: "",
+        details: "",
+        panel: (
+          <TraitsMenuContent
+            inline
+            provider={driver}
+            instanceId={instance}
+            models={[model]}
+            model={model.slug}
+            onModelOptionsChange={onModelOptionsChange}
+          />
+        ),
+      }}
+      onInstanceModelChange={() => {}}
+    />,
+  );
+
+  await screen.getByRole("button", { name: "Choose model" }).click();
+  const ultrafast = page
+    .getByRole("group", { name: "Model options" })
+    .getByText("Ultrafast", { exact: true });
+  await expect.element(ultrafast).toBeInViewport({ ratio: 1 });
+  await ultrafast.click();
+  expect(onModelOptionsChange).toHaveBeenLastCalledWith(
+    expect.arrayContaining([{ id: "serviceTier", value: "ultrafast" }]),
+  );
+});
+
 it("keeps each registry image when adding a model from another ACP agent", async () => {
   const icons = [
     "https://cdn.agentclientprotocol.com/registry/icons/picker-explicit.svg",

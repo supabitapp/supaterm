@@ -50,6 +50,7 @@ import { cn, isMacPlatform } from "~/lib/utils";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { Switch } from "../ui/switch";
+import { Toggle, ToggleGroup } from "../ui/toggle-group";
 import { Tooltip, TooltipPopup, TooltipShortcutLabel, TooltipTrigger } from "../ui/tooltip";
 import { ComposerControl, ComposerControlChevron, ComposerControlIcon } from "./ComposerControl";
 
@@ -423,6 +424,7 @@ export const TraitsMenuContent = memo(function TraitsMenuContentImpl({
     primarySelectDescriptor,
     ultrathinkPromptControlled,
     ultrathinkInBodyText,
+    speedToggle,
     toggleOnlyDescriptorId,
     hasAnyControls,
     modelIsUnavailable,
@@ -486,81 +488,135 @@ export const TraitsMenuContent = memo(function TraitsMenuContentImpl({
       : (getDescriptorStringValue(descriptor, modelSelection, reportedModelSelection) ?? "");
 
   if (inline) {
+    const speedDescriptor = descriptors.find(
+      (descriptor) => descriptor.id === speedToggle?.descriptorId,
+    );
+    const listSelectDescriptors = menuSelectDescriptors.filter(
+      (descriptor) => descriptor !== speedDescriptor,
+    );
+    const listBooleanDescriptors = menuBooleanDescriptors.filter(
+      (descriptor) => descriptor !== speedDescriptor,
+    );
+    const switchRow = (descriptor: (typeof menuBooleanDescriptors)[number]) => (
+      <label
+        key={descriptor.id}
+        className="flex min-h-11 items-center justify-between gap-2 px-2 text-sm"
+      >
+        {descriptor.label}
+        <Switch
+          aria-label={descriptor.label}
+          data-model-picker-reasoning={isReasoningControl(descriptor) || undefined}
+          checked={descriptor.currentValue === true}
+          onCheckedChange={(value) => changeBoolean(descriptor.id, value)}
+        />
+      </label>
+    );
     return (
-      <div className="grid gap-3 p-2">
-        {menuSelectDescriptors.map((descriptor) => {
-          const locked = ultrathinkInBodyText && descriptor.id === primarySelectDescriptor?.id;
-          const selectedValue = selectedValueFor(descriptor);
-          return (
-            <div key={descriptor.id} className="min-w-0">
-              <div
-                aria-hidden="true"
-                className="px-2 pb-1 font-medium text-muted-foreground text-xs"
-              >
-                {descriptor.label}
-              </div>
-              {locked ? (
-                <p className="px-2 pb-1 text-muted-foreground text-xs">
-                  Remove &quot;ultrathink&quot; from the prompt to change this option.
-                </p>
-              ) : null}
-              <RadioGroup
-                aria-label={descriptor.label}
-                disabled={locked}
-                value={selectedValue}
-                data-model-picker-reasoning={isReasoningControl(descriptor) || undefined}
-                onValueChange={(value) => handleSelectChange(descriptor, value)}
-                className="grid min-w-0 gap-0.5"
-              >
-                {selectableProviderOptionChoices(descriptor).map((option) => (
-                  <div
-                    key={option.id}
-                    className="flex min-w-0 [&>button]:w-full pointer-coarse:[&>button]:min-h-11"
-                  >
-                    <Radio.Root
-                      nativeButton
-                      value={option.id}
-                      render={
-                        <Button variant="ghost" size={option.description ? "sm-multiline" : "sm"} />
-                      }
+      <>
+        <div className="grid min-h-0 gap-3 overflow-y-auto overscroll-contain p-2 not-last:border-b not-last:border-border/70 empty:hidden">
+          {listSelectDescriptors.map((descriptor) => {
+            const locked = ultrathinkInBodyText && descriptor.id === primarySelectDescriptor?.id;
+            const selectedValue = selectedValueFor(descriptor);
+            return (
+              <div key={descriptor.id} className="min-w-0">
+                <div
+                  aria-hidden="true"
+                  className="px-2 pb-1 font-medium text-muted-foreground text-xs"
+                >
+                  {descriptor.label}
+                </div>
+                {locked ? (
+                  <p className="px-2 pb-1 text-muted-foreground text-xs">
+                    Remove &quot;ultrathink&quot; from the prompt to change this option.
+                  </p>
+                ) : null}
+                <RadioGroup
+                  aria-label={descriptor.label}
+                  disabled={locked}
+                  value={selectedValue}
+                  data-model-picker-reasoning={isReasoningControl(descriptor) || undefined}
+                  onValueChange={(value) => handleSelectChange(descriptor, value)}
+                  className="grid min-w-0 gap-0.5"
+                >
+                  {selectableProviderOptionChoices(descriptor).map((option) => (
+                    <div
+                      key={option.id}
+                      className="flex min-w-0 [&>button]:w-full pointer-coarse:[&>button]:min-h-11"
                     >
-                      <span className="flex w-full items-center justify-between gap-2">
-                        <span className="min-w-0 text-start">
-                          <span className="block truncate">{option.label}</span>
-                          {option.description ? (
-                            <span className="block text-muted-foreground text-xs">
-                              {option.description}
-                            </span>
+                      <Radio.Root
+                        nativeButton
+                        value={option.id}
+                        render={
+                          <Button
+                            variant="ghost"
+                            size={option.description ? "sm-multiline" : "sm"}
+                          />
+                        }
+                      >
+                        <span className="flex w-full items-center justify-between gap-2">
+                          <span className="min-w-0 text-start">
+                            <span className="block truncate">{option.label}</span>
+                            {option.description ? (
+                              <span className="block text-muted-foreground text-xs">
+                                {option.description}
+                              </span>
+                            ) : null}
+                          </span>
+                          {selectedValue === option.id ? (
+                            <CheckIcon aria-hidden="true" />
+                          ) : option.isDefault ? (
+                            <DefaultBadge />
                           ) : null}
                         </span>
-                        {selectedValue === option.id ? (
-                          <CheckIcon aria-hidden="true" />
-                        ) : option.isDefault ? (
-                          <DefaultBadge />
-                        ) : null}
-                      </span>
-                    </Radio.Root>
-                  </div>
-                ))}
-              </RadioGroup>
-            </div>
-          );
-        })}
-        {menuBooleanDescriptors.map((descriptor) => (
-          <label
-            key={descriptor.id}
-            className="flex min-h-11 items-center justify-between gap-2 px-2 text-sm"
-          >
-            {descriptor.label}
-            <Switch
-              aria-label={descriptor.label}
-              data-model-picker-reasoning={isReasoningControl(descriptor) || undefined}
-              checked={descriptor.currentValue === true}
-              onCheckedChange={(value) => changeBoolean(descriptor.id, value)}
-            />
-          </label>
-        ))}
-      </div>
+                      </Radio.Root>
+                    </div>
+                  ))}
+                </RadioGroup>
+              </div>
+            );
+          })}
+          {listBooleanDescriptors.map(switchRow)}
+        </div>
+        {speedDescriptor ? (
+          <div className="shrink-0 p-2">
+            {speedDescriptor.type === "boolean" ? (
+              switchRow(speedDescriptor)
+            ) : (
+              <>
+                <div
+                  aria-hidden="true"
+                  className="px-2 pb-1.5 font-medium text-muted-foreground text-xs"
+                >
+                  {speedDescriptor.label}
+                </div>
+                <ToggleGroup
+                  aria-label={speedDescriptor.label}
+                  className="w-full"
+                  value={[selectedValueFor(speedDescriptor)]}
+                  onValueChange={([value]) => {
+                    if (value) handleSelectChange(speedDescriptor, value);
+                  }}
+                >
+                  {selectableProviderOptionChoices(speedDescriptor).map((option) =>
+                    option.description ? (
+                      <Tooltip key={option.id}>
+                        <TooltipTrigger render={<Toggle value={option.id} className="flex-auto" />}>
+                          {option.label}
+                        </TooltipTrigger>
+                        <TooltipPopup side="top">{option.description}</TooltipPopup>
+                      </Tooltip>
+                    ) : (
+                      <Toggle key={option.id} value={option.id} className="flex-auto">
+                        {option.label}
+                      </Toggle>
+                    ),
+                  )}
+                </ToggleGroup>
+              </>
+            )}
+          </div>
+        ) : null}
+      </>
     );
   }
 
