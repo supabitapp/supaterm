@@ -1,4 +1,8 @@
-import type { PullRequestListEntry, PullRequestSummary } from "@supaterm/contracts";
+import type {
+  PullRequestListEntry,
+  PullRequestSummary,
+  ScopedThreadRef,
+} from "@supaterm/contracts";
 import {
   ArrowLeftIcon,
   ChevronRightIcon,
@@ -16,7 +20,7 @@ import {
   type ChangeRequestTerminology,
 } from "@supaterm/client-runtime/source-control-clients";
 
-import { readLocalApi } from "~/localApi";
+import { useOpenLink } from "~/browser/useOpenLink";
 import { cn } from "~/lib/utils";
 import { RelativeTime } from "~/components/RelativeTime";
 
@@ -89,6 +93,7 @@ export function PullRequestDetailGhost({
   onBack,
   onClose,
   onCheckoutError,
+  threadRef = null,
 }: {
   seed?: PullRequestListEntry | null;
   summary?: PullRequestSummary | null;
@@ -100,7 +105,9 @@ export function PullRequestDetailGhost({
   onBack?: (() => void) | undefined;
   onClose?: (() => void) | undefined;
   onCheckoutError?: ((error: Error) => void) | undefined;
+  threadRef?: ScopedThreadRef | null | undefined;
 }) {
+  const openLink = useOpenLink(threadRef);
   const seed = summary
     ? {
         ...entry,
@@ -152,7 +159,10 @@ export function PullRequestDetailGhost({
               <>
                 <span className="min-w-0 truncate font-medium">{seed.repository}</span>
                 <InlineButton
-                  onClick={() => void readLocalApi()?.shell.openExternal(seed.url)}
+                  onClick={(event) => void openLink(seed.url, { event }).catch(console.error)}
+                  onAuxClick={(event) => {
+                    if (event.button === 1) void openLink(seed.url, { event }).catch(console.error);
+                  }}
                   aria-label={`Open ${terminology.singular} #${seed.number} on host`}
                 >
                   <span className={statePresentation?.toneClassName}>#{seed.number}</span>
