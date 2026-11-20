@@ -448,11 +448,12 @@ function CompactingLabel({ startedAt }: { startedAt: string | null }) {
 
 export function ThinkingTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "thinking" }> }) {
   const ctx = use(TimelineRowCtx);
-  const { isCompacting, isPreparingWorktree, providerStartingLabel } = use(TimelineRowActivityCtx);
+  const { isCompacting, isPreparingWorktree, providerStartingLabel, liveAnswerPreview } =
+    use(TimelineRowActivityCtx);
   if (isPreparingWorktree || isCompacting) return <WorkLogRow label="" />;
   const activity = (
     <LiveActivityRow
-      label={providerStartingLabel ?? row.label ?? "Thinking"}
+      label={providerStartingLabel ?? row.label ?? liveAnswerPreview ?? "Thinking"}
       iconName="brain"
       active={row.active}
       shimmer={row.active}

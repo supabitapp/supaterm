@@ -88,6 +88,7 @@ export interface TimelineRowActivityState {
   worktreeSetupLabel: "shown" | "exiting" | null;
   latestRunId: RunId | null;
   backgroundWorktreeSetup: WorktreeSetupSnapshot | null;
+  liveAnswerPreview: string | null;
 }
 
 export const TimelineRowCtx = createContext<TimelineRowSharedState>(null!);

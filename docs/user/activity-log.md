@@ -18,6 +18,19 @@ it finished, and an interrupt or cancellation request does not mean the thread s
 details are unavailable, summaries use a broader description instead of guessing how many threads
 were affected.
 
+## Hide tool calls
+
+**Tool calls in chat** in **Settings → Chat** (web and desktop) or **Settings → Appearance**
+(mobile) hides commands, file edits, searches, and MCP tool calls
+from the conversation. **Hide successful** shows a call while it runs and keeps
+it only if it fails. **Hide all** hides every call and shows **Thinking** while the agent works.
+**Zen** also hides the agent's in-between messages, so each turn shows your message
+and the agent's last reply, which appears when the turn ends. While the agent works, one line shows
+its latest step. If you steer while the agent is answering, the answer it finished before reading
+your steer stays too. On web and desktop, Find shows the in-between messages while it is open.
+Opening a pinned message or a citation shows the message it points to. Approvals, questions,
+errors, and notices always show. The setting applies to this browser or device only.
+
 ## Screen reader announcements
 
 On web and desktop, a screen reader hears the open thread's turn as it runs. **Screen reader
@@ -27,7 +40,8 @@ writes and then keeps working after, once that message is complete. A very long 
 short. The reply that closes the turn is not read, so you can read it yourself when you hear
 **Done**. **Everything** adds the step the agent is on, such as the command it is running. Steps
 are spaced out, so a quick step can be skipped for a newer one.
-The agent's reasoning text is never read. The setting applies to this browser or device only.
+The agent's reasoning text is never read. The setting follows the agent's real activity, whatever
+**Tool calls in chat** hides, and applies to this browser or device only.
 
 To hear the open thread and what it's doing when you switch to Supaterm, turn on **Screen reader
 window title** in the same section. The window title then starts with the thread's status

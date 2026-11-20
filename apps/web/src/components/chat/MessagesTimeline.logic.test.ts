@@ -31,6 +31,7 @@ import {
   computeStableMessagesTimelineRows,
   deriveMessagesTimelineRows,
   timelineTurnFoldRunIdsByEntryId,
+  liveAnswerPreview,
   deriveMessagesTimelineRowsWithState,
   nextWorktreeSetupRowPlacement,
   resolveWorktreeSetupLabel,
@@ -4106,6 +4107,275 @@ describe("v2 run and attempt history", () => {
       expect.objectContaining({ id: "provider-recovered" }),
     ]);
   });
+  it("hides tool calls or everything but the final answer", () => {
+    const runId = RunId.make("turn-1");
+    const at = (second: number) => `2026-01-01T00:00:${String(second).padStart(2, "0")}Z`;
+    const message = (
+      id: string,
+      role: "user" | "assistant",
+      second: number,
+      inputIntent?: "steer",
+    ): TimelineEntry => ({
+      id,
+      kind: "message",
+      createdAt: at(second),
+      message: {
+        id: MessageId.make(id),
+        role,
+        text: id,
+        runId: role === "user" ? null : runId,
+        createdAt: at(second),
+        updatedAt: at(second),
+        streaming: false,
+        ...(inputIntent ? { inputIntent } : {}),
+      },
+    });
+    const command = (
+      id: string,
+      status: "completed" | "failed",
+      second: number,
+    ): TimelineEntry => ({
+      id,
+      kind: "work",
+      createdAt: at(second),
+      entry: {
+        id,
+        createdAt: at(second),
+        runId,
+        label: "Ran command",
+        tone: "tool",
+        itemType: "command_execution",
+        toolLifecycleStatus: status,
+      },
+    });
+    const [user, step, passed, failed, final] = [
+      message("user", "user", 0),
+      message("step", "assistant", 5),
+      command("passed", "completed", 8),
+      command("failed", "failed", 9),
+      message("final", "assistant", 20),
+    ];
+    const running = { runId, status: "running" as const, startedAt: at(0), completedAt: null };
+    const ended = { ...running, turnEnded: true };
+    const rows = (
+      timelineEntries: ReadonlyArray<TimelineEntry>,
+      toolCallVisibility: "hideSuccessful" | "hideAll" | "zen",
+      latestRun?: typeof ended | typeof running,
+      revealed: { readonly cited?: string; readonly jumped?: string } = {},
+    ) =>
+      deriveMessagesTimelineRows({
+        timelineEntries,
+        expandedRunIds: new Set([runId]),
+        isWorking: latestRun !== undefined,
+        ...(latestRun ? { latestRun } : {}),
+        turnDiffSummaries: [],
+        supportsConversationRollback: false,
+        toolCallVisibility,
+        ...(revealed.cited ? { revealedMessageId: MessageId.make(revealed.cited) } : {}),
+        ...(revealed.jumped ? { jumpMessageId: MessageId.make(revealed.jumped) } : {}),
+      }).map((row) => row.id);
+
+    const turn = [user, step, passed, failed, final];
+    expect(rows(turn, "hideSuccessful")).toEqual([
+      "user",
+      "turn-fold:turn-1",
+      "step",
+      "failed",
+      "final",
+    ]);
+    expect(rows([user, failed, final], "hideAll")).toEqual(["user", "final"]);
+    expect(rows(turn, "zen")).toEqual(["user", "final"]);
+    expect(rows(turn, "zen", undefined, { cited: "step" })).toEqual(["user", "step", "final"]);
+    const twoSteps = [user, step, message("step-2", "assistant", 6), final];
+    expect(rows(twoSteps, "zen", undefined, { cited: "step", jumped: "step-2" })).toEqual([
+      "user",
+      "step",
+      "step-2",
+      "final",
+    ]);
+    const phased = (
+      entry: TimelineEntry,
+      phase: "commentary" | "final_answer",
+      streaming = false,
+    ): TimelineEntry =>
+      entry.kind === "message"
+        ? {
+            ...entry,
+            message: { ...entry.message, streaming },
+            projectedItem: {
+              item: {
+                type: "assistant_message",
+                phase,
+                status: streaming ? "running" : "completed",
+              },
+            } as never,
+          }
+        : entry;
+    expect(rows([user, step, passed, phased(final, "final_answer", true)], "zen", running)).toEqual(
+      ["user", "working-indicator-row", "live-activity-row"],
+    );
+    const notice: TimelineEntry = {
+      id: "notice",
+      kind: "work",
+      createdAt: at(10),
+      entry: {
+        id: "notice",
+        createdAt: at(10),
+        runId,
+        label: "MCP server failed to start",
+        tone: "info",
+        itemType: "system_notice",
+      },
+    };
+    expect(rows([user, step, notice, final], "zen")).toEqual(["user", "notice", "final"]);
+    const created: TimelineEntry = {
+      id: "created",
+      kind: "work",
+      createdAt: at(11),
+      entry: {
+        id: "created",
+        createdAt: at(11),
+        runId,
+        label: "Created thread",
+        tone: "tool",
+        itemType: "thread_created",
+      },
+    };
+    expect(rows([user, step, created, final], "zen")).toEqual(["user", "created", "final"]);
+    const thought: TimelineEntry = {
+      id: "thought",
+      kind: "work",
+      createdAt: at(6),
+      entry: {
+        id: "thought",
+        createdAt: at(6),
+        runId,
+        label: "Thinking",
+        tone: "thinking",
+        itemType: "reasoning",
+        detail: "Planning the change",
+        toolLifecycleStatus: "inProgress",
+      },
+    };
+    const liveThought = deriveMessagesTimelineRows({
+      timelineEntries: [user, thought, passed],
+      isWorking: true,
+      latestRun: running,
+      runningRunId: runId,
+      turnDiffSummaries: [],
+      supportsConversationRollback: false,
+      toolCallVisibility: "hideAll",
+    }).find((row) => row.kind === "work-live");
+    expect(liveThought?.kind === "work-live" ? liveThought.entry.toolLifecycleStatus : null).toBe(
+      "completed",
+    );
+    const [steer, answer] = [
+      message("steer", "user", 4, "steer"),
+      message("answer", "assistant", 7),
+    ];
+    expect(rows([user, steer, answer, final], "zen")).toEqual(["user", "steer", "answer", "final"]);
+    expect(rows([user, steer, step, passed, final], "zen")).toEqual(["user", "steer", "final"]);
+    expect(rows([user, steer, phased(answer, "commentary"), final], "zen")).toEqual([
+      "user",
+      "steer",
+      "final",
+    ]);
+    expect(rows([user, phased(answer, "final_answer"), steer, step], "zen", running)).toEqual([
+      "user",
+      "working-indicator-row",
+      "answer",
+      "steer",
+      "live-activity-row",
+    ]);
+    const firstAttempt = {
+      id: RunAttemptId.make("attempt-1"),
+      runId,
+      attemptOrdinal: 1,
+      rootNodeId: NodeId.make("node-attempt-1"),
+      status: "superseded" as const,
+      completedAt: DateTime.makeUnsafe(at(12)),
+    };
+    const nextAttempt = {
+      ...firstAttempt,
+      id: RunAttemptId.make("attempt-2"),
+      attemptOrdinal: 2,
+      rootNodeId: NodeId.make("node-attempt-2"),
+      status: "completed" as const,
+      completedAt: DateTime.makeUnsafe(at(20)),
+    };
+    const answered: TimelineEntry = {
+      id: "answered",
+      kind: "work",
+      createdAt: at(10),
+      attempt: firstAttempt,
+      entry: {
+        id: "answered",
+        createdAt: at(10),
+        runId,
+        label: "Answered questions",
+        tone: "tool",
+        itemType: "user_input_request",
+        questionAnswer: {
+          requestId: RuntimeRequestId.make("question"),
+          questionTextById: { pick: "Which file?" },
+          answers: { pick: "math.ts" },
+          attachmentsByQuestionId: {},
+        },
+      },
+    };
+    expect(
+      rows(
+        [
+          { ...user, attempt: firstAttempt },
+          answered,
+          { ...steer, attempt: nextAttempt },
+          { ...final, attempt: nextAttempt },
+        ],
+        "zen",
+      ),
+    ).toEqual(["user", "answered", "steer", "final"]);
+    expect(rows([user, steer, answer, step], "zen", running)).toEqual([
+      "user",
+      "working-indicator-row",
+      "steer",
+      "answer",
+      "live-activity-row",
+    ]);
+    expect(rows([user, step, passed], "zen", running)).toEqual([
+      "user",
+      "working-indicator-row",
+      "live-activity-row",
+    ]);
+    expect(liveAnswerPreview([user, step, passed])).toBe("step");
+    expect(rows(turn, "zen", ended)).toEqual(["user", "final"]);
+    const followUp = message("follow-up", "user", 30);
+    expect(rows([...turn, followUp], "zen", ended)).toEqual([
+      "user",
+      "final",
+      "follow-up",
+      "working-indicator-row",
+    ]);
+    const wake: TimelineEntry = {
+      id: "wake",
+      kind: "work",
+      createdAt: at(30),
+      entry: {
+        id: "wake",
+        createdAt: at(30),
+        runId: RunId.make("wake"),
+        label: "Task finished",
+        tone: "info",
+        itemType: "notification",
+      },
+    };
+    expect(rows([user, final, wake], "zen", { ...running, runId: RunId.make("wake") })).toEqual([
+      "user",
+      "final",
+      "wake",
+      "working-indicator-row",
+      "live-activity-row",
+    ]);
+  });
   it("hides subagents in folded turns when they arrive before commentary", () => {
     const timelineEntries = [
       {
@@ -4442,10 +4712,13 @@ describe("v2 run and attempt history", () => {
     const rowsFor = (
       replyCompletedSecond: number,
       runStatus: "running" | "completed" = "completed",
+      toolCallVisibility: "showAll" | "hideAll" | "zen" = "showAll",
       phase?: "commentary" | "partial_answer" | "final_answer",
       nativeSteer = false,
+      trailingCommand = false,
     ) =>
       deriveMessagesTimelineRows({
+        toolCallVisibility,
         timelineEntries: (
           [
             {
@@ -4473,6 +4746,25 @@ describe("v2 run and attempt history", () => {
             },
             assistantEntry("status-entry", supersededAttempt, 1, "commentary"),
             assistantEntry("old-reply-entry", supersededAttempt, replyCompletedSecond, phase),
+            ...(trailingCommand
+              ? [
+                  {
+                    id: "old-command-entry",
+                    kind: "work" as const,
+                    createdAt: at(3),
+                    attempt: supersededAttempt,
+                    entry: {
+                      id: "old-command",
+                      createdAt: at(3),
+                      runId,
+                      label: "Ran command",
+                      tone: "tool" as const,
+                      itemType: "command_execution" as const,
+                      toolLifecycleStatus: "completed" as const,
+                    },
+                  },
+                ]
+              : []),
             {
               id: "steer-user-entry",
               kind: "message",
@@ -4504,26 +4796,36 @@ describe("v2 run and attempt history", () => {
       });
 
     it.each([
-      ["final_answer", 4, true],
-      ["final_answer", 11, true],
-      ["commentary", 4, false],
-      ["commentary", 11, false],
-      ["partial_answer", 11, false],
-      [undefined, 4, true],
-      [undefined, 11, false],
+      ["final_answer", 4, true, false],
+      ["final_answer", 11, true, false],
+      ["commentary", 4, false, false],
+      ["commentary", 11, false, false],
+      ["partial_answer", 11, false, false],
+      [undefined, 4, true, false],
+      [undefined, 11, false, false],
+      [undefined, 4, false, true],
     ] as const)(
-      "retains phase %s ending at %s only when it is a final reply: %s",
-      (phase, completedSecond, retained) => {
+      "retains phase %s ending at %s only when it is a final reply: %s (command after it: %s)",
+      (phase, completedSecond, retained, trailingCommand) => {
         for (const runStatus of ["running", "completed"] as const) {
-          const rows = rowsFor(completedSecond, runStatus, phase);
-          expect(rows.some((row) => row.id === "old-reply-entry")).toBe(retained);
-          if (phase !== undefined && runStatus === "completed") {
-            const nativeRows = rowsFor(completedSecond, runStatus, phase, true);
-            expect(nativeRows.some((row) => row.id === "old-reply-entry")).toBe(retained);
-            expect(nativeRows.some((row) => row.id === "status-entry")).toBe(false);
-          }
-          if (runStatus === "completed") {
-            expect(rows.some((row) => row.id === "status-entry")).toBe(false);
+          for (const visibility of ["showAll", "hideAll", "zen"] as const) {
+            const rows = rowsFor(
+              completedSecond,
+              runStatus,
+              visibility,
+              phase,
+              false,
+              trailingCommand,
+            );
+            expect(rows.some((row) => row.id === "old-reply-entry")).toBe(retained);
+            if (phase !== undefined && runStatus === "completed") {
+              const nativeRows = rowsFor(completedSecond, runStatus, visibility, phase, true);
+              expect(nativeRows.some((row) => row.id === "old-reply-entry")).toBe(retained);
+              expect(nativeRows.some((row) => row.id === "status-entry")).toBe(false);
+            }
+            if (runStatus === "completed") {
+              expect(rows.some((row) => row.id === "status-entry")).toBe(false);
+            }
           }
         }
       },
@@ -5081,6 +5383,7 @@ describe("streaming v2 row projection", () => {
     "expanded live group followed by a finished tool",
     "thinking superseded by a running tool",
     "settled turn",
+    "Zen turn",
   ] as const)("matches a full derivation when streaming thinking sits in a %s", (scenario) => {
     const source = makeStreamingWorkTimelineFixture("reasoning");
     const running = scenario !== "settled turn";
@@ -5103,6 +5406,7 @@ describe("streaming v2 row projection", () => {
       supportsConversationRollback: true,
       ...(workGroupDisclosures ? { workGroupDisclosures } : {}),
       ...(running ? {} : { expandedRunIds: new Set([source.runId]) }),
+      ...(scenario === "Zen turn" ? { toolCallVisibility: "zen" as const } : {}),
     });
     const tool = source.visibleTurnItems.find((row) => row.item.id === "live-work")!;
     const laterTool = (status: "running" | "completed") => ({
@@ -6095,7 +6399,7 @@ describe("parent run waiting on foreground subagents", () => {
     result: null,
   });
 
-  const liveRow = (later: ReadonlyArray<OrchestrationV2TurnItem>) =>
+  const liveRow = (later: ReadonlyArray<OrchestrationV2TurnItem>, toolCallVisibility?: "hideAll") =>
     deriveMessagesTimelineRows({
       timelineEntries: deriveTimelineEntriesFromVisibleTurnItems({
         visibleTurnItems: (
@@ -6142,6 +6446,7 @@ describe("parent run waiting on foreground subagents", () => {
       activeTurnStartedAt: DateTime.formatIso(at(0)),
       turnDiffSummaries: [],
       supportsConversationRollback: false,
+      ...(toolCallVisibility ? { toolCallVisibility } : {}),
     }).find((row) => row.id === "live-activity-row");
   const thinking = {
     kind: "thinking",
@@ -6152,18 +6457,30 @@ describe("parent run waiting on foreground subagents", () => {
 
   it("names the running children while the open run has done nothing since launching them", () => {
     expect(liveRow([])).toEqual({ ...thinking, label: "Waiting on 2 subagents" });
+    expect(liveRow([], "hideAll")).toEqual({ ...thinking, label: "Waiting on 2 subagents" });
   });
 
-  it("keeps Thinking once newer parent work follows the children", () => {
-    const reply: OrchestrationV2TurnItem = {
-      ...base("reply", 5),
-      status: "completed",
-      type: "assistant_message",
-      messageId: MessageId.make("reply"),
-      text: "Two are still reading.",
-      streaming: false,
-    };
-    expect(liveRow([reply])).toEqual(thinking);
+  const reply: OrchestrationV2TurnItem = {
+    ...base("reply", 5),
+    status: "completed",
+    type: "assistant_message",
+    messageId: MessageId.make("reply"),
+    text: "Two are still reading.",
+    streaming: false,
+  };
+  const command: OrchestrationV2TurnItem = {
+    ...base("command", 5),
+    status: "running",
+    completedAt: null,
+    type: "command_execution",
+    input: "sleep 5",
+  };
+
+  it.each([
+    ["newer parent work", reply, undefined],
+    ["a newer parent command that Hide all hides", command, "hideAll"],
+  ] as const)("keeps Thinking once %s follows the children", (_, later, visibility) => {
+    expect(liveRow([later], visibility)).toEqual(thinking);
   });
 });
 

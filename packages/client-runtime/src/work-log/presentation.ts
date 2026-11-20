@@ -9,6 +9,7 @@ import {
   type OrchestrationV2TurnItem,
   type ThreadId,
 } from "@supaterm/contracts";
+import type { ToolCallVisibility } from "@supaterm/contracts/settings";
 import {
   resolveSupatermMcpSummaryAction,
   resolveSupatermMcpToolDefinition,
@@ -318,6 +319,23 @@ export function workEntryDisplayIndicatesToolFailure(entry: WorkLogPresentationE
     entry,
     false,
   ));
+}
+
+const HIDEABLE_TOOL_CALL_ITEM_TYPES: ReadonlySet<WorkLogPresentationEntry["itemType"]> = new Set([
+  "command_execution",
+  "file_change",
+  "file_search",
+  "web_search",
+  "dynamic_tool",
+]);
+
+export function workEntryHiddenByToolCallVisibility(
+  entry: WorkLogPresentationEntry,
+  visibility: ToolCallVisibility,
+): boolean {
+  if (visibility === "showAll" || !HIDEABLE_TOOL_CALL_ITEM_TYPES.has(entry.itemType)) return false;
+  if (visibility !== "hideSuccessful") return true;
+  return entry.toolLifecycleStatus === "completed" && !workEntryDisplayIndicatesToolFailure(entry);
 }
 
 function workLogEntryIsLocalCodeSearch(entry: WorkLogPresentationEntry): boolean {

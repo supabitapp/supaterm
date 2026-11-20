@@ -1593,6 +1593,17 @@ describe("buildThreadFeed", () => {
       "message-progress",
       "message-assistant",
     ]);
+
+    // Hiding tools leaves no output before the steer, so nothing splits there.
+    const hideAll = (expanded: ReadonlySet<RunId>) =>
+      deriveThreadFeedPresentation(feed, null, expanded, new Set(), null, false, undefined, {
+        toolCallVisibility: "hideAll",
+        revealedMessageId: null,
+      });
+    const hiddenToolsFoldRunId = messageFoldRunId(feed, "message-progress", hideAll(new Set()));
+    expect(hideAll(new Set([hiddenToolsFoldRunId!])).map((entry) => entry.id)).toContain(
+      "message-progress",
+    );
   });
 
   it("folds subagents while keeping created-thread and fork cards visible", () => {
@@ -2411,6 +2422,161 @@ describe("buildThreadFeed", () => {
       summary: "Listed projects 1 time and cloned 1 repository",
       hasFailure: true,
     });
+  });
+
+  it("hides tool calls or everything but the final answer", () => {
+    const at = (second: number) => `2026-06-20T00:00:${String(second).padStart(2, "0")}.000Z`;
+    const say = (name: string, second: number, user = false, steer = false) => ({
+      ...(user ? userMessage(at(second)) : assistantMessage(at(second))),
+      id: TurnItemId.make(name),
+      messageId: MessageId.make(name),
+      text: name,
+      ...(steer ? { inputIntent: "steer" as const } : {}),
+    });
+    const ran = (name: string, second: number, status: "completed" | "failed") => ({
+      ...command(at(second)),
+      id: TurnItemId.make(name),
+      status,
+    });
+    const [user, step, passed, failed, final] = [
+      say("user", 1, true),
+      say("step", 2),
+      ran("passed", 3, "completed"),
+      ran("failed", 4, "failed"),
+      say("final", 5),
+    ];
+    const running = { runId, status: "running" as const, startedAt: at(1), completedAt: null };
+    const rows = (
+      items: ReadonlyArray<OrchestrationV2TurnItem>,
+      toolCallVisibility: "hideSuccessful" | "hideAll" | "zen",
+      latestRun: ThreadFeedLatestRun | null = null,
+      revealedMessageId: MessageId | null = null,
+    ) =>
+      deriveThreadFeedPresentation(
+        buildThreadFeed(items.map((item, index) => projected(item, index))),
+        latestRun,
+        new Set([runId]),
+        new Set(),
+        latestRun ? at(1) : null,
+        false,
+        undefined,
+        { toolCallVisibility, revealedMessageId },
+      ).map((row) =>
+        row.type === "activity-group"
+          ? row.activities.map((activity) => activity.projectedItem.item.id).join("+")
+          : row.type === "thinking"
+            ? `thinking:${row.label ?? ""}`
+            : row.type === "run-fold"
+              ? "fold"
+              : row.type === "work-toggle"
+                ? row.summary
+                : row.id,
+      );
+
+    const turn = [user, step, passed, failed, final];
+    expect(rows(turn, "hideSuccessful")).toEqual(["user", "fold", "step", "failed", "final"]);
+    expect(rows(turn, "hideAll")).toEqual(["user", "fold", "step", "final"]);
+    expect(rows(turn, "zen")).toEqual(["user", "final"]);
+    expect(rows(turn, "zen", null, step.messageId)).toEqual(["user", "step", "final"]);
+    const [steer, answer] = [say("steer", 2, true, true), say("answer", 3)];
+    expect(rows([user, steer, answer, final], "zen")).toEqual(["user", "steer", "answer", "final"]);
+    const commentary = { ...step, phase: "commentary" as const };
+    expect(rows([user, commentary, steer, final], "zen")).toEqual(["user", "steer", "final"]);
+    expect(rows([user, steer, commentary, final], "zen")).toEqual(["user", "steer", "final"]);
+    for (const phase of ["commentary", "partial_answer", "final_answer", undefined] as const) {
+      const partial = { ...answer, ...(phase === undefined ? {} : { phase }) };
+      const interrupted = buildThreadFeed(
+        [user, passed, partial, steer, final].map((item, index) => projected(item, index)),
+      );
+      expect(
+        deriveThreadFeedPresentation(interrupted, null, new Set()).some(
+          (row) => row.type === "message" && row.message.id === answer.messageId,
+        ),
+      ).toBe(phase === "final_answer");
+      expect(rows([user, partial, steer, final], "zen").includes("answer")).toBe(
+        phase === "final_answer",
+      );
+    }
+    const confirmed = { ...answer, phase: "final_answer" as const };
+    const continued = buildThreadFeed(
+      [user, confirmed, passed, final].map((item, index) => projected(item, index)),
+    );
+    expect(
+      deriveThreadFeedPresentation(continued, null, new Set()).some(
+        (row) => row.type === "message" && row.message.id === answer.messageId,
+      ),
+    ).toBe(true);
+    expect(rows([user, confirmed, passed, final], "zen")).toEqual(["user", "answer", "final"]);
+    expect(rows([user, steer, step, passed, final], "zen")).toEqual(["user", "steer", "final"]);
+    expect(rows([user, steer, answer, step], "zen", running)).toEqual([
+      "user",
+      "steer",
+      "answer",
+      "thinking:step",
+    ]);
+    expect(rows([user, step, passed], "zen", running)).toEqual(["user", "thinking:step"]);
+    const streamingFinal = {
+      ...confirmed,
+      status: "running" as const,
+      completedAt: null,
+      streaming: true,
+    };
+    expect(rows([user, streamingFinal], "zen", running)).toEqual(["user", "thinking:answer"]);
+    expect(rows([user, confirmed, steer], "zen", running)).toEqual([
+      "user",
+      "answer",
+      "steer",
+      "thinking:answer",
+    ]);
+    const thought: OrchestrationV2TurnItem = {
+      ...base("thought", at(2), 2),
+      type: "reasoning",
+      status: "running",
+      completedAt: null,
+      streaming: true,
+      text: "thought",
+    };
+    expect(rows([user, thought, passed], "hideAll", running)).toEqual(["user", "fold", "Thought"]);
+    expect(rows(turn, "zen", { ...running, turnEnded: true })).toEqual(["user", "final"]);
+    const nextRun = { ...running, runId: RunId.make("run-2") };
+    const followUp = { ...say("follow-up", 6, true), runId: nextRun.runId };
+    expect(rows([...turn, followUp], "zen", nextRun)).toEqual([
+      "user",
+      "final",
+      "follow-up",
+      "thinking:",
+    ]);
+    const wake: OrchestrationV2TurnItem = {
+      ...base("wake", at(6), 5),
+      runId: nextRun.runId,
+      type: "notification",
+      source: { kind: "background_task" },
+      outcome: "completed",
+      summary: "Task finished",
+    };
+    expect(rows([user, final, wake], "zen", nextRun)).toEqual([
+      "user",
+      "final",
+      "wake",
+      "thinking:",
+    ]);
+    const runless = [user, answer, steer, followUp].map((item, index) =>
+      projected({ ...item, runId: null }, index),
+    );
+    const runlessRows = (count: number, cache?: ThreadFeedCache) =>
+      deriveThreadFeedPresentation(
+        buildThreadFeed(runless.slice(0, count), { cache }),
+        null,
+        new Set(),
+        new Set(),
+        at(1),
+        true,
+        cache,
+        { toolCallVisibility: "zen", revealedMessageId: null },
+      ).map((row) => row.id);
+    const cache = createThreadFeedCache();
+    runlessRows(3, cache);
+    expect(runlessRows(4, cache)).toEqual(runlessRows(4));
   });
 });
 

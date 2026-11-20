@@ -78,6 +78,7 @@ import {
   type ScheduledTaskId,
   type TurnItemId,
 } from "@supaterm/contracts";
+import type { ToolCallVisibility } from "@supaterm/contracts/settings";
 import {
   createMessageJumpRunner,
   type MessageJump,
@@ -390,6 +391,7 @@ export interface ThreadFeedPins {
 }
 
 export interface ThreadFeedProps {
+  readonly toolCallVisibility?: ToolCallVisibility;
   readonly worktreeSetup?: WorktreeSetupCardProps | null;
   readonly preparingWorktree?: boolean;
   readonly queuedMessages: ReadonlyArray<QueuedThreadMessage>;
@@ -2959,6 +2961,7 @@ function useThreadFeedPresentation(
   props: ThreadFeedProps,
   expandedTurnIds: ReadonlySet<RunId>,
   expandedWorkGroups: Record<string, boolean>,
+  revealedMessageId: MessageId | null,
 ) {
   const [feedCache] = useState(createThreadFeedCache);
   return appendPendingThreadMessages(
@@ -2974,6 +2977,7 @@ function useThreadFeedPresentation(
       props.activeWorkStartedAt,
       props.runlessWorkActive ?? false,
       feedCache,
+      { toolCallVisibility: props.toolCallVisibility ?? "showAll", revealedMessageId },
     ),
     props.feed,
     props.queuedMessages,
@@ -3044,13 +3048,16 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
     readonly expandedWorkGroups: Record<string, boolean>;
     readonly expandedWorkRows: Record<string, boolean>;
     readonly expandedTurnIds: ReadonlySet<RunId>;
+    readonly revealedMessageId: MessageId | null;
   }>({
     copiedRowId: null,
     expandedWorkGroups: {},
     expandedWorkRows: {},
     expandedTurnIds: new Set(),
+    revealedMessageId: null,
   });
-  const { copiedRowId, expandedWorkGroups, expandedWorkRows, expandedTurnIds } = interactionState;
+  const { copiedRowId, expandedWorkGroups, expandedWorkRows, expandedTurnIds, revealedMessageId } =
+    interactionState;
   const markdownLinkRequest = useRef<AbortController | null>(null);
   const onInlinePlaybackStart = () => {
     markdownLinkRequest.current?.abort();
@@ -3651,7 +3658,12 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
     () => new Map<string, ThreadWorkGroupScrollPosition>(),
   );
 
-  const presentedFeed = useThreadFeedPresentation(props, expandedTurnIds, expandedWorkGroups);
+  const presentedFeed = useThreadFeedPresentation(
+    props,
+    expandedTurnIds,
+    expandedWorkGroups,
+    revealedMessageId,
+  );
   const setupAnchorIndex = presentedFeed.findIndex(
     (entry) => entry.type === "message" && entry.message.role === "user",
   );
@@ -3669,7 +3681,7 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
       : null;
   const [appendPendingTurn] = useState(createPendingTurnAppender);
   const listFeed = appendPendingTurn(presentedFeed, {
-    zen: false,
+    zen: props.toolCallVisibility === "zen",
     dispatchingMessageId: props.dispatchingMessageId,
   });
   const pendingFoldMessageId =
@@ -3961,10 +3973,12 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
         },
         unfold: (messageId) => {
           const runId = messageFoldRunId(props.feed, messageId, presentedFeed);
-          if (!runId) return;
           setInteractionState((current) => ({
             ...current,
-            expandedTurnIds: new Set(current.expandedTurnIds).add(runId),
+            revealedMessageId: messageId,
+            expandedTurnIds: runId
+              ? new Set(current.expandedTurnIds).add(runId)
+              : current.expandedTurnIds,
           }));
         },
         loadEarlier: (messageId) => props.historyControls?.onLoadEarlier(messageId),

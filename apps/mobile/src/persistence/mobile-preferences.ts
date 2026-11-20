@@ -14,6 +14,7 @@ import {
   PullRequestMergeMethod,
   type SidebarProjectGroupingMode,
 } from "@supaterm/contracts";
+import { ToolCallVisibility } from "@supaterm/contracts/settings";
 import type { AndroidNavigationStyle } from "../lib/androidNavigationStyle";
 import type { ComposerEnterBehavior } from "../lib/composerEnterBehavior";
 import type { FollowUpBehavior } from "../lib/followUpBehavior";
@@ -110,6 +111,7 @@ export interface Preferences {
   readonly composerEnterBehavior?: ComposerEnterBehavior;
   readonly showSkillsInSlashMenu?: boolean;
   readonly followUpBehavior?: FollowUpBehavior;
+  readonly toolCallVisibility?: ToolCallVisibility;
   readonly projectGroupingMode?: SidebarProjectGroupingMode;
   readonly threadGrouping?: SidebarThreadGrouping;
   readonly hideOfflineEnvironments?: boolean;
@@ -163,6 +165,7 @@ export class MobilePreferencesStore extends Context.Service<
 >()("@supaterm/mobile/persistence/MobilePreferencesStore") {}
 
 const isPullRequestMergeMethod = Schema.is(PullRequestMergeMethod);
+const isToolCallVisibility = Schema.is(ToolCallVisibility);
 
 function sanitizePreferences(parsed: Preferences): Preferences {
   const preferences: {
@@ -185,6 +188,7 @@ function sanitizePreferences(parsed: Preferences): Preferences {
     composerEnterBehavior?: ComposerEnterBehavior;
     showSkillsInSlashMenu?: boolean;
     followUpBehavior?: FollowUpBehavior;
+    toolCallVisibility?: ToolCallVisibility;
     projectGroupingMode?: SidebarProjectGroupingMode;
     threadGrouping?: SidebarThreadGrouping;
     hideOfflineEnvironments?: boolean;
@@ -274,6 +278,9 @@ function sanitizePreferences(parsed: Preferences): Preferences {
   }
   if (parsed.followUpBehavior === "queue" || parsed.followUpBehavior === "steer") {
     preferences.followUpBehavior = parsed.followUpBehavior;
+  }
+  if (isToolCallVisibility(parsed.toolCallVisibility)) {
+    preferences.toolCallVisibility = parsed.toolCallVisibility;
   }
   if (
     parsed.projectGroupingMode === "repository" ||
