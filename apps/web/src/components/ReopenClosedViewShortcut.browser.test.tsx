@@ -270,7 +270,7 @@ describe("root reopen shortcut", () => {
     },
   );
 
-  it("always forwards workspace focus, the layout toggles, panel close, pane focus, address-bar focus and zoom out of a focused desktop browser", async () => {
+  it("always forwards workspace focus, the layout toggles, panel new and close, pane focus, address-bar focus and zoom out of a focused desktop browser", async () => {
     setup();
     await using _view = await renderShortcut();
     const f6 = (command: string, modKey: boolean, shiftKey: boolean) =>
@@ -285,6 +285,7 @@ describe("root reopen shortcut", () => {
       f6("workspace.focusPrevious", false, true),
       expect.objectContaining({ command: "sidebar.toggle" }),
       expect.objectContaining({ command: "rightPanel.toggle" }),
+      expect.objectContaining({ command: "rightPanel.new" }),
       expect.objectContaining({ command: "rightPanel.close" }),
       ...PANE_FOCUS_KEYBINDING_COMMANDS.map((command) => expect.objectContaining({ command })),
       expect.objectContaining({ command: "preview.focusUrl" }),

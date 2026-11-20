@@ -97,6 +97,7 @@ import { resolvePullRequestState } from "./pullRequest/pullRequestPresentation";
 import { PullRequestGlyph } from "~/components/pullRequest/pullRequestIcons";
 import { observeResize } from "~/lib/observeResize";
 import { usePaneInputOwner } from "../chatPanes/paneScope";
+import { registerCommands } from "../shortcuts/dispatcher";
 import { surfaceShortcutKey } from "~/lib/surfaceShortcutKey";
 import { isImeComposing } from "~/lib/imeComposition";
 
@@ -989,6 +990,8 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
   if (props.open === false && addSurfaceMenuOpen) setAddSurfaceMenuOpen(false);
 
   const isPaneInputOwner = usePaneInputOwner();
+  const addSurfaceMenuBlocked = () =>
+    !addSurfaceMenuOpen && document.querySelector(LAUNCHER_SHORTCUT_BLOCKING_LAYERS) !== null;
   const onNewSurfaceKeyDown = useEffectEvent((event: KeyboardEvent) => {
     if (event.defaultPrevented || event.isComposing || !isPaneInputOwner()) return;
     if (
@@ -997,7 +1000,7 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
       }) !== "rightPanel.new"
     )
       return;
-    if (!addSurfaceMenuOpen && document.querySelector(LAUNCHER_SHORTCUT_BLOCKING_LAYERS)) return;
+    if (addSurfaceMenuBlocked()) return;
     event.preventDefault();
     event.stopPropagation();
     if (!event.repeat) {
@@ -1005,12 +1008,27 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
       setAddSurfaceMenuOpen(true);
     }
   });
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- subscribes a document keydown listener for the new surface shortcut while the panel is open
+  // Forwarded from a focused browser page. Focusing the trigger here would let ChatView's
+  // window-focus handler see a plain button and refocus the composer, closing the menu.
+  const onForwardedNewSurface = useEffectEvent(() => {
+    if (addSurfaceMenuBlocked()) return false;
+    setAddSurfaceMenuOpen(true);
+  });
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- subscribes document keydown and the forwarded rightPanel.new command for the new surface shortcut while the panel is open
   useEffect(() => {
     if (props.open === false) return;
     document.addEventListener("keydown", onNewSurfaceKeyDown, true);
-    return () => document.removeEventListener("keydown", onNewSurfaceKeyDown, true);
-  }, [props.open]);
+    const unregister = registerCommands(
+      {
+        "rightPanel.new": ({ source }) => (source === "menu" ? onForwardedNewSurface() : false),
+      },
+      { when: isPaneInputOwner },
+    );
+    return () => {
+      document.removeEventListener("keydown", onNewSurfaceKeyDown, true);
+      unregister();
+    };
+  }, [props.open, isPaneInputOwner]);
 
   const updateTabScrollState = (viewport: HTMLDivElement) => {
     const hasOverflow = viewport.scrollWidth - viewport.clientWidth > TAB_SCROLL_EDGE_TOLERANCE;
