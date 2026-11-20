@@ -134,6 +134,7 @@ import {
   resolveTimelineIsAtEnd,
   type MessagesTimelineRow,
   timelineTurnFoldRunIdsByEntryId,
+  liveAnswerPreview,
   workGroupDetailsRowId,
   resolveTimelineMinimapVisibleRange,
   isTimelineMinimapTurnVisible,
@@ -740,15 +741,19 @@ const ConversationTimeline = memo(function ConversationTimeline({
   const screenReaderAnnouncements = useClientSettings(
     (settings) => settings.screenReaderAnnouncements,
   );
-  const findFoldRunIds = findActive
-    ? timelineTurnFoldRunIdsByEntryId({
-        timelineEntries,
-        latestRun,
-        runningRunId,
-        isWorking,
-        runlessWorkActive,
-      })
-    : null;
+  const preferredToolCallVisibility = useClientSettings((settings) => settings.toolCallVisibility);
+  const toolCallVisibility =
+    findActive && preferredToolCallVisibility === "zen" ? "hideAll" : preferredToolCallVisibility;
+  const revealedMessageId = citationRequest?.citation.messageId ?? messageJump?.messageId ?? null;
+  const foldLookupInput = {
+    timelineEntries,
+    latestRun,
+    runningRunId,
+    isWorking,
+    runlessWorkActive,
+    toolCallVisibility,
+  };
+  const findFoldRunIds = findActive ? timelineTurnFoldRunIdsByEntryId(foldLookupInput) : null;
   const activeFindRunId =
     findActive && activeFindMatch ? findFoldRunIds?.get(activeFindMatch.entryId) : undefined;
   const [expandedFindRunId, setExpandedFindRunId] = useState<RunId | undefined>();
@@ -782,16 +787,9 @@ const ConversationTimeline = memo(function ConversationTimeline({
         )
       : undefined;
   if (citationRequest && citedEntry) {
-    const citedRunId = (
-      findFoldRunIds ??
-      timelineTurnFoldRunIdsByEntryId({
-        timelineEntries,
-        latestRun,
-        runningRunId,
-        isWorking,
-        runlessWorkActive,
-      })
-    ).get(citedEntry.id);
+    const citedRunId = (findFoldRunIds ?? timelineTurnFoldRunIdsByEntryId(foldLookupInput)).get(
+      citedEntry.id,
+    );
     setCitationExpandedFor(citationRequest.key);
     if (citedRunId) {
       setExpandedRunIds((previous) =>
@@ -843,6 +841,8 @@ const ConversationTimeline = memo(function ConversationTimeline({
     availableRevertTurnCounts,
     worktreeSetup,
     awaitingApproval: awaitingUser === "approval",
+    toolCallVisibility,
+    revealedMessageId,
   });
   const rows = useExitingWorktreeSetupRow(useStableRows(rawRows, listIdentityKey), listIdentityKey);
   // Run status/timestamps churn on every stream event; the shared row context
@@ -988,16 +988,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
     null,
   );
   const turnFoldRunIdOf = (entryId: string) =>
-    (
-      findFoldRunIds ??
-      timelineTurnFoldRunIdsByEntryId({
-        timelineEntries,
-        latestRun,
-        runningRunId,
-        isWorking,
-        runlessWorkActive,
-      })
-    ).get(entryId);
+    (findFoldRunIds ?? timelineTurnFoldRunIdsByEntryId(foldLookupInput)).get(entryId);
   const {
     target: readyCitationRequest,
     positioning: citationPositioning,
@@ -1313,6 +1304,8 @@ const ConversationTimeline = memo(function ConversationTimeline({
     ),
     providerStartingLabel,
     latestRunId: latestRun?.runId ?? null,
+    liveAnswerPreview:
+      isWorking && toolCallVisibility === "zen" ? liveAnswerPreview(timelineEntries) : null,
   };
   // Mounted in both the empty and filled timeline so a thread's first turn
   // starts from a baseline instead of a fresh, silent region.
@@ -1438,6 +1431,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
     runningRunId,
     isWorking,
     runlessWorkActive,
+    toolCallVisibility,
     rows,
     contentInsetEndAdjustment,
   });

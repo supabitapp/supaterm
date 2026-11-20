@@ -31,6 +31,7 @@ import {
   computeStableMessagesTimelineRows,
   deriveMessagesTimelineRows,
   timelineTurnFoldRunIdsByEntryId,
+  liveAnswerPreview,
   deriveMessagesTimelineRowsWithState,
   nextWorktreeSetupRowPlacement,
   resolveWorktreeSetupLabel,
@@ -4106,6 +4107,132 @@ describe("v2 run and attempt history", () => {
       expect.objectContaining({ id: "provider-recovered" }),
     ]);
   });
+  it("hides tool calls or everything but the final answer", () => {
+    const runId = RunId.make("turn-1");
+    const at = (second: number) => `2026-01-01T00:00:${String(second).padStart(2, "0")}Z`;
+    const message = (
+      id: string,
+      role: "user" | "assistant",
+      second: number,
+      inputIntent?: "steer",
+    ): TimelineEntry => ({
+      id,
+      kind: "message",
+      createdAt: at(second),
+      message: {
+        id: MessageId.make(id),
+        role,
+        text: id,
+        runId: role === "user" ? null : runId,
+        createdAt: at(second),
+        updatedAt: at(second),
+        streaming: false,
+        ...(inputIntent ? { inputIntent } : {}),
+      },
+    });
+    const command = (
+      id: string,
+      status: "completed" | "failed",
+      second: number,
+    ): TimelineEntry => ({
+      id,
+      kind: "work",
+      createdAt: at(second),
+      entry: {
+        id,
+        createdAt: at(second),
+        runId,
+        label: "Ran command",
+        tone: "tool",
+        itemType: "command_execution",
+        toolLifecycleStatus: status,
+      },
+    });
+    const [user, step, passed, failed, final] = [
+      message("user", "user", 0),
+      message("step", "assistant", 5),
+      command("passed", "completed", 8),
+      command("failed", "failed", 9),
+      message("final", "assistant", 20),
+    ];
+    const running = { runId, status: "running" as const, startedAt: at(0), completedAt: null };
+    const ended = { ...running, turnEnded: true };
+    const rows = (
+      timelineEntries: ReadonlyArray<TimelineEntry>,
+      toolCallVisibility: "hideSuccessful" | "hideAll" | "zen",
+      latestRun?: typeof ended | typeof running,
+      revealedMessageId?: string,
+    ) =>
+      deriveMessagesTimelineRows({
+        timelineEntries,
+        expandedRunIds: new Set([runId]),
+        isWorking: latestRun !== undefined,
+        ...(latestRun ? { latestRun } : {}),
+        turnDiffSummaries: [],
+        supportsConversationRollback: false,
+        toolCallVisibility,
+        ...(revealedMessageId ? { revealedMessageId: MessageId.make(revealedMessageId) } : {}),
+      }).map((row) => row.id);
+
+    const turn = [user, step, passed, failed, final];
+    expect(rows(turn, "hideSuccessful")).toEqual([
+      "user",
+      "turn-fold:turn-1",
+      "step",
+      "failed",
+      "final",
+    ]);
+    expect(rows([user, failed, final], "hideAll")).toEqual(["user", "final"]);
+    expect(rows(turn, "zen")).toEqual(["user", "final"]);
+    expect(rows(turn, "zen", undefined, "step")).toEqual(["user", "step", "final"]);
+    const [steer, answer] = [
+      message("steer", "user", 4, "steer"),
+      message("answer", "assistant", 7),
+    ];
+    expect(rows([user, steer, answer, final], "zen")).toEqual(["user", "steer", "answer", "final"]);
+    expect(rows([user, steer, step, passed, final], "zen")).toEqual(["user", "steer", "final"]);
+    expect(rows([user, steer, answer, step], "zen", running)).toEqual([
+      "user",
+      "working-indicator-row",
+      "steer",
+      "answer",
+      "live-activity-row",
+    ]);
+    expect(rows([user, step, passed], "zen", running)).toEqual([
+      "user",
+      "working-indicator-row",
+      "live-activity-row",
+    ]);
+    expect(liveAnswerPreview([user, step, passed])).toBe("step");
+    expect(rows(turn, "zen", ended)).toEqual(["user", "final"]);
+    const followUp = message("follow-up", "user", 30);
+    expect(rows([...turn, followUp], "zen", ended)).toEqual([
+      "user",
+      "final",
+      "follow-up",
+      "working-indicator-row",
+    ]);
+    const wake: TimelineEntry = {
+      id: "wake",
+      kind: "work",
+      createdAt: at(30),
+      entry: {
+        id: "wake",
+        createdAt: at(30),
+        runId: RunId.make("wake"),
+        label: "Task finished",
+        tone: "info",
+        itemType: "notification",
+      },
+    };
+    expect(rows([user, final, wake], "zen", { ...running, runId: RunId.make("wake") })).toEqual([
+      "user",
+      "final",
+      "wake",
+      "working-indicator-row",
+      "live-activity-row",
+    ]);
+  });
   it("hides subagents in folded turns when they arrive before commentary", () => {
     const timelineEntries = [
       {
@@ -4442,10 +4569,12 @@ describe("v2 run and attempt history", () => {
     const rowsFor = (
       replyCompletedSecond: number,
       runStatus: "running" | "completed" = "completed",
+      toolCallVisibility: "showAll" | "zen" = "showAll",
       phase?: "commentary" | "partial_answer" | "final_answer",
       nativeSteer = false,
     ) =>
       deriveMessagesTimelineRows({
+        toolCallVisibility,
         timelineEntries: (
           [
             {
@@ -4515,15 +4644,17 @@ describe("v2 run and attempt history", () => {
       "retains phase %s ending at %s only when it is a final reply: %s",
       (phase, completedSecond, retained) => {
         for (const runStatus of ["running", "completed"] as const) {
-          const rows = rowsFor(completedSecond, runStatus, phase);
-          expect(rows.some((row) => row.id === "old-reply-entry")).toBe(retained);
-          if (phase !== undefined && runStatus === "completed") {
-            const nativeRows = rowsFor(completedSecond, runStatus, phase, true);
-            expect(nativeRows.some((row) => row.id === "old-reply-entry")).toBe(retained);
-            expect(nativeRows.some((row) => row.id === "status-entry")).toBe(false);
-          }
-          if (runStatus === "completed") {
-            expect(rows.some((row) => row.id === "status-entry")).toBe(false);
+          for (const visibility of ["showAll", "zen"] as const) {
+            const rows = rowsFor(completedSecond, runStatus, visibility, phase);
+            expect(rows.some((row) => row.id === "old-reply-entry")).toBe(retained);
+            if (phase !== undefined && runStatus === "completed") {
+              const nativeRows = rowsFor(completedSecond, runStatus, visibility, phase, true);
+              expect(nativeRows.some((row) => row.id === "old-reply-entry")).toBe(retained);
+              expect(nativeRows.some((row) => row.id === "status-entry")).toBe(false);
+            }
+            if (runStatus === "completed") {
+              expect(rows.some((row) => row.id === "status-entry")).toBe(false);
+            }
           }
         }
       },
@@ -5081,6 +5212,7 @@ describe("streaming v2 row projection", () => {
     "expanded live group followed by a finished tool",
     "thinking superseded by a running tool",
     "settled turn",
+    "Zen turn",
   ] as const)("matches a full derivation when streaming thinking sits in a %s", (scenario) => {
     const source = makeStreamingWorkTimelineFixture("reasoning");
     const running = scenario !== "settled turn";
@@ -5103,6 +5235,7 @@ describe("streaming v2 row projection", () => {
       supportsConversationRollback: true,
       ...(workGroupDisclosures ? { workGroupDisclosures } : {}),
       ...(running ? {} : { expandedRunIds: new Set([source.runId]) }),
+      ...(scenario === "Zen turn" ? { toolCallVisibility: "zen" as const } : {}),
     });
     const tool = source.visibleTurnItems.find((row) => row.item.id === "live-work")!;
     const laterTool = (status: "running" | "completed") => ({
@@ -6095,7 +6228,7 @@ describe("parent run waiting on foreground subagents", () => {
     result: null,
   });
 
-  const liveRow = (later: ReadonlyArray<OrchestrationV2TurnItem>) =>
+  const liveRow = (later: ReadonlyArray<OrchestrationV2TurnItem>, toolCallVisibility?: "hideAll") =>
     deriveMessagesTimelineRows({
       timelineEntries: deriveTimelineEntriesFromVisibleTurnItems({
         visibleTurnItems: (
@@ -6142,6 +6275,7 @@ describe("parent run waiting on foreground subagents", () => {
       activeTurnStartedAt: DateTime.formatIso(at(0)),
       turnDiffSummaries: [],
       supportsConversationRollback: false,
+      ...(toolCallVisibility ? { toolCallVisibility } : {}),
     }).find((row) => row.id === "live-activity-row");
   const thinking = {
     kind: "thinking",
@@ -6152,6 +6286,18 @@ describe("parent run waiting on foreground subagents", () => {
 
   it("names the running children while the open run has done nothing since launching them", () => {
     expect(liveRow([])).toEqual({ ...thinking, label: "Waiting on 2 subagents" });
+    expect(liveRow([], "hideAll")).toEqual({ ...thinking, label: "Waiting on 2 subagents" });
+  });
+
+  it("keeps Thinking when a hidden newer parent command follows the children", () => {
+    const command: OrchestrationV2TurnItem = {
+      ...base("command", 5),
+      status: "running",
+      completedAt: null,
+      type: "command_execution",
+      input: "sleep 5",
+    };
+    expect(liveRow([command], "hideAll")).toEqual(thinking);
   });
 
   it("keeps Thinking once newer parent work follows the children", () => {
