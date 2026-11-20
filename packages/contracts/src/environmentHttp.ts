@@ -39,6 +39,7 @@ import {
   ServerAuthSessionMethod,
 } from "./auth.ts";
 import { AuthSessionId, ThreadId, TrimmedNonEmptyString } from "./baseSchemas.ts";
+import { PeerLinkClientPairingCredential, PeerLinkClientPairingRequest } from "./peerLink.ts";
 import { RelayConnectionInfo, RelayPreparationError } from "./relay.ts";
 import {
   ExecutionEnvironmentDescriptor,
@@ -88,6 +89,8 @@ export type EnvironmentAuthInvalidReason = typeof EnvironmentAuthInvalidReason.T
 
 export const EnvironmentOperationForbiddenReason = Schema.Literals([
   "current_session_revoke_not_allowed",
+  "browser_request_not_allowed",
+  "link_client_pairing_refused",
 ]);
 export type EnvironmentOperationForbiddenReason = typeof EnvironmentOperationForbiddenReason.Type;
 
@@ -562,6 +565,23 @@ class EnvironmentPullRequestsHttpApi extends HttpApiGroup.make("pullRequests").a
   }).middleware(EnvironmentAuthenticatedAuth),
 ) {}
 
+/**
+ * What a linking environment asks of this one over its link, outside `/mcp`. The handler accepts
+ * only a peer link's own session, so no agent's tool list ever carries it.
+ */
+class EnvironmentPeerLinkHttpApi extends HttpApiGroup.make("peerLink").add(
+  HttpApiEndpoint.post("clientPairing", "/api/peer-link/client-pairing", {
+    headers: OptionalBearerHeaders,
+    payload: PeerLinkClientPairingRequest,
+    success: PeerLinkClientPairingCredential,
+    error: [
+      EnvironmentAuthInvalidError,
+      EnvironmentOperationForbiddenError,
+      EnvironmentInternalError,
+    ],
+  }),
+) {}
+
 class EnvironmentRelayHttpApi extends HttpApiGroup.make("relay").add(
   HttpApiEndpoint.post("prepare", "/api/relay/prepare", {
     headers: OptionalBearerHeaders,
@@ -577,4 +597,5 @@ export class EnvironmentHttpApi extends HttpApi.make("environment")
   .add(EnvironmentMcpOAuthHttpApi)
   .add(EnvironmentOrchestrationHttpApi)
   .add(EnvironmentPullRequestsHttpApi)
-  .add(EnvironmentProjectsHttpApi) {}
+  .add(EnvironmentProjectsHttpApi)
+  .add(EnvironmentPeerLinkHttpApi) {}

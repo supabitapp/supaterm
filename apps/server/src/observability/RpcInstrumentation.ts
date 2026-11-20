@@ -79,6 +79,7 @@ const RPC_AGGREGATES = {
   [WS_METHODS.peerLinksSubscribeThread]: "peerLinks",
   [WS_METHODS.peerLinksThreadHistoryPage]: "peerLinks",
   [WS_METHODS.peerLinksThreadItem]: "peerLinks",
+  [WS_METHODS.peerLinksPairClient]: "peerLinks",
   [WS_METHODS.serverUpdateSettings]: "server",
   [WS_METHODS.serverSearchAcpRegistry]: "server",
   [WS_METHODS.serverPrepareAcpRegistryAgent]: "server",

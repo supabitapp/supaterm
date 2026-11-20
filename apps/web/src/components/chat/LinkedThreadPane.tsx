@@ -1,12 +1,16 @@
 import { isLinkedThreadWorking, linkedThreadFailure } from "@supaterm/client-runtime/linked-thread";
 import type { ScopedThreadRef } from "@supaterm/contracts";
-import { EyeIcon } from "@supaterm/icons";
+import { EyeIcon, PlugIcon } from "@supaterm/icons";
 import { useState, type ReactNode } from "react";
 
 import { useStableCallback } from "../../hooks/useStableCallback";
 import { type LinkedThreadSurface, linkedThreadTitle } from "../../linkedThreadSurface";
 import { useEnvironment } from "../../state/environments";
-import { linkedThreadItemSource, useLinkedThreadView } from "../../state/linkedThreadView";
+import {
+  linkedThreadItemSource,
+  useConnectLinkedEnvironment,
+  useLinkedThreadView,
+} from "../../state/linkedThreadView";
 import { Alert, AlertAction, AlertDescription, AlertTitle } from "../ui/alert";
 import { Button } from "../ui/button";
 import { ComposerSurface } from "./ComposerSurface";
@@ -17,10 +21,11 @@ import {
   ReadOnlyComposerStatus,
 } from "./ReadOnlyComposerBar";
 import { ReadOnlyThreadTimeline } from "./ReadOnlyThreadTimeline";
+import { toastManager } from "../ui/toast";
 
 /**
  * Stands where a composer would: the thread takes no messages from here. `action` is the one way
- * forward it offers.
+ * forward it offers, and `notice` what came of it.
  */
 function LinkedThreadComposer(props: {
   /** The linked environment the thread is on. */
@@ -29,10 +34,12 @@ function LinkedThreadComposer(props: {
   readonly via: string;
   readonly working: boolean;
   readonly action?: ReactNode;
+  readonly notice?: ReactNode;
 }) {
   const { label, via } = props;
   return (
     <div className="flex shrink-0 flex-col gap-1 px-3 pb-3">
+      {props.notice}
       <ComposerSurface.Shell>
         <ComposerSurface.Host>
           <div className="relative z-10">
@@ -72,6 +79,58 @@ export function LinkedThreadPane(props: {
   const [turnItemSource] = useState(() => linkedThreadItemSource(surface));
   const label = surface.label;
   const projection = view?.thread.projection ?? null;
+  const connection = useConnectLinkedEnvironment(panelRef, surface);
+  const connectState = connection.state;
+  const connecting = connectState.phase === "connecting";
+  const connect = async () => {
+    const outcome = await connection.connect();
+    if (outcome.type === "connected") {
+      toastManager.add({
+        type: "success",
+        title: `Connected to ${label}`,
+        description: "This device is paired with it and can use its threads.",
+      });
+    }
+  };
+  const connectNotice =
+    connectState.phase === "connecting" ? (
+      <Alert variant="info">
+        <PlugIcon />
+        <AlertTitle>Connecting to {label}…</AlertTitle>
+      </Alert>
+    ) : connectState.phase === "unreachable" ? (
+      <Alert variant="warning">
+        <PlugIcon />
+        <AlertTitle>{connectState.label} is not reachable from this device</AlertTitle>
+        <AlertDescription>
+          Join a network it is on, such as its Tailscale network, and try again. You can keep
+          reading here.
+        </AlertDescription>
+      </Alert>
+    ) : connectState.phase === "manual" ? (
+      <Alert variant="info">
+        <PlugIcon />
+        <AlertTitle>{connectState.prefill.label} needs a pairing code</AlertTitle>
+        <AlertDescription>
+          Create one on it, then add it to this device as an environment.
+        </AlertDescription>
+        <AlertAction>
+          <Button
+            size="xs"
+            variant="ghost"
+            onClick={() => connection.addWithCode(connectState.prefill)}
+          >
+            Enter code
+          </Button>
+        </AlertAction>
+      </Alert>
+    ) : null;
+  const connectAction = (
+    <Button size="sm" variant="outline" disabled={connecting} onClick={() => void connect()}>
+      <PlugIcon aria-hidden />
+      <span className="@max-[320px]/composer-surface:sr-only">Connect to interact</span>
+    </Button>
+  );
   const failure = error === null ? null : linkedThreadFailure(error, { via, label });
   const retryAction = failure?.retryable ? (
     <AlertAction>
@@ -118,7 +177,13 @@ export function LinkedThreadPane(props: {
               </Alert>
             )}
           </div>
-          <LinkedThreadComposer label={label} via={via} working={false} />
+          <LinkedThreadComposer
+            label={label}
+            via={via}
+            working={false}
+            notice={connectNotice}
+            action={connectAction}
+          />
         </>
       ) : (
         <ReadOnlyThreadTimeline
@@ -139,7 +204,13 @@ export function LinkedThreadPane(props: {
               </Alert>
             </div>
           )}
-          <LinkedThreadComposer label={label} via={via} working={working} />
+          <LinkedThreadComposer
+            label={label}
+            via={via}
+            working={working}
+            notice={connectNotice}
+            action={connectAction}
+          />
         </ReadOnlyThreadTimeline>
       )}
     </div>

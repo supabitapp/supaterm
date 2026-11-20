@@ -45,3 +45,11 @@ export const connectSshEnvironment = createRuntimeCommand(connectionAtomRuntime,
       Effect.flatMap((onboarding) => onboarding.registerSsh(input)),
     ),
 });
+
+export const reachesEnvironment = createRuntimeCommand(connectionAtomRuntime, {
+  label: "web:connection:reaches-environment",
+  execute: (input: { readonly host: string; readonly environmentId: EnvironmentId }) =>
+    ConnectionOnboarding.ConnectionOnboarding.pipe(
+      Effect.flatMap((onboarding) => onboarding.reaches(input)),
+    ),
+});

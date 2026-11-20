@@ -55,6 +55,7 @@ import { usePeerLinkHosts } from "~/state/peerLinks";
 import { useEnvironmentQuery } from "~/state/query";
 import { desktopSshHostsStateAtom, filterDiscoveredSshHosts } from "~/state/desktopSshHosts";
 import { type EnvironmentPresentation } from "~/state/environments";
+import type { AddEnvironmentPrefill } from "~/state/linkedThreadView";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { primaryServerKeybindingsAtom } from "~/state/server";
 import {
@@ -73,6 +74,7 @@ const sshHostSuggestionValue = (target: DesktopDiscoveredSshHost) =>
 
 export function AddEnvironmentDialog({
   open,
+  prefill = null,
   routeTarget,
   error,
   savedEnvironments,
@@ -80,6 +82,8 @@ export function AddEnvironmentDialog({
   onErrorChange,
 }: {
   readonly open: boolean;
+  /** A machine the user chose elsewhere to pair with; they supply only the pairing code. */
+  readonly prefill?: AddEnvironmentPrefill | null;
   readonly routeTarget: EnvironmentPresentation | null;
   readonly error: string | null;
   readonly savedEnvironments: ReadonlyArray<EnvironmentPresentation>;
@@ -111,7 +115,10 @@ export function AddEnvironmentDialog({
     return keys;
   })();
   const [savedBackendMode, setSavedBackendMode] = useState<"remote" | "ssh">("remote");
-  const [savedBackendForm, setSavedBackendForm] = useState(emptyRemotePairingForm);
+  const [savedBackendForm, setSavedBackendForm] = useState({
+    ...emptyRemotePairingForm,
+    host: prefill?.host ?? "",
+  });
   const [savedBackendSshHost, setSavedBackendSshHost] = useState("");
   const [savedBackendSshUsername, setSavedBackendSshUsername] = useState("");
   const [savedBackendSshPort, setSavedBackendSshPort] = useState("");
@@ -221,9 +228,10 @@ export function AddEnvironmentDialog({
       return;
     }
 
+    const expected = routeTarget ?? prefill;
     const result = await connectPairing({
       ...remotePairingInput,
-      ...(routeTarget ? { expectedEnvironmentId: routeTarget.environmentId } : {}),
+      ...(expected ? { expectedEnvironmentId: expected.environmentId } : {}),
     });
     if (result._tag === "Failure") {
       if (!isAtomCommandInterrupted(result)) {
@@ -576,12 +584,18 @@ export function AddEnvironmentDialog({
       <DialogPopup className="max-h-[80dvh] sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>
-            {routeTarget ? `Add a route to ${routeTarget.label}` : "Add Environment"}
+            {routeTarget
+              ? `Add a route to ${routeTarget.label}`
+              : prefill
+                ? `Connect to ${prefill.label}`
+                : "Add Environment"}
           </DialogTitle>
           <DialogDescription>
             {routeTarget
               ? "Pair this machine again over another address. It joins the existing routes."
-              : "Pair another environment to this client."}
+              : prefill
+                ? `Create a pairing code on ${prefill.label}, in its Settings → Sharing & access or with \`supaterm auth pairing create\`, and enter it here.`
+                : "Pair another environment to this client."}
           </DialogDescription>
         </DialogHeader>
         <DialogPanel>

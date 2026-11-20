@@ -23,6 +23,7 @@ import { FrostedCutout } from "../../components/ui/FrostedCutout";
 import { pairingUrlForFields, extractPairingUrlFromQrPayload, parsePairingUrl } from "./pairing";
 import { useRemoteConnections } from "../../state/use-remote-environment-registry";
 import { autoConnectReport, devAutoConnectAttemptAtom, linkedPairingUrl } from "./devAutoConnect";
+import { linkedEnvironmentPrefillAtom } from "./linkedEnvironmentPrefill";
 import { leaveSettingsPage } from "../settings/settings-navigation";
 import { workspaceHasColumns } from "../layout/workspace/workspace-selection-store";
 import { SymbolView } from "../../components/ui/AppSymbol";
@@ -32,6 +33,8 @@ type ConnectionsNewRouteParams = {
   readonly pairingUrl?: string;
   readonly autoConnect?: string;
   readonly routeFor?: EnvironmentId;
+  /** A linked machine this app chose to pair with; its details come from app state, never the link. */
+  readonly linked?: string;
 };
 
 export function ConnectionsNewRouteScreen({
@@ -39,12 +42,15 @@ export function ConnectionsNewRouteScreen({
 }: StaticScreenProps<ConnectionsNewRouteParams | undefined>) {
   const params = route.params ?? {};
   const routePairingUrl = linkedPairingUrl(params.pairingUrl);
+  const known = useAtomValue(linkedEnvironmentPrefillAtom);
+  const linked = known !== null && known.environmentId === params.linked ? known : null;
   // A fresh pairing link replaces the form, including the previous attempt's error and progress.
   return (
     <PairingForm
-      key={routePairingUrl}
+      key={`${routePairingUrl}:${linked?.environmentId ?? ""}`}
       routePairingUrl={routePairingUrl}
-      routeFor={params.routeFor}
+      routeFor={params.routeFor ?? linked?.environmentId}
+      linked={linked}
     />
   );
 }
@@ -52,9 +58,11 @@ export function ConnectionsNewRouteScreen({
 function PairingForm({
   routePairingUrl,
   routeFor,
+  linked,
 }: {
   readonly routePairingUrl: string;
   readonly routeFor: EnvironmentId | undefined;
+  readonly linked: { readonly label: string; readonly host: string | null } | null;
 }) {
   const { connectionPairingUrl, onChangeConnectionPairingUrl, onConnectPress } =
     useRemoteConnections();
@@ -63,7 +71,9 @@ function PairingForm({
   const [originalPairingUrl, setOriginalPairingUrl] = useState(
     () => routePairingUrl || connectionPairingUrl,
   );
-  const [hostInput, setHostInput] = useState(() => parsePairingUrl(originalPairingUrl).host);
+  const [hostInput, setHostInput] = useState(
+    () => linked?.host ?? parsePairingUrl(originalPairingUrl).host,
+  );
   const [codeInput, setCodeInput] = useState(() => parsePairingUrl(originalPairingUrl).code);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -200,7 +210,7 @@ function PairingForm({
 
   return (
     <SettingsScreen
-      title={routeFor ? "Add route" : "Add environment"}
+      title={linked ? `Connect to ${linked.label}` : routeFor ? "Add route" : "Add environment"}
       actions={[
         {
           accessibilityLabel: connecting ? "Connecting" : "Add environment",
@@ -275,7 +285,9 @@ function PairingForm({
               )}
             >
               {pairingConnectionError ??
-                "For machines on your local network or tailnet. The machine keeps its own provider credentials."}
+                (linked
+                  ? `Create a pairing code on ${linked.label}, in its Settings → Sharing & access or with \`supaterm auth pairing create\`, and enter it here.`
+                  : "For machines on your local network or tailnet. The machine keeps its own provider credentials.")}
             </Text>
           </View>
         </View>

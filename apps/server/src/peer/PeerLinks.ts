@@ -87,6 +87,9 @@ export interface ResolvedPeerLink {
   readonly capabilities: ExecutionEnvironmentCapabilities;
 }
 
+/** What a link's session is called in the peer's Connections, before this environment's label. */
+export const LINK_CLIENT_NAME_PREFIX = "Supaterm · ";
+
 /** One owner holds every link's relay tunnel, so a tunnel outlives the client that asked for the link. */
 const RELAY_LEASE_OWNER = "peer-links";
 
@@ -595,7 +598,7 @@ const make = Effect.gen(function* () {
     const issued = yield* signIn(
       yield* reach(primary, input.relayUrl),
       input,
-      `Supaterm · ${self.label}`,
+      `${LINK_CLIENT_NAME_PREFIX}${self.label}`,
     );
     const relayUrl = origins.some(isRelayAddress) ? input.relayUrl : undefined;
     const now = yield* DateTime.now;

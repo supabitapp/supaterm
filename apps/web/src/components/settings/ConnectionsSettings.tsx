@@ -1,6 +1,6 @@
 import { SessionPermissions } from "./SessionPermissions";
 import { ChevronRightIcon, EllipsisIcon, PencilIcon } from "@supaterm/icons";
-import { useAtomValue } from "@effect/atom-react";
+import { useAtom, useAtomValue } from "@effect/atom-react";
 import { type ReactNode, useRef, useState } from "react";
 import {
   AuthAccessReadScope,
@@ -102,6 +102,7 @@ import {
   useEnvironmentSessionState,
 } from "~/state/session";
 import { useEnvironmentQuery } from "~/state/query";
+import { addEnvironmentPrefillAtom } from "~/state/linkedThreadView";
 import {
   desktopNetworkAccessStateAtom,
   refreshDesktopNetworkAccessState,
@@ -345,11 +346,14 @@ function ConnectionsSettingsContent({
   const [addBackendDialogOpen, setAddBackendDialogOpen] = useState(false);
   const [routeTarget, setRouteTarget] = useState<EnvironmentPresentation | null>(null);
   const [savedBackendError, setSavedBackendError] = useState<string | null>(null);
+  // Set by a read-only linked thread whose machine this client is about to pair with.
+  const [addPrefill, setAddPrefill] = useAtom(addEnvironmentPrefillAtom);
   const handleAddBackendDialogOpenChange = (open: boolean) => {
     setAddBackendDialogOpen(open);
     if (!open) {
       setSavedBackendError(null);
       setRouteTarget(null);
+      setAddPrefill(null);
     }
   };
   const [removingSavedEnvironmentId, setRemovingSavedEnvironmentId] =
@@ -1690,7 +1694,9 @@ function ConnectionsSettingsContent({
               <ServerUpdatesAction targets={savedServerUpdateTargets} variant="ghost-muted" />
             ) : null}
             <AddEnvironmentDialog
-              open={addBackendDialogOpen}
+              key={addPrefill?.environmentId ?? "any"}
+              open={addBackendDialogOpen || addPrefill !== null}
+              prefill={addPrefill}
               routeTarget={routeTarget}
               error={savedBackendError}
               savedEnvironments={savedEnvironments}

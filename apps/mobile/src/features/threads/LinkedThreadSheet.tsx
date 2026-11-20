@@ -1,4 +1,9 @@
-import { useIsFocused, useNavigation, type StaticScreenProps } from "@react-navigation/native";
+import {
+  StackActions,
+  useIsFocused,
+  useNavigation,
+  type StaticScreenProps,
+} from "@react-navigation/native";
 import {
   isLinkedThreadWorking,
   linkedThreadFailure,
@@ -29,11 +34,12 @@ import {
   type ThreadFeedActivity,
   type ThreadFeedEntry,
 } from "../../lib/threadActivity";
-import { useLinkedThreadView } from "../../state/linkedThread";
+import { useConnectLinkedEnvironment, useLinkedThreadView } from "../../state/linkedThread";
 import { peerLinkEnvironment } from "../../state/peerLinks";
 import { useEnvironmentQuery } from "../../state/query";
 import { useMarkdownPreviewStyles } from "../files/FileMarkdownPreview";
 import { ReadOnlyComposerBar } from "./ReadOnlyComposerBar";
+import { useOpenLinkedThread } from "./useOpenLinkedThread";
 
 type LinkedThreadRouteParams = {
   readonly viaEnvironmentId: string;
@@ -211,7 +217,7 @@ function FailureCard(props: {
 
 /**
  * Stands where a composer would: the thread takes no messages from here. `action` is the one way
- * forward it offers.
+ * forward it offers, and `notice` what came of it.
  */
 function LinkedThreadComposer(props: {
   /** The linked environment the thread is on. */
@@ -220,20 +226,24 @@ function LinkedThreadComposer(props: {
   readonly via: string;
   readonly working: boolean;
   readonly action?: React.ReactNode;
+  readonly notice?: React.ReactNode;
 }) {
   const { label, via } = props;
   return (
-    <ReadOnlyComposerBar>
-      <View accessible className="min-w-0 flex-1 gap-0.5">
-        <Text numberOfLines={1} className="font-supaterm-bold text-sm text-foreground">
-          Read-only
-        </Text>
-        <Text numberOfLines={1} className="font-sans text-xs text-foreground-secondary">
-          {props.working ? `On ${label} via ${via} · Working` : `On ${label} via ${via}`}
-        </Text>
-      </View>
-      {props.action}
-    </ReadOnlyComposerBar>
+    <>
+      {props.notice}
+      <ReadOnlyComposerBar>
+        <View accessible className="min-w-0 flex-1 gap-0.5">
+          <Text numberOfLines={1} className="font-supaterm-bold text-sm text-foreground">
+            Read-only
+          </Text>
+          <Text numberOfLines={1} className="font-sans text-xs text-foreground-secondary">
+            {props.working ? `On ${label} via ${via} · Working` : `On ${label} via ${via}`}
+          </Text>
+        </View>
+        {props.action}
+      </ReadOnlyComposerBar>
+    </>
   );
 }
 
@@ -271,6 +281,21 @@ function LinkedThreadView(props: { readonly target: LinkedThreadTarget }) {
   // Follows new items only while the reader is already at the end.
   const atEnd = useRef(true);
   const working = projection !== null && isLinkedThreadWorking(projection);
+  const connection = useConnectLinkedEnvironment(target);
+  const connectState = connection.state;
+  const openThread = useOpenLinkedThread();
+  const connect = async () => {
+    const outcome = await connection.connect();
+    if (outcome.type === "unreachable") return;
+    // This sheet closes either way: the thread opens where the app is now connected, or the
+    // add-environment screen takes its place.
+    if (outcome.type === "connected") {
+      navigation.goBack();
+      openThread({ environmentId: target.environmentId, threadId: target.threadId });
+      return;
+    }
+    navigation.dispatch(StackActions.replace("ConnectionsNew", { linked: target.environmentId }));
+  };
   return (
     <View collapsable={false} className="flex-1 bg-sheet">
       <SheetHeader
@@ -328,7 +353,42 @@ function LinkedThreadView(props: { readonly target: LinkedThreadTarget }) {
           className="gap-2 px-3 pt-1.5"
           style={{ paddingBottom: Math.max(insets.bottom, 10) + 6 }}
         >
-          <LinkedThreadComposer label={label} via={via} working={working} />
+          <LinkedThreadComposer
+            label={label}
+            via={via}
+            working={working}
+            action={
+              <Button
+                tone="secondary"
+                label="Connect to interact"
+                disabled={connectState.phase === "connecting"}
+                onPress={() => void connect()}
+              />
+            }
+            notice={
+              connectState.phase === "connecting" ? (
+                <Text
+                  accessibilityLiveRegion="polite"
+                  className="px-2 text-xs text-foreground-muted"
+                >
+                  {`Connecting to ${label}…`}
+                </Text>
+              ) : connectState.phase === "unreachable" ? (
+                <View
+                  accessibilityLiveRegion="polite"
+                  className="gap-1 rounded-2xl border border-danger-border bg-danger px-3.5 py-3"
+                >
+                  <Text className="font-supaterm-medium text-sm text-danger-foreground">
+                    {`${connectState.label} is not reachable from this device`}
+                  </Text>
+                  <Text className="text-sm text-danger-foreground">
+                    Join a network it is on, such as its Tailscale network, and try again. You can
+                    keep reading here.
+                  </Text>
+                </View>
+              ) : null
+            }
+          />
         </View>
       </ScreenContent>
     </View>
