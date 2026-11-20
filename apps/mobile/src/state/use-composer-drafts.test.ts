@@ -22,6 +22,7 @@ import {
   MessageId,
   ProjectId,
   ProviderInstanceId,
+  RuntimeRequestId,
   ThreadId,
   type OrchestrationV2ThreadShell,
   type OrchestrationV2ShellSnapshot,
@@ -42,8 +43,10 @@ const composerDraftFileMocks = vi.hoisted(() => {
   let nextWriteBarrier: Promise<void> | null = null;
   let onWrite: (() => void) | null = null;
   const writes: string[] = [];
+  const readImage = vi.fn(async () => "YWJj");
 
   return {
+    readImage,
     blockRead() {
       readBarrier = new Promise<void>((resolve) => {
         releaseRead = resolve;
@@ -86,6 +89,7 @@ const composerDraftFileMocks = vi.hoisted(() => {
     },
     File: class {
       exists = true;
+      size = 3;
       parentDirectory = null;
 
       create() {}
@@ -96,6 +100,10 @@ const composerDraftFileMocks = vi.hoisted(() => {
         await readBarrier;
         if (readError) throw readError;
         return document;
+      }
+
+      async base64() {
+        return readImage();
       }
 
       write(value: string) {
@@ -123,6 +131,9 @@ const composerAttachmentCleanupMocks = vi.hoisted(() => ({
   remove: vi.fn(async () => undefined),
   releaseUploads: vi.fn(async () => undefined),
 }));
+
+const pickMedia = vi.hoisted(() => vi.fn());
+vi.mock("expo-image-picker", () => ({ launchImageLibraryAsync: pickMedia }));
 
 const incomingShareStorageMocks = vi.hoisted(() => ({
   load: vi.fn<typeof import("../features/sharing/incoming-share-storage").loadIncomingShareDrafts>(
@@ -173,6 +184,11 @@ import {
 } from "@supaterm/shared/composerContextReferences";
 import { appAtomRegistry } from "./atom-registry";
 import { startComposerDraftOperation } from "./composerDraftOperations";
+import { questionAttachmentDraftKey } from "./question-attachments";
+import {
+  pickQuestionAttachments,
+  resolveQuestionImagePreparations,
+} from "./question-attachment-preparation";
 import { threadOutboxManager } from "./thread-outbox";
 import {
   appendComposerDraftAttachments,
@@ -226,6 +242,71 @@ const DRAFT: ComposerDraft = {
   attachments: [],
 };
 
+it.each(["picker open", "reading image"] as const)(
+  "recovers only accepted screenshots when a question is cancelled while %s",
+  async (stage) => {
+    const questionKey = questionAttachmentDraftKey(
+      EnvironmentId.make("environment"),
+      ThreadId.make("thread"),
+      RuntimeRequestId.make("input"),
+      "language",
+    );
+    const threadKey = "environment:thread";
+    const screenshot = {
+      canceled: false,
+      assets: [
+        {
+          uri: "file:///picker/screenshot.png",
+          fileName: "screenshot.png",
+          type: "image",
+          mimeType: "image/png",
+        },
+      ],
+    } as const;
+    const opened = Promise.withResolvers<void>();
+    const selection = Promise.withResolvers<typeof screenshot>();
+    const reading = Promise.withResolvers<void>();
+    const bytes = Promise.withResolvers<string>();
+    composerDraftFileMocks.readImage.mockImplementationOnce(() => {
+      reading.resolve();
+      return bytes.promise;
+    });
+    pickMedia.mockImplementationOnce(() => {
+      opened.resolve();
+      return selection.promise;
+    });
+    const picking = pickQuestionAttachments({
+      key: questionKey,
+      kind: "media",
+      isActive: () => true,
+      append: (attachments) => appendComposerDraftAttachments(questionKey, attachments),
+    });
+    if (stage === "reading image") {
+      selection.resolve(screenshot);
+      await Promise.race([reading.promise, picking]);
+    } else {
+      await Promise.race([opened.promise, picking]);
+    }
+    resolveQuestionImagePreparations(questionKey, threadKey);
+    selection.resolve(screenshot);
+    bytes.resolve("YWJj");
+    await picking;
+
+    expect(getComposerDraftSnapshot(questionKey).attachments).toEqual([]);
+    expect(getComposerDraftSnapshot(threadKey).attachments).toEqual(
+      stage === "picker open"
+        ? []
+        : [
+            expect.objectContaining({
+              type: "image",
+              name: "screenshot.png",
+              dataUrl: "data:image/png;base64,YWJj",
+            }),
+          ],
+    );
+  },
+);
+
 afterEach(() => {
   appAtomRegistry.set(acknowledgedThreadMessagesAtom, []);
   vi.useRealTimers();
@@ -236,6 +317,8 @@ afterEach(() => {
   composerDraftFileMocks.setNextWriteBarrier(null);
   composerDraftFileMocks.setOnWrite(null);
   composerDraftFileMocks.resetWrites();
+  composerDraftFileMocks.readImage.mockReset();
+  composerDraftFileMocks.readImage.mockResolvedValue("YWJj");
   appAtomRegistry.set(composerDraftsAtom, {});
   appAtomRegistry.set(stickyComposerModelSelectionAtom, null);
   appAtomRegistry.set(stickyNewTaskProjectAtom, null);

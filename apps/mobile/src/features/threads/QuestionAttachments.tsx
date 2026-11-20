@@ -15,7 +15,6 @@ import { useEffect, useEffectEvent, useRef, useState } from "react";
 import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
 import { ComposerAttachmentButton } from "./ComposerAttachmentButton";
 import { ComposerAttachmentStrip } from "../../components/ComposerAttachmentStrip";
-import { pickComposerFiles, pickComposerMedia } from "../../lib/composerImages";
 import { useThreadSelection } from "../../state/use-thread-selection";
 import { useNavigation } from "@react-navigation/native";
 import { FilePreviewModal, type FilePreviewSource } from "../../components/ui/FilePreviewModal";
@@ -26,13 +25,16 @@ import {
   appendComposerDraftAttachments,
   composerDraftsAtom,
   removeComposerDraftAttachment,
-  releaseUnusedComposerAttachmentFiles,
+  type ComposerDraftAttachmentsAppend,
 } from "../../state/use-composer-drafts";
 import {
   changeQuestionAttachmentPreparation,
   questionAttachmentDraftKey,
-  questionAttachmentPreparationAtom,
 } from "../../state/question-attachments";
+import {
+  pickQuestionAttachments,
+  startQuestionImagePreparation,
+} from "../../state/question-attachment-preparation";
 import type { ComposerEditorSelection } from "../../components/ComposerEditor";
 import { ComposerDictationStartAction } from "../voice-input/ComposerDictationControl";
 import { TextFieldDictationToolbar } from "../voice-input/TextFieldDictationToolbar";
@@ -127,8 +129,8 @@ export function QuestionAttachments(props: {
   const append = (
     key: string,
     attachments: Parameters<typeof appendComposerDraftAttachments>[1],
-  ) => {
-    if (!selectedThread) return [];
+  ): ComposerDraftAttachmentsAppend => {
+    if (!selectedThread) return { rejected: 0, duplicates: [] };
     const current = appAtomRegistry.get(composerDraftsAtom);
     const otherCount = props.questions.reduce((count, question) => {
       const target = questionAttachmentDraftKey(
@@ -139,29 +141,25 @@ export function QuestionAttachments(props: {
       );
       return target === key ? count : count + (current[target]?.attachments.length ?? 0);
     }, 0);
-    const { rejected, duplicates } = appendComposerDraftAttachments(key, attachments, {
+    return appendComposerDraftAttachments(key, attachments, {
       maxAttachments: Math.max(0, PROVIDER_SEND_TURN_MAX_ATTACHMENTS - otherCount),
     });
-    const skipped = skippedDuplicateAttachmentsMessage(duplicates);
-    return [...(rejected > 0 ? ["Too many attachments."] : []), ...(skipped ? [skipped] : [])];
   };
   const paste = useNativePaste((uris) => {
     const scope = pickerScope.current;
     if (!selectedThread || props.disabled || !configs.has(selectedThread.environmentId)) return;
     if (key === null) return;
-    changeQuestionAttachmentPreparation(key, 1);
+    const preparation = startQuestionImagePreparation(key);
     void convertPastedImagesToAttachments({ uris })
-      .then(async (result) => {
-        if (
-          scope.active &&
-          (appAtomRegistry.get(questionAttachmentPreparationAtom)[key] ?? 0) > 0
-        ) {
-          const problems = [
-            ...(result.error ? [result.error] : []),
-            ...append(key, result.attachments),
-          ];
-          if (problems.length) Dialog.alert("Could not paste image", problems.join("\n\n"));
-        } else await releaseUnusedComposerAttachmentFiles(result.attachments);
+      .then((result) =>
+        preparation.complete(result, {
+          isActive: () => scope.active,
+          append: (attachments) => append(key, attachments),
+        }),
+      )
+      .then((result) => {
+        const problems = attachProblems(result);
+        if (problems.length) Dialog.alert("Could not paste image", problems.join("\n\n"));
       })
       .catch((error) =>
         Dialog.alert(
@@ -169,7 +167,7 @@ export function QuestionAttachments(props: {
           error instanceof Error ? error.message : "Try again.",
         ),
       )
-      .finally(() => changeQuestionAttachmentPreparation(key, -1));
+      .finally(preparation.finish);
   });
   if (!selectedThread || key === null || props.question.allowCustomAnswer === false) return null;
   const { environmentId, id: threadId } = selectedThread;
@@ -180,32 +178,17 @@ export function QuestionAttachments(props: {
   const attachments = drafts[key]?.attachments ?? [];
   const pick = async (kind: "media" | "files") => {
     const scope = pickerScope.current;
-    changeQuestionAttachmentPreparation(key, 1);
     const picked = await settlePromise(async () => {
-      const existingCount = appAtomRegistry.get(composerDraftsAtom)[key]?.attachments.length ?? 0;
-      const result =
-        kind === "files"
-          ? await pickComposerFiles({
-              existingCount,
-              maxBytes: capabilities?.fileAttachments?.maxUploadBytes,
-            })
-          : await pickComposerMedia({
-              existingCount,
-              maxVideoBytes: capabilities?.fileAttachments?.maxUploadBytes,
-            });
-      const picked = "files" in result ? result.files : result.attachments;
-      // Resolution on another client clears the reservation while the picker is open.
-      if (
-        !scope.active ||
-        (appAtomRegistry.get(questionAttachmentPreparationAtom)[key] ?? 0) === 0
-      ) {
-        await releaseUnusedComposerAttachmentFiles(picked);
-        return;
-      }
-      const problems = [...(result.error ? [result.error] : []), ...append(key, picked)];
+      const result = await pickQuestionAttachments({
+        key,
+        kind,
+        maxUploadBytes: capabilities?.fileAttachments?.maxUploadBytes,
+        isActive: () => scope.active,
+        append: (attachments) => append(key, attachments),
+      });
+      const problems = attachProblems(result);
       if (problems.length) Dialog.alert("Could not attach file", problems.join("\n\n"));
     });
-    changeQuestionAttachmentPreparation(key, -1);
     if (AsyncResult.isFailure(picked)) {
       const error = squashAtomCommandFailure(picked);
       Dialog.alert("Could not attach file", error instanceof Error ? error.message : "Try again.");
@@ -305,4 +288,15 @@ export function QuestionAttachments(props: {
       ) : null}
     </View>
   );
+}
+
+function attachProblems(
+  result: { readonly error: string | null } & ComposerDraftAttachmentsAppend,
+): ReadonlyArray<string> {
+  const skipped = skippedDuplicateAttachmentsMessage(result.duplicates);
+  return [
+    ...(result.error ? [result.error] : []),
+    ...(result.rejected > 0 ? ["Too many attachments."] : []),
+    ...(skipped ? [skipped] : []),
+  ];
 }
