@@ -22,6 +22,7 @@ import {
   RuntimeMode,
   EnvironmentContextRecord,
   ModelContextRecord,
+  ResponseContextRecord,
   ThreadContextRecord,
   type ServerProvider,
   type ScopedProjectRef,
@@ -107,6 +108,7 @@ const ReferenceContextRecordSchema = Schema.Union([
   EnvironmentContextRecord,
 ]);
 const isReferenceContextRecord = Schema.is(ReferenceContextRecordSchema);
+const isResponseContextRecord = Schema.is(ResponseContextRecord);
 const isSnapShotSource = Schema.is(SnapShotSource);
 const isPreviewAnnotationPayload = Schema.is(PreviewAnnotationPayloadSchema);
 
@@ -339,6 +341,7 @@ const PersistedComposerThreadDraftState = Schema.Struct({
   previewAnnotations: Schema.optionalKey(Schema.Array(PreviewAnnotationPayloadSchema)),
   reviewComments: Schema.optionalKey(Schema.Array(ReviewCommentContextSchema)),
   referenceContexts: Schema.optionalKey(Schema.Array(ReferenceContextRecordSchema)),
+  replyTo: Schema.optionalKey(ResponseContextRecord),
   /** Drafts saved before model chips kept thread records here. */
   threadContexts: Schema.optionalKey(Schema.Array(ThreadContextRecord)),
   // Keyed by `ProviderInstanceId` so custom provider instances round-trip. The record's values
@@ -432,6 +435,8 @@ export interface ComposerThreadDraftState {
   previewAnnotations: PreviewAnnotationPayload[];
   reviewComments: ReviewCommentContext[];
   referenceContexts: ReferenceContextRecord[];
+  /** The response this message replies to. It becomes a context record when the message is sent. */
+  replyTo: ResponseContextRecord | null;
   /**
    * Per-instance model selection. Keyed by `ProviderInstanceId` (open
    * branded slug) so a default `codex` instance and a user-authored
@@ -463,7 +468,8 @@ export function composerDraftHasUserContent(
     draft.terminalContexts.length > 0 ||
     draft.previewAnnotations.length > 0 ||
     draft.reviewComments.length > 0 ||
-    draft.referenceContexts.length > 0
+    draft.referenceContexts.length > 0 ||
+    draft.replyTo !== null
   );
 }
 
@@ -711,6 +717,7 @@ interface ComposerDraftStoreState {
     threadRef: ComposerThreadTarget,
     records: ReadonlyArray<ReferenceContextRecord>,
   ) => void;
+  setReplyTo: (threadRef: ComposerThreadTarget, response: ResponseContextRecord | null) => void;
   clearPersistedAttachments: (threadRef: ComposerThreadTarget) => void;
   syncPersistedAttachments: (
     threadRef: ComposerThreadTarget,
@@ -838,6 +845,7 @@ const EMPTY_THREAD_DRAFT = Object.freeze<ComposerThreadDraftState>({
   previewAnnotations: EMPTY_PREVIEW_ANNOTATIONS,
   reviewComments: EMPTY_REVIEW_COMMENTS,
   referenceContexts: EMPTY_REFERENCE_CONTEXTS,
+  replyTo: null,
   modelSelectionByProvider: EMPTY_MODEL_SELECTION_BY_PROVIDER,
   activeProvider: null,
   runtimeMode: null,
@@ -855,6 +863,7 @@ function createEmptyThreadDraft(): ComposerThreadDraftState {
     previewAnnotations: [],
     reviewComments: [],
     referenceContexts: [],
+    replyTo: null,
     modelSelectionByProvider: {},
     activeProvider: null,
     runtimeMode: null,
@@ -967,6 +976,7 @@ function shouldRemoveDraft(draft: ComposerThreadDraftState): boolean {
     draft.previewAnnotations.length === 0 &&
     draft.reviewComments.length === 0 &&
     draft.referenceContexts.length === 0 &&
+    draft.replyTo === null &&
     Object.keys(draft.modelSelectionByProvider).length === 0 &&
     draft.activeProvider === null &&
     draft.runtimeMode === null &&
@@ -1670,6 +1680,7 @@ function normalizePersistedDraftsByThreadKey(
     const previewAnnotations = Array.isArray(draftCandidate.previewAnnotations)
       ? draftCandidate.previewAnnotations.filter(isPreviewAnnotationPayload)
       : [];
+    const replyTo = isResponseContextRecord(draftCandidate.replyTo) ? draftCandidate.replyTo : null;
     const runtimeMode = isRuntimeMode(draftCandidate.runtimeMode)
       ? draftCandidate.runtimeMode
       : null;
@@ -1698,6 +1709,7 @@ function normalizePersistedDraftsByThreadKey(
       previewAnnotations.length === 0 &&
       reviewComments.length === 0 &&
       referenceContexts.length === 0 &&
+      replyTo === null &&
       !hasModelData &&
       !runtimeMode &&
       !interactionMode
@@ -1712,6 +1724,7 @@ function normalizePersistedDraftsByThreadKey(
       ...(previewAnnotations.length > 0 ? { previewAnnotations } : {}),
       ...(reviewComments.length > 0 ? { reviewComments } : {}),
       ...(referenceContexts.length > 0 ? { referenceContexts } : {}),
+      ...(replyTo ? { replyTo: replyTo as DeepMutable<ResponseContextRecord> } : {}),
       ...(hasModelData
         ? {
             modelSelectionByProvider: compactModelSelectionByProvider(modelSelectionByProvider),
@@ -1768,6 +1781,7 @@ export function partializeComposerDraftStoreState(
       draft.previewAnnotations.length === 0 &&
       draft.reviewComments.length === 0 &&
       draft.referenceContexts.length === 0 &&
+      draft.replyTo === null &&
       !hasModelData &&
       draft.runtimeMode === null &&
       draft.interactionMode === null
@@ -1822,6 +1836,9 @@ export function partializeComposerDraftStoreState(
         : {}),
       ...(draft.referenceContexts.length > 0
         ? { referenceContexts: draft.referenceContexts.map((record) => ({ ...record })) }
+        : {}),
+      ...(draft.replyTo
+        ? { replyTo: { ...draft.replyTo } as DeepMutable<ResponseContextRecord> }
         : {}),
       ...(hasModelData
         ? {
@@ -2062,6 +2079,7 @@ function toHydratedThreadDraft(
       persistedDraft.previewAnnotations?.map((annotation) => ({ ...annotation })) ?? [],
     reviewComments: persistedDraft.reviewComments?.map((comment) => ({ ...comment })) ?? [],
     referenceContexts: persistedDraft.referenceContexts?.map((record) => ({ ...record })) ?? [],
+    replyTo: persistedDraft.replyTo ?? null,
     modelSelectionByProvider,
     activeProvider,
     ...(persistedDraft.modelSelectionExplicit ? { modelSelectionExplicit: true } : {}),
@@ -3340,6 +3358,18 @@ const composerDraftStore = create<ComposerDraftStoreState>()(
                 },
               },
             };
+          });
+        },
+        setReplyTo: (threadRef, response) => {
+          const threadKey = resolveComposerDraftKey(get(), threadRef);
+          if (!threadKey) return;
+          set((state) => {
+            const existing = state.draftsByThreadKey[threadKey] ?? createEmptyThreadDraft();
+            const nextDraft = { ...existing, replyTo: response };
+            const nextDraftsByThreadKey = { ...state.draftsByThreadKey };
+            if (shouldRemoveDraft(nextDraft)) delete nextDraftsByThreadKey[threadKey];
+            else nextDraftsByThreadKey[threadKey] = nextDraft;
+            return { draftsByThreadKey: nextDraftsByThreadKey };
           });
         },
         removePreviewAnnotation: (threadRef, annotationId) => {

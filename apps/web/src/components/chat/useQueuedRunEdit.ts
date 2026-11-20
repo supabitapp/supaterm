@@ -14,6 +14,7 @@ import {
   type MessageId,
   type OrchestrationMessageContext,
   type PreviewAnnotationPayload,
+  type ResponseContextRecord,
   type RunId,
   type ScopedThreadRef,
   type ThreadId,
@@ -41,7 +42,11 @@ import {
   releaseDraftAttachments,
   startAttachmentUpload,
 } from "../../lib/attachmentUploadQueue";
-import { buildMessageContext, type ReferenceContextRecord } from "../../lib/composerContextRecords";
+import {
+  buildMessageContext,
+  takeReplyFromText,
+  type ReferenceContextRecord,
+} from "../../lib/composerContextRecords";
 import { collectInlineContextIds } from "../../lib/composerContextReferences";
 import { readFileAsDataUrl } from "../../lib/imageCompression";
 import type { TerminalContextDraft } from "../../lib/terminalContext";
@@ -74,6 +79,8 @@ interface EditingQueuedRun {
   readonly originalText: string;
   readonly existingAttachments: ReadonlyArray<ChatAttachment>;
   readonly context?: OrchestrationMessageContext | undefined;
+  /** The reply the edit draft owns, so a cancelled or replaced one is not kept from `context`. */
+  readonly originalReply?: ResponseContextRecord | undefined;
   /** Removing a server attachment changes the message even when the draft looks untouched. */
   readonly removedExistingAttachment?: true;
 }
@@ -92,6 +99,7 @@ export interface QueuedRunEditContent {
   readonly reviewComments: ReadonlyArray<ReviewCommentContext>;
   readonly previewAnnotations: ReadonlyArray<PreviewAnnotationPayload>;
   readonly referenceContexts: ReadonlyArray<ReferenceContextRecord>;
+  readonly replyTo?: ResponseContextRecord | null;
 }
 
 const isDraftOwnedRecord = (record: ComposerContextRecord): record is ReferenceContextRecord =>
@@ -143,6 +151,7 @@ async function submitQueuedRunEdit(input: {
     const keptRecords = (editing.context?.records ?? []).filter(
       (record) =>
         !isDraftOwnedRecord(record) &&
+        record.contextId !== editing.originalReply?.contextId &&
         (!("attachmentId" in record) ||
           editing.existingAttachments.some((attachment) => attachment.id === record.attachmentId)),
     );
@@ -154,6 +163,7 @@ async function submitQueuedRunEdit(input: {
         reviewComments: content.reviewComments,
         previewAnnotations: content.previewAnnotations,
         referenceContexts: content.referenceContexts,
+        replyTo: content.replyTo ?? null,
         attachments: newAttachments.map((attachment, index) => ({
           attachment,
           attachmentId: uploads[editing.existingAttachments.length + index]?.id ?? attachment.id,
@@ -251,14 +261,18 @@ export function useQueuedRunEdit(input: {
     if (activeThreadId === null) return;
     if (editing !== null && editing.runId !== request.runId) clearEditDraft(editing.runId);
     const target = queuedRunEditDraftId(routeThreadRef, request.runId);
-    const text = stripAttachmentOnlyBootstrapPrompt(request.text);
     const context = serverProjection?.messages.find(
       (message) => message.id === request.messageId,
     )?.context;
+    const { text, reply } = takeReplyFromText(
+      stripAttachmentOnlyBootstrapPrompt(request.text),
+      context?.records ?? [],
+    );
     const referenced = new Set(collectInlineContextIds(text));
     const store = useComposerDraftStore.getState();
     store.clearComposerContent(target);
     store.setPrompt(target, text);
+    if (reply) store.setReplyTo(target, reply);
     store.setReferenceContexts(
       target,
       (context?.records ?? []).filter(
@@ -276,6 +290,7 @@ export function useQueuedRunEdit(input: {
         originalText: text,
         existingAttachments: request.attachments,
         context,
+        ...(reply ? { originalReply: reply } : {}),
       },
       {
         runs: makeQueuedRunsAtom({
@@ -296,6 +311,7 @@ export function useQueuedRunEdit(input: {
             editTarget: queuedRunEditDraftId(routeThreadRef, edit.runId),
             threadTarget: threadDraftTarget,
             originalText: edit.originalText,
+            originalReply: edit.originalReply,
             removedExistingAttachment: edit.removedExistingAttachment === true,
           });
           if (recovery === "clean") return;

@@ -22,9 +22,12 @@ import {
 import type { RepositoryIdentity, ScopedProjectRef, ScopedThreadRef } from "@supaterm/contracts";
 import type {
   EnvironmentId,
+  NodeId,
   OrchestrationV2ProjectedTurnItem,
+  OrchestrationV2RemoteTaskChild,
   OrchestrationV2ThreadShell,
   ThreadId,
+  TurnItemId,
 } from "@supaterm/contracts";
 import type { ThreadCheckpointSummary } from "@supaterm/client-runtime/state/thread-checkpoints";
 import { subagentChildTitles } from "@supaterm/client-runtime/state/thread-relationships";
@@ -541,4 +544,94 @@ export function useThreadState(ref: ScopedThreadRef | null) {
   return useAtomValue(
     ref === null ? EMPTY_THREAD_STATE_ATOM : environmentThreadDetails.stateAtom(ref),
   );
+}
+
+interface SubagentChild {
+  readonly threadId: ThreadId;
+  /** Set when the task ran on a linked environment, which holds its thread. */
+  readonly environmentId?: EnvironmentId;
+  readonly title: string | null | undefined;
+}
+
+/**
+ * Read once on demand so a timeline row does not subscribe to the thread. The inputs just before
+ * the response name its subagents; turn items are read because older history loads nothing else.
+ */
+export function readResponseSubagents(
+  ref: ScopedThreadRef,
+  itemId: TurnItemId,
+): ReadonlyArray<Omit<SubagentChild, "title"> & { readonly title: string }> {
+  const projection = appAtomRegistry.get(environmentThreadDetails.quietThreadAtom(ref))?.projection;
+  if (!projection) return [];
+  const items = projection.visibleTurnItems;
+  const isInput = (index: number) => {
+    const type = items[index]?.item.type;
+    return type === "user_message" || type === "notification";
+  };
+  let index = items.findIndex((projected) => projected.sourceItemId === itemId) - 1;
+  while (index >= 0 && !isInput(index)) index -= 1;
+
+  const byTask = new Map<NodeId, SubagentChild>();
+  const local = new Map<ThreadId, SubagentChild>();
+  const remember = (
+    taskId: NodeId,
+    childThreadId: ThreadId | null,
+    remote: OrchestrationV2RemoteTaskChild | undefined,
+    title: string | null,
+  ) => {
+    if (childThreadId !== null) {
+      const child = { threadId: childThreadId, title };
+      byTask.set(taskId, child);
+      local.set(childThreadId, child);
+    } else if (remote) {
+      // A task sent to a linked environment has no thread here; its thread lives there.
+      const { threadId, environmentId } = remote;
+      byTask.set(taskId, { threadId, environmentId, title: title ?? remote.title });
+    }
+  };
+  for (const { item } of items) {
+    if (item.type === "subagent") {
+      remember(item.subagentId, item.childThreadId, item.remoteChild, null);
+    }
+  }
+  for (const subagent of projection.subagents) {
+    remember(subagent.id, subagent.childThreadId, subagent.remoteChild, subagent.title);
+  }
+
+  const found = new Map<string, SubagentChild>();
+  const add = (child: SubagentChild | undefined) => {
+    if (child) found.set(`${child.environmentId ?? ""}:${child.threadId}`, child);
+  };
+  for (; index >= 0 && isInput(index); index -= 1) {
+    const item = items[index]!.item;
+    if (item.type === "notification") {
+      // A notice names its child itself, so it counts even when the task is no longer loaded.
+      if ("childThreadId" in item.source && item.source.childThreadId !== undefined) {
+        const threadId = item.source.childThreadId;
+        add(local.get(threadId) ?? { threadId, title: null });
+      }
+      for (const taskId of "taskIds" in item.source ? item.source.taskIds : []) {
+        add(byTask.get(taskId));
+      }
+    } else if (item.type === "user_message") {
+      const message = projection.messages.find(({ id }) => id === item.messageId);
+      for (const taskId of message?.delegatedCompletion?.taskIds ?? []) add(byTask.get(taskId));
+      // A sender counts only as this thread's subagent: a child's first message comes from its parent.
+      if (item.senderThreadId !== undefined) add(local.get(item.senderThreadId));
+    }
+  }
+  return [...found.values()].map(({ title, ...child }) => ({
+    ...child,
+    title:
+      title?.trim() ||
+      appAtomRegistry
+        .get(
+          environmentThreadShells.quietThreadShellAtom({
+            environmentId: child.environmentId ?? ref.environmentId,
+            threadId: child.threadId,
+          }),
+        )
+        ?.title.trim() ||
+      "Agent",
+  }));
 }

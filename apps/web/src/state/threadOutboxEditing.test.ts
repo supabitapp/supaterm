@@ -6,10 +6,16 @@ import {
   MessageId,
   ProviderInstanceId,
   ThreadId,
+  TurnItemId,
 } from "@supaterm/contracts";
 
 import { useComposerDraftStore, type ComposerFileAttachment } from "../composerDraftStore";
-import { buildMessageContext, fileContextReference } from "../lib/composerContextRecords";
+import {
+  buildMessageContext,
+  fileContextReference,
+  responseContextRecord,
+  withReplyReference,
+} from "../lib/composerContextRecords";
 import { formatInlineContextReference } from "../lib/composerContextReferences";
 import type { PendingThreadTurn } from "./threadOutbox";
 import {
@@ -158,6 +164,56 @@ describe("outbox editing in the composer", () => {
     expect(await payload.localAttachments[0]!.bytes!.text()).toBe("notes");
     expect(store.getComposerDraft(threadTarget)?.prompt).toBe("Next message draft");
     expect(editor.getSnapshot()).toBeNull();
+  });
+
+  it("shows a pending message's reply above the composer while it is edited", async () => {
+    const replyTo = responseContextRecord({
+      citation: {
+        version: 1,
+        environmentId,
+        threadId,
+        messageId: MessageId.make("response"),
+        text: "Done. I added clamp next to sum.",
+        start: 0,
+        end: 32,
+        prefix: "",
+        suffix: "",
+      },
+      itemId: TurnItemId.make("item"),
+      subagents: [],
+    });
+    const context = buildMessageContext({
+      terminalContexts: [],
+      reviewComments: [],
+      previewAnnotations: [],
+      replyTo,
+    });
+    if (!context) throw new Error("Expected reply context");
+    const original = entry();
+    const pending: PendingThreadTurn = {
+      ...original,
+      payload: {
+        ...original.payload,
+        input: {
+          ...original.payload.input,
+          message: {
+            ...original.payload.input.message,
+            text: withReplyReference("why there?", replyTo),
+            attachments: [],
+            context,
+          },
+        },
+        localAttachments: [],
+      },
+    };
+    const store = useComposerDraftStore.getState();
+    const editor = createThreadOutboxEditor("route");
+    await editor.begin(pending);
+    const editing = editor.getSnapshot()!;
+    expect(store.getComposerDraft(editing.draftTarget)).toMatchObject({
+      prompt: "why there?",
+      replyTo,
+    });
   });
 
   it("leaves the edit in the composer if saving fails", async () => {

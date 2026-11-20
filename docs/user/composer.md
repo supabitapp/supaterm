@@ -1,6 +1,6 @@
 # Messages and context
 
-Give the agent a task in the composer. Add files, quote a previous response, or
+Give the agent a task in the composer. Add files, quote or reply to a previous response, or
 include a skill when the task needs more context.
 
 Messages can contain up to 120,000 characters. Longer drafts stay in the composer
@@ -170,6 +170,20 @@ On mobile, select text in an assistant response or in a page and choose **Annota
 an optional comment. Tap the chip in the composer to change the comment. Mobile does not navigate
 to a quote's source. A quote made on mobile returns to its source on web only when its text appears
 once in the response; a quote from a page always returns to the page.
+
+## Reply to an assistant response
+
+On web and desktop, hover an assistant response and choose **Reply**. A **Replying to** bar above
+the composer shows how the response starts and names the subagent it reported on, if any. Select
+the preview to return to the response, or close the bar to cancel the reply. The reply stays with
+the draft when you switch threads, reload, or [stash the prompt](#prompt-stash).
+
+The sent message shows the response's opening above your text. The agent gets that opening and a
+way to read the whole response, so a reply to a long response costs no more than one to a short
+one. To point at particular words, [quote them](#quote-an-assistant-response) instead.
+
+Mobile shows a reply as a labelled chip and cannot start one. A server running an older version of
+Supaterm does not keep the reply, so the agent is told the reference is unavailable.
 
 ## Recall a sent prompt
 

@@ -1,8 +1,10 @@
 import {
   EnvironmentId,
+  MessageId,
   ProviderDriverKind,
   ProviderInstanceId,
   ThreadId,
+  TurnItemId,
 } from "@supaterm/contracts";
 import { scopeThreadRef } from "@supaterm/client-runtime/environment";
 import {
@@ -17,6 +19,7 @@ import {
   type ComposerImageAttachment,
 } from "../../composerDraftStore";
 import { readAttachmentUpload, useAttachmentUploadStore } from "../../lib/attachmentUploadQueue";
+import { responseContextRecord } from "../../lib/composerContextRecords";
 import { prepareQueuedEditAttachments, recoverQueuedMessageEdit } from "./queuedMessageEdit";
 
 const environmentId = EnvironmentId.make("remote-environment");
@@ -39,6 +42,22 @@ const image: ComposerImageAttachment = {
   file: new File(["image"], "screen.png", { type: "image/png" }),
   previewUrl: "blob:screen",
 };
+const reply = (messageId: string) =>
+  responseContextRecord({
+    citation: {
+      version: 1,
+      environmentId,
+      threadId: threadTarget.threadId,
+      messageId: MessageId.make(messageId),
+      text: "Done. I added clamp next to sum.",
+      start: 0,
+      end: 32,
+      prefix: "",
+      suffix: "",
+    },
+    itemId: TurnItemId.make(`item:${messageId}`),
+    subagents: [],
+  });
 const uploadedFile = {
   type: "file" as const,
   id: "upload:report",
@@ -130,6 +149,48 @@ describe("queued message file edits", () => {
       prompt: editedPrompt,
       referenceContexts: [thread, model],
     });
+  });
+
+  it("reports a cancelled or changed reply as an edit when the run leaves", () => {
+    const store = useComposerDraftStore.getState();
+    const originalReply = reply("message:first");
+    store.setPrompt(editTarget, "Original message");
+    expect(
+      recoverQueuedMessageEdit({
+        editTarget,
+        threadTarget,
+        originalText: "Original message",
+        originalReply,
+      }),
+    ).toBe("kept");
+    expect(store.getComposerDraft(threadTarget)).toMatchObject({
+      prompt: "Original message",
+      replyTo: null,
+    });
+    store.clearComposerContent(threadTarget);
+    const changedReply = reply("message:second");
+    store.setPrompt(editTarget, "Original message");
+    store.setReplyTo(editTarget, changedReply);
+    expect(
+      recoverQueuedMessageEdit({
+        editTarget,
+        threadTarget,
+        originalText: "Original message",
+        originalReply,
+      }),
+    ).toBe("kept");
+    expect(store.getComposerDraft(threadTarget)?.replyTo).toEqual(changedReply);
+    store.clearComposerContent(threadTarget);
+    store.setPrompt(editTarget, "Original message");
+    store.setReplyTo(editTarget, originalReply);
+    expect(
+      recoverQueuedMessageEdit({
+        editTarget,
+        threadTarget,
+        originalText: "Original message",
+        originalReply,
+      }),
+    ).toBe("clean");
   });
 
   it("reports a removed queued attachment as an edit when the run leaves", () => {

@@ -18,6 +18,7 @@ import {
   type ComposerImageAttachment,
 } from "../composerDraftStore";
 import { removeInlineContextReference } from "../lib/composerContextReferences";
+import { takeReplyFromText } from "../lib/composerContextRecords";
 import { getUploadedAttachments, releaseDraftAttachments } from "../lib/attachmentUploadQueue";
 import { replaceThreadOutboxTurn, webThreadOutbox, type PendingThreadTurn } from "./threadOutbox";
 import type { OutboxTurn } from "./threadOutboxSchema";
@@ -178,7 +179,12 @@ export function createThreadOutboxEditor(routeKey: string) {
       const draftTarget = DraftId.make(`outbox-edit:${routeKey}:${entry.id}`);
       const store = useComposerDraftStore.getState();
       store.clearDraftThread(draftTarget);
-      store.setPrompt(draftTarget, entry.payload.input.message.text);
+      const { text, reply } = takeReplyFromText(
+        entry.payload.input.message.text,
+        entry.payload.input.message.context?.records ?? [],
+      );
+      store.setPrompt(draftTarget, text);
+      if (reply) store.setReplyTo(draftTarget, reply);
       store.setModelSelection(draftTarget, entry.payload.input.modelSelection, {
         replaceOptions: true,
       });

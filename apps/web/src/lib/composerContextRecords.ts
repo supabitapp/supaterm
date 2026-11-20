@@ -21,6 +21,7 @@ import type {
   OrchestrationMessageContext,
   PreviewAnnotationContextRecord,
   PreviewAnnotationPayload,
+  ResponseContextRecord,
   ReviewCommentContextRecord,
   TerminalContextRecord,
   ThreadContextRecord,
@@ -35,8 +36,11 @@ import {
 } from "@supaterm/shared/composerContextReferences";
 
 import {
+  collectInlineContextIds,
   type ComposerContextReference,
+  formatInlineContextReference,
   producerIdFromComposerContextId,
+  removeInlineContextReference,
 } from "./composerContextReferences";
 import type { ComposerFileAttachment, ComposerImageAttachment } from "~/composerDraftStore";
 import type { AttachmentUploadState } from "./attachmentUploadState";
@@ -49,6 +53,7 @@ import {
 import type { ReviewCommentContext } from "~/reviewCommentContext";
 
 const PREVIEW_LABEL_MAX_CHARS = 48;
+const RESPONSE_LABEL_MAX_CHARS = 64;
 
 // Truncate selections to wire bounds before persistence to avoid send-time encoding failures.
 const TRUNCATION_MARKER = "\n… truncated …";
@@ -175,6 +180,82 @@ export function referenceContextReference(
   record: ReferenceContextRecord,
 ): ComposerContextReference {
   return { kind: record.kind, contextId: record.contextId, label: record.label };
+}
+
+export function isResponseContextRecord(
+  record: ComposerContextRecord,
+): record is ResponseContextRecord {
+  return record.kind === "response" && "citation" in record;
+}
+
+function responseContextReference(record: ResponseContextRecord): ComposerContextReference {
+  return { kind: "response", contextId: record.contextId, label: record.label };
+}
+
+function responseContextLabel(text: string): string {
+  const last = text.charCodeAt(RESPONSE_LABEL_MAX_CHARS - 1);
+  const end =
+    last >= 0xd800 && last <= 0xdbff ? RESPONSE_LABEL_MAX_CHARS - 1 : RESPONSE_LABEL_MAX_CHARS;
+  return sanitizeComposerContextLabel(text.slice(0, end), "response");
+}
+
+/** One record per response, so replying to it again reuses the same reference. */
+export function responseContextRecord(
+  input: Pick<ResponseContextRecord, "citation" | "itemId"> & {
+    readonly subagents: ReadonlyArray<{
+      readonly threadId: ThreadId;
+      readonly title: string;
+      readonly environmentId?: EnvironmentId;
+    }>;
+  },
+): ResponseContextRecord {
+  return {
+    version: 1,
+    kind: "response",
+    contextId: toKindScopedComposerContextId("response", input.citation.messageId),
+    label: responseContextLabel(input.citation.text),
+    citation: input.citation,
+    itemId: input.itemId,
+    ...(input.subagents.length > 0
+      ? {
+          subagents: input.subagents.slice(0, 20).map(({ title, ...subagent }) => ({
+            ...subagent,
+            title: sanitizeComposerContextLabel(title, "response"),
+          })),
+        }
+      : {}),
+  };
+}
+
+// Its own paragraph, so a prompt that opens with a fence or a list still starts a line.
+const REPLY_SEPARATOR = "\n\n";
+
+/**
+ * The reply leads the message, so its card sits above the text it is about. Text that already
+ * points at that response, from a pasted card, keeps its one reference.
+ */
+export function withReplyReference(prompt: string, replyTo: ResponseContextRecord | null): string {
+  return replyTo && !collectInlineContextIds(prompt).includes(replyTo.contextId)
+    ? `${formatInlineContextReference(responseContextReference(replyTo))}${REPLY_SEPARATOR}${prompt}`
+    : prompt;
+}
+
+/** A reply shows above the composer while its message is edited, not as a chip in the text. */
+export function takeReplyFromText(text: string, records: ReadonlyArray<ComposerContextRecord>) {
+  const referenced = new Set(collectInlineContextIds(text));
+  const reply =
+    records.find(
+      (record): record is ResponseContextRecord =>
+        isResponseContextRecord(record) && referenced.has(record.contextId),
+    ) ?? null;
+  if (!reply) return { text, reply };
+  const remaining = removeInlineContextReference(text, reply.contextId).prompt;
+  return {
+    text: remaining.startsWith(REPLY_SEPARATOR)
+      ? remaining.slice(REPLY_SEPARATOR.length)
+      : remaining,
+    reply,
+  };
 }
 
 export function terminalContextRecord(context: TerminalContextDraft): TerminalContextRecord {
@@ -322,6 +403,7 @@ export function buildMessageContext(input: {
   reviewComments: ReadonlyArray<ReviewCommentContext>;
   previewAnnotations: ReadonlyArray<PreviewAnnotationPayload>;
   referenceContexts?: ReadonlyArray<ReferenceContextRecord>;
+  replyTo?: ResponseContextRecord | null;
   attachments?: ReadonlyArray<BoundComposerAttachment>;
 }): OrchestrationMessageContext | undefined {
   const screenshotAttachmentIds = new Set(
@@ -333,6 +415,7 @@ export function buildMessageContext(input: {
     ...input.terminalContexts.map(terminalContextRecord),
     ...input.reviewComments.map(reviewCommentContextRecord),
     ...(input.referenceContexts ?? []),
+    ...(input.replyTo ? [input.replyTo] : []),
     ...input.previewAnnotations.map((annotation) =>
       previewAnnotationContextRecord(annotation, {
         screenshotContextId: screenshotAttachmentIds.has(annotation.id) ? annotation.id : undefined,

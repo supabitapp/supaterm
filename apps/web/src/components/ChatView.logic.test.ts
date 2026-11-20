@@ -1305,6 +1305,7 @@ describe("snapshotComposerSend", () => {
     previewAnnotations: [],
     reviewComments: [],
     referenceContexts: [],
+    replyTo: null,
   };
 
   it("drops expired terminal contexts from the contexts and from the prompt", () => {

@@ -80,6 +80,7 @@ const sendContext: ReturnType<ChatComposerHandle["getSendContext"]> = {
   previewAnnotations: [],
   reviewComments: [],
   referenceContexts: [],
+  replyTo: null,
   selectedPromptEffort: null,
   selectedModelSelection: { instanceId: ProviderInstanceId.make("codex"), model: "gpt" },
   multipleModelSelections: null,

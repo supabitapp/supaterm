@@ -84,6 +84,7 @@ import {
   AuthPreviewOperateScope,
   AuthTerminalOperateScope,
   type AssistantCitation,
+  type ResponseContextRecord,
   type ChatFileAttachment,
   isProviderNativeSubagentThread,
   type EnvironmentId,
@@ -751,6 +752,19 @@ export default function ChatView(props: ChatViewProps) {
     return inserted;
   };
   const citeAssistantTextStable = useStableCallback(citeAssistantText);
+  const replyToResponseStable = useStableCallback((response: ResponseContextRecord) => {
+    // A saving edit has already taken its reply; a new one would land in a draft about to clear.
+    const accepted =
+      !queuedRunEdit.isSaving && (composerRef.current?.replyToResponse(response) ?? false);
+    if (!accepted) {
+      toastManager.add({
+        type: "warning",
+        title: "The composer is not ready",
+        description: "Try replying after the connection or pending input is resolved.",
+      });
+    }
+    return accepted;
+  });
   const [isWorkspaceFileDragActive, setIsWorkspaceFileDragActive] = useState(false);
   const [workLocallyResendDraftId, setWorkLocallyResendDraftId] = useState<DraftId | null>(null);
   if (workLocallyResendDraftId !== null && workLocallyResendDraftId !== draftId) {
@@ -3626,6 +3640,7 @@ export default function ChatView(props: ChatViewProps) {
                       citationRequest={citationRequest}
                       citationHistory={citationHistory}
                       onCiteAssistantText={citeAssistantTextStable}
+                      onReplyToResponse={replyToResponseStable}
                       {...(activeProject ? { onRunShellCommand: runShellCommandStable } : {})}
                       isWorking={isWorking}
                       runlessWorkActive={runlessWorkStartedAt !== null}

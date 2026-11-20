@@ -39,6 +39,7 @@ import {
 import {
   buildMessageContext,
   previewAnnotationContextReference,
+  withReplyReference,
 } from "../../lib/composerContextRecords";
 import { captureOutboxAttachments } from "../../state/threadOutboxEditing";
 import {
@@ -389,7 +390,8 @@ export function useComposerSend(input: ComposerSendInput) {
         filterTerminalContextsWithText(sendCtx.terminalContexts).length > 0 ||
         sendCtx.previewAnnotations.length > 0 ||
         sendCtx.reviewComments.length > 0 ||
-        sendCtx.referenceContexts.length > 0
+        sendCtx.referenceContexts.length > 0 ||
+        sendCtx.replyTo !== null
       ) {
         toastManager.add(
           stackedThreadToast({
@@ -471,6 +473,7 @@ export function useComposerSend(input: ComposerSendInput) {
       previewAnnotations: sendContextPreviewAnnotations,
       reviewComments: composerReviewComments,
       referenceContexts: composerReferenceContexts,
+      replyTo,
       selectedProvider: ctxSelectedProvider,
       selectedModel: ctxSelectedModel,
       selectedProviderModels: ctxSelectedProviderModels,
@@ -487,11 +490,14 @@ export function useComposerSend(input: ComposerSendInput) {
       });
     // A direct "send annotation" writes the draft and sends in the same tick; the reference
     // must be in the text now, not after the next render.
-    const promptForSend = directAnnotation
-      ? ensureInlineContextReferences(promptRef.current, [
-          previewAnnotationContextReference(directAnnotation.annotation),
-        ])
-      : promptRef.current;
+    const promptForSend = withReplyReference(
+      directAnnotation
+        ? ensureInlineContextReferences(promptRef.current, [
+            previewAnnotationContextReference(directAnnotation.annotation),
+          ])
+        : promptRef.current,
+      replyTo,
+    );
     const strandedThread = threadContextsOutsideEnvironment({
       text: promptForSend,
       records: composerReferenceContexts,
@@ -535,6 +541,7 @@ export function useComposerSend(input: ComposerSendInput) {
           reviewComments: composerReviewComments,
           previewAnnotations: composerPreviewAnnotations,
           referenceContexts: composerReferenceContexts,
+          replyTo,
         },
         setThreadError,
         { dispatchMode, submissionIntent },
@@ -561,7 +568,8 @@ export function useComposerSend(input: ComposerSendInput) {
       sendableComposerTerminalContexts.length === 0 &&
       composerPreviewAnnotations.length === 0 &&
       composerReviewComments.length === 0 &&
-      composerReferenceContexts.length === 0;
+      composerReferenceContexts.length === 0 &&
+      replyTo === null;
     const feedbackCommand =
       ctxSelectedProvider === "codex" && composerHoldsOnlyText
         ? parseCodexFeedbackCommand(trimmed)
@@ -685,6 +693,7 @@ export function useComposerSend(input: ComposerSendInput) {
       previewAnnotations: composerPreviewAnnotations,
       reviewComments: composerReviewComments,
       referenceContexts: composerReferenceContexts,
+      replyTo,
     });
     const composerAttachmentsSnapshot = sendSnapshot.attachments;
     const messageTextForSend = sendSnapshot.messageText;
@@ -695,6 +704,7 @@ export function useComposerSend(input: ComposerSendInput) {
       reviewComments: sendSnapshot.reviewComments,
       previewAnnotations: sendSnapshot.previewAnnotations,
       referenceContexts: sendSnapshot.referenceContexts,
+      replyTo: sendSnapshot.replyTo,
       attachments: composerAttachmentsSnapshot.map((attachment) => ({
         attachment,
         attachmentId: attachment.id,
@@ -762,7 +772,9 @@ export function useComposerSend(input: ComposerSendInput) {
           sameIds(attachmentIds, attachmentIdsAtSend) ||
           (annotationImageId !== undefined &&
             sameIds(attachmentIds, attachmentIdsBeforeAnnotation));
-        return !promptUnchanged || !attachmentsUnchanged;
+        const liveReply =
+          useComposerDraftStore.getState().getComposerDraft(composerDraftTarget)?.replyTo ?? null;
+        return !promptUnchanged || !attachmentsUnchanged || liveReply !== replyTo;
       };
       const draftBeforeDecline = useComposerDraftStore
         .getState()
