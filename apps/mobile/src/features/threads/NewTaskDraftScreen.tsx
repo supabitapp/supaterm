@@ -931,7 +931,9 @@ export function NewTaskDraftScreen(props: {
         <View className="flex-1 justify-end gap-3 p-4">
           {environmentControl}
           <Text className="text-foreground-muted">
-            Your draft is saved on this device. Connect to an environment to choose its first model.
+            {environmentConnected && selectedEnvironmentServerConfig
+              ? `Your draft is saved on this device. ${selectedEnvironmentLabel} has no model available. Install or sign in to a provider there to choose one.`
+              : "Your draft is saved on this device. Connect to an environment to choose its first model."}
           </Text>
           <ComposerEditor
             draftKey={flow.draftKey}
