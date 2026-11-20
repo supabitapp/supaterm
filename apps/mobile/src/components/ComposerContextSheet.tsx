@@ -332,6 +332,15 @@ export function ComposerContextSheet(props: {
             {record.kind === "environment" ? (
               <ContextField label="Machine" value={record.label} />
             ) : null}
+            {record.kind === "response" ? (
+              <>
+                <ContextField
+                  label="Subagent"
+                  value={record.subagents?.map((subagent) => subagent.title).join(", ")}
+                />
+                <ContextField label="Response" value={record.citation.text} />
+              </>
+            ) : null}
             {record.kind === "skill" ? (
               <View className="gap-3">
                 <ContextField label="Skill" value={record.name} />
