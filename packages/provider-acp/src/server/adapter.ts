@@ -383,6 +383,8 @@ export interface AcpAdapterV2Flavor {
     readonly promptCapabilities: EffectAcpSchema.AgentCapabilities["promptCapabilities"];
   }) => Effect.Effect<ReadonlyArray<EffectAcpSchema.ContentBlock>, EffectAcpErrors.AcpError>;
   readonly promptFailure?: (cause: unknown) => OrchestrationV2ProviderFailure;
+  /** The flavor's runtime refuses a version the policy rates broken when it starts. */
+  readonly checksVersionAtHandshake?: boolean;
   /**
    * Runs before `session/prompt`. The returned check sees a prompt the agent ended
    * without an error or cancel, and reports a failure its stop reason hid. A reported
@@ -2026,6 +2028,7 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
   return ProviderAdapter.ProviderAdapterV2.of({
     instanceId: options.instanceId,
     driver,
+    checksVersionAtHandshake: flavor.checksVersionAtHandshake === true,
     getCapabilities: Effect.fn("AcpAdapter.getCapabilities")(function* () {
       return yield* readCapabilities;
     }),

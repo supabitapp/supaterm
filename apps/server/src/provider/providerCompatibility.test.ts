@@ -95,6 +95,7 @@ describe("provider compatibility", () => {
     const cursorPolicy: ProviderCompatibilityPolicy = {
       driver: cursor,
       supatermRange: policy.supatermRange,
+      versionPattern: "^(\\d{4}\\.\\d{2}\\.\\d{2})-[a-f0-9]+$",
       ranges: [
         { range: "<2026.05.09", status: "unsupported" },
         { range: ">=2026.05.09", status: "supported" },
