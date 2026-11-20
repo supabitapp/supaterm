@@ -140,11 +140,11 @@ it("rejects contradictory service state", () => {
   );
 });
 
-const unitPlan = (root: string, version: string) => ({
+const unitPlan = (root: string, version: string, unitFile = "supaterm.service") => ({
   program: [`${root}/runtime/versions/${version}/supaterm`, "__service-launcher"],
   baseDir: root,
   logPath: `${root}/logs/boot-service.log`,
-  unitPath: `${root}/unit/supaterm.service`,
+  unitPath: `${root}/unit/${unitFile}`,
 });
 
 const writeFakeRuntime = (
@@ -180,9 +180,10 @@ const fakeServiceUnit = (
   root: string,
   version: string,
   render = renderBootServiceUnit,
+  unitFile?: string,
 ) =>
   Effect.gen(function* () {
-    const plan = unitPlan(root, version);
+    const plan = unitPlan(root, version, unitFile);
     yield* fs.makeDirectory(path.dirname(plan.unitPath), { recursive: true });
     const contents = render(plan);
     yield* fs.writeFileString(plan.unitPath, contents);
@@ -194,7 +195,7 @@ const fakeServiceUnit = (
       reload: async () => {
         unit.reloads += 1;
         if (unit.failReload) throw new Error("daemon-reload failed");
-        unit.loadedContents = await NodeFSP.readFile(unit.path, "utf8");
+        unit.loadedContents = decodeServiceUnit(await NodeFSP.readFile(unit.path));
       },
     };
     return unit;
@@ -1173,6 +1174,7 @@ process.exit(0);
     render = renderBootServiceUnit,
     missingUnit = false,
     legacyInstall = false,
+    unitFile?: string,
   ) =>
     Effect.gen(function* () {
       const fs = yield* FileSystem.FileSystem;
@@ -1183,7 +1185,7 @@ process.exit(0);
       const activatedPath = path.join(root, "activated");
       yield* fs.makeDirectory(path.dirname(databasePath), { recursive: true });
       yield* fs.writeFileString(databasePath, "before trial");
-      const unit = yield* fakeServiceUnit(fs, path, root, "1.0.0", render);
+      const unit = yield* fakeServiceUnit(fs, path, root, "1.0.0", render, unitFile);
       if (missingUnit) yield* fs.remove(unit.path);
       const childSource = `
 import assert from "node:assert/strict";
@@ -1285,6 +1287,7 @@ if (context.update?.status === "pending") {
     {
       name: "Task Scheduler",
       legacyInstall: false,
+      unitFile: "supaterm-task.xml",
       render: (plan: Parameters<typeof renderBootServiceTask>[0]) =>
         renderBootServiceTask(
           { ...plan, program: [`${plan.program[0]}.exe`, "__service-launcher"] },
@@ -1293,11 +1296,17 @@ if (context.update?.status === "pending") {
     },
   ])(
     "commits and repoints $name only after the trial reports prepared",
-    ({ render, legacyInstall }) =>
+    ({ render, legacyInstall, unitFile }) =>
       Effect.gen(function* () {
-        const { fs, root, unit } = yield* commitUpdate(render, false, legacyInstall);
-        const expected = render(unitPlan(root, "1.1.0"));
-        assert.equal(yield* fs.readFileString(unit.path), expected);
+        const { fs, root, unit } = yield* commitUpdate(render, false, legacyInstall, unitFile);
+        const expected = render(unitPlan(root, "1.1.0", unitFile));
+        const written = yield* fs.readFile(unit.path);
+        assert.equal(decodeServiceUnit(written), expected);
+        // schtasks reads undeclared UTF-8 in the ANSI code page; UTF-16LE with a BOM is read as is.
+        assert.equal(
+          written[0] === 0xff && written[1] === 0xfe,
+          unitFile?.endsWith(".xml") === true,
+        );
         assert.equal(unit.loadedContents, expected);
         assert.equal(unit.reloads, 1);
       }),
