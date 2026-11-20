@@ -4,6 +4,7 @@ import {
   squashAtomCommandFailure,
 } from "@supaterm/client-runtime/state/runtime";
 import { ChevronRightIcon } from "@supaterm/icons";
+import { useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 
 import { connectPairing } from "../../connection/onboarding";
@@ -22,6 +23,7 @@ export function WelcomePairing({
 }: {
   readonly onPaired: (environmentId: EnvironmentId) => void;
 }) {
+  const router = useRouter();
   const connectPairingEnvironment = useAtomCommand(connectPairing, { reportFailure: false });
   const [pairingUrl, setPairingUrl] = useState("");
   const [isPairing, setIsPairing] = useState(false);
@@ -31,10 +33,12 @@ export function WelcomePairing({
     if (isPairing || pairingUrl.trim().length === 0) return;
     setIsPairing(true);
     setErrorMessage("");
+    const pairedFrom = router.state.location.href;
     const result = await connectPairingEnvironment({ pairingUrl: pairingUrl.trim() });
     setIsPairing(false);
     if (result._tag === "Success") {
-      onPaired(result.value);
+      // Setup may be left mid-pairing, now that Settings opens during first run.
+      if (router.state.location.href === pairedFrom) onPaired(result.value);
       return;
     }
     if (isAtomCommandInterrupted(result)) return;
