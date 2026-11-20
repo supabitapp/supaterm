@@ -2468,7 +2468,9 @@ describe("buildThreadFeed", () => {
             ? `thinking:${row.label ?? ""}`
             : row.type === "run-fold"
               ? "fold"
-              : row.id,
+              : row.type === "work-toggle"
+                ? row.summary
+                : row.id,
       );
 
     const turn = [user, step, passed, failed, final];
@@ -2480,6 +2482,7 @@ describe("buildThreadFeed", () => {
     expect(rows([user, steer, answer, final], "zen")).toEqual(["user", "steer", "answer", "final"]);
     const commentary = { ...step, phase: "commentary" as const };
     expect(rows([user, commentary, steer, final], "zen")).toEqual(["user", "steer", "final"]);
+    expect(rows([user, steer, commentary, final], "zen")).toEqual(["user", "steer", "final"]);
     for (const phase of ["commentary", "partial_answer", "final_answer", undefined] as const) {
       const partial = { ...answer, ...(phase === undefined ? {} : { phase }) };
       const interrupted = buildThreadFeed(
@@ -2512,6 +2515,28 @@ describe("buildThreadFeed", () => {
       "thinking:step",
     ]);
     expect(rows([user, step, passed], "zen", running)).toEqual(["user", "thinking:step"]);
+    const streamingFinal = {
+      ...confirmed,
+      status: "running" as const,
+      completedAt: null,
+      streaming: true,
+    };
+    expect(rows([user, streamingFinal], "zen", running)).toEqual(["user", "thinking:answer"]);
+    expect(rows([user, confirmed, steer], "zen", running)).toEqual([
+      "user",
+      "answer",
+      "steer",
+      "thinking:answer",
+    ]);
+    const thought: OrchestrationV2TurnItem = {
+      ...base("thought", at(2), 2),
+      type: "reasoning",
+      status: "running",
+      completedAt: null,
+      streaming: true,
+      text: "thought",
+    };
+    expect(rows([user, thought, passed], "hideAll", running)).toEqual(["user", "fold", "Thought"]);
     expect(rows(turn, "zen", { ...running, turnEnded: true })).toEqual(["user", "final"]);
     const nextRun = { ...running, runId: RunId.make("run-2") };
     const followUp = { ...say("follow-up", 6, true), runId: nextRun.runId };
@@ -2535,6 +2560,23 @@ describe("buildThreadFeed", () => {
       "wake",
       "thinking:",
     ]);
+    const runless = [user, answer, steer, followUp].map((item, index) =>
+      projected({ ...item, runId: null }, index),
+    );
+    const runlessRows = (count: number, cache?: ThreadFeedCache) =>
+      deriveThreadFeedPresentation(
+        buildThreadFeed(runless.slice(0, count), { cache }),
+        null,
+        new Set(),
+        new Set(),
+        at(1),
+        true,
+        cache,
+        { toolCallVisibility: "zen", revealedMessageId: null },
+      ).map((row) => row.id);
+    const cache = createThreadFeedCache();
+    runlessRows(3, cache);
+    expect(runlessRows(4, cache)).toEqual(runlessRows(4));
   });
 });
 

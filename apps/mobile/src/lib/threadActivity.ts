@@ -1127,14 +1127,19 @@ function feedEntryFoldRunId(entry: ThreadFeedEntry, runlessKey: RunId | null): R
     : null;
 }
 
+function assistantPhase(message: ThreadFeedMessage) {
+  return message.projectedItem?.item.type === "assistant_message"
+    ? message.projectedItem.item.phase
+    : undefined;
+}
+
 function finalAnswerIds(feed: ReadonlyArray<ThreadFeedEntry>): ReadonlySet<MessageId> {
   const ids = new Set<MessageId>();
   for (const entry of feed) {
     if (
       entry.type === "message" &&
       entry.message.role === "assistant" &&
-      entry.message.projectedItem?.item.type === "assistant_message" &&
-      entry.message.projectedItem.item.phase === "final_answer"
+      assistantPhase(entry.message) === "final_answer"
     ) {
       ids.add(entry.message.id);
     }
@@ -1363,13 +1368,9 @@ const supersededReasoningGroups = new WeakMap<ThreadFeedActivityGroup, ThreadFee
 const trailingReasoningGroups = new WeakMap<ThreadFeedActivityGroup, ThreadFeedActivityGroup>();
 
 function settleSupersededReasoning(
-  entry: Exclude<
-    ThreadFeedEntry,
-    { readonly type: "run-fold" | "work-toggle" | "thinking" | "viewed-images" }
-  >,
+  entry: ThreadFeedActivityGroup,
   tail: boolean,
-) {
-  if (entry.type !== "activity-group") return entry;
+): ThreadFeedActivityGroup {
   const cache = tail ? trailingReasoningGroups : supersededReasoningGroups;
   const cached = cache.get(entry);
   if (cached) return cached;
@@ -1438,6 +1439,20 @@ function staysOutOfFold(entry: ThreadFeedEntry): boolean {
           // its group stays visible while any member is live.
           isLiveSubagentTurnItem(activity.projectedItem.item),
       ))
+  );
+}
+
+function isFeedSourceEntry(
+  entry: ThreadFeedEntry,
+): entry is Exclude<
+  ThreadFeedEntry,
+  { readonly type: "run-fold" | "work-toggle" | "thinking" | "viewed-images" }
+> {
+  return (
+    entry.type !== "run-fold" &&
+    entry.type !== "work-toggle" &&
+    entry.type !== "thinking" &&
+    entry.type !== "viewed-images"
   );
 }
 
@@ -1544,11 +1559,12 @@ function zenAnswerMessageIds(
 ): ReadonlySet<MessageId> {
   const replies: Array<{ readonly message: ThreadFeedMessage; readonly index: number }> = [];
   const lastReplyByResponse = new Map<string, MessageId>();
-  const keptAnswers = new Set(finalAnswerIds(feed));
+  const steerAnswers = new Set<MessageId>();
   let userMessages = 0;
   let awaitingReply = false;
   let candidate: MessageId | null = null;
   let answeringFrom = answering ? start : feed.length;
+  let lastSteer = -1;
   for (let index = start; index < feed.length; index += 1) {
     const entry = feed[index]!;
     if (
@@ -1559,26 +1575,35 @@ function zenAnswerMessageIds(
     }
     const reply =
       entry.type === "message" && entry.message.role === "assistant" ? entry.message : null;
-    if (candidate !== null && reply !== null) keptAnswers.add(candidate);
+    if (candidate !== null && reply !== null) steerAnswers.add(candidate);
     candidate = null;
     if (answering && startsResponse(entry)) answeringFrom = index + 1;
     if (entry.type === "message" && entry.message.role === "user") {
       userMessages += 1;
       awaitingReply = isSteerMessage(entry.message);
+      if (awaitingReply) lastSteer = index;
     } else if (reply !== null) {
       replies.push({ message: reply, index });
       lastReplyByResponse.set(reply.runId ?? `runless:${userMessages}`, reply.id);
-      if (awaitingReply) {
+      const phase = assistantPhase(reply);
+      if (
+        awaitingReply &&
+        !reply.streaming &&
+        phase !== "commentary" &&
+        phase !== "partial_answer"
+      ) {
         candidate = reply.id;
-        awaitingReply = false;
       }
+      awaitingReply = false;
     }
   }
   const terminal = new Set(lastReplyByResponse.values());
   const answers = new Set<MessageId>();
   for (const { message, index } of replies) {
     if (
-      keptAnswers.has(message.id) ||
+      (assistantPhase(message) === "final_answer" &&
+        (index < answeringFrom || (!message.streaming && index < lastSteer))) ||
+      steerAnswers.has(message.id) ||
       (terminal.has(message.id) &&
         index < answeringFrom &&
         (answeringRunId === null || message.runId !== answeringRunId))
@@ -1655,7 +1680,7 @@ export function deriveThreadFeedPresentation(
   const tailStart = result.length;
   const lastEntryByRun = new Map<RunId, number>();
 
-  const retainedFeed: Array<
+  const sourceFeed: Array<
     Exclude<
       ThreadFeedEntry,
       { readonly type: "run-fold" | "work-toggle" | "thinking" | "viewed-images" }
@@ -1670,24 +1695,22 @@ export function deriveThreadFeedPresentation(
   const zenAnswerIds = zen
     ? zenAnswerMessageIds(feed, start, answering, answering ? activeRunId : null)
     : null;
+  const tailIndex = feed.findLastIndex(isFeedSourceEntry);
   for (let index = start; index < feed.length; index += 1) {
     let entry = feed[index]!;
-    if (
-      entry.type === "run-fold" ||
-      entry.type === "work-toggle" ||
-      entry.type === "thinking" ||
-      entry.type === "viewed-images"
-    )
-      continue;
+    if (!isFeedSourceEntry(entry)) continue;
     const runId = feedEntryRunId(entry);
     if (runId !== null) {
       if (!firstEntryByRun.has(runId)) firstEntryByRun.set(runId, index);
       lastEntryByRun.set(runId, index);
     }
-    if (entry.type === "activity-group" && toolCallVisibility !== "showAll") {
-      const shown = activityGroupForVisibility(entry, toolCallVisibility);
-      if (shown === null) continue;
-      entry = shown;
+    if (entry.type === "activity-group") {
+      entry = settleSupersededReasoning(entry, index === tailIndex);
+      if (toolCallVisibility !== "showAll") {
+        const shown = activityGroupForVisibility(entry, toolCallVisibility);
+        if (shown === null) continue;
+        entry = shown;
+      }
     } else if (
       zenAnswerIds !== null &&
       entry.type === "message" &&
@@ -1697,12 +1720,9 @@ export function deriveThreadFeedPresentation(
     ) {
       continue;
     }
-    retainedFeed.push(entry);
+    sourceFeed.push(entry);
     retainedFeedIndices.push(index);
   }
-  const sourceFeed = retainedFeed.map((entry, index) =>
-    settleSupersededReasoning(entry, index === retainedFeed.length - 1),
-  );
   const failedRunIds = failedFeedRunIds(sourceFeed, latestRun);
   const activeTailGroup = sourceFeed.at(-1);
   // A bare `/compact` turn is the compaction itself: its compaction row stands in for the prompt
@@ -1735,7 +1755,6 @@ export function deriveThreadFeedPresentation(
     }
   }
   // The working run's fold row shows its live timer where "Worked for" lands once it settles.
-  // Zen never folds, so it keeps only the Thinking row.
   // Runless work folds under its prompt's key once it settles, so the live row takes that key.
   const runlessPrompt =
     activeRunId === null && runlessWorkActive
@@ -1772,7 +1791,7 @@ export function deriveThreadFeedPresentation(
         liveFoldPlaced = true;
       }
     }
-    if (isUserMessageEntry(entry)) {
+    if (isUserMessageEntry(entry) && (!zen || startsResponse(entry))) {
       restarts.push({ entry: feedIndex, rowsLength: result.length });
     }
     const isActiveTailGroup =
