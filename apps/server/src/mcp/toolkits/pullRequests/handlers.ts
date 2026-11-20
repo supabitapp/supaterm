@@ -63,6 +63,7 @@ import {
   PullRequestProjectNotFoundError,
   PullRequestsToolkit,
   type ThreadPullRequestEntry,
+  alreadyEndedWatchNext,
 } from "./tools.ts";
 
 const ReadCursor = Schema.Union([
@@ -303,6 +304,11 @@ const make = Effect.gen(function* () {
     return yield* watches
       .setWatching({ threadId, target: input, watching, until: input.until })
       .pipe(
+        Effect.map((result) =>
+          result.state === undefined
+            ? result
+            : { ...result, next: alreadyEndedWatchNext(result.state) },
+        ),
         Effect.catchTags({
           PullRequestWatchThreadNotFoundError: (error) =>
             threadNotFound(engine, scope, error.threadId, error.message),

@@ -229,13 +229,12 @@ describe("PullRequestWatchService", () => {
     }),
   );
 
-  it.effect("rejects merged PRs and keeps an active watch usable without hosting access", () =>
+  it.effect("reports merged PRs without watching and keeps an active watch usable offline", () =>
     Effect.gen(function* () {
       const freshMerged = yield* makeHarness({ readState: "merged" });
-      const freshError = yield* freshMerged
-        .setWatching(true, { repository: "supabitapp/supaterm", number: 1 })
-        .pipe(Effect.flip);
-      expect(freshError).toMatchObject({ _tag: "PullRequestNotOpenError", state: "merged" });
+      expect(
+        yield* freshMerged.setWatching(true, { repository: "supabitapp/supaterm", number: 1 }),
+      ).toMatchObject({ number: 1, watching: false, wasWatching: false, state: "merged" });
       expect(yield* Ref.get(freshMerged.commands)).toEqual([]);
 
       const watch = {
@@ -258,10 +257,9 @@ describe("PullRequestWatchService", () => {
           makeLink(3, { headBranch: "watched", watch }),
         ]),
       });
-      const error = yield* harness
-        .setWatching(true, { repository: "supabitapp/supaterm", number: 1 })
-        .pipe(Effect.flip);
-      expect(error).toMatchObject({ _tag: "PullRequestNotOpenError", state: "merged" });
+      expect(
+        yield* harness.setWatching(true, { repository: "supabitapp/supaterm", number: 1 }),
+      ).toMatchObject({ number: 1, watching: false, state: "merged" });
       expect(
         yield* harness.setWatching(true, { repository: "supabitapp/supaterm", number: 3 }),
       ).toMatchObject({ watching: true, wasWatching: true });
@@ -275,15 +273,19 @@ describe("PullRequestWatchService", () => {
     }),
   );
 
-  it.effect("watches a pull request saved as closed, since it may have reopened", () =>
+  it.effect("re-reads a pull request saved as closed, and watches it only if it reopened", () =>
     Effect.gen(function* () {
       const closed = makeLink(1, { headBranch: "closed" });
-      const harness = yield* makeHarness({
-        readState: "closed",
-        thread: makeThread([
-          { ...closed, snapshot: closed.snapshot && { ...closed.snapshot, state: "closed" } },
-        ]),
-      });
+      const closedThread = makeThread([
+        { ...closed, snapshot: closed.snapshot && { ...closed.snapshot, state: "closed" } },
+      ]);
+      const stillClosed = yield* makeHarness({ readState: "closed", thread: closedThread });
+      expect(
+        yield* stillClosed.setWatching(true, { repository: "supabitapp/supaterm", number: 1 }),
+      ).toMatchObject({ watching: false, state: "closed" });
+      expect(yield* Ref.get(stillClosed.commands)).toEqual([]);
+
+      const harness = yield* makeHarness({ readState: "open", thread: closedThread });
       yield* harness.setWatching(true, { repository: "supabitapp/supaterm", number: 1 });
       expect(yield* Ref.get(harness.commands)).toMatchObject([
         { type: "thread.pull-request.watch", number: 1, watching: true },
