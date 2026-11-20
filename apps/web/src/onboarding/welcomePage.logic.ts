@@ -1,4 +1,5 @@
 import {
+  type EnvironmentId,
   isProviderAvailable,
   type ProviderInstanceConfig,
   ProviderDriverKind,
@@ -153,4 +154,34 @@ export function codexCardProvider(input: {
     codexNeedsSetup(provider, input.settings) ||
     welcomeAgentState(provider, input.settings) === "checking";
   return open ? provider : null;
+}
+
+export type WelcomeTarget =
+  | { readonly _tag: "loading" }
+  | { readonly _tag: "pair" }
+  | { readonly _tag: "setup"; readonly environmentId: EnvironmentId };
+
+/**
+ * The computer /welcome sets up: one a ChatGPT sign-in returned with, once the catalog has it,
+ * else this computer, else one just paired on the page. Hosted web has no computer of its own,
+ * so with none paired yet it asks for a pairing link first.
+ */
+export function resolveWelcomeTarget(input: {
+  readonly resumeEnvironmentId: EnvironmentId | undefined;
+  readonly primaryEnvironmentId: EnvironmentId | null;
+  readonly pairedEnvironmentId: EnvironmentId | null;
+  readonly knownEnvironmentIds: ReadonlyArray<EnvironmentId>;
+  readonly catalogReady: boolean;
+}): WelcomeTarget {
+  const fallback = input.primaryEnvironmentId ?? input.pairedEnvironmentId;
+  if (!input.catalogReady && (input.resumeEnvironmentId !== undefined || fallback === null)) {
+    return { _tag: "loading" };
+  }
+  const resumed =
+    input.resumeEnvironmentId !== undefined &&
+    input.knownEnvironmentIds.includes(input.resumeEnvironmentId)
+      ? input.resumeEnvironmentId
+      : null;
+  const environmentId = resumed ?? fallback;
+  return environmentId === null ? { _tag: "pair" } : { _tag: "setup", environmentId };
 }

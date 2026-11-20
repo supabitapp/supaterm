@@ -240,6 +240,59 @@ export function WelcomePage({
   };
 
   return (
+    <WelcomeShell
+      subtitle={
+        <>
+          Setting up <span className="text-foreground">{label}</span>.
+        </>
+      }
+    >
+      <div className="mt-10 border-t border-border/60">
+        <AgentsSection
+          environmentId={environmentId}
+          label={label}
+          isPrimary={isPrimary}
+          onImportSourceEnabled={() => scans[0]?.refresh()}
+        />
+        <ProjectsSection scan={scans[0]} projectImport={projectImport} isImporting={isImporting} />
+      </div>
+      <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
+        {agentReady ? (
+          <span />
+        ) : (
+          <Button variant="ghost-muted" disabled={isImporting} onClick={start}>
+            Start without an agent
+          </Button>
+        )}
+        <div className="flex items-center gap-3">
+          {agentReady ? null : (
+            <span className="text-xs text-muted-foreground">Set up one agent to start.</span>
+          )}
+          <Button disabled={!agentReady || isImporting} onClick={start}>
+            {isImporting
+              ? selected.length > 0
+                ? "Importing…"
+                : "Starting…"
+              : newCount > 0
+                ? `Import ${newCount} ${newCount === 1 ? "project" : "projects"} and start`
+                : selected.length > 0
+                  ? "Import threads and start"
+                  : "Start"}
+          </Button>
+        </div>
+      </div>
+    </WelcomeShell>
+  );
+}
+
+export function WelcomeShell({
+  subtitle,
+  children,
+}: {
+  readonly subtitle: ReactNode;
+  readonly children: ReactNode;
+}) {
+  return (
     <SidebarInset
       {...workspaceAreaProps("home", 1, "Welcome")}
       role="main"
@@ -253,47 +306,8 @@ export function WelcomePage({
             <h1 className="text-2xl font-semibold tracking-tight text-foreground">
               Welcome to Supaterm
             </h1>
-            <p className="mt-1.5 text-sm text-muted-foreground">
-              Setting up <span className="text-foreground">{label}</span>.
-            </p>
-            <div className="mt-10 border-t border-border/60">
-              <AgentsSection
-                environmentId={environmentId}
-                label={label}
-                isPrimary={isPrimary}
-                onImportSourceEnabled={() => scans[0]?.refresh()}
-              />
-              <ProjectsSection
-                scan={scans[0]}
-                projectImport={projectImport}
-                isImporting={isImporting}
-              />
-            </div>
-            <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
-              {agentReady ? (
-                <span />
-              ) : (
-                <Button variant="ghost-muted" disabled={isImporting} onClick={start}>
-                  Start without an agent
-                </Button>
-              )}
-              <div className="flex items-center gap-3">
-                {agentReady ? null : (
-                  <span className="text-xs text-muted-foreground">Set up one agent to start.</span>
-                )}
-                <Button disabled={!agentReady || isImporting} onClick={start}>
-                  {isImporting
-                    ? selected.length > 0
-                      ? "Importing…"
-                      : "Starting…"
-                    : newCount > 0
-                      ? `Import ${newCount} ${newCount === 1 ? "project" : "projects"} and start`
-                      : selected.length > 0
-                        ? "Import threads and start"
-                        : "Start"}
-                </Button>
-              </div>
-            </div>
+            <p className="mt-1.5 text-sm text-muted-foreground">{subtitle}</p>
+            {children}
             <TelemetryNotice />
           </div>
         </div>
@@ -321,7 +335,7 @@ function TelemetryNotice() {
 }
 
 // Each part of the page is one band: its label on the left, its rows on the right.
-function WelcomeSection({
+export function WelcomeSection({
   title,
   children,
 }: {

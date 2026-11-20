@@ -1,4 +1,5 @@
 import {
+  EnvironmentId,
   ProjectId,
   resolveProviderInstanceEnabled,
   ProviderDriverKind,
@@ -13,6 +14,7 @@ import {
   codexCardProvider,
   codexNeedsSetup,
   groupWelcomeAgents,
+  resolveWelcomeTarget,
   turnedOnInstance,
 } from "./welcomePage.logic";
 
@@ -218,5 +220,46 @@ describe("codexCardProvider", () => {
         settings: undefined,
       }),
     ).toBeNull();
+  });
+});
+
+describe("resolveWelcomeTarget", () => {
+  const primary = EnvironmentId.make("primary");
+  const paired = EnvironmentId.make("paired");
+  const target = (input: Partial<Parameters<typeof resolveWelcomeTarget>[0]>) =>
+    resolveWelcomeTarget({
+      resumeEnvironmentId: undefined,
+      primaryEnvironmentId: null,
+      pairedEnvironmentId: null,
+      knownEnvironmentIds: [],
+      catalogReady: true,
+      ...input,
+    });
+
+  it("asks hosted web for a pairing link, then sets up the computer it paired", () => {
+    expect(target({ catalogReady: false })).toEqual({ _tag: "loading" });
+    expect(target({})).toEqual({ _tag: "pair" });
+    expect(target({ pairedEnvironmentId: paired, knownEnvironmentIds: [paired] })).toEqual({
+      _tag: "setup",
+      environmentId: paired,
+    });
+    // This computer is known before the catalog loads, so its page does not wait.
+    expect(target({ primaryEnvironmentId: primary, catalogReady: false })).toEqual({
+      _tag: "setup",
+      environmentId: primary,
+    });
+  });
+
+  it("returns to the computer a sign-in named only once the catalog has it", () => {
+    const resumed = { resumeEnvironmentId: paired, primaryEnvironmentId: primary };
+    expect(target({ ...resumed, catalogReady: false })).toEqual({ _tag: "loading" });
+    expect(target({ ...resumed, knownEnvironmentIds: [primary, paired] })).toEqual({
+      _tag: "setup",
+      environmentId: paired,
+    });
+    expect(target({ ...resumed, knownEnvironmentIds: [primary] })).toEqual({
+      _tag: "setup",
+      environmentId: primary,
+    });
   });
 });

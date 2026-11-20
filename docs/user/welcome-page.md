@@ -8,6 +8,15 @@ history. Only an agent is needed to start chatting.
 To see the page again, go to **Settings → About → Welcome page** and select
 **Open**. Direct links, such as Settings, open normally before setup is done.
 
+The page sets up one computer. In a browser with no computer connected yet, such
+as the hosted web app, it first asks for a pairing link.
+[Install the CLI](./install.md#command-line) on the computer you want to use,
+start Supaterm or run `supaterm serve` there, then run `supaterm pair --tailscale`
+and paste the link. You can also run `supaterm serve --host <address>` and use
+`supaterm pair --no-relay` when the server is already reachable on your network.
+The page then sets up that computer. To add more computers later, use
+**Settings → Environments**.
+
 If Supaterm cannot confirm the workspace during startup, it shows
 **Still connecting** instead of opening the app. Select **Reload** to try again.
 
