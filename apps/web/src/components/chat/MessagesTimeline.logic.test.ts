@@ -4228,6 +4228,20 @@ describe("v2 run and attempt history", () => {
       },
     };
     expect(rows([user, step, notice, final], "zen")).toEqual(["user", "notice", "final"]);
+    const created: TimelineEntry = {
+      id: "created",
+      kind: "work",
+      createdAt: at(11),
+      entry: {
+        id: "created",
+        createdAt: at(11),
+        runId,
+        label: "Created thread",
+        tone: "tool",
+        itemType: "thread_created",
+      },
+    };
+    expect(rows([user, step, created, final], "zen")).toEqual(["user", "created", "final"]);
     const thought: TimelineEntry = {
       id: "thought",
       kind: "work",
@@ -4265,6 +4279,13 @@ describe("v2 run and attempt history", () => {
       "user",
       "steer",
       "final",
+    ]);
+    expect(rows([user, phased(answer, "final_answer"), steer, step], "zen", running)).toEqual([
+      "user",
+      "working-indicator-row",
+      "answer",
+      "steer",
+      "live-activity-row",
     ]);
     const firstAttempt = {
       id: RunAttemptId.make("attempt-1"),

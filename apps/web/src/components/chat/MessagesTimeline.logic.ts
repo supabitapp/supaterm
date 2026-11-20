@@ -1475,6 +1475,7 @@ function workShownAsFinalAnswerOnly(entry: TimelineEntry): boolean {
     timelineEntryIsCompaction(entry) ||
     timelineEntryStartsResponse(entry) ||
     work.itemType === "system_notice" ||
+    work.itemType === "thread_created" ||
     work.tone === "error" ||
     work.sourceActivityKind === "runtime.error" ||
     (work.itemType === "error" && work.toolLifecycleStatus !== "completed")
@@ -1546,6 +1547,7 @@ function timelineRowEntries(
     const answeringFrom = answering ? lastResponseBoundaryIndex(entries) + 1 : entries.length;
     const terminalIds = deriveTerminalAssistantMessageIds(entries);
     const steerAnswerIds = deriveInFlightSteerAnswerIds(entries);
+    const lastSteerIndex = entries.findLastIndex(timelineEntryIsSteer);
     shown = entries.filter((entry, index) => {
       if (entry.kind !== "message") return workShownAsFinalAnswerOnly(entry);
       const { message } = entry;
@@ -1555,7 +1557,9 @@ function timelineRowEntries(
         message.id === input.jumpMessageId ||
         steerAnswerIds.has(message.id) ||
         (retainedReplyIds.has(entry.id) &&
-          (index < answeringFrom || entry.attempt?.status === "superseded")) ||
+          (index < answeringFrom ||
+            entry.attempt?.status === "superseded" ||
+            (!message.streaming && index < lastSteerIndex))) ||
         (terminalIds.has(message.id) &&
           index < answeringFrom &&
           (answeringRunId === null || message.runId !== answeringRunId))
