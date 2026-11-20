@@ -27,9 +27,11 @@ import {
   type ProviderRequestKind,
   type ProviderThreadId,
   type ProviderUserInputAnswers,
+  type RuntimeMode,
   type RuntimeRequestId,
   type ThreadTokenUsageSnapshot,
   type ThreadId,
+  isRuntimeModeAbove,
   type TurnTokenUsage,
 } from "@supaterm/contracts";
 import { AgentScope, AgentScopeThreadId } from "@supaterm/shared/AgentScope";
@@ -491,6 +493,11 @@ export interface AcpAdapterV2Flavor {
   readonly sessionConfigForPolicy?: (
     policy: ProviderAdapter.ProviderAdapterV2RuntimePolicy,
   ) => ReadonlyArray<{ readonly id: string; readonly value: string }>;
+  /**
+   * The runtime mode a native session mode grants, for flavors whose modes are permission levels.
+   * A picked mode this does not place within the thread's runtime mode is not applied.
+   */
+  readonly runtimeModeForSessionMode?: (modeId: string) => RuntimeMode | undefined;
   readonly clientFileSystem?: {
     readonly readTextFile: (
       request: EffectAcpSchema.ReadTextFileRequest,
@@ -8154,6 +8161,28 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
             });
           }
           const configOptions = yield* runtime.getConfigOptions;
+          // A picked mode applies only when the flavor places it within the thread's runtime mode;
+          // an unknown mode could be the agent's own skip-approval mode, and model options must
+          // not widen the thread's permissions.
+          const ceiling =
+            flavor.runtimeModeForSessionMode === undefined ? undefined : runtimePolicy.runtimeMode;
+          const isModeChoice = (id: string) =>
+            id === ACP_SESSION_MODE_OPTION_ID ||
+            configOptions.some(
+              (option) =>
+                option.id === id &&
+                (option.category === "mode" || option.category === "collaboration_mode"),
+            );
+          const withinCeiling = (selection: { readonly id: string; readonly value: unknown }) => {
+            if (ceiling === undefined || ceiling === "full-access" || !isModeChoice(selection.id)) {
+              return true;
+            }
+            const granted =
+              typeof selection.value === "string"
+                ? flavor.runtimeModeForSessionMode?.(selection.value)
+                : undefined;
+            return granted !== undefined && !isRuntimeModeAbove(granted, ceiling);
+          };
           const explicitSelections = modelSelection.options ?? [];
           const implicitSelections = unsetOptionDefaults.filter(
             (implicit) => !explicitSelections.some((selection) => selection.id === implicit.id),
@@ -8161,6 +8190,7 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
           const optionSelections = [...explicitSelections, ...implicitSelections].flatMap(
             (selection) => {
               if (flavor.ownedModelOptionIds?.includes(selection.id) === true) return [];
+              if (!withinCeiling(selection)) return [];
               return [
                 selection.value === ACP_EMPTY_OPTION_VALUE
                   ? { ...selection, value: "" }
@@ -8293,7 +8323,7 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
             const nativeBuild = nativeBuildConfigurationBySessionId.get(startResult.sessionId);
             if (nativeBuild !== undefined) {
               if (
-                !modeLocked &&
+                policyMode === undefined &&
                 nativeBuild.modeId !== undefined &&
                 effectiveModeState?.currentModeId !== nativeBuild.modeId &&
                 effectiveModeState?.availableModes.some(
@@ -8309,7 +8339,7 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
                 if (
                   option === undefined ||
                   option.type !== "select" ||
-                  (modeLocked && option.category === "mode")
+                  (policyMode !== undefined && option.category === "mode")
                 )
                   continue;
                 const choices = option.options.flatMap((entry) =>

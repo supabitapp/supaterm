@@ -21,7 +21,9 @@ import type { AntigravityAuth } from "../../provider/AntigravityAuth.ts";
 import type * as AcpSessionRuntime from "@supaterm/provider-acp/server/AcpSessionRuntime";
 import {
   antigravityAppendsSystemPrompt,
+  antigravityPermissionDisposition,
   antigravityPermissionMode,
+  antigravityRuntimeModeForSessionMode,
   antigravitySteersWithPrompt,
   applyAntigravityAcpModelSelection,
   buildAntigravityPrompt,
@@ -270,6 +272,8 @@ export function makeAntigravityAcpAdapterFlavor(
           request,
         }),
     },
+    runtimeModeForSessionMode: antigravityRuntimeModeForSessionMode,
+    permissionDisposition: antigravityPermissionDisposition,
     approvalOptions: antigravityApprovalOptions,
     extractPermissionQuestion: (request) => {
       const question = extractAntigravityUserInputQuestion(request);
