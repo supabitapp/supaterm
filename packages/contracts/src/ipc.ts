@@ -295,6 +295,8 @@ export interface DesktopUpdateState {
   errorContext: "check" | "download" | "install" | null;
   canRetry: boolean;
   notAppliedVersion?: string;
+  /** The check failed only because this build's track differs from the saved `channel`. */
+  trackMismatch?: { readonly buildChannel: DesktopUpdateChannel };
 }
 
 export interface DesktopUpdateReleaseNote {
@@ -336,6 +338,7 @@ export const DesktopUpdateStateSchema = Schema.Struct({
   errorContext: Schema.NullOr(Schema.Literals(["check", "download", "install"])),
   canRetry: Schema.Boolean,
   notAppliedVersion: Schema.optionalKey(Schema.String),
+  trackMismatch: Schema.optionalKey(Schema.Struct({ buildChannel: DesktopUpdateChannelSchema })),
 });
 
 export const DesktopCliCommandStateSchema = Schema.Struct({
