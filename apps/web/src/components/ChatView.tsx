@@ -33,6 +33,7 @@ import {
   isThreadEnvironmentLocked,
   makeThreadErrorSetter,
   resolveDraftHeroState,
+  threadErrorIsServerRuntime,
 } from "./ChatView.logic";
 import { useQueuedRunEditWithOutbox } from "./chat/useQueuedRunEditWithOutbox";
 import { ThreadVisitWatermark } from "./chat/ThreadVisitWatermark";
@@ -1036,7 +1037,17 @@ export default function ChatView(props: ChatViewProps) {
   const threadError = isServerThread
     ? (localServerError ?? serverRuntime?.lastError ?? null)
     : localDraftError;
-  const threadErrorBannerKey = getThreadErrorBannerKey(routeThreadKey, threadError);
+  const threadErrorBannerKey = getThreadErrorBannerKey(
+    routeThreadKey,
+    threadError,
+    threadErrorIsServerRuntime({
+      isServerThread,
+      localServerError,
+      runtimeError: serverRuntime?.lastError ?? null,
+    })
+      ? (serverRuntime?.lastErrorSource ?? null)
+      : null,
+  );
   const visibleThreadError = shouldShowThreadErrorBanner(
     routeThreadKey,
     threadError,
