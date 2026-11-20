@@ -39,7 +39,7 @@ import * as TextGeneration from "../textGeneration/TextGeneration.ts";
 import * as GitVcsDriver from "../vcs/GitVcsDriver.ts";
 import { PATCH_RENDER_PREFIX_ARGS } from "../vcs/GitVcsDriverCore.ts";
 import * as PullRequestService from "./PullRequestService.ts";
-import { pullRequestSyncKey, repositoryMatchesPullRequest } from "./pullRequestSyncKey.ts";
+import { ownPullRequestRepository, pullRequestSyncKey } from "./pullRequestSyncKey.ts";
 import { reviewGuideInputFromPullRequest } from "./pullRequestReviewGuideInput.ts";
 import { normalizeReviewGuide, parseReviewGuideChange } from "./pullRequestReviewGuideNormalize.ts";
 
@@ -104,14 +104,15 @@ const make = Effect.gen(function* () {
 
   const requireOwnRepository = Effect.fn("PullRequestReviewGuideService.requireOwnRepository")(
     function* (key: ThreadPullRequestKey, identity: RepositoryIdentity | null | undefined) {
-      if (identity == null || !repositoryMatchesPullRequest(identity, key)) {
+      const own = ownPullRequestRepository(identity, key);
+      if (own === undefined) {
         return yield* new PullRequestOperationError({
           operation: "generateReviewGuide",
           detail:
             "Guides are written from this project's checkout, and this pull request is in another repository. Write it from a project that is a checkout of that repository.",
         });
       }
-      return identity.locator;
+      return own.locator;
     },
   );
 
