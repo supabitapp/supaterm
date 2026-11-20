@@ -232,6 +232,26 @@ describe("composerContextRecords", () => {
     expect(record.label).toBe(`${"a".repeat(46)}…`);
   });
 
+  it("shortens a long reply label without splitting an emoji", () => {
+    const text = `${"a".repeat(63)}😀 trailing`;
+    const record = responseContextRecord({
+      citation: {
+        version: 1,
+        environmentId: EnvironmentId.make("environment-1"),
+        threadId: ThreadId.make("thread-1"),
+        messageId: MessageId.make("message-1"),
+        text,
+        start: 0,
+        end: text.length,
+        prefix: "",
+        suffix: "",
+      },
+      itemId: TurnItemId.make("item-1"),
+      subagents: [],
+    });
+    expect(record.label).toBe("a".repeat(63));
+  });
+
   it("sends a reply as one leading reference and takes it back out for editing", () => {
     const replyTo = responseContextRecord({
       citation: {
