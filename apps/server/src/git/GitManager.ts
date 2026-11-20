@@ -2473,6 +2473,7 @@ export const make = Effect.gen(function* () {
     emit: GitActionProgressEmitter,
     pushRemoteRef: { readonly remoteName: string; readonly upstreamRef: string } | undefined,
     requestedBase: string | undefined,
+    draft: boolean,
     content: (input: {
       readonly provider: SourceControlProvider.SourceControlProvider["Service"];
       readonly baseBranch: string;
@@ -2571,6 +2572,7 @@ export const make = Effect.gen(function* () {
           : {}),
         title: generated.title,
         bodyFile,
+        ...(draft ? { draft: true } : {}),
       })
       .pipe(Effect.ensuring(fileSystem.remove(bodyFile).pipe(Effect.ignore)));
 
@@ -2616,6 +2618,7 @@ export const make = Effect.gen(function* () {
       emit,
       pushRemoteRef,
       undefined,
+      false,
       ({ provider, baseBranch, baseRef, headBranch }) =>
         Effect.gen(function* () {
           const terms = sourceControlDefinitions.get(provider.kind).changeRequest;
@@ -2660,11 +2663,15 @@ export const make = Effect.gen(function* () {
       () => Effect.void,
       undefined,
       input.baseBranch,
+      input.draft === true,
       () => Effect.succeed({ title: input.title, body: input.body }),
     );
     // The thread's branch PR comes from status, which may hold the lookup from before.
     if (result.status === "created") yield* invalidateStatus(input.cwd);
-    if (input.draft === true && !(yield* draftOpened(input, result))) {
+    const openedAsDraft =
+      result.status === "created" &&
+      (yield* sourceControlProvider(input.cwd)).createsDraftChangeRequests === true;
+    if (input.draft === true && !openedAsDraft && !(yield* draftOpened(input, result))) {
       // A retry finds the open PR and drafts it then.
       return yield* new GitManagerError({
         operation: "createPullRequest",
