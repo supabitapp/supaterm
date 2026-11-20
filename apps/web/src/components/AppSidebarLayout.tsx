@@ -232,10 +232,11 @@ function registerSidebarToggleCommand(router: AnyRouter, toggleSidebar: () => vo
 /** Keyboard and menu commands that live as long as the app shell. */
 function registerAppShellCommands(router: AnyRouter, shellElement: Element): () => void {
   // The provider mirrors the visibility it renders onto its wrapper, so the
-  // committed state is readable when a key arrives.
+  // committed state is readable when a key arrives. A page without the sidebar
+  // keeps that state, so the sidebar must be mounted too (on mobile, in a sheet).
   const readSidebarVisible = () =>
     shellElement.closest('[data-slot="sidebar-wrapper"]')?.getAttribute("data-sidebar-state") ===
-    "expanded";
+      "expanded" && document.querySelector("[data-app-sidebar]") !== null;
   const disposers = [
     registerThreadUndoCommands(router, readSidebarVisible),
     registerNavigationHistoryCommands(router),
