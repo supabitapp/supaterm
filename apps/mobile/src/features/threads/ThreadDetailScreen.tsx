@@ -13,6 +13,7 @@ import * as Dialog from "../../components/ui/Dialog";
 import { pendingThreadCreationLabel } from "@supaterm/client-runtime/pending-thread-creation";
 import { useSelectedThreadComposerMetadata } from "../../state/use-thread-detail";
 import { useAtomMount, useAtomValue } from "@effect/atom-react";
+import { toolCallVisibilityAtom } from "../../state/preferences";
 import { parseThreadKey, threadKey } from "@supaterm/client-runtime/state/entities";
 import { createThreadVisitTracker } from "@supaterm/client-runtime/state/thread-visits";
 import { useChildThreadInputs } from "../../state/entities";
@@ -569,6 +570,7 @@ function ThreadDetailBody(
     threadId: props.selectedThread.id,
   });
   const composerError = useAtomValue(threadComposerErrorsAtom)[selectedThreadKey]?.message ?? null;
+  const toolCallVisibility = useAtomValue(toolCallVisibilityAtom);
   const agentsSegment = resolveSubagentPillSegment(turnSubagents);
   const defaultComposerEditorRef = useRef<ComposerEditorHandle>(null);
   const composerEditorRef = props.draftMode?.editorRef ?? defaultComposerEditorRef;
@@ -1589,6 +1591,7 @@ function ThreadDetailBody(
             <WorkspaceMutationIdProvider threadRef={selectedThreadDetailRef}>
               <ColumnWidth width={columnWidth}>
                 <ThreadFeed
+                  toolCallVisibility={toolCallVisibility}
                   environmentId={props.environmentId}
                   threadId={props.selectedThread.id}
                   workspaceRoot={props.threadCwd}
