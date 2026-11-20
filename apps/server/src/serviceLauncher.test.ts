@@ -1255,12 +1255,12 @@ if (context.update?.status === "pending") {
       assert.equal(state.activeVersion, "1.1.0");
       assert.equal(state.update?.status, "committed");
       assert.equal(yield* fs.readFileString(activatedPath), state.update?.id);
-      const recover = () =>
+      const recover = (output?: number) =>
         Effect.gen(function* () {
           const fresh = new Launcher(
             root,
             yield* Effect.promise(() => readServiceState(statePath)),
-            { serviceUnit: unit },
+            { serviceUnit: unit, ...(output === undefined ? {} : { output }) },
           );
           const running = fresh.run();
           yield* Effect.promise(() => fresh.stop("SIGTERM"));
@@ -1323,7 +1323,14 @@ if (context.update?.status === "pending") {
         assert.equal(unit.loadedContents, original);
         yield* fs.writeFileString(unit.path, original);
         unit.failReload = true;
-        yield* recover();
+        // Task Scheduler cannot redirect output, so a Windows launcher reports into its log file.
+        const logPath = `${root}/boot-service.log`;
+        yield* Effect.acquireUseRelease(
+          Effect.sync(() => NodeFS.openSync(logPath, "a")),
+          (output) => recover(output),
+          (output) => Effect.sync(() => NodeFS.closeSync(output)),
+        );
+        assert.include(yield* fs.readFileString(logPath), "daemon-reload failed");
         assert.equal(yield* fs.readFileString(unit.path), expected);
         assert.equal(unit.reloads, 1);
         assert.equal(unit.loadedContents, original);

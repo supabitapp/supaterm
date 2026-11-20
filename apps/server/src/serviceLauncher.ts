@@ -1138,7 +1138,7 @@ export class Launcher {
         release();
       }
     } catch (error) {
-      process.stderr.write(
+      this.#log(
         `[service-launcher] Could not clear ${restartPending}: ${error instanceof Error ? error.message : String(error)}\n`,
       );
     }
@@ -1411,7 +1411,7 @@ export class Launcher {
         release();
       }
     } catch (error) {
-      process.stderr.write(
+      this.#log(
         `[service-launcher] Could not point ${unit.path} at supaterm@${version}: ${error instanceof Error ? error.message : String(error)}\n`,
       );
     }
