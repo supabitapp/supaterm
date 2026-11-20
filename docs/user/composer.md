@@ -142,8 +142,10 @@ returns to the remembered selection.
 
 Leaving reasoning level or service tier unset uses the provider's own configuration.
 
-On mobile, long-press the bolt in the composer to choose from the selected model's
-service tiers. Tap it to toggle fast mode.
+Open the model picker in the composer to choose a model and adjust its options.
+Reasoning effort and service tier are independent. For a model that supports both,
+you can select **Extra High** reasoning and the **Fast** tier together. On mobile,
+tap **Model** in the settings sheet to browse available models.
 
 ## Quote an assistant response
 

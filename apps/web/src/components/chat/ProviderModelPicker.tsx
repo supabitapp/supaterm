@@ -6,10 +6,18 @@ import {
   type ResolvedKeybindingsConfig,
 } from "@supaterm/contracts";
 import { RegistryContext } from "@effect/atom-react";
-import { memo, useContext, useEffect, useEffectEvent, useRef, useState } from "react";
+import {
+  memo,
+  useContext,
+  useEffect,
+  useEffectEvent,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { Badge } from "../ui/badge";
 import { Popover, PopoverPopup, PopoverTrigger } from "../ui/popover";
-import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
+import { Tooltip, TooltipPopup, TooltipShortcutLabel, TooltipTrigger } from "../ui/tooltip";
 import { cn } from "~/lib/utils";
 import { useMediaQuery } from "../../hooks/useMediaQuery";
 import { ModelPickerContent, resolveModelPickerSelectedModel } from "./ModelPickerContent";
@@ -26,6 +34,7 @@ import {
 import { useComposerMenuProps } from "./composerEventScope";
 import { shortcutLabelForCommand } from "../../keybindings";
 import { serverEnvironment } from "../../state/server";
+import { getProviderModelCapabilities } from "../../providerModels";
 import { useAtomCommand } from "../../state/use-atom-command";
 
 /** Holds the page still behind the open picker; its lifetime is the popup element's. */
@@ -44,7 +53,7 @@ function lockBackgroundScroll(popup: HTMLElement | null) {
   }
 
   const shouldAllowOverlayScroll = (target: EventTarget | null) => {
-    return target instanceof Element && target.closest("[data-model-picker-content]");
+    return target instanceof Element && popup.contains(target);
   };
   const preventBackgroundWheel = (event: WheelEvent) => {
     if (shouldAllowOverlayScroll(event.target)) {
@@ -74,6 +83,19 @@ function lockBackgroundScroll(popup: HTMLElement | null) {
   };
 }
 
+export function findModelPickerReasoningControl(popup: HTMLElement | null) {
+  return (
+    popup?.querySelector<HTMLElement>(
+      '[data-model-picker-reasoning] [role="radio"][aria-checked="true"]:not([aria-disabled="true"]), [data-model-picker-reasoning][role="switch"]:not([aria-disabled="true"])',
+    ) ??
+    popup?.querySelector<HTMLElement>("[data-model-picker-reasoning] button:not(:disabled)") ??
+    popup?.querySelector<HTMLElement>(
+      '[data-model-picker-settings] [aria-checked="true"], [data-model-picker-settings] [role="switch"]',
+    ) ??
+    null
+  );
+}
+
 export const ProviderModelPicker = memo(function ProviderModelPicker(props: {
   environmentId: EnvironmentId | null;
   workspaceCwd?: string | null;
@@ -97,6 +119,8 @@ export const ProviderModelPicker = memo(function ProviderModelPicker(props: {
   triggerClassName?: string;
   triggerLabel?: string;
   triggerAriaLabel?: string;
+  modelSettings?: { panel: ReactNode; summary: string; details: string };
+  focusReasoningOnOpen?: boolean;
   onOpenChange?: (open: boolean) => void;
   onOpenProviderSetup?: (instanceId: ProviderInstanceId) => void;
   getModelDisabledReason?: (instanceId: ProviderInstanceId, model: string) => string | null;
@@ -160,10 +184,22 @@ export const ProviderModelPicker = memo(function ProviderModelPicker(props: {
     }
   };
 
-  const handleInstanceModelChange = (instanceId: ProviderInstanceId, model: string) => {
+  const handleInstanceModelChange = (
+    instanceId: ProviderInstanceId,
+    model: string,
+    viaKeyboard: boolean,
+  ) => {
     if (props.disabled) return;
     props.onInstanceModelChange(instanceId, model);
-    setIsMenuOpen(false);
+    const entry = props.instanceEntries.find((candidate) => candidate.instanceId === instanceId);
+    if (
+      viaKeyboard ||
+      props.modelSettings === undefined ||
+      !entry ||
+      !getProviderModelCapabilities(entry.models, model, entry.driverKind).optionDescriptors?.length
+    ) {
+      setIsMenuOpen(false);
+    }
   };
 
   const shortcutLabel = props.keybindings
@@ -200,6 +236,15 @@ export const ProviderModelPicker = memo(function ProviderModelPicker(props: {
     ? selectedEntries.map((selection) => selection.fullLabel).join(", ") || "Choose models"
     : undefined;
 
+  const summary = allModelNames ? null : props.modelSettings?.summary;
+  const triggerName = props.triggerLabel ?? allModelNames ?? triggerLabel;
+  const triggerDescription = [triggerName, summary].filter(Boolean).join(" · ");
+  const details = allModelNames ? null : props.modelSettings?.details;
+  const effortShortcut =
+    props.keybindings && props.modelSettings?.panel
+      ? shortcutLabelForCommand(props.keybindings, "composer.effort")
+      : null;
+
   return (
     <Popover
       open={isMenuOpen}
@@ -217,8 +262,9 @@ export const ProviderModelPicker = memo(function ProviderModelPicker(props: {
             <PopoverTrigger
               render={
                 <ComposerControl
-                  aria-label={
-                    props.triggerAriaLabel ?? props.triggerLabel ?? allModelNames ?? triggerLabel
+                  aria-label={props.triggerAriaLabel ?? triggerDescription}
+                  data-composer-shortcut={
+                    props.modelSettings?.panel ? "composer.effort" : undefined
                   }
                   size={size}
                   data-chat-provider-model-picker="true"
@@ -288,6 +334,7 @@ export const ProviderModelPicker = memo(function ProviderModelPicker(props: {
               data-chat-provider-model-picker-label="true"
             >
               {props.triggerLabel ?? multipleLabel ?? triggerTitle}
+              {summary ? <span className="text-muted-foreground"> · {summary}</span> : null}
             </span>
             {selectedModel?.isUnavailable &&
             !props.isComposerOwned &&
@@ -303,7 +350,10 @@ export const ProviderModelPicker = memo(function ProviderModelPicker(props: {
           </span>
         </TooltipTrigger>
         <TooltipPopup side="top" shortcut={shortcutLabel}>
-          {props.triggerLabel ?? allModelNames ?? triggerLabel}
+          {[triggerName, details || summary].filter(Boolean).join(" · ")}
+          {effortShortcut ? (
+            <TooltipShortcutLabel shortcut={effortShortcut}>Reasoning effort</TooltipShortcutLabel>
+          ) : null}
         </TooltipPopup>
       </Tooltip>
       <PopoverPopup
@@ -316,41 +366,67 @@ export const ProviderModelPicker = memo(function ProviderModelPicker(props: {
             unlock?.();
           };
         }}
-        initialFocus={isCoarsePointer ? popupRef : searchInputRef}
+        initialFocus={() =>
+          (props.focusReasoningOnOpen && findModelPickerReasoningControl(popupRef.current)) ||
+          (isCoarsePointer ? popupRef.current : searchInputRef.current)
+        }
         align="start"
+        side={props.modelSettings !== undefined ? "top" : "bottom"}
         className="before:hidden"
         padding="none"
         touchBackdrop
       >
-        <ModelPickerContent
-          searchInputRef={searchInputRef}
-          environmentId={props.environmentId}
-          workspaceCwd={props.workspaceCwd ?? null}
-          activeInstanceId={activeInstanceId}
-          model={props.model}
-          {...(props.selectedModels !== undefined ? { selectedModels: props.selectedModels } : {})}
-          {...(props.onToggleModel
-            ? {
-                onToggleModel: (instanceId: ProviderInstanceId, model: string) => {
-                  if (!props.disabled) props.onToggleModel?.(instanceId, model);
-                },
-              }
-            : {})}
-          lockedProvider={props.lockedProvider}
-          lockedContinuationGroupKey={props.lockedContinuationGroupKey ?? null}
-          instanceEntries={props.instanceEntries}
-          {...(props.keybindings ? { keybindings: props.keybindings } : {})}
-          modelOptionsByInstance={props.modelOptionsByInstance}
-          terminalOpen={props.terminalOpen ?? false}
-          onRequestClose={() => setIsMenuOpen(false)}
-          {...(props.onOpenProviderSetup ? { onOpenProviderSetup: props.onOpenProviderSetup } : {})}
-          getModelDisabledReason={(instanceId, model) =>
-            props.disabled
-              ? "Model picker is disabled"
-              : (props.getModelDisabledReason?.(instanceId, model) ?? null)
+        <div
+          className={
+            props.modelSettings?.panel
+              ? "flex max-w-[calc(100vw-1rem)] flex-col sm:flex-row"
+              : undefined
           }
-          onInstanceModelChange={handleInstanceModelChange}
-        />
+        >
+          <ModelPickerContent
+            searchInputRef={searchInputRef}
+            environmentId={props.environmentId}
+            workspaceCwd={props.workspaceCwd ?? null}
+            activeInstanceId={activeInstanceId}
+            model={props.model}
+            {...(props.selectedModels !== undefined
+              ? { selectedModels: props.selectedModels }
+              : {})}
+            {...(props.onToggleModel
+              ? {
+                  onToggleModel: (instanceId: ProviderInstanceId, model: string) => {
+                    if (!props.disabled) props.onToggleModel?.(instanceId, model);
+                  },
+                }
+              : {})}
+            lockedProvider={props.lockedProvider}
+            lockedContinuationGroupKey={props.lockedContinuationGroupKey ?? null}
+            instanceEntries={props.instanceEntries}
+            {...(props.keybindings ? { keybindings: props.keybindings } : {})}
+            modelOptionsByInstance={props.modelOptionsByInstance}
+            terminalOpen={props.terminalOpen ?? false}
+            onRequestClose={() => setIsMenuOpen(false)}
+            {...(props.onOpenProviderSetup
+              ? { onOpenProviderSetup: props.onOpenProviderSetup }
+              : {})}
+            getModelDisabledReason={(instanceId, model) =>
+              props.disabled
+                ? "Model picker is disabled"
+                : (props.getModelDisabledReason?.(instanceId, model) ?? null)
+            }
+            onInstanceModelChange={handleInstanceModelChange}
+          />
+          {props.modelSettings?.panel ? (
+            <div
+              data-model-picker-settings
+              aria-label="Model options"
+              role="group"
+              className="max-h-40 min-w-0 overflow-y-auto overscroll-contain border-t border-border/70 sm:max-h-86.5 sm:w-44 sm:shrink-0 sm:border-s sm:border-t-0"
+            >
+              {props.modelSettings.panel}
+            </div>
+          ) : null}
+        </div>
         {props.selectedModels === undefined ? (
           <ChatGptSharingControl provider={activeEntry?.snapshot ?? null} />
         ) : null}

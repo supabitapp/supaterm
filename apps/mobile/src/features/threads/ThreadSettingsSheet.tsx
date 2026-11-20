@@ -46,12 +46,7 @@ import {
 import { Pressable, ScrollView, View } from "react-native";
 import { READABLE_WIDTH_STYLE, ROW_MIN_HEIGHT } from "../../components/ui/listMetrics";
 import { RefreshControl } from "../../components/ui/RefreshControl";
-import Animated, {
-  FadeIn,
-  FadeOut,
-  LinearTransition,
-  useReducedMotion,
-} from "react-native-reanimated";
+import Animated, { LinearTransition, useReducedMotion } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { SymbolView } from "../../components/ui/AppSymbol";
@@ -139,8 +134,6 @@ const THREAD_SETTINGS_MAINTAIN_VISIBLE_CONTENT_POSITION = {
   size: true,
 } as const;
 const THREAD_SETTINGS_OPTIONS_LAYOUT_TRANSITION = LinearTransition.duration(180);
-const THREAD_SETTINGS_OPTION_ENTER_TRANSITION = FadeIn.duration(140);
-const THREAD_SETTINGS_OPTION_EXIT_TRANSITION = FadeOut.duration(100);
 const EMPTY_MODEL_FAVORITES: ReadonlyArray<{
   readonly provider: ProviderInstanceId;
   readonly model: string;
@@ -317,6 +310,7 @@ type ThreadSettingsSessionValue = {
   readonly onUpdateRuntimeMode: (mode: RuntimeMode) => void;
   readonly displayedDescriptors: ReadonlyArray<ProviderOptionDescriptor>;
   readonly promptTraits: ReturnType<typeof getPromptControlledTraits>;
+  readonly displayedModelLabel: string | undefined;
   readonly displayedModelSelection: ModelSelection | null;
   readonly reportedModelSelection: ModelSelection | null;
   readonly providerExpansionOverrides: ReadonlySet<string>;
@@ -602,6 +596,7 @@ function ThreadSettingsSessionProvider(
     onUpdateRuntimeMode: props.onUpdateRuntimeMode,
     displayedDescriptors,
     promptTraits,
+    displayedModelLabel: displayedModel?.label ?? props.selectedModel?.model,
     displayedModelSelection: pendingModel?.selection ?? props.selectedModel,
     reportedModelSelection: pendingModel ? null : (props.reportedModelSelection ?? null),
     favoriteKeys,
@@ -690,20 +685,19 @@ type ThreadSettingsCatalogItem =
   | {
       readonly kind: "empty";
       readonly key: "empty";
-    }
-  | {
-      readonly kind: "options";
-      readonly key: "options";
     };
 
 function ThreadSettingsModelListRow(props: {
   readonly option: ModelOption;
   readonly isFirst: boolean;
   readonly isLast: boolean;
+  readonly onModelPicked: () => void;
 }) {
   const session = useThreadSettingsSession();
-  const { pressModel } = session;
-  const onPress = () => pressModel(props.option);
+  const onPress = () => {
+    session.pressModel(props.option);
+    props.onModelPicked();
+  };
 
   return (
     <ModelRow
@@ -832,9 +826,7 @@ function buildThreadSettingsCatalogItems(
   });
 }
 
-function ThreadSettingsOptionsItem(props: {
-  readonly animationsReady: boolean;
-  readonly bottomInset: number;
+function ThreadSettingsOptionsContent(props: {
   readonly onOpenSubmenu: (submenu: ThreadSettingsSubmenuPage) => void;
 }) {
   const insets = useSafeAreaInsets();
@@ -848,7 +840,7 @@ function ThreadSettingsOptionsItem(props: {
     : null;
 
   return (
-    <View style={{ paddingBottom: insets.bottom + props.bottomInset + 12 }}>
+    <View style={{ paddingBottom: insets.bottom + 12 }}>
       <ChatGptSharingStatus provider={selectedProvider} />
       <Text className="px-5 pb-2 pt-2 text-sm font-supaterm-medium text-foreground-muted">
         Options
@@ -875,14 +867,7 @@ function ThreadSettingsOptionsItem(props: {
                   )
                 : null;
             return (
-              <Animated.View
-                key={descriptor.id}
-                entering={
-                  props.animationsReady ? THREAD_SETTINGS_OPTION_ENTER_TRANSITION : undefined
-                }
-                exiting={props.animationsReady ? THREAD_SETTINGS_OPTION_EXIT_TRANSITION : undefined}
-                layout={THREAD_SETTINGS_OPTIONS_LAYOUT_TRANSITION}
-              >
+              <Animated.View key={descriptor.id} layout={THREAD_SETTINGS_OPTIONS_LAYOUT_TRANSITION}>
                 {sliderOptions ? (
                   <>
                     <ReasoningSliderRow
@@ -920,12 +905,7 @@ function ThreadSettingsOptionsItem(props: {
             );
           }
           return (
-            <Animated.View
-              key={descriptor.id}
-              entering={props.animationsReady ? THREAD_SETTINGS_OPTION_ENTER_TRANSITION : undefined}
-              exiting={props.animationsReady ? THREAD_SETTINGS_OPTION_EXIT_TRANSITION : undefined}
-              layout={THREAD_SETTINGS_OPTIONS_LAYOUT_TRANSITION}
-            >
+            <Animated.View key={descriptor.id} layout={THREAD_SETTINGS_OPTIONS_LAYOUT_TRANSITION}>
               <SwitchRow
                 label={descriptor.label}
                 value={descriptor.currentValue ?? false}
@@ -946,29 +926,13 @@ function ThreadSettingsOptionsItem(props: {
           />
         </Animated.View>
       </Animated.View>
-
-      {session.canManageHidden ? (
-        <>
-          <Text className="px-5 pb-2 pt-7 text-sm font-supaterm-medium text-foreground-muted">
-            Catalog
-          </Text>
-          <View className="mx-4 overflow-hidden rounded-2xl bg-grouped-card">
-            <SwitchRow
-              label="Manage hidden models"
-              value={session.manageHidden}
-              onValueChange={session.setManageHidden}
-              isLast
-            />
-          </View>
-        </>
-      ) : null}
     </View>
   );
 }
 
-function ThreadSettingsMainContent(props: {
+function ThreadSettingsModelCatalog(props: {
   readonly bottomInset: number;
-  readonly onOpenSubmenu: (submenu: ThreadSettingsSubmenuPage) => void;
+  readonly onModelPicked: () => void;
 }) {
   const session = useThreadSettingsSession();
   const refreshProvidersCommand = useAtomCommand(serverEnvironment.refreshProviders, {
@@ -1020,10 +984,8 @@ function ThreadSettingsMainContent(props: {
   const catalogItems = buildThreadSettingsCatalogItems(session);
   const hasActiveCatalogFilter =
     session.providerFilter !== null || session.searchQuery.trim().length > 0;
-  const listItems = [
-    ...(catalogItems.length === 0 ? ([{ kind: "empty", key: "empty" }] as const) : catalogItems),
-    { kind: "options", key: "options" },
-  ] satisfies ReadonlyArray<ThreadSettingsCatalogItem>;
+  const listItems: ReadonlyArray<ThreadSettingsCatalogItem> =
+    catalogItems.length === 0 ? [{ kind: "empty", key: "empty" }] : catalogItems;
   const catalogMotion = useThreadListMotion({
     items: listItems,
     scope: `${session.environmentId}:${session.providerFilter ?? "all"}:${session.searchQuery}`,
@@ -1043,11 +1005,12 @@ function ThreadSettingsMainContent(props: {
           isFirst={item.isFirst}
           isLast={item.isLast}
           option={item.option}
+          onModelPicked={props.onModelPicked}
         />
       );
     } else if (item.kind === "notice") {
       content = <Text className="mx-8 mt-2 text-xs text-foreground-muted">{item.text}</Text>;
-    } else if (item.kind === "empty") {
+    } else {
       content = (
         <View className="items-center px-8 py-14">
           <Text className="text-center text-sm text-foreground-muted">
@@ -1059,14 +1022,6 @@ function ThreadSettingsMainContent(props: {
                 : "No available models"}
           </Text>
         </View>
-      );
-    } else {
-      content = (
-        <ThreadSettingsOptionsItem
-          animationsReady={animationsReady}
-          bottomInset={props.bottomInset}
-          onOpenSubmenu={props.onOpenSubmenu}
-        />
       );
     }
 
@@ -1088,7 +1043,7 @@ function ThreadSettingsMainContent(props: {
       automaticallyAdjustsScrollIndicatorInsets
       className="flex-1 bg-sheet"
       style={READABLE_WIDTH_STYLE}
-      contentContainerStyle={{ paddingTop: 4 }}
+      contentContainerStyle={{ paddingTop: 4, paddingBottom: props.bottomInset + 12 }}
       contentInsetAdjustmentBehavior="automatic"
       data={listItems}
       estimatedItemSize={ROW_MIN_HEIGHT.item}
@@ -1210,6 +1165,7 @@ function ThreadSettingsChoiceContent(props: {
 }
 
 type ThreadSettingsPickerStackParams = {
+  ThreadSettingsOptions: undefined;
   ThreadSettingsModels: undefined;
   ThreadSettingsChoice: ThreadSettingsSubmenuPage & { readonly title: string };
 };
@@ -1232,15 +1188,59 @@ function useThreadSettingsPickerPresentation() {
   return value;
 }
 
-function ThreadSettingsModelsScreen() {
+function ThreadSettingsOptionsScreen() {
   const session = useThreadSettingsSession();
   const presentation = useThreadSettingsPickerPresentation();
   const navigation = useNavigation<NativeStackNavigationProp<ThreadSettingsPickerStackParams>>();
-  const hasCustomCatalogFilter = session.providerFilter !== null || session.showLegacy;
   const commitAndClose = useStableCallback(() => {
-    if (!session.commitPendingModel()) return;
-    presentation.onClose();
+    if (session.commitPendingModel()) presentation.onClose();
   });
+
+  return (
+    <>
+      <AppBar
+        title="Thread settings"
+        onClose={presentation.onClose}
+        closeAccessibilityLabel="Cancel thread settings"
+        confirm={{ label: session.pendingModel ? "Save" : "Done", onPress: commitAndClose }}
+        hideBottomBorder
+      />
+      <ScreenContent>
+        <ScrollView
+          className="flex-1 bg-sheet"
+          style={READABLE_WIDTH_STYLE}
+          contentInsetAdjustmentBehavior="automatic"
+          showsVerticalScrollIndicator={false}
+        >
+          <View className="mx-4 mt-2 overflow-hidden rounded-2xl">
+            <DisclosureRow
+              isLast
+              label="Model"
+              value={session.displayedModelLabel}
+              onPress={() => navigation.navigate("ThreadSettingsModels")}
+            />
+          </View>
+          <ThreadSettingsOptionsContent
+            onOpenSubmenu={(submenu) => {
+              const title =
+                submenu.kind === "runtime"
+                  ? "Runtime"
+                  : (session.displayedDescriptors.find((descriptor) => descriptor.id === submenu.id)
+                      ?.label ?? "Option");
+              navigation.navigate("ThreadSettingsChoice", { ...submenu, title });
+            }}
+          />
+        </ScrollView>
+      </ScreenContent>
+    </>
+  );
+}
+
+function ThreadSettingsModelsScreen() {
+  const session = useThreadSettingsSession();
+  const navigation = useNavigation<NativeStackNavigationProp<ThreadSettingsPickerStackParams>>();
+  const hasCustomCatalogFilter =
+    session.providerFilter !== null || session.showLegacy || session.manageHidden;
   const search: AppBarSearch = {
     value: session.searchQuery,
     onChangeText: session.setSearchQuery,
@@ -1263,9 +1263,8 @@ function ThreadSettingsModelsScreen() {
   return (
     <>
       <AppBar
-        title="Thread settings"
-        onClose={presentation.onClose}
-        closeAccessibilityLabel="Cancel thread settings"
+        title="Models"
+        onBack={() => navigation.goBack()}
         search={search}
         menus={[
           {
@@ -1284,6 +1283,16 @@ function ThreadSettingsModelsScreen() {
                   onPress: () => session.setProviderFilter(filter.value),
                 })),
               },
+              ...(session.canManageHidden
+                ? [
+                    {
+                      id: "manage-hidden",
+                      title: "Manage hidden models",
+                      selected: session.manageHidden,
+                      onPress: () => session.setManageHidden(!session.manageHidden),
+                    },
+                  ]
+                : []),
               ...(session.hasLegacyModels
                 ? [
                     {
@@ -1302,25 +1311,15 @@ function ThreadSettingsModelsScreen() {
           session.providerGroups.map((group) => group.providerKey),
           session.showLegacy,
           session.hasLegacyModels,
+          session.canManageHidden,
+          session.manageHidden,
         ]}
-        confirm={{
-          label: session.pendingModel ? "Save" : "Done",
-          onPress: commitAndClose,
-        }}
         hideBottomBorder
       />
       <ScreenContent>
-        <ThreadSettingsMainContent
+        <ThreadSettingsModelCatalog
           bottomInset={searchToolbarInset}
-          onOpenSubmenu={(submenu) => {
-            const title =
-              submenu.kind === "runtime"
-                ? "Runtime"
-                : (session.displayedDescriptors.find(
-                    (descriptor) => descriptor.type === "select" && descriptor.id === submenu.id,
-                  )?.label ?? "Option");
-            navigation.navigate("ThreadSettingsChoice", { ...submenu, title });
-          }}
+          onModelPicked={() => navigation.goBack()}
         />
       </ScreenContent>
     </>
@@ -1353,13 +1352,18 @@ function ThreadSettingsPickerNavigator(props: ThreadSettingsPickerPresentation) 
   return (
     <ThreadSettingsPickerPresentationContext.Provider value={presentation}>
       <ThreadSettingsPickerStack.Navigator
-        initialRouteName="ThreadSettingsModels"
+        initialRouteName="ThreadSettingsOptions"
         screenOptions={screenOptions}
       >
         <ThreadSettingsPickerStack.Screen
+          name="ThreadSettingsOptions"
+          component={ThreadSettingsOptionsScreen}
+          options={{ title: "Thread settings" }}
+        />
+        <ThreadSettingsPickerStack.Screen
           name="ThreadSettingsModels"
           component={ThreadSettingsModelsScreen}
-          options={{ headerBackVisible: false, title: "Thread settings" }}
+          options={{ title: "Models" }}
         />
         <ThreadSettingsPickerStack.Screen
           name="ThreadSettingsChoice"

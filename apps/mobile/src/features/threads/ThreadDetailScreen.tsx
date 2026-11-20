@@ -48,7 +48,6 @@ import {
 import type {
   EnvironmentId,
   MessageId,
-  ModelSelection,
   RepositoryIdentity,
   RuntimeRequestId,
   ScopedThreadRef,
@@ -313,7 +312,6 @@ export interface ThreadDetailScreenProps {
   ) => Promise<MessageId | null>;
   readonly onReconnectEnvironment: () => void;
   readonly canSwitchThreadProvider: boolean;
-  readonly onUpdateThreadModelSelection: (modelSelection: ModelSelection) => void;
   readonly onRespondToApproval: ApprovalResponder;
   readonly onSelectUserInputOption: (
     requestId: RuntimeRequestId,
@@ -2017,7 +2015,6 @@ function ThreadDetailBody(
                         onSendVoiceMessage={props.draftMode ? undefined : handleSendVoiceMessage}
                         onShowUsageLimits={showUsageLimits}
                         canSwitchProvider={props.canSwitchThreadProvider}
-                        onUpdateModelSelection={props.onUpdateThreadModelSelection}
                         onExpandedChange={setComposerExpanded}
                         onHeightChange={handleComposerHeightChange}
                         onEditorFocusChange={handleOwnedInputFocusChange}

@@ -121,6 +121,7 @@ import {
   usePreparingComposerImages,
 } from "./preparingComposerImages";
 import { ComposerControlsBar } from "./ComposerControlsBar";
+import { findModelPickerReasoningControl } from "./ProviderModelPicker";
 import { composerCommandKeyHandler } from "./composerCommandKey";
 import { useNextPromptSuggestion } from "./useNextPromptSuggestion";
 import { useInputsChanged, useInputsChangedWhileActive } from "./useInputsChanged";
@@ -1092,7 +1093,8 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   const [isDragOverComposer, setIsDragOverComposer] = useState(false);
   const [isComposerFooterCompact, setIsComposerFooterCompact] = useState(false);
   const [isComposerPrimaryActionsCompact, setIsComposerPrimaryActionsCompact] = useState(false);
-  const [isComposerModelPickerOpen, setIsComposerModelPickerOpen] = useState(false);
+  const [modelPickerTarget, setModelPickerTarget] = useState<"model" | "effort" | null>(null);
+  const isComposerModelPickerOpen = modelPickerTarget !== null;
   const isMobileViewport = useMediaQuery("max-sm");
   const isPaneInputOwner = usePaneInputOwner();
   const isSoftwareKeyboardOpen = useSoftwareKeyboardOpen();
@@ -2101,7 +2103,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         });
         if (applied) {
           setComposerHighlightedItemId(null);
-          setIsComposerModelPickerOpen(true);
+          setModelPickerTarget("model");
         }
         return;
       }
@@ -2615,7 +2617,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   const composerControlsHidden =
     isComposerResting || (isComposerCollapsedMobile && !restingControlsVisible);
   if (composerControlsHidden && isComposerModelPickerOpen) {
-    setIsComposerModelPickerOpen(false);
+    setModelPickerTarget(null);
   }
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- reports whether resting controls show in the strip to ChatView before paint
   useLayoutEffect(() => {
@@ -2840,7 +2842,8 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       modelOptionsByInstance={modelOptionsByInstance}
       terminalOpen={terminalOpen}
       modelPickerOpen={isComposerModelPickerOpen}
-      onModelPickerOpenChange={setIsComposerModelPickerOpen}
+      focusModelPickerEffort={modelPickerTarget === "effort"}
+      onModelPickerOpenChange={(open) => setModelPickerTarget(open ? "model" : null)}
       modelPickerIconClassName={composerProviderState.modelPickerIconClassName}
       getModelDisabledReason={getModelDisabledReason}
     />
@@ -3338,7 +3341,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       setIsComposerScrollCollapsed(false);
       setIsComposerFocused(true);
     }
-    setIsComposerModelPickerOpen(true);
+    setModelPickerTarget("model");
   };
   const openModelPickerStable = useStableCallback(openModelPicker);
 
@@ -3457,7 +3460,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     toggleVoiceInput: voice.toggle,
     toggleModelPicker: () => {
       if (isComposerModelPickerOpen) {
-        setIsComposerModelPickerOpen(false);
+        setModelPickerTarget(null);
       } else {
         openModelPickerStable();
       }
@@ -3481,6 +3484,16 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
           !element.closest("[inert]") && element.checkVisibility({ visibilityProperty: true }),
       );
       if (!trigger) return;
+      if (command === "composer.effort") {
+        const popupId = trigger.getAttribute("aria-controls");
+        if (popupId) {
+          findModelPickerReasoningControl(document.getElementById(popupId))?.focus();
+        } else {
+          trigger.focus({ preventScroll: true });
+          setModelPickerTarget("effort");
+        }
+        return;
+      }
       trigger.focus({ preventScroll: true });
       trigger.click();
     },

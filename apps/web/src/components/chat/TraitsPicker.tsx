@@ -1,3 +1,5 @@
+import { Radio } from "@base-ui/react/radio";
+import { RadioGroup } from "@base-ui/react/radio-group";
 import {
   buildTraitsTriggerLabel,
   getDescriptorStringValue,
@@ -5,6 +7,7 @@ import {
   replaceDescriptorCurrentValue,
   selectableProviderOptionChoices,
   isReasoningSelect,
+  isReasoningControl,
 } from "@supaterm/client-runtime/model-traits";
 import {
   type ModelSelection,
@@ -30,7 +33,7 @@ import {
   type SpeedToggleLevel,
 } from "@supaterm/client-runtime/provider-speed-toggle";
 import { memo } from "react";
-import { BrainIcon, ZapIcon, ZapFilledIcon } from "@supaterm/icons";
+import { BrainIcon, CheckIcon, ZapIcon, ZapFilledIcon } from "@supaterm/icons";
 import { UltrafastIcon } from "../Icons";
 import {
   Menu,
@@ -45,15 +48,10 @@ import { useComposerDraftStore, DraftId } from "../../composerDraftStore";
 import { getProviderModelCapabilities, keepsUnavailableModelOptions } from "../../providerModels";
 import { cn, isMacPlatform } from "~/lib/utils";
 import { Badge } from "../ui/badge";
+import { Button } from "../ui/button";
+import { Switch } from "../ui/switch";
 import { Tooltip, TooltipPopup, TooltipShortcutLabel, TooltipTrigger } from "../ui/tooltip";
-import {
-  ComposerControl,
-  ComposerControlChevron,
-  ComposerControlIcon,
-  type ComposerControlSize,
-} from "./ComposerControl";
-import { useComposerMenuProps } from "./composerEventScope";
-import { useComposerMenuState } from "./useComposerMenuState";
+import { ComposerControl, ComposerControlChevron, ComposerControlIcon } from "./ComposerControl";
 
 type ProviderOptions = ReadonlyArray<ProviderOptionSelection>;
 
@@ -314,15 +312,44 @@ function speedToggleLevelForValue(
   return "fast";
 }
 
-export function shouldRenderTraitsControls(input: {
+export function describeComposerModelTraits(input: {
   provider: ProviderDriverKind;
   models: ReadonlyArray<ServerProviderModel>;
-  model: string | null | undefined;
-  promptUltrathink?: PromptUltrathink | undefined;
-  modelOptions: ProviderOptions | null | undefined;
-  allowPromptInjectedEffort?: boolean;
-}): boolean {
-  return getTraitsSectionVisibility(input).hasAnyControls;
+  model: string;
+  instanceId: ProviderInstanceId;
+  modelOptions: ProviderOptions | undefined;
+  promptUltrathink: PromptUltrathink;
+  reportedModelSelection?: ModelSelection | null | undefined;
+}) {
+  const traits = getTraitsSectionVisibility(input);
+  const modelSelection = {
+    instanceId: input.instanceId,
+    model: input.model,
+    options: input.modelOptions ?? [],
+  };
+  const reasoning = traits.descriptors.find(isReasoningControl);
+  const effort =
+    traits.ultrathinkPromptControlled && reasoning?.id === traits.primarySelectDescriptor?.id
+      ? "Ultrathink"
+      : getProviderOptionCurrentLabel(reasoning, modelSelection, input.reportedModelSelection);
+  const speed = traits.speedToggle?.level;
+  const speedLabel = speed === "fast" ? "Fast" : speed === "ultrafast" ? "Ultrafast" : null;
+  const reasoningLabel =
+    reasoning?.type === "boolean" && effort ? `${reasoning.label} ${effort}` : effort;
+  const summary = [reasoningLabel, speedLabel].filter(Boolean).join(" · ");
+  const details = buildTraitsTriggerLabel({
+    descriptors: traits.descriptors,
+    speedToggle: traits.speedToggle,
+    primarySelectDescriptorId: traits.primarySelectDescriptor?.id ?? null,
+    ultrathinkPromptControlled: traits.ultrathinkPromptControlled,
+    modelSelection,
+    reportedModelSelection: input.reportedModelSelection,
+  });
+  return {
+    hasOptions: traits.hasAnyControls,
+    summary,
+    details: [details === speedLabel ? null : details, speedLabel].filter(Boolean).join(" · "),
+  };
 }
 
 interface TraitsMenuContentProps {
@@ -336,8 +363,6 @@ interface TraitsMenuContentProps {
   modelOptions?: ProviderOptions | null | undefined;
   reportedModelSelection?: ModelSelection | null | undefined;
   allowPromptInjectedEffort?: boolean;
-  triggerClassName?: string;
-  isComposerOwned?: boolean;
 }
 
 function useUpdateModelOptions(
@@ -376,8 +401,10 @@ export const TraitsMenuContent = memo(function TraitsMenuContentImpl({
   reportedModelSelection,
   allowPromptInjectedEffort = true,
   omitToggleOnlyOptions = false,
+  inline = false,
   ...persistence
-}: TraitsMenuContentProps & TraitsPersistence & { omitToggleOnlyOptions?: boolean }) {
+}: TraitsMenuContentProps &
+  TraitsPersistence & { omitToggleOnlyOptions?: boolean; inline?: boolean }) {
   const modelSelection =
     instanceId && model ? { instanceId, model, options: modelOptions ?? [] } : null;
   const updateModelOptions = useUpdateModelOptions(provider, instanceId, model, persistence);
@@ -454,13 +481,96 @@ export const TraitsMenuContent = memo(function TraitsMenuContentImpl({
     );
   }
 
+  const changeBoolean = (id: string, value: boolean) =>
+    updateDescriptors(replaceDescriptorCurrentValue(descriptors, id, value));
+  const selectedValueFor = (descriptor: (typeof menuSelectDescriptors)[number]) =>
+    ultrathinkPromptControlled && descriptor.id === primarySelectDescriptor?.id
+      ? "ultrathink"
+      : (getDescriptorStringValue(descriptor, modelSelection, reportedModelSelection) ?? "");
+
+  if (inline) {
+    return (
+      <div className="grid gap-3 p-2">
+        {menuSelectDescriptors.map((descriptor) => {
+          const locked = ultrathinkInBodyText && descriptor.id === primarySelectDescriptor?.id;
+          const selectedValue = selectedValueFor(descriptor);
+          return (
+            <div key={descriptor.id} className="min-w-0">
+              <div
+                aria-hidden="true"
+                className="px-2 pb-1 font-medium text-muted-foreground text-xs"
+              >
+                {descriptor.label}
+              </div>
+              {locked ? (
+                <p className="px-2 pb-1 text-muted-foreground text-xs">
+                  Remove &quot;ultrathink&quot; from the prompt to change this option.
+                </p>
+              ) : null}
+              <RadioGroup
+                aria-label={descriptor.label}
+                disabled={locked}
+                value={selectedValue}
+                data-model-picker-reasoning={isReasoningControl(descriptor) || undefined}
+                onValueChange={(value) => handleSelectChange(descriptor, value)}
+                className="grid min-w-0 gap-0.5"
+              >
+                {selectableProviderOptionChoices(descriptor).map((option) => (
+                  <div
+                    key={option.id}
+                    className="flex min-w-0 [&>button]:w-full pointer-coarse:[&>button]:min-h-11"
+                  >
+                    <Radio.Root
+                      nativeButton
+                      value={option.id}
+                      render={
+                        <Button variant="ghost" size={option.description ? "sm-multiline" : "sm"} />
+                      }
+                    >
+                      <span className="flex w-full items-center justify-between gap-2">
+                        <span className="min-w-0 text-start">
+                          <span className="block truncate">{option.label}</span>
+                          {option.description ? (
+                            <span className="block text-muted-foreground text-xs">
+                              {option.description}
+                            </span>
+                          ) : null}
+                        </span>
+                        {selectedValue === option.id ? (
+                          <CheckIcon aria-hidden="true" />
+                        ) : option.isDefault ? (
+                          <DefaultBadge />
+                        ) : null}
+                      </span>
+                    </Radio.Root>
+                  </div>
+                ))}
+              </RadioGroup>
+            </div>
+          );
+        })}
+        {menuBooleanDescriptors.map((descriptor) => (
+          <label
+            key={descriptor.id}
+            className="flex min-h-11 items-center justify-between gap-2 px-2 text-sm"
+          >
+            {descriptor.label}
+            <Switch
+              aria-label={descriptor.label}
+              data-model-picker-reasoning={isReasoningControl(descriptor) || undefined}
+              checked={descriptor.currentValue === true}
+              onCheckedChange={(value) => changeBoolean(descriptor.id, value)}
+            />
+          </label>
+        ))}
+      </div>
+    );
+  }
+
   return (
     <>
       {menuSelectDescriptors.map((descriptor, index) => {
-        const selectedValue =
-          ultrathinkPromptControlled && descriptor.id === primarySelectDescriptor?.id
-            ? "ultrathink"
-            : (getDescriptorStringValue(descriptor, modelSelection, reportedModelSelection) ?? "");
+        const selectedValue = selectedValueFor(descriptor);
 
         return (
           <div key={descriptor.id}>
@@ -517,11 +627,7 @@ export const TraitsMenuContent = memo(function TraitsMenuContentImpl({
               </div>
               <MenuRadioGroup
                 value={selectedValue}
-                onValueChange={(value) => {
-                  updateDescriptors(
-                    replaceDescriptorCurrentValue(descriptors, descriptor.id, value === "on"),
-                  );
-                }}
+                onValueChange={(value) => changeBoolean(descriptor.id, value === "on")}
               >
                 {(["on", "off"] as const).map((value) => (
                   <MenuRadioItem key={value} value={value} hideIndicator closeOnClick>
@@ -550,22 +656,9 @@ export const TraitsPicker = memo(function TraitsPicker({
   reportedModelSelection,
   allowPromptInjectedEffort = true,
   triggerClassName,
-  isComposerOwned,
-  shortcutLabel = null,
-  size = "sm",
-  hidden = false,
-  disabled = false,
   ...persistence
-}: TraitsMenuContentProps &
-  TraitsPersistence & {
-    size?: ComposerControlSize;
-    hidden?: boolean;
-    /** The key that opens the picker, shown on its trigger. */
-    shortcutLabel?: string | null;
-    disabled?: boolean;
-  }) {
-  const composerFloatingLayerProps = useComposerMenuProps();
-  const [isMenuOpen, setIsMenuOpen] = useComposerMenuState(hidden || disabled);
+}: TraitsMenuContentProps & TraitsPersistence & { triggerClassName?: string }) {
+  const size = "sm";
   const updateModelOptions = useUpdateModelOptions(provider, instanceId, model, persistence);
   const {
     descriptors,
@@ -598,7 +691,6 @@ export const TraitsPicker = memo(function TraitsPicker({
             activeBackground={false}
             aria-pressed={speedOn}
             aria-label="Fast mode"
-            disabled={disabled}
             onClick={(event) =>
               updateModelOptions(
                 buildProviderOptionSelectionsFromDescriptors(
@@ -653,21 +745,14 @@ export const TraitsPicker = memo(function TraitsPicker({
 
   return (
     <>
-      <Menu
-        open={isMenuOpen}
-        onOpenChange={(open) => {
-          setIsMenuOpen(open && !disabled);
-        }}
-      >
+      <Menu>
         <Tooltip>
           <TooltipTrigger
             render={
               <MenuTrigger
                 render={
                   <ComposerControl
-                    disabled={disabled}
                     aria-label={triggerLabel}
-                    data-composer-shortcut={isComposerOwned ? "composer.effort" : undefined}
                     size={size}
                     className={cn(
                       isCodexStyle
@@ -681,12 +766,7 @@ export const TraitsPicker = memo(function TraitsPicker({
             }
           >
             {isCodexStyle ? (
-              <span
-                className={cn(
-                  "flex min-w-0 w-full items-center",
-                  size === "xs" ? "gap-1" : "gap-1.5",
-                )}
-              >
+              <span className="flex min-w-0 w-full items-center gap-1.5">
                 <span
                   data-composer-control-compact-icon
                   className="pointer-events-none invisible absolute"
@@ -711,11 +791,9 @@ export const TraitsPicker = memo(function TraitsPicker({
               </>
             )}
           </TooltipTrigger>
-          <TooltipPopup side="top" shortcut={shortcutLabel}>
-            {triggerLabel}
-          </TooltipPopup>
+          <TooltipPopup side="top">{triggerLabel}</TooltipPopup>
         </Tooltip>
-        <MenuPopup align="start" {...(isComposerOwned ? composerFloatingLayerProps : {})}>
+        <MenuPopup align="start">
           <TraitsMenuContent
             provider={provider}
             {...(instanceId ? { instanceId } : {})}

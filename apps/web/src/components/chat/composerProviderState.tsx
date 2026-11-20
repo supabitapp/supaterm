@@ -15,17 +15,14 @@ import {
   normalizeModelSlug,
   withImplicitFastModeDefault,
 } from "@supaterm/shared/model";
-import type { ReactNode } from "react";
 
 import type { DraftId } from "../../composerDraftStore";
 import { getProviderModelCapabilities, keepsUnavailableModelOptions } from "../../providerModels";
-import type { ComposerControlSize } from "./ComposerControl";
 import {
   getReasoningTraitStep,
   getSpeedToggleChange,
-  shouldRenderTraitsControls,
+  describeComposerModelTraits,
   TraitsMenuContent,
-  TraitsPicker,
   type PromptUltrathink,
 } from "./TraitsPicker";
 
@@ -50,7 +47,7 @@ type ComposerProviderState = {
 
 type TraitsRenderInput = {
   provider: ProviderDriverKind;
-  instanceId?: ProviderInstanceId;
+  instanceId: ProviderInstanceId;
   threadRef?: ScopedThreadRef;
   draftId?: DraftId;
   onDraftModelOptionsChange?: () => void;
@@ -60,11 +57,6 @@ type TraitsRenderInput = {
   reportedModelSelection?: ModelSelection | null | undefined;
   promptUltrathink: PromptUltrathink;
   onPromptEdit: (edit: (prompt: string) => string) => void;
-  size?: ComposerControlSize;
-  hidden?: boolean;
-  triggerClassName?: string;
-  isComposerOwned?: boolean;
-  shortcutLabel?: string | null;
 };
 
 export function getComposerPromptInjectionState(prompt: string): ComposerPromptInjectionState {
@@ -195,73 +187,19 @@ export function getComposerReasoningStep(input: {
   };
 }
 
-function renderTraitsControl(
-  Component: typeof TraitsMenuContent | typeof TraitsPicker,
-  input: TraitsRenderInput,
-): ReactNode {
-  const {
-    provider,
-    instanceId,
-    threadRef,
-    draftId,
-    onDraftModelOptionsChange,
-    model,
-    models,
-    modelOptions,
-    reportedModelSelection,
-    promptUltrathink,
-    onPromptEdit,
-    size,
-    hidden,
-    triggerClassName,
-    isComposerOwned,
-    shortcutLabel,
-  } = input;
-  const hasTarget = threadRef !== undefined || draftId !== undefined;
-  const { selections: resolvedModelOptions } = resolveComposerOptionSelections(
-    models,
-    model,
-    provider,
-    modelOptions,
+export function resolveComposerModelSettings(input: TraitsRenderInput) {
+  const { selections } = resolveComposerOptionSelections(
+    input.models,
+    input.model,
+    input.provider,
+    input.modelOptions,
   );
-  if (
-    !hasTarget ||
-    !shouldRenderTraitsControls({
-      provider,
-      models,
-      model,
-      modelOptions: resolvedModelOptions,
-      promptUltrathink,
-    })
-  ) {
-    return null;
-  }
-  return (
-    <Component
-      provider={provider}
-      {...(instanceId ? { instanceId } : {})}
-      models={models}
-      {...(threadRef ? { threadRef } : {})}
-      {...(draftId ? { draftId } : {})}
-      {...(threadRef && onDraftModelOptionsChange ? { onDraftModelOptionsChange } : {})}
-      model={model}
-      modelOptions={resolvedModelOptions}
-      reportedModelSelection={reportedModelSelection}
-      promptUltrathink={promptUltrathink}
-      onPromptEdit={onPromptEdit}
-      {...(size !== undefined ? { size } : {})}
-      {...(hidden !== undefined ? { hidden } : {})}
-      {...(triggerClassName !== undefined ? { triggerClassName } : {})}
-      {...(isComposerOwned ? { isComposerOwned } : {})}
-      {...(shortcutLabel ? { shortcutLabel } : {})}
-    />
-  );
-}
-
-export function renderProviderTraitsMenuContent(input: TraitsRenderInput): ReactNode {
-  return renderTraitsControl(TraitsMenuContent, input);
-}
-
-export function renderProviderTraitsPicker(input: TraitsRenderInput): ReactNode {
-  return renderTraitsControl(TraitsPicker, input);
+  const props = { ...input, modelOptions: selections };
+  const { hasOptions, summary, details } = describeComposerModelTraits(props);
+  const canEdit = input.threadRef !== undefined || input.draftId !== undefined;
+  return {
+    summary,
+    details,
+    panel: hasOptions && canEdit ? <TraitsMenuContent {...props} inline /> : null,
+  };
 }

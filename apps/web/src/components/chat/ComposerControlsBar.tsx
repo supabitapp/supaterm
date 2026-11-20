@@ -9,7 +9,6 @@ import type {
 
 import type { AppModelOption } from "../../modelSelection";
 import type { ProviderInstanceEntry } from "../../providerInstances";
-import { shortcutLabelForCommand } from "../../keybindings";
 import { cn } from "~/lib/utils";
 import type { ChatComposerProps } from "./ChatComposer";
 import { CompactComposerControlsMenu } from "./CompactComposerControlsMenu";
@@ -19,10 +18,7 @@ import {
   ComposerModelPicker,
   type RuntimeModeOption,
 } from "./ComposerFooterControls";
-import {
-  renderProviderTraitsMenuContent,
-  renderProviderTraitsPicker,
-} from "./composerProviderState";
+import { resolveComposerModelSettings } from "./composerProviderState";
 import type { PromptUltrathink } from "./TraitsPicker";
 import { useApplyThreadModelPick } from "./useApplyThreadModelPick";
 import { useStableCallback } from "../../hooks/useStableCallback";
@@ -72,6 +68,7 @@ export function ComposerControlsBar(props: {
   modelOptionsByInstance: ReadonlyMap<ProviderInstanceId, ReadonlyArray<AppModelOption>>;
   terminalOpen: boolean;
   modelPickerOpen: boolean;
+  focusModelPickerEffort: boolean;
   onModelPickerOpenChange: (open: boolean) => void;
   modelPickerIconClassName: string | undefined;
   getModelDisabledReason: ChatComposerProps["getModelDisabledReason"];
@@ -115,13 +112,14 @@ export function ComposerControlsBar(props: {
     modelOptionsByInstance,
     terminalOpen,
     modelPickerOpen,
+    focusModelPickerEffort,
     onModelPickerOpenChange,
     modelPickerIconClassName,
     getModelDisabledReason,
   } = props;
   const applyThreadModelPick = useApplyThreadModelPick();
   const applyRouteThreadModelPick = useStableCallback(() => applyThreadModelPick(routeThreadRef));
-  const providerTraitsMenuContent = renderProviderTraitsMenuContent({
+  const modelSettings = resolveComposerModelSettings({
     provider: selectedProvider,
     instanceId: selectedInstanceId,
     ...(routeKind === "server"
@@ -135,59 +133,8 @@ export function ComposerControlsBar(props: {
     promptUltrathink,
     onPromptEdit,
   });
-  const providerTraitsPickerInput = {
-    provider: selectedProvider,
-    instanceId: selectedInstanceId,
-    ...(routeKind === "server"
-      ? { threadRef: routeThreadRef, onDraftModelOptionsChange: applyRouteThreadModelPick }
-      : {}),
-    ...(routeKind === "draft" && draftId ? { draftId } : {}),
-    model: selectedModel,
-    models: selectedProviderModels,
-    modelOptions: composerModelOptions?.[selectedInstanceId],
-    reportedModelSelection,
-    promptUltrathink,
-    onPromptEdit,
-    isComposerOwned: true,
-    shortcutLabel: shortcutLabelForCommand(keybindings, "composer.effort"),
-  } satisfies Parameters<typeof renderProviderTraitsPicker>[0];
-  const providerTraitsPicker = renderProviderTraitsPicker(providerTraitsPickerInput);
-  const restingProviderTraitsPicker = renderProviderTraitsPicker({
-    ...providerTraitsPickerInput,
-    size: composerControlsCollapsed ? "xs" : "sm",
-    hidden: composerControlsHidden || restingHiddenBlockCount > 1,
-  });
-  const restingBlockDefs = [
-    ...(providerTraitsPicker
-      ? [
-          {
-            id: "traits",
-            content: (
-              <>
-                <ComposerControlSeparator size={composerControlsCollapsed ? "xs" : "sm"} />
-                {restingProviderTraitsPicker}
-              </>
-            ),
-          },
-        ]
-      : []),
-    {
-      id: "mode",
-      content: (
-        <ComposerFooterModeControls
-          keybindings={keybindings}
-          runtimeMode={compatibleRuntimeMode}
-          runtimeModeOptions={compatibleRuntimeModeOptions}
-          size={composerControlsCollapsed ? "xs" : "sm"}
-          hidden={composerControlsHidden || restingHiddenBlockCount > 0}
-          onRuntimeModeChange={handleRuntimeModeChange}
-        />
-      ),
-    },
-  ];
-  const hiddenRestingBlockIds = restingBlockDefs
-    .slice(restingBlockDefs.length - restingHiddenBlockCount)
-    .map((def) => def.id);
+  const modeHidden = restingHiddenBlockCount > 0;
+  const modeIconOnly = iconOnlyBlockCount > 0;
   // Its own element, so typing (which rebuilds the controls around it) leaves it cached.
   const composerModelPicker = (
     <ComposerModelPicker
@@ -217,6 +164,8 @@ export function ComposerControlsBar(props: {
       keybindings={keybindings}
       modelOptionsByInstance={modelOptionsByInstance}
       size={composerControlsCollapsed ? "xs" : "sm"}
+      modelSettings={modelSettings}
+      focusReasoningOnOpen={focusModelPickerEffort}
       triggerClassName={
         composerControlsCollapsed
           ? cn(
@@ -259,46 +208,42 @@ export function ComposerControlsBar(props: {
       {composerModelPicker}
 
       <>
-        {restingBlockDefs.map((def, index) => {
-          const hidden = index >= restingBlockDefs.length - restingHiddenBlockCount;
-          return (
-            <div
-              key={def.id}
-              data-resting-block={def.id}
-              data-composer-block-icon-only={
-                index >= restingBlockDefs.length - iconOnlyBlockCount ? "true" : "false"
-              }
-              aria-hidden={hidden || undefined}
-              inert={hidden || undefined}
-              className={cn(
-                "flex w-max min-w-max shrink-0 items-center gap-1",
-                hidden && "pointer-events-none invisible absolute",
-                index >= restingBlockDefs.length - iconOnlyBlockCount &&
-                  "[&_[data-composer-control-label]]:pointer-events-none [&_[data-composer-control-label]]:invisible [&_[data-composer-control-label]]:absolute [&_[data-composer-control-label]]:w-max [&_[data-composer-control-label]]:max-w-none [&_[data-composer-control-compact-icon]]:[visibility:inherit] [&_[data-composer-control-compact-icon]]:relative",
-              )}
-            >
-              {def.content}
-            </div>
-          );
-        })}
+        <div
+          data-resting-block="mode"
+          data-composer-block-icon-only={modeIconOnly ? "true" : "false"}
+          aria-hidden={modeHidden || undefined}
+          inert={modeHidden || undefined}
+          className={cn(
+            "flex w-max min-w-max shrink-0 items-center gap-1",
+            modeHidden && "pointer-events-none invisible absolute",
+            modeIconOnly &&
+              "[&_[data-composer-control-label]]:pointer-events-none [&_[data-composer-control-label]]:invisible [&_[data-composer-control-label]]:absolute [&_[data-composer-control-label]]:w-max [&_[data-composer-control-label]]:max-w-none [&_[data-composer-control-compact-icon]]:[visibility:inherit] [&_[data-composer-control-compact-icon]]:relative",
+          )}
+        >
+          <ComposerFooterModeControls
+            keybindings={keybindings}
+            runtimeMode={compatibleRuntimeMode}
+            runtimeModeOptions={compatibleRuntimeModeOptions}
+            size={composerControlsCollapsed ? "xs" : "sm"}
+            hidden={composerControlsHidden || modeHidden}
+            onRuntimeModeChange={handleRuntimeModeChange}
+          />
+        </div>
         <div
           data-resting-controls-overflow
-          aria-hidden={hiddenRestingBlockIds.length === 0 || undefined}
-          inert={hiddenRestingBlockIds.length === 0 || undefined}
+          aria-hidden={!modeHidden || undefined}
+          inert={!modeHidden || undefined}
           className={cn(
             "min-w-0 shrink-0",
-            hiddenRestingBlockIds.length === 0 && "pointer-events-none invisible absolute",
+            !modeHidden && "pointer-events-none invisible absolute",
           )}
         >
           <CompactComposerControlsMenu
             runtimeMode={compatibleRuntimeMode}
             runtimeModeOptions={compatibleRuntimeModeOptions}
             size={composerControlsCollapsed ? "xs" : "sm"}
-            hidden={composerControlsHidden || hiddenRestingBlockIds.length === 0}
+            hidden={composerControlsHidden || !modeHidden}
             keybindings={keybindings}
-            traitsMenuContent={
-              hiddenRestingBlockIds.includes("traits") ? providerTraitsMenuContent : undefined
-            }
             onRuntimeModeChange={handleRuntimeModeChange}
           />
         </div>

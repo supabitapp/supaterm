@@ -9,8 +9,7 @@ import {
 import {
   getComposerProviderState,
   getComposerReasoningStep,
-  renderProviderTraitsMenuContent,
-  renderProviderTraitsPicker,
+  resolveComposerModelSettings,
 } from "./composerProviderState";
 import { readPromptUltrathink } from "./TraitsPicker";
 
@@ -256,12 +255,39 @@ describe("getComposerProviderState", () => {
 });
 
 describe("provider traits render guards", () => {
+  it("summarizes extra high reasoning and fast mode independently", () => {
+    const input = {
+      provider: PROVIDER,
+      instanceId: ProviderInstanceId.make("codex"),
+      model: MODEL,
+      models: modelWith([
+        selectDescriptor("effort", [
+          { id: "medium", label: "Medium", isDefault: true },
+          { id: "xhigh", label: "Extra High", isDefault: false },
+        ]),
+        booleanDescriptor("fastMode", false),
+      ]),
+      modelOptions: selections(["effort", "xhigh"], ["fastMode", true]),
+      promptUltrathink: "none" as const,
+      onPromptEdit: () => {},
+    };
+
+    expect(resolveComposerModelSettings(input).summary).toBe("Extra High · Fast");
+    expect(
+      resolveComposerModelSettings({
+        ...input,
+        modelOptions: selections(["effort", "xhigh"], ["fastMode", false]),
+      }).summary,
+    ).toBe("Extra High");
+  });
+
   it("returns null when no thread target is provided", () => {
     const models = modelWith([
       selectDescriptor("effort", [{ id: "high", label: "High", isDefault: true }]),
     ]);
     const args = {
       provider: PROVIDER,
+      instanceId: ProviderInstanceId.make("codex"),
       model: MODEL,
       models,
       modelOptions: undefined,
@@ -269,8 +295,7 @@ describe("provider traits render guards", () => {
       onPromptEdit: () => {},
     };
 
-    expect(renderProviderTraitsPicker(args)).toBeNull();
-    expect(renderProviderTraitsMenuContent(args)).toBeNull();
+    expect(resolveComposerModelSettings(args).panel).toBeNull();
   });
 });
 

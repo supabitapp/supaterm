@@ -1013,9 +1013,6 @@ export function NewTaskDraftScreen(props: {
         onSendMessage={handleStart}
         onReconnectEnvironment={() => onReconnectEnvironment(selectedProject.environmentId)}
         canSwitchThreadProvider
-        onUpdateThreadModelSelection={(selection) =>
-          flow.setSelectedModelKey(`${selection.instanceId}:${selection.model}`, selection.options)
-        }
         onRespondToApproval={async () => {}}
         onSelectUserInputOption={() => {}}
         onChangeUserInputCustomAnswer={() => {}}

@@ -167,7 +167,7 @@ export function ComposerModelPicker({
         : {})}
       onInstanceModelChange={(instanceId, model) => {
         onMultipleModelSelectionsChange(null);
-        onProviderModelSelect(instanceId, model);
+        onProviderModelSelect(instanceId, model, { focusComposer: false });
       }}
     />
   );

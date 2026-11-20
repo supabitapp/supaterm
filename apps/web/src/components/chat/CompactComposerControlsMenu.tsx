@@ -1,12 +1,11 @@
 import { RuntimeMode, type ResolvedKeybindingsConfig } from "@supaterm/contracts";
-import { memo, type ReactNode } from "react";
+import { memo } from "react";
 import { EllipsisIcon } from "@supaterm/icons";
 import {
   Menu,
   MenuPopup,
   MenuRadioGroup,
   MenuRadioItem,
-  MenuSeparator as MenuDivider,
   MenuShortcut,
   MenuTrigger,
 } from "../ui/menu";
@@ -22,7 +21,6 @@ export const CompactComposerControlsMenu = memo(function CompactComposerControls
     readonly label: string;
   }>;
   keybindings: ResolvedKeybindingsConfig;
-  traitsMenuContent?: ReactNode;
   size?: "sm" | "xs";
   /** Close the portaled popup when its trigger hides. */
   hidden?: boolean;
@@ -41,21 +39,13 @@ export const CompactComposerControlsMenu = memo(function CompactComposerControls
             size={size}
             className="shrink-0"
             aria-label="More composer controls"
-            data-composer-shortcut={
-              props.traitsMenuContent ? "composer.mode composer.effort" : "composer.mode"
-            }
+            data-composer-shortcut="composer.mode"
           />
         }
       >
         <ComposerControlIcon icon={EllipsisIcon} size={size} />
       </MenuTrigger>
       <MenuPopup align="start" {...composerFloatingLayerProps}>
-        {props.traitsMenuContent ? (
-          <>
-            {props.traitsMenuContent}
-            <MenuDivider />
-          </>
-        ) : null}
         <div className="flex items-center gap-2 px-2 py-1.5 font-medium text-muted-foreground text-xs">
           Access
           {runtimeModeShortcut ? <MenuShortcut>{runtimeModeShortcut}</MenuShortcut> : null}

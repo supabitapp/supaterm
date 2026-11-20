@@ -34,7 +34,16 @@ function Picker({ keybindings = [] }: { keybindings?: ResolvedKeybindingsConfig 
             status: "ready",
             auth: { status: "authenticated" },
             checkedAt: "2026-01-01T00:00:00.000Z",
-            models: [],
+            models: [
+              {
+                slug: "target",
+                name: "Target model",
+                isCustom: false,
+                capabilities: {
+                  optionDescriptors: [{ id: "fastMode", type: "boolean", label: "Fast mode" }],
+                },
+              },
+            ],
             slashCommands: [],
             skills: [],
           },
@@ -52,6 +61,7 @@ function Picker({ keybindings = [] }: { keybindings?: ResolvedKeybindingsConfig 
           ])
         }
         triggerAriaLabel="Choose model"
+        modelSettings={{ panel: <div>Model options</div>, summary: "", details: "" }}
         onInstanceModelChange={(_, selected) => setModel(selected)}
       />
     </>

@@ -1,4 +1,5 @@
 import { getPromptControlledTraits } from "@supaterm/client-runtime/model-traits";
+import { getSpeedToggle } from "@supaterm/client-runtime/provider-speed-toggle";
 import type { ModelSelection, ProviderOptionDescriptor } from "@supaterm/contracts";
 import {
   getProviderOptionCurrentLabel,
@@ -41,15 +42,18 @@ export function ComposerModelControl(props: {
       ? "Ultrathink"
       : descriptor && (descriptor.type === "boolean" || selectableChoices(descriptor).length > 0)
         ? typeof currentValue === "boolean"
-          ? currentValue
-            ? "On"
-            : "Off"
+          ? `${descriptor.label} ${currentValue ? "On" : "Off"}`
           : (getProviderOptionCurrentLabel(
               descriptor,
               props.selectedModel,
               props.reportedModelSelection,
             ) ?? "Default")
         : undefined;
+  const speed = getSpeedToggle(props.descriptors)?.level;
+  const optionLabels = [
+    reasoningLabel,
+    speed === "fast" ? "Fast" : speed === "ultrafast" ? "Ultrafast" : null,
+  ];
   const badge = props.modelOption?.providerBadge;
   const providerNameLabel = badge
     ? providerInstanceNameLabel({
@@ -63,14 +67,14 @@ export function ComposerModelControl(props: {
 
   return (
     <ComposerInlineControl
-      accessibilityLabel={`Model and reasoning settings: ${[
+      accessibilityLabel={`Model settings: ${[
         props.label,
         badge?.showBadge ? badge.displayName : null,
-        reasoningLabel,
+        ...optionLabels,
       ]
         .filter(Boolean)
         .join(", ")}`}
-      accessibilityHint="Choose a model and reasoning level"
+      accessibilityHint="Choose a model and configure its options"
       compact
       disabled={props.disabled}
       emphasized
@@ -95,11 +99,9 @@ export function ComposerModelControl(props: {
       }
       label={providerNameLabel ?? shortLabel}
       ellipsizeMode={providerNameLabel ? "middle" : undefined}
-      secondaryLabel={
-        providerNameLabel
-          ? [shortLabel, reasoningLabel].filter(Boolean).join(" · ")
-          : reasoningLabel
-      }
+      secondaryLabel={[providerNameLabel ? shortLabel : null, ...optionLabels]
+        .filter(Boolean)
+        .join(" · ")}
       secondaryLabelWidth={providerNameLabel ? 96 : undefined}
       maxWidth="100%"
       onPress={props.onPress}

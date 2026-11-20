@@ -36,8 +36,8 @@ becomes unavailable.
 
 Models and reasoning choices come from Muse on the selected host. After changing
 Muse configuration, refresh provider status in **Settings → Providers**. On
-mobile, pull down in thread settings to refresh models. If a saved model becomes
-unavailable, select an available model before sending another message.
+mobile, open **Model** in thread settings and pull down in the model list to refresh it.
+If a saved model becomes unavailable, select an available model before sending another message.
 
 Muse can list models that your account cannot use. If a message fails with
 "does not exist or you lack access", pick another model, or add one your account

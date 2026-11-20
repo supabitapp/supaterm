@@ -346,7 +346,11 @@ export const ModelPickerContent = memo(function ModelPickerContent(props: {
   onRequestClose?: () => void;
   onOpenProviderSetup?: (instanceId: ProviderInstanceId) => void;
   getModelDisabledReason?: (instanceId: ProviderInstanceId, model: string) => string | null;
-  onInstanceModelChange: (instanceId: ProviderInstanceId, model: string) => void;
+  onInstanceModelChange: (
+    instanceId: ProviderInstanceId,
+    model: string,
+    viaKeyboard: boolean,
+  ) => void;
   /** The owning popup moves focus here when it opens (its `initialFocus`). */
   searchInputRef: RefObject<HTMLInputElement | null>;
 }) {
@@ -488,6 +492,7 @@ export const ModelPickerContent = memo(function ModelPickerContent(props: {
     modelSlug: string,
     instanceId: ProviderInstanceId,
     additive = false,
+    viaKeyboard = false,
   ): string | null => {
     if (getModelDisabledReason?.(instanceId, modelSlug)) {
       return null;
@@ -505,7 +510,7 @@ export const ModelPickerContent = memo(function ModelPickerContent(props: {
     if (additive && onToggleModel) {
       onToggleModel(instanceId, resolvedModel);
     } else {
-      onInstanceModelChange(instanceId, resolvedModel);
+      onInstanceModelChange(instanceId, resolvedModel, viaKeyboard);
     }
     return resolvedModel;
   };
@@ -830,7 +835,7 @@ export const ModelPickerContent = memo(function ModelPickerContent(props: {
     if (!model) {
       return;
     }
-    const selectedSlug = handleModelSelect(model.slug, model.instanceId);
+    const selectedSlug = handleModelSelect(model.slug, model.instanceId, false, true);
     if (selectedSlug === null) return;
     const name = flatModels.find(
       (item) => item.slug === selectedSlug && item.instanceId === model.instanceId,
@@ -843,7 +848,7 @@ export const ModelPickerContent = memo(function ModelPickerContent(props: {
       <WindowKeyDownListener onKeyDown={onWindowKeyDown} />
       <div
         ref={pickerContentRef}
-        className="relative flex max-h-86.5 w-screen max-w-90 flex-row overflow-hidden"
+        className="relative flex max-h-86.5 w-screen max-w-[min(22.5rem,calc(100vw-1rem))] flex-row overflow-hidden"
         style={
           isSearching
             ? { height: searchHeight }
@@ -909,6 +914,7 @@ export const ModelPickerContent = memo(function ModelPickerContent(props: {
                 model.slug,
                 model.instanceId,
                 "shiftKey" in details.event && details.event.shiftKey === true,
+                details.event.type === "keydown",
               );
             }
           }}
@@ -974,7 +980,7 @@ export const ModelPickerContent = memo(function ModelPickerContent(props: {
                   }
                   const model = parseModelPickerModelKey(highlightedModelKeyRef.current);
                   if (model) {
-                    handleModelSelect(model.slug, model.instanceId, e.shiftKey);
+                    handleModelSelect(model.slug, model.instanceId, e.shiftKey, true);
                   }
                   return;
                 }

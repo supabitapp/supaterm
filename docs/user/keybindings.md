@@ -25,8 +25,8 @@ When a thread has queued messages, `mod+Shift+Enter` sends the first: as a steer
 turn runs, or as a new turn once the agent is stopped. Change it under **Queue: Send First
 Queued Message** in Keybindings.
 
-Use `mod+shift+m` to choose a model, `mod+shift+e` for effort, and `mod+shift+a` for
-access mode. While you create a thread, use `mod+shift+h` to choose a host, `mod+shift+x`
+Use `mod+shift+m` or `mod+shift+e` to open the model and effort picker. Use `mod+shift+a`
+for access mode. While you create a thread, use `mod+shift+h` to choose a host, `mod+shift+x`
 for the workspace, and `mod+shift+g` for the Git branch.
 To step a new thread to the next machine instead of opening the menu, bind
 **Composer: Cycle Host** in Keybindings. It has no default shortcut.

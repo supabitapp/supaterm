@@ -93,7 +93,6 @@ import { useComposerTextRole, type ScaledTextRole } from "../settings/appearance
 import type { RemoteClientConnectionState } from "../../lib/connection";
 import { MOBILE_TYPOGRAPHY } from "../../lib/typography";
 import { resolveProviderOptionDescriptors } from "../../lib/providerOptions";
-import { ComposerSpeedToggle } from "../../components/ComposerSpeedToggle";
 import { ComposerModelControl } from "./ComposerModelControl";
 import { Menu } from "../../components/ui/Menu";
 import {
@@ -208,7 +207,6 @@ export interface ThreadComposerProps {
   ) => Promise<MessageId | null>;
   readonly onShowUsageLimits: (report: UsageLimitsReport | null) => void;
   readonly canSwitchProvider: boolean;
-  readonly onUpdateModelSelection: (modelSelection: ModelSelection) => void;
   readonly onExpandedChange?: (expanded: boolean) => void;
   readonly onHeightChange?: (height: number) => void;
   readonly onEditorFocusChange?: (focused: boolean) => void;
@@ -1219,12 +1217,6 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
                         onPress={openSettings}
                       />
                     </View>
-                    <ComposerSpeedToggle
-                      descriptors={providerOptionDescriptors}
-                      onChange={(options) =>
-                        props.onUpdateModelSelection({ ...currentModelSelection, options })
-                      }
-                    />
                   </>
                 )}
                 {voicePresentation.showsSend ? (

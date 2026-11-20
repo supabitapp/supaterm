@@ -33,7 +33,6 @@ import {
   MessageId,
   PROVIDER_SEND_TURN_MAX_ATTACHMENTS,
   type EnvironmentId,
-  type ModelSelection,
   type ThreadId,
 } from "@supaterm/contracts";
 
@@ -86,7 +85,6 @@ import {
   useComposerDraft,
   useComposerDraftSettings,
 } from "./use-composer-drafts";
-import { selectThreadModel } from "./thread-model-selection";
 import { isClearComposerCommand, parseSideChatCommand } from "@supaterm/shared/composerTrigger";
 import {
   compactionBlocksSteering,
@@ -849,16 +847,6 @@ export function useThreadComposerState() {
     removeComposerDraftAttachment(threadKey, imageId);
   };
 
-  const onUpdateModelSelection = (value: ModelSelection) => {
-    if (!selectedThreadShell) {
-      return;
-    }
-    selectThreadModel(
-      { environmentId: selectedThreadShell.environmentId, threadId: selectedThreadShell.id },
-      value,
-    );
-  };
-
   return {
     feedbackSubmissions,
     dismissFeedback,
@@ -900,6 +888,5 @@ export function useThreadComposerState() {
     onRemoveDraftImage,
     onSendMessage,
     onSendVoiceMessage,
-    onUpdateModelSelection,
   };
 }

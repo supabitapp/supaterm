@@ -1230,7 +1230,6 @@ function ThreadRouteContent(
           onSendVoiceMessage={composer.onSendVoiceMessage}
           onReconnectEnvironment={handleReconnectEnvironment}
           canSwitchThreadProvider={composer.canSwitchThreadProvider}
-          onUpdateThreadModelSelection={composer.onUpdateModelSelection}
           onRespondToApproval={requests.onRespondToApproval}
           onSelectUserInputOption={requests.onSelectUserInputOption}
           onChangeUserInputCustomAnswer={requests.onChangeUserInputCustomAnswer}
