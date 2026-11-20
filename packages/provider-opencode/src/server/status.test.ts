@@ -491,7 +491,7 @@ describe("checkOpenCodeProviderStatus", () => {
             providerID: "opencode",
             id: "space-bunny-free",
             name: "Space Bunny Free",
-            variants: [{ id: "low" }, { id: "medium" }, { id: "high" }],
+            variants: [{ id: "low" }, { id: "medium" }, { id: "high" }, { id: "xhigh" }],
           },
           {
             providerID: "opencode-go",
@@ -524,7 +524,13 @@ describe("checkOpenCodeProviderStatus", () => {
         ?.capabilities?.optionDescriptors?.[0];
       NodeAssert.deepEqual(
         variant?.type === "select" ? variant.options.map((option) => option.id) : [],
-        ["low", "medium", "high"],
+        ["low", "medium", "high", "xhigh"],
+      );
+      NodeAssert.equal(
+        variant?.type === "select"
+          ? variant.options.find((option) => option.id === "xhigh")?.label
+          : undefined,
+        "Extra High",
       );
       NodeAssert.equal(
         variant?.type === "select"

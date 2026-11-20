@@ -186,6 +186,10 @@ function titleCaseSlug(value: string): string {
   return segments.join(" ");
 }
 
+function reasoningVariantLabel(value: string): string {
+  return value === "xhigh" ? "Extra High" : titleCaseSlug(value);
+}
+
 function inferDefaultVariant(
   providerID: string,
   variants: ReadonlyArray<string>,
@@ -514,7 +518,7 @@ function openCode2ModelCapabilities(model: OpenCode2Model): ModelCapabilities {
               type: "select",
               options: variants.map((id) => ({
                 id,
-                label: titleCaseSlug(id),
+                label: reasoningVariantLabel(id),
                 ...(id === defaultVariant ? { isDefault: true } : {}),
               })),
               ...(defaultVariant === undefined ? {} : { currentValue: defaultVariant }),
