@@ -9,9 +9,16 @@ const { refresh, assetUrlState } = vi.hoisted(() => ({
   assetUrlState: vi.fn<() => import("~/assets/assetUrls").AssetUrlState>(),
 }));
 
+// Like the real hook, the callback is a new function whenever its resource object is.
+const refreshers = new WeakMap<object, () => Promise<string | null>>();
 vi.mock(import("~/assets/assetUrls"), async (original) => ({
   ...(await original()),
-  useAssetUrlRefresh: () => refresh,
+  useAssetUrlRefresh: (_environmentId, resource) => {
+    if (!resource) return refresh;
+    let callback = refreshers.get(resource);
+    if (!callback) refreshers.set(resource, (callback = () => refresh()));
+    return callback;
+  },
   useAssetUrlState: assetUrlState,
 }));
 // The real source view highlights through a worker pool; the text it receives is what matters here.
@@ -954,6 +961,29 @@ describe("large text preview recovery", () => {
     await vi.waitFor(() => expect(load).toHaveBeenCalledWith(0));
   });
 });
+
+it("keeps an attachment URL when the parent passes a fresh asset object for the same attachment", async () => {
+  const url = URL.createObjectURL(new Blob(["%PDF-1.4"], { type: "application/pdf" }));
+  refresh.mockReset().mockResolvedValue(url);
+  const preview = () => (
+    <AttachmentFilePreview
+      name="report.pdf"
+      mimeType="application/pdf"
+      sizeBytes={8}
+      asset={{ environmentId: EnvironmentId.make("test"), attachmentId: "report" }}
+    />
+  );
+  try {
+    await using screen = await render(preview());
+    await vi.waitFor(() => expect(refresh).toHaveBeenCalledTimes(1));
+    // FilePreviewPanel rebuilds `asset` when an agent command completes.
+    await screen.rerender(preview());
+    expect(refresh).toHaveBeenCalledTimes(1);
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+});
+
 it.each([
   ["one.csv", "text/csv", "name\nAda\n", "1 row · 1 column ·"],
   ["two.csv", "text/csv", "name,count\nAda,1\nGrace,2\n", "2 rows · 2 columns ·"],
