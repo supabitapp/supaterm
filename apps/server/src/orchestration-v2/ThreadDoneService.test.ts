@@ -700,6 +700,7 @@ interface HarnessOptions {
     input: ProjectSetupScriptRunner.ProjectSetupScriptRunnerInput,
   ) => Effect.Effect<void>;
   readonly onCloseIdle?: () => Effect.Effect<void>;
+  readonly hasActiveSubprocess?: (input: { readonly threadId: string }) => Effect.Effect<boolean>;
   /** Threads `getThread` returns when a `thread.marked-done` event is handled. */
   readonly currentThreads?: ReadonlyArray<OrchestrationV2AppThread>;
   readonly projections?: ProjectionStore.ProjectionStoreV2Shape;
@@ -855,6 +856,7 @@ const makeHarness = Effect.fn("makeThreadDoneHarness")(function* (options: Harne
     Layer.mock(TerminalManager.TerminalManager)({
       closeOnDone: (input) =>
         Queue.offer(closedIdle, input).pipe(Effect.andThen(options.onCloseIdle?.() ?? Effect.void)),
+      hasActiveSubprocess: (input) => options.hasActiveSubprocess?.(input) ?? Effect.succeed(false),
     }),
     Layer.mock(ProjectSetupScriptRunner.ProjectSetupScriptRunner)({
       runForThread,
@@ -1085,6 +1087,26 @@ describe("ThreadDoneServiceV2 worker", () => {
         ]);
         // Pinned threads drop out before any source control lookup.
         expect(yield* Ref.get(fixture.branchCalls)).toEqual([]);
+      }).pipe(Effect.provide(fixture.layer));
+    }),
+  );
+
+  it.effect("does not auto-mark-done a thread whose terminal has an active subprocess", () =>
+    Effect.gen(function* () {
+      yield* TestClock.setTime(Date.parse(NOW));
+      const thread = makeThread("active-terminal");
+      const fixture = yield* makeHarness({
+        snapshot: makeSnapshot([thread]),
+        settings: {
+          ...DEFAULT_SERVER_SETTINGS,
+          sidebarAutoMarkDoneAfterDays: 3,
+        },
+        hasActiveSubprocess: ({ threadId }) => Effect.succeed(threadId === thread.id),
+      });
+      yield* Effect.gen(function* () {
+        const service = yield* ThreadDoneService.ThreadDoneServiceV2;
+        yield* startHarness(service, fixture.activation, fixture.snapshotReads);
+        expect((yield* Ref.get(fixture.commands)).map((command) => command.threadId)).toEqual([]);
       }).pipe(Effect.provide(fixture.layer));
     }),
   );
