@@ -1,8 +1,10 @@
-import { scopeProjectRef } from "@supaterm/client-runtime/environment";
+import { scopeProjectRef, scopeThreadRef } from "@supaterm/client-runtime/environment";
 import type { ThreadContextRecord, ProjectId } from "@supaterm/contracts";
 import { Link } from "@tanstack/react-router";
 import { MessagesSquareIcon } from "@supaterm/icons";
+import type { MouseEvent } from "react";
 
+import { openSideChatBeside } from "~/chatPanes/actions";
 import {
   useProject,
   useShellOmitsThreads,
@@ -52,6 +54,25 @@ export function ThreadContextChip(props: {
               <Link
                 to="/$environmentId/$threadId"
                 params={{ environmentId, threadId }}
+                onClick={(event: MouseEvent<HTMLAnchorElement>) => {
+                  const parentThreadId = shell?.lineage.parentThreadId ?? null;
+                  if (shell?.lineage.sideChat !== true || parentThreadId === null) return;
+                  if (event.button !== 0) return;
+                  if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+                  const target = {
+                    kind: "server",
+                    threadRef: scopeThreadRef(environmentId, threadId),
+                  } as const;
+                  // A side chat opens in a pane beside its parent, not as its own page.
+                  if (
+                    openSideChatBeside(target, {
+                      parentRef: scopeThreadRef(environmentId, parentThreadId),
+                      sideChat: target,
+                    })
+                  ) {
+                    event.preventDefault();
+                  }
+                }}
                 draggable={false}
               />
             }

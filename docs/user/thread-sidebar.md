@@ -380,11 +380,20 @@ A side chat starts with the permissions, model, and reasoning level shown in the
 thread's composer, including for its first reply, and works in the same folder as the
 thread. Its agent cannot start or message other threads, and it cannot be forked.
 
+To use what you learned on web and desktop, choose **Add to chat** at the top of the
+side chat, or type `@` and a word from its title in the thread's composer. The
+thread's message gets a link to the side chat, and the agent reads as much of it as
+it needs. This works while the thread is busy, once you have sent a message in the
+side chat. An agent on an external OpenCode server cannot read the link, so put the
+details in your message instead.
+
 The side chat's actions sit at its top on web and desktop, and above its composer on
 mobile:
 
-- **Bring back** gives the thread the side chat with your next message there. It is
-  available while the thread is idle.
+- **Add to chat** (web and desktop) links the side chat in the thread's composer.
+- **Bring back** (mobile) gives the thread the side chat with your next message there.
+  It is available while the thread is idle. On web and desktop, **Merge back** in the
+  side chat's thread details does the same.
 - **Promote** makes the side chat a full thread. It shows in the sidebar, can be
   forked, and stays when you delete the thread it came from.
 - **Delete** removes the side chat.

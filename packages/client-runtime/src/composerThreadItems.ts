@@ -34,9 +34,9 @@ export interface ComposerThreadItem {
 
 /**
  * Threads to reference from the composer, matched and ranked like the command
- * palette, without subagent or side chat threads. The agent reads threads on its own server
- * and on the machines it links to, so candidates stay within those, and a linked
- * machine's threads say which machine they are on.
+ * palette, without subagent threads or other threads' side chats. The agent reads threads
+ * on its own server and on the machines it links to, so candidates stay within those, and a
+ * linked machine's threads say which machine they are on.
  */
 export function matchComposerThreadItems(input: {
   shells: ReadonlyArray<ComposerThreadCandidate>;
@@ -50,13 +50,19 @@ export function matchComposerThreadItems(input: {
 }): ComposerThreadItem[] {
   const query = foldSearchQuery(input.query);
   if (query.length === 0) return [];
+  // Closing an unused side chat deletes it, so only one with a message is offered.
+  const isOwnSideChat = (shell: ComposerThreadCandidate) =>
+    shell.lineage.sideChat === true &&
+    shell.environmentId === input.environmentId &&
+    shell.lineage.parentThreadId === input.excludeThreadId &&
+    shell.latestUserMessageAt !== null;
   const candidates = input.shells.filter(
     (shell) =>
       (shell.environmentId === input.environmentId ||
         input.linkedEnvironments.has(shell.environmentId)) &&
       shell.id !== input.excludeThreadId &&
       shell.archivedAt === null &&
-      isListedThreadLineage(shell.lineage),
+      (isListedThreadLineage(shell.lineage) || isOwnSideChat(shell)),
   );
   return rankSearchItems(candidates, (shell, options) =>
     scoreThreadSearch(query, threadSearchSubject(shell, null), input.now, {
@@ -78,7 +84,11 @@ export function matchComposerThreadItems(input: {
           shell.title,
         ),
         label: shell.title,
-        description: machine === undefined ? "Thread" : `Thread on ${machine}`,
+        description: isOwnSideChat(shell)
+          ? "Side chat"
+          : machine === undefined
+            ? "Thread"
+            : `Thread on ${machine}`,
       };
     });
 }
