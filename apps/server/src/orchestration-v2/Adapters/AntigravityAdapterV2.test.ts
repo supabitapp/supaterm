@@ -1392,7 +1392,9 @@ describe("AntigravityAdapterV2 work after the prompt ends", () => {
     Effect.gen(function* () {
       const fileSystem = yield* FileSystem.FileSystem;
       const path = yield* Path.Path;
-      const profile = yield* fileSystem.makeTempDirectoryScoped({ prefix: "supaterm-antigravity-kids-" });
+      const profile = yield* fileSystem.makeTempDirectoryScoped({
+        prefix: "supaterm-antigravity-kids-",
+      });
       const records = (conversationId: string, kind: string) =>
         path.join(profile, "antigravity-acp", "brain", conversationId, ".system_generated", kind);
       const write = (directory: string, name: string, value: unknown) =>
@@ -1449,7 +1451,9 @@ describe("AntigravityAdapterV2 work after the prompt ends", () => {
     Effect.gen(function* () {
       const fileSystem = yield* FileSystem.FileSystem;
       // No records: nothing proves a child is at work, so none may hold a run open.
-      const profile = yield* fileSystem.makeTempDirectoryScoped({ prefix: "supaterm-antigravity-kids-" });
+      const profile = yield* fileSystem.makeTempDirectoryScoped({
+        prefix: "supaterm-antigravity-kids-",
+      });
       const { usage, offers, send, startTurn, throughTerminal } =
         yield* openSessionWithRunningCommand({}, profile);
       yield* startTurn(1, false);

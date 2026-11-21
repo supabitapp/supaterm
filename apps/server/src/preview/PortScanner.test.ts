@@ -844,8 +844,7 @@ effectIt.effect.each(["linux", "darwin"] as const)(
     const agentPort = 43_124;
     const otherPort = 43_125;
     // The agent CLI has the thread in its environment too; its own port is not a server.
-    const agentListener =
-      `p4242\ncnode\nn127.0.0.1:${agentPort}\n` + `p4300\ncagy\nn127.0.0.1:43126\n`;
+    const agentListener = `p4242\ncnode\nn127.0.0.1:${agentPort}\np4300\ncagy\nn127.0.0.1:43126\n`;
     const otherListener = `p5000\ncpostgres\nn127.0.0.1:${otherPort}\n`;
     let lsofStdout = otherListener;
     let lsofFails = false;

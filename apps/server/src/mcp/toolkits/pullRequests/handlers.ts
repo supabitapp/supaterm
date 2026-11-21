@@ -28,10 +28,7 @@ import * as RepositoryIdentityResolver from "../../../project/RepositoryIdentity
 import * as PullRequestWatchService from "../../../pullRequest/PullRequestWatchService.ts";
 import { resolveTarget, type ResolvedTarget } from "../../../pullRequest/pullRequestTarget.ts";
 import * as PullRequestReviewGuideService from "../../../pullRequest/PullRequestReviewGuideService.ts";
-import {
-  projectForPullRequest,
-  pullRequestSyncKey,
-} from "../../../pullRequest/pullRequestSyncKey.ts";
+import { projectForPullRequest } from "../../../pullRequest/pullRequestSyncKey.ts";
 import * as PullRequestService from "../../../pullRequest/PullRequestService.ts";
 import { reviewPositionInPatch } from "../../../pullRequest/pullRequestReviewPosition.ts";
 import { sourceControlDefinitions } from "../../../sourceControl/sourceControlDefinitions.ts";

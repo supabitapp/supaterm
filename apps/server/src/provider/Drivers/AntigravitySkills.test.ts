@@ -99,7 +99,13 @@ it.layer(NodeServices.layer)("discoverAntigravitySkills", (it) => {
       const fileSystem = yield* FileSystem.FileSystem;
       const path = yield* Path.Path;
       const workspace = yield* makeWorkspace();
-      const profileDirectory = path.join(workspace.userHome, "supaterm", "providers", "antigravity", "p");
+      const profileDirectory = path.join(
+        workspace.userHome,
+        "supaterm",
+        "providers",
+        "antigravity",
+        "p",
+      );
       const plugins = path.join(profileDirectory, "config", "plugins");
       for (const plugin of ["demo", "off"]) {
         yield* writeSkill(
