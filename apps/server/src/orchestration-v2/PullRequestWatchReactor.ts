@@ -1,6 +1,7 @@
 import {
   CommandId,
   isListedThreadLineage,
+  isOrchestrationV2RunSettled,
   isOrchestrationV2WorkActive,
   MessageId,
   type OrchestrationV2Notification,
@@ -46,7 +47,6 @@ import * as PullRequestService from "../pullRequest/PullRequestService.ts";
 import { forkParked } from "../serverActivation.ts";
 import * as Orchestrator from "./Orchestrator.ts";
 import * as ProjectionStore from "./ProjectionStore.ts";
-import { isTerminalRunStatus } from "./ThreadManagementService.ts";
 import {
   combinePullRequestWatchWakes,
   evaluatePullRequestWatch,
@@ -927,7 +927,7 @@ export const make = Effect.gen(function* () {
         if (event.type === "run.updated") {
           // A run can stop before its command reports that it ended.
           const commands = agentEnds.get(event.threadId);
-          if (commands === undefined || !isTerminalRunStatus(event.payload.status)) {
+          if (commands === undefined || !isOrchestrationV2RunSettled(event.payload.status)) {
             return Effect.void;
           }
           for (const id of commands.keys()) if (!finished.has(id)) commands.delete(id);

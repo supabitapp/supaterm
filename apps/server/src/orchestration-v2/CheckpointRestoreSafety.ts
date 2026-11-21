@@ -1,5 +1,6 @@
 import {
   isLiveSubagentShell,
+  isOrchestrationV2RunUnsettled,
   isProviderNativeSubagentThread,
   type OrchestrationV2AppThread,
   type OrchestrationV2CheckpointScope,
@@ -12,8 +13,6 @@ import * as Option from "effect/Option";
 import type * as Path from "effect/Path";
 import type { ProjectionStoreV2 } from "./ProjectionStore.ts";
 import type * as ProjectStore from "./ProjectStore.ts";
-
-const UNFINISHED_RUN_STATUSES = new Set(["queued", "preparing", "starting", "running", "waiting"]);
 
 const SHARED_WORKSPACE_RESTORE_MESSAGE =
   "File restore requires an isolated worktree. This workspace may contain changes from another thread. Rewind the conversation without restoring files instead.";
@@ -117,7 +116,7 @@ export const isCheckpointRestoreIsolated = Effect.fn("orchestrationV2.isCheckpoi
             otherThread.activeRunId === null &&
             !isLiveSubagentShell(otherThread) &&
             ancestors !== undefined &&
-            !other.runs.some((run) => UNFINISHED_RUN_STATUSES.has(run.status)) &&
+            !other.runs.some((run) => isOrchestrationV2RunUnsettled(run.status)) &&
             otherThread.lineage.parentThreadId !== null &&
             otherThread.forkedFrom?.type === "node"
           ) {

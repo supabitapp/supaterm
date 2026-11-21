@@ -228,7 +228,7 @@ export class PairingGrantStore extends Context.Service<
     >;
     readonly streamChanges: Stream.Stream<BootstrapCredentialChange>;
     readonly revoke: (id: string) => Effect.Effect<boolean, BootstrapCredentialInternalError>;
-    readonly revokeUnspent: () => Effect.Effect<number, BootstrapCredentialInternalError>;
+    readonly revokeUnspent: () => Effect.Effect<void, BootstrapCredentialInternalError>;
     readonly consume: (
       credential: string,
       input?: {
@@ -354,7 +354,6 @@ const make = Effect.gen(function* () {
       .revokeUnspent({ revokedAt })
       .pipe(Effect.mapError((cause) => new UnspentPairingLinksRevokeError({ cause })));
     yield* Effect.forEach(ids, emitRemoved, { discard: true });
-    return ids.length;
   });
 
   const issueOneTimeToken: PairingGrantStore["Service"]["issueOneTimeToken"] = Effect.fn(
