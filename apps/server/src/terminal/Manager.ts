@@ -3962,9 +3962,10 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
   const hasActiveSubprocess = Effect.fn("terminal.hasActiveSubprocess")(function* (input: {
     readonly threadId: string;
   }) {
+    // Settling closes stopOnDone sessions, so their work must not hold settlement back.
     const running = (yield* sessionsForThread(input.threadId)).filter(
       (session): session is TerminalSessionState & { pid: number } =>
-        session.status === "running" && Number.isInteger(session.pid),
+        session.status === "running" && Number.isInteger(session.pid) && !session.stopOnDone,
     );
     if (running.length === 0) return false;
     const { inspector } = yield* acquireSubprocessInspector(
