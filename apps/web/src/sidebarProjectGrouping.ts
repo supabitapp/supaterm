@@ -165,35 +165,44 @@ export function projectGroupsInEnvironment<
       );
 }
 
+function resolveEnvironmentScope(input: {
+  readonly environmentId?: EnvironmentId | null;
+  readonly environments?: ReadonlyMap<EnvironmentId, boolean> | null;
+  readonly canClearMissingScope?: boolean;
+}): EnvironmentId | null {
+  const environmentId = input.environmentId ?? null;
+  if (environmentId === null || input.environments == null) return environmentId;
+  const enabled = input.environments.get(environmentId);
+  // An unlisted environment may still be registering, such as a WSL backend at startup.
+  if (enabled === undefined) return input.canClearMissingScope ? null : environmentId;
+  return enabled ? environmentId : null;
+}
+
 /**
  * A scope's environment, its project keys, the groups it shows, and every checkout they own.
  * An archived project, or one with no checkout in the chosen environment, reads as all
- * projects, matching the filter menu. An environment that is no longer enabled reads as all;
- * `environmentIds` is null until the catalog can prove that.
+ * projects, matching the filter menu. A disabled environment reads as all, and so does an
+ * unlisted one once every snapshot has loaded. `environments` is null until the catalog is known.
  */
 export function resolveSidebarScope(input: {
   readonly groups: ReadonlyArray<SidebarProjectSnapshot>;
   readonly keys: ReadonlyArray<string>;
   readonly environmentId?: EnvironmentId | null;
-  readonly environmentIds?: ReadonlyArray<EnvironmentId> | null;
+  readonly environments?: ReadonlyMap<EnvironmentId, boolean> | null;
   readonly settings?: ProjectGroupingSettings;
   readonly canClearMissingScope?: boolean;
 }): ResolvedSidebarScope {
-  const environmentId =
-    input.environmentId != null &&
-    (input.environmentIds == null || input.environmentIds.includes(input.environmentId))
-      ? input.environmentId
-      : null;
-  const environmentKeys = new Set(
-    projectGroupsInEnvironment(input.groups, environmentId).map((group) => group.projectKey),
-  );
+  const environmentId = resolveEnvironmentScope(input);
+  const environmentGroups = projectGroupsInEnvironment(input.groups, environmentId);
   const excludedKeys = new Set(
     input.groups
-      .filter((group) => group.archived || !environmentKeys.has(group.projectKey))
+      .filter((group) => group.archived || !environmentGroups.includes(group))
       .map((group) => group.projectKey),
   );
-  const keys = resolveSidebarProjectScopeKeys(input).filter((key) => !excludedKeys.has(key));
-  const groups = input.groups.filter((group) => keys.includes(group.projectKey));
+  const keys = resolveSidebarProjectScopeKeys({ ...input, groups: environmentGroups }).filter(
+    (key) => !excludedKeys.has(key),
+  );
+  const groups = environmentGroups.filter((group) => keys.includes(group.projectKey));
   return {
     environmentId,
     keys,

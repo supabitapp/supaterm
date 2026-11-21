@@ -132,21 +132,26 @@ export function expectsPrimaryEnvironment(): boolean {
   return !isHostedStaticApp() && !isLocalEnvironmentDisabled();
 }
 
-/** Enabled environments once the catalog can prove which exist, or null until then. */
-const knownEnabledEnvironmentIdsAtom = Atom.make((get): ReadonlyArray<EnvironmentId> | null => {
+/** Each listed environment's enabled flag once the catalog can prove which exist, or null until then. */
+const knownEnvironmentsAtom = Atom.make((get): ReadonlyMap<EnvironmentId, boolean> | null => {
   const catalog = get(environmentCatalog.catalogValueAtom);
   if (!catalogIsComplete(catalog, expectsPrimaryEnvironment())) return null;
-  const next = [...enabledEnvironmentIds(catalog)];
-  const previous = Option.getOrNull(get.self<ReadonlyArray<EnvironmentId> | null>());
+  const next = new Map(
+    Array.from(
+      catalog.entries,
+      ([environmentId, entry]) => [environmentId, entry.enabled] as const,
+    ),
+  );
+  const previous = Option.getOrNull(get.self<ReadonlyMap<EnvironmentId, boolean> | null>());
   return previous != null &&
-    previous.length === next.length &&
-    next.every((environmentId, index) => environmentId === previous[index])
+    previous.size === next.size &&
+    Array.from(next).every(([environmentId, enabled]) => previous.get(environmentId) === enabled)
     ? previous
     : next;
-}).pipe(Atom.withLabel("web-known-enabled-environment-ids"));
+}).pipe(Atom.withLabel("web-known-environments"));
 
-export function useKnownEnabledEnvironmentIds(): ReadonlyArray<EnvironmentId> | null {
-  return useAtomValue(knownEnabledEnvironmentIdsAtom);
+export function useKnownEnvironments(): ReadonlyMap<EnvironmentId, boolean> | null {
+  return useAtomValue(knownEnvironmentsAtom);
 }
 
 export const allReachableShellsLiveAtom = Atom.make((get) => {

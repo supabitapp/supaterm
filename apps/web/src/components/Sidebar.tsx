@@ -157,7 +157,7 @@ import {
   useOfflineEnvironmentIds,
   usePrimaryEnvironmentId,
 } from "../state/environments";
-import { useKnownEnabledEnvironmentIds } from "../state/shell";
+import { useKnownEnvironments } from "../state/shell";
 import {
   readThreadShell,
   useAllEnvironmentProjectSnapshotsReady,
@@ -827,8 +827,9 @@ function useSidebarLookups() {
       label: project.displayName,
     })),
   ];
-  const enabledEnvironmentIds = useKnownEnabledEnvironmentIds();
-  const environmentScopeItems = (enabledEnvironmentIds ?? [])
+  const knownEnvironments = useKnownEnvironments();
+  const environmentScopeItems = Array.from(knownEnvironments ?? [])
+    .flatMap(([environmentId, enabled]) => (enabled ? [environmentId] : []))
     .map((environmentId) => ({
       value: environmentId,
       label: environmentLabelById.get(environmentId) ?? environmentId,
@@ -844,7 +845,7 @@ function useSidebarLookups() {
     projectDisplayNameByKey,
     projectGroupByScopeKey,
     projectScopeItems,
-    enabledEnvironmentIds,
+    knownEnvironments,
     environmentScopeItems,
   };
 }
@@ -910,7 +911,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     projectDisplayNameByKey,
     projectGroupByScopeKey,
     projectScopeItems: lookupProjectScopeItems,
-    enabledEnvironmentIds,
+    knownEnvironments,
     environmentScopeItems,
   } = useSidebarLookups();
   const router = useRouter();
@@ -1103,13 +1104,13 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     setPersistedEnvironmentScopeId(environmentId);
     scrollSidebarToTop(sidebarContentRef.current);
   };
-  // A scope whose project or environment is gone reads as all once that is known. The
-  // stored scope is left alone, so it returns with its project or environment.
+  // A scope whose project or environment is gone reads as all. The stored scope is left
+  // alone, so it returns with its project or environment.
   const chosenScope = resolveSidebarScope({
     groups: projectGroups,
     keys: persistedProjectScopeKeys,
     environmentId: persistedEnvironmentScopeId,
-    environmentIds: enabledEnvironmentIds,
+    environments: knownEnvironments,
     settings: projectGroupingSettings,
     canClearMissingScope: allProjectSnapshotsReady && allProjectConfigsReady,
   });
@@ -2864,7 +2865,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                         setThreadListMenuOpen(true);
                       }}
                       environmentFilter={
-                        environmentScopeItems.length > 1 || scopedEnvironmentId !== null
+                        environmentScopeItems.length > 1 || persistedEnvironmentScopeId !== null
                           ? {
                               items: environmentScopeItems,
                               value: scopedEnvironmentId,

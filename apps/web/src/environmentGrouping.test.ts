@@ -26,6 +26,10 @@ const repositoryIdentity = {
     remoteUrl: "https://github.com/example/shared-repo.git",
   },
 };
+const knownEnvironments = new Map([
+  [primaryEnvironmentId, true],
+  [remoteEnvironmentId, true],
+]);
 const defaultGroupingSettings = {
   sidebarProjectGroupingMode: "repository" as const,
   sidebarProjectGroupingOverrides: {},
@@ -214,13 +218,12 @@ describe("environment grouping", () => {
     const [localKey, sharedKey] = [local, sharedLocal].map(
       (project) => groups.find((group) => group.id === project.id)!.projectKey,
     );
-    const enabledEnvironmentIds = [primaryEnvironmentId, remoteEnvironmentId];
     const resolve = (
       keys: string[],
       environmentId: EnvironmentId,
       canClearMissingScope = true,
-      environmentIds: ReadonlyArray<EnvironmentId> | null = enabledEnvironmentIds,
-    ) => resolveSidebarScope({ groups, keys, environmentId, environmentIds, canClearMissingScope });
+      environments: ReadonlyMap<EnvironmentId, boolean> | null = knownEnvironments,
+    ) => resolveSidebarScope({ groups, keys, environmentId, environments, canClearMissingScope });
 
     const remoteOnly = resolve([], remoteEnvironmentId);
     expect(remoteOnly.environmentId).toBe(remoteEnvironmentId);
@@ -242,14 +245,54 @@ describe("environment grouping", () => {
     expect(isInSidebarScope(sharedOnRemote, remoteEnvironmentId, remoteOther.id)).toBe(false);
     expect(isInSidebarScope(sharedOnRemote, primaryEnvironmentId, sharedLocal.id)).toBe(false);
 
-    const goneEnvironmentId = EnvironmentId.make("env-gone");
-    expect(resolve([], goneEnvironmentId, false).environmentId).toBeNull();
-    expect(resolve([], goneEnvironmentId, false, null).environmentId).toBe(goneEnvironmentId);
-    const emptyEnvironmentId = EnvironmentId.make("env-empty");
+    const unlistedEnvironmentId = EnvironmentId.make("env-unlisted");
+    expect(resolve([], unlistedEnvironmentId, true).environmentId).toBeNull();
+    expect(resolve([], unlistedEnvironmentId, false).environmentId).toBe(unlistedEnvironmentId);
+    expect(resolve([], unlistedEnvironmentId, true, null).environmentId).toBe(
+      unlistedEnvironmentId,
+    );
+    const toggledEnvironmentId = EnvironmentId.make("env-toggled");
+    for (const enabled of [true, false]) {
+      expect(
+        resolve([], toggledEnvironmentId, false, new Map([[toggledEnvironmentId, enabled]]))
+          .environmentId,
+      ).toBe(enabled ? toggledEnvironmentId : null);
+    }
+  });
+
+  it("recovers a scratch scope in the chosen environment over a same-key checkout elsewhere", () => {
+    const identity = { ...repositoryIdentity, rootPath: "/repo" };
+    const remoteScratch = makeProject({
+      id: ProjectId.make("remote-scratch"),
+      environmentId: remoteEnvironmentId,
+      workspaceRoot: "/repo/scratch",
+      repositoryIdentity: identity,
+    });
+    const localCheckout = makeProject({
+      id: ProjectId.make("local-checkout"),
+      workspaceRoot: "/repo",
+      repositoryIdentity: identity,
+    });
+    const key = deriveLogicalProjectKeyFromSettings(remoteScratch, defaultGroupingSettings);
+    const groups = buildSidebarProjectSnapshots({
+      projects: [{ ...remoteScratch, isScratch: true }, localCheckout],
+      groupScratchProjects: true,
+      settings: defaultGroupingSettings,
+      primaryEnvironmentId,
+      resolveEnvironmentLabel: () => null,
+    });
+    expect(groups.find((group) => group.projectKey === key)?.id).toBe(localCheckout.id);
+
     expect(
-      resolve([], emptyEnvironmentId, true, [...enabledEnvironmentIds, emptyEnvironmentId])
-        .environmentId,
-    ).toBe(emptyEnvironmentId);
+      resolveSidebarScope({
+        groups,
+        keys: [key],
+        environmentId: remoteEnvironmentId,
+        environments: knownEnvironments,
+        settings: defaultGroupingSettings,
+        canClearMissingScope: true,
+      }).keys,
+    ).toEqual([groups.find((group) => group.isScratch)?.projectKey]);
   });
 
   it("dedupes stale project rows with the same environment and workspace path", () => {
