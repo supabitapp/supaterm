@@ -180,6 +180,7 @@ export function useReviewDiffData(input: {
                     request: {
                       cwd,
                       ...(lazySource.baseRef ? { baseRef: lazySource.baseRef } : {}),
+                      ...(lazySource.mergeBase ? { mergeBase: lazySource.mergeBase } : {}),
                       file: {
                         path: file.path,
                         previousPath: file.previousPath,
