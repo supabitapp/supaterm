@@ -6,6 +6,8 @@ import {
   type RuntimeMode,
   type ServerConfig,
 } from "@supaterm/contracts";
+import { createElement, useLayoutEffect } from "react";
+import { act, create, type ReactTestRenderer } from "react-test-renderer";
 import { expect, it, vi } from "vite-plus/test";
 
 const state = vi.hoisted(() => ({
@@ -13,15 +15,24 @@ const state = vi.hoisted(() => ({
   serverConfig: null as ServerConfig | null,
   enqueue: vi.fn(async (_message: unknown) => {}),
   alert: vi.fn(),
+  dispatch: vi.fn(),
+  uuids: 0,
 }));
 
-vi.mock("@react-navigation/native", () => ({ StackActions: {}, useNavigation: vi.fn() }));
+vi.mock("@effect/atom-react", () => ({ useAtomValue: () => false }));
+vi.mock("@react-navigation/native", () => ({
+  StackActions: { push: (name: string, params: object) => ({ name, params }) },
+  useNavigation: () => ({ dispatch: state.dispatch }),
+}));
 vi.mock("@supaterm/client-runtime/state/side-chats", () => ({
-  sideChatStartBlockedReason: vi.fn(),
-  sendSideChatFirstMessage: async (input: { enqueue: () => Promise<unknown> }) => ({
-    kind: "queued",
-    value: await input.enqueue(),
-  }),
+  sideChatStartBlockedReason: () => null,
+  sendSideChatFirstMessage: async (input: { enqueue: () => Promise<unknown> }) => {
+    try {
+      return { kind: "queued", value: await input.enqueue() };
+    } catch (error) {
+      return { kind: "failed", reason: String(error) };
+    }
+  },
 }));
 vi.mock("../../components/ui/Dialog", () => ({ alert: state.alert }));
 vi.mock("../../lib/commandMetadata", () => ({
@@ -31,7 +42,7 @@ vi.mock("../../lib/commandMetadata", () => ({
     createdAt: "2026-11-10T00:00:00.000Z",
   }),
 }));
-vi.mock("../../lib/uuid", () => ({ uuidv4: () => "uuid" }));
+vi.mock("../../lib/uuid", () => ({ uuidv4: () => `uuid-${(state.uuids += 1)}` }));
 vi.mock("../../state/atom-registry", () => ({
   appAtomRegistry: {
     get: (atom: unknown) =>
@@ -50,10 +61,10 @@ vi.mock("../../state/atom-registry", () => ({
 vi.mock("../../state/server", () => ({ serverEnvironment: { configValueAtom: () => "config" } }));
 vi.mock("../../state/threads", () => ({
   environmentThreadShells: { threadShellAtom: (ref: unknown) => ref },
-  environmentThreadDetails: {},
+  environmentThreadDetails: { worktreePendingAtom: () => "worktree-pending" },
   threadEnvironment: {},
 }));
-vi.mock("../../state/entities", () => ({ useEnvironmentServerConfig: vi.fn() }));
+vi.mock("../../state/entities", () => ({ useEnvironmentServerConfig: () => null }));
 vi.mock("../../state/session", () => ({ useEnvironmentScope: vi.fn() }));
 vi.mock("../../state/thread-outbox", () => ({ enqueueThreadOutboxMessage: state.enqueue }));
 vi.mock("../../state/use-composer-drafts", () => ({
@@ -61,7 +72,7 @@ vi.mock("../../state/use-composer-drafts", () => ({
 }));
 vi.mock("./threadForkNavigation", () => ({ waitForThreadShellReady: vi.fn() }));
 
-import { startSideChat } from "./useSideChat";
+import { startSideChat, useSideChat } from "./useSideChat";
 
 const start = (content?: Parameters<typeof startSideChat>[0]["content"]) =>
   startSideChat({
@@ -111,3 +122,56 @@ it("sends the parent composer's attachments and context with the first message",
     expect.objectContaining({ text: "why does this fail?", attachments, context }),
   );
 });
+
+async function mountSideChat() {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  let sideChat!: ReturnType<typeof useSideChat>;
+  function Probe() {
+    const value = useSideChat(EnvironmentId.make("primary"), {
+      environmentId: EnvironmentId.make("primary"),
+      id: ThreadId.make("parent"),
+      projectId: "project",
+      lineage: {},
+      deletedAt: null,
+    } as never);
+    useLayoutEffect(() => {
+      sideChat = value;
+    });
+    return null;
+  }
+  let renderer!: ReactTestRenderer;
+  await act(async () => {
+    renderer = create(createElement(Probe));
+  });
+  return {
+    send: (...args: Parameters<typeof sideChat.send>) => sideChat.send(...args),
+    [Symbol.asyncDispose]: async () => {
+      await act(async () => renderer.unmount());
+      vi.unstubAllGlobals();
+    },
+  };
+}
+
+it.each([
+  ["text only", undefined],
+  [
+    "with attachments",
+    { attachments: [{ id: "image-1", type: "image" }] as never, context: undefined },
+  ],
+])(
+  "/side %s retries a first message that was not saved under the same side chat",
+  async (_label, content) => {
+    vi.clearAllMocks();
+    state.draft = {};
+    state.serverConfig = null;
+    state.enqueue.mockRejectedValueOnce(new Error("Storage is full."));
+    await using sideChat = await mountSideChat();
+
+    expect(await sideChat.send("what is this?", content)).toBe(false);
+    expect(await sideChat.send("what is this?", content)).toBe(true);
+    const [first, retry] = state.enqueue.mock.calls.map(
+      ([message]) => (message as { threadId: string }).threadId,
+    );
+    expect(retry).toBe(first);
+  },
+);

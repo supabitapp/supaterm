@@ -18,12 +18,7 @@ import { alertSideChatQueued, startSideChat, useSideChatDisabledReason } from ".
 export function SideChatDraftRouteScreen() {
   const navigation = useNavigation();
   const route =
-    useRoute<
-      Route<
-        string,
-        { environmentId?: string; threadId?: string; sideChatId?: string; prompt?: string }
-      >
-    >();
+    useRoute<Route<string, { environmentId?: string; threadId?: string; sideChatId?: string }>>();
   const parentRef =
     route.params?.environmentId && route.params.threadId
       ? scopeThreadRef(
@@ -34,7 +29,7 @@ export function SideChatDraftRouteScreen() {
   const parent = useQuietThreadShell(parentRef);
   const disabledReason = useSideChatDisabledReason(parentRef?.environmentId ?? null, parent);
   const [sideChatId] = useState(() => ThreadId.make(route.params?.sideChatId ?? uuidv4()));
-  const [text, setText] = useState(route.params?.prompt ?? "");
+  const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
 
   const send = async () => {

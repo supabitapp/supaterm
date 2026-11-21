@@ -151,11 +151,13 @@ export function alertSideChatQueued() {
   Dialog.alert("Side chat started", "It opens from its thread once it reaches this device.");
 }
 
+const unsentSideChatIds = new Map<string, ThreadId>();
+
 /**
- * Side chats of `parent`. `openDraft` pushes a side chat draft that forks on its first send;
- * `send` starts one with `prompt` at once and opens it, or opens the draft holding `prompt` and
- * its thread id when it did not start, so retrying there never forks twice. The draft holds only
- * text, so a start with composer content that fails resolves false and leaves it to the caller.
+ * Side chats of `parent`. `openDraft` pushes an empty side chat draft that forks on its first
+ * send. `send` starts one with `prompt` and composer content at once and opens it. It resolves
+ * true once the outbox holds the first message; until then the caller keeps that message, and
+ * the next `send` from `parent` retries under the same thread id so it never forks twice.
  */
 export function useSideChat(
   environmentId: EnvironmentId | null,
@@ -165,32 +167,29 @@ export function useSideChat(
   const pendingRef = useRef(false);
   const disabledReason = useSideChatDisabledReason(environmentId, parent);
 
-  const pushDraft = (
-    owner: EnvironmentThreadShell,
-    draft: { readonly sideChatId: ThreadId; readonly prompt: string },
-  ) =>
+  const pushDraft = (owner: EnvironmentThreadShell) =>
     navigation.dispatch(
       StackActions.push("SideChatDraft", {
         environmentId: owner.environmentId,
         threadId: owner.id,
-        sideChatId: draft.sideChatId,
-        prompt: draft.prompt,
+        sideChatId: ThreadId.make(uuidv4()),
       }),
     );
 
   const openDraft = () => {
     if (parent === null || disabledReason !== null) return;
-    pushDraft(parent, { sideChatId: ThreadId.make(uuidv4()), prompt: "" });
+    pushDraft(parent);
   };
 
   const send = async (prompt: string, content?: SideChatComposerContent): Promise<boolean> => {
     if (parent === null || disabledReason !== null || pendingRef.current) return false;
     const text = prompt.trim();
-    const sideChatId = ThreadId.make(uuidv4());
     if (text === "" && content === undefined) {
-      pushDraft(parent, { sideChatId, prompt: "" });
+      pushDraft(parent);
       return true;
     }
+    const parentKey = scopedThreadKey(parent.environmentId, parent.id);
+    const sideChatId = unsentSideChatIds.get(parentKey) ?? ThreadId.make(uuidv4());
     pendingRef.current = true;
     const started = await startSideChat({
       environmentId: parent.environmentId,
@@ -202,9 +201,11 @@ export function useSideChat(
       pendingRef.current = false;
     });
     if (started === null) {
-      if (content !== undefined) return false;
-      pushDraft(parent, { sideChatId, prompt: text });
-    } else if (started === "queued") alertSideChatQueued();
+      unsentSideChatIds.set(parentKey, sideChatId);
+      return false;
+    }
+    unsentSideChatIds.delete(parentKey);
+    if (started === "queued") alertSideChatQueued();
     else {
       navigation.dispatch(
         StackActions.push("Thread", { environmentId: parent.environmentId, threadId: sideChatId }),

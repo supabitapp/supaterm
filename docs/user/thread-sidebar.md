@@ -379,7 +379,8 @@ Find one again under **Side chats** in thread details.
 
 On mobile, type `/side` or `/btw` in the composer, or choose **Start side chat** in
 the command palette. A thread lists its side chats above the composer; tap one to
-open it.
+open it. If a side chat does not start, your message stays in the composer; send it
+again to retry.
 
 Attachments and context in the composer go to the side chat with your question.
 A side chat starts with the permissions, model, and reasoning level shown in the
