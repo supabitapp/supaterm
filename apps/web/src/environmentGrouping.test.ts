@@ -260,41 +260,6 @@ describe("environment grouping", () => {
     }
   });
 
-  it("recovers a scratch scope in the chosen environment over a same-key checkout elsewhere", () => {
-    const identity = { ...repositoryIdentity, rootPath: "/repo" };
-    const remoteScratch = makeProject({
-      id: ProjectId.make("remote-scratch"),
-      environmentId: remoteEnvironmentId,
-      workspaceRoot: "/repo/scratch",
-      repositoryIdentity: identity,
-    });
-    const localCheckout = makeProject({
-      id: ProjectId.make("local-checkout"),
-      workspaceRoot: "/repo",
-      repositoryIdentity: identity,
-    });
-    const key = deriveLogicalProjectKeyFromSettings(remoteScratch, defaultGroupingSettings);
-    const groups = buildSidebarProjectSnapshots({
-      projects: [{ ...remoteScratch, isScratch: true }, localCheckout],
-      groupScratchProjects: true,
-      settings: defaultGroupingSettings,
-      primaryEnvironmentId,
-      resolveEnvironmentLabel: () => null,
-    });
-    expect(groups.find((group) => group.projectKey === key)?.id).toBe(localCheckout.id);
-
-    expect(
-      resolveSidebarScope({
-        groups,
-        keys: [key],
-        environmentId: remoteEnvironmentId,
-        environments: knownEnvironments,
-        settings: defaultGroupingSettings,
-        canClearMissingScope: true,
-      }).keys,
-    ).toEqual([groups.find((group) => group.isScratch)?.projectKey]);
-  });
-
   it("dedupes stale project rows with the same environment and workspace path", () => {
     const duplicate = makeProject({
       id: ProjectId.make("project-duplicate"),

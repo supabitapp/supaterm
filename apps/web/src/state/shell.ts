@@ -136,10 +136,11 @@ export function expectsPrimaryEnvironment(): boolean {
 const knownEnvironmentsAtom = Atom.make((get): ReadonlyMap<EnvironmentId, boolean> | null => {
   const catalog = get(environmentCatalog.catalogValueAtom);
   if (!catalogIsComplete(catalog, expectsPrimaryEnvironment())) return null;
+  const eligible = new Set(enabledEnvironmentIds(catalog));
   const next = new Map(
     Array.from(
-      catalog.entries,
-      ([environmentId, entry]) => [environmentId, entry.enabled] as const,
+      catalog.entries.keys(),
+      (environmentId) => [environmentId, eligible.has(environmentId)] as const,
     ),
   );
   const previous = Option.getOrNull(get.self<ReadonlyMap<EnvironmentId, boolean> | null>());

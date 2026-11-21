@@ -193,16 +193,16 @@ export function resolveSidebarScope(input: {
   readonly canClearMissingScope?: boolean;
 }): ResolvedSidebarScope {
   const environmentId = resolveEnvironmentScope(input);
-  const environmentGroups = projectGroupsInEnvironment(input.groups, environmentId);
+  const environmentKeys = new Set(
+    projectGroupsInEnvironment(input.groups, environmentId).map((group) => group.projectKey),
+  );
   const excludedKeys = new Set(
     input.groups
-      .filter((group) => group.archived || !environmentGroups.includes(group))
+      .filter((group) => group.archived || !environmentKeys.has(group.projectKey))
       .map((group) => group.projectKey),
   );
-  const keys = resolveSidebarProjectScopeKeys({ ...input, groups: environmentGroups }).filter(
-    (key) => !excludedKeys.has(key),
-  );
-  const groups = environmentGroups.filter((group) => keys.includes(group.projectKey));
+  const keys = resolveSidebarProjectScopeKeys(input).filter((key) => !excludedKeys.has(key));
+  const groups = input.groups.filter((group) => keys.includes(group.projectKey));
   return {
     environmentId,
     keys,
