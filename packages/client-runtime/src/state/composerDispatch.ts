@@ -21,10 +21,9 @@ export function resolveComposerDispatchMode(input: {
 }
 
 /**
- * The mode a composer send, typed or recorded, carries into the outbox. A steer travels as "auto"
- * so a turn that ends before delivery degrades to a queued run instead of bouncing to the draft.
- * During setup a send queues, except a steer to a server with `deferredSteering`, which holds only
- * an explicit "steer" until the turn runs.
+ * The mode a composer send, typed or recorded, carries into the outbox. During setup a send
+ * queues, except a steer to a server with `deferredSteering`, which holds only an explicit
+ * "steer" until the turn runs.
  */
 export function outboxDispatchMode(input: {
   readonly dispatchMode: ComposerDispatchMode;
@@ -34,7 +33,7 @@ export function outboxDispatchMode(input: {
   if (input.setupRunning) {
     return input.deferredSteering && input.dispatchMode === "steer" ? "steer" : "queue";
   }
-  return input.dispatchMode === "steer" ? "auto" : input.dispatchMode;
+  return input.dispatchMode;
 }
 
 // Automatic compaction takes steers only where the provider says a steer leaves it running.

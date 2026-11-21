@@ -12,7 +12,7 @@ it.each([
   { dispatchMode: "queue", setupRunning: true, deferredSteering: true, expected: "queue" },
   { dispatchMode: "auto", setupRunning: true, deferredSteering: true, expected: "queue" },
   { dispatchMode: "restart", setupRunning: true, deferredSteering: true, expected: "queue" },
-  { dispatchMode: "steer", setupRunning: false, deferredSteering: true, expected: "auto" },
+  { dispatchMode: "steer", setupRunning: false, deferredSteering: true, expected: "steer" },
   { dispatchMode: "queue", setupRunning: false, deferredSteering: true, expected: "queue" },
   { dispatchMode: "restart", setupRunning: false, deferredSteering: false, expected: "restart" },
 ] as const)(

@@ -284,7 +284,7 @@ describe("useComposerSend with /clear", () => {
 
     expect(send.enqueued).toMatchObject([
       { input: { message: { text: prompt }, dispatchMode: "queue", freshContext: true } },
-      { input: { message: { text: prompt }, dispatchMode: "auto" } },
+      { input: { message: { text: prompt }, dispatchMode: "steer" } },
     ]);
     expect(send.enqueued[1]).not.toHaveProperty("input.freshContext");
     expect(readFreshSessionArm(routeThreadKey)).toBeUndefined();
@@ -338,7 +338,7 @@ describe("useComposerSend over a pending approval", () => {
 
     expect(send.events).toEqual([`decline:${approvalId}`, "enqueue"]);
     expect(send.enqueued).toMatchObject([
-      { input: { threadId, message: { text: prompt }, dispatchMode: "auto" } },
+      { input: { threadId, message: { text: prompt }, dispatchMode: "steer" } },
     ]);
   });
 

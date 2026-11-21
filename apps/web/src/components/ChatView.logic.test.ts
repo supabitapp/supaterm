@@ -1386,7 +1386,7 @@ describe("planComposerTurn", () => {
       true,
     );
     expect(planComposerTurn({ ...running, dispatchMode: "steer" })).toMatchObject({
-      turnDispatchMode: "auto",
+      turnDispatchMode: "steer",
       shouldQueueBehindActiveRun: false,
     });
     const settingUp = { ...running, sendQueuesBehindSetup: true, dispatchMode: "steer" as const };
