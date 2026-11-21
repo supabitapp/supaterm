@@ -31,6 +31,7 @@ import {
 } from "@supaterm/client-runtime/state/thread-sort";
 import { ALL_SIDEBAR_SCOPE, isInSidebarScope, type SidebarScope } from "../sidebarProjectGrouping";
 import type { SidebarThreadSummary, Thread } from "../types";
+import type { DraftId } from "../draftId";
 import { normalizeSearchText } from "../lib/utils";
 import { THREAD_STATUS_TEXT } from "@supaterm/client-runtime/state/thread-activity-announcement";
 import { observeIntersection } from "../lib/observeIntersection";
@@ -752,20 +753,35 @@ export function isSidebarNestedLinkClick(target: EventTarget | null): boolean {
   return nodeClosest(parent, "a[href]") !== null;
 }
 
-/** Jumps and traversal follow the rows as listed: draft rows sit between the pinned threads and the rest. */
-export function orderSidebarRowKeys(input: {
+export type SidebarRow =
+  | { readonly type: "thread"; readonly key: string }
+  | { readonly type: "draft"; readonly key: string; readonly draftId: DraftId };
+
+export const draftRowKey = (draftId: DraftId): string => `draft:${draftId}`;
+
+const threadRow = (key: string): SidebarRow => ({ type: "thread", key });
+
+/**
+ * Jumps, traversal and Codex Micro's sidebar keys follow the rows as listed: draft rows sit
+ * between the pinned threads and the rest.
+ */
+export function orderSidebarRows(input: {
   orderedThreadKeys: readonly string[];
   sectionByThreadKey: ReadonlyMap<string, string>;
-  draftRowKeys: readonly string[];
-}): string[] {
+  draftIds: readonly DraftId[];
+}): SidebarRow[] {
   const firstUnpinned = input.orderedThreadKeys.findIndex(
     (key) => input.sectionByThreadKey.get(key) !== "pinned",
   );
   const draftIndex = firstUnpinned === -1 ? input.orderedThreadKeys.length : firstUnpinned;
   return [
-    ...input.orderedThreadKeys.slice(0, draftIndex),
-    ...input.draftRowKeys,
-    ...input.orderedThreadKeys.slice(draftIndex),
+    ...input.orderedThreadKeys.slice(0, draftIndex).map(threadRow),
+    ...input.draftIds.map((draftId): SidebarRow => ({
+      type: "draft",
+      key: draftRowKey(draftId),
+      draftId,
+    })),
+    ...input.orderedThreadKeys.slice(draftIndex).map(threadRow),
   ];
 }
 

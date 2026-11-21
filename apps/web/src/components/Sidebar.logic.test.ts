@@ -5,7 +5,7 @@ import * as DateTime from "effect/DateTime";
 import { describe, expect, it } from "vite-plus/test";
 import {
   formatWorkingDurationLabel,
-  orderSidebarRowKeys,
+  orderSidebarRows,
   resolveScopedNewThreadProjectRef,
   getFallbackThreadIdAfterDelete,
   hasUnseenCompletion,
@@ -37,6 +37,7 @@ import { scopeThreadRef, scopedThreadKey } from "@supaterm/client-runtime/enviro
 import { sortPinnedThreadsByOrderKey } from "@supaterm/client-runtime/state/thread-sort";
 
 import { EnvironmentId, ProjectId, ProviderInstanceId, RunId, ThreadId } from "@supaterm/contracts";
+import { DraftId } from "../draftId";
 
 import { DEFAULT_RUNTIME_MODE, type Project, type Thread } from "../types";
 import { makeThreadFixture, type ThreadFixtureOverrides } from "../test-fixtures";
@@ -1473,33 +1474,39 @@ describe("resolveScopedNewThreadProjectRef", () => {
   });
 });
 
-describe("orderSidebarRowKeys", () => {
+describe("orderSidebarRows", () => {
   it("places draft rows after the pinned threads, as the sidebar lists them", () => {
     const sectionByThreadKey = new Map([
       ["pinned-a", "pinned"],
       ["active-a", "active"],
       ["done-a", "done"],
     ]);
+    const thread = (key: string) => ({ type: "thread", key });
+    const draft = (id: string) => ({
+      type: "draft",
+      key: `draft:${id}`,
+      draftId: DraftId.make(id),
+    });
     expect(
-      orderSidebarRowKeys({
+      orderSidebarRows({
         orderedThreadKeys: ["pinned-a", "active-a", "done-a"],
         sectionByThreadKey,
-        draftRowKeys: ["draft:1", "draft:2"],
+        draftIds: [DraftId.make("1"), DraftId.make("2")],
       }),
-    ).toEqual(["pinned-a", "draft:1", "draft:2", "active-a", "done-a"]);
+    ).toEqual([thread("pinned-a"), draft("1"), draft("2"), thread("active-a"), thread("done-a")]);
     expect(
-      orderSidebarRowKeys({
+      orderSidebarRows({
         orderedThreadKeys: ["pinned-a"],
         sectionByThreadKey,
-        draftRowKeys: ["draft:1"],
+        draftIds: [DraftId.make("1")],
       }),
-    ).toEqual(["pinned-a", "draft:1"]);
+    ).toEqual([thread("pinned-a"), draft("1")]);
     expect(
-      orderSidebarRowKeys({
+      orderSidebarRows({
         orderedThreadKeys: ["active-a"],
         sectionByThreadKey,
-        draftRowKeys: ["draft:1"],
+        draftIds: [DraftId.make("1")],
       }),
-    ).toEqual(["draft:1", "active-a"]);
+    ).toEqual([draft("1"), thread("active-a")]);
   });
 });
