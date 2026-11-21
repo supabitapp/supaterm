@@ -5,15 +5,22 @@ import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 const readPreparedConnection = vi.fn();
 const env = vi.hoisted(() => ({ isElectron: false }));
 const readEnvironmentSupportsServerBrowser = vi.fn();
+const readEnvironmentServerConfig = vi.fn();
+const readEnvironmentScope = vi.fn();
 
-vi.mock("~/state/session", () => ({ readPreparedConnection }));
+vi.mock("~/state/session", () => ({ readPreparedConnection, readEnvironmentScope }));
 vi.mock("~/env", () => env);
-vi.mock("~/state/entities", () => ({ readEnvironmentSupportsServerBrowser }));
+vi.mock("~/state/entities", () => ({
+  readEnvironmentSupportsServerBrowser,
+  readEnvironmentServerConfig,
+}));
 
 describe("browser target resolver", () => {
   beforeEach(() => {
     readPreparedConnection.mockReset();
     readEnvironmentSupportsServerBrowser.mockReset();
+    readEnvironmentServerConfig.mockReset();
+    readEnvironmentScope.mockReset();
   });
 
   it("resolves relay ports on the host browser and refuses a host without browser support", async () => {
@@ -62,7 +69,7 @@ describe("browser target resolver", () => {
     ).toBe("http://192.168.1.25:3000/app");
   });
 
-  it("keeps localhost for servers on the desktop's own WSL or primary backend", async () => {
+  it("keeps localhost on the desktop's own backends, and elsewhere only through a usable tunnel", async () => {
     const { resolveDiscoveredServerUrl, resolveExternalServerUrl } =
       await import("./browserTargetResolver");
     env.isElectron = true;
@@ -80,13 +87,37 @@ describe("browser target resolver", () => {
         httpBaseUrl: "http://192.168.1.25:3773",
         target: { _tag: "BearerConnectionTarget", connectionId: "saved:remote" },
       });
-      // The webview's partition tunnels to the environment; the system browser has no tunnel.
-      expect(
-        resolveDiscoveredServerUrl(EnvironmentId.make("environment-1"), "localhost:3001/"),
-      ).toBe("http://localhost:3001/");
-      expect(resolveExternalServerUrl(EnvironmentId.make("environment-1"), "localhost:3001/")).toBe(
-        "http://192.168.1.25:3001/",
-      );
+      const tunnelHost = {
+        environment: { capabilities: { previewTunnel: true } },
+        settings: { enablePreviewTunnel: true },
+      };
+      const cases = [
+        { serverConfig: tunnelHost, canOperateTerminal: true, url: "http://localhost:3001/" },
+        { serverConfig: null, canOperateTerminal: true, url: "http://192.168.1.25:3001/" },
+        {
+          serverConfig: { ...tunnelHost, environment: { capabilities: {} } },
+          canOperateTerminal: true,
+          url: "http://192.168.1.25:3001/",
+        },
+        {
+          serverConfig: { ...tunnelHost, settings: { enablePreviewTunnel: false } },
+          canOperateTerminal: true,
+          url: "http://192.168.1.25:3001/",
+        },
+        { serverConfig: tunnelHost, canOperateTerminal: false, url: "http://192.168.1.25:3001/" },
+      ];
+      for (const { serverConfig, canOperateTerminal, url } of cases) {
+        readEnvironmentServerConfig.mockReturnValue(serverConfig);
+        readEnvironmentScope.mockReturnValue(canOperateTerminal);
+        expect(
+          resolveDiscoveredServerUrl(EnvironmentId.make("environment-1"), "localhost:3001/"),
+          JSON.stringify({ serverConfig, canOperateTerminal }),
+        ).toBe(url);
+        // The system browser has no tunnel.
+        expect(
+          resolveExternalServerUrl(EnvironmentId.make("environment-1"), "localhost:3001/"),
+        ).toBe("http://192.168.1.25:3001/");
+      }
     } finally {
       env.isElectron = false;
     }

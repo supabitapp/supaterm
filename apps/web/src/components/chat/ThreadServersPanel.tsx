@@ -66,10 +66,10 @@ function ThreadServersList(props: ThreadServersPanelProps) {
   const environment = useEnvironment(props.environmentId);
   const supportsStop = environment?.serverConfig?.environment.capabilities.localServerStop === true;
   const forwards = usePortForwards();
+  const canOperateTerminal = useEnvironmentScope(props.environmentId, AuthTerminalOperateScope);
   const forwardable =
-    useEnvironmentScope(props.environmentId, AuthTerminalOperateScope) &&
     environment?.connection.phase === "connected" &&
-    canForwardPorts(environment);
+    canForwardPorts(environment, canOperateTerminal);
   const locality = useForwardLocality(forwardable ? props.environmentId : null);
   const canForward = locality === "remote";
   const openPreview = useAtomCommand(previewEnvironment.open, { reportFailure: false });

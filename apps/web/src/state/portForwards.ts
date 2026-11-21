@@ -10,7 +10,7 @@ import { Atom } from "effect/reactivity";
 
 import type { ConnectionTarget } from "@supaterm/client-runtime/connection";
 
-import { tunnelsEnvironmentLoopback } from "../browser/browserTargetResolver";
+import { loopbackTunnelUsable } from "../browser/browserTargetResolver";
 import { environmentAtomList } from "./environmentAtomList";
 import { environmentSession } from "./session";
 
@@ -48,14 +48,19 @@ export function usePortForwards(): ReadonlyArray<DesktopPortForward> {
 }
 
 /** Only the desktop app forwards, and only from environments whose tunnel it may use. */
-export const canForwardPorts = (environment: {
-  readonly entry: { readonly target: ConnectionTarget };
-  readonly serverConfig: { readonly settings: { readonly enablePreviewTunnel: boolean } } | null;
-}): boolean =>
+export const canForwardPorts = (
+  environment: {
+    readonly entry: { readonly target: ConnectionTarget };
+    readonly serverConfig: Parameters<typeof loopbackTunnelUsable>[0]["serverConfig"];
+  },
+  canOperateTerminal: boolean,
+): boolean =>
   previewBridge() !== undefined &&
-  tunnelsEnvironmentLoopback(environment.entry.target) &&
-  environment.serverConfig !== null &&
-  environment.serverConfig.settings.enablePreviewTunnel;
+  loopbackTunnelUsable({
+    target: environment.entry.target,
+    serverConfig: environment.serverConfig,
+    canOperateTerminal,
+  });
 
 /**
  * Whether the environment runs on another machine. A saved route can still lead back to this
