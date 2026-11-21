@@ -2468,52 +2468,55 @@ it.effect("records a secret and a link card without reading the thread's history
       ],
     );
 
-    // A card reads its own run, so the rows and VM steps of its reads, which are deterministic,
-    // must stay flat on a copy where the thread has thousands of older runs.
-    const copyPath = "file:/card-reads?vfs=memdb";
-    using copy = new NodeSqlite.DatabaseSync(copyPath);
-    yield* sql`VACUUM INTO ${copyPath}`;
-    const replay = () =>
-      statements
-        .filter(([query]) => /^\s*(SELECT|WITH)\b/.test(query))
-        .reduce(
-          (total, [query, params]) => {
-            const statement = copy.prepare(query);
-            const rows = statement.all(...(params as ReadonlyArray<NodeSqlite.SQLInputValue>));
-            return {
-              rows: total.rows + rows.length,
-              steps: total.steps + statement.stat("vmStep"),
-            };
-          },
-          { rows: 0, steps: 0 },
+    // StatementSync#stat needs Node 26.8; the Node 24 runtime checks only the records above.
+    if (typeof NodeSqlite.StatementSync.prototype.stat === "function") {
+      // A card reads its own run, so the rows and VM steps of its reads, which are deterministic,
+      // must stay flat on a copy where the thread has thousands of older runs.
+      const copyPath = "file:/card-reads?vfs=memdb";
+      using copy = new NodeSqlite.DatabaseSync(copyPath);
+      yield* sql`VACUUM INTO ${copyPath}`;
+      const replay = () =>
+        statements
+          .filter(([query]) => /^\s*(SELECT|WITH)\b/.test(query))
+          .reduce(
+            (total, [query, params]) => {
+              const statement = copy.prepare(query);
+              const rows = statement.all(...(params as ReadonlyArray<NodeSqlite.SQLInputValue>));
+              return {
+                rows: total.rows + rows.length,
+                steps: total.steps + statement.stat("vmStep"),
+              };
+            },
+            { rows: 0, steps: 0 },
+          );
+      const short = replay();
+      const history: ReadonlyArray<readonly [string, string, ReadonlyArray<string>]> = [
+        ["runs", "run_id", []],
+        ["run_attempts", "attempt_id", ["run_id"]],
+        ["nodes", "node_id", ["run_id"]],
+        ["provider_turns", "provider_turn_id", ["run_attempt_id"]],
+      ];
+      for (const [table, key, renamed] of history) {
+        const name = `orchestration_v2_projection_${table}`;
+        const columns = copy
+          .prepare(`SELECT name FROM pragma_table_info('${name}')`)
+          .all()
+          .map((column) => String(column.name));
+        const values = columns.map((column) =>
+          column === key || renamed.includes(column)
+            ? `${column} || ':history:' || history.n`
+            : column === "ordinal"
+              ? "ordinal + history.n"
+              : column,
         );
-    const short = replay();
-    const history: ReadonlyArray<readonly [string, string, ReadonlyArray<string>]> = [
-      ["runs", "run_id", []],
-      ["run_attempts", "attempt_id", ["run_id"]],
-      ["nodes", "node_id", ["run_id"]],
-      ["provider_turns", "provider_turn_id", ["run_attempt_id"]],
-    ];
-    for (const [table, key, renamed] of history) {
-      const name = `orchestration_v2_projection_${table}`;
-      const columns = copy
-        .prepare(`SELECT name FROM pragma_table_info('${name}')`)
-        .all()
-        .map((column) => String(column.name));
-      const values = columns.map((column) =>
-        column === key || renamed.includes(column)
-          ? `${column} || ':history:' || history.n`
-          : column === "ordinal"
-            ? "ordinal + history.n"
-            : column,
-      );
-      copy.exec(`WITH RECURSIVE history(n) AS (SELECT 1 UNION ALL SELECT n + 1 FROM history WHERE n < 2000)
-        INSERT INTO ${name} (${columns.join(", ")})
-        SELECT ${values.join(", ")} FROM ${name}, history WHERE thread_id = '${threadId}'`);
+        copy.exec(`WITH RECURSIVE history(n) AS (SELECT 1 UNION ALL SELECT n + 1 FROM history WHERE n < 2000)
+          INSERT INTO ${name} (${columns.join(", ")})
+          SELECT ${values.join(", ")} FROM ${name}, history WHERE thread_id = '${threadId}'`);
+      }
+      const long = replay();
+      assert.equal(long.rows, short.rows);
+      assert.isAtMost(long.steps, short.steps * 1.1);
     }
-    const long = replay();
-    assert.equal(long.rows, short.rows);
-    assert.isAtMost(long.steps, short.steps * 1.1);
   }).pipe(Effect.provide(layerTest)),
 );
 
