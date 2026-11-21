@@ -284,7 +284,15 @@ export function PullRequestReviewersRow(props: RowProps) {
           {summary.reviews.map((review) => (
             <View
               key={review.id}
-              accessibilityLabel={`${review.author?.login ?? "Unknown reviewer"}, ${review.reviewState === "APPROVED" ? "Approved" : review.reviewState === "CHANGES_REQUESTED" ? "Changes requested" : "Commented"}`}
+              accessibilityLabel={`${review.author?.login ?? "Unknown reviewer"}, ${
+                review.reviewState === "APPROVED"
+                  ? review.outdated
+                    ? "Approved before the latest commit"
+                    : "Approved"
+                  : review.reviewState === "CHANGES_REQUESTED"
+                    ? "Changes requested"
+                    : "Commented"
+              }`}
               className="min-h-14 flex-row items-center gap-3 px-4 py-2"
             >
               <SymbolView
@@ -297,7 +305,7 @@ export function PullRequestReviewersRow(props: RowProps) {
                 }
                 size={18}
                 tintColorClassName={
-                  review.reviewState === "APPROVED"
+                  review.reviewState === "APPROVED" && !review.outdated
                     ? "accent-adaptive-emerald-600-400"
                     : review.reviewState === "CHANGES_REQUESTED"
                       ? "accent-danger-foreground"
@@ -308,6 +316,9 @@ export function PullRequestReviewersRow(props: RowProps) {
               <Text className="min-w-0 flex-1 text-sm font-supaterm-medium" numberOfLines={1}>
                 {review.author?.login ?? "Unknown reviewer"}
               </Text>
+              {review.outdated ? (
+                <Text className="shrink-0 text-sm text-foreground-muted">Outdated</Text>
+              ) : null}
             </View>
           ))}
           {props.pr.reviewers
