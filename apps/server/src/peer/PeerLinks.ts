@@ -75,6 +75,9 @@ export const certificateErrorCode = (error: unknown) => {
   return undefined;
 };
 
+/** One making of a link. Linking again makes another, with its own session on the peer. */
+export type PeerLinkGeneration = Pick<PeerLink, "environmentId" | "linkedAt">;
+
 /** A usable link: where to reach the peer and the token to send there. */
 export interface ResolvedPeerLink {
   readonly link: PeerLink;
@@ -131,14 +134,17 @@ export class PeerLinks extends Context.Service<
       environmentId: EnvironmentId,
       options?: { readonly linkedAt?: string },
     ) => Effect.Effect<ResolvedPeerLink, PeerLinkError>;
-    /** Records the outcome of a call, so listing shows whether the peer answered last time. */
+    /**
+     * Records the outcome of a call, so listing shows whether the peer answered last time. Only
+     * `link` takes it: a call made before the link was made again says nothing about the new one.
+     */
     readonly recordOutcome: (
-      environmentId: EnvironmentId,
+      link: PeerLinkGeneration,
       outcome: { readonly error: string | null },
     ) => Effect.Effect<void>;
-    /** Records a later end the peer gives the link's session: using a link renews it there. */
+    /** Records a later end the peer gives `link`'s session: using a link renews it there. */
     readonly recordExpiry: (
-      environmentId: EnvironmentId,
+      link: PeerLinkGeneration,
       expiresAt: DateTime.Utc,
     ) => Effect.Effect<void>;
   }
@@ -807,28 +813,32 @@ const make = Effect.gen(function* () {
     },
   );
 
-  const recordOutcome: PeerLinks["Service"]["recordOutcome"] = (environmentId, outcome) =>
+  const recordOutcome: PeerLinks["Service"]["recordOutcome"] = (link, outcome) =>
     DateTime.now.pipe(
       Effect.flatMap((now) =>
         outcome.error === null
           ? sql`
               UPDATE peer_environment_links
               SET last_reached_at = ${DateTime.formatIso(now)}, last_error = NULL
-              WHERE environment_id = ${environmentId}
+              WHERE environment_id = ${link.environmentId}
+                AND linked_at = ${DateTime.formatIso(link.linkedAt)}
             `
           : sql`
               UPDATE peer_environment_links SET last_error = ${outcome.error}
-              WHERE environment_id = ${environmentId}
+              WHERE environment_id = ${link.environmentId}
+                AND linked_at = ${DateTime.formatIso(link.linkedAt)}
             `,
       ),
       Effect.asVoid,
       Effect.ignoreCause({ log: true }),
     );
 
-  const recordExpiry: PeerLinks["Service"]["recordExpiry"] = (environmentId, expiresAt) =>
+  const recordExpiry: PeerLinks["Service"]["recordExpiry"] = (link, expiresAt) =>
     sql`
       UPDATE peer_environment_links SET expires_at = ${DateTime.formatIso(expiresAt)}
-      WHERE environment_id = ${environmentId} AND expires_at < ${DateTime.formatIso(expiresAt)}
+      WHERE environment_id = ${link.environmentId}
+        AND linked_at = ${DateTime.formatIso(link.linkedAt)}
+        AND expires_at < ${DateTime.formatIso(expiresAt)}
     `.pipe(Effect.asVoid, Effect.ignoreCause({ log: true }));
 
   return PeerLinks.of({

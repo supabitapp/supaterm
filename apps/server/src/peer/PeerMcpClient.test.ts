@@ -48,37 +48,43 @@ const toolkit = Toolkit.make(
   }),
 );
 
+const box = descriptorOf("environment-box", "Box");
+
+/** A link to `box` at a remote address; `record` sees what calls over it record. */
+const layerFixtureLinks = (
+  record: Partial<Pick<PeerLinks.PeerLinks["Service"], "recordOutcome" | "recordExpiry">> = {},
+) => {
+  const link = {
+    environmentId: box.environmentId,
+    label: box.label,
+    urls: ["https://peer.example"],
+    access: "auto" as const,
+    linkedAt: DateTime.makeUnsafe(0),
+    expiresAt: DateTime.makeUnsafe(1),
+    lastReachedAt: null,
+    lastError: null,
+  };
+  return Layer.mock(PeerLinks.PeerLinks)({
+    get: () => Effect.succeedSome(link),
+    resolve: () =>
+      Effect.succeed({
+        link,
+        address: "https://peer.example",
+        url: "https://peer.example",
+        token: "fixture",
+        capabilities: box.capabilities,
+      }),
+    recordOutcome: () => Effect.void,
+    recordExpiry: () => Effect.void,
+    ...record,
+  });
+};
+
 /** One `probe` call to a linked peer at a remote address, answered by `http`. */
 const probeThrough = Effect.fn(function* (http: HttpClient.HttpClient) {
-  const box = descriptorOf("environment-box", "Box");
   const context = yield* Layer.build(
     PeerMcpClient.layer.pipe(
-      Layer.provide(
-        Layer.mergeAll(
-          Layer.succeed(HttpClient.HttpClient, http),
-          Layer.mock(PeerLinks.PeerLinks)({
-            resolve: () =>
-              Effect.succeed({
-                link: {
-                  environmentId: box.environmentId,
-                  label: box.label,
-                  urls: ["https://peer.example"],
-                  access: "auto",
-                  linkedAt: DateTime.makeUnsafe(0),
-                  expiresAt: DateTime.makeUnsafe(1),
-                  lastReachedAt: null,
-                  lastError: null,
-                },
-                address: "https://peer.example",
-                url: "https://peer.example",
-                token: "fixture",
-                capabilities: box.capabilities,
-              }),
-            recordOutcome: () => Effect.void,
-            recordExpiry: () => Effect.void,
-          }),
-        ),
-      ),
+      Layer.provide(Layer.merge(Layer.succeed(HttpClient.HttpClient, http), layerFixtureLinks())),
     ),
   );
   return Context.get(context, PeerMcpClient.PeerMcpClient).call({
@@ -117,7 +123,6 @@ it.effect("tells the peer which thread a call is made for", () =>
           ),
         ),
       });
-      const box = descriptorOf("environment-box", "Box");
       const b = yield* servePeer(box, McpHttpServer.toolkitRegistration(senderToolkit, handlers));
       const context = yield* Layer.build(
         layerLinkingEnvironment(descriptorOf("environment-a", "A")),
@@ -175,7 +180,6 @@ it.effect.each([false, true])(
             ),
           ),
         });
-        const box = descriptorOf("environment-box", "Box");
         const b = yield* servePeer(box, McpHttpServer.toolkitRegistration(toolkit, handlers));
         const context = yield* Layer.build(
           layerLinkingEnvironment(descriptorOf("environment-a", "A")),
@@ -220,15 +224,14 @@ it.effect("keeps a link healthy when the peer refuses a call", () =>
         hold: McpToolAccess.reads(() => Effect.succeed({ modes: "" })),
         refuse: McpToolAccess.reads(() => Effect.fail(refusal)),
       });
-      const box = descriptorOf("environment-box", "Box");
       const b = yield* servePeer(box, McpHttpServer.toolkitRegistration(toolkit, handlers));
       const context = yield* Layer.build(
         layerLinkingEnvironment(descriptorOf("environment-a", "A")),
       );
       const links = Context.get(context, PeerLinks.PeerLinks);
       const client = Context.get(context, PeerMcpClient.PeerMcpClient);
-      yield* linkTo(links, b);
-      yield* links.recordOutcome(box.environmentId, { error: "earlier outage" });
+      const linked = yield* linkTo(links, b);
+      yield* links.recordOutcome(linked, { error: "earlier outage" });
       const refused = yield* client
         .call({
           environmentId: box.environmentId,
@@ -240,8 +243,26 @@ it.effect("keeps a link healthy when the peer refuses a call", () =>
         .pipe(Effect.flip);
       // The agent hears the peer's own refusal; the link answered, so it is not failing.
       expect(refused).toMatchObject({ code: refusal.code, message: refusal.message });
-      const link = yield* links.get(box.environmentId);
-      expect(link._tag === "Some" ? link.value.lastError : "missing").toBeNull();
+      const lastError = links
+        .get(box.environmentId)
+        .pipe(Effect.map((link) => (link._tag === "Some" ? link.value.lastError : "missing")));
+      expect(yield* lastError).toBeNull();
+
+      // Work sent under the first link is turned away from the second, which stays healthy.
+      yield* TestClock.adjust(Duration.millis(1));
+      yield* linkTo(links, b);
+      const stale = yield* client
+        .call({
+          environmentId: box.environmentId,
+          tool: "probe",
+          arguments: {},
+          limits: { runtimeMode: "full-access", interactionMode: "default" },
+          linkedAt: DateTime.formatIso(linked.linkedAt),
+          success: Result,
+        })
+        .pipe(Effect.flip);
+      expect(stale.code).toBe("invalid_request");
+      expect(yield* lastError).toBeNull();
     }),
   ).pipe(Effect.provide(NodeHttpServer.layerTest)),
 );
@@ -254,7 +275,6 @@ it.effect("keeps the expiry the peer answers with, so a used link outlives its f
         hold: McpToolAccess.reads(() => Effect.succeed({ modes: "" })),
         refuse: McpToolAccess.reads(() => Effect.fail(refusal)),
       });
-      const box = descriptorOf("environment-box", "Box");
       const b = yield* servePeer(box, McpHttpServer.toolkitRegistration(toolkit, handlers));
       const context = yield* Layer.build(
         layerLinkingEnvironment(descriptorOf("environment-a", "A")),
@@ -339,30 +359,12 @@ it.effect("renews a missing peer session once and reuses its replacement", () =>
         );
       }),
     );
-    const box = descriptorOf("environment-box", "Box");
     const context = yield* Layer.build(
       PeerMcpClient.layer.pipe(
         Layer.provide(
-          Layer.mergeAll(
+          Layer.merge(
             Layer.succeed(HttpClient.HttpClient, http),
-            Layer.mock(PeerLinks.PeerLinks)({
-              resolve: () =>
-                Effect.succeed({
-                  link: {
-                    environmentId: box.environmentId,
-                    label: box.label,
-                    urls: ["https://peer.example"],
-                    access: "auto",
-                    linkedAt: DateTime.makeUnsafe(0),
-                    expiresAt: DateTime.makeUnsafe(1),
-                    lastReachedAt: null,
-                    lastError: null,
-                  },
-                  address: "https://peer.example",
-                  url: "https://peer.example",
-                  token: "fixture",
-                  capabilities: box.capabilities,
-                }),
+            layerFixtureLinks({
               recordOutcome: (_, outcome) => Effect.sync(() => outcomes.push(outcome.error)),
               recordExpiry: (_, expiresAt) =>
                 Effect.sync(() => expiries.push(DateTime.formatIso(expiresAt))),
