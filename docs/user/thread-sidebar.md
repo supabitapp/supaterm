@@ -159,6 +159,10 @@ Use **Thread list options → Grouping**, or the **Group:** menu on iPhone, to c
 **Default** or **Project**. On web and desktop, **Thread list options → Project** shows a single
 project's threads; Shift-click or Shift+Enter adds or removes a project to show several at once.
 Right-click a project there to open its settings.
+With more than one environment connected, **Thread list options → Environment** shows only that
+environment's threads, and the Project list then offers only its projects. On web and desktop,
+opening a thread from another environment, such as from the command palette, shows every
+environment again.
 Project groups active and working threads by project, most recent activity first. Activity means
 sending a message, a run being requested or completing, or reopening a thread; streamed output
 does not reorder it.
