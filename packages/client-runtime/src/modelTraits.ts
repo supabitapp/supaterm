@@ -135,6 +135,9 @@ export function buildTraitsTriggerLabel(input: {
         continue;
       }
     }
+    if (descriptor.type === "select" && descriptor.options.length === 1) {
+      continue;
+    }
     const label =
       input.ultrathinkPromptControlled && descriptor.id === input.primarySelectDescriptorId
         ? "Ultrathink"
