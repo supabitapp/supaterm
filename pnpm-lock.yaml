@@ -2263,8 +2263,8 @@ importers:
         specifier: 6.0.5
         version: 6.0.5
       agent-device:
-        specifier: 0.21.36
-        version: 0.21.36
+        specifier: 0.21.41
+        version: 0.21.41
       effect:
         specifier: 4.1.3
         version: 4.1.3
@@ -6951,8 +6951,8 @@ packages:
     engines: {node: '>=18.18'}
     hasBin: true
 
-  agent-device@0.21.36:
-    resolution: {integrity: sha512-aG88WlEHjFc/OEBQC7AJg+2LfNoVT/ogxnnzIUYUEgafdiTvBaA+X6uQ2wNmpp2ZrHLy8QIXoEOyc3NEZgJCpQ==}
+  agent-device@0.21.41:
+    resolution: {integrity: sha512-VQMYEXzcNBwCPLrWHDM0ic1pWD+GroWukj0jHCzS9zob9eeHSVYJTVSgydLaDn2c2aMH3NuCHr1vLvZ2Bgl7Uw==}
     engines: {node: '>=22.12'}
     hasBin: true
     peerDependencies:
@@ -16122,7 +16122,7 @@ snapshots:
 
   agent-cli-detector@0.1.7: {}
 
-  agent-device@0.21.36: {}
+  agent-device@0.21.41: {}
 
   agent-install@0.0.5:
     dependencies:
