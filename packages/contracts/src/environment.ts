@@ -112,7 +112,7 @@ export const ExecutionEnvironmentCapabilities = Schema.Struct({
   queuedRunStart: Schema.optionalKey(Schema.Boolean),
   /** Serves `/api/preview/tunnel`, which honors `enablePreviewTunnel`. Absent on servers from
       before the tunnel. */
-  previewTunnel: Schema.optionalKey(Schema.Boolean),
+  previewTunnelSetting: Schema.optionalKey(Schema.Boolean),
   /** Server answers server.getNpmRelease using its configured npm registry. */
   npmReleaseLookup: Schema.optionalKey(Schema.Boolean),
   /** Manual commands must update this install, not the host's default global prefix. */

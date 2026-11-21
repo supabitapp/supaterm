@@ -225,7 +225,7 @@ export const make = Effect.gen(function* () {
       modelCatalogRefresh: true,
       ...(hostPlatform === "win32" ? {} : { localServerStop: true }),
       queuedRunStart: true,
-      previewTunnel: true,
+      previewTunnelSetting: true,
       projectOrganization: true,
       ignoredFileListing: true,
       ignoredFileSearch: true,

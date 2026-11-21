@@ -93,7 +93,7 @@ export const loopbackTunnelUsable = (environment: {
   readonly serverConfig:
     | {
         readonly environment: {
-          readonly capabilities: Pick<ExecutionEnvironmentCapabilities, "previewTunnel">;
+          readonly capabilities: Pick<ExecutionEnvironmentCapabilities, "previewTunnelSetting">;
         };
         readonly settings: Pick<ServerSettings, "enablePreviewTunnel">;
       }
@@ -103,7 +103,7 @@ export const loopbackTunnelUsable = (environment: {
 }): boolean =>
   tunnelsEnvironmentLoopback(environment.target) &&
   environment.canOperateTerminal &&
-  environment.serverConfig?.environment.capabilities.previewTunnel === true &&
+  environment.serverConfig?.environment.capabilities.previewTunnelSetting === true &&
   environment.serverConfig.settings.enablePreviewTunnel;
 
 const resolveLoopbackUrl = (

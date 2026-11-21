@@ -88,7 +88,7 @@ describe("browser target resolver", () => {
         target: { _tag: "BearerConnectionTarget", connectionId: "saved:remote" },
       });
       const tunnelHost = {
-        environment: { capabilities: { previewTunnel: true } },
+        environment: { capabilities: { previewTunnelSetting: true } },
         settings: { enablePreviewTunnel: true },
       };
       const cases = [

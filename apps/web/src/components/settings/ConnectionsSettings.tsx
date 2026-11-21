@@ -1313,7 +1313,7 @@ function ConnectionsSettingsContent({
                 }
               />
             ) : null}
-            {accessServerConfig?.environment.capabilities.previewTunnel ? (
+            {accessServerConfig?.environment.capabilities.previewTunnelSetting ? (
               <SettingsRow
                 title={searchableSetting("preview-tunnel").title}
                 description="Lets other devices open this machine's local servers: browser tabs loaded on the device, Open on this device, and port forwarding. Off: browser tabs stream from this machine."
