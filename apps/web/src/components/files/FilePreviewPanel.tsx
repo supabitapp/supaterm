@@ -320,7 +320,6 @@ function WorkspacePdfSaveAction(props: {
   readonly resource: AssetResource;
   readonly name: string;
 }) {
-  const gt = useGT();
   const [saving, setSaving] = useState(false);
   const refreshAssetUrl = useAssetUrlRefresh(props.environmentId, props.resource);
   return (
@@ -346,7 +345,7 @@ function WorkspacePdfSaveAction(props: {
             toastManager.add({
               type: "error",
               title: "Could not save file",
-              description: thrownErrorMessage(cause, m) ?? "Please try again.",
+              description: cause instanceof Error ? cause.message : "Please try again.",
             }),
           )
           .finally(() => setSaving(false));
