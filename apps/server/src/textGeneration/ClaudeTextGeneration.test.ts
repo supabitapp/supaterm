@@ -79,169 +79,36 @@ function withFakeClaudeEnv<A, E, R>(
     const tempDir = yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-claude-text-" });
     const binDir = yield* makeFakeClaudeBinary(tempDir, input.lifecyclePort);
     const pathDelimiter = (yield* HostProcess.isWindows) ? ";" : ":";
-    const previousPath = process.env.PATH;
-    const previousRejectsNoSessionPersistence =
-      process.env.SUPATERM_FAKE_CLAUDE_REJECTS_NO_SESSION_PERSISTENCE;
-    const previousOutput = process.env.SUPATERM_FAKE_CLAUDE_OUTPUT;
-    const previousExitCode = process.env.SUPATERM_FAKE_CLAUDE_EXIT_CODE;
-    const previousStderr = process.env.SUPATERM_FAKE_CLAUDE_STDERR;
-    const previousArgsMustContain = process.env.SUPATERM_FAKE_CLAUDE_ARGS_MUST_CONTAIN;
-    const previousExpectedTools = process.env.SUPATERM_FAKE_CLAUDE_EXPECTED_TOOLS;
-    const previousArgsMustNotContain = process.env.SUPATERM_FAKE_CLAUDE_ARGS_MUST_NOT_CONTAIN;
-    const previousStdinMustContain = process.env.SUPATERM_FAKE_CLAUDE_STDIN_MUST_CONTAIN;
-    const previousImageRejection = process.env.SUPATERM_FAKE_CLAUDE_IMAGE_REJECTION;
-    const previousImageAttemptLog = process.env.SUPATERM_FAKE_CLAUDE_IMAGE_ATTEMPT_LOG;
-    const previousConfigDirMustBe = process.env.SUPATERM_FAKE_CLAUDE_CONFIG_DIR_MUST_BE;
-    const previousCwdMustNotBe = process.env.SUPATERM_FAKE_CLAUDE_CWD_MUST_NOT_BE;
-
+    const fakeClaudeEnv: Record<string, string | undefined> = {
+      PATH: `${binDir}${pathDelimiter}${process.env.PATH ?? ""}`,
+      SUPATERM_FAKE_CLAUDE_OUTPUT: input.output,
+      SUPATERM_FAKE_CLAUDE_REJECTS_NO_SESSION_PERSISTENCE: input.rejectsNoSessionPersistence
+        ? "1"
+        : undefined,
+      SUPATERM_FAKE_CLAUDE_EXIT_CODE:
+        input.exitCode === undefined ? undefined : String(input.exitCode),
+      SUPATERM_FAKE_CLAUDE_STDERR: input.stderr,
+      SUPATERM_FAKE_CLAUDE_ARGS_MUST_CONTAIN: input.argsMustContain,
+      SUPATERM_FAKE_CLAUDE_EXPECTED_TOOLS: input.expectedTools,
+      SUPATERM_FAKE_CLAUDE_ARGS_MUST_NOT_CONTAIN: input.argsMustNotContain,
+      SUPATERM_FAKE_CLAUDE_STDIN_MUST_CONTAIN: input.stdinMustContain,
+      SUPATERM_FAKE_CLAUDE_IMAGE_REJECTION: input.imageRejection,
+      SUPATERM_FAKE_CLAUDE_IMAGE_ATTEMPT_LOG: input.imageAttemptLog,
+      SUPATERM_FAKE_CLAUDE_CWD_MUST_NOT_BE: input.cwdMustNotBe,
+      SUPATERM_FAKE_CLAUDE_CONFIG_DIR_MUST_BE: input.configDirMustBe,
+    };
+    const previousEnv = Object.fromEntries(
+      Object.keys(fakeClaudeEnv).map((name) => [name, process.env[name]]),
+    );
+    const assignEnv = (values: Record<string, string | undefined>) => {
+      for (const [name, value] of Object.entries(values)) {
+        if (value === undefined) delete process.env[name];
+        else process.env[name] = value;
+      }
+    };
     yield* Effect.acquireRelease(
-      Effect.sync(() => {
-        process.env.PATH = `${binDir}${pathDelimiter}${previousPath ?? ""}`;
-        process.env.SUPATERM_FAKE_CLAUDE_OUTPUT = input.output;
-
-        if (input.rejectsNoSessionPersistence) {
-          process.env.SUPATERM_FAKE_CLAUDE_REJECTS_NO_SESSION_PERSISTENCE = "1";
-        } else {
-          delete process.env.SUPATERM_FAKE_CLAUDE_REJECTS_NO_SESSION_PERSISTENCE;
-        }
-
-        if (input.exitCode !== undefined) {
-          process.env.SUPATERM_FAKE_CLAUDE_EXIT_CODE = String(input.exitCode);
-        } else {
-          delete process.env.SUPATERM_FAKE_CLAUDE_EXIT_CODE;
-        }
-
-        if (input.stderr !== undefined) {
-          process.env.SUPATERM_FAKE_CLAUDE_STDERR = input.stderr;
-        } else {
-          delete process.env.SUPATERM_FAKE_CLAUDE_STDERR;
-        }
-
-        if (input.argsMustContain !== undefined) {
-          process.env.SUPATERM_FAKE_CLAUDE_ARGS_MUST_CONTAIN = input.argsMustContain;
-        } else {
-          delete process.env.SUPATERM_FAKE_CLAUDE_ARGS_MUST_CONTAIN;
-        }
-
-        if (input.expectedTools !== undefined) {
-          process.env.SUPATERM_FAKE_CLAUDE_EXPECTED_TOOLS = input.expectedTools;
-        } else {
-          delete process.env.SUPATERM_FAKE_CLAUDE_EXPECTED_TOOLS;
-        }
-
-        if (input.argsMustNotContain !== undefined) {
-          process.env.SUPATERM_FAKE_CLAUDE_ARGS_MUST_NOT_CONTAIN = input.argsMustNotContain;
-        } else {
-          delete process.env.SUPATERM_FAKE_CLAUDE_ARGS_MUST_NOT_CONTAIN;
-        }
-
-        if (input.stdinMustContain !== undefined) {
-          process.env.SUPATERM_FAKE_CLAUDE_STDIN_MUST_CONTAIN = input.stdinMustContain;
-        } else {
-          delete process.env.SUPATERM_FAKE_CLAUDE_STDIN_MUST_CONTAIN;
-        }
-
-        if (input.imageRejection !== undefined) {
-          process.env.SUPATERM_FAKE_CLAUDE_IMAGE_REJECTION = input.imageRejection;
-        } else {
-          delete process.env.SUPATERM_FAKE_CLAUDE_IMAGE_REJECTION;
-        }
-
-        if (input.imageAttemptLog !== undefined) {
-          process.env.SUPATERM_FAKE_CLAUDE_IMAGE_ATTEMPT_LOG = input.imageAttemptLog;
-        } else {
-          delete process.env.SUPATERM_FAKE_CLAUDE_IMAGE_ATTEMPT_LOG;
-        }
-
-        if (input.cwdMustNotBe !== undefined) {
-          process.env.SUPATERM_FAKE_CLAUDE_CWD_MUST_NOT_BE = input.cwdMustNotBe;
-        } else {
-          delete process.env.SUPATERM_FAKE_CLAUDE_CWD_MUST_NOT_BE;
-        }
-
-        if (input.configDirMustBe !== undefined) {
-          process.env.SUPATERM_FAKE_CLAUDE_CONFIG_DIR_MUST_BE = input.configDirMustBe;
-        } else {
-          delete process.env.SUPATERM_FAKE_CLAUDE_CONFIG_DIR_MUST_BE;
-        }
-      }),
-      () =>
-        Effect.sync(() => {
-          process.env.PATH = previousPath;
-
-          if (previousRejectsNoSessionPersistence === undefined) {
-            delete process.env.SUPATERM_FAKE_CLAUDE_REJECTS_NO_SESSION_PERSISTENCE;
-          } else {
-            process.env.SUPATERM_FAKE_CLAUDE_REJECTS_NO_SESSION_PERSISTENCE =
-              previousRejectsNoSessionPersistence;
-          }
-
-          if (previousOutput === undefined) {
-            delete process.env.SUPATERM_FAKE_CLAUDE_OUTPUT;
-          } else {
-            process.env.SUPATERM_FAKE_CLAUDE_OUTPUT = previousOutput;
-          }
-
-          if (previousExitCode === undefined) {
-            delete process.env.SUPATERM_FAKE_CLAUDE_EXIT_CODE;
-          } else {
-            process.env.SUPATERM_FAKE_CLAUDE_EXIT_CODE = previousExitCode;
-          }
-
-          if (previousStderr === undefined) {
-            delete process.env.SUPATERM_FAKE_CLAUDE_STDERR;
-          } else {
-            process.env.SUPATERM_FAKE_CLAUDE_STDERR = previousStderr;
-          }
-
-          if (previousArgsMustContain === undefined) {
-            delete process.env.SUPATERM_FAKE_CLAUDE_ARGS_MUST_CONTAIN;
-          } else {
-            process.env.SUPATERM_FAKE_CLAUDE_ARGS_MUST_CONTAIN = previousArgsMustContain;
-          }
-
-          if (previousExpectedTools === undefined) {
-            delete process.env.SUPATERM_FAKE_CLAUDE_EXPECTED_TOOLS;
-          } else {
-            process.env.SUPATERM_FAKE_CLAUDE_EXPECTED_TOOLS = previousExpectedTools;
-          }
-
-          if (previousArgsMustNotContain === undefined) {
-            delete process.env.SUPATERM_FAKE_CLAUDE_ARGS_MUST_NOT_CONTAIN;
-          } else {
-            process.env.SUPATERM_FAKE_CLAUDE_ARGS_MUST_NOT_CONTAIN = previousArgsMustNotContain;
-          }
-
-          if (previousStdinMustContain === undefined) {
-            delete process.env.SUPATERM_FAKE_CLAUDE_STDIN_MUST_CONTAIN;
-          } else {
-            process.env.SUPATERM_FAKE_CLAUDE_STDIN_MUST_CONTAIN = previousStdinMustContain;
-          }
-
-          if (previousImageRejection === undefined) {
-            delete process.env.SUPATERM_FAKE_CLAUDE_IMAGE_REJECTION;
-          } else {
-            process.env.SUPATERM_FAKE_CLAUDE_IMAGE_REJECTION = previousImageRejection;
-          }
-
-          if (previousImageAttemptLog === undefined) {
-            delete process.env.SUPATERM_FAKE_CLAUDE_IMAGE_ATTEMPT_LOG;
-          } else {
-            process.env.SUPATERM_FAKE_CLAUDE_IMAGE_ATTEMPT_LOG = previousImageAttemptLog;
-          }
-
-          if (previousCwdMustNotBe === undefined) {
-            delete process.env.SUPATERM_FAKE_CLAUDE_CWD_MUST_NOT_BE;
-          } else {
-            process.env.SUPATERM_FAKE_CLAUDE_CWD_MUST_NOT_BE = previousCwdMustNotBe;
-          }
-
-          if (previousConfigDirMustBe === undefined) {
-            delete process.env.SUPATERM_FAKE_CLAUDE_CONFIG_DIR_MUST_BE;
-          } else {
-            process.env.SUPATERM_FAKE_CLAUDE_CONFIG_DIR_MUST_BE = previousConfigDirMustBe;
-          }
-        }),
+      Effect.sync(() => assignEnv(fakeClaudeEnv)),
+      () => Effect.sync(() => assignEnv(previousEnv)),
     );
 
     const config = decodeClaudeSettings(input.claudeConfig ?? {});
