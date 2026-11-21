@@ -224,7 +224,7 @@ export function liveActivityToolStatus(status: string | undefined, presentTense:
   return "completed";
 }
 
-export function genericCommandStatusLabel(status: ReturnType<typeof liveActivityToolStatus>) {
+function genericCommandStatusLabel(status: ReturnType<typeof liveActivityToolStatus>) {
   return status === "inProgress"
     ? "Running command"
     : status === "failed"
