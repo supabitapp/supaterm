@@ -249,7 +249,7 @@ const runResultText = Effect.fn("cli.thread.runResultText")(function* (
 
 /** The latest run's last error once it ended without completing, else null. */
 export const latestRunError = Effect.fn("cli.thread.latestRunError")(function* (
-  tools: ThreadTools,
+  tools: ServerTools,
   thread: Pick<OrchestratorMcpThreadDetail, "threadId" | "status" | "latestRunId">,
 ) {
   const { status, latestRunId } = thread;
