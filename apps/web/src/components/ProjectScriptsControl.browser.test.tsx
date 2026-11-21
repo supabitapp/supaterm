@@ -7,11 +7,19 @@ import { page, userEvent } from "vite-plus/test/browser";
 import { act, render } from "../../test/render";
 import ProjectScriptsControl, { type ProjectScriptActionResult } from "./ProjectScriptsControl";
 
+function deferredResult() {
+  let resolve!: (result: ProjectScriptActionResult) => void;
+  const promise = new Promise<ProjectScriptActionResult>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}
+
 it.each(["edit", "dismiss", "newer import fails first"] as const)(
   "keeps a failed import from replacing a newer action after %s",
   async (nextAction) => {
-    const older = Promise.withResolvers<ProjectScriptActionResult>();
-    const newer = Promise.withResolvers<ProjectScriptActionResult>();
+    const older = deferredResult();
+    const newer = deferredResult();
     await using screen = await render(
       <ProjectScriptsControl
         environmentId={EnvironmentId.make("test")}
