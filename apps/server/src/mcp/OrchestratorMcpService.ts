@@ -3472,7 +3472,8 @@ const make = Effect.gen(function* () {
       // Client callers (the CLI, outside MCP clients) page forward from a cursorless read.
       const newestFirst =
         input.beforePosition !== undefined ||
-        (input.afterPosition === undefined && scope.thread !== undefined);
+        (input.afterPosition === undefined &&
+          (scope.thread !== undefined || scope.client?.linked === true));
       const timeline = yield* threadManagement
         .getTimelinePage(input.threadId, {
           ...(input.afterPosition === undefined ? {} : { afterPosition: input.afterPosition }),

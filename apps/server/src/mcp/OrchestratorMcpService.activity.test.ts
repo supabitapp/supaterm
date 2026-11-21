@@ -509,11 +509,25 @@ it("readThread returns the newest items that fit the response budget", async () 
     // The CLI reads as a client without a cursor and follows only hasMore.
     const first = yield* service.readThread({ ...makeScope(), thread: undefined }, read);
     const fromStart = yield* service.readThread(makeScope(), { ...read, afterPosition: -1 });
+    const linked = yield* service.readThread(
+      {
+        ...makeScope(),
+        thread: undefined,
+        client: {
+          sessionId: "laptop",
+          label: "Supaterm · laptop",
+          access: "auto",
+          linked: true,
+        },
+      },
+      read,
+    );
 
     expect(pageOptions).toEqual([
       { beforePosition: Number.POSITIVE_INFINITY, limit: 100, view: "activity" },
       { limit: 100, view: "activity" },
       { afterPosition: -1, limit: 100, view: "activity" },
+      { beforePosition: Number.POSITIVE_INFINITY, limit: 100, view: "activity" },
     ]);
     // Claude Code saves results over ~50k chars of this JSON to a file instead of showing them.
     expect(JSON.stringify(result).length).toBeLessThan(31_000);
@@ -525,6 +539,9 @@ it("readThread returns the newest items that fit the response budget", async () 
     expect(first.hasMore).toBe(true);
     expect(first.nextPosition).toBe(first.items.at(-1)?.position);
     expect(fromStart.items[0]?.position).toBe(0);
+    expect(linked.items.at(-1)?.position).toBe(99);
+    expect(linked.earlierPosition).toBe(linked.items[0]?.position);
+    expect(linked.hasMore).toBe(false);
   }).pipe(Effect.provide(layer), Effect.runPromise);
 });
 
