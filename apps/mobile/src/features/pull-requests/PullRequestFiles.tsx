@@ -213,7 +213,7 @@ function FilesFooter({ files }: { readonly files: ChangedFiles }) {
         <Button
           label={diff.error ? "Retry loading files" : "Load more files"}
           tone="secondary"
-          onPress={diff.error ? diff.refresh : diff.loadMore}
+          onPress={diff.error ? diff.retry : diff.loadMore}
           loading={diff.isPending}
           fullWidth
         />
