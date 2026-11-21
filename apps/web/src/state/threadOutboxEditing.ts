@@ -70,6 +70,34 @@ export function captureOutboxAttachments(
   });
 }
 
+const sameIds = (
+  left: ReadonlyArray<{ readonly id: string }>,
+  right: ReadonlyArray<{ readonly id: string }>,
+) => left.length === right.length && left.every((item, index) => item.id === right[index]?.id);
+
+const sameItems = <A>(left: ReadonlyArray<A>, right: ReadonlyArray<A>) =>
+  left.length === right.length && left.every((item, index) => item === right[index]);
+
+// Uploads and model or mode changes replace the draft object without touching what the user wrote.
+function sameComposerContent(
+  current: ComposerThreadDraftState | null,
+  sent: ComposerThreadDraftState | null,
+): boolean {
+  if (current === sent) return true;
+  if (current === null || sent === null) return false;
+  return (
+    current.prompt === sent.prompt &&
+    sameIds(current.images, sent.images) &&
+    sameIds(current.files, sent.files) &&
+    sameIds(current.persistedAttachments, sent.persistedAttachments) &&
+    sameItems(current.terminalContexts, sent.terminalContexts) &&
+    sameItems(current.previewAnnotations, sent.previewAnnotations) &&
+    sameItems(current.reviewComments, sent.reviewComments) &&
+    sameItems(current.referenceContexts, sent.referenceContexts) &&
+    current.replyTo === sent.replyTo
+  );
+}
+
 /**
  * Hands a queued turn's content to the outbox: clears `target` unless it changed after `sent` was
  * read, and releases the bytes the outbox copied. Returns whether it cleared.
@@ -80,7 +108,7 @@ export function releaseSentComposerDraft(input: {
   readonly attachments: ReadonlyArray<ComposerImageAttachment | ComposerFileAttachment>;
 }) {
   const store = useComposerDraftStore.getState();
-  const unchanged = store.getComposerDraft(input.target) === input.sent;
+  const unchanged = sameComposerContent(store.getComposerDraft(input.target), input.sent);
   if (unchanged) store.clearComposerContent(input.target);
   // References recovered without bytes stay owned until delivery.
   releaseDraftAttachments(input.attachments.filter((attachment) => attachment.file !== null));

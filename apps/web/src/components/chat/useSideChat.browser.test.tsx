@@ -111,6 +111,11 @@ it("clears a side chat's first message from its composer but keeps what was adde
   await finish(untouched);
   expect(store().getComposerDraft(untouched)?.images ?? []).toEqual([]);
 
+  const settingsChanged = await start(image("mode"));
+  store().setRuntimeMode(settingsChanged, "approval-required");
+  await finish(settingsChanged);
+  expect(store().getComposerDraft(settingsChanged)?.images ?? []).toEqual([]);
+
   const edited = await start(image("second"));
   store().addImage(edited, image("added"));
   await finish(edited);
