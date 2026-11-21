@@ -67,6 +67,8 @@ export function RightPanelSurfaceContent(props: {
   readonly keybindings: ResolvedKeybindingsConfig;
   readonly configuredPreviewUrls: ReadonlyArray<string>;
   readonly workspaceMutationId: string | null;
+  /** What the diff is read under, as the Changes totals are; see `useWorkspaceRevision`. */
+  readonly workspaceRevision: string | null;
   readonly getShortcutContext: () => ShortcutMatchContext;
   readonly onSendAnnotation: (
     annotation: PreviewAnnotationPayload,
@@ -110,7 +112,7 @@ export function RightPanelSurfaceContent(props: {
             mode="embedded"
             threadRef={threadRef}
             composerDraftTarget={props.composerDraftTarget}
-            workspaceMutationId={props.workspaceMutationId}
+            workspaceMutationId={props.workspaceRevision}
             visible={visible}
           />
         </Suspense>

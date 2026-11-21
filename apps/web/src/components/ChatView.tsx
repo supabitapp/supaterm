@@ -184,9 +184,12 @@ import {
   findRevertCheckpoint,
   isLatestRunSettled,
 } from "../session-logic";
-import { resolveThreadWorkingStartedAt } from "@supaterm/client-runtime/state/models";
+import {
+  resolveThreadWorkingStartedAt,
+  threadRuntimeIsUnsettled,
+} from "@supaterm/client-runtime/state/models";
 import { type LegendListRef } from "@legendapp/list/react";
-import { useWorkspaceMutationRefresh } from "../hooks/useWorkspaceMutationRefresh";
+import { useWorkspaceRevision } from "../hooks/useWorkspaceRevision";
 import { DEFAULT_INTERACTION_MODE, type ChatMessage } from "../types";
 import { useTheme } from "../hooks/useTheme";
 import { copyThreadReference } from "../lib/copyThreadReference";
@@ -274,6 +277,7 @@ import { referencedThreadContexts as threadContextsLinkedByPrompt } from "./chat
 import { selectThreadTerminalUiState, useTerminalUiStateStore } from "../terminalUiStateStore";
 import { useKnownTerminalSessions, useThreadRunningTerminalIds } from "../state/terminalSessions";
 import { useEnvironmentQueryRefresh } from "../state/query";
+import { revisionedQuery } from "../state/revisionedQuery";
 import { usePaginatedBranches } from "../state/queries";
 import { useEnvironmentScope } from "~/state/session";
 import { primaryServerKeybindingsAtom, serverEnvironment } from "../state/server";
@@ -1774,16 +1778,36 @@ export default function ChatView(props: ChatViewProps) {
           environmentId,
           input: { cwd: gitStatusCwd },
         });
+  const workspaceRevision = useWorkspaceRevision({
+    threadKey: activeThreadKey,
+    // A running thread can change the workspace after this visit's reads began.
+    unloaded:
+      routeThreadDetailRef !== null &&
+      threadStatus !== "live" &&
+      threadStatus !== "deleted" &&
+      !threadRuntimeIsUnsettled(serverThreadShell?.runtime),
+    mutationId: workspaceMutationId,
+  });
+  // Per thread: opening a thread with workspace changes reads a cached status again.
+  const gitStatusRevision =
+    workspaceRevision.revision === null
+      ? undefined
+      : `${activeThreadKey ?? ""}\u0000${workspaceRevision.revision}`;
   const gitStatusQuery = {
-    data: useAtomValue(gitStatusAtom ? chatGitStatusAtom(gitStatusAtom) : NO_CHAT_GIT_STATUS_ATOM),
+    data: useAtomValue(
+      gitStatusAtom
+        ? chatGitStatusAtom(
+            workspaceRevision.pending
+              ? revisionedQuery(gitStatusAtom, undefined, { startedUnder: gitStatusRevision })
+              : revisionedQuery(
+                  gitStatusAtom,
+                  workspaceMutationId === null ? undefined : gitStatusRevision,
+                ),
+          )
+        : NO_CHAT_GIT_STATUS_ATOM,
+    ),
     refresh: useEnvironmentQueryRefresh(gitStatusAtom).refresh,
   };
-  useWorkspaceMutationRefresh({
-    enabled: gitStatusCwd !== null,
-    mutationId: workspaceMutationId,
-    refresh: gitStatusQuery.refresh,
-    resourceKey: `git-status:${activeThreadKey ?? ""}:${gitStatusCwd ?? ""}`,
-  });
   const keybindings = useAtomValue(primaryServerKeybindingsAtom);
   const backgroundThread = use(BackgroundThreadContext);
   const scriptKeybindings =
@@ -3324,6 +3348,7 @@ export default function ChatView(props: ChatViewProps) {
       keybindings={keybindings}
       configuredPreviewUrls={configuredPreviewUrls}
       workspaceMutationId={workspaceMutationId}
+      workspaceRevision={workspaceRevision.revision}
       getShortcutContext={getShortcutContextStable}
       onSendAnnotation={sendPreviewAnnotationStable}
       onCloseSurface={closeRightPanelSurfaceNow}
@@ -4136,7 +4161,7 @@ export default function ChatView(props: ChatViewProps) {
                       )
                     }
                     gitCwd={gitCwd}
-                    workspaceMutationId={workspaceMutationId}
+                    workspaceMutationId={workspaceRevision.revision}
                     isGitRepo={isGitRepo}
                     envLocked={envLocked}
                     availableEnvironments={logicalProjectEnvironments}
