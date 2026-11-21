@@ -254,6 +254,7 @@ const CODEX_INITIALIZE_TIMEOUT = "30 seconds";
 const decodeCodexThreadSampleResponse = Schema.decodeUnknownEffect(
   Schema.Struct({ text: Schema.NullOr(Schema.String) }),
 );
+const CODEX_NEXT_PROMPT_SAMPLE_TIMEOUT = "1 minute";
 export const CODEX_NEXT_PROMPT_REQUEST =
   "This message is from the app, not the user. Predict the message the user is most likely to send next, written in their voice as an instruction to you. Reply with only that message: one line, 2 to 12 words, no quotes, no question. If no next step is clear, reply NONE.";
 const CODEX_CLIENT_CAPABILITIES = {
@@ -6517,6 +6518,7 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
           },
         );
 
+        const latestSampledTurnByNativeThread = new Map<string, string>();
         // Best effort: older Codex lacks thread/sample, and a sample fails once the user sends again.
         const suggestNextPrompt = Effect.fn("CodexAdapterV2.suggestNextPrompt")(function* (
           context: ActiveCodexTurnContext,
@@ -6530,6 +6532,7 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
           ) {
             return;
           }
+          latestSampledTurnByNativeThread.set(nativeThreadId, nativeTurnId);
           yield* client.raw
             .request("thread/sample", {
               threadId: nativeThreadId,
@@ -6538,10 +6541,14 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
               effort: "low",
             })
             .pipe(
+              Effect.timeout(CODEX_NEXT_PROMPT_SAMPLE_TIMEOUT),
               Effect.flatMap(decodeCodexThreadSampleResponse),
               Effect.flatMap(({ text }) =>
                 // Delegated completion wakes arrive as user input, so samples can imitate one.
-                text === null || text.trim().startsWith("Delegated task")
+                // A slow sample for an earlier turn must not replace a newer turn's prediction.
+                text === null ||
+                text.trim().startsWith("Delegated task") ||
+                latestSampledTurnByNativeThread.get(nativeThreadId) !== nativeTurnId
                   ? Effect.void
                   : emitProviderEvent({
                       type: "prompt_suggestion.updated",
@@ -6552,6 +6559,13 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
                     }),
               ),
               Effect.ignore({ log: "Debug", message: "Codex next prompt suggestion failed" }),
+              Effect.ensuring(
+                Effect.sync(() => {
+                  if (latestSampledTurnByNativeThread.get(nativeThreadId) === nativeTurnId) {
+                    latestSampledTurnByNativeThread.delete(nativeThreadId);
+                  }
+                }),
+              ),
               Effect.forkIn(scope, { startImmediately: true }),
             );
         });

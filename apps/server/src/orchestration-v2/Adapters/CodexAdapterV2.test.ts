@@ -2690,6 +2690,112 @@ describe("CodexAdapterV2 post-settle continuation", () => {
       ),
   );
 
+  it.effect("drops an earlier turn's sample that answers after a newer turn sampled", () =>
+    Effect.gen(function* () {
+      const nativeThreadId = "suggest-order-thread";
+      const prompt = "Write subtract.";
+      const first = codexReplayPreamble({ nativeThreadId, nativeTurnId: "order-turn-1", prompt });
+      const second = codexReplayPreamble({ nativeThreadId, nativeTurnId: "order-turn-2", prompt });
+      const completed = (nativeTurnId: string): CodexReplay.CodexAppServerReplayEntry => ({
+        type: "emit_inbound",
+        label: `${nativeTurnId} completed`,
+        frame: {
+          method: "turn/completed",
+          params: {
+            threadId: nativeThreadId,
+            turn: makeCodexReplayTurn({ id: nativeTurnId, status: "completed" }),
+          },
+        },
+      });
+      const sampleRequest = (
+        nativeTurnId: string,
+        id: number,
+      ): CodexReplay.CodexAppServerReplayEntry => ({
+        type: "expect_outbound",
+        label: `${nativeTurnId} thread/sample`,
+        frame: {
+          id,
+          method: "thread/sample",
+          params: {
+            threadId: nativeThreadId,
+            expectedTurnId: nativeTurnId,
+            prompt: CodexAdapterV2.CODEX_NEXT_PROMPT_REQUEST,
+            effort: "low",
+          },
+        },
+      });
+      const sampleReply = (
+        nativeTurnId: string,
+        id: number,
+        text: string,
+      ): CodexReplay.CodexAppServerReplayEntry => ({
+        type: "emit_inbound",
+        label: `${nativeTurnId} sample reply`,
+        frame: { id, result: { sourceTurnId: nativeTurnId, text } },
+      });
+      const harness = yield* makeCodexReplayHarness(
+        makeCodexReplayTranscript({
+          scenario: "next-prompt-out-of-order",
+          entries: [
+            ...first,
+            completed("order-turn-1"),
+            sampleRequest("order-turn-1", 4),
+            ...second.slice(5, 7).map((entry) => withReplayRequestId(entry, 5)),
+            completed("order-turn-2"),
+            sampleRequest("order-turn-2", 6),
+            sampleReply("order-turn-1", 4, "Now write subtract."),
+            sampleReply("order-turn-2", 6, "Add tests for subtract."),
+          ],
+        }),
+        undefined,
+        undefined,
+        undefined,
+        { promptSuggestionsEnabled: Effect.succeed(true) },
+      );
+      const turn = makeCodexTestTurnInput({
+        threadId: harness.threadId,
+        providerThread: harness.providerThread,
+        now: yield* DateTime.now,
+        attemptId: RunAttemptId.make("order-attempt-1"),
+        text: prompt,
+      });
+      yield* harness.runtime.startTurn(turn);
+      yield* harness.awaitTerminal(1);
+      yield* harness.runtime.startTurn({
+        ...turn,
+        runId: RunId.make("order-run-2"),
+        attemptId: RunAttemptId.make("order-attempt-2"),
+        rootNodeId: NodeId.make("order-root-2"),
+        runOrdinal: 2,
+        providerTurnOrdinal: 2,
+      });
+      yield* harness.awaitTerminal(2);
+      // The earlier turn's reply arrives first, so the newer suggestion is the barrier for it.
+      yield* harness.until(() =>
+        harness.events.some(
+          (event) =>
+            event.type === "prompt_suggestion.updated" && event.runId === RunId.make("order-run-2"),
+        ),
+      );
+      assert.deepEqual(
+        harness.events.flatMap((event) =>
+          event.type === "prompt_suggestion.updated" ? [[event.runId, event.text]] : [],
+        ),
+        [[RunId.make("order-run-2"), "Add tests for subtract."]],
+      );
+    }).pipe(
+      Effect.scoped,
+      Effect.provide(
+        Layer.mergeAll(
+          IdAllocator.layer,
+          McpProviderSessions.layer,
+          NodeServices.layer,
+          NodeCrypto.layer,
+        ),
+      ),
+    ),
+  );
+
   it.effect("does not suggest a sample that imitates a delegated task wake", () =>
     Effect.gen(function* () {
       const nativeThreadId = "suggest-wake-thread";
