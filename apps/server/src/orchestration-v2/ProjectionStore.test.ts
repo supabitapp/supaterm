@@ -2742,7 +2742,7 @@ const assertReadsThroughMessageOrdinalIndex = Effect.fn("assertReadsThroughMessa
 );
 
 // Each message's first item orders it, not the stored message order (the assistant reply is stored
-// first); the message-ordinal statement reads those ordinals through migration 94's index.
+// first); the message-ordinal statement reads those ordinals through migration 20's index.
 const messageOrdinalsReadThroughTheirIndex = Effect.gen(function* () {
   const store = yield* ProjectionStore.ProjectionStoreV2;
   const threadId = ThreadId.make("thread:message-ordinals");

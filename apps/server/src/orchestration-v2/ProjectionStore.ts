@@ -6564,7 +6564,7 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
               ["messages", "subagents", "providerThreads"],
               { messageRoles: ["user"], delegatedTaskMessagesOnly: true },
             );
-            // Spells migration 84's order and predicate so the window walks that index.
+            // Spells migration 13's order and predicate so the window walks that index.
             const windowRows = yield* sql<PayloadRow & { readonly completed_at: string | null }>`
               SELECT payload_json, completed_at FROM orchestration_v2_projection_runs
               WHERE thread_id = ${threadId}
@@ -9353,7 +9353,7 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
       Effect.mapError(shellSnapshotReadError),
     );
 
-    // Migration 24 indexes these exact expressions, so the read takes them from the index instead
+    // Migration 25 indexes these exact expressions, so the read takes them from the index instead
     // of parsing every active thread's payload. Changing one here needs a matching index change.
     const indexedField = (path: string, read: "json_extract" | "json_type" = "json_extract") =>
       sql.literal(
