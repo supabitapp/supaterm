@@ -1211,21 +1211,16 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     }
     return environmentLabelById.get(thread.environmentId) ?? null;
   };
+  const environmentProjectKeys = new Set(
+    projectGroupsInEnvironment(projectGroups, scopedEnvironmentId).map(
+      (project) => project.projectKey,
+    ),
+  );
   // Pinning from a row keeps rows in place while the menu is open.
-  const environmentProjectKeys =
-    scopedEnvironmentId === null
-      ? null
-      : new Set(
-          projectGroupsInEnvironment(projectGroups, scopedEnvironmentId).map(
-            (project) => project.projectKey,
-          ),
-        );
   const projectScopeItems = useOrderWhileOpen(
-    environmentProjectKeys === null
-      ? lookupProjectScopeItems
-      : lookupProjectScopeItems.filter(
-          (item) => item.value === "all" || environmentProjectKeys.has(item.value),
-        ),
+    lookupProjectScopeItems.filter(
+      (item) => item.value === "all" || environmentProjectKeys.has(item.value),
+    ),
     (item) => item.value,
     projectFilterOpen,
   );
