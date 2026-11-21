@@ -50,7 +50,6 @@ const serveTunnel = (sessionInvalidated: Effect.Effect<void> = Effect.never) =>
         Layer.provide(
           Layer.mock(SessionStore.SessionStore, {
             cookieName: "supaterm_session",
-            legacyCookieName: undefined,
             awaitInvalidation: () => sessionInvalidated,
           }),
         ),
