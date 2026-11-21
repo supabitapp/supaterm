@@ -3,12 +3,12 @@ import {
   ANOTHER_ADDRESS,
   linkLabels,
   linkRequestFailureMessage,
+  machineLinkInput,
 } from "@supaterm/client-runtime/link-request";
 import {
   AuthAccessReadScope,
   AuthAccessWriteScope,
   type AuthMcpClientAccess,
-  AuthSettingsWriteScope,
   type EnvironmentId,
   type PeerLinkSummary,
 } from "@supaterm/contracts";
@@ -50,7 +50,6 @@ import {
   DialogTrigger,
 } from "../ui/dialog";
 import { Input } from "../ui/input";
-import { Switch } from "../ui/switch";
 import { cn } from "../../lib/utils";
 import { stackedThreadToast, toastManager } from "../ui/toast";
 import { ITEM_ROW_CLASSNAME, ITEM_ROW_INNER_CLASSNAME } from "./itemRows";
@@ -58,7 +57,6 @@ import { LinkAccessPicker } from "./LinkAccessPicker";
 import { LinkAddressWarning, LinkMachineSelect } from "./LinkMachineSelect";
 import { SettingsRow, SettingsSection } from "./settingsLayout";
 import { useLiveRefresh } from "../../hooks/useLiveRefresh";
-import { useUpdateEnvironmentSettings } from "../../hooks/useSettings";
 import { useNowMinute } from "../../hooks/useNowMinute";
 import { searchableSetting } from "./settingsSearch";
 
@@ -78,18 +76,15 @@ const failureToast = (title: string, failure: unknown) =>
 export function LinkedEnvironmentsSections() {
   const hosts = usePeerLinkHosts();
   const search = searchableSetting("linked-environments");
-  const incoming = useIncomingLinkNames(
-    hosts.filter((host) => host.enabled).map((host) => host.environment),
-  );
+  const incoming = useIncomingLinkNames(hosts);
   if (hosts.length === 0) return null;
   return (
     <SettingsSection id={search.id} title={search.title}>
-      {hosts.map(({ environment, enabled }) => (
+      {hosts.map((environment) => (
         <LinkedEnvironmentHost
           key={environment.environmentId}
           environmentId={environment.environmentId}
           environmentLabel={hosts.length > 1 ? environment.label : null}
-          enabled={enabled}
           incoming={incoming.get(environment.environmentId) ?? []}
         />
       ))}
@@ -121,60 +116,37 @@ function useIncomingLinkNames(
 function LinkedEnvironmentHost({
   environmentId,
   environmentLabel,
-  enabled,
   incoming,
 }: {
   readonly environmentId: EnvironmentId;
   readonly environmentLabel: string | null;
-  /** Whether Linked environments is on there. */
-  readonly enabled: boolean;
   /** The other connected machines whose links reach this one. */
   readonly incoming: ReadonlyArray<string>;
 }) {
   const canLink = useAtomValue(peerLinkEnvironment.link.permissionAtom(environmentId));
   const canList = useEnvironmentScope(environmentId, AuthAccessReadScope);
-  const canConfigure = useEnvironmentScope(environmentId, AuthSettingsWriteScope);
-  const updateSettings = useUpdateEnvironmentSettings(environmentId);
   return (
     <>
       <SettingsRow
-        title={environmentLabel ?? "Let agents work on your other machines"}
+        title={environmentLabel ?? "Let agents here work on your other machines"}
         description={
-          enabled ? (
-            <>
-              Agents here can work on machines you link. Each link goes one way.
-              {incoming.length > 0 ? (
-                <span className="block">Linked from {incoming.join(", ")}.</span>
-              ) : null}
-            </>
-          ) : (
-            "Off. Agents here can't work on other machines, and no machine can link here."
-          )
+          <>
+            Agents here can work on machines you link. Each link goes one way.
+            {incoming.length > 0 ? (
+              <span className="block">Linked from {incoming.join(", ")}.</span>
+            ) : null}
+          </>
         }
         control={
-          <div className="flex items-center gap-3">
-            {enabled && canLink ? (
-              <LinkEnvironmentAction
-                environmentId={environmentId}
-                environmentLabel={environmentLabel}
-              />
-            ) : null}
-            <Switch
-              checked={enabled}
-              disabled={!canConfigure}
-              onCheckedChange={(checked) =>
-                updateSettings({ linkedEnvironmentsEnabled: Boolean(checked) })
-              }
-              aria-label={
-                environmentLabel === null
-                  ? "Linked environments"
-                  : `Linked environments on ${environmentLabel}`
-              }
+          canLink ? (
+            <LinkEnvironmentAction
+              environmentId={environmentId}
+              environmentLabel={environmentLabel}
             />
-          </div>
+          ) : null
         }
       />
-      {enabled && canList ? <LinkedEnvironmentsList environmentId={environmentId} /> : null}
+      {canList ? <LinkedEnvironmentsList environmentId={environmentId} /> : null}
     </>
   );
 }
@@ -360,31 +332,19 @@ function LinkEnvironmentAction({
     return null;
   };
   const submit = async () => {
-    const [url, ...alternateUrls] =
-      machine === null || needsAddress ? [address.trim()] : machine.urls;
-    if (inFlight.current || !ready || url === undefined) return;
+    const typed = machine === null || needsAddress;
+    if (inFlight.current || !ready || (!typed && machine.urls.length === 0)) return;
     inFlight.current = true;
     setBusy(true);
     const code = await resolvePairingCode();
-    const result =
+    // A typed address links alone: only this app's own addresses name a machine.
+    const input =
       code === null
         ? null
-        : await link({
-            environmentId,
-            input: {
-              url,
-              ...(alternateUrls.length > 0 ? { alternateUrls } : {}),
-              ...(machine?.relayUrl === undefined || needsAddress
-                ? {}
-                : { relayUrl: machine.relayUrl }),
-              // A typed address links alone: only this app's own addresses name a machine.
-              ...(machine === null || needsAddress
-                ? {}
-                : { expectedEnvironmentId: machine.environmentId, expectedLabel: machine.label }),
-              pairingCode: code,
-              access,
-            },
-          });
+        : typed
+          ? { url: address.trim(), pairingCode: code, access }
+          : machineLinkInput(machine, code, access);
+    const result = input === null ? null : await link({ environmentId, input });
     inFlight.current = false;
     setBusy(false);
     if (result === null) return;

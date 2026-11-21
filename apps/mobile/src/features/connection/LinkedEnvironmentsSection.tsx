@@ -1,6 +1,6 @@
 import { RegistryContext, useAtomValue } from "@effect/atom-react";
 import { useFocusEffect } from "@react-navigation/native";
-import { linkLabels, offersLinkedEnvironments } from "@supaterm/client-runtime/link-request";
+import { linkLabels } from "@supaterm/client-runtime/link-request";
 import {
   incomingLinkNames,
   peerLinkHealth,
@@ -11,12 +11,7 @@ import {
   isAtomCommandInterrupted,
   squashAtomCommandFailure,
 } from "@supaterm/client-runtime/state/runtime";
-import {
-  AuthAccessReadScope,
-  AuthSettingsWriteScope,
-  type EnvironmentId,
-  type PeerLinkSummary,
-} from "@supaterm/contracts";
+import { AuthAccessReadScope, type EnvironmentId, type PeerLinkSummary } from "@supaterm/contracts";
 import * as DateTime from "effect/DateTime";
 import { AsyncResult } from "effect/reactivity";
 import { useCallback, useContext, useMemo, useState } from "react";
@@ -26,15 +21,13 @@ import { AppText as Text } from "../../components/ui/AppText";
 import { Button } from "../../components/ui/Button";
 import * as Dialog from "../../components/ui/Dialog";
 import { useNowMinuteMs } from "../../lib/clock";
-import { useEnvironmentServerConfig } from "../../state/entities";
 import { useEnvironments } from "../../state/environments";
 import { peerLinkEnvironment } from "../../state/peerLinks";
 import { useEnvironmentQuery } from "../../state/query";
-import { serverEnvironment } from "../../state/server";
 import { useEnvironmentScope, useEnvironmentsWithScope } from "../../state/session";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { SettingsSection } from "../settings/components/SettingsSection";
-import { SettingsSwitchRow } from "../settings/components/SettingsSwitchRow";
+import { ListRowLayout } from "../../components/ui/ListRowLayout";
 import { linkAccessLabel } from "../threads/thread-settings-options";
 
 const alertFailure = (title: string, result: AtomCommandResult<unknown, unknown>) => {
@@ -60,7 +53,7 @@ export function LinkedEnvironmentsSections() {
     <View className="mt-5 gap-3">
       <SettingsSection
         title="Linked environments"
-        footer="Agents on a machine can work on the machines it links to. Each link goes one way: turn this on for both machines, then mention the other machine with @ in a thread on the one that sends the work, and answer the agent's request. While off, nothing new starts over a link; running tasks finish."
+        footer="Agents on a machine can work on the machines it links to. Each link goes one way. To link one, mention the other machine with @ in a thread on the machine that sends the work, and answer the agent's request."
       >
         {hosts.map((environment, index) => (
           <View
@@ -79,18 +72,10 @@ export function LinkedEnvironmentsSections() {
   );
 }
 
-/** Reads each enabled, readable host's links once, for every host row to share. */
+/** Reads each readable host's links once, for every host row to share. */
 function useIncomingLinkNames(
-  hosts: ReadonlyArray<{
-    readonly environmentId: EnvironmentId;
-    readonly label: string;
-    readonly serverConfig?: Parameters<typeof offersLinkedEnvironments>[0];
-  }>,
+  sources: ReadonlyArray<{ readonly environmentId: EnvironmentId; readonly label: string }>,
 ) {
-  const sources = useMemo(
-    () => hosts.filter((host) => offersLinkedEnvironments(host.serverConfig)),
-    [hosts],
-  );
   const readable = useEnvironmentsWithScope(sources, AuthAccessReadScope);
   const permitted = sources.filter((source) => readable.has(source.environmentId));
   const results = useAtomValue(
@@ -116,32 +101,17 @@ export function LinkedEnvironmentHost(props: {
   readonly incoming?: ReadonlyArray<string>;
 }) {
   const { environmentId } = props;
-  const enabled = offersLinkedEnvironments(useEnvironmentServerConfig(environmentId));
-  const canConfigure = useEnvironmentScope(environmentId, AuthSettingsWriteScope);
   const canList = useEnvironmentScope(environmentId, AuthAccessReadScope);
-  const updateSettings = useAtomCommand(serverEnvironment.updateSettings, {
-    label: "linked environments update",
-  });
-  const setEnabled = async (value: boolean) => {
-    const result = await updateSettings({
-      environmentId,
-      input: { patch: { linkedEnvironmentsEnabled: value } },
-    });
-    alertFailure("Could not save settings", result);
-  };
   return (
     <>
-      <SettingsSwitchRow
+      <ListRowLayout
         icon="link"
-        label={props.environmentLabel ?? "Let agents work on your other machines"}
+        label={props.environmentLabel ?? "Agents here work on your other machines"}
         {...(props.incoming && props.incoming.length > 0
-          ? { subtitle: `Linked from ${props.incoming.join(", ")}.` }
+          ? { description: `Linked from ${props.incoming.join(", ")}.` }
           : {})}
-        value={enabled}
-        disabled={!canConfigure}
-        onValueChange={(value) => void setEnabled(value)}
       />
-      {enabled && canList ? <LinkedEnvironmentsList environmentId={environmentId} /> : null}
+      {canList ? <LinkedEnvironmentsList environmentId={environmentId} /> : null}
     </>
   );
 }

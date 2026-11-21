@@ -50,16 +50,9 @@ vi.mock("../../lib/clock", () => ({ useNowMinuteMs: () => 0 }));
 vi.mock("../settings/components/SettingsSection", () => ({
   SettingsSection: ({ children }: { children?: ReactNode }) => children,
 }));
-vi.mock("../settings/components/SettingsSwitchRow", () => ({ SettingsSwitchRow: () => null }));
+vi.mock("../../components/ui/ListRowLayout", () => ({ ListRowLayout: () => null }));
 vi.mock("../../state/environments", () => ({ useEnvironments: () => ({ environments: [] }) }));
-vi.mock("../../state/server", () => ({ serverEnvironment: { updateSettings: {} } }));
 vi.mock("../../state/use-atom-command", () => ({ useAtomCommand: () => vi.fn() }));
-vi.mock("../../state/entities", () => ({
-  useEnvironmentServerConfig: () => ({
-    environment: { capabilities: { peerLinks: true } },
-    settings: { linkedEnvironmentsEnabled: true },
-  }),
-}));
 vi.mock("../../state/session", () => ({ useEnvironmentScope: () => true }));
 vi.mock("../../state/peerLinks", async () => {
   const { Atom } = await import("effect/reactivity");

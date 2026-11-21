@@ -64,19 +64,13 @@ it.effect("points a bare uuid at the mcp: thread it belongs to", () =>
 
 it.effect("tells a caller with linked environments that the thread may be on one of them", () =>
   Effect.gen(function* () {
-    const error = yield* readBare([], { ...client, linkedEnvironments: true });
+    const error = yield* readBare([]);
 
     expect(error.code).toBe("thread_not_found");
     expect(error.message).toContain("supaterm_environment_links");
     expect(error.message).toContain("environmentId");
 
-    const linksOff = yield* readBare([], { ...client, linkedEnvironments: false });
-    expect(linksOff.message).toBe("The thread was not found.");
-    const peerLink = yield* readBare([], {
-      ...client,
-      linkedEnvironments: true,
-      client: { ...claudeCode, linked: true },
-    });
+    const peerLink = yield* readBare([], { ...client, client: { ...claudeCode, linked: true } });
     expect(peerLink.message).toBe("The thread was not found.");
 
     // A thread a fenced link started may not use this environment's links.
@@ -90,7 +84,6 @@ it.effect("tells a caller with linked environments that the thread may be on one
       ],
       {
         ...client,
-        linkedEnvironments: true,
         client: undefined,
         thread: {
           threadId: fencedThread,

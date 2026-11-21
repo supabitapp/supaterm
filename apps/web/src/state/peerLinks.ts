@@ -56,13 +56,9 @@ export function usePeerLinkHosts() {
     .filter(
       (environment) =>
         environment.connection.phase === "connected" &&
-        environment.serverConfig?.environment.capabilities.peerLinks === true,
+        offersLinkedEnvironments(environment.serverConfig),
     )
-    .toSorted((left, right) => isPrimary(right) - isPrimary(left))
-    .map((environment) => ({
-      environment,
-      enabled: offersLinkedEnvironments(environment.serverConfig),
-    }));
+    .toSorted((left, right) => isPrimary(right) - isPrimary(left));
 }
 
 /**

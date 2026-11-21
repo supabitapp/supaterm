@@ -4,6 +4,7 @@ import {
   type EnvironmentMachineKind,
   normalizeRelayServerUrl,
   type OrchestrationV2TurnItem,
+  type PeerLinkCreateInput,
   type PeerLinkRequestAnswerInput,
   type PeerLinkSummary,
   resolveEnvironmentMachineKind,
@@ -17,11 +18,10 @@ import { connectionRouteKind, connectionRoutes, routeHttpBaseUrl } from "./conne
 
 export type LinkRequestItem = Extract<OrchestrationV2TurnItem, { readonly type: "link_request" }>;
 
-/** Whether an environment offers links: it supports them and its Linked environments beta is on. */
+/** Whether an environment supports links to the user's other machines. */
 export const offersLinkedEnvironments = (
-  config: Pick<ServerConfig, "environment" | "settings"> | null | undefined,
-): boolean =>
-  config?.environment.capabilities.peerLinks === true && config.settings.linkedEnvironmentsEnabled;
+  config: Pick<ServerConfig, "environment"> | null | undefined,
+): boolean => config?.environment.capabilities.peerLinks === true;
 
 /**
  * The machines an environment's agents can work on, by name: its links that have not
@@ -163,6 +163,29 @@ export function linkableMachines(input: {
         ...(relayUrl === undefined ? {} : { relayUrl }),
       };
     });
+}
+
+/**
+ * The link to `machine` at the addresses this client knows for it, or null when no other
+ * machine could reach it. Only this client's own addresses name a machine, so the server
+ * keeps those that answer as it.
+ */
+export function machineLinkInput(
+  machine: LinkableMachine,
+  pairingCode: string,
+  access: AuthMcpClientAccess,
+): PeerLinkCreateInput | null {
+  const [url, ...alternateUrls] = machine.urls;
+  if (url === undefined) return null;
+  return {
+    url,
+    ...(alternateUrls.length > 0 ? { alternateUrls } : {}),
+    ...(machine.relayUrl === undefined ? {} : { relayUrl: machine.relayUrl }),
+    expectedEnvironmentId: machine.environmentId,
+    expectedLabel: machine.label,
+    pairingCode,
+    access,
+  };
 }
 
 const words = (text: string) =>

@@ -1,4 +1,5 @@
 import { usePreparedConnection } from "../../state/session";
+import { EnvironmentLinkPermissions } from "./EnvironmentLinkPermissions";
 import { SessionPermissions } from "./SessionPermissions";
 import {
   ChevronRightIcon,
@@ -282,6 +283,7 @@ export function SavedBackendListRow({
                 connected={isConnected}
                 routeContext
               />
+              <EnvironmentLinkPermissions target={environment} />
             </div>
           )}
         </>

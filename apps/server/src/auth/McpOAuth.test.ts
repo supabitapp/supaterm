@@ -21,7 +21,6 @@ import * as Schema from "effect/Schema";
 
 import * as ServerConfig from "../config.ts";
 import * as ServerEnvironment from "../environment/ServerEnvironment.ts";
-import * as ServerSettings from "../serverSettings.ts";
 import * as Sqlite from "../persistence/Sqlite.ts";
 import * as EnvironmentAuth from "./EnvironmentAuth.ts";
 import * as McpOAuth from "./McpOAuth.ts";
@@ -40,19 +39,14 @@ const layerEnvironmentAuth = EnvironmentAuth.layer.pipe(
   Layer.provideMerge(ServerEnvironment.layerIdentity),
   Layer.provide(layerConfig),
 );
-const makeLayerRoutes = (
-  capture: (auth: EnvironmentAuth.EnvironmentAuth["Service"]) => void,
-  layerSettings: ReturnType<typeof ServerSettings.layerTest>,
-) =>
+const makeLayerRoutes = (capture: (auth: EnvironmentAuth.EnvironmentAuth["Service"]) => void) =>
   Layer.mergeAll(
     Layer.effectDiscard(
       EnvironmentAuth.EnvironmentAuth.pipe(Effect.tap((auth) => Effect.sync(() => capture(auth)))),
     ),
     HttpApiBuilder.layer(AuthTestApi).pipe(
       Layer.provide(AuthHttp.layer),
-      Layer.provide(
-        McpOAuthHttp.layer.pipe(Layer.provide(McpOAuth.layer), Layer.provide(layerSettings)),
-      ),
+      Layer.provide(McpOAuthHttp.layer.pipe(Layer.provide(McpOAuth.layer))),
       Layer.provide(AuthHttp.layerAuthenticatedAuth),
     ),
   ).pipe(
@@ -88,9 +82,6 @@ type Handler = (request: Request) => Effect.Effect<Response>;
 
 const withRoutes = <A, E>(
   use: (handler: Handler, auth: EnvironmentAuth.EnvironmentAuth["Service"]) => Effect.Effect<A, E>,
-  layerSettings: ReturnType<typeof ServerSettings.layerTest> = ServerSettings.layerTest({
-    linkedEnvironmentsEnabled: true,
-  }),
 ) =>
   Effect.gen(function* () {
     const random = yield* SecureRandom.SecureRandom;
@@ -98,7 +89,7 @@ const withRoutes = <A, E>(
     let routerAuth: EnvironmentAuth.EnvironmentAuth["Service"] | undefined;
     const layerRoutes = makeLayerRoutes((auth) => {
       routerAuth = auth;
-    }, layerSettings);
+    });
     return yield* Effect.acquireUseRelease(
       Effect.sync(() => HttpRouter.toWebHandler(layerRoutes, { disableLogger: true })),
       (web) =>
@@ -643,65 +634,6 @@ it.live("an app approval code approves only an app sign-in, at its own level", (
       ).toBe(400);
     }),
   ),
-);
-
-it.live.each(["approval", "token"] as const)(
-  "a peer link under way when Linked environments is turned off stops at its %s",
-  (step) =>
-    Effect.gen(function* () {
-      const settings = yield* ServerSettings.ServerSettingsService.pipe(
-        Effect.provide(ServerSettings.layerTest({ linkedEnvironmentsEnabled: true })),
-      );
-      const off = settings.updateSettings({ linkedEnvironmentsEnabled: false });
-      yield* withRoutes(
-        (handler, auth) =>
-          Effect.gen(function* () {
-            const peer = yield* handler(
-              at("/oauth/mcp/register", {
-                method: "POST",
-                headers: { "content-type": "application/json" },
-                body: encodeJson({
-                  client_name: "Studio",
-                  software_id: MCP_PEER_LINK_SOFTWARE_ID,
-                  redirect_uris: [REDIRECT],
-                }),
-              }),
-            ).pipe(Effect.flatMap(json<{ client_id: string }>));
-            const params = authorizeParams(peer.client_id, REDIRECT);
-            const pairing = yield* auth.issuePairingCredential({
-              access: "auto",
-              purpose: "peer-link",
-            });
-            const decision = { _tag: "pairing-code", access: "auto", code: pairing.credential };
-            if (step === "approval") {
-              yield* off;
-              expect((yield* decide(handler, params, decision)).status).toBe(400);
-              // The code was not spent, so it links once the setting is back on.
-              yield* settings.updateSettings({ linkedEnvironmentsEnabled: true });
-              expect((yield* decide(handler, params, decision)).status).toBe(200);
-              return;
-            }
-            const approved = yield* decide(handler, params, decision);
-            expect(approved.status).toBe(200);
-            yield* off;
-            const token = yield* handler(
-              at(
-                "/oauth/mcp/token",
-                form({
-                  grant_type: "authorization_code",
-                  code: new URL(approved.redirectTo!).searchParams.get("code")!,
-                  redirect_uri: params.redirect_uri,
-                  client_id: peer.client_id,
-                  code_verifier: verifier,
-                }),
-              ),
-            );
-            expect(token.status).toBe(400);
-            expect(yield* auth.listSessions()).toEqual([]);
-          }),
-        Layer.succeed(ServerSettings.ServerSettingsService, settings),
-      );
-    }),
 );
 
 it.live("one-click approves only access the browser session holds the scopes for", () =>
