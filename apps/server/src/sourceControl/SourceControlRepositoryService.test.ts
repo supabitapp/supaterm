@@ -370,7 +370,9 @@ it.effect("reports a Git LFS download as progress only while its partial files c
   Effect.gen(function* () {
     const fs = yield* FileSystem.FileSystem;
     const path = yield* Path.Path;
-    const parent = yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-source-control-clone-lfs-" });
+    const parent = yield* fs.makeTempDirectoryScoped({
+      prefix: "supaterm-source-control-clone-lfs-",
+    });
     const destinationPath = path.join(parent, "supaterm");
     const incomplete = path.join(destinationPath, ".git", "lfs", "incomplete");
     const progress = yield* Queue.unbounded<GitCloneProgressLine>();
