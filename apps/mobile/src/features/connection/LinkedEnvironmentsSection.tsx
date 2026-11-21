@@ -62,13 +62,17 @@ export function LinkedEnvironmentsSections() {
         title="Linked environments"
         footer="Agents on a machine can work on the machines it links to. Each link goes one way: turn this on for both machines, then mention the other machine with @ in a thread on the one that sends the work, and answer the agent's request. While off, nothing new starts over a link; running tasks finish."
       >
-        {hosts.map((environment) => (
-          <LinkedEnvironmentHost
+        {hosts.map((environment, index) => (
+          <View
             key={environment.environmentId}
-            environmentId={environment.environmentId}
-            environmentLabel={hosts.length > 1 ? environment.label : null}
-            incoming={incoming.get(environment.environmentId) ?? []}
-          />
+            className={index === 0 ? undefined : "border-t border-border-subtle"}
+          >
+            <LinkedEnvironmentHost
+              environmentId={environment.environmentId}
+              environmentLabel={hosts.length > 1 ? environment.label : null}
+              incoming={incoming.get(environment.environmentId) ?? []}
+            />
+          </View>
         ))}
       </SettingsSection>
     </View>
