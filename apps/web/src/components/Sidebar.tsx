@@ -2807,7 +2807,10 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
         fixedHeader={
           <SidebarGroup>
             <div className="flex flex-col gap-2">
-              <SidebarPrimaryNavigation projectGroupCount={projectGroups.length} />
+              <SidebarPrimaryNavigation
+                projectGroupCount={projectGroups.length}
+                scopedProjectGroups={scopedProjectGroups}
+              />
               {projectGroups.length > 0 ? (
                 <SidebarThreadHeader
                   scopeLabel={projectScopeLabel}
