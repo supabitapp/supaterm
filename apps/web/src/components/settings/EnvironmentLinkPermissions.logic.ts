@@ -72,10 +72,10 @@ export function linkPermissionRow(input: {
     health === null || (health.kind === "reachable" && health.expiresInDays === null)
       ? null
       : peerLinkHealthText(health);
-  const throughNote =
-    blocker === null && mintThrough
-      ? `${input.through} links to ${input.targetLabel} at full access, so it gets the pairing code.`
-      : null;
+  const usesThrough = blocker === null && mintThrough;
+  const throughNote = usesThrough
+    ? `${input.through} links to ${input.targetLabel} at full access, so it gets the pairing code.`
+    : null;
   return {
     value: live ? current.access : LINK_OFF,
     note: blocker ?? healthNote ?? throughNote,
@@ -84,6 +84,6 @@ export function linkPermissionRow(input: {
     linked: live,
     expired: current !== null && !live,
     canRelink: blocker === null && live && health?.kind === "failing",
-    mintThrough: blocker === null && mintThrough,
+    mintThrough: usesThrough,
   };
 }

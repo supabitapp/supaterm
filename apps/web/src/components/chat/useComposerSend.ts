@@ -5,6 +5,7 @@ import {
 import {
   AuthOrchestrationOperateScope,
   CommandId,
+  type ComposerContextRecord,
   type PreviewAnnotationPayload,
 } from "@supaterm/contracts";
 import type { VoiceRecordingHandOff } from "@supaterm/client-runtime/voice-input";
@@ -384,6 +385,29 @@ export function useComposerSend(input: ComposerSendInput) {
       );
       return;
     }
+    const warnStrandedThreadContext = (
+      text: string,
+      records: ReadonlyArray<ComposerContextRecord>,
+    ) => {
+      const strandedThread = threadContextsOutsideEnvironment({
+        text,
+        records,
+        environmentId,
+        linkedEnvironments,
+      })[0];
+      if (!strandedThread) return false;
+      const owner =
+        readEnvironmentPresentation(strandedThread.environmentId)?.entry.target.label ??
+        "its machine";
+      toastManager.add(
+        stackedThreadToast({
+          type: "warning",
+          title: "Attached thread is on another machine",
+          description: `This machine's agent can't read "${strandedThread.title}". Remove it, or switch back to ${owner} to send.`,
+        }),
+      );
+      return true;
+    };
     if (onSideChat && sendCtx && sideChatCommand?.kind === "start") {
       const { replyTo } = sendCtx;
       const prompt = withReplyReference(sideChatCommand.prompt, replyTo);
@@ -417,25 +441,7 @@ export function useComposerSend(input: ComposerSendInput) {
       }
       let content: SideChatComposerContent | undefined;
       if (carriesContent) {
-        const strandedThread = threadContextsOutsideEnvironment({
-          text: prompt,
-          records: sendCtx.referenceContexts,
-          environmentId,
-          linkedEnvironments,
-        })[0];
-        if (strandedThread) {
-          const owner =
-            readEnvironmentPresentation(strandedThread.environmentId)?.entry.target.label ??
-            "its machine";
-          toastManager.add(
-            stackedThreadToast({
-              type: "warning",
-              title: "Attached thread is on another machine",
-              description: `This machine's agent can't read "${strandedThread.title}". Remove it, or switch back to ${owner} to send.`,
-            }),
-          );
-          return;
-        }
+        if (warnStrandedThreadContext(prompt, sendCtx.referenceContexts)) return;
         const snapshot = snapshotComposerSend({
           prompt,
           images: sendCtx.images,
@@ -568,25 +574,7 @@ export function useComposerSend(input: ComposerSendInput) {
         : promptRef.current,
       replyTo,
     );
-    const strandedThread = threadContextsOutsideEnvironment({
-      text: promptForSend,
-      records: composerReferenceContexts,
-      environmentId,
-      linkedEnvironments,
-    })[0];
-    if (strandedThread) {
-      const owner =
-        readEnvironmentPresentation(strandedThread.environmentId)?.entry.target.label ??
-        "its machine";
-      toastManager.add(
-        stackedThreadToast({
-          type: "warning",
-          title: "Attached thread is on another machine",
-          description: `This machine's agent can't read "${strandedThread.title}". Remove it, or switch back to ${owner} to send.`,
-        }),
-      );
-      return;
-    }
+    if (warnStrandedThreadContext(promptForSend, composerReferenceContexts)) return;
     if (queuedRunEdit.isEditing) {
       // A queued message stays in its thread, so saving `/side` would send it to main.
       if (!directAnnotation && parseSideChatCommand(promptAtSend)) {

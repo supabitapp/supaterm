@@ -1204,7 +1204,7 @@ function NewKeybindingCommandSelect({
     <Combobox
       items={commandOptions}
       defaultOpen
-      itemToStringLabel={(command) => commandLabel(command)}
+      itemToStringLabel={commandLabel}
       filter={(command, query) =>
         `${command} ${commandLabel(command)}`.toLowerCase().includes(query.trim().toLowerCase())
       }

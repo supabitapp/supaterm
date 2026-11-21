@@ -63,9 +63,7 @@ export function useLinkedEnvironments(
   const offered = useAtomValue(
     environmentId === null ? noPeerLinksAtom : supportsPeerLinksAtom(environmentId),
   );
-  const namesLinks = useAtomValue(
-    environmentId === null ? noPeerLinksAtom : supportsLinkedThreadReadsAtom(environmentId),
-  );
+  const namesLinks = useSupportsLinkedThreadReads(environmentId);
   const identities = useEnvironmentIdentities();
   const queried = offered && environmentId !== null;
   const names = useEnvironmentQuery(
