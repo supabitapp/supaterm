@@ -9,6 +9,7 @@ import {
 import { createPeerLinkEnvironmentAtoms } from "@supaterm/client-runtime/state/peerLinks";
 import {
   isAtomCommandInterrupted,
+  runAtomCommand,
   squashAtomCommandFailure,
 } from "@supaterm/client-runtime/state/runtime";
 import type { AuthMcpClientAccess, EnvironmentId } from "@supaterm/contracts";
@@ -112,7 +113,7 @@ export async function linkKnownMachine(input: {
       ),
     };
   }
-  const result = await peerLinkEnvironment.link.run(appAtomRegistry, {
+  const result = await runAtomCommand(appAtomRegistry, peerLinkEnvironment.link, {
     environmentId: input.sourceId,
     input: linkInput,
   });
