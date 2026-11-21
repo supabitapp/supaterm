@@ -95,7 +95,9 @@ import * as Stream from "effect/Stream";
 
 import * as ProviderAdapterRegistry from "../orchestration-v2/ProviderAdapterRegistry.ts";
 import {
+  SUBAGENT_RESULT_TURN_ITEM_TYPES,
   subagentResultForRun,
+  subagentStopNotice,
   delegatedTaskProgress,
   delegatedTaskReportRuns,
 } from "@supaterm/provider-core/server/subagentProjection";
@@ -726,15 +728,26 @@ function pageIncludesTerminalTaskResult(input: {
   const result = subagentResultForRun(input.target, run);
   if (result.messageId === null && result.turnItemId === null) return false;
 
-  return input.items.some((item) => {
-    if (item.sourceThreadId !== input.target.thread.id) return false;
-    const matchesResult =
-      (result.turnItemId !== null && item.itemId === result.turnItemId) ||
-      (result.messageId !== null &&
-        item.type === "assistant_message" &&
-        item.messageId === result.messageId);
-    return matchesResult && item.text !== null && !item.textTruncated;
-  });
+  const onPage = (matches: (item: OrchestratorMcpThreadTimelineItem) => boolean) =>
+    input.items.some(
+      (item) =>
+        item.sourceThreadId === input.target.thread.id &&
+        matches(item) &&
+        item.text !== null &&
+        !item.textTruncated,
+    );
+  // The result ends with the stop reason, so the page shows it only when it has both.
+  const notice = subagentStopNotice(input.target, run);
+  return (
+    onPage(
+      (item) =>
+        (result.turnItemId !== null && item.itemId === result.turnItemId) ||
+        (result.messageId !== null &&
+          item.type === "assistant_message" &&
+          item.messageId === result.messageId),
+    ) &&
+    (notice === undefined || onPage((item) => item.itemId === notice.id))
+  );
 }
 
 function latestTerminalResultRun(
@@ -1883,7 +1896,7 @@ const make = Effect.gen(function* () {
         messageRoles: ["assistant"],
         messageRunIds: resultRunIds,
         turnItemRunIds: resultRunIds,
-        turnItemTypes: ["assistant_message", "error", "system_notice"],
+        turnItemTypes: SUBAGENT_RESULT_TURN_ITEM_TYPES,
       })
       .pipe(Effect.mapError(threadManagementFailure));
     const childProjection = {
@@ -3557,7 +3570,7 @@ const make = Effect.gen(function* () {
               messageRoles: ["assistant"],
               messageRunIds: resultRunIds,
               turnItemRunIds: resultRunIds,
-              turnItemTypes: ["assistant_message", "error"],
+              turnItemTypes: SUBAGENT_RESULT_TURN_ITEM_TYPES,
             })
             .pipe(Effect.mapError(threadManagementFailure));
           if (
