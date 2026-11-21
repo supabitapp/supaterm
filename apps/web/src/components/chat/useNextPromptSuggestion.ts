@@ -8,10 +8,12 @@ import { useEnvironmentQuery } from "~/state/query";
 
 import type { ThreadShell } from "../../types";
 
-// Run ids derive from thread ids, which can repeat across environments.
-const dismissKey = (environmentId: EnvironmentId, runId: RunId) => `${environmentId}\u0000${runId}`;
+// Thread ids can repeat across environments.
+const threadKey = (environmentId: EnvironmentId, threadId: ThreadId) =>
+  `${environmentId}\u0000${threadId}`;
 
-const NONE_DISMISSED: ReadonlySet<string> = new Set();
+// Only a thread's latest completed run can be offered, so one dismissed run per thread suffices.
+const NONE_DISMISSED: ReadonlyMap<string, RunId> = new Map();
 const dismissedPromptSuggestionsAtom = Atom.make(NONE_DISMISSED).pipe(
   Atom.keepAlive,
   Atom.withLabel("composer:dismissed-prompt-suggestions"),
@@ -36,13 +38,14 @@ export function useNextPromptSuggestion(input: {
   );
   const [dismissed, setDismissed] = useAtom(dismissedPromptSuggestionsAtom);
   const offered = offeredPromptSuggestion({ suggestion: data, latestRun, runs });
-  const visible = offered !== null && !dismissed.has(dismissKey(environmentId, offered.runId));
+  const key = threadId === null ? null : threadKey(environmentId, threadId);
+  const visible = offered !== null && key !== null && dismissed.get(key) !== offered.runId;
 
   return {
     suggestion: visible ? offered.text : null,
     dismiss: () => {
-      if (offered === null) return;
-      setDismissed((current) => new Set(current).add(dismissKey(environmentId, offered.runId)));
+      if (offered === null || key === null) return;
+      setDismissed((current) => new Map(current).set(key, offered.runId));
     },
   };
 }

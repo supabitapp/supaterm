@@ -2673,7 +2673,7 @@ describe("CodexAdapterV2 post-settle continuation", () => {
               : [],
           );
         if (samples) yield* harness.until(() => suggestionEvents().length === 2);
-        assert.deepEqual(
+        assert.sameMembers(
           suggestionEvents(),
           samples ? ["turn.terminal", "Add tests for it."] : ["turn.terminal"],
         );

@@ -3284,6 +3284,11 @@ it.effect("ProviderSessionManagerV2 pushes prompt suggestions until the thread i
 
       yield* suggest("add tests");
       assert.deepEqual(yield* Queue.take(received), { runId, text: "add tests" });
+      // A client that subscribes after the prediction landed, such as one reconnecting, still gets it.
+      assert.deepEqual(
+        yield* promptSuggestions.subscribe(threadId).pipe(Stream.runHead),
+        Option.some({ runId, text: "add tests" }),
+      );
 
       yield* eventSink.write({
         events: [
