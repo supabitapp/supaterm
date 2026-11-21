@@ -1,5 +1,4 @@
 import type { LinkedThreadTarget } from "@supaterm/client-runtime/linked-thread";
-import { EnvironmentId, ThreadId } from "@supaterm/contracts";
 
 /** A linked environment's thread as a right panel tab, read through `viaEnvironmentId`. */
 export type LinkedThreadSurface = {
@@ -18,32 +17,6 @@ export function linkedThreadSurface(target: LinkedThreadTarget): LinkedThreadSur
     label: target.label,
     title: target.title,
   };
-}
-
-/** A saved linked-thread surface with its id rebuilt, or null when its fields are not usable. */
-export function decodeLinkedThreadSurface(surface: object): LinkedThreadSurface | null {
-  const { viaEnvironmentId, environmentId, threadId, label, title } = surface as Record<
-    string,
-    unknown
-  >;
-  if (
-    typeof viaEnvironmentId !== "string" ||
-    typeof environmentId !== "string" ||
-    typeof threadId !== "string" ||
-    typeof label !== "string" ||
-    viaEnvironmentId === "" ||
-    environmentId === "" ||
-    threadId === ""
-  ) {
-    return null;
-  }
-  return linkedThreadSurface({
-    viaEnvironmentId: EnvironmentId.make(viaEnvironmentId),
-    environmentId: EnvironmentId.make(environmentId),
-    threadId: ThreadId.make(threadId),
-    label,
-    title: typeof title === "string" && title !== "" ? title : null,
-  });
 }
 
 /** A tab's title: the thread's own once known, else where the thread is. */
