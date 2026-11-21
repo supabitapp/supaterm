@@ -5,7 +5,7 @@ import {
   OrchestratorMcpFailure,
   type OrchestrationV2ThreadLaunchWorkspaceStrategy,
   ProjectId,
-  Supaterm_PROJECT_FILE_NAME,
+  SUPATERM_PROJECT_FILE_NAME,
 } from "@supaterm/contracts";
 import * as Digest from "effect/crypto/Digest";
 import * as Effect from "effect/Effect";
@@ -101,7 +101,7 @@ const projectFileThreadEnvMode = Effect.fn("mcp.projectFileThreadEnvMode")(funct
 ) {
   const fileSystem = yield* FileSystem.FileSystem;
   const contents = yield* fileSystem
-    .readFileString(`${workspaceRoot}/${Supaterm_PROJECT_FILE_NAME}`)
+    .readFileString(`${workspaceRoot}/${SUPATERM_PROJECT_FILE_NAME}`)
     .pipe(Effect.orElseSucceed(() => null));
   return resolveProjectFileBackedSetting(
     "defaultThreadEnvMode",
