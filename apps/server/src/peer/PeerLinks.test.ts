@@ -30,18 +30,14 @@ import {
   HttpServerResponse,
 } from "effect/http";
 
-import * as EnvironmentAuth from "../auth/EnvironmentAuth.ts";
 import * as ServerSecretStore from "../auth/ServerSecretStore.ts";
 import * as McpHttpServer from "../mcp/McpHttpServer.ts";
 import * as McpInvocationContext from "../mcp/McpInvocationContext.ts";
 import * as McpToolAccess from "../mcp/McpToolAccess.ts";
-import * as ServerSettings from "../serverSettings.ts";
-import { pauseLinksLeftOff } from "./legacyLinksSwitch.ts";
 import * as PeerLinks from "./PeerLinks.ts";
 import {
   descriptorOf,
   layerLinkingEnvironment,
-  linkTo,
   servePeer,
   type ServedPeer,
 } from "./PeerLinks.testkit.ts";
@@ -774,56 +770,6 @@ it.effect("tells the agent to link again once the peer revokes the link or it ex
       expect(yield* Ref.get(b.bearers)).toEqual([]);
     }),
   ).pipe(Effect.provide(NodeHttpServer.layerTest)),
-);
-
-it.effect.each([false, true])(
-  "startup ends the links on both sides only where Linked environments was not on (on: %s)",
-  (wasOn) =>
-    Effect.scoped(
-      Effect.gen(function* () {
-        const b = yield* serveB(box);
-        const a = yield* makeA(laptop);
-        yield* linkTo(a.links, b);
-        const { token } = yield* a.links.resolve(box.environmentId);
-        const outsideAgent = yield* b.auth.issueMcpClientSession({
-          label: "Outside agent",
-          access: "auto",
-          peerLink: false,
-          client: { deviceType: "bot" },
-        });
-        const initialize = (bearer: string) =>
-          HttpClient.execute(
-            HttpClientRequest.post(`${b.url}/mcp`).pipe(
-              HttpClientRequest.setHeaders({
-                accept: "application/json, text/event-stream",
-                authorization: `Bearer ${bearer}`,
-              }),
-              HttpClientRequest.bodyText(
-                `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"probe","version":"1.0.0"}}}`,
-                "application/json",
-              ),
-            ),
-          ).pipe(
-            Effect.map((response) => response.status),
-            Effect.provide(FetchHttpClient.layer),
-          );
-        const settings = yield* ServerSettings.ServerSettingsService.pipe(
-          Effect.provide(ServerSettings.layerTest({ linkedEnvironmentsEnabled: wasOn })),
-        );
-
-        // One environment on both sides of the link: B's incoming session and A's saved link.
-        yield* pauseLinksLeftOff().pipe(
-          Effect.provideService(EnvironmentAuth.EnvironmentAuth, b.auth),
-          Effect.provideService(PeerLinks.PeerLinks, a.links),
-          Effect.provideService(ServerSettings.ServerSettingsService, settings),
-        );
-
-        expect(yield* initialize(token)).toBe(wasOn ? 200 : 401);
-        expect(Option.isSome(yield* a.links.get(box.environmentId))).toBe(wasOn);
-        expect(yield* initialize(outsideAgent.token)).toBe(200);
-        expect((yield* settings.getSettings).linkedEnvironmentsEnabled).toBe(true);
-      }),
-    ).pipe(Effect.provide(NodeHttpServer.layerTest)),
 );
 
 it.effect(

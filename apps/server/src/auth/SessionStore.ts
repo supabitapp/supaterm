@@ -482,6 +482,7 @@ const make = Effect.gen(function* () {
   const serverEnvironment = yield* ServerEnvironment.ServerEnvironmentIdentity;
   const secretStore = yield* ServerSecretStore.ServerSecretStore;
   const authSessions = yield* AuthSessions.AuthSessionRepository;
+  const peerLinkCutoff = yield* authSessions.peerLinkCutoff;
   const signer = yield* PayloadSigner.fromSecret(
     yield* secretStore.getOrCreateRandom(SIGNING_SECRET_NAME, 32),
   );
@@ -811,6 +812,14 @@ const make = Effect.gen(function* () {
           sessionId: claims.sid,
           revokedAt: row.value.revokedAt,
         });
+      }
+      // Migration 024 ended every link made before it; the linking side forgot its token then.
+      if (claims.plk === 1 && Option.exists(peerLinkCutoff, (cutoff) => claims.iat < cutoff)) {
+        const revokedAt = yield* DateTime.now;
+        yield* revoke(claims.sid).pipe(
+          Effect.ignore({ log: "Warn", message: "Could not revoke a link made before 024" }),
+        );
+        return yield* new SessionTokenRevokedError({ sessionId: claims.sid, revokedAt });
       }
 
       return {

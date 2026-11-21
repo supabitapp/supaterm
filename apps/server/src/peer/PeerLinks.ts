@@ -84,9 +84,6 @@ export interface ResolvedPeerLink {
   readonly token: string;
 }
 
-/** What a link names itself on its peer, followed by this environment's label. */
-export const LINK_CLIENT_NAME_PREFIX = "Supaterm · ";
-
 /** One owner holds every link's relay tunnel, so a tunnel outlives the client that asked for the link. */
 const RELAY_LEASE_OWNER = "peer-links";
 
@@ -118,8 +115,6 @@ export class PeerLinks extends Context.Service<
     ) => Effect.Effect<Option.Option<PeerLink>, PeerLinkError>;
     /** Forgets the link here. The peer still lists the session until it is revoked there. */
     readonly unlink: (environmentId: EnvironmentId) => Effect.Effect<boolean, PeerLinkError>;
-    /** Forgets every link here, without asking any peer. Returns how many it forgot. */
-    readonly unlinkAll: Effect.Effect<number, PeerLinkError>;
     /**
      * An address that answers as the linked peer, with its token, ready to call. With `linkedAt`,
      * only the link made then resolves: one made again since has another session there.
@@ -590,7 +585,7 @@ const make = Effect.gen(function* () {
     const issued = yield* signIn(
       yield* reach(primary, input.relayUrl),
       input,
-      `${LINK_CLIENT_NAME_PREFIX}${self.label}`,
+      `Supaterm · ${self.label}`,
     );
     const relayUrl = origins.some(isRelayAddress) ? input.relayUrl : undefined;
     const now = yield* DateTime.now;
@@ -717,14 +712,6 @@ const make = Effect.gen(function* () {
     },
   );
 
-  const unlinkAll: PeerLinks["Service"]["unlinkAll"] = readRows.pipe(
-    Effect.flatMap((rows) =>
-      Effect.forEach(rows, (row) => unlink(EnvironmentId.make(row.environment_id))),
-    ),
-    Effect.map((forgotten) => forgotten.filter(Boolean).length),
-    Effect.withSpan("PeerLinks.unlinkAll"),
-  );
-
   const resolve: PeerLinks["Service"]["resolve"] = Effect.fn("PeerLinks.resolve")(
     function* (environmentId, options) {
       const notLinked = new PeerLinkError({
@@ -819,7 +806,6 @@ const make = Effect.gen(function* () {
     list,
     get,
     unlink,
-    unlinkAll,
     resolve,
     recordOutcome,
   });

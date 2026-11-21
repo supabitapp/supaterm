@@ -1362,8 +1362,7 @@ export const ServerSettings = Schema.Struct({
   reviewGuidesEnabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   /**
    * Legacy: older servers gated links behind this switch and report it here. A current server
-   * turns it on once at startup, after pausing links it held while it was off, and ignores
-   * patches to it.
+   * always reports it on and ignores patches to it.
    */
   linkedEnvironmentsEnabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   reviewGuideModelSelection: Schema.NullOr(ModelSelection).pipe(

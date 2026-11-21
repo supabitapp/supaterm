@@ -1244,7 +1244,6 @@ const settingsUpdateRpcs = WsRpcGroup.omit(
 it.effect("a client's settings update never turns the legacy Linked environments switch off", () =>
   Effect.gen(function* () {
     const settings = yield* ServerSettings.ServerSettingsService;
-    yield* settings.updateSettings({ linkedEnvironmentsEnabled: true });
     const services = Layer.mergeAll(
       layerUnusedConfigRpcServices,
       Layer.mock(ExternalLauncher.ExternalLauncher)({}),

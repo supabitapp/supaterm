@@ -1,6 +1,7 @@
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { EnvironmentId } from "@supaterm/contracts";
+import * as NodeSqliteClient from "@supaterm/shared/nodeSqliteClient";
 import { expect, it } from "@effect/vitest";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
@@ -16,6 +17,7 @@ import * as SqlClient from "effect/sql/SqlClient";
 import * as ServerConfig from "../config.ts";
 import * as ServerEnvironment from "../environment/ServerEnvironment.ts";
 
+import { runMigrations } from "../persistence/Migrations.ts";
 import * as SqlitePersistence from "../persistence/Sqlite.ts";
 import * as SessionStore from "./SessionStore.ts";
 import * as ServerSecretStore from "./ServerSecretStore.ts";
@@ -267,6 +269,43 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("SessionStore.lay
       expect((yield* sessions.verify(capped.token)).runtimeModeCeiling).toBe("auto");
       expect((yield* sessions.verify(uncapped.token)).runtimeModeCeiling).toBeUndefined();
     }).pipe(Effect.provide(layerSessionStore())),
+  );
+  it.effect("refuses and revokes peer-link sessions issued before migration 024", () =>
+    Effect.gen(function* () {
+      const issueMcpSession = (sessions: SessionStore.SessionStore["Service"], peerLink: boolean) =>
+        sessions.issue({ subject: "mcp-client", method: "bearer-access-token", peerLink });
+      yield* runMigrations({ toMigrationInclusive: 23 });
+      const before = yield* SessionStore.SessionStore.use((sessions) =>
+        Effect.all({
+          link: issueMcpSession(sessions, true),
+          agent: issueMcpSession(sessions, false),
+        }),
+      ).pipe(Effect.provide(Layer.fresh(SessionStore.layer)));
+      yield* TestClock.adjust(Duration.hours(1));
+      yield* runMigrations();
+
+      yield* Effect.gen(function* () {
+        const sessions = yield* SessionStore.SessionStore;
+        const after = yield* issueMcpSession(sessions, true);
+        expect((yield* Effect.flip(sessions.verify(before.link.token)))._tag).toBe(
+          "SessionTokenRevokedError",
+        );
+        expect((yield* sessions.verify(before.agent.token)).sessionId).toBe(before.agent.sessionId);
+        expect((yield* sessions.verify(after.token)).peerLink).toBe(true);
+        expect((yield* sessions.listActive()).map((session) => session.sessionId)).toEqual([
+          after.sessionId,
+          before.agent.sessionId,
+        ]);
+      }).pipe(Effect.provide(Layer.fresh(SessionStore.layer)));
+    }).pipe(
+      Effect.provide(
+        Layer.mergeAll(
+          NodeSqliteClient.layer({ filename: ":memory:" }),
+          ServerSecretStore.layer,
+          layerServerEnvironment(EnvironmentId.make("test-environment")),
+        ).pipe(Layer.provideMerge(layerServerConfig())),
+      ),
+    ),
   );
   it.effect("takes scopes from the session record", () =>
     Effect.gen(function* () {

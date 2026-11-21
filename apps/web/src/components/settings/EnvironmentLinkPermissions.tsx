@@ -22,6 +22,7 @@ import { linkKnownMachine, peerLinkEnvironment, usePeerLinkHosts } from "~/state
 import { useEnvironmentQuery } from "~/state/query";
 import { useEnvironmentScope } from "~/state/session";
 import { useAtomCommand } from "~/state/use-atom-command";
+import { useLiveRefresh } from "../../hooks/useLiveRefresh";
 import { useNowMinute } from "../../hooks/useNowMinute";
 import { accessConfig } from "../auth/ConnectAgentSurface";
 import { Button } from "../ui/button";
@@ -79,6 +80,13 @@ function SourceLinkRow({
   const mayMint = useEnvironmentScope(target.environmentId, AuthAccessWriteScope);
   const links = useEnvironmentQuery(
     canList ? peerLinkEnvironment.list({ environmentId: source.environmentId, input: {} }) : null,
+  );
+  // Links made from another client or the CLI bump nothing this list reads, so showing it asks again.
+  useLiveRefresh(
+    () => {
+      if (!links.isPending) links.refresh();
+    },
+    { key: `link-permissions:${source.environmentId}`, intervalMs: null, refreshOnShow: true },
   );
   const nowMinute = useNowMinute();
   const unlink = useAtomCommand(peerLinkEnvironment.unlink, { label: UNLINK_COMMAND_LABEL });
@@ -143,6 +151,16 @@ function SourceLinkRow({
         {row.note === null ? null : <span className="block text-muted-foreground">{row.note}</span>}
       </span>
       <span className="flex items-center gap-2">
+        {row.expired && row.canForget ? (
+          <Button
+            size="xs"
+            variant="outline"
+            disabled={busy || links.isPending}
+            onClick={() => void forget()}
+          >
+            Forget
+          </Button>
+        ) : null}
         {relinkAccess === null ? null : (
           <Button
             size="xs"

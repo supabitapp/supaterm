@@ -74,7 +74,6 @@ import * as McpHttpServer from "./mcp/McpHttpServer.ts";
 import * as PeerForwarding from "./peer/PeerForwarding.ts";
 import * as PeerLinkRequests from "./peer/PeerLinkRequests.ts";
 import * as PeerLinks from "./peer/PeerLinks.ts";
-import { pauseLinksLeftOff } from "./peer/legacyLinksSwitch.ts";
 import * as PeerMcpClient from "./peer/PeerMcpClient.ts";
 import * as RemoteDelegation from "./peer/RemoteDelegation.ts";
 import * as RelayCompanion from "./relay/RelayCompanion.ts";
@@ -717,13 +716,9 @@ const layerMakeRoutes = Layer.mergeAll(
     Layer.provide(ProviderAdapterRegistry.layerFromProviderInstanceRegistry),
     Layer.provide(McpOAuth.layerMcpClientAuthenticator),
   ),
-  // Built before routesReady, so links held while the legacy switch was off end before /mcp
-  // answers anyone or a delegated task in a linked environment is followed again.
+  // Follows delegated tasks running in linked environments, including after a restart.
   Layer.effectDiscard(
-    pauseLinksLeftOff().pipe(
-      Effect.andThen(RemoteDelegation.RemoteDelegation),
-      Effect.flatMap((remote) => remote.start()),
-    ),
+    RemoteDelegation.RemoteDelegation.pipe(Effect.flatMap((remote) => remote.start())),
   ),
 ).pipe(
   Layer.provide(

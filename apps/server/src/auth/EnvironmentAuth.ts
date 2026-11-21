@@ -78,7 +78,7 @@ export interface IssuedBearerSession {
  * the user approved; the HTTP API and WebSocket reject them so an agent token
  * cannot reach the full RPC surface around that cap.
  */
-export const MCP_CLIENT_SUBJECT = "mcp-client";
+const MCP_CLIENT_SUBJECT = "mcp-client";
 const MCP_CLIENT_SESSION_TTL = Duration.days(30);
 
 export const mcpClientScopes = (

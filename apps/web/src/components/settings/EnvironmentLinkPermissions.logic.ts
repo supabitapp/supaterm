@@ -14,6 +14,8 @@ export interface LinkPermissionRow {
   readonly canForget: boolean;
   /** An unexpired link exists, so picking another level replaces it. */
   readonly linked: boolean;
+  /** An expired link is still saved on the source; it reads as Off, so only Forget removes it. */
+  readonly expired: boolean;
   /** The link stopped working, so linking again at the same level repairs it. */
   readonly canRelink: boolean;
 }
@@ -23,6 +25,7 @@ const UNKNOWN = {
   canGrant: false,
   canForget: false,
   linked: false,
+  expired: false,
   canRelink: false,
 } as const;
 
@@ -66,6 +69,7 @@ export function linkPermissionRow(input: {
     canGrant: blocker === null,
     canForget: current !== null && input.canUnlink,
     linked: live,
+    expired: current !== null && !live,
     canRelink: blocker === null && live && health?.kind === "failing",
   };
 }

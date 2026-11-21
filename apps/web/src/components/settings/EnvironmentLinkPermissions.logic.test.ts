@@ -51,12 +51,18 @@ describe("linkPermissionRow", () => {
     {
       name: "a live link shows its level and can be replaced or forgotten",
       input: { links: [link()] },
-      row: { value: "full-access", canGrant: true, canForget: true, linked: true },
+      row: { value: "full-access", canGrant: true, canForget: true, linked: true, expired: false },
     },
     {
       name: "an expired link reads as Off but can still be forgotten",
       input: { links: [link({ status: "expired" })] },
-      row: { value: "off", canForget: true, linked: false, note: "Expired. Link it again." },
+      row: {
+        value: "off",
+        canForget: true,
+        linked: false,
+        expired: true,
+        note: "Expired. Link it again.",
+      },
     },
     {
       name: "a link past its expiry reads as Off before the list says so",

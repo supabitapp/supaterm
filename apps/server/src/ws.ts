@@ -2500,8 +2500,8 @@ export const layerWsRpc = (
         [WS_METHODS.serverUpdateSettings]:
           /* Request instrumentation already owns the span; keep this helper in that context. */
           Effect.fnUntraced(function* ({
-            // The server turns this legacy switch on itself, once; no client turns it off again.
-            patch: { linkedEnvironmentsEnabled: _setByServer, ...patch },
+            // A legacy switch a current server always reports on; no client sets it.
+            patch: { linkedEnvironmentsEnabled: _reportedOn, ...patch },
             providerInstanceMutation,
           }) {
             const deviceHosts = patch.deviceHosts

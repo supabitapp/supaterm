@@ -119,6 +119,8 @@ export class AuthSessionRepository extends Context.Service<
     readonly setLastConnectedAt: (
       input: SetAuthSessionLastConnectedAtInput,
     ) => Effect.Effect<void, AuthSessionRepositoryError>;
+    /** When migration 024 ended every earlier peer link, in epoch ms; none before it runs. */
+    readonly peerLinkCutoff: Effect.Effect<Option.Option<number>, AuthSessionRepositoryError>;
   }
 >()("supaterm/persistence/AuthSessions/AuthSessionRepository") {}
 
@@ -347,6 +349,12 @@ export const make = Effect.gen(function* () {
       `,
   });
 
+  const findPeerLinkCutoffRow = SqlSchema.findOneOption({
+    Request: Schema.Void,
+    Result: Schema.Struct({ cutoffMs: Schema.Number }),
+    execute: () => sql`SELECT cutoff_ms AS "cutoffMs" FROM peer_link_cutoff WHERE id = 1`,
+  });
+
   const create: AuthSessionRepository["Service"]["create"] = (input) =>
     createSessionRow(input).pipe(
       Effect.mapError(
@@ -480,6 +488,22 @@ export const make = Effect.gen(function* () {
       ),
     );
 
+  const peerLinkCutoff: AuthSessionRepository["Service"]["peerLinkCutoff"] = sql`
+    SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'peer_link_cutoff'
+  `.pipe(
+    Effect.flatMap((tables) =>
+      tables.length === 0 ? Effect.succeedNone : findPeerLinkCutoffRow(undefined),
+    ),
+    Effect.map(Option.map((row) => row.cutoffMs)),
+    NodeSqliteClient.readOnly,
+    Effect.mapError(
+      toPersistenceSqlOrDecodeError(
+        "AuthSessionRepository.peerLinkCutoff:query",
+        "AuthSessionRepository.peerLinkCutoff:decodeRow",
+      ),
+    ),
+  );
+
   return {
     create,
     createReplacingActive,
@@ -489,6 +513,7 @@ export const make = Effect.gen(function* () {
     revoke,
     revokeAllExcept,
     setLastConnectedAt,
+    peerLinkCutoff,
   } satisfies AuthSessionRepository["Service"];
 });
 
