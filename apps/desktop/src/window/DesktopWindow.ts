@@ -629,7 +629,7 @@ export const make = Effect.gen(function* () {
         if (isBrowserContents) {
           menuTemplate.push(
             {
-              label: m("Reload"),
+              label: "Reload",
               click: () => {
                 if (!contents.isDestroyed()) contents.reload();
               },
