@@ -18,11 +18,14 @@ const withDebian: DesktopWslState = {
 };
 
 it("refetches on every Access visit and reuses a fresh result for Search", async () => {
-  const pending = Promise.withResolvers<DesktopWslState>();
+  let resolvePending: (state: DesktopWslState) => void = () => {};
+  const pending = new Promise<DesktopWslState>((resolve) => {
+    resolvePending = resolve;
+  });
   const getWslState = vi
     .fn<() => Promise<DesktopWslState>>()
     .mockResolvedValueOnce(ubuntuOnly)
-    .mockReturnValueOnce(pending.promise);
+    .mockReturnValueOnce(pending);
   vi.stubGlobal("window", { desktopBridge: { getWslState } });
   using _now = vi.spyOn(Date, "now").mockReturnValue(1_000_000);
   const tasks: Array<() => void> = [];
@@ -62,7 +65,7 @@ it("refetches on every Access visit and reuses a fresh result for Search", async
     runTasks();
     expect(getWslState).toHaveBeenCalledTimes(2);
     expect(AsyncResult.getOrThrow(registry.get(desktopWslAccessStateAtom))).toEqual(ubuntuOnly);
-    pending.resolve(withDebian);
+    resolvePending(withDebian);
     expect(await settled(desktopWslAccessStateAtom)).toEqual(withDebian);
     closeAccess();
   } finally {
