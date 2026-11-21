@@ -388,13 +388,15 @@ describe("cached VCS refs", () => {
 
   it.effect("invalidates persisted refs when ref-affecting commands settle", () =>
     Effect.gen(function* () {
+      const refsDigest = yield* Ref.make("refs-a");
       const expectedError = new EnvironmentRpcUnavailableError({
         environmentId: TARGET.environmentId,
         message: "pull failed after fetching refs",
       });
       const client = {
         [WS_METHODS.vcsPull]: () => Effect.fail(expectedError),
-        [WS_METHODS.vcsRefreshStatus]: () => Effect.void,
+        [WS_METHODS.vcsRefreshStatus]: () =>
+          Ref.get(refsDigest).pipe(Effect.map((digest) => ({ refsDigest: digest }))),
         [WS_METHODS.gitPreparePullRequestThread]: () =>
           Effect.succeed({ branch: "feature/pr", worktreePath: null }),
       } as unknown as WsRpcProtocolClient;
@@ -453,6 +455,19 @@ describe("cached VCS refs", () => {
       expect(yield* Ref.get(clears)).toBe(1);
       expect(registry.get(vcsRefsCacheStateAtom(TARGET)).revision).toBe(2);
 
+      const refreshStatus = atoms.refreshStatus.run(registry, {
+        environmentId: TARGET.environmentId,
+        input: { cwd: "/repo" },
+      });
+      yield* refreshStatus;
+      expect(yield* Ref.get(clears)).toBe(1);
+      expect(registry.get(vcsRefsCacheStateAtom(TARGET)).revision).toBe(2);
+
+      yield* Ref.set(refsDigest, "refs-b");
+      yield* refreshStatus;
+      expect(yield* Ref.get(clears)).toBe(1);
+      expect(registry.get(vcsRefsCacheStateAtom(TARGET)).revision).toBe(3);
+
       const prepareResult = yield* Effect.exit(
         createGitEnvironmentAtoms(runtime).preparePullRequestThread.run(registry, {
           environmentId: TARGET.environmentId,
@@ -462,7 +477,7 @@ describe("cached VCS refs", () => {
 
       expect(Exit.isSuccess(prepareResult)).toBe(true);
       expect(yield* Ref.get(clears)).toBe(2);
-      expect(registry.get(vcsRefsCacheStateAtom(TARGET)).revision).toBe(3);
+      expect(registry.get(vcsRefsCacheStateAtom(TARGET)).revision).toBe(4);
     }),
   );
 
@@ -551,7 +566,7 @@ describe("cached VCS refs", () => {
   it.effect("keeps persisted refs when a status refresh settles", () =>
     Effect.gen(function* () {
       const client = {
-        [WS_METHODS.vcsRefreshStatus]: () => Effect.void,
+        [WS_METHODS.vcsRefreshStatus]: () => Effect.succeed({}),
       } as unknown as WsRpcProtocolClient;
       const supervisor = EnvironmentSupervisor.EnvironmentSupervisor.of({
         target: TARGET,
