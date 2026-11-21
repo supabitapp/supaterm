@@ -554,7 +554,9 @@ describe.skipIf(HostProcess.Platform.defaultValue() !== "linux")("installer chec
 // regression: #38234
 describe.skipIf(HostProcess.Platform.defaultValue() !== "linux")("concurrent installers", () => {
   it("publishes one runtime without nesting the other install's staging directory", async () => {
-    const root = await NodeFSP.mkdtemp(NodePath.join(NodeOS.tmpdir(), "supaterm-install-concurrent-"));
+    const root = await NodeFSP.mkdtemp(
+      NodePath.join(NodeOS.tmpdir(), "supaterm-install-concurrent-"),
+    );
     const version = "1.2.3";
     const stem = `supaterm-${version}-linux-${HostProcess.Architecture.defaultValue()}`;
     const archiveName = `${stem}.tar.gz`;
@@ -565,9 +567,13 @@ describe.skipIf(HostProcess.Platform.defaultValue() !== "linux")("concurrent ins
       const tools = NodePath.join(root, "tools");
       await NodeFSP.mkdir(tools);
       await NodeFSP.mkdir(NodePath.join(root, stem));
-      await NodeFSP.writeFile(NodePath.join(root, stem, "supaterm"), "#!/bin/sh\necho 'supaterm v1.2.3'\n", {
-        mode: 0o755,
-      });
+      await NodeFSP.writeFile(
+        NodePath.join(root, stem, "supaterm"),
+        "#!/bin/sh\necho 'supaterm v1.2.3'\n",
+        {
+          mode: 0o755,
+        },
+      );
       const archivePath = NodePath.join(root, archiveName);
       NodeChildProcess.execFileSync("tar", ["-czf", archivePath, "-C", root, stem]);
       const archive = await NodeFSP.readFile(archivePath);
@@ -598,9 +604,9 @@ describe.skipIf(HostProcess.Platform.defaultValue() !== "linux")("concurrent ins
         wrapper,
         `
 import { execFileSync } from 'node:child_process';
-await fetch(process.env.Supaterm_TEST_ORIGIN + '/ready/' + process.env.Supaterm_TEST_INSTALLER);
+await fetch(process.env.SUPATERM_TEST_ORIGIN + '/ready/' + process.env.SUPATERM_TEST_INSTALLER);
 execFileSync(${JSON.stringify(realMv)}, process.argv.slice(2));
-if (process.env.Supaterm_TEST_INSTALLER === 'first') await fetch(process.env.Supaterm_TEST_ORIGIN + '/published');
+if (process.env.SUPATERM_TEST_INSTALLER === 'first') await fetch(process.env.SUPATERM_TEST_ORIGIN + '/published');
 `,
       );
       await NodeFSP.writeFile(
@@ -621,8 +627,8 @@ if (process.env.Supaterm_TEST_INSTALLER === 'first') await fetch(process.env.Sup
                 SUPATERM_HOME: NodePath.join(root, "home"),
                 SUPATERM_INSTALL_BIN_DIR: NodePath.join(root, "bin", id),
                 SUPATERM_RELEASE_BASE_URL: origin,
-                Supaterm_TEST_ORIGIN: origin,
-                Supaterm_TEST_INSTALLER: id,
+                SUPATERM_TEST_ORIGIN: origin,
+                SUPATERM_TEST_INSTALLER: id,
               },
               stdio: ["ignore", "pipe", "pipe"],
             },
