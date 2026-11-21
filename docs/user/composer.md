@@ -70,6 +70,10 @@ are saved on the server and can be edited or removed above the composer.
 When Enter sends, `Cmd+Enter` on macOS or `Ctrl+Enter` on Windows and Linux uses
 the opposite action: it steers when your default is Queue and queues when your
 default is Steer.
+A slash command such as `/compact` or `/context` waits for the current turn to
+finish, because a command steered into a turn would replace the agent's task.
+Sending a queued command now moves it to the front of the queue. [Goal](#goals)
+commands are the exception: some can stop the current turn.
 If your **Send shortcut** requires `Cmd+Enter` or `Ctrl+Enter`, that shortcut uses
 your default follow-up behavior; add **Shift** to use the opposite action. This
 applies only to multiline messages when you choose the multiline send option.
@@ -370,8 +374,8 @@ running and **Stop** ends it. Click a command's name to watch its live output, o
 to open it. On mobile, tap the background work pill, then the command or subagent.
 
 Queued messages appear above the composer. Rows show a thumbnail of any attached image alongside
-the text. **Send now** sends a message right away, into the running turn if there is one. You can
-also edit or remove it. On web and desktop, removing takes two presses of the row's **X** because
+the text. **Send now** sends a message right away, into the running turn if there is one. While a
+turn runs, a slash command moves to the front of the queue instead. You can also edit or remove it. On web and desktop, removing takes two presses of the row's **X** because
 the message is discarded, not returned to the composer.
 
 If you stop the agent or the server restarts, queued messages keep their order and are held.

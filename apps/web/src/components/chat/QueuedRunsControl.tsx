@@ -5,16 +5,18 @@ import {
 } from "@supaterm/client-runtime/state/runtime";
 import { deriveThreadQueueWorkflowState } from "@supaterm/client-runtime/state/thread-workflows";
 import { assistantCitationsToPlainText } from "@supaterm/shared/assistantCitations";
+import { isSlashCommand } from "@supaterm/shared/composerTrigger";
 import {
   isAttachmentOnlyBootstrapPrompt,
   replaceComposerContextReferences,
 } from "@supaterm/shared/composerContextReferences";
-import type {
-  ChatAttachment as ContractChatAttachment,
-  EnvironmentId,
-  MessageId,
-  RunId,
-  ThreadId,
+import {
+  parseGoalCommand,
+  type ChatAttachment as ContractChatAttachment,
+  type EnvironmentId,
+  type MessageId,
+  type RunId,
+  type ThreadId,
 } from "@supaterm/contracts";
 import { resolveUserMessagePresentation } from "@supaterm/client-runtime/user-message";
 import {
@@ -237,6 +239,13 @@ export function QueuedRunsControl({
                         replaceComposerContextReferences(item.text, (reference) => reference.label),
                       ).trim();
                   const isEditing = item.runId === props.editingRunId;
+                  // The server decides on the agent's text, and a goal command can stop the turn.
+                  const sentText = {
+                    text: item.message?.text ?? item.text,
+                    attachments: item.attachments,
+                  };
+                  const movesCommandFirst =
+                    isSlashCommand(sentText) && parseGoalCommand(sentText) === null;
                   return (
                     <ComposerBanner.Row
                       render={<li />}
@@ -324,7 +333,9 @@ export function QueuedRunsControl({
                                   ? "Start a turn with this message"
                                   : workflow?.promoteSkipsCompaction
                                     ? "Skip compaction and send this message"
-                                    : "Send into the current turn"}
+                                    : movesCommandFirst
+                                      ? "Move this command to the front of the queue"
+                                      : "Send into the current turn"}
                               </TooltipPopup>
                             </Tooltip>
                             <Separator orientation="vertical" className="mx-1 h-4" />

@@ -8,8 +8,10 @@ import {
   isAtomCommandInterrupted,
   squashAtomCommandFailure,
 } from "@supaterm/client-runtime/state/runtime";
+import { isSlashCommand } from "@supaterm/shared/composerTrigger";
 import {
   AuthOrchestrationOperateScope,
+  parseGoalCommand,
   type EnvironmentId,
   type RunId,
   type ThreadId,
@@ -227,6 +229,9 @@ export function ThreadQueueSheet({ route }: StaticScreenProps<QueueTarget>) {
         </View>
       ) : null}
       {queuedRuns.map(({ run, text, attachments, message }) => {
+        // The server decides on the agent's text, and a goal command can stop the turn.
+        const sentText = { text: message?.text ?? text, attachments };
+        const movesCommandFirst = isSlashCommand(sentText) && parseGoalCommand(sentText) === null;
         const controls = resolveThreadQueueRowControls({
           canOperate,
           busy: busyRunId !== null,
@@ -272,6 +277,7 @@ export function ThreadQueueSheet({ route }: StaticScreenProps<QueueTarget>) {
                     canSend={controls.canSend}
                     sendsNow={canSendNow}
                     skipsCompaction={workflow?.promoteSkipsCompaction === true}
+                    movesCommandFirst={movesCommandFirst}
                     onPress={() => void act(run.id, "steer")}
                   />
                 ) : null}
@@ -394,6 +400,7 @@ function QueueSendButton(props: {
   readonly canSend: boolean;
   readonly sendsNow: boolean;
   readonly skipsCompaction: boolean;
+  readonly movesCommandFirst: boolean;
   readonly onPress: () => void;
 }) {
   return (
@@ -405,7 +412,9 @@ function QueueSendButton(props: {
           ? "Start a turn with this message"
           : props.skipsCompaction
             ? "Skip compaction and send this message"
-            : "Send into the current turn"
+            : props.movesCommandFirst
+              ? "Move this command to the front of the queue"
+              : "Send into the current turn"
       }
       accessibilityState={{ disabled: !props.canSend }}
       disabled={!props.canSend}
