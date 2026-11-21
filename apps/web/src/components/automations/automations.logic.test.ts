@@ -6,6 +6,7 @@ import {
   ProviderInstanceId,
   ScheduledTaskId,
   type ScheduledTask,
+  type ScheduledTaskSchedule,
   ThreadId,
 } from "@supaterm/contracts";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
@@ -25,6 +26,7 @@ import {
   relativeLabel,
   scheduleFromDraft,
   scheduleLabel,
+  scheduleSummary,
   scheduledTaskDefaultModel,
   taskToDraft,
   unbindDraftFromThread,
@@ -378,18 +380,19 @@ describe("automation labels", () => {
   const at = (offsetMs: number) => new Date(now + offsetMs).toISOString();
 
   it("marks fixed times as environment time and leaves intervals unqualified", () => {
-    expect(
-      scheduleLabel({ type: "fixed_time", timeOfDay: "09:00", weekdays: [1, 2, 3, 4, 5] }),
-    ).toBe("Weekdays at 09:00 (environment time)");
-    expect(scheduleLabel({ type: "fixed_time", timeOfDay: "18:30" })).toBe(
-      "Daily at 18:30 (environment time)",
+    const label = (schedule: ScheduledTaskSchedule) => scheduleLabel(schedule, "24-hour");
+    expect(label({ type: "fixed_time", timeOfDay: "09:00", weekdays: [1, 2, 3, 4, 5] })).toBe(
+      `Weekdays at ${clock(false, 9, 0)} (environment time)`,
     );
-    expect(scheduleLabel({ type: "interval", everyMs: 15 * 60_000 })).toBe("Every 15 min");
-    expect(scheduleLabel({ type: "interval", everyMs: 90 * 60_000 })).toBe("Every 90 min");
-    expect(scheduleLabel({ type: "interval", everyMs: 60 * 60_000 })).toBe("Every hour");
-    expect(scheduleLabel({ type: "interval", everyMs: 6 * 60 * 60_000 })).toBe("Every 6 hours");
-    expect(scheduleLabel({ type: "interval", everyMs: 24 * 60 * 60_000 })).toBe("Every day");
-    expect(scheduleLabel({ type: "interval", everyMs: 7 * 24 * 60 * 60_000 })).toBe("Every 7 days");
+    expect(label({ type: "fixed_time", timeOfDay: "18:30" })).toBe(
+      `Daily at ${clock(false, 18, 30)} (environment time)`,
+    );
+    expect(label({ type: "interval", everyMs: 15 * 60_000 })).toBe("Every 15 min");
+    expect(label({ type: "interval", everyMs: 90 * 60_000 })).toBe("Every 90 min");
+    expect(label({ type: "interval", everyMs: 60 * 60_000 })).toBe("Every hour");
+    expect(label({ type: "interval", everyMs: 6 * 60 * 60_000 })).toBe("Every 6 hours");
+    expect(label({ type: "interval", everyMs: 24 * 60 * 60_000 })).toBe("Every day");
+    expect(label({ type: "interval", everyMs: 7 * 24 * 60 * 60_000 })).toBe("Every 7 days");
   });
 
   it.each([
@@ -445,9 +448,43 @@ describe("automations search", () => {
   });
 });
 
+// The host locale's clock for a wall time, so these pass in any locale (digits, day period, zero padding).
+function clock(hour12: boolean, hour: number, minute: number) {
+  return new Intl.DateTimeFormat(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12,
+    timeZone: "UTC",
+  }).format(Date.UTC(2000, 0, 1, hour, minute));
+}
+
 it("names the server zone on fixed-time labels when the server sends one", () => {
-  expect(scheduleLabel({ type: "fixed_time", timeOfDay: "16:31" }, "Etc/UTC")).toBe(
-    "Daily at 16:31 UTC",
+  expect(scheduleLabel({ type: "fixed_time", timeOfDay: "16:31" }, "24-hour", "Etc/UTC")).toBe(
+    `Daily at ${clock(false, 16, 31)} UTC`,
   );
-  expect(scheduleLabel({ type: "interval", everyMs: 60_000 }, "Etc/UTC")).toBe("Every 1 min");
+  expect(scheduleLabel({ type: "interval", everyMs: 60_000 }, "24-hour", "Etc/UTC")).toBe(
+    "Every 1 min",
+  );
+});
+
+it("shows schedule times in the Time format setting", () => {
+  const daily = { type: "fixed_time", timeOfDay: "17:30" } as const;
+  expect(scheduleSummary(daily, "24-hour")).toBe(`Daily at ${clock(false, 17, 30)}`);
+  expect(scheduleSummary(daily, "12-hour")).toBe(`Daily at ${clock(true, 17, 30)}`);
+  const midnight = scheduleSummary({ type: "fixed_time", timeOfDay: "0:05" }, "24-hour");
+  expect(midnight).toBe(`Daily at ${clock(false, 0, 5)}`);
+  // An h24 clock would print midnight as 24:05 in both the label and the helper.
+  expect(midnight).not.toContain("24");
+
+  // A local wall time, so the label reads 17:30 in any host zone.
+  const runAt = new Date(2026, 10, 20, 17, 30);
+  const once = { type: "once", runAt: runAt.toISOString() } as const;
+  for (const hour12 of [false, true]) {
+    const dateTime = new Intl.DateTimeFormat(undefined, {
+      dateStyle: "medium",
+      timeStyle: "short",
+      hour12,
+    }).format(runAt);
+    expect(scheduleLabel(once, hour12 ? "12-hour" : "24-hour")).toBe(`Once, ${dateTime}`);
+  }
 });

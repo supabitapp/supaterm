@@ -9,6 +9,7 @@ import {
   type ScheduledTask,
   type ThreadId,
 } from "@supaterm/contracts";
+import type { TimestampFormat } from "@supaterm/contracts/settings";
 import {
   isAtomCommandInterrupted,
   squashAtomCommandFailure,
@@ -17,6 +18,7 @@ import {
 import { ThreadDetailsSection } from "./ThreadDetailsSection";
 import { cn } from "../../lib/utils";
 import { useNowMinuteMs } from "../../hooks/useNowMinute";
+import { useClientSettings } from "../../hooks/useSettings";
 import { lastRunLabel, nextRunLabel, scheduleLabel } from "../automations/automations.logic";
 import { useEnvironmentQuery } from "../../state/query";
 import { serverEnvironment } from "../../state/server";
@@ -64,8 +66,13 @@ function AutomationStatusIcon({ task, now }: { task: ScheduledTask; now: number 
   );
 }
 
-function taskScheduleLine(task: ScheduledTask, now: number, timeZone: string | undefined) {
-  const schedule = scheduleLabel(task.schedule, timeZone, task.nextRunAt);
+function taskScheduleLine(
+  task: ScheduledTask,
+  now: number,
+  timestampFormat: TimestampFormat,
+  timeZone: string | undefined,
+) {
+  const schedule = scheduleLabel(task.schedule, timestampFormat, timeZone, task.nextRunAt);
   if (!task.enabled) return `${schedule} · paused`;
   if (task.nextRunAt === null) return schedule;
   return `${schedule} · ${nextRunLabel(task, now)}`;
@@ -90,6 +97,7 @@ export function ThreadAutomationsPanel(props: {
   const navigate = useNavigate();
   const [busyTaskId, setBusyTaskId] = useState<string | null>(null);
   const now = useNowMinuteMs();
+  const timestampFormat = useClientSettings((settings) => settings.timestampFormat);
 
   const boundTasks = (tasksQuery.data?.tasks ?? []).filter(
     (task) => task.threadId === props.threadId,
@@ -185,13 +193,13 @@ export function ThreadAutomationsPanel(props: {
                   {task.title}
                 </span>
                 <p className="truncate text-2xs text-muted-foreground">
-                  {taskScheduleLine(task, now, tasksQuery.data?.timeZone)}
+                  {taskScheduleLine(task, now, timestampFormat, tasksQuery.data?.timeZone)}
                 </p>
               </TooltipTrigger>
               <TooltipPopup side="left">
                 <p className="font-medium">{task.title}</p>
                 <p className="text-muted-foreground">
-                  {taskScheduleLine(task, now, tasksQuery.data?.timeZone)}
+                  {taskScheduleLine(task, now, timestampFormat, tasksQuery.data?.timeZone)}
                 </p>
               </TooltipPopup>
             </Tooltip>

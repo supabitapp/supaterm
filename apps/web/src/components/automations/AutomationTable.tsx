@@ -19,6 +19,7 @@ import {
 } from "@supaterm/client-runtime/state/runtime";
 
 import { useInlineConfirm } from "../../hooks/useInlineConfirm";
+import { useClientSettings } from "../../hooks/useSettings";
 import { useNowMinuteMs } from "../../hooks/useNowMinute";
 import { cn } from "../../lib/utils";
 import type { SidebarProjectSnapshot } from "../../sidebarProjectGrouping";
@@ -136,6 +137,7 @@ function AutomationRow({
 }) {
   const navigate = useNavigate();
   const canOperate = useEnvironmentScope(environmentId, AuthOrchestrationOperateScope);
+  const timestampFormat = useClientSettings((settings) => settings.timestampFormat);
   const threadRef = task.threadId ? scopeThreadRef(environmentId, task.threadId) : null;
   const [busy, setBusy] = useState(false);
   const confirm = useInlineConfirm<"delete">();
@@ -173,7 +175,7 @@ function AutomationRow({
   };
   const titleTone = task.enabled ? "text-foreground" : "text-muted-foreground";
   const projectLabel = project?.displayName ?? "Project removed";
-  const schedule = scheduleSummary(task.schedule, timeZone, task.nextRunAt);
+  const schedule = scheduleSummary(task.schedule, timestampFormat, timeZone, task.nextRunAt);
   const details = [
     showProject ? projectLabel : null,
     showEnvironment ? environmentLabel : null,
