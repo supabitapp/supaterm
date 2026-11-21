@@ -63,7 +63,6 @@ import {
   ThreadId,
   isOrchestrationV2WorkActive,
   TurnItemId,
-  isOrchestrationV2RunInProgress,
   isRemoteTask,
   isOrchestrationV2RunSettled,
   latestProviderTurnForAttempt,
