@@ -40,6 +40,7 @@ vi.mock(import("../ProjectFavicon"), () => ({
     </span>
   ),
 }));
+vi.mock(import("../ThreadChipHoverCard"), () => ({ ThreadChipHoverCard: () => <span /> }));
 vi.mock(import("../../state/orchestration"), () => ({
   orchestrationEnvironment: { threadLinkMetadata: () => state.reply } as never,
 }));
