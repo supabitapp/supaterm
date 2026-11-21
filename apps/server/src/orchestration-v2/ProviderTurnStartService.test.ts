@@ -1450,7 +1450,7 @@ function makeLocalCommandHarness(input: {
           getRuntimeRecoveryProjection,
           getRun,
           getTurnStartHistory: () =>
-            startsProviderTurn
+            startsProviderTurn || input.previousTurn !== undefined
               ? Effect.succeed([])
               : Effect.fail(
                   new ProjectionStore.ProjectionStoreReadError({
