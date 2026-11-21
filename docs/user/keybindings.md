@@ -127,12 +127,15 @@ Join modifiers and a key with `+`, such as `mod+shift+d` or `ctrl+l`.
 Available context keys are `terminalFocus`, `terminalOpen`, `previewFocus`,
 `previewOpen`, `rightPanelOpen`, `modelPickerOpen`, `projectPickerOpen`, `hostPickerOpen`,
 `branchPickerOpen`, `usagePageOpen`, `composerFocus`, `draftThreadRoute`,
-`turnRunning`, `editableFocus`, `textSelected`, `paneClosable`, `isWeb`, and `isDesktop`.
+`turnRunning`, `composerEmpty`, `editableFocus`, `textSelected`, `paneClosable`, `isWeb`, and
+`isDesktop`.
 In a thread, `rightPanelOpen` is true while its right panel is open; the default
 `mod+t` uses it to open the panel's new-tab menu.
 `paneClosable` is true while [threads are side by side](./thread-sidebar.md#open-threads-side-by-side)
 and the focused pane has no right panel open.
 `draftThreadRoute` is true on a draft thread, including a restored draft, until it is first sent.
+`composerEmpty` is true while the composer has no text, attachments, or context, and is not
+editing a queued message or answering a question.
 `editableFocus` is true while a text field, the composer, or another editor has
 the keyboard. `textSelected` is true while text is selected in the page or a focused
 text field. `isWeb` is true in a browser tab. `isDesktop` is true in the

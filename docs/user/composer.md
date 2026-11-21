@@ -79,7 +79,16 @@ the oldest queued message. This leaves the current draft intact. While a turn th
 steering runs, the message steers it; once the agent is stopped, it starts a new turn. If that
 shortcut sends the opposite action for your draft, move focus outside the composer to send the
 queued message. Change `thread.steerQueuedMessage` in **Settings → Keybindings** to use another
-shortcut.
+shortcut. To make `Cmd+Enter` or `Ctrl+Enter` steer the oldest queued message when the composer
+is empty, add this rule to your [keybindings file](keybindings.md#edit-the-configuration-file):
+
+```json
+{
+  "key": "mod+enter",
+  "command": "thread.steerQueuedMessage",
+  "when": "composerFocus && turnRunning && composerEmpty"
+}
+```
 
 Press `ArrowUp` in an empty composer to edit the most recently queued message,
 including one still waiting to send. When the composer has text, press `Option+Up`
