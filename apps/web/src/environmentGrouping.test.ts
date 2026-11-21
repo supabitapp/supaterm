@@ -9,7 +9,7 @@ import {
   buildSidebarProjectPickerEntries,
   buildSidebarProjectSnapshots,
   isInSidebarScope,
-  resolveSidebarProjectScope,
+  resolveSidebarScope,
   resolveSidebarProjectScopeKey,
   resolveSidebarProjectScopeKeys,
   getSidebarProjectSettingsKey,
@@ -174,14 +174,14 @@ describe("environment grouping", () => {
       (project) => groups.find((group) => group.id === project.id)!.projectKey,
     );
 
-    expect(resolveSidebarProjectScope({ groups, keys: [archivedKey!] })).toEqual({
+    expect(resolveSidebarScope({ groups, keys: [archivedKey!] })).toEqual({
       environmentId: null,
       keys: [],
       groups: [],
       memberKeys: null,
     });
     expect(
-      resolveSidebarProjectScope({ groups, keys: [archivedKey!, openKey!] }).groups.map(
+      resolveSidebarScope({ groups, keys: [archivedKey!, openKey!] }).groups.map(
         (group) => group.projectKey,
       ),
     ).toEqual([openKey]);
@@ -200,8 +200,13 @@ describe("environment grouping", () => {
       workspaceRoot: "/shared",
       repositoryIdentity,
     });
+    const remoteOther = makeProject({
+      id: ProjectId.make("remote-other"),
+      environmentId: remoteEnvironmentId,
+      workspaceRoot: "/remote-other",
+    });
     const groups = buildSidebarProjectSnapshots({
-      projects: [local, sharedLocal, sharedRemote],
+      projects: [local, sharedLocal, sharedRemote, remoteOther],
       settings: defaultGroupingSettings,
       primaryEnvironmentId,
       resolveEnvironmentLabel: () => null,
@@ -210,22 +215,26 @@ describe("environment grouping", () => {
       (project) => groups.find((group) => group.id === project.id)!.projectKey,
     );
     const resolve = (keys: string[], environmentId: EnvironmentId, canClearMissingScope = true) =>
-      resolveSidebarProjectScope({ groups, keys, environmentId, canClearMissingScope });
+      resolveSidebarScope({ groups, keys, environmentId, canClearMissingScope });
 
     const remoteOnly = resolve([], remoteEnvironmentId);
     expect(remoteOnly.environmentId).toBe(remoteEnvironmentId);
     expect(isInSidebarScope(remoteOnly, remoteEnvironmentId, sharedRemote.id)).toBe(true);
+    expect(isInSidebarScope(remoteOnly, remoteEnvironmentId, remoteOther.id)).toBe(true);
     expect(isInSidebarScope(remoteOnly, primaryEnvironmentId, local.id)).toBe(false);
 
-    expect(resolve([localKey!], remoteEnvironmentId)).toMatchObject({
-      environmentId: remoteEnvironmentId,
-      keys: [],
-      memberKeys: null,
-    });
+    for (const canClearMissingScope of [true, false]) {
+      expect(resolve([localKey!], remoteEnvironmentId, canClearMissingScope)).toMatchObject({
+        environmentId: remoteEnvironmentId,
+        keys: [],
+        memberKeys: null,
+      });
+    }
 
     const sharedOnRemote = resolve([localKey!, sharedKey!], remoteEnvironmentId);
     expect(sharedOnRemote.keys).toEqual([sharedKey]);
     expect(isInSidebarScope(sharedOnRemote, remoteEnvironmentId, sharedRemote.id)).toBe(true);
+    expect(isInSidebarScope(sharedOnRemote, remoteEnvironmentId, remoteOther.id)).toBe(false);
     expect(isInSidebarScope(sharedOnRemote, primaryEnvironmentId, sharedLocal.id)).toBe(false);
 
     const goneEnvironmentId = EnvironmentId.make("env-gone");

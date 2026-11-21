@@ -132,7 +132,17 @@ export interface SidebarScope {
   readonly memberKeys: ReadonlySet<string> | null;
 }
 
-export const ALL_SIDEBAR_SCOPE: SidebarScope = { environmentId: null, memberKeys: null };
+export interface ResolvedSidebarScope extends SidebarScope {
+  readonly keys: ReadonlyArray<string>;
+  readonly groups: ReadonlyArray<SidebarProjectSnapshot>;
+}
+
+export const ALL_SIDEBAR_SCOPE: ResolvedSidebarScope = {
+  environmentId: null,
+  memberKeys: null,
+  keys: [],
+  groups: [],
+};
 
 export function isInSidebarScope(
   scope: SidebarScope,
@@ -160,16 +170,13 @@ export function projectGroupsInEnvironment<
  * An archived project, or one with no checkout in the chosen environment, reads as all
  * projects, matching the filter menu. An environment that owns no project reads as all.
  */
-export function resolveSidebarProjectScope(input: {
+export function resolveSidebarScope(input: {
   readonly groups: ReadonlyArray<SidebarProjectSnapshot>;
   readonly keys: ReadonlyArray<string>;
   readonly environmentId?: EnvironmentId | null;
   readonly settings?: ProjectGroupingSettings;
   readonly canClearMissingScope?: boolean;
-}): SidebarScope & {
-  readonly keys: ReadonlyArray<string>;
-  readonly groups: ReadonlyArray<SidebarProjectSnapshot>;
-} {
+}): ResolvedSidebarScope {
   const chosenEnvironmentGroups = projectGroupsInEnvironment(
     input.groups,
     input.environmentId ?? null,
@@ -179,14 +186,16 @@ export function resolveSidebarProjectScope(input: {
     (chosenEnvironmentGroups.length > 0 || !input.canClearMissingScope)
       ? input.environmentId
       : null;
-  const environmentGroups = environmentId === null ? input.groups : chosenEnvironmentGroups;
-  const archivedKeys = new Set(
-    environmentGroups.filter((group) => group.archived).map((group) => group.projectKey),
+  const environmentKeys = new Set(
+    projectGroupsInEnvironment(input.groups, environmentId).map((group) => group.projectKey),
   );
-  const keys = resolveSidebarProjectScopeKeys({ ...input, groups: environmentGroups }).filter(
-    (key) => !archivedKeys.has(key),
+  const excludedKeys = new Set(
+    input.groups
+      .filter((group) => group.archived || !environmentKeys.has(group.projectKey))
+      .map((group) => group.projectKey),
   );
-  const groups = environmentGroups.filter((group) => keys.includes(group.projectKey));
+  const keys = resolveSidebarProjectScopeKeys(input).filter((key) => !excludedKeys.has(key));
+  const groups = input.groups.filter((group) => keys.includes(group.projectKey));
   return {
     environmentId,
     keys,

@@ -122,7 +122,7 @@ import {
   isInSidebarScope,
   projectGroupsInEnvironment,
   projectGroupsSpanEnvironments,
-  resolveSidebarProjectScope,
+  resolveSidebarScope,
   getSidebarProjectSettingsKey,
   type SidebarProjectSnapshot,
   type SidebarScope,
@@ -900,12 +900,6 @@ function readRouteThreadKey(router: AnyRouter): string | null {
   return ref === null ? null : scopedThreadKey(ref);
 }
 
-const ALL_PROJECTS_SCOPE: ReturnType<typeof resolveSidebarProjectScope> = {
-  ...ALL_SIDEBAR_SCOPE,
-  keys: [],
-  groups: [],
-};
-
 export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReveal }) {
   const {
     projects,
@@ -1111,7 +1105,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
   };
   // A scope whose project or environment is gone reads as all once every snapshot has
   // loaded. The stored scope is left alone, so it returns with its project or environment.
-  const chosenProjectScope = resolveSidebarProjectScope({
+  const chosenScope = resolveSidebarScope({
     groups: projectGroups,
     keys: persistedProjectScopeKeys,
     environmentId: persistedEnvironmentScopeId,
@@ -1149,11 +1143,11 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     reveal: routeReveal,
     routeKey: routeRowThreadKey,
     routeKeyInPlace,
-    scope: chosenProjectScope,
+    scope: chosenScope,
     delegatedUnderParent,
     findThread: (key) => threads.find((candidate) => threadShellKey(candidate) === key),
   });
-  const sidebarScope = revealWidensScope ? ALL_PROJECTS_SCOPE : chosenProjectScope;
+  const sidebarScope = revealWidensScope ? ALL_SIDEBAR_SCOPE : chosenScope;
   const {
     keys: projectScopeKeys,
     groups: scopedProjectGroups,
