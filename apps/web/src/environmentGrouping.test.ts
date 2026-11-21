@@ -8,7 +8,8 @@ import {
 import {
   buildSidebarProjectPickerEntries,
   buildSidebarProjectSnapshots,
-  resolveSidebarProjectScope,
+  isInSidebarScope,
+  resolveSidebarScope,
   resolveSidebarProjectScopeKey,
   resolveSidebarProjectScopeKeys,
   getSidebarProjectSettingsKey,
@@ -25,6 +26,10 @@ const repositoryIdentity = {
     remoteUrl: "https://github.com/example/shared-repo.git",
   },
 };
+const knownEnvironments = new Map([
+  [primaryEnvironmentId, true],
+  [remoteEnvironmentId, true],
+]);
 const defaultGroupingSettings = {
   sidebarProjectGroupingMode: "repository" as const,
   sidebarProjectGroupingOverrides: {},
@@ -173,16 +178,86 @@ describe("environment grouping", () => {
       (project) => groups.find((group) => group.id === project.id)!.projectKey,
     );
 
-    expect(resolveSidebarProjectScope({ groups, keys: [archivedKey!] })).toEqual({
+    expect(resolveSidebarScope({ groups, keys: [archivedKey!] })).toEqual({
+      environmentId: null,
       keys: [],
       groups: [],
       memberKeys: null,
     });
     expect(
-      resolveSidebarProjectScope({ groups, keys: [archivedKey!, openKey!] }).groups.map(
+      resolveSidebarScope({ groups, keys: [archivedKey!, openKey!] }).groups.map(
         (group) => group.projectKey,
       ),
     ).toEqual([openKey]);
+  });
+
+  it("scopes threads and project choices to the chosen environment", () => {
+    const local = makeProject({ id: ProjectId.make("local"), workspaceRoot: "/local" });
+    const sharedLocal = makeProject({
+      id: ProjectId.make("shared-local"),
+      workspaceRoot: "/shared",
+      repositoryIdentity,
+    });
+    const sharedRemote = makeProject({
+      id: ProjectId.make("shared-remote"),
+      environmentId: remoteEnvironmentId,
+      workspaceRoot: "/shared",
+      repositoryIdentity,
+    });
+    const remoteOther = makeProject({
+      id: ProjectId.make("remote-other"),
+      environmentId: remoteEnvironmentId,
+      workspaceRoot: "/remote-other",
+    });
+    const groups = buildSidebarProjectSnapshots({
+      projects: [local, sharedLocal, sharedRemote, remoteOther],
+      settings: defaultGroupingSettings,
+      primaryEnvironmentId,
+      resolveEnvironmentLabel: () => null,
+    });
+    const [localKey, sharedKey] = [local, sharedLocal].map(
+      (project) => groups.find((group) => group.id === project.id)!.projectKey,
+    );
+    const resolve = (
+      keys: string[],
+      environmentId: EnvironmentId,
+      canClearMissingScope = true,
+      environments: ReadonlyMap<EnvironmentId, boolean> | null = knownEnvironments,
+    ) => resolveSidebarScope({ groups, keys, environmentId, environments, canClearMissingScope });
+
+    const remoteOnly = resolve([], remoteEnvironmentId);
+    expect(remoteOnly.environmentId).toBe(remoteEnvironmentId);
+    expect(isInSidebarScope(remoteOnly, remoteEnvironmentId, sharedRemote.id)).toBe(true);
+    expect(isInSidebarScope(remoteOnly, remoteEnvironmentId, remoteOther.id)).toBe(true);
+    expect(isInSidebarScope(remoteOnly, primaryEnvironmentId, local.id)).toBe(false);
+
+    for (const canClearMissingScope of [true, false]) {
+      expect(resolve([localKey!], remoteEnvironmentId, canClearMissingScope)).toMatchObject({
+        environmentId: remoteEnvironmentId,
+        keys: [],
+        memberKeys: null,
+      });
+    }
+
+    const sharedOnRemote = resolve([localKey!, sharedKey!], remoteEnvironmentId);
+    expect(sharedOnRemote.keys).toEqual([sharedKey]);
+    expect(isInSidebarScope(sharedOnRemote, remoteEnvironmentId, sharedRemote.id)).toBe(true);
+    expect(isInSidebarScope(sharedOnRemote, remoteEnvironmentId, remoteOther.id)).toBe(false);
+    expect(isInSidebarScope(sharedOnRemote, primaryEnvironmentId, sharedLocal.id)).toBe(false);
+
+    const unlistedEnvironmentId = EnvironmentId.make("env-unlisted");
+    expect(resolve([], unlistedEnvironmentId, true).environmentId).toBeNull();
+    expect(resolve([], unlistedEnvironmentId, false).environmentId).toBe(unlistedEnvironmentId);
+    expect(resolve([], unlistedEnvironmentId, true, null).environmentId).toBe(
+      unlistedEnvironmentId,
+    );
+    const toggledEnvironmentId = EnvironmentId.make("env-toggled");
+    for (const enabled of [true, false]) {
+      expect(
+        resolve([], toggledEnvironmentId, false, new Map([[toggledEnvironmentId, enabled]]))
+          .environmentId,
+      ).toBe(enabled ? toggledEnvironmentId : null);
+    }
   });
 
   it("dedupes stale project rows with the same environment and workspace path", () => {

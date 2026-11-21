@@ -6,10 +6,11 @@ import { expect, it, vi } from "vite-plus/test";
 import { act, render } from "../../../test/render";
 import { formatAssistantCitationForComposer } from "../../composer-logic";
 import { DraftId, useComposerDraftStore } from "../../composerDraftStore";
+import { ALL_SIDEBAR_SCOPE } from "../../sidebarProjectGrouping";
 import { SidebarDraftBlock, useSidebarDrafts } from "./SidebarDraftBlock";
 
 function DraftBlock() {
-  const drafts = useSidebarDrafts(null, null);
+  const drafts = useSidebarDrafts(ALL_SIDEBAR_SCOPE, null);
   return (
     <SidebarDraftBlock
       drafts={drafts}

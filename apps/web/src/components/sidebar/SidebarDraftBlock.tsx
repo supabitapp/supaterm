@@ -17,6 +17,7 @@ import {
 import { useLocalStorage } from "../../hooks/useLocalStorage";
 import type { EnvironmentProject } from "@supaterm/client-runtime/state/shell";
 import { cn } from "~/lib/utils";
+import { isInSidebarScope, type SidebarScope } from "~/sidebarProjectGrouping";
 import { resolveSidebarRowAccessibility } from "../Sidebar.logic";
 import { ProjectFavicon, type ProjectFaviconProject } from "../ProjectFavicon";
 import { MiddleTruncate } from "../ui/middle-truncate";
@@ -202,10 +203,7 @@ export interface SidebarDrafts {
  * Unsent drafts listed above the threads. The open draft keeps the row it had on
  * arrival (frozen content), so its row and jump number stay put while it is edited.
  */
-export function useSidebarDrafts(
-  scopedProjectKeys: ReadonlySet<string> | null,
-  routeDraftId: string | null,
-): SidebarDrafts {
+export function useSidebarDrafts(scope: SidebarScope, routeDraftId: string | null): SidebarDrafts {
   const [expanded, setExpanded] = useLocalStorage(DRAFTS_SHELF_EXPANDED_KEY, true, Schema.Boolean);
   const paneDraftIdList = useChatPaneStore(
     useShallow((state) =>
@@ -229,12 +227,7 @@ export function useSidebarDrafts(
       for (const [draftKey, session] of Object.entries(store.draftThreadsByThreadKey)) {
         // Side chat drafts live in their parent's panes, like the side chats they become.
         if (session.promotedTo != null || session.sideChatOf !== undefined) continue;
-        if (
-          scopedProjectKeys !== null &&
-          !scopedProjectKeys.has(`${session.environmentId}:${session.projectId}`)
-        ) {
-          continue;
-        }
+        if (!isInSidebarScope(scope, session.environmentId, session.projectId)) continue;
         const isListed =
           draftKey === routeDraftId
             ? routeDraftComposer !== null
