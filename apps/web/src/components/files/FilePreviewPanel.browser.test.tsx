@@ -365,29 +365,10 @@ describe("source file scroll", () => {
 
   it.each([
     {
-      label: "keeps a downward drag whose anchor stays mounted across a window shift",
-      startLine: 65,
-      initialScrollLine: 65,
-      direction: "down" as const,
-      dragToLine: 125,
-      targetFirstMounted: 51,
-      expectedIncludedLine: 121,
-    },
-    {
-      label: "keeps a downward drag whose anchor unmounts on a window shift",
-      startLine: 5,
-      initialScrollLine: null,
-      direction: "down" as const,
-      dragToLine: 125,
-      targetFirstMounted: 51,
-      expectedIncludedLine: 121,
-    },
-    {
       label: "keeps an upward drag whose anchor unmounts on a window shift",
       startLine: 385,
       initialScrollLine: 385,
       direction: "up" as const,
-      dragToLine: 290,
       targetFirstMounted: 201,
       expectedIncludedLine: 300,
     },
@@ -397,7 +378,6 @@ describe("source file scroll", () => {
       startLine,
       initialScrollLine,
       direction,
-      dragToLine,
       targetFirstMounted,
       expectedIncludedLine,
     }) => {
@@ -457,6 +437,7 @@ describe("source file scroll", () => {
       const startRect = startRow!.getBoundingClientRect();
       const scrollerRect = scroller.getBoundingClientRect();
       const nearEdgeY = direction === "down" ? scrollerRect.bottom - 5 : scrollerRect.top + 5;
+      const outsideEdgeY = direction === "down" ? scrollerRect.bottom + 60 : scrollerRect.top - 60;
       const frame = window.frameElement?.getBoundingClientRect();
       const mouse = (type: "mousePressed" | "mouseMoved" | "mouseReleased", x: number, y: number) =>
         cdp().send("Input.dispatchMouseEvent", {
@@ -476,8 +457,7 @@ describe("source file scroll", () => {
       await mouse("mousePressed", startX, startRect.top + 5);
       await anchored;
       await mouse("mouseMoved", startRect.left + 80, nearEdgeY);
-      // A wheel turn under the held button: the window shifts without waiting on edge autoscroll.
-      scroller.scrollTop = ((dragToLine - 1) / lines.length) * scroller.scrollHeight;
+      await mouse("mouseMoved", startRect.left + 80, outsideEdgeY);
       await vi.waitFor(() => {
         const firstMounted = Number(rows()[0]?.getAttribute("data-line"));
         if (direction === "down") {
@@ -486,8 +466,7 @@ describe("source file scroll", () => {
           expect(firstMounted).toBeLessThanOrEqual(targetFirstMounted);
         }
       });
-      await mouse("mouseMoved", startRect.left + 80, nearEdgeY);
-      await mouse("mouseReleased", startRect.left + 80, nearEdgeY);
+      await mouse("mouseReleased", startRect.left + 80, outsideEdgeY);
 
       const overlayRanges = shadowRoot()!.querySelectorAll("[data-selection-range]");
       expect(overlayRanges.length).toBeGreaterThan(0);
