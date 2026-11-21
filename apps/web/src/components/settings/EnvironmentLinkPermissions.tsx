@@ -24,7 +24,11 @@ import { useAtomCommand } from "~/state/use-atom-command";
 import { useNowMinute } from "../../hooks/useNowMinute";
 import { accessConfig } from "../auth/ConnectAgentSurface";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../ui/select";
-import { stackedThreadToast, toastManager } from "../ui/toast";
+import {
+  failureToast,
+  LINK_COMMAND_LABEL,
+  UNLINK_COMMAND_LABEL,
+} from "./LinkedEnvironmentsSettings";
 
 const OFF = "off";
 type LinkChoice = AuthMcpClientAccess | typeof OFF;
@@ -76,8 +80,8 @@ function SourceLinkRow({
       (candidate) => candidate.environmentId === target.environmentId,
     ) ?? null;
   const nowMinute = useNowMinute();
-  const link = useAtomCommand(peerLinkEnvironment.link, { label: "link environment" });
-  const unlink = useAtomCommand(peerLinkEnvironment.unlink, { label: "unlink environment" });
+  const link = useAtomCommand(peerLinkEnvironment.link, { label: LINK_COMMAND_LABEL });
+  const unlink = useAtomCommand(peerLinkEnvironment.unlink, { label: UNLINK_COMMAND_LABEL });
   const [busy, setBusy] = useState(false);
   const current =
     links.data?.links.find((candidate) => candidate.environmentId === target.environmentId) ?? null;
@@ -196,12 +200,3 @@ function healthText(health: ReturnType<typeof peerLinkHealth>): string {
       return "Reachable";
   }
 }
-
-const failureToast = (title: string, failure: unknown) =>
-  toastManager.add(
-    stackedThreadToast({
-      type: "error",
-      title,
-      description: failure instanceof Error ? failure.message : String(failure),
-    }),
-  );

@@ -61,10 +61,10 @@ import { useNowMinute } from "../../hooks/useNowMinute";
 import { searchableSetting } from "./settingsSearch";
 
 // Console log labels for the atom commands.
-const UNLINK_COMMAND_LABEL = "unlink environment";
-const LINK_COMMAND_LABEL = "link environment";
+export const UNLINK_COMMAND_LABEL = "unlink environment";
+export const LINK_COMMAND_LABEL = "link environment";
 
-const failureToast = (title: string, failure: unknown) =>
+export const failureToast = (title: string, failure: unknown) =>
   toastManager.add(
     stackedThreadToast({
       type: "error",
