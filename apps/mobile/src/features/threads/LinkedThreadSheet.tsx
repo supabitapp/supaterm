@@ -238,7 +238,7 @@ function LinkedThreadComposer(props: {
             Read-only
           </Text>
           <Text numberOfLines={1} className="font-sans text-xs text-foreground-secondary">
-            {props.working ? `On ${label} via ${via} · Working` : `On ${label} via ${via}`}
+            {`On ${label} via ${via}${props.working ? " · Working" : ""}`}
           </Text>
         </View>
         {props.action}

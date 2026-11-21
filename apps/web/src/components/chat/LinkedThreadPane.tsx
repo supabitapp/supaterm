@@ -49,7 +49,7 @@ function LinkedThreadComposer(props: {
                 <span className="min-w-0 truncate font-medium text-foreground">Read-only</span>
               </ReadOnlyComposerLead>
               <ReadOnlyComposerStatus role="status">
-                {props.working ? `On ${label} via ${via} · Working` : `On ${label} via ${via}`}
+                {`On ${label} via ${via}${props.working ? " · Working" : ""}`}
               </ReadOnlyComposerStatus>
             </ReadOnlyComposerBar>
           </div>
