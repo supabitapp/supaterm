@@ -29,6 +29,11 @@ export const supportsPeerLinks = (
 ): boolean =>
   config?.environment.capabilities.peerLinks === true && config.settings.linkedEnvironmentsEnabled;
 
+/** Whether an environment can get a pairing code for a new link from a machine it links to. */
+export const supportsLinkPairingForLink = (
+  config: Pick<ServerConfig, "environment"> | null | undefined,
+): boolean => config?.environment.capabilities.linkPairingForLink === true;
+
 /**
  * Whether a client of an environment can read the threads on the machines it links to, and list
  * their names with thread read access alone (`peerLinks.names`).

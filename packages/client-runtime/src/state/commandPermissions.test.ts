@@ -94,6 +94,7 @@ describe("command permissions", () => {
     { method: WS_METHODS.pullRequestsGenerateReviewGuide, scope: AuthOrchestrationOperateScope },
     { method: WS_METHODS.projectsCreateFromThread, scope: AuthOrchestrationOperateScope },
     { method: WS_METHODS.peerLinksPairClient, scope: AuthAccessWriteScope },
+    { method: WS_METHODS.peerLinksPairLink, scope: AuthAccessWriteScope },
   ])("checks the destination grant for $method", ({ method, scope }) =>
     Effect.gen(function* () {
       const registry = yield* setup;

@@ -29,6 +29,7 @@ const base = {
   reachable: true,
   sourceLabel: "laptop",
   targetLabel: "vps",
+  through: null as string | null,
 };
 
 describe("linkPermissionRow", () => {
@@ -77,7 +78,31 @@ describe("linkPermissionRow", () => {
     {
       name: "without minting there, Off still forgets the link",
       input: { links: [link()], mayMint: false },
-      row: { canGrant: false, canForget: true, canRelink: false },
+      row: { canGrant: false, canForget: true, canRelink: false, mintThrough: false },
+    },
+    {
+      name: "without minting there, a machine with a full-access link gets the code",
+      input: { mayMint: false, through: "desktop" },
+      row: {
+        canGrant: true,
+        mintThrough: true,
+        note: "desktop links to vps at full access, so it gets the pairing code.",
+      },
+    },
+    {
+      name: "a disconnected target is linked through that machine too",
+      input: { connected: false, through: "desktop" },
+      row: { canGrant: true, mintThrough: true },
+    },
+    {
+      name: "this app mints itself when it can, whatever else links there",
+      input: { through: "desktop" },
+      row: { canGrant: true, mintThrough: false, note: null },
+    },
+    {
+      name: "no route through another machine still needs a connection there",
+      input: { connected: false },
+      row: { canGrant: false, mintThrough: false, note: "Connect to vps to change this." },
     },
   ])("$name", ({ input, row }) => {
     expect(linkPermissionRow({ ...base, ...input })).toMatchObject(row);

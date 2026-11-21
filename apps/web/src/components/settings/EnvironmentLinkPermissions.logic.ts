@@ -18,6 +18,8 @@ export interface LinkPermissionRow {
   readonly expired: boolean;
   /** The link stopped working, so linking again at the same level repairs it. */
   readonly canRelink: boolean;
+  /** This app cannot mint the code itself, so the machine in `through` gets it. */
+  readonly mintThrough: boolean;
 }
 
 const UNKNOWN = {
@@ -27,6 +29,7 @@ const UNKNOWN = {
   linked: false,
   expired: false,
   canRelink: false,
+  mintThrough: false,
 } as const;
 
 export function linkPermissionRow(input: {
@@ -41,6 +44,8 @@ export function linkPermissionRow(input: {
   readonly reachable: boolean;
   readonly sourceLabel: string;
   readonly targetLabel: string;
+  /** Another machine that links to the target at full access and can get a code from it. */
+  readonly through: string | null;
 }): LinkPermissionRow {
   // A stale list could hide a link, so nothing changes until the source answers.
   if (input.listError !== null) {
@@ -50,26 +55,35 @@ export function linkPermissionRow(input: {
   const current = input.links.find((link) => link.environmentId === input.targetId) ?? null;
   const health = current === null ? null : peerLinkHealth(current, input.now);
   const live = current !== null && health?.kind !== "expired";
+  const mintBlocker = !input.connected
+    ? `Connect to ${input.targetLabel} to change this.`
+    : !input.mayMint
+      ? `This app may not grant access on ${input.targetLabel}.`
+      : null;
+  const mintThrough = mintBlocker !== null && input.through !== null;
   const blocker = !input.canLink
     ? `This app may not change links on ${input.sourceLabel}.`
-    : !input.connected
-      ? `Connect to ${input.targetLabel} to change this.`
-      : !input.mayMint
-        ? `This app may not grant access on ${input.targetLabel}.`
-        : !input.reachable
-          ? `No other machine can reach ${input.targetLabel} at an address this app knows.`
-          : null;
+    : mintBlocker !== null && !mintThrough
+      ? mintBlocker
+      : !input.reachable
+        ? `No other machine can reach ${input.targetLabel} at an address this app knows.`
+        : null;
   const healthNote =
     health === null || (health.kind === "reachable" && health.expiresInDays === null)
       ? null
       : peerLinkHealthText(health);
+  const throughNote =
+    blocker === null && mintThrough
+      ? `${input.through} links to ${input.targetLabel} at full access, so it gets the pairing code.`
+      : null;
   return {
     value: live ? current.access : LINK_OFF,
-    note: blocker ?? healthNote,
+    note: blocker ?? healthNote ?? throughNote,
     canGrant: blocker === null,
     canForget: current !== null && input.canUnlink,
     linked: live,
     expired: current !== null && !live,
     canRelink: blocker === null && live && health?.kind === "failing",
+    mintThrough: blocker === null && mintThrough,
   };
 }

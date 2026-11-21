@@ -440,6 +440,13 @@ connected to that machine with a session that manages access there. Picking
 another level links again with a new code; the old session stays in that
 machine's **Sharing & access** until you revoke it there.
 
+When this app cannot make the code there, because it is not connected to that
+machine or may not manage access on it, another of your connected machines that
+links to it at full access gets the code instead, and **Permissions** names
+that machine. Your session on that machine must manage access there. The result
+is a separate link with the access you pick, listed and revocable on the linked
+machine like any other. Links still do not chain.
+
 The **Linked environments** section lists each machine's links. To link to a
 machine this app is not connected to, choose **Link** on the machine you will
 work from and pick the other machine or enter its address. A machine paired

@@ -16,9 +16,15 @@ import {
 import * as DateTime from "effect/DateTime";
 import { useId, useState } from "react";
 
+import type { LinkThroughRoute } from "@supaterm/client-runtime/state/peerLinks";
 import { requestConfirmDialog } from "~/confirmDialog";
 import type { EnvironmentPresentation } from "~/state/environments";
-import { linkKnownMachine, peerLinkEnvironment, usePeerLinkHosts } from "~/state/peerLinks";
+import {
+  linkKnownMachine,
+  peerLinkEnvironment,
+  useLinkThroughRoutes,
+  usePeerLinkHosts,
+} from "~/state/peerLinks";
 import { useEnvironmentQuery } from "~/state/query";
 import { useEnvironmentScope } from "~/state/session";
 import { useAtomCommand } from "~/state/use-atom-command";
@@ -36,10 +42,18 @@ export function EnvironmentLinkPermissions({
 }: {
   readonly target: EnvironmentPresentation;
 }) {
-  const sources = usePeerLinkHosts().filter(
-    (source) => source.environmentId !== target.environmentId,
+  const hosts = usePeerLinkHosts();
+  const sources = hosts.filter((source) => source.environmentId !== target.environmentId);
+  const mayMint = useEnvironmentScope(target.environmentId, AuthAccessWriteScope);
+  const nowMinute = useNowMinute();
+  const shown = supportsPeerLinks(target.serverConfig) && sources.length > 0;
+  // Only when this app cannot mint there itself: listing asks every linked machine whether it answers.
+  const routeFor = useLinkThroughRoutes(
+    target.environmentId,
+    shown && (target.connection.phase !== "connected" || !mayMint),
+    DateTime.makeUnsafe(nowMinute),
   );
-  if (!supportsPeerLinks(target.serverConfig) || sources.length === 0) {
+  if (!shown) {
     return null;
   }
   const machine = linkableMachine(target);
@@ -56,6 +70,7 @@ export function EnvironmentLinkPermissions({
             source={source}
             target={target}
             machine={machine}
+            through={throughRoute(routeFor(source.environmentId), hosts)}
           />
         ))}
       </ul>
@@ -63,15 +78,27 @@ export function EnvironmentLinkPermissions({
   );
 }
 
+/** A route through another machine, named as this app names that machine. */
+const throughRoute = (
+  route: LinkThroughRoute | undefined,
+  hosts: ReadonlyArray<EnvironmentPresentation>,
+) => {
+  const via = hosts.find((host) => host.environmentId === route?.viaEnvironmentId);
+  return route === undefined || via === undefined ? null : { route, viaLabel: via.label };
+};
+
 function SourceLinkRow({
   source,
   target,
   machine,
+  through,
 }: {
   readonly source: EnvironmentPresentation;
   readonly target: EnvironmentPresentation;
   /** `target` as `source` would link it. */
   readonly machine: LinkableMachine;
+  /** Another machine that can get a pairing code from `target`, when this app cannot. */
+  readonly through: { readonly route: LinkThroughRoute; readonly viaLabel: string } | null;
 }) {
   const labelId = useId();
   const canLink = useAtomValue(peerLinkEnvironment.link.permissionAtom(source.environmentId));
@@ -103,10 +130,16 @@ function SourceLinkRow({
     reachable: machine.urls.length > 0,
     sourceLabel: source.label,
     targetLabel: target.label,
+    through: through?.viaLabel ?? null,
   });
   const linkAt = async (access: AuthMcpClientAccess) => {
     setBusy(true);
-    const result = await linkKnownMachine({ sourceId: source.environmentId, machine, access });
+    const result = await linkKnownMachine({
+      sourceId: source.environmentId,
+      machine,
+      access,
+      ...(row.mintThrough && through !== null ? { through: through.route } : {}),
+    });
     setBusy(false);
     if (result._tag === "MintFailed" || result._tag === "LinkFailed") {
       failureToast("Could not link the environment", result.failure);
