@@ -361,11 +361,11 @@ export function ComposerToolbarButton(props: {
           : variant === "danger"
             ? "bg-danger"
             : props.active
-              ? "bg-subtle-strong"
+              ? "bg-primary"
               : "bg-subtle",
         variant === "default"
           ? props.active
-            ? "border-border"
+            ? "border-primary"
             : "border-border-subtle"
           : variant === "danger"
             ? "border-danger-border"
@@ -401,7 +401,9 @@ export function ComposerToolbarButton(props: {
               ? props.disabled
                 ? "text-foreground-muted"
                 : "text-primary-foreground"
-              : "text-foreground",
+              : props.active
+                ? "text-primary-foreground"
+                : "text-foreground",
           )}
           ellipsizeMode="tail"
           numberOfLines={1}
