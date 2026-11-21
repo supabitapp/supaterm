@@ -2,6 +2,7 @@ import {
   ORCHESTRATION_V2_WS_METHODS,
   type EnvironmentId,
   type OrchestrationV2CommandOutputFrame,
+  type OrchestrationV2PromptSuggestion,
   type OrchestrationV2Run,
   type OrchestrationV2RunStatus,
   type RunId,
@@ -181,6 +182,12 @@ export function createOrchestrationEnvironmentAtoms<R, E>(
         idleTtlMs: 0,
         transform: commandOutputViews,
       }),
+      // The open thread's predicted next prompt, while its composer is mounted.
+      promptSuggestion: createEnvironmentRpcSubscriptionAtomFamily(runtime, {
+        label: "environment-data:orchestration-v2:prompt-suggestion",
+        tag: ORCHESTRATION_V2_WS_METHODS.subscribePromptSuggestion,
+        idleTtlMs: 0,
+      }),
     },
     turnDiff: createEnvironmentRpcQueryAtomFamily(runtime, {
       label: "environment-data:orchestration:turn-diff",
@@ -203,10 +210,6 @@ export function createOrchestrationEnvironmentAtoms<R, E>(
     stopWorkflow: createEnvironmentRpcCommand(runtime, {
       label: "environment-data:orchestration:stop-workflow",
       tag: ORCHESTRATION_V2_WS_METHODS.stopWorkflow,
-    }),
-    suggestNextPrompt: createEnvironmentRpcCommand(runtime, {
-      label: "environment-data:orchestration:suggest-next-prompt",
-      tag: ORCHESTRATION_V2_WS_METHODS.suggestNextPrompt,
     }),
     forceStopThread: createEnvironmentRpcCommand(runtime, {
       label: "environment-data:orchestration:force-stop-thread",
@@ -270,15 +273,13 @@ export function createOrchestrationEnvironmentAtoms<R, E>(
 }
 
 /**
- * The completed run a client asks for a next prompt suggestion about, or null when it should not ask.
- * A message promoted to Steer leaves its queued run cancelled before it started, still the latest
- * run, so the last run that ran answers instead. Detail can lag the shell, so that skip waits until
- * `runs` include the cancelled run.
+ * The suggestion while the run that produced it is the thread's latest completed run. A message
+ * promoted to Steer leaves its queued run cancelled before it started, still the latest run, so the
+ * last run that ran answers instead. Detail can lag the shell, so that skip waits until `runs`
+ * include the cancelled run.
  */
-export function nextPromptSuggestionRunId(input: {
-  readonly enabled: boolean;
-  readonly connected: boolean;
-  readonly canSuggest: boolean;
+export function offeredPromptSuggestion(input: {
+  readonly suggestion: OrchestrationV2PromptSuggestion | undefined;
   readonly latestRun:
     | {
         readonly runId: RunId;
@@ -288,10 +289,11 @@ export function nextPromptSuggestionRunId(input: {
     | null
     | undefined;
   readonly runs?: ReadonlyArray<OrchestrationV2Run>;
-}): RunId | null {
-  const { enabled, connected, canSuggest, latestRun, runs = [] } = input;
-  if (!enabled || !connected || !canSuggest || !latestRun) return null;
-  if (latestRun.status === "completed") return latestRun.runId;
+}): NonNullable<OrchestrationV2PromptSuggestion> | null {
+  const { suggestion, latestRun, runs = [] } = input;
+  if (!suggestion || !latestRun) return null;
+  if (latestRun.status === "completed")
+    return latestRun.runId === suggestion.runId ? suggestion : null;
   const steered =
     latestRun.status === "cancelled" &&
     latestRun.startedAt === null &&
@@ -300,5 +302,5 @@ export function nextPromptSuggestionRunId(input: {
     );
   if (!steered) return null;
   const executed = latestExecutedRun(runs);
-  return executed?.status === "completed" ? executed.id : null;
+  return executed?.status === "completed" && executed.id === suggestion.runId ? suggestion : null;
 }

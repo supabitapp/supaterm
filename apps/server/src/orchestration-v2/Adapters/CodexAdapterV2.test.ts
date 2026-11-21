@@ -2576,14 +2576,19 @@ describe("CodexAdapterV2 post-settle continuation", () => {
     }),
   );
 
-  it.effect.each([true, false])(
-    "samples a next prompt after a completed turn (suggestions enabled: %s)",
-    (enabled) =>
+  it.effect.each([
+    { name: "suggestions are enabled", enabled: true, delegated: false },
+    { name: "suggestions are disabled", enabled: false, delegated: false },
+    { name: "the thread is delegated", enabled: true, delegated: true },
+  ])(
+    "samples a next prompt after a completed turn only when $name",
+    ({ name, enabled, delegated }) =>
       Effect.gen(function* () {
-        const nativeThreadId = `next-prompt-thread-${enabled}`;
-        const nativeTurnId = `next-prompt-turn-${enabled}`;
+        const samples = enabled && !delegated;
+        const nativeThreadId = `next-prompt-thread-${name}`;
+        const nativeTurnId = `next-prompt-turn-${name}`;
         const transcript = makeCodexReplayTranscript({
-          scenario: `next-prompt-${enabled}`,
+          scenario: `next-prompt-${name}`,
           entries: [
             ...codexReplayPreamble({ nativeThreadId, nativeTurnId, prompt: "Write isPrime." }),
             {
@@ -2597,7 +2602,7 @@ describe("CodexAdapterV2 post-settle continuation", () => {
                 },
               },
             },
-            ...(enabled
+            ...(samples
               ? ([
                   {
                     type: "expect_outbound",
@@ -2609,6 +2614,7 @@ describe("CodexAdapterV2 post-settle continuation", () => {
                         threadId: nativeThreadId,
                         expectedTurnId: nativeTurnId,
                         prompt: CodexAdapterV2.CODEX_NEXT_PROMPT_REQUEST,
+                        effort: "low",
                       },
                     },
                   },
@@ -2628,33 +2634,48 @@ describe("CodexAdapterV2 post-settle continuation", () => {
               : []),
           ],
         });
-        const harness = yield* makeCodexReplayHarness(transcript, undefined, undefined, undefined, {
-          promptSuggestionsEnabled: Effect.succeed(enabled),
+        const requested: Array<string> = [];
+        const harness = yield* makeCodexReplayHarness(
+          transcript,
+          undefined,
+          (method) => Effect.sync(() => requested.push(method)),
+          undefined,
+          { promptSuggestionsEnabled: Effect.succeed(enabled) },
+        );
+        const input = makeCodexTestTurnInput({
+          threadId: harness.threadId,
+          providerThread: harness.providerThread,
+          now: yield* DateTime.now,
+          attemptId: RunAttemptId.make(`next-prompt-attempt-${name}`),
+          text: "Write isPrime.",
         });
         yield* harness.runtime.startTurn(
-          makeCodexTestTurnInput({
-            threadId: harness.threadId,
-            providerThread: harness.providerThread,
-            now: yield* DateTime.now,
-            attemptId: RunAttemptId.make(`next-prompt-attempt-${enabled}`),
-            text: "Write isPrime.",
-          }),
+          delegated
+            ? {
+                ...input,
+                appThread: {
+                  ...input.appThread,
+                  delegatedFrom: {
+                    environmentId: EnvironmentId.make("environment-delegator"),
+                    threadId: ThreadId.make("thread-delegator"),
+                    title: "Delegator",
+                  },
+                },
+              }
+            : input,
         );
         yield* harness.firstTerminal;
+        assert.equal(requested.includes("thread/sample"), samples);
         const suggestionEvents = () =>
           harness.events.flatMap((event) =>
-            event.type === "prompt_suggestion.expected" ||
-            event.type === "prompt_suggestion.ready" ||
-            event.type === "turn.terminal"
-              ? [event.type === "prompt_suggestion.ready" ? event.suggestion : event.type]
+            event.type === "prompt_suggestion.updated" || event.type === "turn.terminal"
+              ? [event.type === "prompt_suggestion.updated" ? event.text : event.type]
               : [],
           );
-        if (enabled) yield* harness.until(() => suggestionEvents().length === 3);
+        if (samples) yield* harness.until(() => suggestionEvents().length === 2);
         assert.deepEqual(
           suggestionEvents(),
-          enabled
-            ? ["prompt_suggestion.expected", "turn.terminal", "Add tests for it."]
-            : ["turn.terminal"],
+          samples ? ["turn.terminal", "Add tests for it."] : ["turn.terminal"],
         );
       }).pipe(
         Effect.scoped,
@@ -2701,6 +2722,7 @@ describe("CodexAdapterV2 post-settle continuation", () => {
               threadId: nativeThreadId,
               expectedTurnId: nativeTurnId,
               prompt: CodexAdapterV2.CODEX_NEXT_PROMPT_REQUEST,
+              effort: "low",
             },
           },
         },
@@ -2757,7 +2779,7 @@ describe("CodexAdapterV2 post-settle continuation", () => {
       });
       const suggestions = () =>
         harness.events.flatMap((event) =>
-          event.type === "prompt_suggestion.ready" ? [event.suggestion] : [],
+          event.type === "prompt_suggestion.updated" ? [event.text] : [],
         );
       yield* harness.until(() => suggestions().length > 0);
       assert.deepEqual(suggestions(), ["Add tests for subtract."]);
@@ -11132,6 +11154,7 @@ describe("CodexAdapterV2 post-settle continuation", () => {
                 threadId: nativeThreadId,
                 expectedTurnId: "goal-turn",
                 prompt: CodexAdapterV2.CODEX_NEXT_PROMPT_REQUEST,
+                effort: "low",
               },
               { sourceTurnId: "goal-turn", responseId: "resp-goal", text: "Resume the goal." },
             ),
@@ -11168,7 +11191,7 @@ describe("CodexAdapterV2 post-settle continuation", () => {
         yield* harness.until(() =>
           harness.events.some(
             (event) =>
-              event.type === "prompt_suggestion.ready" && event.suggestion === "Resume the goal.",
+              event.type === "prompt_suggestion.updated" && event.text === "Resume the goal.",
           ),
         );
       }).pipe(

@@ -58,7 +58,6 @@ import {
   OrchestrationV2DispatchCommandError,
   OrchestrationV2GetShellSnapshotError,
   OrchestrationV2GetThreadProjectionError,
-  OrchestrationV2SuggestNextPromptError,
   OrchestrationV2ThreadLaunchError,
   type OrchestrationProjectShell,
   type OrchestrationV2ShellSnapshot,
@@ -117,7 +116,7 @@ import * as EnvironmentTheme from "./environmentTheme.ts";
 import * as Keybindings from "./keybindings.ts";
 import * as ExternalLauncher from "./process/externalLauncher.ts";
 import * as ThreadManagementService from "./orchestration-v2/ThreadManagementService.ts";
-import * as NextPromptSuggestionService from "./orchestration-v2/NextPromptSuggestionService.ts";
+import * as PromptSuggestionHub from "./orchestration-v2/PromptSuggestionHub.ts";
 import * as BackgroundTaskOutput from "./orchestration-v2/BackgroundTaskOutput.ts";
 import * as CommandOutputHub from "./orchestration-v2/CommandOutputHub.ts";
 import * as McpAppRequests from "./mcpApps/McpAppRequests.ts";
@@ -1333,7 +1332,7 @@ export const layerWsRpc = (
       const scratchThreadPromotion = yield* ScratchThreadPromotion.ScratchThreadPromotion;
       const eventLoopMonitor = yield* EventLoopMonitor.EventLoopMonitor;
       const threadSearch = yield* ThreadSearch.ThreadSearch;
-      const nextPromptSuggestions = yield* NextPromptSuggestionService.NextPromptSuggestionService;
+      const promptSuggestions = yield* PromptSuggestionHub.PromptSuggestionHub;
 
       const providerSessionsV2 = yield* ProviderSessionManager.ProviderSessionManagerV2;
       const mcpAppRequests = yield* McpAppRequests.McpAppRequests;
@@ -1872,17 +1871,6 @@ export const layerWsRpc = (
         [ORCHESTRATION_V2_WS_METHODS.stopWorkflow]: (input) => threadManagement.stopWorkflow(input),
         [ORCHESTRATION_V2_WS_METHODS.forceStopThread]: (input) =>
           threadManagement.forceStopThread(input),
-        [ORCHESTRATION_V2_WS_METHODS.suggestNextPrompt]: (input) =>
-          nextPromptSuggestions.suggest(input).pipe(
-            Effect.mapError(
-              (cause) =>
-                new OrchestrationV2SuggestNextPromptError({
-                  threadId: input.threadId,
-                  message: "Failed to suggest a next prompt",
-                  cause,
-                }),
-            ),
-          ),
         [ORCHESTRATION_V2_WS_METHODS.getWorkflowScript]: (input) =>
           readWorkflowScript({ scriptPath: input.scriptPath }),
         [ORCHESTRATION_V2_WS_METHODS.getNativeChildWork]: (input) =>
@@ -2147,6 +2135,12 @@ export const layerWsRpc = (
           Stream.unwrap(
             Effect.annotateCurrentSpan({ "orchestration_v2.thread_id": input.threadId }).pipe(
               Effect.as(commandOutputHub.subscribe(input)),
+            ),
+          ),
+        [ORCHESTRATION_V2_WS_METHODS.subscribePromptSuggestion]: (input) =>
+          Stream.unwrap(
+            Effect.annotateCurrentSpan({ "orchestration_v2.thread_id": input.threadId }).pipe(
+              Effect.as(promptSuggestions.subscribe(input.threadId)),
             ),
           ),
         [ORCHESTRATION_V2_WS_METHODS.subscribeBackgroundTaskOutput]: (input) =>

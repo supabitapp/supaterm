@@ -2814,10 +2814,7 @@ export const layerWithOptions = (
             if (nativeEvent.type === "command_output.delta") {
               return commandOutput.append(nativeEvent);
             }
-            if (
-              nativeEvent.type === "prompt_suggestion.expected" ||
-              nativeEvent.type === "prompt_suggestion.ready"
-            ) {
+            if (nativeEvent.type === "prompt_suggestion.updated") {
               return promptSuggestions.offer(nativeEvent);
             }
             const tracked = retryStalls.track(nativeEvent);

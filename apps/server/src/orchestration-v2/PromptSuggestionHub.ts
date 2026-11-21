@@ -1,70 +1,69 @@
-import type { RunId, ThreadId } from "@supaterm/contracts";
+import type { OrchestrationV2PromptSuggestion, ThreadId } from "@supaterm/contracts";
 import type * as ProviderAdapter from "@supaterm/provider-core/server/ProviderAdapter";
+import { sanitizeNextPrompt } from "@supaterm/provider-core/server/textGenerationUtils";
 import * as Context from "effect/Context";
-import * as Deferred from "effect/Deferred";
-import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import * as Option from "effect/Option";
+import * as Stream from "effect/Stream";
+import * as SubscriptionRef from "effect/SubscriptionRef";
+
+import * as ProjectionStore from "./ProjectionStore.ts";
 
 export type PromptSuggestionEvent = Extract<
   ProviderAdapter.ProviderAdapterV2Event,
-  { readonly type: "prompt_suggestion.expected" | "prompt_suggestion.ready" }
+  { readonly type: "prompt_suggestion.updated" }
 >;
 
-interface PromptSuggestionTarget {
-  readonly threadId: ThreadId;
-  readonly runId: RunId;
-}
+type StoredSuggestion = NonNullable<OrchestrationV2PromptSuggestion>;
 
-// Predictions arrive a few seconds after the turn ends, and never when the provider declines or
-// fails to predict (a first turn, plan mode, near a usage limit), so the wait is bounded.
-export const PREDICTION_WAIT = Duration.seconds(20);
 const CAPACITY = 256;
 
+/**
+ * Keeps each thread's latest predicted next prompt in memory and pushes it to clients showing
+ * that thread. Clients offer it only while its run is still the thread's latest completed run.
+ */
 export class PromptSuggestionHub extends Context.Service<
   PromptSuggestionHub,
   {
     readonly offer: (event: PromptSuggestionEvent) => Effect.Effect<void>;
-    /**
-     * None when the run's provider does not predict next prompts. Otherwise its prediction, or
-     * null when it declined to make one.
-     */
-    readonly await: (target: PromptSuggestionTarget) => Effect.Effect<Option.Option<string | null>>;
+    readonly subscribe: (threadId: ThreadId) => Stream.Stream<OrchestrationV2PromptSuggestion>;
   }
 >()("supaterm/orchestration-v2/PromptSuggestionHub") {}
 
-const make = Effect.sync(() => {
-  const predictions = new Map<string, Deferred.Deferred<string>>();
-  const keyOf = (target: PromptSuggestionTarget) => `${target.threadId}\u0000${target.runId}`;
-  const prediction = (key: string) => {
-    const existing = predictions.get(key);
-    if (existing !== undefined) return existing;
-    const created = Deferred.makeUnsafe<string>();
-    predictions.set(key, created);
-    if (predictions.size > CAPACITY) predictions.delete(predictions.keys().next().value!);
-    return created;
-  };
+const make = Effect.gen(function* () {
+  const projectionStore = yield* ProjectionStore.ProjectionStoreV2;
+  const store = yield* SubscriptionRef.make<ReadonlyMap<ThreadId, StoredSuggestion>>(new Map());
 
   return PromptSuggestionHub.of({
-    offer: Effect.fn("PromptSuggestionHub.offer")(function (event) {
-      return Effect.suspend(() => {
-        const pending = prediction(keyOf(event));
-        return event.type === "prompt_suggestion.ready"
-          ? Deferred.succeed(pending, event.suggestion).pipe(Effect.asVoid)
-          : Effect.void;
+    offer: Effect.fn("PromptSuggestionHub.offer")(function* (event) {
+      const text = sanitizeNextPrompt(event.text);
+      if (text === null) return;
+      yield* SubscriptionRef.update(store, (current) => {
+        const next = new Map(current);
+        next.delete(event.threadId);
+        next.set(event.threadId, { runId: event.runId, text });
+        for (const threadId of next.keys()) {
+          if (next.size <= CAPACITY) break;
+          next.delete(threadId);
+        }
+        return next;
       });
     }),
-    await: Effect.fn("PromptSuggestionHub.await")(function (target) {
-      return Effect.suspend(() => {
-        const pending = predictions.get(keyOf(target));
-        if (pending === undefined) return Effect.succeedNone;
-        return Deferred.await(pending).pipe(
-          Effect.timeoutOption(PREDICTION_WAIT),
-          Effect.map((text) => Option.some(Option.getOrNull(text))),
-        );
-      });
-    }),
+    // Stored suggestions can outlive a deleted thread, so check the thread before serving one.
+    subscribe: (threadId) =>
+      SubscriptionRef.changes(store).pipe(
+        Stream.map((suggestions) => suggestions.get(threadId) ?? null),
+        Stream.changes,
+        Stream.mapEffect((suggestion) =>
+          suggestion === null
+            ? Effect.succeed(null)
+            : projectionStore.findThread(threadId).pipe(
+                Effect.map((thread) => (thread?.deletedAt === null ? suggestion : null)),
+                Effect.orElseSucceed(() => null),
+              ),
+        ),
+        Stream.changes,
+      ),
   });
 });
 

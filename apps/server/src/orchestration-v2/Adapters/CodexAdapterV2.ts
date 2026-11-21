@@ -33,6 +33,7 @@ import {
 import {
   CodexSettings,
   defaultInstanceIdForDriver,
+  isDelegatedAppThread,
   isOrchestrationV2WorkActive,
   type OrchestrationV2GoalCommand,
   OrchestrationV2ProviderGoal,
@@ -107,7 +108,6 @@ import { ChildProcess, ChildProcessSpawner } from "effect/process";
 
 import { resolveAttachmentPath, resolveAttachmentPathById } from "../../attachmentStore.ts";
 import * as ServerSettings from "../../serverSettings.ts";
-import * as PromptSuggestionHub from "../PromptSuggestionHub.ts";
 import * as PortScanner from "../../preview/PortScanner.ts";
 import { getCodexServiceTierOptionValue } from "../../codexModelOptions.ts";
 import { ServerConfig } from "../../config.ts";
@@ -6517,7 +6517,7 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
           },
         );
 
-        // Runs before the terminal so a client that sees the run complete finds the prediction pending.
+        // Best effort: older Codex lacks thread/sample, and a sample fails once the user sends again.
         const suggestNextPrompt = Effect.fn("CodexAdapterV2.suggestNextPrompt")(function* (
           context: ActiveCodexTurnContext,
           nativeTurnId: string,
@@ -6525,38 +6525,34 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
           const nativeThreadId = context.providerThread.nativeThreadRef?.nativeId;
           if (
             nativeThreadId == null ||
+            isDelegatedAppThread(context.input.appThread) ||
             !(yield* adapterOptions.promptSuggestionsEnabled ?? Effect.succeed(false))
           ) {
             return;
           }
-          const target = {
-            driver: CODEX_PROVIDER,
-            threadId: context.input.threadId,
-            runId: context.input.runId,
-          };
-          yield* emitProviderEvent({ type: "prompt_suggestion.expected", ...target });
           yield* client.raw
             .request("thread/sample", {
               threadId: nativeThreadId,
               expectedTurnId: nativeTurnId,
               prompt: CODEX_NEXT_PROMPT_REQUEST,
+              effort: "low",
             })
             .pipe(
-              // The hub's wait starts no earlier than this sample, so a capped sample always lands.
-              Effect.timeout(PromptSuggestionHub.PREDICTION_WAIT),
               Effect.flatMap(decodeCodexThreadSampleResponse),
               Effect.flatMap(({ text }) =>
                 // Delegated completion wakes arrive as user input, so samples can imitate one.
                 text === null || text.trim().startsWith("Delegated task")
                   ? Effect.void
                   : emitProviderEvent({
-                      type: "prompt_suggestion.ready",
-                      ...target,
-                      suggestion: text,
+                      type: "prompt_suggestion.updated",
+                      driver: CODEX_PROVIDER,
+                      threadId: context.input.threadId,
+                      runId: context.input.runId,
+                      text,
                     }),
               ),
               Effect.ignore({ log: "Debug", message: "Codex next prompt suggestion failed" }),
-              Effect.forkIn(scope),
+              Effect.forkIn(scope, { startImmediately: true }),
             );
         });
 

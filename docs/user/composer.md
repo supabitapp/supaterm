@@ -209,7 +209,7 @@ composer. A suggestion is never sent for you: it only fills the draft, and typin
 Only Claude and Codex threads get suggestions. Each is the provider's own prediction, which reuses
 the turn's prompt cache, so it costs little. Codex makes one small extra request on your account
 after each completed reply. No suggestion appears after an error, when the next step is not
-obvious, or for replies older than a few hours. Claude also skips the start of a thread and plan
+obvious, or in a thread another agent delegated. Claude also skips the start of a thread and plan
 mode. Threads on other providers never show a suggestion.
 
 They are on by default. Turn them off with **Next prompt suggestions** in **Settings > Threads**.

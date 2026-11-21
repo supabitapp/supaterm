@@ -1,4 +1,4 @@
-import { ORCHESTRATION_V2_WS_METHODS, WS_METHODS } from "@supaterm/contracts";
+import { WS_METHODS } from "@supaterm/contracts";
 import { Atom } from "effect/reactivity";
 
 import { appAtomRegistry } from "./atomRegistry";
@@ -31,7 +31,6 @@ const pendingRpcAckRequests = new Map<string, PendingRpcAckRequest>();
 const untrackedRpcAckMethods = new Set<string>([
   WS_METHODS.serverGetUsageSummary,
   WS_METHODS.serverReportClientActivity,
-  ORCHESTRATION_V2_WS_METHODS.suggestNextPrompt,
   WS_METHODS.transcriptionTranscribe,
 ]);
 const longRunningRpcAckMethods = new Set<string>([

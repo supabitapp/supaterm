@@ -7750,25 +7750,14 @@ describe("ClaudeAdapterV2 background wake turns", () => {
       );
 
       yield* harness.until(() =>
-        harness.events.some((event) => event.type === "prompt_suggestion.ready"),
-      );
-      const run = { threadId: harness.threadId, runId: input.runId };
-      const types = harness.events.map((event) => event.type);
-      assert.isBelow(
-        types.indexOf("prompt_suggestion.expected"),
-        types.indexOf("turn.terminal"),
-        "a client that sees the run complete must find the prediction pending",
+        harness.events.some((event) => event.type === "prompt_suggestion.updated"),
       );
       assert.deepInclude(harness.events, {
-        type: "prompt_suggestion.expected",
+        type: "prompt_suggestion.updated",
         driver: ProviderDriverKind.make("claudeAgent"),
-        ...run,
-      });
-      assert.deepInclude(harness.events, {
-        type: "prompt_suggestion.ready",
-        driver: ProviderDriverKind.make("claudeAgent"),
-        ...run,
-        suggestion: "fix the time zone test too",
+        threadId: harness.threadId,
+        runId: input.runId,
+        text: "fix the time zone test too",
       });
     }).pipe(
       Effect.provide(
@@ -7782,28 +7771,40 @@ describe("ClaudeAdapterV2 background wake turns", () => {
     ),
   );
 
-  it.effect("leaves next prompt prediction off unless suggestions are enabled", () =>
+  it.effect.each([
+    { name: "suggestions are disabled", enabled: false, delegated: false },
+    { name: "the thread is delegated", enabled: true, delegated: true },
+  ])("leaves next prompt prediction off when $name", ({ enabled, delegated }) =>
     Effect.gen(function* () {
-      const harness = yield* makeWakeHarness;
+      const harness = yield* makeWakeHarnessWithOptions({
+        promptSuggestionsEnabled: Effect.succeed(enabled),
+      });
       const now = yield* DateTime.now;
+      const input = makeClaudeTestTurnInput({
+        threadId: harness.threadId,
+        providerThread: harness.providerThread,
+        now,
+        attemptId: RunAttemptId.make("attempt-claude-no-prompt-suggestion"),
+        providerTurnOrdinal: 1,
+        text: "Find the failing tests.",
+        attachments: [],
+      });
       yield* harness.runtime.startTurn(
-        makeClaudeTestTurnInput({
-          threadId: harness.threadId,
-          providerThread: harness.providerThread,
-          now,
-          attemptId: RunAttemptId.make("attempt-claude-no-prompt-suggestion"),
-          providerTurnOrdinal: 1,
-          text: "Find the failing tests.",
-          attachments: [],
-        }),
+        delegated
+          ? {
+              ...input,
+              appThread: {
+                ...input.appThread,
+                delegatedFrom: {
+                  environmentId: EnvironmentId.make("environment-delegator"),
+                  threadId: ThreadId.make("thread-delegator"),
+                  title: "Delegator",
+                },
+              },
+            }
+          : input,
       );
       assert.isUndefined(harness.getOpenedOptions()?.promptSuggestions);
-      yield* harness.offerAndWait(turnOneResult);
-      yield* Queue.take(harness.terminalReceipts);
-      assert.notInclude(
-        harness.events.map((event) => event.type),
-        "prompt_suggestion.expected",
-      );
     }).pipe(
       Effect.provide(
         Layer.mergeAll(

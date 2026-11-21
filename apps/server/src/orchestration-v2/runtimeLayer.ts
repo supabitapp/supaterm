@@ -38,7 +38,6 @@ import * as ProviderAdapterRegistry from "./ProviderAdapterRegistry.ts";
 import * as ProviderContinuationRequests from "@supaterm/provider-core/server/ProviderContinuationRequests";
 import * as ProviderContinuationService from "./ProviderContinuationService.ts";
 import * as ThreadTitleRegenerationService from "./ThreadTitleRegenerationService.ts";
-import * as NextPromptSuggestionService from "./NextPromptSuggestionService.ts";
 import * as ProviderEventIngestor from "./ProviderEventIngestor.ts";
 import * as ThreadCommandExecutor from "./ThreadCommandExecutor.ts";
 import * as ProviderSessionManager from "./ProviderSessionManager.ts";
@@ -126,11 +125,15 @@ const layerCommandOutputHubProvided = CommandOutputHub.layer.pipe(
   Layer.provide(Layer.merge(layerEventSink, ProjectionStore.layer)),
 );
 
+const layerPromptSuggestionHubProvided = PromptSuggestionHub.layer.pipe(
+  Layer.provide(ProjectionStore.layer),
+);
+
 const layerProviderSessionManagerProvided = ProviderSessionManager.layer.pipe(
   Layer.provide(
     Layer.mergeAll(
       layerCommandOutputHubProvided,
-      PromptSuggestionHub.layer,
+      layerPromptSuggestionHubProvided,
       ProviderAdapterRegistry.layerFromProviderInstanceRegistry,
       layerEventSink,
       IdAllocator.layer,
@@ -334,16 +337,6 @@ const layerThreadTitleRegenerationProvided = ThreadTitleRegenerationService.laye
     ),
   ),
 );
-const layerNextPromptSuggestionProvided = NextPromptSuggestionService.layer.pipe(
-  Layer.provide(
-    Layer.mergeAll(
-      layerThreadManagementProvided,
-      ProjectStore.layer,
-      TextGeneration.layer,
-      PromptSuggestionHub.layer,
-    ),
-  ),
-);
 const layerEffectExecutorProvided = EffectWorker.layerExecutor.pipe(
   Layer.provide(
     Layer.mergeAll(
@@ -387,6 +380,7 @@ const layerMcpAppRequestsProvided = McpAppRequests.layer.pipe(
 
 export const layer = Layer.mergeAll(
   layerCommandOutputHubProvided,
+  layerPromptSuggestionHubProvided,
   layerBackgroundTaskOutputProvided,
   layerOrchestratorProvided,
   layerMcpAppRequestsProvided,
@@ -405,7 +399,6 @@ export const layerProduction = Layer.mergeAll(
   layer,
   layerManagedProjectFoldersProvided,
   layerThreadLaunchProvided,
-  layerNextPromptSuggestionProvided,
   layerScheduledTaskProvided,
   layerSecretRequestsProvided,
   layerScratchThreadPromotionProvided,
