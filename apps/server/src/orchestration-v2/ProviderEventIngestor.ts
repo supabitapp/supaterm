@@ -652,8 +652,7 @@ export const layer: Layer.Layer<
             case "command_output.delta":
               // Live output is routed to the command output hub before ingestion.
               return [];
-            case "prompt_suggestion.expected":
-            case "prompt_suggestion.ready":
+            case "prompt_suggestion.updated":
               // Routed to the prompt suggestion hub before ingestion; a suggestion is never stored.
               return [];
             case "turn.terminal":

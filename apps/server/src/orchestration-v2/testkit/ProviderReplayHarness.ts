@@ -388,7 +388,7 @@ export function layerWithRegistry<Error>(
     Layer.provide(
       Layer.mergeAll(
         layerCommandOutputHubProvided,
-        PromptSuggestionHub.layer,
+        PromptSuggestionHub.layer.pipe(Layer.provide(layerStores)),
         layerProvidedRegistry,
         layerEventSinkProvided,
         IdAllocator.layer,

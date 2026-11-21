@@ -88,7 +88,6 @@
   "src/orchestration-v2/DispatchModeLimit.test.ts": 1.4,
   "src/orchestration-v2/EffectWorker.test.ts": 1.4,
   "src/orchestration-v2/FoundationPersistence.test.ts": 6.9,
-  "src/orchestration-v2/NextPromptSuggestionService.test.ts": 1.4,
   "src/orchestration-v2/OpenCode2OrchestratorV2.integration.test.ts": 4.2,
   "src/orchestration-v2/Orchestrator.control-reads.test.ts": 3,
   "src/orchestration-v2/Orchestrator.migration.test.ts": 1.4,

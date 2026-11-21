@@ -578,7 +578,6 @@ function ThreadDetailBody(
   const suggestedPrompt = useNextPromptSuggestion({
     environmentId: props.environmentId,
     threadId: props.draftMode ? null : props.selectedThread.id,
-    connected: props.connectionStateLabel === "connected",
     enabled: props.serverConfig?.settings.nextPromptSuggestionsEnabled === true,
     latestRun: props.selectedThread.latestRun,
   });

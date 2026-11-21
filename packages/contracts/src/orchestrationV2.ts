@@ -4030,7 +4030,6 @@ export const ORCHESTRATION_V2_WS_METHODS = {
   getWorkflowScript: "orchestration.getWorkflowScript",
   getNativeChildWork: "orchestration.getNativeChildWork",
   stopWorkflow: "orchestration.stopWorkflow",
-  suggestNextPrompt: "orchestration.suggestNextPrompt",
   forceStopThread: "orchestration.forceStopThread",
   getTurnItem: "orchestration.getTurnItem",
   launchThread: "orchestration.launchThread",
@@ -4038,6 +4037,7 @@ export const ORCHESTRATION_V2_WS_METHODS = {
   subscribeThread: "orchestration.subscribeThread",
   subscribeCommandOutput: "orchestration.subscribeCommandOutput",
   subscribeBackgroundTaskOutput: "orchestration.subscribeBackgroundTaskOutput",
+  subscribePromptSuggestion: "orchestration.subscribePromptSuggestion",
 } as const;
 
 export const OrchestrationV2SubscribeCommandOutputInput = Schema.Struct({
@@ -4046,6 +4046,18 @@ export const OrchestrationV2SubscribeCommandOutputInput = Schema.Struct({
 });
 export type OrchestrationV2SubscribeCommandOutputInput =
   typeof OrchestrationV2SubscribeCommandOutputInput.Type;
+
+export const OrchestrationV2SubscribePromptSuggestionInput = Schema.Struct({
+  threadId: ThreadId,
+});
+export type OrchestrationV2SubscribePromptSuggestionInput =
+  typeof OrchestrationV2SubscribePromptSuggestionInput.Type;
+
+/** Unpersisted predicted next prompt for the run that produced it; null when there is none. */
+export const OrchestrationV2PromptSuggestion = Schema.NullOr(
+  Schema.Struct({ runId: RunId, text: Schema.String }),
+);
+export type OrchestrationV2PromptSuggestion = typeof OrchestrationV2PromptSuggestion.Type;
 
 /** One pending background command or monitor, by the `taskId` the thread lists it under. */
 export const OrchestrationV2SubscribeBackgroundTaskOutputInput = Schema.Struct({
@@ -4495,29 +4507,6 @@ export class OrchestrationV2ForceStopThreadError extends Schema.TaggedError<Orch
       : "Failed to force stop the agent.";
   }
 }
-
-export const OrchestrationV2SuggestNextPromptInput = Schema.Struct({
-  threadId: ThreadId,
-  /** The completed run whose reply the user is about to answer. Anything newer makes it stale. */
-  afterRunId: RunId,
-});
-export type OrchestrationV2SuggestNextPromptInput =
-  typeof OrchestrationV2SuggestNextPromptInput.Type;
-
-export const OrchestrationV2SuggestNextPromptResult = Schema.Struct({
-  suggestion: Schema.NullOr(Schema.String),
-});
-export type OrchestrationV2SuggestNextPromptResult =
-  typeof OrchestrationV2SuggestNextPromptResult.Type;
-
-export class OrchestrationV2SuggestNextPromptError extends Schema.TaggedError<OrchestrationV2SuggestNextPromptError>()(
-  "OrchestrationV2SuggestNextPromptError",
-  {
-    threadId: ThreadId,
-    message: Schema.String,
-    cause: Schema.optional(Schema.Defect()),
-  },
-) {}
 
 export const OrchestrationV2GetWorkflowScriptInput = Schema.Struct({
   threadId: ThreadId,

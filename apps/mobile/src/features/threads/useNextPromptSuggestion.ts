@@ -1,54 +1,22 @@
-import type { EnvironmentId, RunId, ThreadId } from "@supaterm/contracts";
+import type { EnvironmentId, ThreadId } from "@supaterm/contracts";
 import type { EnvironmentThreadShell } from "@supaterm/client-runtime/state/shell";
-import { nextPromptSuggestionRunId } from "@supaterm/client-runtime/state/orchestration";
-import { useAtomValue } from "@effect/atom-react";
-import { useEffect, useState } from "react";
+import { offeredPromptSuggestion } from "@supaterm/client-runtime/state/orchestration";
 
 import { orchestrationEnvironment } from "../../state/orchestration";
-import { useAtomCommand } from "../../state/use-atom-command";
+import { useEnvironmentQuery } from "../../state/query";
 
-/**
- * What the user is likely to send after the agent's latest reply. It lives in this screen only;
- * the server decides whether the run is recent enough to spend a model call on.
- */
+/** The provider's predicted next prompt, while the run that produced it is the thread's latest completed run. */
 export function useNextPromptSuggestion(input: {
   readonly environmentId: EnvironmentId;
   readonly threadId: ThreadId | null;
-  /** A request made before the environment connects fails, and nothing would retry it. */
-  readonly connected: boolean;
   readonly enabled: boolean;
   readonly latestRun: EnvironmentThreadShell["latestRun"];
 }): string | null {
-  const { environmentId, threadId, connected, enabled, latestRun } = input;
-  const canSuggest = useAtomValue(
-    orchestrationEnvironment.suggestNextPrompt.permissionAtom(environmentId),
+  const { environmentId, threadId, enabled, latestRun } = input;
+  const { data } = useEnvironmentQuery(
+    enabled && threadId !== null && latestRun
+      ? orchestrationEnvironment.v2.promptSuggestion({ environmentId, input: { threadId } })
+      : null,
   );
-  const suggestNextPrompt = useAtomCommand(orchestrationEnvironment.suggestNextPrompt, {
-    reportFailure: false,
-    reportDefect: false,
-  });
-  const [result, setResult] = useState<{
-    readonly threadId: ThreadId;
-    readonly runId: RunId;
-    readonly text: string;
-  } | null>(null);
-  const runId = nextPromptSuggestionRunId({ enabled, connected, canSuggest, latestRun });
-  const active = threadId !== null && runId !== null;
-
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- requests a next-prompt suggestion from the server for the latest run and drops stale replies
-  useEffect(() => {
-    if (!active) return;
-    let current = true;
-    void suggestNextPrompt({ environmentId, input: { threadId, afterRunId: runId } }).then(
-      (answer) => {
-        if (!current || answer._tag !== "Success" || answer.value.suggestion === null) return;
-        setResult({ threadId, runId, text: answer.value.suggestion });
-      },
-    );
-    return () => {
-      current = false;
-    };
-  }, [active, environmentId, threadId, runId, suggestNextPrompt]);
-
-  return active && result?.threadId === threadId && result.runId === runId ? result.text : null;
+  return offeredPromptSuggestion({ suggestion: data, latestRun })?.text ?? null;
 }

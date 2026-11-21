@@ -577,8 +577,7 @@ export function routeProviderEvent(
         state,
       ];
     case "command_output.delta":
-    case "prompt_suggestion.expected":
-    case "prompt_suggestion.ready":
+    case "prompt_suggestion.updated":
       // The session manager routes these to their hubs; runs never see them.
       return [false, state];
     case "turn.terminal":

@@ -37,10 +37,11 @@ function event(index: number, text = `delta:${index}`): ProviderAdapter.Provider
   };
 }
 const control: ProviderAdapter.ProviderAdapterV2Event = {
-  type: "prompt_suggestion.expected",
+  type: "prompt_suggestion.updated",
   driver,
   threadId: ThreadId.make("single-thread"),
   runId: RunId.make("run"),
+  text: "Add tests",
 };
 
 const recordBatches = Effect.fn("test.recordProviderBatches")(function* (
@@ -59,7 +60,7 @@ const recordBatches = Effect.fn("test.recordProviderBatches")(function* (
     true,
   );
   const process = (raw: ProviderAdapter.ProviderAdapterV2Event) =>
-    raw.type === "prompt_suggestion.expected"
+    raw.type === "prompt_suggestion.updated"
       ? Queue.offer(output, [raw]).pipe(Effect.asVoid)
       : Effect.sync(() => {
           current.push(raw);

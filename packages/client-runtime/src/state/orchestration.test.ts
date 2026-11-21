@@ -2,22 +2,18 @@ import { type OrchestrationV2Run, RunId } from "@supaterm/contracts";
 import * as DateTime from "effect/DateTime";
 import { describe, expect, it } from "vite-plus/test";
 
-import { nextPromptSuggestionRunId } from "./orchestration.ts";
+import { offeredPromptSuggestion } from "./orchestration.ts";
 
-describe("nextPromptSuggestionRunId", () => {
+describe("offeredPromptSuggestion", () => {
   const runId = RunId.make("run-1");
-  const ready = {
-    enabled: true,
-    connected: true,
-    canSuggest: true,
-    latestRun: { runId, status: "completed" },
-  } as const;
+  const suggestion = { runId, text: "add tests" };
+  const ready = { suggestion, latestRun: { runId, status: "completed" } } as const;
 
-  it("asks about the thread's latest run once it has completed", () => {
-    expect(nextPromptSuggestionRunId(ready)).toBe(runId);
+  it("offers the suggestion once the run that produced it is the latest and completed", () => {
+    expect(offeredPromptSuggestion(ready)).toBe(suggestion);
   });
 
-  it("asks about the run a steer continued once the detail shows its queued run cancelled", () => {
+  it("offers the run a steer continued once the detail shows its queued run cancelled", () => {
     const steered = RunId.make("run-2");
     const run = (id: RunId, ordinal: number, status: OrchestrationV2Run["status"]) =>
       ({
@@ -29,20 +25,22 @@ describe("nextPromptSuggestionRunId", () => {
       }) as OrchestrationV2Run;
     const latestRun = { runId: steered, status: "cancelled", startedAt: null } as const;
 
-    expect(nextPromptSuggestionRunId({ ...ready, latestRun })).toBeNull();
+    expect(offeredPromptSuggestion({ ...ready, latestRun })).toBeNull();
     expect(
-      nextPromptSuggestionRunId({
+      offeredPromptSuggestion({
         ...ready,
         latestRun,
         runs: [run(runId, 1, "completed"), run(steered, 2, "cancelled")],
       }),
-    ).toBe(runId);
+    ).toBe(suggestion);
   });
 
   it.each([
-    { name: "suggestions are off", input: { ...ready, enabled: false } },
-    { name: "the environment is not connected", input: { ...ready, connected: false } },
-    { name: "the client may not run models", input: { ...ready, canSuggest: false } },
+    { name: "there is no suggestion", input: { ...ready, suggestion: null } },
+    {
+      name: "a newer run completed",
+      input: { ...ready, latestRun: { runId: RunId.make("run-2"), status: "completed" } },
+    },
     {
       name: "the run is still working",
       input: { ...ready, latestRun: { runId, status: "running" } },
@@ -52,7 +50,7 @@ describe("nextPromptSuggestionRunId", () => {
       input: { ...ready, latestRun: { runId, status: "interrupted" } },
     },
     { name: "the thread has no run", input: { ...ready, latestRun: null } },
-  ] as const)("does not ask when $name", ({ input }) => {
-    expect(nextPromptSuggestionRunId(input)).toBeNull();
+  ] as const)("offers nothing when $name", ({ input }) => {
+    expect(offeredPromptSuggestion(input)).toBeNull();
   });
 });

@@ -94,6 +94,7 @@ import {
   TrimmedNonEmptyString,
   defaultInstanceIdForDriver,
   isCompactionCommandMessage,
+  isDelegatedAppThread,
   parseGoalCommand,
   type MessageId,
   type ModelSelection,
@@ -4992,9 +4993,6 @@ interface ClaudeLiveQueryContext {
   readonly queryPolicyKey: string;
   selection: CompiledClaudeModelSelection;
   readonly closed: Deferred.Deferred<void, never>;
-  // Claude reads this only when the process starts; changing its flag later has no effect, so a
-  // setting change applies to the next process. Until then the server ignores or replaces it.
-  readonly promptSuggestions: boolean;
   lastTurn: ActiveClaudeTurnContext | null;
   // Whether this CLI process echoes a prompt's uuid on the first frame of the turn answering it
   // ("early") or only on its result. "acknowledged": the CLI confirmed it took a prompt's uuid
@@ -9247,20 +9245,6 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
             });
           }
 
-          const promptSuggestionQuery = yield* Ref.get(queryContext);
-          if (
-            input.status === "completed" &&
-            promptSuggestionQuery?.promptSuggestions === true &&
-            promptSuggestionQuery.nativeThreadId === input.context.nativeThreadId
-          ) {
-            yield* emitProviderEvent({
-              type: "prompt_suggestion.expected",
-              driver: CLAUDE_PROVIDER,
-              threadId: input.context.input.threadId,
-              runId: input.context.input.runId,
-            });
-          }
-
           if (input.status === "interrupted") {
             for (const [uuid, { text, liveQuery }] of droppedSteers) {
               // Only a CLI proven to echo prompt uuids can leave a steer unconfirmed.
@@ -10338,11 +10322,11 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
             const settled = settledTurnByNativeThread.get(liveQuery.nativeThreadId);
             if (settled === undefined || (yield* Ref.get(activeTurn)) !== null) return;
             yield* emitProviderEvent({
-              type: "prompt_suggestion.ready",
+              type: "prompt_suggestion.updated",
               driver: CLAUDE_PROVIDER,
               threadId: settled.input.threadId,
               runId: settled.input.runId,
-              suggestion: message.suggestion,
+              text: message.suggestion,
             });
             return;
           }
@@ -12775,9 +12759,10 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
             onStop,
             supportedDialogKinds: ["resume_return"],
             ...(appendSystemPromptFileText === undefined ? {} : { appendSystemPromptFileText }),
-            promptSuggestions: yield* (
-              adapterOptions.promptSuggestionsEnabled ?? Effect.succeed(false)
-            ),
+            // Claude reads this only when the process starts, so a toggle applies to the next one.
+            promptSuggestions:
+              !isDelegatedAppThread(turnInput.appThread) &&
+              (yield* adapterOptions.promptSuggestionsEnabled ?? Effect.succeed(false)),
             ...(toolSearchOverride === undefined ? {} : { toolSearchOverride }),
           });
           const resolvedTurnCwd = yield* fileSystem
@@ -12835,7 +12820,6 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
             queryPolicyKey,
             selection: compiledSelection,
             closed,
-            promptSuggestions: queryOptions.promptSuggestions === true,
             lastTurn: null,
             promptEchoMode: "unknown",
             requestedPermissionMode: queryOptions.permissionMode,

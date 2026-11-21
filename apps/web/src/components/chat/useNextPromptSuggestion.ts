@@ -1,23 +1,27 @@
 import type { EnvironmentId, OrchestrationV2Run, RunId, ThreadId } from "@supaterm/contracts";
-import { nextPromptSuggestionRunId } from "@supaterm/client-runtime/state/orchestration";
-import { useAtomValue } from "@effect/atom-react";
-import { useEffect, useState } from "react";
+import { offeredPromptSuggestion } from "@supaterm/client-runtime/state/orchestration";
+import { useAtom } from "@effect/atom-react";
+import { Atom } from "effect/reactivity";
 
-import { useStableCallback } from "~/hooks/useStableCallback";
-import { useEnvironment } from "~/state/environments";
 import { orchestrationEnvironment } from "~/state/orchestration";
-import { useAtomCommand } from "~/state/use-atom-command";
+import { useEnvironmentQuery } from "~/state/query";
 
 import type { ThreadShell } from "../../types";
 
-interface SuggestedRun {
-  readonly threadId: ThreadId;
-  readonly runId: RunId;
-}
+// Thread ids can repeat across environments.
+const threadKey = (environmentId: EnvironmentId, threadId: ThreadId) =>
+  `${environmentId}\u0000${threadId}`;
+
+// Only a thread's latest completed run can be offered, so one dismissed run per thread suffices.
+const NONE_DISMISSED: ReadonlyMap<string, RunId> = new Map();
+const dismissedPromptSuggestionsAtom = Atom.make(NONE_DISMISSED).pipe(
+  Atom.keepAlive,
+  Atom.withLabel("composer:dismissed-prompt-suggestions"),
+);
 
 /**
- * What the user is likely to send after the agent's latest reply. It lives in this component
- * only; the server decides whether the run is recent enough to spend a model call on.
+ * The provider's predicted next prompt, while the run that produced it is the thread's latest
+ * completed run and Escape has not dismissed it.
  */
 export function useNextPromptSuggestion(input: {
   readonly environmentId: EnvironmentId;
@@ -27,45 +31,21 @@ export function useNextPromptSuggestion(input: {
   readonly runs: ReadonlyArray<OrchestrationV2Run>;
 }) {
   const { environmentId, threadId, enabled, latestRun, runs } = input;
-  // A request made before the environment connects fails, and nothing would retry it.
-  const connected = useEnvironment(environmentId)?.connection.phase === "connected";
-  const canSuggest = useAtomValue(
-    orchestrationEnvironment.suggestNextPrompt.permissionAtom(environmentId),
+  const { data } = useEnvironmentQuery(
+    enabled && threadId !== null && latestRun
+      ? orchestrationEnvironment.v2.promptSuggestion({ environmentId, input: { threadId } })
+      : null,
   );
-  const suggestNextPrompt = useStableCallback(
-    useAtomCommand(orchestrationEnvironment.suggestNextPrompt, {
-      reportFailure: false,
-      reportDefect: false,
-    }),
-  );
-  const [result, setResult] = useState<(SuggestedRun & { readonly text: string }) | null>(null);
-  const [dismissed, setDismissed] = useState<SuggestedRun | null>(null);
-  const runId = nextPromptSuggestionRunId({ enabled, connected, canSuggest, latestRun, runs });
-  const active = threadId !== null && runId !== null;
-
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- requests a next-prompt suggestion from the server for the latest run and ignores stale answers
-  useEffect(() => {
-    if (!active) return;
-    let current = true;
-    void suggestNextPrompt({ environmentId, input: { threadId, afterRunId: runId } }).then(
-      (answer) => {
-        if (!current || answer._tag !== "Success" || answer.value.suggestion === null) return;
-        setResult({ threadId, runId, text: answer.value.suggestion });
-      },
-    );
-    return () => {
-      current = false;
-    };
-  }, [active, environmentId, threadId, runId, suggestNextPrompt]);
-
-  const matches = (entry: SuggestedRun | null) =>
-    entry !== null && entry.threadId === threadId && entry.runId === runId;
-  const visible = active && result !== null && matches(result) && !matches(dismissed);
+  const [dismissed, setDismissed] = useAtom(dismissedPromptSuggestionsAtom);
+  const offered = offeredPromptSuggestion({ suggestion: data, latestRun, runs });
+  const key = threadId === null ? null : threadKey(environmentId, threadId);
+  const visible = offered !== null && key !== null && dismissed.get(key) !== offered.runId;
 
   return {
-    suggestion: visible ? result.text : null,
+    suggestion: visible ? offered.text : null,
     dismiss: () => {
-      if (threadId !== null && runId !== null) setDismissed({ threadId, runId });
+      if (offered === null || key === null) return;
+      setDismissed((current) => new Map(current).set(key, offered.runId));
     },
   };
 }

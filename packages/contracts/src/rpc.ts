@@ -221,7 +221,6 @@ import {
   OrchestrationGetWorkflowScriptError,
   OrchestrationV2GetNativeChildWorkError,
   OrchestrationV2StopWorkflowError,
-  OrchestrationV2SuggestNextPromptError,
   OrchestrationV2ForceStopThreadError,
   OrchestrationV2DispatchCommandError,
   OrchestrationV2GetShellSnapshotError,
@@ -247,10 +246,10 @@ import {
   OrchestrationV2StopWorkflowInput,
   OrchestrationV2SubscribeBackgroundTaskOutputInput,
   OrchestrationV2SubscribeCommandOutputInput,
+  OrchestrationV2SubscribePromptSuggestionInput,
+  OrchestrationV2PromptSuggestion,
   OrchestrationV2SubscribeShellInput,
   OrchestrationV2SubscribeThreadInput,
-  OrchestrationV2SuggestNextPromptInput,
-  OrchestrationV2SuggestNextPromptResult,
   OrchestrationV2ThreadFamily,
   OrchestrationV2ThreadLaunchInput,
   OrchestrationV2ThreadLaunchResult,
@@ -1911,15 +1910,6 @@ const WsOrchestrationV2StopWorkflowRpc = Rpc.make(ORCHESTRATION_V2_WS_METHODS.st
   error: Schema.Union([OrchestrationV2StopWorkflowError, EnvironmentAuthorizationError]),
 });
 
-const WsOrchestrationV2SuggestNextPromptRpc = Rpc.make(
-  ORCHESTRATION_V2_WS_METHODS.suggestNextPrompt,
-  {
-    payload: OrchestrationV2SuggestNextPromptInput,
-    success: OrchestrationV2SuggestNextPromptResult,
-    error: Schema.Union([OrchestrationV2SuggestNextPromptError, EnvironmentAuthorizationError]),
-  },
-);
-
 const WsOrchestrationV2ForceStopThreadRpc = Rpc.make(ORCHESTRATION_V2_WS_METHODS.forceStopThread, {
   payload: OrchestrationV2ForceStopThreadInput,
   success: OrchestrationV2ForceStopThreadResult,
@@ -1976,6 +1966,16 @@ const WsOrchestrationV2SubscribeCommandOutputRpc = Rpc.make(
     payload: OrchestrationV2SubscribeCommandOutputInput,
     success: OrchestrationV2CommandOutputFrame,
     error: Schema.Union([OrchestrationV2CommandOutputError, EnvironmentAuthorizationError]),
+    stream: true,
+  },
+);
+
+const WsOrchestrationV2SubscribePromptSuggestionRpc = Rpc.make(
+  ORCHESTRATION_V2_WS_METHODS.subscribePromptSuggestion,
+  {
+    payload: OrchestrationV2SubscribePromptSuggestionInput,
+    success: OrchestrationV2PromptSuggestion,
+    error: EnvironmentAuthorizationError,
     stream: true,
   },
 );
@@ -2289,7 +2289,6 @@ export const WsRpcGroup = RpcGroup.make(
   WsOrchestrationV2DispatchCommandRpc,
   WsOrchestrationV2GetWorkflowScriptRpc,
   WsOrchestrationV2GetNativeChildWorkRpc,
-  WsOrchestrationV2SuggestNextPromptRpc,
   WsOrchestrationV2StopWorkflowRpc,
   WsOrchestrationV2ForceStopThreadRpc,
   WsOrchestrationV2GetTurnItemRpc,
@@ -2309,5 +2308,6 @@ export const WsRpcGroup = RpcGroup.make(
   WsOrchestrationV2SubscribeShellRpc,
   WsOrchestrationV2SubscribeThreadRpc,
   WsOrchestrationV2SubscribeCommandOutputRpc,
+  WsOrchestrationV2SubscribePromptSuggestionRpc,
   WsOrchestrationV2SubscribeBackgroundTaskOutputRpc,
 ).middleware(RpcScopeAuthorization);
