@@ -498,7 +498,12 @@ export function useComposerCommandMenu({
           })
         : [];
       const environmentItems = environmentId
-        ? matchComposerEnvironmentItems({ environments, environmentId, query: trigger.query })
+        ? matchComposerEnvironmentItems({
+            environments,
+            linkedEnvironments,
+            environmentId,
+            query: trigger.query,
+          })
         : [];
       return [
         ...threadItems,

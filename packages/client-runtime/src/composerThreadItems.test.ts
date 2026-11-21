@@ -4,6 +4,7 @@ import { describe, expect, it } from "vite-plus/test";
 import {
   matchComposerEnvironmentItems,
   matchComposerThreadItems,
+  type ComposerEnvironmentCandidate,
   type ComposerThreadCandidate,
 } from "./composerThreadItems.ts";
 
@@ -114,9 +115,14 @@ describe("matchComposerEnvironmentItems", () => {
     { environmentId: EnvironmentId.make("env-vps"), label: "Hetzner VPS", machine: "cloud" },
     { environmentId: EnvironmentId.make("env-mini"), label: "Mac mini", machine: "mac-mini" },
   ] as const;
-  const match = (query: string) =>
+  const match = (
+    query: string,
+    linkedEnvironments: ReadonlyMap<EnvironmentId, string> = new Map(),
+    candidates: ReadonlyArray<ComposerEnvironmentCandidate> = environments,
+  ) =>
     matchComposerEnvironmentItems({
-      environments,
+      environments: candidates,
+      linkedEnvironments,
       environmentId: EnvironmentId.make("env-here"),
       query,
     }).map(({ record, machine, description }) => ({
@@ -132,5 +138,25 @@ describe("matchComposerEnvironmentItems", () => {
     ]);
     expect(match("lap")).toEqual([]);
     expect(match("")).toEqual([]);
+  });
+
+  it("offers machines the composer's environment links to that this client is not paired with", () => {
+    expect(
+      match(
+        "build",
+        new Map([
+          [EnvironmentId.make("env-here"), "Laptop"],
+          [EnvironmentId.make("env-build"), "buildbox"],
+        ]),
+        [],
+      ),
+    ).toEqual([
+      { environmentId: "env-build", label: "buildbox", machine: "server", description: "Machine" },
+    ]);
+    expect(
+      match("vps", new Map([[EnvironmentId.make("env-vps"), "Hetzner VPS"]])).map(
+        (item) => item.machine,
+      ),
+    ).toEqual(["cloud"]);
   });
 });

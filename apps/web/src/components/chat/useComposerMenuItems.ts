@@ -233,6 +233,7 @@ export function useComposerMenuItems({
                 ...identity,
                 machine: environmentMachines.get(identity.environmentId) ?? ("server" as const),
               })),
+              linkedEnvironments,
               environmentId,
               query: composerTrigger.query,
             })
