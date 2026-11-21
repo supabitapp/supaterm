@@ -20,6 +20,7 @@ import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
 import * as Layer from "effect/Layer";
+import * as Option from "effect/Option";
 import * as Queue from "effect/Queue";
 import * as Ref from "effect/Ref";
 import * as Schema from "effect/Schema";
@@ -30,6 +31,7 @@ import * as HttpClient from "effect/http/HttpClient";
 import * as HttpClientRequest from "effect/http/HttpClientRequest";
 import { TestClock } from "effect/testing";
 
+import * as McpInvocationContext from "../mcp/McpInvocationContext.ts";
 import { idleThreadProjection, liveThreadShell } from "../mcp/McpToolAccess.testkit.ts";
 import * as OrchestrationEventStore from "../persistence/OrchestrationEventStore.ts";
 import * as ThreadManagement from "../orchestration-v2/ThreadManagementService.ts";
@@ -278,6 +280,79 @@ it.effect("leaves out what a newer linked environment sends that this one cannot
       );
       // Each one goes on to this environment's client in the same encoding.
       expect(relayed.map((item) => encodeStreamItem(item))).toHaveLength(2);
+    }),
+  ).pipe(Effect.provide(NodeHttpServer.layerTest)),
+);
+
+it.effect("an answer under a link made again since leaves the new link as it is", () =>
+  Effect.scoped(
+    Effect.gen(function* () {
+      const arrived = yield* Queue.unbounded<string>();
+      const refuse = yield* Deferred.make<void>();
+      const renew = yield* Deferred.make<void>();
+      const held = (
+        route: HttpRouter.PathInput,
+        gate: Deferred.Deferred<void>,
+        response: HttpServerResponse.HttpServerResponse,
+      ) =>
+        HttpRouter.add(
+          "GET",
+          route,
+          Queue.offer(arrived, route).pipe(
+            Effect.andThen(Deferred.await(gate)),
+            Effect.as(response),
+          ),
+        );
+      const b = yield* servePeer(
+        box,
+        Layer.empty,
+        Layer.mergeAll(
+          held(
+            PEER_LINK_THREAD_HISTORY_ROUTE,
+            refuse,
+            HttpServerResponse.jsonUnsafe({ error: "revoked" }, { status: 403 }),
+          ),
+          held(
+            PEER_LINK_THREAD_ITEM_ROUTE,
+            renew,
+            HttpServerResponse.jsonUnsafe(
+              { item: null },
+              {
+                headers: {
+                  [McpInvocationContext.LINK_EXPIRES_AT_HEADER]: "2100-01-01T00:00:00.000Z",
+                },
+              },
+            ),
+          ),
+        ),
+      );
+      const a = yield* makeLaptop;
+      yield* linkTo(a.links, b);
+
+      const page = yield* a.relay
+        .historyPage({ ...input, cursor: "cursor-1" })
+        .pipe(Effect.exit, Effect.forkScoped);
+      const item = yield* a.relay
+        .item({ ...input, itemId: boxItem })
+        .pipe(Effect.exit, Effect.forkScoped);
+      yield* Queue.take(arrived);
+      yield* Queue.take(arrived);
+      yield* TestClock.adjust(Duration.millis(1));
+      const relinked = yield* linkTo(a.links, b, "full-access");
+      const stored = a.links
+        .get(box.environmentId)
+        .pipe(Effect.map(Option.map(({ lastError, expiresAt }) => ({ lastError, expiresAt }))));
+
+      yield* Deferred.succeed(refuse, undefined);
+      yield* Fiber.join(page);
+      expect(yield* stored).toEqual(
+        Option.some({ lastError: null, expiresAt: relinked.expiresAt }),
+      );
+      yield* Deferred.succeed(renew, undefined);
+      yield* Fiber.join(item);
+      expect(yield* stored).toEqual(
+        Option.some({ lastError: null, expiresAt: relinked.expiresAt }),
+      );
     }),
   ).pipe(Effect.provide(NodeHttpServer.layerTest)),
 );

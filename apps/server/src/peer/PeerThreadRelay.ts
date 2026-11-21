@@ -175,9 +175,7 @@ const make = Effect.gen(function* () {
         // Bounds the headers only: an open stream stays quiet for as long as the thread does.
         Effect.timeout(timeout),
         Effect.mapError((error) => unreachable(label, error)),
-        Effect.tapError((error) =>
-          links.recordOutcome(input.environmentId, { error: error.message }),
-        ),
+        Effect.tapError((error) => links.recordOutcome(resolved.link, { error: error.message })),
       );
     if (response.status !== 200) {
       // A refusal whose body never arrives is still the refusal its status names.
@@ -188,18 +186,18 @@ const make = Effect.gen(function* () {
       );
       const failure = fromStatus(response.status, Option.getOrUndefined(refusal)?.error, label);
       // A refusal is still an answer: the link reached the peer, except where it was turned away.
-      yield* links.recordOutcome(input.environmentId, {
+      yield* links.recordOutcome(resolved.link, {
         error: failure.reason === "thread_not_found" ? null : failure.message,
       });
       return yield* failure;
     }
-    yield* links.recordOutcome(input.environmentId, { error: null });
+    yield* links.recordOutcome(resolved.link, { error: null });
     // A peer renews a link each time it is used, and says when it now ends.
     const renewed = Option.flatMap(
       Option.fromNullishOr(response.headers[McpInvocationContext.LINK_EXPIRES_AT_HEADER]),
       DateTime.make,
     );
-    if (Option.isSome(renewed)) yield* links.recordExpiry(input.environmentId, renewed.value);
+    if (Option.isSome(renewed)) yield* links.recordExpiry(resolved.link, renewed.value);
     return { label, response, timeout };
   });
 

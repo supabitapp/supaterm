@@ -19,6 +19,7 @@ import {
   squashAtomCommandFailure,
 } from "@supaterm/client-runtime/state/runtime";
 import {
+  DIRECT_LINK_PAIRING,
   incomingLinkNames,
   peerLinkHealth,
   peerLinkHealthText,
@@ -355,7 +356,12 @@ function LinkEnvironmentAction({
     // A typed address links alone: only this app's own addresses name a machine.
     const result: KnownMachineLinkResult =
       !typed && canMint
-        ? await linkKnownMachine({ sourceId: environmentId, machine, access })
+        ? await linkKnownMachine({
+            sourceId: environmentId,
+            machine,
+            access,
+            route: DIRECT_LINK_PAIRING,
+          })
         : await linkWithPastedCode(
             typed
               ? { url: address.trim(), pairingCode: code, access }

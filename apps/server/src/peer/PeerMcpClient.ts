@@ -150,7 +150,7 @@ const make = Effect.gen(function* () {
       ),
       {
         onNone: () => Effect.void,
-        onSome: (expiresAt) => links.recordExpiry(link.environmentId, expiresAt),
+        onSome: (expiresAt) => links.recordExpiry(link, expiresAt),
       },
     );
 
@@ -197,6 +197,20 @@ const make = Effect.gen(function* () {
     // Only the handshake is bounded: a forwarded tool call may wait for minutes.
     (effect, { address }) => Effect.timeout(effect, PeerLinks.probeTimeout(address)),
   );
+
+  /** The link a call goes under as it starts; one made again while it runs never hears how it went. */
+  const linkUnder = (input: {
+    readonly environmentId: EnvironmentId;
+    readonly linkedAt?: string;
+  }): Effect.Effect<Option.Option<PeerLinks.PeerLinkGeneration>, OrchestratorMcpFailure> =>
+    input.linkedAt === undefined
+      ? links.get(input.environmentId).pipe(Effect.mapError(fromLinkError))
+      : Effect.succeed(
+          Option.map(DateTime.make(input.linkedAt), (linkedAt) => ({
+            environmentId: input.environmentId,
+            linkedAt,
+          })),
+        );
 
   const answer: PeerMcpClient["Service"]["answer"] = Effect.fn("PeerMcpClient.answer")(
     function* (input) {
@@ -320,12 +334,19 @@ const make = Effect.gen(function* () {
       );
     },
     (effect, input) =>
-      effect.pipe(
-        Effect.tapError((error) =>
-          links.recordOutcome(input.environmentId, { error: error.message }),
-        ),
-        // A refusal is still an answer: the link works, so only this call fails.
-        Effect.tap(() => links.recordOutcome(input.environmentId, { error: null })),
+      linkUnder(input).pipe(
+        Effect.flatMap((generation) => {
+          const record = (error: string | null) =>
+            Option.match(generation, {
+              onNone: () => Effect.void,
+              onSome: (link) => links.recordOutcome(link, { error }),
+            });
+          return effect.pipe(
+            Effect.tapError((error) => record(error.message)),
+            // A refusal is still an answer: the link works, so only this call fails.
+            Effect.tap(() => record(null)),
+          );
+        }),
         // Recorded above with the transport's own message; the agent hears it plainly.
         Effect.catchTags({
           HttpClientError: () => Effect.fail(stoppedAnswering),

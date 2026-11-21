@@ -2,7 +2,7 @@ import { EnvironmentId, type PeerLinkSummary } from "@supaterm/contracts";
 import * as DateTime from "effect/DateTime";
 import { describe, expect, it } from "vite-plus/test";
 
-import { incomingLinkNames, linkThroughRoutes } from "./peerLinks.ts";
+import { incomingLinkNames, linkIntermediaries } from "./peerLinks.ts";
 
 const now = DateTime.makeUnsafe("2026-11-21T00:00:00.000Z");
 const vps = EnvironmentId.make("vps");
@@ -38,43 +38,32 @@ describe("incomingLinkNames", () => {
   });
 });
 
-describe("linkThroughRoutes", () => {
+describe("linkIntermediaries", () => {
   const id = (value: string) => EnvironmentId.make(value);
-  const to = (target: string, overrides: Partial<PeerLinkSummary> = {}) =>
-    link({
-      environmentId: id(target),
-      label: target,
-      urls: [`https://${target}.example`],
-      expiresAt: DateTime.makeUnsafe("2026-12-20T00:00:00.000Z"),
-      ...overrides,
-    });
+  const host = (name: string, links: ReadonlyArray<PeerLinkSummary>) => ({
+    environmentId: id(name),
+    label: name,
+    links,
+  });
 
-  it("offers only machines another environment reaches over a full-access link that answers", () => {
-    const routes = linkThroughRoutes({
-      sourceEnvironmentId: id("source"),
-      hosts: [
-        { environmentId: id("source"), links: [to("own")] },
-        {
-          environmentId: id("via"),
-          links: [
-            to("open"),
-            to("source"),
-            to("supervised", { access: "approval-required" }),
-            to("down", { status: "unreachable" }),
-            to("lapsed", { expiresAt: now }),
-          ],
-        },
-        { environmentId: id("later"), links: [to("open")] },
-      ],
-      now,
-    });
-    expect([...routes.values()]).toEqual([
-      {
-        viaEnvironmentId: id("via"),
-        environmentId: id("open"),
-        label: "open",
-        urls: ["https://open.example"],
-      },
+  it("offers only hosts whose full-access link to the target answers", () => {
+    expect(
+      linkIntermediaries({
+        targetId: vps,
+        hosts: [
+          host("vps", [link({ environmentId: id("other") })]),
+          host("via", [link({ environmentId: id("other") }), link({})]),
+          host("supervised", [link({ access: "approval-required" })]),
+          host("down", [link({ status: "unreachable" })]),
+          host("lapsed", [link({ expiresAt: now })]),
+          host("elsewhere", [link({ environmentId: id("other") })]),
+          host("later", [link({})]),
+        ],
+        now,
+      }),
+    ).toEqual([
+      { environmentId: id("via"), label: "via" },
+      { environmentId: id("later"), label: "later" },
     ]);
   });
 });

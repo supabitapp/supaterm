@@ -16,13 +16,13 @@ import {
 import * as DateTime from "effect/DateTime";
 import { useId, useState } from "react";
 
-import type { LinkThroughRoute } from "@supaterm/client-runtime/state/peerLinks";
+import type { LinkIntermediary } from "@supaterm/client-runtime/state/peerLinks";
 import { requestConfirmDialog } from "~/confirmDialog";
 import type { EnvironmentPresentation } from "~/state/environments";
 import {
   linkKnownMachine,
   peerLinkEnvironment,
-  useLinkThroughRoutes,
+  useLinkIntermediaries,
   usePeerLinkHosts,
 } from "~/state/peerLinks";
 import { useEnvironmentQuery } from "~/state/query";
@@ -48,7 +48,7 @@ export function EnvironmentLinkPermissions({
   const nowMinute = useNowMinute();
   const shown = supportsPeerLinks(target.serverConfig) && sources.length > 0;
   // Only when this app cannot mint there itself: listing asks every linked machine whether it answers.
-  const routeFor = useLinkThroughRoutes(
+  const intermediaries = useLinkIntermediaries(
     target.environmentId,
     shown && (target.connection.phase !== "connected" || !mayMint),
     DateTime.makeUnsafe(nowMinute),
@@ -70,7 +70,7 @@ export function EnvironmentLinkPermissions({
             source={source}
             target={target}
             machine={machine}
-            through={throughRoute(routeFor(source.environmentId), hosts)}
+            intermediaries={intermediaries}
           />
         ))}
       </ul>
@@ -78,27 +78,18 @@ export function EnvironmentLinkPermissions({
   );
 }
 
-/** A route through another machine, named as this app names that machine. */
-const throughRoute = (
-  route: LinkThroughRoute | undefined,
-  hosts: ReadonlyArray<EnvironmentPresentation>,
-) => {
-  const via = hosts.find((host) => host.environmentId === route?.viaEnvironmentId);
-  return route === undefined || via === undefined ? null : { route, viaLabel: via.label };
-};
-
 function SourceLinkRow({
   source,
   target,
   machine,
-  through,
+  intermediaries,
 }: {
   readonly source: EnvironmentPresentation;
   readonly target: EnvironmentPresentation;
   /** `target` as `source` would link it. */
   readonly machine: LinkableMachine;
-  /** Another machine that can get a pairing code from `target`, when this app cannot. */
-  readonly through: { readonly route: LinkThroughRoute; readonly viaLabel: string } | null;
+  /** The machines that can get a pairing code from `target`, when this app cannot. */
+  readonly intermediaries: ReadonlyArray<LinkIntermediary>;
 }) {
   const labelId = useId();
   const canLink = useAtomValue(peerLinkEnvironment.link.permissionAtom(source.environmentId));
@@ -121,6 +112,7 @@ function SourceLinkRow({
   const row = linkPermissionRow({
     links: links.data?.links ?? null,
     listError: links.error,
+    sourceId: source.environmentId,
     targetId: target.environmentId,
     now: DateTime.makeUnsafe(nowMinute),
     canLink,
@@ -130,15 +122,16 @@ function SourceLinkRow({
     reachable: machine.urls.length > 0,
     sourceLabel: source.label,
     targetLabel: target.label,
-    through: through?.viaLabel ?? null,
+    intermediaries,
   });
   const linkAt = async (access: AuthMcpClientAccess) => {
+    if (row.grant === null) return;
     setBusy(true);
     const result = await linkKnownMachine({
       sourceId: source.environmentId,
       machine,
       access,
-      ...(row.mintThrough && through !== null ? { through: through.route } : {}),
+      route: row.grant,
     });
     setBusy(false);
     if (result._tag === "MintFailed" || result._tag === "LinkFailed") {
@@ -225,7 +218,7 @@ function SourceLinkRow({
               Off
             </SelectItem>
             {AuthMcpClientAccess.literals.map((option) => (
-              <SelectItem key={option} value={option} disabled={!row.canGrant}>
+              <SelectItem key={option} value={option} disabled={row.grant === null}>
                 <span className="grid min-w-0 gap-0.5 py-0.5">
                   <span className="font-medium text-foreground">{accessConfig[option].label}</span>
                   <span className="text-xs leading-4 text-muted-foreground">

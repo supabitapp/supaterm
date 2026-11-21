@@ -10,8 +10,9 @@ import {
 } from "@supaterm/client-runtime/link-request";
 import {
   createPeerLinkEnvironmentAtoms,
-  type LinkThroughRoute,
-  linkThroughRoutes,
+  type LinkIntermediary,
+  linkIntermediaries,
+  type LinkPairingRoute,
 } from "@supaterm/client-runtime/state/peerLinks";
 import {
   isAtomCommandInterrupted,
@@ -19,7 +20,7 @@ import {
   squashAtomCommandFailure,
 } from "@supaterm/client-runtime/state/runtime";
 import {
-  AuthAccessWriteScope,
+  AuthAccessReadScope,
   type AuthMcpClientAccess,
   type EnvironmentId,
 } from "@supaterm/contracts";
@@ -29,6 +30,7 @@ import { Atom } from "effect/reactivity";
 
 import { connectionAtomRuntime } from "../connection/runtime";
 import { appAtomRegistry } from "../rpc/atomRegistry";
+import { environmentAtomList, environmentIdsKey } from "./environmentAtomList";
 import { useEnvironmentIdentities, useEnvironments, usePrimaryEnvironmentId } from "./environments";
 import { mintPairingCodeOn } from "./peerPairingCode";
 import { environmentPresentations } from "./presentation";
@@ -129,52 +131,60 @@ export function useLinkableMachines(environmentId: EnvironmentId, enabled: boole
   });
 }
 
+const pairLinkPermissionsAtom = environmentAtomList(
+  "peer-links:pair-link-permissions",
+  peerLinkEnvironment.pairLink.permissionAtom,
+);
+
 /**
- * For `targetId`, the route through another connected environment that links to it at full
- * access and can get a pairing code from it, per source that would link. Reads those
- * environments' links only while `enabled`: listing them asks every linked machine whether it
- * answers.
+ * The connected environments that can get a pairing code from `targetId` for this app: they
+ * link to it at full access, and this app may read their links and ask them for one. Reads
+ * those links only while `enabled`: listing them asks every linked machine whether it answers.
  */
-export function useLinkThroughRoutes(
+export function useLinkIntermediaries(
   targetId: EnvironmentId,
   enabled: boolean,
   now: DateTime.Utc,
-): (sourceId: EnvironmentId) => LinkThroughRoute | undefined {
+): ReadonlyArray<LinkIntermediary> {
   const { environments } = useEnvironments();
-  const writable = useEnvironmentsWithScope(environments, AuthAccessWriteScope);
-  const hosts = environments
-    .filter(
-      (environment) =>
-        enabled &&
-        environment.environmentId !== targetId &&
-        environment.connection.phase === "connected" &&
-        supportsLinkPairingForLink(environment.serverConfig) &&
-        writable.has(environment.environmentId),
-    )
-    .map((environment) => environment.environmentId);
-  const lists = useAtomValue(peerLinkEnvironment.lists(hosts));
-  const listed = hosts.map((environmentId, index) => {
-    const list = lists[index];
-    return { environmentId, links: list?._tag === "Success" ? list.value.links : [] };
+  const candidates = enabled
+    ? environments.filter(
+        (environment) =>
+          environment.environmentId !== targetId &&
+          environment.connection.phase === "connected" &&
+          supportsLinkPairingForLink(environment.serverConfig),
+      )
+    : [];
+  const listable = useEnvironmentsWithScope(candidates, AuthAccessReadScope);
+  const pairable = useAtomValue(
+    pairLinkPermissionsAtom(environmentIdsKey(candidates.map((host) => host.environmentId))),
+  );
+  const hosts = candidates.filter(
+    (host, index) => listable.has(host.environmentId) && pairable[index] === true,
+  );
+  const lists = useAtomValue(peerLinkEnvironment.lists(hosts.map((host) => host.environmentId)));
+  return linkIntermediaries({
+    targetId,
+    hosts: hosts.map(({ environmentId, label }, index) => {
+      const list = lists[index];
+      return { environmentId, label, links: list?._tag === "Success" ? list.value.links : [] };
+    }),
+    now,
   });
-  return (sourceId) =>
-    linkThroughRoutes({ sourceEnvironmentId: sourceId, hosts: listed, now }).get(targetId);
 }
 
-/**
- * A pairing code for a link to `route`'s machine, which the environment that links to it at full
- * access gets from it.
- */
+/** A pairing code for a link to `machine`, which `intermediary` gets from it over its own link. */
 async function mintPairingCodeThrough(
-  route: LinkThroughRoute,
+  intermediary: LinkIntermediary,
+  machine: LinkableMachine,
   access: AuthMcpClientAccess,
 ): Promise<Result.Result<string, unknown>> {
   const result = await runAtomCommand(
     appAtomRegistry,
     peerLinkEnvironment.pairLink,
     {
-      environmentId: route.viaEnvironmentId,
-      input: { environmentId: route.environmentId, access },
+      environmentId: intermediary.environmentId,
+      input: { environmentId: machine.environmentId, access },
     },
     // The answer is a credential; keep it out of the console.
     { reportFailure: false, reportDefect: false },
@@ -184,7 +194,7 @@ async function mintPairingCodeThrough(
   }
   return Result.fail(
     result._tag === "Success"
-      ? new Error(`Could not get a pairing code from ${route.label} through another machine.`)
+      ? new Error(`Could not get a pairing code from ${machine.label} through another machine.`)
       : squashAtomCommandFailure(result),
   );
 }
@@ -196,20 +206,19 @@ export type KnownMachineLinkResult =
   | { readonly _tag: "Interrupted" };
 
 /**
- * Links `sourceId` to a machine this app knows, with a pairing code this app mints there, or one
- * `through` gets from it. A failed mint stays apart from a failed link, so a dialog can ask for a
- * pasted code instead.
+ * Links `sourceId` to a machine this app knows, with a pairing code `route` gets from it. A failed
+ * mint stays apart from a failed link, so a dialog can ask for a pasted code instead.
  */
 export async function linkKnownMachine(input: {
   readonly sourceId: EnvironmentId;
   readonly machine: LinkableMachine;
   readonly access: AuthMcpClientAccess;
-  readonly through?: LinkThroughRoute;
+  readonly route: LinkPairingRoute;
 }): Promise<KnownMachineLinkResult> {
   const minted =
-    input.through === undefined
+    input.route._tag === "Direct"
       ? await mintPairingCodeOn(input.machine.environmentId, input.access)
-      : await mintPairingCodeThrough(input.through, input.access);
+      : await mintPairingCodeThrough(input.route.intermediary, input.machine, input.access);
   if (Result.isFailure(minted)) return { _tag: "MintFailed", failure: minted.failure };
   const linkInput = machineLinkInput(input.machine, minted.success, input.access);
   if (linkInput === null) {
