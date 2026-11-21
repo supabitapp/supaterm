@@ -65,7 +65,8 @@ function withFakeClaudeEnv<A, E, R>(
     expectedTools?: string;
     argsMustNotContain?: string;
     stdinMustContain?: string;
-    rejectsImages?: boolean;
+    imageRejection?: string;
+    imageAttemptLog?: string;
     configDirMustBe?: string;
     cwdMustNotBe?: string;
     claudeConfig?: Partial<ClaudeSettings>;
@@ -88,7 +89,8 @@ function withFakeClaudeEnv<A, E, R>(
     const previousExpectedTools = process.env.SUPATERM_FAKE_CLAUDE_EXPECTED_TOOLS;
     const previousArgsMustNotContain = process.env.SUPATERM_FAKE_CLAUDE_ARGS_MUST_NOT_CONTAIN;
     const previousStdinMustContain = process.env.SUPATERM_FAKE_CLAUDE_STDIN_MUST_CONTAIN;
-    const previousRejectsImages = process.env.SUPATERM_FAKE_CLAUDE_REJECTS_IMAGES;
+    const previousImageRejection = process.env.SUPATERM_FAKE_CLAUDE_IMAGE_REJECTION;
+    const previousImageAttemptLog = process.env.SUPATERM_FAKE_CLAUDE_IMAGE_ATTEMPT_LOG;
     const previousConfigDirMustBe = process.env.SUPATERM_FAKE_CLAUDE_CONFIG_DIR_MUST_BE;
     const previousCwdMustNotBe = process.env.SUPATERM_FAKE_CLAUDE_CWD_MUST_NOT_BE;
 
@@ -139,10 +141,16 @@ function withFakeClaudeEnv<A, E, R>(
           delete process.env.SUPATERM_FAKE_CLAUDE_STDIN_MUST_CONTAIN;
         }
 
-        if (input.rejectsImages) {
-          process.env.SUPATERM_FAKE_CLAUDE_REJECTS_IMAGES = "1";
+        if (input.imageRejection !== undefined) {
+          process.env.SUPATERM_FAKE_CLAUDE_IMAGE_REJECTION = input.imageRejection;
         } else {
-          delete process.env.SUPATERM_FAKE_CLAUDE_REJECTS_IMAGES;
+          delete process.env.SUPATERM_FAKE_CLAUDE_IMAGE_REJECTION;
+        }
+
+        if (input.imageAttemptLog !== undefined) {
+          process.env.SUPATERM_FAKE_CLAUDE_IMAGE_ATTEMPT_LOG = input.imageAttemptLog;
+        } else {
+          delete process.env.SUPATERM_FAKE_CLAUDE_IMAGE_ATTEMPT_LOG;
         }
 
         if (input.cwdMustNotBe !== undefined) {
@@ -210,10 +218,16 @@ function withFakeClaudeEnv<A, E, R>(
             process.env.SUPATERM_FAKE_CLAUDE_STDIN_MUST_CONTAIN = previousStdinMustContain;
           }
 
-          if (previousRejectsImages === undefined) {
-            delete process.env.SUPATERM_FAKE_CLAUDE_REJECTS_IMAGES;
+          if (previousImageRejection === undefined) {
+            delete process.env.SUPATERM_FAKE_CLAUDE_IMAGE_REJECTION;
           } else {
-            process.env.SUPATERM_FAKE_CLAUDE_REJECTS_IMAGES = previousRejectsImages;
+            process.env.SUPATERM_FAKE_CLAUDE_IMAGE_REJECTION = previousImageRejection;
+          }
+
+          if (previousImageAttemptLog === undefined) {
+            delete process.env.SUPATERM_FAKE_CLAUDE_IMAGE_ATTEMPT_LOG;
+          } else {
+            process.env.SUPATERM_FAKE_CLAUDE_IMAGE_ATTEMPT_LOG = previousImageAttemptLog;
           }
 
           if (previousCwdMustNotBe === undefined) {
@@ -422,24 +436,35 @@ it.layer(layerClaudeTextGenerationTest)("ClaudeTextGeneration", (it) => {
     ),
   );
 
-  it.effect("still generates text when a text-only model rejects image attachments", () =>
-    withFakeClaudeEnv(
-      {
-        output: JSON.stringify({ structured_output: { branch: "fix/login-button" } }),
-        rejectsImages: true,
-      },
-      (textGeneration) =>
-        Effect.gen(function* () {
-          const fs = yield* FileSystem.FileSystem;
-          const path = yield* Path.Path;
-          const { attachmentsDir } = yield* ServerConfig.ServerConfig;
-          const attachmentId = "thread-1-claude-text-only-attachment";
-          const imagePath = path.join(attachmentsDir, `${attachmentId}.png`);
-          yield* fs.makeDirectory(attachmentsDir, { recursive: true });
-          yield* fs.writeFile(imagePath, Buffer.from("hello"));
-
-          const result = yield* textGeneration
-            .generateBranchName({
+  it.effect.each([
+    // A model that cannot take images is remembered, so later calls go straight to text only.
+    { rejection: "Image inputs are not supported by this model", imageAttempts: 1 },
+    // A rejection of this request's images says nothing about the model.
+    {
+      rejection:
+        "At least one of the image dimensions exceed max allowed size for many-image requests: 2000 pixels",
+      imageAttempts: 2,
+    },
+  ])("still generates text when images are rejected: $rejection", ({ rejection, imageAttempts }) =>
+    Effect.gen(function* () {
+      const fs = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      const logDir = yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-claude-image-log-" });
+      const imageAttemptLog = path.join(logDir, "image-attempts.log");
+      return yield* withFakeClaudeEnv(
+        {
+          output: JSON.stringify({ structured_output: { branch: "fix/login-button" } }),
+          imageRejection: rejection,
+          imageAttemptLog,
+        },
+        (textGeneration) =>
+          Effect.gen(function* () {
+            const { attachmentsDir } = yield* ServerConfig.ServerConfig;
+            const attachmentId = "thread-1-claude-text-only-attachment";
+            const imagePath = path.join(attachmentsDir, `${attachmentId}.png`);
+            yield* fs.makeDirectory(attachmentsDir, { recursive: true });
+            yield* fs.writeFile(imagePath, Buffer.from("hello"));
+            const generate = textGeneration.generateBranchName({
               cwd: process.cwd(),
               message: "fix this",
               attachments: [
@@ -455,12 +480,19 @@ it.layer(layerClaudeTextGenerationTest)("ClaudeTextGeneration", (it) => {
                 instanceId: ProviderInstanceId.make("claudeAgent"),
                 model: SYNTHETIC_CLAUDE_STANDARD_MODEL,
               },
-            })
-            .pipe(Effect.ensuring(fs.remove(imagePath).pipe(Effect.ignore)));
+            });
 
-          expect(result.branch).toBe("fix/login-button");
-        }),
-    ),
+            const [first, second] = yield* Effect.all([generate, generate]).pipe(
+              Effect.ensuring(fs.remove(imagePath).pipe(Effect.ignore)),
+            );
+
+            expect(first.branch).toBe("fix/login-button");
+            expect(second.branch).toBe("fix/login-button");
+            const attempts = yield* fs.readFileString(imageAttemptLog);
+            expect(attempts.trim().split("\n")).toHaveLength(imageAttempts);
+          }),
+      );
+    }).pipe(Effect.scoped),
   );
 
   it.effect("runs Claude text generation with the configured CLAUDE_CONFIG_DIR", () =>
