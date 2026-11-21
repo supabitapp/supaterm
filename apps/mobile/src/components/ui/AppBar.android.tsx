@@ -10,8 +10,8 @@ import { useAdaptiveWorkspaceLayout } from "../../features/layout/adaptive-works
 import { InspectorCloseContext } from "../../features/layout/inspector-bar-store";
 import { useAppearancePreferences } from "../../features/settings/appearance/AppearancePreferencesProvider";
 import { AndroidHeaderIconButton, AndroidScreenHeader } from "./AndroidScreenHeader.android";
+import { AndroidAnchoredMenu } from "./AndroidAnchoredMenu.android";
 import { ScreenHeaderButton } from "./ScreenHeaderButton.android";
-import { Menu } from "./Menu";
 import { Button } from "./Button";
 import { SearchField } from "./SearchField";
 import { findAppBarMenuItem, menuActionsFromAppBarItems } from "./menuActionItems";
@@ -78,7 +78,7 @@ function SearchableAppBar(props: AppBarProps & { readonly search: AppBarSearch }
 function AppBarView(props: AppBarProps & { readonly searchState?: SearchState }) {
   const { search, searchState } = props;
   const inFormSheet = use(RoutedFormSheetContext);
-  const { paddingTop, paddingBottom } = useToolbarLayout(props.sheet || inFormSheet);
+  const { height, paddingTop, paddingBottom } = useToolbarLayout(props.sheet || inFormSheet);
   const { themeVariables } = useAppearancePreferences();
   const inWorkspace = useHasWorkspaceAppBar();
   const sidebarToggle = useSidebarToggle();
@@ -148,15 +148,16 @@ function AppBarView(props: AppBarProps & { readonly searchState?: SearchState })
   }
 
   const menuView = props.menus?.map((menu) => (
-    <Menu
+    <AndroidAnchoredMenu
       key={menu.title}
       actions={menuActionsFromAppBarItems(menu.items)}
-      isAnchoredToRight
       title={menu.status ?? menu.title}
       onPressAction={({ nativeEvent }) => selectMenuItem(menu.items, nativeEvent.event)}
     >
-      <ScreenHeaderButton accessibilityLabel={menu.title} icon={menu.icon} />
-    </Menu>
+      {(open) => (
+        <ScreenHeaderButton accessibilityLabel={menu.title} icon={menu.icon} onPress={open} />
+      )}
+    </AndroidAnchoredMenu>
   ));
   const confirmButton = props.confirm ? (
     <View className="self-center">
@@ -249,50 +250,47 @@ function AppBarView(props: AppBarProps & { readonly searchState?: SearchState })
   return (
     <>
       {options}
-      <View>
+      {searching ? (
         <View
-          pointerEvents={searching ? "none" : "auto"}
-          accessibilityElementsHidden={searching}
-          importantForAccessibility={searching ? "no-hide-descendants" : "auto"}
-          style={{ opacity: searching ? 0 : 1 }}
+          className="border-b border-header-border bg-header"
+          // Match Material TopAppBar's 4dp icon inset so buttons stay where the bar drew them.
+          style={{
+            paddingTop,
+            paddingBottom,
+            paddingHorizontal: 4,
+            borderBottomWidth: props.hideBottomBorder ? 0 : undefined,
+          }}
         >
-          {header}
-        </View>
-        {searching ? (
-          <View
-            className="absolute inset-0 bg-header"
-            // Match Material TopAppBar's 4dp icon inset so buttons stay where the bar drew them.
-            style={{ paddingTop, paddingBottom, paddingHorizontal: 4 }}
-          >
-            <View className="flex-1 flex-row items-center gap-1">
-              {inline ? (
-                props.onClose ? (
-                  <ScreenHeaderButton
-                    accessibilityLabel={props.closeAccessibilityLabel ?? "Close"}
-                    icon="xmark"
-                    onPress={props.onClose}
-                  />
-                ) : props.onBack ? (
-                  <ScreenHeaderButton
-                    accessibilityLabel="Navigate up"
-                    icon="arrow.left"
-                    onPress={props.onBack}
-                  />
-                ) : null
-              ) : (
+          <View className="flex-row items-center gap-1" style={{ height }}>
+            {inline ? (
+              props.onClose ? (
                 <ScreenHeaderButton
-                  accessibilityLabel={search.closeAccessibilityLabel ?? "Close search"}
-                  icon="arrow.left"
-                  onPress={closeSearch}
+                  accessibilityLabel={props.closeAccessibilityLabel ?? "Close"}
+                  icon="xmark"
+                  onPress={props.onClose}
                 />
-              )}
-              {searchField}
-              {inline ? menuView : null}
-              {inline ? confirmButton : null}
-            </View>
+              ) : props.onBack ? (
+                <ScreenHeaderButton
+                  accessibilityLabel="Navigate up"
+                  icon="arrow.left"
+                  onPress={props.onBack}
+                />
+              ) : null
+            ) : (
+              <ScreenHeaderButton
+                accessibilityLabel={search.closeAccessibilityLabel ?? "Close search"}
+                icon="arrow.left"
+                onPress={closeSearch}
+              />
+            )}
+            {searchField}
+            {inline ? menuView : null}
+            {inline ? confirmButton : null}
           </View>
-        ) : null}
-      </View>
+        </View>
+      ) : (
+        header
+      )}
     </>
   );
 }
