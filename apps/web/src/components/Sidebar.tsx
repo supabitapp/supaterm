@@ -157,6 +157,7 @@ import {
   useOfflineEnvironmentIds,
   usePrimaryEnvironmentId,
 } from "../state/environments";
+import { useKnownEnabledEnvironmentIds } from "../state/shell";
 import {
   readThreadShell,
   useAllEnvironmentProjectSnapshotsReady,
@@ -826,11 +827,8 @@ function useSidebarLookups() {
       label: project.displayName,
     })),
   ];
-  const environmentScopeItems = [
-    ...new Set(
-      projectGroups.flatMap((group) => group.memberProjectRefs.map((ref) => ref.environmentId)),
-    ),
-  ]
+  const enabledEnvironmentIds = useKnownEnabledEnvironmentIds();
+  const environmentScopeItems = (enabledEnvironmentIds ?? [])
     .map((environmentId) => ({
       value: environmentId,
       label: environmentLabelById.get(environmentId) ?? environmentId,
@@ -846,6 +844,7 @@ function useSidebarLookups() {
     projectDisplayNameByKey,
     projectGroupByScopeKey,
     projectScopeItems,
+    enabledEnvironmentIds,
     environmentScopeItems,
   };
 }
@@ -911,6 +910,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     projectDisplayNameByKey,
     projectGroupByScopeKey,
     projectScopeItems: lookupProjectScopeItems,
+    enabledEnvironmentIds,
     environmentScopeItems,
   } = useSidebarLookups();
   const router = useRouter();
@@ -1103,12 +1103,13 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     setPersistedEnvironmentScopeId(environmentId);
     scrollSidebarToTop(sidebarContentRef.current);
   };
-  // A scope whose project or environment is gone reads as all once every snapshot has
-  // loaded. The stored scope is left alone, so it returns with its project or environment.
+  // A scope whose project or environment is gone reads as all once that is known. The
+  // stored scope is left alone, so it returns with its project or environment.
   const chosenScope = resolveSidebarScope({
     groups: projectGroups,
     keys: persistedProjectScopeKeys,
     environmentId: persistedEnvironmentScopeId,
+    environmentIds: enabledEnvironmentIds,
     settings: projectGroupingSettings,
     canClearMissingScope: allProjectSnapshotsReady && allProjectConfigsReady,
   });

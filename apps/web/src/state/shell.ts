@@ -132,6 +132,23 @@ export function expectsPrimaryEnvironment(): boolean {
   return !isHostedStaticApp() && !isLocalEnvironmentDisabled();
 }
 
+/** Enabled environments once the catalog can prove which exist, or null until then. */
+const knownEnabledEnvironmentIdsAtom = Atom.make((get): ReadonlyArray<EnvironmentId> | null => {
+  const catalog = get(environmentCatalog.catalogValueAtom);
+  if (!catalogIsComplete(catalog, expectsPrimaryEnvironment())) return null;
+  const next = [...enabledEnvironmentIds(catalog)];
+  const previous = Option.getOrNull(get.self<ReadonlyArray<EnvironmentId> | null>());
+  return previous != null &&
+    previous.length === next.length &&
+    next.every((environmentId, index) => environmentId === previous[index])
+    ? previous
+    : next;
+}).pipe(Atom.withLabel("web-known-enabled-environment-ids"));
+
+export function useKnownEnabledEnvironmentIds(): ReadonlyArray<EnvironmentId> | null {
+  return useAtomValue(knownEnabledEnvironmentIdsAtom);
+}
+
 export const allReachableShellsLiveAtom = Atom.make((get) => {
   const catalog = get(environmentCatalog.catalogValueAtom);
   if (!catalogIsComplete(catalog, expectsPrimaryEnvironment())) return false;

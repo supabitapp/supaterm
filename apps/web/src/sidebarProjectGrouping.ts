@@ -168,22 +168,20 @@ export function projectGroupsInEnvironment<
 /**
  * A scope's environment, its project keys, the groups it shows, and every checkout they own.
  * An archived project, or one with no checkout in the chosen environment, reads as all
- * projects, matching the filter menu. An environment that owns no project reads as all.
+ * projects, matching the filter menu. An environment that is no longer enabled reads as all;
+ * `environmentIds` is null until the catalog can prove that.
  */
 export function resolveSidebarScope(input: {
   readonly groups: ReadonlyArray<SidebarProjectSnapshot>;
   readonly keys: ReadonlyArray<string>;
   readonly environmentId?: EnvironmentId | null;
+  readonly environmentIds?: ReadonlyArray<EnvironmentId> | null;
   readonly settings?: ProjectGroupingSettings;
   readonly canClearMissingScope?: boolean;
 }): ResolvedSidebarScope {
-  const chosenEnvironmentGroups = projectGroupsInEnvironment(
-    input.groups,
-    input.environmentId ?? null,
-  );
   const environmentId =
     input.environmentId != null &&
-    (chosenEnvironmentGroups.length > 0 || !input.canClearMissingScope)
+    (input.environmentIds == null || input.environmentIds.includes(input.environmentId))
       ? input.environmentId
       : null;
   const environmentKeys = new Set(

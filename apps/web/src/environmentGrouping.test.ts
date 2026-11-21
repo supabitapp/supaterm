@@ -214,8 +214,13 @@ describe("environment grouping", () => {
     const [localKey, sharedKey] = [local, sharedLocal].map(
       (project) => groups.find((group) => group.id === project.id)!.projectKey,
     );
-    const resolve = (keys: string[], environmentId: EnvironmentId, canClearMissingScope = true) =>
-      resolveSidebarScope({ groups, keys, environmentId, canClearMissingScope });
+    const enabledEnvironmentIds = [primaryEnvironmentId, remoteEnvironmentId];
+    const resolve = (
+      keys: string[],
+      environmentId: EnvironmentId,
+      canClearMissingScope = true,
+      environmentIds: ReadonlyArray<EnvironmentId> | null = enabledEnvironmentIds,
+    ) => resolveSidebarScope({ groups, keys, environmentId, environmentIds, canClearMissingScope });
 
     const remoteOnly = resolve([], remoteEnvironmentId);
     expect(remoteOnly.environmentId).toBe(remoteEnvironmentId);
@@ -238,8 +243,13 @@ describe("environment grouping", () => {
     expect(isInSidebarScope(sharedOnRemote, primaryEnvironmentId, sharedLocal.id)).toBe(false);
 
     const goneEnvironmentId = EnvironmentId.make("env-gone");
-    expect(resolve([], goneEnvironmentId).environmentId).toBeNull();
-    expect(resolve([], goneEnvironmentId, false).environmentId).toBe(goneEnvironmentId);
+    expect(resolve([], goneEnvironmentId, false).environmentId).toBeNull();
+    expect(resolve([], goneEnvironmentId, false, null).environmentId).toBe(goneEnvironmentId);
+    const emptyEnvironmentId = EnvironmentId.make("env-empty");
+    expect(
+      resolve([], emptyEnvironmentId, true, [...enabledEnvironmentIds, emptyEnvironmentId])
+        .environmentId,
+    ).toBe(emptyEnvironmentId);
   });
 
   it("dedupes stale project rows with the same environment and workspace path", () => {
