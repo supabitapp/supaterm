@@ -2273,6 +2273,9 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     return composerSendState.hasSendableContent;
   };
 
+  const submitComposerRef = useRef<
+    (dispatchMode?: ComposerDispatchMode, submissionIntent?: ComposerSubmissionIntent) => void
+  >(() => {});
   const submitComposer = (
     event?: { preventDefault: () => void },
     dispatchMode?: ComposerDispatchMode,
@@ -2296,9 +2299,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     // Sending now would leave a still-compressing image out of the turn, so wait for it.
     if (
       activeThreadId &&
-      submitAfterPreparingImages(
-        () => void submitComposerStable(undefined, dispatchMode, submissionIntent),
-      )
+      submitAfterPreparingImages(() => submitComposerRef.current(dispatchMode, submissionIntent))
     ) {
       event?.preventDefault();
       return null;
@@ -2348,6 +2349,11 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     return sending;
   };
   const submitComposerStable = useStableCallback(submitComposer);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- publishes the committed submission handler to the send held for compressing images
+  useLayoutEffect(() => {
+    submitComposerRef.current = (mode, intent) =>
+      void submitComposerStable(undefined, mode, intent);
+  }, [submitComposerStable]);
   const handleSubmitMessage = (event: React.MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
     const alternateModifier = event.metaKey || event.ctrlKey;

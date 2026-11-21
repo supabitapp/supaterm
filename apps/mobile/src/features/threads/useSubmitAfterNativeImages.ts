@@ -27,6 +27,7 @@ export function useSubmitAfterNativeImages(props: {
   useEffect(() => {
     if (!releasedSend || props.blocked || consumedSend.current === releasedSend) return;
     consumedSend.current = releasedSend;
+    // oxlint-disable-next-line react-doctor/no-pass-live-state-to-parent -- runs the held send; no state goes back up
     sendReleased(releasedSend);
   }, [releasedSend, props.blocked]);
   return {
