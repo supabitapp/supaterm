@@ -7,6 +7,7 @@ import {
 import {
   ProviderDriverKind,
   type ModelCapabilities,
+  type ProviderOptionDescriptor,
   type ServerProviderModel,
   type ServerProviderSkill,
   type ServerProviderSlashCommand,
@@ -20,7 +21,7 @@ import * as Option from "effect/Option";
 import * as Schedule from "effect/Schedule";
 import * as Schema from "effect/Schema";
 
-import { createModelCapabilities } from "@supaterm/shared/model";
+import { createModelCapabilities, DEFAULT_VARIANT_CHOICE_ID } from "@supaterm/shared/model";
 import {
   buildServerProvider,
   COMPACT_SLASH_COMMAND,
@@ -204,6 +205,32 @@ function inferDefaultVariant(
     return variants.includes("medium") ? "medium" : variants.includes("high") ? "high" : undefined;
   }
   return undefined;
+}
+
+/** Without an inferable default, a Default choice lets the user go back to sending no variant. */
+function openCodeVariantDescriptors(
+  providerID: string,
+  variants: ReadonlyArray<string>,
+): Array<ProviderOptionDescriptor> {
+  if (variants.length === 0) return [];
+  const inferred = inferDefaultVariant(providerID, variants);
+  const options = variants.map((id) => ({
+    id,
+    label: reasoningVariantLabel(id),
+    ...(id === inferred ? { isDefault: true } : {}),
+  }));
+  return [
+    {
+      id: "variant",
+      label: "Reasoning",
+      type: "select",
+      options:
+        inferred === undefined
+          ? [{ id: DEFAULT_VARIANT_CHOICE_ID, label: "Default" }, ...options]
+          : options,
+      currentValue: inferred ?? DEFAULT_VARIANT_CHOICE_ID,
+    },
+  ];
 }
 
 const DEFAULT_OPENCODE_MODEL_CAPABILITIES: ModelCapabilities = createModelCapabilities({
@@ -537,25 +564,11 @@ const OPENCODE_2_PRESENTATION = {
 } as const;
 
 function openCode2ModelCapabilities(model: OpenCode2Model): ModelCapabilities {
-  const variants = model.variants.map((variant) => variant.id);
-  const defaultVariant = inferDefaultVariant(model.providerID, variants);
   return createModelCapabilities({
-    optionDescriptors:
-      variants.length === 0
-        ? []
-        : [
-            {
-              id: "variant",
-              label: "Reasoning",
-              type: "select",
-              options: variants.map((id) => ({
-                id,
-                label: reasoningVariantLabel(id),
-                ...(id === defaultVariant ? { isDefault: true } : {}),
-              })),
-              ...(defaultVariant === undefined ? {} : { currentValue: defaultVariant }),
-            },
-          ],
+    optionDescriptors: openCodeVariantDescriptors(
+      model.providerID,
+      model.variants.map((variant) => variant.id),
+    ),
   });
 }
 

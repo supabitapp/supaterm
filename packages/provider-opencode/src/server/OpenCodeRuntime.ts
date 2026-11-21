@@ -1,3 +1,4 @@
+import type { ModelSelection } from "@supaterm/contracts";
 import * as Cause from "effect/Cause";
 import * as Context from "effect/Context";
 import * as Data from "effect/Data";
@@ -26,6 +27,10 @@ import { collectStreamAsString } from "@supaterm/provider-core/server/snapshotPr
 import * as NetService from "@supaterm/shared/Net";
 import { AgentScope } from "@supaterm/shared/AgentScope";
 import * as HostProcess from "@supaterm/shared/HostProcess";
+import {
+  DEFAULT_VARIANT_CHOICE_ID,
+  getModelSelectionStringOptionValue,
+} from "@supaterm/shared/model";
 import { resolveSpawnCommand } from "@supaterm/shared/shell";
 const encodeUnknownJsonStringExit = Schema.encodeUnknownExit(Schema.fromJsonString(Schema.Unknown));
 const OPENCODE_EMPTY_CONFIG_CONTENT = "{}";
@@ -152,6 +157,11 @@ export function parseOpenCodeModelSlug(
     providerID: trimmed.slice(0, separator),
     modelID: trimmed.slice(separator + 1),
   };
+}
+
+export function openCodeVariant(selection: ModelSelection): string | undefined {
+  const variant = getModelSelectionStringOptionValue(selection, "variant");
+  return variant === DEFAULT_VARIANT_CHOICE_ID ? undefined : variant;
 }
 
 function ensureRuntimeError(

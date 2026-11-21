@@ -33,6 +33,7 @@ import {
   OPENCODE_2_RESPONSES,
   replayOpenCodeServer,
 } from "./probeResponses.fixture.ts";
+import { DEFAULT_VARIANT_CHOICE_ID } from "@supaterm/shared/model";
 const decodeOpenCodeSettings = Schema.decodeSync(OpenCodeSettings);
 
 const DEFAULT_VERSION_STDOUT = "opencode v2.0.18\n";
@@ -549,6 +550,39 @@ describe("checkOpenCodeProviderStatus", () => {
           goVariant.currentValue !== undefined &&
           goVariantIds.includes(goVariant.currentValue),
         "an OpenCode Go model gets a default reasoning variant it lists",
+      );
+    }),
+  );
+
+  it.effect("offers a Default reasoning choice for a custom model with no inferable default", () =>
+    Effect.gen(function* () {
+      const variants = ["low", "medium", "high"];
+      const snapshot = yield* checkProvider(
+        makeOpenCodeSettings(),
+        undefined,
+        Effect.succeed([
+          {
+            providerID: "acme",
+            id: "acme-chat",
+            name: "Acme Chat",
+            variants: variants.map((id) => ({ id })),
+          },
+        ]),
+      );
+      const variant = snapshot.models
+        .find((model) => model.slug === "acme/acme-chat")
+        ?.capabilities?.optionDescriptors?.find((descriptor) => descriptor.id === "variant");
+
+      NodeAssert.ok(variant?.type === "select");
+      NodeAssert.deepEqual(
+        variant.options.find((option) => option.id === DEFAULT_VARIANT_CHOICE_ID),
+        { id: DEFAULT_VARIANT_CHOICE_ID, label: "Default" },
+        "OpenCode cannot infer a default variant, so the picker needs a choice that sends none",
+      );
+      NodeAssert.equal(variant.currentValue, DEFAULT_VARIANT_CHOICE_ID);
+      NodeAssert.deepEqual(
+        variant.options.map((option) => option.id).filter((id) => id !== DEFAULT_VARIANT_CHOICE_ID),
+        variants,
       );
     }),
   );

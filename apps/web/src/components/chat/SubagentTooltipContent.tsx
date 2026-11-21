@@ -12,7 +12,11 @@ import {
   subagentDetailPreview,
 } from "@supaterm/client-runtime/state/subagent-display";
 import { REASONING_EFFORT_OPTION_IDS } from "@supaterm/client-runtime/state/thread-execution";
-import { getModelSelectionStringOptionValue, resolveSelectableModel } from "@supaterm/shared/model";
+import {
+  DEFAULT_VARIANT_CHOICE_ID,
+  getModelSelectionStringOptionValue,
+  resolveSelectableModel,
+} from "@supaterm/shared/model";
 import { getTraitsSpeedDisplay, TraitsSpeedIcon } from "./TraitsSpeed";
 import type { ReactNode } from "react";
 import {
@@ -74,7 +78,7 @@ export function SubagentTooltipContent(props: {
       : undefined;
   const effort = REASONING_EFFORT_OPTION_IDS.map((id) =>
     getModelSelectionStringOptionValue(matchingSelection, id),
-  ).find(Boolean);
+  ).find((value) => value && value !== DEFAULT_VARIANT_CHOICE_ID);
   const speed = provider
     ? providerModel?.capabilities?.optionDescriptors
         ?.map((descriptor) => {
