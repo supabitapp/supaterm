@@ -1,5 +1,5 @@
 import { Debouncer } from "@tanstack/react-pacer";
-import { PullRequestMergeMethod } from "@supaterm/contracts";
+import { EnvironmentId, PullRequestMergeMethod } from "@supaterm/contracts";
 import * as Schema from "effect/Schema";
 import { create } from "zustand";
 
@@ -10,6 +10,7 @@ export interface PersistedUiState {
   defaultAdvertisedEndpointKey?: string | null;
   sidebarProjectScopeKey?: string | null;
   sidebarProjectScopeKeys?: string[];
+  sidebarEnvironmentScopeId?: string | null;
   threadChangedFilesExpandedById?: Record<string, Record<string, boolean>>;
   pullRequestMergeMethod?: string;
 }
@@ -17,6 +18,7 @@ export interface PersistedUiState {
 export interface UiProjectState {
   projectOrder: string[];
   sidebarProjectScopeKeys: string[];
+  sidebarEnvironmentScopeId: EnvironmentId | null;
 }
 
 export interface UiThreadState {
@@ -37,6 +39,7 @@ export interface UiState
 const initialState: UiState = {
   projectOrder: [],
   sidebarProjectScopeKeys: [],
+  sidebarEnvironmentScopeId: null,
   threadChangedFilesExpandedById: {},
   defaultAdvertisedEndpointKey: null,
   pullRequestMergeMethod: "merge",
@@ -58,6 +61,7 @@ function sanitizeOptionalKey(value: unknown): string | null {
 }
 
 const isPullRequestMergeMethod = Schema.is(PullRequestMergeMethod);
+const isEnvironmentId = Schema.is(EnvironmentId);
 
 export function parsePersistedState(parsed: PersistedUiState): UiState {
   return {
@@ -69,6 +73,9 @@ export function parsePersistedState(parsed: PersistedUiState): UiState {
     sidebarProjectScopeKeys: sanitizeStringArray(
       parsed.sidebarProjectScopeKeys ?? [parsed.sidebarProjectScopeKey],
     ),
+    sidebarEnvironmentScopeId: isEnvironmentId(parsed.sidebarEnvironmentScopeId)
+      ? parsed.sidebarEnvironmentScopeId
+      : null,
     pullRequestMergeMethod: isPullRequestMergeMethod(parsed.pullRequestMergeMethod)
       ? parsed.pullRequestMergeMethod
       : initialState.pullRequestMergeMethod,
@@ -131,6 +138,7 @@ export function persistState(state: UiState): void {
           state.sidebarProjectScopeKeys.length === 1
             ? (state.sidebarProjectScopeKeys[0] ?? null)
             : null,
+        sidebarEnvironmentScopeId: state.sidebarEnvironmentScopeId,
         threadChangedFilesExpandedById: state.threadChangedFilesExpandedById,
         pullRequestMergeMethod: state.pullRequestMergeMethod,
       } satisfies PersistedUiState),
@@ -188,6 +196,15 @@ function setSidebarProjectScopeKeys(state: UiState, projectKeys: readonly string
   };
 }
 
+function setSidebarEnvironmentScopeId(
+  state: UiState,
+  environmentId: EnvironmentId | null,
+): UiState {
+  return state.sidebarEnvironmentScopeId === environmentId
+    ? state
+    : { ...state, sidebarEnvironmentScopeId: environmentId };
+}
+
 function setPullRequestMergeMethod(state: UiState, method: PullRequestMergeMethod): UiState {
   return state.pullRequestMergeMethod === method
     ? state
@@ -242,6 +259,7 @@ interface UiStateStore extends UiState {
   setThreadChangedFilesExpanded: (threadId: string, turnId: string, expanded: boolean) => void;
   setDefaultAdvertisedEndpointKey: (key: string | null) => void;
   setSidebarProjectScopeKeys: (projectKeys: readonly string[]) => void;
+  setSidebarEnvironmentScopeId: (environmentId: EnvironmentId | null) => void;
   setPullRequestMergeMethod: (method: PullRequestMergeMethod) => void;
   reorderProjects: (
     currentProjectOrder: readonly string[],
@@ -258,6 +276,8 @@ export const useUiStateStore = create<UiStateStore>((set) => ({
     set((state) => setDefaultAdvertisedEndpointKey(state, key)),
   setSidebarProjectScopeKeys: (projectKeys) =>
     set((state) => setSidebarProjectScopeKeys(state, projectKeys)),
+  setSidebarEnvironmentScopeId: (environmentId) =>
+    set((state) => setSidebarEnvironmentScopeId(state, environmentId)),
   setPullRequestMergeMethod: (method) => set((state) => setPullRequestMergeMethod(state, method)),
   reorderProjects: (currentProjectOrder, draggedProjectIds, targetProjectIds) =>
     set((state) =>

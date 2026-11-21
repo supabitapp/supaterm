@@ -1,6 +1,7 @@
 import { useRef } from "react";
 
 import { observeResize } from "~/lib/observeResize";
+import { ALL_SIDEBAR_SCOPE, type SidebarScope } from "~/sidebarProjectGrouping";
 
 import { filterSidebarV2VisibleThreads } from "../Sidebar.logic";
 
@@ -78,17 +79,16 @@ export function resolveSidebarRouteReveal<T extends RevealableThread>(input: {
   readonly reveal: SidebarRouteReveal;
   readonly routeKey: string | null;
   readonly routeKeyInPlace: boolean;
-  readonly scopedProjectKeys: ReadonlySet<string> | null;
+  readonly scope: SidebarScope;
   readonly delegatedUnderParent: ReadonlySet<string>;
   readonly findThread: (key: string) => T | undefined;
 }): { readonly pendingKey: string | null; readonly widensScope: boolean } {
-  const { reveal, routeKey, scopedProjectKeys, delegatedUnderParent, findThread } = input;
+  const { reveal, routeKey, scope, delegatedUnderParent, findThread } = input;
   const pendingKey = pendingSidebarRouteReveal(reveal, routeKey, input.routeKeyInPlace);
   const thread = pendingKey === null ? undefined : findThread(pendingKey);
   const widensScope =
     thread !== undefined &&
-    scopedProjectKeys !== null &&
-    filterSidebarV2VisibleThreads([thread], scopedProjectKeys, delegatedUnderParent).length === 0 &&
-    filterSidebarV2VisibleThreads([thread], null, delegatedUnderParent).length === 1;
+    filterSidebarV2VisibleThreads([thread], scope, delegatedUnderParent).length === 0 &&
+    filterSidebarV2VisibleThreads([thread], ALL_SIDEBAR_SCOPE, delegatedUnderParent).length === 1;
   return { pendingKey, widensScope };
 }

@@ -17,6 +17,7 @@ import {
 import { useLocalStorage } from "../../hooks/useLocalStorage";
 import type { EnvironmentProject } from "@supaterm/client-runtime/state/shell";
 import { cn } from "~/lib/utils";
+import { isInSidebarScope, type SidebarScope } from "~/sidebarProjectGrouping";
 import { resolveSidebarRowAccessibility } from "../Sidebar.logic";
 import { ProjectFavicon, type ProjectFaviconProject } from "../ProjectFavicon";
 import { MiddleTruncate } from "../ui/middle-truncate";
@@ -182,7 +183,7 @@ interface SidebarDraftRowData {
 export const SidebarDraftBlock = memo(function SidebarDraftBlock(props: {
   projectByKey: ReadonlyMap<string, EnvironmentProject>;
   projectDisplayNameByKey: ReadonlyMap<string, string>;
-  scopedProjectKeys: ReadonlySet<string> | null;
+  scope: SidebarScope;
   routeDraftId: string | null;
   onNavigateToDraft: (draftId: DraftId) => void;
   onDraftContextMenu: (
@@ -243,10 +244,7 @@ export const SidebarDraftBlock = memo(function SidebarDraftBlock(props: {
       if (session.promotedTo != null || session.sideChatOf !== undefined) {
         continue;
       }
-      if (
-        props.scopedProjectKeys !== null &&
-        !props.scopedProjectKeys.has(`${session.environmentId}:${session.projectId}`)
-      ) {
+      if (!isInSidebarScope(props.scope, session.environmentId, session.projectId)) {
         continue;
       }
       if (draftKey === props.routeDraftId) {

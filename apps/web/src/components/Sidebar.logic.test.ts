@@ -1318,7 +1318,10 @@ describe("pendingSidebarRouteReveal", () => {
 });
 
 describe("resolveSidebarRouteReveal", () => {
-  const scopedProjectKeys = new Set(["environment-test:project-scoped"]);
+  const scope = {
+    environmentId: null,
+    memberKeys: new Set(["environment-test:project-scoped"]),
+  };
   const hidden = makeThreadFixture({ projectId: ProjectId.make("project-other") });
   const hiddenKey = "environment-test:thread-test";
   const findThread = (key: string) => (key === hiddenKey ? hidden : undefined);
@@ -1329,7 +1332,20 @@ describe("resolveSidebarRouteReveal", () => {
         reveal: { observedKey: "environment-test:other", pendingKey: null },
         routeKey: hiddenKey,
         routeKeyInPlace: false,
-        scopedProjectKeys,
+        scope,
+        delegatedUnderParent: new Set(),
+        findThread,
+      }),
+    ).toEqual({ pendingKey: hiddenKey, widensScope: true });
+  });
+
+  it("widens an environment scope for a thread from another environment", () => {
+    expect(
+      resolveSidebarRouteReveal({
+        reveal: { observedKey: "environment-test:other", pendingKey: null },
+        routeKey: hiddenKey,
+        routeKeyInPlace: false,
+        scope: { environmentId: EnvironmentId.make("environment-other"), memberKeys: null },
         delegatedUnderParent: new Set(),
         findThread,
       }),
@@ -1343,7 +1359,7 @@ describe("resolveSidebarRouteReveal", () => {
         reveal: { observedKey: hiddenKey, pendingKey: null },
         routeKey: hiddenKey,
         routeKeyInPlace: false,
-        scopedProjectKeys,
+        scope,
         delegatedUnderParent: new Set(),
         findThread,
       }),
@@ -1359,7 +1375,7 @@ describe("resolveSidebarRouteReveal", () => {
         reveal,
         routeKey,
         routeKeyInPlace: false,
-        scopedProjectKeys,
+        scope,
         delegatedUnderParent: new Set(),
         findThread,
       });

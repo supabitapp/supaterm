@@ -126,26 +126,85 @@ export function resolveSidebarProjectScopeKeys(input: {
   ];
 }
 
+/** What the sidebar lists: one environment or all, and the chosen projects' checkouts or every project. */
+export interface SidebarScope {
+  readonly environmentId: EnvironmentId | null;
+  readonly memberKeys: ReadonlySet<string> | null;
+}
+
+export interface ResolvedSidebarScope extends SidebarScope {
+  readonly keys: ReadonlyArray<string>;
+  readonly groups: ReadonlyArray<SidebarProjectSnapshot>;
+}
+
+export const ALL_SIDEBAR_SCOPE: ResolvedSidebarScope = {
+  environmentId: null,
+  memberKeys: null,
+  keys: [],
+  groups: [],
+};
+
+export function isInSidebarScope(
+  scope: SidebarScope,
+  environmentId: EnvironmentId,
+  projectId: string,
+): boolean {
+  return (
+    (scope.environmentId === null || scope.environmentId === environmentId) &&
+    (scope.memberKeys === null || scope.memberKeys.has(`${environmentId}:${projectId}`))
+  );
+}
+
+export function projectGroupsInEnvironment<
+  TGroup extends Pick<SidebarProjectSnapshot, "memberProjectRefs">,
+>(groups: ReadonlyArray<TGroup>, environmentId: EnvironmentId | null): ReadonlyArray<TGroup> {
+  return environmentId === null
+    ? groups
+    : groups.filter((group) =>
+        group.memberProjectRefs.some((ref) => ref.environmentId === environmentId),
+      );
+}
+
+function resolveEnvironmentScope(input: {
+  readonly environmentId?: EnvironmentId | null;
+  readonly environments?: ReadonlyMap<EnvironmentId, boolean> | null;
+  readonly canClearMissingScope?: boolean;
+}): EnvironmentId | null {
+  const environmentId = input.environmentId ?? null;
+  if (environmentId === null || input.environments == null) return environmentId;
+  const enabled = input.environments.get(environmentId);
+  // An unlisted environment may still be registering, such as a WSL backend at startup.
+  if (enabled === undefined) return input.canClearMissingScope ? null : environmentId;
+  return enabled ? environmentId : null;
+}
+
 /**
- * A multi-project scope's keys, the groups it shows, and every checkout they own.
- * An archived project reads as all projects, matching the filter menu.
+ * A scope's environment, its project keys, the groups it shows, and every checkout they own.
+ * An archived project, or one with no checkout in the chosen environment, reads as all
+ * projects, matching the filter menu. A disabled environment reads as all, and so does an
+ * unlisted one once every snapshot has loaded. `environments` is null until the catalog is known.
  */
-export function resolveSidebarProjectScope(input: {
+export function resolveSidebarScope(input: {
   readonly groups: ReadonlyArray<SidebarProjectSnapshot>;
   readonly keys: ReadonlyArray<string>;
+  readonly environmentId?: EnvironmentId | null;
+  readonly environments?: ReadonlyMap<EnvironmentId, boolean> | null;
   readonly settings?: ProjectGroupingSettings;
   readonly canClearMissingScope?: boolean;
-}): {
-  readonly keys: ReadonlyArray<string>;
-  readonly groups: ReadonlyArray<SidebarProjectSnapshot>;
-  readonly memberKeys: ReadonlySet<string> | null;
-} {
-  const archivedKeys = new Set(
-    input.groups.filter((group) => group.archived).map((group) => group.projectKey),
+}): ResolvedSidebarScope {
+  const environmentId = resolveEnvironmentScope(input);
+  const environmentKeys = new Set(
+    projectGroupsInEnvironment(input.groups, environmentId).map((group) => group.projectKey),
   );
-  const keys = resolveSidebarProjectScopeKeys(input).filter((key) => !archivedKeys.has(key));
+  const excludedKeys = new Set(
+    input.groups
+      .filter((group) => group.archived || !environmentKeys.has(group.projectKey))
+      .map((group) => group.projectKey),
+  );
+  const keys = resolveSidebarProjectScopeKeys(input).filter((key) => !excludedKeys.has(key));
   const groups = input.groups.filter((group) => keys.includes(group.projectKey));
   return {
+    environmentId,
     keys,
     groups,
     memberKeys:

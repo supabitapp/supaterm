@@ -6,6 +6,7 @@ import { expect, it, vi } from "vite-plus/test";
 import { act, render } from "../../../test/render";
 import { formatAssistantCitationForComposer } from "../../composer-logic";
 import { DraftId, useComposerDraftStore } from "../../composerDraftStore";
+import { ALL_SIDEBAR_SCOPE } from "../../sidebarProjectGrouping";
 import { SidebarDraftBlock } from "./SidebarDraftBlock";
 
 it("keeps draft previews current through edits, promotion and removal", async () => {
@@ -29,7 +30,7 @@ it("keeps draft previews current through edits, promotion and removal", async ()
         <SidebarDraftBlock
           projectByKey={new Map()}
           projectDisplayNameByKey={new Map()}
-          scopedProjectKeys={null}
+          scope={ALL_SIDEBAR_SCOPE}
           routeDraftId={null}
           onNavigateToDraft={vi.fn()}
           onDraftContextMenu={vi.fn()}

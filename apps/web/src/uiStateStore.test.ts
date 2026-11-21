@@ -1,3 +1,4 @@
+import { EnvironmentId } from "@supaterm/contracts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import {
@@ -13,6 +14,7 @@ function makeUiState(overrides: Partial<UiState> = {}): UiState {
   return {
     projectOrder: [],
     sidebarProjectScopeKeys: [],
+    sidebarEnvironmentScopeId: null,
     threadChangedFilesExpandedById: {},
     defaultAdvertisedEndpointKey: null,
     pullRequestMergeMethod: "merge",
@@ -39,6 +41,7 @@ describe("parsePersistedState", () => {
     const parsed = parsePersistedState({
       projectOrder: ["physical-b", "", "physical-a", "physical-b"],
       defaultAdvertisedEndpointKey: "desktop-core:lan:http",
+      sidebarEnvironmentScopeId: "",
       threadChangedFilesExpandedById: {
         "environment:thread-1": {
           "turn-1": false,
@@ -51,6 +54,7 @@ describe("parsePersistedState", () => {
       projectOrder: ["physical-b", "physical-a"],
       defaultAdvertisedEndpointKey: "desktop-core:lan:http",
       sidebarProjectScopeKeys: [],
+      sidebarEnvironmentScopeId: null,
       pullRequestMergeMethod: "merge",
       threadChangedFilesExpandedById: {
         "environment:thread-1": {
@@ -123,6 +127,7 @@ describe("uiStateStore persistence", () => {
       defaultAdvertisedEndpointKey: "desktop-core:lan:http",
       sidebarProjectScopeKeys: [],
       sidebarProjectScopeKey: null,
+      sidebarEnvironmentScopeId: null,
       threadChangedFilesExpandedById: {
         "environment:thread-1": {
           "turn-1": false,
@@ -136,15 +141,21 @@ describe("uiStateStore persistence", () => {
     });
   });
 
-  it("restores the sidebar project scope across reloads", () => {
+  it("restores the sidebar project and environment scope across reloads", () => {
     const keys = ["github.com/supabitapp/supacode-next", "github.com/supabitapp/uploadthing"];
-    persistState(makeUiState({ sidebarProjectScopeKeys: keys }));
+    const environmentId = EnvironmentId.make("environment-remote");
+    persistState(
+      makeUiState({ sidebarProjectScopeKeys: keys, sidebarEnvironmentScopeId: environmentId }),
+    );
 
     const persisted = JSON.parse(
       localStorageStub.getItem(PERSISTED_STATE_KEY) ?? "{}",
     ) as PersistedUiState;
 
-    expect(parsePersistedState(persisted).sidebarProjectScopeKeys).toEqual(keys);
+    expect(parsePersistedState(persisted)).toMatchObject({
+      sidebarProjectScopeKeys: keys,
+      sidebarEnvironmentScopeId: environmentId,
+    });
   });
 
   it("keeps a single-project scope readable by older clients", () => {
