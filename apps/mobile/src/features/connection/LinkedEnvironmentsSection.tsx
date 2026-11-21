@@ -131,7 +131,7 @@ export function LinkedEnvironmentHost(props: {
         icon="link"
         label={props.environmentLabel ?? "Let agents work on your other machines"}
         {...(props.incoming && props.incoming.length > 0
-          ? { subtitle: `Agents on ${props.incoming.join(", ")} can work here.` }
+          ? { subtitle: `Linked from ${props.incoming.join(", ")}.` }
           : {})}
         value={enabled}
         disabled={!canConfigure}

@@ -144,7 +144,7 @@ function LinkedEnvironmentHost({
             <>
               Agents here can work on machines you link. Each link goes one way.
               {incoming.length > 0 ? (
-                <span className="block">Agents on {incoming.join(", ")} can work here.</span>
+                <span className="block">Linked from {incoming.join(", ")}.</span>
               ) : null}
             </>
           ) : (
@@ -153,7 +153,12 @@ function LinkedEnvironmentHost({
         }
         control={
           <div className="flex items-center gap-3">
-            {enabled && canLink ? <LinkEnvironmentAction environmentId={environmentId} /> : null}
+            {enabled && canLink ? (
+              <LinkEnvironmentAction
+                environmentId={environmentId}
+                environmentLabel={environmentLabel}
+              />
+            ) : null}
             <Switch
               checked={enabled}
               disabled={!canConfigure}
@@ -272,6 +277,9 @@ function LinkedEnvironmentRow({
           <p className="text-xs text-muted-foreground">
             {accessConfig[link.access].label} · {status}
           </p>
+          {health.kind === "reachable" && health.expiresInDays === null ? null : (
+            <p className="truncate text-xs text-muted-foreground/80">{link.urls.join(", ")}</p>
+          )}
         </div>
         {canUnlink ? (
           <div className="flex w-full shrink-0 items-center gap-2 sm:w-auto sm:justify-end">
@@ -290,7 +298,14 @@ function LinkedEnvironmentRow({
   );
 }
 
-function LinkEnvironmentAction({ environmentId }: { readonly environmentId: EnvironmentId }) {
+function LinkEnvironmentAction({
+  environmentId,
+  environmentLabel,
+}: {
+  readonly environmentId: EnvironmentId;
+  /** The machine the link starts from, when the section lists more than one. */
+  readonly environmentLabel: string | null;
+}) {
   const [open, setOpen] = useState(false);
   const machines = useLinkableMachines(environmentId, open);
   // Null until the user picks; with no other machines known, only an address is left.
@@ -393,7 +408,13 @@ function LinkEnvironmentAction({ environmentId }: { readonly environmentId: Envi
     >
       <DialogTrigger
         render={
-          <Button size="xs" variant="default">
+          <Button
+            size="xs"
+            variant="default"
+            {...(environmentLabel === null
+              ? {}
+              : { "aria-label": `Link ${environmentLabel} to another machine` })}
+          >
             <PlusIcon className="size-3" />
             Link
           </Button>
@@ -401,7 +422,11 @@ function LinkEnvironmentAction({ environmentId }: { readonly environmentId: Envi
       />
       <DialogPopup className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Link an environment</DialogTitle>
+          <DialogTitle>
+            {environmentLabel === null
+              ? "Link an environment"
+              : `Link ${environmentLabel} to an environment`}
+          </DialogTitle>
           <DialogDescription>
             Agents here can then launch, message and wait on threads there. It appears under
             Authorized clients in that environment's Sharing & access, where it can be revoked.
