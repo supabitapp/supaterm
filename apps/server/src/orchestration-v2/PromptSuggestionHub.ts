@@ -49,7 +49,8 @@ const make = Effect.gen(function* () {
         return next;
       });
     }),
-    // Stored suggestions can outlive a deleted thread, so check the thread before serving one.
+    // Stored suggestions can outlive a deleted thread, so check the thread before serving one. A
+    // failed read serves it anyway: Stream.changes would otherwise hold a wrong null until the next offer.
     subscribe: (threadId) =>
       SubscriptionRef.changes(store).pipe(
         Stream.map((suggestions) => suggestions.get(threadId) ?? null),
@@ -59,7 +60,7 @@ const make = Effect.gen(function* () {
             ? Effect.succeed(null)
             : projectionStore.findThread(threadId).pipe(
                 Effect.map((thread) => (thread?.deletedAt === null ? suggestion : null)),
-                Effect.orElseSucceed(() => null),
+                Effect.orElseSucceed(() => suggestion),
               ),
         ),
         Stream.changes,
