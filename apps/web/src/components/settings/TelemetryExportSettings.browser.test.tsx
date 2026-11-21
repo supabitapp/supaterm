@@ -61,6 +61,16 @@ vi.mock(import("./useScopedSettings"), async (original) => ({
 
 import { TelemetryExportSettings } from "./TelemetryExportSettings";
 
+type CheckResult = Awaited<ReturnType<typeof checkOtlpEndpoint>>;
+
+function deferredCheck() {
+  let resolve!: (result: CheckResult) => void;
+  const promise = new Promise<CheckResult>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}
+
 function setup() {
   updateSettings.mockClear();
   checkOtlpEndpoint.mockReset();
@@ -144,9 +154,9 @@ describe("TelemetryExportSettings", () => {
     setup();
     state.observability = { ...DEFAULT_SERVER_SETTINGS.observability, otlpTracesUrl: "" };
     state.serverConfig = { environment: { capabilities: { otlpEndpointCheck: true } } };
-    const first = Promise.withResolvers<Awaited<ReturnType<typeof checkOtlpEndpoint>>>();
-    const corrected = Promise.withResolvers<Awaited<ReturnType<typeof checkOtlpEndpoint>>>();
-    const latest = Promise.withResolvers<Awaited<ReturnType<typeof checkOtlpEndpoint>>>();
+    const first = deferredCheck();
+    const corrected = deferredCheck();
+    const latest = deferredCheck();
     checkOtlpEndpoint
       .mockReturnValueOnce(first.promise)
       .mockReturnValueOnce(corrected.promise)
