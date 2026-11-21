@@ -2,6 +2,7 @@ import type {
   EnvironmentId,
   OrchestrationV2ShellSnapshot,
   OrchestrationV2ThreadShell,
+  ThreadId,
 } from "@supaterm/contracts";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
@@ -76,6 +77,10 @@ export function withOptimisticThreadCreations(
   return added.length === 0 ? snapshot : { ...snapshot, threads: [...snapshot.threads, ...added] };
 }
 
+const snapshotHasThread = (snapshot: OrchestrationV2ShellSnapshot | null, threadId: ThreadId) =>
+  snapshot?.threads.some((thread) => thread.id === threadId) === true ||
+  snapshot?.archivedThreads.some((thread) => thread.id === threadId) === true;
+
 export function createOptimisticThreadCreation(
   sourceSnapshotAtom: (
     environmentId: EnvironmentId,
@@ -108,11 +113,7 @@ export function createOptimisticThreadCreation(
           const creation = input.bootstrap?.createThread;
           if (creation === undefined) return command.run(registry, target);
           const source = sourceSnapshotAtom(target.environmentId);
-          const current = registry.get(source);
-          if (
-            current?.threads.some((thread) => thread.id === input.threadId) ||
-            current?.archivedThreads.some((thread) => thread.id === input.threadId)
-          ) {
+          if (snapshotHasThread(registry.get(source), input.threadId)) {
             return command.run(registry, target);
           }
           const thread = optimisticThreadCreationShell(
@@ -127,10 +128,7 @@ export function createOptimisticThreadCreation(
             registry.update(pending, (threads) => threads.filter((item) => item !== thread));
           registry.update(pending, (threads) => [...threads, thread]);
           const reconcile = (snapshot: OrchestrationV2ShellSnapshot | null) => {
-            if (
-              snapshot?.threads.some((item) => item.id === thread.id) ||
-              snapshot?.archivedThreads.some((item) => item.id === thread.id)
-            ) {
+            if (snapshotHasThread(snapshot, thread.id)) {
               remove();
               unsubscribe();
             }
