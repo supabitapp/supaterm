@@ -8,6 +8,7 @@ import {
 import {
   buildSidebarProjectPickerEntries,
   buildSidebarProjectSnapshots,
+  isInSidebarScope,
   resolveSidebarProjectScope,
   resolveSidebarProjectScopeKey,
   resolveSidebarProjectScopeKeys,
@@ -174,6 +175,7 @@ describe("environment grouping", () => {
     );
 
     expect(resolveSidebarProjectScope({ groups, keys: [archivedKey!] })).toEqual({
+      environmentId: null,
       keys: [],
       groups: [],
       memberKeys: null,
@@ -183,6 +185,52 @@ describe("environment grouping", () => {
         (group) => group.projectKey,
       ),
     ).toEqual([openKey]);
+  });
+
+  it("scopes threads and project choices to the chosen environment", () => {
+    const local = makeProject({ id: ProjectId.make("local"), workspaceRoot: "/local" });
+    const sharedLocal = makeProject({
+      id: ProjectId.make("shared-local"),
+      workspaceRoot: "/shared",
+      repositoryIdentity,
+    });
+    const sharedRemote = makeProject({
+      id: ProjectId.make("shared-remote"),
+      environmentId: remoteEnvironmentId,
+      workspaceRoot: "/shared",
+      repositoryIdentity,
+    });
+    const groups = buildSidebarProjectSnapshots({
+      projects: [local, sharedLocal, sharedRemote],
+      settings: defaultGroupingSettings,
+      primaryEnvironmentId,
+      resolveEnvironmentLabel: () => null,
+    });
+    const [localKey, sharedKey] = [local, sharedLocal].map(
+      (project) => groups.find((group) => group.id === project.id)!.projectKey,
+    );
+    const resolve = (keys: string[], environmentId: EnvironmentId, canClearMissingScope = true) =>
+      resolveSidebarProjectScope({ groups, keys, environmentId, canClearMissingScope });
+
+    const remoteOnly = resolve([], remoteEnvironmentId);
+    expect(remoteOnly.environmentId).toBe(remoteEnvironmentId);
+    expect(isInSidebarScope(remoteOnly, remoteEnvironmentId, sharedRemote.id)).toBe(true);
+    expect(isInSidebarScope(remoteOnly, primaryEnvironmentId, local.id)).toBe(false);
+
+    expect(resolve([localKey!], remoteEnvironmentId)).toMatchObject({
+      environmentId: remoteEnvironmentId,
+      keys: [],
+      memberKeys: null,
+    });
+
+    const sharedOnRemote = resolve([localKey!, sharedKey!], remoteEnvironmentId);
+    expect(sharedOnRemote.keys).toEqual([sharedKey]);
+    expect(isInSidebarScope(sharedOnRemote, remoteEnvironmentId, sharedRemote.id)).toBe(true);
+    expect(isInSidebarScope(sharedOnRemote, primaryEnvironmentId, sharedLocal.id)).toBe(false);
+
+    const goneEnvironmentId = EnvironmentId.make("env-gone");
+    expect(resolve([], goneEnvironmentId).environmentId).toBeNull();
+    expect(resolve([], goneEnvironmentId, false).environmentId).toBe(goneEnvironmentId);
   });
 
   it("dedupes stale project rows with the same environment and workspace path", () => {

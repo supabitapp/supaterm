@@ -29,6 +29,7 @@ import {
   toSortableTimestamp,
   type ThreadSortInput,
 } from "@supaterm/client-runtime/state/thread-sort";
+import { ALL_SIDEBAR_SCOPE, isInSidebarScope, type SidebarScope } from "../sidebarProjectGrouping";
 import type { SidebarThreadSummary, Thread } from "../types";
 import { normalizeSearchText } from "../lib/utils";
 import { THREAD_STATUS_TEXT } from "@supaterm/client-runtime/state/thread-activity-announcement";
@@ -556,17 +557,12 @@ export function filterSidebarV2VisibleThreads<
   T extends Pick<SidebarThreadSummary, "archivedAt" | "environmentId" | "id" | "lineage"> & {
     projectId: string;
   },
->(
-  threads: readonly T[],
-  scopedProjectKeys: ReadonlySet<string> | null,
-  delegatedUnderParent: ReadonlySet<string>,
-): T[] {
+>(threads: readonly T[], scope: SidebarScope, delegatedUnderParent: ReadonlySet<string>): T[] {
   return threads.filter(
     (thread) =>
       thread.archivedAt === null &&
       !isSidebarHiddenThread(thread, delegatedUnderParent) &&
-      (scopedProjectKeys === null ||
-        scopedProjectKeys.has(`${thread.environmentId}:${thread.projectId}`)),
+      isInSidebarScope(scope, thread.environmentId, thread.projectId),
   );
 }
 
@@ -1160,7 +1156,7 @@ export function sortSidebarV2ProjectGroups<
 ): TProject[] {
   return sortLogicalProjectsForSidebar(
     projects,
-    filterSidebarV2VisibleThreads(threads, null, delegatedUnderParent),
+    filterSidebarV2VisibleThreads(threads, ALL_SIDEBAR_SCOPE, delegatedUnderParent),
     sortOrder,
   );
 }

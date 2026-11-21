@@ -126,26 +126,69 @@ export function resolveSidebarProjectScopeKeys(input: {
   ];
 }
 
+/** What the sidebar lists: one environment or all, and the chosen projects' checkouts or every project. */
+export interface SidebarScope {
+  readonly environmentId: EnvironmentId | null;
+  readonly memberKeys: ReadonlySet<string> | null;
+}
+
+export const ALL_SIDEBAR_SCOPE: SidebarScope = { environmentId: null, memberKeys: null };
+
+export function isInSidebarScope(
+  scope: SidebarScope,
+  environmentId: EnvironmentId,
+  projectId: string,
+): boolean {
+  return (
+    (scope.environmentId === null || scope.environmentId === environmentId) &&
+    (scope.memberKeys === null || scope.memberKeys.has(`${environmentId}:${projectId}`))
+  );
+}
+
+export function projectGroupsInEnvironment<
+  TGroup extends Pick<SidebarProjectSnapshot, "memberProjectRefs">,
+>(groups: ReadonlyArray<TGroup>, environmentId: EnvironmentId | null): ReadonlyArray<TGroup> {
+  return environmentId === null
+    ? groups
+    : groups.filter((group) =>
+        group.memberProjectRefs.some((ref) => ref.environmentId === environmentId),
+      );
+}
+
 /**
- * A multi-project scope's keys, the groups it shows, and every checkout they own.
- * An archived project reads as all projects, matching the filter menu.
+ * A scope's environment, its project keys, the groups it shows, and every checkout they own.
+ * An archived project, or one with no checkout in the chosen environment, reads as all
+ * projects, matching the filter menu. An environment that owns no project reads as all.
  */
 export function resolveSidebarProjectScope(input: {
   readonly groups: ReadonlyArray<SidebarProjectSnapshot>;
   readonly keys: ReadonlyArray<string>;
+  readonly environmentId?: EnvironmentId | null;
   readonly settings?: ProjectGroupingSettings;
   readonly canClearMissingScope?: boolean;
-}): {
+}): SidebarScope & {
   readonly keys: ReadonlyArray<string>;
   readonly groups: ReadonlyArray<SidebarProjectSnapshot>;
-  readonly memberKeys: ReadonlySet<string> | null;
 } {
-  const archivedKeys = new Set(
-    input.groups.filter((group) => group.archived).map((group) => group.projectKey),
+  const chosenEnvironmentGroups = projectGroupsInEnvironment(
+    input.groups,
+    input.environmentId ?? null,
   );
-  const keys = resolveSidebarProjectScopeKeys(input).filter((key) => !archivedKeys.has(key));
-  const groups = input.groups.filter((group) => keys.includes(group.projectKey));
+  const environmentId =
+    input.environmentId != null &&
+    (chosenEnvironmentGroups.length > 0 || !input.canClearMissingScope)
+      ? input.environmentId
+      : null;
+  const environmentGroups = environmentId === null ? input.groups : chosenEnvironmentGroups;
+  const archivedKeys = new Set(
+    environmentGroups.filter((group) => group.archived).map((group) => group.projectKey),
+  );
+  const keys = resolveSidebarProjectScopeKeys({ ...input, groups: environmentGroups }).filter(
+    (key) => !archivedKeys.has(key),
+  );
+  const groups = environmentGroups.filter((group) => keys.includes(group.projectKey));
   return {
+    environmentId,
     keys,
     groups,
     memberKeys:
