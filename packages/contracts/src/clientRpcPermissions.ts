@@ -11,8 +11,10 @@ import {
   AuthSourceControlWriteScope,
   AuthTerminalOperateScope,
   type AuthEnvironmentScope,
+  mcpClientScopes,
 } from "./auth.ts";
 import { ORCHESTRATION_V2_WS_METHODS } from "./orchestrationV2.ts";
+import { PeerLinkLinkPairingInput } from "./peerLink.ts";
 import { WS_METHODS } from "./rpc.ts";
 
 /** Incremental client enforcement; the server still authorizes every request. */
@@ -94,6 +96,7 @@ const isQuestionTimerCommand = Schema.is(
   Schema.Struct({ type: Schema.Literal("thread.user-input.auto-dismiss.pause") }),
 );
 const decodeStackedAction = Schema.decodeUnknownSync(GitRunStackedActionInput);
+const decodeLinkPairing = Schema.decodeUnknownSync(PeerLinkLinkPairingInput);
 
 export function clientRpcRequiredScopes(
   method: string,
@@ -114,6 +117,9 @@ export function clientRpcRequiredScopes(
     )
       return [AuthSourceControlWriteScope, AuthOrchestrationReadScope];
   }
+  // As pairing here, a code minted through a link never grants what the client lacks here.
+  if (method === WS_METHODS.peerLinksPairLink && input !== undefined)
+    return [AuthAccessWriteScope, ...mcpClientScopes(decodeLinkPairing(input).access)];
   return Object.hasOwn(CLIENT_GUARDED_RPC_SCOPES, method)
     ? [CLIENT_GUARDED_RPC_SCOPES[method as ClientGuardedRpcTag]]
     : [];

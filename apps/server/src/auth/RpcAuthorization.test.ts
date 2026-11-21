@@ -289,6 +289,70 @@ it.effect("pairs a client with a linked environment only for one that may hand o
   }).pipe(Effect.scoped),
 );
 
+it.effect("gets a link pairing code only at an access the client holds here", () =>
+  Effect.gen(function* () {
+    const group = WsRpcGroup.omit(
+      ...[...WsRpcGroup.requests.keys()].filter(
+        (
+          tag,
+        ): tag is Exclude<keyof typeof RPC_REQUIRED_SCOPES, typeof WS_METHODS.peerLinksPairLink> =>
+          tag !== WS_METHODS.peerLinksPairLink,
+      ),
+    );
+    let asked = 0;
+    const environmentId = EnvironmentId.make("environment-box");
+    const handlers = group.toLayerHandler(WS_METHODS.peerLinksPairLink, () =>
+      Effect.sync(() => {
+        asked++;
+        return {
+          type: "unsupported" as const,
+          reason: "link_access" as const,
+          environmentId,
+          label: "Box",
+          urls: [],
+        };
+      }),
+    );
+    const clientWith = (scopes: Parameters<typeof RpcAuthorization.layer>[0]) =>
+      RpcTest.makeClient(group).pipe(
+        Effect.provide(Layer.merge(handlers, RpcAuthorization.layer(scopes))),
+      );
+
+    // Managing access here is not running agents here, so it cannot hand a link that does.
+    const manager = yield* clientWith([AuthAccessWriteScope]);
+    expect(
+      yield* manager[WS_METHODS.peerLinksPairLink]({ environmentId, access: "full-access" }).pipe(
+        Effect.flip,
+      ),
+    ).toMatchObject({
+      _tag: "EnvironmentAuthorizationError",
+      requiredScope: AuthOrchestrationReadScope,
+    });
+    const reader = yield* clientWith([AuthAccessWriteScope, AuthOrchestrationReadScope]);
+    expect(
+      yield* reader[WS_METHODS.peerLinksPairLink]({ environmentId, access: "auto" }).pipe(
+        Effect.flip,
+      ),
+    ).toMatchObject({ requiredScope: AuthOrchestrationOperateScope });
+    expect(asked).toBe(0);
+
+    expect(
+      (yield* reader[WS_METHODS.peerLinksPairLink]({ environmentId, access: "read-only" })).type,
+    ).toBe("unsupported");
+    const owner = yield* clientWith([
+      AuthAccessWriteScope,
+      AuthOrchestrationReadScope,
+      AuthOrchestrationOperateScope,
+      AuthSettingsWriteScope,
+      AuthSourceControlWriteScope,
+    ]);
+    expect(
+      (yield* owner[WS_METHODS.peerLinksPairLink]({ environmentId, access: "full-access" })).type,
+    ).toBe("unsupported");
+    expect(asked).toBe(2);
+  }).pipe(Effect.scoped),
+);
+
 it.effect.each([WS_METHODS.subscribeVcsBranch, WS_METHODS.subscribeVcsStatus] as const)(
   "enforces read permission on stream %s",
   (method) =>

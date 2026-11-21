@@ -3,9 +3,6 @@ import {
   AuthAccessWriteScope,
   AuthMcpClientAccess,
   AuthOrchestrationOperateScope,
-  AuthOrchestrationReadScope,
-  AuthSettingsWriteScope,
-  AuthSourceControlWriteScope,
   AuthStandardClientScopes,
   type AuthAccessTokenResult,
   type AuthBrowserSessionResult,
@@ -18,6 +15,7 @@ import {
   type AuthSessionId,
   type AuthSessionState,
   authScopeResponse,
+  mcpClientScopes,
   type ServerAuthDescriptor,
   type ServerAuthSessionMethod,
   type AuthWebSocketTicketResult,
@@ -83,20 +81,6 @@ const MCP_CLIENT_SESSION_TTL = Duration.days(30);
 // A peer link's session moves back out to its full lifetime when a call finds it this far
 // short, so a used link never expires and a busy one writes at most once per step.
 const PEER_LINK_RENEWAL_STEP = Duration.days(1);
-
-export const mcpClientScopes = (
-  access: AuthMcpClientAccess,
-): ReadonlyArray<AuthEnvironmentScope> =>
-  access === "read-only"
-    ? [AuthOrchestrationReadScope]
-    : access === "full-access"
-      ? [
-          AuthOrchestrationReadScope,
-          AuthOrchestrationOperateScope,
-          AuthSettingsWriteScope,
-          AuthSourceControlWriteScope,
-        ]
-      : [AuthOrchestrationReadScope, AuthOrchestrationOperateScope];
 
 export interface McpClientSession {
   readonly sessionId: AuthSessionId;
