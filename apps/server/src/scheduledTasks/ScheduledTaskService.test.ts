@@ -578,7 +578,6 @@ it.effect("a paused one-time task run by hand before its time is kept", () =>
     const layer = ScheduledTaskService.layer.pipe(
       Layer.provide(
         Layer.mergeAll(
-          ManagedPolicy.layerTest(),
           Layer.mock(ThreadLaunchService.ThreadLaunchService)({}),
           Layer.mock(ThreadManagementService.ThreadManagementService)({
             sendToThread: (input) => Ref.set(sent, input.messageId).pipe(Effect.as({} as never)),
@@ -594,7 +593,6 @@ it.effect("a paused one-time task run by hand before its time is kept", () =>
                 Effect.as({ threadId: input.threadId, run, timedOut: false } as never),
               ),
           }),
-          Layer.mock(SecretRequests.SecretRequests)({}),
           Layer.mock(ManagedProjectFolders.ManagedProjectFolders)({
             namedProjectsRoot: "/projects",
             isScratchProject: () => Effect.succeed(false),
