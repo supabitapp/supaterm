@@ -4652,10 +4652,11 @@ describe("OrchestratorMcpService thread lookup", () => {
   const bareId = ThreadId.make("5d0b4a3e-8c1f-4a52-9d37-2f6c7e1b9a04");
   const launched = liveThreadShell(ThreadId.make(`mcp:${bareId}`));
   const deletedLaunched = { ...launched, deletedAt: DateTime.makeUnsafe("2026-10-05T00:00:00Z") };
+  const linksHint =
+    "Thread ids belong to one environment: for a thread on a linked one, find it with `supaterm_environment_links` and pass its `environmentId` to a tool that takes one.";
   const client: McpInvocationScope = {
     environmentId: EnvironmentId.make("environment:thread-lookup"),
     requestNamespace: "client:thread-lookup",
-    linkedEnvironments: false,
     thread: undefined,
     client: { sessionId: "thread-lookup", label: "Claude Code", access: "full-access" },
     capabilities: new Set(["orchestration"]),
@@ -4718,9 +4719,9 @@ describe("OrchestratorMcpService thread lookup", () => {
     Effect.gen(function* () {
       const { read, send, wait } = yield* failuresFor([]);
       assert.equal(read.code, "thread_not_found");
-      assert.equal(read.message, `Thread ${bareId} is no longer available.`);
+      assert.equal(read.message, `Thread ${bareId} is no longer available. ${linksHint}`);
       assert.equal(send.code, "thread_not_found");
-      assert.equal(send.message, `Thread ${bareId} was not found.`);
+      assert.equal(send.message, `Thread ${bareId} was not found. ${linksHint}`);
       assert.equal(wait.code, "thread_not_found");
       assert.equal(wait.message, send.message);
     }),
@@ -4729,8 +4730,8 @@ describe("OrchestratorMcpService thread lookup", () => {
   it.effect("does not name an mcp: thread that was deleted", () =>
     Effect.gen(function* () {
       const { read, send, wait } = yield* failuresFor([deletedLaunched]);
-      assert.equal(read.message, `Thread ${bareId} is no longer available.`);
-      assert.equal(send.message, `Thread ${bareId} was not found.`);
+      assert.equal(read.message, `Thread ${bareId} is no longer available. ${linksHint}`);
+      assert.equal(send.message, `Thread ${bareId} was not found. ${linksHint}`);
       assert.equal(wait.message, send.message);
     }),
   );

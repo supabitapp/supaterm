@@ -57,7 +57,6 @@ export const threadNotFound = Effect.fn("OrchestratorMcpService.threadNotFound")
       : yield* threads.getThreadShell(scope.thread.threadId).pipe(Effect.orElseSucceed(() => null));
   // A peer link's caller would be pointed at this machine's links, and a fenced one may not use them.
   const linksHint =
-    scope.linkedEnvironments === false ||
     scope.client?.linked === true ||
     fencingLinkOrigin({ scope, caller: caller ?? undefined }) !== undefined
       ? ""

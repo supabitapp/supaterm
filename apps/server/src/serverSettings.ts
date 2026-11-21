@@ -101,12 +101,18 @@ const foldProviderInstanceEnabledFlags = (settings: ServerSettings): ServerSetti
   };
 };
 
+/** Links have no switch here; the legacy field stays on so older clients keep their link UI. */
+const foldLegacyFlags = (settings: ServerSettings): ServerSettings => {
+  const folded = foldProviderInstanceEnabledFlags(settings);
+  return folded.linkedEnvironmentsEnabled ? folded : { ...folded, linkedEnvironmentsEnabled: true };
+};
+
 const normalizeServerSettings = (
   settings: ServerSettings,
 ): Effect.Effect<ServerSettings, ServerSettingsError> =>
   encodeServerSettings(settings).pipe(
     Effect.flatMap(decodeServerSettings),
-    Effect.map(foldProviderInstanceEnabledFlags),
+    Effect.map(foldLegacyFlags),
     Effect.mapError(
       (cause) =>
         new ServerSettingsError({
@@ -530,7 +536,7 @@ const make = Effect.gen(function* () {
             ),
           );
 
-    const loaded = foldProviderInstanceEnabledFlags(settings);
+    const loaded = foldLegacyFlags(settings);
     const folded = settingsFileTrusted
       ? foldLegacyProjectSettings(loaded, legacyProjectRows)
       : loaded;

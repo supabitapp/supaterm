@@ -1361,8 +1361,8 @@ export const ServerSettings = Schema.Struct({
   ),
   reviewGuidesEnabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   /**
-   * Beta: links to the user's other machines, both ways. Off refuses new links, calls over links
-   * and tasks on another machine; tasks already running there finish.
+   * Legacy: older servers gated links behind this switch and report it here. A current server
+   * always reports it on and ignores patches to it.
    */
   linkedEnvironmentsEnabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   reviewGuideModelSelection: Schema.NullOr(ModelSelection).pipe(

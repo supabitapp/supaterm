@@ -370,19 +370,25 @@ Link two machines, such as your laptop and a VPS, and agents on one can work on
 the other: launch, message, wait on and stop its threads, answer their
 questions, and manage its queues, projects and scheduled tasks.
 
-Linked environments is a beta. Turn it on for both machines in **Settings →
-Environments → Linked environments**. While it is off on either machine, agents
-start nothing over a link between them. A task already running on the other
-machine still finishes, and if that machine has it off, its result arrives once
-it is back on.
+Each link goes one way. Linking your laptop to a VPS lets agents on the laptop
+work on the VPS; the VPS's agents cannot reach the laptop unless you also link
+from the VPS. The pairing code the link uses is the VPS's consent, so only
+someone who can create pairing links there can set one up.
 
-On the machine you will work from, choose **Link** in that section and pick the
-other machine or enter its address. The list holds the machines this app knows.
-A machine paired through the Encrypted Relay links through the relay, so it
-needs no address of its own. If this app has an address for that machine and is
-connected to it with a session that manages access there, it makes the pairing
-code itself; otherwise paste one from that machine's **Settings → Sharing &
-access**. An address you type always needs a pasted code. From a terminal, use
+The quickest way, on web and desktop, is on the machine being worked on: in
+**Settings → Environments**, open that saved environment's **Permissions** and
+pick what agents on each of your other connected machines may do there, or
+**Off** to forget that link. This app makes the pairing code itself when it is
+connected to that machine with a session that manages access there. Picking
+another level links again with a new code; the old session stays in that
+machine's **Sharing & access** until you revoke it there.
+
+The **Linked environments** section lists each machine's links. To link to a
+machine this app is not connected to, choose **Link** on the machine you will
+work from and pick the other machine or enter its address. A machine paired
+through the Encrypted Relay links through the relay, so it needs no address of
+its own. An address you type always needs a pasted code from that machine's
+**Settings → Sharing & access**. From a terminal, use
 `supaterm environment link <address> --pairing-code <code> --access <mode>`.
 
 You can also ask an agent to link a machine by name, such as "delegate this to

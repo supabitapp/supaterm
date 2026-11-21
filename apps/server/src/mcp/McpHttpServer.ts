@@ -26,7 +26,6 @@ import {
 import packageJson from "../../package.json" with { type: "json" };
 import { parseBearerToken } from "../auth/EnvironmentAuth.ts";
 import * as ServerConfig from "../config.ts";
-import * as ServerSettings from "../serverSettings.ts";
 import * as DeviceService from "../device/DeviceService.ts";
 import * as HtmlRender from "../htmlRender/HtmlRender.ts";
 import * as ThreadCommandExecutor from "../orchestration-v2/ThreadCommandExecutor.ts";
@@ -219,24 +218,9 @@ const withSenderThread = (
     : { ...invocation, client: { ...invocation.client, senderThread: decoded.value } };
 };
 
-// The Linked environments beta is off here: links wait until it is on again.
-const linkedEnvironmentsOff = HttpServerResponse.jsonUnsafe(
-  {
-    error: "linked_environments_off",
-    message:
-      "Linked environments is off on this machine. Turn it on in its Settings → Environments.",
-  },
-  { status: 403, headers: { "cache-control": "no-store" } },
-);
-
 const makeMcpAuthMiddleware = Effect.gen(function* () {
   const registry = yield* McpSessionRegistry.McpSessionRegistry;
   const clients = yield* Effect.serviceOption(McpClientAuthenticator);
-  const serverSettings = yield* ServerSettings.ServerSettingsService;
-  const linksEnabled = serverSettings.getSettings.pipe(
-    Effect.map((settings) => settings.linkedEnvironmentsEnabled),
-    Effect.orElseSucceed(() => false),
-  );
   const authenticateRequest = Effect.fn("McpHttpServer.authenticateRequest")(function* (
     request: HttpServerRequest.HttpServerRequest,
   ) {
@@ -266,10 +250,8 @@ const makeMcpAuthMiddleware = Effect.gen(function* () {
     }
     const limited = withModeLimit(withSenderThread(invocation, request), request);
     if (limited === undefined) return invalidModeLimit;
-    const linkedEnvironments = yield* linksEnabled;
-    if (limited.client?.linked === true && !linkedEnvironments) return linkedEnvironmentsOff;
     const origin = Option.getOrUndefined(Option.map(requestUrl(request), (url) => url.origin));
-    return { ...limited, linkedEnvironments, origin };
+    return { ...limited, origin };
   });
   // Untraced: a span here would wrap the tool call; the HTTP server span already covers it.
   return Effect.fnUntraced(function* (httpEffect) {

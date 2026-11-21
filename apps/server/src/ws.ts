@@ -2499,7 +2499,11 @@ export const layerWsRpc = (
           ),
         [WS_METHODS.serverUpdateSettings]:
           /* Request instrumentation already owns the span; keep this helper in that context. */
-          Effect.fnUntraced(function* ({ patch, providerInstanceMutation }) {
+          Effect.fnUntraced(function* ({
+            // A legacy switch a current server always reports on; no client sets it.
+            patch: { linkedEnvironmentsEnabled: _reportedOn, ...patch },
+            providerInstanceMutation,
+          }) {
             const deviceHosts = patch.deviceHosts
               ? yield* remoteSshDeviceHosts(patch.deviceHosts).pipe(
                   Effect.provide(deviceHostContext),

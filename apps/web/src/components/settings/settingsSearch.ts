@@ -1092,7 +1092,7 @@ export const SETTINGS_SEARCH_ITEMS = [
     to: "/settings/connections",
     targetId: "linked-environments",
     searchTerms: [
-      "labs beta link peer another machine vps agents work there delegate handoff pairing code",
+      "link peer another machine vps agents work there delegate handoff pairing code permissions",
     ],
   },
   {

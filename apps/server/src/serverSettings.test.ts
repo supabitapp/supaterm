@@ -919,7 +919,7 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("server settings"
     }).pipe(Effect.provide(layerServerSettings())),
   );
 
-  it.effect("folds a legacy in-config enabled flag into the envelope on load", () =>
+  it.effect("folds legacy enabled flags on load", () =>
     Effect.gen(function* () {
       const serverConfig = yield* ServerConfig.ServerConfig;
       const fileSystem = yield* FileSystem.FileSystem;
@@ -927,10 +927,11 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("server settings"
 
       yield* fileSystem.writeFileString(
         serverConfig.settingsPath,
-        '{"providerInstances":{"grok":{"driver":"grok","enabled":true,"config":{"enabled":false}},"codex_work":{"driver":"codex","config":{"enabled":true,"homePath":"~/.codex"}},"cursor":{"driver":"cursor","config":{"enabled":"nope"}}}}',
+        '{"linkedEnvironmentsEnabled":false,"providerInstances":{"grok":{"driver":"grok","enabled":true,"config":{"enabled":false}},"codex_work":{"driver":"codex","config":{"enabled":true,"homePath":"~/.codex"}},"cursor":{"driver":"cursor","config":{"enabled":"nope"}}}}',
       );
 
       const settings = yield* serverSettings.getSettings;
+      assert.isTrue(settings.linkedEnvironmentsEnabled);
 
       const grokId = ProviderInstanceId.make("grok");
       const codexWorkId = ProviderInstanceId.make("codex_work");

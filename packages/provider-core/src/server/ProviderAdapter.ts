@@ -666,8 +666,6 @@ export interface ProviderAdapterV2SessionRuntime {
   readonly driver: ProviderDriverKind;
   readonly providerSessionId: ProviderSessionId;
   readonly providerSession: OrchestrationV2ProviderSession;
-  /** False keeps conversations alive when the provider cannot restore them after a restart. */
-  readonly canResumeAfterRestart?: boolean;
   readonly events: Stream.Stream<ProviderAdapterV2Event, ProviderAdapterV2Error>;
   /**
    * Manager-owned runtimes expose a synchronous subscription so concurrent

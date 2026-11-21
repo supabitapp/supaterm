@@ -1,7 +1,7 @@
 import {
   linkableMachines,
   linkedEnvironmentNames,
-  offersLinkedEnvironments,
+  supportsPeerLinks,
 } from "@supaterm/client-runtime/link-request";
 import { createPeerLinkEnvironmentAtoms } from "@supaterm/client-runtime/state/peerLinks";
 import type { EnvironmentId } from "@supaterm/contracts";
@@ -22,7 +22,7 @@ export function useLinkedEnvironments(
   environmentId: EnvironmentId | null,
 ): ReadonlyMap<EnvironmentId, string> {
   const { environments } = useEnvironments();
-  const offered = offersLinkedEnvironments(
+  const offered = supportsPeerLinks(
     environments.find((environment) => environment.environmentId === environmentId)?.serverConfig,
   );
   const links = useEnvironmentQuery(
