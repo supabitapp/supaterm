@@ -381,6 +381,8 @@ interface ServerTab {
   desktopViewportChanges: number;
   /** Settles at the desktop page's next main-frame resize. */
   desktopResize: PromiseWithResolvers<void>;
+  /** The last resize failed undrawn, so the tab's setting is a size the page never took. */
+  desktopResizeUndrawn: boolean;
   loading: boolean;
   loadError: PreviewAutomationLoadError | undefined;
   /** The renderer crash this page died of, or the one the page it replaced died of. */
@@ -1212,6 +1214,7 @@ const make = Effect.gen(function* () {
       desktopViewportStale: true,
       desktopViewportChanges: 0,
       desktopResize: Promise.withResolvers<void>(),
+      desktopResizeUndrawn: false,
       loading: false,
       loadError: undefined,
       // The page a crash left behind is blank; the session still names what crashed.
@@ -2857,7 +2860,8 @@ const make = Effect.gen(function* () {
             viewport: tab.page.viewportSize() ?? UNATTACHED_FILL_VIEWPORT,
           };
         }
-        const changed = from?.width !== to?.width || from?.height !== to?.height;
+        const changed =
+          tab.desktopResizeUndrawn || from?.width !== to?.width || from?.height !== to?.height;
         const remainingMs = () => Math.max(0, deadlineMs - performance.now());
         const within = <A>(promise: Promise<A>, ms: number) =>
           runPromise(
@@ -2869,6 +2873,7 @@ const make = Effect.gen(function* () {
         // The desktop draws the new size after the session update; its page resize says it has.
         // Half the time left keeps room for the read, which runs even if nothing was drawn,
         // because a page can keep another size than the one asked for.
+        let undrawn = false;
         if (changed) {
           // Electron resizes no hidden guest it does not paint; a pending capture makes the desktop paint it.
           const painting = new AbortController();
@@ -2878,13 +2883,30 @@ const make = Effect.gen(function* () {
             }
           })().catch(constVoid);
           try {
-            await within(drawn, Math.min(DESKTOP_RESIZE_WAIT_MS, remainingMs() / 2));
+            undrawn =
+              (await within(
+                drawn.then(() => true),
+                Math.min(DESKTOP_RESIZE_WAIT_MS, remainingMs() / 2),
+              )) === null;
           } finally {
             painting.abort();
           }
         }
         const changes = tab.desktopViewportChanges;
         const measured = await within(measureDesktopViewport(tab), remainingMs());
+        // A window that does not paint, such as a minimized one, never draws the new size.
+        // Fill asks for no size, so only a fixed one can be missed.
+        tab.desktopResizeUndrawn =
+          undrawn &&
+          to !== null &&
+          (measured?.width !== to.width || measured?.height !== to.height);
+        if (tab.desktopResizeUndrawn) {
+          throw new ServerBrowserPage.ServerBrowserOperationError({
+            tag: "PreviewAutomationExecutionError",
+            message:
+              "The desktop did not draw the page at the new size. Show or restore the Supaterm window and try again.",
+          });
+        }
         // Only a read after the draw, with no page resize or load during it, measures this resize.
         return {
           tabId: tab.tabId,
