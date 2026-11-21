@@ -622,7 +622,9 @@ describe("AssetAccess", () => {
       Effect.gen(function* () {
         const fs = yield* FileSystem.FileSystem;
         const path = yield* Path.Path;
-        const workspaceRoot = yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-media-gitbash-" });
+        const workspaceRoot = yield* fs.makeTempDirectoryScoped({
+          prefix: "supaterm-media-gitbash-",
+        });
         const canonicalFile = path.join(yield* fs.realPath(workspaceRoot), "shot.png");
         yield* fs.writeFile(canonicalFile, screenshotPng);
         const gitBashPath = `/${canonicalFile[0]!.toLowerCase()}${canonicalFile.slice(2).replaceAll("\\", "/")}`;

@@ -657,7 +657,9 @@ it.effect("a launch that omits its workspace follows the new-threads-in-a-worktr
   Effect.gen(function* () {
     const fileSystem = yield* FileSystem.FileSystem;
     for (const source of ["setting", "supaterm.json"] as const) {
-      const repo = yield* fileSystem.makeTempDirectoryScoped({ prefix: "supaterm-launch-env-mode-" });
+      const repo = yield* fileSystem.makeTempDirectoryScoped({
+        prefix: "supaterm-launch-env-mode-",
+      });
       const launched: Array<ThreadLaunch.ThreadLaunchInput> = [];
       const { projectId, dependencies } = clientLaunchHarness({
         runtimeModeCeiling: "auto",
