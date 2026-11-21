@@ -161,9 +161,9 @@ export function ProviderModelsSection({
   );
   const listedModels = [...models, ...unreportedFavoriteModels];
   const placedHiddenSet = new Set(
-    listedModels
-      .filter((model) => heldPlacements.get(model.slug) ?? hiddenModelSet.has(model.slug))
-      .map((model) => model.slug),
+    listedModels.flatMap((model) =>
+      (heldPlacements.get(model.slug) ?? hiddenModelSet.has(model.slug)) ? [model.slug] : [],
+    ),
   );
   const displayModels = groupModelsForDisplay(listedModels, {
     favoriteModels: favoriteModelSet,
