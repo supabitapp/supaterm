@@ -592,7 +592,7 @@ it.layer(layerCodexTextGenerationTest)("CodexTextGeneration", (it) => {
 
   it.effect("identifies codex exec as Supaterm", () =>
     withFakeCodexEnv(
-      { output: JSON.stringify({ title: "Live title" }), requireOriginator: "Supaterm" },
+      { output: JSON.stringify({ title: "Live title" }), requireOriginator: "supaterm" },
       (textGeneration) =>
         Effect.gen(function* () {
           const result = yield* textGeneration.generateThreadTitle({
