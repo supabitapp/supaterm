@@ -22,6 +22,7 @@ import { useId, useRef, useState } from "react";
 import { requestConfirmDialog } from "~/confirmDialog";
 import { mintPairingCodeOn } from "~/state/peerPairingCode";
 import { peerLinkEnvironment, useLinkableMachines, usePeerLinkHosts } from "~/state/peerLinks";
+import { useEnvironmentIdentities } from "~/state/environments";
 import { useEnvironmentQuery } from "~/state/query";
 import { useEnvironmentScope, usePreparedConnection } from "~/state/session";
 import { useAtomCommand } from "~/state/use-atom-command";
@@ -196,13 +197,16 @@ function LinkedEnvironmentRow({
   readonly link: PeerLinkSummary;
 }) {
   const nowMinute = useNowMinute();
+  const label =
+    useEnvironmentIdentities().find((known) => known.environmentId === link.environmentId)?.label ??
+    link.label;
   const health = peerLinkHealth(link, DateTime.makeUnsafe(nowMinute));
   const unlink = useAtomCommand(peerLinkEnvironment.unlink, { label: UNLINK_COMMAND_LABEL });
   const canUnlink = useAtomValue(peerLinkEnvironment.unlink.permissionAtom(environmentId));
   const [busy, setBusy] = useState(false);
   const forget = async () => {
     const confirmed = await (requestConfirmDialog(
-      `Forget ${link.label}? Agents here stop working there. Revoke "Supaterm · …" in ${link.label}'s Sharing & access to end the session there too.`,
+      `Forget ${label}? Agents here stop working there. Revoke "Supaterm · …" in ${label}'s Sharing & access to end the session there too.`,
       { variant: "destructive" },
     ) ?? Promise.resolve(false));
     if (!confirmed) return;
@@ -242,7 +246,7 @@ function LinkedEnvironmentRow({
               pingClassName={null}
             />
             <ArrowRightIcon aria-hidden className="size-3.5 text-muted-foreground" />
-            <h3 className="text-sm font-medium text-foreground">{link.label}</h3>
+            <h3 className="text-sm font-medium text-foreground">{label}</h3>
           </div>
           <p className="text-xs text-muted-foreground">
             {accessConfig[link.access].label} · {status}

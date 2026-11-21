@@ -164,6 +164,9 @@ function LinkedEnvironmentRow(props: {
   readonly health: PeerLinkHealth;
 }) {
   const { environmentId, link, health } = props;
+  const label =
+    useEnvironments().environments.find((known) => known.environmentId === link.environmentId)
+      ?.label ?? link.label;
   const unlink = useAtomCommand(peerLinkEnvironment.unlink, { label: "unlink environment" });
   const canUnlink = useAtomValue(peerLinkEnvironment.unlink.permissionAtom(environmentId));
   const [busy, setBusy] = useState(false);
@@ -177,7 +180,7 @@ function LinkedEnvironmentRow(props: {
     <View className="flex-row items-center gap-3 border-t border-border-subtle py-4 pr-4 pl-12">
       <View className="min-w-0 flex-1 gap-0.5">
         <Text className="text-base font-supaterm-bold text-foreground" numberOfLines={1}>
-          {link.label}
+          {label}
         </Text>
         <Text className="text-xs text-foreground-muted">
           Agents here work there · {linkAccessLabel(link.access)}
@@ -196,14 +199,14 @@ function LinkedEnvironmentRow(props: {
       {canUnlink ? (
         <Button
           label="Forget"
-          accessibilityLabel={`Forget ${link.label}`}
+          accessibilityLabel={`Forget ${label}`}
           tone="danger"
           size="compact"
           loading={busy}
           onPress={() =>
             Dialog.confirm({
-              title: `Forget ${link.label}?`,
-              message: `Agents here stop working there. Revoke "Supaterm · …" in ${link.label}'s Sharing & access to end the session there too.`,
+              title: `Forget ${label}?`,
+              message: `Agents here stop working there. Revoke "Supaterm · …" in ${label}'s Sharing & access to end the session there too.`,
               confirmText: "Forget",
               destructive: true,
               onConfirm: () => void forget(),
