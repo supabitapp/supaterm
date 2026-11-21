@@ -338,8 +338,15 @@ export function collectLimitNotices(presentations: LimitPresentations): readonly
   for (const presentation of presentations.values()) {
     const environmentLabel = presentation.entry.target.label;
     for (const provider of providersWithLimits(presentation.serverConfig?.providers ?? [])) {
-      if (provider.usageLimits.unavailable?.reason === "unsupported") continue;
-      const notice = limitsNotice(provider.usageLimits);
+      const limits = provider.usageLimits;
+      // A bare unsupported means the account has no limits; an external usage link shows its message.
+      if (
+        limits.unavailable?.reason === "unsupported" &&
+        (!limits.unavailable.message || limits.externalUsage)
+      ) {
+        continue;
+      }
+      const notice = limitsNotice(limits);
       const name = provider.displayName?.trim() || String(provider.driver);
       if (notice) notices.add(`${label(environmentLabel, name)}: ${notice}`);
     }
