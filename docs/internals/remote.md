@@ -71,7 +71,11 @@ Unlinking on the linking side only forgets the token.
   there can mint one, and the code carries the access the link gets. A
   separate switch on both sides only made users enable a machine they never
   meant to send work from. Agents always see the link tools, so an agent can
-  ask to link a machine the user names before any link exists.
+  ask to link a machine the user names before any link exists. The old
+  switch's `linkedEnvironmentsEnabled` remains only for older servers and
+  clients: where it is not on, the first start ends every link on both sides
+  once, so an upgrade never resumes links paused by leaving it off, then turns
+  it on for good.
 - **A tool runs in a linked environment when its parameters take
   `OrchestratorMcpEnvironmentTarget`** as `environmentId`.
   [`McpToolAccess.toLayer`](../../apps/server/src/mcp/McpToolAccess.ts) sends

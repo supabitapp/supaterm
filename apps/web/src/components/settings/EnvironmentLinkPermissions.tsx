@@ -1,5 +1,9 @@
 import { useAtomValue } from "@effect/atom-react";
-import { type LinkableMachine, linkableMachine } from "@supaterm/client-runtime/link-request";
+import {
+  type LinkableMachine,
+  linkableMachine,
+  supportsPeerLinks,
+} from "@supaterm/client-runtime/link-request";
 import {
   isAtomCommandInterrupted,
   squashAtomCommandFailure,
@@ -34,7 +38,7 @@ export function EnvironmentLinkPermissions({
   const sources = usePeerLinkHosts().filter(
     (source) => source.environmentId !== target.environmentId,
   );
-  if (target.serverConfig?.environment.capabilities.peerLinks !== true || sources.length === 0) {
+  if (!supportsPeerLinks(target.serverConfig) || sources.length === 0) {
     return null;
   }
   const machine = linkableMachine(target);
@@ -117,7 +121,7 @@ function SourceLinkRow({
       next === LINK_OFF
         ? `Stop agents on ${source.label} from working on ${target.label}? ${source.label} forgets the link. Revoke "Supaterm · ${source.label}" in ${target.label}'s Sharing & access to end the session there too.`
         : row.linked
-          ? `Let agents on ${source.label} work on ${target.label} at ${accessConfig[next].label}? ${source.label} links again with a new code, and a task starting over the old link right now may need starting again.`
+          ? `Let agents on ${source.label} work on ${target.label} at ${accessConfig[next].label}? ${source.label} links again with a new code. Its old session stays in ${target.label}'s Sharing & access until you revoke it there, and a task starting over the old link right now may need starting again.`
           : null;
     if (
       confirmation !== null &&
@@ -143,7 +147,7 @@ function SourceLinkRow({
           <Button
             size="xs"
             variant="outline"
-            disabled={busy}
+            disabled={busy || links.isPending}
             onClick={() => void linkAt(relinkAccess)}
           >
             Link again
@@ -151,7 +155,7 @@ function SourceLinkRow({
         )}
         <Select
           value={row.value ?? LINK_OFF}
-          disabled={busy || row.value === null}
+          disabled={busy || links.isPending || row.value === null}
           onValueChange={(next) => {
             if (next !== null) void choose(next as LinkChoice);
           }}

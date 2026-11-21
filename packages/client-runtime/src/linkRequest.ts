@@ -18,10 +18,14 @@ import { connectionRouteKind, connectionRoutes, routeHttpBaseUrl } from "./conne
 
 export type LinkRequestItem = Extract<OrchestrationV2TurnItem, { readonly type: "link_request" }>;
 
-/** Whether an environment supports links to the user's other machines. */
+/**
+ * Whether an environment supports links to the user's other machines. Older servers also gate
+ * them behind a switch; current ones always report it on.
+ */
 export const supportsPeerLinks = (
-  config: Pick<ServerConfig, "environment"> | null | undefined,
-): boolean => config?.environment.capabilities.peerLinks === true;
+  config: Pick<ServerConfig, "environment" | "settings"> | null | undefined,
+): boolean =>
+  config?.environment.capabilities.peerLinks === true && config.settings.linkedEnvironmentsEnabled;
 
 /**
  * The machines an environment's agents can work on, by name: its links that have not

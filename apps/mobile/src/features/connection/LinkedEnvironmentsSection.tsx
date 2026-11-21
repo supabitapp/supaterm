@@ -1,6 +1,6 @@
 import { RegistryContext, useAtomValue } from "@effect/atom-react";
 import { useFocusEffect } from "@react-navigation/native";
-import { linkLabels } from "@supaterm/client-runtime/link-request";
+import { linkLabels, supportsPeerLinks } from "@supaterm/client-runtime/link-request";
 import {
   incomingLinkNames,
   peerLinkHealth,
@@ -44,7 +44,7 @@ export function LinkedEnvironmentsSections() {
       environments.filter(
         (environment) =>
           environment.connection.phase === "connected" &&
-          environment.serverConfig?.environment.capabilities.peerLinks === true,
+          supportsPeerLinks(environment.serverConfig),
       ),
     [environments],
   );
