@@ -120,6 +120,7 @@ export function buildTraitsTriggerLabel(input: {
 }): string {
   let speedFallbackLabel: string | null = null;
   const labels: Array<string> = [];
+  const singleOptionLabels: Array<string> = [];
   for (const descriptor of input.descriptors) {
     if (descriptor.id === "ultracode" && descriptor.type === "boolean") {
       if (descriptor.currentValue === true) labels.push(descriptor.label);
@@ -146,9 +147,11 @@ export function buildTraitsTriggerLabel(input: {
               input.reportedModelSelection,
             ) ?? (descriptor.id === "thinking" ? descriptor.label : null));
     if (typeof label === "string" && label.length > 0) {
-      labels.push(label);
+      const singleOption = descriptor.type === "select" && descriptor.options.length === 1;
+      (singleOption ? singleOptionLabels : labels).push(label);
     }
   }
+  if (labels.length === 0) labels.push(...singleOptionLabels);
 
   // Only fall back to text when speed is genuinely the sole trait. Keying off an
   // empty label list alone would also catch descriptors that resolved to no

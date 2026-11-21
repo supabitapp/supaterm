@@ -99,6 +99,14 @@ describe("buildTraitsTriggerLabel", () => {
     expect(label([serviceTierDescriptor("ultrafast")])).toBe("Ultrafast");
   });
 
+  it("names single-option selects only when no other trait has a label", () => {
+    const fixed = (id: string, label: string) => selectDescriptor(id, [{ id, label }], id);
+    const cyberAccess = fixed("standard", "Standard");
+    expect(label([EFFORT, cyberAccess])).toBe("High");
+    expect(label([fixed("medium", "Medium"), cyberAccess])).toBe("Medium · Standard");
+    expect(label([fixed("high", "High"), serviceTierDescriptor("default")])).toBe("High");
+  });
+
   it("keeps non-fastMode booleans as text labels", () => {
     const thinking: Extract<ProviderOptionDescriptor, { type: "boolean" }> = {
       id: "thinking",
