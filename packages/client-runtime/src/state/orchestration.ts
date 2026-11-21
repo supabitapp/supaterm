@@ -272,6 +272,12 @@ export function createOrchestrationEnvironmentAtoms<R, E>(
   };
 }
 
+type SuggestionLatestRun = {
+  readonly runId: RunId;
+  readonly status: OrchestrationV2RunStatus;
+  readonly startedAt?: string | null;
+};
+
 /**
  * The suggestion while the run that produced it is the thread's latest completed run. A message
  * promoted to Steer leaves its queued run cancelled before it started, still the latest run, so the
@@ -280,20 +286,19 @@ export function createOrchestrationEnvironmentAtoms<R, E>(
  */
 export function offeredPromptSuggestion(input: {
   readonly suggestion: OrchestrationV2PromptSuggestion | undefined;
-  readonly latestRun:
-    | {
-        readonly runId: RunId;
-        readonly status: OrchestrationV2RunStatus;
-        readonly startedAt?: string | null;
-      }
-    | null
-    | undefined;
+  readonly latestRun: SuggestionLatestRun | null | undefined;
   readonly runs?: ReadonlyArray<OrchestrationV2Run>;
 }): NonNullable<OrchestrationV2PromptSuggestion> | null {
   const { suggestion, latestRun, runs = [] } = input;
   if (!suggestion || !latestRun) return null;
-  if (latestRun.status === "completed")
-    return latestRun.runId === suggestion.runId ? suggestion : null;
+  return answeredRunId(latestRun, runs) === suggestion.runId ? suggestion : null;
+}
+
+function answeredRunId(
+  latestRun: SuggestionLatestRun,
+  runs: ReadonlyArray<OrchestrationV2Run>,
+): RunId | null {
+  if (latestRun.status === "completed") return latestRun.runId;
   const steered =
     latestRun.status === "cancelled" &&
     latestRun.startedAt === null &&
@@ -302,5 +307,5 @@ export function offeredPromptSuggestion(input: {
     );
   if (!steered) return null;
   const executed = latestExecutedRun(runs);
-  return executed?.status === "completed" && executed.id === suggestion.runId ? suggestion : null;
+  return executed?.status === "completed" ? executed.id : null;
 }
