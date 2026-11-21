@@ -1424,7 +1424,7 @@ export default function FilePreviewPanel({
       ? file.data.contents
       : null;
   const { copyToClipboard, isCopied } = useCopyToClipboard({
-    target: namedClipboardTarget(previewPath ?? ""),
+    target: previewPath ?? "file",
     onError: (error) =>
       toastManager.add({
         type: "error",
