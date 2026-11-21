@@ -40,7 +40,6 @@ import { canonicalRelayAddress } from "@supaterm/shared/relay/protocol";
 import * as ServerSecretStore from "../auth/ServerSecretStore.ts";
 import * as ServerEnvironment from "../environment/ServerEnvironment.ts";
 import * as RelayCompanion from "../relay/RelayCompanion.ts";
-import * as ServerSettings from "../serverSettings.ts";
 
 const PeerHttpApi = HttpApi.make(EnvironmentHttpApi.identifier)
   .add(EnvironmentHttpApi.groups.metadata)
@@ -85,9 +84,6 @@ export interface ResolvedPeerLink {
   readonly token: string;
 }
 
-export const LINKED_ENVIRONMENTS_OFF =
-  "Linked environments is off on this machine. Turn it on in Settings → Environments.";
-
 /** One owner holds every link's relay tunnel, so a tunnel outlives the client that asked for the link. */
 const RELAY_LEASE_OWNER = "peer-links";
 
@@ -111,8 +107,6 @@ const isRelayAddress = (address: string) => relayAddressOf(address) !== null;
 export class PeerLinks extends Context.Service<
   PeerLinks,
   {
-    /** Whether the Linked environments beta (Settings → Environments) is on here. */
-    readonly enabled: Effect.Effect<boolean>;
     readonly link: (input: PeerLinkCreateInput) => Effect.Effect<PeerLink, PeerLinkError>;
     readonly list: Effect.Effect<ReadonlyArray<PeerLinkSummary>, PeerLinkError>;
     /** The stored link, without asking the peer whether it answers. */
@@ -246,13 +240,8 @@ const make = Effect.gen(function* () {
   const digest = yield* Digest.Digest;
   const httpClient = yield* HttpClient.HttpClient;
   const environment = yield* ServerEnvironment.ServerEnvironment;
-  const serverSettings = yield* ServerSettings.ServerSettingsService;
   const isOwnLoopback = yield* LoopbackHost;
   const relay = yield* RelayCompanion.RelayCompanion;
-  const enabled = serverSettings.getSettings.pipe(
-    Effect.map((settings) => settings.linkedEnvironmentsEnabled),
-    Effect.orElseSucceed(() => false),
-  );
 
   /** A fresh name for one link's token; the row records it. */
   const newSecretName = random.randomBytes(16).pipe(
@@ -659,9 +648,6 @@ const make = Effect.gen(function* () {
   });
 
   const link: PeerLinks["Service"]["link"] = Effect.fn("PeerLinks.link")(function* (input) {
-    if (!(yield* enabled)) {
-      return yield* new PeerLinkError({ reason: "disabled", message: LINKED_ENVIRONMENTS_OFF });
-    }
     const urls = [input.url, ...(input.alternateUrls ?? [])];
     // A tunnel opened for an address that never became a link has no one to close it.
     return yield* linkAt(input, urls).pipe(
@@ -816,7 +802,6 @@ const make = Effect.gen(function* () {
     );
 
   return PeerLinks.of({
-    enabled,
     link,
     list,
     get,

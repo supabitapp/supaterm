@@ -331,8 +331,7 @@ const EnvironmentLinksTool = Tool.make("supaterm_environment_links", {
   .annotate(Tool.Title, "List linked environments")
   .annotate(Tool.Readonly, true)
   .annotate(Tool.Destructive, false)
-  .annotate(Tool.Idempotent, true)
-  .annotate(McpSchema.EnabledWhen, McpInvocationContext.hiddenWhileLinksOff);
+  .annotate(Tool.Idempotent, true);
 
 const EnvironmentLinkTool = Tool.make("supaterm_environment_link", {
   description:
@@ -345,8 +344,7 @@ const EnvironmentLinkTool = Tool.make("supaterm_environment_link", {
 })
   .annotate(Tool.Title, "Link another environment")
   .annotate(Tool.Destructive, false)
-  .annotate(Tool.OpenWorld, true)
-  .annotate(McpSchema.EnabledWhen, McpInvocationContext.hiddenWhileLinksOff);
+  .annotate(Tool.OpenWorld, true);
 
 const EnvironmentUnlinkTool = Tool.make("supaterm_environment_unlink", {
   description:
@@ -359,8 +357,7 @@ const EnvironmentUnlinkTool = Tool.make("supaterm_environment_unlink", {
 })
   .annotate(Tool.Title, "Forget a linked environment")
   .annotate(Tool.Destructive, true)
-  .annotate(Tool.Idempotent, true)
-  .annotate(McpSchema.EnabledWhen, McpInvocationContext.hiddenWhileLinksOff);
+  .annotate(Tool.Idempotent, true);
 
 export const OrchestratorToolkit = Toolkit.make(
   OrchestratorCapabilitiesTool,

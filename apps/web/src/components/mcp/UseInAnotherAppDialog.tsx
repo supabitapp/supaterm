@@ -1,5 +1,5 @@
 import { environmentMcpUrl } from "@supaterm/client-runtime/connection";
-import { offersLinkedEnvironments } from "@supaterm/client-runtime/link-request";
+import { supportsPeerLinks } from "@supaterm/client-runtime/link-request";
 import {
   isAtomCommandInterrupted,
   squashAtomCommandFailure,
@@ -167,7 +167,7 @@ function LinkedLine({
   readonly environment: EnvironmentPresentation;
   readonly access: AuthMcpClientAccess;
 }) {
-  const offered = offersLinkedEnvironments(environment.serverConfig);
+  const offered = supportsPeerLinks(environment.serverConfig);
   const links = useEnvironmentQuery(
     offered
       ? peerLinkEnvironment.list({ environmentId: environment.environmentId, input: {} })

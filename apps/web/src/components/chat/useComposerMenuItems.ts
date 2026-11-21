@@ -39,7 +39,7 @@ import { searchProviderSkills } from "../../providerSkillSearch";
 import { useAtomValue } from "@effect/atom-react";
 import { useThreadShells } from "~/state/entities";
 import { useEnvironmentIdentities, useEnvironmentMachines } from "~/state/environments";
-import { offersLinkedEnvironmentsAtom } from "~/state/peerLinks";
+import { supportsPeerLinksAtom } from "~/state/peerLinks";
 import {
   pullRequestEnvironment,
   usePullRequestList,
@@ -150,7 +150,7 @@ export function useComposerMenuItems({
   // The user's machines feed `@` machine matches; the catalog summary is cheap and stable.
   const environmentIdentities = useEnvironmentIdentities();
   const environmentMachines = useEnvironmentMachines();
-  const offersMachines = useAtomValue(offersLinkedEnvironmentsAtom(environmentId));
+  const offersMachines = useAtomValue(supportsPeerLinksAtom(environmentId));
   const workspaceEntries = useComposerPathSearch({
     environmentId,
     cwd: isPathTrigger ? gitCwd : null,

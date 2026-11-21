@@ -1,4 +1,4 @@
-import { type PeerLinkSummary, WS_METHODS } from "@supaterm/contracts";
+import { type EnvironmentId, type PeerLinkSummary, WS_METHODS } from "@supaterm/contracts";
 import * as DateTime from "effect/DateTime";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
@@ -16,8 +16,19 @@ export function createPeerLinkEnvironmentAtoms<R, E>(
     // Listing probes every linked environment, so a list stays fresh briefly.
     staleTimeMs: 10_000,
   });
+  // Several environments' lists in one subscription, keyed by their ids joined with newlines.
+  const lists = Atom.family((key: string) =>
+    Atom.make((get) =>
+      key === ""
+        ? []
+        : (key.split("\n") as EnvironmentId[]).map((environmentId) =>
+            get(list({ environmentId, input: {} })),
+          ),
+    ).pipe(Atom.withLabel(`environment-data:peer-links:lists:${key}`)),
+  );
   return {
     list,
+    lists: (environmentIds: ReadonlyArray<EnvironmentId>) => lists(environmentIds.join("\n")),
     link: createEnvironmentRpcCommand(runtime, {
       label: "environment-data:peer-links:link",
       tag: WS_METHODS.peerLinksLink,
@@ -66,4 +77,41 @@ export function peerLinkHealth(link: PeerLinkSummary, now: DateTime.Utc): PeerLi
   if (link.lastError !== null) return { kind: "failing", detail: link.lastError };
   const days = Math.ceil(Duration.toDays(DateTime.distance(now, link.expiresAt)));
   return { kind: "reachable", expiresInDays: days <= EXPIRY_WARNING_DAYS ? days : null };
+}
+
+/** How a link's health reads in settings. */
+export function peerLinkHealthText(health: PeerLinkHealth): string {
+  switch (health.kind) {
+    case "expired":
+      return "Expired. Link it again.";
+    case "unreachable":
+      return health.detail ?? "Not answering right now.";
+    case "failing":
+      return health.detail;
+    case "reachable":
+      return health.expiresInDays === null
+        ? "Reachable"
+        : `Expires in ${health.expiresInDays} ${health.expiresInDays === 1 ? "day" : "days"}. Link it again to renew.`;
+  }
+}
+
+/**
+ * For each environment, the names of the given sources whose unexpired links reach it,
+ * so a machine can show which others may work on it.
+ */
+export function incomingLinkNames(input: {
+  readonly sources: ReadonlyArray<{
+    readonly label: string;
+    readonly links: ReadonlyArray<PeerLinkSummary>;
+  }>;
+  readonly now: DateTime.Utc;
+}): ReadonlyMap<EnvironmentId, ReadonlyArray<string>> {
+  const incoming = new Map<EnvironmentId, ReadonlyArray<string>>();
+  for (const source of input.sources) {
+    for (const link of source.links) {
+      if (peerLinkHealth(link, input.now).kind === "expired") continue;
+      incoming.set(link.environmentId, [...(incoming.get(link.environmentId) ?? []), source.label]);
+    }
+  }
+  return incoming;
 }

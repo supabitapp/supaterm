@@ -51,6 +51,7 @@ import {
   connectPairing as connectPairingAtom,
   connectSshEnvironment as connectSshEnvironmentAtom,
 } from "~/connection/onboarding";
+import { usePeerLinkHosts } from "~/state/peerLinks";
 import { useEnvironmentQuery } from "~/state/query";
 import { desktopSshHostsStateAtom, filterDiscoveredSshHosts } from "~/state/desktopSshHosts";
 import { type EnvironmentPresentation } from "~/state/environments";
@@ -86,6 +87,7 @@ export function AddEnvironmentDialog({
   readonly onErrorChange: (error: string | null) => void;
 }) {
   const desktopBridge = window.desktopBridge;
+  const linkHosts = usePeerLinkHosts();
   const keybindings = useAtomValue(primaryServerKeybindingsAtom);
   const connectPairing = useAtomCommand(connectPairingAtom, { reportFailure: false });
   const connectSshEnvironment = useAtomCommand(connectSshEnvironmentAtom, {
@@ -251,7 +253,10 @@ export function AddEnvironmentDialog({
         : {
             type: "success",
             title: "Backend added",
-            description: "The environment is saved and will reconnect on app startup.",
+            description:
+              linkHosts.length > 0
+                ? "The environment is saved and will reconnect on app startup. To let agents on your other machines work there, pick a level in its Permissions."
+                : "The environment is saved and will reconnect on app startup.",
           },
     );
     setIsAddingSavedBackend(false);

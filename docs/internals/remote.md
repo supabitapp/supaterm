@@ -66,14 +66,17 @@ token in its own secret store. The other environment needs nothing new: it
 sees one more OAuth client, lists it in Sharing & access, and revokes it there.
 Unlinking on the linking side only forgets the token.
 
-- **The Linked environments beta (`linkedEnvironmentsEnabled`) gates both
-  sides.** Off on the linking side, `PeerLinks.link`, link requests and
-  `PeerForwarding.call`/`links` refuse; `readThread`, `waitForThread`,
-  `interruptThread` and `setThreadDone` do not, so a remote task already
-  running still completes and can still be cancelled. Off on the receiving
-  side, link registrations are refused and link sessions get a 403, which the
-  linking side reports as retryable so the task's follower waits rather than
-  failing it.
+- **No setting gates links.** The pairing code minted on the receiving
+  environment is its consent: only a session that may create pairing links
+  there can mint one, and the code carries the access the link gets. A
+  separate switch on both sides only made users enable a machine they never
+  meant to send work from. Agents always see the link tools, so an agent can
+  ask to link a machine the user names before any link exists. Links made
+  while the old switch existed end, so an upgrade never resumes one it had
+  paused: migration 024 deletes the saved outgoing links, and `SessionStore`
+  refuses peer-link tokens signed as generation 1 (`plk`), whatever the
+  clock says. The switch's `linkedEnvironmentsEnabled` stays only as a
+  legacy wire indicator that current servers always report on.
 - **A tool runs in a linked environment when its parameters take
   `OrchestratorMcpEnvironmentTarget`** as `environmentId`.
   [`McpToolAccess.toLayer`](../../apps/server/src/mcp/McpToolAccess.ts) sends

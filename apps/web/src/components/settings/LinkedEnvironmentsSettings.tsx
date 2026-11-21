@@ -1,29 +1,48 @@
 import { useAtomValue } from "@effect/atom-react";
-import { ANOTHER_ADDRESS, linkRequestFailureMessage } from "@supaterm/client-runtime/link-request";
+import {
+  ANOTHER_ADDRESS,
+  linkLabels,
+  linkRequestFailureMessage,
+  machineLinkInput,
+} from "@supaterm/client-runtime/link-request";
 import {
   AuthAccessReadScope,
   AuthAccessWriteScope,
   type AuthMcpClientAccess,
-  AuthSettingsWriteScope,
   type EnvironmentId,
+  type PeerLinkCreateInput,
   type PeerLinkSummary,
 } from "@supaterm/contracts";
-import { PlusIcon } from "@supaterm/icons";
+import { ArrowRightIcon, PlusIcon } from "@supaterm/icons";
 import {
   isAtomCommandInterrupted,
   squashAtomCommandFailure,
 } from "@supaterm/client-runtime/state/runtime";
-import { peerLinkHealth } from "@supaterm/client-runtime/state/peerLinks";
+import {
+  incomingLinkNames,
+  peerLinkHealth,
+  peerLinkHealthText,
+} from "@supaterm/client-runtime/state/peerLinks";
 import * as DateTime from "effect/DateTime";
 import * as Option from "effect/Option";
-import * as Result from "effect/Result";
+import { AsyncResult } from "effect/reactivity";
 import { useId, useRef, useState } from "react";
 
 import { requestConfirmDialog } from "~/confirmDialog";
-import { mintPairingCodeOn } from "~/state/peerPairingCode";
-import { peerLinkEnvironment, useLinkableMachines, usePeerLinkHosts } from "~/state/peerLinks";
+import {
+  type KnownMachineLinkResult,
+  linkKnownMachine,
+  peerLinkEnvironment,
+  useLinkableMachines,
+  usePeerLinkHosts,
+} from "~/state/peerLinks";
+import { useEnvironmentIdentities } from "~/state/environments";
 import { useEnvironmentQuery } from "~/state/query";
-import { useEnvironmentScope, usePreparedConnection } from "~/state/session";
+import {
+  useEnvironmentScope,
+  useEnvironmentsWithScope,
+  usePreparedConnection,
+} from "~/state/session";
 import { useAtomCommand } from "~/state/use-atom-command";
 import { accessConfig } from "../auth/ConnectAgentSurface";
 import { ConnectionStatusDot } from "../ConnectionStatusDot";
@@ -40,22 +59,21 @@ import {
   DialogTrigger,
 } from "../ui/dialog";
 import { Input } from "../ui/input";
-import { Switch } from "../ui/switch";
+import { cn } from "../../lib/utils";
 import { stackedThreadToast, toastManager } from "../ui/toast";
 import { ITEM_ROW_CLASSNAME, ITEM_ROW_INNER_CLASSNAME } from "./itemRows";
 import { LinkAccessPicker } from "./LinkAccessPicker";
 import { LinkAddressWarning, LinkMachineSelect } from "./LinkMachineSelect";
 import { SettingsRow, SettingsSection } from "./settingsLayout";
 import { useLiveRefresh } from "../../hooks/useLiveRefresh";
-import { useUpdateEnvironmentSettings } from "../../hooks/useSettings";
 import { useNowMinute } from "../../hooks/useNowMinute";
 import { searchableSetting } from "./settingsSearch";
 
 // Console log labels for the atom commands.
-const UNLINK_COMMAND_LABEL = "unlink environment";
+export const UNLINK_COMMAND_LABEL = "unlink environment";
 const LINK_COMMAND_LABEL = "link environment";
 
-const failureToast = (title: string, failure: unknown) =>
+export const failureToast = (title: string, failure: unknown) =>
   toastManager.add(
     stackedThreadToast({
       type: "error",
@@ -66,58 +84,79 @@ const failureToast = (title: string, failure: unknown) =>
 
 export function LinkedEnvironmentsSections() {
   const hosts = usePeerLinkHosts();
-  return hosts.map(({ environment, enabled }, index) => (
-    <LinkedEnvironmentsSettings
-      key={environment.environmentId}
-      environmentId={environment.environmentId}
-      environmentLabel={hosts.length > 1 ? environment.label : null}
-      enabled={enabled}
-      isSearchTarget={index === 0}
-    />
-  ));
+  const search = searchableSetting("linked-environments");
+  const incoming = useIncomingLinkNames(hosts);
+  if (hosts.length === 0) return null;
+  return (
+    <SettingsSection id={search.id} title={search.title}>
+      {hosts.map((environment) => (
+        <LinkedEnvironmentHost
+          key={environment.environmentId}
+          environmentId={environment.environmentId}
+          environmentLabel={hosts.length > 1 ? environment.label : null}
+          incoming={incoming.get(environment.environmentId) ?? []}
+        />
+      ))}
+    </SettingsSection>
+  );
 }
 
-function LinkedEnvironmentsSettings({
+/** Reads each readable source's links once, for every host row to share. */
+function useIncomingLinkNames(
+  sources: ReadonlyArray<{ readonly environmentId: EnvironmentId; readonly label: string }>,
+) {
+  const readable = useEnvironmentsWithScope(sources, AuthAccessReadScope);
+  const permitted = sources.filter((source) => readable.has(source.environmentId));
+  const results = useAtomValue(
+    peerLinkEnvironment.lists(permitted.map((source) => source.environmentId)),
+  );
+  const nowMinute = useNowMinute();
+  return incomingLinkNames({
+    sources: permitted.flatMap((source, index) => {
+      const result = results[index];
+      return result !== undefined && AsyncResult.isSuccess(result)
+        ? [{ label: source.label, links: result.value.links }]
+        : [];
+    }),
+    now: DateTime.makeUnsafe(nowMinute),
+  });
+}
+
+function LinkedEnvironmentHost({
   environmentId,
   environmentLabel,
-  enabled,
-  isSearchTarget,
+  incoming,
 }: {
   readonly environmentId: EnvironmentId;
   readonly environmentLabel: string | null;
-  /** Whether Linked environments is on there. */
-  readonly enabled: boolean;
-  readonly isSearchTarget: boolean;
+  /** The other connected machines whose links reach this one. */
+  readonly incoming: ReadonlyArray<string>;
 }) {
   const canLink = useAtomValue(peerLinkEnvironment.link.permissionAtom(environmentId));
   const canList = useEnvironmentScope(environmentId, AuthAccessReadScope);
-  const canConfigure = useEnvironmentScope(environmentId, AuthSettingsWriteScope);
-  const updateSettings = useUpdateEnvironmentSettings(environmentId);
-  const search = searchableSetting("linked-environments");
   return (
-    <SettingsSection
-      {...(isSearchTarget ? { id: search.id } : {})}
-      title={environmentLabel === null ? search.title : `${search.title} · ${environmentLabel}`}
-      headerAction={
-        enabled && canLink ? <LinkEnvironmentAction environmentId={environmentId} /> : null
-      }
-    >
+    <>
       <SettingsRow
-        title="Let agents work on your other machines"
-        description="Agents here can work on machines you link, and theirs here. Turn it on for each machine, then link them. While off, nothing new starts over a link; running tasks finish."
+        title={environmentLabel ?? "Let agents here work on your other machines"}
+        description={
+          <>
+            Agents here can work on machines you link. Each link goes one way.
+            {incoming.length > 0 ? (
+              <span className="block">Linked from {incoming.join(", ")}.</span>
+            ) : null}
+          </>
+        }
         control={
-          <Switch
-            checked={enabled}
-            disabled={!canConfigure}
-            onCheckedChange={(checked) =>
-              updateSettings({ linkedEnvironmentsEnabled: Boolean(checked) })
-            }
-            aria-label="Linked environments"
-          />
+          canLink ? (
+            <LinkEnvironmentAction
+              environmentId={environmentId}
+              environmentLabel={environmentLabel}
+            />
+          ) : null
         }
       />
-      {enabled && canList ? <LinkedEnvironmentsList environmentId={environmentId} /> : null}
-    </SettingsSection>
+      {canList ? <LinkedEnvironmentsList environmentId={environmentId} /> : null}
+    </>
   );
 }
 
@@ -127,6 +166,7 @@ export function LinkedEnvironmentsList({
   readonly environmentId: EnvironmentId;
 }) {
   const links = useEnvironmentQuery(peerLinkEnvironment.list({ environmentId, input: {} }));
+  const identities = useEnvironmentIdentities();
   // Links made outside this client bump nothing the shared list reads, so showing the panel
   // asks again. Listing probes every linked environment, too costly for a timer nobody asked for.
   // A list still loading counts as read now, so the next return to the window asks again.
@@ -144,25 +184,27 @@ export function LinkedEnvironmentsList({
     return <SettingsRow title="Could not load linked environments" description={links.error} />;
   }
   if (!links.data) return <SettingsRow title="Loading linked environments…" role="status" />;
-  if (links.data.links.length === 0) {
-    return (
-      <SettingsRow
-        title="No linked environments"
-        description="Link another machine running Supaterm, such as a VPS, so agents here can launch and drive threads there."
-      />
-    );
-  }
+  if (links.data.links.length === 0) return null;
+  const labels = linkLabels({ links: links.data.links, environments: identities });
   return links.data.links.map((link) => (
-    <LinkedEnvironmentRow key={link.environmentId} environmentId={environmentId} link={link} />
+    <LinkedEnvironmentRow
+      key={link.environmentId}
+      environmentId={environmentId}
+      link={link}
+      label={labels.get(link.environmentId) ?? link.label}
+    />
   ));
 }
 
 function LinkedEnvironmentRow({
   environmentId,
   link,
+  label,
 }: {
   readonly environmentId: EnvironmentId;
   readonly link: PeerLinkSummary;
+  /** What this client calls the linked environment. */
+  readonly label: string;
 }) {
   const nowMinute = useNowMinute();
   const health = peerLinkHealth(link, DateTime.makeUnsafe(nowMinute));
@@ -171,7 +213,7 @@ function LinkedEnvironmentRow({
   const [busy, setBusy] = useState(false);
   const forget = async () => {
     const confirmed = await (requestConfirmDialog(
-      `Forget ${link.label}? Agents here stop working there. Revoke "Supaterm · …" in ${link.label}'s Sharing & access to end the session there too.`,
+      `Forget ${label}? Agents here stop working there. Revoke "Supaterm · …" in ${label}'s Sharing & access to end the session there too.`,
       { variant: "destructive" },
     ) ?? Promise.resolve(false));
     if (!confirmed) return;
@@ -182,18 +224,9 @@ function LinkedEnvironmentRow({
       failureToast("Could not forget the link", squashAtomCommandFailure(result));
     }
   };
-  const status =
-    health.kind === "expired"
-      ? "Expired. Link it again with a new pairing code."
-      : health.kind === "unreachable"
-        ? (health.detail ?? "Not answering right now.")
-        : health.kind === "failing"
-          ? health.detail
-          : health.expiresInDays !== null
-            ? `Expires in ${health.expiresInDays} ${health.expiresInDays === 1 ? "day" : "days"}. Link it again to renew.`
-            : "Reachable";
+  const status = peerLinkHealthText(health);
   return (
-    <div className={ITEM_ROW_CLASSNAME}>
+    <div className={cn(ITEM_ROW_CLASSNAME, "pl-8 sm:pl-10")}>
       <div className={ITEM_ROW_INNER_CLASSNAME}>
         <div className="min-w-0 flex-1 space-y-1">
           <div className="flex min-h-5 items-center gap-1.5">
@@ -210,12 +243,15 @@ function LinkedEnvironmentRow({
               }
               pingClassName={null}
             />
-            <h3 className="text-sm font-medium text-foreground">{link.label}</h3>
+            <ArrowRightIcon aria-hidden className="size-3.5 text-muted-foreground" />
+            <h3 className="text-sm font-medium text-foreground">{label}</h3>
           </div>
           <p className="text-xs text-muted-foreground">
             {accessConfig[link.access].label} · {status}
           </p>
-          <p className="truncate text-xs text-muted-foreground/80">{link.urls.join(", ")}</p>
+          {health.kind === "reachable" && health.expiresInDays === null ? null : (
+            <p className="truncate text-xs text-muted-foreground/80">{link.urls.join(", ")}</p>
+          )}
         </div>
         {canUnlink ? (
           <div className="flex w-full shrink-0 items-center gap-2 sm:w-auto sm:justify-end">
@@ -234,7 +270,14 @@ function LinkedEnvironmentRow({
   );
 }
 
-function LinkEnvironmentAction({ environmentId }: { readonly environmentId: EnvironmentId }) {
+function LinkEnvironmentAction({
+  environmentId,
+  environmentLabel,
+}: {
+  readonly environmentId: EnvironmentId;
+  /** The machine the link starts from, when the section lists more than one. */
+  readonly environmentLabel: string | null;
+}) {
   const [open, setOpen] = useState(false);
   const machines = useLinkableMachines(environmentId, open);
   // Null until the user picks; with no other machines known, only an address is left.
@@ -280,52 +323,47 @@ function LinkEnvironmentAction({ environmentId }: { readonly environmentId: Envi
     }
   };
   // Settles to the code to link with, or null after reporting why there is none.
-  const resolvePairingCode = async () => {
-    if (!canMint || targetId === null) return pairingCode.trim();
-    const minted = await mintPairingCodeOn(targetId, access);
-    if (Result.isSuccess(minted)) return minted.success;
-    setMintFailed((failed) => new Set(failed).add(targetId));
-    failureToast("Could not link the environment", linkRequestFailureMessage(minted.failure));
-    return null;
+  const finish = (result: KnownMachineLinkResult) => {
+    if (result._tag === "Linked") {
+      toastManager.add({ type: "success", title: `Linked ${result.label}` });
+      handleOpenChange(false);
+    } else if (result._tag === "MintFailed" && targetId !== null) {
+      setMintFailed((failed) => new Set(failed).add(targetId));
+      failureToast("Could not link the environment", linkRequestFailureMessage(result.failure));
+    } else if (result._tag !== "Interrupted") {
+      failureToast("Could not link the environment", result.failure);
+    }
+  };
+  const linkWithPastedCode = async (
+    input: PeerLinkCreateInput | null,
+  ): Promise<KnownMachineLinkResult> => {
+    if (input === null) {
+      return { _tag: "LinkFailed", failure: new Error("No address for that machine.") };
+    }
+    const result = await link({ environmentId, input });
+    if (result._tag === "Success") return { _tag: "Linked", label: result.value.label };
+    return isAtomCommandInterrupted(result)
+      ? { _tag: "Interrupted" }
+      : { _tag: "LinkFailed", failure: squashAtomCommandFailure(result) };
   };
   const submit = async () => {
-    const [url, ...alternateUrls] =
-      machine === null || needsAddress ? [address.trim()] : machine.urls;
-    if (inFlight.current || !ready || url === undefined) return;
+    const typed = machine === null || needsAddress;
+    if (inFlight.current || !ready) return;
     inFlight.current = true;
     setBusy(true);
-    const code = await resolvePairingCode();
-    const result =
-      code === null
-        ? null
-        : await link({
-            environmentId,
-            input: {
-              url,
-              ...(alternateUrls.length > 0 ? { alternateUrls } : {}),
-              ...(machine?.relayUrl === undefined || needsAddress
-                ? {}
-                : { relayUrl: machine.relayUrl }),
-              // A typed address links alone: only this app's own addresses name a machine.
-              ...(machine === null || needsAddress
-                ? {}
-                : { expectedEnvironmentId: machine.environmentId, expectedLabel: machine.label }),
-              pairingCode: code,
-              access,
-            },
-          });
+    const code = pairingCode.trim();
+    // A typed address links alone: only this app's own addresses name a machine.
+    const result: KnownMachineLinkResult =
+      !typed && canMint
+        ? await linkKnownMachine({ sourceId: environmentId, machine, access })
+        : await linkWithPastedCode(
+            typed
+              ? { url: address.trim(), pairingCode: code, access }
+              : machineLinkInput(machine, code, access),
+          );
     inFlight.current = false;
     setBusy(false);
-    if (result === null) return;
-    if (result._tag === "Success") {
-      toastManager.add({
-        type: "success",
-        title: `Linked ${result.value.label}`,
-      });
-      handleOpenChange(false);
-    } else if (!isAtomCommandInterrupted(result)) {
-      failureToast("Could not link the environment", squashAtomCommandFailure(result));
-    }
+    finish(result);
   };
   return (
     <Dialog
@@ -337,7 +375,13 @@ function LinkEnvironmentAction({ environmentId }: { readonly environmentId: Envi
     >
       <DialogTrigger
         render={
-          <Button size="xs" variant="default">
+          <Button
+            size="xs"
+            variant="default"
+            {...(environmentLabel === null
+              ? {}
+              : { "aria-label": `Link ${environmentLabel} to another machine` })}
+          >
             <PlusIcon className="size-3" />
             Link
           </Button>
@@ -345,7 +389,11 @@ function LinkEnvironmentAction({ environmentId }: { readonly environmentId: Envi
       />
       <DialogPopup className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Link an environment</DialogTitle>
+          <DialogTitle>
+            {environmentLabel === null
+              ? "Link an environment"
+              : `Link ${environmentLabel} to an environment`}
+          </DialogTitle>
           <DialogDescription>
             Agents here can then launch, message and wait on threads there. It appears under
             Authorized clients in that environment's Sharing & access, where it can be revoked.

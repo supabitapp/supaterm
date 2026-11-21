@@ -4,6 +4,7 @@ import {
   type EnvironmentMachineKind,
   normalizeRelayServerUrl,
   type OrchestrationV2TurnItem,
+  type PeerLinkCreateInput,
   type PeerLinkRequestAnswerInput,
   type PeerLinkSummary,
   resolveEnvironmentMachineKind,
@@ -17,8 +18,11 @@ import { connectionRouteKind, connectionRoutes, routeHttpBaseUrl } from "./conne
 
 export type LinkRequestItem = Extract<OrchestrationV2TurnItem, { readonly type: "link_request" }>;
 
-/** Whether an environment offers links: it supports them and its Linked environments beta is on. */
-export const offersLinkedEnvironments = (
+/**
+ * Whether an environment supports links to the user's other machines. Older servers also gate
+ * them behind a switch; current ones always report it on.
+ */
+export const supportsPeerLinks = (
   config: Pick<ServerConfig, "environment" | "settings"> | null | undefined,
 ): boolean =>
   config?.environment.capabilities.peerLinks === true && config.settings.linkedEnvironmentsEnabled;
@@ -34,15 +38,29 @@ export function linkedEnvironmentNames(input: {
     readonly label: string;
   }>;
 }): ReadonlyMap<EnvironmentId, string> {
-  const names = new Map(
-    input.environments.map((environment) => [environment.environmentId, environment.label]),
-  );
+  const labels = linkLabels(input);
   return new Map(
     input.links.flatMap((link) =>
       link.status === "expired"
         ? []
-        : [[link.environmentId, names.get(link.environmentId) ?? link.label] as const],
+        : [[link.environmentId, labels.get(link.environmentId) ?? link.label] as const],
     ),
+  );
+}
+
+/** Each link's name as this client names that environment, else as the link does. */
+export function linkLabels(input: {
+  readonly links: ReadonlyArray<Pick<PeerLinkSummary, "environmentId" | "label">>;
+  readonly environments: ReadonlyArray<{
+    readonly environmentId: EnvironmentId;
+    readonly label: string;
+  }>;
+}): ReadonlyMap<EnvironmentId, string> {
+  const names = new Map(
+    input.environments.map((environment) => [environment.environmentId, environment.label]),
+  );
+  return new Map(
+    input.links.map((link) => [link.environmentId, names.get(link.environmentId) ?? link.label]),
   );
 }
 
@@ -120,35 +138,64 @@ export function linkableMachines(input: {
   );
   return input.environments
     .filter((environment) => environment.environmentId !== input.threadEnvironmentId)
-    .map((environment) => {
-      const reported = (environment.serverConfig?.directEndpoints ?? []).map(
-        (endpoint) => endpoint.httpBaseUrl,
-      );
-      const routes = connectionRoutes(environment.entry);
-      const isRelay = (route: (typeof routes)[number]) => connectionRouteKind(route) === "relay";
-      // The relay server a route was saved with; undefined is the default one.
-      const relayServerOf = (route: (typeof routes)[number]) => {
-        const profile = Option.getOrNull(route.profile);
-        return profile?._tag === "BearerConnectionProfile" && profile.relayUrl !== undefined
-          ? (normalizeRelayServerUrl(profile.relayUrl) ?? undefined)
-          : undefined;
-      };
-      const firstRelay = routes.find(isRelay);
-      const relayUrl = firstRelay === undefined ? undefined : relayServerOf(firstRelay);
-      // A link holds one relay server, so a relay route saved with another is left out.
-      const saved = routes.flatMap((route) =>
-        isRelay(route) && relayServerOf(route) !== relayUrl ? [] : (routeHttpBaseUrl(route) ?? []),
-      );
-      return {
-        environmentId: environment.environmentId,
-        label: environment.entry.target.label,
-        machine: resolveEnvironmentMachineKind(environment.serverConfig),
-        connected: environment.connection.phase === "connected",
-        linked: linkedIds.has(environment.environmentId),
-        urls: [...new Set([...reported, ...saved])].filter(isLinkableUrl),
-        ...(relayUrl === undefined ? {} : { relayUrl }),
-      };
-    });
+    .map((environment) => linkableMachine(environment, linkedIds.has(environment.environmentId)));
+}
+
+/** One machine as a server could link it, at the addresses this client knows for it. */
+export function linkableMachine(
+  environment: EnvironmentPresentation & { readonly environmentId: EnvironmentId },
+  linked = false,
+): LinkableMachine {
+  const reported = (environment.serverConfig?.directEndpoints ?? []).map(
+    (endpoint) => endpoint.httpBaseUrl,
+  );
+  const routes = connectionRoutes(environment.entry);
+  const isRelay = (route: (typeof routes)[number]) => connectionRouteKind(route) === "relay";
+  // The relay server a route was saved with; undefined is the default one.
+  const relayServerOf = (route: (typeof routes)[number]) => {
+    const profile = Option.getOrNull(route.profile);
+    return profile?._tag === "BearerConnectionProfile" && profile.relayUrl !== undefined
+      ? (normalizeRelayServerUrl(profile.relayUrl) ?? undefined)
+      : undefined;
+  };
+  const firstRelay = routes.find(isRelay);
+  const relayUrl = firstRelay === undefined ? undefined : relayServerOf(firstRelay);
+  // A link holds one relay server, so a relay route saved with another is left out.
+  const saved = routes.flatMap((route) =>
+    isRelay(route) && relayServerOf(route) !== relayUrl ? [] : (routeHttpBaseUrl(route) ?? []),
+  );
+  return {
+    environmentId: environment.environmentId,
+    label: environment.entry.target.label,
+    machine: resolveEnvironmentMachineKind(environment.serverConfig),
+    connected: environment.connection.phase === "connected",
+    linked,
+    urls: [...new Set([...reported, ...saved])].filter(isLinkableUrl),
+    ...(relayUrl === undefined ? {} : { relayUrl }),
+  };
+}
+
+/**
+ * The link to `machine` at the addresses this client knows for it, or null when no other
+ * machine could reach it. Only this client's own addresses name a machine, so the server
+ * keeps those that answer as it.
+ */
+export function machineLinkInput(
+  machine: LinkableMachine,
+  pairingCode: string,
+  access: AuthMcpClientAccess,
+): PeerLinkCreateInput | null {
+  const [url, ...alternateUrls] = machine.urls;
+  if (url === undefined) return null;
+  return {
+    url,
+    ...(alternateUrls.length > 0 ? { alternateUrls } : {}),
+    ...(machine.relayUrl === undefined ? {} : { relayUrl: machine.relayUrl }),
+    expectedEnvironmentId: machine.environmentId,
+    expectedLabel: machine.label,
+    pairingCode,
+    access,
+  };
 }
 
 const words = (text: string) =>

@@ -30,11 +30,12 @@ import Migration0020 from "./Migrations/020_TurnItemMessageOrdinalIndex.ts";
 import Migration0021 from "./Migrations/021_TurnItemInlineWorkOutput.ts";
 import Migration0022 from "./Migrations/022_RepairStaleTitleRegeneration.ts";
 import Migration0023 from "./Migrations/023_PeerLinks.ts";
-import Migration0024 from "./Migrations/024_ActiveShellIndexIndexes.ts";
-import Migration0025 from "./Migrations/025_BackgroundRecoveryIndexes.ts";
-import Migration0026 from "./Migrations/026_TurnStartReadIndexes.ts";
-import Migration0027 from "./Migrations/027_DelegatedTaskReadIndexes.ts";
-import Migration0028 from "./Migrations/028_ThreadItemCounts.ts";
+import Migration0024 from "./Migrations/024_PeerLinkCutoff.ts";
+import Migration0025 from "./Migrations/025_ActiveShellIndexIndexes.ts";
+import Migration0026 from "./Migrations/026_BackgroundRecoveryIndexes.ts";
+import Migration0027 from "./Migrations/027_TurnStartReadIndexes.ts";
+import Migration0028 from "./Migrations/028_DelegatedTaskReadIndexes.ts";
+import Migration0029 from "./Migrations/029_ThreadItemCounts.ts";
 
 /**
  * Add a schema change as a new entry with the next id. Never edit, renumber, or
@@ -65,11 +66,12 @@ const migrationEntries = [
   [21, "TurnItemInlineWorkOutput", Migration0021],
   [22, "RepairStaleTitleRegeneration", Migration0022],
   [23, "PeerLinks", Migration0023],
-  [24, "ActiveShellIndexIndexes", Migration0024],
-  [25, "BackgroundRecoveryIndexes", Migration0025],
-  [26, "TurnStartReadIndexes", Migration0026],
-  [27, "DelegatedTaskReadIndexes", Migration0027],
-  [28, "ThreadItemCounts", Migration0028],
+  [24, "PeerLinkCutoff", Migration0024],
+  [25, "ActiveShellIndexIndexes", Migration0025],
+  [26, "BackgroundRecoveryIndexes", Migration0026],
+  [27, "TurnStartReadIndexes", Migration0027],
+  [28, "DelegatedTaskReadIndexes", Migration0028],
+  [29, "ThreadItemCounts", Migration0029],
 ] as const;
 
 export const migrationManifest = migrationEntries.map(([id, name]) => [id, name] as const);

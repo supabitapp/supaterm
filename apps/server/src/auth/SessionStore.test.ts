@@ -268,6 +268,42 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("SessionStore.lay
       expect((yield* sessions.verify(uncapped.token)).runtimeModeCeiling).toBeUndefined();
     }).pipe(Effect.provide(layerSessionStore())),
   );
+  it.effect("refuses and revokes peer-link sessions signed while links had a switch", () =>
+    Effect.gen(function* () {
+      const sessions = yield* SessionStore.SessionStore;
+      const secrets = yield* ServerSecretStore.ServerSecretStore;
+      const issueMcpSession = (peerLink: boolean) =>
+        sessions.issue({ subject: "mcp-client", method: "bearer-access-token", peerLink });
+      const old = yield* issueMcpSession(true);
+      const current = yield* issueMcpSession(true);
+      const agent = yield* issueMcpSession(false);
+      // An older build signed its links as generation 1.
+      const [encodedPayload] = old.token.split(".");
+      const signer = yield* PayloadSigner.fromSecret(
+        yield* secrets.getOrCreateRandom("server-signing-key", 32),
+      );
+      const oldPayload = base64UrlEncode(
+        base64UrlDecodeUtf8(encodedPayload!).replace('"plk":2', '"plk":1'),
+      );
+      const oldToken = `${oldPayload}.${yield* signer.sign(oldPayload)}`;
+
+      expect((yield* Effect.flip(sessions.verify(oldToken)))._tag).toBe("SessionTokenRevokedError");
+      expect((yield* sessions.verify(current.token)).peerLink).toBe(true);
+      expect((yield* sessions.verify(agent.token)).peerLink).toBeUndefined();
+      expect((yield* sessions.listActive()).map((session) => session.sessionId)).not.toContain(
+        old.sessionId,
+      );
+    }).pipe(
+      Effect.provide(
+        SessionStore.layer.pipe(
+          Layer.provideMerge(ServerSecretStore.layer),
+          Layer.provide(SqlitePersistence.layerMemory),
+          Layer.provide(layerServerEnvironment(EnvironmentId.make("test-environment"))),
+          Layer.provide(layerServerConfig()),
+        ),
+      ),
+    ),
+  );
   it.effect("takes scopes from the session record", () =>
     Effect.gen(function* () {
       const sessions = yield* SessionStore.SessionStore;

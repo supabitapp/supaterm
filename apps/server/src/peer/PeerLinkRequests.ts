@@ -191,12 +191,6 @@ const make = Effect.gen(function* () {
         "supaterm_environment_link",
       );
       const threadId = threadScope.thread.threadId;
-      if (!(yield* peerLinks.enabled)) {
-        return yield* new OrchestratorMcpFailure({
-          code: "capability_denied",
-          message: PeerLinks.LINKED_ENVIRONMENTS_OFF,
-        });
-      }
       const unreadable = (error: unknown) =>
         new OrchestratorMcpFailure({
           code: "orchestration_error",
@@ -305,18 +299,7 @@ const make = Effect.gen(function* () {
       case "decline":
         return Effect.succeed({ linkStatus: "declined" });
       case "use-existing":
-        return peerLinks.enabled.pipe(
-          // Turned off while the card waited: the agent must not be told to use the link.
-          Effect.flatMap((enabled) =>
-            enabled
-              ? usableLink(answer.environmentId)
-              : Effect.fail(
-                  new PeerLinkError({
-                    reason: "disabled",
-                    message: PeerLinks.LINKED_ENVIRONMENTS_OFF,
-                  }),
-                ),
-          ),
+        return usableLink(answer.environmentId).pipe(
           Effect.flatMap(
             Option.match({
               onNone: () =>

@@ -378,7 +378,6 @@ const make = Effect.gen(function* () {
 
   const delegate: RemoteDelegation["Service"]["delegate"] = Effect.fn("RemoteDelegation.delegate")(
     function* (scope, input) {
-      if (!(yield* links.enabled)) return yield* PeerForwarding.linkedEnvironmentsOff;
       const parent = yield* threads.getThreadRecords(scope.thread.threadId, ["runs"]).pipe(
         Effect.mapError(
           () =>

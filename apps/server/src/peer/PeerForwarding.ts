@@ -91,13 +91,6 @@ export class PeerForwarding extends Context.Service<
   }
 >()("supaterm/peer/PeerForwarding") {}
 
-/** What an agent hears when it names another machine while the beta is off here. */
-export const linkedEnvironmentsOff = new OrchestratorMcpFailure({
-  code: "capability_denied",
-  message:
-    "Linked environments is off on this machine, so no tool can act on another machine. Leave out environmentId to work here; the user can turn it on in Settings → Environments.",
-});
-
 const isRuntimeMode = Schema.is(RuntimeMode);
 
 const ThreadDoneInput = Schema.Struct({
@@ -293,12 +286,6 @@ const make = Effect.gen(function* () {
       },
     );
 
-  // While the beta is off, agents start nothing over links. Tasks already running there keep
-  // following through readThread, waitForThread and interruptThread, so they still finish.
-  const requireEnabled = links.enabled.pipe(
-    Effect.flatMap((enabled) => (enabled ? Effect.void : Effect.fail(linkedEnvironmentsOff))),
-  );
-
   // A peer pages a client's cursorless read forward; an agent's gets the newest page, as it does here.
   const newestPageForAgent = (scope: Scope, toolName: string, params: unknown) => {
     if (toolName !== "supaterm_thread_read" || scope.thread === undefined) return undefined;
@@ -322,10 +309,7 @@ const make = Effect.gen(function* () {
         options?.linkedAt,
       );
     const newest = newestPageForAgent(scope, tool.name, params);
-    const forwarded: Effect.Effect<
-      Tool.Success<typeof tool>,
-      OrchestratorMcpFailure
-    > = tool.name === "supaterm_thread_wait"
+    return tool.name === "supaterm_thread_wait"
       ? (waitForThread(
           scope,
           environmentId,
@@ -334,7 +318,6 @@ const make = Effect.gen(function* () {
       : newest === undefined
         ? forwardTool(params)
         : readNewestOrRetry(forwardTool, newest, params);
-    return Effect.andThen(requireEnabled, forwarded);
   };
 
   /**
@@ -347,7 +330,6 @@ const make = Effect.gen(function* () {
   const listLinks: PeerForwarding["Service"]["links"] = Effect.fn("PeerForwarding.listLinks")(
     function* (scope) {
       yield* forwardingCaller(scope);
-      yield* requireEnabled;
       const listed = yield* links.list.pipe(Effect.mapError(linkStorageFailure));
       return {
         environmentId: scope.environmentId,
