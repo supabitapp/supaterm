@@ -184,6 +184,7 @@ import {
   threadActionRequiresOperate,
 } from "./threadActionMenu.logic";
 import {
+  orderSidebarRowKeys,
   applySidebarThreadDrop,
   filterSidebarV2VisibleThreads,
   buildBulkTitleRegenerationContextMenuItem,
@@ -260,7 +261,7 @@ import { useShallow } from "zustand/react/shallow";
 import { openThreadBeside } from "../chatPanes/actions";
 import { threadDeleteConfirmation } from "../lib/threadDeleteConfirmation";
 import { SortableThreadRow, type SidebarProviderEntry } from "./sidebar/SidebarThreadRow";
-import { SidebarDraftBlock } from "./sidebar/SidebarDraftBlock";
+import { SidebarDraftBlock, useSidebarDrafts } from "./sidebar/SidebarDraftBlock";
 
 function sameSidebarProviderEntries(
   left: ReadonlyMap<string, SidebarProviderEntry>,
@@ -1328,13 +1329,24 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
 
   const pinShortcut = shortcutLabelForCommand(keybindings, "thread.pin");
   const doneShortcut = shortcutLabelForCommand(keybindings, "thread.mark-done");
+  const sidebarDrafts = useSidebarDrafts(scopedProjectKeys, routeDraftIdForRows);
+  const draftIdByRowKey = new Map<string, DraftId>(
+    sidebarDrafts.shownDraftIds.map((id) => [`draft:${id}`, id]),
+  );
+  const orderedRowKeys = orderSidebarRowKeys({
+    orderedThreadKeys,
+    sectionByThreadKey,
+    draftRowKeys: [...draftIdByRowKey.keys()],
+  });
+  const routeDraftRowKey = `draft:${routeDraftIdForRows}`;
+  const routeRowKey = draftIdByRowKey.has(routeDraftRowKey) ? routeDraftRowKey : routeRowThreadKey;
   const jumpLabelByKey = (() => {
     const mapping = new Map<string, string>();
-    for (const [index, threadKey] of orderedThreadKeys.entries()) {
+    for (const [index, rowKey] of orderedRowKeys.entries()) {
       const jumpCommand = threadJumpCommandForIndex(index);
       if (!jumpCommand) break;
       const label = shortcutLabelForCommand(keybindings, jumpCommand);
-      if (label) mapping.set(threadKey, label);
+      if (label) mapping.set(rowKey, label);
     }
     return mapping;
   })();
@@ -2759,17 +2771,22 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
       if (repeat) return false;
       const traversalDirection = threadTraversalDirectionFromCommand(command);
       const jumpIndex = threadJumpIndexFromCommand(command);
-      const targetThreadKey =
+      const targetRowKey =
         traversalDirection !== null
           ? resolveAdjacentThreadId({
-              threadIds: orderedThreadKeys,
-              currentThreadId: routeRowThreadKey,
+              threadIds: orderedRowKeys,
+              currentThreadId: routeRowKey,
               direction: traversalDirection,
             })
           : jumpIndex !== null
-            ? (orderedThreadKeys[jumpIndex] ?? null)
+            ? (orderedRowKeys[jumpIndex] ?? null)
             : null;
-      const targetThread = targetThreadKey ? threadByKey.get(targetThreadKey) : undefined;
+      const targetDraftId = targetRowKey ? draftIdByRowKey.get(targetRowKey) : undefined;
+      if (targetDraftId !== undefined) {
+        navigateToDraft(targetDraftId);
+        return;
+      }
+      const targetThread = targetRowKey ? threadByKey.get(targetRowKey) : undefined;
       if (!targetThread) return false;
       navigateToThread(scopeThreadRef(targetThread.environmentId, targetThread.id));
     },
@@ -2797,6 +2814,14 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
   );
 
   const showJumpHints = useThreadJumpHintsVisible(keybindings, routeThreadRef);
+  const draftJumpLabelById = showJumpHints
+    ? new Map(
+        sidebarDrafts.shownDraftIds.flatMap((id) => {
+          const label = jumpLabelByKey.get(`draft:${id}`);
+          return label ? [[id, label] as const] : [];
+        }),
+      )
+    : null;
 
   return (
     <SidebarFolderDrop>
@@ -3128,9 +3153,10 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                           items.push(
                             <SidebarDraftBlock
                               key="draft-sessions"
+                              drafts={sidebarDrafts}
+                              jumpLabelByDraftId={draftJumpLabelById}
                               projectByKey={projectByKey}
                               projectDisplayNameByKey={projectDisplayNameByKey}
-                              scopedProjectKeys={scopedProjectKeys}
                               routeDraftId={routeDraftIdForRows}
                               onNavigateToDraft={navigateToDraft}
                               onDraftContextMenu={handleDraftContextMenu}

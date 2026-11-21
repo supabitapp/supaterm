@@ -30,7 +30,7 @@ import {
 } from "../../composerDraftStore";
 import { useChatPaneStore } from "../../chatPanes/store";
 import { useShallow } from "zustand/react/shallow";
-import { SidebarDraftDiscardButton, draftPenClassName } from "./SidebarThreadRow";
+import { JumpHintBadge, SidebarDraftDiscardButton, draftPenClassName } from "./SidebarThreadRow";
 
 const DRAFTS_SHELF_EXPANDED_KEY = "supaterm:sidebar:drafts-expanded";
 
@@ -45,6 +45,7 @@ const SidebarDraftRow = memo(function SidebarDraftRow(props: {
   isActive: boolean;
   /** Open in a chat pane that is not focused. */
   inOtherPane: boolean;
+  jumpLabel: string | null;
   onNavigate: (draftId: DraftId) => void;
   onDiscard: (draftId: DraftId) => void;
   onContextMenu: (
@@ -159,6 +160,7 @@ const SidebarDraftRow = memo(function SidebarDraftRow(props: {
               )}
             </div>
           </div>
+          {props.jumpLabel ? <JumpHintBadge label={props.jumpLabel} /> : null}
         </TooltipTrigger>
         <ThreadHoverCardPopup side="right" align="start" sideOffset={4}>
           <ThreadHoverCard title={preview}>
@@ -171,18 +173,99 @@ const SidebarDraftRow = memo(function SidebarDraftRow(props: {
   );
 });
 
-interface SidebarDraftRowData {
-  draftId: DraftId;
-  session: DraftSessionState;
-  composer: ComposerThreadDraftState;
+function listedDraftComposer(draftId: string | null): ComposerThreadDraftState | null {
+  if (draftId === null || draftId.trim() === "") return null;
+  const store = useComposerDraftStore.getState();
+  const session = store.draftThreadsByThreadKey[draftId];
+  const composer = store.draftsByThreadKey[draftId];
+  return session &&
+    session.promotedTo == null &&
+    session.sideChatOf === undefined &&
+    composer &&
+    composerDraftHasUserContent(composer)
+    ? composer
+    : null;
+}
+
+export interface SidebarDrafts {
+  /** Every listed draft, newest first. */
+  readonly draftIds: readonly DraftId[];
+  /** The rows the shelf shows; a collapsed shelf keeps the open draft and drafts open in panes. */
+  readonly shownDraftIds: readonly DraftId[];
+  readonly routeDraftComposer: ComposerThreadDraftState | null;
+  readonly paneDraftIds: ReadonlySet<DraftId>;
+  readonly expanded: boolean;
+  readonly toggleExpanded: () => void;
+}
+
+/**
+ * Unsent drafts listed above the threads. The open draft keeps the row it had on
+ * arrival (frozen content), so its row and jump number stay put while it is edited.
+ */
+export function useSidebarDrafts(
+  scopedProjectKeys: ReadonlySet<string> | null,
+  routeDraftId: string | null,
+): SidebarDrafts {
+  const [expanded, setExpanded] = useLocalStorage(DRAFTS_SHELF_EXPANDED_KEY, true, Schema.Boolean);
+  const paneDraftIdList = useChatPaneStore(
+    useShallow((state) =>
+      (state.layout?.cells ?? []).flatMap((cell) =>
+        cell.target.kind === "draft" ? [cell.target.draftId] : [],
+      ),
+    ),
+  );
+  const [frozenRoute, setFrozenRoute] = useState<{
+    routeDraftId: string | null;
+    composer: ComposerThreadDraftState | null;
+  }>({ routeDraftId: null, composer: null });
+  if (frozenRoute.routeDraftId !== routeDraftId) {
+    setFrozenRoute({ routeDraftId, composer: listedDraftComposer(routeDraftId) });
+  }
+  const routeDraftComposer =
+    frozenRoute.routeDraftId === routeDraftId ? frozenRoute.composer : null;
+  const draftIds = useComposerDraftStore(
+    useShallow((store) => {
+      const listed: [string, DraftSessionState][] = [];
+      for (const [draftKey, session] of Object.entries(store.draftThreadsByThreadKey)) {
+        // Side chat drafts live in their parent's panes, like the side chats they become.
+        if (session.promotedTo != null || session.sideChatOf !== undefined) continue;
+        if (
+          scopedProjectKeys !== null &&
+          !scopedProjectKeys.has(`${session.environmentId}:${session.projectId}`)
+        ) {
+          continue;
+        }
+        const isListed =
+          draftKey === routeDraftId
+            ? routeDraftComposer !== null
+            : composerDraftHasUserContent(store.draftsByThreadKey[draftKey]);
+        if (isListed) listed.push([draftKey, session]);
+      }
+      listed.sort(([, left], [, right]) => right.createdAt.localeCompare(left.createdAt));
+      return listed.map(([draftKey]) => DraftId.make(draftKey));
+    }),
+  );
+  const paneDraftIds = new Set(paneDraftIdList);
+  const shownDraftIds = expanded
+    ? draftIds
+    : draftIds.filter((draftId) => draftId === routeDraftId || paneDraftIds.has(draftId));
+  return {
+    draftIds,
+    shownDraftIds,
+    routeDraftComposer,
+    paneDraftIds,
+    expanded,
+    toggleExpanded: () => setExpanded((value) => !value),
+  };
 }
 
 // Own store subscriptions keep per-keystroke composer updates
 // inside this block. Vanishes at count 0.
 export const SidebarDraftBlock = memo(function SidebarDraftBlock(props: {
+  drafts: SidebarDrafts;
+  jumpLabelByDraftId: ReadonlyMap<DraftId, string> | null;
   projectByKey: ReadonlyMap<string, EnvironmentProject>;
   projectDisplayNameByKey: ReadonlyMap<string, string>;
-  scopedProjectKeys: ReadonlySet<string> | null;
   routeDraftId: string | null;
   onNavigateToDraft: (draftId: DraftId) => void;
   onDraftContextMenu: (
@@ -191,99 +274,36 @@ export const SidebarDraftBlock = memo(function SidebarDraftBlock(props: {
     source: ContextMenuSource,
   ) => void;
 }) {
-  const [draftsShelfExpanded, setDraftsShelfExpanded] = useLocalStorage(
-    DRAFTS_SHELF_EXPANDED_KEY,
-    true,
-    Schema.Boolean,
-  );
-  const toggleDraftsShelf = () => setDraftsShelfExpanded((value) => !value);
-  const paneDraftIdList = useChatPaneStore(
-    useShallow((state) =>
-      (state.layout?.cells ?? []).flatMap((cell) =>
-        cell.target.kind === "draft" ? [cell.target.draftId] : [],
-      ),
-    ),
-  );
-  const paneDraftIds = new Set(paneDraftIdList);
+  const { draftIds, shownDraftIds, routeDraftComposer, paneDraftIds } = props.drafts;
   const draftThreadsByThreadKey = useComposerDraftStore((store) => store.draftThreadsByThreadKey);
   const draftsByThreadKey = useComposerDraftStore(
     useShallow((store) =>
-      Object.fromEntries(
-        Object.keys(store.draftThreadsByThreadKey).map(
-          (key) => [key, store.draftsByThreadKey[key]] as const,
-        ),
-      ),
+      Object.fromEntries(shownDraftIds.map((key) => [key, store.draftsByThreadKey[key]] as const)),
     ),
   );
-  const [frozenActive, setFrozenActive] = useState<{
-    routeDraftId: string | null;
-    row: SidebarDraftRowData | null;
-  }>({ routeDraftId: null, row: null });
-  if (frozenActive.routeDraftId !== props.routeDraftId) {
-    let row: SidebarDraftRowData | null = null;
-    if (props.routeDraftId !== null && props.routeDraftId.trim() !== "") {
-      const draftId = DraftId.make(props.routeDraftId);
-      const session = draftThreadsByThreadKey[draftId];
-      const composer = draftsByThreadKey[draftId];
-      row =
-        session &&
-        session.promotedTo == null &&
-        session.sideChatOf === undefined &&
-        composer &&
-        composerDraftHasUserContent(composer)
-          ? { draftId, session, composer }
-          : null;
-    }
-    setFrozenActive({ routeDraftId: props.routeDraftId, row });
-  }
-  const drafts = (() => {
-    const rows: SidebarDraftRowData[] = [];
-    for (const [draftKey, session] of Object.entries(draftThreadsByThreadKey)) {
-      // Side chat drafts live in their parent's panes, like the side chats they become.
-      if (session.promotedTo != null || session.sideChatOf !== undefined) {
-        continue;
-      }
-      if (
-        props.scopedProjectKeys !== null &&
-        !props.scopedProjectKeys.has(`${session.environmentId}:${session.projectId}`)
-      ) {
-        continue;
-      }
-      if (draftKey === props.routeDraftId) {
-        if (frozenActive.routeDraftId === draftKey && frozenActive.row !== null) {
-          rows.push(frozenActive.row);
-        }
-        continue;
-      }
-      const composer = draftsByThreadKey[draftKey];
-      if (!composer || !composerDraftHasUserContent(composer)) {
-        continue;
-      }
-      rows.push({ draftId: DraftId.make(draftKey), session, composer });
-    }
-    rows.sort((left, right) => right.session.createdAt.localeCompare(left.session.createdAt));
-    return rows;
-  })();
-  if (drafts.length === 0) {
+  const drafts = shownDraftIds.flatMap((draftId) => {
+    const session = draftThreadsByThreadKey[draftId];
+    const composer =
+      draftId === props.routeDraftId ? routeDraftComposer : draftsByThreadKey[draftId];
+    return session && composer ? [{ draftId, session, composer }] : [];
+  });
+  if (draftIds.length === 0) {
     return null;
   }
-  const renderedDrafts = draftsShelfExpanded
-    ? drafts
-    : drafts.filter(({ draftId }) => draftId === props.routeDraftId || paneDraftIds.has(draftId));
   return (
     <SortableSidebarMarker marker="drafts-block">
       <ul role="presentation" className="flex flex-col gap-px">
         <li data-thread-selection-safe className="mx-0.5 h-8 list-none">
           <CollapsibleSectionHeader
-            expanded={draftsShelfExpanded}
-            onClick={toggleDraftsShelf}
+            expanded={props.drafts.expanded}
+            onClick={props.drafts.toggleExpanded}
             weight="normal"
             data-testid="sidebar-drafts-shelf-toggle"
           >
-            {draftsShelfExpanded ? "Drafts" : `Drafts (${drafts.length})`}
+            {props.drafts.expanded ? "Drafts" : `Drafts (${draftIds.length})`}
           </CollapsibleSectionHeader>
         </li>
-        {renderedDrafts.map(({ composer, draftId, session }) => {
+        {drafts.map(({ composer, draftId, session }) => {
           const projectKey = `${session.environmentId}:${session.projectId}`;
           return (
             <SidebarDraftRow
@@ -295,6 +315,7 @@ export const SidebarDraftBlock = memo(function SidebarDraftBlock(props: {
               projectDisplayName={props.projectDisplayNameByKey.get(projectKey) ?? null}
               isActive={draftId === props.routeDraftId}
               inOtherPane={draftId !== props.routeDraftId && paneDraftIds.has(draftId)}
+              jumpLabel={props.jumpLabelByDraftId?.get(draftId) ?? null}
               onNavigate={props.onNavigateToDraft}
               onDiscard={discardComposerDraft}
               onContextMenu={props.onDraftContextMenu}

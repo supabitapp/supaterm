@@ -5,6 +5,7 @@ import * as DateTime from "effect/DateTime";
 import { describe, expect, it } from "vite-plus/test";
 import {
   formatWorkingDurationLabel,
+  orderSidebarRowKeys,
   resolveScopedNewThreadProjectRef,
   getFallbackThreadIdAfterDelete,
   hasUnseenCompletion,
@@ -1453,5 +1454,36 @@ describe("resolveScopedNewThreadProjectRef", () => {
         viewed: viewedWeb,
       }),
     ).toBeNull();
+  });
+});
+
+describe("orderSidebarRowKeys", () => {
+  it("places draft rows after the pinned threads, as the sidebar lists them", () => {
+    const sectionByThreadKey = new Map([
+      ["pinned-a", "pinned"],
+      ["active-a", "active"],
+      ["done-a", "done"],
+    ]);
+    expect(
+      orderSidebarRowKeys({
+        orderedThreadKeys: ["pinned-a", "active-a", "done-a"],
+        sectionByThreadKey,
+        draftRowKeys: ["draft:1", "draft:2"],
+      }),
+    ).toEqual(["pinned-a", "draft:1", "draft:2", "active-a", "done-a"]);
+    expect(
+      orderSidebarRowKeys({
+        orderedThreadKeys: ["pinned-a"],
+        sectionByThreadKey,
+        draftRowKeys: ["draft:1"],
+      }),
+    ).toEqual(["pinned-a", "draft:1"]);
+    expect(
+      orderSidebarRowKeys({
+        orderedThreadKeys: ["active-a"],
+        sectionByThreadKey,
+        draftRowKeys: ["draft:1"],
+      }),
+    ).toEqual(["draft:1", "active-a"]);
   });
 });

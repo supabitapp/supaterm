@@ -756,6 +756,23 @@ export function isSidebarNestedLinkClick(target: EventTarget | null): boolean {
   return nodeClosest(parent, "a[href]") !== null;
 }
 
+/** Jumps and traversal follow the rows as listed: draft rows sit between the pinned threads and the rest. */
+export function orderSidebarRowKeys(input: {
+  orderedThreadKeys: readonly string[];
+  sectionByThreadKey: ReadonlyMap<string, string>;
+  draftRowKeys: readonly string[];
+}): string[] {
+  const firstUnpinned = input.orderedThreadKeys.findIndex(
+    (key) => input.sectionByThreadKey.get(key) !== "pinned",
+  );
+  const draftIndex = firstUnpinned === -1 ? input.orderedThreadKeys.length : firstUnpinned;
+  return [
+    ...input.orderedThreadKeys.slice(0, draftIndex),
+    ...input.draftRowKeys,
+    ...input.orderedThreadKeys.slice(draftIndex),
+  ];
+}
+
 /**
  * A sidebar filtered to one project already says where the next thread belongs,
  * so New skips the picker there. A project grouped across environments keeps the
