@@ -34,6 +34,14 @@ const HIDDEN = new Set([
   "sizeRelH",
   "sizeRelV",
   "fldData",
+  // An OpenDocument index keeps its templates beside the generated index; only the latter is content.
+  "table-of-content-source",
+  "illustration-index-source",
+  "table-index-source",
+  "object-index-source",
+  "user-index-source",
+  "alphabetical-index-source",
+  "bibliography-source",
 ]);
 
 class Truncation extends Error {}
