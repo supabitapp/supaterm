@@ -1593,7 +1593,9 @@ describe("AntigravityAdapterV2 work after the prompt ends", () => {
       Effect.gen(function* () {
         const fileSystem = yield* FileSystem.FileSystem;
         const path = yield* Path.Path;
-        const profile = yield* fileSystem.makeTempDirectoryScoped({ prefix: "supaterm-agy-pre-settle-" });
+        const profile = yield* fileSystem.makeTempDirectoryScoped({
+          prefix: "supaterm-agy-pre-settle-",
+        });
         const generated = (kind: string) =>
           path.join(
             profile,

@@ -578,7 +578,9 @@ it.layer(NodeServices.layer)("readAntigravityChildWork", (it) => {
       Effect.gen(function* () {
         const fs = yield* FileSystem.FileSystem;
         const path = yield* Path.Path;
-        const profile = yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-agy-pending-reply-" });
+        const profile = yield* fs.makeTempDirectoryScoped({
+          prefix: "supaterm-agy-pending-reply-",
+        });
         const write = (segments: ReadonlyArray<string>, body: string) => {
           const file = path.join(
             profile,
@@ -662,7 +664,9 @@ it.layer(NodeServices.layer)("readAntigravityChildWork", (it) => {
         expect(yield* pending()).toBe(false);
 
         // Symlinked transcript fails closed.
-        const outside = yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-agy-pending-outside-" });
+        const outside = yield* fs.makeTempDirectoryScoped({
+          prefix: "supaterm-agy-pending-outside-",
+        });
         const external = path.join(outside, "transcript.jsonl");
         yield* fs.writeFileString(
           external,
