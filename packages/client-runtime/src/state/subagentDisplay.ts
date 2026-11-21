@@ -6,7 +6,7 @@ import type {
   ServerProvider,
 } from "@supaterm/contracts";
 import { formatModelSlugName, resolveSelectableModel } from "@supaterm/shared/model";
-import { fileBasename } from "@supaterm/shared/path";
+import { fileDisplayName } from "@supaterm/shared/path";
 import { resolveModelShortName } from "../providerClients.ts";
 import { isTerminalSubagentStatus } from "./subagentRuntime.ts";
 
@@ -105,7 +105,7 @@ export function resolveSubagentMetadata(input: {
               : input.childThread?.worktreePath
                 ? "Worktree"
                 : "Workspace",
-            value: input.childThread?.branch ?? fileBasename(childWorkspace),
+            value: input.childThread?.branch ?? fileDisplayName(childWorkspace),
           },
         ]
       : []),

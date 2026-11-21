@@ -1,5 +1,5 @@
 import { connectionAddressLabel } from "@supaterm/client-runtime/connection";
-import { fileBasename } from "@supaterm/shared/path";
+import { fileDisplayName } from "@supaterm/shared/path";
 import type { SidebarProjectSnapshot } from "../../sidebarProjectGrouping";
 import type { EnvironmentPresentation } from "../../state/environments";
 import type { ResolvedSettingsScope, SettingsScopeSearch } from "./settingsScope";
@@ -137,8 +137,8 @@ export function settingsScopeCheckoutLabel(
   checkout: ScopeCheckout,
   checkouts: readonly ScopeCheckout[],
 ) {
-  const name = fileBasename(checkout.workspaceRoot);
-  return checkouts.filter((other) => fileBasename(other.workspaceRoot) === name).length > 1
+  const name = fileDisplayName(checkout.workspaceRoot);
+  return checkouts.filter((other) => fileDisplayName(other.workspaceRoot) === name).length > 1
     ? checkout.workspaceRoot
     : name;
 }

@@ -315,7 +315,7 @@ function ComposerMentionNodeView({ node }: NodeViewProps) {
         path={path}
         environmentId={actions.environmentId}
         cwd={actions.cwd}
-        label={basenameOfPath(path)}
+        label={basenameOfPath(path).normalize("NFC")}
         theme={resolvedThemeFromDocument()}
       />
     </ContextChip>

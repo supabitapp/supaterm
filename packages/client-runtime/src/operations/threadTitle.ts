@@ -10,7 +10,8 @@ export interface ThreadTitleSeedInput {
 }
 
 function normalizeTitleSeed(value: string): string {
-  return assistantCitationsToPlainText(value).trim().replace(/\s+/gu, " ");
+  // Mentioned macOS paths can be NFD; titles show them composed.
+  return assistantCitationsToPlainText(value).trim().replace(/\s+/gu, " ").normalize("NFC");
 }
 
 export function threadTitleTextFromPrompt(value: string): string {
