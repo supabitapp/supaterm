@@ -173,7 +173,9 @@ it.layer(NodeServices.layer)("removeAntigravitySessionFiles", (it) => {
     Effect.gen(function* () {
       const fs = yield* FileSystem.FileSystem;
       const helperCwd = yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-agy-helper-" });
-      const attachmentsDir = yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-agy-attachments-" });
+      const attachmentsDir = yield* fs.makeTempDirectoryScoped({
+        prefix: "supaterm-agy-attachments-",
+      });
       const fixture = yield* makeNativeSessionFixture({
         workspacePaths: [helperCwd, attachmentsDir],
       });
