@@ -2,6 +2,7 @@ import {
   type EnvironmentId,
   type VcsListRefsInput,
   type VcsListRefsResult,
+  type VcsRefreshStatusResult,
   type VcsStatusResult,
   WS_METHODS,
 } from "@supaterm/contracts";
@@ -37,7 +38,6 @@ import { vcsCommandConcurrency, vcsCommandScheduler } from "./vcsCommandSchedule
 import {
   invalidateCachedVcsRefs,
   invalidateVcsRefsIfChanged,
-  invalidateVcsRefsWithLock,
   markVcsRefsRefreshPending,
   vcsRefsCacheStateAtom,
   vcsRefsLiveRevisionAtom,
@@ -306,10 +306,17 @@ export function createVcsEnvironmentAtoms<R, E>(
       environmentId: target.environmentId,
       cwd: target.input.cwd,
     });
-  const refreshRefs = (
+
+  const invalidateRefsIfChanged = (
     target: { readonly environmentId: EnvironmentId; readonly input: { readonly cwd: string } },
     registry: AtomRegistry.AtomRegistry,
-  ) => invalidateVcsRefsWithLock(registry, target);
+    exit: Exit.Exit<VcsRefreshStatusResult, unknown>,
+  ) =>
+    invalidateVcsRefsIfChanged(
+      registry,
+      { environmentId: target.environmentId, cwd: target.input.cwd },
+      Exit.isSuccess(exit) ? exit.value.refsDigest : undefined,
+    );
 
   return {
     listRefs,
@@ -358,19 +365,14 @@ export function createVcsEnvironmentAtoms<R, E>(
       tag: WS_METHODS.vcsRefreshStatus,
       scheduler: vcsCommandScheduler,
       concurrency: vcsCommandConcurrency,
-      onSettled: (target, registry, exit) =>
-        invalidateVcsRefsIfChanged(
-          registry,
-          { environmentId: target.environmentId, cwd: target.input.cwd },
-          Exit.isSuccess(exit) ? exit.value.refsDigest : undefined,
-        ),
+      onSettled: invalidateRefsIfChanged,
     }),
     // Outside the serial queue: it only reads status, and a checkout picked right after opening
     // the picker must not wait behind that read.
     refreshLocalStatusForPicker: createEnvironmentRpcCommand(runtime, {
       label: "environment-data:vcs:refresh-local-status-for-picker",
       tag: WS_METHODS.vcsRefreshStatus,
-      onSettled: refreshRefs,
+      onSettled: invalidateRefsIfChanged,
     }),
     createWorktree: createEnvironmentRpcCommand(runtime, {
       label: "environment-data:vcs:create-worktree",
