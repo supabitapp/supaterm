@@ -110,7 +110,7 @@ import { ComposerPopoverAnchor } from "./ComposerPopoverAnchor";
 import { ComposerQueuedEditAttachments } from "./ComposerQueuedEdit";
 import { useComposerCommandMenu } from "./use-composer-command-menu";
 import type { ComposerEnvironmentCandidate } from "@supaterm/client-runtime/composerThreadItems";
-import { offersLinkedEnvironments } from "@supaterm/client-runtime/link-request";
+import { supportsPeerLinks } from "@supaterm/client-runtime/link-request";
 import {
   ComposerDictationConfirmAction,
   ComposerDictationLeadingAction,
@@ -530,9 +530,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
     ownerKey: composerDraftKey,
     environmentId: props.environmentId,
     threadShells: useThreadShells(),
-    environments: offersLinkedEnvironments(props.serverConfig)
-      ? mentionableEnvironments
-      : NO_MACHINES,
+    environments: supportsPeerLinks(props.serverConfig) ? mentionableEnvironments : NO_MACHINES,
     linkedEnvironments: useLinkedEnvironments(props.environmentId),
     currentThreadId: props.selectedThread.id,
     projectCwd: props.projectCwd,

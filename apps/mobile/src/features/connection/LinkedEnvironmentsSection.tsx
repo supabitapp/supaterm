@@ -4,6 +4,7 @@ import { linkLabels } from "@supaterm/client-runtime/link-request";
 import {
   incomingLinkNames,
   peerLinkHealth,
+  peerLinkHealthText,
   type PeerLinkHealth,
 } from "@supaterm/client-runtime/state/peerLinks";
 import {
@@ -165,21 +166,6 @@ function ListNote(props: { readonly title: string; readonly body?: string }) {
   );
 }
 
-const healthText = (health: PeerLinkHealth) => {
-  switch (health.kind) {
-    case "expired":
-      return "Expired. Link it again with a new pairing code.";
-    case "unreachable":
-      return health.detail ?? "Not answering right now.";
-    case "failing":
-      return health.detail;
-    case "reachable":
-      return health.expiresInDays === null
-        ? "Reachable"
-        : `Expires in ${health.expiresInDays} ${health.expiresInDays === 1 ? "day" : "days"}. Link it again to renew.`;
-  }
-};
-
 function LinkedEnvironmentRow(props: {
   readonly environmentId: EnvironmentId;
   readonly link: PeerLinkSummary;
@@ -214,7 +200,7 @@ function LinkedEnvironmentRow(props: {
           }
           numberOfLines={2}
         >
-          {healthText(health)}
+          {peerLinkHealthText(health)}
         </Text>
       </View>
       {canUnlink ? (

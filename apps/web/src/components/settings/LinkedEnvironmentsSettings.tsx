@@ -10,6 +10,7 @@ import {
   AuthAccessWriteScope,
   type AuthMcpClientAccess,
   type EnvironmentId,
+  type PeerLinkCreateInput,
   type PeerLinkSummary,
 } from "@supaterm/contracts";
 import { ArrowRightIcon, PlusIcon } from "@supaterm/icons";
@@ -17,16 +18,24 @@ import {
   isAtomCommandInterrupted,
   squashAtomCommandFailure,
 } from "@supaterm/client-runtime/state/runtime";
-import { incomingLinkNames, peerLinkHealth } from "@supaterm/client-runtime/state/peerLinks";
+import {
+  incomingLinkNames,
+  peerLinkHealth,
+  peerLinkHealthText,
+} from "@supaterm/client-runtime/state/peerLinks";
 import * as DateTime from "effect/DateTime";
 import * as Option from "effect/Option";
-import * as Result from "effect/Result";
 import { AsyncResult } from "effect/reactivity";
 import { useId, useRef, useState } from "react";
 
 import { requestConfirmDialog } from "~/confirmDialog";
-import { mintPairingCodeOn } from "~/state/peerPairingCode";
-import { peerLinkEnvironment, useLinkableMachines, usePeerLinkHosts } from "~/state/peerLinks";
+import {
+  type KnownMachineLinkResult,
+  linkKnownMachine,
+  peerLinkEnvironment,
+  useLinkableMachines,
+  usePeerLinkHosts,
+} from "~/state/peerLinks";
 import { useEnvironmentIdentities } from "~/state/environments";
 import { useEnvironmentQuery } from "~/state/query";
 import {
@@ -62,7 +71,7 @@ import { searchableSetting } from "./settingsSearch";
 
 // Console log labels for the atom commands.
 export const UNLINK_COMMAND_LABEL = "unlink environment";
-export const LINK_COMMAND_LABEL = "link environment";
+const LINK_COMMAND_LABEL = "link environment";
 
 export const failureToast = (title: string, failure: unknown) =>
   toastManager.add(
@@ -215,16 +224,7 @@ function LinkedEnvironmentRow({
       failureToast("Could not forget the link", squashAtomCommandFailure(result));
     }
   };
-  const status =
-    health.kind === "expired"
-      ? "Expired. Link it again with a new pairing code."
-      : health.kind === "unreachable"
-        ? (health.detail ?? "Not answering right now.")
-        : health.kind === "failing"
-          ? health.detail
-          : health.expiresInDays !== null
-            ? `Expires in ${health.expiresInDays} ${health.expiresInDays === 1 ? "day" : "days"}. Link it again to renew.`
-            : "Reachable";
+  const status = peerLinkHealthText(health);
   return (
     <div className={cn(ITEM_ROW_CLASSNAME, "pl-8 sm:pl-10")}>
       <div className={ITEM_ROW_INNER_CLASSNAME}>
@@ -323,40 +323,47 @@ function LinkEnvironmentAction({
     }
   };
   // Settles to the code to link with, or null after reporting why there is none.
-  const resolvePairingCode = async () => {
-    if (!canMint || targetId === null) return pairingCode.trim();
-    const minted = await mintPairingCodeOn(targetId, access);
-    if (Result.isSuccess(minted)) return minted.success;
-    setMintFailed((failed) => new Set(failed).add(targetId));
-    failureToast("Could not link the environment", linkRequestFailureMessage(minted.failure));
-    return null;
+  const finish = (result: KnownMachineLinkResult) => {
+    if (result._tag === "Linked") {
+      toastManager.add({ type: "success", title: `Linked ${result.label}` });
+      handleOpenChange(false);
+    } else if (result._tag === "MintFailed" && targetId !== null) {
+      setMintFailed((failed) => new Set(failed).add(targetId));
+      failureToast("Could not link the environment", linkRequestFailureMessage(result.failure));
+    } else if (result._tag !== "Interrupted") {
+      failureToast("Could not link the environment", result.failure);
+    }
+  };
+  const linkWithPastedCode = async (
+    input: PeerLinkCreateInput | null,
+  ): Promise<KnownMachineLinkResult> => {
+    if (input === null) {
+      return { _tag: "LinkFailed", failure: new Error("No address for that machine.") };
+    }
+    const result = await link({ environmentId, input });
+    if (result._tag === "Success") return { _tag: "Linked", label: result.value.label };
+    return isAtomCommandInterrupted(result)
+      ? { _tag: "Interrupted" }
+      : { _tag: "LinkFailed", failure: squashAtomCommandFailure(result) };
   };
   const submit = async () => {
     const typed = machine === null || needsAddress;
-    if (inFlight.current || !ready || (!typed && machine.urls.length === 0)) return;
+    if (inFlight.current || !ready) return;
     inFlight.current = true;
     setBusy(true);
-    const code = await resolvePairingCode();
+    const code = pairingCode.trim();
     // A typed address links alone: only this app's own addresses name a machine.
-    const input =
-      code === null
-        ? null
-        : typed
-          ? { url: address.trim(), pairingCode: code, access }
-          : machineLinkInput(machine, code, access);
-    const result = input === null ? null : await link({ environmentId, input });
+    const result: KnownMachineLinkResult =
+      !typed && canMint
+        ? await linkKnownMachine({ sourceId: environmentId, machine, access })
+        : await linkWithPastedCode(
+            typed
+              ? { url: address.trim(), pairingCode: code, access }
+              : machineLinkInput(machine, code, access),
+          );
     inFlight.current = false;
     setBusy(false);
-    if (result === null) return;
-    if (result._tag === "Success") {
-      toastManager.add({
-        type: "success",
-        title: `Linked ${result.value.label}`,
-      });
-      handleOpenChange(false);
-    } else if (!isAtomCommandInterrupted(result)) {
-      failureToast("Could not link the environment", squashAtomCommandFailure(result));
-    }
+    finish(result);
   };
   return (
     <Dialog

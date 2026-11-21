@@ -79,6 +79,22 @@ export function peerLinkHealth(link: PeerLinkSummary, now: DateTime.Utc): PeerLi
   return { kind: "reachable", expiresInDays: days <= EXPIRY_WARNING_DAYS ? days : null };
 }
 
+/** How a link's health reads in settings. */
+export function peerLinkHealthText(health: PeerLinkHealth): string {
+  switch (health.kind) {
+    case "expired":
+      return "Expired. Link it again.";
+    case "unreachable":
+      return health.detail ?? "Not answering right now.";
+    case "failing":
+      return health.detail;
+    case "reachable":
+      return health.expiresInDays === null
+        ? "Reachable"
+        : `Expires in ${health.expiresInDays} ${health.expiresInDays === 1 ? "day" : "days"}. Link it again to renew.`;
+  }
+}
+
 /**
  * For each environment, the names of the given sources whose unexpired links reach it,
  * so a machine can show which others may work on it.

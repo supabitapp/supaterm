@@ -375,11 +375,12 @@ work on the VPS; the VPS's agents cannot reach the laptop unless you also link
 from the VPS. The pairing code the link uses is the VPS's consent, so only
 someone who can create pairing links there can set one up.
 
-The quickest way is on the machine being worked on: in **Settings →
-Environments**, open its **Permissions** and pick what agents on each of your
-other connected machines may do there, or **Off** to forget that link. This app
-makes the pairing code itself when it is connected to that machine with a
-session that manages access there.
+The quickest way, on web and desktop, is on the machine being worked on: in
+**Settings → Environments**, open that saved environment's **Permissions** and
+pick what agents on each of your other connected machines may do there, or
+**Off** to forget that link. This app makes the pairing code itself when it is
+connected to that machine with a session that manages access there. Picking
+another level links again with a new code.
 
 The **Linked environments** section lists each machine's links. To link to a
 machine this app is not connected to, choose **Link** on the machine you will

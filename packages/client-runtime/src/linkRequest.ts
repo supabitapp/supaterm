@@ -19,7 +19,7 @@ import { connectionRouteKind, connectionRoutes, routeHttpBaseUrl } from "./conne
 export type LinkRequestItem = Extract<OrchestrationV2TurnItem, { readonly type: "link_request" }>;
 
 /** Whether an environment supports links to the user's other machines. */
-export const offersLinkedEnvironments = (
+export const supportsPeerLinks = (
   config: Pick<ServerConfig, "environment"> | null | undefined,
 ): boolean => config?.environment.capabilities.peerLinks === true;
 
@@ -134,35 +134,41 @@ export function linkableMachines(input: {
   );
   return input.environments
     .filter((environment) => environment.environmentId !== input.threadEnvironmentId)
-    .map((environment) => {
-      const reported = (environment.serverConfig?.directEndpoints ?? []).map(
-        (endpoint) => endpoint.httpBaseUrl,
-      );
-      const routes = connectionRoutes(environment.entry);
-      const isRelay = (route: (typeof routes)[number]) => connectionRouteKind(route) === "relay";
-      // The relay server a route was saved with; undefined is the default one.
-      const relayServerOf = (route: (typeof routes)[number]) => {
-        const profile = Option.getOrNull(route.profile);
-        return profile?._tag === "BearerConnectionProfile" && profile.relayUrl !== undefined
-          ? (normalizeRelayServerUrl(profile.relayUrl) ?? undefined)
-          : undefined;
-      };
-      const firstRelay = routes.find(isRelay);
-      const relayUrl = firstRelay === undefined ? undefined : relayServerOf(firstRelay);
-      // A link holds one relay server, so a relay route saved with another is left out.
-      const saved = routes.flatMap((route) =>
-        isRelay(route) && relayServerOf(route) !== relayUrl ? [] : (routeHttpBaseUrl(route) ?? []),
-      );
-      return {
-        environmentId: environment.environmentId,
-        label: environment.entry.target.label,
-        machine: resolveEnvironmentMachineKind(environment.serverConfig),
-        connected: environment.connection.phase === "connected",
-        linked: linkedIds.has(environment.environmentId),
-        urls: [...new Set([...reported, ...saved])].filter(isLinkableUrl),
-        ...(relayUrl === undefined ? {} : { relayUrl }),
-      };
-    });
+    .map((environment) => linkableMachine(environment, linkedIds.has(environment.environmentId)));
+}
+
+/** One machine as a server could link it, at the addresses this client knows for it. */
+export function linkableMachine(
+  environment: EnvironmentPresentation & { readonly environmentId: EnvironmentId },
+  linked = false,
+): LinkableMachine {
+  const reported = (environment.serverConfig?.directEndpoints ?? []).map(
+    (endpoint) => endpoint.httpBaseUrl,
+  );
+  const routes = connectionRoutes(environment.entry);
+  const isRelay = (route: (typeof routes)[number]) => connectionRouteKind(route) === "relay";
+  // The relay server a route was saved with; undefined is the default one.
+  const relayServerOf = (route: (typeof routes)[number]) => {
+    const profile = Option.getOrNull(route.profile);
+    return profile?._tag === "BearerConnectionProfile" && profile.relayUrl !== undefined
+      ? (normalizeRelayServerUrl(profile.relayUrl) ?? undefined)
+      : undefined;
+  };
+  const firstRelay = routes.find(isRelay);
+  const relayUrl = firstRelay === undefined ? undefined : relayServerOf(firstRelay);
+  // A link holds one relay server, so a relay route saved with another is left out.
+  const saved = routes.flatMap((route) =>
+    isRelay(route) && relayServerOf(route) !== relayUrl ? [] : (routeHttpBaseUrl(route) ?? []),
+  );
+  return {
+    environmentId: environment.environmentId,
+    label: environment.entry.target.label,
+    machine: resolveEnvironmentMachineKind(environment.serverConfig),
+    connected: environment.connection.phase === "connected",
+    linked,
+    urls: [...new Set([...reported, ...saved])].filter(isLinkableUrl),
+    ...(relayUrl === undefined ? {} : { relayUrl }),
+  };
 }
 
 /**
