@@ -38,7 +38,10 @@ import {
 import { makeManagedServerProvider } from "@supaterm/provider-core/server/managedProvider";
 import type { ServerProviderDraft } from "@supaterm/provider-core/server/snapshotProbe";
 import * as ModelCatalog from "@supaterm/provider-core/server/ModelCatalog";
-import { resolveClaudeModelCatalog } from "../ClaudeModelCatalog.ts";
+import {
+  resolveClaudeModelCatalog,
+  scopeClaudeUpgradeMessageToChannel,
+} from "../ClaudeModelCatalog.ts";
 import { filterClaudeFastModeModels, makeClaudeFastModeAvailability } from "../ClaudeFastMode.ts";
 import {
   makeClaudeCodeModelRoutes,
@@ -312,6 +315,13 @@ export const ClaudeDriver: ProviderDriver<ClaudeSettings, ClaudeDriverEnv, Path.
             enrichProviderSnapshotWithVersionAdvisory(snapshot, maintenanceCapabilities, {
               enableProviderUpdateChecks: settings.enableProviderUpdateChecks,
             }),
+          ),
+          Effect.flatMap((enrichedSnapshot) =>
+            modelCatalog.pipe(
+              Effect.map((catalog) =>
+                scopeClaudeUpgradeMessageToChannel(catalog, enrichedSnapshot),
+              ),
+            ),
           ),
           Effect.provideService(HttpClient.HttpClient, httpClient),
           Effect.provideService(ProviderLatestVersions.ProviderLatestVersions, latestVersions),
