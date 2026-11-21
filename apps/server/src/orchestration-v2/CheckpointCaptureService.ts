@@ -113,6 +113,8 @@ export const layer: Layer.Layer<
           capturedAt: run.requestedAt,
           forceMissing: sideChat,
         });
+      // Materializing a baseline waits on the folder's lock before the capture does.
+      const capturesBeforeLock = yield* checkpoints.capturesSoFar(scope.cwd);
       const threadStartCheckpoint =
         baselineOrdinalWithinScope === 0 || isPreserved(0) ? null : yield* materializeBaseline(0);
       const baselineCheckpoint = isPreserved(baselineOrdinalWithinScope)
@@ -126,6 +128,7 @@ export const layer: Layer.Layer<
         appRunOrdinal: run.ordinal,
         capturedAt,
         forceMissing: sideChat,
+        capturesBeforeLock,
       });
       // Omit delegatedCompletion to preserve cohort writes made after capture loaded the run.
       const { delegatedCompletion: _delegatedCompletion, ...runWithoutDelegatedCompletion } = run;
