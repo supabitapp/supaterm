@@ -95,7 +95,10 @@ function matchesWhenClause(
   return evaluateWhenNode(whenAst, context);
 }
 
-function shortcutForContext(binding: ResolvedKeybindingRule, context: ShortcutMatchContext) {
+export function shortcutForContext(
+  binding: ResolvedKeybindingRule,
+  context: Partial<ShortcutMatchContext>,
+) {
   const shortcut = binding.shortcut;
 
   if (
