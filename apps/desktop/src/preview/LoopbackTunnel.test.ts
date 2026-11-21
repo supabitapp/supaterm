@@ -507,6 +507,8 @@ it.effect("closes connections beyond a forward's limit without tunnelling them",
         new Promise<boolean>((resolve) => {
           const socket = NodeNet.connect(forward.localPort, "127.0.0.1");
           socket.on("close", () => resolve(true));
+          // The listener may reset the refused socket instead of ending it.
+          socket.on("error", () => resolve(true));
           socket.on("data", () => resolve(false));
           socket.write(Uint8Array.of(2));
         }),
