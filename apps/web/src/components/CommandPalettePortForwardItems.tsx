@@ -51,11 +51,13 @@ export function useCommandPalettePortForwardItem(input: {
 }): CommandPaletteSubmenuItem | null {
   const forwards = usePortForwards();
   const { environments } = useEnvironments();
-  const reachable = environments.filter(
-    (environment) => environment.connection.phase === "connected" && canForwardPorts(environment),
+  const connected = environments.filter(
+    (environment) => environment.connection.phase === "connected",
   );
-  const tunnelling = useEnvironmentsWithScope(reachable, AuthTerminalOperateScope);
-  const tunnelled = reachable.filter((environment) => tunnelling.has(environment.environmentId));
+  const operable = useEnvironmentsWithScope(connected, AuthTerminalOperateScope);
+  const tunnelled = connected.filter((environment) =>
+    canForwardPorts(environment, operable.has(environment.environmentId)),
+  );
   const localities = useAtomValue(
     forwardLocalitiesAtom(environmentIdsKey(tunnelled.map(({ environmentId }) => environmentId))),
   );

@@ -469,6 +469,10 @@ export function readEnvironmentSupportsServerBrowser(environmentId: EnvironmentI
   return appAtomRegistry.get(environmentServerConfigsAtom).has(environmentId);
 }
 
+export function readEnvironmentServerConfig(environmentId: EnvironmentId) {
+  return appAtomRegistry.get(environmentServerConfigsAtom).get(environmentId);
+}
+
 export function readEnvironmentThreadRefs(
   environmentId: EnvironmentId,
 ): ReadonlyArray<ScopedThreadRef> {

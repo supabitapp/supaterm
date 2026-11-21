@@ -61,7 +61,8 @@ export interface TimelineRowSharedState {
   displayThreadKey?: string;
   onOpenTurnDiff: (runId: RunId, filePath?: string) => void;
   onOpenToolDiff: ((target: ToolCallDiffTarget) => void) | undefined;
-  onOpenThread: (threadId: OrchestrationV2TurnItem["threadId"]) => void;
+  /** Null where this reader cannot open other threads, so no row offers to. */
+  onOpenThread: ((threadId: OrchestrationV2TurnItem["threadId"]) => void) | null;
   workflowOpening: WorkflowOpening | null;
   /** Null where forking is not offered, as in a side chat. */
   onForkFromRun:

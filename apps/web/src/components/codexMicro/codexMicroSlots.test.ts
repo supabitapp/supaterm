@@ -9,7 +9,9 @@ import { scopedThreadKey } from "@supaterm/client-runtime/environment";
 import type { EnvironmentThreadShell } from "@supaterm/client-runtime/state/models";
 import { describe, expect, it } from "vite-plus/test";
 
+import { DraftId } from "../../draftId";
 import { makeThreadFixture, type ThreadFixtureOverrides } from "../../test-fixtures";
+import { orderSidebarRows } from "../Sidebar.logic";
 import {
   buildCodexMicroLightingModel,
   buildCodexMicroSlotViews,
@@ -57,23 +59,25 @@ function boundIds(bindings: ReturnType<typeof selectCodexMicroSlotBindings>) {
 }
 
 describe("selectCodexMicroSlotBindings", () => {
-  it("follows the jump shortcut targets and leaves the rest of the keys empty", () => {
+  it("follows the jump shortcut targets and leaves drafts and the rest of the keys empty", () => {
     const pinned = thread("pinned", { pinnedAt: NOW });
     const done = thread("done", { doneAt: NOW, doneOverride: "done" });
+    const olderDone = scopedThreadKey({ environmentId, threadId: ThreadId.make("older-done") });
     const bindings = selectCodexMicroSlotBindings({
       source: "sidebar",
       threads: [thread("unlisted"), done, pinned],
-      jumpTargets: [
-        keyOf(pinned),
-        keyOf(done),
-        scopedThreadKey({ environmentId, threadId: ThreadId.make("older-done") }),
-      ],
+      jumpTargets: orderSidebarRows({
+        orderedThreadKeys: [keyOf(pinned), keyOf(done), olderDone],
+        sectionByThreadKey: new Map([[keyOf(pinned), "pinned"]]),
+        draftIds: [DraftId.make("draft-1")],
+      }),
       customAgentKeys: DEFAULT_CODEX_MICRO_CUSTOM_AGENT_KEYS,
       now: NOW,
     });
 
-    expect(boundIds(bindings)).toEqual(["pinned", "done", "older-done", null, null, null]);
-    expect(bindings[2]).toMatchObject({ type: "thread", thread: null });
+    expect(boundIds(bindings)).toEqual(["pinned", null, "done", "older-done", null, null]);
+    expect(bindings[1]).toEqual({ type: "empty" });
+    expect(bindings[3]).toMatchObject({ type: "thread", thread: null });
   });
 
   it("follows pinned threads in their saved order", () => {
@@ -159,7 +163,7 @@ describe("buildCodexMicroSlotViews", () => {
       bindings: selectCodexMicroSlotBindings({
         source: "sidebar",
         threads,
-        jumpTargets: threads.map(keyOf),
+        jumpTargets: threads.map((shell) => ({ type: "thread" as const, key: keyOf(shell) })),
         customAgentKeys: DEFAULT_CODEX_MICRO_CUSTOM_AGENT_KEYS,
         now: NOW,
       }),

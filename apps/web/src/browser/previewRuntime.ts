@@ -1,5 +1,10 @@
 import { useAtomValue } from "@effect/atom-react";
-import type { EnvironmentId, PreviewRuntime, PreviewSessionSnapshot } from "@supaterm/contracts";
+import {
+  AuthTerminalOperateScope,
+  type EnvironmentId,
+  type PreviewRuntime,
+  type PreviewSessionSnapshot,
+} from "@supaterm/contracts";
 import { Atom } from "effect/reactivity";
 
 import { environmentCatalog } from "~/connection/catalog";
@@ -7,22 +12,28 @@ import { isElectron } from "~/env";
 import { isPreviewSupportedInRuntime } from "~/previewStateStore";
 import { appAtomRegistry } from "~/rpc/atomRegistry";
 import { primaryEnvironmentIdAtom } from "~/state/primaryEnvironment";
-import { readPreparedConnection } from "~/state/session";
+import { environmentSession, readPreparedConnection, sessionHasScope } from "~/state/session";
 import {
   readEnvironmentSupportsServerBrowser,
   useEnvironmentSupportsServerBrowser,
 } from "~/state/entities";
 import { environmentServerConfigsAtom } from "~/state/server";
 
-import { tunnelsEnvironmentLoopback } from "./browserTargetResolver";
+import { loopbackTunnelUsable, tunnelsEnvironmentLoopback } from "./browserTargetResolver";
 
-/** Whether this desktop loads the environment's localhost itself: it is local, or its tunnel is on. */
+/** Whether this desktop loads the environment's localhost itself: it is local, or its tunnel is usable. */
 const desktopLoadsLoopbackAtom = Atom.family((environmentId: EnvironmentId) =>
   Atom.make((get) => {
     const target = get(environmentCatalog.catalogValueAtom).entries.get(environmentId)?.target;
     if (!tunnelsEnvironmentLoopback(target)) return true;
-    const config = get(environmentServerConfigsAtom).get(environmentId);
-    return config !== undefined && config.settings.enablePreviewTunnel;
+    return loopbackTunnelUsable({
+      target,
+      serverConfig: get(environmentServerConfigsAtom).get(environmentId),
+      canOperateTerminal: sessionHasScope(
+        get(environmentSession.sessionStateAtom(environmentId)),
+        AuthTerminalOperateScope,
+      ),
+    });
   }).pipe(Atom.withLabel(`preview:desktop-loads-loopback:${environmentId}`)),
 );
 

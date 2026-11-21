@@ -1,7 +1,10 @@
-import type {
-  BrowserNavigationTarget,
-  EnvironmentId,
-  PreviewUrlResolution,
+import {
+  AuthTerminalOperateScope,
+  type BrowserNavigationTarget,
+  type EnvironmentId,
+  type ExecutionEnvironmentCapabilities,
+  type PreviewUrlResolution,
+  type ServerSettings,
 } from "@supaterm/contracts";
 import { isLoopbackHost, normalizePreviewUrl } from "@supaterm/shared/preview";
 import { isLocalLoopbackHost, isPrivateNetworkHost } from "@supaterm/shared/hostClassification";
@@ -10,9 +13,12 @@ import type { ConnectionTarget } from "@supaterm/client-runtime/connection";
 
 import { isDesktopLocalConnectionTarget } from "~/connection/desktopLocal";
 import { isElectron } from "~/env";
-import { readEnvironmentSupportsServerBrowser } from "~/state/entities";
+import {
+  readEnvironmentServerConfig,
+  readEnvironmentSupportsServerBrowser,
+} from "~/state/entities";
 
-import { readPreparedConnection } from "~/state/session";
+import { readEnvironmentScope, readPreparedConnection } from "~/state/session";
 
 export { normalizeHostname, isLocalLoopbackHost } from "@supaterm/shared/hostClassification";
 
@@ -81,6 +87,25 @@ const reachesEnvironmentLoopback = (target: ConnectionTarget): boolean =>
 export const tunnelsEnvironmentLoopback = (target: ConnectionTarget | undefined): boolean =>
   isElectron && !(target !== undefined && reachesEnvironmentLoopback(target));
 
+/** Whether the desktop may load the environment's localhost through its tunnel, not at its address. */
+export const loopbackTunnelUsable = (environment: {
+  readonly target: ConnectionTarget | undefined;
+  readonly serverConfig:
+    | {
+        readonly environment: {
+          readonly capabilities: Pick<ExecutionEnvironmentCapabilities, "previewTunnel">;
+        };
+        readonly settings: Pick<ServerSettings, "enablePreviewTunnel">;
+      }
+    | null
+    | undefined;
+  readonly canOperateTerminal: boolean;
+}): boolean =>
+  tunnelsEnvironmentLoopback(environment.target) &&
+  environment.canOperateTerminal &&
+  environment.serverConfig?.environment.capabilities.previewTunnel === true &&
+  environment.serverConfig.settings.enablePreviewTunnel;
+
 const resolveLoopbackUrl = (
   environmentId: EnvironmentId,
   rawUrl: string,
@@ -111,12 +136,22 @@ const resolveLoopbackUrl = (
   }
 };
 
-/** The URL an in-app tab loads. A desktop webview keeps localhost; its partition reaches the environment. */
+/** The URL an in-app tab loads. A tunnelled desktop webview keeps localhost; its partition reaches the environment. */
 export const resolveDiscoveredServerUrl = (
   environmentId: EnvironmentId,
   rawUrl: string,
   options?: { readonly requireReachable: boolean },
-): string => resolveLoopbackUrl(environmentId, rawUrl, isElectron, options);
+): string =>
+  resolveLoopbackUrl(
+    environmentId,
+    rawUrl,
+    loopbackTunnelUsable({
+      target: readPreparedConnection(environmentId)?.target,
+      serverConfig: readEnvironmentServerConfig(environmentId),
+      canOperateTerminal: readEnvironmentScope(environmentId, AuthTerminalOperateScope),
+    }),
+    options,
+  );
 
 /** The URL for the system browser, which has no tunnel and needs an address it can reach itself. */
 export const resolveExternalServerUrl = (environmentId: EnvironmentId, rawUrl: string): string =>

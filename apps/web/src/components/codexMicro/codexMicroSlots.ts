@@ -14,7 +14,7 @@ import { effectiveSnoozed } from "@supaterm/client-runtime/state/thread-snooze";
 import { sortInboxThreadsByReturn } from "@supaterm/client-runtime/state/thread-inbox";
 import { sortPinnedThreadsByOrderKey } from "@supaterm/client-runtime/state/thread-sort";
 
-import { hasUnseenCompletion, resolveSidebarThreadStatus } from "../Sidebar.logic";
+import { hasUnseenCompletion, resolveSidebarThreadStatus, type SidebarRow } from "../Sidebar.logic";
 import type { CodexMicroSlotView } from "./codexMicroStore";
 
 export type CodexMicroSlotBinding =
@@ -69,7 +69,7 @@ function threadsByKey(threads: ReadonlyArray<EnvironmentThreadShell>) {
 export function selectCodexMicroSlotBindings(input: {
   readonly source: CodexMicroAgentSource;
   readonly threads: ReadonlyArray<EnvironmentThreadShell>;
-  readonly jumpTargets: ReadonlyArray<string>;
+  readonly jumpTargets: ReadonlyArray<SidebarRow>;
   readonly customAgentKeys: CodexMicroCustomAgentKeys;
   readonly now: string;
 }): ReadonlyArray<CodexMicroSlotBinding> {
@@ -78,8 +78,8 @@ export function selectCodexMicroSlotBindings(input: {
     case "sidebar": {
       const byKey = threadsByKey(threads);
       return CODEX_MICRO_AGENT_KEYS.map((_, index): CodexMicroSlotBinding => {
-        const key = input.jumpTargets[index];
-        const ref = key === undefined ? null : parseScopedThreadKey(key);
+        const target = input.jumpTargets[index];
+        const ref = target?.type === "thread" ? parseScopedThreadKey(target.key) : null;
         if (ref === null) return EMPTY_BINDING;
         return { type: "thread", ref, thread: byKey.get(scopedThreadKey(ref)) ?? null };
       });
