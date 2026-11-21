@@ -290,7 +290,7 @@ interface MessagesTimelineProps {
   announceTurnStatus?: boolean;
   onOpenTurnDiff: (runId: RunId, filePath?: string) => void;
   onOpenToolDiff?: (target: ToolCallDiffTarget) => void;
-  onOpenThread: (threadId: OrchestrationV2TurnItem["threadId"]) => void;
+  onOpenThread?: (threadId: OrchestrationV2TurnItem["threadId"]) => void;
   /** The thread this one is a subagent or side chat of. */
   parentThreadLink?: {
     readonly threadId: ThreadId;
@@ -1271,7 +1271,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
     openPullRequest,
     onOpenToolDiff,
     onOpenTurnDiff,
-    onOpenThread,
+    onOpenThread: onOpenThread ?? null,
     workflowOpening,
     onForkFromRun: onForkFromRun ?? null,
     pinnedItemIds,
@@ -1335,7 +1335,9 @@ const ConversationTimeline = memo(function ConversationTimeline({
     parentThreadLink === null
       ? null
       : parentThreadLink.remote === undefined
-        ? () => onOpenThread(parentThreadLink.threadId)
+        ? onOpenThread === undefined
+          ? null
+          : () => onOpenThread(parentThreadLink.threadId)
         : parentThreadLink.remote.open;
   const listHeaderLeadingContent =
     parentThreadLink === null ? (

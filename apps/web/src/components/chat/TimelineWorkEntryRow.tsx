@@ -220,6 +220,7 @@ function WorkEntryLogRow(props: WorkEntryRowProps) {
   const { threadRef, timestampFormat } = ctx;
   const { retryableWorkspacePreparationRunIds, onRetryWorkspacePreparation } = ctx;
   const threadTarget = useThreadReadTarget(workEntry, ctx.activeThreadEnvironmentId);
+  const openThread = ctx.onOpenThread;
   const createdThread =
     workEntry.projectedItem?.item.type === "thread_created"
       ? workEntry.projectedItem.item
@@ -546,26 +547,26 @@ function WorkEntryLogRow(props: WorkEntryRowProps) {
               timestampFormat={timestampFormat}
             />
           ) : null}
-          {createdThread ? (
+          {createdThread && openThread ? (
             <button
               type="button"
               className="shrink-0 rounded-sm text-sm text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
               aria-label={`Open ${createdThread.title ?? "created thread"}`}
               onClick={(event) => {
                 event.stopPropagation();
-                ctx.onOpenThread(createdThread.targetThreadId);
+                openThread(createdThread.targetThreadId);
               }}
               onKeyDown={stopRowToggle}
             >
               Open chat
             </button>
           ) : null}
-          {notifiedSubagentThreadId ? (
+          {notifiedSubagentThreadId && openThread ? (
             <InlineButton
               aria-label="Open subagent thread"
               onClick={(event) => {
                 event.stopPropagation();
-                ctx.onOpenThread(notifiedSubagentThreadId);
+                openThread(notifiedSubagentThreadId);
               }}
               onKeyDown={stopRowToggle}
             >

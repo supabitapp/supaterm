@@ -272,11 +272,14 @@ export function UserMessageRow({ row }: { row: Extract<TimelineRow, { kind: "mes
 
 function UserMessageContent({ row }: { row: Extract<TimelineRow, { kind: "message" }> }) {
   const ctx = use(TimelineRowCtx);
+  const { onOpenThread } = ctx;
   return ctx.workflowOpening?.messageId === row.message.id ? (
     <WorkflowOpeningBlock
       opening={ctx.workflowOpening}
       environmentId={ctx.activeThreadEnvironmentId}
-      onOpenThread={(threadId) => ctx.onOpenThread(ThreadId.make(threadId))}
+      onOpenThread={
+        onOpenThread === null ? null : (threadId) => onOpenThread(ThreadId.make(threadId))
+      }
     />
   ) : resolveUserMessagePresentation(row.message).attribution === "automation" ? (
     <AutomationMessageRow row={row} />
@@ -425,7 +428,7 @@ function UserMessageProjectedStatus({ row }: { row: Extract<TimelineRow, { kind:
 
 function UserTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "message" }> }) {
   const ctx = use(TimelineRowCtx);
-  const { onImageExpand, onFileOpen } = ctx;
+  const { onImageExpand, onFileOpen, onOpenThread } = ctx;
   const coarsePointer = useMediaQuery({ pointer: "coarse" });
   const navigate = useNavigate();
   // A linked environment's agent sent it from a thread there.
@@ -472,7 +475,9 @@ function UserTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "message" 
     senderRef === null
       ? null
       : linkedSender === undefined
-        ? () => ctx.onOpenThread(senderRef.threadId)
+        ? onOpenThread === null
+          ? null
+          : () => onOpenThread(senderRef.threadId)
         : linkedSenderEnvironment === null
           ? null
           : () => {
