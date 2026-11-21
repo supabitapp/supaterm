@@ -1495,6 +1495,7 @@ it.effect.each([
     Effect.provide(
       McpHttpServer.layerAttachmentToolkit.pipe(
         Layer.provideMerge(McpHttpServer.layerInProcessMcpServer),
+        Layer.provide(McpPendingUploads.layer),
         Layer.provide(
           Layer.mock(ThreadManagement.ThreadManagementService)({
             getThreadShell: (id) => Effect.succeed(McpToolAccessTestkit.liveThreadShell(id)),
@@ -1509,7 +1510,9 @@ it.effect.each([
           }),
         ),
         Layer.provide(AssetSigner.layer.pipe(Layer.provideMerge(ServerSecretStore.layer))),
-        Layer.provide(ServerConfig.layerTest(process.cwd(), { prefix: "supaterm-mcp-attachment-" })),
+        Layer.provide(
+          ServerConfig.layerTest(process.cwd(), { prefix: "supaterm-mcp-attachment-" }),
+        ),
         Layer.provide(
           DocumentText.layer.pipe(
             Layer.provideMerge(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer)),
