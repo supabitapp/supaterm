@@ -34,15 +34,29 @@ export function linkedEnvironmentNames(input: {
     readonly label: string;
   }>;
 }): ReadonlyMap<EnvironmentId, string> {
-  const names = new Map(
-    input.environments.map((environment) => [environment.environmentId, environment.label]),
-  );
+  const labels = linkLabels(input);
   return new Map(
     input.links.flatMap((link) =>
       link.status === "expired"
         ? []
-        : [[link.environmentId, names.get(link.environmentId) ?? link.label] as const],
+        : [[link.environmentId, labels.get(link.environmentId) ?? link.label] as const],
     ),
+  );
+}
+
+/** Each link's name as this client names that environment, else as the link does. */
+export function linkLabels(input: {
+  readonly links: ReadonlyArray<Pick<PeerLinkSummary, "environmentId" | "label">>;
+  readonly environments: ReadonlyArray<{
+    readonly environmentId: EnvironmentId;
+    readonly label: string;
+  }>;
+}): ReadonlyMap<EnvironmentId, string> {
+  const names = new Map(
+    input.environments.map((environment) => [environment.environmentId, environment.label]),
+  );
+  return new Map(
+    input.links.map((link) => [link.environmentId, names.get(link.environmentId) ?? link.label]),
   );
 }
 

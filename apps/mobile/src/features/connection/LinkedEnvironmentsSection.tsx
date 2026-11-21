@@ -1,7 +1,11 @@
 import { RegistryContext, useAtomValue } from "@effect/atom-react";
 import { useFocusEffect } from "@react-navigation/native";
-import { offersLinkedEnvironments } from "@supaterm/client-runtime/link-request";
-import { peerLinkHealth, type PeerLinkHealth } from "@supaterm/client-runtime/state/peerLinks";
+import { linkLabels, offersLinkedEnvironments } from "@supaterm/client-runtime/link-request";
+import {
+  incomingLinkNames,
+  peerLinkHealth,
+  type PeerLinkHealth,
+} from "@supaterm/client-runtime/state/peerLinks";
 import {
   type AtomCommandResult,
   isAtomCommandInterrupted,
@@ -14,7 +18,8 @@ import {
   type PeerLinkSummary,
 } from "@supaterm/contracts";
 import * as DateTime from "effect/DateTime";
-import { useCallback, useContext, useState } from "react";
+import { AsyncResult } from "effect/reactivity";
+import { useCallback, useContext, useMemo, useState } from "react";
 import { AppState, View } from "react-native";
 
 import { AppText as Text } from "../../components/ui/AppText";
@@ -26,7 +31,7 @@ import { useEnvironments } from "../../state/environments";
 import { peerLinkEnvironment } from "../../state/peerLinks";
 import { useEnvironmentQuery } from "../../state/query";
 import { serverEnvironment } from "../../state/server";
-import { useEnvironmentScope } from "../../state/session";
+import { useEnvironmentScope, useEnvironmentsWithScope } from "../../state/session";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { SettingsSection } from "../settings/components/SettingsSection";
 import { SettingsSwitchRow } from "../settings/components/SettingsSwitchRow";
@@ -40,11 +45,16 @@ const alertFailure = (title: string, result: AtomCommandResult<unknown, unknown>
 
 export function LinkedEnvironmentsSections() {
   const { environments } = useEnvironments();
-  const hosts = environments.filter(
-    (environment) =>
-      environment.connection.phase === "connected" &&
-      environment.serverConfig?.environment.capabilities.peerLinks === true,
+  const hosts = useMemo(
+    () =>
+      environments.filter(
+        (environment) =>
+          environment.connection.phase === "connected" &&
+          environment.serverConfig?.environment.capabilities.peerLinks === true,
+      ),
+    [environments],
   );
+  const incoming = useIncomingLinkNames(hosts);
   if (hosts.length === 0) return null;
   return (
     <View className="mt-5 gap-3">
@@ -57,6 +67,7 @@ export function LinkedEnvironmentsSections() {
             key={environment.environmentId}
             environmentId={environment.environmentId}
             environmentLabel={hosts.length > 1 ? environment.label : null}
+            incoming={incoming.get(environment.environmentId) ?? []}
           />
         ))}
       </SettingsSection>
@@ -64,10 +75,41 @@ export function LinkedEnvironmentsSections() {
   );
 }
 
+/** Reads each enabled, readable host's links once, for every host row to share. */
+function useIncomingLinkNames(
+  hosts: ReadonlyArray<{
+    readonly environmentId: EnvironmentId;
+    readonly label: string;
+    readonly serverConfig?: Parameters<typeof offersLinkedEnvironments>[0];
+  }>,
+) {
+  const sources = useMemo(
+    () => hosts.filter((host) => offersLinkedEnvironments(host.serverConfig)),
+    [hosts],
+  );
+  const readable = useEnvironmentsWithScope(sources, AuthAccessReadScope);
+  const permitted = sources.filter((source) => readable.has(source.environmentId));
+  const results = useAtomValue(
+    peerLinkEnvironment.lists(permitted.map((source) => source.environmentId)),
+  );
+  const nowMs = useNowMinuteMs();
+  return incomingLinkNames({
+    sources: permitted.flatMap((source, index) => {
+      const result = results[index];
+      return result !== undefined && AsyncResult.isSuccess(result)
+        ? [{ label: source.label, links: result.value.links }]
+        : [];
+    }),
+    now: DateTime.makeUnsafe(nowMs),
+  });
+}
+
 export function LinkedEnvironmentHost(props: {
   readonly environmentId: EnvironmentId;
   /** Names the environment when the screen lists more than one. */
   readonly environmentLabel: string | null;
+  /** The other connected machines whose links reach this one. */
+  readonly incoming?: ReadonlyArray<string>;
 }) {
   const { environmentId } = props;
   const enabled = offersLinkedEnvironments(useEnvironmentServerConfig(environmentId));
@@ -88,6 +130,9 @@ export function LinkedEnvironmentHost(props: {
       <SettingsSwitchRow
         icon="link"
         label={props.environmentLabel ?? "Let agents work on your other machines"}
+        {...(props.incoming && props.incoming.length > 0
+          ? { subtitle: `Agents on ${props.incoming.join(", ")} can work here.` }
+          : {})}
         value={enabled}
         disabled={!canConfigure}
         onValueChange={(value) => void setEnabled(value)}
@@ -100,6 +145,7 @@ export function LinkedEnvironmentHost(props: {
 function LinkedEnvironmentsList({ environmentId }: { readonly environmentId: EnvironmentId }) {
   const listAtom = peerLinkEnvironment.list({ environmentId, input: {} });
   const links = useEnvironmentQuery(listAtom);
+  const { environments } = useEnvironments();
   const registry = useContext(RegistryContext);
   // Links change outside this client, and the shared list only revalidates when built, so
   // showing the screen and bringing the app back ask again.
@@ -120,11 +166,13 @@ function LinkedEnvironmentsList({ environmentId }: { readonly environmentId: Env
     return <ListNote title="Could not load linked environments" body={links.error} />;
   if (!links.data) return <ListNote title="Loading linked environments…" />;
   if (links.data.links.length === 0) return null;
+  const labels = linkLabels({ links: links.data.links, environments });
   return links.data.links.map((link) => (
     <LinkedEnvironmentRow
       key={link.environmentId}
       environmentId={environmentId}
       link={link}
+      label={labels.get(link.environmentId) ?? link.label}
       health={peerLinkHealth(link, now)}
     />
   ));
@@ -162,11 +210,10 @@ function LinkedEnvironmentRow(props: {
   readonly environmentId: EnvironmentId;
   readonly link: PeerLinkSummary;
   readonly health: PeerLinkHealth;
+  /** What this client calls the linked environment. */
+  readonly label: string;
 }) {
-  const { environmentId, link, health } = props;
-  const label =
-    useEnvironments().environments.find((known) => known.environmentId === link.environmentId)
-      ?.label ?? link.label;
+  const { environmentId, link, health, label } = props;
   const unlink = useAtomCommand(peerLinkEnvironment.unlink, { label: "unlink environment" });
   const canUnlink = useAtomValue(peerLinkEnvironment.unlink.permissionAtom(environmentId));
   const [busy, setBusy] = useState(false);
