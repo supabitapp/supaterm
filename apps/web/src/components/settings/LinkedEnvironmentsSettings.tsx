@@ -8,7 +8,7 @@ import {
   type EnvironmentId,
   type PeerLinkSummary,
 } from "@supaterm/contracts";
-import { PlusIcon } from "@supaterm/icons";
+import { ArrowRightIcon, PlusIcon } from "@supaterm/icons";
 import {
   isAtomCommandInterrupted,
   squashAtomCommandFailure,
@@ -41,6 +41,7 @@ import {
 } from "../ui/dialog";
 import { Input } from "../ui/input";
 import { Switch } from "../ui/switch";
+import { cn } from "../../lib/utils";
 import { stackedThreadToast, toastManager } from "../ui/toast";
 import { ITEM_ROW_CLASSNAME, ITEM_ROW_INNER_CLASSNAME } from "./itemRows";
 import { LinkAccessPicker } from "./LinkAccessPicker";
@@ -66,59 +67,96 @@ const failureToast = (title: string, failure: unknown) =>
 
 export function LinkedEnvironmentsSections() {
   const hosts = usePeerLinkHosts();
-  return hosts.map(({ environment, enabled }, index) => (
-    <LinkedEnvironmentsSettings
-      key={environment.environmentId}
-      environmentId={environment.environmentId}
-      environmentLabel={hosts.length > 1 ? environment.label : null}
-      enabled={enabled}
-      isSearchTarget={index === 0}
-    />
-  ));
+  const search = searchableSetting("linked-environments");
+  if (hosts.length === 0) return null;
+  const sources = hosts.filter((host) => host.enabled).map((host) => host.environment);
+  return (
+    <SettingsSection id={search.id} title={search.title}>
+      {hosts.map(({ environment, enabled }) => (
+        <LinkedEnvironmentHost
+          key={environment.environmentId}
+          environmentId={environment.environmentId}
+          environmentLabel={hosts.length > 1 ? environment.label : null}
+          enabled={enabled}
+          sources={sources.filter((source) => source.environmentId !== environment.environmentId)}
+        />
+      ))}
+    </SettingsSection>
+  );
 }
 
-function LinkedEnvironmentsSettings({
+function LinkedEnvironmentHost({
   environmentId,
   environmentLabel,
   enabled,
-  isSearchTarget,
+  sources,
 }: {
   readonly environmentId: EnvironmentId;
   readonly environmentLabel: string | null;
   /** Whether Linked environments is on there. */
   readonly enabled: boolean;
-  readonly isSearchTarget: boolean;
+  /** The other connected machines with Linked environments on, which may link to this one. */
+  readonly sources: ReadonlyArray<{
+    readonly environmentId: EnvironmentId;
+    readonly label: string;
+  }>;
 }) {
   const canLink = useAtomValue(peerLinkEnvironment.link.permissionAtom(environmentId));
   const canList = useEnvironmentScope(environmentId, AuthAccessReadScope);
   const canConfigure = useEnvironmentScope(environmentId, AuthSettingsWriteScope);
   const updateSettings = useUpdateEnvironmentSettings(environmentId);
-  const search = searchableSetting("linked-environments");
   return (
-    <SettingsSection
-      {...(isSearchTarget ? { id: search.id } : {})}
-      title={environmentLabel === null ? search.title : `${search.title} · ${environmentLabel}`}
-      headerAction={
-        enabled && canLink ? <LinkEnvironmentAction environmentId={environmentId} /> : null
-      }
-    >
+    <>
       <SettingsRow
-        title="Let agents work on your other machines"
-        description="Agents here can work on machines you link, and theirs here. Turn it on for each machine, then link them. While off, nothing new starts over a link; running tasks finish."
+        title={environmentLabel ?? "Let agents work on your other machines"}
+        description={
+          enabled ? (
+            <>
+              Agents here can work on machines you link. Each link goes one way.
+              {sources.map((source) => (
+                <IncomingLink key={source.environmentId} source={source} targetId={environmentId} />
+              ))}
+            </>
+          ) : (
+            "Off. Agents here can't work on other machines, and no machine can link here."
+          )
+        }
         control={
-          <Switch
-            checked={enabled}
-            disabled={!canConfigure}
-            onCheckedChange={(checked) =>
-              updateSettings({ linkedEnvironmentsEnabled: Boolean(checked) })
-            }
-            aria-label="Linked environments"
-          />
+          <div className="flex items-center gap-3">
+            {enabled && canLink ? <LinkEnvironmentAction environmentId={environmentId} /> : null}
+            <Switch
+              checked={enabled}
+              disabled={!canConfigure}
+              onCheckedChange={(checked) =>
+                updateSettings({ linkedEnvironmentsEnabled: Boolean(checked) })
+              }
+              aria-label={
+                environmentLabel === null
+                  ? "Linked environments"
+                  : `Linked environments on ${environmentLabel}`
+              }
+            />
+          </div>
         }
       />
       {enabled && canList ? <LinkedEnvironmentsList environmentId={environmentId} /> : null}
-    </SettingsSection>
+    </>
   );
+}
+
+function IncomingLink({
+  source,
+  targetId,
+}: {
+  readonly source: { readonly environmentId: EnvironmentId; readonly label: string };
+  readonly targetId: EnvironmentId;
+}) {
+  const canList = useEnvironmentScope(source.environmentId, AuthAccessReadScope);
+  const links = useEnvironmentQuery(
+    canList ? peerLinkEnvironment.list({ environmentId: source.environmentId, input: {} }) : null,
+  );
+  if (!links.data?.links.some((link) => link.environmentId === targetId)) return null;
+  return <span className="block">Agents on {source.label} can work here.</span>;
 }
 
 export function LinkedEnvironmentsList({
@@ -144,14 +182,7 @@ export function LinkedEnvironmentsList({
     return <SettingsRow title="Could not load linked environments" description={links.error} />;
   }
   if (!links.data) return <SettingsRow title="Loading linked environments…" role="status" />;
-  if (links.data.links.length === 0) {
-    return (
-      <SettingsRow
-        title="No linked environments"
-        description="Link another machine running Supaterm, such as a VPS, so agents here can launch and drive threads there."
-      />
-    );
-  }
+  if (links.data.links.length === 0) return null;
   return links.data.links.map((link) => (
     <LinkedEnvironmentRow key={link.environmentId} environmentId={environmentId} link={link} />
   ));
@@ -193,7 +224,7 @@ function LinkedEnvironmentRow({
             ? `Expires in ${health.expiresInDays} ${health.expiresInDays === 1 ? "day" : "days"}. Link it again to renew.`
             : "Reachable";
   return (
-    <div className={ITEM_ROW_CLASSNAME}>
+    <div className={cn(ITEM_ROW_CLASSNAME, "pl-8 sm:pl-10")}>
       <div className={ITEM_ROW_INNER_CLASSNAME}>
         <div className="min-w-0 flex-1 space-y-1">
           <div className="flex min-h-5 items-center gap-1.5">
@@ -210,12 +241,12 @@ function LinkedEnvironmentRow({
               }
               pingClassName={null}
             />
+            <ArrowRightIcon aria-hidden className="size-3.5 text-muted-foreground" />
             <h3 className="text-sm font-medium text-foreground">{link.label}</h3>
           </div>
           <p className="text-xs text-muted-foreground">
             {accessConfig[link.access].label} · {status}
           </p>
-          <p className="truncate text-xs text-muted-foreground/80">{link.urls.join(", ")}</p>
         </div>
         {canUnlink ? (
           <div className="flex w-full shrink-0 items-center gap-2 sm:w-auto sm:justify-end">

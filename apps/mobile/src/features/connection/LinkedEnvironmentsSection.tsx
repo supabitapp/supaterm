@@ -45,16 +45,26 @@ export function LinkedEnvironmentsSections() {
       environment.connection.phase === "connected" &&
       environment.serverConfig?.environment.capabilities.peerLinks === true,
   );
-  return hosts.map((environment) => (
-    <LinkedEnvironmentsSection
-      key={environment.environmentId}
-      environmentId={environment.environmentId}
-      environmentLabel={hosts.length > 1 ? environment.label : null}
-    />
-  ));
+  if (hosts.length === 0) return null;
+  return (
+    <View className="mt-5 gap-3">
+      <SettingsSection
+        title="Linked environments"
+        footer="Agents on a machine can work on the machines it links to. Each link goes one way: turn this on for both machines, then mention the other machine with @ in a thread on the one that sends the work, and answer the agent's request. While off, nothing new starts over a link; running tasks finish."
+      >
+        {hosts.map((environment) => (
+          <LinkedEnvironmentHost
+            key={environment.environmentId}
+            environmentId={environment.environmentId}
+            environmentLabel={hosts.length > 1 ? environment.label : null}
+          />
+        ))}
+      </SettingsSection>
+    </View>
+  );
 }
 
-export function LinkedEnvironmentsSection(props: {
+export function LinkedEnvironmentHost(props: {
   readonly environmentId: EnvironmentId;
   /** Names the environment when the screen lists more than one. */
   readonly environmentLabel: string | null;
@@ -74,25 +84,16 @@ export function LinkedEnvironmentsSection(props: {
     alertFailure("Could not save settings", result);
   };
   return (
-    <View className="mt-5 gap-3">
-      <SettingsSection
-        title={
-          props.environmentLabel === null
-            ? "Linked environments"
-            : `Linked environments · ${props.environmentLabel}`
-        }
-        footer="Agents here can work on machines you link, and theirs here. Turn it on for each machine. To link one, mention it with @ in a thread and answer the agent's request. While off, nothing new starts over a link; running tasks finish."
-      >
-        <SettingsSwitchRow
-          icon="link"
-          label="Let agents work on your other machines"
-          value={enabled}
-          disabled={!canConfigure}
-          onValueChange={(value) => void setEnabled(value)}
-        />
-        {enabled && canList ? <LinkedEnvironmentsList environmentId={environmentId} /> : null}
-      </SettingsSection>
-    </View>
+    <>
+      <SettingsSwitchRow
+        icon="link"
+        label={props.environmentLabel ?? "Let agents work on your other machines"}
+        value={enabled}
+        disabled={!canConfigure}
+        onValueChange={(value) => void setEnabled(value)}
+      />
+      {enabled && canList ? <LinkedEnvironmentsList environmentId={environmentId} /> : null}
+    </>
   );
 }
 
@@ -118,7 +119,7 @@ function LinkedEnvironmentsList({ environmentId }: { readonly environmentId: Env
   if (links.error)
     return <ListNote title="Could not load linked environments" body={links.error} />;
   if (!links.data) return <ListNote title="Loading linked environments…" />;
-  if (links.data.links.length === 0) return <ListNote title="No linked environments" />;
+  if (links.data.links.length === 0) return null;
   return links.data.links.map((link) => (
     <LinkedEnvironmentRow
       key={link.environmentId}
@@ -173,12 +174,14 @@ function LinkedEnvironmentRow(props: {
     alertFailure("Could not forget the link", result);
   };
   return (
-    <View className="flex-row items-center gap-3 border-t border-border-subtle p-4">
+    <View className="flex-row items-center gap-3 border-t border-border-subtle py-4 pr-4 pl-12">
       <View className="min-w-0 flex-1 gap-0.5">
         <Text className="text-base font-supaterm-bold text-foreground" numberOfLines={1}>
           {link.label}
         </Text>
-        <Text className="text-xs text-foreground-muted">{linkAccessLabel(link.access)}</Text>
+        <Text className="text-xs text-foreground-muted">
+          Agents here work there · {linkAccessLabel(link.access)}
+        </Text>
         <Text
           className={
             health.kind === "reachable" && health.expiresInDays === null

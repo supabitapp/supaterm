@@ -376,6 +376,12 @@ start nothing over a link between them. A task already running on the other
 machine still finishes, and if that machine has it off, its result arrives once
 it is back on.
 
+Each link goes one way. Linking this machine to a VPS lets agents here work on
+the VPS; turning the setting on there only lets it accept the link, and its
+agents cannot reach this machine unless you also link from the VPS. On a
+machine without the desktop app, set `"linkedEnvironmentsEnabled": true` in
+`userdata/settings.json` in its Supaterm home (`~/.supaterm` by default).
+
 On the machine you will work from, choose **Link** in that section and pick the
 other machine or enter its address. The list holds the machines this app knows.
 A machine paired through the Encrypted Relay links through the relay, so it

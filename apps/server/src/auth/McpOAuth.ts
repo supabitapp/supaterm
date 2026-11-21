@@ -61,7 +61,7 @@ const LOOPBACK_HOSTNAMES = new Set(["localhost", "127.0.0.1", "[::1]"]);
 const CODE_CHALLENGE_PATTERN = /^[A-Za-z0-9_-]{43}$/;
 const CODE_VERIFIER_PATTERN = /^[A-Za-z0-9\-._~]{43,128}$/;
 const LINKED_ENVIRONMENTS_OFF_THERE =
-  "Linked environments is off on that machine. Turn it on in its Settings → Environments.";
+  'Linked environments is off on that machine. Turn it on in its Settings → Environments so it accepts this link; that does not let it reach this machine. Without a desktop, set "linkedEnvironmentsEnabled": true in userdata/settings.json in its Supaterm home (~/.supaterm by default).';
 
 const MCP_OAUTH_SCOPES = [AuthOrchestrationReadScope, AuthOrchestrationOperateScope];
 

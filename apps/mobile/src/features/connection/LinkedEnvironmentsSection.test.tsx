@@ -86,7 +86,7 @@ vi.mock("../../state/peerLinks", async () => {
   };
 });
 
-import { LinkedEnvironmentsSection } from "./LinkedEnvironmentsSection";
+import { LinkedEnvironmentHost } from "./LinkedEnvironmentsSection";
 
 function createNavigation() {
   const listeners = { focus: new Set<() => void>(), blur: new Set<() => void>() };
@@ -122,7 +122,7 @@ function setup() {
     root.render(
       <RegistryContext.Provider value={registry}>
         <NavigationContext.Provider value={navigation.value}>
-          <LinkedEnvironmentsSection
+          <LinkedEnvironmentHost
             environmentId={EnvironmentId.make("mac")}
             environmentLabel={null}
           />
