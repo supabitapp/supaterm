@@ -136,11 +136,17 @@ export function cancelledRosterTaskWork(task: OrchestrationV2PendingBackgroundTa
 
 const MAX_NOTE_ENTRIES = 10;
 
+/** Why background work stopped: a Supaterm server restart, or the provider process exiting under a live server. */
+export type BackgroundWorkLossCause = "server_restart" | "provider_exit";
+
 /** Bounds entries and labels to protect the context budget. */
-export function restartCancelledBackgroundWorkNote(work: ReadonlyArray<Work>): string {
+export function restartCancelledBackgroundWorkNote(
+  work: ReadonlyArray<Work>,
+  cause: BackgroundWorkLossCause = "server_restart",
+): string {
   const omitted = work.length - MAX_NOTE_ENTRIES;
   return [
-    "Note: the Supaterm server restarted, and this background work was cancelled before it finished. It will not report back on its own, so resume or restart what you still need and wait for its result:",
+    `Note: ${cause === "provider_exit" ? "the agent runtime process exited" : "the Supaterm server restarted"}, and this background work was cancelled before it finished. It will not report back on its own, so resume or restart what you still need and wait for its result:`,
     ...work.slice(0, MAX_NOTE_ENTRIES).map((entry) => `- ${entry.kind}: ${entry.label}`),
     ...(omitted > 0 ? [`- and ${omitted} more`] : []),
   ].join("\n");
@@ -190,6 +196,24 @@ export function runOutcome(
     (run.restartCancelledBackgroundWork ?? []).some(isAwaitedWork)
     ? "interrupted"
     : run.status;
+}
+
+/** The run whose continuation carries a provider thread's lost background work. */
+export function latestStartedRun(
+  runs: ReadonlyArray<OrchestrationV2Run>,
+  providerThreadId: OrchestrationV2Run["providerThreadId"],
+): OrchestrationV2Run | undefined {
+  return runs.reduce<OrchestrationV2Run | undefined>(
+    (latest, run) =>
+      run.providerThreadId === providerThreadId &&
+      run.status !== "queued" &&
+      run.status !== "rolled_back" &&
+      !neverStarted(run) &&
+      (latest === undefined || runRanAfter(run, latest))
+        ? run
+        : latest,
+    undefined,
+  );
 }
 
 /** Unstarted runs have no lost work to continue, except prepared continuations carrying a source run. */
