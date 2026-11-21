@@ -128,18 +128,19 @@ export function matchComposerEnvironmentItems(input: {
     label,
     machine: "server" as const,
   })).filter((environment) => !paired.has(environment.environmentId));
-  return [...input.environments, ...linkedOnly]
-    .filter(
-      (environment) =>
-        environment.environmentId !== input.environmentId &&
-        environment.label.toLowerCase().includes(query),
-    )
-    .map((environment) => ({
-      id: `environment:${environment.environmentId}`,
-      type: "environment",
-      record: environmentContextRecord(environment),
-      machine: environment.machine,
-      label: environment.label,
-      description: "Machine",
-    }));
+  return [...input.environments, ...linkedOnly].flatMap((environment) =>
+    environment.environmentId !== input.environmentId &&
+    environment.label.toLowerCase().includes(query)
+      ? [
+          {
+            id: `environment:${environment.environmentId}`,
+            type: "environment" as const,
+            record: environmentContextRecord(environment),
+            machine: environment.machine,
+            label: environment.label,
+            description: "Machine",
+          },
+        ]
+      : [],
+  );
 }
