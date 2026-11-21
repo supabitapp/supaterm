@@ -1793,6 +1793,7 @@ export function decodeMergeRequestGraphqlListJson(
     const node = exit.value;
     const number = Number(node.iid);
     if (!Number.isSafeInteger(number)) continue;
+    const avatarUrl = trimmed(node.author?.avatarUrl);
     items.push({
       number,
       title: node.title,
@@ -1803,7 +1804,9 @@ export function decodeMergeRequestGraphqlListJson(
           : {
               username: node.author.username ?? "",
               name: node.author.name,
-              avatar_url: node.author.avatarUrl,
+              // GraphQL gives an uploaded avatar as a path on the instance; REST gives a full URL.
+              avatar_url:
+                avatarUrl == null ? null : (URL.parse(avatarUrl, node.webUrl)?.toString() ?? null),
             },
       ),
       headBranch: node.sourceBranch,
