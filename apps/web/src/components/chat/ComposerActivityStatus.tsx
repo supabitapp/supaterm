@@ -1,20 +1,23 @@
+import { CircleAlertIcon } from "@supaterm/icons";
+
 import { Spinner } from "~/components/ui/spinner";
 
 import { ComposerBanner } from "./ComposerBanner";
 
-export function ComposerActivityRow() {
+export function ComposerActivityRow({ phase }: { readonly phase: "syncing" | "failed" }) {
+  const failed = phase === "failed";
   return (
     <ComposerBanner.Row>
       <ComposerBanner.Icon>
-        <Spinner />
+        {failed ? <CircleAlertIcon aria-hidden /> : <Spinner />}
       </ComposerBanner.Icon>
       <ComposerBanner.Content>
         <span
           className="shrink-0 whitespace-nowrap text-muted-foreground"
-          data-composer-sync-status="syncing"
-          role="status"
+          data-composer-sync-status={phase}
+          role={failed ? "alert" : "status"}
         >
-          Syncing messages...
+          {failed ? "Could not sync messages" : "Syncing messages..."}
         </span>
       </ComposerBanner.Content>
     </ComposerBanner.Row>

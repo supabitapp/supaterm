@@ -699,7 +699,8 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   const activePendingIsResponding = !holdingUserInput && incomingPendingIsResponding;
   const isLiteralPendingAnswer = activePendingProgress?.activeQuestion?.initialAnswer !== undefined;
   const shownSyncPhase = useDelayedStatus(composerDraftTargetKey, props.threadSyncPhase);
-  const showSyncStatus = shownSyncPhase === "syncing";
+  const shownSyncStatus =
+    shownSyncPhase === "syncing" || shownSyncPhase === "failed" ? shownSyncPhase : null;
   const activeTasksProgress = shownSyncPhase === null ? props.activeTasksProgress : null;
   const activeTaskSteps = shownSyncPhase === null ? props.activeTaskSteps : null;
   const isEditingQueuedMessage = editingQueuedAttachments !== null;
@@ -2888,8 +2889,8 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     activeTaskSteps !== null &&
     activeTasksProgress.totalSteps > 0;
   const activityStackContent = hasBannerItems ? (
-    showSyncStatus ? (
-      <ComposerActivityRow />
+    shownSyncStatus ? (
+      <ComposerActivityRow phase={shownSyncStatus} />
     ) : canShowTasks ? (
       <ComposerTasksContent
         expanded={isTasksDrawerOpen}
@@ -3788,10 +3789,14 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
             className="relative z-0"
             items={bannerStackItems}
           />
-          {!activityStackItem && (showSyncStatus || inlineTasksBadge) ? (
+          {!activityStackItem && (shownSyncStatus || inlineTasksBadge) ? (
             <ComposerBanner.Attachment>
               <ComposerBanner.Root data-chat-composer-activity-strip="true">
-                {showSyncStatus ? <ComposerActivityRow /> : inlineTasksBadge}
+                {shownSyncStatus ? (
+                  <ComposerActivityRow phase={shownSyncStatus} />
+                ) : (
+                  inlineTasksBadge
+                )}
               </ComposerBanner.Root>
             </ComposerBanner.Attachment>
           ) : null}
