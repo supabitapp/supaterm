@@ -1506,6 +1506,7 @@ describe("AcpAdapterV2", () => {
         code: "NOT_FOUND",
         retryable: true,
       } as const;
+      const path = yield* Path.Path;
       const promptTexts: Array<string> = [];
       // Checks 1, 3 and 4 fail: turn 1 resumes and completes, turn 2 fails after one resume.
       let checks = 0;
@@ -1531,7 +1532,9 @@ describe("AcpAdapterV2", () => {
             }),
           makeRuntime: makeMockRuntime({
             childProcessSpawner: yield* ChildProcessSpawner.ChildProcessSpawner,
-            mockAgentPath: yield* bundledMockAgentPath,
+            mockAgentPath: yield* path.fromFileUrl(
+              new URL("../../../scripts/acp-mock-agent.ts", import.meta.url),
+            ),
             wrapRuntime: (runtime) => ({
               ...runtime,
               prompt: (payload) =>
