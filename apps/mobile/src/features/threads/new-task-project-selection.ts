@@ -1,6 +1,9 @@
 import type { EnvironmentConnectionPhase } from "@supaterm/client-runtime/connection";
 import { availableScratchWorkspaceRoot } from "@supaterm/client-runtime/operations/projects";
-import { isPickableProjectMember } from "@supaterm/client-runtime/state/project-grouping";
+import {
+  isPickableProjectMember,
+  isRepositoryRootProject,
+} from "@supaterm/client-runtime/state/project-grouping";
 import type { EnvironmentProject } from "@supaterm/client-runtime/state/shell";
 import {
   repositoryGroupingKeyOf,
@@ -36,11 +39,18 @@ function selectOpenProjectScopeMember(
 
   const rank = (project: EnvironmentProject) =>
     project.environmentId === preferredEnvironmentId ? 0 : project === scope.representative ? 1 : 2;
-  open.sort((left, right) => rank(left) - rank(right));
+  open.sort(
+    (left, right) =>
+      rank(left) - rank(right) ||
+      Number(isRepositoryRootProject(right)) - Number(isRepositoryRootProject(left)),
+  );
   return open.find((project) => connectedEnvironmentIds.has(project.environmentId)) ?? open[0];
 }
 
-/** Picker scopes have an open copy; prefer a connected one, then the selected environment. */
+/**
+ * Picker scopes have an open copy; prefer a connected one, then the selected environment, with a
+ * repository root ahead of a sub-folder.
+ */
 export function getProjectScopeSelectionTarget(
   scope: HomeProjectScope,
   preferredEnvironmentId: EnvironmentId | null,

@@ -18,7 +18,9 @@ import { orderItemsByPreferredIds } from "../components/Sidebar.logic";
 import {
   deriveLogicalProjectKeyFromSettings,
   getProjectOrderKey,
+  resolveGroupDefaultProject,
   selectProjectGroupingSettings,
+  type ProjectGroupingSettings,
 } from "@supaterm/client-runtime/state/project-grouping";
 import { resolveProjectSettings } from "@supaterm/shared/projectSettings";
 import {
@@ -41,7 +43,7 @@ import { appAtomRegistry } from "../rpc/atomRegistry";
 import { environmentServerConfigsAtom } from "../state/server";
 import { resolveThreadRouteTarget } from "../threadRoutes";
 import { useUiStateStore } from "../uiStateStore";
-import { getClientSettings } from "./useSettings";
+import { getClientSettings, useClientSettings } from "./useSettings";
 import { getLocalStorageItem, useLocalStorage } from "./useLocalStorage";
 import * as Schema from "effect/Schema";
 import { useAtomValue } from "@effect/atom-react";
@@ -419,6 +421,7 @@ export function resolveDefaultProjectRef(
   projectOrder: readonly string[],
   lastUsedProjectKey: string | null,
   fallbackReady = true,
+  groupingSettings?: ProjectGroupingSettings,
 ): ScopedProjectRef | null {
   const lastUsed = projects.find(
     (project) =>
@@ -427,12 +430,17 @@ export function resolveDefaultProjectRef(
   );
   if (lastUsed) return scopeProjectRef(lastUsed.environmentId, lastUsed.id);
   if (!fallbackReady) return null;
-  const [first] = orderItemsByPreferredIds({
-    items: projects.filter((project) => project.archivedAt == null),
+  const liveProjects = projects.filter((project) => project.archivedAt == null);
+  const [firstProject] = orderItemsByPreferredIds({
+    items: liveProjects,
     preferredIds: projectOrder,
     getId: getProjectOrderKey,
   });
-  return first ? scopeProjectRef(first.environmentId, first.id) : null;
+  if (!firstProject) return null;
+  const defaultProject = groupingSettings
+    ? resolveGroupDefaultProject(firstProject, liveProjects, groupingSettings)
+    : firstProject;
+  return scopeProjectRef(defaultProject.environmentId, defaultProject.id);
 }
 
 /** The thread or draft the route shows, read when called. */
@@ -470,6 +478,7 @@ export function startNewThreadInCurrentProject(
       useUiStateStore.getState().projectOrder,
       lastUsedProjectKey,
       appAtomRegistry.get(defaultProjectFallbackReadyAtom(lastUsedProjectKey)),
+      selectProjectGroupingSettings(getClientSettings()),
     ),
     handleNewThread,
   });
@@ -506,11 +515,13 @@ export function useHandleNewThread() {
   );
   const projects = useProjects();
   const handleNewThread = useNewThreadHandler();
+  const groupingSettings = useClientSettings(selectProjectGroupingSettings);
   const defaultProjectRef = resolveDefaultProjectRef(
     projects,
     projectOrder,
     lastUsedProjectKey,
     defaultProjectFallbackReady,
+    groupingSettings,
   );
 
   return {
