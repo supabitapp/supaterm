@@ -16,6 +16,8 @@ import {
   useComposerDraftStore,
   type ComposerFileAttachment,
   type ComposerImageAttachment,
+  type ComposerThreadDraftState,
+  type ComposerThreadTarget,
 } from "../composerDraftStore";
 import { removeInlineContextReference } from "../lib/composerContextReferences";
 import { takeReplyFromText } from "../lib/composerContextRecords";
@@ -66,6 +68,23 @@ export function captureOutboxAttachments(
       ...(uploaded ? { uploaded } : {}),
     };
   });
+}
+
+/**
+ * Hands a queued turn's content to the outbox: clears `target` unless it changed after `sent` was
+ * read, and releases the bytes the outbox copied. Returns whether it cleared.
+ */
+export function releaseSentComposerDraft(input: {
+  readonly target: ComposerThreadTarget;
+  readonly sent: ComposerThreadDraftState | null;
+  readonly attachments: ReadonlyArray<ComposerImageAttachment | ComposerFileAttachment>;
+}) {
+  const store = useComposerDraftStore.getState();
+  const unchanged = store.getComposerDraft(input.target) === input.sent;
+  if (unchanged) store.clearComposerContent(input.target);
+  // References recovered without bytes stay owned until delivery.
+  releaseDraftAttachments(input.attachments.filter((attachment) => attachment.file !== null));
+  return unchanged;
 }
 
 /** Keep saved context and bytes while applying the composer's attachment edits. */
