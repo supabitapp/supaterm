@@ -485,7 +485,9 @@ it.layer(layerTest)("AntigravityDriver", (it) => {
         const entrypoint = h.path.resolve(process.argv[1]!);
         yield* Effect.scoped(
           Effect.gen(function* () {
-            const workspace = yield* h.fs.makeTempDirectoryScoped({ prefix: "supaterm-ag-environment-" });
+            const workspace = yield* h.fs.makeTempDirectoryScoped({
+              prefix: "supaterm-ag-environment-",
+            });
             const runtimePolicy = ProviderAdapter.ProviderAdapterV2RuntimePolicy.make({
               runtimeMode: "approval-required",
               interactionMode: "default",

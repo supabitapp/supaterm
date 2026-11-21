@@ -10,7 +10,11 @@ import type {
 } from "@supaterm/contracts";
 import { SourceControlProviderKind } from "@supaterm/contracts";
 import { cloneUrlRepositoryPath } from "@supaterm/shared/cloneUrl";
-import { isAbsolutePath, isExplicitRelativePath, newProjectFolderName } from "@supaterm/shared/path";
+import {
+  isAbsolutePath,
+  isExplicitRelativePath,
+  newProjectFolderName,
+} from "@supaterm/shared/path";
 import * as Arr from "effect/Array";
 import * as Option from "effect/Option";
 import * as Order from "effect/Order";
