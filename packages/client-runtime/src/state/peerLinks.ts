@@ -209,46 +209,39 @@ export function incomingLinkNames(input: {
   return incoming;
 }
 
-/** A linked machine, and the environment that can get a pairing code from it. */
-export interface LinkThroughRoute {
-  readonly viaEnvironmentId: EnvironmentId;
+/** A connected environment that links to a machine at full access, so it can get a pairing code there. */
+export interface LinkIntermediary {
   readonly environmentId: EnvironmentId;
   readonly label: string;
-  readonly urls: ReadonlyArray<string>;
 }
 
+/** Where the pairing code for a new link comes from: the machine itself, or an intermediary. */
+export type LinkPairingRoute =
+  | { readonly _tag: "Direct" }
+  | { readonly _tag: "Through"; readonly intermediary: LinkIntermediary };
+
+export const DIRECT_LINK_PAIRING: LinkPairingRoute = { _tag: "Direct" };
+
 /**
- * The machines `sourceEnvironmentId` can link to without a pasted code: those another of the
- * client's environments reaches over a full-access link that answers. `hosts` are environments
- * the client is connected to and manages access on, the only ones it may ask.
+ * The hosts that can get a pairing code from `targetId`: those whose full-access link to it
+ * answers. `hosts` are environments the client may ask for one.
  */
-export function linkThroughRoutes(input: {
-  readonly sourceEnvironmentId: EnvironmentId;
-  readonly hosts: ReadonlyArray<{
-    readonly environmentId: EnvironmentId;
-    readonly links: ReadonlyArray<PeerLinkSummary>;
-  }>;
+export function linkIntermediaries(input: {
+  readonly targetId: EnvironmentId;
+  readonly hosts: ReadonlyArray<
+    LinkIntermediary & { readonly links: ReadonlyArray<PeerLinkSummary> }
+  >;
   readonly now: DateTime.Utc;
-}): ReadonlyMap<EnvironmentId, LinkThroughRoute> {
-  const routes = new Map<EnvironmentId, LinkThroughRoute>();
-  for (const host of input.hosts) {
-    if (host.environmentId === input.sourceEnvironmentId) continue;
-    for (const link of host.links) {
-      if (
-        link.environmentId === input.sourceEnvironmentId ||
-        link.access !== "full-access" ||
-        routes.has(link.environmentId) ||
-        peerLinkHealth(link, input.now).kind !== "reachable"
-      ) {
-        continue;
-      }
-      routes.set(link.environmentId, {
-        viaEnvironmentId: host.environmentId,
-        environmentId: link.environmentId,
-        label: link.label,
-        urls: link.urls,
-      });
-    }
-  }
-  return routes;
+}): ReadonlyArray<LinkIntermediary> {
+  return input.hosts.flatMap(({ environmentId, label, links }) =>
+    environmentId !== input.targetId &&
+    links.some(
+      (link) =>
+        link.environmentId === input.targetId &&
+        link.access === "full-access" &&
+        peerLinkHealth(link, input.now).kind === "reachable",
+    )
+      ? [{ environmentId, label }]
+      : [],
+  );
 }

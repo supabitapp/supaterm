@@ -1,4 +1,10 @@
-import { peerLinkHealth, peerLinkHealthText } from "@supaterm/client-runtime/state/peerLinks";
+import {
+  DIRECT_LINK_PAIRING,
+  type LinkIntermediary,
+  type LinkPairingRoute,
+  peerLinkHealth,
+  peerLinkHealthText,
+} from "@supaterm/client-runtime/state/peerLinks";
 import type { AuthMcpClientAccess, EnvironmentId, PeerLinkSummary } from "@supaterm/contracts";
 import type * as DateTime from "effect/DateTime";
 
@@ -10,7 +16,8 @@ export interface LinkPermissionRow {
   /** The picker's value, or null while the source's links are not known. */
   readonly value: LinkChoice | null;
   readonly note: string | null;
-  readonly canGrant: boolean;
+  /** Where a new link's pairing code comes from, or null while this app cannot grant one. */
+  readonly grant: LinkPairingRoute | null;
   readonly canForget: boolean;
   /** An unexpired link exists, so picking another level replaces it. */
   readonly linked: boolean;
@@ -18,23 +25,21 @@ export interface LinkPermissionRow {
   readonly expired: boolean;
   /** The link stopped working, so linking again at the same level repairs it. */
   readonly canRelink: boolean;
-  /** This app cannot mint the code itself, so the machine in `through` gets it. */
-  readonly mintThrough: boolean;
 }
 
 const UNKNOWN = {
   value: null,
-  canGrant: false,
+  grant: null,
   canForget: false,
   linked: false,
   expired: false,
   canRelink: false,
-  mintThrough: false,
 } as const;
 
 export function linkPermissionRow(input: {
   readonly links: ReadonlyArray<PeerLinkSummary> | null;
   readonly listError: string | null;
+  readonly sourceId: EnvironmentId;
   readonly targetId: EnvironmentId;
   readonly now: DateTime.Utc;
   readonly canLink: boolean;
@@ -44,8 +49,8 @@ export function linkPermissionRow(input: {
   readonly reachable: boolean;
   readonly sourceLabel: string;
   readonly targetLabel: string;
-  /** Another machine that links to the target at full access and can get a code from it. */
-  readonly through: string | null;
+  /** The machines that can get a pairing code from the target for this app. */
+  readonly intermediaries: ReadonlyArray<LinkIntermediary>;
 }): LinkPermissionRow {
   // A stale list could hide a link, so nothing changes until the source answers.
   if (input.listError !== null) {
@@ -60,30 +65,38 @@ export function linkPermissionRow(input: {
     : !input.mayMint
       ? `This app may not grant access on ${input.targetLabel}.`
       : null;
-  const mintThrough = mintBlocker !== null && input.through !== null;
+  const intermediary = input.intermediaries.find(
+    ({ environmentId }) => environmentId !== input.sourceId,
+  );
+  const route: LinkPairingRoute | null =
+    mintBlocker === null
+      ? DIRECT_LINK_PAIRING
+      : intermediary === undefined
+        ? null
+        : { _tag: "Through", intermediary };
   const blocker = !input.canLink
     ? `This app may not change links on ${input.sourceLabel}.`
-    : mintBlocker !== null && !mintThrough
+    : route === null
       ? mintBlocker
       : !input.reachable
         ? `No other machine can reach ${input.targetLabel} at an address this app knows.`
         : null;
+  const grant = blocker === null ? route : null;
   const healthNote =
     health === null || (health.kind === "reachable" && health.expiresInDays === null)
       ? null
       : peerLinkHealthText(health);
-  const usesThrough = blocker === null && mintThrough;
-  const throughNote = usesThrough
-    ? `${input.through} links to ${input.targetLabel} at full access, so it gets the pairing code.`
-    : null;
+  const routeNote =
+    grant?._tag === "Through"
+      ? `${grant.intermediary.label} links to ${input.targetLabel} at full access, so it gets the pairing code.`
+      : null;
   return {
     value: live ? current.access : LINK_OFF,
-    note: blocker ?? healthNote ?? throughNote,
-    canGrant: blocker === null,
+    note: blocker ?? healthNote ?? routeNote,
+    grant,
     canForget: current !== null && input.canUnlink,
     linked: live,
     expired: current !== null && !live,
-    canRelink: blocker === null && live && health?.kind === "failing",
-    mintThrough: usesThrough,
+    canRelink: grant !== null && live && health?.kind === "failing",
   };
 }
