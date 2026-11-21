@@ -9,8 +9,12 @@ vi.mock("~/state/session", () => ({
     httpBaseUrl: "http://127.0.0.1:5774",
     connectionMethod: "relay",
   }),
+  readEnvironmentScope: () => false,
 }));
-vi.mock("~/state/entities", () => ({ readEnvironmentSupportsServerBrowser: () => false }));
+vi.mock("~/state/entities", () => ({
+  readEnvironmentSupportsServerBrowser: () => false,
+  readEnvironmentServerConfig: () => null,
+}));
 vi.mock("~/browser/previewRuntime", () => ({ previewRuntimeFor: () => undefined }));
 vi.mock("~/browserHistoryStore", () => ({ recordVisitForThread: vi.fn() }));
 vi.mock("~/rightPanelStore", () => ({ useRightPanelStore: { getState: vi.fn() } }));
