@@ -1071,6 +1071,9 @@ describe("ClaudeAdapterV2 Auto-accept edits", () => {
                 mcpServerStatus: Effect.succeed([]),
                 readMcpResource: () => Effect.die("unexpected MCP resource read"),
                 callMcpTool: () => Effect.die("unexpected MCP tool call"),
+                mcpAuthenticate: () => Effect.die("unexpected MCP sign-in"),
+                mcpSubmitOAuthCallbackUrl: () => Effect.die("unexpected MCP sign-in"),
+                reconnectMcpServer: () => Effect.die("unexpected MCP reconnect"),
                 listPermissionRules: Effect.die("unexpected permission rules read"),
                 stopTask: () => Effect.void,
                 interrupt: Effect.void,
@@ -1196,6 +1199,9 @@ describe("ClaudeAdapterV2 append-system-prompt-file launch argument", () => {
               mcpServerStatus: Effect.succeed([]),
               readMcpResource: () => Effect.die("unexpected MCP resource read"),
               callMcpTool: () => Effect.die("unexpected MCP tool call"),
+              mcpAuthenticate: () => Effect.die("unexpected MCP sign-in"),
+              mcpSubmitOAuthCallbackUrl: () => Effect.die("unexpected MCP sign-in"),
+              reconnectMcpServer: () => Effect.die("unexpected MCP reconnect"),
               listPermissionRules: Effect.die("unexpected permission rules read"),
               stopTask: () => Effect.void,
               interrupt: Effect.void,
@@ -1496,6 +1502,9 @@ describe("ClaudeAdapterV2 provider installation gate", () => {
                 mcpServerStatus: Effect.succeed([]),
                 readMcpResource: () => Effect.die("unexpected MCP resource read"),
                 callMcpTool: () => Effect.die("unexpected MCP tool call"),
+                mcpAuthenticate: () => Effect.die("unexpected MCP sign-in"),
+                mcpSubmitOAuthCallbackUrl: () => Effect.die("unexpected MCP sign-in"),
+                reconnectMcpServer: () => Effect.die("unexpected MCP reconnect"),
                 listPermissionRules: Effect.die("unexpected permission rules read"),
                 stopTask: () => Effect.void,
                 interrupt: Effect.void,
@@ -1682,6 +1691,9 @@ const captureSdkExecutablePaths = Effect.fn("captureSdkExecutablePaths")(functio
             mcpServerStatus: Effect.succeed([]),
             readMcpResource: () => Effect.die("unexpected MCP resource read"),
             callMcpTool: () => Effect.die("unexpected MCP tool call"),
+            mcpAuthenticate: () => Effect.die("unexpected MCP sign-in"),
+            mcpSubmitOAuthCallbackUrl: () => Effect.die("unexpected MCP sign-in"),
+            reconnectMcpServer: () => Effect.die("unexpected MCP reconnect"),
             listPermissionRules: Effect.die("unexpected permission rules read"),
             stopTask: () => Effect.void,
             interrupt: Effect.void,
@@ -1886,6 +1898,9 @@ describe("ClaudeAdapterV2 resume compaction", () => {
                 mcpServerStatus: Effect.succeed([]),
                 readMcpResource: () => Effect.die("unexpected MCP resource read"),
                 callMcpTool: () => Effect.die("unexpected MCP tool call"),
+                mcpAuthenticate: () => Effect.die("unexpected MCP sign-in"),
+                mcpSubmitOAuthCallbackUrl: () => Effect.die("unexpected MCP sign-in"),
+                reconnectMcpServer: () => Effect.die("unexpected MCP reconnect"),
                 listPermissionRules: Effect.die("unexpected permission rules read"),
                 stopTask: () => Effect.void,
                 interrupt: Effect.void,
@@ -2203,6 +2218,9 @@ describe("ClaudeAdapterV2 attachments", () => {
                   mcpServerStatus: Effect.succeed([]),
                   readMcpResource: () => Effect.die("unexpected MCP resource read"),
                   callMcpTool: () => Effect.die("unexpected MCP tool call"),
+                  mcpAuthenticate: () => Effect.die("unexpected MCP sign-in"),
+                  mcpSubmitOAuthCallbackUrl: () => Effect.die("unexpected MCP sign-in"),
+                  reconnectMcpServer: () => Effect.die("unexpected MCP reconnect"),
                   listPermissionRules: Effect.die("unexpected permission rules read"),
                   stopTask: () => Effect.void,
                   interrupt: Effect.void,
@@ -2745,6 +2763,9 @@ describe("ClaudeAdapterV2 native fork", () => {
                 mcpServerStatus: Effect.succeed([]),
                 readMcpResource: () => Effect.die("unexpected MCP resource read"),
                 callMcpTool: () => Effect.die("unexpected MCP tool call"),
+                mcpAuthenticate: () => Effect.die("unexpected MCP sign-in"),
+                mcpSubmitOAuthCallbackUrl: () => Effect.die("unexpected MCP sign-in"),
+                reconnectMcpServer: () => Effect.die("unexpected MCP reconnect"),
                 listPermissionRules: Effect.die("unexpected permission rules read"),
                 stopTask: () => Effect.void,
                 interrupt: Effect.void,
@@ -3095,6 +3116,9 @@ describe("ClaudeAdapterV2 native session identity", () => {
                   mcpServerStatus: Effect.succeed([]),
                   readMcpResource: () => Effect.die("unexpected MCP resource read"),
                   callMcpTool: () => Effect.die("unexpected MCP tool call"),
+                  mcpAuthenticate: () => Effect.die("unexpected MCP sign-in"),
+                  mcpSubmitOAuthCallbackUrl: () => Effect.die("unexpected MCP sign-in"),
+                  reconnectMcpServer: () => Effect.die("unexpected MCP reconnect"),
                   listPermissionRules: Effect.die("unexpected permission rules read"),
                   stopTask: () => Effect.void,
                   interrupt: Effect.void,
@@ -3553,6 +3577,9 @@ describe("ClaudeAdapterV2 background wake turns", () => {
                   mcpServerStatus: Effect.succeed([]),
                   readMcpResource: () => Effect.die("unexpected MCP resource read"),
                   callMcpTool: () => Effect.die("unexpected MCP tool call"),
+                  mcpAuthenticate: () => Effect.die("unexpected MCP sign-in"),
+                  mcpSubmitOAuthCallbackUrl: () => Effect.die("unexpected MCP sign-in"),
+                  reconnectMcpServer: () => Effect.die("unexpected MCP reconnect"),
                   listPermissionRules: Effect.die("unexpected permission rules read"),
                   stopTask: options?.stopTask ?? (() => Effect.void),
                   interrupt: Effect.void,
@@ -3596,6 +3623,9 @@ describe("ClaudeAdapterV2 background wake turns", () => {
                   (() => Effect.die("unexpected MCP resource read")),
                 callMcpTool:
                   options?.mcp?.callMcpTool ?? (() => Effect.die("unexpected MCP tool call")),
+                mcpAuthenticate: () => Effect.die("unexpected MCP sign-in"),
+                mcpSubmitOAuthCallbackUrl: () => Effect.die("unexpected MCP sign-in"),
+                reconnectMcpServer: () => Effect.die("unexpected MCP reconnect"),
                 listPermissionRules: options?.mcp?.listPermissionRules ?? Effect.succeed([]),
                 stopTask: options?.stopTask ?? (() => Effect.void),
                 interrupt: options?.interrupt ?? Effect.void,
@@ -6481,6 +6511,69 @@ describe("ClaudeAdapterV2 background wake turns", () => {
       );
       assert.isTrue(Exit.isFailure(exit));
       assert.deepEqual(mcpRequests, []);
+    }).pipe(
+      Effect.scoped,
+      Effect.provide(
+        Layer.mergeAll(
+          IdAllocator.layer,
+          McpProviderSessions.layer,
+          NodeServices.layer,
+          NodeCrypto.layer,
+        ),
+      ),
+    ),
+  );
+
+  it.effect("asks to sign in to a configured MCP server, but not to a claude.ai connector", () =>
+    Effect.gen(function* () {
+      const harness = yield* makeWakeHarnessWithOptions({
+        mcp: {
+          mcpServerStatus: Effect.succeed([
+            { name: "linear", status: "needs-auth" },
+            { name: "claude.ai Gmail", status: "needs-auth", scope: "claudeai" },
+            { name: "docs", status: "connected" },
+          ]),
+          readMcpResource: () => Effect.die("unexpected MCP resource read"),
+          callMcpTool: () => Effect.die("unexpected MCP tool call"),
+        },
+      });
+      yield* harness.runtime.startTurn(
+        makeClaudeTestTurnInput({
+          threadId: harness.threadId,
+          providerThread: harness.providerThread,
+          now: yield* DateTime.now,
+          attemptId: RunAttemptId.make("mcp-sign-in"),
+          text: "Plan the sprint",
+          attachments: [],
+        }),
+      );
+      // Remote servers are still connecting at init; whether they need a sign-in settles later.
+      yield* harness.offerAndWait(
+        claudeSdkFrame({
+          type: "system",
+          subtype: "init",
+          uuid: "mcp-sign-in-init",
+          session_id: WAKE_NATIVE_SESSION,
+          mcp_servers: [
+            { name: "linear", status: "pending" },
+            { name: "claude.ai Gmail", status: "needs-auth" },
+            { name: "docs", status: "connected" },
+          ],
+        }),
+      );
+      yield* Queue.offer(
+        harness.sdkMessages,
+        makeResultFrame({ uuid: "mcp-sign-in-result", result: "Planned" }),
+      );
+      yield* Queue.take(harness.terminalReceipts);
+      const signIns = harness.events.flatMap((event) =>
+        event.type === "turn_item.updated" &&
+        event.turnItem.type === "system_notice" &&
+        event.turnItem.mcpSignIn !== undefined
+          ? [event.turnItem.mcpSignIn.server]
+          : [],
+      );
+      assert.deepEqual(signIns, ["linear"]);
     }).pipe(
       Effect.scoped,
       Effect.provide(
@@ -14140,6 +14233,9 @@ describe("ClaudeAdapterV2 background wake turns", () => {
                 mcpServerStatus: Effect.succeed([]),
                 readMcpResource: () => Effect.die("unexpected MCP resource read"),
                 callMcpTool: () => Effect.die("unexpected MCP tool call"),
+                mcpAuthenticate: () => Effect.die("unexpected MCP sign-in"),
+                mcpSubmitOAuthCallbackUrl: () => Effect.die("unexpected MCP sign-in"),
+                reconnectMcpServer: () => Effect.die("unexpected MCP reconnect"),
                 listPermissionRules: Effect.die("unexpected permission rules read"),
                 stopTask: () => Effect.void,
                 interrupt: Effect.void,
@@ -14342,6 +14438,9 @@ describe("ClaudeAdapterV2 background wake turns", () => {
               mcpServerStatus: Effect.succeed([]),
               readMcpResource: () => Effect.die("unexpected MCP resource read"),
               callMcpTool: () => Effect.die("unexpected MCP tool call"),
+              mcpAuthenticate: () => Effect.die("unexpected MCP sign-in"),
+              mcpSubmitOAuthCallbackUrl: () => Effect.die("unexpected MCP sign-in"),
+              reconnectMcpServer: () => Effect.die("unexpected MCP reconnect"),
               listPermissionRules: Effect.die("unexpected permission rules read"),
               stopTask: () => Effect.void,
               interrupt: Effect.void,
@@ -14555,6 +14654,9 @@ describe("ClaudeAdapterV2 background wake turns", () => {
                   mcpServerStatus: Effect.succeed([]),
                   readMcpResource: () => Effect.die("unexpected MCP resource read"),
                   callMcpTool: () => Effect.die("unexpected MCP tool call"),
+                  mcpAuthenticate: () => Effect.die("unexpected MCP sign-in"),
+                  mcpSubmitOAuthCallbackUrl: () => Effect.die("unexpected MCP sign-in"),
+                  reconnectMcpServer: () => Effect.die("unexpected MCP reconnect"),
                   listPermissionRules: Effect.die("unexpected permission rules read"),
                   stopTask: () => Effect.void,
                   interrupt: Effect.void,
@@ -17900,6 +18002,9 @@ describe("ClaudeAdapterV2 background wake turns", () => {
                 mcpServerStatus: Effect.die("unexpected MCP server status"),
                 readMcpResource: () => Effect.die("unexpected MCP resource read"),
                 callMcpTool: () => Effect.die("unexpected MCP tool call"),
+                mcpAuthenticate: () => Effect.die("unexpected MCP sign-in"),
+                mcpSubmitOAuthCallbackUrl: () => Effect.die("unexpected MCP sign-in"),
+                reconnectMcpServer: () => Effect.die("unexpected MCP reconnect"),
                 listPermissionRules: Effect.die("unexpected permission rules read"),
                 interrupt: Effect.void,
                 close:
@@ -21277,6 +21382,9 @@ describe("ClaudeAdapterV2 background wake turns", () => {
                 mcpServerStatus: Effect.succeed([]),
                 readMcpResource: () => Effect.die("unexpected MCP resource read"),
                 callMcpTool: () => Effect.die("unexpected MCP tool call"),
+                mcpAuthenticate: () => Effect.die("unexpected MCP sign-in"),
+                mcpSubmitOAuthCallbackUrl: () => Effect.die("unexpected MCP sign-in"),
+                reconnectMcpServer: () => Effect.die("unexpected MCP reconnect"),
                 listPermissionRules: Effect.die("unexpected permission rules read"),
                 stopTask: () => Effect.void,
                 interrupt: Effect.void,
@@ -21455,6 +21563,9 @@ describe("ClaudeAdapterV2 background wake turns", () => {
                   mcpServerStatus: Effect.succeed([]),
                   readMcpResource: () => Effect.die("unexpected MCP resource read"),
                   callMcpTool: () => Effect.die("unexpected MCP tool call"),
+                  mcpAuthenticate: () => Effect.die("unexpected MCP sign-in"),
+                  mcpSubmitOAuthCallbackUrl: () => Effect.die("unexpected MCP sign-in"),
+                  reconnectMcpServer: () => Effect.die("unexpected MCP reconnect"),
                   listPermissionRules: Effect.die("unexpected permission rules read"),
                   stopTask: () => Effect.void,
                   interrupt: Effect.void,
@@ -21633,6 +21744,9 @@ describe("ClaudeAdapterV2 background wake turns", () => {
                 mcpServerStatus: Effect.succeed([]),
                 readMcpResource: () => Effect.die("unexpected MCP resource read"),
                 callMcpTool: () => Effect.die("unexpected MCP tool call"),
+                mcpAuthenticate: () => Effect.die("unexpected MCP sign-in"),
+                mcpSubmitOAuthCallbackUrl: () => Effect.die("unexpected MCP sign-in"),
+                reconnectMcpServer: () => Effect.die("unexpected MCP reconnect"),
                 listPermissionRules: Effect.die("unexpected permission rules read"),
                 stopTask: () => Effect.void,
                 interrupt: Effect.void,
@@ -21831,6 +21945,9 @@ describe("ClaudeAdapterV2 background wake turns", () => {
                 mcpServerStatus: Effect.succeed([]),
                 readMcpResource: () => Effect.die("unexpected MCP resource read"),
                 callMcpTool: () => Effect.die("unexpected MCP tool call"),
+                mcpAuthenticate: () => Effect.die("unexpected MCP sign-in"),
+                mcpSubmitOAuthCallbackUrl: () => Effect.die("unexpected MCP sign-in"),
+                reconnectMcpServer: () => Effect.die("unexpected MCP reconnect"),
                 listPermissionRules: Effect.die("unexpected permission rules read"),
                 stopTask: () => Effect.void,
                 interrupt: Effect.void,
@@ -21978,6 +22095,9 @@ describe("ClaudeAdapterV2 background wake turns", () => {
                   mcpServerStatus: Effect.succeed([]),
                   readMcpResource: () => Effect.die("unexpected MCP resource read"),
                   callMcpTool: () => Effect.die("unexpected MCP tool call"),
+                  mcpAuthenticate: () => Effect.die("unexpected MCP sign-in"),
+                  mcpSubmitOAuthCallbackUrl: () => Effect.die("unexpected MCP sign-in"),
+                  reconnectMcpServer: () => Effect.die("unexpected MCP reconnect"),
                   listPermissionRules: Effect.die("unexpected permission rules read"),
                   stopTask: () => Effect.void,
                   interrupt: Effect.void,
@@ -22100,6 +22220,9 @@ describe("ClaudeAdapterV2 background wake turns", () => {
               mcpServerStatus: Effect.succeed([]),
               readMcpResource: () => Effect.die("unexpected MCP resource read"),
               callMcpTool: () => Effect.die("unexpected MCP tool call"),
+              mcpAuthenticate: () => Effect.die("unexpected MCP sign-in"),
+              mcpSubmitOAuthCallbackUrl: () => Effect.die("unexpected MCP sign-in"),
+              reconnectMcpServer: () => Effect.die("unexpected MCP reconnect"),
               listPermissionRules: Effect.die("unexpected permission rules read"),
               stopTask: () => Effect.void,
               interrupt: Effect.void,

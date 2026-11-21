@@ -64,6 +64,8 @@ import { ChatMarkdownAssetImage } from "./ChatMarkdownMedia";
 import type { ExpandedImagePreview } from "./ExpandedImagePreview";
 import { workGroupImageGallery } from "./markdownImageGallery";
 import { CircleAlertIcon, RotateCcwIcon, XIcon } from "@supaterm/icons";
+import { McpSignInAction } from "./McpSignInAction";
+import * as DateTime from "effect/DateTime";
 import { Button, InlineButton } from "../ui/button";
 import { useAssetUrls } from "../../assets/assetUrls";
 import { useThreadShell } from "../../state/entities";
@@ -514,6 +516,17 @@ function WorkEntryLogRow(props: WorkEntryRowProps) {
             >
               Open chat
             </button>
+          ) : null}
+          {payload?.type === "system_notice" &&
+          payload.mcpSignIn !== undefined &&
+          payload.providerThreadId !== null ? (
+            <McpSignInAction
+              environmentId={ctx.activeThreadEnvironmentId}
+              threadId={payload.threadId}
+              providerThreadId={payload.providerThreadId}
+              server={payload.mcpSignIn.server}
+              noticeAt={DateTime.toEpochMillis(payload.updatedAt)}
+            />
           ) : null}
           {notifiedSubagentThreadId ? (
             <InlineButton

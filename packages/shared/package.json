@@ -459,6 +459,10 @@
       "types": "./src/orchestrationV2DedupedBodies.ts",
       "import": "./src/orchestrationV2DedupedBodies.ts"
     },
+    "./oauthCallback": {
+      "types": "./src/oauthCallback.ts",
+      "import": "./src/oauthCallback.ts"
+    },
     "./codexArtifactTemplates": {
       "types": "./src/codexArtifactTemplates.ts",
       "import": "./src/codexArtifactTemplates.ts"
