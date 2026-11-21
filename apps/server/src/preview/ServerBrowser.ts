@@ -2871,16 +2871,16 @@ const make = Effect.gen(function* () {
         // because a page can keep another size than the one asked for.
         if (changed) {
           // Electron resizes no hidden guest it does not paint; a pending capture makes the desktop paint it.
-          let waiting = true;
+          const painting = new AbortController();
           void (async () => {
-            while (waiting && !tab.closing) {
+            while (!painting.signal.aborted && !tab.closing) {
               await tab.cdp.send("Page.captureScreenshot", DESKTOP_PAINT_CAPTURE);
             }
           })().catch(constVoid);
           try {
             await within(drawn, Math.min(DESKTOP_RESIZE_WAIT_MS, remainingMs() / 2));
           } finally {
-            waiting = false;
+            painting.abort();
           }
         }
         const changes = tab.desktopViewportChanges;
