@@ -2901,11 +2901,10 @@ const make = Effect.gen(function* () {
           to !== null &&
           (measured?.width !== to.width || measured?.height !== to.height);
         if (tab.desktopResizeUndrawn) {
-          throw new ServerBrowserPage.ServerBrowserOperationError({
-            tag: "PreviewAutomationExecutionError",
-            message:
-              "The desktop did not draw the page at the new size. Show or restore the Supaterm window and try again.",
-          });
+          throw new ServerBrowserPage.ServerBrowserOperationError(
+            "PreviewAutomationExecutionError",
+            "The desktop did not draw the page at the new size. Show or restore the Supaterm window and try again.",
+          );
         }
         // Only a read after the draw, with no page resize or load during it, measures this resize.
         return {
