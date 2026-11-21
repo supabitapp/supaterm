@@ -1847,9 +1847,12 @@ it.effect("delivers agent messages queued behind /compact before a later one ste
       );
 
       yield* sendFromAgent("CHARLIE");
-      const delivered = [...steered, ...started.slice(3).map((turn) => turn.message.text)]
-        .map((text) => text.split("\n").at(-1))
-        .filter((text) => text === "BRAVO" || text === "CHARLIE");
+      const delivered = [...steered, ...started.slice(3).map((turn) => turn.message.text)].flatMap(
+        (text) => {
+          const line = text.split("\n").at(-1);
+          return line === "BRAVO" || line === "CHARLIE" ? [line] : [];
+        },
+      );
       // Whatever reaches the agent so far does so in send order: CHARLIE never before BRAVO.
       assert.deepEqual(delivered, ["BRAVO", "CHARLIE"].slice(0, delivered.length));
     }).pipe(Effect.provide(layer));
