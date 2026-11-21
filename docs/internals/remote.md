@@ -72,10 +72,11 @@ Unlinking on the linking side only forgets the token.
   separate switch on both sides only made users enable a machine they never
   meant to send work from. Agents always see the link tools, so an agent can
   ask to link a machine the user names before any link exists. Links made
-  before migration 024 end, since it deletes the saved outgoing links and
-  `/mcp` refuses peer-link sessions issued before it; the old switch's
-  `linkedEnvironmentsEnabled` stays only as a legacy wire indicator that
-  current servers always report on.
+  while the old switch existed end, so an upgrade never resumes one it had
+  paused: migration 024 deletes the saved outgoing links, and `SessionStore`
+  refuses peer-link tokens signed as generation 1 (`plk`), whatever the
+  clock says. The switch's `linkedEnvironmentsEnabled` stays only as a
+  legacy wire indicator that current servers always report on.
 - **A tool runs in a linked environment when its parameters take
   `OrchestratorMcpEnvironmentTarget`** as `environmentId`.
   [`McpToolAccess.toLayer`](../../apps/server/src/mcp/McpToolAccess.ts) sends

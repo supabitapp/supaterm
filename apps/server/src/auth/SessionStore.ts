@@ -426,7 +426,8 @@ const SessionClaims = Schema.Struct({
   scopes: AuthEnvironmentScopes,
   method: IssuableSessionMethod,
   rtc: Schema.optionalKey(RuntimeMode),
-  plk: Schema.optionalKey(Schema.Literal(1)),
+  /** A peer link's generation; 1 was signed while links still had a switch. */
+  plk: Schema.optionalKey(Schema.Literals([1, 2])),
   iat: Schema.Number,
   exp: Schema.Number,
 });
@@ -482,7 +483,6 @@ const make = Effect.gen(function* () {
   const serverEnvironment = yield* ServerEnvironment.ServerEnvironmentIdentity;
   const secretStore = yield* ServerSecretStore.ServerSecretStore;
   const authSessions = yield* AuthSessions.AuthSessionRepository;
-  const peerLinkCutoff = yield* authSessions.peerLinkCutoff;
   const signer = yield* PayloadSigner.fromSecret(
     yield* secretStore.getOrCreateRandom(SIGNING_SECRET_NAME, 32),
   );
@@ -644,7 +644,7 @@ const make = Effect.gen(function* () {
         scopes: input?.scopes ?? AuthStandardClientScopes,
         method: input?.method ?? "browser-session-cookie",
         ...(input?.runtimeModeCeiling ? { rtc: input.runtimeModeCeiling } : {}),
-        ...(input?.peerLink === true ? { plk: 1 as const } : {}),
+        ...(input?.peerLink === true ? { plk: 2 as const } : {}),
         iat: issuedAt.epochMilliseconds,
         exp: expiresAt.epochMilliseconds,
       };
@@ -813,11 +813,12 @@ const make = Effect.gen(function* () {
           revokedAt: row.value.revokedAt,
         });
       }
-      // Migration 024 ended every link made before it; the linking side forgot its token then.
-      if (claims.plk === 1 && Option.exists(peerLinkCutoff, (cutoff) => claims.iat < cutoff)) {
+      // A link signed while links had a switch may have been paused by it; it ends here, so an
+      // upgrade never resumes it. The linking side forgot its token in migration 024.
+      if (claims.plk === 1) {
         const revokedAt = yield* DateTime.now;
         yield* revoke(claims.sid).pipe(
-          Effect.ignore({ log: "Warn", message: "Could not revoke a link made before 024" }),
+          Effect.ignore({ log: "Warn", message: "Could not revoke a link from before 024" }),
         );
         return yield* new SessionTokenRevokedError({ sessionId: claims.sid, revokedAt });
       }
@@ -831,7 +832,7 @@ const make = Effect.gen(function* () {
         subject: claims.sub,
         scopes: row.value.scopes,
         ...(claims.rtc ? { runtimeModeCeiling: claims.rtc } : {}),
-        ...(claims.plk === 1 ? { peerLink: true as const } : {}),
+        ...(claims.plk === 2 ? { peerLink: true as const } : {}),
       } satisfies VerifiedSession;
     },
   );
