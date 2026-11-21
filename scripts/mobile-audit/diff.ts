@@ -150,7 +150,7 @@ export function resolveViewport(
   return undefined;
 }
 
-export function formatHeight(rect: AuditRect, density: number, unit: "pt" | "dp"): string {
+function formatHeight(rect: AuditRect, density: number, unit: "pt" | "dp"): string {
   const h = Math.round((rect.height / density) * 10) / 10;
   return `${h}${unit}`;
 }
@@ -192,7 +192,7 @@ export function isPlatformNoise(
 }
 
 /** Stable identity key for matching findings across before/after runs. */
-export function findingSignature(finding: AuditFinding): string {
+function findingSignature(finding: AuditFinding): string {
   const name = (
     finding.label ??
     (isAmbiguousNameDetail(finding.detail) ? finding.detail.name : undefined) ??

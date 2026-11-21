@@ -49,7 +49,7 @@ export function pullRequestSyncKey(
  * The repositories whose pull requests are the project's own, each with the remote to fetch it
  * from: its primary one, then the fork its `origin` remote names when that is on the same host.
  */
-export function ownPullRequestRepositories(
+function ownPullRequestRepositories(
   identity: RepositoryIdentity | null | undefined,
 ): ReadonlyArray<{
   readonly key: Pick<ThreadPullRequestKey, "host" | "repository">;
