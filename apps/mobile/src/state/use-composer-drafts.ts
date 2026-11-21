@@ -1662,6 +1662,16 @@ export function sameComposerDraftState(a: ComposerDraft, b: ComposerDraft): bool
   );
 }
 
+/** Whether `b` still holds the message `a` held; an upload finishing in between does not count. */
+export function sameComposerDraftContent(a: ComposerDraft, b: ComposerDraft): boolean {
+  return (
+    a.text === b.text &&
+    a.context === b.context &&
+    a.attachments.length === b.attachments.length &&
+    a.attachments.every((attachment, index) => attachment.id === b.attachments[index]?.id)
+  );
+}
+
 /**
  * An untouched draft gets the pre-merge snapshot back exactly. If the user edited it during the
  * merge's awaits, only the appended text and new attachments come back out, so the edits survive.

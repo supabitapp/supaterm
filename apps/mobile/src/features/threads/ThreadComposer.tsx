@@ -56,11 +56,9 @@ import { useUniwindTheme } from "../../lib/useUniwindTheme";
 import { themeColorWithAlpha } from "../../lib/mobileTheme";
 import { scopedThreadKey } from "../../lib/scopedEntities";
 import {
-  appendComposerDraftAttachments,
   clearComposerDraftContent,
   getComposerDraftSnapshot,
-  mergeComposerDraftContent,
-  scheduleUnusedComposerAttachmentCleanup,
+  sameComposerDraftContent,
   setComposerDraftText,
   composerContextImportsAtom,
   countComposerDraftAttachmentsAfterSelection,
@@ -715,26 +713,16 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
     }
     if (sideChatCommand.kind === "start") {
       const draft = getComposerDraftSnapshot(composerDraftKey);
-      if (draft.attachments.length === 0 && (draft.context?.records.length ?? 0) === 0) {
-        if (await sideChat.send(sideChatCommand.prompt)) onChangeDraftMessage("");
-        return;
+      const carriesContent =
+        draft.attachments.length > 0 || (draft.context?.records.length ?? 0) > 0;
+      const sent = await sideChat.send(
+        sideChatCommand.prompt,
+        carriesContent ? { attachments: draft.attachments, context: draft.context } : undefined,
+      );
+      // The parent keeps its draft until the outbox holds the message; edits made since stay.
+      if (sent && sameComposerDraftContent(getComposerDraftSnapshot(composerDraftKey), draft)) {
+        clearComposerDraftContent(composerDraftKey);
       }
-      // Cleared at send, like a queued message; a side chat that did not start gets it back.
-      clearComposerDraftContent(composerDraftKey, { deferAttachmentCleanup: true });
-      const started = await sideChat.send(sideChatCommand.prompt, {
-        attachments: draft.attachments,
-        context: draft.context,
-      });
-      if (started) {
-        scheduleUnusedComposerAttachmentCleanup(draft.attachments);
-        return;
-      }
-      await mergeComposerDraftContent(composerDraftKey, {
-        text: draft.text,
-        context: draft.context,
-        attachments: [],
-      }).catch(() => undefined);
-      appendComposerDraftAttachments(composerDraftKey, draft.attachments, { restore: true });
       return;
     }
     const threadKey = scopedThreadKey(props.environmentId, props.selectedThread.id);

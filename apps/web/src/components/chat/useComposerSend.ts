@@ -41,7 +41,10 @@ import {
   previewAnnotationContextReference,
   withReplyReference,
 } from "../../lib/composerContextRecords";
-import { captureOutboxAttachments } from "../../state/threadOutboxEditing";
+import {
+  captureOutboxAttachments,
+  releaseSentComposerDraft,
+} from "../../state/threadOutboxEditing";
 import {
   declinePendingApprovals,
   sendApprovalFeedback,
@@ -62,7 +65,6 @@ import {
 import { readCanQueueComposerMessage } from "../../state/composerQueue";
 import { readEnvironmentScope } from "../../state/session";
 import { useLinkedEnvironments } from "../../state/peerLinks";
-import { releaseDraftAttachments } from "../../lib/attachmentUploadQueue";
 import { runMobileComposerTransition } from "./draftHeroTransition";
 import { scopeThreadRef, scopedThreadKey } from "@supaterm/client-runtime/environment";
 import { stackedThreadToast, toastManager } from "../ui/toast";
@@ -1051,18 +1053,16 @@ export function useComposerSend(input: ComposerSendInput) {
             : null,
         );
       }
-      if (useComposerDraftStore.getState().getComposerDraft(composerDraftTarget) === savedDraft) {
-        clearComposerDraftContent(composerDraftTarget);
-        // The prompt ref and cursor belong to the thread on screen, which may no longer be this one.
-        if (currentRouteThreadKeyRef.current === routeThreadKey) {
-          promptRef.current = "";
-          composerRef.current?.resetCursorState();
-        }
+      const cleared = releaseSentComposerDraft({
+        target: composerDraftTarget,
+        sent: savedDraft,
+        attachments: composerAttachmentsSnapshot,
+      });
+      // The prompt ref and cursor belong to the thread on screen, which may no longer be this one.
+      if (cleared && currentRouteThreadKeyRef.current === routeThreadKey) {
+        promptRef.current = "";
+        composerRef.current?.resetCursorState();
       }
-      // The outbox owns its own bytes. References recovered without bytes stay owned until delivery.
-      releaseDraftAttachments(
-        composerAttachmentsSnapshot.filter((attachment) => attachment.file !== null),
-      );
       setThreadError(threadIdForSend, null);
       if (isLocalDraftThread && multipleModelSelections === null)
         markPromotedDraftThreadByRef(scopeThreadRef(environmentId, threadIdForSend));

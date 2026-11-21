@@ -31,11 +31,13 @@ import {
   useComposerDraftStore,
 } from "../../composerDraftStore";
 import { useStableCallback } from "../../hooks/useStableCallback";
-import { releaseDraftAttachments } from "../../lib/attachmentUploadQueue";
 import { readThreadShell, useServerConfigs, waitForThreadShell } from "../../state/entities";
 import { useEnvironmentScope } from "../../state/session";
 import { enqueueThreadOutboxTurn } from "../../state/threadOutbox";
-import { captureOutboxAttachments } from "../../state/threadOutboxEditing";
+import {
+  captureOutboxAttachments,
+  releaseSentComposerDraft,
+} from "../../state/threadOutboxEditing";
 import { environmentThreadDetails, threadEnvironment } from "../../state/threads";
 
 const NOT_PENDING_ATOM = Atom.make(false).pipe(Atom.withLabel("side-chat:worktree-not-pending"));
@@ -175,6 +177,7 @@ export function useSideChat(input: {
     text: string,
     content: SideChatComposerContent | undefined,
   ) => {
+    const sent = useComposerDraftStore.getState().getComposerDraft(draftId);
     const result = await sendSideChatDraftMessage({
       parentRef: scopeThreadRef(parent.environmentId, parent.id),
       draftId,
@@ -214,11 +217,7 @@ export function useSideChat(input: {
     });
     if (result.kind === "failed") input.onError(result.reason);
     if (result.kind === "queued") {
-      const store = useComposerDraftStore.getState();
-      if (store.getComposerDraft(draftId)?.prompt === text) store.clearComposerContent(draftId);
-      // The outbox owns its own bytes. References recovered without bytes stay owned until delivery.
-      if (content)
-        releaseDraftAttachments(content.attachments.filter((item) => item.file !== null));
+      releaseSentComposerDraft({ target: draftId, sent, attachments: content?.attachments ?? [] });
       markPromotedDraftThreadByRef(scopeThreadRef(parent.environmentId, threadId));
     }
   };
