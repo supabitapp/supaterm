@@ -1203,7 +1203,9 @@ describe("AcpSessionRuntime", () => {
         sessionLoadReplayIdleReadiness: true,
       });
       const started = yield* runtime.start();
-      expect(started.sessionSetupResult._meta).toMatchObject({ supatermSessionLoadReady: "replay_idle" });
+      expect(started.sessionSetupResult._meta).toMatchObject({
+        supatermSessionLoadReady: "replay_idle",
+      });
 
       yield* runtime.getEvents().pipe(
         Stream.filter((event) => event._tag === "ConfigOptionsUpdated"),

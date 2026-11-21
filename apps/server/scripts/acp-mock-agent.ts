@@ -71,7 +71,8 @@ const failLoadSession = process.env.SUPATERM_ACP_FAIL_LOAD_SESSION === "1";
 const failLoadSessionAfterConfigReplay =
   process.env.SUPATERM_ACP_FAIL_LOAD_SESSION_AFTER_CONFIG_REPLAY === "1";
 const emitLoadReplay = process.env.SUPATERM_ACP_EMIT_LOAD_REPLAY === "1";
-const delayLoadSessionAfterReplay = process.env.SUPATERM_ACP_DELAY_LOAD_SESSION_AFTER_REPLAY === "1";
+const delayLoadSessionAfterReplay =
+  process.env.SUPATERM_ACP_DELAY_LOAD_SESSION_AFTER_REPLAY === "1";
 const loadSessionDelayMs = Number(process.env.SUPATERM_ACP_LOAD_SESSION_DELAY_MS ?? "5000");
 const modeNotifiedBeforeDelayedLoadReply = process.env.SUPATERM_ACP_NOTIFY_MODE_BEFORE_LOAD_REPLY;
 const holdSetConfigOptionUntilLoadReply =
