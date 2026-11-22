@@ -1,4 +1,5 @@
 import { linkOriginIsFenced, ProjectId, type ProjectScript, ThreadId } from "@supaterm/contracts";
+import { splitsSurrogatePair } from "@supaterm/shared/assistantCitations";
 import {
   projectScriptRuntimeEnv,
   projectScriptTerminalInput,
@@ -332,7 +333,14 @@ export const make = Effect.gen(function* () {
           ) {
             return Effect.void;
           }
-          return input.onOutputLine(cleaned.slice(0, OUTPUT_LINE_MAX_LENGTH));
+          return input.onOutputLine(
+            cleaned.slice(
+              0,
+              splitsSurrogatePair(cleaned, OUTPUT_LINE_MAX_LENGTH)
+                ? OUTPUT_LINE_MAX_LENGTH - 1
+                : OUTPUT_LINE_MAX_LENGTH,
+            ),
+          );
         });
 
       const unsubscribe = yield* terminalManager.subscribe((event) => {
@@ -349,7 +357,10 @@ export const make = Effect.gen(function* () {
           // A script that never prints a newline must not grow this forever.
           // The sentinel is always on its own line, so keeping the tail is safe.
           if (lineBuffer.length > PARTIAL_LINE_MAX_LENGTH) {
-            lineBuffer = lineBuffer.slice(-PARTIAL_LINE_MAX_LENGTH);
+            const start = lineBuffer.length - PARTIAL_LINE_MAX_LENGTH;
+            lineBuffer = lineBuffer.slice(
+              splitsSurrogatePair(lineBuffer, start) ? start + 1 : start,
+            );
           }
           return Effect.forEach(lines, handleLine, { discard: true }).pipe(
             Effect.andThen(
