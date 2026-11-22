@@ -118,7 +118,9 @@ import { useComposerStash } from "./useComposerStash";
 import { useComposerContextImport } from "./useComposerContextImport";
 import { useComposerAttachmentIntake } from "./useComposerAttachmentIntake";
 import {
+  cancelHeldComposerSend,
   countPreparingComposerImages,
+  useComposerSendHeld,
   usePreparingComposerImages,
   useSubmitAfterPreparingImages,
 } from "./preparingComposerImages";
@@ -300,6 +302,7 @@ const COMPOSER_SCROLL_COLLAPSE_THRESHOLD_PX = 24;
 const COMPOSER_SCROLL_GESTURE_RESET_MS = 120;
 
 import { toastManager } from "../ui/toast";
+import { Spinner } from "../ui/spinner";
 import { PlayIcon, ReplyIcon, ShieldIcon } from "@supaterm/icons";
 import { ResponseReplyBarLink } from "./AssistantCitationChip";
 import { NO_PROVIDER_MODEL_SELECTION } from "../../providerInstances";
@@ -800,8 +803,18 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     uncommittedSnapShotIds,
     standaloneComposerImages,
   } = useComposerImageGroups(attachmentDraftTarget, composerImages, composerPreviewAnnotations);
-  const preparingComposerImages = usePreparingComposerImages(attachmentTargetKey).filter(
-    (image) => !image.hidden,
+  const allPreparingComposerImages = usePreparingComposerImages(attachmentTargetKey);
+  const preparingComposerImages = allPreparingComposerImages.filter((image) => !image.hidden);
+  // A message send waits for these itself; an answer waits in the composer below.
+  const messageHasPreparingImages =
+    questionAttachmentTarget === null && allPreparingComposerImages.length > 0;
+  const composerSendHeld = useComposerSendHeld(composerDraftTargetKey);
+  const cancelHeldSend = () => cancelHeldComposerSend(composerDraftTargetKey);
+  const handleMultipleModelSelectionsChangeStable = useStableCallback(
+    (next: React.SetStateAction<ReadonlyArray<ModelSelection> | null>) => {
+      cancelHeldSend();
+      setMultipleModelSelections(next);
+    },
   );
   const nonPersistedComposerImageIds = attachmentDraft.nonPersistedImageIds;
   const uploadsByImageId = useAttachmentUploadStore((state) => state.uploadsByImageId);
@@ -1350,8 +1363,12 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         isComplete: Boolean(activePendingResolvedAnswers),
       } satisfies ComposerPendingAnswer)
     : null;
+  const hasMessageToSend = composerSendState.hasSendableContent || messageHasPreparingImages;
   const showResumeAction =
-    canResume && !composerDraftHasUserContent(composerDraft) && !isEditingQueuedMessage;
+    canResume &&
+    !composerDraftHasUserContent(composerDraft) &&
+    !messageHasPreparingImages &&
+    !isEditingQueuedMessage;
   const turnRunning = phase === "running" || (deferredSteering && phase === "connecting");
   const draftRunsLocally = composerRunsDraftLocally({
     text: prompt,
@@ -1386,7 +1403,8 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         : "pending",
     isProjectSelectionRequired: projectSelectionRequired,
     isPreparingWorktree,
-    hasSendableContent: composerSendState.hasSendableContent,
+    isSendHeld: composerSendHeld,
+    hasSendableContent: hasMessageToSend,
     canResume: showResumeAction,
     isEditingQueuedMessage,
   } satisfies Omit<ComposerPrimaryActionInput, "alternateModifier" | "stopPhase">;
@@ -1407,9 +1425,11 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     collapsedComposerPrimaryAction.busy ||
     collapsedComposerPrimaryAction.blocked !== null;
   const collapsedComposerResumes = collapsedComposerPrimaryAction.kind === "resume";
-  const collapsedComposerPrimaryActionLabel = collapsedComposerResumes
-    ? "Resume thread"
-    : "Send message";
+  const collapsedComposerPrimaryActionLabel = composerSendHeld
+    ? "Sending when ready"
+    : collapsedComposerResumes
+      ? "Resume thread"
+      : "Send message";
   const showMobilePendingAnswerActions =
     isMobileViewport &&
     !isComposerCollapsedMobile &&
@@ -2272,7 +2292,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     if (activePendingProgress) {
       return activePendingProgress.isLastQuestion && Boolean(activePendingResolvedAnswers);
     }
-    return composerSendState.hasSendableContent;
+    return hasMessageToSend;
   };
 
   const submitComposerRef = useRef<
@@ -2298,9 +2318,14 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       event?.preventDefault();
       return null;
     }
-    // Sending now would leave a still-compressing image out of the turn, so wait for it.
+    if (composerSendHeld) {
+      event?.preventDefault();
+      return null;
+    }
+    // Sending now would leave a still-compressing image out of the answer, so wait for it.
     if (
       activeThreadId &&
+      questionAttachmentTarget &&
       submitAfterPreparingImages(() => submitComposerRef.current(dispatchMode, submissionIntent))
     ) {
       event?.preventDefault();
@@ -2490,8 +2515,13 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       onEditLatestQueuedMessage,
       onCancelQueuedMessageEdit,
     });
-  const onComposerCommandKey = (key: string, event: KeyboardEvent, isTaskItem?: boolean) =>
-    composerCommandKeys().onComposerCommandKey(key, event, isTaskItem);
+  const onComposerCommandKey = (key: string, event: KeyboardEvent, isTaskItem?: boolean) => {
+    if (key === "Escape" && composerSendHeld && !event.isComposing) {
+      cancelHeldSend();
+      return true;
+    }
+    return composerCommandKeys().onComposerCommandKey(key, event, isTaskItem);
+  };
 
   const {
     stashQueue,
@@ -2864,7 +2894,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       isSendBusy={isSendBusy}
       multipleModelsEnabled={routeKind === "draft" && supportsMultipleModels}
       multipleModelSelections={multipleModelSelections}
-      onMultipleModelSelectionsChange={setMultipleModelSelections}
+      onMultipleModelSelectionsChange={handleMultipleModelSelectionsChangeStable}
       selectedModelSelection={selectedModelSelection}
       onProviderModelSelect={onProviderModelSelect}
       activeThreadModelSelection={activeThreadModelSelection}
@@ -3702,6 +3732,17 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     <form
       ref={composerFormRef}
       onSubmit={submitComposerStable}
+      onKeyDown={(event) => {
+        if (
+          event.key === "Escape" &&
+          composerSendHeld &&
+          !event.defaultPrevented &&
+          !event.nativeEvent.isComposing
+        ) {
+          event.preventDefault();
+          cancelHeldSend();
+        }
+      }}
       onPointerDownCapture={(event) => {
         const target = event.target;
         if (isInsideRestingComposerControlScope(target)) return;
@@ -4016,6 +4057,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                     className="flex size-8 shrink-0 items-center justify-center rounded-full bg-message-action text-message-action-foreground hover:bg-message-action-hover disabled:opacity-64"
                     disabled={collapsedComposerPrimaryActionDisabled}
                     aria-label={collapsedComposerPrimaryActionLabel}
+                    aria-busy={collapsedComposerPrimaryAction.busy || undefined}
                     onPointerDown={(event) => event.preventDefault()}
                     onClick={(event) => {
                       event.stopPropagation();
@@ -4024,7 +4066,9 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                       else submitComposer();
                     }}
                   >
-                    {collapsedComposerResumes ? (
+                    {collapsedComposerPrimaryAction.busy ? (
+                      <Spinner size="sm" aria-hidden="true" />
+                    ) : collapsedComposerResumes ? (
                       <PlayIcon weight="fill" className="size-4" aria-hidden="true" />
                     ) : (
                       <svg
@@ -4135,7 +4179,11 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
               </div>
 
               <div
-                className={cn("relative", isComposerResting && "flex min-w-0 items-center gap-1")}
+                className={cn(
+                  "relative transition-opacity duration-150",
+                  isComposerResting && "flex min-w-0 items-center gap-1",
+                  composerSendHeld && "opacity-65",
+                )}
                 style={
                   isComposerResting && restingActionsWidth !== null
                     ? { paddingRight: `calc(${restingActionsWidth}px + 1rem)` }

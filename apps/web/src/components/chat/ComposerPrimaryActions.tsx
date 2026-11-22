@@ -339,14 +339,16 @@ export const ComposerPrimaryActions = memo(function ComposerPrimaryActions({
   const showResume = action.kind === "resume";
   const { label: submitLabel, icon: submitIcon } = SUBMIT_ACTIONS[action.kind];
   const submitStatus =
-    blockedStatusLabel(action.blocked) ??
-    (action.preparingWorktree
-      ? "Preparing worktree"
-      : action.busy
-        ? action.kind === "update-queued"
-          ? "Updating queued message"
-          : "Submitting message"
-        : null);
+    action.held && action.blocked?.reason !== "environment-disconnected"
+      ? "Sending when ready"
+      : (blockedStatusLabel(action.blocked) ??
+        (action.preparingWorktree
+          ? "Preparing worktree"
+          : action.busy
+            ? action.kind === "update-queued"
+              ? "Updating queued message"
+              : "Submitting message"
+            : null));
 
   const sendButton = (
     <ComposerSendButton
@@ -362,6 +364,7 @@ export const ComposerPrimaryActions = memo(function ComposerPrimaryActions({
       }}
       disabled={disabled}
       aria-label={submitStatus ?? submitLabel}
+      aria-busy={action.busy || undefined}
     >
       {action.busy ? <Spinner size="sm" aria-hidden="true" /> : submitIcon}
     </ComposerSendButton>

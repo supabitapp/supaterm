@@ -157,6 +157,7 @@ function Harness(props: {
       canSteer
       canResume={false}
       isSendBusy={result.isSaving}
+      isSendHeld={false}
       sendDisabledReason={null}
       isEnvironmentUnavailable={false}
       providerAvailability="ready"

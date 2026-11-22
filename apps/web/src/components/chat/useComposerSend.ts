@@ -17,9 +17,11 @@ import {
   type ComposerImageAttachment,
   checkoutPullRequestUrlToLink,
   composerDraftHasUserContent,
+  composerTargetKey,
   markPromotedDraftThreadByRef,
   useComposerDraftStore,
 } from "../../composerDraftStore";
+import { countPreparingComposerImages, holdComposerSend } from "./preparingComposerImages";
 import { type ComposerSubmissionIntent } from "../../composer-logic";
 import { resolveSideChatCommand } from "@supaterm/client-runtime/state/side-chats";
 import { sendSideChatDraftMessage, type SideChatComposerContent } from "./useSideChat";
@@ -286,7 +288,7 @@ export function useComposerSend(input: ComposerSendInput) {
     e?.preventDefault();
     // What the user pressed send on; declining approvals below takes a round trip, and a
     // redirect must not go out for a draft that changed meanwhile.
-    const promptAtSend = promptRef.current;
+    let promptAtSend = promptRef.current;
     if (queuedRunEdit.outbox.isEditing) {
       if (!directAnnotation)
         await queuedRunEdit.outbox.saveEdit({ runtimeMode, sendInFlightRef }, setThreadError);
@@ -298,6 +300,7 @@ export function useComposerSend(input: ComposerSendInput) {
       usageLimitsKey !== null &&
       !directAnnotation &&
       !draftHasNonPromptContent(composerDraftTarget) &&
+      countPreparingComposerImages(composerTargetKey(composerDraftTarget)) === 0 &&
       isUsageLimitsCommand(promptRef.current)
     ) {
       if (openUsageLimits()) {
@@ -308,7 +311,9 @@ export function useComposerSend(input: ComposerSendInput) {
       return;
     }
 
-    const sendCtx = composerRef.current?.getSendContext();
+    // Read before any wait; the composer on screen may belong to another thread after it.
+    let sendCtx = composerRef.current?.getSendContext();
+    const isCurrentRouteThread = () => currentRouteThreadKeyRef.current === routeThreadKey;
     // `/side` beats an open question and a plan follow-up, which would send the text to main.
     const sideChatCommand =
       sendCtx && !directAnnotation && !queuedRunEdit.isEditing
@@ -386,6 +391,26 @@ export function useComposerSend(input: ComposerSendInput) {
         }),
       );
       return;
+    }
+    const heldForImages = directAnnotation ? null : holdComposerSend(composerDraftTarget);
+    if (heldForImages) {
+      if ((await heldForImages).status === "cancelled") return;
+      const draftAfterHold = useComposerDraftStore.getState().getComposerDraft(composerDraftTarget);
+      if (!draftAfterHold) return;
+      promptAtSend = draftAfterHold.prompt;
+      if (sendCtx) {
+        sendCtx = {
+          ...sendCtx,
+          prompt: promptAtSend,
+          images: draftAfterHold.images,
+          files: draftAfterHold.files,
+          terminalContexts: draftAfterHold.terminalContexts,
+          previewAnnotations: draftAfterHold.previewAnnotations,
+          reviewComments: draftAfterHold.reviewComments,
+          referenceContexts: draftAfterHold.referenceContexts,
+          replyTo: draftAfterHold.replyTo,
+        };
+      }
     }
     const warnStrandedThreadContext = (
       text: string,
@@ -779,7 +804,10 @@ export function useComposerSend(input: ComposerSendInput) {
       effort: ctxSelectedPromptEffort,
       text: messageTextForSend || ATTACHMENT_ONLY_BOOTSTRAP_PROMPT,
     });
-    if (composerRef.current?.validateProviderInput(outgoingMessageText) === false) {
+    if (
+      isCurrentRouteThread() &&
+      composerRef.current?.validateProviderInput(outgoingMessageText) === false
+    ) {
       return;
     }
 
@@ -794,7 +822,11 @@ export function useComposerSend(input: ComposerSendInput) {
         setThreadError(threadIdForSend, target.error);
         return;
       }
-      if (composerRef.current?.validateProviderInput(target.text) === false) return;
+      if (
+        isCurrentRouteThread() &&
+        composerRef.current?.validateProviderInput(target.text) === false
+      )
+        return;
       multipleTargets.push(target);
     }
 
@@ -1032,6 +1064,7 @@ export function useComposerSend(input: ComposerSendInput) {
         );
       }
       if (
+        isCurrentRouteThread() &&
         multipleModelSelections === null &&
         shouldDockDraftHeroForSubmission({ isDraftHeroState, activeThreadKey, submissionIntent }) &&
         activeThreadKey

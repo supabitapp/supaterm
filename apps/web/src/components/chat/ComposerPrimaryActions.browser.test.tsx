@@ -21,6 +21,7 @@ const baseProps = {
   canResume: false,
   isEditingQueuedMessage: false,
   isSendBusy: false,
+  isSendHeld: false,
   sendDisabledReason: null,
   isEnvironmentUnavailable: false,
   providerAvailability: "ready",
