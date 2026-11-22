@@ -1218,6 +1218,19 @@ function PullRequestCodeTab({
       );
       if (withheldFiles.size > 0) markCutLineNotes(fileContainer);
     },
+    onItemCollapsedChange: (
+      _item: CodeViewItem<ReviewAnnotationGroup>,
+      nextItem: CodeViewItem<ReviewAnnotationGroup>,
+    ) => {
+      if (nextItem.type !== "diff") return;
+      setFoldChoices(resolveFileDiffPath(nextItem.fileDiff), (current) =>
+        withFileDiffFold(
+          current,
+          buildFileDiffFoldKey(nextItem.fileDiff),
+          nextItem.collapsed === true,
+        ),
+      );
+    },
   };
 
   const runThreadCommand = async (
@@ -1945,14 +1958,6 @@ function PullRequestCodeTab({
                 renderHeaderPrefix={renderHeaderPrefix}
                 renderHeaderMetadata={renderHeaderMetadata}
                 renderAnnotation={(...args) => renderAnnotation(args[0])}
-                // Find can ask again before the unfolded file arrives, so this unfolds and never folds.
-                onRevealSearchMatch={(item) => {
-                  const file = annotatedFiles.find((candidate) => candidate.fileKey === item.id);
-                  if (file === undefined) return;
-                  setFoldChoices(file.path, (current) =>
-                    withFileDiffFold(current, file.foldKey, false),
-                  );
-                }}
                 unsafeCSSExtra={`${REPLACE_FILE_COUNTS_CSS}\n${CUT_LINES_CSS}`}
               />
             </FileViewedToggleContext>

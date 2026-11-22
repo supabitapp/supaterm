@@ -284,8 +284,7 @@ describe("source file focus", () => {
     await vi.waitFor(editorHasFocus);
     const editor = deepActiveElement() as HTMLElement;
     await userEvent.keyboard("ab");
-    // @pierre/diffs 1.6.1 leaves the find match selected in the file, so typing replaces it.
-    await vi.waitFor(() => expect(editor.textContent).toContain("xconst ab = 1;"));
+    await vi.waitFor(() => expect(editor.textContent).toContain("xabconst server"));
     expect(findField.value).toBe("server");
     editorHasFocus();
   });
