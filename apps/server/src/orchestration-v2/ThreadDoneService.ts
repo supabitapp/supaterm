@@ -2,6 +2,7 @@ import {
   backgroundWorkHoldsCompletion,
   turnItemUpdateCanEndBackgroundWork,
 } from "@supaterm/shared/orchestrationV2PendingBackgroundWork";
+import { resolveProjectScripts, doneProjectScript } from "@supaterm/shared/projectScripts";
 import { resolveProjectSettings } from "@supaterm/shared/projectSettings";
 import { visibleThreadPullRequests } from "@supaterm/shared/threadPullRequests";
 import {
@@ -20,6 +21,7 @@ import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as FiberSet from "effect/FiberSet";
 import * as FileSystem from "effect/FileSystem";
+import * as Option from "effect/Option";
 import * as Path from "effect/Path";
 import * as Schedule from "effect/Schedule";
 import * as Semaphore from "effect/Semaphore";
@@ -773,7 +775,21 @@ export const make = Effect.gen(function* () {
       if (done.deletedAt !== null || done.doneOverride !== "done") return;
       yield* terminals.closeOnDone({ threadId });
       const worktreePath = done.worktreePath;
-      if (worktreePath === null || !(yield* fileSystem.exists(worktreePath))) return;
+      if (worktreePath === null) return;
+      if (!(yield* fileSystem.exists(worktreePath))) {
+        // A done script that tears something down would otherwise be skipped with no trace.
+        const project = Option.getOrUndefined(yield* projectStore.getShell(done.projectId));
+        if (
+          project !== undefined &&
+          doneProjectScript(resolveProjectScripts(yield* settingsService.getSettings, project))
+        ) {
+          yield* Effect.logWarning("done script skipped: the thread's worktree no longer exists", {
+            threadId,
+            worktreePath,
+          });
+        }
+        return;
+      }
       // Closing and the worktree check wait on I/O. A thread re-engaged or
       // deleted meanwhile is no place for cleanup.
       const thread = yield* projections.getThread(threadId);

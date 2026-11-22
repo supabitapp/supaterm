@@ -31,6 +31,8 @@ import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
+import * as Logger from "effect/Logger";
+import * as Option from "effect/Option";
 import * as Path from "effect/Path";
 import * as PlatformError from "effect/PlatformError";
 import * as PubSub from "effect/PubSub";
@@ -820,6 +822,12 @@ const makeHarness = Effect.fn("makeThreadDoneHarness")(function* (options: Harne
   const layerDependencies = Layer.mergeAll(
     Layer.mock(ProjectStore.ProjectStoreV2)({
       listShells: () => Ref.get(snapshots).pipe(Effect.map((snapshot) => snapshot.projects)),
+      getShell: (projectId) =>
+        Ref.get(snapshots).pipe(
+          Effect.map((snapshot) =>
+            Option.fromNullishOr(snapshot.projects.find((project) => project.id === projectId)),
+          ),
+        ),
     }),
     Layer.mock(ProjectionStore.ProjectionStoreV2)({
       getThreadsWithPullRequests: (_threadId, readOptions) =>
@@ -2469,12 +2477,29 @@ describe("ThreadDoneServiceV2 terminals", () => {
 
   it.effect("runs the done script in the thread's own worktree", () =>
     Effect.gen(function* () {
+      const warnings: string[] = [];
+      const logger = Logger.make(({ logLevel, message }) => {
+        if (logLevel === "Warn") warnings.push(JSON.stringify(message));
+      });
       const shared = appThread("shared-checkout-thread", "done");
       const missing = appThread("removed-worktree-thread", "done", "/worktrees/removed");
       const worktree = appThread("worktree-thread", "done", "/worktrees/thread");
+      const scriptless = makeProject(ProjectId.make("scriptless-project"));
+      const missingScriptless = {
+        ...appThread("removed-worktree-scriptless-thread", "done", "/worktrees/scriptless"),
+        projectId: scriptless.id,
+      };
+      const teardown = {
+        id: "teardown",
+        name: "Teardown",
+        command: "docker compose down",
+        icon: "configure",
+        runOnWorktreeCreate: false,
+        runOnDone: true,
+      } as const;
       const fixture = yield* makeHarness({
-        snapshot: makeSnapshot([]),
-        currentThreads: [shared, missing, worktree],
+        snapshot: makeSnapshot([], [{ ...makeProject(), scripts: [teardown] }, scriptless]),
+        currentThreads: [shared, missing, missingScriptless, worktree],
         existingWorktreePaths: ["/worktrees/thread"],
       });
 
@@ -2483,12 +2508,23 @@ describe("ThreadDoneServiceV2 terminals", () => {
         yield* startHarness(service, fixture.activation, fixture.snapshotReads);
         yield* fixture.publishEvent(doneEvent(shared));
         yield* fixture.publishEvent(doneEvent(missing));
+        yield* fixture.publishEvent(doneEvent(missingScriptless));
         yield* fixture.publishEvent(doneEvent(worktree));
         const run = yield* Queue.take(fixture.scriptRuns);
         assert.strictEqual(run.threadId, worktree.id);
         assert.strictEqual(run.worktreePath, "/worktrees/thread");
         assert.strictEqual(run.trigger, "done");
-      }).pipe(Effect.provide(fixture.layer));
+        // A removed worktree skips a configured done script; the log is its only trace.
+        assert.strictEqual(warnings.length, 1);
+        assert.include(warnings[0], missing.id);
+        assert.include(warnings[0], "/worktrees/removed");
+      }).pipe(
+        Effect.provide(
+          fixture.layer.pipe(
+            Layer.provideMerge(Logger.layer([logger], { mergeWithExisting: false })),
+          ),
+        ),
+      );
     }),
   );
 
