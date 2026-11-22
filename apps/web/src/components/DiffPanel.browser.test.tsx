@@ -386,6 +386,56 @@ it.each([
     .toHaveAttribute("aria-expanded", "true");
 });
 
+it("find opens a folded file at its match and keeps it open", async () => {
+  using context = setup("origin/orphan");
+  state.diffFilesCollapsed = true;
+  state.checkpoints = [
+    {
+      runId: "run",
+      checkpointTurnCount: 1,
+      checkpointRef: "ref",
+      status: "ready",
+      files: [],
+      assistantMessageId: null,
+      completedAt: "2026-01-01T00:00:00Z",
+    },
+  ];
+  const file = (path: string, line: string) =>
+    `diff --git a/${path} b/${path}\nnew file mode 100644\n--- /dev/null\n+++ b/${path}\n@@ -0,0 +1 @@\n+${line}\n`;
+  state.checkpointDiff = { diff: file("a.txt", "unique needle") + file("b.txt", "other text") };
+  useDiffPanelStore.getState().selectTurn(context.threadRef, RunId.make("run"));
+  await using screen = await render(
+    <RegistryContext.Provider value={context.registry}>
+      <div style={{ height: 600, display: "flex", flexDirection: "column" }}>
+        <DiffPanel composerDraftTarget={context.threadRef} workspaceMutationId={null} visible />
+      </div>
+    </RegistryContext.Provider>,
+  );
+  await expect
+    .element(screen.getByRole("button", { name: "Expand a.txt", exact: true }))
+    .toHaveAttribute("aria-expanded", "false");
+  screen.getByRole("button", { name: "Expand a.txt", exact: true }).element().focus();
+  await userEvent.keyboard("{ControlOrMeta>}f{/ControlOrMeta}");
+  const searchInput = (root: ParentNode = screen.container): HTMLInputElement | null => {
+    const input = root.querySelector<HTMLInputElement>("[data-search-panel] input");
+    if (input) return input;
+    for (const element of root.querySelectorAll("*")) {
+      const nested = element.shadowRoot ? searchInput(element.shadowRoot) : null;
+      if (nested) return nested;
+    }
+    return null;
+  };
+  await vi.waitFor(() => expect(searchInput()).toBeTruthy());
+  await userEvent.type(searchInput()!, "unique needle");
+  await expect
+    .element(screen.getByRole("button", { name: "Collapse a.txt", exact: true }))
+    .toHaveAttribute("aria-expanded", "true");
+  const stored = Object.values(useDiffPanelSessionStore.getState().collapsedFileKeysByScopeKey);
+  expect(stored).toHaveLength(1);
+  expect([...stored[0]!].some((key) => key.includes("a.txt"))).toBe(false);
+  expect([...stored[0]!].some((key) => key.includes("b.txt"))).toBe(true);
+});
+
 it("opens a file from a tool call's diff by the path its agent recorded", async () => {
   using context = setup("origin/orphan");
   // A local thread in a project that is the repository's apps/web folder.
