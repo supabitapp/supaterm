@@ -269,11 +269,9 @@ const fetchReleaseAsset = Effect.fn("cloud.pinned_runtime.fetch_release_asset")(
   );
 });
 
-const installFromArchive = Effect.fn("cloud.pinned_runtime.install_archive")(function* (
+const downloadArchive = Effect.fn("cloud.pinned_runtime.download_archive")(function* (
   input: PinnedRuntimeInstallInput,
-  stagingDir: string,
 ) {
-  const { fs, path } = input;
   const platformKey = cliArchivePlatformKey(input.platform, input.arch);
   if (platformKey === undefined) {
     return yield* new PinnedRuntimeInstallError({
@@ -319,7 +317,15 @@ const installFromArchive = Effect.fn("cloud.pinned_runtime.install_archive")(fun
       step: "verifying the Supaterm release archive checksum",
     });
   }
+  return archive;
+});
 
+const installFromArchive = Effect.fn("cloud.pinned_runtime.install_archive")(function* (
+  input: PinnedRuntimeInstallInput,
+  stagingDir: string,
+  archive: Uint8Array,
+) {
+  const { fs, path } = input;
   const archivePath = path.join(stagingDir, PINNED_RUNTIME_ARCHIVE_FILE);
   yield* fs
     .writeFile(archivePath, archive)
@@ -398,10 +404,13 @@ const installPinnedRuntime = Effect.fn("cloud.pinned_runtime.ensure_installed")(
         }),
     ),
   );
+  // Downloads are buffered in memory and can take hours; staging only once they finish keeps a
+  // staging directory's age a sign of abandonment for prunes in other processes.
+  const archive = yield* downloadArchive(input);
   const stagingDir = yield* fs
     .makeTempDirectory({
       directory: versionsDir,
-      prefix: ".staging-",
+      prefix: PINNED_RUNTIME_STAGING_PREFIX,
     })
     .pipe(
       Effect.mapError(
@@ -419,7 +428,7 @@ const installPinnedRuntime = Effect.fn("cloud.pinned_runtime.ensure_installed")(
   };
 
   return yield* Effect.gen(function* () {
-    yield* installFromArchive(input, stagingDir);
+    yield* installFromArchive(input, stagingDir, archive);
 
     input.onProgress?.({ stage: "validate" });
     yield* input.validate(stagingPaths);
@@ -470,6 +479,7 @@ const installPinnedRuntime = Effect.fn("cloud.pinned_runtime.ensure_installed")(
 export const ensurePinnedRuntimeInstalled = (input: PinnedRuntimeInstallInput) =>
   pinnedRuntimeInstallLock.withPermit(installPinnedRuntime(input));
 
+const PINNED_RUNTIME_STAGING_PREFIX = ".staging-";
 const PINNED_RUNTIME_PRUNED_PREFIX = ".pruned-";
 /**
  * Another process may have just published a runtime it has not yet pointed anything at: an
@@ -806,6 +816,16 @@ const selectUnusedRuntimes = Effect.fn("cloud.pinned_runtime.select_unused")(fun
     (yield* Clock.currentTimeMillis) - Duration.toMillis(PINNED_RUNTIME_PRUNE_GRACE);
   const completed: Array<string> = [];
   for (const version of entries) {
+    if (version.startsWith(PINNED_RUNTIME_STAGING_PREFIX)) {
+      // A crashed or interrupted install leaves its staging directory behind.
+      const stagingDir = path.join(versionsDir, version);
+      const modifiedAt = yield* fs.stat(stagingDir).pipe(
+        Effect.map((info) => Option.getOrUndefined(info.mtime)?.getTime()),
+        Effect.orElseSucceed(() => undefined),
+      );
+      if (modifiedAt !== undefined && modifiedAt < settledBefore) pruned.add(stagingDir);
+      continue;
+    }
     if (!isExactServiceVersion(version)) continue;
     const versionDir = path.join(versionsDir, version);
     const sentinelPath = path.join(versionDir, ".install-complete");
@@ -843,7 +863,8 @@ const selectUnusedRuntimes = Effect.fn("cloud.pinned_runtime.select_unused")(fun
     if (state === undefined) return pruned;
     keep.add(state.activeVersion);
     if (state.update !== undefined) {
-      keep.add(state.update.fromVersion);
+      // A committed update never returns to the runtime it replaced.
+      if (state.update.status !== "committed") keep.add(state.update.fromVersion);
       keep.add(state.update.targetVersion);
     }
   }
@@ -889,9 +910,10 @@ const selectUnusedRuntimes = Effect.fn("cloud.pinned_runtime.select_unused")(fun
 });
 
 /**
- * Removes completed runtimes nothing can start again. Kept: the caller's versions, the service
- * state's active, rollback and pending, anything a running process, launcher or `references`
- * names, and anything published in the last hour. Staging dirs, symlinks and unknown entries stay.
+ * Removes completed runtimes nothing can start again, and staging dirs untouched for an hour.
+ * Kept: the caller's versions, the service state's active, rollback and pending, anything a
+ * running process, launcher or `references` names, and anything published in the last hour.
+ * Symlinks and unknown entries stay.
  */
 export const prunePinnedRuntimes = Effect.fn("cloud.pinned_runtime.prune")(function* (input: {
   readonly baseDir: string;
@@ -906,11 +928,14 @@ export const prunePinnedRuntimes = Effect.fn("cloud.pinned_runtime.prune")(funct
   );
   const removed: Array<string> = [];
   for (const target of pruned) {
+    const name = path.basename(target);
     yield* fs.remove(target, { recursive: true, force: true }).pipe(
       Effect.andThen(
-        Effect.sync(() =>
-          removed.push(path.basename(target).slice(PINNED_RUNTIME_PRUNED_PREFIX.length)),
-        ),
+        Effect.sync(() => {
+          if (name.startsWith(PINNED_RUNTIME_PRUNED_PREFIX)) {
+            removed.push(name.slice(PINNED_RUNTIME_PRUNED_PREFIX.length));
+          }
+        }),
       ),
       Effect.catch((cause) =>
         Effect.logWarning("Could not remove an unused supaterm runtime.", { target, cause }),
