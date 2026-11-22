@@ -128,7 +128,11 @@ cannot load the app to try those alternatives; use the in-app scanner or paste
 the link instead.
 
 Pairing authorizes that device for future connections. Use a fresh one-time link
-for each new device; you do not need the original token to reconnect. Links
+for each new device; you do not need the original token to reconnect. An app
+paired with a link or `supaterm pair` stays signed in while you keep using it,
+until you revoke it in **Settings → Sharing & access** on the host. One unused
+for 30 days has to pair again. A browser, or an app paired with the link the host
+prints when it starts, signs in again every 30 days. Links
 created in Settings can only be copied from the client that created them while
 its **Sharing & access** page stays open. If you leave or reload that page, create
 another link to share.

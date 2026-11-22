@@ -22,6 +22,11 @@ import {
  */
 export const MCP_APPROVAL_SUBJECT_PREFIX = "mcp-approval:";
 export const PEER_LINK_PAIRING_SUBJECT_PREFIX = `${MCP_APPROVAL_SUBJECT_PREFIX}peer-link:`;
+export const PAIRING_LINK_SUBJECT_PREFIX = "pairing-link:";
+
+/** Plain pairing links: `supaterm pair` mints `one-time-token`, Settings mints `pairing-link:<id>`. */
+export const isPairingLinkSubject = (subject: string) =>
+  subject === "one-time-token" || subject.startsWith(PAIRING_LINK_SUBJECT_PREFIX);
 
 export const AuthPairingLinkRecord = Schema.Struct({
   id: Schema.String,
