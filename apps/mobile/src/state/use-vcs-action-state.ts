@@ -1,4 +1,5 @@
 import { useAtomValue } from "@effect/atom-react";
+import type { ScopedThreadRef } from "@supaterm/contracts";
 import { type VcsActionState, type VcsActionTarget } from "@supaterm/client-runtime/state/vcs";
 import { Atom } from "effect/reactivity";
 import { useEffect, useState } from "react";
@@ -20,38 +21,46 @@ export interface GitActionResultNotification {
 
 const RESULT_DISMISS_MS = 5_000;
 
-const gitActionResultAtom = Atom.make<GitActionResultNotification | null>(null).pipe(
+interface PendingGitActionResult {
+  readonly notification: GitActionResultNotification;
+  readonly timer: ReturnType<typeof setTimeout>;
+}
+
+const gitActionResultsAtom = Atom.make<ReadonlyMap<string, PendingGitActionResult>>(new Map()).pipe(
   Atom.keepAlive,
-  Atom.withLabel("mobile:git-action-result"),
+  Atom.withLabel("mobile:git-action-results"),
 );
-let dismissTimer: ReturnType<typeof setTimeout> | null = null;
 
-function broadcast(result: GitActionResultNotification | null): void {
-  appAtomRegistry.set(gitActionResultAtom, result);
+function gitActionResultKey({ environmentId, threadId }: ScopedThreadRef): string {
+  return JSON.stringify([environmentId, threadId]);
 }
 
-export function showGitActionResult(result: GitActionResultNotification): void {
-  playOutcomeHaptic(result.type === "success");
-  if (dismissTimer) clearTimeout(dismissTimer);
-  broadcast(result);
-  dismissTimer = setTimeout(() => {
-    dismissTimer = null;
-    broadcast(null);
-  }, RESULT_DISMISS_MS);
+export function showGitActionResult({
+  threadRef,
+  ...notification
+}: GitActionResultNotification & { readonly threadRef: ScopedThreadRef }): void {
+  playOutcomeHaptic(notification.type === "success");
+  const key = gitActionResultKey(threadRef);
+  const results = new Map(appAtomRegistry.get(gitActionResultsAtom));
+  const previous = results.get(key);
+  if (previous !== undefined) clearTimeout(previous.timer);
+  results.set(key, {
+    notification,
+    timer: setTimeout(() => dismissGitActionResult(threadRef), RESULT_DISMISS_MS),
+  });
+  appAtomRegistry.set(gitActionResultsAtom, results);
 }
 
-export function dismissGitActionResult(): void {
-  if (dismissTimer) clearTimeout(dismissTimer);
-  dismissTimer = null;
-  broadcast(null);
-}
-
-function useGitActionResultNotification(): {
-  readonly result: GitActionResultNotification | null;
-  readonly dismiss: () => void;
-} {
-  const result = useAtomValue(gitActionResultAtom);
-  return { result, dismiss: dismissGitActionResult };
+export function dismissGitActionResult(threadRef: ScopedThreadRef | null): void {
+  if (threadRef === null) return;
+  const key = gitActionResultKey(threadRef);
+  const results = appAtomRegistry.get(gitActionResultsAtom);
+  const entry = results.get(key);
+  if (entry === undefined) return;
+  clearTimeout(entry.timer);
+  const next = new Map(results);
+  next.delete(key);
+  appAtomRegistry.set(gitActionResultsAtom, next);
 }
 
 export type GitActionProgressPhase = "idle" | "running" | "success" | "error";
@@ -76,9 +85,16 @@ function formatElapsedSeconds(ms: number | null, nowMs: number): string | null {
   return `Running for ${elapsed}s`;
 }
 
-export function useGitActionProgress(target: VcsActionTarget): GitActionProgress {
+/** Checkout progress and the selected thread's own Git result. */
+export function useGitActionProgress(
+  target: VcsActionTarget,
+  threadRef: ScopedThreadRef | null,
+): GitActionProgress {
   const actionState = useVcsActionState(target);
-  const { result } = useGitActionResultNotification();
+  const resultKey = threadRef === null ? null : gitActionResultKey(threadRef);
+  const result = useAtomValue(gitActionResultsAtom, (results) =>
+    resultKey === null ? undefined : results.get(resultKey)?.notification,
+  );
 
   const [nowMs, setNowMs] = useState(() => Date.now());
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- runs a one-second interval that refreshes the elapsed label while the git action runs

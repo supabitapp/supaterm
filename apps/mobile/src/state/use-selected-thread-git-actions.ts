@@ -32,7 +32,7 @@ import {
   setPendingConnectionError,
 } from "./use-remote-environment-registry";
 import { useAtomCommand } from "./use-atom-command";
-import { showGitActionResult } from "./use-vcs-action-state";
+import { showGitActionResult, type GitActionResultNotification } from "./use-vcs-action-state";
 import { useThreadSelection } from "./use-thread-selection";
 import { useSelectedThreadWorktree } from "./use-selected-thread-worktree";
 
@@ -65,6 +65,12 @@ export function useSelectedThreadGitActions() {
   const { selectedThread, selectedThreadProject } = useThreadSelection();
   const selectedEnvironmentId = selectedThread?.environmentId ?? null;
   const selectedProjectId = selectedThreadProject?.id ?? null;
+  const threadRef = selectedThread
+    ? { environmentId: selectedThread.environmentId, threadId: selectedThread.id }
+    : null;
+  const reportGitActionResult = (result: GitActionResultNotification) => {
+    if (threadRef !== null) showGitActionResult({ ...result, threadRef });
+  };
   const canWriteSourceControl = useEnvironmentScope(
     selectedThread?.environmentId ?? null,
     AuthSourceControlWriteScope,
@@ -203,7 +209,7 @@ export function useSelectedThreadGitActions() {
       const error = Cause.squash(result.cause);
       const message = error instanceof Error ? error.message : "Git action failed.";
       setPendingConnectionError(message);
-      showGitActionResult({ type: "error", title: "Git action failed", description: message });
+      reportGitActionResult({ type: "error", title: "Git action failed", description: message });
       return null;
     }
     return result.value;
@@ -219,7 +225,7 @@ export function useSelectedThreadGitActions() {
       const error = Cause.squash(result.cause);
       const message = error instanceof Error ? error.message : "Failed to refresh branches.";
       setPendingConnectionError(message);
-      showGitActionResult({ type: "error", title: "Git action failed", description: message });
+      reportGitActionResult({ type: "error", title: "Git action failed", description: message });
       return null;
     }
     setPendingConnectionError(null);
@@ -348,7 +354,7 @@ export function useSelectedThreadGitActions() {
           return result;
         }
         await refreshSelectedThreadGitStatus({ quiet: true, cwd });
-        showGitActionResult({
+        reportGitActionResult({
           type: "success",
           title:
             result.value.status === "skipped_up_to_date"
@@ -395,7 +401,7 @@ export function useSelectedThreadGitActions() {
         } else {
           await refreshSelectedThreadGitStatus({ quiet: true, cwd });
         }
-        showGitActionResult({
+        reportGitActionResult({
           type: "success",
           title: result.value.toast.title,
           description: result.value.toast.description,

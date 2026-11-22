@@ -1,3 +1,4 @@
+import { EnvironmentId, ThreadId } from "@supaterm/contracts";
 import { describe, expect, it, vi } from "vite-plus/test";
 
 const mocks = vi.hoisted(() => ({
@@ -19,6 +20,8 @@ vi.mock("./vcs", () => ({ vcsActionManager: {} }));
 
 import { dismissGitActionResult, showGitActionResult } from "./use-vcs-action-state";
 
+const threadRef = { environmentId: EnvironmentId.make("env"), threadId: ThreadId.make("thread") };
+
 function setup(platform: { OS: string; Version: number }) {
   Object.assign(mocks.platform, platform);
   mocks.notificationAsync.mockClear();
@@ -34,9 +37,14 @@ describe("showGitActionResult", () => {
     "buzzes once per reported result on $OS $Version",
     ({ OS, Version, notification, android }) => {
       setup({ OS, Version });
-      showGitActionResult({ type: "success", title: "Pushed" });
-      showGitActionResult({ type: "error", title: "Git action failed", description: "rejected" });
-      dismissGitActionResult();
+      showGitActionResult({ type: "success", title: "Pushed", threadRef });
+      showGitActionResult({
+        type: "error",
+        title: "Git action failed",
+        description: "rejected",
+        threadRef,
+      });
+      dismissGitActionResult(threadRef);
 
       expect(mocks.notificationAsync.mock.calls).toEqual(notification);
       expect(mocks.performAndroidHapticsAsync.mock.calls).toEqual(android);
