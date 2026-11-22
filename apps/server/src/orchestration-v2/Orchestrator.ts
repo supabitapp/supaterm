@@ -14507,10 +14507,13 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
           cause: `Checkpoint ${command.checkpointId} was not found.`,
         });
       }
-      // Missing snapshots support conversation rewind only.
+      // Missing or failed snapshots support conversation rewind only.
       if (
         targetCheckpoint.status !== "ready" &&
-        !(command.restoreFiles === false && targetCheckpoint.status === "missing")
+        !(
+          command.restoreFiles === false &&
+          (targetCheckpoint.status === "missing" || targetCheckpoint.status === "error")
+        )
       ) {
         return yield* new OrchestratorDispatchError({
           commandId: command.commandId,
