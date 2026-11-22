@@ -7,6 +7,7 @@ import {
   getUserQueuedThreadRuns,
   resolveLatestMergeBackRun,
   resolveThreadForkSource,
+  threadCanSteer,
   threadSupportsProviderHandoff,
 } from "./threadWorkflows.ts";
 
@@ -14,6 +15,7 @@ const capabilities = (input?: {
   readonly queued?: boolean;
   readonly steer?: boolean;
   readonly restartSteer?: boolean;
+  readonly interrupt?: boolean;
   readonly nativeFork?: boolean;
   readonly portableFork?: boolean;
 }) =>
@@ -22,6 +24,7 @@ const capabilities = (input?: {
       supportsQueuedMessages: input?.queued ?? false,
       supportsActiveSteering: input?.steer ?? false,
       supportsSteeringByInterruptRestart: input?.restartSteer ?? false,
+      supportsInterrupt: input?.interrupt ?? false,
     },
     threads: {
       canForkThread: input?.nativeFork ?? false,
@@ -38,6 +41,35 @@ const topLevelLineage = (threadId: ThreadId) => ({
 });
 
 describe("thread workflows", () => {
+  it.each([
+    ["queue only", { queued: true }, false, false],
+    ["session still attaching", undefined, false, true],
+    ["native steering", { steer: true }, false, true],
+    ["interrupt and restart", { interrupt: true, restartSteer: true }, false, true],
+    ["restart without interrupt", { restartSteer: true }, false, false],
+    ["explicit compaction", { steer: true }, true, false],
+  ] as const)("gates composer steering for %s", (_, turns, compactCommandIsActive, expected) => {
+    const projection = {
+      thread: { id: "thread", activeProviderThreadId: "provider-thread" },
+      runs: [{ id: "active", status: "running", providerThreadId: "provider-thread" }],
+      providerThreads: [{ id: "provider-thread", providerSessionId: "session" }],
+      providerSessions: [
+        ...(turns === undefined
+          ? []
+          : [{ id: "session", status: "running", capabilities: capabilities(turns) }]),
+        { id: "other", status: "ready", capabilities: capabilities({ steer: true }) },
+      ],
+      messages: [],
+    } as unknown as OrchestrationV2ThreadProjection;
+    expect(
+      threadCanSteer(projection, {
+        compactCommandIsActive,
+        compactionRunning: false,
+        activeRunId: projection.runs[0]!.id,
+      }),
+    ).toBe(expected);
+  });
+
   it("skips message history classification when no runs are queued", () => {
     let metadataReads = 0;
     const message = {
@@ -214,7 +246,7 @@ describe("thread workflows", () => {
         {
           id: "provider-session",
           status: "running",
-          capabilities: capabilities({ queued: true, restartSteer: true }),
+          capabilities: capabilities({ queued: true, interrupt: true, restartSteer: true }),
         },
       ],
     } as never);

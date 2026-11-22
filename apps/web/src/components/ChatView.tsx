@@ -122,10 +122,9 @@ import {
   workflowOpeningParentThreadId,
 } from "@supaterm/client-runtime/state/subagentRuntime";
 import {
-  threadSteersDuringCompaction,
+  threadCanSteer,
   threadSupportsProviderHandoff,
 } from "@supaterm/client-runtime/state/thread-workflows";
-import { compactionBlocksSteering } from "@supaterm/client-runtime/state/composer-dispatch";
 import { resolvePendingHandoff } from "@supaterm/client-runtime/handoff";
 import { HandoffRow } from "./chat/V2LifecycleRow";
 import {
@@ -1607,12 +1606,10 @@ export default function ChatView(props: ChatViewProps) {
   const isCompacting =
     (phase === "connecting" || phase === "running") &&
     (runningCompaction !== undefined || compactCommandIsActive);
-  const compactionBlocksSteer = compactionBlocksSteering({
+  const canSteer = threadCanSteer(serverProjection, {
     compactCommandIsActive,
     compactionRunning: runningCompaction !== undefined,
-    steersDuringCompaction: threadSteersDuringCompaction(serverProjection),
-    run: serverProjection?.runs.find((run) => run.id === activeRuntime?.activeRunId),
-    messages: serverProjection?.messages,
+    activeRunId: activeRuntime?.activeRunId,
   });
   const isWorking = deriveTimelineWorking({
     phase,
@@ -3943,7 +3940,7 @@ export default function ChatView(props: ChatViewProps) {
                                   }
                                   phase={phase}
                                   deferredSteering={deferredSteering}
-                                  canSteer={!compactionBlocksSteer}
+                                  canSteer={canSteer}
                                   canInterrupt={canInterruptRunningThread}
                                   isSendBusy={queuedRunEdit.isSaving || isResuming}
                                   canResume={canResume}
