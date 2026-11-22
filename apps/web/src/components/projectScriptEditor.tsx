@@ -155,6 +155,8 @@ export function ProjectScriptEditorDialog(props: ProjectScriptEditorProps) {
   return (
     <Dialog
       open={request !== null}
+      // A stray click outside would discard the unsaved draft; Escape and Cancel still close it.
+      disablePointerDismissal
       onOpenChange={(open) => {
         if (!open) onClose();
       }}
