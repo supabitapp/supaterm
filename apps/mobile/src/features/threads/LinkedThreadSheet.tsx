@@ -253,7 +253,7 @@ const subscribeAppState = (onChange: () => void) => {
 };
 const appIsActive = () => AppState.currentState === "active";
 
-function LinkedThreadView(props: { readonly target: LinkedThreadTarget }) {
+export function LinkedThreadView(props: { readonly target: LinkedThreadTarget }) {
   const { target } = props;
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
@@ -280,6 +280,9 @@ function LinkedThreadView(props: { readonly target: LinkedThreadTarget }) {
   const scroll = useRef<React.ComponentRef<typeof ScrollView>>(null);
   // Follows new items only while the reader is already at the end.
   const atEnd = useRef(true);
+  const showHistoryError =
+    view !== null && view.thread.historyCursor !== null && view.history.failed;
+  const lastLayoutHadHistoryError = useRef(false);
   const working = projection !== null && isLinkedThreadWorking(projection);
   const connection = useConnectLinkedEnvironment(target);
   const connectState = connection.state;
@@ -317,7 +320,12 @@ function LinkedThreadView(props: { readonly target: LinkedThreadTarget }) {
             atEnd.current = contentSize.height - layoutMeasurement.height - contentOffset.y < 80;
           }}
           onContentSizeChange={() => {
-            if (atEnd.current) scroll.current?.scrollToEnd({ animated: false });
+            // A page error can resize the top of a short feed whose reader is also near the end.
+            const historyErrorChanged = lastLayoutHadHistoryError.current !== showHistoryError;
+            lastLayoutHadHistoryError.current = showHistoryError;
+            if (atEnd.current && !historyErrorChanged) {
+              scroll.current?.scrollToEnd({ animated: false });
+            }
           }}
         >
           {view === null || projection === null ? (
@@ -329,7 +337,7 @@ function LinkedThreadView(props: { readonly target: LinkedThreadTarget }) {
           ) : (
             <>
               {view.thread.historyCursor !== null ? (
-                <View className="self-center">
+                <View className="flex-row flex-wrap justify-center">
                   <Button
                     size="compact"
                     tone="text"
@@ -337,6 +345,15 @@ function LinkedThreadView(props: { readonly target: LinkedThreadTarget }) {
                     disabled={view.history.loading}
                     onPress={view.loadEarlier}
                   />
+                  {showHistoryError ? (
+                    <Text
+                      accessibilityLiveRegion="polite"
+                      accessibilityRole="alert"
+                      className="w-full text-center text-xs text-danger-foreground"
+                    >
+                      Could not load earlier turns. Try again.
+                    </Text>
+                  ) : null}
                 </View>
               ) : null}
               {feed.length === 0 ? (
