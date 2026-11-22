@@ -12,6 +12,7 @@ import * as Option from "effect/Option";
 import * as Redacted from "effect/Redacted";
 import * as TestClock from "effect/testing/TestClock";
 import * as SqlClient from "effect/sql/SqlClient";
+import * as Stream from "effect/Stream";
 
 import * as ServerConfig from "../config.ts";
 import * as ServerEnvironment from "../environment/ServerEnvironment.ts";
@@ -57,6 +58,12 @@ const shortLivedSessionInput = {
   method: "bearer-access-token",
   ttl: Duration.hours(1),
   client: { label: "Short-lived desktop", deviceType: "desktop" },
+} as const;
+
+const pairedDeviceSessionInput = {
+  subject: "one-time-token",
+  method: "bearer-access-token",
+  client: { label: "Supaterm Mobile", deviceType: "mobile" },
 } as const;
 
 const makeDiskSessionStoreLayer = Effect.fn("makeDiskSessionStoreLayer")(function* (
@@ -134,6 +141,64 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("SessionStore.lay
       yield* TestClock.adjust(Duration.minutes(1));
       yield* Fiber.join(watcher);
       yield* sessions.awaitInvalidation(client.sessionId);
+    }).pipe(Effect.scoped, Effect.provide(Layer.merge(layerSessionStore(), TestClock.layer()))),
+  );
+
+  it.effect("keeps a paired device signed in while it is used, and expires it once idle", () =>
+    Effect.gen(function* () {
+      const sessions = yield* SessionStore.SessionStore;
+      const device = yield* sessions.issue(pairedDeviceSessionInput);
+      const bot = yield* sessions.issue({
+        ...pairedDeviceSessionInput,
+        subject: "cli-issued-session",
+        client: { deviceType: "bot" },
+      });
+
+      yield* TestClock.adjust(Duration.days(29));
+      yield* sessions.verify(device.token);
+      yield* sessions.verify(bot.token);
+      yield* TestClock.adjust(Duration.days(2));
+
+      expect((yield* sessions.verify(device.token)).sessionId).toBe(device.sessionId);
+      expect(yield* Effect.flip(sessions.verify(bot.token))).toMatchObject({
+        _tag: "SessionTokenExpiredError",
+      });
+
+      yield* TestClock.adjust(Duration.days(30));
+      expect(yield* Effect.flip(sessions.verify(device.token))).toMatchObject({
+        _tag: "SessionTokenExpiredError",
+      });
+    }).pipe(Effect.provide(Layer.merge(layerSessionStore(), TestClock.layer()))),
+  );
+
+  it.effect("renews a paired device that stays connected past its deadline", () =>
+    Effect.gen(function* () {
+      const sessions = yield* SessionStore.SessionStore;
+      const device = yield* sessions.issue(pairedDeviceSessionInput);
+      yield* sessions.markConnected(device.sessionId);
+      const renewal = yield* sessions.streamChanges.pipe(
+        Stream.filter(
+          (change) =>
+            change.type === "clientUpserted" &&
+            change.clientSession.sessionId === device.sessionId &&
+            change.clientSession.expiresAt.epochMilliseconds > device.expiresAt.epochMilliseconds,
+        ),
+        Stream.runHead,
+        Effect.forkScoped({ startImmediately: true }),
+      );
+      const invalidated = yield* Deferred.make<void>();
+      yield* sessions
+        .awaitInvalidation(device.sessionId)
+        .pipe(
+          Effect.andThen(Deferred.succeed(invalidated, undefined)),
+          Effect.forkScoped({ startImmediately: true }),
+        );
+
+      yield* TestClock.adjust(Duration.days(30));
+      yield* Fiber.join(renewal);
+
+      expect(yield* Deferred.isDone(invalidated)).toBe(false);
+      expect((yield* sessions.verify(device.token)).sessionId).toBe(device.sessionId);
     }).pipe(Effect.scoped, Effect.provide(Layer.merge(layerSessionStore(), TestClock.layer()))),
   );
 

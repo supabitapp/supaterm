@@ -416,7 +416,12 @@ export class SessionStore extends Context.Service<
 
 const SIGNING_SECRET_NAME = "server-signing-key";
 const DEFAULT_SESSION_TTL = Duration.days(30);
+const SESSION_RENEWAL_INTERVAL = Duration.days(1);
 const DEFAULT_WEBSOCKET_TOKEN_TTL = Duration.minutes(5);
+
+// Paired clients stay signed in while they are used. Issued bot and MCP sessions keep their deadline.
+const renewsOnUse = (session: AuthSessions.AuthSessionRecord) =>
+  session.method === "bearer-access-token" && session.client.deviceType !== "bot";
 
 const SessionClaims = Schema.Struct({
   v: Schema.Literal(1),
@@ -562,6 +567,36 @@ const make = Effect.gen(function* () {
       }),
     );
   });
+
+  const renew = Effect.fn("SessionStore.renew")(
+    function* (session: AuthSessions.AuthSessionRecord, expiresAt: DateTime.Utc) {
+      yield* authSessions.extendExpiry({ sessionId: session.sessionId, expiresAt });
+      const renewed = yield* loadActiveSession(session.sessionId);
+      if (Option.isSome(renewed)) yield* emitUpsert(renewed.value);
+      return expiresAt;
+    },
+    (effect, session) =>
+      effect.pipe(
+        Effect.catchCause((cause) =>
+          Effect.logWarning("Failed to renew a session.").pipe(
+            Effect.annotateLogs({ sessionId: session.sessionId, cause }),
+            Effect.as(session.expiresAt),
+          ),
+        ),
+      ),
+  );
+
+  const expiryAfterUse = (session: AuthSessions.AuthSessionRecord, now: DateTime.Utc) => {
+    const renewedExpiresAt = DateTime.add(now, {
+      milliseconds: Duration.toMillis(DEFAULT_SESSION_TTL),
+    });
+    const due =
+      renewedExpiresAt.epochMilliseconds - session.expiresAt.epochMilliseconds >=
+      Duration.toMillis(SESSION_RENEWAL_INTERVAL);
+    return renewsOnUse(session) && due
+      ? renew(session, renewedExpiresAt)
+      : Effect.succeed(session.expiresAt);
+  };
 
   const markConnected: SessionStore["Service"]["markConnected"] = (sessionId) =>
     Ref.modify(connectedSessionsRef, (current) => {
@@ -780,22 +815,6 @@ const make = Effect.gen(function* () {
         Effect.mapError((cause) => new InvalidSessionTokenPayloadError({ cause })),
       );
 
-      const observedAt = yield* DateTime.now;
-      const expiresAt = DateTime.make(claims.exp);
-      if (Option.isNone(expiresAt)) {
-        return yield* new InvalidSessionExpirationClaimError({
-          sessionId: claims.sid,
-          expirationClaim: claims.exp,
-        });
-      }
-      if (claims.exp <= observedAt.epochMilliseconds) {
-        return yield* new SessionTokenExpiredError({
-          sessionId: claims.sid,
-          expiresAt: expiresAt.value,
-          observedAt,
-        });
-      }
-
       const row = yield* authSessions
         .getById({ sessionId: claims.sid })
         .pipe(
@@ -805,6 +824,14 @@ const make = Effect.gen(function* () {
         );
       if (Option.isNone(row)) {
         return yield* new UnknownSessionTokenError({ sessionId: claims.sid });
+      }
+      const observedAt = yield* DateTime.now;
+      if (row.value.expiresAt.epochMilliseconds <= observedAt.epochMilliseconds) {
+        return yield* new SessionTokenExpiredError({
+          sessionId: claims.sid,
+          expiresAt: row.value.expiresAt,
+          observedAt,
+        });
       }
       if (row.value.revokedAt !== null) {
         return yield* new SessionTokenRevokedError({
@@ -818,7 +845,7 @@ const make = Effect.gen(function* () {
         token,
         method: claims.method,
         client: toClientMetadata(row.value.client),
-        expiresAt: expiresAt.value,
+        expiresAt: yield* expiryAfterUse(row.value, observedAt),
         subject: claims.sub,
         scopes: row.value.scopes,
         ...(claims.rtc ? { runtimeModeCeiling: claims.rtc } : {}),
@@ -1017,9 +1044,8 @@ const make = Effect.gen(function* () {
   });
 
   const awaitInvalidation = Effect.fn(function* (sessionId: AuthSessionId) {
-    return yield* Effect.scoped(
-      Effect.gen(function* () {
-        const subscription = yield* PubSub.subscribe(changesPubSub);
+    const untilExpired = Effect.gen(function* () {
+      while (true) {
         const row = yield* authSessions
           .getById({ sessionId })
           .pipe(
@@ -1029,8 +1055,16 @@ const make = Effect.gen(function* () {
           );
         if (Option.isNone(row) || row.value.revokedAt !== null) return;
         const now = yield* DateTime.now;
-        const remaining = row.value.expiresAt.epochMilliseconds - now.epochMilliseconds;
+        const connected = (yield* Ref.get(connectedSessionsRef)).has(sessionId);
+        const expiresAt = connected ? yield* expiryAfterUse(row.value, now) : row.value.expiresAt;
+        const remaining = expiresAt.epochMilliseconds - now.epochMilliseconds;
         if (remaining <= 0) return;
+        yield* Effect.sleep(Duration.millis(remaining));
+      }
+    });
+    return yield* Effect.scoped(
+      Effect.gen(function* () {
+        const subscription = yield* PubSub.subscribe(changesPubSub);
         yield* Effect.raceFirst(
           Stream.fromSubscription(subscription).pipe(
             Stream.filter(
@@ -1038,7 +1072,7 @@ const make = Effect.gen(function* () {
             ),
             Stream.runHead,
           ),
-          Effect.sleep(Duration.millis(remaining)),
+          untilExpired,
         );
       }),
     );

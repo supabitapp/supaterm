@@ -421,6 +421,9 @@ pairing links and revoke client sessions. Revoking an unused link prevents new
 pairings; revoke a device's session to remove its existing access. Command-line
 management is available through `supaterm auth --help`.
 
+A paired device stays signed in while it keeps connecting. After 30 days without
+connecting, its session expires and it needs to pair again.
+
 To restore a device whose session was revoked, pair it again with a fresh link.
 If the link's address is one the device already uses for that machine but cannot
 reach right now, such as a LAN address while on cellular, it pairs through the
