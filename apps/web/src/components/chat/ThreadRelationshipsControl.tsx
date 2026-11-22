@@ -106,17 +106,26 @@ function ThreadLineageRowList(props: {
   readonly onShowMore: () => void;
   readonly children: ReactNode;
 }) {
+  const listRef = useRef<HTMLUListElement>(null);
+  const showMore = () => {
+    const exhausting = props.hiddenCount <= THREAD_LINEAGE_PAGE_COUNT;
+    props.onShowMore();
+    // The button unmounts on the final page; focus the list so focus isn't dropped.
+    if (exhausting) listRef.current?.focus({ preventScroll: true });
+  };
   return (
     <>
       {/* ScrollArea's max-height viewport measures badly inside this scrolling panel. */}
       <ul
+        ref={listRef}
+        tabIndex={-1}
         aria-label={props.label ?? "Related threads"}
-        className="m-0 max-h-[13.5rem] list-none overflow-y-auto p-0 [scrollbar-width:none] has-data-workflow-expanded:max-h-[min(28rem,55dvh)] [&::-webkit-scrollbar]:hidden"
+        className="m-0 max-h-[13.5rem] list-none overflow-y-auto p-0 outline-none [scrollbar-width:none] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/70 has-data-workflow-expanded:max-h-[min(28rem,55dvh)] [&::-webkit-scrollbar]:hidden"
       >
         {props.children}
       </ul>
       {props.hiddenCount > 0 ? (
-        <ThreadDetailsControl onClick={props.onShowMore} tone="muted">
+        <ThreadDetailsControl onClick={showMore} tone="muted">
           <PlusIcon aria-hidden className="size-3.5 shrink-0" />
           Show {Math.min(props.hiddenCount, THREAD_LINEAGE_PAGE_COUNT)} more
         </ThreadDetailsControl>
