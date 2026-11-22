@@ -8,6 +8,7 @@ import {
   OrchestrationV2AppThread,
   OrchestrationV2ConversationMessage,
   OrchestrationV2ExecutionNode,
+  OrchestrationV2PendingBackgroundTask,
   OrchestrationV2ProviderSession,
   OrchestrationV2PlanArtifact,
   OrchestrationV2ProviderCapabilities,
@@ -147,6 +148,14 @@ export const ProviderAdapterV2Event = Schema.Union([
     runId: RunId,
     messageId: MessageId,
     status: Schema.Literals(["pending", "completed", "cancelled"]),
+  }),
+  // The query process exited under a live session before this work reported back.
+  Schema.Struct({
+    type: Schema.Literal("background_work.lost"),
+    driver: ProviderDriverKind,
+    threadId: ThreadId,
+    providerThreadId: ProviderThreadId,
+    tasks: Schema.Array(OrchestrationV2PendingBackgroundTask),
   }),
   /**
    * Raw output from a running command. Never persisted: the session manager

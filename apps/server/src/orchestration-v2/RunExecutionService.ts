@@ -580,6 +580,7 @@ export function routeProviderEvent(
             state.ownedProviderTurns.has(event.runtimeRequest.providerTurnId)),
         state,
       ];
+    case "background_work.lost":
     case "command_output.delta":
     case "prompt_suggestion.updated":
       // The session manager routes these to their hubs; runs never see them.
