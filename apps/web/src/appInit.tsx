@@ -46,6 +46,7 @@ import { environmentProjects } from "./state/projects";
 import { environmentShell } from "./state/shell";
 import { startWorkspaceFocus } from "./lib/workspaceFocus";
 import { installChatRouteCommands } from "./shortcuts/chatRouteCommands";
+import { guardDomAgainstPageTranslation } from "./lib/pageTranslationGuard";
 import { installCommandPaletteCommands } from "./shortcuts/commandPaletteCommands";
 import { registerOpenFavoriteEditorCommand } from "./components/chat/OpenInPickerShortcut";
 import { environmentThreadShells, threadEnvironment } from "./state/threads";
@@ -210,6 +211,7 @@ export function startAppServices(): AppRouter {
   }
 
   installDesktopPasteAsText(window.desktopBridge, window);
+  guardDomAgainstPageTranslation();
 
   startClientAppearance();
   startDocumentTitle(router);
