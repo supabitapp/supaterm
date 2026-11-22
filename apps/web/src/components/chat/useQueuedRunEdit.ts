@@ -47,7 +47,10 @@ import {
   takeReplyFromText,
   type ReferenceContextRecord,
 } from "../../lib/composerContextRecords";
-import { collectInlineContextIds } from "../../lib/composerContextReferences";
+import {
+  collectInlineContextIds,
+  removeInlineContextReference,
+} from "../../lib/composerContextReferences";
 import { readFileAsDataUrl } from "../../lib/imageCompression";
 import type { TerminalContextDraft } from "../../lib/terminalContext";
 import type { ComposerSubmissionIntent } from "../../composer-logic";
@@ -65,6 +68,7 @@ import type { ChatComposerHandle } from "./ChatComposer";
 import { fileAttachmentCapabilityBlockReason } from "./composerAttachmentFiles";
 import { composerDraftContentChanged } from "./composerSend.logic";
 import {
+  attachmentContextIdsForRecord,
   discardQueuedEditDraft,
   prepareQueuedEditAttachments,
   recoverQueuedMessageEdit,
@@ -77,12 +81,11 @@ interface EditingQueuedRun {
   readonly runId: RunId;
   readonly messageId: MessageId;
   readonly originalText: string;
+  readonly originalAttachments: ReadonlyArray<ChatAttachment>;
   readonly existingAttachments: ReadonlyArray<ChatAttachment>;
   readonly context?: OrchestrationMessageContext | undefined;
   /** The reply the edit draft owns, so a cancelled or replaced one is not kept from `context`. */
   readonly originalReply?: ResponseContextRecord | undefined;
-  /** Removing a server attachment changes the message even when the draft looks untouched. */
-  readonly removedExistingAttachment?: true;
 }
 
 // Keyed by the route thread, so an edit survives navigating away and back.
@@ -236,13 +239,34 @@ export function useQueuedRunEdit(input: {
   const urlByAttachmentId = new Map(
     imageResources.map((resource, index) => [resource.attachmentId, imageUrls[index] ?? null]),
   );
+  const originalReferencedContextIds =
+    editing === null ? null : new Set(collectInlineContextIds(editing.originalText));
+  const attachmentContextIds = (attachment: ChatAttachment) =>
+    editing === null
+      ? []
+      : attachmentContextIdsForRecord(editing.context, attachment).filter((contextId) =>
+          originalReferencedContextIds!.has(contextId),
+        );
   const editingAttachments =
     editing === null
       ? null
       : editing.existingAttachments.map((attachment) => ({
           attachment,
           url: urlByAttachmentId.get(attachment.id) ?? null,
+          contextIds: attachmentContextIds(attachment),
         }));
+  const existingAttachmentIds = new Set(
+    (editing?.existingAttachments ?? []).map((attachment) => attachment.id),
+  );
+  const removedEditingAttachments =
+    editing === null
+      ? []
+      : editing.originalAttachments
+          .filter((attachment) => !existingAttachmentIds.has(attachment.id))
+          .map((attachment) => ({
+            attachment,
+            contextIds: attachmentContextIds(attachment),
+          }));
 
   const isPaneInputOwner = usePaneInputOwner();
   const focusComposerSoon = () => {
@@ -288,6 +312,7 @@ export function useQueuedRunEdit(input: {
         runId: request.runId,
         messageId: request.messageId,
         originalText: text,
+        originalAttachments: request.attachments,
         existingAttachments: request.attachments,
         context,
         ...(reply ? { originalReply: reply } : {}),
@@ -312,7 +337,13 @@ export function useQueuedRunEdit(input: {
             threadTarget: threadDraftTarget,
             originalText: edit.originalText,
             originalReply: edit.originalReply,
-            removedExistingAttachment: edit.removedExistingAttachment === true,
+            removedExistingAttachment:
+              edit.existingAttachments.length < edit.originalAttachments.length,
+            existingAttachmentContextIds: (edit.context?.records ?? []).flatMap((record) =>
+              (record.kind === "image" || record.kind === "file") && "attachmentId" in record
+                ? [record.contextId]
+                : [],
+            ),
           });
           if (recovery === "clean") return;
           const title = appAtomRegistry.get(
@@ -341,13 +372,39 @@ export function useQueuedRunEdit(input: {
     focusComposerSoon();
   });
   const removeEditingAttachment = useStableCallback((attachmentId: string) => {
+    const removed = editing?.existingAttachments.find(
+      (attachment) => attachment.id === attachmentId,
+    );
+    const contextIds = removed ? attachmentContextIdsForRecord(editing?.context, removed) : [];
     queuedRunEdits.update(editKey, (current) => ({
       ...current,
-      removedExistingAttachment: true,
       existingAttachments: current.existingAttachments.filter(
         (attachment) => attachment.id !== attachmentId,
       ),
     }));
+    if (editing !== null && contextIds.length > 0) {
+      const target = queuedRunEditDraftId(routeThreadRef, editing.runId);
+      const store = useComposerDraftStore.getState();
+      const currentPrompt = store.getComposerDraft(target)?.prompt ?? "";
+      const nextPrompt = contextIds.reduce(
+        (prompt, contextId) => removeInlineContextReference(prompt, contextId).prompt,
+        currentPrompt,
+      );
+      if (nextPrompt !== currentPrompt) store.setPrompt(target, nextPrompt);
+    }
+  });
+  const restoreEditingAttachment = useStableCallback((attachment: ChatAttachment) => {
+    queuedRunEdits.update(editKey, (current) => {
+      const keptIds = new Set([
+        ...current.existingAttachments.map((entry) => entry.id),
+        attachment.id,
+      ]);
+      // Filtering the originals keeps the restored attachment in its original position.
+      return {
+        ...current,
+        existingAttachments: current.originalAttachments.filter((entry) => keptIds.has(entry.id)),
+      };
+    });
   });
 
   // The same move as the queued row's "Send now" while a turn runs.
@@ -470,9 +527,11 @@ export function useQueuedRunEdit(input: {
     isSaving,
     draftTarget,
     editingAttachments,
+    removedEditingAttachments,
     beginEdit,
     cancelEdit,
     removeEditingAttachment,
+    restoreEditingAttachment,
     saveEdit,
   };
 }

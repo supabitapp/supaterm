@@ -1,4 +1,6 @@
 import {
+  ChatAttachmentId,
+  ComposerContextId,
   EnvironmentId,
   MessageId,
   ProviderDriverKind,
@@ -20,11 +22,21 @@ import {
 } from "../../composerDraftStore";
 import { readAttachmentUpload, useAttachmentUploadStore } from "../../lib/attachmentUploadQueue";
 import { responseContextRecord } from "../../lib/composerContextRecords";
-import { prepareQueuedEditAttachments, recoverQueuedMessageEdit } from "./queuedMessageEdit";
+import { formatInlineContextReference } from "../../lib/composerContextReferences";
+import {
+  matchRestorableQueuedAttachment,
+  prepareQueuedEditAttachments,
+  recoverQueuedMessageEdit,
+} from "./queuedMessageEdit";
 
 const environmentId = EnvironmentId.make("remote-environment");
 const threadTarget = scopeThreadRef(environmentId, ThreadId.make("thread:edit"));
 const editTarget = DraftId.make("queued-edit:test");
+const originalMessage = {
+  editTarget,
+  threadTarget,
+  originalText: "Original message",
+};
 const file: ComposerFileAttachment = {
   type: "file",
   id: "file:report",
@@ -216,6 +228,85 @@ describe("queued message file edits", () => {
       }),
     ).toBe("discarded");
     expect(store.getComposerDraft(threadTarget)).toBeNull();
+  });
+
+  it("strips existing queued attachment references when recovering an edit into the thread draft", () => {
+    const store = useComposerDraftStore.getState();
+    const chip = formatInlineContextReference({
+      kind: "image",
+      contextId: "image_queued-1",
+      label: "image.png",
+    });
+    store.setPrompt(editTarget, `Check ${chip} closely`);
+    expect(
+      recoverQueuedMessageEdit({
+        ...originalMessage,
+        originalText: `Check ${chip}`,
+        existingAttachmentContextIds: ["image_queued-1"],
+      }),
+    ).toBe("kept");
+    expect(store.getComposerDraft(threadTarget)?.prompt).toBe("Check closely");
+    expect(store.getComposerDraft(editTarget)).toBeNull();
+
+    store.clearComposerContent(threadTarget);
+    store.setPrompt(editTarget, chip);
+    expect(
+      recoverQueuedMessageEdit({
+        ...originalMessage,
+        originalText: `${chip} note`,
+        existingAttachmentContextIds: ["image_queued-1"],
+      }),
+    ).toBe("discarded");
+    expect(store.getComposerDraft(threadTarget)).toBeNull();
+  });
+
+  it("matches a removed queued attachment for same-environment paste while rejecting other environments or payloads", () => {
+    const fileId = ChatAttachmentId.make("server-file-1");
+    const contextId = ComposerContextId.make("file_local-1");
+    const removedAttachment = {
+      type: "file" as const,
+      id: fileId,
+      name: "notes.txt",
+      mimeType: "text/plain",
+      sizeBytes: 12,
+    };
+    const record = {
+      version: 1 as const,
+      kind: "file" as const,
+      contextId,
+      label: "notes.txt",
+      attachmentId: fileId,
+      name: "notes.txt",
+      mimeType: "text/plain",
+      sizeBytes: 12,
+    };
+
+    expect(
+      matchRestorableQueuedAttachment({
+        environmentId,
+        sourceEnvironmentId: environmentId,
+        record,
+        removedQueuedAttachments: [{ attachment: removedAttachment, contextIds: [contextId] }],
+      }),
+    ).toEqual({ attachment: removedAttachment, contextId });
+
+    expect(
+      matchRestorableQueuedAttachment({
+        environmentId,
+        sourceEnvironmentId: EnvironmentId.make("other-environment"),
+        record,
+        removedQueuedAttachments: [{ attachment: removedAttachment, contextIds: [contextId] }],
+      }),
+    ).toBeNull();
+
+    expect(
+      matchRestorableQueuedAttachment({
+        environmentId,
+        sourceEnvironmentId: environmentId,
+        record: { ...record, attachmentId: ChatAttachmentId.make("different-file") },
+        removedQueuedAttachments: [{ attachment: removedAttachment, contextIds: [contextId] }],
+      }),
+    ).toBeNull();
   });
 
   it("does not overwrite a separate draft when the queued run leaves", () => {

@@ -10,7 +10,7 @@ import type { ChatComposerProps } from "./ChatComposer";
 import type { ComposerDraftContextRecords } from "../composerContextPresentation";
 import { elementContextToPreviewAnnotation } from "../../lib/elementContext";
 import { questionAttachmentDraftId, countQuestionAttachments } from "../../questionAttachments";
-import type { EnvironmentId } from "@supaterm/contracts";
+import type { ChatAttachment, EnvironmentId } from "@supaterm/contracts";
 import { PROVIDER_SEND_TURN_MAX_ATTACHMENTS } from "@supaterm/contracts";
 import {
   type ComposerFileAttachment,
@@ -52,6 +52,8 @@ import type { PendingUserInput } from "../../session-logic";
 import { useStableCallback } from "../../hooks/useStableCallback";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { countPreparingComposerImages } from "./preparingComposerImages";
+import type { QueuedAttachmentContextBinding } from "./composerContextUndo";
+import { matchRestorableQueuedAttachment } from "./queuedMessageEdit";
 
 const isUnreachable = Schema.is(
   Schema.Union([ConnectionTransientError, ConnectionBlockedError, EnvironmentRpcUnavailableError]),
@@ -87,6 +89,8 @@ export function useComposerContextImport(input: {
   readonly promptRef: RefObject<string>;
   readonly pendingThreadImportsRef: RefObject<Map<string, number>>;
   readonly addComposerFilesToDraft: (files: ComposerFileAttachment[]) => string[];
+  readonly removedQueuedAttachments?: ReadonlyArray<QueuedAttachmentContextBinding> | undefined;
+  readonly onRestoreQueuedAttachment?: ((attachment: ChatAttachment) => void) | undefined;
 }) {
   const {
     environmentId,
@@ -105,6 +109,8 @@ export function useComposerContextImport(input: {
     promptRef,
     pendingThreadImportsRef,
     addComposerFilesToDraft,
+    removedQueuedAttachments,
+    onRestoreQueuedAttachment,
   } = input;
   const getComposerDraft = useComposerDraftStore((store) => store.getComposerDraft);
   const addComposerDraftImages = useComposerDraftStore((store) => store.addImages);
@@ -428,6 +434,19 @@ export function useComposerContextImport(input: {
         case "image":
         case "file": {
           if (skippedDependentAttachmentIds.has(record.contextId)) break;
+          if (questionAttachmentTarget === null && !conflicts) {
+            const restored = matchRestorableQueuedAttachment({
+              environmentId,
+              sourceEnvironmentId,
+              record,
+              removedQueuedAttachments: removedQueuedAttachments ?? [],
+            });
+            if (restored) {
+              onRestoreQueuedAttachment?.(restored.attachment);
+              rewritten.set(record.contextId, restored.contextId);
+              break;
+            }
+          }
           if (sourceEnvironmentId === null && !conflicts) {
             rewritten.set(record.contextId, record.contextId);
             break;
