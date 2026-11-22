@@ -29,6 +29,7 @@ import { readBootstrapEnvelope } from "../bootstrap.ts";
 import * as ServerConfig from "../config.ts";
 import { expandHomePath, resolveBaseDir } from "../os-jank.ts";
 import packageJson from "../../package.json" with { type: "json" };
+import { isServerOwnershipHeld } from "../serverOwnership.ts";
 import {
   isProcessAlive,
   type PersistedServerRuntimeState,
@@ -351,12 +352,15 @@ export const resolveServerConfig = Effect.fn("config.resolveServerConfig")(funct
 
   if (options?.rejectRunningServer && mode === "web") {
     const runtime = yield* readPersistedServerRuntimeState(derivedPaths.serverRuntimeStatePath);
-
+    // A killed container can leave a record whose PID is now ours or an unrelated process's.
+    // Lock-aware records are live only while their owner still holds the lock.
     if (
       Option.isSome(runtime) &&
       runtime.value.pid > 0 &&
       runtime.value.pid !== process.pid &&
-      isProcessAlive(runtime.value.pid)
+      isProcessAlive(runtime.value.pid) &&
+      (runtime.value.ownerId === undefined ||
+        isServerOwnershipHeld(derivedPaths.serverRuntimeStatePath))
     ) {
       // Bare `supaterm pair` prefers a linked worktree's `.supaterm`, so always name this home.
       const { command: pairCommand } = yield* resolveHostCliCommand("pair", [
