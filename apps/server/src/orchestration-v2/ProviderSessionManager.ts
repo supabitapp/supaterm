@@ -329,10 +329,12 @@ interface LiveSessionEntry {
   readonly idleFiber: Fiber.Fiber<void, never> | null;
   readonly pinnedSinceMs: number | null;
 
-  readonly idleThreadUnloads: ReadonlyMap<ThreadId, IdleThreadUnload>;
+  /** Keyed by native thread: a fresh session leaves the replaced one to unload on its own timer. */
+  readonly idleThreadUnloads: ReadonlyMap<ProviderThreadId, IdleThreadUnload>;
 }
 
 interface IdleThreadUnload {
+  readonly threadId: ThreadId;
   readonly providerThread: OrchestrationV2ProviderThread;
   readonly generation: number;
   readonly fiber: Fiber.Fiber<void, never> | null;
@@ -402,6 +404,17 @@ function providerThreadRuntimeKey(
   return nativeThreadRef === null
     ? String(providerThread.id)
     : `${nativeThreadRef.driver}:${nativeThreadRef.nativeId}`;
+}
+
+function isLoadKeyFor(
+  loadKey: string | undefined,
+  providerThread: Parameters<typeof providerThreadRuntimeKey>[0],
+): boolean {
+  return (
+    loadKey === undefined ||
+    (JSON.parse(loadKey) as { providerThread: string }).providerThread ===
+      providerThreadRuntimeKey(providerThread)
+  );
 }
 
 function providerThreadLoadKey(input: {
@@ -1629,7 +1642,7 @@ export const layerWithOptions = (
                 )) ||
             // Closing now would skip the archive of a child whose parent has not taken its result.
             Option.isSome(
-              yield* Effect.findFirst(entry.idleThreadUnloads.keys(), (threadId) =>
+              yield* Effect.findFirst(entry.idleThreadUnloads.values(), ({ threadId }) =>
                 delegatedChildArchive(threadId).pipe(
                   Effect.map((child) => child === "awaiting_delivery"),
                 ),
@@ -1674,10 +1687,11 @@ export const layerWithOptions = (
           // Closing skips the threads' own idle unloads, so archive delivered children first.
           yield* Effect.forEach(
             entry.idleThreadUnloads,
-            ([threadId, pending]) =>
+            ([providerThreadId, pending]) =>
               unloadIdleThread({
                 providerSessionId: input.providerSessionId,
-                threadId,
+                threadId: pending.threadId,
+                providerThreadId,
                 generation: pending.generation,
                 archiveOnly: true,
               }),
@@ -2021,18 +2035,18 @@ export const layerWithOptions = (
 
       const updateIdleThreadUnload = (
         providerSessionId: ProviderSessionId,
-        threadId: ThreadId,
+        providerThreadId: ProviderThreadId,
         update: (current: IdleThreadUnload | undefined) => IdleThreadUnload | undefined,
       ) =>
         Ref.modify(sessions, (current) => {
           const key = sessionKey(providerSessionId);
           const entry = current.get(key);
           if (entry === undefined) return [undefined, current] as const;
-          const previous = entry.idleThreadUnloads.get(threadId);
+          const previous = entry.idleThreadUnloads.get(providerThreadId);
           const next = update(previous);
           const idleThreadUnloads = new Map(entry.idleThreadUnloads);
-          if (next === undefined) idleThreadUnloads.delete(threadId);
-          else idleThreadUnloads.set(threadId, next);
+          if (next === undefined) idleThreadUnloads.delete(providerThreadId);
+          else idleThreadUnloads.set(providerThreadId, next);
           const updated = new Map(current);
           updated.set(key, { ...entry, idleThreadUnloads });
           return [previous, updated] as const;
@@ -2055,8 +2069,9 @@ export const layerWithOptions = (
           }
           const previous = yield* updateIdleThreadUnload(
             input.providerSessionId,
-            input.threadId,
+            input.providerThread.id,
             (current) => ({
+              threadId: input.threadId,
               providerThread: input.providerThread,
               generation: (current?.generation ?? 0) + 1,
               fiber: null,
@@ -2070,21 +2085,28 @@ export const layerWithOptions = (
         function* (providerSessionId: ProviderSessionId, providerThreadId: ProviderThreadId) {
           const entry = (yield* Ref.get(sessions)).get(sessionKey(providerSessionId));
           if (entry === undefined || hasBusyTurn(entry, providerThreadId)) return;
-          const tracked = Array.from(entry.idleThreadUnloads).find(
-            ([, pending]) => pending.providerThread.id === providerThreadId,
-          );
-          if (tracked === undefined) return;
-          const [threadId, pending] = tracked;
+          const pending = entry.idleThreadUnloads.get(providerThreadId);
+          if (pending === undefined) return;
           const generation = pending.generation + 1;
           const fiber = yield* Effect.sleep(Duration.millis(idleTimeoutMs)).pipe(
-            Effect.andThen(unloadIdleThread({ providerSessionId, threadId, generation })),
+            Effect.andThen(
+              unloadIdleThread({
+                providerSessionId,
+                threadId: pending.threadId,
+                providerThreadId,
+                generation,
+              }),
+            ),
             Effect.forkIn(layerScope),
           );
 
-          const previous = yield* updateIdleThreadUnload(providerSessionId, threadId, (current) =>
-            current?.generation === pending.generation
-              ? { ...current, generation, fiber }
-              : current,
+          const previous = yield* updateIdleThreadUnload(
+            providerSessionId,
+            providerThreadId,
+            (current) =>
+              current?.generation === pending.generation
+                ? { ...current, generation, fiber }
+                : current,
           );
           yield* cancelIdleFiber(
             previous?.generation === pending.generation ? previous.fiber : fiber,
@@ -2127,6 +2149,7 @@ export const layerWithOptions = (
         function* (input: {
           readonly providerSessionId: ProviderSessionId;
           readonly threadId: ThreadId;
+          readonly providerThreadId: ProviderThreadId;
           readonly generation: number;
           /** Session release unloads only the threads it would archive, and never waits. */
           readonly archiveOnly?: boolean;
@@ -2136,7 +2159,7 @@ export const layerWithOptions = (
             Effect.gen(function* () {
               const key = sessionKey(input.providerSessionId);
               const entry = (yield* Ref.get(sessions)).get(key);
-              const pending = entry?.idleThreadUnloads.get(input.threadId);
+              const pending = entry?.idleThreadUnloads.get(input.providerThreadId);
               const unloadThread = entry?.exposedRuntime.unloadThread;
               if (
                 entry === undefined ||
@@ -2161,27 +2184,39 @@ export const layerWithOptions = (
               if (child === "awaiting_delivery") return "deferred" as const;
               const archive = child === "ready";
               if (input.archiveOnly === true && !archive) return "skipped" as const;
-              const unloading = yield* Ref.modify(sessions, (current) => {
-                const latest = current.get(key);
-                if (
-                  latest?.runtime !== entry.runtime ||
-                  latest.idleThreadUnloads.get(input.threadId)?.generation !== input.generation
-                ) {
-                  return [false, current] as const;
-                }
-                const loadedProviderThreadsByThread = new Map(latest.loadedProviderThreadsByThread);
-                loadedProviderThreadsByThread.delete(input.threadId);
-                const idleThreadUnloads = new Map(latest.idleThreadUnloads);
-                idleThreadUnloads.delete(input.threadId);
-                const updated = new Map(current);
-                updated.set(key, {
-                  ...latest,
-                  loadedProviderThreadsByThread,
-                  idleThreadUnloads,
-                });
-                return [true, updated] as const;
-              });
-              if (!unloading) return "skipped" as const;
+              // null when skipped, otherwise whether this native thread is the app thread's loaded one.
+              const unloadsLoadedThread = yield* Ref.modify(
+                sessions,
+                (current): readonly [boolean | null, Map<string, LiveSessionEntry>] => {
+                  const latest = current.get(key);
+                  if (
+                    latest?.runtime !== entry.runtime ||
+                    latest.idleThreadUnloads.get(input.providerThreadId)?.generation !==
+                      input.generation
+                  ) {
+                    return [null, current];
+                  }
+                  const idleThreadUnloads = new Map(latest.idleThreadUnloads);
+                  idleThreadUnloads.delete(input.providerThreadId);
+                  // A native thread a fresh session replaced is not what the app thread has loaded.
+                  const isCurrent = isLoadKeyFor(
+                    latest.loadedProviderThreadsByThread.get(input.threadId)?.loadKey,
+                    pending.providerThread,
+                  );
+                  const loadedProviderThreadsByThread = new Map(
+                    latest.loadedProviderThreadsByThread,
+                  );
+                  if (isCurrent) loadedProviderThreadsByThread.delete(input.threadId);
+                  const updated = new Map(current);
+                  updated.set(key, {
+                    ...latest,
+                    loadedProviderThreadsByThread,
+                    idleThreadUnloads,
+                  });
+                  return [isCurrent, updated];
+                },
+              );
+              if (unloadsLoadedThread === null) return "skipped" as const;
               const unload = (archiveThread: boolean) =>
                 unloadThread({
                   providerThread: pending.providerThread,
@@ -3336,7 +3371,7 @@ export const layerWithOptions = (
                 return [
                   Option.none<{
                     readonly entry: LiveSessionEntry;
-                    readonly idleUnloadFiber: Fiber.Fiber<void, never> | null;
+                    readonly idleUnloadFibers: ReadonlyArray<Fiber.Fiber<void, never>>;
                   }>(),
                   current,
                 ] as const;
@@ -3355,7 +3390,12 @@ export const layerWithOptions = (
                   : entry.mcpCredentialIdByThread;
 
               const idleThreadUnloads = new Map(entry.idleThreadUnloads);
-              idleThreadUnloads.delete(input.threadId);
+              const idleUnloadFibers: Array<Fiber.Fiber<void, never>> = [];
+              for (const [providerThreadId, pending] of entry.idleThreadUnloads) {
+                if (pending.threadId !== input.threadId) continue;
+                idleThreadUnloads.delete(providerThreadId);
+                if (pending.fiber !== null) idleUnloadFibers.push(pending.fiber);
+              }
               const updatedEntry = {
                 ...entry,
                 attachedThreadIds,
@@ -3368,13 +3408,15 @@ export const layerWithOptions = (
               return [
                 Option.some({
                   entry: updatedEntry,
-                  idleUnloadFiber: entry.idleThreadUnloads.get(input.threadId)?.fiber ?? null,
+                  idleUnloadFibers,
                 }),
                 updated,
               ] as const;
             });
             if (Option.isSome(detachResult)) {
-              yield* cancelIdleFiber(detachResult.value.idleUnloadFiber);
+              yield* Effect.forEach(detachResult.value.idleUnloadFibers, cancelIdleFiber, {
+                discard: true,
+              });
             }
             const detached = Option.map(detachResult, (result) => result.entry);
             // Plain detaches deliberately do not revoke: a detached thread's
