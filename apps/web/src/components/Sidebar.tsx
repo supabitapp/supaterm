@@ -267,7 +267,12 @@ import { useShallow } from "zustand/react/shallow";
 import { openThreadBeside } from "../chatPanes/actions";
 import { threadDeleteConfirmation } from "../lib/threadDeleteConfirmation";
 import { SortableThreadRow, type SidebarProviderEntry } from "./sidebar/SidebarThreadRow";
-import { SidebarDraftBlock, useSidebarDrafts } from "./sidebar/SidebarDraftBlock";
+import {
+  draftTerminalLabel,
+  SidebarDraftBlock,
+  useDraftTerminalLabels,
+  useSidebarDrafts,
+} from "./sidebar/SidebarDraftBlock";
 
 function sameSidebarProviderEntries(
   left: ReadonlyMap<string, SidebarProviderEntry>,
@@ -1244,13 +1249,17 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     },
   });
   const routeDraftIdForRows = routeTarget?.kind === "draft" ? routeTarget.draftId : null;
+  const draftTerminalLabels = useDraftTerminalLabels();
   const visibleDraftSessionCount = useComposerDraftStore((store) => {
     let count = 0;
     for (const [draftKey, session] of Object.entries(store.draftThreadsByThreadKey)) {
       if (session.promotedTo != null || session.sideChatOf !== undefined) {
         continue;
       }
-      if (!composerDraftHasUserContent(store.draftsByThreadKey[draftKey])) {
+      if (
+        draftTerminalLabel(session, draftTerminalLabels) === null &&
+        !composerDraftHasUserContent(store.draftsByThreadKey[draftKey])
+      ) {
         continue;
       }
       if (!isInSidebarScope(sidebarScope, session.environmentId, session.projectId)) {
@@ -1382,7 +1391,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
 
   const pinShortcut = shortcutLabelForCommand(keybindings, "thread.pin");
   const doneShortcut = shortcutLabelForCommand(keybindings, "thread.mark-done");
-  const sidebarDrafts = useSidebarDrafts(sidebarScope, routeDraftIdForRows);
+  const sidebarDrafts = useSidebarDrafts(sidebarScope, routeDraftIdForRows, draftTerminalLabels);
   const orderedRows = orderSidebarRows({
     orderedThreadKeys,
     sectionByThreadKey,
