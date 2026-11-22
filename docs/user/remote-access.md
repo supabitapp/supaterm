@@ -268,6 +268,18 @@ check with:
 ssh user@example.com 'sh -lc "command -v claude codex"'
 ```
 
+Supaterm cannot answer a second sign-in prompt such as a Duo code. On macOS and
+Linux it can reuse a connection you signed in to in a terminal instead: turn on
+connection sharing for the host in `~/.ssh/config`, run `ssh <alias>`, then
+connect. When that connection closes, sign in again in a terminal and retry.
+
+```sshconfig
+Host <alias>
+  ControlMaster auto
+  ControlPath ~/.ssh/cm-%C
+  ControlPersist 8h
+```
+
 If SSH reconnecting fails after an app update, retry the launch once. Removing
 the connection stops a server that Supaterm launched; a server that was already
 running is left alone.
@@ -288,6 +300,51 @@ tabs from any device. The desktop app shows its own environment's tabs
 directly. Every other device, and the desktop app for other environments,
 streams them from the host. Agents keep using them while no device is
 connected, and `localhost` addresses reach servers on the host.
+
+A tab you open yourself in the desktop app for another environment loads on
+your computer instead, so the element picker, screenshots, and annotations work
+as they do locally. Its `localhost` addresses still reach servers on the host,
+over the connection the app already has, whichever way you connected. If the
+host cannot be reached, the tab shows a connection error; a `localhost`,
+`127.0.0.1`, or `[::1]` address never opens a server on your own computer.
+Other names that point at your computer, such as `/etc/hosts` entries, still
+do. These tabs ignore your system proxy settings, so they can't reach a host
+you connect to only through a proxy or over HTTPS with a privately issued
+certificate. The web app keeps streaming.
+
+The desktop app can also forward a port on the host to your computer, so any
+app there, such as your own browser, `curl`, or a database client, reaches it
+at `localhost`. Use the forward button on a server in the thread's **Servers**
+list, or **Forwarded ports** in the command palette, where you can also type
+any port number and stop forwards. A forward keeps the host's port number
+unless that port is taken on your computer, in which case it uses a free one
+and shows it. Forwards end when you stop them or quit the app. ⌘-click
+(Ctrl-click on Windows and Linux) on a remote server forwards it and opens it
+in your browser.
+
+A forwarded port behaves like a server running on your computer: anything on
+your computer can reach it, including web pages open in your browser, so a
+forwarded service is exposed the same way a local dev server is. Forwards
+listen only on your computer's loopback, never on your network. On Linux they
+accept only apps running as your user; on macOS and Windows, other users signed
+in to the same computer can reach them too.
+
+On iPhone, iPad, and Android, a tab showing one of the host's `localhost` pages
+has **Open on this device** in its menu. So does a long press on a `localhost`
+link in a chat. It opens the page in the phone's own browser view, at the same
+`localhost` address, so it scrolls and responds to touch natively. Like the
+desktop app, it never opens a server on the phone itself. The streamed tab
+stays where it was, and agents keep using it. Each host keeps its own cookies
+and site data on the phone. On iPhone and iPad the page runs under a stand-in
+address while the address bar shows `localhost`, so browser features that need
+a secure page, such as the clipboard or service workers, aren't available there.
+
+All of this rides the host's preview tunnel. Turn off **Settings → Sharing &
+access → Preview tunnel** on the host to stop other devices from loading its
+`localhost` pages themselves: port forwarding and **Open on this device** go
+away, and open tunnels close. Tabs keep working by streaming from the host, so
+anyone who can use the host's browser tabs can still view its `localhost` pages
+there.
 
 The first tab downloads a headless Chrome, about 120 MB, into the Supaterm home. It
 is the same browser [HTML renders](html-renders.md) use, so a host downloads it
@@ -370,19 +427,32 @@ Link two machines, such as your laptop and a VPS, and agents on one can work on
 the other: launch, message, wait on and stop its threads, answer their
 questions, and manage its queues, projects and scheduled tasks.
 
-Linked environments is a beta. Turn it on for both machines in **Settings →
-Environments → Linked environments**. While it is off on either machine, agents
-start nothing over a link between them. A task already running on the other
-machine still finishes, and if that machine has it off, its result arrives once
-it is back on.
+Each link goes one way. Linking your laptop to a VPS lets agents on the laptop
+work on the VPS; the VPS's agents cannot reach the laptop unless you also link
+from the VPS. The pairing code the link uses is the VPS's consent, so only
+someone who can create pairing links there can set one up.
 
-On the machine you will work from, choose **Link** in that section and pick the
-other machine or enter its address. The list holds the machines this app knows.
-A machine paired through the Encrypted Relay links through the relay, so it
-needs no address of its own. If this app has an address for that machine and is
-connected to it with a session that manages access there, it makes the pairing
-code itself; otherwise paste one from that machine's **Settings → Sharing &
-access**. An address you type always needs a pasted code. From a terminal, use
+The quickest way, on web and desktop, is on the machine being worked on: in
+**Settings → Environments**, open that saved environment's **Permissions** and
+pick what agents on each of your other connected machines may do there, or
+**Off** to forget that link. This app makes the pairing code itself when it is
+connected to that machine with a session that manages access there. Picking
+another level links again with a new code; the old session stays in that
+machine's **Sharing & access** until you revoke it there.
+
+When this app cannot make the code there, because it is not connected to that
+machine or may not manage access on it, another of your connected machines that
+links to it at full access gets the code instead, and **Permissions** names
+that machine. Your session on that machine must manage access there. The result
+is a separate link with the access you pick, listed and revocable on the linked
+machine like any other. Links still do not chain.
+
+The **Linked environments** section lists each machine's links. To link to a
+machine this app is not connected to, choose **Link** on the machine you will
+work from and pick the other machine or enter its address. A machine paired
+through the Encrypted Relay links through the relay, so it needs no address of
+its own. An address you type always needs a pasted code from that machine's
+**Settings → Sharing & access**. From a terminal, use
 `supaterm environment link <address> --pairing-code <code> --access <mode>`.
 
 You can also ask an agent to link a machine by name, such as "delegate this to
@@ -403,7 +473,10 @@ section lists the links and forgets them.
 - The link shows up in that machine's **Settings → Sharing & access** like any
   outside agent. Revoke it there to end it. **Forget** on this machine only
   removes it here.
-- Links last 30 days. Link again with a new pairing code to renew one.
+- A link stays valid while agents use it. One unused for 30 days expires, as
+  does one to a machine on an older Supaterm after 30 days; pick its access
+  again in that machine's **Permissions**, or link again with a new pairing
+  code.
 
 An agent can also hand a task to a linked machine with `delegate_task`: it runs
 there as an ordinary thread, in the project with the same repository (or the
@@ -413,6 +486,33 @@ If the other machine revokes the link, or the link is removed here, the task
 fails with that reason. Marking this thread Done marks the task's thread there
 Done too, unless that thread is in use there, and reopening this thread reopens
 it.
+
+### Read a linked machine's threads
+
+You can read a thread on a linked machine without connecting this app to it. Open
+a task that was delegated there from the thread's agents, or a thread link that
+points there, and the thread opens read-only, streamed through the machine you
+are connected to over its link. It follows the thread live. On web and desktop
+it opens as a tab in the right panel, beside the thread you are in, and shows
+the same timeline as any other thread. The mobile app opens it as a sheet.
+
+- The view is marked **Read-only** with both machines' names. To reply, approve
+  or stop the thread, choose **Connect to interact**. When the link has full
+  access, this app pairs with that machine in one step and opens the thread
+  there; you need permission to manage access on the machine you are connected
+  to. Otherwise the add-environment form opens for that machine and asks for a
+  pairing code you create on it.
+- This app connects to that machine directly, so it must be able to reach one of
+  the addresses the link uses. If it cannot, the view says so and stays
+  read-only. The new connection appears in that machine's **Settings → Sharing &
+  access**, named after this device and the machine it came through, and is
+  revoked there like any other.
+- Files, images and published visuals stay on that machine and do not load
+  here. A command's output shows as of when you open its row.
+- If this app is already connected to that machine, the thread opens there as
+  usual instead.
+- You need permission to read threads on the machine you are connected to.
+  Both machines need a version of Supaterm that has this view.
 
 ## Manage or revoke access
 

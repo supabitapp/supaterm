@@ -1,4 +1,4 @@
-import { act, render, stubGlobal } from "../../../test/render";
+import { act, fakeTimers, render, stubGlobal, type Screen } from "../../../test/render";
 import { EnvironmentId, ThreadId } from "@supaterm/contracts";
 import { describe, expect, it, vi } from "vite-plus/test";
 import { page, userEvent } from "vite-plus/test/browser";
@@ -9,9 +9,16 @@ const { refresh, assetUrlState } = vi.hoisted(() => ({
   assetUrlState: vi.fn<() => import("~/assets/assetUrls").AssetUrlState>(),
 }));
 
+// Like the real hook, the callback is a new function whenever its resource object is.
+const refreshers = new WeakMap<object, () => Promise<string | null>>();
 vi.mock(import("~/assets/assetUrls"), async (original) => ({
   ...(await original()),
-  useAssetUrlRefresh: () => refresh,
+  useAssetUrlRefresh: (_environmentId, resource) => {
+    if (!resource) return refresh;
+    let callback = refreshers.get(resource);
+    if (!callback) refreshers.set(resource, (callback = () => refresh()));
+    return callback;
+  },
   useAssetUrlState: assetUrlState,
 }));
 // The real source view highlights through a worker pool; the text it receives is what matters here.
@@ -954,6 +961,29 @@ describe("large text preview recovery", () => {
     await vi.waitFor(() => expect(load).toHaveBeenCalledWith(0));
   });
 });
+
+it("keeps an attachment URL when the parent passes a fresh asset object for the same attachment", async () => {
+  const url = URL.createObjectURL(new Blob(["%PDF-1.4"], { type: "application/pdf" }));
+  refresh.mockReset().mockResolvedValue(url);
+  const preview = () => (
+    <AttachmentFilePreview
+      name="report.pdf"
+      mimeType="application/pdf"
+      sizeBytes={8}
+      asset={{ environmentId: EnvironmentId.make("test"), attachmentId: "report" }}
+    />
+  );
+  try {
+    await using screen = await render(preview());
+    await vi.waitFor(() => expect(refresh).toHaveBeenCalledTimes(1));
+    // FilePreviewPanel rebuilds `asset` when an agent command completes.
+    await screen.rerender(preview());
+    expect(refresh).toHaveBeenCalledTimes(1);
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+});
+
 it.each([
   ["one.csv", "text/csv", "name\nAda\n", "1 row · 1 column ·"],
   ["two.csv", "text/csv", "name,count\nAda,1\nGrace,2\n", "2 rows · 2 columns ·"],
@@ -2043,4 +2073,56 @@ it("loads an edited HTML file outside the workspace from a renewed URL", async (
   expect(screen.container.querySelector("iframe")?.getAttribute("src")).toMatch(
     /^data:text\/html,edited/,
   );
+});
+
+it("keeps an unchanged workspace HTML page loaded across commands and renews its grant", async () => {
+  const { WorkspaceBrowserPreview } = await import("./FilePreviewPanel");
+  const preview = (mutation: string) => (
+    <WorkspaceBrowserPreview
+      environmentId={EnvironmentId.make("test")}
+      threadRef={{ environmentId: EnvironmentId.make("test"), threadId: ThreadId.make("test") }}
+      draft={false}
+      workspaceRoot="/repo"
+      absolutePath="/repo/report.html"
+      title="Report"
+      workspaceMutationId={mutation}
+    />
+  );
+  const minted = (url: string, fileRevision: string, expiresAt: number) =>
+    assetUrlState.mockReturnValue({ _tag: "Success", url, expiresAt, fileRevision });
+  const shownSrc = (screen: Screen) =>
+    screen.container.querySelector("iframe")?.getAttribute("src");
+  refresh.mockReset();
+  using _timers = fakeTimers();
+  vi.setSystemTime(0);
+  const expiresAt = 60 * 60_000;
+  minted("data:text/html,original", "one", expiresAt);
+  await using screen = await render(preview("first"));
+  const opened = screen.container.querySelector("iframe");
+  expect(shownSrc(screen)).toMatch(/^data:text\/html,original/);
+
+  // Agent commands re-mint the URL; the page and everything it loaded are unchanged.
+  minted("data:text/html,renewed", "one", expiresAt + 30 * 60_000);
+  await screen.rerender(preview("second"));
+  await screen.rerender(preview("third"));
+  expect(screen.container.querySelector("iframe")).toBe(opened);
+  expect(shownSrc(screen)).toMatch(/^data:text\/html,original/);
+  expect(refresh).not.toHaveBeenCalled();
+
+  // Its grant is about to expire, so the page moves to the URL minted since.
+  await act(() => vi.advanceTimersByTime(59 * 60_000));
+  expect(shownSrc(screen)).toMatch(/^data:text\/html,renewed/);
+  expect(refresh).not.toHaveBeenCalled();
+
+  // With no command since, the page asks for a fresh URL itself and moves to it.
+  refresh.mockResolvedValue(null);
+  await act(() => vi.advanceTimersByTime(30 * 60_000));
+  expect(refresh).toHaveBeenCalledTimes(1);
+  minted("data:text/html,renewed-again", "one", expiresAt + 90 * 60_000);
+  await screen.rerender(preview("third"));
+  expect(shownSrc(screen)).toMatch(/^data:text\/html,renewed-again/);
+
+  minted("data:text/html,edited", "two", expiresAt + 90 * 60_000);
+  await screen.rerender(preview("fourth"));
+  expect(shownSrc(screen)).toMatch(/^data:text\/html,edited/);
 });

@@ -254,6 +254,8 @@ interface MessagesTimelineProps {
   ) => boolean;
   onReplyToResponse?: TimelineRowSharedState["onReplyToResponse"];
   isWorking: boolean;
+  /** The thread is catching up from a cached copy, whose working state may be stale. */
+  syncing?: boolean;
   runlessWorkActive?: boolean;
   activeTurnStartedAt?: string | null;
   /** Replaces "Thinking" while the active run's provider has not started a turn. */
@@ -288,7 +290,7 @@ interface MessagesTimelineProps {
   announceTurnStatus?: boolean;
   onOpenTurnDiff: (runId: RunId, filePath?: string) => void;
   onOpenToolDiff?: (target: ToolCallDiffTarget) => void;
-  onOpenThread: (threadId: OrchestrationV2TurnItem["threadId"]) => void;
+  onOpenThread?: (threadId: OrchestrationV2TurnItem["threadId"]) => void;
   /** The thread this one is a subagent or side chat of. */
   parentThreadLink?: {
     readonly threadId: ThreadId;
@@ -347,6 +349,8 @@ interface MessagesTimelineProps {
   emptyPlaceholderInset: number;
   topFadeEnabled?: boolean;
   historyControls?: MessagesTimelineHistoryControls | undefined;
+  renderHtmlRender?: TimelineRowSharedState["renderHtmlRender"];
+  turnItemSource?: TimelineRowSharedState["turnItemSource"];
   pinnedMessages?: ReadonlyArray<ThreadPinnedMessage>;
   onTogglePinnedMessage?: (projectedItem: PinnableProjectedItem, pinned: boolean) => void;
   onJumpToPinnedMessage: (pin: ThreadPinnedMessage) => void;
@@ -382,6 +386,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
   onCiteAssistantText,
   onReplyToResponse,
   isWorking,
+  syncing = false,
   runlessWorkActive = false,
   activeTurnStartedAt = null,
   providerStartingLabel = null,
@@ -451,6 +456,8 @@ const ConversationTimeline = memo(function ConversationTimeline({
   emptyPlaceholderInset,
   topFadeEnabled = false,
   historyControls,
+  renderHtmlRender,
+  turnItemSource,
   pinnedMessages = EMPTY_PINNED_MESSAGES,
   onTogglePinnedMessage,
   onJumpToPinnedMessage,
@@ -1237,6 +1244,8 @@ const ConversationTimeline = memo(function ConversationTimeline({
   };
 
   const sharedState: TimelineRowSharedState = {
+    renderHtmlRender,
+    turnItemSource,
     citationRequest: readyCitationRequest,
     onReplyToResponse,
     listRef,
@@ -1262,7 +1271,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
     openPullRequest,
     onOpenToolDiff,
     onOpenTurnDiff,
-    onOpenThread,
+    onOpenThread: onOpenThread ?? null,
     workflowOpening,
     onForkFromRun: onForkFromRun ?? null,
     pinnedItemIds,
@@ -1326,7 +1335,9 @@ const ConversationTimeline = memo(function ConversationTimeline({
     parentThreadLink === null
       ? null
       : parentThreadLink.remote === undefined
-        ? () => onOpenThread(parentThreadLink.threadId)
+        ? onOpenThread === undefined
+          ? null
+          : () => onOpenThread(parentThreadLink.threadId)
         : parentThreadLink.remote.open;
   const listHeaderLeadingContent =
     parentThreadLink === null ? (
@@ -1633,7 +1644,10 @@ const ConversationTimeline = memo(function ConversationTimeline({
                   !liveFollowEnabled ||
                   fullscreenAppRowId !== null
                     ? false
-                    : isWorking && !prefersReducedMotion && settlingListIdentity === null
+                    : isWorking &&
+                        !syncing &&
+                        !prefersReducedMotion &&
+                        settlingListIdentity === null
                       ? TIMELINE_MAINTAIN_SCROLL_AT_END_SMOOTH
                       : TIMELINE_MAINTAIN_SCROLL_AT_END
                 }

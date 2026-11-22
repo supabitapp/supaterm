@@ -50,7 +50,9 @@ export function projectThreadContentPresentation(input: {
 export function threadSyncStatusLabel(
   status: EnvironmentThreadStatus,
   presentation: ThreadContentPresentation["kind"],
+  hasError: boolean,
 ): string | null {
   if (status !== "empty" && status !== "cached" && status !== "synchronizing") return null;
-  return presentation === "ready" ? "Syncing messages…" : null;
+  if (presentation !== "ready") return null;
+  return hasError ? "Could not sync messages" : "Syncing messages…";
 }

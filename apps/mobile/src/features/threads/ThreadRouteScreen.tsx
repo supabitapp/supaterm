@@ -1100,7 +1100,11 @@ function ThreadRouteContent(
   // A thread this client is creating has nothing older to sync.
   const threadSyncLabel =
     creationState === null
-      ? threadSyncStatusLabel(selectedThreadDetailState.status, contentPresentation.kind)
+      ? threadSyncStatusLabel(
+          selectedThreadDetailState.status,
+          contentPresentation.kind,
+          Option.isSome(selectedThreadDetailState.error),
+        )
       : null;
   // Transient states go in the header subtitle so the composer's status slot doesn't jump.
   const threadStatusLabel = useDelayedStatus(
@@ -1228,6 +1232,7 @@ function ThreadRouteContent(
           onResumeQueue={composer.canResume && canOperateThread ? handleResumeQueue : null}
           onSendMessage={composer.onSendMessage}
           onSendVoiceMessage={composer.onSendVoiceMessage}
+          onSendCommand={composer.onSendCommand}
           onReconnectEnvironment={handleReconnectEnvironment}
           canSwitchThreadProvider={composer.canSwitchThreadProvider}
           onUpdateThreadModelSelection={composer.onUpdateModelSelection}

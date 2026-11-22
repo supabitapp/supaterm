@@ -53,7 +53,7 @@ import {
   turnItemHasDetail,
 } from "@supaterm/client-runtime/work-log/item-detail";
 import { claudeSkillInvocation } from "@supaterm/shared/toolActivity";
-import { use, memo, useState, type KeyboardEvent } from "react";
+import { use, memo, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 import {
   workEntryDisplayIndicatesToolFailure,
   workEntrySignalsSevereFailure,
@@ -64,8 +64,11 @@ import { ChatMarkdownAssetImage } from "./ChatMarkdownMedia";
 import type { ExpandedImagePreview } from "./ExpandedImagePreview";
 import { workGroupImageGallery } from "./markdownImageGallery";
 import { CircleAlertIcon, RotateCcwIcon, XIcon } from "@supaterm/icons";
+import { McpSignInAction } from "./McpSignInAction";
+import * as DateTime from "effect/DateTime";
 import { Button, InlineButton } from "../ui/button";
 import { useAssetUrls } from "../../assets/assetUrls";
+import { observeResize } from "../../lib/observeResize";
 import { useThreadShell } from "../../state/entities";
 import { cn } from "~/lib/utils";
 import { formatUpcomingTimestamp } from "../../timestampFormat";
@@ -217,6 +220,7 @@ function WorkEntryLogRow(props: WorkEntryRowProps) {
   const { threadRef, timestampFormat } = ctx;
   const { retryableWorkspacePreparationRunIds, onRetryWorkspacePreparation } = ctx;
   const threadTarget = useThreadReadTarget(workEntry, ctx.activeThreadEnvironmentId);
+  const openThread = ctx.onOpenThread;
   const createdThread =
     workEntry.projectedItem?.item.type === "thread_created"
       ? workEntry.projectedItem.item
@@ -229,6 +233,20 @@ function WorkEntryLogRow(props: WorkEntryRowProps) {
   const [expanded, setExpanded] = useState(
     () => groupView?.state.expandedEntries.has(workEntry.id) ?? false,
   );
+  const noticeMessage =
+    workEntry.structuredPayload?.type === "system_notice"
+      ? workEntry.structuredPayload.message
+      : null;
+  const labelRef = useRef<HTMLSpanElement>(null);
+  const [noticeCutOff, setNoticeCutOff] = useState(false);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- only layout knows whether a notice fits its row
+  useLayoutEffect(() => {
+    const label = labelRef.current;
+    if (!label || noticeMessage === null) return;
+    const measure = () => setNoticeCutOff(label.scrollWidth > label.clientWidth);
+    measure();
+    return observeResize(label, measure);
+  }, [noticeMessage]);
   const onInitialOutputReady = () => {
     if (groupView) groupView.onContentReady?.(workEntry.id);
     else props.onContentReady?.();
@@ -344,6 +362,18 @@ function WorkEntryLogRow(props: WorkEntryRowProps) {
       : null;
   const viewedImagePath = workEntryViewedImagePath(workEntry);
   const payload = workEntry.structuredPayload;
+  const mcpSignIn =
+    payload?.type === "system_notice" &&
+    payload.mcpSignIn !== undefined &&
+    payload.providerThreadId !== null ? (
+      <McpSignInAction
+        environmentId={ctx.activeThreadEnvironmentId}
+        threadId={payload.threadId}
+        providerThreadId={payload.providerThreadId}
+        server={payload.mcpSignIn.server}
+        noticeAt={DateTime.toEpochMillis(payload.updatedAt)}
+      />
+    ) : null;
   const skill =
     payload?.type === "dynamic_tool"
       ? claudeSkillInvocation(payload.toolName, payload.input)
@@ -375,8 +405,10 @@ function WorkEntryLogRow(props: WorkEntryRowProps) {
     plainOutput !== undefined &&
     workEntry.projectedItem !== undefined &&
     turnItemNeedsDetailFetch(workEntry.projectedItem.item);
+  // A notice's details repeat its row, so it expands only to show text the row cuts off.
   const canExpandProjectedItem =
-    plainOutput !== undefined
+    (noticeMessage === null || noticeCutOff) &&
+    (plainOutput !== undefined
       ? Boolean(plainOutput || viewedImage || workEntry.questionAnswer || plainOutputFetches)
       : workEntry.projectedItem === undefined
         ? canExpand
@@ -386,7 +418,7 @@ function WorkEntryLogRow(props: WorkEntryRowProps) {
               viewedImage ||
               workEntry.questionAnswer ||
               turnItemHasDetail(workEntry.projectedItem.item),
-            );
+            ));
   const iconWrapperClass = cn(
     "flex size-4 items-center justify-center",
     showWarningIndicator
@@ -419,7 +451,6 @@ function WorkEntryLogRow(props: WorkEntryRowProps) {
         tabIndex: 0 as const,
         "aria-label": accessibleDisplayText,
         "aria-expanded": expanded,
-        onClick: toggleExpanded,
         onKeyDown: (e: KeyboardEvent<HTMLDivElement>) => {
           if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) {
             e.preventDefault();
@@ -427,14 +458,15 @@ function WorkEntryLogRow(props: WorkEntryRowProps) {
           }
         },
       }
-    : {};
+    : undefined;
 
   return (
     <WorkLogRow
       data-work-entry-id={workEntry.id}
       data-v2-item-type={workEntry.projectedItem?.item.type}
       data-v2-item-visibility={workEntry.projectedItem?.visibility}
-      {...rowToggleProps}
+      onClick={canExpandProjectedItem ? toggleExpanded : undefined}
+      toggle={rowToggleProps}
       icon={
         <span
           className={iconWrapperClass}
@@ -453,7 +485,12 @@ function WorkEntryLogRow(props: WorkEntryRowProps) {
         <div className="min-w-0 flex-1 overflow-hidden">
           <p className="flex min-w-0 w-full items-baseline gap-1.5 text-sm leading-relaxed">
             <span
-              className={cn(answerPreview ? "min-w-0" : "min-w-0 flex-1", "truncate", headingClass)}
+              ref={labelRef}
+              className={cn(
+                answerPreview || mcpSignIn ? "min-w-0" : "min-w-0 flex-1",
+                "truncate",
+                headingClass,
+              )}
             >
               {isReasoning && !expanded ? (
                 <ChatMarkdown
@@ -496,31 +533,40 @@ function WorkEntryLogRow(props: WorkEntryRowProps) {
                 {answerPreview}
               </span>
             ) : null}
+            {mcpSignIn}
           </p>
         </div>
       }
       trailing={
         <>
-          {createdThread ? (
+          {/* First, so revealing it takes label space instead of moving the controls. Notices
+              skip it, so hovering never changes what fits or moves Sign in. */}
+          {noticeMessage === null ? (
+            <TimelineRowTimestamp
+              createdAt={workEntry.createdAt}
+              timestampFormat={timestampFormat}
+            />
+          ) : null}
+          {createdThread && openThread ? (
             <button
               type="button"
               className="shrink-0 rounded-sm text-sm text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
               aria-label={`Open ${createdThread.title ?? "created thread"}`}
               onClick={(event) => {
                 event.stopPropagation();
-                ctx.onOpenThread(createdThread.targetThreadId);
+                openThread(createdThread.targetThreadId);
               }}
               onKeyDown={stopRowToggle}
             >
               Open chat
             </button>
           ) : null}
-          {notifiedSubagentThreadId ? (
+          {notifiedSubagentThreadId && openThread ? (
             <InlineButton
               aria-label="Open subagent thread"
               onClick={(event) => {
                 event.stopPropagation();
-                ctx.onOpenThread(notifiedSubagentThreadId);
+                openThread(notifiedSubagentThreadId);
               }}
               onKeyDown={stopRowToggle}
             >
@@ -537,7 +583,6 @@ function WorkEntryLogRow(props: WorkEntryRowProps) {
               <DisclosureChevron open={expanded} />
             </span>
           ) : null}
-          <TimelineRowTimestamp createdAt={workEntry.createdAt} timestampFormat={timestampFormat} />
         </>
       }
     >
@@ -630,6 +675,7 @@ function WorkEntryLogDetails({
               onInitialOutputReady={onInitialOutputReady}
               projectedItem={workEntry.projectedItem}
               environmentId={ctx.activeThreadEnvironmentId}
+              source={ctx.turnItemSource}
               cwd={ctx.markdownCwd}
               workspaceRoot={workspaceRoot}
               onOpenToolDiff={ctx.onOpenToolDiff}
@@ -645,6 +691,7 @@ function WorkEntryLogDetails({
                   onInitialOutputReady={onInitialOutputReady}
                   projectedItem={workEntry.projectedItem}
                   environmentId={ctx.activeThreadEnvironmentId}
+                  source={ctx.turnItemSource}
                   onImageExpand={expandImage}
                 />
               ) : null}

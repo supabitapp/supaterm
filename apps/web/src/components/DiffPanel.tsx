@@ -499,7 +499,9 @@ export default function DiffPanel({
   const gitDiff = selectedGitSource?.diff;
 
   const toolCallPreview =
-    toolCallSelection && toolCallItem?.type === "file_change" ? toolCallDiff(toolCallItem) : null;
+    toolCallSelection && toolCallItem?.type === "file_change"
+      ? toolCallDiff(toolCallItem, activeCwd)
+      : null;
   const selectedPatch = toolCallSelection
     ? toolCallPreview?.patch
     : selectedTurn

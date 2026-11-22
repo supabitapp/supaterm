@@ -498,7 +498,12 @@ export function useComposerCommandMenu({
           })
         : [];
       const environmentItems = environmentId
-        ? matchComposerEnvironmentItems({ environments, environmentId, query: trigger.query })
+        ? matchComposerEnvironmentItems({
+            environments,
+            linkedEnvironments,
+            environmentId,
+            query: trigger.query,
+          })
         : [];
       return [
         ...threadItems,
@@ -508,7 +513,7 @@ export function useComposerCommandMenu({
           trigger.query,
         ),
         ...pathSearch.entries.map((entry) => {
-          const parts = entry.path.split("/");
+          const parts = entry.path.normalize("NFC").split("/");
           return {
             id: `path:${entry.path}`,
             type: "path" as const,

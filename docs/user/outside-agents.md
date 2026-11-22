@@ -63,8 +63,8 @@ do (**Read only** is selected) and choose **Get code**. Enter the code on the
 sign-in page the app opens. It approves that one sign-in at the level you
 picked, once, and expires soon.
 
-To reach your other machines through the same connection, turn on **Linked
-environments** and [link them](./remote-access.md#link-another-environment).
+To reach your other machines through the same connection,
+[link them](./remote-access.md#link-another-environment).
 A call the app sends on keeps the lower of its own level and the link's.
 
 ## What outside agents can call
@@ -136,8 +136,10 @@ supaterm thread list
 `.` means the project that contains the current folder, or a git worktree of
 its repository; a project id also works. A new thread uses the project's
 default model and permission mode, and runs in the project folder unless you
-pass `--worktree <base-branch>`. `send` never interrupts: a busy thread gets
-the message as its next turn. Pass `-` as the message to read it from stdin.
+pass `--worktree <base-branch>`. Its title is the message's first line, or
+`--title`; add `--generate-title` to have it named from the message, as threads
+started in the app are. `send` never interrupts: a busy thread gets the message
+as its next turn. Pass `-` as the message to read it from stdin.
 
 To choose the model, pass `--provider <instance-id> --model <slug>`. Add
 `--option id=value` for each model option, such as `--option effort=high`.

@@ -13,7 +13,7 @@
     "@supaterm/contracts": "workspace:*",
     "@supaterm/shared": "workspace:*",
     "@supaterm/tailscale": "workspace:*",
-    "agent-device": "0.21.36",
+    "agent-device": "0.21.41",
     "effect": "catalog:",
     "playwright-core": "1.64.1",
     "plist": "3.1.0",

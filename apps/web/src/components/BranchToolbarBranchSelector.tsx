@@ -61,6 +61,7 @@ import {
   resolveEffectiveEnvMode,
   sanitizeNewRefName,
   shouldIncludeBranchPickerItem,
+  toBranchActionErrorMessage,
 } from "./BranchToolbar.logic";
 import {
   ThreadPullRequestBadgeControl,
@@ -98,10 +99,6 @@ interface BranchToolbarBranchSelectorProps {
 }
 
 const WORKTREE_CHANGE_BLOCKED_MESSAGE = "Stop the current turn to switch worktrees.";
-
-function toBranchActionErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : "An error occurred.";
-}
 
 export function BranchToolbarBranchSelector({
   forceNewWorktree = false,

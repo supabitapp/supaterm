@@ -83,6 +83,7 @@ export interface DesktopBackendStartConfig extends BackendProcessContext {
   readonly preflightFailure: Option.Option<PreflightFailure>;
   readonly runningDistro?: string;
   readonly wslRuntimeId?: string;
+  readonly wslSupatermHome?: string | null;
 }
 
 export interface PreflightFailure {
@@ -987,6 +988,7 @@ export const makeBackendInstance = Effect.fn("makeBackendInstance")(function* (
               yield* wslEnvironment.pruneRuntimes(
                 config.value.runningDistro,
                 config.value.wslRuntimeId,
+                config.value.wslSupatermHome ?? null,
               );
             }
           }),

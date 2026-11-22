@@ -21,13 +21,14 @@ import { ProviderIcon, ProviderInstanceIcon } from "../../components/ProviderIco
 import { cn } from "../../lib/cn";
 import type { ThreadFeedActivity } from "../../lib/threadActivity";
 import { useServerConfigs } from "../../state/entities";
-import { useEnvironments } from "../../state/environments";
 import { serverEnvironment } from "../../state/server";
 import { environmentThreadDetails } from "../../state/threads";
 import { subagentCardElapsed } from "./subagent-card-presentation";
 import { SubagentRow } from "./SubagentRow";
 import { subagentThreadTarget } from "./threadAgentsPresentation";
 import { useVisibleSecondClock } from "./use-visible-second-clock";
+import { linkedThreadRouteParams } from "./LinkedThreadSheet";
+import { useLinkedThreadReach } from "../../state/linkedThread";
 import { WorkLogBlock } from "./work-log-layout";
 import { DisclosureChevron } from "../../components/ui/DisclosureChevron";
 import { MotionPresence } from "../../components/ui/MotionPresence";
@@ -111,7 +112,6 @@ export function ThreadSubagentGroup(props: {
   const config = useAtomValue(serverEnvironment.configValueAtom(props.environmentId));
   const navigation = useNavigation();
   const openInspector = useOpenThreadInspector();
-  const { presentationById } = useEnvironments();
   const members = props.activities.flatMap(({ projectedItem }) =>
     projectedItem.item.type === "subagent" ? [projectedItem.item] : [],
   );
@@ -133,6 +133,7 @@ export function ThreadSubagentGroup(props: {
       modelSelection: live?.modelSelection,
     };
   });
+  const reach = useLinkedThreadReach(props.environmentId, agents);
   const grouped = agents.length > 1;
   const label = `${agents.length} subagents`;
   const summary = summarizeSubagentStatuses(agents.map((agent) => agent.status));
@@ -188,9 +189,12 @@ export function ThreadSubagentGroup(props: {
         {() => (
           <View className="mb-1 gap-px rounded-xl border border-border bg-card/30 p-1">
             {agents.map((agent) => {
-              // A task in a linked environment opens there, if this app is connected to it.
-              const target = subagentThreadTarget(agent, props.environmentId, (id) =>
-                presentationById.has(id),
+              // A task in a linked environment opens there, or read-only through this one.
+              const target = subagentThreadTarget(
+                agent,
+                props.environmentId,
+                reach.ownConnection,
+                reach.isLinked,
               );
               return (
                 <Pressable
@@ -198,15 +202,26 @@ export function ThreadSubagentGroup(props: {
                   accessible
                   accessibilityRole={target === null ? undefined : "link"}
                   accessibilityHint={
-                    target !== null
-                      ? "Opens this agent's thread"
-                      : agent.remoteChild !== undefined
+                    target === null
+                      ? agent.remoteChild !== undefined
                         ? `Runs on ${agent.remoteChild.label}`
                         : "Provider-managed agent"
+                      : target.linked === undefined
+                        ? "Opens this agent's thread"
+                        : `Opens a read-only view of this agent's thread on ${target.linked.label}`
                   }
                   disabled={target === null}
                   onPress={() => {
                     if (target === null) return;
+                    if (target.linked !== undefined) {
+                      navigation.dispatch(
+                        StackActions.push(
+                          "LinkedThread",
+                          linkedThreadRouteParams(target, target.linked, agent.title),
+                        ),
+                      );
+                      return;
+                    }
                     if (
                       openInspector(
                         { environmentId: props.environmentId, threadId: members[0]!.threadId },

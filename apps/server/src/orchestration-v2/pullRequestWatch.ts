@@ -82,9 +82,15 @@ export function evaluatePullRequestWatch(
   const awaiting = checks.filter((check) => check.status === "action-required");
   const pending = checks.filter((check) => check.status === "pending").map((check) => check.name);
   const newlyFailed = failed.filter((check) => !failedChecks.includes(check.name));
+  // The baseline hides failures from before the watch, but CI running at the start can fail
+  // before the first read.
+  const reportsNewFailures =
+    newlyFailed.length > 0 && (!checksBaseline || watch.checksPending === true);
   if (checks.length > 0) {
     // A run awaiting approval waits on a person, like a review, so only running checks count.
-    checksPending = pending.length > 0;
+    // An unfinished baseline read keeps the seed below for the next one.
+    checksPending =
+      pending.length > 0 || (checksBaseline && unread && watch.checksPending === true);
     // Approval reads can omit gated runs. Keep each hold until its jobs finish.
     const awaitingNow = [...new Set(awaiting.map(approvalKey))];
     const nameUnfinished = (name: string) => {
@@ -117,7 +123,7 @@ export function evaluatePullRequestWatch(
     ];
 
     // Without this the agent keeps waiting for checks that already ran.
-    if (!checksBaseline && newlyFailed.length > 0) {
+    if (reportsNewFailures) {
       changes.push(
         pending.length === 0 && awaitingApproval.length === 0
           ? { kind: "checks-finished", failing: failed }
@@ -164,7 +170,7 @@ export function evaluatePullRequestWatch(
         );
       }
       owedChecks = [];
-    } else if (gatePassed || (!checksBaseline && newlyFailed.length > 0)) {
+    } else if (gatePassed || reportsNewFailures) {
       owedChecks = [...new Set([...owedChecks, ...pending])];
     }
     passed = passedNow;
@@ -268,6 +274,7 @@ export function evaluatePullRequestWatch(
         }),
       checksAwaitedSince,
       checksPending,
+      ...(watch.until !== undefined && { until: watch.until }),
     },
     exhausted: commentsOnly && wakes >= PULL_REQUEST_WATCH_WAKE_LIMIT,
   };
@@ -462,6 +469,33 @@ export function combinePullRequestWatchWakes(
           ? "completed"
           : "updated",
       summary: wakes.map((wake) => wake.notification.summary).join("; "),
+    },
+  };
+}
+
+export function pullRequestWatchEndMessage(input: {
+  readonly number: number;
+  readonly url: string;
+  readonly detail: Pick<PullRequestDetail, "state" | "baseBranch" | "mergeCommitSha" | "mergedBy">;
+}): { readonly text: string; readonly notification: OrchestrationV2Notification } {
+  const { detail } = input;
+  const merged = detail.state === "merged";
+  const how = merged
+    ? [
+        `was merged into ${detail.baseBranch}`,
+        detail.mergedBy ? ` by ${detail.mergedBy.login}` : "",
+        detail.mergeCommitSha ? ` as ${detail.mergeCommitSha.slice(0, 7)}` : "",
+      ].join("")
+    : "was closed without merging";
+  return {
+    text: [
+      `Pull request #${input.number} (${input.url}) ${how}, so Supaterm stopped watching it.`,
+      ...(merged ? [] : ["If it is reopened, call watch_pull_request to watch it again."]),
+    ].join(" "),
+    notification: {
+      source: { kind: "monitor" },
+      outcome: merged ? "completed" : "updated",
+      summary: `#${input.number}: ${merged ? "merged" : "closed"}, stopped watching`,
     },
   };
 }

@@ -49,7 +49,6 @@ import { InlineConfirmLabel, InlineConfirmTooltip } from "../InlineConfirm";
 import { Textarea } from "../ui/textarea";
 import type { PairingRouteHints } from "@supaterm/shared/remote";
 import {
-  isLoopbackHostname,
   type ServerClientSessionRecord,
   type ServerPairingLinkRecord,
 } from "~/environments/primary";
@@ -243,9 +242,9 @@ const PairingLinkListRow = memo(function PairingLinkListRow({
     endpointPairingUrl ??
     (credential && endpointUrl != null && endpointUrl !== ""
       ? (hostedPairingUrl ?? resolveDesktopPairingUrl(endpointUrl, credential, pairingHints))
-      : !servedByEnvironment || isLoopbackHostname(window.location.hostname)
-        ? null
-        : currentOriginPairingUrl);
+      : servedByEnvironment
+        ? currentOriginPairingUrl
+        : null);
   const [failedCopyValue, setFailedCopyValue] = useState<string | null>(null);
   const revealValue = failedCopyValue ?? shareablePairingUrl ?? credential ?? "";
   const isRevealValueUrl = revealValue !== credential;

@@ -222,6 +222,13 @@ export function StyledDiffCodeView<LAnnotation = undefined>({
   unsafeCSSExtra,
   ...props
 }: StyledDiffCodeViewProps<LAnnotation>) {
+  // The change bars are colour alone; this names each changed line for screen readers.
+  const lineKindCss = `[data-indicators="bars"] [data-line][data-line-type="change-deletion"]::before {
+  content: "" / ${JSON.stringify("Removed")};
+}
+[data-indicators="bars"] [data-line][data-line-type="change-addition"]::before {
+  content: "" / ${JSON.stringify("Added")};
+}`;
   return (
     <DiffWorkerPoolProvider>
       <CodeView<LAnnotation>
@@ -235,8 +242,8 @@ export function StyledDiffCodeView<LAnnotation = undefined>({
         options={{
           ...options,
           unsafeCSS: unsafeCSSExtra
-            ? `${DIFF_VIEW_UNSAFE_CSS}\n${unsafeCSSExtra}`
-            : DIFF_VIEW_UNSAFE_CSS,
+            ? `${DIFF_VIEW_UNSAFE_CSS}\n${lineKindCss}\n${unsafeCSSExtra}`
+            : `${DIFF_VIEW_UNSAFE_CSS}\n${lineKindCss}`,
           itemMetrics: {
             diffHeaderHeight: 32,
             hunkSeparatorHeight: 24,

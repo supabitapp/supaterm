@@ -3,6 +3,7 @@ import * as DateTime from "effect/DateTime";
 import { resolveDesktopPairingUrl, resolveHostedPairingUrl } from "./pairingUrls";
 import { setPairingTokenOnUrl } from "@supaterm/shared/remote";
 import {
+  isLoopbackHostname,
   type ServerClientSessionRecord,
   type ServerPairingLinkRecord,
 } from "~/environments/primary";
@@ -433,8 +434,13 @@ export function resolveAdvertisedEndpointPairingUrl(
 export function resolveCurrentOriginPairingUrl(
   credential: string,
   hints: PairingRouteHints,
-): string {
-  const url = new URL("/pair", window.location.href);
+  currentHref: string = window.location.href,
+): string | null {
+  const url = new URL("/pair", currentHref);
+  // The packaged desktop window loads from supaterm://app, which no other device can open.
+  if ((url.protocol !== "http:" && url.protocol !== "https:") || isLoopbackHostname(url.hostname)) {
+    return null;
+  }
   return setPairingTokenOnUrl(url, credential, hints).toString();
 }
 

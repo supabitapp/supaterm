@@ -24,8 +24,13 @@ import {
 } from "./pullRequestDiffDebug";
 import { usePullRequestDiffHighlightFiles } from "./usePullRequestDiffHighlightFiles";
 import { isTestChangedFile } from "@supaterm/shared/changedFileKind";
-import { pullRequestFileJumpScope, subscribePullRequestFileJump } from "./pullRequestFileJump";
-import { useFocusEffect, useNavigation, type StaticScreenProps } from "@react-navigation/native";
+import { subscribePullRequestFileJump } from "./pullRequestFileJump";
+import {
+  useFocusEffect,
+  useNavigation,
+  useRoute,
+  type StaticScreenProps,
+} from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 import { pullRequestReviewKey } from "./pullRequestReviewDrafts";
@@ -38,7 +43,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AppText as Text } from "../../components/ui/AppText";
 import { ScreenContent } from "../../components/ui/ScreenContent";
-import { AppBar } from "../../components/ui/AppBar";
+import { AppBar, type AppBarMenu } from "../../components/ui/AppBar";
 
 import { EmptyState } from "../../components/ui/EmptyState";
 
@@ -59,7 +64,7 @@ import { useAppearancePreferences } from "../settings/appearance/AppearancePrefe
 import { useAppearanceCodeSurface } from "../settings/appearance/useAppearanceCodeSurface";
 import { useNativeReviewDiffBridge } from "../review/useNativeReviewDiffBridge";
 
-import { PullRequestActionToolbar } from "./PullRequestControls";
+import { PullRequestActionToolbar, usePullRequestVerticalControls } from "./PullRequestControls";
 import {
   pullRequestTarget as requestTarget,
   usePullRequestDiff,
@@ -268,7 +273,7 @@ function PullRequestFileRouteContent({ route }: PullRequestFileRouteProps) {
       jumpedUnder.current = null;
     });
   };
-  const jumpScope = pullRequestFileJumpScope(route.params);
+  const routeKey = useRoute().key;
   // Each sheet selection jumps in this reader, including reselecting its original file.
   const jumpToFile = useEffectEvent((path: string) => {
     if (route.params.focus) navigation.setParams({ focus: undefined });
@@ -283,7 +288,7 @@ function PullRequestFileRouteContent({ route }: PullRequestFileRouteProps) {
   // Subscribed for the whole screen, so a pick made while the diff is still loading is kept for
   // the first draw.
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- subscribes to file jumps picked in the files sheet for this pull request's scope
-  useEffect(() => subscribePullRequestFileJump(jumpScope, (path) => jumpToFile(path)), [jumpScope]);
+  useEffect(() => subscribePullRequestFileJump(routeKey, (path) => jumpToFile(path)), [routeKey]);
   const { nativeReviewDiffStyle } = useAppearanceCodeSurface();
   const { themeAppearance, appearance, setCodeWordBreak } = useAppearancePreferences();
   const bridge = useNativeReviewDiffBridge({
@@ -337,84 +342,84 @@ function PullRequestFileRouteContent({ route }: PullRequestFileRouteProps) {
   const title = commit ? "Commit changes" : "Changes";
   const seekingFile = !targetFile && result.nextCursor !== null;
   const loadingDiff = (result.isPending && !data.rows.length) || (seekingFile && !result.error);
+  const verticalControls = usePullRequestVerticalControls();
+  const diffMenu: AppBarMenu = {
+    title: "Diff options",
+    icon: "ellipsis",
+    items: [
+      ...(permissions.verdicts.length
+        ? [
+            {
+              id: "submit-review",
+              title: "Submit review",
+              icon: "text.bubble",
+              onPress: () =>
+                navigation.navigate("PullRequestReview", {
+                  ...route.params,
+                  mode: "review",
+                }),
+            },
+          ]
+        : []),
+      ...(permissions.canComment
+        ? [
+            {
+              id: "comment-on-pr",
+              title: "Add comment",
+              icon: "plus.bubble",
+              onPress: () =>
+                navigation.navigate("PullRequestReview", {
+                  ...route.params,
+                  mode: "comment",
+                }),
+            },
+          ]
+        : []),
+      {
+        id: "word-wrap",
+        title: "Word wrap",
+        icon: "text.alignleft",
+        selected: appearance.codeWordBreak,
+        onPress: () => setCodeWordBreak(!appearance.codeWordBreak),
+      },
+      {
+        id: "hide-tests",
+        title: "Hide test files",
+        icon: "line.3.horizontal.decrease",
+        selected: filter.hideTestFiles,
+        onPress: toggleTestFiles,
+      },
+      ...(selectedRow && selectedFile && canCommentOnDiff
+        ? [
+            {
+              id: "comment",
+              title: route.params.replacingDraftId
+                ? "Move draft to this line"
+                : "Add review comment",
+              icon: "bubble.left",
+              onPress: () => commentOnLine(),
+            },
+          ]
+        : []),
+      ...(selectedRow && selectedFile
+        ? [
+            {
+              id: "copy",
+              title: "Copy line",
+              icon: "document.on.document",
+              onPress: () => void Clipboard.setStringAsync(selectedRow.content ?? ""),
+            },
+          ]
+        : []),
+    ],
+  };
   return (
     <View className="flex-1 android:bg-header ios:bg-screen">
       <AppBar
         title={title}
         subtitle={`${commit ? commit.slice(0, 7) : `#${route.params.number}`} · ${data.files.length} ${data.files.length === 1 ? "file" : "files"}${filter.hideTestFiles && filter.hiddenCount ? ` · ${filter.hiddenCount} ${filter.hiddenCount === 1 ? "test" : "tests"} hidden` : ""}`}
         onBack={() => navigation.goBack()}
-        menus={[
-          {
-            title: "Diff options",
-            icon: "ellipsis",
-            items: [
-              ...(permissions.verdicts.length
-                ? [
-                    {
-                      id: "submit-review",
-                      title: "Submit review",
-                      icon: "text.bubble",
-                      onPress: () =>
-                        navigation.navigate("PullRequestReview", {
-                          ...route.params,
-                          mode: "review",
-                        }),
-                    },
-                  ]
-                : []),
-              ...(permissions.canComment
-                ? [
-                    {
-                      id: "comment-on-pr",
-                      title: "Add comment",
-                      icon: "plus.bubble",
-                      onPress: () =>
-                        navigation.navigate("PullRequestReview", {
-                          ...route.params,
-                          mode: "comment",
-                        }),
-                    },
-                  ]
-                : []),
-              {
-                id: "word-wrap",
-                title: "Word wrap",
-                icon: "text.alignleft",
-                selected: appearance.codeWordBreak,
-                onPress: () => setCodeWordBreak(!appearance.codeWordBreak),
-              },
-              {
-                id: "hide-tests",
-                title: "Hide test files",
-                icon: "line.3.horizontal.decrease",
-                selected: filter.hideTestFiles,
-                onPress: toggleTestFiles,
-              },
-              ...(selectedRow && selectedFile && canCommentOnDiff
-                ? [
-                    {
-                      id: "comment",
-                      title: route.params.replacingDraftId
-                        ? "Move draft to this line"
-                        : "Add review comment",
-                      icon: "bubble.left",
-                      onPress: () => commentOnLine(),
-                    },
-                  ]
-                : []),
-              ...(selectedRow && selectedFile
-                ? [
-                    {
-                      id: "copy",
-                      title: "Copy line",
-                      icon: "document.on.document",
-                      onPress: () => void Clipboard.setStringAsync(selectedRow.content ?? ""),
-                    },
-                  ]
-                : []),
-            ],
-          },
-        ]}
+        menus={verticalControls ? undefined : [diffMenu]}
       />
       {route.params.replacingDraftId ? (
         <Text className="px-4 py-2 text-xs text-foreground-muted">
@@ -552,7 +557,7 @@ function PullRequestFileRouteContent({ route }: PullRequestFileRouteProps) {
           ) : null}
           {result.error && result.nextCursor ? (
             <View className="self-center">
-              <Button label="Retry loading remaining files" tone="text" onPress={result.refresh} />
+              <Button label="Retry loading remaining files" tone="text" onPress={result.retry} />
             </View>
           ) : null}
           {parsed.kind === "files" && parsed.notice ? (
@@ -564,6 +569,7 @@ function PullRequestFileRouteContent({ route }: PullRequestFileRouteProps) {
         pr={detail.data}
         params={route.params}
         filePath={visibleFile?.path}
+        menu={diffMenu}
         onOpenFiles={() => navigation.navigate("PullRequestFiles", route.params)}
         onHeightChange={setToolbarHeight}
       />

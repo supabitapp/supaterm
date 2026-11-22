@@ -189,6 +189,8 @@ import {
   threadActionRequiresOperate,
 } from "./threadActionMenu.logic";
 import {
+  draftRowKey,
+  orderSidebarRows,
   applySidebarThreadDrop,
   filterSidebarV2VisibleThreads,
   buildBulkTitleRegenerationContextMenuItem,
@@ -265,7 +267,7 @@ import { useShallow } from "zustand/react/shallow";
 import { openThreadBeside } from "../chatPanes/actions";
 import { threadDeleteConfirmation } from "../lib/threadDeleteConfirmation";
 import { SortableThreadRow, type SidebarProviderEntry } from "./sidebar/SidebarThreadRow";
-import { SidebarDraftBlock } from "./sidebar/SidebarDraftBlock";
+import { SidebarDraftBlock, useSidebarDrafts } from "./sidebar/SidebarDraftBlock";
 
 function sameSidebarProviderEntries(
   left: ReadonlyMap<string, SidebarProviderEntry>,
@@ -1366,18 +1368,28 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     snoozedThreadKeysRef.current = snoozedThreadKeys;
     sectionByThreadKeyRef.current = sectionByThreadKey;
   });
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- shares the jump shortcut targets with Codex Micro's agent keys
-  useEffect(() => publishThreadJumpTargets(orderedThreadKeys));
 
   const pinShortcut = shortcutLabelForCommand(keybindings, "thread.pin");
   const doneShortcut = shortcutLabelForCommand(keybindings, "thread.mark-done");
+  const sidebarDrafts = useSidebarDrafts(sidebarScope, routeDraftIdForRows);
+  const orderedRows = orderSidebarRows({
+    orderedThreadKeys,
+    sectionByThreadKey,
+    draftIds: sidebarDrafts.shownDraftIds,
+  });
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- shares the jump shortcut targets with Codex Micro's agent keys
+  useEffect(() => publishThreadJumpTargets(orderedRows));
+  const orderedRowKeys = orderedRows.map((row) => row.key);
+  const routeRowKey =
+    orderedRows.find((row) => row.type === "draft" && row.draftId === routeDraftIdForRows)?.key ??
+    routeRowThreadKey;
   const jumpLabelByKey = (() => {
     const mapping = new Map<string, string>();
-    for (const [index, threadKey] of orderedThreadKeys.entries()) {
+    for (const [index, rowKey] of orderedRowKeys.entries()) {
       const jumpCommand = threadJumpCommandForIndex(index);
       if (!jumpCommand) break;
       const label = shortcutLabelForCommand(keybindings, jumpCommand);
-      if (label) mapping.set(threadKey, label);
+      if (label) mapping.set(rowKey, label);
     }
     return mapping;
   })();
@@ -2802,17 +2814,23 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
       if (repeat) return false;
       const traversalDirection = threadTraversalDirectionFromCommand(command);
       const jumpIndex = threadJumpIndexFromCommand(command);
-      const targetThreadKey =
-        traversalDirection !== null
-          ? resolveAdjacentThreadId({
-              threadIds: orderedThreadKeys,
-              currentThreadId: routeRowThreadKey,
+      const adjacentKey =
+        traversalDirection === null
+          ? null
+          : resolveAdjacentThreadId({
+              threadIds: orderedRowKeys,
+              currentThreadId: routeRowKey,
               direction: traversalDirection,
-            })
-          : jumpIndex !== null
-            ? (orderedThreadKeys[jumpIndex] ?? null)
-            : null;
-      const targetThread = targetThreadKey ? threadByKey.get(targetThreadKey) : undefined;
+            });
+      const target =
+        jumpIndex === null
+          ? orderedRows.find((row) => row.key === adjacentKey)
+          : orderedRows[jumpIndex];
+      if (target?.type === "draft") {
+        navigateToDraft(target.draftId);
+        return;
+      }
+      const targetThread = target ? threadByKey.get(target.key) : undefined;
       if (!targetThread) return false;
       navigateToThread(scopeThreadRef(targetThread.environmentId, targetThread.id));
     },
@@ -2840,6 +2858,14 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
   );
 
   const showJumpHints = useThreadJumpHintsVisible(keybindings, routeThreadRef);
+  const draftJumpLabelById = showJumpHints
+    ? new Map(
+        sidebarDrafts.shownDraftIds.flatMap((id) => {
+          const label = jumpLabelByKey.get(draftRowKey(id));
+          return label ? [[id, label] as const] : [];
+        }),
+      )
+    : null;
 
   return (
     <SidebarFolderDrop>
@@ -2850,7 +2876,10 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
         fixedHeader={
           <SidebarGroup>
             <div className="flex flex-col gap-2">
-              <SidebarPrimaryNavigation projectGroupCount={projectGroups.length} />
+              <SidebarPrimaryNavigation
+                projectGroupCount={projectGroups.length}
+                scopedProjectGroups={scopedProjectGroups}
+              />
               {projectGroups.length > 0 ? (
                 <SidebarThreadHeader
                   scopeLabel={scopeLabel}
@@ -3180,9 +3209,10 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                           items.push(
                             <SidebarDraftBlock
                               key="draft-sessions"
+                              drafts={sidebarDrafts}
+                              jumpLabelByDraftId={draftJumpLabelById}
                               projectByKey={projectByKey}
                               projectDisplayNameByKey={projectDisplayNameByKey}
-                              scope={sidebarScope}
                               routeDraftId={routeDraftIdForRows}
                               onNavigateToDraft={navigateToDraft}
                               onDraftContextMenu={handleDraftContextMenu}

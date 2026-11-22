@@ -11,6 +11,7 @@ import { type RefObject, useSyncExternalStore } from "react";
 import { toastManager } from "~/components/ui/toast";
 import { useStableCallback } from "~/hooks/useStableCallback";
 import { readPreviewStreamAccess } from "~/state/previewStream";
+import { readPreparedConnection } from "~/state/session";
 import { previewStateAtom, type ThreadPreviewState } from "~/previewStateStore";
 import { appAtomRegistry } from "~/rpc/atomRegistry";
 
@@ -187,7 +188,11 @@ export async function openServerPictureInPicture(input: {
       const navigation = state.sessions[input.tabId]?.navStatus;
       if (
         navigation?._tag === "Success" &&
-        previewPdfAssetUrl(navigation.url, navigation.url) !== null
+        // The base the client loads asset PDFs through now; a connection can change route.
+        previewPdfAssetUrl(
+          navigation.url,
+          readPreparedConnection(input.environmentId)?.httpBaseUrl ?? null,
+        ) !== null
       ) {
         onLeave();
       }

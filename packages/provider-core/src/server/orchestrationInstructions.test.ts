@@ -69,6 +69,21 @@ describe("Supaterm device instructions", () => {
     assert.include(laterRun(false), SUPATERM_DEVICE_TOOL_INSTRUCTIONS);
     assert.notInclude(laterRun(false), SUPATERM_ORCHESTRATION_INSTRUCTIONS.trim());
     assert.equal(laterRun(true), "Check the login screen.");
+
+    // A provider's own guidance reaches a conversation that already had the rest.
+    const providerRun = (providerInstructionsDelivered: boolean) =>
+      supatermOrchestrationPrompt({
+        prompt: "Check the login screen.",
+        hasSupatermMcp: true,
+        hasDeviceTools: false,
+        orchestrationDelivered: true,
+        deviceInstructionsDelivered: false,
+        providerInstructions: "Mark awaited shells.",
+        providerInstructionsDelivered,
+      });
+    assert.include(providerRun(false), "Mark awaited shells.");
+    assert.notInclude(providerRun(false), SUPATERM_ORCHESTRATION_INSTRUCTIONS.trim());
+    assert.equal(providerRun(true), "Check the login screen.");
   });
 
   it("reach ACP agents again when device access changes mid-thread", () => {

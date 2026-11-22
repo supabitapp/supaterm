@@ -92,9 +92,13 @@ describe("ProjectIconPickerDialog", () => {
 
     await userEvent.fill(letters, "supaterm");
     await click("Save icon");
+    expect(onSelect).not.toHaveBeenCalled();
+
+    await userEvent.fill(letters, "s3");
+    await click("Save icon");
     expect(onSelect).toHaveBeenCalledExactlyOnceWith({
       kind: "monogram",
-      text: "SUPATERM",
+      text: "S3",
       color: automatic.color,
     });
   });

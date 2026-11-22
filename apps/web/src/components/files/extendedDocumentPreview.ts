@@ -35,13 +35,17 @@ const namespacePrefixes: Record<string, string> = {
   "urn:oasis:names:tc:opendocument:xmlns:container": "",
 };
 function parseXml(source: string): XmlNode {
-  // EPUB XHTML commonly declares an external DTD. Discard it without resolving it.
-  source = source.replaceAll(/<!DOCTYPE\s+[^<>[\]]*>/gi, "");
-  if (
-    source.length > 8 * 1024 * 1024 ||
-    /<!\s*(DOCTYPE|ENTITY)/i.test(source) ||
-    XMLValidator.validate(source) !== true
-  )
+  // EPUB XHTML commonly declares an external DTD: discard it without resolving it. Any other
+  // declaration is rejected; CDATA, comments and processing instructions pass through untouched.
+  let declares = false;
+  source = source.replaceAll(
+    /<\?[\s\S]*?(?:\?>|$)|<!\[CDATA\[[\s\S]*?(?:]]>|$)|<!--[\s\S]*?(?:-->|$)|(<!DOCTYPE\s+[^<>[\]]*>)|(<!\s*(?:DOCTYPE|ENTITY))/gi,
+    (markup, externalDoctype?: string, declaration?: string) => {
+      if (declaration) declares = true;
+      return externalDoctype ? " " : markup;
+    },
+  );
+  if (source.length > 8 * 1024 * 1024 || declares || XMLValidator.validate(source) !== true)
     throw new Error("This document contains invalid or unsupported XML.");
   const parser = new XMLParser({
     preserveOrder: true,
@@ -71,10 +75,13 @@ function parseXml(source: string): XmlNode {
         return { name: "#text", attrs: {}, children: [], text: literal };
       }
       const attrs = Object.fromEntries(
-        Object.entries((item[":@"] ?? {}) as Record<string, string>).map(([key, value]) => [
-          key,
-          decodeEntities(value),
-        ]),
+        Object.entries((item[":@"] ?? {}) as Record<string, string>).map(([key, value]) => {
+          // fast-xml-parser accepts raw '<' in element attributes, which can mask declarations
+          // above. Processing instructions end at their first '?>', so their data may hold '<'.
+          if (!name.startsWith("?") && value.includes("<"))
+            throw new Error("This document contains invalid or unsupported XML.");
+          return [key, decodeEntities(value)];
+        }),
       );
       const namespaces = Object.create(inherited) as Record<string, string>;
       for (const [key, value] of Object.entries(attrs)) {
@@ -419,8 +426,9 @@ export async function openEpub(archive: JSZip): Promise<OfficeWorkerResult> {
     const chapter = parseXml(await entry.async("string"));
     pages.push({
       title:
-        text(find(chapter, "title")[0] ?? find(chapter, "h1")[0] ?? chapter).slice(0, 120) ||
-        `Chapter ${pages.length + 1}`,
+        text(find(chapter, "title")[0] ?? find(chapter, "h1")[0] ?? chapter)
+          .trim()
+          .slice(0, 120) || `Chapter ${pages.length + 1}`,
       html: await epubHtml(chapter, archive, path),
     });
   }
@@ -483,8 +491,8 @@ export function openNotebook(bytes: ArrayBuffer): OfficeWorkerResult {
           if (html.trim() && htmlImagesFit(html)) return { kind: "html" as const, text: html };
           return {
             kind: "text" as const,
-            text: notebookText(
-              output.text ?? data["text/plain"] ?? tracebackLines(output.traceback),
+            text: terminalOutputPlainText(
+              notebookText(output.text ?? data["text/plain"] ?? tracebackLines(output.traceback)),
             ),
           };
         })
@@ -684,7 +692,8 @@ export function openRtf(bytes: ArrayBuffer): OfficeWorkerResult {
         if (!Number.isSafeInteger(arg) || arg < 0 || arg > source.length - i)
           throw new Error("Invalid rich text binary data.");
         i += arg;
-      } else if (word === "ansicpg") {
+      } else if (word === "mac") state.decoder = new TextDecoder("macintosh");
+      else if (word === "ansicpg") {
         const label =
           (
             {
@@ -694,6 +703,7 @@ export function openRtf(bytes: ArrayBuffer): OfficeWorkerResult {
               949: "euc-kr",
               950: "big5",
               874: "windows-874",
+              10000: "macintosh",
             } as Record<number, string>
           )[arg] ?? `windows-${arg}`;
         try {

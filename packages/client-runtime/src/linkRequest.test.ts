@@ -260,7 +260,8 @@ describe("linkedEnvironmentNames", () => {
     expect(
       linkedEnvironmentNames({
         links: [
-          { environmentId: vps, label: "vps-01", status: "unreachable" },
+          { environmentId: vps, label: "vps-01" },
+          // An older server lists its links with their status, expired ones too.
           { environmentId: mini, label: "mini", status: "expired" },
           { environmentId: unsaved, label: "Office box", status: "reachable" },
         ],

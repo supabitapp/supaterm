@@ -1,5 +1,7 @@
 import { scopeThreadRef } from "@supaterm/client-runtime/environment";
+import { resolveLinkedThreadOpen } from "@supaterm/client-runtime/linked-thread";
 import type { EnvironmentId, ScopedThreadRef } from "@supaterm/contracts";
+import { MessagesSquareIcon } from "@supaterm/icons";
 import {
   formatThreadLink,
   guessThreadLinkRef,
@@ -15,14 +17,19 @@ import {
   useThreadRefs,
   useThreadShell,
 } from "../../state/entities";
+import { useRightPanelStore } from "../../rightPanelStore";
+import { useConnectedEnvironmentIds, useEnvironmentIdentities } from "../../state/environments";
 import { orchestrationEnvironment } from "../../state/orchestration";
+import { useLinkedThreadLabel } from "../../state/peerLinks";
 import { useEnvironmentQuery } from "../../state/query";
+import { ContextChip, ContextChipLabel } from "../ContextChip";
 import { UnresolvedChip } from "../contextChipParts";
 import { ThreadContextChip } from "../ThreadContextChip";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 
 /**
  * `label` is the link's written text; an autolink has none. `threadRef` is the thread whose
- * message holds the link.
+ * message holds the link; a linked environment's thread opens read-only in its right panel.
  */
 export function MarkdownThreadLink(props: {
   readonly environmentId: EnvironmentId;
@@ -71,6 +78,60 @@ export function MarkdownThreadLink(props: {
   const childRef = candidates.find((ref) => childTitles.has(ref.threadId)) ?? null;
   // Reading the family to settle an absence would hold the server's database reader for seconds.
   const mayBeOmitted = useShellOmitsThreads(environmentId) && !canLookUp;
+  const saved = useEnvironmentIdentities().some(
+    (environment) => environment.environmentId === environmentId,
+  );
+  const connected = useConnectedEnvironmentIds().includes(environmentId);
+  // A thread on a machine this client is not connected to still reads through the one that links to it.
+  const linkedLabel = useLinkedThreadLabel(
+    connected || environmentId === props.environmentId ? null : props.environmentId,
+    environmentId,
+  );
+  const panelRef = props.threadRef;
+  // A shell cached from an earlier connection does not make the thread open there now. Outside a
+  // thread there is no panel to read it in, so the link behaves as it does without one.
+  if (
+    panelRef !== null &&
+    linkedLabel !== undefined &&
+    resolveLinkedThreadOpen({
+      environmentId,
+      viaEnvironmentId: props.environmentId,
+      own: saved ? { connected } : undefined,
+      linked: true,
+    }) === "linked"
+  ) {
+    const knownTitle = props.label ?? written?.title ?? null;
+    const title = knownTitle ?? `Thread on ${linkedLabel}`;
+    return (
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <ContextChip
+              kind="thread"
+              render={
+                <button
+                  type="button"
+                  onClick={() =>
+                    useRightPanelStore.getState().openLinkedThread(panelRef, {
+                      viaEnvironmentId: props.environmentId,
+                      ...writtenRef,
+                      label: linkedLabel,
+                      title: knownTitle,
+                    })
+                  }
+                />
+              }
+              aria-label={`Thread, ${title}`}
+            >
+              <MessagesSquareIcon />
+              <ContextChipLabel>{title}</ContextChipLabel>
+            </ContextChip>
+          }
+        />
+        <TooltipPopup side="top">Read the thread on {linkedLabel}</TooltipPopup>
+      </Tooltip>
+    );
+  }
   if (missing && resolved === null && childRef === null && !mayBeOmitted) {
     const unknown = unknownThreadLinkLabel(props.link, props.environmentId);
     return <UnresolvedChip label={props.label ?? unknown} tooltip={unknown} />;

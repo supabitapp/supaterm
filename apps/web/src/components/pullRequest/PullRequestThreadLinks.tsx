@@ -19,6 +19,7 @@ import { Command, CommandInput, CommandItem, CommandList } from "../ui/command";
 import { Dialog, DialogPopup, DialogTitle } from "../ui/dialog";
 import { MenuItem } from "../ui/menu";
 import { toastManager } from "../ui/toast";
+import { threadLinkMatcher } from "./PullRequestThreadLinks.logic";
 import { PullRequestGlyph } from "./pullRequestIcons";
 
 interface PullRequestThreadLinksProps {
@@ -190,15 +191,13 @@ function ThreadPicker({
       .filter((project) => project.environmentId === environmentId)
       .map((project) => [project.id, project.title]),
   );
-  const search = query.trim().toLocaleLowerCase();
+  const matches = threadLinkMatcher(query);
   const candidates = threads
     .filter(
       (thread) =>
         thread.environmentId === environmentId &&
         thread.archivedAt === null &&
-        `${thread.title} ${projectNames.get(thread.projectId) ?? ""}`
-          .toLocaleLowerCase()
-          .includes(search),
+        matches(`${thread.title} ${projectNames.get(thread.projectId) ?? ""}`),
     )
     .toSorted((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   return (

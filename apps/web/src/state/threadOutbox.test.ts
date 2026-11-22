@@ -83,9 +83,26 @@ vi.mock("./threadCommands", () => ({
     snapshotAtom: () => "snapshot",
   },
 }));
-vi.mock("./attachments", () => ({
-  attachmentEnvironment: { createUploadUrl: { label: "upload" }, remove: { label: "remove" } },
-}));
+vi.mock("./attachments", async () => {
+  const Effect = await import("effect/Effect");
+  const operation = { label: "upload" };
+  return {
+    attachmentEnvironment: {
+      createUploadUrl: {
+        ...operation,
+        run: (registry: unknown, input: unknown) =>
+          Effect.promise((): Promise<AsyncResult.AsyncResult<unknown, unknown>> =>
+            harness.run(registry, operation, input),
+          ).pipe(
+            Effect.flatMap((result) =>
+              result._tag === "Success" ? Effect.succeed(result.value) : Effect.fail(result),
+            ),
+          ),
+      },
+      remove: { label: "remove" },
+    },
+  };
+});
 vi.mock("./assets", () => ({ assetEnvironment: { createUrl: { label: "verify" } } }));
 vi.mock("./vcs", () => ({ fetchVcsRefs: { label: "refs" } }));
 vi.mock("./transcription", () => ({

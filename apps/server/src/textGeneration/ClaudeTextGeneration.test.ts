@@ -65,6 +65,8 @@ function withFakeClaudeEnv<A, E, R>(
     expectedTools?: string;
     argsMustNotContain?: string;
     stdinMustContain?: string;
+    imageRejection?: string;
+    imageAttemptLog?: string;
     configDirMustBe?: string;
     cwdMustNotBe?: string;
     claudeConfig?: Partial<ClaudeSettings>;
@@ -77,143 +79,36 @@ function withFakeClaudeEnv<A, E, R>(
     const tempDir = yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-claude-text-" });
     const binDir = yield* makeFakeClaudeBinary(tempDir, input.lifecyclePort);
     const pathDelimiter = (yield* HostProcess.isWindows) ? ";" : ":";
-    const previousPath = process.env.PATH;
-    const previousRejectsNoSessionPersistence =
-      process.env.SUPATERM_FAKE_CLAUDE_REJECTS_NO_SESSION_PERSISTENCE;
-    const previousOutput = process.env.SUPATERM_FAKE_CLAUDE_OUTPUT;
-    const previousExitCode = process.env.SUPATERM_FAKE_CLAUDE_EXIT_CODE;
-    const previousStderr = process.env.SUPATERM_FAKE_CLAUDE_STDERR;
-    const previousArgsMustContain = process.env.SUPATERM_FAKE_CLAUDE_ARGS_MUST_CONTAIN;
-    const previousExpectedTools = process.env.SUPATERM_FAKE_CLAUDE_EXPECTED_TOOLS;
-    const previousArgsMustNotContain = process.env.SUPATERM_FAKE_CLAUDE_ARGS_MUST_NOT_CONTAIN;
-    const previousStdinMustContain = process.env.SUPATERM_FAKE_CLAUDE_STDIN_MUST_CONTAIN;
-    const previousConfigDirMustBe = process.env.SUPATERM_FAKE_CLAUDE_CONFIG_DIR_MUST_BE;
-    const previousCwdMustNotBe = process.env.SUPATERM_FAKE_CLAUDE_CWD_MUST_NOT_BE;
-
+    const fakeClaudeEnv: Record<string, string | undefined> = {
+      PATH: `${binDir}${pathDelimiter}${process.env.PATH ?? ""}`,
+      SUPATERM_FAKE_CLAUDE_OUTPUT: input.output,
+      SUPATERM_FAKE_CLAUDE_REJECTS_NO_SESSION_PERSISTENCE: input.rejectsNoSessionPersistence
+        ? "1"
+        : undefined,
+      SUPATERM_FAKE_CLAUDE_EXIT_CODE:
+        input.exitCode === undefined ? undefined : String(input.exitCode),
+      SUPATERM_FAKE_CLAUDE_STDERR: input.stderr,
+      SUPATERM_FAKE_CLAUDE_ARGS_MUST_CONTAIN: input.argsMustContain,
+      SUPATERM_FAKE_CLAUDE_EXPECTED_TOOLS: input.expectedTools,
+      SUPATERM_FAKE_CLAUDE_ARGS_MUST_NOT_CONTAIN: input.argsMustNotContain,
+      SUPATERM_FAKE_CLAUDE_STDIN_MUST_CONTAIN: input.stdinMustContain,
+      SUPATERM_FAKE_CLAUDE_IMAGE_REJECTION: input.imageRejection,
+      SUPATERM_FAKE_CLAUDE_IMAGE_ATTEMPT_LOG: input.imageAttemptLog,
+      SUPATERM_FAKE_CLAUDE_CWD_MUST_NOT_BE: input.cwdMustNotBe,
+      SUPATERM_FAKE_CLAUDE_CONFIG_DIR_MUST_BE: input.configDirMustBe,
+    };
+    const previousEnv = Object.fromEntries(
+      Object.keys(fakeClaudeEnv).map((name) => [name, process.env[name]]),
+    );
+    const assignEnv = (values: Record<string, string | undefined>) => {
+      for (const [name, value] of Object.entries(values)) {
+        if (value === undefined) delete process.env[name];
+        else process.env[name] = value;
+      }
+    };
     yield* Effect.acquireRelease(
-      Effect.sync(() => {
-        process.env.PATH = `${binDir}${pathDelimiter}${previousPath ?? ""}`;
-        process.env.SUPATERM_FAKE_CLAUDE_OUTPUT = input.output;
-
-        if (input.rejectsNoSessionPersistence) {
-          process.env.SUPATERM_FAKE_CLAUDE_REJECTS_NO_SESSION_PERSISTENCE = "1";
-        } else {
-          delete process.env.SUPATERM_FAKE_CLAUDE_REJECTS_NO_SESSION_PERSISTENCE;
-        }
-
-        if (input.exitCode !== undefined) {
-          process.env.SUPATERM_FAKE_CLAUDE_EXIT_CODE = String(input.exitCode);
-        } else {
-          delete process.env.SUPATERM_FAKE_CLAUDE_EXIT_CODE;
-        }
-
-        if (input.stderr !== undefined) {
-          process.env.SUPATERM_FAKE_CLAUDE_STDERR = input.stderr;
-        } else {
-          delete process.env.SUPATERM_FAKE_CLAUDE_STDERR;
-        }
-
-        if (input.argsMustContain !== undefined) {
-          process.env.SUPATERM_FAKE_CLAUDE_ARGS_MUST_CONTAIN = input.argsMustContain;
-        } else {
-          delete process.env.SUPATERM_FAKE_CLAUDE_ARGS_MUST_CONTAIN;
-        }
-
-        if (input.expectedTools !== undefined) {
-          process.env.SUPATERM_FAKE_CLAUDE_EXPECTED_TOOLS = input.expectedTools;
-        } else {
-          delete process.env.SUPATERM_FAKE_CLAUDE_EXPECTED_TOOLS;
-        }
-
-        if (input.argsMustNotContain !== undefined) {
-          process.env.SUPATERM_FAKE_CLAUDE_ARGS_MUST_NOT_CONTAIN = input.argsMustNotContain;
-        } else {
-          delete process.env.SUPATERM_FAKE_CLAUDE_ARGS_MUST_NOT_CONTAIN;
-        }
-
-        if (input.stdinMustContain !== undefined) {
-          process.env.SUPATERM_FAKE_CLAUDE_STDIN_MUST_CONTAIN = input.stdinMustContain;
-        } else {
-          delete process.env.SUPATERM_FAKE_CLAUDE_STDIN_MUST_CONTAIN;
-        }
-
-        if (input.cwdMustNotBe !== undefined) {
-          process.env.SUPATERM_FAKE_CLAUDE_CWD_MUST_NOT_BE = input.cwdMustNotBe;
-        } else {
-          delete process.env.SUPATERM_FAKE_CLAUDE_CWD_MUST_NOT_BE;
-        }
-
-        if (input.configDirMustBe !== undefined) {
-          process.env.SUPATERM_FAKE_CLAUDE_CONFIG_DIR_MUST_BE = input.configDirMustBe;
-        } else {
-          delete process.env.SUPATERM_FAKE_CLAUDE_CONFIG_DIR_MUST_BE;
-        }
-      }),
-      () =>
-        Effect.sync(() => {
-          process.env.PATH = previousPath;
-
-          if (previousRejectsNoSessionPersistence === undefined) {
-            delete process.env.SUPATERM_FAKE_CLAUDE_REJECTS_NO_SESSION_PERSISTENCE;
-          } else {
-            process.env.SUPATERM_FAKE_CLAUDE_REJECTS_NO_SESSION_PERSISTENCE =
-              previousRejectsNoSessionPersistence;
-          }
-
-          if (previousOutput === undefined) {
-            delete process.env.SUPATERM_FAKE_CLAUDE_OUTPUT;
-          } else {
-            process.env.SUPATERM_FAKE_CLAUDE_OUTPUT = previousOutput;
-          }
-
-          if (previousExitCode === undefined) {
-            delete process.env.SUPATERM_FAKE_CLAUDE_EXIT_CODE;
-          } else {
-            process.env.SUPATERM_FAKE_CLAUDE_EXIT_CODE = previousExitCode;
-          }
-
-          if (previousStderr === undefined) {
-            delete process.env.SUPATERM_FAKE_CLAUDE_STDERR;
-          } else {
-            process.env.SUPATERM_FAKE_CLAUDE_STDERR = previousStderr;
-          }
-
-          if (previousArgsMustContain === undefined) {
-            delete process.env.SUPATERM_FAKE_CLAUDE_ARGS_MUST_CONTAIN;
-          } else {
-            process.env.SUPATERM_FAKE_CLAUDE_ARGS_MUST_CONTAIN = previousArgsMustContain;
-          }
-
-          if (previousExpectedTools === undefined) {
-            delete process.env.SUPATERM_FAKE_CLAUDE_EXPECTED_TOOLS;
-          } else {
-            process.env.SUPATERM_FAKE_CLAUDE_EXPECTED_TOOLS = previousExpectedTools;
-          }
-
-          if (previousArgsMustNotContain === undefined) {
-            delete process.env.SUPATERM_FAKE_CLAUDE_ARGS_MUST_NOT_CONTAIN;
-          } else {
-            process.env.SUPATERM_FAKE_CLAUDE_ARGS_MUST_NOT_CONTAIN = previousArgsMustNotContain;
-          }
-
-          if (previousStdinMustContain === undefined) {
-            delete process.env.SUPATERM_FAKE_CLAUDE_STDIN_MUST_CONTAIN;
-          } else {
-            process.env.SUPATERM_FAKE_CLAUDE_STDIN_MUST_CONTAIN = previousStdinMustContain;
-          }
-
-          if (previousCwdMustNotBe === undefined) {
-            delete process.env.SUPATERM_FAKE_CLAUDE_CWD_MUST_NOT_BE;
-          } else {
-            process.env.SUPATERM_FAKE_CLAUDE_CWD_MUST_NOT_BE = previousCwdMustNotBe;
-          }
-
-          if (previousConfigDirMustBe === undefined) {
-            delete process.env.SUPATERM_FAKE_CLAUDE_CONFIG_DIR_MUST_BE;
-          } else {
-            process.env.SUPATERM_FAKE_CLAUDE_CONFIG_DIR_MUST_BE = previousConfigDirMustBe;
-          }
-        }),
+      Effect.sync(() => assignEnv(fakeClaudeEnv)),
+      () => Effect.sync(() => assignEnv(previousEnv)),
     );
 
     const config = decodeClaudeSettings(input.claudeConfig ?? {});
@@ -367,6 +262,104 @@ it.layer(layerClaudeTextGenerationTest)("ClaudeTextGeneration", (it) => {
           },
         }),
     ),
+  );
+
+  it.effect("sends image attachments to Claude, not only their metadata", () =>
+    withFakeClaudeEnv(
+      {
+        output: JSON.stringify({ structured_output: { branch: "fix/login-button" } }),
+        stdinMustContain: Buffer.from("hello").toString("base64"),
+      },
+      (textGeneration) =>
+        Effect.gen(function* () {
+          const fs = yield* FileSystem.FileSystem;
+          const path = yield* Path.Path;
+          const { attachmentsDir } = yield* ServerConfig.ServerConfig;
+          const attachmentId = "thread-1-claude-attachment";
+          const imagePath = path.join(attachmentsDir, `${attachmentId}.png`);
+          yield* fs.makeDirectory(attachmentsDir, { recursive: true });
+          yield* fs.writeFile(imagePath, Buffer.from("hello"));
+
+          yield* textGeneration
+            .generateBranchName({
+              cwd: process.cwd(),
+              message: "fix this",
+              attachments: [
+                {
+                  type: "image",
+                  id: attachmentId,
+                  name: "screen.png",
+                  mimeType: "image/png",
+                  sizeBytes: 5,
+                },
+              ],
+              modelSelection: {
+                instanceId: ProviderInstanceId.make("claudeAgent"),
+                model: SYNTHETIC_CLAUDE_STANDARD_MODEL,
+              },
+            })
+            .pipe(Effect.ensuring(fs.remove(imagePath).pipe(Effect.ignore)));
+        }),
+    ),
+  );
+
+  it.effect.each([
+    // A model that cannot take images is remembered, so later calls go straight to text only.
+    { rejection: "Image inputs are not supported by this model", imageAttempts: 1 },
+    // A rejection of this request's images says nothing about the model.
+    {
+      rejection:
+        "At least one of the image dimensions exceed max allowed size for many-image requests: 2000 pixels",
+      imageAttempts: 2,
+    },
+  ])("still generates text when images are rejected: $rejection", ({ rejection, imageAttempts }) =>
+    Effect.gen(function* () {
+      const fs = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      const logDir = yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-claude-image-log-" });
+      const imageAttemptLog = path.join(logDir, "image-attempts.log");
+      return yield* withFakeClaudeEnv(
+        {
+          output: JSON.stringify({ structured_output: { branch: "fix/login-button" } }),
+          imageRejection: rejection,
+          imageAttemptLog,
+        },
+        (textGeneration) =>
+          Effect.gen(function* () {
+            const { attachmentsDir } = yield* ServerConfig.ServerConfig;
+            const attachmentId = "thread-1-claude-text-only-attachment";
+            const imagePath = path.join(attachmentsDir, `${attachmentId}.png`);
+            yield* fs.makeDirectory(attachmentsDir, { recursive: true });
+            yield* fs.writeFile(imagePath, Buffer.from("hello"));
+            const generate = textGeneration.generateBranchName({
+              cwd: process.cwd(),
+              message: "fix this",
+              attachments: [
+                {
+                  type: "image",
+                  id: attachmentId,
+                  name: "screen.png",
+                  mimeType: "image/png",
+                  sizeBytes: 5,
+                },
+              ],
+              modelSelection: {
+                instanceId: ProviderInstanceId.make("claudeAgent"),
+                model: SYNTHETIC_CLAUDE_STANDARD_MODEL,
+              },
+            });
+
+            const [first, second] = yield* Effect.all([generate, generate]).pipe(
+              Effect.ensuring(fs.remove(imagePath).pipe(Effect.ignore)),
+            );
+
+            expect(first.branch).toBe("fix/login-button");
+            expect(second.branch).toBe("fix/login-button");
+            const attempts = yield* fs.readFileString(imageAttemptLog);
+            expect(attempts.trim().split("\n")).toHaveLength(imageAttempts);
+          }),
+      );
+    }).pipe(Effect.scoped),
   );
 
   it.effect("runs Claude text generation with the configured CLAUDE_CONFIG_DIR", () =>

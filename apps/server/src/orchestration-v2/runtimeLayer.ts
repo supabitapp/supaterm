@@ -9,6 +9,7 @@ import * as OrchestrationEventStore from "../persistence/OrchestrationEventStore
 import * as McpAppModelContext from "../mcpApps/McpAppModelContext.ts";
 import * as PreviewAgentActivity from "../preview/PreviewAgentActivity.ts";
 import * as McpAppRequests from "../mcpApps/McpAppRequests.ts";
+import * as McpSignIn from "../mcpApps/McpSignIn.ts";
 import * as ProviderSessionRuntime from "../persistence/ProviderSessionRuntime.ts";
 import * as TextGeneration from "../textGeneration/TextGeneration.ts";
 import * as ProviderAuthService from "../provider/ProviderAuthService.ts";
@@ -28,6 +29,7 @@ import * as ContextHandoffService from "./ContextHandoffService.ts";
 import * as EffectOutbox from "./EffectOutbox.ts";
 import * as EffectWorker from "./EffectWorker.ts";
 import * as EventSink from "./EventSink.ts";
+import * as ThreadViewers from "./ThreadViewers.ts";
 import * as EventStore from "./EventStore.ts";
 import * as IdAllocator from "@supaterm/provider-core/server/IdAllocator";
 import * as Orchestrator from "./Orchestrator.ts";
@@ -87,7 +89,10 @@ const layerStores = Layer.mergeAll(
   TurnItemPositionStore.layer,
 );
 
-export const layerEventSink = EventSink.layerFromStores.pipe(Layer.provide(layerStores));
+// The server provides this same layer to thread subscriptions; memoized, they share one registry.
+export const layerEventSink = EventSink.layerFromStores.pipe(
+  Layer.provide(Layer.merge(layerStores, ThreadViewers.layer)),
+);
 const layerProjectionMaintenanceProvided = ProjectionMaintenance.layer.pipe(
   Layer.provide(layerStores),
 );
@@ -181,7 +186,12 @@ const layerProviderTurnStartServiceProvided = ProviderTurnStartService.layer.pip
 
 const layerProviderTurnControlServiceProvided = ProviderTurnControlService.layer.pipe(
   Layer.provide(
-    Layer.mergeAll(layerEventSink, ProjectionStore.layer, layerProviderSessionManagerProvided),
+    Layer.mergeAll(
+      layerEventSink,
+      McpAppModelContext.layer,
+      ProjectionStore.layer,
+      layerProviderSessionManagerProvided,
+    ),
   ),
 );
 const layerRuntimeRequestServiceProvided = RuntimeRequestService.layer.pipe(
@@ -378,12 +388,17 @@ const layerMcpAppRequestsProvided = McpAppRequests.layer.pipe(
   ),
 );
 
+const layerMcpSignInProvided = McpSignIn.layer.pipe(
+  Layer.provide(Layer.merge(layerThreadManagementProvided, layerProviderSessionManagerProvided)),
+);
+
 export const layer = Layer.mergeAll(
   layerCommandOutputHubProvided,
   layerPromptSuggestionHubProvided,
   layerBackgroundTaskOutputProvided,
   layerOrchestratorProvided,
   layerMcpAppRequestsProvided,
+  layerMcpSignInProvided,
   layerThreadManagementProvided,
   layerEffectWorkerProvided,
   layerProviderSessionManagerProvided,

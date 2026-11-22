@@ -120,6 +120,9 @@ export const seedDevReplayInstance = Effect.fn(
   });
 });
 
+// A host built earlier (for the ACP registry) lacks PortDiscovery; build this one fresh.
+export const providerHostLayer = Layer.fresh(ProviderHostLive.layer);
+
 const layerSettingsWatcher = (settingsChanges: Stream.Stream<ServerSettings>) =>
   Layer.effectDiscard(
     Effect.gen(function* () {
@@ -170,7 +173,7 @@ export const layer: Layer.Layer<
     }).pipe(
       Layer.provide(ProviderOrchestrationAdapterInfrastructure.layer),
       Layer.provide(AcpRegistrySupport.layerFromHost),
-      Layer.provide(ProviderHostLive.layer),
+      Layer.provide(providerHostLayer),
     );
 
     return layerSettingsWatcher(settingsChanges).pipe(Layer.provideMerge(layerMutable));

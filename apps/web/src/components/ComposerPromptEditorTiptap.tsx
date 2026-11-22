@@ -109,6 +109,7 @@ import {
   type ComposerChangeKind,
   groupUndoByChangeKind,
   markAsClipboardEdit,
+  markAsCompositionReplace,
 } from "~/composer-undo-grouping";
 import { collectInlineContextIds } from "~/lib/composerContextReferences";
 import { resolveDiffThemeName } from "~/lib/diffRendering";
@@ -198,6 +199,8 @@ export interface ComposerPromptEditorProps {
     expandedCursor: number,
     cursorAdjacentToMention: boolean,
     contextIds: string[],
+    /** False when only the caret or selection moved. */
+    textChanged: boolean,
   ) => void;
   onVisibleSelectionChange?: () => void;
   onCommandKeyDown?: (key: string, event: KeyboardEvent, isTaskItem?: boolean) => boolean;
@@ -312,7 +315,7 @@ function ComposerMentionNodeView({ node }: NodeViewProps) {
         path={path}
         environmentId={actions.environmentId}
         cwd={actions.cwd}
-        label={basenameOfPath(path)}
+        label={basenameOfPath(path).normalize("NFC")}
         theme={resolvedThemeFromDocument()}
       />
     </ContextChip>
@@ -321,7 +324,7 @@ function ComposerMentionNodeView({ node }: NodeViewProps) {
     <NodeViewWrapper as="span" className={CHIP_NODE_SELECTION_CLASS_NAME}>
       <Tooltip>
         <TooltipTrigger render={chip} />
-        <TooltipPopup side="top">
+        <TooltipPopup side="top" className="pointer-events-auto">
           <WorkspaceEntryTooltip
             path={path}
             environmentId={actions.environmentId}
@@ -706,6 +709,15 @@ const ComposerChipSelectionExtension = Extension.create({
         },
         props: {
           decorations: (state) => ChipSelectionPluginKey.getState(state),
+          handleDOMEvents: {
+            // Chrome's IME skips deleting a range bounded by a user-select: none chip.
+            compositionstart: (view) => {
+              if (ChipSelectionPluginKey.getState(view.state)?.find().length) {
+                view.dispatch(markAsCompositionReplace(view.state.tr.deleteSelection()));
+              }
+              return false;
+            },
+          },
         },
       }),
     ];
@@ -1051,6 +1063,7 @@ function ComposerPromptEditorTiptapInner(
       nextExpandedCursor,
       suppressTrigger,
       contextIds,
+      previousSnapshot.value !== nextValue,
     );
   };
 
@@ -1703,6 +1716,7 @@ function ComposerPromptEditorTiptapInner(
       snapshotRef.current.expandedCursor,
       literalText,
       snapshotRef.current.contextIds,
+      false,
     );
   };
 

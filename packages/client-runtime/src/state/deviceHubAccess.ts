@@ -20,6 +20,25 @@ export { type DeviceHubAccess, withDeviceHubQuery } from "../device/hubAccess.ts
 
 const TICKET_TIMEOUT_MS = 8_000;
 
+/** Reusable across media requests until it expires; only for connections that send credentials. */
+export const mintMediaTicket = Effect.fn("clientRuntime.state.mintMediaTicket")(function* (
+  prepared: PreparedConnection,
+) {
+  const mintTicket = (use: AuthWebSocketTicketUse | undefined) =>
+    executeAuthenticatedEnvironmentHttpRequest({
+      prepared,
+      group: "auth",
+      url: (urls) =>
+        use === undefined ? urls.webSocketTicket() : urls.webSocketTicketFor({ params: { use } }),
+      timeoutMs: TICKET_TIMEOUT_MS,
+      request: ({ client, headers }) =>
+        use === undefined
+          ? client.webSocketTicket({ headers })
+          : client.webSocketTicketFor({ headers, params: { use } }),
+    });
+  return yield* issueWebSocketTicketWithFallback("media", mintTicket);
+});
+
 export const resolveDeviceHubAccess = Effect.fn("clientRuntime.state.resolveDeviceHubAccess")(
   function* (input: {
     readonly prepared: PreparedConnection;
@@ -30,19 +49,7 @@ export const resolveDeviceHubAccess = Effect.fn("clientRuntime.state.resolveDevi
     if (input.prepared.httpAuthorization === null) {
       return { httpBase, wsBase, query: {}, credentials: true };
     }
-    const mintTicket = (use: AuthWebSocketTicketUse | undefined) =>
-      executeAuthenticatedEnvironmentHttpRequest({
-        prepared: input.prepared,
-        group: "auth",
-        url: (urls) =>
-          use === undefined ? urls.webSocketTicket() : urls.webSocketTicketFor({ params: { use } }),
-        timeoutMs: TICKET_TIMEOUT_MS,
-        request: ({ client, headers }) =>
-          use === undefined
-            ? client.webSocketTicket({ headers })
-            : client.webSocketTicketFor({ headers, params: { use } }),
-      });
-    const ticket = yield* issueWebSocketTicketWithFallback("media", mintTicket);
+    const ticket = yield* mintMediaTicket(input.prepared);
     return {
       httpBase,
       wsBase,

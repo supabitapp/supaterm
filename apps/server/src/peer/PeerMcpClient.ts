@@ -7,8 +7,10 @@ import {
   type RuntimeMode,
 } from "@supaterm/contracts";
 import * as Context from "effect/Context";
+import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
+import * as Option from "effect/Option";
 import * as Ref from "effect/Ref";
 import * as Result from "effect/Result";
 import * as Schema from "effect/Schema";
@@ -93,11 +95,10 @@ const fromLinkError = (error: PeerLinkError) =>
     message: error.message,
   });
 
-/** Not final, so a task already running there resumes once the beta is on there again. */
-const linkedEnvironmentsOffThere = new OrchestratorMcpFailure({
+/** Older peers answer 403 while their links setting is off. Not final, so a task there can resume. */
+const refusedByOlderPeer = new OrchestratorMcpFailure({
   code: "orchestration_error",
-  message:
-    "The linked environment has Linked environments turned off. Turn it on in its Settings → Environments.",
+  message: "The linked environment refused this call. Update Supaterm there, then try again.",
 });
 
 const stoppedAnswering = new OrchestratorMcpFailure({
@@ -134,8 +135,30 @@ const make = Effect.gen(function* () {
       ),
     );
 
+  // A peer that renews a used link says when it now ends; one that does not sends nothing.
+  const recordLinkExpiry = (
+    link: PeerLinks.ResolvedPeerLink["link"],
+    headers: Readonly<Record<string, string>>,
+  ) =>
+    Option.match(
+      Option.filter(
+        Option.flatMap(
+          Option.fromNullishOr(headers[McpInvocationContext.LINK_EXPIRES_AT_HEADER]),
+          DateTime.make,
+        ),
+        (expiresAt) => !DateTime.Equivalence(expiresAt, link.expiresAt),
+      ),
+      {
+        onNone: () => Effect.void,
+        onSome: (expiresAt) => links.recordExpiry(link, expiresAt),
+      },
+    );
+
   const openSession = Effect.fn("PeerMcpClient.openSession")(
-    function* ({ url, token }: PeerLinks.ResolvedPeerLink, limitHeader: Record<string, string>) {
+    function* (
+      { link, url, token }: PeerLinks.ResolvedPeerLink,
+      limitHeader: Record<string, string>,
+    ) {
       const initialized = yield* post(
         url,
         token,
@@ -152,7 +175,7 @@ const make = Effect.gen(function* () {
         limitHeader,
       );
       const sessionId = initialized.headers["mcp-session-id"];
-      if (initialized.status === 403) return yield* linkedEnvironmentsOffThere;
+      if (initialized.status === 403) return yield* refusedByOlderPeer;
       if (initialized.status !== 200 || sessionId === undefined) {
         return yield* new OrchestratorMcpFailure({
           code: initialized.status === 401 ? "capability_denied" : "orchestration_error",
@@ -162,6 +185,7 @@ const make = Effect.gen(function* () {
               : `The linked environment refused to start an MCP session (HTTP ${initialized.status}).`,
         });
       }
+      yield* recordLinkExpiry(link, initialized.headers);
       yield* post(
         url,
         token,
@@ -173,6 +197,20 @@ const make = Effect.gen(function* () {
     // Only the handshake is bounded: a forwarded tool call may wait for minutes.
     (effect, { address }) => Effect.timeout(effect, PeerLinks.probeTimeout(address)),
   );
+
+  /** The link a call goes under as it starts; one made again while it runs never hears how it went. */
+  const linkUnder = (input: {
+    readonly environmentId: EnvironmentId;
+    readonly linkedAt?: string;
+  }): Effect.Effect<Option.Option<PeerLinks.PeerLinkGeneration>, OrchestratorMcpFailure> =>
+    input.linkedAt === undefined
+      ? links.get(input.environmentId).pipe(Effect.mapError(fromLinkError))
+      : Effect.succeed(
+          Option.map(DateTime.make(input.linkedAt), (linkedAt) => ({
+            environmentId: input.environmentId,
+            linkedAt,
+          })),
+        );
 
   const answer: PeerMcpClient["Service"]["answer"] = Effect.fn("PeerMcpClient.answer")(
     function* (input) {
@@ -236,13 +274,14 @@ const make = Effect.gen(function* () {
             "The linked environment no longer accepts this link. It may have been revoked there; link it again.",
         });
       }
-      if (response.status === 403) return yield* linkedEnvironmentsOffThere;
+      if (response.status === 403) return yield* refusedByOlderPeer;
       if (response.status !== 200) {
         return yield* new OrchestratorMcpFailure({
           code: "orchestration_error",
           message: `The linked environment answered HTTP ${response.status}.`,
         });
       }
+      yield* recordLinkExpiry(resolved.link, response.headers);
       const body = yield* decodeToolCallResponse(
         responseJson(response.headers["content-type"], yield* response.text),
       ).pipe(
@@ -295,12 +334,19 @@ const make = Effect.gen(function* () {
       );
     },
     (effect, input) =>
-      effect.pipe(
-        Effect.tapError((error) =>
-          links.recordOutcome(input.environmentId, { error: error.message }),
-        ),
-        // A refusal is still an answer: the link works, so only this call fails.
-        Effect.tap(() => links.recordOutcome(input.environmentId, { error: null })),
+      linkUnder(input).pipe(
+        Effect.flatMap((generation) => {
+          const record = (error: string | null) =>
+            Option.match(generation, {
+              onNone: () => Effect.void,
+              onSome: (link) => links.recordOutcome(link, { error }),
+            });
+          return effect.pipe(
+            Effect.tapError((error) => record(error.message)),
+            // A refusal is still an answer: the link works, so only this call fails.
+            Effect.tap(() => record(null)),
+          );
+        }),
         // Recorded above with the transport's own message; the agent hears it plainly.
         Effect.catchTags({
           HttpClientError: () => Effect.fail(stoppedAnswering),

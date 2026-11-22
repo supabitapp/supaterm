@@ -132,6 +132,19 @@ vi.mock(import("@effect/atom-react"), async (original) => {
   };
 });
 // Pickers and icons that read live provider and git state are out of scope here.
+vi.mock(import("../../state/queries"), async (original) => ({
+  ...(await original()),
+  usePaginatedBranches: () => ({
+    data: { refs: [], isRepo: true, hasPrimaryRemote: true, nextCursor: null, totalCount: 0 },
+    refs: [],
+    error: null,
+    isPending: false,
+    isRefreshing: false,
+    isFetchingNextPage: false,
+    refresh: () => {},
+    loadNext: () => {},
+  }),
+}));
 vi.mock(import("../EnvironmentMachineIcon"), async (original) => ({
   ...(await original()),
   EnvironmentMachineIcon: (() => null) as never,

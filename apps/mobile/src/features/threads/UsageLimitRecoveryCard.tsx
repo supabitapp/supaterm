@@ -11,7 +11,8 @@ import {
 } from "@supaterm/shared/usageLimits";
 import * as Clipboard from "expo-clipboard";
 import { useState } from "react";
-import { Linking, Pressable, View } from "react-native";
+import { Pressable, View } from "react-native";
+import { tryOpenExternalUrl } from "../../lib/openExternalUrl";
 import { ProviderIcon } from "../../components/ProviderIcon";
 import { AppText as Text } from "../../components/ui/AppText";
 import { useDeadlinePassed } from "../../lib/clock";
@@ -46,6 +47,7 @@ export function UsageLimitRecoveryCard({
     Date.parse(thread.snoozedUntil) > Date.parse(resetAt)
       ? thread.snoozedUntil
       : resetAt;
+  const displayPassed = useDeadlinePassed(displayAt === null ? null : Date.parse(displayAt));
   const [copied, setCopied] = useState(false);
   const [actionPending, setActionPending] = useState(false);
   const code = thread.runtime?.lastErrorCode;
@@ -59,11 +61,17 @@ export function UsageLimitRecoveryCard({
     !runId
   )
     return null;
-  const resetText = displayAt
-    ? `${canSchedule && scheduled ? "Resumes" : "Resets"} ${new Date(displayAt).toLocaleString(
-        undefined,
-        { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" },
-      )}.`
+  const resumesUpcoming = canSchedule && scheduled && !displayPassed;
+  const shownAt = resumesUpcoming ? displayAt : resetAt;
+  const resetText = shownAt
+    ? `${resumesUpcoming ? "Resumes" : resetPassed ? "Reset" : "Resets"} ${new Date(
+        shownAt,
+      ).toLocaleString(undefined, {
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      })}.`
     : null;
   const snoozed =
     limitRecoveryOwnsSnooze({
@@ -125,8 +133,11 @@ export function UsageLimitRecoveryCard({
         run: () => {
           setError(null);
           setActionPending(true);
-          void Linking.openURL(CHATGPT_USAGE_URL)
-            .catch(() => setError("Could not open ChatGPT. Go to chatgpt.com → Settings → Usage."))
+          void tryOpenExternalUrl(CHATGPT_USAGE_URL)
+            .then((opened) => {
+              if (!opened)
+                setError("Could not open ChatGPT. Go to chatgpt.com → Settings → Usage.");
+            })
             .finally(() => setActionPending(false));
         },
       };
@@ -175,7 +186,13 @@ export function UsageLimitRecoveryCard({
             {canSchedule ? (
               <>
                 <RecoveryAction
-                  label={scheduled ? "Cancel auto-resume" : "Resume at reset"}
+                  label={
+                    scheduled
+                      ? "Cancel auto-resume"
+                      : resetPassed
+                        ? "Resume now"
+                        : "Resume at reset"
+                  }
                   disabled={pending}
                   onPress={() => void toggle("resume")}
                 />

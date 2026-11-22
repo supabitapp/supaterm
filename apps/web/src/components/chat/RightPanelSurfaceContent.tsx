@@ -10,6 +10,7 @@ import type {
 } from "@supaterm/contracts";
 import { scopedThreadKey } from "@supaterm/client-runtime/environment";
 import { lazy, Suspense } from "react";
+import { LinkedThreadPane } from "./LinkedThreadPane";
 import type { ComposerImageAttachment, DraftId } from "../../composerDraftStore";
 import type { ShortcutMatchContext } from "../../keybindings";
 import { type RightPanelSurface, useRightPanelStore } from "../../rightPanelStore";
@@ -170,6 +171,15 @@ export function RightPanelSurfaceContent(props: {
     }
     case "pull-requests":
       return <ThreadPullRequestsPanel threadRef={threadRef} />;
+    case "linked-thread":
+      return (
+        <LinkedThreadPane
+          key={surface.id}
+          panelRef={threadRef}
+          surface={surface}
+          visible={visible && props.activeSurfaceId === surface.id}
+        />
+      );
     case "device":
       return (
         <Suspense fallback={null}>

@@ -1,16 +1,35 @@
-import { Link, useLocation, useParams } from "@tanstack/react-router";
+import type { ScopedProjectRef } from "@supaterm/contracts";
+import { Link, useLocation, useParams, useRouter } from "@tanstack/react-router";
 import { CalendarClockIcon, SquarePenIcon } from "@supaterm/icons";
+import type { MouseEvent as ReactMouseEvent } from "react";
 
 import { openCommandPalette } from "../../commandPaletteBus";
-import { useStartNewThreadInCurrentProject } from "../../hooks/useHandleNewThread";
+import {
+  readRouteThreadContext,
+  useNewThreadHandler,
+  useStartNewThreadInCurrentProject,
+} from "../../hooks/useHandleNewThread";
 import { useShortcutLabel } from "../../hooks/useShortcutLabel";
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from "../ui/sidebar";
+import { resolveScopedNewThreadProjectRef } from "../Sidebar.logic";
 
-export function SidebarPrimaryNavigation({ projectGroupCount }: { projectGroupCount: number }) {
+export function SidebarPrimaryNavigation({
+  projectGroupCount,
+  scopedProjectGroups,
+}: {
+  projectGroupCount: number;
+  scopedProjectGroups: ReadonlyArray<{
+    readonly environmentId: string;
+    readonly id: string;
+    readonly memberProjectRefs: readonly ScopedProjectRef[];
+  }>;
+}) {
   const { isMobile, setOpenMobile } = useSidebar();
   const size = isMobile ? "default" : "compact";
   const newThreadShortcut = useShortcutLabel("chat.newLocal");
   const automationsShortcut = useShortcutLabel("automations.open");
+  const router = useRouter();
+  const startNewThreadIn = useNewThreadHandler();
   const startNewThreadInCurrentProject = useStartNewThreadInCurrentProject();
   const newThreadActive = useParams({
     strict: false,
@@ -22,8 +41,18 @@ export function SidebarPrimaryNavigation({ projectGroupCount }: { projectGroupCo
   const closeMobileSidebar = () => {
     if (isMobile) setOpenMobile(false);
   };
-  const handleNewThread = () => {
+  const handleNewThread = (event: ReactMouseEvent) => {
     closeMobileSidebar();
+    const { activeThread, activeDraftThread } = readRouteThreadContext(router);
+    const scopedProjectRef = resolveScopedNewThreadProjectRef({
+      shiftKey: event.shiftKey,
+      scopedProjectGroups,
+      viewed: activeThread ?? activeDraftThread,
+    });
+    if (scopedProjectRef) {
+      void startNewThreadIn(scopedProjectRef);
+      return;
+    }
     void startNewThreadInCurrentProject().then((started) => {
       if (!started) openCommandPalette({ open: "new-thread-in" });
     });

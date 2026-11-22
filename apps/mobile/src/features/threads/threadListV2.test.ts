@@ -452,7 +452,11 @@ describe("buildThreadListV2Items", () => {
         disabled: false,
       },
     ]);
-    expect(threadJumpTarget(list, "thread.jump.1")).toBeNull();
+    expect(threadJumpTarget(list, "thread.jump.1")).toMatchObject({
+      type: "v2-pending",
+      pendingTask: { key: "pending-task:queued" },
+    });
+    expect(threadJumpTarget(list, "thread.jump.2")).toBeNull();
     const selected = buildShelfLayout({
       ...input,
       activeShelfExpanded: false,
@@ -464,7 +468,9 @@ describe("buildThreadListV2Items", () => {
       activeShelfExpanded: false,
     });
     expect(selected.activeCount).toBe(2);
-    expect(threadJumpTarget(selectedList, "thread.jump.1")?.id).toBe("active-two");
+    expect(threadJumpTarget(selectedList, "thread.jump.1")).toMatchObject({
+      item: { thread: { id: "active-two" } },
+    });
     expect(threadJumpTarget(selectedList, "thread.jump.2")).toBeNull();
     expect(buildThreadListV2Items({ ...input, activeShelfExpanded: true }).items).toHaveLength(2);
   });
@@ -1397,6 +1403,9 @@ describe("buildThreadListV2ListItems", () => {
       "v2-done-shelf",
       "done",
     ]);
+    expect(threadJumpTarget(items, "thread.jump.1")).toMatchObject({
+      pendingTask: { draftKey: "new-task:unsent" },
+    });
     expect(
       items.flatMap((item) => (item.type === "v2-pending" ? [item.showPendingDivider] : [])),
     ).toEqual([true, true, false]);
@@ -1529,9 +1538,17 @@ describe("buildThreadListV2ListItems", () => {
       "v2-done-shelf",
       "v2-thread",
     ]);
-    expect(threadJumpTarget(items, "thread.jump.1")?.id).toBe("active");
-    expect(threadJumpTarget(items, "thread.jump.2")?.id).toBe("done");
-    expect(threadJumpTarget(items, "thread.jump.3")).toBeNull();
+    expect(threadJumpTarget(items, "thread.jump.1")).toMatchObject({
+      type: "v2-pending",
+      pendingTask: { key: "pending-task:queued" },
+    });
+    expect(threadJumpTarget(items, "thread.jump.2")).toMatchObject({
+      item: { thread: { id: "active" } },
+    });
+    expect(threadJumpTarget(items, "thread.jump.3")).toMatchObject({
+      item: { thread: { id: "done" } },
+    });
+    expect(threadJumpTarget(items, "thread.jump.4")).toBeNull();
   });
 });
 

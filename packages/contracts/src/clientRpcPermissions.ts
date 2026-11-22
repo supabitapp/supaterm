@@ -11,14 +11,19 @@ import {
   AuthSourceControlWriteScope,
   AuthTerminalOperateScope,
   type AuthEnvironmentScope,
+  mcpClientScopes,
 } from "./auth.ts";
 import { ORCHESTRATION_V2_WS_METHODS } from "./orchestrationV2.ts";
+import { PeerLinkLinkPairingInput } from "./peerLink.ts";
 import { WS_METHODS } from "./rpc.ts";
 
 /** Incremental client enforcement; the server still authorizes every request. */
 export const CLIENT_GUARDED_RPC_SCOPES = {
   [WS_METHODS.prepareRelay]: AuthAccessWriteScope,
   [WS_METHODS.providerAuthRemoveMethod]: AuthProvidersManageScope,
+  // An MCP sign-in stores a credential for the agent, as an account sign-in does.
+  [WS_METHODS.providerMcpSignInStart]: AuthProvidersManageScope,
+  [WS_METHODS.providerMcpSignInComplete]: AuthProvidersManageScope,
   [WS_METHODS.previewClose]: AuthPreviewOperateScope,
   // Stopping a server signals its processes, as closing a terminal does.
   [WS_METHODS.previewStopLocalServer]: AuthTerminalOperateScope,
@@ -81,6 +86,8 @@ export const CLIENT_GUARDED_RPC_SCOPES = {
   [WS_METHODS.peerLinksUnlink]: AuthAccessWriteScope,
   // A link lets every agent here reach the other environment: Settings' bar.
   [WS_METHODS.peerLinksAnswerRequest]: AuthAccessWriteScope,
+  [WS_METHODS.peerLinksPairClient]: AuthAccessWriteScope,
+  [WS_METHODS.peerLinksPairLink]: AuthAccessWriteScope,
 } as const;
 export type ClientGuardedRpcTag = keyof typeof CLIENT_GUARDED_RPC_SCOPES;
 
@@ -89,6 +96,7 @@ const isQuestionTimerCommand = Schema.is(
   Schema.Struct({ type: Schema.Literal("thread.user-input.auto-dismiss.pause") }),
 );
 const decodeStackedAction = Schema.decodeUnknownSync(GitRunStackedActionInput);
+const decodeLinkPairing = Schema.decodeUnknownSync(PeerLinkLinkPairingInput);
 
 export function clientRpcRequiredScopes(
   method: string,
@@ -109,6 +117,9 @@ export function clientRpcRequiredScopes(
     )
       return [AuthSourceControlWriteScope, AuthOrchestrationReadScope];
   }
+  // As pairing here, a code minted through a link never grants what the client lacks here.
+  if (method === WS_METHODS.peerLinksPairLink && input !== undefined)
+    return [AuthAccessWriteScope, ...mcpClientScopes(decodeLinkPairing(input).access)];
   return Object.hasOwn(CLIENT_GUARDED_RPC_SCOPES, method)
     ? [CLIENT_GUARDED_RPC_SCOPES[method as ClientGuardedRpcTag]]
     : [];

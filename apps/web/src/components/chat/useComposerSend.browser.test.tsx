@@ -348,3 +348,52 @@ describe("useComposerSend over a pending approval", () => {
     expect(send.events).toEqual([`decline:${approvalId}`]);
   });
 });
+
+describe("useComposerSend /side", () => {
+  it("hands the draft's image to the side chat instead of refusing it", async () => {
+    const image = {
+      type: "image" as const,
+      id: "image-1",
+      name: "shot.png",
+      mimeType: "image/png",
+      sizeBytes: 1,
+      previewUrl: "blob:shot",
+      file: new File([new Uint8Array([1])], "shot.png", { type: "image/png" }),
+    };
+    const onSideChat = vi.fn(async () => true);
+    const sideChatComposer = {
+      ...composer,
+      getSendContext: () => ({ ...sendContext, prompt: "/side what is this?", images: [image] }),
+    };
+    let onSend: ReturnType<typeof useComposerSend>["onSend"] | undefined;
+    function Probe() {
+      const current = useComposerSend({
+        ...sendInput(async () => AsyncResult.success({ sequence: 1 })),
+        pendingApprovals: [],
+        composerRef: { current: sideChatComposer as ChatComposerHandle },
+        promptRef: { current: "/side what is this?" },
+        onSideChat,
+      });
+      useLayoutEffect(() => {
+        onSend = current.onSend;
+      });
+      return null;
+    }
+    await using _screen = await render(<Probe />);
+    await act(async () => {
+      await onSend?.();
+    });
+
+    expect(onSideChat).toHaveBeenCalledExactlyOnceWith(
+      "what is this?",
+      expect.objectContaining({
+        from: threadRef,
+        text: "what is this?",
+        attachments: [image],
+        context: expect.objectContaining({
+          records: [expect.objectContaining({ kind: "image", attachmentId: "image-1" })],
+        }),
+      }),
+    );
+  });
+});

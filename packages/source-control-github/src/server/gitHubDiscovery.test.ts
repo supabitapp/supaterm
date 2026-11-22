@@ -3,6 +3,7 @@ import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 import { assert, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
+import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Redacted from "effect/Redacted";
 import * as TestSourceControlHost from "@supaterm/source-control-testing/TestSourceControlHost";
@@ -26,6 +27,7 @@ const makeDiscovery = (get: GitHubCredentials.GitHubCredentials["Service"]["get"
         Layer.mock(GitHubRest.GitHubRest)({}),
         Layer.mock(GitHubCredentials.GitHubCredentials)({ get, invalidateAll: Effect.void }),
         TestSourceControlHost.layer(),
+        FileSystem.layerNoop({}),
       ),
     ),
     Effect.provideService(HostProcess.Environment, {}),
@@ -123,6 +125,7 @@ it.effect("claims a remote through the shared gh login, not a request's pinned c
           Layer.mock(GitHubRest.GitHubRest)({}),
           GitHubCredentials.layer.pipe(Layer.provide(NodeCrypto.layer)),
         ).pipe(
+          Layer.provideMerge(FileSystem.layerNoop({})),
           Layer.provideMerge(
             TestSourceControlHost.layer({
               process: {

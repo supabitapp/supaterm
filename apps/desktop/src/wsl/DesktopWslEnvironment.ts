@@ -58,6 +58,7 @@ export type EnsureWslNodePtyResult =
       readonly ok: true;
       readonly nodePath: string;
       readonly resolvedPath: string;
+      readonly supatermHome: string | null;
     }
   | {
       readonly ok: false;
@@ -70,6 +71,7 @@ export type ProbeWslRuntimeResult =
   | {
       readonly ok: true;
       readonly resolvedPath: string;
+      readonly supatermHome: string | null;
     }
   | {
       readonly ok: false;
@@ -102,12 +104,17 @@ export class DesktopWslEnvironment extends Context.Service<
     readonly getUserHome: (distro: string | null) => Effect.Effect<Option.Option<string>>;
     // Use the distro IP to avoid unreliable wslhost localhost forwarding.
     readonly getDistroIp: (distro: string | null) => Effect.Effect<Option.Option<string>>;
+    // A null supatermHome means the distro's login shell has no absolute SUPATERM_HOME, so ~/.supaterm applies.
     readonly prepareRuntime: (
       distro: string | null,
       archive: WslRuntimeArchive,
+      supatermHome: string | null,
     ) => Effect.Effect<PrepareWslRuntimeResult>;
-    readonly pruneRuntimes: (distro: string | null, runtimeId: string) => Effect.Effect<void>;
-    readonly invalidateRuntime: (distro: string | null, runtimeId: string) => Effect.Effect<void>;
+    readonly pruneRuntimes: (
+      distro: string | null,
+      runtimeId: string,
+      supatermHome: string | null,
+    ) => Effect.Effect<void>;
     readonly probeRuntime: (distro: string | null) => Effect.Effect<ProbeWslRuntimeResult>;
     readonly ensureNodePty: (
       distro: string | null,
@@ -262,16 +269,22 @@ const WSL_RUNTIME_SELECTION_GRACE_MINUTES = 5;
 
 const sanitizeWslRuntimeId = (value: string): string => value.replace(/[^A-Za-z0-9._-]/g, "_");
 
+const runtimeParentAssignment = (supatermHome: string | null): string =>
+  supatermHome === null
+    ? 'runtime_parent="$HOME/.supaterm/wsl-runtime"'
+    : `runtime_parent=${shellQuote(`${supatermHome}/wsl-runtime`)}`;
+
 // A null archive path asks for a staging directory to copy the archive into, unless the cache is ready.
 export const buildWslRuntimeInstallScript = (
   linuxArchivePath: string | null,
   runtimeId: string,
   archiveSha256: string,
+  supatermHome: string | null,
 ): string => {
   const safeRuntimeId = sanitizeWslRuntimeId(runtimeId);
   const readyCheck = [
     "set -eu",
-    'runtime_parent="$HOME/.supaterm/wsl-runtime"',
+    runtimeParentAssignment(supatermHome),
     `runtime_root="$runtime_parent/${safeRuntimeId}"`,
     `ready_marker="$runtime_root/${WSL_RUNTIME_READY_MARKER}"`,
     "runtime_entry_runs() {",
@@ -367,11 +380,14 @@ export const buildWslRuntimeInstallScript = (
 // Two hours exceeds cold-install time while bounding orphan retention.
 const ORPHANED_RUNTIME_SCRATCH_MAX_AGE_MINUTES = 120;
 
-export const buildWslRuntimePruneScript = (runtimeId: string): string => {
+export const buildWslRuntimePruneScript = (
+  runtimeId: string,
+  supatermHome: string | null,
+): string => {
   const safeRuntimeId = sanitizeWslRuntimeId(runtimeId);
   return [
     "set -eu",
-    'runtime_parent="$HOME/.supaterm/wsl-runtime"',
+    runtimeParentAssignment(supatermHome),
     `current_runtime="$runtime_parent/${safeRuntimeId}"`,
     '[ -d "$runtime_parent" ] || exit 0',
     // Serialize pruning so backends cannot select and delete different previous caches.
@@ -417,15 +433,6 @@ export const buildWslRuntimePruneScript = (runtimeId: string): string => {
   ].join("\n");
 };
 
-// Invalidate trees that pass install checks but fail launch probes, or each launch reuses the broken cache.
-export const buildWslRuntimeInvalidateScript = (runtimeId: string): string => {
-  const safeRuntimeId = sanitizeWslRuntimeId(runtimeId);
-  return [
-    "set -eu",
-    `rm -f "$HOME/.supaterm/wsl-runtime/${safeRuntimeId}/${WSL_RUNTIME_READY_MARKER}"`,
-  ].join("\n");
-};
-
 const parseAbsolutePathField = (stdout: string, field: string): string | null => {
   const prefix = `${field}:`;
   const line = stdout.split("\n").find((candidate) => candidate.startsWith(prefix));
@@ -446,12 +453,15 @@ const formatNodePtyProbeFailureReason = (exitCode: number): string | null =>
 
 // Capture login-shell PATH because the server launches provider CLIs by name.
 const RESOLVED_PATH_LINE = `printf 'resolvedPath:%s\\n' "$PATH"`;
+// wsl.exe --exec skips the profile, so the server only sees a profile-exported SUPATERM_HOME if passed on.
+const SUPATERM_HOME_LINE = `printf 'supatermHome:%s\\n' "\${SUPATERM_HOME:-}"`;
 
 const NODE_PTY_PROBE_SCRIPT = (
   linuxServerDir: string,
 ) => `printf 'nodePath:%s\\n' "$(command -v node 2>/dev/null)"
 printf 'nodeVersion:%s\\n' "$(node -p 'process.versions.node' 2>/dev/null)"
 ${RESOLVED_PATH_LINE}
+${SUPATERM_HOME_LINE}
 cd ${shellQuote(linuxServerDir)} && node <<'NODE' >/dev/null 2>&1
 // The WSL Node can't read inside app.asar, so confirm what the server needs is
 // unpacked on the real filesystem before reporting the backend healthy. Exit 3
@@ -480,7 +490,7 @@ NODE`;
 // Resolve version-managed Node for providers without making runtime readiness depend on it.
 // The install script already ran the staged supaterm, so running it again here only adds a second startup.
 export const buildWslRuntimeProbeScript = () =>
-  `bash -lc ${shellQuote(`${buildWslNodeEnvPreamble()}${RESOLVED_PATH_LINE}`)} 2>/dev/null || ${RESOLVED_PATH_LINE}`;
+  `bash -lc ${shellQuote(`${buildWslNodeEnvPreamble()}${RESOLVED_PATH_LINE}\n${SUPATERM_HOME_LINE}`)} 2>/dev/null || ${RESOLVED_PATH_LINE}`;
 
 const TOOLCHAIN_CHECK_SCRIPT = [
   "for tool in node make g++ python3; do",
@@ -551,6 +561,10 @@ export const parseResolvedPath = (stdout: string): string | null => {
   return resolvedPath.length > 0 ? resolvedPath : null;
 };
 
+// Relative values are ignored: the runtime scripts and the server would resolve them from different cwds.
+export const parseSupatermHome = (stdout: string): string | null =>
+  parseAbsolutePathField(stdout, "supatermHome");
+
 const formatMissingToolsReason = (
   report: ToolchainReport,
   requiredRange: string | null,
@@ -612,7 +626,7 @@ const probeWslRuntimeImpl = Effect.fn("DesktopWslEnvironment.probeWslRuntimeImpl
       reason: "WSL login-shell PATH could not be resolved during backend preflight.",
     } as const;
   }
-  return { ok: true, resolvedPath } as const;
+  return { ok: true, resolvedPath, supatermHome: parseSupatermHome(probe.stdout) } as const;
 });
 
 const ensureNodePtyImpl = Effect.fn("DesktopWslEnvironment.ensureNodePtyImpl")(function* (
@@ -632,6 +646,7 @@ const ensureNodePtyImpl = Effect.fn("DesktopWslEnvironment.ensureNodePtyImpl")(f
   );
   const nodePath = parseNodePath(probe.stdout);
   const resolvedPath = parseResolvedPath(probe.stdout);
+  const supatermHome = parseSupatermHome(probe.stdout);
 
   const transportFailureReason = formatWslShellTransportFailureReason(probe.transportFailure);
   if (transportFailureReason !== null) {
@@ -698,7 +713,7 @@ const ensureNodePtyImpl = Effect.fn("DesktopWslEnvironment.ensureNodePtyImpl")(f
         fatal: true,
       } as const;
     }
-    return { ok: true, nodePath, resolvedPath } as const;
+    return { ok: true, nodePath, resolvedPath, supatermHome } as const;
   }
 
   if (options.allowBuild !== true) {
@@ -771,7 +786,7 @@ const ensureNodePtyImpl = Effect.fn("DesktopWslEnvironment.ensureNodePtyImpl")(f
       retryLimit: BUILD_TRANSPORT_RETRY_LIMIT,
     } as const;
   }
-  if (build.exitCode === 0) return { ok: true, nodePath, resolvedPath } as const;
+  if (build.exitCode === 0) return { ok: true, nodePath, resolvedPath, supatermHome } as const;
   const trimmedTail = `${build.stdout}${build.stderr}`.trim().slice(-500);
   return {
     ok: false,
@@ -787,11 +802,12 @@ type WslRuntimeInstallOutcome =
 const runWslRuntimeInstall = Effect.fn("desktop.wsl.runRuntimeInstall")(function* (
   distro: string | null,
   archive: WslRuntimeArchive,
+  supatermHome: string | null,
   linuxArchivePath: string | null,
 ): Effect.fn.Return<WslRuntimeInstallOutcome, never, ChildProcessSpawner.ChildProcessSpawner> {
   const install = yield* runWslShell(
     distro,
-    buildWslRuntimeInstallScript(linuxArchivePath, archive.runtimeId, archive.sha256),
+    buildWslRuntimeInstallScript(linuxArchivePath, archive.runtimeId, archive.sha256, supatermHome),
     RUNTIME_INSTALL_TIMEOUT,
     { resolveNode: false },
   );
@@ -830,9 +846,10 @@ const installWslRuntimeFromHostCopy = Effect.fn("desktop.wsl.installRuntimeFromH
   function* (
     distro: string | null,
     archive: WslRuntimeArchive,
+    supatermHome: string | null,
     archiveBytes: Stream.Stream<Uint8Array, PlatformError.PlatformError>,
   ): Effect.fn.Return<PrepareWslRuntimeResult, never, ChildProcessSpawner.ChildProcessSpawner> {
-    const staged = yield* runWslRuntimeInstall(distro, archive, null);
+    const staged = yield* runWslRuntimeInstall(distro, archive, supatermHome, null);
     if (!staged.ok || parseWslRuntimeRoot(staged.stdout) !== null) {
       return toPrepareWslRuntimeResult(staged);
     }
@@ -873,7 +890,7 @@ const installWslRuntimeFromHostCopy = Effect.fn("desktop.wsl.installRuntimeFromH
         } as const;
       }
       return toPrepareWslRuntimeResult(
-        yield* runWslRuntimeInstall(distro, archive, linuxArchivePath),
+        yield* runWslRuntimeInstall(distro, archive, supatermHome, linuxArchivePath),
       );
     });
 
@@ -890,6 +907,7 @@ const installWslRuntimeFromHostCopy = Effect.fn("desktop.wsl.installRuntimeFromH
 const prepareWslRuntimeImpl = Effect.fn("desktop.wsl.prepareRuntimeImpl")(function* (
   distro: string | null,
   archive: WslRuntimeArchive,
+  supatermHome: string | null,
   windowsToWslPath: (
     distro: string | null,
     windowsPath: string,
@@ -905,21 +923,23 @@ const prepareWslRuntimeImpl = Effect.fn("desktop.wsl.prepareRuntimeImpl")(functi
     return yield* installWslRuntimeFromHostCopy(
       distro,
       archive,
+      supatermHome,
       fileSystem.stream(archive.windowsPath),
     );
   }
   return toPrepareWslRuntimeResult(
-    yield* runWslRuntimeInstall(distro, archive, linuxArchivePath.value),
+    yield* runWslRuntimeInstall(distro, archive, supatermHome, linuxArchivePath.value),
   );
 });
 
 const pruneWslRuntimesImpl = Effect.fn("desktop.wsl.pruneRuntimesImpl")(function* (
   distro: string | null,
   runtimeId: string,
+  supatermHome: string | null,
 ): Effect.fn.Return<void, never, ChildProcessSpawner.ChildProcessSpawner> {
   const result = yield* runWslShell(
     distro,
-    buildWslRuntimePruneScript(runtimeId),
+    buildWslRuntimePruneScript(runtimeId, supatermHome),
     RUNTIME_PRUNE_TIMEOUT,
     { resolveNode: false },
   );
@@ -927,26 +947,6 @@ const pruneWslRuntimesImpl = Effect.fn("desktop.wsl.pruneRuntimesImpl")(function
 
   const detail = `${result.stdout}${result.stderr}`.trim().slice(-500);
   yield* Effect.logWarning("Could not prune old WSL runtime caches.", {
-    distro,
-    runtimeId,
-    detail: detail || `exit ${result.exitCode}`,
-  });
-});
-
-const invalidateWslRuntimeImpl = Effect.fn("desktop.wsl.invalidateRuntimeImpl")(function* (
-  distro: string | null,
-  runtimeId: string,
-): Effect.fn.Return<void, never, ChildProcessSpawner.ChildProcessSpawner> {
-  const result = yield* runWslShell(
-    distro,
-    buildWslRuntimeInvalidateScript(runtimeId),
-    RUNTIME_INVALIDATE_TIMEOUT,
-    { resolveNode: false },
-  );
-  if (result.transportFailure === null && result.exitCode === 0) return;
-
-  const detail = `${result.stdout}${result.stderr}`.trim().slice(-500);
-  yield* Effect.logWarning("Could not invalidate the staged WSL runtime cache.", {
     distro,
     runtimeId,
     detail: detail || `exit ${result.exitCode}`,
@@ -1141,9 +1141,13 @@ export interface DesktopWslEnvironmentTestStub {
   readonly prepareRuntime?: (
     distro: string | null,
     archive: WslRuntimeArchive,
+    supatermHome: string | null,
   ) => PrepareWslRuntimeResult;
-  readonly pruneRuntimes?: (distro: string | null, runtimeId: string) => Effect.Effect<void>;
-  readonly invalidateRuntime?: (distro: string | null, runtimeId: string) => Effect.Effect<void>;
+  readonly pruneRuntimes?: (
+    distro: string | null,
+    runtimeId: string,
+    supatermHome: string | null,
+  ) => Effect.Effect<void>;
   readonly probeRuntime?: (distro: string | null) => ProbeWslRuntimeResult;
   readonly ensureNodePty?: (
     distro: string | null,
@@ -1175,20 +1179,19 @@ export const layerTest = (stub: DesktopWslEnvironmentTestStub = {}) => {
       getDistroIp: Effect.fn("DesktopWslEnvironment.getDistroIp")(function (distro) {
         return Effect.succeed(stub.getDistroIp?.(distro) ?? Option.none<string>());
       }),
-      prepareRuntime: Effect.fn("DesktopWslEnvironment.prepareRuntime")(function (distro, archive) {
-        return Effect.succeed(
-          stub.prepareRuntime?.(distro, archive) ?? {
-            ok: false,
-            reason: "prepareRuntime stub not configured",
-          },
-        );
-      }),
-      pruneRuntimes: Effect.fn("DesktopWslEnvironment.pruneRuntimes")(function (distro, runtimeId) {
-        return stub.pruneRuntimes?.(distro, runtimeId) ?? Effect.void;
-      }),
-      invalidateRuntime: Effect.fn("DesktopWslEnvironment.invalidateRuntime")(
-        function (distro, runtimeId) {
-          return stub.invalidateRuntime?.(distro, runtimeId) ?? Effect.void;
+      prepareRuntime: Effect.fn("DesktopWslEnvironment.prepareRuntime")(
+        function (distro, archive, supatermHome) {
+          return Effect.succeed(
+            stub.prepareRuntime?.(distro, archive, supatermHome) ?? {
+              ok: false,
+              reason: "prepareRuntime stub not configured",
+            },
+          );
+        },
+      ),
+      pruneRuntimes: Effect.fn("DesktopWslEnvironment.pruneRuntimes")(
+        function (distro, runtimeId, supatermHome) {
+          return stub.pruneRuntimes?.(distro, runtimeId, supatermHome) ?? Effect.void;
         },
       ),
       probeRuntime: Effect.fn("DesktopWslEnvironment.probeRuntime")(function (distro) {
@@ -1196,6 +1199,7 @@ export const layerTest = (stub: DesktopWslEnvironmentTestStub = {}) => {
           stub.probeRuntime?.(distro) ?? {
             ok: true,
             resolvedPath: "/usr/bin:/bin",
+            supatermHome: null,
           },
         );
       }),
@@ -1270,19 +1274,20 @@ export const layer = Layer.effect(
       windowsToWslPath,
       getUserHome,
       getDistroIp,
-      prepareRuntime: Effect.fn("desktop.wsl.prepareRuntime")(function (distro, archive) {
-        return provideSpawner(
-          prepareWslRuntimeImpl(distro, archive, windowsToWslPath).pipe(
-            Effect.provideService(FileSystem.FileSystem, fileSystem),
-          ),
-        );
-      }),
-      pruneRuntimes: Effect.fn("desktop.wsl.pruneRuntimes")(function (distro, runtimeId) {
-        return provideSpawner(pruneWslRuntimesImpl(distro, runtimeId));
-      }),
-      invalidateRuntime: Effect.fn("desktop.wsl.invalidateRuntime")(function (distro, runtimeId) {
-        return provideSpawner(invalidateWslRuntimeImpl(distro, runtimeId));
-      }),
+      prepareRuntime: Effect.fn("desktop.wsl.prepareRuntime")(
+        function (distro, archive, supatermHome) {
+          return provideSpawner(
+            prepareWslRuntimeImpl(distro, archive, supatermHome, windowsToWslPath).pipe(
+              Effect.provideService(FileSystem.FileSystem, fileSystem),
+            ),
+          );
+        },
+      ),
+      pruneRuntimes: Effect.fn("desktop.wsl.pruneRuntimes")(
+        function (distro, runtimeId, supatermHome) {
+          return provideSpawner(pruneWslRuntimesImpl(distro, runtimeId, supatermHome));
+        },
+      ),
       probeRuntime: Effect.fn("desktop.wsl.probeRuntime")(function (distro) {
         return provideSpawner(probeWslRuntimeImpl(distro));
       }),

@@ -4,6 +4,7 @@ import { describe, expect, it } from "vite-plus/test";
 import {
   matchComposerEnvironmentItems,
   matchComposerThreadItems,
+  type ComposerEnvironmentCandidate,
   type ComposerThreadCandidate,
 } from "./composerThreadItems.ts";
 
@@ -54,6 +55,34 @@ it("ranks thread mentions like the palette and leaves out subagent threads", () 
   expect(items.map((item) => item.record.threadId)).toEqual(["word", "newer-mid-word"]);
 });
 
+it("offers the composer thread's own used side chats, but not other threads' side chats", () => {
+  const sideChatOf = (parent: string) => ({
+    rootThreadId: ThreadId.make(parent),
+    parentThreadId: ThreadId.make(parent),
+    relationshipToParent: "fork" as const,
+    sideChat: true,
+  });
+  const latestUserMessageAt = "2026-10-22T00:00:00.000Z";
+  const items = matchComposerThreadItems({
+    shells: [
+      shell("mine", "Why is the build slow?", { lineage: sideChatOf("main"), latestUserMessageAt }),
+      shell("unused", "Slow side chat", { lineage: sideChatOf("main") }),
+      shell("theirs", "Why is the test slow?", {
+        lineage: sideChatOf("other"),
+        latestUserMessageAt,
+      }),
+    ],
+    environmentId,
+    linkedEnvironments: new Map(),
+    excludeThreadId: ThreadId.make("main"),
+    query: "slow",
+    now: Date.parse("2026-10-23T00:00:00.000Z"),
+  });
+  expect(items.map(({ record, description }) => ({ id: record.threadId, description }))).toEqual([
+    { id: "mine", description: "Side chat" },
+  ]);
+});
+
 it("also offers threads on linked machines, naming the machine, but no other machine's", () => {
   const vps = EnvironmentId.make("env-vps");
   const items = matchComposerThreadItems({
@@ -86,9 +115,14 @@ describe("matchComposerEnvironmentItems", () => {
     { environmentId: EnvironmentId.make("env-vps"), label: "Hetzner VPS", machine: "cloud" },
     { environmentId: EnvironmentId.make("env-mini"), label: "Mac mini", machine: "mac-mini" },
   ] as const;
-  const match = (query: string) =>
+  const match = (
+    query: string,
+    linkedEnvironments: ReadonlyMap<EnvironmentId, string> = new Map(),
+    candidates: ReadonlyArray<ComposerEnvironmentCandidate> = environments,
+  ) =>
     matchComposerEnvironmentItems({
-      environments,
+      environments: candidates,
+      linkedEnvironments,
       environmentId: EnvironmentId.make("env-here"),
       query,
     }).map(({ record, machine, description }) => ({
@@ -104,5 +138,25 @@ describe("matchComposerEnvironmentItems", () => {
     ]);
     expect(match("lap")).toEqual([]);
     expect(match("")).toEqual([]);
+  });
+
+  it("offers machines the composer's environment links to that this client is not paired with", () => {
+    expect(
+      match(
+        "build",
+        new Map([
+          [EnvironmentId.make("env-here"), "Laptop"],
+          [EnvironmentId.make("env-build"), "buildbox"],
+        ]),
+        [],
+      ),
+    ).toEqual([
+      { environmentId: "env-build", label: "buildbox", machine: "server", description: "Machine" },
+    ]);
+    expect(
+      match("vps", new Map([[EnvironmentId.make("env-vps"), "Hetzner VPS"]])).map(
+        (item) => item.machine,
+      ),
+    ).toEqual(["cloud"]);
   });
 });

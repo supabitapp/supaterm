@@ -421,7 +421,10 @@ it.effect("returns an HTML render reference that Codex and Claude tool rows both
 );
 
 // A thread read whose runs or messages are bounded by nothing but the thread.
-const historyReads = (reads: Array<string>) => {
+const historyReads = (
+  reads: Array<string>,
+  queued?: { readonly attachments: ReadonlyArray<unknown>; readonly dispatched: Array<unknown> },
+) => {
   const record = (
     fields: ReadonlyArray<string>,
     filter: ProjectionStore.ProjectionRecordFilter | undefined,
@@ -447,9 +450,20 @@ const historyReads = (reads: Array<string>) => {
     getProjectThreadRecords: (_target, fields, filter) =>
       Effect.sync(() => record(fields, filter)).pipe(Effect.as(projection as never)),
     getThreadRecords: (_id, fields, filter) =>
-      Effect.sync(() => record(fields, filter)).pipe(Effect.as(projection as never)),
-    getMessagesById: () => Effect.succeed(new Map()),
-    dispatch: () => Effect.succeed({ sequence: 1 } as never),
+      Effect.sync(() => record(fields, filter)).pipe(
+        Effect.as({
+          ...projection,
+          runs:
+            queued === undefined
+              ? projection.runs
+              : [{ id: "run:queued", status: "queued", userMessageId: "message:queued" }],
+        } as never),
+      ),
+    getMessagesById: () =>
+      Effect.succeed(new Map(queued === undefined ? [] : [["message:queued", queued]]) as never),
+    hasReceipt: () => Effect.succeed(false),
+    dispatch: (command) =>
+      Effect.sync(() => queued?.dispatched.push(command)).pipe(Effect.as({ sequence: 1 } as never)),
   });
 };
 
@@ -473,6 +487,39 @@ it.effect("supaterm_queue list and read load only the queued runs and their mess
         Layer.provideMerge(McpHttpServer.layerInProcessMcpServer),
         Layer.provide(NodeCrypto.layer),
         Layer.provide(historyReads(reads)),
+      ),
+    ),
+  );
+});
+
+it.effect("a queued edit to /logout keeps the queued image instead of being refused", () => {
+  const reads: Array<string> = [];
+  const attachments = [{ type: "image", id: "shot", name: "shot.png" }];
+  const dispatched: Array<unknown> = [];
+  return Effect.gen(function* () {
+    const server = yield* McpServer.McpServer;
+    const edit = (text: string) =>
+      server
+        .callTool({
+          name: "supaterm_queue",
+          arguments: { action: "edit", queuedRunId: "run:queued", text },
+        })
+        .pipe(
+          Effect.provideService(McpInvocationContext.McpInvocationContext, scope),
+          Effect.provideService(McpSchema.McpServerClient, client),
+        );
+    expect((yield* edit("Edited")).isError).not.toBe(true);
+    expect(reads).toEqual([]);
+    // The edit keeps the queued image, so `/logout` stays an ordinary prompt and is not refused.
+    expect((yield* edit(" /LOGOUT ")).isError).not.toBe(true);
+    expect(dispatched).toMatchObject([{ text: "Edited" }, { text: " /LOGOUT ", attachments }]);
+    expect(dispatched[0]).not.toHaveProperty("attachments");
+  }).pipe(
+    Effect.provide(
+      layerThreadToolkit.pipe(
+        Layer.provideMerge(McpHttpServer.layerInProcessMcpServer),
+        Layer.provide(NodeCrypto.layer),
+        Layer.provide(historyReads(reads, { attachments, dispatched })),
       ),
     ),
   );
@@ -1266,6 +1313,52 @@ it.effect.each(["supaterm_thread_interrupt", "supaterm_workflow_stop"])(
     ),
 );
 
+it.effect(
+  "supaterm_background_wait marks work from a turn Claude started before Supaterm started its run",
+  () =>
+    Effect.gen(function* () {
+      const server = yield* McpServer.McpServer;
+      const result = yield* server
+        .callTool({ name: "supaterm_background_wait", arguments: { taskIds: ["checks"] } })
+        .pipe(
+          Effect.provideService(McpInvocationContext.McpInvocationContext, {
+            ...scope,
+            capabilities: new Set<McpInvocationContext.McpCapability>([
+              "orchestration",
+              "background-wait",
+            ]),
+          }),
+          Effect.provideService(McpSchema.McpServerClient, client),
+        );
+      expect(result.structuredContent).toEqual({ matched: ["checks"], unmatched: [] });
+    }).pipe(
+      Effect.provide(
+        layerOrchestratorToolkit.pipe(
+          Layer.provideMerge(McpHttpServer.layerInProcessMcpServer),
+          Layer.provide(NodeCrypto.layer),
+          Layer.provide(
+            Layer.mock(ThreadManagement.ThreadManagementService)({
+              getThreadShell: (id) =>
+                Effect.succeed(McpToolAccessTestkit.liveThreadShell(id, { activeRunId: null })),
+              awaitBackgroundTasks: ({ taskIds }) =>
+                Effect.succeed({ matched: taskIds, unmatched: [] }),
+            }),
+          ),
+          Layer.provide(ServerSettings.layerTest()),
+          Layer.provide(Layer.mock(ProviderRegistry.ProviderRegistry)({})),
+          Layer.provide(Layer.mock(ProviderAdapterRegistry.ProviderAdapterRegistryV2)({})),
+          Layer.provide(Layer.mock(ScheduledTaskService.ScheduledTaskService)({})),
+          Layer.provide(Layer.mock(ProjectService.ProjectService)({})),
+          Layer.provide(Layer.mock(SecretRequests.SecretRequests)({})),
+          Layer.provide(Layer.mock(RemoteDelegation.RemoteDelegation)({})),
+          Layer.provide(Layer.mock(PeerForwarding.PeerForwarding)({})),
+          Layer.provide(Layer.mock(PeerLinkRequests.PeerLinkRequests)({})),
+          Layer.provide(Layer.mock(PeerLinks.PeerLinks)({})),
+        ),
+      ),
+    ),
+);
+
 it.effect("discovers workflow stop targets and requires orchestration capability", () => {
   const threadId = ThreadId.make("workflow-parent");
   const shell = McpToolAccessTestkit.liveThreadShell(threadId);
@@ -1426,6 +1519,103 @@ it.effect("only the caller that prepared a pending upload can discard it", () =>
     ),
   ),
 );
+
+const sendTargetId = ThreadId.make("send-target-thread");
+const sendCommand = {
+  commandId: CommandId.make("mcp-core-send"),
+  commandType: "message.dispatch",
+};
+
+it.effect.each([
+  {
+    outcome: "says that the missing workspace could not be recreated",
+    refusal: new ThreadManagement.ThreadManagementWorktreeRestoreError({
+      threadId: sendTargetId,
+      cause: new Error("The branch no longer exists."),
+    }),
+    reply: {
+      _tag: "OrchestratorMcpFailure",
+      code: "thread_not_sendable",
+      message:
+        "Couldn't recreate the missing workspace of thread send-target-thread, so the message was not sent. The branch no longer exists.",
+    },
+  },
+  {
+    outcome: "passes on the text reason of an orchestrator rejection",
+    refusal: new OrchestratorCommandRejectedError({
+      ...sendCommand,
+      cause: "Thread send-target-thread is deleted.",
+    }),
+    reply: {
+      _tag: "OrchestratorMcpFailure",
+      code: "orchestration_error",
+      message: "Thread send-target-thread is deleted.",
+    },
+  },
+  {
+    outcome: "keeps an internal dispatch cause private",
+    refusal: new OrchestratorDispatchError({
+      ...sendCommand,
+      cause: new Error("private-storage-path"),
+    }),
+    reply: {
+      _tag: "OrchestratorMcpFailure",
+      code: "orchestration_error",
+      message: "The operation could not be completed.",
+    },
+  },
+])("supaterm_thread_send_attachments $outcome", ({ refusal, reply }) => {
+  const stored = ChatImageAttachment.make({
+    type: "image",
+    id: "owned-image",
+    name: "original.png",
+    mimeType: "image/png",
+    sizeBytes: 12,
+  });
+  return Effect.gen(function* () {
+    const server = yield* McpServer.McpServer;
+    const result = yield* server
+      .callTool({
+        name: "supaterm_thread_send_attachments",
+        arguments: { threadId: sendTargetId, message: "See the file.", attachments: [stored] },
+      })
+      .pipe(
+        Effect.provideService(McpInvocationContext.McpInvocationContext, scope),
+        Effect.provideService(McpSchema.McpServerClient, client),
+      );
+    expect(declaredFailure(result)).toEqual(reply);
+  }).pipe(
+    Effect.provide(
+      McpHttpServer.layerAttachmentToolkit.pipe(
+        Layer.provideMerge(McpHttpServer.layerInProcessMcpServer),
+        Layer.provide(McpPendingUploads.layer),
+        Layer.provide(
+          Layer.mock(ThreadManagement.ThreadManagementService)({
+            getThreadShell: (id) => Effect.succeed(McpToolAccessTestkit.liveThreadShell(id)),
+            getProjectThreadRecords: () =>
+              Effect.succeed({
+                ...McpToolAccessTestkit.idleThreadProjection(
+                  McpToolAccessTestkit.liveThreadShell(sendTargetId),
+                ),
+                messages: [{ attachments: [stored] }],
+              } as never),
+            sendToThread: () => Effect.fail(refusal),
+          }),
+        ),
+        Layer.provide(AssetSigner.layer.pipe(Layer.provideMerge(ServerSecretStore.layer))),
+        Layer.provide(
+          ServerConfig.layerTest(process.cwd(), { prefix: "supaterm-mcp-attachment-" }),
+        ),
+        Layer.provide(
+          DocumentText.layer.pipe(
+            Layer.provideMerge(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer)),
+          ),
+        ),
+        Layer.provide(NodeCrypto.layer),
+      ),
+    ),
+  );
+});
 
 it.effect(
   "supaterm_thread_list done:false with an empty statuses list lists the threads not done",

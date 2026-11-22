@@ -14,7 +14,8 @@ import {
 } from "@supaterm/shared/usageLimits";
 import { type ReactNode, useContext, useRef, useState } from "react";
 import { Atom } from "effect/reactivity";
-import { Linking, Pressable, View } from "react-native";
+import { Pressable, View } from "react-native";
+import { tryOpenExternalUrl } from "../../lib/openExternalUrl";
 
 import { AppText as Text } from "../../components/ui/AppText";
 import { ProviderIcon } from "../../components/ProviderIcon";
@@ -202,7 +203,7 @@ export function AccountLimits(props: {
         <Pressable
           accessibilityRole="link"
           className="min-h-11 justify-center"
-          onPress={() => void Linking.openURL(externalUsage.url).catch(() => undefined)}
+          onPress={() => void tryOpenExternalUrl(externalUsage.url)}
         >
           <Text className="text-sm font-supaterm-medium text-primary">Manage usage</Text>
         </Pressable>

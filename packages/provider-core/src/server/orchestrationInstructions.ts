@@ -14,7 +14,7 @@ Ordinary coding tasks need no Supaterm tools.
   `- \`supaterm_thread_launch\` and \`create_threads\` make new top-level threads, only when the user asks for a new thread. "Subagent", "delegate", and "parallel" never mean one. Worktree thread: set \`workspaceStrategy\`. Honor a requested base. Otherwise independent work uses the default branch as \`remote/branch\` with \`startFromOrigin:true\`; with no remote, use the local default. Required unpublished commits and dependent work use their local base. Shell worktrees don't bind it, and no checkout setup in its prompt. No \`workspaceStrategy\`: project root, not your worktree.
 - Given a thread id, \`supaterm_thread_read\` it before you answer about it. Asked to mark a thread done, this one too: \`supaterm_thread_organize\`.
 - Another machine: \`supaterm_environment_links\` lists linked ones. Pass its \`environmentId\` and that machine's \`threadId\` to Supaterm tools.
-- Unlinked ("delegate this to my vps"): \`supaterm_environment_link\` with a \`hint\` from the user's words, never a pairing code in chat. No link tools: say to enable Settings → Environments → Linked environments.
+- Unlinked ("delegate this to my vps"): \`supaterm_environment_link\` with a \`hint\` from the user's words, never a pairing code in chat.
 - In your reply, mention a thread by its \`link\`, verbatim, never a plain title or bare id.
 - A secret: call \`request_secret\` yourself and read its file inside a shell command. Never ask in chat, print it, or invent one. Sudo: if \`sudo -n <cmd>\` needs a password, run \`sudo -S -p '' <cmd> < "$file"\`; the password takes stdin, so give other input as a file argument. Asked only to schedule: \`schedule_task\` without running its prompt.
 - Supaterm tools may load late. Try the name once before you call it absent.`,
@@ -57,7 +57,7 @@ export const SUPATERM_DEVICE_TOOL_INSTRUCTIONS_WITH_TOOL_SEARCH = deviceToolInst
 
 // ACP only: some ACP agents accept the injected MCP server but never expose
 // its tools, so they need the terminal transport other harnesses never use.
-const SUPATERM_ACP_MCP_FALLBACK_INSTRUCTIONS = `ACP fallback: if the Supaterm tools are absent and \`SUPATERM_ACP_MCP_NODE\` is present, call them through the terminal: \`ELECTRON_RUN_AS_NODE=1 "$SUPATERM_ACP_MCP_NODE" \${SUPATERM_ACP_MCP_ENTRYPOINT:+"$SUPATERM_ACP_MCP_ENTRYPOINT"} acp-mcp-call orchestrator_capabilities '{}'\` (\`SUPATERM_ACP_MCP_ENTRYPOINT\` is unset for a standalone executable). Delegate with \`acp-mcp-call delegate_task '{"task":"...","target":{"providerInstanceId":"...","model":"..."},"mode":"async","clientRequestId":"..."}'\`.`;
+const SUPATERM_ACP_MCP_FALLBACK_INSTRUCTIONS = `ACP fallback: if the Supaterm tools are absent and \`SUPATERM_ACP_MCP_NODE\` is present, call them through the terminal: \`ELECTRON_RUN_AS_NODE=1 "$SUPATERM_ACP_MCP_NODE" \${SUPATERM_ACP_MCP_ENTRYPOINT:+"$SUPATERM_ACP_MCP_ENTRYPOINT"} acp-mcp-call orchestrator_capabilities '{}'\` (\`SUPATERM_ACP_MCP_ENTRYPOINT\` is unset for a standalone executable). Delegate with \`acp-mcp-call delegate_task '{"task":"...","target":{"providerInstanceId":"...","model":"..."},"mode":"async","clientRequestId":"..."}'\`. On Windows, run \`SUPATERM_ACP_MCP_CALL\` instead and pipe the JSON to stdin, as in PowerShell \`'{}' | & $env:SUPATERM_ACP_MCP_CALL orchestrator_capabilities -\`, writing non-ASCII characters as \`\\uXXXX\` escapes.`;
 
 const SUPATERM_ACP_DEFAULT_MODE_INSTRUCTIONS = `## Supaterm interaction mode: Default
 
@@ -120,17 +120,22 @@ export function supatermOrchestrationPrompt(input: {
   readonly hasDeviceTools: boolean;
   readonly orchestrationDelivered: boolean;
   readonly deviceInstructionsDelivered: boolean;
+  /** Guidance for this provider's own tools, sent until `providerInstructionsDelivered`. */
+  readonly providerInstructions?: string;
+  readonly providerInstructionsDelivered?: boolean;
 }): string {
   if (!input.hasSupatermMcp) return input.prompt;
-  if (!input.orchestrationDelivered) {
-    return prependSupatermOrchestrationInstructions(
-      input.prompt,
-      orchestrationInstructions(input.hasDeviceTools),
-    );
-  }
-  return input.hasDeviceTools && !input.deviceInstructionsDelivered
-    ? prependSupatermOrchestrationInstructions(input.prompt, SUPATERM_DEVICE_TOOL_INSTRUCTIONS)
-    : input.prompt;
+  const instructions = [
+    !input.orchestrationDelivered
+      ? orchestrationInstructions(input.hasDeviceTools)
+      : input.hasDeviceTools && !input.deviceInstructionsDelivered
+        ? SUPATERM_DEVICE_TOOL_INSTRUCTIONS
+        : undefined,
+    input.providerInstructionsDelivered === true ? undefined : input.providerInstructions,
+  ].flatMap((part) => (part === undefined ? [] : [part.trim()]));
+  return instructions.length === 0
+    ? input.prompt
+    : prependSupatermOrchestrationInstructions(input.prompt, instructions.join("\n\n"));
 }
 
 export function supatermOrchestrationSystemPrompt(

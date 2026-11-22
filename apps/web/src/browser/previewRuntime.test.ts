@@ -22,6 +22,12 @@ vi.mock("~/env", () => ({
 vi.mock("~/previewStateStore", () => ({ isPreviewSupportedInRuntime: () => state.desktop }));
 vi.mock("~/rpc/atomRegistry", () => ({ appAtomRegistry: { get: () => state.primary } }));
 vi.mock("~/state/primaryEnvironment", () => ({ primaryEnvironmentIdAtom: {} }));
+vi.mock("~/state/server", () => ({ environmentServerConfigsAtom: {} }));
+vi.mock("~/connection/catalog", () => ({ environmentCatalog: { catalogValueAtom: {} } }));
+vi.mock("./browserTargetResolver", () => ({
+  loopbackTunnelUsable: () => false,
+  tunnelsEnvironmentLoopback: () => false,
+}));
 vi.mock("~/state/entities", () => ({
   readEnvironmentSupportsServerBrowser: (id: string) => state.serverBrowser.has(id),
   useEnvironmentSupportsServerBrowser: () => false,
@@ -50,8 +56,8 @@ describe("previewRuntimeFor", () => {
     state.serverBrowser = new Set([remote]);
     state.relay = new Set([remote]);
     expect(previewRuntimeFor(remote)).toBe("server");
-    expect(alternatePreviewRuntime(remote, local, true, { runtime: "server" })).toBeNull();
-    expect(alternatePreviewRuntime(remote, local, true, {})).toBeNull();
+    expect(alternatePreviewRuntime(remote, local, true, true, { runtime: "server" })).toBeNull();
+    expect(alternatePreviewRuntime(remote, local, true, true, {})).toBeNull();
   });
 });
 

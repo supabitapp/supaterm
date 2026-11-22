@@ -11,8 +11,8 @@ import {
   resolveSubagentMetadata,
   subagentDetailPreview,
 } from "@supaterm/client-runtime/state/subagent-display";
-import { REASONING_EFFORT_OPTION_IDS } from "@supaterm/client-runtime/state/thread-execution";
-import { getModelSelectionStringOptionValue, resolveSelectableModel } from "@supaterm/shared/model";
+import { readSelectedEffortValue } from "@supaterm/client-runtime/state/thread-execution";
+import { resolveSelectableModel } from "@supaterm/shared/model";
 import { getTraitsSpeedDisplay, TraitsSpeedIcon } from "./TraitsSpeed";
 import type { ReactNode } from "react";
 import {
@@ -72,9 +72,10 @@ export function SubagentTooltipContent(props: {
     childModel === modelSlug && childSelection?.instanceId === props.providerInstanceId
       ? childSelection
       : undefined;
-  const effort = REASONING_EFFORT_OPTION_IDS.map((id) =>
-    getModelSelectionStringOptionValue(matchingSelection, id),
-  ).find(Boolean);
+  const effort = readSelectedEffortValue(
+    matchingSelection,
+    providerModel?.capabilities?.optionDescriptors,
+  );
   const speed = provider
     ? providerModel?.capabilities?.optionDescriptors
         ?.map((descriptor) => {

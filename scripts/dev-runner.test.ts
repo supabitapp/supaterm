@@ -559,6 +559,9 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
           path.resolve("relative/supaterm-dev"),
         );
         assert.equal(yield* homeFor("/tmp/supaterm-dev"), path.resolve("/tmp/supaterm-dev"));
+        // An explicit ~/.supaterm would put state in the live userdata; leaving it implicit selects ~/.supaterm/dev.
+        assert.equal(yield* homeFor("~/.supaterm"), undefined);
+        assert.equal(yield* homeFor("/home/dev/.supaterm/"), undefined);
       }),
     );
 
@@ -871,7 +874,7 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
             Effect.provideService(HostProcess.Platform, "linux"),
             Effect.provideService(HostProcess.WorkingDirectory, input.cwd),
             // No ~/.supaterm here, so these runs never seed from this machine's install.
-            Effect.provideService(HostProcess.HomeDirectory, input.cwd),
+            Effect.provideService(HostProcess.HomeDirectory, NodePath.join(input.cwd, "home")),
             Effect.provideService(
               HostProcess.Environment,
               input.ambientHome === undefined ? {} : { SUPATERM_HOME: input.ambientHome },

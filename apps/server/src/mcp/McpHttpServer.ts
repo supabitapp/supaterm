@@ -1,6 +1,9 @@
+import * as Cache from "effect/Cache";
 import * as Cause from "effect/Cause";
 import * as Clock from "effect/Clock";
 import * as Context from "effect/Context";
+import * as DateTime from "effect/DateTime";
+import * as Duration from "effect/Duration";
 import * as SecureRandom from "effect/crypto/SecureRandom";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
@@ -21,16 +24,18 @@ import {
   ProviderInteractionMode,
   RuntimeMode,
   OrchestrationV2LinkedSender,
+  type ThreadId,
 } from "@supaterm/contracts";
 
 import packageJson from "../../package.json" with { type: "json" };
 import { parseBearerToken } from "../auth/EnvironmentAuth.ts";
 import * as ServerConfig from "../config.ts";
-import * as ServerSettings from "../serverSettings.ts";
 import * as DeviceService from "../device/DeviceService.ts";
 import * as HtmlRender from "../htmlRender/HtmlRender.ts";
 import * as ThreadCommandExecutor from "../orchestration-v2/ThreadCommandExecutor.ts";
 import * as ThreadManagementService from "../orchestration-v2/ThreadManagementService.ts";
+import * as ProjectionStore from "../orchestration-v2/ProjectionStore.ts";
+import * as PullRequestService from "../pullRequest/PullRequestService.ts";
 import * as PullRequestWatchService from "../pullRequest/PullRequestWatchService.ts";
 import { advertisedJsonSchema } from "./advertisedJsonSchema.ts";
 import * as McpInvocationContext from "./McpInvocationContext.ts";
@@ -159,6 +164,38 @@ const normalizeMcpHttpResponse = (
     : response;
 };
 
+// The first protocol is the fallback for clients that offer an unknown version.
+const mcpProtocols = [McpProtocol.v2025_06_18, McpProtocol.v2026_07_28] as const;
+
+/**
+ * Effect answers 400 to a notification a sessionless protocol does not define, because it requires
+ * `_meta` before it checks the method. The Go MCP SDK still sends `notifications/roots/list_changed`
+ * there and closes its connection on that 400. Remove once Effect ignores undefined notifications.
+ */
+const isUndefinedNotification = Effect.fnUntraced(function* (
+  request: HttpServerRequest.HttpServerRequest,
+) {
+  const method = request.headers["mcp-method"];
+  const protocol = mcpProtocols.find(
+    (candidate) => candidate.protocolVersion === request.headers["mcp-protocol-version"],
+  );
+  if (
+    request.method !== "POST" ||
+    protocol?.runtime._tag !== "Stateless" ||
+    !method?.startsWith("notifications/") ||
+    protocol.clientRpcs.requests.has(method)
+  ) {
+    return false;
+  }
+  const message = yield* Effect.orElseSucceed(request.json, () => undefined);
+  return (
+    Predicate.isReadonlyObject(message) &&
+    message.jsonrpc === "2.0" &&
+    message.method === method &&
+    !Predicate.hasProperty(message, "id")
+  );
+});
+
 // Session tokens are `<payload>.<signature>`; registry tokens are a bare base64url secret.
 const looksLikeProviderToken = (token: string) => token.length > 0 && !token.includes(".");
 
@@ -219,24 +256,27 @@ const withSenderThread = (
     : { ...invocation, client: { ...invocation.client, senderThread: decoded.value } };
 };
 
-// The Linked environments beta is off here: links wait until it is on again.
-const linkedEnvironmentsOff = HttpServerResponse.jsonUnsafe(
-  {
-    error: "linked_environments_off",
-    message:
-      "Linked environments is off on this machine. Turn it on in its Settings → Environments.",
-  },
-  { status: 403, headers: { "cache-control": "no-store" } },
-);
-
 const makeMcpAuthMiddleware = Effect.gen(function* () {
   const registry = yield* McpSessionRegistry.McpSessionRegistry;
   const clients = yield* Effect.serviceOption(McpClientAuthenticator);
-  const serverSettings = yield* ServerSettings.ServerSettingsService;
-  const linksEnabled = serverSettings.getSettings.pipe(
-    Effect.map((settings) => settings.linkedEnvironmentsEnabled),
-    Effect.orElseSucceed(() => false),
-  );
+  const pullRequests = yield* Effect.serviceOption(PullRequestService.PullRequestService);
+  const projections = yield* Effect.serviceOption(ProjectionStore.ProjectionStoreV2);
+  // Every request reads it, and a remote added mid-thread shows the tools within a minute.
+  const forgeOfThread = yield* Cache.make({
+    capacity: 1_000,
+    timeToLive: Duration.minutes(1),
+    lookup: (threadId: ThreadId): Effect.Effect<boolean | undefined> =>
+      Option.isNone(pullRequests) || Option.isNone(projections)
+        ? Effect.undefined
+        : projections.value.getThreadShell(threadId).pipe(
+            Effect.flatMap((thread) =>
+              thread === null
+                ? Effect.undefined
+                : pullRequests.value.servesProject(thread.projectId),
+            ),
+            Effect.orElseSucceed(() => undefined),
+          ),
+  });
   const authenticateRequest = Effect.fn("McpHttpServer.authenticateRequest")(function* (
     request: HttpServerRequest.HttpServerRequest,
   ) {
@@ -266,10 +306,12 @@ const makeMcpAuthMiddleware = Effect.gen(function* () {
     }
     const limited = withModeLimit(withSenderThread(invocation, request), request);
     if (limited === undefined) return invalidModeLimit;
-    const linkedEnvironments = yield* linksEnabled;
-    if (limited.client?.linked === true && !linkedEnvironments) return linkedEnvironmentsOff;
     const origin = Option.getOrUndefined(Option.map(requestUrl(request), (url) => url.origin));
-    return { ...limited, linkedEnvironments, origin };
+    const forge =
+      limited.thread === undefined
+        ? undefined
+        : yield* Cache.get(forgeOfThread, limited.thread.threadId);
+    return { ...limited, origin, ...(forge === undefined ? {} : { forge }) };
   });
   // Untraced: a span here would wrap the tool call; the HTTP server span already covers it.
   return Effect.fnUntraced(function* (httpEffect) {
@@ -278,9 +320,20 @@ const makeMcpAuthMiddleware = Effect.gen(function* () {
     if (request.headers.origin !== undefined) return HttpServerResponse.empty({ status: 403 });
     const admitted = yield* authenticateRequest(request);
     if (HttpServerResponse.isHttpServerResponse(admitted)) return admitted;
+    if (yield* isUndefinedNotification(request)) return HttpServerResponse.empty({ status: 202 });
+    const linkExpiresAt = admitted.client?.linkExpiresAt;
     return yield* httpEffect.pipe(
       Effect.provideService(McpInvocationContext.McpInvocationContext, admitted),
       Effect.map(normalizeMcpHttpResponse),
+      Effect.map((response) =>
+        linkExpiresAt === undefined
+          ? response
+          : HttpServerResponse.setHeader(
+              response,
+              McpInvocationContext.LINK_EXPIRES_AT_HEADER,
+              DateTime.formatIso(linkExpiresAt),
+            ),
+      ),
     );
   }) satisfies McpAuthMiddleware;
 }).pipe(Effect.withSpan("McpHttpServer.makeAuthMiddleware"));
@@ -1134,8 +1187,7 @@ export const layerMcpTransport = <RA, RE, RR>(registrations: Layer.Layer<RA, RE,
     name: "supaterm",
     version: packageJson.version,
     path: MCP_HTTP_PATH,
-    // The first protocol is the fallback for clients that offer an unknown version.
-    protocols: [McpProtocol.v2025_06_18, McpProtocol.v2026_07_28],
+    protocols: mcpProtocols,
     allowSessionTermination: true,
     registrations,
   }).pipe(Layer.provide(layerMcpAuthMiddleware));

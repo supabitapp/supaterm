@@ -2,6 +2,7 @@ import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { EnvironmentId } from "@supaterm/contracts";
 import { expect, it } from "@effect/vitest";
+import * as DateTime from "effect/DateTime";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
@@ -268,6 +269,42 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("SessionStore.lay
       expect((yield* sessions.verify(uncapped.token)).runtimeModeCeiling).toBeUndefined();
     }).pipe(Effect.provide(layerSessionStore())),
   );
+  it.effect("refuses and revokes peer-link sessions signed while links had a switch", () =>
+    Effect.gen(function* () {
+      const sessions = yield* SessionStore.SessionStore;
+      const secrets = yield* ServerSecretStore.ServerSecretStore;
+      const issueMcpSession = (peerLink: boolean) =>
+        sessions.issue({ subject: "mcp-client", method: "bearer-access-token", peerLink });
+      const old = yield* issueMcpSession(true);
+      const current = yield* issueMcpSession(true);
+      const agent = yield* issueMcpSession(false);
+      // An older build signed its links as generation 1.
+      const [encodedPayload] = old.token.split(".");
+      const signer = yield* PayloadSigner.fromSecret(
+        yield* secrets.getOrCreateRandom("server-signing-key", 32),
+      );
+      const oldPayload = base64UrlEncode(
+        base64UrlDecodeUtf8(encodedPayload!).replace('"plk":2', '"plk":1'),
+      );
+      const oldToken = `${oldPayload}.${yield* signer.sign(oldPayload)}`;
+
+      expect((yield* Effect.flip(sessions.verify(oldToken)))._tag).toBe("SessionTokenRevokedError");
+      expect((yield* sessions.verify(current.token)).peerLink).toBe(true);
+      expect((yield* sessions.verify(agent.token)).peerLink).toBeUndefined();
+      expect((yield* sessions.listActive()).map((session) => session.sessionId)).not.toContain(
+        old.sessionId,
+      );
+    }).pipe(
+      Effect.provide(
+        SessionStore.layer.pipe(
+          Layer.provideMerge(ServerSecretStore.layer),
+          Layer.provide(SqlitePersistence.layerMemory),
+          Layer.provide(layerServerEnvironment(EnvironmentId.make("test-environment"))),
+          Layer.provide(layerServerConfig()),
+        ),
+      ),
+    ),
+  );
   it.effect("takes scopes from the session record", () =>
     Effect.gen(function* () {
       const sessions = yield* SessionStore.SessionStore;
@@ -436,6 +473,51 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("SessionStore.lay
           error.expiresAt.epochMilliseconds,
         );
       }
+    }).pipe(Effect.provide(Layer.merge(layerSessionStore(), TestClock.layer()))),
+  );
+
+  it.effect("extends a session once per step and refuses one that has ended", () =>
+    Effect.gen(function* () {
+      const sessions = yield* SessionStore.SessionStore;
+      const step = Duration.days(1);
+      const issued = yield* sessions.issue({ subject: "owner" });
+      const idle = yield* sessions.issue({ subject: "owner" });
+      const millis = (expiresAt: Option.Option<DateTime.Utc>) =>
+        Option.getOrNull(Option.map(expiresAt, (value) => value.epochMilliseconds));
+      const stored = sessions
+        .listActive()
+        .pipe(
+          Effect.map(
+            (active) =>
+              active.find((entry) => entry.sessionId === issued.sessionId)?.expiresAt
+                .epochMilliseconds,
+          ),
+        );
+
+      // Less than a step short: the row keeps its expiry.
+      const near = DateTime.toUtc(DateTime.add(issued.expiresAt, { hours: 12 }));
+      expect(millis(yield* sessions.extend(issued.sessionId, near, step))).toBe(
+        issued.expiresAt.epochMilliseconds,
+      );
+      expect(yield* stored).toBe(issued.expiresAt.epochMilliseconds);
+
+      const renewed = DateTime.toUtc(DateTime.add(issued.expiresAt, { days: 20 }));
+      expect(millis(yield* sessions.extend(issued.sessionId, renewed, step))).toBe(
+        renewed.epochMilliseconds,
+      );
+      // A second use that read the old expiry finds the row renewed and takes its deadline.
+      const overlapping = DateTime.add(renewed, { minutes: 1 });
+      expect(millis(yield* sessions.extend(issued.sessionId, overlapping, step))).toBe(
+        renewed.epochMilliseconds,
+      );
+      expect(yield* stored).toBe(renewed.epochMilliseconds);
+
+      yield* sessions.revoke(issued.sessionId);
+      expect(millis(yield* sessions.extend(issued.sessionId, overlapping, step))).toBeNull();
+
+      yield* TestClock.setTime(idle.expiresAt.epochMilliseconds);
+      const afterExpiry = DateTime.toUtc(DateTime.add(idle.expiresAt, { days: 30 }));
+      expect(millis(yield* sessions.extend(idle.sessionId, afterExpiry, step))).toBeNull();
     }).pipe(Effect.provide(Layer.merge(layerSessionStore(), TestClock.layer()))),
   );
 

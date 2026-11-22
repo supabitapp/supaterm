@@ -80,7 +80,7 @@ describe("resolveSubagentRowPresentation", () => {
     );
   });
 
-  it("opens a task in a linked environment there, once this app is connected to it", () => {
+  it("opens a task in a linked environment there, else reads it through this environment", () => {
     const here = EnvironmentId.make("here");
     const remote = {
       ...base,
@@ -97,12 +97,30 @@ describe("resolveSubagentRowPresentation", () => {
       runsOn: "Box",
     });
     expect(resolveSubagentRowPresentation(remote, true).canOpenThread).toBe(true);
-    expect(subagentThreadTarget(remote, here, () => false)).toBeNull();
-    expect(subagentThreadTarget(remote, here, () => true)).toEqual({
+    const saved = (connected: boolean) => () => ({ connected });
+    const unsaved = () => undefined;
+    const linked = { linked: { viaEnvironmentId: "here", label: "Box" } };
+    // A server from before linked reads opens only a machine this app has.
+    expect(subagentThreadTarget(remote, here, unsaved, null)).toBeNull();
+    expect(subagentThreadTarget(remote, here, saved(false), null)).toEqual({
       environmentId: "box",
       threadId: "thread-there",
     });
-    expect(subagentThreadTarget(base, here, () => false)).toEqual({
+    expect(subagentThreadTarget(remote, here, saved(true), () => true)).toEqual({
+      environmentId: "box",
+      threadId: "thread-there",
+    });
+    expect(subagentThreadTarget(remote, here, saved(false), () => true)).toEqual({
+      environmentId: "box",
+      threadId: "thread-there",
+      ...linked,
+    });
+    expect(subagentThreadTarget(remote, here, unsaved, () => false)).toEqual({
+      environmentId: "box",
+      threadId: "thread-there",
+      ...linked,
+    });
+    expect(subagentThreadTarget(base, here, unsaved, null)).toEqual({
       environmentId: "here",
       threadId: "thread-child",
     });

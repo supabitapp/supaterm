@@ -21,6 +21,8 @@ import {
   CheckIcon,
   ClockIcon,
   ExternalLinkIcon,
+  EyeIcon,
+  EyeOffIcon,
   LockIcon,
   MinusIcon,
   ShieldCheckIcon,
@@ -30,7 +32,7 @@ import { useId, useRef, useState, type FormEvent } from "react";
 import { serverEnvironment } from "../../state/server";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { Button } from "../ui/button";
-import { Input } from "../ui/input";
+import { InputGroup, InputGroupAddon, InputGroupInput } from "../ui/input-group";
 import { WorkLogRow } from "./WorkLog";
 
 export function SecretRequestCard(props: {
@@ -232,31 +234,52 @@ function SecretRequestField(props: {
   readonly showLabel: boolean;
   readonly onChange: (value: string) => void;
 }) {
+  const { input } = props;
+  const [revealed, setRevealed] = useState(false);
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-1">
       {props.showLabel ? (
         <label htmlFor={props.id} className="text-xs font-medium text-muted-foreground">
-          {props.input.label}
+          {input.label}
         </label>
       ) : null}
-      <Input
-        id={props.id}
-        // A CSS-masked text field still exposes its value to screen readers.
-        type={props.input.masked ? "password" : "text"}
-        autoComplete="off"
-        autoCorrect="off"
-        autoCapitalize="off"
-        spellCheck={false}
-        data-1p-ignore
-        data-lpignore="true"
-        data-bwignore
-        placeholder={props.input.placeholder}
-        value={props.value}
-        disabled={props.disabled}
-        aria-invalid={props.invalid || undefined}
-        aria-describedby={props.describedBy}
-        onChange={(event) => props.onChange(event.currentTarget.value)}
-      />
+      <InputGroup>
+        <InputGroupInput
+          id={props.id}
+          // A CSS-masked text field still exposes its value to screen readers.
+          type={input.masked && !revealed ? "password" : "text"}
+          autoComplete="off"
+          autoCorrect="off"
+          autoCapitalize="off"
+          spellCheck={false}
+          data-1p-ignore
+          data-lpignore="true"
+          data-bwignore
+          placeholder={input.placeholder}
+          value={props.value}
+          disabled={props.disabled}
+          aria-invalid={props.invalid || undefined}
+          aria-describedby={props.describedBy}
+          onChange={(event) => props.onChange(event.currentTarget.value)}
+        />
+        {input.masked ? (
+          <InputGroupAddon align="inline-end">
+            <Button
+              type="button"
+              size="icon-xs"
+              variant="ghost"
+              aria-label={`Show ${input.label}`}
+              aria-pressed={revealed}
+              disabled={props.disabled}
+              // Keep focus, and the caret, in the input.
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => setRevealed((current) => !current)}
+            >
+              {revealed ? <EyeOffIcon aria-hidden /> : <EyeIcon aria-hidden />}
+            </Button>
+          </InputGroupAddon>
+        ) : null}
+      </InputGroup>
     </div>
   );
 }

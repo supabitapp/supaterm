@@ -4,6 +4,7 @@ import * as NodeWS from "@effect/platform-node/NodeWS";
 import * as NodeHttp from "node:http";
 import * as NodeNet from "node:net";
 import * as Context from "effect/Context";
+import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
 import * as Layer from "effect/Layer";
@@ -19,6 +20,7 @@ import {
   LOCAL_DEVICE_HOST_ID,
 } from "@supaterm/contracts";
 import * as EnvironmentAuth from "../auth/EnvironmentAuth.ts";
+import * as SessionStore from "../auth/SessionStore.ts";
 import * as DeviceService from "./DeviceService.ts";
 import * as DeviceHubProxy from "./DeviceHubProxy.ts";
 
@@ -44,7 +46,10 @@ const listenHub = Effect.fn("DeviceHubProxyTest.listenHub")(function* (
   return address.port;
 });
 
-const serveProxy = Effect.fn("DeviceHubProxyTest.serveProxy")(function* (hubPort: number) {
+const serveProxy = Effect.fn("DeviceHubProxyTest.serveProxy")(function* (
+  hubPort: number,
+  invalidated: Effect.Effect<void> = Effect.never,
+) {
   const services = yield* Layer.build(
     HttpRouter.serve(DeviceHubProxy.layer, { disableListenLog: true }).pipe(
       // Production's WebSocket options, so viewers can offer permessage-deflate.
@@ -55,6 +60,12 @@ const serveProxy = Effect.fn("DeviceHubProxyTest.serveProxy")(function* (hubPort
         }),
       ),
       Layer.provide(FetchHttpClient.layer),
+      Layer.provide(
+        Layer.mock(SessionStore.SessionStore, {
+          cookieName: "test",
+          awaitInvalidation: () => invalidated,
+        }),
+      ),
       Layer.provide(
         Layer.succeed(EnvironmentAuth.EnvironmentAuth, {
           authenticateWebSocketUpgrade: () =>
@@ -85,11 +96,14 @@ const serveProxy = Effect.fn("DeviceHubProxyTest.serveProxy")(function* (hubPort
 
 it.effect("preserves binary input and admission frames through the real socket proxy", () =>
   Effect.gen(function* () {
+    const upstreamClosed = Promise.withResolvers<void>();
     const hubPort = yield* listenHub((socket) => {
+      socket.once("close", upstreamClosed.resolve);
       socket.send(Uint8Array.of(0x83));
       socket.on("message", (data, binary) => socket.send(data, { binary }));
     });
-    const origin = yield* serveProxy(hubPort);
+    const invalidated = yield* Deferred.make<void>();
+    const origin = yield* serveProxy(hubPort, Deferred.await(invalidated));
     const client = yield* Effect.acquireRelease(
       Effect.sync(
         () =>
@@ -112,6 +126,12 @@ it.effect("preserves binary input and admission frames through the real socket p
     });
     yield* Effect.promise(() => received.promise);
     expect(frames).toEqual([[0x83], [0x03, 1], [0x03, 2]]);
+
+    const closed = new Promise<void>((resolve) =>
+      client.addEventListener("close", () => resolve(), { once: true }),
+    );
+    yield* Deferred.succeed(invalidated, undefined);
+    yield* Effect.promise(() => Promise.all([closed, upstreamClosed.promise]));
   }),
 );
 

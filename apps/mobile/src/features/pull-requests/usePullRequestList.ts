@@ -4,7 +4,11 @@ import {
   pullRequestPendingEditsFor,
 } from "@supaterm/client-runtime/state/pull-requests";
 import { RegistryContext, useAtomMount, useAtomSubscribe, useAtomValue } from "@effect/atom-react";
-import { executeAtomQuery, squashAtomCommandFailure } from "@supaterm/client-runtime/state/runtime";
+import {
+  executeAtomQuery,
+  runAtomCommand,
+  squashAtomCommandFailure,
+} from "@supaterm/client-runtime/state/runtime";
 import type { EnvironmentId, PullRequestDiffStat, PullRequestListInput } from "@supaterm/contracts";
 import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
@@ -127,10 +131,12 @@ async function refreshHeads(
 ) {
   const responses = await Promise.allSettled(
     targets.map(async (target) => {
-      await composerPullRequests.invalidate.run(registry, {
-        environmentId: target.environmentId,
-        input: {},
-      });
+      await runAtomCommand(
+        registry,
+        composerPullRequests.invalidate,
+        { environmentId: target.environmentId, input: {} },
+        { reportFailure: false },
+      );
       if (signal.aborted) return;
       const response = await executeAtomQuery(
         registry,

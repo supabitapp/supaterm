@@ -1,7 +1,8 @@
 import * as Dialog from "../../components/ui/Dialog";
 import type { ServerProvider } from "@supaterm/contracts";
 import { CHATGPT_USAGE_URL, usesChatGptSharing } from "@supaterm/shared/usageLimits";
-import { Linking, Pressable, View } from "react-native";
+import { Pressable, View } from "react-native";
+import { tryOpenExternalUrl } from "../../lib/openExternalUrl";
 import { AppText as Text } from "../../components/ui/AppText";
 import { ProviderIcon } from "../../components/ProviderIcon";
 
@@ -32,7 +33,7 @@ export function ChatGptSharingStatus({ provider }: { provider: ServerProvider | 
       <Pressable
         accessibilityRole="link"
         className="min-h-11 justify-center"
-        onPress={() => void Linking.openURL(CHATGPT_USAGE_URL).catch(() => undefined)}
+        onPress={() => void tryOpenExternalUrl(CHATGPT_USAGE_URL)}
       >
         <Text className="text-xs font-supaterm-medium text-primary">Manage usage</Text>
       </Pressable>

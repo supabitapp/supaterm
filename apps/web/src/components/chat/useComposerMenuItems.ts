@@ -39,7 +39,7 @@ import { searchProviderSkills } from "../../providerSkillSearch";
 import { useAtomValue } from "@effect/atom-react";
 import { useThreadShells } from "~/state/entities";
 import { useEnvironmentIdentities, useEnvironmentMachines } from "~/state/environments";
-import { offersLinkedEnvironmentsAtom } from "~/state/peerLinks";
+import { supportsPeerLinksAtom } from "~/state/peerLinks";
 import {
   pullRequestEnvironment,
   usePullRequestList,
@@ -150,7 +150,7 @@ export function useComposerMenuItems({
   // The user's machines feed `@` machine matches; the catalog summary is cheap and stable.
   const environmentIdentities = useEnvironmentIdentities();
   const environmentMachines = useEnvironmentMachines();
-  const offersMachines = useAtomValue(offersLinkedEnvironmentsAtom(environmentId));
+  const offersMachines = useAtomValue(supportsPeerLinksAtom(environmentId));
   const workspaceEntries = useComposerPathSearch({
     environmentId,
     cwd: isPathTrigger ? gitCwd : null,
@@ -233,6 +233,7 @@ export function useComposerMenuItems({
                 ...identity,
                 machine: environmentMachines.get(identity.environmentId) ?? ("server" as const),
               })),
+              linkedEnvironments,
               environmentId,
               query: composerTrigger.query,
             })
@@ -247,8 +248,10 @@ export function useComposerMenuItems({
           path: entry.path,
           pathKind: entry.kind,
           searchTarget: workspaceEntries.searchedTarget,
-          label: basenameOfPath(entry.path),
-          description: entry.path.slice(0, Math.max(0, entry.path.lastIndexOf("/"))),
+          label: basenameOfPath(entry.path).normalize("NFC"),
+          description: entry.path
+            .slice(0, Math.max(0, entry.path.lastIndexOf("/")))
+            .normalize("NFC"),
         })),
       ];
     }

@@ -7,6 +7,7 @@ import {
   ProjectId,
   ProviderDriverKind,
   ProviderInstanceId,
+  RunAttemptId,
   RunId,
   ScheduledTaskId,
   SECRET_REQUEST_UNSAVED_NOTE,
@@ -267,6 +268,12 @@ it("readThread preserves caller access errors and prefers activity-run status ov
     });
     expect(laterPage.thread.pullRequests).toBeUndefined();
     expect(laterPage.thread.pullRequestCount).toBe(8);
+    // A read from past the tail is the newest page, which a linked environment asks for.
+    const newestPage = yield* service.readThread(makeScope(), {
+      threadId: parentThreadId,
+      beforePosition: Number.MAX_SAFE_INTEGER,
+    });
+    expect(newestPage.thread.pullRequests?.map((link) => link.number)).toEqual([2, 8, 7, 6, 5]);
 
     Object.assign(projection, {
       runs: [makeRun({ id: activeRunId, ordinal: 1, status: "completed" })],
@@ -508,11 +515,25 @@ it("readThread returns the newest items that fit the response budget", async () 
     // The CLI reads as a client without a cursor and follows only hasMore.
     const first = yield* service.readThread({ ...makeScope(), thread: undefined }, read);
     const fromStart = yield* service.readThread(makeScope(), { ...read, afterPosition: -1 });
+    const linked = yield* service.readThread(
+      {
+        ...makeScope(),
+        thread: undefined,
+        client: {
+          sessionId: "laptop",
+          label: "Supaterm · laptop",
+          access: "auto",
+          linked: true,
+        },
+      },
+      read,
+    );
 
     expect(pageOptions).toEqual([
       { beforePosition: Number.POSITIVE_INFINITY, limit: 100, view: "activity" },
       { limit: 100, view: "activity" },
       { afterPosition: -1, limit: 100, view: "activity" },
+      { beforePosition: Number.POSITIVE_INFINITY, limit: 100, view: "activity" },
     ]);
     // Claude Code saves results over ~50k chars of this JSON to a file instead of showing them.
     expect(JSON.stringify(result).length).toBeLessThan(31_000);
@@ -524,6 +545,9 @@ it("readThread returns the newest items that fit the response budget", async () 
     expect(first.hasMore).toBe(true);
     expect(first.nextPosition).toBe(first.items.at(-1)?.position);
     expect(fromStart.items[0]?.position).toBe(0);
+    expect(linked.items.at(-1)?.position).toBe(99);
+    expect(linked.earlierPosition).toBe(linked.items[0]?.position);
+    expect(linked.hasMore).toBe(false);
   }).pipe(Effect.provide(layer), Effect.runPromise);
 });
 
@@ -1189,4 +1213,92 @@ it("requestSecret returns the unsaved note for a declined, cancelled or timed-ou
     { status: "cancelled", note: SECRET_REQUEST_UNSAVED_NOTE.cancelled },
     { status: "timed_out", note: SECRET_REQUEST_UNSAVED_NOTE.timed_out },
   ]);
+});
+
+it("requestSecret cancels its card when a steering restart supersedes the request", async () => {
+  const originalRoot = NodeId.make("node-mcp-secret-root-original");
+  const steeredRoot = NodeId.make("node-mcp-secret-root-steered");
+  const dispatched: Array<{
+    readonly type: string;
+    readonly turnItemId?: TurnItemId;
+    readonly nodeId?: NodeId;
+    readonly secretStatus?: string;
+  }> = [];
+  let steered = false;
+  const projection = () => {
+    const card = dispatched.find(
+      (command) => command.type === "secret_request.record" && command.secretStatus === "pending",
+    );
+    return {
+      thread: baseThread({
+        threadId: parentThreadId,
+        title: "Parent",
+        instanceId: parentInstanceId,
+        model: "gpt-5.4",
+      }),
+      runs: [
+        {
+          ...makeRun({ id: activeRunId, ordinal: 1, status: "running" }),
+          rootNodeId: steered ? steeredRoot : originalRoot,
+          activeAttemptId: RunAttemptId.make("attempt-mcp-secret-original"),
+        },
+      ],
+      visibleTurnItems: [],
+      turnItems:
+        card === undefined
+          ? []
+          : [{ type: "secret_request", id: card.turnItemId, secretStatus: "pending" }],
+      providerTurns: [],
+      runtimeRequests: [],
+      messages: [],
+      contextTransfers: [],
+      subagents: [],
+      updatedAt: now,
+    } as unknown as OrchestrationV2ThreadProjection;
+  };
+  const layer = layerOrchestratorService.pipe(
+    Layer.provide(
+      Layer.mergeAll(
+        Layer.mock(ThreadManagementService.ThreadManagementService)({
+          getThreadRecords: () => Effect.sync(projection),
+          getThreadShell: () =>
+            Effect.sync(() => projection().thread as unknown as OrchestrationV2ThreadShell),
+          getThreadEventSequence: () => Effect.succeed(0),
+          dispatch: (command) =>
+            Effect.sync(() => {
+              dispatched.push(command as (typeof dispatched)[number]);
+              // The user steers right after the card opens, replacing the run's root.
+              if (command.type === "secret_request.record" && command.secretStatus === "pending") {
+                steered = true;
+              }
+              return undefined as never;
+            }),
+        } satisfies Partial<ThreadManagementService.ThreadManagementService["Service"]>),
+        ServerSettings.layerTest(),
+        Layer.mock(ProviderRegistry.ProviderRegistry)({
+          getProviders: Effect.succeed([]),
+        } satisfies Partial<ProviderRegistry.ProviderRegistry["Service"]>),
+        Layer.mock(ProjectService.ProjectService)({}),
+        Layer.mock(SecretRequests.SecretRequests)({}),
+        Layer.mock(RemoteDelegation.RemoteDelegation)({}),
+        Layer.mock(ScheduledTaskService.ScheduledTaskService)({}),
+        Layer.mock(ProviderAdapterRegistry.ProviderAdapterRegistryV2)({}),
+        NodeCrypto.layer,
+      ),
+    ),
+  );
+
+  await Effect.gen(function* () {
+    const service = yield* OrchestratorMcpService.OrchestratorMcpService;
+    const result = yield* service.requestSecret(makeScope(), {
+      label: "Booking details",
+      reason: "To check the passenger in.",
+    });
+    // The wait ended the moment its attempt was superseded instead of blocking
+    // the agent's turn until the timeout, and the card closed with it.
+    expect(result).toEqual({ status: "cancelled", note: SECRET_REQUEST_UNSAVED_NOTE.cancelled });
+    const records = dispatched.filter((command) => command.type === "secret_request.record");
+    expect(records.map((command) => command.secretStatus)).toEqual(["pending", "cancelled"]);
+    expect(records.every((command) => command.nodeId === originalRoot)).toBe(true);
+  }).pipe(Effect.provide(layer), Effect.runPromise);
 });

@@ -61,9 +61,19 @@ vi.mock(import("./useScopedSettings"), async (original) => ({
 
 import { TelemetryExportSettings } from "./TelemetryExportSettings";
 
+type CheckResult = Awaited<ReturnType<typeof checkOtlpEndpoint>>;
+
+function deferredCheck() {
+  let resolve!: (result: CheckResult) => void;
+  const promise = new Promise<CheckResult>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}
+
 function setup() {
   updateSettings.mockClear();
-  checkOtlpEndpoint.mockClear();
+  checkOtlpEndpoint.mockReset();
   state.serverConfig = { environment: { capabilities: {} } };
 }
 
@@ -138,5 +148,40 @@ describe("TelemetryExportSettings", () => {
       environmentId: "env",
       input: { signal: "traces", url: "http://collector/v1/traces" },
     });
+  });
+
+  it("can test a corrected URL and reports only the latest attempt when a URL is reused", async () => {
+    setup();
+    state.observability = { ...DEFAULT_SERVER_SETTINGS.observability, otlpTracesUrl: "" };
+    state.serverConfig = { environment: { capabilities: { otlpEndpointCheck: true } } };
+    const first = deferredCheck();
+    const corrected = deferredCheck();
+    const latest = deferredCheck();
+    checkOtlpEndpoint
+      .mockReturnValueOnce(first.promise)
+      .mockReturnValueOnce(corrected.promise)
+      .mockReturnValueOnce(latest.promise);
+    await using screen = await render(<TelemetryExportSettings />);
+
+    const traces = screen.getByLabelText("Traces endpoint");
+    const testTraces = screen.getByRole("button", { name: "Test" }).first();
+    await userEvent.fill(traces, "http://first/v1/traces");
+    await userEvent.click(testTraces);
+    await expect.element(testTraces).toBeDisabled();
+
+    await userEvent.fill(traces, "http://corrected/v1/traces");
+    await expect.element(testTraces).toBeEnabled();
+    await userEvent.click(testTraces);
+    await expect.element(testTraces).toBeDisabled();
+
+    await userEvent.fill(traces, "http://first/v1/traces");
+    await userEvent.click(testTraces);
+    await expect.element(testTraces).toBeDisabled();
+
+    corrected.resolve({ _tag: "Success", value: { _tag: "Accepted", latencyMs: 22 } });
+    first.resolve({ _tag: "Success", value: { _tag: "Accepted", latencyMs: 11 } });
+    latest.resolve({ _tag: "Success", value: { _tag: "Accepted", latencyMs: 33 } });
+
+    await expect.element(screen.getByText("Connected · 33 ms")).toBeInTheDocument();
   });
 });

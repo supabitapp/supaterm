@@ -2,10 +2,8 @@ import { ThreadHoverCardPopup } from "../ThreadHoverCard";
 import { AgentElapsed } from "./AgentElapsed";
 import { projectedSubagentsToRuntime } from "@supaterm/client-runtime/state/subagentRuntime";
 import type { ReactNode } from "react";
-import { useNavigate } from "@tanstack/react-router";
 import { useThreadShell, useProject } from "../../state/entities";
-import { useEnvironment } from "../../state/environments";
-import { buildThreadRouteParams } from "../../threadRoutes";
+import { useLinkedThreadOpener } from "../../state/linkedThreadView";
 import { SubagentTooltipContent } from "./SubagentTooltipContent";
 import { useAtomValue } from "@effect/atom-react";
 import { scopeThreadRef, scopeProjectRef } from "@supaterm/client-runtime/environment";
@@ -76,9 +74,9 @@ export function V2LifecycleRow(props: {
   readonly environmentId: EnvironmentId;
   readonly resourceSummary?: boolean | undefined;
   readonly runs: ReadonlyArray<HandoffTimelineRun>;
-  readonly onOpenThread: (threadId: ThreadId) => void;
+  readonly onOpenThread: ((threadId: ThreadId) => void) | null;
 }) {
-  const { item } = props;
+  const { item, onOpenThread } = props;
   if (item.type === "run_interrupt_result") {
     return (
       <TimelineSystemDivider
@@ -105,7 +103,7 @@ export function V2LifecycleRow(props: {
         label={item.source.type === "run" ? "Forked from conversation" : "Conversation fork"}
         icon={GitForkIcon}
         actionLabel={item.source.type === "run" ? "Open source conversation" : "Open fork"}
-        onAction={() => props.onOpenThread(relatedThreadId)}
+        {...(onOpenThread === null ? {} : { onAction: () => onOpenThread(relatedThreadId) })}
       />
     );
   }
@@ -122,14 +120,16 @@ export function V2LifecycleRow(props: {
           <span className="min-w-0 flex-1 truncate text-sm font-medium">
             {item.title ?? "Created thread"}
           </span>
-          <Button
-            size="xs"
-            variant="outline"
-            aria-label={`Open ${item.title ?? "created thread"}`}
-            onClick={() => props.onOpenThread(item.targetThreadId)}
-          >
-            Open chat
-          </Button>
+          {onOpenThread === null ? null : (
+            <Button
+              size="xs"
+              variant="outline"
+              aria-label={`Open ${item.title ?? "created thread"}`}
+              onClick={() => onOpenThread(item.targetThreadId)}
+            >
+              Open chat
+            </Button>
+          )}
         </div>
       );
     }
@@ -139,12 +139,14 @@ export function V2LifecycleRow(props: {
         icon={<SupatermIcon className="size-4" aria-hidden />}
         label={<>Created thread{item.title ? ` · ${item.title}` : ""}</>}
         trailing={
-          <InlineButton
-            aria-label={`Open ${item.title ?? "created thread"}`}
-            onClick={() => props.onOpenThread(item.targetThreadId)}
-          >
-            Open chat
-          </InlineButton>
+          onOpenThread === null ? null : (
+            <InlineButton
+              aria-label={`Open ${item.title ?? "created thread"}`}
+              onClick={() => onOpenThread(item.targetThreadId)}
+            >
+              Open chat
+            </InlineButton>
+          )
         }
       />
     );
@@ -165,7 +167,7 @@ export function V2LifecycleRow(props: {
         completedAt={item.completedAt}
         threadId={item.childThreadId}
         remote={item.remoteChild}
-        onOpenThread={props.onOpenThread}
+        onOpenThread={onOpenThread}
       />
     );
   }
@@ -352,7 +354,7 @@ export function SubagentNotificationLink(props: {
   readonly outcome: OrchestrationV2Notification["outcome"];
   readonly createdAt: string;
   readonly timestampFormat: TimestampFormat;
-  readonly onOpenThread: (threadId: ThreadId) => void;
+  readonly onOpenThread: ((threadId: ThreadId) => void) | null;
   readonly fallback: ReactNode;
 }) {
   // Follow-up tasks share a child conversation; this notice reports a particular task result.
@@ -413,7 +415,7 @@ function SubagentTimelineLink(props: {
   readonly threadId: ThreadId | null;
   /** The thread in a linked environment that runs this task, when it runs there. */
   readonly remote?: OrchestrationV2RemoteTaskChild | undefined;
-  readonly onOpenThread: (threadId: ThreadId) => void;
+  readonly onOpenThread: ((threadId: ThreadId) => void) | null;
   readonly event?: {
     readonly status: OrchestrationV2TurnItem["status"] | null;
     readonly label: string;
@@ -425,20 +427,15 @@ function SubagentTimelineLink(props: {
     (thread) => thread?.projection.subagents.find((agent) => agent.id === props.subagentId) ?? null,
   );
   const remote = props.remote ?? agent?.remoteChild;
-  const remoteEnvironment = useEnvironment(remote?.environmentId ?? null);
-  const navigate = useNavigate();
-  const threadId = props.threadId;
-  // A task in a linked environment opens there, if this client is connected to it.
+  const { threadId, onOpenThread } = props;
+  // A task in a linked environment opens there, or read-only through this one.
+  const remoteOpener = useLinkedThreadOpener(props.parentRef, remote, props.title);
   const open =
-    threadId !== null
-      ? () => props.onOpenThread(threadId)
-      : remote !== undefined && remoteEnvironment !== null
-        ? () =>
-            void navigate({
-              to: "/$environmentId/$threadId",
-              params: buildThreadRouteParams(scopeThreadRef(remote.environmentId, remote.threadId)),
-            })
-        : null;
+    threadId === null
+      ? (remoteOpener?.open ?? null)
+      : onOpenThread === null
+        ? null
+        : () => onOpenThread(threadId);
   const liveStatus = agent?.status ?? props.status;
   const status = props.event ? props.event.status : liveStatus;
   const statusLabel = props.event?.label ?? subagentStatusVisual(liveStatus).label;

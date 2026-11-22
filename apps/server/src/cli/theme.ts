@@ -1,6 +1,7 @@
 // @effect-diagnostics nodeBuiltinImport:off - publish commits and rollbacks
 // move exact directory entries with rename, which the FileSystem service does
 // not expose atomically.
+import * as NodeCrypto from "node:crypto";
 import * as NodeFS from "node:fs";
 
 import {
@@ -78,6 +79,17 @@ export class ThemePublishError extends Schema.TaggedError<ThemePublishError>()(
     return `Could not publish the theme into ${this.themesDir}.`;
   }
 }
+
+export class ThemeDestinationDirectoryError extends Schema.TaggedError<ThemeDestinationDirectoryError>()(
+  "ThemeDestinationDirectoryError",
+  { themeId: Schema.String, destinationPath: Schema.String },
+) {
+  override get message(): string {
+    return `${this.destinationPath} is a directory, so the theme cannot be published as "${this.themeId}". Move it, or pass another id with --id.`;
+  }
+}
+
+const isThemeDestinationDirectoryError = Schema.is(ThemeDestinationDirectoryError);
 
 const INVALID_THEME_ID_REASON =
   "is not a valid theme id (lowercase letters, digits, and hyphens; not an appearance keyword)";
@@ -203,10 +215,6 @@ const publishThemeFile = Effect.fn(function* (input: {
   }
 
   const destinationPath = path.join(input.themesDir, `${themeId}.json`);
-  // Neither ends in `.json`, so the watcher never mistakes them for themes.
-  // Both names carry the pid, so concurrent publishers of one id cannot
-  // unlink or restore over each other's staging and rollback copies.
-  const backupPath = `${destinationPath}.rollback-${process.pid}`;
   const stagingPath = `${destinationPath}.staging-${process.pid}`;
   yield* fs
     .makeDirectory(input.themesDir, { recursive: true })
@@ -214,6 +222,14 @@ const publishThemeFile = Effect.fn(function* (input: {
 
   const publishFailure = (cause: unknown) =>
     new ThemePublishError({ themesDir: input.themesDir, cause });
+
+  const destinationIsDirectory = yield* Effect.try({
+    try: () => NodeFS.lstatSync(destinationPath, { throwIfNoEntry: false })?.isDirectory() ?? false,
+    catch: publishFailure,
+  });
+  if (destinationIsDirectory) {
+    return yield* new ThemeDestinationDirectoryError({ themeId, destinationPath });
+  }
 
   // O_EXCL after clearing a stale leftover, so nothing at that predictable name is ever followed
   // or written through. Written verbatim: even an added newline could push a file at the size
@@ -238,22 +254,42 @@ const publishThemeFile = Effect.fn(function* (input: {
     catch: publishFailure,
   });
 
-  // Whatever occupies the destination -- a theme, a symlink, anything -- is
-  // moved aside in one atomic step rather than inspected and then replaced:
-  // there is no window between a check and the commit, and rollback restores
-  // that exact directory entry instead of a re-read of it.
-  const hadPrevious = yield* Effect.try({
+  const backupPath = yield* Effect.try({
     try: () => {
+      // A fresh path leaves any backup from a crashed publish intact.
+      const rollbackPath = `${destinationPath}.rollback-${NodeCrypto.randomUUID()}`;
+      // A rename onto a regular file rejects a directory even if it appeared after lstat.
+      const fd = NodeFS.openSync(rollbackPath, "wx", 0o600);
+      let saved = false;
       try {
-        NodeFS.renameSync(destinationPath, backupPath);
-        return true;
+        NodeFS.closeSync(fd);
+        NodeFS.renameSync(destinationPath, rollbackPath);
+        saved = true;
+        return rollbackPath;
       } catch (error) {
-        if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+        if (NodeFS.lstatSync(destinationPath, { throwIfNoEntry: false })?.isDirectory()) {
+          throw new ThemeDestinationDirectoryError({ themeId, destinationPath });
+        }
         throw error;
+      } finally {
+        if (!saved) {
+          try {
+            NodeFS.unlinkSync(rollbackPath);
+          } catch {}
+        }
       }
     },
-    catch: publishFailure,
-  });
+    catch: (cause) => (isThemeDestinationDirectoryError(cause) ? cause : publishFailure(cause)),
+  }).pipe(
+    Effect.onError(() =>
+      Effect.sync(() => {
+        try {
+          NodeFS.unlinkSync(stagingPath);
+        } catch {}
+      }),
+    ),
+  );
 
   const revert = Effect.sync(() => {
     try {
@@ -270,7 +306,7 @@ const publishThemeFile = Effect.fn(function* (input: {
           return null;
         }
       })();
-      if (hadPrevious) {
+      if (backupPath !== null) {
         if (destinationIno === null || destinationIno === stagedIno) {
           NodeFS.renameSync(backupPath, destinationPath);
         } else {
@@ -283,7 +319,7 @@ const publishThemeFile = Effect.fn(function* (input: {
   });
   const cleanup = Effect.sync(() => {
     try {
-      if (hadPrevious) NodeFS.unlinkSync(backupPath);
+      if (backupPath !== null) NodeFS.unlinkSync(backupPath);
     } catch {}
   });
 

@@ -14,6 +14,7 @@ import { CommandPalette } from "./CommandPalette";
 const entities = vi.hoisted(() => ({
   projects: [] as ReadonlyArray<Project>,
   threads: [] as ReadonlyArray<Thread>,
+  activeThread: null as Thread | null,
   handleNewThread: vi.fn(async () => undefined),
 }));
 vi.mock("../state/server", async (original) => {
@@ -36,6 +37,7 @@ vi.mock("../hooks/useHandleNewThread", async (original) => {
     ...actual,
     useHandleNewThread: () => ({
       ...actual.useHandleNewThread(),
+      activeThread: entities.activeThread,
       handleNewThread: entities.handleNewThread,
     }),
   };
@@ -46,13 +48,20 @@ vi.mock("../state/entities", async (original) => ({
   useThreadShells: () => entities.threads,
 }));
 
-function setup(state: { projects?: ReadonlyArray<Project>; threads?: ReadonlyArray<Thread> } = {}) {
+function setup(
+  state: {
+    projects?: ReadonlyArray<Project>;
+    threads?: ReadonlyArray<Thread>;
+    activeThread?: Thread;
+  } = {},
+) {
   // Earlier browser test files share this origin's localStorage; a remembered project
   // that is not listed here hides the default "New thread in <project>" row.
   removeLocalStorageItem(LAST_USED_PROJECT_STORAGE_KEY);
   useCommandPaletteStore.setState(useCommandPaletteStore.getInitialState(), true);
   entities.projects = state.projects ?? [];
   entities.threads = state.threads ?? [];
+  entities.activeThread = state.activeThread ?? null;
   entities.handleNewThread.mockClear();
 }
 
@@ -255,6 +264,45 @@ describe("CommandPalette open intents", () => {
     await page.getByRole("option", { name: /Acme/ }).first().click();
 
     await vi.waitFor(() => expect(screen.router?.state.location.pathname).toBe("/local/parent"));
+  });
+
+  it("starts a thread in an open copy when the current project's copy is archived", async () => {
+    const repositoryIdentity = {
+      canonicalKey: "github.com/example/acme",
+      locator: {
+        source: "git-remote" as const,
+        remoteName: "origin",
+        remoteUrl: "https://github.com/example/acme.git",
+      },
+    };
+    const archived = {
+      ...makeProject("acme"),
+      repositoryIdentity,
+      archivedAt: "2026-03-02T00:00:00.000Z",
+    };
+    const open = {
+      ...makeProject("acme"),
+      environmentId: EnvironmentId.make("remote"),
+      repositoryIdentity,
+    };
+    setup({
+      projects: [archived, open],
+      activeThread: makeThreadFixture({
+        environmentId: archived.environmentId,
+        projectId: archived.id,
+      }),
+    });
+    await using _screen = await render(<CommandPalette>{null}</CommandPalette>);
+
+    openCommandPalette({ open: "new-thread-in" });
+    await page.getByRole("option", { name: /acme/i }).click();
+
+    await vi.waitFor(() =>
+      expect(entities.handleNewThread).toHaveBeenCalledWith({
+        environmentId: open.environmentId,
+        projectId: open.id,
+      }),
+    );
   });
 
   it("numbers filtered New thread in... rows from 1 and jumps to them", async () => {

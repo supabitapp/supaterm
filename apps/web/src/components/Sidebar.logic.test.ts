@@ -5,6 +5,8 @@ import * as DateTime from "effect/DateTime";
 import { describe, expect, it } from "vite-plus/test";
 import {
   formatWorkingDurationLabel,
+  orderSidebarRows,
+  resolveScopedNewThreadProjectRef,
   getFallbackThreadIdAfterDelete,
   hasUnseenCompletion,
   pinOrderKeyBetween,
@@ -35,6 +37,7 @@ import { scopeThreadRef, scopedThreadKey } from "@supaterm/client-runtime/enviro
 import { sortPinnedThreadsByOrderKey } from "@supaterm/client-runtime/state/thread-sort";
 
 import { EnvironmentId, ProjectId, ProviderInstanceId, RunId, ThreadId } from "@supaterm/contracts";
+import { DraftId } from "../draftId";
 
 import { DEFAULT_RUNTIME_MODE, type Project, type Thread } from "../types";
 import { makeThreadFixture, type ThreadFixtureOverrides } from "../test-fixtures";
@@ -406,21 +409,45 @@ describe("resolveThreadStatusPill", () => {
   });
 
   it("shows failed, not completed, when the unseen run failed", () => {
-    expect(
-      resolveThreadStatusPill({
-        thread: {
-          ...baseThread,
-          latestRun: { ...makeLatestRun(), status: "failed" },
-          lastVisitedAt: "2026-03-09T10:04:00.000Z",
-          runtime: {
-            ...baseThread.runtime,
-            status: "failed",
-            activeRunId: null,
-            lastError: "Provider turn failed.",
-          },
+    const failed = {
+      ...baseThread,
+      interactionMode: "default" as const,
+      hasActionableProposedPlan: false,
+      latestRun: { ...makeLatestRun(), status: "failed" as const },
+      lastVisitedAt: "2026-03-09T10:04:00.000Z",
+      runtime: {
+        ...baseThread.runtime,
+        status: "failed" as const,
+        activeRunId: null,
+        lastError: "Provider turn failed.",
+      },
+    };
+    expect(resolveThreadStatusPill({ thread: failed })).toMatchObject({
+      label: "Failed",
+      pulse: false,
+    });
+    // The failure sends the thread to the inbox, so its pill must not say it is still waiting.
+    const watching = {
+      ...failed,
+      pendingBackgroundTasks: [
+        {
+          taskId: "pr-watch",
+          description: "Watching pull request #7",
+          kind: "monitor" as const,
+          awaited: true as const,
         },
-      }),
-    ).toMatchObject({ label: "Failed", pulse: false });
+      ],
+    };
+    expect(isSidebarThreadWorking(watching)).toBe(false);
+    expect(resolveThreadStatusPill({ thread: watching })).toMatchObject({ label: "Failed" });
+    // A run blocked on another thread is still waiting, as its sidebar row says.
+    const blocked = {
+      ...watching,
+      runtime: { ...failed.runtime, status: "running" as const },
+      blockedOnThreadWait: true,
+    };
+    expect(resolveSidebarThreadStatus(blocked)).toBe("waiting");
+    expect(resolveThreadStatusPill({ thread: blocked })).toMatchObject({ label: "Waiting" });
   });
 
   it("shows failed, not plan ready, when a plan run proposed a plan and then failed", () => {
@@ -1381,5 +1408,105 @@ describe("resolveSidebarRouteReveal", () => {
       });
     resolve("environment-test:unlisted");
     expect(resolve(hiddenKey)).toEqual({ pendingKey: hiddenKey, widensScope: true });
+  });
+});
+
+describe("resolveScopedNewThreadProjectRef", () => {
+  const local = { environmentId: "env-local", projectId: "api" };
+  const remote = { environmentId: "env-remote", projectId: "api-remote" };
+  const api = { environmentId: "env-local", id: "api", memberProjectRefs: [local, remote] };
+  const web = {
+    environmentId: "env-local",
+    id: "web",
+    memberProjectRefs: [{ environmentId: "env-local", projectId: "web" }],
+  };
+  const viewedWeb = { environmentId: "env-local", projectId: "web" };
+
+  it("starts in the one scoped project even while another project's thread is open", () => {
+    expect(
+      resolveScopedNewThreadProjectRef({
+        shiftKey: false,
+        scopedProjectGroups: [api],
+        viewed: viewedWeb,
+      }),
+    ).toBe(local);
+    expect(
+      resolveScopedNewThreadProjectRef({
+        shiftKey: false,
+        scopedProjectGroups: [api],
+        viewed: null,
+      }),
+    ).toBe(local);
+  });
+
+  it("keeps the viewed thread's environment when that thread is in the scoped project", () => {
+    expect(
+      resolveScopedNewThreadProjectRef({
+        shiftKey: false,
+        scopedProjectGroups: [api],
+        viewed: { environmentId: "env-remote", projectId: "api-remote" },
+      }),
+    ).toBe(remote);
+  });
+
+  it("leaves Shift+click, no scope and several scoped projects to the existing rule", () => {
+    expect(
+      resolveScopedNewThreadProjectRef({
+        shiftKey: true,
+        scopedProjectGroups: [api],
+        viewed: viewedWeb,
+      }),
+    ).toBeNull();
+    expect(
+      resolveScopedNewThreadProjectRef({
+        shiftKey: false,
+        scopedProjectGroups: [],
+        viewed: viewedWeb,
+      }),
+    ).toBeNull();
+    expect(
+      resolveScopedNewThreadProjectRef({
+        shiftKey: false,
+        scopedProjectGroups: [api, web],
+        viewed: viewedWeb,
+      }),
+    ).toBeNull();
+  });
+});
+
+describe("orderSidebarRows", () => {
+  it("places draft rows after the pinned threads, as the sidebar lists them", () => {
+    const sectionByThreadKey = new Map([
+      ["pinned-a", "pinned"],
+      ["active-a", "active"],
+      ["done-a", "done"],
+    ]);
+    const thread = (key: string) => ({ type: "thread", key });
+    const draft = (id: string) => ({
+      type: "draft",
+      key: `draft:${id}`,
+      draftId: DraftId.make(id),
+    });
+    expect(
+      orderSidebarRows({
+        orderedThreadKeys: ["pinned-a", "active-a", "done-a"],
+        sectionByThreadKey,
+        draftIds: [DraftId.make("1"), DraftId.make("2")],
+      }),
+    ).toEqual([thread("pinned-a"), draft("1"), draft("2"), thread("active-a"), thread("done-a")]);
+    expect(
+      orderSidebarRows({
+        orderedThreadKeys: ["pinned-a"],
+        sectionByThreadKey,
+        draftIds: [DraftId.make("1")],
+      }),
+    ).toEqual([thread("pinned-a"), draft("1")]);
+    expect(
+      orderSidebarRows({
+        orderedThreadKeys: ["active-a"],
+        sectionByThreadKey,
+        draftIds: [DraftId.make("1")],
+      }),
+    ).toEqual([draft("1"), thread("active-a")]);
   });
 });

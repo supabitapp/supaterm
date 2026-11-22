@@ -57,6 +57,7 @@ import {
   clearComposerDraftContent,
   getComposerDraftSnapshot,
   setStickyNewTaskProject,
+  stickyNewTaskProjectAtom,
   updateComposerDraftSettings,
   scheduleUnusedComposerAttachmentCleanup,
 } from "../../state/use-composer-drafts";
@@ -93,6 +94,7 @@ import { incomingShareImports, useIncomingShare } from "../sharing/IncomingShare
 import { idleShareFlagAtom, idleShareImportPhaseAtom } from "./incomingShareImport";
 import { scopedProjectKey } from "../../lib/scopedEntities";
 import { appAtomRegistry } from "../../state/atom-registry";
+import { mobilePreferencesAtom } from "../../state/preferences";
 
 import { readEnvironmentScope, useEnvironmentScope } from "../../state/session";
 
@@ -467,6 +469,8 @@ export function NewTaskDraftScreen(props: {
       return;
     }
 
+    const preferences = appAtomRegistry.get(mobilePreferencesAtom);
+    const saved = AsyncResult.isSuccess(preferences) ? preferences.value : undefined;
     const selection = resolveDraftProjectSelection(
       selectedProjectKey,
       projects,
@@ -474,6 +478,8 @@ export function NewTaskDraftScreen(props: {
       {
         incomingShareId: props.incomingShareId,
         pickerClosed: initialPickerRef.current === "open" && focused,
+        useLastProject: saved?.useLastProjectForNewThreads,
+        lastProject: appAtomRegistry.get(stickyNewTaskProjectAtom) ?? undefined,
       },
     );
     if (selection.kind === "preserve") {
@@ -925,7 +931,9 @@ export function NewTaskDraftScreen(props: {
         <View className="flex-1 justify-end gap-3 p-4">
           {environmentControl}
           <Text className="text-foreground-muted">
-            Your draft is saved on this device. Connect to an environment to choose its first model.
+            {environmentConnected && selectedEnvironmentServerConfig
+              ? `Your draft is saved on this device. ${selectedEnvironmentLabel} has no model available. Install or sign in to a provider there to choose one.`
+              : "Your draft is saved on this device. Connect to an environment to choose its first model."}
           </Text>
           <ComposerEditor
             draftKey={flow.draftKey}
@@ -1011,6 +1019,7 @@ export function NewTaskDraftScreen(props: {
         onStopThread={() => {}}
         onResumeQueue={null}
         onSendMessage={handleStart}
+        onSendCommand={async () => null}
         onReconnectEnvironment={() => onReconnectEnvironment(selectedProject.environmentId)}
         canSwitchThreadProvider
         onUpdateThreadModelSelection={(selection) =>

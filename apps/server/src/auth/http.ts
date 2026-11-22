@@ -11,6 +11,7 @@ import {
   EnvironmentInternalError,
   type EnvironmentInternalErrorReason,
   EnvironmentOperationForbiddenError,
+  type EnvironmentOperationForbiddenReason,
   EnvironmentRequestInvalidError,
   type EnvironmentRequestInvalidReason,
   EnvironmentResourceNotFoundError,
@@ -18,6 +19,7 @@ import {
   EnvironmentScopeRequiredError,
   EnvironmentAuthenticatedAuth,
   EnvironmentAuthenticatedPrincipal,
+  mcpClientScopes,
 } from "@supaterm/contracts";
 import { parseOAuthScope } from "@supaterm/shared/oauthScope";
 import { causeErrorTag } from "@supaterm/shared/observability";
@@ -111,7 +113,7 @@ export function failEnvironmentScopeRequired(requiredScope: AuthEnvironmentScope
   );
 }
 
-function failEnvironmentOperationForbidden(reason: "current_session_revoke_not_allowed") {
+export function failEnvironmentOperationForbidden(reason: EnvironmentOperationForbiddenReason) {
   return currentEnvironmentTraceId.pipe(
     Effect.flatMap((traceId) =>
       Effect.fail(
@@ -364,7 +366,7 @@ export const layer = HttpApiBuilder.group(
             yield* annotateEnvironmentRequest(args.endpoint.name);
             const session = yield* requireEnvironmentScope(AuthAccessWriteScope);
             const delegatedScopes = args.payload.access
-              ? EnvironmentAuth.mcpClientScopes(args.payload.access)
+              ? mcpClientScopes(args.payload.access)
               : (args.payload.scopes ?? AuthStandardClientScopes);
             if (
               delegatedScopes.length === 0 ||

@@ -43,7 +43,7 @@ vi.mock("@effect/atom-react", () => ({
 vi.mock("../../state/preferences", () => ({
   mobilePreferencesAtom: {},
   showSkillsInSlashMenuAtom: {},
-  updateMobilePreferencesAtom: {},
+  saveMobilePreferences: {},
 }));
 vi.mock("./components/AutoMarkDoneDaysField", () => ({ AutoMarkDoneDaysField: () => null }));
 vi.mock("react-native-safe-area-context", () => ({ useSafeAreaInsets: () => ({ bottom: 0 }) }));

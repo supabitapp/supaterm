@@ -34,7 +34,7 @@ import {
 } from "./WorkspaceTabsContext";
 import { WorkspaceToolbar } from "./WorkspaceToolbar";
 import { WORKSPACE_DOCK, workspaceDockBottomClearance } from "./workspace-tabs-state";
-import { WorkspaceSidebarTabs } from "./WorkspaceSidebarTabs";
+import { WorkspaceTabDock } from "./WorkspaceTabDock";
 import { useSidebarWorkspaceTabs, useSystemWorkspaceTabBar } from "./useSystemWorkspaceTabBar";
 import { openSettings } from "../../settings/settings-navigation";
 
@@ -159,7 +159,7 @@ function WorkspaceRootContent() {
           <WorkspaceExtraTab tab={state.selectedTab} />
         )}
         {deviceType !== "pad" && deviceType !== "phone" && sidebarPicker ? (
-          <WorkspaceSidebarTabs />
+          <WorkspaceTabDock placement="column" />
         ) : null}
         {enabled.length === 0 && !settingsOpen ? null : settingsOpen ||
           state.selectedTab === "threads" ||

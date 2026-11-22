@@ -526,9 +526,7 @@ it.effect(
         pendingQuery![1],
       );
       assert.isTrue(
-        plan.some((row) =>
-          row.detail.includes("turn_items_thread_type_idx (thread_id=? AND type=?)"),
-        ),
+        plan.some((row) => row.detail.includes("turn_items_shell_pending_idx (thread_id=?)")),
       );
       const countsPlan = yield* sql<{ readonly detail: string }>`EXPLAIN QUERY PLAN
       SELECT thread_id, run_id, COUNT(*) FROM orchestration_v2_projection_turn_items

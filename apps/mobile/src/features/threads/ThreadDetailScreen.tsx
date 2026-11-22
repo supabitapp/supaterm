@@ -186,7 +186,11 @@ import {
   FLOATING_WORKING_CONTROL_COVERAGE,
   FloatingWorkingControl,
 } from "./floating-working-control";
-import { connectionFloatingStatus, type FloatingWorkingStatus } from "./floating-working-status";
+import {
+  connectionFloatingStatus,
+  type FloatingStatusAction,
+  type FloatingWorkingStatus,
+} from "./floating-working-status";
 import type { ThreadStatusLineModel } from "./thread-context-divider";
 import { useConnectionStatusVisibility } from "../../connection/useConnectionStatusVisibility";
 import {
@@ -294,7 +298,7 @@ export interface ThreadDetailScreenProps {
   readonly onChangeDraftMessage: (value: string) => void;
   readonly onPickDraftMedia: () => Promise<void>;
   readonly onPickDraftFiles: () => Promise<void>;
-  readonly onNativePasteImages: (uris: ReadonlyArray<string>) => Promise<void>;
+  readonly onNativePasteImages: (uris: ReadonlyArray<string>) => Promise<boolean>;
   readonly onNativePasteText: (paste: ComposerTextPaste) => Promise<void>;
   readonly onRemoveDraftImage: (imageId: string) => void;
   readonly onStopThread: () => void;
@@ -312,6 +316,8 @@ export interface ThreadDetailScreenProps {
     language: string,
     handOff: VoiceRecordingHandOff | undefined,
   ) => Promise<MessageId | null>;
+  /** Queues a standalone text command, such as `/goal clear`, without touching the draft. */
+  readonly onSendCommand: (text: string) => Promise<MessageId | null>;
   readonly onReconnectEnvironment: () => void;
   readonly canSwitchThreadProvider: boolean;
   readonly onUpdateThreadModelSelection: (modelSelection: ModelSelection) => void;
@@ -813,6 +819,18 @@ function ThreadDetailBody(
       props.connectionStateLabel === "unsupported" ||
       props.connectionStateLabel === "available",
   );
+  const [goalCommandPending, setGoalCommandPending] = useState(false);
+  const runGoalCommand = async (command: string) => {
+    if (goalCommandPending || !props.canOperateThread) return;
+    setGoalCommandPending(true);
+    // No `finally`: React Compiler cannot lower it.
+    try {
+      await props.onSendCommand(command);
+    } catch (error) {
+      Dialog.alert("Could not update goal", error instanceof Error ? error.message : "Try again.");
+    }
+    setGoalCommandPending(false);
+  };
   const pendingBackgroundWork = presentPendingBackgroundWork(
     props.selectedThread.pendingBackgroundTasks,
   );
@@ -947,10 +965,35 @@ function ThreadDetailBody(
     }
     if (props.selectedThread.goal !== null) {
       const goal = presentProviderGoal(props.selectedThread.goal, false);
+      const goalDriver = props.serverConfig?.providers.find(
+        (provider) => provider.instanceId === props.selectedThread.modelSelection.instanceId,
+      )?.driver;
+      const goalAction = (
+        label: string,
+        accessibilityLabel: string,
+        command: string,
+      ): FloatingStatusAction => ({
+        label,
+        accessibilityLabel,
+        disabled: !props.canOperateThread || goalCommandPending,
+        onPress: () => void runGoalCommand(command),
+      });
+      // The server rejects Antigravity goal controls and Claude resume. Resume would stop
+      // unrelated work, so it waits for the thread to go idle.
+      const goalActions =
+        goalDriver === "antigravity"
+          ? []
+          : [
+              ...(goal.canResume && goalDriver !== "claudeAgent" && !props.activeThreadBusy
+                ? [goalAction("Resume", "Resume goal", "/goal resume")]
+                : []),
+              goalAction("Clear", "Clear goal", "/goal clear"),
+            ];
       return {
         kind: "goal",
         label: goal.title,
         accessibilityLabel: `${goal.title}: ${goal.objective}`,
+        actions: goalActions,
       };
     }
     if (extensionStatus !== null) {
@@ -1178,6 +1221,9 @@ function ThreadDetailBody(
     return userInputMotion === "fresh" ? 1 : withTiming(1, USER_INPUT_TOGGLE_TIMING);
   }, [userInputMotion]);
   const userInputCardCoverage = useSharedValue(0);
+  // The control already sits above every panel row, so it lifts only by how far the iOS card rises past the top of the panels.
+  const userInputPanelsTop = useSharedValue(0);
+  const userInputCardTop = useSharedValue(0);
   const composerPopoverHeight = useSharedValue(0);
   const { freeze, scrollMessageToEnd } = useKeyboardScrollToEnd({ listRef });
   const reduceMotion = useReducedMotion();
@@ -1225,7 +1271,11 @@ function ThreadDetailBody(
   const floatingControlLift = useDerivedValue(
     () =>
       Math.max(
-        userInputCoverageApplies ? userInputCardProgress.value * userInputCardCoverage.value : 0,
+        userInputCoverageApplies
+          ? userInputCardProgress.value * userInputCardCoverage.value -
+              userInputPanelsTop.value -
+              userInputCardTop.value
+          : 0,
         composerPopoverLift.value,
       ),
     [userInputCoverageApplies],
@@ -1859,6 +1909,11 @@ function ThreadDetailBody(
                             ? { paddingBottom: composerBottomInset }
                             : undefined
                         }
+                        onLayout={
+                          Platform.OS === "ios"
+                            ? (event) => userInputPanelsTop.set(event.nativeEvent.layout.y)
+                            : undefined
+                        }
                         entering={FadeInDown.duration(220)}
                         exiting={FadeOut.duration(140)}
                       >
@@ -1890,6 +1945,11 @@ function ThreadDetailBody(
                             onStopThread={props.onStopThread}
                             cardProgress={userInputCardProgress}
                             cardCoverage={userInputCardCoverage}
+                            onLayout={
+                              Platform.OS === "ios"
+                                ? (event) => userInputCardTop.set(event.nativeEvent.layout.y)
+                                : undefined
+                            }
                             onInputFocusChange={handleOwnedInputFocusChange}
                             drafts={props.activePendingUserInputDrafts}
                             answers={props.activePendingUserInputAnswers}

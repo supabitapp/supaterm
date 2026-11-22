@@ -14,6 +14,7 @@ import { injectMcpAppCookieBootstrap, injectMcpAppThemeBootstrap } from "@supate
 import { FILE_PREVIEW_SCROLL_SCRIPT } from "@supaterm/shared/htmlRender";
 import { decodeOtlpTraceRecords } from "@supaterm/shared/observability";
 import * as ByteSize from "effect/ByteSize";
+import * as Context from "effect/Context";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
@@ -23,6 +24,7 @@ import * as Path from "effect/Path";
 import * as Pull from "effect/Pull";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
+import * as Tracer from "effect/Tracer";
 import { cast, pipe } from "effect/Function";
 import {
   HttpClient,
@@ -428,21 +430,30 @@ export const layerOtlpTracesProxyRoute = HttpRouter.add(
 
 const UNTRACED_REQUEST_PATHS: ReadonlySet<string> = new Set([OTLP_TRACES_PROXY_PATH]);
 
-// TracerDisabledWhen is one predicate for the whole server, and
-// HttpRouter.serve builds its routes privately, so it is provided to the served
-// layer, never merged into the routes.
+// HttpRouter.serve builds routes privately; provide the server-wide TracerDisabledWhen to the served layer.
 const layerUntracedRequests = Layer.succeed(HttpMiddleware.TracerDisabledWhen)((request) => {
   const queryIndex = request.url.indexOf("?");
-  const path = queryIndex === -1 ? request.url : request.url.slice(0, queryIndex);
-  // Signed URLs carry bearer tokens in the path, so they never reach a trace.
-  return (
-    UNTRACED_REQUEST_PATHS.has(path) ||
-    path.startsWith(`${ASSET_ROUTE_PREFIX}/`) ||
-    path.startsWith(`${ATTACHMENT_UPLOAD_ROUTE_PREFIX}/`)
+  return UNTRACED_REQUEST_PATHS.has(
+    queryIndex === -1 ? request.url : request.url.slice(0, queryIndex),
   );
 });
 
+// Signed URLs carry their bearer token in the path; spans and request logs record it as REDACTED.
+const SIGNED_URL_ROUTE_OPTIONS = { redactedParams: ["*"] };
+
 export const withUntracedRequests = Layer.provide(layerUntracedRequests);
+
+// Request spans otherwise parent to the server's lifetime span, so every request shares one trace id.
+export const withRootRequestSpans = <A, E, R>(layer: Layer.Layer<A, E, R>) =>
+  Layer.fromBuild((memoMap, scope) =>
+    Layer.buildWithMemoMap(layer, memoMap, scope).pipe(
+      // ParentSpan is optional to every reader, so removing it leaves R satisfied.
+      Effect.updateContext(
+        (context: Context.Context<R>) =>
+          Context.omit(Tracer.ParentSpan)(context) as Context.Context<R>,
+      ),
+    ),
+  );
 
 export const layerAssetRoute = HttpRouter.add(
   "GET",
@@ -500,6 +511,7 @@ export const layerAssetRoute = HttpRouter.add(
       Effect.orElseSucceed(() => HttpServerResponse.text("Internal Server Error", { status: 500 })),
     );
   }),
+  SIGNED_URL_ROUTE_OPTIONS,
 );
 
 export const layerAttachmentUploadRoute = HttpRouter.add(
@@ -539,6 +551,7 @@ export const layerAttachmentUploadRoute = HttpRouter.add(
       ? HttpServerResponse.empty({ status: 204 })
       : HttpServerResponse.text(stored.detail, { status: stored.status });
   }),
+  SIGNED_URL_ROUTE_OPTIONS,
 );
 
 const transcriptionUploadStatus = (reason: TranscriptionErrorReason | undefined) => {

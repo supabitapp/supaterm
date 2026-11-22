@@ -1,13 +1,14 @@
 import type { EnvironmentId, SidebarProjectGroupingMode } from "@supaterm/contracts";
 import { DEFAULT_SIDEBAR_PROJECT_SORT_ORDER } from "@supaterm/contracts";
-import { RegistryContext, useAtomSet, useAtomValue } from "@effect/atom-react";
+import { RegistryContext, useAtomValue } from "@effect/atom-react";
 import { AsyncResult, Atom } from "effect/reactivity";
 import { createContext, createElement, useContext, useState, type PropsWithChildren } from "react";
 
 import { useMobileThreadGrouping } from "../../state/thread-grouping";
 import type { SidebarThreadGrouping } from "@supaterm/contracts";
 import type { ThreadListFilters } from "../../persistence/mobile-preferences";
-import { mobilePreferencesAtom, updateMobilePreferencesAtom } from "../../state/preferences";
+import { mobilePreferencesAtom, saveMobilePreferences } from "../../state/preferences";
+import { useAtomCommand } from "../../state/use-atom-command";
 import type { HomeProjectSortOrder } from "./homeThreadList";
 
 export interface HomeListOptions {
@@ -52,7 +53,7 @@ export function HomeListOptionsProvider({
   const registry = useContext(RegistryContext);
   const [optionsAtom] = useState(() => Atom.make(defaultHomeListOptions(savedFilters)));
   const options = useAtomValue(optionsAtom);
-  const savePreferences = useAtomSet(updateMobilePreferencesAtom);
+  const savePreferences = useAtomCommand(saveMobilePreferences);
   // Only the scope persists; the sort order is per session. Updates read the
   // registry, so several in one event each build on the last and save it.
   const updateOptions = (patch: Partial<HomeListOptions>) => {
@@ -63,7 +64,7 @@ export function HomeListOptionsProvider({
       next.selectedEnvironmentId !== current.selectedEnvironmentId ||
       next.selectedProjectKey !== current.selectedProjectKey
     ) {
-      savePreferences({
+      void savePreferences({
         threadListFilters: {
           environmentId: next.selectedEnvironmentId,
           projectKey: next.selectedProjectKey,
@@ -79,7 +80,7 @@ export function useHomeListOptions(availableEnvironmentIds: ReadonlySet<Environm
   const shared = useContext(HomeListOptionsContext);
   const { grouping: threadGrouping, setGrouping: setThreadGrouping } = useMobileThreadGrouping();
   const preferences = useAtomValue(mobilePreferencesAtom);
-  const savePreferences = useAtomSet(updateMobilePreferencesAtom);
+  const savePreferences = useAtomCommand(saveMobilePreferences);
   const hideOfflineEnvironments =
     AsyncResult.isSuccess(preferences) && preferences.value.hideOfflineEnvironments === true;
   const [localOptions, setLocalOptions] = useState<HomeListOptions>(defaultHomeListOptions);
@@ -116,7 +117,7 @@ export function useHomeListOptions(availableEnvironmentIds: ReadonlySet<Environm
     updateOptions({ projectSortOrder: value });
   };
   const setHideOfflineEnvironments = (hide: boolean) => {
-    savePreferences({ hideOfflineEnvironments: hide });
+    void savePreferences({ hideOfflineEnvironments: hide });
   };
   return {
     options: resolvedOptions,

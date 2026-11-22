@@ -25,6 +25,12 @@ export async function runCliCommand() {
   } else if (command === "acp-mcp-bridge" || command === "acp-mcp-call") {
     const { runAcpMcpCliFastPath } = await import("./mcp/AcpMcpStdioBridge.ts");
     await runAcpMcpCliFastPath(command, process.argv.slice(3));
+  } else if (command === "__cursor-sdk-worker") {
+    const [NodeServices, { runCursorSdkWorker }] = await Promise.all([
+      import("@effect/platform-node/NodeServices"),
+      import("@supaterm/provider-cursor/server/worker"),
+    ]);
+    await runCursorSdkWorker(NodeServices.layer);
   } else {
     enableCliCompileCache();
     // Windows desktop launches without stdin; attach before reading, except on fast paths using pipes.

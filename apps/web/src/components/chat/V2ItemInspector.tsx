@@ -19,7 +19,7 @@ import { cn } from "../../lib/utils";
 import { resolveDiffThemeName } from "../../lib/diffRendering";
 import { getSyntaxHighlighterPromise } from "../../lib/syntaxHighlighting";
 import { orchestrationEnvironment } from "../../state/orchestration";
-import { useTurnItemDetail } from "../../state/queries";
+import { type TurnItemDetailSource, useTurnItemDetail } from "../../state/queries";
 import { formatWorkspaceRelativePath } from "../../filePathDisplay";
 import { Button } from "../ui/button";
 import ChatMarkdown from "../ChatMarkdown";
@@ -35,6 +35,8 @@ interface V2ItemInspectorProps {
   readonly onInitialOutputReady?: (() => void) | undefined;
   readonly projectedItem: OrchestrationV2ProjectedTurnItem;
   readonly environmentId: EnvironmentId;
+  /** Where the item's detail comes from when not from the environment; its output never streams. */
+  readonly source?: TurnItemDetailSource | undefined;
   readonly cwd?: string | undefined;
   readonly workspaceRoot?: string | undefined;
   readonly onOpenToolDiff?: ((target: ToolCallDiffTarget) => void) | undefined;
@@ -97,6 +99,7 @@ function StructuredValue({
 function useFetchedTurnItem(
   projectedItem: OrchestrationV2ProjectedTurnItem,
   environmentId: EnvironmentId,
+  source: TurnItemDetailSource | undefined,
   skip = false,
 ) {
   const wireItem = projectedItem.item;
@@ -110,6 +113,7 @@ function useFetchedTurnItem(
           revision: turnItemDetailRevision(wireItem),
         }
       : null,
+    source,
   );
   const fetchedItem = detail.data?.item;
   const item = fetchedItem?.type === wireItem.type ? fetchedItem : wireItem;
@@ -170,9 +174,10 @@ export function FetchedToolOutput(props: {
   readonly onInitialOutputReady?: (() => void) | undefined;
   readonly projectedItem: OrchestrationV2ProjectedTurnItem;
   readonly environmentId: EnvironmentId;
+  readonly source?: TurnItemDetailSource | undefined;
   readonly onImageExpand?: ((preview: ExpandedImagePreview) => void) | undefined;
 }) {
-  const { output } = useFetchedTurnItem(props.projectedItem, props.environmentId);
+  const { output } = useFetchedTurnItem(props.projectedItem, props.environmentId, props.source);
   useInitialOutputReady(output.pending, props.onInitialOutputReady);
   return (
     <div className={cn("mt-1.5 space-y-1.5", monoClassName)}>
@@ -226,8 +231,17 @@ function ToolCallBody(
 
 export const V2ItemInspector = memo(function V2ItemInspector(props: V2ItemInspectorProps) {
   // Command rows stream their output, including the final output, from the server.
-  const streamsOutput = useCommandOutputStreaming(props.environmentId, props.projectedItem);
-  const fetched = useFetchedTurnItem(props.projectedItem, props.environmentId, streamsOutput);
+  const streamsOutput = useCommandOutputStreaming(
+    props.environmentId,
+    props.projectedItem,
+    props.source === undefined,
+  );
+  const fetched = useFetchedTurnItem(
+    props.projectedItem,
+    props.environmentId,
+    props.source,
+    streamsOutput,
+  );
   const item = fetched.item;
   const outputState = fetched.output;
   useInitialOutputReady(streamsOutput || outputState.pending, props.onInitialOutputReady);

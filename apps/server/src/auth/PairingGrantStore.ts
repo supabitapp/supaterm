@@ -90,6 +90,17 @@ export class ActivePairingLinksLoadError extends Schema.TaggedError<ActivePairin
   }
 }
 
+export class UnspentPairingLinksRevokeError extends Schema.TaggedError<UnspentPairingLinksRevokeError>()(
+  "UnspentPairingLinksRevokeError",
+  {
+    cause: Schema.Defect(),
+  },
+) {
+  override get message(): string {
+    return "Failed to revoke unspent pairing links.";
+  }
+}
+
 export class PairingLinkRevokeError extends Schema.TaggedError<PairingLinkRevokeError>()(
   "PairingLinkRevokeError",
   {
@@ -164,6 +175,7 @@ export class BootstrapCredentialLookupError extends Schema.TaggedError<Bootstrap
 export const BootstrapCredentialInternalError = Schema.Union([
   ActivePairingLinksLoadError,
   PairingLinkRevokeError,
+  UnspentPairingLinksRevokeError,
   PairingCredentialIssueError,
   PairingCredentialRandomGenerationError,
   BootstrapCredentialConsumeError,
@@ -216,6 +228,7 @@ export class PairingGrantStore extends Context.Service<
     >;
     readonly streamChanges: Stream.Stream<BootstrapCredentialChange>;
     readonly revoke: (id: string) => Effect.Effect<boolean, BootstrapCredentialInternalError>;
+    readonly revokeUnspent: () => Effect.Effect<void, BootstrapCredentialInternalError>;
     readonly consume: (
       credential: string,
       input?: {
@@ -332,6 +345,16 @@ const make = Effect.gen(function* () {
       return revoked;
     },
   );
+
+  const revokeUnspent: PairingGrantStore["Service"]["revokeUnspent"] = Effect.fn(
+    "PairingGrantStore.revokeUnspent",
+  )(function* () {
+    const revokedAt = yield* DateTime.now;
+    const ids = yield* pairingLinks
+      .revokeUnspent({ revokedAt })
+      .pipe(Effect.mapError((cause) => new UnspentPairingLinksRevokeError({ cause })));
+    yield* Effect.forEach(ids, emitRemoved, { discard: true });
+  });
 
   const issueOneTimeToken: PairingGrantStore["Service"]["issueOneTimeToken"] = Effect.fn(
     "PairingGrantStore.issueOneTimeToken",
@@ -486,6 +509,7 @@ const make = Effect.gen(function* () {
       return Stream.fromPubSub(changesPubSub);
     },
     revoke,
+    revokeUnspent,
     consume,
   });
 });

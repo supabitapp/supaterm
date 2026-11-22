@@ -14,6 +14,9 @@ normalization is only for locating it. Repeated text needs an unambiguous contex
 match, even if one occurrence still sits at the saved offsets. Guessing could
 highlight the wrong claim.
 
+Released servers and clients reject a citation link with an unknown query key and
+send or show it unexpanded. Adding a field to the link needs a new link version.
+
 Mobile's renderer reports only the selected text and its offset inside one native
 text block. A [mobile citation](../../apps/mobile/src/lib/assistantAnnotation.ts)
 therefore carries block offsets and no context, and web locates it only when the

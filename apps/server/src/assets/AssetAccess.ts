@@ -58,11 +58,17 @@ import { expandHomePath } from "@supaterm/provider-core/server/pathExpansion";
 import * as ProjectFaviconResolver from "../project/ProjectFaviconResolver.ts";
 import { isWithinRoot } from "../workspace/KnownWorkspaces.ts";
 import * as WorkspacePaths from "../workspace/WorkspacePaths.ts";
-import { toWslDrivePath } from "../workspace/wslDrivePath.ts";
+import { toHostDrivePath } from "../workspace/hostDrivePath.ts";
 import * as NativeAppIconResolver from "./NativeAppIconResolver.ts";
 import { sourceControlDefinitions } from "../sourceControl/sourceControlDefinitions.ts";
 import { extractIcnsPng } from "./icns.ts";
-import { openMediaFile, readMediaFileHeader, type OpenMediaFile } from "./MediaFile.ts";
+import {
+  mediaFileRevision,
+  openMediaFile,
+  readMediaFileHeader,
+  type OpenMediaFile,
+} from "./MediaFile.ts";
+import * as WorkspacePreviewRevisions from "./WorkspacePreviewRevisions.ts";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 
 export const ASSET_ROUTE_PREFIX = "/api/assets";
@@ -317,7 +323,8 @@ const resolveCanonicalWorkspaceFile = Effect.fn("AssetAccess.resolveCanonicalWor
   function* (input: {
     readonly workspaceRoot: string;
     readonly relativePath: string;
-    readonly previewDependency?: boolean;
+    /** The HTML entry's folder, relative to the root, when serving one of its dependencies. */
+    readonly previewBaseRelativePath?: string;
   }) {
     const fileSystem = yield* FileSystem.FileSystem;
     const workspacePaths = yield* WorkspacePaths.WorkspacePaths;
@@ -339,7 +346,18 @@ const resolveCanonicalWorkspaceFile = Effect.fn("AssetAccess.resolveCanonicalWor
     const relative = path.relative(canonicalRoot.value, canonicalFile.value);
     if (relative === "" || relative.startsWith("..") || path.isAbsolute(relative)) return null;
 
-    if (input.previewDependency && !isPreviewDependencyPath(relative, path)) return null;
+    if (input.previewBaseRelativePath !== undefined) {
+      // The opened entry's own folder may be hidden; nothing below it, or reached outside it, may.
+      const canonicalBase = yield* optionOnNotFound(
+        fileSystem.realPath(path.join(canonicalRoot.value, input.previewBaseRelativePath)),
+      );
+      const belowBase = Option.isSome(canonicalBase)
+        ? path.relative(canonicalBase.value, canonicalFile.value)
+        : "..";
+      const dependency =
+        belowBase.startsWith("..") || path.isAbsolute(belowBase) ? relative : belowBase;
+      if (!isPreviewDependencyPath(dependency, path)) return null;
+    }
 
     const info = yield* optionOnNotFound(fileSystem.stat(canonicalFile.value));
     if (Option.isNone(info) || info.value.type !== "File") return null;
@@ -351,7 +369,7 @@ const resolveCanonicalWorkspaceFile = Effect.fn("AssetAccess.resolveCanonicalWor
 const resolveCanonicalWorkspaceFileForRequest = (input: {
   readonly workspaceRoot: string;
   readonly relativePath: string;
-  readonly previewDependency?: boolean;
+  readonly previewBaseRelativePath?: string;
 }) =>
   resolveCanonicalWorkspaceFile(input).pipe(
     Effect.tapError((cause) =>
@@ -438,7 +456,7 @@ const finalizeAbsoluteMediaFileAsset = Effect.fn("AssetAccess.finalizeAbsoluteMe
                 : Effect.succeed(null),
               (dimensions) => ({
                 identity: { device: file.info.dev.toString(), inode: file.info.ino.toString() },
-                fileRevision: `${file.info.dev}:${file.info.ino}:${file.info.size}:${file.info.mtimeNs}:${file.info.ctimeNs}`,
+                fileRevision: mediaFileRevision(file.info),
                 dimensions,
               }),
             ),
@@ -527,6 +545,12 @@ const finalizeWorkspaceFileAsset = Effect.fn("AssetAccess.finalizeWorkspaceFileA
         expectedCanonicalPath: canonicalFile,
       });
     }
+    // The response type follows the file a link points at, so that file must be previewable too.
+    if (!isWorkspacePreviewEntryPath(canonicalFile)) {
+      return yield* new AssetPreviewTypeValidationError({
+        resource: input.resource,
+      });
+    }
     const canonicalWorkspaceRoot = yield* fileSystem.realPath(input.workspaceRoot).pipe(
       Effect.mapError(
         (cause) =>
@@ -541,26 +565,36 @@ const finalizeWorkspaceFileAsset = Effect.fn("AssetAccess.finalizeWorkspaceFileA
     )
       ? yield* readImageDimensionsFromHeader(canonicalFile)
       : null;
+    if (!/\.html?$/i.test(resolved.relativePath)) {
+      return {
+        claims: {
+          version: 1 as const,
+          kind: "workspace-file-exact" as const,
+          workspaceRoot: canonicalWorkspaceRoot,
+          relativePath: resolved.relativePath,
+          expiresAt: input.expiresAt,
+        },
+        fileName: path.basename(resolved.relativePath),
+        imageDimensions,
+        fileRevision: undefined,
+      };
+    }
+    const revisions = yield* WorkspacePreviewRevisions.WorkspacePreviewRevisions;
     return {
-      claims: !/\.html?$/i.test(resolved.relativePath)
-        ? {
-            version: 1 as const,
-            kind: "workspace-file-exact" as const,
-            workspaceRoot: canonicalWorkspaceRoot,
-            relativePath: resolved.relativePath,
-            expiresAt: input.expiresAt,
-          }
-        : {
-            version: 1 as const,
-            kind: "workspace-file" as const,
-            workspaceRoot: canonicalWorkspaceRoot,
-            baseRelativePath: path.dirname(resolved.relativePath),
-            entryFileName: path.basename(resolved.relativePath),
-            expiresAt: input.expiresAt,
-          },
+      claims: {
+        version: 1 as const,
+        kind: "workspace-file" as const,
+        workspaceRoot: canonicalWorkspaceRoot,
+        baseRelativePath: path.dirname(resolved.relativePath),
+        entryFileName: path.basename(resolved.relativePath),
+        expiresAt: input.expiresAt,
+      },
       fileName: path.basename(resolved.relativePath),
       imageDimensions,
-      fileRevision: undefined,
+      fileRevision: yield* revisions.revision({
+        workspaceRoot: canonicalWorkspaceRoot,
+        entryRelativePath: resolved.relativePath,
+      }),
     };
   },
 );
@@ -585,7 +619,7 @@ export const issueAssetUrl = Effect.fn("AssetAccess.issueAssetUrl")(function* (i
   switch (input.resource._tag) {
     case "media-file": {
       let requestedPath = expandHomePath(
-        yield* toWslDrivePath(input.resource.path),
+        yield* toHostDrivePath(input.resource.path),
         yield* HostProcess.HomeDirectory,
       );
       if (!path.isAbsolute(requestedPath)) {
@@ -638,6 +672,7 @@ export const issueAssetUrl = Effect.fn("AssetAccess.issueAssetUrl")(function* (i
       claims = finalized.claims;
       fileName = finalized.fileName;
       imageDimensions = finalized.imageDimensions;
+      fileRevision = finalized.fileRevision;
       break;
     }
     case "draft-workspace-file": {
@@ -645,7 +680,7 @@ export const issueAssetUrl = Effect.fn("AssetAccess.issueAssetUrl")(function* (i
       const hostPath =
         input.resource.path.startsWith("~/") || input.resource.path.startsWith("~\\")
           ? expandHomePath(input.resource.path, yield* HostProcess.HomeDirectory)
-          : yield* toWslDrivePath(input.resource.path);
+          : yield* toHostDrivePath(input.resource.path);
       if (path.isAbsolute(hostPath)) {
         const finalized = yield* finalizeAbsoluteMediaFileAsset({
           requestedPath: hostPath,
@@ -1050,7 +1085,8 @@ export const resolveAsset = Effect.fn("AssetAccess.resolveAsset")(function* (
       workspaceRoot: claims.workspaceRoot,
       relativePath: claims.relativePath,
     });
-    return exactWorkspaceFile
+    // Checked again here: a link can be repointed after its URL was issued.
+    return exactWorkspaceFile && isWorkspacePreviewEntryPath(exactWorkspaceFile)
       ? ({ kind: "file", path: exactWorkspaceFile } satisfies ResolvedAsset)
       : null;
   }
@@ -1058,10 +1094,21 @@ export const resolveAsset = Effect.fn("AssetAccess.resolveAsset")(function* (
   if (!isEntry && !isPreviewDependencyPath(decodedPath, path)) return null;
   const joinedRelativePath =
     claims.baseRelativePath === "." ? decodedPath : path.join(claims.baseRelativePath, decodedPath);
+  if (claims.entryFileName !== undefined) {
+    // Before the file is resolved and read, so the recorded state is never newer than the response.
+    const revisions = yield* WorkspacePreviewRevisions.WorkspacePreviewRevisions;
+    yield* revisions.observe(
+      {
+        workspaceRoot: claims.workspaceRoot,
+        entryRelativePath: path.join(claims.baseRelativePath, claims.entryFileName),
+      },
+      joinedRelativePath,
+    );
+  }
   const workspaceFile = yield* resolveCanonicalWorkspaceFileForRequest({
     workspaceRoot: claims.workspaceRoot,
     relativePath: joinedRelativePath,
-    previewDependency: !isEntry,
+    previewBaseRelativePath: claims.baseRelativePath,
   });
   return workspaceFile
     ? ({ kind: "file", path: workspaceFile, renderIntent: "file-preview" } satisfies ResolvedAsset)

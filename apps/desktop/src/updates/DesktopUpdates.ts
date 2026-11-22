@@ -352,6 +352,12 @@ function getAutoUpdateDisabledReason(args: {
   return null;
 }
 
+const trackLabel = (channel: DesktopUpdateChannel) =>
+  channel === "nightly" ? "Nightly" : "Stable";
+
+const trackMismatchMessage = (build: DesktopUpdateChannel, saved: DesktopUpdateChannel) =>
+  `This ${trackLabel(build)} build can't update from the ${trackLabel(saved)} track on its own. Switch the update track back to ${trackLabel(build)}, or use Review beside Update track to retry the switch to ${trackLabel(saved)}.`;
+
 function isArm64HostRunningIntelBuild(runtimeInfo: DesktopRuntimeInfo): boolean {
   return runtimeInfo.hostArch === "arm64" && runtimeInfo.appArch === "x64";
 }
@@ -466,6 +472,21 @@ export const make = Effect.gen(function* () {
       }),
     );
   });
+
+  // Without a release floor, a build on another track than its saved one never offers anything.
+  const noOfferState = (state: DesktopUpdateState, checkedAt: string) =>
+    Effect.map(Ref.get(releaseFloorRef), (floor) => {
+      const buildChannel = desktopUpdateChannelOf(environment.appVersion);
+      if (Option.isSome(floor) || buildChannel === state.channel) {
+        return reduceDesktopUpdateStateOnNoUpdate(state, checkedAt);
+      }
+      return reduceDesktopUpdateStateOnCheckFailure(
+        state,
+        trackMismatchMessage(buildChannel, state.channel),
+        checkedAt,
+        { buildChannel },
+      );
+    });
 
   const activeUpdateAction = Ref.get(activeUpdateActionRef);
 
@@ -1020,7 +1041,7 @@ export const make = Effect.gen(function* () {
               channel: state.channel,
             });
             const checkedAt = yield* currentIsoTimestamp;
-            yield* setState(reduceDesktopUpdateStateOnNoUpdate(state, checkedAt));
+            yield* setState(yield* noOfferState(state, checkedAt));
             yield* Ref.set(lastLoggedDownloadMilestoneRef, -1);
             return;
           }
@@ -1067,7 +1088,7 @@ export const make = Effect.gen(function* () {
   const handleUpdateNotAvailable = Effect.gen(function* () {
     const checkedAt = yield* currentIsoTimestamp;
     const state = yield* Ref.get(updateStateRef);
-    yield* setState(reduceDesktopUpdateStateOnNoUpdate(state, checkedAt));
+    yield* setState(yield* noOfferState(state, checkedAt));
     yield* Ref.set(lastLoggedDownloadMilestoneRef, -1);
     yield* logUpdaterInfo("no updates available");
   }).pipe(Effect.withSpan("desktop.updates.handleUpdateNotAvailable"));
@@ -1095,7 +1116,7 @@ export const make = Effect.gen(function* () {
 
     if (Option.isNone(activeAction)) {
       const checkedAt = yield* currentIsoTimestamp;
-      yield* updateState((current) => ({
+      yield* updateState(({ trackMismatch: _trackMismatch, ...current }) => ({
         ...current,
         status: "error",
         message: error.message,

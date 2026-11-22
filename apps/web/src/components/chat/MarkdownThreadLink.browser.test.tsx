@@ -1,4 +1,5 @@
 import { RegistryContext } from "@effect/atom-react";
+import { scopeThreadRef } from "@supaterm/client-runtime/environment";
 import { EnvironmentId, ProjectId, ThreadId } from "@supaterm/contracts";
 import * as Cause from "effect/Cause";
 import { AsyncResult, Atom, AtomRegistry } from "effect/reactivity";
@@ -6,9 +7,14 @@ import { describe, expect, it, vi } from "vite-plus/test";
 import { page } from "vite-plus/test/browser";
 
 import { act, render } from "../../../test/render";
+import { linkedThreadSurface } from "../../linkedThreadSurface";
+import { selectThreadRightPanelState, useRightPanelStore } from "../../rightPanelStore";
 import { MarkdownThreadLink } from "./MarkdownThreadLink";
 
 import "~/index.css";
+
+const HERE = scopeThreadRef(EnvironmentId.make("environment"), ThreadId.make("here"));
+const panel = () => selectThreadRightPanelState(useRightPanelStore.getState().byThreadKey, HERE);
 
 const state = vi.hoisted(() => ({
   childTitles: new Map<string, string>(),
@@ -16,12 +22,19 @@ const state = vi.hoisted(() => ({
   metadataSupported: false,
   reply: null as unknown,
   remote: null as unknown,
+  cached: null as unknown,
+  linked: new Map<string, string>(),
+  connected: [] as Array<string>,
 }));
 
 vi.mock(import("../../state/entities"), async (original) => ({
   ...(await original()),
   useThreadShell: ((ref: { environmentId: string } | null) =>
-    ref?.environmentId === "remote" ? state.remote : null) as never,
+    ref?.environmentId === "remote"
+      ? state.remote
+      : ref?.environmentId === "saved-vm"
+        ? state.cached
+        : null) as never,
   useThreadRefs: (enabled = true) =>
     enabled
       ? [{ environmentId: EnvironmentId.make("remote"), threadId: ThreadId.make("older-thread") }]
@@ -33,6 +46,21 @@ vi.mock(import("../../state/entities"), async (original) => ({
   useShellOmitsThreads: (() => state.shellOmitsThreads) as never,
   useThreadLinkMetadataSupported: (() => state.metadataSupported) as never,
 }));
+vi.mock(import("../../state/environments"), async (original) => ({
+  ...(await original()),
+  useEnvironmentIdentities: () => [
+    { environmentId: EnvironmentId.make("environment"), label: "Here" },
+    { environmentId: EnvironmentId.make("remote"), label: "Remote" },
+    { environmentId: EnvironmentId.make("saved-vm"), label: "Saved VM" },
+  ],
+  useConnectedEnvironmentIds: () => state.connected as never,
+}));
+vi.mock(import("../../state/peerLinks"), () => ({
+  useLinkedThreadLabel: ((viaEnvironmentId: string | null, environmentId: string | null) =>
+    viaEnvironmentId === null || environmentId === null
+      ? undefined
+      : state.linked.get(environmentId)) as never,
+}));
 vi.mock(import("../ProjectFavicon"), () => ({
   ProjectFavicon: () => (
     <span role="img" aria-label="Essays project icon">
@@ -40,6 +68,7 @@ vi.mock(import("../ProjectFavicon"), () => ({
     </span>
   ),
 }));
+vi.mock(import("../ThreadChipHoverCard"), () => ({ ThreadChipHoverCard: () => <span /> }));
 vi.mock(import("../../state/orchestration"), () => ({
   orchestrationEnvironment: { threadLinkMetadata: () => state.reply } as never,
 }));
@@ -60,11 +89,20 @@ function setup(input: {
   state.shellOmitsThreads = input.shellOmitsThreads;
   state.metadataSupported = input.metadataSupported;
   state.reply = reply;
+  state.linked = new Map();
+  state.cached = null;
+  state.connected = ["environment", "remote"];
+  useRightPanelStore.setState({ byThreadKey: {} });
   state.remote = {
     environmentId: EnvironmentId.make("remote"),
     id: ThreadId.make("older-thread"),
     title: "Remote thread",
     projectId: ProjectId.make("essay-project"),
+    lineage: {
+      rootThreadId: ThreadId.make("older-thread"),
+      parentThreadId: null,
+      relationshipToParent: null,
+    },
   };
   return { reply, registry: AtomRegistry.make() };
 }
@@ -191,3 +229,76 @@ it.each([
     }
   },
 );
+
+const NO_LOOKUPS = { childTitles: {}, shellOmitsThreads: false, metadataSupported: false };
+
+it.for([
+  { name: "a machine only this environment links to", linkedId: "linked-vm" },
+  { name: "a saved machine this client is not connected to", linkedId: "saved-vm" },
+])("opens a thread on $name as a read through the link", async ({ linkedId }) => {
+  const { registry } = setup(NO_LOOKUPS);
+  using _registry = { [Symbol.dispose]: () => registry.dispose() };
+  state.linked = new Map([[linkedId, "fs-17"]]);
+  const environmentId = EnvironmentId.make("environment");
+  const link = { environmentId: EnvironmentId.make(linkedId), threadId: ThreadId.make("there") };
+  await using screen = await render(
+    <RegistryContext value={registry}>
+      <MarkdownThreadLink environmentId={environmentId} threadRef={HERE} link={link} label={null} />
+    </RegistryContext>,
+  );
+  const chip = screen.getByRole("button", { name: "Thread, Thread on fs-17" });
+  await chip.click();
+  const surface = linkedThreadSurface({
+    viaEnvironmentId: environmentId,
+    ...link,
+    label: "fs-17",
+    title: null,
+  });
+  expect(panel()).toMatchObject({ isOpen: true, activeSurfaceId: surface.id, surfaces: [surface] });
+  await chip.click();
+  expect(panel().surfaces).toHaveLength(1);
+  expect(screen.router?.state.location.pathname).toBe("/");
+});
+
+it("reads through the link when a disconnected machine's thread is only cached here", async () => {
+  const { registry } = setup(NO_LOOKUPS);
+  using _registry = { [Symbol.dispose]: () => registry.dispose() };
+  state.linked = new Map([["saved-vm", "fs-17"]]);
+  state.cached = { id: ThreadId.make("there"), title: "Cached title", projectId: null };
+  const environmentId = EnvironmentId.make("environment");
+  const link = { environmentId: EnvironmentId.make("saved-vm"), threadId: ThreadId.make("there") };
+  await using screen = await render(
+    <RegistryContext value={registry}>
+      <MarkdownThreadLink environmentId={environmentId} threadRef={HERE} link={link} label={null} />
+    </RegistryContext>,
+  );
+  await screen.getByRole("button", { name: "Thread, Cached title" }).click();
+  expect(panel().surfaces).toEqual([
+    linkedThreadSurface({
+      viaEnvironmentId: environmentId,
+      ...link,
+      label: "fs-17",
+      title: "Cached title",
+    }),
+  ]);
+});
+
+it("opens a linked machine's thread directly once this client is connected to it", async () => {
+  const { registry, reply } = setup({ ...NO_LOOKUPS, metadataSupported: true });
+  using _registry = { [Symbol.dispose]: () => registry.dispose() };
+  state.linked = new Map([["saved-vm", "fs-17"]]);
+  state.connected = ["environment", "saved-vm"];
+  registry.set(reply, AsyncResult.success({ there: { title: "Fix the build", projectId: null } }));
+  await using screen = await render(
+    <RegistryContext value={registry}>
+      <MarkdownThreadLink
+        environmentId={EnvironmentId.make("environment")}
+        threadRef={HERE}
+        link={{ environmentId: EnvironmentId.make("saved-vm"), threadId: ThreadId.make("there") }}
+        label={null}
+      />
+    </RegistryContext>,
+  );
+  await expect.element(screen.getByText("Fix the build")).toBeVisible();
+  await expect.element(screen.getByRole("button")).not.toBeInTheDocument();
+});

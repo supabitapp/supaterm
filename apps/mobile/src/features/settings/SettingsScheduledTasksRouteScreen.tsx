@@ -22,6 +22,7 @@ import {
   type AtomCommandResult,
 } from "@supaterm/client-runtime/state/runtime";
 import { resolvePastedPath } from "@supaterm/shared/path";
+import { scheduledTaskWorktreeBaseRef } from "@supaterm/client-runtime/scheduled-task-worktree";
 import { scheduleTimeZoneLabel } from "@supaterm/client-runtime/scheduled-task-time-zone";
 import { useRef, useState, type ReactNode } from "react";
 import { useFocusEffect, useNavigation, usePreventRemove } from "@react-navigation/native";
@@ -46,6 +47,7 @@ import { buildModelOptions } from "../../lib/modelOptions";
 import { withImplicitFastModeSelection } from "../../lib/providerOptions";
 import { useProjects, useEnvironmentServerConfig } from "../../state/entities";
 import { useEnvironmentQuery } from "../../state/query";
+import { usePaginatedBranches } from "../../state/queries";
 import { serverEnvironment } from "../../state/server";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { resolveNewTaskBranchLabel } from "../threads/new-task-context-presentation";
@@ -388,12 +390,19 @@ export function SettingsScheduledTaskEditRouteScreen() {
 }
 
 function SettingsScheduledTaskEditorScreen({ title }: { readonly title: string }) {
-  const { editor, voiceOwnerKey, readEditor, setEditor, hasChanges, draftForEnvironment } =
-    useScheduledTaskEditor();
+  const {
+    editor,
+    voiceOwnerKey,
+    readEditor,
+    setEditor,
+    hasChanges,
+    saving,
+    setSaving,
+    draftForEnvironment,
+  } = useScheduledTaskEditor();
   const { availableTargets } = useSettingsEnvironmentFilter();
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
-  const [saving, setSaving] = useState(false);
   // Set once the save lands, so the removal guard lets the editor close.
   const saved = useRef(false);
   const ownerKey = editor ? `${voiceOwnerKey}:${editor.environmentId}` : null;
@@ -586,6 +595,21 @@ function TaskForm({
           project.id === draft.task?.projectId),
     )
     .sort((left, right) => Number(right.pinnedAt != null) - Number(left.pinnedAt != null));
+  const automaticBaseRef = draft.workspace === "worktree" && !draft.baseRef.trim();
+  const automaticBaseRefCwd = automaticBaseRef
+    ? (projects.find((project) => project.id === draft.projectId)?.workspaceRoot ?? null)
+    : null;
+  const automaticBaseRefs = usePaginatedBranches({
+    environmentId,
+    cwd: automaticBaseRefCwd,
+    query: "",
+  });
+  const worktreeBaseRef = scheduledTaskWorktreeBaseRef(draft.baseRef, automaticBaseRefs.refs);
+  // Until the project's refs load, the automatic base would save as `main`. A failed lookup falls back to it.
+  const automaticBaseRefLoading =
+    automaticBaseRefCwd !== null &&
+    automaticBaseRefs.data === null &&
+    automaticBaseRefs.error === null;
   const config = useEnvironmentServerConfig(environmentId);
   const destinationLabel = useScheduledTaskDestinationLabel(environmentId, draft.threadId);
   const boundThread = useScheduledTaskThread(environmentId, draft.threadId);
@@ -632,7 +656,8 @@ function TaskForm({
       saving ||
       dictationPending ||
       taskMissing ||
-      environmentUnavailable
+      environmentUnavailable ||
+      automaticBaseRefLoading
     )
       return;
     const schedule = scheduleFromDraft(draft.schedule);
@@ -670,6 +695,7 @@ function TaskForm({
       schedule,
       enabled: draft.enabled,
       threadId: draft.threadId,
+      ...(draft.threadId === null && draft.task?.threadId != null ? { unbindThread: true } : {}),
       ...(offersThreadModes ? { threadMode: draft.threadMode } : {}),
       workspaceStrategy:
         draft.workspace === "root"
@@ -678,7 +704,7 @@ function TaskForm({
             ? { type: "existing_worktree", worktreePath: draft.checkoutPath.trim() }
             : {
                 type: "worktree",
-                baseRef: draft.baseRef.trim() || "main",
+                baseRef: worktreeBaseRef,
                 startFromOrigin: draft.startFromOrigin,
               },
       runtimeMode: draft.runtimeMode,
@@ -894,7 +920,7 @@ function TaskForm({
             <PickerRow
               label="Base branch"
               value={resolveNewTaskBranchLabel({
-                branchName: draft.baseRef,
+                branchName: automaticBaseRefLoading ? null : worktreeBaseRef,
                 startFromOrigin: draft.startFromOrigin,
                 workspaceMode: "worktree",
               })}
@@ -1127,7 +1153,13 @@ function TaskForm({
         tone="primary"
         fullWidth
         loading={saving}
-        disabled={!canOperate || dictationPending || taskMissing || environmentUnavailable}
+        disabled={
+          !canOperate ||
+          dictationPending ||
+          taskMissing ||
+          environmentUnavailable ||
+          automaticBaseRefLoading
+        }
         onPress={() => void save()}
         label={saving ? "Saving…" : draft.task ? "Save changes" : "Create task"}
       />

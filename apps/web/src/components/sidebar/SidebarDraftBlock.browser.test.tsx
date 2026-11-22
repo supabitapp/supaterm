@@ -7,7 +7,22 @@ import { act, render } from "../../../test/render";
 import { formatAssistantCitationForComposer } from "../../composer-logic";
 import { DraftId, useComposerDraftStore } from "../../composerDraftStore";
 import { ALL_SIDEBAR_SCOPE } from "../../sidebarProjectGrouping";
-import { SidebarDraftBlock } from "./SidebarDraftBlock";
+import { SidebarDraftBlock, useSidebarDrafts } from "./SidebarDraftBlock";
+
+function DraftBlock() {
+  const drafts = useSidebarDrafts(ALL_SIDEBAR_SCOPE, null);
+  return (
+    <SidebarDraftBlock
+      drafts={drafts}
+      jumpLabelByDraftId={null}
+      projectByKey={new Map()}
+      projectDisplayNameByKey={new Map()}
+      routeDraftId={null}
+      onNavigateToDraft={vi.fn()}
+      onDraftContextMenu={vi.fn()}
+    />
+  );
+}
 
 it("keeps draft previews current through edits, promotion and removal", async () => {
   const initial = useComposerDraftStore.getState();
@@ -27,14 +42,7 @@ it("keeps draft previews current through edits, promotion and removal", async ()
   await using screen = await render(
     <Profiler id="draft-block" onRender={onRender}>
       <ul>
-        <SidebarDraftBlock
-          projectByKey={new Map()}
-          projectDisplayNameByKey={new Map()}
-          scope={ALL_SIDEBAR_SCOPE}
-          routeDraftId={null}
-          onNavigateToDraft={vi.fn()}
-          onDraftContextMenu={vi.fn()}
-        />
+        <DraftBlock />
       </ul>
     </Profiler>,
   );

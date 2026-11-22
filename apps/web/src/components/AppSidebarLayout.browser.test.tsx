@@ -9,6 +9,7 @@ vi.mock(import("../state/server"), async (original) => {
   const { compileResolvedKeybindingsConfig } = await import("@supaterm/shared/keybindings");
   const keybindings = compileResolvedKeybindingsConfig([
     { key: "mod+b", command: "sidebar.toggle", when: "!terminalFocus" },
+    { key: "ctrl+k", command: "sidebar.toggle" },
   ]);
   return { ...actual, primaryServerKeybindingsAtom: Atom.make(keybindings) };
 });
@@ -38,5 +39,29 @@ describe("sidebar toggle shortcut", () => {
     await userEvent.click(screen.getByRole("button", { name: "Outside" }));
     await userEvent.keyboard("{Control>}b{/Control}");
     await vi.waitFor(() => expect(wrapper.getAttribute("data-sidebar-state")).toBe("collapsed"));
+  });
+
+  it("leaves a Ctrl chord to a focused terminal even when its rule allows terminal focus", async () => {
+    await page.viewport(1280, 800);
+    using _platform = vi.spyOn(navigator, "platform", "get").mockReturnValue("Linux x86_64");
+    await using screen = await render(
+      <AppSidebarLayout>
+        <div data-terminal-owner="drawer">
+          <textarea aria-label="Terminal input" />
+        </div>
+        <button type="button">Outside</button>
+      </AppSidebarLayout>,
+    );
+    const wrapper = screen.container.querySelector('[data-slot="sidebar-wrapper"]')!;
+
+    const before = wrapper.getAttribute("data-sidebar-state");
+
+    await userEvent.click(screen.getByRole("textbox", { name: "Terminal input" }));
+    await userEvent.keyboard("{Control>}k{/Control}");
+    expect(wrapper.getAttribute("data-sidebar-state")).toBe(before);
+
+    await userEvent.click(screen.getByRole("button", { name: "Outside" }));
+    await userEvent.keyboard("{Control>}k{/Control}");
+    await vi.waitFor(() => expect(wrapper.getAttribute("data-sidebar-state")).not.toBe(before));
   });
 });

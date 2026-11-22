@@ -92,7 +92,7 @@ export const probeOpenCodeBinary = Effect.fn("probeOpenCodeBinary")(function* (
   if (result) return result;
   return yield* new OpenCodeRuntime.OpenCodeRuntimeError({
     operation: "probeOpenCodeBinary",
-    detail: `Unable to determine OpenCode version from \`opencode --version\` output. Supaterm requires OpenCode v${OpenCodeRuntime.MINIMUM_OPENCODE_VERSION} or newer.`,
+    detail: "Unable to determine OpenCode version from `opencode --version` output.",
   });
 });
 
@@ -167,7 +167,7 @@ const probeOpenCodeServer = Effect.fn("probeOpenCodeServer")(function* (
   }
   return yield* new OpenCodeRuntime.OpenCodeRuntimeError({
     operation: "probeOpenCodeServer",
-    detail: `The server did not identify itself as OpenCode. Supaterm requires OpenCode v${OpenCodeRuntime.MINIMUM_OPENCODE_VERSION} or newer.`,
+    detail: "The server did not identify itself as OpenCode.",
   });
 });
 

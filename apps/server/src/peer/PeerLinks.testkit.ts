@@ -34,8 +34,9 @@ import * as ServerHttp from "../http.ts";
 import * as McpHttpServer from "../mcp/McpHttpServer.ts";
 import * as McpSessionRegistry from "../mcp/McpSessionRegistry.ts";
 import * as Sqlite from "../persistence/Sqlite.ts";
+import * as PeerHttp from "./http.ts";
+import * as PeerClientPairing from "./PeerClientPairing.ts";
 import * as PeerLinks from "./PeerLinks.ts";
-import * as ServerSettings from "../serverSettings.ts";
 import * as PeerMcpClient from "./PeerMcpClient.ts";
 import * as DirectTunnel from "../relay/DirectTunnel.ts";
 import * as DirectTunnelHttp from "../relay/DirectTunnelHttp.ts";
@@ -45,7 +46,8 @@ import * as RelayIngress from "../relay/RelayIngress.ts";
 
 class PeerTestApi extends HttpApi.make("environment")
   .add(EnvironmentHttpApi.groups.metadata)
-  .add(EnvironmentHttpApi.groups.mcpOAuth) {}
+  .add(EnvironmentHttpApi.groups.mcpOAuth)
+  .add(EnvironmentHttpApi.groups.peerLink) {}
 
 export const descriptorOf = (
   environmentId: string,
@@ -64,15 +66,28 @@ export const descriptorOf = (
   },
 });
 
+/** An environment's own sessions and pairing links, on a database and secret store of its own. */
+export const layerEnvironmentAuth = (prefix: string) =>
+  EnvironmentAuth.layer.pipe(
+    Layer.provide(Sqlite.layerMemory),
+    Layer.provideMerge(ServerSecretStore.layer),
+    Layer.provideMerge(ServerEnvironment.layerIdentity),
+    Layer.provideMerge(ServerConfig.layerTest(process.cwd(), { prefix })),
+    Layer.provideMerge(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer)),
+    Layer.fresh,
+  );
+
 /**
  * The environment a link points at, as it runs: its descriptor, MCP OAuth,
  * and `/mcp` with `tools` behind the real client authenticator, on a real
  * socket. The descriptor can be swapped, as when its address comes to answer
  * as another environment, and every bearer it receives is recorded.
  */
-export const servePeer = <E, R>(
+export const servePeer = <E, R, E2 = never, R2 = never>(
   initial: ExecutionEnvironmentDescriptor,
   tools: Layer.Layer<never, E, R>,
+  /** More of its HTTP routes, whose handlers get the same auth. */
+  routes: Layer.Layer<never, E2, R2> = Layer.empty,
   /** The HTTP server it is served on, when it also answers through its relay tunnel. */
   tunnelServer?: NodeHttp.Server,
 ) =>
@@ -88,18 +103,7 @@ export const servePeer = <E, R>(
       getEnvironmentId: Ref.get(descriptor).pipe(Effect.map((current) => current.environmentId)),
       getDescriptor: Ref.get(descriptor),
     });
-    const authContext = yield* EnvironmentAuth.layer.pipe(
-      Layer.provideMerge(ServerSettings.layerTest({ linkedEnvironmentsEnabled: true })),
-      Layer.provide(Sqlite.layerMemory),
-      Layer.provideMerge(ServerSecretStore.layer),
-      Layer.provideMerge(ServerEnvironment.layerIdentity),
-      Layer.provideMerge(
-        ServerConfig.layerTest(process.cwd(), { prefix: "supaterm-peer-link-peer-" }),
-      ),
-      Layer.provideMerge(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer)),
-      Layer.fresh,
-      Layer.build,
-    );
+    const authContext = yield* Layer.build(layerEnvironmentAuth("supaterm-peer-link-peer-"));
     const layerRecordBearers = HttpRouter.middleware(
       (httpEffect) =>
         Effect.gen(function* () {
@@ -139,6 +143,7 @@ export const servePeer = <E, R>(
       DirectTunnelHttp.layer,
       HttpApiBuilder.layer(PeerTestApi).pipe(
         Layer.provide(McpOAuthHttp.layer.pipe(Layer.provide(McpOAuth.layer))),
+        Layer.provide(PeerHttp.layer.pipe(Layer.provide(PeerClientPairing.layerIssuer))),
         Layer.provide(ServerHttp.layerServerEnvironmentHttpApi),
         Layer.provide(AuthHttp.layerAuthenticatedAuth),
       ),
@@ -150,6 +155,7 @@ export const servePeer = <E, R>(
         ),
         Layer.provide(McpOAuth.layerMcpClientAuthenticator),
       ),
+      routes,
     ).pipe(
       Layer.provide(layerRecordBearers),
       Layer.provide(RelayIngress.layerPathGuard),
@@ -160,6 +166,7 @@ export const servePeer = <E, R>(
     // environment that links to it in the same test.
     yield* HttpRouter.serve(layerRoutes, { disableListenLog: true, disableLogger: true }).pipe(
       Layer.provide(Layer.succeedContext(tunnelContext)),
+      Layer.provide(Layer.succeedContext(authContext)),
       Layer.fresh,
       Layer.build,
     );
@@ -177,8 +184,6 @@ export const servePeer = <E, R>(
         url: `ws://127.0.0.1:${address.port}`,
       },
       auth,
-      /** Its settings, as for turning its Linked environments beta off. */
-      settings: Context.get(authContext, ServerSettings.ServerSettingsService),
       descriptor,
       bearers,
       /** How often its descriptor was asked for, as a probe of whether it answers. */
@@ -216,7 +221,6 @@ export const layerLinkingEnvironment = <E = never>(
 ) =>
   PeerMcpClient.layer.pipe(
     Layer.provideMerge(PeerLinks.layer),
-    Layer.provideMerge(ServerSettings.layerTest({ linkedEnvironmentsEnabled: true })),
     Layer.provideMerge(database),
     Layer.provide(Layer.mergeAll(secrets, FetchHttpClient.layer, RelayCompanion.layer())),
     // Peers here are served on 127.0.0.1, so only `localhost` stands for this machine.

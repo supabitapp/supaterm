@@ -13,6 +13,7 @@ import {
   AuthOrchestrationOperateScope,
   AuthOrchestrationReadScope,
   AuthSessionId,
+  AuthSettingsWriteScope,
   AuthSourceControlWriteScope,
   ORCHESTRATION_PROTOCOL_VERSION,
   ORCHESTRATION_PROTOCOL_QUERY_PARAM,
@@ -72,6 +73,7 @@ import * as SqlClient from "effect/sql/SqlClient";
 import { vi } from "vite-plus/test";
 
 import * as AssetSigner from "./assets/AssetSigner.ts";
+import * as WorkspacePreviewRevisions from "./assets/WorkspacePreviewRevisions.ts";
 import * as PreviewAutomationBroker from "./mcp/PreviewAutomationBroker.ts";
 import * as ServerBrowser from "./preview/ServerBrowser.ts";
 import * as AcpRegistryRuntimeCoordinator from "@supaterm/provider-acp-registry/server/AcpRegistryRuntimeCoordinator";
@@ -85,6 +87,7 @@ import * as CheckpointDiffQuery from "./checkpointing/CheckpointDiffQuery.ts";
 import * as BackgroundTaskOutput from "./orchestration-v2/BackgroundTaskOutput.ts";
 import * as NativeChildWorkQuery from "./orchestration-v2/NativeChildWorkQuery.ts";
 import * as CommandOutputHub from "./orchestration-v2/CommandOutputHub.ts";
+import * as ThreadViewers from "./orchestration-v2/ThreadViewers.ts";
 import * as CodexInstallation from "./provider/CodexInstallation.ts";
 import * as DeviceService from "./device/DeviceService.ts";
 import * as DocumentText from "./provider/DocumentText.ts";
@@ -96,12 +99,15 @@ import * as HostResources from "./resourceTelemetry/HostResources.ts";
 import * as ManagedProjectFolders from "./project/ManagedProjectFolders.ts";
 import * as ScratchThreadPromotion from "./project/ScratchThreadPromotion.ts";
 import * as McpAppRequests from "./mcpApps/McpAppRequests.ts";
+import * as McpSignIn from "./mcpApps/McpSignIn.ts";
 import * as ModelManifest from "./provider/ModelManifest.ts";
 import * as Orchestrator from "./orchestration-v2/Orchestrator.ts";
 import * as OtlpEndpointCheck from "./observability/OtlpEndpointCheck.ts";
 import * as PairingGrantStore from "./auth/PairingGrantStore.ts";
 import * as RpcAuthorization from "./auth/RpcAuthorization.ts";
 import * as PeerLinkRequests from "./peer/PeerLinkRequests.ts";
+import * as PeerThreadRelay from "./peer/PeerThreadRelay.ts";
+import * as PeerClientPairing from "./peer/PeerClientPairing.ts";
 import * as PeerLinks from "./peer/PeerLinks.ts";
 import * as PortScanner from "./preview/PortScanner.ts";
 import * as PreviewManager from "./preview/Manager.ts";
@@ -798,12 +804,14 @@ const layerUnusedConfigRpcServices = Layer.mergeAll(
   Layer.mock(CheckpointDiffQuery.CheckpointDiffQuery)({}),
   Layer.mock(NativeChildWorkQuery.NativeChildWorkQuery)({}),
   Layer.mock(CommandOutputHub.CommandOutputHub)({}),
+  ThreadViewers.layer,
   Layer.mock(CodexInstallation.CodexInstallation)({ managedDirectory: "/unused" }),
   Layer.mock(DeviceService.DeviceService)({}),
   Layer.mock(EnvironmentTheme.EnvironmentThemeService)({}),
   Layer.mock(GitWorkflowService.GitWorkflowService)({}),
   Layer.mock(HostResources.HostResources)({}),
   Layer.mock(McpAppRequests.McpAppRequests)({}),
+  Layer.mock(McpSignIn.McpSignIn)({}),
   Layer.mock(ModelManifest.ModelManifest)({}),
   Layer.mock(OrchestrationEventStore.OrchestrationEventStore)({}),
   Layer.mock(Orchestrator.OrchestratorV2)({}),
@@ -811,6 +819,8 @@ const layerUnusedConfigRpcServices = Layer.mergeAll(
   Layer.mock(PairingGrantStore.PairingGrantStore)({}),
   Layer.mock(PeerLinks.PeerLinks)({}),
   Layer.mock(PeerLinkRequests.PeerLinkRequests)({}),
+  Layer.mock(PeerThreadRelay.PeerThreadRelay)({}),
+  Layer.mock(PeerClientPairing.PeerClientPairing)({}),
   Layer.mock(PortScanner.PortDiscovery)({ trackAgent: () => () => undefined }),
   Layer.mock(PreviewManager.PreviewManager)({}),
   Layer.mock(ProcessDiagnostics.ProcessDiagnostics)({}),
@@ -871,6 +881,7 @@ const layerUnusedConfigRpcServices = Layer.mergeAll(
 const layerConfigSources = Layer.mergeAll(
   Keybindings.layer,
   AssetSigner.layer.pipe(Layer.provide(ServerSecretStore.layer)),
+  WorkspacePreviewRevisions.layer,
   ServerSettings.layer.pipe(Layer.provide(ServerSecretStore.layer)),
 ).pipe(
   Layer.provideMerge(Layer.fresh(SqlitePersistence.layerMemory)),
@@ -1227,6 +1238,66 @@ it.effect.each([
         ),
       ),
     ),
+);
+
+const settingsUpdateRpcs = WsRpcGroup.omit(
+  ...[...WsRpcGroup.requests.keys()].filter(
+    (
+      tag,
+    ): tag is Exclude<
+      keyof typeof RpcAuthorization.RPC_REQUIRED_SCOPES,
+      typeof WS_METHODS.serverUpdateSettings
+    > => tag !== WS_METHODS.serverUpdateSettings,
+  ),
+);
+
+it.effect("a client's settings update never turns the legacy Linked environments switch off", () =>
+  Effect.gen(function* () {
+    const settings = yield* ServerSettings.ServerSettingsService;
+    const services = Layer.mergeAll(
+      layerUnusedConfigRpcServices,
+      Layer.mock(ExternalLauncher.ExternalLauncher)({}),
+      Layer.mock(ProviderRegistry.ProviderRegistry)({}),
+      Layer.mock(RemoteOpenTargets.RemoteOpenTargets)({}),
+      Layer.mock(DirectEndpoints.DirectEndpoints)({}),
+      Layer.mock(ManagedProjectFolders.ManagedProjectFolders)({ namedProjectsRoot: "/unused" }),
+      Layer.mock(ScratchThreadPromotion.ScratchThreadPromotion)({}),
+      Layer.mock(ServerEnvironment.ServerEnvironment)({}),
+      Layer.mock(EnvironmentAuth.EnvironmentAuth)({}),
+    );
+    const client = yield* RpcTest.makeClient(settingsUpdateRpcs).pipe(
+      Effect.provide(
+        layerWsRpc(
+          {
+            sessionId: AuthSessionId.make("settings-test"),
+            subject: "settings-test",
+            method: "browser-session-cookie",
+            scopes: [],
+          },
+          yield* ServerBrowser.ServerBrowser,
+          () => Effect.void,
+        ).pipe(
+          Layer.provide(services),
+          Layer.merge(RpcAuthorization.layer([AuthSettingsWriteScope])),
+        ),
+      ),
+    );
+
+    const updated = yield* client[WS_METHODS.serverUpdateSettings]({
+      patch: { linkedEnvironmentsEnabled: false, defaultAutoPull: true },
+    });
+    assert.isTrue(updated.defaultAutoPull);
+    assert.isTrue(updated.linkedEnvironmentsEnabled);
+    assert.isTrue((yield* settings.getSettings).linkedEnvironmentsEnabled);
+  }).pipe(
+    Effect.provide(
+      Layer.mergeAll(
+        Layer.fresh(layerConfigSources),
+        Layer.mock(PreviewAutomationBroker.PreviewAutomationBroker)({}),
+        Layer.mock(ServerBrowser.ServerBrowser)({}),
+      ),
+    ),
+  ),
 );
 
 it.effect("access changes made while the snapshot loads reach the client after it", () =>

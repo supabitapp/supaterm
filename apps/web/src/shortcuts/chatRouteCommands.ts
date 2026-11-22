@@ -7,6 +7,7 @@ import { isCommandPaletteOpen, openCommandPalette } from "../commandPaletteBus";
 import { useComposerDraftStore } from "../composerDraftStore";
 import { dispatchPreviewAction, type PreviewAction } from "../components/preview/previewActionBus";
 import { isAppModalPage } from "../components/sidebar/mainAppLocation";
+import { isBrowserSurfaceFocused } from "../lib/previewFocus";
 import {
   createNewThreadHandler,
   readRouteThreadContext,
@@ -85,6 +86,11 @@ export function installChatRouteCommands(router: AnyRouter): () => void {
     const environmentId = readRouteEnvironmentId();
     if (environmentId && canOperatePreview(environmentId)) dispatchPreviewAction(action);
   };
+  // Unclaimed, zoom keys reach the desktop menu accelerators or the browser's own zoom.
+  const zoomCommand = (action: PreviewAction) => () => {
+    if (!isBrowserSurfaceFocused()) return false;
+    previewCommand(action)();
+  };
 
   const commands: CommandHandlers = {
     "chat.new": startNewThread,
@@ -129,9 +135,9 @@ export function installChatRouteCommands(router: AnyRouter): () => void {
     },
     "preview.refresh": previewCommand("refresh"),
     "preview.focusUrl": previewCommand("focus-url"),
-    "preview.zoomIn": previewCommand("zoom-in"),
-    "preview.zoomOut": previewCommand("zoom-out"),
-    "preview.resetZoom": previewCommand("reset-zoom"),
+    "preview.zoomIn": zoomCommand("zoom-in"),
+    "preview.zoomOut": zoomCommand("zoom-out"),
+    "preview.resetZoom": zoomCommand("reset-zoom"),
     "preview.find": previewCommand("find"),
   };
 

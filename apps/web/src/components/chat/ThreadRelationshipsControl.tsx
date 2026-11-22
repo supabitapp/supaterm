@@ -36,6 +36,7 @@ import {
   type ServerProvider,
   type OrchestrationV2Subagent,
   type OrchestrationV2ThreadShell,
+  type ScopedThreadRef,
   type ThreadId,
   isOrchestrationV2RunNotYetRunning,
 } from "@supaterm/contracts";
@@ -62,6 +63,7 @@ import {
   useThreadRelationshipShells,
 } from "../../state/entities";
 import { useEnvironment, useEnvironmentProviders } from "../../state/environments";
+import { useLinkedThreadOpener } from "../../state/linkedThreadView";
 import { serverEnvironment } from "../../state/server";
 import {
   applyProviderInstanceSettings,
@@ -245,10 +247,10 @@ function currentSubagent<Agent extends RuntimeSubagent>(
  */
 function RemoteSubagentRow(props: {
   readonly agent: RemoteSubagent;
+  /** The thread that delegated the task; its environment holds the link and its panel shows the read. */
+  readonly parentRef: ScopedThreadRef;
   readonly provider: ServerProvider | undefined;
 }) {
-  const navigate = useNavigate();
-  const environment = useEnvironment(props.agent.remoteChild.environmentId);
   const { remoteChild } = props.agent;
   const status = props.agent.status;
   const failed = status === "failed";
@@ -256,6 +258,7 @@ function RemoteSubagentRow(props: {
     title: props.agent.title ?? "Subagent",
     isSubagent: true,
   });
+  const opener = useLinkedThreadOpener(props.parentRef, remoteChild, title);
   return (
     <li className="group relative flex h-8 items-center rounded-lg">
       <Tooltip>
@@ -266,16 +269,8 @@ function RemoteSubagentRow(props: {
               size="sm"
               variant="ghost"
               part="row"
-              aria-disabled={environment === null || undefined}
-              onClick={() => {
-                if (environment === null) return;
-                void navigate({
-                  to: "/$environmentId/$threadId",
-                  params: buildThreadRouteParams(
-                    scopeThreadRef(remoteChild.environmentId, remoteChild.threadId),
-                  ),
-                });
-              }}
+              aria-disabled={opener === null || undefined}
+              onClick={opener?.open}
             />
           }
         >
@@ -300,9 +295,11 @@ function RemoteSubagentRow(props: {
           <LineageTooltipContent
             title={title}
             hint={
-              environment === null
+              opener === null
                 ? `Runs on ${remoteChild.label}. Connect to it to open the thread there.`
-                : `Open on ${remoteChild.label}`
+                : opener.mode === "linked"
+                  ? `Read the thread on ${remoteChild.label}`
+                  : `Open on ${remoteChild.label}`
             }
           />
         </TooltipPopup>
@@ -719,6 +716,7 @@ export function ThreadRelationshipsPanel(props: {
                   <RemoteSubagentRow
                     key={row.remote.id}
                     agent={row.remote}
+                    parentRef={ref}
                     // Its provider instance belongs to the environment it runs in.
                     provider={providersByEnvironment
                       .get(row.remote.remoteChild.environmentId)

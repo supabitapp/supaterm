@@ -1,0 +1,384 @@
+diff --git a/react-native.js b/react-native.js
+index 440b0ad..3fd542c 100644
+--- a/react-native.js
++++ b/react-native.js
+@@ -3497,7 +3497,10 @@ function evaluateBootstrapInitialScroll(ctx) {
+     queueBootstrapInitialScrollReevaluation(state);
+     return;
+   }
+-  if (Platform.OS !== "web" && Platform.OS !== "android" && Math.abs(bootstrapInitialScroll.seedContentOffset - resolvedOffset) <= 1 && Math.abs(getObservedBootstrapInitialScrollOffset(state) - resolvedOffset) <= 1) {
++  // Supaterm patch: a re-armed session keeps its mount seed, but a native scroll event at the target
++  // proves the landing too. Dispatching there would wait out the fallback for an event UIKit never sends.
++  const didNativeReachResolvedOffset = typeof state.lastNativeScroll === "number" && Math.abs(state.lastNativeScroll - resolvedOffset) <= 1;
++  if (Platform.OS !== "web" && Platform.OS !== "android" && (Math.abs(bootstrapInitialScroll.seedContentOffset - resolvedOffset) <= 1 || didNativeReachResolvedOffset) && Math.abs(getObservedBootstrapInitialScrollOffset(state) - resolvedOffset) <= 1) {
+     finishBootstrapInitialScrollWithoutScroll(ctx, resolvedOffset);
+   } else {
+     clearBootstrapInitialScrollSession(state);
+diff --git a/react-native.mjs b/react-native.mjs
+index b95e1f8..cb8bd87 100644
+--- a/react-native.mjs
++++ b/react-native.mjs
+@@ -3476,7 +3476,10 @@ function evaluateBootstrapInitialScroll(ctx) {
+     queueBootstrapInitialScrollReevaluation(state);
+     return;
+   }
+-  if (Platform.OS !== "web" && Platform.OS !== "android" && Math.abs(bootstrapInitialScroll.seedContentOffset - resolvedOffset) <= 1 && Math.abs(getObservedBootstrapInitialScrollOffset(state) - resolvedOffset) <= 1) {
++  // Supaterm patch: a re-armed session keeps its mount seed, but a native scroll event at the target
++  // proves the landing too. Dispatching there would wait out the fallback for an event UIKit never sends.
++  const didNativeReachResolvedOffset = typeof state.lastNativeScroll === "number" && Math.abs(state.lastNativeScroll - resolvedOffset) <= 1;
++  if (Platform.OS !== "web" && Platform.OS !== "android" && (Math.abs(bootstrapInitialScroll.seedContentOffset - resolvedOffset) <= 1 || didNativeReachResolvedOffset) && Math.abs(getObservedBootstrapInitialScrollOffset(state) - resolvedOffset) <= 1) {
+     finishBootstrapInitialScrollWithoutScroll(ctx, resolvedOffset);
+   } else {
+     clearBootstrapInitialScrollSession(state);
+diff --git a/react-native.web.js b/react-native.web.js
+index 24cc605..07fa319 100644
+--- a/react-native.web.js
++++ b/react-native.web.js
+@@ -5839,6 +5839,7 @@ function measureContainersInLayoutEffect(ctx, targetContainerIds = null) {
+       const generation = (_b = ctx.state.containerItemGenerations[containerId]) != null ? _b : 0;
+       const size = measureContainerLayoutSize(element);
+       setContainerLayoutBaseline(element, size);
++      resyncResizeObserver(element, size);
+       measurements.push({
+         containerId,
+         generation,
+@@ -6324,15 +6325,41 @@ function Separator({ ItemSeparatorComponent, leadingItem }) {
+ 
+ // src/hooks/createResizeObserver.ts
+ var globalResizeObserver = null;
++// Supaterm patch: a layout measurement that differs from the last observer delivery requests a
++// fresh delivery, so an intermediate size cannot stay cached after the DOM returns to the size
++// the observer last saw.
++var resizeObserverRects = /* @__PURE__ */ new WeakMap();
++var forcedResizeObservations = /* @__PURE__ */ new WeakSet();
++function getResizeObserverRect(entry) {
++  const target = entry.target instanceof HTMLElement ? entry.target : void 0;
++  const borderBoxSize = Array.isArray(entry.borderBoxSize) ? entry.borderBoxSize[0] : entry.borderBoxSize;
++  return borderBoxSize ? {
++    height: borderBoxSize.blockSize,
++    left: entry.contentRect.left,
++    top: entry.contentRect.top,
++    width: borderBoxSize.inlineSize
++  } : target ? target.getBoundingClientRect() : entry.contentRect;
++}
++function resyncResizeObserver(element, rect) {
++  const observed = resizeObserverRects.get(element);
++  if (observed && callbackMap.has(element) && (Math.round(observed.height) !== Math.round(rect.height) || Math.round(observed.width) !== Math.round(rect.width))) {
++    forcedResizeObservations.add(element);
++    const observer = getGlobalResizeObserver();
++    observer.unobserve(element);
++    observer.observe(element, { box: "border-box" });
++  }
++}
+ function getGlobalResizeObserver() {
+   if (!globalResizeObserver) {
+     globalResizeObserver = new ResizeObserver((entries) => {
+       batchItemSizeUpdates(() => {
+         for (const entry of entries) {
++          resizeObserverRects.set(entry.target, getResizeObserverRect(entry));
++          const forceLayout = forcedResizeObservations.delete(entry.target);
+           const callbacks = callbackMap.get(entry.target);
+           if (callbacks) {
+             for (const callback of callbacks) {
+-              callback(entry);
++              callback(entry, forceLayout);
+             }
+           }
+         }
+@@ -6359,6 +6386,8 @@ function createResizeObserver(element, callback) {
+     callbacks.delete(callback);
+     if (callbacks.size === 0) {
+       callbackMap.delete(element);
++      resizeObserverRects.delete(element);
++      forcedResizeObservations.delete(element);
+       observer.unobserve(element);
+     }
+   };
+@@ -6409,18 +6438,11 @@ function useOnLayoutSync({
+       emit(toLayout(rect), true);
+       prevRect = rect;
+     }
+-    return createResizeObserver(element, (entry) => {
+-      var _a4, _b2, _c;
+-      const target = entry.target instanceof HTMLElement ? entry.target : void 0;
+-      const borderBoxSize = Array.isArray(entry.borderBoxSize) ? entry.borderBoxSize[0] : entry.borderBoxSize;
+-      const rectObserved = borderBoxSize ? {
+-        height: borderBoxSize.blockSize,
+-        left: entry.contentRect.left,
+-        top: entry.contentRect.top,
+-        width: borderBoxSize.inlineSize
+-      } : (_a4 = target == null ? void 0 : target.getBoundingClientRect()) != null ? _a4 : entry.contentRect;
+-      const previousRect = prevRect != null ? prevRect : getContainerLayoutBaseline(element);
+-      const didSizeChange = previousRect === void 0 || rectObserved.width !== previousRect.width || rectObserved.height !== previousRect.height;
++    return createResizeObserver(element, (entry, forceLayout) => {
++      var _b2, _c;
++      const rectObserved = getResizeObserverRect(entry);
++      const previousRect = prevRect;
++      const didSizeChange = forceLayout || previousRect === void 0 || rectObserved.width !== previousRect.width || rectObserved.height !== previousRect.height;
+       prevRect = rectObserved;
+       const shouldResyncLayout = !!((_c = (_b2 = callbacks.current).webLayoutResync) == null ? void 0 : _c.call(_b2));
+       if (didSizeChange || shouldResyncLayout) {
+diff --git a/react-native.web.mjs b/react-native.web.mjs
+index 2cf1995..9777a42 100644
+--- a/react-native.web.mjs
++++ b/react-native.web.mjs
+@@ -5818,6 +5818,7 @@ function measureContainersInLayoutEffect(ctx, targetContainerIds = null) {
+       const generation = (_b = ctx.state.containerItemGenerations[containerId]) != null ? _b : 0;
+       const size = measureContainerLayoutSize(element);
+       setContainerLayoutBaseline(element, size);
++      resyncResizeObserver(element, size);
+       measurements.push({
+         containerId,
+         generation,
+@@ -6303,15 +6304,41 @@ function Separator({ ItemSeparatorComponent, leadingItem }) {
+ 
+ // src/hooks/createResizeObserver.ts
+ var globalResizeObserver = null;
++// Supaterm patch: a layout measurement that differs from the last observer delivery requests a
++// fresh delivery, so an intermediate size cannot stay cached after the DOM returns to the size
++// the observer last saw.
++var resizeObserverRects = /* @__PURE__ */ new WeakMap();
++var forcedResizeObservations = /* @__PURE__ */ new WeakSet();
++function getResizeObserverRect(entry) {
++  const target = entry.target instanceof HTMLElement ? entry.target : void 0;
++  const borderBoxSize = Array.isArray(entry.borderBoxSize) ? entry.borderBoxSize[0] : entry.borderBoxSize;
++  return borderBoxSize ? {
++    height: borderBoxSize.blockSize,
++    left: entry.contentRect.left,
++    top: entry.contentRect.top,
++    width: borderBoxSize.inlineSize
++  } : target ? target.getBoundingClientRect() : entry.contentRect;
++}
++function resyncResizeObserver(element, rect) {
++  const observed = resizeObserverRects.get(element);
++  if (observed && callbackMap.has(element) && (Math.round(observed.height) !== Math.round(rect.height) || Math.round(observed.width) !== Math.round(rect.width))) {
++    forcedResizeObservations.add(element);
++    const observer = getGlobalResizeObserver();
++    observer.unobserve(element);
++    observer.observe(element, { box: "border-box" });
++  }
++}
+ function getGlobalResizeObserver() {
+   if (!globalResizeObserver) {
+     globalResizeObserver = new ResizeObserver((entries) => {
+       batchItemSizeUpdates(() => {
+         for (const entry of entries) {
++          resizeObserverRects.set(entry.target, getResizeObserverRect(entry));
++          const forceLayout = forcedResizeObservations.delete(entry.target);
+           const callbacks = callbackMap.get(entry.target);
+           if (callbacks) {
+             for (const callback of callbacks) {
+-              callback(entry);
++              callback(entry, forceLayout);
+             }
+           }
+         }
+@@ -6338,6 +6365,8 @@ function createResizeObserver(element, callback) {
+     callbacks.delete(callback);
+     if (callbacks.size === 0) {
+       callbackMap.delete(element);
++      resizeObserverRects.delete(element);
++      forcedResizeObservations.delete(element);
+       observer.unobserve(element);
+     }
+   };
+@@ -6388,18 +6417,11 @@ function useOnLayoutSync({
+       emit(toLayout(rect), true);
+       prevRect = rect;
+     }
+-    return createResizeObserver(element, (entry) => {
+-      var _a4, _b2, _c;
+-      const target = entry.target instanceof HTMLElement ? entry.target : void 0;
+-      const borderBoxSize = Array.isArray(entry.borderBoxSize) ? entry.borderBoxSize[0] : entry.borderBoxSize;
+-      const rectObserved = borderBoxSize ? {
+-        height: borderBoxSize.blockSize,
+-        left: entry.contentRect.left,
+-        top: entry.contentRect.top,
+-        width: borderBoxSize.inlineSize
+-      } : (_a4 = target == null ? void 0 : target.getBoundingClientRect()) != null ? _a4 : entry.contentRect;
+-      const previousRect = prevRect != null ? prevRect : getContainerLayoutBaseline(element);
+-      const didSizeChange = previousRect === void 0 || rectObserved.width !== previousRect.width || rectObserved.height !== previousRect.height;
++    return createResizeObserver(element, (entry, forceLayout) => {
++      var _b2, _c;
++      const rectObserved = getResizeObserverRect(entry);
++      const previousRect = prevRect;
++      const didSizeChange = forceLayout || previousRect === void 0 || rectObserved.width !== previousRect.width || rectObserved.height !== previousRect.height;
+       prevRect = rectObserved;
+       const shouldResyncLayout = !!((_c = (_b2 = callbacks.current).webLayoutResync) == null ? void 0 : _c.call(_b2));
+       if (didSizeChange || shouldResyncLayout) {
+diff --git a/react.js b/react.js
+index 24cc605..07fa319 100644
+--- a/react.js
++++ b/react.js
+@@ -5839,6 +5839,7 @@ function measureContainersInLayoutEffect(ctx, targetContainerIds = null) {
+       const generation = (_b = ctx.state.containerItemGenerations[containerId]) != null ? _b : 0;
+       const size = measureContainerLayoutSize(element);
+       setContainerLayoutBaseline(element, size);
++      resyncResizeObserver(element, size);
+       measurements.push({
+         containerId,
+         generation,
+@@ -6324,15 +6325,41 @@ function Separator({ ItemSeparatorComponent, leadingItem }) {
+ 
+ // src/hooks/createResizeObserver.ts
+ var globalResizeObserver = null;
++// Supaterm patch: a layout measurement that differs from the last observer delivery requests a
++// fresh delivery, so an intermediate size cannot stay cached after the DOM returns to the size
++// the observer last saw.
++var resizeObserverRects = /* @__PURE__ */ new WeakMap();
++var forcedResizeObservations = /* @__PURE__ */ new WeakSet();
++function getResizeObserverRect(entry) {
++  const target = entry.target instanceof HTMLElement ? entry.target : void 0;
++  const borderBoxSize = Array.isArray(entry.borderBoxSize) ? entry.borderBoxSize[0] : entry.borderBoxSize;
++  return borderBoxSize ? {
++    height: borderBoxSize.blockSize,
++    left: entry.contentRect.left,
++    top: entry.contentRect.top,
++    width: borderBoxSize.inlineSize
++  } : target ? target.getBoundingClientRect() : entry.contentRect;
++}
++function resyncResizeObserver(element, rect) {
++  const observed = resizeObserverRects.get(element);
++  if (observed && callbackMap.has(element) && (Math.round(observed.height) !== Math.round(rect.height) || Math.round(observed.width) !== Math.round(rect.width))) {
++    forcedResizeObservations.add(element);
++    const observer = getGlobalResizeObserver();
++    observer.unobserve(element);
++    observer.observe(element, { box: "border-box" });
++  }
++}
+ function getGlobalResizeObserver() {
+   if (!globalResizeObserver) {
+     globalResizeObserver = new ResizeObserver((entries) => {
+       batchItemSizeUpdates(() => {
+         for (const entry of entries) {
++          resizeObserverRects.set(entry.target, getResizeObserverRect(entry));
++          const forceLayout = forcedResizeObservations.delete(entry.target);
+           const callbacks = callbackMap.get(entry.target);
+           if (callbacks) {
+             for (const callback of callbacks) {
+-              callback(entry);
++              callback(entry, forceLayout);
+             }
+           }
+         }
+@@ -6359,6 +6386,8 @@ function createResizeObserver(element, callback) {
+     callbacks.delete(callback);
+     if (callbacks.size === 0) {
+       callbackMap.delete(element);
++      resizeObserverRects.delete(element);
++      forcedResizeObservations.delete(element);
+       observer.unobserve(element);
+     }
+   };
+@@ -6409,18 +6438,11 @@ function useOnLayoutSync({
+       emit(toLayout(rect), true);
+       prevRect = rect;
+     }
+-    return createResizeObserver(element, (entry) => {
+-      var _a4, _b2, _c;
+-      const target = entry.target instanceof HTMLElement ? entry.target : void 0;
+-      const borderBoxSize = Array.isArray(entry.borderBoxSize) ? entry.borderBoxSize[0] : entry.borderBoxSize;
+-      const rectObserved = borderBoxSize ? {
+-        height: borderBoxSize.blockSize,
+-        left: entry.contentRect.left,
+-        top: entry.contentRect.top,
+-        width: borderBoxSize.inlineSize
+-      } : (_a4 = target == null ? void 0 : target.getBoundingClientRect()) != null ? _a4 : entry.contentRect;
+-      const previousRect = prevRect != null ? prevRect : getContainerLayoutBaseline(element);
+-      const didSizeChange = previousRect === void 0 || rectObserved.width !== previousRect.width || rectObserved.height !== previousRect.height;
++    return createResizeObserver(element, (entry, forceLayout) => {
++      var _b2, _c;
++      const rectObserved = getResizeObserverRect(entry);
++      const previousRect = prevRect;
++      const didSizeChange = forceLayout || previousRect === void 0 || rectObserved.width !== previousRect.width || rectObserved.height !== previousRect.height;
+       prevRect = rectObserved;
+       const shouldResyncLayout = !!((_c = (_b2 = callbacks.current).webLayoutResync) == null ? void 0 : _c.call(_b2));
+       if (didSizeChange || shouldResyncLayout) {
+diff --git a/react.mjs b/react.mjs
+index 2cf1995..9777a42 100644
+--- a/react.mjs
++++ b/react.mjs
+@@ -5818,6 +5818,7 @@ function measureContainersInLayoutEffect(ctx, targetContainerIds = null) {
+       const generation = (_b = ctx.state.containerItemGenerations[containerId]) != null ? _b : 0;
+       const size = measureContainerLayoutSize(element);
+       setContainerLayoutBaseline(element, size);
++      resyncResizeObserver(element, size);
+       measurements.push({
+         containerId,
+         generation,
+@@ -6303,15 +6304,41 @@ function Separator({ ItemSeparatorComponent, leadingItem }) {
+ 
+ // src/hooks/createResizeObserver.ts
+ var globalResizeObserver = null;
++// Supaterm patch: a layout measurement that differs from the last observer delivery requests a
++// fresh delivery, so an intermediate size cannot stay cached after the DOM returns to the size
++// the observer last saw.
++var resizeObserverRects = /* @__PURE__ */ new WeakMap();
++var forcedResizeObservations = /* @__PURE__ */ new WeakSet();
++function getResizeObserverRect(entry) {
++  const target = entry.target instanceof HTMLElement ? entry.target : void 0;
++  const borderBoxSize = Array.isArray(entry.borderBoxSize) ? entry.borderBoxSize[0] : entry.borderBoxSize;
++  return borderBoxSize ? {
++    height: borderBoxSize.blockSize,
++    left: entry.contentRect.left,
++    top: entry.contentRect.top,
++    width: borderBoxSize.inlineSize
++  } : target ? target.getBoundingClientRect() : entry.contentRect;
++}
++function resyncResizeObserver(element, rect) {
++  const observed = resizeObserverRects.get(element);
++  if (observed && callbackMap.has(element) && (Math.round(observed.height) !== Math.round(rect.height) || Math.round(observed.width) !== Math.round(rect.width))) {
++    forcedResizeObservations.add(element);
++    const observer = getGlobalResizeObserver();
++    observer.unobserve(element);
++    observer.observe(element, { box: "border-box" });
++  }
++}
+ function getGlobalResizeObserver() {
+   if (!globalResizeObserver) {
+     globalResizeObserver = new ResizeObserver((entries) => {
+       batchItemSizeUpdates(() => {
+         for (const entry of entries) {
++          resizeObserverRects.set(entry.target, getResizeObserverRect(entry));
++          const forceLayout = forcedResizeObservations.delete(entry.target);
+           const callbacks = callbackMap.get(entry.target);
+           if (callbacks) {
+             for (const callback of callbacks) {
+-              callback(entry);
++              callback(entry, forceLayout);
+             }
+           }
+         }
+@@ -6338,6 +6365,8 @@ function createResizeObserver(element, callback) {
+     callbacks.delete(callback);
+     if (callbacks.size === 0) {
+       callbackMap.delete(element);
++      resizeObserverRects.delete(element);
++      forcedResizeObservations.delete(element);
+       observer.unobserve(element);
+     }
+   };
+@@ -6388,18 +6417,11 @@ function useOnLayoutSync({
+       emit(toLayout(rect), true);
+       prevRect = rect;
+     }
+-    return createResizeObserver(element, (entry) => {
+-      var _a4, _b2, _c;
+-      const target = entry.target instanceof HTMLElement ? entry.target : void 0;
+-      const borderBoxSize = Array.isArray(entry.borderBoxSize) ? entry.borderBoxSize[0] : entry.borderBoxSize;
+-      const rectObserved = borderBoxSize ? {
+-        height: borderBoxSize.blockSize,
+-        left: entry.contentRect.left,
+-        top: entry.contentRect.top,
+-        width: borderBoxSize.inlineSize
+-      } : (_a4 = target == null ? void 0 : target.getBoundingClientRect()) != null ? _a4 : entry.contentRect;
+-      const previousRect = prevRect != null ? prevRect : getContainerLayoutBaseline(element);
+-      const didSizeChange = previousRect === void 0 || rectObserved.width !== previousRect.width || rectObserved.height !== previousRect.height;
++    return createResizeObserver(element, (entry, forceLayout) => {
++      var _b2, _c;
++      const rectObserved = getResizeObserverRect(entry);
++      const previousRect = prevRect;
++      const didSizeChange = forceLayout || previousRect === void 0 || rectObserved.width !== previousRect.width || rectObserved.height !== previousRect.height;
+       prevRect = rectObserved;
+       const shouldResyncLayout = !!((_c = (_b2 = callbacks.current).webLayoutResync) == null ? void 0 : _c.call(_b2));
+       if (didSizeChange || shouldResyncLayout) {

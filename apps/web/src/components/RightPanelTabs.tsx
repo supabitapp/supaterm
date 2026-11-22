@@ -32,6 +32,7 @@ import {
   DiffIcon,
   EarthIcon,
   FilesIcon,
+  MessagesSquareIcon,
   PlusIcon,
   SmartphoneIcon,
   SquareTerminalIcon,
@@ -52,6 +53,7 @@ import {
 
 import { isElectron } from "~/env";
 import type { DesktopPreviewOverlay } from "~/previewStateStore";
+import { linkedThreadTitle } from "~/linkedThreadSurface";
 import type { RightPanelSurface } from "~/rightPanelStore";
 import { cn } from "~/lib/utils";
 import { resolveShortcutCommand, type ShortcutMatchContext } from "~/keybindings";
@@ -97,6 +99,7 @@ import { resolvePullRequestState } from "./pullRequest/pullRequestPresentation";
 import { PullRequestGlyph } from "~/components/pullRequest/pullRequestIcons";
 import { observeResize } from "~/lib/observeResize";
 import { usePaneInputOwner } from "../chatPanes/paneScope";
+import { registerCommands } from "../shortcuts/dispatcher";
 import { surfaceShortcutKey } from "~/lib/surfaceShortcutKey";
 import { isImeComposing } from "~/lib/imeComposition";
 
@@ -124,6 +127,7 @@ export interface RightPanelTabsProps {
   onCloseAllSurfaces: () => void;
   onMoveSurface?: (surfaceId: string, toIndex: number) => void;
   onCopyFilePath: (relativePath: string) => void;
+  onDuplicateBrowser?: (surface: RightPanelSurface) => void;
   onAddBrowser: () => void;
   /** Keep separate from the DOM click handler so a MouseEvent cannot become a profile id. */
   onAddBrowserInProfile: (profileId: string) => void;
@@ -197,6 +201,7 @@ const SURFACE_UNAVAILABLE_HINTS = {
 type TabContextMenuAction =
   | "rename"
   | "copy-path"
+  | "duplicate"
   | "toggle-mute"
   | "close"
   | "close-others"
@@ -583,6 +588,8 @@ function surfaceTitle(
       return "Pull requests";
     case "device":
       return surface.title ?? surface.target?.name ?? "Device";
+    case "linked-thread":
+      return linkedThreadTitle(surface, `Thread on ${surface.label}`);
     case "preview": {
       const snapshot = surface.resourceId ? sessions[surface.resourceId] : null;
       if (!snapshot || snapshot.navStatus._tag === "Idle") return "Browser";
@@ -671,6 +678,8 @@ function SurfaceIcon({
       );
     case "pull-requests":
       return <PullRequestGlyph.link className="size-3 shrink-0" />;
+    case "linked-thread":
+      return <MessagesSquareIcon className="size-3 shrink-0" />;
     case "device":
       return surface.target?.platform === "ios" ? (
         <AppleIcon className="size-3 shrink-0" />
@@ -989,6 +998,8 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
   if (props.open === false && addSurfaceMenuOpen) setAddSurfaceMenuOpen(false);
 
   const isPaneInputOwner = usePaneInputOwner();
+  const addSurfaceMenuBlocked = () =>
+    !addSurfaceMenuOpen && document.querySelector(LAUNCHER_SHORTCUT_BLOCKING_LAYERS) !== null;
   const onNewSurfaceKeyDown = useEffectEvent((event: KeyboardEvent) => {
     if (event.defaultPrevented || event.isComposing || !isPaneInputOwner()) return;
     if (
@@ -997,7 +1008,7 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
       }) !== "rightPanel.new"
     )
       return;
-    if (!addSurfaceMenuOpen && document.querySelector(LAUNCHER_SHORTCUT_BLOCKING_LAYERS)) return;
+    if (addSurfaceMenuBlocked()) return;
     event.preventDefault();
     event.stopPropagation();
     if (!event.repeat) {
@@ -1005,12 +1016,27 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
       setAddSurfaceMenuOpen(true);
     }
   });
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- subscribes a document keydown listener for the new surface shortcut while the panel is open
+  // Forwarded from a focused browser page. Focusing the trigger here would let ChatView's
+  // window-focus handler see a plain button and refocus the composer, closing the menu.
+  const onForwardedNewSurface = useEffectEvent(() => {
+    if (addSurfaceMenuBlocked()) return false;
+    setAddSurfaceMenuOpen(true);
+  });
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- subscribes document keydown and the forwarded rightPanel.new command for the new surface shortcut while the panel is open
   useEffect(() => {
     if (props.open === false) return;
     document.addEventListener("keydown", onNewSurfaceKeyDown, true);
-    return () => document.removeEventListener("keydown", onNewSurfaceKeyDown, true);
-  }, [props.open]);
+    const unregister = registerCommands(
+      {
+        "rightPanel.new": ({ source }) => (source === "menu" ? onForwardedNewSurface() : false),
+      },
+      { when: isPaneInputOwner },
+    );
+    return () => {
+      document.removeEventListener("keydown", onNewSurfaceKeyDown, true);
+      unregister();
+    };
+  }, [props.open, isPaneInputOwner]);
 
   const updateTabScrollState = (viewport: HTMLDivElement) => {
     const hasOverflow = viewport.scrollWidth - viewport.clientWidth > TAB_SCROLL_EDGE_TOLERANCE;
@@ -1129,6 +1155,11 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
     const menuMuted = menuOverlay?.audioMuted ?? false;
     if (surface.kind === "preview") {
       items.push({
+        id: "duplicate",
+        label: "Duplicate",
+        disabled: !props.browserAvailable || !menuPreviewTabId || !props.onDuplicateBrowser,
+      });
+      items.push({
         id: "toggle-mute",
         ...tabMuteMenuItem({
           overlay: menuOverlay,
@@ -1164,6 +1195,9 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
         if (surface.kind === "file" && surface.attachment === undefined) {
           props.onCopyFilePath(surface.relativePath);
         }
+        break;
+      case "duplicate":
+        props.onDuplicateBrowser?.(surface);
         break;
       case "toggle-mute": {
         const runtimeTabId =

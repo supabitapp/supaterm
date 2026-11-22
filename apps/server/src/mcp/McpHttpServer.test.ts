@@ -9,16 +9,15 @@ import {
   DeviceId,
   DeviceOperationError,
   EnvironmentId,
-  OrchestratorMcpEnvironmentTarget,
   OrchestratorMcpFailure,
   PreviewTabId,
+  ProjectId,
   ProviderInstanceId,
   ProviderInteractionMode,
   RuntimeMode,
   ThreadId,
   PREVIEW_AUTOMATION_SERVER_OPERATIONS,
 } from "@supaterm/contracts";
-import * as Context from "effect/Context";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
@@ -46,6 +45,7 @@ import * as ServerEnvironment from "../environment/ServerEnvironment.ts";
 import * as Sqlite from "../persistence/Sqlite.ts";
 import * as PreviewManager from "../preview/Manager.ts";
 import * as DeviceService from "../device/DeviceService.ts";
+import * as GitManager from "../git/GitManager.ts";
 import * as PullRequestReviewGuideService from "../pullRequest/PullRequestReviewGuideService.ts";
 import * as PullRequestService from "../pullRequest/PullRequestService.ts";
 import * as ServerConfig from "../config.ts";
@@ -114,6 +114,7 @@ const layerPullRequestsTest = McpHttpServer.layerPullRequestsToolkit.pipe(
       Layer.mock(RepositoryIdentityResolver.RepositoryIdentityResolver)({}),
       Layer.mock(PullRequestReviewGuideService.PullRequestReviewGuideService)({}),
       Layer.mock(PullRequestService.PullRequestService)({}),
+      Layer.mock(GitManager.GitManager)({}),
       Layer.mock(Orchestrator.OrchestratorV2)({}),
       Layer.mock(ProjectionStore.ProjectionStoreV2)({}),
       NodeServices.layer,
@@ -698,6 +699,34 @@ it.effect("decodes null optional arguments the way it decodes omitted ones", () 
   }).pipe(Effect.provide(layerRecordingTools(calls)));
 });
 
+it.effect("decodes a JSON-stringified delegate target as the same object", () => {
+  const calls: Array<unknown> = [];
+  return Effect.gen(function* () {
+    const task = "Inspect";
+    const target = {
+      providerInstanceId: "codex",
+      model: "gpt-6.2-sol",
+      options: { reasoningEffort: "medium" },
+    };
+    yield* callTool("delegate_task", { task, target });
+    yield* callTool("delegate_task", { task, target: JSON.stringify(target) });
+
+    for (const invalidTarget of ["{model:", '{"model":42}']) {
+      const error = yield* Effect.flip(callTool("delegate_task", { task, target: invalidTarget }));
+      expect(error).toBeInstanceOf(McpSchema.InvalidParams);
+    }
+    expect(calls).toHaveLength(2);
+    expect(calls[0]).toEqual({
+      task,
+      target: {
+        ...target,
+        options: [{ id: "reasoningEffort", value: "medium" }],
+      },
+    });
+    expect(calls[1]).toEqual(calls[0]);
+  }).pipe(Effect.provide(layerRecordingTools(calls)));
+});
+
 it.effect("rejects arguments a tool does not declare instead of dropping them", () => {
   const calls: Array<unknown> = [];
   return Effect.gen(function* () {
@@ -1195,6 +1224,38 @@ it.effect("answers 2026-07-28 discovery and keeps 2025-06-18 as the initialize f
         expect.arrayContaining([expect.objectContaining({ name: "probe" })]),
       );
 
+      // The Go MCP SDK sends this without request metadata, though 2026-07-28 does not define it.
+      const rootsChanged = (
+        client: HttpClient.HttpClient,
+        message: object = {},
+        headers: Record<string, string> = {},
+      ) =>
+        client.post("/mcp", {
+          headers: {
+            accept: "application/json, text/event-stream",
+            "mcp-method": "notifications/roots/list_changed",
+            "mcp-protocol-version": "2026-07-28",
+            ...headers,
+          },
+          body: HttpBody.text(
+            JSON.stringify({
+              jsonrpc: "2.0",
+              method: "notifications/roots/list_changed",
+              params: {},
+              ...message,
+            }),
+            "application/json",
+          ),
+        });
+      const acknowledged = yield* rootsChanged(httpClient);
+      expect(acknowledged.status).toBe(202);
+      expect(yield* acknowledged.text).toBe("");
+      expect((yield* rootsChanged(yield* HttpClient.HttpClient)).status).toBe(401);
+      expect((yield* rootsChanged(httpClient, { id: 7 })).status).toBe(400);
+      expect((yield* rootsChanged(httpClient, {}, { origin: "https://example.com" })).status).toBe(
+        403,
+      );
+
       const initializeResponse = yield* httpClient.post("/mcp", {
         headers: { accept: "application/json, text/event-stream" },
         body: HttpBody.text(
@@ -1598,217 +1659,121 @@ it.effect("gives outside clients an upload URL on the origin their request reach
   ).pipe(Effect.provide(NodeHttpServer.layerTest)),
 );
 
-it.effect("lists watch tools only to threads that are not delegated children", () =>
-  Effect.scoped(
-    Effect.gen(function* () {
-      const scopeFor = (
-        token: string,
-        subagent: boolean,
-      ): McpInvocationContext.McpThreadInvocationScope => ({
-        environmentId,
-        requestNamespace: token,
-        thread: {
-          threadId: ThreadId.make(`thread-${token}`),
-          providerSessionId: token,
-          providerInstanceId: ProviderInstanceId.make("codex"),
-          subagent,
-        },
-        client: undefined,
-        capabilities: new Set(["pull-requests"]),
-        issuedAt: 1,
-      });
-      const scopes = new Map([
-        ["parentToken", scopeFor("parentToken", false)],
-        ["childToken", scopeFor("childToken", true)],
-      ]);
-      const serverLayer = McpHttpServer.layerMcpTransport(
-        McpHttpServer.layerPullRequestsToolkit,
-      ).pipe(
-        Layer.provide(ServerSettings.layerTest()),
-        Layer.provide(
-          Layer.mock(McpSessionRegistry.McpSessionRegistry)({
-            resolve: (token) => Effect.succeed(scopes.get(token)),
-          }),
-        ),
-        Layer.provide(
-          Layer.mergeAll(
-            McpToolAccessTestkit.liveThreadsLayer,
-            Layer.mock(ProjectService.ProjectService)({}),
-            Layer.mock(RepositoryIdentityResolver.RepositoryIdentityResolver)({}),
-            Layer.mock(PullRequestReviewGuideService.PullRequestReviewGuideService)({}),
-            Layer.mock(PullRequestService.PullRequestService)({}),
-            Layer.mock(Orchestrator.OrchestratorV2)({}),
-            Layer.mock(ProjectionStore.ProjectionStoreV2)({}),
-            NodeServices.layer,
-            NodeCrypto.layer,
-          ),
-        ),
-      );
-      yield* HttpRouter.serve(serverLayer, { disableListenLog: true, disableLogger: true }).pipe(
-        Layer.build,
-      );
-      const httpClient = yield* HttpClient.HttpClient;
-      const listedTools = (token: string) =>
-        Effect.gen(function* () {
-          const headers = {
-            accept: "application/json, text/event-stream",
-            authorization: `Bearer ${token}`,
-          };
-          const initialize = yield* httpClient.post("/mcp", {
-            headers,
-            body: HttpBody.text(
-              `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"probe","version":"1.0.0"}}}`,
-              "application/json",
-            ),
-          });
-          const listed = yield* httpClient.post("/mcp", {
-            headers: {
-              ...headers,
-              "mcp-session-id": initialize.headers["mcp-session-id"]!,
-              "mcp-protocol-version": "2025-06-18",
-            },
-            body: HttpBody.text(
-              `{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}`,
-              "application/json",
-            ),
-          });
-          const body = (yield* listed.json) as {
-            readonly result: { readonly tools: ReadonlyArray<{ readonly name: string }> };
-          };
-          return body.result.tools.map((tool) => tool.name);
+it.effect(
+  "lists watch tools only to threads that are not delegated children, and forge tools only where the project has a forge",
+  () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const scopeFor = (
+          token: string,
+          subagent: boolean,
+        ): McpInvocationContext.McpThreadInvocationScope => ({
+          environmentId,
+          requestNamespace: token,
+          thread: {
+            threadId: ThreadId.make(`thread-${token}`),
+            providerSessionId: token,
+            providerInstanceId: ProviderInstanceId.make("codex"),
+            subagent,
+          },
+          client: undefined,
+          capabilities: new Set(["pull-requests"]),
+          issuedAt: 1,
         });
-
-      const parentTools = yield* listedTools("parentToken");
-      const childTools = yield* listedTools("childToken");
-      const watchTools = ["watch_pull_request", "unwatch_pull_request"];
-      expect(parentTools).toEqual(expect.arrayContaining(["link_pull_request", ...watchTools]));
-      expect(childTools).toContain("link_pull_request");
-      expect(childTools.filter((tool) => watchTools.includes(tool))).toEqual([]);
-    }),
-  ).pipe(Effect.provide(NodeHttpServer.layerTest)),
-);
-
-it.effect("hides tools for links and refuses another environment while the beta is off", () =>
-  Effect.scoped(
-    Effect.gen(function* () {
-      const token = "linksToken";
-      const scope: McpInvocationContext.McpThreadInvocationScope = {
-        environmentId,
-        requestNamespace: token,
-        thread: {
-          threadId: ThreadId.make("thread-links"),
-          providerSessionId: token,
-          providerInstanceId: ProviderInstanceId.make("codex"),
-        },
-        client: undefined,
-        capabilities: new Set(["orchestration"]),
-        issuedAt: 1,
-      };
-      const LinksToolkit = Toolkit.make(
-        Tool.make("links", {
-          description: "Lists links.",
-          success: Schema.Struct({ links: Schema.Number }),
-          failure: OrchestratorMcpFailure,
-          failureMode: "return",
-        }).annotate(McpSchema.EnabledWhen, McpInvocationContext.hiddenWhileLinksOff),
-        Tool.make("where", {
-          description: "Says where it ran.",
-          parameters: Schema.Struct({ environmentId: OrchestratorMcpEnvironmentTarget }),
-          success: Schema.Struct({ ranIn: Schema.String }),
-          failure: OrchestratorMcpFailure,
-          failureMode: "return",
-        }),
-      );
-      const settingsContext = yield* Layer.build(ServerSettings.layerTest());
-      const settings = Context.get(settingsContext, ServerSettings.ServerSettingsService);
-      const serverLayer = McpHttpServer.layerMcpTransport(
-        McpHttpServer.toolkitRegistration(
-          LinksToolkit,
-          McpToolAccess.toLayer(LinksToolkit, {
-            links: McpToolAccess.reads(() => Effect.succeed({ links: 0 })),
-            where: McpToolAccess.reads(() => Effect.succeed({ ranIn: "here" })),
-          }),
-        ),
-      ).pipe(
-        Layer.provide(Layer.succeedContext(settingsContext)),
-        Layer.provide(McpToolAccessTestkit.liveThreadsLayer),
-        Layer.provide(
-          Layer.mock(McpSessionRegistry.McpSessionRegistry)({
-            resolve: (presented) => Effect.succeed(presented === token ? scope : undefined),
-          }),
-        ),
-      );
-      yield* HttpRouter.serve(serverLayer, { disableListenLog: true, disableLogger: true }).pipe(
-        Layer.build,
-      );
-      const httpClient = yield* HttpClient.HttpClient;
-      const headers = {
-        accept: "application/json, text/event-stream",
-        authorization: `Bearer ${token}`,
-      };
-      const initialize = yield* httpClient.post("/mcp", {
-        headers,
-        body: HttpBody.text(
-          `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"probe","version":"1.0.0"}}}`,
-          "application/json",
-        ),
-      });
-      const rpc = (method: string, params: object) =>
-        httpClient
-          .post("/mcp", {
-            headers: {
-              ...headers,
-              "mcp-session-id": initialize.headers["mcp-session-id"]!,
-              "mcp-protocol-version": "2025-06-18",
-            },
-            body: HttpBody.text(
-              JSON.stringify({ jsonrpc: "2.0", id: 2, method, params }),
-              "application/json",
-            ),
-          })
-          .pipe(Effect.flatMap((response) => response.json));
-      const listed = () =>
-        rpc("tools/list", {}).pipe(
-          Effect.map((body) =>
-            (body as { result: { tools: ReadonlyArray<{ name: string }> } }).result.tools.map(
-              (tool) => tool.name,
+        const scopes = new Map([
+          ["parentToken", scopeFor("parentToken", false)],
+          ["childToken", scopeFor("childToken", true)],
+          ["noForgeToken", scopeFor("noForgeToken", false)],
+        ]);
+        const serverLayer = McpHttpServer.layerMcpTransport(
+          McpHttpServer.layerPullRequestsToolkit,
+        ).pipe(
+          Layer.provide(ServerSettings.layerTest()),
+          Layer.provide(
+            Layer.mock(McpSessionRegistry.McpSessionRegistry)({
+              resolve: (token) => Effect.succeed(scopes.get(token)),
+            }),
+          ),
+          Layer.provide(
+            Layer.mergeAll(
+              McpToolAccessTestkit.liveThreadsLayer,
+              Layer.mock(ProjectService.ProjectService)({}),
+              Layer.mock(RepositoryIdentityResolver.RepositoryIdentityResolver)({}),
+              Layer.mock(PullRequestReviewGuideService.PullRequestReviewGuideService)({}),
+              Layer.mock(PullRequestService.PullRequestService)({
+                servesProject: (projectId) => Effect.succeed(projectId !== "project-noForgeToken"),
+              }),
+              Layer.mock(GitManager.GitManager)({}),
+              Layer.mock(Orchestrator.OrchestratorV2)({}),
+              Layer.mock(ProjectionStore.ProjectionStoreV2)({
+                getThreadShell: (threadId) =>
+                  Effect.succeed({
+                    projectId: ProjectId.make(threadId.replace("thread-", "project-")),
+                  } as never),
+              }),
+              NodeServices.layer,
+              NodeCrypto.layer,
             ),
           ),
         );
-      const ranIn = (where: EnvironmentId) =>
-        rpc("tools/call", { name: "where", arguments: { environmentId: where } }).pipe(
-          Effect.map(
-            (body) =>
-              (
-                body as {
-                  result: {
-                    isError?: boolean;
-                    structuredContent?: unknown;
-                    content: ReadonlyArray<{ text: string }>;
-                  };
-                }
-              ).result,
-          ),
+        yield* HttpRouter.serve(serverLayer, { disableListenLog: true, disableLogger: true }).pipe(
+          Layer.build,
         );
-      const elsewhere = EnvironmentId.make("environment-elsewhere");
+        const httpClient = yield* HttpClient.HttpClient;
+        const listedTools = (token: string) =>
+          Effect.gen(function* () {
+            const headers = {
+              accept: "application/json, text/event-stream",
+              authorization: `Bearer ${token}`,
+            };
+            const initialize = yield* httpClient.post("/mcp", {
+              headers,
+              body: HttpBody.text(
+                `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"probe","version":"1.0.0"}}}`,
+                "application/json",
+              ),
+            });
+            const listed = yield* httpClient.post("/mcp", {
+              headers: {
+                ...headers,
+                "mcp-session-id": initialize.headers["mcp-session-id"]!,
+                "mcp-protocol-version": "2025-06-18",
+              },
+              body: HttpBody.text(
+                `{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}`,
+                "application/json",
+              ),
+            });
+            const body = (yield* listed.json) as {
+              readonly result: { readonly tools: ReadonlyArray<{ readonly name: string }> };
+            };
+            return body.result.tools.map((tool) => tool.name);
+          });
 
-      expect(yield* listed()).toEqual(["where"]);
-      expect(yield* ranIn(elsewhere)).toMatchObject({
-        isError: true,
-        content: [{ text: expect.stringContaining("Linked environments is off on this machine") }],
-      });
-      expect((yield* ranIn(environmentId)).structuredContent).toEqual({ ranIn: "here" });
-
-      yield* settings.updateSettings({ linkedEnvironmentsEnabled: true });
-      expect(yield* listed()).toEqual(["links", "where"]);
-      // On, the call goes on to the forwarding, which this server lacks.
-      expect(yield* ranIn(elsewhere)).toMatchObject({
-        isError: true,
-        content: [{ text: expect.stringContaining("cannot reach linked environments") }],
-      });
-    }),
-  ).pipe(Effect.provide(NodeHttpServer.layerTest)),
+        const parentTools = yield* listedTools("parentToken");
+        const childTools = yield* listedTools("childToken");
+        const watchTools = ["watch_pull_request", "unwatch_pull_request"];
+        expect(parentTools).toEqual(expect.arrayContaining(["link_pull_request", ...watchTools]));
+        expect(childTools).toContain("link_pull_request");
+        expect(childTools.filter((tool) => watchTools.includes(tool))).toEqual([]);
+        expect(parentTools).toEqual(
+          expect.arrayContaining([
+            "pull_request_read",
+            "pull_request_review",
+            "pull_request_merge",
+            "ci_logs",
+            "ci_rerun",
+          ]),
+        );
+        const noForgeTools = yield* listedTools("noForgeToken");
+        expect(noForgeTools).toEqual(expect.arrayContaining(["link_pull_request", ...watchTools]));
+        expect(
+          noForgeTools.filter((name) => name.startsWith("pull_request_") || name.startsWith("ci_")),
+        ).toEqual([]);
+      }),
+    ).pipe(Effect.provide(NodeHttpServer.layerTest)),
 );
+
 it.effect(
   "narrows an OAuth client's modes to the Supaterm-Mode-Limit it sends, and never widens them",
   () =>

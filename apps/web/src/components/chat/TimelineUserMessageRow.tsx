@@ -272,11 +272,14 @@ export function UserMessageRow({ row }: { row: Extract<TimelineRow, { kind: "mes
 
 function UserMessageContent({ row }: { row: Extract<TimelineRow, { kind: "message" }> }) {
   const ctx = use(TimelineRowCtx);
+  const { onOpenThread } = ctx;
   return ctx.workflowOpening?.messageId === row.message.id ? (
     <WorkflowOpeningBlock
       opening={ctx.workflowOpening}
       environmentId={ctx.activeThreadEnvironmentId}
-      onOpenThread={(threadId) => ctx.onOpenThread(ThreadId.make(threadId))}
+      onOpenThread={
+        onOpenThread === null ? null : (threadId) => onOpenThread(ThreadId.make(threadId))
+      }
     />
   ) : resolveUserMessagePresentation(row.message).attribution === "automation" ? (
     <AutomationMessageRow row={row} />
@@ -396,7 +399,8 @@ function FoldedMessageHeader(props: {
     >
       <Icon className="size-4 shrink-0 stroke-2 text-muted-foreground" />
       <span className="max-w-1/2 shrink-0 truncate text-muted-foreground">{props.label}</span>
-      <span className="min-w-0 flex-1 truncate">{props.summary}</span>
+      {/* Mentioned macOS paths can be NFD; compose them like the chips in the body. */}
+      <span className="min-w-0 flex-1 truncate">{props.summary.normalize("NFC")}</span>
       <span className="text-muted-foreground">
         <DisclosureChevron open={props.expanded} size="sm" />
       </span>
@@ -424,7 +428,7 @@ function UserMessageProjectedStatus({ row }: { row: Extract<TimelineRow, { kind:
 
 function UserTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "message" }> }) {
   const ctx = use(TimelineRowCtx);
-  const { onImageExpand, onFileOpen } = ctx;
+  const { onImageExpand, onFileOpen, onOpenThread } = ctx;
   const coarsePointer = useMediaQuery({ pointer: "coarse" });
   const navigate = useNavigate();
   // A linked environment's agent sent it from a thread there.
@@ -471,7 +475,9 @@ function UserTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "message" 
     senderRef === null
       ? null
       : linkedSender === undefined
-        ? () => ctx.onOpenThread(senderRef.threadId)
+        ? onOpenThread === null
+          ? null
+          : () => onOpenThread(senderRef.threadId)
         : linkedSenderEnvironment === null
           ? null
           : () => {
@@ -770,7 +776,7 @@ function UserTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "message" 
                     standaloneMedia && image.source?.kind === "snap-shot"
                       ? "h-auto max-h-48 w-auto min-w-24 max-w-full object-contain"
                       : loneImage
-                        ? "h-48 w-auto min-w-24 max-w-full object-cover"
+                        ? "h-48 w-auto min-w-24 max-w-full object-contain"
                         : "size-full object-cover",
                   )}
                 />

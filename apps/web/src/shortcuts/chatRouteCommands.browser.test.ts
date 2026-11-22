@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vite-plus/test";
 
 import { DraftId, useComposerDraftStore } from "../composerDraftStore";
 import { type PreviewAction, subscribePreviewAction } from "../components/preview/previewActionBus";
+import { isMacPlatform } from "../lib/utils";
 import { useThreadSelectionStore } from "../threadSelectionStore";
 import { installChatRouteCommands } from "./chatRouteCommands";
 import { hasCommandForKeyDown, runCommand } from "./dispatcher";
@@ -47,6 +48,19 @@ const CHAT: Match[] = [
 function pressEscape(): KeyboardEvent {
   const event = new KeyboardEvent("keydown", { key: "Escape", cancelable: true, bubbles: true });
   window.dispatchEvent(event);
+  return event;
+}
+
+function pressMod(key: string): KeyboardEvent {
+  const mac = isMacPlatform(navigator.platform);
+  const event = new KeyboardEvent("keydown", {
+    key,
+    metaKey: mac,
+    ctrlKey: !mac,
+    cancelable: true,
+    bubbles: true,
+  });
+  document.activeElement?.dispatchEvent(event);
   return event;
 }
 
@@ -184,5 +198,25 @@ describe("chat route commands", () => {
     runCommand("preview.focusUrl", "menu");
 
     expect(actions).toEqual(["find", "refresh", "focus-url"]);
+  });
+
+  it("leaves zoom keys to the app unless the focused right panel shows a browser", () => {
+    const { router } = routerAt(CHAT);
+    using stack = new DisposableStack();
+    stack.defer(installChatRouteCommands(router));
+    const panel = document.createElement("div");
+    panel.setAttribute("data-preview-panel-mode", "inline");
+    const pullRequestTab = document.createElement("button");
+    panel.append(pullRequestTab);
+    document.body.append(panel);
+    stack.defer(() => panel.remove());
+    pullRequestTab.focus();
+
+    for (const key of ["=", "+", "-", "0"]) expect(pressMod(key).defaultPrevented).toBe(false);
+
+    const browser = document.createElement("div");
+    browser.setAttribute("data-preview-view", "");
+    panel.append(browser);
+    for (const key of ["=", "+", "-", "0"]) expect(pressMod(key).defaultPrevented).toBe(true);
   });
 });

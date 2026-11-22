@@ -16,7 +16,7 @@ import {
 import { useThreadOutboxAttachments } from "../state/threadOutboxEditing";
 import { ThreadFind, ThreadFindCanvas } from "./chat/ThreadFindProvider";
 import { closeThreadFind, openThreadFind, useThreadFindOpen } from "./chat/threadFindStore";
-import { usageLimitRecoveryBannerItem } from "./chat/UsageLimitRecoveryBanner";
+import { useUsageLimitRecoveryBannerItem } from "./chat/UsageLimitRecoveryBanner";
 import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
 import { resolveNewThreadModelSelection } from "@supaterm/shared/usageLimits";
 import { queuedRunEditBlockedReason } from "@supaterm/client-runtime/queued-run-edit";
@@ -33,6 +33,7 @@ import {
   isThreadEnvironmentLocked,
   makeThreadErrorSetter,
   resolveDraftHeroState,
+  resolveThreadErrorBanner,
 } from "./ChatView.logic";
 import { useQueuedRunEditWithOutbox } from "./chat/useQueuedRunEditWithOutbox";
 import { ThreadVisitWatermark } from "./chat/ThreadVisitWatermark";
@@ -298,6 +299,7 @@ import {
   useThreadUpdatedAt,
   useThreadLastVisitedAt,
   useQuietThreadVisibleTurnItems,
+  useThreadError,
   useThreadStatus,
   useThreadHistory,
   useQuietThreadShell,
@@ -635,10 +637,12 @@ export default function ChatView(props: ChatViewProps) {
     ? deriveReportedModelSelection(serverProjection)
     : null;
   const threadStatus = useThreadStatus(routeThreadDetailRef);
+  const threadSyncError = useThreadError(routeThreadDetailRef);
   const threadSyncPhase = resolveThreadSyncPhase({
     detailExists: serverProjection !== null,
     shellExists: serverThread !== null,
     status: threadStatus,
+    hasError: threadSyncError !== null,
   });
   const threadDetailLoading = threadSyncPhase === "loading";
   const activeProviderThread = serverProjection?.providerThreads.find(
@@ -1033,10 +1037,21 @@ export default function ChatView(props: ChatViewProps) {
   // The header's breadcrumb opens a parent in this environment only.
   const headerParentThreadLink =
     parentThreadLink !== null && "remote" in parentThreadLink ? null : parentThreadLink;
-  const threadError = isServerThread
-    ? (localServerError ?? serverRuntime?.lastError ?? null)
-    : localDraftError;
-  const threadErrorBannerKey = getThreadErrorBannerKey(routeThreadKey, threadError);
+  const { threadError, sessionDismissal: threadErrorSessionDismissal } = resolveThreadErrorBanner({
+    isServerThread,
+    localServerError,
+    localDraftError,
+    runtimeError: serverRuntime?.lastError ?? null,
+    runtimeErrorSource: serverRuntime?.lastErrorSource ?? null,
+  });
+  const threadErrorBannerKey =
+    threadErrorSessionDismissal === null
+      ? null
+      : getThreadErrorBannerKey(
+          routeThreadKey,
+          threadErrorSessionDismissal.error,
+          threadErrorSessionDismissal.source,
+        );
   const visibleThreadError = shouldShowThreadErrorBanner(
     routeThreadKey,
     threadError,
@@ -2583,6 +2598,7 @@ export default function ChatView(props: ChatViewProps) {
     copyRightPanelFilePathStable,
     createBrowserSurface,
     createBrowserSurfaceStable,
+    duplicateBrowserSurfaceStable,
     moveRightPanelSurfaceStable,
     onOpenToolDiffStable,
     onOpenTurnDiffStable,
@@ -2728,9 +2744,9 @@ export default function ChatView(props: ChatViewProps) {
     });
     return item ? [item] : [];
   });
-  const limitRecoveryBanner =
+  const limitRecoveryBanner = useUsageLimitRecoveryBannerItem(
     limitRecoveryRun !== null && activeThreadShell !== null
-      ? usageLimitRecoveryBannerItem({
+      ? {
           runId: limitRecoveryRun.runId,
           errorCode: serverRuntime?.lastErrorCode ?? null,
           resetAt: serverRuntime?.usageLimitResetAt ?? null,
@@ -2747,8 +2763,9 @@ export default function ChatView(props: ChatViewProps) {
             });
             if (result._tag === "Failure") throw squashAtomCommandFailure(result);
           },
-        })
-      : null;
+        }
+      : null,
+  );
   const composerBannerItems = ((): ComposerBannerStackItem[] => {
     const fallbackSelection = draftFallback?.selection;
     const defaultSelection =
@@ -2941,6 +2958,13 @@ export default function ChatView(props: ChatViewProps) {
     composerFocus: document.activeElement?.getAttribute("data-testid") === "composer-editor",
     draftThreadRoute: routeKind === "draft",
     turnRunning: phase === "running" || (deferredSteering && phase === "connecting"),
+    // A queued-message edit or a question's answer owns the composer even when its text is empty.
+    composerEmpty:
+      !queuedRunEdit.isEditing &&
+      !queuedRunEdit.outbox.isEditing &&
+      pendingUserInputs.length === 0 &&
+      !composerHasNonPromptContent &&
+      promptRef.current.trim().length === 0,
     composerRequiresModifier: composerRequiresModifier(settings.sendShortcut, promptRef.current),
     paneClosable: paneSplit && !activeRightPanelSurface,
     isWeb: !isElectron,
@@ -3484,6 +3508,7 @@ export default function ChatView(props: ChatViewProps) {
     onCopyFilePath: copyRightPanelFilePathStable,
     onAddBrowser: () => createBrowserSurface(),
     onAddBrowserInProfile: createBrowserSurfaceStable,
+    onDuplicateBrowser: duplicateBrowserSurfaceStable,
     onAddTerminal: addTerminalSurfaceStable,
     onAddDiff: addDiffSurfaceStable,
     onAddFiles: addFilesSurfaceStable,

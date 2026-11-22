@@ -1,4 +1,7 @@
 import type { DesktopUpdateActionResult, DesktopUpdateState } from "@supaterm/contracts";
+import { desktopUpdateChannelOf } from "@supaterm/shared/cliRelease";
+
+import { channelSwitchLabel } from "./sidebar/updateEverything.logic";
 
 export type DesktopUpdateButtonAction = "download" | "install" | "none";
 
@@ -120,6 +123,11 @@ export function getDesktopUpdateButtonTooltip(state: DesktopUpdateState): string
       return `Update ${state.downloadedVersion} downloaded. Click to restart and install.`;
     }
     return state.message ?? "Update failed";
+  }
+  // The updater discards every release of the other track, so "up to date" would be false here.
+  const buildChannel = desktopUpdateChannelOf(state.currentVersion);
+  if (state.status === "up-to-date" && buildChannel !== state.channel) {
+    return `This ${channelSwitchLabel(buildChannel)} build ignores ${channelSwitchLabel(state.channel)} releases. Review the update track in Settings to finish the switch.`;
   }
   return "Up to date";
 }

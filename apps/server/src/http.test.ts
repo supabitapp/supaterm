@@ -10,14 +10,25 @@ import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
+import * as Logger from "effect/Logger";
 import * as Path from "effect/Path";
 import * as PlatformError from "effect/PlatformError";
 import * as Queue from "effect/Queue";
+import * as SecureRandom from "effect/crypto/SecureRandom";
+import * as References from "effect/References";
 import * as Tracer from "effect/Tracer";
 import { HttpClient, HttpClientRequest, HttpRouter, HttpServerResponse } from "effect/http";
 import { ASSET_ROUTE_PREFIX } from "./assets/AssetAccess.ts";
 import { ATTACHMENT_UPLOAD_ROUTE_PREFIX } from "./assets/AttachmentUpload.ts";
 import { openMediaFile } from "./assets/MediaFile.ts";
+import * as AssetSigner from "./assets/AssetSigner.ts";
+import * as NativeAppIconResolver from "./assets/NativeAppIconResolver.ts";
+import * as WorkspacePreviewRevisions from "./assets/WorkspacePreviewRevisions.ts";
+import * as Orchestrator from "./orchestration-v2/Orchestrator.ts";
+import * as RepositoryIdentityResolver from "./project/RepositoryIdentityResolver.ts";
+import * as DocumentText from "./provider/DocumentText.ts";
+import { SourceControlDrivers } from "./sourceControl/builtInDrivers.ts";
+import * as WorkspacePaths from "./workspace/WorkspacePaths.ts";
 
 import {
   injectMcpAppCsp,
@@ -174,61 +185,113 @@ describe("browser API CORS", () => {
 });
 
 describe("untraced requests", () => {
-  it.effect("keeps signed asset and upload URLs out of HTTP server spans", () =>
+  it.effect("redacts signed URL tokens in HTTP server spans and request logs", () =>
     Effect.gen(function* () {
-      const serverSpans: Array<string> = [];
+      const serverSpans: Array<Tracer.NativeSpan> = [];
+      const loggedUrls: Array<unknown> = [];
       const layerTracer = Layer.succeed(
         Tracer.Tracer,
         Tracer.make({
           span: (options) => {
-            if (options.kind === "server") serverSpans.push(options.name);
-            return new Tracer.NativeSpan(options);
+            const span = new Tracer.NativeSpan(options);
+            if (options.kind === "server") serverSpans.push(span);
+            return span;
+          },
+        }),
+      );
+      const layerLogger = Logger.layer(
+        [
+          Logger.make(({ fiber }) => {
+            const url = fiber.getRef(References.CurrentLogAnnotations)["http.url"];
+            if (url !== undefined) loggedUrls.push(url);
+          }),
+        ],
+        { mergeWithExisting: false },
+      );
+      const layerRoutes = Layer.mergeAll(
+        ServerHttp.layerAssetRoute,
+        ServerHttp.layerAttachmentUploadRoute,
+      );
+      // Unsigned tokens stop at the signer; the routes' other services are never reached.
+      const layerRouteServices = Layer.mergeAll(
+        Layer.mock(AssetSigner.AssetSigner)({ verify: () => Effect.succeed(false) }),
+        Layer.mock(DocumentText.DocumentText)({}),
+        Layer.mock(NativeAppIconResolver.NativeAppIconResolver)({}),
+        Layer.mock(Orchestrator.OrchestratorV2)({}),
+        Layer.mock(RepositoryIdentityResolver.RepositoryIdentityResolver)({}),
+        Layer.mock(SecureRandom.SecureRandom)({}),
+        ServerConfig.layerTest(process.cwd(), { prefix: "supaterm-signed-url-test-" }),
+        Layer.succeed(SourceControlDrivers)([]),
+        Layer.mock(WorkspacePaths.WorkspacePaths)({}),
+        Layer.mock(WorkspacePreviewRevisions.WorkspacePreviewRevisions)({}),
+      );
+      // HttpRouter.serve prefers outer services; route handlers resolve them from there.
+      const services = yield* Layer.build(
+        HttpRouter.serve(layerRoutes, { disableListenLog: true }).pipe(
+          ServerHttp.withUntracedRequests,
+          Layer.provideMerge(layerRouteServices),
+          Layer.provideMerge(NodeHttpServer.layerTest),
+          Layer.provide(layerTracer),
+          Layer.provide(layerLogger),
+        ),
+      );
+      const client = Context.get(services, HttpClient.HttpClient);
+
+      for (const request of [
+        HttpClientRequest.get(`${ASSET_ROUTE_PREFIX}/payload.signature/image.png?v=1`),
+        HttpClientRequest.head(`${ASSET_ROUTE_PREFIX}/payload.signature/image.png`),
+        HttpClientRequest.post(`${ATTACHMENT_UPLOAD_ROUTE_PREFIX}/payload.signature`),
+      ]) {
+        expect((yield* client.execute(request)).status).toBe(404);
+      }
+      expect(serverSpans.map((span) => span.attributes.get("url.path"))).toEqual([
+        `${ASSET_ROUTE_PREFIX}/REDACTED`,
+        `${ASSET_ROUTE_PREFIX}/REDACTED`,
+        `${ATTACHMENT_UPLOAD_ROUTE_PREFIX}/REDACTED`,
+      ]);
+      expect(loggedUrls).toEqual([
+        `${ASSET_ROUTE_PREFIX}/REDACTED`,
+        `${ASSET_ROUTE_PREFIX}/REDACTED`,
+        `${ATTACHMENT_UPLOAD_ROUTE_PREFIX}/REDACTED`,
+      ]);
+    }).pipe(Effect.provide(NodeServices.layer)),
+  );
+
+  it.effect("starts a separate trace for each request, not the server's lifetime trace", () =>
+    Effect.gen(function* () {
+      const requestSpans: Array<Tracer.NativeSpan> = [];
+      const layerTracer = Layer.succeed(
+        Tracer.Tracer,
+        Tracer.make({
+          span: (options) => {
+            const span = new Tracer.NativeSpan(options);
+            if (options.kind === "server") requestSpans.push(span);
+            return span;
           },
         }),
       );
       const layerRoutes = Layer.effectDiscard(
         Effect.gen(function* () {
           const router = yield* HttpRouter.HttpRouter;
-          yield* router.add("GET", `${ASSET_ROUTE_PREFIX}/*`, HttpServerResponse.empty());
-          yield* router.add(
-            "POST",
-            `${ATTACHMENT_UPLOAD_ROUTE_PREFIX}/*`,
-            HttpServerResponse.empty(),
-          );
           yield* router.add("GET", "/api/environment", HttpServerResponse.empty());
         }),
       );
       const services = yield* Layer.build(
         HttpRouter.serve(layerRoutes, { disableListenLog: true, disableLogger: true }).pipe(
-          ServerHttp.withUntracedRequests,
+          ServerHttp.withRootRequestSpans,
           Layer.provideMerge(NodeHttpServer.layerTest),
-          Layer.provide(layerTracer),
         ),
-      );
+      ).pipe(Effect.withSpan("server.lifetime"), Effect.provide(layerTracer));
+      // Without a traceparent header, the server alone decides each request's parent.
       const client = Context.get(services, HttpClient.HttpClient);
 
-      // Each URL is a bearer credential: url.full and url.path would carry it.
-      for (const request of [
-        HttpClientRequest.get(`${ASSET_ROUTE_PREFIX}/payload.signature/image.png`),
-        HttpClientRequest.get(`${ASSET_ROUTE_PREFIX}/payload.signature/image.png?v=1`),
-        HttpClientRequest.post(`${ATTACHMENT_UPLOAD_ROUTE_PREFIX}/payload.signature`),
-        HttpClientRequest.post(`${ATTACHMENT_UPLOAD_ROUTE_PREFIX}/payload.signature?v=1`),
-        HttpClientRequest.head(`${ASSET_ROUTE_PREFIX}/payload.signature/image.png`),
-      ]) {
-        expect((yield* client.execute(request)).status).toBe(204);
+      for (let i = 0; i < 2; i++) {
+        yield* client
+          .execute(HttpClientRequest.get("/api/environment"))
+          .pipe(Effect.provideService(HttpClient.TracerPropagationEnabled, false));
       }
-      expect(serverSpans).toEqual([]);
-
-      expect((yield* client.execute(HttpClientRequest.get("/api/environment"))).status).toBe(204);
-      expect(serverSpans).toEqual(["GET"]);
-
-      for (const path of [
-        `${ASSET_ROUTE_PREFIX}-other/file`,
-        `${ATTACHMENT_UPLOAD_ROUTE_PREFIX}-other/token`,
-      ]) {
-        expect((yield* client.execute(HttpClientRequest.get(path))).status).toBe(404);
-      }
-      expect(serverSpans).toEqual(["GET", "GET", "GET"]);
+      expect(requestSpans.map((span) => span.parent._tag)).toEqual(["None", "None"]);
+      expect(new Set(requestSpans.map((span) => span.traceId)).size).toBe(2);
     }).pipe(Effect.provide(NodeServices.layer)),
   );
 });

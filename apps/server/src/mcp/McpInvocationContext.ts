@@ -11,6 +11,7 @@ import {
   type ThreadId,
 } from "@supaterm/contracts";
 import * as Context from "effect/Context";
+import type * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
 import { formatThreadLink } from "@supaterm/shared/threadLinks";
@@ -21,6 +22,7 @@ const ALL_MCP_CAPABILITIES = [
   "worktree",
   "device",
   "pull-requests",
+  "background-wait",
 ] as const;
 export type McpCapability = (typeof ALL_MCP_CAPABILITIES)[number];
 
@@ -41,6 +43,8 @@ export interface McpClientCaller {
    * session as `linkOrigin`, and it changes only that work (`linkOrigin.ts`).
    */
   readonly linked?: boolean | undefined;
+  /** When a peer link's session ends unless it is used again, answered as `Supaterm-Link-Expires-At`. */
+  readonly linkExpiresAt?: DateTime.Utc | undefined;
   /**
    * Narrower modes the client asked for on this request (`Supaterm-Mode-Limit`):
    * another environment passing on the limits of the agent it calls for.
@@ -59,6 +63,12 @@ export interface McpClientCaller {
  * `clientModeCeiling`), so a client gains nothing by sending a broad one.
  */
 export const MODE_LIMIT_HEADER = "supaterm-mode-limit";
+
+/**
+ * `Supaterm-Link-Expires-At: <ISO time>` answers a peer link's request with when its
+ * session now ends. Using a link renews it, so the linking side keeps this.
+ */
+export const LINK_EXPIRES_AT_HEADER = "supaterm-link-expires-at";
 
 /**
  * `Supaterm-Sender-Thread: <environmentId>/<threadId>/<title>`, each URI-encoded: the
@@ -114,13 +124,13 @@ export interface McpInvocationScope {
   readonly requestNamespace: string;
   readonly thread: McpThreadCaller | undefined;
   readonly client: McpClientCaller | undefined;
-  /** False while the Linked environments beta is off here; `/mcp` reads it per request. */
-  readonly linkedEnvironments?: boolean;
   /**
    * The origin this `/mcp` request reached. Hosted clients cannot see the URL they were
    * configured with, so links they must fetch carry it. Unset in-process.
    */
   readonly origin?: string | undefined;
+  /** False when the calling thread's project is on no forge Supaterm reads; `/mcp` reads it per request. */
+  readonly forge?: boolean;
 }
 
 /**
@@ -154,13 +164,6 @@ export const hiddenFromSubagents = (): boolean => {
   return scope?.thread?.subagent !== true;
 };
 
-/** `McpSchema.EnabledWhen` for tools that only serve links, hidden while the beta is off. */
-export const hiddenWhileLinksOff = (): boolean => {
-  const fiber = Fiber.getCurrent();
-  const scope = fiber && Context.getOrUndefined(fiber.context, McpInvocationContext);
-  return scope?.linkedEnvironments !== false;
-};
-
 /**
  * `McpSchema.EnabledWhen` for tools that act as the calling thread: a client
  * from outside has none. Discovery only; `McpToolAccess` still refuses the
@@ -170,6 +173,22 @@ export const hiddenFromOutsideClients = (): boolean => {
   const fiber = Fiber.getCurrent();
   const scope = fiber && Context.getOrUndefined(fiber.context, McpInvocationContext);
   return scope === undefined || scope.thread !== undefined;
+};
+
+/** `hiddenFromOutsideClients`, and hidden from a thread whose provider cannot hold for background work. */
+export const hiddenWithoutBackgroundWait = (): boolean => {
+  const fiber = Fiber.getCurrent();
+  const scope = fiber && Context.getOrUndefined(fiber.context, McpInvocationContext);
+  return (
+    scope === undefined || (scope.thread !== undefined && scope.capabilities.has("background-wait"))
+  );
+};
+
+/** `McpSchema.EnabledWhen` for tools that act on the thread's forge, hidden where it has none. */
+export const hiddenWithoutForge = (): boolean => {
+  const fiber = Fiber.getCurrent();
+  const scope = fiber && Context.getOrUndefined(fiber.context, McpInvocationContext);
+  return scope?.forge !== false;
 };
 
 export type McpCapabilityError<C extends McpCapability> = C extends "preview"

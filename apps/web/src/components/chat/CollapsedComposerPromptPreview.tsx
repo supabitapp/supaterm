@@ -2,7 +2,7 @@ import { isProviderSkillUserInvocable } from "@supaterm/client-runtime/providerS
 import type { ServerProviderSkill } from "@supaterm/contracts";
 import { assistantCitationLabel } from "@supaterm/shared/assistantCitations";
 import { formatProviderSkillDisplayName } from "@supaterm/shared/inlineSkills";
-import { fileBasename } from "@supaterm/shared/path";
+import { fileDisplayName } from "@supaterm/shared/path";
 import {
   BotIcon,
   CircleDashedIcon,
@@ -88,7 +88,7 @@ export function CollapsedComposerPromptPreview(props: {
             key={key}
             kind="mention"
             icon={<PierreEntryIcon pathValue={segment.path} kind="file" theme={props.theme} />}
-            label={fileBasename(segment.path)}
+            label={fileDisplayName(segment.path)}
           />
         );
       case "context-reference": {

@@ -158,7 +158,7 @@ function CompactRelativeTimeLabel(props: { timestamp: string | null }) {
 
 // An overlay rather than an inline slot so the hint never displaces the status label or shifts
 // layout; pointer-events-none so it never swallows clicks on the buttons it overlaps.
-function JumpHintBadge(props: { label: string }) {
+export function JumpHintBadge(props: { label: string }) {
   return (
     <span
       aria-hidden

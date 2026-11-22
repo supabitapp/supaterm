@@ -28,7 +28,7 @@ import { replaceDraftQuote } from "../state/annotationDrafts";
 import { startComposerDraftOperation } from "../state/composerDraftOperations";
 import { appAtomRegistry } from "../state/atom-registry";
 import { mobilePreferencesAtom } from "../state/preferences";
-import { useOpenLinkedThread } from "../features/threads/useOpenLinkedThread";
+import { useOpenThreadLink } from "../features/threads/useOpenThreadLink";
 import { useLinkedEnvironments } from "../state/peerLinks";
 import { ComposerContextSheet } from "./ComposerContextSheet";
 import { promptAssistantAnnotation } from "./assistantAnnotationPrompt";
@@ -175,7 +175,7 @@ export function ComposerEditor({
           }),
         })
       : "";
-  const openLinkedThread = useOpenLinkedThread();
+  const openThreadLink = useOpenThreadLink(environmentId ?? null);
   const selectedReference = selected
     ? collectComposerContextReferences(selected.source)[0]
     : undefined;
@@ -266,10 +266,7 @@ export function ComposerEditor({
             : {})}
           onOpenThread={(thread) => {
             setSelected(null);
-            openLinkedThread({
-              environmentId: String(thread.environmentId),
-              threadId: String(thread.threadId),
-            });
+            openThreadLink(thread);
           }}
           environmentId={environmentId ?? draft.project?.environmentId}
           projectId={draft.project?.projectId}

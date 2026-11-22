@@ -75,6 +75,7 @@ import * as ElectronTheme from "../electron/ElectronTheme.ts";
 import * as ElectronWindow from "../electron/ElectronWindow.ts";
 import * as MacInputMonitoring from "../permissions/MacInputMonitoring.ts";
 import * as MacPermissions from "../permissions/MacPermissions.ts";
+import * as LoopbackTunnel from "../preview/LoopbackTunnel.ts";
 import * as PreviewManager from "../preview/Manager.ts";
 import * as SidePulse from "../sidePulse/SidePulse.ts";
 import * as SidePulseEjectGuard from "../sidePulse/SidePulseEjectGuard.ts";
@@ -88,6 +89,7 @@ interface StubbedDesktop {
   readonly registerLinuxUrlHandler: Effect.Effect<void>;
   readonly backends?: ReadonlyArray<{ readonly stop: () => Effect.Effect<void> }>;
   readonly tokenRequested?: Deferred.Deferred<void>;
+  readonly activationStarted?: Deferred.Deferred<void>;
 }
 
 const runStubbedDesktop = (stub: StubbedDesktop) =>
@@ -192,7 +194,9 @@ const runStubbedDesktop = (stub: StubbedDesktop) =>
           reconcile: Effect.void,
         } as DesktopWslBackend.DesktopWslBackend["Service"]),
         Effect.provideService(DesktopAppActivation.DesktopAppActivation, {
-          start: Effect.void,
+          start: stub.activationStarted
+            ? Deferred.succeed(stub.activationStarted, undefined)
+            : Effect.void,
         } as unknown as DesktopAppActivation.DesktopAppActivation["Service"]),
       );
     return yield* runApp.pipe(
@@ -232,6 +236,7 @@ const runStubbedDesktop = (stub: StubbedDesktop) =>
           Layer.mock(ElectronWindow.ElectronWindow, {}),
           Layer.mock(MacInputMonitoring.MacInputMonitoring, {}),
           Layer.mock(MacPermissions.MacPermissions, {}),
+          Layer.mock(LoopbackTunnel.LoopbackTunnel, {}),
           Layer.mock(PreviewManager.PreviewManager, {
             isBrowserPartition: () => {
               throw new Error("unexpected browser partition lookup");
@@ -319,7 +324,7 @@ it.effect.each([false, true])(
 );
 
 it.effect(
-  "points a stale supaterm launcher at the updated AppImage with Local environment off",
+  "points a stale supaterm launcher at the updated AppImage and accepts supaterm <dir> with Local environment off",
   () =>
     Effect.gen(function* () {
       const fs = yield* FileSystem.FileSystem;
@@ -343,9 +348,11 @@ it.effect(
       );
       yield* fs.writeFileString(updatedAppImage, "", { mode: 0o755 });
       const windowStarted = yield* Deferred.make<void>();
+      const activationStarted = yield* Deferred.make<void>();
 
       const app = yield* runStubbedDesktop({
         localEnvironmentEnabled: false,
+        activationStarted,
         environment: {
           path,
           baseDir,
@@ -366,6 +373,10 @@ it.effect(
         content,
         `app='${updatedAppImage}'`,
         "startup left the supaterm launcher pointing at the removed AppImage",
+      );
+      assert.isTrue(
+        yield* Deferred.isDone(activationStarted),
+        "startup left the supaterm <dir> control socket closed",
       );
     }).pipe(Effect.provide(Layer.mergeAll(DesktopShutdown.layer, NodeServices.layer))),
 );

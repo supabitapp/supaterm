@@ -38,7 +38,7 @@ function scriptMarkdown(script: string) {
 export function WorkflowOpeningBlock(props: {
   readonly opening: WorkflowOpening;
   readonly environmentId: EnvironmentId;
-  readonly onOpenThread: (threadId: string) => void;
+  readonly onOpenThread: ((threadId: string) => void) | null;
 }) {
   const { opening } = props;
   const providers = useAtomValue(providersIgnoringCheckedAtAtom(props.environmentId));
@@ -108,9 +108,9 @@ function WorkflowMemberRow(props: {
   readonly providerInstanceId: ProviderInstanceId;
   readonly providers: ReadonlyArray<ServerProvider>;
   readonly driver: ProviderDriverKind | undefined;
-  readonly onOpenThread: (threadId: string) => void;
+  readonly onOpenThread: ((threadId: string) => void) | null;
 }) {
-  const { member } = props;
+  const { member, onOpenThread } = props;
   const threadId = member.childThreadId;
   const failed = member.status === "failed";
   const detail = (
@@ -129,14 +129,14 @@ function WorkflowMemberRow(props: {
         <TooltipTrigger
           delay={200}
           render={
-            threadId === null ? (
+            threadId === null || onOpenThread === null ? (
               <div aria-description={member.status} className={className} />
             ) : (
               <button
                 type="button"
                 aria-label={`Open ${member.title}`}
                 aria-description={member.status}
-                onClick={() => props.onOpenThread(threadId)}
+                onClick={() => onOpenThread(threadId)}
                 className={cn(
                   className,
                   "cursor-pointer transition-colors hover:bg-accent/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/70",

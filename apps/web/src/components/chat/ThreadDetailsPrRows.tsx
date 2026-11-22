@@ -73,7 +73,6 @@ function ThreadDetailsPrLinkRow({
       status={prStatusIndicator(pr, linked?.sourceControlProvider)}
       project={project}
       title={link.snapshot?.title ?? null}
-      openAriaLabel={link.url}
       composerTarget={composerTarget}
       onOpen={onOpen}
       onStopWatching={onStopWatching}
@@ -207,7 +206,6 @@ export function ThreadDetailsThreadPrRows({
       status={displayed.status}
       project={rowProject}
       title={pr?.title.trim() || null}
-      openAriaLabel={url}
       onOpen={(event) => openPrLink(event, url)}
       composerTarget={composerTarget}
       {...(onActed ? { onActed } : {})}

@@ -1092,7 +1092,7 @@ export const SETTINGS_SEARCH_ITEMS = [
     to: "/settings/connections",
     targetId: "linked-environments",
     searchTerms: [
-      "labs beta link peer another machine vps agents work there delegate handoff pairing code",
+      "link peer another machine vps agents work there delegate handoff pairing code permissions",
     ],
   },
   {
@@ -1138,6 +1138,15 @@ export const SETTINGS_SEARCH_ITEMS = [
     windowsOnly: true,
     localBackendManagementOnly: true,
     wslAvailableOnly: true,
+  },
+  {
+    id: "preview-tunnel",
+    title: "Preview tunnel",
+    to: "/settings/access",
+    targetId: "connections-environment",
+    searchTerms: [
+      "localhost loopback port forwarding open on this device browser tabs stream security",
+    ],
   },
   {
     id: "connections-environment",

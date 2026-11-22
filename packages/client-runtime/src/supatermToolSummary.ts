@@ -492,6 +492,82 @@ export function summarizeSupatermToolCalls(
     case "capabilities":
       label = phrase("Checked", "check", `orchestration capabilities ${times}`);
       break;
+    case "read-pr":
+      label = phrase("Read", "read", quantity(selected.length, "pull request"));
+      break;
+    case "list-repo-prs":
+      label = phrase("Listed", "list", `pull requests ${times}`);
+      break;
+    case "create-pr": {
+      // An open PR for the branch is returned rather than duplicated.
+      const existing = selected.filter((call) => call.output?.created === false).length;
+      const opened = selected.length - existing;
+      label =
+        completed.length === 0
+          ? `Tried to open ${quantity(selected.length, "pull request")}`
+          : opened === 0
+            ? `Found ${quantity(existing, "open pull request")}`
+            : existing === 0
+              ? `Opened ${quantity(opened, "pull request")}`
+              : `Opened ${quantity(opened, "pull request")}, found ${existing} open`;
+      break;
+    }
+    case "update-pr":
+      label = phrase("Updated", "update", quantity(selected.length, "pull request"));
+      break;
+    case "respond-pr":
+      label = phrase("Responded on", "respond on", `pull requests ${times}`);
+      break;
+    case "merge-pr": {
+      // Auto-merge and merge queues leave the PR open until it lands.
+      const queued = selected.filter((call) =>
+        call.output?.state === undefined
+          ? call.input?.auto === true
+          : call.output.state !== "merged",
+      ).length;
+      const merged = selected.length - queued;
+      label =
+        completed.length === 0
+          ? `Tried to merge ${quantity(selected.length, "pull request")}`
+          : merged === 0
+            ? `Queued ${quantity(queued, "pull request")} to merge`
+            : queued === 0
+              ? `Merged ${quantity(merged, "pull request")}`
+              : `Merged ${quantity(merged, "pull request")}, queued ${queued}`;
+      break;
+    }
+    case "ci-logs":
+      label = phrase("Read", "read", `CI logs ${times}`);
+      break;
+    case "ci-rerun": {
+      // A host can refuse a check it cannot re-run, such as one outside its CI.
+      const outcomes = selected.flatMap((call) =>
+        Array.isArray(call.output?.checks)
+          ? call.output.checks.map((check) => asRecord(check)?.rerun === true)
+          : [],
+      );
+      const rerun = outcomes.filter(Boolean).length;
+      const refused = outcomes.length - rerun;
+      failedCount += refused;
+      if (completed.length === 0) {
+        label = `Tried to re-run CI ${times}`;
+      } else if (outcomes.length === 0) {
+        // An empty list means no check had failed, so nothing was asked of the host.
+        label = selected.some((call) => Array.isArray(call.output?.checks))
+          ? "Found no failed checks to re-run"
+          : `Re-ran CI ${times}`;
+      } else if (rerun === 0) {
+        label = `Could not re-run ${quantity(refused, "check")}`;
+      } else if (refused === 0) {
+        label = `Re-ran ${quantity(rerun, "check")}`;
+      } else {
+        label = `Re-ran ${quantity(rerun, "check")}, ${refused} refused`;
+      }
+      break;
+    }
+    case "review-pr":
+      label = phrase("Reviewed", "review", quantity(selected.length, "pull request"));
+      break;
   }
   return { label, failedCount };
 }

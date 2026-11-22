@@ -9,6 +9,7 @@ import {
   type PeerLink,
   type PeerLinkCreateInput,
   PeerLinkError,
+  type PeerLinkName,
   type PeerLinkSummary,
 } from "@supaterm/contracts";
 import * as NodeSqliteClient from "@supaterm/shared/nodeSqliteClient";
@@ -40,7 +41,6 @@ import { canonicalRelayAddress } from "@supaterm/shared/relay/protocol";
 import * as ServerSecretStore from "../auth/ServerSecretStore.ts";
 import * as ServerEnvironment from "../environment/ServerEnvironment.ts";
 import * as RelayCompanion from "../relay/RelayCompanion.ts";
-import * as ServerSettings from "../serverSettings.ts";
 
 const PeerHttpApi = HttpApi.make(EnvironmentHttpApi.identifier)
   .add(EnvironmentHttpApi.groups.metadata)
@@ -75,6 +75,9 @@ export const certificateErrorCode = (error: unknown) => {
   return undefined;
 };
 
+/** One making of a link. Linking again makes another, with its own session on the peer. */
+export type PeerLinkGeneration = Pick<PeerLink, "environmentId" | "linkedAt">;
+
 /** A usable link: where to reach the peer and the token to send there. */
 export interface ResolvedPeerLink {
   readonly link: PeerLink;
@@ -83,10 +86,12 @@ export interface ResolvedPeerLink {
   /** Where requests to that address go: itself, or this server's tunnel to a relay address. */
   readonly url: string;
   readonly token: string;
+  /** What the peer said it can do when it answered. */
+  readonly capabilities: ExecutionEnvironmentCapabilities;
 }
 
-export const LINKED_ENVIRONMENTS_OFF =
-  "Linked environments is off on this machine. Turn it on in Settings → Environments.";
+/** What a link's session is called in the peer's Connections, before this environment's label. */
+export const LINK_CLIENT_NAME_PREFIX = "Supaterm · ";
 
 /** One owner holds every link's relay tunnel, so a tunnel outlives the client that asked for the link. */
 const RELAY_LEASE_OWNER = "peer-links";
@@ -111,10 +116,10 @@ const isRelayAddress = (address: string) => relayAddressOf(address) !== null;
 export class PeerLinks extends Context.Service<
   PeerLinks,
   {
-    /** Whether the Linked environments beta (Settings → Environments) is on here. */
-    readonly enabled: Effect.Effect<boolean>;
     readonly link: (input: PeerLinkCreateInput) => Effect.Effect<PeerLink, PeerLinkError>;
     readonly list: Effect.Effect<ReadonlyArray<PeerLinkSummary>, PeerLinkError>;
+    /** The unexpired links' names, from what is stored, without asking any peer. */
+    readonly names: Effect.Effect<ReadonlyArray<PeerLinkName>, PeerLinkError>;
     /** The stored link, without asking the peer whether it answers. */
     readonly get: (
       environmentId: EnvironmentId,
@@ -129,10 +134,18 @@ export class PeerLinks extends Context.Service<
       environmentId: EnvironmentId,
       options?: { readonly linkedAt?: string },
     ) => Effect.Effect<ResolvedPeerLink, PeerLinkError>;
-    /** Records the outcome of a call, so listing shows whether the peer answered last time. */
+    /**
+     * Records the outcome of a call, so listing shows whether the peer answered last time. Only
+     * `link` takes it: a call made before the link was made again says nothing about the new one.
+     */
     readonly recordOutcome: (
-      environmentId: EnvironmentId,
+      link: PeerLinkGeneration,
       outcome: { readonly error: string | null },
+    ) => Effect.Effect<void>;
+    /** Records a later end the peer gives `link`'s session: using a link renews it there. */
+    readonly recordExpiry: (
+      link: PeerLinkGeneration,
+      expiresAt: DateTime.Utc,
     ) => Effect.Effect<void>;
   }
 >()("supaterm/peer/PeerLinks") {}
@@ -246,13 +259,8 @@ const make = Effect.gen(function* () {
   const digest = yield* Digest.Digest;
   const httpClient = yield* HttpClient.HttpClient;
   const environment = yield* ServerEnvironment.ServerEnvironment;
-  const serverSettings = yield* ServerSettings.ServerSettingsService;
   const isOwnLoopback = yield* LoopbackHost;
   const relay = yield* RelayCompanion.RelayCompanion;
-  const enabled = serverSettings.getSettings.pipe(
-    Effect.map((settings) => settings.linkedEnvironmentsEnabled),
-    Effect.orElseSucceed(() => false),
-  );
 
   /** A fresh name for one link's token; the row records it. */
   const newSecretName = random.randomBytes(16).pipe(
@@ -596,7 +604,7 @@ const make = Effect.gen(function* () {
     const issued = yield* signIn(
       yield* reach(primary, input.relayUrl),
       input,
-      `Supaterm · ${self.label}`,
+      `${LINK_CLIENT_NAME_PREFIX}${self.label}`,
     );
     const relayUrl = origins.some(isRelayAddress) ? input.relayUrl : undefined;
     const now = yield* DateTime.now;
@@ -659,9 +667,6 @@ const make = Effect.gen(function* () {
   });
 
   const link: PeerLinks["Service"]["link"] = Effect.fn("PeerLinks.link")(function* (input) {
-    if (!(yield* enabled)) {
-      return yield* new PeerLinkError({ reason: "disabled", message: LINKED_ENVIRONMENTS_OFF });
-    }
     const urls = [input.url, ...(input.alternateUrls ?? [])];
     // A tunnel opened for an address that never became a link has no one to close it.
     return yield* linkAt(input, urls).pipe(
@@ -700,6 +705,16 @@ const make = Effect.gen(function* () {
     return yield* Effect.forEach(links, (link) => statusOf(link, now), {
       concurrency: "unbounded",
     });
+  });
+
+  const names: PeerLinks["Service"]["names"] = Effect.gen(function* () {
+    const links = yield* Effect.forEach(yield* readRows, toLink);
+    const now = yield* DateTime.now;
+    return links.flatMap((link) =>
+      DateTime.isGreaterThan(link.expiresAt, now)
+        ? [{ environmentId: link.environmentId, label: link.label }]
+        : [],
+    );
   });
 
   const get: PeerLinks["Service"]["get"] = (environmentId) =>
@@ -793,36 +808,48 @@ const make = Effect.gen(function* () {
         address,
         url: yield* reach(address, link.relayUrl),
         token: new TextDecoder().decode(stored.value),
+        capabilities: peer.capabilities,
       };
     },
   );
 
-  const recordOutcome: PeerLinks["Service"]["recordOutcome"] = (environmentId, outcome) =>
+  const recordOutcome: PeerLinks["Service"]["recordOutcome"] = (link, outcome) =>
     DateTime.now.pipe(
       Effect.flatMap((now) =>
         outcome.error === null
           ? sql`
               UPDATE peer_environment_links
               SET last_reached_at = ${DateTime.formatIso(now)}, last_error = NULL
-              WHERE environment_id = ${environmentId}
+              WHERE environment_id = ${link.environmentId}
+                AND linked_at = ${DateTime.formatIso(link.linkedAt)}
             `
           : sql`
               UPDATE peer_environment_links SET last_error = ${outcome.error}
-              WHERE environment_id = ${environmentId}
+              WHERE environment_id = ${link.environmentId}
+                AND linked_at = ${DateTime.formatIso(link.linkedAt)}
             `,
       ),
       Effect.asVoid,
       Effect.ignoreCause({ log: true }),
     );
 
+  const recordExpiry: PeerLinks["Service"]["recordExpiry"] = (link, expiresAt) =>
+    sql`
+      UPDATE peer_environment_links SET expires_at = ${DateTime.formatIso(expiresAt)}
+      WHERE environment_id = ${link.environmentId}
+        AND linked_at = ${DateTime.formatIso(link.linkedAt)}
+        AND expires_at < ${DateTime.formatIso(expiresAt)}
+    `.pipe(Effect.asVoid, Effect.ignoreCause({ log: true }));
+
   return PeerLinks.of({
-    enabled,
     link,
     list,
+    names,
     get,
     unlink,
     resolve,
     recordOutcome,
+    recordExpiry,
   });
 });
 

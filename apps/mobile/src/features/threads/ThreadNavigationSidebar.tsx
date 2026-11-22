@@ -368,7 +368,7 @@ function ThreadNavigationSidebarPane(props: ThreadNavigationSidebarProps) {
     listEnvironments,
     threadSearchMatchByKey,
   };
-  useThreadJumpShortcuts(listItems, handleSelectThread);
+  useThreadJumpShortcuts(listItems, handleSelectThread, props.onOpenPendingTask);
   const listMotion = useThreadListMotion({
     items: listItems,
     doneLimit: doneVisibleCount,
@@ -627,7 +627,9 @@ function ThreadNavigationSidebarPane(props: ThreadNavigationSidebarProps) {
             : props.searchQuery.trim().length > 0
               ? threadSearch.isPending
                 ? "Searching thread messages…"
-                : "No matching threads"
+                : threadSearch.failed
+                  ? "Couldn't search thread messages"
+                  : "No matching threads"
               : selectedProjectScope !== null
                 ? `No threads in ${selectedProjectScope.title}`
                 : "No threads yet"}

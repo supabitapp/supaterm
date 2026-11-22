@@ -5,6 +5,7 @@ import * as NodeOS from "node:os";
 import * as NodeModule from "node:module";
 import * as NodeVM from "node:vm";
 import { assert, describe, it } from "@effect/vitest";
+import { PULL_REQUEST_LINKING_INSTRUCTIONS } from "@supaterm/provider-core/server/runtimeInstructions";
 
 import {
   PI_SUPATERM_MCP_EXTENSION_SOURCE,
@@ -84,7 +85,20 @@ describe("Pi orchestration prompt section", () => {
       assert.isDefined(result);
       assert.isTrue(result!.systemPrompt.startsWith(`${event.systemPrompt}\n\n`));
       assert.include(result!.systemPrompt, "orchestrator_capabilities");
+      assert.include(result!.systemPrompt, PULL_REQUEST_LINKING_INSTRUCTIONS);
     }
+  });
+
+  it("sets the guidance section on Pi builds with prompt sections", async () => {
+    const bridge = await loadMcpBridge();
+    const sections: Record<string, string> = {};
+    const result = await bridge.handlers.get("before_agent_start")!(
+      { systemPrompt: "base", systemPromptOptions: { sections } },
+      { ui: { notify: assert.fail } },
+    );
+    assert.isUndefined(result);
+    assert.include(sections.supaterm_code_orchestration, "orchestrator_capabilities");
+    assert.include(sections.supaterm_code_orchestration, PULL_REQUEST_LINKING_INSTRUCTIONS);
   });
 });
 

@@ -79,7 +79,16 @@ the oldest queued message. This leaves the current draft intact. While a turn th
 steering runs, the message steers it; once the agent is stopped, it starts a new turn. If that
 shortcut sends the opposite action for your draft, move focus outside the composer to send the
 queued message. Change `thread.steerQueuedMessage` in **Settings → Keybindings** to use another
-shortcut.
+shortcut. To make `Cmd+Enter` or `Ctrl+Enter` steer the oldest queued message when the composer
+is empty, add this rule to your [keybindings file](keybindings.md#edit-the-configuration-file):
+
+```json
+{
+  "key": "mod+enter",
+  "command": "thread.steerQueuedMessage",
+  "when": "composerFocus && turnRunning && composerEmpty"
+}
+```
 
 Press `ArrowUp` in an empty composer to edit the most recently queued message,
 including one still waiting to send. When the composer has text, press `Option+Up`
@@ -223,8 +232,10 @@ to its checkpoint from before that message. That also undoes edits you made your
 File restore is only offered for threads running in a worktree, and it is
 refused when another thread or agent session also uses that directory, a folder
 inside it, or a folder that contains it, since
-restoring would erase their changes. A thread that works in the project directory
-rewinds the conversation only. The selected prompt and its attachments return to the composer for editing and
+restoring would erase their changes. Completed subagents belonging to the reverting
+thread do not block restoring that same worktree, provided they have no queued or
+active work, pending requests, or background tasks. A thread that works in the project
+directory rewinds the conversation only. The selected prompt and its attachments return to the composer for editing and
 resending. Any unsent draft stays above the restored prompt.
 
 This removes the selected message and later conversation from the active thread
@@ -458,7 +469,7 @@ the repository by text. Choose a result to insert it as a chip. You can also dra
 from the thread's linked pull requests panel onto the composer.
 
 Another thread can be context too. Type `@` followed by part of its title to pick one from
-the same server, or from a machine it links to while the Linked environments beta is on; those
+the same server, or from a machine it links to; those
 say which machine they are on. On web and desktop you can also drag a thread out of the sidebar and drop it on the
 composer; a multi-selection drops together. On any client, **Copy thread** puts a thread on the
 clipboard that pastes into a composer as its chip. The chip shows the thread's current title and
@@ -473,10 +484,10 @@ saved text context at the time of the drop; later messages and the contents of a
 are not copied. The agent can read the saved transcript after the source disconnects. Normal
 file attachment limits apply.
 
-To name one of your other machines, type `@` followed by part of its name while the
-[Linked environments](./remote-access.md#link-another-environment) beta is on. The chip tells the
+To name one of your other machines, type `@` followed by part of its name. The chip tells the
 agent which machine you mean, so a prompt like "run the suite on @vps" works there once the
-machine is linked, and asks you to link it when it is not.
+machine is [linked](./remote-access.md#link-another-environment), and asks you to link it when it
+is not.
 
 To name a model for the agent, type `@` followed by part of the model or provider name, such as
 `@opus` or `@gpt`, and pick it from the list. A mention ends at a space, so join words with `:`,

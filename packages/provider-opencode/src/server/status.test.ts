@@ -33,6 +33,7 @@ import {
   OPENCODE_2_RESPONSES,
   replayOpenCodeServer,
 } from "./probeResponses.fixture.ts";
+import { DEFAULT_VARIANT_CHOICE_ID } from "@supaterm/shared/model";
 const decodeOpenCodeSettings = Schema.decodeSync(OpenCodeSettings);
 
 const DEFAULT_VERSION_STDOUT = "opencode v2.0.18\n";
@@ -491,7 +492,7 @@ describe("checkOpenCodeProviderStatus", () => {
             providerID: "opencode",
             id: "space-bunny-free",
             name: "Space Bunny Free",
-            variants: [{ id: "low" }, { id: "medium" }, { id: "high" }],
+            variants: [{ id: "low" }, { id: "medium" }, { id: "high" }, { id: "xhigh" }],
           },
           {
             providerID: "opencode-go",
@@ -524,7 +525,13 @@ describe("checkOpenCodeProviderStatus", () => {
         ?.capabilities?.optionDescriptors?.[0];
       NodeAssert.deepEqual(
         variant?.type === "select" ? variant.options.map((option) => option.id) : [],
-        ["low", "medium", "high"],
+        ["low", "medium", "high", "xhigh"],
+      );
+      NodeAssert.equal(
+        variant?.type === "select"
+          ? variant.options.find((option) => option.id === "xhigh")?.label
+          : undefined,
+        "Extra High",
       );
       NodeAssert.equal(
         variant?.type === "select"
@@ -547,6 +554,39 @@ describe("checkOpenCodeProviderStatus", () => {
     }),
   );
 
+  it.effect("offers a Default reasoning choice for a custom model with no inferable default", () =>
+    Effect.gen(function* () {
+      const variants = ["low", "medium", "high"];
+      const snapshot = yield* checkProvider(
+        makeOpenCodeSettings(),
+        undefined,
+        Effect.succeed([
+          {
+            providerID: "acme",
+            id: "acme-chat",
+            name: "Acme Chat",
+            variants: variants.map((id) => ({ id })),
+          },
+        ]),
+      );
+      const variant = snapshot.models
+        .find((model) => model.slug === "acme/acme-chat")
+        ?.capabilities?.optionDescriptors?.find((descriptor) => descriptor.id === "variant");
+
+      NodeAssert.ok(variant?.type === "select");
+      NodeAssert.deepEqual(
+        variant.options.find((option) => option.id === DEFAULT_VARIANT_CHOICE_ID),
+        { id: DEFAULT_VARIANT_CHOICE_ID, label: "Default" },
+        "OpenCode cannot infer a default variant, so the picker needs a choice that sends none",
+      );
+      NodeAssert.equal(variant.currentValue, DEFAULT_VARIANT_CHOICE_ID);
+      NodeAssert.deepEqual(
+        variant.options.map((option) => option.id).filter((id) => id !== DEFAULT_VARIANT_CHOICE_ID),
+        variants,
+      );
+    }),
+  );
+
   it.effect("marks older releases of a family and deprecated models as legacy", () =>
     Effect.gen(function* () {
       const releases = [
@@ -557,17 +597,26 @@ describe("checkOpenCodeProviderStatus", () => {
         ["opencode", "flash-free", "flash", "2026-09-10", "active"],
         ["opencode", "big-pickle", undefined, "2025-10-17", "active"],
         ["openrouter", "opus-4-5", "claude-opus", "2025-11-24", "active"],
+        ["opencode", "gemini-4-argon", "gemini", "2026-10-13", "active", [2, 10]],
+        ["opencode", "gemini-4-carbon", "gemini", "2026-11-10", "active", [2, 10]],
+        ["opencode", "gemini-4-hydrogen", "gemini", "2026-11-12", "active", [1.5, 7.5]],
+        ["opencode", "muse-wonder-1.0", "muse", "2026-10-12", "active", [4, 20]],
+        ["opencode", "muse-ember-1.0", "muse", "2026-11-09", "active", [0.1, 0.5]],
+        ["opencode", "llama-3.1-8b", "llama", "2026-07-23", "active", [0.05, 0.08]],
+        ["opencode", "llama-3.3-70b", "llama", "2026-12-06", "active", [0.6, 0.8]],
       ] as const;
       const legacySlugs = (
         models: ReadonlyArray<{ readonly slug: string; readonly isLegacy?: boolean | undefined }>,
       ) => models.flatMap((model) => (model.isLegacy ? [model.slug] : [])).toSorted();
-      const expected = ["opencode/opus-4-5", "opencode/opus-preview"];
+      // One OpenCode `family` can hold several model sizes: Carbon replaces Argon at its price,
+      // while Hydrogen, Wonder, Ember and the 8b and 70b Llamas are other sizes.
+      const expected = ["opencode/gemini-4-argon", "opencode/opus-4-5", "opencode/opus-preview"];
 
       const openCode2 = yield* checkProvider(
         makeOpenCodeSettings(),
         undefined,
         Effect.succeed(
-          releases.map(([providerID, id, family, releaseDate, status]) => ({
+          releases.map(([providerID, id, family, releaseDate, status, cost]) => ({
             providerID,
             id,
             name: id,
@@ -575,6 +624,7 @@ describe("checkOpenCodeProviderStatus", () => {
             family,
             released: Date.parse(releaseDate),
             deprecated: status === "deprecated",
+            ...(cost ? { price: `${cost[0]}/${cost[1]}` } : {}),
           })),
         ),
       );
@@ -693,6 +743,40 @@ describe("checkOpenCodeProviderStatus with configured server URL", () => {
         "auto",
         "full-access",
       ]);
+    }),
+  );
+
+  it.effect("refuses an OpenCode 2 server the compatibility policy rates broken", () =>
+    Effect.gen(function* () {
+      const settings = makeOpenCodeSettings({
+        serverUrl: "http://127.0.0.1:9999",
+        serverPassword: "secret-password",
+      });
+      const snapshot = yield* checkOpenCodeProviderStatus(
+        settings,
+        probeOpenCodeRuntime(settings).pipe(
+          Effect.provideService(
+            HttpClient.HttpClient,
+            replayOpenCodeServer(OPENCODE_2_RESPONSES, "secret-password"),
+          ),
+          Effect.provideService(OpenCodeRuntime.OpenCodeRuntime, OpenCodeRuntimeTestDouble),
+        ),
+        Effect.succeed([]),
+        () =>
+          Effect.succeed({
+            status: "broken" as const,
+            recommendedVersion: null,
+            recommendedRange: ">=2.0.19",
+            message:
+              "This provider version is known to be incompatible with this Supaterm release.",
+          }),
+      );
+
+      NodeAssert.equal(snapshot.status, "error");
+      NodeAssert.equal(
+        snapshot.message,
+        "OpenCode 2.0.18 does not work with this Supaterm release. Update OpenCode to >=2.0.19, then retry.",
+      );
     }),
   );
 

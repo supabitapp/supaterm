@@ -651,12 +651,22 @@ function locationsFromToolCallInput(input: {
 const TOOL_CALL_CONTENT_MAX_CHARS = 8_000;
 const TOOL_CALL_CONTENT_TRUNCATION_MARKER = "[Earlier output truncated]\n\n";
 
-function boundToolCallOutputText(text: string): string {
-  if (text.length <= TOOL_CALL_CONTENT_MAX_CHARS) {
-    return text;
+/** The tail to keep, or undefined when the text fits or an adapter already bounded it. */
+function retainedToolCallOutputTail(text: string): string | undefined {
+  if (
+    text.length <= TOOL_CALL_CONTENT_MAX_CHARS ||
+    (text.startsWith(TOOL_CALL_CONTENT_TRUNCATION_MARKER) &&
+      text.length <= TOOL_CALL_CONTENT_MAX_CHARS + TOOL_CALL_CONTENT_TRUNCATION_MARKER.length)
+  ) {
+    return undefined;
   }
-  const tail = text.slice(text.length - TOOL_CALL_CONTENT_MAX_CHARS);
-  return `${TOOL_CALL_CONTENT_TRUNCATION_MARKER}${tail}`;
+  // A tail starting inside a surrogate pair is invalid Unicode.
+  return text.slice(-TOOL_CALL_CONTENT_MAX_CHARS).replace(/^[\uDC00-\uDFFF]/u, "");
+}
+
+function boundToolCallOutputText(text: string): string {
+  const tail = retainedToolCallOutputTail(text);
+  return tail === undefined ? text : `${TOOL_CALL_CONTENT_TRUNCATION_MARKER}${tail}`;
 }
 
 const RAW_OUTPUT_TEXT_FIELDS = ["content", "stdout", "stderr", "output"] as const;
@@ -732,13 +742,12 @@ function extractTextContentFromToolCallContent(
     return { text: undefined, content: boundToolCallContentEntries(content) };
   }
   const joined = chunks.join("\n");
-  if (joined.length <= TOOL_CALL_CONTENT_MAX_CHARS) {
+  const tail = retainedToolCallOutputTail(joined);
+  if (tail === undefined) {
     return { text: joined, content: boundToolCallContentEntries(content) };
   }
-  const bounded = boundToolCallOutputText(joined);
-  const tail = joined.slice(joined.length - TOOL_CALL_CONTENT_MAX_CHARS);
   return {
-    text: bounded,
+    text: `${TOOL_CALL_CONTENT_TRUNCATION_MARKER}${tail}`,
     content: distributeRetainedTailAcrossContent(content, tail),
   };
 }
@@ -816,6 +825,8 @@ function canonicalItemTypeFromAcpToolKind(kind: string | undefined): ToolLifecyc
       return "dynamic_tool_call";
   }
 }
+
+const TOOL_FALLBACK_SUMMARY = "Tool";
 
 function makeToolCallState(
   input: {
@@ -908,14 +919,19 @@ function makeToolCallState(
         title,
         detail: fallbackDetail,
         data,
-        fallbackSummary: title ?? "Tool",
+        fallbackSummary: title ?? TOOL_FALLBACK_SUMMARY,
       })
     : undefined;
+  // A titleless update omits an unchanged title; the generic fallback must not replace it.
+  const presentationTitle =
+    title === undefined && presentation?.summary === TOOL_FALLBACK_SUMMARY
+      ? undefined
+      : presentation?.summary;
   const status = normalizeToolCallStatus(input.status, options?.fallbackStatus);
   return {
     toolCallId,
     ...(kind ? { kind } : {}),
-    ...(presentation?.summary ? { title: presentation.summary } : {}),
+    ...(presentationTitle ? { title: presentationTitle } : {}),
     ...(status ? { status } : {}),
     ...(command ? { command } : {}),
     ...(presentation?.detail ? { detail: presentation.detail } : {}),
@@ -1032,12 +1048,19 @@ function toolCallContentTexts(state: AcpToolCallState): string {
     .join("\u0000");
 }
 
+function toolCallLocationsChanged(previous: AcpToolCallState, next: AcpToolCallState): boolean {
+  const before = previous.data.locations;
+  const after = next.data.locations;
+  return before !== after && JSON.stringify(before) !== JSON.stringify(after);
+}
+
 export function toolCallVisibleOutputChanged(
   previous: AcpToolCallState,
   next: AcpToolCallState,
 ): boolean {
   return (
     previous.detail !== next.detail ||
+    toolCallLocationsChanged(previous, next) ||
     toolCallContentTexts(previous) !== toolCallContentTexts(next) ||
     JSON.stringify(previous.data.rawOutput) !== JSON.stringify(next.data.rawOutput)
   );
@@ -1050,7 +1073,12 @@ export function decideToolCallUpdateEmission(
   if (next.status === "completed" || next.status === "failed") {
     return { emit: true, skippedSinceEmit: 0 };
   }
-  if (previous === undefined || previous.title !== next.title || previous.status !== next.status) {
+  if (
+    previous === undefined ||
+    previous.title !== next.title ||
+    previous.status !== next.status ||
+    toolCallLocationsChanged(previous, next)
+  ) {
     return { emit: true, skippedSinceEmit: 0 };
   }
   if (previous.detail === next.detail && toolCallOutputUnchanged(previous, next)) {
@@ -1111,7 +1139,10 @@ const SUPATERM_MCP_TITLE_CALL =
 const SUPATERM_MCP_TITLE_SUFFIX_CALL =
   /^(?<tool>[A-Za-z0-9][A-Za-z0-9_.-]*?)(?: \(supaterm MCP Server\)(?::|$)|[-_.]supaterm$)/i;
 
-const SUPATERM_MCP_BARE_TITLE_CALL = /^(?:Running )?(?<tool>[A-Za-z0-9_]+)(?::\s*\{|$)/;
+const SUPATERM_MCP_BARE_TITLE_CALL = /^(?<tool>[A-Za-z0-9_]+)(?::\s*\{|$)/;
+
+// Antigravity titles calls "Running <tool>" or, from agy 1.5.8, "Run mcp_<server>_<tool>"; prompts end in "?".
+const ANTIGRAVITY_TOOL_TITLE = /^Run(?:ning)? (?<name>[^\s?]+)\??$/;
 
 /**
  * ACP has no typed MCP tool-call item, so agents surface MCP calls in agent-specific shapes:
@@ -1131,6 +1162,14 @@ export function extractMcpToolCallIdentity(
   const tool = typeof rawInput?.tool === "string" ? rawInput.tool.trim() : "";
   if (meta?.is_mcp_tool_call === true && server.length > 0 && tool.length > 0) {
     return { server, tool };
+  }
+  // Antigravity reaches MCP tools its context budget left out through call_mcp_tool, an execute
+  // call titled "MCP Tool <tool>" whose rawInput names the server, tool, and arguments.
+  const proxiedServer = typeof rawInput?.ServerName === "string" ? rawInput.ServerName.trim() : "";
+  const proxiedTool = typeof rawInput?.ToolName === "string" ? rawInput.ToolName.trim() : "";
+  if (proxiedServer.length > 0 && proxiedTool.length > 0) {
+    const input = isRecord(rawInput?.Arguments) ? rawInput.Arguments : undefined;
+    return { server: proxiedServer, tool: proxiedTool, ...(input === undefined ? {} : { input }) };
   }
   // Kiro names the server in `_meta.kiro.serverName` and the call in `rawInput.tool_id`
   // ("<server>::<tool>"), with the tool's own input under `rawInput.arguments`.
@@ -1212,12 +1251,13 @@ export function extractMcpToolCallIdentity(
     }
     if (qualified?.[1] && qualified[2] && !/^supaterm$/i.test(qualified[1]))
       return { server: qualified[1], tool: qualified[2] };
+    const name = ANTIGRAVITY_TOOL_TITLE.exec(trimmed)?.groups?.name ?? trimmed;
     const candidateTool = [
       SUPATERM_MCP_TITLE_CALL,
       SUPATERM_MCP_TITLE_SUFFIX_CALL,
       SUPATERM_MCP_BARE_TITLE_CALL,
     ]
-      .map((pattern) => pattern.exec(trimmed)?.groups?.tool)
+      .map((pattern) => pattern.exec(name)?.groups?.tool)
       .find((tool) => tool !== undefined && SUPATERM_MCP_TOOL_NAMES.has(tool));
     if (candidateTool !== undefined) {
       return { server: "supaterm", tool: candidateTool };
@@ -1609,11 +1649,19 @@ export function parseSessionUpdateEvent(params: EffectAcpSchema.SessionNotificat
         title: "Compact context",
         kind: "think",
         status,
-        rawOutput: (upd.error ?? summary) || undefined,
+        rawOutput: upd.summary === undefined ? undefined : summary || null,
         _meta: upd._meta,
       });
       if (toolCall !== undefined) {
-        events.push({ _tag: "ToolCallUpdated", toolCall, rawPayload: params });
+        // Summary and error are independent patches; null clears only its own field.
+        events.push({
+          _tag: "ToolCallUpdated",
+          toolCall:
+            upd.error === undefined
+              ? toolCall
+              : { ...toolCall, data: { ...toolCall.data, compactionError: upd.error } },
+          rawPayload: params,
+        });
       }
       break;
     }

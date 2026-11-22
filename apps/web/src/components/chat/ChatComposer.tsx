@@ -120,6 +120,7 @@ import { useComposerAttachmentIntake } from "./useComposerAttachmentIntake";
 import {
   countPreparingComposerImages,
   usePreparingComposerImages,
+  useSubmitAfterPreparingImages,
 } from "./preparingComposerImages";
 import { ComposerControlsBar } from "./ComposerControlsBar";
 import { composerCommandKeyHandler } from "./composerCommandKey";
@@ -698,7 +699,8 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   const activePendingIsResponding = !holdingUserInput && incomingPendingIsResponding;
   const isLiteralPendingAnswer = activePendingProgress?.activeQuestion?.initialAnswer !== undefined;
   const shownSyncPhase = useDelayedStatus(composerDraftTargetKey, props.threadSyncPhase);
-  const showSyncStatus = shownSyncPhase === "syncing";
+  const shownSyncStatus =
+    shownSyncPhase === "syncing" || shownSyncPhase === "failed" ? shownSyncPhase : null;
   const activeTasksProgress = shownSyncPhase === null ? props.activeTasksProgress : null;
   const activeTaskSteps = shownSyncPhase === null ? props.activeTaskSteps : null;
   const isEditingQueuedMessage = editingQueuedAttachments !== null;
@@ -1027,6 +1029,10 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     attachmentBlockReason,
     environmentUnavailable: environmentUnavailable !== null,
   });
+  const submitAfterPreparingImages = useSubmitAfterPreparingImages(
+    attachmentTargetKey,
+    submissionBlocked,
+  );
   const selectedProviderStatus = selectedProviderEntry?.snapshot ?? null;
   const selectedProviderSkills = selectedProviderStatus
     ? resolveProviderSkillsForCwd(selectedProviderStatus, gitCwd)
@@ -1079,6 +1085,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   const {
     trigger: composerTrigger,
     setTrigger: setComposerTrigger,
+    followCaret: followComposerCaret,
     resolveTrigger: resolveComposerTrigger,
     dismissTrigger: dismissComposerTrigger,
     resetTrigger: resetComposerTrigger,
@@ -1138,7 +1145,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   const composerSurfaceRef = useRef<HTMLDivElement>(null);
   const providerInputRejectedRef = useRef(false);
   const composerSelectLockRef = useRef(false);
-  const composerMenuOpenRef = useRef(false);
   const composerMenuItemsRef = useRef<ComposerCommandItem[]>([]);
   const activeComposerMenuItemRef = useRef<ComposerCommandItem | null>(null);
   const composerBlurFrameRef = useRef<number | null>(null);
@@ -1265,7 +1271,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
 
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- publishes committed composer menu state to refs read by editor key handlers
   useLayoutEffect(() => {
-    composerMenuOpenRef.current = composerMenuOpen;
     composerMenuItemsRef.current = composerMenuItems;
     activeComposerMenuItemRef.current = activeComposerMenuItem;
   });
@@ -1792,18 +1797,21 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     expandedCursor: number,
     cursorAdjacentToMention: boolean,
     contextIds: string[],
+    textChanged: boolean,
   ) => {
     expandComposerForEditorChange();
     // Typing is when the menu is about to need skills, so it re-checks a
     // snapshot that has aged past its TTL.
     refreshWorkspaceSnapshotOnTyping();
+    const trigger = cursorAdjacentToMention
+      ? null
+      : detectComposerTrigger(nextPrompt, expandedCursor);
+    const updateTrigger = textChanged ? setComposerTrigger : followComposerCaret;
     const activeQuestion = activePendingProgress?.activeQuestion;
     if (activeQuestion && pendingUserInputs.length > 0) {
       if (activeQuestion.allowCustomAnswer === false) return;
       setComposerCursor(nextCursor);
-      setComposerTrigger(
-        cursorAdjacentToMention ? null : detectComposerTrigger(nextPrompt, expandedCursor),
-      );
+      updateTrigger(trigger);
       onChangeActivePendingUserInputCustomAnswer(
         activeQuestion.id,
         nextPrompt,
@@ -1907,9 +1915,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       addComposerDraftFiles(attachmentDraftTarget, attachmentChanges.filesToRestore);
     }
     setComposerCursor(nextCursor);
-    setComposerTrigger(
-      cursorAdjacentToMention ? null : detectComposerTrigger(nextPrompt, expandedCursor),
-    );
+    updateTrigger(trigger);
   };
   const onPromptChangeStable = useStableCallback(onPromptChange);
 
@@ -2268,6 +2274,9 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     return composerSendState.hasSendableContent;
   };
 
+  const submitComposerRef = useRef<
+    (dispatchMode?: ComposerDispatchMode, submissionIntent?: ComposerSubmissionIntent) => void
+  >(() => {});
   const submitComposer = (
     event?: { preventDefault: () => void },
     dispatchMode?: ComposerDispatchMode,
@@ -2288,16 +2297,12 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       event?.preventDefault();
       return null;
     }
-    // A send while a pasted image is still compressing would strand that image:
-    // the turn snapshot wouldn't include it, and it would surface in the *next*
-    // draft instead.
-    if (activeThreadId && countPreparingComposerImages(attachmentTargetKey) > 0) {
+    // Sending now would leave a still-compressing image out of the turn, so wait for it.
+    if (
+      activeThreadId &&
+      submitAfterPreparingImages(() => submitComposerRef.current(dispatchMode, submissionIntent))
+    ) {
       event?.preventDefault();
-      toastManager.add({
-        type: "info",
-        title: "Still compressing a pasted image.",
-        description: "Send again once its thumbnail appears.",
-      });
       return null;
     }
     if (pendingDraftWork.has(attachmentTargetKey)) {
@@ -2345,6 +2350,11 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     return sending;
   };
   const submitComposerStable = useStableCallback(submitComposer);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- publishes the committed submission handler to the send held for compressing images
+  useLayoutEffect(() => {
+    submitComposerRef.current = (mode, intent) =>
+      void submitComposerStable(undefined, mode, intent);
+  }, [submitComposerStable]);
   const handleSubmitMessage = (event: React.MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
     const alternateModifier = event.metaKey || event.ctrlKey;
@@ -2462,7 +2472,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       composerReviewComments,
       promptSuggestion,
       composerEditorRef,
-      composerMenuOpenRef,
       composerMenuItemsRef,
       activeComposerMenuItemRef,
       setComposerDraftPrompt,
@@ -2880,8 +2889,8 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     activeTaskSteps !== null &&
     activeTasksProgress.totalSteps > 0;
   const activityStackContent = hasBannerItems ? (
-    showSyncStatus ? (
-      <ComposerActivityRow />
+    shownSyncStatus ? (
+      <ComposerActivityRow phase={shownSyncStatus} />
     ) : canShowTasks ? (
       <ComposerTasksContent
         expanded={isTasksDrawerOpen}
@@ -3114,7 +3123,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       (!pastedContext &&
         activeThreadId &&
         files.length > 0 &&
-        shouldHandleComposerAttachmentPaste({ files, plainText }))
+        shouldHandleComposerAttachmentPaste({ files, plainText, bypassAutoAttachment }))
     ) {
       event.preventDefault();
       event.stopPropagation();
@@ -3780,10 +3789,14 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
             className="relative z-0"
             items={bannerStackItems}
           />
-          {!activityStackItem && (showSyncStatus || inlineTasksBadge) ? (
+          {!activityStackItem && (shownSyncStatus || inlineTasksBadge) ? (
             <ComposerBanner.Attachment>
               <ComposerBanner.Root data-chat-composer-activity-strip="true">
-                {showSyncStatus ? <ComposerActivityRow /> : inlineTasksBadge}
+                {shownSyncStatus ? (
+                  <ComposerActivityRow phase={shownSyncStatus} />
+                ) : (
+                  inlineTasksBadge
+                )}
               </ComposerBanner.Root>
             </ComposerBanner.Attachment>
           ) : null}

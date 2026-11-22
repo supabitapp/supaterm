@@ -343,6 +343,10 @@
       "types": "./src/HostProcess.ts",
       "import": "./src/HostProcess.ts"
     },
+    "./testing/gitRepositoryEnv": {
+      "types": "./src/testing/gitRepositoryEnv.ts",
+      "import": "./src/testing/gitRepositoryEnv.ts"
+    },
     "./testing/longTempDir": {
       "types": "./src/testing/longTempDir.ts",
       "import": "./src/testing/longTempDir.ts"
@@ -454,6 +458,10 @@
     "./orchestrationV2DedupedBodies": {
       "types": "./src/orchestrationV2DedupedBodies.ts",
       "import": "./src/orchestrationV2DedupedBodies.ts"
+    },
+    "./oauthCallback": {
+      "types": "./src/oauthCallback.ts",
+      "import": "./src/oauthCallback.ts"
     },
     "./codexArtifactTemplates": {
       "types": "./src/codexArtifactTemplates.ts",

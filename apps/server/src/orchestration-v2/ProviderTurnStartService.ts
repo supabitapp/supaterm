@@ -1,8 +1,12 @@
+import { classifyCodexManagedError } from "../provider/CodexManagedErrors.ts";
 import { modelSelectionsEqual } from "@supaterm/shared/model";
 import { projectComposerContextForProvider } from "@supaterm/shared/composerContextReferences";
+import { expandAssistantCitationsForProvider } from "@supaterm/shared/assistantCitations";
 import {
   CommandId,
+  PROVIDER_SEND_TURN_MAX_INPUT_CHARS,
   latestProviderTurnForAttempt,
+  withMessageSenderNote,
   type OrchestrationV2DomainEvent,
   type OrchestrationV2ContextHandoff,
   type OrchestrationV2ExecutionNode,
@@ -42,8 +46,8 @@ import * as ServerSettings from "../serverSettings.ts";
 import { makeRestoreMissingWorktree } from "../workspace/restoreMissingWorktree.ts";
 import * as EventSink from "./EventSink.ts";
 import * as ContextHandoffService from "./ContextHandoffService.ts";
-import { isRunInProgress } from "./CommandPolicy.ts";
-import { contextBoundaryOrdinal } from "./contextBoundary.ts";
+import { canForkBusySourceNatively, isRunInProgress } from "./CommandPolicy.ts";
+import { contextBoundaryOrdinal, isScheduledFreshRun } from "./contextBoundary.ts";
 import {
   DEFAULT_HANDOFF_TOKEN_CAP,
   handoffTokenCapConfig,
@@ -91,6 +95,38 @@ const NON_COMPLETING_TERMINAL_RUN_STATUSES: ReadonlySet<OrchestrationV2Run["stat
   "cancelled",
   "rolled_back",
 ]);
+
+export function abandonedProviderTurns(
+  projection: Pick<OrchestrationV2ThreadProjection, "runs" | "attempts" | "providerTurns">,
+  run: Pick<OrchestrationV2Run, "ordinal">,
+  providerThreadId: OrchestrationV2ProviderThread["id"],
+) {
+  const attemptsByRun = Map.groupBy(projection.attempts, (attempt) => attempt.runId);
+  const abandonedRuns = new Map<string | null, OrchestrationV2Run>();
+  for (const previous of projection.runs) {
+    if (
+      previous.ordinal >= run.ordinal ||
+      previous.providerThreadId !== providerThreadId ||
+      !NON_COMPLETING_TERMINAL_RUN_STATUSES.has(previous.status)
+    ) {
+      continue;
+    }
+    if (previous.activeAttemptId !== null) {
+      abandonedRuns.set(previous.activeAttemptId, previous);
+    }
+    for (const attempt of attemptsByRun.get(previous.id) ?? []) {
+      abandonedRuns.set(attempt.id, previous);
+    }
+  }
+  return projection.providerTurns.flatMap((turn) => {
+    const previous = abandonedRuns.get(turn.runAttemptId);
+    return turn.providerThreadId === providerThreadId &&
+      turn.status === "running" &&
+      previous !== undefined
+      ? [{ turn, run: previous }]
+      : [];
+  });
+}
 
 export const isProviderTurnStartError = Schema.is(ProviderTurnStartError);
 const isProviderAdapterProtocolError = Schema.is(ProviderAdapter.ProviderAdapterProtocolError);
@@ -498,9 +534,20 @@ export const layer: Layer.Layer<
             projection.runs.some(
               (source) =>
                 source.id === handoff.targetRunId &&
-                (source.status === "failed" ||
+                // A settled delivery retires history of this thread: the session that took it
+                // holds it, and a fresh session starts from a full summary of the thread. That
+                // summary lacks another thread's history (a fork source, a merge-back).
+                (((source.status === "failed" ||
                   source.status === "interrupted" ||
-                  source.status === "cancelled" ||
+                  source.status === "cancelled") &&
+                  !(
+                    (handoff.delivery?.status === "injected" ||
+                      handoff.delivery?.status === "inline") &&
+                    handoff.fromProviderThreadIds.length > 0 &&
+                    handoff.fromProviderThreadIds.every((id) =>
+                      projection.providerThreads.some((candidate) => candidate.id === id),
+                    )
+                  )) ||
                   (source.status === "completed" &&
                     handoff.delivery === undefined &&
                     // Compaction and /goal turns defer history to the next turn.
@@ -519,13 +566,16 @@ export const layer: Layer.Layer<
           (handoff.transferId == null || !subagentResultTransfers.has(handoff.transferId)) &&
           isPendingForRun(handoff),
       );
-      // Carried forward until a provider turn accepts it, also after a provider switch.
-      const sideChatHandoff = projection.contextHandoffs.find(
+      // Carried forward until a provider turn accepts them, also after a provider switch. A fresh
+      // session starts without them, and an unscheduled fresh run retires them. A schedule's fresh
+      // run is a side conversation, so the thread's next turn still gets them.
+      const carriedSideChatHandoffs = projection.contextHandoffs.filter(
         (handoff) =>
           isSideChatHandoff(handoff) &&
           handoff.delivery === undefined &&
           isPendingForRun(handoff, true),
       );
+      const sideChatHandoff = run.freshContext === true ? undefined : carriedSideChatHandoffs[0];
       const nativeForkTransfer = projection.contextTransfers.find(
         (transfer) =>
           transfer.type === "fork" &&
@@ -546,6 +596,31 @@ export const layer: Layer.Layer<
           runId,
           cause: `Run ${runId} is missing its execution projection state.`,
         });
+      }
+      if (
+        carriedSideChatHandoffs.length > 0 &&
+        run.freshContext === true &&
+        !isScheduledFreshRun(run, projection.turnItems)
+      ) {
+        const updatedAt = yield* DateTime.now;
+        const retired = yield* eventSink.writeIfRunCurrent({
+          threadId: run.threadId,
+          runId,
+          activeAttemptId: attempt.id,
+          expectedStatus: "starting",
+          events: yield* Effect.forEach(carriedSideChatHandoffs, (handoff) =>
+            Effect.map(idAllocator.allocate.event({ threadId: projection.thread.id }), (id) => ({
+              id,
+              type: "context-handoff.updated" as const,
+              threadId: projection.thread.id,
+              runId: run.id,
+              providerInstanceId: run.providerInstanceId,
+              occurredAt: updatedAt,
+              payload: { ...handoff, status: "superseded" as const, updatedAt },
+            })),
+          ),
+        });
+        if (!retired.committed) return;
       }
       const manualResume =
         run.manualContinuationOfRunId !== undefined && attempt.reason !== "steering_restart";
@@ -587,6 +662,31 @@ export const layer: Layer.Layer<
         },
       );
       if (
+        expandAssistantCitationsForProvider(providerMessage.text).length >
+        PROVIDER_SEND_TURN_MAX_INPUT_CHARS
+      ) {
+        yield* settleRunBeforeStart({
+          run,
+          rootNode,
+          attempt,
+          turnItems: projection.turnItems,
+          signal: "expanded-input-too-long",
+          status: "failed",
+          now: yield* DateTime.now,
+          providerInstanceId: run.providerInstanceId,
+          itemProviderThreadId: providerThread.id,
+          item: {
+            type: "error",
+            title: "Message is too long",
+            failure: makeProviderFailure({
+              class: "validation_error",
+              message: `Message exceeds ${PROVIDER_SEND_TURN_MAX_INPUT_CHARS.toLocaleString("en-US")} characters after expanding quotes. Shorten it and try again.`,
+            }),
+          },
+        });
+        return;
+      }
+      if (
         providerMessage.attachments.length === 0 &&
         providerMessage.text.trimStart().startsWith("/")
       ) {
@@ -627,6 +727,10 @@ export const layer: Layer.Layer<
                   records: providerMessage.context?.records ?? [],
                 }),
                 hasAttachments: false,
+                // A scheduled delivery keeps its task author's createdBy.
+                sentByPerson:
+                  providerMessage.createdBy === "user" &&
+                  providerMessage.scheduledTaskId === undefined,
               }),
             );
         if (isEmptyCompaction || authResult?._tag === "Failure" || authResult?.success) {
@@ -672,7 +776,12 @@ export const layer: Layer.Layer<
                   },
             providerThreadUpdate: {
               ...providerThread,
-              status: providerThread.nativeThreadRef === null ? "not_loaded" : "idle",
+              status:
+                providerThread.status === "error"
+                  ? "error"
+                  : providerThread.nativeThreadRef === null
+                    ? "not_loaded"
+                    : "idle",
               updatedAt: now,
             },
           });
@@ -737,30 +846,7 @@ export const layer: Layer.Layer<
       // running when the agent ignored Stop or an interrupt timed out. Every attempt
       // of such a run owns a possible abandoned turn, including attempts a steering
       // restart superseded, and the session cannot be reused until those turns stop.
-      const abandonedRuns = new Map<string | null, OrchestrationV2Run>();
-      for (const previous of projection.runs) {
-        if (
-          previous.ordinal >= run.ordinal ||
-          previous.providerThreadId !== providerThread.id ||
-          !NON_COMPLETING_TERMINAL_RUN_STATUSES.has(previous.status)
-        ) {
-          continue;
-        }
-        if (previous.activeAttemptId !== null) {
-          abandonedRuns.set(previous.activeAttemptId, previous);
-        }
-        for (const attempt of projection.attempts) {
-          if (attempt.runId === previous.id) abandonedRuns.set(attempt.id, previous);
-        }
-      }
-      const abandonedTurns = projection.providerTurns.flatMap((turn) => {
-        const previous = abandonedRuns.get(turn.runAttemptId);
-        return turn.providerThreadId === providerThread.id &&
-          turn.status === "running" &&
-          previous !== undefined
-          ? [{ turn, run: previous }]
-          : [];
-      });
+      const abandonedTurns = abandonedProviderTurns(projection, run, providerThread.id);
       const abandonedTurn = abandonedTurns.at(-1)?.turn;
       if (abandonedTurn !== undefined) {
         const liveSession = yield* providerSessions.get(providerSessionId);
@@ -814,6 +900,12 @@ export const layer: Layer.Layer<
         run,
         checkpointScope,
       });
+      const brokenNativeThread = providerThread.status === "error";
+      // Opened without the broken native id, a session that was not live starts fresh.
+      const opensFreshSession =
+        brokenNativeThread &&
+        providerThread.nativeThreadRef !== null &&
+        !(yield* providerSessions.isLive(providerSessionId));
       const sessionResult = yield* Effect.result(
         providerSessions.open({
           threadId: projection.thread.id,
@@ -823,7 +915,7 @@ export const layer: Layer.Layer<
           ...(existingSessionProjection === undefined
             ? {}
             : { resumeFromSession: existingSessionProjection }),
-          ...(providerThread.nativeThreadRef?.nativeId == null
+          ...(providerThread.nativeThreadRef?.nativeId == null || brokenNativeThread
             ? {}
             : { initialNativeThreadId: providerThread.nativeThreadRef.nativeId }),
           ...(providerThread.nativeMetadata?.itemIdentityVersion === undefined
@@ -869,10 +961,13 @@ export const layer: Layer.Layer<
         manualResume && unsentResumeMessage === undefined && session.resumeTurn !== undefined;
       const promptedResume =
         manualResume && unsentResumeMessage === undefined && session.resumeTurn === undefined;
-      const userText = projectComposerContextForProvider({
-        text: promptedResume ? MANUAL_RESUME_PROMPT : providerMessage.text,
-        records: providerMessage.context?.records ?? [],
-      });
+      const userText = withMessageSenderNote(
+        providerMessage,
+        projectComposerContextForProvider({
+          text: promptedResume ? MANUAL_RESUME_PROMPT : providerMessage.text,
+          records: providerMessage.context?.records ?? [],
+        }),
+      );
       // Native goal commands go verbatim; handoff history waits a turn.
       const goalDriver =
         session.driver === "codex" ||
@@ -899,7 +994,7 @@ export const layer: Layer.Layer<
       const restartCancelledWork = pendingRestartCancelledBackgroundWork({
         runs: projection.runs,
         providerTurns: projection.providerTurns,
-        compactionMessageIds: promptlessMessageIds,
+        compactionMessageIds: () => promptlessMessageIds,
         run,
         attempts: projection.attempts,
       });
@@ -1034,11 +1129,8 @@ export const layer: Layer.Layer<
           ...loadedProviderThread,
           contextUsage: handoffUsage,
         };
-        // The resume fallback summary already covers every earlier run in order. A
-        // retry copy after it would rank older missed requests as the newest history.
         const missedRuns = projection.runs.filter(
           (source) =>
-            !resumeFellBack &&
             source.ordinal < run.ordinal &&
             source.providerThreadId === providerThread.id &&
             (source.status === "failed" || source.status === "interrupted") &&
@@ -1082,8 +1174,10 @@ export const layer: Layer.Layer<
           const missedItems = missedHistory.filter(
             (item) => !coveredItemIds.has(item.id) && historicalMessage(item) !== null,
           );
+          // The resume fallback summary already covers every earlier run in order. A
+          // retry copy after it would rank older missed requests as the newest history.
           const handoffs =
-            missedItems.length === 0
+            missedItems.length === 0 || resumeFellBack
               ? []
               : [
                   yield* contextHandoffService.prepareProviderHandoff({
@@ -1107,27 +1201,26 @@ export const layer: Layer.Layer<
           // History delivery (inline or injected) is text only, so missed images ride on prompts
           // until a later run's is accepted. Compaction and /goal starts carry none. A missed run's
           // own accepted attempt predates its unsent steering input, so it does not count.
-          const lastPromptOrdinal = Math.max(
-            0,
-            ...acceptedAttempts.flatMap((attempt) => {
-              if (missedRunIds.has(attempt.runId)) return [];
-              const source = projection.runs.find((candidate) => candidate.id === attempt.runId);
-              const message = projection.messages.find(
-                (candidate) => candidate.id === source?.userMessageId,
-              );
-              return source === undefined ||
-                (message !== undefined &&
-                  (isCompactionCommandMessage(message) ||
-                    (goalDriver && parseGoalCommand(message) !== null)))
-                ? []
-                : [source.ordinal];
-            }),
-          );
+          const runsById = new Map(projection.runs.map((source) => [source.id, source]));
+          const messagesById = new Map(projection.messages.map((message) => [message.id, message]));
+          let lastPromptOrdinal = 0;
+          for (const attempt of acceptedAttempts) {
+            if (missedRunIds.has(attempt.runId)) continue;
+            const source = runsById.get(attempt.runId);
+            if (source === undefined) continue;
+            const message = messagesById.get(source.userMessageId);
+            if (
+              message !== undefined &&
+              (isCompactionCommandMessage(message) ||
+                (goalDriver && parseGoalCommand(message) !== null))
+            )
+              continue;
+            lastPromptOrdinal = Math.max(lastPromptOrdinal, source.ordinal);
+          }
           const attachments = missedHistory.flatMap((item) =>
             item.type === "user_message" &&
-            missedRuns.some(
-              (source) => source.id === item.runId && source.ordinal > lastPromptOrdinal,
-            )
+            item.runId !== null &&
+            (runsById.get(item.runId)?.ordinal ?? 0) > lastPromptOrdinal
               ? item.attachments
               : [],
           );
@@ -1144,6 +1237,7 @@ export const layer: Layer.Layer<
           const createdAt = yield* DateTime.now;
           const history = yield* projectionStore.getTurnStartHistory(input.threadId);
           const boundary = contextBoundaryOrdinal({ runs: projection.runs, turnItems: history });
+          const from = Math.max(1, boundary);
           const handoff = yield* contextHandoffService.prepareProviderHandoff({
             threadId: projection.thread.id,
             targetRunId: run.id,
@@ -1152,7 +1246,7 @@ export const layer: Layer.Layer<
             toProviderThreadId: providerThread.id,
             fromProviderInstanceId: providerThread.providerInstanceId,
             toProviderInstanceId: run.providerInstanceId,
-            coveredRunOrdinals: { from: 1, to: Math.max(1, run.ordinal - 1) },
+            coveredRunOrdinals: { from, to: Math.max(from, run.ordinal - 1) },
             strategy: "full_thread_summary",
             runs: projection.runs,
             items: [
@@ -1196,7 +1290,7 @@ export const layer: Layer.Layer<
       let recoveryTurnItem: OrchestrationV2TurnItem | undefined;
       const loadedProviderThread = yield* Effect.gen(function* () {
         if (nativeForkTransfer !== undefined) {
-          const sourceProjection = yield* projectionStore.getThreadRecords(
+          let sourceProjection = yield* projectionStore.getThreadRecords(
             nativeForkTransfer.sourceThreadId,
             ["runs", "providerThreads", "attempts", "providerTurns"],
           );
@@ -1227,8 +1321,12 @@ export const layer: Layer.Layer<
           );
           let nativeForkFailure: string | undefined;
           if (
-            !sourceBusy ||
-            session.providerSession.capabilities.threads.forkWhileSourceActive !== "none"
+            (sourceRun.status === "completed" || sourceRun.status === "waiting") &&
+            (!sourceBusy ||
+              canForkBusySourceNatively(
+                session.providerSession.capabilities,
+                sourceProviderTurn?.nativeTurnRef != null,
+              ))
           ) {
             // Rolled-back turns are no longer in the source conversation, so they cannot bound a fork.
             const rolledBackAttemptIds = new Set(
@@ -1283,6 +1381,13 @@ export const layer: Layer.Layer<
                 class: "provider_error",
               }).message;
             }
+            sourceProjection = {
+              ...sourceProjection,
+              ...(yield* projectionStore.getThreadRecords(nativeForkTransfer.sourceThreadId, [
+                "runs",
+                "attempts",
+              ])),
+            };
           }
           const nativeForkFailed = nativeForkFailure !== undefined;
           const sourceItems = yield* ContextHandoffService.readForkHistoryItems(
@@ -1417,12 +1522,86 @@ export const layer: Layer.Layer<
             handoff.delivery?.nativeThreadId === providerThread.nativeThreadRef?.nativeId &&
             handoff.delivery?.status === "pending",
         );
+        const rejectedHistory = yield* Effect.gen(function* () {
+          if (session.driver !== "codex") return false;
+          const acceptedAttemptIds = new Set(
+            projection.providerTurns.map((turn) => turn.runAttemptId),
+          );
+          const previous = projection.runs.findLast(
+            (source) =>
+              source.providerThreadId === providerThread.id &&
+              source.ordinal < run.ordinal &&
+              source.activeAttemptId !== null &&
+              acceptedAttemptIds.has(source.activeAttemptId),
+          );
+          if (
+            previous === undefined ||
+            (previous.status !== "failed" &&
+              previous.status !== "interrupted" &&
+              previous.status !== "cancelled")
+          )
+            return false;
+          const previousAttempt = projection.attempts.find(
+            (source) => source.id === previous.activeAttemptId,
+          );
+          if (previousAttempt === undefined) return false;
+          if (previousAttempt.nativeThreadId !== undefined) {
+            if (previousAttempt.nativeThreadId !== providerThread.nativeThreadRef?.nativeId)
+              return false;
+          } else if (
+            projection.contextHandoffs.some(
+              (handoff) =>
+                handoff.toProviderThreadId === providerThread.id &&
+                handoff.strategy === "full_thread_summary" &&
+                handoff.delivery?.nativeThreadId === providerThread.nativeThreadRef?.nativeId &&
+                handoff.coveredRunOrdinals.to >= previous.ordinal,
+            )
+          )
+            return false;
+          // The native resume RPC can succeed while persisted input still rejects every turn.
+          return (yield* projectionStore.getTurnStartHistory(input.threadId, [previous.id])).some(
+            (item) =>
+              item.type === "error" &&
+              item.nodeId === previous.rootNodeId &&
+              (item.failure.code === "invalid_encrypted_content" ||
+                classifyCodexManagedError(item.failure.message)?.code ===
+                  "invalid_encrypted_content"),
+          );
+        });
+        // A fresh session would orphan background work still running on the native thread.
+        const hasPendingWork = (thread: OrchestrationV2ProviderThread) =>
+          session.hasPendingBackgroundWorkForThread?.(thread, { includeSubagents: true }) ??
+          session.hasPendingBackgroundWork ??
+          Effect.succeed(false);
+        const failForPendingWork = loadFromProvider(
+          Effect.fail(
+            new ProviderAdapter.ProviderAdapterTurnStartError({
+              driver: session.driver,
+              threadId: projection.thread.id,
+              providerThreadId: providerThread.id,
+              runId,
+              cause: new ContextHandoffBackgroundWorkError(),
+            }),
+          ),
+        );
+        if (rejectedHistory && (yield* hasPendingWork(providerThread))) {
+          return yield* failForPendingWork;
+        }
         // A provider that cannot truncate rolls back into a fresh native session holding none of the kept turns.
         const nativeSessionLacksKeptTurns =
           !session.providerSession.capabilities.checkpointing.providerCanRollbackConversation &&
           nativeSessionMissesKeptTurns(projection, providerThread, run);
+        // Dispatch prepares no import handoff for a session import: its history is in the native session.
+        const importedNativeSession =
+          projection.thread.historyOrigin === "v1_import" &&
+          !projection.providerTurns.some((turn) => turn.providerThreadId === providerThread.id) &&
+          !projection.contextHandoffs.some(
+            (handoff) =>
+              handoff.toProviderThreadId === providerThread.id &&
+              handoff.strategy === "manual_context",
+          );
         const resumed = yield* Effect.result(
-          uncertainDelivery || nativeSessionLacksKeptTurns
+          uncertainDelivery || nativeSessionLacksKeptTurns || rejectedHistory
             ? Effect.fail(
                 new ProviderAdapter.ProviderAdapterTurnStartError({
                   driver: session.driver,
@@ -1431,7 +1610,9 @@ export const layer: Layer.Layer<
                   runId,
                   cause: uncertainDelivery
                     ? "Uncertain native history injection"
-                    : "Native session holds none of the kept conversation",
+                    : nativeSessionLacksKeptTurns
+                      ? "Native session holds none of the kept conversation"
+                      : "Rejected native history",
                 }),
               )
             : session.resumeThread({
@@ -1439,6 +1620,7 @@ export const layer: Layer.Layer<
                 threadId: projection.thread.id,
                 modelSelection: run.modelSelection,
                 runtimePolicy: resolvedRuntimePolicy,
+                importedNativeSession,
               }),
         );
         if (resumed._tag === "Success") {
@@ -1472,29 +1654,10 @@ export const layer: Layer.Layer<
             Effect.catchTags({ ContextHandoffBudgetError: () => Effect.succeed(false) }),
           );
           if (!fitsFresh) return resumed.success;
-          const hasPendingWork = yield* (
-            session.hasPendingBackgroundWorkForThread?.(resumed.success, {
-              includeSubagents: true,
-            }) ??
-              session.hasPendingBackgroundWork ??
-              Effect.succeed(false)
-          );
-          if (hasPendingWork) {
-            return yield* loadFromProvider(
-              Effect.fail(
-                new ProviderAdapter.ProviderAdapterTurnStartError({
-                  driver: session.driver,
-                  threadId: projection.thread.id,
-                  providerThreadId: providerThread.id,
-                  runId,
-                  cause: new ContextHandoffBackgroundWorkError(),
-                }),
-              ),
-            );
-          }
+          if (yield* hasPendingWork(resumed.success)) return yield* failForPendingWork;
         }
         resumedHandoffContext = undefined;
-        resumedRetryHandoff = { handoffs: [], attachments: [] };
+        resumedRetryHandoff = undefined;
         if (!(yield* isCurrentAttemptInStatus("starting"))) return undefined;
         // Another client is still writing to the native thread. A fresh
         // session here would silently split the conversation from it.
@@ -1513,9 +1676,11 @@ export const layer: Layer.Layer<
             ? "uncertain_history_delivery"
             : nativeSessionLacksKeptTurns
               ? "native_session_lacks_kept_turns"
-              : resumed._tag === "Success"
-                ? "handoff_budget_exhausted"
-                : "resume_failed",
+              : rejectedHistory
+                ? "rejected_native_history"
+                : resumed._tag === "Success"
+                  ? "handoff_budget_exhausted"
+                  : "resume_failed",
           errorTag: resumed._tag === "Failure" ? resumed.failure._tag : "ContextHandoffBudgetError",
         });
         const replacement = yield* loadFromProvider(
@@ -1529,13 +1694,39 @@ export const layer: Layer.Layer<
             // session instead of retrying the resume that just failed, while
             // still adopting this row's identity.
             existingProviderThread: { ...providerThread, nativeThreadRef: null },
-            forceNewNativeThread: true,
+            // A fresh session that never loaded the broken history needs no replacement.
+            ...(opensFreshSession && resumed._tag === "Failure"
+              ? {}
+              : { forceNewNativeThread: true }),
           }),
         );
         if (replacement === undefined) return undefined;
+        if (
+          replacement.nativeThreadRef?.nativeId != null &&
+          replacement.nativeThreadRef.driver === providerThread.nativeThreadRef?.driver &&
+          replacement.nativeThreadRef.nativeId === providerThread.nativeThreadRef.nativeId
+        ) {
+          // Never retried. Forget the load first, or the next turn would skip resume and start on
+          // the reused session without this error or the recovery handoff.
+          yield* providerSessions.forgetLoadedProviderThread({
+            providerSessionId: session.providerSessionId,
+            threadId: projection.thread.id,
+            providerThread: replacement,
+            modelSelection: run.modelSelection,
+            runtimePolicy: resolvedRuntimePolicy,
+          });
+          yield* settleStartFailure({
+            signal: "provider-thread-load-failure",
+            title: "Provider turn failed to start",
+            error: new ProviderAdapter.ProviderAdapterProtocolError({
+              driver: session.driver,
+              detail:
+                "the provider returned its existing session when asked for a fresh one, so the conversation context could not be moved to a new session",
+            }),
+          });
+          return undefined;
+        }
         const { handoff, transferId, createdAt } = yield* recoveryHandoff;
-        effectiveHandoffs = withRecoveryHandoff(handoff);
-        resumeFellBack = true;
         const previousRun = projection.runs.findLast(
           (candidate) =>
             candidate.providerThreadId === providerThread.id &&
@@ -1580,7 +1771,11 @@ export const layer: Layer.Layer<
           strategy: handoff.strategy,
           summary: handoff.summaryText,
         };
-        yield* eventSink.write({
+        const replacementWrite = yield* eventSink.writeIfRunCurrent({
+          threadId: projection.thread.id,
+          runId: run.id,
+          activeAttemptId: attempt.id,
+          expectedStatus: "starting",
           events: [
             {
               id: yield* idAllocator.allocate.event({ threadId: projection.thread.id }),
@@ -1619,6 +1814,9 @@ export const layer: Layer.Layer<
             },
           ],
         });
+        if (!replacementWrite.committed) return undefined;
+        effectiveHandoffs = withRecoveryHandoff(handoff);
+        resumeFellBack = true;
         recoveryTurnItem = handoffTurnItem;
         return replacement;
       });

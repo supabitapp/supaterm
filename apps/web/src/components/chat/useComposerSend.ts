@@ -5,6 +5,7 @@ import {
 import {
   AuthOrchestrationOperateScope,
   CommandId,
+  type ComposerContextRecord,
   type PreviewAnnotationPayload,
 } from "@supaterm/contracts";
 import type { VoiceRecordingHandOff } from "@supaterm/client-runtime/voice-input";
@@ -21,8 +22,7 @@ import {
 } from "../../composerDraftStore";
 import { type ComposerSubmissionIntent } from "../../composer-logic";
 import { resolveSideChatCommand } from "@supaterm/client-runtime/state/side-chats";
-import { filterTerminalContextsWithText } from "../../lib/terminalContext";
-import { sendSideChatDraftMessage } from "./useSideChat";
+import { sendSideChatDraftMessage, type SideChatComposerContent } from "./useSideChat";
 import { type MultipleModelTarget, resolveMultipleModelTargets } from "./chatViewSend";
 import {
   buildExpiredTerminalContextToastCopy,
@@ -41,7 +41,10 @@ import {
   previewAnnotationContextReference,
   withReplyReference,
 } from "../../lib/composerContextRecords";
-import { captureOutboxAttachments } from "../../state/threadOutboxEditing";
+import {
+  captureOutboxAttachments,
+  releaseSentComposerDraft,
+} from "../../state/threadOutboxEditing";
 import {
   declinePendingApprovals,
   sendApprovalFeedback,
@@ -62,7 +65,6 @@ import {
 import { readCanQueueComposerMessage } from "../../state/composerQueue";
 import { readEnvironmentScope } from "../../state/session";
 import { useLinkedEnvironments } from "../../state/peerLinks";
-import { releaseDraftAttachments } from "../../lib/attachmentUploadQueue";
 import { runMobileComposerTransition } from "./draftHeroTransition";
 import { scopeThreadRef, scopedThreadKey } from "@supaterm/client-runtime/environment";
 import { stackedThreadToast, toastManager } from "../ui/toast";
@@ -180,7 +182,9 @@ interface ComposerSendInput {
   readonly anchorNewTurn: TimelineFollow["anchorNewTurn"];
   readonly handleNewThreadInActiveProject: () => void;
   /** Resolves true once the side chat started and got the prompt. */
-  readonly onSideChat?: ((prompt: string) => Promise<boolean>) | undefined;
+  readonly onSideChat?:
+    | ((prompt: string, content?: SideChatComposerContent) => Promise<boolean>)
+    | undefined;
   /** Refuses `/side` with this reason and keeps the draft. */
   readonly sideChatDisabledReason: string | null;
   /** The thread a side chat draft forks on its first send. */
@@ -383,26 +387,100 @@ export function useComposerSend(input: ComposerSendInput) {
       );
       return;
     }
+    const warnStrandedThreadContext = (
+      text: string,
+      records: ReadonlyArray<ComposerContextRecord>,
+    ) => {
+      const strandedThread = threadContextsOutsideEnvironment({
+        text,
+        records,
+        environmentId,
+        linkedEnvironments,
+      })[0];
+      if (!strandedThread) return false;
+      const owner =
+        readEnvironmentPresentation(strandedThread.environmentId)?.entry.target.label ??
+        "its machine";
+      toastManager.add(
+        stackedThreadToast({
+          type: "warning",
+          title: "Attached thread is on another machine",
+          description: `This machine's agent can't read "${strandedThread.title}". Remove it, or switch back to ${owner} to send.`,
+        }),
+      );
+      return true;
+    };
     if (onSideChat && sendCtx && sideChatCommand?.kind === "start") {
-      if (
+      const { replyTo } = sendCtx;
+      const prompt = withReplyReference(sideChatCommand.prompt, replyTo);
+      const { trimmedPrompt, sendableTerminalContexts } = deriveComposerSendState({
+        prompt,
+        imageCount: sendCtx.images.length + sendCtx.files.length,
+        terminalContexts: sendCtx.terminalContexts,
+        elementContextCount:
+          sendCtx.previewAnnotations.length +
+          sendCtx.reviewComments.length +
+          sendCtx.referenceContexts.length,
+      });
+      const carriesContent =
         sendCtx.images.length > 0 ||
         sendCtx.files.length > 0 ||
-        filterTerminalContextsWithText(sendCtx.terminalContexts).length > 0 ||
+        sendableTerminalContexts.length > 0 ||
         sendCtx.previewAnnotations.length > 0 ||
         sendCtx.reviewComments.length > 0 ||
         sendCtx.referenceContexts.length > 0 ||
-        sendCtx.replyTo !== null
-      ) {
+        replyTo !== null;
+      // An answer's text and attachments live in the question's draft, apart from this one.
+      if (carriesContent && answeringQuestion) {
         toastManager.add(
           stackedThreadToast({
             type: "warning",
-            title: "Side chats take text only",
+            title: "Side chat not started",
             description: "Remove the attachments and context, then send it again.",
           }),
         );
         return;
       }
-      const started = await onSideChat(sideChatCommand.prompt);
+      let content: SideChatComposerContent | undefined;
+      if (carriesContent) {
+        if (warnStrandedThreadContext(prompt, sendCtx.referenceContexts)) return;
+        const snapshot = snapshotComposerSend({
+          prompt,
+          images: sendCtx.images,
+          files: sendCtx.files,
+          terminalContexts: sendCtx.terminalContexts,
+          sendableTerminalContexts,
+          previewAnnotations: sendCtx.previewAnnotations,
+          reviewComments: sendCtx.reviewComments,
+          referenceContexts: sendCtx.referenceContexts,
+          replyTo,
+        });
+        content = {
+          from: composerDraftTarget,
+          text: snapshot.messageText || ATTACHMENT_ONLY_BOOTSTRAP_PROMPT,
+          context: buildMessageContext({
+            terminalContexts: snapshot.terminalContexts,
+            reviewComments: snapshot.reviewComments,
+            previewAnnotations: snapshot.previewAnnotations,
+            referenceContexts: snapshot.referenceContexts,
+            replyTo: snapshot.replyTo,
+            attachments: snapshot.attachments.map((attachment) => ({
+              attachment,
+              attachmentId: attachment.id,
+            })),
+          }),
+          titleSeed: deriveThreadTitleSeed({
+            text: trimmedPrompt,
+            attachments: snapshot.attachments.map((attachment) => ({
+              type: attachment.type,
+              name: attachment.name,
+            })),
+            fallbackLabels: sendTitleFallbackLabels(snapshot),
+          }),
+          attachments: snapshot.attachments,
+        };
+      }
+      const started = await onSideChat(sideChatCommand.prompt, content);
       // Clear only what was sent; the user may have edited the draft or left meanwhile.
       if (
         started &&
@@ -498,25 +576,7 @@ export function useComposerSend(input: ComposerSendInput) {
         : promptRef.current,
       replyTo,
     );
-    const strandedThread = threadContextsOutsideEnvironment({
-      text: promptForSend,
-      records: composerReferenceContexts,
-      environmentId,
-      linkedEnvironments,
-    })[0];
-    if (strandedThread) {
-      const owner =
-        readEnvironmentPresentation(strandedThread.environmentId)?.entry.target.label ??
-        "its machine";
-      toastManager.add(
-        stackedThreadToast({
-          type: "warning",
-          title: "Attached thread is on another machine",
-          description: `This machine's agent can't read "${strandedThread.title}". Remove it, or switch back to ${owner} to send.`,
-        }),
-      );
-      return;
-    }
+    if (warnStrandedThreadContext(promptForSend, composerReferenceContexts)) return;
     if (queuedRunEdit.isEditing) {
       // A queued message stays in its thread, so saving `/side` would send it to main.
       if (!directAnnotation && parseSideChatCommand(promptAtSend)) {
@@ -993,18 +1053,16 @@ export function useComposerSend(input: ComposerSendInput) {
             : null,
         );
       }
-      if (useComposerDraftStore.getState().getComposerDraft(composerDraftTarget) === savedDraft) {
-        clearComposerDraftContent(composerDraftTarget);
-        // The prompt ref and cursor belong to the thread on screen, which may no longer be this one.
-        if (currentRouteThreadKeyRef.current === routeThreadKey) {
-          promptRef.current = "";
-          composerRef.current?.resetCursorState();
-        }
+      const cleared = releaseSentComposerDraft({
+        target: composerDraftTarget,
+        sent: savedDraft,
+        attachments: composerAttachmentsSnapshot,
+      });
+      // The prompt ref and cursor belong to the thread on screen, which may no longer be this one.
+      if (cleared && currentRouteThreadKeyRef.current === routeThreadKey) {
+        promptRef.current = "";
+        composerRef.current?.resetCursorState();
       }
-      // The outbox owns its own bytes. References recovered without bytes stay owned until delivery.
-      releaseDraftAttachments(
-        composerAttachmentsSnapshot.filter((attachment) => attachment.file !== null),
-      );
       setThreadError(threadIdForSend, null);
       if (isLocalDraftThread && multipleModelSelections === null)
         markPromotedDraftThreadByRef(scopeThreadRef(environmentId, threadIdForSend));

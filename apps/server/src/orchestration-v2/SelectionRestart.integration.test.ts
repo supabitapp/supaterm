@@ -14,6 +14,7 @@ import {
   ProviderTurnId,
   type RunId,
   ThreadId,
+  TurnItemId,
 } from "@supaterm/contracts";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
@@ -464,19 +465,54 @@ it.live.each(["pooled", "exclusive"] as const)(
         state,
         mode === "pooled" ? pooledCapabilities : exclusiveCapabilities,
       );
+      const handoffToolId = TurnItemId.make(`turn-item:workspace-handoff:${mode}:tool`);
       // A session that closes on detach is never asked to interrupt: Claude's cannot answer.
+      // Its turn is inside the handoff's own tool call, which the closed session never ends.
       const adapter: ProviderAdapter.ProviderAdapterV2["Service"] =
         mode === "pooled"
           ? base
           : {
               ...base,
               openSession: (input) =>
-                base.openSession(input).pipe(
-                  Effect.map((session) => ({
+                Effect.gen(function* () {
+                  const session = yield* base.openSession(input);
+                  const toolEvents =
+                    yield* Queue.unbounded<ProviderAdapter.ProviderAdapterV2Event>();
+                  return {
                     ...session,
+                    events: Stream.merge(session.events, Stream.fromQueue(toolEvents)),
+                    startTurn: (turn) =>
+                      Effect.gen(function* () {
+                        yield* session.startTurn(turn);
+                        const now = yield* DateTime.now;
+                        yield* Queue.offer(toolEvents, {
+                          type: "turn_item.updated",
+                          driver,
+                          turnItem: {
+                            id: handoffToolId,
+                            type: "dynamic_tool",
+                            threadId: turn.threadId,
+                            runId: turn.runId,
+                            nodeId: turn.rootNodeId,
+                            providerThreadId: turn.providerThread.id,
+                            providerTurnId: ProviderTurnId.make(`provider-turn:${turn.attemptId}`),
+                            nativeItemRef: null,
+                            parentItemId: null,
+                            ordinal: 1,
+                            status: "running",
+                            title: "supaterm_worktree_handoff",
+                            toolName: "supaterm.supaterm_worktree_handoff",
+                            input: {},
+                            output: null,
+                            startedAt: now,
+                            completedAt: null,
+                            updatedAt: now,
+                          },
+                        });
+                      }),
                     interruptTurn: () => Effect.die("an exclusive handoff must not interrupt"),
-                  })),
-                ),
+                  };
+                }),
             };
       const layerRegistry = ProviderAdapterRegistry.layerSingle(adapter);
 
@@ -587,6 +623,13 @@ it.live.each(["pooled", "exclusive"] as const)(
         ),
         "an intentional workspace handoff must not project an interrupt result or a failure",
       );
+      if (mode === "exclusive") {
+        // regression: #39410 the handoff's tool call stayed running after its session closed.
+        assert.equal(
+          projection.turnItems.find((item) => item.id === handoffToolId)?.status,
+          "interrupted",
+        );
+      }
       assert.deepEqual(
         (yield* Ref.get(state)).started.map((turn) => turn.cwd),
         [cwd, handoffCwd],
@@ -704,11 +747,22 @@ it.live("Stop during a restart interrupts the turn the restart could not stop", 
   }),
 );
 
-it.live.each(["active", "idle", "selection-command", "pooled", "separate-home"] as const)(
+const accountSwitchModes = [
+  "active",
+  "idle",
+  "selection-command",
+  "pooled",
+  "separate-home",
+  "active-separate-home",
+] as const;
+
+it.live.each(accountSwitchModes)(
   "preserves native history only for compatible account switches (%s)",
   (mode) =>
     Effect.gen(function* () {
       const name = `shared-home-${mode}`;
+      const active = mode === "active" || mode === "active-separate-home";
+      const separateHome = mode === "separate-home" || mode === "active-separate-home";
       const cwd = yield* checkpointWorkspace(name);
       const threadId = ThreadId.make(`thread:${name}`);
       const targetId = ProviderInstanceId.make("codex-shadow-account");
@@ -757,8 +811,7 @@ it.live.each(["active", "idle", "selection-command", "pooled", "separate-home"] 
         getMetadata: (instanceId) =>
           Effect.succeed({
             driver,
-            continuationKey:
-              mode === "separate-home" ? `codex:home:/${instanceId}` : "codex:home:/shared",
+            continuationKey: separateHome ? `codex:home:/${instanceId}` : "codex:home:/shared",
             enabled: true,
             capabilities,
           }),
@@ -768,7 +821,7 @@ it.live.each(["active", "idle", "selection-command", "pooled", "separate-home"] 
         const worker = yield* EffectWorker.OrchestrationEffectWorkerV2;
         const selection = {
           ...initialSelection,
-          model: mode === "active" ? initialSelection.model : "complete",
+          model: active ? initialSelection.model : "complete",
         };
         yield* orchestrator.dispatch({
           type: "thread.create",
@@ -788,7 +841,7 @@ it.live.each(["active", "idle", "selection-command", "pooled", "separate-home"] 
           Effect.gen(function* () {
             const terminal = yield* orchestrator.streamDomainEvents.pipe(
               Stream.filter((event) =>
-                mode === "active" && step === "first"
+                active && step === "first"
                   ? event.type === "provider-turn.updated" && event.payload.status === "running"
                   : event.type === "run.updated" && event.payload.status === "completed",
               ),
@@ -833,14 +886,20 @@ it.live.each(["active", "idle", "selection-command", "pooled", "separate-home"] 
         const second = yield* dispatch(
           "second",
           targetSelection,
-          mode === "active" ? first.runs[0]!.id : undefined,
+          active ? first.runs[0]!.id : undefined,
         );
         const targetThread = second.providerThreads.find(
           (thread) => thread.id === second.thread.activeProviderThreadId,
         )!;
-        if (mode === "separate-home") {
+        if (separateHome) {
           assert.notEqual(targetThread.id, originalThread.id);
           assert.lengthOf(second.contextHandoffs, 1);
+          assert.deepEqual(
+            second.turnItems.flatMap((item) =>
+              item.type === "handoff" ? [item.contextHandoffId] : [],
+            ),
+            [second.contextHandoffs[0]!.id],
+          );
           assert.lengthOf(second.contextTransfers, 1);
           assert.isEmpty(resumes);
           assert.notEqual(messages[1], "second");

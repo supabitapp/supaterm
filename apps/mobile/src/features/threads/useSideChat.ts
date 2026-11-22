@@ -12,6 +12,7 @@ import {
   MessageId,
   ThreadId,
   type EnvironmentId,
+  type OrchestrationMessageContext,
   type ScopedThreadRef,
 } from "@supaterm/contracts";
 import { Atom } from "effect/reactivity";
@@ -30,6 +31,7 @@ import { useEnvironmentServerConfig } from "../../state/entities";
 import { serverEnvironment } from "../../state/server";
 import { useEnvironmentScope } from "../../state/session";
 import { enqueueThreadOutboxMessage } from "../../state/thread-outbox";
+import type { DraftComposerAttachment } from "../../lib/composerImages";
 import { getComposerDraftSnapshot } from "../../state/use-composer-drafts";
 import {
   environmentThreadDetails,
@@ -70,6 +72,12 @@ export function useSideChatDisabledReason(
   });
 }
 
+/** The attachments and context `/side` carries from the parent's composer. */
+export interface SideChatComposerContent {
+  readonly attachments: ReadonlyArray<DraftComposerAttachment>;
+  readonly context: OrchestrationMessageContext | undefined;
+}
+
 /**
  * Sends a side chat's first message under `targetThreadId`, forking `parentThreadId` unless that
  * side chat exists. Resolves whether it has reached this device, or null after telling the user
@@ -81,6 +89,7 @@ export async function startSideChat(input: {
   readonly parentThreadId: ThreadId;
   readonly targetThreadId: ThreadId;
   readonly text: string;
+  readonly content?: SideChatComposerContent;
 }): Promise<"opened" | "queued" | null> {
   const readThread = (ref: ScopedThreadRef) =>
     appAtomRegistry.get(environmentThreadShells.threadShellAtom(ref));
@@ -121,7 +130,8 @@ export async function startSideChat(input: {
         messageId: MessageId.make(metadata.messageId),
         commandId: CommandId.make(metadata.commandId),
         text: input.text,
-        attachments: [],
+        attachments: input.content?.attachments ?? [],
+        ...(input.content?.context ? { context: input.content.context } : {}),
         ...(draft.modelSelection ? { modelSelection: draft.modelSelection } : {}),
         ...(draft.runtimeMode ? { runtimeMode: draft.runtimeMode } : {}),
         createdAt: metadata.createdAt,
@@ -141,10 +151,13 @@ export function alertSideChatQueued() {
   Dialog.alert("Side chat started", "It opens from its thread once it reaches this device.");
 }
 
+const unsentSideChatIds = new Map<string, ThreadId>();
+
 /**
- * Side chats of `parent`. `openDraft` pushes a side chat draft that forks on its first send;
- * `send` starts one with `prompt` at once and opens it, or opens the draft holding `prompt` and
- * its thread id when it did not start, so retrying there never forks twice.
+ * Side chats of `parent`. `openDraft` pushes an empty side chat draft that forks on its first
+ * send. `send` starts one with `prompt` and composer content at once and opens it. It resolves
+ * true once the outbox holds the first message; until then the caller keeps that message, and
+ * the next `send` from `parent` retries under the same thread id so it never forks twice.
  */
 export function useSideChat(
   environmentId: EnvironmentId | null,
@@ -154,43 +167,45 @@ export function useSideChat(
   const pendingRef = useRef(false);
   const disabledReason = useSideChatDisabledReason(environmentId, parent);
 
-  const pushDraft = (
-    owner: EnvironmentThreadShell,
-    draft: { readonly sideChatId: ThreadId; readonly prompt: string },
-  ) =>
+  const pushDraft = (owner: EnvironmentThreadShell) =>
     navigation.dispatch(
       StackActions.push("SideChatDraft", {
         environmentId: owner.environmentId,
         threadId: owner.id,
-        sideChatId: draft.sideChatId,
-        prompt: draft.prompt,
+        sideChatId: ThreadId.make(uuidv4()),
       }),
     );
 
   const openDraft = () => {
     if (parent === null || disabledReason !== null) return;
-    pushDraft(parent, { sideChatId: ThreadId.make(uuidv4()), prompt: "" });
+    pushDraft(parent);
   };
 
-  const send = async (prompt: string): Promise<boolean> => {
+  const send = async (prompt: string, content?: SideChatComposerContent): Promise<boolean> => {
     if (parent === null || disabledReason !== null || pendingRef.current) return false;
     const text = prompt.trim();
-    const sideChatId = ThreadId.make(uuidv4());
-    if (text === "") {
-      pushDraft(parent, { sideChatId, prompt: "" });
+    if (text === "" && content === undefined) {
+      pushDraft(parent);
       return true;
     }
+    const parentKey = scopedThreadKey(parent.environmentId, parent.id);
+    const sideChatId = unsentSideChatIds.get(parentKey) ?? ThreadId.make(uuidv4());
     pendingRef.current = true;
     const started = await startSideChat({
       environmentId: parent.environmentId,
       parentThreadId: parent.id,
       targetThreadId: sideChatId,
       text,
+      ...(content ? { content } : {}),
     }).finally(() => {
       pendingRef.current = false;
     });
-    if (started === null) pushDraft(parent, { sideChatId, prompt: text });
-    else if (started === "queued") alertSideChatQueued();
+    if (started === null) {
+      unsentSideChatIds.set(parentKey, sideChatId);
+      return false;
+    }
+    unsentSideChatIds.delete(parentKey);
+    if (started === "queued") alertSideChatQueued();
     else {
       navigation.dispatch(
         StackActions.push("Thread", { environmentId: parent.environmentId, threadId: sideChatId }),

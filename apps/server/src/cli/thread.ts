@@ -7,6 +7,7 @@ import {
   RunId,
   ThreadId,
   TrimmedNonEmptyString,
+  type OrchestratorMcpThreadDetail,
   type OrchestratorMcpThreadListItem,
   type OrchestratorMcpThreadRun,
   type OrchestratorMcpThreadStatus,
@@ -244,6 +245,17 @@ const runResultText = Effect.fn("cli.thread.runResultText")(function* (
   );
   const item = items.findLast((candidate) => candidate.runId === runId && candidate.type === type);
   return item === undefined ? null : yield* readFullText(tools, threadId, item);
+});
+
+/** The latest run's last error once it ended without completing, else null. */
+export const latestRunError = Effect.fn("cli.thread.latestRunError")(function* (
+  tools: ServerTools,
+  thread: Pick<OrchestratorMcpThreadDetail, "threadId" | "status" | "latestRunId">,
+) {
+  const { status, latestRunId } = thread;
+  if (latestRunId === null || status === "idle" || status === "completed") return null;
+  if (!TERMINAL_RUN_STATUSES.has(status)) return null;
+  return yield* runResultText(tools, thread.threadId, latestRunId, "error");
 });
 
 type WaitOutcome =
@@ -559,6 +571,12 @@ const threadStartCommand = Command.make("start", {
     Flag.withDescription("Thread title. Defaults to the message's first line."),
     Flag.optional,
   ),
+  generateTitle: Flag.Boolean("generate-title").pipe(
+    Flag.withDescription(
+      "Generate the thread's title from the message. Until it's ready, the thread shows --title or the first line.",
+    ),
+    Flag.withDefault(false),
+  ),
   provider: Flag.String("provider").pipe(
     Flag.withDescription("Provider instance id. Pass with --model."),
     Flag.optional,
@@ -604,6 +622,7 @@ const threadStartCommand = Command.make("start", {
             {
               projectId: project.id,
               title,
+              ...(flags.generateTitle ? { generateTitle: true } : {}),
               message,
               ...(workspaceStrategy === undefined ? {} : { workspaceStrategy }),
               ...(modelSelection === undefined ? {} : { modelSelection }),
@@ -697,8 +716,9 @@ const threadShowCommand = Command.make("show", {
               })),
             ),
           );
+          const error = yield* latestRunError(tools, thread);
           if (flags.json) {
-            return yield* printJson({ thread, messages });
+            return yield* printJson({ thread, messages, error });
           }
           yield* Console.log(thread.title);
           yield* Console.log(
@@ -711,6 +731,9 @@ const threadShowCommand = Command.make("show", {
           }
           if (thread.pendingRequestCount > 0) {
             yield* Console.log(`Waiting for ${thread.pendingRequestCount} answer(s).`);
+          }
+          if (error !== null) {
+            yield* Console.log(`Error: ${error}`);
           }
           for (const entry of messages) {
             yield* Console.log(`\n[${entry.role}]\n${entry.text}`);

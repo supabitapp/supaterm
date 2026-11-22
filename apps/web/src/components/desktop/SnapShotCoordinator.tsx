@@ -9,6 +9,7 @@ import {
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 
 import {
+  type ComposerImageAttachment,
   type DraftId,
   type PersistedComposerImageAttachment,
   useComposerDraftStore,
@@ -178,21 +179,20 @@ export async function deliverSnapShot(
   const source = resizeSnapShotSource(capture.source, compressed.imageSize);
   const dataUrl = compressed.recompressed ? await readFileAsDataUrl(file) : capture.dataUrl;
   const target = resolveTarget();
-  const alreadyAttached =
-    store.getComposerDraft(target)?.images.some(({ id }) => id === capture.id) ?? false;
-  if (!alreadyAttached) {
+  const existingImage = store.getComposerDraft(target)?.images.find(({ id }) => id === capture.id);
+  const image: ComposerImageAttachment = existingImage ?? {
+    type: "image",
+    id: capture.id,
+    name: file.name,
+    mimeType: file.type,
+    sizeBytes: file.size,
+    previewUrl: dataUrl,
+    file,
+    source,
+  };
+  if (!existingImage) {
     const questionAttachmentCount =
       typeof target === "string" ? countQuestionRequestAttachments(target) : null;
-    const image = {
-      type: "image" as const,
-      id: capture.id,
-      name: file.name,
-      mimeType: file.type,
-      sizeBytes: file.size,
-      previewUrl: dataUrl,
-      file,
-      source,
-    };
     // Only question drafts may bypass addImage's thread-session gate.
     const added =
       questionAttachmentCount === null
@@ -209,11 +209,7 @@ export async function deliverSnapShot(
     dataUrl,
     source,
   };
-  const persistedAttachments =
-    store
-      .getComposerDraft(target)
-      ?.persistedAttachments.filter((attachment) => attachment.id !== capture.id) ?? [];
-  await store.syncPersistedAttachments(target, [...persistedAttachments, persisted]);
+  await store.appendPersistedAttachments(target, [image], [persisted]);
   if (!store.getComposerDraft(target)?.persistedAttachments.some(({ id }) => id === capture.id)) {
     throw new Error("The captured window could not be saved to the draft.");
   }

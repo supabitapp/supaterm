@@ -18,6 +18,7 @@ import {
 } from "../hooks/showThreadUndoNotice";
 import { isRichTextBoldShortcut } from "../keybindings";
 import { isEditableFocused } from "../lib/editableFocus";
+import { isTerminalFocused } from "../lib/terminalFocus";
 import { isModelPickerOpen } from "../modelPickerVisibility";
 import { selectActiveRightPanel, useRightPanelStore } from "../rightPanelStore";
 import { selectThreadTerminalUiState, useTerminalUiStateStore } from "../terminalUiStateStore";
@@ -209,6 +210,8 @@ function registerSidebarToggleCommand(router: AnyRouter, toggleSidebar: () => vo
   return registerCommands(
     {
       "sidebar.toggle": ({ event }) => {
+        // A focused terminal owns Ctrl chords, such as tmux's Ctrl+B prefix; Cmd never reaches it.
+        if (event?.ctrlKey && isTerminalFocused()) return false;
         // The rich-text composer claims Mod+B only to bold selected text;
         // the toggle stays available everywhere else.
         if (

@@ -1,12 +1,14 @@
 import {
   AuthOrchestrationOperateScope,
   DEFAULT_SERVER_SETTINGS,
+  EnvironmentId,
   MessageId,
   ProjectId,
   ProviderDriverKind,
   ProviderInstanceId,
   RunId,
   RuntimeRequestId,
+  ThreadId,
   TurnItemId,
   type ModelSelection,
   type OrchestrationV2ThreadProjection,
@@ -18,7 +20,10 @@ import {
 } from "../../../../packages/client-runtime/src/state/orchestrationV2TestFixtures";
 import type { DraftComposerImageAttachment } from "../lib/composerImages";
 import type { PendingThreadRequests } from "@supaterm/client-runtime/state/thread-requests";
-import { sendApprovalFeedback } from "@supaterm/client-runtime/state/thread-requests";
+import {
+  makeThreadRequestsResolvedAnnouncer,
+  sendApprovalFeedback,
+} from "@supaterm/client-runtime/state/thread-requests";
 import { AsyncResult, type Atom } from "effect/reactivity";
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
@@ -37,6 +42,11 @@ const state = vi.hoisted(() => ({
   freshPending: false,
   setFreshPending: vi.fn(),
   clearDraft: vi.fn(),
+  appendAttachments: vi.fn(),
+  questionDrafts: {} as Record<
+    string,
+    { text: string; attachments: DraftComposerImageAttachment[] }
+  >,
   approve: vi.fn(),
   answer: vi.fn(),
   feedback: vi.fn(),
@@ -157,13 +167,13 @@ vi.mock("./use-composer-drafts", async () => {
     updateComposerDraftSettings: state.updateSettings,
     ensureComposerDraftsLoaded: () => {},
     scheduleUnusedComposerAttachmentCleanup: () => {},
-    appendComposerDraftAttachments: vi.fn(),
+    appendComposerDraftAttachments: state.appendAttachments,
     appendComposerDraftText: vi.fn(),
     mergeComposerDraftContent: vi.fn(),
     removeComposerDraftAttachment: vi.fn(),
     useComposerDraft: () => state.draft,
     useComposerDraftSettings: () => state.draft,
-    questionAttachmentDraftsAtom: () => Atom.make({}),
+    questionAttachmentDraftsAtom: () => Atom.make(state.questionDrafts),
   };
 });
 vi.mock("../lib/composerImages", () => ({
@@ -183,12 +193,16 @@ vi.mock("./use-remote-environment-registry", () => ({ setPendingConnectionError:
 
 import { useThreadComposerState } from "./use-thread-composer-state";
 import { useSelectedThreadRequests } from "./use-selected-thread-requests";
+import { questionAttachmentDraftKey } from "./question-attachments";
+import { startQuestionImagePreparation } from "./question-attachment-preparation";
+import { abortComposerDraftOperations } from "./composerDraftOperations";
 
 beforeEach(() => {
   state.grantedEnvironments = new Set(["primary"]);
   state.connectionState = "connected";
   state.draft = { text: "Keep my draft", attachments: [], modelSelection: undefined };
   state.freshPending = false;
+  state.questionDrafts = {};
   state.thread.latestRun = null;
   state.projection = null;
   state.serverConfig = {
@@ -317,6 +331,38 @@ describe("mobile task permissions", () => {
     expect(state.clearDraft).toHaveBeenCalledTimes(1);
   });
 
+  it("queues a goal command with the thread's settings and leaves the draft alone", async () => {
+    state.grantedEnvironments.add("secondary");
+    state.draft.modelSelection = {
+      instanceId: ProviderInstanceId.make("claudeAgent"),
+      model: "claude-sonnet-5-5",
+    };
+    Object.assign(state.draft, { runtimeMode: "approval-required" });
+    const composer = useThreadComposerState();
+    expect(await composer.onSendCommand("/goal clear")).toBe("message");
+    expect(state.enqueue).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        environmentId: "secondary",
+        threadId: "thread",
+        text: "/goal clear",
+        restoreToDraft: false,
+        attachments: [],
+        modelSelection: state.thread.modelSelection,
+        runtimeMode: state.thread.runtimeMode,
+      }),
+    );
+    expect(state.clearDraft).not.toHaveBeenCalled();
+    expect(state.draft.text).toBe("Keep my draft");
+  });
+
+  it("rechecks the operate grant before queueing a command", async () => {
+    state.grantedEnvironments.add("secondary");
+    const composer = useThreadComposerState();
+    state.grantedEnvironments.delete("secondary");
+    expect(await composer.onSendCommand("/goal clear")).toBeNull();
+    expect(state.enqueue).not.toHaveBeenCalled();
+  });
+
   it("rechecks the target environment before an approval response", async () => {
     state.grantedEnvironments.add("secondary");
     const requests = useSelectedThreadRequests();
@@ -389,6 +435,56 @@ describe("mobile approval redirect", () => {
     );
   });
 });
+
+it.each(["cancelled", "expired"] as const)(
+  "returns unsent attachments to the thread composer when a question is %s",
+  (status) => {
+    const environmentId = EnvironmentId.make("secondary");
+    const threadId = ThreadId.make("thread");
+    const unanswered = RuntimeRequestId.make("input");
+    const answered = RuntimeRequestId.make("input-other");
+    const questionKey = questionAttachmentDraftKey(environmentId, threadId, unanswered, "language");
+    const preparing = startQuestionImagePreparation(questionKey);
+    const preparingAnswered = startQuestionImagePreparation(
+      questionAttachmentDraftKey(environmentId, threadId, answered, "language"),
+    );
+    using _preparations = {
+      [Symbol.dispose]: () => {
+        preparing.finish();
+        preparingAnswered.finish();
+      },
+    };
+    const notes = {
+      id: "notes",
+      type: "file",
+      name: "notes.txt",
+      mimeType: "text/plain",
+      sizeBytes: 5,
+    } as unknown as DraftComposerImageAttachment;
+    state.questionDrafts = {
+      [questionKey]: {
+        text: "",
+        attachments: [notes],
+      },
+    };
+    makeThreadRequestsResolvedAnnouncer(
+      environmentId,
+      threadId,
+    )([
+      { id: unanswered, status },
+      { id: answered, status: "resolved" },
+    ]);
+    expect(state.appendAttachments).toHaveBeenCalledWith(
+      "secondary:thread",
+      [notes],
+      expect.objectContaining({ appendReference: true }),
+    );
+    expect(preparing.destination()).toBe("secondary:thread");
+    expect(preparingAnswered.destination()).toBeNull();
+    abortComposerDraftOperations("secondary:thread");
+    expect(preparing.destination()).toBeNull();
+  },
+);
 
 describe("mobile handoff preview and submission", () => {
   it("follows project enablement and provider availability for the selected destination", async () => {

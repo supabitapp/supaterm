@@ -1,5 +1,9 @@
+import { ProjectMonogramText } from "@supaterm/contracts";
 import { PROJECT_ICONS, type ProjectIcon } from "@supaterm/icons/project";
+import * as Schema from "effect/Schema";
 export { PROJECT_ICON_COLORS, projectIconColorClassName } from "./projectIconColors";
+
+const isProjectMonogramText = Schema.is(ProjectMonogramText);
 
 export const PROJECT_EMOJIS: ReadonlyArray<{ readonly emoji: string; readonly label: string }> = [
   { emoji: "💻", label: "Computer" },
@@ -44,6 +48,13 @@ export function filterProjectIcons(query: string): ReadonlyArray<ProjectIcon> {
   return PROJECT_ICONS.filter((icon) =>
     terms.every((term) => icon.name.includes(term) || icon.keywords.includes(term)),
   );
+}
+
+// The server also rejects monograms longer than two graphemes (ProjectCommands.ts).
+export function isValidProjectMonogram(text: string): boolean {
+  if (!isProjectMonogramText(text)) return false;
+  const segments = new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(text);
+  return Array.from(segments).length <= 2;
 }
 
 export function firstEmoji(value: string): string | null {

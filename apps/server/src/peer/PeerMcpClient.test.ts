@@ -13,6 +13,7 @@ import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
 import * as Layer from "effect/Layer";
+import * as Option from "effect/Option";
 import * as Queue from "effect/Queue";
 import * as Ref from "effect/Ref";
 import * as Schema from "effect/Schema";
@@ -47,35 +48,43 @@ const toolkit = Toolkit.make(
   }),
 );
 
+const box = descriptorOf("environment-box", "Box");
+
+/** A link to `box` at a remote address; `record` sees what calls over it record. */
+const layerFixtureLinks = (
+  record: Partial<Pick<PeerLinks.PeerLinks["Service"], "recordOutcome" | "recordExpiry">> = {},
+) => {
+  const link = {
+    environmentId: box.environmentId,
+    label: box.label,
+    urls: ["https://peer.example"],
+    access: "auto" as const,
+    linkedAt: DateTime.makeUnsafe(0),
+    expiresAt: DateTime.makeUnsafe(1),
+    lastReachedAt: null,
+    lastError: null,
+  };
+  return Layer.mock(PeerLinks.PeerLinks)({
+    get: () => Effect.succeedSome(link),
+    resolve: () =>
+      Effect.succeed({
+        link,
+        address: "https://peer.example",
+        url: "https://peer.example",
+        token: "fixture",
+        capabilities: box.capabilities,
+      }),
+    recordOutcome: () => Effect.void,
+    recordExpiry: () => Effect.void,
+    ...record,
+  });
+};
+
 /** One `probe` call to a linked peer at a remote address, answered by `http`. */
 const probeThrough = Effect.fn(function* (http: HttpClient.HttpClient) {
-  const box = descriptorOf("environment-box", "Box");
   const context = yield* Layer.build(
     PeerMcpClient.layer.pipe(
-      Layer.provide(
-        Layer.mergeAll(
-          Layer.succeed(HttpClient.HttpClient, http),
-          Layer.mock(PeerLinks.PeerLinks)({
-            resolve: () =>
-              Effect.succeed({
-                link: {
-                  environmentId: box.environmentId,
-                  label: box.label,
-                  urls: ["https://peer.example"],
-                  access: "auto",
-                  linkedAt: DateTime.makeUnsafe(0),
-                  expiresAt: DateTime.makeUnsafe(1),
-                  lastReachedAt: null,
-                  lastError: null,
-                },
-                address: "https://peer.example",
-                url: "https://peer.example",
-                token: "fixture",
-              }),
-            recordOutcome: () => Effect.void,
-          }),
-        ),
-      ),
+      Layer.provide(Layer.merge(Layer.succeed(HttpClient.HttpClient, http), layerFixtureLinks())),
     ),
   );
   return Context.get(context, PeerMcpClient.PeerMcpClient).call({
@@ -114,7 +123,6 @@ it.effect("tells the peer which thread a call is made for", () =>
           ),
         ),
       });
-      const box = descriptorOf("environment-box", "Box");
       const b = yield* servePeer(box, McpHttpServer.toolkitRegistration(senderToolkit, handlers));
       const context = yield* Layer.build(
         layerLinkingEnvironment(descriptorOf("environment-a", "A")),
@@ -172,7 +180,6 @@ it.effect.each([false, true])(
             ),
           ),
         });
-        const box = descriptorOf("environment-box", "Box");
         const b = yield* servePeer(box, McpHttpServer.toolkitRegistration(toolkit, handlers));
         const context = yield* Layer.build(
           layerLinkingEnvironment(descriptorOf("environment-a", "A")),
@@ -217,15 +224,14 @@ it.effect("keeps a link healthy when the peer refuses a call", () =>
         hold: McpToolAccess.reads(() => Effect.succeed({ modes: "" })),
         refuse: McpToolAccess.reads(() => Effect.fail(refusal)),
       });
-      const box = descriptorOf("environment-box", "Box");
       const b = yield* servePeer(box, McpHttpServer.toolkitRegistration(toolkit, handlers));
       const context = yield* Layer.build(
         layerLinkingEnvironment(descriptorOf("environment-a", "A")),
       );
       const links = Context.get(context, PeerLinks.PeerLinks);
       const client = Context.get(context, PeerMcpClient.PeerMcpClient);
-      yield* linkTo(links, b);
-      yield* links.recordOutcome(box.environmentId, { error: "earlier outage" });
+      const linked = yield* linkTo(links, b);
+      yield* links.recordOutcome(linked, { error: "earlier outage" });
       const refused = yield* client
         .call({
           environmentId: box.environmentId,
@@ -237,8 +243,78 @@ it.effect("keeps a link healthy when the peer refuses a call", () =>
         .pipe(Effect.flip);
       // The agent hears the peer's own refusal; the link answered, so it is not failing.
       expect(refused).toMatchObject({ code: refusal.code, message: refusal.message });
-      const link = yield* links.get(box.environmentId);
-      expect(link._tag === "Some" ? link.value.lastError : "missing").toBeNull();
+      const lastError = links
+        .get(box.environmentId)
+        .pipe(Effect.map((link) => (link._tag === "Some" ? link.value.lastError : "missing")));
+      expect(yield* lastError).toBeNull();
+
+      // Work sent under the first link is turned away from the second, which stays healthy.
+      yield* TestClock.adjust(Duration.millis(1));
+      yield* linkTo(links, b);
+      const stale = yield* client
+        .call({
+          environmentId: box.environmentId,
+          tool: "probe",
+          arguments: {},
+          limits: { runtimeMode: "full-access", interactionMode: "default" },
+          linkedAt: DateTime.formatIso(linked.linkedAt),
+          success: Result,
+        })
+        .pipe(Effect.flip);
+      expect(stale.code).toBe("invalid_request");
+      expect(yield* lastError).toBeNull();
+    }),
+  ).pipe(Effect.provide(NodeHttpServer.layerTest)),
+);
+
+it.effect("keeps the expiry the peer answers with, so a used link outlives its first 30 days", () =>
+  Effect.scoped(
+    Effect.gen(function* () {
+      const handlers = McpToolAccess.toLayer(toolkit, {
+        probe: McpToolAccess.reads(() => Effect.succeed({ modes: "" })),
+        hold: McpToolAccess.reads(() => Effect.succeed({ modes: "" })),
+        refuse: McpToolAccess.reads(() => Effect.fail(refusal)),
+      });
+      const b = yield* servePeer(box, McpHttpServer.toolkitRegistration(toolkit, handlers));
+      const context = yield* Layer.build(
+        layerLinkingEnvironment(descriptorOf("environment-a", "A")),
+      );
+      const links = Context.get(context, PeerLinks.PeerLinks);
+      const client = Context.get(context, PeerMcpClient.PeerMcpClient);
+      const linked = yield* linkTo(links, b);
+      const day = 24 * 60 * 60 * 1000;
+      const call = client.call({
+        environmentId: box.environmentId,
+        tool: "probe",
+        arguments: {},
+        limits: { runtimeMode: "full-access", interactionMode: "default" },
+        success: Result,
+      });
+      const storedExpiry = links
+        .get(box.environmentId)
+        .pipe(
+          Effect.map((link) => (Option.isSome(link) ? link.value.expiresAt.epochMilliseconds : 0)),
+        );
+      const expiryThere = b.linkedSessions.pipe(
+        Effect.map((sessions) => sessions[0]?.expiresAt.epochMilliseconds),
+      );
+      const linkedAt = linked.linkedAt.epochMilliseconds;
+      expect(yield* storedExpiry).toBe(linkedAt + 30 * day);
+
+      yield* TestClock.adjust("20 days");
+      yield* call;
+      expect(yield* expiryThere).toBe(linkedAt + 50 * day);
+      expect(yield* storedExpiry).toBe(linkedAt + 50 * day);
+
+      yield* TestClock.adjust("20 days");
+      expect(yield* call).toEqual({ modes: "" });
+      expect(yield* storedExpiry).toBe(linkedAt + 70 * day);
+
+      // Idle for the whole window, the link expires on both sides.
+      yield* TestClock.adjust("30 days");
+      expect((yield* call.pipe(Effect.flip)).code).toBe("capability_denied");
+      expect((yield* links.list)[0]?.status).toBe("expired");
+      expect(yield* b.linkedSessions).toEqual([]);
     }),
   ).pipe(Effect.provide(NodeHttpServer.layerTest)),
 );
@@ -248,6 +324,7 @@ it.effect("renews a missing peer session once and reuses its replacement", () =>
     const sessionHeaders: Array<string | undefined> = [];
     const statuses = [200, 202, 404, 200, 202, 200, 200, 200];
     const outcomes: Array<string | null> = [];
+    const expiries: Array<string> = [];
     const http = HttpClient.make((request) =>
       Effect.sync(() => {
         const index = sessionHeaders.length;
@@ -270,7 +347,10 @@ it.effect("renews a missing peer session once and reuses its replacement", () =>
               status,
               headers:
                 index === 0
-                  ? { "mcp-session-id": "old" }
+                  ? {
+                      "mcp-session-id": "old",
+                      [McpInvocationContext.LINK_EXPIRES_AT_HEADER]: "1970-01-02T00:00:00.000Z",
+                    }
                   : index === 3
                     ? { "mcp-session-id": "renewed" }
                     : {},
@@ -279,30 +359,15 @@ it.effect("renews a missing peer session once and reuses its replacement", () =>
         );
       }),
     );
-    const box = descriptorOf("environment-box", "Box");
     const context = yield* Layer.build(
       PeerMcpClient.layer.pipe(
         Layer.provide(
-          Layer.mergeAll(
+          Layer.merge(
             Layer.succeed(HttpClient.HttpClient, http),
-            Layer.mock(PeerLinks.PeerLinks)({
-              resolve: () =>
-                Effect.succeed({
-                  link: {
-                    environmentId: box.environmentId,
-                    label: box.label,
-                    urls: ["https://peer.example"],
-                    access: "auto",
-                    linkedAt: DateTime.makeUnsafe(0),
-                    expiresAt: DateTime.makeUnsafe(1),
-                    lastReachedAt: null,
-                    lastError: null,
-                  },
-                  address: "https://peer.example",
-                  url: "https://peer.example",
-                  token: "fixture",
-                }),
+            layerFixtureLinks({
               recordOutcome: (_, outcome) => Effect.sync(() => outcomes.push(outcome.error)),
+              recordExpiry: (_, expiresAt) =>
+                Effect.sync(() => expiries.push(DateTime.formatIso(expiresAt))),
             }),
           ),
         ),
@@ -331,6 +396,8 @@ it.effect("renews a missing peer session once and reuses its replacement", () =>
       })
       .pipe(Effect.flip);
     expect(outcomes).toEqual([null, null, empty.message]);
+    // Only the handshake answered with an expiry, and it is kept.
+    expect(expiries).toEqual(["1970-01-02T00:00:00.000Z"]);
     expect(sessionHeaders).toEqual([
       undefined,
       "old",

@@ -9,6 +9,8 @@ On web and desktop, a new thread keeps the current project and carries your mode
 and mode selections, unless the destination project has its own model default.
 Its branch and workspace mode come from your configured defaults. To continue in
 an existing worktree, use **New thread in this worktree** from the branch toolbar.
+While the sidebar is filtered to one project, the sidebar's **New thread** button
+starts the thread in that project instead of the current one.
 
 On mobile, **New thread** starts in the project the thread list is filtered to,
 or else in the last project you opened or chose on that device. If neither is
@@ -65,7 +67,12 @@ open, it uses your primary machine if that supports it, or else the first connec
 machine that does. On mobile, Settings asks which machine when more than one can.
 
 If the app cannot open, run `supaterm triage` in a terminal on the affected machine
-instead.
+instead. It starts Claude Code, Codex, or Antigravity there with the same
+instructions. If more than one is installed, it asks which to use; pass
+`--agent antigravity` or `--agent codex` to choose. Antigravity needs Google's
+standalone `agy` CLI on your `PATH` and its own sign-in. The ACP runtime installed
+through Supaterm does not include this terminal CLI. Pass `--model <model-id>` to
+choose a model, or leave it out to use the CLI's default.
 
 ### Start in the background
 
@@ -366,29 +373,41 @@ of the thread's last side chat, or of the thread itself if none is open.
 The pane stays with its thread: switching to another thread from either pane puts
 the side chat away, and it comes back beside the thread when you return. Closing
 the thread's pane puts it away too, unless the side chat would be the only pane left.
-A bare `/side` opens an empty side chat; nothing is created until you send its first
-message. Side chats do not show in the sidebar or in search. Find one again under
-**Side chats** in thread details.
+A bare `/side` with nothing attached opens an empty side chat; nothing is created
+until you send its first message. Side chats do not show in the sidebar or in search.
+Find one again under **Side chats** in thread details.
 
 On mobile, type `/side` or `/btw` in the composer, or choose **Start side chat** in
 the command palette. A thread lists its side chats above the composer; tap one to
-open it.
+open it. If a side chat does not start, your message stays in the composer; send it
+again to retry.
 
+Attachments and context in the composer go to the side chat with your question.
 A side chat starts with the permissions, model, and reasoning level shown in the
 thread's composer, including for its first reply, and works in the same folder as the
 thread. Its agent cannot start or message other threads, and it cannot be forked.
 
+To use what you learned on web and desktop, choose **Add to chat** at the top of the
+side chat, or type `@` and a word from its title in the thread's composer. The
+thread's message gets a link to the side chat, and the agent reads as much of it as
+it needs. This works while the thread is busy, once you have sent a message in the
+side chat. An agent on an external OpenCode server cannot read the link, so put the
+details in your message instead.
+
 The side chat's actions sit at its top on web and desktop, and above its composer on
 mobile:
 
-- **Bring back** gives the thread the side chat with your next message there. It is
-  available while the thread is idle.
+- **Add to chat** (web and desktop) links the side chat in the thread's composer.
+- **Bring back** (mobile) gives the thread the side chat with your next message there.
+  It is available while the thread is idle. On web and desktop, **Merge back** in the
+  side chat's thread details does the same.
 - **Promote** makes the side chat a full thread. It shows in the sidebar, can be
   forked, and stays when you delete the thread it came from.
 - **Delete** removes the side chat.
 
 Side chats stay until you delete or promote them. Deleting a thread also deletes its
-side chats; the confirmation says how many.
+side chats; the confirmation says how many. Archiving a thread also archives its side
+chats and stops their work, and unarchiving the thread brings them back.
 
 ## Snooze until later
 

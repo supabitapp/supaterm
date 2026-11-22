@@ -13,4 +13,13 @@ describe("formatWorkspaceRelativePath", () => {
     );
     expect(formatWorkspaceRelativePath("src/app.ts", workspaceRoot)).toBe("supaterm/src/app.ts");
   });
+
+  it("keeps home paths as written instead of labelling them as workspace paths", () => {
+    expect(formatWorkspaceRelativePath("~/.claude/CLAUDE.md", "/workspace/supaterm")).toBe(
+      "~/.claude/CLAUDE.md",
+    );
+    expect(formatWorkspaceRelativePath("~\\.claude\\CLAUDE.md:3", "C:\\dev\\supaterm")).toBe(
+      "~/.claude/CLAUDE.md:3",
+    );
+  });
 });

@@ -200,6 +200,11 @@ describe("editing scheduled task branch settings", () => {
     });
     expect(draft.startFromOrigin).toBe(startFromOrigin);
   });
+
+  it("leaves the base automatic when a task without a worktree switches to one", () => {
+    const draft = taskToDraft({ ...legacyTask, workspaceStrategy: { type: "root" } });
+    expect(draft.baseRef).toBe("");
+  });
 });
 
 describe("fixed-time scheduled tasks", () => {

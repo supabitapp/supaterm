@@ -58,7 +58,8 @@ const provider: ServerProvider = {
 describe("provider compatibility", () => {
   it("keeps each release on the OpenCode policy it shipped with", () => {
     // Older builds fetch main's manifest: before 0.0.46 the V1 orchestrator cannot drive
-    // OpenCode 2, and before 26.10.13 OpenCode 1.x still runs with limited support.
+    // OpenCode 2, before 26.10.13 OpenCode 1.x still runs with limited support, and from
+    // 26.10.13 anything before 2.0.18 is refused.
     const opencode = ProviderDriverKind.make("opencode");
     for (const [supaterm, version, expected, recommended] of [
       ["0.0.45", "1.14.19", "supported", "1.14.19"],
@@ -67,8 +68,8 @@ describe("provider compatibility", () => {
       ["26.10.12", "1.18.32", "graceful", null],
       ["26.10.12", "2.0.17", "unsupported", null],
       ["26.10.12", "2.0.18", "supported", null],
-      ["26.10.13", "1.18.32", "unknown", null],
-      ["26.10.13", "2.0.17", "unsupported", null],
+      ["26.10.13", "1.18.32", "broken", null],
+      ["26.10.13", "2.0.17", "broken", null],
       ["26.10.13", "2.0.18", "supported", null],
     ] as const) {
       const advisory = resolveProviderCompatibility(
@@ -79,6 +80,22 @@ describe("provider compatibility", () => {
       );
       assert.strictEqual(advisory?.status, expected, `OpenCode ${version} on ${supaterm}`);
       assert.strictEqual(advisory?.recommendedVersion, recommended);
+    }
+    // The current policy rates a prerelease or build by its base version.
+    for (const [version, expected] of [
+      ["1.13.0-beta.1", "broken"],
+      ["1.13.0+abc123", "broken"],
+      ["2.1.0-rc.1", "supported"],
+    ] as const) {
+      assert.strictEqual(
+        resolveProviderCompatibility(
+          ModelManifest.BUNDLED_MODEL_MANIFEST.compatibility,
+          opencode,
+          version,
+        )?.status,
+        expected,
+        `OpenCode ${version}`,
+      );
     }
     assert.isUndefined(
       resolveProviderCompatibility(
@@ -95,6 +112,7 @@ describe("provider compatibility", () => {
     const cursorPolicy: ProviderCompatibilityPolicy = {
       driver: cursor,
       supatermRange: policy.supatermRange,
+      versionPattern: "^(\\d{4}\\.\\d{2}\\.\\d{2})-[a-f0-9]+$",
       ranges: [
         { range: "<2026.05.09", status: "unsupported" },
         { range: ">=2026.05.09", status: "supported" },
@@ -118,41 +136,30 @@ describe("provider compatibility", () => {
     );
   });
 
-  it("recognizes Antigravity semver release tags while keeping dated candidates unknown", () => {
+  it("marks Antigravity below 1.5 broken and recommends 1.5.12 in the bundled manifest", () => {
+    const policies = decodeCompatibilityPolicies(bundledManifest.compatibility);
     const antigravity = ProviderDriverKind.make("antigravity");
-    const taggedPolicy = {
-      ...policy,
-      driver: antigravity,
-      ranges: [{ range: "=2.0.0", status: "supported" as const }],
-    };
-    for (const [version, expected] of [
-      ["agy_acp_server_2.0.0", "supported"],
-      ["2.0.0", "supported"],
-      ["agy_acp_server_2.0.1", "unknown"],
-      ["agy_acp_server_2.0.0-beta.1", "unknown"],
-      ["agy_acp_server_20260818_01_RC01", "unknown"],
-    ] as const) {
-      assert.strictEqual(
-        resolveProviderCompatibility([taggedPolicy], antigravity, version)?.status,
-        expected,
-      );
+    for (const version of [
+      "1.1.1",
+      "1.3.0",
+      "1.4.1",
+      "1.4.5",
+      "1.4.9",
+      "agy_acp_server_1.4.5",
+      "1.4.5-beta",
+    ]) {
+      const advisory = resolveProviderCompatibility(policies, antigravity, version, "26.10.13");
+      assert.strictEqual(advisory?.status, "broken", version);
     }
+    const supported = resolveProviderCompatibility(policies, antigravity, "1.5.11", "26.10.13");
+    assert.strictEqual(supported?.status, "supported");
+    assert.strictEqual(supported?.recommendedRange, ">=1.5.12 <2");
+    // Releases before 26.10.13 cannot install the CLI, so they keep the policy they shipped with.
+    assert.strictEqual(
+      resolveProviderCompatibility(policies, antigravity, "1.4.5", "26.10.12")?.status,
+      "supported",
+    );
   });
-
-  it.each(["1.4.5", "1.5.7"])(
-    "supports the legacy and native Antigravity runtime %s in the bundled manifest",
-    (version) => {
-      const policies = decodeCompatibilityPolicies(bundledManifest.compatibility);
-      assert.strictEqual(
-        resolveProviderCompatibility(
-          policies,
-          ProviderDriverKind.make("antigravity"),
-          `agy_acp_server_${version}`,
-        )?.status,
-        "supported",
-      );
-    },
-  );
 
   it("classifies boundaries and treats unlisted versions and release tags as unknown", () => {
     for (const [version, expected] of [
@@ -163,7 +170,6 @@ describe("provider compatibility", () => {
       ["v2.0.0", "supported"],
       ["3.0.0", "unknown"],
       ["2.0.0-beta.1", "unknown"],
-      ["agy_acp_server_20260818_01_RC01", "unknown"],
       [null, "unknown"],
     ] as const) {
       assert.strictEqual(resolveProviderCompatibility([policy], driver, version)?.status, expected);

@@ -1,7 +1,8 @@
 import { useAtomValue } from "@effect/atom-react";
 import type { EnvironmentId } from "@supaterm/contracts";
 import { CHATGPT_USAGE_URL, collectExternalUsageLinks } from "@supaterm/shared/usageLimits";
-import { Linking, Pressable, View } from "react-native";
+import { Pressable, View } from "react-native";
+import { tryOpenExternalUrl } from "../../lib/openExternalUrl";
 import { AppText as Text } from "../../components/ui/AppText";
 import { ProviderIcon } from "../../components/ProviderIcon";
 import { environmentPresentations } from "../../state/presentation";
@@ -28,7 +29,7 @@ export function ChatGptUsageSummary({
         <Pressable
           accessibilityRole="link"
           className="min-h-11 justify-center"
-          onPress={() => void Linking.openURL(usage.url).catch(() => undefined)}
+          onPress={() => void tryOpenExternalUrl(usage.url)}
         >
           <Text className="text-sm font-supaterm-medium text-primary">Manage usage</Text>
         </Pressable>

@@ -21,10 +21,18 @@ import { remarkGithubAlerts } from "./markdownGithubAlerts.ts";
 import { remarkNormalizeListItemIndentation } from "./markdownListIndentation.ts";
 import { remarkKeepOrderedListNumbers } from "./markdownOrderedListNumbers.ts";
 import {
+  remarkEnableLeadingWhitespace,
+  remarkKeepLeadingWhitespace,
+} from "./markdownLeadingWhitespace.ts";
+import {
   CODEX_ARTIFACT_TEMPLATE_HAST_PROPERTIES,
   remarkCodexDirectives,
 } from "./codexMarkdownDirectives.ts";
-import { absoluteFilePathMatches, isWindowsDrivePathHref } from "./markdownLinks.ts";
+import {
+  absoluteFilePathMatches,
+  isWindowsDrivePathHref,
+  normalizeMarkdownLinkDestination,
+} from "./markdownLinks.ts";
 import { isWindowsAbsolutePath } from "./path.ts";
 import { THREAD_LINK_PROTOCOL } from "./threadLinks.ts";
 
@@ -254,10 +262,12 @@ export const CHAT_MARKDOWN_REMARK_PLUGINS: PluggableList = [
   remarkNormalizeLinksAndTagInlineCode,
 ];
 
+// Leading whitespace is kept only where each line renders as a line.
 export const CHAT_MARKDOWN_REMARK_PLUGINS_WITH_BREAKS: PluggableList = [
   remarkGfm,
   remarkEndAutolinksAtScriptPunctuation,
   remarkKeepAutolinkSuffixes,
+  remarkKeepLeadingWhitespace,
   remarkLinkAbsoluteFilePaths,
   remarkKeepWindowsPathDestinations,
   remarkGithubAlerts,
@@ -272,8 +282,10 @@ export const CHAT_MARKDOWN_REMARK_PLUGINS_WITH_BREAKS: PluggableList = [
 
 // Users type paths like ~/a and (~/b, which GFM's single-tilde strikethrough hides as <del>.
 // Appended after the base list, this reconfigures its remark-gfm entry; ~~double~~ still strikes.
+// Users also indent lines with spaces, which CommonMark drops from a paragraph.
 export const CHAT_USER_MARKDOWN_REMARK_PLUGINS: PluggableList = [
   [remarkGfm, { singleTilde: false }],
+  remarkEnableLeadingWhitespace,
 ];
 
 // Start tags an HTML parser closes an open `<p>` for.
@@ -819,6 +831,37 @@ export function remarkAssistantInsights(this: Processor) {
       restorePosition(node);
     }
     tree.children = parsed.children;
+  };
+}
+
+export type ChatMarkdownImageProperties = {
+  readonly src?: unknown;
+  readonly dataLocalSrc?: unknown;
+  readonly dataDarkSrc?: unknown;
+  readonly dataLightSrc?: unknown;
+};
+
+/** Keep the authored path for file links and normalize Windows separators for classification. */
+export function chatMarkdownImageSource(
+  properties?: ChatMarkdownImageProperties,
+  theme?: "dark" | "light",
+) {
+  const themeSrc =
+    theme === undefined
+      ? undefined
+      : properties?.[theme === "dark" ? "dataDarkSrc" : "dataLightSrc"];
+  const localSrc = typeof themeSrc === "string" ? undefined : properties?.dataLocalSrc;
+  const source =
+    typeof themeSrc === "string"
+      ? themeSrc
+      : typeof localSrc === "string"
+        ? localSrc
+        : properties?.src;
+  if (typeof source !== "string") return null;
+  const authoredSrc = normalizeMarkdownLinkDestination(source);
+  return {
+    authoredSrc,
+    classifiedSrc: typeof localSrc === "string" ? authoredSrc.replaceAll("\\", "/") : authoredSrc,
   };
 }
 

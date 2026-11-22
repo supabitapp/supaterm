@@ -1,6 +1,6 @@
 import { SessionPermissions } from "./SessionPermissions";
 import { ChevronRightIcon, EllipsisIcon, PencilIcon } from "@supaterm/icons";
-import { useAtomValue } from "@effect/atom-react";
+import { useAtom, useAtomValue } from "@effect/atom-react";
 import { type ReactNode, useRef, useState } from "react";
 import {
   AuthAccessReadScope,
@@ -23,7 +23,7 @@ import {
   squashAtomCommandFailure,
 } from "@supaterm/client-runtime/state/runtime";
 import * as Cause from "effect/Cause";
-import { useUpdatePrimarySettings } from "../../hooks/useSettings";
+import { useUpdateEnvironmentSettings, useUpdatePrimarySettings } from "../../hooks/useSettings";
 import { PublicRelaySettings, usePublicRelayStatus } from "./PublicRelaySettings";
 import { isLocalEnvironmentDisabled } from "../../localEnvironment";
 import { resolvePairingShareValue } from "./pairingUrls";
@@ -102,11 +102,12 @@ import {
   useEnvironmentSessionState,
 } from "~/state/session";
 import { useEnvironmentQuery } from "~/state/query";
+import { addEnvironmentPrefillAtom } from "~/state/linkedThreadView";
 import {
   desktopNetworkAccessStateAtom,
   refreshDesktopNetworkAccessState,
 } from "~/state/desktopNetworkAccess";
-import { desktopWslStateAtom, refreshDesktopWslState } from "~/state/desktopWslState";
+import { desktopWslAccessStateAtom, refreshDesktopWslState } from "~/state/desktopWslState";
 import { useDesktopUpdateState } from "~/state/desktopUpdate";
 import {
   type EnvironmentPresentation,
@@ -345,11 +346,14 @@ function ConnectionsSettingsContent({
   const [addBackendDialogOpen, setAddBackendDialogOpen] = useState(false);
   const [routeTarget, setRouteTarget] = useState<EnvironmentPresentation | null>(null);
   const [savedBackendError, setSavedBackendError] = useState<string | null>(null);
+  // Set by a read-only linked thread whose machine this client is about to pair with.
+  const [addPrefill, setAddPrefill] = useAtom(addEnvironmentPrefillAtom);
   const handleAddBackendDialogOpenChange = (open: boolean) => {
     setAddBackendDialogOpen(open);
     if (!open) {
       setSavedBackendError(null);
       setRouteTarget(null);
+      setAddPrefill(null);
     }
   };
   const [removingSavedEnvironmentId, setRemovingSavedEnvironmentId] =
@@ -387,6 +391,7 @@ function ConnectionsSettingsContent({
   );
   const canReadAccess = useEnvironmentScope(accessEnvironmentId, AuthAccessReadScope);
   const canWriteAccess = useEnvironmentScope(accessEnvironmentId, AuthAccessWriteScope);
+  const updateAccessSettings = useUpdateEnvironmentSettings(accessEnvironmentId);
   const canMaintain = useEnvironmentScope(accessEnvironmentId, AuthEnvironmentMaintainScope);
   const canManageLocalBackend = isPrimaryAccess && !isLocalEnvironmentDisabled() && canMaintain;
   const updatePrimarySettings = useUpdatePrimarySettings();
@@ -411,7 +416,7 @@ function ConnectionsSettingsContent({
     showsAccess && canManageLocalBackend && desktopBridge ? desktopNetworkAccessStateAtom : null,
   );
   const desktopWsl = useEnvironmentQuery(
-    showsAccess && canManageLocalBackend && desktopBridge ? desktopWslStateAtom : null,
+    showsAccess && canManageLocalBackend && desktopBridge ? desktopWslAccessStateAtom : null,
   );
   const desktopWslState = desktopWsl.data;
   const desktopWslError = desktopWslMutationError ?? desktopWsl.error;
@@ -1308,6 +1313,22 @@ function ConnectionsSettingsContent({
                 }
               />
             ) : null}
+            {accessServerConfig?.environment.capabilities.previewTunnelSetting ? (
+              <SettingsRow
+                title={searchableSetting("preview-tunnel").title}
+                description="Lets other devices open this machine's local servers: browser tabs loaded on the device, Open on this device, and port forwarding. Off: browser tabs stream from this machine."
+                control={
+                  <Switch
+                    checked={accessServerConfig.settings.enablePreviewTunnel}
+                    disabled={!canWriteAccess}
+                    aria-label="Allow the preview tunnel"
+                    onCheckedChange={(enabled) =>
+                      void updateAccessSettings({ enablePreviewTunnel: enabled })
+                    }
+                  />
+                }
+              />
+            ) : null}
           </SettingsSection>
 
           {canReadAccess || canWriteAccess ? (
@@ -1673,7 +1694,9 @@ function ConnectionsSettingsContent({
               <ServerUpdatesAction targets={savedServerUpdateTargets} variant="ghost-muted" />
             ) : null}
             <AddEnvironmentDialog
-              open={addBackendDialogOpen}
+              key={addPrefill?.environmentId ?? "any"}
+              open={addBackendDialogOpen || addPrefill !== null}
+              prefill={addPrefill}
               routeTarget={routeTarget}
               error={savedBackendError}
               savedEnvironments={savedEnvironments}

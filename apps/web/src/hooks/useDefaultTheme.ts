@@ -1,5 +1,5 @@
 import { appAtomRegistry } from "../rpc/atomRegistry";
-import { themeEnvironmentIdAtom } from "../state/primaryEnvironment";
+import { localEnvironmentIdAtom } from "../state/primaryEnvironment";
 import { themeServerSettingsAtom } from "../state/server";
 import { getThemeDefinition, singleAppearanceOf, subscribeToCustomThemes } from "../themePalette";
 import { setAppearanceMode, setTheme } from "./useTheme";
@@ -45,7 +45,7 @@ function writeAppliedGeneration(storageKey: string, generation: string): void {
 
 function adoptDefaultTheme(): void {
   if (typeof window === "undefined") return;
-  const environmentId = appAtomRegistry.get(themeEnvironmentIdAtom);
+  const environmentId = appAtomRegistry.get(localEnvironmentIdAtom);
   if (environmentId === null) return;
   const { defaultTheme, defaultThemeSetAt } = appAtomRegistry.get(themeServerSettingsAtom);
   const definition = getThemeDefinition(defaultTheme);
@@ -75,7 +75,7 @@ function adoptDefaultTheme(): void {
  */
 export function startDefaultThemeAdoption(): () => void {
   const unsubscribes = [
-    appAtomRegistry.subscribe(themeEnvironmentIdAtom, adoptDefaultTheme),
+    appAtomRegistry.subscribe(localEnvironmentIdAtom, adoptDefaultTheme),
     appAtomRegistry.subscribe(themeServerSettingsAtom, adoptDefaultTheme),
     subscribeToCustomThemes(adoptDefaultTheme),
   ];

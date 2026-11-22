@@ -379,6 +379,15 @@ export class SessionStore extends Context.Service<
       readonly replaceSessionId?: AuthSessionId;
     }) => Effect.Effect<IssuedSession, SessionCredentialInternalError>;
     readonly verify: (token: string) => Effect.Effect<VerifiedSession, SessionCredentialError>;
+    /**
+     * Moves a live session's expiry to `expiresAt` unless it is already within `step` of it, and
+     * returns the expiry it now has. None when it is revoked, expired or missing.
+     */
+    readonly extend: (
+      sessionId: AuthSessionId,
+      expiresAt: DateTime.Utc,
+      step: Duration.Duration,
+    ) => Effect.Effect<Option.Option<DateTime.Utc>, SessionCredentialInternalError>;
     readonly issueWebSocketToken: (
       sessionId: AuthSessionId,
       input?: {
@@ -426,7 +435,8 @@ const SessionClaims = Schema.Struct({
   scopes: AuthEnvironmentScopes,
   method: IssuableSessionMethod,
   rtc: Schema.optionalKey(RuntimeMode),
-  plk: Schema.optionalKey(Schema.Literal(1)),
+  /** A peer link's generation; 1 was signed while links still had a switch. */
+  plk: Schema.optionalKey(Schema.Literals([1, 2])),
   iat: Schema.Number,
   exp: Schema.Number,
 });
@@ -643,7 +653,7 @@ const make = Effect.gen(function* () {
         scopes: input?.scopes ?? AuthStandardClientScopes,
         method: input?.method ?? "browser-session-cookie",
         ...(input?.runtimeModeCeiling ? { rtc: input.runtimeModeCeiling } : {}),
-        ...(input?.peerLink === true ? { plk: 1 as const } : {}),
+        ...(input?.peerLink === true ? { plk: 2 as const } : {}),
         iat: issuedAt.epochMilliseconds,
         exp: expiresAt.epochMilliseconds,
       };
@@ -788,7 +798,10 @@ const make = Effect.gen(function* () {
           expirationClaim: claims.exp,
         });
       }
-      if (claims.exp <= observedAt.epochMilliseconds) {
+      // A peer link's session renews while it is used and its token is never
+      // reissued, so the session row holds its deadline, not the token.
+      const rowHoldsDeadline = claims.plk === 2;
+      if (!rowHoldsDeadline && claims.exp <= observedAt.epochMilliseconds) {
         return yield* new SessionTokenExpiredError({
           sessionId: claims.sid,
           expiresAt: expiresAt.value,
@@ -812,19 +825,68 @@ const make = Effect.gen(function* () {
           revokedAt: row.value.revokedAt,
         });
       }
+      // A link signed while links had a switch may have been paused by it; it ends here, so an
+      // upgrade never resumes it. The linking side forgot its token in migration 024.
+      if (claims.plk === 1) {
+        const revokedAt = yield* DateTime.now;
+        yield* revoke(claims.sid).pipe(
+          Effect.ignore({ log: "Warn", message: "Could not revoke a link from before 024" }),
+        );
+        return yield* new SessionTokenRevokedError({ sessionId: claims.sid, revokedAt });
+      }
+      if (
+        rowHoldsDeadline &&
+        row.value.expiresAt.epochMilliseconds <= observedAt.epochMilliseconds
+      ) {
+        return yield* new SessionTokenExpiredError({
+          sessionId: claims.sid,
+          expiresAt: row.value.expiresAt,
+          observedAt,
+        });
+      }
 
       return {
         sessionId: claims.sid,
         token,
         method: claims.method,
         client: toClientMetadata(row.value.client),
-        expiresAt: expiresAt.value,
+        expiresAt: rowHoldsDeadline ? row.value.expiresAt : expiresAt.value,
         subject: claims.sub,
         scopes: row.value.scopes,
         ...(claims.rtc ? { runtimeModeCeiling: claims.rtc } : {}),
-        ...(claims.plk === 1 ? { peerLink: true as const } : {}),
+        ...(claims.plk === 2 ? { peerLink: true as const } : {}),
       } satisfies VerifiedSession;
     },
+  );
+
+  const extend: SessionStore["Service"]["extend"] = Effect.fn("SessionStore.extend")(
+    function* (sessionId, expiresAt, step) {
+      const now = yield* DateTime.now;
+      // The step is checked in the update, so of two uses that read the same expiry one writes.
+      const extended = yield* authSessions.extend({
+        sessionId,
+        expiresAt,
+        now,
+        onlyIfExpiresBy: DateTime.subtract(expiresAt, { milliseconds: Duration.toMillis(step) }),
+      });
+      if (!extended) {
+        const row = yield* authSessions.getById({ sessionId });
+        return Option.filter(
+          Option.map(row, (current) => current.expiresAt),
+          (current) =>
+            Option.exists(row, (session) => session.revokedAt === null) &&
+            DateTime.isGreaterThan(current, now),
+        );
+      }
+      const session = yield* loadActiveSession(sessionId);
+      if (Option.isSome(session)) yield* emitUpsert(session.value);
+      return Option.some(expiresAt);
+    },
+    (effect, sessionId) =>
+      Effect.mapError(
+        effect,
+        (cause) => new SessionCredentialVerificationError({ sessionId, cause }),
+      ),
   );
 
   const encodeWsClaims = Schema.encodeEffect(Schema.fromJsonString(WebSocketClaims));
@@ -1047,6 +1109,7 @@ const make = Effect.gen(function* () {
   return SessionStore.of({
     cookieName,
     issue,
+    extend,
     verify,
     issueWebSocketToken,
     verifyWebSocketToken,

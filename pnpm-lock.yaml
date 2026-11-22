@@ -173,11 +173,11 @@ settings:
 catalogs:
   default:
     '@effect/graphql-generator':
-      specifier: 4.1.2
-      version: 4.1.2
+      specifier: 4.1.5
+      version: 4.1.5
     '@effect/openapi-generator':
-      specifier: 4.1.2
-      version: 4.1.2
+      specifier: 4.1.5
+      version: 4.1.5
     '@noble/hashes':
       specifier: 1.8.0
       version: 1.8.0
@@ -255,7 +255,7 @@ overrides:
   expo-video: 58.0.13
   expo-widgets: 58.0.27
   '@ff-labs/fff-node': 0.11.0
-  '@legendapp/list': 3.7.2
+  '@legendapp/list': 3.7.3
   '@pierre/diffs': 1.6.1
   '@react-native-menu/menu': 2.0.0
   '@react-navigation/native-stack': 7.21.0
@@ -281,10 +281,10 @@ overrides:
   '@anthropic-ai/claude-agent-sdk>@anthropic-ai/claude-agent-sdk-linux-x64-musl': '-'
   '@anthropic-ai/claude-agent-sdk>@anthropic-ai/claude-agent-sdk-win32-arm64': '-'
   '@anthropic-ai/claude-agent-sdk>@anthropic-ai/claude-agent-sdk-win32-x64': '-'
-  '@effect/atom-react': 4.1.2
-  '@effect/platform-node': 4.1.2
-  '@effect/platform-node-shared': 4.1.2
-  '@effect/vitest': 4.1.2
+  '@effect/atom-react': 4.1.5
+  '@effect/platform-node': 4.1.5
+  '@effect/platform-node-shared': 4.1.5
+  '@effect/vitest': 4.1.5
   '@expo/dom-webview': 58.0.2
   expo-constants: 58.0.15
   expo-router: 58.0.20
@@ -297,9 +297,9 @@ overrides:
   '@tailwindcss/oxide': 4.3.3
   '@tailwindcss/vite': 4.3.3
   '@types/node': 24.12.4
-  effect: 4.1.3
-  '@opencode/protocol>effect': 4.1.3
-  '@opencode/schema>effect': 4.1.3
+  effect: 4.1.5
+  '@opencode/protocol>effect': 4.1.5
+  '@opencode/schema>effect': 4.1.5
   node-abi: 4.33.0
   lightningcss: 1.33.0
   tailwindcss: 4.3.3
@@ -315,15 +315,15 @@ packageExtensionsChecksum: sha256-UoRxygENKhPfc+td23kkPtl2A3aMuUr0ktMujrVM+0w=
 pnpmfileChecksum: sha256-uE8bbaA71OHC+F6ZQAr3QqX6lPPE57JS2ZbxBtKHxmU=
 
 patchedDependencies:
-  '@effect/platform-node-shared@4.1.2': 06952843c6f431ca83c78762fd18d23cda76883801049ee311feced2438ecf14
+  '@effect/platform-node-shared@4.1.5': 06952843c6f431ca83c78762fd18d23cda76883801049ee311feced2438ecf14
   '@expo/ui@58.0.27': 9f2547678939f4ec78fe45163b6455aad63d3c80353d7e0cc783f6a61a7ccc2f
   '@ff-labs/fff-node@0.11.0': 8a1ff3d69daa64466383ee05cd54015ee4ee7613f132d270f4d560d710d9bb4b
-  '@legendapp/list@3.7.2': bb5540800c0e1b9cf41e2c0267fe64659da8f3faeb48219a4ec7cc77355192a3
-  '@pierre/diffs@1.6.1': b4d7c61e5e7644b7371724efe3a34075747cb5c52663476b02e99af1e77c48cb
+  '@legendapp/list@3.7.3': b3f9527ffe55dcfa9b9ad0f5103cb2bd1916f221f3dce7b1c5e6b88289307da4
+  '@pierre/diffs@1.6.1': 83adab3a25c255cda77e23852092d93b0c8c4b560ef050200d55c020b12e7384
   '@react-native-menu/menu@2.0.0': fa5b80eef2a7fe76c884895c7f055eba4673f38800dc0b61245fdf4a7ead227c
   '@react-navigation/native-stack@7.21.0': 990d575444c4af2ce8218b3b7a8280fe244c03abbdb32b822a2e862f791dbf42
   app-builder-lib@26.17.0: 65c8343198108861190501b3aca64068d687ad6cde497e1f5c9ca39516d9627c
-  electron-updater@6.8.9: 5e096d34a46fdbaa6d48a5803b2c0ed9c7c04f8ab43a30ebebbf726f8f28ed8e
+  electron-updater@6.8.9: 91b5648a7eed42761523ef542ebb7e548b037eda41d66533c8152ac65ac72155
   expo-audio@58.0.11: cc6a3d9e1a8a119b163cfb66476abc2eef7c5dedab3cad0409d728fc6663385b
   expo-modules-core@58.0.30: f0b0fd100550ed76e5c25b4d13eb7c9ff62825f8f197c53edf7bf447c50c9fb7
   expo-network@58.0.4: 159c2d760d1cd5102e95df51c20600111e7a72096ef0daea8215d50cae48bd98
@@ -342,7 +342,7 @@ patchedDependencies:
   react-native-keyboard-controller@1.23.0: b69ec09df266b16af49506db322ef642be3d41e370d19f38137508099a24a7f6
   react-native-pdf-jsi@6.1.0: d29e6b69813548de641a09db705dd94823d3f96832821ae9c3f6a196dd15cb68
   react-native-reanimated@4.7.1: fe67f118086d479c071fafc045414bf11defa7620e2eb199711d6b9df3cd2cdf
-  react-native-svg@15.16.1: 110f9243ffad03654ce40dd1cdb09f01af16b8fa2ccb2b2cd3d62e682c180399
+  react-native-svg@15.16.1: 7f94d240fc19418233c96f9a637dfd248846446657476c204f3614fd2847900e
   react-native-webview@14.0.1: b2f078f9448c2f001651972fcb81f46867620c246070787329a1e62c7087b16f
 
 importers:
@@ -356,8 +356,8 @@ importers:
         specifier: 24.12.4
         version: 24.12.4
       effect:
-        specifier: 4.1.3
-        version: 4.1.3
+        specifier: 4.1.5
+        version: 4.1.5
       knip:
         specifier: 6.34.0
         version: 6.34.0
@@ -383,8 +383,8 @@ importers:
         specifier: 0.15.4
         version: 0.15.4
       '@effect/platform-node':
-        specifier: 4.1.2
-        version: 4.1.2(bufferutil@4.1.0)(effect@4.1.3)(redis@6.2.1)(utf-8-validate@6.0.6)
+        specifier: 4.1.5
+        version: 4.1.5(bufferutil@4.1.0)(effect@4.1.5)(redis@6.2.1)(utf-8-validate@6.0.6)
       '@napi-rs/keyring':
         specifier: ^1.3.0
         version: 1.3.0
@@ -413,14 +413,14 @@ importers:
         specifier: workspace:*
         version: link:../../packages/tailscale
       effect:
-        specifier: 4.1.3
-        version: 4.1.3
+        specifier: 4.1.5
+        version: 4.1.5
       electron:
         specifier: 44.10.1
         version: 44.10.1(supports-color@8.1.1)
       electron-updater:
         specifier: 6.8.9
-        version: 6.8.9(patch_hash=5e096d34a46fdbaa6d48a5803b2c0ed9c7c04f8ab43a30ebebbf726f8f28ed8e)(supports-color@8.1.1)
+        version: 6.8.9(patch_hash=91b5648a7eed42761523ef542ebb7e548b037eda41d66533c8152ac65ac72155)(supports-color@8.1.1)
       ffi-rs:
         specifier: 1.3.2
         version: 1.3.2
@@ -435,8 +435,8 @@ importers:
         version: 0.1.44(@types/react@19.3.0)(react@19.3.0)
     devDependencies:
       '@effect/vitest':
-        specifier: 4.1.2
-        version: 4.1.2(effect@4.1.3)(vitest@5.0.5)
+        specifier: 4.1.5
+        version: 4.1.5(effect@4.1.5)(vitest@5.0.5)
       '@types/node':
         specifier: 24.12.4
         version: 24.12.4
@@ -484,8 +484,8 @@ importers:
   apps/mobile:
     dependencies:
       '@effect/atom-react':
-        specifier: 4.1.2
-        version: 4.1.2(@types/react@19.3.0)(@types/scheduler@0.16.8)(effect@4.1.3)(react@19.3.0)(scheduler@0.28.0)
+        specifier: 4.1.5
+        version: 4.1.5(@types/react@19.3.0)(@types/scheduler@0.16.8)(effect@4.1.5)(react@19.3.0)(scheduler@0.28.0)
       '@expo-google-fonts/jetbrains-mono':
         specifier: ^0.4.1
         version: 0.4.1
@@ -496,14 +496,14 @@ importers:
         specifier: 58.0.27
         version: 58.0.27(patch_hash=9f2547678939f4ec78fe45163b6455aad63d3c80353d7e0cc783f6a61a7ccc2f)(@babel/core@7.29.7(supports-color@8.1.1))(@types/react@19.3.0)(expo@58.0.23)(react-dom@19.3.0(react@19.3.0))(react-native-worklets@0.13.1(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.88.0(@babel/core@7.29.7(supports-color@8.1.1))(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(@types/react@19.3.0)(react-native@0.88.1(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.88.0(@babel/core@7.29.7(supports-color@8.1.1))(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(react@19.3.0)(supports-color@8.1.1))(react-native@0.88.1(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.88.0(@babel/core@7.29.7(supports-color@8.1.1))(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(react@19.3.0)
       '@legendapp/list':
-        specifier: 3.7.2
-        version: 3.7.2(patch_hash=bb5540800c0e1b9cf41e2c0267fe64659da8f3faeb48219a4ec7cc77355192a3)(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react-native@0.88.1(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.88.0(@babel/core@7.29.7(supports-color@8.1.1))(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(react@19.3.0)
+        specifier: 3.7.3
+        version: 3.7.3(patch_hash=b3f9527ffe55dcfa9b9ad0f5103cb2bd1916f221f3dce7b1c5e6b88289307da4)(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react-native@0.88.1(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.88.0(@babel/core@7.29.7(supports-color@8.1.1))(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(react@19.3.0)
       '@material/material-color-utilities':
         specifier: 0.3.0
         version: 0.3.0
       '@pierre/diffs':
         specifier: 1.6.1
-        version: 1.6.1(patch_hash=b4d7c61e5e7644b7371724efe3a34075747cb5c52663476b02e99af1e77c48cb)(@shikijs/themes@4.2.0)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+        version: 1.6.1(patch_hash=83adab3a25c255cda77e23852092d93b0c8c4b560ef050200d55c020b12e7384)(@shikijs/themes@4.2.0)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       '@pierre/highlights':
         specifier: 'catalog:'
         version: 0.2.0
@@ -518,7 +518,7 @@ importers:
         version: 7.5.1(@types/react@19.3.0)(react-native@0.88.1(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.88.0(@babel/core@7.29.7(supports-color@8.1.1))(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(react@19.3.0)
       '@react-navigation/native-stack':
         specifier: 7.21.0
-        version: 7.21.0(patch_hash=990d575444c4af2ce8218b3b7a8280fe244c03abbdb32b822a2e862f791dbf42)(22197822c464858cc83eb41c02c728c4)
+        version: 7.21.0(patch_hash=990d575444c4af2ce8218b3b7a8280fe244c03abbdb32b822a2e862f791dbf42)(207f174558d39c81303d06b2f42162f9)
       '@supaterm/client-runtime':
         specifier: workspace:*
         version: link:../../packages/client-runtime
@@ -562,8 +562,8 @@ importers:
         specifier: 8.0.3
         version: 8.0.3
       effect:
-        specifier: 4.1.3
-        version: 4.1.3
+        specifier: 4.1.5
+        version: 4.1.5
       expo:
         specifier: 58.0.23
         version: 58.0.23(5470b2f9ea4f0ce0e81740cb48f00772)
@@ -700,11 +700,11 @@ importers:
         specifier: ~5.11.1
         version: 5.11.1(@types/react@19.3.0)(react-native@0.88.1(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.88.0(@babel/core@7.29.7(supports-color@8.1.1))(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(react@19.3.0)
       react-native-screens:
-        specifier: file:deps/react-native-screens-5.0.0-supacode.58.tgz
-        version: file:apps/mobile/deps/react-native-screens-5.0.0-supacode.58.tgz(@types/react@19.3.0)(react-native@0.88.1(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.88.0(@babel/core@7.29.7(supports-color@8.1.1))(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(react@19.3.0)
+        specifier: file:deps/react-native-screens-5.0.0-supacode.61.tgz
+        version: file:apps/mobile/deps/react-native-screens-5.0.0-supacode.61.tgz(@types/react@19.3.0)(react-native@0.88.1(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.88.0(@babel/core@7.29.7(supports-color@8.1.1))(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(react@19.3.0)
       react-native-svg:
         specifier: 15.16.1
-        version: 15.16.1(patch_hash=110f9243ffad03654ce40dd1cdb09f01af16b8fa2ccb2b2cd3d62e682c180399)(@types/react@19.3.0)(react-native@0.88.1(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.88.0(@babel/core@7.29.7(supports-color@8.1.1))(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(react@19.3.0)
+        version: 15.16.1(patch_hash=7f94d240fc19418233c96f9a637dfd248846446657476c204f3614fd2847900e)(@types/react@19.3.0)(react-native@0.88.1(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.88.0(@babel/core@7.29.7(supports-color@8.1.1))(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(react@19.3.0)
       react-native-webview:
         specifier: 14.0.1
         version: 14.0.1(patch_hash=b2f078f9448c2f001651972fcb81f46867620c246070787329a1e62c7087b16f)(@types/react@19.3.0)(react-native@0.88.1(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.88.0(@babel/core@7.29.7(supports-color@8.1.1))(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(react@19.3.0)
@@ -731,11 +731,11 @@ importers:
         specifier: ^7.29.7
         version: 7.29.7(supports-color@8.1.1)
       '@effect/platform-node':
-        specifier: 4.1.2
-        version: 4.1.2(bufferutil@4.1.0)(effect@4.1.3)(redis@6.2.1)(utf-8-validate@6.0.6)
+        specifier: 4.1.5
+        version: 4.1.5(bufferutil@4.1.0)(effect@4.1.5)(redis@6.2.1)(utf-8-validate@6.0.6)
       '@effect/vitest':
-        specifier: 4.1.2
-        version: 4.1.2(effect@4.1.3)(vitest@5.0.5)
+        specifier: 4.1.5
+        version: 4.1.5(effect@4.1.5)(vitest@5.0.5)
       '@pierre/trees':
         specifier: 1.0.0-beta.6
         version: 1.0.0-beta.6(@pierre/theme@2.0.0)(@shikijs/themes@4.2.0)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(shiki@4.2.0)
@@ -773,14 +773,14 @@ importers:
         specifier: ^0.3.321
         version: 0.3.321(@anthropic-ai/sdk@0.93.0(zod@4.6.5))(@modelcontextprotocol/sdk@1.32.2(supports-color@8.1.1)(zod@4.6.5))(zod@4.6.5)
       '@cursor/sdk':
-        specifier: 1.3.1
-        version: 1.3.1(zod@4.6.5)
+        specifier: 1.4.2
+        version: 1.4.2(zod@4.6.5)
       '@effect/platform-node':
-        specifier: 4.1.2
-        version: 4.1.2(bufferutil@4.1.0)(effect@4.1.3)(redis@6.2.1)(utf-8-validate@6.0.6)
+        specifier: 4.1.5
+        version: 4.1.5(bufferutil@4.1.0)(effect@4.1.5)(redis@6.2.1)(utf-8-validate@6.0.6)
       '@effect/platform-node-shared':
-        specifier: 4.1.2
-        version: 4.1.2(patch_hash=06952843c6f431ca83c78762fd18d23cda76883801049ee311feced2438ecf14)(bufferutil@4.1.0)(effect@4.1.3)(utf-8-validate@6.0.6)
+        specifier: 4.1.5
+        version: 4.1.5(patch_hash=06952843c6f431ca83c78762fd18d23cda76883801049ee311feced2438ecf14)(bufferutil@4.1.0)(effect@4.1.5)(utf-8-validate@6.0.6)
       '@ff-labs/fff-node':
         specifier: 0.11.0
         version: 0.11.0(patch_hash=8a1ff3d69daa64466383ee05cd54015ee4ee7613f132d270f4d560d710d9bb4b)
@@ -857,8 +857,8 @@ importers:
         specifier: 8.0.3
         version: 8.0.3
       effect:
-        specifier: 4.1.3
-        version: 4.1.3
+        specifier: 4.1.5
+        version: 4.1.5
       ffi-rs:
         specifier: 1.3.2
         version: 1.3.2
@@ -898,10 +898,10 @@ importers:
     devDependencies:
       '@effect/graphql-generator':
         specifier: 'catalog:'
-        version: 4.1.2(@effect/platform-node@4.1.2(bufferutil@4.1.0)(effect@4.1.3)(redis@6.2.1)(utf-8-validate@6.0.6))(effect@4.1.3)
+        version: 4.1.5(@effect/platform-node@4.1.5(bufferutil@4.1.0)(effect@4.1.5)(redis@6.2.1)(utf-8-validate@6.0.6))(effect@4.1.5)
       '@effect/vitest':
-        specifier: 4.1.2
-        version: 4.1.2(effect@4.1.3)(vitest@5.0.5)
+        specifier: 4.1.5
+        version: 4.1.5(effect@4.1.5)(vitest@5.0.5)
       '@muse-code/sdk':
         specifier: 1.4.6
         version: 1.4.6(@types/node@24.12.4)
@@ -978,20 +978,20 @@ importers:
         specifier: ^3.2.2
         version: 3.2.2(react@19.3.0)
       '@effect/atom-react':
-        specifier: 4.1.2
-        version: 4.1.2(@types/react@19.3.0)(@types/scheduler@0.16.8)(effect@4.1.3)(react@19.3.0)(scheduler@0.28.0)
+        specifier: 4.1.5
+        version: 4.1.5(@types/react@19.3.0)(@types/scheduler@0.16.8)(effect@4.1.5)(react@19.3.0)(scheduler@0.28.0)
       '@fontsource/jetbrains-mono':
         specifier: ^5.3.0
         version: 5.3.0
       '@legendapp/list':
-        specifier: 3.7.2
-        version: 3.7.2(patch_hash=bb5540800c0e1b9cf41e2c0267fe64659da8f3faeb48219a4ec7cc77355192a3)(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react-native@0.88.1(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.88.0(@babel/core@7.29.7(supports-color@8.1.1))(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(react@19.3.0)
+        specifier: 3.7.3
+        version: 3.7.3(patch_hash=b3f9527ffe55dcfa9b9ad0f5103cb2bd1916f221f3dce7b1c5e6b88289307da4)(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react-native@0.88.1(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.88.0(@babel/core@7.29.7(supports-color@8.1.1))(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(react@19.3.0)
       '@noble/hashes':
         specifier: 'catalog:'
         version: 1.8.0
       '@pierre/diffs':
         specifier: 1.6.1
-        version: 1.6.1(patch_hash=b4d7c61e5e7644b7371724efe3a34075747cb5c52663476b02e99af1e77c48cb)(@shikijs/themes@4.2.0)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+        version: 1.6.1(patch_hash=83adab3a25c255cda77e23852092d93b0c8c4b560ef050200d55c020b12e7384)(@shikijs/themes@4.2.0)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       '@pierre/trees':
         specifier: 1.0.0-beta.6
         version: 1.0.0-beta.6(@pierre/theme@2.0.0)(@shikijs/themes@4.2.0)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(shiki@4.2.0)
@@ -1095,8 +1095,8 @@ importers:
         specifier: ^3.4.17
         version: 3.4.17
       effect:
-        specifier: 4.1.3
-        version: 4.1.3
+        specifier: 4.1.5
+        version: 4.1.5
       entities:
         specifier: 8.1.0
         version: 8.1.0
@@ -1183,11 +1183,11 @@ importers:
         version: 5.0.14(@types/react@19.3.0)(react@19.3.0)(use-sync-external-store@1.6.0(react@19.3.0))
     devDependencies:
       '@effect/platform-node':
-        specifier: 4.1.2
-        version: 4.1.2(bufferutil@4.1.0)(effect@4.1.3)(redis@6.2.1)(utf-8-validate@6.0.6)
+        specifier: 4.1.5
+        version: 4.1.5(bufferutil@4.1.0)(effect@4.1.5)(redis@6.2.1)(utf-8-validate@6.0.6)
       '@effect/vitest':
-        specifier: 4.1.2
-        version: 4.1.2(effect@4.1.3)(vitest@5.0.5)
+        specifier: 4.1.5
+        version: 4.1.5(effect@4.1.5)(vitest@5.0.5)
       '@tailwindcss/vite':
         specifier: 4.3.3
         version: 4.3.3(@voidzero-dev/vite-plus-core@1.4.0(@tsc-rs/typescript@0.8.0)(@types/node@24.12.4)(@volar/typescript@2.4.28(@tsc-rs/typescript@0.8.0))(esbuild@0.28.2)(jiti@2.7.0)(terser@5.48.0)(unrun@0.2.39)(yaml@2.9.0))
@@ -1237,15 +1237,15 @@ importers:
         specifier: 1.88.0
         version: 1.88.0
       effect:
-        specifier: 4.1.3
-        version: 4.1.3
+        specifier: 4.1.5
+        version: 4.1.5
     devDependencies:
       '@effect/platform-node':
-        specifier: 4.1.2
-        version: 4.1.2(bufferutil@4.1.0)(effect@4.1.3)(redis@6.2.1)(utf-8-validate@6.0.6)
+        specifier: 4.1.5
+        version: 4.1.5(bufferutil@4.1.0)(effect@4.1.5)(redis@6.2.1)(utf-8-validate@6.0.6)
       '@effect/vitest':
-        specifier: 4.1.2
-        version: 4.1.2(effect@4.1.3)(vitest@5.0.5)
+        specifier: 4.1.5
+        version: 4.1.5(effect@4.1.5)(vitest@5.0.5)
       vite-plus:
         specifier: 1.4.0
         version: 1.4.0(@astrojs/compiler-rs@0.5.1)(@tsc-rs/typescript@0.8.0)(@types/jsdom@30.0.0)(@types/node@24.12.4)(@vitest/browser-playwright@5.0.5)(@vitest/ui@5.0.5)(@volar/typescript@2.4.28(@tsc-rs/typescript@0.8.0))(bufferutil@4.1.0)(esbuild@0.28.2)(jiti@2.7.0)(jsdom@30.1.0(@noble/hashes@1.8.0))(playwright@1.64.1)(terser@5.48.0)(unrun@0.2.39)(utf-8-validate@6.0.6)(yaml@2.9.0)
@@ -1254,7 +1254,7 @@ importers:
     dependencies:
       '@pierre/diffs':
         specifier: 1.6.1
-        version: 1.6.1(patch_hash=b4d7c61e5e7644b7371724efe3a34075747cb5c52663476b02e99af1e77c48cb)(@shikijs/themes@4.2.0)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+        version: 1.6.1(patch_hash=83adab3a25c255cda77e23852092d93b0c8c4b560ef050200d55c020b12e7384)(@shikijs/themes@4.2.0)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       '@supaterm/contracts':
         specifier: workspace:*
         version: link:../contracts
@@ -1301,8 +1301,8 @@ importers:
         specifier: 0.180.0
         version: 0.180.0
       effect:
-        specifier: 4.1.3
-        version: 4.1.3
+        specifier: 4.1.5
+        version: 4.1.5
       jszip:
         specifier: 3.10.1
         version: 3.10.1
@@ -1323,8 +1323,8 @@ importers:
         version: 11.0.5
     devDependencies:
       '@effect/vitest':
-        specifier: 4.1.2
-        version: 4.1.2(effect@4.1.3)(vitest@5.0.5)
+        specifier: 4.1.5
+        version: 4.1.5(effect@4.1.5)(vitest@5.0.5)
       '@types/mdast':
         specifier: ^4.0.4
         version: 4.0.4
@@ -1341,12 +1341,12 @@ importers:
         specifier: workspace:*
         version: link:../shared
       effect:
-        specifier: 4.1.3
-        version: 4.1.3
+        specifier: 4.1.5
+        version: 4.1.5
     devDependencies:
       '@effect/vitest':
-        specifier: 4.1.2
-        version: 4.1.2(effect@4.1.3)(vitest@5.0.5)
+        specifier: 4.1.5
+        version: 4.1.5(effect@4.1.5)(vitest@5.0.5)
       '@types/node':
         specifier: 24.12.4
         version: 24.12.4
@@ -1360,12 +1360,12 @@ importers:
   packages/contracts:
     dependencies:
       effect:
-        specifier: 4.1.3
-        version: 4.1.3
+        specifier: 4.1.5
+        version: 4.1.5
     devDependencies:
       '@effect/vitest':
-        specifier: 4.1.2
-        version: 4.1.2(effect@4.1.3)(vitest@5.0.5)
+        specifier: 4.1.5
+        version: 4.1.5(effect@4.1.5)(vitest@5.0.5)
       vite-plus:
         specifier: 1.4.0
         version: 1.4.0(@astrojs/compiler-rs@0.5.1)(@tsc-rs/typescript@0.8.0)(@types/jsdom@30.0.0)(@types/node@24.12.4)(@vitest/browser-playwright@5.0.5)(@vitest/ui@5.0.5)(@volar/typescript@2.4.28(@tsc-rs/typescript@0.8.0))(bufferutil@4.1.0)(esbuild@0.28.2)(jiti@2.7.0)(jsdom@30.1.0(@noble/hashes@1.8.0))(playwright@1.64.1)(terser@5.48.0)(unrun@0.2.39)(utf-8-validate@6.0.6)(yaml@2.9.0)
@@ -1373,18 +1373,18 @@ importers:
   packages/effect-acp:
     dependencies:
       effect:
-        specifier: 4.1.3
-        version: 4.1.3
+        specifier: 4.1.5
+        version: 4.1.5
     devDependencies:
       '@effect/openapi-generator':
         specifier: 'catalog:'
-        version: 4.1.2(@effect/platform-node@4.1.2(bufferutil@4.1.0)(effect@4.1.3)(redis@6.2.1)(utf-8-validate@6.0.6))(effect@4.1.3)(encoding@0.1.13)
+        version: 4.1.5(@effect/platform-node@4.1.5(bufferutil@4.1.0)(effect@4.1.5)(redis@6.2.1)(utf-8-validate@6.0.6))(effect@4.1.5)(encoding@0.1.13)
       '@effect/platform-node':
-        specifier: 4.1.2
-        version: 4.1.2(bufferutil@4.1.0)(effect@4.1.3)(redis@6.2.1)(utf-8-validate@6.0.6)
+        specifier: 4.1.5
+        version: 4.1.5(bufferutil@4.1.0)(effect@4.1.5)(redis@6.2.1)(utf-8-validate@6.0.6)
       '@effect/vitest':
-        specifier: 4.1.2
-        version: 4.1.2(effect@4.1.3)(vitest@5.0.5)
+        specifier: 4.1.5
+        version: 4.1.5(effect@4.1.5)(vitest@5.0.5)
       '@types/node':
         specifier: 24.12.4
         version: 24.12.4
@@ -1395,18 +1395,18 @@ importers:
   packages/effect-codex-app-server:
     dependencies:
       effect:
-        specifier: 4.1.3
-        version: 4.1.3
+        specifier: 4.1.5
+        version: 4.1.5
     devDependencies:
       '@effect/openapi-generator':
         specifier: 'catalog:'
-        version: 4.1.2(@effect/platform-node@4.1.2(bufferutil@4.1.0)(effect@4.1.3)(redis@6.2.1)(utf-8-validate@6.0.6))(effect@4.1.3)(encoding@0.1.13)
+        version: 4.1.5(@effect/platform-node@4.1.5(bufferutil@4.1.0)(effect@4.1.5)(redis@6.2.1)(utf-8-validate@6.0.6))(effect@4.1.5)(encoding@0.1.13)
       '@effect/platform-node':
-        specifier: 4.1.2
-        version: 4.1.2(bufferutil@4.1.0)(effect@4.1.3)(redis@6.2.1)(utf-8-validate@6.0.6)
+        specifier: 4.1.5
+        version: 4.1.5(bufferutil@4.1.0)(effect@4.1.5)(redis@6.2.1)(utf-8-validate@6.0.6)
       '@effect/vitest':
-        specifier: 4.1.2
-        version: 4.1.2(effect@4.1.3)(vitest@5.0.5)
+        specifier: 4.1.5
+        version: 4.1.5(effect@4.1.5)(vitest@5.0.5)
       '@types/node':
         specifier: 24.12.4
         version: 24.12.4
@@ -1467,15 +1467,15 @@ importers:
         specifier: 8.0.3
         version: 8.0.3
       effect:
-        specifier: 4.1.3
-        version: 4.1.3
+        specifier: 4.1.5
+        version: 4.1.5
     devDependencies:
       '@effect/platform-node':
-        specifier: 4.1.2
-        version: 4.1.2(bufferutil@4.1.0)(effect@4.1.3)(redis@6.2.1)(utf-8-validate@6.0.6)
+        specifier: 4.1.5
+        version: 4.1.5(bufferutil@4.1.0)(effect@4.1.5)(redis@6.2.1)(utf-8-validate@6.0.6)
       '@effect/vitest':
-        specifier: 4.1.2
-        version: 4.1.2(effect@4.1.3)(vitest@5.0.5)
+        specifier: 4.1.5
+        version: 4.1.5(effect@4.1.5)(vitest@5.0.5)
       '@types/node':
         specifier: 24.12.4
         version: 24.12.4
@@ -1504,15 +1504,15 @@ importers:
         specifier: workspace:*
         version: link:../shared
       effect:
-        specifier: 4.1.3
-        version: 4.1.3
+        specifier: 4.1.5
+        version: 4.1.5
     devDependencies:
       '@effect/platform-node':
-        specifier: 4.1.2
-        version: 4.1.2(bufferutil@4.1.0)(effect@4.1.3)(redis@6.2.1)(utf-8-validate@6.0.6)
+        specifier: 4.1.5
+        version: 4.1.5(bufferutil@4.1.0)(effect@4.1.5)(redis@6.2.1)(utf-8-validate@6.0.6)
       '@effect/vitest':
-        specifier: 4.1.2
-        version: 4.1.2(effect@4.1.3)(vitest@5.0.5)
+        specifier: 4.1.5
+        version: 4.1.5(effect@4.1.5)(vitest@5.0.5)
       '@supaterm/provider-testing':
         specifier: workspace:*
         version: link:../provider-testing
@@ -1535,15 +1535,15 @@ importers:
         specifier: workspace:*
         version: link:../shared
       effect:
-        specifier: 4.1.3
-        version: 4.1.3
+        specifier: 4.1.5
+        version: 4.1.5
     devDependencies:
       '@effect/platform-node':
-        specifier: 4.1.2
-        version: 4.1.2(bufferutil@4.1.0)(effect@4.1.3)(redis@6.2.1)(utf-8-validate@6.0.6)
+        specifier: 4.1.5
+        version: 4.1.5(bufferutil@4.1.0)(effect@4.1.5)(redis@6.2.1)(utf-8-validate@6.0.6)
       '@effect/vitest':
-        specifier: 4.1.2
-        version: 4.1.2(effect@4.1.3)(vitest@5.0.5)
+        specifier: 4.1.5
+        version: 4.1.5(effect@4.1.5)(vitest@5.0.5)
       '@types/node':
         specifier: 24.12.4
         version: 24.12.4
@@ -1554,8 +1554,8 @@ importers:
   packages/provider-cursor:
     dependencies:
       '@cursor/sdk':
-        specifier: 1.3.1
-        version: 1.3.1(zod@4.6.5)
+        specifier: 1.4.2
+        version: 1.4.2(zod@4.6.5)
       '@supaterm/contracts':
         specifier: workspace:*
         version: link:../contracts
@@ -1566,8 +1566,8 @@ importers:
         specifier: workspace:*
         version: link:../shared
       effect:
-        specifier: 4.1.3
-        version: 4.1.3
+        specifier: 4.1.5
+        version: 4.1.5
       jsonc-parser:
         specifier: 3.3.1
         version: 3.3.1
@@ -1576,11 +1576,11 @@ importers:
         version: 2.9.0
     devDependencies:
       '@effect/platform-node':
-        specifier: 4.1.2
-        version: 4.1.2(bufferutil@4.1.0)(effect@4.1.3)(redis@6.2.1)(utf-8-validate@6.0.6)
+        specifier: 4.1.5
+        version: 4.1.5(bufferutil@4.1.0)(effect@4.1.5)(redis@6.2.1)(utf-8-validate@6.0.6)
       '@effect/vitest':
-        specifier: 4.1.2
-        version: 4.1.2(effect@4.1.3)(vitest@5.0.5)
+        specifier: 4.1.5
+        version: 4.1.5(effect@4.1.5)(vitest@5.0.5)
       '@supaterm/provider-testing':
         specifier: workspace:*
         version: link:../provider-testing
@@ -1606,15 +1606,15 @@ importers:
         specifier: workspace:*
         version: link:../shared
       effect:
-        specifier: 4.1.3
-        version: 4.1.3
+        specifier: 4.1.5
+        version: 4.1.5
     devDependencies:
       '@effect/platform-node':
-        specifier: 4.1.2
-        version: 4.1.2(bufferutil@4.1.0)(effect@4.1.3)(redis@6.2.1)(utf-8-validate@6.0.6)
+        specifier: 4.1.5
+        version: 4.1.5(bufferutil@4.1.0)(effect@4.1.5)(redis@6.2.1)(utf-8-validate@6.0.6)
       '@effect/vitest':
-        specifier: 4.1.2
-        version: 4.1.2(effect@4.1.3)(vitest@5.0.5)
+        specifier: 4.1.5
+        version: 4.1.5(effect@4.1.5)(vitest@5.0.5)
       '@supaterm/provider-testing':
         specifier: workspace:*
         version: link:../provider-testing
@@ -1643,15 +1643,15 @@ importers:
         specifier: workspace:*
         version: link:../shared
       effect:
-        specifier: 4.1.3
-        version: 4.1.3
+        specifier: 4.1.5
+        version: 4.1.5
     devDependencies:
       '@effect/platform-node':
-        specifier: 4.1.2
-        version: 4.1.2(bufferutil@4.1.0)(effect@4.1.3)(redis@6.2.1)(utf-8-validate@6.0.6)
+        specifier: 4.1.5
+        version: 4.1.5(bufferutil@4.1.0)(effect@4.1.5)(redis@6.2.1)(utf-8-validate@6.0.6)
       '@effect/vitest':
-        specifier: 4.1.2
-        version: 4.1.2(effect@4.1.3)(vitest@5.0.5)
+        specifier: 4.1.5
+        version: 4.1.5(effect@4.1.5)(vitest@5.0.5)
       '@supaterm/provider-testing':
         specifier: workspace:*
         version: link:../provider-testing
@@ -1680,15 +1680,15 @@ importers:
         specifier: workspace:*
         version: link:../shared
       effect:
-        specifier: 4.1.3
-        version: 4.1.3
+        specifier: 4.1.5
+        version: 4.1.5
     devDependencies:
       '@effect/platform-node':
-        specifier: 4.1.2
-        version: 4.1.2(bufferutil@4.1.0)(effect@4.1.3)(redis@6.2.1)(utf-8-validate@6.0.6)
+        specifier: 4.1.5
+        version: 4.1.5(bufferutil@4.1.0)(effect@4.1.5)(redis@6.2.1)(utf-8-validate@6.0.6)
       '@effect/vitest':
-        specifier: 4.1.2
-        version: 4.1.2(effect@4.1.3)(vitest@5.0.5)
+        specifier: 4.1.5
+        version: 4.1.5(effect@4.1.5)(vitest@5.0.5)
       '@supaterm/provider-testing':
         specifier: workspace:*
         version: link:../provider-testing
@@ -1717,15 +1717,15 @@ importers:
         specifier: workspace:*
         version: link:../shared
       effect:
-        specifier: 4.1.3
-        version: 4.1.3
+        specifier: 4.1.5
+        version: 4.1.5
     devDependencies:
       '@effect/platform-node':
-        specifier: 4.1.2
-        version: 4.1.2(bufferutil@4.1.0)(effect@4.1.3)(redis@6.2.1)(utf-8-validate@6.0.6)
+        specifier: 4.1.5
+        version: 4.1.5(bufferutil@4.1.0)(effect@4.1.5)(redis@6.2.1)(utf-8-validate@6.0.6)
       '@effect/vitest':
-        specifier: 4.1.2
-        version: 4.1.2(effect@4.1.3)(vitest@5.0.5)
+        specifier: 4.1.5
+        version: 4.1.5(effect@4.1.5)(vitest@5.0.5)
       '@supaterm/provider-testing':
         specifier: workspace:*
         version: link:../provider-testing
@@ -1740,7 +1740,7 @@ importers:
     dependencies:
       '@opencode/client':
         specifier: 2.0.28
-        version: 2.0.28(effect@4.1.3)
+        version: 2.0.28(effect@4.1.5)
       '@opencode/protocol':
         specifier: 2.0.28
         version: 2.0.28
@@ -1757,15 +1757,15 @@ importers:
         specifier: workspace:*
         version: link:../shared
       effect:
-        specifier: 4.1.3
-        version: 4.1.3
+        specifier: 4.1.5
+        version: 4.1.5
     devDependencies:
       '@effect/platform-node':
-        specifier: 4.1.2
-        version: 4.1.2(bufferutil@4.1.0)(effect@4.1.3)(redis@6.2.1)(utf-8-validate@6.0.6)
+        specifier: 4.1.5
+        version: 4.1.5(bufferutil@4.1.0)(effect@4.1.5)(redis@6.2.1)(utf-8-validate@6.0.6)
       '@effect/vitest':
-        specifier: 4.1.2
-        version: 4.1.2(effect@4.1.3)(vitest@5.0.5)
+        specifier: 4.1.5
+        version: 4.1.5(effect@4.1.5)(vitest@5.0.5)
       '@supaterm/provider-testing':
         specifier: workspace:*
         version: link:../provider-testing
@@ -1788,15 +1788,15 @@ importers:
         specifier: workspace:*
         version: link:../shared
       effect:
-        specifier: 4.1.3
-        version: 4.1.3
+        specifier: 4.1.5
+        version: 4.1.5
     devDependencies:
       '@effect/platform-node':
-        specifier: 4.1.2
-        version: 4.1.2(bufferutil@4.1.0)(effect@4.1.3)(redis@6.2.1)(utf-8-validate@6.0.6)
+        specifier: 4.1.5
+        version: 4.1.5(bufferutil@4.1.0)(effect@4.1.5)(redis@6.2.1)(utf-8-validate@6.0.6)
       '@effect/vitest':
-        specifier: 4.1.2
-        version: 4.1.2(effect@4.1.3)(vitest@5.0.5)
+        specifier: 4.1.5
+        version: 4.1.5(effect@4.1.5)(vitest@5.0.5)
       '@supaterm/provider-testing':
         specifier: workspace:*
         version: link:../provider-testing
@@ -1810,8 +1810,8 @@ importers:
   packages/provider-testing:
     dependencies:
       '@effect/platform-node':
-        specifier: 4.1.2
-        version: 4.1.2(bufferutil@4.1.0)(effect@4.1.3)(redis@6.2.1)(utf-8-validate@6.0.6)
+        specifier: 4.1.5
+        version: 4.1.5(bufferutil@4.1.0)(effect@4.1.5)(redis@6.2.1)(utf-8-validate@6.0.6)
       '@supaterm/contracts':
         specifier: workspace:*
         version: link:../contracts
@@ -1822,12 +1822,18 @@ importers:
         specifier: workspace:*
         version: link:../shared
       effect:
-        specifier: 4.1.3
-        version: 4.1.3
+        specifier: 4.1.5
+        version: 4.1.5
     devDependencies:
+      '@effect/vitest':
+        specifier: 4.1.5
+        version: 4.1.5(effect@4.1.5)(vitest@5.0.5)
       '@types/node':
         specifier: 24.12.4
         version: 24.12.4
+      vite-plus:
+        specifier: 1.4.0
+        version: 1.4.0(@astrojs/compiler-rs@0.5.1)(@tsc-rs/typescript@0.8.0)(@types/jsdom@30.0.0)(@types/node@24.12.4)(@vitest/browser-playwright@5.0.5)(@vitest/ui@5.0.5)(@volar/typescript@2.4.28(@tsc-rs/typescript@0.8.0))(bufferutil@4.1.0)(esbuild@0.28.2)(jiti@2.7.0)(jsdom@30.1.0(@noble/hashes@1.8.0))(playwright@1.64.1)(terser@5.48.0)(unrun@0.2.39)(utf-8-validate@6.0.6)(yaml@2.9.0)
 
   packages/shared:
     dependencies:
@@ -1844,8 +1850,8 @@ importers:
         specifier: workspace:*
         version: link:../contracts
       effect:
-        specifier: 4.1.3
-        version: 4.1.3
+        specifier: 4.1.5
+        version: 4.1.5
       get-east-asian-width:
         specifier: ^1.6.0
         version: 1.6.0
@@ -1896,11 +1902,11 @@ importers:
         version: 2.9.0
     devDependencies:
       '@effect/platform-node':
-        specifier: 4.1.2
-        version: 4.1.2(bufferutil@4.1.0)(effect@4.1.3)(redis@6.2.1)(utf-8-validate@6.0.6)
+        specifier: 4.1.5
+        version: 4.1.5(bufferutil@4.1.0)(effect@4.1.5)(redis@6.2.1)(utf-8-validate@6.0.6)
       '@effect/vitest':
-        specifier: 4.1.2
-        version: 4.1.2(effect@4.1.3)(vitest@5.0.5)
+        specifier: 4.1.5
+        version: 4.1.5(effect@4.1.5)(vitest@5.0.5)
       '@types/mdast':
         specifier: ^4.0.4
         version: 4.0.4
@@ -1929,15 +1935,15 @@ importers:
         specifier: 8.0.3
         version: 8.0.3
       effect:
-        specifier: 4.1.3
-        version: 4.1.3
+        specifier: 4.1.5
+        version: 4.1.5
     devDependencies:
       '@effect/platform-node':
-        specifier: 4.1.2
-        version: 4.1.2(bufferutil@4.1.0)(effect@4.1.3)(redis@6.2.1)(utf-8-validate@6.0.6)
+        specifier: 4.1.5
+        version: 4.1.5(bufferutil@4.1.0)(effect@4.1.5)(redis@6.2.1)(utf-8-validate@6.0.6)
       '@effect/vitest':
-        specifier: 4.1.2
-        version: 4.1.2(effect@4.1.3)(vitest@5.0.5)
+        specifier: 4.1.5
+        version: 4.1.5(effect@4.1.5)(vitest@5.0.5)
       '@supaterm/source-control-testing':
         specifier: workspace:*
         version: link:../source-control-testing
@@ -1963,15 +1969,15 @@ importers:
         specifier: workspace:*
         version: link:../source-control-core
       effect:
-        specifier: 4.1.3
-        version: 4.1.3
+        specifier: 4.1.5
+        version: 4.1.5
     devDependencies:
       '@effect/platform-node':
-        specifier: 4.1.2
-        version: 4.1.2(bufferutil@4.1.0)(effect@4.1.3)(redis@6.2.1)(utf-8-validate@6.0.6)
+        specifier: 4.1.5
+        version: 4.1.5(bufferutil@4.1.0)(effect@4.1.5)(redis@6.2.1)(utf-8-validate@6.0.6)
       '@effect/vitest':
-        specifier: 4.1.2
-        version: 4.1.2(effect@4.1.3)(vitest@5.0.5)
+        specifier: 4.1.5
+        version: 4.1.5(effect@4.1.5)(vitest@5.0.5)
       '@supaterm/source-control-testing':
         specifier: workspace:*
         version: link:../source-control-testing
@@ -1991,12 +1997,12 @@ importers:
         specifier: workspace:*
         version: link:../shared
       effect:
-        specifier: 4.1.3
-        version: 4.1.3
+        specifier: 4.1.5
+        version: 4.1.5
     devDependencies:
       '@effect/vitest':
-        specifier: 4.1.2
-        version: 4.1.2(effect@4.1.3)(vitest@5.0.5)
+        specifier: 4.1.5
+        version: 4.1.5(effect@4.1.5)(vitest@5.0.5)
       '@types/node':
         specifier: 24.12.4
         version: 24.12.4
@@ -2043,15 +2049,15 @@ importers:
         specifier: workspace:*
         version: link:../source-control-core
       effect:
-        specifier: 4.1.3
-        version: 4.1.3
+        specifier: 4.1.5
+        version: 4.1.5
     devDependencies:
       '@effect/platform-node':
-        specifier: 4.1.2
-        version: 4.1.2(bufferutil@4.1.0)(effect@4.1.3)(redis@6.2.1)(utf-8-validate@6.0.6)
+        specifier: 4.1.5
+        version: 4.1.5(bufferutil@4.1.0)(effect@4.1.5)(redis@6.2.1)(utf-8-validate@6.0.6)
       '@effect/vitest':
-        specifier: 4.1.2
-        version: 4.1.2(effect@4.1.3)(vitest@5.0.5)
+        specifier: 4.1.5
+        version: 4.1.5(effect@4.1.5)(vitest@5.0.5)
       '@supaterm/source-control-testing':
         specifier: workspace:*
         version: link:../source-control-testing
@@ -2077,12 +2083,12 @@ importers:
         specifier: workspace:*
         version: link:../source-control-core
       effect:
-        specifier: 4.1.3
-        version: 4.1.3
+        specifier: 4.1.5
+        version: 4.1.5
     devDependencies:
       '@effect/vitest':
-        specifier: 4.1.2
-        version: 4.1.2(effect@4.1.3)(vitest@5.0.5)
+        specifier: 4.1.5
+        version: 4.1.5(effect@4.1.5)(vitest@5.0.5)
       '@supaterm/source-control-testing':
         specifier: workspace:*
         version: link:../source-control-testing
@@ -2096,8 +2102,8 @@ importers:
   packages/source-control-github:
     dependencies:
       '@effect/platform-node':
-        specifier: 4.1.2
-        version: 4.1.2(bufferutil@4.1.0)(effect@4.1.3)(redis@6.2.1)(utf-8-validate@6.0.6)
+        specifier: 4.1.5
+        version: 4.1.5(bufferutil@4.1.0)(effect@4.1.5)(redis@6.2.1)(utf-8-validate@6.0.6)
       '@supaterm/contracts':
         specifier: workspace:*
         version: link:../contracts
@@ -2111,15 +2117,15 @@ importers:
         specifier: workspace:*
         version: link:../source-control-core
       effect:
-        specifier: 4.1.3
-        version: 4.1.3
+        specifier: 4.1.5
+        version: 4.1.5
     devDependencies:
       '@effect/graphql-generator':
         specifier: 'catalog:'
-        version: 4.1.2(@effect/platform-node@4.1.2(bufferutil@4.1.0)(effect@4.1.3)(redis@6.2.1)(utf-8-validate@6.0.6))(effect@4.1.3)
+        version: 4.1.5(@effect/platform-node@4.1.5(bufferutil@4.1.0)(effect@4.1.5)(redis@6.2.1)(utf-8-validate@6.0.6))(effect@4.1.5)
       '@effect/vitest':
-        specifier: 4.1.2
-        version: 4.1.2(effect@4.1.3)(vitest@5.0.5)
+        specifier: 4.1.5
+        version: 4.1.5(effect@4.1.5)(vitest@5.0.5)
       '@supaterm/source-control-testing':
         specifier: workspace:*
         version: link:../source-control-testing
@@ -2142,15 +2148,15 @@ importers:
         specifier: workspace:*
         version: link:../source-control-core
       effect:
-        specifier: 4.1.3
-        version: 4.1.3
+        specifier: 4.1.5
+        version: 4.1.5
     devDependencies:
       '@effect/platform-node':
-        specifier: 4.1.2
-        version: 4.1.2(bufferutil@4.1.0)(effect@4.1.3)(redis@6.2.1)(utf-8-validate@6.0.6)
+        specifier: 4.1.5
+        version: 4.1.5(bufferutil@4.1.0)(effect@4.1.5)(redis@6.2.1)(utf-8-validate@6.0.6)
       '@effect/vitest':
-        specifier: 4.1.2
-        version: 4.1.2(effect@4.1.3)(vitest@5.0.5)
+        specifier: 4.1.5
+        version: 4.1.5(effect@4.1.5)(vitest@5.0.5)
       '@supaterm/source-control-testing':
         specifier: workspace:*
         version: link:../source-control-testing
@@ -2164,8 +2170,8 @@ importers:
   packages/source-control-testing:
     dependencies:
       '@effect/platform-node':
-        specifier: 4.1.2
-        version: 4.1.2(bufferutil@4.1.0)(effect@4.1.3)(redis@6.2.1)(utf-8-validate@6.0.6)
+        specifier: 4.1.5
+        version: 4.1.5(bufferutil@4.1.0)(effect@4.1.5)(redis@6.2.1)(utf-8-validate@6.0.6)
       '@supaterm/contracts':
         specifier: workspace:*
         version: link:../contracts
@@ -2176,8 +2182,8 @@ importers:
         specifier: workspace:*
         version: link:../source-control-core
       effect:
-        specifier: 4.1.3
-        version: 4.1.3
+        specifier: 4.1.5
+        version: 4.1.5
     devDependencies:
       '@types/node':
         specifier: 24.12.4
@@ -2192,15 +2198,15 @@ importers:
         specifier: workspace:*
         version: link:../shared
       effect:
-        specifier: 4.1.3
-        version: 4.1.3
+        specifier: 4.1.5
+        version: 4.1.5
     devDependencies:
       '@effect/platform-node':
-        specifier: 4.1.2
-        version: 4.1.2(bufferutil@4.1.0)(effect@4.1.3)(redis@6.2.1)(utf-8-validate@6.0.6)
+        specifier: 4.1.5
+        version: 4.1.5(bufferutil@4.1.0)(effect@4.1.5)(redis@6.2.1)(utf-8-validate@6.0.6)
       '@effect/vitest':
-        specifier: 4.1.2
-        version: 4.1.2(effect@4.1.3)(vitest@5.0.5)
+        specifier: 4.1.5
+        version: 4.1.5(effect@4.1.5)(vitest@5.0.5)
       '@types/node':
         specifier: 24.12.4
         version: 24.12.4
@@ -2217,12 +2223,12 @@ importers:
         specifier: workspace:*
         version: link:../shared
       effect:
-        specifier: 4.1.3
-        version: 4.1.3
+        specifier: 4.1.5
+        version: 4.1.5
     devDependencies:
       '@effect/vitest':
-        specifier: 4.1.2
-        version: 4.1.2(effect@4.1.3)(vitest@5.0.5)
+        specifier: 4.1.5
+        version: 4.1.5(effect@4.1.5)(vitest@5.0.5)
       '@types/node':
         specifier: 24.12.4
         version: 24.12.4
@@ -2233,8 +2239,8 @@ importers:
   scripts:
     dependencies:
       '@effect/platform-node':
-        specifier: 4.1.2
-        version: 4.1.2(bufferutil@4.1.0)(effect@4.1.3)(redis@6.2.1)(utf-8-validate@6.0.6)
+        specifier: 4.1.5
+        version: 4.1.5(bufferutil@4.1.0)(effect@4.1.5)(redis@6.2.1)(utf-8-validate@6.0.6)
       '@electron/asar':
         specifier: ^4.3.0
         version: 4.3.0
@@ -2257,11 +2263,11 @@ importers:
         specifier: 6.0.5
         version: 6.0.5
       agent-device:
-        specifier: 0.21.36
-        version: 0.21.36
+        specifier: 0.21.41
+        version: 0.21.41
       effect:
-        specifier: 4.1.3
-        version: 4.1.3
+        specifier: 4.1.5
+        version: 4.1.5
       playwright-core:
         specifier: 1.64.1
         version: 1.64.1
@@ -2276,8 +2282,8 @@ importers:
         version: 0.35.5(@types/node@24.12.4)
     devDependencies:
       '@effect/vitest':
-        specifier: 4.1.2
-        version: 4.1.2(effect@4.1.3)(vitest@5.0.5)
+        specifier: 4.1.5
+        version: 4.1.5(effect@4.1.5)(vitest@5.0.5)
       esbuild:
         specifier: 0.28.2
         version: 0.28.2
@@ -3034,38 +3040,38 @@ packages:
     resolution: {integrity: sha512-bPlN9S9O1A0euCpEWE4qnvB5YDuyYVsUTrxSgmAM1Is0j4tICHoVyOVAXfWMP/kS9ZrjvyIXWV2PmomiAXXqOw==}
     engines: {node: '>=20.19.0'}
 
-  '@cursor/sdk-darwin-arm64@1.3.1':
-    resolution: {integrity: sha512-5JXgVJYeFPxXjDqnu1ha/rAmH+ATFh4abdx199x8E/RcYYM++9b55oJXO3GYv1/9/4Qa9RsE5JkHRY6FYc5vQw==}
+  '@cursor/sdk-darwin-arm64@1.4.2':
+    resolution: {integrity: sha512-avM3SHrUOesNn6+8BCqcK1RbqmynWpjQt2mAajzBhjDK6k8HD6akpKjiZ1ufrL/dD09g9NVVtUSmYJmOYP5pXQ==}
     cpu: [arm64]
     os: [darwin]
     hasBin: true
 
-  '@cursor/sdk-darwin-x64@1.3.1':
-    resolution: {integrity: sha512-yHzIRER8IpOpIH/CUigquuwqvcjCEe62xV6OiJHzRfgApdnzxCjC8JMhLZP2M08/dofyZu9xeo7yr43H6oSRTA==}
+  '@cursor/sdk-darwin-x64@1.4.2':
+    resolution: {integrity: sha512-o2H4MtiLLRxSRuxJJoDzosRYE6gvMyEyrGfg8xN+0DQ3x1rgcZ+8q7wX/+ZRE6UYyW/eh6ryNTaY+sVFcQkY0A==}
     cpu: [x64]
     os: [darwin]
     hasBin: true
 
-  '@cursor/sdk-linux-arm64@1.3.1':
-    resolution: {integrity: sha512-8wI7DUSQtJ7Rkyj5AhNONeR0M+5bjhR0qo8GJEEmRs6isi072sNPsFXwfhlzX7bhbtsX/FCtvsTG/vpam48ObA==}
+  '@cursor/sdk-linux-arm64@1.4.2':
+    resolution: {integrity: sha512-NQxAPiaUabDuM0UwgiFHYX2L8MW8bnX07eEMHpCbJrdBsWBHClTUhMfK0p+BXwzxZjDuA92MzN0bxvjToGPH7Q==}
     cpu: [arm64]
     os: [linux]
     hasBin: true
 
-  '@cursor/sdk-linux-x64@1.3.1':
-    resolution: {integrity: sha512-jIwzTr3KhMtU4aJc8x0i1RlcBKttqcVYhor9FI/h1qJQm03yTgSwhyZjsMvfBHPQ5KoYDFVdu47S1dIhwaSWZA==}
+  '@cursor/sdk-linux-x64@1.4.2':
+    resolution: {integrity: sha512-9R9iG0sndf63Z9YlLWm1c7ve6McriP2OW71O2wkWleWn1BfYCxAXMY5Qi+OWLBLVNtwmClGUzaOiY873SxG41A==}
     cpu: [x64]
     os: [linux]
     hasBin: true
 
-  '@cursor/sdk-win32-x64@1.3.1':
-    resolution: {integrity: sha512-hqYllGgY27eaq+w035PebKdoc/JswcrvOSNCniqq/nicLXgWdK5zdKiAs5MyWUr73HGGL1sK0aiE7WdxbIKKVw==}
+  '@cursor/sdk-win32-x64@1.4.2':
+    resolution: {integrity: sha512-JBLJWDAAJOJFJrYZlYWnWWoyS7Eh9AZWXSOm/A7LX5wrGgeRJipIT2Y7yHbYJ2HgZQEletaywEkPpxPRJPdW5w==}
     cpu: [x64]
     os: [win32]
     hasBin: true
 
-  '@cursor/sdk@1.3.1':
-    resolution: {integrity: sha512-Mn0gK8V+5BkOqm22J2ocU+1BrqnNH8QcK9kmA7SkRuawDOeq2ABC2BIZq9gRnF3z68x/I7J/ZU8jl6DcshCVUA==}
+  '@cursor/sdk@1.4.2':
+    resolution: {integrity: sha512-IMeIZtLvVX5w6rOS34bfBQt2b/WsMm+6lLU6vdlia0E6RuuXup+aVXyJrzvVAfnI7pK8bPPc7Gx1dvxy7ci+1Q==}
     engines: {node: '>=22.13'}
     peerDependencies:
       zod: ^3.25.0 || ^4.0.0
@@ -3114,46 +3120,46 @@ packages:
     peerDependencies:
       react: '>=16.8.0'
 
-  '@effect/atom-react@4.1.2':
-    resolution: {integrity: sha512-XRAm4lks2kzNFQIz9QTGKR02CaDTR9VJNRXDjDAR8OzM15ybrK4YkB7OlFZ9U+hxXe3DXJZx7RU1/xI2Em2PGQ==}
+  '@effect/atom-react@4.1.5':
+    resolution: {integrity: sha512-7bFJUOa4hatIE4LD4EmuOSS7+jNniZxaltX3TRExBCYAFqMd6vjZs9G/Ez3u24oUaJnkschmjfG3EwVzzebgig==}
     peerDependencies:
       '@types/react': '*'
       '@types/scheduler': '*'
-      effect: 4.1.3
+      effect: 4.1.5
       react: '>=19.0.0 <20.0.0'
       scheduler: '>=0.25.0 <0.29.0'
 
-  '@effect/graphql-generator@4.1.2':
-    resolution: {integrity: sha512-V6y46lsINE3mHzNTYlYY4UA5RJZkywYAorPL0Bl7U4ggGk8P8gqVcc8iGnUoHzlR97TKbNucOSYvCiFv2oidVg==}
+  '@effect/graphql-generator@4.1.5':
+    resolution: {integrity: sha512-Re1ZD0VkEAICN/TK7Y30TkcBnYk3im9O1iUpfnlvlWS9y4Vl/9C2Du/O5NGanXPpm75MuPitOUu/eCN1nTvRBg==}
     hasBin: true
     peerDependencies:
-      '@effect/platform-node': 4.1.2
-      effect: 4.1.3
+      '@effect/platform-node': 4.1.5
+      effect: 4.1.5
 
-  '@effect/openapi-generator@4.1.2':
-    resolution: {integrity: sha512-seh1li7cp6XE734rWmsQ/lQ2RFp1YCMb1PP6pZ7CvFAeoAUsgM4J2z8iCllY8yE2VnswWWw9GQ/XKHLm/gpGzg==}
+  '@effect/openapi-generator@4.1.5':
+    resolution: {integrity: sha512-tovGv6oLMX31PsDgGdibh8b/CVVpFCg9Y7zJ84gPMD6u8xS0dSjfwIQiQgbPJiDg5aDKA2aas5h3/pS7KfDhFQ==}
     hasBin: true
     peerDependencies:
-      '@effect/platform-node': 4.1.2
-      effect: 4.1.3
+      '@effect/platform-node': 4.1.5
+      effect: 4.1.5
 
-  '@effect/platform-node-shared@4.1.2':
-    resolution: {integrity: sha512-wSwl9A/G1hcVvF8nLI+YfB3EyOIDvWS6+lsTZBkmgDnPBL7m8YWZF+1HD+mdEsb52SUGfukip46Q3gRwSdk3QA==}
+  '@effect/platform-node-shared@4.1.5':
+    resolution: {integrity: sha512-JzlrYe4uKaBFTWihBRXo2pDjkUVB39kQpKdGfXdbp7Co5sKT8hbcjOmdB5pg/WOYESdGTddd3fxD4lwlZELbZQ==}
     engines: {node: '>=22.19.0'}
     peerDependencies:
-      effect: 4.1.3
+      effect: 4.1.5
 
-  '@effect/platform-node@4.1.2':
-    resolution: {integrity: sha512-ye0UjxORdd5Qu3paZ1LljgGOALWHt7muP9VTpjUSCNfcesiB/Hm7wPJIvZeu4gnwpTe5BtEnO1VHngWqjJp8mA==}
+  '@effect/platform-node@4.1.5':
+    resolution: {integrity: sha512-tFnRvxF9EKc3oU17sDHj1JeLP+TL/IkaOEl3IUk2EjgMS0x7AWs0ioUXjdNKLb3Z1LdjVfMf/DxsNh9PW5FFAg==}
     engines: {node: '>=22.19.0'}
     peerDependencies:
-      effect: 4.1.3
+      effect: 4.1.5
       redis: '>=5.1.0 <7.0.0'
 
-  '@effect/vitest@4.1.2':
-    resolution: {integrity: sha512-JJPwAHkJHxvM/woW9mMW/khjasAHcmwWdOMAgMy16rfqsxcVhFDnrRsvN9VI2+kMv8zDCCyBE2q1n5hzZlfE0w==}
+  '@effect/vitest@4.1.5':
+    resolution: {integrity: sha512-18u1013wkJtSelk1ZYLc/5aUnluTQyDfi2hAemkJW1GQ9qXw4mtPSiSf0AXZPhesmGCvG1Dk2C4JYD2sz+R72w==}
     peerDependencies:
-      effect: 4.1.3
+      effect: 4.1.5
       vitest: 5.0.5
 
   '@electron-internal/extract-zip@1.0.5':
@@ -3977,8 +3983,8 @@ packages:
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
 
-  '@legendapp/list@3.7.2':
-    resolution: {integrity: sha512-StFy5qjOHHuxHKjenwLq500S/z+zuF43hj8iqXhX9EMtzeOagPfsnMRWphvBG4CYBvMTX6VzgLjN5BzzwY1jDA==}
+  '@legendapp/list@3.7.3':
+    resolution: {integrity: sha512-trGu1i4xo1+r6gG6GI3qrrZAfYHbB25uVj32/KnxhaQ7/eW4AqzhM5cW21Oye4dpg+180Ts1aejRuI8z6Xc4eg==}
     peerDependencies:
       '@types/react': '*'
       react: '*'
@@ -4277,7 +4283,7 @@ packages:
   '@opencode/client@2.0.28':
     resolution: {integrity: sha512-YV0Yxk93/K2h4Xy/sEW/4ZYGMwn7ltxG2Y/Vdy2VCIZ2z0/r9MI6x5/XawSNfCvImBxuHkQNbYtu9Rgp3ArJ4g==}
     peerDependencies:
-      effect: 4.1.3
+      effect: 4.1.5
       solid-js: '>=1.9.0'
     peerDependenciesMeta:
       effect:
@@ -6945,8 +6951,8 @@ packages:
     engines: {node: '>=18.18'}
     hasBin: true
 
-  agent-device@0.21.36:
-    resolution: {integrity: sha512-aG88WlEHjFc/OEBQC7AJg+2LfNoVT/ogxnnzIUYUEgafdiTvBaA+X6uQ2wNmpp2ZrHLy8QIXoEOyc3NEZgJCpQ==}
+  agent-device@0.21.41:
+    resolution: {integrity: sha512-VQMYEXzcNBwCPLrWHDM0ic1pWD+GroWukj0jHCzS9zob9eeHSVYJTVSgydLaDn2c2aMH3NuCHr1vLvZ2Bgl7Uw==}
     engines: {node: '>=22.12'}
     hasBin: true
     peerDependencies:
@@ -7754,8 +7760,8 @@ packages:
   ee-first@1.1.1:
     resolution: {integrity: sha512-WMwm9LhRUo+WUaRN+vRuETqG89IgZphVSNkdFgeb6sS/E4OrDIN7t48CAewSHXc6C8lefD8KKfr5vY61brQlow==}
 
-  effect@4.1.3:
-    resolution: {integrity: sha512-QWNEu35groH/78Ejq01lZGt8U0sF1P4nrhbcAZz5WffcS27bUUK9C/db+xWWUwNYUvFD5SrSLE0mFGtwyP0PCQ==}
+  effect@4.1.5:
+    resolution: {integrity: sha512-xyR20KhQI0vg2gD8ILUSQRTTESEYJ0JKdP+QD8J37xbwPTqXRxFM/l0+vUVD9fuSvoYruoTqyt33C4FZv1s4TQ==}
 
   ejs@3.1.10:
     resolution: {integrity: sha512-UeJmFfOrAQS8OJWPZ4qtgHyWExa088/MtK5UEyoJGFH67cDEXkZSviOiKRCZ4Xij0zxI3JECgYs3oKx+AizQBA==}
@@ -10176,9 +10182,9 @@ packages:
       react: '*'
       react-native: '*'
 
-  react-native-screens@file:apps/mobile/deps/react-native-screens-5.0.0-supacode.58.tgz:
-    resolution: {integrity: sha512-l199tb0Ew5tBZjoZUM4cXFYC3vKc4bjMU62SXuPWs2TVeXLm/GBtihcVldOGGhfdHPHPatm2wanNs3CY9BFEog==, tarball: file:apps/mobile/deps/react-native-screens-5.0.0-supacode.58.tgz}
-    version: 5.0.0-supacode.58
+  react-native-screens@file:apps/mobile/deps/react-native-screens-5.0.0-supacode.61.tgz:
+    resolution: {integrity: sha512-23U5P+fI2mdjYKHeijvofLQfRi+8o1I2q2XCM8YhL4lqZ0rBbxPf2gw2XnZ0ix61leJ8kdsuGbJ6gGda1vPdrQ==, tarball: file:apps/mobile/deps/react-native-screens-5.0.0-supacode.61.tgz}
+    version: 5.0.0-supacode.61
     peerDependencies:
       '@types/react': '*'
       react: '*'
@@ -11512,6 +11518,18 @@ packages:
       utf-8-validate:
         optional: true
 
+  ws@8.23.0:
+    resolution: {integrity: sha512-wCkmX8QMOrKjgO8HW2WyDbTSGeqkocxgDzS9iR79rEAexty6/2qzilx3Ag8Tqf9ykop3irLKle0MtVn5qjVnoQ==}
+    engines: {node: '>=10.0.0'}
+    peerDependencies:
+      bufferutil: ^4.0.1
+      utf-8-validate: '>=5.0.2'
+    peerDependenciesMeta:
+      bufferutil:
+        optional: true
+      utf-8-validate:
+        optional: true
+
   xcode@4.0.0:
     resolution: {integrity: sha512-dDaoWzc9EP2fp9FS9PVZUkyvFxY4y1TOV9pcKaKLk++Ei/qb97XDFEVP7GnW7Osii/TzVABJ0jq2F+9/lq0TVA==}
     engines: {node: '>=14.17.0'}
@@ -12444,22 +12462,22 @@ snapshots:
 
   '@csstools/css-tokenizer@4.0.1': {}
 
-  '@cursor/sdk-darwin-arm64@1.3.1':
+  '@cursor/sdk-darwin-arm64@1.4.2':
     optional: true
 
-  '@cursor/sdk-darwin-x64@1.3.1':
+  '@cursor/sdk-darwin-x64@1.4.2':
     optional: true
 
-  '@cursor/sdk-linux-arm64@1.3.1':
+  '@cursor/sdk-linux-arm64@1.4.2':
     optional: true
 
-  '@cursor/sdk-linux-x64@1.3.1':
+  '@cursor/sdk-linux-x64@1.4.2':
     optional: true
 
-  '@cursor/sdk-win32-x64@1.3.1':
+  '@cursor/sdk-win32-x64@1.4.2':
     optional: true
 
-  '@cursor/sdk@1.3.1(zod@4.6.5)':
+  '@cursor/sdk@1.4.2(zod@4.6.5)':
     dependencies:
       '@bufbuild/protobuf': 1.10.0
       '@connectrpc/connect': 1.7.0(@bufbuild/protobuf@1.10.0)
@@ -12467,11 +12485,11 @@ snapshots:
       '@statsig/js-client': 3.31.0
       zod: 4.6.5
     optionalDependencies:
-      '@cursor/sdk-darwin-arm64': 1.3.1
-      '@cursor/sdk-darwin-x64': 1.3.1
-      '@cursor/sdk-linux-arm64': 1.3.1
-      '@cursor/sdk-linux-x64': 1.3.1
-      '@cursor/sdk-win32-x64': 1.3.1
+      '@cursor/sdk-darwin-arm64': 1.4.2
+      '@cursor/sdk-darwin-x64': 1.4.2
+      '@cursor/sdk-linux-arm64': 1.4.2
+      '@cursor/sdk-linux-x64': 1.4.2
+      '@cursor/sdk-win32-x64': 1.4.2
 
   '@date-fns/tz@1.5.0': {}
 
@@ -12516,50 +12534,50 @@ snapshots:
       react: 19.3.0
       tslib: 2.8.1
 
-  '@effect/atom-react@4.1.2(@types/react@19.3.0)(@types/scheduler@0.16.8)(effect@4.1.3)(react@19.3.0)(scheduler@0.28.0)':
+  '@effect/atom-react@4.1.5(@types/react@19.3.0)(@types/scheduler@0.16.8)(effect@4.1.5)(react@19.3.0)(scheduler@0.28.0)':
     dependencies:
       '@types/react': 19.3.0
       '@types/scheduler': 0.16.8
-      effect: 4.1.3
+      effect: 4.1.5
       react: 19.3.0
       scheduler: 0.28.0
 
-  '@effect/graphql-generator@4.1.2(@effect/platform-node@4.1.2(bufferutil@4.1.0)(effect@4.1.3)(redis@6.2.1)(utf-8-validate@6.0.6))(effect@4.1.3)':
+  '@effect/graphql-generator@4.1.5(@effect/platform-node@4.1.5(bufferutil@4.1.0)(effect@4.1.5)(redis@6.2.1)(utf-8-validate@6.0.6))(effect@4.1.5)':
     dependencies:
-      '@effect/platform-node': 4.1.2(bufferutil@4.1.0)(effect@4.1.3)(redis@6.2.1)(utf-8-validate@6.0.6)
-      effect: 4.1.3
+      '@effect/platform-node': 4.1.5(bufferutil@4.1.0)(effect@4.1.5)(redis@6.2.1)(utf-8-validate@6.0.6)
+      effect: 4.1.5
 
-  '@effect/openapi-generator@4.1.2(@effect/platform-node@4.1.2(bufferutil@4.1.0)(effect@4.1.3)(redis@6.2.1)(utf-8-validate@6.0.6))(effect@4.1.3)(encoding@0.1.13)':
+  '@effect/openapi-generator@4.1.5(@effect/platform-node@4.1.5(bufferutil@4.1.0)(effect@4.1.5)(redis@6.2.1)(utf-8-validate@6.0.6))(effect@4.1.5)(encoding@0.1.13)':
     dependencies:
-      '@effect/platform-node': 4.1.2(bufferutil@4.1.0)(effect@4.1.3)(redis@6.2.1)(utf-8-validate@6.0.6)
+      '@effect/platform-node': 4.1.5(bufferutil@4.1.0)(effect@4.1.5)(redis@6.2.1)(utf-8-validate@6.0.6)
       '@types/swagger2openapi': 7.0.4
-      effect: 4.1.3
+      effect: 4.1.5
       swagger2openapi: 7.0.8(encoding@0.1.13)
     transitivePeerDependencies:
       - encoding
 
-  '@effect/platform-node-shared@4.1.2(patch_hash=06952843c6f431ca83c78762fd18d23cda76883801049ee311feced2438ecf14)(bufferutil@4.1.0)(effect@4.1.3)(utf-8-validate@6.0.6)':
+  '@effect/platform-node-shared@4.1.5(patch_hash=06952843c6f431ca83c78762fd18d23cda76883801049ee311feced2438ecf14)(bufferutil@4.1.0)(effect@4.1.5)(utf-8-validate@6.0.6)':
     dependencies:
       '@types/ws': 8.18.2
-      effect: 4.1.3
-      ws: 8.22.2(bufferutil@4.1.0)(utf-8-validate@6.0.6)
+      effect: 4.1.5
+      ws: 8.23.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
 
-  '@effect/platform-node@4.1.2(bufferutil@4.1.0)(effect@4.1.3)(redis@6.2.1)(utf-8-validate@6.0.6)':
+  '@effect/platform-node@4.1.5(bufferutil@4.1.0)(effect@4.1.5)(redis@6.2.1)(utf-8-validate@6.0.6)':
     dependencies:
-      '@effect/platform-node-shared': 4.1.2(patch_hash=06952843c6f431ca83c78762fd18d23cda76883801049ee311feced2438ecf14)(bufferutil@4.1.0)(effect@4.1.3)(utf-8-validate@6.0.6)
-      effect: 4.1.3
+      '@effect/platform-node-shared': 4.1.5(patch_hash=06952843c6f431ca83c78762fd18d23cda76883801049ee311feced2438ecf14)(bufferutil@4.1.0)(effect@4.1.5)(utf-8-validate@6.0.6)
+      effect: 4.1.5
       redis: 6.2.1
       undici: 8.12.4
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
 
-  '@effect/vitest@4.1.2(effect@4.1.3)(vitest@5.0.5)':
+  '@effect/vitest@4.1.5(effect@4.1.5)(vitest@5.0.5)':
     dependencies:
-      effect: 4.1.3
+      effect: 4.1.5
       vitest: 5.0.5(@tsc-rs/typescript@0.8.0)(@types/jsdom@30.0.0)(@types/node@24.12.4)(@vitest/browser-playwright@5.0.5)(@vitest/browser-preview@5.0.5)(@vitest/ui@5.0.5)(@voidzero-dev/vite-plus-core@1.4.0(@tsc-rs/typescript@0.8.0)(@types/node@24.12.4)(@volar/typescript@2.4.28(@tsc-rs/typescript@0.8.0))(esbuild@0.28.2)(jiti@2.7.0)(terser@5.48.0)(unrun@0.2.39)(yaml@2.9.0))(@volar/typescript@2.4.28(@tsc-rs/typescript@0.8.0))(esbuild@0.28.2)(jiti@2.7.0)(jsdom@30.1.0(@noble/hashes@1.8.0))(terser@5.48.0)(unrun@0.2.39)(yaml@2.9.0)
 
   '@electron-internal/extract-zip@1.0.5': {}
@@ -13581,7 +13599,7 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.6.0
 
-  '@legendapp/list@3.7.2(patch_hash=bb5540800c0e1b9cf41e2c0267fe64659da8f3faeb48219a4ec7cc77355192a3)(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react-native@0.88.1(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.88.0(@babel/core@7.29.7(supports-color@8.1.1))(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(react@19.3.0)':
+  '@legendapp/list@3.7.3(patch_hash=b3f9527ffe55dcfa9b9ad0f5103cb2bd1916f221f3dce7b1c5e6b88289307da4)(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react-native@0.88.1(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.88.0(@babel/core@7.29.7(supports-color@8.1.1))(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(react@19.3.0)':
     dependencies:
       '@types/react': 19.3.0
       react: 19.3.0
@@ -13817,22 +13835,22 @@ snapshots:
   '@noxcturnal/noxcturnal-win32-x64-msvc@0.1.12':
     optional: true
 
-  '@opencode/client@2.0.28(effect@4.1.3)':
+  '@opencode/client@2.0.28(effect@4.1.5)':
     dependencies:
       '@opencode/protocol': 2.0.28
       '@opencode/schema': 2.0.28
     optionalDependencies:
-      effect: 4.1.3
+      effect: 4.1.5
 
   '@opencode/protocol@2.0.28':
     dependencies:
       '@opencode/schema': 2.0.28
-      effect: 4.1.3
+      effect: 4.1.5
 
   '@opencode/schema@2.0.28':
     dependencies:
       '@standard-schema/spec': 1.1.0
-      effect: 4.1.3
+      effect: 4.1.5
 
   '@oslojs/encoding@1.1.0': {}
 
@@ -14314,7 +14332,7 @@ snapshots:
       react: 19.3.0
       react-dom: 19.3.0(react@19.3.0)
 
-  '@pierre/diffs@1.6.1(patch_hash=b4d7c61e5e7644b7371724efe3a34075747cb5c52663476b02e99af1e77c48cb)(@shikijs/themes@4.2.0)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)':
+  '@pierre/diffs@1.6.1(patch_hash=83adab3a25c255cda77e23852092d93b0c8c4b560ef050200d55c020b12e7384)(@shikijs/themes@4.2.0)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)':
     dependencies:
       '@pierre/highlights': 0.2.0
       '@pierre/theme': 2.0.0
@@ -14589,7 +14607,7 @@ snapshots:
     optionalDependencies:
       '@react-native-masked-view/masked-view': 0.3.2(@types/react-native@0.72.8(react-native@0.88.1(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.88.0(@babel/core@7.29.7(supports-color@8.1.1))(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(supports-color@8.1.1)(utf-8-validate@6.0.6)))(react-native@0.88.1(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.88.0(@babel/core@7.29.7(supports-color@8.1.1))(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(react@19.3.0)
 
-  '@react-navigation/native-stack@7.21.0(patch_hash=990d575444c4af2ce8218b3b7a8280fe244c03abbdb32b822a2e862f791dbf42)(22197822c464858cc83eb41c02c728c4)':
+  '@react-navigation/native-stack@7.21.0(patch_hash=990d575444c4af2ce8218b3b7a8280fe244c03abbdb32b822a2e862f791dbf42)(207f174558d39c81303d06b2f42162f9)':
     dependencies:
       '@react-navigation/core': 7.24.0(@types/react@19.3.0)(react@19.3.0)
       '@react-navigation/elements': 2.9.45(ee5cfeccff0a2768103120e91d33c38f)
@@ -14599,7 +14617,7 @@ snapshots:
       react: 19.3.0
       react-native: 0.88.1(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.88.0(@babel/core@7.29.7(supports-color@8.1.1))(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(supports-color@8.1.1)(utf-8-validate@6.0.6)
       react-native-safe-area-context: 5.11.1(@types/react@19.3.0)(react-native@0.88.1(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.88.0(@babel/core@7.29.7(supports-color@8.1.1))(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(react@19.3.0)
-      react-native-screens: file:apps/mobile/deps/react-native-screens-5.0.0-supacode.58.tgz(@types/react@19.3.0)(react-native@0.88.1(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.88.0(@babel/core@7.29.7(supports-color@8.1.1))(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(react@19.3.0)
+      react-native-screens: file:apps/mobile/deps/react-native-screens-5.0.0-supacode.61.tgz(@types/react@19.3.0)(react-native@0.88.1(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.88.0(@babel/core@7.29.7(supports-color@8.1.1))(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(react@19.3.0)
       sf-symbols-typescript: 2.2.0
       warn-once: 0.1.1
     transitivePeerDependencies:
@@ -16116,7 +16134,7 @@ snapshots:
 
   agent-cli-detector@0.1.7: {}
 
-  agent-device@0.21.36: {}
+  agent-device@0.21.41: {}
 
   agent-install@0.0.5:
     dependencies:
@@ -17090,7 +17108,7 @@ snapshots:
 
   ee-first@1.1.1: {}
 
-  effect@4.1.3: {}
+  effect@4.1.5: {}
 
   ejs@3.1.10:
     dependencies:
@@ -17141,7 +17159,7 @@ snapshots:
 
   electron-to-chromium@1.5.430: {}
 
-  electron-updater@6.8.9(patch_hash=5e096d34a46fdbaa6d48a5803b2c0ed9c7c04f8ab43a30ebebbf726f8f28ed8e)(supports-color@8.1.1):
+  electron-updater@6.8.9(patch_hash=91b5648a7eed42761523ef542ebb7e548b037eda41d66533c8152ac65ac72155)(supports-color@8.1.1):
     dependencies:
       '@types/fs-extra': 9.0.13
       '@types/js-yaml': 4.0.3
@@ -20262,7 +20280,7 @@ snapshots:
       react: 19.3.0
       react-native: 0.88.1(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.88.0(@babel/core@7.29.7(supports-color@8.1.1))(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(supports-color@8.1.1)(utf-8-validate@6.0.6)
 
-  react-native-screens@file:apps/mobile/deps/react-native-screens-5.0.0-supacode.58.tgz(@types/react@19.3.0)(react-native@0.88.1(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.88.0(@babel/core@7.29.7(supports-color@8.1.1))(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(react@19.3.0):
+  react-native-screens@file:apps/mobile/deps/react-native-screens-5.0.0-supacode.61.tgz(@types/react@19.3.0)(react-native@0.88.1(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.88.0(@babel/core@7.29.7(supports-color@8.1.1))(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(react@19.3.0):
     dependencies:
       '@types/react': 19.3.0
       react: 19.3.0
@@ -20270,7 +20288,7 @@ snapshots:
       react-native: 0.88.1(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.88.0(@babel/core@7.29.7(supports-color@8.1.1))(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(supports-color@8.1.1)(utf-8-validate@6.0.6)
       warn-once: 0.1.1
 
-  react-native-svg@15.16.1(patch_hash=110f9243ffad03654ce40dd1cdb09f01af16b8fa2ccb2b2cd3d62e682c180399)(@types/react@19.3.0)(react-native@0.88.1(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.88.0(@babel/core@7.29.7(supports-color@8.1.1))(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(react@19.3.0):
+  react-native-svg@15.16.1(patch_hash=7f94d240fc19418233c96f9a637dfd248846446657476c204f3614fd2847900e)(@types/react@19.3.0)(react-native@0.88.1(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.88.0(@babel/core@7.29.7(supports-color@8.1.1))(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(react@19.3.0):
     dependencies:
       '@types/css-tree': 1.0.7
       '@types/react': 19.3.0
@@ -21776,6 +21794,11 @@ snapshots:
       utf-8-validate: 6.0.6
 
   ws@8.22.2(bufferutil@4.1.0)(utf-8-validate@6.0.6):
+    optionalDependencies:
+      bufferutil: 4.1.0
+      utf-8-validate: 6.0.6
+
+  ws@8.23.0(bufferutil@4.1.0)(utf-8-validate@6.0.6):
     optionalDependencies:
       bufferutil: 4.1.0
       utf-8-validate: 6.0.6

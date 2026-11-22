@@ -15,6 +15,7 @@ import {
   AuthOrchestrationReadScope,
   MCP_PEER_LINK_SOFTWARE_ID,
   parseMcpApprovalCode,
+  mcpClientScopes,
 } from "@supaterm/contracts";
 import { encodeOAuthScope } from "@supaterm/shared/oauthScope";
 import * as Clock from "effect/Clock";
@@ -35,7 +36,6 @@ import type * as McpInvocationContext from "../mcp/McpInvocationContext.ts";
 import * as PayloadSigner from "./PayloadSigner.ts";
 import * as EnvironmentAuth from "./EnvironmentAuth.ts";
 import * as ServerSecretStore from "./ServerSecretStore.ts";
-import * as ServerSettings from "../serverSettings.ts";
 import {
   base64UrlDecodeUtf8,
   base64UrlEncode,
@@ -60,8 +60,6 @@ const DEFAULT_CLIENT_NAME = "MCP client";
 const LOOPBACK_HOSTNAMES = new Set(["localhost", "127.0.0.1", "[::1]"]);
 const CODE_CHALLENGE_PATTERN = /^[A-Za-z0-9_-]{43}$/;
 const CODE_VERIFIER_PATTERN = /^[A-Za-z0-9\-._~]{43,128}$/;
-const LINKED_ENVIRONMENTS_OFF_THERE =
-  "Linked environments is off on that machine. Turn it on in its Settings → Environments.";
 
 const MCP_OAUTH_SCOPES = [AuthOrchestrationReadScope, AuthOrchestrationOperateScope];
 
@@ -256,11 +254,6 @@ const make = Effect.gen(function* () {
   const secretStore = yield* ServerSecretStore.ServerSecretStore;
   const random = yield* SecureRandom.SecureRandom;
   const digester = yield* Digest.Digest;
-  const serverSettings = yield* ServerSettings.ServerSettingsService;
-  const linksEnabled = serverSettings.getSettings.pipe(
-    Effect.map((settings) => settings.linkedEnvironmentsEnabled),
-    Effect.orElseSucceed(() => false),
-  );
   const signer = yield* PayloadSigner.fromSecret(
     yield* secretStore.getOrCreateRandom(SIGNING_SECRET_NAME, 32).pipe(Effect.orDie),
   );
@@ -339,12 +332,6 @@ const make = Effect.gen(function* () {
       }
       // RFC 7591 allows ignoring unsupported registration options; all clients use public PKCE.
       const peerLink = metadata.software_id === MCP_PEER_LINK_SOFTWARE_ID;
-      if (peerLink && !(yield* linksEnabled)) {
-        return yield* new AuthMcpRegistrationError({
-          error: "invalid_client_metadata",
-          error_description: LINKED_ENVIRONMENTS_OFF_THERE,
-        });
-      }
       const clientId = yield* signClientId(name, redirectUris, peerLink);
       if (
         redirectUris.length > MAX_UNBOUNDED_CLIENT_ID_REDIRECT_URIS &&
@@ -457,10 +444,6 @@ const make = Effect.gen(function* () {
   const approve: McpOAuth["Service"]["approve"] = Effect.fn("McpOAuth.approve")(function* (input) {
     const { decision } = input;
     let access = decision.access;
-    // Registered while the setting was on; a link finished after it went off would wait unseen.
-    if (input.authorization.client.peerLink && !(yield* linksEnabled)) {
-      return yield* new McpOAuthPageError({ description: LINKED_ENVIRONMENTS_OFF_THERE });
-    }
     if (decision._tag === "pairing-code") {
       // An approval code is for one app's sign-in, never for linking another environment.
       if (input.authorization.client.peerLink && parseMcpApprovalCode(decision.code)) {
@@ -488,9 +471,7 @@ const make = Effect.gen(function* () {
       if (
         session === undefined ||
         !timingSafeEqualBase64Url(decision.csrfToken, session.csrfToken) ||
-        !EnvironmentAuth.mcpClientScopes(decision.access).every((scope) =>
-          session.scopes.includes(scope),
-        )
+        !mcpClientScopes(decision.access).every((scope) => session.scopes.includes(scope))
       ) {
         return yield* new McpOAuthPageError({
           description: "Your session cannot approve this request. Enter a pairing code instead.",
@@ -556,9 +537,6 @@ const make = Effect.gen(function* () {
       ) {
         return yield* fail("invalid_grant", "The authorization code is invalid or expired.");
       }
-      if (pending.peerLink && !(yield* linksEnabled)) {
-        return yield* fail("invalid_grant", LINKED_ENVIRONMENTS_OFF_THERE);
-      }
       const issued = yield* environmentAuth
         .issueMcpClientSession({
           label: pending.clientName,
@@ -579,7 +557,7 @@ const make = Effect.gen(function* () {
         access_token: issued.token,
         token_type: "Bearer",
         expires_in: Math.max(0, Math.floor((issued.expiresAt.epochMilliseconds - now) / 1000)),
-        scope: encodeOAuthScope(EnvironmentAuth.mcpClientScopes(pending.access)),
+        scope: encodeOAuthScope(mcpClientScopes(pending.access)),
       };
     },
   );
@@ -617,6 +595,7 @@ export const layerMcpClientAuthenticator = Layer.effect(
                     label: client.label,
                     access: client.access,
                     linked: client.peerLink,
+                    linkExpiresAt: client.linkExpiresAt,
                     ...(client.peerLink ? {} : { webOrigin: requestUrls(request).issuer }),
                   },
                   capabilities: new Set<McpInvocationContext.McpCapability>([

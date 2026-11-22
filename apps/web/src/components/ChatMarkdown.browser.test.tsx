@@ -2,15 +2,19 @@ import { MISSING_FILE_ACCESS_MESSAGE } from "@supaterm/client-runtime/state/asse
 import { EnvironmentId, ThreadId } from "@supaterm/contracts";
 import { AsyncResult } from "effect/reactivity";
 import { type ReactElement } from "react";
+import remarkGfm from "remark-gfm";
 import { describe, expect, it, vi } from "vite-plus/test";
-import { page, userEvent } from "vite-plus/test/browser";
+import { commands, page, userEvent } from "vite-plus/test/browser";
 
 import { act, render } from "../../test/render";
 import "../index.css";
 
 import { filesystemEnvironment } from "../state/filesystem";
-import { useRightPanelStore } from "../rightPanelStore";
-import { remarkEnableOrderedListNumbers } from "@supaterm/shared/markdownPipeline";
+import { selectActiveRightPanelSurface, useRightPanelStore } from "../rightPanelStore";
+import {
+  CHAT_USER_MARKDOWN_REMARK_PLUGINS,
+  remarkEnableOrderedListNumbers,
+} from "@supaterm/shared/markdownPipeline";
 import { setMarkdownTaskChecked } from "@supaterm/shared/markdownTaskList";
 import { getSyntaxHighlighterPromise } from "../lib/syntaxHighlighting";
 import { MarkdownFindContext } from "./chat/markdownFindContext";
@@ -111,7 +115,10 @@ vi.mock(import("../hooks/useSettings"), async (original) => {
 });
 
 import ChatMarkdown from "./ChatMarkdown";
-import { chatMarkdownClipboardPayload } from "../markdown-clipboard";
+import {
+  chatMarkdownClipboardPayload,
+  serializeRenderedMarkdownFragment,
+} from "../markdown-clipboard";
 import { AudioPreview } from "./files/AudioPreview";
 
 it("keeps compact audio playback loaded across signed URL renewals", async () => {
@@ -780,9 +787,7 @@ describe("ChatMarkdown workspace file opens", () => {
       resolvePending = resolve;
     });
     workspaceSearch.mockReturnValueOnce(pending);
-    using openFile = vi
-      .spyOn(useRightPanelStore.getState(), "openFile")
-      .mockImplementation(() => {});
+    using openFile = vi.spyOn(useRightPanelStore.getState(), "openFile");
     await using screen = await renderText(
       "[Notes](physics/notes/a.md) and [Other](/elsewhere/b.md:9)",
       {
@@ -801,6 +806,69 @@ describe("ChatMarkdown workspace file opens", () => {
 
     expect(openFile).toHaveBeenCalledExactlyOnceWith(threadRef, "/elsewhere/b.md", 9);
     expect(workspaceSearch).toHaveBeenCalledOnce();
+  });
+
+  it("keeps a file opened from the picker when an earlier link lookup finishes", async () => {
+    setup();
+    const panelRef = { ...threadRef, threadId: ThreadId.make("thread-own-panel") };
+    const result = AsyncResult.success({
+      entries: [{ path: "notes/cited-note.txt", kind: "file" }],
+      truncated: false,
+    });
+    let resolvePending!: (value: typeof result) => void;
+    const pending = new Promise<typeof result>((resolve) => {
+      resolvePending = resolve;
+    });
+    workspaceSearch.mockReturnValueOnce(pending);
+    await using screen = await renderText("[Cited](cited-note.txt)", {
+      cwd: "/repo",
+      threadRef: panelRef,
+    });
+    await act(async () => screen.container.querySelector("a")!.click());
+    expect(workspaceSearch).toHaveBeenCalledOnce();
+
+    useRightPanelStore.getState().openFile(panelRef, "picker-note.txt");
+    await act(async () => resolvePending(result));
+
+    expect(
+      selectActiveRightPanelSurface(useRightPanelStore.getState().byThreadKey, panelRef),
+    ).toMatchObject({ kind: "file", relativePath: "picker-note.txt" });
+  });
+
+  it("keeps a citation in its own panel when a link opens in another panel", async () => {
+    setup();
+    const cited = { ...threadRef, threadId: ThreadId.make("separate-panels-cited") };
+    const other = { ...threadRef, threadId: ThreadId.make("separate-panels-other") };
+    const result = AsyncResult.success({
+      entries: [{ path: "notes/cited-note.txt", kind: "file" }],
+      truncated: false,
+    });
+    let resolvePending!: (value: typeof result) => void;
+    const pending = new Promise<typeof result>((resolve) => {
+      resolvePending = resolve;
+    });
+    workspaceSearch.mockReturnValueOnce(pending);
+    await using screen = await render(
+      <>
+        <ChatMarkdown cwd="/repo" threadRef={cited} text="[Cited](cited-note.txt)" />
+        <ChatMarkdown cwd="/repo" threadRef={other} text="[Other](/elsewhere/other.md)" />
+      </>,
+    );
+    const [citedLink, otherLink] = screen.container.querySelectorAll("a");
+    await act(async () => citedLink!.click());
+    expect(workspaceSearch).toHaveBeenCalledOnce();
+    await act(async () => otherLink!.click());
+    await act(async () => resolvePending(result));
+
+    const { byThreadKey } = useRightPanelStore.getState();
+    expect(selectActiveRightPanelSurface(byThreadKey, cited)).toMatchObject({
+      kind: "file",
+      relativePath: "notes/cited-note.txt",
+    });
+    expect(selectActiveRightPanelSurface(byThreadKey, other)).toMatchObject({
+      kind: "file",
+      relativePath: "/elsewhere/other.md",
+    });
   });
 });
 
@@ -966,6 +1034,44 @@ describe("ChatMarkdown copy", () => {
     expect(select(labelText, bodyText, "Back up".length)).toBe("Warning\n\nBack up");
   });
 
+  it.each([
+    { text: "   Plan\nnext" },
+    { text: "Plan\n            Deep\n                        Deeper" },
+    { text: "Plan\n\tTabbed\n \t Mixed" },
+    { text: "- item\n    more\n      deeper\n- next" },
+    { text: "Plan\n   Step one\n        Detail a", from: "Step one" },
+  ])(
+    "copies and selects user lines the same whether their typed indentation shows: $text",
+    async (copy) => {
+      setup();
+      const copied = async (extraRemarkPlugins: typeof CHAT_USER_MARKDOWN_REMARK_PLUGINS) => {
+        await using screen = await renderText(copy.text, {
+          className: "user-message-markdown",
+          lineBreaks: true,
+          parseRawHtml: false,
+          extraRemarkPlugins,
+        });
+        const range = document.createRange();
+        range.selectNodeContents(screen.container);
+        if (copy.from) {
+          const walker = document.createTreeWalker(screen.container, NodeFilter.SHOW_TEXT);
+          let line = walker.nextNode();
+          while (line && !line.textContent!.includes(copy.from)) line = walker.nextNode();
+          // Start mid-line, three characters into the line's text.
+          range.setStart(line!, line!.textContent!.indexOf(copy.from) + 3);
+        }
+        const selection = window.getSelection()!;
+        selection.removeAllRanges();
+        selection.addRange(range);
+        // A drag or anything else that reads the selection gets its text, not the copy payload.
+        return { payload: chatMarkdownClipboardPayload(selection), selected: selection.toString() };
+      };
+      const shown = await copied(CHAT_USER_MARKDOWN_REMARK_PLUGINS);
+      // The user pipeline as it was before typed indentation was shown.
+      expect(shown).toEqual(await copied([[remarkGfm, { singleTilde: false }]]));
+    },
+  );
+
   it("copies part of inline code without prose escapes", async () => {
     setup();
     await using screen = await renderText("Read `items[0]*_x` and a*b*c.");
@@ -996,35 +1102,200 @@ describe("ChatMarkdown copy", () => {
       from: "Deeper",
       text: "2. 2. Deeper\n\nAfter.",
     },
+    {
+      source: "1. Install\n2. Configure\n3. Deploy",
+      from: "Configure",
+      to: "Deploy",
+      text: "2. Configure\n3. Deploy",
+    },
+    {
+      source: "1. A\n2. B\n7. C\n8. D",
+      from: "B",
+      to: "C",
+      userMessage: true,
+      text: "2. B\n7. C",
+    },
+    {
+      source: "- Install\n- Configure\n- Deploy",
+      from: "Configure",
+      to: "Deploy",
+      text: "- Configure\n- Deploy",
+    },
   ])(
-    "keeps the shown numbers when a copy starts at $from and ends past the list",
-    async ({ source, from, userMessage, text }) => {
+    "copies $text with the markers its list shows",
+    async ({ source, from, to, userMessage, text }) => {
       setup();
       await using screen = await renderText(
         source,
         userMessage ? { extraRemarkPlugins: SOURCE_NUMBER_PLUGINS } : {},
       );
-      const start = [...screen.container.querySelectorAll("li")]
-        .flatMap((item) => [...item.childNodes])
-        .find((node) => node.nodeType === Node.TEXT_NODE && node.textContent === from)!;
-      const after = [...screen.container.querySelectorAll("p")].at(-1)!.firstChild!;
+      const itemText = (shown: string) =>
+        [...screen.container.querySelectorAll("li")]
+          .flatMap((item) => [...item.childNodes])
+          .find((node) => node.nodeType === Node.TEXT_NODE && node.textContent === shown)!;
+      const end = to
+        ? itemText(to)
+        : [...screen.container.querySelectorAll("p")].at(-1)!.firstChild!;
       const range = document.createRange();
-      range.setStart(start, 0);
-      range.setEnd(after, after.textContent!.length);
+      range.setStart(itemText(from), 0);
+      range.setEnd(end, end.textContent!.length);
       const selection = window.getSelection()!;
       selection.removeAllRanges();
       selection.addRange(range);
       const payload = chatMarkdownClipboardPayload(selection);
       expect(payload?.text).toBe(text);
-      // Rich paste numbers its list from the same start.
+      // Rich paste reads back as the same list.
       expect(
-        new DOMParser()
-          .parseFromString(payload!.html, "text/html")
-          .querySelector("li")
-          ?.closest("ol")?.start,
-      ).toBe(Number(text.split(".")[0]));
+        serializeRenderedMarkdownFragment(
+          new DOMParser().parseFromString(payload!.html, "text/html").body,
+        ),
+      ).toBe(text);
     },
   );
+
+  it.each([
+    {
+      source: "1. [ ] Install\n2. [x] Configure\n3. [ ] Test\n4. [x] Deploy",
+      from: "Configure",
+      to: "Deploy",
+      text: "2. [x] Configure\n3. [ ] Test\n4. [x] Deploy",
+      htmlText: "2. Configure\n3. Test\n4. Deploy",
+    },
+    {
+      source:
+        "1. First\n2. [x] Outer\n   1. [ ] Setup\n   2. [ ] Configure\n   3. [x] Deploy\n\nAfter.",
+      from: "Configure",
+      text: "2. [x] 2. [ ] Configure\n   3. [x] Deploy\n\nAfter.",
+      htmlText: "2. 2. Configure\n   3. Deploy\n\nAfter.",
+    },
+  ])(
+    "copies task items with the markers its list shows: $text",
+    async ({ source, from, to, text, htmlText }) => {
+      setup();
+      await using screen = await renderText(source);
+      const itemText = (label: string) =>
+        [...screen.container.querySelectorAll("li")]
+          .flatMap((item) => [...item.childNodes])
+          .find((node) => node.nodeType === Node.TEXT_NODE && node.textContent?.trim() === label)!;
+      const start = itemText(from);
+      const end = to ? itemText(to) : screen.container.querySelector("p")!.firstChild!;
+      const range = document.createRange();
+      range.setStart(start, start.textContent!.indexOf(from));
+      range.setEnd(end, end.textContent!.length);
+      const selection = window.getSelection()!;
+      selection.removeAllRanges();
+      selection.addRange(range);
+      const payload = chatMarkdownClipboardPayload(selection);
+      expect(payload?.text).toBe(text);
+      // HTML sanitization strips form controls.
+      expect(
+        serializeRenderedMarkdownFragment(
+          new DOMParser().parseFromString(payload!.html, "text/html").body,
+        ),
+      ).toBe(htmlText);
+    },
+  );
+
+  it.each([
+    {
+      source: "1. First\n2. Second\n\nAfter.",
+      from: "First",
+      skipFrom: true,
+      text: "2. Second\n\nAfter.",
+      items: 1,
+    },
+    {
+      source: "Before.\n\n1. First\n2. Second",
+      from: "Before.",
+      to: "Second",
+      skipTo: true,
+      text: "Before.\n\n1. First",
+      items: 1,
+    },
+    {
+      source: "1. Outer\n   1. Inner\n   2. Deeper\n2. Next",
+      from: "Inner",
+      to: "Next",
+      skipFrom: true,
+      text: "1. 2. Deeper\n2. Next",
+      items: 3,
+    },
+    {
+      source: "1. Outer\n   1. Inner\n2. Next",
+      from: "Inner",
+      to: "Next",
+      skipFrom: true,
+      text: "2. Next",
+      items: 1,
+    },
+  ])(
+    "omits edge items outside the selection when copying with the markers its list shows: $text",
+    async ({ source, from, to, skipFrom, skipTo, text, items }) => {
+      setup();
+      await using screen = await renderText(source);
+      const textNode = (shown: string) => {
+        const walker = document.createTreeWalker(screen.container, NodeFilter.SHOW_TEXT);
+        for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+          if (node.textContent === shown) return node;
+        }
+        throw new Error(`Could not find text: ${shown}`);
+      };
+      const end = to ? textNode(to) : textNode("After.");
+      const range = document.createRange();
+      range.setStart(textNode(from), skipFrom ? from.length : 0);
+      range.setEnd(end, skipTo ? 0 : end.textContent!.length);
+      const selection = window.getSelection()!;
+      selection.removeAllRanges();
+      selection.addRange(range);
+
+      const payload = chatMarkdownClipboardPayload(selection);
+      expect(payload?.text).toBe(text);
+      const pasted = new DOMParser().parseFromString(payload!.html, "text/html");
+      expect(serializeRenderedMarkdownFragment(pasted.body)).toBe(text);
+      expect(pasted.querySelectorAll("li")).toHaveLength(items);
+    },
+  );
+
+  it("omits an end item whose selected edge sits inside its link", async () => {
+    setup();
+    await using screen = await renderText(
+      "1. Install\n2. Configure\n3. Deploy\n4. [Verify](https://example.com/verify)",
+    );
+    const items = [...screen.container.querySelectorAll("li")];
+    const start = items.find((item) => item.textContent === "Configure")!.firstChild!;
+    const end = items.at(-1)!.querySelector("a > span")!.lastChild!;
+    const range = document.createRange();
+    range.setStart(start, 0);
+    range.setEnd(end, 0);
+    const selection = window.getSelection()!;
+    selection.removeAllRanges();
+    selection.addRange(range);
+
+    const payload = chatMarkdownClipboardPayload(selection);
+    expect(payload?.text).toBe("2. Configure\n3. Deploy");
+    const pasted = new DOMParser().parseFromString(payload!.html, "text/html");
+    expect(
+      [...pasted.querySelectorAll('ol[start="2"] > li')].map((item) => item.textContent),
+    ).toEqual(["Configure", "Deploy"]);
+  });
+});
+
+describe("ChatMarkdown file chip tooltips", () => {
+  it("stays open while the pointer selects the path, then closes when it leaves", async () => {
+    setup();
+    await using screen = await renderText("[notes](/tmp/project/docs/notes.md)");
+    await userEvent.hover(screen.container.querySelector(".chat-markdown-file-link")!);
+    const path = page.getByText("/tmp/project/docs/notes.md");
+    await expect.element(path).toBeVisible();
+
+    // Forced so the pointer lands on the popup even when it ignores pointer events.
+    await userEvent.tripleClick(path, { force: true });
+    expect(window.getSelection()?.toString().trim()).toBe("/tmp/project/docs/notes.md");
+    await expect.element(path).toBeVisible();
+
+    await commands.resetPointer();
+    await expect.element(path).not.toBeInTheDocument();
+  });
 });
 
 describe("ChatMarkdown editor deep links", () => {

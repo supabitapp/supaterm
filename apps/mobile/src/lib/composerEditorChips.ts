@@ -33,7 +33,7 @@ function chipLabel(
     case "citation":
       return assistantCitationLabel(token.citation);
     case "mention":
-      return basename(token.value);
+      return basename(token.value).normalize("NFC");
   }
 }
 

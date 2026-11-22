@@ -10,6 +10,7 @@ import * as NodeOS from "node:os";
 import * as NodePath from "node:path";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 import * as Effect from "effect/Effect";
+import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Redacted from "effect/Redacted";
 import * as TestClock from "effect/testing/TestClock";
@@ -598,14 +599,16 @@ describe("GitHubCredentials", () => {
     GitHubCredentials.layer.pipe(
       Layer.provide(TestSourceControlHost.layer({ process: { run } })),
       Layer.provide(NodeCrypto.layer),
+      Layer.provide(FileSystem.layerNoop({})),
     );
 
-  it.effect("does not cache a gh failure that is not about signing in", () => {
+  it.effect("reports a gh timeout as a timeout and does not cache it", () => {
     let calls = 0;
     return Effect.gen(function* () {
       const credentials = yield* GitHubCredentials.GitHubCredentials;
       const first = yield* Effect.flip(credentials.get("github.com"));
-      expect(first._tag).toBe("GitHubCliFailedError");
+      expect(first._tag).toBe("GitHubCliTimeoutError");
+      expect(first.message).not.toContain("gh auth status");
       expect((yield* credentials.get("github.com")).source).toBe("gh");
       expect(calls).toBe(2);
     }).pipe(

@@ -66,14 +66,17 @@ token in its own secret store. The other environment needs nothing new: it
 sees one more OAuth client, lists it in Sharing & access, and revokes it there.
 Unlinking on the linking side only forgets the token.
 
-- **The Linked environments beta (`linkedEnvironmentsEnabled`) gates both
-  sides.** Off on the linking side, `PeerLinks.link`, link requests and
-  `PeerForwarding.call`/`links` refuse; `readThread`, `waitForThread`,
-  `interruptThread` and `setThreadDone` do not, so a remote task already
-  running still completes and can still be cancelled. Off on the receiving
-  side, link registrations are refused and link sessions get a 403, which the
-  linking side reports as retryable so the task's follower waits rather than
-  failing it.
+- **No setting gates links.** The pairing code minted on the receiving
+  environment is its consent: only a session that may create pairing links
+  there can mint one, and the code carries the access the link gets. A
+  separate switch on both sides only made users enable a machine they never
+  meant to send work from. Agents always see the link tools, so an agent can
+  ask to link a machine the user names before any link exists. Links made
+  while the old switch existed end, so an upgrade never resumes one it had
+  paused: migration 024 deletes the saved outgoing links, and `SessionStore`
+  refuses peer-link tokens signed as generation 1 (`plk`), whatever the
+  clock says. The switch's `linkedEnvironmentsEnabled` stays only as a
+  legacy wire indicator that current servers always report on.
 - **A tool runs in a linked environment when its parameters take
   `OrchestratorMcpEnvironmentTarget`** as `environmentId`.
   [`McpToolAccess.toLayer`](../../apps/server/src/mcp/McpToolAccess.ts) sends
@@ -100,12 +103,29 @@ Unlinking on the linking side only forgets the token.
   when the link is forgotten. The peer's
   [`RelayIngress`](../../apps/server/src/relay/RelayIngress.ts) lets `/mcp` and
   the MCP OAuth endpoints through the tunnel for this and nothing else new.
+- **The receiving side owns a link's expiry.** It renews the session when the
+  link is used and answers each call with `Supaterm-Link-Expires-At`; the linking
+  side stores that and never extends a link on its own. A receiving side that
+  predates renewal sends no header, so the link keeps its original 30 days on
+  both sides.
 - **All callers on one side share the link's single session on the other**,
   so idempotency keys are hashed with the caller's namespace before they
   leave. Without that, two agents reusing a key would collide on the far side.
 - **A forwarded wait is split into calls of at most 45 s**, because the
   receiving `/mcp` sends nothing while a wait is open and a proxy on the route
   may drop an idle request.
+
+**A client reads a linked thread as the thread's own stream.** A client connected
+only to the linking environment subscribes to `peerLinks.subscribeThread`;
+[`PeerThreadRelay`](../../apps/server/src/peer/PeerThreadRelay.ts) opens the
+receiving environment's
+[link thread routes](../../apps/server/src/peer/linkThreadHttp.ts) with the
+link's token and passes on the same stream items, history pages and item detail
+the owner's client gets. Clients reduce and draw it like any thread, read-only,
+so there is no second transcript format to keep in step. The relay holds one
+upstream per subscription and nothing once the client stops listening. The
+routes accept only a peer link's session, refuse browser origins as `/mcp` does,
+and serve any access level, since each already reads threads through `/mcp`.
 
 **Work a link paired below full access starts stays within that link.** The
 receiving environment knows a session is a peer link because the linking side
@@ -173,6 +193,35 @@ in its query and carries the pairing secret in its fragment. Fragments stay out
 of requests to the hosted origin. The browser exchanges the secret with the
 environment and strips it from its history. Moving the token into a query
 parameter would disclose it to the wrong origin.
+
+## Desktop previews tunnel loopback
+
+A desktop webview for another environment keeps `localhost` URLs and reaches the environment's
+loopback through `/api/preview/tunnel`, one WebSocket per TCP connection, on the same origin as
+every other request. That is why it works over any connection method. Four choices are easy to
+undo by accident:
+
+- **Fixed proxy, not PAC.** Chromium never consults a PAC script for loopback hosts, even with
+  `<-loopback>`. The partition uses a fixed SOCKS5 proxy with the bypass list
+  `*,<-loopback>,169.254.0.0/16,fe80::/10`, in that order, since the last matching rule wins:
+  everything is direct except loopback. `<-loopback>` also takes link-local addresses, so the last
+  two rules hand them back to the direct route. A fixed proxy also has no
+  direct retry, so a failed tunnel is a connection error and never the reviewer's own localhost.
+  The rule matches hostnames, not resolved addresses, so a custom name that resolves to loopback
+  still goes direct.
+- **Media tickets.** Desktop main opens the tunnel but holds no environment credentials, so the
+  renderer hands it a media ticket. Main asks it for a tunnel URL per connection, which also makes
+  the tunnel follow a route switch.
+- **Owner check, not auth.** Chromium can't authenticate to a SOCKS proxy, so any local process
+  can connect to the listener and ride this user's tunnel. On Linux the listener looks the client
+  up in `/proc/net/tcp` and refuses other users. macOS and Windows have no such check yet. The
+  mobile app's device preview has the same listener while it is open: iOS suspends other apps, but
+  Android lets any app reach it, and apps cannot see another app's socket owner there.
+- **Off stays routed.** The `enablePreviewTunnel` setting gates the route and, from server
+  config, the clients, which then stream. The partition keeps its tunnel proxy anyway, so a
+  desktop tab left open fails instead of loading the reviewer's own localhost.
+- **System browser links** have no tunnel. They keep the private-network rewrite in
+  [`browserTargetResolver.ts`](../../apps/web/src/browser/browserTargetResolver.ts).
 
 ## Access and process ownership are different
 

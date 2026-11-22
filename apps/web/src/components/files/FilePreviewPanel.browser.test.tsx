@@ -3,7 +3,7 @@ import { EnvironmentId, ThreadId, type ProjectReadFileResult } from "@supaterm/c
 import { AsyncResult } from "effect/reactivity";
 import { StrictMode, type ReactNode } from "react";
 import { describe, expect, it, vi } from "vite-plus/test";
-import { userEvent } from "vite-plus/test/browser";
+import { cdp, userEvent } from "vite-plus/test/browser";
 import { act, fakeTimers, render } from "../../../test/render";
 import appCss from "~/index.css?inline";
 import { isMacPlatform } from "~/lib/utils";
@@ -19,6 +19,8 @@ const state = vi.hoisted(() => ({
   writeFile: vi.fn(),
   assetUrl: { _tag: "Loading" } as import("~/assets/assetUrls").AssetUrlState,
   mintUrl: vi.fn<() => Promise<string | null>>(),
+  browserAssetMints: 0,
+  openedBrowserUrls: [] as string[],
 }));
 
 vi.mock(import("@supaterm/client-runtime/state/runtime"), async (original) => ({
@@ -65,6 +67,56 @@ vi.mock(import("~/assets/assetUrls"), async (original) => ({
   useAssetUrlRefresh: () => state.mintUrl,
   useAssetUrlState: () => state.assetUrl,
 }));
+vi.mock(import("~/browser/previewRuntime"), async (original) => ({
+  ...(await original()),
+  usePreviewAvailable: () => true,
+}));
+vi.mock(import("~/state/environments"), async (original) => ({
+  ...(await original()),
+  useEnvironmentHttpBaseUrl: () => "http://environment.test",
+}));
+vi.mock(import("~/state/assets"), async (original) => {
+  const actual = await original();
+  const { Atom } = await import("effect/reactivity");
+  const Effect = await import("effect/Effect");
+  // Like the real query family, a minted URL stays cached until the atom is refreshed.
+  const createUrl = Atom.family((_key: string) =>
+    Atom.make(
+      Effect.sync(() => ({
+        relativeUrl: `/api/assets/mint-${++state.browserAssetMints}/page.html`,
+        expiresAt: Number.MAX_SAFE_INTEGER,
+      })),
+    ).pipe(Atom.keepAlive),
+  );
+  return {
+    ...actual,
+    assetEnvironment: {
+      ...actual.assetEnvironment,
+      createUrl: ((target: { input: { resource: { path: string } } }) =>
+        createUrl(target.input.resource.path)) as never,
+    },
+  };
+});
+vi.mock(import("~/browser/openFileInPreview"), async (original) => {
+  const actual = await original();
+  return {
+    ...actual,
+    openFileInPreview: (async (input: Parameters<typeof actual.openFileInPreview>[0]) => {
+      const result = await input.createAssetUrl({
+        environmentId: input.threadRef.environmentId,
+        input: {
+          resource: {
+            _tag: "workspace-file",
+            threadId: input.threadRef.threadId,
+            path: input.filePath,
+          },
+        },
+      });
+      if (result._tag === "Success") state.openedBrowserUrls.push(result.value.relativeUrl);
+      return AsyncResult.success(undefined);
+    }) as never,
+  };
+});
 // The Word engine compiles a large WebAssembly bundle; these tests only need the URL it loads.
 vi.mock(import("./OfficeFilePreview"), () => ({
   OfficeFilePreview: ({ src }: { src: string }) => <div data-testid="office-preview">{src}</div>,
@@ -121,6 +173,7 @@ function setup() {
   state.file = null;
   state.optimistic = null;
   state.assetUrl = { _tag: "Loading" };
+  state.openedBrowserUrls = [];
   let mints = 0;
   state.mintUrl.mockReset().mockImplementation(async () => `/assets/report.docx?mint=${++mints}`);
   state.writeFile.mockReset().mockResolvedValue(AsyncResult.success(undefined));
@@ -309,6 +362,93 @@ describe("source file scroll", () => {
 
     await vi.waitFor(() => expect(scroller()?.scrollTop).toBe(4200));
   });
+
+  it("keeps an upward drag whose anchor unmounts on a window shift", async () => {
+    using _settings = setup();
+    localStorage.setItem("supaterm.renderMarkdown", "false");
+    const style = document.createElement("style");
+    style.textContent = appCss;
+    document.head.append(style);
+    using _style = { [Symbol.dispose]: () => style.remove() };
+    await preloadHighlighter({ themes: Object.values(DEFAULT_THEMES), langs: ["markdown"] });
+
+    const lines = Array.from({ length: 400 }, (_, index) => `line ${index + 1} markdown content`);
+    const contents = `${lines.join("\n")}\n`;
+    state.file = {
+      relativePath: "notes.md",
+      contents,
+      byteLength: contents.length,
+      truncated: false,
+    };
+
+    await using screen = await render(
+      <div style={{ width: 560, height: 400, display: "flex", flexDirection: "column" }}>
+        {filePreview("notes.md")}
+      </div>,
+    );
+
+    const shadowRoot = () => screen.container.querySelector("diffs-container")?.shadowRoot;
+    const rows = () => shadowRoot()?.querySelectorAll<HTMLElement>("[data-line]") ?? [];
+    const row = (line: number) =>
+      [...rows()].find((candidate) => candidate.getAttribute("data-line") === String(line));
+    await vi.waitFor(() =>
+      expect(shadowRoot()?.querySelector('[data-content][contenteditable="true"]')).not.toBeNull(),
+    );
+
+    const scroller = screen.container.querySelector<HTMLElement>(".file-preview-virtualizer")!;
+    await vi.waitFor(() => expect(scroller.scrollHeight).toBeGreaterThan(5000));
+    scroller.scrollTop = scroller.scrollHeight;
+    const anchorRow = await vi.waitFor(() => {
+      expect(row(385)).toBeDefined();
+      return row(385)!;
+    });
+    anchorRow.scrollIntoView({ block: "end" });
+    await vi.waitFor(() => expect(scroller.scrollTop).toBeGreaterThan(0));
+
+    const startRect = row(385)!.getBoundingClientRect();
+    const scrollerRect = scroller.getBoundingClientRect();
+    const frame = window.frameElement?.getBoundingClientRect();
+    const mouse = (type: "mousePressed" | "mouseMoved" | "mouseReleased", x: number, y: number) =>
+      cdp().send("Input.dispatchMouseEvent", {
+        type,
+        x: x + (frame?.left ?? 0),
+        y: y + (frame?.top ?? 0),
+        button: "left",
+        buttons: type === "mouseReleased" ? 0 : 1,
+        clickCount: 1,
+      });
+
+    // The editor records the drag anchor on the press's selectionchange; drag only after it.
+    const anchored = new Promise((resolve) =>
+      document.addEventListener("selectionchange", resolve, { once: true }),
+    );
+    await mouse("mousePressed", startRect.left + 140, startRect.top + 5);
+    await anchored;
+    await mouse("mouseMoved", startRect.left + 80, scrollerRect.top + 5);
+    await mouse("mouseMoved", startRect.left + 80, scrollerRect.top - 60);
+    // Line 385 leaves the rendered window once it starts at line 201 or earlier.
+    await vi.waitFor(() =>
+      expect(Number(rows()[0]?.getAttribute("data-line"))).toBeLessThanOrEqual(201),
+    );
+    await mouse("mouseReleased", startRect.left + 80, scrollerRect.top - 60);
+
+    expect(shadowRoot()!.querySelectorAll("[data-selection-range]").length).toBeGreaterThan(0);
+
+    const clipboardData = new DataTransfer();
+    const contentEl = shadowRoot()!.querySelector("[data-content]")!;
+    const handled = !contentEl.dispatchEvent(
+      new ClipboardEvent("copy", {
+        clipboardData,
+        bubbles: true,
+        cancelable: true,
+        composed: true,
+      }),
+    );
+    expect(handled).toBe(true);
+    const copied = clipboardData.getData("text/plain");
+    expect(copied).toContain("line 385 ");
+    expect(copied).toContain("line 300 markdown content");
+  });
 });
 
 describe("rendered Markdown task saves", () => {
@@ -403,6 +543,29 @@ describe("workspace document previews", () => {
     await screen.rerender(documentPreview("mutation-2", "revision-2"));
 
     await expect.element(preview).toHaveTextContent("/assets/report.docx?mint=2");
+  });
+});
+
+describe("open file in preview browser", () => {
+  it("mints a fresh asset URL on every click so the browser cannot reuse cached bytes", async () => {
+    using _settings = setup();
+    state.file = {
+      relativePath: "page.html",
+      contents: "<h1>page</h1>",
+      byteLength: 13,
+      truncated: false,
+    };
+    await using screen = await render(filePreview("page.html"));
+    const button = screen.getByRole("button", { name: "Open file in preview browser" });
+
+    await userEvent.click(button);
+    await vi.waitFor(() => expect(state.openedBrowserUrls).toHaveLength(1));
+    await userEvent.click(button);
+    await vi.waitFor(() => expect(state.openedBrowserUrls).toHaveLength(2));
+
+    expect(state.openedBrowserUrls[1], "the second click reused the first signed URL").not.toBe(
+      state.openedBrowserUrls[0],
+    );
   });
 });
 

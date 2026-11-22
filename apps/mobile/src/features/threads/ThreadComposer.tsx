@@ -56,11 +56,14 @@ import { useUniwindTheme } from "../../lib/useUniwindTheme";
 import { themeColorWithAlpha } from "../../lib/mobileTheme";
 import { scopedThreadKey } from "../../lib/scopedEntities";
 import {
+  clearComposerDraftContent,
   getComposerDraftSnapshot,
+  sameComposerDraftContent,
   setComposerDraftText,
   composerContextImportsAtom,
   countComposerDraftAttachmentsAfterSelection,
   useComposerDraft,
+  useComposerDraftResetGeneration,
 } from "../../state/use-composer-drafts";
 import type { ComposerDocumentAttachment } from "../../lib/composerContext";
 import { useProject, useThreadShells } from "../../state/entities";
@@ -69,6 +72,7 @@ import { useLinkedEnvironments } from "../../state/peerLinks";
 import { useEnvironmentScopeDenied } from "../../state/session";
 import { scopeProjectRef } from "@supaterm/client-runtime/environment";
 
+import { SymbolView } from "../../components/ui/AppSymbol";
 import { AppText as Text } from "../../components/ui/AppText";
 import { ComposerAttachmentButton } from "./ComposerAttachmentButton";
 import {
@@ -84,6 +88,7 @@ import {
   composerStripAttachments,
   type DraftComposerFileAttachment,
 } from "../../lib/composerImages";
+import { composerAttachmentUploadKey } from "../../lib/composerAttachmentUploadQueue";
 import {
   buildModelOptions,
   isModelSelectionUnavailable,
@@ -105,12 +110,13 @@ import {
   resolveComposerSendPresentation,
   type ComposerSendPresentation,
 } from "./composerSendPresentation";
+import { useSubmitAfterNativeImages } from "./useSubmitAfterNativeImages";
 import { ComposerCommandPopover } from "./ComposerCommandPopover";
 import { ComposerPopoverAnchor } from "./ComposerPopoverAnchor";
 import { ComposerQueuedEditAttachments } from "./ComposerQueuedEdit";
 import { useComposerCommandMenu } from "./use-composer-command-menu";
 import type { ComposerEnvironmentCandidate } from "@supaterm/client-runtime/composerThreadItems";
-import { offersLinkedEnvironments } from "@supaterm/client-runtime/link-request";
+import { supportsPeerLinks } from "@supaterm/client-runtime/link-request";
 import {
   ComposerDictationConfirmAction,
   ComposerDictationLeadingAction,
@@ -190,7 +196,7 @@ export interface ThreadComposerProps {
   readonly onChangeDraftMessage: (value: string) => void;
   readonly onPickDraftMedia: () => Promise<void>;
   readonly onPickDraftFiles: () => Promise<void>;
-  readonly onNativePasteImages: (uris: ReadonlyArray<string>) => Promise<void>;
+  readonly onNativePasteImages: (uris: ReadonlyArray<string>) => Promise<boolean>;
   readonly onNativePasteText: (paste: ComposerTextPaste) => Promise<void>;
   readonly onRemoveDraftImage: (imageId: string) => void;
   readonly onStopThread: () => void;
@@ -406,6 +412,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
   const [previewVideo, setPreviewVideo] = useState<VideoPreviewSource | null>(null);
   const composerOwnerKey = scopedThreadKey(props.environmentId, props.selectedThread.id);
   const composerDraftKey = props.draftKey ?? composerOwnerKey;
+  const readResetGeneration = useComposerDraftResetGeneration(composerDraftKey);
   const {
     text: draftMessage,
     attachments: draftAttachments,
@@ -416,7 +423,6 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
     draftMessage.trim().length > 0 ||
     draftAttachments.length > 0 ||
     (queuedEdit?.existingAttachments.length ?? 0) > 0;
-  const stripAttachments = composerStripAttachments(draftAttachments);
   const showStopAction = !hasContent && props.canStopThread && queuedEdit === null;
   const onResumeQueue = props.onResumeQueue;
   const [resumingQueue, setResumingQueue] = useState(false);
@@ -448,6 +454,10 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
     AuthOrchestrationOperateScope,
   );
   const uploadStates = useAtomValue(composerAttachmentUploadsAtom);
+  const stripAttachments = composerStripAttachments(
+    draftAttachments,
+    (attachment) => uploadStates[composerAttachmentUploadKey(props.environmentId, attachment.id)],
+  );
   const attachmentsUploading =
     props.connectionState === "connected" &&
     composerAttachmentsStillUploading({
@@ -530,9 +540,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
     ownerKey: composerDraftKey,
     environmentId: props.environmentId,
     threadShells: useThreadShells(),
-    environments: offersLinkedEnvironments(props.serverConfig)
-      ? mentionableEnvironments
-      : NO_MACHINES,
+    environments: supportsPeerLinks(props.serverConfig) ? mentionableEnvironments : NO_MACHINES,
     linkedEnvironments: useLinkedEnvironments(props.environmentId),
     currentThreadId: props.selectedThread.id,
     projectCwd: props.projectCwd,
@@ -690,13 +698,10 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
     onEditorFocusChange?.(false);
   };
   const handleSend = async (followUp?: ActiveTurnComposerAction) => {
-    if (
-      isSubmissionLocked ||
-      sendBlockedReason !== null ||
-      pendingPastedTextAttachmentCountRef.current > 0 ||
-      pendingNativeImagePasteCountRef.current > 0
-    )
-      return;
+    if (isSubmissionLocked || sendBlockedReason !== null) return;
+    // Sending now would leave a still-converting pasted image out of the turn, so wait for it.
+    if (nativeImageSubmit.deferSend(followUp)) return;
+    if (pendingPastedTextAttachmentCountRef.current > 0) return;
     if (usageLimitsOffered && isUsageLimitsCommand(draftMessage) && draftAttachments.length === 0) {
       if (openUsageLimits()) onChangeDraftMessage("");
       return;
@@ -708,14 +713,16 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
     }
     if (sideChatCommand.kind === "start") {
       const draft = getComposerDraftSnapshot(composerDraftKey);
-      if (draft.attachments.length > 0 || (draft.context?.records.length ?? 0) > 0) {
-        Dialog.alert(
-          "Side chats take text only",
-          "Remove the attachments and context, then send it again.",
-        );
-        return;
+      const carriesContent =
+        draft.attachments.length > 0 || (draft.context?.records.length ?? 0) > 0;
+      const sent = await sideChat.send(
+        sideChatCommand.prompt,
+        carriesContent ? { attachments: draft.attachments, context: draft.context } : undefined,
+      );
+      // The parent keeps its draft until the outbox holds the message; edits made since stay.
+      if (sent && sameComposerDraftContent(getComposerDraftSnapshot(composerDraftKey), draft)) {
+        clearComposerDraftContent(composerDraftKey);
       }
-      if (await sideChat.send(sideChatCommand.prompt)) onChangeDraftMessage("");
       return;
     }
     const threadKey = scopedThreadKey(props.environmentId, props.selectedThread.id);
@@ -739,6 +746,14 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
       inFlightThreadIdsRef.current.delete(threadKey);
     });
   };
+
+  const nativeImageSubmit = useSubmitAfterNativeImages({
+    draftKey: composerDraftKey,
+    readResetGeneration,
+    blocked: isSubmissionLocked || sendBlockedReason !== null,
+    onPasteImages: props.onNativePasteImages,
+    onSubmit: (followUp) => void handleSend(followUp),
+  });
 
   const lockedProviderInstanceId = props.canSwitchProvider
     ? undefined
@@ -928,6 +943,22 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
                 }
           }
         >
+          {attachmentBlockReason !== null ? (
+            <View className="flex-row items-center gap-1.5 px-4 py-1.5">
+              <SymbolView
+                name="exclamationmark.triangle"
+                size={13}
+                tintColorClassName="accent-warning-foreground"
+                type="monochrome"
+              />
+              <Text
+                accessibilityRole="alert"
+                className="min-w-0 flex-1 text-xs text-warning-foreground"
+              >
+                {attachmentBlockReason}
+              </Text>
+            </View>
+          ) : null}
           <ComposerDictationDraftContent
             className={isExpanded ? undefined : "flex-row items-center"}
             compact={!isExpanded}
@@ -1023,7 +1054,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
                 onPasteImages={(uris) => {
                   if (isSubmissionLocked) return;
                   pendingNativeImagePasteCountRef.current += 1;
-                  void props.onNativePasteImages(uris).finally(() => {
+                  void nativeImageSubmit.pasteImages(uris).finally(() => {
                     pendingNativeImagePasteCountRef.current -= 1;
                   });
                 }}

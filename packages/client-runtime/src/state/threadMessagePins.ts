@@ -4,6 +4,8 @@ import {
   pinnedMessageOf,
   withPinnedMessage,
 } from "@supaterm/shared/pinnedMessages";
+import * as Effect from "effect/Effect";
+import * as Exit from "effect/Exit";
 import * as Option from "effect/Option";
 import { AsyncResult, Atom } from "effect/reactivity";
 
@@ -85,43 +87,38 @@ export function createOptimisticMessagePins<E>(
   ): AtomCommand<W, A, CommandError> {
     return {
       label: command.label,
-      run: async (registry, target) => {
-        const { environmentId, input } = target;
-        const source = sourceStateAtom(environmentId, input.threadId);
-        const pin = pinned ? optimisticPin(registry.get(source), input.itemId) : null;
-        if (pinned && pin === null) return command.run(registry, target);
-        const update: PendingMessagePin =
-          pin === null ? { kind: "unpin", itemId: input.itemId } : { kind: "pin", pin };
-        const pending = pendingAtom(threadKey({ environmentId, threadId: input.threadId }));
-        const remove = () =>
-          registry.update(pending, (current) => current.filter((item) => item !== update));
-        registry.update(pending, (current) => [...current, update]);
-        let confirmed = false;
-        try {
-          const result = await command.run(registry, target);
-          if (result._tag === "Success") {
-            update.sequence = result.value.sequence;
-            registry.update(pending, (current) => [...current]);
-            const reconcile = (value: AsyncResult.AsyncResult<EnvironmentThreadState, E>) => {
-              const state = Option.getOrNull(AsyncResult.value(value));
-              if (
-                state === null ||
-                Option.isNone(state.data) ||
-                state.sequence >= result.value.sequence
-              ) {
-                remove();
-                unsubscribe();
-              }
-            };
-            const unsubscribe = registry.subscribe(source, reconcile);
-            reconcile(registry.get(source));
-            confirmed = true;
-          }
-          return result;
-        } finally {
-          if (!confirmed) remove();
-        }
-      },
+      run: (registry, target) =>
+        Effect.suspend(() => {
+          const { environmentId, input } = target;
+          const source = sourceStateAtom(environmentId, input.threadId);
+          const pin = pinned ? optimisticPin(registry.get(source), input.itemId) : null;
+          if (pinned && pin === null) return command.run(registry, target);
+          const update: PendingMessagePin =
+            pin === null ? { kind: "unpin", itemId: input.itemId } : { kind: "pin", pin };
+          const pending = pendingAtom(threadKey({ environmentId, threadId: input.threadId }));
+          const remove = () =>
+            registry.update(pending, (current) => current.filter((item) => item !== update));
+          registry.update(pending, (current) => [...current, update]);
+          return command.run(registry, target).pipe(
+            Effect.onExit((exit) =>
+              Effect.sync(() => {
+                if (Exit.isFailure(exit)) return remove();
+                const { sequence } = exit.value;
+                update.sequence = sequence;
+                registry.update(pending, (current) => [...current]);
+                const reconcile = (value: AsyncResult.AsyncResult<EnvironmentThreadState, E>) => {
+                  const state = Option.getOrNull(AsyncResult.value(value));
+                  if (state === null || Option.isNone(state.data) || state.sequence >= sequence) {
+                    remove();
+                    unsubscribe();
+                  }
+                };
+                const unsubscribe = registry.subscribe(source, reconcile);
+                reconcile(registry.get(source));
+              }),
+            ),
+          );
+        }),
     };
   }
 

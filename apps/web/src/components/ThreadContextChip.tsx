@@ -1,8 +1,10 @@
-import { scopeProjectRef } from "@supaterm/client-runtime/environment";
+import { scopeProjectRef, scopeThreadRef } from "@supaterm/client-runtime/environment";
 import type { ThreadContextRecord, ProjectId } from "@supaterm/contracts";
 import { Link } from "@tanstack/react-router";
 import { MessagesSquareIcon } from "@supaterm/icons";
+import type { MouseEvent } from "react";
 
+import { openSideChatBeside } from "~/chatPanes/actions";
 import {
   useProject,
   useShellOmitsThreads,
@@ -13,7 +15,9 @@ import { orchestrationEnvironment } from "~/state/orchestration";
 import { useEnvironmentQuery } from "~/state/query";
 import { ContextChip, ContextChipLabel } from "./ContextChip";
 import { ProjectFavicon } from "./ProjectFavicon";
-import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
+import { ThreadChipHoverCard } from "./ThreadChipHoverCard";
+import { ThreadHoverCardPopup } from "./ThreadHoverCard";
+import { Tooltip, TooltipTrigger } from "./ui/tooltip";
 
 export function ThreadContextChip(props: {
   record: Pick<ThreadContextRecord, "environmentId" | "threadId" | "title">;
@@ -52,6 +56,25 @@ export function ThreadContextChip(props: {
               <Link
                 to="/$environmentId/$threadId"
                 params={{ environmentId, threadId }}
+                onClick={(event: MouseEvent<HTMLAnchorElement>) => {
+                  const parentThreadId = shell?.lineage.parentThreadId ?? null;
+                  if (shell?.lineage.sideChat !== true || parentThreadId === null) return;
+                  if (event.button !== 0) return;
+                  if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+                  const target = {
+                    kind: "server",
+                    threadRef: scopeThreadRef(environmentId, threadId),
+                  } as const;
+                  // A side chat opens in a pane beside its parent, not as its own page.
+                  if (
+                    openSideChatBeside(target, {
+                      parentRef: scopeThreadRef(environmentId, parentThreadId),
+                      sideChat: target,
+                    })
+                  ) {
+                    event.preventDefault();
+                  }
+                }}
                 draggable={false}
               />
             }
@@ -68,13 +91,15 @@ export function ThreadContextChip(props: {
           </ContextChip>
         }
       />
-      <TooltipPopup side="top">
-        {props.unreadable
-          ? "On another machine, so this machine's agent can't read it. Remove it or switch back to send."
-          : available
-            ? `Open ${title}`
-            : "Thread no longer available"}
-      </TooltipPopup>
+      <ThreadHoverCardPopup side="top">
+        <ThreadChipHoverCard
+          title={title}
+          project={project}
+          shell={shell}
+          available={available}
+          unreadable={props.unreadable === true}
+        />
+      </ThreadHoverCardPopup>
     </Tooltip>
   );
 }

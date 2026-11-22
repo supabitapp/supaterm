@@ -11,7 +11,8 @@ import {
 } from "@supaterm/contracts";
 import { useAtomValue } from "@effect/atom-react";
 import { useRef, useState } from "react";
-import { Linking, Pressable, ScrollView, TextInput, useWindowDimensions, View } from "react-native";
+import { Pressable, ScrollView, TextInput, useWindowDimensions, View } from "react-native";
+import { tryOpenExternalUrl } from "../../lib/openExternalUrl";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AppActivityIndicator } from "../../components/ui/AppActivityIndicator";
 import { AppText as Text } from "../../components/ui/AppText";
@@ -510,7 +511,8 @@ function ProviderAccount({
                 }))
               )
                 return;
-              await Linking.openURL(url);
+              if (!(await tryOpenExternalUrl(url, "provider-auth")))
+                setError("Could not open the sign-in page.");
             })().catch(() => setError("Could not open the sign-in page."));
           }}
         />
@@ -521,9 +523,9 @@ function ProviderAccount({
           label="Open docs"
           accessibilityLabel={`Open ${name} setup docs`}
           onPress={() => {
-            void Linking.openURL(provider.setup!.documentationUrl!).catch(() =>
-              setError("Could not open the provider docs."),
-            );
+            void tryOpenExternalUrl(provider.setup!.documentationUrl!).then((opened) => {
+              if (!opened) setError("Could not open the provider docs.");
+            });
           }}
         />
       ) : active && state?.flowId ? (

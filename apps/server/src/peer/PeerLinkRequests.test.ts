@@ -190,7 +190,6 @@ const makeLaptopWith = (
     const server = Context.get(here, McpServer.McpServer);
     return {
       links: Context.get(linking, PeerLinks.PeerLinks),
-      settings: Context.get(linking, ServerSettings.ServerSettingsService),
       requests: Context.get(here, PeerLinkRequests.PeerLinkRequests),
       orchestrator: Context.get(here, Orchestrator.OrchestratorV2),
       sink: Context.get(here, EventSink.EventSinkV2),
@@ -1133,29 +1132,6 @@ it.live(
           linkedAccess: "read-only",
         });
         expect((yield* b.linkedSessions).length).toBe(1);
-      }),
-    ),
-);
-
-it.live(
-  "a card answered with a link it has, after the setting went off, tells no one to use it",
-  () =>
-    withBoth((a, b) =>
-      Effect.gen(function* () {
-        yield* seedThread(a);
-        yield* a.call({ environmentId: box.environmentId });
-        const card = yield* pendingCard(a);
-        yield* linkTo(a.links, b, "read-only");
-        yield* a.settings.updateSettings({ linkedEnvironmentsEnabled: false });
-        yield* a.requests.answer({
-          threadId,
-          turnItemId: card.id,
-          answer: { type: "use-existing", environmentId: box.environmentId },
-        });
-        expect(yield* cardOf(a)).toMatchObject({
-          linkStatus: "failed",
-          failure: PeerLinks.LINKED_ENVIRONMENTS_OFF,
-        });
       }),
     ),
 );
