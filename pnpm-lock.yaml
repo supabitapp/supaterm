@@ -182,8 +182,8 @@ catalogs:
       specifier: 1.8.0
       version: 1.8.0
     '@pierre/highlights':
-      specifier: 0.2.0
-      version: 0.2.0
+      specifier: 0.5.0
+      version: 0.5.0
     '@types/react':
       specifier: ~19.3.0
       version: 19.3.0
@@ -506,7 +506,7 @@ importers:
         version: 1.6.1(patch_hash=83adab3a25c255cda77e23852092d93b0c8c4b560ef050200d55c020b12e7384)(@shikijs/themes@4.2.0)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       '@pierre/highlights':
         specifier: 'catalog:'
-        version: 0.2.0
+        version: 0.5.0
       '@react-native-menu/menu':
         specifier: 2.0.0
         version: 2.0.0(patch_hash=fa5b80eef2a7fe76c884895c7f055eba4673f38800dc0b61245fdf4a7ead227c)(@types/react-native@0.72.8(react-native@0.88.1(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.88.0(@babel/core@7.29.7(supports-color@8.1.1))(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(supports-color@8.1.1)(utf-8-validate@6.0.6)))(@types/react@19.3.0)(react-native@0.88.1(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.88.0(@babel/core@7.29.7(supports-color@8.1.1))(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(react@19.3.0)
@@ -5236,6 +5236,9 @@ packages:
 
   '@pierre/highlights@0.2.0':
     resolution: {integrity: sha512-hTpcOU1EzDAP4bYtEhxmMu2jwMvtkUydRUBUpWMSHTs3dw0IaC3Ld5ansMy18L0GE3b6Vfl2OGkLK+pWWpnBmw==}
+
+  '@pierre/highlights@0.5.0':
+    resolution: {integrity: sha512-G8gscrHrik3YjKd+tPTcmivJ/W0zRrtg4adVxnfX7+415+0Qplo6qUWuEX5R0UkA1fMhmE2sOSuLBMNGDtLhIw==}
 
   '@pierre/theme@2.0.0':
     resolution: {integrity: sha512-yNDd9GYLQl1mEUJR8AneJ5e4ohLIHQd/wZLWr4fagt78vS2RwwZNW530vVgHqXFAyFVcFlRmGUD5ramXH46OXw==}
@@ -14350,6 +14353,8 @@ snapshots:
       - '@shikijs/themes'
 
   '@pierre/highlights@0.2.0': {}
+
+  '@pierre/highlights@0.5.0': {}
 
   '@pierre/theme@2.0.0': {}
 

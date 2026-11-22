@@ -37,7 +37,7 @@ catalog:
   "@legendapp/list": 3.7.3
   "@noble/hashes": 1.8.0
   "@pierre/diffs": 1.6.1
-  "@pierre/highlights": 0.2.0
+  "@pierre/highlights": 0.5.0
   "@tailwindcss/node": 4.3.3
   "@tailwindcss/oxide": 4.3.3
   "@tailwindcss/vite": 4.3.3
@@ -112,7 +112,7 @@ minimumReleaseAgeExclude:
   - "@react-native/metro-babel-transformer@0.88.0"
   - "@react-native/metro-config@0.88.0"
   - "@pierre/diffs@1.6.1"
-  - "@pierre/highlights@0.2.0"
+  - "@pierre/highlights@0.5.0"
   - "@pierre/theming@1.0.2"
 
 overrides:
