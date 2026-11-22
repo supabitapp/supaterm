@@ -36,8 +36,8 @@ catalog:
   "@effect/vitest": 4.1.5
   "@legendapp/list": 3.7.3
   "@noble/hashes": 1.8.0
-  "@pierre/diffs": 1.6.1
-  "@pierre/highlights": 0.2.0
+  "@pierre/diffs": 1.7.0-beta.4
+  "@pierre/highlights": 0.5.0
   "@tailwindcss/node": 4.3.3
   "@tailwindcss/oxide": 4.3.3
   "@tailwindcss/vite": 4.3.3
@@ -111,8 +111,8 @@ minimumReleaseAgeExclude:
   - "@react-native/js-polyfills@0.88.0"
   - "@react-native/metro-babel-transformer@0.88.0"
   - "@react-native/metro-config@0.88.0"
-  - "@pierre/diffs@1.6.1"
-  - "@pierre/highlights@0.2.0"
+  - "@pierre/diffs@1.7.0-beta.4"
+  - "@pierre/highlights@0.5.0"
   - "@pierre/theming@1.0.2"
 
 overrides:
@@ -131,7 +131,7 @@ overrides:
   expo-widgets: 58.0.27
   "@ff-labs/fff-node": 0.11.0
   "@legendapp/list": 3.7.3
-  "@pierre/diffs": 1.6.1
+  "@pierre/diffs": 1.7.0-beta.4
   "@react-native-menu/menu": 2.0.0
   "@react-navigation/native-stack": 7.21.0
   node-pty: 1.2.0-beta.15
@@ -245,11 +245,10 @@ patchedDependencies:
   # Re-requests a ResizeObserver delivery when a layout measurement disagrees with it, and lets a
   # native scroll event at the target finish a re-armed initial bootstrap on iOS.
   "@legendapp/list@3.7.3": patches/@legendapp__list@3.7.3.patch
-  # Exports the dependency-light subpaths mobile and the web diff parser import, keeps measured
-  # wrapped-row heights above an edit (fileEditorVirtualization.test.ts), stops the find bar
-  # reclaiming focus from the file, and keeps drag selections intact across virtualized scroll
-  # renders.
-  "@pierre/diffs@1.6.1": patches/@pierre%2Fdiffs@1.6.1.patch
+  # Exports the dependency-light subpaths mobile and the web diff parser import, re-measures
+  # editor carets when the code font changes, stops the find bar reclaiming focus from the file,
+  # and keeps drag selections intact across virtualized scroll renders.
+  "@pierre/diffs@1.7.0-beta.4": patches/@pierre__diffs@1.7.0-beta.4.patch
   "@react-native-menu/menu@2.0.0": patches/@react-native-menu__menu@2.0.0.patch
   "@react-navigation/native-stack@7.21.0": patches/@react-navigation%2Fnative-stack@7.21.0.patch
   node-pty@1.2.0-beta.15: patches/node-pty@1.2.0-beta.15.patch
