@@ -2071,7 +2071,7 @@ describe("buildThreadFeed", () => {
     ).not.toHaveProperty("label");
   });
 
-  it("does not show Thinking once the open run's provider turn has ended", () => {
+  it("does not show Thinking once the provider turn has ended or its reply is streaming", () => {
     const startedAt = "2026-04-01T00:00:01.000Z";
     const run = { runId, status: "running" as const, startedAt, completedAt: null };
     expect(
@@ -2083,6 +2083,15 @@ describe("buildThreadFeed", () => {
         startedAt,
       ).map((row) => row.type),
     ).toEqual(["run-fold"]);
+    const streamingReply = buildThreadFeed([
+      projected(userMessage(), 0),
+      projected({ ...assistantMessage(), streaming: true }, 1),
+    ]);
+    expect(
+      deriveThreadFeedPresentation(streamingReply, run, new Set(), new Set(), startedAt).map(
+        (row) => row.type,
+      ),
+    ).toEqual(["message", "run-fold", "message"]);
   });
 
   it("keeps a final answer visible in a folded turn when a steer follows it", () => {

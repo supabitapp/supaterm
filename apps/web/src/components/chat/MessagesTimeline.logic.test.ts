@@ -2063,7 +2063,7 @@ describe("deriveMessagesTimelineRows", () => {
     expect(rows.at(-1)).toMatchObject({ kind: "thinking" });
   });
 
-  it("does not show Thinking once the open run's provider turn has ended", () => {
+  it("does not show Thinking once the provider turn has ended or its reply is streaming", () => {
     const input = {
       timelineEntries: [
         {
@@ -2099,6 +2099,29 @@ describe("deriveMessagesTimelineRows", () => {
       latestRun: { ...input.latestRun, turnEnded: true },
     });
     expect(ended.some((row) => row.kind === "thinking")).toBe(false);
+
+    const streamingReply = deriveMessagesTimelineRows({
+      ...input,
+      timelineEntries: [
+        ...input.timelineEntries,
+        {
+          id: "assistant-entry",
+          kind: "message" as const,
+          createdAt: "2026-01-01T00:00:05Z",
+          message: {
+            id: "assistant" as never,
+            role: "assistant" as const,
+            text: "Here is the first paragraph of the answer",
+            runId: "turn-1" as never,
+            createdAt: "2026-01-01T00:00:05Z",
+            updatedAt: "2026-01-01T00:00:06Z",
+            streaming: true,
+          },
+        },
+      ],
+    });
+    expect(streamingReply.at(-1)?.id).toBe("assistant-entry");
+    expect(streamingReply.some((row) => row.kind === "thinking")).toBe(false);
   });
 
   it("does not fold the active in-progress turn", () => {
@@ -3800,7 +3823,7 @@ describe("computeStableMessagesTimelineRows", () => {
         runId,
         createdAt: startedAt,
         updatedAt: startedAt,
-        streaming: true,
+        streaming: false,
       },
     };
     const initial = computeStableMessagesTimelineRows(
@@ -5947,7 +5970,6 @@ it("keeps the working header in place across worktree setup handoff", () => {
     "worktree-setup",
     "working",
     "message",
-    "thinking",
   ]);
 
   const stage = (id: "agent" | "setup-script", status: "done" | "running") =>
