@@ -297,6 +297,7 @@ export function AssistantSelectionToolbar({
       element: viewport,
       getActionElement: () => toolbarRef.current,
       restoreAfterScroll: true,
+      immediateMultiClick: true,
       onSelection: update,
       onDismiss: clear,
     });
