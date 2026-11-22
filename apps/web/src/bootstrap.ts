@@ -1,5 +1,8 @@
 import interfaceFontUrl from "allo-font/fonts/webfonts/AlloVariableFriendly.woff2?url";
 import { showBootError } from "./lib/bootError";
+import { chunkLoadState, handleChunkLoadErrors } from "./lib/chunkReloadGuard";
+
+handleChunkLoadErrors();
 
 // A static <link> in index.html would preload a different dev URL than the stylesheet requests.
 document.head.append(
@@ -13,4 +16,8 @@ document.head.append(
 );
 
 // Shared dev chunks need the React refresh preamble first. Catch failures before React mounts.
-void import("./main").then(({ startup }) => startup).catch(showBootError);
+export const boot = import("./main")
+  .then(({ startup }) => startup)
+  .catch((error: unknown) => {
+    if (!chunkLoadState.reloadScheduled) showBootError(error);
+  });

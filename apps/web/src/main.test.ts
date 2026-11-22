@@ -4,7 +4,7 @@ vi.mock("./appInit", () => ({ startAppServices: () => ({ load: async () => {} })
 vi.mock("./AppRoot", () => ({ AppRoot: () => null }));
 vi.mock("react-dom/client", () => ({ default: { createRoot: () => ({ render: () => {} }) } }));
 
-// Boots main in a fresh page that shares the tab's sessionStorage, as a reload does.
+// Boots the entry in a fresh page that shares the tab's sessionStorage, as a reload does.
 async function bootThenFailLazyChunk(sessionStorage: Map<string, string>) {
   vi.resetModules();
   const reload = vi.fn().mockName("location.reload");
@@ -17,10 +17,14 @@ async function bootThenFailLazyChunk(sessionStorage: Map<string, string>) {
     location: { reload },
   });
   vi.stubGlobal("window", page);
-  vi.stubGlobal("document", { getElementById: () => ({}) });
+  vi.stubGlobal("document", {
+    getElementById: () => ({}),
+    head: { append: () => {} },
+    createElement: () => ({}),
+  });
   try {
-    const { startup } = await import("./main");
-    await startup;
+    const { boot } = await import("./bootstrap");
+    await boot;
     page.dispatchEvent(new Event("vite:preloadError", { cancelable: true }));
     return reload;
   } finally {
