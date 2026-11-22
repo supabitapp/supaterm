@@ -2,6 +2,7 @@
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, describe, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
+import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Path from "effect/Path";
@@ -19,6 +20,7 @@ import {
   buildWslRuntimeInstallScript,
   buildWslRuntimePruneScript,
   buildWslRuntimeProbeScript,
+  makeIsAvailable,
   parseResolvedPath,
   parseSupatermHome,
   parseWslRuntimeRoot,
@@ -572,6 +574,58 @@ describe("parseResolvedPath", () => {
   });
 });
 
+// Path.layer joins with POSIX separators here, so the test windir is a POSIX path.
+const WSL_EXE = "/windows/System32/wsl.exe";
+const STORE_SERVICE = "HKLM\\SYSTEM\\CurrentControlSet\\Services\\WSLService";
+const INBOX_SERVICE = "HKLM\\SYSTEM\\CurrentControlSet\\Services\\LxssManager";
+
+const registrySpawner = (keys: ReadonlyArray<string>) =>
+  ChildProcessSpawner.make((command) =>
+    Effect.succeed(
+      ChildProcessSpawner.makeHandle({
+        pid: ChildProcessSpawner.ProcessId(1),
+        stdout: Stream.empty,
+        stderr: Stream.empty,
+        all: Stream.empty,
+        exitCode: Effect.succeed(
+          ChildProcessSpawner.ExitCode(
+            command._tag === "StandardCommand" &&
+              command.command === "reg.exe" &&
+              keys.some((key) => command.args.includes(key))
+              ? 0
+              : 1,
+          ),
+        ),
+        isRunning: Effect.succeed(false),
+        kill: () => Effect.void,
+        stdin: Sink.drain,
+        getInputFd: () => Sink.drain,
+        getOutputFd: () => Stream.empty,
+        unref: Effect.succeed(Effect.void),
+      }),
+    ),
+  );
+
+const isAvailable = (serviceKeys: ReadonlyArray<string>) =>
+  makeIsAvailable("win32", "/windows").pipe(
+    Effect.provide(
+      Layer.mergeAll(
+        FileSystem.layerNoop({ exists: (path) => Effect.succeed(path === WSL_EXE) }),
+        Path.layer,
+      ),
+    ),
+    Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, registrySpawner(serviceKeys)),
+  );
+
+describe("makeIsAvailable", () => {
+  it.effect("needs a registered WSL service, not just the System32 install stub", () =>
+    Effect.gen(function* () {
+      assert.isFalse(yield* isAvailable([]));
+      assert.isTrue(yield* isAvailable([STORE_SERVICE]));
+      assert.isTrue(yield* isAvailable([INBOX_SERVICE]));
+    }),
+  );
+});
 describe("windowsToWslPathImpl", () => {
   it.effect("runs wslpath without a shell so folder names stay one literal argument", () =>
     Effect.gen(function* () {
