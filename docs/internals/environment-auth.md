@@ -24,17 +24,21 @@ authority.
 Browser cookies and bearer tokens adapt the same scoped session model. The OAuth
 token-exchange vocabulary gives these grants a familiar meaning.
 
-[Peer link](remote.md#peer-links) and plain pairing-link sessions renew on use:
-their bearer tokens are never reissued, so the session row alone holds their
-deadline and the token's own expiry is ignored. Authenticating a call from one
+[Peer link](remote.md#peer-links) sessions and bearer sessions paired from a
+plain pairing link (`one-time-token` or `pairing-link:<id>`, issued to a client
+rather than a server-issued bot) renew on use: their bearer tokens are never
+reissued, so the session row alone holds their deadline and the token's own
+expiry is ignored. Authenticating a call from one
 moves the row 30 days out, at most once a day so a busy client does not write on
 every call. An open WebSocket counts as use, so a pairing-link socket renews its
-session a day before the deadline instead of being closed. Only an unexpired,
+session a day before the deadline instead of being closed; if that write fails
+the socket keeps watching for a revoke until the deadline. Only an unexpired,
 unrevoked row moves, so an idle client still ends after 30 days and a revoke is
 final. Upstream renews pairing links only through a DPoP token exchange; this
-fork has no DPoP, so they renew like peer links. CLI, desktop, dev-token and
-cookie sessions, and other MCP clients, keep the fixed lifetime their token
-carries, so rotating a credential still cuts a device off.
+fork has no DPoP, so they renew like peer links, and sessions paired before the
+upgrade renew too. CLI, desktop, startup-link, dev-token and cookie sessions, and
+other MCP clients, keep the fixed lifetime their token carries, so rotating a
+credential still cuts a device off.
 
 ### MCP clients are a separate audience
 

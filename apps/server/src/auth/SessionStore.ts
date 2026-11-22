@@ -122,6 +122,17 @@ export class UnknownSessionTokenError extends Schema.TaggedError<UnknownSessionT
   }
 }
 
+export class SessionTokenNotRenewableError extends Schema.TaggedError<SessionTokenNotRenewableError>()(
+  "SessionTokenNotRenewableError",
+  {
+    sessionId: AuthSessionId,
+  },
+) {
+  override get message(): string {
+    return "Session token cannot be renewed.";
+  }
+}
+
 export class SessionTokenRevokedError extends Schema.TaggedError<SessionTokenRevokedError>()(
   "SessionTokenRevokedError",
   {
@@ -230,6 +241,7 @@ export const SessionCredentialInvalidError = Schema.Union([
   InvalidSessionTokenPayloadError,
   SessionTokenExpiredError,
   UnknownSessionTokenError,
+  SessionTokenNotRenewableError,
   SessionTokenRevokedError,
   InvalidSessionExpirationClaimError,
   MalformedWebSocketTokenError,
@@ -410,6 +422,10 @@ export class SessionStore extends Context.Service<
       SessionCredentialInternalError
     >;
     readonly streamChanges: Stream.Stream<SessionCredentialChange>;
+    /**
+     * Completes when the session is revoked or expires. Every caller holds the session's own open
+     * connection, which counts as a use, so a pairing-link session renews while awaited.
+     */
     readonly awaitInvalidation: (
       sessionId: AuthSessionId,
     ) => Effect.Effect<void, SessionCredentialVerificationError>;
@@ -432,9 +448,11 @@ const DEFAULT_WEBSOCKET_TOKEN_TTL = Duration.minutes(5);
 const PAIRING_LINK_RENEWAL_STEP = Duration.days(1);
 
 // Only plain pairing links renew, as upstream's do. CLI, desktop, dev-token and cookie sessions
-// keep their own lifetimes, so rotating a credential still cuts a device off.
-const renewsWhileUsed = (session: { readonly method: string; readonly subject: string }) =>
+// keep their own lifetimes, so rotating a credential still cuts a device off. Sessions the server
+// issues itself are bots, so a CLI token given a pairing-link subject keeps its explicit TTL.
+const renewsWhileUsed = (session: AuthSessions.AuthSessionRecord) =>
   session.method === "bearer-access-token" &&
+  session.client.deviceType !== "bot" &&
   AuthPairingLinks.isPairingLinkSubject(session.subject);
 
 const SessionClaims = Schema.Struct({
@@ -808,18 +826,6 @@ const make = Effect.gen(function* () {
           expirationClaim: claims.exp,
         });
       }
-      // Peer-link and pairing-link sessions renew while they are used and their tokens are never
-      // reissued, so the session row holds their deadline, not the token.
-      const pairingLink = renewsWhileUsed({ method: claims.method, subject: claims.sub });
-      const rowHoldsDeadline = claims.plk === 2 || pairingLink;
-      if (!rowHoldsDeadline && claims.exp <= observedAt.epochMilliseconds) {
-        return yield* new SessionTokenExpiredError({
-          sessionId: claims.sid,
-          expiresAt: expiresAt.value,
-          observedAt,
-        });
-      }
-
       const row = yield* authSessions
         .getById({ sessionId: claims.sid })
         .pipe(
@@ -845,27 +851,31 @@ const make = Effect.gen(function* () {
         );
         return yield* new SessionTokenRevokedError({ sessionId: claims.sid, revokedAt });
       }
-      if (
-        rowHoldsDeadline &&
-        row.value.expiresAt.epochMilliseconds <= observedAt.epochMilliseconds
-      ) {
+      // Peer-link and pairing-link sessions renew while they are used and their tokens are never
+      // reissued, so the session row holds their deadline, not the token.
+      const pairingLink = renewsWhileUsed(row.value);
+      const deadline = claims.plk === 2 || pairingLink ? row.value.expiresAt : expiresAt.value;
+      if (deadline.epochMilliseconds <= observedAt.epochMilliseconds) {
         return yield* new SessionTokenExpiredError({
           sessionId: claims.sid,
-          expiresAt: row.value.expiresAt,
+          expiresAt: deadline,
           observedAt,
         });
       }
-
-      const sessionExpiresAt = pairingLink
-        ? yield* renewPairingLinkSession(claims.sid, row.value.expiresAt, observedAt)
-        : row.value.expiresAt;
+      const renewed = pairingLink
+        ? yield* renewPairingLinkSession(row.value, observedAt)
+        : Option.some(deadline);
+      // A revoke can land between the verification and the update.
+      if (Option.isNone(renewed)) {
+        return yield* new SessionTokenNotRenewableError({ sessionId: claims.sid });
+      }
 
       return {
         sessionId: claims.sid,
         token,
         method: claims.method,
         client: toClientMetadata(row.value.client),
-        expiresAt: rowHoldsDeadline ? sessionExpiresAt : expiresAt.value,
+        expiresAt: renewed.value,
         subject: claims.sub,
         scopes: row.value.scopes,
         ...(claims.rtc ? { runtimeModeCeiling: claims.rtc } : {}),
@@ -904,25 +914,15 @@ const make = Effect.gen(function* () {
       ),
   );
 
-  /** The expiry of a verified pairing-link session, moved out when this use finds it a step short. */
-  const renewPairingLinkSession = Effect.fnUntraced(function* (
-    sessionId: AuthSessionId,
-    expiresAt: DateTime.Utc,
-    now: DateTime.Utc,
-  ) {
+  /** A used pairing-link session's expiry, moved out when found a step short; None once it ended. */
+  const renewPairingLinkSession = (session: AuthSessions.AuthSessionRecord, now: DateTime.Utc) => {
     const renewed = DateTime.add(now, { milliseconds: Duration.toMillis(DEFAULT_SESSION_TTL) });
-    if (
-      DateTime.distance(expiresAt, renewed).pipe(Duration.isLessThan(PAIRING_LINK_RENEWAL_STEP))
-    ) {
-      return expiresAt;
-    }
-    const current = yield* extend(sessionId, renewed, PAIRING_LINK_RENEWAL_STEP);
-    // A revoke can land between the verification and the update.
-    if (Option.isNone(current)) {
-      return yield* new SessionTokenRevokedError({ sessionId, revokedAt: now });
-    }
-    return current.value;
-  });
+    return DateTime.distance(session.expiresAt, renewed).pipe(
+      Duration.isLessThan(PAIRING_LINK_RENEWAL_STEP),
+    )
+      ? Effect.succeedSome(session.expiresAt)
+      : extend(session.sessionId, renewed, PAIRING_LINK_RENEWAL_STEP);
+  };
 
   const encodeWsClaims = Schema.encodeEffect(Schema.fromJsonString(WebSocketClaims));
   const issueWebSocketToken: SessionStore["Service"]["issueWebSocketToken"] = Effect.fn(
@@ -1127,31 +1127,34 @@ const make = Effect.gen(function* () {
                 ),
               );
             if (Option.isNone(row) || row.value.revokedAt !== null) return;
+            const now = yield* DateTime.now;
+            const renewAt = (expiresAt: DateTime.Utc) =>
+              DateTime.subtract(expiresAt, {
+                milliseconds: Duration.toMillis(PAIRING_LINK_RENEWAL_STEP),
+              });
             // An open socket is a use, so a pairing-link session renews a step before its deadline.
             const renews = renewsWhileUsed(row.value);
-            const wakeAt = renews
-              ? DateTime.subtract(row.value.expiresAt, {
-                  milliseconds: Duration.toMillis(PAIRING_LINK_RENEWAL_STEP),
-                })
-              : row.value.expiresAt;
-            const now = yield* DateTime.now;
-            const remaining = wakeAt.epochMilliseconds - now.epochMilliseconds;
-            // Renewal moves a session's expiry in place, so each wake reads the row again.
-            if (remaining > 0) {
-              yield* Effect.sleep(Duration.millis(remaining));
-              continue;
-            }
-            if (!renews) return;
-            const renewed = yield* extend(
-              sessionId,
-              DateTime.add(now, { milliseconds: Duration.toMillis(DEFAULT_SESSION_TTL) }),
-              PAIRING_LINK_RENEWAL_STEP,
-            ).pipe(
-              Effect.mapError(
-                (cause) => new SessionCredentialVerificationError({ sessionId, cause }),
-              ),
-            );
+            const renewed =
+              renews && DateTime.isLessThanOrEqualTo(renewAt(row.value.expiresAt), now)
+                ? yield* renewPairingLinkSession(row.value, now).pipe(
+                    // A failed write must not end the watch, or a later revoke would go unseen.
+                    Effect.catchCause((cause) =>
+                      Effect.logWarning("Failed to renew a session for an open socket.").pipe(
+                        Effect.annotateLogs({ sessionId, cause }),
+                        Effect.as(Option.some(row.value.expiresAt)),
+                      ),
+                    ),
+                  )
+                : Option.some(row.value.expiresAt);
             if (Option.isNone(renewed)) return;
+            const wakeAt =
+              renews && DateTime.isGreaterThan(renewAt(renewed.value), now)
+                ? renewAt(renewed.value)
+                : renewed.value;
+            const remaining = wakeAt.epochMilliseconds - now.epochMilliseconds;
+            if (remaining <= 0) return;
+            // Renewal moves a session's expiry in place, so each wake reads the row again.
+            yield* Effect.sleep(Duration.millis(remaining));
           }
         });
         yield* Effect.raceFirst(
