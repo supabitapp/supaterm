@@ -88,9 +88,10 @@ export const renderCliShim = (input: {
     "unset APPIMAGE_EXTRACT_AND_RUN",
 
     "work=$(mktemp -d) || exit 1",
+    "trap '' TERM",
     'setsid "$app" --appimage-mount >"$work/mount" 2>/dev/null &',
     "mounter=$!",
-    `trap 'kill "$mounter" 2>/dev/null; rm -rf "$work"' EXIT`,
+    `trap '[ -z "$mount" ] || fusermount3 -uz "$mount" 2>/dev/null || fusermount -uz "$mount" 2>/dev/null; kill -HUP "$mounter" 2>/dev/null; rm -rf "$work"' EXIT`,
     "trap 'exit 130' INT TERM HUP",
     "mount=",
     'while kill -0 "$mounter" 2>/dev/null; do',
@@ -106,7 +107,20 @@ export const renderCliShim = (input: {
     "fi",
     // The runtime sets this when it launches the app; the CLI skips its path-keyed compile cache on it.
     'export APPIMAGE="$app"',
-    run("$mount"),
+    "{ command exec 9<&0; } 2>/dev/null || exec 9</dev/null",
+    `${run("$mount")} <&9 9<&- &`,
+    "cli=$!",
+    "exec 9<&-",
+    `trap 'kill -TERM "$cli" 2>/dev/null' TERM`,
+    `trap 'kill -HUP "$cli" 2>/dev/null' HUP`,
+    "trap '' INT",
+    "status=0",
+    'wait "$cli" || status=$?',
+    'while kill -0 "$cli" 2>/dev/null; do',
+    "  status=0",
+    '  wait "$cli" || status=$?',
+    "done",
+    'exit "$status"',
     "",
   ].join("\n");
 };
