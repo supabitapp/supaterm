@@ -13,6 +13,7 @@ import * as Option from "effect/Option";
 import * as Redacted from "effect/Redacted";
 import * as TestClock from "effect/testing/TestClock";
 import * as SqlClient from "effect/sql/SqlClient";
+import * as Stream from "effect/Stream";
 
 import * as ServerConfig from "../config.ts";
 import * as ServerEnvironment from "../environment/ServerEnvironment.ts";
@@ -58,6 +59,12 @@ const shortLivedSessionInput = {
   method: "bearer-access-token",
   ttl: Duration.hours(1),
   client: { label: "Short-lived desktop", deviceType: "desktop" },
+} as const;
+
+const pairingLinkSessionInput = {
+  subject: "one-time-token",
+  method: "bearer-access-token",
+  client: { label: "Supaterm Mobile", deviceType: "mobile" },
 } as const;
 
 const makeDiskSessionStoreLayer = Effect.fn("makeDiskSessionStoreLayer")(function* (
@@ -135,6 +142,74 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("SessionStore.lay
       yield* TestClock.adjust(Duration.minutes(1));
       yield* Fiber.join(watcher);
       yield* sessions.awaitInvalidation(client.sessionId);
+    }).pipe(Effect.scoped, Effect.provide(Layer.merge(layerSessionStore(), TestClock.layer()))),
+  );
+
+  it.effect("renews pairing-link sessions while they are used and lets them lapse once idle", () =>
+    Effect.gen(function* () {
+      const sessions = yield* SessionStore.SessionStore;
+      const renewing = [
+        yield* sessions.issue(pairingLinkSessionInput),
+        yield* sessions.issue({ ...pairingLinkSessionInput, subject: "pairing-link:settings" }),
+      ];
+      const fixed = [
+        yield* sessions.issue({ ...pairingLinkSessionInput, subject: "cli-issued-session" }),
+        yield* sessions.issue({ ...pairingLinkSessionInput, subject: "desktop-bootstrap" }),
+        yield* sessions.issue({ ...pairingLinkSessionInput, method: "browser-session-cookie" }),
+      ];
+
+      yield* TestClock.adjust(Duration.days(29));
+      yield* Effect.forEach([...renewing, ...fixed], (session) => sessions.verify(session.token));
+      yield* TestClock.adjust(Duration.days(2));
+
+      for (const session of renewing) {
+        expect((yield* sessions.verify(session.token)).expiresAt?.epochMilliseconds).toBe(
+          DateTime.add(yield* DateTime.now, { days: 30 }).epochMilliseconds,
+        );
+      }
+      for (const session of fixed) {
+        expect(yield* Effect.flip(sessions.verify(session.token))).toMatchObject({
+          _tag: "SessionTokenExpiredError",
+        });
+      }
+
+      yield* TestClock.adjust(Duration.days(30));
+      for (const session of renewing) {
+        expect(yield* Effect.flip(sessions.verify(session.token))).toMatchObject({
+          _tag: "SessionTokenExpiredError",
+        });
+      }
+    }).pipe(Effect.provide(Layer.merge(layerSessionStore(), TestClock.layer()))),
+  );
+
+  it.effect("keeps a socket on a pairing-link session open past its original deadline", () =>
+    Effect.gen(function* () {
+      const sessions = yield* SessionStore.SessionStore;
+      const device = yield* sessions.issue(pairingLinkSessionInput);
+      const renewed = yield* sessions.streamChanges.pipe(
+        Stream.filter(
+          (change) =>
+            change.type === "clientUpserted" &&
+            change.clientSession.sessionId === device.sessionId &&
+            DateTime.isGreaterThan(change.clientSession.expiresAt, device.expiresAt),
+        ),
+        Stream.runHead,
+        Effect.forkScoped({ startImmediately: true }),
+      );
+      const invalidated = yield* Deferred.make<void>();
+      yield* sessions
+        .awaitInvalidation(device.sessionId)
+        .pipe(
+          Effect.andThen(Deferred.succeed(invalidated, undefined)),
+          Effect.forkScoped({ startImmediately: true }),
+        );
+
+      yield* TestClock.adjust(Duration.days(29));
+      yield* Fiber.join(renewed);
+      yield* TestClock.adjust(Duration.days(2));
+
+      expect(yield* Deferred.isDone(invalidated)).toBe(false);
+      expect((yield* sessions.verify(device.token)).sessionId).toBe(device.sessionId);
     }).pipe(Effect.scoped, Effect.provide(Layer.merge(layerSessionStore(), TestClock.layer()))),
   );
 

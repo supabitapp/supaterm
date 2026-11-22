@@ -23,6 +23,7 @@ import * as Option from "effect/Option";
 
 import * as ServerConfig from "../config.ts";
 import * as ServerEnvironment from "../environment/ServerEnvironment.ts";
+import * as AuthPairingLinks from "../persistence/AuthPairingLinks.ts";
 import * as AuthSessions from "../persistence/AuthSessions.ts";
 import * as PayloadSigner from "./PayloadSigner.ts";
 import * as ServerSecretStore from "./ServerSecretStore.ts";
@@ -426,6 +427,15 @@ export class SessionStore extends Context.Service<
 const SIGNING_SECRET_NAME = "server-signing-key";
 const DEFAULT_SESSION_TTL = Duration.days(30);
 const DEFAULT_WEBSOCKET_TOKEN_TTL = Duration.minutes(5);
+// A used pairing-link session moves back out to its full lifetime when a use finds it this far
+// short, so a busy device writes at most once per step.
+const PAIRING_LINK_RENEWAL_STEP = Duration.days(1);
+
+// Only plain pairing links renew, as upstream's do. CLI, desktop, dev-token and cookie sessions
+// keep their own lifetimes, so rotating a credential still cuts a device off.
+const renewsWhileUsed = (session: { readonly method: string; readonly subject: string }) =>
+  session.method === "bearer-access-token" &&
+  AuthPairingLinks.isPairingLinkSubject(session.subject);
 
 const SessionClaims = Schema.Struct({
   v: Schema.Literal(1),
@@ -798,9 +808,10 @@ const make = Effect.gen(function* () {
           expirationClaim: claims.exp,
         });
       }
-      // A peer link's session renews while it is used and its token is never
-      // reissued, so the session row holds its deadline, not the token.
-      const rowHoldsDeadline = claims.plk === 2;
+      // Peer-link and pairing-link sessions renew while they are used and their tokens are never
+      // reissued, so the session row holds their deadline, not the token.
+      const pairingLink = renewsWhileUsed({ method: claims.method, subject: claims.sub });
+      const rowHoldsDeadline = claims.plk === 2 || pairingLink;
       if (!rowHoldsDeadline && claims.exp <= observedAt.epochMilliseconds) {
         return yield* new SessionTokenExpiredError({
           sessionId: claims.sid,
@@ -845,12 +856,16 @@ const make = Effect.gen(function* () {
         });
       }
 
+      const sessionExpiresAt = pairingLink
+        ? yield* renewPairingLinkSession(claims.sid, row.value.expiresAt, observedAt)
+        : row.value.expiresAt;
+
       return {
         sessionId: claims.sid,
         token,
         method: claims.method,
         client: toClientMetadata(row.value.client),
-        expiresAt: rowHoldsDeadline ? row.value.expiresAt : expiresAt.value,
+        expiresAt: rowHoldsDeadline ? sessionExpiresAt : expiresAt.value,
         subject: claims.sub,
         scopes: row.value.scopes,
         ...(claims.rtc ? { runtimeModeCeiling: claims.rtc } : {}),
@@ -888,6 +903,26 @@ const make = Effect.gen(function* () {
         (cause) => new SessionCredentialVerificationError({ sessionId, cause }),
       ),
   );
+
+  /** The expiry of a verified pairing-link session, moved out when this use finds it a step short. */
+  const renewPairingLinkSession = Effect.fnUntraced(function* (
+    sessionId: AuthSessionId,
+    expiresAt: DateTime.Utc,
+    now: DateTime.Utc,
+  ) {
+    const renewed = DateTime.add(now, { milliseconds: Duration.toMillis(DEFAULT_SESSION_TTL) });
+    if (
+      DateTime.distance(expiresAt, renewed).pipe(Duration.isLessThan(PAIRING_LINK_RENEWAL_STEP))
+    ) {
+      return expiresAt;
+    }
+    const current = yield* extend(sessionId, renewed, PAIRING_LINK_RENEWAL_STEP);
+    // A revoke can land between the verification and the update.
+    if (Option.isNone(current)) {
+      return yield* new SessionTokenRevokedError({ sessionId, revokedAt: now });
+    }
+    return current.value;
+  });
 
   const encodeWsClaims = Schema.encodeEffect(Schema.fromJsonString(WebSocketClaims));
   const issueWebSocketToken: SessionStore["Service"]["issueWebSocketToken"] = Effect.fn(
@@ -1082,17 +1117,43 @@ const make = Effect.gen(function* () {
     return yield* Effect.scoped(
       Effect.gen(function* () {
         const subscription = yield* PubSub.subscribe(changesPubSub);
-        const row = yield* authSessions
-          .getById({ sessionId })
-          .pipe(
-            Effect.mapError(
-              (cause) => new SessionCredentialVerificationError({ sessionId, cause }),
-            ),
-          );
-        if (Option.isNone(row) || row.value.revokedAt !== null) return;
-        const now = yield* DateTime.now;
-        const remaining = row.value.expiresAt.epochMilliseconds - now.epochMilliseconds;
-        if (remaining <= 0) return;
+        const untilExpired = Effect.gen(function* () {
+          while (true) {
+            const row = yield* authSessions
+              .getById({ sessionId })
+              .pipe(
+                Effect.mapError(
+                  (cause) => new SessionCredentialVerificationError({ sessionId, cause }),
+                ),
+              );
+            if (Option.isNone(row) || row.value.revokedAt !== null) return;
+            // An open socket is a use, so a pairing-link session renews a step before its deadline.
+            const renews = renewsWhileUsed(row.value);
+            const wakeAt = renews
+              ? DateTime.subtract(row.value.expiresAt, {
+                  milliseconds: Duration.toMillis(PAIRING_LINK_RENEWAL_STEP),
+                })
+              : row.value.expiresAt;
+            const now = yield* DateTime.now;
+            const remaining = wakeAt.epochMilliseconds - now.epochMilliseconds;
+            // Renewal moves a session's expiry in place, so each wake reads the row again.
+            if (remaining > 0) {
+              yield* Effect.sleep(Duration.millis(remaining));
+              continue;
+            }
+            if (!renews) return;
+            const renewed = yield* extend(
+              sessionId,
+              DateTime.add(now, { milliseconds: Duration.toMillis(DEFAULT_SESSION_TTL) }),
+              PAIRING_LINK_RENEWAL_STEP,
+            ).pipe(
+              Effect.mapError(
+                (cause) => new SessionCredentialVerificationError({ sessionId, cause }),
+              ),
+            );
+            if (Option.isNone(renewed)) return;
+          }
+        });
         yield* Effect.raceFirst(
           Stream.fromSubscription(subscription).pipe(
             Stream.filter(
@@ -1100,7 +1161,7 @@ const make = Effect.gen(function* () {
             ),
             Stream.runHead,
           ),
-          Effect.sleep(Duration.millis(remaining)),
+          untilExpired,
         );
       }),
     );

@@ -378,7 +378,7 @@ const make = Effect.gen(function* () {
     const expiresAt = DateTime.add(now, { milliseconds: Duration.toMillis(ttl) });
     const subject = mcpApproval
       ? `${AuthPairingLinks.MCP_APPROVAL_SUBJECT_PREFIX}${mcpApproval}`
-      : (input?.subject ?? `pairing-link:${id}`);
+      : (input?.subject ?? `${AuthPairingLinks.PAIRING_LINK_SUBJECT_PREFIX}${id}`);
     const issued: IssuedBootstrapCredential = {
       id,
       credential,

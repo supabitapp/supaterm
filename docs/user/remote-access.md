@@ -128,7 +128,10 @@ cannot load the app to try those alternatives; use the in-app scanner or paste
 the link instead.
 
 Pairing authorizes that device for future connections. Use a fresh one-time link
-for each new device; you do not need the original token to reconnect. Links
+for each new device; you do not need the original token to reconnect. A device
+stays signed in while you keep using it, until you revoke it in **Settings →
+Sharing & access** on the host. One unused for 30 days, or paired with a host
+older than this release, has to pair again. Links
 created in Settings can only be copied from the client that created them while
 its **Sharing & access** page stays open. If you leave or reload that page, create
 another link to share.
