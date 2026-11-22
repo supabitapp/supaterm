@@ -33,8 +33,14 @@ export function createSidebarListMotion(parent: HTMLUListElement) {
     keyboardMotionSuppressedUntil = Date.now() + 300;
   };
   parent.addEventListener("keydown", suppressKeyboardMotion);
+  const scroller = parent.closest<HTMLElement>('[data-slot="scroll-area-viewport"]');
+  let scrollTop = scroller?.scrollTop ?? 0;
+  const trackScroll = () => {
+    scrollTop = scroller?.scrollTop ?? 0;
+  };
+  scroller?.addEventListener("scroll", trackScroll, { passive: true });
   const readViewport = () => {
-    const bounds = parent.closest('[data-slot="scroll-area-viewport"]')?.getBoundingClientRect();
+    const bounds = scroller?.getBoundingClientRect();
     return bounds ? { bounds, origin: parent.getBoundingClientRect().top } : null;
   };
   let preparedViewport: ReturnType<typeof readViewport> = null;
@@ -149,8 +155,16 @@ export function createSidebarListMotion(parent: HTMLUListElement) {
       const viewport = shelfToggled ? readViewport() : null;
       const previousViewport = preparedViewport;
       preparedViewport = null;
-      const originDelta =
-        viewport && previousViewport ? previousViewport.origin - viewport.origin : 0;
+      // A removal near the bottom shrinks the list and the browser clamps scrollTop, moving
+      // every row on screen; offsets include that shift so those rows slide instead of jump.
+      let originDelta = 0;
+      if (viewport && previousViewport) originDelta = previousViewport.origin - viewport.origin;
+      else if (scroller !== null) {
+        const max = scroller.scrollHeight - scroller.clientHeight;
+        if (scrollTop > max && scroller.scrollTop >= max - 1) {
+          originDelta = scroller.scrollTop - scrollTop;
+        }
+      }
       const visible = (position: RowPosition, offset = 0, frame = viewport) =>
         !frame ||
         (frame.origin + position.top + offset + position.height > frame.bounds.top &&
@@ -204,9 +218,7 @@ export function createSidebarListMotion(parent: HTMLUListElement) {
       else {
         for (const [node, position] of next) {
           const previousTop = positions!.get(node)?.top;
-          if (previousTop === undefined || (previousTop === position.top && originDelta === 0)) {
-            continue;
-          }
+          if (previousTop === undefined || previousTop + originDelta === position.top) continue;
           movedDelta.set(node, originDelta + previousTop + remainingOffset(node) - position.top);
         }
         for (const [node, position] of positions!) {
@@ -271,6 +283,7 @@ export function createSidebarListMotion(parent: HTMLUListElement) {
         released = null;
       }
       positions = next;
+      if (scroller !== null) scrollTop = scroller.scrollTop;
     },
     release() {
       suspend();
@@ -285,6 +298,7 @@ export function createSidebarListMotion(parent: HTMLUListElement) {
     dispose() {
       suspend();
       parent.removeEventListener("keydown", suppressKeyboardMotion);
+      scroller?.removeEventListener("scroll", trackScroll);
       disposed = true;
     },
   };

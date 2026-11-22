@@ -426,6 +426,7 @@ function useSidebarThreads(input: {
   readonly dragging: boolean;
   readonly grouping: SidebarThreadGrouping;
   readonly groupingProjects: readonly ThreadGroupingProject[];
+  readonly departingThreadKey: string | null;
 }) {
   const {
     scopeKey,
@@ -437,7 +438,9 @@ function useSidebarThreads(input: {
     keptThreadKey,
     threads,
     routeRowThreadKey,
+    departingThreadKey,
   } = input;
+  const shelfRouteThreadKey = routeRowThreadKey === departingThreadKey ? null : routeRowThreadKey;
   const serverThreadRefs = useThreadRefs();
   const delegatedUnderParent = useDelegatedUnderParent();
   const inboxReturnsVersion = useSyncExternalStore(
@@ -526,11 +529,11 @@ function useSidebarThreads(input: {
     // deep done thread (search, deep link) pulls its row into the visible
     // tail so the highlight and the reopen affordance stay reachable.
     if (
-      routeRowThreadKey !== null &&
-      !visible.some((thread) => threadShellKey(thread) === routeRowThreadKey)
+      shelfRouteThreadKey !== null &&
+      !visible.some((thread) => threadShellKey(thread) === shelfRouteThreadKey)
     ) {
       const routeThread = doneThreads.find(
-        (thread) => threadShellKey(thread) === routeRowThreadKey,
+        (thread) => threadShellKey(thread) === shelfRouteThreadKey,
       );
       if (routeThread !== undefined) visible.push(routeThread);
     }
@@ -538,10 +541,10 @@ function useSidebarThreads(input: {
   })();
   const renderedDoneThreads = doneShelfExpanded
     ? visibleDoneThreads
-    : routeThreadOnly(visibleDoneThreads, routeRowThreadKey);
+    : routeThreadOnly(visibleDoneThreads, shelfRouteThreadKey);
   const visibleSnoozedThreads = snoozedShelfExpanded
     ? snoozedThreads
-    : routeThreadOnly(snoozedThreads, routeRowThreadKey);
+    : routeThreadOnly(snoozedThreads, shelfRouteThreadKey);
   // Sending a message folds the open thread into the Working shelf, and its
   // row must stay visible there.
   const visibleWorkingThreads = workingShelfExpanded
@@ -1195,6 +1198,13 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
         ? projectScopeKeys.filter((candidate) => candidate !== key)
         : [...projectScopeKeys, key],
     );
+  const [departingThreadKey, setDepartingThreadKey] = useState<string | null>(null);
+  if (departingThreadKey !== null && departingThreadKey !== routeThreadKey) {
+    setDepartingThreadKey(null);
+  }
+  const departRouteThread = (threadKey: string) => setDepartingThreadKey(threadKey);
+  const stayOnRouteThread = (threadKey: string) =>
+    setDepartingThreadKey((current) => (current === threadKey ? null : current));
   const showProjectEnvironments = projectGroupsSpanEnvironments(projectGroups);
   const scratchMachineLabelFor = (
     thread: Pick<SidebarThreadSummary, "environmentId" | "projectId">,
@@ -1332,6 +1342,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     keptThreadKey,
     threads: listedThreads,
     routeRowThreadKey,
+    departingThreadKey,
     // A Working row only drags out as chat context, so it never reveals the pin order.
     dragging: dragState !== null && dragState.activeSection !== "working",
   });
@@ -1528,10 +1539,12 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
       if (markingDoneThreadKeysRef.current.has(threadKey)) return;
       markingDoneThreadKeysRef.current.add(threadKey);
       const navigateAfterMarkDone = planForwardNavigation(threadKey, opts.coMarkingDoneKeys);
+      if (navigateAfterMarkDone) departRouteThread(threadKey);
       const result = await markThreadDone(threadRef);
       markingDoneThreadKeysRef.current.delete(threadKey);
       if (result._tag === "Failure") {
         // Never navigate away from a thread that was not marked done.
+        stayOnRouteThread(threadKey);
         if (!isAtomCommandInterrupted(result)) {
           const error = squashAtomCommandFailure(result);
           toastManager.add(
@@ -1556,6 +1569,8 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
         })
       ) {
         navigateAfterMarkDone?.();
+      } else {
+        stayOnRouteThread(threadKey);
       }
     })();
   };
@@ -2101,6 +2116,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
         case "mark-done": {
           markingDoneThreadKeysRef.current.add(activeKey);
           const navigateAfterMarkDone = planForwardNavigation(activeKey);
+          if (navigateAfterMarkDone) departRouteThread(activeKey);
           const done = await run(markThreadDone(threadRef), "Failed to mark thread as Done");
           markingDoneThreadKeysRef.current.delete(activeKey);
           if (
@@ -2114,6 +2130,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
             })
           )
             navigateAfterMarkDone?.();
+          else stayOnRouteThread(activeKey);
           return;
         }
         case "move-active":
@@ -2164,9 +2181,11 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     // Snoozing the open thread moves you forward, same as marking done —
     // both park the thread you're done with for now.
     const navigateAfterSnooze = planForwardNavigation(threadKey, opts.coSnoozingKeys);
+    if (navigateAfterSnooze) departRouteThread(threadKey);
     const result = await snoozeThread(threadRef, preset.snoozedUntil);
     snoozingThreadKeysRef.current.delete(threadKey);
     if (result._tag === "Failure") {
+      stayOnRouteThread(threadKey);
       return isAtomCommandInterrupted(result)
         ? ({ status: "interrupted" } as const)
         : ({ status: "failure", error: squashAtomCommandFailure(result) } as const);
@@ -2181,6 +2200,8 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
       })
     ) {
       navigateAfterSnooze?.();
+    } else {
+      stayOnRouteThread(threadKey);
     }
     return { status: "success" } as const;
   };
