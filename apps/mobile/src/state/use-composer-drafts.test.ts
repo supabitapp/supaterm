@@ -91,8 +91,11 @@ const composerDraftFileMocks = vi.hoisted(() => {
       exists = true;
       size = 3;
       parentDirectory = null;
+      uri = "file:///documents/attachment.png";
 
       create() {}
+
+      async copy() {}
 
       moveSync() {}
 
@@ -144,6 +147,7 @@ const incomingShareStorageMocks = vi.hoisted(() => ({
 vi.mock("expo-file-system", () => ({
   Directory: composerDraftFileMocks.Directory,
   File: composerDraftFileMocks.File,
+  FileMode: {},
   Paths: { document: { uri: "file:///documents" } },
 }));
 
@@ -300,7 +304,7 @@ it.each(["picker open", "reading image"] as const)(
             expect.objectContaining({
               type: "image",
               name: "screenshot.png",
-              dataUrl: "data:image/png;base64,YWJj",
+              fileUri: "file:///documents/attachment.png",
             }),
           ],
     );
@@ -1351,6 +1355,22 @@ describe("mobile composer drafts", () => {
     expect(
       appAtomRegistry.get(composerDraftsAtom)[pasteKey]?.attachments.map(({ id }) => id),
     ).toEqual(["red", "blue"]);
+
+    const makeStoredPaste = (id: string) => ({
+      id,
+      type: "image" as const,
+      name: "pasted-image.png",
+      mimeType: "image/png",
+      sizeBytes: 3,
+      fileUri: `file:///documents/supaterm-composer-attachments/${id}-pasted-image.png`,
+      previewUri: `file:///documents/supaterm-composer-attachments/${id}-pasted-image.png`,
+    });
+    const storedKey = "new-task:environment-1:project-stored-pastes";
+    appendComposerDraftAttachments(storedKey, [makeStoredPaste("red")]);
+    appendComposerDraftAttachments(storedKey, [makeStoredPaste("green")]);
+    expect(
+      appAtomRegistry.get(composerDraftsAtom)[storedKey]?.attachments.map(({ id }) => id),
+    ).toEqual(["red", "green"]);
   });
 
   it("keeps shared attachment files until every draft releases them", async () => {
