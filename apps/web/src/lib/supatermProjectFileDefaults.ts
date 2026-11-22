@@ -1,6 +1,7 @@
 import {
   SUPATERM_PROJECT_FILE_NAME,
   type EnvironmentId,
+  type ProjectReadFileResult,
   type SupatermProjectFile,
 } from "@supaterm/contracts";
 import { parseSupatermProjectFile } from "@supaterm/shared/supatermProjectFile";
@@ -13,6 +14,21 @@ import {
 } from "~/components/files/projectFilesQueryState";
 import { appAtomRegistry } from "~/rpc/atomRegistry";
 import { environmentPresentations } from "~/state/presentation";
+
+function toSupatermProjectFile(
+  environmentId: EnvironmentId,
+  workspaceRoot: string,
+  result: ProjectReadFileResult | null,
+): SupatermProjectFile | null {
+  const data = resolveProjectFileQueryData(
+    environmentId,
+    workspaceRoot,
+    SUPATERM_PROJECT_FILE_NAME,
+    result,
+  );
+  if (data === null || data.exists === false || data.truncated) return null;
+  return parseSupatermProjectFile(data.contents);
+}
 
 /**
  * Imperative counterpart to `useSupatermProjectFileState` for the new-thread path, which resolves
@@ -32,12 +48,22 @@ export async function readSupatermProjectFile(
   const result = connected
     ? await executeAtomQuery(appAtomRegistry, query, { reportDefect: false, reportFailure: false })
     : appAtomRegistry.get(query);
-  const data = resolveProjectFileQueryData(
+  return toSupatermProjectFile(
     environmentId,
     workspaceRoot,
-    SUPATERM_PROJECT_FILE_NAME,
     AsyncResult.getOrElse(result, () => null),
   );
-  if (data === null || data.exists === false || data.truncated) return null;
-  return parseSupatermProjectFile(data.contents);
+}
+
+/** The project's supaterm.json from an earlier read, or `undefined` when none has loaded yet. */
+export function peekSupatermProjectFile(
+  environmentId: EnvironmentId,
+  workspaceRoot: string,
+): SupatermProjectFile | null | undefined {
+  const result = appAtomRegistry.get(
+    getProjectFileQueryAtom(environmentId, workspaceRoot, SUPATERM_PROJECT_FILE_NAME),
+  );
+  return AsyncResult.isSuccess(result)
+    ? toSupatermProjectFile(environmentId, workspaceRoot, result.value)
+    : undefined;
 }

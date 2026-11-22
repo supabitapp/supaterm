@@ -23,6 +23,7 @@ import {
 } from "../../composerDraftStore";
 import { countPreparingComposerImages, holdComposerSend } from "./preparingComposerImages";
 import { type ComposerSubmissionIntent } from "../../composer-logic";
+import { readPendingWorkspaceDefault } from "../../lib/newDraftWorkspace";
 import { resolveSideChatCommand } from "@supaterm/client-runtime/state/side-chats";
 import { sendSideChatDraftMessage, type SideChatComposerContent } from "./useSideChat";
 import { type MultipleModelTarget, resolveMultipleModelTargets } from "./chatViewSend";
@@ -1178,8 +1179,7 @@ export function useComposerSend(input: ComposerSendInput) {
   };
 
   const onSendLatest = useStableCallback(onSend);
-  const onSendWithRouting = async (...args: Parameters<typeof onSend>) => {
-    args[0]?.preventDefault();
+  const sendWithEnvironmentRefresh = async (...args: Parameters<typeof onSend>) => {
     const refresh =
       args[3] || sendInFlightRef.current || readPendingEnvironmentChange() !== null
         ? null
@@ -1190,6 +1190,18 @@ export function useComposerSend(input: ComposerSendInput) {
       sendInFlightRef.current = false;
     });
     if (ready) return onSendLatest(...args);
+  };
+  const sendWithEnvironmentRefreshLatest = useStableCallback(sendWithEnvironmentRefresh);
+  const onSendWithRouting = async (...args: Parameters<typeof onSend>) => {
+    args[0]?.preventDefault();
+    const workspaceDefault =
+      draftId && !sendInFlightRef.current ? readPendingWorkspaceDefault(draftId) : null;
+    if (workspaceDefault === null) return sendWithEnvironmentRefresh(...args);
+    sendInFlightRef.current = true;
+    await workspaceDefault.finally(() => {
+      sendInFlightRef.current = false;
+    });
+    return sendWithEnvironmentRefreshLatest(...args);
   };
   return { onSend: onSendWithRouting, prepareVoiceSend };
 }

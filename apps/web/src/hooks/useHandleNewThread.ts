@@ -23,13 +23,7 @@ import {
   type ProjectGroupingSettings,
 } from "@supaterm/client-runtime/state/project-grouping";
 import { resolveProjectSettings } from "@supaterm/shared/projectSettings";
-import {
-  readProject,
-  readProjects,
-  readThreadShell,
-  useProjects,
-  useQuietThreadShell,
-} from "../state/entities";
+import { readProjects, readThreadShell, useProjects, useQuietThreadShell } from "../state/entities";
 import {
   draftModelSelectionApplies,
   hasExplicitComposerModelSelection,
@@ -38,7 +32,7 @@ import {
   startNewThreadFromContext,
   threadHasStarted,
 } from "../lib/chatThreadActions";
-import { resolveNewDraftWorkspace } from "../lib/newDraftWorkspace";
+import { openNewDraftWorkspace } from "../lib/newDraftWorkspace";
 import { appAtomRegistry } from "../rpc/atomRegistry";
 import { environmentServerConfigsAtom } from "../state/server";
 import { resolveThreadRouteTarget } from "../threadRoutes";
@@ -126,8 +120,6 @@ export function createNewThreadHandler(router: AnyRouter) {
       if (composerDraftHasUserContent(getComposerDraft(draftId))) return;
       setPrompt(draftId, options.prompt);
     };
-    const requestingRouteHref = router.state.location.href;
-    const routeChangedSinceRequest = () => router.state.location.href !== requestingRouteHref;
     const currentRouteTarget = getCurrentRouteTarget();
     const carrySourceShell =
       currentRouteTarget?.kind === "server" ? readThreadShell(currentRouteTarget.threadRef) : null;
@@ -153,8 +145,6 @@ export function createNewThreadHandler(router: AnyRouter) {
         candidate.id === projectRef.projectId &&
         candidate.environmentId === projectRef.environmentId,
     );
-    const abandonedSinceRequest = () =>
-      routeChangedSinceRequest() || (project !== undefined && readProject(projectRef) === null);
     const projectSettings = resolveProjectSettings(
       targetServerSettings,
       project?.id ?? null,
@@ -190,25 +180,10 @@ export function createNewThreadHandler(router: AnyRouter) {
         destinationDraftId,
       });
     const resolveDefaultWorkspace = () =>
-      resolveNewDraftWorkspace(projectRef, environmentServerConfigs.get(projectRef.environmentId));
+      openNewDraftWorkspace(projectRef, environmentServerConfigs.get(projectRef.environmentId));
     const logicalProjectKey = project
       ? deriveLogicalProjectKeyFromSettings(project, projectGroupingSettings)
       : scopedProjectKey(projectRef);
-    // Another opener (home's own first-project draft) may have reached this project's draft first.
-    // Matches lag the location during a navigation, so compare against the location.
-    const resultIfAbandoned = () => {
-      const draft = getDraftSessionByLogicalProjectKey(logicalProjectKey);
-      if (draft === null || draft.promotedTo != null || readProject(projectRef) === null) {
-        return null;
-      }
-      const draftHref = router.buildLocation({
-        to: "/draft/$draftId",
-        params: { draftId: draft.draftId },
-      }).href;
-      return router.state.location.href === draftHref
-        ? { draftId: draft.draftId, threadId: draft.threadId }
-        : null;
-    };
     const hasBranchOption = options?.branch !== undefined;
     const hasWorktreePathOption = options?.worktreePath !== undefined;
     const hasEnvModeOption = options?.envMode !== undefined;
@@ -245,30 +220,13 @@ export function createNewThreadHandler(router: AnyRouter) {
         const hasExplicitWorkspaceOption =
           hasBranchOption || hasWorktreePathOption || hasEnvModeOption || hasStartFromOriginOption;
         let workspaceContext: NewThreadWorkspaceOptions | null = null;
+        let applyProjectFile: ((draftId: DraftId) => void) | null = null;
         if (hasExplicitWorkspaceOption) {
           workspaceContext = pickExplicitWorkspaceOptions(options);
         } else if (!isDraftAlreadyOpen) {
-          const defaultWorkspace = await resolveDefaultWorkspace();
-          if (abandonedSinceRequest()) {
-            return resultIfAbandoned();
-          }
-          // Concurrent calls may change the draft; stale resets, remaps, or navigation could clobber it.
-          const routeTargetNow = getCurrentRouteTarget();
-          const openedMeanwhile =
-            routeTargetNow?.kind === "draft" &&
-            routeTargetNow.draftId === emptyStoredDraftThread.draftId;
-          const promotedMeanwhile =
-            storedDraftThreadRef !== null && readThreadShell(storedDraftThreadRef) !== null;
-          const remappedMeanwhile =
-            getDraftSessionByLogicalProjectKey(logicalProjectKey)?.draftId !==
-            emptyStoredDraftThread.draftId;
-          const investedMeanwhile = composerDraftHasUserContent(
-            getComposerDraft(emptyStoredDraftThread.draftId),
-          );
-          if (openedMeanwhile || promotedMeanwhile || remappedMeanwhile || investedMeanwhile) {
-            return null;
-          }
-          workspaceContext = { branch: null, worktreePath: null, ...defaultWorkspace };
+          const defaultWorkspace = resolveDefaultWorkspace();
+          applyProjectFile = defaultWorkspace.applyProjectFile;
+          workspaceContext = { branch: null, worktreePath: null, ...defaultWorkspace.workspace };
         }
         if (workspaceContext) {
           setDraftThreadContext(emptyStoredDraftThread.draftId, {
@@ -305,6 +263,7 @@ export function createNewThreadHandler(router: AnyRouter) {
           threadId: emptyStoredDraftThread.threadId,
         };
         seedPrompt(emptyStoredDraftThread.draftId);
+        applyProjectFile?.(emptyStoredDraftThread.draftId);
         const routeTargetAfterWrites = getCurrentRouteTarget();
         if (
           routeTargetAfterWrites?.kind === "draft" &&
@@ -353,40 +312,14 @@ export function createNewThreadHandler(router: AnyRouter) {
     const threadId = newThreadId();
     const createdAt = new Date().toISOString();
     return (async () => {
-      const workspace =
-        options?.envMode === undefined
-          ? await resolveDefaultWorkspace()
-          : {
-              envMode: options.envMode,
-              startFromOrigin: resolveNewDraftStartFromOrigin({
-                envMode: options.envMode,
-                newWorktreesStartFromOrigin: projectSettings.settings.newWorktreesStartFromOrigin,
-              }),
-            };
-      if (abandonedSinceRequest()) {
-        return resultIfAbandoned();
-      }
-      // Reuse drafts registered while awaiting so their pending navigation cannot lose them.
-      const racedDraft = getDraftSessionByLogicalProjectKey(logicalProjectKey);
-      if (
-        racedDraft &&
-        racedDraft.draftId !== storedDraftThread?.draftId &&
-        readThreadShell(scopeThreadRef(racedDraft.environmentId, racedDraft.threadId)) === null
-      ) {
-        setLogicalProjectDraftThreadId(logicalProjectKey, projectRef, racedDraft.draftId, {
-          threadId: racedDraft.threadId,
-          createdAt: racedDraft.createdAt,
-          runtimeMode: racedDraft.runtimeMode,
-          ...pickExplicitWorkspaceOptions(options),
-        });
-        seedPrompt(racedDraft.draftId);
-        await router.navigate({
-          to: "/draft/$draftId",
-          params: { draftId: racedDraft.draftId },
-          replace: options?.replace ?? false,
-        });
-        return { draftId: racedDraft.draftId, threadId: racedDraft.threadId };
-      }
+      const defaultWorkspace = options?.envMode === undefined ? resolveDefaultWorkspace() : null;
+      const workspace = defaultWorkspace?.workspace ?? {
+        envMode: options?.envMode ?? "local",
+        startFromOrigin: resolveNewDraftStartFromOrigin({
+          envMode: options?.envMode ?? "local",
+          newWorktreesStartFromOrigin: projectSettings.settings.newWorktreesStartFromOrigin,
+        }),
+      };
       setLogicalProjectDraftThreadId(logicalProjectKey, projectRef, draftId, {
         threadId,
         createdAt,
@@ -402,6 +335,7 @@ export function createNewThreadHandler(router: AnyRouter) {
         setModelSelection(draftId, modelSelectionOverride, { replaceOptions: true });
       }
       seedPrompt(draftId);
+      defaultWorkspace?.applyProjectFile(draftId);
       await router.navigate({
         to: "/draft/$draftId",
         params: { draftId },
