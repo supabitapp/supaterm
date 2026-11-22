@@ -6,6 +6,7 @@ import type { ContextMenuSource } from "@supaterm/contracts";
 import { contextMenuSourceOf } from "../../contextMenuSource";
 import { assistantCitationsToPlainText } from "@supaterm/shared/assistantCitations";
 import { replaceComposerContextReferences } from "@supaterm/shared/composerContextReferences";
+import { composerFileLinksToPlainText } from "@supaterm/shared/composerInlineTokens";
 import * as Schema from "effect/Schema";
 import { SquarePenIcon } from "@supaterm/icons";
 import {
@@ -93,7 +94,9 @@ const SidebarDraftRow = memo(function SidebarDraftRow(props: {
   const composer = props.composer ?? EMPTY_COMPOSER_PARTS;
   const promptPreview =
     assistantCitationsToPlainText(
-      replaceComposerContextReferences(composer.prompt, (occurrence) => occurrence.label),
+      composerFileLinksToPlainText(
+        replaceComposerContextReferences(composer.prompt, (occurrence) => occurrence.label),
+      ),
     )
       .trim()
       .split("\n", 1)[0] ?? "";

@@ -1,6 +1,7 @@
 import type { ChatAttachment } from "@supaterm/contracts";
 import { assistantCitationsToPlainText } from "@supaterm/shared/assistantCitations";
 import { replaceComposerContextReferences } from "@supaterm/shared/composerContextReferences";
+import { composerFileLinksToPlainText } from "@supaterm/shared/composerInlineTokens";
 import { truncate } from "@supaterm/shared/String";
 
 export interface ThreadTitleSeedInput {
@@ -24,7 +25,7 @@ export function threadTitleTextFromPrompt(value: string): string {
     return reference.label;
   });
   return (
-    normalizeTitleSeed(prose) ||
+    normalizeTitleSeed(composerFileLinksToPlainText(prose)) ||
     (imageIds.size > 0 ? (imageIds.size === 1 ? "Attached image" : "Attached images") : "")
   );
 }
