@@ -10,7 +10,7 @@ import type { EnvironmentId, ScopedThreadRef, ThreadId } from "@supaterm/contrac
 import { useNavigate } from "@tanstack/react-router";
 import { AsyncResult, Atom } from "effect/reactivity";
 
-import { useRightPanelStore } from "../rightPanelStore";
+import { selectThreadRightPanelState, useRightPanelStore } from "../rightPanelStore";
 import { connectPairing, reachesEnvironment } from "../connection/onboarding";
 import type { LinkedThreadSurface } from "../linkedThreadSurface";
 import { buildThreadRouteParams } from "../threadRoutes";
@@ -193,6 +193,12 @@ export function useConnectLinkedEnvironment(
   };
   const connect = async () => {
     setState({ phase: "connecting" });
+    let tabClosed = false;
+    // A tab can close and reopen with the same ID while pairing is in flight.
+    const stopWatchingTab = useRightPanelStore.subscribe((state) => {
+      const { surfaces } = selectThreadRightPanelState(state.byThreadKey, panelRef);
+      if (!surfaces.some((tab) => tab.id === surface.id)) tabClosed = true;
+    });
     const outcome = await connectLinkedEnvironment({
       label: surface.label,
       requestPairing: async () => {
@@ -216,13 +222,14 @@ export function useConnectLinkedEnvironment(
         });
         return result._tag === "Success";
       },
-    });
+    }).finally(stopWatchingTab);
     if (outcome.type === "unreachable") {
       setState({ phase: "unreachable", label: outcome.label });
       return outcome;
     }
     if (outcome.type === "connected") {
       setState({ phase: "idle" });
+      if (tabClosed) return outcome;
       // The thread opens where every thread on a connected environment does, so its tab is done.
       useRightPanelStore.getState().closeSurface(panelRef, surface.id);
       void navigate({
