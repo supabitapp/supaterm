@@ -35,6 +35,7 @@ import { Button } from "../ui/button";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../ui/select";
 import { type LinkChoice, LINK_OFF, linkPermissionRow } from "./EnvironmentLinkPermissions.logic";
 import { failureToast, UNLINK_COMMAND_LABEL } from "./LinkedEnvironmentsSettings";
+import { toastManager } from "../ui/toast";
 
 /** What agents on each of the user's other connected machines may do on `target`. */
 export function EnvironmentLinkPermissions({
@@ -145,7 +146,15 @@ function SourceLinkRow({
       input: { environmentId: target.environmentId },
     });
     setBusy(false);
-    if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
+    if (result._tag === "Success") {
+      if (result.value.removed && result.value.endedThere !== true) {
+        toastManager.add({
+          type: "warning",
+          title: `${target.label} did not answer`,
+          description: `Revoke "Supaterm · ${source.label}" in ${target.label}'s Sharing & access to end the session there too.`,
+        });
+      }
+    } else if (!isAtomCommandInterrupted(result)) {
       failureToast("Could not forget the link", squashAtomCommandFailure(result));
     }
   };
@@ -153,7 +162,7 @@ function SourceLinkRow({
     if (busy || next === row.value) return;
     const confirmation =
       next === LINK_OFF
-        ? `Stop agents on ${source.label} from working on ${target.label}? ${source.label} forgets the link. Revoke "Supaterm · ${source.label}" in ${target.label}'s Sharing & access to end the session there too.`
+        ? `Stop agents on ${source.label} from working on ${target.label}? ${source.label} forgets the link, and its session on ${target.label} ends too if it answers.`
         : row.linked
           ? `Let agents on ${source.label} work on ${target.label} at ${accessConfig[next].label}? ${source.label} links again with a new code. Its old session stays in ${target.label}'s Sharing & access until you revoke it there, and a task starting over the old link right now may need starting again.`
           : null;

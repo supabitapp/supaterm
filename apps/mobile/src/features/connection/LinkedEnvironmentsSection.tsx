@@ -181,6 +181,12 @@ function LinkedEnvironmentRow(props: {
     setBusy(true);
     const result = await unlink({ environmentId, input: { environmentId: link.environmentId } });
     setBusy(false);
+    if (result._tag === "Success" && result.value.removed && result.value.endedThere !== true) {
+      Dialog.alert(
+        `${label} did not answer`,
+        `Revoke "Supaterm · …" in ${label}'s Sharing & access to end the session there too.`,
+      );
+    }
     alertFailure("Could not forget the link", result);
   };
   return (
@@ -213,7 +219,7 @@ function LinkedEnvironmentRow(props: {
           onPress={() =>
             Dialog.confirm({
               title: `Forget ${label}?`,
-              message: `Agents here stop working there. Revoke "Supaterm · …" in ${label}'s Sharing & access to end the session there too.`,
+              message: `Agents here stop working there, and their session on ${label} ends too if it answers.`,
               confirmText: "Forget",
               destructive: true,
               onConfirm: () => void forget(),

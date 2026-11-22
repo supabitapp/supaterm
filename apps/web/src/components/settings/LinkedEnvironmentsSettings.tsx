@@ -214,14 +214,22 @@ function LinkedEnvironmentRow({
   const [busy, setBusy] = useState(false);
   const forget = async () => {
     const confirmed = await (requestConfirmDialog(
-      `Forget ${label}? Agents here stop working there. Revoke "Supaterm · …" in ${label}'s Sharing & access to end the session there too.`,
+      `Forget ${label}? Agents here stop working there, and their session on ${label} ends too if it answers.`,
       { variant: "destructive" },
     ) ?? Promise.resolve(false));
     if (!confirmed) return;
     setBusy(true);
     const result = await unlink({ environmentId, input: { environmentId: link.environmentId } });
     setBusy(false);
-    if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
+    if (result._tag === "Success") {
+      if (result.value.removed && result.value.endedThere !== true) {
+        toastManager.add({
+          type: "warning",
+          title: `${label} did not answer`,
+          description: `Revoke "Supaterm · …" in ${label}'s Sharing & access to end the session there too.`,
+        });
+      }
+    } else if (!isAtomCommandInterrupted(result)) {
       failureToast("Could not forget the link", squashAtomCommandFailure(result));
     }
   };

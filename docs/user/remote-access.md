@@ -475,8 +475,10 @@ section lists the links and forgets them.
   machine's own threads, projects or settings, and they skip its project setup
   scripts.
 - The link shows up in that machine's **Settings → Sharing & access** like any
-  outside agent. Revoke it there to end it. **Forget** on this machine only
-  removes it here.
+  outside agent, and can be revoked there. **Forget** on this machine also ends
+  it there when that machine confirms it. If it can't, such as when it is
+  offline or on an older Supaterm, Forget says so; revoke it in that machine's
+  Sharing & access.
 - A link stays valid while agents use it. One unused for 30 days expires, as
   does one to a machine on an older Supaterm after 30 days; pick its access
   again in that machine's **Permissions**, or link again with a new pairing

@@ -5,6 +5,7 @@ import * as HttpApi from "effect/http-api/HttpApi";
 import * as HttpApiEndpoint from "effect/http-api/HttpApiEndpoint";
 import * as HttpApiGroup from "effect/http-api/HttpApiGroup";
 import * as HttpApiMiddleware from "effect/http-api/HttpApiMiddleware";
+import * as HttpApiSchema from "effect/http-api/HttpApiSchema";
 import * as HttpServerRespondable from "effect/http/HttpServerRespondable";
 import * as HttpServerResponse from "effect/http/HttpServerResponse";
 
@@ -25,6 +26,7 @@ import {
   AuthMcpRegisteredClient,
   AuthMcpRegistrationError,
   AuthMcpTokenError,
+  AuthMcpRevokeRequest,
   AuthMcpTokenRequest,
   AuthMcpTokenResult,
   AuthPairingCredentialResult,
@@ -450,6 +452,12 @@ class EnvironmentMcpOAuthHttpApi extends HttpApiGroup.make("mcpOAuth")
       payload: AuthMcpTokenRequest,
       success: AuthMcpTokenResult,
       error: AuthMcpTokenError,
+    }),
+  )
+  .add(
+    HttpApiEndpoint.post("revoke", "/oauth/mcp/revoke", {
+      payload: AuthMcpRevokeRequest,
+      success: HttpApiSchema.Empty(200),
     }),
   ) {}
 
