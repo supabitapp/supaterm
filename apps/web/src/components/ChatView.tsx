@@ -1137,6 +1137,11 @@ export default function ChatView(props: ChatViewProps) {
     recovery: activeThreadShell?.limitRecovery,
     snoozedUntil: activeThreadShell?.snoozedUntil,
   });
+  // The run whose limit rows client-runtime hides (deriveUsageLimitNoticeRows).
+  const usageLimitRunId =
+    serverRuntime?.status === "failed" && serverRuntime.lastErrorClass === "usage_limit"
+      ? (serverLatestRun?.runId ?? null)
+      : null;
   const timelineThreadError =
     limitRecoveryRun !== null && visibleThreadError === serverRuntime?.lastError
       ? null
@@ -3763,6 +3768,7 @@ export default function ChatView(props: ChatViewProps) {
                       turnNavigationRef={timelineTurnNavigationRef}
                       runs={serverProjection?.runs ?? []}
                       latestRun={activeActivityRun}
+                      usageLimitRunId={usageLimitRunId}
                       runningRunId={activeRunningTurnId}
                       turnDiffSummaries={turnDiffSummaries}
                       activeThreadEnvironmentId={
