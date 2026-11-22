@@ -1,8 +1,18 @@
 diff --git a/react-native.js b/react-native.js
-index 440b0ad..3fd542c 100644
+index 440b0ad..bbb18bf 100644
 --- a/react-native.js
 +++ b/react-native.js
-@@ -3497,7 +3497,10 @@ function evaluateBootstrapInitialScroll(ctx) {
+@@ -1344,7 +1344,8 @@ function checkAtBottom(ctx, allowedEdge, allowGateCreatedInCurrentCheck) {
+     return;
+   }
+   if (contentSize > 0 && queuedInitialLayout) {
+-    const isContentLess = contentSize < scrollLength;
++    // Supaterm patch: a top inset (e.g. a translucent header) shrinks the room content has to fit in.
++    const isContentLess = contentSize + getContentInsetTop(ctx) < scrollLength;
+     set$(ctx, "isAtEnd", isContentLess || distanceFromEnd <= EDGE_POSITION_EPSILON);
+     set$(ctx, "isNearEnd", isContentLess || distanceFromEnd <= onEndReachedThreshold * scrollLength);
+     set$(
+@@ -3497,7 +3498,10 @@ function evaluateBootstrapInitialScroll(ctx) {
      queueBootstrapInitialScrollReevaluation(state);
      return;
    }
@@ -15,10 +25,20 @@ index 440b0ad..3fd542c 100644
    } else {
      clearBootstrapInitialScrollSession(state);
 diff --git a/react-native.mjs b/react-native.mjs
-index b95e1f8..cb8bd87 100644
+index b95e1f8..918fd6c 100644
 --- a/react-native.mjs
 +++ b/react-native.mjs
-@@ -3476,7 +3476,10 @@ function evaluateBootstrapInitialScroll(ctx) {
+@@ -1323,7 +1323,8 @@ function checkAtBottom(ctx, allowedEdge, allowGateCreatedInCurrentCheck) {
+     return;
+   }
+   if (contentSize > 0 && queuedInitialLayout) {
+-    const isContentLess = contentSize < scrollLength;
++    // Supaterm patch: a top inset (e.g. a translucent header) shrinks the room content has to fit in.
++    const isContentLess = contentSize + getContentInsetTop(ctx) < scrollLength;
+     set$(ctx, "isAtEnd", isContentLess || distanceFromEnd <= EDGE_POSITION_EPSILON);
+     set$(ctx, "isNearEnd", isContentLess || distanceFromEnd <= onEndReachedThreshold * scrollLength);
+     set$(
+@@ -3476,7 +3477,10 @@ function evaluateBootstrapInitialScroll(ctx) {
      queueBootstrapInitialScrollReevaluation(state);
      return;
    }
