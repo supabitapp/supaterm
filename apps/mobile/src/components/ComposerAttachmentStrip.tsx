@@ -10,6 +10,7 @@ import { Image, Pressable, ScrollView, View } from "react-native";
 import Animated, { FadeIn, FadeOut, LinearTransition } from "react-native-reanimated";
 
 import { AppText as Text } from "./ui/AppText";
+import { AppActivityIndicator } from "./ui/AppActivityIndicator";
 import { MaterializedPreviewKey, materializedPreviewAtom } from "../lib/composerImagePreview";
 import { PierreEntryIcon } from "./PierreEntryIcon";
 import {
@@ -44,6 +45,8 @@ export interface ComposerAttachmentStripProps {
   readonly imageSize?: number;
   readonly imageBorderRadius?: number;
   readonly removeButtonPlacement?: "overlay" | "gutter";
+  /** Pasted images still being prepared, shown as placeholders after the attachments. */
+  readonly pendingImageCount?: number;
 }
 
 type ComposerAttachmentThumbnailProps = {
@@ -299,7 +302,8 @@ export function ComposerAttachmentStrip(props: ComposerAttachmentStripProps) {
   const removeButtonPlacement = props.removeButtonPlacement ?? "overlay";
   const removeButtonGutter = removeButtonPlacement === "gutter" ? 10 : 0;
 
-  if (props.attachments.length === 0) {
+  const pendingImageCount = props.pendingImageCount ?? 0;
+  if (props.attachments.length === 0 && pendingImageCount === 0) {
     return null;
   }
 
@@ -353,6 +357,21 @@ export function ComposerAttachmentStrip(props: ComposerAttachmentStripProps) {
                 />
               </Pressable>
             </Animated.View>
+          ))}
+          {Array.from({ length: pendingImageCount }, (_, index) => (
+            <View
+              key={`pending-${index}`}
+              accessibilityLabel="Preparing pasted image"
+              className="items-center justify-center bg-subtle"
+              style={{
+                width: size,
+                height: size,
+                borderRadius: radius,
+                marginTop: removeButtonGutter,
+              }}
+            >
+              <AppActivityIndicator />
+            </View>
           ))}
         </View>
       </ScrollView>

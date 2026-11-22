@@ -112,6 +112,7 @@ public class SupatermComposerEditorModule: Module {
         "onComposerBlur",
         "onComposerSubmit",
         "onComposerPasteImages",
+        "onComposerPasteImagesPending",
         "onComposerContextPress",
         "onComposerPasteContext",
         "onComposerPasteText",
