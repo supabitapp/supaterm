@@ -1202,9 +1202,18 @@ it.effect.each([
             event.payload.status === "running" &&
             event.payload.runAttemptId !== parent.activeAttemptId,
         );
+        // The next run starts from an async reaction to the parent's capture, which drain does not await.
+        const nextStarting = yield* watch(
+          (event) =>
+            event.type === "run.updated" &&
+            event.payload.id !== parent.id &&
+            event.payload.status === "starting",
+        );
         yield* answer(offers[0]!);
         yield* cancel(offers[1]!);
         yield* Fiber.join(ended);
+        yield* worker.drain();
+        yield* Fiber.join(nextStarting);
         yield* worker.drain();
         yield* Fiber.join(nextRunning);
         // The older message runs first; the steer waits right behind it on its own model.
@@ -1229,9 +1238,17 @@ it.effect.each([
         yield* worker.drain();
         assert.equal(offers[3]?.priority, "next");
         const beforeEnded = yield* settled(before.id, "waiting");
+        const steerStarting = yield* watch(
+          (event) =>
+            event.type === "run.updated" &&
+            event.payload.userMessageId === steerId &&
+            event.payload.status === "starting",
+        );
         yield* answer(offers[2]!);
         yield* cancel(offers[3]!);
         yield* Fiber.join(beforeEnded);
+        yield* worker.drain();
+        yield* Fiber.join(steerStarting);
         yield* worker.drain();
         assert.deepEqual(yield* queuedOrder, [[MessageId.make("after"), false]]);
         assert.equal(offers.length, 5);
