@@ -397,12 +397,22 @@ export const layer: Layer.Layer<
       return {
         ...session,
         startTurn: (input: Parameters<typeof session.startTurn>[0]) => start(input),
-        ...(session.resumeTurn === undefined
-          ? {}
-          : {
-              resumeTurn: (input: ProviderAdapter.ProviderAdapterV2ResumeTurnInput) =>
-                start(ProviderAdapter.resumeTurnInput(input)),
-            }),
+        // Pending context can prompt a resume, so even a session without native resume takes one.
+        resumeTurn: (input: ProviderAdapter.ProviderAdapterV2ResumeTurnInput) =>
+          session.resumeTurn === undefined && deliver === undefined
+            ? Effect.fail(
+                new ProviderAdapter.ProviderAdapterTurnStartError({
+                  driver: session.driver,
+                  threadId: input.threadId,
+                  providerThreadId: input.providerThread.id,
+                  runId: input.runId,
+                  cause: new ProviderAdapter.ProviderResumeUnsupportedError({
+                    driver: session.driver,
+                    providerThreadId: input.providerThread.id,
+                  }),
+                }),
+              )
+            : start(ProviderAdapter.resumeTurnInput(input)),
         ...(session.compactThread === undefined
           ? {}
           : {
@@ -2081,8 +2091,14 @@ export const layer: Layer.Layer<
           // Like pending history, pending images need a prompt; native resume carries none.
           const prompted = context !== "" || missedAttachments.length > 0;
           const operation =
-            turnInput.resume && !prompted && session.resumeTurn !== undefined
-              ? session.resumeTurn({ ...resumeInput, messageId: resumeMessage.messageId })
+            turnInput.resume && !prompted
+              ? (session.resumeTurn?.({ ...resumeInput, messageId: resumeMessage.messageId }) ??
+                Effect.fail(
+                  new ProviderAdapter.ProviderResumeUnsupportedError({
+                    driver: session.driver,
+                    providerThreadId: providerThread.id,
+                  }),
+                ))
               : start({
                   ...(prompted ? contextInput : startInput),
                   message: {
