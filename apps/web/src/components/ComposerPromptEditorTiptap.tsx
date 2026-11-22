@@ -13,6 +13,7 @@ import {
   type TiptapEditorHTMLElement,
 } from "@tiptap/core";
 import { ReactNodeViewRenderer, NodeViewWrapper, type NodeViewProps } from "@tiptap/react";
+import { Paragraph } from "@tiptap/extension-paragraph";
 import StarterKit from "@tiptap/starter-kit";
 import { newlineInCode, splitBlockKeepMarks } from "@tiptap/pm/commands";
 import { isHistoryTransaction } from "@tiptap/pm/history";
@@ -824,7 +825,10 @@ function createComposerExtensions(richText: boolean) {
       italic: false,
       bold: false,
       strike: false,
+      paragraph: false,
     }),
+    // Ctrl/Cmd+click would node-select and outline the whole line (Wispr Flow holds Ctrl to dictate).
+    Paragraph.extend({ selectable: false }),
     ComposerUndoGroupingExtension,
     ComposerTextDirectionExtension,
     ComposerMentionExtension,
