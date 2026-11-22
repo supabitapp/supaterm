@@ -15,9 +15,7 @@ import {
   type OrchestrationV2RunAttempt,
   type OrchestrationV2ThreadProjection,
   type OrchestrationV2TurnItem,
-  isCompactionCommandMessage,
   isDeliveredProviderTurn,
-  parseGoalCommand,
   RunId,
   RunAttemptId,
   NodeId,
@@ -60,7 +58,11 @@ import {
   historicalMessage,
   latestNativeContextUsage,
 } from "@supaterm/provider-core/server/handoffBudget";
-import { deliverContextHandoffs, withInlineContext } from "./ContextHandoffDelivery.ts";
+import {
+  deliverContextHandoffs,
+  isSlashCommandMessage,
+  withInlineContext,
+} from "./ContextHandoffDelivery.ts";
 import * as ProviderAdapter from "@supaterm/provider-core/server/ProviderAdapter";
 import * as IdAllocator from "@supaterm/provider-core/server/IdAllocator";
 import * as ProjectionStore from "./ProjectionStore.ts";
@@ -566,11 +568,10 @@ export const layer: Layer.Layer<
                   )) ||
                   (source.status === "completed" &&
                     handoff.delivery === undefined &&
-                    // Compaction and /goal turns defer history to the next turn.
+                    // Slash command turns defer history to the next turn.
                     projection.messages.some(
                       (message) =>
-                        message.id === source.userMessageId &&
-                        (isCompactionCommandMessage(message) || parseGoalCommand(message) !== null),
+                        message.id === source.userMessageId && isSlashCommandMessage(message),
                     ))),
             )));
       const isSideChatHandoff = (handoff: OrchestrationV2ContextHandoff) =>
@@ -984,12 +985,7 @@ export const layer: Layer.Layer<
           records: providerMessage.context?.records ?? [],
         }),
       );
-      // Native goal commands go verbatim; handoff history waits a turn.
-      const goalDriver =
-        session.driver === "codex" ||
-        session.driver === "claudeAgent" ||
-        session.providerSession.capabilities.turns.supportsNativeGoals === true;
-      const goalCommand = goalDriver && parseGoalCommand(providerMessage) !== null;
+      const slashCommand = isSlashCommandMessage(providerMessage);
       // Delivered once: this run's provider turn marks the work as told. A
       // restart continuation is prompted by its own text or resumes natively.
       const noteContinuation = isRestartNoteContinuation(
@@ -999,13 +995,7 @@ export const layer: Layer.Layer<
         projection.attempts,
       );
       const promptlessMessageIds = new Set(
-        projection.messages
-          .filter(
-            (candidate) =>
-              isCompactionCommandMessage(candidate) ||
-              (goalDriver && parseGoalCommand(candidate) !== null),
-          )
-          .map((candidate) => candidate.id),
+        projection.messages.filter(isSlashCommandMessage).map((candidate) => candidate.id),
       );
       const restartCancelledWork = pendingRestartCancelledBackgroundWork({
         runs: projection.runs,
@@ -1250,7 +1240,7 @@ export const layer: Layer.Layer<
                   }),
                 ];
           // History delivery (inline or injected) is text only, so missed images ride on prompts
-          // until a later run's is accepted. Compaction and /goal starts carry none. A missed run's
+          // until a later run's is accepted. Slash command starts carry none. A missed run's
           // own accepted attempt predates its unsent steering input, so it does not count.
           const runsById = new Map(projection.runs.map((source) => [source.id, source]));
           const messagesById = new Map(projection.messages.map((message) => [message.id, message]));
@@ -1260,12 +1250,7 @@ export const layer: Layer.Layer<
             const source = runsById.get(attempt.runId);
             if (source === undefined) continue;
             const message = messagesById.get(source.userMessageId);
-            if (
-              message !== undefined &&
-              (isCompactionCommandMessage(message) ||
-                (goalDriver && parseGoalCommand(message) !== null))
-            )
-              continue;
+            if (message !== undefined && isSlashCommandMessage(message)) continue;
             lastPromptOrdinal = Math.max(lastPromptOrdinal, source.ordinal);
           }
           const attachments = missedHistory.flatMap((item) =>
@@ -1687,7 +1672,7 @@ export const layer: Layer.Layer<
             handoffs: [...handoffs, ...resumedRetryHandoff.handoffs],
             providerThread: { ...resumed.success, id: providerThread.id },
             budget: context.budget,
-            deferInline: isCompactionCommandMessage(providerMessage) || goalCommand,
+            deferInline: slashCommand,
             alreadyDeliveredItemIds: context.deliveredItemIds,
             persist: () => Effect.void,
           }).pipe(
@@ -2068,7 +2053,7 @@ export const layer: Layer.Layer<
         function* (turnInput: Parameters<typeof session.startTurn>[0], compact = false) {
           const delivery = yield* deliverContextHandoffs({
             handoffs: [...effectiveHandoffs, ...retryHandoff.handoffs],
-            deferInline: compact || goalCommand,
+            deferInline: compact || slashCommand,
             providerThread: runningProviderThread,
             budget,
             alreadyDeliveredItemIds: deliveredItemIds,
@@ -2087,7 +2072,7 @@ export const layer: Layer.Layer<
           const start = compact ? session.compactThread! : session.startTurn;
           // Like history, the side chat context waits for a turn that sends a prompt.
           const sideChatContext =
-            sideChatHandoff === undefined || compact || goalCommand
+            sideChatHandoff === undefined || compact || slashCommand
               ? ""
               : sideChatHandoff.summaryText;
           // Record inline handoffs before startTurn so an immediate dropped terminal can restore them.
@@ -2100,19 +2085,19 @@ export const layer: Layer.Layer<
             ...(sideChatContext === "" || sideChatHandoff === undefined ? [] : [sideChatHandoff]),
           ];
           const sideChatNote =
-            sideChatHandoff !== undefined || compact || goalCommand ? "" : sideChatTurnNote;
+            sideChatHandoff !== undefined || compact || slashCommand ? "" : sideChatTurnNote;
           const context = [delivery.context, sideChatContext, sideChatNote, restartNote]
             .filter((part) => part !== "")
             .join("\n\n");
           const { restartContinuationOfRunId: _resumedRunId, ...promptedInput } = turnInput;
           // A native resume that has to send a prompt still needs words in it.
           const promptText = turnInput.resume && userText === "" ? MANUAL_RESUME_PROMPT : userText;
-          const text = goalCommand ? promptText : withInlineContext(context, promptText);
+          const text = slashCommand ? promptText : withInlineContext(context, promptText);
           const startInput = noteContinuation ? promptedInput : turnInput;
           const { resume: _resume, ...contextInput } = startInput;
           const { message: resumeMessage, resume: _resumeIntent, ...resumeInput } = startInput;
           const missedAttachments =
-            compact || goalCommand
+            compact || slashCommand
               ? []
               : retryHandoff.attachments.filter(
                   (missed) =>
@@ -2120,6 +2105,7 @@ export const layer: Layer.Layer<
                 );
           // Like pending history, pending images need a prompt; native resume carries none.
           const prompted = context !== "" || missedAttachments.length > 0;
+
           const operation =
             turnInput.resume && !prompted
               ? (session.resumeTurn?.({ ...resumeInput, messageId: resumeMessage.messageId }) ??
