@@ -82,6 +82,11 @@ export default mergeConfig(
           dependsOn: ["@supaterm/web#build"],
           cache: false,
         },
+        // tsc (tsc-rs) rewrites the tsbuildinfo it reads, which keeps a task out of the cache.
+        typecheck: {
+          command: "tsc --noEmit",
+          cache: { input: [{ auto: true }, "!*.tsbuildinfo"] },
+        },
       },
     },
     pack: {
