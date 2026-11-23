@@ -1263,6 +1263,7 @@ export const layer = Layer.effect(
                   return input.rescan &&
                     !(
                       Equal.equals(rescanned?.skills, held?.skills) &&
+                      Equal.equals(rescanned?.models, held?.models) &&
                       Equal.equals(rescanned?.slashCommands, held?.slashCommands)
                     )
                     ? { ...scanned, workspaceRescannedAt: scannedAt }
