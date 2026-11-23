@@ -18,7 +18,9 @@ at that time, the run starts as soon as it is back. **Once** appears only on
 environments new enough to run it.
 
 Automations an agent schedules post back into the agent's thread by default.
-Other automations start a new thread each run.
+Other automations start a new thread each run. An archived thread refuses messages, so an
+automation that posts into one fails each run until you unarchive the thread or pick another
+destination. Mark the thread as Done instead; see [Done or archive](thread-sidebar.md#done-or-archive).
 
 ## Manage automations
 

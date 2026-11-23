@@ -241,6 +241,19 @@ rules to connected environments that support shared settings. Offline environmen
 and older servers keep their previous values. Changing a rule does not reopen
 already Done threads.
 
+### Done or archive
+
+Done is for work that is done for now. A Done thread stays in the sidebar's Done
+section and in search, and a message to it, from you, an agent, or a scheduled task, makes it
+active again. Archive is for work you want out of the way. An archived thread leaves the
+sidebar and search and shows only in **Settings → Archive**, where you can unarchive or
+delete it. It refuses new messages, including ones from agents and scheduled tasks, until you
+unarchive it. Removing a project deletes its threads either way.
+
+A scheduled task that posts into one thread keeps running after you archive that thread, and
+each run fails. Mark the thread as Done instead, or move or pause the task in **Automations**
+(**Settings → Scheduled tasks** on mobile).
+
 ## Link a pull request
 
 The server finds the PR for each open thread's saved branch, even when your
