@@ -15,7 +15,6 @@ function makeUiState(overrides: Partial<UiState> = {}): UiState {
     projectOrder: [],
     sidebarProjectScopeKeys: [],
     sidebarEnvironmentScopeId: null,
-    threadChangedFilesExpandedById: {},
     defaultAdvertisedEndpointKey: null,
     pullRequestMergeMethod: "merge",
     ...overrides,
@@ -42,12 +41,6 @@ describe("parsePersistedState", () => {
       projectOrder: ["physical-b", "", "physical-a", "physical-b"],
       defaultAdvertisedEndpointKey: "desktop-core:lan:http",
       sidebarEnvironmentScopeId: "",
-      threadChangedFilesExpandedById: {
-        "environment:thread-1": {
-          "turn-1": false,
-          "turn-2": true,
-        },
-      },
     });
 
     expect(parsed).toEqual({
@@ -56,12 +49,6 @@ describe("parsePersistedState", () => {
       sidebarProjectScopeKeys: [],
       sidebarEnvironmentScopeId: null,
       pullRequestMergeMethod: "merge",
-      threadChangedFilesExpandedById: {
-        "environment:thread-1": {
-          "turn-1": false,
-          "turn-2": true,
-        },
-      },
     });
   });
 
@@ -108,12 +95,6 @@ describe("uiStateStore persistence", () => {
   it("persists UI-owned preferences", () => {
     const state = makeUiState({
       projectOrder: ["physical-b", "physical-a"],
-      threadChangedFilesExpandedById: {
-        "environment:thread-1": {
-          "turn-1": false,
-          "turn-2": true,
-        },
-      },
       defaultAdvertisedEndpointKey: "desktop-core:lan:http",
     });
 
@@ -128,12 +109,6 @@ describe("uiStateStore persistence", () => {
       sidebarProjectScopeKeys: [],
       sidebarProjectScopeKey: null,
       sidebarEnvironmentScopeId: null,
-      threadChangedFilesExpandedById: {
-        "environment:thread-1": {
-          "turn-1": false,
-          "turn-2": true,
-        },
-      },
       pullRequestMergeMethod: "merge",
     });
     expect(parsePersistedState(persisted)).toEqual({

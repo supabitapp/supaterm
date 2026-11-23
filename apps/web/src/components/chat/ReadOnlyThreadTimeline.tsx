@@ -102,7 +102,6 @@ export function ReadOnlyThreadTimeline(props: {
           turnDiffSummaries={NO_TURN_DIFFS}
           runs={projection.runs}
           routeThreadKey={threadKey}
-          onOpenTurnDiff={ignore}
           supportsConversationRollback={false}
           onRevertToTurnCount={ignore}
           isRevertingCheckpoint={false}

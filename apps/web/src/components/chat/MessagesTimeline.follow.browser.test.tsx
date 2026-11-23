@@ -48,7 +48,6 @@ function baseProps(): Omit<TimelineProps, "timelineEntries"> {
     turnDiffSummaries: [],
     runs: [],
     routeThreadKey: `environment-local:follow-thread-${threadCount}`,
-    onOpenTurnDiff: () => {},
     onOpenThread: () => {},
     onForkFromRun: async () => {},
     supportsConversationRollback: false,

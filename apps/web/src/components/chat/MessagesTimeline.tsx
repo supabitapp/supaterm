@@ -292,7 +292,6 @@ interface MessagesTimelineProps {
   displayThreadKey?: string;
   /** Off where another region already speaks the thread's status, like a subagent's bar. */
   announceTurnStatus?: boolean;
-  onOpenTurnDiff: (runId: RunId, filePath?: string) => void;
   onOpenToolDiff?: (target: ToolCallDiffTarget) => void;
   onOpenThread?: (threadId: OrchestrationV2TurnItem["threadId"]) => void;
   /** The thread this one is a subagent or side chat of. */
@@ -424,7 +423,6 @@ const ConversationTimeline = memo(function ConversationTimeline({
   displayThreadKey,
   announceTurnStatus = true,
   onOpenToolDiff,
-  onOpenTurnDiff,
   onOpenThread,
   parentThreadLink = null,
   workflowOpening = null,
@@ -1277,7 +1275,6 @@ const ConversationTimeline = memo(function ConversationTimeline({
     onFileDownload,
     openPullRequest,
     onOpenToolDiff,
-    onOpenTurnDiff,
     onOpenThread: onOpenThread ?? null,
     workflowOpening,
     onForkFromRun: onForkFromRun ?? null,

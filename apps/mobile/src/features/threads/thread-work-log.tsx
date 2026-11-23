@@ -1090,7 +1090,6 @@ export function ThreadWorkGroupToggle(props: {
   readonly hasFailure: boolean;
   readonly shimmer: boolean;
   readonly thought?: string | undefined;
-  readonly trailing?: ReactNode;
   readonly onToggle: () => void;
 }) {
   const statusLabel = props.hasFailure ? `${props.summary}, tool call failed` : props.summary;
@@ -1167,7 +1166,6 @@ export function ThreadWorkGroupToggle(props: {
             />
           </WorkLogPressable>
         </View>
-        {props.trailing}
       </View>
     </WorkLogBlock>
   );

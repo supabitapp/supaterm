@@ -60,7 +60,6 @@ export interface TimelineRowSharedState {
   findActive: boolean;
   onImageExpand: (preview: ExpandedImagePreview) => void;
   displayThreadKey?: string;
-  onOpenTurnDiff: (runId: RunId, filePath?: string) => void;
   onOpenToolDiff: ((target: ToolCallDiffTarget) => void) | undefined;
   /** Null where this reader cannot open other threads, so no row offers to. */
   onOpenThread: ((threadId: OrchestrationV2TurnItem["threadId"]) => void) | null;

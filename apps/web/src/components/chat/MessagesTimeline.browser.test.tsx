@@ -1,4 +1,3 @@
-import { flushSync } from "react-dom";
 import { AudioPreview } from "../files/AudioPreview";
 import { cdp, page, userEvent } from "vite-plus/test/browser";
 import {
@@ -15,15 +14,8 @@ import {
   TurnItemId,
   type OrchestrationV2Subagent,
 } from "@supaterm/contracts";
-import { LegendList, type LegendListRef } from "@legendapp/list/react";
-import {
-  createRef,
-  Profiler,
-  StrictMode,
-  useState,
-  type ComponentProps,
-  type ReactElement,
-} from "react";
+import { type LegendListRef } from "@legendapp/list/react";
+import { createRef, Profiler, StrictMode, type ComponentProps, type ReactElement } from "react";
 import * as DateTime from "effect/DateTime";
 import { Atom } from "effect/reactivity";
 import { describe, expect, it, onTestFinished, vi } from "vite-plus/test";
@@ -32,7 +24,6 @@ import "~/index.css";
 
 import { environmentThreadDetails } from "../../state/threads";
 import { act, fakeTimers, render, stubGlobal } from "../../../test/render";
-import { ChangedFilesCard } from "./ChangedFilesTree";
 import { MessagesTimeline } from "./MessagesTimeline";
 import { shouldRefocusComposerOnWindowFocus } from "../ChatView.logic";
 import { createWorkspaceFocusController, workspaceAreaProps } from "../../lib/workspaceFocus";
@@ -118,7 +109,6 @@ function baseProps(): Omit<TimelineProps, "timelineEntries"> {
     turnDiffSummaries: [],
     runs: [],
     routeThreadKey: `environment-local:thread-${Math.random().toString(36).slice(2)}`,
-    onOpenTurnDiff: () => {},
     onOpenThread: () => {},
     onForkFromRun: async () => {},
     supportsConversationRollback: false,
@@ -2097,73 +2087,6 @@ describe("MessagesTimeline thread find", () => {
       expect(top).toBeLessThan(bounds.bottom);
     });
   });
-});
-
-function TimelineChangedFilesCard() {
-  const [expanded, setExpanded] = useState(true);
-  return (
-    <ChangedFilesCard
-      runId={RunId.make("run-1")}
-      files={["src/a.ts", "src/b.ts", "src/c.ts"].map((path) => ({
-        path,
-        kind: "modified",
-        additions: 1,
-        deletions: 0,
-      }))}
-      totals={{ count: 3, additions: 3, deletions: 0 }}
-      allDirectoriesExpanded={expanded}
-      resolvedTheme="light"
-      onToggleAllDirectories={() => setExpanded((value) => !value)}
-      onOpenTurnDiff={() => {}}
-    />
-  );
-}
-
-function ChangedFilesTimeline() {
-  return (
-    <LegendList
-      data={["files", "after"]}
-      keyExtractor={(item) => item}
-      estimatedItemSize={100}
-      recycleItems={false}
-      className="h-[600px]"
-      renderItem={({ item }) =>
-        item === "files" ? <TimelineChangedFilesCard /> : <div data-testid="after">After</div>
-      }
-    />
-  );
-}
-
-describe("ChangedFilesCard", () => {
-  it.each(["folder", "all folders"])(
-    "measures %s collapse and expansion in the same commit",
-    async (toggle) => {
-      await using screen = await render(<ChangedFilesTimeline />);
-      const after = () =>
-        screen.container.querySelector('[data-testid="after"]')!.getBoundingClientRect().top;
-      const cardBottom = () =>
-        screen.container.querySelector("[data-changed-files-state]")!.getBoundingClientRect()
-          .bottom;
-      await vi.waitFor(() => expect(after()).toBe(cardBottom()));
-      const topBefore = after();
-      const button = () =>
-        screen.container.querySelector<HTMLButtonElement>(
-          toggle === "folder"
-            ? '[data-changed-file-row="src"] button'
-            : 'button[aria-label$="all folders"]',
-        )!;
-      await act(() => {
-        flushSync(() => button().click());
-        expect(screen.container.textContent).not.toContain("a.ts");
-        expect(after()).toBe(topBefore - 3 * 28);
-      });
-      await act(() => {
-        flushSync(() => button().click());
-        expect(screen.container.textContent).toContain("a.ts");
-        expect(after()).toBe(topBefore);
-      });
-    },
-  );
 });
 
 describe("compact reasoning math", () => {

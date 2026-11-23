@@ -2635,7 +2635,6 @@ export default function ChatView(props: ChatViewProps) {
     duplicateBrowserSurfaceStable,
     moveRightPanelSurfaceStable,
     onOpenToolDiffStable,
-    onOpenTurnDiffStable,
     openChangesFromThreadPanelStable,
     openFileSurfaceStable,
     toggleRightPanelMaximizedStable,
@@ -3787,7 +3786,6 @@ export default function ChatView(props: ChatViewProps) {
                       routeThreadKey={displayedTimelineKey}
                       displayThreadKey={displayedTimelineKey}
                       onOpenToolDiff={onOpenToolDiffStable}
-                      onOpenTurnDiff={onOpenTurnDiffStable}
                       onOpenThread={onOpenRelatedThreadStable}
                       parentThreadLink={parentThreadLink}
                       workflowOpening={workflowOpening}

@@ -5,7 +5,7 @@ import { formatFilePathForClipboard } from "@supaterm/client-runtime/media-actio
 import { resolvePathLinkTarget } from "@supaterm/shared/fileLinks";
 import { useStableCallback } from "../../hooks/useStableCallback";
 import { getClientSettings } from "../../hooks/useSettings";
-import { type ScopedThreadRef, type RunId, type PreviewSessionSnapshot } from "@supaterm/contracts";
+import { type ScopedThreadRef, type PreviewSessionSnapshot } from "@supaterm/contracts";
 import { scopedThreadKey } from "@supaterm/client-runtime/environment";
 import { useEffect } from "react";
 import {
@@ -309,20 +309,12 @@ export function useRightPanelActions(input: RightPanelActionsInput) {
     useRightPanelStore.getState().openPullRequest(activeThreadRef, pullRequestPanelTarget);
   };
   const addPullRequestSurfaceStable = useStableCallback(addPullRequestSurface);
-
-  const onOpenTurnDiff = (runId: RunId, filePath?: string) => {
-    if (!isServerThread || !activeThreadRef) return;
-    useDiffPanelStore.getState().selectTurn(activeThreadRef, runId, filePath);
-    useRightPanelStore.getState().open(activeThreadRef, "diff");
-    onDiffPanelOpen?.();
-  };
   const onOpenToolDiffStable = useStableCallback((target: ToolCallDiffTarget) => {
     if (!isServerThread || !activeThreadRef) return;
     useDiffPanelStore.getState().selectToolCall(activeThreadRef, target);
     useRightPanelStore.getState().open(activeThreadRef, "diff");
     onDiffPanelOpen?.();
   });
-  const onOpenTurnDiffStable = useStableCallback(onOpenTurnDiff);
 
   const shortcuts = {
     "rightPanel.toggle": () => toggleRightPanel(),
@@ -352,7 +344,6 @@ export function useRightPanelActions(input: RightPanelActionsInput) {
     duplicateBrowserSurfaceStable,
     moveRightPanelSurfaceStable,
     onOpenToolDiffStable,
-    onOpenTurnDiffStable,
     openChangesFromThreadPanelStable,
     openFileSurfaceStable,
     toggleRightPanelMaximizedStable,

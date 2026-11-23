@@ -61,8 +61,6 @@ import {
   resolveUserMessagePresentation,
 } from "@supaterm/client-runtime/user-message";
 import { canForkProjectedAssistantItem } from "@supaterm/client-runtime/state/thread-workflows";
-import type { ThreadCheckpointSummary } from "@supaterm/client-runtime/state/thread-checkpoints";
-import { formatDiffCount } from "@supaterm/client-runtime/diff-count";
 import type { WorkflowOpening } from "@supaterm/client-runtime/state/subagentRuntime";
 import {
   AuthFilesystemReadScope,
@@ -228,8 +226,6 @@ import {
   type MediaVideoPreviewSource,
 } from "../../lib/videoPreviewSource";
 import { CopyTextButton } from "./CopyTextButton";
-import { getReviewSectionIdForCheckpoint } from "../review/reviewModel";
-import { setReviewSelectedSectionId } from "../review/reviewState";
 import { Menu } from "../../components/ui/Menu";
 import { useAndroidControlSizing } from "../../components/ui/useAndroidControlSizing";
 import { useBarInset, useContentTopInset } from "../../components/ui/useBarInset";
@@ -1940,7 +1936,6 @@ function renderFeedEntry(
     readonly onToggleWorkRow: (rowId: string, anchorKey?: string, groupId?: string) => void;
     readonly onToggleUserMessage: (rowId: string, anchorKey: string) => void;
     readonly onToggleTurnFold: (runId: RunId) => void;
-    readonly onOpenTurnDiff: (checkpoint: ThreadCheckpointSummary) => void;
     readonly onPressPreview: (source: FilePreviewSource) => void;
     readonly onPlaybackStart: () => void;
     readonly markdownLinkHandlers: MarkdownLinkHandlers;
@@ -2014,12 +2009,6 @@ function renderFeedEntry(
             {...props.worktreeSetup}
             detailsOpen={props.setupDetailsOpen}
             onOpenDetails={props.onOpenSetupDetails}
-          />
-        ) : null}
-        {entry.checkpointSummary ? (
-          <TurnDiffStat
-            checkpoint={entry.checkpointSummary}
-            onOpenTurnDiff={props.onOpenTurnDiff}
           />
         ) : null}
       </View>
@@ -2116,14 +2105,6 @@ function renderFeedEntry(
         hasFailure={entry.hasFailure}
         shimmer={entry.shimmer}
         thought={entry.thought}
-        trailing={
-          entry.checkpointSummary ? (
-            <TurnDiffStat
-              checkpoint={entry.checkpointSummary}
-              onOpenTurnDiff={props.onOpenTurnDiff}
-            />
-          ) : null
-        }
         onToggle={() => props.onToggleWorkGroup(entry.groupId, entry.id)}
       />
     );
@@ -2645,12 +2626,6 @@ function renderFeedEntry(
             <MessageAttachmentUnknown key={attachment.id} name={attachment.name} />
           );
         })}
-        {showAssistantMeta && message.checkpointSummary ? (
-          <TurnDiffStat
-            checkpoint={message.checkpointSummary}
-            onOpenTurnDiff={props.onOpenTurnDiff}
-          />
-        ) : null}
         {showAssistantMeta ? (
           <View className="mt-1 flex-row items-center gap-1">
             <CopyTextButton
@@ -2708,32 +2683,6 @@ function renderFeedEntry(
       renderReasoning={props.renderReasoning}
       onPressPreview={props.onPressPreview}
     />
-  );
-}
-
-function TurnDiffStat(props: {
-  readonly checkpoint: ThreadCheckpointSummary;
-  readonly onOpenTurnDiff: (checkpoint: ThreadCheckpointSummary) => void;
-}) {
-  const { files } = props.checkpoint;
-  const additions = files.reduce((total, file) => total + file.additions, 0);
-  const deletions = files.reduce((total, file) => total + file.deletions, 0);
-  const fileCountLabel = `${files.length} file${files.length === 1 ? "" : "s"} changed`;
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={`Review ${fileCountLabel}, ${additions} additions, ${deletions} deletions`}
-      onPress={() => props.onOpenTurnDiff(props.checkpoint)}
-      className="min-h-11 shrink-0 flex-row items-center gap-2 px-2 active:bg-subtle"
-    >
-      <Text className="font-supaterm-medium text-xs tabular-nums text-adaptive-emerald-700-300">
-        +{formatDiffCount(additions)}
-      </Text>
-      <Text className="font-supaterm-medium text-xs tabular-nums text-adaptive-rose-700-300">
-        −{formatDiffCount(deletions)}
-      </Text>
-      <SymbolView name="chevron.right" size={12} tintColorClassName="accent-foreground-muted" />
-    </Pressable>
   );
 }
 
@@ -2999,19 +2948,6 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
   const [retainedMediaRowId, setRetainedMediaRowId] = useState<string | null>(null);
   const focused = useIsFocused();
   if (!focused && retainedMediaRowId !== null) setRetainedMediaRowId(null);
-  const onOpenTurnDiff = useCallback(
-    (checkpoint: ThreadCheckpointSummary) => {
-      setReviewSelectedSectionId(
-        scopedThreadKey(props.environmentId, props.threadId),
-        getReviewSectionIdForCheckpoint(checkpoint),
-      );
-      navigation.navigate("ThreadReview", {
-        environmentId: props.environmentId,
-        threadId: props.threadId,
-      });
-    },
-    [navigation, props.environmentId, props.threadId],
-  );
   const { themeAppearance } = useAppearancePreferences();
   const copyFeedbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const headerMaterialVisibleRef = useRef(false);
@@ -4048,7 +3984,7 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
     if (entry.type === "html-render") {
       return htmlRenderRowHeight(htmlRenderFrameHeight(entry.render, contentWidth));
     }
-    if (workRowSizing.fixedRowHeight === undefined || entry.checkpointSummary) {
+    if (workRowSizing.fixedRowHeight === undefined) {
       return undefined;
     }
     switch (entry.type) {
@@ -4164,7 +4100,6 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
             onToggleWorkRow,
             onToggleUserMessage,
             onToggleTurnFold,
-            onOpenTurnDiff,
             onPressPreview,
             onPlaybackStart: onInlinePlaybackStart,
             markdownLinkHandlers,
