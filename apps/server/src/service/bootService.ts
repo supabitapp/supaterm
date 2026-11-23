@@ -18,6 +18,7 @@ import { CLI_RELEASE_BASE_URL_ENV } from "@supaterm/shared/cliRelease";
 
 import * as ProcessRunner from "../processRunner.ts";
 import { acquireServiceSelectionLock } from "./serviceSelectionLock.ts";
+import { RESTORE_OOMD_WATCH_SCRIPT } from "./userManagerOom.ts";
 import {
   serviceLauncherIsRunning,
   serviceLauncherLockPath,
@@ -323,12 +324,21 @@ function systemdManager(input: {
     command: "systemctl",
     args: ["--user", "reset-failed", BOOT_SERVICE_UNIT_FILE],
   };
-  const prepareActivation = [
+  const reload = [
     {
       step: "reloading systemd user units",
       command: "systemctl",
       args: ["--user", "daemon-reload"],
     },
+    {
+      step: "restoring systemd-oomd's watch on the user manager",
+      optional: true,
+      command: "/bin/sh",
+      args: ["-c", RESTORE_OOMD_WATCH_SCRIPT],
+    },
+  ];
+  const prepareActivation = [
+    ...reload,
     {
       step: "enabling the service",
       command: "systemctl",
@@ -380,13 +390,7 @@ function systemdManager(input: {
         timeout: STOP_STEP_TIMEOUT,
       },
     ],
-    finalize: [
-      {
-        step: "reloading systemd user units",
-        command: "systemctl",
-        args: ["--user", "daemon-reload"],
-      },
-    ],
+    finalize: reload,
   };
 }
 
