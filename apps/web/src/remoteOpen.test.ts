@@ -1,9 +1,12 @@
 import {
+  BearerConnectionProfile,
   BearerConnectionTarget,
   PrimaryConnectionTarget,
+  SshConnectionProfile,
   SshConnectionTarget,
 } from "@supaterm/client-runtime/connection";
 import { buildRemoteOpenUrl, EnvironmentId } from "@supaterm/contracts";
+import * as Option from "effect/Option";
 import { describe, expect, it } from "vite-plus/test";
 
 import { remoteFallbackEditors, resolveRemoteOpenState } from "./remoteOpen";
@@ -18,6 +21,18 @@ const primaryTarget = (httpBaseUrl: string) =>
     wsBaseUrl: httpBaseUrl.replace("http", "ws"),
   });
 
+const sshRoute = (target: { readonly alias: string; readonly username: string | null }) => ({
+  target: new SshConnectionTarget({ environmentId, label: "sol", connectionId: "ssh-1" }),
+  profile: Option.some(
+    new SshConnectionProfile({
+      connectionId: "ssh-1",
+      environmentId,
+      label: "sol",
+      target: { ...target, hostname: "sol.tail1234.ts.net", port: null },
+    }),
+  ),
+});
+
 const TAILSCALE_TARGETS = [
   { kind: "tailscale", host: "sol.tail1234.ts.net" },
   { kind: "mdns", host: "sol.local" },
@@ -28,7 +43,7 @@ describe("resolveRemoteOpenState", () => {
     expect(
       resolveRemoteOpenState({
         target: primaryTarget("http://127.0.0.1:8000"),
-        sshTarget: null,
+        routes: [],
         isDesktopRenderer: false,
         remoteOpenTargets: TAILSCALE_TARGETS,
         hostEnvironmentId: null,
@@ -40,7 +55,7 @@ describe("resolveRemoteOpenState", () => {
     expect(
       resolveRemoteOpenState({
         target: primaryTarget("https://sol.tail1234.ts.net"),
-        sshTarget: null,
+        routes: [],
         isDesktopRenderer: false,
         remoteOpenTargets: TAILSCALE_TARGETS,
         hostEnvironmentId: null,
@@ -56,7 +71,7 @@ describe("resolveRemoteOpenState", () => {
     expect(
       resolveRemoteOpenState({
         target: primaryTarget("http://172.29.112.1:14369"),
-        sshTarget: null,
+        routes: [],
         isDesktopRenderer: true,
         remoteOpenTargets: TAILSCALE_TARGETS,
         hostEnvironmentId: null,
@@ -74,7 +89,7 @@ describe("resolveRemoteOpenState", () => {
           label: "sol",
           connectionId: "service",
         }),
-        sshTarget: null,
+        routes: [],
         isDesktopRenderer: true,
         remoteOpenTargets: TAILSCALE_TARGETS,
         hostEnvironmentId: environmentId,
@@ -90,7 +105,7 @@ describe("resolveRemoteOpenState", () => {
           label: "sol",
           connectionId: "service",
         }),
-        sshTarget: null,
+        routes: [],
         isDesktopRenderer: true,
         remoteOpenTargets: TAILSCALE_TARGETS,
         hostEnvironmentId: EnvironmentId.make("environment-host"),
@@ -104,7 +119,7 @@ describe("resolveRemoteOpenState", () => {
   it("leaves a bare desktop SSH alias for the editor to resolve through SSH config", () => {
     const state = resolveRemoteOpenState({
       target: new SshConnectionTarget({ environmentId, label: "sol", connectionId: "ssh-1" }),
-      sshTarget: { alias: "sol", username: null },
+      routes: [sshRoute({ alias: "sol", username: null })],
       isDesktopRenderer: true,
       remoteOpenTargets: [
         { kind: "tailscale", host: "sol.tail1234.ts.net", username: "server-user" },
@@ -135,7 +150,7 @@ describe("resolveRemoteOpenState", () => {
   ])("keeps one login username in editor links for $alias (username: '$username')", (sshTarget) => {
     const state = resolveRemoteOpenState({
       target: new SshConnectionTarget({ environmentId, label: "server", connectionId: "ssh-1" }),
-      sshTarget,
+      routes: [sshRoute(sshTarget)],
       isDesktopRenderer: true,
       remoteOpenTargets: TAILSCALE_TARGETS,
       hostEnvironmentId: null,
@@ -162,7 +177,7 @@ describe("resolveRemoteOpenState", () => {
         label: "server",
         connectionId: "relay-1",
       }),
-      sshTarget: null,
+      routes: [],
       isDesktopRenderer: false,
       remoteOpenTargets: [
         { kind: "tailscale", host: "server.tail1234.ts.net", username: "admin-user" },
@@ -185,13 +200,49 @@ describe("resolveRemoteOpenState", () => {
             label: "sol",
             connectionId: "remote-1",
           }),
-          sshTarget: null,
+          routes: [],
           isDesktopRenderer: false,
           remoteOpenTargets,
           hostEnvironmentId: null,
         }),
       ).toEqual({ mode: "remote-unavailable" });
     }
+  });
+  it("uses a saved SSH route's alias when a Tailscale route is preferred", () => {
+    const target = new BearerConnectionTarget({
+      environmentId,
+      label: "sol",
+      connectionId: "ts-1",
+    });
+    const state = resolveRemoteOpenState({
+      target,
+      routes: [
+        {
+          target,
+          profile: Option.some(
+            new BearerConnectionProfile({
+              connectionId: "ts-1",
+              environmentId,
+              label: "sol",
+              httpBaseUrl: "https://sol.tail1234.ts.net",
+              wsBaseUrl: "wss://sol.tail1234.ts.net",
+              network: "tailscale",
+            }),
+          ),
+        },
+        sshRoute({ alias: "sol-alias", username: null }),
+      ],
+      isDesktopRenderer: false,
+      remoteOpenTargets: [
+        { kind: "tailscale", host: "sol.tail1234.ts.net", username: "server-user" },
+      ],
+      hostEnvironmentId: null,
+    });
+    expect(state).toEqual({ mode: "remote-links", host: { kind: "ssh-alias", host: "sol-alias" } });
+    if (state.mode !== "remote-links") throw new Error("Expected a remote link");
+    expect(
+      buildRemoteOpenUrl({ editor: "zed", ...state.host, absolutePath: "/work/project" }),
+    ).toBe("zed://ssh/sol-alias/work/project");
   });
 });
 
