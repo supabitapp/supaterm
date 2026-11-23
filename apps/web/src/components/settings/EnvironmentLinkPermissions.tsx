@@ -12,11 +12,12 @@ import {
   AuthAccessReadScope,
   AuthAccessWriteScope,
   AuthMcpClientAccess,
+  type EnvironmentId,
 } from "@supaterm/contracts";
 import * as DateTime from "effect/DateTime";
 import { useId, useState } from "react";
 
-import type { LinkIntermediary } from "@supaterm/client-runtime/state/peerLinks";
+import type { LinkIntermediary, LinkPairingRoute } from "@supaterm/client-runtime/state/peerLinks";
 import { requestConfirmDialog } from "~/confirmDialog";
 import type { EnvironmentPresentation } from "~/state/environments";
 import {
@@ -227,18 +228,47 @@ function SourceLinkRow({
               Off
             </SelectItem>
             {AuthMcpClientAccess.literals.map((option) => (
-              <SelectItem key={option} value={option} disabled={row.grant === null}>
-                <span className="grid min-w-0 gap-0.5 py-0.5">
-                  <span className="font-medium text-foreground">{accessConfig[option].label}</span>
-                  <span className="text-xs leading-4 text-muted-foreground">
-                    {accessConfig[option].description}
-                  </span>
-                </span>
-              </SelectItem>
+              <LinkAccessOption
+                key={option}
+                option={option}
+                grant={row.grant}
+                targetId={target.environmentId}
+              />
             ))}
           </SelectPopup>
         </Select>
       </span>
     </li>
+  );
+}
+
+function LinkAccessOption({
+  option,
+  grant,
+  targetId,
+}: {
+  readonly option: AuthMcpClientAccess;
+  readonly grant: LinkPairingRoute | null;
+  readonly targetId: EnvironmentId;
+}) {
+  // The machine holding the link refuses a level this app's session there does not hold.
+  const mayPairThrough = useAtomValue(
+    peerLinkEnvironment.pairLink.permissionAtom(
+      grant?._tag === "Through" ? grant.intermediary.environmentId : null,
+      { environmentId: targetId, access: option },
+    ),
+  );
+  return (
+    <SelectItem
+      value={option}
+      disabled={grant === null || (grant._tag === "Through" && !mayPairThrough)}
+    >
+      <span className="grid min-w-0 gap-0.5 py-0.5">
+        <span className="font-medium text-foreground">{accessConfig[option].label}</span>
+        <span className="text-xs leading-4 text-muted-foreground">
+          {accessConfig[option].description}
+        </span>
+      </span>
+    </SelectItem>
   );
 }

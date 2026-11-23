@@ -10,8 +10,9 @@ that grant but cannot widen it. The default grant includes access management:
 can start a full-access agent, and either can mint a session with every scope
 through `supaterm auth session issue`, so withholding management from the
 default would not be a boundary. A narrower client gets explicit scopes.
-Creating another pairing link requires both `access:write` and every scope being
-delegated. The [auth handlers](../../apps/server/src/auth/http.ts) enforce this
+Every route that returns a credential to the caller requires `access:write` and
+every scope that credential carries: a pairing link, an MCP sign-in approval, and
+a link code from a linked environment. The [auth handlers](../../apps/server/src/auth/http.ts) enforce this
 at issuance; client labels and device metadata have no authorization role.
 Unknown scope strings, whether requested or stored, are dropped rather than
 rejected, so clients and records from other versions keep working.
@@ -85,6 +86,8 @@ pairing's. A person starts it: the linking environment exposes it as a WebSocket
 RPC behind `access:write`, and the linked side as an HTTP route that accepts only
 a link's session. It is not an MCP tool, because a tool is reachable by whatever
 holds a thread credential, and hiding one from tool listings is only discovery.
+The same route mints a code that links another environment at a chosen access
+level, and the linking side's RPC requires the caller to hold that level's scopes.
 
 Issuer and resource URLs come from the request's Host and
 `X-Forwarded-Proto`, so one server answers over loopback and Tailscale Serve. A proxy that rewrites Host or drops the protocol header
