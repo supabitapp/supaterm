@@ -82,6 +82,7 @@ it.effect.each([
         worktreePath: cwd,
         activeProviderThreadId: providerThreadId,
         modelSelection: { instanceId, model: "test" },
+        deletedAt: null,
       },
       providerThread,
       providerSession: undefined,
