@@ -18,13 +18,16 @@ import * as HostProcess from "@supaterm/shared/HostProcess";
 
 import * as ProcessRunner from "../processRunner.ts";
 import {
+  findPosixLauncher,
   isVersionExecutable,
   ensurePinnedRuntimeInstalled,
   pinnedRuntimeCommand,
   pinnedRuntimePaths,
   PinnedRuntimeInstallError,
   type PinnedRuntimeProgress,
+  posixLauncherScript,
   prunePinnedRuntimes,
+  resolveLauncherPath,
 } from "./pinnedRuntime.ts";
 import { SERVICE_LAUNCHER_PROTOCOL } from "./serviceProtocol.ts";
 
@@ -942,5 +945,69 @@ it.layer(NodeServices.layer)("prunePinnedRuntimes", (it) => {
         );
         assert.deepEqual(removed, ["1.1.0"]);
       }),
+  );
+});
+
+// NTFS reports no exec bits, and these lookups pass over files without them.
+const posixHost = HostProcess.Platform.defaultValue() !== "win32";
+
+it.layer(NodeServices.layer)("launcher lookup on PATH", (it) => {
+  it.effect.skipIf(!posixHost)(
+    "resolves an empty entry of a nonempty PATH against the working directory",
+    () =>
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const root = yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-launcher-path-" });
+        const launcher = path.join(root, "supaterm");
+        yield* fs.writeFileString(launcher, "", { mode: 0o755 });
+        const missing = path.join(root, "missing");
+        const lookup = (platform: NodeJS.Platform, searchPath: string) =>
+          resolveLauncherPath.pipe(
+            Effect.provideService(HostProcess.InvokedAs, "supaterm"),
+            Effect.provideService(HostProcess.Platform, platform),
+            Effect.provideService(HostProcess.Environment, { PATH: searchPath }),
+            Effect.provideService(HostProcess.WorkingDirectory, root),
+          );
+
+        assert.equal(yield* lookup("linux", `:${missing}`), launcher);
+        assert.equal(yield* lookup("linux", `${missing}:`), launcher);
+        assert.equal(yield* lookup("linux", `${missing}::${missing}`), launcher);
+        // An empty PATH searches nothing, and Windows has no such rule.
+        assert.isUndefined(yield* lookup("linux", ""));
+        assert.isUndefined(yield* lookup("win32", `;${missing}`));
+      }),
+  );
+
+  it.effect.skipIf(!posixHost)("finds a launcher script through an empty PATH entry", () =>
+    Effect.gen(function* () {
+      const fs = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      const root = yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-launcher-path-" });
+      const versionsDir = path.join(root, ".supaterm", "runtime", "versions");
+      const executable = path.join(versionsDir, "1.0.0", "supaterm");
+      yield* fs.makeDirectory(path.dirname(executable), { recursive: true });
+      yield* fs.writeFileString(executable, "", { mode: 0o755 });
+      const bin = path.join(root, "bin");
+      yield* fs.makeDirectory(bin);
+      yield* fs.writeFileString(path.join(bin, "supaterm"), posixLauncherScript(executable), {
+        mode: 0o755,
+      });
+      const script = yield* fs.realPath(path.join(bin, "supaterm"));
+      const missing = path.join(root, "missing");
+      const lookup = (searchPath: string) =>
+        findPosixLauncher({ launchedAs: executable, versionsDir }).pipe(
+          Effect.provideService(HostProcess.Environment, {
+            PATH: searchPath,
+            SUPATERM_INSTALL_BIN_DIR: missing,
+          }),
+          Effect.provideService(HostProcess.WorkingDirectory, bin),
+        );
+
+      assert.equal(yield* lookup(`:${missing}`), script);
+      assert.equal(yield* lookup(`${missing}:`), script);
+      // An empty PATH searches nothing, not even the working directory.
+      assert.isUndefined(yield* lookup(""));
+    }),
   );
 });
