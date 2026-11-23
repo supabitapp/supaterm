@@ -429,8 +429,9 @@ export async function openDocument(
 export async function openEpub(archive: JSZip): Promise<OfficeWorkerResult> {
   markupBytes = 0;
   const container = parseXml((await archive.file("META-INF/container.xml")?.async("string")) ?? "");
-  const rootfile = find(container, "rootfile")[0]?.attrs["full-path"];
-  if (!rootfile || !archive.file(rootfile)) throw new Error("This EPUB has no readable package.");
+  const fullPath = find(container, "rootfile")[0]?.attrs["full-path"] ?? "";
+  const rootfile = [archivePath("", fullPath), fullPath].find((path) => path && archive.file(path));
+  if (!rootfile) throw new Error("This EPUB has no readable package.");
   const packageRoot = parseXml(await archive.file(rootfile)!.async("string"));
   const manifest = new Map(find(packageRoot, "item").map((item) => [item.attrs.id, item]));
   const spine = find(packageRoot, "itemref");
