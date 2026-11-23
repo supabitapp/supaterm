@@ -64,7 +64,11 @@ export class EnvironmentThemeService extends Context.Service<
  * and size. Windows lacks both flags (OR-ing the undefined constants is a no-op), so it lstats
  * before the open.
  */
-export const readThemeFileGuarded = (filePath: string, maxBytes: number): string | null => {
+export const readThemeFileGuarded = (
+  filePath: string,
+  maxBytes: number,
+  onMissing?: () => void,
+): string | null => {
   let fd: number;
   try {
     if (NodeFS.constants.O_NOFOLLOW === undefined && NodeFS.lstatSync(filePath).isSymbolicLink()) {
@@ -76,7 +80,8 @@ export const readThemeFileGuarded = (filePath: string, maxBytes: number): string
         (NodeFS.constants.O_NOFOLLOW ?? 0) |
         (NodeFS.constants.O_NONBLOCK ?? 0),
     );
-  } catch {
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") onMissing?.();
     return null;
   }
   try {
@@ -98,11 +103,19 @@ export const readThemeFileGuarded = (filePath: string, maxBytes: number): string
   }
 };
 
-export const readPublishedThemes = Effect.fn(function* (themesDir: string) {
+export const readPublishedThemes = Effect.fn(function* (
+  themesDir: string,
+  /** Runs when the directory or a file it listed is gone, as when an ancestor moves mid-read. */
+  onPathMissing: Effect.Effect<void> = Effect.void,
+) {
   const fs = yield* FileSystem.FileSystem;
-  const entries = yield* fs
-    .readDirectory(themesDir)
-    .pipe(Effect.orElseSucceed((): Array<string> => []));
+  const entries = yield* Effect.catch(fs.readDirectory(themesDir), (error) =>
+    Effect.as(error.reason._tag === "NotFound" ? onPathMissing : Effect.void, []),
+  );
+  let listedFileMissing = false;
+  const markListedFileMissing = () => {
+    listedFileMissing = true;
+  };
 
   const themes: Array<EnvironmentTheme> = [];
   let examined = 0;
@@ -133,7 +146,7 @@ export const readPublishedThemes = Effect.fn(function* (themesDir: string) {
     }
 
     const filePath = `${themesDir}/${entry}`;
-    const raw = readThemeFileGuarded(filePath, MAX_THEME_FILE_BYTES);
+    const raw = readThemeFileGuarded(filePath, MAX_THEME_FILE_BYTES, markListedFileMissing);
     if (raw === null) {
       yield* Effect.logWarning("ignoring unusable environment theme file", {
         path: filePath,
@@ -168,6 +181,7 @@ export const readPublishedThemes = Effect.fn(function* (themesDir: string) {
 
     themes.push({ id, ...file });
   }
+  if (listedFileMissing) yield* onPathMissing;
   return themes;
 });
 
@@ -182,6 +196,7 @@ const make = Effect.gen(function* () {
    */
   const changes = yield* PubSub.sliding<PublishedThemes>(1);
   const published = yield* Ref.make<PublishedThemes>({ seq: 0, themes: [] });
+  const pathMissing = yield* Ref.make(false);
   /**
    * Guards the whole read/compare/publish: concurrent async directory reads can finish out of
    * order, and a slower read of an older set would publish under a higher sequence that the
@@ -193,9 +208,10 @@ const make = Effect.gen(function* () {
 
   const refresh = refreshSemaphore.withPermits(1)(
     Effect.gen(function* () {
-      const themes = yield* readPublishedThemes(environmentThemesDir).pipe(
-        Effect.provideService(FileSystem.FileSystem, fs),
-      );
+      const themes = yield* readPublishedThemes(
+        environmentThemesDir,
+        Ref.set(pathMissing, true),
+      ).pipe(Effect.provideService(FileSystem.FileSystem, fs));
       // Structural equality over the whole decoded value: a hand-rolled field
       // list here silently drops republishes for any field it forgets.
       const [changed, next] = yield* Ref.modify(
@@ -238,6 +254,7 @@ const make = Effect.gen(function* () {
   const watchEvents = watchDirectoryPath(
     environmentThemesDir,
     watchDirectory(environmentThemesDir),
+    Ref.getAndSet(pathMissing, false),
   ).pipe(
     // A save emits several events, and fs.watch can fire before content is flushed.
     Stream.debounce(Duration.millis(100)),
