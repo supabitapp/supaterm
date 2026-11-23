@@ -3,14 +3,20 @@ import * as Effect from "effect/Effect";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 
 const DEFAULT_POLL_INTERVAL = Duration.seconds(2);
+// The desktop's SIGTERM grace before it escalates to SIGKILL; a lost launcher cannot escalate.
+const DEFAULT_SHUTDOWN_GRACE = Duration.seconds(5);
 
 const startupParentPid = process.ppid;
 
-export const awaitLauncherLoss = Effect.fn("launcherWatch.awaitLauncherLoss")(function* (options?: {
+interface LauncherWatchOptions {
   readonly launcherPid?: number;
   readonly getParentPid?: () => number;
   readonly interval?: Duration.Input;
-}): Effect.fn.Return<void> {
+}
+
+export const awaitLauncherLoss = Effect.fn("launcherWatch.awaitLauncherLoss")(function* (
+  options?: LauncherWatchOptions,
+): Effect.fn.Return<void> {
   const platform = yield* HostProcess.Platform;
   const launcherPid = options?.launcherPid ?? startupParentPid;
   const getParentPid = options?.getParentPid ?? (() => process.ppid);
@@ -27,3 +33,30 @@ export const awaitLauncherLoss = Effect.fn("launcherWatch.awaitLauncherLoss")(fu
   });
   return yield* poll;
 });
+
+/**
+ * Interrupts `run` when the launcher is lost, and exits the process if shutdown outlasts the
+ * grace period: a stuck cleanup step would otherwise keep holding the Supaterm home's ownership lock.
+ */
+export const stopOnLauncherLoss = <A, E, R>(
+  run: Effect.Effect<A, E, R>,
+  options?: LauncherWatchOptions & {
+    readonly shutdownGrace?: Duration.Input;
+    readonly exit?: () => void;
+  },
+) =>
+  Effect.raceFirst(
+    run,
+    awaitLauncherLoss(options).pipe(
+      Effect.andThen(
+        Effect.forkDetach(
+          Effect.sleep(options?.shutdownGrace ?? DEFAULT_SHUTDOWN_GRACE).pipe(
+            Effect.andThen(Effect.logWarning("backend shutdown timed out after launcher loss")),
+            Effect.andThen(Effect.sync(options?.exit ?? (() => process.exit(1)))),
+          ),
+        ),
+      ),
+      // End like SIGTERM does (interrupt-only exit, so the runtime forces process exit).
+      Effect.andThen(Effect.interrupt),
+    ),
+  );
