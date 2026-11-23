@@ -9,7 +9,8 @@ import {
   squashAtomCommandFailure,
 } from "@supaterm/client-runtime/state/runtime";
 import type { AsyncResult } from "effect/reactivity";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
+import { observeIntersection } from "~/lib/observeIntersection";
 import { useSettingsScope } from "./SettingsScopeContext";
 import { useThreadActions } from "../../hooks/useThreadActions";
 import { useClientSettings } from "../../hooks/useSettings";
@@ -48,6 +49,49 @@ function toastFailure(title: string, failure: AsyncResult.Failure<unknown, unkno
 
 function threadCount(count: number) {
   return `${count.toLocaleString()} thread${count === 1 ? "" : "s"}`;
+}
+
+const ARCHIVED_ROW_CHUNK_SIZE = 50;
+const ESTIMATED_ARCHIVED_ROW_PX = 41;
+
+// Thousands of archived threads would mount at once, so each chunk of rows mounts only near the
+// visible part of the settings scroller and otherwise keeps its last measured height.
+function ArchivedThreadChunk(props: {
+  readonly rowCount: number;
+  readonly columnCount: number;
+  readonly initiallyMounted: boolean;
+  readonly renderRows: () => ReactNode;
+}) {
+  const { rowCount } = props;
+  const [view, setView] = useState({
+    near: props.initiallyMounted,
+    rowHeight: ESTIMATED_ARCHIVED_ROW_PX,
+  });
+  return (
+    <tbody
+      ref={(node) => {
+        if (!node) return;
+        return observeIntersection(
+          node,
+          (entry) =>
+            setView({
+              near: entry.isIntersecting,
+              rowHeight: entry.boundingClientRect.height / rowCount,
+            }),
+          { root: node.closest("[data-settings-page-scroll]"), rootMargin: "1200px 0px" },
+        );
+      }}
+      className="[&:last-child_tr:last-child]:border-0"
+    >
+      {view.near ? (
+        props.renderRows()
+      ) : (
+        <tr aria-hidden className="border-b">
+          <td colSpan={props.columnCount} style={{ height: view.rowHeight * rowCount }} />
+        </tr>
+      )}
+    </tbody>
+  );
 }
 
 export function ArchivedThreadsPanel() {
@@ -218,6 +262,133 @@ export function ArchivedThreadsPanel() {
     if (clicked.value === "delete") await deleteRows(targets);
   };
 
+  const renderRow = (row: ArchivedThreadRow) => {
+    const selected = selection.keys.has(row.key);
+    return (
+      <TableRow
+        key={row.key}
+        className="group/row"
+        data-state={selected ? "selected" : undefined}
+        onMouseDown={(event) => {
+          if (event.shiftKey) event.preventDefault();
+        }}
+        onClick={(event) => {
+          // The checkbox and its hidden input select the row themselves.
+          if (
+            event.target instanceof Element &&
+            event.target.closest("[data-slot=checkbox], input")
+          ) {
+            return;
+          }
+          setSelection((current) => selectRow(current, row.key, visibleKeys, event.shiftKey));
+        }}
+        onContextMenu={(event) => {
+          event.preventDefault();
+          void openRowMenu(row, { x: event.clientX, y: event.clientY });
+        }}
+      >
+        <TableCell>
+          <span className="ms-1 flex size-6 items-center justify-center">
+            <Checkbox
+              aria-label={`Select ${row.title}`}
+              checked={selected}
+              onCheckedChange={(_checked, details) =>
+                setSelection((current) =>
+                  selectRow(
+                    current,
+                    row.key,
+                    visibleKeys,
+                    details.event instanceof MouseEvent && details.event.shiftKey,
+                  ),
+                )
+              }
+            />
+          </span>
+        </TableCell>
+        <TableCell>
+          <span className="block truncate text-sm text-foreground">{row.title}</span>
+          {showProject || hasMultipleEnvironments ? (
+            <span className="block truncate text-muted-foreground sm:hidden">
+              {[
+                showProject ? row.projectTitle : null,
+                hasMultipleEnvironments ? row.environmentLabel : null,
+              ]
+                .filter((label) => label !== null)
+                .join(" · ")}
+            </span>
+          ) : null}
+        </TableCell>
+        {showProject ? (
+          <TableCell className="hidden sm:table-cell">
+            <span className="flex min-w-0 items-center gap-1.5 text-muted-foreground">
+              <ProjectFavicon project={row.project} />
+              <span className="truncate">{row.projectTitle}</span>
+            </span>
+          </TableCell>
+        ) : null}
+        {hasMultipleEnvironments ? (
+          <TableCell className="hidden sm:table-cell">
+            <span className="block truncate text-muted-foreground">{row.environmentLabel}</span>
+          </TableCell>
+        ) : null}
+        <TableCell className="text-right">
+          <span className="tabular-nums text-muted-foreground">
+            <RelativeTime timestamp={row.archivedAt} />
+          </span>
+        </TableCell>
+        <TableCell className="hidden text-right sm:table-cell">
+          <span className="tabular-nums text-muted-foreground">
+            <RelativeTime timestamp={row.createdAt} />
+          </span>
+        </TableCell>
+        <TableCell>
+          <span className="flex justify-end gap-0.5 opacity-0 transition-opacity duration-150 group-hover/row:opacity-100 group-focus-within/row:opacity-100 pointer-coarse:opacity-100">
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    aria-label={`Unarchive ${row.title}`}
+                    disabled={pendingAction !== null}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      void unarchiveRows([row]);
+                    }}
+                    size="icon-xs"
+                    type="button"
+                    variant="ghost-muted"
+                  >
+                    <ArchiveXIcon />
+                  </Button>
+                }
+              />
+              <TooltipPopup side="top">Unarchive</TooltipPopup>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    aria-label={`Delete ${row.title}`}
+                    disabled={pendingAction !== null}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      void deleteRows([row]);
+                    }}
+                    size="icon-xs"
+                    type="button"
+                    variant="ghost-destructive"
+                  >
+                    <TrashIcon />
+                  </Button>
+                }
+              />
+              <TooltipPopup side="top">Delete</TooltipPopup>
+            </Tooltip>
+          </span>
+        </TableCell>
+      </TableRow>
+    );
+  };
+
   if (rows.length === 0) {
     return (
       <SettingsPageContainer>
@@ -318,8 +489,8 @@ export function ArchivedThreadsPanel() {
                 </TableHead>
               </TableRow>
             </TableHeader>
-            <TableBody>
-              {visibleRows.length === 0 ? (
+            {visibleRows.length === 0 ? (
+              <TableBody>
                 <TableRow>
                   <TableCell colSpan={columnCount} className="text-center">
                     <span className="block py-6 text-muted-foreground">
@@ -327,139 +498,25 @@ export function ArchivedThreadsPanel() {
                     </span>
                   </TableCell>
                 </TableRow>
-              ) : (
-                visibleRows.map((row) => {
-                  const selected = selection.keys.has(row.key);
+              </TableBody>
+            ) : (
+              Array.from(
+                { length: Math.ceil(visibleRows.length / ARCHIVED_ROW_CHUNK_SIZE) },
+                (_, chunkIndex) => {
+                  const start = chunkIndex * ARCHIVED_ROW_CHUNK_SIZE;
+                  const chunk = visibleRows.slice(start, start + ARCHIVED_ROW_CHUNK_SIZE);
                   return (
-                    <TableRow
-                      key={row.key}
-                      className="group/row"
-                      data-state={selected ? "selected" : undefined}
-                      onMouseDown={(event) => {
-                        if (event.shiftKey) event.preventDefault();
-                      }}
-                      onClick={(event) => {
-                        // The checkbox and its hidden input select the row themselves.
-                        if (
-                          event.target instanceof Element &&
-                          event.target.closest("[data-slot=checkbox], input")
-                        ) {
-                          return;
-                        }
-                        setSelection((current) =>
-                          selectRow(current, row.key, visibleKeys, event.shiftKey),
-                        );
-                      }}
-                      onContextMenu={(event) => {
-                        event.preventDefault();
-                        void openRowMenu(row, { x: event.clientX, y: event.clientY });
-                      }}
-                    >
-                      <TableCell>
-                        <span className="ms-1 flex size-6 items-center justify-center">
-                          <Checkbox
-                            aria-label={`Select ${row.title}`}
-                            checked={selected}
-                            onCheckedChange={(_checked, details) =>
-                              setSelection((current) =>
-                                selectRow(
-                                  current,
-                                  row.key,
-                                  visibleKeys,
-                                  details.event instanceof MouseEvent && details.event.shiftKey,
-                                ),
-                              )
-                            }
-                          />
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        <span className="block truncate text-sm text-foreground">{row.title}</span>
-                        {showProject || hasMultipleEnvironments ? (
-                          <span className="block truncate text-muted-foreground sm:hidden">
-                            {[
-                              showProject ? row.projectTitle : null,
-                              hasMultipleEnvironments ? row.environmentLabel : null,
-                            ]
-                              .filter((label) => label !== null)
-                              .join(" · ")}
-                          </span>
-                        ) : null}
-                      </TableCell>
-                      {showProject ? (
-                        <TableCell className="hidden sm:table-cell">
-                          <span className="flex min-w-0 items-center gap-1.5 text-muted-foreground">
-                            <ProjectFavicon project={row.project} />
-                            <span className="truncate">{row.projectTitle}</span>
-                          </span>
-                        </TableCell>
-                      ) : null}
-                      {hasMultipleEnvironments ? (
-                        <TableCell className="hidden sm:table-cell">
-                          <span className="block truncate text-muted-foreground">
-                            {row.environmentLabel}
-                          </span>
-                        </TableCell>
-                      ) : null}
-                      <TableCell className="text-right">
-                        <span className="tabular-nums text-muted-foreground">
-                          <RelativeTime timestamp={row.archivedAt} />
-                        </span>
-                      </TableCell>
-                      <TableCell className="hidden text-right sm:table-cell">
-                        <span className="tabular-nums text-muted-foreground">
-                          <RelativeTime timestamp={row.createdAt} />
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        <span className="flex justify-end gap-0.5 opacity-0 transition-opacity duration-150 group-hover/row:opacity-100 group-focus-within/row:opacity-100 pointer-coarse:opacity-100">
-                          <Tooltip>
-                            <TooltipTrigger
-                              render={
-                                <Button
-                                  aria-label={`Unarchive ${row.title}`}
-                                  disabled={pendingAction !== null}
-                                  onClick={(event) => {
-                                    event.stopPropagation();
-                                    void unarchiveRows([row]);
-                                  }}
-                                  size="icon-xs"
-                                  type="button"
-                                  variant="ghost-muted"
-                                >
-                                  <ArchiveXIcon />
-                                </Button>
-                              }
-                            />
-                            <TooltipPopup side="top">Unarchive</TooltipPopup>
-                          </Tooltip>
-                          <Tooltip>
-                            <TooltipTrigger
-                              render={
-                                <Button
-                                  aria-label={`Delete ${row.title}`}
-                                  disabled={pendingAction !== null}
-                                  onClick={(event) => {
-                                    event.stopPropagation();
-                                    void deleteRows([row]);
-                                  }}
-                                  size="icon-xs"
-                                  type="button"
-                                  variant="ghost-destructive"
-                                >
-                                  <TrashIcon />
-                                </Button>
-                              }
-                            />
-                            <TooltipPopup side="top">Delete</TooltipPopup>
-                          </Tooltip>
-                        </span>
-                      </TableCell>
-                    </TableRow>
+                    <ArchivedThreadChunk
+                      key={chunkIndex}
+                      rowCount={chunk.length}
+                      columnCount={columnCount}
+                      initiallyMounted={chunkIndex === 0}
+                      renderRows={() => chunk.map(renderRow)}
+                    />
                   );
-                })
-              )}
-            </TableBody>
+                },
+              )
+            )}
           </Table>
         </div>
       </SettingsSection>
