@@ -17,6 +17,7 @@ import type {
   ServerProvider,
   ThreadId,
 } from "@supaterm/contracts";
+import { splitsSurrogatePair } from "@supaterm/shared/assistantCitations";
 import { resolveSelectableModel } from "@supaterm/shared/model";
 
 const PROMPT_TITLE_LIMIT = 80;
@@ -77,9 +78,9 @@ function rowTitle(subagent: Pick<OrchestrationV2Subagent, "title" | "prompt">): 
   if (title) return formatSubagentDisplayTitle(title);
   const prompt = subagent.prompt.trim();
   if (prompt.length === 0) return "Subagent";
-  return prompt.length > PROMPT_TITLE_LIMIT
-    ? `${prompt.slice(0, PROMPT_TITLE_LIMIT - 1).trimEnd()}…`
-    : prompt;
+  if (prompt.length <= PROMPT_TITLE_LIMIT) return prompt;
+  const end = PROMPT_TITLE_LIMIT - 1;
+  return `${prompt.slice(0, splitsSurrogatePair(prompt, end) ? end - 1 : end).trimEnd()}…`;
 }
 
 function rowTone(status: OrchestrationV2Subagent["status"]): SubagentRowTone {
