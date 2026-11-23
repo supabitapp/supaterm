@@ -9,9 +9,13 @@ import "@fontsource/jetbrains-mono/400-italic.css";
 import "@fontsource/jetbrains-mono/700-italic.css";
 import "./index.css";
 
+import { trackKeyboardLayout } from "./keyboardLayout";
 import { startAppServices } from "./appInit";
 import { AppRoot } from "./AppRoot";
 import { chunkLoadState } from "./lib/chunkReloadGuard";
+
+const stopTrackingKeyboardLayout = trackKeyboardLayout();
+import.meta.hot?.dispose(stopTrackingKeyboardLayout);
 
 const router = startAppServices();
 
