@@ -249,7 +249,8 @@ export type ProjectionDoneCandidate = Pick<
   | "pendingBackgroundTasks"
 > &
   Pick<OrchestrationV2AppThread, "lastSnoozeWakeAt"> & {
-    readonly latestUserAuthoredMessageAt: DateTime.Utc | null;
+    /** Latest user or MCP agent message; automatic server and provider wakes are excluded. */
+    readonly latestResumingMessageAt: DateTime.Utc | null;
   };
 
 const ProjectionCheckpointContext = Schema.Struct({
@@ -1273,8 +1274,9 @@ type DoneThreadRow = Pick<
   | "latest_run_started_at"
   | "latest_run_completed_at"
   | "latest_user_message_at"
-  | "latest_user_authored_message_at"
->;
+> & {
+  readonly latest_resuming_message_at: string | null;
+};
 
 type ShellRunWorkSessionRow = {
   readonly thread_id: string;
@@ -8801,10 +8803,16 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
                 SELECT message.updated_at
                 FROM orchestration_v2_projection_messages message
                 WHERE message.thread_id = t.thread_id AND message.role = 'user'
-                  AND json_extract(message.payload_json, '$.createdBy') = 'user'
+                  AND (
+                    json_extract(message.payload_json, '$.createdBy') = 'user'
+                    OR (
+                      json_extract(message.payload_json, '$.createdBy') = 'agent'
+                      AND json_extract(message.payload_json, '$.creationSource') = 'mcp'
+                    )
+                  )
                 ORDER BY message.updated_at DESC, message.message_id DESC
                 LIMIT 1
-              ) AS latest_user_authored_message_at
+              ) AS latest_resuming_message_at
             FROM orchestration_v2_projection_threads t
             LEFT JOIN orchestration_v2_projection_runs r ON r.run_id = (
               SELECT latest.run_id FROM orchestration_v2_projection_runs latest
@@ -8891,10 +8899,10 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
                     row.latest_user_message_at === null
                       ? null
                       : DateTime.makeUnsafe(row.latest_user_message_at),
-                  latestUserAuthoredMessageAt:
-                    row.latest_user_authored_message_at === null
+                  latestResumingMessageAt:
+                    row.latest_resuming_message_at === null
                       ? null
-                      : DateTime.makeUnsafe(row.latest_user_authored_message_at),
+                      : DateTime.makeUnsafe(row.latest_resuming_message_at),
                   activityRunStatus: null,
                   activityRunStartedAt: null,
                   pendingRuntimeRequest: null,

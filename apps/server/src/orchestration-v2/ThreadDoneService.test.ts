@@ -62,7 +62,7 @@ function at(offsetMs: number): DateTime.Utc {
 }
 
 type SettlementShell = OrchestrationV2ThreadShell &
-  Pick<ProjectionStore.ProjectionDoneCandidate, "latestUserAuthoredMessageAt">;
+  Pick<ProjectionStore.ProjectionDoneCandidate, "latestResumingMessageAt">;
 
 function shell(overrides: Partial<SettlementShell> = {}): SettlementShell {
   return {
@@ -101,7 +101,7 @@ function shell(overrides: Partial<SettlementShell> = {}): SettlementShell {
     latestRunStartedAt: null,
     latestRunCompletedAt: null,
     latestUserMessageAt: null,
-    latestUserAuthoredMessageAt: overrides.latestUserMessageAt ?? null,
+    latestResumingMessageAt: overrides.latestUserMessageAt ?? null,
     createdAt: at(-30 * DAY_MS),
     updatedAt: at(-10 * DAY_MS),
     archivedAt: null,
@@ -419,10 +419,10 @@ describe("resolveAutoMarkDoneAt", () => {
     ).toEqual(shell().createdAt);
   });
 
-  it("marks done on merge after agent-started runs, but not after the user writes again", () => {
+  it("marks done on merge after automatic agent wakes, but not after the thread is resumed", () => {
     const woken = shell({
       latestUserMessageAt: at(-30 * 60 * 1_000),
-      latestUserAuthoredMessageAt: at(-2 * 60 * 60 * 1_000),
+      latestResumingMessageAt: at(-2 * 60 * 60 * 1_000),
       latestRunRequestedAt: at(-30 * 60 * 1_000),
       latestRunCompletedAt: at(-29 * 60 * 1_000),
     });
@@ -437,7 +437,7 @@ describe("resolveAutoMarkDoneAt", () => {
     expect(
       ThreadDoneService.resolveAutoMarkDoneAt({
         ...input,
-        thread: { ...woken, latestUserAuthoredMessageAt: at(-30 * 60 * 1_000) },
+        thread: { ...woken, latestResumingMessageAt: at(-30 * 60 * 1_000) },
       }),
     ).toBeNull();
   });
@@ -2263,7 +2263,7 @@ describe("ThreadDoneServiceV2 worker", () => {
         snapshot: makeSnapshot([
           makeThread("worked-after-merge", {
             branch: "merged-feature",
-            latestUserAuthoredMessageAt: DateTime.makeUnsafe("2026-08-28T06:00:00.000Z"),
+            latestResumingMessageAt: DateTime.makeUnsafe("2026-08-28T06:00:00.000Z"),
           }),
         ]),
         settings: { ...DEFAULT_SERVER_SETTINGS, sidebarAutoMarkDoneAfterDays: null },

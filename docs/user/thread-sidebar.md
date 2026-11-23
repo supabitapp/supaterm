@@ -224,7 +224,8 @@ threads in the active list. A closed pull request can also mark an idle thread a
 Pins, work in progress, pending questions or approvals, running monitors, pull request watches,
 and background work the agent is waiting on prevent automatic completion. An open pull request does not prevent inactivity
 completion unless you turn on **Keep threads with an open PR**, but an old closed or merged pull request does not mark work as Done if you
-resumed it after it closed. Only your own messages count as resuming. A turn that
+resumed it after it closed. Your own messages count as resuming, and so does a
+message an agent sends with `supaterm_thread_send` or `supaterm thread send`. A turn that
 finished background work or a pull request watch starts on its own does not.
 
 To keep one thread out of the Done shelf no matter how long it sits idle, open its menu,

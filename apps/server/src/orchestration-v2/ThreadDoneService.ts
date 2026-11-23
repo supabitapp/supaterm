@@ -162,10 +162,7 @@ export function threadHasQueuedTurnStart(
  * started do not count, so they cannot hold a merged thread open.
  */
 function pullRequestMarksDone(
-  thread: Pick<
-    ProjectionStore.ProjectionDoneCandidate,
-    "createdAt" | "latestUserAuthoredMessageAt"
-  >,
+  thread: Pick<ProjectionStore.ProjectionDoneCandidate, "createdAt" | "latestResumingMessageAt">,
   pullRequest: DonePullRequest,
   autoMarkDoneOnMerge: boolean,
 ): boolean {
@@ -176,7 +173,7 @@ function pullRequestMarksDone(
   if (terminalAt == null) return false;
   const userAnchorMs = latestMillis([
     toMillis(thread.createdAt),
-    toMillis(thread.latestUserAuthoredMessageAt),
+    toMillis(thread.latestResumingMessageAt),
   ]);
   if (userAnchorMs === null) return false;
   const pullRequestAtMs = Date.parse(terminalAt);
@@ -185,7 +182,7 @@ function pullRequestMarksDone(
 }
 
 export function isAutoMarkDoneCandidate(
-  thread: Omit<ProjectionStore.ProjectionDoneCandidate, "latestUserAuthoredMessageAt">,
+  thread: Omit<ProjectionStore.ProjectionDoneCandidate, "latestResumingMessageAt">,
   nowMs: number,
 ): boolean {
   if (thread.archivedAt !== null || thread.doneOverride !== null) return false;
