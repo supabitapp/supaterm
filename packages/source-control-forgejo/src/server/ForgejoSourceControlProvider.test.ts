@@ -17,6 +17,8 @@ import { firstNonEmptyLine } from "@supaterm/source-control-core/server/discover
 import * as HostProcess from "@supaterm/shared/HostProcess";
 import * as TestSourceControlHost from "@supaterm/source-control-testing/TestSourceControlHost";
 
+import { userFacingSourceControlDetail } from "@supaterm/source-control-core/server/SourceControlProvider";
+
 import * as ForgejoCli from "./ForgejoCli.ts";
 import * as ForgejoPullRequestProvider from "./ForgejoPullRequestProvider.ts";
 import * as ForgejoSourceControlProvider from "./ForgejoSourceControlProvider.ts";
@@ -2515,5 +2517,46 @@ it.effect("does not call a valid fj login on an HTTP-only server unauthenticated
       }),
     ),
     Effect.provideService(HostProcess.HomeDirectory, "/home/maria"),
+  ),
+);
+
+it.effect("exposes fixed not-found details only for repository lookup", () =>
+  Effect.gen(function* () {
+    const provider = yield* ForgejoSourceControlProvider.make;
+    const error = yield* Effect.flip(
+      provider.getRepositoryCloneUrls({ cwd: "/repo", repository: "vouch" }),
+    );
+    assert.strictEqual(
+      userFacingSourceControlDetail(error.cause),
+      "Repository me/vouch was not found. Check the owner and name and try again.",
+    );
+    const forbiddenError = yield* Effect.flip(
+      provider.getRepositoryCloneUrls({ cwd: "/repo", repository: "me/private" }),
+    );
+    assert.strictEqual(userFacingSourceControlDetail(forbiddenError.cause), undefined);
+  }).pipe(
+    Effect.provide(
+      Layer.mergeAll(
+        Layer.succeed(FileSystem.FileSystem, FileSystem.makeNoop({})),
+        TestSourceControlHost.layer({ process: {} }),
+        Layer.mock(ForgejoCli.ForgejoCli)({
+          resolveRepository: (input) =>
+            Effect.succeed({
+              login: "work",
+              repository: input.repository === "me/private" ? "me/private" : "me/vouch",
+              baseUrl: "https://forgejo.test",
+            }),
+          api: (input) =>
+            Effect.fail(
+              new ForgejoCli.ForgejoCliError({
+                command: "fj",
+                cwd: "/repo",
+                reason: input.path.includes("private") ? "forbidden" : "not-found",
+                detail: "raw upstream response must not be shown",
+              }),
+            ),
+        }),
+      ),
+    ),
   ),
 );
