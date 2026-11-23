@@ -208,8 +208,8 @@ set to **Manual only** remains excluded. Mobile keeps its manual environment sel
 
 ### Tailscale HTTPS
 
-Join both devices to the same tailnet. In the desktop app, enable **Tailscale
-HTTPS** in **Settings → Sharing & access**. **Network access** can stay off; Tailscale
+Join both devices to the same tailnet. In the desktop app, **Tailscale HTTPS** in
+**Settings → Sharing & access** is on by default. **Network access** can stay off; Tailscale
 reaches the backend on this machine. Turn it off there to remove that route.
 
 Your tailnet needs MagicDNS and HTTPS certificates enabled; see
