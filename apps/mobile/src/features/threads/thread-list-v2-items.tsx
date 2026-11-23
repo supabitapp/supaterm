@@ -1029,7 +1029,9 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
         supported: props.titleRegenerationSupported,
         isRegenerating: isRegeneratingTitle,
       }),
-      { id: "mark-unread", title: "Mark unread", image: "envelope.badge" },
+      ...(thread.latestRun?.completedAt != null && threadCanArchive(thread.runtime)
+        ? [{ id: "mark-unread", title: "Mark unread", image: "envelope.badge" }]
+        : []),
       ...(canTurnIntoProject
         ? [
             {
@@ -1041,7 +1043,13 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
           ]
         : []),
     ],
-    [canTurnIntoProject, props.titleRegenerationSupported, thread.runtime, isRegeneratingTitle],
+    [
+      canTurnIntoProject,
+      props.titleRegenerationSupported,
+      thread.latestRun,
+      thread.runtime,
+      isRegeneratingTitle,
+    ],
   );
   const menuActions = useMemo<MenuAction[]>(() => {
     const nested = Platform.OS === "ios";

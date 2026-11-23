@@ -85,6 +85,8 @@ export interface ThreadActionMenuState {
   readonly isRegeneratingTitle: boolean;
   /** Archive rejects attached providers, so disable it while running. */
   readonly isRunning: boolean;
+  /** The server marks unread against the latest run's completion, so in-flight runs cannot be. */
+  readonly hasCompletedRun: boolean;
   readonly snoozePresets: ReadonlyArray<SnoozePreset>;
   /** The thread can open in a new chat pane beside the focused one. */
   readonly canOpenBeside?: boolean;
@@ -167,7 +169,9 @@ export function buildThreadActionMenuItems(
       icon: "refresh-cw",
       disabled: state.isRegeneratingTitle,
     },
-    { id: "mark-unread", label: "Mark unread", icon: "mail-open" },
+    ...(state.hasCompletedRun && !state.isRunning
+      ? [{ id: "mark-unread" as const, label: "Mark unread", icon: "mail-open" }]
+      : []),
     ...(state.projectFilter
       ? [
           {

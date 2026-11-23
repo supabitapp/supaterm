@@ -330,6 +330,7 @@ export function useThreadActionMenu(input: {
         canSnoozeNow: canSnooze(thread, { now: now.toISOString() }),
         isRegeneratingTitle: thread.titleRegeneration != null,
         isRunning: !threadRuntimeCanArchive(thread.runtime),
+        hasCompletedRun: thread.latestRun?.completedAt != null,
         snoozePresets,
         canTurnIntoProject: canTurnThreadIntoProject(
           scopeThreadRef(thread.environmentId, thread.id),
