@@ -162,16 +162,24 @@ const make = Effect.gen(function* () {
     const remote = yield* Effect.findFirst(
       [locator.remoteName, ...names.filter((name) => name !== locator.remoteName)],
       (name) =>
-        git
-          .execute({
-            operation: "PullRequestReviewGuideService.remoteUrl",
-            cwd: workspaceRoot,
-            args: ["remote", "get-url", "--", name],
-          })
-          .pipe(
-            Effect.map((result) => result.stdout.trim() === locator.remoteUrl),
-            Effect.orElseSucceed(() => false),
-          ),
+        Effect.forEach(
+          [
+            ["remote", "get-url", "--", name],
+            ["config", "--get-all", `remote.${name}.url`],
+          ],
+          (args) =>
+            git
+              .execute({
+                operation: "PullRequestReviewGuideService.remoteUrl",
+                cwd: workspaceRoot,
+                args,
+              })
+              .pipe(
+                Effect.map((result) => result.stdout.split("\n")[0]?.trim() === locator.remoteUrl),
+                Effect.orElseSucceed(() => false),
+              ),
+          { concurrency: "unbounded" },
+        ).pipe(Effect.map((matches) => matches.includes(true))),
     ).pipe(Effect.map(Option.getOrUndefined));
     if (remote === undefined) {
       return yield* new PullRequestOperationError({
