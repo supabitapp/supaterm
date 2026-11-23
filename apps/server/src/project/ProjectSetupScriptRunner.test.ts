@@ -47,10 +47,13 @@ const makeHarness = Effect.fn(function* (options: {
   readonly history?: string;
   readonly opening?: Deferred.Deferred<void>;
   readonly writeAllowed?: boolean;
+  readonly previousSession?: TerminalSessionSnapshot;
   readonly shell?: string | null;
 }) {
   const listeners = new Set<(event: TerminalEvent) => Effect.Effect<void>>();
   const opens: TerminalOpenInput[] = [];
+  const openedSessions: TerminalSessionSnapshot[] = [];
+  let session = options.previousSession;
   const writes = yield* Queue.unbounded<string>();
   const outputLines = yield* Queue.unbounded<string>();
   const closed = yield* Queue.unbounded<string | undefined>();
@@ -62,7 +65,11 @@ const makeHarness = Effect.fn(function* (options: {
             ? Deferred.succeed(options.opening, undefined).pipe(Effect.andThen(Effect.never))
             : Effect.void,
         ),
-        Effect.as(openSnapshot(options.history ?? "")),
+        Effect.map(() => {
+          session ??= openSnapshot(options.history ?? "");
+          openedSessions.push(session);
+          return session;
+        }),
       ),
     getShell: () =>
       options.shell === null
@@ -74,6 +81,16 @@ const makeHarness = Effect.fn(function* (options: {
         return () => listeners.delete(listener);
       }),
     write: (input) => Queue.offer(writes, input.data).pipe(Effect.asVoid),
+    close: () =>
+      Effect.sync(() => {
+        session = undefined;
+      }).pipe(
+        Effect.andThen(
+          Effect.forEach([...listeners], (listener) => listener({ ...event, type: "closed" }), {
+            discard: true,
+          }),
+        ),
+      ),
     closeIdle: (input) => Queue.offer(closed, input.terminalId).pipe(Effect.asVoid),
     closeOnDone: () => Effect.void,
   });
@@ -116,7 +133,7 @@ const makeHarness = Effect.fn(function* (options: {
   });
   const emit = (terminalEvent: TerminalEvent) =>
     Effect.forEach([...listeners], (listener) => listener(terminalEvent), { discard: true });
-  return { start, listeners, writes, outputLines, closed, emit, opens };
+  return { start, listeners, writes, outputLines, closed, emit, openedSessions, opens };
 });
 
 const setup = Effect.fn(function* (
@@ -124,6 +141,7 @@ const setup = Effect.fn(function* (
     readonly command?: string;
     readonly history?: string;
     readonly writeAllowed?: boolean;
+    readonly previousSession?: TerminalSessionSnapshot;
     readonly shell?: string | null;
   } = {},
 ) {
@@ -192,10 +210,13 @@ describe("ProjectSetupScriptRunner", () => {
     }),
   );
 
-  it.effect("shows a startup prompt and types only once the line editor starts", () =>
+  it.effect("replaces a surviving setup shell and types only once the line editor starts", () =>
     Effect.gen(function* () {
-      const { result, writes, outputLines, emit } = yield* setup();
+      const { result, completion, openedSessions, writes, outputLines, emit } = yield* setup({
+        previousSession: openSnapshot("previous setup in the deleted checkout"),
+      });
       expect(result).toMatchObject({ status: "started", terminalId });
+      expect(openedSessions).toEqual([openSnapshot("")]);
 
       yield* emit({ ...event, type: "output", data: "Missing Node.\r\nInstall it? [y/N]: " });
       yield* emit({ ...event, type: "activity", hasRunningSubprocess: true, label: "fnm" });
@@ -205,7 +226,12 @@ describe("ProjectSetupScriptRunner", () => {
 
       yield* emit({ ...event, type: "activity", hasRunningSubprocess: false, label: "zsh" });
       yield* emit({ ...event, type: "output", data: "\r\n% \x1b[?2004h" });
-      expect(yield* Queue.take(writes)).toContain("vp i");
+      const command = yield* Queue.take(writes);
+      expect(command).toContain("vp i");
+      const sentinel = command.match(/__SUPATERM_SETUP_DONE___[a-f0-9]+:/)?.[0];
+      expect(sentinel).toBeDefined();
+      yield* emit({ ...event, type: "output", data: `${sentinel}0\r\n% ` });
+      expect(yield* completion).toMatchObject({ exitCode: 0 });
     }),
   );
 
@@ -263,16 +289,32 @@ describe("ProjectSetupScriptRunner", () => {
     }),
   );
 
-  it.effect("drops its terminal listeners when cancelled while the terminal opens", () =>
-    Effect.gen(function* () {
-      const opening = yield* Deferred.make<void>();
-      const { start, listeners } = yield* makeHarness({ opening });
-      const fiber = yield* Effect.forkChild(start);
-      yield* Deferred.await(opening);
-      expect(listeners.size).toBe(2);
-      yield* Fiber.interrupt(fiber);
-      expect(listeners.size).toBe(0);
-    }),
+  it.effect.each(["opening", "completion"] as const)(
+    "stops pending setup when cancelled during %s",
+    (phase) =>
+      Effect.gen(function* () {
+        const opening = yield* Deferred.make<void>();
+        const { start, listeners, writes, emit } = yield* makeHarness(
+          phase === "opening" ? { opening } : {},
+        );
+        const pending =
+          phase === "opening"
+            ? start.pipe(Effect.asVoid)
+            : yield* start.pipe(
+                Effect.map((result) =>
+                  result.status === "started" && result.completion
+                    ? result.completion.pipe(Effect.asVoid)
+                    : Effect.die("setup did not start"),
+                ),
+              );
+        const fiber = yield* pending.pipe(Effect.forkChild({ startImmediately: true }));
+        if (phase === "opening") yield* Deferred.await(opening);
+        expect(listeners.size).toBe(2);
+        yield* Fiber.interrupt(fiber);
+        expect(listeners.size).toBe(0);
+        yield* emit({ ...event, type: "output", data: "\r\n% \x1b[?2004h" });
+        expect(yield* Queue.size(writes)).toBe(0);
+      }),
   );
 
   it.effect("closes the unused shell when the write guard refuses once the shell is ready", () =>

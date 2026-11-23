@@ -220,6 +220,7 @@ it.effect.each([
   const layerTest = ThreadManagementService.layerWithWorktreeRestore.pipe(
     Layer.provide(
       Layer.succeed(ThreadWorktreeRestore, {
+        takeRecreated: () => Effect.undefined,
         restore: () =>
           Effect.fail(
             new WorktreeRecreateError({
