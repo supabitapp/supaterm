@@ -188,6 +188,7 @@ import { ProviderAdapterRegistryV2 } from "./ProviderAdapterRegistry.ts";
 import * as ProviderContinuationRequests from "@supaterm/provider-core/server/ProviderContinuationRequests";
 import { makeProviderFailure } from "@supaterm/provider-core/server/failure";
 import * as RunExecutionService from "./RunExecutionService.ts";
+import { makeInterruptResultTurnItem } from "./runInterruptResult.ts";
 import { ProviderSessionManagerV2 } from "./ProviderSessionManager.ts";
 import { ProviderSwitchServiceV2 } from "./ProviderSwitchService.ts";
 import { isAutomaticCompletionRun, queuedRunsInDeliveryOrder } from "./QueuedRunOrder.ts";
@@ -13226,7 +13227,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       yield* emitEvent({
         ...base,
         type: "turn-item.updated",
-        payload: RunExecutionService.makeInterruptResultTurnItem({
+        payload: makeInterruptResultTurnItem({
           idAllocator,
           run,
           rootNode,
