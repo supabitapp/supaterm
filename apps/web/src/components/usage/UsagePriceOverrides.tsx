@@ -413,9 +413,7 @@ export function UsagePriceOverrides({
                                     }
                                   }}
                                   aria-label="New model ID"
-                                  aria-invalid={
-                                    (row.model.trim() !== "" && error !== undefined) || undefined
-                                  }
+                                  aria-invalid={error !== undefined || undefined}
                                   list="usage-price-models"
                                   placeholder="Model ID"
                                   autoComplete="off"
@@ -435,9 +433,7 @@ export function UsagePriceOverrides({
                                   {row.model}
                                 </span>
                               )}
-                              {error !== undefined &&
-                              (row.model.trim() !== "" ||
-                                Object.values(row.values).some((value) => value !== "")) ? (
+                              {error !== undefined ? (
                                 <p role="alert" className="mt-1 text-xs text-destructive">
                                   {error}
                                 </p>
