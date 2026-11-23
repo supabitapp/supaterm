@@ -204,9 +204,21 @@ it.layer(NodeServices.layer)("supaterm uninstall launcher", (it) => {
       // recorded launchers: through a symlinked home, and dangling after a prune.
       const throughAlias = path.join(root, "bin/supaterm-alias");
       const pruned = path.join(root, "bin/supaterm-pruned");
+      const scriptThroughAlias = path.join(scriptDir, "supaterm-alias");
+      const prunedScript = path.join(scriptDir, "supaterm-pruned");
       yield* fs.symlink(root, path.join(root, "alias"));
       yield* fs.symlink(path.join(root, "alias/runtime/versions/1.0.0/supaterm"), throughAlias);
       yield* fs.symlink(path.join(versionsDir, "0.9.0/supaterm"), pruned);
+      yield* fs.writeFileString(
+        scriptThroughAlias,
+        posixLauncherScript(path.join(root, "alias/runtime/versions/1.0.0/supaterm")),
+        { mode: 0o755 },
+      );
+      yield* fs.writeFileString(
+        prunedScript,
+        posixLauncherScript(path.join(versionsDir, "0.9.0/supaterm")),
+        { mode: 0o755 },
+      );
       // Another program inside a version is not a launcher.
       const sibling = path.join(root, "bin/supaterm-sibling");
       yield* fs.symlink(path.join(versionsDir, "1.0.0/node"), sibling);
@@ -220,6 +232,8 @@ it.layer(NodeServices.layer)("supaterm uninstall launcher", (it) => {
           pruned,
           sibling,
           script,
+          scriptThroughAlias,
+          prunedScript,
           editedScript,
           path.join(root, "missing"),
         ].join("\n") + "\n",
@@ -230,6 +244,8 @@ it.layer(NodeServices.layer)("supaterm uninstall launcher", (it) => {
           throughAlias,
           pruned,
           script,
+          scriptThroughAlias,
+          prunedScript,
         ]);
       }
 
