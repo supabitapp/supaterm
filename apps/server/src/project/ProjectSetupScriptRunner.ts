@@ -437,7 +437,7 @@ export const make = Effect.gen(function* () {
           const seen = activity;
           yield* Effect.sleep(SHELL_QUIET_FALLBACK);
           if (activity !== seen) continue;
-          if (!busy) return "ready" as const;
+          if (!busy) return "quiet" as const;
           yield* input.onStartupPrompt;
         }
       });
@@ -642,14 +642,19 @@ export const make = Effect.gen(function* () {
         ? Effect.succeed("ready" as const)
         : readiness.wait
     ).pipe(
-      Effect.flatMap((shell) =>
-        shell === "exited" || commandLine === null
-          ? Effect.void
-          : (input.withCommandWriteGuard
-              ? input.withCommandWriteGuard(writeCommand(commandLine))
-              : writeCommand(commandLine).pipe(Effect.as(true))
-            ).pipe(Effect.flatMap((written) => (written ? Effect.void : abandonUnusedTerminal))),
-      ),
+      Effect.flatMap((shell) => {
+        if (shell === "exited" || commandLine === null) return Effect.void;
+        // macOS zsh garbles long typed-ahead multiline input; a live line editor takes it as one paste.
+        const line =
+          shell === "ready" && completionShell === "posix" && commandLine.includes("\r")
+            ? `\x1b[200~${commandLine.replaceAll("\r", "\n")}\x1b[201~`
+            : commandLine;
+        return (
+          input.withCommandWriteGuard
+            ? input.withCommandWriteGuard(writeCommand(line))
+            : writeCommand(line).pipe(Effect.as(true))
+        ).pipe(Effect.flatMap((written) => (written ? Effect.void : abandonUnusedTerminal)));
+      }),
       Effect.catchCause((cause) =>
         Effect.logWarning("project script command was not written", {
           ...errorContext,
