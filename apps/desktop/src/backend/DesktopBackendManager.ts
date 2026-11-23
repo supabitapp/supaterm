@@ -195,6 +195,8 @@ export const BackendProcessError = Schema.Union([
 ]);
 export type BackendProcessError = typeof BackendProcessError.Type;
 
+type TrackBackendProcess = (pid: number) => Effect.Effect<Effect.Effect<void>>;
+
 interface RunBackendProcessOptions extends DesktopBackendStartConfig {
   readonly desktopTelemetryStream: Stream.Stream<Uint8Array>;
   readonly desktopBrowserStream?: Stream.Stream<Uint8Array>;
@@ -204,6 +206,7 @@ interface RunBackendProcessOptions extends DesktopBackendStartConfig {
   ) => Effect.Effect<void>;
   readonly readinessTimeout?: Duration.Duration;
   readonly outputDrainTimeout?: Duration.Duration;
+  readonly trackProcess?: TrackBackendProcess;
   readonly onStarted?: (pid: number) => Effect.Effect<void>;
   readonly onExitObserved?: () => Effect.Effect<void>;
   readonly onReady?: (pid: number) => Effect.Effect<void>;
@@ -251,6 +254,7 @@ export interface BackendInstanceSpec {
   readonly id: BackendInstanceId;
   readonly label: Effect.Effect<string>;
   readonly configResolve: Effect.Effect<DesktopBackendStartConfig, PlatformError.PlatformError>;
+  readonly trackProcess?: TrackBackendProcess;
   /** Receives the ready run's URL and pid; reading current config could race a subsequent restart. */
   readonly onReady?: (httpBaseUrl: URL, pid: number) => Effect.Effect<void>;
   readonly onShutdown?: () => Effect.Effect<void>;
@@ -500,6 +504,10 @@ export const runBackendProcess = Effect.fn("runBackendProcess")(function* (
         }),
     ),
   );
+  // The child has a deadline for reading fd 3. Keep recovery bookkeeping off its startup path.
+  const tracking = options.trackProcess
+    ? yield* options.trackProcess(handle.pid).pipe(Effect.forkScoped)
+    : undefined;
   const outputFibers: Array<Fiber.Fiber<void, never>> = [];
   const serverReady = yield* Deferred.make<void>();
 
@@ -643,6 +651,11 @@ export const runBackendProcess = Effect.fn("runBackendProcess")(function* (
     Effect.exit,
   );
   yield* options.onExitObserved?.() ?? Effect.void;
+  // A cancelled run may leave a survivor. Only forget after observing a real exit.
+  if (tracking && Exit.isSuccess(exit)) {
+    const forgetProcess = yield* Fiber.join(tracking);
+    yield* forgetProcess;
+  }
   yield* Effect.forEach(outputFibers, Fiber.await, {
     concurrency: "unbounded",
     discard: true,
@@ -939,6 +952,7 @@ export const makeBackendInstance = Effect.fn("makeBackendInstance")(function* (
 
         const program = runBackendProcess({
           ...config.value,
+          ...(spec.trackProcess === undefined ? {} : { trackProcess: spec.trackProcess }),
           desktopTelemetryStream: desktopTelemetryPublisher.encoded,
           desktopBrowserStream: desktopBrowserHost.events,
           onDesktopBrowserCommand: desktopBrowserHost.handleCommandLine,
