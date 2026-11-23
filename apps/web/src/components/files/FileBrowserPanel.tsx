@@ -100,9 +100,11 @@ function FileSearchField({
 }) {
   return (
     <InputGroup variant="ghost" className="h-7 min-w-0 flex-1">
+      {/* Native search inputs clear on Escape even during IME composition. */}
       <InputGroupInput
         ref={ref}
-        type="search"
+        type="text"
+        role="searchbox"
         name={props.name}
         size="sm"
         value={props.value}
@@ -112,7 +114,9 @@ function FileSearchField({
         spellCheck={false}
         onChange={(event) => props.onValueChange(event.target.value)}
         onKeyDown={(event) => {
-          if (event.key !== "Escape") return;
+          if (event.key !== "Escape" || event.nativeEvent.isComposing || event.keyCode === 229)
+            return;
+          if (props.value) event.stopPropagation();
           props.onClose();
           event.currentTarget.blur();
         }}
