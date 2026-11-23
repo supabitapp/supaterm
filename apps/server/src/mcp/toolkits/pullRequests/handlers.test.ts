@@ -212,7 +212,18 @@ const makeHarness = Effect.fn("makePullRequestsToolkitHarness")(function* (
         Effect.succeed(id === thread?.id ? v2PullRequestThread(thread) : null),
       dispatch,
     }),
-    Layer.mock(PullRequestService.PullRequestService)(options.pullRequests ?? {}),
+    Layer.mock(PullRequestService.PullRequestService)({
+      // The service resolves a project's identity before addressing it.
+      addressedProject: () =>
+        Effect.succeed(
+          project == null
+            ? undefined
+            : project.repositoryIdentity != null
+              ? project
+              : { ...project, repositoryIdentity: options.resolvedIdentity ?? null },
+        ),
+      ...options.pullRequests,
+    }),
     Layer.mock(GitManager.GitManager)(options.git ?? {}),
     Layer.succeed(SecureRandom.SecureRandom, testCrypto),
     McpToolAccessTestkit.liveThreadsLayer,

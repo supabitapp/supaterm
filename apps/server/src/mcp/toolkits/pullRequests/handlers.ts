@@ -292,12 +292,9 @@ const make = Effect.gen(function* () {
       | typeof PullRequestUnlinkFailedError
       | typeof PullRequestForgeError,
   ) =>
-    projects.getShell(thread.projectId).pipe(
-      Effect.mapError((cause) => new Failure({ cause })),
-      Effect.flatMap((shell) =>
-        Option.isSome(shell) ? withRepositoryIdentity(shell.value) : Effect.undefined,
-      ),
-    );
+    pullRequests
+      .addressedProject(thread.projectId)
+      .pipe(Effect.mapError((cause) => new Failure({ cause })));
 
   const dispatchFailure =
     (Failure: typeof PullRequestLinkFailedError | typeof PullRequestUnlinkFailedError) =>
@@ -350,7 +347,12 @@ const make = Effect.gen(function* () {
         Effect.forEach(shells, withRepositoryIdentity, { concurrency: 8 }),
       ),
     );
-    const callerProject = known.find((project) => project.id === callerThread?.projectId);
+    const callerProject =
+      callerThread === undefined
+        ? undefined
+        : yield* pullRequests
+            .addressedProject(callerThread.projectId)
+            .pipe(Effect.mapError((cause) => new PullRequestListFailedError({ cause })));
     // A pull request named by host and repository builds its URL through the project that holds
     // it, which need not be the caller's.
     const urlProject = (input: PullRequestTargetInput) =>

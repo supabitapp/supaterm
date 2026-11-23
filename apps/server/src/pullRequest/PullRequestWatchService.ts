@@ -1,7 +1,6 @@
 import {
   CommandId,
   ThreadId,
-  type OrchestrationProjectShell,
   type OrchestrationV2ThreadShell,
   type PullRequestChecksState,
   type PullRequestUnavailableError,
@@ -12,12 +11,9 @@ import * as Context from "effect/Context";
 import * as SecureRandom from "effect/crypto/SecureRandom";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 
 import * as Orchestrator from "../orchestration-v2/Orchestrator.ts";
-import * as ProjectService from "../project/ProjectService.ts";
-import * as RepositoryIdentityResolver from "../project/RepositoryIdentityResolver.ts";
 import * as PullRequestService from "./PullRequestService.ts";
 import {
   resolveTarget,
@@ -85,8 +81,6 @@ export class PullRequestWatchService extends Context.Service<
 
 const make = Effect.gen(function* () {
   const engine = yield* Orchestrator.OrchestratorV2;
-  const projects = yield* ProjectService.ProjectService;
-  const repositoryIdentities = yield* RepositoryIdentityResolver.RepositoryIdentityResolver;
   const pullRequests = yield* PullRequestService.PullRequestService;
   const random = yield* SecureRandom.SecureRandom;
 
@@ -102,13 +96,6 @@ const make = Effect.gen(function* () {
     return thread;
   });
 
-  const withRepositoryIdentity = (project: OrchestrationProjectShell) =>
-    project.repositoryIdentity != null
-      ? Effect.succeed(project)
-      : repositoryIdentities
-          .resolve(project.workspaceRoot)
-          .pipe(Effect.map((repositoryIdentity) => ({ ...project, repositoryIdentity })));
-
   // Keep the registration span stable across the service extraction.
   const setWatching = Effect.fn("PullRequestsToolkit.setWatching")(function* (input: {
     readonly threadId: ThreadId;
@@ -118,12 +105,9 @@ const make = Effect.gen(function* () {
   }) {
     const { watching } = input;
     const thread = yield* requireThread(input.threadId);
-    const project = yield* projects.getShell(thread.projectId).pipe(
-      Effect.mapError((cause) => new PullRequestWatchFailedError({ cause })),
-      Effect.flatMap((shell) =>
-        Option.isSome(shell) ? withRepositoryIdentity(shell.value) : Effect.undefined,
-      ),
-    );
+    const project = yield* pullRequests
+      .addressedProject(thread.projectId)
+      .pipe(Effect.mapError((cause) => new PullRequestWatchFailedError({ cause })));
     const target = yield* resolveTarget(input.target, project);
     const watchedLink = (shell: OrchestrationV2ThreadShell) =>
       threadPullRequestsOf(shell).find(
