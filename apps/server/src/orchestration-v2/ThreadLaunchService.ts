@@ -560,6 +560,7 @@ const make = Effect.gen(function* () {
     let runReleased = false;
 
     let branchRename: Fiber.Fiber<unknown> | null = null;
+    let stopBranchName: Effect.Effect<void> = Effect.void;
     if (input.workspaceStrategy.type === "worktree") {
       yield* setupTracker.begin({
         threadId,
@@ -666,6 +667,19 @@ const make = Effect.gen(function* () {
         input.workspaceStrategy.type === "existing_worktree"
           ? input.workspaceStrategy.worktreePath
           : null;
+      // The agent waits for this LLM call; start it now so it overlaps fetch, checkout and setup.
+      const branchName =
+        reused === undefined &&
+        initialMessage !== undefined &&
+        (input.workspaceStrategy.type === "worktree" || worktreePath !== null) &&
+        branch !== null &&
+        (generatedTemporaryBranch || isTemporaryWorktreeBranch(branch))
+          ? yield* generateBranchNameFor(
+              worktreePath ?? project.workspaceRoot,
+              initialMessage,
+            ).pipe(Effect.forkIn(preparationScope))
+          : null;
+      if (branchName !== null) stopBranchName = Fiber.interrupt(branchName);
       if (input.workspaceStrategy.type === "worktree") {
         if (runId !== null) {
           yield* threads
@@ -872,7 +886,11 @@ const make = Effect.gen(function* () {
       ) {
         const oldBranch = branch;
         const worktreeCwd = worktreePath;
-        branchRename = yield* generateBranchNameFor(worktreeCwd, initialMessage).pipe(
+        const generatedName =
+          branchName === null
+            ? generateBranchNameFor(worktreeCwd, initialMessage)
+            : Fiber.join(branchName);
+        branchRename = yield* generatedName.pipe(
           Effect.flatMap(({ branch: newBranch, exactName }) =>
             git
               .renameBranch({
@@ -959,6 +977,8 @@ const make = Effect.gen(function* () {
           ),
           Effect.forkIn(preparationScope),
         );
+      } else {
+        yield* stopBranchName;
       }
 
       if (runId !== null && worktreePath !== null) {
@@ -1077,6 +1097,8 @@ const make = Effect.gen(function* () {
       Effect.onError((cause) =>
         Effect.gen(function* () {
           const cancelled = Cause.hasInterruptsOnly(cause);
+          // Not yet handed to a rename, so nothing will use the name.
+          if (branchRename === null) yield* stopBranchName;
           yield* setupTracker.finish(
             threadId,
             cancelled ? "cancelled" : "failed",
@@ -1092,6 +1114,7 @@ const make = Effect.gen(function* () {
             ((cancelled && !runReleased) || !workspaceRecorded)
           ) {
             if (branchRename !== null) yield* Fiber.interrupt(branchRename);
+            yield* stopBranchName;
             const removedPath = createdWorktreePath;
             const removedBranch = createdBranch;
             // The thread forgets the worktree only once it is gone; a failed
