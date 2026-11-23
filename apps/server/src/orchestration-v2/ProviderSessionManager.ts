@@ -2423,6 +2423,74 @@ export const layerWithOptions = (
           );
         });
         const mcpApps = runtime.mcpApps;
+        // A start, continuation or compaction keeps the session busy until its turn.terminal.
+        const busyTurn = <E>(
+          input: Parameters<typeof runtime.resumeThread>[0] &
+            Pick<
+              ProviderAdapter.ProviderAdapterV2TurnInput,
+              "threadId" | "providerThread" | "runOrdinal" | "runId"
+            >,
+          run: () => Effect.Effect<void, E>,
+        ) => {
+          const target = { providerSessionId, threadId: input.threadId };
+          const turnKey = busyTurnKey(input.providerThread.id, input.runOrdinal);
+          return observeActivity(
+            providerSessionId,
+            ensureThreadAttached({ ...target, providerInstanceId: runtime.instanceId }),
+          ).pipe(
+            Effect.andThen(
+              Effect.acquireUseRelease(
+                threadAttachment.withLock(
+                  threadAttachmentKey(target),
+                  Effect.gen(function* () {
+                    yield* currentEntry(input.threadId);
+                    const marked = yield* markBusy(providerSessionId, turnKey, runtime).pipe(
+                      Effect.catchCause((cause) =>
+                        Effect.logWarning("orchestration-v2.driver-session.activity-failed", {
+                          providerSessionId,
+                          cause,
+                        }).pipe(Effect.as(true)),
+                      ),
+                    );
+                    // A release between attach and markBusy leaves nothing to mark: fail the
+                    // start instead of running it on a runtime being torn down.
+                    if (!marked) {
+                      return yield* new ProviderAdapter.ProviderAdapterTurnStartError({
+                        driver: runtime.driver,
+                        threadId: input.threadId,
+                        providerThreadId: input.providerThread.id,
+                        runId: input.runId,
+                        cause: "The provider session was released while the turn started.",
+                      });
+                    }
+                    yield* holdThreadLoaded({ ...target, providerThread: input.providerThread });
+                  }),
+                ),
+                () =>
+                  threadAttachment
+                    .withLock(threadAttachmentKey(target), resumeProviderThread(input))
+                    .pipe(Effect.andThen(Effect.suspend(run))),
+                (_, exit) =>
+                  Exit.isFailure(exit)
+                    ? observeActivity(
+                        providerSessionId,
+                        markIdle(providerSessionId, input.providerThread.id, turnKey),
+                      ).pipe(
+                        // A failed start can leave its native thread gone (Claude rejecting a
+                        // resume), so the next start must ask the adapter to resume it again.
+                        Effect.andThen(
+                          forgetProviderThreadLoaded({
+                            providerSessionId,
+                            threadId: input.threadId,
+                            runtime,
+                          }),
+                        ),
+                      )
+                    : Effect.void,
+              ),
+            ),
+          );
+        };
         return {
           ...runtime,
           ...(mcpApps === undefined
@@ -2523,66 +2591,19 @@ export const layerWithOptions = (
                 }),
               ),
             ),
-          startTurn: (input) => {
-            const target = { providerSessionId, threadId: input.threadId };
-            const turnKey = busyTurnKey(input.providerThread.id, input.runOrdinal);
-            return observeActivity(
-              providerSessionId,
-              ensureThreadAttached({ ...target, providerInstanceId: runtime.instanceId }),
-            ).pipe(
-              Effect.andThen(
-                Effect.acquireUseRelease(
-                  threadAttachment.withLock(
-                    threadAttachmentKey(target),
-                    Effect.gen(function* () {
-                      yield* currentEntry(input.threadId);
-                      const marked = yield* markBusy(providerSessionId, turnKey, runtime).pipe(
-                        Effect.catchCause((cause) =>
-                          Effect.logWarning("orchestration-v2.driver-session.activity-failed", {
-                            providerSessionId,
-                            cause,
-                          }).pipe(Effect.as(true)),
-                        ),
-                      );
-                      // A release between attach and markBusy leaves nothing to mark: fail the
-                      // start instead of running it on a runtime being torn down.
-                      if (!marked) {
-                        return yield* new ProviderAdapter.ProviderAdapterTurnStartError({
-                          driver: runtime.driver,
-                          threadId: input.threadId,
-                          providerThreadId: input.providerThread.id,
-                          runId: input.runId,
-                          cause: "The provider session was released while the turn started.",
-                        });
-                      }
-                      yield* holdThreadLoaded({ ...target, providerThread: input.providerThread });
-                    }),
-                  ),
-                  () =>
-                    threadAttachment
-                      .withLock(threadAttachmentKey(target), resumeProviderThread(input))
-                      .pipe(Effect.andThen(runtime.startTurn(input))),
-                  (_, exit) =>
-                    Exit.isFailure(exit)
-                      ? observeActivity(
-                          providerSessionId,
-                          markIdle(providerSessionId, input.providerThread.id, turnKey),
-                        ).pipe(
-                          // A failed start can leave its native thread gone (Claude rejecting a
-                          // resume), so the next start must ask the adapter to resume it again.
-                          Effect.andThen(
-                            forgetProviderThreadLoaded({
-                              providerSessionId,
-                              threadId: input.threadId,
-                              runtime,
-                            }),
-                          ),
-                        )
-                      : Effect.void,
-                ),
-              ),
-            );
-          },
+          startTurn: (input) => busyTurn(input, () => runtime.startTurn(input)),
+          ...(runtime.resumeTurn === undefined
+            ? {}
+            : {
+                resumeTurn: (input: ProviderAdapter.ProviderAdapterV2ResumeTurnInput) =>
+                  busyTurn(input, () => runtime.resumeTurn!(input)),
+              }),
+          ...(runtime.compactThread === undefined
+            ? {}
+            : {
+                compactThread: (input: ProviderAdapter.ProviderAdapterV2TurnInput) =>
+                  busyTurn(input, () => runtime.compactThread!(input)),
+              }),
           steerTurn: (input) =>
             observeActivity(providerSessionId, touchActivity(providerSessionId)).pipe(
               Effect.andThen(runtime.steerTurn(input)),
