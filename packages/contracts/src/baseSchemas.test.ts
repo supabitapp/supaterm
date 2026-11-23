@@ -5,6 +5,7 @@ import * as Schema from "effect/Schema";
 
 import {
   ForwardCompatibleArray,
+  ForwardCompatibleOptional,
   ForwardCompatibleUnion,
   ForwardCompatibleUnionArray,
   isUnknownUnionMember,
@@ -57,6 +58,15 @@ describe("ForwardCompatibleArray", () => {
       { name: "a" },
       { name: "b" },
     ]);
+  });
+});
+
+describe("ForwardCompatibleOptional", () => {
+  const Settings = Schema.Struct({ mode: ForwardCompatibleOptional(Schema.Literals(["a", "b"])) });
+  const encodeSettings = Schema.encodeUnknownSync(Schema.toCodecJson(Settings));
+
+  it("encodes back to JSON after dropping a value it cannot read", () => {
+    expect(encodeSettings(fromWire(Settings)({ mode: "future" }))).toEqual({});
   });
 });
 
