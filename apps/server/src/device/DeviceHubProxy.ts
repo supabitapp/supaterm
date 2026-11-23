@@ -109,6 +109,7 @@ const proxyWebSocket = Effect.fn("DeviceHubProxy.proxyWebSocket")(function* (
   request: HttpServerRequest.HttpServerRequest,
   upstreamUrl: string,
   protocols: ReadonlyArray<string> = [],
+  headers: Readonly<Record<string, string>> = {},
 ) {
   const incoming = NodeHttpServerRequest.toIncomingMessage(request);
   // Video doesn't compress, and deflate queues frames where `writableLength` can't see them.
@@ -128,6 +129,7 @@ const proxyWebSocket = Effect.fn("DeviceHubProxy.proxyWebSocket")(function* (
   const upstream = yield* Socket.makeWebSocket(upstreamUrl, {
     openTimeout: "10 seconds",
     ...(protocols.length > 0 ? { protocols: [...protocols] } : {}),
+    ...(Object.keys(headers).length > 0 ? { headers: { ...headers } } : {}),
   }).pipe(Effect.provide(upstreamWebSocketConstructor));
   yield* Effect.scoped(
     Effect.gen(function* () {
@@ -290,13 +292,21 @@ const handler = Effect.gen(function* () {
     return HttpServerResponse.text("Not Found", { status: 404 });
   }
   const upstreamUrl = routed?.url ?? `${ready.hub.origin}${hubPath}${search}`;
+  const upstreamHeaders =
+    routed?.headers ??
+    (ready.hub.token === undefined ? undefined : { authorization: `Bearer ${ready.hub.token}` });
   if (upgrade) {
     return yield* Effect.raceFirst(
-      proxyWebSocket(request, upstreamUrl.replace(/^http/, "ws"), routed?.protocols),
+      proxyWebSocket(
+        request,
+        upstreamUrl.replace(/^http/, "ws"),
+        routed?.protocols,
+        upstreamHeaders,
+      ),
       invalidated.pipe(Effect.as(HttpServerResponse.empty())),
     );
   }
-  return yield* proxyHttp(request, upstreamUrl, invalidated, routed?.headers);
+  return yield* proxyHttp(request, upstreamUrl, invalidated, upstreamHeaders);
 });
 
 export const layer = HttpRouter.add("*", `${DeviceService.DEVICE_HUB_ROUTE_PREFIX}/*`, handler);

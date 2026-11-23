@@ -10,7 +10,6 @@ import {
   ProviderInstanceId,
   ThreadId,
 } from "@supaterm/contracts";
-import { formatHostForUrl, isWildcardHost } from "@supaterm/shared/hostClassification";
 import { resolveProjectSettings } from "@supaterm/shared/projectSettings";
 import * as Cause from "effect/Cause";
 import * as Console from "effect/Console";
@@ -47,7 +46,11 @@ import * as ServerSettings from "./serverSettings.ts";
 import { forkParked, forkParkedFiber } from "./serverActivation.ts";
 import * as ServerEnvironment from "./environment/ServerEnvironment.ts";
 import * as EnvironmentAuth from "./auth/EnvironmentAuth.ts";
-import { formatHeadlessServeOutput, issueHeadlessServeAccessInfo } from "./startupAccess.ts";
+import {
+  formatHeadlessServeOutput,
+  issueHeadlessServeAccessInfo,
+  resolveLocalOrigin,
+} from "./startupAccess.ts";
 
 export class ServerRuntimeStartupError extends Schema.TaggedError<ServerRuntimeStartupError>()(
   "ServerRuntimeStartupError",
@@ -310,12 +313,8 @@ const resolveAutoBootstrapWelcomeTargets = Effect.gen(function* () {
 const resolveStartupBrowserTarget = Effect.gen(function* () {
   const serverConfig = yield* ServerConfig.ServerConfig;
   const serverAuth = yield* EnvironmentAuth.EnvironmentAuth;
-  const localUrl = `http://localhost:${serverConfig.port}`;
-  const bindUrl =
-    serverConfig.host && !isWildcardHost(serverConfig.host)
-      ? `http://${formatHostForUrl(serverConfig.host)}:${serverConfig.port}`
-      : localUrl;
-  const baseTarget = serverConfig.devUrl?.toString() ?? bindUrl;
+  const baseTarget =
+    serverConfig.devUrl?.toString() ?? resolveLocalOrigin(serverConfig.host, serverConfig.port);
   if (serverConfig.mode === "desktop") return baseTarget;
   const endpoints = yield* DirectEndpoints.DirectEndpoints;
   return yield* serverAuth.issueStartupPairingUrl(

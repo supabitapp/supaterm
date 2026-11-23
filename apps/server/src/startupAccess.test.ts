@@ -1,7 +1,11 @@
 import { expect, it } from "@effect/vitest";
 import * as NetAddress from "effect/net/NetAddress";
 
-import { loopbackUrlHostForAddress, resolveHeadlessConnectionString } from "./startupAccess.ts";
+import {
+  loopbackUrlHostForAddress,
+  resolveHeadlessConnectionString,
+  resolveLocalOrigin,
+} from "./startupAccess.ts";
 
 it("resolves wildcard hosts to a concrete external interface when one is available", () => {
   const connectionString = resolveHeadlessConnectionString("0.0.0.0", 3773, {
@@ -28,6 +32,15 @@ it("resolves wildcard hosts to a concrete external interface when one is availab
   });
 
   expect(connectionString).toBe("http://192.168.1.42:3773");
+});
+
+it("names the bound loopback address instead of localhost", () => {
+  expect(resolveHeadlessConnectionString(undefined, 3773, {})).toBe("http://127.0.0.1:3773");
+  expect(resolveHeadlessConnectionString("::", 3773, {})).toBe("http://[::1]:3773");
+  expect(resolveLocalOrigin(undefined, 3773)).toBe("http://127.0.0.1:3773");
+  expect(resolveLocalOrigin("0.0.0.0", 3773)).toBe("http://127.0.0.1:3773");
+  expect(resolveLocalOrigin("[::]", 3773)).toBe("http://[::1]:3773");
+  expect(resolveLocalOrigin("192.168.1.42", 3773)).toBe("http://192.168.1.42:3773");
 });
 
 it("targets the bound interface when the listener binds a specific address", () => {

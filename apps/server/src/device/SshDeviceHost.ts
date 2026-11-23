@@ -77,6 +77,7 @@ const Probe = Schema.Struct({
 const Started = Schema.Struct({
   ...Probe.fields,
   hubPort: Schema.Int,
+  hubToken: Schema.String,
   daemonPort: Schema.optionalKey(Schema.Int),
   token: Schema.optionalKey(Schema.String),
   entryPath: Schema.optionalKey(Schema.String),
@@ -440,10 +441,12 @@ export const make = Effect.fn("SshDeviceHost.make")(function* (
     const hubOrigin = `http://127.0.0.1:${hubPort}`;
     const next = {
       nodePath: remote.nodePath,
-      hub: { origin: hubOrigin },
+      // The forward and the remote hub both require the hub's token.
+      hub: { origin: hubOrigin, token: remote.hubToken },
       devices: makeDeviceHubOperations({
         hostId: config.id,
         origin: hubOrigin,
+        token: remote.hubToken,
         http,
         run,
         // Keep probing negative reports so an SDK installed after connecting is still found.
