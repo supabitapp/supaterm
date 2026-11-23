@@ -43,6 +43,10 @@ import * as Scheduler from "../scheduling/Scheduler.ts";
 import { latestRootProviderFailure } from "@supaterm/shared/orchestrationV2ThreadError";
 import { isMissedFixedTimeRun, isSameSchedule, nextScheduledRunAt } from "./Schedule.ts";
 
+/** The task a create carrying this idempotency key writes, and rewrites when the key is replayed. */
+export const scheduledTaskIdForCommand = (commandId: CommandId) =>
+  ScheduledTaskId.make(`scheduled-task:${commandId}`);
+
 const decodeTask = Schema.decodeUnknownEffect(ScheduledTask);
 const isScheduledTaskError = Schema.is(ScheduledTaskError);
 const isOrchestratorDispatchError = Schema.is(OrchestratorDispatchError);
@@ -1100,9 +1104,9 @@ export const layer = Layer.effect(
           : null;
       const id =
         input.id ??
-        ScheduledTaskId.make(
-          input.commandId ? `scheduled-task:${input.commandId}` : `scheduled-task:${uuid}`,
-        );
+        (input.commandId
+          ? scheduledTaskIdForCommand(input.commandId)
+          : ScheduledTaskId.make(`scheduled-task:${uuid}`));
       // Look up by the *resolved* id so idempotent creates (commandId replays)
       // keep their run history, and so real load failures propagate instead
       // of silently resetting an existing row.
