@@ -1,3 +1,4 @@
+import { contextMenuSourceOf } from "../contextMenuSource";
 import { pipe } from "effect/Function";
 import { scopeProjectRef } from "@supaterm/client-runtime/environment";
 
@@ -278,6 +279,7 @@ function showPullRequestContextMenuAt(
     url,
     host: sourceControlClients.findByChangeRequestUrl(url) ?? UNKNOWN_SOURCE_CONTROL_CLIENT,
     position: { x: event.clientX, y: event.clientY },
+    source: contextMenuSourceOf(event),
   });
 }
 

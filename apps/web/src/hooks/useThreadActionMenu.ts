@@ -16,6 +16,7 @@ import {
   AuthOrchestrationOperateScope,
   type ScopedThreadRef,
   type ThreadId,
+  type ContextMenuSource,
 } from "@supaterm/contracts";
 import { useRouter } from "@tanstack/react-router";
 
@@ -340,7 +341,7 @@ export function useThreadActionMenu(input: {
     };
   };
 
-  const openMenu = (position: { x: number; y: number }) => {
+  const openMenu = (position: { x: number; y: number }, source?: ContextMenuSource) => {
     if (threadRef === null) return;
     void (async () => {
       const api = readLocalApi();
@@ -351,7 +352,9 @@ export function useThreadActionMenu(input: {
         return;
       }
       const actions = threadActions(thread);
-      const clicked = await settlePromise(() => api.contextMenu.show(actions.items, position));
+      const clicked = await settlePromise(() =>
+        api.contextMenu.show(actions.items, position, source),
+      );
       if (clicked._tag === "Failure" || clicked.value === null) return;
       await actions.run(clicked.value);
     })();

@@ -1,3 +1,4 @@
+import { contextMenuSourceOf } from "../contextMenuSource";
 import { formatFilePathForClipboard } from "@supaterm/client-runtime/media-actions";
 import { ThreadDetailsComboboxControl, ThreadDetailsControl } from "./chat/ThreadDetailsControl";
 import { ComposerContextLabel } from "./ComposerContextLabel";
@@ -98,10 +99,11 @@ export const BranchToolbarEnvModeSelector = memo(function BranchToolbarEnvModeSe
     event.preventDefault();
     event.stopPropagation();
     void api.contextMenu
-      .show([{ id: "copy-path", label: "Copy full path", icon: "copy" }], {
-        x: event.clientX,
-        y: event.clientY,
-      })
+      .show(
+        [{ id: "copy-path", label: "Copy full path", icon: "copy" }],
+        { x: event.clientX, y: event.clientY },
+        contextMenuSourceOf(event),
+      )
       .then((action) => {
         if (action !== "copy-path") return;
         void writeTextToClipboard(formatFilePathForClipboard(workspacePath), "workspace path").then(

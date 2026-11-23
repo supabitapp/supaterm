@@ -1,3 +1,5 @@
+import type { ContextMenuSource } from "@supaterm/contracts";
+import { contextMenuSourceOf } from "../../contextMenuSource";
 import { settingsScopeEnvironmentLabels } from "./settingsScopeAxis";
 import { Spinner } from "~/components/ui/spinner";
 import { ArchiveIcon, ArchiveXIcon, SearchIcon, TrashIcon, XIcon } from "@supaterm/icons";
@@ -235,7 +237,11 @@ export function ArchivedThreadsPanel() {
     }
   };
 
-  const openRowMenu = async (row: ArchivedThreadRow, position: { x: number; y: number }) => {
+  const openRowMenu = async (
+    row: ArchivedThreadRow,
+    position: { x: number; y: number },
+    source: ContextMenuSource,
+  ) => {
     const api = readLocalApi();
     if (!api) return;
     const targets = selection.keys.has(row.key) && selectedRows.length > 1 ? selectedRows : [row];
@@ -252,6 +258,7 @@ export function ArchivedThreadsPanel() {
           },
         ],
         position,
+        source,
       ),
     );
     if (clicked._tag === "Failure") {
@@ -284,7 +291,7 @@ export function ArchivedThreadsPanel() {
         }}
         onContextMenu={(event) => {
           event.preventDefault();
-          void openRowMenu(row, { x: event.clientX, y: event.clientY });
+          void openRowMenu(row, { x: event.clientX, y: event.clientY }, contextMenuSourceOf(event));
         }}
       >
         <TableCell>

@@ -1,4 +1,4 @@
-import type { ContextMenuItem } from "@supaterm/contracts";
+import type { ContextMenuItem, ContextMenuSource } from "@supaterm/contracts";
 import {
   type SourceControlDefinition,
   UNKNOWN_SOURCE_CONTROL_CLIENT,
@@ -43,12 +43,14 @@ export async function showPullRequestLinkContextMenu({
   url,
   host,
   position,
+  source,
   number,
   onShowLinked,
 }: {
   readonly url: string;
   readonly host: SourceControlDefinition;
   readonly position: { readonly x: number; readonly y: number };
+  readonly source: ContextMenuSource;
   /** Names the pull request in the labels, for triggers that do not show which one they mean. */
   readonly number?: number | undefined;
   readonly onShowLinked?: (() => void) | undefined;
@@ -62,7 +64,7 @@ export async function showPullRequestLinkContextMenu({
   });
   let action: PullRequestLinkContextMenuAction | null = null;
   try {
-    action = await api.contextMenu.show(items, position);
+    action = await api.contextMenu.show(items, position, source);
   } catch {
     return;
   }

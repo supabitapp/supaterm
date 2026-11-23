@@ -1,10 +1,11 @@
+import { contextMenuSourceOf } from "../../contextMenuSource";
 import { ChevronsDownUpIcon, ChevronsUpDownIcon } from "@supaterm/icons";
 import { RefreshIcon } from "~/components/ui/refresh-icon";
 import type {
   ContextMenuItem as TreeContextMenuItem,
   ContextMenuOpenContext as TreeContextMenuOpenContext,
 } from "@pierre/trees";
-import type { EnvironmentId, ProjectEntry } from "@supaterm/contracts";
+import type { ContextMenuSource, EnvironmentId, ProjectEntry } from "@supaterm/contracts";
 import { FileTree, useFileTree, useFileTreeSearch, useFileTreeSelector } from "@pierre/trees/react";
 import { settlePromise } from "@supaterm/client-runtime/state/runtime";
 import { serializeComposerFileLink } from "@supaterm/shared/composerTrigger";
@@ -202,7 +203,12 @@ export default function FileBrowserPanel({
   const followedRevealRef = useRef<string | null>(null);
 
   // Shadow-DOM row rects are unreliable; capture the composed contextmenu event's viewport position.
-  const contextMenuPointerRef = useRef<{ x: number; y: number; at: number } | null>(null);
+  const contextMenuPointerRef = useRef<{
+    x: number;
+    y: number;
+    at: number;
+    source: ContextMenuSource;
+  } | null>(null);
 
   const showEntryContextMenu = useStableCallback(
     (item: TreeContextMenuItem, context: TreeContextMenuOpenContext) => {
@@ -231,6 +237,7 @@ export default function FileBrowserPanel({
             { id: "add-to-chat", label: "Add to chat" },
           ],
           position,
+          pointerIsFresh ? pointer.source : undefined,
         );
         if (clicked === null) return;
         // Open-with submenu ids are absent from the top-level item list.
@@ -552,7 +559,12 @@ export default function FileBrowserPanel({
       data-file-browser-panel={`${environmentId}:${cwd}`}
       // Capture runs before the tree's shadow-internal row handler opens the menu.
       onContextMenuCapture={(event) => {
-        contextMenuPointerRef.current = { x: event.clientX, y: event.clientY, at: event.timeStamp };
+        contextMenuPointerRef.current = {
+          x: event.clientX,
+          y: event.clientY,
+          at: event.timeStamp,
+          source: contextMenuSourceOf(event),
+        };
       }}
       // Capture dragstart before the tree selects the row so selection sees the drag flag.
       onDragStartCapture={(event) => dragMention.handleDragStart(event.nativeEvent)}

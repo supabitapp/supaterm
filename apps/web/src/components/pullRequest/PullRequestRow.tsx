@@ -1,4 +1,5 @@
 import type { PullRequestAction } from "@supaterm/contracts";
+import { contextMenuSourceOf } from "../../contextMenuSource";
 import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
 import { SearchIcon } from "@supaterm/icons";
 import { PullRequestChangeBreakdownStat } from "./PullRequestChangeBreakdownStat";
@@ -151,6 +152,7 @@ function PullRequestRowImpl({
                   url: entry.url,
                   host: sourceControlClients.get(entry.provider),
                   position: { x: event.clientX, y: event.clientY },
+                  source: contextMenuSourceOf(event),
                 });
               }}
             >

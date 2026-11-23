@@ -1,3 +1,4 @@
+import { contextMenuSourceOf } from "../contextMenuSource";
 import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
 import type { EnvironmentThreadShell } from "@supaterm/client-runtime/state/shell";
 import { useProjects, useServerConfigs, useThreadShells } from "~/state/entities";
@@ -1186,7 +1187,11 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
       },
     );
 
-    const action = await api.contextMenu.show(items, { x: event.clientX, y: event.clientY });
+    const action = await api.contextMenu.show(
+      items,
+      { x: event.clientX, y: event.clientY },
+      contextMenuSourceOf(event),
+    );
     switch (action) {
       case "rename":
         setRenamingDevice(surface.id);
