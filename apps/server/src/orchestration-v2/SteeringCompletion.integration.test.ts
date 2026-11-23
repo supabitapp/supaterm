@@ -3519,12 +3519,12 @@ it.effect(
         });
         const draining = yield* worker.drain().pipe(Effect.forkScoped);
         yield* Deferred.await(interruptReached);
-        const waiting = yield* orchestrator.streamDomainEvents.pipe(
+        const completed = yield* orchestrator.streamDomainEvents.pipe(
           Stream.filter(
             (event) =>
               event.type === "run.updated" &&
               event.payload.id === first.runId &&
-              event.payload.status === "waiting",
+              event.payload.status === "completed",
           ),
           Stream.take(1),
           Stream.runDrain,
@@ -3546,7 +3546,7 @@ it.effect(
           failure: null,
           threadDisposition: "reusable",
         });
-        yield* Fiber.join(waiting);
+        yield* Fiber.join(completed);
         yield* Deferred.succeed(releaseInterrupt, undefined);
         yield* Fiber.join(draining);
         yield* worker.drain();
