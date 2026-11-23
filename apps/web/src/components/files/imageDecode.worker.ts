@@ -32,7 +32,8 @@ function validateTiffMetadata(bytes: ArrayBuffer) {
       if (start + length > bytes.byteLength || allocation > 8 * 1024 * 1024)
         throw new Error("This TIFF has too much or truncated metadata.");
       if (tag === 0x8769 || tag === 0x8825) {
-        if (type !== 4 || values !== 1) throw new Error("Invalid TIFF metadata pointer.");
+        if ((type !== 4 && type !== 13) || values !== 1)
+          throw new Error("Invalid TIFF metadata pointer.");
         inspect(view.getUint32(entry + 8, littleEndian), depth + 1);
       }
     }
