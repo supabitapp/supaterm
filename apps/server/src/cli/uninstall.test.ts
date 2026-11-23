@@ -90,25 +90,40 @@ it.live("reports failure when the Windows cleanup shell cannot start", () =>
 it.layer(Layer.mergeAll(NodeServices.layer, NetService.layer))(
   "supaterm uninstall command",
   (it) => {
-    it.effect("names another home's service it leaves installed", () =>
+    it.effect.each([
+      {
+        label: "names another home's service it leaves installed",
+        otherFromRead: 1,
+        removed: [],
+        output: "--base-dir '/home/me/.supaterm'",
+      },
+      {
+        label: "leaves a service that serves another home by the time it is removed",
+        otherFromRead: 2,
+        removed: [],
+        output: "Left the background service: it now serves another Supaterm home.",
+      },
+    ])("$label", (input) =>
       Effect.gen(function* () {
         const fs = yield* FileSystem.FileSystem;
         const baseDir = yield* fs.makeTempDirectoryScoped({
           prefix: "supaterm-uninstall-cli-test-",
         });
         const uninstalls: Array<true> = [];
+        let reads = 0;
         vi.spyOn(BootService, "layer").mockReturnValue(
           Layer.succeed(
             BootService.BootService,
             BootService.BootService.of({
-              status: Effect.succeed({
+              status: Effect.sync(() => ({
                 supported: true,
                 installed: true,
                 current: true,
                 installedBaseDir: "/home/me/.supaterm",
+                ...(++reads >= input.otherFromRead ? { otherBaseDir: "/home/me/.supaterm" } : {}),
                 unitPath: "/home/me/.config/systemd/user/supaterm.service",
                 logPath: "/home/me/.supaterm/userdata/logs/boot-service.log",
-              }),
+              })),
               withStopped: (operation) => operation,
               restart: Effect.die("unexpected restart"),
               install: () => Effect.die("unexpected install"),
@@ -136,8 +151,8 @@ it.layer(Layer.mergeAll(NodeServices.layer, NetService.layer))(
             ),
           ),
         );
-        assert.deepStrictEqual(uninstalls, []);
-        assert.include(output, "--base-dir '/home/me/.supaterm'");
+        assert.deepStrictEqual(uninstalls, input.removed);
+        assert.include(output, input.output);
       }),
     );
   },
