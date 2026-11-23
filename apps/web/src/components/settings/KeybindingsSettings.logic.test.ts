@@ -3,6 +3,7 @@ import type { ResolvedKeybindingsConfig } from "@supaterm/contracts";
 import {
   compileResolvedKeybindingsConfig,
   DEFAULT_RESOLVED_KEYBINDINGS,
+  mergeWithDefaultKeybindings,
   parseKeybindingShortcut,
 } from "@supaterm/shared/keybindings";
 
@@ -66,6 +67,35 @@ describe("KeybindingsSettings.logic", () => {
     expect(after.find((row) => row.command === "chat.new")?.id).not.toBe(
       before.find((row) => row.command === "chat.new")?.id,
     );
+  });
+
+  it("resets an edited shortcut to the built-in one its command no longer has", () => {
+    const rows = buildKeybindingRows(
+      mergeWithDefaultKeybindings(
+        compileResolvedKeybindingsConfig([
+          { command: "workspace.focusNext", key: "f6" },
+          { command: "workspace.focusNext", key: "f8" },
+        ]),
+      ),
+    );
+    expect(
+      rows
+        .filter((row) => row.command === "workspace.focusNext")
+        .map(({ key, defaultKey }) => ({ key, defaultKey })),
+    ).toEqual([
+      { key: "f6", defaultKey: "f6" },
+      { key: "f8", defaultKey: "mod+f6" },
+    ]);
+    const unassigned = buildKeybindingRows(
+      mergeWithDefaultKeybindings(
+        compileResolvedKeybindingsConfig([
+          { command: "workspace.focusNext", key: "f6" },
+          { command: "workspace.focusNext", key: "mod+f6", when: "false" },
+          { command: "workspace.focusNext", key: "f8" },
+        ]),
+      ),
+    );
+    expect(unassigned.find((row) => row.key === "f8")?.defaultKey).toBe("f6");
   });
 
   it("shares a stable editor for resolved duplicates but separates commands, shortcuts, and conditions", () => {
