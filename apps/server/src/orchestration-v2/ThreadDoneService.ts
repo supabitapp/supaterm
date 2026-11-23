@@ -453,6 +453,7 @@ export const make = Effect.gen(function* () {
         ),
     );
 
+    const deferred = new Set<ThreadId>();
     const lookupCandidates = (yield* Effect.forEach(
       candidates,
       (thread) => {
@@ -467,7 +468,17 @@ export const make = Effect.gen(function* () {
           autoMarkDoneOnMerge: projectSettings.sidebarAutoMarkDoneOnMerge,
           autoMarkDoneKeepPullRequests: projectSettings.sidebarAutoMarkDoneKeepPullRequests,
         });
-        return doneAt === null ? Effect.succeed(thread) : markThreadDone(thread, null);
+        if (doneAt === null) return Effect.succeed(thread);
+        if (
+          projectSettings.sidebarAutoMarkDoneKeepPullRequests &&
+          thread.branch !== null &&
+          visibleThreadPullRequests(thread.pullRequests ?? []).length === 0
+        ) {
+          // Retention needs the branch lookup to see whether an open PR keeps this thread.
+          deferred.add(thread.id);
+          return Effect.succeed(thread);
+        }
+        return markThreadDone(thread, null);
       },
       { concurrency: 8 },
     ))
@@ -653,7 +664,10 @@ export const make = Effect.gen(function* () {
       }
       const refresh = group.filter((member) => shellClosedThreads.delete(member.id)).length > 0;
       const key = lookupKey(thread);
-      if (scheduledLookups !== null && !refresh && !scheduledLookups.has(key)) return undefined;
+      const hasDeferred = group.some((member) => deferred.has(member.id));
+      if (scheduledLookups !== null && !refresh && !hasDeferred && !scheduledLookups.has(key)) {
+        return undefined;
+      }
       // Remembered git state is enough to rule a thread out; only an answer
       // that would mark it done is confirmed against fresh git state.
       const remembered = yield* git.branchPullRequest(
@@ -661,9 +675,16 @@ export const make = Effect.gen(function* () {
         { refresh, confirmTerminal: false },
       );
       noPullRequestRechecks.record(key, nowMs, remembered !== null);
-      if (ownedByAnotherThread(remembered)) return undefined;
-      if (refresh || remembered === null || remembered.state === "open") return remembered;
-      if (!(yield* wouldMarkDone(group, remembered))) return undefined;
+      if (refresh || remembered === null || remembered.state === "open") {
+        return ownedByAnotherThread(remembered) ? undefined : remembered;
+      }
+      // A deferred thread confirms first: a reused branch can have a new open PR.
+      if (
+        !hasDeferred &&
+        (ownedByAnotherThread(remembered) || !(yield* wouldMarkDone(group, remembered)))
+      ) {
+        return undefined;
+      }
       const fresh = yield* git.branchPullRequest(
         { cwd, branch: thread.branch },
         { freshGitState: true },
@@ -679,7 +700,10 @@ export const make = Effect.gen(function* () {
             nowMs,
             groups
               .entries()
-              .filter(([key]) => key.startsWith('["branch",'))
+              .filter(
+                ([key, group]) =>
+                  key.startsWith('["branch",') && !group.some((member) => deferred.has(member.id)),
+              )
               .map(([key, group]) => ({
                 key,
                 activityAtMs: Math.max(...group.map(threadActivityAtMs)),
@@ -687,15 +711,28 @@ export const make = Effect.gen(function* () {
               .toArray(),
           );
 
+    const settleDeferred = (group: ReadonlyArray<(typeof lookupCandidates)[number]>) =>
+      Effect.forEach(
+        group.filter((thread) => deferred.has(thread.id)),
+        (thread) => markThreadDone(thread, null),
+        { discard: true },
+      );
+
     yield* Effect.forEach(
       groups.values(),
       (group) =>
         Effect.gen(function* () {
           const pullRequest = yield* pullRequestFor(group);
-          if (pullRequest === undefined) return;
-          yield* Effect.forEach(group, (thread) => markThreadDone(thread, pullRequest), {
-            discard: true,
-          });
+          if (pullRequest === undefined) return yield* settleDeferred(group);
+          yield* Effect.forEach(
+            group,
+            (thread) =>
+              markThreadDone(
+                thread,
+                deferred.has(thread.id) && pullRequest?.state !== "open" ? null : pullRequest,
+              ),
+            { discard: true },
+          );
         }).pipe(
           Effect.catchCauseIf(
             (cause) => !Cause.hasInterruptsOnly(cause),
@@ -703,7 +740,7 @@ export const make = Effect.gen(function* () {
               Effect.logWarning("automatic thread completion skipped", {
                 threadIds: group.map((thread) => thread.id),
                 cause: Cause.pretty(cause),
-              }),
+              }).pipe(Effect.andThen(settleDeferred(group))),
           ),
         ),
       { concurrency: 8, discard: true },
