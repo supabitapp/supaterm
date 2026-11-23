@@ -275,6 +275,7 @@ export const resolveServerConfig = Effect.fn("config.resolveServerConfig")(funct
     readonly rejectRunningServer?: boolean;
     readonly selectAutomaticPort?: (
       preferred: number,
+      host: string | undefined,
     ) => Effect.Effect<number, NetService.NetError | CliError.UserError>;
   },
 ) {
@@ -313,22 +314,6 @@ export const resolveServerConfig = Effect.fn("config.resolveServerConfig")(funct
     () => "web",
   );
 
-  const port = yield* Option.match(
-    resolveOptionPrecedence(
-      normalizedFlags.port,
-      Option.fromUndefinedOr(env.port),
-      Option.fromUndefinedOr(bootstrap?.port),
-    ),
-    {
-      onSome: (value) => Effect.succeed(value),
-      onNone: () => {
-        if (mode === "desktop") {
-          return Effect.succeed(NetService.DEFAULT_SERVER_PORT);
-        }
-        return selectAutomaticPort(NetService.DEFAULT_SERVER_PORT);
-      },
-    },
-  );
   const devUrl = Option.getOrElse(
     resolveOptionPrecedence(normalizedFlags.devUrl, Option.fromUndefinedOr(env.devUrl)),
     () => undefined,
@@ -439,6 +424,22 @@ export const resolveServerConfig = Effect.fn("config.resolveServerConfig")(funct
       Option.fromUndefinedOr(bootstrap?.host),
     ),
     () => (mode === "desktop" ? "127.0.0.1" : undefined),
+  );
+  const port = yield* Option.match(
+    resolveOptionPrecedence(
+      normalizedFlags.port,
+      Option.fromUndefinedOr(env.port),
+      Option.fromUndefinedOr(bootstrap?.port),
+    ),
+    {
+      onSome: (value) => Effect.succeed(value),
+      onNone: () => {
+        if (mode === "desktop") {
+          return Effect.succeed(NetService.DEFAULT_SERVER_PORT);
+        }
+        return selectAutomaticPort(NetService.DEFAULT_SERVER_PORT, host);
+      },
+    },
   );
   const logLevel = Option.getOrElse(cliLogLevel, () => env.logLevel);
 
