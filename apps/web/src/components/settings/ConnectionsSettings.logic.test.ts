@@ -234,6 +234,7 @@ describe("resolveTailscaleHttpsRow", () => {
     expect(resolveTailscaleHttpsRow({ endpoint: null, serveEnabled: false })).toEqual({
       description: "Use Tailscale Serve to expose this backend through a MagicDNS HTTPS URL.",
       status: null,
+      setupUrl: null,
     });
   });
 
@@ -242,17 +243,32 @@ describe("resolveTailscaleHttpsRow", () => {
       description: "Use Tailscale Serve to expose this backend through a MagicDNS HTTPS URL.",
       status:
         "Tailscale HTTPS is unavailable. Check that Tailscale is running and its command works, then restart Supaterm.",
+      setupUrl: null,
     });
   });
 
   it("shows the command error and clears it when HTTPS is disabled", () => {
-    const error = "tailscale status exited with code 1.";
-    expect(resolveTailscaleHttpsRow({ endpoint: null, serveEnabled: true, error }).status).toBe(
-      error,
+    const issue = {
+      _tag: "CommandFailed",
+      message: "tailscale status exited with code 1.",
+    } as const;
+    expect(resolveTailscaleHttpsRow({ endpoint: null, serveEnabled: true, issue }).status).toBe(
+      issue.message,
     );
     expect(
-      resolveTailscaleHttpsRow({ endpoint: null, serveEnabled: false, error }).status,
+      resolveTailscaleHttpsRow({ endpoint: null, serveEnabled: false, issue }).status,
     ).toBeNull();
+  });
+
+  it("links to Tailscale's HTTPS setup when the tailnet has not granted Serve", () => {
+    const setupUrl = "https://login.tailscale.com/admin/dns";
+    const row = resolveTailscaleHttpsRow({
+      endpoint: { ...endpoint, status: "unavailable" },
+      serveEnabled: true,
+      issue: { _tag: "HttpsDisabled", setupUrl },
+    });
+    expect(row.setupUrl).toBe(setupUrl);
+    expect(row.status).toMatch(/isn't enabled on your tailnet/u);
   });
 
   it("shows the URL and flags it when this machine cannot reach it", () => {
@@ -265,6 +281,7 @@ describe("resolveTailscaleHttpsRow", () => {
       description: endpoint.httpBaseUrl,
       status:
         "Tailscale HTTPS is unavailable. Check that Tailscale is running and its command works, then restart Supaterm.",
+      setupUrl: null,
     });
   });
 });

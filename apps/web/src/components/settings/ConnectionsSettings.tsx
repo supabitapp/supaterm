@@ -1064,7 +1064,7 @@ function ConnectionsSettingsContent({
     const row = resolveTailscaleHttpsRow({
       endpoint: tailscaleHttpsEndpoint,
       serveEnabled,
-      error: desktopServerExposureState?.tailscaleError ?? null,
+      issue: desktopServerExposureState?.tailscaleIssue ?? null,
     });
     return (
       <SettingsRow
@@ -1072,18 +1072,29 @@ function ConnectionsSettingsContent({
         description={row.description}
         status={row.status ? <span className="block text-destructive">{row.status}</span> : null}
         control={
-          <Switch
-            checked={serveEnabled}
-            disabled={!desktopServerExposureState || isUpdatingTailscaleServe}
-            onCheckedChange={(checked) => {
-              if (checked) {
-                handleStartTailscaleServeSetup();
-                return;
-              }
-              handleStartTailscaleServeDisable();
-            }}
-            aria-label="Enable Tailscale HTTPS"
-          />
+          <div className="flex items-center gap-2">
+            {row.setupUrl ? (
+              <Button
+                size="sm"
+                variant="outline"
+                render={<a href={row.setupUrl} target="_blank" rel="noreferrer" />}
+              >
+                Enable in Tailscale
+              </Button>
+            ) : null}
+            <Switch
+              checked={serveEnabled}
+              disabled={!desktopServerExposureState || isUpdatingTailscaleServe}
+              onCheckedChange={(checked) => {
+                if (checked) {
+                  handleStartTailscaleServeSetup();
+                  return;
+                }
+                handleStartTailscaleServeDisable();
+              }}
+              aria-label="Enable Tailscale HTTPS"
+            />
+          </div>
         }
       />
     );

@@ -25,6 +25,7 @@ import {
   ensureTailscaleServe,
   readTailscaleServeRootHolder,
   readTailscaleStatus,
+  TAILSCALE_HTTPS_SETUP_URL,
 } from "@supaterm/tailscale";
 import * as Config from "effect/Config";
 import * as Console from "effect/Console";
@@ -118,7 +119,7 @@ export class TailscaleServeNotEnabledError extends Schema.TaggedError<TailscaleS
   {},
 ) {
   override get message(): string {
-    return "Tailscale Serve is not enabled on your tailnet. Enable HTTPS certificates at https://login.tailscale.com/admin/dns, then run this command again.";
+    return `Tailscale Serve is not enabled on your tailnet. Enable HTTPS certificates at ${TAILSCALE_HTTPS_SETUP_URL}, then run this command again.`;
   }
 }
 

@@ -11,6 +11,7 @@ import { HttpClient, HttpClientRequest, HttpClientResponse } from "effect/http";
 import { ChildProcess, ChildProcessSpawner } from "effect/process";
 
 export const DEFAULT_TAILSCALE_SERVE_PORT = 443;
+export const TAILSCALE_HTTPS_SETUP_URL = "https://login.tailscale.com/admin/dns";
 
 const TAILSCALE_STATUS_TIMEOUT = Duration.millis(3_500);
 /**
@@ -396,7 +397,7 @@ export class TailscaleServeHttpsDisabledError extends Schema.TaggedError<Tailsca
   {},
 ) {
   override get message(): string {
-    return "Tailscale Serve needs HTTPS enabled on the tailnet. Enable HTTPS certificates at https://login.tailscale.com/admin/dns.";
+    return `Tailscale Serve needs HTTPS enabled on the tailnet. Enable HTTPS certificates at ${TAILSCALE_HTTPS_SETUP_URL}.`;
   }
 }
 

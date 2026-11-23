@@ -2,6 +2,7 @@ import * as NodeFileSystem from "@effect/platform-node/NodeFileSystem";
 import * as NodeHttpClient from "@effect/platform-node/NodeHttpClient";
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import * as NodeServices from "@effect/platform-node/NodeServices";
+import { TAILSCALE_HTTPS_SETUP_URL } from "@supaterm/tailscale";
 import { assert, describe, it } from "@effect/vitest";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
@@ -158,15 +159,32 @@ describe("DesktopServerExposure", () => {
         const exposure = yield* DesktopServerExposure.DesktopServerExposure;
         yield* exposure.configureFromSettings({ port: 4173 });
         yield* exposure.setTailscaleServeEnabled({ enabled: true });
-        assert.equal(
-          (yield* exposure.getState).tailscaleError,
-          "tailscale status exited with code 1.",
-        );
+        assert.deepEqual((yield* exposure.getState).tailscaleIssue, {
+          _tag: "CommandFailed",
+          message: "tailscale status exited with code 1.",
+        });
         yield* exposure.setTailscaleServeEnabled({ enabled: false });
-        assert.isNull((yield* exposure.getState).tailscaleError);
+        assert.isNull((yield* exposure.getState).tailscaleIssue);
       }),
       {},
       layerMockSpawner("", undefined, 1),
+    ),
+  );
+
+  it.effect("asks for HTTPS setup when the tailnet has not granted Serve", () =>
+    withHarness(
+      lanNetworkInterfaces,
+      Effect.gen(function* () {
+        const exposure = yield* DesktopServerExposure.DesktopServerExposure;
+        yield* exposure.configureFromSettings({ port: 4173 });
+        yield* exposure.setTailscaleServeEnabled({ enabled: true });
+        assert.deepEqual((yield* exposure.getState).tailscaleIssue, {
+          _tag: "HttpsDisabled",
+          setupUrl: TAILSCALE_HTTPS_SETUP_URL,
+        });
+      }),
+      {},
+      layerMockSpawner(JSON.stringify({ BackendState: "Running", Self: { CapMap: {} } })),
     ),
   );
 

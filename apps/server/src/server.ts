@@ -888,7 +888,7 @@ const layerMakeServer = Layer.unwrap(
                       ? `Tailscale Serve left off; this Tailscale install can only proxy to localhost, not ${localHost}. Bind --host 127.0.0.1 or 0.0.0.0 instead`
                       : "Failed to configure Tailscale Serve",
                     { cause, localPort, servePort: config.tailscaleServePort },
-                  ).pipe(Effect.as(null)),
+                  ).pipe(Effect.as(route)),
                 ),
               );
             }).pipe(Effect.ensuring(Deferred.succeed(tailscaleSettled, undefined))),
@@ -942,8 +942,8 @@ const layerMakeServer = Layer.unwrap(
                   )
                 : Effect.void,
           ).pipe(
-            // Startup is not the only time the route can go stale, so whoever finds it on a dead
-            // port takes it back.
+            // The route can go stale after startup, and startup can fail until the tailnet
+            // enables HTTPS, so an empty or dead root is taken (back) on every pass.
             Effect.tap((configured) =>
               configured === null
                 ? Effect.void
@@ -955,7 +955,7 @@ const layerMakeServer = Layer.unwrap(
                       }),
                     ),
                     Effect.flatMap((holder) =>
-                      holder === "dead"
+                      holder === "dead" || holder === "none"
                         ? ensureTailscaleServe({
                             localPort: configured.localPort,
                             servePort: configured.servePort,

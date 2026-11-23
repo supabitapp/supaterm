@@ -9,8 +9,13 @@ import {
   type DesktopServerExposureMode,
   type DesktopServerExposureState,
   type DesktopServerExposureStatus,
+  type DesktopTailscaleIssue,
 } from "@supaterm/contracts";
-import { isTailscaleIpv4Address, readTailscaleStatus } from "@supaterm/tailscale";
+import {
+  isTailscaleIpv4Address,
+  readTailscaleStatus,
+  TAILSCALE_HTTPS_SETUP_URL,
+} from "@supaterm/tailscale";
 import * as Cache from "effect/Cache";
 import * as Context from "effect/Context";
 import * as Duration from "effect/Duration";
@@ -491,14 +496,24 @@ export const make = Effect.gen(function* () {
   const getState = Effect.gen(function* () {
     const interfaces = yield* readNetworkInterfaces;
     const state = yield* readCurrentState(interfaces);
-    const contractState = { ...toContractState(state), tailscaleError: null };
-    if (!state.tailscaleServeEnabled) return contractState;
-    return yield* Cache.get(tailscaleStatusCache, tailscaleIpv4AddressKey(interfaces)).pipe(
+    const contractState = toContractState(state);
+    if (!state.tailscaleServeEnabled) return { ...contractState, tailscaleIssue: null };
+    const tailscaleIssue = yield* Cache.get(
+      tailscaleStatusCache,
+      tailscaleIpv4AddressKey(interfaces),
+    ).pipe(
       Effect.match({
-        onSuccess: () => contractState,
-        onFailure: (error) => ({ ...contractState, tailscaleError: error.message }),
+        onSuccess: (status): DesktopTailscaleIssue | null =>
+          status.httpsServeEnabled === false
+            ? { _tag: "HttpsDisabled", setupUrl: TAILSCALE_HTTPS_SETUP_URL }
+            : null,
+        onFailure: (error): DesktopTailscaleIssue => ({
+          _tag: "CommandFailed",
+          message: error.message,
+        }),
       }),
     );
+    return { ...contractState, tailscaleIssue };
   });
   const backendConfig = Ref.get(stateRef).pipe(Effect.map(toBackendConfig));
 

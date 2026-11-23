@@ -512,9 +512,15 @@ export const DesktopServerExposureStateSchema = Schema.Struct({
   tailscaleServePort: Schema.Number,
 });
 
+export const DesktopTailscaleIssueSchema = Schema.Union([
+  Schema.TaggedStruct("CommandFailed", { message: Schema.String }),
+  Schema.TaggedStruct("HttpsDisabled", { setupUrl: Schema.String }),
+]);
+export type DesktopTailscaleIssue = typeof DesktopTailscaleIssueSchema.Type;
+
 export const DesktopServerExposureStatusSchema = Schema.Struct({
   ...DesktopServerExposureStateSchema.fields,
-  tailscaleError: Schema.NullOr(Schema.String),
+  tailscaleIssue: Schema.NullOr(DesktopTailscaleIssueSchema),
 });
 export type DesktopServerExposureStatus = typeof DesktopServerExposureStatusSchema.Type;
 

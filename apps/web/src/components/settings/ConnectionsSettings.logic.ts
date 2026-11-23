@@ -16,6 +16,7 @@ import {
   AuthTerminalReadScope,
   type DesktopBridge,
   type DesktopSshEnvironmentTarget,
+  type DesktopTailscaleIssue,
   type DesktopUpdateState,
   type DesktopWslState,
   type EnvironmentId,
@@ -111,19 +112,30 @@ export function isQrShareableEndpoint(endpoint: AdvertisedEndpoint): boolean {
 export function resolveTailscaleHttpsRow(input: {
   readonly endpoint: AdvertisedEndpoint | null;
   readonly serveEnabled: boolean;
-  readonly error?: string | null;
+  readonly issue?: DesktopTailscaleIssue | null;
 }) {
-  const { endpoint, serveEnabled, error } = input;
+  const { endpoint, serveEnabled, issue } = input;
+  const description =
+    serveEnabled && endpoint
+      ? endpoint.httpBaseUrl
+      : "Use Tailscale Serve to expose this backend through a MagicDNS HTTPS URL.";
+  if (!serveEnabled || (!issue && endpoint?.status === "available")) {
+    return { description, status: null, setupUrl: null };
+  }
+  if (issue?._tag === "HttpsDisabled") {
+    return {
+      description,
+      status:
+        "Tailscale Serve isn't enabled on your tailnet. Turn on HTTPS certificates in Tailscale, and Supaterm picks it up within a minute.",
+      setupUrl: issue.setupUrl,
+    };
+  }
   return {
-    description:
-      serveEnabled && endpoint
-        ? endpoint.httpBaseUrl
-        : "Use Tailscale Serve to expose this backend through a MagicDNS HTTPS URL.",
+    description,
     status:
-      serveEnabled && (error || endpoint?.status !== "available")
-        ? (error ??
-          "Tailscale HTTPS is unavailable. Check that Tailscale is running and its command works, then restart Supaterm.")
-        : null,
+      issue?.message ??
+      "Tailscale HTTPS is unavailable. Check that Tailscale is running and its command works, then restart Supaterm.",
+    setupUrl: null,
   };
 }
 
