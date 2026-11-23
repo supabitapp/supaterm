@@ -286,9 +286,9 @@ const make = Effect.gen(function* () {
       },
     );
 
-  // A peer pages a client's cursorless read forward; an agent's gets the newest page, as it does here.
-  const newestPageForAgent = (scope: Scope, toolName: string, params: unknown) => {
-    if (toolName !== "supaterm_thread_read" || scope.thread === undefined) return undefined;
+  // Older peers page some cursorless reads forward; ask for the newest page, as a read here gets.
+  const newestPage = (toolName: string, params: unknown) => {
+    if (toolName !== "supaterm_thread_read") return undefined;
     const input = params as OrchestratorMcpThreadReadInput;
     return input.afterPosition === undefined && input.beforePosition === undefined
       ? { ...input, beforePosition: Number.MAX_SAFE_INTEGER }
@@ -308,7 +308,7 @@ const make = Effect.gen(function* () {
         args,
         options?.linkedAt,
       );
-    const newest = newestPageForAgent(scope, tool.name, params);
+    const newest = newestPage(tool.name, params);
     return tool.name === "supaterm_thread_wait"
       ? (waitForThread(
           scope,
