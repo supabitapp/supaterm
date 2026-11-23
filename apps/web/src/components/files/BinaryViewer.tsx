@@ -1,9 +1,5 @@
 /* oxlint-disable react/no-array-index-key -- Read-only cells retain their database row and column positions. */
-import {
-  decodeFilePreviewText,
-  filePreviewKind,
-  hostPreviewMimeTypeFromExtension,
-} from "@supaterm/shared/filePreview";
+import { decodeFilePreviewText, filePreviewKind } from "@supaterm/shared/filePreview";
 import { formatAttachmentSize } from "@supaterm/client-runtime/state/attachments";
 import { ChevronLeftIcon, ChevronRightIcon, FileIcon, FolderIcon } from "@supaterm/icons";
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
@@ -27,6 +23,7 @@ import {
   type BinaryWorkerRequest,
   type BinaryWorkerResult,
 } from "./binaryPreviewProtocol";
+import { archiveImageUrl } from "./archiveImageUrl";
 import { PreviewImage } from "./PreviewImage";
 import { readBinaryPreview } from "./readBinaryPreview";
 
@@ -52,15 +49,10 @@ function ArchiveFile(props: { readonly path: string; readonly bytes: Uint8Array<
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Create an object URL for the extracted image and revoke it when the entry changes or unmounts.
   useEffect(() => {
     if (kind !== "image") return;
-    const extension = props.path.slice(props.path.lastIndexOf("."));
-    const objectUrl = URL.createObjectURL(
-      new Blob([props.bytes], {
-        type: hostPreviewMimeTypeFromExtension(extension) ?? "application/octet-stream",
-      }),
-    );
+    const image = archiveImageUrl(props.path, props.bytes);
     // oxlint-disable-next-line react/set-state-in-effect -- Publish a Blob URL only after registering its cleanup.
-    setUrl(objectUrl);
-    return () => URL.revokeObjectURL(objectUrl);
+    setUrl(image.url);
+    return image.revoke;
   }, [props.bytes, props.path, kind]);
   if (kind === "image")
     return url ? <PreviewImage key={url} src={url} name={props.path} /> : <FileSurfaceLoading />;

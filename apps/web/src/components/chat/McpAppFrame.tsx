@@ -35,6 +35,7 @@ import { useTurnItemDetail } from "~/state/queries";
 import { mcpAppEnvironment } from "~/state/mcpApps";
 import { useAtomCommand } from "~/state/use-atom-command";
 import { observeResize } from "~/lib/observeResize";
+import { attachMcpAppDocumentLink } from "./mcpAppDocumentLink";
 import { useNativeTitlebarHeight } from "~/lib/windowControlsOverlay";
 
 const fullscreenSupported =
@@ -260,7 +261,7 @@ export function McpAppFrame(props: {
       }
       return approved;
     };
-    const target = () => frameRef.current?.contentWindow ?? null;
+    const documentLink = attachMcpAppDocumentLink(frame, (data) => host.receive(data));
 
     const requests = makeMcpAppRequests({
       target: () => readLive().props,
@@ -279,7 +280,7 @@ export function McpAppFrame(props: {
       app,
       hostVersion: APP_VERSION,
 
-      post: (message) => target()?.postMessage(message, "*"),
+      post: documentLink.post,
       hostContext,
       ...requests,
       openLink: async (url) => {
@@ -329,12 +330,9 @@ export function McpAppFrame(props: {
       },
     });
     hostRef.current = host;
-    const receive = (event: MessageEvent) => {
-      if (event.source !== null && event.source === target()) host.receive(event.data);
-    };
-    window.addEventListener("message", receive);
+    window.addEventListener("message", documentLink.receive);
     return () => {
-      window.removeEventListener("message", receive);
+      window.removeEventListener("message", documentLink.receive);
 
       void host.teardown();
       hostRef.current = null;

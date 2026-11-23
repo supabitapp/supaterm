@@ -10,7 +10,11 @@ import {
   TranscriptionUploadResult,
 } from "@supaterm/contracts";
 import { isDevProxiedPath } from "@supaterm/shared/devProxy";
-import { injectMcpAppCookieBootstrap, injectMcpAppThemeBootstrap } from "@supaterm/shared/mcpApp";
+import {
+  injectMcpAppCookieBootstrap,
+  injectMcpAppDocumentBootstrap,
+  injectMcpAppThemeBootstrap,
+} from "@supaterm/shared/mcpApp";
 import { FILE_PREVIEW_SCROLL_SCRIPT } from "@supaterm/shared/htmlRender";
 import { decodeOtlpTraceRecords } from "@supaterm/shared/observability";
 import * as ByteSize from "effect/ByteSize";
@@ -89,6 +93,13 @@ const isSafeInlineMediaMimeType = (mimeType: string): boolean =>
 const isSafeInlineDocumentMimeType = (mimeType: string): boolean =>
   mimeType.toLowerCase() === "application/pdf" || mimeType.toLowerCase() === "text/html";
 
+// XML types render as documents, so they get the same policy as SVG.
+const isScriptableXmlPath = (filePath: string): boolean =>
+  Option.match(Mime.getType(filePath), {
+    onNone: () => false,
+    onSome: (mimeType) => /(?:\/xml(?:$|-)|\+xml$)/.test(mimeType),
+  });
+
 export function downloadContentDisposition(fileName?: string): string {
   if (fileName === undefined) {
     return "attachment";
@@ -146,7 +157,7 @@ export function assetResponseHeaders(
                 "Content-Security-Policy": HTML_CONTENT_SECURITY_POLICY,
               }
             : {}),
-    ...(!options?.download && lowerPath.endsWith(".svg")
+    ...(!options?.download && isScriptableXmlPath(lowerPath)
       ? { "Content-Security-Policy": SVG_CONTENT_SECURITY_POLICY }
       : {}),
   };
@@ -201,6 +212,8 @@ export const assetFileResponse = Effect.fn("assetFileResponse")(function* (
       new TextDecoder().decode(bytes),
       injectMcpAppThemeBootstrap,
       injectMcpAppCookieBootstrap,
+      // Applied last so it is the document's first script.
+      injectMcpAppDocumentBootstrap,
       (html) => new TextEncoder().encode(html),
     );
     headers["Content-Length"] = String(body.byteLength);
