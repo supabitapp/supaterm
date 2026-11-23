@@ -12,6 +12,7 @@ import {
   PROJECT_CLONE_ERROR_MAX_LENGTH,
   SourceControlRepositoryError,
 } from "@supaterm/contracts";
+import { splitsSurrogatePair } from "@supaterm/shared/assistantCitations";
 import * as Cause from "effect/Cause";
 import * as Context from "effect/Context";
 import * as DateTime from "effect/DateTime";
@@ -72,7 +73,9 @@ const DONE_RETENTION = "30 seconds";
 const STALL_AFTER = "20 seconds";
 
 function clampText(text: string, maxLength: number): string {
-  return text.length <= maxLength ? text : `${text.slice(0, maxLength - 1)}…`;
+  if (text.length <= maxLength) return text;
+  const end = splitsSurrogatePair(text, maxLength - 1) ? maxLength - 2 : maxLength - 1;
+  return `${text.slice(0, end)}…`;
 }
 
 const nowIso = Effect.map(DateTime.now, DateTime.formatIso);
