@@ -16,6 +16,7 @@ import {
   type CloneProtocol,
   cloneUrlForProtocol,
   cloneUrlProtocol,
+  withoutRemoteUrlCredentials,
 } from "@supaterm/shared/cloneUrl";
 import { ArrowRightIcon } from "@supaterm/icons";
 import { useId, useState } from "react";
@@ -103,10 +104,12 @@ function AddProjectToMachineDialog({ request }: { request: AddProjectToMachineRe
   const [targetId, setTargetId] = useState(request.targetEnvironmentId);
   const target = targets.find((t) => t.environmentId === targetId) ?? targets[0] ?? null;
   const source = environments.find((env) => env.environmentId === request.projectRef.environmentId);
-  const sourceUrl =
+  // An environment on an older version reports the remote URL as configured, login included.
+  const sourceUrl = withoutRemoteUrlCredentials(
     project?.repositoryIdentity?.origin?.remoteUrl ??
-    project?.repositoryIdentity?.locator.remoteUrl ??
-    "";
+      project?.repositoryIdentity?.locator.remoteUrl ??
+      "",
+  );
   const [protocol, setProtocol] = useState<CloneProtocol | null>(() => cloneUrlProtocol(sourceUrl));
   const sshUrl = cloneUrlForProtocol(sourceUrl, "ssh");
   const httpsUrl = cloneUrlForProtocol(sourceUrl, "https");

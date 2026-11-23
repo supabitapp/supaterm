@@ -26,6 +26,7 @@ import {
   type ThreadPullRequestKey,
 } from "@supaterm/contracts";
 import type { ReviewGuideStackLayer } from "@supaterm/provider-core/server/textGeneration";
+import { withoutRemoteUrlCredentials } from "@supaterm/shared/cloneUrl";
 import { resolveProjectSettings } from "@supaterm/shared/projectSettings";
 
 import * as ServerConfig from "../config.ts";
@@ -175,7 +176,11 @@ const make = Effect.gen(function* () {
                 args,
               })
               .pipe(
-                Effect.map((result) => result.stdout.split("\n")[0]?.trim() === locator.remoteUrl),
+                Effect.map(
+                  (result) =>
+                    withoutRemoteUrlCredentials(result.stdout.split("\n")[0]?.trim() ?? "") ===
+                    locator.remoteUrl,
+                ),
                 Effect.orElseSucceed(() => false),
               ),
           { concurrency: "unbounded" },

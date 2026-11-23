@@ -1,6 +1,7 @@
 import type { RepositoryIdentity, SourceControlProviderError } from "@supaterm/contracts";
 import { parseGitRemoteHost } from "@supaterm/source-control-core/shared/definition";
 import { repositoryPathFromRemoteUrl } from "@supaterm/source-control-core/server/SourceControlProvider";
+import { withoutRemoteUrlCredentials } from "@supaterm/shared/cloneUrl";
 import {
   canonicalRepositoryPath,
   GH_RESOLVED_CONFIG_ARGS,
@@ -358,7 +359,8 @@ const resolveRepositoryIdentityFromCacheKey = Effect.fn(
           (sourceControlDefinitions.recognizeRemote(configuredUrl)?.kind ?? "unknown") !== "unknown"
             ? configuredUrl
             : fetchUrl;
-        return isLocalRemoteUrl(url) ? [] : [[remoteName, url]];
+        // The identity names the remote, not the login used to reach it.
+        return isLocalRemoteUrl(url) ? [] : [[remoteName, withoutRemoteUrlCredentials(url)]];
       },
     ),
   );
