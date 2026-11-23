@@ -111,15 +111,39 @@ function latestMatchingRun(
   );
 }
 
-function providerStartingLabel(
+// Phases a provider can report while it prepares a turn; an unknown one keeps the plain label.
+function providerStartingPhase(phase: string | undefined, provider: string) {
+  switch (phase) {
+    case "plugins":
+      return `Loading ${provider} plugins`;
+    case "mcp":
+      return `Starting ${provider} MCP servers`;
+    case "hooks":
+      return `Loading ${provider} hooks`;
+    case "skills":
+      return `Loading ${provider} rules and skills`;
+    case "connecting":
+      return `Connecting to ${provider}`;
+    default:
+      return `Starting ${provider}`;
+  }
+}
+
+function providerStarting(
   projection: ThreadStructure,
   run: OrchestrationV2ThreadProjection["runs"][number],
-): string {
-  const driver = projection.providerSessions.findLast(
+): Pick<ThreadRunSummary, "providerStartingLabel" | "providerStarting"> {
+  const session = projection.providerSessions.findLast(
     (session) => session.providerInstanceId === run.providerInstanceId,
-  )?.driver;
-  const name = driver === undefined ? undefined : PROVIDER_DISPLAY_NAMES[driver];
-  return name === undefined ? "Starting" : `Starting ${name}`;
+  );
+  const name = session === undefined ? undefined : PROVIDER_DISPLAY_NAMES[session.driver];
+  return {
+    providerStartingLabel:
+      name === undefined ? "Starting" : providerStartingPhase(session?.startupPhase, name),
+    ...(session === undefined
+      ? {}
+      : { providerStarting: { instanceId: run.providerInstanceId, driver: session.driver } }),
+  };
 }
 
 function summarizeThreadRun(
@@ -143,7 +167,7 @@ function summarizeThreadRun(
     // the provider can still be launching for minutes.
     ...(turnStatus === undefined
       ? PROVIDER_STARTING_RUN_STATUSES.has(run.status)
-        ? { providerStartingLabel: providerStartingLabel(projection, run) }
+        ? providerStarting(projection, run)
         : {}
       : turnStatus === "pending" || turnStatus === "running"
         ? {}

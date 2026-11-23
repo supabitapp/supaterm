@@ -267,6 +267,8 @@ type ThreadFeedEntryContent =
       readonly runId: RunId | null;
       readonly label?: string;
       readonly providerStartingLabel?: string;
+      /** The starting provider's driver, whose logo replaces the thinking icon. */
+      readonly providerStartingDriver?: string;
     };
 
 export interface ThreadFeedLatestRun {
@@ -276,6 +278,7 @@ export interface ThreadFeedLatestRun {
   readonly completedAt: string | null;
   readonly turnEnded?: boolean;
   readonly providerStartingLabel?: string;
+  readonly providerStarting?: { readonly driver: string };
 }
 
 const WORK_LOG_LABEL_MAX_LENGTH = 200;
@@ -1424,7 +1427,8 @@ function latestRunsEqual(left: ThreadFeedLatestRun | null, right: ThreadFeedLate
       left.startedAt === right.startedAt &&
       left.completedAt === right.completedAt &&
       left.turnEnded === right.turnEnded &&
-      left.providerStartingLabel === right.providerStartingLabel)
+      left.providerStartingLabel === right.providerStartingLabel &&
+      left.providerStarting?.driver === right.providerStarting?.driver)
   );
 }
 
@@ -1909,6 +1913,7 @@ export function deriveThreadFeedPresentation(
         activeRunId,
         waitingOn > 0 ? waitingOnSubagentsLabel(waitingOn) : zen ? liveAnswerPreview(feed) : null,
         latestRun?.providerStartingLabel,
+        latestRun?.providerStarting?.driver,
       ),
     );
   }
@@ -2052,12 +2057,14 @@ function thinkingRow(
   runId: RunId | null,
   label: string | null,
   providerStartingLabel: string | undefined,
+  providerStartingDriver: string | undefined,
 ) {
   if (
     cachedThinkingRow?.createdAt !== createdAt ||
     cachedThinkingRow.runId !== runId ||
     (cachedThinkingRow.label ?? null) !== label ||
-    cachedThinkingRow.providerStartingLabel !== providerStartingLabel
+    cachedThinkingRow.providerStartingLabel !== providerStartingLabel ||
+    cachedThinkingRow.providerStartingDriver !== providerStartingDriver
   ) {
     cachedThinkingRow = {
       type: "thinking",
@@ -2066,6 +2073,9 @@ function thinkingRow(
       runId,
       ...(label === null ? {} : { label }),
       ...(providerStartingLabel === undefined ? {} : { providerStartingLabel }),
+      ...(providerStartingLabel === undefined || providerStartingDriver === undefined
+        ? {}
+        : { providerStartingDriver }),
     };
   }
   return cachedThinkingRow;

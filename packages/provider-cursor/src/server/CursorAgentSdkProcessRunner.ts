@@ -54,6 +54,7 @@ interface ActiveWorkerRun {
   readonly sessionId: number;
   readonly queue: Queue.Queue<RunQueueItem>;
   readonly waitDeferred: Deferred.Deferred<RunResult, CursorAgentSdk.CursorAgentSdkRunnerError>;
+  readonly onStartupPhase: ((phase: string) => Effect.Effect<void>) | undefined;
   doneEnqueued: boolean;
 }
 
@@ -103,7 +104,11 @@ interface SpawnedCursorWorker {
     build: (id: number) => CursorWorkerRequest,
     method: string,
   ) => Effect.Effect<CursorWorkerResponsePayload, CursorAgentSdk.CursorAgentSdkRunnerError>;
-  readonly registerRun: (sessionId: number, sendId: number) => Effect.Effect<ActiveWorkerRun>;
+  readonly registerRun: (
+    sessionId: number,
+    sendId: number,
+    onStartupPhase: ActiveWorkerRun["onStartupPhase"],
+  ) => Effect.Effect<ActiveWorkerRun>;
   readonly unregisterRun: (sendId: number) => Effect.Effect<void>;
   readonly failSessionRuns: (sessionId: number) => Effect.Effect<void>;
   readonly isAlive: () => boolean;
@@ -302,6 +307,8 @@ export const makeCursorAgentSdkProcessRunner = Effect.fn("makeCursorAgentSdkProc
               }
               return Effect.void;
             }
+            case "startupPhase":
+              return activeRuns.get(parsed.sendId)?.onStartupPhase?.(parsed.phase) ?? Effect.void;
             case "runDone": {
               const run = activeRuns.get(parsed.sendId);
               if (run !== undefined && !run.doneEnqueued) {
@@ -487,13 +494,23 @@ export const makeCursorAgentSdkProcessRunner = Effect.fn("makeCursorAgentSdkProc
         activeCleanups.add(activeCleanup);
 
         // Untraced: per-send registration inside CursorAgentSdkSession.send.
-        const registerRun = Effect.fnUntraced(function* (sessionId: number, sendId: number) {
+        const registerRun = Effect.fnUntraced(function* (
+          sessionId: number,
+          sendId: number,
+          onStartupPhase: ActiveWorkerRun["onStartupPhase"],
+        ) {
           const queue = yield* Queue.unbounded<RunQueueItem>();
           const waitDeferred = yield* Deferred.make<
             RunResult,
             CursorAgentSdk.CursorAgentSdkRunnerError
           >();
-          const state: ActiveWorkerRun = { sessionId, queue, waitDeferred, doneEnqueued: false };
+          const state: ActiveWorkerRun = {
+            sessionId,
+            queue,
+            waitDeferred,
+            onStartupPhase,
+            doneEnqueued: false,
+          };
           activeRuns.set(sendId, state);
           return state;
         });
@@ -692,7 +709,11 @@ export const makeCursorAgentSdkProcessRunner = Effect.fn("makeCursorAgentSdkProc
                   });
 
               const sendId = worker.nextId();
-              const runState = yield* worker.registerRun(sessionId, sendId);
+              const runState = yield* worker.registerRun(
+                sessionId,
+                sendId,
+                sendInput.onStartupPhase,
+              );
               let transmitted = false;
               let acknowledged = false;
               let rejectedByWorker = false;

@@ -3738,6 +3738,11 @@ export default function ChatView(props: ChatViewProps) {
                       announceTurnStatus={!isProviderSubagent}
                       activeTurnStartedAt={activeWorkStartedAt}
                       providerStartingLabel={activeActivityRun?.providerStartingLabel ?? null}
+                      providerStarting={
+                        activeActivityRun?.providerStartingLabel
+                          ? (activeActivityRun.providerStarting ?? null)
+                          : null
+                      }
                       worktreeSetup={worktreeSetup}
                       onCancelWorktreeSetup={onCancelWorktreeSetupStable}
                       retryableWorkspacePreparationRunIds={retryableWorkspacePreparationRunIds}

@@ -220,6 +220,12 @@ const runCursorSdkWorkerWithStdio = Effect.fn("CursorAgentSdkWorker.run")(functi
                   writeMessage({ type: "delta", sendId: req.id, update });
                 }
               }),
+            onStartupPhase: (phase) =>
+              Effect.sync(() => {
+                if (startingSendIds.has(req.id)) {
+                  writeMessage({ type: "startupPhase", sendId: req.id, phase });
+                }
+              }),
           }),
         ).pipe(
           Effect.ensuring(

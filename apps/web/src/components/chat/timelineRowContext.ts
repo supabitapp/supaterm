@@ -1,4 +1,5 @@
 import type { ToolCallDiffTarget } from "../../diffPanelStore";
+import type { ThreadRunSummary } from "@supaterm/client-runtime/state/models";
 import type { WorkGroupScrollAnchor, MessagesTimelineRow } from "./MessagesTimeline.logic";
 import type {
   ScopedThreadRef,
@@ -94,6 +95,7 @@ export interface TimelineRowActivityState {
   awaitingUser: boolean;
   isPreparingWorktree: boolean;
   providerStartingLabel: string | null;
+  providerStarting: NonNullable<ThreadRunSummary["providerStarting"]> | null;
   worktreeSetupLabel: "shown" | "exiting" | null;
   latestRunId: RunId | null;
   backgroundWorktreeSetup: WorktreeSetupSnapshot | null;

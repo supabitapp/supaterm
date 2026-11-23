@@ -74,6 +74,7 @@ import { deriveTimelineMinimapItems, type TimelineMinimapItem } from "./timeline
 import { parseScopedThreadKey } from "@supaterm/client-runtime/environment";
 import { resolveWorkGroupScrollAnchor } from "@supaterm/client-runtime/work-log/scroll-anchor";
 import type { WorkflowOpening } from "@supaterm/client-runtime/state/subagentRuntime";
+import type { ThreadRunSummary } from "@supaterm/client-runtime/state/models";
 import { observeResize } from "~/lib/observeResize";
 import { preserveReadingPosition } from "~/lib/preserveReadingPosition";
 import { useStableCallback } from "~/hooks/useStableCallback";
@@ -261,6 +262,7 @@ interface MessagesTimelineProps {
   activeTurnStartedAt?: string | null;
   /** Replaces "Thinking" while the active run's provider has not started a turn. */
   providerStartingLabel?: string | null;
+  providerStarting?: NonNullable<ThreadRunSummary["providerStarting"]> | null;
   worktreeSetup?: WorktreeSetupSnapshot | null;
   onCancelWorktreeSetup?: () => void;
   retryableWorkspacePreparationRunIds?: ReadonlySet<RunId>;
@@ -392,6 +394,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
   runlessWorkActive = false,
   activeTurnStartedAt = null,
   providerStartingLabel = null,
+  providerStarting = null,
   worktreeSetup = null,
   footer = null,
   onCancelWorktreeSetup,
@@ -1316,6 +1319,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
       backgroundWorktreeSetup !== null,
     ),
     providerStartingLabel,
+    providerStarting,
     latestRunId: latestRun?.runId ?? null,
     liveAnswerPreview:
       isWorking && toolCallVisibility === "zen" ? liveAnswerPreview(timelineEntries) : null,
