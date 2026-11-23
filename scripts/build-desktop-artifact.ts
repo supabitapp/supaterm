@@ -2573,6 +2573,8 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
           "Supaterm lets commands run by terminals and coding agents use the camera.",
         NSMicrophoneUsageDescription:
           "Supaterm records voice input for your prompts and lets commands run by terminals and coding agents use the microphone.",
+        NSAppleEventsUsageDescription:
+          "Supaterm lets commands run by terminals and coding agents control other apps.",
 
         CFBundleDocumentTypes: [
           {
