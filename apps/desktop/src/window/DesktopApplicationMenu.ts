@@ -151,6 +151,7 @@ export const make = Effect.gen(function* () {
   const environment = yield* DesktopEnvironment.DesktopEnvironment;
   const context = yield* Effect.context<DesktopApplicationMenuRuntimeServices>();
   const runPromise = Effect.runPromiseWith(context);
+  const runSync = Effect.runSyncWith(context);
 
   const runMenuEffect = <E>(
     action: string,
@@ -175,16 +176,19 @@ export const make = Effect.gen(function* () {
     const settingsClick = () => {
       runMenuEffect("open-settings", dispatchMenuAction("open-settings"));
     };
-    // Chromium already pastes as plain text for this chord, so the accelerator
-    // needs nothing from the menu: the composer and the terminal each arm
-    // themselves from the same keydown. Routing it through the renderer anyway
-    // lands a second, injected paste and doubles the text.
     const pasteAsTextClick = (
       _item: Electron.MenuItem,
       _window: Electron.BaseWindow | undefined,
       event: Electron.KeyboardEvent,
     ) => {
-      if (event.triggeredByAccelerator === true) return;
+      if (event.triggeredByAccelerator === true) {
+        // Chromium pastes this chord itself except on macOS. Paste synchronously there:
+        // a renderer round trip can land after the terminal's own clipboard read.
+        if (environment.platform === "darwin") {
+          runSync(electronMenu.pasteAndMatchStyle);
+        }
+        return;
+      }
       runMenuEffect("paste-as-text", dispatchMenuAction("paste-as-text"));
     };
     const zoomClick = (direction: DesktopWindow.MainWindowZoomDirection) => () => {

@@ -191,6 +191,7 @@ const layerDesktopServerExposure = Layer.succeed(DesktopServerExposure.DesktopSe
 } satisfies DesktopServerExposure.DesktopServerExposure["Service"]);
 
 const layerElectronMenu = Layer.succeed(ElectronMenu.ElectronMenu, {
+  pasteAndMatchStyle: Effect.void,
   setApplicationMenu: () => Effect.void,
   popupTemplate: () => Effect.void,
   showContextMenu: () => Effect.succeedNone,
@@ -332,6 +333,7 @@ function layerTest(input: {
         layerDesktopServerExposure,
         DesktopState.layer,
         Layer.succeed(ElectronMenu.ElectronMenu, {
+          pasteAndMatchStyle: Effect.void,
           setApplicationMenu: () => Effect.void,
           showContextMenu: () => Effect.succeedNone,
           popupTemplate: input.onPopupTemplate ?? (() => Effect.void),
