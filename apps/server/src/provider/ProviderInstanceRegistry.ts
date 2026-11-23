@@ -40,6 +40,7 @@ interface LiveEntry {
   readonly instance: ProviderInstance;
   readonly scope: Scope.Closeable;
   readonly entry: ProviderInstanceConfig;
+  readonly setPresentation: (entry: ProviderInstanceConfig) => void;
 }
 
 interface RegistryState {
@@ -50,6 +51,55 @@ interface RegistryState {
 
 const entryEqual = (a: ProviderInstanceConfig, b: ProviderInstanceConfig): boolean =>
   Equal.equals(a, b);
+
+const withoutPresentation = ({
+  displayName: _displayName,
+  accentColor: _accentColor,
+  ...runtime
+}: ProviderInstanceConfig) => runtime;
+
+// Display name and accent colour are only labels; changing them must not stop the instance's sessions.
+const runtimeEqual = (a: ProviderInstanceConfig, b: ProviderInstanceConfig): boolean =>
+  Equal.equals(withoutPresentation(a), withoutPresentation(b));
+
+// Drivers stamp the presentation they were created with into every snapshot, so a renamed
+// instance kept live restamps what it reports.
+const withLivePresentation = (instance: ProviderInstance, created: ProviderInstanceConfig) => {
+  let current = created;
+  const restamp = <S extends ServerProvider>(snapshot: S): S => {
+    const next: { -readonly [K in keyof S]: S[K] } = { ...snapshot };
+    for (const key of ["displayName", "accentColor"] as const) {
+      const value = current[key];
+      if (value === created[key]) continue;
+      if (value) next[key] = value;
+      else delete next[key];
+    }
+    return next;
+  };
+  const { snapshot, snapshotForCwd } = instance;
+  const wrapped: ProviderInstance = {
+    ...instance,
+    get displayName() {
+      return current.displayName;
+    },
+    get accentColor() {
+      return current.accentColor;
+    },
+    snapshot: {
+      ...snapshot,
+      getSnapshot: Effect.suspend(() => snapshot.getSnapshot).pipe(Effect.map(restamp)),
+      refresh: Effect.suspend(() => snapshot.refresh).pipe(Effect.map(restamp)),
+      streamChanges: Stream.suspend(() => snapshot.streamChanges).pipe(Stream.map(restamp)),
+    },
+    ...(snapshotForCwd
+      ? { snapshotForCwd: (cwd: string) => snapshotForCwd(cwd).pipe(Effect.map(restamp)) }
+      : {}),
+  };
+  const setPresentation = (entry: ProviderInstanceConfig) => {
+    current = entry;
+  };
+  return { instance: wrapped, setPresentation };
+};
 
 /** Conflicting saved flags must preserve any explicit disable. */
 const resolveEntryEnabled = (entry: ProviderInstanceConfig, typedConfig: unknown): boolean => {
@@ -141,13 +191,10 @@ const buildEntry = Effect.fn("ProviderInstanceRegistry.buildEntry")(function* <R
     };
   }
 
+  const { instance, setPresentation } = withLivePresentation(createResult.success, entry);
   return {
     kind: "live" as const,
-    live: {
-      instance: createResult.success,
-      scope: childScope,
-      entry,
-    },
+    live: { instance, scope: childScope, entry, setPresentation },
   };
 });
 
@@ -180,7 +227,7 @@ const makeReconcile = <R>(input: {
         const nextEntry = configMap[instanceId];
         if (
           nextEntry !== undefined &&
-          (rebuild.has(instanceId) || !entryEqual(live.entry, nextEntry))
+          (rebuild.has(instanceId) || !runtimeEqual(live.entry, nextEntry))
         ) {
           replacedIds.add(instanceId);
         }
@@ -201,6 +248,7 @@ const makeReconcile = <R>(input: {
       const builtEntries = new Map<ProviderInstanceId, LiveEntry>();
       const builtUnavailable = new Map<ProviderInstanceId, ServerProvider>();
       let orderChanged = false;
+      let presentationChanged = false;
       const previousOrder = [...previousEntries.keys()];
       const nextOrder: Array<ProviderInstanceId> = [];
 
@@ -210,7 +258,13 @@ const makeReconcile = <R>(input: {
 
         const existing = previousEntries.get(instanceId);
         if (existing !== undefined && !replacedIds.has(instanceId)) {
-          builtEntries.set(instanceId, existing);
+          if (entryEqual(existing.entry, entry)) {
+            builtEntries.set(instanceId, existing);
+          } else {
+            existing.setPresentation(entry);
+            builtEntries.set(instanceId, { ...existing, entry });
+            presentationChanged = true;
+          }
           continue;
         }
 
@@ -240,6 +294,7 @@ const makeReconcile = <R>(input: {
       }
 
       const entriesChanged =
+        presentationChanged ||
         orderChanged ||
         removedIds.length > 0 ||
         replacedIds.size > 0 ||
