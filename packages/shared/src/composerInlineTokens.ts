@@ -1,3 +1,4 @@
+import { composerFileLinkPath } from "./composerTrigger.ts";
 import { markdownMathRanges } from "./markdownMath.ts";
 import { fileBasename } from "./path.ts";
 
@@ -51,6 +52,7 @@ function collectMentionTokens(text: string): ComposerInlineToken[] {
     try {
       path = decodeURIComponent(encodedPath);
     } catch {}
+    path = composerFileLinkPath(encodedPath, path);
     const separatorIndex = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"));
     const basename = separatorIndex >= 0 ? path.slice(separatorIndex + 1) : path;
     const hasExternalScheme = URI_SCHEME_REGEX.test(path) && !WINDOWS_DRIVE_PATH_REGEX.test(path);
