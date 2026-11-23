@@ -71,6 +71,15 @@ export function shouldShowEnvironmentIndicator(input: {
   return input.activeEnvironment !== null && !input.activeEnvironment.isPrimary;
 }
 
+/** Whether a new thread here may choose between Current checkout and New worktree. */
+export function offersWorkspaceModes(input: {
+  isScratchProject: boolean;
+  isGitRepo: boolean;
+}): boolean {
+  // No project never has git, even while its status loads and isGitRepo still assumes it does.
+  return !input.isScratchProject && input.isGitRepo;
+}
+
 export function shouldShowComposerContextStrip(input: {
   /** A new draft leads the strip with its project picker, project or not. */
   showProjectPicker: boolean;

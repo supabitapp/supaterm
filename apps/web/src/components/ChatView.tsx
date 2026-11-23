@@ -353,6 +353,7 @@ import type { ExpandedImagePreview } from "./chat/ExpandedImagePreview";
 import { ThreadDetailsPanel } from "./chat/ThreadDetailsPanel";
 import { NoActiveThreadState } from "./NoActiveThreadState";
 import {
+  offersWorkspaceModes,
   resolveEffectiveEnvMode,
   resolveLocalCheckoutBranchMismatch,
   resolveWorktreeBaseBranch,
@@ -1874,6 +1875,10 @@ export default function ChatView(props: ChatViewProps) {
     }
   }, [environmentId, gitStatusCwd, liveIsGitRepo]);
   const isGitRepo = liveIsGitRepo ?? recallCheckoutIsRepo(environmentId, gitStatusCwd) ?? true;
+  const workspaceModesOffered = offersWorkspaceModes({
+    isScratchProject: activeProjectIsScratch,
+    isGitRepo,
+  });
   // A provider-native subagent cannot take messages: a status bar replaces the
   // composer and its strips. Its approvals and questions are asked on the
   // top-level parent thread.
@@ -3047,7 +3052,7 @@ export default function ChatView(props: ChatViewProps) {
     branchToolbarRef,
     composerShortcutAvailability: {
       draftProjectControls: showDraftProjectPicker,
-      branchPicker: isGitRepo && showDraftProjectPicker,
+      branchPicker: workspaceModesOffered && showDraftProjectPicker,
     },
     closeThreadFind: () => {
       if (activeThreadKey !== null) closeThreadFind(activeThreadKey);
@@ -3467,7 +3472,7 @@ export default function ChatView(props: ChatViewProps) {
       isServerThread={isServerThread}
       environmentId={activeThread.environmentId}
       threadId={activeThread.id}
-      showGitControls={isGitRepo && showDraftProjectPicker}
+      showGitControls={workspaceModesOffered && showDraftProjectPicker}
       showEnvironmentIndicator={showComposerEnvironmentIndicator && showDraftProjectPicker}
       canAddToMachine={canAddProjectToMachine}
       {...(routeKind === "draft" && draftId ? { draftId } : {})}
@@ -4196,6 +4201,7 @@ export default function ChatView(props: ChatViewProps) {
                     gitCwd={gitCwd}
                     workspaceMutationId={workspaceRevision.revision}
                     isGitRepo={isGitRepo}
+                    offersWorkspaceModes={workspaceModesOffered}
                     envLocked={envLocked}
                     availableEnvironments={logicalProjectEnvironments}
                     autoEnvironmentLabel={autoEnvironmentLabel}

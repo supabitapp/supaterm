@@ -162,6 +162,7 @@ function Panel({ fixture }: { fixture: ReturnType<typeof setup> }) {
         gitCwd={state.folder}
         workspaceMutationId={null}
         isGitRepo={false}
+        offersWorkspaceModes={false}
         envLocked
         availableEnvironments={[]}
         onEnvModeChange={noop}

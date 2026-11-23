@@ -24,6 +24,7 @@ import {
   shouldIncludeBranchPickerItem,
   shouldShowComposerContextStrip,
   isBranchHoldCurrent,
+  offersWorkspaceModes,
   toBranchActionErrorMessage,
 } from "./BranchToolbar.logic";
 
@@ -251,6 +252,18 @@ describe("resolveEffectiveEnvMode", () => {
         draftThreadEnvMode: undefined,
       }),
     ).toBe("local");
+  });
+});
+
+describe("offersWorkspaceModes", () => {
+  it("offers worktrees from a repository, never in No project", () => {
+    const folder = { isScratchProject: false, isGitRepo: false };
+    expect(offersWorkspaceModes(folder)).toBe(false);
+    expect(offersWorkspaceModes({ ...folder, isGitRepo: true })).toBe(true);
+    // Git status assumes a repository until it loads.
+    expect(offersWorkspaceModes({ ...folder, isScratchProject: true, isGitRepo: true })).toBe(
+      false,
+    );
   });
 });
 
