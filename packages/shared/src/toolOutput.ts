@@ -256,6 +256,26 @@ export function previewRecordingIdFromToolItem(item: {
   return result.failed || budget.exceeded ? undefined : boundedId(result.data?.id);
 }
 
+/**
+ * Compact structured result a Supaterm MCP tool carries on its turn item.
+ * Preserves every metadata field clients, summaries, and attachment retention read.
+ */
+export function compactSupatermMcpToolOutput(
+  toolName: string | null | undefined,
+  value: unknown,
+): Record<string, unknown> | undefined {
+  const resolved = resolveSupatermMcpToolId(toolName);
+  if (resolved === null) return undefined;
+  const compact = compactDynamicToolOutput(value);
+  if (resolved === "preview_recording_stop" && !compact?.isError) {
+    const recordingId = previewRecordingIdFromToolItem({ toolName: resolved, output: value });
+    if (recordingId !== undefined) {
+      return { ...compact, id: recordingId };
+    }
+  }
+  return compact === undefined ? undefined : { ...compact };
+}
+
 export function mcpAppFromToolItem(item: {
   readonly toolName: string | null | undefined;
   readonly output?: unknown;
