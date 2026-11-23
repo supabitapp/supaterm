@@ -103,13 +103,13 @@ export default mergeConfig(
           },
         },
       ],
-      // The executable embeds the bootstrap and the CLI as an asset; the history worker becomes
-      // a hidden subcommand there instead of a sibling script.
+      // The executable embeds the bootstrap and the CLI as an asset; the history and process
+      // launcher workers become hidden subcommands there instead of sibling scripts.
       entry: packBootstrap
         ? ["src/bin.ts"]
         : packExecutable
           ? ["src/binMain.ts"]
-          : ["src/bin.ts", "src/claude-history-worker.ts"],
+          : ["src/bin.ts", "src/claude-history-worker.ts", "src/process-launcher.ts"],
       outDir: packBootstrap ? "dist-exe" : packExecutable ? cliAssetDir : "dist",
       sourcemap: !packExecutable,
       clean: true,
