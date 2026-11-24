@@ -113,7 +113,8 @@ reach the API. Only the server process is measured.
 - Read per-thread cost from `scaling`, a fit over 5 to 20 open threads. It separates what each
   open thread costs from the fixed cost of the server, which the absolute numbers mix.
 - `--soak <minutes>` reports heap and RSS slopes in MB per hour and the constructors that grew.
-  A rising heap floor is a leak; a high but flat one is not.
+  A rising heap floor is a leak; a high but flat one is not. A leak only shows in code the soak
+  drives, so give a new subsystem with long-lived state a part in its workload.
 - Measure server work with `working`: many worktree threads editing files at once with one client
   subscribed to all of them. Turns per minute that stay flat as threads are added mean the
   server, not the agents, is the bottleneck.
