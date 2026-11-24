@@ -1,4 +1,5 @@
 import { RefreshIcon } from "~/components/ui/refresh-icon";
+import { splitsSurrogatePair } from "@supaterm/shared/assistantCitations";
 import { PlusIcon, SearchIcon } from "@supaterm/icons";
 
 import { openCommandPalette } from "../../commandPaletteBus";
@@ -68,6 +69,8 @@ export function PullRequestListEmptyState({
   onLoadMore: () => void;
   onRefresh: () => void;
 }) {
+  const shownQuery =
+    query.length > 48 ? `${query.slice(0, splitsSurrogatePair(query, 48) ? 47 : 48)}…` : query;
   if (!hasProjects) {
     return (
       <Empty>
@@ -89,12 +92,7 @@ export function PullRequestListEmptyState({
   }
 
   if (searching) {
-    return (
-      <PullRequestListGhost
-        rows={5}
-        caption={`Searching every host for “${query.length > 48 ? `${query.slice(0, 48)}…` : query}”`}
-      />
-    );
+    return <PullRequestListGhost rows={5} caption={`Searching every host for “${shownQuery}”`} />;
   }
 
   if (query.length > 0) {
@@ -102,9 +100,7 @@ export function PullRequestListEmptyState({
       <Empty>
         <BranchMark joined={false} />
         <EmptyHeader>
-          <EmptyTitle>
-            Nothing matches “{query.length > 48 ? `${query.slice(0, 48)}…` : query}”
-          </EmptyTitle>
+          <EmptyTitle>Nothing matches “{shownQuery}”</EmptyTitle>
           <EmptyDescription>
             The hosts were searched for it. Try fewer words, or search by number, author or branch.
           </EmptyDescription>
