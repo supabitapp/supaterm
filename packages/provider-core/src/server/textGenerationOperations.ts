@@ -137,6 +137,7 @@ export function fromRunner(
         policy: input.policy,
         changeRequestTemplate: input.changeRequestTemplate,
         threadContext: input.threadContext,
+        producedBy: input.producedBy,
       }),
     });
     return { title: sanitizePrTitle(generated.title), body: generated.body.trim() };
