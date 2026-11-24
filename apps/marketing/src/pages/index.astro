@@ -4,6 +4,7 @@ import { getImage, Image } from "astro:assets";
 // Regenerate with `vp run screenshots:marketing` (scene: scripts/marketing-hero.scene.ts).
 import desktopScreenshot from "../assets/app-desktop.webp";
 import appIcon from "../assets/icon.webp";
+import CommandLine from "../components/CommandLine.astro";
 import Layout from "../layouts/Layout.astro";
 import "../styles/boltComputer.css";
 import {
@@ -71,6 +72,7 @@ const screenshot = await getImage({
             <span>Join the iOS beta</span>
           </a>
         </div>
+        <CommandLine class="hero-brew" command="brew install supaterm" />
         <div class="hero-source-links">
           <a class="hero-source-link" href={GITHUB_REPOSITORY_URL} target="_blank" rel="noopener noreferrer">
             <svg class="hero-source-mark" width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -330,6 +332,15 @@ const screenshot = await getImage({
     flex-wrap: wrap;
     justify-content: center;
     gap: 10px;
+  }
+
+  .hero-actions .hero-brew {
+    align-self: center;
+  }
+
+  :global([data-platform="win"]) .hero-brew,
+  :global([data-platform="linux"]) .hero-brew {
+    display: none;
   }
 
   .hero-source-links {
