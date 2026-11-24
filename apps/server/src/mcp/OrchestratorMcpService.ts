@@ -470,7 +470,7 @@ function providerConstraints(
   return constraints;
 }
 
-/** supaterm_thread_launch keeps a selection as given, so it can hold options its model does not have. */
+/** Older persisted selections or providers without descriptors can still hold options a model does not declare. */
 function knownOptions(
   options: ReadonlyArray<ProviderOptionSelection> | undefined,
   descriptors: ReadonlyArray<ProviderOptionDescriptor> | undefined,
@@ -521,6 +521,26 @@ function invalidOptionSelections(
   }
   return problems;
 }
+
+/** Validate and normalize requested options against the model's advertised option descriptors. */
+export const validateModelOptions = (
+  provider: ServerProvider,
+  model: string,
+  options: ReadonlyArray<ProviderOptionSelection> | undefined,
+): Effect.Effect<ReadonlyArray<ProviderOptionSelection> | undefined, OrchestratorMcpFailure> => {
+  const descriptors = advertisedModel(provider, model)?.capabilities?.optionDescriptors;
+  const normalized = withLegacyUltracodeEffort(descriptors, options);
+  if (normalized === undefined) return Effect.undefined;
+  const invalid = invalidOptionSelections(normalized, descriptors, provider.driver);
+  return invalid.length > 0
+    ? Effect.fail(
+        failure(
+          "invalid_request",
+          `Model ${model} on provider ${provider.instanceId} rejected options: ${invalid.join(" ")}`,
+        ),
+      )
+    : Effect.succeed(normalized);
+};
 
 function taskStatusForRun(
   run: Pick<OrchestrationV2Run, "status" | "restartCancelledBackgroundWork"> | undefined,
@@ -1768,16 +1788,7 @@ const make = Effect.gen(function* () {
     if (requestedModel !== undefined) yield* requireAdvertisedModel(provider, model);
     const advertised = advertisedModel(provider, model);
     const descriptors = advertised?.capabilities?.optionDescriptors;
-    const requestedOptions = withLegacyUltracodeEffort(descriptors, input.target?.options);
-    if (requestedOptions !== undefined) {
-      const invalid = invalidOptionSelections(requestedOptions, descriptors, provider.driver);
-      if (invalid.length > 0) {
-        return yield* failure(
-          "invalid_request",
-          `Model ${model} on provider ${instanceId} rejected options: ${invalid.join(" ")}`,
-        );
-      }
-    }
+    const requestedOptions = yield* validateModelOptions(provider, model, input.target?.options);
 
     const inheritsOptions =
       instanceId === inheritedSelection.instanceId &&
