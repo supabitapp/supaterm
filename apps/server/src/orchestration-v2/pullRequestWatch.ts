@@ -156,7 +156,13 @@ export function evaluatePullRequestWatch(
     // Required checks can finish between sweeps; detect new names. With no required checks, ignore advisory gate growth.
     const gateGrew = required.length > 0 && gateNames.some((name) => !told.includes(name));
     const gatePassed = passedNow && (!passed || gateGrew);
-    if (gatePassed && !checksBaseline) {
+    // CI running at the start that has since settled green is news. The start rollup can be
+    // pending only on optional checks, so a passed gate alone is not.
+    const settledGreen =
+      failed.length === 0 &&
+      awaitingApproval.length === 0 &&
+      checks.every((check) => check.status !== "pending");
+    if (gatePassed && (!checksBaseline || (watch.checksPending === true && settledGreen))) {
       changes.push({
         kind: "checks-passed",
         count: gate.length,
