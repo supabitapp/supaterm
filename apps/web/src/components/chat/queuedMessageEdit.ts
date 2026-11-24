@@ -1,4 +1,5 @@
 import { resolveQueuedEditExit } from "@supaterm/client-runtime/queued-run-edit";
+import * as Equal from "effect/Equal";
 import type {
   ChatAttachment,
   ChatFileAttachment,
@@ -6,6 +7,7 @@ import type {
   ComposerContextId,
   ComposerContextRecord,
   EnvironmentId,
+  ModelSelection,
   OrchestrationMessageContext,
   ResponseContextRecord,
 } from "@supaterm/contracts";
@@ -91,12 +93,14 @@ export function discardQueuedEditDraft(target: ComposerThreadTarget): void {
     }
   }
   store.clearComposerContent(target);
+  store.clearDraftThread(target);
 }
 
 export function recoverQueuedMessageEdit(input: {
   readonly editTarget: ComposerThreadTarget;
   readonly threadTarget: ComposerThreadTarget;
   readonly originalText: string;
+  readonly originalModelSelection?: ModelSelection;
   readonly originalReply?: ResponseContextRecord | undefined;
   readonly removedExistingAttachment?: boolean;
   readonly existingAttachmentContextIds?: ReadonlyArray<string>;
@@ -114,8 +118,14 @@ export function recoverQueuedMessageEdit(input: {
     draft && strippedPrompt !== undefined && strippedPrompt !== draft.prompt
       ? { ...draft, prompt: strippedPrompt }
       : draft;
+  const modelSelection = draft?.activeProvider
+    ? draft.modelSelectionByProvider[draft.activeProvider]
+    : undefined;
+  const modelChanged =
+    modelSelection !== undefined && !Equal.equals(modelSelection, input.originalModelSelection);
   const recovery = resolveQueuedEditExit({
     editChanged:
+      modelChanged ||
       input.removedExistingAttachment === true ||
       (draft !== null &&
         (draft.prompt !== input.originalText ||
@@ -132,7 +142,13 @@ export function recoverQueuedMessageEdit(input: {
       store.setPrompt(input.editTarget, strippedPrompt);
     }
     store.moveComposerContent(input.editTarget, input.threadTarget);
+    if (modelChanged)
+      store.setModelSelection(input.threadTarget, modelSelection, {
+        explicit: true,
+        replaceOptions: true,
+      });
     store.clearComposerContent(input.editTarget);
+    store.clearDraftThread(input.editTarget);
   } else {
     discardQueuedEditDraft(input.editTarget);
   }

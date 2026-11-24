@@ -32,6 +32,11 @@ import {
 const environmentId = EnvironmentId.make("remote-environment");
 const threadTarget = scopeThreadRef(environmentId, ThreadId.make("thread:edit"));
 const editTarget = DraftId.make("queued-edit:test");
+const originalModelSelection = {
+  instanceId: ProviderInstanceId.make("codex"),
+  model: "original-model",
+};
+const changedModelSelection = { ...originalModelSelection, model: "changed-model" };
 const originalMessage = {
   editTarget,
   threadTarget,
@@ -203,6 +208,28 @@ describe("queued message file edits", () => {
         originalReply,
       }),
     ).toBe("clean");
+  });
+
+  it.each([
+    { edit: "changed", modelSelection: changedModelSelection, result: "kept" },
+    { edit: "unchanged", modelSelection: originalModelSelection, result: "clean" },
+  ])("reports a $edit model as an edit when the run leaves", ({ modelSelection, result }) => {
+    const store = useComposerDraftStore.getState();
+    store.setPrompt(editTarget, "Original message");
+    store.setModelSelection(editTarget, modelSelection, { explicit: true });
+    expect(
+      recoverQueuedMessageEdit({
+        editTarget,
+        threadTarget,
+        originalText: "Original message",
+        originalModelSelection,
+      }),
+    ).toBe(result);
+    if (result === "kept") {
+      expect(
+        store.getComposerDraft(threadTarget)?.modelSelectionByProvider[modelSelection.instanceId],
+      ).toEqual(modelSelection);
+    }
   });
 
   it("reports a removed queued attachment as an edit when the run leaves", () => {
