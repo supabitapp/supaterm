@@ -50,6 +50,9 @@ concurrency:
   group: mobile-eas-production
   cancel-in-progress: false
 
+permissions:
+  contents: read
+
 jobs:
   prepare:
     name: Prepare mobile release
