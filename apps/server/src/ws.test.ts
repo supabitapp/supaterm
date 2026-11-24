@@ -2424,6 +2424,83 @@ const seedAcpThread = Effect.fn(function* (
   return threadId;
 });
 
+it.effect("listing ACP sessions reaches only an agent that advertises listing", () =>
+  Effect.gen(function* () {
+    const calls: Array<string> = [];
+    const input = { instanceId: acpInstanceId, projectId: acpProjectId };
+    const makeClient = (nativeSessions: { readonly canList: boolean } | undefined) =>
+      Effect.gen(function* () {
+        const instance = {
+          driverKind: acpDriver,
+          snapshot: { getSnapshot: Effect.succeed({ nativeSessions }) },
+        } as unknown as ProviderInstance;
+        const services = Layer.mergeAll(
+          layerUnusedConfigRpcServices,
+          Layer.fresh(layerConfigSources),
+          Layer.mock(ExternalLauncher.ExternalLauncher)({}),
+          Layer.mock(ProviderRegistry.ProviderRegistry)({}),
+          Layer.mock(RemoteOpenTargets.RemoteOpenTargets)({}),
+          Layer.mock(DirectEndpoints.DirectEndpoints)({}),
+          Layer.mock(ManagedProjectFolders.ManagedProjectFolders)({ namedProjectsRoot: "/unused" }),
+          Layer.mock(ScratchThreadPromotion.ScratchThreadPromotion)({}),
+          Layer.mock(ServerEnvironment.ServerEnvironment)({}),
+          Layer.mock(EnvironmentAuth.EnvironmentAuth)({}),
+          Layer.mock(AcpRegistrySessions.AcpRegistrySessions)({
+            project: () => Effect.succeed({ workspaceRoot: "/workspace/acp" } as never),
+            sessionManager: () =>
+              Effect.succeed({
+                instance,
+                manager: {
+                  listSessions: () =>
+                    Effect.sync(() => calls.push("listSessions")).pipe(
+                      Effect.as({ sessions: [], nextCursor: null }),
+                    ),
+                } as unknown as NonNullable<ProviderInstance["acpSessionManagement"]>,
+              }),
+          }),
+        );
+        return yield* RpcTest.makeClient(acpSessionRpcs).pipe(
+          Effect.provide(
+            layerWsRpc(
+              {
+                sessionId: AuthSessionId.make("acp-test"),
+                subject: "acp-test",
+                method: "browser-session-cookie",
+                scopes: [],
+              },
+              yield* ServerBrowser.ServerBrowser,
+              () => Effect.void,
+            ).pipe(
+              Layer.provide(services),
+              Layer.merge(RpcAuthorization.layer([AuthOrchestrationReadScope])),
+            ),
+          ),
+        );
+      });
+
+    const unprobed = yield* makeClient(undefined);
+    const refused = yield* unprobed[WS_METHODS.serverListAcpRegistrySessions](input).pipe(
+      Effect.flip,
+    );
+    assert.strictEqual(
+      refused._tag === "AcpRegistryOperationError" ? refused.reason : refused._tag,
+      "session_list_unsupported",
+    );
+    assert.deepEqual(calls, []);
+
+    const probed = yield* makeClient({ canList: true });
+    yield* probed[WS_METHODS.serverListAcpRegistrySessions](input);
+    assert.deepEqual(calls, ["listSessions"]);
+  }).pipe(
+    Effect.provide(
+      Layer.mergeAll(
+        Layer.mock(PreviewAutomationBroker.PreviewAutomationBroker)({}),
+        Layer.mock(ServerBrowser.ServerBrowser)({}),
+      ),
+    ),
+  ),
+);
+
 it.effect("ACP session RPCs list a thread missing its history and repair it on import", () =>
   Effect.gen(function* () {
     const projections = yield* ProjectionStore.ProjectionStoreV2;
@@ -2449,7 +2526,9 @@ it.effect("ACP session RPCs list a thread missing its history and repair it on i
     const instance = {
       driverKind: acpDriver,
       snapshot: {
-        getSnapshot: Effect.succeed({ nativeSessions: { canLoad: true, canDelete: true } }),
+        getSnapshot: Effect.succeed({
+          nativeSessions: { canList: true, canLoad: true, canDelete: true },
+        }),
       },
       acpSessionManagement: {
         listSessions: () =>
