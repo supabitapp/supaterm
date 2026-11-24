@@ -29,7 +29,9 @@ const screenshot = await getImage({
       // Set the platform before first paint so platform-only hero content never flashes.
       {
         const ua = navigator.userAgent;
-        const os = /iPhone|iPad|iPod/i.test(ua)
+        // iPadOS Safari reports a Mac user agent; only touch support tells it apart.
+        const ios = /iPhone|iPad|iPod/i.test(ua) || (/Mac/i.test(ua) && navigator.maxTouchPoints > 1);
+        const os = ios
           ? null
           : /Win/i.test(ua) ? "win" : /Mac/i.test(ua) ? "mac" : /Linux/i.test(ua) ? "linux" : null;
         if (os) document.documentElement.dataset.platform = os;
