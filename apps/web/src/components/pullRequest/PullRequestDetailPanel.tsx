@@ -1719,9 +1719,12 @@ export function PullRequestDetailPanel({
                 <Button
                   size="xs"
                   variant="outline"
+                  disabled={isInvalidating}
                   onClick={() => {
-                    setSeenHead({ key: seenHeadKey, sha: unseenHeadSha });
-                    void refreshFromHost();
+                    // The pin moves once the host read that reloads the diff has been asked for.
+                    void refetchFromHost().then(() =>
+                      setSeenHead({ key: seenHeadKey, sha: unseenHeadSha }),
+                    );
                   }}
                 >
                   Load new commits
