@@ -1464,6 +1464,7 @@ export function PullRequestsPage() {
         )
       ) : null,
     rightPanelOpen: rightPanelState.isOpen,
+    maximizedAway: rightPanelMaximized,
     listBody,
     scrollRef,
   };

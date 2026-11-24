@@ -219,4 +219,25 @@ describe("chat route commands", () => {
     panel.append(browser);
     for (const key of ["=", "+", "-", "0"]) expect(pressMod(key).defaultPrevented).toBe(true);
   });
+
+  it("leaves find to the browser on a chat route without a thread", () => {
+    const { router } = routerAt([
+      ...CHAT,
+      { routeId: "/_chat/pull-requests", pathname: "/pull-requests" },
+    ]);
+    using stack = new DisposableStack();
+    stack.defer(installChatRouteCommands(router));
+    const actions: PreviewAction[] = [];
+    stack.defer(subscribePreviewAction((action) => actions.push(action)));
+    const panel = document.createElement("div");
+    panel.setAttribute("data-preview-panel-mode", "inline");
+    const tab = document.createElement("button");
+    panel.append(tab);
+    document.body.append(panel);
+    stack.defer(() => panel.remove());
+    tab.focus();
+
+    expect(pressMod("f").defaultPrevented).toBe(false);
+    expect(actions).toEqual([]);
+  });
 });
