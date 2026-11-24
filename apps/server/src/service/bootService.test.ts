@@ -201,7 +201,7 @@ it.each([
 const macInstallerPath =
   "/opt/homebrew/bin:/Users/theo/.npm-global/bin:/Users/theo/.nvm/versions/node/v22.16.0/bin:/usr/bin:/bin";
 
-const SCHTASKS = "C:\\Windows\\System32\\schtasks.exe";
+const SCHTASKS = "D:\\WinNT\\System32\\schtasks.exe";
 
 const makeHarness = Effect.fn("test.make_boot_service_harness")(function* (
   platform: NodeJS.Platform = "linux",
@@ -399,6 +399,7 @@ const makeHarness = Effect.fn("test.make_boot_service_harness")(function* (
                 USERPROFILE: home,
                 LOCALAPPDATA: path.join(home, "AppData", "Local"),
                 USERDOMAIN: "PC",
+                windir: "D:\\WinNT",
                 USERNAME: "theo",
                 ...(environmentPath === undefined || environmentPath === ""
                   ? {}
