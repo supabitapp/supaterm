@@ -4,6 +4,7 @@ import { getImage, Image } from "astro:assets";
 // Regenerate with `vp run screenshots:marketing` (scene: scripts/marketing-hero.scene.ts).
 import desktopScreenshot from "../assets/app-desktop.webp";
 import appIcon from "../assets/icon.webp";
+import CommandLine from "../components/CommandLine.astro";
 import Layout from "../layouts/Layout.astro";
 import "../styles/boltComputer.css";
 import {
@@ -24,6 +25,18 @@ const screenshot = await getImage({
 <Layout>
   <!-- ── Hero ──────────────────────────────────────────────────── -->
   <section class="hero">
+    <script is:inline>
+      // Set the platform before first paint so platform-only hero content never flashes.
+      {
+        const ua = navigator.userAgent;
+        // iPadOS Safari reports a Mac user agent; only touch support tells it apart.
+        const ios = /iPhone|iPad|iPod/i.test(ua) || (/Mac/i.test(ua) && navigator.maxTouchPoints > 1);
+        const os = ios
+          ? null
+          : /Win/i.test(ua) ? "win" : /Mac/i.test(ua) ? "mac" : /Linux/i.test(ua) ? "linux" : null;
+        if (os) document.documentElement.dataset.platform = os;
+      }
+    </script>
     <div class="hero-grid" aria-hidden="true"></div>
 
     <div class="hero-float" aria-hidden="true">
@@ -71,6 +84,7 @@ const screenshot = await getImage({
             <span>Join the iOS beta</span>
           </a>
         </div>
+        <CommandLine class="hero-brew" command="brew install supaterm" />
         <div class="hero-source-links">
           <a class="hero-source-link" href={GITHUB_REPOSITORY_URL} target="_blank" rel="noopener noreferrer">
             <svg class="hero-source-mark" width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -189,14 +203,17 @@ const screenshot = await getImage({
   import { fetchLatestRelease, RELEASES_URL, type ReleaseAsset } from "../lib/releases";
   import { startHomeMotion } from "../lib/homeMotion";
 
-  type Platform = { os: "mac" | "win" | "linux"; label: string };
+  const PLATFORMS = {
+    mac: { os: "mac", label: "Download for macOS" },
+    win: { os: "win", label: "Download for Windows" },
+    linux: { os: "linux", label: "Download for Linux" },
+  } as const;
+
+  type Platform = (typeof PLATFORMS)[keyof typeof PLATFORMS];
 
   function detectPlatform(): Platform | null {
-    const ua = navigator.userAgent;
-    if (/Win/i.test(ua)) return { os: "win", label: "Download for Windows" };
-    if (/Mac/i.test(ua)) return { os: "mac", label: "Download for macOS" };
-    if (/Linux/i.test(ua)) return { os: "linux", label: "Download for Linux" };
-    return null;
+    const os = document.documentElement.dataset.platform;
+    return os && os in PLATFORMS ? PLATFORMS[os as keyof typeof PLATFORMS] : null;
   }
 
   // Macs get the installer, which picks the build for the Mac's chip itself. Browsers cannot
@@ -222,7 +239,6 @@ const screenshot = await getImage({
 
     const platform = detectPlatform();
     if (!platform) return;
-    document.documentElement.dataset.platform = platform.os;
     if (label) label.textContent = platform.label;
 
     try {
@@ -330,6 +346,14 @@ const screenshot = await getImage({
     flex-wrap: wrap;
     justify-content: center;
     gap: 10px;
+  }
+
+  .hero-actions .hero-brew {
+    align-self: center;
+  }
+
+  :global(html:not([data-platform="mac"])) .hero-brew {
+    display: none;
   }
 
   .hero-source-links {
