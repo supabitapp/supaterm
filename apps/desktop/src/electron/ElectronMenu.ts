@@ -87,6 +87,7 @@ function normalizeContextMenuItems(source: readonly ContextMenuItem[]): ContextM
       ...(typeof sourceItem.icon === "string" ? { icon: sourceItem.icon } : {}),
       ...(sourceItem.separatorBefore === true ? { separatorBefore: true } : {}),
       ...(typeof sourceItem.checked === "boolean" ? { checked: sourceItem.checked } : {}),
+      ...(typeof sourceItem.iconImage === "string" ? { iconImage: sourceItem.iconImage } : {}),
     };
 
     if (sourceItem.children) {
@@ -123,6 +124,17 @@ const MENU_ICON_SYMBOLS: Readonly<Record<string, string>> = {
   "message-square-text": "text.bubble",
   trash: "trash",
 };
+
+// Renderer icons are 32px PNGs; a 2x representation keeps them 16pt and sharp on Retina.
+function menuIconImage(dataUrl: string): Option.Option<Electron.NativeImage> {
+  try {
+    const image = Electron.nativeImage.createEmpty();
+    image.addRepresentation({ scaleFactor: 2, dataURL: dataUrl });
+    return image.isEmpty() ? Option.none() : Option.some(image);
+  } catch {
+    return Option.none();
+  }
+}
 
 /** @public */
 export const make = Effect.gen(function* () {
@@ -188,6 +200,12 @@ export const make = Effect.gen(function* () {
         itemOption.submenu = buildTemplate(item.children, complete);
       } else {
         itemOption.click = () => complete(Option.some(item.id));
+      }
+      if (item.iconImage !== undefined) {
+        const image = menuIconImage(item.iconImage);
+        if (Option.isSome(image)) {
+          itemOption.icon = image.value;
+        }
       }
       const keyword = item.destructive && itemOption.submenu === undefined ? "trash" : item.icon;
       const symbol = keyword === undefined ? undefined : MENU_ICON_SYMBOLS[keyword];

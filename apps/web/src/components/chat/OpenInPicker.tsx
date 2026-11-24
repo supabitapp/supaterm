@@ -19,7 +19,7 @@ import {
   useRemoteOpenState,
 } from "../../remoteOpen";
 import { useEnvironment } from "../../state/environments";
-import { ChevronDownIcon, ExternalLinkIcon, FolderIcon, type IconComponent } from "@supaterm/icons";
+import { ChevronDownIcon, ExternalLinkIcon } from "@supaterm/icons";
 
 import { Group, GroupSeparator } from "../ui/group";
 import {
@@ -34,34 +34,9 @@ import {
   MenuTrigger,
 } from "../ui/menu";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
-import {
-  AntigravityIcon,
-  CursorIcon,
-  FileExplorerIcon,
-  FinderIcon,
-  KiroIcon,
-  TraeIcon,
-  VisualStudioCode,
-  VisualStudioCodeInsiders,
-  VSCodium,
-  Zed,
-} from "../Icons";
-import {
-  AquaIcon,
-  CLionIcon,
-  DataGripIcon,
-  DataSpellIcon,
-  GoLandIcon,
-  IntelliJIdeaIcon,
-  PhpStormIcon,
-  PyCharmIcon,
-  RiderIcon,
-  RubyMineIcon,
-  RustRoverIcon,
-  WebStormIcon,
-} from "../JetBrainsIcons";
+import { type EditorIconOption, editorIconOptions } from "../editorIcons";
 import { announce } from "~/lib/announce";
-import { cn, isMacPlatform, isWindowsPlatform } from "~/lib/utils";
+import { cn } from "~/lib/utils";
 import { shellEnvironment } from "~/state/shell";
 import { useAtomCommand } from "~/state/use-atom-command";
 import {
@@ -74,127 +49,14 @@ import { readEnvironmentScope, useEnvironmentScope } from "~/state/session";
 import { useComposerMenuState } from "./useComposerMenuState";
 import { useIsPaneInputOwner } from "../../chatPanes/paneScope";
 
-type OpenInOption = {
-  label: string;
-  Icon: IconComponent;
-  value: EditorId;
-  kind: "brand" | "generic";
-};
+type OpenInOption = EditorIconOption & { label: string };
 
-const resolveOpenInOptions = (platform: string, availableEditors: ReadonlyArray<EditorId>) => {
-  const baseOptions: ReadonlyArray<Omit<OpenInOption, "label">> = [
-    {
-      Icon: CursorIcon,
-      value: "cursor",
-      kind: "brand",
-    },
-    {
-      Icon: TraeIcon,
-      value: "trae",
-      kind: "brand",
-    },
-    {
-      Icon: KiroIcon,
-      value: "kiro",
-      kind: "brand",
-    },
-    {
-      Icon: VisualStudioCode,
-      value: "vscode",
-      kind: "brand",
-    },
-    {
-      Icon: VisualStudioCodeInsiders,
-      value: "vscode-insiders",
-      kind: "brand",
-    },
-    {
-      Icon: VSCodium,
-      value: "vscodium",
-      kind: "brand",
-    },
-    {
-      Icon: Zed,
-      value: "zed",
-      kind: "brand",
-    },
-    {
-      Icon: AntigravityIcon,
-      value: "antigravity",
-      kind: "brand",
-    },
-    {
-      Icon: IntelliJIdeaIcon,
-      value: "idea",
-      kind: "brand",
-    },
-    {
-      Icon: AquaIcon,
-      value: "aqua",
-      kind: "brand",
-    },
-    {
-      Icon: CLionIcon,
-      value: "clion",
-      kind: "brand",
-    },
-    {
-      Icon: DataGripIcon,
-      value: "datagrip",
-      kind: "brand",
-    },
-    {
-      Icon: DataSpellIcon,
-      value: "dataspell",
-      kind: "brand",
-    },
-    {
-      Icon: GoLandIcon,
-      value: "goland",
-      kind: "brand",
-    },
-    {
-      Icon: PhpStormIcon,
-      value: "phpstorm",
-      kind: "brand",
-    },
-    {
-      Icon: PyCharmIcon,
-      value: "pycharm",
-      kind: "brand",
-    },
-    {
-      Icon: RiderIcon,
-      value: "rider",
-      kind: "brand",
-    },
-    {
-      Icon: RubyMineIcon,
-      value: "rubymine",
-      kind: "brand",
-    },
-    {
-      Icon: RustRoverIcon,
-      value: "rustrover",
-      kind: "brand",
-    },
-    {
-      Icon: WebStormIcon,
-      value: "webstorm",
-      kind: "brand",
-    },
-    {
-      Icon: isMacPlatform(platform)
-        ? FinderIcon
-        : isWindowsPlatform(platform)
-          ? FileExplorerIcon
-          : FolderIcon,
-      value: "file-manager",
-      kind: isMacPlatform(platform) || isWindowsPlatform(platform) ? "brand" : "generic",
-    },
-  ];
+const resolveOpenInOptions = (
+  platform: string,
+  availableEditors: ReadonlyArray<EditorId>,
+): ReadonlyArray<OpenInOption> => {
   const availableEditorSet = new Set(availableEditors);
-  return baseOptions.flatMap((option) =>
+  return editorIconOptions(platform).flatMap((option) =>
     availableEditorSet.has(option.value)
       ? [{ ...option, label: editorLabelForPlatform(option.value, platform) }]
       : [],
