@@ -477,12 +477,7 @@ const IN_PLACE_DENIED_PROTOCOLS = new Set([
   "view-source:",
 ]);
 
-/**
- * A popup is not a webview attach, so the `will-attach-webview` hardening in `DesktopWindow`
- * never sees it, and an unoverridden child would inherit the guest's relaxed posture: the
- * picker preload needs `contextIsolation: false` to share `globalThis` with the previewed page,
- * and no OAuth provider should get that.
- */
+/** Popups bypass will-attach-webview hardening, so they are isolated and sandboxed here. */
 const POPUP_WINDOW_OPTIONS = {
   webPreferences: {
     contextIsolation: true,
