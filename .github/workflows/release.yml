@@ -989,6 +989,8 @@ jobs:
     if: ${{ !failure() && !cancelled() && needs.preflight.result == 'success' && needs.release.result == 'success' && needs.preflight.outputs.release_channel != 'preview' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    # The npm trusted publisher names this environment, so only this job's token can publish.
+    environment: release
     permissions:
       contents: read
       id-token: write

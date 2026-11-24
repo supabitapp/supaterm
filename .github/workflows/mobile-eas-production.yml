@@ -190,7 +190,6 @@ jobs:
     env:
       APP_VARIANT: production
       NODE_OPTIONS: --max-old-space-size=8192
-      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
       MOBILE_PLATFORM: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

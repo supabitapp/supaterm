@@ -39,10 +39,13 @@ jobs:
       MOBILE_VERSION_POLICY: fingerprint
       MOBILE_PLATFORM: ${{ matrix.platform }}
       PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+    # EXPO_TOKEN stays off the job env so installing the PR's dependencies cannot read it;
+    # setup-mobile-release logs in to Expo after the install, for the steps that follow.
     steps:
       - id: expo-token
         name: Check for EXPO_TOKEN
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
           if [ -n "$EXPO_TOKEN" ]; then
             echo "present=true" >> "$GITHUB_OUTPUT"
