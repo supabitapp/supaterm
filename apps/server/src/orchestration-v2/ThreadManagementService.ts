@@ -1016,6 +1016,21 @@ const make = Effect.gen(function* () {
     const requestedAt = yield* DateTime.now;
     const { run } = yield* waitForThread({ ...input, timeoutMs: MARK_DONE_AFTER_RUN_WAIT_MS });
     if (run?.status !== "completed") return;
+    // A message steered into this run and read after the request supersedes it.
+    const { turnItems } = yield* getProjectThreadRecords(input, ["turnItems"], {
+      turnItemRunIds: [run.id],
+      turnItemTypes: ["user_message"],
+    });
+    if (
+      turnItems.some(
+        (item) =>
+          item.type === "user_message" &&
+          (item.inputIntent === "steer" || item.inputIntent === "promoted_queued_to_steer") &&
+          item.completedAt !== null &&
+          !DateTime.isLessThan(DateTime.makeUnsafe(item.completedAt), requestedAt),
+      )
+    )
+      return;
     const afterSequence = yield* orchestrator.getThreadEventSequence(input.threadId);
     const tryMarkDone = Effect.gen(function* () {
       const sequence = yield* orchestrator.getThreadEventSequence(input.threadId);
