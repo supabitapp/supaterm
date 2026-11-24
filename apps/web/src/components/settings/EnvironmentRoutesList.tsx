@@ -19,6 +19,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { RegistryContext, useAtomValue } from "@effect/atom-react";
 import { Atom } from "effect/reactivity";
 import {
+  canRemoveRoute,
   type ConnectionRoute,
   connectionRouteAddress,
   connectionRouteId,
@@ -124,10 +125,7 @@ export function EnvironmentRoutesList({
                   inUse={connectionRouteId(route.target) === activeRouteId}
                   unused={unused}
                   refused={environment.refusedRouteIds.includes(connectionRouteId(route.target))}
-                  // Learned routes are refreshed from the server and are not
-                  // removed manually unless a connect skips them; paired
-                  // routes can be removed individually.
-                  removable={routes.length > 1 && (!isLearned(route) || unused)}
+                  removable={canRemoveRoute(routes, route, unused)}
                   onRemove={() => void confirmRemove(route)}
                 />
               );

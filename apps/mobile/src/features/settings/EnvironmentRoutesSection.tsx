@@ -2,6 +2,7 @@ import { Button } from "../../components/ui/Button";
 import * as Dialog from "../../components/ui/Dialog";
 import { RegistryContext, useAtomValue } from "@effect/atom-react";
 import {
+  canRemoveRoute,
   type ConnectionRoute,
   type ConnectionRouteKind,
   connectionRouteAddress,
@@ -243,12 +244,8 @@ export function EnvironmentRoutesSection({
               if (!cancelled) move(index, dropIndex(index, translation));
             }}
             onStep={(direction) => move(index, direction === "up" ? index - 1 : index + 1)}
-            // Learned routes are refreshed from the server unless a connect
-            // skips them; paired routes can be removed.
             onRemove={
-              routes.length > 1 && (!isLearned(route) || unused)
-                ? () => confirmRemove(route)
-                : undefined
+              canRemoveRoute(routes, route, unused) ? () => confirmRemove(route) : undefined
             }
           />
         );
