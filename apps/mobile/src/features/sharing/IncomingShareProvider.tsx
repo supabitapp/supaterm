@@ -16,7 +16,7 @@ import { CommonActions } from "@react-navigation/native";
 
 import {
   buildIncomingShareDraft,
-  isShareFileUriUnderOwnedRoots,
+  isOwnedShareFileUri,
   selectIncomingShareAttachmentsForServer,
   type IncomingShareDestination,
   type IncomingShareDraft,
@@ -99,7 +99,8 @@ async function readFileSize(uri: string): Promise<number | null> {
   return new File(uri).size ?? null;
 }
 
-async function removeOwnedFile(uri: string): Promise<void> {
+/** `persisted` marks a copy this app saved itself, which needs no ownership check. */
+async function removeOwnedFile(uri: string, persisted = false): Promise<void> {
   if (!uri.startsWith("file:")) {
     return;
   }
@@ -109,12 +110,17 @@ async function removeOwnedFile(uri: string): Promise<void> {
     // sandbox and its share-extension App Group container. An iOS
     // open-in-place share points at the sender's own storage; deleting that
     // URI would destroy the user's document.
-    const ownedRootUris = [
-      Paths.document.uri,
-      Paths.cache.uri,
-      ...Object.values(Paths.appleSharedContainers ?? {}).map((directory) => directory.uri),
-    ];
-    if (!isShareFileUriUnderOwnedRoots(uri, ownedRootUris)) {
+    const owned =
+      persisted ||
+      isOwnedShareFileUri(uri, {
+        platform: Platform.OS,
+        cacheUri: Paths.cache.uri,
+        otherRootUris: [
+          Paths.document.uri,
+          ...Object.values(Paths.appleSharedContainers ?? {}).map((directory) => directory.uri),
+        ],
+      });
+    if (!owned) {
       return;
     }
     const file = new File(uri);
@@ -146,7 +152,7 @@ async function removeReplayedPayloadFiles(payloads: ReadonlyArray<SharePayload>)
       uris.add(payload.contentUri);
     }
   }
-  await Promise.all([...uris].map(removeOwnedFile));
+  await Promise.all([...uris].map((uri) => removeOwnedFile(uri)));
 }
 
 // Keep one operation queue across provider remounts (including development
@@ -193,10 +199,12 @@ const incomingShareInbox = new IncomingShareInbox({
     return {
       draft,
       cleanup: async () => {
-        await Promise.all([...cleanupUris].map(removeOwnedFile));
+        await Promise.all(
+          [...cleanupUris].map((uri) => removeOwnedFile(uri, persistedUris.has(uri))),
+        );
       },
       rollback: async () => {
-        await Promise.all([...persistedUris].map(removeOwnedFile));
+        await Promise.all([...persistedUris].map((uri) => removeOwnedFile(uri, true)));
       },
     };
   },

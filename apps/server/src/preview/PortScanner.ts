@@ -8,6 +8,7 @@ import {
 } from "@supaterm/contracts";
 import { signalProcessGroup } from "@supaterm/provider-core/server/processGroup";
 import * as HostProcess from "@supaterm/shared/HostProcess";
+import { windowsSystem32Path } from "@supaterm/shared/windowsSystem";
 import { isLoopbackHost, LSOF_LOCAL_HOST_TOKENS } from "@supaterm/shared/preview";
 import * as Cause from "effect/Cause";
 import * as Clock from "effect/Clock";
@@ -848,12 +849,13 @@ export const make = Effect.gen(function* PortDiscoveryMake() {
     );
     const cachedPids = new Set(cached.map(([pid]) => pid));
     const expiresAtMillis = nowMillis + WINDOWS_PROCESS_NAME_TTL_MS;
+    const tasklist = windowsSystem32Path(yield* HostProcess.Environment, "tasklist.exe");
     const fetched = yield* Effect.forEach(
       [...pids].filter((pid) => !cachedPids.has(pid)),
       (pid) =>
         processRunner
           .run({
-            command: "tasklist.exe",
+            command: tasklist,
             args: ["/FO", "CSV", "/NH", "/FI", `PID eq ${pid}`],
             timeout: Duration.millis(WINDOWS_LISTENER_TIMEOUT_MS),
             maxOutputBytes: 64 * 1024,

@@ -201,6 +201,8 @@ it.each([
 const macInstallerPath =
   "/opt/homebrew/bin:/Users/theo/.npm-global/bin:/Users/theo/.nvm/versions/node/v22.16.0/bin:/usr/bin:/bin";
 
+const SCHTASKS = "C:\\Windows\\System32\\schtasks.exe";
+
 const makeHarness = Effect.fn("test.make_boot_service_harness")(function* (
   platform: NodeJS.Platform = "linux",
   installerPath = macInstallerPath,
@@ -276,8 +278,8 @@ const makeHarness = Effect.fn("test.make_boot_service_harness")(function* (
       }
       if (!failed && command === "systemctl --user enable supaterm.service") control.enabled = true;
       const taskMissing =
-        input.command === "schtasks" && input.args[0] !== "/Create" && control.task === undefined;
-      if (input.command === "schtasks" && !failed) {
+        input.command === SCHTASKS && input.args[0] !== "/Create" && control.task === undefined;
+      if (input.command === SCHTASKS && !failed) {
         if (input.args[0] === "/Create") {
           const xml = decodeServiceUnit(yield* fs.readFile(input.args[2] ?? ""));
           control.task = { xml, enabled: !serviceTaskIsDisabled(xml) };
@@ -318,7 +320,7 @@ const makeHarness = Effect.fn("test.make_boot_service_harness")(function* (
               })
             : input.args[0] === "--version"
               ? `supaterm v${/versions[\\/]([^\\/]+)[\\/]/.exec(input.command)?.[1] ?? "1.2.3"}\n`
-              : input.command === "schtasks" && input.args.includes("/XML")
+              : input.command === SCHTASKS && input.args.includes("/XML")
                 ? control.task?.enabled === false
                   ? disabledServiceTask(control.task.xml)
                   : (control.task?.xml ?? "")
@@ -1515,9 +1517,9 @@ process.disconnect();
         protocol: SERVICE_LAUNCHER_PROTOCOL,
         activeVersion: "1.2.3",
       });
-      expect(commands.filter((command) => command.startsWith("schtasks "))).toEqual([
-        `schtasks /Create /XML ${plan.unitPath} /TN supaterm-PC-theo /F`,
-        "schtasks /Run /TN supaterm-PC-theo",
+      expect(commands.filter((command) => command.startsWith(`${SCHTASKS} `))).toEqual([
+        `${SCHTASKS} /Create /XML ${plan.unitPath} /TN supaterm-PC-theo /F`,
+        `${SCHTASKS} /Run /TN supaterm-PC-theo`,
       ]);
       // No launcher holds the lock here.
       expect(yield* service.status).toMatchObject({
@@ -1527,7 +1529,7 @@ process.disconnect();
       });
 
       // A task that Task Scheduler refuses to delete stays installed, so a retry finds it.
-      control.failCommand = "schtasks /Delete /TN supaterm-PC-theo /F";
+      control.failCommand = `${SCHTASKS} /Delete /TN supaterm-PC-theo /F`;
       expect((yield* service.uninstall.pipe(Effect.flip))._tag).toBe("BootServiceCommandError");
       expect((yield* service.status).installed).toBe(true);
       control.failCommand = undefined;
@@ -1535,9 +1537,9 @@ process.disconnect();
       commands.length = 0;
       expect(yield* service.uninstall).toBe(true);
       expect(commands).toEqual([
-        "schtasks /Change /TN supaterm-PC-theo /DISABLE",
-        "schtasks /End /TN supaterm-PC-theo",
-        "schtasks /Delete /TN supaterm-PC-theo /F",
+        `${SCHTASKS} /Change /TN supaterm-PC-theo /DISABLE`,
+        `${SCHTASKS} /End /TN supaterm-PC-theo`,
+        `${SCHTASKS} /Delete /TN supaterm-PC-theo /F`,
       ]);
       expect(control.task).toBeUndefined();
       expect((yield* service.status).installed).toBe(false);
@@ -1577,11 +1579,11 @@ process.disconnect();
       commands.length = 0;
       yield* service.withStopped(Effect.sync(() => commands.push("repair")));
       expect(commands.filter((command) => !command.includes("/Query"))).toEqual([
-        "schtasks /Change /TN supaterm-PC-theo /DISABLE",
-        "schtasks /End /TN supaterm-PC-theo",
+        `${SCHTASKS} /Change /TN supaterm-PC-theo /DISABLE`,
+        `${SCHTASKS} /End /TN supaterm-PC-theo`,
         "repair",
-        "schtasks /Change /TN supaterm-PC-theo /ENABLE",
-        "schtasks /Run /TN supaterm-PC-theo",
+        `${SCHTASKS} /Change /TN supaterm-PC-theo /ENABLE`,
+        `${SCHTASKS} /Run /TN supaterm-PC-theo`,
       ]);
     }),
   );
@@ -1592,14 +1594,14 @@ process.disconnect();
       const plan = yield* service.install();
       const inside = yield* makeService(undefined, "1.2.4", undefined, true);
       const handoff = [
-        `schtasks /Create /XML ${plan.unitPath} /TN supaterm-PC-theo /F`,
-        "schtasks /End /TN supaterm-PC-theo",
-        "schtasks /Run /TN supaterm-PC-theo",
+        `${SCHTASKS} /Create /XML ${plan.unitPath} /TN supaterm-PC-theo /F`,
+        `${SCHTASKS} /End /TN supaterm-PC-theo`,
+        `${SCHTASKS} /Run /TN supaterm-PC-theo`,
       ];
       commands.length = 0;
 
       expect(yield* inside.install()).toMatchObject({ handedOff: true, logPath: plan.logPath });
-      expect(commands.filter((command) => command.startsWith("schtasks "))).toEqual(handoff);
+      expect(commands.filter((command) => command.startsWith(`${SCHTASKS} `))).toEqual(handoff);
       expect(parseServiceState(yield* fs.readFileString(statePath))?.activeVersion).toBe("1.2.4");
       expect(
         yield* fs.readFileString(`${plan.baseDir}/runtime/${SERVICE_RESTART_PENDING_FILE}`),

@@ -24,6 +24,7 @@ import {
 import * as HostProcess from "@supaterm/shared/HostProcess";
 
 import * as ProcessRunner from "../processRunner.ts";
+import { windowsPowerShellPath } from "@supaterm/shared/windowsSystem";
 import { isExactServiceVersion, parseServiceState, SERVICE_STATE_FILE } from "./serviceProtocol.ts";
 
 /**
@@ -779,7 +780,7 @@ const runningExecutables = Effect.fn("cloud.pinned_runtime.running_executables")
     .run({
       ...(platform === "win32"
         ? {
-            command: "powershell.exe",
+            command: windowsPowerShellPath(yield* HostProcess.Environment),
             args: [
               "-NoProfile",
               "-NonInteractive",

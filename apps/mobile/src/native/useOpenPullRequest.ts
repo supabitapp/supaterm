@@ -2,7 +2,7 @@ import { useNavigation, useRoute, StackActions } from "@react-navigation/native"
 import { nativePullRequestDestination } from "../lib/pullRequestNavigation";
 import { EnvironmentId, ThreadId } from "@supaterm/contracts";
 import { useProjects, useThreadShell } from "../state/entities";
-import { tryOpenExternalUrl } from "../lib/openExternalUrl";
+import { tryOpenWebLink } from "../lib/openExternalUrl";
 import { appAtomRegistry } from "../state/atom-registry";
 import { environmentServerConfigsAtom } from "../state/server";
 import { withKnownPullRequestSummary } from "../state/use-thread-pr";
@@ -23,7 +23,7 @@ export function useNavigateToPullRequest(options?: { readonly replace?: boolean 
     const destination = nativePullRequestDestination(url, context, projects, (environmentId) =>
       serverConfigs.has(environmentId),
     );
-    if (!destination) return tryOpenExternalUrl(url, "pull-request");
+    if (!destination) return tryOpenWebLink(url, "pull-request");
     const params = withKnownPullRequestSummary({
       ...destination,
       ...(destination.navigationUrl ? { navigationId: nextLinkNavigationId() } : {}),
