@@ -2,7 +2,6 @@ import { useAtomValue } from "@effect/atom-react";
 import { type ReactNode, useRef, useState } from "react";
 import type {
   EnvironmentId,
-  ModelSelection,
   OrchestrationV2ThreadLaunchWorkspaceStrategy,
   ProjectId,
   ScheduledTask,
@@ -42,6 +41,8 @@ import { WorktreeBaseBranchPicker } from "../WorktreeBaseBranchPicker";
 import { EnvironmentMachineIcon } from "../EnvironmentMachineIcon";
 import { ProviderModelPicker } from "../chat/ProviderModelPicker";
 import { SETTINGS_PICKER_TRIGGER_CLASSNAME } from "../settings/settingsLayout";
+import { TraitsPicker } from "../chat/TraitsPicker";
+import { createModelSelection } from "@supaterm/shared/model";
 import { Button } from "../ui/button";
 import {
   Combobox,
@@ -121,10 +122,9 @@ const EMPTY_DRAFT: DraftState = {
   baseRef: "",
   startFromOrigin: true,
   existingWorktreePath: "",
-  modelKey: "",
+  modelSelection: null,
   runtimeMode: "full-access",
   interactionMode: "default",
-  baseModelSelection: null,
 };
 
 /** Labelled field: a caption sitting above its control. */
@@ -309,15 +309,6 @@ function ScheduledTaskDestination({
   );
 }
 
-function splitModelKey(value: string): ModelSelection | null {
-  const index = value.indexOf(":");
-  if (index <= 0 || index === value.length - 1) return null;
-  return {
-    instanceId: ProviderInstanceId.make(value.slice(0, index)),
-    model: value.slice(index + 1),
-  };
-}
-
 /**
  * Creates or edits one automation. `scope` narrows the projects it offers, so
  * a project-scoped page creates into that project by default.
@@ -406,7 +397,7 @@ export function AutomationEditorDialog({
   // The real model picker is keyed by a `${instanceId}:${model}` string, which
   // is exactly how the draft stores its selection.
   const firstInstance = instanceEntries[0];
-  const draftSelection = draft.modelKey ? splitModelKey(draft.modelKey) : null;
+  const draftSelection = draft.modelSelection;
   const activeSelection =
     draftSelection &&
     instanceEntries.some((entry) => entry.instanceId === draftSelection.instanceId && entry.enabled)
@@ -415,6 +406,7 @@ export function AutomationEditorDialog({
   const activeInstanceId =
     activeSelection?.instanceId ?? firstInstance?.instanceId ?? ("" as ProviderInstanceId);
   const activeModel = activeSelection?.model ?? "";
+  const activeEntry = instanceEntries.find((entry) => entry.instanceId === activeInstanceId);
   const boundThread = useScheduledTaskThread(
     environmentId,
     draft.threadId ? (draft.threadId as ThreadId) : null,
@@ -486,14 +478,6 @@ export function AutomationEditorDialog({
       reportFailure("Checkout path is required", "Enter the path of the checkout to run in.");
       return;
     }
-    // Keep the original selection object (with provider options) when the
-    // picker still points at the same instance+model.
-    const modelSelection =
-      draft.baseModelSelection !== null &&
-      draft.baseModelSelection.instanceId === selection.instanceId &&
-      draft.baseModelSelection.model === selection.model
-        ? draft.baseModelSelection
-        : selection;
     const workspaceStrategy: OrchestrationV2ThreadLaunchWorkspaceStrategy =
       draft.workspaceMode === "root"
         ? { type: "root" }
@@ -515,7 +499,7 @@ export function AutomationEditorDialog({
       ...(draft.threadId === "" && draft.savedThreadId !== "" ? { unbindThread: true } : {}),
       ...(offersThreadModes ? { threadMode: draft.threadMode } : {}),
       workspaceStrategy,
-      modelSelection,
+      modelSelection: selection,
       runtimeMode: draft.runtimeMode,
       interactionMode: draft.interactionMode,
       creationSource: "web",
@@ -573,8 +557,7 @@ export function AutomationEditorDialog({
                   setDraft((current) => ({
                     ...unbindDraftFromThread(current),
                     projectId: defaultAutomationProjectId(projectsOn(next.environmentId), scope),
-                    modelKey: "",
-                    baseModelSelection: null,
+                    modelSelection: null,
                     baseRef: "",
                     startFromOrigin: true,
                     existingWorktreePath: "",
@@ -772,7 +755,7 @@ export function AutomationEditorDialog({
             </Field>
 
             <Field label="Model">
-              <div>
+              <div className="flex flex-wrap items-center gap-1.5">
                 <ProviderModelPicker
                   environmentId={environmentId}
                   // The saved selection only seeds new threads; bound runs ignore it.
@@ -784,10 +767,39 @@ export function AutomationEditorDialog({
                   modelOptionsByInstance={modelOptionsByInstance}
                   isComposerOwned={false}
                   triggerClassName={SETTINGS_PICKER_TRIGGER_CLASSNAME}
-                  onInstanceModelChange={(instanceId, model) =>
-                    setDraft((current) => ({ ...current, modelKey: `${instanceId}:${model}` }))
-                  }
+                  onInstanceModelChange={(instanceId, model) => {
+                    if (
+                      instanceId === activeSelection?.instanceId &&
+                      model === activeSelection.model
+                    )
+                      return;
+                    setDraft((current) => ({
+                      ...current,
+                      modelSelection: createModelSelection(instanceId, model),
+                    }));
+                  }}
                 />
+                {!draft.threadId && activeSelection && activeEntry ? (
+                  <TraitsPicker
+                    provider={activeEntry.driverKind}
+                    models={activeEntry.models}
+                    model={activeModel}
+                    modelOptions={activeSelection.options ?? []}
+                    allowPromptInjectedEffort={false}
+                    disabled={saving || !connected}
+                    triggerClassName={SETTINGS_PICKER_TRIGGER_CLASSNAME}
+                    onModelOptionsChange={(options) =>
+                      setDraft((current) => ({
+                        ...current,
+                        modelSelection: createModelSelection(
+                          activeInstanceId,
+                          activeModel,
+                          options,
+                        ),
+                      }))
+                    }
+                  />
+                ) : null}
               </div>
             </Field>
 
