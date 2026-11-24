@@ -25,6 +25,14 @@ const screenshot = await getImage({
 <Layout>
   <!-- ── Hero ──────────────────────────────────────────────────── -->
   <section class="hero">
+    <script is:inline>
+      // Set the platform before first paint so platform-only hero content never flashes.
+      {
+        const ua = navigator.userAgent;
+        const os = /Win/i.test(ua) ? "win" : /Mac/i.test(ua) ? "mac" : /Linux/i.test(ua) ? "linux" : null;
+        if (os) document.documentElement.dataset.platform = os;
+      }
+    </script>
     <div class="hero-grid" aria-hidden="true"></div>
 
     <div class="hero-float" aria-hidden="true">
@@ -191,14 +199,17 @@ const screenshot = await getImage({
   import { fetchLatestRelease, RELEASES_URL, type ReleaseAsset } from "../lib/releases";
   import { startHomeMotion } from "../lib/homeMotion";
 
-  type Platform = { os: "mac" | "win" | "linux"; label: string };
+  const PLATFORMS = {
+    mac: { os: "mac", label: "Download for macOS" },
+    win: { os: "win", label: "Download for Windows" },
+    linux: { os: "linux", label: "Download for Linux" },
+  } as const;
+
+  type Platform = (typeof PLATFORMS)[keyof typeof PLATFORMS];
 
   function detectPlatform(): Platform | null {
-    const ua = navigator.userAgent;
-    if (/Win/i.test(ua)) return { os: "win", label: "Download for Windows" };
-    if (/Mac/i.test(ua)) return { os: "mac", label: "Download for macOS" };
-    if (/Linux/i.test(ua)) return { os: "linux", label: "Download for Linux" };
-    return null;
+    const os = document.documentElement.dataset.platform;
+    return os && os in PLATFORMS ? PLATFORMS[os as keyof typeof PLATFORMS] : null;
   }
 
   // Macs get the installer, which picks the build for the Mac's chip itself. Browsers cannot
@@ -224,7 +235,6 @@ const screenshot = await getImage({
 
     const platform = detectPlatform();
     if (!platform) return;
-    document.documentElement.dataset.platform = platform.os;
     if (label) label.textContent = platform.label;
 
     try {
