@@ -1,6 +1,7 @@
 import "~/index.css";
 import { EnvironmentId, NodeId, ThreadId } from "@supaterm/contracts";
 import * as Cause from "effect/Cause";
+import * as DateTime from "effect/DateTime";
 import { AsyncResult } from "effect/reactivity";
 import { expect, it, vi } from "vite-plus/test";
 import { page, userEvent } from "vite-plus/test/browser";
@@ -57,7 +58,7 @@ vi.mock(import("../../state/use-atom-command"), () => ({
       : AsyncResult.failure(Cause.fail(new Error("Connection lost")))) as never,
 }));
 
-import { render } from "../../../test/render";
+import { fakeTimers, render } from "../../../test/render";
 import { makeThreadProjectionFixture } from "../../test-fixtures";
 import { ScrollArea } from "../ui/scroll-area";
 import { ToastProvider } from "../ui/toast";
@@ -280,6 +281,58 @@ it("shows a side chat's full title in its tooltip", async () => {
   await vi.waitFor(() =>
     expect(document.querySelector('[data-slot="tooltip-popup"]')?.textContent).toContain(longTitle),
   );
+});
+
+it("shows how long a running remote subagent has been running, as a local one does", async () => {
+  setup();
+  const remoteTitle = "Remote subagent running on a linked machine";
+  using _timers = fakeTimers();
+  vi.setSystemTime(new Date("2026-11-23T12:12:00.000Z"));
+  const startedAt = DateTime.makeUnsafe("2026-11-23T12:00:00.000Z");
+  state.projection = {
+    ...(state.projection as Record<string, unknown>),
+    subagents: [
+      {
+        id: NodeId.make("remote-agent"),
+        threadId,
+        runId: null,
+        parentNodeId: NodeId.make("parent"),
+        origin: "app_owned",
+        createdBy: "agent",
+        driver: "remote",
+        providerInstanceId: "provider",
+        providerThreadId: null,
+        childThreadId: null,
+        nativeTaskRef: null,
+        prompt: "Run remote task",
+        title: remoteTitle,
+        model: null,
+        status: "running",
+        result: null,
+        startedAt,
+        completedAt: null,
+        updatedAt: startedAt,
+        remoteChild: {
+          environmentId: EnvironmentId.make("remote-env"),
+          threadId: ThreadId.make("remote-thread"),
+          label: "127x05",
+        },
+      },
+    ],
+  };
+  await using screen = await render(
+    <ThreadRelationshipsPanel
+      environmentId={environmentId}
+      threadId={threadId}
+      showLineage
+      showSideChats={false}
+    />,
+    { router: "/environment/fork" },
+  );
+
+  // Assert synchronously: expect.element polls on timers this test fakes.
+  const row = screen.getByRole("button", { name: new RegExp(remoteTitle) });
+  expect(row.element().textContent).toContain("12m");
 });
 
 it("explains why Merge back is unavailable before the fork completes a run", async () => {

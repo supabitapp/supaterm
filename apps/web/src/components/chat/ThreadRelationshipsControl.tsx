@@ -77,6 +77,7 @@ import { useOrchestrationCommand } from "../../state/use-orchestration-command";
 import { useEnvironmentScope } from "../../state/session";
 import { useEnvironmentQuery } from "../../state/query";
 import { AgentElapsed } from "./AgentElapsed";
+import { deriveSubagentElapsedMs } from "@supaterm/shared/orchestrationTiming";
 import { ThreadRelationshipIcon, threadRelationshipStatusLabel } from "./ThreadRelationshipIcon";
 import { ThreadLineageWorkflowRow } from "./ThreadLineageWorkflowRow";
 
@@ -263,6 +264,12 @@ function RemoteSubagentRow(props: {
   const { remoteChild } = props.agent;
   const status = props.agent.status;
   const failed = status === "failed";
+  const timing = {
+    status,
+    startedAt: props.agent.startedAt ? DateTime.formatIso(props.agent.startedAt) : null,
+    completedAt: props.agent.completedAt ? DateTime.formatIso(props.agent.completedAt) : null,
+  };
+  const showElapsed = !failed && deriveSubagentElapsedMs(timing, 0) !== null;
   const title = relationshipThreadTitle({
     title: props.agent.title ?? "Subagent",
     isSubagent: true,
@@ -297,7 +304,14 @@ function RemoteSubagentRow(props: {
             className={`flex max-w-1/2 shrink-0 gap-1 text-2xs ${failed ? "text-destructive" : "text-muted-foreground"}`}
           >
             <span className="truncate">on {remoteChild.label}</span>
-            <span className="shrink-0">· {threadRelationshipStatusLabel(status)}</span>
+            <span className="shrink-0 tabular-nums">
+              ·{" "}
+              {showElapsed ? (
+                <AgentElapsed agent={timing} />
+              ) : (
+                threadRelationshipStatusLabel(status)
+              )}
+            </span>
           </span>
         </TooltipTrigger>
         <TooltipPopup side="left">
