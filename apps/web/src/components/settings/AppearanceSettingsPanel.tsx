@@ -3,6 +3,7 @@ import { useState } from "react";
 import {
   DEFAULT_UNIFIED_SETTINGS,
   type ChatWidth,
+  type HtmlPreviewWidth,
   MAX_APPEARANCE_CONTRAST,
   MAX_GLASS_OPACITY,
   MIN_APPEARANCE_CONTRAST,
@@ -28,6 +29,12 @@ const CHAT_WIDTH_LABELS: Record<ChatWidth, string> = {
   comfortable: "Comfortable",
   wide: "Wide",
   full: "Full",
+};
+
+const HTML_PREVIEW_WIDTH_LABELS: Record<HtmlPreviewWidth, string> = {
+  chat: "Match chat",
+  wide: CHAT_WIDTH_LABELS.wide,
+  full: CHAT_WIDTH_LABELS.full,
 };
 
 export function AppearanceSettingsPanel() {
@@ -227,6 +234,40 @@ export function AppearanceSettingsPanel() {
                   <SelectItem value="comfortable">Comfortable (default)</SelectItem>
                   <SelectItem value="wide">Wide</SelectItem>
                   <SelectItem value="full">Full</SelectItem>
+                </SelectPopup>
+              </Select>
+            </div>
+          }
+        />
+        <SettingsRow
+          {...searchableSetting("html-preview-width")}
+          description="Let HTML previews in a chat grow wider than its messages, which stay centered."
+          resetAction={
+            settings.htmlPreviewWidth !== DEFAULT_UNIFIED_SETTINGS.htmlPreviewWidth ? (
+              <SettingResetButton
+                label="HTML preview width"
+                onClick={() =>
+                  updateSettings({ htmlPreviewWidth: DEFAULT_UNIFIED_SETTINGS.htmlPreviewWidth })
+                }
+              />
+            ) : null
+          }
+          control={
+            <div className="w-full sm:w-40">
+              <Select
+                value={settings.htmlPreviewWidth}
+                onValueChange={(value) => {
+                  if (value === "chat" || value === "wide" || value === "full")
+                    updateSettings({ htmlPreviewWidth: value });
+                }}
+              >
+                <SelectTrigger size="sm" className="w-full min-w-0" aria-label="HTML preview width">
+                  <SelectValue>{HTML_PREVIEW_WIDTH_LABELS[settings.htmlPreviewWidth]}</SelectValue>
+                </SelectTrigger>
+                <SelectPopup align="end" alignItemWithTrigger={false}>
+                  <SelectItem value="chat">Match chat (default)</SelectItem>
+                  <SelectItem value="wide">{HTML_PREVIEW_WIDTH_LABELS.wide}</SelectItem>
+                  <SelectItem value="full">{HTML_PREVIEW_WIDTH_LABELS.full}</SelectItem>
                 </SelectPopup>
               </Select>
             </div>
