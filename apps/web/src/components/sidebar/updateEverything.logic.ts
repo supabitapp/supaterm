@@ -64,6 +64,10 @@ export interface SkippedMachine {
   readonly reason: string;
 }
 
+// Desktop servers without the desktop control fd (older apps, WSL backends: wsl.exe cannot pass
+// fds) cannot be updated from here, and their desktop app is not necessarily the stale part.
+const UPDATE_ON_THAT_MACHINE = "update Supaterm on that machine";
+
 /** Skip current and app-hosted servers; the latter update with the app and would relaunch mid-run.
  * Desktop-managed servers use their own feed. */
 export function collectServerUpdateTargets(
@@ -95,7 +99,7 @@ export function collectServerUpdateTargets(
       continue;
     }
     if (selfUpdate === "desktop-managed" && !desktopAppUpdate) {
-      skip("needs a newer desktop app");
+      skip(UPDATE_ON_THAT_MACHINE);
       continue;
     }
     const serverVersion = config.environment.serverVersion;
@@ -294,7 +298,9 @@ function trackSwitchMove(
   if (selfUpdate === null) return { skip: "needs a manual update" };
   if (selfUpdate !== "desktop-managed") return { selfUpdate };
   if (config.environment.capabilities.desktopAppChannelSwitch !== true) {
-    return { skip: "needs a newer desktop app" };
+    return {
+      skip: sameTrack ? UPDATE_ON_THAT_MACHINE : "change the update track on that machine",
+    };
   }
   // Squirrel.Mac renames the bundle for the new track and then cannot relaunch it.
   if (!sameTrack && config.environment.platform.os === "darwin") {
