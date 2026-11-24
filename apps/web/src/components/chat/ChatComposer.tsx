@@ -60,12 +60,14 @@ import {
 } from "@supaterm/shared/composerTrigger";
 import { type FolderDropTarget, folderDropTarget, resolveDroppedFolderPath } from "./folderDrop";
 import { splitTransferredFiles } from "./workspaceFileDrop";
+import { BackgroundThreadContext } from "./backgroundThread";
 import { createModelSelection, normalizeModelSlug } from "@supaterm/shared/model";
 import { USAGE_LIMITS_COMMAND } from "@supaterm/shared/usageLimits";
 import {
   memo,
   Fragment,
   type ReactNode,
+  use,
   useEffect,
   useId,
   useImperativeHandle,
@@ -581,6 +583,7 @@ const NO_PROVIDER_SKILLS: ServerProvider["skills"] = [];
 const NO_PROVIDER_SLASH_COMMANDS: ServerProvider["slashCommands"] = [];
 
 export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps) {
+  const backgroundThread = use(BackgroundThreadContext);
   const {
     composerDraftTarget,
     environmentId,
@@ -2754,7 +2757,9 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     isComposerCollapsedMobile && restingControlsHost !== null && restingControlsVisible;
   const composerControlsHidden =
     isComposerResting || (isComposerCollapsedMobile && !restingControlsVisible);
-  if (composerControlsHidden && isComposerModelPickerOpen) {
+  // Popovers and menus stack above app modals, so one left open would cover Settings or Usage.
+  const composerMenusClosed = composerControlsHidden || backgroundThread;
+  if (composerMenusClosed && isComposerModelPickerOpen) {
     setIsComposerModelPickerOpen(false);
   }
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- reports whether resting controls show in the strip to ChatView before paint
@@ -2954,7 +2959,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       compatibleRuntimeModeOptions={compatibleRuntimeModeOptions}
       handleRuntimeModeChange={handleRuntimeModeChange}
       composerControlsCollapsed={composerControlsCollapsed}
-      composerControlsHidden={composerControlsHidden}
+      composerControlsHidden={composerMenusClosed}
       restingHiddenBlockCount={restingHiddenBlockCount}
       iconOnlyBlockCount={iconOnlyBlockCount}
       showInlineRestingControls={showInlineRestingControls}
