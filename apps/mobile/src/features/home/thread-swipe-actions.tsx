@@ -614,6 +614,8 @@ function SwipeActionButton(props: {
   readonly menu?: ThreadSwipeAction["menu"];
   readonly onPress: () => void;
   readonly rowHeight: number;
+  /** A trailing action slides left under the stretching action's pill on a full swipe. */
+  readonly slidesUnderStretch: boolean;
   readonly stretchesOnFullSwipe: boolean;
   readonly translation: SharedValue<number>;
 }) {
@@ -621,6 +623,7 @@ function SwipeActionButton(props: {
     actionsWidth,
     entryRange: [entryRangeStart, entryRangeEnd],
     fullSwipeThreshold,
+    slidesUnderStretch,
     stretchesOnFullSwipe,
     translation,
   } = props;
@@ -692,12 +695,18 @@ function SwipeActionButton(props: {
     };
   });
   const labelStyle = useAnimatedStyle(() => {
-    if (!stretchesOnFullSwipe) {
-      return { opacity: 1 };
-    }
-
     const reveal = Math.max(-translation.value, 0);
     const stretch = Math.max(reveal - actionsWidth, 0);
+    if (!stretchesOnFullSwipe) {
+      // The pill covers this action's circle but not its label, so hide the label before its
+      // circle reaches the pill; otherwise it runs into the stretching action's label.
+      return {
+        opacity: slidesUnderStretch
+          ? interpolate(stretch, [0, ACTION_ITEM_WIDTH - circleSize], [1, 0], Extrapolation.CLAMP)
+          : 1,
+      };
+    }
+
     return {
       opacity: interpolate(
         reveal,
@@ -870,6 +879,7 @@ function ThreadSwipeActions(props: {
         label={props.primaryAction.label}
         onPress={props.primaryAction.onPress}
         rowHeight={props.rowHeight}
+        slidesUnderStretch={false}
         stretchesOnFullSwipe={fullSwipeIsPrimary}
         translation={props.translation}
       />
@@ -886,6 +896,7 @@ function ThreadSwipeActions(props: {
           menu={secondaryAction.menu}
           onPress={secondaryAction.onPress}
           rowHeight={props.rowHeight}
+          slidesUnderStretch={fullSwipeIsPrimary}
           stretchesOnFullSwipe={!fullSwipeIsPrimary}
           translation={props.translation}
         />
