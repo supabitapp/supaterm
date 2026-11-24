@@ -130,7 +130,7 @@ export class ProjectFaviconResolver extends Context.Service<
   }
 >()("supaterm/project/ProjectFaviconResolver") {}
 
-function extractIconHref(source: string): string | null {
+function* extractIconHrefs(source: string): Generator<string> {
   for (const [tag] of source.matchAll(HTML_LINK_RE)) {
     const attributes = new Map<string, { value: string; quoted: boolean }>();
     for (const [, name, doubleQuoted, singleQuoted, unquoted] of tag
@@ -153,14 +153,13 @@ function extractIconHref(source: string): string | null {
     // An unquoted `{...}` is a JSX expression, not a path.
     if (!href || (!href.quoted && href.value.startsWith("{"))) continue;
     const path = href.value.split("?")[0];
-    if (path) return path;
+    if (path) yield path;
   }
   for (const run of source.split("}")) {
     if (!ICON_REL_RE.test(run)) continue;
     const hrefMatch = run.match(ICON_HREF_RE);
-    if (hrefMatch?.[1]) return hrefMatch[1];
+    if (hrefMatch?.[1]) yield hrefMatch[1];
   }
-  return null;
 }
 
 // ENOTDIR, EISDIR, and ELOOP surface as BadResource. A candidate below a regular file,
@@ -185,6 +184,8 @@ export const make = Effect.gen(function* () {
   const projectFileLoader = yield* SupatermProjectFileLoader.SupatermProjectFileLoader;
 
   const resolveIconHref = (baseDir: string, href: string): ReadonlyArray<string> => {
+    // `data:`, `https:` and `//host` icons name no project file, and a long data URL fails `stat`.
+    if (/^(?:[a-z][a-z\d+.-]*:|\/\/)/i.test(href.trim())) return [];
     // Browsers strip surrounding whitespace from URL attributes; file paths keep theirs.
     const clean = href.trim().replace(/^\//, "");
     return [path.join(baseDir, "public", clean), path.join(baseDir, clean)];
@@ -300,11 +301,12 @@ export const make = Effect.gen(function* () {
     if (Option.isNone(source) || Option.isNone(source.value)) {
       return null;
     }
-    const href = extractIconHref(new TextDecoder().decode(source.value.value));
-    if (!href) {
-      return null;
-    }
-    return yield* findExistingFile(projectCwd, resolveIconHref(baseDir, href), "workspace");
+    const hrefs = Array.from(extractIconHrefs(new TextDecoder().decode(source.value.value)));
+    return yield* findExistingFile(
+      projectCwd,
+      hrefs.flatMap((href) => resolveIconHref(baseDir, href)),
+      "workspace",
+    );
   });
 
   // Probes start at once so a miss costs one round of filesystem latency, not one per probe.
