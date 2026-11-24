@@ -2648,7 +2648,6 @@ const make = Effect.gen(function* () {
               ),
             ),
           );
-      yield* record("pending");
       // Only this call can hand the agent its file, so the card must not
       // outlive it: a failed wait or an aborted call closes it as cancelled,
       // and a timeout closes it as timed out.
@@ -2692,42 +2691,51 @@ const make = Effect.gen(function* () {
         return undefined;
       });
 
-      const answered = yield* Effect.gen(function* () {
-        // Taken after the pending record: earlier answers show in the first read, later ones replay.
-        const afterSequence = yield* threadManagement
-          .getThreadEventSequence(threadId)
-          .pipe(Effect.mapError(watchError));
-        const initial = yield* readAnswer;
-        if (initial !== undefined) return Option.some(initial);
-        return yield* Stream.merge(
-          threadManagement
-            .streamStoredEventsFrom({ threadId, afterSequence, eventType: "turn-item.updated" })
-            .pipe(
-              Stream.filter(
-                ({ event }) =>
-                  event.type === "turn-item.updated" && event.payload.id === turnItemId,
-              ),
-            ),
-          threadManagement
-            .streamStoredEventsFrom({ threadId, afterSequence, eventType: "run.updated" })
-            .pipe(
-              Stream.filter(
-                ({ event }) => event.type === "run.updated" && event.payload.id === runId,
-              ),
-            ),
-        ).pipe(
-          Stream.mapError(watchError),
-          Stream.mapEffect(() => readAnswer),
-          Stream.filter(Predicate.isNotUndefined),
-          Stream.runHead,
-        );
-      }).pipe(
-        // The longest a provider lets one tool call run, so the card stays open until then.
-        Effect.timeoutOption(Duration.millis(SECRET_REQUEST_TIMEOUT_MS)),
-        Effect.map(Option.flatten),
-        Effect.onExit((exit) => (Exit.isSuccess(exit) ? Effect.void : closeCard(false))),
+      // Recording the card is the acquire, so an abort right after it opens still closes it.
+      const answered = yield* Effect.acquireUseRelease(
+        record("pending"),
+        () =>
+          Effect.gen(function* () {
+            // Taken after the pending record: earlier answers show in the first read, later ones replay.
+            const afterSequence = yield* threadManagement
+              .getThreadEventSequence(threadId)
+              .pipe(Effect.mapError(watchError));
+            const initial = yield* readAnswer;
+            if (initial !== undefined) return Option.some(initial);
+            return yield* Stream.merge(
+              threadManagement
+                .streamStoredEventsFrom({ threadId, afterSequence, eventType: "turn-item.updated" })
+                .pipe(
+                  Stream.filter(
+                    ({ event }) =>
+                      event.type === "turn-item.updated" && event.payload.id === turnItemId,
+                  ),
+                ),
+              threadManagement
+                .streamStoredEventsFrom({ threadId, afterSequence, eventType: "run.updated" })
+                .pipe(
+                  Stream.filter(
+                    ({ event }) => event.type === "run.updated" && event.payload.id === runId,
+                  ),
+                ),
+            ).pipe(
+              Stream.mapError(watchError),
+              Stream.mapEffect(() => readAnswer),
+              Stream.filter(Predicate.isNotUndefined),
+              Stream.runHead,
+            );
+          }).pipe(
+            // The longest a provider lets one tool call run, so the card stays open until then.
+            Effect.timeoutOption(Duration.millis(SECRET_REQUEST_TIMEOUT_MS)),
+            Effect.map(Option.flatten),
+          ),
+        (_, exit) =>
+          Exit.isFailure(exit)
+            ? closeCard(false)
+            : Option.isNone(exit.value)
+              ? closeCard(true)
+              : Effect.void,
       );
-      if (Option.isNone(answered)) yield* closeCard(true);
       const status = Option.isSome(answered)
         ? answered.value
         : yield* threadManagement
