@@ -70,6 +70,13 @@ describe("resolveMarkdownLinkPresentation", () => {
     });
   });
 
+  it("shows CommonJS sources with the JavaScript icon", () => {
+    expect(resolveMarkdownLinkPresentation("scripts/build.cjs")).toMatchObject({
+      kind: "file",
+      icon: "javascript",
+    });
+  });
+
   it("recognizes spaced relative paths", () => {
     expect(resolveMarkdownLinkPresentation("docs/My%20Folder/checklist.xml")).toMatchObject({
       kind: "file",
