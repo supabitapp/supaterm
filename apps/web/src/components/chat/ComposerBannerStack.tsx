@@ -449,7 +449,7 @@ export function NoticeText({
                 size="icon-xs"
                 variant="ghost-muted"
                 aria-label={detailsLabel}
-                className="flex-none"
+                className="flex-none self-center"
               />
             }
           >
