@@ -15,6 +15,7 @@ import {
   isDelegatedAppThread,
   isRemoteTask,
   isListedThreadLineage,
+  isOrchestrationV2WorkActive,
   MessageId,
   OrchestrationV2StopWorkflowError,
   type OrchestrationV2StopWorkflowInput,
@@ -50,6 +51,7 @@ import {
 } from "@supaterm/contracts";
 import { delegatedTaskProgress } from "@supaterm/provider-core/server/subagentProjection";
 import { latestUnheldRun } from "@supaterm/shared/orchestrationV2ThreadError";
+import { derivePendingBackgroundWork } from "@supaterm/shared/orchestrationV2PendingBackgroundWork";
 import { threadTranscriptHeader } from "@supaterm/shared/threadTranscript";
 import { AgentScope } from "@supaterm/shared/AgentScope";
 import * as Clock from "effect/Clock";
@@ -1494,6 +1496,58 @@ const make = Effect.gen(function* () {
     return { matched, unmatched: input.taskIds.filter((taskId) => !matchedIds.has(taskId)) };
   });
 
+  // Mirrors what Orchestrator's thread.stop would change; a clause missing here leaves that work running.
+  const childNeedsStop = (
+    child: ProjectionRecords<"runs" | "providerThreads" | "turnItems" | "subagents">,
+  ): boolean => {
+    if (child.thread.deletedAt !== null) return false;
+    const latestRun = child.runs.findLast((run) => run.status !== "queued");
+    const hasStoppableRun = child.runs.some(
+      (run) =>
+        run.status === "preparing" ||
+        run.status === "starting" ||
+        run.status === "running" ||
+        run.status === "queued" ||
+        run.delegatedCompletion?.delivery != null,
+    );
+    const hasPendingRecovery =
+      latestRun !== undefined &&
+      (latestRun.status === "cancelled" ||
+        (latestRun.status === "failed" &&
+          (latestRun.restartContinuationOfRunId !== undefined ||
+            child.thread.limitRecovery?.runId !== latestRun.id ||
+            child.thread.limitRecovery.autoResume !== false)));
+    const hasPendingSubagent = child.subagents.some(
+      (task) =>
+        (task.origin === "provider_native" &&
+          task.runId !== null &&
+          isOrchestrationV2WorkActive(task.status)) ||
+        (task.origin === "app_owned" &&
+          (isOrchestrationV2WorkActive(task.status) ||
+            (task.runId !== null &&
+              task.completionDelivery?.state !== "acknowledged" &&
+              task.completionDelivery?.state !== "delivered" &&
+              task.completionDelivery?.state !== "disposed"))),
+    );
+    return (
+      hasStoppableRun ||
+      hasPendingRecovery ||
+      child.thread.limitRecovery?.autoResume === true ||
+      (child.thread.pullRequests ?? []).some((link) => link.watch !== undefined) ||
+      derivePendingBackgroundWork({
+        latestRun,
+        providerThreads: child.providerThreads,
+        turnItems: child.turnItems,
+        activeProviderThreadId: child.thread.activeProviderThreadId,
+        runs: child.runs,
+      }).length > 0 ||
+      child.turnItems.some(
+        (item) => item.type === "link_request" && item.linkStatus === "pending",
+      ) ||
+      hasPendingSubagent
+    );
+  };
+
   const stopDelegatedTasks: ThreadManagementServiceShape["stopDelegatedTasks"] = Effect.fn(
     "ThreadManagementService.stopDelegatedTasks",
   )(function* (input) {
@@ -1501,6 +1555,15 @@ const make = Effect.gen(function* () {
     const failures: Array<
       Orchestrator.OrchestratorV2Error | ThreadManagementProviderInstanceDisabledError
     > = [];
+    const activeChildThreadIds = new Set(
+      subagents.flatMap((task) =>
+        task.origin === "app_owned" &&
+        task.childThreadId !== null &&
+        isOrchestrationV2WorkActive(task.status)
+          ? [task.childThreadId]
+          : [],
+      ),
+    );
     const stoppedChildThreadIds = new Set<ThreadId>();
     for (const task of subagents) {
       if (task.origin !== "app_owned") continue;
@@ -1545,16 +1608,36 @@ const make = Effect.gen(function* () {
       // Follow-up tasks reuse a child thread; walk its subtree only once.
       if (stoppedChildThreadIds.has(threadId)) continue;
       stoppedChildThreadIds.add(threadId);
-      yield* dispatch({
-        type: "thread.stop",
-        commandId: CommandId.make(`${input.commandId}:stop:${threadId}`),
-        threadId,
-        stopDelegatedTasks: false,
-        ...(input.reason === undefined ? {} : { reason: input.reason }),
+      yield* Effect.gen(function* () {
+        let shouldStop = activeChildThreadIds.has(threadId);
+        let hasAppOwnedChildren = true;
+        if (!shouldStop) {
+          const child = yield* orchestrator.getThreadRecords(
+            threadId,
+            ["runs", "providerThreads", "turnItems", "subagents"],
+            {
+              turnItemTypes: ["command_execution", "dynamic_tool", "subagent", "link_request"],
+              turnItemStatuses: ["pending", "running", "waiting"],
+            },
+          );
+          shouldStop = childNeedsStop(child);
+          hasAppOwnedChildren = child.subagents.some(
+            (childTask) => childTask.origin === "app_owned",
+          );
+        }
+        if (shouldStop) {
+          yield* dispatch({
+            type: "thread.stop",
+            commandId: CommandId.make(`${input.commandId}:stop:${threadId}`),
+            threadId,
+            stopDelegatedTasks: false,
+            ...(input.reason === undefined ? {} : { reason: input.reason }),
+          });
+        }
+        if (hasAppOwnedChildren) {
+          yield* stopDelegatedTasks({ threadId, commandId: input.commandId, reason: input.reason });
+        }
       }).pipe(
-        Effect.andThen(
-          stopDelegatedTasks({ threadId, commandId: input.commandId, reason: input.reason }),
-        ),
         Effect.catch((error) =>
           Effect.logWarning("Unable to stop a delegated task", {
             parentThreadId: input.threadId,
