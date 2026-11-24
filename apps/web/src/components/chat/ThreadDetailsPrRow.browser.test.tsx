@@ -14,6 +14,8 @@ const state = vi.hoisted(() => ({
   prState: "open" as "open" | "closed" | "merged",
   isDraft: false,
   pendingAction: null as "ready" | "merge" | null,
+  headSha: "shown-head",
+  performedHeadSha: undefined as string | undefined,
   status: "success" as PullRequestCheck["status"],
   extraStatus: null as PullRequestCheck["status"] | null,
   mergeMethods: ["merge"] as Array<"merge" | "squash" | "rebase">,
@@ -50,6 +52,7 @@ const queryData = () => ({
   title: "Test PR",
   state: state.prState,
   isDraft: state.isDraft,
+  headSha: state.headSha,
   mergeability: "mergeable",
   headBranch: "feature",
   baseBranch: "main",
@@ -89,11 +92,14 @@ vi.mock(import("~/state/query"), async (importOriginal) => ({
 }));
 vi.mock(import("../pullRequest/usePullRequestActions"), async (importOriginal) => ({
   ...(await importOriginal()),
-  usePullRequestActionRunner: () => ({
+  usePullRequestActionRunner: ((input: { readonly headSha?: string }) => ({
     actionPending: state.pendingAction !== null,
     pendingAction: state.pendingAction,
-    perform: state.perform,
-  }),
+    perform: (...args: unknown[]) => {
+      state.performedHeadSha = input.headSha;
+      return state.perform(...args);
+    },
+  })) as never,
   usePullRequestDefaultMergeMethod: ((_environmentId: unknown, projectId: unknown) =>
     state.projectMergeMethods[String(projectId)]) as never,
 }));
@@ -196,8 +202,12 @@ it("merges with the last selected merge method", async () => {
   const start = 1_000;
   await act(async () => await screen.rerender(renderRow()));
   await clickMerge(start);
+  // A push that a background refresh picks up while the confirmation is armed.
+  state.headSha = "pushed-head";
+  await act(async () => await screen.rerender(renderRow()));
   await clickMerge(start + 900);
   expect(state.perform).toHaveBeenCalledExactlyOnceWith("merge", "squash");
+  expect(state.performedHeadSha).toBe("shown-head");
 });
 
 it("requires a new merge click after passing checks become pending and pass again", async () => {
@@ -303,6 +313,8 @@ async function setup() {
   state.updateToast.mockReset();
 
   state.prState = "open";
+  state.headSha = "shown-head";
+  state.performedHeadSha = undefined;
   state.isDraft = false;
   state.pendingAction = null;
   state.status = "success";

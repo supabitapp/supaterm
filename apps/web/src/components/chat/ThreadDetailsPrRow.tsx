@@ -179,14 +179,19 @@ export function ThreadDetailsPrRow({
     checks: detail?.checks ?? [],
   });
 
+  const [armedMergeHead, setArmedMergeHead] = useState<string>();
   const { actionPending, pendingAction, perform } = usePullRequestActionRunner({
     environmentId,
     reference,
+    // The row shows no diff, so a merge lands the head it had when the confirmation opened.
+    headSha: armedMergeHead ?? detail?.headSha,
     terminology,
     onSuccess: () => {
       checksQuery.refresh();
       onActed?.();
     },
+    // A refused merge usually means the row is stale, so show what the host has now.
+    onFailure: () => detailQuery.refresh(),
   });
   const { handoff, startHandoff } = usePullRequestHandoffs({ environmentId, detail });
   const lastSelectedMergeMethod = useUiStateStore((state) => state.pullRequestMergeMethod);
@@ -200,6 +205,17 @@ export function ThreadDetailsPrRow({
     (project?.id as ProjectId | undefined) ?? null,
   );
   const confirm = useInlineConfirm<"merge" | "enable-auto-merge" | "close">();
+  // Arming a merge records the head on the row, which the confirming click then lands.
+  const pinnedConfirm = (key: "merge" | "enable-auto-merge", run: () => void) => {
+    const control = confirm.bind(key, run);
+    return {
+      ...control,
+      onClick: (event: Parameters<typeof control.onClick>[0]) => {
+        if (confirm.armed !== key) setArmedMergeHead(detail?.headSha);
+        control.onClick(event);
+      },
+    };
+  };
   const rowRef = useRef<HTMLDivElement | null>(null);
   const { canMergeSinglePullRequest } = usePullRequestStackGate({
     environmentId,
@@ -448,7 +464,7 @@ export function ThreadDetailsPrRow({
                 suffix: null,
                 tooltip: `Merge this ${terminology.singular} (${selectedMergeMethod})`,
                 armedTooltip: `Click again to merge #${number} into ${detail?.baseBranch} (${selectedMergeMethod})`,
-                controlProps: confirm.bind(
+                controlProps: pinnedConfirm(
                   "merge",
                   () => void perform("merge", selectedMergeMethod),
                 ),
@@ -468,7 +484,7 @@ export function ThreadDetailsPrRow({
                   suffix: null,
                   tooltip: `Merge into ${detail?.baseBranch} (${selectedMergeMethod}) once its checks pass`,
                   armedTooltip: `Click again to enable auto-merge. The host may merge #${number} right away.`,
-                  controlProps: confirm.bind(
+                  controlProps: pinnedConfirm(
                     "enable-auto-merge",
                     () => void perform("enable-auto-merge", selectedMergeMethod),
                   ),

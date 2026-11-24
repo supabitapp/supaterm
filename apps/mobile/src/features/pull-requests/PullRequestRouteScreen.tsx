@@ -536,7 +536,11 @@ export function PullRequestRouteScreen({ route }: StaticScreenProps<PullRequestP
               title: "Submit review",
               icon: "text.bubble",
               onPress: () =>
-                navigation.navigate("PullRequestReview", { ...params, mode: "review" }),
+                navigation.navigate("PullRequestReview", {
+                  ...params,
+                  mode: "review",
+                  reviewedHeadSha: pr?.headSha,
+                }),
             },
           ]
         : []),

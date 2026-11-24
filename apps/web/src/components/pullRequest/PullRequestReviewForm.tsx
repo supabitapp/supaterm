@@ -51,6 +51,7 @@ const VERDICTS: ReadonlyArray<{
 export function PullRequestReviewForm({
   environmentId,
   reference,
+  headSha,
   completionScope,
   term,
   verdicts,
@@ -59,9 +60,12 @@ export function PullRequestReviewForm({
   pending,
   onPendingChange,
   onSubmitted,
+  onRefused,
 }: {
   environmentId: EnvironmentId;
   reference: PullRequestRef;
+  /** The head on screen, which the review is pinned to. */
+  headSha: string | undefined;
   completionScope: PullRequestCompletionScope | null;
   /** The host's word for a change request, as in "pull request". */
   term: string;
@@ -71,6 +75,7 @@ export function PullRequestReviewForm({
   pending: boolean;
   onPendingChange: (pending: boolean) => void;
   onSubmitted: () => void;
+  onRefused: () => void;
 }) {
   const [requestedVerdict, setRequestedVerdict] = useState<PullRequestReviewVerdict>("comment");
   const [voiceBusy, setVoiceBusy] = useState(false);
@@ -97,6 +102,7 @@ export function PullRequestReviewForm({
       environmentId,
       input: {
         ...reference,
+        ...(headSha === undefined ? {} : { expectedHeadSha: headSha }),
         verdict: verdict.value,
         body: submittedBody,
         comments: submittedComments,
@@ -112,6 +118,7 @@ export function PullRequestReviewForm({
           "The host refused the review. Your draft is still here to try again.",
         ),
       });
+      onRefused();
       return;
     }
     // Preserve comments and summary edits made during submission.

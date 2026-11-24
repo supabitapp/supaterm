@@ -132,7 +132,10 @@ export function PullRequestMergeControls(props: {
     (autoAction === "disable-auto-merge" || (!stack.stack && canMergeSingle)) &&
     permissions.canWrite &&
     canPerformPullRequestAction(pr, autoAction);
-  const perform = async (action: "merge" | "enable-auto-merge" | "disable-auto-merge") => {
+  const perform = async (
+    action: "merge" | "enable-auto-merge" | "disable-auto-merge",
+    shownHeadSha: string | undefined,
+  ) => {
     if (
       pending.current ||
       (action !== "disable-auto-merge" && !method) ||
@@ -146,6 +149,10 @@ export function PullRequestMergeControls(props: {
       input: {
         ...target.input,
         action,
+        // A merge lands the head on screen and refuses one that moved; a stack pins its other layers.
+        ...(action !== "disable-auto-merge" && shownHeadSha
+          ? { expectedHeadSha: shownHeadSha }
+          : {}),
         ...(action === "merge" && method && stack.stack && scope
           ? {
               stackNumber: stack.stack.number,
@@ -186,6 +193,8 @@ export function PullRequestMergeControls(props: {
     }
   };
   const confirm = (action: "merge" | "enable-auto-merge" | "disable-auto-merge") => {
+    // The overview refreshes on focus, so the alert merges the head it was opened on.
+    const shownHeadSha = pr.headSha;
     const title =
       action === "merge"
         ? scope && scope.layers.length > 1
@@ -209,7 +218,7 @@ export function PullRequestMergeControls(props: {
       },
       {
         text: action === "merge" ? label : title.replace("?", ""),
-        onPress: () => void perform(action),
+        onPress: () => void perform(action, shownHeadSha),
       },
     ]);
   };
