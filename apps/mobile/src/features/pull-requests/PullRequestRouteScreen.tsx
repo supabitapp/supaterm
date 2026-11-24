@@ -43,7 +43,7 @@ import {
 import { PullRequestOverviewLoading } from "./PullRequestOverviewLoading";
 import { copyPullRequestLink, sharePullRequestLink } from "./pullRequestLink";
 import { pullRequestStatus } from "./pullRequestStatus";
-import { use, useEffect, useEffectEvent, useRef, useState } from "react";
+import { use, useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import { Platform, Pressable, StyleSheet, View } from "react-native";
 import { tryOpenExternalUrl } from "../../lib/openExternalUrl";
 import { RefreshControl } from "../../components/ui/RefreshControl";
@@ -72,7 +72,11 @@ import {
   PullRequestCardGroup,
   usePullRequestVerticalControls,
 } from "./PullRequestControls";
-import { pullRequestTarget as requestTarget, type PullRequestParams } from "./usePullRequestDiff";
+import {
+  pullRequestParams,
+  pullRequestTarget as requestTarget,
+  type PullRequestParams,
+} from "./usePullRequestDiff";
 import {
   PullRequestAvatar,
   PullRequestDiffStats,
@@ -324,7 +328,8 @@ export function PullRequestRouteScreen({ route }: StaticScreenProps<PullRequestP
   const contentTopInset = useContentTopInset();
   // Only iOS lists run under the bottom safe area; Android's floating toolbar pads its own.
   const contentBottomInset = Platform.OS === "ios" ? insets.bottom : 0;
-  const params = route.params;
+  // A link's query lands on this route; only the pull request's own fields go further.
+  const params = useMemo(() => pullRequestParams(route.params), [route.params]);
   usePullRequestEnvironmentFallback(params);
   const connected = usePullRequestConnected(params.environmentId);
   const [chosenSection, setSection] = useState<"overview" | "activity" | "guide">(() => {

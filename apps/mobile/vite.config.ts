@@ -7,6 +7,7 @@ const reactTests = [
   "src/features/threads/LinkedThreadSheet.test.tsx",
   "src/features/threads/useSubmitAfterNativeImages.test.tsx",
   "src/features/threads/git/GitBranchesSheet.test.tsx",
+  "src/features/threads/git/GitConfirmSheet.test.tsx",
   "src/features/threads/NewTaskRouteScreen.test.tsx",
   "src/features/layout/workspace/workspace-tabs-state.test.ts",
   "src/features/projects/AddProjectScreen.test.ts",
