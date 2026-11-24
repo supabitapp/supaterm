@@ -13,6 +13,7 @@ import {
   deriveThreadTitleSeed,
   threadTitleTextFromPrompt,
 } from "@supaterm/client-runtime/operations";
+import { splitsSurrogatePair } from "@supaterm/shared/assistantCitations";
 
 import type { UploadedMobileAttachment } from "./attachmentUpload";
 
@@ -87,5 +88,7 @@ export function buildProjectThreadStartTurnInput(spec: ProjectThreadStartTurnSpe
 
 export function deriveThreadTitleFromPrompt(value: string): string {
   const title = threadTitleTextFromPrompt(value) || "New thread";
-  return title.length <= 72 ? title : `${title.slice(0, 69).trimEnd()}...`;
+  if (title.length <= 72) return title;
+  const end = splitsSurrogatePair(title, 69) ? 68 : 69;
+  return `${title.slice(0, end).trimEnd()}...`;
 }
