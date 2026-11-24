@@ -38,6 +38,8 @@ export interface Request<S extends Schema.Top> {
         readonly timeoutMs: number;
         readonly baseCommit: string;
         readonly headCommits: ReadonlyArray<string>;
+        /** cwd holds the content under review; paths the user configured resolve here instead. */
+        readonly projectCwd: string;
       }
     | undefined;
 }
@@ -193,6 +195,7 @@ export function fromRunner(
       modelSelection: input.modelSelection,
       investigate: {
         timeoutMs: INVESTIGATION_TIMEOUT_MS,
+        projectCwd: input.projectCwd,
         baseCommit: input.baseCommit,
         headCommits: (input.stack ?? []).flatMap((layer) =>
           layer.headSha === null ? [] : [layer.headSha],

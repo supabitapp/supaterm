@@ -408,6 +408,7 @@ it.layer(layerCodexTextGenerationTest)("CodexTextGeneration", (it) => {
           Effect.gen(function* () {
             const generated = yield* textGeneration.generateReviewGuide({
               cwd: checkout,
+              projectCwd: checkout,
               number: 7,
               title: "Add a project setting",
               description: "",
@@ -438,6 +439,7 @@ it.layer(layerCodexTextGenerationTest)("CodexTextGeneration", (it) => {
           Effect.gen(function* () {
             const generated = yield* textGeneration.generateReviewGuide({
               cwd: checkout,
+              projectCwd: checkout,
               number: 7,
               title: "Add a project setting",
               description: "",
