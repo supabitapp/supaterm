@@ -529,9 +529,19 @@ const make = Effect.gen(function* () {
       }
       return { bytes, reason: null };
     },
-    Effect.timeout("30 seconds"),
+    // No time limit: the entry cap bounds the walk, and a removal that timed out would
+    // repeat the whole walk on every sweep without ever deleting the worktree.
     Effect.orElseSucceed(() => ({ bytes: null, reason: "worktree could not be fully inspected" })),
   );
+  // For walks under a workspace lease, which provider startup waits on, or repeated under one.
+  const measureWorktreeBounded = (...args: Parameters<typeof measureWorktree>) =>
+    measureWorktree(...args).pipe(
+      Effect.timeoutOrElse({
+        duration: "30 seconds",
+        orElse: () =>
+          Effect.succeed({ bytes: null, reason: "worktree could not be fully inspected" }),
+      }),
+    );
 
   // The snapshot takes seconds on large databases, so it runs on the reader
   // worker instead of the event loop.
@@ -698,9 +708,9 @@ const make = Effect.gen(function* () {
       if (orphanSizes.has(key)) continue;
       const remaining = measurementDeadline - (yield* Clock.currentTimeMillis);
       if (!firstMeasurement && remaining <= 0) break;
-      const measured = yield* measureWorktree(path).pipe(
-        firstMeasurement ? Effect.asSome : Effect.timeoutOption(remaining),
-      );
+      const measured = yield* firstMeasurement
+        ? measureWorktreeBounded(path).pipe(Effect.asSome)
+        : measureWorktree(path).pipe(Effect.timeoutOption(remaining));
       firstMeasurement = false;
       if (Option.isSome(measured)) orphanSizes.set(key, measured.value.bytes);
     }
@@ -1598,13 +1608,13 @@ const make = Effect.gen(function* () {
             (yield* scratchKeepReason(worktreePath, threadIds, settings)) ??
             (yield* blockedSinceCheck());
           if (blocked !== null) return keep(blocked);
-          const inspection = yield* measureWorktree(worktreePath, "plain-folder");
+          const inspection = yield* measureWorktreeBounded(worktreePath, "plain-folder");
           if (inspection.reason !== null) return keep(inspection.reason);
           return yield* withWorkspaceLease(
             worktreePath,
             Effect.gen(function* () {
               // Walked again under the lease: a repository deleted with the folder is gone for good.
-              const finalInspection = yield* measureWorktree(worktreePath, "plain-folder");
+              const finalInspection = yield* measureWorktreeBounded(worktreePath, "plain-folder");
               if (finalInspection.reason !== null) return keep(finalInspection.reason);
               // The walk takes time, so the cheap checks run last, right before removal.
               const blockedWhileMeasuring =
