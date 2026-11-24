@@ -27,64 +27,80 @@ vi.mock("node:child_process", { spy: true });
 
 afterEach(() => vi.restoreAllMocks());
 
-it.live("reports failure when the Windows cleanup shell cannot start", () =>
-  Effect.gen(function* () {
-    const fs = yield* FileSystem.FileSystem;
-    const path = yield* Path.Path;
-    const baseDir = yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-uninstall-shell-" });
-    const runtimeDir = path.join(baseDir, "runtime");
-    yield* fs.makeDirectory(runtimeDir);
-    vi.spyOn(BootService, "layer").mockReturnValue(
-      Layer.succeed(
-        BootService.BootService,
-        BootService.BootService.of({
-          status: Effect.succeed({
-            supported: false,
-            installed: false,
-            current: false,
-            unitPath: "",
-            logPath: "",
+it.live(
+  "runs the Windows cleanup from System32 and reports failure when its shell cannot start",
+  () =>
+    Effect.gen(function* () {
+      const fs = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      const baseDir = yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-uninstall-shell-" });
+      const runtimeDir = path.join(baseDir, "runtime");
+      yield* fs.makeDirectory(runtimeDir);
+      vi.spyOn(BootService, "layer").mockReturnValue(
+        Layer.succeed(
+          BootService.BootService,
+          BootService.BootService.of({
+            status: Effect.succeed({
+              supported: false,
+              installed: false,
+              current: false,
+              unitPath: "",
+              logPath: "",
+            }),
+            withStopped: (operation) => operation,
+            restart: Effect.die("unexpected restart"),
+            install: () => Effect.die("unexpected install"),
+            uninstall: Effect.die("unexpected uninstall"),
           }),
-          withStopped: (operation) => operation,
-          restart: Effect.die("unexpected restart"),
-          install: () => Effect.die("unexpected install"),
-          uninstall: Effect.die("unexpected uninstall"),
-        }),
-      ),
-    );
-    const actual = yield* Effect.promise(() =>
-      vi.importActual<typeof import("node:child_process")>("node:child_process"),
-    );
-    const spawn = actual.spawn;
-    const failedSpawn = new Promise<Error>((resolve) => {
-      vi.spyOn(NodeChildProcess, "spawn").mockImplementation((...args) => {
-        const child = spawn(...args);
-        // Observe the real spawn error without letting it terminate the test runner.
-        child.once("error", resolve);
-        return child;
-      });
-    });
-    const result = yield* Command.runWith(uninstallCommand, { version: packageJson.version })([
-      "--base-dir",
-      baseDir,
-      "--yes",
-    ]).pipe(
-      Effect.result,
-      Effect.provideService(HostProcess.Environment, {
-        ComSpec: path.join(baseDir, "missing-cmd.exe"),
-      }),
-      Effect.provideService(HostProcess.Platform, "win32"),
-      Effect.provideService(HostProcess.IsExecutable, false),
-      Effect.provide(
-        Layer.mergeAll(
-          ConfigProvider.layer(ConfigProvider.fromEnv({ env: {} })),
-          Layer.fresh(TestConsole.layer),
         ),
-      ),
-    );
-    yield* Effect.promise(() => failedSpawn);
-    expect(result._tag, "an unavailable cleanup shell must fail uninstall").toBe("Failure");
-  }).pipe(Effect.scoped, Effect.provide(Layer.mergeAll(NodeServices.layer, NetService.layer))),
+      );
+      const actual = yield* Effect.promise(() =>
+        vi.importActual<typeof import("node:child_process")>("node:child_process"),
+      );
+      const spawn = actual.spawn;
+      const spawned: Array<Parameters<typeof spawn>> = [];
+      const failedSpawn = new Promise<Error>((resolve) => {
+        vi.spyOn(NodeChildProcess, "spawn").mockImplementation((...args) => {
+          spawned.push(args);
+          const child = spawn(...args);
+          // Observe the real spawn error without letting it terminate the test runner.
+          child.once("error", resolve);
+          return child;
+        });
+      });
+      const result = yield* Command.runWith(uninstallCommand, { version: packageJson.version })([
+        "--base-dir",
+        baseDir,
+        "--yes",
+      ]).pipe(
+        Effect.result,
+        Effect.provideService(HostProcess.Environment, {
+          ComSpec: path.join(baseDir, "missing-cmd.exe"),
+          SystemRoot: String.raw`C:\Windows`,
+        }),
+        Effect.provideService(HostProcess.Platform, "win32"),
+        Effect.provideService(HostProcess.IsExecutable, false),
+        Effect.provide(
+          Layer.mergeAll(
+            ConfigProvider.layer(ConfigProvider.fromEnv({ env: {} })),
+            Layer.fresh(TestConsole.layer),
+          ),
+        ),
+      );
+      yield* Effect.promise(() => failedSpawn);
+      expect(result._tag, "an unavailable cleanup shell must fail uninstall").toBe("Failure");
+      const [, args, options] = spawned[0]!;
+      expect(args.at(-1)).toBe(
+        '""%SUPATERM_UNINSTALL_PING%" -n 3 127.0.0.1 >nul & rmdir /s /q "%SUPATERM_UNINSTALL_RUNTIME%""',
+      );
+      expect(options).toMatchObject({
+        cwd: String.raw`C:\Windows\System32`,
+        env: {
+          SUPATERM_UNINSTALL_PING: String.raw`C:\Windows\System32\ping.exe`,
+          SUPATERM_UNINSTALL_RUNTIME: runtimeDir,
+        },
+      });
+    }).pipe(Effect.scoped, Effect.provide(Layer.mergeAll(NodeServices.layer, NetService.layer))),
 );
 
 it.layer(Layer.mergeAll(NodeServices.layer, NetService.layer))(
@@ -284,7 +300,7 @@ it.layer(NodeServices.layer)("supaterm uninstall launcher", (it) => {
 });
 
 it.live.runIf(HostProcess.Platform.defaultValue() === "win32")(
-  "supaterm uninstall has cmd.exe remove the runtime directory, preserving spaces and literal environment-variable syntax",
+  "supaterm uninstall has cmd.exe remove the runtime directory with System32 tools, preserving spaces and literal environment-variable syntax",
   () =>
     Effect.gen(function* () {
       const fs = yield* FileSystem.FileSystem;
@@ -294,7 +310,19 @@ it.live.runIf(HostProcess.Platform.defaultValue() === "win32")(
       yield* fs.makeDirectory(path.join(runtimeDir, "versions", "1.0.0"), { recursive: true });
       yield* fs.writeFileString(path.join(runtimeDir, "versions", "1.0.0", "supaterm.exe"), "");
 
-      const child = spawnWindowsRemoval(process.env.ComSpec ?? "cmd.exe", runtimeDir);
+      // The directory `supaterm uninstall` is run from holds its own `ping`, which must stay unused.
+      const marker = path.join(root, "ping-ran.txt");
+      yield* fs.writeFileString(path.join(root, "ping.cmd"), '@echo ran>"%~dp0ping-ran.txt"\r\n');
+      yield* Effect.acquireRelease(
+        Effect.sync(() => {
+          const previous = process.cwd();
+          process.chdir(root);
+          return previous;
+        }),
+        (previous) => Effect.sync(() => process.chdir(previous)),
+      );
+
+      const child = spawnWindowsRemoval(yield* HostProcess.Environment, runtimeDir);
       yield* Effect.callback<void, Error>((resume) => {
         child.once("error", (error) => resume(Effect.fail(error)));
         child.once("exit", (code) =>
@@ -303,5 +331,6 @@ it.live.runIf(HostProcess.Platform.defaultValue() === "win32")(
       });
 
       assert.isFalse(yield* fs.exists(runtimeDir));
+      assert.isFalse(yield* fs.exists(marker));
     }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
 );
