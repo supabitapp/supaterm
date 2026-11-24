@@ -246,7 +246,8 @@ If that port is already in use, choose another with
 
 A web app served over HTTPS needs an HTTPS endpoint for direct connections. It connects directly
 to your server; a hosted pairing link does not make an unreachable backend
-reachable or convert HTTP to HTTPS.
+reachable or convert HTTP to HTTPS. Opening a hosted pairing link shows the
+server address and asks you to confirm before adding it.
 
 For an Encrypted Relay connection in a browser, use the [local companion](#pair-through-the-encrypted-relay).
 

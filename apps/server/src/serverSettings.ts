@@ -498,6 +498,10 @@ const make = Effect.gen(function* () {
           continueThreadsAfterServerUpdate: false,
           // An unreadable file may hold a longer retention; never prune usage on a guess.
           usageHistoryRetentionDays: "unlimited",
+          // It may also hold choices we can no longer read, so opt-in behaviour stays off.
+          enablePreviewTunnel: false,
+          enableAgentBrowserAccess: false,
+          defaultRuntimeMode: "approval-required",
           publicRelayEnabled:
             metadata._tag === "Success" && metadata.value.publicRelayEnabled === true,
         };
