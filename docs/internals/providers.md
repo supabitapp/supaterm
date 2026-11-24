@@ -149,6 +149,14 @@ checkpoints but cannot roll back its conversation. The [checkpoint boundary](./o
 therefore rejects revert before touching files. Native permission and question option IDs must
 also survive normalization; a display label is not necessarily a valid reply.
 
+Startup phases come from real signals. An adapter reports the step a starting turn is on as
+`startupPhase` on its provider session, and only when the protocol says so: a notification or an
+awaited request with one meaning, never a timer. Clear it the moment the provider can be doing
+something else. Clients show it until the run's first output. A session that serves several
+threads names the one it describes with `startupPhaseThreadId`. Nothing an adapter emits during
+`openSession` is visible, because the session is not attached yet. Turn start republishes
+`runtime.providerSession`, so a phase that spans it must be on that record.
+
 ## Attachments and stored history
 
 Attachments live outside the project workspace. The

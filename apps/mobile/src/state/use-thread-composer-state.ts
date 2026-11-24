@@ -323,7 +323,7 @@ export function useThreadComposerState() {
     ? deriveThreadRuntime(selectedThreadProjection.projection)
     : (selectedThreadShell?.runtime ?? null);
   const selectedThreadActivityRun = selectedThreadProjection
-    ? deriveThreadActivityRun(selectedThreadProjection.projection)
+    ? deriveThreadActivityRun(selectedThreadProjection.projection, serverConfig?.providers)
     : (selectedThreadShell?.latestRun ?? null);
   const selectedThreadAnnouncedRun = announcedRun(
     selectedThreadActivityRun,
