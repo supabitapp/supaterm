@@ -24,6 +24,10 @@ export interface UpdateEverythingMachine {
     readonly settings: Pick<ServerConfig["settings"], "continueThreadsAfterServerUpdate">;
   } | null;
   readonly connected: boolean;
+  /** Why the connection is down, when it says, in the active language. */
+  readonly connectionError?: string | null;
+  /** The saved connection is switched off in Settings, so it never connects. */
+  readonly turnedOff?: boolean;
   readonly hostedByThisApp: boolean;
   readonly canMaintain: boolean;
   readonly updateState: ServerUpdateState;
@@ -120,7 +124,9 @@ export function collectServerUpdateTargets(
 }
 
 function unavailableReason(machine: UpdateEverythingMachine): string | null {
-  if (machine.serverConfig === null || !machine.connected) return "not connected";
+  if (machine.turnedOff === true) return "turned off";
+  if (!machine.connected) return machine.connectionError ?? "not connected";
+  if (machine.serverConfig === null) return "still loading";
   if (!machine.canMaintain) return "no permission";
   if (machine.updateState.status === "running") return "already updating";
   return null;

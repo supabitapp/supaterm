@@ -63,6 +63,8 @@ export function useUpdateEverything(
     label: environment.label,
     serverConfig: environment.serverConfig,
     connected: environment.connection.phase === "connected",
+    connectionError: environment.connection.error,
+    turnedOff: !environment.entry.enabled,
     hostedByThisApp: isHostedByThisApp(environment),
     canMaintain: canUpdateServer(sessionStates[index]!),
     updateState: updateStates[index]!,

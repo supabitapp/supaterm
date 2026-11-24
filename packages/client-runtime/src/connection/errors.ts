@@ -38,7 +38,7 @@ export function environmentMismatchError(input: {
 }): ConnectionBlockedError {
   return new ConnectionBlockedError({
     reason: "configuration",
-    detail: `Connected environment ${input.actual} does not match ${input.expected}.`,
+    detail: `This address now runs a different Supaterm install (${input.actual}, not ${input.expected}). Remove this connection and add it again.`,
   });
 }
 
