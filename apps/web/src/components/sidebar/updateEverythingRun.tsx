@@ -1,6 +1,7 @@
 import { useAtomValue } from "@effect/atom-react";
 import { AVAILABLE_CONNECTION_STATE } from "@supaterm/client-runtime/connection";
 import {
+  ServerUpdateTerminalError,
   nudgeReconnectDuringUpdateRestart,
   serverUpdateStateAtom,
 } from "@supaterm/client-runtime/state/server";
@@ -210,6 +211,7 @@ const HandedOffServer = Schema.Struct({
   label: Schema.String,
   targetVersion: Schema.String,
   startedAt: Schema.Number,
+  updateId: Schema.optionalKey(Schema.String),
 });
 type HandedOffServer = typeof HandedOffServer.Type;
 
@@ -235,12 +237,14 @@ export function saveUpdateEverythingResult(result: UpdateEverythingResult): void
       machine.handedOffVersion ??
       (state.status === "running" ? state.targetVersion : machine.server?.targetVersion);
     if (targetVersion === undefined) return [];
+    const updateId = state.status === "running" ? state.updateId : undefined;
     return [
       {
         environmentId: machine.environmentId,
         label: machine.label,
         targetVersion,
         startedAt: machine.startedAt,
+        ...(updateId === undefined ? {} : { updateId }),
       },
     ];
   });
@@ -331,6 +335,7 @@ function followHandedOffServers(
         appAtomRegistry.get(serverEnvironment.configValueAtom(server.environmentId))?.environment
           .serverVersion ?? server.targetVersion,
       targetVersion: server.targetVersion,
+      ...(server.updateId === undefined ? {} : { updateId: server.updateId }),
     });
     // Nothing observes the atom until the UI mounts, and the registry drops unobserved atoms.
     const releaseState = appAtomRegistry.mount(stateAtom);
@@ -340,7 +345,10 @@ function followHandedOffServers(
       settled = true;
       clearTimeout(timer);
       stopReconnectNudge();
-      queueMicrotask(() => unsubscribe());
+      queueMicrotask(() => {
+        unsubscribe();
+        unsubscribeOutcome();
+      });
       appAtomRegistry.set(stateAtom, { status: "idle" });
       releaseState();
       settleUpdateRunMachine(server.environmentId, failure);
@@ -381,6 +389,30 @@ function followHandedOffServers(
       },
       { immediate: true },
     );
+    // A rollback restarts the old version, which the version check above never accepts.
+    const unsubscribeOutcome =
+      server.updateId === undefined
+        ? () => {}
+        : appAtomRegistry.subscribe(
+            serverEnvironment.updateOutcome({ environmentId: server.environmentId, input: {} }),
+            (result) => {
+              const outcome = AsyncResult.getOrElse(result, () => null);
+              if (
+                outcome === null ||
+                outcome.id !== server.updateId ||
+                outcome.status === "committed"
+              ) {
+                return;
+              }
+              const error = new ServerUpdateTerminalError({
+                targetVersion: server.targetVersion,
+                status: outcome.status,
+                ...(outcome.reason === undefined ? {} : { reason: outcome.reason }),
+              });
+              settle(error.message);
+            },
+            { immediate: true },
+          );
   }
 }
 
